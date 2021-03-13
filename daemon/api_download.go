@@ -113,7 +113,7 @@ func streamOneSnap(c *Command, action snapDownloadAction, user *auth.UserState) 
 	if err != nil {
 		return InternalError(err.Error())
 	}
-	theStore := getStore(c.d)
+	theStore := storeFrom(c.d)
 
 	var ss *snapStream
 	if action.ResumeToken == "" {

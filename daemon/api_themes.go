@@ -159,7 +159,7 @@ func themeStatusAndCandidateSnaps(ctx context.Context, d *Daemon, user *auth.Use
 		return themeStatusResponse{}, nil, err
 	}
 
-	theStore := getStore(d)
+	theStore := storeFrom(d)
 	status.GtkThemes = make(map[string]themeStatus, len(gtkThemes))
 	status.IconThemes = make(map[string]themeStatus, len(iconThemes))
 	status.SoundThemes = make(map[string]themeStatus, len(soundThemes))
