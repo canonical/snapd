@@ -246,6 +246,14 @@ func MockBootMakeSystemRunnable(f func(model *asserts.Model, bootWith *boot.Boot
 	}
 }
 
+func MockBootEnsureNextBootToRunMode(f func(systemLabel string) error) (restore func()) {
+	old := bootEnsureNextBootToRunMode
+	bootEnsureNextBootToRunMode = f
+	return func() {
+		bootEnsureNextBootToRunMode = old
+	}
+}
+
 func MockSecbootCheckKeySealingSupported(f func() error) (restore func()) {
 	old := secbootCheckKeySealingSupported
 	secbootCheckKeySealingSupported = f

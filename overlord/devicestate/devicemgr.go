@@ -142,6 +142,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("mark-preseeded", m.doMarkPreseeded, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 	runner.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
+	runner.AddHandler("ensure-next-boot-to-run-mode", m.doEnsureNextBootToRunMode, nil)
 	runner.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
 	runner.AddCleanup("prepare-remodeling", m.cleanupRemodel)
 	// this *must* always run last and finalizes a remodel
@@ -927,9 +928,19 @@ func (m *DeviceManager) ensureInstalled() error {
 
 	m.ensureInstalledRan = true
 
-	tasks := []*state.Task{}
+	var prev *state.Task
 	setupRunSystem := m.state.NewTask("setup-run-system", i18n.G("Setup system for run mode"))
-	tasks = append(tasks, setupRunSystem)
+
+	tasks := []*state.Task{setupRunSystem}
+	addTask := func(t *state.Task) {
+		t.Set("setup-run-system-task", setupRunSystem.ID())
+		t.WaitFor(prev)
+		tasks = append(tasks, t)
+	}
+	prev = setupRunSystem
+
+	makeBootable := m.state.NewTask("ensure-next-boot-to-run-mode", i18n.G("Ensure next boot to run mode"))
+	addTask(makeBootable)
 
 	chg := m.state.NewChange("install-system", i18n.G("Install the system"))
 	chg.AddAll(state.NewTaskSet(tasks...))
