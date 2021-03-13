@@ -309,9 +309,6 @@ func (s *snapshotSuite) TestChangeSnapshot(c *check.C) {
 func (s *snapshotSuite) TestExportSnapshots(c *check.C) {
 	var snapshotExportCalled int
 
-	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
-		return map[string]string{"id": "1"}
-	})()
 	defer daemon.MockSnapshotExport(func(ctx context.Context, st *state.State, setID uint64) (*snapshotstate.SnapshotExport, error) {
 		snapshotExportCalled++
 		c.Check(setID, check.Equals, uint64(1))
@@ -327,10 +324,6 @@ func (s *snapshotSuite) TestExportSnapshots(c *check.C) {
 }
 
 func (s *snapshotSuite) TestExportSnapshotsBadRequestOnNonNumericID(c *check.C) {
-	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
-		return map[string]string{"id": "xxx"}
-	})()
-
 	req, err := http.NewRequest("GET", "/v2/snapshots/xxx/export", nil)
 	c.Assert(err, check.IsNil)
 
@@ -343,9 +336,6 @@ func (s *snapshotSuite) TestExportSnapshotsBadRequestOnNonNumericID(c *check.C) 
 func (s *snapshotSuite) TestExportSnapshotsBadRequestOnError(c *check.C) {
 	var snapshotExportCalled int
 
-	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
-		return map[string]string{"id": "1"}
-	})()
 	defer daemon.MockSnapshotExport(func(ctx context.Context, st *state.State, setID uint64) (*snapshotstate.SnapshotExport, error) {
 		snapshotExportCalled++
 		return nil, fmt.Errorf("boom")
