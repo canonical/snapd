@@ -90,3 +90,13 @@ func (s *errorsSuite) TestError(c *C) {
 	}
 	c.Check(ae.Error(), Equals, `internal error (api 500)`)
 }
+
+func (s *errorsSuite) TestThroughSyncResponse(c *C) {
+	ae := &daemon.APIError{
+		Status:  400,
+		Message: "req is wrong",
+	}
+
+	rsp := daemon.SyncResponse(ae, nil)
+	c.Check(rsp, Equals, ae)
+}

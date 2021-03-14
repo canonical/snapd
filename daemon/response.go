@@ -191,12 +191,12 @@ type errorResult struct {
 
 // SyncResponse builds a "sync" response from the given result.
 func SyncResponse(result interface{}, meta *Meta) Response {
-	if err, ok := result.(error); ok {
-		return InternalError("internal error: %v", err)
-	}
-
 	if rsp, ok := result.(Response); ok {
 		return rsp
+	}
+
+	if err, ok := result.(error); ok {
+		return InternalError("internal error: %v", err)
 	}
 
 	return &resp{
