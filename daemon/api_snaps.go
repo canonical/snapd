@@ -150,7 +150,7 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	ensureStateSoon(state)
 
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+	return AsyncResponse(nil, chg.ID())
 }
 
 type snapRevisionOptions struct {
@@ -530,7 +530,7 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	chg.Set("api-data", map[string]interface{}{"snap-names": res.Affected})
 
-	return AsyncResponse(res.Result, &Meta{Change: chg.ID()})
+	return AsyncResponse(res.Result, chg.ID())
 }
 
 type snapManyActionFunc func(*snapInstruction, *state.State) (*snapInstructionResult, error)

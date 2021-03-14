@@ -268,7 +268,7 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	// extract the actual snap names before associating them with a change
 	chg := newChange(st, "service-control", "Running service command", tss, namesToSnapNames(&inst))
 	st.EnsureBefore(0)
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+	return AsyncResponse(nil, chg.ID())
 }
 
 func namesToSnapNames(inst *servicestate.Instruction) []string {

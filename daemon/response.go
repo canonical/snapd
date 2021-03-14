@@ -60,12 +60,34 @@ type Response interface {
 	ServeHTTP(w http.ResponseWriter, r *http.Request)
 }
 
-type resp struct {
-	Status int          `json:"status-code"`
-	Type   ResponseType `json:"type"`
-	Result interface{}  `json:"result,omitempty"`
+// XXX drop resp
+type resp = respJSON
+
+// TODO This is being done in a rush to get the proper external
+//      JSON representation in the API in time for the release.
+//      The right code style takes a bit more work and unifies
+//      these fields inside resp.
+// Increment the counter if you read this: 43
+type Meta struct {
+	Sources           []string `json:"sources,omitempty"`
+	SuggestedCurrency string   `json:"suggested-currency,omitempty"`
+}
+
+type respJSON struct {
+	Type ResponseType `json:"type"`
+	// Status is the HTTP status code.
+	Status int `json:"status-code"`
+	// StatusText is filled by the serving pipeline.
+	StatusText string `json:"status"`
+	// Result is a free-form optional result object.
+	Result interface{} `json:"result"`
+	// Change is the change ID for an async response.
+	Change string `json:"change,omitempty"`
 	*Meta
-	Maintenance *errorResult `json:"maintenance,omitempty"`
+	// Maintenance...  are filled as needed by the serving pipeline.
+	WarningTimestamp *time.Time   `json:"warning-timestamp,omitempty"`
+	WarningCount     int          `json:"warning-count,omitempty"`
+	Maintenance      *errorResult `json:"maintenance,omitempty"`
 }
 
 func maintenanceForRestartType(rst state.RestartType) *errorResult {
@@ -102,7 +124,7 @@ func maintenanceForRestartType(rst state.RestartType) *errorResult {
 	return e
 }
 
-func (r *resp) addMaintenanceFromRestartType(rst state.RestartType) {
+func (r *respJSON) addMaintenanceFromRestartType(rst state.RestartType) {
 	if rst == state.RestartUnset {
 		// nothing to do
 		return
@@ -110,56 +132,21 @@ func (r *resp) addMaintenanceFromRestartType(rst state.RestartType) {
 	r.Maintenance = maintenanceForRestartType(rst)
 }
 
-func (r *resp) addWarningsToMeta(count int, stamp time.Time) {
-	if r.Meta != nil && r.Meta.WarningCount != 0 {
+func (r *respJSON) addWarningCount(count int, stamp time.Time) {
+	if r.WarningCount != 0 {
 		return
 	}
 	if count == 0 {
 		return
 	}
-	if r.Meta == nil {
-		r.Meta = &Meta{}
-	}
-	r.Meta.WarningCount = count
-	r.Meta.WarningTimestamp = &stamp
+	r.WarningCount = count
+	r.WarningTimestamp = &stamp
 }
 
-// TODO This is being done in a rush to get the proper external
-//      JSON representation in the API in time for the release.
-//      The right code style takes a bit more work and unifies
-//      these fields inside resp.
-// Increment the counter if you read this: 43
-type Meta struct {
-	Sources           []string   `json:"sources,omitempty"`
-	SuggestedCurrency string     `json:"suggested-currency,omitempty"`
-	Change            string     `json:"change,omitempty"`
-	WarningTimestamp  *time.Time `json:"warning-timestamp,omitempty"`
-	WarningCount      int        `json:"warning-count,omitempty"`
-}
-
-type respJSON struct {
-	Type       ResponseType `json:"type"`
-	Status     int          `json:"status-code"`
-	StatusText string       `json:"status"`
-	Result     interface{}  `json:"result"`
-	*Meta
-	Maintenance *errorResult `json:"maintenance,omitempty"`
-}
-
-func (r *resp) MarshalJSON() ([]byte, error) {
-	return json.Marshal(respJSON{
-		Type:        r.Type,
-		Status:      r.Status,
-		StatusText:  http.StatusText(r.Status),
-		Result:      r.Result,
-		Meta:        r.Meta,
-		Maintenance: r.Maintenance,
-	})
-}
-
-func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+func (r *respJSON) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	status := r.Status
-	bs, err := r.MarshalJSON()
+	r.StatusText = http.StatusText(r.Status)
+	bs, err := json.Marshal(r)
 	if err != nil {
 		logger.Noticef("cannot marshal %#v to JSON: %v", *r, err)
 		bs = nil
@@ -209,13 +196,13 @@ func SyncResponse(result interface{}, meta *Meta) Response {
 	}
 }
 
-// AsyncResponse builds an "async" response from the given *Task
-func AsyncResponse(result map[string]interface{}, meta *Meta) Response {
-	return &resp{
+// AsyncResponse builds an "async" response for a created change
+func AsyncResponse(result map[string]interface{}, change string) Response {
+	return &respJSON{
 		Type:   ResponseTypeAsync,
 		Status: 202,
 		Result: result,
-		Meta:   meta,
+		Change: change,
 	}
 }
 

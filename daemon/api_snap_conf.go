@@ -121,5 +121,5 @@ func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	st.EnsureBefore(0)
 
-	return AsyncResponse(nil, &Meta{Change: change.ID()})
+	return AsyncResponse(nil, change.ID())
 }

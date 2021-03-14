@@ -200,7 +200,7 @@ out:
 	// but this is good enough
 	changeTriggered = true
 
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+	return AsyncResponse(nil, chg.ID())
 }
 
 func trySnap(st *state.State, trydir string, flags snapstate.Flags) Response {
@@ -241,7 +241,7 @@ func trySnap(st *state.State, trydir string, flags snapstate.Flags) Response {
 
 	ensureStateSoon(st)
 
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+	return AsyncResponse(nil, chg.ID())
 }
 
 var unsafeReadSnapInfo = unsafeReadSnapInfoImpl

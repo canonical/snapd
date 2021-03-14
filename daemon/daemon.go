@@ -174,7 +174,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			st.Lock()
 			count, stamp := st.WarningsSummary()
 			st.Unlock()
-			rsp.addWarningsToMeta(count, stamp)
+			rsp.addWarningCount(count, stamp)
 		}
 	}
 
