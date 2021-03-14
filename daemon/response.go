@@ -55,9 +55,16 @@ const (
 	ResponseTypeError ResponseType = "error"
 )
 
-// Response knows how to serve itself, and how to find itself
+// Response knows how to serve itself.
 type Response interface {
 	ServeHTTP(w http.ResponseWriter, r *http.Request)
+}
+
+// A StructuredResponse serializes itself to our standard JSON response format.
+type StructuredResponse interface {
+	Response
+
+	JSON() *respJSON
 }
 
 // XXX drop resp
@@ -88,6 +95,10 @@ type respJSON struct {
 	WarningTimestamp *time.Time   `json:"warning-timestamp,omitempty"`
 	WarningCount     int          `json:"warning-count,omitempty"`
 	Maintenance      *errorResult `json:"maintenance,omitempty"`
+}
+
+func (r *respJSON) JSON() *respJSON {
+	return r
 }
 
 func maintenanceForRestartType(rst state.RestartType) *errorResult {
