@@ -114,11 +114,8 @@ func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
 	}); err != nil {
 		return BadRequest("assert failed: %v", err)
 	}
-	// TODO: what more info do we want to return on success?
-	return &resp{
-		Type:   ResponseTypeSync,
-		Status: 200,
-	}
+
+	return SyncResponse(nil, nil)
 }
 
 func assertsFindOneRemote(c *Command, at *asserts.AssertionType, headers map[string]string, user *auth.UserState) ([]asserts.Assertion, error) {
