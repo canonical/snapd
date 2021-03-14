@@ -178,12 +178,13 @@ func (s *responseSuite) TestErrToResponse(c *check.C) {
 	// this one can't happen (but fun to test):
 	saXe := &store.SnapActionError{Refresh: map[string]error{"foo": sa1e}}
 
-	makeErrorRsp := func(kind client.ErrorKind, err error, value interface{}) daemon.Response {
-		return daemon.SyncResponse(&daemon.Resp{
-			Type:   daemon.ResponseTypeError,
-			Result: &daemon.ErrorResult{Message: err.Error(), Kind: kind, Value: value},
-			Status: 400,
-		}, nil)
+	makeErrorRsp := func(kind client.ErrorKind, err error, value interface{}) *daemon.APIError {
+		return &daemon.APIError{
+			Status:  400,
+			Message: err.Error(),
+			Kind:    kind,
+			Value:   value,
+		}
 	}
 
 	tests := []struct {
@@ -215,8 +216,8 @@ func (s *responseSuite) TestErrToResponse(c *check.C) {
 
 	for _, t := range tests {
 		com := check.Commentf("%v", t.err)
-		rsp := daemon.ErrToResponse(t.err, []string{"foo"}, daemon.BadRequest, "%s: %v", "ERR")
-		c.Check(rsp, check.DeepEquals, t.expectedRsp, com)
+		ae := daemon.ErrToResponse(t.err, []string{"foo"}, daemon.BadRequest, "%s: %v", "ERR")
+		c.Check(ae, check.DeepEquals, t.expectedRsp, com)
 	}
 }
 
@@ -227,17 +228,14 @@ func (s *responseSuite) TestErrToResponseInsufficentSpace(c *check.C) {
 		Path:       "/path",
 		Message:    "specific error msg",
 	}
-	rsp := daemon.ErrToResponse(err, nil, daemon.BadRequest, "%s: %v", "ERR").(*daemon.Resp)
-	c.Check(rsp, check.DeepEquals, &daemon.Resp{
-		Status: 507,
-		Type:   daemon.ResponseTypeError,
-		Result: &daemon.ErrorResult{
-			Message: "specific error msg",
-			Kind:    client.ErrorKindInsufficientDiskSpace,
-			Value: map[string]interface{}{
-				"snap-names":  []string{"foo", "bar"},
-				"change-kind": "some-change",
-			},
+	ae := daemon.ErrToResponse(err, nil, daemon.BadRequest, "%s: %v", "ERR")
+	c.Check(ae, check.DeepEquals, &daemon.APIError{
+		Status:  507,
+		Message: "specific error msg",
+		Kind:    client.ErrorKindInsufficientDiskSpace,
+		Value: map[string]interface{}{
+			"snap-names":  []string{"foo", "bar"},
+			"change-kind": "some-change",
 		},
 	})
 }

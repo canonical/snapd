@@ -223,7 +223,7 @@ func (inst *snapInstruction) ModeFlags() (snapstate.Flags, error) {
 	return inst.modeFlags()
 }
 
-func (inst *snapInstruction) ErrToResponse(err error) Response {
+func (inst *snapInstruction) ErrToResponse(err error) *APIError {
 	return inst.errToResponse(err)
 }
 

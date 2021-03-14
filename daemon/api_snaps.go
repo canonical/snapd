@@ -451,7 +451,7 @@ func (inst *snapInstruction) dispatch() snapActionFunc {
 	return snapInstructionDispTable[inst.Action]
 }
 
-func (inst *snapInstruction) errToResponse(err error) Response {
+func (inst *snapInstruction) errToResponse(err error) *apiError {
 	if len(inst.Snaps) == 0 {
 		return errToResponse(err, nil, BadRequest, "cannot %s: %v", inst.Action)
 	}

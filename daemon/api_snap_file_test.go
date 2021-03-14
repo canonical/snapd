@@ -80,10 +80,9 @@ func (s *snapFileSuite) TestGetFile(c *check.C) {
 		if scen.err == "" {
 			c.Check(string(rsp.(daemon.FileResponse)), check.Equals, filepath.Join(dirs.SnapBlobDir, "foo_x1.snap"), check.Commentf("%d", i))
 		} else {
-			c.Assert(rsp, check.FitsTypeOf, &daemon.Resp{}, check.Commentf("%d", i))
-			result := rsp.(*daemon.Resp).Result
-			c.Assert(result, check.FitsTypeOf, &daemon.ErrorResult{}, check.Commentf("%d", i))
-			c.Check(result.(*daemon.ErrorResult).Message, check.Matches, scen.err, check.Commentf("%d", i))
+			ae, ok := rsp.(*daemon.APIError)
+			c.Assert(ok, check.Equals, true, check.Commentf("%d", i))
+			c.Check(ae.Message, check.Matches, scen.err, check.Commentf("%d", i))
 		}
 	}
 }
