@@ -254,7 +254,7 @@ func (s *apiBaseSuite) mockModel(c *check.C, st *state.State, model *asserts.Mod
 
 func (s *apiBaseSuite) daemonWithStore(c *check.C, sto snapstate.StoreService) *daemon.Daemon {
 	if s.d != nil {
-		panic("called Daemon*() twice")
+		panic("called daemon*() twice")
 	}
 	d, err := daemon.NewAndAddRoutes()
 	c.Assert(err, check.IsNil)
@@ -291,7 +291,7 @@ func (s *apiBaseSuite) daemon(c *check.C) *daemon.Daemon {
 
 func (s *apiBaseSuite) daemonWithOverlordMock(c *check.C) *daemon.Daemon {
 	if s.d != nil {
-		panic("called Daemon*() twice")
+		panic("called daemon*() twice")
 	}
 
 	o := overlord.Mock()
@@ -301,7 +301,7 @@ func (s *apiBaseSuite) daemonWithOverlordMock(c *check.C) *daemon.Daemon {
 
 func (s *apiBaseSuite) daemonWithOverlordMockAndStore(c *check.C) *daemon.Daemon {
 	if s.d != nil {
-		panic("called Daemon*() twice")
+		panic("called daemon*() twice")
 	}
 
 	o := overlord.Mock()
@@ -365,7 +365,7 @@ func (s *apiBaseSuite) mkInstalledDesktopFile(c *check.C, name, content string) 
 
 func (s *apiBaseSuite) mockSnap(c *check.C, yamlText string) *snap.Info {
 	if s.d == nil {
-		panic("call s.Daemon(c) etc in your test first")
+		panic("call s.daemon(c) etc in your test first")
 	}
 
 	snapInfo := snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: snap.R(1)})
@@ -510,7 +510,7 @@ func handlerCommand(c *check.C, d *daemon.Daemon, req *http.Request) (cmd *daemo
 
 func (s *apiBaseSuite) checkGetOnly(c *check.C, req *http.Request) {
 	if s.d == nil {
-		panic("call s.Daemon(c) etc in your test first")
+		panic("call s.daemon(c) etc in your test first")
 	}
 
 	cmd, _ := handlerCommand(c, s.d, req)
@@ -521,7 +521,7 @@ func (s *apiBaseSuite) checkGetOnly(c *check.C, req *http.Request) {
 
 func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState) daemon.Response {
 	if s.d == nil {
-		panic("call s.Daemon(c) etc in your test first")
+		panic("call s.daemon(c) etc in your test first")
 	}
 
 	cmd, vars := handlerCommand(c, s.d, req)
@@ -545,7 +545,7 @@ func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState) dae
 
 func (s *apiBaseSuite) serveHTTP(c *check.C, w http.ResponseWriter, req *http.Request) {
 	if s.d == nil {
-		panic("call s.Daemon(c) etc in your test first")
+		panic("call s.daemon(c) etc in your test first")
 	}
 
 	cmd, vars := handlerCommand(c, s.d, req)
@@ -556,7 +556,7 @@ func (s *apiBaseSuite) serveHTTP(c *check.C, w http.ResponseWriter, req *http.Re
 
 func (s *apiBaseSuite) simulateConflict(name string) {
 	if s.d == nil {
-		panic("call s.Daemon(c) etc in your test first")
+		panic("call s.daemon(c) etc in your test first")
 	}
 
 	o := s.d.Overlord()
