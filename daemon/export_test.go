@@ -197,6 +197,7 @@ type (
 	Resp            = resp
 	RespJSON        = respJSON
 	FileResponse    = fileResponse
+	APIError        = apiError
 	ErrorResult     = errorResult
 	SnapInstruction = snapInstruction
 )
