@@ -102,6 +102,14 @@ func maintenanceForRestartType(rst state.RestartType) *errorResult {
 	return e
 }
 
+func (r *resp) addMaintenanceFromRestartType(rst state.RestartType) {
+	if rst == state.RestartUnset {
+		// nothing to do
+		return
+	}
+	r.Maintenance = maintenanceForRestartType(rst)
+}
+
 func (r *resp) addWarningsToMeta(count int, stamp time.Time) {
 	if r.Meta != nil && r.Meta.WarningCount != 0 {
 		return
