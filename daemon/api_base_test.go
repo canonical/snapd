@@ -543,6 +543,30 @@ func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState) dae
 	return f(cmd, req, u)
 }
 
+func (s *apiBaseSuite) jsonReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.Resp {
+	rsp, ok := s.req(c, req, u).(*daemon.Resp)
+	c.Assert(ok, check.Equals, true, check.Commentf("expected structured response"))
+	return rsp
+}
+
+func (s *apiBaseSuite) syncReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.Resp {
+	rsp := s.jsonReq(c, req, u)
+	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeSync, check.Commentf("expected sync resp: %#v", rsp))
+	return rsp
+}
+
+func (s *apiBaseSuite) asyncReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.Resp {
+	rsp := s.jsonReq(c, req, u)
+	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeAsync, check.Commentf("expected async resp: %#v", rsp))
+	return rsp
+}
+
+func (s *apiBaseSuite) errorReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.Resp {
+	rsp := s.jsonReq(c, req, u)
+	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError, check.Commentf("expected error resp: %#v", rsp))
+	return rsp
+}
+
 func (s *apiBaseSuite) serveHTTP(c *check.C, w http.ResponseWriter, req *http.Request) {
 	if s.d == nil {
 		panic("call s.daemon(c) etc in your test first")
