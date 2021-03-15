@@ -114,15 +114,12 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	// the "username" needs to look a lot like an email address
 	if !isEmailish(loginData.Email) {
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: "please use a valid email address.",
-				Kind:    client.ErrorKindInvalidAuthData,
-				Value:   map[string][]string{"email": {"invalid"}},
-			},
-			Status: 400,
-		}, nil)
+		return &apiError{
+			Status:  400,
+			Message: "please use a valid email address.",
+			Kind:    client.ErrorKindInvalidAuthData,
+			Value:   map[string][]string{"email": {"invalid"}},
+		}
 	}
 
 	overlord := c.d.overlord
@@ -131,45 +128,33 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 	macaroon, discharge, err := theStore.LoginUser(loginData.Email, loginData.Password, loginData.Otp)
 	switch err {
 	case store.ErrAuthenticationNeeds2fa:
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Kind:    client.ErrorKindTwoFactorRequired,
-				Message: err.Error(),
-			},
-			Status: 401,
-		}, nil)
+		return &apiError{
+			Status:  401,
+			Message: err.Error(),
+			Kind:    client.ErrorKindTwoFactorRequired,
+		}
 	case store.Err2faFailed:
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Kind:    client.ErrorKindTwoFactorFailed,
-				Message: err.Error(),
-			},
-			Status: 401,
-		}, nil)
+		return &apiError{
+			Status:  401,
+			Message: err.Error(),
+			Kind:    client.ErrorKindTwoFactorFailed,
+		}
 	default:
 		switch err := err.(type) {
 		case store.InvalidAuthDataError:
-			return SyncResponse(&resp{
-				Type: ResponseTypeError,
-				Result: &errorResult{
-					Message: err.Error(),
-					Kind:    client.ErrorKindInvalidAuthData,
-					Value:   err,
-				},
-				Status: 400,
-			}, nil)
+			return &apiError{
+				Status:  400,
+				Message: err.Error(),
+				Kind:    client.ErrorKindInvalidAuthData,
+				Value:   err,
+			}
 		case store.PasswordPolicyError:
-			return SyncResponse(&resp{
-				Type: ResponseTypeError,
-				Result: &errorResult{
-					Message: err.Error(),
-					Kind:    client.ErrorKindPasswordPolicy,
-					Value:   err,
-				},
-				Status: 401,
-			}, nil)
+			return &apiError{
+				Status:  401,
+				Message: err.Error(),
+				Kind:    client.ErrorKindPasswordPolicy,
+				Value:   err,
+			}
 		}
 		return Unauthorized(err.Error())
 	case nil:
