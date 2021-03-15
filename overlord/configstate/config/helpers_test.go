@@ -146,8 +146,13 @@ func (s *configHelpersSuite) TestSnapConfig(c *C) {
 	defer s.state.Unlock()
 
 	empty1 := json.RawMessage(nil)
+	buf, err := json.Marshal(nil)
+	c.Assert(err, IsNil)
+	empty2 := (*json.RawMessage)(&buf)
+	// sanity check
+	c.Check(bytes.Compare(*empty2, []byte(`null`)), Equals, 0)
 
-	for _, emptyCfg := range []*json.RawMessage{nil, &empty1, {}} {
+	for _, emptyCfg := range []*json.RawMessage{nil, &empty1, empty2, {}} {
 		rawCfg, err := config.GetSnapConfig(s.state, "snap1")
 		c.Assert(err, IsNil)
 		c.Check(rawCfg, IsNil)
@@ -172,6 +177,12 @@ func (s *configHelpersSuite) TestSnapConfig(c *C) {
 		rawCfg, err = config.GetSnapConfig(s.state, "snap1")
 		c.Assert(err, IsNil)
 		c.Check(rawCfg, IsNil)
+
+		// and there is no entry for the snap in state
+		var config map[string]interface{}
+		c.Assert(s.state.Get("config", &config), IsNil)
+		_, ok := config["snap1"]
+		c.Check(ok, Equals, false)
 	}
 }
 
