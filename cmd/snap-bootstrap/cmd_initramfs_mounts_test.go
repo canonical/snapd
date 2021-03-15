@@ -3724,7 +3724,9 @@ grade=signed
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencryptedDataSaveEncryptedHappy(c *C) {
-	// test a scenario when data is unencrypted but save is encrypted
+	// test a rather impossible scenario when data is unencrypted, but save
+	// is encrypted and thus gets completely ignored, because plain data
+	// implies plain save
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
 
 	restore := main.MockPartitionUUIDForBootedKernelDisk("")
@@ -3839,13 +3841,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencrypted
 	}, nil)
 	defer restore()
 
-	// no sealed keys will be locked
-	restore = main.MockSecbootLockSealedKeys(func() error {
-		c.Fatalf("unexpected call")
-		return fmt.Errorf("unexpected call")
-	})
-	defer restore()
-
 	s.testRecoverModeHappy(c)
 
 	c.Check(dataActivated, Equals, true)
@@ -3858,7 +3853,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencrypted
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDataUnencryptedSaveUnhappy(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDataUnencryptedSaveHappy(c *C) {
 	// test a scenario when data is encrypted but save is unencrypted
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
 
@@ -4002,7 +3997,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDa
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeUnencryptedDataUnencryptedSaveHappy(c *C) {
-	// test a scenario when data is encrypted but save is unencrypted
+	// test a scenario when data is encrypted, same goes for save and the
+	// test observes calls to secboot unlock helper
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
 
 	restore := main.MockPartitionUUIDForBootedKernelDisk("")
