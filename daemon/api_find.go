@@ -119,6 +119,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
 		return Unauthorized(err.Error())
 	default:
+		// XXX should these return 503 actually?
 		if e, ok := err.(*url.Error); ok {
 			if neterr, ok := e.Err.(*net.OpError); ok {
 				if dnserr, ok := neterr.Err.(*net.DNSError); ok {
