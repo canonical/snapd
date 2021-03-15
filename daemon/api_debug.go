@@ -65,7 +65,8 @@ func getBaseDeclaration(st *state.State) Response {
 	}
 	return SyncResponse(map[string]interface{}{
 		"base-declaration": string(asserts.Encode(bd)),
-	}, nil)
+	})
+
 }
 
 func checkConnectivity(st *state.State) Response {
@@ -85,7 +86,7 @@ func checkConnectivity(st *state.State) Response {
 	}
 	sort.Strings(status.Unreachable)
 
-	return SyncResponse(status, nil)
+	return SyncResponse(status)
 }
 
 type changeTimings struct {
@@ -240,7 +241,7 @@ func getChangeTimings(st *state.State, changeID, ensureTag, startupTag string, a
 		if err != nil {
 			return BadRequest(err.Error())
 		}
-		return SyncResponse(responseData, nil)
+		return SyncResponse(responseData)
 	}
 
 	if startupTag != "" {
@@ -248,7 +249,7 @@ func getChangeTimings(st *state.State, changeID, ensureTag, startupTag string, a
 		if err != nil {
 			return BadRequest(err.Error())
 		}
-		return SyncResponse(responseData, nil)
+		return SyncResponse(responseData)
 	}
 
 	// timings for single change ID
@@ -263,7 +264,7 @@ func getChangeTimings(st *state.State, changeID, ensureTag, startupTag string, a
 			ChangeTimings: changeTimings,
 		},
 	}
-	return SyncResponse(responseData, nil)
+	return SyncResponse(responseData)
 }
 
 func createRecovery(st *state.State, label string) Response {
@@ -296,7 +297,8 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		return SyncResponse(map[string]interface{}{
 			"model": string(asserts.Encode(model)),
-		}, nil)
+		})
+
 	case "change-timings":
 		chgID := query.Get("change-id")
 		ensureTag := query.Get("ensure")
@@ -324,22 +326,22 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	switch a.Action {
 	case "add-warning":
 		st.Warnf("%v", a.Message)
-		return SyncResponse(true, nil)
+		return SyncResponse(true)
 	case "unshow-warnings":
 		st.UnshowAllWarnings()
-		return SyncResponse(true, nil)
+		return SyncResponse(true)
 	case "ensure-state-soon":
 		ensureStateSoon(st)
-		return SyncResponse(true, nil)
+		return SyncResponse(true)
 	case "can-manage-refreshes":
-		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
+		return SyncResponse(devicestate.CanManageRefreshes(st))
 	case "prune":
 		opTime, err := c.d.overlord.DeviceManager().StartOfOperationTime()
 		if err != nil {
 			return BadRequest("cannot get start of operation time: %s", err)
 		}
 		st.Prune(opTime, 0, 0, 0)
-		return SyncResponse(true, nil)
+		return SyncResponse(true)
 	case "stacktraces":
 		return getStacktraces()
 	case "create-recovery-system":

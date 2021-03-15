@@ -88,7 +88,7 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	result := webify(mapLocal(about, sd), url.String())
 
-	return SyncResponse(result, nil)
+	return SyncResponse(result)
 }
 
 func webify(result *client.Snap, resource string) *client.Snap {

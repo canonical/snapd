@@ -111,7 +111,7 @@ func getQuotaGroups(c *Command, r *http.Request, _ *auth.UserState) Response {
 			CurrentMemory: uint64(memoryUsage),
 		}
 	}
-	return SyncResponse(results, nil)
+	return SyncResponse(results)
 }
 
 // getQuotaGroupInfo returns details of a single quota Group.
@@ -147,7 +147,7 @@ func getQuotaGroupInfo(c *Command, r *http.Request, _ *auth.UserState) Response 
 		MaxMemory:     uint64(group.MemoryLimit),
 		CurrentMemory: uint64(memoryUsage),
 	}
-	return SyncResponse(res, nil)
+	return SyncResponse(res)
 }
 
 // postQuotaGroup creates quota resource group or updates an existing group.
@@ -199,5 +199,5 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 	default:
 		return BadRequest("unknown quota action %q", data.Action)
 	}
-	return SyncResponse(nil, nil)
+	return SyncResponse(nil)
 }

@@ -187,7 +187,7 @@ type errorResult struct {
 }
 
 // SyncResponse builds a "sync" response from the given result.
-func SyncResponse(result interface{}, meta *Meta) Response {
+func SyncResponse(result interface{}) Response {
 	if rsp, ok := result.(Response); ok {
 		return rsp
 	}
@@ -200,7 +200,6 @@ func SyncResponse(result interface{}, meta *Meta) Response {
 		Type:   ResponseTypeSync,
 		Status: 200,
 		Result: result,
-		Meta:   meta,
 	}
 }
 
