@@ -700,7 +700,10 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		results[i] = &raw
 	}
 
-	return SyncResponse(results, &Meta{Sources: []string{"local"}})
+	return &findResponse{
+		Results: results,
+		Sources: []string{"local"},
+	}
 }
 
 func shouldSearchStore(r *http.Request) bool {
