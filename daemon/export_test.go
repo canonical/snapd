@@ -202,7 +202,7 @@ type (
 )
 
 // XXX this is not used very consistently
-func (rsp *resp) ErrorResult() *errorResult {
+func (rsp *respJSON) ErrorResult() *errorResult {
 	return rsp.Result.(*errorResult)
 }
 
