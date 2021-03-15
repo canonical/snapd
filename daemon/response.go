@@ -190,7 +190,7 @@ func SyncResponse(result interface{}) Response {
 		return InternalError("internal error: %v", err)
 	}
 
-	return &resp{
+	return &respJSON{
 		Type:   ResponseTypeSync,
 		Status: 200,
 		Result: result,
