@@ -254,13 +254,11 @@ type findResponse struct {
 
 func (r *findResponse) JSON() *respJSON {
 	return &respJSON{
-		Status: 200,
-		Type:   ResponseTypeSync,
-		Result: r.Results,
-		Meta: &Meta{
-			Sources:           r.Sources,
-			SuggestedCurrency: r.SuggestedCurrency,
-		},
+		Status:            200,
+		Type:              ResponseTypeSync,
+		Result:            r.Results,
+		Sources:           r.Sources,
+		SuggestedCurrency: r.SuggestedCurrency,
 	}
 }
 
