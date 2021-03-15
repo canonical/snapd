@@ -6299,6 +6299,19 @@ func (ms *gadgetUpdatesSuite) mockInstalledSnapWithFiles(c *C, snapYaml string, 
 	})
 }
 
+func (ms *gadgetUpdatesSuite) mockSnapUpgradeWithFiles(c *C, snapYaml string, files [][]string) {
+	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
+	c.Assert(err, IsNil)
+
+	ms.prereqSnapAssertions(c, map[string]interface{}{
+		"snap-name":    info.SnapName(),
+		"publisher-id": "can0nical",
+		"revision":     "2",
+	})
+	snapPath, _ := ms.makeStoreTestSnapWithFiles(c, snapYaml, "2", files)
+	ms.serveSnap(snapPath, "2")
+}
+
 func (ms *gadgetUpdatesSuite) TestRefreshGadgetUpdates(c *C) {
 	structureName := "ubuntu-seed"
 	gadgetYaml := fmt.Sprintf(`
@@ -6333,19 +6346,13 @@ volumes:
 	})
 
 	// add new gadget snap to fake store
-	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "pi",
-		"publisher-id": "can0nical",
-		"revision":     "2",
-	})
-	snapPath, _ := ms.makeStoreTestSnapWithFiles(c, gadgetSnapYaml, "2", [][]string{
+	ms.mockSnapUpgradeWithFiles(c, gadgetSnapYaml, [][]string{
 		{"meta/gadget.yaml", newGadgetYaml},
 		{"boot-assets/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev2"},
 		{"boot-assets/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev2"},
 		{"boot-assets/overlays/uart0.dtbo", "uart0.dtbo rev2"},
 		{"foo.img", "foo rev2"},
 	})
-	ms.serveSnap(snapPath, "2")
 
 	ts, err := snapstate.Update(st, "pi", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
@@ -6429,18 +6436,12 @@ volumes:
 	})
 
 	// add new kernel snap to fake store
-	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "pi-kernel",
-		"publisher-id": "can0nical",
-		"revision":     "2",
-	})
-	snapPath, _ := ms.makeStoreTestSnapWithFiles(c, kernelSnapYaml, "2", [][]string{
+	ms.mockSnapUpgradeWithFiles(c, kernelSnapYaml, [][]string{
 		{"meta/kernel.yaml", kernelYaml},
 		{"dtbs/broadcom/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev2"},
 		{"dtbs/broadcom/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev2"},
 		{"dtbs/overlays/uart0.dtbo", "uart0.dtbo rev2"},
 	})
-	ms.serveSnap(snapPath, "2")
 
 	ts, err := snapstate.Update(st, "pi-kernel", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
@@ -6533,16 +6534,10 @@ volumes:
 
 	// add new gadget snap to fake store that has an "update: true"
 	// for the kernel ref structure
-	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "pi",
-		"publisher-id": "can0nical",
-		"revision":     "2",
-	})
-	snapPath, _ := ms.makeStoreTestSnapWithFiles(c, gadgetSnapYaml, "2", [][]string{
+	ms.mockSnapUpgradeWithFiles(c, gadgetSnapYaml, [][]string{
 		{"meta/gadget.yaml", newGadgetYaml},
 		{"boot-assets/start.elf", "start.elf rev2"},
 	})
-	ms.serveSnap(snapPath, "2")
 
 	ts, err := snapstate.Update(st, "pi", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
@@ -6649,31 +6644,19 @@ volumes:
 	ms.mockInstalledSnapWithFiles(c, kernelSnapYaml, nil)
 
 	// add new kernel snap with kernel-refs to fake store
-	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "pi-kernel",
-		"publisher-id": "can0nical",
-		"revision":     "2",
-	})
-	snapPath, _ := ms.makeStoreTestSnapWithFiles(c, kernelSnapYaml, "2", [][]string{
+	ms.mockSnapUpgradeWithFiles(c, kernelSnapYaml, [][]string{
 		{"meta/kernel.yaml", kernelYaml},
 		{"dtbs/broadcom/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev2-from-kernel"},
 		{"dtbs/broadcom/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev2-from-kernel"},
 		{"dtbs/overlays/uart0.dtbo", "uart0.dtbo rev2-from-kernel"},
 	})
-	ms.serveSnap(snapPath, "2")
 
 	// add new gadget snap with kernel-refs to fake store
-	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "pi",
-		"publisher-id": "can0nical",
-		"revision":     "2",
-	})
-	snapPath2, _ := ms.makeStoreTestSnapWithFiles(c, gadgetSnapYaml, "2", [][]string{
+	ms.mockSnapUpgradeWithFiles(c, gadgetSnapYaml, [][]string{
 		{"meta/gadget.yaml", newGadgetYaml},
 		{"boot-assets/start.elf", "start.elf rev1"},
 		// notice: no dtbs anymore in the gadget
 	})
-	ms.serveSnap(snapPath2, "2")
 
 	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
