@@ -630,10 +630,6 @@ func (s *apiBaseSuite) asyncReq(c *check.C, req *http.Request, u *auth.UserState
 }
 
 func (s *apiBaseSuite) errorReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.APIError {
-	return s.apiErrorReq(c, req, u)
-}
-
-func (s *apiBaseSuite) apiErrorReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.APIError {
 	rsp := s.req(c, req, u)
 	rspe, ok := rsp.(*daemon.APIError)
 	c.Assert(ok, check.Equals, true, check.Commentf("expected apiError resp: %#v", rsp))

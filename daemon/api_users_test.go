@@ -550,7 +550,7 @@ func (s *userSuite) testNoUserAdmin(c *check.C, endpoint string) {
 	req, err := http.NewRequest("POST", endpoint, buf)
 	c.Assert(err, check.IsNil)
 
-	rspe := s.apiErrorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil)
 
 	const noUserAdmin = "system user administration via snapd is not allowed on this system"
 	switch endpoint {
@@ -577,7 +577,7 @@ func (s *userSuite) TestPostUserBadAfterBody(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rspe := s.apiErrorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe, check.DeepEquals, daemon.BadRequest("spurious content after user action"))
 }
 
@@ -586,7 +586,7 @@ func (s *userSuite) TestPostUserNoAction(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rspe := s.apiErrorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe, check.DeepEquals, daemon.BadRequest("missing user action"))
 }
 
@@ -595,7 +595,7 @@ func (s *userSuite) TestPostUserBadAction(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rspe := s.apiErrorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe, check.DeepEquals, daemon.BadRequest(`unsupported user action "patatas"`))
 }
 
@@ -604,7 +604,7 @@ func (s *userSuite) TestPostUserActionRemoveNoUsername(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rspe := s.apiErrorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe, check.DeepEquals, daemon.BadRequest("need a username to remove"))
 }
 
@@ -666,7 +666,7 @@ func (s *userSuite) TestPostUserActionRemoveNoUserInState(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rspe := s.apiErrorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe, check.DeepEquals, daemon.BadRequest(`user "some-user" is not known`))
 	c.Check(called, check.Equals, 0)
 }
