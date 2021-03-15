@@ -151,8 +151,8 @@ type UnlockResult struct {
 // full disk encryption implementations.
 var FDEHasRevealKey = func() bool { return false }
 
-// EncryptedPartitionName returns the name/label the encrypted partition
-// corresponding to a given name would use.
+// EncryptedPartitionName returns the name/label used by an encrypted partition
+// corresponding to a given name.
 func EncryptedPartitionName(name string) string {
 	return name + "-enc"
 }
