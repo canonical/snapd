@@ -406,8 +406,8 @@ func (s *snapDownloadSuite) TestStreamRangeHeaderErrors(c *check.C) {
 		req.Header.Add("Range", t)
 
 		rsp := s.req(c, req, nil)
-		if dr, ok := rsp.(*daemon.Resp); ok {
-			c.Fatalf("unexpected daemon result (test broken): %v", dr.Result)
+		if dr, ok := rsp.(daemon.StructuredResponse); ok {
+			c.Fatalf("unexpected daemon result (test broken): %v", dr.JSON().Result)
 		}
 		w := httptest.NewRecorder()
 		ss := rsp.(*daemon.SnapStream)

@@ -64,7 +64,7 @@ func (s *generalSuite) TestRoot(c *check.C) {
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
 
 	expected := []interface{}{"TBD"}
-	var rsp daemon.Resp
+	var rsp daemon.RespJSON
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Result, check.DeepEquals, expected)
@@ -133,7 +133,7 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 		"virtualization":   "magic",
 		"system-mode":      "run",
 	}
-	var rsp daemon.Resp
+	var rsp daemon.RespJSON
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
@@ -214,7 +214,7 @@ func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
 		"virtualization": "kvm",
 		"system-mode":    "run",
 	}
-	var rsp daemon.Resp
+	var rsp daemon.RespJSON
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
@@ -292,7 +292,7 @@ func (s *generalSuite) testSysInfoSystemMode(c *check.C, mode string) {
 		"architecture": arch.DpkgArchitecture(),
 		"system-mode":  mode,
 	}
-	var rsp daemon.Resp
+	var rsp daemon.RespJSON
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
