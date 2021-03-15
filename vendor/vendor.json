@@ -7,10 +7,10 @@
 			"revision": ""
 		},
 		{
-			"checksumSHA1": "inZOuvF07VvZnsj1HvApM8Uf7qY=",
+			"checksumSHA1": "k/AaLsIMOYZr/PALamIsOMiI66U=",
 			"path": "github.com/canonical/go-tpm2",
-			"revision": "fb781d04d0dea72f916cc68b637b7be6bcb3ccd4",
-			"revisionTime": "2020-08-24T18:49:43Z"
+			"revision": "32171bd353b113ff4793dc3c65a019d749674bc6",
+			"revisionTime": "2021-03-14T16:00:24Z"
 		},
 		{
 			"checksumSHA1": "l3m9GecpUh+E9sLsz0l959TA6LY=",
