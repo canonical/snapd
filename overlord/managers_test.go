@@ -6279,6 +6279,26 @@ func tsWithoutReRefresh(c *C, ts *state.TaskSet) *state.TaskSet {
 	return ts
 }
 
+// XXX: We have some very similar code in hookstate/ctlcmd/is_connected_test.go
+//      should this be moved to overlord/snapstate/snapstatetest as a common
+//      helper
+func (ms *gadgetUpdatesSuite) mockInstalledSnapWithFiles(c *C, snapYaml string, files [][]string) {
+	st := ms.o.State()
+
+	info := snaptest.MockSnapWithFiles(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)}, files)
+	si := &snap.SideInfo{
+		RealName: info.SnapName(),
+		SnapID:   fakeSnapID(info.SnapName()),
+		Revision: info.Revision,
+	}
+	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  info.Revision,
+		SnapType: string(info.Type()),
+	})
+}
+
 func (ms *gadgetUpdatesSuite) TestRefreshGadgetUpdates(c *C) {
 	structureName := "ubuntu-seed"
 	gadgetYaml := fmt.Sprintf(`
@@ -6307,15 +6327,8 @@ volumes:
 	defer st.Unlock()
 
 	// we have an installed gadget
-	si := &snap.SideInfo{RealName: "pi", SnapID: fakeSnapID("pi"), Revision: snap.R(1)}
 	gadgetSnapYaml := "name: pi\nversion: 1.0\ntype: gadget"
-	snapstate.Set(st, "pi", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{si},
-		Current:  snap.R(1),
-		SnapType: "gadget",
-	})
-	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, si, [][]string{
+	ms.mockInstalledSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"meta/gadget.yaml", gadgetYaml},
 	})
 
@@ -6404,28 +6417,14 @@ volumes:
 	defer st.Unlock()
 
 	// we have an installed gadget with kernel refs
-	si := &snap.SideInfo{RealName: "pi", SnapID: fakeSnapID("pi"), Revision: snap.R(1)}
 	gadgetSnapYaml := "name: pi\nversion: 1.0\ntype: gadget"
-	snapstate.Set(st, "pi", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{si},
-		Current:  snap.R(1),
-		SnapType: "gadget",
-	})
-	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, si, [][]string{
+	ms.mockInstalledSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"meta/gadget.yaml", gadgetYaml},
 		{"boot-assets/start.elf", "start.elf rev1"},
 	})
 	// we have an installed kernel with kernel.yaml
-	si2 := &snap.SideInfo{RealName: "pi-kernel", SnapID: fakeSnapID("pi-kernel"), Revision: snap.R(1)}
 	kernelSnapYaml := "name: pi-kernel\nversion: 1.0\ntype: kernel"
-	snapstate.Set(st, "pi-kernel", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
-		Current:  snap.R(1),
-		SnapType: "kernel",
-	})
-	snaptest.MockSnapWithFiles(c, kernelSnapYaml, si2, [][]string{
+	ms.mockInstalledSnapWithFiles(c, kernelSnapYaml, [][]string{
 		{"meta/kernel.yaml", kernelYaml},
 	})
 
@@ -6519,27 +6518,13 @@ volumes:
 	defer st.Unlock()
 
 	// we have an installed gadget with kernel refs
-	si := &snap.SideInfo{RealName: "pi", SnapID: fakeSnapID("pi"), Revision: snap.R(1)}
 	gadgetSnapYaml := "name: pi\nversion: 1.0\ntype: gadget"
-	snapstate.Set(st, "pi", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{si},
-		Current:  snap.R(1),
-		SnapType: "gadget",
-	})
-	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, si, [][]string{
+	ms.mockInstalledSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"meta/gadget.yaml", gadgetYaml},
 	})
 	// we have an installed kernel with kernel.yaml
-	si2 := &snap.SideInfo{RealName: "pi-kernel", SnapID: fakeSnapID("pi-kernel"), Revision: snap.R(1)}
 	kernelSnapYaml := "name: pi-kernel\nversion: 1.0\ntype: kernel"
-	snapstate.Set(st, "pi-kernel", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
-		Current:  snap.R(1),
-		SnapType: "kernel",
-	})
-	snaptest.MockSnapWithFiles(c, kernelSnapYaml, si2, [][]string{
+	ms.mockInstalledSnapWithFiles(c, kernelSnapYaml, [][]string{
 		{"meta/kernel.yaml", kernelYaml},
 		{"dtbs/broadcom/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev2"},
 		{"dtbs/broadcom/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev2"},
@@ -6645,15 +6630,8 @@ volumes:
 	defer st.Unlock()
 
 	// we have an installed old style pi gadget
-	si := &snap.SideInfo{RealName: "pi", SnapID: fakeSnapID("pi"), Revision: snap.R(1)}
 	gadgetSnapYaml := "name: pi\nversion: 1.0\ntype: gadget"
-	snapstate.Set(st, "pi", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{si},
-		Current:  snap.R(1),
-		SnapType: "gadget",
-	})
-	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, si, [][]string{
+	ms.mockInstalledSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"meta/gadget.yaml", oldGadgetYaml},
 		{"boot-assets/start.elf", "start.elf rev1"},
 		{"boot-assets/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev1"},
@@ -6667,15 +6645,8 @@ volumes:
 	})
 
 	// we have an installed old-style kernel snap
-	si2 := &snap.SideInfo{RealName: "pi-kernel", SnapID: fakeSnapID("pi-kernel"), Revision: snap.R(1)}
 	kernelSnapYaml := "name: pi-kernel\nversion: 1.0\ntype: kernel"
-	snapstate.Set(st, "pi-kernel", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
-		Current:  snap.R(1),
-		SnapType: "kernel",
-	})
-	snaptest.MockSnapWithFiles(c, kernelSnapYaml, si2, nil)
+	ms.mockInstalledSnapWithFiles(c, kernelSnapYaml, nil)
 
 	// add new kernel snap with kernel-refs to fake store
 	ms.prereqSnapAssertions(c, map[string]interface{}{
