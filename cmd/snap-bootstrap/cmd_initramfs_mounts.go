@@ -928,6 +928,16 @@ func (m *recoverModeStateMachine) openUnencryptedSave() (stateFunc, error) {
 		// we have ubuntu-save, go mount it
 		return m.mountSave, nil
 	}
+
+	// unencrypted ubuntu-save was not found, try to log something in case
+	// the early boot output can be collected for debugging purposes
+	if uuid, err := m.disk.FindMatchingPartitionUUIDWithFsLabel(secboot.EncryptedPartitionName("ubuntu-save")); err == nil {
+		// highly unlikely that encrypted save exists
+		logger.Noticef("ignoring unexpected encrypted ubuntu-save with UUID %q", uuid)
+	} else {
+		logger.Noticef("ubuntu-save was not found")
+	}
+
 	// save is optional in an unencrypted system
 	partSave.MountState = partitionAbsentOptional
 

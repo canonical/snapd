@@ -59,6 +59,7 @@ type initramfsMountsSuite struct {
 	*seedtest.TestingSeed20
 
 	Stdout *bytes.Buffer
+	logs   *bytes.Buffer
 
 	seedDir  string
 	sysLabel string
@@ -176,8 +177,9 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 
 	s.Stdout = bytes.NewBuffer(nil)
 
-	_, restore := logger.MockLogger()
+	buf, restore := logger.MockLogger()
 	s.AddCleanup(restore)
+	s.logs = buf
 
 	s.tmpDir = c.MkDir()
 
@@ -1044,6 +1046,9 @@ After=%[1]s
 
 	// we should have only tried to unseal things only once, when unlocking ubuntu-data
 	c.Assert(unlockVolumeWithSealedKeyCalls, Equals, 1)
+
+	// save is optional and not found in this test
+	c.Check(s.logs.String(), testutil.Contains, "ubuntu-save was not found")
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeWithSaveHappyRealSystemdMount(c *C) {
@@ -1189,6 +1194,9 @@ After=%[1]s
 
 	// we should not have written a degraded.json
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
+
+	// save is optional and found in this test
+	c.Check(s.logs.String(), Not(testutil.Contains), "ubuntu-save was not found")
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdMount(c *C) {
@@ -3851,6 +3859,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencrypted
 
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "secboot-epoch-measured"), testutil.FilePresent)
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
+
+	// the system is not encrypted, even if encrypted save exists it gets
+	// ignored
+	c.Check(s.logs.String(), testutil.Contains, "ignoring unexpected encrypted ubuntu-save")
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDataUnencryptedSaveHappy(c *C) {
