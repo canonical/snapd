@@ -2879,7 +2879,7 @@ func reRefreshFilter(update *snap.Info, snapst *SnapState) bool {
 	return !update.Epoch.Equal(&cur.Epoch)
 }
 
-var reRefreshRetryTimeout = time.Second / 10
+var reRefreshRetryTimeout = time.Second / 2
 
 func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
