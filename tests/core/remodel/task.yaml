@@ -81,7 +81,8 @@ execute: |
     not snap list "$SNAP"
 
     echo "Wait for first boot to be done"
-    while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+    wait_for_first_boot_change
+
     echo "We have the right model assertion"
     snap debug model|MATCH "model: my-model"
 

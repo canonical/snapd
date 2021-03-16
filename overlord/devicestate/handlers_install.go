@@ -30,7 +30,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
@@ -43,7 +42,7 @@ import (
 )
 
 var (
-	bootMakeBootable = boot.MakeBootable
+	bootMakeRunnable = boot.MakeRunnableSystem
 	installRun       = install.Run
 
 	sysconfigConfigureTargetSystem = sysconfig.ConfigureTargetSystem
@@ -251,7 +250,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	// make it bootable
-	logger.Noticef("make system bootable")
+	logger.Noticef("make system runnable")
 	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
@@ -265,14 +264,17 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		RecoverySystemDir: recoverySystemDir,
 		UnpackedGadgetDir: gadgetDir,
 	}
-	rootdir := dirs.GlobalRootDir
-	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith, trustedInstallObserver); err != nil {
-		return fmt.Errorf("cannot make run system bootable: %v", err)
+	if err := bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver); err != nil {
+		return fmt.Errorf("cannot make system runnable: %v", err)
 	}
 
 	// store install-mode log into ubuntu-data partition
 	if err := writeLogs(boot.InstallHostWritableDir); err != nil {
 		logger.Noticef("cannot write installation log: %v", err)
+	}
+
+	if err := boot.EnsureNextBootToRunMode(modeEnv.RecoverySystem); err != nil {
+		return fmt.Errorf("cannot ensure next boot to run mode: %v", err)
 	}
 
 	// request a restart as the last action after a successful install
