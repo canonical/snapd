@@ -356,7 +356,31 @@ func RefreshValidationSetAssertions(s *state.State, userID int) error {
 		return nil
 	}
 
-	return bulkRefreshValidationSetAsserts(s, vsets, userID, deviceCtx)
+	if err := bulkRefreshValidationSetAsserts(s, vsets, userID, deviceCtx); err != nil {
+		return err
+	}
+
+	// update validation set tracking state
+	for _, vs := range vsets {
+		if vs.Mode == Monitor && vs.PinnedAt == 0 {
+			headers := map[string]string{
+				"series":     release.Series,
+				"account-id": vs.AccountID,
+				"name":       vs.Name,
+			}
+			db := DB(s)
+			as, err := db.FindSequence(asserts.ValidationSetType, headers, -1, asserts.ValidationSetType.MaxSupportedFormat())
+			if err != nil {
+				return fmt.Errorf("internal error: cannot find assertion %v when refreshing validation-set assertions", headers)
+			}
+			if vs.Current != as.Sequence() {
+				vs.Current = as.Sequence()
+				UpdateValidationSet(s, vs)
+			}
+		}
+	}
+
+	return nil
 }
 
 // ResolveOptions carries extra options for ValidationSetAssertionForMonitor.

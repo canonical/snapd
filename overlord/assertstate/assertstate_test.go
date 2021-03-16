@@ -2314,6 +2314,10 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "bar")
+
+	// tracking current was updated
+	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "bar", &tr), IsNil)
+	c.Check(tr.Current, Equals, 4)
 }
 
 func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
@@ -2379,7 +2383,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 		{"account", "account-key", "validation-set"},
 	})
 
-	// new sequence is available in the db
+	// new sequence is not available in the db
 	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
@@ -2387,6 +2391,10 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 		"sequence":   "7",
 	})
 	c.Assert(asserts.IsNotFound(err), Equals, true)
+
+	// tracking current remains at 2
+	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "bar", &tr), IsNil)
+	c.Check(tr.Current, Equals, 2)
 }
 
 func (s *assertMgrSuite) TestRefreshValidationSetAssertionsLocalOnlyFailed(c *C) {
