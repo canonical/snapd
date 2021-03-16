@@ -123,6 +123,12 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, flags
 	var tts []*state.TaskSet
 	var ctlcmds []string
 
+	for _, app := range appInfos {
+		if app.DaemonScope != snap.SystemDaemon {
+			return nil, fmt.Errorf("cannot perform action %q on user daemon %q", inst.Action, app)
+		}
+	}
+
 	// create exec-command tasks for compatibility with old snapd
 	if flags != nil && flags.CreateExecCommandTasks {
 		switch {

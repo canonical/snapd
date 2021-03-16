@@ -415,6 +415,33 @@ func (s *serviceControlSuite) TestControlStopDisableMultipleInstruction(c *C) {
 	verifyControlTasks(c, chg.Tasks(), "stop", "disable", "snap.test-snap.foo.service", "snap.test-snap.bar.service")
 }
 
+func (s *serviceControlSuite) TestControlUserServices(c *C) {
+	st := s.state
+	st.Lock()
+
+	si := snap.SideInfo{RealName: "test-snap", Revision: snap.R(7)}
+	info := snaptest.MockSnap(c, `name: test-snap
+version: 1.0
+apps:
+  svc:
+    daemon: simple
+    daemon-scope: user
+`, &si)
+	snapstate.Set(st, "test-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  snap.R(7),
+		SnapType: "app",
+	})
+
+	inst := &servicestate.Instruction{
+		Action: "start",
+		Names:  []string{"svc"},
+	}
+	_, err := servicestate.Control(st, []*snap.AppInfo{info.Apps["svc"]}, inst, nil, nil)
+	c.Check(err, ErrorMatches, `cannot perform action "start" on user daemon "test-snap.svc"`)
+}
+
 func (s *serviceControlSuite) TestNoServiceCommandError(c *C) {
 	st := s.state
 	st.Lock()
