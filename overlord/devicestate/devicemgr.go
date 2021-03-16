@@ -135,7 +135,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		return nil, err
 	}
 
-	hookManager.Register(regexp.MustCompile("^prepare-device$"), newPrepareDeviceHandler)
+	hookManager.Register(regexp.MustCompile("^prepare-device$"), newBasicHookStateHandler)
+	hookManager.Register(regexp.MustCompile("^install-device$"), newBasicHookStateHandler)
 
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
@@ -167,6 +168,16 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	hookManager.Register(regexp.MustCompile("^fde-setup$"), newFdeSetupHandler)
 
 	return m, nil
+}
+
+type genericHook struct{}
+
+func (h genericHook) Before() error         { return nil }
+func (h genericHook) Done() error           { return nil }
+func (h genericHook) Error(err error) error { return nil }
+
+func newBasicHookStateHandler(context *hookstate.Context) hookstate.Handler {
+	return genericHook{}
 }
 
 func maybeReadModeenv() (*boot.Modeenv, error) {
@@ -285,24 +296,6 @@ func gadgetUpdateBlocked(cand *state.Task, running []*state.Task) bool {
 	}
 
 	return false
-}
-
-type prepareDeviceHandler struct{}
-
-func newPrepareDeviceHandler(context *hookstate.Context) hookstate.Handler {
-	return prepareDeviceHandler{}
-}
-
-func (h prepareDeviceHandler) Before() error {
-	return nil
-}
-
-func (h prepareDeviceHandler) Done() error {
-	return nil
-}
-
-func (h prepareDeviceHandler) Error(err error) error {
-	return nil
 }
 
 func (m *DeviceManager) changeInFlight(kind string) bool {
