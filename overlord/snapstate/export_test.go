@@ -99,6 +99,8 @@ var (
 	HasOtherInstances = hasOtherInstances
 
 	SafetyMarginDiskSpace = safetyMarginDiskSpace
+
+	AffectedByRefresh = affectedByRefresh
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
