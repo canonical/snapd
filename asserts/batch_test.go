@@ -139,7 +139,6 @@ func (s *batchSuite) TestCommitToAndObserve(c *C) {
 
 	// this is the order they needed to be added
 	c.Check(seen, DeepEquals, []*asserts.Ref{
-
 		{Type: asserts.AccountKeyType, PrimaryKey: []string{s.storeSigning.StoreAccountKey("").PublicKeyID()}},
 		{Type: asserts.AccountType, PrimaryKey: []string{s.dev1Acct.AccountID()}},
 	})

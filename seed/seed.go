@@ -174,15 +174,27 @@ func ReadSystemEssentialAndBetterEarliestTime(seedDir, label string, essentialTy
 	}
 
 	improve := func(a asserts.Assertion) {
-		// we consider only snap-revisions as they are stored-signed
-		// and more recent than snap-declarations anyway,
-		// other assertions are ignored as they might be added
-		// with unreliable times
-		if a.Type() == asserts.SnapRevisionType {
+		// we consider only snap-revision and snap-declaration
+		// assertions here as they must be store-signed, see
+		// checkConsistency for each type
+		// other assertions might be signed not by the store
+		// nor the brand so they might be provided by an
+		// attacker, signed using a registered key but
+		// containing unreliable time
+		var tstamp time.Time
+		switch a.Type() {
+		default:
+			// not one of the store-signed assertion types
+			return
+		case asserts.SnapRevisionType:
 			sr := a.(*asserts.SnapRevision)
-			if sr.Timestamp().After(earliestTime) {
-				earliestTime = sr.Timestamp()
-			}
+			tstamp = sr.Timestamp()
+		case asserts.SnapDeclarationType:
+			sd := a.(*asserts.SnapDeclaration)
+			tstamp = sd.Timestamp()
+		}
+		if tstamp.After(earliestTime) {
+			earliestTime = tstamp
 		}
 	}
 
@@ -205,7 +217,8 @@ func ReadSystemEssentialAndBetterEarliestTime(seedDir, label string, essentialTy
 		return nil, nil, time.Time{}, err
 	}
 
-	// consider model own timestamp as well
+	// consider the model's timestamp as well - it must be signed
+	// by the brand so is safe from the attack detailed above
 	mod := seed20.Model()
 	if mod.Timestamp().After(earliestTime) {
 		earliestTime = mod.Timestamp()

@@ -936,7 +936,6 @@ func (s *seed20Suite) TestReadSystemEssentialAndBetterEarliestTime(c *C) {
 			c.Check(essSnaps, DeepEquals, t.expected)
 			c.Check(betterTime.Equal(improvedTime), Equals, true, Commentf("%v expected: %v", betterTime, improvedTime))
 		}
-
 	}
 
 	revsTime := s.AssertedSnapRevision("required18").Timestamp()
