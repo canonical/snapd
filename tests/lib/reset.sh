@@ -95,7 +95,7 @@ reset_classic() {
         esac
 
         # wait for snapd listening
-        retry -n 240 --wait 0.5 sh -c "printf 'GET / HTTP/1.0\r\n\r\n' | nc -U $EXTRA_NC_ARGS /run/snapd.socket"
+        retry -n 120 --wait 0.5 sh -c "printf 'GET / HTTP/1.0\r\n\r\n' | nc -U $EXTRA_NC_ARGS /run/snapd.socket"
     fi
 }
 
