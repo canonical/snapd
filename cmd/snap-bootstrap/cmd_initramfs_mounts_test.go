@@ -1042,8 +1042,7 @@ After=%[1]s
 	// we should not have written a degraded.json
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
 
-	// we should have only tried to unseal things twice, first for ubuntu-data
-	// unencrypted, then for ubuntu-save unencrypted
+	// we should have only tried to unseal things only once, when unlocking ubuntu-data
 	c.Assert(unlockVolumeWithSealedKeyCalls, Equals, 1)
 }
 
@@ -3545,7 +3544,7 @@ grade=signed
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, fmt.Sprintf("%s-model-measured", s.sysLabel)), testutil.FilePresent)
 }
 
-func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataSaveFallbackHappy(c *C) {
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedAbsentDataUnencryptedSaveHappy(c *C) {
 	// test a scenario when data cannot be found but unencrypted save can be
 	// mounted
 
@@ -3714,6 +3713,7 @@ grade=signed
 	c.Assert(filepath.Join(boot.InitramfsRunMntDir, "/data/system-data/var/lib/console-conf/complete"), testutil.FilePresent)
 
 	c.Check(dataActivated, Equals, true)
+	// unlocked tried only once, when attempting to set up ubuntu-data
 	c.Check(unlockVolumeWithSealedKeyCalls, Equals, 1)
 	c.Check(measureEpochCalls, Equals, 1)
 	c.Check(measureModelCalls, Equals, 1)
@@ -3854,7 +3854,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedUnencrypted
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDataUnencryptedSaveHappy(c *C) {
-	// test a scenario when data is encrypted but save is unencrypted
+	// test a scenario when data is encrypted, thus implying an encrypted
+	// ubuntu save, but save found on the disk is unencrypted
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
 
 	restore := main.MockPartitionUUIDForBootedKernelDisk("")
@@ -3865,7 +3866,6 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDa
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
 
-	// no ubuntu-data on the disk at all
 	mockDiskDataUnencSaveEnc := &disks.MockDiskMapping{
 		FilesystemLabelToPartUUID: map[string]string{
 			"ubuntu-boot":     "ubuntu-boot-partuuid",
@@ -3896,7 +3896,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDa
 		switch unlockVolumeWithSealedKeyCalls {
 
 		case 1:
-			// ubuntu data is encrypted partition
+			// ubuntu-data is encrypted partition
 			c.Assert(name, Equals, "ubuntu-data")
 			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
 			_, err := disk.FindMatchingPartitionUUIDWithFsLabel(name + "-enc")
@@ -3910,7 +3910,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDa
 			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-data.recovery.sealed-key"))
 			return foundEncrypted("ubuntu-data"), fmt.Errorf("failed to unlock ubuntu-data with recovery object")
 		case 3:
-			// we can however still find/unlock ubuntu-save with the recovery key
+			// we are asked to unlock encrypted ubuntu-save with the recovery key
 			c.Assert(name, Equals, "ubuntu-save")
 			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-seed/device/fde/ubuntu-save.recovery.sealed-key"))
 			_, err := disk.FindMatchingPartitionUUIDWithFsLabel(name)
@@ -3918,6 +3918,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDa
 			_, err = disk.FindMatchingPartitionUUIDWithFsLabel(name + "-enc")
 			// sanity
 			c.Assert(err, FitsTypeOf, disks.PartitionNotFoundError{})
+			// but we find an unencrypted one instead
 			return foundUnencrypted("ubuntu-save"), nil
 		default:
 			c.Errorf("unexpected call to UnlockVolumeUsingSealedKeyIfEncrypted (num %d)", unlockVolumeWithSealedKeyCalls)
@@ -3987,6 +3988,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDa
 	// we always need to lock access to sealed keys
 	c.Check(sealedKeysLocked, Equals, true)
 
+	// unlocking tried 3 times, first attempt tries to unlock ubuntu-data
+	// with run key, then the recovery key, and lastly we tried to unlock
+	// ubuntu-save with the recovery key
 	c.Check(unlockVolumeWithSealedKeyCalls, Equals, 3)
 	c.Check(measureEpochCalls, Equals, 1)
 	c.Check(measureModelCalls, Equals, 1)
@@ -3997,7 +4001,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeDegradedEncryptedDa
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeUnencryptedDataUnencryptedSaveHappy(c *C) {
-	// test a scenario when data is encrypted, same goes for save and the
+	// test a scenario when data is unencrypted, same goes for save and the
 	// test observes calls to secboot unlock helper
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
 
