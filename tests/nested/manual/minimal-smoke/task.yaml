@@ -31,6 +31,7 @@ execute: |
 
     "$TESTSTOOLS"/nested-state create-vm core --param-mem "-m $MINIMAL_MEM"
 
+    echo "Run spread smoke tests using mem: $MINIMAL_MEM"
     set +x
     export SPREAD_EXTERNAL_ADDRESS=localhost:8022
     "$NESTED_WORK_DIR/spread" -v "external:$NESTED_SPREAD_SYSTEM:tests/smoke/..."
