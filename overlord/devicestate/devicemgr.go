@@ -918,6 +918,23 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
+	model, err := m.Model()
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if err != nil {
+		return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
+	}
+
+	// check if the gadget has an install-device hook
+	var hasInstallDeviceHook bool
+
+	gadgetInfo, err := snapstate.CurrentInfo(m.state, model.Gadget())
+	if err != nil {
+		return fmt.Errorf("internal error: device is seeded in install mode but has no gadget snap: %v", err)
+	}
+	hasInstallDeviceHook = (gadgetInfo.Hooks["install-device"] != nil)
+
 	m.ensureInstalledRan = true
 
 	var prev *state.Task
@@ -930,6 +947,22 @@ func (m *DeviceManager) ensureInstalled() error {
 		prev = t
 	}
 	prev = setupRunSystem
+
+	// add the install-device hook before ensure-next-boot-to-run-mode if it
+	// exists in the snap
+	if hasInstallDeviceHook {
+		summary := i18n.G("Run install-device hook")
+		hooksup := &hookstate.HookSetup{
+			// TODO: what's a reasonable timeout for the install-device hook?
+			Snap: model.Gadget(),
+			Hook: "install-device",
+		}
+		installDevice := hookstate.HookTask(m.state, summary, hooksup, nil)
+		addTask(installDevice)
+		// hooks are under a different manager, make sure we consider
+		// it immediately
+		m.state.EnsureBefore(0)
+	}
 
 	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
 	addTask(restartSystem)
