@@ -116,7 +116,7 @@ execute: |
 
     # after rollback, we have the original target snap for a while
     # wait until the kernel and core snap revisions are in place
-    retry -n 60 --wait 1 sh -c "test $(snap list | awk "/^${TARGET_SNAP_NAME} / {print(\$3)}") = $(cat prevBoot)"
+    TARGET_SNAP_NAME="$TARGET_SNAP_NAME" retry -n 60 --wait 1 sh -c 'test $(snap list | awk "/^${TARGET_SNAP_NAME} / {print(\$3)}") = $(cat prevBoot)'
 
     # ensure the last install change failed as expected
     snap change --last=install | MATCH "cannot finish core installation, there was a rollback across reboot"
