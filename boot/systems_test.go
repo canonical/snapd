@@ -733,8 +733,8 @@ func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTr
 			})
 			return nil
 		default:
+			c.Errorf("unexpected call to secboot.ResealKeys with count %v", resealCalls)
 			return fmt.Errorf("unexpected call")
-
 		}
 	})
 	defer restore()
@@ -919,6 +919,7 @@ func (s *systemsSuite) TestClearRecoverySystemReboot(c *C) {
 			})
 			return nil
 		default:
+			c.Errorf("unexpected call to secboot.ResealKeys with count %v", resealCalls)
 			return fmt.Errorf("unexpected call")
 
 		}
@@ -958,7 +959,7 @@ func (s *systemsSuite) TestClearRecoverySystemReboot(c *C) {
 	c.Assert(func() {
 		boot.ClearTryRecoverySystem(s.uc20dev, "1234")
 	}, PanicMatches, "set boot vars panic")
-	// we did no reach resealing yet
+	// we did not reach resealing yet
 	c.Check(resealCalls, Equals, 1)
 	checkGoodState()
 
