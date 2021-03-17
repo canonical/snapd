@@ -1,0 +1,38 @@
+summary: Check that service control commands fail for user services
+
+systems:
+    # Ubuntu 14.04 refuses to install snaps with user services
+    - -ubuntu-14.04-*
+
+prepare: |
+    snap set system experimental.user-daemons=true
+
+restore: |
+    snap unset system experimental.user-daemons
+    rm -f error.txt
+
+
+execute: |
+    echo "Install a service containing a user service"
+    "$TESTSTOOLS"/snaps-state install-local test-snap
+
+    echo "'snap start' fails for a user service"
+    not snap start test-snap.svc 2> error.txt
+    MATCH 'cannot perform action "start" on user daemon "test-snap.svc"' < error.txt
+
+    echo "The same goes for 'snap stop'"
+    not snap stop test-snap.svc 2> error.txt
+    MATCH 'cannot perform action "stop" on user daemon "test-snap.svc"' < error.txt
+
+    echo "And 'snap restart'"
+    not snap restart test-snap.svc 2> error.txt
+    MATCH 'cannot perform action "restart" on user daemon "test-snap.svc"' < error.txt
+
+    echo "The equivalent snapctl commands fail too"
+    not test-snap.snapctl start test-snap.svc 2> error.txt
+    MATCH 'cannot perform action "start" on user daemon "test-snap.svc"' < error.txt
+    not test-snap.snapctl stop test-snap.svc 2> error.txt
+    MATCH 'cannot perform action "stop" on user daemon "test-snap.svc"' < error.txt
+    not test-snap.snapctl restart test-snap.svc 2> error.txt
+    MATCH 'cannot perform action "restart" on user daemon "test-snap.svc"' < error.txt
+

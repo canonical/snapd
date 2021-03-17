@@ -1,0 +1,9 @@
+name: test-snap
+version: 1.0
+apps:
+  snapctl:
+    command: bin/snapctl.sh
+  svc:
+    command: bin/service.sh
+    daemon: simple
+    daemon-scope: user
