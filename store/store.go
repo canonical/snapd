@@ -69,7 +69,7 @@ const (
 // Timeout value
 var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(38*time.Second,
 	retry.Exponential{
-		Initial: 350 * time.Millisecond,
+		Initial: 500 * time.Millisecond,
 		Factor:  2.5,
 	},
 ))
@@ -160,18 +160,39 @@ type Store struct {
 
 var ErrTooManyRequests = errors.New("too many requests")
 
-func respToError(resp *http.Response, msg string) error {
+// UnexpectedHTTPStatusError represents an error where the store
+// returned an unexpected HTTP status code, i.e. a status code that
+// doesn't represent success nor an expected error condition with
+// known handling (e.g. a 404 when instead presence is always
+// expected).
+type UnexpectedHTTPStatusError struct {
+	OpSummary  string
+	StatusCode int
+	Method     string
+	URL        *url.URL
+	OopsID     string
+}
+
+func (e *UnexpectedHTTPStatusError) Error() string {
+	tpl := "cannot %s: got unexpected HTTP status code %d via %s to %q"
+	if e.OopsID != "" {
+		tpl += " [%s]"
+		return fmt.Sprintf(tpl, e.OpSummary, e.StatusCode, e.Method, e.URL, e.OopsID)
+	}
+	return fmt.Sprintf(tpl, e.OpSummary, e.StatusCode, e.Method, e.URL)
+}
+
+func respToError(resp *http.Response, opSummary string) error {
 	if resp.StatusCode == 429 {
 		return ErrTooManyRequests
 	}
-
-	tpl := "cannot %s: got unexpected HTTP status code %d via %s to %q"
-	if oops := resp.Header.Get("X-Oops-Id"); oops != "" {
-		tpl += " [%s]"
-		return fmt.Errorf(tpl, msg, resp.StatusCode, resp.Request.Method, resp.Request.URL, oops)
+	return &UnexpectedHTTPStatusError{
+		OpSummary:  opSummary,
+		StatusCode: resp.StatusCode,
+		Method:     resp.Request.Method,
+		URL:        resp.Request.URL,
+		OopsID:     resp.Header.Get("X-Oops-Id"),
 	}
-
-	return fmt.Errorf(tpl, msg, resp.StatusCode, resp.Request.Method, resp.Request.URL)
 }
 
 // endpointURL clones a base URL and updates it with optional path and query.
@@ -395,7 +416,7 @@ const (
 	deviceNonceEndpPath   = "api/v1/snaps/auth/nonces"
 	deviceSessionEndpPath = "api/v1/snaps/auth/sessions"
 
-	assertionsPath = "api/v1/snaps/assertions"
+	assertionsPath = "v2/assertions"
 )
 
 func (s *Store) newHTTPClient(opts *httputil.ClientOptions) *http.Client {

@@ -22,9 +22,7 @@ restore: |
     fi
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-desktop
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop
 
     tests.session -u test prepare
 
@@ -53,8 +51,6 @@ prepare: |
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB/dirs.sh"
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
 
     ensure_xdg_open_output() {
         rm -f /tmp/xdg-open-output

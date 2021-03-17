@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,6 +20,8 @@
 package devicestate
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -32,19 +34,27 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/devicestate/fde"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/sysconfig"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -53,19 +63,33 @@ var (
 	restrictCloudInit = sysconfig.RestrictCloudInit
 )
 
+// EarlyConfig is a hook set by configstate that can process early configuration
+// during managers' startup.
+var EarlyConfig func(st *state.State, preloadGadget func() (*gadget.Info, error)) error
+
 // DeviceManager is responsible for managing the device identity and device
 // policies.
 type DeviceManager struct {
 	systemMode string
+	// saveAvailable keeps track whether /var/lib/snapd/save
+	// is available, i.e. exists and is mounted from ubuntu-save
+	// if the latter exists.
+	// TODO: evolve this to state to track things if we start mounting
+	// save as rw vs ro, or mount/umount it fully on demand
+	saveAvailable bool
 
-	state      *state.State
-	keypairMgr asserts.KeypairManager
+	state   *state.State
+	hookMgr *hookstate.HookManager
+
+	cachedKeypairMgr asserts.KeypairManager
 
 	// newStore can make new stores for remodeling
 	newStore func(storecontext.DeviceBackend) snapstate.StoreService
 
 	bootOkRan            bool
 	bootRevisionsUpdated bool
+
+	seedTimings *timings.Timings
 
 	ensureSeedInConfigRan bool
 
@@ -87,17 +111,12 @@ type DeviceManager struct {
 func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.TaskRunner, newStore func(storecontext.DeviceBackend) snapstate.StoreService) (*DeviceManager, error) {
 	delayedCrossMgrInit()
 
-	keypairMgr, err := asserts.OpenFSKeypairManager(dirs.SnapDeviceDir)
-	if err != nil {
-		return nil, err
-	}
-
 	m := &DeviceManager{
-		state:      s,
-		keypairMgr: keypairMgr,
-		newStore:   newStore,
-		reg:        make(chan struct{}),
-		preseed:    snapdenv.Preseeding(),
+		state:    s,
+		hookMgr:  hookManager,
+		newStore: newStore,
+		reg:      make(chan struct{}),
+		preseed:  snapdenv.Preseeding(),
 	}
 
 	modeEnv, err := maybeReadModeenv()
@@ -135,8 +154,16 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	// or gadget snaps. There are no further changes to the boot assets,
 	// unless a new gadget update is deployed.
 	runner.AddHandler("update-gadget-assets", m.doUpdateGadgetAssets, nil)
+	// There is no undo handler for successful boot config update. The
+	// config assets are assumed to be always backwards compatible.
+	runner.AddHandler("update-managed-boot-config", m.doUpdateManagedBootConfig, nil)
 
 	runner.AddBlocked(gadgetUpdateBlocked)
+
+	// wire FDE kernel hook support into boot
+	boot.HasFDESetupHook = m.hasFDESetupHook
+	boot.RunFDESetupHook = m.runFDESetupHook
+	hookManager.Register(regexp.MustCompile("^fde-setup$"), newFdeSetupHandler)
 
 	return m, nil
 }
@@ -147,6 +174,59 @@ func maybeReadModeenv() (*boot.Modeenv, error) {
 		return nil, fmt.Errorf("cannot read modeenv: %v", err)
 	}
 	return modeEnv, nil
+}
+
+// StartUp implements StateStarterUp.Startup.
+func (m *DeviceManager) StartUp() error {
+	// system mode is explicitly set on UC20
+	// TODO:UC20: ubuntu-save needs to be mounted for recover too
+	if !release.OnClassic && m.systemMode == "run" {
+		if err := m.maybeSetupUbuntuSave(); err != nil {
+			return fmt.Errorf("cannot set up ubuntu-save: %v", err)
+		}
+	}
+
+	// TODO: setup proper timings measurements for this
+
+	m.state.Lock()
+	defer m.state.Unlock()
+	return EarlyConfig(m.state, m.preloadGadget)
+}
+
+func (m *DeviceManager) maybeSetupUbuntuSave() error {
+	// only called for UC20
+
+	saveMounted, err := osutil.IsMounted(dirs.SnapSaveDir)
+	if err != nil {
+		return err
+	}
+	if saveMounted {
+		logger.Noticef("save already mounted under %v", dirs.SnapSaveDir)
+		m.saveAvailable = true
+		return nil
+	}
+
+	runMntSaveMounted, err := osutil.IsMounted(boot.InitramfsUbuntuSaveDir)
+	if err != nil {
+		return err
+	}
+	if !runMntSaveMounted {
+		// we don't have ubuntu-save, save will be used directly
+		logger.Noticef("no ubuntu-save mount")
+		m.saveAvailable = true
+		return nil
+	}
+
+	logger.Noticef("bind-mounting ubuntu-save under %v", dirs.SnapSaveDir)
+
+	err = systemd.New(systemd.SystemMode, progress.Null).Mount(boot.InitramfsUbuntuSaveDir,
+		dirs.SnapSaveDir, "-o", "bind")
+	if err != nil {
+		logger.Noticef("bind-mounting ubuntu-save failed %v", err)
+		return fmt.Errorf("cannot bind mount %v under %v: %v", boot.InitramfsUbuntuSaveDir, dirs.SnapSaveDir, err)
+	}
+	m.saveAvailable = true
+	return nil
 }
 
 type deviceMgrKey struct{}
@@ -455,6 +535,99 @@ func (m *DeviceManager) setTimeOnce(name string, t time.Time) error {
 	return nil
 }
 
+func (m *DeviceManager) seedStart() (*timings.Timings, error) {
+	if m.seedTimings != nil {
+		// reuse the early cached one
+		return m.seedTimings, nil
+	}
+	perfTimings := timings.New(map[string]string{"ensure": "seed"})
+
+	var recordedStart string
+	var start time.Time
+	if m.preseed {
+		recordedStart = "preseed-start-time"
+		start = timeNow()
+	} else {
+		recordedStart = "seed-start-time"
+		start = startTime
+	}
+	if err := m.setTimeOnce(recordedStart, start); err != nil {
+		return nil, err
+	}
+	return perfTimings, nil
+}
+
+func (m *DeviceManager) preloadGadget() (*gadget.Info, error) {
+	var sysLabel string
+	modeEnv, err := maybeReadModeenv()
+	if err != nil {
+		return nil, err
+	}
+	if modeEnv != nil {
+		sysLabel = modeEnv.RecoverySystem
+	}
+
+	// we time preloadGadget + first ensureSeeded together
+	// under --ensure=seed
+	tm, err := m.seedStart()
+	if err != nil {
+		return nil, err
+	}
+	// cached for first ensureSeeded
+	m.seedTimings = tm
+
+	// Here we behave as if there was no gadget if we encounter
+	// errors, under the assumption that those will be resurfaced
+	// in ensureSeed. This preserves having a failing to seed
+	// snapd continuing running.
+	//
+	// TODO: consider changing that again but we need consider the
+	// effect of the different failure mode.
+	//
+	// We also assume that anything sensitive will not be guarded
+	// just by option flags. For example automatic user creation
+	// also requires the model to be known/set. Otherwise ignoring
+	// errors here would be problematic.
+	var deviceSeed seed.Seed
+	timings.Run(tm, "import-assertions[early]", "early import assertions from seed", func(nested timings.Measurer) {
+		deviceSeed, err = loadDeviceSeed(m.state, sysLabel)
+	})
+	if err != nil {
+		// this same error will be resurfaced in ensureSeed later
+		if err != seed.ErrNoAssertions {
+			logger.Debugf("early import assertions from seed failed: %v", err)
+		}
+		return nil, state.ErrNoState
+	}
+	model := deviceSeed.Model()
+	if model.Gadget() == "" {
+		// no gadget
+		return nil, state.ErrNoState
+	}
+	var gi *gadget.Info
+	timings.Run(tm, "preload-verified-gadget-metadata", "preload verified gadget metadata from seed", func(nested timings.Measurer) {
+		gi, err = func() (*gadget.Info, error) {
+			if err := deviceSeed.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, nested); err != nil {
+				return nil, err
+			}
+			essGadget := deviceSeed.EssentialSnaps()
+			if len(essGadget) != 1 {
+				return nil, fmt.Errorf("multiple gadgets among essential snaps are unexpected")
+			}
+			snapf, err := snapfile.Open(essGadget[0].Path)
+			if err != nil {
+				return nil, err
+			}
+			return gadget.ReadInfoFromSnapFile(snapf, model)
+		}()
+	})
+	if err != nil {
+		logger.Noticef("preload verified gadget metadata from seed failed: %v", err)
+		return nil, state.ErrNoState
+	}
+	return gi, nil
+}
+
 var populateStateFromSeed = populateStateFromSeedImpl
 
 // ensureSeeded makes sure that the snaps from seed.yaml get installed
@@ -472,24 +645,17 @@ func (m *DeviceManager) ensureSeeded() error {
 		return nil
 	}
 
-	perfTimings := timings.New(map[string]string{"ensure": "seed"})
-
 	if m.changeInFlight("seed") {
 		return nil
 	}
 
-	var recordedStart string
-	var start time.Time
-	if m.preseed {
-		recordedStart = "preseed-start-time"
-		start = timeNow()
-	} else {
-		recordedStart = "seed-start-time"
-		start = startTime
-	}
-	if err := m.setTimeOnce(recordedStart, start); err != nil {
+	perfTimings, err := m.seedStart()
+	if err != nil {
 		return err
 	}
+	// we time preloadGadget + first ensureSeeded together
+	// succcessive ensureSeeded should be timed separately
+	m.seedTimings = nil
 
 	var opts *populateStateFromSeedOptions
 	if m.preseed {
@@ -610,6 +776,9 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 			// already been permanently disabled, nothing to do
 			m.cloudInitAlreadyRestricted = true
 			return nil
+		case sysconfig.CloudInitNotFound:
+			// no cloud init at all
+			statusMsg = "not found"
 		case sysconfig.CloudInitUntriggered:
 			// hasn't been used
 			statusMsg = "reported to be in disabled state"
@@ -689,15 +858,12 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 		// first boot unless we are in a "real cloud", i.e. not using NoCloud,
 		// or if we installed cloud-init configuration from the gadget
 		if model.Grade() != asserts.ModelGradeUnset {
-			// always disable NoCloud after first boot on uc20, this is because
-			// even if the gadget has a cloud.conf configuring NoCloud, the
-			// config installed by cloud-init should not work differently for
-			// later boots, so it's sufficient that NoCloud runs on first-boot
-			// and never again
-			// note that the name DisableNoCloud is slightly misleading, it's
-			// more specifically "disable cloud-init after first boot if
-			// NoCloud, but just restrict after first boot if not NoCloud"
-			opts.DisableNoCloud = true
+			// always disable NoCloud/local datasources after first boot on
+			// uc20, this is because even if the gadget has a cloud.conf
+			// configuring NoCloud, the config installed by cloud-init should
+			// not work differently for later boots, so it's sufficient that
+			// NoCloud runs on first-boot and never again
+			opts.DisableAfterLocalDatasourcesRun = true
 		}
 
 		// now restrict/disable cloud-init
@@ -908,6 +1074,93 @@ func (m *DeviceManager) Ensure() error {
 	return nil
 }
 
+var errNoSaveSupport = errors.New("no save directory before UC20")
+
+// withSaveDir invokes a function making sure save dir is available.
+// Under UC16/18 it returns errNoSaveSupport
+// For UC20 it also checks that ubuntu-save is available/mounted.
+func (m *DeviceManager) withSaveDir(f func() error) error {
+	// we use the model to check whether this is a UC20 device
+	model, err := m.Model()
+	if err == state.ErrNoState {
+		return fmt.Errorf("internal error: cannot access save dir before a model is set")
+	}
+	if err != nil {
+		return err
+	}
+	if model.Grade() == asserts.ModelGradeUnset {
+		return errNoSaveSupport
+	}
+	// at this point we need save available
+	if !m.saveAvailable {
+		return fmt.Errorf("internal error: save dir is unavailable")
+	}
+
+	return f()
+}
+
+// withSaveAssertDB invokes a function making the save device assertion
+// backup database available to it.
+// Under UC16/18 it returns errNoSaveSupport
+// For UC20 it also checks that ubuntu-save is available/mounted.
+func (m *DeviceManager) withSaveAssertDB(f func(*asserts.Database) error) error {
+	return m.withSaveDir(func() error {
+		// open an ancillary backup assertion database in save/device
+		assertDB, err := sysdb.OpenAt(dirs.SnapDeviceSaveDir)
+		if err != nil {
+			return err
+		}
+		return f(assertDB)
+	})
+}
+
+// withKeypairMgr invokes a function making the device KeypairManager
+// available to it.
+// It uses the right location for the manager depending on UC16/18 vs 20,
+// the latter uses ubuntu-save.
+// For UC20 it also checks that ubuntu-save is available/mounted.
+func (m *DeviceManager) withKeypairMgr(f func(asserts.KeypairManager) error) error {
+	// we use the model to check whether this is a UC20 device
+	// TODO: during a theoretical UC18->20 remodel the location of
+	// keypair manager keys would move, we will need dedicated code
+	// to deal with that, this code typically will return the old location
+	// until a restart
+	model, err := m.Model()
+	if err == state.ErrNoState {
+		return fmt.Errorf("internal error: cannot access device keypair manager before a model is set")
+	}
+	if err != nil {
+		return err
+	}
+	underSave := false
+	if model.Grade() != asserts.ModelGradeUnset {
+		// on UC20 the keys are kept under the save dir
+		underSave = true
+	}
+	where := dirs.SnapDeviceDir
+	if underSave {
+		// at this point we need save available
+		if !m.saveAvailable {
+			return fmt.Errorf("internal error: cannot access device keypair manager if ubuntu-save is unavailable")
+		}
+		where = dirs.SnapDeviceSaveDir
+	}
+	keypairMgr := m.cachedKeypairMgr
+	if keypairMgr == nil {
+		var err error
+		keypairMgr, err = asserts.OpenFSKeypairManager(where)
+		if err != nil {
+			return err
+		}
+		m.cachedKeypairMgr = keypairMgr
+	}
+	return f(keypairMgr)
+}
+
+// TODO:UC20: we need proper encapsulated support to read
+// tpm-policy-auth-key from save if the latter can get unmounted on
+// demand
+
 func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 	device, err := m.device()
 	if err != nil {
@@ -918,9 +1171,16 @@ func (m *DeviceManager) keyPair() (asserts.PrivateKey, error) {
 		return nil, state.ErrNoState
 	}
 
-	privKey, err := m.keypairMgr.Get(device.KeyID)
+	var privKey asserts.PrivateKey
+	err = m.withKeypairMgr(func(keypairMgr asserts.KeypairManager) (err error) {
+		privKey, err = keypairMgr.Get(device.KeyID)
+		if err != nil {
+			return fmt.Errorf("cannot read device key pair: %v", err)
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("cannot read device key pair: %v", err)
+		return nil, err
 	}
 	return privKey, nil
 }
@@ -1047,7 +1307,7 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 		systemMode := m.SystemMode()
 		currentSys, err := currentSystemForMode(m.state, systemMode)
 		if err != nil {
-			return fmt.Errorf("cannot get curent system: %v", err)
+			return fmt.Errorf("cannot get current system: %v", err)
 		}
 		systemLabel = currentSys.System
 	}
@@ -1208,4 +1468,130 @@ func (scb storeContextBackend) SignDeviceSessionRequest(serial *asserts.Serial, 
 
 func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
 	return storeContextBackend{m}
+}
+
+func (m *DeviceManager) hasFDESetupHook() (bool, error) {
+	// state must be locked
+	st := m.state
+
+	deviceCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		return false, fmt.Errorf("cannot get device context: %v", err)
+	}
+
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return false, fmt.Errorf("cannot get kernel info: %v", err)
+	}
+	return hasFDESetupHookInKernel(kernelInfo), nil
+}
+
+func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookParams) ([]byte, error) {
+	// TODO:UC20: when this runs on refresh we need to be very careful
+	// that we never run this when the kernel is not fully configured
+	// i.e. when there are no security profiles for the hook
+
+	// state must be locked
+	st := m.state
+
+	deviceCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get device context to run fde-setup hook: %v", err)
+	}
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get kernel info to run fde-setup hook: %v", err)
+	}
+	hooksup := &hookstate.HookSetup{
+		Snap:     kernelInfo.InstanceName(),
+		Revision: kernelInfo.Revision,
+		Hook:     "fde-setup",
+		// XXX: should this be configurable somehow?
+		Timeout: 5 * time.Minute,
+	}
+	req := &fde.SetupRequest{
+		Op:      op,
+		Key:     &params.Key,
+		KeyName: params.KeyName,
+		// TODO: include boot chains
+	}
+	for _, model := range params.Models {
+		req.Models = append(req.Models, map[string]string{
+			"series":     model.Series(),
+			"brand-id":   model.BrandID(),
+			"model":      model.Model(),
+			"grade":      string(model.Grade()),
+			"signkey-id": model.SignKeyID(),
+		})
+	}
+	contextData := map[string]interface{}{
+		"fde-setup-request": req,
+	}
+	st.Unlock()
+	defer st.Lock()
+	context, err := m.hookMgr.EphemeralRunHook(context.Background(), hooksup, contextData)
+	if err != nil {
+		return nil, fmt.Errorf("cannot run hook for %q: %v", op, err)
+	}
+	// the hook is expected to call "snapctl fde-setup-result" which
+	// wil set the "fde-setup-result" value on the task
+	var hookResult []byte
+	context.Lock()
+	err = context.Get("fde-setup-result", &hookResult)
+	context.Unlock()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get result from fde-setup hook %q: %v", op, err)
+	}
+
+	return hookResult, nil
+}
+
+func (m *DeviceManager) checkFDEFeatures(st *state.State) error {
+	// Run fde-setup hook with "op":"features". If the hook
+	// returns any {"features":[...]} reply we consider the
+	// hardware supported. If the hook errors or if it returns
+	// {"error":"hardware-unsupported"} we don't.
+	output, err := m.runFDESetupHook("features", &boot.FDESetupHookParams{})
+	if err != nil {
+		return err
+	}
+	var res struct {
+		Features []string `json:"features"`
+		Error    string   `json:"error"`
+	}
+	if err := json.Unmarshal(output, &res); err != nil {
+		return fmt.Errorf("cannot parse hook output %q: %v", output, err)
+	}
+	if res.Features == nil && res.Error == "" {
+		return fmt.Errorf(`cannot use hook: neither "features" nor "error" returned`)
+	}
+	if res.Error != "" {
+		return fmt.Errorf("cannot use hook: it returned error: %v", res.Error)
+	}
+	return nil
+}
+
+func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
+	_, ok := kernelInfo.Hooks["fde-setup"]
+	return ok
+}
+
+type fdeSetupHandler struct {
+	context *hookstate.Context
+}
+
+func newFdeSetupHandler(ctx *hookstate.Context) hookstate.Handler {
+	return fdeSetupHandler{context: ctx}
+}
+
+func (h fdeSetupHandler) Before() error {
+	return nil
+}
+
+func (h fdeSetupHandler) Done() error {
+	return nil
+}
+
+func (h fdeSetupHandler) Error(err error) error {
+	return nil
 }

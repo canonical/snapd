@@ -12,27 +12,14 @@ environment:
     TESTKEY: "$HOME/.gnupg/testkey"
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
-    if [ -d "$KEYSDIR" ]; then
-        cp -rf "$KEYSDIR" "$KEYSDIR".old
-    else
-        mkdir "$KEYSDIR"
-    fi
-
-    if ! [ -f "$TRUSTDB" ]; then
-        echo "trustdb" > "$TRUSTDB"
-    fi
-
-    echo "testkey" > "$TESTKEY"
+    "$TESTSTOOLS"/fs-state mock-dir "$KEYSDIR"
+    "$TESTSTOOLS"/fs-state mock-file "$TRUSTDB"
+    "$TESTSTOOLS"/fs-state mock-file "$TESTKEY"
 
 restore: |
-    rm -rf "$KEYSDIR"
-    if [ -d "$KEYSDIR".old ]; then
-        mv "$KEYSDIR".old "$KEYSDIR"
-    fi
+    "$TESTSTOOLS"/fs-state restore-dir "$KEYSDIR"
 
 execute: |
     echo "The interface is not connected by default"

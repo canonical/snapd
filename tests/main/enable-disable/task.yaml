@@ -2,9 +2,7 @@ summary: Check that enable/disable works
 
 prepare: |
     echo "Install test-snapd-sh and ensure it runs"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     test-snapd-sh.sh -c 'echo Hello' | MATCH Hello
 
 execute: |

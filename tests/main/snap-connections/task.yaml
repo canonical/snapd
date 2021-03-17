@@ -11,9 +11,6 @@ restore: |
     snap remove test-snapd-daemon-notify || true
 
 execute: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     snap connections > all.out 2>&1
     initial_connections="$(wc -l < all.out)"
 
@@ -36,7 +33,7 @@ execute: |
     snap connections test-snapd-content-slot | MATCH "$expected"
 
     # :network is connected by default
-    install_local network-consumer
+    "$TESTSTOOLS"/snaps-state install-local network-consumer
     expected='network +network-consumer:network +:network +-'
     snap connections network-consumer | MATCH "$expected"
     # disconect it manually
@@ -45,7 +42,7 @@ execute: |
     snap connections network-consumer 2>&1 | MATCH "$expected"
 
     # try with an interface which is not connected by default
-    install_local test-snapd-daemon-notify
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-daemon-notify
     expected='daemon-notify +test-snapd-daemon-notify:daemon-notify +- +-'
     snap connections test-snapd-daemon-notify | MATCH "$expected"
 

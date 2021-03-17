@@ -76,8 +76,6 @@ execute: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-    #shellcheck source=tests/lib/boot.sh
-    . "$TESTSLIB"/boot.sh
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
 
@@ -118,7 +116,7 @@ execute: |
         echo "and we have the new gadget snap installed"
         snap list "$NEW_GADGET"
         echo "And are using it"
-        wait_core_post_boot
+        "$TESTSTOOLS"/boot-state wait-core-post-boot
         # gadget data is still there
         test "$(cat /boot/efi/canary.txt)" = "this is test-snapd-pc gadget"
         echo "and we got the new model assertion"
@@ -138,7 +136,7 @@ execute: |
 
     # reboot from new model to undo the new model again (to not pollute tests)
     if [ "$SPREAD_REBOOT" = 2 ]; then
-        wait_core_post_boot
+        "$TESTSTOOLS"/boot-state wait-core-post-boot
         wait_change_done "Refresh model assertion from revision 2 to 3"
         snap debug model|MATCH "revision: 3"
         echo "cleanup"

@@ -11,10 +11,8 @@ environment:
     SLOT: test-snapd-content-mimic-slot:content
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-content-mimic-plug
-    install_local test-snapd-content-mimic-slot
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-content-mimic-plug
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-content-mimic-slot
 
 execute: |
     # Before the content interface is connected we expect to see certain files
@@ -36,7 +34,7 @@ execute: |
         test-snapd-content-mimic-plug.sh -c 'readlink $SNAP/symlink' | MATCH 'symlink-target'
     }
 
-    # Measure the real thing, before a mimic is established.
+    echo "Check the real thing, before a mimic is established."
     check_existing_files
 
     # Connect the content interface which will make $SNAP/content show up (TIP:
@@ -45,19 +43,21 @@ execute: |
     # access to the same old stuff that was there before.
     #shellcheck disable=SC2016
     test-snapd-content-mimic-plug.sh -c 'test ! -e $SNAP/content'
+
+    echo "When we connect the interface"
     snap connect "$PLUG" "$SLOT"
+
+    echo "Check we see shared content inside the newly created directory"
     check_existing_files
     #shellcheck disable=SC2016
     test-snapd-content-mimic-plug.sh -c 'test -d $SNAP/content'
-
-    # The content connection also means we should see shared content inside the
-    # newly created directory. 
     #shellcheck disable=SC2016
     test-snapd-content-mimic-plug.sh -c 'test -e $SNAP/content/canary'
 
-    # The content interface is fully undoable so as soon as we disconnect all
-    # of that goes away without a trace.
+    echo "When we disconnect the interface"
     snap disconnect "$PLUG" "$SLOT"
+
+    echo "The content interface is fully undoable so all the shared content goes away without a trace."
     check_existing_files
     #shellcheck disable=SC2016
     test-snapd-content-mimic-plug.sh -c 'test ! -e $SNAP/content'

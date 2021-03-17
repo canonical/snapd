@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -315,12 +316,37 @@ func createUser(c *Command, createData postUserCreateData) Response {
 	}
 
 	if !createData.ForceManaged {
+		if len(users) > 0 && createData.Automatic {
+			// no users created but no error with the automatic flag
+			return SyncResponse([]userResponseData{}, nil)
+		}
 		if len(users) > 0 {
 			return BadRequest("cannot create user: device already managed")
 		}
 		if release.OnClassic {
 			return BadRequest("cannot create user: device is a classic system")
 		}
+	}
+	if createData.Automatic {
+		var enabled bool
+		st.Lock()
+		tr := config.NewTransaction(st)
+		err := tr.Get("core", "users.create.automatic", &enabled)
+		st.Unlock()
+		if err != nil {
+			if !config.IsNoOption(err) {
+				return InternalError("%v", err)
+			}
+			// defaults to enabled
+			enabled = true
+		}
+		if !enabled {
+			// disabled, do nothing
+			return SyncResponse([]userResponseData{}, nil)
+		}
+		// Automatic implies known/sudoers
+		createData.Known = true
+		createData.Sudoer = true
 	}
 
 	var model *asserts.Model
@@ -521,6 +547,7 @@ type postUserCreateData struct {
 	Sudoer       bool   `json:"sudoer"`
 	Known        bool   `json:"known"`
 	ForceManaged bool   `json:"force-managed"`
+	Automatic    bool   `json:"automatic"`
 
 	// singleUserResultCompat indicates whether to preserve
 	// backwards compatibility, which results in more clunky

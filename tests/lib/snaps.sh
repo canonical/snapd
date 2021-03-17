@@ -2,20 +2,26 @@
 
 make_snap() {
     local SNAP_NAME="$1"
-    local SNAP_DIR="$TESTSLIB/snaps/${SNAP_NAME}"
-    if [ $# -gt 1 ]; then
-        SNAP_DIR="$2"
+    local SNAP_DIR="${2:-$TESTSLIB/snaps/${SNAP_NAME}}"
+    local SNAP_VERSION="${3:-1.0}"
+
+    local META_FILE META_NAME SNAP_FILE
+    META_FILE="$SNAP_DIR/meta/snap.yaml"
+    if [ ! -f "$META_FILE" ]; then
+        echo "snap.yaml file not found for $SNAP_NAME snap"
+        return 1
     fi
-    local SNAP_FILE="${SNAP_DIR}/${SNAP_NAME}_1.0_all.snap"
+    META_NAME="$(grep '^name:' "$META_FILE" | awk '{ print $2 }' | tr -d ' ')"
+    SNAP_FILE="${SNAP_DIR}/${META_NAME}_${SNAP_VERSION}_all.snap"
     # assigned in a separate step to avoid hiding a failure
     if [ ! -f "$SNAP_FILE" ]; then
-        snap pack "$SNAP_DIR" "$SNAP_DIR" >/dev/null || return 1
+        snap pack "$SNAP_DIR" "$SNAP_DIR" >/dev/null
     fi
     # echo the snap name
     if [ -f "$SNAP_FILE" ]; then
         echo "$SNAP_FILE"
     else
-        find "$SNAP_DIR" -name '*.snap' | head -n1
+        find "$SNAP_DIR" -name "${META_NAME}_*.snap"| head -n1
     fi
 }
 
@@ -97,6 +103,9 @@ repack_snapd_deb_into_snapd_snap() {
 
     # repack into the target dir specified
     snap pack --filename=snapd-from-deb.snap  snapd-unpacked "$1"
+
+    # cleanup
+    rm -rf snapd-unpacked
 }
 
 # repack_snapd_deb_into_core_snap will re-pack a core snap using the assets 
@@ -112,6 +121,9 @@ repack_snapd_deb_into_core_snap() {
 
     # repack into the target dir specified
     snap pack --filename=core-from-snapd-deb.snap  core-unpacked "$1"
+
+    # cleanup
+    rm -rf core-unpacked
 }
 
 # repack_installed_core_snap_into_snapd_snap will re-pack the core snap as the snapd snap,

@@ -26,6 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/release"
 )
 
 func (s *SnapSuite) TestRecoveryHelp(c *C) {
@@ -34,9 +35,16 @@ func (s *SnapSuite) TestRecoveryHelp(c *C) {
 
 The recovery command lists the available recovery systems.
 
+With --show-keys it displays recovery keys that can be used to unlock the
+encrypted partitions if the device-specific automatic unlocking does not work.
+
 [recovery command options]
-      --color=[auto|never|always]
-      --unicode=[auto|never|always]
+      --color=[auto|never|always]     Use a little bit of color to highlight
+                                      some things. (default: auto)
+      --unicode=[auto|never|always]   Use a little bit of Unicode to improve
+                                      legibility. (default: auto)
+      --show-keys                     Show recovery keys (if available) to
+                                      unlock encrypted partitions.
 `
 	s.testSubCommandHelp(c, "recovery", msg)
 }
@@ -144,4 +152,43 @@ func (s *SnapSuite) TestNoRecoverySystemsError(c *C) {
 	})
 	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery"})
 	c.Check(err, ErrorMatches, `cannot list recovery systems: permission denied`)
+}
+
+func (s *SnapSuite) TestRecoveryShowRecoveryKeyOnClassicErrors(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		c.Fatalf("unexpected server call")
+	})
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery", "--show-keys"})
+	c.Assert(err, ErrorMatches, `command "show-keys" is not available on classic systems`)
+}
+
+func (s *SnapSuite) TestRecoveryShowRecoveryKeyHappy(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	n := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, Equals, "GET")
+			c.Check(r.URL.Path, Equals, "/v2/system-recovery-keys")
+			c.Check(r.URL.RawQuery, Equals, "")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"recovery-key": "61665-00531-54469-09783-47273-19035-40077-28287", "reinstall-key":"1234"}}`)
+		default:
+			c.Fatalf("expected to get 1 requests, now on %d", n+1)
+		}
+
+		n++
+	})
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"recovery", "--show-keys"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Equals, `recovery:   61665-00531-54469-09783-47273-19035-40077-28287
+reinstall:  1234
+`)
+	c.Check(s.Stderr(), Equals, "")
+	c.Check(n, Equals, 1)
 }

@@ -49,16 +49,16 @@ func newTrustedAssetsCache(cacheDir string) *trustedAssetsCache {
 	return &trustedAssetsCache{cacheDir: cacheDir, hash: crypto.SHA3_384}
 }
 
-func (c *trustedAssetsCache) assetKey(blName, assetName, assetHash string) string {
-	return filepath.Join(blName, fmt.Sprintf("%s-%s", assetName, assetHash))
-}
-
-func (c *trustedAssetsCache) tempAssetKey(blName, assetName string) string {
+func (c *trustedAssetsCache) tempAssetRelPath(blName, assetName string) string {
 	return filepath.Join(blName, assetName+".temp")
 }
 
 func (c *trustedAssetsCache) pathInCache(part string) string {
 	return filepath.Join(c.cacheDir, part)
+}
+
+func trustedAssetCacheRelPath(blName, assetName, assetHash string) string {
+	return filepath.Join(blName, fmt.Sprintf("%s-%s", assetName, assetHash))
 }
 
 // fileHash calculates the hash of an arbitrary file using the same hash method
@@ -87,7 +87,7 @@ func (c *trustedAssetsCache) Add(assetPath, blName, assetName string) (*trackedA
 	}
 	defer inf.Close()
 	// temporary output
-	tempPath := c.pathInCache(c.tempAssetKey(blName, assetName))
+	tempPath := c.pathInCache(c.tempAssetRelPath(blName, assetName))
 	outf, err := osutil.NewAtomicFile(tempPath, 0644, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create temporary cache file: %v", err)
@@ -101,7 +101,7 @@ func (c *trustedAssetsCache) Add(assetPath, blName, assetName string) (*trackedA
 		return nil, fmt.Errorf("cannot copy trusted asset to cache: %v", err)
 	}
 	hashStr := hex.EncodeToString(h.Sum(nil))
-	cacheKey := c.assetKey(blName, assetName, hashStr)
+	cacheKey := trustedAssetCacheRelPath(blName, assetName, hashStr)
 
 	ta := &trackedAsset{
 		blName: blName,
@@ -122,7 +122,7 @@ func (c *trustedAssetsCache) Add(assetPath, blName, assetName string) (*trackedA
 }
 
 func (c *trustedAssetsCache) Remove(blName, assetName, hashStr string) error {
-	cacheKey := c.assetKey(blName, assetName, hashStr)
+	cacheKey := trustedAssetCacheRelPath(blName, assetName, hashStr)
 	if err := os.Remove(c.pathInCache(cacheKey)); err != nil && !os.IsNotExist(err) {
 		return err
 	}
@@ -171,10 +171,10 @@ func CopyBootAssetsCacheToRoot(dstRoot string) error {
 var ErrObserverNotApplicable = errors.New("observer not applicable")
 
 // TrustedAssetsInstallObserverForModel returns a new trusted assets observer
-// for use during installation of the run mode system, provided the device model
-// supports secure boot. Otherwise, nil and ErrObserverNotApplicable is
-// returned.
-func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string) (*TrustedAssetsInstallObserver, error) {
+// for use during installation of the run mode system to track trusted and
+// control managed assets, provided the device model indicates this might be
+// needed. Otherwise, nil and ErrObserverNotApplicable is returned.
+func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string, useEncryption bool) (*TrustedAssetsInstallObserver, error) {
 	if model.Grade() == asserts.ModelGradeUnset {
 		// no need to observe updates when assets are not managed
 		return nil, ErrObserverNotApplicable
@@ -182,11 +182,49 @@ func TrustedAssetsInstallObserverForModel(model *asserts.Model, gadgetDir string
 	if gadgetDir == "" {
 		return nil, fmt.Errorf("internal error: gadget dir not provided")
 	}
+	// TODO:UC20: clarify use of empty rootdir when getting the lists of
+	// managed and trusted assets
+	runBl, runTrusted, runManaged, err := gadgetMaybeTrustedBootloaderAndAssets(gadgetDir, "",
+		&bootloader.Options{
+			Role:        bootloader.RoleRunMode,
+			NoSlashBoot: true,
+		})
+	if err != nil {
+		return nil, err
+	}
+	// and the recovery bootloader, seed is mounted during install
+	seedBl, seedTrusted, _, err := gadgetMaybeTrustedBootloaderAndAssets(gadgetDir, InitramfsUbuntuSeedDir,
+		&bootloader.Options{
+			Role: bootloader.RoleRecovery,
+		})
+	if err != nil {
+		return nil, err
+	}
+	if !useEncryption {
+		// we do not care about trusted assets when not encrypting data
+		// partition
+		runTrusted = nil
+		seedTrusted = nil
+	}
+	hasManaged := len(runManaged) > 0
+	hasTrusted := len(runTrusted) > 0 || len(seedTrusted) > 0
+	if !hasManaged && !hasTrusted && !useEncryption {
+		// no managed assets, and no trusted assets or we are not
+		// tracking them due to no encryption to data partition
+		return nil, ErrObserverNotApplicable
+	}
 
 	return &TrustedAssetsInstallObserver{
 		model:     model,
 		cache:     newTrustedAssetsCache(dirs.SnapBootAssetsDir),
 		gadgetDir: gadgetDir,
+
+		blName:        runBl.Name(),
+		managedAssets: runManaged,
+		trustedAssets: runTrusted,
+
+		recoveryBlName:        seedBl.Name(),
+		trustedRecoveryAssets: seedTrusted,
 	}, nil
 }
 
@@ -209,54 +247,49 @@ func isAssetHashTrackedInMap(bam bootAssetsMap, assetName, assetHash string) boo
 	return strutil.ListContains(hashes, assetHash)
 }
 
-// TrustedAssetsInstallObserver tracks the installation of trusted boot assets.
+// TrustedAssetsInstallObserver tracks the installation of trusted or managed
+// boot assets.
 type TrustedAssetsInstallObserver struct {
-	model                 *asserts.Model
-	gadgetDir             string
-	cache                 *trustedAssetsCache
-	blName                string
-	trustedAssets         []string
-	trackedAssets         bootAssetsMap
+	model     *asserts.Model
+	gadgetDir string
+	cache     *trustedAssetsCache
+
+	blName        string
+	managedAssets []string
+	trustedAssets []string
+	trackedAssets bootAssetsMap
+
+	recoveryBlName        string
+	trustedRecoveryAssets []string
 	trackedRecoveryAssets bootAssetsMap
-	encryptionKey         secboot.EncryptionKey
+
+	dataEncryptionKey secboot.EncryptionKey
+	saveEncryptionKey secboot.EncryptionKey
 }
 
 // Observe observes the operation related to the content of a given gadget
 // structure. In particular, the TrustedAssetsInstallObserver tracks writing of
-// managed boot assets, such as the bootloader binary which is measured as part
-// of the secure boot.
+// trusted or managed boot assets, such as the bootloader binary which is
+// measured as part of the secure boot or the bootloader configuration.
 //
 // Implements gadget.ContentObserver.
-func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, relativeTarget string, data *gadget.ContentChange) (bool, error) {
+func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	if affectedStruct.Role != gadget.SystemBoot {
 		// only care about system-boot
-		return true, nil
+		return gadget.ChangeApply, nil
 	}
 
-	if o.blName == "" {
-		// we have no information about the bootloader yet
-		bl, err := bootloader.ForGadget(o.gadgetDir, root, &bootloader.Options{Role: bootloader.RoleRunMode, NoSlashBoot: true})
-		if err != nil {
-			return false, fmt.Errorf("cannot find bootloader: %v", err)
-		}
-		o.blName = bl.Name()
-		tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
-		if !ok {
-			return true, nil
-		}
-		trustedAssets, err := tbl.TrustedAssets()
-		if err != nil {
-			return false, fmt.Errorf("cannot list %q bootloader trusted assets: %v", bl.Name(), err)
-		}
-		o.trustedAssets = trustedAssets
+	if len(o.managedAssets) != 0 && strutil.ListContains(o.managedAssets, relativeTarget) {
+		// this asset is managed by bootloader installation
+		return gadget.ChangeIgnore, nil
 	}
 	if len(o.trustedAssets) == 0 || !strutil.ListContains(o.trustedAssets, relativeTarget) {
 		// not one of the trusted assets
-		return true, nil
+		return gadget.ChangeApply, nil
 	}
 	ta, err := o.cache.Add(data.After, o.blName, filepath.Base(relativeTarget))
 	if err != nil {
-		return false, err
+		return gadget.ChangeAbort, err
 	}
 	// during installation, modeenv is written out later, at this point we
 	// only care that the same file may appear multiple times in gadget
@@ -266,33 +299,22 @@ func (o *TrustedAssetsInstallObserver) Observe(op gadget.ContentOperation, affec
 			o.trackedAssets = bootAssetsMap{}
 		}
 		if len(o.trackedAssets[ta.name]) > 0 {
-			return false, fmt.Errorf("cannot reuse asset name %q", ta.name)
+			return gadget.ChangeAbort, fmt.Errorf("cannot reuse asset name %q", ta.name)
 		}
 		o.trackedAssets[ta.name] = append(o.trackedAssets[ta.name], ta.hash)
 	}
-	return true, nil
+	return gadget.ChangeApply, nil
 }
 
 // ObserveExistingTrustedRecoveryAssets observes existing trusted assets of a
 // recovery bootloader located inside a given root directory.
 func (o *TrustedAssetsInstallObserver) ObserveExistingTrustedRecoveryAssets(recoveryRootDir string) error {
-	bl, err := bootloader.Find(recoveryRootDir, &bootloader.Options{
-		Role: bootloader.RoleRecovery,
-	})
-	if err != nil {
-		return fmt.Errorf("cannot identify recovery system bootloader: %v", err)
-	}
-	tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
-	if !ok {
-		// not a trusted assets bootloader
+	if len(o.trustedRecoveryAssets) == 0 {
+		// not a trusted assets bootloader or has no trusted assets
 		return nil
 	}
-	trustedAssets, err := tbl.TrustedAssets()
-	if err != nil {
-		return fmt.Errorf("cannot list %q recovery bootloader trusted assets: %v", bl.Name(), err)
-	}
-	for _, trustedAsset := range trustedAssets {
-		ta, err := o.cache.Add(filepath.Join(recoveryRootDir, trustedAsset), bl.Name(), filepath.Base(trustedAsset))
+	for _, trustedAsset := range o.trustedRecoveryAssets {
+		ta, err := o.cache.Add(filepath.Join(recoveryRootDir, trustedAsset), o.recoveryBlName, filepath.Base(trustedAsset))
 		if err != nil {
 			return err
 		}
@@ -317,107 +339,181 @@ func (o *TrustedAssetsInstallObserver) currentTrustedRecoveryBootAssetsMap() boo
 	return o.trackedRecoveryAssets
 }
 
-func (o *TrustedAssetsInstallObserver) ChosenEncryptionKey(key secboot.EncryptionKey) {
-	o.encryptionKey = key
+func (o *TrustedAssetsInstallObserver) ChosenEncryptionKeys(key, saveKey secboot.EncryptionKey) {
+	o.dataEncryptionKey = key
+	o.saveEncryptionKey = saveKey
 }
 
 // TrustedAssetsUpdateObserverForModel returns a new trusted assets observer for
-// tracking changes to the measured boot assets during gadget updates, provided
-// the device model supports secure boot. Otherwise, nil and ErrObserverNotApplicable is
-// returned.
-func TrustedAssetsUpdateObserverForModel(model *asserts.Model) (*TrustedAssetsUpdateObserver, error) {
+// tracking changes to the trusted boot assets and preserving managed assets,
+// provided the device model indicates this might be needed. Otherwise, nil and
+// ErrObserverNotApplicable is returned.
+func TrustedAssetsUpdateObserverForModel(model *asserts.Model, gadgetDir string) (*TrustedAssetsUpdateObserver, error) {
 	if model.Grade() == asserts.ModelGradeUnset {
 		// no need to observe updates when assets are not managed
 		return nil, ErrObserverNotApplicable
 	}
+	// trusted assets need tracking only when the system is using encryption
+	// for its data partitions
+	trackTrustedAssets := false
+	_, err := sealedKeysMethod(dirs.GlobalRootDir)
+	switch {
+	case err == nil:
+		trackTrustedAssets = true
+	case err == errNoSealedKeys:
+		// nothing to do
+	case err != nil:
+		// all other errors
+		return nil, err
+	}
 
-	return &TrustedAssetsUpdateObserver{
+	// see what we need to observe for the run bootloader
+	runBl, runTrusted, runManaged, err := gadgetMaybeTrustedBootloaderAndAssets(gadgetDir, InitramfsUbuntuBootDir,
+		&bootloader.Options{
+			Role:        bootloader.RoleRunMode,
+			NoSlashBoot: true,
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	// and the recovery bootloader
+	seedBl, seedTrusted, seedManaged, err := gadgetMaybeTrustedBootloaderAndAssets(gadgetDir, InitramfsUbuntuSeedDir,
+		&bootloader.Options{
+			Role: bootloader.RoleRecovery,
+		})
+	if err != nil {
+		return nil, err
+	}
+
+	hasManaged := len(runManaged) > 0 || len(seedManaged) > 0
+	hasTrusted := len(runTrusted) > 0 || len(seedTrusted) > 0
+	if !hasManaged {
+		// no managed assets
+		if !hasTrusted || !trackTrustedAssets {
+			// no trusted assets or we are not tracking them either
+			return nil, ErrObserverNotApplicable
+		}
+	}
+
+	obs := &TrustedAssetsUpdateObserver{
 		cache: newTrustedAssetsCache(dirs.SnapBootAssetsDir),
-	}, nil
+		model: model,
+
+		bootBootloader:    runBl,
+		bootManagedAssets: runManaged,
+
+		seedBootloader:    seedBl,
+		seedManagedAssets: seedManaged,
+	}
+	if trackTrustedAssets {
+		obs.seedTrustedAssets = seedTrusted
+		obs.bootTrustedAssets = runTrusted
+	}
+	return obs, nil
 }
 
 // TrustedAssetsUpdateObserver tracks the updates of trusted boot assets and
-// attempts to reseal when needed.
+// attempts to reseal when needed or preserves managed boot assets.
 type TrustedAssetsUpdateObserver struct {
 	cache *trustedAssetsCache
+	model *asserts.Model
 
 	bootBootloader    bootloader.Bootloader
 	bootTrustedAssets []string
+	bootManagedAssets []string
 	changedAssets     []*trackedAsset
 
 	seedBootloader    bootloader.Bootloader
 	seedTrustedAssets []string
+	seedManagedAssets []string
 	seedChangedAssets []*trackedAsset
 
 	modeenv *Modeenv
 }
 
-func findMaybeTrustedAssetsBootloader(root string, opts *bootloader.Options) (foundBl bootloader.Bootloader, trustedAssets []string, err error) {
-	foundBl, err = bootloader.Find(root, opts)
+func trustedAndManagedAssetsOfBootloader(bl bootloader.Bootloader) (trustedAssets, managedAssets []string, err error) {
+	tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
+	if ok {
+		trustedAssets, err = tbl.TrustedAssets()
+		if err != nil {
+			return nil, nil, fmt.Errorf("cannot list %q bootloader trusted assets: %v", bl.Name(), err)
+		}
+		managedAssets = tbl.ManagedAssets()
+	}
+	return trustedAssets, managedAssets, nil
+}
+
+func findMaybeTrustedBootloaderAndAssets(rootDir string, opts *bootloader.Options) (foundBl bootloader.Bootloader, trustedAssets []string, err error) {
+	foundBl, err = bootloader.Find(rootDir, opts)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot find bootloader: %v", err)
 	}
-	tbl, ok := foundBl.(bootloader.TrustedAssetsBootloader)
-	if !ok {
-		return foundBl, nil, nil
-	}
-	trustedAssets, err = tbl.TrustedAssets()
+	trustedAssets, _, err = trustedAndManagedAssetsOfBootloader(foundBl)
+	return foundBl, trustedAssets, err
+}
+
+func gadgetMaybeTrustedBootloaderAndAssets(gadgetDir, rootDir string, opts *bootloader.Options) (foundBl bootloader.Bootloader, trustedAssets, managedAssets []string, err error) {
+	foundBl, err = bootloader.ForGadget(gadgetDir, rootDir, opts)
 	if err != nil {
-		return nil, nil, fmt.Errorf("cannot list %q bootloader trusted assets: %v", foundBl.Name(), err)
+		return nil, nil, nil, fmt.Errorf("cannot find bootloader: %v", err)
 	}
-	return foundBl, trustedAssets, nil
+	trustedAssets, managedAssets, err = trustedAndManagedAssetsOfBootloader(foundBl)
+	return foundBl, trustedAssets, managedAssets, err
 }
 
 // Observe observes the operation related to the update or rollback of the
 // content of a given gadget structure. In particular, the
-// TrustedAssetsUpdateObserver tracks updates of managed boot assets, such as
-// the bootloader binary which is measured as part of the secure boot.
+// TrustedAssetsUpdateObserver tracks updates of trusted boot assets such as
+// bootloader binaries, or preserves managed assets such as boot configuration.
 //
 // Implements gadget.ContentUpdateObserver.
-func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, relativeTarget string, data *gadget.ContentChange) (bool, error) {
+func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	var whichBootloader bootloader.Bootloader
-	var whichAssets []string
+	var whichTrustedAssets []string
+	var whichManagedAssets []string
 	var err error
 	var isRecovery bool
 
 	switch affectedStruct.Role {
 	case gadget.SystemBoot:
-		if o.bootBootloader == nil {
-			o.bootBootloader, o.bootTrustedAssets, err = findMaybeTrustedAssetsBootloader(root, &bootloader.Options{
-				Role:        bootloader.RoleRunMode,
-				NoSlashBoot: true,
-			})
-			if err != nil {
-				return false, err
-			}
-		}
 		whichBootloader = o.bootBootloader
-		whichAssets = o.bootTrustedAssets
+		whichTrustedAssets = o.bootTrustedAssets
+		whichManagedAssets = o.bootManagedAssets
 	case gadget.SystemSeed:
-		if o.seedBootloader == nil {
-			o.seedBootloader, o.seedTrustedAssets, err = findMaybeTrustedAssetsBootloader(root, &bootloader.Options{
-				Role: bootloader.RoleRecovery,
-			})
-			if err != nil {
-				return false, err
-			}
-		}
 		whichBootloader = o.seedBootloader
-		whichAssets = o.seedTrustedAssets
+		whichTrustedAssets = o.seedTrustedAssets
+		whichManagedAssets = o.seedManagedAssets
 		isRecovery = true
 	default:
 		// only system-seed and system-boot are of interest
-		return true, nil
+		return gadget.ChangeApply, nil
 	}
-	if len(whichAssets) == 0 || !strutil.ListContains(whichAssets, relativeTarget) {
+	// maybe an asset that we manage?
+	if len(whichManagedAssets) != 0 && strutil.ListContains(whichManagedAssets, relativeTarget) {
+		// this asset is managed directly by the bootloader, preserve it
+		if op != gadget.ContentUpdate {
+			return gadget.ChangeAbort, fmt.Errorf("internal error: managed bootloader asset change for non update operation %v", op)
+		}
+		return gadget.ChangeIgnore, nil
+	}
+
+	if len(whichTrustedAssets) == 0 {
+		// the system is not using encryption for data partitions, so
+		// we're done at this point
+		return gadget.ChangeApply, nil
+	}
+
+	// maybe an asset that is trusted in the boot process?
+	if !strutil.ListContains(whichTrustedAssets, relativeTarget) {
 		// not one of the trusted assets
-		return true, nil
+		return gadget.ChangeApply, nil
 	}
 	if o.modeenv == nil {
 		// we've hit a trusted asset, so a modeenv is needed now too
 		o.modeenv, err = ReadModeenv("")
 		if err != nil {
-			return false, fmt.Errorf("cannot load modeenv: %v", err)
+			return gadget.ChangeAbort, fmt.Errorf("cannot load modeenv: %v", err)
 		}
 	}
 	switch op {
@@ -427,14 +523,14 @@ func (o *TrustedAssetsUpdateObserver) Observe(op gadget.ContentOperation, affect
 		return o.observeRollback(whichBootloader, isRecovery, root, relativeTarget, data)
 	default:
 		// we only care about update and rollback actions
-		return false, nil
+		return gadget.ChangeApply, nil
 	}
 }
 
-func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, recovery bool, root, relativeTarget string, change *gadget.ContentChange) (bool, error) {
+func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, recovery bool, root, relativeTarget string, change *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	modeenvBefore, err := o.modeenv.Copy()
 	if err != nil {
-		return false, fmt.Errorf("cannot copy modeenv: %v", err)
+		return gadget.ChangeAbort, fmt.Errorf("cannot copy modeenv: %v", err)
 	}
 
 	// we may be running after a mid-update reboot, where a successful boot
@@ -447,13 +543,13 @@ func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, re
 		// it existed
 		taBefore, err = o.cache.Add(change.Before, bl.Name(), filepath.Base(relativeTarget))
 		if err != nil {
-			return false, err
+			return gadget.ChangeAbort, err
 		}
 	}
 
 	ta, err := o.cache.Add(change.After, bl.Name(), filepath.Base(relativeTarget))
 	if err != nil {
-		return false, err
+		return gadget.ChangeAbort, err
 	}
 
 	trustedAssets := &o.modeenv.CurrentTrustedBootAssets
@@ -484,21 +580,21 @@ func (o *TrustedAssetsUpdateObserver) observeUpdate(bl bootloader.Bootloader, re
 			// during an update; more entries indicates that the
 			// same asset name is used multiple times with different
 			// content
-			return false, fmt.Errorf("cannot reuse asset name %q", ta.name)
+			return gadget.ChangeAbort, fmt.Errorf("cannot reuse asset name %q", ta.name)
 		}
 		(*trustedAssets)[ta.name] = append((*trustedAssets)[ta.name], ta.hash)
 	}
 
 	if o.modeenv.deepEqual(modeenvBefore) {
-		return true, nil
+		return gadget.ChangeApply, nil
 	}
 	if err := o.modeenv.Write(); err != nil {
-		return false, fmt.Errorf("cannot write modeeenv: %v", err)
+		return gadget.ChangeAbort, fmt.Errorf("cannot write modeeenv: %v", err)
 	}
-	return true, nil
+	return gadget.ChangeApply, nil
 }
 
-func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, recovery bool, root, relativeTarget string, data *gadget.ContentChange) (bool, error) {
+func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, recovery bool, root, relativeTarget string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	trustedAssets := &o.modeenv.CurrentTrustedBootAssets
 	otherTrustedAssets := o.modeenv.CurrentTrustedRecoveryBootAssets
 	if recovery {
@@ -510,7 +606,7 @@ func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, 
 	hashList, ok := (*trustedAssets)[assetName]
 	if !ok || len(hashList) == 0 {
 		// asset not tracked in modeenv
-		return true, nil
+		return gadget.ChangeApply, nil
 	}
 
 	// new assets are appended to the list
@@ -521,20 +617,20 @@ func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, 
 	if err != nil {
 		// file may not exist if it was added by the update, that's ok
 		if !os.IsNotExist(err) {
-			return false, fmt.Errorf("cannot calculate the digest of current asset: %v", err)
+			return gadget.ChangeAbort, fmt.Errorf("cannot calculate the digest of current asset: %v", err)
 		}
 		newlyAdded = true
 		if len(hashList) > 1 {
 			// we have more than 1 hash of the asset, so we expected
 			// a previous revision to be restored, but got nothing
 			// instead
-			return false, fmt.Errorf("tracked asset %q is unexpectedly missing from disk",
+			return gadget.ChangeAbort, fmt.Errorf("tracked asset %q is unexpectedly missing from disk",
 				assetName)
 		}
 	} else {
 		if ondiskHash != expectedOldHash {
 			// this is unexpected, a different file exists on disk?
-			return false, fmt.Errorf("unexpected content of existing asset %q", relativeTarget)
+			return gadget.ChangeAbort, fmt.Errorf("unexpected content of existing asset %q", relativeTarget)
 		}
 	}
 
@@ -550,7 +646,7 @@ func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, 
 		// asset revision is not used used elsewhere, we can remove it from the cache
 		if err := o.cache.Remove(bl.Name(), assetName, newHash); err != nil {
 			// XXX: should this be a log instead?
-			return false, fmt.Errorf("cannot remove unused boot asset %v:%v: %v", assetName, newHash, err)
+			return gadget.ChangeAbort, fmt.Errorf("cannot remove unused boot asset %v:%v: %v", assetName, newHash, err)
 		}
 	}
 
@@ -562,16 +658,23 @@ func (o *TrustedAssetsUpdateObserver) observeRollback(bl bootloader.Bootloader, 
 	}
 
 	if err := o.modeenv.Write(); err != nil {
-		return false, fmt.Errorf("cannot write modeeenv: %v", err)
+		return gadget.ChangeAbort, fmt.Errorf("cannot write modeeenv: %v", err)
 	}
 
-	return false, nil
+	return gadget.ChangeApply, nil
 }
 
 // BeforeWrite is called when the update process has been staged for execution.
 func (o *TrustedAssetsUpdateObserver) BeforeWrite() error {
-	// TODO:UC20:
-	// - reseal with a given state of modeenv
+	if o.modeenv == nil {
+		// modeenv wasn't even loaded yet, meaning none of the trusted
+		// boot assets was updated
+		return nil
+	}
+	const expectReseal = true
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.model, o.modeenv, expectReseal); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -634,8 +737,10 @@ func (o *TrustedAssetsUpdateObserver) Canceled() error {
 		return fmt.Errorf("cannot write modeeenv: %v", err)
 	}
 
-	// TODO:UC20:
-	// - reseal with a given state of modeenv
+	const expectReseal = true
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.model, o.modeenv, expectReseal); err != nil {
+		return fmt.Errorf("while canceling gadget update: %v", err)
+	}
 	return nil
 }
 
@@ -656,7 +761,7 @@ func observeSuccessfulBootAssetsForBootloader(m *Modeenv, root string, opts *boo
 	}
 
 	// let's find the bootloader first
-	bl, trustedAssets, err := findMaybeTrustedAssetsBootloader(root, opts)
+	bl, trustedAssets, err := findMaybeTrustedBootloaderAndAssets(root, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -725,6 +830,11 @@ func observeSuccessfulBootAssetsForBootloader(m *Modeenv, root string, opts *boo
 // after a successful boot. Returns a modified modeenv reflecting a new state,
 // and a list of assets that can be dropped from the cache.
 func observeSuccessfulBootAssets(m *Modeenv) (newM *Modeenv, drop []*trackedAsset, err error) {
+	// TODO:UC20 only care about run mode for now
+	if m.Mode != "run" {
+		return m, nil, nil
+	}
+
 	newM, err = m.Copy()
 	if err != nil {
 		return nil, nil, err

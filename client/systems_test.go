@@ -192,14 +192,26 @@ func (cs *clientSuite) TestRequestSystemRebootHappy(c *check.C) {
 	})
 }
 
-func (cs *clientSuite) TestRequestSystemRebootError(c *check.C) {
+func (cs *clientSuite) TestRequestSystemRebootErrorNoSystem(c *check.C) {
+	cs.rsp = `{
+	    "type": "error",
+	    "status-code": 500,
+	    "result": {"message": "failed"}
+	}`
+	err := cs.cli.RebootToSystem("", "install")
+	c.Assert(err, check.ErrorMatches, `cannot request system reboot: failed`)
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems")
+}
+
+func (cs *clientSuite) TestRequestSystemRebootErrorWithSystem(c *check.C) {
 	cs.rsp = `{
 	    "type": "error",
 	    "status-code": 500,
 	    "result": {"message": "failed"}
 	}`
 	err := cs.cli.RebootToSystem("1234", "install")
-	c.Assert(err, check.ErrorMatches, "cannot request system action: failed")
+	c.Assert(err, check.ErrorMatches, `cannot request system reboot into "1234": failed`)
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/systems/1234")
 }

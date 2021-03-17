@@ -27,11 +27,13 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/secboot"
 )
 
 const (
 	ubuntuDataLabel = "ubuntu-data"
+	ubuntuSaveLabel = "ubuntu-save"
 )
 
 func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err error) {
@@ -43,7 +45,7 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 			if err != nil {
 				return "", fmt.Errorf("cannot find device for role %q: %v", role, err)
 			}
-			return gadget.ParentDiskFromPartition(device)
+			return gadget.ParentDiskFromMountSource(device)
 		}
 	}
 	return "", fmt.Errorf("cannot find role %s in gadget", role)
@@ -51,15 +53,21 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 
 // Run bootstraps the partitions of a device, by either creating
 // missing ones or recreating installed ones.
-func Run(gadgetRoot, device string, options Options, observer SystemInstallObserver) error {
+func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Options, observer gadget.ContentObserver) (*InstalledSystemSideData, error) {
+	logger.Noticef("installing a new system")
+	logger.Noticef("        gadget data from: %v", gadgetRoot)
+	if options.Encrypt {
+		logger.Noticef("        encryption: on")
+	}
 	if gadgetRoot == "" {
-		return fmt.Errorf("cannot use empty gadget root directory")
+		return nil, fmt.Errorf("cannot use empty gadget root directory")
 	}
 
-	lv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
+	lv, err := gadget.LaidOutSystemVolumeFromGadget(gadgetRoot, kernelRoot, model)
 	if err != nil {
-		return fmt.Errorf("cannot layout the volume: %v", err)
+		return nil, fmt.Errorf("cannot layout the volume: %v", err)
 	}
+	// TODO: resolve content paths from gadget here
 
 	// XXX: the only situation where auto-detect is not desired is
 	//      in (spread) testing - consider to remove forcing a device
@@ -68,140 +76,201 @@ func Run(gadgetRoot, device string, options Options, observer SystemInstallObser
 	if device == "" {
 		device, err = deviceFromRole(lv, gadget.SystemSeed)
 		if err != nil {
-			return fmt.Errorf("cannot find device to create partitions on: %v", err)
+			return nil, fmt.Errorf("cannot find device to create partitions on: %v", err)
 		}
 	}
 
 	diskLayout, err := gadget.OnDiskVolumeFromDevice(device)
 	if err != nil {
-		return fmt.Errorf("cannot read %v partitions: %v", device, err)
+		return nil, fmt.Errorf("cannot read %v partitions: %v", device, err)
 	}
 
 	// check if the current partition table is compatible with the gadget,
 	// ignoring partitions added by the installer (will be removed later)
 	if err := ensureLayoutCompatibility(lv, diskLayout); err != nil {
-		return fmt.Errorf("gadget and %v partition table not compatible: %v", device, err)
+		return nil, fmt.Errorf("gadget and %v partition table not compatible: %v", device, err)
 	}
 
 	// remove partitions added during a previous install attempt
-	if err := removeCreatedPartitions(diskLayout); err != nil {
-		return fmt.Errorf("cannot remove partitions from previous install: %v", err)
+	if err := removeCreatedPartitions(lv, diskLayout); err != nil {
+		return nil, fmt.Errorf("cannot remove partitions from previous install: %v", err)
 	}
 	// at this point we removed any existing partition, nuke any
 	// of the existing sealed key files placed outside of the
 	// encrypted partitions (LP: #1879338)
-	sealedKeyFiles, _ := filepath.Glob(filepath.Join(boot.InitramfsEncryptionKeyDir, "*.sealed-key"))
+	sealedKeyFiles, _ := filepath.Glob(filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "*.sealed-key"))
 	for _, keyFile := range sealedKeyFiles {
 		if err := os.Remove(keyFile); err != nil && !os.IsNotExist(err) {
-			return fmt.Errorf("cannot cleanup obsolete key file: %v", keyFile)
+			return nil, fmt.Errorf("cannot cleanup obsolete key file: %v", keyFile)
 		}
 	}
 
 	created, err := createMissingPartitions(diskLayout, lv)
 	if err != nil {
-		return fmt.Errorf("cannot create the partitions: %v", err)
+		return nil, fmt.Errorf("cannot create the partitions: %v", err)
 	}
 
-	// We're currently generating a single encryption key, this may change later
-	// if we create multiple encrypted partitions.
-	var key secboot.EncryptionKey
-	var rkey secboot.RecoveryKey
-
-	if options.Encrypt {
-		key, err = secboot.NewEncryptionKey()
+	makeKeySet := func() (*EncryptionKeySet, error) {
+		key, err := secboot.NewEncryptionKey()
 		if err != nil {
-			return fmt.Errorf("cannot create encryption key: %v", err)
+			return nil, fmt.Errorf("cannot create encryption key: %v", err)
 		}
 
-		rkey, err = secboot.NewRecoveryKey()
+		rkey, err := secboot.NewRecoveryKey()
 		if err != nil {
-			return fmt.Errorf("cannot create recovery key: %v", err)
+			return nil, fmt.Errorf("cannot create recovery key: %v", err)
 		}
+		return &EncryptionKeySet{
+			Key:         key,
+			RecoveryKey: rkey,
+		}, nil
 	}
+	roleNeedsEncryption := func(role string) bool {
+		return role == gadget.SystemData || role == gadget.SystemSave
+	}
+	var keysForRoles map[string]*EncryptionKeySet
 
 	for _, part := range created {
-		if options.Encrypt && part.Role == gadget.SystemData {
-			dataPart, err := newEncryptedDevice(&part, key, ubuntuDataLabel)
+		roleFmt := ""
+		if part.Role != "" {
+			roleFmt = fmt.Sprintf("role %v", part.Role)
+		}
+		logger.Noticef("created new partition %v for structure %v (size %v) %s",
+			part.Node, part, part.Size.IECString(), roleFmt)
+		if options.Encrypt && roleNeedsEncryption(part.Role) {
+			keys, err := makeKeySet()
 			if err != nil {
-				return err
+				return nil, err
+			}
+			logger.Noticef("encrypting partition device %v", part.Node)
+			dataPart, err := newEncryptedDevice(&part, keys.Key, part.Label)
+			if err != nil {
+				return nil, err
 			}
 
-			if err := dataPart.AddRecoveryKey(key, rkey); err != nil {
-				return err
+			if err := dataPart.AddRecoveryKey(keys.Key, keys.RecoveryKey); err != nil {
+				return nil, err
 			}
 
 			// update the encrypted device node
 			part.Node = dataPart.Node
+			if keysForRoles == nil {
+				keysForRoles = map[string]*EncryptionKeySet{}
+			}
+			keysForRoles[part.Role] = keys
+			logger.Noticef("encrypted device %v", part.Node)
 		}
 
-		if err := makeFilesystem(&part); err != nil {
-			return err
+		// use the diskLayout.SectorSize here instead of lv.SectorSize, we check
+		// that if there is a sector-size specified in the gadget that it
+		// matches what is on the disk, but sometimes there may not be a sector
+		// size specified in the gadget.yaml, but we will always have the sector
+		// size from the physical disk device
+		if err := makeFilesystem(&part, diskLayout.SectorSize); err != nil {
+			return nil, fmt.Errorf("cannot make filesystem for partition %s: %v", part.Role, err)
 		}
 
 		if err := writeContent(&part, gadgetRoot, observer); err != nil {
-			return err
+			return nil, err
 		}
 
 		if options.Mount && part.Label != "" && part.HasFilesystem() {
 			if err := mountFilesystem(&part, boot.InitramfsRunMntDir); err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
 
-	if !options.Encrypt {
-		return nil
-	}
+	return &InstalledSystemSideData{
+		KeysForRoles: keysForRoles,
+	}, nil
+}
 
-	// ensure directories
-	for _, p := range []string{boot.InitramfsEncryptionKeyDir, boot.InstallHostFDEDataDir} {
-		if err := os.MkdirAll(p, 0755); err != nil {
-			return err
-		}
+// isCreatableAtInstall returns whether the gadget structure would be created at
+// install - currently that is only ubuntu-save, ubuntu-data, and ubuntu-boot
+func isCreatableAtInstall(gv *gadget.VolumeStructure) bool {
+	// a structure is creatable at install if it is one of the roles for
+	// system-save, system-data, or system-boot
+	switch gv.Role {
+	case gadget.SystemSave, gadget.SystemData, gadget.SystemBoot:
+		return true
+	default:
+		return false
 	}
-
-	// Write the recovery key
-	recoveryKeyFile := filepath.Join(boot.InstallHostFDEDataDir, "recovery.key")
-	if err := rkey.Save(recoveryKeyFile); err != nil {
-		return fmt.Errorf("cannot store recovery key: %v", err)
-	}
-
-	if observer != nil {
-		observer.ChosenEncryptionKey(key)
-	}
-
-	return nil
 }
 
 func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *gadget.OnDiskVolume) error {
-	eq := func(ds gadget.OnDiskStructure, gs gadget.LaidOutStructure) bool {
+	eq := func(ds gadget.OnDiskStructure, gs gadget.LaidOutStructure) (bool, string) {
 		dv := ds.VolumeStructure
 		gv := gs.VolumeStructure
 		nameMatch := gv.Name == dv.Name
 		if gadgetLayout.Schema == "mbr" {
-			// partitions have no names in MBR
+			// partitions have no names in MBR so bypass the name check
 			nameMatch = true
 		}
-		// Previous installation may have failed before filesystem creation or partition may be encrypted
-		check := nameMatch && ds.StartOffset == gs.StartOffset && (ds.CreatedDuringInstall || dv.Filesystem == gv.Filesystem)
+		// Previous installation may have failed before filesystem creation or
+		// partition may be encrypted, so if the on disk offset matches the
+		// gadget offset, and the gadget structure is creatable during install,
+		// then they are equal
+		// otherwise, if they are not created during installation, the
+		// filesystem must be the same
+		check := nameMatch && ds.StartOffset == gs.StartOffset && (isCreatableAtInstall(gv) || dv.Filesystem == gv.Filesystem)
+		sizeMatches := dv.Size == gv.Size
 		if gv.Role == gadget.SystemData {
 			// system-data may have been expanded
-			return check && dv.Size >= gv.Size
+			sizeMatches = dv.Size >= gv.Size
 		}
-		return check && dv.Size == gv.Size
-	}
-	contains := func(haystack []gadget.LaidOutStructure, needle gadget.OnDiskStructure) bool {
-		for _, h := range haystack {
-			if eq(needle, h) {
-				return true
-			}
+		if check && sizeMatches {
+			return true, ""
 		}
-		return false
+		switch {
+		case !nameMatch:
+			// don't return a reason if the names don't match
+			return false, ""
+		case ds.StartOffset != gs.StartOffset:
+			return false, fmt.Sprintf("start offsets do not match (disk: %d (%s) and gadget: %d (%s))", ds.StartOffset, ds.StartOffset.IECString(), gs.StartOffset, gs.StartOffset.IECString())
+		case !isCreatableAtInstall(gv) && dv.Filesystem != gv.Filesystem:
+			return false, "filesystems do not match and the partition is not creatable at install"
+		case dv.Size < gv.Size:
+			return false, "on disk size is smaller than gadget size"
+		case gv.Role != gadget.SystemData && dv.Size > gv.Size:
+			return false, "on disk size is larger than gadget size (and the role should not be expanded)"
+		default:
+			return false, "some other logic condition (should be impossible?)"
+		}
 	}
 
+	contains := func(haystack []gadget.LaidOutStructure, needle gadget.OnDiskStructure) (bool, string) {
+		reasonAbsent := ""
+		for _, h := range haystack {
+			matches, reasonNotMatches := eq(needle, h)
+			if matches {
+				return true, ""
+			}
+			// this has the effect of only returning the last non-empty reason
+			// string
+			if reasonNotMatches != "" {
+				reasonAbsent = reasonNotMatches
+			}
+		}
+		return false, reasonAbsent
+	}
+
+	// check size of volumes
 	if gadgetLayout.Size > diskLayout.Size {
 		return fmt.Errorf("device %v (%s) is too small to fit the requested layout (%s)", diskLayout.Device,
 			diskLayout.Size.IECString(), gadgetLayout.Size.IECString())
+	}
+
+	// check that the sizes of all structures in the gadget are multiples of
+	// the disk sector size (unless the structure is the MBR)
+	for _, ls := range gadgetLayout.LaidOutStructure {
+		if !gadget.IsRoleMBR(ls) {
+			if ls.Size%diskLayout.SectorSize != 0 {
+				return fmt.Errorf("gadget volume structure %v size is not a multiple of disk sector size %v",
+					ls, diskLayout.SectorSize)
+			}
+		}
 	}
 
 	// Check if top level properties match
@@ -214,8 +283,14 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *g
 
 	// Check if all existing device partitions are also in gadget
 	for _, ds := range diskLayout.Structure {
-		if !contains(gadgetLayout.LaidOutStructure, ds) {
-			return fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget", ds.Node, ds.StartOffset)
+		present, reasonAbsent := contains(gadgetLayout.LaidOutStructure, ds)
+		if !present {
+			if reasonAbsent != "" {
+				// use the right format so that it can be
+				// appended to the error message
+				reasonAbsent = fmt.Sprintf(": %s", reasonAbsent)
+			}
+			return fmt.Errorf("cannot find disk partition %s (starting at %d) in gadget%s", ds.Node, ds.StartOffset, reasonAbsent)
 		}
 	}
 

@@ -33,11 +33,8 @@ debug: |
     "$TESTSTOOLS"/journal-state get-log
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     echo "Given a snap is installed"
-    install_local "$CONSUMER_SNAP"
+    "$TESTSTOOLS"/snaps-state install-local "$CONSUMER_SNAP"
 
     # If possible, prepare a session for the test user. On many systems this
     # will allow running all tests as the unprivileged user. This shields us
@@ -47,12 +44,16 @@ prepare: |
         tests.session -u test prepare
     fi
 
+restore: |
+    # Remove the snaps to avoid timeout in next test
+    snap remove --purge "$CONSUMER_SNAP"
+    if tests.session has-session-systemd-and-dbus; then
+        tests.session -u test restore
+    fi
+
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
-
-    # shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB/systems.sh"
 
     echo "For each core-provided slot"
     for plugcmd in "$SNAP_MOUNT_DIR"/bin/"$CONSUMER_SNAP".* ; do
@@ -106,10 +107,3 @@ execute: |
             fi
         fi
     done
-
-restore: |
-    # Remove the snaps to avoid timeout in next test
-    snap remove --purge "$CONSUMER_SNAP"
-    if tests.session has-session-systemd-and-dbus; then
-        tests.session -u test restore
-    fi

@@ -49,7 +49,16 @@ execute: |
     # TODO: discuss with the store how we can make this test stable, i.e.
     #       that section/snap changes do not break us
     if [ "$(uname -m)" = "x86_64" ]; then
-        snap find --section=photo-and-video vlc | MATCH vlc
+        set +e
+        snap find --section=photo-and-video vlc >vlc.log 2>&1
+        retval=$?
+        set -e
+
+        if [ "$retval" -eq 0 ]; then
+          MATCH vlc < vlc.log
+        else
+          MATCH 'error: cannot get snap sections: cannot sections: got unexpected HTTP status code 403 via GET to "https://api.snapcraft.io/api/v1/snaps/sections"' < vlc.log
+        fi
     else
         # actual output:
         # Name           Version  Publisher  Notes  Summary

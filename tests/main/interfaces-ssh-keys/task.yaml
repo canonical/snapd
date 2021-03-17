@@ -5,39 +5,23 @@ details: |
     make ssh connections.
 
 environment:
-    KEYSDIR: "/$HOME/.ssh"
+    KEYSDIR: "$HOME/.ssh"
     TESTKEY: "$HOME/.ssh/testkey"
-    CONFDIR: "/etc/ssh/ssh_config.d/"
+    CONFDIR: "/etc/ssh/ssh_config.d"
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
-    if [ -d "$KEYSDIR" ]; then
-        cp -rf "$KEYSDIR" "$KEYSDIR".old
-    else
-        mkdir "$KEYSDIR"
-    fi
-    echo "testkey" > "$TESTKEY"
-    echo "testkey.pub" > "$TESTKEY".pub
-
-    if [ ! -d "$CONFDIR" ]; then
-        mkdir -p "$CONFDIR"
-        touch "$CONFDIR/.spread-created"
-    fi
-    touch "$CONFDIR/test.conf"
+    "$TESTSTOOLS"/fs-state mock-dir "$KEYSDIR"
+    "$TESTSTOOLS"/fs-state mock-file "$TESTKEY"
+    "$TESTSTOOLS"/fs-state mock-file "$TESTKEY".pub
+    "$TESTSTOOLS"/fs-state mock-dir "$CONFDIR"
+    "$TESTSTOOLS"/fs-state mock-file "$CONFDIR/.spread-created"
+    "$TESTSTOOLS"/fs-state mock-file "$CONFDIR/test.conf"
 
 restore: |
-    rm -rf "$KEYSDIR"
-    if [ -d "$KEYSDIR".old ]; then
-        mv "$KEYSDIR".old "$KEYSDIR"
-    fi
-
-    rm -f "$CONFDIR/test.conf"
-    if [ -f "$CONFDIR/.spread-created" ]; then
-        rm -rf "$CONFDIR"
-    fi
+    "$TESTSTOOLS"/fs-state restore-dir "$KEYSDIR"
+    "$TESTSTOOLS"/fs-state restore-dir "$CONFDIR"
 
 execute: |
     echo "The interface is not connected by default"

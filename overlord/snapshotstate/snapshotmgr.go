@@ -44,10 +44,13 @@ var (
 	configSetSnapConfig  = config.SetSnapConfig
 	backendOpen          = backend.Open
 	backendSave          = backend.Save
+	backendImport        = backend.Import
 	backendRestore       = (*backend.Reader).Restore // TODO: look into using an interface instead
 	backendCheck         = (*backend.Reader).Check
 	backendRevert        = (*backend.RestoreState).Revert // ditto
 	backendCleanup       = (*backend.RestoreState).Cleanup
+
+	backendCleanupAbandondedImports = backend.CleanupAbandondedImports
 
 	autoExpirationInterval = time.Hour * 24 // interval between forgetExpiredSnapshots runs as part of Ensure()
 )
@@ -83,6 +86,14 @@ func (mgr *SnapshotManager) Ensure() error {
 	if time.Now().After(mgr.lastForgetExpiredSnapshotTime.Add(autoExpirationInterval)) {
 		return mgr.forgetExpiredSnapshots()
 	}
+
+	return nil
+}
+
+func (mgr *SnapshotManager) StartUp() error {
+	if _, err := backendCleanupAbandondedImports(); err != nil {
+		logger.Noticef("cannot cleanup incomplete imports: %v", err)
+	}
 	return nil
 }
 
@@ -101,7 +112,8 @@ func (mgr *SnapshotManager) forgetExpiredSnapshots() error {
 
 	err = backendIter(context.TODO(), func(r *backend.Reader) error {
 		// forget needs to conflict with check and restore
-		if err := checkSnapshotTaskConflict(mgr.state, r.SetID, "check-snapshot", "restore-snapshot"); err != nil {
+		if err := checkSnapshotConflict(mgr.state, r.SetID, "export-snapshot",
+			"check-snapshot", "restore-snapshot"); err != nil {
 			// there is a conflict, do nothing and we will retry this set on next Ensure().
 			return nil
 		}
@@ -184,14 +196,9 @@ func prepareSave(task *state.Task) (snapshot *snapshotSetup, cur *snap.Info, cfg
 	snapshot.Filename = filename(snapshot.SetID, cur)
 	task.Set("snapshot-setup", &snapshot)
 
-	rawCfg, err := configGetSnapConfig(st, snapshot.Snap)
+	cfg, err = unmarshalSnapConfig(st, snapshot.Snap)
 	if err != nil {
 		return nil, nil, nil, err
-	}
-	if rawCfg != nil {
-		if err := json.Unmarshal(*rawCfg, &cfg); err != nil {
-			return nil, nil, nil, err
-		}
 	}
 
 	// this should be done last because of it modifies the state and the caller needs to undo this if other operation fails.
@@ -213,7 +220,7 @@ func doSave(task *state.Task, tomb *tomb.Tomb) error {
 	if err != nil {
 		return err
 	}
-	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users, &backend.Flags{Auto: snapshot.Auto})
+	_, err = backendSave(tomb.Context(nil), snapshot.SetID, cur, cfg, snapshot.Users)
 	if err != nil {
 		st := task.State()
 		st.Lock()
@@ -235,24 +242,47 @@ func prepareRestore(task *state.Task) (snapshot *snapshotSetup, oldCfg map[strin
 		return nil, nil, nil, taskGetErrMsg(task, err, "snapshot")
 	}
 
-	rawCfg, err := configGetSnapConfig(st, snapshot.Snap)
+	oldCfg, err = unmarshalSnapConfig(st, snapshot.Snap)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("internal error: cannot obtain current snap config for snapshot restore: %v", err)
+		return nil, nil, nil, err
 	}
-
-	if rawCfg != nil {
-		if err := json.Unmarshal(*rawCfg, &oldCfg); err != nil {
-			return nil, nil, nil, fmt.Errorf("internal error: cannot decode current snap config: %v", err)
-		}
-	}
-
-	reader, err = backendOpen(snapshot.Filename)
+	reader, err = backendOpen(snapshot.Filename, backend.ExtractFnameSetID)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("cannot open snapshot: %v", err)
 	}
 	// note given the Open succeeded, caller needs to close it when done
 
 	return snapshot, oldCfg, reader, nil
+}
+
+// marshalSnapConfig encodes cfg to JSON and returns raw JSON message, unless
+// cfg is nil - in this case nil is returned.
+func marshalSnapConfig(cfg map[string]interface{}) (*json.RawMessage, error) {
+	if cfg == nil {
+		// do not marshal nil - this would result in "null" raw message which
+		// we want to avoid.
+		return nil, nil
+	}
+	buf, err := json.Marshal(cfg)
+	if err != nil {
+		return nil, err
+	}
+	raw := (*json.RawMessage)(&buf)
+	return raw, err
+}
+
+func unmarshalSnapConfig(st *state.State, snapName string) (map[string]interface{}, error) {
+	rawCfg, err := configGetSnapConfig(st, snapName)
+	if err != nil {
+		return nil, fmt.Errorf("internal error: cannot obtain current snap config: %v", err)
+	}
+	var cfg map[string]interface{}
+	if rawCfg != nil {
+		if err := json.Unmarshal(*rawCfg, &cfg); err != nil {
+			return nil, fmt.Errorf("internal error: cannot decode current snap config: %v", err)
+		}
+	}
+	return cfg, nil
 }
 
 func doRestore(task *state.Task, tomb *tomb.Tomb) error {
@@ -274,7 +304,7 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 		return err
 	}
 
-	buf, err := json.Marshal(reader.Conf)
+	raw, err := marshalSnapConfig(reader.Conf)
 	if err != nil {
 		backendRevert(restoreState)
 		return fmt.Errorf("cannot marshal saved config: %v", err)
@@ -283,7 +313,7 @@ func doRestore(task *state.Task, tomb *tomb.Tomb) error {
 	st.Lock()
 	defer st.Unlock()
 
-	if err := configSetSnapConfig(st, snapshot.Snap, (*json.RawMessage)(&buf)); err != nil {
+	if err := configSetSnapConfig(st, snapshot.Snap, raw); err != nil {
 		backendRevert(restoreState)
 		return fmt.Errorf("cannot set snap config: %v", err)
 	}
@@ -309,12 +339,12 @@ func undoRestore(task *state.Task, _ *tomb.Tomb) error {
 		return taskGetErrMsg(task, err, "snapshot")
 	}
 
-	buf, err := json.Marshal(restoreState.Config)
+	raw, err := marshalSnapConfig(restoreState.Config)
 	if err != nil {
 		return fmt.Errorf("cannot marshal saved config: %v", err)
 	}
 
-	if err := configSetSnapConfig(st, snapshot.Snap, (*json.RawMessage)(&buf)); err != nil {
+	if err := configSetSnapConfig(st, snapshot.Snap, raw); err != nil {
 		return fmt.Errorf("cannot restore saved config: %v", err)
 	}
 
@@ -361,7 +391,7 @@ func doCheck(task *state.Task, tomb *tomb.Tomb) error {
 		return taskGetErrMsg(task, err, "snapshot")
 	}
 
-	reader, err := backendOpen(snapshot.Filename)
+	reader, err := backendOpen(snapshot.Filename, backend.ExtractFnameSetID)
 	if err != nil {
 		return fmt.Errorf("cannot open snapshot: %v", err)
 	}
@@ -402,7 +432,7 @@ func delayedCrossMgrInit() {
 	snapstate.EstimateSnapshotSize = EstimateSnapshotSize
 }
 
-func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string, *backend.Flags) (*client.Snapshot, error)) (restore func()) {
+func MockBackendSave(f func(context.Context, uint64, *snap.Info, map[string]interface{}, []string) (*client.Snapshot, error)) (restore func()) {
 	old := backendSave
 	backendSave = f
 	return func() {

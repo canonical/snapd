@@ -3024,3 +3024,59 @@ func (s *storeActionSuite) TestSnapActionUnexpectedErrorKey(c *C) {
 	c.Assert(results[0].InstanceName(), Equals, "foo-2")
 	c.Assert(results[0].SnapID, Equals, "foo-2-id")
 }
+
+func (s *storeActionSuite) TestSnapAction500(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		w.WriteHeader(500)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, _, err := sto.SnapAction(s.ctx, nil, []*store.SnapAction{
+		{
+			Action:       "install",
+			InstanceName: "foo",
+		},
+	}, nil, nil, nil)
+	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 500 via POST to "http://127\.0\.0\.1:.*/v2/snaps/refresh"`)
+	c.Check(err, FitsTypeOf, &store.UnexpectedHTTPStatusError{})
+	c.Check(results, HasLen, 0)
+}
+
+func (s *storeActionSuite) TestSnapAction400(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		w.WriteHeader(400)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, _, err := sto.SnapAction(s.ctx, nil, []*store.SnapAction{
+		{
+			Action:       "install",
+			InstanceName: "foo",
+		},
+	}, nil, nil, nil)
+	c.Assert(err, ErrorMatches, `cannot query the store for updates: got unexpected HTTP status code 400 via POST to "http://127\.0\.0\.1:.*/v2/snaps/refresh"`)
+	c.Check(err, FitsTypeOf, &store.UnexpectedHTTPStatusError{})
+	c.Check(results, HasLen, 0)
+}

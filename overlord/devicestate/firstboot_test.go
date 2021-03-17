@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -51,7 +52,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
-	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -126,6 +126,12 @@ func (t *firstBootBaseTest) startOverlord(c *C) {
 	ovld, err := overlord.New(nil)
 	c.Assert(err, IsNil)
 	ovld.InterfaceManager().DisableUDevMonitor()
+	// avoid gadget preload in the general tests cases
+	// it requires a proper seed to be available
+	devicestate.EarlyConfig = func(st *state.State, preloadGadget func() (*gadget.Info, error)) error {
+		return nil
+	}
+	t.AddCleanup(func() { devicestate.EarlyConfig = nil })
 	t.overlord = ovld
 	c.Assert(ovld.StartUp(), IsNil)
 
@@ -222,6 +228,9 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoop(c *C) {
 	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "assertions"))
 	c.Assert(err, IsNil)
 
+	_, err = devicestate.PreloadGadget(s.overlord.DeviceManager())
+	c.Check(err, Equals, state.ErrNoState)
+
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 	checkTrivialSeeding(c, tsAll)
@@ -259,6 +268,9 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
 
 	st.Lock()
 	defer st.Unlock()
+
+	_, err = devicestate.PreloadGadget(ovld.DeviceManager())
+	c.Check(err, Equals, state.ErrNoState)
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
@@ -514,10 +526,6 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, opts, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	checkOrder(c, tsAll, "core", "pc-kernel", "pc", "foo", "local")
-
-	checkTasks(c, tsAll)
-
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
 	chg := st.NewChange("seed", "run the populate from seed changes")
@@ -525,6 +533,9 @@ snaps:
 		chg.AddAll(ts)
 	}
 	c.Assert(st.Changes(), HasLen, 1)
+
+	checkOrder(c, tsAll, "core", "pc-kernel", "pc", "foo", "local")
+	checkTasks(c, tsAll)
 
 	// avoid device reg
 	chg1 := st.NewChange("become-operational", "init device")
@@ -826,6 +837,11 @@ snaps:
 	st := s.overlord.State()
 	st.Lock()
 	defer st.Unlock()
+
+	gi, err := devicestate.PreloadGadget(s.overlord.DeviceManager())
+	c.Assert(err, IsNil)
+	c.Check(gi.Defaults, HasLen, 4)
+
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
 
@@ -1051,10 +1067,7 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedClassicModelMismatch(c *C
 	st.Lock()
 	defer st.Unlock()
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir, "")
-	c.Assert(err, IsNil)
-
-	_, err = devicestate.ImportAssertionsFromSeed(st, deviceSeed)
+	_, err = devicestate.ImportAssertionsFromSeed(st, "")
 	c.Assert(err, ErrorMatches, "cannot seed a classic system with an all-snaps model")
 }
 
@@ -1071,11 +1084,103 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedAllSnapsModelMismatch(c *
 	st.Lock()
 	defer st.Unlock()
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir, "")
+	_, err = devicestate.ImportAssertionsFromSeed(st, "")
+	c.Assert(err, ErrorMatches, "cannot seed an all-snaps system with a classic model")
+}
+
+func (s *firstBoot16Suite) TestLoadDeviceSeed(c *C) {
+	ovld, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+	st := ovld.State()
+
+	// add a bunch of assertions (model assertion and its chain)
+	assertsChain := s.makeModelAssertionChain(c, "my-model", nil)
+	for i, as := range assertsChain {
+		fname := strconv.Itoa(i)
+		if as.Type() == asserts.ModelType {
+			fname = "model"
+		}
+		s.WriteAssertions(fname, as)
+	}
+
+	// load them
+	st.Lock()
+	defer st.Unlock()
+
+	deviceSeed, err := devicestate.LoadDeviceSeed(st, "")
 	c.Assert(err, IsNil)
 
-	_, err = devicestate.ImportAssertionsFromSeed(st, deviceSeed)
-	c.Assert(err, ErrorMatches, "cannot seed an all-snaps system with a classic model")
+	c.Check(deviceSeed.Model().BrandID(), Equals, "my-brand")
+	c.Check(deviceSeed.Model().Model(), Equals, "my-model")
+
+	// verify that the model was added
+	db := assertstate.DB(st)
+	as, err := db.Find(asserts.ModelType, map[string]string{
+		"series":   "16",
+		"brand-id": "my-brand",
+		"model":    "my-model",
+	})
+	c.Assert(err, IsNil)
+	c.Check(as, DeepEquals, deviceSeed.Model())
+}
+
+func (s *firstBoot16Suite) TestLoadDeviceSeedCaching(c *C) {
+	ovld, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+	st := ovld.State()
+
+	// add a bunch of assertions (model assertion and its chain)
+	assertsChain := s.makeModelAssertionChain(c, "my-model", nil)
+	for i, as := range assertsChain {
+		fname := strconv.Itoa(i)
+		if as.Type() == asserts.ModelType {
+			fname = "model"
+		}
+		s.WriteAssertions(fname, as)
+	}
+
+	// load them
+	st.Lock()
+	defer st.Unlock()
+
+	deviceSeed, err := devicestate.LoadDeviceSeed(st, "")
+	c.Assert(err, IsNil)
+
+	c.Check(deviceSeed.Model().Model(), Equals, "my-model")
+
+	// break the seed
+	modelAway := filepath.Join(c.MkDir(), "model")
+	modelFn := filepath.Join(s.AssertsDir(), "model")
+	err = os.Rename(modelFn, modelAway)
+	c.Assert(err, IsNil)
+
+	// result is still cached
+	deviceSeed, err = devicestate.LoadDeviceSeed(st, "")
+	c.Assert(err, IsNil)
+
+	c.Check(deviceSeed.Model().Model(), Equals, "my-model")
+
+	// unload cached result
+	devicestate.UnloadDeviceSeed(st)
+
+	// error now
+	_, err1 := devicestate.LoadDeviceSeed(st, "")
+	c.Assert(err1, ErrorMatches, "seed must have a model assertion")
+
+	// refix the seed
+	err = os.Rename(modelAway, modelFn)
+	c.Assert(err, IsNil)
+
+	// error is also cached
+	_, err = devicestate.LoadDeviceSeed(st, "")
+	c.Assert(err, Equals, err1)
+
+	// unload cached error
+	devicestate.UnloadDeviceSeed(st)
+
+	// soundness check: loading works again
+	_, err = devicestate.LoadDeviceSeed(st, "")
+	c.Assert(err, IsNil)
 }
 
 func (s *firstBoot16Suite) TestImportAssertionsFromSeedHappy(c *C) {
@@ -1097,12 +1202,11 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedHappy(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir, "")
+	deviceSeed, err := devicestate.ImportAssertionsFromSeed(st, "")
 	c.Assert(err, IsNil)
+	c.Assert(deviceSeed, NotNil)
 
-	model, err := devicestate.ImportAssertionsFromSeed(st, deviceSeed)
-	c.Assert(err, IsNil)
-	c.Assert(model, NotNil)
+	model := deviceSeed.Model()
 
 	// verify that the model was added
 	db := assertstate.DB(st)
@@ -1138,12 +1242,9 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedMissingSig(c *C) {
 		}
 	}
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir, "")
-	c.Assert(err, IsNil)
-
 	// try import and verify that its rejects because other assertions are
 	// missing
-	_, err = devicestate.ImportAssertionsFromSeed(st, deviceSeed)
+	_, err := devicestate.ImportAssertionsFromSeed(st, "")
 	c.Assert(err, ErrorMatches, "cannot resolve prerequisite assertion: account-key .*")
 }
 
@@ -1159,12 +1260,9 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedTwoModelAsserts(c *C) {
 	model2 := s.Brands.Model("my-brand", "my-second-model", modelHeaders("my-second-model"))
 	s.WriteAssertions("model2", model2)
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir, "")
-	c.Assert(err, IsNil)
-
 	// try import and verify that its rejects because other assertions are
 	// missing
-	_, err = devicestate.ImportAssertionsFromSeed(st, deviceSeed)
+	_, err := devicestate.ImportAssertionsFromSeed(st, "")
 	c.Assert(err, ErrorMatches, "cannot have multiple model assertions in seed")
 }
 
@@ -1180,12 +1278,9 @@ func (s *firstBoot16Suite) TestImportAssertionsFromSeedNoModelAsserts(c *C) {
 		}
 	}
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir, "")
-	c.Assert(err, IsNil)
-
 	// try import and verify that its rejects because other assertions are
 	// missing
-	_, err = devicestate.ImportAssertionsFromSeed(st, deviceSeed)
+	_, err := devicestate.ImportAssertionsFromSeed(st, "")
 	c.Assert(err, ErrorMatches, "seed must have a model assertion")
 }
 

@@ -29,7 +29,9 @@ import (
 	"regexp"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // HasGadgetCloudConf takes a gadget directory and returns whether there is
@@ -147,12 +149,33 @@ var (
 	cloudInitSnapdRestrictFile = "/etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
 	cloudInitDisabledFile      = "/etc/cloud/cloud-init.disabled"
 
+	// for NoCloud datasource, we need to specify "manual_cache_clean: true"
+	// because the default is false, and this key being true essentially informs
+	// cloud-init that it should always trust the instance-id it has cached in
+	// the image, and shouldn't assume that there is a new one on every boot, as
+	// otherwise we have bugs like https://bugs.launchpad.net/snapd/+bug/1905983
+	// where subsequent boots after cloud-init runs and gets restricted it will
+	// try to detect the instance_id by reading from the NoCloud datasource
+	// fs_label, but we set that to "null" so it fails to read anything and thus
+	// can't detect the effective instance_id and assumes it is different and
+	// applies default config which can overwrite valid config from the initial
+	// boot if that is not the default config
+	// see also https://cloudinit.readthedocs.io/en/latest/topics/boot.html?highlight=manual_cache_clean#first-boot-determination
 	nocloudRestrictYaml = []byte(`datasource_list: [NoCloud]
 datasource:
   NoCloud:
-    fs_label: null`)
+    fs_label: null
+manual_cache_clean: true
+`)
 
-	genericCloudRestrictYamlPattern = `datasource_list: [%s]`
+	// don't use manual_cache_clean for real cloud datasources, the setting is
+	// used with ubuntu core only for sources where we can only get the
+	// instance_id through the fs_label for NoCloud and None (since we disable
+	// importing using the fs_label after the initial run).
+	genericCloudRestrictYamlPattern = `datasource_list: [%s]
+`
+
+	localDatasources = []string{"NoCloud", "None"}
 )
 
 const (
@@ -173,6 +196,9 @@ const (
 	// states, as we are conservative in assuming that cloud-init is doing
 	// something.
 	CloudInitEnabled
+	// CloudInitNotFound is when there is no cloud-init executable on the
+	// device.
+	CloudInitNotFound
 	// CloudInitErrored is when cloud-init tried to run, but failed or had invalid
 	// configuration.
 	CloudInitErrored
@@ -199,7 +225,13 @@ func CloudInitStatus() (CloudInitState, error) {
 		return CloudInitDisabledPermanently, nil
 	}
 
-	out, err := exec.Command("cloud-init", "status").CombinedOutput()
+	ciBinary, err := exec.LookPath("cloud-init")
+	if err != nil {
+		logger.Noticef("cannot locate cloud-init executable: %v", err)
+		return CloudInitNotFound, nil
+	}
+
+	out, err := exec.Command(ciBinary, "status").CombinedOutput()
 	if err != nil {
 		return CloudInitErrored, osutil.OutputErr(out, err)
 	}
@@ -253,11 +285,12 @@ type CloudInitRestrictOptions struct {
 	// in an active/running or errored state.
 	ForceDisable bool
 
-	// DisableNoCloud modifies the behavior to whole-sale disable cloud-init,
-	// if the datasource detected is NoCloud, if the datasource detected is
-	// anything other than NoCloud then it is merely restricted as described in
-	// the doc-comment on RestrictCloudInit.
-	DisableNoCloud bool
+	// DisableAfterLocalDatasourcesRun modifies RestrictCloudInit to disable
+	// cloud-init after it has run on first-boot if the datasource detected is
+	// a local source such as NoCloud or None. If the datasource detected is not
+	// a local source, such as GCE or AWS EC2 it is merely restricted as
+	// described in the doc-comment on RestrictCloudInit.
+	DisableAfterLocalDatasourcesRun bool
 }
 
 // RestrictCloudInit will limit the operations of cloud-init on subsequent boots
@@ -292,7 +325,7 @@ func RestrictCloudInit(state CloudInitState, opts *CloudInitRestrictOptions) (Cl
 			return res, fmt.Errorf("cannot restrict cloud-init in error or enabled state")
 		}
 		fallthrough
-	case CloudInitUntriggered:
+	case CloudInitUntriggered, CloudInitNotFound:
 		fallthrough
 	default:
 		res.Action = "disable"
@@ -337,27 +370,26 @@ func RestrictCloudInit(state CloudInitState, opts *CloudInitRestrictOptions) (Cl
 
 	cloudInitRestrictFile := filepath.Join(dirs.GlobalRootDir, cloudInitSnapdRestrictFile)
 
-	switch res.DataSource {
-	case "NoCloud":
-		// With the NoCloud datasource, we also need to restrict/disable the
-		// import of arbitrary filesystem labels to use as datasources, i.e. a
-		// USB drive inserted by an attacker with label CIDATA will defeat
-		// security measures on Ubuntu Core, so with the additional fs_label
-		// spec, we disable that import.
+	switch {
+	case opts.DisableAfterLocalDatasourcesRun && strutil.ListContains(localDatasources, res.DataSource):
+		// On UC20, DisableAfterLocalDatasourcesRun will be set, where we want
+		// to disable local sources like NoCloud and None after first-boot
+		// instead of just restricting them like we do below for UC16 and UC18.
 
-		// Note that on UC20, we will also specify DisableNoCloud, to disable
-		// cloud-init even after the first boot
-		if opts.DisableNoCloud {
-			// change the action taken to disable
-			res.Action = "disable"
-			err = DisableCloudInit(dirs.GlobalRootDir)
-		} else {
-			err = ioutil.WriteFile(cloudInitRestrictFile, nocloudRestrictYaml, 0644)
-		}
+		// as such, change the action taken to disable and disable cloud-init
+		res.Action = "disable"
+		err = DisableCloudInit(dirs.GlobalRootDir)
+	case res.DataSource == "NoCloud":
+		// With the NoCloud datasource (which is one of the local datasources),
+		// we also need to restrict/disable the import of arbitrary filesystem
+		// labels to use as datasources, i.e. a USB drive inserted by an
+		// attacker with label CIDATA will defeat security measures on Ubuntu
+		// Core, so with the additional fs_label spec, we disable that import.
+		err = ioutil.WriteFile(cloudInitRestrictFile, nocloudRestrictYaml, 0644)
 	default:
-		// all other datasources that are not NoCloud will be restricted to only
-		// allow this specific datasource to prevent an attack via NoCloud for
-		// example
+		// all other cases are either not local on UC20, or not NoCloud and as
+		// such we simply restrict cloud-init to the specific datasource used so
+		// that an attack via NoCloud is protected against
 		yaml := []byte(fmt.Sprintf(genericCloudRestrictYamlPattern, res.DataSource))
 		err = ioutil.WriteFile(cloudInitRestrictFile, yaml, 0644)
 	}

@@ -42,9 +42,7 @@ prepare: |
     esac
 
     # Install a snap declaring a plug on timeserver-control
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-timedate-control-consumer
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-timedate-control-consumer
     tests.cleanup defer snap remove --purge test-snapd-timedate-control-consumer
 
 restore: |

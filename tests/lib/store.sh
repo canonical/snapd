@@ -44,6 +44,51 @@ make_snap_installable(){
     new_snap_revision "$dir" "$snap_path"
 }
 
+make_snap_installable_with_id(){
+    local dir="$1"
+    local snap_path="$2"
+    local snap_id="$3"
+
+    if ! command -v yaml2json; then
+        snap install remarshal
+    fi
+    if ! command -v jq; then
+        #shellcheck source=tests/lib/core-config.sh
+        . "$TESTSLIB"/core-config.sh
+
+        SUFFIX="$(get_test_snap_suffix)"
+        snap install "jq$SUFFIX"
+    fi
+
+    # unsquash the snap to get it's name
+    unsquashfs -d /tmp/snap-squashfs "$snap_path" meta/snap.yaml
+    snap_name=$(yaml2json < /tmp/snap-squashfs/meta/snap.yaml | jq -r .name)
+    rm -rf /tmp/snap-squashfs
+
+
+    cat >> /tmp/snap-decl.json << EOF
+{
+    "type": "snap-declaration",
+    "snap-id": "${snap_id}",
+    "publisher-id": "developer1",
+    "snap-name": "${snap_name}"
+}
+EOF
+
+    cat >> /tmp/snap-rev.json << EOF
+{
+    "type": "snap-revision",
+    "snap-id": "${snap_id}"
+}
+EOF
+
+    fakestore new-snap-declaration --dir "$dir" --snap-decl-json=/tmp/snap-decl.json "$snap_path"
+    fakestore new-snap-revision --dir "$dir" --snap-rev-json=/tmp/snap-rev.json "$snap_path"
+
+    rm -rf /tmp/snap-decl.json
+    rm -rf /tmp/snap-rev.json
+}
+
 new_snap_declaration(){
     local dir="$1"
     local snap_path="$2"
@@ -63,6 +108,13 @@ new_snap_revision(){
     snap ack "$p"
 }
 
+new_repair(){
+    local dir="$1"
+    local script_path="$2"
+    shift 2
+
+    p=$(fakestore new-repair --dir "$dir" "$@" "${script_path}")
+}
 
 setup_fake_store(){
     # before switching make sure we have a session macaroon
@@ -80,7 +132,7 @@ setup_fake_store(){
 
     echo "Create fakestore at the given port"
     PORT="11028"
-    systemd_create_and_start_unit fakestore "$(command -v fakestore) run --dir $top_dir --addr localhost:$PORT --https-proxy=${https_proxy} --http-proxy=${http_proxy} --assert-fallback" "SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=7 SNAPPY_TESTING=1 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE"
+    systemd-run --unit fakestore --setenv SNAPD_DEBUG=1 --setenv SNAPD_DEBUG_HTTP=7 --setenv SNAPPY_TESTING=1 --setenv SNAPPY_USE_STAGING_STORE="$SNAPPY_USE_STAGING_STORE" fakestore run --dir "$top_dir" --addr "localhost:$PORT" --https-proxy="${https_proxy}" --http-proxy="${http_proxy}" --assert-fallback
 
     echo "And snapd is configured to use the controlled store"
     _configure_store_backends "SNAPPY_FORCE_API_URL=http://localhost:$PORT" "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE"
@@ -101,7 +153,10 @@ setup_fake_store(){
 
 teardown_fake_store(){
     local top_dir=$1
-    systemd_stop_and_destroy_unit fakestore
+    systemctl stop fakestore || true
+    # when a unit fails, systemd may keep its status, resetting it allows to
+    # start the unit again with a clean slate
+    systemctl reset-failed fakestore || true
 
     if [ "$REMOTE_STORE" = "staging" ]; then
         setup_staging_store

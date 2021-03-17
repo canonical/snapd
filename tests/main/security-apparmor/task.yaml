@@ -2,9 +2,7 @@ summary: Check basic apparmor confinement rules.
 
 prepare: |
     echo "Given a basic snap is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
 execute: |
     if [ "$(snap debug confinement)" = partial ] ; then

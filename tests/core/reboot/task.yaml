@@ -4,10 +4,8 @@ summary: Ensure that service and apparmor profiles work after a reboot
 priority: 100
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-tools
-    install_local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-tools
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
 
 execute: |
     echo "Ensure snaps are (still) there."

@@ -10,11 +10,10 @@ prepare: |
     if [ $rc = 4 ]; then
         # systemctl(1) exit code 4: no such unit
 
-        #shellcheck source=tests/lib/systemd.sh
-        . "$TESTSLIB"/systemd.sh
-
         # start fake rsyslog service
-        systemd_create_and_start_unit rsyslog "/bin/sleep 2h"
+        printf '[Unit]\nDescription=test %s\n[Service]\nType=simple\nExecStart=%s\n' "${SPREAD_JOB:-unknown}" "/bin/sleep 2h" > /run/systemd/system/rsyslog.service
+        systemctl daemon-reload
+        systemctl start rsyslog
 
         # create a flag to indicate the ryslog service is fake
         touch rsyslog.fake
@@ -22,9 +21,9 @@ prepare: |
 
 restore: |
     if [ -f rsyslog.fake ]; then
-        #shellcheck source=tests/lib/systemd.sh
-        . "$TESTSLIB"/systemd.sh
-        systemd_stop_and_destroy_unit rsyslog
+        systemctl stop rsyslog
+        rm /run/systemd/system/rsyslog.service
+        systemctl daemon-reload
     else
         systemctl enable rsyslog.service
         systemctl start rsyslog.service

@@ -28,7 +28,6 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/boot"
 	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -68,7 +67,7 @@ func (s *SnapSuite) TestAutoImportAssertsHappy(c *C) {
 			c.Check(r.URL.Path, Equals, "/v2/users")
 			postData, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)
-			c.Check(string(postData), Equals, `{"action":"create","sudoer":true,"known":true}`)
+			c.Check(string(postData), Equals, `{"action":"create","automatic":true}`)
 
 			fmt.Fprintln(w, `{"type": "sync", "result": [{"username": "foo"}]}`)
 			n++
@@ -245,7 +244,7 @@ func (s *SnapSuite) TestAutoImportFromSpoolHappy(c *C) {
 			c.Check(r.URL.Path, Equals, "/v2/users")
 			postData, err := ioutil.ReadAll(r.Body)
 			c.Assert(err, IsNil)
-			c.Check(string(postData), Equals, `{"action":"create","sudoer":true,"known":true}`)
+			c.Check(string(postData), Equals, `{"action":"create","automatic":true}`)
 
 			fmt.Fprintln(w, `{"type": "sync", "result": [{"username": "foo"}]}`)
 			n++
@@ -315,7 +314,7 @@ func (s *SnapSuite) TestAutoImportUnhappyInInstallMode(c *C) {
 	err := ioutil.WriteFile(mockProcCmdlinePath, []byte("foo=bar snapd_recovery_mode=install snapd_recovery_system=20191118"), 0644)
 	c.Assert(err, IsNil)
 
-	restore = boot.MockProcCmdline(mockProcCmdlinePath)
+	restore = osutil.MockProcCmdline(mockProcCmdlinePath)
 	defer restore()
 
 	_, err = snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
@@ -462,4 +461,102 @@ func (s *SnapSuite) TestAutoImportFromMount(c *C) {
 	c.Check(umounts, DeepEquals, []string{
 		filepath.Join(rootdir, "/tmp/snapd-auto-import-mount-1"),
 	})
+}
+
+func (s *SnapSuite) TestAutoImportUC20CandidatesIgnoresSystemPartitions(c *C) {
+
+	mountDirs := []string{
+		"/writable/system-data/var/lib/snapd/seed",
+		"/var/lib/snapd/seed",
+		"/run/mnt/ubuntu-boot",
+		"/run/mnt/ubuntu-seed",
+		"/run/mnt/ubuntu-data",
+		"/mnt/real-device",
+	}
+
+	rootDir := c.MkDir()
+	dirs.SetRootDir(rootDir)
+	defer func() { dirs.SetRootDir("") }()
+
+	args := make([]interface{}, 0, len(mountDirs)+1)
+	args = append(args, dirs.GlobalRootDir)
+	// pretend there are auto-import.asserts on all of them
+	for _, dir := range mountDirs {
+		args = append(args, dir)
+		file := filepath.Join(rootDir, dir, "auto-import.assert")
+		c.Assert(os.MkdirAll(filepath.Dir(file), 0755), IsNil)
+		c.Assert(ioutil.WriteFile(file, nil, 0644), IsNil)
+	}
+
+	mockMountInfoFmtWithLoop := `
+24 0 8:18 / %[1]s%[2]s rw,relatime foo ext3 /dev/meep2 no,separator
+24 0 8:18 / %[1]s%[3]s rw,relatime - ext3 /dev/meep2 rw,errors=remount-ro,data=ordered
+24 0 8:18 / %[1]s%[4]s rw,relatime opt:1 - ext4 /dev/meep3 rw,errors=remount-ro,data=ordered
+24 0 8:18 / %[1]s%[5]s rw,relatime opt:1 opt:2 - ext2 /dev/meep4 rw,errors=remount-ro,data=ordered
+24 0 8:18 / %[1]s%[6]s rw,relatime opt:1 opt:2 - ext2 /dev/meep5 rw,errors=remount-ro,data=ordered
+24 0 8:18 / %[1]s%[7]s rw,relatime opt:1 opt:2 - ext2 /dev/meep78 rw,errors=remount-ro,data=ordered
+`
+
+	content := fmt.Sprintf(mockMountInfoFmtWithLoop, args...)
+	restore := snap.MockMountInfoPath(makeMockMountInfo(c, content))
+	defer restore()
+
+	l, err := snap.AutoImportCandidates()
+	c.Check(err, IsNil)
+
+	// only device should be the /mnt/real-device one
+	c.Check(l, DeepEquals, []string{filepath.Join(rootDir, "/mnt/real-device", "auto-import.assert")})
+}
+
+func (s *SnapSuite) TestAutoImportAssertsManagedEmptyReply(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	_, restore = logger.MockLogger()
+	defer restore()
+
+	fakeAssertData := []byte("my-assertion")
+
+	n := 0
+	total := 2
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch n {
+		case 0:
+			c.Check(r.Method, Equals, "POST")
+			c.Check(r.URL.Path, Equals, "/v2/assertions")
+			postData, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			c.Check(postData, DeepEquals, fakeAssertData)
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done"}}`)
+			n++
+		case 1:
+			c.Check(r.Method, Equals, "POST")
+			c.Check(r.URL.Path, Equals, "/v2/users")
+			postData, err := ioutil.ReadAll(r.Body)
+			c.Assert(err, IsNil)
+			c.Check(string(postData), Equals, `{"action":"create","automatic":true}`)
+
+			fmt.Fprintln(w, `{"type": "sync", "result": []}`)
+			n++
+		default:
+			c.Fatalf("unexpected request: %v (expected %d got %d)", r, total, n)
+		}
+
+	})
+
+	fakeAssertsFn := filepath.Join(c.MkDir(), "auto-import.assert")
+	err := ioutil.WriteFile(fakeAssertsFn, fakeAssertData, 0644)
+	c.Assert(err, IsNil)
+
+	mockMountInfoFmt := `
+24 0 8:18 / %s rw,relatime shared:1 - ext4 /dev/sdb2 rw,errors=remount-ro,data=ordered`
+	content := fmt.Sprintf(mockMountInfoFmt, filepath.Dir(fakeAssertsFn))
+	restore = snap.MockMountInfoPath(makeMockMountInfo(c, content))
+	defer restore()
+
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"auto-import"})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Equals, ``)
+	c.Check(n, Equals, total)
 }

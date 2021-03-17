@@ -83,7 +83,7 @@
 
 
 Name:           snapd
-Version:        2.46.1
+Version:        2.49.1
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -124,6 +124,8 @@ BuildRequires:  glibc-devel-32bit
 BuildRequires:  glibc-devel-static-32bit
 BuildRequires:  gcc-32bit
 %endif
+BuildRequires:  ca-certificates
+BuildRequires:  ca-certificates-mozilla
 
 %if %{with apparmor}
 BuildRequires:  libapparmor-devel
@@ -256,6 +258,10 @@ popd
 %make_build -f %{indigo_srcdir}/packaging/snapd.mk GOPATH=%{indigo_gopath}:$GOPATH all
 
 %check
+for binary in snap-exec snap-update-ns snapctl; do
+    ldd $binary 2>&1 | grep 'not a dynamic executable'
+done
+
 %make_build -C %{indigo_srcdir}/cmd check
 # Use the common packaging helper for testing.
 %make_build -f %{indigo_srcdir}/packaging/snapd.mk GOPATH=%{indigo_gopath}:$GOPATH check
@@ -317,7 +323,7 @@ install -m 644 -D %{indigo_srcdir}/data/completion/zsh/_snap %{buildroot}%{_data
 %post
 %set_permissions %{_libexecdir}/snapd/snap-confine
 %if %{with apparmor}
-%apparmor_reload /etc/apparmor.d/usr.lib.snapd.snap-confine
+%apparmor_reload /etc/apparmor.d/%{apparmor_snapconfine_profile}
 %endif
 %service_add_post %{systemd_services_list}
 %systemd_user_post %{systemd_user_services_list}
@@ -405,10 +411,12 @@ fi
 %verify(not user group mode) %attr(04755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_bindir}/snap
 %{_bindir}/snapctl
+%{_datadir}/applications/io.snapcraft.SessionAgent.desktop
 %{_datadir}/applications/snap-handle-link.desktop
 %{_datadir}/bash-completion/completions/snap
 %{_datadir}/zsh/site-functions/_snap
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
+%{_datadir}/dbus-1/services/io.snapcraft.SessionAgent.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_datadir}/dbus-1/session.d/snapd.session-services.conf
 %{_datadir}/dbus-1/system.d/snapd.system-services.conf

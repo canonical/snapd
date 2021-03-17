@@ -13,8 +13,7 @@ restore: |
 prepare: |
     # TODO: unify this with tests/main/snap-mgmt/task.yaml
     echo "When some snaps are installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
+
 
     snap set core experimental.user-daemons=true
 
@@ -29,7 +28,7 @@ prepare: |
             # None of the "user" snaps work on 14.04
             continue
         fi
-        install_local "$name"
+        "$TESTSTOOLS"/snaps-state install-local "$name"
         snap list | MATCH "$name"
     done
 
@@ -76,7 +75,7 @@ execute: |
         fi
     done
 
-    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+    if not os.query is-trusty; then
         # ubuntu-14.04: systemctl does not list not-found & failed units properly
 
         # test-snapd-service-refuses-to-stop gets forcefully killed by systemd,

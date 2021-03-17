@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -31,12 +32,14 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-func newBootState20(typ snap.Type) bootState {
+func newBootState20(typ snap.Type, dev Device) bootState {
 	switch typ {
 	case snap.TypeBase:
 		return &bootState20Base{}
 	case snap.TypeKernel:
-		return &bootState20Kernel{}
+		return &bootState20Kernel{
+			dev: dev,
+		}
 	default:
 		panic(fmt.Sprintf("cannot make a bootState20 for snap type %q", typ))
 	}
@@ -93,6 +96,9 @@ type bootStateUpdate20 struct {
 
 	// tasks to run after the modeenv has been written
 	postModeenvTasks []bootCommitTask
+
+	// model set if a reseal might be necessary
+	resealModel *asserts.Model
 }
 
 func (u20 *bootStateUpdate20) preModeenv(task bootCommitTask) {
@@ -101,6 +107,10 @@ func (u20 *bootStateUpdate20) preModeenv(task bootCommitTask) {
 
 func (u20 *bootStateUpdate20) postModeenv(task bootCommitTask) {
 	u20.postModeenvTasks = append(u20.postModeenvTasks, task)
+}
+
+func (u20 *bootStateUpdate20) resealForModel(model *asserts.Model) {
+	u20.resealModel = model
 }
 
 func newBootStateUpdate20(m *Modeenv) (*bootStateUpdate20, error) {
@@ -143,16 +153,29 @@ func (u20 *bootStateUpdate20) commit() error {
 		}
 	}
 
+	modeenvRewritten := false
 	// next write the modeenv if it changed
 	if !u20.writeModeenv.deepEqual(u20.modeenv) {
 		if err := u20.writeModeenv.Write(); err != nil {
 			return err
 		}
+		modeenvRewritten = true
 	}
 
-	// TODO:UC20: reseal against the TPM here with the updated modeenv written
-	//            but before doing any post-modeenv tasks so if we got rebooted
-	//            in between, we are still able to boot properly
+	// next reseal using the modeenv values, we do this before any
+	// post-modeenv tasks so if we are rebooted at any point after
+	// the reseal even before the post tasks are completed, we
+	// still boot properly
+	if u20.resealModel != nil {
+		// if there is ambiguity whether the boot chains have
+		// changed because of unasserted kernels, then pass a
+		// flag as hint whether to reseal based on whether we
+		// wrote the modeenv
+		expectReseal := modeenvRewritten
+		if err := resealKeyToModeenv(dirs.GlobalRootDir, u20.resealModel, u20.writeModeenv, expectReseal); err != nil {
+			return err
+		}
+	}
 
 	// finally handle any post-modeenv writing tasks
 	for _, t := range u20.postModeenvTasks {
@@ -177,6 +200,8 @@ type bootState20Kernel struct {
 	// used to find the bootloader to manipulate the enabled kernel, etc.
 	blOpts *bootloader.Options
 	blDir  string
+
+	dev Device
 }
 
 func (ks20 *bootState20Kernel) loadBootenv() error {
@@ -265,6 +290,9 @@ func (ks20 *bootState20Kernel) markSuccessful(update bootStateUpdate) (bootState
 		// On commit, set CurrentKernels as just this kernel because that is the
 		// successful kernel we booted
 		u20.writeModeenv.CurrentKernels = []string{sn.Filename()}
+
+		// keep track of the model for resealing
+		u20.resealForModel(ks20.dev.Model())
 	}
 
 	return u20, nil
@@ -298,6 +326,9 @@ func (ks20 *bootState20Kernel) setNext(next snap.PlaceInfo) (rebootRequired bool
 	// because the modeenv doesn't "trust" or expect the new kernel that booted.
 	// As such, set the next kernel as a post modeenv task.
 	u20.postModeenv(func() error { return ks20.bks.setNextKernel(next, nextStatus) })
+
+	// keep track of the model for resealing
+	u20.resealForModel(ks20.dev.Model())
 
 	return rebootRequired, u20, nil
 }
@@ -640,7 +671,9 @@ func genericInitramfsSelectSnap(bs bootState20, modeenv *Modeenv, expectedTrySta
 
 // bootState20BootAssets implements the successfulBootState interface for trusted
 // boot assets UC20.
-type bootState20BootAssets struct{}
+type bootState20BootAssets struct {
+	dev Device
+}
 
 func (ba20 *bootState20BootAssets) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
 	u20, err := toBootStateUpdate20(update)
@@ -659,6 +692,8 @@ func (ba20 *bootState20BootAssets) markSuccessful(update bootStateUpdate) (bootS
 	}
 	// update modeenv
 	u20.writeModeenv = newM
+	// keep track of the model for resealing
+	u20.resealForModel(ba20.dev.Model())
 
 	if len(dropAssets) == 0 {
 		// nothing to drop, we're done
@@ -680,6 +715,66 @@ func (ba20 *bootState20BootAssets) markSuccessful(update bootStateUpdate) (bootS
 	return u20, nil
 }
 
-func trustedAssetsBootState() *bootState20BootAssets {
-	return &bootState20BootAssets{}
+func trustedAssetsBootState(dev Device) *bootState20BootAssets {
+	return &bootState20BootAssets{
+		dev: dev,
+	}
+}
+
+// bootState20CommandLine implements the successfulBootState interface for
+// kernel command line
+type bootState20CommandLine struct {
+	dev Device
+}
+
+func (bcl20 *bootState20CommandLine) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
+	u20, err := toBootStateUpdate20(update)
+	if err != nil {
+		return nil, err
+	}
+	if len(u20.modeenv.CurrentTrustedBootAssets) == 0 && len(u20.modeenv.CurrentTrustedRecoveryBootAssets) == 0 {
+		// XXX: does this change when we expose the ability to add
+		// things to the command line?
+
+		// not using trusted boot assets, bootloader config is not
+		// managed and command line can be manipulated externally
+		return update, nil
+	}
+
+	newM, err := observeSuccessfulCommandLine(bcl20.dev.Model(), u20.writeModeenv)
+	if err != nil {
+		return nil, fmt.Errorf("cannot mark successful boot command line: %v", err)
+	}
+	u20.writeModeenv = newM
+	return u20, nil
+}
+
+func trustedCommandLineBootState(dev Device) *bootState20CommandLine {
+	return &bootState20CommandLine{
+		dev: dev,
+	}
+}
+
+// bootState20RecoverySystem implements the successfulBootState interface for
+// tried recovery systems
+type bootState20RecoverySystem struct {
+	dev Device
+}
+
+func (brs20 *bootState20RecoverySystem) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
+	u20, err := toBootStateUpdate20(update)
+	if err != nil {
+		return nil, err
+	}
+
+	newM, err := observeSuccessfulSystems(brs20.dev.Model(), u20.writeModeenv)
+	if err != nil {
+		return nil, fmt.Errorf("cannot mark successful recovery system: %v", err)
+	}
+	u20.writeModeenv = newM
+	return u20, nil
+}
+
+func recoverySystemsBootState(dev Device) *bootState20RecoverySystem {
+	return &bootState20RecoverySystem{dev: dev}
 }

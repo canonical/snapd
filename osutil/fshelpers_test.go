@@ -17,7 +17,7 @@
  *
  */
 
-package osutil
+package osutil_test
 
 import (
 	"io/ioutil"
@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strconv"
 
+	"github.com/snapcore/snapd/osutil"
 	. "gopkg.in/check.v1"
 )
 
@@ -37,15 +38,15 @@ func (s *groupFindGidOwningSuite) TestSelfOwnedFile(c *C) {
 	err := ioutil.WriteFile(name, nil, 0644)
 	c.Assert(err, IsNil)
 
-	gid, err := FindGidOwning(name)
+	gid, err := osutil.FindGidOwning(name)
 	c.Check(err, IsNil)
 
-	self, err := RealUser()
+	self, err := osutil.UserMaybeSudoUser()
 	c.Assert(err, IsNil)
 	c.Check(strconv.FormatUint(gid, 10), Equals, self.Gid)
 }
 
 func (s *groupFindGidOwningSuite) TestNoOwnedFile(c *C) {
-	_, err := FindGidOwning("/tmp/filedoesnotexistbutwhy")
+	_, err := osutil.FindGidOwning("/tmp/filedoesnotexistbutwhy")
 	c.Assert(err, DeepEquals, os.ErrNotExist)
 }

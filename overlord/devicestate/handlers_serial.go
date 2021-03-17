@@ -106,7 +106,9 @@ func (m *DeviceManager) doGenerateDeviceKey(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	privKey := asserts.RSAPrivateKey(keyPair)
-	err = m.keypairMgr.Put(privKey)
+	err = m.withKeypairMgr(func(keypairMgr asserts.KeypairManager) error {
+		return keypairMgr.Put(privKey)
+	})
 	if err != nil {
 		return fmt.Errorf("cannot store device key pair: %v", err)
 	}
@@ -683,7 +685,33 @@ func (m *DeviceManager) doRequestSerial(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	finish := func(serial *asserts.Serial) error {
-		if regCtx.FinishRegistration(serial); err != nil {
+		// save serial if appropriate into the device save
+		// assertion database
+		err := m.withSaveAssertDB(func(savedb *asserts.Database) error {
+			db := assertstate.DB(st)
+			retrieve := func(ref *asserts.Ref) (asserts.Assertion, error) {
+				return ref.Resolve(db.Find)
+			}
+			b := asserts.NewBatch(nil)
+			err := b.Fetch(savedb, retrieve, func(f asserts.Fetcher) error {
+				// save the associated model as well
+				// as it might be required for cross-checks
+				// of the serial
+				if err := f.Save(regCtx.Model()); err != nil {
+					return err
+				}
+				return f.Save(serial)
+			})
+			if err != nil {
+				return err
+			}
+			return b.CommitTo(savedb, nil)
+		})
+		if err != nil && err != errNoSaveSupport {
+			return fmt.Errorf("cannot save serial to device save assertion database: %v", err)
+		}
+
+		if err := regCtx.FinishRegistration(serial); err != nil {
 			return err
 		}
 		t.SetStatus(state.DoneStatus)

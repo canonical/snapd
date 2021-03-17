@@ -7,8 +7,8 @@ systems:
     - -arch-linux-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -centos-*
     - -debian-sid-*
-    - -fedora-31-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -fedora-32-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -fedora-33-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -opensuse-15.2-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -opensuse-tumbleweed-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -ubuntu-14.04-*  # no tests.session support, eds is too old
@@ -26,9 +26,11 @@ backends: [-autopkgtest]
 
 prepare: |
     tests.session -u test prepare
+
 restore: |
     snap remove --purge test-snapd-eds
     tests.session -u test restore
+
 execute: |
     if ! snap install --edge test-snapd-eds ; then
         if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then

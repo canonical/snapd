@@ -3,17 +3,17 @@ summary: Check that revert of a snap in devmode restores devmode
 # slow in autopkgtest (>1m)
 backends: [-autopkgtest]
 
+# ubuntu-14.04: systemd-run not supported
+systems: [-ubuntu-14.04*]
+
 environment:
     STORE_TYPE/fake: fake
     STORE_TYPE/remote: ${REMOTE_STORE}
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     if [ "$STORE_TYPE" = "fake" ]; then
-        if is_core_system; then
+        if os.query is-core; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -37,11 +37,8 @@ prepare: |
     fi
 
 restore: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     if [ "$STORE_TYPE" = "fake" ]; then
-        if is_core_system; then
+        if os.query is-core; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -54,11 +51,8 @@ restore: |
     fi
 
 execute: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     if [ "$STORE_TYPE" = "fake" ]; then
-        if is_core_system; then
+        if os.query is-core; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then

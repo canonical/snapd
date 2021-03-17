@@ -149,7 +149,7 @@ override_dh_auto_build:
 	find _build/src/$(DH_GOPKG)/cmd/snap-bootstrap -name "*.go" | xargs rm -f
 	find _build/src/$(DH_GOPKG)/gadget/install -name "*.go" | grep -vE '(params\.go|install_dummy\.go)'| xargs rm -f
 	# XXX: once dh-golang understands go build tags this would not be needed
-	find _build/src/$(DH_GOPKG)/secboot/ -name "*.go" | grep -Ev '(encrypt\.go|secboot_dummy\.go|secboot\.go)' | xargs rm -f
+	find _build/src/$(DH_GOPKG)/secboot/ -name "*.go" | grep -Ev '(encrypt\.go|secboot_dummy\.go|secboot\.go|encrypt_dummy\.go)' | xargs rm -f
 	# and build
 	dh_auto_build -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
 
@@ -222,6 +222,8 @@ override_dh_install-indep:
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
 	# chrorder generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
+	# bootloader assets generator
+	rm -f ${CURDIR}/debian/tmp/usr/bin/genasset
 	# docs generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/docs
 

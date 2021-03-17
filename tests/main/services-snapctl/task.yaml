@@ -26,11 +26,8 @@ execute: |
         done
     }
 
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     echo "When the service snap is installed"
-    install_local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
 
     echo "We can see it running"
     _wait_for_service "test-snapd-service.test-snapd-service" " active"
@@ -67,7 +64,7 @@ execute: |
 
     echo "Reinstalling the snap with configure hook calling snapctl restart works"
     snap set test-snapd-service command=restart
-    install_local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
     # shellcheck disable=SC2119
     if "$TESTSTOOLS"/journal-state get-log | MATCH "error running snapctl"; then
         echo "snapctl should not report errors"

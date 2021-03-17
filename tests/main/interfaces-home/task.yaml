@@ -17,11 +17,8 @@ environment:
     HIDDEN_READABLE_FILE: "$HOME/.readable"
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     echo "Given a snap declaring the home plug is installed"
-    install_local home-consumer
+    "$TESTSTOOLS"/snaps-state install-local home-consumer
 
     echo "And there is a readable file in HOME"
     echo ok > "$READABLE_FILE"
@@ -36,10 +33,7 @@ restore: |
     rm -f "$READABLE_FILE" "$WRITABLE_FILE" "$CREATABLE_FILE" "$HIDDEN_READABLE_FILE"
 
 execute: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
-    if is_core_system; then
+    if os.query is-core; then
         echo "The interface is not connected by default"
         snap interfaces -i home | MATCH '^- +home-consumer:home'
 

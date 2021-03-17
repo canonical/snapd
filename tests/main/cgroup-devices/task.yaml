@@ -1,7 +1,9 @@
 summary: measuring basic properties of device cgroup
-# fedora-31: uses cgroupv2, which we don't support
 # fedora-32: uses cgroupv2, which we don't support
-systems: [ -fedora-31-*, -fedora-32-*]
+# fedora-33: uses cgroupv2, which we don't support
+# debian-sid: uses cgroupv2, which we don't support
+
+systems: [ -fedora-32-*, -fedora-33-*, -debian-sid-* ]
 execute: ./task.sh
 restore: |
     rm -f test-snapd-service_1.0_all.snap

@@ -94,7 +94,7 @@ func storeAuthDataFilename(homeDir string) string {
 	}
 
 	if homeDir == "" {
-		real, err := osutil.RealUser()
+		real, err := osutil.UserMaybeSudoUser()
 		if err != nil {
 			panic(err)
 		}
@@ -106,7 +106,7 @@ func storeAuthDataFilename(homeDir string) string {
 
 // writeAuthData saves authentication details for later reuse through ReadAuthData
 func writeAuthData(user User) error {
-	real, err := osutil.RealUser()
+	real, err := osutil.UserMaybeSudoUser()
 	if err != nil {
 		return err
 	}

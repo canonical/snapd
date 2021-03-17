@@ -7,7 +7,7 @@ on:
 
 jobs:
   snap-builds:
-    runs-on: ubuntu-16.04
+    runs-on: ubuntu-20.04
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -21,7 +21,7 @@ jobs:
       id: cached-results
       run: |
           CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/snap-build-success"
-          echo "::set-env name=CACHE_RESULT_STAMP::$CACHE_RESULT_STAMP"
+          echo "CACHE_RESULT_STAMP=$CACHE_RESULT_STAMP" >> $GITHUB_ENV
           if [ -e "$CACHE_RESULT_STAMP" ]; then
               has_cached_snap=0
               while read name; do
@@ -52,7 +52,7 @@ jobs:
         touch "$CACHE_RESULT_STAMP"
 
   unit-tests:
-    runs-on: ubuntu-16.04
+    runs-on: ubuntu-20.04
     env:
       GOPATH: ${{ github.workspace }}
       GO111MODULE: off
@@ -110,7 +110,7 @@ jobs:
       id: cached-results
       run: |
           CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/${{ matrix.gochannel }}-success"
-          echo "::set-env name=CACHE_RESULT_STAMP::$CACHE_RESULT_STAMP"
+          echo "CACHE_RESULT_STAMP=$CACHE_RESULT_STAMP" >> $GITHUB_ENV
           if [ -e "$CACHE_RESULT_STAMP" ]; then
               echo "::set-output name=already-ran::true"
           fi
@@ -168,6 +168,22 @@ jobs:
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         ./run-checks --unit
+    - name: Test Go (withbootassetstesting)
+      if: steps.cached-results.outputs.already-ran != 'true'
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        SKIP_COVERAGE=1 SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=withbootassetstesting ./run-checks --unit
+    - name: Test Go (nosecboot)
+      if: steps.cached-results.outputs.already-ran != 'true'
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        echo "Dropping github.com/snapcore/secboot"
+        # use govendor remove so that a subsequent govendor sync does not
+        # install secboot again
+        ${{ github.workspace }}/bin/govendor remove github.com/snapcore/secboot
+        ${{ github.workspace }}/bin/govendor remove +unused
+        # we don't need coverage anymore
+        SKIP_COVERAGE=1 SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
@@ -191,8 +207,8 @@ jobs:
         - centos-8-64
         - debian-9-64
         - debian-sid-64
-        - fedora-31-64
         - fedora-32-64
+        - fedora-33-64
         - opensuse-15.1-64
         - opensuse-15.2-64
         - opensuse-tumbleweed-64
@@ -202,6 +218,7 @@ jobs:
         - ubuntu-18.04-64
         - ubuntu-20.04-64
         - ubuntu-20.10-64
+        - ubuntu-21.04-64
         - ubuntu-core-16-64
         - ubuntu-core-18-64
         - ubuntu-core-20-64
@@ -209,6 +226,9 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
+      with:
+        # spread uses tags as delta reference
+        fetch-depth: 0
     - name: Cache snapd test results
       id: cache-snapd-test-results
       uses: actions/cache@v1
@@ -219,7 +239,7 @@ jobs:
       id: cached-results
       run: |
           CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/${{ matrix.system }}-success"
-          echo "::set-env name=CACHE_RESULT_STAMP::$CACHE_RESULT_STAMP"
+          echo "CACHE_RESULT_STAMP=$CACHE_RESULT_STAMP" >> $GITHUB_ENV
           if [ -e "$CACHE_RESULT_STAMP" ]; then
               echo "::set-output name=already-ran::true"
           fi
@@ -258,6 +278,7 @@ jobs:
         - ubuntu-16.04-64
         - ubuntu-18.04-64
         - ubuntu-20.04-64
+        - ubuntu-20.10-64
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -271,12 +292,14 @@ jobs:
       id: cached-results
       run: |
           CACHE_RESULT_STAMP="${{ github.workspace }}/.test-results/${{ matrix.system }}-nested-success"
-          echo "::set-env name=CACHE_RESULT_STAMP::$CACHE_RESULT_STAMP"
+          echo "CACHE_RESULT_STAMP=$CACHE_RESULT_STAMP" >> $GITHUB_ENV
           if [ -e "$CACHE_RESULT_STAMP" ]; then
               echo "::set-output name=already-ran::true"
           fi
     - name: Run spread tests
-      if: "contains(github.event.pull_request.labels.*.name, 'Run nested') && steps.cached-results.outputs.already-ran != 'true'"
+      # run if the commit is pushed to the release/* branch or there is a 'Run
+      # nested' label set on the PR
+      if: "(contains(github.event.pull_request.labels.*.name, 'Run nested') || contains(github.ref, 'refs/heads/release/')) && steps.cached-results.outputs.already-ran != 'true'"
       env:
           SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |
@@ -284,9 +307,6 @@ jobs:
           echo "::add-matcher::.github/spread-problem-matcher.json"
           export NESTED_BUILD_SNAPD_FROM_CURRENT=true
           export NESTED_ENABLE_KVM=true
-          if [ "${{ matrix.system }}" = "ubuntu-20.04-64" ]; then
-              export NESTED_ENABLE_KVM=false
-          fi
           spread -abend google-nested:${{ matrix.system }}:tests/nested/...
     - name: Cache successful run
       run: |

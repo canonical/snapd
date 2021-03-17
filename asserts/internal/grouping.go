@@ -52,6 +52,12 @@ func NewGroupings(n int) (*Groupings, error) {
 	return &Groupings{n: uint(n), bitsetThreshold: uint16(n / 16)}, nil
 }
 
+// N returns up to how many groups are supported.
+// That is the value that was passed to NewGroupings.
+func (gr *Groupings) N() int {
+	return int(gr.n)
+}
+
 // WithinRange checks whether group is within the admissible range for
 // labeling otherwise it returns an error.
 func (gr *Groupings) WithinRange(group uint16) error {

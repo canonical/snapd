@@ -32,6 +32,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/snapcore/snapd/dirs"
 )
@@ -266,4 +267,23 @@ func (client *Client) ServicesStart(ctx context.Context, services []string) (sta
 func (client *Client) ServicesStop(ctx context.Context, services []string) (stopFailures []ServiceFailure, err error) {
 	_, stopFailures, err = client.serviceControlCall(ctx, "stop", services)
 	return stopFailures, err
+}
+
+// PendingSnapRefreshInfo holds information about pending snap refresh provided to userd.
+type PendingSnapRefreshInfo struct {
+	InstanceName        string        `json:"instance-name"`
+	TimeRemaining       time.Duration `json:"time-remaining,omitempty"`
+	BusyAppName         string        `json:"busy-app-name,omitempty"`
+	BusyAppDesktopEntry string        `json:"busy-app-desktop-entry,omitempty"`
+}
+
+// PendingRefreshNotification broadcasts information about a refresh.
+func (client *Client) PendingRefreshNotification(ctx context.Context, refreshInfo *PendingSnapRefreshInfo) error {
+	headers := map[string]string{"Content-Type": "application/json"}
+	reqBody, err := json.Marshal(refreshInfo)
+	if err != nil {
+		return err
+	}
+	_, err = client.doMany(ctx, "POST", "/v1/notifications/pending-refresh", nil, headers, reqBody)
+	return err
 }

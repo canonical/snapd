@@ -1,17 +1,12 @@
-#!/bin/bash
-
-set -e -x
+#!/bin/bash -x
 
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
-
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB/systemd.sh"
 
-#shellcheck source=tests/lib/systems.sh
-. "$TESTSLIB"/systems.sh
 
 reset_classic() {
     # Reload all service units as in some situations the unit might
@@ -67,7 +62,7 @@ reset_classic() {
         systemctl reset-failed "$unit" || true
     done
 
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+    if os.query is-trusty; then
         systemctl start snap.mount.service
     fi
 
@@ -178,7 +173,7 @@ reset_all_snap() {
 # When the variable REUSE_SNAPD is set to 1, we don't remove and purge snapd.
 # In that case we just cleanup the environment by removing installed snaps as
 # it is done for core systems.
-if is_core_system || [ "$REUSE_SNAPD" = 1 ]; then
+if os.query is-core || [ "$REUSE_SNAPD" = 1 ]; then
     reset_all_snap "$@"
 else
     reset_classic "$@"

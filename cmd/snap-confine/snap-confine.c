@@ -124,7 +124,7 @@ typedef struct sc_preserved_process_state {
 /**
  * sc_preserve_and_sanitize_process_state sanitizes process state.
  *
- * The following process state is sanitised:
+ * The following process state is sanitized:
  *  - the umask is set to 0
  *  - the current working directory is set to /
  *
@@ -626,14 +626,8 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 	// Init and check rootfs_dir, apply any fallback behaviors.
 	sc_check_rootfs_dir(inv);
 
-	/** Populate and join the device control group. */
-	struct snappy_udev udev_s;
-	if (snappy_udev_init(inv->security_tag, &udev_s) == 0) {
-		if (!sc_cgroup_is_v2()) {
-			setup_devices_cgroup(inv->security_tag, &udev_s);
-		}
-	}
-	snappy_udev_cleanup(&udev_s);
+	/** Conditionally create, populate and join the device cgroup. */
+	sc_setup_device_cgroup(inv->security_tag);
 
 	/**
 	 * is_normal_mode controls if we should pivot into the base snap.

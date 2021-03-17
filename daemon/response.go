@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
@@ -67,11 +68,23 @@ type resp struct {
 	Maintenance *errorResult `json:"maintenance,omitempty"`
 }
 
-func (r *resp) transmitMaintenance(kind client.ErrorKind, message string) {
-	r.Maintenance = &errorResult{
-		Kind:    kind,
-		Message: message,
+func maintenanceForRestartType(rst state.RestartType) *errorResult {
+	e := &errorResult{}
+	switch rst {
+	case state.RestartSystem, state.RestartSystemNow:
+		e.Kind = client.ErrorKindSystemRestart
+		e.Message = daemonRestartMsg
+	case state.RestartDaemon:
+		e.Kind = client.ErrorKindDaemonRestart
+		e.Message = systemRestartMsg
+	case state.RestartSocket:
+		e.Kind = client.ErrorKindDaemonRestart
+		e.Message = socketRestartMsg
+	case state.RestartUnset:
+		// shouldn't happen, maintenance for unset type should just be nil
+		panic("internal error: cannot marshal maintenance for RestartUnset")
 	}
+	return e
 }
 
 func (r *resp) addWarningsToMeta(count int, stamp time.Time) {
@@ -92,7 +105,7 @@ func (r *resp) addWarningsToMeta(count int, stamp time.Time) {
 //      JSON representation in the API in time for the release.
 //      The right code style takes a bit more work and unifies
 //      these fields inside resp.
-// Increment the counter if you read this: 42
+// Increment the counter if you read this: 43
 type Meta struct {
 	Sources           []string   `json:"sources,omitempty"`
 	SuggestedCurrency string     `json:"suggested-currency,omitempty"`
@@ -254,15 +267,21 @@ func (s *snapStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 // A snapshotExportResponse 's ServeHTTP method serves a specific snapshot ID
 type snapshotExportResponse struct {
 	*snapshotstate.SnapshotExport
+	setID uint64
+	st    *state.State
 }
 
 // ServeHTTP from the Response interface
 func (s snapshotExportResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Add("Content-Length", strconv.FormatInt(s.Size(), 10))
+	w.Header().Add("Content-Type", client.SnapshotExportMediaType)
 	if err := s.StreamTo(w); err != nil {
 		logger.Debugf("cannot export snapshot: %v", err)
 	}
 	s.Close()
+	s.st.Lock()
+	defer s.st.Unlock()
+	snapshotstate.UnsetSnapshotOpInProgress(s.st, s.setID)
 }
 
 // A fileResponse 's ServeHTTP method serves the file

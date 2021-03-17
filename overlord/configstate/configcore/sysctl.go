@@ -22,6 +22,7 @@ package configcore
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 
@@ -91,8 +92,14 @@ func handleSysctlConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error 
 		}
 	}
 
-	// write the new config
 	dir := filepath.Join(root, sysctlConfsDir)
+	if opts != nil {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
+	}
+
+	// write the new config
 	glob := snapdSysctlConf
 	changed, removed, err := osutil.EnsureDirState(dir, glob, dirContent)
 	if err != nil {

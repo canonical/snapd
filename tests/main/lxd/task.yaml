@@ -2,10 +2,8 @@ summary: Ensure that lxd works
 
 # Only run this on ubuntu 16+, lxd will not work on !ubuntu systems
 # currently nor on ubuntu 14.04
-# TODO:UC20: enable for UC20
-# TODO: enable for ubuntu-16-32 again
-# TODO: enable ubuntu-20.10-64 once the image is available
-systems: [ubuntu-16.04*64, ubuntu-18.04*, ubuntu-20.04*, ubuntu-core-1*]
+# TODO: enable for ubuntu-21+ once the lxd image is published
+systems: [ubuntu-16*, ubuntu-18*, ubuntu-20*, ubuntu-core-*]
 
 # autopkgtest run only a subset of tests that deals with the integration
 # with the distro
@@ -27,7 +25,6 @@ environment:
     REFRESH_APP_AWARENESS_OUTER/snapd_cgroup_neither: false
     REFRESH_APP_AWARENESS_INNER/snapd_cgroup_neither: false
 
-
 prepare: |
     # using apt here is ok because this test only runs on ubuntu
     echo "Remove any installed debs (some images carry them) to ensure we test the snap"
@@ -45,8 +42,8 @@ restore: |
     fi
 
     for cont_name in my-nesting-ubuntu my-ubuntu; do
-        lxd.lxc stop $cont_name --force
-        lxd.lxc delete $cont_name
+        lxd.lxc stop $cont_name --force || true
+        lxd.lxc delete $cont_name || true
     done
     snap remove --purge lxd
     snap remove --purge lxd-demo-server
@@ -146,7 +143,14 @@ execute: |
     lxd.lxc exec my-ubuntu -- find /var/run/systemd/generator/ -name container.conf | MATCH "/var/run/systemd/generator/snap-core-.*mount.d/container.conf"
     lxd.lxc exec my-ubuntu -- test -f /var/run/systemd/generator/snap.mount
 
-    # Ensure that we can run lxd as a snap inside a nested container
+    # Ensure that we can run lxd as a snap inside a container to create a nested
+    # container
+
+    if [ "$SPREAD_SYSTEM" = "ubuntu-16.04-64" ]; then
+        # related bug: https://bugs.launchpad.net/snapd/+bug/1892468
+        echo "Not running old xenial combination which lacks proper patches"
+        exit 0
+    fi
 
     echo "Ensure we can use lxd as a snap inside lxd"
     lxd.lxc exec my-nesting-ubuntu -- apt autoremove -y lxd

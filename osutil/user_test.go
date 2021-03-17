@@ -191,7 +191,7 @@ func (s *createUserSuite) TestAddUserPasswordForceChangeUnhappy(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `cannot force password change when no password is provided`)
 }
 
-func (s *createUserSuite) TestRealUser(c *check.C) {
+func (s *createUserSuite) TestUserMaybeSudoUser(c *check.C) {
 	oldUser := os.Getenv("SUDO_USER")
 	defer func() { os.Setenv("SUDO_USER", oldUser) }()
 
@@ -217,7 +217,7 @@ func (s *createUserSuite) TestRealUser(c *check.C) {
 		defer restore()
 
 		os.Setenv("SUDO_USER", t.SudoUsername)
-		cur, err := osutil.RealUser()
+		cur, err := osutil.UserMaybeSudoUser()
 		c.Assert(err, check.IsNil)
 		c.Check(cur.Username, check.Equals, t.CurrentUsername)
 	}

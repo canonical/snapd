@@ -7,8 +7,9 @@
 +0:+30 / /dev/pts rw,relatime - devpts devpts rw,gid=5,mode=620,ptmxmode=666
 +0:-29 / /dev/shm rw,nosuid,nodev master:7 - tmpfs tmpfs rw
 -1:-4 /etc /etc rw,relatime master:-6 - ext4 /dev/sda1 rw
-+2:+1 /etc/nsswitch.conf /etc/nsswitch.conf ro,nodev,relatime master:+15 - squashfs /dev/loop1 ro
-+0:+0 /etc/ssl /etc/ssl ro,nodev,relatime master:+0 - squashfs /dev/loop1 ro
++2:+1 /etc/apparmor /etc/apparmor ro,nodev,relatime master:+15 - squashfs /dev/loop1 ro
++0:+0 /etc/apparmor.d /etc/apparmor.d ro,nodev,relatime master:+0 - squashfs /dev/loop1 ro
++0:+0 /etc/nsswitch.conf /etc/nsswitch.conf ro,nodev,relatime master:+0 - squashfs /dev/loop1 ro
 -2:-1 /home /home rw,relatime master:-15 - ext4 /dev/sda1 rw
 +0:+0 /lib/firmware /lib/firmware rw,relatime master:+0 - ext4 /dev/sda1 rw
 +0:+0 /lib/modules /lib/modules rw,relatime master:+0 - ext4 /dev/sda1 rw

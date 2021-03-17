@@ -1,0 +1,10 @@
+#!/bin/sh -e
+
+# only save calls with "-r" for actual shutdowns, because on uc20, shutdown is a
+# symlink to systemctl, so we also see calls like `systemctl stop serial-getty@ttyS0`
+# that would show up in the mock-shutdown.calls and confuse the test
+if [ "$1" = "-r" ]; then
+    echo "$*" >> /tmp/mock-shutdown.calls
+fi
+
+exit 0

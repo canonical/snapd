@@ -19,9 +19,7 @@ prepare: |
     # This feature depends on the release-app-awareness feature
     snap set core experimental.refresh-app-awareness=true
     tests.cleanup defer snap unset core experimental.refresh-app-awareness
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     tests.cleanup defer snap remove --purge test-snapd-sh
 restore: |
     tests.cleanup restore

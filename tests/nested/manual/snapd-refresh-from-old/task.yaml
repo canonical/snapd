@@ -1,0 +1,71 @@
+summary: Test snapd refresh from a very old snapd snap.
+details: |
+  Test that a refresh from a very old snapd and core18 to a recent one succeeds.
+
+systems: [ubuntu-18.04-*]
+
+environment:
+  # test variants:
+  # latest_only refreshes to snapd from current source tree only,
+  # edge_first refreshes to snapd/core18 from edge, then to current snapd.
+  VARIANT/latest_only: latest_only
+  VARIANT/edge_first: edge_first
+  NESTED_BUILD_SNAPD_FROM_CURRENT: false
+  NESTED_IMAGE_ID: snapd-refresh-from-old
+  SNAPD_SNAP_URL: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.45.2_5760.snap
+  CORE18_SNAP_URL: https://storage.googleapis.com/spread-snapd-tests/snaps/core18_20191126_1279.snap
+
+prepare: |
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+
+  #shellcheck source=tests/lib/snaps.sh
+  . "$TESTSLIB"/snaps.sh
+
+  mkdir extra-snaps
+  wget -P extra-snaps "$SNAPD_SNAP_URL" "$CORE18_SNAP_URL"
+
+  # create core image with old snapd & core18
+  "$TESTSTOOLS"/nested-state build-image core
+  "$TESTSTOOLS"/nested-state create-vm core
+
+  # for refresh in later step of the test
+  repack_snapd_deb_into_snapd_snap "$PWD"
+
+execute: |
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+
+  nested_exec "sudo snap wait system seed.loaded"
+  nested_exec "snap list" | MATCH "snapd.*5760"
+  nested_exec "snap list" | MATCH "core18.*1279"
+
+  INITIAL_BOOT_ID=$(nested_get_boot_id)
+
+  if [ "$SPREAD_VARIANT" = "edge_first" ]; then
+    # refresh to latest snapd from store, this will drop from ssh.
+    echo "Refreshing snapd and core18 from the store"
+    nested_exec "sudo snap refresh" || true
+
+    nested_wait_for_reboot "$INITIAL_BOOT_ID"
+    if nested_exec "snap list snapd" | MATCH "snapd.*5760"; then
+      echo "unexpected snapd rev 5760"
+      exit 1
+    fi
+
+    # this change is not immediately done and needs a retry
+    for _ in $(seq 1 10); do
+      if nested_exec "snap changes" | MATCH ".* Done .* Refresh snaps.*\"snapd\""; then
+        break
+      fi
+      sleep 1
+    done
+
+    nested_exec "snap changes" | MATCH ".* Done .* Refresh snaps.*\"snapd\""
+    nested_exec "snap changes" | MATCH ".* Done .* Refresh snaps.*\"core18\""
+  fi
+
+  echo "Now refresh snapd with current tree"
+  nested_copy "snapd-from-deb.snap"
+  nested_exec "sudo snap install snapd-from-deb.snap --dangerous" || true
+  nested_exec "snap list snapd" | MATCH "snapd .* x1 "

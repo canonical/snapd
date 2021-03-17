@@ -14,9 +14,7 @@ details: |
 systems: [-ubuntu-core-*]
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-appstream-metadata
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-appstream-metadata
 
     # Set up some dummy Appstream metadata on the host system
     mkdir -p /usr/share/metainfo

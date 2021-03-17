@@ -1,6 +1,7 @@
 summary: Ensure that the firewall-control interface works.
 
-systems: [-fedora-*, -opensuse-*, -arch-*]
+# ubuntu-14.04: systemd-run not supported
+systems: [-fedora-*, -opensuse-*, -arch-*, -ubuntu-14.04*]
 
 details: |
     The firewall-control interface allows a snap to configure the firewall.
@@ -17,27 +18,18 @@ details: |
 
 environment:
     PORT: 8081
-    SERVICE_FILE: "./service.sh"
     SERVICE_NAME: "test-service"
     REQUEST_FILE: "./request.txt"
     DESTINATION_IP: "172.26.0.15"
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
     echo "Given a snap declaring a plug on the firewall-control interface is installed"
-    install_local firewall-control-consumer
+    "$TESTSTOOLS"/snaps-state install-local firewall-control-consumer
 
     echo "And a service is listening"
-    printf '#!/bin/sh -e\nwhile true; do echo "HTTP/1.1 200 OK\n\nok\n" |  nc -l -p %s -w 1; done' "$PORT" > "$SERVICE_FILE"
-    chmod a+x "$SERVICE_FILE"
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB/systemd.sh"
-    #shellcheck disable=SC2153
-    systemd_create_and_start_unit "$SERVICE_NAME" "$(readlink -f "$SERVICE_FILE")"
     # shellcheck source=tests/lib/network.sh
     . "$TESTSLIB"/network.sh
-    wait_listen_port "$PORT"
+    make_network_service "$SERVICE_NAME" "$PORT"
 
     echo "And we store a basic HTTP request"
     cat > "$REQUEST_FILE" <<EOF
@@ -46,11 +38,8 @@ prepare: |
     EOF
 
 restore: |
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB/systemd.sh"
-    #shellcheck disable=SC2153
-    systemd_stop_and_destroy_unit "$SERVICE_NAME"
-    rm -f "$SERVICE_FILE" "$REQUEST_FILE"
+    systemctl stop "$SERVICE_NAME"
+    rm -f "$REQUEST_FILE"
 
 execute: |
     echo "Then the plug is disconnected by default"

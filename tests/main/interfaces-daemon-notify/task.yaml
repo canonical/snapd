@@ -10,9 +10,7 @@ details: |
     to systemd through the notify socket
 
 prepare: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-daemon-notify
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-daemon-notify
 
 execute: |
     echo "The interface is not connected by default"
@@ -34,7 +32,7 @@ execute: |
         fi
         sleep 1
     done
-    [ "$denials_before" -eq "$denials_after" ]
+    test "$denials_before" = "$denials_after"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -56,4 +54,4 @@ execute: |
         fi
         sleep 1
     done
-    [ "$denials_before" -ne "$denials_after" ]
+    test "$denials_before" != "$denials_after"

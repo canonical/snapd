@@ -22,28 +22,40 @@ package boot
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"sort"
+
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/secboot"
 )
 
 // TODO:UC20 add a doc comment when this is stabilized
 type bootChain struct {
-	BrandID        string      `json:"brand-id"`
-	Model          string      `json:"model"`
-	Grade          string      `json:"grade"`
-	ModelSignKeyID string      `json:"model-sign-key-id"`
-	AssetChain     []bootAsset `json:"asset-chain"`
-	Kernel         string      `json:"kernel"`
+	BrandID        string             `json:"brand-id"`
+	Model          string             `json:"model"`
+	Grade          asserts.ModelGrade `json:"grade"`
+	ModelSignKeyID string             `json:"model-sign-key-id"`
+	AssetChain     []bootAsset        `json:"asset-chain"`
+	Kernel         string             `json:"kernel"`
 	// KernelRevision is the revision of the kernel snap. It is empty if
 	// kernel is unasserted, in which case always reseal.
-	KernelRevision string `json:"kernel-revision"`
-	KernelCmdline  string `json:"kernel-cmdline"`
+	KernelRevision string   `json:"kernel-revision"`
+	KernelCmdlines []string `json:"kernel-cmdlines"`
+
+	model          *asserts.Model
+	kernelBootFile bootloader.BootFile
 }
 
 // TODO:UC20 add a doc comment when this is stabilized
 type bootAsset struct {
-	Role   string   `json:"role"`
-	Name   string   `json:"name"`
-	Hashes []string `json:"hashes"`
+	Role   bootloader.Role `json:"role"`
+	Name   string          `json:"name"`
+	Hashes []string        `json:"hashes"`
 }
 
 func bootAssetLess(b, other *bootAsset) bool {
@@ -56,15 +68,27 @@ func bootAssetLess(b, other *bootAsset) bool {
 	if b.Name != other.Name {
 		return byName
 	}
-	return hashListsLess(b.Hashes, other.Hashes)
+	return stringListsLess(b.Hashes, other.Hashes)
 }
 
-func hashListsLess(h1, h2 []string) bool {
-	if len(h1) != len(h2) {
-		return len(h1) < len(h2)
+func stringListsEqual(sl1, sl2 []string) bool {
+	if len(sl1) != len(sl2) {
+		return false
 	}
-	for idx := range h1 {
-		if h1[idx] < h2[idx] {
+	for i := range sl1 {
+		if sl1[i] != sl2[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func stringListsLess(sl1, sl2 []string) bool {
+	if len(sl1) != len(sl2) {
+		return len(sl1) < len(sl2)
+	}
+	for idx := range sl1 {
+		if sl1[idx] < sl2[idx] {
 			return true
 		}
 	}
@@ -84,14 +108,6 @@ func toPredictableBootAsset(b *bootAsset) *bootAsset {
 	return &newB
 }
 
-type byBootAssetOrder []bootAsset
-
-func (b byBootAssetOrder) Len() int      { return len(b) }
-func (b byBootAssetOrder) Swap(i, j int) { b[i], b[j] = b[j], b[i] }
-func (b byBootAssetOrder) Less(i, j int) bool {
-	return bootAssetLess(&b[i], &b[j])
-}
-
 func toPredictableBootChain(b *bootChain) *bootChain {
 	if b == nil {
 		return nil
@@ -102,7 +118,11 @@ func toPredictableBootChain(b *bootChain) *bootChain {
 		for i := range b.AssetChain {
 			newB.AssetChain[i] = *toPredictableBootAsset(&b.AssetChain[i])
 		}
-		sort.Sort(byBootAssetOrder(newB.AssetChain))
+	}
+	if b.KernelCmdlines != nil {
+		newB.KernelCmdlines = make([]string, len(b.KernelCmdlines))
+		copy(newB.KernelCmdlines, b.KernelCmdlines)
+		sort.Strings(newB.KernelCmdlines)
 	}
 	return &newB
 }
@@ -160,14 +180,26 @@ func (b byBootChainOrder) Less(i, j int) bool {
 	if b[i].KernelRevision != b[j].KernelRevision {
 		return b[i].KernelRevision < b[j].KernelRevision
 	}
-	// and last kernel command line
-	if b[i].KernelCmdline != b[j].KernelCmdline {
-		return b[i].KernelCmdline < b[j].KernelCmdline
+	// and last kernel command lines
+	if !stringListsEqual(b[i].KernelCmdlines, b[j].KernelCmdlines) {
+		return stringListsLess(b[i].KernelCmdlines, b[j].KernelCmdlines)
 	}
 	return false
 }
 
 type predictableBootChains []bootChain
+
+// hasUnrevisionedKernels returns true if any of the chains have an
+// unrevisioned kernel. Revisions will not be set for unasserted
+// kernels.
+func (pbc predictableBootChains) hasUnrevisionedKernels() bool {
+	for i := range pbc {
+		if pbc[i].KernelRevision == "" {
+			return true
+		}
+	}
+	return false
+}
 
 func toPredictableBootChains(chains []bootChain) predictableBootChains {
 	if chains == nil {
@@ -181,17 +213,119 @@ func toPredictableBootChains(chains []bootChain) predictableBootChains {
 	return predictableChains
 }
 
-// predictableBootChainsEqualForReseal returns true when boot chains are
-// equivalent for reseal.
-func predictableBootChainsEqualForReseal(pb1, pb2 predictableBootChains) bool {
+type bootChainEquivalence int
+
+const (
+	bootChainEquivalent   bootChainEquivalence = 0
+	bootChainDifferent    bootChainEquivalence = 1
+	bootChainUnrevisioned bootChainEquivalence = -1
+)
+
+// predictableBootChainsEqualForReseal returns bootChainEquivalent
+// when boot chains are equivalent for reseal. If the boot chains
+// are clearly different it returns bootChainDifferent.
+// If it would return bootChainEquivalent but the chains contain
+// unrevisioned kernels it will return bootChainUnrevisioned.
+func predictableBootChainsEqualForReseal(pb1, pb2 predictableBootChains) bootChainEquivalence {
 	pb1JSON, err := json.Marshal(pb1)
 	if err != nil {
-		return false
+		return bootChainDifferent
 	}
 	pb2JSON, err := json.Marshal(pb2)
 	if err != nil {
-		return false
+		return bootChainDifferent
 	}
-	// TODO:UC20: return false if either chains have unasserted kernels
-	return bytes.Equal(pb1JSON, pb2JSON)
+	if bytes.Equal(pb1JSON, pb2JSON) {
+		if pb1.hasUnrevisionedKernels() {
+			return bootChainUnrevisioned
+		}
+		return bootChainEquivalent
+	}
+	return bootChainDifferent
+}
+
+// bootAssetsToLoadChains generates a list of load chains covering given boot
+// assets sequence. At the end of each chain, adds an entry for the kernel boot
+// file.
+func bootAssetsToLoadChains(assets []bootAsset, kernelBootFile bootloader.BootFile, roleToBlName map[bootloader.Role]string) ([]*secboot.LoadChain, error) {
+	// kernel is added after all the assets
+	addKernelBootFile := len(assets) == 0
+	if addKernelBootFile {
+		return []*secboot.LoadChain{secboot.NewLoadChain(kernelBootFile)}, nil
+	}
+
+	thisAsset := assets[0]
+	blName := roleToBlName[thisAsset.Role]
+	if blName == "" {
+		return nil, fmt.Errorf("internal error: no bootloader name for boot asset role %q", thisAsset.Role)
+	}
+	var chains []*secboot.LoadChain
+	for _, hash := range thisAsset.Hashes {
+		var bf bootloader.BootFile
+		var next []*secboot.LoadChain
+		var err error
+
+		p := filepath.Join(
+			dirs.SnapBootAssetsDir,
+			trustedAssetCacheRelPath(blName, thisAsset.Name, hash))
+		if !osutil.FileExists(p) {
+			return nil, fmt.Errorf("file %s not found in boot assets cache", p)
+		}
+		bf = bootloader.NewBootFile(
+			"", // asset comes from the filesystem, not a snap
+			p,
+			thisAsset.Role,
+		)
+		next, err = bootAssetsToLoadChains(assets[1:], kernelBootFile, roleToBlName)
+		if err != nil {
+			return nil, err
+		}
+		chains = append(chains, secboot.NewLoadChain(bf, next...))
+	}
+	return chains, nil
+}
+
+// predictableBootChainsWrapperForStorage wraps the boot chains so
+// that we do not store the arrays directly as JSON and we can add
+// other information
+type predictableBootChainsWrapperForStorage struct {
+	ResealCount int                   `json:"reseal-count"`
+	BootChains  predictableBootChains `json:"boot-chains"`
+}
+
+func readBootChains(path string) (pbc predictableBootChains, resealCount int, err error) {
+	inf, err := os.Open(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, 0, nil
+		}
+		return nil, 0, fmt.Errorf("cannot open existing boot chains data file: %v", err)
+	}
+	defer inf.Close()
+	var wrapped predictableBootChainsWrapperForStorage
+	if err := json.NewDecoder(inf).Decode(&wrapped); err != nil {
+		return nil, 0, fmt.Errorf("cannot read boot chains data: %v", err)
+	}
+	return wrapped.BootChains, wrapped.ResealCount, nil
+}
+
+func writeBootChains(pbc predictableBootChains, path string, resealCount int) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("cannot create device fde state directory: %v", err)
+	}
+	outf, err := osutil.NewAtomicFile(path, 0600, 0, osutil.NoChown, osutil.NoChown)
+	if err != nil {
+		return fmt.Errorf("cannot create a temporary boot chains file: %v", err)
+	}
+	// becomes noop when the file is committed
+	defer outf.Cancel()
+
+	wrapped := predictableBootChainsWrapperForStorage{
+		ResealCount: resealCount,
+		BootChains:  pbc,
+	}
+	if err := json.NewEncoder(outf).Encode(wrapped); err != nil {
+		return fmt.Errorf("cannot write boot chains data: %v", err)
+	}
+	return outf.Commit()
 }

@@ -2,15 +2,13 @@ summary: The portal-info command provides information about a confined process
 
 systems:
     - -ubuntu-14.04-*
-    - -fedora-31-*  # TODO: add support for cgroupv2 based tracking
-    - -fedora-32-*
+    - -fedora-32-*  # TODO: add support for cgroupv2 based tracking
+    - -fedora-33-*
     - -amazon-linux-*
     - -centos-7-*
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-desktop
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop
     tests.session -u test prepare
 
 restore: |
@@ -21,7 +19,7 @@ restore: |
 execute: |
     # Start a "sleep" process in the background
     #shellcheck disable=SC2016
-    tests.session -u test exec systemd-run --user --unit test-snapd-desktop-sleep.service test-snapd-desktop.cmd sh -c 'touch $SNAP_USER_DATA/1.stamp && exec sleep 1h'
+    tests.session -u test exec systemd-run --user --unit test-snapd-desktop-sleep.service snap run test-snapd-desktop.cmd sh -c 'touch $SNAP_USER_DATA/1.stamp && exec sleep 1h'
     # Ensure that snap-confine has finished its task and that the snap process
     # is active. Note that we don't want to wait forever either.
     retry -n 30 --wait 0.1 test -e /home/test/snap/test-snapd-desktop/current/1.stamp

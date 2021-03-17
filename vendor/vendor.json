@@ -7,10 +7,10 @@
 			"revision": ""
 		},
 		{
-			"checksumSHA1": "s0Ow9uk/0H2Pmfq4JAGpzy5x6T0=",
+			"checksumSHA1": "inZOuvF07VvZnsj1HvApM8Uf7qY=",
 			"path": "github.com/canonical/go-tpm2",
-			"revision": "aaf158ed20ca23c48b446f78fb0bbaf4055e7123",
-			"revisionTime": "2020-05-14T15:04:06Z"
+			"revision": "fb781d04d0dea72f916cc68b637b7be6bcb3ccd4",
+			"revisionTime": "2020-08-24T18:49:43Z"
 		},
 		{
 			"checksumSHA1": "bT/rC7K8St3lNRXf/XJGpB4wNJU=",
@@ -19,10 +19,16 @@
 			"revisionTime": "2020-04-16T00:17:14Z"
 		},
 		{
-			"checksumSHA1": "eDjzake0GpHm9kfTH7FMUWX8zVA=",
-			"path": "github.com/chrisccoulson/tcglog-parser",
-			"revision": "7b0f085a85398d368e10382a21a44ec2226c35b3",
-			"revisionTime": "2020-02-28T14:36:39Z"
+			"checksumSHA1": "fGle5W3B2jSAsLeOQnRbGG7uyV8=",
+			"path": "github.com/canonical/go-tpm2/mu",
+			"revision": "8f372d7de1b07c887e388874555d48f9161feaed",
+			"revisionTime": "2020-08-24T11:54:14Z"
+		},
+		{
+			"checksumSHA1": "QGwWyf2f/5+FacNj2iKpjp8N5hg=",
+			"path": "github.com/canonical/tcglog-parser",
+			"revision": "12a3a7bcf5a14486e838fea211e8d4aa280e9671",
+			"revisionTime": "2020-09-08T16:50:21Z"
 		},
 		{
 			"checksumSHA1": "zg16zjZTQ9R89+UOLmEZxHgxDtM=",
@@ -110,34 +116,40 @@
 			"revisionTime": "2017-09-28T14:21:59Z"
 		},
 		{
-			"checksumSHA1": "uLS+3ymPr8NztAjDjmiRkpKIsIQ=",
+			"checksumSHA1": "QOWBbcZJqGF5v2rtNSjsGGLrUUE=",
 			"path": "github.com/snapcore/secboot",
-			"revision": "68200eea7bdcb97e27fe8e5ff443776383908637",
-			"revisionTime": "2020-08-13T11:40:20Z"
+			"revision": "027522efe9c7dc36adde13ea8ab030d3dfa34267",
+			"revisionTime": "2020-11-19T14:48:04Z"
+		},
+		{
+			"checksumSHA1": "c7jHLQSWFWbymTcFWZMQH0C5Wik=",
+			"path": "github.com/snapcore/secboot/internal/efi",
+			"revision": "bd7a6eabe9371024327d0133a5e1915df27c9eed",
+			"revisionTime": "2020-10-27T12:12:33Z"
 		},
 		{
 			"checksumSHA1": "loFEiH6evGaDnDSlQgk3ugemkcU=",
 			"path": "github.com/snapcore/secboot/internal/pe1.14",
-			"revision": "68200eea7bdcb97e27fe8e5ff443776383908637",
-			"revisionTime": "2020-08-13T11:40:20Z"
+			"revision": "bd7a6eabe9371024327d0133a5e1915df27c9eed",
+			"revisionTime": "2020-10-27T12:12:33Z"
 		},
 		{
 			"checksumSHA1": "kDay47kq9OgDplpkrYw0/a8Z+YY=",
 			"path": "github.com/snapcore/secboot/internal/tcg",
-			"revision": "68200eea7bdcb97e27fe8e5ff443776383908637",
-			"revisionTime": "2020-08-13T11:40:20Z"
+			"revision": "bd7a6eabe9371024327d0133a5e1915df27c9eed",
+			"revisionTime": "2020-10-27T12:12:33Z"
 		},
 		{
 			"checksumSHA1": "PRS8ACUu14shrvAgb747Izc25ns=",
 			"path": "github.com/snapcore/secboot/internal/tcti",
-			"revision": "68200eea7bdcb97e27fe8e5ff443776383908637",
-			"revisionTime": "2020-08-13T11:40:20Z"
+			"revision": "bd7a6eabe9371024327d0133a5e1915df27c9eed",
+			"revisionTime": "2020-10-27T12:12:33Z"
 		},
 		{
 			"checksumSHA1": "TnfofdyojXYWOwdWCKMY5RCeI7s=",
 			"path": "github.com/snapcore/secboot/internal/truststore",
-			"revision": "68200eea7bdcb97e27fe8e5ff443776383908637",
-			"revisionTime": "2020-08-13T11:40:20Z"
+			"revision": "bd7a6eabe9371024327d0133a5e1915df27c9eed",
+			"revisionTime": "2020-10-27T12:12:33Z"
 		},
 		{
 			"checksumSHA1": "3AmEm18mKj8XxBuru/ix4OOpRkE=",
@@ -289,6 +301,13 @@
 			"path": "gopkg.in/yaml.v2",
 			"revision": "86f5ed62f8a0ee96bd888d2efdfd6d4fb100a4eb",
 			"revisionTime": "2018-03-26T05:07:29Z"
+		},
+		{
+			"checksumSHA1": "tZ9GNzrjTZEPDhoJEkouGPKRmZk=",
+			"origin": "github.com/pedronis/maze.io-x-crypto/afis",
+			"path": "maze.io/x/crypto/afis",
+			"revision": "9b94c9afe06676a7da39a608a48ed4e31f5d125f",
+			"revisionTime": "2019-01-31T09:06:03Z"
 		}
 	],
 	"rootPath": "github.com/snapcore/snapd"

@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/seed/internal"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
 )
@@ -87,6 +88,15 @@ type Seed interface {
 	// It will panic if called before LoadAssertions.
 	Brand() (*asserts.Account, error)
 
+	// LoadEssentialMeta loads the seed's snaps metadata for the
+	// essential snaps with types in the essentialTypes set while
+	// verifying them against assertions. It can return ErrNoMeta
+	// if there is no metadata nor snaps in the seed, this is
+	// legitimate only on classic. It can be called multiple times
+	// if needed before invoking LoadMeta.
+	// It will panic if called before LoadAssertions.
+	LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error
+
 	// LoadMeta loads the seed and seed's snaps metadata while
 	// verifying the underlying snaps against assertions. It can
 	// return ErrNoMeta if there is no metadata nor snaps in the
@@ -107,33 +117,15 @@ type Seed interface {
 	ModeSnaps(mode string) ([]*Snap, error)
 }
 
-// EssentialMetaLoaderSeed is a Seed that can be asked to load and verify
-// only a subset of the essential model snaps via LoadEssentialMeta.
-type EssentialMetaLoaderSeed interface {
-	Seed
-
-	// LoadEssentialMeta loads the seed's snaps metadata for the
-	// essential snaps with types in the essentialTypes set while
-	// verifying them against assertions. It can return ErrNoMeta
-	// if there is no metadata nor snaps in the seed, this is
-	// legitimate only on classic. It is an error to mix it with
-	// LoadMeta.
-	// It will panic if called before LoadAssertions.
-	LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error
-}
-
 // Open returns a Seed implementation for the seed at seedDir.
 // label if not empty is used to identify a Core 20 recovery system seed.
 func Open(seedDir, label string) (Seed, error) {
 	if label != "" {
-		if err := validateUC20SeedSystemLabel(label); err != nil {
+		if err := internal.ValidateUC20SeedSystemLabel(label); err != nil {
 			return nil, err
 		}
 		return &seed20{systemDir: filepath.Join(seedDir, "systems", label)}, nil
 	}
-	// TODO: consider if systems is present to open the Core 20
-	// system if there is only one, or the lexicographically
-	// highest label one?
 	return &seed16{seedDir: seedDir}, nil
 }
 
@@ -144,14 +136,9 @@ func ReadSystemEssential(seedDir, label string, essentialTypes []snap.Type, tm t
 	if label == "" {
 		return nil, nil, fmt.Errorf("system label cannot be empty")
 	}
-	seed, err := Open(seedDir, label)
+	seed20, err := Open(seedDir, label)
 	if err != nil {
 		return nil, nil, err
-	}
-
-	seed20, ok := seed.(EssentialMetaLoaderSeed)
-	if !ok {
-		return nil, nil, fmt.Errorf("internal error: UC20 seed must implement EssentialMetaLoaderSeed")
 	}
 
 	// load assertions into a temporary database

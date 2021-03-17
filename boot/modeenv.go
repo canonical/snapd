@@ -26,6 +26,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 
 	"github.com/mvo5/goconfigparser"
@@ -36,30 +38,47 @@ import (
 
 type bootAssetsMap map[string][]string
 
+// bootCommandLines is a list of kernel command lines. The command lines are
+// marshalled as JSON as a comma can be present in the module parameters.
+type bootCommandLines []string
+
 // Modeenv is a file on UC20 that provides additional information
 // about the current mode (run,recover,install)
 type Modeenv struct {
-	Mode                   string
-	RecoverySystem         string
-	CurrentRecoverySystems []string
-	Base                   string
-	TryBase                string
-	BaseStatus             string
-	CurrentKernels         []string
-	Model                  string
-	BrandID                string
-	Grade                  string
+	Mode           string `key:"mode"`
+	RecoverySystem string `key:"recovery_system"`
+	// CurrentRecoverySystems is a list of labels corresponding to recovery
+	// systems that have been tested or are in the process of being tried,
+	// thus only the run key is resealed for these systems.
+	CurrentRecoverySystems []string `key:"current_recovery_systems"`
+	// GoodRecoverySystems is a list of labels corresponding to recovery
+	// systems that were tested and are prepared to use for recovering.
+	// The fallback keys are resealed for these systems.
+	GoodRecoverySystems []string `key:"good_recovery_systems"`
+	Base                string   `key:"base"`
+	TryBase             string   `key:"try_base"`
+	BaseStatus          string   `key:"base_status"`
+	CurrentKernels      []string `key:"current_kernels"`
+	Model               string   `key:"model"`
+	BrandID             string   `key:"model,secondary"`
+	Grade               string   `key:"grade"`
 	// CurrentTrustedBootAssets is a map of a run bootloader's asset names to
 	// a list of hashes of the asset contents. Typically the first entry in
 	// the list is a hash of an asset the system currently boots with (or is
 	// expected to have booted with). The second entry, if present, is the
 	// hash of an entry added when an update of the asset was being applied
 	// and will become the sole entry after a successful boot.
-	CurrentTrustedBootAssets bootAssetsMap
+	CurrentTrustedBootAssets bootAssetsMap `key:"current_trusted_boot_assets"`
 	// CurrentTrustedRecoveryBootAssetsMap is a map of a recovery bootloader's
 	// asset names to a list of hashes of the asset contents. Used similarly
 	// to CurrentTrustedBootAssets.
-	CurrentTrustedRecoveryBootAssets bootAssetsMap
+	CurrentTrustedRecoveryBootAssets bootAssetsMap `key:"current_trusted_recovery_boot_assets"`
+	// CurrentKernelCommandLines is a list of the expected kernel command
+	// lines when booting into run mode. It will typically only be one
+	// element for normal operations, but may contain two elements during
+	// update scenarios.
+	CurrentKernelCommandLines bootCommandLines `key:"current_kernel_command_lines"`
+	// TODO:UC20 add a per recovery system list of kernel command lines
 
 	// read is set to true when a modenv was read successfully
 	read bool
@@ -67,6 +86,43 @@ type Modeenv struct {
 	// originRootdir is set to the root whence the modeenv was
 	// read from, and where it will be written back to
 	originRootdir string
+
+	// extrakeys is all the keys in the modeenv we read from the file but don't
+	// understand, we keep track of this so that if we read a new modeenv with
+	// extra keys and need to rewrite it, we will write those new keys as well
+	extrakeys map[string]string
+}
+
+var modeenvKnownKeys = make(map[string]bool)
+
+func init() {
+	st := reflect.TypeOf(Modeenv{})
+	num := st.NumField()
+	for i := 0; i < num; i++ {
+		f := st.Field(i)
+		if f.PkgPath != "" {
+			// unexported
+			continue
+		}
+		key := f.Tag.Get("key")
+		if key == "" {
+			panic(fmt.Sprintf("modeenv %s field has no key tag", f.Name))
+		}
+		const secondaryModifier = ",secondary"
+		if strings.HasSuffix(key, secondaryModifier) {
+			// secondary field in a group fields
+			// corresponding to one file key
+			key := key[:len(key)-len(secondaryModifier)]
+			if !modeenvKnownKeys[key] {
+				panic(fmt.Sprintf("modeenv %s field marked as secondary for not yet defined key %q", f.Name, key))
+			}
+			continue
+		}
+		if modeenvKnownKeys[key] {
+			panic(fmt.Sprintf("modeenv key %q repeated on %s", key, f.Name))
+		}
+		modeenvKnownKeys[key] = true
+	}
 }
 
 func modeenvFile(rootdir string) string {
@@ -85,13 +141,16 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	if err := cfg.ReadFile(modeenvPath); err != nil {
 		return nil, err
 	}
+
 	// TODO:UC20: should we check these errors and try to do something?
 	m := Modeenv{
 		read:          true,
 		originRootdir: rootdir,
+		extrakeys:     make(map[string]string),
 	}
 	unmarshalModeenvValueFromCfg(cfg, "recovery_system", &m.RecoverySystem)
 	unmarshalModeenvValueFromCfg(cfg, "current_recovery_systems", &m.CurrentRecoverySystems)
+	unmarshalModeenvValueFromCfg(cfg, "good_recovery_systems", &m.GoodRecoverySystems)
 	unmarshalModeenvValueFromCfg(cfg, "mode", &m.Mode)
 	if m.Mode == "" {
 		return nil, fmt.Errorf("internal error: mode is unset")
@@ -110,6 +169,22 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	unmarshalModeenvValueFromCfg(cfg, "grade", &m.Grade)
 	unmarshalModeenvValueFromCfg(cfg, "current_trusted_boot_assets", &m.CurrentTrustedBootAssets)
 	unmarshalModeenvValueFromCfg(cfg, "current_trusted_recovery_boot_assets", &m.CurrentTrustedRecoveryBootAssets)
+	unmarshalModeenvValueFromCfg(cfg, "current_kernel_command_lines", &m.CurrentKernelCommandLines)
+
+	// save all the rest of the keys we don't understand
+	keys, err := cfg.Options("")
+	if err != nil {
+		return nil, err
+	}
+	for _, k := range keys {
+		if !modeenvKnownKeys[k] {
+			val, err := cfg.Get("", k)
+			if err != nil {
+				return nil, err
+			}
+			m.extrakeys[k] = val
+		}
+	}
 
 	return &m, nil
 }
@@ -174,6 +249,7 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 	marshalModeenvEntryTo(buf, "mode", m.Mode)
 	marshalModeenvEntryTo(buf, "recovery_system", m.RecoverySystem)
 	marshalModeenvEntryTo(buf, "current_recovery_systems", m.CurrentRecoverySystems)
+	marshalModeenvEntryTo(buf, "good_recovery_systems", m.GoodRecoverySystems)
 	marshalModeenvEntryTo(buf, "base", m.Base)
 	marshalModeenvEntryTo(buf, "try_base", m.TryBase)
 	marshalModeenvEntryTo(buf, "base_status", m.BaseStatus)
@@ -190,6 +266,18 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 	marshalModeenvEntryTo(buf, "grade", m.Grade)
 	marshalModeenvEntryTo(buf, "current_trusted_boot_assets", m.CurrentTrustedBootAssets)
 	marshalModeenvEntryTo(buf, "current_trusted_recovery_boot_assets", m.CurrentTrustedRecoveryBootAssets)
+	marshalModeenvEntryTo(buf, "current_kernel_command_lines", m.CurrentKernelCommandLines)
+
+	// write all the extra keys at the end
+	// sort them for test convenience
+	extraKeys := make([]string, 0, len(m.extrakeys))
+	for k := range m.extrakeys {
+		extraKeys = append(extraKeys, k)
+	}
+	sort.Strings(extraKeys)
+	for _, k := range extraKeys {
+		marshalModeenvEntryTo(buf, k, m.extrakeys[k])
+	}
 
 	if err := osutil.AtomicWriteFile(modeenvPath, buf.Bytes(), 0644, 0); err != nil {
 		return err
@@ -331,5 +419,18 @@ func (b *bootAssetsMap) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*b = bootAssetsMap(asMap)
+	return nil
+}
+
+func (s bootCommandLines) MarshalJSON() ([]byte, error) {
+	return json.Marshal([]string(s))
+}
+
+func (s *bootCommandLines) UnmarshalJSON(data []byte) error {
+	var asList []string
+	if err := json.Unmarshal(data, &asList); err != nil {
+		return err
+	}
+	*s = bootCommandLines(asList)
 	return nil
 }

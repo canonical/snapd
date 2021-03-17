@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
 )
@@ -89,6 +90,8 @@ type Device interface {
 	Base() string
 
 	HasModeenv() bool
+
+	Model() *asserts.Model
 }
 
 // Participant figures out what the BootParticipant is for the given
@@ -210,9 +213,9 @@ func bootStateFor(typ snap.Type, dev Device) (s bootState, err error) {
 	}
 	switch typ {
 	case snap.TypeOS, snap.TypeBase:
-		return newBootState(snap.TypeBase), nil
+		return newBootState(snap.TypeBase, dev), nil
 	case snap.TypeKernel:
-		return newBootState(snap.TypeKernel), nil
+		return newBootState(snap.TypeKernel, dev), nil
 	default:
 		return nil, fmt.Errorf("internal error: no boot state handling for snap type %q", typ)
 	}
@@ -337,11 +340,16 @@ func MarkBootSuccessful(dev Device) error {
 	}
 
 	if dev.HasModeenv() {
-		b := trustedAssetsBootState()
-		var err error
-		u, err = b.markSuccessful(u)
-		if err != nil {
-			return fmt.Errorf(errPrefix, err)
+		for _, bs := range []successfulBootState{
+			trustedAssetsBootState(dev),
+			trustedCommandLineBootState(dev),
+			recoverySystemsBootState(dev),
+		} {
+			var err error
+			u, err = bs.markSuccessful(u)
+			if err != nil {
+				return fmt.Errorf(errPrefix, err)
+			}
 		}
 	}
 
@@ -387,4 +395,42 @@ func SetRecoveryBootSystemAndMode(dev Device, systemLabel, mode string) error {
 		"snapd_recovery_mode":   mode,
 	}
 	return bl.SetBootVars(m)
+}
+
+// UpdateManagedBootConfigs updates managed boot config assets if those are
+// present for the ubuntu-boot bootloader. Returns true when an update was
+// carried out.
+func UpdateManagedBootConfigs(dev Device) (updated bool, err error) {
+	if !dev.HasModeenv() {
+		// only UC20 devices use managed boot config
+		return false, nil
+	}
+	if !dev.RunMode() {
+		return false, fmt.Errorf("internal error: boot config can only be updated in run mode")
+	}
+	return updateManagedBootConfigForBootloader(dev, ModeRun)
+}
+
+func updateManagedBootConfigForBootloader(dev Device, mode string) (updated bool, err error) {
+	if mode != ModeRun {
+		return false, fmt.Errorf("internal error: updating boot config of recovery bootloader is not supported yet")
+	}
+
+	opts := &bootloader.Options{
+		Role:        bootloader.RoleRunMode,
+		NoSlashBoot: true,
+	}
+	tbl, err := getBootloaderManagingItsAssets(InitramfsUbuntuBootDir, opts)
+	if err != nil {
+		if err == errBootConfigNotManaged {
+			// we're not managing this bootloader's boot config
+			return false, nil
+		}
+		return false, err
+	}
+	// boot config update can lead to a change of kernel command line
+	if err := observeCommandLineUpdate(dev.Model()); err != nil {
+		return false, err
+	}
+	return tbl.UpdateBootConfig()
 }

@@ -71,6 +71,49 @@ func SortedListContains(list []string, str string) bool {
 	return list[i] == str
 }
 
+// SortedListsUniqueMerge merges the two given sorted lists of strings,
+// repeated values will appear once in the result.
+func SortedListsUniqueMerge(sl1, sl2 []string) []string {
+	n1 := len(sl1)
+	n2 := len(sl2)
+	sz := n1
+	if n2 > sz {
+		sz = n2
+	}
+	if sz == 0 {
+		return nil
+	}
+	m := make([]string, 0, sz)
+	appendUnique := func(s string) {
+		if l := len(m); l > 0 && m[l-1] == s {
+			return
+		}
+		m = append(m, s)
+	}
+	i, j := 0, 0
+	for i < n1 && j < n2 {
+		var s string
+		if sl1[i] < sl2[j] {
+			s = sl1[i]
+			i++
+		} else {
+			s = sl2[j]
+			j++
+		}
+		appendUnique(s)
+	}
+	if i < n1 {
+		for ; i < n1; i++ {
+			appendUnique(sl1[i])
+		}
+	} else if j < n2 {
+		for ; j < n2; j++ {
+			appendUnique(sl2[j])
+		}
+	}
+	return m
+}
+
 // TruncateOutput truncates input data by maxLines, imposing maxBytes limit (total) for them.
 // The maxLines may be 0 to avoid the constraint on number of lines.
 func TruncateOutput(data []byte, maxLines, maxBytes int) []byte {

@@ -630,8 +630,4 @@ func (s *preseedDoneSuite) TestDoMarkPreseededAfterFirstboot(c *C) {
 	var seedRestartTime time.Time
 	c.Assert(st.Get("seed-restart-time", &seedRestartTime), IsNil)
 	c.Check(seedRestartTime.Equal(devicestate.StartTime()), Equals, true)
-
-	c.Check(s.cmdSystemctl.Calls(), DeepEquals, [][]string{
-		{"systemctl", "--root", dirs.GlobalRootDir, "enable", "snap.test-snap.srv.service"},
-	})
 }

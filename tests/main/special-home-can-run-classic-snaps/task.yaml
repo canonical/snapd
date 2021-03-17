@@ -5,12 +5,12 @@ systems: [ubuntu-16.04-64]
 environment:
     SPECIAL_USER_NAME/jenkins: jenkins
     SPECIAL_USER_NAME/postgres: postgres
-prepare: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local_classic test-snapd-classic-confinement
 
-    # Install the corresponding package that brings the special user account.
+prepare: |
+    echo "Having the test-snapd-classic-confinement snap installed"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-classic-confinement --classic
+
+    echo "Install the corresponding package that brings the special user account."
     # Specialize the code as required for a particular user.
     case "$SPECIAL_USER_NAME" in
         jenkins)
@@ -18,9 +18,8 @@ prepare: |
             apt-get install -y default-jre-headless
             wget -q -O - https://pkg.jenkins.io/debian-stable/jenkins.io.key | apt-key add -
             echo 'deb http://pkg.jenkins.io/debian-stable binary/' > /etc/apt/sources.list.d/jenkins.list
-            apt-get update
-            apt-get install -y jenkins
-            apt install jenkins
+            apt update
+            apt install -y jenkins
             ;;
         postgres)
             apt install -y postgresql
@@ -28,6 +27,7 @@ prepare: |
     esac
 restore: |
     snap remove --purge test-snapd-sh
+    
     # Remove the package we installed above.
     case "$SPECIAL_USER_NAME" in
         jenkins)
@@ -41,6 +41,9 @@ restore: |
             ;;
     esac
 execute: |
+    echo "Check the home for the user $SPECIAL_USER_NAME is correct"
     #shellcheck disable=SC2016
     su -c sh -c 'echo $HOME' "$SPECIAL_USER_NAME" | MATCH "/var/lib/$SPECIAL_USER_NAME"
+
+    echo "Check the user $SPECIAL_USER_NAME is able to run a classic snap"
     su -c 'snap run test-snapd-classic-confinement.sh -c /bin/true' "$SPECIAL_USER_NAME"

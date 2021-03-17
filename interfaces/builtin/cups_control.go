@@ -67,7 +67,7 @@ const cupsControlPermanentSlotAppArmor = `
 
 # Some versions of CUPS will verify the connecting pid's
 # security label
-@{PROC}/[0-9]*/attr/current r,
+@{PROC}/[0-9]*/attr/{,apparmor/}current r,
 
 # Allow daemon access to the color manager on the system
 dbus (receive, send)

@@ -32,23 +32,27 @@ debug: |
     # shellcheck disable=SC2119
     "$TESTSTOOLS"/journal-state get-log
 
+restore: |
+    # Remove the snaps to avoid timeout in next test
+    PROVIDER_SNAP="test-snapd-policy-app-provider-classic"
+    if os.query is-core; then
+        PROVIDER_SNAP="test-snapd-policy-app-provider-core"
+    fi
+    snap remove --purge "$PROVIDER_SNAP"
+    snap remove --purge "$CONSUMER_SNAP"
+
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
 
-    # shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB/systems.sh"
-
     PROVIDER_SNAP="test-snapd-policy-app-provider-classic"    
-    if is_core_system; then
+    if os.query is-core; then
         PROVIDER_SNAP="test-snapd-policy-app-provider-core"
     fi
 
     echo "Given a snap is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local "$PROVIDER_SNAP"
-    install_local "$CONSUMER_SNAP"
+    "$TESTSTOOLS"/snaps-state install-local "$PROVIDER_SNAP"
+    "$TESTSTOOLS"/snaps-state install-local "$CONSUMER_SNAP"
 
     echo "For each snap-provided slot from $PROVIDER_SNAP"
     for slotcmd in "$SNAP_MOUNT_DIR"/bin/"$PROVIDER_SNAP".* ; do
@@ -72,15 +76,3 @@ execute: |
         echo "Then $plugcmd should succeed"
         "$plugcmd" | MATCH PASS
     done
-
-restore: |
-    # shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB/systems.sh"
-    
-    # Remove the snaps to avoid timeout in next test
-    PROVIDER_SNAP="test-snapd-policy-app-provider-classic"    
-    if is_core_system; then
-        PROVIDER_SNAP="test-snapd-policy-app-provider-core"
-    fi
-    snap remove --purge "$PROVIDER_SNAP"
-    snap remove --purge "$CONSUMER_SNAP"

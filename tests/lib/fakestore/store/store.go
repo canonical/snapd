@@ -28,6 +28,8 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -98,9 +100,11 @@ func NewStore(topDir, addr string, assertFallback bool) *Store {
 	mux.HandleFunc("/api/v1/snaps/details/", store.detailsEndpoint)
 	mux.HandleFunc("/api/v1/snaps/metadata", store.bulkEndpoint)
 	mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(topDir))))
-	mux.HandleFunc("/api/v1/snaps/assertions/", store.assertionsEndpoint)
 	// v2
+	mux.HandleFunc("/v2/assertions/", store.assertionsEndpoint)
 	mux.HandleFunc("/v2/snaps/refresh", store.snapActionEndpoint)
+
+	mux.HandleFunc("/v2/repairs/", store.repairsEndpoint)
 
 	return store
 }
@@ -255,6 +259,84 @@ type detailsReplyJSON struct {
 func (s *Store) searchEndpoint(w http.ResponseWriter, req *http.Request) {
 	w.WriteHeader(501)
 	fmt.Fprintf(w, "search not implemented")
+}
+
+func (s *Store) repairsEndpoint(w http.ResponseWriter, req *http.Request) {
+	brandAndRepairID := strings.Split(strings.TrimPrefix(req.URL.Path, "/v2/repairs/"), "/")
+	if len(brandAndRepairID) != 2 {
+		http.Error(w, "missing brand and repair ID", 400)
+		return
+	}
+
+	bs, err := s.collectAssertions()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("internal error collecting assertions: %v", err), 500)
+		return
+	}
+
+	a, err := s.retrieveAssertion(bs, asserts.RepairType, brandAndRepairID)
+	if asserts.IsNotFound(err) {
+		w.Header().Set("Content-Type", "application/problem+json")
+		w.WriteHeader(404)
+		w.Write([]byte(`{"status": 404}`))
+		return
+	}
+	if err != nil {
+		http.Error(w, fmt.Sprintf("cannot retrieve repair assertion %v: %v", brandAndRepairID, err), 400)
+		return
+	}
+
+	// handle If-None-Match caching
+	revNumString := req.Header.Get("If-None-Match")
+	if revNumString != "" {
+		revRegexp := regexp.MustCompile(`^"([0-9]+)"$`)
+		match := revRegexp.FindStringSubmatch(revNumString)
+		if match == nil || len(match) != 2 {
+			http.Error(w, fmt.Sprintf("malformed If-None-Match header (%q): must be repair revision number in quotes", revNumString), 400)
+			return
+		}
+		revNum, err := strconv.Atoi(match[1])
+		if err != nil {
+			http.Error(w, fmt.Sprintf("malformed If-None-Match header (%q): %v", revNumString, err), 400)
+			return
+		}
+
+		if revNum == a.Revision() {
+			// if the If-None-Match header is the assertion revision verbatim
+			// then return 304 (Not Modified) and stop
+			w.WriteHeader(304)
+			return
+		}
+	}
+
+	// there are two cases, one where we are asked for the full assertion, and
+	// one where we are asked for JSON headers of the assertion, so check which
+	// one we were asked for by inspecting the Accept header
+	switch accept := req.Header.Get("Accept"); accept {
+	case "application/json":
+		// headers only
+		headers := a.Headers()
+		// we have to wrap the headers in a JSON object under the key
+		// "headers"
+		resp := map[string]interface{}{
+			"headers": headers,
+		}
+		b, err := json.Marshal(resp)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("internal error collecting assertion headers as json: %v", err), 500)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(200)
+		w.Write(b)
+	case "application/x.ubuntu.assertion":
+		// full assertion
+		w.Header().Set("Content-Type", asserts.MediaType)
+		w.WriteHeader(200)
+		w.Write(asserts.Encode(a))
+	default:
+		http.Error(w, fmt.Sprintf("unsupported Accept format (%q): only application/json and application/x.ubuntu.assertion is support", accept), 400)
+	}
 }
 
 func (s *Store) detailsEndpoint(w http.ResponseWriter, req *http.Request) {
@@ -650,7 +732,7 @@ func (s *Store) retrieveAssertion(bs asserts.Backstore, assertType *asserts.Asse
 }
 
 func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
-	assertPath := strings.TrimPrefix(req.URL.Path, "/api/v1/snaps/assertions/")
+	assertPath := strings.TrimPrefix(req.URL.Path, "/v2/assertions/")
 
 	bs, err := s.collectAssertions()
 	if err != nil {
@@ -663,7 +745,6 @@ func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
 	if len(comps) == 0 {
 		http.Error(w, "missing assertion type", 400)
 		return
-
 	}
 
 	typ := asserts.Type(comps[0])
@@ -681,7 +762,7 @@ func (s *Store) assertionsEndpoint(w http.ResponseWriter, req *http.Request) {
 	if asserts.IsNotFound(err) {
 		w.Header().Set("Content-Type", "application/problem+json")
 		w.WriteHeader(404)
-		w.Write([]byte(`{"status": 404}`))
+		w.Write([]byte(`{"error-list":[{"code":"not-found","message":"not found"}]}`))
 		return
 	}
 	if err != nil {

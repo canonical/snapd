@@ -15,9 +15,7 @@ systems: [-ubuntu-core-*, -opensuse-*, -fedora-*, -centos-*]
 backends: [-autopkgtest]
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     # If /proc/fs/nfsd is not initially mounted then ask the test to unmount it later.
     if not mountinfo.query /proc/fs/nfsd .fs_type=nfsd; then
@@ -187,7 +185,7 @@ execute: |
     # not supported. Error displayed:
     # - arch: mount.nfs: requested NFS version or transport protocol is not supported
     # - debian-sid, ubuntu-20.10: mount.nfs: an incorrect mount option was specified
-    if [[ "$SPREAD_SYSTEM" != arch-* && "$SPREAD_SYSTEM" != debian-sid-* && "$SPREAD_SYSTEM" != ubuntu-20.10-* ]]; then
+    if not os.query is-arch-linux && "$SPREAD_SYSTEM" != debian-sid-* && [[ "$SPREAD_SYSTEM" != ubuntu-20.10-* ]]; then
         # Mount NFS-exported /home over real /home using NFSv3 and UDP transport
         mount -t nfs localhost:/home /home -o nfsvers=3,proto=udp
 

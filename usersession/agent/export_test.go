@@ -25,8 +25,9 @@ import (
 )
 
 var (
-	SessionInfoCmd    = sessionInfoCmd
-	ServiceControlCmd = serviceControlCmd
+	SessionInfoCmd                = sessionInfoCmd
+	ServiceControlCmd             = serviceControlCmd
+	PendingRefreshNotificationCmd = pendingRefreshNotificationCmd
 )
 
 func MockStopTimeouts(stop, kill time.Duration) (restore func()) {
@@ -47,5 +48,14 @@ func MockUcred(ucred *syscall.Ucred, err error) (restore func()) {
 	}
 	return func() {
 		sysGetsockoptUcred = old
+	}
+}
+
+// MockNoBus temporarily unsets the D-Bus connection of a SessionAgent
+func MockNoBus(agent *SessionAgent) (restore func()) {
+	bus := agent.bus
+	agent.bus = nil
+	return func() {
+		agent.bus = bus
 	}
 }

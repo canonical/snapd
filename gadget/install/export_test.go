@@ -23,21 +23,19 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/secboot"
 )
 
 var (
-	EnsureLayoutCompatibility = ensureLayoutCompatibility
-	DeviceFromRole            = deviceFromRole
-	NewEncryptedDevice        = newEncryptedDevice
-
 	MakeFilesystem  = makeFilesystem
 	WriteContent    = writeContent
 	MountFilesystem = mountFilesystem
 
 	CreateMissingPartitions = createMissingPartitions
+	BuildPartitionList      = buildPartitionList
 	RemoveCreatedPartitions = removeCreatedPartitions
 	EnsureNodesExist        = ensureNodesExist
+
+	CreatedDuringInstall = createdDuringInstall
 )
 
 func MockContentMountpoint(new string) (restore func()) {
@@ -69,21 +67,5 @@ func MockEnsureNodesExist(f func(dss []gadget.OnDiskStructure, timeout time.Dura
 	ensureNodesExist = f
 	return func() {
 		ensureNodesExist = old
-	}
-}
-
-func MockSecbootFormatEncryptedDevice(f func(key secboot.EncryptionKey, label, node string) error) (restore func()) {
-	old := secbootFormatEncryptedDevice
-	secbootFormatEncryptedDevice = f
-	return func() {
-		secbootFormatEncryptedDevice = old
-	}
-}
-
-func MockSecbootAddRecoveryKey(f func(key secboot.EncryptionKey, rkey secboot.RecoveryKey, node string) error) (restore func()) {
-	old := secbootAddRecoveryKey
-	secbootAddRecoveryKey = f
-	return func() {
-		secbootAddRecoveryKey = old
 	}
 }

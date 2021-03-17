@@ -42,9 +42,7 @@ execute: |
         snap install --edge core18
     fi
 
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local "$SNAP"
+    "$TESTSTOOLS"/snaps-state install-local "$SNAP"
 
     echo "Verify that cookie file exists and has proper permissions and size"
     check_cookie "$SNAP"
@@ -77,7 +75,7 @@ execute: |
     snap get "$SNAP" foo | MATCH 123
 
     echo "Given two revisions of a snap have been installed"
-    install_local "$SNAP"
+    "$TESTSTOOLS"/snaps-state install-local "$SNAP"
     check_cookie "$SNAP"
 
     echo "And a single revision gets removed"

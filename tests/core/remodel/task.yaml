@@ -13,8 +13,6 @@ prepare: |
     . "$TESTSLIB"/core-config.sh
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
 
     systemctl stop snapd.service snapd.socket
     clean_snapd_lib
@@ -83,7 +81,8 @@ execute: |
     not snap list "$SNAP"
 
     echo "Wait for first boot to be done"
-    while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+    wait_for_first_boot_change
+
     echo "We have the right model assertion"
     snap debug model|MATCH "model: my-model"
 

@@ -26,6 +26,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -98,6 +99,21 @@ func switchDisableConsoleConfService(sysd systemd.Systemd, serviceName string, d
 
 	// at runtime we can not change this setting
 	if opts == nil {
+
+		// Special case: during install mode the
+		// gadget-defaults will also be set as part of the
+		// system install change. However during install mode
+		// console-conf has no "complete" file, it just never runs
+		// in install mode. So we need to detect this and do nothing
+		// or the install mode will fail.
+		// XXX: instead of this hack we should look at the config
+		//      defaults and compare with the setting and exit if
+		//      they are the same but that requires some more changes.
+		mode, _, _ := boot.ModeAndRecoverySystemFromKernelCommandLine()
+		if mode == boot.ModeInstall {
+			return nil
+		}
+
 		hasDisabledFile := osutil.FileExists(filepath.Join(dirs.GlobalRootDir, consoleConfDisabled))
 		if disabled != hasDisabledFile {
 			return fmt.Errorf("cannot toggle console-conf at runtime, but only initially via gadget defaults")
@@ -128,7 +144,7 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 	if opts != nil {
 		sysd = systemd.NewEmulationMode(opts.RootDir)
 	} else {
-		sysd = systemd.New(dirs.GlobalRootDir, systemd.SystemMode, &sysdLogger{})
+		sysd = systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, &sysdLogger{})
 	}
 
 	// some services are special

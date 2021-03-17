@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -1003,11 +1004,11 @@ func waitChainSearch(startT, searchT *state.Task) bool {
 // The "delayed-setup-profiles" flag is set on the connect tasks to
 // indicate that doConnect handler should not set security backends up
 // because this will be done later by the setup-profiles task.
-func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[string]*interfaces.ConnRef, connOpts map[string]*connectOpts) (*state.TaskSet, error) {
+func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[string]*interfaces.ConnRef, connOpts map[string]*connectOpts) (ts *state.TaskSet, hasInterfaceHooks bool, err error) {
 	setupProfiles := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q (%s) security profiles for auto-connections"), snapsup.InstanceName(), snapsup.Revision()))
 	setupProfiles.Set("snap-setup", snapsup)
 
-	ts := state.NewTaskSet()
+	ts = state.NewTaskSet()
 	for connID, conn := range conns {
 		var opts connectOpts
 		if providedOpts := connOpts[connID]; providedOpts != nil {
@@ -1019,13 +1020,17 @@ func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[
 		opts.DelayedSetupProfiles = true
 		connectTs, err := connect(st, conn.PlugRef.Snap, conn.PlugRef.Name, conn.SlotRef.Snap, conn.SlotRef.Name, opts)
 		if err != nil {
-			return nil, fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
+			return nil, false, fmt.Errorf("internal error: auto-connect of %q failed: %s", conn, err)
+		}
+
+		if len(connectTs.Tasks()) > 1 {
+			hasInterfaceHooks = true
 		}
 
 		// setup-profiles needs to wait for the main "connect" task
 		connectTask, _ := connectTs.Edge(ConnectTaskEdge)
 		if connectTask == nil {
-			return nil, fmt.Errorf("internal error: no 'connect' task found for %q", conn)
+			return nil, false, fmt.Errorf("internal error: no 'connect' task found for %q", conn)
 		}
 		setupProfiles.WaitFor(connectTask)
 
@@ -1039,7 +1044,28 @@ func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[
 	if len(ts.Tasks()) > 0 {
 		ts.AddTask(setupProfiles)
 	}
-	return ts, nil
+	return ts, hasInterfaceHooks, nil
+}
+
+// firstTaskAfterBootWhenPreseeding finds the first task to be run for thisSnap
+// on first boot after mark-preseeded task, this is always the install hook.
+// It is an internal error if install hook for thisSnap cannot be found.
+func firstTaskAfterBootWhenPreseeding(thisSnap string, markPreseeded *state.Task) (*state.Task, error) {
+	if markPreseeded.Change() == nil {
+		return nil, fmt.Errorf("internal error: %s task not in change", markPreseeded.Kind())
+	}
+	for _, ht := range markPreseeded.HaltTasks() {
+		if ht.Kind() == "run-hook" {
+			var hs hookstate.HookSetup
+			if err := ht.Get("hook-setup", &hs); err != nil {
+				return nil, fmt.Errorf("internal error: cannot get hook setup: %v", err)
+			}
+			if hs.Hook == "install" && hs.Snap == thisSnap {
+				return ht, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("internal error: cannot find install hook for snap %q", thisSnap)
 }
 
 func filterForSlot(slot *snap.SlotInfo) func(candSlots []*snap.SlotInfo) []*snap.SlotInfo {
@@ -1078,7 +1104,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	// if this is the case we can only proceed once the restart
 	// has happened or we may not have all the interfaces of the
 	// new core/base snap.
-	if err := snapstate.WaitRestart(task, snapsup); err != nil {
+	if err := snapstate.FinishRestart(task, snapsup); err != nil {
 		return err
 	}
 
@@ -1173,18 +1199,45 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
-	autots, err := batchConnectTasks(st, snapsup, newconns, connOpts)
+	autots, hasInterfaceHooks, err := batchConnectTasks(st, snapsup, newconns, connOpts)
 	if err != nil {
 		return err
 	}
 
-	if m.preseed && len(autots.Tasks()) > 2 { // connect task and setup-profiles tasks are 2 tasks, other tasks are hooks
-		// TODO: in preseed mode make interface hooks wait for mark-preseeded task.
-		for _, t := range autots.Tasks() {
-			if t.Kind() == "run-hook" {
-				return fmt.Errorf("interface hooks are not yet supported in preseed mode")
+	// If interface hooks are not present then connects can be executed during
+	// preseeding.
+	// Otherwise we will run all connects, their hooks and setup-profiles after
+	// preseeding (on first boot). Note, we may be facing multiple connections
+	// here where only some have hooks; however there is no point in running
+	// those without hooks before mark-preseeded, because only setup-profiles is
+	// performance-critical and it still needs to run after those with hooks.
+	if m.preseed && hasInterfaceHooks {
+		for _, t := range st.Tasks() {
+			if t.Kind() == "mark-preseeded" {
+				markPreseeded := t
+				// consistency check
+				if markPreseeded.Status() != state.DoStatus {
+					return fmt.Errorf("internal error: unexpected state of mark-preseeded task: %s", markPreseeded.Status())
+				}
+
+				firstTaskAfterBoot, err := firstTaskAfterBootWhenPreseeding(snapsup.InstanceName(), markPreseeded)
+				if err != nil {
+					return err
+				}
+				// first task of the snap that normally runs on first boot
+				// needs to wait on connects & interface hooks.
+				firstTaskAfterBoot.WaitAll(autots)
+
+				// connect tasks and interface hooks need to wait for end of preseeding
+				// (they need to run on first boot, not during preseeding).
+				autots.WaitFor(markPreseeded)
+				t.Change().AddAll(autots)
+				task.SetStatus(state.DoneStatus)
+				st.EnsureBefore(0)
+				return nil
 			}
 		}
+		return fmt.Errorf("internal error: mark-preseeded task not found in preseeding mode")
 	}
 
 	if len(autots.Tasks()) > 0 {

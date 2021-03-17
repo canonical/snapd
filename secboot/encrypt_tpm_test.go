@@ -23,6 +23,7 @@ package secboot_test
 import (
 	"errors"
 
+	sb "github.com/snapcore/secboot"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/secboot"
@@ -43,11 +44,16 @@ func (s *encryptSuite) TestFormatEncryptedDevice(c *C) {
 		}
 
 		calls := 0
-		restore := secboot.MockSbInitializeLUKS2Container(func(devicePath, label string, key []byte) error {
+		restore := secboot.MockSbInitializeLUKS2Container(func(devicePath, label string, key []byte,
+			opts *sb.InitializeLUKS2ContainerOptions) error {
 			calls++
 			c.Assert(devicePath, Equals, "/dev/node")
 			c.Assert(label, Equals, "my label")
 			c.Assert(key, DeepEquals, myKey[:])
+			c.Assert(opts, DeepEquals, &sb.InitializeLUKS2ContainerOptions{
+				MetadataKiBSize:     2048,
+				KeyslotsAreaKiBSize: 2560,
+			})
 			return tc.initErr
 		})
 		defer restore()
@@ -79,7 +85,7 @@ func (s *encryptSuite) TestAddRecoveryKey(c *C) {
 		myRecoveryKey := secboot.RecoveryKey{15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}
 
 		calls := 0
-		restore := secboot.MockSbAddRecoveryKeyToLUKS2Container(func(devicePath string, key []byte, recoveryKey [16]byte) error {
+		restore := secboot.MockSbAddRecoveryKeyToLUKS2Container(func(devicePath string, key []byte, recoveryKey sb.RecoveryKey) error {
 			calls++
 			c.Assert(devicePath, Equals, "/dev/node")
 			c.Assert(recoveryKey[:], DeepEquals, myRecoveryKey[:])

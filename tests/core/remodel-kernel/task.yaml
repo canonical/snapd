@@ -90,8 +90,6 @@ execute: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-    #shellcheck source=tests/lib/boot.sh
-    . "$TESTSLIB"/boot.sh
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
 
@@ -134,7 +132,7 @@ execute: |
         snap list "$NEW_KERNEL"
 
         echo "And are using it"
-        wait_core_post_boot
+        "$TESTSTOOLS"/boot-state wait-core-post-boot
         grub-editenv list | MATCH "snap_kernel=$NEW_KERNEL"
 
         echo "and we got the new model assertion"
@@ -156,7 +154,7 @@ execute: |
 
     # reboot from new model to undo the new model again (to not pollute tests)
     if [ "$SPREAD_REBOOT" = 2 ]; then
-        wait_core_post_boot
+        "$TESTSTOOLS"/boot-state wait-core-post-boot
         grub-editenv list | MATCH "snap_kernel=$OLD_KERNEL"
 
         wait_change_done "Refresh model assertion from revision 2 to 3"

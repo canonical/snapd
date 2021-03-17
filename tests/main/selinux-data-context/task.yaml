@@ -1,6 +1,6 @@
 summary: Check that SELinux file context transitions work
 
-description: |
+details: |
     Verify that automatic file context transitions work and cover typical use cases
 
 # Only distros that support SELinux
@@ -38,11 +38,8 @@ execute: |
     #shellcheck disable=SC2012
     ls -Zd /run/snapd | MATCH ':snappy_var_run_t:'
 
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     # install a snap that does some file manipulation
-    install_local test-snapd-service-writer
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service-writer
 
     ls -Zd /var/snap/test-snapd-service-writer/common \
            /var/snap/test-snapd-service-writer/common/by-hook \
@@ -72,7 +69,7 @@ execute: |
     MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current/foo$'      < service-labels
     MATCH '^.*system_u:object_r:snappy_var_t:s0 /var/snap/test-snapd-service-writer/current/foo/bar$'  < service-labels
 
-    install_local socket-activation
+    "$TESTSTOOLS"/snaps-state install-local socket-activation
     [ -S /var/snap/socket-activation/common/socket ]
     #shellcheck disable=SC2012
     ls -Zd /var/snap/socket-activation/common/socket | MATCH ':snappy_var_t:'

@@ -12,9 +12,7 @@ details: |
 
 prepare: |
     echo "Given the test-snapd-udev-input-subsystem is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-udev-input-subsystem
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-udev-input-subsystem
 
 execute: |
     if [ -z "$(find /dev/input/by-path -name '*-event-kbd')" ]; then

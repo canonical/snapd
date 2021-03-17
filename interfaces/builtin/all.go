@@ -29,6 +29,15 @@ import (
 
 func init() {
 	snap.SanitizePlugsSlots = SanitizePlugsSlots
+
+	// setup the ByName function using allInterfaces
+	interfaces.ByName = func(name string) (interfaces.Interface, error) {
+		iface, ok := allInterfaces[name]
+		if !ok {
+			return nil, fmt.Errorf("interface %q not found", name)
+		}
+		return iface, nil
+	}
 }
 
 var (

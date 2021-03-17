@@ -4,10 +4,8 @@ details: |
   unmounting it again does not result in an error.
 systems: [ubuntu-16.04-64]
 prepare: |
-  #shellcheck source=tests/lib/snaps.sh
-  . "$TESTSLIB"/snaps.sh
   # Having test-snapd-desktop installed, with the desktop plug connected
-  install_local test-snapd-desktop
+  "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop
   snap install test-snapd-desktop
   snap connect test-snapd-desktop:desktop
   # Having constructed the mount namespace as the test user

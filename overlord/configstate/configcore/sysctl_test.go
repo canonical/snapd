@@ -130,7 +130,6 @@ func (s *sysctlSuite) TestFilesystemOnlyApply(c *C) {
 	})
 
 	tmpDir := c.MkDir()
-	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/etc/sysctl.d/"), 0755), IsNil)
 	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
 
 	networkSysctlPath := filepath.Join(tmpDir, "/etc/sysctl.d/99-snapd.conf")

@@ -179,10 +179,6 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 			continue
 		}
 
-		snapsup, err := snapstate.TaskSnapSetup(task0)
-		c.Assert(err, IsNil, Commentf("%#v", task0))
-		c.Check(snapsup.InstanceName(), Equals, snaps[matched])
-		matched++
 		if i == 0 {
 			c.Check(waitTasks, HasLen, 0)
 		} else {
@@ -190,6 +186,51 @@ func checkPreseedOrder(c *C, tsAll []*state.TaskSet, snaps ...string) {
 			c.Assert(waitTasks[0].Kind(), Equals, prevTask.Kind())
 			c.Check(waitTasks[0], Equals, prevTask)
 		}
+
+		// make sure that install-hooks wait for the previous snap, and for
+		// mark-preseeded.
+		hookEdgeTask, err := ts.Edge(snapstate.HooksEdge)
+		c.Assert(err, IsNil)
+		c.Assert(hookEdgeTask.Kind(), Equals, "run-hook")
+		var hsup hookstate.HookSetup
+		c.Assert(hookEdgeTask.Get("hook-setup", &hsup), IsNil)
+		c.Check(hsup.Hook, Equals, "install")
+		switch hsup.Snap {
+		case "core", "core18", "snapd":
+			// ignore
+		default:
+			// snaps other than core/core18/snapd
+			var waitsForMarkPreseeded, waitsForPreviousSnapHook, waitsForPreviousSnap bool
+			for _, wt := range hookEdgeTask.WaitTasks() {
+				switch wt.Kind() {
+				case "setup-aliases":
+					continue
+				case "run-hook":
+					var wtsup hookstate.HookSetup
+					c.Assert(wt.Get("hook-setup", &wtsup), IsNil)
+					c.Check(wtsup.Snap, Equals, snaps[matched-1])
+					waitsForPreviousSnapHook = true
+				case "mark-preseeded":
+					waitsForMarkPreseeded = true
+				case "prerequisites":
+				default:
+					snapsup, err := snapstate.TaskSnapSetup(wt)
+					c.Assert(err, IsNil, Commentf("%#v", wt))
+					c.Check(snapsup.SnapName(), Equals, snaps[matched-1], Commentf("%s: %#v", hsup.Snap, wt))
+					waitsForPreviousSnap = true
+				}
+			}
+			c.Assert(waitsForMarkPreseeded, Equals, true)
+			c.Assert(waitsForPreviousSnapHook, Equals, true)
+			if snaps[matched-1] != "core" && snaps[matched-1] != "core18" && snaps[matched-1] != "pc" {
+				c.Check(waitsForPreviousSnap, Equals, true, Commentf("%s", snaps[matched-1]))
+			}
+		}
+
+		snapsup, err := snapstate.TaskSnapSetup(task0)
+		c.Assert(err, IsNil, Commentf("%#v", task0))
+		c.Check(snapsup.InstanceName(), Equals, snaps[matched])
+		matched++
 
 		// find setup-aliases task in current taskset; its position
 		// is not fixed due to e.g. optional update-gadget-assets task.
@@ -273,6 +314,13 @@ version: 1.0
 	fooFname, fooDecl, fooRev := s.MakeAssertedSnap(c, snapYaml, nil, snap.R(128), "developerid")
 	s.WriteAssertions("foo.asserts", s.devAcct, fooRev, fooDecl)
 
+	// put a firstboot snap into the SnapBlobDir
+	snapYaml2 := `name: bar
+version: 1.0
+`
+	barFname, barDecl, barRev := s.MakeAssertedSnap(c, snapYaml2, nil, snap.R(33), "developerid")
+	s.WriteAssertions("bar.asserts", s.devAcct, barRev, barDecl)
+
 	// add a model assertion and its chain
 	assertsChain := s.makeModelAssertionChain(c, "my-model-classic", nil)
 	s.WriteAssertions("model.asserts", assertsChain...)
@@ -282,9 +330,11 @@ version: 1.0
 snaps:
  - name: foo
    file: %s
+ - name: bar
+   file: %s
  - name: core
    file: %s
-`, fooFname, coreFname))
+`, fooFname, barFname, coreFname))
 	err := ioutil.WriteFile(filepath.Join(dirs.SnapSeedDir, "seed.yaml"), content, 0644)
 	c.Assert(err, IsNil)
 
@@ -304,7 +354,7 @@ snaps:
 	}
 	c.Assert(st.Changes(), HasLen, 1)
 
-	checkPreseedOrder(c, tsAll, "core", "foo")
+	checkPreseedOrder(c, tsAll, "core", "foo", "bar")
 
 	st.Unlock()
 	err = s.overlord.Settle(settleTimeout)
@@ -329,6 +379,8 @@ snaps:
 	_, err = snapstate.CurrentInfo(diskState, "core")
 	c.Check(err, IsNil)
 	_, err = snapstate.CurrentInfo(diskState, "foo")
+	c.Check(err, IsNil)
+	_, err = snapstate.CurrentInfo(diskState, "bar")
 	c.Check(err, IsNil)
 
 	// but we're not considered seeded
@@ -389,8 +441,6 @@ snaps:
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, opts, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	checkPreseedOrder(c, tsAll, "snapd", "core18", "foo")
-
 	// now run the change and check the result
 	chg := st.NewChange("seed", "run the populate from seed changes")
 	for _, ts := range tsAll {
@@ -398,6 +448,8 @@ snaps:
 	}
 	c.Assert(st.Changes(), HasLen, 1)
 	c.Assert(chg.Err(), IsNil)
+
+	checkPreseedOrder(c, tsAll, "snapd", "core18", "foo")
 
 	st.Unlock()
 	err = s.overlord.Settle(settleTimeout)

@@ -10,11 +10,8 @@ summary: |
     A snap declaring a plug on this interface must be able to read files in /sys/{block,bus,class,devices}
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     echo "Given a snap declaring a plug on the hardware-observe interface is installed"
-    install_local hardware-observe-consumer
+    "$TESTSTOOLS"/snaps-state install-local hardware-observe-consumer
 
 execute: |
     echo "The interface is not connected by default"
@@ -38,4 +35,4 @@ execute: |
         echo "Expected permission error accessing locale configuration with disconnected plug"
         exit 1
     fi
-    grep -q "Permission denied" hw.error
+    MATCH "Permission denied" < hw.error

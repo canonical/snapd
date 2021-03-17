@@ -164,3 +164,23 @@ func (s *contextSuite) TestEphemeralContextGetSet(c *C) {
 	// Test another non-existing key, but after the context data was created.
 	c.Check(context.Get("baz", &output), NotNil)
 }
+
+func (s *contextSuite) TestChangeID(c *C) {
+	context, err := NewContext(nil, s.state, &HookSetup{Snap: "test-snap"}, nil, "")
+	c.Assert(err, IsNil)
+	c.Check(context.ChangeID(), Equals, "")
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	task := s.state.NewTask("foo", "")
+	context, err = NewContext(task, s.state, &HookSetup{Snap: "test-snap"}, nil, "")
+	c.Assert(err, IsNil)
+	c.Check(context.ChangeID(), Equals, "")
+
+	chg := s.state.NewChange("bar", "")
+	chg.AddTask(task)
+	context, err = NewContext(task, s.state, &HookSetup{Snap: "test-snap"}, nil, "")
+	c.Assert(err, IsNil)
+	c.Check(context.ChangeID(), Equals, chg.ID())
+}

@@ -59,6 +59,7 @@ apps:
 `
 
 const networkManagerObserveCoreYaml = `name: core
+type: os
 version: 0
 slots:
   network-manager-observe:

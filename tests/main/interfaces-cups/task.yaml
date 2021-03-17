@@ -9,10 +9,8 @@ details: |
     server.
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-provider
-    install_local test-snapd-consumer
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-provider
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-consumer
 
     if [ -e /run/cups ]; then
         mv /run/cups /run/cups.orig
@@ -31,38 +29,48 @@ restore: |
     fi
 
 execute: |
-    # The provider can create the socket and any other files
+    echo "The provider can create the socket and any other files"
     test-snapd-provider.sh -c "echo slot > /run/cups/cups.sock"
     test-snapd-provider.sh -c "echo slot > /run/cups/other"
 
-    # The consumer's interface is not auto-connected
+    echo "Check the consumer's interface is not auto-connected"
     not test-snapd-consumer.cups-control -c "head /run/cups/cups.sock"
     not test-snapd-consumer.cups -c "head /run/cups/cups.sock"
 
-    # The cups-control interface works as expected
+    echo "When the cups-control interface is connected"
     snap connect test-snapd-consumer:cups-control test-snapd-provider:cups-control
-    # plug can't access arbitrary files
+
+    echo "Then the plug can't access arbitrary files"
     not test-snapd-consumer.cups-control -c "head /run/cups/other"
-    # plug can write to the socket
+
+    echo "The plug can write to the socket"
     test-snapd-consumer.cups-control -c "echo cups-control-plug > /run/cups/cups.sock"
     test-snapd-provider.sh -c "cat /run/cups/cups.sock" | MATCH cups-control-plug
-    # plug can read from the socket
+
+    echo "The plug can read from the socket"
     test-snapd-provider.sh -c "echo slot > /run/cups/cups.sock"
     test-snapd-consumer.cups-control -c "cat /run/cups/cups.sock" | MATCH slot
-    # The cups-control interface can be disconnected
+
+    echo "When the cups-control interface is disconnected"
     snap disconnect test-snapd-consumer:cups-control
+
+    echo "The plug cannot read from the socket"
     not test-snapd-consumer.cups-control -c "head /run/cups/cups.sock"
 
-    # The cups interface works as expected
+    echo "When the the cups interface is connected again"
     snap connect test-snapd-consumer:cups test-snapd-provider:cups
-    # plug can't access arbitrary files
+
+    echo "Then the plug can't access arbitrary files"
     not test-snapd-consumer.cups -c "head /run/cups/other"
-    # plug can write to the socket
+
+    echo "The plug can write to the socket"
     test-snapd-consumer.cups -c "echo cups-plug > /run/cups/cups.sock"
     test-snapd-provider.sh -c "cat /run/cups/cups.sock" | MATCH cups-plug
-    # plug can read from the socket
+
+    echo "The plug can read from the socket"
     test-snapd-provider.sh -c "echo slot > /run/cups/cups.sock"
     test-snapd-consumer.cups -c "cat /run/cups/cups.sock" | MATCH slot
-    # The cups interface can be disconnected
+
+    echo "And the the cups interface can be disconnected again"
     snap disconnect test-snapd-consumer:cups
     not test-snapd-consumer.cups -c "head /run/cups/cups.sock"

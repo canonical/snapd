@@ -27,21 +27,23 @@ import (
 	"regexp"
 
 	"gopkg.in/yaml.v2"
-
-	"github.com/snapcore/snapd/gadget/edition"
 )
 
 type Asset struct {
-	Edition edition.Number `yaml:"edition,omitempty"`
-	Content []string       `yaml:"content,omitempty"`
+	// TODO: we may make this an (optional) map at some point in
+	//       the future to select what things should be updated.
+	//
+	// Update set to true indicates that assets shall be updated.
+	Update  bool     `yaml:"update,omitempty"`
+	Content []string `yaml:"content,omitempty"`
 }
 
 type Info struct {
 	Assets map[string]*Asset `yaml:"assets,omitempty"`
 }
 
-// XXX: should we be more liberal? start conservative
-var validAssetName = regexp.MustCompile("^[a-zA-Z0-9]+$")
+// ValidAssetName is a regular expression matching valid asset name.
+var ValidAssetName = regexp.MustCompile("^[a-zA-Z0-9][a-zA-Z0-9-]*$")
 
 // InfoFromKernelYaml reads the provided kernel metadata.
 func InfoFromKernelYaml(kernelYaml []byte) (*Info, error) {
@@ -52,8 +54,8 @@ func InfoFromKernelYaml(kernelYaml []byte) (*Info, error) {
 	}
 
 	for name := range ki.Assets {
-		if !validAssetName.MatchString(name) {
-			return nil, fmt.Errorf("invalid asset name %q, please use only alphanumeric characters", name)
+		if !ValidAssetName.MatchString(name) {
+			return nil, fmt.Errorf("invalid asset name %q, please use only alphanumeric characters and dashes", name)
 		}
 	}
 

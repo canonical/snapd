@@ -11,9 +11,7 @@ details: |
     The broadcom-asic-control interface allow access to broadcom asic kernel module.
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     "$TESTSTOOLS"/fs-state mock-file /dev/linux-user-bde
     "$TESTSTOOLS"/fs-state mock-file /dev/linux-kernel-bde
@@ -47,11 +45,11 @@ execute: |
 
     echo "Then the snap is able to read pci devices info"
     if [ -d "/sys/devices/pci0000:00/" ]; then
-        config="$(find /sys/devices/pci0000:00/ -name config | head -n1)"
-        vendor="$(find /sys/devices/pci0000:00/ -name vendor | head -n1)"
-        device="$(find /sys/devices/pci0000:00/ -name device | head -n1)"
-        subsystem_vendor="$(find /sys/devices/pci0000:00/ -name subsystem_vendor | head -n1)"
-        subsystem_device="$(find /sys/devices/pci0000:00/ -name subsystem_device | head -n1)"
+        config="$(find /sys/devices/pci0000:00/ -name config -type f | head -n1)"
+        vendor="$(find /sys/devices/pci0000:00/ -name vendor -type f | head -n1)"
+        device="$(find /sys/devices/pci0000:00/ -name device -type f | head -n1)"
+        subsystem_vendor="$(find /sys/devices/pci0000:00/ -name subsystem_vendor -type f | head -n1)"
+        subsystem_device="$(find /sys/devices/pci0000:00/ -name subsystem_device -type f | head -n1)"
 
         for file in "$config" "$vendor" "$device" "$subsystem_vendor" "$subsystem_device"; do
             if [ -n "$file" ]; then

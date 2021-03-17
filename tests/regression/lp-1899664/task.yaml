@@ -1,0 +1,18 @@
+summary: Test that read-only filesystem on /etc/dbus-1/session.d doesn't prevent snapd refresh.
+systems: [ubuntu-core-18-64]
+
+prepare: |
+  mount -t tmpfs tmptfs -o ro /etc/dbus-1/session.d
+
+execute: |
+  # we are running current snapd build, re-install it to trigger core18
+  # wrappers to be recreated.
+  current="$(readlink /snap/snapd/current)"
+  snap install --dangerous "/var/lib/snapd/seed/snaps/snapd_${current}.snap"
+  journalctl -u snapd | MATCH "appears to be read-only, could not write snapd dbus config files"
+
+restore: |
+  umount /etc/dbus-1/session.d
+
+  # restore snapd installed originally
+  snap revert snapd

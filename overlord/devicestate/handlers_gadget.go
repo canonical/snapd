@@ -105,15 +105,34 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		model = remodelCtx.Model()
 	}
 	// be extra paranoid when checking we are installing the right gadget
-	expectedGadgetSnap := model.Gadget()
-	if snapsup.InstanceName() != expectedGadgetSnap {
-		return fmt.Errorf("cannot apply gadget assets update from non-model gadget snap %q, expected %q snap",
-			snapsup.InstanceName(), expectedGadgetSnap)
-	}
+	var updateData *gadget.GadgetData
+	switch snapsup.Type {
+	case snap.TypeGadget:
+		expectedGadgetSnap := model.Gadget()
+		if snapsup.InstanceName() != expectedGadgetSnap {
+			return fmt.Errorf("cannot apply gadget assets update from non-model gadget snap %q, expected %q snap",
+				snapsup.InstanceName(), expectedGadgetSnap)
+		}
 
-	updateData, err := pendingGadgetInfo(snapsup, remodelCtx)
-	if err != nil {
-		return err
+		updateData, err = pendingGadgetInfo(snapsup, remodelCtx)
+		if err != nil {
+			return err
+		}
+	case snap.TypeKernel:
+		expectedKernelSnap := model.Kernel()
+		if snapsup.InstanceName() != expectedKernelSnap {
+			return fmt.Errorf("cannot apply kernel assets update from non-model kernel snap %q, expected %q snap",
+				snapsup.InstanceName(), expectedKernelSnap)
+		}
+
+		// now calculate the "update" data, it's the same gadget but
+		// argumented from a different kernel
+		updateData, err = currentGadgetInfo(t.State(), groundDeviceCtx)
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("internal errror: doUpdateGadgetAssets called with snap type %v", snapsup.Type)
 	}
 
 	currentData, err := currentGadgetInfo(t.State(), groundDeviceCtx)
@@ -125,6 +144,24 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		return nil
 	}
 
+	// add kernel directories
+	currentKernelInfo, err := snapstate.CurrentInfo(st, groundDeviceCtx.Model().Kernel())
+	// XXX: switch to the normal `if err != nil { return err }` pattern
+	// here once all tests are updated and have a kernel
+	if err == nil {
+		currentData.KernelRootDir = currentKernelInfo.MountDir()
+		updateData.KernelRootDir = currentKernelInfo.MountDir()
+	}
+	// if this is a gadget update triggered by an updated kernel we
+	// need to ensure "updateData.KernelRootDir" points to the new kernel
+	if snapsup.Type == snap.TypeKernel {
+		updateKernelInfo, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
+		if err != nil {
+			return fmt.Errorf("cannot read candidate kernel snap details: %v", err)
+		}
+		updateData.KernelRootDir = updateKernelInfo.MountDir()
+	}
+
 	snapRollbackDir, err := makeRollbackDir(fmt.Sprintf("%v_%v", snapsup.InstanceName(), snapsup.SideInfo.Revision))
 	if err != nil {
 		return fmt.Errorf("cannot prepare update rollback directory: %v", err)
@@ -132,14 +169,17 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 
 	var updatePolicy gadget.UpdatePolicyFunc = nil
 
-	if isRemodel {
+	// Even with a remodel a kernel refresh only updates the kernel assets
+	if snapsup.Type == snap.TypeKernel {
+		updatePolicy = gadget.KernelUpdatePolicy
+	} else if isRemodel {
 		// use the remodel policy which triggers an update of all
 		// structures
 		updatePolicy = gadget.RemodelUpdatePolicy
 	}
 
 	var updateObserver gadget.ContentUpdateObserver
-	observeTrustedBootAssets, err := boot.TrustedAssetsUpdateObserverForModel(model)
+	observeTrustedBootAssets, err := boot.TrustedAssetsUpdateObserverForModel(model, updateData.RootDir)
 	if err != nil && err != boot.ErrObserverNotApplicable {
 		return fmt.Errorf("cannot setup asset update observer: %v", err)
 	}

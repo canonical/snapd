@@ -4,120 +4,51 @@
 . "$TESTSLIB/quiet.sh"
 
 debian_name_package() {
+    #shellcheck source=tests/lib/tools/tests.pkgs.apt.sh
+    . "$TESTSLIB/tools/tests.pkgs.apt.sh"
     for i in "$@"; do
-        case "$i" in
-            man)
-                echo "man-db"
-                ;;
-            *)
-                echo "$i"
-                ;;
-        esac
+        remap_one "$i"
     done
 }
 
 ubuntu_14_04_name_package() {
+    #shellcheck source=tests/lib/tools/tests.pkgs.apt.sh
+    . "$TESTSLIB/tools/tests.pkgs.apt.sh"
     for i in "$@"; do
-        case "$i" in
-            printer-driver-cups-pdf)
-                echo "cups-pdf"
-                ;;
-            *)
-                debian_name_package "$i"
-                ;;
-        esac
+        remap_one "$i"
     done
 }
 
 fedora_name_package() {
+    #shellcheck source=tests/lib/tools/tests.pkgs.dnf-yum.sh
+    . "$TESTSLIB/tools/tests.pkgs.dnf-yum.sh"
     for i in "$@"; do
-        case "$i" in
-            openvswitch-switch)
-                echo "openvswitch"
-                ;;
-            printer-driver-cups-pdf)
-                echo "cups-pdf"
-                ;;
-            python3-gi)
-                echo "python3-gobject"
-                ;;
-            *)
-                echo "$i"
-                ;;
-        esac
+        remap_one "$i"
     done
 }
 
 amazon_name_package() {
+    #shellcheck source=tests/lib/tools/tests.pkgs.dnf-yum.sh
+    . "$TESTSLIB/tools/tests.pkgs.dnf-yum.sh"
     for i in "$@"; do
-        case "$i" in
-            xdelta3)
-                echo "xdelta"
-                ;;
-            openvswitch-switch)
-                echo "openvswitch"
-                ;;
-            *)
-                echo "$i"
-                ;;
-        esac
+        remap_one "$i"
     done
 }
 
 opensuse_name_package() {
+    #shellcheck source=tests/lib/tools/tests.pkgs.zypper.sh
+    . "$TESTSLIB/tools/tests.pkgs.zypper.sh"
     for i in "$@"; do
-        case "$i" in
-            python3-yaml)
-                echo "python3-PyYAML"
-                ;;
-            dbus-x11)
-                echo "dbus-1-x11"
-                ;;
-            printer-driver-cups-pdf)
-                echo "cups-pdf"
-                ;;
-            python3-dbus)
-                # In OpenSUSE Leap 15, this is renamed to python3-dbus-python
-                echo "dbus-1-python3"
-                ;;
-            python3-gi)
-                echo "python3-gobject"
-                ;;
-            *)
-                echo "$i"
-                ;;
-        esac
+        remap_one "$i"
     done
 }
 
 arch_name_package() {
-    case "$1" in
-        python3-yaml)
-            echo "python-yaml"
-            ;;
-        dbus-x11)
-            # no separate dbus-x11 package in arch
-            echo "dbus"
-            ;;
-        printer-driver-cups-pdf)
-            echo "cups-pdf"
-            ;;
-        openvswitch-switch)
-            echo "openvswitch"
-            ;;
-        man)
-            echo "man-db"
-            ;;
-        python3-dbus)
-            echo "python-dbus"
-            ;;
-        python3-gi)
-            echo "python-gobject"
-            ;;
-        *)
-            echo "$1"
-            ;;
-    esac
+    #shellcheck source=tests/lib/tools/tests.pkgs.pacman.sh
+    . "$TESTSLIB/tools/tests.pkgs.pacman.sh"
+    for i in "$@"; do
+        remap_one "$i"
+    done
 }
 
 distro_name_package() {
@@ -202,7 +133,7 @@ distro_install_package() {
     # arguments as package names.
     APT_FLAGS=
     DNF_FLAGS=
-    if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
+    if os.query is-fedora; then
         # Fedora images we use come with a number of preinstalled package, among
         # them gtk3. Those packages are needed to run the tests. The
         # xdg-desktop-portal-gtk package uses this in the spec:
@@ -449,7 +380,7 @@ distro_install_build_snapd(){
 
         # On trusty we may pull in a new hwe-kernel that is needed to run the
         # snapd tests. We need to reboot to actually run this kernel.
-        if [[ "$SPREAD_SYSTEM" = ubuntu-14.04-* ]] && [ "$SPREAD_REBOOT" = 0 ]; then
+        if os.query is-trusty && [ "$SPREAD_REBOOT" = 0 ]; then
             REBOOT
         fi
     elif [ -n "$PPA_VALIDATION_NAME" ]; then
@@ -509,7 +440,7 @@ distro_install_build_snapd(){
                 ;;
         esac
 
-        if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+        if os.query is-arch-linux; then
             # Arch policy does not allow calling daemon-reloads in package
             # install scripts
             systemctl daemon-reload
@@ -518,6 +449,12 @@ distro_install_build_snapd(){
             if systemctl show -p ActiveState apparmor.service | MATCH 'ActiveState=active'; then
                 systemctl restart apparmor.service
             fi
+        fi
+
+        if os.query is-opensuse-tumbleweed; then
+            # Package installation applies vendor presets only, which leaves
+            # snapd.apparmor disabled.
+            systemctl enable --now snapd.apparmor.service
         fi
 
         # On some distributions the snapd.socket is not yet automatically
@@ -633,6 +570,7 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                 dbus-user-session
                 gccgo-8
+                gperf
                 evolution-data-server
                 fwupd
                 packagekit
@@ -650,6 +588,12 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-20.10-64)
             echo "
+                qemu-utils
+                "
+            ;;
+        ubuntu-21.04-64)
+            echo "
+                dbus-user-session
                 qemu-utils
                 "
             ;;
@@ -760,17 +704,22 @@ pkg_dependencies_amazon(){
 pkg_dependencies_opensuse(){
     echo "
         apparmor-profiles
+        audit
+        bash-completion
         clang
         curl
+        dbus-1-python3
         evolution-data-server
         expect
         fontconfig
         fwupd
         git
         golang-packaging
+        iptables
         jq
         lsb-release
         man
+        man-pages
         nfs-kernel-server
         PackageKit
         python3-yaml

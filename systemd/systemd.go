@@ -22,6 +22,7 @@ package systemd
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -244,10 +245,30 @@ type Systemd interface {
 	Mask(service string) error
 	// Unmask the given service.
 	Unmask(service string) error
+	// Mount requests a mount of what under where with options.
+	Mount(what, where string, options ...string) error
+	// Umount requests a mount from what or at where to be unmounted.
+	Umount(whatOrWhere string) error
 }
 
-// A Log is a single entry in the systemd journal
-type Log map[string]string
+// A Log is a single entry in the systemd journal.
+// In almost all cases, the strings map to a single string value, but as per the
+// manpage for journalctl, under the json format,
+//
+//    Journal entries permit non-unique fields within the same log entry. JSON
+//    does not allow non-unique fields within objects. Due to this, if a
+//    non-unique field is encountered a JSON array is used as field value,
+//    listing all field values as elements.
+//
+// and this snippet as well,
+//
+//    Fields containing non-printable or non-UTF8 bytes are
+//    encoded as arrays containing the raw bytes individually
+//    formatted as unsigned numbers.
+//
+// as such, we sometimes get array values which need to be handled differently,
+// so we manually try to decode the json for each message into different types.
+type Log map[string]*json.RawMessage
 
 const (
 	// the default target for systemd units that we generate
@@ -270,8 +291,14 @@ type reporter interface {
 	Notify(string)
 }
 
-// New returns a Systemd that uses the given rootDir
-func New(rootDir string, mode InstanceMode, rep reporter) Systemd {
+// New returns a Systemd that uses the default root directory and omits
+// --root argument when executing systemctl.
+func New(mode InstanceMode, rep reporter) Systemd {
+	return &systemd{mode: mode, reporter: rep}
+}
+
+// NewUnderRoot returns a Systemd that operates on the given rootdir.
+func NewUnderRoot(rootDir string, mode InstanceMode, rep reporter) Systemd {
 	return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
 }
 
@@ -290,7 +317,7 @@ func NewEmulationMode(rootDir string) Systemd {
 // InstanceMode determines which instance of systemd to control.
 //
 // SystemMode refers to the system instance (i.e. pid 1).  UserMode
-// refers to the the instance launched to manage the user's desktop
+// refers to the instance launched to manage the user's desktop
 // session.  GlobalUserMode controls configuration respected by all
 // user instances on the system.
 //
@@ -353,22 +380,42 @@ func (s *systemd) DaemonReexec() error {
 }
 
 func (s *systemd) Enable(serviceName string) error {
-	_, err := s.systemctl("--root", s.rootDir, "enable", serviceName)
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl("--root", s.rootDir, "enable", serviceName)
+	} else {
+		_, err = s.systemctl("enable", serviceName)
+	}
 	return err
 }
 
 func (s *systemd) Unmask(serviceName string) error {
-	_, err := s.systemctl("--root", s.rootDir, "unmask", serviceName)
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl("--root", s.rootDir, "unmask", serviceName)
+	} else {
+		_, err = s.systemctl("unmask", serviceName)
+	}
 	return err
 }
 
 func (s *systemd) Disable(serviceName string) error {
-	_, err := s.systemctl("--root", s.rootDir, "disable", serviceName)
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl("--root", s.rootDir, "disable", serviceName)
+	} else {
+		_, err = s.systemctl("disable", serviceName)
+	}
 	return err
 }
 
 func (s *systemd) Mask(serviceName string) error {
-	_, err := s.systemctl("--root", s.rootDir, "mask", serviceName)
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl("--root", s.rootDir, "mask", serviceName)
+	} else {
+		_, err = s.systemctl("mask", serviceName)
+	}
 	return err
 }
 
@@ -494,9 +541,41 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 	return sts, nil
 }
 
+func (s *systemd) getGlobalUserStatus(unitNames ...string) ([]*UnitStatus, error) {
+	// As there is one instance per user, the active state does
+	// not make sense.  We can determine the global "enabled"
+	// state of the services though.
+	cmd := append([]string{"is-enabled"}, unitNames...)
+	if s.rootDir != "" {
+		cmd = append([]string{"--root", s.rootDir}, cmd...)
+	}
+	bs, err := s.systemctl(cmd...)
+	if err != nil {
+		// is-enabled returns non-zero if no units are
+		// enabled.  We still need to examine the output to
+		// track the other units.
+		sysdErr := err.(systemctlError)
+		bs = sysdErr.Msg()
+	}
+
+	results := bytes.Split(bytes.Trim(bs, "\n"), []byte("\n"))
+	if len(results) != len(unitNames) {
+		return nil, fmt.Errorf("cannot get enabled status of services: expected %d results, got %d", len(unitNames), len(results))
+	}
+
+	sts := make([]*UnitStatus, len(unitNames))
+	for i, line := range results {
+		sts[i] = &UnitStatus{
+			UnitName: unitNames[i],
+			Enabled:  bytes.Equal(line, []byte("enabled")) || bytes.Equal(line, []byte("static")),
+		}
+	}
+	return sts, nil
+}
+
 func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 	if s.mode == GlobalUserMode {
-		panic("cannot call status with GlobalUserMode")
+		return s.getGlobalUserStatus(unitNames...)
 	}
 	unitToStatus := make(map[string]*UnitStatus, len(unitNames))
 
@@ -544,7 +623,12 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 }
 
 func (s *systemd) IsEnabled(serviceName string) (bool, error) {
-	_, err := s.systemctl("--root", s.rootDir, "is-enabled", serviceName)
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl("--root", s.rootDir, "is-enabled", serviceName)
+	} else {
+		_, err = s.systemctl("is-enabled", serviceName)
+	}
 	if err == nil {
 		return true, nil
 	}
@@ -561,7 +645,12 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 	if s.mode == GlobalUserMode {
 		panic("cannot call is-active with GlobalUserMode")
 	}
-	_, err := s.systemctl("--root", s.rootDir, "is-active", serviceName)
+	var err error
+	if s.rootDir != "" {
+		_, err = s.systemctl("--root", s.rootDir, "is-active", serviceName)
+	} else {
+		_, err = s.systemctl("is-active", serviceName)
+	}
 	if err == nil {
 		return true, nil
 	}
@@ -692,12 +781,85 @@ func IsTimeout(err error) bool {
 	return isTimeout
 }
 
+func (l Log) parseLogRawMessageString(key string, sliceHandler func([]string) (string, error)) (string, error) {
+	valObject, ok := l[key]
+	if !ok {
+		// NOTE: journalctl says that sometimes if a json string would be too
+		// large null is returned, so we may miss a message here
+		return "", fmt.Errorf("key %q missing from message", key)
+	}
+	if valObject == nil {
+		// NOTE: journalctl says that sometimes if a json string would be too
+		// large null is returned, so in this case the message may be truncated
+		return "", fmt.Errorf("message key %q truncated", key)
+	}
+
+	// first try normal string
+	s := ""
+	err := json.Unmarshal(*valObject, &s)
+	if err == nil {
+		return s, nil
+	}
+
+	// next up, try a list of bytes that is utf-8 next, this is the case if
+	// journald thinks the output is not valid utf-8 or is not printable ascii
+	b := []byte{}
+	err = json.Unmarshal(*valObject, &b)
+	if err == nil {
+		// we have an array of bytes here, and there is a chance that it is
+		// not valid utf-8, but since this feature is used in snapd to present
+		// user-facing messages, we simply let Go do its best to turn the bytes
+		// into a string, with the chance that some byte sequences that are
+		// invalid end up getting replaced with Go's hex encoding of the byte
+		// sequence.
+		// Programs that are concerned with reading the exact sequence of
+		// characters or binary data, etc. should probably talk to journald
+		// directly instead of going through snapd using this API.
+		return string(b), nil
+	}
+
+	// next, try slice of slices of bytes
+	bb := [][]byte{}
+	err = json.Unmarshal(*valObject, &bb)
+	if err == nil {
+		// turn the slice of slices of bytes into a slice of strings to call the
+		// handler on it, see above about how invalid utf8 bytes are handled
+		l := make([]string, 0, len(bb))
+		for _, r := range bb {
+			l = append(l, string(r))
+		}
+		return sliceHandler(l)
+	}
+
+	// finally try list of strings
+	stringSlice := []string{}
+	err = json.Unmarshal(*valObject, &stringSlice)
+	if err == nil {
+		// if the slice is of length 1, just promote it to a plain scalar string
+		if len(stringSlice) == 1 {
+			return stringSlice[0], nil
+		}
+		// otherwise let the caller handle it
+		return sliceHandler(stringSlice)
+	}
+
+	// some examples of input data that would get here would be a raw scalar
+	// number, or a JSON map object, etc.
+	return "", fmt.Errorf("unsupported JSON encoding format")
+}
+
 // Time returns the time the Log was received by the journal.
 func (l Log) Time() (time.Time, error) {
-	sus, ok := l["__REALTIME_TIMESTAMP"]
-	if !ok {
-		return time.Time{}, errors.New("no timestamp")
+	// since the __REALTIME_TIMESTAMP is underscored and thus "trusted" by
+	// systemd, we assume that it will always be a valid string and not try to
+	// handle any possible array cases
+	sus, err := l.parseLogRawMessageString("__REALTIME_TIMESTAMP", func([]string) (string, error) {
+		return "", errors.New("no timestamp")
+	})
+	if err != nil {
+		return time.Time{}, err
 	}
+
 	// according to systemd.journal-fields(7) it's microseconds as a decimal string
 	us, err := strconv.ParseInt(sus, 10, 64)
 	if err != nil {
@@ -709,28 +871,50 @@ func (l Log) Time() (time.Time, error) {
 
 // Message of the Log, if any; otherwise, "-".
 func (l Log) Message() string {
-	if msg, ok := l["MESSAGE"]; ok {
-		return msg
+	// for MESSAGE, if there are multiple strings, just concatenate them with a
+	// newline to keep as much data from journald as possible
+	msg, err := l.parseLogRawMessageString("MESSAGE", func(stringSlice []string) (string, error) {
+		return strings.Join(stringSlice, "\n"), nil
+	})
+	if err != nil {
+		if _, ok := l["MESSAGE"]; !ok {
+			// if the MESSAGE key is just missing, then return "-"
+			return "-"
+		}
+		return fmt.Sprintf("- (error decoding original message: %v)", err)
 	}
-
-	return "-"
+	return msg
 }
 
 // SID is the syslog identifier of the Log, if any; otherwise, "-".
 func (l Log) SID() string {
-	if sid, ok := l["SYSLOG_IDENTIFIER"]; ok {
-		return sid
+	// if there are multiple SYSLOG_IDENTIFIER values, just act like there was
+	// not one, making an arbitrary choice here is probably not helpful
+	sid, err := l.parseLogRawMessageString("SYSLOG_IDENTIFIER", func([]string) (string, error) {
+		return "", fmt.Errorf("multiple identifiers not supported")
+	})
+	if err != nil || sid == "" {
+		return "-"
 	}
-
-	return "-"
+	return sid
 }
 
 // PID is the pid of the client pid, if any; otherwise, "-".
 func (l Log) PID() string {
-	if pid, ok := l["_PID"]; ok {
+	// look for _PID first as that is underscored and thus "trusted" from
+	// systemd, also don't support multiple arrays if we find then
+	multiplePIDsErr := fmt.Errorf("multiple pids not supported")
+	pid, err := l.parseLogRawMessageString("_PID", func([]string) (string, error) {
+		return "", multiplePIDsErr
+	})
+	if err == nil && pid != "" {
 		return pid
 	}
-	if pid, ok := l["SYSLOG_PID"]; ok {
+
+	pid, err = l.parseLogRawMessageString("SYSLOG_PID", func([]string) (string, error) {
+		return "", multiplePIDsErr
+	})
+	if err == nil && pid != "" {
 		return pid
 	}
 
@@ -873,4 +1057,23 @@ func (s *systemd) ReloadOrRestart(serviceName string) error {
 	}
 	_, err := s.systemctl("reload-or-restart", serviceName)
 	return err
+}
+
+func (s *systemd) Mount(what, where string, options ...string) error {
+	args := make([]string, 0, 2+len(options))
+	if len(options) > 0 {
+		args = append(args, options...)
+	}
+	args = append(args, what, where)
+	if output, err := exec.Command("systemd-mount", args...).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+	return nil
+}
+
+func (s *systemd) Umount(whatOrWhere string) error {
+	if output, err := exec.Command("systemd-mount", "--umount", whatOrWhere).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+	return nil
 }

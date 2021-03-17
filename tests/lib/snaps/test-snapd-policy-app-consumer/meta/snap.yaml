@@ -11,6 +11,9 @@ apps:
   adb-support:
     command: bin/run
     plugs: [ adb-support ]
+  allegro-vcu:
+    command: bin/run
+    plugs: [ allegro-vcu ]
   alsa:
     command: bin/run
     plugs: [ alsa ]
@@ -107,6 +110,9 @@ apps:
   docker-support:
     command: bin/run
     plugs: [ docker-support ]
+  fpga:
+    command: bin/run
+    plugs: [ fpga ]
   system-files:
     command: bin/run
     plugs: [ system-files ]
@@ -236,6 +242,9 @@ apps:
   maliit:
     command: bin/run
     plugs: [ maliit ]
+  media-control:
+    command: bin/run
+    plugs: [ media-control ]
   media-hub:
     command: bin/run
     plugs: [ media-hub ]
@@ -326,6 +335,9 @@ apps:
   process-control:
     command: bin/run
     plugs: [ process-control ]
+  ptp:
+    command: bin/run
+    plugs: [ ptp ]
   pulseaudio:
     command: bin/run
     plugs: [ pulseaudio ]

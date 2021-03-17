@@ -1,5 +1,5 @@
 summary: The file-access command provides information about access to file paths
-description: |
+details: |
     The "snap routine file-access" command is intended to be a helper for
     xdg-document-portal.  When xdg-document-portal is asked to make a
     file available to a snap, we would like to avoid proxying files
@@ -21,9 +21,7 @@ description: |
     access.
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-file-access
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-file-access
 
     # Ensure interfaces are disconnected
     snap disconnect test-snapd-file-access:home
@@ -97,11 +95,9 @@ execute: |
 
     # Classic confinement snaps run in the host system's mount
     # namespace, so there are no restrictions on it's file access.
-    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+    if os.query is-core; then
         exit 0
     fi
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-classic-confinement --classic
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-classic-confinement --classic
 
     snap routine file-access test-snapd-classic-confinement / | MATCH read-write

@@ -56,18 +56,20 @@ func (s *trackingSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 }
 
-// CreateTransientScopeForTracking is a no-op when refresh app awareness is off
+// CreateTransientScopeForTracking always attempts to track, even when refresh app awareness flag is off.
 func (s *trackingSuite) TestCreateTransientScopeForTrackingFeatureDisabled(c *C) {
 	noDBus := func() (*dbus.Conn, error) {
-		c.Error("test sequence violated")
-		return nil, fmt.Errorf("dbus should not have been used")
+		return nil, fmt.Errorf("dbus not available")
 	}
 	restore := dbusutil.MockConnections(noDBus, noDBus)
 	defer restore()
 
+	// The feature is disabled but we still track applications. The feature
+	// flag is now only observed in side snapd snap manager, while considering
+	// snap refreshes.
 	c.Assert(features.RefreshAppAwareness.IsEnabled(), Equals, false)
 	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app", nil)
-	c.Check(err, IsNil)
+	c.Assert(err, ErrorMatches, "cannot track application process")
 }
 
 // CreateTransientScopeForTracking does stuff when refresh app awareness is on

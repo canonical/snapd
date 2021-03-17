@@ -18,13 +18,11 @@ execute: |
     pkill sleep || true
 
     echo "When the service snap is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
     # Because we cannot use daemon: notify easily yet just wait for a "ready"
     # file to show up.  The file is removed when the service is stopped. This
     # pattern repeats around the test without additional comments.
-    while ! test -f /var/snap/test-snapd-service/common/ready; do sleep 1; done
+    retry -n 20 --wait 1 sh -c 'test -f /var/snap/test-snapd-service/common/ready'
 
     refresh_modes="sigterm sigterm-all"
     for s in $refresh_modes; do
@@ -36,8 +34,8 @@ execute: |
     [ "$n" = "2" ]
 
     echo "When it is re-installed one process uses sigterm, the other sigterm-all"
-    install_local test-snapd-service
-    while ! test -f /var/snap/test-snapd-service/common/ready; do sleep 1; done
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
+    retry -n 20 --wait 1 sh -c 'test -f /var/snap/test-snapd-service/common/ready'
 
     echo "After reinstall the sigterm-all service and all children got killed"
     echo "but the sigterm service only got a kill for the main process "

@@ -26,6 +26,7 @@ debug: |
     nested_exec "snap list"
     nested_exec "dmesg"
     nested_exec 'sudo jq -r ".data[\"hotplug-slots\"]" /var/lib/snapd/state.json'
+    set -e
 
 execute: |
     #shellcheck source=tests/lib/nested.sh

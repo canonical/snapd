@@ -783,11 +783,21 @@ func ValidateApp(app *AppInfo) error {
 	default:
 		return fmt.Errorf(`"refresh-mode" field contains invalid value %q`, app.RefreshMode)
 	}
+	// validate install-mode
+	switch app.InstallMode {
+	case "", "enable", "disable":
+		// valid
+	default:
+		return fmt.Errorf(`"install-mode" field contains invalid value %q`, app.InstallMode)
+	}
 	if app.StopMode != "" && app.Daemon == "" {
 		return fmt.Errorf(`"stop-mode" cannot be used for %q, only for services`, app.Name)
 	}
 	if app.RefreshMode != "" && app.Daemon == "" {
 		return fmt.Errorf(`"refresh-mode" cannot be used for %q, only for services`, app.Name)
+	}
+	if app.InstallMode != "" && app.Daemon == "" {
+		return fmt.Errorf(`"install-mode" cannot be used for %q, only for services`, app.Name)
 	}
 
 	return validateAppTimer(app)

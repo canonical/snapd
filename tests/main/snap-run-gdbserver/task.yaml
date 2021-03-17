@@ -1,24 +1,26 @@
-summary: Check that `snap run --experimental-gdbserver` works
+summary: Check that `snap run --gdbserver` works
 
 # testing only here to avoid having to install gdb/gdbserver everywhere
 systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-2*]
 
+environment:
+    OPT/normal: --gdbserver
+    OPT/deprecated: --experimental-gdbserver
+
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     apt install -y gdbserver gdb
 
 restore: |
     apt autoremove -y gdbserver gdb
 
 execute: |
-    echo "Test snap run --experimental-gdbserver works"
+    echo "Test snap run --gdbserver works"
 
     # run the gdbserver command as a user
     # XXX: use "systemd-run --user -p StandardOutput=file:$(pwd)/stdout"
     # shellcheck disable=SC2016
-    su -l -c 'snap run --experimental-gdbserver test-snapd-sh.sh -c "echo hello-hello-hello uid:$UID"' test >stdout &
+    su -c 'snap run "$OPT" test-snapd-sh.sh -c "echo hello-hello-hello uid:$UID"' test >stdout &
 
     # wait for the instructions that gdb is ready to get attached
     retry -n60 grep '^gdb -ex' stdout

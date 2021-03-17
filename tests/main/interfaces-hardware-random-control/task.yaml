@@ -15,11 +15,8 @@ summary: |
 systems: [-debian-*, -arch-*, -amazon-*, -centos-*]
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     echo "Given a snap declaring a plug on the hardware-random-control interface is installed"
-    install_local test-snapd-hardware-random-control
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-hardware-random-control
 
 execute: |
     echo "The interface is not connected by default"
@@ -47,7 +44,7 @@ execute: |
         echo "Expected permission error accessing hardware control information with disconnected plug"
         exit 1
     fi
-    grep -q "Permission denied" hw.error
+    MATCH "Permission denied" < hw.error
 
     echo "And the snap is able to reconnect"
     snap connect test-snapd-hardware-random-control:hardware-random-control
