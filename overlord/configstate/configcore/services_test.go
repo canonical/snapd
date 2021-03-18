@@ -99,6 +99,7 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 	}{
 		{"ssh", "ssh.service"},
 		{"rsyslog", "rsyslog.service"},
+		{"systemd-resolved", "systemd-resolved.service"},
 	} {
 		s.systemctlArgs = nil
 
@@ -267,6 +268,7 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 	}{
 		{"ssh", "ssh.service"},
 		{"rsyslog", "rsyslog.service"},
+		{"systemd-resolved", "systemd-resolved.service"},
 	} {
 		s.systemctlArgs = nil
 		err := configcore.Run(&mockConf{
