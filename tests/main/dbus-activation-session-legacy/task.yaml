@@ -2,12 +2,10 @@ summary: D-Bus session services support activation without a user instance of sy
 
 prepare: |
     snap set system experimental.user-daemons=true
-    snap set system experimental.dbus-activation=true
 
 restore: |
     systemctl stop private-session-bus.service || true
     rm -f dbus-launch.env run-session-bus.sh
-    snap unset system experimental.dbus-activation
     snap unset system experimental.user-daemons
 
 execute: |

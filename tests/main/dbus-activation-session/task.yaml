@@ -14,7 +14,6 @@ prepare: |
     fi
 
     snap set system experimental.user-daemons=true
-    snap set system experimental.dbus-activation=true
     tests.session -u test prepare
 
 restore: |
@@ -25,7 +24,6 @@ restore: |
     if [ -f agent-was-enabled ]; then
         systemctl --user --global disable snapd.session-agent.socket
     fi
-    snap unset system experimental.dbus-activation
     snap unset system experimental.user-daemons
 
 execute: |
