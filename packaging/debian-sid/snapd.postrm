@@ -104,15 +104,6 @@ if [ "$1" = "purge" ]; then
     # generated readme files
     rm -f "/snap/README"
 
-    echo "Final directory cleanup"
-    for d in "/snap/bin" "/snap" "/var/snap"; do
-        # Force remove due to directories for old revisions could still exist
-        rm -rf "$d"
-        if [ -d "$d" ]; then
-            echo "Cannot remove directory $d"
-        fi
-    done
-
     echo "Discarding preserved snap namespaces"
     # opportunistic as those might not be actually mounted
     if [ -d /run/snapd/ns ]; then
@@ -131,6 +122,15 @@ if [ "$1" = "purge" ]; then
         echo "Unmount /snap inside a container"
         umount /snap || true
     fi
+
+    echo "Final directory cleanup"
+    for d in "/snap/bin" "/snap" "/var/snap"; do
+        # Force remove due to directories for old revisions could still exist
+        rm -rf "$d"
+        if [ -d "$d" ]; then
+            echo "Cannot remove directory $d"
+        fi
+    done
 
     echo "Removing extra snap-confine apparmor rules"
     rm -f /etc/apparmor.d/snap.core.*.usr.lib.snapd.snap-confine

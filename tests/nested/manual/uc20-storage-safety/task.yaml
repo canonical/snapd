@@ -67,5 +67,5 @@ execute: |
     # TODO: once we have a install-mode log (PR#9545) we could grep
     #       "installing system unencrypted because of ..."
 
-    # check that data is mounted from a regular device, not a mapper
+    echo "Check that data is mounted from a regular device, not a mapper"
     nested_exec "mount" | MATCH "/dev/[svh]da[45] on /run/mnt/data"

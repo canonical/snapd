@@ -1569,3 +1569,17 @@ func (s *RunSuite) TestSnapRunHookKernelImplicitBase(c *check.C) {
 	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
 	c.Check(nModel, check.Equals, 1)
 }
+
+func (s *RunSuite) TestRunGdbserverNoGdbserver(c *check.C) {
+	oldPath := os.Getenv("PATH")
+	os.Setenv("PATH", "/no-path:/really-not")
+	defer os.Setenv("PATH", oldPath)
+
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--gdbserver", "snapname.app"})
+	c.Assert(err, check.ErrorMatches, "please install gdbserver on your system")
+}

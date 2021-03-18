@@ -5,7 +5,7 @@
 
 debian_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.apt.sh
-    . "$TESTSLIB/tools/tests.pkg.apt.sh"
+    . "$TESTSLIB/tools/tests.pkgs.apt.sh"
     for i in "$@"; do
         remap_one "$i"
     done
@@ -13,7 +13,7 @@ debian_name_package() {
 
 ubuntu_14_04_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.apt.sh
-    . "$TESTSLIB/tools/tests.pkg.apt.sh"
+    . "$TESTSLIB/tools/tests.pkgs.apt.sh"
     for i in "$@"; do
         remap_one "$i"
     done
@@ -21,7 +21,7 @@ ubuntu_14_04_name_package() {
 
 fedora_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.dnf-yum.sh
-    . "$TESTSLIB/tools/tests.pkg.dnf-yum.sh"
+    . "$TESTSLIB/tools/tests.pkgs.dnf-yum.sh"
     for i in "$@"; do
         remap_one "$i"
     done
@@ -29,7 +29,7 @@ fedora_name_package() {
 
 amazon_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.dnf-yum.sh
-    . "$TESTSLIB/tools/tests.pkg.dnf-yum.sh"
+    . "$TESTSLIB/tools/tests.pkgs.dnf-yum.sh"
     for i in "$@"; do
         remap_one "$i"
     done
@@ -37,7 +37,7 @@ amazon_name_package() {
 
 opensuse_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.zypper.sh
-    . "$TESTSLIB/tools/tests.pkg.zypper.sh"
+    . "$TESTSLIB/tools/tests.pkgs.zypper.sh"
     for i in "$@"; do
         remap_one "$i"
     done
@@ -45,7 +45,7 @@ opensuse_name_package() {
 
 arch_name_package() {
     #shellcheck source=tests/lib/tools/tests.pkgs.pacman.sh
-    . "$TESTSLIB/tools/tests.pkg.pacman.sh"
+    . "$TESTSLIB/tools/tests.pkgs.pacman.sh"
     for i in "$@"; do
         remap_one "$i"
     done
@@ -451,7 +451,7 @@ distro_install_build_snapd(){
             fi
         fi
 
-        if [[ "$SPREAD_SYSTEM" == opensuse-tumbleweed-* ]]; then
+        if os.query is-opensuse-tumbleweed; then
             # Package installation applies vendor presets only, which leaves
             # snapd.apparmor disabled.
             systemctl enable --now snapd.apparmor.service
@@ -570,6 +570,7 @@ pkg_dependencies_ubuntu_classic(){
             echo "
                 dbus-user-session
                 gccgo-8
+                gperf
                 evolution-data-server
                 fwupd
                 packagekit
@@ -587,6 +588,12 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-20.10-64)
             echo "
+                qemu-utils
+                "
+            ;;
+        ubuntu-21.04-64)
+            echo "
+                dbus-user-session
                 qemu-utils
                 "
             ;;
@@ -697,17 +704,22 @@ pkg_dependencies_amazon(){
 pkg_dependencies_opensuse(){
     echo "
         apparmor-profiles
+        audit
+        bash-completion
         clang
         curl
+        dbus-1-python3
         evolution-data-server
         expect
         fontconfig
         fwupd
         git
         golang-packaging
+        iptables
         jq
         lsb-release
         man
+        man-pages
         nfs-kernel-server
         PackageKit
         python3-yaml

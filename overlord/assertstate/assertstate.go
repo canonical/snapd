@@ -336,3 +336,116 @@ func delayedCrossMgrInit() {
 func AutoRefreshAssertions(s *state.State, userID int) error {
 	return RefreshSnapDeclarations(s, userID)
 }
+
+// RefreshValidationSetAssertions tries to refresh all validation set
+// assertions.
+func RefreshValidationSetAssertions(s *state.State, userID int) error {
+	deviceCtx, err := snapstate.DevicePastSeeding(s, nil)
+	if err != nil {
+		return err
+	}
+
+	vsets, err := ValidationSets(s)
+	if err != nil {
+		return err
+	}
+	if len(vsets) == 0 {
+		return nil
+	}
+
+	return bulkRefreshValidationSetAsserts(s, vsets, userID, deviceCtx)
+}
+
+// ResolveOptions carries extra options for ValidationSetAssertionForMonitor.
+type ResolveOptions struct {
+	AllowLocalFallback bool
+}
+
+// ValidationSetAssertionForMonitor tries to fetch or refresh the validation
+// set assertion with accountID/name/sequence (sequence is optional) using pool.
+// If assertion cannot be fetched but exists locally and opts.AllowLocalFallback
+// is set then the local one is returned
+func ValidationSetAssertionForMonitor(st *state.State, accountID, name string, sequence int, pinned bool, userID int, opts *ResolveOptions) (as *asserts.ValidationSet, local bool, err error) {
+	if opts == nil {
+		opts = &ResolveOptions{}
+	}
+	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
+	if err != nil {
+		return nil, false, err
+	}
+
+	var vs asserts.Assertion
+	headers := map[string]string{
+		"series":     release.Series,
+		"account-id": accountID,
+		"name":       name,
+	}
+
+	db := cachedDB(st)
+
+	// try to get existing one from db
+	if sequence > 0 {
+		headers["sequence"] = fmt.Sprintf("%d", sequence)
+		vs, err = db.Find(asserts.ValidationSetType, headers)
+	} else {
+		// find latest
+		vs, err = db.FindSequence(asserts.ValidationSetType, headers, -1, -1)
+	}
+	if err != nil && !asserts.IsNotFound(err) {
+		return nil, false, err
+	}
+	if err == nil {
+		as = vs.(*asserts.ValidationSet)
+	}
+
+	// try to resolve or update with pool
+	pool := asserts.NewPool(db, maxGroups)
+	atSeq := &asserts.AtSequence{
+		Type:        asserts.ValidationSetType,
+		SequenceKey: []string{release.Series, accountID, name},
+		Sequence:    sequence,
+		Pinned:      pinned,
+	}
+	if as != nil {
+		atSeq.Revision = as.Revision()
+	} else {
+		atSeq.Revision = asserts.RevisionNotKnown
+	}
+
+	// resolve if not found locally, otherwise add for update
+	if as == nil {
+		if err := pool.AddUnresolvedSequence(atSeq, atSeq.Unique()); err != nil {
+			return nil, false, err
+		}
+	} else {
+		atSeq.Sequence = as.Sequence()
+		// found locally, try to update
+		atSeq.Revision = as.Revision()
+		if err := pool.AddSequenceToUpdate(atSeq, atSeq.Unique()); err != nil {
+			return nil, false, err
+		}
+	}
+
+	if err := resolvePoolNoFallback(st, pool, userID, deviceCtx); err != nil {
+		rerr, ok := err.(*resolvePoolError)
+		if ok && as != nil && opts.AllowLocalFallback {
+			if e := rerr.errors[atSeq.Unique()]; asserts.IsNotFound(e) {
+				// fallback: support the scenario of local assertion (snap ack)
+				// not available in the store.
+				return as, true, nil
+			}
+		}
+		return nil, false, err
+	}
+
+	// fetch the requested assertion again
+	if pinned {
+		vs, err = db.Find(asserts.ValidationSetType, headers)
+	} else {
+		vs, err = db.FindSequence(asserts.ValidationSetType, headers, -1, asserts.ValidationSetType.MaxSupportedFormat())
+	}
+	if err == nil {
+		as = vs.(*asserts.ValidationSet)
+	}
+	return as, false, err
+}

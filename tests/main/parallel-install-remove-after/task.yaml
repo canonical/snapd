@@ -1,6 +1,6 @@
 summary: Checks for parallel installation interfering with non-parallel snaps
 
-description: |
+details: |
   Make sure parallel instances do not interfere with other snaps. In particular,
   parallel instances create a recursive bind mount of $SNAP_MOUNT_DIR. This
   should not prevent snaps from being unmounted when removed.

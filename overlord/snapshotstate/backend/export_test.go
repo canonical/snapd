@@ -140,3 +140,7 @@ func MockFilepathGlob(new func(pattern string) (matches []string, err error)) (r
 		filepathGlob = oldFilepathGlob
 	}
 }
+
+func (se *SnapshotExport) ContentHash() []byte {
+	return se.contentHash
+}

@@ -33,4 +33,16 @@
  **/
 int sc_infofile_get_key(FILE *stream, const char *key, char **value, sc_error **err_out);
 
+/**
+ * sc_infofile_get_ini_section_key extracts a single value of a key=value pair
+ * from a given ini section of the stream.
+ *
+ * On success the return value is zero and err_out, if not NULL, is deferences
+ * and set to NULL. On failure the return value is -1 is and detailed error
+ * information is stored by dereferencing err_out. If an error occurs and
+ * err_out is NULL then the program dies, printing the error message.
+ **/
+int sc_infofile_get_ini_section_key(FILE *stream, const char *section, const char *key, char **value,
+                                    sc_error **err_out);
+
 #endif

@@ -29,6 +29,7 @@ import (
 	"regexp"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -195,6 +196,9 @@ const (
 	// states, as we are conservative in assuming that cloud-init is doing
 	// something.
 	CloudInitEnabled
+	// CloudInitNotFound is when there is no cloud-init executable on the
+	// device.
+	CloudInitNotFound
 	// CloudInitErrored is when cloud-init tried to run, but failed or had invalid
 	// configuration.
 	CloudInitErrored
@@ -221,7 +225,13 @@ func CloudInitStatus() (CloudInitState, error) {
 		return CloudInitDisabledPermanently, nil
 	}
 
-	out, err := exec.Command("cloud-init", "status").CombinedOutput()
+	ciBinary, err := exec.LookPath("cloud-init")
+	if err != nil {
+		logger.Noticef("cannot locate cloud-init executable: %v", err)
+		return CloudInitNotFound, nil
+	}
+
+	out, err := exec.Command(ciBinary, "status").CombinedOutput()
 	if err != nil {
 		return CloudInitErrored, osutil.OutputErr(out, err)
 	}
@@ -315,7 +325,7 @@ func RestrictCloudInit(state CloudInitState, opts *CloudInitRestrictOptions) (Cl
 			return res, fmt.Errorf("cannot restrict cloud-init in error or enabled state")
 		}
 		fallthrough
-	case CloudInitUntriggered:
+	case CloudInitUntriggered, CloudInitNotFound:
 		fallthrough
 	default:
 		res.Action = "disable"

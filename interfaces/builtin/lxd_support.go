@@ -52,6 +52,8 @@ const lxdSupportConnectedPlugSecComp = `
 @unrestricted
 `
 
+const lxdSupportServiceSnippet = `Delegate=true`
+
 func init() {
 	registerIface(&commonInterface{
 		name:                  "lxd-support",
@@ -62,5 +64,6 @@ func init() {
 		baseDeclarationPlugs:  lxdSupportBaseDeclarationPlugs,
 		connectedPlugAppArmor: lxdSupportConnectedPlugAppArmor,
 		connectedPlugSecComp:  lxdSupportConnectedPlugSecComp,
+		serviceSnippets:       []string{lxdSupportServiceSnippet},
 	})
 }

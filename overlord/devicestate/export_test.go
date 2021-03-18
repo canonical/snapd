@@ -120,6 +120,10 @@ func SetTimeOnce(m *DeviceManager, name string, t time.Time) error {
 	return m.setTimeOnce(name, t)
 }
 
+func PreloadGadget(m *DeviceManager) (*gadget.Info, error) {
+	return m.preloadGadget()
+}
+
 func MockRepeatRequestSerial(label string) (restore func()) {
 	old := repeatRequestSerial
 	repeatRequestSerial = label
@@ -193,6 +197,8 @@ func RemodelDeviceBackend(remodCtx remodelContext) storecontext.DeviceBackend {
 }
 
 var (
+	LoadDeviceSeed               = loadDeviceSeed
+	UnloadDeviceSeed             = unloadDeviceSeed
 	ImportAssertionsFromSeed     = importAssertionsFromSeed
 	CheckGadgetOrKernel          = checkGadgetOrKernel
 	CheckGadgetValid             = checkGadgetValid
@@ -232,11 +238,11 @@ func MockGadgetIsCompatible(mock func(current, update *gadget.Info) error) (rest
 	}
 }
 
-func MockBootMakeBootable(f func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error) (restore func()) {
-	old := bootMakeBootable
-	bootMakeBootable = f
+func MockBootMakeSystemRunnable(f func(model *asserts.Model, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error) (restore func()) {
+	old := bootMakeRunnable
+	bootMakeRunnable = f
 	return func() {
-		bootMakeBootable = old
+		bootMakeRunnable = old
 	}
 }
 
@@ -264,7 +270,7 @@ func MockSysconfigConfigureTargetSystem(f func(opts *sysconfig.Options) error) (
 	}
 }
 
-func MockInstallRun(f func(model gadget.Model, gadgetRoot, device string, options install.Options, observer gadget.ContentObserver) (*install.InstalledSystemSideData, error)) (restore func()) {
+func MockInstallRun(f func(model gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, observer gadget.ContentObserver) (*install.InstalledSystemSideData, error)) (restore func()) {
 	old := installRun
 	installRun = f
 	return func() {

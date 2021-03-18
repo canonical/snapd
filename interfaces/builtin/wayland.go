@@ -59,11 +59,6 @@ owner /run/user/[0-9]*/wayland-[0-9]* rwk,
 # to the server. Although they are passed by FD we still need rw access to the file.
 /run/user/[0-9]*/snap.*/{wayland-cursor,xwayland}-shared-* rw,
 
-# Allow reading an Xwayland Xauth file
-# (see https://gitlab.gnome.org/GNOME/mutter/merge_requests/626)
-/run/user/[0-9]*/.mutter-Xwaylandauth.* r,
-/run/user/[0-9]*/mutter/Xauthority r,
-
 # Allow write access to create /run/user/* to create XDG_RUNTIME_DIR (until
 # lp:1738197 is fixed). Note this is not needed if creating a session using
 # logind (as provided by the login-session-control snapd interface).

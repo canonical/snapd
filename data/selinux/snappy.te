@@ -844,3 +844,10 @@ gen_require(`
 # system dbus may look info /var/lib/snapd/dbus-1
 snappy_search_lib(system_dbusd_t)
 snappy_read_lib(system_dbusd_t)
+optional_policy(`
+  gen_require(`
+    # watch permission is defined only in recent versions of refpolicy
+    class dir { watch };
+  ')
+  allow system_dbusd_t  snappy_var_lib_t:dir watch;
+')
