@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#!/bin/bash -e
 
 show_help() {
     echo "usage: tests.cleanup prepare"
@@ -68,44 +68,48 @@ cmd_restore() {
     rm -f defer.sh
 }
 
-if [ $# -eq 0 ]; then
-    show_help
-    exit
-fi
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit
+    fi
 
-while [ $# -gt 0 ]; do
-    case "$1" in
-        -h|--help)
-            show_help
-            exit
-            ;;
-        prepare)
-            shift
-            cmd_prepare
-            exit
-            ;;
-        defer)
-            shift
-            cmd_defer "$@"
-            exit
-            ;;
-        pop)
-            shift
-            cmd_pop "$@"
-            exit
-            ;;
-        restore)
-            shift
-            cmd_restore
-            exit
-            ;;
-        -*)
-            echo "tests.cleanup: unknown option $1" >&2
-            exit 1
-            ;;
-        *)
-            echo "tests.cleanup: unknown command $1" >&2
-            exit 1
-            ;;
-    esac
-done
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -h|--help)
+                show_help
+                exit
+                ;;
+            prepare)
+                shift
+                cmd_prepare
+                exit
+                ;;
+            defer)
+                shift
+                cmd_defer "$@"
+                exit
+                ;;
+            pop)
+                shift
+                cmd_pop "$@"
+                exit
+                ;;
+            restore)
+                shift
+                cmd_restore
+                exit
+                ;;
+            -*)
+                echo "tests.cleanup: unknown option $1" >&2
+                exit 1
+                ;;
+            *)
+                echo "tests.cleanup: unknown command $1" >&2
+                exit 1
+                ;;
+        esac
+    done
+}
+
+main "$@"

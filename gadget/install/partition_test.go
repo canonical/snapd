@@ -61,6 +61,10 @@ func (s *partitionTestSuite) SetUpTest(c *C) {
 	s.AddCleanup(cmdSfdisk.Restore)
 	cmdLsblk := testutil.MockCommand(c, "lsblk", `echo "lsblk was not mocked"; exit 1`)
 	s.AddCleanup(cmdLsblk.Restore)
+
+	// we test different sector sizes elsewhere, here we always use it to get the sector size
+	cmdBlockdev := testutil.MockCommand(c, "blockdev", blockdevSectorSize512Script)
+	s.AddCleanup(cmdBlockdev.Restore)
 }
 
 const (
@@ -163,6 +167,15 @@ exit 0`)
 	return b.String()
 }
 
+const blockdevSectorSize512Script = `
+if [ "$1" == "--getss" ]; then
+	echo 512
+	exit 0
+fi
+echo "unexpected cmdline opts $*"
+exit 1
+`
+
 var mockOnDiskStructureWritable = gadget.OnDiskStructure{
 	Node: "/dev/node3",
 	LaidOutStructure: gadget.LaidOutStructure{
@@ -216,6 +229,38 @@ var mockOnDiskStructureWritableAfterSave = gadget.OnDiskStructure{
 	Size: 2*quantity.SizeGiB + 717*quantity.SizeMiB + 1031680,
 }
 
+// mustLayOutVolumeFromGadget takes a gadget rootdir and lays out the
+// partitions as specified. This function does not handle multiple volumes and
+// is meant for test helpers only. For runtime users, with multiple volumes
+// handled by choosing the ubuntu-* role volume, see LaidOutSystemVolumeFromGadget
+func mustLayOutVolumeFromGadget(c *C, gadgetRoot, kernelRoot string, model gadget.Model) (*gadget.LaidOutVolume, error) {
+	info, err := gadget.ReadInfo(gadgetRoot, model)
+	c.Assert(err, IsNil)
+
+	c.Assert(info.Volumes, HasLen, 1, Commentf("only single volumes supported in test helper"))
+
+	constraints := gadget.LayoutConstraints{
+		NonMBRStartOffset: 1 * quantity.OffsetMiB,
+	}
+
+	for _, vol := range info.Volumes {
+		pvol, err := gadget.LayoutVolume(gadgetRoot, kernelRoot, vol, constraints)
+		c.Assert(err, IsNil)
+		// we know  info.Volumes map has size 1 so we can return here
+		return pvol, nil
+	}
+	// this is impossible to reach, we already asserted that info.Volumes has a
+	// length of 1
+	panic("impossible test error")
+}
+
+type uc20Model struct{}
+
+func (c uc20Model) Classic() bool             { return false }
+func (c uc20Model) Grade() asserts.ModelGrade { return asserts.ModelSigned }
+
+var uc20Mod = uc20Model{}
+
 func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", makeSfdiskScript(scriptPartitionsBiosSeed))
 	defer cmdSfdisk.Restore()
@@ -225,7 +270,7 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 
 	err := makeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
 	c.Assert(err, IsNil)
-	pv, err := gadget.LaidOutVolumeFromGadget(s.gadgetRoot, uc20mod)
+	pv, err := mustLayOutVolumeFromGadget(c, s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
@@ -241,13 +286,6 @@ func (s *partitionTestSuite) TestBuildPartitionList(c *C) {
 	c.Check(create, NotNil)
 	c.Assert(create, DeepEquals, []gadget.OnDiskStructure{mockOnDiskStructureSave, mockOnDiskStructureWritableAfterSave})
 }
-
-type uc20Constraints struct{}
-
-func (c uc20Constraints) Classic() bool             { return false }
-func (c uc20Constraints) Grade() asserts.ModelGrade { return asserts.ModelSigned }
-
-var uc20mod = uc20Constraints{}
 
 func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", makeSfdiskScript(scriptPartitionsBiosSeed))
@@ -267,7 +305,7 @@ func (s *partitionTestSuite) TestCreatePartitions(c *C) {
 
 	err := makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := gadget.LaidOutVolumeFromGadget(s.gadgetRoot, uc20mod)
+	pv, err := mustLayOutVolumeFromGadget(c, s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
@@ -299,7 +337,7 @@ func (s *partitionTestSuite) TestRemovePartitionsTrivial(c *C) {
 
 	err := makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := gadget.LaidOutVolumeFromGadget(s.gadgetRoot, uc20mod)
+	pv, err := mustLayOutVolumeFromGadget(c, s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
@@ -363,7 +401,7 @@ echo '{
 
 	err = makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := gadget.LaidOutVolumeFromGadget(s.gadgetRoot, uc20mod)
+	pv, err := mustLayOutVolumeFromGadget(c, s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
 
 	err = install.RemoveCreatedPartitions(pv, dl)
@@ -388,7 +426,7 @@ func (s *partitionTestSuite) TestRemovePartitionsError(c *C) {
 
 	err = makeMockGadget(s.gadgetRoot, gadgetContent)
 	c.Assert(err, IsNil)
-	pv, err := gadget.LaidOutVolumeFromGadget(s.gadgetRoot, uc20mod)
+	pv, err := mustLayOutVolumeFromGadget(c, s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
 
 	err = install.RemoveCreatedPartitions(pv, dl)
@@ -550,7 +588,7 @@ echo '{
 
 	err := makeMockGadget(s.gadgetRoot, gptGadgetContentWithSave)
 	c.Assert(err, IsNil)
-	pv, err := gadget.LaidOutVolumeFromGadget(s.gadgetRoot, uc20mod)
+	pv, err := mustLayOutVolumeFromGadget(c, s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
 
 	dl, err := gadget.OnDiskVolumeFromDevice("node")
@@ -663,7 +701,17 @@ echo '{
 }'
 `)
 	defer cmdSfdisk.Restore()
-	cmdBlockdev := testutil.MockCommand(c, "blockdev", `echo '1234567'`)
+	cmdBlockdev := testutil.MockCommand(c, "blockdev", `
+if [ "$1" == "--getss" ]; then
+	echo 512
+	exit 0
+elif [ "$1" == "--getsz" ]; then
+	echo 1234567
+	exit 0
+fi
+echo "unexpected cmdline opts $*"
+exit 1
+`)
 	defer cmdBlockdev.Restore()
 
 	dl, err := gadget.OnDiskVolumeFromDevice("node")
@@ -671,7 +719,7 @@ echo '{
 
 	err = makeMockGadget(s.gadgetRoot, mbrGadgetContentWithSave)
 	c.Assert(err, IsNil)
-	pv, err := gadget.LaidOutVolumeFromGadget(s.gadgetRoot, uc20mod)
+	pv, err := mustLayOutVolumeFromGadget(c, s.gadgetRoot, "", uc20Mod)
 	c.Assert(err, IsNil)
 
 	list := install.CreatedDuringInstall(pv, dl)

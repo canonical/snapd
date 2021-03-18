@@ -6,9 +6,6 @@ environment:
     PC_SNAP_ID: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
     START_REVISION: 1000
 
-# the test is only meaningful on core devices
-systems: [ubuntu-core-*]
-
 prepare: |
     # external backends do not enable test keys
     if [ "$TRUST_TEST_KEYS" = "false" ]; then

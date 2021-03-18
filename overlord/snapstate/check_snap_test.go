@@ -119,6 +119,10 @@ var assumesTests = []struct {
 	version: "unknown",
 	error:   `.* unsupported features: snapd2.15nono .*`,
 }, {
+	assumes: "[snapd2.15~pre1]",
+	version: "unknown",
+	error:   `.* unsupported features: snapd2.15~pre1 .*`,
+}, {
 	assumes: "[snapd2.15]",
 	version: "2.15",
 }, {
@@ -134,11 +138,48 @@ var assumesTests = []struct {
 	assumes: "[snapd2.15.1]",
 	version: "2.16",
 }, {
+	assumes: "[snapd2.15.1]",
+	version: "2.15.1",
+}, {
+	assumes: "[snapd2.15.1.2]",
+	version: "2.15.1.2",
+}, {
+	assumes: "[snapd2.15.1.2]",
+	version: "2.15.1.3",
+}, {
+	// the horror the horror!
+	assumes: "[snapd2.15.1.2.4.5.6.7.8.8]",
+	version: "2.15.1.2.4.5.6.7.8.8",
+}, {
+	assumes: "[snapd2.15.1.2.4.5.6.7.8.8]",
+	version: "2.15.1.2.4.5.6.7.8.9",
+}, {
+	assumes: "[snapd2.15.1.2]",
+	version: "2.15.1.3",
+}, {
 	assumes: "[snapd2.15.2]",
 	version: "2.16.1",
 }, {
+	assumes: "[snapd2.1000]",
+	version: "3.1",
+}, {
 	assumes: "[snapd3]",
 	version: "3.1",
+}, {
+	assumes: "[snapd2]",
+	version: "3.1",
+}, {
+	assumes: "[snapd3]",
+	version: "2.48",
+	error:   `.* unsupported features: snapd3 .*`,
+}, {
+	assumes: "[snapd2.15.1.2]",
+	version: "2.15.1.1",
+	error:   `.* unsupported features: snapd2\.15\.1\.2 .*`,
+}, {
+	assumes: "[snapd2.15.1.2.4.5.6.7.8.8]",
+	version: "2.15.1.2.4.5.6.7.8.1",
+	error:   `.* unsupported features: snapd2\.15\.1\.2\.4\.5\.6\.7\.8\.8 .*`,
 }, {
 	assumes: "[snapd2.16]",
 	version: "2.15",
@@ -168,16 +209,19 @@ func (s *checkSnapSuite) TestCheckSnapAssumes(c *C) {
 	defer restore()
 
 	for _, test := range assumesTests {
+
 		snapdtool.Version = test.version
 		if snapdtool.Version == "" {
 			snapdtool.Version = "2.15"
 		}
+
+		comment := Commentf("snap assumes %q, but snapd version is %q", test.assumes, snapdtool.Version)
 		release.OnClassic = test.classic
 
 		yaml := fmt.Sprintf("name: foo\nversion: 1.0\nassumes: %s\n", test.assumes)
 
 		info, err := snap.InfoFromSnapYaml([]byte(yaml))
-		c.Assert(err, IsNil)
+		c.Assert(err, IsNil, comment)
 
 		var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 			return info, emptyContainer(c), nil
@@ -186,9 +230,9 @@ func (s *checkSnapSuite) TestCheckSnapAssumes(c *C) {
 		defer restore()
 		err = snapstate.CheckSnap(s.st, "snap-path", "foo", nil, nil, snapstate.Flags{}, nil)
 		if test.error != "" {
-			c.Check(err, ErrorMatches, test.error)
+			c.Check(err, ErrorMatches, test.error, comment)
 		} else {
-			c.Assert(err, IsNil)
+			c.Assert(err, IsNil, comment)
 		}
 	}
 }

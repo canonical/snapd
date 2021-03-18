@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,29 +17,22 @@
  *
  */
 
-package configstate_test
+package daemon
 
-import (
-	"github.com/snapcore/snapd/overlord/configstate"
-
-	. "gopkg.in/check.v1"
+type (
+	ThemeStatus         = themeStatus
+	ThemeStatusResponse = themeStatusResponse
 )
 
-func (s *miscSuite) TestSortPatchKeysEmpty(c *C) {
-	patch := map[string]interface{}{}
-	keys := configstate.SortPatchKeysByDepth(patch)
-	c.Assert(keys, IsNil)
-}
+var (
+	// XXX it would be nice to not export this
+	ThemesCmd                    = themesCmd
+	InstalledThemes              = installedThemes
+	ThemePackageCandidates       = themePackageCandidates
+	ThemeStatusAndCandidateSnaps = themeStatusAndCandidateSnaps
+	CollectThemeStatusForPrefix  = collectThemeStatusForPrefix
 
-func (s *miscSuite) TestSortPatchKeys(c *C) {
-	patch := map[string]interface{}{
-		"a.b.c":         0,
-		"a":             0,
-		"a.b.c.d":       0,
-		"q.w.e.r.t.y.u": 0,
-		"f.g":           0,
-	}
-
-	keys := configstate.SortPatchKeysByDepth(patch)
-	c.Assert(keys, DeepEquals, []string{"a", "f.g", "a.b.c", "a.b.c.d", "q.w.e.r.t.y.u"})
-}
+	ThemeInstalled   = themeInstalled
+	ThemeAvailable   = themeAvailable
+	ThemeUnavailable = themeUnavailable
+)

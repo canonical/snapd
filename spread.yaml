@@ -3,6 +3,9 @@ project: snapd
 environment:
     GOHOME: /home/gopath
     GOPATH: $GOHOME
+    # TODO: some distros started shipping Go 1.16 which defaults to having
+    # modules enabled, drop this when snapd starts supporting Go modules
+    GO111MODULE: off
     REUSE_PROJECT: '$(HOST: echo "$REUSE_PROJECT")'
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
     # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
@@ -37,7 +40,7 @@ environment:
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
     REMOTE_STORE: '$(HOST: echo "${SPREAD_REMOTE_STORE:-production}")'
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
-    DELTA_REF: 2.48
+    DELTA_REF: 2.49
     DELTA_PREFIX: snapd-$DELTA_REF/
     REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'
     SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
@@ -104,7 +107,9 @@ backends:
                   secureboot: true
             - ubuntu-20.10-64:
                   workers: 8
-                  image: ubuntu-20.10-64
+            - ubuntu-21.04-64:
+                  workers: 8
+                  image: ubuntu-os-cloud-devel/ubuntu-2104
 
             - debian-9-64:
                   workers: 6
@@ -135,7 +140,7 @@ backends:
                   workers: 6
                   manual: true
             - centos-8-64:
-                  workers: 4
+                  workers: 6
                   storage: preserve-size
                   image: centos-8-64
 
@@ -232,6 +237,9 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-20.10-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-21.04-64:
                   username: ubuntu
                   password: ubuntu
             - debian-sid-64:
@@ -470,7 +478,7 @@ debug-each: |
         # use ascii output to prevent travis from messing up the encoding
         findmnt --ascii -o+PROPAGATION || true
         echo "# processes"
-        ps aux
+        ps axl
         echo "# /var/lib/snapd"
         find /var/lib/snapd/ -not -path '/var/lib/snapd/snap/*' -ls || true
     fi
@@ -532,6 +540,7 @@ prepare: |
         restorecon -v /etc/gai.conf
     fi
 
+    # Note that os.query or any other tool cannot be used here before the current.delta file is unpacked
     if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
         # The Fedora archive mirror seems to be unreliable.
         # Switch to the main archive by commenting out metalink and uncommenting
@@ -546,9 +555,11 @@ prepare: |
         # enable audit daemon
         systemctl enable --now auditd.service
     fi
+
     if [[ "$SPREAD_SYSTEM" == opensuse-* ]]; then
         # refresh metadatadata
-        zypper ref
+        # Auto import gpg keys needed for could repository added to support google backend
+        zypper --gpg-auto-import-keys ref
         # We seem to be hitting a flaky openSUSE mirror from time to time,
         # increase the number of download attempts libzypp will try to
         # workaround that.
@@ -556,6 +567,9 @@ prepare: |
     # added by spread tests
     download.max_silent_tries = 20
     EOF
+
+        # Make sure docs are installed with the packages
+        sed 's/rpm.install.excludedocs = yes/rpm.install.excludedocs = no/g' -i /etc/zypp/zypp.conf
     fi
 
     if [[ "$SPREAD_SYSTEM" == arch-* ]]; then

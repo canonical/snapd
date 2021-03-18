@@ -103,3 +103,9 @@ func (s *LxdSupportInterfaceSuite) TestAutoConnect(c *C) {
 func (s *LxdSupportInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }
+
+func (s *LxdSupportInterfaceSuite) TestServicePermanentPlugSnippets(c *C) {
+	snips, err := interfaces.PermanentPlugServiceSnippets(s.iface, s.plugInfo)
+	c.Assert(err, IsNil)
+	c.Check(snips, DeepEquals, []string{"Delegate=true"})
+}

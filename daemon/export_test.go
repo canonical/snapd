@@ -32,8 +32,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var MinLane = minLane
-
 func NewAndAddRoutes() (*Daemon, error) {
 	d, err := New()
 	if err != nil {
@@ -127,11 +125,43 @@ func MockSnapstateInstallPath(mock func(*state.State, *snap.SideInfo, string, st
 	}
 }
 
+func MockSnapstateUpdate(mock func(*state.State, string, *snapstate.RevisionOptions, int, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
+	oldSnapstateUpdate := snapstateUpdate
+	snapstateUpdate = mock
+	return func() {
+		snapstateUpdate = oldSnapstateUpdate
+	}
+}
+
 func MockSnapstateTryPath(mock func(*state.State, string, string, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
 	oldSnapstateTryPath := snapstateTryPath
 	snapstateTryPath = mock
 	return func() {
 		snapstateTryPath = oldSnapstateTryPath
+	}
+}
+
+func MockSnapstateSwitch(mock func(*state.State, string, *snapstate.RevisionOptions) (*state.TaskSet, error)) (restore func()) {
+	oldSnapstateSwitch := snapstateSwitch
+	snapstateSwitch = mock
+	return func() {
+		snapstateSwitch = oldSnapstateSwitch
+	}
+}
+
+func MockSnapstateRevert(mock func(*state.State, string, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
+	oldSnapstateRevert := snapstateRevert
+	snapstateRevert = mock
+	return func() {
+		snapstateRevert = oldSnapstateRevert
+	}
+}
+
+func MockSnapstateRevertToRevision(mock func(*state.State, string, snap.Revision, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
+	oldSnapstateRevertToRevision := snapstateRevertToRevision
+	snapstateRevertToRevision = mock
+	return func() {
+		snapstateRevertToRevision = oldSnapstateRevertToRevision
 	}
 }
 
@@ -161,14 +191,38 @@ func MockSnapstateRemoveMany(mock func(*state.State, []string) ([]string, []*sta
 
 type (
 	Resp            = resp
+	RespJSON        = respJSON
+	FileResponse    = fileResponse
 	ErrorResult     = errorResult
 	SnapInstruction = snapInstruction
 )
+
+// XXX this is not used very consistently
+func (rsp *resp) ErrorResult() *errorResult {
+	return rsp.Result.(*errorResult)
+}
 
 func (inst *snapInstruction) Dispatch() snapActionFunc {
 	return inst.dispatch()
 }
 
-func (inst *snapInstruction) DispatchForMany() snapsActionFunc {
+func (inst *snapInstruction) DispatchForMany() snapManyActionFunc {
 	return inst.dispatchForMany()
 }
+
+func (inst *snapInstruction) SetUserID(userID int) {
+	inst.userID = userID
+}
+
+func (inst *snapInstruction) ModeFlags() (snapstate.Flags, error) {
+	return inst.modeFlags()
+}
+
+func (inst *snapInstruction) ErrToResponse(err error) Response {
+	return inst.errToResponse(err)
+}
+
+var (
+	MakeErrorResponder = makeErrorResponder
+	ErrToResponse      = errToResponse
+)

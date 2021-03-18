@@ -50,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -168,6 +169,13 @@ func (r *Repair) Run() error {
 	}
 	if !havePath {
 		env = append(env, "PATH=/usr/sbin:/usr/bin:/sbin:/bin:"+repairToolsDir)
+	}
+
+	// TODO:UC20 what other details about recover mode should be included in the
+	// env for the repair assertion to read about? probably somethings related
+	// to degraded.json
+	if r.run.state.Device.Mode != "" {
+		env = append(env, fmt.Sprintf("SNAP_SYSTEM_MODE=%s", r.run.state.Device.Mode))
 	}
 
 	workdir := filepath.Join(rundir, "work")
@@ -493,6 +501,8 @@ func (run *Runner) Peek(brandID string, repairID int) (headers map[string]interf
 type deviceInfo struct {
 	Brand string `json:"brand"`
 	Model string `json:"model"`
+	Base  string `json:"base"`
+	Mode  string `json:"mode"`
 }
 
 // RepairStatus represents the possible statuses of a repair.
@@ -650,7 +660,7 @@ func verifySignatures(a asserts.Assertion, workBS asserts.Backstore, trusted ass
 				return err
 			}
 		}
-		if err := asserts.CheckSignature(a, key.(*asserts.AccountKey), nil, time.Time{}); err != nil {
+		if err := asserts.CheckSignature(a, key.(*asserts.AccountKey), nil, time.Time{}, time.Time{}); err != nil {
 			return err
 		}
 		a = key
@@ -686,37 +696,57 @@ func (run *Runner) findTimeLowerBound() error {
 	return nil
 }
 
-func findBrandAndModel() (string, string, error) {
+func findBrandAndModel() (*deviceInfo, error) {
 	if osutil.FileExists(dirs.SnapModeenvFile) {
-		return findBrandAndModel20()
+		return findDevInfo20()
 	}
-	return findBrandAndModel16()
+	return findDevInfo16()
 }
 
-func findBrandAndModel20() (brand, model string, err error) {
+func findDevInfo20() (*deviceInfo, error) {
 	cfg := goconfigparser.New()
 	cfg.AllowNoSectionHeader = true
 	if err := cfg.ReadFile(dirs.SnapModeenvFile); err != nil {
-		return "", "", err
+		return nil, err
 	}
 	brandAndModel, err := cfg.Get("", "model")
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 	l := strings.SplitN(brandAndModel, "/", 2)
 	if len(l) != 2 {
-		return "", "", fmt.Errorf("cannot find brand/model in modeenv model string %q", brandAndModel)
+		return nil, fmt.Errorf("cannot find brand/model in modeenv model string %q", brandAndModel)
 	}
 
-	return l[0], l[1], nil
+	mode, err := cfg.Get("", "mode")
+	if err != nil {
+		return nil, err
+	}
+
+	baseName, err := cfg.Get("", "base")
+	if err != nil {
+		return nil, err
+	}
+
+	baseSn, err := snap.ParsePlaceInfoFromSnapFileName(baseName)
+	if err != nil {
+		return nil, err
+	}
+
+	return &deviceInfo{
+		Brand: l[0],
+		Model: l[1],
+		Base:  baseSn.SnapName(),
+		Mode:  mode,
+	}, nil
 }
 
-func findBrandAndModel16() (brand, model string, err error) {
+func findDevInfo16() (*deviceInfo, error) {
 	workBS := asserts.NewMemoryBackstore()
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
 	dc, err := ioutil.ReadDir(assertSeedDir)
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 	var modelAs *asserts.Model
 	for _, fi := range dc {
@@ -736,7 +766,7 @@ func findBrandAndModel16() (brand, model string, err error) {
 			switch a.Type() {
 			case asserts.ModelType:
 				if modelAs != nil {
-					return "", "", fmt.Errorf("multiple models in seed assertions")
+					return nil, fmt.Errorf("multiple models in seed assertions")
 				}
 				modelAs = a.(*asserts.Model)
 			case asserts.AccountType, asserts.AccountKeyType:
@@ -745,11 +775,11 @@ func findBrandAndModel16() (brand, model string, err error) {
 		}
 	}
 	if modelAs == nil {
-		return "", "", fmt.Errorf("no model assertion in seed data")
+		return nil, fmt.Errorf("no model assertion in seed data")
 	}
 	trustedBS := trustedBackstore(sysdb.Trusted())
 	if err := verifySignatures(modelAs, workBS, trustedBS); err != nil {
-		return "", "", err
+		return nil, err
 	}
 	acctPK := []string{modelAs.BrandID()}
 	acctMaxSupFormat := asserts.AccountType.MaxSupportedFormat()
@@ -758,22 +788,36 @@ func findBrandAndModel16() (brand, model string, err error) {
 		var err error
 		acct, err = workBS.Get(asserts.AccountType, acctPK, acctMaxSupFormat)
 		if err != nil {
-			return "", "", fmt.Errorf("no brand account assertion in seed data")
+			return nil, fmt.Errorf("no brand account assertion in seed data")
 		}
 	}
 	if err := verifySignatures(acct, workBS, trustedBS); err != nil {
-		return "", "", err
+		return nil, err
 	}
-	return modelAs.BrandID(), modelAs.Model(), nil
+
+	// get the base snap as well, on uc16 it won't be specified in the model
+	// assertion and instead will be empty, so in this case we replace it with
+	// "core"
+	base := modelAs.Base()
+	if modelAs.Base() == "" {
+		base = "core"
+	}
+
+	return &deviceInfo{
+		Brand: modelAs.BrandID(),
+		Model: modelAs.Model(),
+		Base:  base,
+		// Mode is unset on uc16/uc18
+	}, nil
 }
 
 func (run *Runner) initDeviceInfo() error {
-	brandID, model, err := findBrandAndModel()
+	dev, err := findBrandAndModel()
 	if err != nil {
 		return fmt.Errorf("cannot set device information: %v", err)
 	}
-	run.state.Device.Brand = brandID
-	run.state.Device.Model = model
+	run.state.Device = *dev
+
 	return nil
 }
 
@@ -866,6 +910,49 @@ func (run *Runner) Applicable(headers map[string]interface{}) bool {
 			return false
 		}
 	}
+
+	// also filter by base snaps and modes
+	bases, err := stringList(headers, "bases")
+	if err != nil {
+		return false
+	}
+
+	if len(bases) != 0 && !strutil.ListContains(bases, run.state.Device.Base) {
+		return false
+	}
+
+	modes, err := stringList(headers, "modes")
+	if err != nil {
+		return false
+	}
+
+	// modes is slightly more nuanced, if the modes setting in the assertion
+	// header is unset, then it means it runs on all uc16/uc18 devices, but only
+	// during run mode on uc20 devices
+	if run.state.Device.Mode == "" {
+		// uc16 / uc18 device, the assertion is only applicable to us if modes
+		// is unset
+		if len(modes) != 0 {
+			return false
+		}
+		// else modes is unset and still applies to us
+	} else {
+		// uc20 device
+		switch {
+		case len(modes) == 0 && run.state.Device.Mode != "run":
+			// if modes is unset, then it is only applicable if we are
+			// in run mode
+			return false
+		case len(modes) != 0 && !strutil.ListContains(modes, run.state.Device.Mode):
+			// modes was specified and our current mode is not in the header, so
+			// not applicable to us
+			return false
+		}
+		// other cases are either that we are in run mode and modes is unset (in
+		// which case it is applicable) or modes is set to something with our
+		// current mode in the list (also in which case it is applicable)
+	}
+
 	return true
 }
 
@@ -986,7 +1073,8 @@ func (run *Runner) makeReady(brandID string, sequenceNext int) (repair *asserts.
 	return repair, nil
 }
 
-// Next returns the next repair for the brand id sequence to run/retry or ErrRepairNotFound if there is none atm. It updates the state as required.
+// Next returns the next repair for the brand id sequence to run/retry or
+// ErrRepairNotFound if there is none atm. It updates the state as required.
 func (run *Runner) Next(brandID string) (*Repair, error) {
 	sequenceNext := run.sequenceNext[brandID]
 	if sequenceNext == 0 {

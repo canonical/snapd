@@ -20,6 +20,7 @@
 package servicestate_test
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -54,24 +55,38 @@ func (s *statusDecoratorSuite) TestDecorateWithStatus(c *C) {
 
 	disabled := false
 	r := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
-		c.Assert(args[0], Equals, "show")
-		unit := args[2]
-		activeState, unitState := "active", "enabled"
-		if disabled {
-			activeState = "inactive"
-			unitState = "disabled"
-		}
-		if strings.HasSuffix(unit, ".timer") || strings.HasSuffix(unit, ".socket") {
-			return []byte(fmt.Sprintf(`Id=%s
+		switch args[0] {
+		case "show":
+			c.Assert(args[0], Equals, "show")
+			unit := args[2]
+			activeState, unitState := "active", "enabled"
+			if disabled {
+				activeState = "inactive"
+				unitState = "disabled"
+			}
+			if strings.HasSuffix(unit, ".timer") || strings.HasSuffix(unit, ".socket") {
+				return []byte(fmt.Sprintf(`Id=%s
 ActiveState=%s
 UnitFileState=%s
 `, args[2], activeState, unitState)), nil
-		} else {
-			return []byte(fmt.Sprintf(`Id=%s
+			} else {
+				return []byte(fmt.Sprintf(`Id=%s
 Type=simple
 ActiveState=%s
 UnitFileState=%s
 `, args[2], activeState, unitState)), nil
+			}
+		case "--user":
+			c.Assert(args[1], Equals, "--global")
+			c.Assert(args[2], Equals, "is-enabled")
+			unitState := "enabled\n"
+			if disabled {
+				unitState = "disabled\n"
+			}
+			return bytes.Repeat([]byte(unitState), len(args)-3), nil
+		default:
+			c.Errorf("unexpected systemctl command: %v", args)
+			return nil, fmt.Errorf("should not be reached")
 		}
 	})
 	defer r()
@@ -98,9 +113,10 @@ UnitFileState=%s
 			Daemon: "simple",
 		}
 		snapApp = &snap.AppInfo{
-			Snap:   snp,
-			Name:   "svc",
-			Daemon: "simple",
+			Snap:        snp,
+			Name:        "svc",
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
 		}
 
 		err = sd.DecorateWithStatus(app, snapApp)
@@ -161,5 +177,81 @@ UnitFileState=%s
 			{Name: "socket1", Type: "socket", Active: enabled, Enabled: enabled},
 		})
 
+		// service with D-Bus activation
+		app = &client.AppInfo{
+			Snap:   snp.InstanceName(),
+			Name:   "svc",
+			Daemon: "simple",
+		}
+		snapApp = &snap.AppInfo{
+			Snap:        snp,
+			Name:        "svc",
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
+		}
+		snapApp.ActivatesOn = []*snap.SlotInfo{
+			{
+				Snap:      snp,
+				Name:      "dbus-slot",
+				Interface: "dbus",
+				Attrs: map[string]interface{}{
+					"bus":  "system",
+					"name": "org.example.Svc",
+				},
+			},
+		}
+
+		err = sd.DecorateWithStatus(app, snapApp)
+		c.Assert(err, IsNil)
+		c.Check(app.Active, Equals, enabled)
+		c.Check(app.Enabled, Equals, enabled)
+		c.Check(app.Activators, DeepEquals, []client.AppActivator{
+			{Name: "org.example.Svc", Type: "dbus", Active: true, Enabled: true},
+		})
+
+		// No state is currently extracted for user daemons
+		app = &client.AppInfo{
+			Snap:   snp.InstanceName(),
+			Name:   "svc",
+			Daemon: "simple",
+		}
+		snapApp = &snap.AppInfo{
+			Snap:        snp,
+			Name:        "svc",
+			Daemon:      "simple",
+			DaemonScope: snap.UserDaemon,
+		}
+		snapApp.Sockets = map[string]*snap.SocketInfo{
+			"socket1": {
+				App:          snapApp,
+				Name:         "socket1",
+				ListenStream: "a.socket",
+			},
+		}
+		snapApp.Timer = &snap.TimerInfo{
+			App:   snapApp,
+			Timer: "10:00",
+		}
+		snapApp.ActivatesOn = []*snap.SlotInfo{
+			{
+				Snap:      snp,
+				Name:      "dbus-slot",
+				Interface: "dbus",
+				Attrs: map[string]interface{}{
+					"bus":  "session",
+					"name": "org.example.Svc",
+				},
+			},
+		}
+
+		err = sd.DecorateWithStatus(app, snapApp)
+		c.Assert(err, IsNil)
+		c.Check(app.Active, Equals, false)
+		c.Check(app.Enabled, Equals, enabled)
+		c.Check(app.Activators, DeepEquals, []client.AppActivator{
+			{Name: "socket1", Type: "socket", Active: false, Enabled: enabled},
+			{Name: "svc", Type: "timer", Active: false, Enabled: enabled},
+			{Name: "org.example.Svc", Type: "dbus", Active: true, Enabled: true},
+		})
 	}
 }

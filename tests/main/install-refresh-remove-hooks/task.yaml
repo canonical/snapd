@@ -22,7 +22,6 @@ restore: |
         snap set system experimental.parallel-instances=null
     fi
 
-restore: |
     rm -f "$REMOVE_HOOK_FILE"
 
 execute: |
