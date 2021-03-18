@@ -371,15 +371,17 @@ func canResolveAllVolumeKernelRefs(pNew *LaidOutVolume, kernelInfo *kernel.Info)
 		for _, ps := range pNew.LaidOutStructure {
 			for _, rc := range ps.Content {
 				pathOrRef := rc.UnresolvedSource
-				if strings.HasPrefix(pathOrRef, "$kernel:") {
-					wantedAsset, _, err := splitKernelRef(pathOrRef)
-					if err != nil {
-						return err
-					}
-					if assetName == wantedAsset {
-						found = true
-						break
-					}
+				if !strings.HasPrefix(pathOrRef, "$kernel:") {
+					// regular asset from the gadget snap
+					continue
+				}
+				wantedAsset, _, err := splitKernelRef(pathOrRef)
+				if err != nil {
+					return err
+				}
+				if assetName == wantedAsset {
+					found = true
+					break
 				}
 			}
 		}
