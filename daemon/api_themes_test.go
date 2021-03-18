@@ -43,7 +43,6 @@ type themesSuite struct {
 	apiBaseSuite
 
 	available map[string]*snap.Info
-	err       error
 }
 
 func (s *themesSuite) SetUpTest(c *C) {
