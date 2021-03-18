@@ -6666,7 +6666,7 @@ volumes:
 	chg := st.NewChange("upgrade-snaps", "...")
 	for _, ts := range tasksets {
 		// skip the taskset of UpdateMany that does the
-		// check-refresh, see tsWithoutReRefresh for details
+		// check-rerefresh, see tsWithoutReRefresh for details
 		if ts.Tasks()[0].Kind() == "check-rerefresh" {
 			continue
 		}
@@ -6800,7 +6800,7 @@ volumes:
 	tError := st.NewTask("error-trigger", "gadget failed")
 	for _, ts := range tasksets {
 		// skip the taskset of UpdateMany that does the
-		// check-refresh, see tsWithoutReRefresh for details
+		// check-rerefresh, see tsWithoutReRefresh for details
 		tasks := ts.Tasks()
 		if tasks[0].Kind() == "check-rerefresh" {
 			continue
@@ -6815,7 +6815,7 @@ volumes:
 			// XXX: or just use "snap-setup" here?
 			tError.Set("snap-setup-task", tasks[0].ID())
 			ts.AddTask(tError)
-			// must be in the same lane as the gadget upate
+			// must be in the same lane as the gadget update
 			lanes := last.Lanes()
 			c.Assert(lanes, HasLen, 1)
 			tError.JoinLane(lanes[0])
@@ -6935,7 +6935,7 @@ volumes:
 	tError := st.NewTask("error-trigger", "kernel failed")
 	for _, ts := range tasksets {
 		// skip the taskset of UpdateMany that does the
-		// check-refresh, see tsWithoutReRefresh for details
+		// check-rerefresh, see tsWithoutReRefresh for details
 		tasks := ts.Tasks()
 		if tasks[0].Kind() == "check-rerefresh" {
 			continue
@@ -6950,7 +6950,7 @@ volumes:
 			// XXX: or just use "snap-setup" here?
 			tError.Set("snap-setup-task", tasks[0].ID())
 			ts.AddTask(tError)
-			// must be in the same lane as the gadget upate
+			// must be in the same lane as the kernel update
 			lanes := last.Lanes()
 			c.Assert(lanes, HasLen, 1)
 			tError.JoinLane(lanes[0])
@@ -6993,12 +6993,12 @@ volumes:
 	c.Check(taskStates["pi:link-snap"], Equals, state.DoneStatus)
 
 	// Note that the undo of the kernel did *not* revert the DTBs on
-	// disk. The reasons is that we never undo asset updates on the
+	// disk. The reason is that we never undo asset updates on the
 	// basis that if the system booted they are probably good enough.
-	// A really broken DTB can brick the device, the new DTB is written
-	// to disk, the system reboot and neither new kernel nor fallback
+	// A really broken DTB can brick the device if the new DTB is written
+	// to disk, the system reboots and neither new kernel nor fallback
 	// kernel will boot because there is no A/B DTB. This is a flaw
-	// of the PI and u-boot.
+	// of the Pi and u-boot.
 	//
 	// In the future we will integrate with the "pi-boot" mechanism that
 	// allows doing a A/B boot using the config.txt "os-prefix" dir. This

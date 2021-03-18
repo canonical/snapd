@@ -1774,7 +1774,8 @@ assets:
     update: true
     content:
     - kernel-content`)
-	// but gadget.yaml does not have this
+	// but gadget.yaml does not have this, what violates kernel update policy 
+	// rule no. 1 from update.go
 	fsStruct := gadget.VolumeStructure{
 		Name:       "foo",
 		Size:       5 * quantity.SizeMiB,
@@ -1818,6 +1819,6 @@ assets:
 	err := gadget.Update(oldData, newData, rollbackDir, gadget.KernelUpdatePolicy, muo)
 	c.Assert(err, ErrorMatches, `cannot find required kernel asset "ref" in gadget`)
 
-	// ensure update for kernel content didn't happened
+	// ensure update for kernel content didn't happen
 	c.Assert(muo.beforeWriteCalled, Equals, 0)
 }
