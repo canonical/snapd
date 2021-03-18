@@ -6299,15 +6299,9 @@ func (ms *gadgetUpdatesSuite) mockInstalledSnapWithFiles(c *C, snapYaml string, 
 	})
 }
 
+// mockSnapUpgradeWithFiles will put a "rev 2" of the given snapYaml/files
+// into the mock snapstore
 func (ms *gadgetUpdatesSuite) mockSnapUpgradeWithFiles(c *C, snapYaml string, files [][]string) {
-	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
-	c.Assert(err, IsNil)
-
-	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    info.SnapName(),
-		"publisher-id": "can0nical",
-		"revision":     "2",
-	})
 	snapPath, _ := ms.makeStoreTestSnapWithFiles(c, snapYaml, "2", files)
 	ms.serveSnap(snapPath, "2")
 }
