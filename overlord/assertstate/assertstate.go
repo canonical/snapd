@@ -362,6 +362,8 @@ func RefreshValidationSetAssertions(s *state.State, userID int) error {
 
 	// update validation set tracking state
 	for _, vs := range vsets {
+		// TODO: for enforce mode check that the validation-sets don't conflict
+		// and are usable before moving Current.
 		if vs.Mode == Monitor && vs.PinnedAt == 0 {
 			headers := map[string]string{
 				"series":     release.Series,
