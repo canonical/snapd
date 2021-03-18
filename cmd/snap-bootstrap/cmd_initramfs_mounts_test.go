@@ -65,6 +65,8 @@ type initramfsMountsSuite struct {
 	model    *asserts.Model
 	tmpDir   string
 
+	snapDeclAssertsTime time.Time
+
 	kernel   snap.PlaceInfo
 	kernelr2 snap.PlaceInfo
 	core20   snap.PlaceInfo
@@ -128,7 +130,7 @@ func (m *mockedWrappedError) Unwrap() error { return m.err }
 
 func (m *mockedWrappedError) Error() string { return fmt.Sprintf(m.fmt, m.err) }
 
-func (s *initramfsMountsSuite) setupSeed(c *C, gadgetSnapFiles [][]string) {
+func (s *initramfsMountsSuite) setupSeed(c *C, modelAssertTime time.Time, gadgetSnapFiles [][]string) {
 	// pretend /run/mnt/ubuntu-seed has a valid seed
 	s.seedDir = boot.InitramfsUbuntuSeedDir
 
@@ -143,17 +145,27 @@ func (s *initramfsMountsSuite) setupSeed(c *C, gadgetSnapFiles [][]string) {
 		"verification": "verified",
 	})
 
+	// make sure all the assertions use the same time
+	seed20.SetSnapAssertionNow(s.snapDeclAssertsTime)
+
 	// add a bunch of snaps
 	seed20.MakeAssertedSnap(c, "name: snapd\nversion: 1\ntype: snapd", nil, snap.R(1), "canonical", seed20.StoreSigning.Database)
 	seed20.MakeAssertedSnap(c, "name: pc\nversion: 1\ntype: gadget\nbase: core20", gadgetSnapFiles, snap.R(1), "canonical", seed20.StoreSigning.Database)
 	seed20.MakeAssertedSnap(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil, snap.R(1), "canonical", seed20.StoreSigning.Database)
 	seed20.MakeAssertedSnap(c, "name: core20\nversion: 1\ntype: base", nil, snap.R(1), "canonical", seed20.StoreSigning.Database)
 
+	// pretend that by default, the model uses an older timestamp than the
+	// snap assertions
+	if modelAssertTime.IsZero() {
+		modelAssertTime = s.snapDeclAssertsTime.Add(-30 * time.Minute)
+	}
+
 	s.sysLabel = "20191118"
 	s.model = seed20.MakeSeed(c, s.sysLabel, "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
+		"timestamp":    modelAssertTime.Format(time.RFC3339),
 		"snaps": []interface{}{
 			map[string]interface{}{
 				"name":            "pc-kernel",
@@ -168,7 +180,6 @@ func (s *initramfsMountsSuite) setupSeed(c *C, gadgetSnapFiles [][]string) {
 				"default-channel": "20",
 			}},
 	}, nil)
-
 }
 
 func (s *initramfsMountsSuite) SetUpTest(c *C) {
@@ -186,8 +197,13 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	restore = func() { dirs.SetRootDir("") }
 	s.AddCleanup(restore)
 
+	// use a specific time for all the assertions, in the future so that we can
+	// set the timestamp of the model assertion to something newer than now, but
+	// still older than the snap declarations by default
+	s.snapDeclAssertsTime = time.Now().Add(60 * time.Minute)
+
 	// setup the seed
-	s.setupSeed(c, nil)
+	s.setupSeed(c, time.Time{}, nil)
 
 	// make test snap PlaceInfo's for various boot functionality
 	var err error
@@ -222,6 +238,71 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 	s.AddCleanup(main.MockSecbootLockSealedKeys(func() error {
 		return nil
 	}))
+
+	s.AddCleanup(main.MockOsutilSetTime(func(time.Time) error {
+		return nil
+	}))
+}
+
+// static test cases for time test variants shared across the different modes
+
+type timeTestCase struct {
+	now       time.Time
+	modelTime time.Time
+	expT      time.Time
+	comment   string
+}
+
+func (s *initramfsMountsSuite) timeTestCases() []timeTestCase {
+	// epoch time
+	epoch := time.Time{}
+
+	// t1 is the kernel initrd build time
+	t1 := s.snapDeclAssertsTime.Add(-30 * 24 * time.Hour)
+	// technically there is another time here between t1 and t2, that is the
+	// default model sign time, but since it's older than the snap assertion
+	// sign time (t2) it's not actually used in the test
+
+	// t2 is the time that snap-revision / snap-declaration assertions will be
+	// signed with
+	t2 := s.snapDeclAssertsTime
+
+	// t3 is a time after the snap-declarations are signed
+	t3 := s.snapDeclAssertsTime.Add(30 * 24 * time.Hour)
+
+	// t4 and t5 are both times after the the snap declarations are signed
+	t4 := s.snapDeclAssertsTime.Add(60 * 24 * time.Hour)
+	t5 := s.snapDeclAssertsTime.Add(120 * 24 * time.Hour)
+
+	return []timeTestCase{
+		{
+			now:     epoch,
+			expT:    t2,
+			comment: "now() is epoch",
+		},
+		{
+			now:     t1,
+			expT:    t2,
+			comment: "now() is kernel initrd sign time",
+		},
+		{
+			now:     t3,
+			expT:    t3,
+			comment: "now() is newer than snap assertion",
+		},
+		{
+			now:       t3,
+			modelTime: t4,
+			expT:      t4,
+			comment:   "model time is newer than now(), which is newer than snap asserts",
+		},
+		{
+			now:       t5,
+			modelTime: t4,
+			expT:      t5,
+			comment:   "model time is newest, but older than now()",
+		},
+	}
 }
 
 // helpers to create consistent UnlockResult values
@@ -462,6 +543,56 @@ grade=signed
 	c.Check(sealedKeysLocked, Equals, true)
 }
 
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeTimeMovesForwardHappy(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
+
+	for _, tc := range s.timeTestCases() {
+		comment := Commentf(tc.comment)
+		cleanups := []func(){}
+
+		// always remove the ubuntu-seed dir, otherwise setupSeed complains the
+		// model file already exists and can't setup the seed
+		err := os.RemoveAll(filepath.Join(boot.InitramfsUbuntuSeedDir))
+		c.Assert(err, IsNil, comment)
+		s.setupSeed(c, tc.modelTime, nil)
+
+		restore := main.MockTimeNow(func() time.Time {
+			return tc.now
+		})
+		cleanups = append(cleanups, restore)
+
+		// check what time we try to move forward to
+		restore = main.MockOsutilSetTime(func(t time.Time) error {
+			// make sure the timestamps are within 1 second of each other, they
+			// won't be equal since the timestamp is serialized to an assertion and
+			// read back
+			c.Assert(t.Sub(tc.expT) < time.Second, Equals, true, Commentf("%s, exp %s, got %s", tc.comment, t, s.snapDeclAssertsTime))
+			return nil
+		})
+		cleanups = append(cleanups, restore)
+
+		restore = s.mockSystemdMountSequence(c, []systemdMount{
+			ubuntuLabelMount("ubuntu-seed", "install"),
+			s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+			s.makeSeedSnapSystemdMount(snap.TypeKernel),
+			s.makeSeedSnapSystemdMount(snap.TypeBase),
+			{
+				"tmpfs",
+				boot.InitramfsDataDir,
+				tmpfsMountOpts,
+			},
+		}, nil)
+		cleanups = append(cleanups, restore)
+
+		_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+		c.Assert(err, IsNil, comment)
+
+		for _, r := range cleanups {
+			r()
+		}
+	}
+}
+
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeGadgetDefaultsHappy(c *C) {
 	// setup a seed with default gadget yaml
 	const gadgetYamlDefaults = `
@@ -475,7 +606,7 @@ defaults:
 `
 	c.Assert(os.RemoveAll(s.seedDir), IsNil)
 
-	s.setupSeed(c, [][]string{
+	s.setupSeed(c, time.Time{}, [][]string{
 		{"meta/gadget.yaml", gadgetYamlDefaults},
 	})
 
@@ -608,6 +739,81 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUnencryptedWithSaveHapp
 
 	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 	c.Assert(err, IsNil)
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeTimeMovesForwardHappy(c *C) {
+
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	for _, tc := range s.timeTestCases() {
+		comment := Commentf(tc.comment)
+		cleanups := []func(){}
+
+		// always remove the ubuntu-seed dir, otherwise setupSeed complains the
+		// model file already exists and can't setup the seed
+		err := os.RemoveAll(filepath.Join(boot.InitramfsUbuntuSeedDir))
+		c.Assert(err, IsNil, comment)
+		s.setupSeed(c, tc.modelTime, nil)
+
+		restore := main.MockTimeNow(func() time.Time {
+			return tc.now
+		})
+		cleanups = append(cleanups, restore)
+
+		restore = disks.MockMountPointDisksToPartitionMapping(
+			map[disks.Mountpoint]*disks.MockDiskMapping{
+				{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootDisk,
+				{Mountpoint: boot.InitramfsDataDir}:       defaultBootDisk,
+			},
+		)
+		cleanups = append(cleanups, restore)
+
+		// check what time we try to move forward to
+		restore = main.MockOsutilSetTime(func(t time.Time) error {
+			// make sure the timestamps are within 1 second of each other, they
+			// won't be equal since the timestamp is serialized to an assertion and
+			// read back
+			c.Assert(t.Sub(tc.expT) < time.Second, Equals, true, Commentf("%s, exp %s, got %s", tc.comment, t, s.snapDeclAssertsTime))
+			return nil
+		})
+		cleanups = append(cleanups, restore)
+
+		restore = s.mockSystemdMountSequence(c, []systemdMount{
+			ubuntuLabelMount("ubuntu-boot", "run"),
+			ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
+			ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
+			s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+			s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+		}, nil)
+		cleanups = append(cleanups, restore)
+
+		// mock a bootloader
+		bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+		bootloader.Force(bloader)
+		cleanups = append(cleanups, func() { bootloader.Force(nil) })
+
+		// set the current kernel
+		restore = bloader.SetEnabledKernel(s.kernel)
+		cleanups = append(cleanups, restore)
+
+		makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20)
+
+		// write modeenv
+		modeEnv := boot.Modeenv{
+			Mode:           "run",
+			Base:           s.core20.Filename(),
+			CurrentKernels: []string{s.kernel.Filename()},
+		}
+		err = modeEnv.WriteTo(boot.InitramfsWritableDir)
+		c.Assert(err, IsNil, comment)
+
+		_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+		c.Assert(err, IsNil, comment)
+
+		for _, r := range cleanups {
+			r()
+		}
+	}
 }
 
 func (s *initramfsMountsSuite) testInitramfsMountsRunModeNoSaveUnencrypted(c *C) error {
@@ -2413,6 +2619,90 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
 }
 
+func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeTimeMovesForwardHappy(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=recover snapd_recovery_system="+s.sysLabel)
+
+	for _, tc := range s.timeTestCases() {
+		comment := Commentf(tc.comment)
+		cleanups := []func(){}
+
+		// always remove the ubuntu-seed dir, otherwise setupSeed complains the
+		// model file already exists and can't setup the seed
+		err := os.RemoveAll(filepath.Join(boot.InitramfsUbuntuSeedDir))
+		c.Assert(err, IsNil, comment)
+
+		// also always remove the data dir, since we need to copy state.json
+		// there, so if the file already exists the initramfs code dies
+		err = os.RemoveAll(filepath.Join(boot.InitramfsDataDir))
+		c.Assert(err, IsNil, comment)
+
+		s.setupSeed(c, tc.modelTime, nil)
+
+		restore := main.MockTimeNow(func() time.Time {
+			return tc.now
+		})
+		cleanups = append(cleanups, restore)
+
+		restore = disks.MockMountPointDisksToPartitionMapping(
+			map[disks.Mountpoint]*disks.MockDiskMapping{
+				{Mountpoint: boot.InitramfsUbuntuSeedDir}:     defaultBootWithSaveDisk,
+				{Mountpoint: boot.InitramfsUbuntuBootDir}:     defaultBootWithSaveDisk,
+				{Mountpoint: boot.InitramfsHostUbuntuDataDir}: defaultBootWithSaveDisk,
+				{Mountpoint: boot.InitramfsUbuntuSaveDir}:     defaultBootWithSaveDisk,
+			},
+		)
+		cleanups = append(cleanups, restore)
+
+		// check what time we try to move forward to
+		restore = main.MockOsutilSetTime(func(t time.Time) error {
+			// make sure the timestamps are within 1 second of each other, they
+			// won't be equal since the timestamp is serialized to an assertion and
+			// read back
+			c.Assert(t.Sub(tc.expT) < time.Second, Equals, true, Commentf("%s, exp %s, got %s", tc.comment, t, s.snapDeclAssertsTime))
+			return nil
+		})
+		cleanups = append(cleanups, restore)
+
+		restore = s.mockSystemdMountSequence(c, []systemdMount{
+			ubuntuLabelMount("ubuntu-seed", "recover"),
+			s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+			s.makeSeedSnapSystemdMount(snap.TypeKernel),
+			s.makeSeedSnapSystemdMount(snap.TypeBase),
+			{
+				"tmpfs",
+				boot.InitramfsDataDir,
+				tmpfsMountOpts,
+			},
+			{
+				"/dev/disk/by-partuuid/ubuntu-boot-partuuid",
+				boot.InitramfsUbuntuBootDir,
+				needsFsckDiskMountOpts,
+			},
+			{
+				"/dev/disk/by-partuuid/ubuntu-data-partuuid",
+				boot.InitramfsHostUbuntuDataDir,
+				nil,
+			},
+			{
+				"/dev/disk/by-partuuid/ubuntu-save-partuuid",
+				boot.InitramfsUbuntuSaveDir,
+				nil,
+			},
+		}, nil)
+		cleanups = append(cleanups, restore)
+
+		bloader := bootloadertest.Mock("mock", c.MkDir())
+		bootloader.Force(bloader)
+		cleanups = append(cleanups, func() { bootloader.Force(nil) })
+
+		s.testRecoverModeHappy(c)
+
+		for _, r := range cleanups {
+			r()
+		}
+	}
+}
+
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeGadgetDefaultsHappy(c *C) {
 	// setup a seed with default gadget yaml
 	const gadgetYamlDefaults = `
@@ -2426,7 +2716,7 @@ defaults:
 `
 	c.Assert(os.RemoveAll(s.seedDir), IsNil)
 
-	s.setupSeed(c, [][]string{
+	s.setupSeed(c, time.Time{}, [][]string{
 		{"meta/gadget.yaml", gadgetYamlDefaults},
 	})
 
