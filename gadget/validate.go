@@ -360,7 +360,7 @@ func ValidateContent(info *Info, gadgetSnapRootDir string) error {
 }
 
 // canResolveAllVolumeKernelRefs ensures that all kernel assets that
-// need to get udpated can be resolved with the provided LaidOutVolume.
+// need to get updated can be resolved with the provided LaidOutVolume.
 func canResolveAllVolumeKernelRefs(pNew *LaidOutVolume, kernelInfo *kernel.Info) error {
 	for assetName, asset := range kernelInfo.Assets {
 		if !asset.Update {
