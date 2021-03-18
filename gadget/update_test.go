@@ -1774,7 +1774,7 @@ assets:
     update: true
     content:
     - kernel-content`)
-	// but gadget.yaml does not have this, what violates kernel update policy 
+	// but gadget.yaml does not have this, what violates kernel update policy
 	// rule no. 1 from update.go
 	fsStruct := gadget.VolumeStructure{
 		Name:       "foo",
