@@ -2,10 +2,9 @@ summary: Ensure "snapctl is-connected" --pid and --apparmor-label options work.
 
 prepare: |
     tests.cleanup prepare
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snap1
-    install_local test-snap2
+
+    "$TESTSTOOLS"/snaps-state install-local test-snap1
+    "$TESTSTOOLS"/snaps-state install-local test-snap2
 
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
@@ -78,7 +77,7 @@ execute: |
 
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    install_local_classic test-snap-classic
+    "$TESTSTOOLS"/snaps-state install-local --classic test-snap-classic
 
     echo "The test-snap-classic service is running"
     systemctl is-active snap.test-snap-classic.svc.service

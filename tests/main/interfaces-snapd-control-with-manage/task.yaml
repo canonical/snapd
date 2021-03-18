@@ -25,9 +25,7 @@ prepare: |
     . "$TESTSLIB"/store.sh
     setup_fake_store "$BLOB_DIR"
 
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    snap_path=$(make_snap test-snapd-control-consumer)
+    snap_path=$("$TESTSTOOLS"/snaps-state pack-local test-snapd-control-consumer)
     make_snap_installable "$BLOB_DIR" "${snap_path}"
     cat > snap-decl.json <<'EOF'
     {

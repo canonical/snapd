@@ -14,9 +14,6 @@ execute: |
         exit 0
     fi
 
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     echo "Install a snap containing an activatable D-Bus system service"
     snap install --edge test-snapd-dbus-service
 
@@ -27,7 +24,7 @@ execute: |
     not systemctl is-active snap.test-snapd-dbus-service.system.service
 
     echo "Making a method call wakes the service"
-    install_local test-snapd-dbus-service-client
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-dbus-service-client
     snap connect test-snapd-dbus-service-client:dbus-system-plug \
                  test-snapd-dbus-service:dbus-system-slot
     test-snapd-dbus-service-client.system | MATCH hello
