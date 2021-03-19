@@ -515,13 +515,16 @@ uc20_build_initramfs_kernel_snap() {
         # modify the-tool to verify that our version is used when booting - this
         # is verified in the tests/core/basic20 spread test
         sed -i -e 's/set -e/set -ex/' "$skeletondir/main/usr/lib/the-tool"
+        # also save the time before snap-bootstrap runs
+        sed -i -e "s@/usr/lib/snapd/snap-bootstrap@beforeDate=\$(date --utc \'+%s\'); /usr/lib/snapd/snap-bootstrap@"  "$skeletondir/main/usr/lib/the-tool"
         {
             echo "" 
             echo "if test -d /run/mnt/data/system-data; then touch /run/mnt/data/system-data/the-tool-ran; fi" 
             # also copy the time for the clock-epoch to system-data, this is 
             # used by a specific test but doesn't hurt anything to do this for 
             # all tests
-            echo "if test -d /run/mnt/data/system-data; then cp -ar /usr/lib/clock-epoch /run/mnt/data/system-data/clock-epoch; fi"
+            echo "if test -d /run/mnt/data/system-data; then cp -a /usr/lib/clock-epoch /run/mnt/data/system-data/clock-epoch; fi"
+            echo "if test -d /run/mnt/data/system-data; then echo \"\$beforeDate\" > /run/mnt/data/system-data/before-snap-bootstrap-date; fi"
             echo "if test -d /run/mnt/data/system-data; then date --utc '+%s' > /run/mnt/data/system-data/after-snap-bootstrap-date; fi"
         } >> "$skeletondir/main/usr/lib/the-tool"
 
@@ -530,7 +533,8 @@ uc20_build_initramfs_kernel_snap() {
             echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> "$skeletondir/main/usr/lib/the-tool"
         fi
 
-        # bump the epoch time
+        # bump the epoch time file timestamp, converting unix timestamp to 
+        # touch's date format
         touch -t "$(date --utc "--date=@$initramfsEpochBumpTime" '+%Y%m%d%H%M')" "$skeletondir/main/usr/lib/clock-epoch"
 
         # copy any extra files to the same location inside the initrd
