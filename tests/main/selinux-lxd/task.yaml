@@ -1,6 +1,6 @@
 summary: Check that LXD snap works on a system using SELinux in enforcing mode
 
-description: |
+details: |
     Make sure that LXD snap can be installed and used on a SELinux enable
     system, with enforcing mode on.
 

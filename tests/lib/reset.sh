@@ -1,10 +1,9 @@
-#!/bin/bash
+#!/bin/bash -x
 
 # shellcheck source=tests/lib/dirs.sh
 . "$TESTSLIB/dirs.sh"
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
-
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB/systemd.sh"
 
@@ -88,15 +87,15 @@ reset_classic() {
     if [ "$1" != "--keep-stopped" ]; then
         systemctl start snapd.socket
 
-        # wait for snapd listening
         EXTRA_NC_ARGS="-q 1"
         case "$SPREAD_SYSTEM" in
             fedora-*|amazon-*|centos-*)
                 EXTRA_NC_ARGS=""
                 ;;
         esac
-        # shellcheck disable=SC2086
-        while ! printf 'GET / HTTP/1.0\r\n\r\n' | nc -U $EXTRA_NC_ARGS /run/snapd.socket; do sleep 0.5; done
+
+        # wait for snapd listening
+        retry -n 120 --wait 0.5 sh -c "printf 'GET / HTTP/1.0\r\n\r\n' | nc -U $EXTRA_NC_ARGS /run/snapd.socket"
     fi
 }
 

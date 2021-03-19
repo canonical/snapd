@@ -83,6 +83,9 @@ unix (bind, listen, accept)
 # For Xorg to detect screens
 /sys/devices/pci**/boot_vga r,
 /sys/devices/pci**/resources r,
+
+# TODO: enable rules for writing Xwayland Xauth files for clients to read when
+# something like gnome-shell is running confined with an x11 slot
 `
 
 const x11PermanentSlotSecComp = `
@@ -133,6 +136,9 @@ owner /run/user/[0-9]*/.Xauthority r,
 # (see https://gitlab.gnome.org/GNOME/mutter/merge_requests/626)
 owner /run/user/[0-9]*/.mutter-Xwaylandauth.* r,
 owner /run/user/[0-9]*/mutter/Xauthority r,
+
+# Allow reading KDE Plasma's Xwayland Xauth file
+owner /run/user/[0-9]*/xauth_* r,
 
 
 # Needed by QtSystems on X to detect mouse and keyboard. Note, the 'netlink

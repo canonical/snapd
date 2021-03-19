@@ -325,7 +325,7 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume
 			if !osutil.FileExists(realSource) {
 				return fmt.Errorf("structure %v, content %v: source path does not exist", s, c)
 			}
-			if strings.HasSuffix(c.ResolvedSource(), "/") {
+			if strings.HasSuffix(c.UnresolvedSource, "/") {
 				// expecting a directory
 				if err := checkSourceIsDir(realSource + "/"); err != nil {
 					return fmt.Errorf("structure %v, content %v: %v", s, c, err)
@@ -346,7 +346,7 @@ func ValidateContent(info *Info, gadgetSnapRootDir string) error {
 	for name, vol := range info.Volumes {
 		// At this point we don't know what kernel will be used
 		// with the gadget we we need to pass an empty kernel root
-		constraints := defaultConstraints
+		constraints := DefaultConstraints
 		constraints.SkipResolveContent = true
 		lv, err := LayoutVolume(gadgetSnapRootDir, "", vol, constraints)
 		if err != nil {

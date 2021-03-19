@@ -37,8 +37,6 @@ type LayoutConstraints struct {
 	// NonMBRStartOffset is the default start offset of non-MBR structure in
 	// the volume.
 	NonMBRStartOffset quantity.Offset
-	// SectorSize is the size of the sector to be used for calculations
-	SectorSize quantity.Size
 	// SkipResolveContent will skip resolving content paths
 	// and `$kernel:` style references
 	SkipResolveContent bool
@@ -50,8 +48,6 @@ type LaidOutVolume struct {
 	*Volume
 	// Size is the total size of the volume
 	Size quantity.Size
-	// SectorSize sector size of the volume
-	SectorSize quantity.Size
 	// LaidOutStructure is a list of structures within the volume, sorted
 	// by their start offsets
 	LaidOutStructure []LaidOutStructure
@@ -63,8 +59,6 @@ type LaidOutVolume struct {
 // details about the layout of raw image content within the bare structures.
 type PartiallyLaidOutVolume struct {
 	*Volume
-	// SectorSize sector size of the volume
-	SectorSize quantity.Size
 	// LaidOutStructure is a list of structures within the volume, sorted
 	// by their start offsets
 	LaidOutStructure []LaidOutStructure
@@ -87,6 +81,13 @@ type LaidOutStructure struct {
 	// ResolvedContent is a list of filesystem content that has all
 	// relative paths or references resolved
 	ResolvedContent []ResolvedContent
+}
+
+// IsRoleMBR returns whether a structure's role is MBR or not.
+// meh this function is weirdly placed, not sure what to do w/o making schemaMBR
+// constant exported
+func IsRoleMBR(ls LaidOutStructure) bool {
+	return ls.Role == schemaMBR
 }
 
 func (p LaidOutStructure) String() string {
@@ -131,16 +132,16 @@ type ResolvedContent struct {
 	// ResolvedSource is the absolute path of the Source after resolving
 	// any references (e.g. to a "$kernel:" snap).
 	ResolvedSource string
+
+	// KernelUpdate is true if this content comes from the kernel
+	// and has the "Update" property set
+	KernelUpdate bool
 }
 
 func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (structures []LaidOutStructure, byName map[string]*LaidOutStructure, err error) {
 	previousEnd := quantity.Offset(0)
 	structures = make([]LaidOutStructure, len(volume.Structure))
 	byName = make(map[string]*LaidOutStructure, len(volume.Structure))
-
-	if constraints.SectorSize == 0 {
-		return nil, nil, fmt.Errorf("cannot lay out volume, invalid constraints: sector size cannot be 0")
-	}
 
 	for idx, s := range volume.Structure {
 		var start quantity.Offset
@@ -159,13 +160,6 @@ func layoutVolumeStructures(volume *Volume, constraints LayoutConstraints) (stru
 			VolumeStructure: &volume.Structure[idx],
 			StartOffset:     start,
 			Index:           idx,
-		}
-
-		if ps.Role != schemaMBR {
-			if s.Size%constraints.SectorSize != 0 {
-				return nil, nil, fmt.Errorf("cannot lay out volume, structure %v size is not a multiple of sector size %v",
-					ps, constraints.SectorSize)
-			}
 		}
 
 		if ps.Name != "" {
@@ -203,9 +197,9 @@ func LayoutVolumePartially(volume *Volume, constraints LayoutConstraints) (*Part
 	if err != nil {
 		return nil, err
 	}
+
 	vol := &PartiallyLaidOutVolume{
 		Volume:           volume,
-		SectorSize:       constraints.SectorSize,
 		LaidOutStructure: structures,
 	}
 	return vol, nil
@@ -218,6 +212,10 @@ func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constrain
 
 	var kernelInfo *kernel.Info
 	if !constraints.SkipResolveContent {
+		// TODO:UC20: check and error if kernelRootDir == "" here
+		// This needs the upper layer of gadget updates to be
+		// updated to pass the kernel root first.
+		//
 		// Note that the kernelRootDir may reference the running
 		// kernel if there is a gadget update or the new kernel if
 		// there is a kernel update.
@@ -275,7 +273,6 @@ func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constrain
 	vol := &LaidOutVolume{
 		Volume:           volume,
 		Size:             volumeSize,
-		SectorSize:       constraints.SectorSize,
 		LaidOutStructure: structures,
 		RootDir:          gadgetRootDir,
 	}
@@ -293,38 +290,53 @@ func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kerne
 
 	content := make([]ResolvedContent, len(ps.Content))
 	for idx := range ps.Content {
-		resolvedSource, err := resolveContentPathOrRef(gadgetRootDir, kernelRootDir, kernelInfo, ps.Content[idx].UnresolvedSource)
+		resolvedSource, kupdate, err := resolveContentPathOrRef(gadgetRootDir, kernelRootDir, kernelInfo, ps.Content[idx].UnresolvedSource)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("cannot resolve content for structure %v at index %v: %v", ps, idx, err)
 		}
 		content[idx] = ResolvedContent{
 			VolumeContent:  &ps.Content[idx],
 			ResolvedSource: resolvedSource,
+			KernelUpdate:   kupdate,
 		}
 	}
 
 	return content, nil
 }
 
-// resolveContentPathOrRef resolves any "$kernel:" refs in the gadget
-// content and populates VolumeContent.resolvedSource with absolute
-// paths.
-func resolveContentPathOrRef(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, pathOrRef string) (string, error) {
+// resolveContentPathOrRef resolves the relative path from gadget
+// assets and any "$kernel:" references from "pathOrRef" using the
+// provided gadget/kernel directories and the kernel info. It returns
+// an absolute path, a flag indicating whether the content is part of
+// a kernel update, or an error.
+func resolveContentPathOrRef(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, pathOrRef string) (resolved string, kupdate bool, err error) {
+
+	// TODO: add kernelRootDir == "" error too once all the higher
+	//       layers in devicestate call gadget.Update() with a
+	//       kernel dir set
+	switch {
+	case gadgetRootDir == "":
+		return "", false, fmt.Errorf("internal error: gadget root dir cannot beempty")
+	case pathOrRef == "":
+		return "", false, fmt.Errorf("cannot use empty source")
+	}
+
 	// content may refer to "$kernel:<name>/<content>"
 	var resolvedSource string
 	if strings.HasPrefix(pathOrRef, "$kernel:") {
 		wantedAsset, wantedContent, err := splitKernelRef(pathOrRef)
 		if err != nil {
-			return "", fmt.Errorf("cannot parse kernel ref: %v", err)
+			return "", false, fmt.Errorf("cannot parse kernel ref: %v", err)
 		}
 		kernelAsset, ok := kernelInfo.Assets[wantedAsset]
 		if !ok {
-			return "", fmt.Errorf("cannot find %q in kernel info from %q", wantedAsset, kernelRootDir)
+			return "", false, fmt.Errorf("cannot find %q in kernel info from %q", wantedAsset, kernelRootDir)
 		}
 		if !strutil.ListContains(kernelAsset.Content, wantedContent) {
-			return "", fmt.Errorf("cannot find wanted kernel content %q in %q", wantedContent, kernelRootDir)
+			return "", false, fmt.Errorf("cannot find wanted kernel content %q in %q", wantedContent, kernelRootDir)
 		}
 		resolvedSource = filepath.Join(kernelRootDir, wantedContent)
+		kupdate = kernelAsset.Update
 	} else {
 		resolvedSource = filepath.Join(gadgetRootDir, pathOrRef)
 	}
@@ -334,7 +346,7 @@ func resolveContentPathOrRef(gadgetRootDir, kernelRootDir string, kernelInfo *ke
 		resolvedSource += "/"
 	}
 
-	return resolvedSource, nil
+	return resolvedSource, kupdate, nil
 }
 
 type byContentStartOffset []LaidOutContent
@@ -466,7 +478,7 @@ func isLayoutCompatible(current, new *PartiallyLaidOutVolume) error {
 	}
 
 	// XXX: the code below asssumes both volumes have the same number of
-	// structures, this limitation may be lifter later
+	// structures, this limitation may be lifted later
 	if len(current.LaidOutStructure) != len(new.LaidOutStructure) {
 		return fmt.Errorf("incompatible change in the number of structures from %v to %v",
 			len(current.LaidOutStructure), len(new.LaidOutStructure))

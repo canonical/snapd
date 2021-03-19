@@ -1,7 +1,10 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
+// +build 386 arm
+// +build linux
+
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,29 +20,20 @@
  *
  */
 
-package configstate_test
+package osutil
 
 import (
-	"github.com/snapcore/snapd/overlord/configstate"
-
-	. "gopkg.in/check.v1"
+	"syscall"
+	"time"
 )
 
-func (s *miscSuite) TestSortPatchKeysEmpty(c *C) {
-	patch := map[string]interface{}{}
-	keys := configstate.SortPatchKeysByDepth(patch)
-	c.Assert(keys, IsNil)
+func init() {
+	timeToTimeval = timeToTimeval32
 }
 
-func (s *miscSuite) TestSortPatchKeys(c *C) {
-	patch := map[string]interface{}{
-		"a.b.c":         0,
-		"a":             0,
-		"a.b.c.d":       0,
-		"q.w.e.r.t.y.u": 0,
-		"f.g":           0,
+func timeToTimeval32(t time.Time) *syscall.Timeval {
+	return &syscall.Timeval{
+		Sec:  int32(t.Unix()),
+		Usec: int32(t.Nanosecond() / 1000),
 	}
-
-	keys := configstate.SortPatchKeysByDepth(patch)
-	c.Assert(keys, DeepEquals, []string{"a", "f.g", "a.b.c", "a.b.c.d", "q.w.e.r.t.y.u"})
 }

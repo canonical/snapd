@@ -1,6 +1,6 @@
 summary: Ensure our osutil.Find{Uid,Gid} code work with libnss
 
-description: |
+details: |
     The os/user code in go will behave differently when compiled with
     or without cgo. This is confusing so we created the helpers
     osutil.Find{Uid,Gid} that automatically fall back to calling

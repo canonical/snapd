@@ -265,9 +265,8 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	}
 
 	bootMakeBootableCalled := 0
-	restore = devicestate.MockBootMakeBootable(func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error {
+	restore = devicestate.MockBootMakeSystemRunnable(func(model *asserts.Model, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error {
 		c.Check(model, DeepEquals, mockModel)
-		c.Check(rootdir, Equals, dirs.GlobalRootDir)
 		c.Check(bootWith.KernelPath, Matches, ".*/var/lib/snapd/snaps/pc-kernel_1.snap")
 		c.Check(bootWith.BasePath, Matches, ".*/var/lib/snapd/snaps/core20_2.snap")
 		c.Check(bootWith.RecoverySystemDir, Matches, "/systems/20191218")
@@ -560,7 +559,7 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade, gadg
 	s.state.Unlock()
 	c.Check(mockModel.Grade(), Equals, asserts.ModelGrade(modelGrade))
 
-	restore = devicestate.MockBootMakeBootable(func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error {
+	restore = devicestate.MockBootMakeSystemRunnable(func(model *asserts.Model, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error {
 		return nil
 	})
 	defer restore()

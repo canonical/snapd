@@ -1,13 +1,13 @@
 summary: Run a smoke test on UC20 with encryption enabled
 
-description: |
+details: |
     This test checks basic snapd commands on UC20 with secure boot and encryption enabled
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    # wait for the system to be seeded first
+    echo "Wait for the system to be seeded first"
     nested_exec "sudo snap wait system seed.loaded"
 
     echo "Ensure 'snap install' works"
@@ -49,7 +49,8 @@ execute: |
     nested_exec snap model --serial --assertion >serial
     cmp serial serial.saved
 
-    # check that we go the install log after the transition to run mode
+    echo "Check that we go the install log after the transition to run mode"
     nested_exec "test -e /var/log/install-mode.log.gz"
-    # transparently verify that the format is gzip
+
+    echo "Transparently verify that the format is gzip"
     nested_exec "zcat /var/log/install-mode.log.gz" | MATCH 'installing a new system'

@@ -22,6 +22,7 @@ package daemon_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -32,67 +33,56 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
-	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/daemon"
-	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/snapstate"
-	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type assertsSuite struct {
-	d *daemon.Daemon
-	o *overlord.Overlord
+	apiBaseSuite
 
-	storeSigning    *assertstest.StoreStack
-	trustedRestorer func()
-
-	storetest.Store
 	mockAssertionFn func(at *asserts.AssertionType, headers []string, user *auth.UserState) (asserts.Assertion, error)
+
+	authUser *auth.UserState
 }
 
 var _ = check.Suite(&assertsSuite{})
 
 func (s *assertsSuite) SetUpTest(c *check.C) {
-	dirs.SetRootDir(c.MkDir())
+	s.apiBaseSuite.SetUpTest(c)
 
-	s.o = overlord.Mock()
-	s.d = daemon.NewWithOverlord(s.o)
+	s.mockAssertionFn = nil
 
-	// adds an assertion db
-	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
-	s.trustedRestorer = sysdb.InjectTrusted(s.storeSigning.Trusted)
+	d := s.daemonWithStore(c, s)
 
-	st := s.o.State()
+	st := d.Overlord().State()
 	st.Lock()
-	snapstate.ReplaceStore(st, s)
-	st.Unlock()
-	assertstate.Manager(st, s.o.TaskRunner())
+	defer st.Unlock()
+	u, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
+	c.Assert(err, check.IsNil)
+	s.authUser = u
 }
 
-func (s *assertsSuite) TearDownTest(c *check.C) {
-	s.trustedRestorer()
-	s.o = nil
-	s.d = nil
-	s.mockAssertionFn = nil
+func (s *assertsSuite) userAuth(req *http.Request) {
+	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, s.authUser.Macaroon))
 }
 
 func (s *assertsSuite) TestGetAsserts(c *check.C) {
-	resp := daemon.GetAssertTypeNames(daemon.AssertsCmd, nil, nil)
+	req, err := http.NewRequest("GET", "/v2/assertions", nil)
+	c.Assert(err, check.IsNil)
+	resp := s.req(c, req, nil).(*daemon.Resp)
 	c.Check(resp.Status, check.Equals, 200)
 	c.Check(resp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Check(resp.Result, check.DeepEquals, map[string][]string{"types": asserts.TypeNames()})
 }
 
 func (s *assertsSuite) addAsserts(assertions ...asserts.Assertion) {
-	st := s.o.State()
+	st := s.d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
-	assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
+	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
 	assertstatetest.AddMany(st, assertions...)
 }
 
@@ -100,14 +90,14 @@ func (s *assertsSuite) TestAssertOK(c *check.C) {
 	// add store key
 	s.addAsserts()
 
-	st := s.o.State()
+	st := s.d.Overlord().State()
 
-	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	acct := assertstest.NewAccount(s.StoreSigning, "developer1", nil, "")
 	buf := bytes.NewBuffer(asserts.Encode(acct))
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
-	rsp := daemon.DoAssert(daemon.AssertsCmd, req, nil)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 	// Verify (external)
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Check(rsp.Status, check.Equals, 200)
@@ -121,20 +111,20 @@ func (s *assertsSuite) TestAssertOK(c *check.C) {
 }
 
 func (s *assertsSuite) TestAssertStreamOK(c *check.C) {
-	st := s.o.State()
+	st := s.d.Overlord().State()
 
-	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	acct := assertstest.NewAccount(s.StoreSigning, "developer1", nil, "")
 	buf := &bytes.Buffer{}
 	enc := asserts.NewEncoder(buf)
 	err := enc.Encode(acct)
 	c.Assert(err, check.IsNil)
-	err = enc.Encode(s.storeSigning.StoreAccountKey(""))
+	err = enc.Encode(s.StoreSigning.StoreAccountKey(""))
 	c.Assert(err, check.IsNil)
 
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
-	rsp := daemon.DoAssert(daemon.AssertsCmd, req, nil)
+	rsp := s.req(c, req, nil).(*daemon.Resp)
 	// Verify (external)
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Check(rsp.Status, check.Equals, 200)
@@ -152,9 +142,11 @@ func (s *assertsSuite) TestAssertInvalid(c *check.C) {
 	buf := bytes.NewBufferString("blargh")
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
+	s.userAuth(req)
+
 	rec := httptest.NewRecorder()
 	// Execute
-	daemon.AssertsCmd.POST(daemon.AssertsCmd, req, nil).ServeHTTP(rec, req)
+	s.serveHTTP(c, rec, req)
 	// Verify (external)
 	c.Check(rec.Code, check.Equals, 400)
 	c.Check(rec.Body.String(), testutil.Contains,
@@ -163,33 +155,33 @@ func (s *assertsSuite) TestAssertInvalid(c *check.C) {
 
 func (s *assertsSuite) TestAssertError(c *check.C) {
 	// Setup
-	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	acct := assertstest.NewAccount(s.StoreSigning, "developer1", nil, "")
 	buf := bytes.NewBuffer(asserts.Encode(acct))
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
+	s.userAuth(req)
+
 	rec := httptest.NewRecorder()
 	// Execute
-	daemon.AssertsCmd.POST(daemon.AssertsCmd, req, nil).ServeHTTP(rec, req)
+	s.serveHTTP(c, rec, req)
 	// Verify (external)
 	c.Check(rec.Code, check.Equals, 400)
 	c.Check(rec.Body.String(), testutil.Contains, "assert failed")
 }
 
 func (s *assertsSuite) TestAssertsFindManyAll(c *check.C) {
-	acct := assertstest.NewAccount(s.storeSigning, "developer1", map[string]interface{}{
+	acct := assertstest.NewAccount(s.StoreSigning, "developer1", map[string]interface{}{
 		"account-id": "developer1-id",
 	}, "")
 	s.addAsserts(acct)
 
 	// Execute
-	req, err := http.NewRequest("POST", "/v2/assertions/account", nil)
+	req, err := http.NewRequest("GET", "/v2/assertions/account", nil)
 	c.Assert(err, check.IsNil)
-	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
-		return map[string]string{"assertType": "account"}
-	})()
+	s.userAuth(req)
 
 	rec := httptest.NewRecorder()
-	daemon.AssertsFindManyCmd.GET(daemon.AssertsFindManyCmd, req, nil).ServeHTTP(rec, req)
+	s.serveHTTP(c, rec, req)
 	// Verify
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/x.ubuntu.assertion; bundle=y")
@@ -217,18 +209,16 @@ func (s *assertsSuite) TestAssertsFindManyAll(c *check.C) {
 }
 
 func (s *assertsSuite) TestAssertsFindManyFilter(c *check.C) {
-	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	acct := assertstest.NewAccount(s.StoreSigning, "developer1", nil, "")
 	s.addAsserts(acct)
 
 	// Execute
-	req, err := http.NewRequest("POST", "/v2/assertions/account?username=developer1", nil)
+	req, err := http.NewRequest("GET", "/v2/assertions/account?username=developer1", nil)
 	c.Assert(err, check.IsNil)
-	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
-		return map[string]string{"assertType": "account"}
-	})()
+	s.userAuth(req)
 
 	rec := httptest.NewRecorder()
-	daemon.AssertsFindManyCmd.GET(daemon.AssertsFindManyCmd, req, nil).ServeHTTP(rec, req)
+	s.serveHTTP(c, rec, req)
 	// Verify
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
 	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "1")
@@ -243,18 +233,16 @@ func (s *assertsSuite) TestAssertsFindManyFilter(c *check.C) {
 }
 
 func (s *assertsSuite) TestAssertsFindManyNoResults(c *check.C) {
-	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	acct := assertstest.NewAccount(s.StoreSigning, "developer1", nil, "")
 	s.addAsserts(acct)
 
 	// Execute
-	req, err := http.NewRequest("POST", "/v2/assertions/account?username=xyzzyx", nil)
+	req, err := http.NewRequest("GET", "/v2/assertions/account?username=xyzzyx", nil)
 	c.Assert(err, check.IsNil)
-	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
-		return map[string]string{"assertType": "account"}
-	})()
+	s.userAuth(req)
 
 	rec := httptest.NewRecorder()
-	daemon.AssertsFindManyCmd.GET(daemon.AssertsFindManyCmd, req, nil).ServeHTTP(rec, req)
+	s.serveHTTP(c, rec, req)
 	// Verify
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
 	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "0")
@@ -265,14 +253,12 @@ func (s *assertsSuite) TestAssertsFindManyNoResults(c *check.C) {
 
 func (s *assertsSuite) TestAssertsInvalidType(c *check.C) {
 	// Execute
-	req, err := http.NewRequest("POST", "/v2/assertions/foo", nil)
+	req, err := http.NewRequest("GET", "/v2/assertions/foo", nil)
 	c.Assert(err, check.IsNil)
-	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
-		return map[string]string{"assertType": "foo"}
-	})()
+	s.userAuth(req)
 
 	rec := httptest.NewRecorder()
-	daemon.AssertsFindManyCmd.GET(daemon.AssertsFindManyCmd, req, nil).ServeHTTP(rec, req)
+	s.serveHTTP(c, rec, req)
 	// Verify
 	c.Check(rec.Code, check.Equals, 400)
 	c.Check(rec.Body.String(), testutil.Contains, "invalid assert type")
@@ -288,18 +274,16 @@ func (s *assertsSuite) TestAssertsFindManyJSONFilterRemoteIsFalse(c *check.C) {
 }
 
 func (s *assertsSuite) testAssertsFindManyJSONFilter(c *check.C, urlPath string) {
-	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	acct := assertstest.NewAccount(s.StoreSigning, "developer1", nil, "")
 	s.addAsserts(acct)
 
 	// Execute
-	req, err := http.NewRequest("POST", urlPath, nil)
+	req, err := http.NewRequest("GET", urlPath, nil)
 	c.Assert(err, check.IsNil)
-	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
-		return map[string]string{"assertType": "account"}
-	})()
+	s.userAuth(req)
 
 	rec := httptest.NewRecorder()
-	daemon.AssertsFindManyCmd.GET(daemon.AssertsFindManyCmd, req, nil).ServeHTTP(rec, req)
+	s.serveHTTP(c, rec, req)
 	// Verify
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
@@ -315,18 +299,16 @@ func (s *assertsSuite) testAssertsFindManyJSONFilter(c *check.C, urlPath string)
 }
 
 func (s *assertsSuite) TestAssertsFindManyJSONNoResults(c *check.C) {
-	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	acct := assertstest.NewAccount(s.StoreSigning, "developer1", nil, "")
 	s.addAsserts(acct)
 
 	// Execute
-	req, err := http.NewRequest("POST", "/v2/assertions/account?json=true&username=xyz", nil)
+	req, err := http.NewRequest("GET", "/v2/assertions/account?json=true&username=xyz", nil)
 	c.Assert(err, check.IsNil)
-	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
-		return map[string]string{"assertType": "account"}
-	})()
+	s.userAuth(req)
 
 	rec := httptest.NewRecorder()
-	daemon.AssertsFindManyCmd.GET(daemon.AssertsFindManyCmd, req, nil).ServeHTTP(rec, req)
+	s.serveHTTP(c, rec, req)
 	// Verify
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
@@ -342,14 +324,12 @@ func (s *assertsSuite) TestAssertsFindManyJSONWithBody(c *check.C) {
 	s.addAsserts()
 
 	// Execute
-	req, err := http.NewRequest("POST", "/v2/assertions/account-key?json=true", nil)
+	req, err := http.NewRequest("GET", "/v2/assertions/account-key?json=true", nil)
 	c.Assert(err, check.IsNil)
-	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
-		return map[string]string{"assertType": "account-key"}
-	})()
+	s.userAuth(req)
 
 	rec := httptest.NewRecorder()
-	daemon.AssertsFindManyCmd.GET(daemon.AssertsFindManyCmd, req, nil).ServeHTTP(rec, req)
+	s.serveHTTP(c, rec, req)
 	// Verify
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
@@ -375,14 +355,12 @@ func (s *assertsSuite) TestAssertsFindManyJSONHeadersOnly(c *check.C) {
 	s.addAsserts()
 
 	// Execute
-	req, err := http.NewRequest("POST", "/v2/assertions/account-key?json=headers&account-id=can0nical", nil)
+	req, err := http.NewRequest("GET", "/v2/assertions/account-key?json=headers&account-id=can0nical", nil)
 	c.Assert(err, check.IsNil)
-	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
-		return map[string]string{"assertType": "account-key"}
-	})()
+	s.userAuth(req)
 
 	rec := httptest.NewRecorder()
-	daemon.AssertsFindManyCmd.GET(daemon.AssertsFindManyCmd, req, nil).ServeHTTP(rec, req)
+	s.serveHTTP(c, rec, req)
 	// Verify
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
@@ -407,14 +385,12 @@ func (s *assertsSuite) TestAssertsFindManyJSONInvalidParam(c *check.C) {
 	s.addAsserts()
 
 	// Execute
-	req, err := http.NewRequest("POST", "/v2/assertions/account-key?json=header&account-id=can0nical", nil)
+	req, err := http.NewRequest("GET", "/v2/assertions/account-key?json=header&account-id=can0nical", nil)
 	c.Assert(err, check.IsNil)
-	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
-		return map[string]string{"assertType": "account-key"}
-	})()
+	s.userAuth(req)
 
 	rec := httptest.NewRecorder()
-	daemon.AssertsFindManyCmd.GET(daemon.AssertsFindManyCmd, req, nil).ServeHTTP(rec, req)
+	s.serveHTTP(c, rec, req)
 	// Verify
 	c.Check(rec.Code, check.Equals, 400, check.Commentf("body %q", rec.Body))
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
@@ -429,18 +405,16 @@ func (s *assertsSuite) TestAssertsFindManyJSONInvalidParam(c *check.C) {
 }
 
 func (s *assertsSuite) TestAssertsFindManyJSONNopFilter(c *check.C) {
-	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	acct := assertstest.NewAccount(s.StoreSigning, "developer1", nil, "")
 	s.addAsserts(acct)
 
 	// Execute
-	req, err := http.NewRequest("POST", "/v2/assertions/account?json=false&username=developer1", nil)
+	req, err := http.NewRequest("GET", "/v2/assertions/account?json=false&username=developer1", nil)
 	c.Assert(err, check.IsNil)
-	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
-		return map[string]string{"assertType": "account"}
-	})()
+	s.userAuth(req)
 
 	rec := httptest.NewRecorder()
-	daemon.AssertsFindManyCmd.GET(daemon.AssertsFindManyCmd, req, nil).ServeHTTP(rec, req)
+	s.serveHTTP(c, rec, req)
 	// Verify
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))
 	c.Check(rec.HeaderMap.Get("X-Ubuntu-Assertions-Count"), check.Equals, "1")
@@ -456,14 +430,12 @@ func (s *assertsSuite) TestAssertsFindManyJSONNopFilter(c *check.C) {
 
 func (s *assertsSuite) TestAssertsFindManyRemoteInvalidParam(c *check.C) {
 	// Execute
-	req, err := http.NewRequest("POST", "/v2/assertions/account-key?remote=invalid&account-id=can0nical", nil)
+	req, err := http.NewRequest("GET", "/v2/assertions/account-key?remote=invalid&account-id=can0nical", nil)
 	c.Assert(err, check.IsNil)
-	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
-		return map[string]string{"assertType": "account-key"}
-	})()
+	s.userAuth(req)
 
 	rec := httptest.NewRecorder()
-	daemon.AssertsFindManyCmd.GET(daemon.AssertsFindManyCmd, req, nil).ServeHTTP(rec, req)
+	s.serveHTTP(c, rec, req)
 	// Verify
 	c.Check(rec.Code, check.Equals, 400, check.Commentf("body %q", rec.Body))
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
@@ -486,21 +458,19 @@ func (s *assertsSuite) TestAssertsFindManyRemote(c *check.C) {
 		assertFnCalled++
 		c.Assert(at.Name, check.Equals, "account")
 		c.Assert(headers, check.DeepEquals, []string{"can0nical"})
-		return assertstest.NewAccount(s.storeSigning, "some-developer", nil, ""), nil
+		return assertstest.NewAccount(s.StoreSigning, "some-developer", nil, ""), nil
 	}
 
-	acct := assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	acct := assertstest.NewAccount(s.StoreSigning, "developer1", nil, "")
 	s.addAsserts(acct)
 
 	// Execute
-	req, err := http.NewRequest("POST", "/v2/assertions/account?remote=true&account-id=can0nical", nil)
+	req, err := http.NewRequest("GET", "/v2/assertions/account?remote=true&account-id=can0nical", nil)
 	c.Assert(err, check.IsNil)
-	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
-		return map[string]string{"assertType": "account"}
-	})()
+	s.userAuth(req)
 
 	rec := httptest.NewRecorder()
-	daemon.AssertsFindManyCmd.GET(daemon.AssertsFindManyCmd, req, nil).ServeHTTP(rec, req)
+	s.serveHTTP(c, rec, req)
 	// Verify
 	c.Check(assertFnCalled, check.Equals, 1)
 	c.Check(rec.Code, check.Equals, 200, check.Commentf("body %q", rec.Body))

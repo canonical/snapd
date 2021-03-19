@@ -1,6 +1,6 @@
 summary: verify that snap binaries dir is present in PATH under sudo
 
-description: |
+details: |
     Some distributions set secure_path in /etc/sudoers which resets the PATH
     under sudo to some predefined set of locations. Make sure to account for all
     distros supported by snapd that have sudo set up this way.

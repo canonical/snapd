@@ -32,6 +32,15 @@ debug: |
     # shellcheck disable=SC2119
     "$TESTSTOOLS"/journal-state get-log
 
+restore: |
+    # Remove the snaps to avoid timeout in next test
+    PROVIDER_SNAP="test-snapd-policy-app-provider-classic"
+    if os.query is-core; then
+        PROVIDER_SNAP="test-snapd-policy-app-provider-core"
+    fi
+    snap remove --purge "$PROVIDER_SNAP"
+    snap remove --purge "$CONSUMER_SNAP"
+
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
@@ -67,12 +76,3 @@ execute: |
         echo "Then $plugcmd should succeed"
         "$plugcmd" | MATCH PASS
     done
-
-restore: |
-    # Remove the snaps to avoid timeout in next test
-    PROVIDER_SNAP="test-snapd-policy-app-provider-classic"    
-    if os.query is-core; then
-        PROVIDER_SNAP="test-snapd-policy-app-provider-core"
-    fi
-    snap remove --purge "$PROVIDER_SNAP"
-    snap remove --purge "$CONSUMER_SNAP"
