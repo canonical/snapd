@@ -665,6 +665,13 @@ func genServiceNames(snap *snap.Info, appNames []string) []string {
 	return names
 }
 
+func fixupSnapTool(where, from, to string) string {
+	if !strings.HasPrefix(where, from) {
+		return where
+	}
+	return to + where[len(from):]
+}
+
 func genServiceFile(appInfo *snap.AppInfo, opts *AddSnapServicesOptions) ([]byte, error) {
 	if opts == nil {
 		opts = &AddSnapServicesOptions{}
@@ -725,21 +732,21 @@ X-Snappy=yes
 
 [Service]
 EnvironmentFile=-/etc/environment
-ExecStart={{.App.LauncherCommand}}
+ExecStart={{.Command}}
 SyslogIdentifier={{.App.Snap.InstanceName}}.{{.App.Name}}
 Restart={{.Restart}}
 {{- if .App.RestartDelay}}
 RestartSec={{.App.RestartDelay.Seconds}}
 {{- end}}
 WorkingDirectory={{.WorkingDir}}
-{{- if .App.StopCommand}}
-ExecStop={{.App.LauncherStopCommand}}
+{{- if .StopCommand}}
+ExecStop={{.StopCommand}}
 {{- end}}
-{{- if .App.ReloadCommand}}
-ExecReload={{.App.LauncherReloadCommand}}
+{{- if .ReloadCommand}}
+ExecReload={{.ReloadCommand}}
 {{- end}}
-{{- if .App.PostStopCommand}}
-ExecStopPost={{.App.LauncherPostStopCommand}}
+{{- if .PostStopCommand}}
+ExecStopPost={{.PostStopCommand}}
 {{- end}}
 {{- if .StopTimeout}}
 TimeoutStopSec={{.StopTimeout.Seconds}}
@@ -825,6 +832,11 @@ WantedBy={{.ServicesTarget}}
 	wrapperData := struct {
 		App *snap.AppInfo
 
+		Command         string
+		StopCommand     string
+		ReloadCommand   string
+		PostStopCommand string
+
 		Restart                  string
 		WorkingDir               string
 		StopTimeout              time.Duration
@@ -848,6 +860,8 @@ WantedBy={{.ServicesTarget}}
 	}{
 		App: appInfo,
 
+		Command: appInfo.LauncherCommand(),
+
 		InterfaceServiceSnippets: ifaceSpecifiedServiceSnippet,
 
 		Restart:        restartCond,
@@ -864,6 +878,15 @@ WantedBy={{.ServicesTarget}}
 
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
+	}
+	if appInfo.StopCommand != "" {
+		wrapperData.StopCommand = appInfo.LauncherStopCommand()
+	}
+	if appInfo.ReloadCommand != "" {
+		wrapperData.ReloadCommand = appInfo.LauncherReloadCommand()
+	}
+	if appInfo.PostStopCommand != "" {
+		wrapperData.PostStopCommand = appInfo.LauncherPostStopCommand()
 	}
 	switch appInfo.DaemonScope {
 	case snap.SystemDaemon:
@@ -900,6 +923,15 @@ WantedBy={{.ServicesTarget}}
 			// also adds an implicit dependency on the snapd snap
 			// mount thus /usr/bin/snap points
 			wrapperData.CoreToolingDependency = []string{snapdToolingMountUnit}
+			// on core /usr/bin/snap is a symlink to
+			// /snap/snapd/current/usr/bin/snap, but it is possible
+			// that during snapd refresh current will not point to
+			// the right location
+
+			wrapperData.Command = fixupSnapTool(wrapperData.Command, "/usr/bin/snap", "/usr/lib/snapd/snap")
+			wrapperData.StopCommand = fixupSnapTool(wrapperData.StopCommand, "/usr/bin/snap", "/usr/lib/snapd/snap")
+			wrapperData.ReloadCommand = fixupSnapTool(wrapperData.ReloadCommand, "/usr/bin/snap", "/usr/lib/snapd/snap")
+			wrapperData.PostStopCommand = fixupSnapTool(wrapperData.PostStopCommand, "/usr/bin/snap", "/usr/lib/snapd/snap")
 		}
 	}
 

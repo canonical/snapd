@@ -177,6 +177,9 @@ ExecStart=/usr/bin/snap run foo.app
 SyslogIdentifier=foo.app
 Restart=on-failure
 WorkingDirectory=/var/snap/foo/44
+ExecStop=/usr/bin/snap run --command=stop foo.app
+ExecReload=/usr/bin/snap run --command=reload foo.app
+ExecStopPost=/usr/bin/snap run --command=post-stop foo.app
 TimeoutStopSec=30
 Type=simple
 
@@ -190,6 +193,9 @@ version: 1.0
 apps:
     app:
         command: bin/start
+        reload-command: bin/reload
+        stop-command: bin/stop
+        post-stop-command: bin/post-stop
         daemon: simple
 `
 	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
@@ -233,10 +239,13 @@ X-Snappy=yes
 
 [Service]
 EnvironmentFile=-/etc/environment
-ExecStart=/usr/bin/snap run foo.app
+ExecStart=/usr/lib/snapd/snap run foo.app
 SyslogIdentifier=foo.app
 Restart=on-failure
 WorkingDirectory=/var/snap/foo/44
+ExecStop=/usr/lib/snapd/snap run --command=stop foo.app
+ExecReload=/usr/lib/snapd/snap run --command=reload foo.app
+ExecStopPost=/usr/lib/snapd/snap run --command=post-stop foo.app
 TimeoutStopSec=30
 Type=simple
 
