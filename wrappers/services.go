@@ -37,7 +37,9 @@ import (
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/randutil"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
@@ -715,6 +717,10 @@ After={{ stringsJoin .After " " }}
 {{- if .Before}}
 Before={{ stringsJoin .Before " "}}
 {{- end}}
+{{- if .CoreToolingDependency}}
+Requires={{ stringsJoin .CoreToolingDependency " "}}
+After={{ stringsJoin .CoreToolingDependency " "}}
+{{- end}}
 X-Snappy=yes
 
 [Service]
@@ -837,6 +843,8 @@ WantedBy={{.ServicesTarget}}
 
 		Home    string
 		EnvVars string
+
+		CoreToolingDependency []string
 	}{
 		App: appInfo,
 
@@ -879,6 +887,20 @@ WantedBy={{.ServicesTarget}}
 	}
 	if wrapperData.MountUnit != "" {
 		wrapperData.After = append([]string{wrapperData.MountUnit}, wrapperData.After...)
+	}
+
+	if !release.OnClassic {
+		usesSnapd, err := snapdtool.IsFromSnapdSnap()
+		if err != nil {
+			return nil, err
+		}
+		if usesSnapd {
+			// on core 18+ systems, the snapd tooling is exported
+			// into the host system via a special mount unit, which
+			// also adds an implicit dependency on the snapd snap
+			// mount thus /usr/bin/snap points
+			wrapperData.CoreToolingDependency = []string{snapdToolingMountUnit}
+		}
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
