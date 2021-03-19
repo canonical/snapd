@@ -298,6 +298,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetPinned(c *check.C) {
 	assertstatetest.AddMany(st, s.dev1acct, s.acct1Key, as)
 	s.mockValidationSetsTracking(st)
 	st.Unlock()
+	c.Assert(err, check.IsNil)
 
 	rsp := s.req(c, req, nil).(*daemon.Resp)
 	if rsp.Status != 200 {
