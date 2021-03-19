@@ -334,6 +334,8 @@ repack_snapd_snap_with_deb_content() {
     # file in place. Its called usr.lib.snapd.snap-confine on 14.04 but
     # usr.lib.snapd.snap-confine.real everywhere else
     rm -f "$UNPACK_DIR"/etc/apparmor.d/*
+    rm -f "$UNPACK_DIR"/usr/bin/snap
+    rm -f "$UNPACK_DIR"/usr/lib/snapd/*
 
     dpkg-deb -x "$SPREAD_PATH"/../snapd_*.deb "$UNPACK_DIR"
     cp /usr/lib/snapd/info "$UNPACK_DIR"/usr/lib/snapd
