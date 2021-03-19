@@ -9,7 +9,7 @@ environment:
 
   # disable the real time clock and effectively break it so it returns unix
   # epoch to simulate devices like the rpi which do not have RTC
-  NESTED_PARAM_RTC: "-rtc base=1970-01-01"
+  NESTED_PARAM_RTC: "-rtc base=1970-01-01,clock=vm"
 
   # this is the unix time timestamp we want the initramfs to use, 1 here is just
   # 1 second after the unix epoch
