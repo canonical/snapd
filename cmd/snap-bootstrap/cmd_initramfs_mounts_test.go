@@ -571,11 +571,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeTimeMovesForwardHap
 		// check what time we try to move forward to
 		restore = main.MockOsutilSetTime(func(t time.Time) error {
 			osutilSetTimeCalls++
-
 			// make sure the timestamps are within 1 second of each other, they
 			// won't be equal since the timestamp is serialized to an assertion and
 			// read back
-			c.Assert(t.Sub(tc.expT) < time.Second, Equals, true, Commentf("%s, exp %s, got %s", tc.comment, t, s.snapDeclAssertsTime))
+			tTrunc := t.Truncate(2 * time.Second)
+			expTTrunc := tc.expT.Truncate(2 * time.Second)
+			c.Assert(tTrunc.Equal(expTTrunc), Equals, true, Commentf("%s, exp %s, got %s", tc.comment, t, s.snapDeclAssertsTime))
 			return nil
 		})
 		cleanups = append(cleanups, restore)
@@ -787,7 +788,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeTimeMovesForwardHappy(c
 				// make sure the timestamps are within 1 second of each other, they
 				// won't be equal since the timestamp is serialized to an assertion and
 				// read back
-				c.Assert(t.Sub(tc.expT) < time.Second, Equals, true, Commentf("%s, exp %s, got %s", tc.comment, t, s.snapDeclAssertsTime))
+				tTrunc := t.Truncate(2 * time.Second)
+				expTTrunc := tc.expT.Truncate(2 * time.Second)
+				c.Assert(tTrunc.Equal(expTTrunc), Equals, true, Commentf("%s, exp %s, got %s", tc.comment, t, s.snapDeclAssertsTime))
 				return nil
 			})
 			cleanups = append(cleanups, restore)
@@ -841,6 +844,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeTimeMovesForwardHappy(c
 			if isFirstBoot {
 				c.Assert(osutilSetTimeCalls, Equals, tc.setTimeCalls, comment)
 			} else {
+				// non-first boot should not have moved the time at all since it
+				// doesn't read assertions
 				c.Assert(osutilSetTimeCalls, Equals, 0, comment)
 			}
 
@@ -2695,7 +2700,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeTimeMovesForwardHap
 			// make sure the timestamps are within 1 second of each other, they
 			// won't be equal since the timestamp is serialized to an assertion and
 			// read back
-			c.Assert(t.Sub(tc.expT) < time.Second, Equals, true, Commentf("%s, exp %s, got %s", tc.comment, t, s.snapDeclAssertsTime))
+			tTrunc := t.Truncate(2 * time.Second)
+			expTTrunc := tc.expT.Truncate(2 * time.Second)
+			c.Assert(tTrunc.Equal(expTTrunc), Equals, true, Commentf("%s, exp %s, got %s", tc.comment, t, s.snapDeclAssertsTime))
 			return nil
 		})
 		cleanups = append(cleanups, restore)
