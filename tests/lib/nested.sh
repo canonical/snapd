@@ -504,7 +504,15 @@ nested_create_core_vm() {
 
                 elif nested_is_core_20_system; then
                     snap download --basename=pc-kernel --channel="20/edge" pc-kernel
-                    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+
+                    # set the unix bump time if the NESTED_* var is set, 
+                    # otherwise leave it empty
+                    local epochBumpTime
+                    epochBumpTime=${NESTED_CORE20_INITRAMFS_EPOCH_TIMESTAMP:-}
+                    if [ -n "$epochBumpTime" ]; then
+                        epochBumpTime="--epoch-bump-time=$epochBumpTime"
+                    fi
+                    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
                     rm -f "$PWD/pc-kernel.snap"
 
                     # Prepare the pc kernel snap

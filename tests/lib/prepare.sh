@@ -467,15 +467,25 @@ uc20_build_initramfs_kernel_snap() {
     local ORIG_SNAP="$1"
     local TARGET="$2"
 
+    # TODO proper option support here would be nice but bash is hard and this is
+    # easier, and likely we won't need to both inject a panic and set the epoch
+    # bump simultaneously
     local injectKernelPanic=false
-    injectKernelPanicArg=${3:-}
-    if [ "$injectKernelPanicArg" = "--inject-kernel-panic-in-initramfs" ]; then
-        injectKernelPanic=true
-    fi
+    local initramfsEpochBumpTime
+    initramfsEpochBumpTime=$(date '+%s')
+    optArg=${3:-}
+    case "$optArg" in
+        --inject-kernel-panic-in-initramfs)
+            injectKernelPanic=true
+            ;;
+        --epoch-bump-time=*)
+            # this strips the option and just gives us the value
+            initramfsEpochBumpTime="${optArg#--epoch-bump-time=}"
+            ;;
+    esac
     
     # kernel snap is huge, unpacking to current dir
     unsquashfs -d repacked-kernel "$ORIG_SNAP"
-
 
     # repack initrd magic, beware
     # assumptions: initrd is compressed with LZ4, cpio block size 512, microcode
@@ -505,14 +515,23 @@ uc20_build_initramfs_kernel_snap() {
         # modify the-tool to verify that our version is used when booting - this
         # is verified in the tests/core/basic20 spread test
         sed -i -e 's/set -e/set -ex/' "$skeletondir/main/usr/lib/the-tool"
-        echo "" >> "$skeletondir/main/usr/lib/the-tool"
-        echo "if test -d /run/mnt/data/system-data; then touch /run/mnt/data/system-data/the-tool-ran; fi" >> \
-            "$skeletondir/main/usr/lib/the-tool"
+        {
+            echo "" 
+            echo "if test -d /run/mnt/data/system-data; then touch /run/mnt/data/system-data/the-tool-ran; fi" 
+            # also copy the time for the clock-epoch to system-data, this is 
+            # used by a specific test but doesn't hurt anything to do this for 
+            # all tests
+            echo "if test -d /run/mnt/data/system-data; then cp -ar /usr/lib/clock-epoch /run/mnt/data/system-data/clock-epoch; fi"
+            echo "if test -d /run/mnt/data/system-data; then date --utc '+%s' > /run/mnt/data/system-data/after-snap-bootstrap-date; fi"
+        } >> "$skeletondir/main/usr/lib/the-tool"
 
         if [ "$injectKernelPanic" = "true" ]; then
             # add a kernel panic to the end of the-tool execution
             echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> "$skeletondir/main/usr/lib/the-tool"
         fi
+
+        # bump the epoch time
+        touch -t "$(date --utc "--date=@$initramfsEpochBumpTime" '+%Y%m%d%H%M')" "$skeletondir/main/usr/lib/clock-epoch"
 
         # copy any extra files to the same location inside the initrd
         if [ -d ../extra-initrd/ ]; then
