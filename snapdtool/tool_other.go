@@ -47,3 +47,11 @@ func InternalToolPath(tool string) (string, error) {
 func IsReexecd() (bool, error) {
 	return false, errUnsupported
 }
+
+// IsFromSnapdSnap returns true when the current process binary is running from
+// the snapd snap.
+//
+// On this OS this is a stub and always returns an error.
+func IsFromSnapdSnap() (bool, error) {
+	return false, errUnsupported
+}

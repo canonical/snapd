@@ -449,3 +449,40 @@ func (s *toolSuite) TestIsReexecd(c *C) {
 	c.Assert(err, ErrorMatches, ".*/proc/self/exe: no such file or directory")
 	c.Assert(is, Equals, false)
 }
+
+func (s *toolSuite) TestIsFromSnapdSnap(c *C) {
+	mockedSelfExe := filepath.Join(s.fakeroot, "proc/self/exe")
+	restore := snapdtool.MockSelfExe(mockedSelfExe)
+	defer restore()
+
+	for _, tc := range []struct {
+		is   bool
+		path string
+	}{
+		// pretend the binary reexecd from snapd snap mount location
+		{true, filepath.Join(s.snapdPath, "usr/lib/snapd/snapd")},
+		// from core snap mount location
+		{false, filepath.Join(s.corePath, "usr/lib/snapd/snapd")},
+		// or from a distro libexecdir
+		{false, filepath.Join(dirs.DistroLibExecDir, "snapd")},
+	} {
+		err := os.Remove(mockedSelfExe)
+		if err != nil && !os.IsNotExist(err) {
+			c.Fatalf("cannot remove mocked /proc/self/exe: %v", err)
+		}
+
+		err = os.Symlink(tc.path, mockedSelfExe)
+		c.Assert(err, IsNil)
+		is, err := snapdtool.IsFromSnapdSnap()
+		c.Assert(err, IsNil)
+		c.Assert(is, Equals, tc.is)
+	}
+
+	// trouble reading the symlink
+	err := os.Remove(mockedSelfExe)
+	c.Assert(err, IsNil)
+
+	is, err := snapdtool.IsFromSnapdSnap()
+	c.Assert(err, ErrorMatches, ".*/proc/self/exe: no such file or directory")
+	c.Assert(is, Equals, false)
+}

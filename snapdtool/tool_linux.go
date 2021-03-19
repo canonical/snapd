@@ -217,6 +217,19 @@ func IsReexecd() (bool, error) {
 	return false, nil
 }
 
+// IsFromSnapdSnap returns true when the current process binary is running from
+// the snapd snap.
+func IsFromSnapdSnap() (bool, error) {
+	exe, err := osReadlink(selfExe)
+	if err != nil {
+		return false, err
+	}
+	if !strings.HasPrefix(exe, filepath.Join(dirs.SnapMountDir, "snapd")) {
+		return false, nil
+	}
+	return true, nil
+}
+
 // MockOsReadlink is for use in tests
 func MockOsReadlink(f func(string) (string, error)) func() {
 	realOsReadlink := osReadlink
