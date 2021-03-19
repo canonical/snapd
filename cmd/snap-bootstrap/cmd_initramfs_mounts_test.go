@@ -247,10 +247,11 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 // static test cases for time test variants shared across the different modes
 
 type timeTestCase struct {
-	now       time.Time
-	modelTime time.Time
-	expT      time.Time
-	comment   string
+	now          time.Time
+	modelTime    time.Time
+	expT         time.Time
+	setTimeCalls int
+	comment      string
 }
 
 func (s *initramfsMountsSuite) timeTestCases() []timeTestCase {
@@ -276,31 +277,36 @@ func (s *initramfsMountsSuite) timeTestCases() []timeTestCase {
 
 	return []timeTestCase{
 		{
-			now:     epoch,
-			expT:    t2,
-			comment: "now() is epoch",
+			now:          epoch,
+			expT:         t2,
+			setTimeCalls: 1,
+			comment:      "now() is epoch",
 		},
 		{
-			now:     t1,
-			expT:    t2,
-			comment: "now() is kernel initrd sign time",
+			now:          t1,
+			expT:         t2,
+			setTimeCalls: 1,
+			comment:      "now() is kernel initrd sign time",
 		},
 		{
-			now:     t3,
-			expT:    t3,
-			comment: "now() is newer than snap assertion",
+			now:          t3,
+			expT:         t3,
+			setTimeCalls: 0,
+			comment:      "now() is newer than snap assertion",
 		},
 		{
-			now:       t3,
-			modelTime: t4,
-			expT:      t4,
-			comment:   "model time is newer than now(), which is newer than snap asserts",
+			now:          t3,
+			modelTime:    t4,
+			expT:         t4,
+			setTimeCalls: 1,
+			comment:      "model time is newer than now(), which is newer than snap asserts",
 		},
 		{
-			now:       t5,
-			modelTime: t4,
-			expT:      t5,
-			comment:   "model time is newest, but older than now()",
+			now:          t5,
+			modelTime:    t4,
+			expT:         t5,
+			setTimeCalls: 0,
+			comment:      "model time is newest, but older than now()",
 		},
 	}
 }
@@ -560,9 +566,12 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeTimeMovesForwardHap
 			return tc.now
 		})
 		cleanups = append(cleanups, restore)
+		osutilSetTimeCalls := 0
 
 		// check what time we try to move forward to
 		restore = main.MockOsutilSetTime(func(t time.Time) error {
+			osutilSetTimeCalls++
+
 			// make sure the timestamps are within 1 second of each other, they
 			// won't be equal since the timestamp is serialized to an assertion and
 			// read back
@@ -586,6 +595,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeTimeMovesForwardHap
 
 		_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
 		c.Assert(err, IsNil, comment)
+
+		c.Assert(osutilSetTimeCalls, Equals, tc.setTimeCalls)
 
 		for _, r := range cleanups {
 			r()
@@ -742,77 +753,102 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUnencryptedWithSaveHapp
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeTimeMovesForwardHappy(c *C) {
-
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
-	for _, tc := range s.timeTestCases() {
-		comment := Commentf(tc.comment)
-		cleanups := []func(){}
+	for _, isFirstBoot := range []bool{true, false} {
+		for _, tc := range s.timeTestCases() {
+			comment := Commentf(tc.comment)
+			cleanups := []func(){}
 
-		// always remove the ubuntu-seed dir, otherwise setupSeed complains the
-		// model file already exists and can't setup the seed
-		err := os.RemoveAll(filepath.Join(boot.InitramfsUbuntuSeedDir))
-		c.Assert(err, IsNil, comment)
-		s.setupSeed(c, tc.modelTime, nil)
+			// always remove the ubuntu-seed dir, otherwise setupSeed complains the
+			// model file already exists and can't setup the seed
+			err := os.RemoveAll(filepath.Join(boot.InitramfsUbuntuSeedDir))
+			c.Assert(err, IsNil, comment)
+			s.setupSeed(c, tc.modelTime, nil)
 
-		restore := main.MockTimeNow(func() time.Time {
-			return tc.now
-		})
-		cleanups = append(cleanups, restore)
+			restore := main.MockTimeNow(func() time.Time {
+				return tc.now
+			})
+			cleanups = append(cleanups, restore)
 
-		restore = disks.MockMountPointDisksToPartitionMapping(
-			map[disks.Mountpoint]*disks.MockDiskMapping{
-				{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootDisk,
-				{Mountpoint: boot.InitramfsDataDir}:       defaultBootDisk,
-			},
-		)
-		cleanups = append(cleanups, restore)
+			restore = disks.MockMountPointDisksToPartitionMapping(
+				map[disks.Mountpoint]*disks.MockDiskMapping{
+					{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootDisk,
+					{Mountpoint: boot.InitramfsDataDir}:       defaultBootDisk,
+				},
+			)
+			cleanups = append(cleanups, restore)
 
-		// check what time we try to move forward to
-		restore = main.MockOsutilSetTime(func(t time.Time) error {
-			// make sure the timestamps are within 1 second of each other, they
-			// won't be equal since the timestamp is serialized to an assertion and
-			// read back
-			c.Assert(t.Sub(tc.expT) < time.Second, Equals, true, Commentf("%s, exp %s, got %s", tc.comment, t, s.snapDeclAssertsTime))
-			return nil
-		})
-		cleanups = append(cleanups, restore)
+			osutilSetTimeCalls := 0
 
-		restore = s.mockSystemdMountSequence(c, []systemdMount{
-			ubuntuLabelMount("ubuntu-boot", "run"),
-			ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
-			ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
-			s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
-			s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
-		}, nil)
-		cleanups = append(cleanups, restore)
+			// check what time we try to move forward to
+			restore = main.MockOsutilSetTime(func(t time.Time) error {
+				osutilSetTimeCalls++
+				// make sure the timestamps are within 1 second of each other, they
+				// won't be equal since the timestamp is serialized to an assertion and
+				// read back
+				c.Assert(t.Sub(tc.expT) < time.Second, Equals, true, Commentf("%s, exp %s, got %s", tc.comment, t, s.snapDeclAssertsTime))
+				return nil
+			})
+			cleanups = append(cleanups, restore)
 
-		// mock a bootloader
-		bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
-		bootloader.Force(bloader)
-		cleanups = append(cleanups, func() { bootloader.Force(nil) })
+			mnts := []systemdMount{
+				ubuntuLabelMount("ubuntu-boot", "run"),
+				ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
+				ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
+				s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+				s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+			}
 
-		// set the current kernel
-		restore = bloader.SetEnabledKernel(s.kernel)
-		cleanups = append(cleanups, restore)
+			if isFirstBoot {
+				mnts = append(mnts, s.makeSeedSnapSystemdMount(snap.TypeSnapd))
+			}
 
-		makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20)
+			restore = s.mockSystemdMountSequence(c, mnts, nil)
+			cleanups = append(cleanups, restore)
 
-		// write modeenv
-		modeEnv := boot.Modeenv{
-			Mode:           "run",
-			Base:           s.core20.Filename(),
-			CurrentKernels: []string{s.kernel.Filename()},
+			// mock a bootloader
+			bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+			bootloader.Force(bloader)
+			cleanups = append(cleanups, func() { bootloader.Force(nil) })
+
+			// set the current kernel
+			restore = bloader.SetEnabledKernel(s.kernel)
+			cleanups = append(cleanups, restore)
+
+			makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20)
+
+			// write modeenv
+			modeEnv := boot.Modeenv{
+				Mode:           "run",
+				Base:           s.core20.Filename(),
+				CurrentKernels: []string{s.kernel.Filename()},
+			}
+
+			if isFirstBoot {
+				// set RecoverySystem so that the system operates in first boot
+				// of run mode, and still reads the system essential snaps to
+				// mount the snapd snap
+				modeEnv.RecoverySystem = "20191118"
+			}
+
+			err = modeEnv.WriteTo(boot.InitramfsWritableDir)
+			c.Assert(err, IsNil, comment)
+
+			_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+			c.Assert(err, IsNil, comment)
+
+			if isFirstBoot {
+				c.Assert(osutilSetTimeCalls, Equals, tc.setTimeCalls, comment)
+			} else {
+				c.Assert(osutilSetTimeCalls, Equals, 0, comment)
+			}
+
+			for _, r := range cleanups {
+				r()
+			}
 		}
-		err = modeEnv.WriteTo(boot.InitramfsWritableDir)
-		c.Assert(err, IsNil, comment)
 
-		_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
-		c.Assert(err, IsNil, comment)
-
-		for _, r := range cleanups {
-			r()
-		}
 	}
 }
 
@@ -2652,9 +2688,10 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeTimeMovesForwardHap
 			},
 		)
 		cleanups = append(cleanups, restore)
-
+		osutilSetTimeCalls := 0
 		// check what time we try to move forward to
 		restore = main.MockOsutilSetTime(func(t time.Time) error {
+			osutilSetTimeCalls++
 			// make sure the timestamps are within 1 second of each other, they
 			// won't be equal since the timestamp is serialized to an assertion and
 			// read back
@@ -2696,6 +2733,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeTimeMovesForwardHap
 		cleanups = append(cleanups, func() { bootloader.Force(nil) })
 
 		s.testRecoverModeHappy(c)
+		c.Assert(osutilSetTimeCalls, Equals, tc.setTimeCalls)
 
 		for _, r := range cleanups {
 			r()

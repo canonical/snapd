@@ -75,11 +75,14 @@ func (mst *initramfsMountsState) ReadEssential(recoverySystem string, essentialT
 		return nil, nil, err
 	}
 
-	// set the time on the system to move forward
-	if err := osutilSetTime(newTrustedEarliestTime); err != nil {
-		// log the error but don't fail on it, we should be able to continue
-		// even if the time can't be moved forward
-		logger.Noticef("failed to move time forward from %s to %s: %v", now, newTrustedEarliestTime, err)
+	// set the time on the system to move forward if it is in the future - never
+	// move the time backwards
+	if newTrustedEarliestTime.After(now) {
+		if err := osutilSetTime(newTrustedEarliestTime); err != nil {
+			// log the error but don't fail on it, we should be able to continue
+			// even if the time can't be moved forward
+			logger.Noticef("failed to move time forward from %s to %s: %v", now, newTrustedEarliestTime, err)
+		}
 	}
 
 	return model, snaps, nil
