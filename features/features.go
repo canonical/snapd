@@ -59,6 +59,8 @@ const (
 	CheckDiskSpaceInstall
 	// CheckDiskSpaceRefresh controls free disk space check on snap refresh.
 	CheckDiskSpaceRefresh
+	// RefreshControl enables refresh control from snaps (including gate-auto-refresh hook).
+	RefreshControl
 
 	// lastFeature is the final known feature, it is only used for testing.
 	lastFeature
@@ -94,6 +96,8 @@ var featureNames = map[SnapdFeature]string{
 	CheckDiskSpaceInstall: "check-disk-space-install",
 	CheckDiskSpaceRefresh: "check-disk-space-refresh",
 	CheckDiskSpaceRemove:  "check-disk-space-remove",
+
+	RefreshControl: "refresh-control",
 }
 
 // featuresEnabledWhenUnset contains a set of features that are enabled when not explicitly configured.
