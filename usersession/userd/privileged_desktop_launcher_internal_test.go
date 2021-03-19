@@ -387,7 +387,7 @@ func (s *privilegedDesktopLauncherInternalSuite) TestDesktopFileIDToFilenameFail
 
 	for _, id := range desktopIdTests {
 		_, err := userd.DesktopFileIDToFilename(id)
-		c.Assert(err, NotNil)
+		c.Check(err, ErrorMatches, `cannot find desktop file for ".*"`)
 	}
 }
 
