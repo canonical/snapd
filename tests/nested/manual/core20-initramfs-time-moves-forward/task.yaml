@@ -1,0 +1,36 @@
+summary: Test that time moves forward when the RTC is broken/unavailable in UC20
+
+systems: [ubuntu-20.04-64]
+
+environment:
+  NESTED_IMAGE_ID: core20-initramfs-time-moves-forward
+  NESTED_BUILD_SNAPD_FROM_CURRENT: true
+  NESTED_USE_CLOUD_INIT: true
+
+  # disable the real time clock and effectively break it so it returns unix
+  # epoch to simulate devices like the rpi which do not have RTC
+  NESTED_PARAM_RTC: "-rtc base=1970-01-01"
+
+  # this is the unix time timestamp we want the initramfs to use, 1 here is just
+  # 1 second after the unix epoch
+  NESTED_CORE20_INITRAMFS_EPOCH_TIMESTAMP: 1
+
+prepare: |
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+
+  "$TESTSTOOLS"/nested-state build-image core
+  "$TESTSTOOLS"/nested-state create-vm core
+
+execute: |
+  #shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+
+  echo "Verify that the clock-epoch time is the unix epoch"
+  test "$(nested_exec "stat -c %Y /run/mnt/data/system-data/clock-epoch")" = 180000
+
+  echo "Verify that the timestamp from after snap-bootstrap ran is greater than the time from the model assertion"
+  # this is the timestamp from the model assertion, minus 1 second
+  # note that if the model assertion ever gets resigned, the timestamp should 
+  # not move backward so this will still be true / valid
+  test "$(nested_exec "cat /run/mnt/data/system-data/after-snap-bootstrap-date")" -ge 1606490999
