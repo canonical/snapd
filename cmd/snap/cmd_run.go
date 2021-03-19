@@ -112,6 +112,7 @@ and environment.
 			"gdb": i18n.G("Run the command with gdb (deprecated, use --gdbserver instead)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"gdbserver": i18n.G("Run the command with gdbserver"),
+
 			"experimental-gdbserver": "",
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"timer": i18n.G("Run as a timer service with given schedule"),
@@ -517,13 +518,22 @@ func snapdHelperPath(toolName string) (string, error) {
 	// The logic below only works if the last two path components
 	// are /usr/bin
 	// FIXME: use a snap warning?
-	if !strings.HasSuffix(exe, "/usr/bin/"+filepath.Base(exe)) {
+	baseName := filepath.Base(exe)
+	if !strings.HasSuffix(exe, "/usr/bin/"+baseName) && !strings.HasSuffix(exe, filepath.Join(dirs.CoreLibExecDir, baseName)) {
 		logger.Noticef("(internal error): unexpected exe input in snapdHelperPath: %v", exe)
 		return filepath.Join(dirs.DistroLibExecDir, toolName), nil
 	}
+
+	dirName := filepath.Dir(exe)
 	// snapBase will be "/snap/{core,snapd}/$rev/" because
-	// the snap binary is always at $root/usr/bin/snap
-	snapBase := filepath.Clean(filepath.Join(filepath.Dir(exe), "..", ".."))
+	// the snap binary is always at ..
+	if strings.HasSuffix(dirName, dirs.CoreLibExecDir) {
+		// .. $root/usr/lib/snapd/snap, so just append the tool name to
+		// the directory path
+		return filepath.Join(dirName, toolName), nil
+	}
+	// .. $root/usr/bin/snap
+	snapBase := filepath.Clean(filepath.Join(dirName, "..", ".."))
 	// Run snap-confine from the core/snapd snap.  The tools in
 	// core/snapd snap are statically linked, or mostly
 	// statically, with the exception of libraries such as libudev
