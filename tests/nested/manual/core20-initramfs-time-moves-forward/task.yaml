@@ -15,6 +15,12 @@ environment:
   # 1 second after the unix epoch
   NESTED_CORE20_INITRAMFS_EPOCH_TIMESTAMP: 1
 
+  # this is one second before the model assertion timestamp, this should be
+  # bumped if the model assertion is ever resigned with a newer timestamp in it,
+  # but doesn't strictly need to be updated every time as long as the timestamp
+  # increases monotonically the test is still valid
+  MODEL_ASSERTION_SIGN_TIME: 1606490999
+
 prepare: |
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
@@ -26,11 +32,8 @@ execute: |
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
 
-  echo "Verify that the clock-epoch time is the unix epoch"
-  test "$(nested_exec "stat -c %Y /run/mnt/data/system-data/clock-epoch")" = 180000
+  echo "Verify that the current time in the VM is newer than the model assertion sign time"
+  test "$(nested_exec date --utc '+%s')" -ge "$MODEL_ASSERTION_SIGN_TIME"
 
   echo "Verify that the timestamp from after snap-bootstrap ran is greater than the time from the model assertion"
-  # this is the timestamp from the model assertion, minus 1 second
-  # note that if the model assertion ever gets resigned, the timestamp should 
-  # not move backward so this will still be true / valid
-  test "$(nested_exec "cat /run/mnt/data/system-data/after-snap-bootstrap-date")" -ge 1606490999
+  test "$(nested_exec "cat /run/mnt/ubuntu-seed/install-after-snap-bootstrap-date")" -ge "$MODEL_ASSERTION_SIGN_TIME"

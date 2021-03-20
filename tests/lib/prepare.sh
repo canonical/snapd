@@ -519,10 +519,11 @@ uc20_build_initramfs_kernel_snap() {
             # also copy the time for the clock-epoch to system-data, this is 
             # used by a specific test but doesn't hurt anything to do this for 
             # all tests
-            echo "if test -f /run/mnt/data/system-data/clock-epoch; then rm -r /run/mnt/data/system-data/clock-epoch; fi"
-            echo "if test -d /run/mnt/data/system-data; then cp -a /usr/lib/clock-epoch /run/mnt/data/system-data/clock-epoch; fi"
-            echo "if test -d /run/mnt/data/system-data; then echo \"\$beforeDate\" > /run/mnt/data/system-data/before-snap-bootstrap-date; fi"
-            echo "if test -d /run/mnt/data/system-data; then date --utc '+%s' > /run/mnt/data/system-data/after-snap-bootstrap-date; fi"
+            echo "mode=\$(grep -Eo 'snapd_recovery_mode=([a-z]+)' /proc/cmdline)"
+            echo "mode=\${mode##snapd_recovery_mode=}"
+            echo "stat -c '%Y' /usr/lib/clock-epoch >> /run/mnt/ubuntu-seed/\${mode}-clock-epoch"
+            echo "echo \"\$beforeDate\" > /run/mnt/ubuntu-seed/\${mode}-before-snap-bootstrap-date"
+            echo "date --utc '+%s' > /run/mnt/ubuntu-seed/\${mode}-after-snap-bootstrap-date"
         } >> "$skeletondir/main/usr/lib/the-tool"
 
         if [ "$injectKernelPanic" = "true" ]; then
