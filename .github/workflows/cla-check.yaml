@@ -6,7 +6,7 @@ on:
 
 jobs:
   cla-check:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     steps:
       - name: Check if CLA signed
         uses: canonical/has-signed-canonical-cla@v1
