@@ -564,6 +564,10 @@ prepare_suite() {
     else
         prepare_classic
     fi
+
+    # Make sure the suite starts with a clean environment and with the snapd state restored
+    # shellcheck source=tests/lib/reset.sh
+    "$TESTSLIB"/reset.sh --reuse-core
 }
 
 install_snap_profiler(){
