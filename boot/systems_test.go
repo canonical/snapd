@@ -119,13 +119,14 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
+		GoodRecoverySystems:    []string{"20200825"},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
-
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
+		CurrentKernels: []string{"pc-kernel_500.snap"},
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 
@@ -143,7 +144,32 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 		resealCalls++
 		// bootloader variables have already been modified
 		c.Check(mtbl.SetBootVarsCalls, Equals, 1)
-		return nil
+		c.Assert(params, NotNil)
+		c.Assert(params.ModelParams, HasLen, 1)
+		switch resealCalls {
+		case 1:
+			c.Check(params.KeyFiles, DeepEquals, []string{
+				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
+			})
+			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=1234 static cmdline",
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
+				"snapd_recovery_mode=run static cmdline",
+			})
+			return nil
+		case 2:
+			c.Check(params.KeyFiles, DeepEquals, []string{
+				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+			})
+			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
+			})
+			return nil
+		default:
+			c.Errorf("unexpected call to secboot.ResealKeys with count %v", resealCalls)
+			return fmt.Errorf("unexpected call")
+		}
 	})
 	defer restore()
 
@@ -169,13 +195,14 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825", "1234"},
+		GoodRecoverySystems:    []string{"20200825"},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
-
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
+		CurrentKernels: []string{"pc-kernel_500.snap"},
 	}), Equals, true)
 }
 
