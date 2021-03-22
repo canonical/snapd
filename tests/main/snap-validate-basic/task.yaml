@@ -1,51 +1,74 @@
 summary: Ensure `snap validate` commands work.
 
-# XXX: enable and enhance once monitor mode for validation sets is fully implemented
-manual: true
+# TODO: add tests using store when snapcraft is ready.
+
+# This test uses a local validation set assertion (vs1.json) signed upfront
+# with my (stolowski) private store key (account-id: xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f,
+# public-key-sha3: o_x83A3wpIvJznIHBJIK7jRmRZKLlqx5jOr30HUsloFfBseXNF0ztoj18EvNualy);
+# the resulting assertion provided with the test is vs1.assert.
+#
+# If this needs to be redone with another developer account, the steps are:
+# 1. update account-id and authority-id in vs1.json for the developer to use.
+# 2. snap sign vs1.json -k <gpg key name> > vs1.assert (replace the assert file)
+# 3. change account-ids and sha3 checksum used below in the test with
+# the desired developer key.
 
 systems:
   # go-flags panics when showing --help for a hidden command on Fedora 32/33
   - -fedora-*
 
+prepare : |
+  echo "Acknowledging account and account-key assertions required by local validation set"
+  snap known --remote account account-id=xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f > account.assert
+  snap known --remote account-key public-key-sha3-384=o_x83A3wpIvJznIHBJIK7jRmRZKLlqx5jOr30HUsloFfBseXNF0ztoj18EvNualy > key.assert
+  snap ack account.assert
+  snap ack key.assert
+  # validation-set assertion ack'ed locally (but not available in the store)
+  snap ack vs1.assert
+  # sanity check
+  snap known validation-set | MATCH "name: hello-world"
+
 execute: |
   snap validate --help | MATCH "The validate command lists or applies validations sets"
-  snap validate > list.txt
-  [[ $(wc -l < list.txt) == "0" ]]
+  snap validate 2>&1 | MATCH "No validations are available"
 
   snap validate --monitor 2>&1 | MATCH "missing validation set argument"
   snap validate --monitor --enforce foo/bar 2>&1 | MATCH "cannot use --monitor and --enforce together"
   snap validate foo 2>&1 | MATCH "cannot parse validation set \"foo\""
 
-  snap validate --monitor foo/bar
-  snap validate --enforce foo/baz=12
-  snap validate --enforce foo/other
-  snap validate --enforce foo/other=3
+  echo "Checking that enforce mode is not supported yet"
+  snap validate --enforce foo/bar=1 2>&1 | MATCH "error: cannot apply validation set: invalid mode \"enforce\""
 
-  snap validate foo/bar | MATCH "invalid"
-  snap validate foo/other=3 | MATCH "invalid"
+  echo "Tracking not set up yet, but validation is possible with local assertion"
+  snap validate xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar=1 2>&1 | MATCH "^invalid"
 
-  snap validate > list.txt
-  MATCH "Validation.*Mode.*Seq.*Current.*Notes" < list.txt
-  MATCH "foo/bar .+0 " < list.txt
-  MATCH "foo/baz=12 .+0 " < list.txt
-  MATCH "foo/other=3 .+0 " < list.txt
-  # expect 4 lines (header, 3 entries)
-  [[ $(wc -l < list.txt) == "4" ]]
+  echo "Checking that monitor mode is supported with a pinned sequence and local validation-set"
+  snap validate --monitor xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar=1
+  snap validate | MATCH "xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar=1 +monitor +1 +invalid"
 
-  echo "Check that validation sets can be forgotten"
-  snap validate --forget foo/other=3
-  snap validate --forget foo/bar
-  snap validate > list.txt
+  echo "Checking that validation-set is valid or invalid depending on presence of the snap"
+  snap install hello-world
+  snap validate | MATCH "xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar=1 +monitor +1 +valid"
+  snap validate xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar=1 | MATCH "^valid"
+  # presence of test-snapd-base-bare is invalid
+  snap install test-snapd-base-bare
+  snap validate xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar=1 | MATCH "^invalid"
+  snap remove --purge test-snapd-base-bare
+  snap validate xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar=1 | MATCH "^valid"
+  snap remove --purge hello-world
+  snap validate | MATCH "xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar=1 +monitor +1 +invalid"
+  snap validate xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar=1 | MATCH "^invalid"
 
-  MATCH "foo/baz=12 .+0 " < list.txt
-  if MATCH "foo/bar" < list.txt; then
-    echo "didn't expect foo/bar"
-    exit 1
-  fi
-  if MATCH "foo/other" < list.txt; then
-    echo "didn't expect foo/other"
-    exit 1
-  fi
-  # expect 2 lines (header, 1 entry)
-  [[ $(wc -l < list.txt) == "2" ]]
+  echo "Checking that validation sets can be forgotten"
+  snap validate --forget xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar
+  snap validate 2>&1 | MATCH "No validations are available"
 
+  echo "Checking that monitor mode is supported with a local validation-set (non-pinned)"
+  snap validate --monitor xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar
+  snap validate | MATCH "xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar +monitor +1 +invalid"
+  snap validate xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar=1 | MATCH "^invalid"
+  snap validate xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar | MATCH "^invalid"
+  snap install hello-world
+  snap validate | MATCH "xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar +monitor +1 +valid"
+  snap validate xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar=1 | MATCH "^valid"
+  snap validate xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar | MATCH "^valid"
