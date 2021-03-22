@@ -142,7 +142,14 @@ func findDesktopFile(baseDir string, splitFileId []string) (string, error) {
 	// we're only checking dirs.SnapDesktopFilesDir (not all entries in $XDG_DATA_DIRS) and we know that snapd
 	// does not create subdirectories in that location.
 	for i := 1; i != len(splitFileId); i++ {
-		desktopFile, err := findDesktopFile(filepath.Join(baseDir, strings.Join(splitFileId[:i], "-")), splitFileId[i:])
+		prefix := strings.Join(splitFileId[:i], "-")
+		// Don't treat empty or "." components as directory
+		// prefixes.  The ".." case is already filtered out by
+		// the isValidDesktopFileID regexp.
+		if prefix == "" || prefix == "." {
+			continue
+		}
+		desktopFile, err := findDesktopFile(filepath.Join(baseDir, prefix), splitFileId[i:])
 		if err == nil {
 			return desktopFile, nil
 		}
@@ -155,7 +162,7 @@ func findDesktopFile(baseDir string, splitFileId []string) (string, error) {
 // Desktop Entry Specification, without the restriction on components
 // not starting with a digit (which desktop files created by snapd may
 // not satisfy).
-var isValidDesktopFileID = regexp.MustCompile(`^[A-Za-z0-9-_]+(\.[A-Za-z0-9-_]+)*$`).MatchString
+var isValidDesktopFileID = regexp.MustCompile(`^[A-Za-z0-9-_]+(\.[A-Za-z0-9-_]+)*.desktop$`).MatchString
 
 // desktopFileIDToFilename determines the path associated with a desktop file ID.
 func desktopFileIDToFilename(desktopFileID string) (string, error) {

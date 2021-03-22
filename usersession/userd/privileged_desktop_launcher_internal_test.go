@@ -47,7 +47,6 @@ var mockFileSystem = []string{
 	"/var/lib/snapd/desktop/applications/gnome-system-monitor_gnome-system-monitor.desktop",
 	"/var/lib/snapd/desktop/applications/inkscape_inkscape.desktop",
 	"/var/lib/snapd/desktop/applications/gnome-logs_gnome-logs.desktop",
-
 	"/var/lib/snapd/desktop/applications/foo-bar/baz.desktop",
 	"/var/lib/snapd/desktop/applications/baz/foo-bar.desktop",
 }
@@ -388,6 +387,11 @@ func (s *privilegedDesktopLauncherInternalSuite) TestDesktopFileIDToFilenameFail
 		"foo-bar/baz.desktop",
 		"bar/../vlc_vlc.desktop",
 		"../applications/vlc_vlc.desktop",
+		// Other invalid desktop IDs
+		"---------foo-bar-baz.desktop",
+		"foo-bar-baz.desktop-foo-bar",
+		"not-a-dot-desktop",
+		"以临时配置文件打开新-non-ascii-here-too.desktop",
 	}
 
 	for _, id := range desktopIdTests {
@@ -427,8 +431,8 @@ func (s *privilegedDesktopLauncherInternalSuite) TestParseExecCommandSucceedsWit
 
 	for _, test := range exec_command {
 		actual, err := userd.ParseExecCommand(test.exec_command, "/snap/chromium/1193/chromium.png")
-		c.Assert(err, IsNil)
-		c.Assert(actual, DeepEquals, test.expect)
+		c.Check(err, IsNil, Commentf(test.exec_command))
+		c.Check(actual, DeepEquals, test.expect, Commentf(test.exec_command))
 	}
 }
 
@@ -441,7 +445,7 @@ func (s *privilegedDesktopLauncherInternalSuite) TestParseExecCommandFailsWithIn
 
 	for _, test := range exec_command {
 		_, err := userd.ParseExecCommand(test, "/snap/chromium/1193/chromium.png")
-		c.Assert(err, NotNil)
+		c.Check(err, ErrorMatches, "EOF found when expecting closing quote", Commentf(test))
 	}
 }
 
@@ -456,8 +460,8 @@ func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopF
 	exec, icon, err := userd.ReadExecCommandFromDesktopFile(desktopFile)
 	c.Assert(err, IsNil)
 
-	c.Assert(exec, DeepEquals, "env BAMF_DESKTOP_FILE_HINT="+desktopFile+" /snap/bin/chromium %U")
-	c.Assert(icon, DeepEquals, "/snap/chromium/1193/chromium.png")
+	c.Check(exec, Equals, "env BAMF_DESKTOP_FILE_HINT="+desktopFile+" /snap/bin/chromium %U")
+	c.Check(icon, Equals, "/snap/chromium/1193/chromium.png")
 }
 
 func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopFileWithInvalidExec(c *C) {
@@ -467,7 +471,7 @@ func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopF
 	c.Assert(err, IsNil)
 
 	_, _, err = userd.ReadExecCommandFromDesktopFile(desktopFile)
-	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `desktop file ".*" has an unsupported 'Exec' value: .*`)
 }
 
 func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopFileWithNoDesktopEntry(c *C) {
@@ -481,12 +485,12 @@ func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopF
 	c.Assert(err, IsNil)
 
 	_, _, err = userd.ReadExecCommandFromDesktopFile(desktopFile)
-	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `desktop file ".*" has an unsupported 'Exec' value: ""`)
 }
 
 func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopFileWithNoFile(c *C) {
 	desktopFile := filepath.Join(c.MkDir(), "test.desktop")
 
 	_, _, err := userd.ReadExecCommandFromDesktopFile(desktopFile)
-	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `open .*: no such file or directory`)
 }

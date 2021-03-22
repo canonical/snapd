@@ -77,7 +77,7 @@ func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntryFailsWithBadDesktop
 	defer cmd.Restore()
 
 	err := s.launcher.OpenDesktopEntry("not-mircade_mircade.desktop", ":some-dbus-sender")
-	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `cannot find desktop file for "not-mircade_mircade.desktop"`)
 }
 
 func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntryFailsWithBadExecutable(c *C) {
@@ -85,5 +85,5 @@ func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntryFailsWithBadExecuta
 	defer cmd.Restore()
 
 	err := s.launcher.OpenDesktopEntry("mircade_mircade.desktop", ":some-dbus-sender")
-	c.Assert(err, NotNil)
+	c.Assert(err, ErrorMatches, `cannot run ".*": exit status 1`)
 }
