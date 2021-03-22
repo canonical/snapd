@@ -383,11 +383,16 @@ func (s *privilegedDesktopLauncherInternalSuite) TestDesktopFileIDToFilenameFail
 		"bar-foo-baz.desktop",
 		"bar-baz-foo.desktop",
 		"foo-bar_foo-bar.desktop",
+		// special path segments cannot be smuggled inside desktop IDs
+		"bar-..-vlc_vlc.desktop",
+		"foo-bar/baz.desktop",
+		"bar/../vlc_vlc.desktop",
+		"../applications/vlc_vlc.desktop",
 	}
 
 	for _, id := range desktopIdTests {
 		_, err := userd.DesktopFileIDToFilename(id)
-		c.Check(err, ErrorMatches, `cannot find desktop file for ".*"`)
+		c.Check(err, ErrorMatches, `cannot find desktop file for ".*"`, Commentf(id))
 	}
 }
 

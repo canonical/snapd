@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/godbus/dbus"
@@ -143,15 +144,25 @@ func findDesktopFile(baseDir string, splitFileId []string) (string, error) {
 	for i := 1; i != len(splitFileId); i++ {
 		desktopFile, err := findDesktopFile(filepath.Join(baseDir, strings.Join(splitFileId[:i], "-")), splitFileId[i:])
 		if err == nil {
-			return desktopFile, err
+			return desktopFile, nil
 		}
 	}
 
 	return "", fmt.Errorf("could not find desktop file")
 }
 
+// isValidDesktopFileID is based on the "File naming" section of the
+// Desktop Entry Specification, without the restriction on components
+// not starting with a digit (which desktop files created by snapd may
+// not satisfy).
+var isValidDesktopFileID = regexp.MustCompile(`^[A-Za-z0-9-_]+(\.[A-Za-z0-9-_]+)*$`).MatchString
+
 // desktopFileIDToFilename determines the path associated with a desktop file ID.
 func desktopFileIDToFilename(desktopFileID string) (string, error) {
+	if !isValidDesktopFileID(desktopFileID) {
+		return "", fmt.Errorf("cannot find desktop file for %q", desktopFileID)
+	}
+
 	// OpenDesktopEntry() currently only supports launching snap applications from
 	// desktop files in /var/lib/snapd/desktop/applications and these desktop files are
 	// written by snapd and considered safe for userd to process.
@@ -159,7 +170,9 @@ func desktopFileIDToFilename(desktopFileID string) (string, error) {
 	// https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
 	baseDir := dirs.SnapDesktopFilesDir
 
-	desktopFile, err := findDesktopFile(baseDir, strings.Split(desktopFileID, "-"))
+	splitDesktopID := strings.Split(desktopFileID, "-")
+
+	desktopFile, err := findDesktopFile(baseDir, splitDesktopID)
 	if err == nil {
 		return desktopFile, nil
 	}
