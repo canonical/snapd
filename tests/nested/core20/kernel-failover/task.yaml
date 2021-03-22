@@ -24,10 +24,10 @@ execute: |
   # shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
 
-  # Copy the broken initramfs kernel snap to the UC20 VM
+  echo "Copy the broken initramfs kernel snap to the UC20 VM"
   nested_copy panicking-initramfs-kernel.snap
 
-  # wait for snapd to be "available"
+  echo "Wait for snapd to be available"
   retry=120
   wait=1
   until nested_exec command -v snap; do
@@ -39,7 +39,7 @@ execute: |
       sleep "$wait"
   done
 
-  # Wait for snapd to be seeded
+  echo "Wait for snapd to be seeded"
   nested_exec sudo snap wait system seed.loaded
 
   # Get the current revision of the kernel snap
@@ -52,7 +52,7 @@ execute: |
 
   boot_id="$( nested_get_boot_id )"
 
-  # Install it and get the ID for the change
+  echo "Install it and get the ID for the change"
   REMOTE_CHG_ID=$(nested_exec sudo snap install --dangerous panicking-initramfs-kernel.snap --no-wait)
 
   # wait for a reboot
@@ -65,21 +65,20 @@ execute: |
     exit 1
   fi
 
-  # Check that the refresh failed
+  echo "Check that the refresh failed"
   nested_exec sudo snap changes | grep "${REMOTE_CHG_ID}" | MATCH Error
   nested_exec sudo snap tasks "${REMOTE_CHG_ID}" | MATCH "cannot finish .* installation, there was a rollback across reboot"
 
-  # We should be on the same revision of the kernel snap
+  echo "Check We should be on the same revision of the kernel snap"
   if [ "$(nested_exec sudo snap list pc-kernel | grep pc-kernel | awk '{print $3}')" != "${startRevision}" ]; then
     echo "pc-kernel is on the wrong revision"
     exit 1
   fi
 
-  # Make sure we don't have leftover bootenv
+  echo "Check we don't have leftover bootenv"
   nested_exec sudo snap debug boot-vars --uc20 | MATCH '^kernel_status=$'
 
-  # Make sure that we don't have extra assets in the ubuntu-boot dir and that
-  # the currently enabled kernel is the original kernel
+  echo "Check that we don't have extra assets in the ubuntu-boot dir and that the currently enabled kernel is the original kernel"
 
   # kernel.efi symlink should point to the original kernel
   nested_exec readlink /run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi | MATCH "pc-kernel_${startRevision}.snap/kernel.efi"

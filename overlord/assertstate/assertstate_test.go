@@ -2152,6 +2152,64 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsNop(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *assertMgrSuite) TestValidationSetAssertionsAutoRefresh(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	c.Assert(s.storeSigning.Add(storeAs), IsNil)
+
+	// store key already present
+	c.Assert(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")), IsNil)
+	c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
+
+	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1")
+	c.Assert(assertstate.Add(s.state, vsetAs1), IsNil)
+
+	vsetAs2 := s.validationSetAssert(c, "bar", "2", "3")
+	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
+
+	tr := assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "bar",
+		Mode:      assertstate.Monitor,
+		Current:   1,
+	}
+	assertstate.UpdateValidationSet(s.state, &tr)
+
+	c.Assert(assertstate.AutoRefreshAssertions(s.state, 0), IsNil)
+
+	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "bar",
+		"sequence":   "2",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.Revision(), Equals, 3)
+}
+
+func (s *assertMgrSuite) TestValidationSetAssertionsAutoRefreshError(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	c.Assert(s.storeSigning.Add(storeAs), IsNil)
+
+	tr := assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "bar",
+		Mode:      assertstate.Monitor,
+		Current:   1,
+	}
+	assertstate.UpdateValidationSet(s.state, &tr)
+	err := assertstate.AutoRefreshAssertions(s.state, 0)
+	c.Assert(asserts.IsNotFound(err), Equals, true)
+}
+
 func (s *assertMgrSuite) TestRefreshValidationSetAssertionsStoreError(c *C) {
 	s.fakeStore.(*fakeStore).snapActionErr = &store.UnexpectedHTTPStatusError{StatusCode: 400}
 	s.state.Lock()
@@ -2256,6 +2314,10 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "bar")
+
+	// tracking current was updated
+	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "bar", &tr), IsNil)
+	c.Check(tr.Current, Equals, 4)
 }
 
 func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
@@ -2321,7 +2383,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 		{"account", "account-key", "validation-set"},
 	})
 
-	// new sequence is available in the db
+	// new sequence is not available in the db
 	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
@@ -2329,6 +2391,10 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 		"sequence":   "7",
 	})
 	c.Assert(asserts.IsNotFound(err), Equals, true)
+
+	// tracking current remains at 2
+	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "bar", &tr), IsNil)
+	c.Check(tr.Current, Equals, 2)
 }
 
 func (s *assertMgrSuite) TestRefreshValidationSetAssertionsLocalOnlyFailed(c *C) {
