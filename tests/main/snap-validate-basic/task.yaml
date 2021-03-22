@@ -17,10 +17,14 @@ systems:
   # go-flags panics when showing --help for a hidden command on Fedora 32/33
   - -fedora-*
 
+environment:
+  ACCOUNT_ID: xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f
+  PUBKEY_SHA: o_x83A3wpIvJznIHBJIK7jRmRZKLlqx5jOr30HUsloFfBseXNF0ztoj18EvNualy
+
 prepare : |
   echo "Acknowledging account and account-key assertions required by local validation set"
-  snap known --remote account account-id=xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f > account.assert
-  snap known --remote account-key public-key-sha3-384=o_x83A3wpIvJznIHBJIK7jRmRZKLlqx5jOr30HUsloFfBseXNF0ztoj18EvNualy > key.assert
+  snap known --remote account account-id="$ACCOUNT_ID" > account.assert
+  snap known --remote account-key public-key-sha3-384="$PUBKEY_SHA" > key.assert
   snap ack account.assert
   snap ack key.assert
   # validation-set assertion ack'ed locally (but not available in the store)
@@ -40,35 +44,35 @@ execute: |
   snap validate --enforce foo/bar=1 2>&1 | MATCH "error: cannot apply validation set: invalid mode \"enforce\""
 
   echo "Tracking not set up yet, but validation is possible with local assertion"
-  snap validate xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar=1 2>&1 | MATCH "^invalid"
+  snap validate "$ACCOUNT_ID"/bar=1 2>&1 | MATCH "^invalid"
 
   echo "Checking that monitor mode is supported with a pinned sequence and local validation-set"
-  snap validate --monitor xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar=1
-  snap validate | MATCH "xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar=1 +monitor +1 +invalid"
+  snap validate --monitor "$ACCOUNT_ID"/bar=1
+  snap validate | MATCH "$ACCOUNT_ID/bar=1 +monitor +1 +invalid"
 
   echo "Checking that validation-set is valid or invalid depending on presence of the snap"
   snap install hello-world
-  snap validate | MATCH "xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar=1 +monitor +1 +valid"
-  snap validate xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar=1 | MATCH "^valid"
+  snap validate | MATCH "$ACCOUNT_ID/bar=1 +monitor +1 +valid"
+  snap validate "$ACCOUNT_ID"/bar=1 | MATCH "^valid"
   # presence of test-snapd-base-bare is invalid
   snap install test-snapd-base-bare
-  snap validate xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar=1 | MATCH "^invalid"
+  snap validate "$ACCOUNT_ID"/bar=1 | MATCH "^invalid"
   snap remove --purge test-snapd-base-bare
-  snap validate xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar=1 | MATCH "^valid"
+  snap validate "$ACCOUNT_ID"/bar=1 | MATCH "^valid"
   snap remove --purge hello-world
-  snap validate | MATCH "xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar=1 +monitor +1 +invalid"
-  snap validate xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar=1 | MATCH "^invalid"
+  snap validate | MATCH "$ACCOUNT_ID/bar=1 +monitor +1 +invalid"
+  snap validate "$ACCOUNT_ID"/bar=1 | MATCH "^invalid"
 
   echo "Checking that validation sets can be forgotten"
-  snap validate --forget xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar
+  snap validate --forget "$ACCOUNT_ID"/bar
   snap validate 2>&1 | MATCH "No validations are available"
 
   echo "Checking that monitor mode is supported with a local validation-set (non-pinned)"
-  snap validate --monitor xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar
-  snap validate | MATCH "xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar +monitor +1 +invalid"
-  snap validate xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar=1 | MATCH "^invalid"
-  snap validate xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar | MATCH "^invalid"
+  snap validate --monitor "$ACCOUNT_ID"/bar
+  snap validate | MATCH "$ACCOUNT_ID/bar +monitor +1 +invalid"
+  snap validate "$ACCOUNT_ID"/bar=1 | MATCH "^invalid"
+  snap validate "$ACCOUNT_ID"/bar | MATCH "^invalid"
   snap install hello-world
-  snap validate | MATCH "xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar +monitor +1 +valid"
-  snap validate xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar=1 | MATCH "^valid"
-  snap validate xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f/bar | MATCH "^valid"
+  snap validate | MATCH "$ACCOUNT_ID/bar +monitor +1 +valid"
+  snap validate "$ACCOUNT_ID"/bar=1 | MATCH "^valid"
+  snap validate "$ACCOUNT_ID"/bar | MATCH "^valid"
