@@ -695,7 +695,8 @@ func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTr
 	modeenv := &boot.Modeenv{
 		Mode: "run",
 		// keep this comment to make old gofmt happy
-		CurrentRecoverySystems: []string{"20200825", "1234"},
+		CurrentRecoverySystems: []string{"20200825"},
+		GoodRecoverySystems:    []string{"20200825"},
 		CurrentKernels:         []string{},
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
@@ -704,6 +705,9 @@ func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTr
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
+	}
+	if systemLabel != "" {
+		modeenv.CurrentRecoverySystems = append(modeenv.CurrentRecoverySystems, systemLabel)
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 
@@ -719,6 +723,8 @@ func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTr
 	resealCalls := 0
 	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
+		c.Assert(params, NotNil)
+		c.Assert(params.ModelParams, HasLen, 1)
 		switch resealCalls {
 		case 1:
 			c.Check(params.KeyFiles, DeepEquals, []string{
@@ -726,10 +732,12 @@ func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTr
 			})
 			return resealErr
 		case 2:
-			// XXX: this will become unexpected when we reseal the run key only
 			c.Check(params.KeyFiles, DeepEquals, []string{
 				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
 				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+			})
+			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
 			return nil
 		default:
@@ -821,6 +829,28 @@ func (s *systemsSuite) TestClearRecoverySystemInconsistentStateHappy(c *C) {
 	})
 }
 
+func (s *systemsSuite) TestClearRecoverySystemInconsistentNoLabelHappy(c *C) {
+	setVars := map[string]string{
+		"recovery_system_status": "this-will-be-gone",
+		"try_recovery_system":    "this-too",
+	}
+	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
+	err := mtbl.SetBootVars(setVars)
+	c.Assert(err, IsNil)
+
+	// clear without passing the system label, just clears the relevant boot
+	// variables
+	const noLabel = ""
+	s.testClearRecoverySystem(c, mtbl, noLabel, nil, "")
+	// bootloader variables have been cleared
+	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+}
+
 func (s *systemsSuite) TestClearRecoverySystemResealFails(c *C) {
 	setVars := map[string]string{
 		"recovery_system_status": "try",
@@ -900,6 +930,8 @@ func (s *systemsSuite) TestClearRecoverySystemReboot(c *C) {
 	resealCalls := 0
 	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
+		c.Assert(params, NotNil)
+		c.Assert(params.ModelParams, HasLen, 1)
 		switch resealCalls {
 		case 1:
 			c.Check(params.KeyFiles, DeepEquals, []string{
@@ -912,10 +944,12 @@ func (s *systemsSuite) TestClearRecoverySystemReboot(c *C) {
 			})
 			return nil
 		case 3:
-			// XXX: this will become unexpected when we reseal the run key only
 			c.Check(params.KeyFiles, DeepEquals, []string{
 				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
 				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+			})
+			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
 			})
 			return nil
 		default:
