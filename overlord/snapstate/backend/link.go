@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
@@ -51,17 +52,10 @@ type LinkContext struct {
 
 func updateCurrentSymlinks(info *snap.Info) (e error) {
 	mountDir := info.MountDir()
-
 	currentActiveSymlink := filepath.Join(mountDir, "..", "current")
-	if err := os.Remove(currentActiveSymlink); err != nil && !os.IsNotExist(err) {
-		logger.Noticef("Cannot remove %q: %v", currentActiveSymlink, err)
-	}
 
 	dataDir := info.DataDir()
 	currentDataSymlink := filepath.Join(dataDir, "..", "current")
-	if err := os.Remove(currentDataSymlink); err != nil && !os.IsNotExist(err) {
-		logger.Noticef("Cannot remove %q: %v", currentDataSymlink, err)
-	}
 
 	if err := os.MkdirAll(dataDir, 0755); err != nil {
 		return err
@@ -78,12 +72,12 @@ func updateCurrentSymlinks(info *snap.Info) (e error) {
 		}
 	}()
 
-	if err := os.Symlink(filepath.Base(dataDir), currentDataSymlink); err != nil {
+	if err := osutil.AtomicSymlink(filepath.Base(dataDir), currentDataSymlink); err != nil {
 		return err
 	}
 	cleanup = append(cleanup, currentDataSymlink)
 
-	return os.Symlink(filepath.Base(mountDir), currentActiveSymlink)
+	return osutil.AtomicSymlink(filepath.Base(mountDir), currentActiveSymlink)
 }
 
 func hasFontConfigCache(info *snap.Info) bool {
@@ -283,7 +277,7 @@ func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress
 	err1 := removeGeneratedWrappers(info, linkCtx.FirstInstall, meter)
 
 	// and finally remove current symlinks
-	err2 := removeCurrentSymlinks(info)
+	err2 := removeCurrentSymlinks(info, linkCtx.FirstInstall)
 
 	// FIXME: aggregate errors instead
 	return firstErr(err0, err1, err2)
@@ -299,8 +293,14 @@ func (b Backend) QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]st
 	return wrappers.QueryDisabledServices(info, pb)
 }
 
-func removeCurrentSymlinks(info snap.PlaceInfo) error {
+func removeCurrentSymlinks(info *snap.Info, firstInstall bool) error {
 	var err1, err2 error
+
+	if info.Type() == snap.TypeSnapd && !firstInstall {
+		// do not remove current symlink for snapd unless cleaning up
+		// the first install
+		return nil
+	}
 
 	// the snap "current" symlink
 	currentActiveSymlink := filepath.Join(info.MountDir(), "..", "current")

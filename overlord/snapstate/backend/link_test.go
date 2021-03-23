@@ -178,6 +178,30 @@ version: 1.0
 
 }
 
+func (s *linkSuite) TestLinkDoUndoCurrentSymlinkSnapd(c *C) {
+	const yaml = `name: snapd
+type: snapd
+version: 1.0
+`
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
+
+	reboot, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(reboot, Equals, false)
+
+	mountDir := info.MountDir()
+	dataDir := info.DataDir()
+	c.Check(filepath.Join(mountDir, "..", "current"), testutil.SymlinkTargetEquals, filepath.Base(mountDir))
+	c.Check(filepath.Join(dataDir, "..", "current"), testutil.SymlinkTargetEquals, filepath.Base(dataDir))
+
+	// unlinking of snapd snap leaves the current symlinks around
+	err = s.be.UnlinkSnap(info, backend.LinkContext{}, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(filepath.Join(mountDir, "..", "current"), testutil.SymlinkTargetEquals, filepath.Base(mountDir))
+	c.Check(filepath.Join(dataDir, "..", "current"), testutil.SymlinkTargetEquals, filepath.Base(dataDir))
+}
+
 func (s *linkSuite) TestLinkSetNextBoot(c *C) {
 	coreDev := boottest.MockDevice("base")
 
@@ -589,7 +613,7 @@ func (s *linkCleanupSuite) testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c *C
 		FirstInstall: firstInstall,
 	}
 	reboot, err := s.be.LinkSnap(info, mockDev, linkCtx, s.perfTimings)
-	c.Assert(err, ErrorMatches, fmt.Sprintf("symlink %s /.*/snapd/current: permission denied", info.Revision))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`symlink %s /.*/snapd/current\..*~: permission denied`, info.Revision))
 	c.Assert(reboot, Equals, false)
 
 	checker := testutil.FilePresent
@@ -632,7 +656,7 @@ type snapdOnCoreUnlinkSuite struct {
 
 var _ = Suite(&snapdOnCoreUnlinkSuite{})
 
-func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
+func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappersAndSymlinkOnFirstInstall(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
@@ -658,6 +682,8 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 	reboot, err := s.be.LinkSnap(info, mockDev, backend.LinkContext{}, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, false)
+	c.Check(filepath.Join(info.MountDir(), "..", "current"), testutil.SymlinkTargetEquals, filepath.Base(info.MountDir()))
+	c.Check(filepath.Join(info.DataDir(), "..", "current"), testutil.SymlinkTargetEquals, filepath.Base(info.DataDir()))
 
 	// sanity checks
 	c.Check(filepath.Join(dirs.SnapServicesDir, "snapd.service"), testutil.FileContains,
@@ -682,6 +708,10 @@ func (s *snapdOnCoreUnlinkSuite) TestUndoGeneratedWrappers(c *C) {
 	}
 	// unlinked snaps have a run inhibition lock
 	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FilePresent)
+
+	// symlink is gone too
+	c.Check(filepath.Join(info.MountDir(), "..", "current"), testutil.FileAbsent)
+	c.Check(filepath.Join(info.DataDir(), "..", "current"), testutil.FileAbsent)
 
 	// unlink is idempotent
 	err = s.be.UnlinkSnap(info, linkCtx, nil)
