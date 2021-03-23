@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -109,20 +110,49 @@ type fdeRevealJSON struct {
 	SealedKey []byte `json:"sealed-key"`
 }
 
+type fdeRevealJSONStrict struct {
+	Op string `json:"op"`
+
+	SealedKey string `json:"sealed-key"`
+}
+
 func runFdeRevealKey() error {
 	var js fdeRevealJSON
+	var jsStrict fdeRevealJSONStrict
 
-	if err := json.NewDecoder(os.Stdin).Decode(&js); err != nil {
+	b, err := ioutil.ReadAll(os.Stdin)
+	if err != nil {
 		return err
+	}
+
+	if err := json.Unmarshal(b, &js); err != nil {
+		return err
+	}
+
+	if err := json.Unmarshal(b, &jsStrict); err != nil {
+		return err
+	}
+
+	// verify that the two de-coding mechanisms agree on the key, manually
+	// decoding the base64 string in the stricter case
+	decodedBase64Key, err := base64.StdEncoding.DecodeString(jsStrict.SealedKey)
+	if err != nil {
+		return fmt.Errorf("fde-reveal-key input is not valid base64: %v", err)
+	}
+	if err := byteSlicesEqual(decodedBase64Key, js.SealedKey); err != nil {
+		return fmt.Errorf("fde-reveal-key input is not strictly the same base64 decoded as binary decoded: %v", err)
 	}
 
 	switch js.Op {
 	case "reveal":
-		// "unseal"
 		unsealedKey := xor13(js.SealedKey)
 		fmt.Fprintf(os.Stdout, "%s", unsealedKey)
 	case "lock":
 		// nothing right now
+
+		// NOTE: when using this file as an example code for implementing a real
+		// world, production grade FDE hook, the lock operation must be
+		// implemented here to block decryption operations
 	case "features":
 		// XXX: Not used right now but might in the future?
 		fmt.Fprintf(os.Stdout, `{"features":[]}`)
