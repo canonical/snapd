@@ -76,11 +76,14 @@ execute: |
         exit
     fi
 
+    #shellcheck source=tests/lib/core-config.sh
+    . "$TESTSLIB"/core-config.sh
+
     echo "We have a model assertion"
     snap model --verbose|MATCH "model:\s* my-model"
 
     echo "Wait for device initialisation to be done"
-    while ! snap changes | grep -q "Done.*Initialize device"; do sleep 1; done
+    wait_for_device_initialized_change
 
     echo "Check we have a serial"
     snap model --serial --assertion|MATCH "authority-id: developer1"

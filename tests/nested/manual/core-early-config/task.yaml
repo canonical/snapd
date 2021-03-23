@@ -56,10 +56,10 @@ execute: |
     nested_exec "cat /var/snap/pc/common/debug.txt" | MATCH "rsyslog symlink: /dev/null"
     nested_exec "test -L /etc/systemd/system/rsyslog.service"
 
-    # timezone is set
+    echo "Check that the timezone is set"
     nested_exec "cat /etc/timezone" | MATCH "Europe/Malta"
     nested_exec "readlink -f /etc/localtime" | MATCH "Europe/Malta"
     nested_exec "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"
 
-    # check console-conf disabled
+    echo "Check that console-conf is disabled"
     nested_exec "cat /var/lib/console-conf/complete" | MATCH "console-conf has been disabled by the snapd system configuration"

@@ -860,7 +860,6 @@ func efiImageFromBootFile(b *bootloader.BootFile) (sb.EFIImage, error) {
 	}
 	return sb.SnapFileEFIImage{
 		Container: snapf,
-		Path:      b.Snap,
 		FileName:  b.Path,
 	}, nil
 }
