@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -32,6 +33,31 @@ type fdeSetupJSON struct {
 	Models []map[string]string `json:"models,omitempty"`
 }
 
+// this is the same as fdeSetupJSON, but is more strict in that it decodes Key
+// as a string, which _must_ be a base64 encoded version of the same []byte Key
+// we have above, the handler below validates this as a test
+type fdeSetupJSONStrictBase64 struct {
+	Op string `json:"op"`
+
+	Key     string `json:"key,omitempty"`
+	KeyName string `json:"key-name,omitempty"`
+
+	Models []map[string]string `json:"models,omitempty"`
+}
+
+func byteSlicesEqual(b1, b2 []byte) error {
+	if len(b1) != len(b2) {
+		return fmt.Errorf("not same length")
+	}
+
+	for i, b := range b1 {
+		if b != b2[i] {
+			return fmt.Errorf("different bytes at position %d (%d vs %d)", i, b, b2[i])
+		}
+	}
+	return nil
+}
+
 func runFdeSetup() error {
 	output, err := exec.Command("snapctl", "fde-setup-request").CombinedOutput()
 	if err != nil {
@@ -40,6 +66,21 @@ func runFdeSetup() error {
 	var js fdeSetupJSON
 	if err := json.Unmarshal(output, &js); err != nil {
 		return err
+	}
+
+	var jsStrict fdeSetupJSONStrictBase64
+	if err := json.Unmarshal(output, &jsStrict); err != nil {
+		return err
+	}
+
+	// verify that the two de-coding mechanisms agree on the key, manually
+	// decoding the base64 string in the stricter case
+	decodedBase64Key, err := base64.StdEncoding.DecodeString(jsStrict.Key)
+	if err != nil {
+		return fmt.Errorf("fde-setup-request is not valid base64: %v", err)
+	}
+	if err := byteSlicesEqual(decodedBase64Key, js.Key); err != nil {
+		return fmt.Errorf("fde-setup-request is not strictly the same base64 decoded as binary decoded: %v", err)
 	}
 
 	var fdeSetupResult []byte
