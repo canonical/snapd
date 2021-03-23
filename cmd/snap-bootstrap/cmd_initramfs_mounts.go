@@ -635,7 +635,7 @@ func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string,
 			// if we don't have an encrypted device and err != nil, then the
 			// device must be not-found, see above checks
 
-			// log the error the partition is mandatory
+			// log an error the partition is mandatory
 			m.degradedState.LogErrorf("cannot locate %s partition: %v", partName, err)
 		}
 
@@ -757,8 +757,8 @@ func (m *recoverModeStateMachine) mountBoot() (stateFunc, error) {
 	// use the disk we mounted ubuntu-seed from as a reference to find
 	// ubuntu-seed and mount it
 	partUUID, findErr := m.disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-boot")
-	const partitionOptional = false
-	if err := m.setFindState("ubuntu-boot", partUUID, findErr, partitionOptional); err != nil {
+	const partitionMandatory = false
+	if err := m.setFindState("ubuntu-boot", partUUID, findErr, partitionMandatory); err != nil {
 		return nil, err
 	}
 	if part.FindState != partitionFound {
@@ -927,15 +927,25 @@ func (m *recoverModeStateMachine) unlockMaybeEncryptedAloneSaveFallbackKey() (st
 func (m *recoverModeStateMachine) openUnencryptedSave() (stateFunc, error) {
 	// do we have ubuntu-save at all?
 	partSave := m.degradedState.partition("ubuntu-save")
-	const optionalPartition = true
+	const partitionOptional = true
 	partUUID, findErr := m.disk.FindMatchingPartitionUUIDWithFsLabel("ubuntu-save")
-	if err := m.setFindState("ubuntu-save", partUUID, findErr, optionalPartition); err != nil {
+	if err := m.setFindState("ubuntu-save", partUUID, findErr, partitionOptional); err != nil {
 		return nil, err
 	}
 	if partSave.FindState == partitionFound {
 		// we have ubuntu-save, go mount it
 		return m.mountSave, nil
 	}
+
+	// unencrypted ubuntu-save was not found, try to log something in case
+	// the early boot output can be collected for debugging purposes
+	if uuid, err := m.disk.FindMatchingPartitionUUIDWithFsLabel(secboot.EncryptedPartitionName("ubuntu-save")); err == nil {
+		// highly unlikely that encrypted save exists
+		logger.Noticef("ignoring unexpected encrypted ubuntu-save with UUID %q", uuid)
+	} else {
+		logger.Noticef("ubuntu-save was not found")
+	}
+
 	// save is optional in an unencrypted system
 	partSave.MountState = partitionAbsentOptional
 
