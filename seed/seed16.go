@@ -64,7 +64,7 @@ func (s *seed16) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 	if db == nil {
 		// a db was not provided, create an internal temporary one
 		var err error
-		db, commitTo, err = newMemAssertionsDB()
+		db, commitTo, err = newMemAssertionsDB(nil)
 		if err != nil {
 			return err
 		}
