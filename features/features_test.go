@@ -53,7 +53,7 @@ func (*featureSuite) TestName(c *C) {
 	c.Check(features.CheckDiskSpaceInstall.String(), Equals, "check-disk-space-install")
 	c.Check(features.CheckDiskSpaceRefresh.String(), Equals, "check-disk-space-refresh")
 	c.Check(features.CheckDiskSpaceRemove.String(), Equals, "check-disk-space-remove")
-	c.Check(features.RefreshControl.String(), Equals, "refresh-control")
+	c.Check(features.GateAutoRefreshHook.String(), Equals, "gate-auto-refresh-hook")
 	c.Check(func() { _ = features.SnapdFeature(1000).String() }, PanicMatches, "unknown feature flag code 1000")
 }
 
@@ -81,7 +81,7 @@ func (*featureSuite) TestIsExported(c *C) {
 	c.Check(features.CheckDiskSpaceInstall.IsExported(), Equals, false)
 	c.Check(features.CheckDiskSpaceRefresh.IsExported(), Equals, false)
 	c.Check(features.CheckDiskSpaceRemove.IsExported(), Equals, false)
-	c.Check(features.RefreshControl.IsExported(), Equals, false)
+	c.Check(features.GateAutoRefreshHook.IsExported(), Equals, false)
 }
 
 func (*featureSuite) TestIsEnabled(c *C) {
@@ -118,7 +118,7 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	c.Check(features.CheckDiskSpaceInstall.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.CheckDiskSpaceRefresh.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.CheckDiskSpaceRemove.IsEnabledWhenUnset(), Equals, false)
-	c.Check(features.RefreshControl.IsEnabledWhenUnset(), Equals, false)
+	c.Check(features.GateAutoRefreshHook.IsEnabledWhenUnset(), Equals, false)
 }
 
 func (*featureSuite) TestControlFile(c *C) {
