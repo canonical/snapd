@@ -939,8 +939,8 @@ func (m *DeviceManager) ensureInstalled() error {
 	}
 	prev = setupRunSystem
 
-	makeBootable := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
-	addTask(makeBootable)
+	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
+	addTask(restartSystem)
 
 	chg := m.state.NewChange("install-system", i18n.G("Install the system"))
 	chg.AddAll(state.NewTaskSet(tasks...))
