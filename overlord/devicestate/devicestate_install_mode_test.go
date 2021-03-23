@@ -398,23 +398,20 @@ func (s *deviceMgrInstallModeSuite) TestInstallExpTasks(c *C) {
 	tasks := installSystem.Tasks()
 	c.Assert(tasks, HasLen, 2)
 	setupRunSystemTask := tasks[0]
-	ensureNextBootToRunModeTask := tasks[1]
+	restartSystemToRunModeTask := tasks[1]
 
 	c.Assert(setupRunSystemTask.Kind(), Equals, "setup-run-system")
-	c.Assert(ensureNextBootToRunModeTask.Kind(), Equals, "ensure-next-boot-to-run-mode")
+	c.Assert(restartSystemToRunModeTask.Kind(), Equals, "restart-system-to-run-mode")
 
 	// setup-run-system has no pre-reqs
 	c.Assert(setupRunSystemTask.WaitTasks(), HasLen, 0)
 
-	// ensure-next-boot-to-run-mode has a pre-req of setup-run-system
-	waitTasks := ensureNextBootToRunModeTask.WaitTasks()
-	waitTaskIDs := make([]string, 0, len(waitTasks))
-	for _, t := range waitTasks {
-		waitTaskIDs = append(waitTaskIDs, t.ID())
-	}
-	c.Assert(waitTaskIDs, DeepEquals, []string{setupRunSystemTask.ID()})
+	// restart-system-to-run-mode has a pre-req of setup-run-system
+	waitTasks := restartSystemToRunModeTask.WaitTasks()
+	c.Assert(waitTasks, HasLen, 1)
+	c.Assert(waitTasks[0].ID(), Equals, setupRunSystemTask.ID())
 
-	// we did request a restart through ensureNextBootToRunModeTask
+	// we did request a restart through restartSystemToRunModeTask
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 }
 
@@ -432,39 +429,55 @@ func (s *deviceMgrInstallModeSuite) TestInstallSetupRunSystemTaskNoRestarts(c *C
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
+	defer s.state.Unlock()
+
 	s.makeMockInstalledPcGadget(c, "dangerous", "")
 	devicestate.SetSystemMode(s.mgr, "install")
+
+	// also set the system as installed so that the install-system change
+	// doesn't get automatically added and we can craft our own change with just
+	// the setup-run-system task and not with the restart-system-to-run-mode
+	// task
+	devicestate.SetInstalledRan(s.mgr, true)
+
 	s.state.Unlock()
+	defer s.state.Lock()
 
 	s.settle(c)
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// make sure there is no install-system change that snuck in underneath us
 	installSystem := s.findInstallSystem()
+	c.Check(installSystem, IsNil)
+
+	t := s.state.NewTask("setup-run-system", "setup run system")
+	chg := s.state.NewChange("install-system", "install the system")
+	chg.AddTask(t)
+
+	// now let the change run
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// now we should have the install-system change
+	installSystem = s.findInstallSystem()
+	c.Check(installSystem, Not(IsNil))
 	c.Check(installSystem.Err(), IsNil)
 
 	tasks := installSystem.Tasks()
-	c.Assert(tasks, HasLen, 2)
+	c.Assert(tasks, HasLen, 1)
 	setupRunSystemTask := tasks[0]
-	ensureNextBootToRunModeTask := tasks[1]
 
 	c.Assert(setupRunSystemTask.Kind(), Equals, "setup-run-system")
-	c.Assert(ensureNextBootToRunModeTask.Kind(), Equals, "ensure-next-boot-to-run-mode")
 
-	// setup-run-system has no pre-reqs
-	c.Assert(setupRunSystemTask.WaitTasks(), HasLen, 0)
-
-	// ensure-next-boot-to-run-mode has a pre-req of setup-run-system
-	waitTasks := ensureNextBootToRunModeTask.WaitTasks()
-	waitTaskIDs := make([]string, 0, len(waitTasks))
-	for _, t := range waitTasks {
-		waitTaskIDs = append(waitTaskIDs, t.ID())
-	}
-	c.Assert(waitTaskIDs, DeepEquals, []string{setupRunSystemTask.ID()})
-
-	// we did request a restart through ensureNextBootToRunModeTask
-	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	// we did not request a restart (since that is done in restart-system-to-run-mode)
+	c.Check(s.restartRequests, HasLen, 0)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeNotInstallmodeNoChg(c *C) {

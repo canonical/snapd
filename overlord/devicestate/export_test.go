@@ -176,6 +176,10 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
 }
 
+func SetInstalledRan(m *DeviceManager, b bool) {
+	m.ensureInstalledRan = b
+}
+
 func StartTime() time.Time {
 	return startTime
 }
