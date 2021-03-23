@@ -326,7 +326,7 @@ func AutoAliases(s *state.State, info *snap.Info) (map[string]string, error) {
 func delayedCrossMgrInit() {
 	// hook validation of refreshes into snapstate logic
 	snapstate.ValidateRefreshes = ValidateRefreshes
-	// hook auto refresh of assertions into snapstate
+	// hook auto refresh of assertions (snap declarations) into snapstate
 	snapstate.AutoRefreshAssertions = AutoRefreshAssertions
 	// hook retrieving auto-aliases into snapstate logic
 	snapstate.AutoAliases = AutoAliases
@@ -334,7 +334,10 @@ func delayedCrossMgrInit() {
 
 // AutoRefreshAssertions tries to refresh all assertions
 func AutoRefreshAssertions(s *state.State, userID int) error {
-	return RefreshSnapDeclarations(s, userID)
+	if err := RefreshSnapDeclarations(s, userID); err != nil {
+		return err
+	}
+	return RefreshValidationSetAssertions(s, userID)
 }
 
 // RefreshValidationSetAssertions tries to refresh all validation set
@@ -353,7 +356,33 @@ func RefreshValidationSetAssertions(s *state.State, userID int) error {
 		return nil
 	}
 
-	return bulkRefreshValidationSetAsserts(s, vsets, userID, deviceCtx)
+	if err := bulkRefreshValidationSetAsserts(s, vsets, userID, deviceCtx); err != nil {
+		return err
+	}
+
+	// update validation set tracking state
+	for _, vs := range vsets {
+		// TODO: for enforce mode check that the validation-sets don't conflict
+		// and are usable before moving Current.
+		if vs.Mode == Monitor && vs.PinnedAt == 0 {
+			headers := map[string]string{
+				"series":     release.Series,
+				"account-id": vs.AccountID,
+				"name":       vs.Name,
+			}
+			db := DB(s)
+			as, err := db.FindSequence(asserts.ValidationSetType, headers, -1, asserts.ValidationSetType.MaxSupportedFormat())
+			if err != nil {
+				return fmt.Errorf("internal error: cannot find assertion %v when refreshing validation-set assertions", headers)
+			}
+			if vs.Current != as.Sequence() {
+				vs.Current = as.Sequence()
+				UpdateValidationSet(s, vs)
+			}
+		}
+	}
+
+	return nil
 }
 
 // ResolveOptions carries extra options for ValidationSetAssertionForMonitor.

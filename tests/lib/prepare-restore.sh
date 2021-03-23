@@ -583,17 +583,9 @@ prepare_suite_each() {
     # back test directory to be restored during the restore
     tests.backup prepare
 
-    # WORKAROUND for memleak https://github.com/systemd/systemd/issues/11502
-    if os.query is-debian-sid; then
-        systemctl restart systemd-journald
-    fi
-
     # save the job which is going to be executed in the system
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
-    if [[ "$variant" = full ]]; then
-        # shellcheck source=tests/lib/reset.sh
-        "$TESTSLIB"/reset.sh --reuse-core
-    fi
+
     # Restart journal log and reset systemd journal cursor.
     systemctl reset-failed systemd-journald.service
     if ! systemctl restart systemd-journald.service; then
@@ -670,6 +662,17 @@ restore_suite_each() {
         # to prevent hitting the system restart rate-limit for these services
         systemctl reset-failed snapd.service snapd.socket snapd.failure.service
     fi
+
+    if [[ "$variant" = full ]]; then
+        # shellcheck source=tests/lib/reset.sh
+        "$TESTSLIB"/reset.sh --reuse-core
+    fi
+
+    # Check for invariants late, in order to detect any bugs in the code above.
+    if [[ "$variant" = full ]]; then
+        "$TESTSTOOLS"/cleanup-state pre-invariant
+    fi
+    tests.invariant check
 }
 
 restore_suite() {
