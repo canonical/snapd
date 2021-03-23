@@ -21,12 +21,8 @@ restore: |
 execute: |
     echo "wait for snapd to pull in the commands data"
     echo "(it will do that on startup)"
-    for _ in $(seq 120); do
-       if stat /var/cache/snapd/commands.db; then
-           break
-       fi
-       sleep 1
-    done
+    retry -n 120 --wait 1 sh -c 'stat /var/cache/snapd/commands.db'
+
     if ! stat /var/cache/snapd/commands.db; then
         # workaround for misbehaving store
         if "$TESTSTOOLS"/journal-state get-log -u snapd | MATCH "429 Too Many Requests"; then

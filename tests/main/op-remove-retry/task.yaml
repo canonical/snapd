@@ -29,7 +29,7 @@ execute: |
     systemd-run --unit unmount-blocker test-snapd-tools.block
 
     wait_for_service unmount-blocker active
-    while [ ! -f $MARKER ]; do sleep 1; done
+    retry -n 20 --wait 1 sh -c "test -f $MARKER"
 
     echo "When we try to remove the snap"
     snap remove --purge test-snapd-tools &
@@ -38,7 +38,7 @@ execute: |
     wait_for_remove_state Done
 
     echo "And the snap is removed"
-    while snap list | grep -q test-snapd-tools; do sleep 1; done
+    retry -n 30 --wait 1 sh -c 'snap list | NOMATCH test-snapd-tools'
 
     # cleanup umount blocker
     systemctl stop unmount-blocker

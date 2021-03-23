@@ -14,10 +14,10 @@ prepare: |
   . "$TESTSLIB/snaps.sh"
 
   repack_snapd_deb_into_snapd_snap "$PWD"
-  # repack the snapd snap with a marker file
+  echo "Repack the snapd snap with a marker file"
   unsquashfs -d snapd-snap snapd-from-deb.snap
 
-  # leave a marker file that triggers boot config assets to be injected
+  echo "Leave a marker file that triggers boot config assets to be injected"
   echo 'bootassetstesting' > snapd-snap/usr/lib/snapd/bootassetstesting
 
   snap pack snapd-snap --filename=snapd-boot-config-update.snap
@@ -42,23 +42,24 @@ execute: |
   RESEAL_COUNT_1="$(jq -r '.["reseal-count"]' < boot-chains-before.json )"
   jq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-before.json | not MATCH ' bootassetstesting'
 
-  # Install new (unasserted) snapd and wait for reboot/change finishing
+  echo "Install new (unasserted) snapd and wait for reboot/change finishing"
   boot_id="$( nested_get_boot_id )"
   REMOTE_CHG_ID=$(nested_exec sudo snap install --dangerous snapd-boot-config-update.snap --no-wait)
   nested_exec sudo snap watch "${REMOTE_CHG_ID}"
   # reboot is automatically requested by snapd
   nested_wait_for_reboot "${boot_id}"
-  # boot assets have been updated
+  
+  echo "check boot assets have been updated"
   nested_exec "sudo cat /boot/grub/grub.cfg" | MATCH "Snapd-Boot-Config-Edition: 2"
   nested_exec "sudo cat /boot/grub/grub.cfg" | MATCH "set snapd_static_cmdline_args='.*bootassetstesting'"
 
   nested_exec "cat /proc/cmdline" | MATCH bootassetstesting
 
-  # ensure ubuntu-data.sealed-key mtime is newer
+  echo "Check ubuntu-data.sealed-key mtime is newer"
   SEALED_KEY_MTIME_2="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
   test "$SEALED_KEY_MTIME_2" -gt "$SEALED_KEY_MTIME_1"
 
-  # check that we have boot chains
+  echo "Check that we have boot chains"
   nested_exec sudo test -e /var/lib/snapd/device/fde/boot-chains
 
   nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-after.json

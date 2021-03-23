@@ -202,6 +202,15 @@ ptrace (read, trace) peer=cri-containerd.apparmor.d,
 # snap), but in deployments where the control plane is not a snap, it will tell
 # containerd to use this path for various account information for pods.
 /run/secrets/kubernetes.io/{,**} rk,
+
+# Allow using the 'autobind' feature of bind() (eg, for journald via go-systemd)
+# unix (bind) type=dgram addr=auto,
+# TODO: when snapd vendors in AppArmor userspace, then enable the new syntax
+# above which allows only "empty"/automatic addresses, for now we simply permit
+# all addresses with SOCK_DGRAM type, which leaks info for other addresses than
+# what docker tries to use
+# see https://bugs.launchpad.net/snapd/+bug/1867216
+unix (bind) type=dgram,
 `
 
 const dockerSupportConnectedPlugSecComp = `
