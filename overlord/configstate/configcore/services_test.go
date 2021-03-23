@@ -69,8 +69,8 @@ func (s *servicesSuite) TestConfigureServiceNotDisabled(c *C) {
 	err := configcore.SwitchDisableService("sshd.service", false, nil)
 	c.Assert(err, IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"--root", dirs.GlobalRootDir, "unmask", "sshd.service"},
-		{"--root", dirs.GlobalRootDir, "enable", "sshd.service"},
+		{"unmask", "sshd.service"},
+		{"enable", "sshd.service"},
 		{"start", "sshd.service"},
 	})
 }
@@ -79,8 +79,8 @@ func (s *servicesSuite) TestConfigureServiceDisabled(c *C) {
 	err := configcore.SwitchDisableService("sshd.service", true, nil)
 	c.Assert(err, IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"--root", dirs.GlobalRootDir, "disable", "sshd.service"},
-		{"--root", dirs.GlobalRootDir, "mask", "sshd.service"},
+		{"disable", "sshd.service"},
+		{"mask", "sshd.service"},
 		{"stop", "sshd.service"},
 		{"show", "--property=ActiveState", "sshd.service"},
 	})
@@ -122,8 +122,8 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 			})
 		default:
 			c.Check(s.systemctlArgs, DeepEquals, [][]string{
-				{"--root", dirs.GlobalRootDir, "disable", srv},
-				{"--root", dirs.GlobalRootDir, "mask", srv},
+				{"disable", srv},
+				{"mask", srv},
 				{"stop", srv},
 				{"show", "--property=ActiveState", srv},
 			})
@@ -283,8 +283,8 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 		switch service.cfgName {
 		case "ssh":
 			c.Check(s.systemctlArgs, DeepEquals, [][]string{
-				{"--root", dirs.GlobalRootDir, "unmask", "sshd.service"},
-				{"--root", dirs.GlobalRootDir, "unmask", "ssh.service"},
+				{"unmask", "sshd.service"},
+				{"unmask", "ssh.service"},
 				{"start", srv},
 			})
 			sshCanary := filepath.Join(dirs.GlobalRootDir, "/etc/ssh/sshd_not_to_be_run")
@@ -292,8 +292,8 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 			c.Assert(err, ErrorMatches, ".* no such file or directory")
 		default:
 			c.Check(s.systemctlArgs, DeepEquals, [][]string{
-				{"--root", dirs.GlobalRootDir, "unmask", srv},
-				{"--root", dirs.GlobalRootDir, "enable", srv},
+				{"unmask", srv},
+				{"enable", srv},
 				{"start", srv},
 			})
 		}
