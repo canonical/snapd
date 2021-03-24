@@ -904,7 +904,7 @@ func (s *validateGadgetTestSuite) TestCanResolveOneVolumeKernelRef(c *C) {
 		{contentTwoKernelRefs, kInfoTwoRefs, ""},
 	} {
 		lv.Structure[0].Content = tc.volumeContent
-		err := gadget.CanResolveOneVolumeKernelRef(lv.Volume, tc.kinfo)
+		err := gadget.GadgetVolumeConsumesOneKernelUpdateAsset(lv.Volume, tc.kinfo)
 		if tc.expectedErr == "" {
 			c.Check(err, IsNil, Commentf("should not fail %v", tc.volumeContent))
 		} else {

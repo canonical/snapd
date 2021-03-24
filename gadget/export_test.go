@@ -58,7 +58,7 @@ var (
 
 	ResolveVolumeContent = resolveVolumeContent
 
-	CanResolveOneVolumeKernelRef = canResolveOneVolumeKernelRef
+	GadgetVolumeConsumesOneKernelUpdateAsset = gadgetVolumeConsumesOneKernelUpdateAsset
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {

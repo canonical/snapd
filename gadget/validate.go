@@ -369,7 +369,7 @@ func ValidateContent(info *Info, gadgetSnapRootDir, kernelSnapRootDir string) er
 		}
 		resolvedOnce := false
 		for _, vol := range info.Volumes {
-			err := canResolveOneVolumeKernelRef(vol, kinfo)
+			err := gadgetVolumeConsumesOneKernelUpdateAsset(vol, kinfo)
 			if err == nil {
 				resolvedOnce = true
 			}
@@ -382,10 +382,10 @@ func ValidateContent(info *Info, gadgetSnapRootDir, kernelSnapRootDir string) er
 	return nil
 }
 
-// canResolveOneVolumeKernelRef ensures that at least one kernel
+// gadgetVolumeConsumesOneKernelUpdateAsset ensures that at least one kernel
 // assets from the kernel.yaml has a reference in the given
 // LaidOutVolume.
-func canResolveOneVolumeKernelRef(pNew *Volume, kernelInfo *kernel.Info) error {
+func gadgetVolumeConsumesOneKernelUpdateAsset(pNew *Volume, kernelInfo *kernel.Info) error {
 	notFoundAssets := make([]string, 0, len(kernelInfo.Assets))
 	for assetName, asset := range kernelInfo.Assets {
 		if !asset.Update {
