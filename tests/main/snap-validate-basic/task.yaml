@@ -54,6 +54,12 @@ execute: |
   snap install hello-world
   snap validate | MATCH "$ACCOUNT_ID/bar=1 +monitor +1 +valid"
   snap validate "$ACCOUNT_ID"/bar=1 | MATCH "^valid"
+
+  # presence of bare snap is optional (validation set was valid
+  # already and optional snap doesn't change that).
+  snap install bare
+  snap validate "$ACCOUNT_ID"/bar=1 | MATCH "^valid"
+
   # presence of test-snapd-base-bare is invalid
   snap install test-snapd-base-bare
   snap validate "$ACCOUNT_ID"/bar=1 | MATCH "^invalid"
