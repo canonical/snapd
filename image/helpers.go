@@ -417,6 +417,12 @@ var writeResolvedContent = writeResolvedContentImpl
 // E.g.
 // /tmp/prep-img/resolved-content/pi/part0/{config.txt,bootcode.bin,...}
 func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpackDir, kernelUnpackDir string) error {
+	// double check that things make sense
+	// XXX: move into setupSeed() instead?
+	if err := gadget.ValidateContent(info, gadgetUnpackDir, kernelUnpackDir); err != nil {
+		return err
+	}
+
 	fullPrepareDir, err := filepath.Abs(prepareDir)
 	if err != nil {
 		return err

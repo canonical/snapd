@@ -612,7 +612,7 @@ volumes:
 
 	ginfo, err := gadget.ReadInfo(s.dir, nil)
 	c.Assert(err, IsNil)
-	err = gadget.ValidateContent(ginfo, s.dir)
+	err = gadget.ValidateContent(ginfo, s.dir, "")
 	c.Assert(err, ErrorMatches, `invalid layout of volume "pc": cannot lay out structure #0 \("foo"\): content "foo.img": stat .*/foo.img: no such file or directory`)
 }
 
@@ -642,7 +642,7 @@ volumes:
 
 	ginfo, err := gadget.ReadInfo(s.dir, nil)
 	c.Assert(err, IsNil)
-	err = gadget.ValidateContent(ginfo, s.dir)
+	err = gadget.ValidateContent(ginfo, s.dir, "")
 	c.Assert(err, ErrorMatches, `invalid layout of volume "second": cannot lay out structure #0 \("second-foo"\): content "second.img": stat .*/second.img: no such file or directory`)
 }
 
@@ -665,13 +665,13 @@ volumes:
 
 	ginfo, err := gadget.ReadInfo(s.dir, nil)
 	c.Assert(err, IsNil)
-	err = gadget.ValidateContent(ginfo, s.dir)
+	err = gadget.ValidateContent(ginfo, s.dir, "")
 	c.Assert(err, ErrorMatches, `invalid volume "bad": structure #0 \("bad-struct"\), content source:foo/: source path does not exist`)
 
 	// make it a file, which conflicts with foo/ as 'source'
 	fooPath := filepath.Join(s.dir, "foo")
 	makeSizedFile(c, fooPath, 1, nil)
-	err = gadget.ValidateContent(ginfo, s.dir)
+	err = gadget.ValidateContent(ginfo, s.dir, "")
 	c.Assert(err, ErrorMatches, `invalid volume "bad": structure #0 \("bad-struct"\), content source:foo/: cannot specify trailing / for a source which is not a directory`)
 
 	// make it a directory
@@ -680,7 +680,7 @@ volumes:
 	err = os.Mkdir(fooPath, 0755)
 	c.Assert(err, IsNil)
 	// validate should no longer complain
-	err = gadget.ValidateContent(ginfo, s.dir)
+	err = gadget.ValidateContent(ginfo, s.dir, "")
 	c.Assert(err, IsNil)
 }
 
@@ -778,7 +778,7 @@ func (s *validateGadgetTestSuite) TestValidateContentKernelAssetsRef(c *C) {
 		makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYaml))
 		ginfo, err := gadget.ReadInfoAndValidate(s.dir, nil, nil)
 		c.Assert(err, IsNil)
-		err = gadget.ValidateContent(ginfo, s.dir)
+		err = gadget.ValidateContent(ginfo, s.dir, "")
 		if tc.good {
 			c.Check(err, IsNil, Commentf(tc.source))
 			// asset validates correctly, so let's make sure that
@@ -824,11 +824,6 @@ func (s *validateGadgetTestSuite) TestCanResolveOneVolumeKernelRef(c *C) {
 					Size:       5 * quantity.SizeMiB,
 					Filesystem: "ext4",
 				},
-			},
-		},
-		LaidOutStructure: []gadget.LaidOutStructure{
-			{
-				VolumeStructure: &gadget.VolumeStructure{},
 			},
 		},
 	}
@@ -908,12 +903,86 @@ func (s *validateGadgetTestSuite) TestCanResolveOneVolumeKernelRef(c *C) {
 		// happy case: one matching, one missing kernel ref, still considered fine
 		{contentTwoKernelRefs, kInfoTwoRefs, ""},
 	} {
-		lv.LaidOutStructure[0].Content = tc.volumeContent
-		err := gadget.CanResolveOneVolumeKernelRef(lv, tc.kinfo)
+		lv.Structure[0].Content = tc.volumeContent
+		err := gadget.CanResolveOneVolumeKernelRef(lv.Volume, tc.kinfo)
 		if tc.expectedErr == "" {
 			c.Check(err, IsNil, Commentf("should not fail %v", tc.volumeContent))
 		} else {
 			c.Check(err, ErrorMatches, tc.expectedErr, Commentf("should fail %v", tc.volumeContent))
 		}
 	}
+}
+
+func (s *validateGadgetTestSuite) TestValidateContentKernelRefMissing(c *C) {
+	var gadgetYamlContent = `
+volumes:
+  first:
+    bootloader: grub
+    structure:
+      - name: first-foo
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        content:
+          - image: first.img
+  second:
+    structure:
+      - name: second-foo
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 128M
+        content:
+          - source: $kernel:ref/foo
+            target: /
+`
+	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
+	makeSizedFile(c, filepath.Join(s.dir, "first.img"), 1, nil)
+
+	// note that there is no kernel.yaml
+	kernelUnpackDir := c.MkDir()
+
+	ginfo, err := gadget.ReadInfo(s.dir, nil)
+	c.Assert(err, IsNil)
+	err = gadget.ValidateContent(ginfo, s.dir, kernelUnpackDir)
+	c.Assert(err, ErrorMatches, `.*cannot find "ref" in kernel info.*`)
+}
+
+func (s *validateGadgetTestSuite) TestValidateContentKernelRefNotInGadget(c *C) {
+	var gadgetYamlContent = `
+volumes:
+  first:
+    bootloader: grub
+    structure:
+      - name: first-foo
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        content:
+          - image: first.img
+  second:
+    structure:
+      - name: second-foo
+        filesystem: ext4
+        type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+        size: 128M
+        content:
+          - source: foo
+            target: /
+`
+	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
+	makeSizedFile(c, filepath.Join(s.dir, "first.img"), 1, nil)
+	makeSizedFile(c, filepath.Join(s.dir, "foo"), 1, nil)
+
+	kernelUnpackDir := c.MkDir()
+	kernelYamlContent := `
+assets:
+ ref:
+  update: true
+  content:
+   - dtbs/`
+	makeSizedFile(c, filepath.Join(kernelUnpackDir, "meta/kernel.yaml"), 0, []byte(kernelYamlContent))
+	makeSizedFile(c, filepath.Join(kernelUnpackDir, "dtbs/foo.dtb"), 0, []byte("foo.dtb content"))
+
+	ginfo, err := gadget.ReadInfo(s.dir, nil)
+	c.Assert(err, IsNil)
+	err = gadget.ValidateContent(ginfo, s.dir, kernelUnpackDir)
+	c.Assert(err, ErrorMatches, `no asset from kernel.yaml can be resolved by the gadget .*`)
 }

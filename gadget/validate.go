@@ -338,18 +338,20 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume
 }
 
 // ValidateContent checks whether the given directory contains valid matching content with respect to the given pre-validated gadget metadata.
-func ValidateContent(info *Info, gadgetSnapRootDir string) error {
+func ValidateContent(info *Info, gadgetSnapRootDir, kernelSnapRootDir string) error {
 	// TODO: also validate that only one "<bl-name>.conf" file is
 	// in the root directory of the gadget snap, because the
 	// "<bl-name>.conf" file indicates precisely which bootloader
 	// the gadget uses and as such there cannot be more than one
 	// such bootloader
 	for name, vol := range info.Volumes {
-		// At this point we don't know what kernel will be used
-		// with the gadget we we need to pass an empty kernel root
 		constraints := DefaultConstraints
-		constraints.SkipResolveContent = true
-		lv, err := LayoutVolume(gadgetSnapRootDir, "", vol, constraints)
+		// At this point we may not know what kernel will be used
+		// with the gadget yet. Skip this check in this case.
+		if kernelSnapRootDir == "" {
+			constraints.SkipResolveContent = true
+		}
+		lv, err := LayoutVolume(gadgetSnapRootDir, kernelSnapRootDir, vol, constraints)
 		if err != nil {
 			return fmt.Errorf("invalid layout of volume %q: %v", name, err)
 		}
@@ -357,19 +359,39 @@ func ValidateContent(info *Info, gadgetSnapRootDir string) error {
 			return fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 	}
+
+	// Ensure that at least one kernel.yaml reference can be resolved
+	// by the gadget
+	if kernelSnapRootDir != "" {
+		kinfo, err := kernel.ReadInfo(kernelSnapRootDir)
+		if err != nil {
+			return err
+		}
+		resolvedOnce := false
+		for _, vol := range info.Volumes {
+			err := canResolveOneVolumeKernelRef(vol, kinfo)
+			if err == nil {
+				resolvedOnce = true
+			}
+		}
+		if !resolvedOnce {
+			return fmt.Errorf("no asset from kernel.yaml can be resolved by the gadget at %q", gadgetSnapRootDir)
+		}
+	}
+
 	return nil
 }
 
 // canResolveOneVolumeKernelRef ensures that at least one kernel
 // assets from the kernel.yaml has a reference in the given
 // LaidOutVolume.
-func canResolveOneVolumeKernelRef(pNew *LaidOutVolume, kernelInfo *kernel.Info) error {
+func canResolveOneVolumeKernelRef(pNew *Volume, kernelInfo *kernel.Info) error {
 	notFoundAssets := make([]string, 0, len(kernelInfo.Assets))
 	for assetName, asset := range kernelInfo.Assets {
 		if !asset.Update {
 			continue
 		}
-		for _, ps := range pNew.LaidOutStructure {
+		for _, ps := range pNew.Structure {
 			for _, rc := range ps.Content {
 				pathOrRef := rc.UnresolvedSource
 				if !strings.HasPrefix(pathOrRef, "$kernel:") {

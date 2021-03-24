@@ -175,7 +175,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
-	if err := gadget.ValidateContent(ginfo, gadgetDir); err != nil {
+	if err := gadget.ValidateContent(ginfo, gadgetDir, kernelDir); err != nil {
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
 

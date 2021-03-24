@@ -278,3 +278,41 @@ f system-seed/EFI/boot/system-seed.efi`)
 	c.Assert(err, check.IsNil)
 	c.Check(t, check.Equals, uc20systemSeed)
 }
+
+func (s *imageSuite) TestWriteResolvedContentMissingKernelRefInGadget(c *check.C) {
+	prepareImageDir := c.MkDir()
+
+	uc20systemSeed, err := filepath.Abs(filepath.Join(prepareImageDir, "system-seed"))
+	c.Assert(err, check.IsNil)
+	err = os.MkdirAll(uc20systemSeed, 0755)
+	c.Assert(err, check.IsNil)
+
+	gadgetRoot := c.MkDir()
+	snaptest.PopulateDir(gadgetRoot, [][]string{
+		{"meta/snap.yaml", packageGadget},
+		{"meta/gadget.yaml", validGadgetYaml},
+		{"system-seed.efi", "content of system-seed.efi"},
+		{"grubx64.efi", "content of grubx64.efi"},
+		{"foo", "content of foo"},
+		{"non-fs.img", "content of non-fs.img"},
+	})
+
+	kernelRoot := c.MkDir()
+	kernelYaml := `
+assets:
+ ref:
+  update: true
+  content:
+   - dtbs/`
+	snaptest.PopulateDir(kernelRoot, [][]string{
+		{"meta/kernel.yaml", kernelYaml},
+		{"dtbs/foo.dtb", "foo.dtb content"},
+	})
+
+	model := s.makeUC20Model(nil)
+	gadgetInfo, err := gadget.ReadInfoAndValidate(gadgetRoot, model, nil)
+	c.Assert(err, check.IsNil)
+
+	err = image.WriteResolvedContent(prepareImageDir, gadgetInfo, gadgetRoot, kernelRoot)
+	c.Assert(err, check.ErrorMatches, "no asset from kernel.yaml can be resolved by the gadget .*")
+}

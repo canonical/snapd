@@ -205,7 +205,7 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 	if err != nil {
 		return err
 	}
-	if err := canResolveOneVolumeKernelRef(pNew, kernelInfo); err != nil {
+	if err := canResolveOneVolumeKernelRef(pNew.Volume, kernelInfo); err != nil {
 		return err
 	}
 
