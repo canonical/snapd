@@ -57,6 +57,8 @@ var (
 	SplitKernelRef = splitKernelRef
 
 	ResolveVolumeContent = resolveVolumeContent
+
+	CanResolveOneVolumeKernelRef = canResolveOneVolumeKernelRef
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {

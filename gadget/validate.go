@@ -22,6 +22,7 @@ package gadget
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/kernel"
@@ -359,14 +360,15 @@ func ValidateContent(info *Info, gadgetSnapRootDir string) error {
 	return nil
 }
 
-// canResolveAllVolumeKernelRefs ensures that all kernel assets that
-// need to get updated can be resolved with the provided LaidOutVolume.
-func canResolveAllVolumeKernelRefs(pNew *LaidOutVolume, kernelInfo *kernel.Info) error {
+// canResolveOneVolumeKernelRef ensures that at least one kernel
+// assets from the kernel.yaml has a reference in the given
+// LaidOutVolume.
+func canResolveOneVolumeKernelRef(pNew *LaidOutVolume, kernelInfo *kernel.Info) error {
+	notFoundAssets := make([]string, 0, len(kernelInfo.Assets))
 	for assetName, asset := range kernelInfo.Assets {
 		if !asset.Update {
 			continue
 		}
-		found := false
 		for _, ps := range pNew.LaidOutStructure {
 			for _, rc := range ps.Content {
 				pathOrRef := rc.UnresolvedSource
@@ -379,14 +381,17 @@ func canResolveAllVolumeKernelRefs(pNew *LaidOutVolume, kernelInfo *kernel.Info)
 					return err
 				}
 				if assetName == wantedAsset {
-					found = true
-					break
+					// found a valid kernel valid,
+					// that is enough
+					return nil
 				}
 			}
 		}
-		if !found {
-			return fmt.Errorf("cannot find required kernel asset %q in gadget", assetName)
-		}
+		notFoundAssets = append(notFoundAssets, assetName)
+	}
+	if len(notFoundAssets) > 0 {
+		sort.Strings(notFoundAssets)
+		return fmt.Errorf("cannot find any kernel asset %s in gadget", strutil.Quoted(notFoundAssets))
 	}
 	return nil
 }

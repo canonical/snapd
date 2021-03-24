@@ -30,6 +30,8 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/kernel"
 )
 
 type validateGadgetTestSuite struct {
@@ -808,5 +810,110 @@ func (s *validateGadgetTestSuite) TestSplitKernelRefErrors(c *C) {
 	} {
 		_, _, err := gadget.SplitKernelRef(tc.kernelRef)
 		c.Check(err, ErrorMatches, tc.errStr, Commentf("kernelRef: %s", tc.kernelRef))
+	}
+}
+
+func (s *validateGadgetTestSuite) TestCanResolveOneVolumeKernelRef(c *C) {
+	lv := &gadget.LaidOutVolume{
+		Volume: &gadget.Volume{
+			Bootloader: "grub",
+			Schema:     "gpt",
+			Structure: []gadget.VolumeStructure{
+				{
+					Name:       "foo",
+					Size:       5 * quantity.SizeMiB,
+					Filesystem: "ext4",
+				},
+			},
+		},
+		LaidOutStructure: []gadget.LaidOutStructure{
+			{
+				VolumeStructure: &gadget.VolumeStructure{},
+			},
+		},
+	}
+
+	contentNoKernelRef := []gadget.VolumeContent{
+		{UnresolvedSource: "/content", Target: "/"},
+	}
+	contentOneKernelRef := []gadget.VolumeContent{
+		{UnresolvedSource: "/content", Target: "/"},
+		{UnresolvedSource: "$kernel:ref/foo", Target: "/"},
+	}
+	contentTwoKernelRefs := []gadget.VolumeContent{
+		{UnresolvedSource: "/content", Target: "/"},
+		{UnresolvedSource: "$kernel:ref/foo", Target: "/"},
+		{UnresolvedSource: "$kernel:ref2/bar", Target: "/"},
+	}
+
+	kInfoNoRefs := &kernel.Info{}
+	kInfoOneRefButUpdateFlagFalse := &kernel.Info{
+		Assets: map[string]*kernel.Asset{
+			"ref": &kernel.Asset{
+				// note that update is false here
+				Update:  false,
+				Content: []string{"some-file"},
+			},
+		},
+	}
+	kInfoOneRef := &kernel.Info{
+		Assets: map[string]*kernel.Asset{
+			"ref": &kernel.Asset{
+				Update:  true,
+				Content: []string{"some-file"},
+			},
+		},
+	}
+	kInfoOneRefDifferentName := &kernel.Info{
+		Assets: map[string]*kernel.Asset{
+			"ref-other": &kernel.Asset{
+				Update:  true,
+				Content: []string{"some-file"},
+			},
+		},
+	}
+	kInfoTwoRefs := &kernel.Info{
+		Assets: map[string]*kernel.Asset{
+			"ref": &kernel.Asset{
+				Update:  true,
+				Content: []string{"some-file"},
+			},
+			"ref2": &kernel.Asset{
+				Update:  true,
+				Content: []string{"other-file"},
+			},
+		},
+	}
+
+	for _, tc := range []struct {
+		volumeContent []gadget.VolumeContent
+		kinfo         *kernel.Info
+		expectedErr   string
+	}{
+		// happy case: trivial
+		{contentNoKernelRef, kInfoNoRefs, ""},
+
+		// happy case: if kernel asset has "Update: false"
+		{contentNoKernelRef, kInfoOneRefButUpdateFlagFalse, ""},
+
+		// unhappy case: kernel has one or more unresolved references in gadget
+		{contentNoKernelRef, kInfoOneRef, `cannot find any kernel asset "ref" in gadget`},
+		{contentNoKernelRef, kInfoTwoRefs, `cannot find any kernel asset "ref", "ref2" in gadget`},
+
+		// unhappy case: gadget needs different asset than kernel provides
+		{contentOneKernelRef, kInfoOneRefDifferentName, `cannot find any kernel asset "ref-other" in gadget`},
+
+		// happy case: exactly one matching kernel ref
+		{contentOneKernelRef, kInfoOneRef, ""},
+		// happy case: one matching, one missing kernel ref, still considered fine
+		{contentTwoKernelRefs, kInfoTwoRefs, ""},
+	} {
+		lv.LaidOutStructure[0].Content = tc.volumeContent
+		err := gadget.CanResolveOneVolumeKernelRef(lv, tc.kinfo)
+		if tc.expectedErr == "" {
+			c.Check(err, IsNil, Commentf("should not fail %v", tc.volumeContent))
+		} else {
+			c.Check(err, ErrorMatches, tc.expectedErr, Commentf("should fail %v", tc.volumeContent))
+		}
 	}
 }
