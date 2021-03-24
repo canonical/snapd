@@ -62,7 +62,7 @@ func (s *PrivilegedDesktopLauncher) Interface() string {
 
 // BasePath returns the base path of the object
 func (s *PrivilegedDesktopLauncher) ObjectPath() dbus.ObjectPath {
-	return "/io/snapcraft/Launcher"
+	return "/io/snapcraft/PrivilegedDesktopLauncher"
 }
 
 // IntrospectionData gives the XML formatted introspection description
