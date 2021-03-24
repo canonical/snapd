@@ -11,6 +11,8 @@ prepare: |
         exit 0
     fi
     tests.session -u test prepare
+    tests.session -u test exec systemctl --user \
+      set-environment XDG_DATA_DIRS=/usr/share:/var/lib/snapd/desktop
 
 restore: |
     if ! tests.session has-session-systemd-and-dbus; then
