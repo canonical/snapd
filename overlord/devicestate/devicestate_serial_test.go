@@ -1883,9 +1883,7 @@ func (s *deviceMgrSerialSuite) TestDeviceRegistrationNotInInstallMode(c *C) {
 	// set run mode to "install"
 	devicestate.SetSystemMode(s.mgr, "install")
 
-	// one of the startup managers needs to access the gadget snap to proceed
-	r2 := devicestatetest.MockGadget(c, s.state, "pc", snap.R(2), nil)
-	defer r2()
+	devicestate.SetInstalledRan(s.mgr, true)
 
 	st.Unlock()
 
