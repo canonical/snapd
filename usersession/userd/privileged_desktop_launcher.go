@@ -46,7 +46,7 @@ const privilegedLauncherIntrospectionXML = `
 </interface>
 <interface name='io.snapcraft.PrivilegedDesktopLauncher'>
 	<method name='OpenDesktopEntry'>
-		<arg type='s' name='desktopFileID' direction='in'/>
+		<arg type='s' name='desktop_file_id' direction='in'/>
 	</method>
 </interface>`
 
@@ -225,7 +225,7 @@ func verifyDesktopFileLocation(desktopFile string) error {
 		// /var/lib/snapd/desktop/applications and these desktop files are written by snapd and
 		// considered safe for userd to process. If other directories are added in the future,
 		// verifyDesktopFileLocation() and parseExecCommand() may need to be updated.
-		return fmt.Errorf("internal error: only launching snap applications from /var/lib/snapd/desktop/applications is supported")
+		return fmt.Errorf("internal error: only launching snap applications from %s is supported", dirs.SnapDesktopFilesDir)
 	}
 
 	return nil
@@ -298,7 +298,7 @@ func parseExecCommand(command string, icon string) ([]string, error) {
 			case "%i":
 				args = append(args, "--icon", icon)
 			default:
-				return nil, fmt.Errorf("cannot run %q", command)
+				return nil, fmt.Errorf("cannot run %q due to use of %q", command, arg)
 			}
 			continue
 		}

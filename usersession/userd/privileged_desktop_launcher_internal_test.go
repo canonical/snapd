@@ -469,9 +469,9 @@ func (s *privilegedDesktopLauncherInternalSuite) TestVerifyDesktopFileLocation(c
 }
 
 func (s *privilegedDesktopLauncherInternalSuite) TestParseExecCommandSucceedsWithValidEntry(c *C) {
-	var exec_command = []struct {
-		exec_command string
-		expect       []string
+	var testCases = []struct {
+		cmd    string
+		expect []string
 	}{
 		// valid with no exec variables
 		{"env BAMF_DESKTOP_FILE_HINT=/var/lib/snapd/desktop/applications/mir-kiosk-scummvm_mir-kiosk-scummvm.desktop /snap/bin/mir-kiosk-scummvm %U",
@@ -497,23 +497,32 @@ func (s *privilegedDesktopLauncherInternalSuite) TestParseExecCommandSucceedsWit
 		{"/snap/bin/foo -f %%bar %U %i", []string{"/snap/bin/foo", "-f", "%bar", "--icon", "/snap/chromium/1193/chromium.png"}},
 	}
 
-	for _, test := range exec_command {
-		actual, err := userd.ParseExecCommand(test.exec_command, "/snap/chromium/1193/chromium.png")
-		c.Check(err, IsNil, Commentf(test.exec_command))
-		c.Check(actual, DeepEquals, test.expect, Commentf(test.exec_command))
+	for _, test := range testCases {
+		actual, err := userd.ParseExecCommand(test.cmd, "/snap/chromium/1193/chromium.png")
+		comment := Commentf("cmd=%s", test.cmd)
+		c.Check(err, IsNil, comment)
+		c.Check(actual, DeepEquals, test.expect, comment)
 	}
 }
 
 func (s *privilegedDesktopLauncherInternalSuite) TestParseExecCommandFailsWithInvalidEntry(c *C) {
-	// the only invalid entries are those that error from shlex.Split()
-	var exec_command = []string{
-		"/snap/bin/foo \"unclosed double quote",
-		"/snap/bin/foo 'unclosed single quote",
+	var testCases = []struct {
+		cmd string
+		err string
+	}{
+		// Commands may be rejected for bad quoting
+		{`/snap/bin/foo "unclosed double quote`, "EOF found when expecting closing quote"},
+		{`/snap/bin/foo 'unclosed single quote`, "EOF found when expecting closing quote"},
+
+		// Or use of unexpected unknown variables
+		{"/snap/bin/foo %z", `cannot run "/snap/bin/foo %z" due to use of "%z"`},
+		{"/snap/bin/foo %", `cannot run "/snap/bin/foo %" due to use of "%"`},
 	}
 
-	for _, test := range exec_command {
-		_, err := userd.ParseExecCommand(test, "/snap/chromium/1193/chromium.png")
-		c.Check(err, ErrorMatches, "EOF found when expecting closing quote", Commentf(test))
+	for _, test := range testCases {
+		_, err := userd.ParseExecCommand(test.cmd, "/snap/chromium/1193/chromium.png")
+		comment := Commentf("cmd=%s", test.cmd)
+		c.Check(err, ErrorMatches, test.err, comment)
 	}
 }
 
