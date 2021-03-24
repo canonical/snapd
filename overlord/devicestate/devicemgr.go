@@ -1541,7 +1541,7 @@ func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookPara
 	}
 	req := &fde.SetupRequest{
 		Op:      op,
-		Key:     &params.Key,
+		Key:     params.Key[:],
 		KeyName: params.KeyName,
 		// TODO: include boot chains
 	}

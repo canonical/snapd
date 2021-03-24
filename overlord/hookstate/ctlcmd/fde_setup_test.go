@@ -20,8 +20,8 @@
 package ctlcmd_test
 
 import (
+	"encoding/base64"
 	"fmt"
-	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -127,9 +127,10 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpFeatures(c *C) {
 }
 
 func (s *fdeSetupSuite) TestFdeSetupRequestOpInitialSetup(c *C) {
+	mockKey := secboot.EncryptionKey{1, 2, 3, 4}
 	fdeSetup := &fde.SetupRequest{
 		Op:      "initial-setup",
-		Key:     &secboot.EncryptionKey{1, 2, 3, 4},
+		Key:     mockKey[:],
 		KeyName: "the-key-name",
 		Models: []map[string]string{
 			{
@@ -148,8 +149,10 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpInitialSetup(c *C) {
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0)
 	c.Assert(err, IsNil)
 
-	jsonEncodedEncryptionKey := `[1,2,3,4,` + strings.Repeat("0,", len(secboot.EncryptionKey{})-5) + `0]`
-	c.Check(string(stdout), Equals, fmt.Sprintf(`{"op":"initial-setup","key":%s,"key-name":"the-key-name","models":[{"brand-id":"my-brand","grade":"secured","model":"my-model","series":"16","signkey-id":"the-signkey-id"}]}`+"\n", jsonEncodedEncryptionKey))
+	// the encryption key should be base64 encoded
+	encodedBase64Key := base64.StdEncoding.EncodeToString(mockKey[:])
+
+	c.Check(string(stdout), Equals, fmt.Sprintf(`{"op":"initial-setup","key":%q,"key-name":"the-key-name","models":[{"brand-id":"my-brand","grade":"secured","model":"my-model","series":"16","signkey-id":"the-signkey-id"}]}`+"\n", encodedBase64Key))
 	c.Check(string(stderr), Equals, "")
 }
 
