@@ -532,6 +532,50 @@ func (s *linkSnapSuite) TestDoUndoUnlinkCurrentSnapWithVitalityScore(c *C) {
 	c.Check(s.fakeBackend.ops, DeepEquals, expected)
 }
 
+func (s *linkSnapSuite) TestDoUnlinkCurrentSnapSnapdNop(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{
+		RealName: "snapd",
+		SnapID:   "snapd-snap-id",
+		Revision: snap.R(22),
+	}
+	siOld := *si
+	siOld.Revision = snap.R(20)
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{&siOld},
+		Current:  siOld.Revision,
+		Active:   true,
+		SnapType: "snapd",
+	})
+
+	task := s.state.NewTask("unlink-current-snap", "")
+	task.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Channel:  "beta",
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(task)
+
+	// Run the task we created
+	s.state.Unlock()
+	s.se.Ensure()
+	s.se.Wait()
+	s.state.Lock()
+
+	// And observe the results.
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "snapd", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.Active, Equals, false)
+	c.Check(snapst.Sequence, HasLen, 1)
+	c.Check(snapst.Current, Equals, snap.R(20))
+	c.Check(task.Status(), Equals, state.DoneStatus)
+	// backend was not called to unlink the snap
+	c.Check(s.fakeBackend.ops, HasLen, 0)
+}
+
 func (s *linkSnapSuite) TestDoUnlinkSnapdUnlinks(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -568,7 +612,7 @@ func (s *linkSnapSuite) TestDoUnlinkSnapdUnlinks(c *C) {
 	c.Check(snapst.Sequence, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(20))
 	c.Check(task.Status(), Equals, state.DoneStatus)
-	// backend was not called to unlink the snap
+	// backend was called to unlink the snap
 	expected := fakeOps{{
 		op:   "unlink-snap",
 		path: filepath.Join(dirs.SnapMountDir, "snapd/20"),

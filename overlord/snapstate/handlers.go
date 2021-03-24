@@ -838,10 +838,10 @@ func (m *SnapManager) doUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	snapst.Active = false
 
+	// snapd current symlink on the refresh path can only replaced by a
+	// symlink to a new revision of the snapd snap, so only do the actual
+	// unlink if we're not working on the snapd snap
 	if oldInfo.Type() != snap.TypeSnapd {
-		// snapd current symlink on the refresh path can only replaced
-		// by a symlink to a new revision of the snapd snap
-
 		// do the final unlink
 		linkCtx := backend.LinkContext{
 			FirstInstall: false,
