@@ -375,7 +375,7 @@ func ValidateContent(info *Info, gadgetSnapRootDir, kernelSnapRootDir string) er
 			}
 		}
 		if !resolvedOnce {
-			return fmt.Errorf("no asset from kernel.yaml can be resolved by the gadget at %q", gadgetSnapRootDir)
+			return fmt.Errorf("no asset from the kernel.yaml needing synced update is consumed by the gadget at %q", gadgetSnapRootDir)
 		}
 	}
 
@@ -413,7 +413,7 @@ func canResolveOneVolumeKernelRef(pNew *Volume, kernelInfo *kernel.Info) error {
 	}
 	if len(notFoundAssets) > 0 {
 		sort.Strings(notFoundAssets)
-		return fmt.Errorf("cannot find any kernel asset %s in gadget", strutil.Quoted(notFoundAssets))
+		return fmt.Errorf("gadget does not consume any of the kernel assets needing synced updated %s", strutil.Quoted(notFoundAssets))
 	}
 	return nil
 }

@@ -892,11 +892,11 @@ func (s *validateGadgetTestSuite) TestCanResolveOneVolumeKernelRef(c *C) {
 		{contentNoKernelRef, kInfoOneRefButUpdateFlagFalse, ""},
 
 		// unhappy case: kernel has one or more unresolved references in gadget
-		{contentNoKernelRef, kInfoOneRef, `cannot find any kernel asset "ref" in gadget`},
-		{contentNoKernelRef, kInfoTwoRefs, `cannot find any kernel asset "ref", "ref2" in gadget`},
+		{contentNoKernelRef, kInfoOneRef, `gadget does not consume any of the kernel assets needing synced updated "ref"`},
+		{contentNoKernelRef, kInfoTwoRefs, `gadget does not consume any of the kernel assets needing synced updated "ref", "ref2"`},
 
 		// unhappy case: gadget needs different asset than kernel provides
-		{contentOneKernelRef, kInfoOneRefDifferentName, `cannot find any kernel asset "ref-other" in gadget`},
+		{contentOneKernelRef, kInfoOneRefDifferentName, `gadget does not consume any of the kernel assets needing synced updated "ref-other"`},
 
 		// happy case: exactly one matching kernel ref
 		{contentOneKernelRef, kInfoOneRef, ""},
@@ -984,5 +984,5 @@ assets:
 	ginfo, err := gadget.ReadInfo(s.dir, nil)
 	c.Assert(err, IsNil)
 	err = gadget.ValidateContent(ginfo, s.dir, kernelUnpackDir)
-	c.Assert(err, ErrorMatches, `no asset from kernel.yaml can be resolved by the gadget .*`)
+	c.Assert(err, ErrorMatches, `no asset from the kernel.yaml needing synced update is consumed by the gadget at "/.*"`)
 }

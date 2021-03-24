@@ -1817,7 +1817,7 @@ assets:
 
 	// exercise KernelUpdatePolicy here
 	err := gadget.Update(oldData, newData, rollbackDir, gadget.KernelUpdatePolicy, muo)
-	c.Assert(err, ErrorMatches, `cannot find any kernel asset "ref" in gadget`)
+	c.Assert(err, ErrorMatches, `gadget does not consume any of the kernel assets needing synced updated "ref"`)
 
 	// ensure update for kernel content didn't happen
 	c.Assert(muo.beforeWriteCalled, Equals, 0)
