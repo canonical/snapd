@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
@@ -1611,4 +1612,75 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
 	})
 	c.Check(s.stateBackend.restartRequested, HasLen, 1)
 	c.Check(s.stateBackend.restartRequested[0], Equals, state.RestartSystem)
+}
+
+func (s *linkSnapSuite) testDoLinkSnapWithToolingDependency(c *C, classicOrBase string, needsTooling bool) {
+	var model *asserts.Model
+	switch classicOrBase {
+	case "classic-system":
+		model = ClassicModel()
+	case "":
+		model = DefaultModel()
+	default:
+		model = ModelWithBase(classicOrBase)
+	}
+	r := snapstatetest.MockDeviceModel(model)
+	defer r()
+
+	s.state.Lock()
+	si := &snap.SideInfo{
+		RealName: "services-snap",
+		SnapID:   "services-snap-id",
+		Revision: snap.R(11),
+	}
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeApp,
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	expected := fakeOps{
+		{
+			op:    "candidate",
+			sinfo: *si,
+		},
+		{
+			op:                  "link-snap",
+			path:                filepath.Join(dirs.SnapMountDir, "services-snap/11"),
+			requireSnapdTooling: needsTooling,
+		},
+	}
+
+	// start with an easier-to-read error if this fails:
+	c.Check(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapWithToolingClassic(c *C) {
+	const needsTooling = false
+	s.testDoLinkSnapWithToolingDependency(c, "classic-system", needsTooling)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapWithToolingCore(c *C) {
+	const needsTooling = false
+	s.testDoLinkSnapWithToolingDependency(c, "", needsTooling)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapWithToolingCore18(c *C) {
+	const needsTooling = true
+	s.testDoLinkSnapWithToolingDependency(c, "core18", needsTooling)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapWithToolingCore20(c *C) {
+	const needsTooling = true
+	s.testDoLinkSnapWithToolingDependency(c, "core20", needsTooling)
 }
