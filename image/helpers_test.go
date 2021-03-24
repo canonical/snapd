@@ -314,5 +314,5 @@ assets:
 	c.Assert(err, check.IsNil)
 
 	err = image.WriteResolvedContent(prepareImageDir, gadgetInfo, gadgetRoot, kernelRoot)
-	c.Assert(err, check.ErrorMatches, "no asset from kernel.yaml can be resolved by the gadget .*")
+	c.Assert(err, check.ErrorMatches, `no asset from the kernel.yaml needing synced update is consumed by the gadget at "/.*"`)
 }
