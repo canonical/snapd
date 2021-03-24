@@ -84,6 +84,16 @@ func (s *privilegedDesktopLauncherSuite) mockEnv(key, value string) {
 	})
 }
 
+func (s *privilegedDesktopLauncherSuite) TestDesktopFileLookup(c *C) {
+	// We have more extensive tests for this API in
+	// privileged_desktop_launcher_internal_test.go: here we just
+	// test it without mocking the stat calls.
+	filename, err := userd.DesktopFileIDToFilename("mircade_mircade.desktop")
+	c.Assert(err, IsNil)
+	err = userd.VerifyDesktopFileLocation(filename)
+	c.Check(err, IsNil)
+}
+
 func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntrySucceedsWithGoodDesktopId(c *C) {
 	cmd := testutil.MockCommand(c, "systemd-run", "true")
 	defer cmd.Restore()
