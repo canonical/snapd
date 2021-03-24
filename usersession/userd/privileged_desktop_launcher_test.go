@@ -33,12 +33,16 @@ import (
 )
 
 type privilegedDesktopLauncherSuite struct {
+	testutil.BaseTest
+
 	launcher *userd.PrivilegedDesktopLauncher
 }
 
 var _ = Suite(&privilegedDesktopLauncherSuite{})
 
 func (s *privilegedDesktopLauncherSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
 	dirs.SetRootDir(c.MkDir())
 	s.launcher = &userd.PrivilegedDesktopLauncher{}
 
@@ -59,9 +63,25 @@ func (s *privilegedDesktopLauncherSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(deskTopFile, []byte(desktopContent), 0644)
 	c.Assert(err, IsNil)
+
+	s.mockEnv("HOME", filepath.Join(dirs.GlobalRootDir, "/home/user"))
+	s.mockEnv("XDG_DATA_HOME", "")
+	s.mockEnv("XDG_DATA_DIRS", strings.Join([]string{
+		filepath.Join(dirs.GlobalRootDir, "/usr/share"),
+		filepath.Dir(dirs.SnapDesktopFilesDir),
+	}, ":"))
 }
 
 func (s *privilegedDesktopLauncherSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+}
+
+func (s *privilegedDesktopLauncherSuite) mockEnv(key, value string) {
+	old := os.Getenv(key)
+	os.Setenv(key, value)
+	s.AddCleanup(func() {
+		os.Setenv(key, old)
+	})
 }
 
 func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntrySucceedsWithGoodDesktopId(c *C) {
@@ -73,7 +93,7 @@ func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntrySucceedsWithGoodDes
 }
 
 func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntryFailsWithBadDesktopId(c *C) {
-	cmd := testutil.MockCommand(c, "systemd-run", "true")
+	cmd := testutil.MockCommand(c, "systemd-run", "false")
 	defer cmd.Restore()
 
 	err := s.launcher.OpenDesktopEntry("not-mircade_mircade.desktop", ":some-dbus-sender")

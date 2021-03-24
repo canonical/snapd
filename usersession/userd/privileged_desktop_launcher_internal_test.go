@@ -20,15 +20,20 @@
 package userd_test
 
 import (
-	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/usersession/userd"
-	. "gopkg.in/check.v1"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
+
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/usersession/userd"
 )
 
 type privilegedDesktopLauncherInternalSuite struct {
+	testutil.BaseTest
 }
 
 var _ = Suite(&privilegedDesktopLauncherInternalSuite{})
@@ -49,6 +54,11 @@ var mockFileSystem = []string{
 	"/var/lib/snapd/desktop/applications/gnome-logs_gnome-logs.desktop",
 	"/var/lib/snapd/desktop/applications/foo-bar/baz.desktop",
 	"/var/lib/snapd/desktop/applications/baz/foo-bar.desktop",
+
+	// A desktop file ID provided by a snap may be shadowed by the
+	// host system.
+	"/usr/share/applications/shadow-test.desktop",
+	"/var/lib/snapd/desktop/applications/shadow-test.desktop",
 }
 
 var chromiumDesktopFile = `[Desktop Entry]
@@ -353,9 +363,47 @@ func existsOnMockFileSystem(desktop_file string) (bool, bool, error) {
 	return existsOnMockFileSystem, existsOnMockFileSystem, nil
 }
 
+func (s *privilegedDesktopLauncherInternalSuite) mockEnv(key, value string) {
+	old := os.Getenv(key)
+	os.Setenv(key, value)
+	s.AddCleanup(func() {
+		os.Setenv(key, old)
+	})
+}
+
+func (s *privilegedDesktopLauncherInternalSuite) TestDesktopFileSearchPath(c *C) {
+	s.mockEnv("HOME", "/home/user")
+	s.mockEnv("XDG_DATA_HOME", "")
+	s.mockEnv("XDG_DATA_DIRS", "")
+
+	// Default search path
+	c.Check(userd.DesktopFileSearchPath(), DeepEquals, []string{
+		"/home/user/.local/share/applications",
+		"/usr/local/share/applications",
+		"/usr/share/applications",
+	})
+
+	// XDG_DATA_HOME will override the first path
+	s.mockEnv("XDG_DATA_HOME", "/home/user/share")
+	c.Check(userd.DesktopFileSearchPath(), DeepEquals, []string{
+		"/home/user/share/applications",
+		"/usr/local/share/applications",
+		"/usr/share/applications",
+	})
+
+	// XDG_DATA_DIRS changes the remaining paths
+	s.mockEnv("XDG_DATA_DIRS", "/usr/share:/var/lib/snapd/desktop")
+	c.Check(userd.DesktopFileSearchPath(), DeepEquals, []string{
+		"/home/user/share/applications",
+		"/usr/share/applications",
+		"/var/lib/snapd/desktop/applications",
+	})
+}
+
 func (s *privilegedDesktopLauncherInternalSuite) TestDesktopFileIDToFilenameSucceedsWithValidId(c *C) {
 	restore := userd.MockRegularFileExists(existsOnMockFileSystem)
 	defer restore()
+	s.mockEnv("XDG_DATA_DIRS", "/usr/local/share:/usr/share:/var/lib/snapd/desktop")
 
 	var desktopIdTests = []struct {
 		id     string
@@ -364,6 +412,7 @@ func (s *privilegedDesktopLauncherInternalSuite) TestDesktopFileIDToFilenameSucc
 		{"mir-kiosk-scummvm_mir-kiosk-scummvm.desktop", "/var/lib/snapd/desktop/applications/mir-kiosk-scummvm_mir-kiosk-scummvm.desktop"},
 		{"foo-bar-baz.desktop", "/var/lib/snapd/desktop/applications/foo-bar/baz.desktop"},
 		{"baz-foo-bar.desktop", "/var/lib/snapd/desktop/applications/baz/foo-bar.desktop"},
+		{"shadow-test.desktop", "/usr/share/applications/shadow-test.desktop"},
 	}
 
 	for _, test := range desktopIdTests {
@@ -376,6 +425,7 @@ func (s *privilegedDesktopLauncherInternalSuite) TestDesktopFileIDToFilenameSucc
 func (s *privilegedDesktopLauncherInternalSuite) TestDesktopFileIDToFilenameFailsWithInvalidId(c *C) {
 	restore := userd.MockRegularFileExists(existsOnMockFileSystem)
 	defer restore()
+	s.mockEnv("XDG_DATA_DIRS", "/usr/local/share:/usr/share:/var/lib/snapd/desktop")
 
 	var desktopIdTests = []string{
 		"mir-kiosk-scummvm-mir-kiosk-scummvm.desktop",
@@ -398,6 +448,24 @@ func (s *privilegedDesktopLauncherInternalSuite) TestDesktopFileIDToFilenameFail
 		_, err := userd.DesktopFileIDToFilename(id)
 		c.Check(err, ErrorMatches, `cannot find desktop file for ".*"`, Commentf(id))
 	}
+}
+
+func (s *privilegedDesktopLauncherInternalSuite) TestVerifyDesktopFileLocation(c *C) {
+	restore := userd.MockRegularFileExists(existsOnMockFileSystem)
+	defer restore()
+	s.mockEnv("XDG_DATA_DIRS", "/usr/local/share:/usr/share:/var/lib/snapd/desktop")
+
+	// Resolved desktop files belonging to snaps will pass verification:
+	filename, err := userd.DesktopFileIDToFilename("mir-kiosk-scummvm_mir-kiosk-scummvm.desktop")
+	c.Assert(err, IsNil)
+	err = userd.VerifyDesktopFileLocation(filename)
+	c.Check(err, IsNil)
+
+	// Desktop IDs belonging to host system apps fail:
+	filename, err = userd.DesktopFileIDToFilename("shadow-test.desktop")
+	c.Assert(err, IsNil)
+	err = userd.VerifyDesktopFileLocation(filename)
+	c.Check(err, ErrorMatches, "internal error: only launching snap applications from /var/lib/snapd/desktop/applications is supported")
 }
 
 func (s *privilegedDesktopLauncherInternalSuite) TestParseExecCommandSucceedsWithValidEntry(c *C) {
