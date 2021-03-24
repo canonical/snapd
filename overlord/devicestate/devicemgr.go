@@ -485,9 +485,6 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 		prepareDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
 		tasks = append(tasks, prepareDevice)
-		// hooks are under a different manager, make sure we consider
-		// it immediately
-		m.state.EnsureBefore(0)
 	}
 
 	genKey := m.state.NewTask("generate-device-key", i18n.G("Generate device key"))
@@ -959,9 +956,6 @@ func (m *DeviceManager) ensureInstalled() error {
 		}
 		installDevice := hookstate.HookTask(m.state, summary, hooksup, nil)
 		addTask(installDevice)
-		// hooks are under a different manager, make sure we consider
-		// it immediately
-		m.state.EnsureBefore(0)
 	}
 
 	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
