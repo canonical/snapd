@@ -844,7 +844,7 @@ func (s *validateGadgetTestSuite) TestCanResolveOneVolumeKernelRef(c *C) {
 	kInfoNoRefs := &kernel.Info{}
 	kInfoOneRefButUpdateFlagFalse := &kernel.Info{
 		Assets: map[string]*kernel.Asset{
-			"ref": &kernel.Asset{
+			"ref": {
 				// note that update is false here
 				Update:  false,
 				Content: []string{"some-file"},
@@ -853,7 +853,7 @@ func (s *validateGadgetTestSuite) TestCanResolveOneVolumeKernelRef(c *C) {
 	}
 	kInfoOneRef := &kernel.Info{
 		Assets: map[string]*kernel.Asset{
-			"ref": &kernel.Asset{
+			"ref": {
 				Update:  true,
 				Content: []string{"some-file"},
 			},
@@ -861,7 +861,7 @@ func (s *validateGadgetTestSuite) TestCanResolveOneVolumeKernelRef(c *C) {
 	}
 	kInfoOneRefDifferentName := &kernel.Info{
 		Assets: map[string]*kernel.Asset{
-			"ref-other": &kernel.Asset{
+			"ref-other": {
 				Update:  true,
 				Content: []string{"some-file"},
 			},
@@ -869,11 +869,11 @@ func (s *validateGadgetTestSuite) TestCanResolveOneVolumeKernelRef(c *C) {
 	}
 	kInfoTwoRefs := &kernel.Info{
 		Assets: map[string]*kernel.Asset{
-			"ref": &kernel.Asset{
+			"ref": {
 				Update:  true,
 				Content: []string{"some-file"},
 			},
-			"ref2": &kernel.Asset{
+			"ref2": {
 				Update:  true,
 				Content: []string{"other-file"},
 			},
