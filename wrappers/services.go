@@ -37,9 +37,7 @@ import (
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/randutil"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
@@ -380,8 +378,9 @@ func userDaemonReload() error {
 // AddSnapServicesOptions is a struct for controlling the generated service
 // definition for a snap service.
 type AddSnapServicesOptions struct {
-	Preseeding   bool
-	VitalityRank int
+	Preseeding          bool
+	VitalityRank        int
+	RequireSnapdTooling bool
 }
 
 // AddSnapServices adds service units for the applications from the snap which
@@ -889,18 +888,12 @@ WantedBy={{.ServicesTarget}}
 		wrapperData.After = append([]string{wrapperData.MountUnit}, wrapperData.After...)
 	}
 
-	if !release.OnClassic {
-		usesSnapd, err := snapdtool.IsFromSnapdSnap()
-		if err != nil {
-			return nil, err
-		}
-		if usesSnapd {
-			// on core 18+ systems, the snapd tooling is exported
-			// into the host system via a special mount unit, which
-			// also adds an implicit dependency on the snapd snap
-			// mount thus /usr/bin/snap points
-			wrapperData.CoreToolingDependency = []string{snapdToolingMountUnit}
-		}
+	if opts.RequireSnapdTooling {
+		// on core 18+ systems, the snapd tooling is exported
+		// into the host system via a special mount unit, which
+		// also adds an implicit dependency on the snapd snap
+		// mount thus /usr/bin/snap points
+		wrapperData.CoreToolingDependency = []string{snapdToolingMountUnit}
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {

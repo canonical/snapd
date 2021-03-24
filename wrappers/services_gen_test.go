@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeout"
 	"github.com/snapcore/snapd/timeutil"
@@ -204,21 +203,18 @@ apps:
 	defer restore()
 	dirs.SetRootDir("/")
 
-	// snapd is executing from the core snapd
-	restore = snapdtool.MockOsReadlink(func(exe string) (string, error) {
-		return "/snap/core/1234/usr/lib/snapd/snapd", nil
-	})
-	defer restore()
-	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, nil)
+	opts := wrappers.AddSnapServicesOptions{
+		RequireSnapdTooling: false,
+	}
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, &opts)
 	c.Assert(err, IsNil)
 	c.Check(string(generatedWrapper), Equals, expectedAppServiceOnCore)
 
-	// on core but with snapd runs from the snapd snap
-	restore = snapdtool.MockOsReadlink(func(exe string) (string, error) {
-		return "/snap/snapd/1234/usr/lib/snapd/snapd", nil
-	})
-	defer restore()
-	generatedWrapper, err = wrappers.GenerateSnapServiceFile(app, nil)
+	// now with additional dependency on tooling
+	opts = wrappers.AddSnapServicesOptions{
+		RequireSnapdTooling: true,
+	}
+	generatedWrapper, err = wrappers.GenerateSnapServiceFile(app, &opts)
 	c.Assert(err, IsNil)
 	// we gain additional Requires= & After= on usr-lib-snapd.mount
 	expectedAppServiceOnCoreWithSnapd := `[Unit]
@@ -245,15 +241,6 @@ WantedBy=multi-user.target
 `
 
 	c.Check(string(generatedWrapper), Equals, expectedAppServiceOnCoreWithSnapd)
-
-	// error case
-	restore = snapdtool.MockOsReadlink(func(exe string) (string, error) {
-		return "", fmt.Errorf("readlink fails")
-	})
-	defer restore()
-	generatedWrapper, err = wrappers.GenerateSnapServiceFile(app, nil)
-	c.Assert(err, ErrorMatches, "readlink fails")
-	c.Check(generatedWrapper, IsNil)
 }
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileWithStartTimeout(c *C) {
