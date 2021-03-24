@@ -204,7 +204,7 @@ apps:
 	dirs.SetRootDir("/")
 
 	opts := wrappers.AddSnapServicesOptions{
-		RequireSnapdTooling: false,
+		RequireMountedSnapdSnap: false,
 	}
 	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, &opts)
 	c.Assert(err, IsNil)
@@ -212,7 +212,7 @@ apps:
 
 	// now with additional dependency on tooling
 	opts = wrappers.AddSnapServicesOptions{
-		RequireSnapdTooling: true,
+		RequireMountedSnapdSnap: true,
 	}
 	generatedWrapper, err = wrappers.GenerateSnapServiceFile(app, &opts)
 	c.Assert(err, IsNil)

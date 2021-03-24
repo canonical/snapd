@@ -737,7 +737,7 @@ apps:
 	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
 
 	linkCtxWithTooling := backend.LinkContext{
-		RequireSnapdTooling: true,
+		RequireMountedSnapdSnap: true,
 	}
 	_, err := s.be.LinkSnap(info, mockDev, linkCtxWithTooling, s.perfTimings)
 	c.Assert(err, IsNil)
@@ -751,7 +751,7 @@ After=usr-lib-snapd.mount`)
 	c.Assert(filepath.Join(dirs.SnapServicesDir, "snap.hello.svc.service"), testutil.FileAbsent)
 
 	linkCtxNoTooling := backend.LinkContext{
-		RequireSnapdTooling: false,
+		RequireMountedSnapdSnap: false,
 	}
 	_, err = s.be.LinkSnap(info, mockDev, linkCtxNoTooling, s.perfTimings)
 	c.Assert(err, IsNil)

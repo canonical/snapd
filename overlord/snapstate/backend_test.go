@@ -894,7 +894,7 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx b
 		path: info.MountDir(),
 
 		vitalityRank:        linkCtx.VitalityRank,
-		requireSnapdTooling: linkCtx.RequireSnapdTooling,
+		requireSnapdTooling: linkCtx.RequireMountedSnapdSnap,
 	}
 
 	if info.MountDir() == f.linkSnapFailTrigger {

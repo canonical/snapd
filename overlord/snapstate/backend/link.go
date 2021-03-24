@@ -48,9 +48,9 @@ type LinkContext struct {
 	// establish run inhibition lock for refresh operations.
 	RunInhibitHint runinhibit.Hint
 
-	// RequireSnapdTooling indicates that the apps and services generated
-	// when linking need to use the snapd tooling.
-	RequireSnapdTooling bool
+	// RequireMountedSnapdSnap indicates that the apps and services
+	// generated when linking need to use tooling from the snapd snap mount.
+	RequireMountedSnapdSnap bool
 }
 
 func updateCurrentSymlinks(info *snap.Info) (e error) {
@@ -194,9 +194,9 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 
 	// add the daemons from the snap.yaml
 	opts := &wrappers.AddSnapServicesOptions{
-		Preseeding:          b.preseed,
-		VitalityRank:        linkCtx.VitalityRank,
-		RequireSnapdTooling: linkCtx.RequireSnapdTooling,
+		Preseeding:              b.preseed,
+		VitalityRank:            linkCtx.VitalityRank,
+		RequireMountedSnapdSnap: linkCtx.RequireMountedSnapdSnap,
 	}
 	if err = wrappers.AddSnapServices(s, opts, progress.Null); err != nil {
 		return err

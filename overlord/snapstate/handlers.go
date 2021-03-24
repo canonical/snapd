@@ -1233,7 +1233,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		VitalityRank: vitalityRank,
 	}
 	if !deviceCtx.Classic() && deviceCtx.Model().Base() != "" {
-		linkCtx.RequireSnapdTooling = true
+		linkCtx.RequireMountedSnapdSnap = true
 	}
 	reboot, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
 	// defer a cleanup helper which will unlink the snap if anything fails after
