@@ -100,7 +100,7 @@ umount /{,run/}media/**,
 /bin/umount ixr,
 
 # mount/umount (via libmount) track some mount info in these files
-/run/mount/utab* wrl,
+/run/mount/utab* wrlk,
 
 # Udisks2 needs to read the raw device for partition information. These rules
 # give raw read access to the system disks and therefore the entire system.
