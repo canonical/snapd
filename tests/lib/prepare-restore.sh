@@ -677,7 +677,12 @@ restore_suite_each() {
 
 restore_suite() {
     # shellcheck source=tests/lib/reset.sh
-    "$TESTSLIB"/reset.sh --store
+    if [ "$REMOTE_STORE" = staging ]; then
+        # shellcheck source=tests/lib/store.sh
+        . "$TESTSLIB"/store.sh
+        teardown_staging_store
+    fi
+
     if os.query is-classic; then
         # shellcheck source=tests/lib/pkgdb.sh
         . "$TESTSLIB"/pkgdb.sh

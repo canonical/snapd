@@ -176,6 +176,10 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
 }
 
+func SetInstalledRan(m *DeviceManager, b bool) {
+	m.ensureInstalledRan = b
+}
+
 func StartTime() time.Time {
 	return startTime
 }
@@ -243,6 +247,14 @@ func MockBootMakeSystemRunnable(f func(model *asserts.Model, bootWith *boot.Boot
 	bootMakeRunnable = f
 	return func() {
 		bootMakeRunnable = old
+	}
+}
+
+func MockBootEnsureNextBootToRunMode(f func(systemLabel string) error) (restore func()) {
+	old := bootEnsureNextBootToRunMode
+	bootEnsureNextBootToRunMode = f
+	return func() {
+		bootEnsureNextBootToRunMode = old
 	}
 }
 

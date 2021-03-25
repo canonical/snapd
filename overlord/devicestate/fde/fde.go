@@ -52,8 +52,10 @@ type SetupRequest struct {
 	// XXX: make "op" a type: "features", "initial-setup", "update" ?
 	Op string `json:"op"`
 
-	Key     *secboot.EncryptionKey `json:"key,omitempty"`
-	KeyName string                 `json:"key-name,omitempty"`
+	// This needs to be a []byte so that Go's standard library will base64
+	// encode it automatically for us
+	Key     []byte `json:"key,omitempty"`
+	KeyName string `json:"key-name,omitempty"`
 
 	// List of models with their related fields, this will be set
 	// to follow the secboot:SnapModel interface.
