@@ -1267,6 +1267,27 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 	c.Check(err, IsNil)
 }
 
+func (s *backendSuite) TestSnapConfineProfileDiscardedLateSnapd(c *C) {
+	restorer := release.MockOnClassic(false)
+	defer restorer()
+	restorer = apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer restorer()
+	// snapd snap at revision 222.
+	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.R(222)})
+	s.writeVanillaSnapConfineProfile(c, snapdInfo)
+	err := s.Backend.Setup(snapdInfo, interfaces.ConfinementOptions{}, s.Repo, s.perf)
+	c.Assert(err, IsNil)
+	// sanity
+	c.Assert(filepath.Join(dirs.SnapAppArmorDir, "snap-confine.snapd.222"), testutil.FilePresent)
+
+	// backed implements the right interface
+	late, ok := s.Backend.(interfaces.SecurityBackendDiscardingLate)
+	c.Assert(ok, Equals, true)
+	err = late.RemoveLate(snapdInfo.InstanceName(), snapdInfo.Revision, snapdInfo.Type())
+	c.Assert(err, IsNil)
+	c.Check(filepath.Join(dirs.SnapAppArmorDir, "snap-confine.snapd.222"), testutil.FileAbsent)
+}
+
 func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
 	coreInfo := snaptest.MockInfo(c, coreYaml, &snap.SideInfo{Revision: snap.R(111)})
 	s.writeVanillaSnapConfineProfile(c, coreInfo)

@@ -64,6 +64,10 @@ var (
 	isRootWritableOverlay = osutil.IsRootWritableOverlay
 	kernelFeatures        = apparmor_sandbox.KernelFeatures
 	parserFeatures        = apparmor_sandbox.ParserFeatures
+
+	// make sure that apparmor profile fulfills the late discarding backend
+	// interface
+	_ interfaces.SecurityBackendDiscardingLate = (*Backend)(nil)
 )
 
 // Backend is responsible for maintaining apparmor profiles for snaps and parts of snapd.
@@ -219,7 +223,7 @@ func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[
 	//   /snap/core/111/usr/lib/snapd/snap-confine
 	// becomes
 	//   snap-confine.core.111
-	patchedProfileName := fmt.Sprintf("snap-confine.%s.%s", info.InstanceName(), info.Revision)
+	patchedProfileName := snapConfineProfileName(info.InstanceName(), info.Revision)
 	// remove other generated profiles, which is only relevant for the
 	// 'core' snap on classic system where we reexec, on core system the
 	// profile is already a part of the rootfs snap
@@ -246,6 +250,10 @@ func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[
 	}
 
 	return dirs.SnapAppArmorDir, patchedProfileGlob, content, nil
+}
+
+func snapConfineProfileName(snapName string, rev snap.Revision) string {
+	return fmt.Sprintf("snap-confine.%s.%s", snapName, rev)
 }
 
 // setupSnapConfineReexec will setup apparmor profiles inside the host's
@@ -559,6 +567,22 @@ func (b *Backend) Remove(snapName string) error {
 	errUnload := unloadProfiles(removed, cache)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
+	}
+	return errUnload
+}
+
+func (b *Backend) RemoveLate(snapName string, rev snap.Revision, typ snap.Type) error {
+	logger.Noticef("remove late for snap %v (%s) type %v", snapName, rev, typ)
+	if typ != snap.TypeSnapd {
+		// late remove is relevant only for snap confine profiles
+		return nil
+	}
+
+	globs := []string{snapConfineProfileName(snapName, rev)}
+	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dirs.SnapAppArmorDir, globs, nil)
+	errUnload := unloadProfiles(removed, apparmor_sandbox.CacheDir)
+	if errEnsure != nil {
+		return fmt.Errorf("cannot remove security profiles for snap %q (%s): %s", snapName, rev, errEnsure)
 	}
 	return errUnload
 }

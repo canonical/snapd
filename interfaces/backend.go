@@ -111,3 +111,13 @@ type SecurityBackendSetupMany interface {
 	// on errors of individual snaps.
 	SetupMany(snaps []*snap.Info, confinement func(snapName string) ConfinementOptions, repo *Repository, tm timings.Measurer) []error
 }
+
+// SecurityBackendDiscardingLate interface may be implemented by backend that
+// support removal snap profiles late during the very last step of the snap
+// remove process, typically long after the SecuityBackend.Remove() has been
+// invoked.
+type SecurityBackendDiscardingLate interface {
+	// RemoveLate removes the security profiles of a snap at the very last
+	// step of the remove change.
+	RemoveLate(snapName string, rev snap.Revision, typ snap.Type) error
+}
