@@ -101,15 +101,24 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*config), &configm); err != nil {
 			return nil, fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos], "."))
 		}
-		_, err := PatchConfig(snapName, subkeys, pos, configm, value)
+		result, err := PatchConfig(snapName, subkeys, pos, configm, value)
 		if err != nil {
 			return nil, err
 		}
-		return jsonRaw(configm), nil
+
+		// PatchConfig may have recreated higher level element that was previously set to null in same
+		// transaction; returning the result for PatchConfig rather than just configm ensures we do
+		// support cases where a previously unset path is set back.
+		return jsonRaw(result), nil
 
 	case map[string]interface{}:
 		// Update map to apply against pristine on commit.
 		if pos+1 == len(subkeys) {
+			// we may encounter nil when setting back values that were previously set to null in
+			// same transaction (see LP: #1920773).
+			if config == nil {
+				config = make(map[string]interface{})
+			}
 			config[subkeys[pos]] = value
 			return config, nil
 		} else {

@@ -140,6 +140,7 @@ func (t *Transaction) Set(instanceName, key string, value interface{}) error {
 			return err
 		}
 	}
+
 	_, err = PatchConfig(instanceName, subkeys, 0, config, &raw)
 	if err != nil {
 		return err
