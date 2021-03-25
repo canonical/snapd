@@ -3,5 +3,5 @@ defaults:
      service:
        ssh:
          disable: true
-       rsyslog:
+       systemd-resolved:
          disable: true
