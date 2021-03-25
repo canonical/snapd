@@ -403,7 +403,7 @@ func gadgetVolumeConsumesOneKernelUpdateAsset(pNew *Volume, kernelInfo *kernel.I
 					return err
 				}
 				if assetName == wantedAsset {
-					// found a valid kernel valid,
+					// found a valid kernel asset,
 					// that is enough
 					return nil
 				}
@@ -413,7 +413,7 @@ func gadgetVolumeConsumesOneKernelUpdateAsset(pNew *Volume, kernelInfo *kernel.I
 	}
 	if len(notFoundAssets) > 0 {
 		sort.Strings(notFoundAssets)
-		return fmt.Errorf("gadget does not consume any of the kernel assets needing synced updated %s", strutil.Quoted(notFoundAssets))
+		return fmt.Errorf("gadget does not consume any of the kernel assets needing synced update %s", strutil.Quoted(notFoundAssets))
 	}
 	return nil
 }

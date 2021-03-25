@@ -892,11 +892,11 @@ func (s *validateGadgetTestSuite) TestCanResolveOneVolumeKernelRef(c *C) {
 		{contentNoKernelRef, kInfoOneRefButUpdateFlagFalse, ""},
 
 		// unhappy case: kernel has one or more unresolved references in gadget
-		{contentNoKernelRef, kInfoOneRef, `gadget does not consume any of the kernel assets needing synced updated "ref"`},
-		{contentNoKernelRef, kInfoTwoRefs, `gadget does not consume any of the kernel assets needing synced updated "ref", "ref2"`},
+		{contentNoKernelRef, kInfoOneRef, `gadget does not consume any of the kernel assets needing synced update "ref"`},
+		{contentNoKernelRef, kInfoTwoRefs, `gadget does not consume any of the kernel assets needing synced update "ref", "ref2"`},
 
 		// unhappy case: gadget needs different asset than kernel provides
-		{contentOneKernelRef, kInfoOneRefDifferentName, `gadget does not consume any of the kernel assets needing synced updated "ref-other"`},
+		{contentOneKernelRef, kInfoOneRefDifferentName, `gadget does not consume any of the kernel assets needing synced update "ref-other"`},
 
 		// happy case: exactly one matching kernel ref
 		{contentOneKernelRef, kInfoOneRef, ""},
