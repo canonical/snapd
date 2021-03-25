@@ -115,6 +115,10 @@ execute: |
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
     systemctl start snapd.socket snapd.service
 
+    # unset because 'managed' will not be rejected if is already set in state.
+    snap unset core refresh.schedule
+    snap unset core refresh.timer
+
     echo "When the snapd-control-with-manage plug is disconnected"
     snap disconnect test-snapd-control-consumer:snapd-control-with-manage
 
