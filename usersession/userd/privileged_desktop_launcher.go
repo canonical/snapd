@@ -241,11 +241,15 @@ func readExecCommandFromDesktopFile(desktopFile string) (exec string, icon strin
 	defer file.Close()
 	scanner := bufio.NewScanner(file)
 
-	inDesktopSection := false
+	var inDesktopSection, seenDesktopSection bool
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 
 		if line == "[Desktop Entry]" {
+			if seenDesktopSection {
+				return "", "", fmt.Errorf("desktop file %q has multiple [Desktop Entry] sections", desktopFile)
+			}
+			seenDesktopSection = true
 			inDesktopSection = true
 		} else if strings.HasPrefix(line, "[Desktop Action ") {
 			// TODO: add support for desktop action sections

@@ -565,6 +565,19 @@ func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopF
 	c.Assert(err, ErrorMatches, `desktop file ".*" has an unsupported 'Exec' value: ""`)
 }
 
+func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCOmmandFromDesktopFileMultipleDesktopEntrySections(c *C) {
+	desktopFile := filepath.Join(c.MkDir(), "test.desktop")
+	c.Assert(ioutil.WriteFile(desktopFile, []byte(`[Desktop Entry]
+Exec=foo
+
+[Desktop Entry]
+Exec=bar
+`), 0644), IsNil)
+
+	_, _, err := userd.ReadExecCommandFromDesktopFile(desktopFile)
+	c.Check(err, ErrorMatches, `desktop file ".*" has multiple \[Desktop Entry\] sections`)
+}
+
 func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopFileWithNoFile(c *C) {
 	desktopFile := filepath.Join(c.MkDir(), "test.desktop")
 
