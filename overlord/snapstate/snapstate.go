@@ -346,7 +346,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 				// but don't discard this one; its' the thing we're switching to!
 				continue
 			}
-			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision)
+			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision, snapsup.Type)
 			ts.WaitFor(prev)
 			tasks = append(tasks, ts.Tasks()...)
 			prev = tasks[len(tasks)-1]
@@ -380,7 +380,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			if inUse(snapsup.InstanceName(), si.Revision) {
 				continue
 			}
-			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision)
+			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision, snapsup.Type)
 			ts.WaitFor(prev)
 			tasks = append(tasks, ts.Tasks()...)
 			prev = tasks[len(tasks)-1]
@@ -2185,22 +2185,22 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 		for i := len(seq) - 1; i >= 0; i-- {
 			if i != currentIndex {
 				si := seq[i]
-				addNext(removeInactiveRevision(st, name, info.SnapID, si.Revision))
+				addNext(removeInactiveRevision(st, name, info.SnapID, si.Revision, snapsup.Type))
 			}
 		}
 		// add tasks for removing the current revision last,
 		// this is then also when common data will be removed
 		if currentIndex >= 0 {
-			addNext(removeInactiveRevision(st, name, info.SnapID, seq[currentIndex].Revision))
+			addNext(removeInactiveRevision(st, name, info.SnapID, seq[currentIndex].Revision, snapsup.Type))
 		}
 	} else {
-		addNext(removeInactiveRevision(st, name, info.SnapID, revision))
+		addNext(removeInactiveRevision(st, name, info.SnapID, revision, snapsup.Type))
 	}
 
 	return removeTs, snapshotSize, nil
 }
 
-func removeInactiveRevision(st *state.State, name, snapID string, revision snap.Revision) *state.TaskSet {
+func removeInactiveRevision(st *state.State, name, snapID string, revision snap.Revision, typ snap.Type) *state.TaskSet {
 	snapName, instanceKey := snap.SplitInstanceName(name)
 	snapsup := SnapSetup{
 		SideInfo: &snap.SideInfo{
@@ -2209,6 +2209,7 @@ func removeInactiveRevision(st *state.State, name, snapID string, revision snap.
 			Revision: revision,
 		},
 		InstanceKey: instanceKey,
+		Type:        typ,
 	}
 
 	clearData := st.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q (%s)"), name, revision))
