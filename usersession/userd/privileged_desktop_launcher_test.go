@@ -33,14 +33,21 @@ import (
 )
 
 type privilegedDesktopLauncherSuite struct {
+	testutil.BaseTest
+
 	launcher *userd.PrivilegedDesktopLauncher
 }
 
 var _ = Suite(&privilegedDesktopLauncherSuite{})
 
 func (s *privilegedDesktopLauncherSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
 	dirs.SetRootDir(c.MkDir())
 	s.launcher = &userd.PrivilegedDesktopLauncher{}
+
+	c.Assert(os.MkdirAll(dirs.SnapDesktopFilesDir, 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/usr/share/applications"), 0755), IsNil)
 
 	var rawMircadeDesktop = `[Desktop Entry]
   X-SnapInstanceName=mircade
@@ -55,13 +62,40 @@ func (s *privilegedDesktopLauncherSuite) SetUpTest(c *C) {
 	desktopContent := strings.Replace(tmpMircadeDesktop, "/snap/bin/", dirs.SnapBinariesDir, -1)
 
 	deskTopFile := filepath.Join(dirs.SnapDesktopFilesDir, "mircade_mircade.desktop")
-	err := os.MkdirAll(filepath.Dir(deskTopFile), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(deskTopFile, []byte(desktopContent), 0644)
-	c.Assert(err, IsNil)
+	c.Assert(ioutil.WriteFile(deskTopFile, []byte(desktopContent), 0644), IsNil)
+
+	// Create a shadowed desktop file ID
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/usr/share/applications/shadow-test.desktop"), []byte("[Desktop Entry]"), 0644), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapDesktopFilesDir, "shadow-test.desktop"), []byte("[Desktop Entry]"), 0644), IsNil)
+
+	s.mockEnv("HOME", filepath.Join(dirs.GlobalRootDir, "/home/user"))
+	s.mockEnv("XDG_DATA_HOME", "")
+	s.mockEnv("XDG_DATA_DIRS", strings.Join([]string{
+		filepath.Join(dirs.GlobalRootDir, "/usr/share"),
+		filepath.Dir(dirs.SnapDesktopFilesDir),
+	}, ":"))
 }
 
 func (s *privilegedDesktopLauncherSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
+}
+
+func (s *privilegedDesktopLauncherSuite) mockEnv(key, value string) {
+	old := os.Getenv(key)
+	os.Setenv(key, value)
+	s.AddCleanup(func() {
+		os.Setenv(key, old)
+	})
+}
+
+func (s *privilegedDesktopLauncherSuite) TestDesktopFileLookup(c *C) {
+	// We have more extensive tests for this API in
+	// privileged_desktop_launcher_internal_test.go: here we just
+	// test it without mocking the stat calls.
+	filename, err := userd.DesktopFileIDToFilename("mircade_mircade.desktop")
+	c.Assert(err, IsNil)
+	err = userd.VerifyDesktopFileLocation(filename)
+	c.Check(err, IsNil)
 }
 
 func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntrySucceedsWithGoodDesktopId(c *C) {
@@ -69,11 +103,11 @@ func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntrySucceedsWithGoodDes
 	defer cmd.Restore()
 
 	err := s.launcher.OpenDesktopEntry("mircade_mircade.desktop", ":some-dbus-sender")
-	c.Assert(err, IsNil)
+	c.Check(err, IsNil)
 }
 
 func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntryFailsWithBadDesktopId(c *C) {
-	cmd := testutil.MockCommand(c, "systemd-run", "true")
+	cmd := testutil.MockCommand(c, "systemd-run", "false")
 	defer cmd.Restore()
 
 	err := s.launcher.OpenDesktopEntry("not-mircade_mircade.desktop", ":some-dbus-sender")
@@ -85,5 +119,13 @@ func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntryFailsWithBadExecuta
 	defer cmd.Restore()
 
 	err := s.launcher.OpenDesktopEntry("mircade_mircade.desktop", ":some-dbus-sender")
-	c.Assert(err, ErrorMatches, `cannot run ".*": exit status 1`)
+	c.Check(err, ErrorMatches, `cannot run ".*": exit status 1`)
+}
+
+func (s *privilegedDesktopLauncherSuite) TestOpenDesktopEntryFailsForNonSnap(c *C) {
+	cmd := testutil.MockCommand(c, "systemd-run", "false")
+	defer cmd.Restore()
+
+	err := s.launcher.OpenDesktopEntry("shadow-test.desktop", ":some-dbus-sender")
+	c.Check(err, ErrorMatches, `internal error: only launching snap applications from .* is supported`)
 }

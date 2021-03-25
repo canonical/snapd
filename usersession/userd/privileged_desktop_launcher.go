@@ -46,7 +46,7 @@ const privilegedLauncherIntrospectionXML = `
 </interface>
 <interface name='io.snapcraft.PrivilegedDesktopLauncher'>
 	<method name='OpenDesktopEntry'>
-		<arg type='s' name='desktopFileID' direction='in'/>
+		<arg type='s' name='desktop_file_id' direction='in'/>
 	</method>
 </interface>`
 
@@ -62,7 +62,7 @@ func (s *PrivilegedDesktopLauncher) Interface() string {
 
 // BasePath returns the base path of the object
 func (s *PrivilegedDesktopLauncher) ObjectPath() dbus.ObjectPath {
-	return "/io/snapcraft/Launcher"
+	return "/io/snapcraft/PrivilegedDesktopLauncher"
 }
 
 // IntrospectionData gives the XML formatted introspection description
@@ -120,6 +120,39 @@ func (s *PrivilegedDesktopLauncher) OpenDesktopEntry(desktopFileID string, sende
 
 var regularFileExists = osutil.RegularFileExists
 
+// desktopFileSearchPath returns the list of directories where desktop
+// files may be located.  It implements the lookup rules documented in
+// the XDG Base Directory specification.
+func desktopFileSearchPath() []string {
+	var desktopDirs []string
+
+	// First check $XDG_DATA_HOME, which defaults to $HOME/.local/share
+	dataHome := os.Getenv("XDG_DATA_HOME")
+	if dataHome == "" {
+		homeDir := os.Getenv("HOME")
+		if homeDir != "" {
+			dataHome = filepath.Join(homeDir, ".local/share")
+		}
+	}
+	if dataHome != "" {
+		desktopDirs = append(desktopDirs, filepath.Join(dataHome, "applications"))
+	}
+
+	// Next check $XDG_DATA_DIRS, with default from spec
+	dataDirs := os.Getenv("XDG_DATA_DIRS")
+	if dataDirs == "" {
+		dataDirs = "/usr/local/share/:/usr/share/"
+	}
+	for _, dir := range strings.Split(dataDirs, ":") {
+		if dir == "" {
+			continue
+		}
+		desktopDirs = append(desktopDirs, filepath.Join(dir, "applications"))
+	}
+
+	return desktopDirs
+}
+
 // findDesktopFile recursively tries each subdirectory that can be formed from the (split) desktop file ID.
 // Per https://standards.freedesktop.org/desktop-entry-spec/desktop-entry-spec-latest.html#desktop-file-id,
 // if desktop entries have dashes in the name ('-'), this could be an indication of subdirectories, so search
@@ -170,18 +203,11 @@ func desktopFileIDToFilename(desktopFileID string) (string, error) {
 		return "", fmt.Errorf("cannot find desktop file for %q", desktopFileID)
 	}
 
-	// OpenDesktopEntry() currently only supports launching snap applications from
-	// desktop files in /var/lib/snapd/desktop/applications and these desktop files are
-	// written by snapd and considered safe for userd to process.
-	// Since we only access /var/lib/snapd/desktop/applications, ignore
-	// https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html
-	baseDir := dirs.SnapDesktopFilesDir
-
 	splitDesktopID := strings.Split(desktopFileID, "-")
-
-	desktopFile, err := findDesktopFile(baseDir, splitDesktopID)
-	if err == nil {
-		return desktopFile, nil
+	for _, baseDir := range desktopFileSearchPath() {
+		if desktopFile, err := findDesktopFile(baseDir, splitDesktopID); err == nil {
+			return desktopFile, nil
+		}
 	}
 
 	return "", fmt.Errorf("cannot find desktop file for %q", desktopFileID)
@@ -199,7 +225,7 @@ func verifyDesktopFileLocation(desktopFile string) error {
 		// /var/lib/snapd/desktop/applications and these desktop files are written by snapd and
 		// considered safe for userd to process. If other directories are added in the future,
 		// verifyDesktopFileLocation() and parseExecCommand() may need to be updated.
-		return fmt.Errorf("internal error: only launching snap applications from /var/lib/snapd/desktop/applications is supported")
+		return fmt.Errorf("internal error: only launching snap applications from %s is supported", dirs.SnapDesktopFilesDir)
 	}
 
 	return nil
@@ -215,11 +241,15 @@ func readExecCommandFromDesktopFile(desktopFile string) (exec string, icon strin
 	defer file.Close()
 	scanner := bufio.NewScanner(file)
 
-	inDesktopSection := false
+	var inDesktopSection, seenDesktopSection bool
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 
 		if line == "[Desktop Entry]" {
+			if seenDesktopSection {
+				return "", "", fmt.Errorf("desktop file %q has multiple [Desktop Entry] sections", desktopFile)
+			}
+			seenDesktopSection = true
 			inDesktopSection = true
 		} else if strings.HasPrefix(line, "[Desktop Action ") {
 			// TODO: add support for desktop action sections
@@ -272,7 +302,7 @@ func parseExecCommand(command string, icon string) ([]string, error) {
 			case "%i":
 				args = append(args, "--icon", icon)
 			default:
-				return nil, fmt.Errorf("cannot run %q", command)
+				return nil, fmt.Errorf("cannot run %q due to use of %q", command, arg)
 			}
 			continue
 		}
