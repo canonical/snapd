@@ -1063,11 +1063,11 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	if tryingCurrentSystem {
 		// end of the line for a recovery system we are only trying out,
 		// this branch always ends with a reboot (or a panic)
-		outcome := boot.TryRecoverySystemOutcomeFailure
+		var outcome boot.TryRecoverySystemOutcome
 		if err == nil && !machine.degraded() {
 			outcome = boot.TryRecoverySystemOutcomeSuccess
-		}
-		if outcome == boot.TryRecoverySystemOutcomeFailure {
+		} else {
+			outcome = boot.TryRecoverySystemOutcomeFailure
 			if err == nil {
 				err = fmt.Errorf("in degraded state")
 			}
