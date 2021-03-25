@@ -220,7 +220,22 @@ func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[
 	// becomes
 	//   snap-confine.core.111
 	patchedProfileName := fmt.Sprintf("snap-confine.%s.%s", info.InstanceName(), info.Revision)
+	// remove other generated profiles, which is only relevant for the
+	// 'core' snap on classic system where we reexec, on core system the
+	// profile is already a part of the rootfs snap
 	patchedProfileGlob := fmt.Sprintf("snap-confine.%s.*", info.InstanceName())
+
+	if info.Type() == snap.TypeSnapd {
+		// with the snapd snap, things are a little different, the
+		// profile is discarded only late for the revisions that are
+		// being removed, also on core devices the rootfs snap and the
+		// snapd snap are updated separately, so the profile needs to be
+		// around for as long as the given revision of the snapd snap is
+		// active, so we use the exact match such that we only only
+		// replace our own profile, which can happen if system was
+		// rebooted before task calling the backend was finished
+		patchedProfileGlob = patchedProfileName
+	}
 
 	// Return information for EnsureDirState that describes the re-exec profile for snap-confine.
 	content = map[string]osutil.FileState{

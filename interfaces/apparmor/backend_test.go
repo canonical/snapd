@@ -1171,7 +1171,7 @@ func (s *backendSuite) TestSnapConfineProfileFromSnapdSnap(c *C) {
 	// We expect to see the same profile, just anchored at a different directory.
 	expectedProfileDir := filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/apparmor/profiles")
 	expectedProfileName := "snap-confine.snapd.222"
-	expectedProfileGlob := "snap-confine.snapd.*"
+	expectedProfileGlob := "snap-confine.snapd.222"
 	expectedProfileText := fmt.Sprintf(`#include <tunables/global>
 %s/usr/lib/snapd/snap-confine (attach_disconnected) {
     # We run privileged, so be fanatical about what we include and don't use
@@ -1226,7 +1226,7 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
 	// install the new core snap on classic triggers cleanup
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", coreYaml, 111)
 
-	c.Check(osutil.FileExists(canary), Equals, false)
+	c.Check(canary, testutil.FileAbsent)
 }
 
 func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) {
