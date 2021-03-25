@@ -135,6 +135,7 @@ func (s *apiValidationSetsSuite) mockAssert(c *check.C, name, sequence string) a
 }
 
 func (s *apiValidationSetsSuite) SeqFormingAssertion(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
+	s.pokeStateLock()
 	return s.mockSeqFormingAssertionFn(assertType, sequenceKey, sequence, user)
 }
 

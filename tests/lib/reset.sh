@@ -189,9 +189,3 @@ if [ -d /run/snapd/ns ]; then
     done
     find /run/snapd/ns/ \( -name '*.fstab' -o -name '*.user-fstab' -o -name '*.info' \) -delete
 fi
-
-if [ "$REMOTE_STORE" = staging ] && [ "$1" = "--store" ]; then
-    # shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    teardown_staging_store
-fi
