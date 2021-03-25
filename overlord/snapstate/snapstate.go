@@ -1179,6 +1179,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			ts.WaitAll(preTs)
 		}
 	}
+	var kernelTs, gadgetTs *state.TaskSet
 
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
@@ -1255,9 +1256,25 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 				waitPrereq(ts, update.Base)
 			}
 		}
+		// keep track of kernel/gadget udpates
+		switch update.Type() {
+		case snap.TypeKernel:
+			kernelTs = ts
+		case snap.TypeGadget:
+			gadgetTs = ts
+		}
 
 		scheduleUpdate(update.InstanceName(), ts)
 		tasksets = append(tasksets, ts)
+	}
+	// Kernel must wait for gadget because the gadget may define
+	// new "$kernel:refs". Sorting the other way is impossible
+	// because a kernel with new kernel-assets would never refresh
+	// because the matching gadget could never get installed
+	// because the gadget always waits for the kernel and if the
+	// kernel aborts the wait tasks (the gadget) is put on "Hold".
+	if kernelTs != nil && gadgetTs != nil {
+		kernelTs.WaitAll(gadgetTs)
 	}
 
 	if len(newAutoAliases) != 0 {

@@ -1353,7 +1353,7 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetup(c *C) {
 		ctx.Get("fde-setup-request", &fdeSetup)
 		c.Check(fdeSetup, DeepEquals, fde.SetupRequest{
 			Op:      "initial-setup",
-			Key:     &mockKey,
+			Key:     mockKey[:],
 			KeyName: "some-key-name",
 			Models: []map[string]string{
 				{

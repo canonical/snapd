@@ -142,6 +142,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("mark-preseeded", m.doMarkPreseeded, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 	runner.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
+	runner.AddHandler("restart-system-to-run-mode", m.doRestartSystemToRunMode, nil)
 	runner.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
 	runner.AddCleanup("prepare-remodeling", m.cleanupRemodel)
 	// this *must* always run last and finalizes a remodel
@@ -927,9 +928,19 @@ func (m *DeviceManager) ensureInstalled() error {
 
 	m.ensureInstalledRan = true
 
-	tasks := []*state.Task{}
+	var prev *state.Task
 	setupRunSystem := m.state.NewTask("setup-run-system", i18n.G("Setup system for run mode"))
-	tasks = append(tasks, setupRunSystem)
+
+	tasks := []*state.Task{setupRunSystem}
+	addTask := func(t *state.Task) {
+		t.WaitFor(prev)
+		tasks = append(tasks, t)
+		prev = t
+	}
+	prev = setupRunSystem
+
+	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
+	addTask(restartSystem)
 
 	chg := m.state.NewChange("install-system", i18n.G("Install the system"))
 	chg.AddAll(state.NewTaskSet(tasks...))
@@ -1511,7 +1522,7 @@ func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookPara
 	}
 	req := &fde.SetupRequest{
 		Op:      op,
-		Key:     &params.Key,
+		Key:     params.Key[:],
 		KeyName: params.KeyName,
 		// TODO: include boot chains
 	}

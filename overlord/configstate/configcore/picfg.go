@@ -46,6 +46,7 @@ var piConfigKeys = map[string]bool{
 	"display_rotate":           true,
 	"hdmi_group":               true,
 	"hdmi_mode":                true,
+	"hdmi_timings":             true,
 	"hdmi_drive":               true,
 	"avoid_warnings":           true,
 	"gpu_mem_256":              true,

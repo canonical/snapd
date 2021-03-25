@@ -135,6 +135,7 @@ func (s *apiValidationSetsSuite) mockAssert(c *check.C, name, sequence string) a
 }
 
 func (s *apiValidationSetsSuite) SeqFormingAssertion(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error) {
+	s.pokeStateLock()
 	return s.mockSeqFormingAssertionFn(assertType, sequenceKey, sequence, user)
 }
 
@@ -298,6 +299,7 @@ func (s *apiValidationSetsSuite) TestGetValidationSetPinned(c *check.C) {
 	assertstatetest.AddMany(st, s.dev1acct, s.acct1Key, as)
 	s.mockValidationSetsTracking(st)
 	st.Unlock()
+	c.Assert(err, check.IsNil)
 
 	rsp := s.req(c, req, nil).(*daemon.Resp)
 	if rsp.Status != 200 {

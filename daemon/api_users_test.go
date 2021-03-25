@@ -1075,13 +1075,13 @@ func (s *userSuite) TestPostCreateUserFromAssertionNoModel(c *check.C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	s.makeSystemUsers(c, []map[string]interface{}{serialUser})
 	model := s.Brands.Model("my-brand", "other-model", map[string]interface{}{
 		"architecture":          "amd64",
 		"gadget":                "pc",
 		"kernel":                "pc-kernel",
 		"system-user-authority": []interface{}{"my-brand", "partner"},
 	})
-	s.makeSystemUsers(c, []map[string]interface{}{serialUser})
 
 	st := s.d.Overlord().State()
 	st.Lock()
