@@ -12,7 +12,7 @@ execute: |
   nested_exec "systemctl status systemd-resolved.service" | MATCH "Active: +inactive"
 
   current_boot_id=$(nested_get_boot_id)
-  nested_exec "sudo reboot"
+  nested_exec "sudo reboot" || true
   nested_wait_for_reboot "$current_boot_id"
 
   echo "Enabling systemd-resolved service back"
