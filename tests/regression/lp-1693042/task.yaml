@@ -11,6 +11,12 @@ execute: |
 
   out=$(! snap refresh "$core_name" --channel bogus 2>&1 1>- )
   revno=$( snap info "$core_name" | awk '/^installed:/{print $3}' )
+  # deal with store issues gracefully
+  if egrep "error: cannot refresh ".*": unexpectedly empty response from the server" out; then
+      echo "Store is in a bad place (too much load), skipping the test"
+      exit 0
+  fi
+  # check that we get the right reply from snapd
   if [[ "$revno" =~ x[0-9]+ ]]; then
       MATCH "error: local snap \"$core_name\" is unknown to the store" <<< "$out"
   else
