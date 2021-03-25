@@ -590,6 +590,13 @@ pkg_dependencies_ubuntu_classic(){
                 qemu-utils
                 "
             ;;
+        ubuntu-21.04-64)
+            echo "
+                dbus-user-session
+                golang
+                qemu-utils
+                "
+            ;;
         ubuntu-*)
             echo "
                 squashfs-tools

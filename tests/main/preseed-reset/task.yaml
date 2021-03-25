@@ -13,11 +13,12 @@ prepare: |
   # a cloud image url matching current $SPREAD_SYSTEM.
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
-  wget "$(nested_get_image_url_for_vm)" -O cloudimg.img
+  wget --quiet "$(nested_get_image_url_for_vm)" -O cloudimg.img
   mkdir -p "$IMAGE_MOUNTPOINT"
 
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
+
   mount_ubuntu_image "$(pwd)/cloudimg.img" "$IMAGE_MOUNTPOINT"
 
   # for images that are already preseeded, we need to undo the preseeding there
