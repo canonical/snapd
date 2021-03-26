@@ -106,23 +106,28 @@ var (
 func piConfigFile(opts *fsOnlyContext) (string, error) {
 	rootDir := dirs.GlobalRootDir
 	subdir := "/boot/uboot"
-	if opts != nil {
-		rootDir = opts.RootDir
-	} else {
-		// not a filesystem only apply, so we may be operating on a run system
-		// on UC20, in which case we shouldn't use the /boot/uboot/ option and
-		// instead should use /run/mnt/ubuntu-seed/
-		mode, _, _ := boot.ModeAndRecoverySystemFromKernelCommandLine()
-		switch mode {
-		case boot.ModeRun:
-			rootDir = boot.InitramfsUbuntuSeedDir
-			subdir = ""
-		case boot.ModeInstall, boot.ModeRecover:
-			// we don't support configuring pi-config in these modes as it is
-			// unclear what the right behavior is
-			return "", errPiConfigNotSupported
+
+	mode, _, _ := boot.ModeAndRecoverySystemFromKernelCommandLine()
+	switch mode {
+	case boot.ModeRun:
+		// regardless of whether this is a filesystem only apply or not, if we are
+		// operating on a uc20 run mode system, then we need to use the ubuntu-seed
+		// config.txt and ignore any RootDir that was provided to us
+		rootDir = boot.InitramfsUbuntuSeedDir
+		subdir = ""
+	case boot.ModeInstall, boot.ModeRecover:
+		// we don't support configuring pi-config in these modes as it is
+		// unclear what the right behavior is
+		return "", errPiConfigNotSupported
+	default:
+		if opts != nil {
+			rootDir = opts.RootDir
+			if opts.UC20Recovery {
+				subdir = ""
+			}
 		}
 	}
+
 	return filepath.Join(rootDir, subdir, "config.txt"), nil
 }
 
