@@ -205,6 +205,11 @@ Type=potato
 Id=baz.service
 ActiveState=inactive
 UnitFileState=disabled
+
+Type=
+Id=missing.service
+ActiveState=inactive
+UnitFileState=
 `[1:]),
 		[]byte(`
 Id=some.timer
@@ -217,37 +222,48 @@ UnitFileState=disabled
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.service", "bar.service", "baz.service", "some.timer", "other.socket")
+	out, err := New(SystemMode, s.rep).Status("foo.service", "bar.service", "baz.service", "missing.service", "some.timer", "other.socket")
 	c.Assert(err, IsNil)
 	c.Check(out, DeepEquals, []*UnitStatus{
 		{
-			Daemon:   "simple",
-			UnitName: "foo.service",
-			Active:   true,
-			Enabled:  true,
+			Daemon:    "simple",
+			UnitName:  "foo.service",
+			Active:    true,
+			Enabled:   true,
+			Installed: true,
 		}, {
-			Daemon:   "simple",
-			UnitName: "bar.service",
-			Active:   true,
-			Enabled:  true,
+			Daemon:    "simple",
+			UnitName:  "bar.service",
+			Active:    true,
+			Enabled:   true,
+			Installed: true,
 		}, {
-			Daemon:   "potato",
-			UnitName: "baz.service",
-			Active:   false,
-			Enabled:  false,
+			Daemon:    "potato",
+			UnitName:  "baz.service",
+			Active:    false,
+			Enabled:   false,
+			Installed: true,
 		}, {
-			UnitName: "some.timer",
-			Active:   true,
-			Enabled:  true,
+			Daemon:    "",
+			UnitName:  "missing.service",
+			Active:    false,
+			Enabled:   false,
+			Installed: false,
 		}, {
-			UnitName: "other.socket",
-			Active:   true,
-			Enabled:  false,
+			UnitName:  "some.timer",
+			Active:    true,
+			Enabled:   true,
+			Installed: true,
+		}, {
+			UnitName:  "other.socket",
+			Active:    true,
+			Enabled:   false,
+			Installed: true,
 		},
 	})
 	c.Check(s.rep.msgs, IsNil)
 	c.Assert(s.argses, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type", "foo.service", "bar.service", "baz.service"},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type", "foo.service", "bar.service", "baz.service", "missing.service"},
 		{"show", "--property=Id,ActiveState,UnitFileState", "some.timer", "other.socket"},
 	})
 }

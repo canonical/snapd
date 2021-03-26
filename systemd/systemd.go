@@ -442,10 +442,11 @@ func (*systemd) LogReader(serviceNames []string, n int, follow bool) (io.ReadClo
 var statusregex = regexp.MustCompile(`(?m)^(?:(.+?)=(.*)|(.*))?$`)
 
 type UnitStatus struct {
-	Daemon   string
-	UnitName string
-	Enabled  bool
-	Active   bool
+	Daemon    string
+	UnitName  string
+	Enabled   bool
+	Active    bool
+	Installed bool
 }
 
 var baseProperties = []string{"Id", "ActiveState", "UnitFileState"}
@@ -510,7 +511,7 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 		k := string(bs[1])
 		v := string(bs[2])
 
-		if v == "" {
+		if v == "" && k != "UnitFileState" && k != "Type" {
 			return nil, fmt.Errorf("cannot get unit status: empty field %q in ‘systemctl show’ output", k)
 		}
 
@@ -525,6 +526,7 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 		case "UnitFileState":
 			// "static" means it can't be disabled
 			cur.Enabled = v == "enabled" || v == "static"
+			cur.Installed = v != ""
 		default:
 			return nil, fmt.Errorf("cannot get unit status: unexpected field %q in ‘systemctl show’ output", k)
 		}
