@@ -96,7 +96,7 @@
 %endif
 
 Name:           snapd
-Version:        2.49.1
+Version:        2.49.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -939,6 +939,27 @@ fi
 
 
 %changelog
+* Fri Mar 26 2021 Michael Vogt <mvo@ubuntu.com>
+- New upstream release 2.49.2
+ - interfaces/tee: add TEE/OPTEE interface
+ - o/configstate/configcore: add hdmi_timings to pi-config
+ - interfaces/udisks2: allow locking /run/mount/utab for udisks 2.8.4
+ - snap-seccomp: fix seccomp test on ppc64el
+ - interfaces{,/apparmor}, overlord/snapstate:
+   late removal of snap-confine apparmor profiles
+ - overlord/snapstate, wrappers: add dependency on usr-lib-
+   snapd.mount for services on core with snapd snap
+ - o/configstate: deal with no longer valid refresh.timer=managed
+ - overlord/snapstate: make sure that snapd current symlink is not
+   removed during refresh
+ - packaging: drop dh-systemd from build-depends on ubuntu-16.04+
+ - o/{device,hook}state: encode fde-setup-request key as base64
+ - snapstate: reduce reRefreshRetryTimeout to 1/2 second
+ - tests/main/uc20-create-partitions: fix tests cleanup
+ - o/configstate, o/snapshotstate: fix handling of nil snap config on
+   snapshot restore
+ - snap-seccomp: add new `close_range` syscall
+
 * Mon Mar 08 2021 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.49.1
  - tests: turn modules off explicitly in spread go unti test
