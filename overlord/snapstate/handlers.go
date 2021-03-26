@@ -1232,6 +1232,8 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		FirstInstall: oldCurrent.Unset(),
 		VitalityRank: vitalityRank,
 	}
+	// on UC18+, snap tooling comes from the snapd snap so we need generated
+	// mount units to depend on the snapd snap mount units
 	if !deviceCtx.Classic() && deviceCtx.Model().Base() != "" {
 		linkCtx.RequireMountedSnapdSnap = true
 	}

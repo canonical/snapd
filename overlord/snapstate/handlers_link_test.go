@@ -1614,14 +1614,17 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
 	c.Check(s.stateBackend.restartRequested[0], Equals, state.RestartSystem)
 }
 
-func (s *linkSnapSuite) testDoLinkSnapWithToolingDependency(c *C, classicOrBase string, needsTooling bool) {
+func (s *linkSnapSuite) testDoLinkSnapWithToolingDependency(c *C, classicOrBase string) {
 	var model *asserts.Model
+	var needsTooling bool
 	switch classicOrBase {
 	case "classic-system":
 		model = ClassicModel()
 	case "":
 		model = DefaultModel()
 	default:
+		// the tooling mount is needed on UC18+
+		needsTooling = true
 		model = ModelWithBase(classicOrBase)
 	}
 	r := snapstatetest.MockDeviceModel(model)
@@ -1666,21 +1669,17 @@ func (s *linkSnapSuite) testDoLinkSnapWithToolingDependency(c *C, classicOrBase 
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapWithToolingClassic(c *C) {
-	const needsTooling = false
-	s.testDoLinkSnapWithToolingDependency(c, "classic-system", needsTooling)
+	s.testDoLinkSnapWithToolingDependency(c, "classic-system")
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapWithToolingCore(c *C) {
-	const needsTooling = false
-	s.testDoLinkSnapWithToolingDependency(c, "", needsTooling)
+	s.testDoLinkSnapWithToolingDependency(c, "")
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapWithToolingCore18(c *C) {
-	const needsTooling = true
-	s.testDoLinkSnapWithToolingDependency(c, "core18", needsTooling)
+	s.testDoLinkSnapWithToolingDependency(c, "core18")
 }
 
 func (s *linkSnapSuite) TestDoLinkSnapWithToolingCore20(c *C) {
-	const needsTooling = true
-	s.testDoLinkSnapWithToolingDependency(c, "core20", needsTooling)
+	s.testDoLinkSnapWithToolingDependency(c, "core20")
 }
