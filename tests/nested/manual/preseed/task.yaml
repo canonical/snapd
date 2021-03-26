@@ -1,6 +1,6 @@
 summary: Check that preseeded ubuntu cloud image boots.
 
-description: |
+details: |
   This test checks that preseeding of Ubuntu cloud images with snap-preseed
   command works, and the resulting image boots and finalizes seeding.
   The test assumes cloud image with a core and lxd snaps in its seeds/.

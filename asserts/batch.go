@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -117,7 +117,7 @@ func (b *Batch) Fetch(trustedDB RODatabase, retrieve func(*Ref) (Assertion, erro
 
 func (b *Batch) precheck(db *Database) error {
 	db = db.WithStackedBackstore(NewMemoryBackstore())
-	return b.commitTo(db)
+	return b.commitTo(db, nil)
 }
 
 type CommitOptions struct {
@@ -139,12 +139,31 @@ func (b *Batch) CommitTo(db *Database, opts *CommitOptions) error {
 		}
 	}
 
-	return b.commitTo(db)
+	return b.commitTo(db, nil)
+}
+
+// CommitToAndObserve adds the batch of assertions to the given
+// assertion database while invoking observe for each one after they
+// are added.
+// Nothing will be committed if there are missing prerequisites, for a
+// full consistency check beforehand there is the Precheck option.
+// For convenience observe can be nil in which case is ignored.
+func (b *Batch) CommitToAndObserve(db *Database, observe func(Assertion), opts *CommitOptions) error {
+	if opts == nil {
+		opts = &CommitOptions{}
+	}
+	if opts.Precheck {
+		if err := b.precheck(db); err != nil {
+			return err
+		}
+	}
+
+	return b.commitTo(db, observe)
 }
 
 // commitTo does a best effort of adding all the batch assertions to
 // the target database.
-func (b *Batch) commitTo(db *Database) error {
+func (b *Batch) commitTo(db *Database, observe func(Assertion)) error {
 	if err := b.prereqSort(db); err != nil {
 		return err
 	}
@@ -164,6 +183,8 @@ func (b *Batch) commitTo(db *Database) error {
 		}
 		if err != nil {
 			errs = append(errs, err)
+		} else if observe != nil {
+			observe(a)
 		}
 	}
 	if len(errs) != 0 {

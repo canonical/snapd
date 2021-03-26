@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -37,25 +38,7 @@ type fdeSetupJSON struct {
 // as a string, which _must_ be a base64 encoded version of the same []byte Key
 // we have above, the handler below validates this as a test
 type fdeSetupJSONStrictBase64 struct {
-	Op string `json:"op"`
-
-	Key     string `json:"key,omitempty"`
-	KeyName string `json:"key-name,omitempty"`
-
-	Models []map[string]string `json:"models,omitempty"`
-}
-
-func byteSlicesEqual(b1, b2 []byte) error {
-	if len(b1) != len(b2) {
-		return fmt.Errorf("not same length")
-	}
-
-	for i, b := range b1 {
-		if b != b2[i] {
-			return fmt.Errorf("different bytes at position %d (%d vs %d)", i, b, b2[i])
-		}
-	}
-	return nil
+	Key string `json:"key,omitempty"`
 }
 
 func runFdeSetup() error {
@@ -79,8 +62,8 @@ func runFdeSetup() error {
 	if err != nil {
 		return fmt.Errorf("fde-setup-request is not valid base64: %v", err)
 	}
-	if err := byteSlicesEqual(decodedBase64Key, js.Key); err != nil {
-		return fmt.Errorf("fde-setup-request is not strictly the same base64 decoded as binary decoded: %v", err)
+	if !bytes.Equal(decodedBase64Key, js.Key) {
+		return fmt.Errorf("fde-setup-request is not strictly the same base64 decoded as binary decoded")
 	}
 
 	var fdeSetupResult []byte
@@ -109,20 +92,47 @@ type fdeRevealJSON struct {
 	SealedKey []byte `json:"sealed-key"`
 }
 
+type fdeRevealJSONStrict struct {
+	SealedKey string `json:"sealed-key"`
+}
+
 func runFdeRevealKey() error {
 	var js fdeRevealJSON
+	var jsStrict fdeRevealJSONStrict
 
-	if err := json.NewDecoder(os.Stdin).Decode(&js); err != nil {
+	b, err := ioutil.ReadAll(os.Stdin)
+	if err != nil {
 		return err
+	}
+
+	if err := json.Unmarshal(b, &js); err != nil {
+		return err
+	}
+
+	if err := json.Unmarshal(b, &jsStrict); err != nil {
+		return err
+	}
+
+	// verify that the two de-coding mechanisms agree on the key, manually
+	// decoding the base64 string in the stricter case
+	decodedBase64Key, err := base64.StdEncoding.DecodeString(jsStrict.SealedKey)
+	if err != nil {
+		return fmt.Errorf("fde-reveal-key input is not valid base64: %v", err)
+	}
+	if !bytes.Equal(decodedBase64Key, js.SealedKey) {
+		return fmt.Errorf("fde-reveal-key input is not strictly the same base64 decoded as binary decoded")
 	}
 
 	switch js.Op {
 	case "reveal":
-		// "unseal"
 		unsealedKey := xor13(js.SealedKey)
 		fmt.Fprintf(os.Stdout, "%s", unsealedKey)
 	case "lock":
 		// nothing right now
+
+		// NOTE: when using this file as an example code for implementing a real
+		// world, production grade FDE hook, the lock operation must be
+		// implemented here to block decryption operations
 	case "features":
 		// XXX: Not used right now but might in the future?
 		fmt.Fprintf(os.Stdout, `{"features":[]}`)

@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/jsonutil"
@@ -285,4 +286,36 @@ type Conf interface {
 type ConfGetter interface {
 	Get(snapName, key string, result interface{}) error
 	GetMaybe(snapName, key string, result interface{}) error
+}
+
+// Patch sets values in cfg for the provided snap's configuration
+// based on patch.
+// patch keys can be dotted as the key argument to Set.
+// The patch is applied according to the order of its keys sorted by depth,
+// with top keys sorted first.
+func Patch(cfg Conf, snapName string, patch map[string]interface{}) error {
+	patchKeys := sortPatchKeysByDepth(patch)
+	for _, key := range patchKeys {
+		if err := cfg.Set(snapName, key, patch[key]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func sortPatchKeysByDepth(patch map[string]interface{}) []string {
+	if len(patch) == 0 {
+		return nil
+	}
+	depths := make(map[string]int, len(patch))
+	keys := make([]string, 0, len(patch))
+	for k := range patch {
+		depths[k] = strings.Count(k, ".")
+		keys = append(keys, k)
+	}
+
+	sort.Slice(keys, func(i, j int) bool {
+		return depths[keys[i]] < depths[keys[j]]
+	})
+	return keys
 }

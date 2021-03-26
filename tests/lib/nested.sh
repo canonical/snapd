@@ -12,7 +12,6 @@ NESTED_RUNTIME_DIR="$NESTED_WORK_DIR/runtime"
 NESTED_ASSETS_DIR="$NESTED_WORK_DIR/assets"
 NESTED_LOGS_DIR="$NESTED_WORK_DIR/logs"
 
-
 NESTED_VM=nested-vm
 NESTED_SSH_PORT=8022
 NESTED_MON_PORT=8888
@@ -189,6 +188,9 @@ nested_get_google_image_url_for_vm() {
         ubuntu-20.10-64*)
             echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/groovy-server-cloudimg-amd64.img"
             ;;
+        ubuntu-21.04-64*)
+            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/hirsute-server-cloudimg-amd64.img"
+            ;;
         *)
             echo "unsupported system"
             exit 1
@@ -210,6 +212,9 @@ nested_get_ubuntu_image_url_for_vm() {
             ;;
         ubuntu-20.10-64*)
             echo "https://cloud-images.ubuntu.com/groovy/current/groovy-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-21.04-64*)
+            echo "https://cloud-images.ubuntu.com/hirsute/current/hirsute-server-cloudimg-amd64.img"
             ;;
         *)
             echo "unsupported system"
@@ -499,7 +504,15 @@ nested_create_core_vm() {
 
                 elif nested_is_core_20_system; then
                     snap download --basename=pc-kernel --channel="20/edge" pc-kernel
-                    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+
+                    # set the unix bump time if the NESTED_* var is set, 
+                    # otherwise leave it empty
+                    local epochBumpTime
+                    epochBumpTime=${NESTED_CORE20_INITRAMFS_EPOCH_TIMESTAMP:-}
+                    if [ -n "$epochBumpTime" ]; then
+                        epochBumpTime="--epoch-bump-time=$epochBumpTime"
+                    fi
+                    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
                     rm -f "$PWD/pc-kernel.snap"
 
                     # Prepare the pc kernel snap
@@ -806,7 +819,7 @@ nested_start_core_vm_unit() {
         exit 1
     fi
 
-    local PARAM_DISPLAY PARAM_NETWORK PARAM_MONITOR PARAM_USB PARAM_CD PARAM_RANDOM PARAM_CPU PARAM_TRACE PARAM_LOG PARAM_SERIAL
+    local PARAM_DISPLAY PARAM_NETWORK PARAM_MONITOR PARAM_USB PARAM_CD PARAM_RANDOM PARAM_CPU PARAM_TRACE PARAM_LOG PARAM_SERIAL PARAM_RTC
     PARAM_DISPLAY="-nographic"
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$NESTED_SSH_PORT-:22"
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$NESTED_MON_PORT,server,nowait"
@@ -816,6 +829,8 @@ nested_start_core_vm_unit() {
     PARAM_CPU=""
     PARAM_TRACE="-d cpu_reset"
     PARAM_LOG="-D $NESTED_LOGS_DIR/qemu.log"
+    PARAM_RTC="${NESTED_PARAM_RTC:-}"
+
     # Open port 7777 on the host so that failures in the nested VM (e.g. to
     # create users) can be debugged interactively via
     # "telnet localhost 7777". Also keeps the logs
@@ -923,6 +938,7 @@ nested_start_core_vm_unit() {
         ${PARAM_MEM} \
         ${PARAM_TRACE} \
         ${PARAM_LOG} \
+        ${PARAM_RTC} \
         ${PARAM_MACHINE} \
         ${PARAM_DISPLAY} \
         ${PARAM_NETWORK} \

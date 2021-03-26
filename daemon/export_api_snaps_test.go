@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,11 +19,15 @@
 
 package daemon
 
-var (
-	SnapFileCmd = snapFileCmd
-	GetSnapFile = getSnapFile
+import (
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/snap"
 )
 
-type (
-	FileResponse = fileResponse
+func MakeAboutSnap(info *snap.Info, snapst *snapstate.SnapState) aboutSnap {
+	return aboutSnap{info: info, snapst: snapst}
+}
+
+var (
+	MapLocal = mapLocal
 )

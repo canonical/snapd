@@ -113,6 +113,7 @@ ExclusiveArch:  %{ix86} x86_64 %{arm} aarch64 ppc64le s390x
 %endif
 
 # If go_compiler is not set to 1, there is no virtual provide. Use golang instead.
+BuildRequires: make
 BuildRequires:  %{?go_compiler:compiler(go-compiler)}%{!?go_compiler:golang >= 1.9}
 BuildRequires:  systemd
 %{?systemd_requires}
@@ -491,6 +492,7 @@ export GOPATH=$(pwd):%{gopath}
 %else
 export GOPATH=$(pwd):$(pwd)/Godeps/_workspace:%{gopath}
 %endif
+export GO111MODULE=off
 
 # see https://github.com/gofed/go-macros/blob/master/rpm/macros.d/macros.go-compilers-golang
 BUILDTAGS=
@@ -672,8 +674,9 @@ rm -fv %{buildroot}%{_unitdir}/snapd.snap-repair.*
 rm -fv %{buildroot}%{_unitdir}/snapd.core-fixup.*
 rm -fv %{buildroot}%{_unitdir}/snapd.recovery-chooser-trigger.service
 
-# Remove snappy core specific scripts
+# Remove snappy core specific scripts and binaries
 rm %{buildroot}%{_libexecdir}/snapd/snapd.core-fixup.sh
+rm %{buildroot}%{_libexecdir}/snapd/system-shutdown
 
 # Remove snapd apparmor service
 rm -f %{buildroot}%{_unitdir}/snapd.apparmor.service
@@ -740,6 +743,7 @@ export GOPATH=%{buildroot}/%{gopath}:%{gopath}
 %else
 export GOPATH=%{buildroot}/%{gopath}:$(pwd)/Godeps/_workspace:%{gopath}
 %endif
+export GO111MODULE=off
 %gotest %{import_path}/...
 %endif
 
@@ -770,7 +774,6 @@ popd
 %{_libexecdir}/snapd/snap-mgmt-selinux
 %endif
 %{_mandir}/man8/snap.8*
-%{_datadir}/applications/io.snapcraft.SessionAgent.desktop
 %{_datadir}/applications/snap-handle-link.desktop
 %{_datadir}/bash-completion/completions/snap
 %{_libexecdir}/snapd/complete.sh
@@ -793,6 +796,7 @@ popd
 %{_datadir}/dbus-1/session.d/snapd.session-services.conf
 %{_datadir}/dbus-1/system.d/snapd.system-services.conf
 %{_datadir}/polkit-1/actions/io.snapcraft.snapd.policy
+%{_datadir}/applications/io.snapcraft.SessionAgent.desktop
 %{_sysconfdir}/xdg/autostart/snap-userd-autostart.desktop
 %config(noreplace) %{_sysconfdir}/sysconfig/snapd
 %dir %{_sharedstatedir}/snapd
@@ -841,7 +845,6 @@ popd
 %{_libexecdir}/snapd/snap-gdbserver-shim
 %{_libexecdir}/snapd/snap-seccomp
 %{_libexecdir}/snapd/snap-update-ns
-%{_libexecdir}/snapd/system-shutdown
 %{_mandir}/man8/snap-confine.8*
 %{_mandir}/man8/snap-discard-ns.8*
 %{_systemdgeneratordir}/snapd-generator

@@ -10,9 +10,9 @@ environment:
     # i386 normal build
     BUILD_MODE/i386: normal
     ARCH/i386: i386
-    # Only build arch:any
-    BUILD_MODE/any: any
-    ARCH/any: amd64
+    # Only build arch:all
+    BUILD_MODE/all: all
+    ARCH/all: amd64
 
 systems: [debian-sid-*]
 

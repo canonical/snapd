@@ -184,20 +184,6 @@ type VolumeContent struct {
 	Size quantity.Size `yaml:"size"`
 
 	Unpack bool `yaml:"unpack"`
-
-	// resolvedSource is the absolute path of the Source after resolving
-	// any references (e.g. to a "$kernel:" snap)
-	resolvedSource string
-	// TODO: provide resolvedImage too
-}
-
-func (vc VolumeContent) ResolvedSource() string {
-	// TODO: ensure that sources are always resolved and only return
-	//       vc.resolvedSource(). This will come in the next PR.
-	if vc.resolvedSource != "" {
-		return vc.resolvedSource
-	}
-	return vc.UnresolvedSource
 }
 
 func (vc VolumeContent) String() string {
@@ -806,8 +792,11 @@ func validateFilesystemContent(vc *VolumeContent) error {
 	if vc.Image != "" || vc.Offset != nil || vc.OffsetWrite != nil || vc.Size != 0 {
 		return fmt.Errorf("cannot use image content for non-bare file system")
 	}
-	if vc.UnresolvedSource == "" || vc.Target == "" {
-		return fmt.Errorf("missing source or target")
+	if vc.UnresolvedSource == "" {
+		return fmt.Errorf("missing source")
+	}
+	if vc.Target == "" {
+		return fmt.Errorf("missing target")
 	}
 	return nil
 }
@@ -923,11 +912,11 @@ func IsCompatible(current, new *Info) error {
 	// layout both volumes partially, without going deep into the layout of
 	// structure content, we only want to make sure that structures are
 	// comapatible
-	pCurrent, err := LayoutVolumePartially(currentVol, defaultConstraints)
+	pCurrent, err := LayoutVolumePartially(currentVol, DefaultConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the current volume: %v", err)
 	}
-	pNew, err := LayoutVolumePartially(newVol, defaultConstraints)
+	pNew, err := LayoutVolumePartially(newVol, DefaultConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the new volume: %v", err)
 	}
@@ -937,32 +926,46 @@ func IsCompatible(current, new *Info) error {
 	return nil
 }
 
-// LaidOutVolumeFromGadget takes a gadget rootdir and lays out the
-// partitions as specified.
-func LaidOutVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolume, error) {
-	info, err := ReadInfo(gadgetRoot, model)
+// LaidOutSystemVolumeFromGadget takes a gadget rootdir and lays out the
+// partitions as specified. It returns one specific volume, which is the volume
+// on which system-* roles/partitions exist, all other volumes are assumed to
+// already be flashed and managed separately at image build/flash time, while
+// the system-* roles can be manipulated on the returned volume during install
+// mode.
+func LaidOutSystemVolumeFromGadget(gadgetRoot, kernelRoot string, model Model) (*LaidOutVolume, error) {
+	// model should never be nil here
+	if model == nil {
+		return nil, fmt.Errorf("internal error: must have model to lay out system volumes from a gadget")
+	}
+	// rely on the basic validation from ReadInfo to ensure that the system-*
+	// roles are all on the same volume for example
+	info, err := ReadInfoAndValidate(gadgetRoot, model, nil)
 	if err != nil {
 		return nil, err
-	}
-	// Limit ourselves to just one volume for now.
-	if len(info.Volumes) != 1 {
-		return nil, fmt.Errorf("cannot position multiple volumes yet")
 	}
 
 	constraints := LayoutConstraints{
 		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-		SectorSize:        512,
 	}
 
+	// find the volume with the system-boot role on it, we already validated
+	// that the system-* roles are all on the same volume
 	for _, vol := range info.Volumes {
-		pvol, err := LayoutVolume(gadgetRoot, vol, constraints)
-		if err != nil {
-			return nil, err
+		for _, structure := range vol.Structure {
+			// use the system-boot role to identify the system volume
+			if structure.Role == SystemBoot {
+				pvol, err := LayoutVolume(gadgetRoot, kernelRoot, vol, constraints)
+				if err != nil {
+					return nil, err
+				}
+
+				return pvol, nil
+			}
 		}
-		// we know  info.Volumes map has size 1 so we can return here
-		return pvol, nil
 	}
-	return nil, fmt.Errorf("internal error in PositionedVolumeFromGadget: this line cannot be reached")
+
+	// this should be impossible, the validation above should ensure this
+	return nil, fmt.Errorf("internal error: gadget passed validation but does not have system-* roles on any volume")
 }
 
 func flatten(path string, cfg interface{}, out map[string]interface{}) {

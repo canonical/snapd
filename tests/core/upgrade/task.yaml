@@ -79,7 +79,7 @@ execute: |
     echo "${chg_id}" >curChg
 
     # wait for the link task to be done
-    while ! journalctl -b -u snapd|grep -q "Waiting for system reboot" ; do sleep 1 ; done
+    retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
 
     echo "Ensure the test snap still runs"
     test-snapd-sh.sh -c 'echo hello' | MATCH hello

@@ -63,7 +63,10 @@ execute: |
 
     echo "Run the snap-bootstrap tool in auto-detect mode"
     go get ../../lib/uc20-create-partitions
-    uc20-create-partitions ./gadget-dir
+    # TODO:UC20: make kernel-dir non-empty once we have a gadget that has a
+    #            "$kernel:" style ref in the meta/gadget.yaml
+    kerneldir=""
+    uc20-create-partitions ./gadget-dir "$kerneldir"
 
     echo "And check that the partitions are created"
     sfdisk -l "$LOOP" | MATCH '750M Linux filesystem'
@@ -85,7 +88,7 @@ execute: |
 
     # re-create partitions on a new install attempt
     echo "Run the snap-bootstrap again"
-    uc20-create-partitions ./gadget-dir
+    uc20-create-partitions ./gadget-dir "$kerneldir"
 
     echo "And check that the partitions are there"
     sfdisk -l "$LOOP" | MATCH '750M Linux filesystem'

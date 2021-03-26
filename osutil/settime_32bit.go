@@ -1,7 +1,10 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
+// +build 386 arm
+// +build linux
+
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,8 +20,20 @@
  *
  */
 
-package daemon
+package osutil
 
-var (
-	CohortsCmd = cohortsCmd
+import (
+	"syscall"
+	"time"
 )
+
+func init() {
+	timeToTimeval = timeToTimeval32
+}
+
+func timeToTimeval32(t time.Time) *syscall.Timeval {
+	return &syscall.Timeval{
+		Sec:  int32(t.Unix()),
+		Usec: int32(t.Nanosecond() / 1000),
+	}
+}

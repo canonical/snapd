@@ -328,6 +328,10 @@ func (fs *Fake16Seed) Brand() (*asserts.Account, error) {
 	return assertstest.FakeAssertion(headers, nil).(*asserts.Account), nil
 }
 
+func (fs *Fake16Seed) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error {
+	panic("unexpected")
+}
+
 func (fs *Fake16Seed) LoadMeta(tm timings.Measurer) error {
 	return fs.LoadMetaErr
 }

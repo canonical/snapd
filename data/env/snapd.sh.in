@@ -3,7 +3,7 @@
 # Expand $PATH to include the directory where snappy applications go.
 snap_bin_path="@SNAP_MOUNT_DIR@/bin"
 if [ -n "${PATH##*${snap_bin_path}}" ] && [ -n "${PATH##*${snap_bin_path}:*}" ]; then
-    export PATH=$PATH:${snap_bin_path}
+    export PATH="$PATH:${snap_bin_path}"
 fi
 
 # Ensure base distro defaults xdg path are set if nothing filed up some

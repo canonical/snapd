@@ -49,6 +49,9 @@ func init() {
 	// store-certs.*
 	addWithStateHandler(validateCertSettings, handleCertConfiguration, nil)
 
+	// users.create.automatic
+	addWithStateHandler(validateUsersSettings, handleUserSettings, &flags{earlyConfigFilter: earlyUsersSettingsFilter})
+
 	validateOnly := &flags{validatedOnlyStateConfig: true}
 	addWithStateHandler(validateRefreshSchedule, nil, validateOnly)
 	addWithStateHandler(validateRefreshRateLimit, nil, validateOnly)
@@ -102,6 +105,10 @@ func addWithStateHandler(validate func(config.Conf) error, handle func(config.Co
 }
 
 func Run(cfg config.Conf) error {
+	return applyHandlers(cfg, handlers)
+}
+
+func applyHandlers(cfg config.Conf, handlers []configHandler) error {
 	// check if the changes
 	for _, k := range cfg.Changes() {
 		switch {
@@ -129,4 +136,26 @@ func Run(cfg config.Conf) error {
 		}
 	}
 	return nil
+}
+
+func Early(cfg config.Conf, values map[string]interface{}) error {
+	early := make(map[string]interface{})
+	// keep track of which handlers have early config to process
+	var relevant []configHandler
+	for _, h := range handlers {
+		flt := h.flags().earlyConfigFilter
+		if flt != nil {
+			cur := len(early)
+			flt(values, early)
+			if len(early) > cur {
+				relevant = append(relevant, h)
+			}
+		}
+	}
+
+	if err := config.Patch(cfg, "core", early); err != nil {
+		return err
+	}
+
+	return applyHandlers(cfg, relevant)
 }

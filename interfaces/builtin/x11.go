@@ -83,6 +83,9 @@ unix (bind, listen, accept)
 # For Xorg to detect screens
 /sys/devices/pci**/boot_vga r,
 /sys/devices/pci**/resources r,
+
+# TODO: enable rules for writing Xwayland Xauth files for clients to read when
+# something like gnome-shell is running confined with an x11 slot
 `
 
 const x11PermanentSlotSecComp = `

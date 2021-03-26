@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,26 +17,32 @@
  *
  */
 
-package configstate
+package osutil_test
 
 import (
-	"sort"
-	"strings"
+	"syscall"
+	"time"
+
+	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
-func sortPatchKeysByDepth(patch map[string]interface{}) []string {
-	if len(patch) == 0 {
-		return nil
-	}
-	depths := make(map[string]int, len(patch))
-	keys := make([]string, 0, len(patch))
-	for k := range patch {
-		depths[k] = strings.Count(k, ".")
-		keys = append(keys, k)
-	}
+type settimeTestSuite struct{}
 
-	sort.Slice(keys, func(i, j int) bool {
-		return depths[keys[i]] < depths[keys[j]]
+var _ = Suite(&settimeTestSuite{})
+
+func (s *settimeTestSuite) TestSetTime(c *C) {
+	timeIn, err := time.Parse("Mon Jan 2 15:04:05 -0700 MST 2006", "Mon Jan 2 15:04:05 -0700 MST 2006")
+	c.Assert(err, IsNil)
+
+	r := osutil.MockSyscallSettimeofday(func(t *syscall.Timeval) error {
+		c.Assert(int64(t.Sec), Equals, timeIn.Unix())
+		c.Assert(int64(t.Usec), Equals, timeIn.UnixNano()/1000%1000)
+		return nil
 	})
-	return keys
+	defer r()
+
+	err = osutil.SetTime(timeIn)
+	c.Assert(err, IsNil)
 }

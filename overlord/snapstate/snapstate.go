@@ -257,7 +257,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = unlink
 	}
 
-	if !release.OnClassic && snapsup.Type == snap.TypeGadget {
+	if !release.OnClassic && (snapsup.Type == snap.TypeGadget || snapsup.Type == snap.TypeKernel) {
 		// XXX: gadget update currently for core systems only
 		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from gadget %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(gadgetUpdate)
@@ -294,6 +294,14 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(i18n.G("Setup snap %q aliases"), snapsup.InstanceName()))
 	addTask(setupAliases)
 	prev = setupAliases
+
+	if !release.OnClassic && snapsup.Type == snap.TypeSnapd {
+		// only run for core devices and the snapd snap, run late enough
+		// so that the task is executed by the new snapd
+		bootConfigUpdate := st.NewTask("update-managed-boot-config", fmt.Sprintf(i18n.G("Update managed boot config assets from %q%s"), snapsup.InstanceName(), revisionStr))
+		addTask(bootConfigUpdate)
+		prev = bootConfigUpdate
+	}
 
 	if runRefreshHooks {
 		postRefreshHook := SetupPostRefreshHook(st, snapsup.InstanceName())
@@ -1171,6 +1179,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			ts.WaitAll(preTs)
 		}
 	}
+	var kernelTs, gadgetTs *state.TaskSet
 
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
@@ -1247,9 +1256,25 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 				waitPrereq(ts, update.Base)
 			}
 		}
+		// keep track of kernel/gadget udpates
+		switch update.Type() {
+		case snap.TypeKernel:
+			kernelTs = ts
+		case snap.TypeGadget:
+			gadgetTs = ts
+		}
 
 		scheduleUpdate(update.InstanceName(), ts)
 		tasksets = append(tasksets, ts)
+	}
+	// Kernel must wait for gadget because the gadget may define
+	// new "$kernel:refs". Sorting the other way is impossible
+	// because a kernel with new kernel-assets would never refresh
+	// because the matching gadget could never get installed
+	// because the gadget always waits for the kernel and if the
+	// kernel aborts the wait tasks (the gadget) is put on "Hold".
+	if kernelTs != nil && gadgetTs != nil {
+		kernelTs.WaitAll(gadgetTs)
 	}
 
 	if len(newAutoAliases) != 0 {

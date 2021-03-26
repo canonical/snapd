@@ -216,9 +216,11 @@ func (l *lkenvTestSuite) TestSave(c *C) {
 		{
 			lkenv.V2Recovery,
 			map[string]string{
-				"snapd_recovery_mode":   "recover",
-				"snapd_recovery_system": "11192020",
-				"bootimg_file_name":     "boot.img",
+				"snapd_recovery_mode":    "recover",
+				"snapd_recovery_system":  "11192020",
+				"bootimg_file_name":      "boot.img",
+				"try_recovery_system":    "1234",
+				"recovery_system_status": "tried",
 			},
 			"lkenv v2 recovery",
 		},

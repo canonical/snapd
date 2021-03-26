@@ -1,6 +1,6 @@
 summary: Check mount bug https://forum.snapcraft.io/t/5682
 
-description: |
+details: |
    Regression test for systemd mount race that produces a protocol
    error. We added a workaround to snapd for the upstream bug
    https://github.com/systemd/systemd/issues/10872
