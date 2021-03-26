@@ -46,7 +46,7 @@ type flags struct {
 	// set before even seeding is finished).
 	// If set the function should copy such options from values
 	// to early.
-	earlyConfigFilter func(values, early map[string]interface{})
+	earlyConfigFilter filterFunc
 }
 
 type fsOnlyHandler struct {
