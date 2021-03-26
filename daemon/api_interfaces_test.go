@@ -340,13 +340,16 @@ func (s *interfacesSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	c.Assert(ifaces.Connections, check.HasLen, 0)
 }
 
-func (s *interfacesSuite) testConnectFailureNoSnap(c *check.C, consumer, producer bool) {
+func (s *interfacesSuite) testConnectFailureNoSnap(c *check.C, installedSnap string) {
 	// sanity, either consumer or producer needs to be enabled
-	c.Assert(consumer, check.Equals, !producer)
+	consumer := installedSnap == "consumer"
+	producer := installedSnap == "producer"
+	c.Assert(consumer || producer, check.Equals, true, check.Commentf("installed snap must be consumer or producer"))
 
 	d := s.daemon(c)
 
 	mockIface(c, d, &ifacetest.TestInterface{InterfaceName: "test"})
+
 	if consumer {
 		s.mockSnap(c, consumerYaml)
 	}
@@ -393,11 +396,11 @@ func (s *interfacesSuite) testConnectFailureNoSnap(c *check.C, consumer, produce
 }
 
 func (s *interfacesSuite) TestConnectPlugFailureNoPlugSnap(c *check.C) {
-	s.testConnectFailureNoSnap(c, false, true)
+	s.testConnectFailureNoSnap(c, "producer")
 }
 
 func (s *interfacesSuite) TestConnectPlugFailureNoSlotSnap(c *check.C) {
-	s.testConnectFailureNoSnap(c, true, false)
+	s.testConnectFailureNoSnap(c, "consumer")
 }
 
 func (s *interfacesSuite) TestConnectPlugChangeConflict(c *check.C) {
@@ -602,9 +605,11 @@ func (s *interfacesSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	})
 }
 
-func (s *interfacesSuite) testDisconnectFailureNoSnap(c *check.C, consumer, producer bool) {
+func (s *interfacesSuite) testDisconnectFailureNoSnap(c *check.C, installedSnap string) {
 	// sanity, either consumer or producer needs to be enabled
-	c.Assert(consumer, check.Equals, !producer)
+	consumer := installedSnap == "consumer"
+	producer := installedSnap == "producer"
+	c.Assert(consumer || producer, check.Equals, true, check.Commentf("installed snap must be consumer or producer"))
 
 	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
 	defer revert()
@@ -656,11 +661,11 @@ func (s *interfacesSuite) testDisconnectFailureNoSnap(c *check.C, consumer, prod
 }
 
 func (s *interfacesSuite) TestDisconnectPlugFailureNoPlugSnap(c *check.C) {
-	s.testDisconnectFailureNoSnap(c, true, false)
+	s.testDisconnectFailureNoSnap(c, "producer")
 }
 
 func (s *interfacesSuite) TestDisconnectPlugFailureNoSlotSnap(c *check.C) {
-	s.testDisconnectFailureNoSnap(c, false, true)
+	s.testDisconnectFailureNoSnap(c, "consumer")
 }
 
 func (s *interfacesSuite) TestDisconnectPlugNothingToDo(c *check.C) {

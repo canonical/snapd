@@ -9,7 +9,7 @@ prepare: |
     fi
 
 execute: |
-    echo "Connect and disconnect provides meaningful error is plug or slot snap is not installed"
+    echo "Connect and disconnect provides meaningful error if plug or slot snap is not installed"
     snap connect home-consumer:home foo:home 2>&1 | MATCH 'error: snap "foo" is not installed'
     snap connect foo:home 2>&1 | MATCH 'error: snap "foo" is not installed'
     snap disconnect foo:home 2>&1 | MATCH 'error: snap "foo" is not installed'
