@@ -65,6 +65,10 @@ var ApplyFilesystemOnlyDefaultsImpl = func(rootDir string, defaults map[string]i
 	panic("ApplyFilesystemOnlyDefaultsImpl is unset, import overlord/configstate/configcore")
 }
 
+var ApplyPreinstallFilesystemOnlyDefaultsImpl = func(rootDir string, defaults map[string]interface{}, options *FilesystemOnlyApplyOptions) error {
+	panic("ApplyPreinstallFilesystemOnlyDefaultsImpl is unset, import overlord/configstate/configcore")
+}
+
 // ApplyFilesystemOnlyDefaults applies (via configcore.filesystemOnlyApply())
 // filesystem modifications under rootDir, according to the defaults.
 // This is a subset of core config options that is important
@@ -72,6 +76,20 @@ var ApplyFilesystemOnlyDefaultsImpl = func(rootDir string, defaults map[string]i
 // normal execution of configure hook.
 func ApplyFilesystemOnlyDefaults(rootDir string, defaults map[string]interface{}, options *FilesystemOnlyApplyOptions) error {
 	return ApplyFilesystemOnlyDefaultsImpl(rootDir, defaults, options)
+}
+
+// ApplyPreinstallFilesystemOnlyDefaults applies (via
+// configcore.preinstallFilesystemOnlyApply) filesystem modifications under
+// rootDir, according to the defaults. Note that rootDir here for UC20 will be a
+// recovery system, but it could be a root filesystem for UC18, but in both
+// cases the directory should not have been booted previously, this function is
+// meant to be called during prepare-image/ubuntu-image time when building an
+// image.
+// This is a limited subset of core config options that apply to things like
+// gadget boot assets that need to be configured before boot, because applying
+// the changes during runtime at boot would require a reboot to take effect.
+func ApplyPreinstallFilesystemOnlyDefaults(rootDir string, defaults map[string]interface{}, options *FilesystemOnlyApplyOptions) error {
+	return ApplyPreinstallFilesystemOnlyDefaultsImpl(rootDir, defaults, options)
 }
 
 // ConfigureTargetSystem configures the ubuntu-data partition with

@@ -22,13 +22,14 @@ package configcore
 import "github.com/snapcore/snapd/osutil/sys"
 
 var (
-	UpdatePiConfig       = updatePiConfig
-	SwitchHandlePowerKey = switchHandlePowerKey
-	SwitchDisableService = switchDisableService
-	UpdateKeyValueStream = updateKeyValueStream
-	AddFSOnlyHandler     = addFSOnlyHandler
-	AddWithStateHandler  = addWithStateHandler
-	FilesystemOnlyApply  = filesystemOnlyApply
+	UpdatePiConfig                = updatePiConfig
+	SwitchHandlePowerKey          = switchHandlePowerKey
+	SwitchDisableService          = switchDisableService
+	UpdateKeyValueStream          = updateKeyValueStream
+	AddFSOnlyHandler              = addFSOnlyHandler
+	AddWithStateHandler           = addWithStateHandler
+	FilesystemOnlyApply           = filesystemOnlyApply
+	PreinstallFilesystemOnlyApply = preinstallFilesystemOnlyApply
 )
 
 type PlainCoreConfig = plainCoreConfig
