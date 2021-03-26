@@ -225,7 +225,7 @@ func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[
 	//   snap-confine.core.111
 	patchedProfileName := snapConfineProfileName(info.InstanceName(), info.Revision)
 	// remove other generated profiles, which is only relevant for the
-	// 'core' snap on classic system where we reexec, on core system the
+	// 'core' snap on classic system where we reexec, on core systems the
 	// profile is already a part of the rootfs snap
 	patchedProfileGlob := fmt.Sprintf("snap-confine.%s.*", info.InstanceName())
 
@@ -235,9 +235,9 @@ func snapConfineFromSnapProfile(info *snap.Info) (dir, glob string, content map[
 		// being removed, also on core devices the rootfs snap and the
 		// snapd snap are updated separately, so the profile needs to be
 		// around for as long as the given revision of the snapd snap is
-		// active, so we use the exact match such that we only only
-		// replace our own profile, which can happen if system was
-		// rebooted before task calling the backend was finished
+		// active, so we use the exact match such that we only replace
+		// our own profile, which can happen if system was rebooted
+		// before task calling the backend was finished
 		patchedProfileGlob = patchedProfileName
 	}
 
@@ -580,6 +580,8 @@ func (b *Backend) RemoveLate(snapName string, rev snap.Revision, typ snap.Type) 
 
 	globs := []string{snapConfineProfileName(snapName, rev)}
 	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dirs.SnapAppArmorDir, globs, nil)
+	// XXX: unloadProfiles() does not unload profiles from the kernel, but
+	// only removes profiles from the cache
 	errUnload := unloadProfiles(removed, apparmor_sandbox.CacheDir)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot remove security profiles for snap %q (%s): %s", snapName, rev, errEnsure)
