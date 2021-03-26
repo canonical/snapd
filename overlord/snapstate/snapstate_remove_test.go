@@ -337,6 +337,7 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 					SnapID:   "some-snap-id",
 					Revision: snap.R(7),
 				},
+				Type: snap.TypeApp,
 			}
 		default:
 			expSnapSetup = &snapstate.SnapSetup{
@@ -481,6 +482,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 					Revision: snap.R(7),
 				},
 				InstanceKey: "instance",
+				Type:        snap.TypeApp,
 			}
 		default:
 			expSnapSetup = &snapstate.SnapSetup{
@@ -752,6 +754,7 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 					RealName: "some-snap",
 					Revision: revnos[whichRevno],
 				},
+				Type: snap.TypeApp,
 			}
 		default:
 			expSnapSetup = &snapstate.SnapSetup{
@@ -845,6 +848,7 @@ func (s *snapmgrTestSuite) TestRemoveOneRevisionRunThrough(c *C) {
 				RealName: "some-snap",
 				Revision: snap.R(3),
 			},
+			Type: snap.TypeApp,
 		}
 
 		c.Check(snapsup, DeepEquals, expSnapSetup, Commentf(t.Kind()))
@@ -945,10 +949,11 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 		}
 		if t.Kind() != "discard-conns" {
 			expSnapSetup.SideInfo.Revision = snap.R(2)
+			expSnapSetup.Type = snap.TypeApp
 		}
 		if t.Kind() == "auto-disconnect" {
 			expSnapSetup.PlugsOnly = true
-			expSnapSetup.Type = "app"
+			expSnapSetup.Type = snap.TypeApp
 		}
 
 		c.Check(snapsup, DeepEquals, expSnapSetup, Commentf(t.Kind()))
