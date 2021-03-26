@@ -100,5 +100,16 @@ func (cfg plainCoreConfig) GetMaybe(instanceName, key string, result interface{}
 // handlers when configuration is applied to a specific root directory with
 // FilesystemOnlyApply().
 type fsOnlyContext struct {
+	// UC20Recovery indicates that RootDir is actually a UC20 recovery system,
+	// not a full root filesystem as it was with UC18 for example. This flag is
+	// currently only ever set when the recovery system is being prepared by
+	// snap prepare-image at image build time, before the device is booted for
+	// special config like the pi-config that needs to be applied before the
+	// device is even booted (since the pi GPU bootloader is what reads the
+	// pi-config settings).
+	UC20Recovery bool
+	// RootDir is the filesystem that the config is being applied to. It is
+	// either a full root filesystem or it is a recovery system, depending on
+	// UC20Recovery.
 	RootDir string
 }
