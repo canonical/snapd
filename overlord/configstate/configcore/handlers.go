@@ -93,7 +93,7 @@ func init() {
 	addFSOnlyHandler(nil, handlePowerButtonConfiguration, coreOnly)
 
 	// pi-config.*
-	addFSOnlyHandler(nil, handlePiConfiguration, coreOnly)
+	addFSOnlyHandler(nil, handlePiConfiguration, &flags{coreOnlyConfig: true, preinstallFilter: preinstallPiSettingsFilter})
 
 	// system.disable-backlight-service
 	addFSOnlyHandler(validateBacklightServiceSettings, handleBacklightServiceConfiguration, coreOnly)

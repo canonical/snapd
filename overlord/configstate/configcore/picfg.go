@@ -69,6 +69,14 @@ func init() {
 	}
 }
 
+func preinstallPiSettingsFilter(values, preinstall map[string]interface{}) {
+	for key, v := range values {
+		if strings.HasPrefix(key, "pi-config.") && supportedConfigurations["core."+key] {
+			preinstall[key] = v
+		}
+	}
+}
+
 func updatePiConfig(path string, config map[string]string) error {
 	f, err := os.Open(path)
 	if err != nil {
