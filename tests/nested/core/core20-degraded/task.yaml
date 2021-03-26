@@ -1,5 +1,7 @@
 summary: Transition to recover mode with things missing so we use degraded mode
 
+systems: [ubuntu-20.04-64]
+
 environment:
   DEGRADED_JSON: /run/snapd/snap-bootstrap/degraded.json
 
