@@ -887,7 +887,7 @@ nested_start_core_vm_unit() {
     # Set kvm attribute
     local ATTR_KVM
     ATTR_KVM=""
-    if $(nested_is_kvm_enabled); then
+    if nested_is_kvm_enabled; then
         ATTR_KVM=",accel=kvm"
         # CPU can be defined just when kvm is enabled
         PARAM_CPU="-cpu host"
@@ -941,13 +941,13 @@ nested_start_core_vm_unit() {
             PARAM_BIOS="-bios /usr/share/OVMF/OVMF_CODE.fd"
         fi
         
-        if $(nested_is_secure_boot_enabled); then
+        if nested_is_secure_boot_enabled; then
             cp -f "/usr/share/OVMF/OVMF_VARS.$OVMF_VARS.fd" "$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd"
             PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly -drive file=$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw"
             PARAM_MACHINE="-machine q35${ATTR_KVM} -global ICH9-LPC.disable_s3=1"
         fi
 
-        if $(nested_is_tpm_enabled); then
+        if nested_is_tpm_enabled; then
             if snap list swtpm-mvo; then
                 # reset the tpm state
                 rm /var/snap/swtpm-mvo/current/tpm2-00.permall

@@ -46,7 +46,7 @@ execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    if [ "${NESTED_UBUNTU_SAVE:-}" != "add" ] && ! $(nested_is_tpm_enabled); then
+    if [ "${NESTED_UBUNTU_SAVE:-}" != "add" ] && ! nested_is_tpm_enabled; then
         echo "Check that ubuntu-save is not mounted"
         nested_exec "! mountpoint /run/mnt/ubuntu-save"
         nested_exec "! mountpoint /var/lib/snapd/save"
@@ -56,7 +56,7 @@ execute: |
         # Filesystem                                                   1B-blocks  Used Available Use% Mounted on
         # /dev/mapper/ubuntu-save-0bed13ef-f71f-418f-b046-b1ce32dd04a7   5079040 28672   4390912   1% /run/mnt/ubuntu-save
         save_out="$(nested_exec "df -B1 /run/mnt/ubuntu-save | tail -1")"
-        if $(nested_is_tpm_enabled); then
+        if nested_is_tpm_enabled; then
             # when encrypted, ubuntu-save is mounted from a dm device
             echo "$save_out" | MATCH '^/dev/mapper/ubuntu-save-[0-9a-z-]+\s+'
         else
@@ -84,13 +84,13 @@ execute: |
 
     # happily running in recover mode
 
-    if [ "${NESTED_UBUNTU_SAVE:-}" != "add" ] && ! $(nested_is_tpm_enabled); then
+    if [ "${NESTED_UBUNTU_SAVE:-}" != "add" ] && ! nested_is_tpm_enabled; then
         # no ubuntu-save
         nested_exec "! mountpoint /run/mnt/ubuntu-save"
         nested_exec "! mountpoint /var/lib/snapd/save"
     else
         recover_save_out="$(nested_exec "df -B1 /run/mnt/ubuntu-save | tail -1")"
-        if $(nested_is_tpm_enabled); then
+        if nested_is_tpm_enabled; then
             # when encrypted, ubuntu-save is mounted from a dm device
             echo "$recover_save_out" | MATCH '^/dev/mapper/ubuntu-save-[0-9a-z-]+\s+'
         else
