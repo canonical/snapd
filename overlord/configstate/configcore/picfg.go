@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -88,16 +89,35 @@ func updatePiConfig(path string, config map[string]string) error {
 	return nil
 }
 
-func piConfigFile(opts *fsOnlyContext) string {
+func piConfigFile(opts *fsOnlyContext) (string, error) {
 	rootDir := dirs.GlobalRootDir
+	subdir := "/boot/uboot"
 	if opts != nil {
 		rootDir = opts.RootDir
+	} else {
+		// not a filesystem only apply, so we may be operating on a run system
+		// on UC20, in which case we shouldn't use the /boot/uboot/ option and
+		// instead should use /run/mnt/ubuntu-seed/
+		kCmdlineVals, err := osutil.KernelCommandLineKeyValues("snapd_recovery_mode")
+		if err != nil {
+			return "", err
+		}
+
+		// TODO: what about recover mode?
+		if kCmdlineVals["snapd_recovery_mode"] == "run" {
+			rootDir = boot.InitramfsUbuntuSeedDir
+			subdir = ""
+		}
 	}
-	return filepath.Join(rootDir, "/boot/uboot/config.txt")
+	return filepath.Join(rootDir, subdir, "config.txt"), nil
 }
 
 func handlePiConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
-	if osutil.FileExists(piConfigFile(opts)) {
+	configFile, err := piConfigFile(opts)
+	if err != nil {
+		return err
+	}
+	if osutil.FileExists(configFile) {
 		// snapctl can actually give us the whole dict in
 		// JSON, in a single call; use that instead of this.
 		config := map[string]string{}
@@ -108,7 +128,7 @@ func handlePiConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
 			}
 			config[key] = output
 		}
-		if err := updatePiConfig(piConfigFile(opts), config); err != nil {
+		if err := updatePiConfig(configFile, config); err != nil {
 			return err
 		}
 	}
