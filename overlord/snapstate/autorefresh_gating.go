@@ -21,7 +21,6 @@ package snapstate
 
 import (
 	"fmt"
-	"sort"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/mount"
@@ -32,7 +31,7 @@ import (
 
 var gateAutoRefreshHookName = "gate-auto-refresh"
 
-func affectedByRefresh(st *state.State, updates []*snap.Info) ([]string, error) {
+func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]map[string]bool, error) {
 	all, err := All(st)
 	if err != nil {
 		return nil, err
@@ -55,39 +54,44 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) ([]string, error) 
 		}
 
 		base := inf.Base
+		if base == "none" {
+			continue
+		}
 		if inf.Base == "" {
 			base = "core"
 		}
 		byBase[base] = append(byBase[base], inf.InstanceName())
 	}
 
-	affected := make(map[string]bool)
+	affected := make(map[string]map[string]bool)
+
+	addAffected := func(snapName, affectedBy string) {
+		if affected[snapName] == nil {
+			affected[snapName] = make(map[string]bool)
+		}
+		affected[snapName][affectedBy] = true
+	}
 
 	for _, up := range updates {
 		// add self
-		if all[up.InstanceName()] != nil {
-			affected[up.InstanceName()] = true
-		}
+		//if all[up.InstanceName()] != nil {
+		//	addAffected(up.InstanceName()] = true
+		//}
 
 		// snaps that can trigger reboot
 		// XXX: gadget refresh doesn't always require reboot, refine this
 		if up.Type() == snap.TypeKernel || up.Type() == snap.TypeGadget {
 			for _, snapSt := range all {
-				affected[snapSt.InstanceName()] = true
+				addAffected(snapSt.InstanceName(), up.InstanceName())
 			}
 			continue
 		}
 		if up.Type() == snap.TypeBase || up.SnapName() == "core" {
 			// affected by refresh of this base snap
-			for _, snapName := range byBase[up.SnapName()] {
-				affected[snapName] = true
+			for _, snapName := range byBase[up.InstanceName()] {
+				addAffected(snapName, up.InstanceName())
 			}
 			continue
-		}
-
-		// no point in further checks
-		if len(affected) == len(all) {
-			break
 		}
 
 		repo := ifacerepo.Get(st)
@@ -101,14 +105,9 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) ([]string, error) 
 			for _, cref := range conns {
 				// affected only if it wasn't optimized out above
 				if all[cref.PlugRef.Snap] != nil {
-					affected[cref.PlugRef.Snap] = true
+					addAffected(cref.PlugRef.Snap, up.InstanceName())
 				}
 			}
-		}
-
-		// no point in further checks
-		if len(affected) == len(all) {
-			break
 		}
 
 		// consider plugs of the refreshed snap only if mount backend is involved
@@ -127,20 +126,20 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) ([]string, error) 
 			for _, cref := range conns {
 				// affected only if it wasn't optimized out above
 				if all[cref.SlotRef.Snap] != nil {
-					affected[cref.SlotRef.Snap] = true
+					addAffected(cref.SlotRef.Snap, up.InstanceName())
 				}
 			}
 		}
 	}
 
-	aff := make([]string, len(affected))
+	/*aff := make([]string, len(affected))
 	i := 0
 	for snapName := range affected {
 		aff[i] = snapName
 		i++
 	}
-	sort.Strings(aff)
-	return aff, nil
+	sort.Strings(aff)*/
+	return affected, nil
 }
 
 func usesMountBackend(iface interfaces.Interface) bool {

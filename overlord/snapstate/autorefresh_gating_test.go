@@ -40,7 +40,7 @@ import (
 type refreshControlSuite struct {
 	testutil.BaseTest
 	state *state.State
-	repo *interfaces.Repository
+	repo  *interfaces.Repository
 }
 
 var _ = Suite(&refreshControlSuite{})
@@ -75,7 +75,7 @@ func (s *refreshControlSuite) mockInstalledSnap(c *C, snapYaml []byte, hasHook b
 		Current:  si.Revision,
 		SnapType: string(snapInfo.Type()),
 	})
-	
+
 	if hasHook {
 		c.Assert(os.MkdirAll(snapInfo.HooksDir(), 0775), IsNil)
 		err := ioutil.WriteFile(filepath.Join(snapInfo.HooksDir(), "gate-auto-refresh"), nil, 0755)
@@ -153,7 +153,7 @@ func (s *refreshControlSuite) TestAffectedByBase(c *C) {
 	updates := []*snap.Info{baseSnapA}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
-	c.Check(affected, DeepEquals, []string{"snap-a"})
+	c.Check(affected, DeepEquals, map[string]map[string]bool{"snap-a": {"base-snap-a": true}})
 }
 
 func (s *refreshControlSuite) TestAffectedByCore(c *C) {
@@ -168,7 +168,7 @@ func (s *refreshControlSuite) TestAffectedByCore(c *C) {
 	updates := []*snap.Info{core}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
-	c.Check(affected, DeepEquals, []string{"snap-c"})
+	c.Check(affected, DeepEquals, map[string]map[string]bool{"snap-c": {"core": true}})
 }
 
 func (s *refreshControlSuite) TestAffectedByKernel(c *C) {
@@ -183,7 +183,7 @@ func (s *refreshControlSuite) TestAffectedByKernel(c *C) {
 	updates := []*snap.Info{kernel}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
-	c.Check(affected, DeepEquals, []string{"snap-c"})
+	c.Check(affected, DeepEquals, map[string]map[string]bool{"snap-c": {"kernel": true}})
 }
 
 func (s *refreshControlSuite) TestAffectedByGadget(c *C) {
@@ -198,7 +198,7 @@ func (s *refreshControlSuite) TestAffectedByGadget(c *C) {
 	updates := []*snap.Info{kernel}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
-	c.Check(affected, DeepEquals, []string{"snap-c"})
+	c.Check(affected, DeepEquals, map[string]map[string]bool{"snap-c": {"gadget": true}})
 }
 
 func (s *refreshControlSuite) TestAffectedBySlot(c *C) {
@@ -221,7 +221,7 @@ func (s *refreshControlSuite) TestAffectedBySlot(c *C) {
 	updates := []*snap.Info{snapD}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
-	c.Check(affected, DeepEquals, []string{"snap-d", "snap-e"})
+	c.Check(affected, DeepEquals, map[string]map[string]bool{"snap-e": {"snap-d": true}})
 }
 
 func (s *refreshControlSuite) TestAffectedByPlugWithMountBackend(c *C) {
@@ -245,5 +245,5 @@ func (s *refreshControlSuite) TestAffectedByPlugWithMountBackend(c *C) {
 	updates := []*snap.Info{snapE}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
-	c.Check(affected, DeepEquals, []string{"snap-d", "snap-e"})
+	c.Check(affected, DeepEquals, map[string]map[string]bool{"snap-d": {"snap-e": true}})
 }
