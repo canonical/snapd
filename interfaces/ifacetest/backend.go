@@ -111,3 +111,21 @@ func (b *TestSecurityBackendSetupMany) SetupMany(snaps []*snap.Info, confinement
 	}
 	return b.SetupManyCallback(snaps, confinement, repo, tm)
 }
+
+// TestSecurityBackendDiscardingLate implements RemoveLate on top of TestSecurityBackend.
+type TestSecurityBackendDiscardingLate struct {
+	TestSecurityBackend
+
+	RemoveLateCalledFor [][]string
+	RemoveLateCallback  func(snapName string, rev snap.Revision, typ snap.Type) error
+}
+
+func (b *TestSecurityBackendDiscardingLate) RemoveLate(snapName string, rev snap.Revision, typ snap.Type) error {
+	b.RemoveLateCalledFor = append(b.RemoveLateCalledFor, []string{
+		snapName, rev.String(), string(typ),
+	})
+	if b.RemoveLateCallback == nil {
+		return nil
+	}
+	return b.RemoveLateCallback(snapName, rev, typ)
+}
