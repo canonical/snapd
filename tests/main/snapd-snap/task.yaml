@@ -154,3 +154,6 @@ execute: |
     unsquashfs -ll snapd_spread-test.snap | MATCH etc/ld.so.conf
     echo "Ensure we have libc"
     unsquashfs -ll snapd_spread-test.snap | MATCH libc.so
+
+    echo "Ensure we have apparmor_parser"
+    unsquashfs -ll snapd_spread-test.snap | MATCH usr/lib/snapd/apparmor_parser
