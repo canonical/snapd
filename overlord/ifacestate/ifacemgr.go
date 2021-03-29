@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdenv"
@@ -175,6 +176,10 @@ func (m *InterfaceManager) StartUp() error {
 	}
 
 	ifacerepo.Replace(s, m.repo)
+
+	// XXX: replaces current callback with one from the current ifacemgr
+	// instance
+	snapstate.SecurityProfilesRemoveLateHook = m.discardSecurityProfilesLate
 
 	perfTimings.Save(s)
 
