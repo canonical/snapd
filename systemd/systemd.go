@@ -446,6 +446,7 @@ type UnitStatus struct {
 	UnitName  string
 	Enabled   bool
 	Active    bool
+	// Installed is false if the queried unit doesn't exist.
 	Installed bool
 }
 
