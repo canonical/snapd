@@ -1596,38 +1596,37 @@ func (u *updateTestSuite) TestKernelUpdatePolicy(c *C) {
 	}{
 		// trivial
 		{
-			from:   &gadget.LaidOutStructure{},
-			to:     &gadget.LaidOutStructure{},
+			from: &gadget.LaidOutStructure{},
+			to: &gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{},
+			},
 			update: false,
 		},
 		// gadget content only, nothing for the kernel
 		{
 			from: &gadget.LaidOutStructure{},
 			to: &gadget.LaidOutStructure{
-				ResolvedContent: []gadget.ResolvedContent{
-					{ResolvedSource: "something"},
+				VolumeStructure: &gadget.VolumeStructure{
+					Content: []gadget.VolumeContent{
+						{UnresolvedSource: "something"},
+					},
 				},
 			},
-			update: false,
 		},
 		// ensure that only the `KernelUpdate` of the `to`
 		// structure is relevant
 		{
 			from: &gadget.LaidOutStructure{
-				ResolvedContent: []gadget.ResolvedContent{
-					{
-						ResolvedSource: "kernel-ref",
-						KernelUpdate:   true,
+				VolumeStructure: &gadget.VolumeStructure{
+					Content: []gadget.VolumeContent{
+						{
+							UnresolvedSource: "$kernel:ref",
+						},
 					},
 				},
 			},
 			to: &gadget.LaidOutStructure{
-				ResolvedContent: []gadget.ResolvedContent{
-					{
-						ResolvedSource: "kernel-ref",
-						KernelUpdate:   false,
-					},
-				},
+				VolumeStructure: &gadget.VolumeStructure{},
 			},
 			update: false,
 		},
@@ -1635,13 +1634,14 @@ func (u *updateTestSuite) TestKernelUpdatePolicy(c *C) {
 		{
 			from: &gadget.LaidOutStructure{},
 			to: &gadget.LaidOutStructure{
-				ResolvedContent: []gadget.ResolvedContent{
-					{
-						ResolvedSource: "other",
-					},
-					{
-						ResolvedSource: "kernel-ref",
-						KernelUpdate:   true,
+				VolumeStructure: &gadget.VolumeStructure{
+					Content: []gadget.VolumeContent{
+						{
+							UnresolvedSource: "other",
+						},
+						{
+							UnresolvedSource: "$kernel:ref",
+						},
 					},
 				},
 			},
@@ -1650,10 +1650,10 @@ func (u *updateTestSuite) TestKernelUpdatePolicy(c *C) {
 	} {
 		needsUpdate, filter := gadget.KernelUpdatePolicy(tc.from, tc.to)
 		if tc.update {
-			c.Check(needsUpdate, Equals, true)
+			c.Check(needsUpdate, Equals, true, Commentf("%v", tc))
 			c.Check(filter, NotNil)
 		} else {
-			c.Check(needsUpdate, Equals, false)
+			c.Check(needsUpdate, Equals, false, Commentf("%v", tc))
 			c.Check(filter, IsNil)
 		}
 	}
@@ -1662,12 +1662,22 @@ func (u *updateTestSuite) TestKernelUpdatePolicy(c *C) {
 func (u *updateTestSuite) TestKernelUpdatePolicyFunc(c *C) {
 	from := &gadget.LaidOutStructure{}
 	to := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Content: []gadget.VolumeContent{
+				{
+					UnresolvedSource: "other",
+				},
+				{
+					UnresolvedSource: "$kernel:ref",
+				},
+			},
+		},
 		ResolvedContent: []gadget.ResolvedContent{
 			{
-				ResolvedSource: "other",
+				ResolvedSource: "/gadget/path/to/other",
 			},
 			{
-				ResolvedSource: "kernel-ref",
+				ResolvedSource: "/kernel/path/to/ref",
 				KernelUpdate:   true,
 			},
 		},
@@ -1706,7 +1716,7 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesWithKernelPolicy(c *C) {
 	makeSizedFile(c, filepath.Join(oldRootDir, "some-content"), quantity.SizeMiB, nil)
 	makeSizedFile(c, filepath.Join(oldKernelDir, "kernel-content"), quantity.SizeMiB, nil)
 
-	newRootDir := c.MkDir()
+	newRootDir := oldRootDir
 	newKernelDir := c.MkDir()
 	kernelYamlFn := filepath.Join(newKernelDir, "meta/kernel.yaml")
 	makeSizedFile(c, kernelYamlFn, 0, []byte(`
@@ -1754,4 +1764,61 @@ assets:
 	// ensure update for kernel content happened
 	c.Assert(mockUpdaterCalls, Equals, 1)
 	c.Assert(muo.beforeWriteCalled, Equals, 1)
+}
+
+func (u *updateTestSuite) TestUpdateApplyUpdatesWithMissingKernelRefInGadget(c *C) {
+	// kernel.yaml has "$kernel:ref" style content
+	kernelYaml := []byte(`
+assets:
+  ref:
+    update: true
+    content:
+    - kernel-content`)
+	// but gadget.yaml does not have this, which violates kernel
+	// update policy rule no. 1 from update.go
+	fsStruct := gadget.VolumeStructure{
+		Name:       "foo",
+		Size:       5 * quantity.SizeMiB,
+		Filesystem: "ext4",
+		Content: []gadget.VolumeContent{
+			// Note that there is no "$kernel:ref" here
+			{UnresolvedSource: "/content", Target: "/"},
+		},
+	}
+	info := &gadget.Info{
+		Volumes: map[string]*gadget.Volume{
+			"foo": {
+				Bootloader: "grub",
+				Schema:     "gpt",
+				Structure:  []gadget.VolumeStructure{fsStruct},
+			},
+		},
+	}
+
+	gadgetDir := c.MkDir()
+	oldKernelDir := c.MkDir()
+	oldData := gadget.GadgetData{Info: info, RootDir: gadgetDir, KernelRootDir: oldKernelDir}
+	makeSizedFile(c, filepath.Join(gadgetDir, "some-content"), quantity.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(oldKernelDir, "kernel-content"), quantity.SizeMiB, nil)
+
+	newKernelDir := c.MkDir()
+	kernelYamlFn := filepath.Join(newKernelDir, "meta/kernel.yaml")
+	makeSizedFile(c, kernelYamlFn, 0, kernelYaml)
+
+	newData := gadget.GadgetData{Info: info, RootDir: gadgetDir, KernelRootDir: newKernelDir}
+	makeSizedFile(c, filepath.Join(gadgetDir, "content"), 2*quantity.SizeMiB, nil)
+	rollbackDir := c.MkDir()
+	muo := &mockUpdateProcessObserver{}
+
+	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		panic("should not get called")
+	})
+	defer restore()
+
+	// exercise KernelUpdatePolicy here
+	err := gadget.Update(oldData, newData, rollbackDir, gadget.KernelUpdatePolicy, muo)
+	c.Assert(err, ErrorMatches, `gadget does not consume any of the kernel assets needing synced update "ref"`)
+
+	// ensure update for kernel content didn't happen
+	c.Assert(muo.beforeWriteCalled, Equals, 0)
 }

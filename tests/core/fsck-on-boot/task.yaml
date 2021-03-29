@@ -48,7 +48,7 @@ execute: |
       # seeding anymore
 
       if mountpoint /run/mnt/snapd >/dev/null; then
-        umount /run/mnt/ubuntu-seed/snaps/snapd_*.snap
+        umount /run/mnt/snapd
       fi
       umount /var/lib/snapd/seed
       umount /run/mnt/ubuntu-seed

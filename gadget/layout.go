@@ -257,7 +257,7 @@ func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constrain
 
 		// resolve filesystem content
 		if !constraints.SkipResolveContent {
-			resolvedContent, err := resolveVolumeContent(gadgetRootDir, kernelRootDir, kernelInfo, &structures[idx])
+			resolvedContent, err := resolveVolumeContent(gadgetRootDir, kernelRootDir, kernelInfo, &structures[idx], nil)
 			if err != nil {
 				return nil, err
 			}
@@ -279,7 +279,7 @@ func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constrain
 	return vol, nil
 }
 
-func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, ps *LaidOutStructure) ([]ResolvedContent, error) {
+func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, ps *LaidOutStructure, filter ResolvedContentFilterFunc) ([]ResolvedContent, error) {
 	if !ps.HasFilesystem() {
 		// structures without a file system are not resolved here
 		return nil, nil
@@ -288,17 +288,21 @@ func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kerne
 		return nil, nil
 	}
 
-	content := make([]ResolvedContent, len(ps.Content))
+	content := make([]ResolvedContent, 0, len(ps.Content))
 	for idx := range ps.Content {
 		resolvedSource, kupdate, err := resolveContentPathOrRef(gadgetRootDir, kernelRootDir, kernelInfo, ps.Content[idx].UnresolvedSource)
 		if err != nil {
 			return nil, fmt.Errorf("cannot resolve content for structure %v at index %v: %v", ps, idx, err)
 		}
-		content[idx] = ResolvedContent{
+		rc := ResolvedContent{
 			VolumeContent:  &ps.Content[idx],
 			ResolvedSource: resolvedSource,
 			KernelUpdate:   kupdate,
 		}
+		if filter != nil && !filter(&rc) {
+			continue
+		}
+		content = append(content, rc)
 	}
 
 	return content, nil

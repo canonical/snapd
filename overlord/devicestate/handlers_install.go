@@ -42,8 +42,9 @@ import (
 )
 
 var (
-	bootMakeRunnable = boot.MakeRunnableSystem
-	installRun       = install.Run
+	bootMakeRunnable            = boot.MakeRunnableSystem
+	bootEnsureNextBootToRunMode = boot.EnsureNextBootToRunMode
+	installRun                  = install.Run
 
 	sysconfigConfigureTargetSystem = sysconfig.ConfigureTargetSystem
 )
@@ -175,7 +176,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
-	if err := gadget.ValidateContent(ginfo, gadgetDir); err != nil {
+	if err := gadget.ValidateContent(ginfo, gadgetDir, kernelDir); err != nil {
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
 
@@ -267,19 +268,6 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err := bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver); err != nil {
 		return fmt.Errorf("cannot make system runnable: %v", err)
 	}
-
-	// store install-mode log into ubuntu-data partition
-	if err := writeLogs(boot.InstallHostWritableDir); err != nil {
-		logger.Noticef("cannot write installation log: %v", err)
-	}
-
-	if err := boot.EnsureNextBootToRunMode(modeEnv.RecoverySystem); err != nil {
-		return fmt.Errorf("cannot ensure next boot to run mode: %v", err)
-	}
-
-	// request a restart as the last action after a successful install
-	logger.Noticef("request system restart")
-	st.RequestRestart(state.RestartSystemNow)
 
 	return nil
 }
@@ -407,4 +395,38 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 
 	// encrypt
 	return true, nil
+}
+
+func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+
+	modeEnv, err := maybeReadModeenv()
+	if err != nil {
+		return err
+	}
+
+	if modeEnv == nil {
+		return fmt.Errorf("missing modeenv, cannot proceed")
+	}
+
+	// store install-mode log into ubuntu-data partition
+	if err := writeLogs(boot.InstallHostWritableDir); err != nil {
+		logger.Noticef("cannot write installation log: %v", err)
+	}
+
+	// ensure the next boot goes into run mode
+	if err := bootEnsureNextBootToRunMode(modeEnv.RecoverySystem); err != nil {
+		return err
+	}
+
+	// request a restart as the last action after a successful install
+	logger.Noticef("request system restart")
+	st.RequestRestart(state.RestartSystemNow)
+
+	return nil
 }
