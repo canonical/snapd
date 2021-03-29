@@ -304,9 +304,9 @@ func (m *autoRefresh) EnsureRefreshHoldAtLeast(d time.Duration) error {
 }
 
 func MockSecurityProfilesDiscardLate(fn func(snapName string, rev snap.Revision, typ snap.Type) error) (restore func()) {
-	old := SecurityProfilesRemoveLateHook
-	SecurityProfilesRemoveLateHook = fn
+	old := SecurityProfilesRemoveLate
+	SecurityProfilesRemoveLate = fn
 	return func() {
-		SecurityProfilesRemoveLateHook = old
+		SecurityProfilesRemoveLate = old
 	}
 }

@@ -177,9 +177,8 @@ func (m *InterfaceManager) StartUp() error {
 
 	ifacerepo.Replace(s, m.repo)
 
-	// XXX: replaces current callback with one from the current ifacemgr
-	// instance
-	snapstate.SecurityProfilesRemoveLateHook = m.discardSecurityProfilesLate
+	// wire late profile removal support into snapstate
+	snapstate.SecurityProfilesRemoveLate = m.discardSecurityProfilesLate
 
 	perfTimings.Save(s)
 

@@ -52,7 +52,7 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-var SecurityProfilesRemoveLateHook = func(snapName string, rev snap.Revision, typ snap.Type) error {
+var SecurityProfilesRemoveLate = func(snapName string, rev snap.Revision, typ snap.Type) error {
 	panic("internal error: snapstate.SecurityProfilesRemoveLate is unset")
 }
 
@@ -2280,7 +2280,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err = config.DiscardRevisionConfig(st, snapsup.InstanceName(), snapsup.Revision()); err != nil {
 		return err
 	}
-	if err = SecurityProfilesRemoveLateHook(snapsup.InstanceName(), snapsup.Revision(), snapsup.Type); err != nil {
+	if err = SecurityProfilesRemoveLate(snapsup.InstanceName(), snapsup.Revision(), snapsup.Type); err != nil {
 		return err
 	}
 	Set(st, snapsup.InstanceName(), snapst)

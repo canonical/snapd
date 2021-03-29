@@ -760,9 +760,9 @@ func (s *helpersSuite) TestDiscardLateBackendViaSnapstate(c *C) {
 	c.Assert(err, IsNil)
 
 	// call via the snapstate hook
-	err = snapstate.SecurityProfilesRemoveLateHook("snapd", snap.R(1234), snap.TypeSnapd)
+	err = snapstate.SecurityProfilesRemoveLate("snapd", snap.R(1234), snap.TypeSnapd)
 	c.Assert(err, IsNil)
-	err = snapstate.SecurityProfilesRemoveLateHook("this-fails", snap.R(12), snap.TypeApp)
+	err = snapstate.SecurityProfilesRemoveLate("this-fails", snap.R(12), snap.TypeApp)
 	c.Assert(err, ErrorMatches, "remove late fails")
 	c.Check(backend.RemoveLateCalledFor, DeepEquals, [][]string{
 		{"snapd", "1234", "snapd"},
