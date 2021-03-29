@@ -87,7 +87,7 @@ func (b *TestSecurityBackend) SandboxFeatures() []string {
 	return b.SandboxFeaturesCallback()
 }
 
-// TestSecurityBackendSetupMany is a security backend that implements SetupMany on top of TestSecurityBackend.s
+// TestSecurityBackendSetupMany is a security backend that implements SetupMany on top of TestSecurityBackend.
 type TestSecurityBackendSetupMany struct {
 	TestSecurityBackend
 
