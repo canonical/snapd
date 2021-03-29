@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -2399,4 +2400,110 @@ volumes:
 	c.Assert(err, IsNil)
 	err = gadget.IsCompatible(gi, giNew)
 	c.Check(err, IsNil)
+}
+
+func (s *gadgetYamlTestSuite) TestKernelCommandLineBasic(c *C) {
+	for _, tc := range []struct {
+		files [][]string
+
+		cmdline string
+		full    bool
+		err     string
+	}{{
+		files: [][]string{
+			{"cmdline.extra", "   foo bar baz just-extra\n"},
+		},
+		cmdline: "foo bar baz just-extra", full: false,
+	}, {
+		files: [][]string{
+			{"cmdline.full", "    foo bar baz full\n"},
+		},
+		cmdline: "foo bar baz full", full: true,
+	}, {
+		// no cmdline
+		files: nil,
+		err:   gadget.ErrNoKernelCommandline.Error(),
+	}, {
+		// not what we are looking for
+		files: [][]string{
+			{"cmdline.other", `ignored`},
+		},
+		err: gadget.ErrNoKernelCommandline.Error(),
+	}, {
+		files: [][]string{
+			{"cmdline.full", "foo bad =\n"},
+		},
+		full: true, err: `invalid kernel command line "foo bad =": unexpected assignment`,
+	}, {
+		files: [][]string{
+			{"cmdline.extra", "foo bad ="},
+		},
+		full: false, err: `invalid kernel command line "foo bad =": unexpected assignment`,
+	}, {
+		files: [][]string{
+			{"cmdline.extra", `extra`},
+			{"cmdline.full", `full`},
+		},
+		err: "cannot support both extra and full kernel command lines",
+	}} {
+		c.Logf("files: %q", tc.files)
+		snapPath := snaptest.MakeTestSnapWithFiles(c, string(mockSnapYaml), tc.files)
+		snapf, err := snapfile.Open(snapPath)
+		c.Assert(err, IsNil)
+
+		cmdline, full, err := gadget.KernelCommandLine(snapf)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err)
+			c.Check(cmdline, Equals, "")
+			c.Check(full, Equals, tc.full)
+		} else {
+			c.Assert(err, IsNil)
+			c.Check(cmdline, Equals, tc.cmdline)
+			c.Check(full, Equals, tc.full)
+		}
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestKernelCommandLineArgs(c *C) {
+	// mock test snap creates a snap directory
+	info := snaptest.MockSnapWithFiles(c, string(mockSnapYaml),
+		&snap.SideInfo{Revision: snap.R(1234)},
+		[][]string{
+			{"cmdline.extra", "## TO BE FILLED BY TEST ##"},
+		})
+	snapf, err := snapfile.Open(info.MountDir())
+	c.Assert(err, IsNil)
+
+	allowedArgs := []string{
+		"debug", "panic", "panic=-1",
+		"snapd.debug=1", "snapd.debug",
+		"serial=ttyS0,9600n8",
+	}
+
+	for _, arg := range allowedArgs {
+		err := ioutil.WriteFile(filepath.Join(info.MountDir(), "cmdline.extra"), []byte(arg), 0644)
+		c.Assert(err, IsNil)
+
+		cmdline, _, err := gadget.KernelCommandLine(snapf)
+		c.Assert(err, IsNil)
+		c.Check(cmdline, Equals, arg)
+	}
+
+	disallowedArgs := []string{
+		"snapd_recovery_mode", "snapd_recovery_mode=recover",
+		"snapd_recovery_system", "snapd_recovery_system=", "snapd_recovery_system=1234",
+		"root", "root=/foo", "nfsroot=127.0.0.1:/foo",
+		"root=123=123",
+		"panic root", // chokes on root
+		"init", "init=/bin/bash",
+	}
+
+	for _, arg := range disallowedArgs {
+		err := ioutil.WriteFile(filepath.Join(info.MountDir(), "cmdline.extra"), []byte(arg), 0644)
+		c.Assert(err, IsNil)
+
+		cmdline, _, err := gadget.KernelCommandLine(snapf)
+		c.Assert(err, ErrorMatches, `disallowed kernel argument ".*"`)
+		c.Check(cmdline, Equals, "")
+	}
 }

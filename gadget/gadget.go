@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/gadget/edition"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/metautil"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
@@ -992,4 +993,60 @@ func SystemDefaults(gadgetDefaults map[string]map[string]interface{}) map[string
 		}
 	}
 	return nil
+}
+
+// See https://www.kernel.org/doc/html/latest/admin-guide/kernel-parameters.html
+var disallowedKernelArguments = []string{
+	"root", "nfsroot",
+	"init",
+}
+
+func isKernelArgumentAllowed(arg string) bool {
+	if strings.HasPrefix(arg, "snapd") && arg != "snapd.debug" {
+		return false
+	}
+	if strutil.ListContains(disallowedKernelArguments, arg) {
+		return false
+	}
+	return true
+}
+
+var ErrNoKernelCommandline = errors.New("no kernel command line in the gadget")
+
+// KernelCommandLine returns the desired kernel command line provided by the
+// gadget. The full flag indicates whether the gadget provides a full command
+// line or just the extra parameters that will be appended to the static ones.
+// An ErrNoKernelCommandline is returned when thea gadget does not set any
+// kernel command line.
+func KernelCommandLine(snapf snap.Container) (cmdline string, full bool, err error) {
+	contentExtra, err := snapf.ReadFile("cmdline.extra")
+	if err != nil && !os.IsNotExist(err) {
+		return "", false, err
+	}
+	contentFull, err := snapf.ReadFile("cmdline.full")
+	if err != nil && !os.IsNotExist(err) {
+		return "", false, err
+	}
+	content := contentExtra
+	switch {
+	case contentExtra != nil && contentFull != nil:
+		return "", false, fmt.Errorf("cannot support both extra and full kernel command lines")
+	case contentExtra == nil && contentFull == nil:
+		return "", false, ErrNoKernelCommandline
+	case contentFull != nil:
+		content = contentFull
+		full = true
+	}
+	cleaned := strings.TrimSpace(string(content))
+	kargs, err := osutil.KernelCommandLineSplit(cleaned)
+	if err != nil {
+		return "", full, fmt.Errorf("invalid kernel command line %q: %v", cleaned, err)
+	}
+	for _, argValue := range kargs {
+		split := strings.SplitN(argValue, "=", 2)
+		if !isKernelArgumentAllowed(split[0]) {
+			return "", full, fmt.Errorf("disallowed kernel argument %q", argValue)
+		}
+	}
+	return cleaned, full, nil
 }
