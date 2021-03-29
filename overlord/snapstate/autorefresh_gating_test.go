@@ -29,7 +29,9 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -37,21 +39,22 @@ import (
 	. "gopkg.in/check.v1"
 )
 
-type refreshControlSuite struct {
+type autorefreshGatingSuite struct {
 	testutil.BaseTest
 	state *state.State
 	repo  *interfaces.Repository
 }
 
-var _ = Suite(&refreshControlSuite{})
+var _ = Suite(&autorefreshGatingSuite{})
 
-func (s *refreshControlSuite) SetUpTest(c *C) {
+func (s *autorefreshGatingSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	s.BaseTest.AddCleanup(func() {
 		dirs.SetRootDir("/")
 	})
 	s.state = state.New(nil)
+
 	s.repo = interfaces.NewRepository()
 
 	iface1 := &ifacetest.TestInterface{InterfaceName: "iface1"}
@@ -62,7 +65,7 @@ func (s *refreshControlSuite) SetUpTest(c *C) {
 	ifacerepo.Replace(s.state, s.repo)
 }
 
-func (s *refreshControlSuite) mockInstalledSnap(c *C, snapYaml []byte, hasHook bool) *snap.Info {
+func (s *autorefreshGatingSuite) mockInstalledSnap(c *C, snapYaml []byte, hasHook bool) *snap.Info {
 	snapInfo := snaptest.MockSnap(c, string(snapYaml), &snap.SideInfo{
 		Revision: snap.R(1),
 	})
@@ -139,7 +142,14 @@ var coreYaml = []byte(`name: core
 type: os
 `)
 
-func (s *refreshControlSuite) TestAffectedByBase(c *C) {
+var core18Yaml = []byte(`name: core18
+type: os
+`)
+
+func (s *autorefreshGatingSuite) TestAffectedByBase(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	st := s.state
 
 	st.Lock()
@@ -156,7 +166,10 @@ func (s *refreshControlSuite) TestAffectedByBase(c *C) {
 	c.Check(affected, DeepEquals, map[string]map[string]bool{"snap-a": {"base-snap-a": true}})
 }
 
-func (s *refreshControlSuite) TestAffectedByCore(c *C) {
+func (s *autorefreshGatingSuite) TestAffectedByCore(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	st := s.state
 
 	st.Lock()
@@ -171,7 +184,10 @@ func (s *refreshControlSuite) TestAffectedByCore(c *C) {
 	c.Check(affected, DeepEquals, map[string]map[string]bool{"snap-c": {"core": true}})
 }
 
-func (s *refreshControlSuite) TestAffectedByKernel(c *C) {
+func (s *autorefreshGatingSuite) TestAffectedByKernel(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	st := s.state
 
 	st.Lock()
@@ -186,7 +202,10 @@ func (s *refreshControlSuite) TestAffectedByKernel(c *C) {
 	c.Check(affected, DeepEquals, map[string]map[string]bool{"snap-c": {"kernel": true}})
 }
 
-func (s *refreshControlSuite) TestAffectedByGadget(c *C) {
+func (s *autorefreshGatingSuite) TestAffectedByGadget(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	st := s.state
 
 	st.Lock()
@@ -201,7 +220,10 @@ func (s *refreshControlSuite) TestAffectedByGadget(c *C) {
 	c.Check(affected, DeepEquals, map[string]map[string]bool{"snap-c": {"gadget": true}})
 }
 
-func (s *refreshControlSuite) TestAffectedBySlot(c *C) {
+func (s *autorefreshGatingSuite) TestAffectedBySlot(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	st := s.state
 
 	st.Lock()
@@ -224,7 +246,10 @@ func (s *refreshControlSuite) TestAffectedBySlot(c *C) {
 	c.Check(affected, DeepEquals, map[string]map[string]bool{"snap-e": {"snap-d": true}})
 }
 
-func (s *refreshControlSuite) TestAffectedByPlugWithMountBackend(c *C) {
+func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackend(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
 	st := s.state
 
 	st.Lock()
@@ -246,4 +271,31 @@ func (s *refreshControlSuite) TestAffectedByPlugWithMountBackend(c *C) {
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
 	c.Check(affected, DeepEquals, map[string]map[string]bool{"snap-d": {"snap-e": true}})
+}
+
+func (s *autorefreshGatingSuite) TestAffectedByBootBase(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	st := s.state
+
+	r := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer r()
+
+	st.Lock()
+	defer st.Unlock()
+	s.mockInstalledSnap(c, snapAyaml, true)
+	s.mockInstalledSnap(c, snapByaml, true)
+	s.mockInstalledSnap(c, snapDyaml, true)
+	s.mockInstalledSnap(c, snapEyaml, true)
+	core18 := s.mockInstalledSnap(c, core18Yaml, false)
+
+	updates := []*snap.Info{core18}
+	affected, err := snapstate.AffectedByRefresh(st, updates)
+	c.Assert(err, IsNil)
+	c.Check(affected, DeepEquals, map[string]map[string]bool{
+		"snap-a": {"core18": true},
+		"snap-b": {"core18": true},
+		"snap-d": {"core18": true},
+		"snap-e": {"core18": true}})
 }

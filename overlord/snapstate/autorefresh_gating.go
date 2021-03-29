@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -35,6 +36,19 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]map[st
 	all, err := All(st)
 	if err != nil {
 		return nil, err
+	}
+
+	var bootBase string
+	if !release.OnClassic {
+		deviceCtx, err := DeviceCtx(st, nil, nil)
+		if err != nil {
+			return nil, fmt.Errorf("cannot get device context: %v", err)
+		}
+		bootBaseInfo, err := BootBaseInfo(st, deviceCtx)
+		if err != nil {
+			return nil, fmt.Errorf("cannot get boot base info: %v", err)
+		}
+		bootBase = bootBaseInfo.InstanceName()
 	}
 
 	byBase := make(map[string][]string)
@@ -73,10 +87,12 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]map[st
 	}
 
 	for _, up := range updates {
-		// add self
-		//if all[up.InstanceName()] != nil {
-		//	addAffected(up.InstanceName()] = true
-		//}
+		// on core system, affected by update of boot base
+		if bootBase != "" && up.InstanceName() == bootBase {
+			for _, snapSt := range all {
+				addAffected(snapSt.InstanceName(), up.InstanceName())
+			}
+		}
 
 		// snaps that can trigger reboot
 		// XXX: gadget refresh doesn't always require reboot, refine this
@@ -132,13 +148,6 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]map[st
 		}
 	}
 
-	/*aff := make([]string, len(affected))
-	i := 0
-	for snapName := range affected {
-		aff[i] = snapName
-		i++
-	}
-	sort.Strings(aff)*/
 	return affected, nil
 }
 
