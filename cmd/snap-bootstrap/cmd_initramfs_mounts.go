@@ -1016,7 +1016,7 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 
 	tryingCurrentSystem, err := boot.InitramfsIsTryingRecoverySystem(mst.recoverySystem)
 	if err != nil {
-		if boot.IsInconsystemRecoverySystemState(err) {
+		if boot.IsInconsistentRecoverySystemState(err) {
 			// there is some try recovery system state in bootenv
 			// but it is inconsistent, make sure we clear it and
 			// return back to run mode
