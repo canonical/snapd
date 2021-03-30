@@ -37,13 +37,11 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/settings"
-	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
@@ -53,6 +51,10 @@ import (
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
 )
+
+var SecurityProfilesRemoveLate = func(snapName string, rev snap.Revision, typ snap.Type) error {
+	panic("internal error: snapstate.SecurityProfilesRemoveLate is unset")
+}
 
 // TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the task.
 func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
@@ -2193,20 +2195,6 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) discardSecurityProfilesLate(st *state.State, name string, rev snap.Revision, typ snap.Type) error {
-	repo := ifacerepo.Get(st)
-	for _, backend := range repo.Backends() {
-		lateDiscardBackend, ok := backend.(interfaces.SecurityBackendDiscardingLate)
-		if !ok {
-			continue
-		}
-		if err := lateDiscardBackend.RemoveLate(name, rev, typ); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -2292,7 +2280,7 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err = config.DiscardRevisionConfig(st, snapsup.InstanceName(), snapsup.Revision()); err != nil {
 		return err
 	}
-	if err = m.discardSecurityProfilesLate(st, snapsup.InstanceName(), snapsup.Revision(), snapsup.Type); err != nil {
+	if err = SecurityProfilesRemoveLate(snapsup.InstanceName(), snapsup.Revision(), snapsup.Type); err != nil {
 		return err
 	}
 	Set(st, snapsup.InstanceName(), snapst)

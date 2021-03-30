@@ -1115,7 +1115,7 @@ func (s *initramfsMarkTryRecoverySystemSuite) TestTryingRecoverySystemUnset(c *C
 	c.Assert(err, IsNil)
 	isTry, err := boot.InitramfsIsTryingRecoverySystem("1234")
 	c.Assert(err, ErrorMatches, `try recovery system is unset but status is "try"`)
-	c.Check(boot.IsInconsystemRecoverySystemState(err), Equals, true)
+	c.Check(boot.IsInconsistentRecoverySystemState(err), Equals, true)
 	c.Check(isTry, Equals, false)
 }
 
@@ -1127,7 +1127,7 @@ func (s *initramfsMarkTryRecoverySystemSuite) TestTryingRecoverySystemBogus(c *C
 	c.Assert(err, IsNil)
 	isTry, err := boot.InitramfsIsTryingRecoverySystem("1234")
 	c.Assert(err, ErrorMatches, `unexpected recovery system status "foobar"`)
-	c.Check(boot.IsInconsystemRecoverySystemState(err), Equals, true)
+	c.Check(boot.IsInconsistentRecoverySystemState(err), Equals, true)
 	c.Check(isTry, Equals, false)
 
 	// errors out even if try recovery system label is unset
@@ -1138,7 +1138,7 @@ func (s *initramfsMarkTryRecoverySystemSuite) TestTryingRecoverySystemBogus(c *C
 	c.Assert(err, IsNil)
 	isTry, err = boot.InitramfsIsTryingRecoverySystem("1234")
 	c.Assert(err, ErrorMatches, `unexpected recovery system status "no-label"`)
-	c.Check(boot.IsInconsystemRecoverySystemState(err), Equals, true)
+	c.Check(boot.IsInconsistentRecoverySystemState(err), Equals, true)
 	c.Check(isTry, Equals, false)
 }
 
