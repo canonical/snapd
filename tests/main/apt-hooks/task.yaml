@@ -5,8 +5,12 @@ systems: [ubuntu-18.04-64, ubuntu-2*-64]
 
 prepare: |
     cp /etc/systemd/system/snapd.service.d/local.conf /etc/systemd/system/snapd.service.d/local.conf.bak
-    # disable testing so that catalog refresh requests are sent out
-    sed 's/SNAPPY_TESTING=1/SNAPPY_TESTING=0/g' -i /etc/systemd/system/snapd.service.d/local.conf
+    # enable catalog refresh requests
+    cat <<EOF >> /etc/systemd/system/snapd.service.d/local.conf
+    # added by apt-hooks test
+    [Service]
+    Environment=SNAPD_CATALOG_REFRESH=1
+    EOF
     systemctl daemon-reload
     systemctl restart snapd.socket
 
