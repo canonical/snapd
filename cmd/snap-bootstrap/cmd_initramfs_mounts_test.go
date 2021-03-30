@@ -5518,7 +5518,7 @@ grade=signed
 		// system
 		"recovery_system_status": "try",
 		"try_recovery_system":    "1234",
-		// system is set up to go into run more if rebooted
+		// system is set up to go into run mode if rebooted
 		"snapd_recovery_mode":   "run",
 		"snapd_recovery_system": s.sysLabel,
 	})
@@ -5596,6 +5596,7 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryDegraded(c *C, expe
 			c.Assert(name, Equals, "ubuntu-data")
 			c.Assert(sealedEncryptionKeyFile, Equals, filepath.Join(s.tmpDir, "run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key"))
 			if unlockDataFails {
+				// ubuntu-data can't be unlocked with the run key
 				return foundEncrypted("ubuntu-data"), fmt.Errorf("failed to unlock ubuntu-data with run object")
 			}
 			return happyUnlocked("ubuntu-data", secboot.UnlockedWithSealedKey), nil
@@ -5610,7 +5611,6 @@ func (s *initramfsMountsSuite) testInitramfsMountsTryRecoveryDegraded(c *C, expe
 		unlockVolumeWithKeyCalls++
 		switch unlockVolumeWithKeyCalls {
 		case 1:
-			// only possible if we managed to unlock unlock data
 			if unlockDataFails {
 				// unlocking data failed, with fallback disabled we should never reach here
 				return secboot.UnlockResult{}, fmt.Errorf("unexpected call to unlock ubuntu-save, broken test")
@@ -5748,6 +5748,8 @@ func (s *initramfsMountsSuite) TestInitramfsMountsTryRecoveryHealthCheckFails(c 
 	bootloader.Force(bl)
 	defer bootloader.Force(nil)
 
+	// prepare some state for the recovery process to reach a point where
+	// the health check can be executed
 	hostUbuntuData := filepath.Join(boot.InitramfsRunMntDir, "host/ubuntu-data/")
 	mockedState := filepath.Join(hostUbuntuData, "system-data/var/lib/snapd/state.json")
 	c.Assert(os.MkdirAll(filepath.Dir(mockedState), 0750), IsNil)

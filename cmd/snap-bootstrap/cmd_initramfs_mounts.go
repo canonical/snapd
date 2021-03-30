@@ -1025,7 +1025,6 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 			logger.Noticef("try recovery system state is inconsistent: %v", err)
 			finalizeTryRecoverySystemAndReboot(boot.TryRecoverySystemOutcomeInconsistent)
 		}
-		// this could be an inconsistency in the state
 		return err
 	}
 	if tryingCurrentSystem {
