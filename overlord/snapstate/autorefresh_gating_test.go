@@ -65,7 +65,7 @@ func (s *autorefreshGatingSuite) SetUpTest(c *C) {
 	ifacerepo.Replace(s.state, s.repo)
 }
 
-func (s *autorefreshGatingSuite) mockInstalledSnap(c *C, snapYaml []byte, hasHook bool) *snap.Info {
+func (s *autorefreshGatingSuite) mockInstalledSnap(c *C, snapYaml string, hasHook bool) *snap.Info {
 	snapInfo := snaptest.MockSnap(c, string(snapYaml), &snap.SideInfo{
 		Revision: snap.R(1),
 	})
@@ -87,64 +87,77 @@ func (s *autorefreshGatingSuite) mockInstalledSnap(c *C, snapYaml []byte, hasHoo
 	return snapInfo
 }
 
-var baseSnapAyaml = []byte(`name: base-snap-a
+const baseSnapAyaml = `name: base-snap-a
 type: base
-`)
+`
 
-var snapAyaml = []byte(`name: snap-a
+const snapAyaml = `name: snap-a
 type: app
 base: base-snap-a
-`)
+`
 
-var baseSnapByaml = []byte(`name: base-snap-b
+const baseSnapByaml = `name: base-snap-b
 type: base
-`)
+`
 
-var snapByaml = []byte(`name: snap-b
+const snapByaml = `name: snap-b
 type: app
 base: base-snap-b
-`)
+`
 
-var kernelYaml = []byte(`name: kernel
+const kernelYaml = `name: kernel
 type: kernel
-`)
+`
 
-var gadget1Yaml = []byte(`name: gadget
+const gadget1Yaml = `name: gadget
 type: gadget
-`)
+`
 
-var snapCyaml = []byte(`name: snap-c
+const snapCyaml = `name: snap-c
 type: app
-`)
+`
 
-var snapDyaml = []byte(`name: snap-d
+const snapDyaml = `name: snap-d
 type: app
 version: 1
 slots:
     slot: iface1
-`)
+`
 
-var snapEyaml = []byte(`name: snap-e
+const snapEyaml = `name: snap-e
+type: app
+version: 1
+base: other-base
+plugs:
+    plug: iface1
+`
+
+const snapFyaml = `name: snap-e
 type: app
 version: 1
 plugs:
     plug: iface1
-`)
+`
 
-var snapFyaml = []byte(`name: snap-e
-type: app
+const coreYaml = `name: core
+type: os
 version: 1
-plugs:
-    plug: iface1
-`)
+slots:
+    slot:
+        interface: iface1
+`
 
-var coreYaml = []byte(`name: core
+const core18Yaml = `name: core18
 type: os
-`)
+`
 
-var core18Yaml = []byte(`name: core18
-type: os
-`)
+const snapdYaml = `name: snapd
+version: 1
+type: snapd
+slots:
+    slot:
+        interface: iface1
+`
 
 func (s *autorefreshGatingSuite) TestAffectedByBase(c *C) {
 	restore := release.MockOnClassic(true)
@@ -268,6 +281,33 @@ func (s *autorefreshGatingSuite) TestAffectedBySlot(c *C) {
 			AffectingSnaps: map[string]bool{
 				"snap-d": true,
 			}}})
+}
+
+func (s *autorefreshGatingSuite) TestNotAffectedByCoreOrSnapdSlot(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	st := s.state
+
+	st.Lock()
+	defer st.Unlock()
+
+	snapE := s.mockInstalledSnap(c, snapEyaml, true)
+	core := s.mockInstalledSnap(c, coreYaml, false)
+	snapd := s.mockInstalledSnap(c, snapdYaml, false)
+	s.mockInstalledSnap(c, snapByaml, true)
+
+	c.Assert(s.repo.AddSnap(snapE), IsNil)
+	c.Assert(s.repo.AddSnap(core), IsNil)
+
+	cref := &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "snap-e", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"}}
+	_, err := s.repo.Connect(cref, nil, nil, nil, nil, nil)
+	c.Assert(err, IsNil)
+
+	updates := []*snap.Info{core, snapd}
+	affected, err := snapstate.AffectedByRefresh(st, updates)
+	c.Assert(err, IsNil)
+	c.Check(affected, HasLen, 0)
 }
 
 func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackend(c *C) {
