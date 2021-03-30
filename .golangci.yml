@@ -1,7 +1,3 @@
-# This file contains all available configuration options
-# with their default values.
-
-# options for analysis running
 run:
   # default concurrency is a available CPU number
   concurrency: 4
@@ -175,6 +171,7 @@ linters-settings:
     for-loops: false # Report preallocation suggestions on for loops, false by default
 
 linters:
+  # enable the following linters
   enable:
     - govet
     - misspell
@@ -186,6 +183,7 @@ linters:
     - ineffassign
     - goimports
     - testpackage
+  # disable everything else
   disable-all: true
 
 
@@ -194,8 +192,8 @@ issues:
   # But independently from this option we use default exclude patterns,
   # it can be disabled by `exclude-use-default: false`. To list all
   # excluded by default patterns execute `golangci-lint run --help`
-  exclude:
-    - abcdef
+  # exclude:
+  #   - abcdef
 
   # Excluding configuration per-path, per-linter, per-text and per-source
   exclude-rules:
