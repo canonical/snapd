@@ -7,25 +7,22 @@ details: |
     portal needs to be mounted over $XDG_RUNTIME_DIR/doc inside the
     sandbox.
 
-systems: [-ubuntu-core-*]
+# Ubuntu 14.04 has special version of systemd which doesn't have StartTransientUnit API.
+systems: [-ubuntu-core-*,-ubuntu-14.04*]
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop
     snap disconnect test-snapd-desktop:desktop
 
+    tests.cleanup prepare
+    tests.session -u test prepare
+    tests.cleanup defer tests.session -u test restore
+
 restore: |
-    rm -rf /run/user/12345/*
+    tests.cleanup restore
     rm -f /tmp/check-doc-portal.sh
 
 execute: |
-    echo "Create XDG_RUNTIME_DIR for test user"
-    USER_RUNTIME_DIR=/run/user/12345
-    mkdir -p $USER_RUNTIME_DIR || true
-    #shellcheck disable=SC2115
-    rm -rf $USER_RUNTIME_DIR/*
-    chmod u=rwX,go= $USER_RUNTIME_DIR
-    chown test:test $USER_RUNTIME_DIR
-
     cat << EOF > /tmp/check-doc-portal.sh
     set -eu
     mkdir -p /run/user/12345/doc/by-app/snap.test-snapd-desktop
