@@ -135,7 +135,9 @@ var newCmdDB = advisor.Create
 var errSkipCatalogRefreshWhenTesting = errors.New("skipping when testing is enabled")
 
 func refreshCatalogs(st *state.State, theStore StoreService) error {
-	if snapdenv.Testing() {
+	if snapdenv.Testing() && !osutil.GetenvBool("SNAPD_CATALOG_REFRESH") {
+		// with snapd testing enabled, SNAPD_CATALOG_REFRESH is gating
+		// the catalog refresh
 		return errSkipCatalogRefreshWhenTesting
 	}
 

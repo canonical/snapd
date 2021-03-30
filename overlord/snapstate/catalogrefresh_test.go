@@ -255,6 +255,9 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshUC20InstallMode(c *C) {
 func (s *catalogRefreshTestSuite) TestCatalogRefreshSkipWhenTesting(c *C) {
 	restore := snapdenv.MockTesting(true)
 	defer restore()
+	// catalog refresh disabled
+	os.Setenv("SNAPD_CATALOG_REFRESH", "0")
+	defer os.Unsetenv("SNAPD_CATALOG_REFRESH")
 
 	// start with no catalog
 	c.Check(dirs.SnapSectionsFile, testutil.FileAbsent)
@@ -273,4 +276,22 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshSkipWhenTesting(c *C) {
 	c.Check(dirs.SnapSectionsFile, testutil.FileAbsent)
 	c.Check(dirs.SnapNamesFile, testutil.FileAbsent)
 	c.Check(dirs.SnapCommandsDB, testutil.FileAbsent)
+
+	// allow the refresh now
+	os.Setenv("SNAPD_CATALOG_REFRESH", "1")
+
+	// and reset the next refresh time
+	snapstate.MockCatalogRefreshNextRefresh(cr7, time.Time{})
+	// sanity
+	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
+
+	err = cr7.Ensure()
+	c.Check(err, IsNil)
+
+	// refresh happened
+	c.Check(s.store.ops, DeepEquals, []string{"sections", "write-catalog"})
+
+	c.Check(dirs.SnapSectionsFile, testutil.FilePresent)
+	c.Check(dirs.SnapNamesFile, testutil.FilePresent)
+	c.Check(dirs.SnapCommandsDB, testutil.FilePresent)
 }
