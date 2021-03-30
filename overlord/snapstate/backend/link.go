@@ -47,6 +47,10 @@ type LinkContext struct {
 	// RunInhibitHint is used only in Unlink snap, and can be used to
 	// establish run inhibition lock for refresh operations.
 	RunInhibitHint runinhibit.Hint
+
+	// RequireMountedSnapdSnap indicates that the apps and services
+	// generated when linking need to use tooling from the snapd snap mount.
+	RequireMountedSnapdSnap bool
 }
 
 func updateCurrentSymlinks(info *snap.Info) (e error) {
@@ -190,8 +194,9 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 
 	// add the daemons from the snap.yaml
 	opts := &wrappers.AddSnapServicesOptions{
-		Preseeding:   b.preseed,
-		VitalityRank: linkCtx.VitalityRank,
+		Preseeding:              b.preseed,
+		VitalityRank:            linkCtx.VitalityRank,
+		RequireMountedSnapdSnap: linkCtx.RequireMountedSnapdSnap,
 	}
 	if err = wrappers.AddSnapServices(s, opts, progress.Null); err != nil {
 		return err

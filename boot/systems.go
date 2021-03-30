@@ -148,7 +148,7 @@ type errInconsistentRecoverySystemState struct {
 }
 
 func (e *errInconsistentRecoverySystemState) Error() string { return e.why }
-func IsInconsystemRecoverySystemState(err error) bool {
+func IsInconsistentRecoverySystemState(err error) bool {
 	_, ok := err.(*errInconsistentRecoverySystemState)
 	return ok
 }

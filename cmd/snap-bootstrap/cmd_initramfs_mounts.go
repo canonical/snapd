@@ -407,6 +407,9 @@ type recoverModeStateMachine struct {
 	// the disk we have all our partitions on
 	disk disks.Disk
 
+	// when true, the fallback unlock paths will not be tried
+	noFallback bool
+
 	// TODO:UC20: for clarity turn this into into tristate:
 	// unknown|encrypted|unencrypted
 	isEncryptedDev bool
@@ -657,13 +660,14 @@ func (m *recoverModeStateMachine) setUnlockStateWithFallbackKey(partName string,
 	return nil
 }
 
-func newRecoverModeStateMachine(model *asserts.Model, disk disks.Disk) *recoverModeStateMachine {
+func newRecoverModeStateMachine(model *asserts.Model, disk disks.Disk, allowFallback bool) *recoverModeStateMachine {
 	m := &recoverModeStateMachine{
 		model: model,
 		disk:  disk,
 		degradedState: &recoverDegradedState{
 			ErrorLog: []string{},
 		},
+		noFallback: !allowFallback,
 	}
 	// first step is to mount ubuntu-boot to check for run mode keys to unlock
 	// ubuntu-data
@@ -824,6 +828,10 @@ func (m *recoverModeStateMachine) unlockDataRunKey() (stateFunc, error) {
 }
 
 func (m *recoverModeStateMachine) unlockDataFallbackKey() (stateFunc, error) {
+	if m.noFallback {
+		return nil, fmt.Errorf("cannot unlock ubuntu-data (fallback disabled)")
+	}
+
 	// try to unlock data with the fallback key on ubuntu-seed, which must have
 	// been mounted at this point
 	unlockOpts := &secboot.UnlockVolumeUsingSealedKeyOptions{
@@ -948,6 +956,11 @@ func (m *recoverModeStateMachine) openUnencryptedSave() (stateFunc, error) {
 func (m *recoverModeStateMachine) unlockEncryptedSaveFallbackKey() (stateFunc, error) {
 	// try to unlock save with the fallback key on ubuntu-seed, which must have
 	// been mounted at this point
+
+	if m.noFallback {
+		return nil, fmt.Errorf("cannot unlock ubuntu-save (fallback disabled)")
+	}
+
 	unlockOpts := &secboot.UnlockVolumeUsingSealedKeyOptions{
 		// we want to allow using the recovery key if the fallback key fails as
 		// using the fallback object is the last chance before we give up trying
@@ -998,6 +1011,32 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 		return err
 	}
 
+	// for most cases we allow the use of fallback to unlock/mount things
+	allowFallback := true
+
+	tryingCurrentSystem, err := boot.InitramfsIsTryingRecoverySystem(mst.recoverySystem)
+	if err != nil {
+		if boot.IsInconsistentRecoverySystemState(err) {
+			// there is some try recovery system state in bootenv
+			// but it is inconsistent, make sure we clear it and
+			// return back to run mode
+
+			// finalize reboots or panics
+			logger.Noticef("try recovery system state is inconsistent: %v", err)
+			finalizeTryRecoverySystemAndReboot(boot.TryRecoverySystemOutcomeInconsistent)
+		}
+		return err
+	}
+	if tryingCurrentSystem {
+		// but in this case, use only the run keys
+		allowFallback = false
+
+		// make sure that if rebooted, the next boot goes into run mode
+		if err := boot.EnsureNextBootToRunMode(""); err != nil {
+			return err
+		}
+	}
+
 	// 3. run the state machine logic for mounting partitions, this involves
 	//    trying to unlock then mount ubuntu-data, and then unlocking and
 	//    mounting ubuntu-save
@@ -1006,7 +1045,7 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 
 	machine, err := func() (machine *recoverModeStateMachine, err error) {
 		// first state to execute is to unlock ubuntu-data with the run key
-		machine = newRecoverModeStateMachine(model, disk)
+		machine = newRecoverModeStateMachine(model, disk, allowFallback)
 		for {
 			finished, err := machine.execute()
 			// TODO: consider whether certain errors are fatal or not
@@ -1020,6 +1059,23 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 
 		return machine, nil
 	}()
+	if tryingCurrentSystem {
+		// end of the line for a recovery system we are only trying out,
+		// this branch always ends with a reboot (or a panic)
+		var outcome boot.TryRecoverySystemOutcome
+		if err == nil && !machine.degraded() {
+			outcome = boot.TryRecoverySystemOutcomeSuccess
+		} else {
+			outcome = boot.TryRecoverySystemOutcomeFailure
+			if err == nil {
+				err = fmt.Errorf("in degraded state")
+			}
+			logger.Noticef("try recovery system %q failed: %v", mst.recoverySystem, err)
+		}
+		// finalize reboots or panics
+		finalizeTryRecoverySystemAndReboot(outcome)
+	}
+
 	if err != nil {
 		return err
 	}
@@ -1436,5 +1492,47 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 		return doSystemdMount(essSnaps[0].Path, filepath.Join(boot.InitramfsRunMntDir, "snapd"), nil)
 	}
 
+	return nil
+}
+
+var tryRecoverySystemHealthCheck = func() error {
+	// check that writable is accessible by checking whether the
+	// state file exists
+	if !osutil.FileExists(dirs.SnapStateFileUnder(boot.InitramfsHostWritableDir)) {
+		return fmt.Errorf("host state file is not accessible")
+	}
+	return nil
+}
+
+func finalizeTryRecoverySystemAndReboot(outcome boot.TryRecoverySystemOutcome) (err error) {
+	// from this point on, we must finish with a system reboot
+	defer func() {
+		if rebootErr := boot.InitramfsReboot(); rebootErr != nil {
+			if err != nil {
+				err = fmt.Errorf("%v (cannot reboot to run system: %v)", err, rebootErr)
+			} else {
+				err = fmt.Errorf("cannot reboot to run system: %v", rebootErr)
+			}
+		}
+		// not reached, unless in tests
+		panic(fmt.Errorf("finalize try recovery system did not reboot, last error: %v", err))
+	}()
+
+	if outcome == boot.TryRecoverySystemOutcomeSuccess {
+		if err := tryRecoverySystemHealthCheck(); err != nil {
+			// health checks failed, the recovery system is considered
+			// unsuccessful
+			outcome = boot.TryRecoverySystemOutcomeFailure
+			logger.Noticef("try recovery system health check failed: %v", err)
+		}
+	}
+
+	// that's it, we've tried booting a new recovery system to this point,
+	// whether things are looking good or bad we will reboot back to run
+	// mode and update the boot variables accordingly
+	if err := boot.EnsureNextBootToRunModeWithTryRecoverySystemOutcome(outcome); err != nil {
+		logger.Noticef("cannot update the try recovery system state: %v", err)
+		return fmt.Errorf("cannot mark recovery system successful: %v", err)
+	}
 	return nil
 }
