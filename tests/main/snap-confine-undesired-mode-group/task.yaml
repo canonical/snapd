@@ -1,4 +1,5 @@
 summary: the snap-{run,confine,exec} chain does not create files with undesired properties.
+
 prepare: |
     # Install a snap with opengl and joystick plugs.
     # This gives us all of the usual snap-confine configuration, along with all
@@ -7,6 +8,10 @@ prepare: |
     snap install --dangerous ./test-snapd-app_1.0_all.snap
     snap connect test-snapd-app:opengl
     snap connect test-snapd-app:joystick
+
+restore: |
+    rm -rf /tmp/snap.test-snapd-app
+
 execute: |
     # Run the snap as a non-root user.
     su test -c 'snap run test-snapd-app.sh -c /bin/true'
@@ -49,8 +54,3 @@ execute: |
         ret=1
     fi
     exit "$ret"
-restore: |
-    snap remove test-snapd-app
-    rm -f test-snapd-app_1.0_all.snap
-    rm -f wrong-*.txt
-    rm -rf /tmp/snap.test-snapd-app

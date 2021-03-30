@@ -105,10 +105,3 @@ execute: |
       MATCH 'base-snap-name=core' < /run/snapd/ns/snap.test-snapd-core-migration.info
       ;;
   esac
-
-restore: |
-
-  if snap list test-snapd-core-migration; then
-    snap remove --purge test-snapd-core-migration
-  fi
-  rm -f test-snapd-core-migration_{1,2}_all.snap

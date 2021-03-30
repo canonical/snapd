@@ -5,7 +5,6 @@ prepare: |
     snap set system experimental.dbus-activation=true
 
 restore: |
-    rm -f ./*.out
     snap unset system experimental.dbus-activation
     snap unset system experimental.user-daemons
 
