@@ -12,11 +12,19 @@ prepare: |
     if ! os.query is-core16 && [ -e /usr/lib/command-not-found ]; then
         mv /usr/lib/command-not-found /usr/lib/command-not-found.orig
     fi
+    cp /etc/systemd/system/snapd.service.d/local.conf /etc/systemd/system/snapd.service.d/local.conf.bak
+    # disable testing so that catalog refresh requests are sent out
+    sed 's/SNAPPY_TESTING=1/SNAPPY_TESTING=0/g' -i /etc/systemd/system/snapd.service.d/local.conf
+    systemctl daemon-reload
+    systemctl restart snapd.socket
 
 restore: |
     if [ -e /usr/lib/command-not-found.orig ]; then
         mv /usr/lib/command-not-found.orig /usr/lib/command-not-found
     fi
+    mv /etc/systemd/system/snapd.service.d/local.conf.bak /etc/systemd/system/snapd.service.d/local.conf
+    systemctl daemon-reload
+    systemctl restart snapd.socket
 
 execute: |
     echo "wait for snapd to pull in the commands data"
