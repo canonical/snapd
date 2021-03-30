@@ -163,7 +163,12 @@ func (s *autorefreshGatingSuite) TestAffectedByBase(c *C) {
 	updates := []*snap.Info{baseSnapA}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
-	c.Check(affected, DeepEquals, map[string]map[string]bool{"snap-a": {"base-snap-a": true}})
+	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
+		"snap-a": {
+			Base: true,
+			AffectingSnaps: map[string]bool{
+				"base-snap-a": true,
+			}}})
 }
 
 func (s *autorefreshGatingSuite) TestAffectedByCore(c *C) {
@@ -181,7 +186,12 @@ func (s *autorefreshGatingSuite) TestAffectedByCore(c *C) {
 	updates := []*snap.Info{core}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
-	c.Check(affected, DeepEquals, map[string]map[string]bool{"snap-c": {"core": true}})
+	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
+		"snap-c": {
+			Base: true,
+			AffectingSnaps: map[string]bool{
+				"core": true, // ??
+			}}})
 }
 
 func (s *autorefreshGatingSuite) TestAffectedByKernel(c *C) {
@@ -199,7 +209,12 @@ func (s *autorefreshGatingSuite) TestAffectedByKernel(c *C) {
 	updates := []*snap.Info{kernel}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
-	c.Check(affected, DeepEquals, map[string]map[string]bool{"snap-c": {"kernel": true}})
+	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
+		"snap-c": {
+			Restart: true,
+			AffectingSnaps: map[string]bool{
+				"kernel": true,
+			}}})
 }
 
 func (s *autorefreshGatingSuite) TestAffectedByGadget(c *C) {
@@ -217,7 +232,12 @@ func (s *autorefreshGatingSuite) TestAffectedByGadget(c *C) {
 	updates := []*snap.Info{kernel}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
-	c.Check(affected, DeepEquals, map[string]map[string]bool{"snap-c": {"gadget": true}})
+	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
+		"snap-c": {
+			Restart: true,
+			AffectingSnaps: map[string]bool{
+				"gadget": true,
+			}}})
 }
 
 func (s *autorefreshGatingSuite) TestAffectedBySlot(c *C) {
@@ -243,7 +263,11 @@ func (s *autorefreshGatingSuite) TestAffectedBySlot(c *C) {
 	updates := []*snap.Info{snapD}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
-	c.Check(affected, DeepEquals, map[string]map[string]bool{"snap-e": {"snap-d": true}})
+	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
+		"snap-e": {
+			AffectingSnaps: map[string]bool{
+				"snap-d": true,
+			}}})
 }
 
 func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackend(c *C) {
@@ -270,7 +294,11 @@ func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackend(c *C) {
 	updates := []*snap.Info{snapE}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
-	c.Check(affected, DeepEquals, map[string]map[string]bool{"snap-d": {"snap-e": true}})
+	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
+		"snap-d": {
+			AffectingSnaps: map[string]bool{
+				"snap-e": true,
+			}}})
 }
 
 func (s *autorefreshGatingSuite) TestAffectedByBootBase(c *C) {
@@ -293,9 +321,32 @@ func (s *autorefreshGatingSuite) TestAffectedByBootBase(c *C) {
 	updates := []*snap.Info{core18}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
-	c.Check(affected, DeepEquals, map[string]map[string]bool{
-		"snap-a": {"core18": true},
-		"snap-b": {"core18": true},
-		"snap-d": {"core18": true},
-		"snap-e": {"core18": true}})
+	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
+		"snap-a": {
+			Base:    true,
+			Restart: true,
+			AffectingSnaps: map[string]bool{
+				"core18": true,
+			},
+		},
+		"snap-b": {
+			Base:    true,
+			Restart: true,
+			AffectingSnaps: map[string]bool{
+				"core18": true,
+			},
+		},
+		"snap-d": {
+			Base:    true,
+			Restart: true,
+			AffectingSnaps: map[string]bool{
+				"core18": true,
+			},
+		},
+		"snap-e": {
+			Base:    true,
+			Restart: true,
+			AffectingSnaps: map[string]bool{
+				"core18": true,
+			}}})
 }

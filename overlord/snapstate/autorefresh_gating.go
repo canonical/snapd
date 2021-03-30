@@ -32,7 +32,13 @@ import (
 
 var gateAutoRefreshHookName = "gate-auto-refresh"
 
-func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]map[string]bool, error) {
+type affectedSnapInfo struct {
+	Restart        bool
+	Base           bool
+	AffectingSnaps map[string]bool
+}
+
+func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affectedSnapInfo, error) {
 	all, err := All(st)
 	if err != nil {
 		return nil, err
@@ -77,20 +83,30 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]map[st
 		byBase[base] = append(byBase[base], inf.InstanceName())
 	}
 
-	affected := make(map[string]map[string]bool)
+	affected := make(map[string]*affectedSnapInfo)
 
-	addAffected := func(snapName, affectedBy string) {
-		if affected[snapName] == nil {
-			affected[snapName] = make(map[string]bool)
+	addAffected := func(snapName, affectedBy string, restart bool, base bool) {
+		affectedInfo := affected[snapName]
+		if affectedInfo == nil {
+			affectedInfo = &affectedSnapInfo{
+				AffectingSnaps: map[string]bool{},
+			}
+			affected[snapName] = affectedInfo
 		}
-		affected[snapName][affectedBy] = true
+		if restart {
+			affectedInfo.Restart = restart
+		}
+		if base {
+			affectedInfo.Base = base
+		}
+		affectedInfo.AffectingSnaps[affectedBy] = true
 	}
 
 	for _, up := range updates {
 		// on core system, affected by update of boot base
 		if bootBase != "" && up.InstanceName() == bootBase {
 			for _, snapSt := range all {
-				addAffected(snapSt.InstanceName(), up.InstanceName())
+				addAffected(snapSt.InstanceName(), up.InstanceName(), true, true)
 			}
 		}
 
@@ -98,14 +114,14 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]map[st
 		// XXX: gadget refresh doesn't always require reboot, refine this
 		if up.Type() == snap.TypeKernel || up.Type() == snap.TypeGadget {
 			for _, snapSt := range all {
-				addAffected(snapSt.InstanceName(), up.InstanceName())
+				addAffected(snapSt.InstanceName(), up.InstanceName(), true, false)
 			}
 			continue
 		}
 		if up.Type() == snap.TypeBase || up.SnapName() == "core" {
 			// affected by refresh of this base snap
 			for _, snapName := range byBase[up.InstanceName()] {
-				addAffected(snapName, up.InstanceName())
+				addAffected(snapName, up.InstanceName(), false, true)
 			}
 			continue
 		}
@@ -121,7 +137,7 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]map[st
 			for _, cref := range conns {
 				// affected only if it wasn't optimized out above
 				if all[cref.PlugRef.Snap] != nil {
-					addAffected(cref.PlugRef.Snap, up.InstanceName())
+					addAffected(cref.PlugRef.Snap, up.InstanceName(), false, false)
 				}
 			}
 		}
@@ -142,7 +158,7 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]map[st
 			for _, cref := range conns {
 				// affected only if it wasn't optimized out above
 				if all[cref.SlotRef.Snap] != nil {
-					addAffected(cref.SlotRef.Snap, up.InstanceName())
+					addAffected(cref.SlotRef.Snap, up.InstanceName(), false, false)
 				}
 			}
 		}
