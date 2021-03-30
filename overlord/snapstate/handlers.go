@@ -52,6 +52,10 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
+var SecurityProfilesRemoveLate = func(snapName string, rev snap.Revision, typ snap.Type) error {
+	panic("internal error: snapstate.SecurityProfilesRemoveLate is unset")
+}
+
 // TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the task.
 func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
 	var snapsup SnapSetup
@@ -2274,6 +2278,9 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		// XXX: also remove sequence files?
 	}
 	if err = config.DiscardRevisionConfig(st, snapsup.InstanceName(), snapsup.Revision()); err != nil {
+		return err
+	}
+	if err = SecurityProfilesRemoveLate(snapsup.InstanceName(), snapsup.Revision(), snapsup.Type); err != nil {
 		return err
 	}
 	Set(st, snapsup.InstanceName(), snapst)

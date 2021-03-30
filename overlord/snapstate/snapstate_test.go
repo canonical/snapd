@@ -213,11 +213,18 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
 	s.state.Unlock()
 
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
 	}
+
+	s.AddCleanup(snapstate.MockSecurityProfilesDiscardLate(func(snapName string, rev snap.Revision, typ snap.Type) error {
+		return nil
+	}))
 }
 
 func (s *snapmgrTestSuite) TearDownTest(c *C) {
