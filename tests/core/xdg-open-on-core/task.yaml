@@ -1,7 +1,4 @@
-summary: Ensure snap userd returns an error on Ubuntu Core
-
-systems:
-    - ubuntu-core-*
+summary: Ensure snap userd returns an error for xdg-open requests on Core
 
 prepare: |
     if ! tests.session has-session-systemd-and-dbus; then
