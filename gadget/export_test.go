@@ -57,6 +57,8 @@ var (
 	SplitKernelRef = splitKernelRef
 
 	ResolveVolumeContent = resolveVolumeContent
+
+	GadgetVolumeConsumesOneKernelUpdateAsset = gadgetVolumeConsumesOneKernelUpdateAsset
 )
 
 func MockEvalSymlinks(mock func(path string) (string, error)) (restore func()) {

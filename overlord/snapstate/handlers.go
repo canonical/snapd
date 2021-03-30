@@ -37,11 +37,13 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/settings"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
@@ -1245,6 +1247,11 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		FirstInstall: firstInstall,
 		VitalityRank: vitalityRank,
 	}
+	// on UC18+, snap tooling comes from the snapd snap so we need generated
+	// mount units to depend on the snapd snap mount units
+	if !deviceCtx.Classic() && deviceCtx.Model().Base() != "" {
+		linkCtx.RequireMountedSnapdSnap = true
+	}
 	reboot, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
 	// defer a cleanup helper which will unlink the snap if anything fails after
 	// this point
@@ -2186,6 +2193,20 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
+func (m *SnapManager) discardSecurityProfilesLate(st *state.State, name string, rev snap.Revision, typ snap.Type) error {
+	repo := ifacerepo.Get(st)
+	for _, backend := range repo.Backends() {
+		lateDiscardBackend, ok := backend.(interfaces.SecurityBackendDiscardingLate)
+		if !ok {
+			continue
+		}
+		if err := lateDiscardBackend.RemoveLate(name, rev, typ); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -2269,6 +2290,9 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		// XXX: also remove sequence files?
 	}
 	if err = config.DiscardRevisionConfig(st, snapsup.InstanceName(), snapsup.Revision()); err != nil {
+		return err
+	}
+	if err = m.discardSecurityProfilesLate(st, snapsup.InstanceName(), snapsup.Revision(), snapsup.Type); err != nil {
 		return err
 	}
 	Set(st, snapsup.InstanceName(), snapst)

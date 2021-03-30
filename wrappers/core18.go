@@ -43,6 +43,9 @@ var snapdServiceStopTimeout = time.Duration(timeout.DefaultTimeout)
 // catches units that run /usr/bin/snap (with args), or things in /usr/lib/snapd/
 var execStartRe = regexp.MustCompile(`(?m)^ExecStart=(/usr/bin/snap\s+.*|/usr/lib/snapd/.*)$`)
 
+// snapdToolingMountUnit is the name of the mount unit that makes the
+const snapdToolingMountUnit = "usr-lib-snapd.mount"
+
 func snapdSkipStart(content []byte) bool {
 	return bytes.Contains(content, []byte("X-Snapd-Snap: do-not-start"))
 }
@@ -77,8 +80,7 @@ Options=bind
 [Install]
 WantedBy=snapd.service
 `, prefix))
-	unit := "usr-lib-snapd.mount"
-	fullPath := filepath.Join(dirs.SnapServicesDir, unit)
+	fullPath := filepath.Join(dirs.SnapServicesDir, snapdToolingMountUnit)
 
 	err := osutil.EnsureFileState(fullPath,
 		&osutil.MemoryFileState{
@@ -95,11 +97,11 @@ WantedBy=snapd.service
 	if err := sysd.DaemonReload(); err != nil {
 		return err
 	}
-	if err := sysd.Enable(unit); err != nil {
+	if err := sysd.Enable(snapdToolingMountUnit); err != nil {
 		return err
 	}
 
-	if err := sysd.Restart(unit, 5*time.Second); err != nil {
+	if err := sysd.Restart(snapdToolingMountUnit, 5*time.Second); err != nil {
 		return err
 	}
 
