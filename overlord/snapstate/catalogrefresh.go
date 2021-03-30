@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -33,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/randutil"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/timings"
 )
@@ -119,6 +121,9 @@ func (r *catalogRefresh) Ensure() error {
 	case store.ErrTooManyRequests:
 		logger.Debugf("Catalog refresh postponed.")
 		err = nil
+	case errSkipCatalogRefreshWhenTesting:
+		logger.Debugf("Catalog refresh skipped when testing is enabled")
+		err = nil
 	default:
 		logger.Debugf("Catalog refresh failed: %v.", err)
 	}
@@ -127,7 +132,13 @@ func (r *catalogRefresh) Ensure() error {
 
 var newCmdDB = advisor.Create
 
+var errSkipCatalogRefreshWhenTesting = errors.New("skipping when testing is enabled")
+
 func refreshCatalogs(st *state.State, theStore StoreService) error {
+	if snapdenv.Testing() {
+		return errSkipCatalogRefreshWhenTesting
+	}
+
 	st.Unlock()
 	defer st.Lock()
 
