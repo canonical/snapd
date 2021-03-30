@@ -28,41 +28,31 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/daemon"
-	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/overlord"
-	"github.com/snapcore/snapd/overlord/snapstate"
-	"github.com/snapcore/snapd/store/storetest"
 )
 
 var _ = check.Suite(&cohortSuite{})
 
 type cohortSuite struct {
-	storetest.Store
-	d *daemon.Daemon
+	apiBaseSuite
 
 	snaps []string
 	coh   map[string]string
-	err   error
 }
 
 func (s *cohortSuite) CreateCohorts(_ context.Context, snaps []string) (map[string]string, error) {
+	s.pokeStateLock()
+
 	s.snaps = snaps[:]
 	return s.coh, s.err
 }
 
 func (s *cohortSuite) SetUpTest(c *check.C) {
+	s.apiBaseSuite.SetUpTest(c)
+
 	s.snaps = nil
 	s.coh = nil
-	s.err = nil
 
-	o := overlord.Mock()
-	s.d = daemon.NewWithOverlord(o)
-
-	st := o.State()
-	st.Lock()
-	defer st.Unlock()
-	snapstate.ReplaceStore(st, s)
-	dirs.SetRootDir(c.MkDir())
+	s.daemonWithStore(c, s)
 }
 
 func (s *cohortSuite) TestCreateCohort(c *check.C) {
@@ -74,7 +64,7 @@ func (s *cohortSuite) TestCreateCohort(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]}]`))
 	c.Assert(err, check.IsNil)
 
-	rsp := daemon.CohortsCmd.POST(daemon.CohortsCmd, req, nil)
+	rsp := s.req(c, req, nil)
 	c.Check(rsp, check.DeepEquals, &daemon.Resp{
 		Status: 200,
 		Type:   "sync",
@@ -86,7 +76,7 @@ func (s *cohortSuite) TestCreateCohortNoSnaps(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create"}]`))
 	c.Assert(err, check.IsNil)
 
-	rsp := daemon.CohortsCmd.POST(daemon.CohortsCmd, req, nil)
+	rsp := s.req(c, req, nil)
 	c.Check(rsp, check.DeepEquals, &daemon.Resp{
 		Status: 200,
 		Type:   "sync",
@@ -98,7 +88,7 @@ func (s *cohortSuite) TestCreateCohortBadAction(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "pupate", "snaps": ["foo","bar"]}]`))
 	c.Assert(err, check.IsNil)
 
-	rsp := daemon.CohortsCmd.POST(daemon.CohortsCmd, req, nil)
+	rsp := s.req(c, req, nil)
 	c.Check(rsp, check.DeepEquals, &daemon.Resp{
 		Status: 400,
 		Type:   "error",
@@ -112,7 +102,7 @@ func (s *cohortSuite) TestCreateCohortError(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]}]`))
 	c.Assert(err, check.IsNil)
 
-	rsp := daemon.CohortsCmd.POST(daemon.CohortsCmd, req, nil)
+	rsp := s.req(c, req, nil)
 	c.Check(rsp, check.DeepEquals, &daemon.Resp{
 		Status: 500,
 		Type:   "error",
@@ -124,7 +114,7 @@ func (s *cohortSuite) TestCreateBadBody1(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]`))
 	c.Assert(err, check.IsNil)
 
-	rsp := daemon.CohortsCmd.POST(daemon.CohortsCmd, req, nil)
+	rsp := s.req(c, req, nil)
 	c.Check(rsp, check.DeepEquals, &daemon.Resp{
 		Status: 400,
 		Type:   "error",
@@ -136,7 +126,7 @@ func (s *cohortSuite) TestCreateBadBody2(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]}xx`))
 	c.Assert(err, check.IsNil)
 
-	rsp := daemon.CohortsCmd.POST(daemon.CohortsCmd, req, nil)
+	rsp := s.req(c, req, nil)
 	c.Check(rsp, check.DeepEquals, &daemon.Resp{
 		Status: 400,
 		Type:   "error",

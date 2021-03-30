@@ -31,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
@@ -44,14 +45,14 @@ import (
 
 var _ = check.Suite(&userSuite{})
 
-// TODO: also pull login/logout tests into this.
-
 type userSuite struct {
 	apiBaseSuite
 
 	userInfoResult        *store.User
 	userInfoExpectedEmail string
-	err                   error
+
+	loginUserStoreMacaroon string
+	loginUserDischarge     string
 
 	mockUserHome      string
 	trivialUserLookup func(username string) (*user.User, error)
@@ -64,6 +65,12 @@ func (s *userSuite) UserInfo(email string) (userinfo *store.User, err error) {
 		panic(fmt.Sprintf("%q != %q", s.userInfoExpectedEmail, email))
 	}
 	return s.userInfoResult, s.err
+}
+
+func (s *userSuite) LoginUser(username, password, otp string) (string, string, error) {
+	s.pokeStateLock()
+
+	return s.loginUserStoreMacaroon, s.loginUserDischarge, s.err
 }
 
 func (s *userSuite) SetUpTest(c *check.C) {
@@ -88,6 +95,12 @@ func (s *userSuite) SetUpTest(c *check.C) {
 		c.Fatalf("unexpected del user %q call", name)
 		return fmt.Errorf("unexpected del user %q call", name)
 	}))
+
+	s.userInfoResult = nil
+	s.userInfoExpectedEmail = ""
+
+	s.loginUserStoreMacaroon = ""
+	s.loginUserDischarge = ""
 }
 
 func mkUserLookup(userHomeDir string) func(string) (*user.User, error) {
@@ -97,6 +110,304 @@ func mkUserLookup(userHomeDir string) func(string) (*user.User, error) {
 		cur.HomeDir = userHomeDir
 		return cur, err
 	}
+}
+
+func (s *userSuite) TestLoginUser(c *check.C) {
+	state := s.d.Overlord().State()
+
+	s.loginUserStoreMacaroon = "user-macaroon"
+	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.req(c, req, nil).(*daemon.Resp)
+
+	state.Lock()
+	user, err := auth.User(state, 1)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
+	expected := daemon.UserResponseData{
+		ID:    1,
+		Email: "email@.com",
+
+		Macaroon:   user.Macaroon,
+		Discharges: user.Discharges,
+	}
+
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+	c.Assert(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	c.Check(user.ID, check.Equals, 1)
+	c.Check(user.Username, check.Equals, "")
+	c.Check(user.Email, check.Equals, "email@.com")
+	c.Check(user.Discharges, check.IsNil)
+	c.Check(user.StoreMacaroon, check.Equals, s.loginUserStoreMacaroon)
+	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
+	// snapd macaroon was setup too
+	snapdMacaroon, err := auth.MacaroonDeserialize(user.Macaroon)
+	c.Check(err, check.IsNil)
+	c.Check(snapdMacaroon.Id(), check.Equals, "1")
+	c.Check(snapdMacaroon.Location(), check.Equals, "snapd")
+}
+
+func (s *userSuite) TestLoginUserWithUsername(c *check.C) {
+	state := s.d.Overlord().State()
+
+	s.loginUserStoreMacaroon = "user-macaroon"
+	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
+	buf := bytes.NewBufferString(`{"username": "username", "email": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.req(c, req, nil).(*daemon.Resp)
+
+	state.Lock()
+	user, err := auth.User(state, 1)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
+	expected := daemon.UserResponseData{
+		ID:         1,
+		Username:   "username",
+		Email:      "email@.com",
+		Macaroon:   user.Macaroon,
+		Discharges: user.Discharges,
+	}
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+	c.Assert(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	c.Check(user.ID, check.Equals, 1)
+	c.Check(user.Username, check.Equals, "username")
+	c.Check(user.Email, check.Equals, "email@.com")
+	c.Check(user.Discharges, check.IsNil)
+	c.Check(user.StoreMacaroon, check.Equals, s.loginUserStoreMacaroon)
+	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
+	// snapd macaroon was setup too
+	snapdMacaroon, err := auth.MacaroonDeserialize(user.Macaroon)
+	c.Check(err, check.IsNil)
+	c.Check(snapdMacaroon.Id(), check.Equals, "1")
+	c.Check(snapdMacaroon.Location(), check.Equals, "snapd")
+}
+
+func (s *userSuite) TestLoginUserNoEmailWithExistentLocalUser(c *check.C) {
+	state := s.d.Overlord().State()
+
+	// setup local-only user
+	state.Lock()
+	localUser, err := auth.NewUser(state, "username", "email@test.com", "", nil)
+	state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	s.loginUserStoreMacaroon = "user-macaroon"
+	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
+	buf := bytes.NewBufferString(`{"username": "username", "email": "", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, localUser.Macaroon))
+
+	rsp := s.req(c, req, localUser).(*daemon.Resp)
+
+	expected := daemon.UserResponseData{
+		ID:       1,
+		Username: "username",
+		Email:    "email@test.com",
+
+		Macaroon:   localUser.Macaroon,
+		Discharges: localUser.Discharges,
+	}
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+	c.Assert(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	state.Lock()
+	user, err := auth.User(state, localUser.ID)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Check(user.Username, check.Equals, "username")
+	c.Check(user.Email, check.Equals, localUser.Email)
+	c.Check(user.Macaroon, check.Equals, localUser.Macaroon)
+	c.Check(user.Discharges, check.IsNil)
+	c.Check(user.StoreMacaroon, check.Equals, s.loginUserStoreMacaroon)
+	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
+}
+
+func (s *userSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
+	state := s.d.Overlord().State()
+
+	// setup local-only user
+	state.Lock()
+	localUser, err := auth.NewUser(state, "username", "email@test.com", "", nil)
+	state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	s.loginUserStoreMacaroon = "user-macaroon"
+	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
+	buf := bytes.NewBufferString(`{"username": "username", "email": "email@test.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, localUser.Macaroon))
+
+	rsp := s.req(c, req, localUser).(*daemon.Resp)
+
+	expected := daemon.UserResponseData{
+		ID:       1,
+		Username: "username",
+		Email:    "email@test.com",
+
+		Macaroon:   localUser.Macaroon,
+		Discharges: localUser.Discharges,
+	}
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+	c.Assert(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	state.Lock()
+	user, err := auth.User(state, localUser.ID)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Check(user.Username, check.Equals, "username")
+	c.Check(user.Email, check.Equals, localUser.Email)
+	c.Check(user.Macaroon, check.Equals, localUser.Macaroon)
+	c.Check(user.Discharges, check.IsNil)
+	c.Check(user.StoreMacaroon, check.Equals, s.loginUserStoreMacaroon)
+	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
+}
+
+func (s *userSuite) TestLoginUserNewEmailWithExistentLocalUser(c *check.C) {
+	state := s.d.Overlord().State()
+
+	// setup local-only user
+	state.Lock()
+	localUser, err := auth.NewUser(state, "username", "email@test.com", "", nil)
+	state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	s.loginUserStoreMacaroon = "user-macaroon"
+	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
+	// same local user, but using a new SSO account
+	buf := bytes.NewBufferString(`{"username": "username", "email": "new.email@test.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, localUser.Macaroon))
+
+	rsp := s.req(c, req, localUser).(*daemon.Resp)
+
+	expected := daemon.UserResponseData{
+		ID:       1,
+		Username: "username",
+		Email:    "new.email@test.com",
+
+		Macaroon:   localUser.Macaroon,
+		Discharges: localUser.Discharges,
+	}
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+	c.Assert(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	state.Lock()
+	user, err := auth.User(state, localUser.ID)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Check(user.Username, check.Equals, "username")
+	c.Check(user.Email, check.Equals, expected.Email)
+	c.Check(user.Macaroon, check.Equals, localUser.Macaroon)
+	c.Check(user.Discharges, check.IsNil)
+	c.Check(user.StoreMacaroon, check.Equals, s.loginUserStoreMacaroon)
+	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
+}
+
+func (s *userSuite) TestLogoutUser(c *check.C) {
+	state := s.d.Overlord().State()
+	state.Lock()
+	user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("POST", "/v2/logout", nil)
+	c.Assert(err, check.IsNil)
+	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
+
+	rsp := s.req(c, req, user).(*daemon.Resp)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+
+	state.Lock()
+	_, err = auth.User(state, user.ID)
+	state.Unlock()
+	c.Check(err, check.Equals, auth.ErrInvalidUser)
+}
+
+func (s *userSuite) TestLoginUserBadRequest(c *check.C) {
+	buf := bytes.NewBufferString(`hello`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.req(c, req, nil).(*daemon.Resp)
+
+	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result, check.NotNil)
+}
+
+func (s *userSuite) TestLoginUserDeveloperAPIError(c *check.C) {
+	s.err = fmt.Errorf("error-from-login-user")
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.req(c, req, nil).(*daemon.Resp)
+
+	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 401)
+	c.Check(rsp.Result.(*daemon.ErrorResult).Message, testutil.Contains, "error-from-login-user")
+}
+
+func (s *userSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
+	s.err = store.ErrAuthenticationNeeds2fa
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.req(c, req, nil).(*daemon.Resp)
+
+	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 401)
+	c.Check(rsp.Result.(*daemon.ErrorResult).Kind, check.Equals, client.ErrorKindTwoFactorRequired)
+}
+
+func (s *userSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
+	s.err = store.Err2faFailed
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.req(c, req, nil).(*daemon.Resp)
+
+	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 401)
+	c.Check(rsp.Result.(*daemon.ErrorResult).Kind, check.Equals, client.ErrorKindTwoFactorFailed)
+}
+
+func (s *userSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
+	s.err = store.ErrInvalidCredentials
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.req(c, req, nil).(*daemon.Resp)
+
+	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	c.Check(rsp.Status, check.Equals, 401)
+	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, "invalid credentials")
 }
 
 func (s *userSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
@@ -764,13 +1075,13 @@ func (s *userSuite) TestPostCreateUserFromAssertionNoModel(c *check.C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	s.makeSystemUsers(c, []map[string]interface{}{serialUser})
 	model := s.Brands.Model("my-brand", "other-model", map[string]interface{}{
 		"architecture":          "amd64",
 		"gadget":                "pc",
 		"kernel":                "pc-kernel",
 		"system-user-authority": []interface{}{"my-brand", "partner"},
 	})
-	s.makeSystemUsers(c, []map[string]interface{}{serialUser})
 
 	st := s.d.Overlord().State()
 	st.Lock()

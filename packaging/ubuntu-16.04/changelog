@@ -1,3 +1,28 @@
+snapd (2.49.2) UNRELEASED; urgency=medium
+
+  * placeholder changelog
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Fri, 26 Mar 2021 18:43:35 +0100
+
+snapd (2.49.1) xenial; urgency=medium
+
+  * New upstream release, LP: #1915248
+    - tests: turn modules off explicitly in spread go unti test
+    - o/snapshotstate: create snapshots directory on import
+    - cmd/snap-bootstrap/triggerwatch: fix returning wrong errors
+    - interfaces: add allegro-vcu and media-control interfaces
+    - interfaces: opengl: add Xilinx zocl bits
+    - many: fix new ineffassign warnings
+    - interfaces/seccomp/template.go: allow copy_file_range
+    - interfaces: allow reading the Xauthority file KDE Plasma writes
+      for Wayland sessions
+    - data/selinux: allow system dbus to watch
+      /var/lib/snapd/dbus-1
+    - Remove apparmor downgrade feature
+    - Support tmp and log dirs on Yocto/Poky
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Mon, 08 Mar 2021 10:47:30 +0100
+
 snapd (2.49) xenial; urgency=medium
 
   * New upstream release, LP: #1915248

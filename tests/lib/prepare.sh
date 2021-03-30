@@ -459,26 +459,40 @@ EOF
 uc20_build_initramfs_kernel_snap() {
     # carries ubuntu-core-initframfs
     add-apt-repository ppa:snappy-dev/image -y
-    apt install ubuntu-core-initramfs -y
+    # TODO: install the linux-firmware as the current version of
+    # ubuntu-core-initramfs does not depend on it, but nonetheless requires it
+    # to build the initrd
+    apt install ubuntu-core-initramfs linux-firmware -y
 
     local ORIG_SNAP="$1"
     local TARGET="$2"
 
+    # TODO proper option support here would be nice but bash is hard and this is
+    # easier, and likely we won't need to both inject a panic and set the epoch
+    # bump simultaneously
     local injectKernelPanic=false
-    injectKernelPanicArg=${3:-}
-    if [ "$injectKernelPanicArg" = "--inject-kernel-panic-in-initramfs" ]; then
-        injectKernelPanic=true
-    fi
+    local initramfsEpochBumpTime
+    initramfsEpochBumpTime=$(date '+%s')
+    optArg=${3:-}
+    case "$optArg" in
+        --inject-kernel-panic-in-initramfs)
+            injectKernelPanic=true
+            ;;
+        --epoch-bump-time=*)
+            # this strips the option and just gives us the value
+            initramfsEpochBumpTime="${optArg#--epoch-bump-time=}"
+            ;;
+    esac
     
     # kernel snap is huge, unpacking to current dir
     unsquashfs -d repacked-kernel "$ORIG_SNAP"
-
 
     # repack initrd magic, beware
     # assumptions: initrd is compressed with LZ4, cpio block size 512, microcode
     # at the beginning of initrd image
     (
         cd repacked-kernel
+        unpackeddir="$PWD"
         #shellcheck disable=SC2010
         kver=$(ls "config"-* | grep -Po 'config-\K.*')
 
@@ -501,14 +515,29 @@ uc20_build_initramfs_kernel_snap() {
         # modify the-tool to verify that our version is used when booting - this
         # is verified in the tests/core/basic20 spread test
         sed -i -e 's/set -e/set -ex/' "$skeletondir/main/usr/lib/the-tool"
-        echo "" >> "$skeletondir/main/usr/lib/the-tool"
-        echo "if test -d /run/mnt/data/system-data; then touch /run/mnt/data/system-data/the-tool-ran; fi" >> \
-            "$skeletondir/main/usr/lib/the-tool"
+        # also save the time before snap-bootstrap runs
+        sed -i -e "s@/usr/lib/snapd/snap-bootstrap@beforeDate=\$(date --utc \'+%s\'); /usr/lib/snapd/snap-bootstrap@"  "$skeletondir/main/usr/lib/the-tool"
+        {
+            echo "" 
+            echo "if test -d /run/mnt/data/system-data; then touch /run/mnt/data/system-data/the-tool-ran; fi" 
+            # also copy the time for the clock-epoch to system-data, this is 
+            # used by a specific test but doesn't hurt anything to do this for 
+            # all tests
+            echo "mode=\$(grep -Eo 'snapd_recovery_mode=([a-z]+)' /proc/cmdline)"
+            echo "mode=\${mode##snapd_recovery_mode=}"
+            echo "stat -c '%Y' /usr/lib/clock-epoch >> /run/mnt/ubuntu-seed/\${mode}-clock-epoch"
+            echo "echo \"\$beforeDate\" > /run/mnt/ubuntu-seed/\${mode}-before-snap-bootstrap-date"
+            echo "date --utc '+%s' > /run/mnt/ubuntu-seed/\${mode}-after-snap-bootstrap-date"
+        } >> "$skeletondir/main/usr/lib/the-tool"
 
         if [ "$injectKernelPanic" = "true" ]; then
             # add a kernel panic to the end of the-tool execution
             echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> "$skeletondir/main/usr/lib/the-tool"
         fi
+
+        # bump the epoch time file timestamp, converting unix timestamp to 
+        # touch's date format
+        touch -t "$(date --utc "--date=@$initramfsEpochBumpTime" '+%Y%m%d%H%M')" "$skeletondir/main/usr/lib/clock-epoch"
 
         # copy any extra files to the same location inside the initrd
         if [ -d ../extra-initrd/ ]; then
@@ -522,10 +551,14 @@ uc20_build_initramfs_kernel_snap() {
             # accommodate assumptions about tree layout, use the unpacked initrd
             # to pick up the right modules
             cd unpacked-initrd/main
+            # XXX: pass feature 'main' and u-c-i picks up any directory named
+            # after feature inside skeletondir and uses that a template
             ubuntu-core-initramfs create-initrd \
                                   --kernelver "$kver" \
                                   --skeleton "$skeletondir" \
-                                  --kerneldir "lib/modules" \
+                                  --kerneldir "lib/modules/$kver" \
+                                  --firmwaredir "$unpackeddir/firmware" \
+                                  --feature 'main' \
                                   --output ../../repacked-initrd
         )
 

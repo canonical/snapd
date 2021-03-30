@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/bootloader/ubootenv"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -118,6 +119,11 @@ func (s *imageSuite) SetUpTest(c *C) {
 	s.AddCleanup(c1.Restore)
 	c2 := testutil.MockCommand(c, "umount", "")
 	s.AddCleanup(c2.Restore)
+
+	restore := image.MockWriteResolvedContent(func(_ string, _ *gadget.Info, _, _ string) error {
+		return nil
+	})
+	s.AddCleanup(restore)
 }
 
 func (s *imageSuite) TearDownTest(c *C) {
@@ -481,6 +487,37 @@ const pcGadgetYaml = `
      bootloader: grub
  `
 
+const pcUC20GadgetYaml = `
+ volumes:
+   pc:
+     bootloader: grub
+     structure:
+       - name: ubuntu-seed
+         role: system-seed
+         type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+         size: 100M
+       - name: ubuntu-data
+         role: system-data
+         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+         size: 200M
+ `
+
+const piUC20GadgetYaml = `
+ volumes:
+   pi:
+     schema: mbr
+     bootloader: u-boot
+     structure:
+       - name: ubuntu-seed
+         role: system-seed
+         type: 0C
+         size: 100M
+       - name: ubuntu-data
+         role: system-data
+         type: 83,0FC63DAF-8483-4772-8E79-3D69D8477DE4
+         size: 200M
+ `
+
 func (s *imageSuite) setupSnaps(c *C, publishers map[string]string, defaultsYaml string) {
 	gadgetYaml := pcGadgetYaml + defaultsYaml
 	if _, ok := publishers["pc"]; ok {
@@ -576,15 +613,26 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
 
-	rootdir := filepath.Join(c.MkDir(), "image")
+	preparedir := c.MkDir()
+	rootdir := filepath.Join(preparedir, "image")
 	blobdir := filepath.Join(rootdir, "var/lib/snapd/snaps")
 	s.setupSnaps(c, map[string]string{
 		"pc":        "canonical",
 		"pc-kernel": "canonical",
 	}, "")
 
+	gadgetWriteResolvedContentCalled := 0
+	restore = image.MockWriteResolvedContent(func(prepareImageDir string, info *gadget.Info, gadgetRoot, kernelRoot string) error {
+		c.Check(prepareImageDir, Equals, preparedir)
+		c.Check(gadgetRoot, Equals, filepath.Join(preparedir, "gadget"))
+		c.Check(kernelRoot, Equals, filepath.Join(preparedir, "kernel"))
+		gadgetWriteResolvedContentCalled++
+		return nil
+	})
+	defer restore()
+
 	opts := &image.Options{
-		PrepareDir: filepath.Dir(rootdir),
+		PrepareDir: preparedir,
 	}
 
 	err := image.SetupSeed(s.tsto, s.model, opts)
@@ -691,6 +739,9 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 		InstanceName: "pc",
 		Channel:      stableChannel,
 	})
+
+	// content was resolved and written for ubuntu-image
+	c.Check(gadgetWriteResolvedContentCalled, Equals, 1)
 }
 
 func (s *imageSuite) TestSetupSeedLocalCoreBrandKernel(c *C) {
@@ -1515,7 +1566,7 @@ func (s *imageSuite) TestCannotCreateGadgetUnpackDir(c *C) {
 		Channel:    "stable",
 		PrepareDir: "/no-where",
 	})
-	c.Assert(err, ErrorMatches, `cannot create gadget unpack dir "/no-where/gadget": mkdir .*`)
+	c.Assert(err, ErrorMatches, `cannot create unpack dir "/no-where/gadget": mkdir .*`)
 }
 
 func (s *imageSuite) TestNoLocalParallelSnapInstances(c *C) {
@@ -2585,6 +2636,7 @@ func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
 	gadgetContent := [][]string{
 		{"grub-recovery.conf", "# recovery grub.cfg"},
 		{"grub.conf", "# boot grub.cfg"},
+		{"meta/gadget.yaml", pcUC20GadgetYaml},
 	}
 	s.makeSnap(c, "pc=20", gadgetContent, snap.R(22), "")
 	s.makeSnap(c, "required20", nil, snap.R(21), "other")
@@ -2741,6 +2793,7 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 		// TODO:UC20: write this test with non-empty uboot.env when we support
 		//            that
 		{"uboot.conf", ""},
+		{"meta/gadget.yaml", piUC20GadgetYaml},
 	}
 	s.makeSnap(c, "uboot-gadget=20", gadgetContent, snap.R(22), "")
 
@@ -2788,6 +2841,67 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 		content := fileAndContent[1]
 		c.Assert(filepath.Join(systems[0], "kernel", file), testutil.FileEquals, content)
 	}
+}
+
+func (s *imageSuite) TestSetupSeedCore20NoKernelRefsConsumed(c *C) {
+	bootloader.Force(nil)
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	// a model that uses core20 and our gadget
+	headers := map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "arm64",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "arm-kernel",
+				"id":              s.AssertedSnapID("arm-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "uboot-gadget",
+				"id":              s.AssertedSnapID("uboot-gadget"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	}
+	model := s.Brands.Model("my-brand", "my-model", headers)
+
+	prepareDir := c.MkDir()
+
+	s.makeSnap(c, "snapd", nil, snap.R(1), "")
+	s.makeSnap(c, "core20", nil, snap.R(20), "")
+	kernelYaml := `
+assets:
+ ref:
+  update: true
+  content:
+   - dtbs/`
+	kernelContent := [][]string{
+		{"meta/kernel.yaml", kernelYaml},
+		{"kernel.img", "some kernel"},
+		{"initrd.img", "some initrd"},
+		{"dtbs/foo.dtb", "some dtb"},
+	}
+	s.makeSnap(c, "arm-kernel=20", kernelContent, snap.R(1), "")
+	gadgetContent := [][]string{
+		// this file must be empty
+		// TODO:UC20: write this test with non-empty uboot.env when we support
+		//            that
+		{"uboot.conf", ""},
+		{"meta/gadget.yaml", piUC20GadgetYaml},
+	}
+	s.makeSnap(c, "uboot-gadget=20", gadgetContent, snap.R(22), "")
+
+	opts := &image.Options{
+		PrepareDir: prepareDir,
+	}
+
+	err := image.SetupSeed(s.tsto, model, opts)
+	c.Assert(err, ErrorMatches, `no asset from the kernel.yaml needing synced update is consumed by the gadget at "/.*"`)
 }
 
 type toolingStoreContextSuite struct {

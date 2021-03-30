@@ -26,9 +26,11 @@ backends: [-autopkgtest]
 
 prepare: |
     tests.session -u test prepare
+
 restore: |
     snap remove --purge test-snapd-eds
     tests.session -u test restore
+
 execute: |
     if ! snap install --edge test-snapd-eds ; then
         if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
