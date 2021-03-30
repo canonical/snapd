@@ -152,3 +152,11 @@ func MockPartitionUUIDForBootedKernelDisk(uuid string) (restore func()) {
 		bootFindPartitionUUIDForBootedKernelDisk = old
 	}
 }
+
+func MockTryRecoverySystemHealthCheck(mock func() error) (restore func()) {
+	old := tryRecoverySystemHealthCheck
+	tryRecoverySystemHealthCheck = mock
+	return func() {
+		tryRecoverySystemHealthCheck = old
+	}
+}
