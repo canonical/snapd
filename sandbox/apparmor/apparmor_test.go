@@ -61,8 +61,9 @@ func (*apparmorSuite) TestAppArmorFindInternalAppArmorParser(c *C) {
 	c.Assert(os.MkdirAll(d, 0755), IsNil)
 	p := filepath.Join(d, "apparmor_parser")
 	c.Assert(ioutil.WriteFile(p, nil, 0755), IsNil)
-	restore := snapdtool.MockOsReadlink(func(string) (string, error) {
-		return p, nil
+	restore := snapdtool.MockOsReadlink(func(path string) (string, error) {
+		c.Assert(path, Equals, "/proc/self/exe")
+		return filepath.Join(d, "snapd"), nil
 	})
 	defer restore()
 
