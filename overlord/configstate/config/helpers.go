@@ -83,7 +83,6 @@ func purgeNulls(config interface{}) interface{} {
 }
 
 func PatchConfig(snapName string, subkeys []string, pos int, config interface{}, value *json.RawMessage) (interface{}, error) {
-
 	switch config := config.(type) {
 	case nil:
 		// Missing update map. Create and nest final value under it.
@@ -101,7 +100,17 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*config), &configm); err != nil {
 			return nil, fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos], "."))
 		}
-		result, err := PatchConfig(snapName, subkeys, pos, configm, value)
+		// preserve the invariant that if PatchConfig is
+		// passed a map[string]interface{} it is not nil.
+		// If the value was set to null in the same
+		// transaction use (interface{})(nil) which is handled
+		// by the first case here.
+		// (see LP: #1920773)
+		var cfg interface{}
+		if configm != nil {
+			cfg = configm
+		}
+		result, err := PatchConfig(snapName, subkeys, pos, cfg, value)
 		if err != nil {
 			return nil, err
 		}
@@ -114,11 +123,6 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 	case map[string]interface{}:
 		// Update map to apply against pristine on commit.
 		if pos+1 == len(subkeys) {
-			// we may encounter nil when setting back values that were previously set to null in
-			// same transaction (see LP: #1920773).
-			if config == nil {
-				config = make(map[string]interface{})
-			}
 			config[subkeys[pos]] = value
 			return config, nil
 		} else {
