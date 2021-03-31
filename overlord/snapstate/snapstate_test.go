@@ -221,6 +221,10 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
 	}
+
+	s.AddCleanup(snapstate.MockSecurityProfilesDiscardLate(func(snapName string, rev snap.Revision, typ snap.Type) error {
+		return nil
+	}))
 }
 
 func (s *snapmgrTestSuite) TearDownTest(c *C) {
