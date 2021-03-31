@@ -139,6 +139,11 @@ func fallbackKeySealRequests(key, saveKey secboot.EncryptionKey) []secboot.SealK
 	}
 }
 
+type fdeSetupHookResult struct {
+	EncryptionKey []byte `json:"encryption-key"`
+	Handle        []byte `json:"handle"`
+}
+
 func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
 	// TODO: support full boot chains
 
@@ -147,13 +152,31 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model
 			Key:     skr.Key,
 			KeyName: skr.KeyName,
 		}
-		sealedKey, err := RunFDESetupHook("initial-setup", params)
+		hookOutput, err := RunFDESetupHook("initial-setup", params)
 		if err != nil {
 			return err
 		}
-		if err := osutil.AtomicWriteFile(filepath.Join(skr.KeyFile), sealedKey, 0600, 0); err != nil {
+		// We expect json output that fits fdeSetupHookResult
+		// hook at this point. However the "denver" project
+		// uses the old and deprecated v1 API that returns raw
+		// bytes and we still need to support this.
+		var res fdeSetupHookResult
+		if err := json.Unmarshal(hookOutput, &res); err != nil {
+			// TODO: check if size of hookOutput matches
+			// the size of the denver project key and only
+			// then assume it's v1 api
+			// if len(hookOutput) != sizeDenverKey { return err}
+			res.EncryptionKey = hookOutput
+		}
+		if err := osutil.AtomicWriteFile(filepath.Join(skr.KeyFile), res.EncryptionKey, 0600, 0); err != nil {
 			return fmt.Errorf("cannot store key: %v", err)
 		}
+		if len(res.Handle) > 0 {
+			if err := osutil.AtomicWriteFile(filepath.Join(skr.KeyFile+".handle"), res.EncryptionKey, 0600, 0); err != nil {
+				return fmt.Errorf("cannot store key: %v", err)
+			}
+		}
+
 	}
 
 	if err := stampSealedKeys(InstallHostWritableDir, "fde-setup-hook"); err != nil {
