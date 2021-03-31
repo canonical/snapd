@@ -162,10 +162,12 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model
 		// bytes and we still need to support this.
 		var res fdeSetupHookResult
 		if err := json.Unmarshal(hookOutput, &res); err != nil {
-			// TODO: check if size of hookOutput matches
-			// the size of the denver project key and only
-			// then assume it's v1 api
-			// if len(hookOutput) != sizeDenverKey { return err}
+			// If the input is not json and matches the
+			// size of the "denver" project encrypton key
+			// (64 bytes) we assume we deal with a v1 API.
+			if len(hookOutput) != len(secboot.EncryptionKey{}) {
+				return err
+			}
 			res.EncryptionKey = hookOutput
 		}
 		if err := osutil.AtomicWriteFile(filepath.Join(skr.KeyFile), res.EncryptionKey, 0600, 0); err != nil {

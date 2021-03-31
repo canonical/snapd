@@ -471,10 +471,12 @@ func unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourc
 	// need to support this.
 	var fdeRevealKeyResult fdeRevealKeyResult
 	if err := json.Unmarshal(output, &fdeRevealKeyResult); err != nil {
-		// TODO: check if size of hookOutput matches
-		// the size of the denver project key and only
-		// then assume it's v1 api
-		// if len(hookOutput) != sizeDenverKey { return err}
+		// If the input is not json and matches the size of
+		// the "denver" project encrypton key (64 bytes) we
+		// assume we deal with a v1 API.
+		if len(output) != encryptionKeySize {
+			return res, fmt.Errorf("cannot decode fde-reveal-key result: %v", err)
+		}
 		fdeRevealKeyResult.Key = output
 	}
 
