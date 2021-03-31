@@ -374,7 +374,7 @@ func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 			return fmt.Errorf("cannot install managed bootloader assets: %v", err)
 		}
 		// determine the expected command line
-		cmdline, err := ComposeCandidateCommandLine(model)
+		cmdline, err := ComposeCandidateCommandLine(model, bootWith.UnpackedGadgetDir)
 		if err != nil {
 			return fmt.Errorf("cannot compose the candidate command line: %v", err)
 		}

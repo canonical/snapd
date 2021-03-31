@@ -516,7 +516,7 @@ func resealFallbackObjectKeys(pbc predictableBootChains, authKeyFile string, rol
 func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAssetsBootloader, model *asserts.Model, modeenv *Modeenv) (chains []bootChain, err error) {
 	for _, system := range systems {
 		// get the command line
-		cmdline, err := ComposeRecoveryCommandLine(model, system)
+		cmdline, err := ComposeRecoveryCommandLine(model, system, "")
 		if err != nil {
 			return nil, fmt.Errorf("cannot obtain recovery kernel command line: %v", err)
 		}

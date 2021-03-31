@@ -121,22 +121,22 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineNotManagedHappy(c *C) {
 	bootloader.Force(bl)
 	defer bootloader.Force(nil)
 
-	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314")
+	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314", "")
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "")
 
-	cmdline, err = boot.ComposeCommandLine(model)
+	cmdline, err = boot.ComposeCommandLine(model, "")
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "")
 
 	tbl := bl.WithTrustedAssets()
 	bootloader.Force(tbl)
 
-	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314")
+	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314", "")
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=recover snapd_recovery_system=20200314")
 
-	cmdline, err = boot.ComposeCommandLine(model)
+	cmdline, err = boot.ComposeCommandLine(model, "")
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=run")
 }
@@ -147,11 +147,11 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineNotUC20(c *C) {
 	bl := bootloadertest.Mock("btloader", c.MkDir())
 	bootloader.Force(bl)
 	defer bootloader.Force(nil)
-	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314")
+	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314", "")
 	c.Assert(err, IsNil)
 	c.Check(cmdline, Equals, "")
 
-	cmdline, err = boot.ComposeCommandLine(model)
+	cmdline, err = boot.ComposeCommandLine(model, "")
 	c.Assert(err, IsNil)
 	c.Check(cmdline, Equals, "")
 }
@@ -165,17 +165,17 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineManagedHappy(c *C) {
 
 	tbl.StaticCommandLine = "panic=-1"
 
-	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314")
+	cmdline, err := boot.ComposeRecoveryCommandLine(model, "20200314", "")
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=recover snapd_recovery_system=20200314 panic=-1")
-	cmdline, err = boot.ComposeCommandLine(model)
+	cmdline, err = boot.ComposeCommandLine(model, "")
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=run panic=-1")
 
-	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314")
+	cmdline, err = boot.ComposeRecoveryCommandLine(model, "20200314", "")
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=recover snapd_recovery_system=20200314 panic=-1")
-	cmdline, err = boot.ComposeCommandLine(model)
+	cmdline, err = boot.ComposeCommandLine(model, "")
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=run panic=-1")
 }
@@ -190,7 +190,7 @@ func (s *kernelCommandLineSuite) TestComposeCandidateCommandLineManagedHappy(c *
 	tbl.StaticCommandLine = "panic=-1"
 	tbl.CandidateStaticCommandLine = "candidate panic=0"
 
-	cmdline, err := boot.ComposeCandidateCommandLine(model)
+	cmdline, err := boot.ComposeCandidateCommandLine(model, "")
 	c.Assert(err, IsNil)
 	c.Assert(cmdline, Equals, "snapd_recovery_mode=run candidate panic=0")
 }
@@ -205,11 +205,11 @@ func (s *kernelCommandLineSuite) TestComposeCandidateRecoveryCommandLineManagedH
 	tbl.StaticCommandLine = "panic=-1"
 	tbl.CandidateStaticCommandLine = "candidate panic=0"
 
-	cmdline, err := boot.ComposeCandidateRecoveryCommandLine(model, "1234")
+	cmdline, err := boot.ComposeCandidateRecoveryCommandLine(model, "1234", "")
 	c.Assert(err, IsNil)
 	c.Check(cmdline, Equals, "snapd_recovery_mode=recover snapd_recovery_system=1234 candidate panic=0")
 
-	cmdline, err = boot.ComposeCandidateRecoveryCommandLine(model, "")
+	cmdline, err = boot.ComposeCandidateRecoveryCommandLine(model, "", "")
 	c.Assert(err, ErrorMatches, "internal error: system is unset")
 	c.Check(cmdline, Equals, "")
 }
