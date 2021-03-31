@@ -265,9 +265,8 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	}
 
 	bootMakeBootableCalled := 0
-	restore = devicestate.MockBootMakeBootable(func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error {
+	restore = devicestate.MockBootMakeSystemRunnable(func(model *asserts.Model, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error {
 		c.Check(model, DeepEquals, mockModel)
-		c.Check(rootdir, Equals, dirs.GlobalRootDir)
 		c.Check(bootWith.KernelPath, Matches, ".*/var/lib/snapd/snaps/pc-kernel_1.snap")
 		c.Check(bootWith.BasePath, Matches, ".*/var/lib/snapd/snaps/core20_2.snap")
 		c.Check(bootWith.RecoverySystemDir, Matches, "/systems/20191218")
@@ -367,6 +366,117 @@ func (s *deviceMgrInstallModeSuite) TestInstallTaskErrors(c *C) {
 	c.Check(installSystem.Err(), ErrorMatches, `(?ms)cannot perform the following tasks:
 - Setup system for run mode \(cannot install system: The horror, The horror\)`)
 	// no restart request on failure
+	c.Check(s.restartRequests, HasLen, 0)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallExpTasks(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+		return nil, nil
+	})
+	defer restore()
+
+	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+		[]byte("mode=install\n"), 0644)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	s.makeMockInstalledPcGadget(c, "dangerous", "")
+	devicestate.SetSystemMode(s.mgr, "install")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installSystem := s.findInstallSystem()
+	c.Check(installSystem.Err(), IsNil)
+
+	tasks := installSystem.Tasks()
+	c.Assert(tasks, HasLen, 2)
+	setupRunSystemTask := tasks[0]
+	restartSystemToRunModeTask := tasks[1]
+
+	c.Assert(setupRunSystemTask.Kind(), Equals, "setup-run-system")
+	c.Assert(restartSystemToRunModeTask.Kind(), Equals, "restart-system-to-run-mode")
+
+	// setup-run-system has no pre-reqs
+	c.Assert(setupRunSystemTask.WaitTasks(), HasLen, 0)
+
+	// restart-system-to-run-mode has a pre-req of setup-run-system
+	waitTasks := restartSystemToRunModeTask.WaitTasks()
+	c.Assert(waitTasks, HasLen, 1)
+	c.Assert(waitTasks[0].ID(), Equals, setupRunSystemTask.ID())
+
+	// we did request a restart through restartSystemToRunModeTask
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallSetupRunSystemTaskNoRestarts(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+		return nil, nil
+	})
+	defer restore()
+
+	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+		[]byte("mode=install\n"), 0644)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.makeMockInstalledPcGadget(c, "dangerous", "")
+	devicestate.SetSystemMode(s.mgr, "install")
+
+	// also set the system as installed so that the install-system change
+	// doesn't get automatically added and we can craft our own change with just
+	// the setup-run-system task and not with the restart-system-to-run-mode
+	// task
+	devicestate.SetInstalledRan(s.mgr, true)
+
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// make sure there is no install-system change that snuck in underneath us
+	installSystem := s.findInstallSystem()
+	c.Check(installSystem, IsNil)
+
+	t := s.state.NewTask("setup-run-system", "setup run system")
+	chg := s.state.NewChange("install-system", "install the system")
+	chg.AddTask(t)
+
+	// now let the change run
+	s.state.Unlock()
+	defer s.state.Lock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// now we should have the install-system change
+	installSystem = s.findInstallSystem()
+	c.Check(installSystem, Not(IsNil))
+	c.Check(installSystem.Err(), IsNil)
+
+	tasks := installSystem.Tasks()
+	c.Assert(tasks, HasLen, 1)
+	setupRunSystemTask := tasks[0]
+
+	c.Assert(setupRunSystemTask.Kind(), Equals, "setup-run-system")
+
+	// we did not request a restart (since that is done in restart-system-to-run-mode)
 	c.Check(s.restartRequests, HasLen, 0)
 }
 
@@ -494,6 +604,45 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredBypassEncryption(c *C) {
 	c.Assert(err, ErrorMatches, "(?s).*cannot encrypt device storage as mandated by model grade secured:.*TPM not available.*")
 }
 
+func (s *deviceMgrInstallModeSuite) TestInstallBootloaderVarSetFails(c *C) {
+	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+		c.Check(options.Encrypt, Equals, false)
+		// no keys set
+		return &install.InstalledSystemSideData{}, nil
+	})
+	defer restore()
+
+	restore = devicestate.MockBootEnsureNextBootToRunMode(func(systemLabel string) error {
+		c.Check(systemLabel, Equals, "1234")
+		// no keys set
+		return fmt.Errorf("bootloader goes boom")
+	})
+	defer restore()
+
+	restore = devicestate.MockSecbootCheckKeySealingSupported(func() error { return fmt.Errorf("no encrypted soup for you") })
+	defer restore()
+
+	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+		[]byte("mode=install\nrecovery_system=1234"), 0644)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	s.makeMockInstalledPcGadget(c, "dangerous", "")
+	devicestate.SetSystemMode(s.mgr, "install")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installSystem := s.findInstallSystem()
+	c.Check(installSystem.Err(), ErrorMatches, `cannot perform the following tasks:
+- Ensure next boot to run mode \(bootloader goes boom\)`)
+	// no restart request on failure
+	c.Check(s.restartRequests, HasLen, 0)
+}
+
 func (s *deviceMgrInstallModeSuite) testInstallEncryptionSanityChecks(c *C, errMatch string) {
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -560,7 +709,7 @@ func (s *deviceMgrInstallModeSuite) mockInstallModeChange(c *C, modelGrade, gadg
 	s.state.Unlock()
 	c.Check(mockModel.Grade(), Equals, asserts.ModelGrade(modelGrade))
 
-	restore = devicestate.MockBootMakeBootable(func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error {
+	restore = devicestate.MockBootMakeSystemRunnable(func(model *asserts.Model, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error {
 		return nil
 	})
 	defer restore()

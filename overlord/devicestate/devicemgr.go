@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -49,7 +49,9 @@ import (
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
@@ -86,6 +88,8 @@ type DeviceManager struct {
 
 	bootOkRan            bool
 	bootRevisionsUpdated bool
+
+	seedTimings *timings.Timings
 
 	ensureSeedInConfigRan bool
 
@@ -138,6 +142,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("mark-preseeded", m.doMarkPreseeded, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 	runner.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
+	runner.AddHandler("restart-system-to-run-mode", m.doRestartSystemToRunMode, nil)
 	runner.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
 	runner.AddCleanup("prepare-remodeling", m.cleanupRemodel)
 	// this *must* always run last and finalizes a remodel
@@ -186,8 +191,7 @@ func (m *DeviceManager) StartUp() error {
 
 	m.state.Lock()
 	defer m.state.Unlock()
-	// XXX preloadGadget
-	return EarlyConfig(m.state, nil)
+	return EarlyConfig(m.state, m.preloadGadget)
 }
 
 func (m *DeviceManager) maybeSetupUbuntuSave() error {
@@ -532,6 +536,99 @@ func (m *DeviceManager) setTimeOnce(name string, t time.Time) error {
 	return nil
 }
 
+func (m *DeviceManager) seedStart() (*timings.Timings, error) {
+	if m.seedTimings != nil {
+		// reuse the early cached one
+		return m.seedTimings, nil
+	}
+	perfTimings := timings.New(map[string]string{"ensure": "seed"})
+
+	var recordedStart string
+	var start time.Time
+	if m.preseed {
+		recordedStart = "preseed-start-time"
+		start = timeNow()
+	} else {
+		recordedStart = "seed-start-time"
+		start = startTime
+	}
+	if err := m.setTimeOnce(recordedStart, start); err != nil {
+		return nil, err
+	}
+	return perfTimings, nil
+}
+
+func (m *DeviceManager) preloadGadget() (*gadget.Info, error) {
+	var sysLabel string
+	modeEnv, err := maybeReadModeenv()
+	if err != nil {
+		return nil, err
+	}
+	if modeEnv != nil {
+		sysLabel = modeEnv.RecoverySystem
+	}
+
+	// we time preloadGadget + first ensureSeeded together
+	// under --ensure=seed
+	tm, err := m.seedStart()
+	if err != nil {
+		return nil, err
+	}
+	// cached for first ensureSeeded
+	m.seedTimings = tm
+
+	// Here we behave as if there was no gadget if we encounter
+	// errors, under the assumption that those will be resurfaced
+	// in ensureSeed. This preserves having a failing to seed
+	// snapd continuing running.
+	//
+	// TODO: consider changing that again but we need consider the
+	// effect of the different failure mode.
+	//
+	// We also assume that anything sensitive will not be guarded
+	// just by option flags. For example automatic user creation
+	// also requires the model to be known/set. Otherwise ignoring
+	// errors here would be problematic.
+	var deviceSeed seed.Seed
+	timings.Run(tm, "import-assertions[early]", "early import assertions from seed", func(nested timings.Measurer) {
+		deviceSeed, err = loadDeviceSeed(m.state, sysLabel)
+	})
+	if err != nil {
+		// this same error will be resurfaced in ensureSeed later
+		if err != seed.ErrNoAssertions {
+			logger.Debugf("early import assertions from seed failed: %v", err)
+		}
+		return nil, state.ErrNoState
+	}
+	model := deviceSeed.Model()
+	if model.Gadget() == "" {
+		// no gadget
+		return nil, state.ErrNoState
+	}
+	var gi *gadget.Info
+	timings.Run(tm, "preload-verified-gadget-metadata", "preload verified gadget metadata from seed", func(nested timings.Measurer) {
+		gi, err = func() (*gadget.Info, error) {
+			if err := deviceSeed.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, nested); err != nil {
+				return nil, err
+			}
+			essGadget := deviceSeed.EssentialSnaps()
+			if len(essGadget) != 1 {
+				return nil, fmt.Errorf("multiple gadgets among essential snaps are unexpected")
+			}
+			snapf, err := snapfile.Open(essGadget[0].Path)
+			if err != nil {
+				return nil, err
+			}
+			return gadget.ReadInfoFromSnapFile(snapf, model)
+		}()
+	})
+	if err != nil {
+		logger.Noticef("preload verified gadget metadata from seed failed: %v", err)
+		return nil, state.ErrNoState
+	}
+	return gi, nil
+}
+
 var populateStateFromSeed = populateStateFromSeedImpl
 
 // ensureSeeded makes sure that the snaps from seed.yaml get installed
@@ -549,24 +646,17 @@ func (m *DeviceManager) ensureSeeded() error {
 		return nil
 	}
 
-	perfTimings := timings.New(map[string]string{"ensure": "seed"})
-
 	if m.changeInFlight("seed") {
 		return nil
 	}
 
-	var recordedStart string
-	var start time.Time
-	if m.preseed {
-		recordedStart = "preseed-start-time"
-		start = timeNow()
-	} else {
-		recordedStart = "seed-start-time"
-		start = startTime
-	}
-	if err := m.setTimeOnce(recordedStart, start); err != nil {
+	perfTimings, err := m.seedStart()
+	if err != nil {
 		return err
 	}
+	// we time preloadGadget + first ensureSeeded together
+	// succcessive ensureSeeded should be timed separately
+	m.seedTimings = nil
 
 	var opts *populateStateFromSeedOptions
 	if m.preseed {
@@ -838,9 +928,19 @@ func (m *DeviceManager) ensureInstalled() error {
 
 	m.ensureInstalledRan = true
 
-	tasks := []*state.Task{}
+	var prev *state.Task
 	setupRunSystem := m.state.NewTask("setup-run-system", i18n.G("Setup system for run mode"))
-	tasks = append(tasks, setupRunSystem)
+
+	tasks := []*state.Task{setupRunSystem}
+	addTask := func(t *state.Task) {
+		t.WaitFor(prev)
+		tasks = append(tasks, t)
+		prev = t
+	}
+	prev = setupRunSystem
+
+	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
+	addTask(restartSystem)
 
 	chg := m.state.NewChange("install-system", i18n.G("Install the system"))
 	chg.AddAll(state.NewTaskSet(tasks...))
@@ -1422,7 +1522,7 @@ func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookPara
 	}
 	req := &fde.SetupRequest{
 		Op:      op,
-		Key:     &params.Key,
+		Key:     params.Key[:],
 		KeyName: params.KeyName,
 		// TODO: include boot chains
 	}

@@ -5,7 +5,8 @@ details: |
     are correct for snapfuse.
 
 # only 20.04+, we want lxd images that come with snaps preinstalled.
-systems: [ubuntu-2*]
+# TODO: enable for ubuntu-21+ once the lxd image is published
+systems: [ubuntu-20*]
 
 execute: |
     echo "Install lxd"

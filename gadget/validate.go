@@ -22,6 +22,7 @@ package gadget
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/snapcore/snapd/kernel"
@@ -337,24 +338,82 @@ func validateVolumeContentsPresence(gadgetSnapRootDir string, vol *LaidOutVolume
 }
 
 // ValidateContent checks whether the given directory contains valid matching content with respect to the given pre-validated gadget metadata.
-func ValidateContent(info *Info, gadgetSnapRootDir string) error {
+func ValidateContent(info *Info, gadgetSnapRootDir, kernelSnapRootDir string) error {
 	// TODO: also validate that only one "<bl-name>.conf" file is
 	// in the root directory of the gadget snap, because the
 	// "<bl-name>.conf" file indicates precisely which bootloader
 	// the gadget uses and as such there cannot be more than one
 	// such bootloader
 	for name, vol := range info.Volumes {
-		// At this point we don't know what kernel will be used
-		// with the gadget we we need to pass an empty kernel root
-		constraints := defaultConstraints
-		constraints.SkipResolveContent = true
-		lv, err := LayoutVolume(gadgetSnapRootDir, "", vol, constraints)
+		constraints := DefaultConstraints
+		// At this point we may not know what kernel will be used
+		// with the gadget yet. Skip this check in this case.
+		if kernelSnapRootDir == "" {
+			constraints.SkipResolveContent = true
+		}
+		lv, err := LayoutVolume(gadgetSnapRootDir, kernelSnapRootDir, vol, constraints)
 		if err != nil {
 			return fmt.Errorf("invalid layout of volume %q: %v", name, err)
 		}
 		if err := validateVolumeContentsPresence(gadgetSnapRootDir, lv); err != nil {
 			return fmt.Errorf("invalid volume %q: %v", name, err)
 		}
+	}
+
+	// Ensure that at least one kernel.yaml reference can be resolved
+	// by the gadget
+	if kernelSnapRootDir != "" {
+		kinfo, err := kernel.ReadInfo(kernelSnapRootDir)
+		if err != nil {
+			return err
+		}
+		resolvedOnce := false
+		for _, vol := range info.Volumes {
+			err := gadgetVolumeConsumesOneKernelUpdateAsset(vol, kinfo)
+			if err == nil {
+				resolvedOnce = true
+			}
+		}
+		if !resolvedOnce {
+			return fmt.Errorf("no asset from the kernel.yaml needing synced update is consumed by the gadget at %q", gadgetSnapRootDir)
+		}
+	}
+
+	return nil
+}
+
+// gadgetVolumeConsumesOneKernelUpdateAsset ensures that at least one kernel
+// assets from the kernel.yaml has a reference in the given
+// LaidOutVolume.
+func gadgetVolumeConsumesOneKernelUpdateAsset(pNew *Volume, kernelInfo *kernel.Info) error {
+	notFoundAssets := make([]string, 0, len(kernelInfo.Assets))
+	for assetName, asset := range kernelInfo.Assets {
+		if !asset.Update {
+			continue
+		}
+		for _, ps := range pNew.Structure {
+			for _, rc := range ps.Content {
+				pathOrRef := rc.UnresolvedSource
+				if !strings.HasPrefix(pathOrRef, "$kernel:") {
+					// regular asset from the gadget snap
+					continue
+				}
+				wantedAsset, _, err := splitKernelRef(pathOrRef)
+				if err != nil {
+					return err
+				}
+				if assetName == wantedAsset {
+					// found a valid kernel asset,
+					// that is enough
+					return nil
+				}
+			}
+		}
+		notFoundAssets = append(notFoundAssets, assetName)
+	}
+	if len(notFoundAssets) > 0 {
+		sort.Strings(notFoundAssets)
+		return fmt.Errorf("gadget does not consume any of the kernel assets needing synced update %s", strutil.Quoted(notFoundAssets))
 	}
 	return nil
 }

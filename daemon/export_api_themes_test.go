@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,11 +19,20 @@
 
 package daemon
 
-var (
-	SnapFileCmd = snapFileCmd
-	GetSnapFile = getSnapFile
+type (
+	ThemeStatus         = themeStatus
+	ThemeStatusResponse = themeStatusResponse
 )
 
-type (
-	FileResponse = fileResponse
+var (
+	// XXX it would be nice to not export this
+	ThemesCmd                    = themesCmd
+	InstalledThemes              = installedThemes
+	ThemePackageCandidates       = themePackageCandidates
+	ThemeStatusAndCandidateSnaps = themeStatusAndCandidateSnaps
+	CollectThemeStatusForPrefix  = collectThemeStatusForPrefix
+
+	ThemeInstalled   = themeInstalled
+	ThemeAvailable   = themeAvailable
+	ThemeUnavailable = themeUnavailable
 )

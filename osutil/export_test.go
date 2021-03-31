@@ -66,6 +66,14 @@ func MockOpenFile(new func(string, int, os.FileMode) (fileish, error)) (restore 
 	}
 }
 
+func MockSyscallSettimeofday(f func(*syscall.Timeval) error) (restore func()) {
+	old := syscallSettimeofday
+	syscallSettimeofday = f
+	return func() {
+		syscallSettimeofday = old
+	}
+}
+
 func MockUserLookup(mock func(name string) (*user.User, error)) func() {
 	realUserLookup := userLookup
 	userLookup = mock

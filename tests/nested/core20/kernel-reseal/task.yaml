@@ -35,20 +35,20 @@ execute: |
   SEALED_KEY_MTIME_1="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
   RESEAL_COUNT_1="$(nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
 
-  # Install new (unasserted) kernel and wait for reboot/change finishing
+  echo "Install new (unasserted) kernel and wait for reboot/change finishing"
   boot_id="$( nested_get_boot_id )"
   REMOTE_CHG_ID=$(nested_exec sudo snap install --dangerous new-pc-kernel.snap --no-wait)
   nested_wait_for_reboot "${boot_id}"
   nested_exec sudo snap watch "${REMOTE_CHG_ID}"
 
-  # sanity check that we are using the right kernel
+  echo "Check that we are using the right kernel"
   nested_exec sudo grep -q -a "This program cannot be run in XXX mode" /boot/grub/kernel.efi
 
-  # ensure ubuntu-data.sealed-key mtime is newer
+  echo "Check ubuntu-data.sealed-key mtime is newer"
   SEALED_KEY_MTIME_2="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
   test "$SEALED_KEY_MTIME_2" -gt "$SEALED_KEY_MTIME_1"
 
-  # check that we have boot chains
+  echo "Check that we have boot chains"
   nested_exec sudo test -e /var/lib/snapd/device/fde/boot-chains
 
   RESEAL_COUNT_2="$(nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"

@@ -84,6 +84,13 @@ execute: |
     [[ "$RESTORE_ID" == "$IMPORTED_ID" ]]
     [[ "$NUM_SAVED" == $(snap saved | wc -l) ]]
 
+    snap forget "$RESTORE_ID"
+    echo "Import re-creates snapshots directory if misssing"
+    # sanity check
+    test -d /var/lib/snapd/snapshots
+    rm -rf /var/lib/snapd/snapshots
+    RESTORE_ID=$( snap import-snapshot "${SET_ID}_export.snapshot" | head -n1 | cut -f2 -d'#' )
+
     # remove the exports and import
     rm "${SET_ID}"_export*.snapshot
     snap forget "$RESTORE_ID"
@@ -151,3 +158,11 @@ execute: |
     [[ $(snap saved | grep -c test-snapd-sh) == "1" ]]
     snap saved --id=123 | MATCH "123 .+test-snapd-sh"
     snap restore 123 test-snapd-sh
+
+    # snap configuration should work after restoring snapshots that didn't
+    # have config (LP #1917870).
+    "$TESTSTOOLS"/snaps-state install-local test-snap
+    SET_ID=$( snap save test-snap | cut -d\  -f1 | tail -n1 )
+    snap restore "$SET_ID"
+    snap set test-snap foo=baz
+    snap get test-snap foo | MATCH "baz"

@@ -108,6 +108,10 @@ close
 # needed by ls -l
 connect
 
+# the file descriptors used here will already be mediated by apparmor,
+# the 6th argument is flags, which currently is always 0
+copy_file_range - - - - - 0
+
 chroot
 
 creat

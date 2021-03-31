@@ -94,7 +94,7 @@ execute: |
     snap set core refresh.timer=managed
     snap refresh --time | MATCH 'timer: managed'
 
-    # make sure we trigger a refresh for hints at least once
+    echo "Check that we trigger a refresh for hints at least once"
     systemctl stop snapd.socket snapd.service
     jq ".data[\"last-refresh\"] = \"2007-08-22T09:30:44.449455783+01:00\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
@@ -114,6 +114,10 @@ execute: |
     jq ".data[\"last-refresh\"] = \"$(date +%Y-%m-%dT%H:%M:%S%:z)\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
     systemctl start snapd.socket snapd.service
+
+    # unset because 'managed' will not be rejected if is already set in state.
+    snap unset core refresh.schedule
+    snap unset core refresh.timer
 
     echo "When the snapd-control-with-manage plug is disconnected"
     snap disconnect test-snapd-control-consumer:snapd-control-with-manage

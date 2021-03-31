@@ -585,7 +585,7 @@ func (s *secbootSuite) TestEFIImageFromBootFile(c *C) {
 		{
 			// happy case for snap file
 			bootFile: bootloader.NewBootFile(snapFile, "rel", bootloader.RoleRecovery),
-			efiImage: sb.SnapFileEFIImage{Container: snapf, Path: snapFile, FileName: "rel"},
+			efiImage: sb.SnapFileEFIImage{Container: snapf, FileName: "rel"},
 		},
 		{
 			// invalid snap file
@@ -731,7 +731,6 @@ func (s *secbootSuite) TestSealKey(c *C) {
 						Source: sb.Shim,
 						Image: sb.SnapFileEFIImage{
 							Container: kernelSnap,
-							Path:      mockBF[4].Snap,
 							FileName:  "kernel.efi",
 						},
 					},
@@ -751,7 +750,6 @@ func (s *secbootSuite) TestSealKey(c *C) {
 						Source: sb.Shim,
 						Image: sb.SnapFileEFIImage{
 							Container: kernelSnap,
-							Path:      mockBF[4].Snap,
 							FileName:  "kernel.efi",
 						},
 					},
@@ -765,7 +763,6 @@ func (s *secbootSuite) TestSealKey(c *C) {
 						Source: sb.Shim,
 						Image: sb.SnapFileEFIImage{
 							Container: kernelSnap,
-							Path:      mockBF[4].Snap,
 							FileName:  "kernel.efi",
 						},
 					},
@@ -1082,7 +1079,7 @@ func createMockSnapFile(snapDir, snapPath, snapType string) (snap.Container, err
 }
 
 func mockSbTPMConnection(c *C, tpmErr error) (*sb.TPMConnection, func()) {
-	tcti, err := os.Open("/dev/null")
+	tcti, err := tpm2.OpenTPMDevice("/dev/null")
 	c.Assert(err, IsNil)
 	tpmctx, err := tpm2.NewTPMContext(tcti)
 	c.Assert(err, IsNil)
@@ -1162,7 +1159,7 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyTruncatesStreamFiles(c *C) {
 	// this test uses a real systemd-run --user so check here if that
 	// actually works
-	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "true").CombinedOutput(); err != nil {
+	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "--service-type=exec", "true").CombinedOutput(); err != nil {
 		c.Skip(fmt.Sprintf("systemd-run not working: %v", osutil.OutputErr(output, err)))
 	}
 
@@ -1264,7 +1261,7 @@ service result: exit-code
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(c *C) {
 	// this test uses a real systemd-run --user so check here if that
 	// actually works
-	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "true").CombinedOutput(); err != nil {
+	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "--service-type=exec", "/bin/true").CombinedOutput(); err != nil {
 		c.Skip(fmt.Sprintf("systemd-run not working: %v", osutil.OutputErr(output, err)))
 	}
 
@@ -1302,7 +1299,7 @@ service result: exit-code
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKey(c *C) {
 	// this test uses a real systemd-run --user so check here if that
 	// actually works
-	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "true").CombinedOutput(); err != nil {
+	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "--service-type=exec", "/bin/true").CombinedOutput(); err != nil {
 		c.Skip(fmt.Sprintf("systemd-run not working: %v", osutil.OutputErr(output, err)))
 	}
 
@@ -1363,7 +1360,7 @@ printf "unsealed-key-from-hook"
 func (s *secbootSuite) TestLockSealedKeysCallsFdeReveal(c *C) {
 	// this test uses a real systemd-run --user so check here if that
 	// actually works
-	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "true").CombinedOutput(); err != nil {
+	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "--service-type=exec", "/bin/true").CombinedOutput(); err != nil {
 		c.Skip(fmt.Sprintf("systemd-run not working: %v", osutil.OutputErr(output, err)))
 	}
 
@@ -1394,7 +1391,7 @@ cat - > %s
 func (s *secbootSuite) TestLockSealedKeysHonorsRuntimeMax(c *C) {
 	// this test uses a real systemd-run --user so check here if that
 	// actually works
-	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "true").CombinedOutput(); err != nil {
+	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "--service-type=exec", "/bin/true").CombinedOutput(); err != nil {
 		c.Skip(fmt.Sprintf("systemd-run not working: %v", osutil.OutputErr(output, err)))
 	}
 
@@ -1421,7 +1418,7 @@ func (s *secbootSuite) TestLockSealedKeysHonorsRuntimeMax(c *C) {
 func (s *secbootSuite) TestLockSealedKeysHonorsParanoia(c *C) {
 	// this test uses a real systemd-run --user so check here if that
 	// actually works
-	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "true").CombinedOutput(); err != nil {
+	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "--service-type=exec", "/bin/true").CombinedOutput(); err != nil {
 		c.Skip(fmt.Sprintf("systemd-run not working: %v", osutil.OutputErr(output, err)))
 	}
 

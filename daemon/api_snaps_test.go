@@ -37,7 +37,7 @@ import (
 
 	"gopkg.in/check.v1"
 
-	//"github.com/snapcore/snapd/arch"
+	"github.com/snapcore/snapd/arch"
 	//"github.com/snapcore/snapd/asserts"
 	//"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/client"
@@ -51,8 +51,8 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/sandbox"
 	"github.com/snapcore/snapd/snap"
-	//"github.com/snapcore/snapd/snap/channel"
-	//"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -867,45 +867,52 @@ UnitFileState=enabled
 				}, {
 					// services
 					Snap: "foo", Name: "svc1",
-					Daemon:  "simple",
-					Enabled: true,
-					Active:  false,
+					Daemon:      "simple",
+					DaemonScope: snap.SystemDaemon,
+					Enabled:     true,
+					Active:      false,
 				}, {
 					Snap: "foo", Name: "svc2",
-					Daemon:  "forking",
-					Enabled: false,
-					Active:  true,
+					Daemon:      "forking",
+					DaemonScope: snap.SystemDaemon,
+					Enabled:     false,
+					Active:      true,
 				}, {
 					Snap: "foo", Name: "svc3",
-					Daemon:  "oneshot",
-					Enabled: true,
-					Active:  true,
+					Daemon:      "oneshot",
+					DaemonScope: snap.SystemDaemon,
+					Enabled:     true,
+					Active:      true,
 				}, {
 					Snap: "foo", Name: "svc4",
-					Daemon:  "notify",
-					Enabled: false,
-					Active:  false,
+					Daemon:      "notify",
+					DaemonScope: snap.SystemDaemon,
+					Enabled:     false,
+					Active:      false,
 				}, {
 					Snap: "foo", Name: "svc5",
-					Daemon:  "simple",
-					Enabled: true,
-					Active:  false,
+					Daemon:      "simple",
+					DaemonScope: snap.SystemDaemon,
+					Enabled:     true,
+					Active:      false,
 					Activators: []client.AppActivator{
 						{Name: "svc5", Type: "timer", Active: true, Enabled: true},
 					},
 				}, {
 					Snap: "foo", Name: "svc6",
-					Daemon:  "simple",
-					Enabled: true,
-					Active:  false,
+					Daemon:      "simple",
+					DaemonScope: snap.SystemDaemon,
+					Enabled:     true,
+					Active:      false,
 					Activators: []client.AppActivator{
 						{Name: "sock", Type: "socket", Active: true, Enabled: true},
 					},
 				}, {
 					Snap: "foo", Name: "svc7",
-					Daemon:  "simple",
-					Enabled: true,
-					Active:  false,
+					Daemon:      "simple",
+					DaemonScope: snap.SystemDaemon,
+					Enabled:     true,
+					Active:      false,
 					Activators: []client.AppActivator{
 						{Name: "other-sock", Type: "socket", Active: false, Enabled: true},
 					},
@@ -1959,4 +1966,150 @@ func (s *snapsSuite) TestRevertSnapToRevisionClassic(c *check.C) {
 	inst.Revision = snap.R(1)
 	inst.Classic = true
 	s.testRevertSnap(inst, c)
+}
+
+func (s *snapsSuite) TestErrToResponseNoSnapsDoesNotPanic(c *check.C) {
+	si := &daemon.SnapInstruction{Action: "frobble"}
+	errors := []error{
+		store.ErrSnapNotFound,
+		&store.RevisionNotAvailableError{},
+		store.ErrNoUpdateAvailable,
+		store.ErrLocalSnap,
+		&snap.AlreadyInstalledError{Snap: "foo"},
+		&snap.NotInstalledError{Snap: "foo"},
+		&snapstate.SnapNeedsDevModeError{Snap: "foo"},
+		&snapstate.SnapNeedsClassicError{Snap: "foo"},
+		&snapstate.SnapNeedsClassicSystemError{Snap: "foo"},
+		fakeNetError{message: "other"},
+		fakeNetError{message: "timeout", timeout: true},
+		fakeNetError{message: "temp", temporary: true},
+		errors.New("some other error"),
+	}
+
+	for _, err := range errors {
+		rsp := si.ErrToResponse(err)
+		com := check.Commentf("%v", err)
+		c.Check(rsp, check.NotNil, com)
+		status := rsp.(*daemon.Resp).Status
+		c.Check(status/100 == 4 || status/100 == 5, check.Equals, true, com)
+	}
+}
+
+func (s *snapsSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
+	si := &daemon.SnapInstruction{Action: "frobble", Snaps: []string{"foo"}}
+
+	thisArch := arch.DpkgArchitecture()
+
+	err := &store.RevisionNotAvailableError{
+		Action:  "install",
+		Channel: "stable",
+		Releases: []channel.Channel{
+			snaptest.MustParseChannel("beta", thisArch),
+		},
+	}
+	rsp := si.ErrToResponse(err).(*daemon.Resp)
+	c.Check(rsp, check.DeepEquals, &daemon.Resp{
+		Status: 404,
+		Type:   daemon.ResponseTypeError,
+		Result: &daemon.ErrorResult{
+			Message: "no snap revision on specified channel",
+			Kind:    client.ErrorKindSnapChannelNotAvailable,
+			Value: map[string]interface{}{
+				"snap-name":    "foo",
+				"action":       "install",
+				"channel":      "stable",
+				"architecture": thisArch,
+				"releases": []map[string]interface{}{
+					{"architecture": thisArch, "channel": "beta"},
+				},
+			},
+		},
+	})
+
+	err = &store.RevisionNotAvailableError{
+		Action:  "install",
+		Channel: "stable",
+		Releases: []channel.Channel{
+			snaptest.MustParseChannel("beta", "other-arch"),
+		},
+	}
+	rsp = si.ErrToResponse(err).(*daemon.Resp)
+	c.Check(rsp, check.DeepEquals, &daemon.Resp{
+		Status: 404,
+		Type:   daemon.ResponseTypeError,
+		Result: &daemon.ErrorResult{
+			Message: "no snap revision on specified architecture",
+			Kind:    client.ErrorKindSnapArchitectureNotAvailable,
+			Value: map[string]interface{}{
+				"snap-name":    "foo",
+				"action":       "install",
+				"channel":      "stable",
+				"architecture": thisArch,
+				"releases": []map[string]interface{}{
+					{"architecture": "other-arch", "channel": "beta"},
+				},
+			},
+		},
+	})
+
+	err = &store.RevisionNotAvailableError{}
+	rsp = si.ErrToResponse(err).(*daemon.Resp)
+	c.Check(rsp, check.DeepEquals, &daemon.Resp{
+		Status: 404,
+		Type:   daemon.ResponseTypeError,
+		Result: &daemon.ErrorResult{
+			Message: "no snap revision available as specified",
+			Kind:    client.ErrorKindSnapRevisionNotAvailable,
+			Value:   "foo",
+		},
+	})
+}
+
+func (s *snapsSuite) TestErrToResponseForChangeConflict(c *check.C) {
+	si := &daemon.SnapInstruction{Action: "frobble", Snaps: []string{"foo"}}
+
+	err := &snapstate.ChangeConflictError{Snap: "foo", ChangeKind: "install"}
+	rsp := si.ErrToResponse(err).(*daemon.Resp)
+	c.Check(rsp, check.DeepEquals, &daemon.Resp{
+		Status: 409,
+		Type:   daemon.ResponseTypeError,
+		Result: &daemon.ErrorResult{
+			Message: `snap "foo" has "install" change in progress`,
+			Kind:    client.ErrorKindSnapChangeConflict,
+			Value: map[string]interface{}{
+				"snap-name":   "foo",
+				"change-kind": "install",
+			},
+		},
+	})
+
+	// only snap
+	err = &snapstate.ChangeConflictError{Snap: "foo"}
+	rsp = si.ErrToResponse(err).(*daemon.Resp)
+	c.Check(rsp, check.DeepEquals, &daemon.Resp{
+		Status: 409,
+		Type:   daemon.ResponseTypeError,
+		Result: &daemon.ErrorResult{
+			Message: `snap "foo" has changes in progress`,
+			Kind:    client.ErrorKindSnapChangeConflict,
+			Value: map[string]interface{}{
+				"snap-name": "foo",
+			},
+		},
+	})
+
+	// only kind
+	err = &snapstate.ChangeConflictError{Message: "specific error msg", ChangeKind: "some-global-op"}
+	rsp = si.ErrToResponse(err).(*daemon.Resp)
+	c.Check(rsp, check.DeepEquals, &daemon.Resp{
+		Status: 409,
+		Type:   daemon.ResponseTypeError,
+		Result: &daemon.ErrorResult{
+			Message: "specific error msg",
+			Kind:    client.ErrorKindSnapChangeConflict,
+			Value: map[string]interface{}{
+				"change-kind": "some-global-op",
+			},
+		},
+	})
 }
