@@ -45,6 +45,7 @@ var piConfigKeys = map[string]bool{
 	"overscan_bottom":          true,
 	"overscan_scale":           true,
 	"display_rotate":           true,
+	"hdmi_cvt":                 true,
 	"hdmi_group":               true,
 	"hdmi_mode":                true,
 	"hdmi_timings":             true,

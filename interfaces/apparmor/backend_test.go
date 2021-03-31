@@ -1279,6 +1279,8 @@ func (s *backendSuite) TestSnapConfineProfileDiscardedLateSnapd(c *C) {
 	c.Assert(err, IsNil)
 	// sanity
 	c.Assert(filepath.Join(dirs.SnapAppArmorDir, "snap-confine.snapd.222"), testutil.FilePresent)
+	// place a canary
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapAppArmorDir, "snap-confine.snapd.111"), nil, 0644), IsNil)
 
 	// backed implements the right interface
 	late, ok := s.Backend.(interfaces.SecurityBackendDiscardingLate)
@@ -1286,6 +1288,8 @@ func (s *backendSuite) TestSnapConfineProfileDiscardedLateSnapd(c *C) {
 	err = late.RemoveLate(snapdInfo.InstanceName(), snapdInfo.Revision, snapdInfo.Type())
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(dirs.SnapAppArmorDir, "snap-confine.snapd.222"), testutil.FileAbsent)
+	// but the canary is still present
+	c.Assert(filepath.Join(dirs.SnapAppArmorDir, "snap-confine.snapd.111"), testutil.FilePresent)
 }
 
 func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {

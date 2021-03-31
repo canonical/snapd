@@ -205,8 +205,7 @@ func (s *applyCfgSuite) TestEmptyRootDir(c *C) {
 }
 
 func (s *applyCfgSuite) TestSmoke(c *C) {
-	conf := &mockConf{}
-	c.Assert(configcore.FilesystemOnlyApply(s.tmpDir, conf, nil), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(s.tmpDir, map[string]interface{}{}, nil), IsNil)
 }
 
 func (s *applyCfgSuite) TestPlainCoreConfigGetErrorIfNotCore(c *C) {
