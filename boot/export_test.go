@@ -189,3 +189,11 @@ func MockResealKeyToModeenvUsingFDESetupHook(f func(string, *asserts.Model, *Mod
 		resealKeyToModeenvUsingFDESetupHook = old
 	}
 }
+
+func MockAdditionalBootFlags(bootFlags []string) (restore func()) {
+	old := understoodBootFlags
+	understoodBootFlags = append(understoodBootFlags, bootFlags...)
+	return func() {
+		understoodBootFlags = old
+	}
+}
