@@ -1,5 +1,7 @@
 summary: Check internal vendored apparmor in snapd snap
 
+manual: true
+
 environment:
     AAP: /var/lib/snapd/apparmor/profiles/snap.test-snapd-setpriority.test-snapd-setpriority
 
