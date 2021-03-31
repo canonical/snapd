@@ -515,22 +515,25 @@ func resealFallbackObjectKeys(pbc predictableBootChains, authKeyFile string, rol
 
 func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAssetsBootloader, model *asserts.Model, modeenv *Modeenv) (chains []bootChain, err error) {
 	for _, system := range systems {
-		// get the command line
-		cmdline, err := ComposeRecoveryCommandLine(model, system, "")
-		if err != nil {
-			return nil, fmt.Errorf("cannot obtain recovery kernel command line: %v", err)
-		}
-
-		// get kernel information from seed
+		// get kernel and gadget information from seed
 		perf := timings.New(nil)
-		_, snaps, err := seedReadSystemEssential(dirs.SnapSeedDir, system, []snap.Type{snap.TypeKernel}, perf)
+		_, snaps, err := seedReadSystemEssential(dirs.SnapSeedDir, system, []snap.Type{snap.TypeKernel, snap.TypeGadget}, perf)
 		if err != nil {
 			return nil, fmt.Errorf("cannot read system %q seed: %v", system, err)
 		}
-		if len(snaps) != 1 {
-			return nil, fmt.Errorf("cannot obtain recovery kernel snap")
+		if len(snaps) != 2 {
+			return nil, fmt.Errorf("cannot obtain recovery system snaps")
 		}
-		seedKernel := snaps[0]
+		seedKernel, seedGadget := snaps[0], snaps[1]
+		if snaps[0].EssentialType == snap.TypeGadget {
+			seedKernel, seedGadget = seedGadget, seedKernel
+		}
+
+		// get the command line
+		cmdline, err := ComposeRecoveryCommandLine(model, system, seedGadget.Path)
+		if err != nil {
+			return nil, fmt.Errorf("cannot obtain recovery kernel command line: %v", err)
+		}
 
 		var kernelRev string
 		if seedKernel.SideInfo.Revision.Store() {
