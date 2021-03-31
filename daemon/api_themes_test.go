@@ -292,7 +292,7 @@ slots:
 	}
 
 	ctx := context.Background()
-	status, candidateSnaps, err := daemon.ThemeStatusAndCandidateSnaps(ctx, daemon.ThemesCmd, nil, []string{"Foo-gtk", "Bar-gtk", "Baz-gtk"}, []string{"Foo-icons", "Bar-icons", "Baz-icons"}, []string{"Foo-sounds", "Bar-sounds", "Baz-sounds"})
+	status, candidateSnaps, err := daemon.ThemeStatusAndCandidateSnaps(ctx, s.d, nil, []string{"Foo-gtk", "Bar-gtk", "Baz-gtk"}, []string{"Foo-icons", "Bar-icons", "Baz-icons"}, []string{"Foo-sounds", "Bar-sounds", "Baz-sounds"})
 	c.Check(err, IsNil)
 	c.Check(status.GtkThemes, DeepEquals, map[string]daemon.ThemeStatus{
 		"Foo-gtk": daemon.ThemeInstalled,

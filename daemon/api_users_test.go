@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os/user"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -408,6 +409,14 @@ func (s *userSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
 	c.Check(rsp.Status, check.Equals, 401)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, "invalid credentials")
+}
+
+func (s *userSuite) TestUsersOnlyRoot(c *check.C) {
+	for _, cmd := range daemon.APICommands() {
+		if strings.Contains(cmd.Path, "user") {
+			c.Check(cmd.RootOnly, check.Equals, true, check.Commentf(cmd.Path))
+		}
+	}
 }
 
 func (s *userSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
