@@ -2464,12 +2464,13 @@ func (s *gadgetYamlTestSuite) TestKernelCommandLineBasic(c *C) {
 	}
 }
 
-func (s *gadgetYamlTestSuite) TestKernelCommandLineArgs(c *C) {
+func (s *gadgetYamlTestSuite) testKernelCommandLineArgs(c *C, whichCmdline string) {
+	c.Logf("checking %v", whichCmdline)
 	// mock test snap creates a snap directory
 	info := snaptest.MockSnapWithFiles(c, string(mockSnapYaml),
 		&snap.SideInfo{Revision: snap.R(1234)},
 		[][]string{
-			{"cmdline.extra", "## TO BE FILLED BY TEST ##"},
+			{whichCmdline, "## TO BE FILLED BY TEST ##"},
 		})
 	snapf, err := snapfile.Open(info.MountDir())
 	c.Assert(err, IsNil)
@@ -2481,7 +2482,8 @@ func (s *gadgetYamlTestSuite) TestKernelCommandLineArgs(c *C) {
 	}
 
 	for _, arg := range allowedArgs {
-		err := ioutil.WriteFile(filepath.Join(info.MountDir(), "cmdline.extra"), []byte(arg), 0644)
+		c.Logf("trying allowed arg: %q", arg)
+		err := ioutil.WriteFile(filepath.Join(info.MountDir(), whichCmdline), []byte(arg), 0644)
 		c.Assert(err, IsNil)
 
 		cmdline, _, err := gadget.KernelCommandLineFromGadget(snapf)
@@ -2499,11 +2501,20 @@ func (s *gadgetYamlTestSuite) TestKernelCommandLineArgs(c *C) {
 	}
 
 	for _, arg := range disallowedArgs {
-		err := ioutil.WriteFile(filepath.Join(info.MountDir(), "cmdline.extra"), []byte(arg), 0644)
+		c.Logf("trying disallowed arg: %q", arg)
+		err := ioutil.WriteFile(filepath.Join(info.MountDir(), whichCmdline), []byte(arg), 0644)
 		c.Assert(err, IsNil)
 
 		cmdline, _, err := gadget.KernelCommandLineFromGadget(snapf)
 		c.Assert(err, ErrorMatches, `disallowed kernel argument ".*"`)
 		c.Check(cmdline, Equals, "")
 	}
+}
+
+func (s *gadgetYamlTestSuite) TestKernelCommandLineArgsExtra(c *C) {
+	s.testKernelCommandLineArgs(c, "cmdline.extra")
+}
+
+func (s *gadgetYamlTestSuite) TestKernelCommandLineArgsFull(c *C) {
+	s.testKernelCommandLineArgs(c, "cmdline.full")
 }
