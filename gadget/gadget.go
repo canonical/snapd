@@ -1001,6 +1001,10 @@ var disallowedKernelArguments = []string{
 	"init",
 }
 
+// isKernelArgumentAllowed checks whether the kernel command line argument is
+// allowed. Prohibits all arguments listed explicitly in
+// disallowedKernelArguments list and those prefixed with snapd, with exception
+// of snapd.debug. All other arguments are allowed.
 func isKernelArgumentAllowed(arg string) bool {
 	if strings.HasPrefix(arg, "snapd") && arg != "snapd.debug" {
 		return false
@@ -1013,12 +1017,12 @@ func isKernelArgumentAllowed(arg string) bool {
 
 var ErrNoKernelCommandline = errors.New("no kernel command line in the gadget")
 
-// KernelCommandLine returns the desired kernel command line provided by the
+// KernelCommandLineFromGadget returns the desired kernel command line provided by the
 // gadget. The full flag indicates whether the gadget provides a full command
 // line or just the extra parameters that will be appended to the static ones.
 // An ErrNoKernelCommandline is returned when thea gadget does not set any
 // kernel command line.
-func KernelCommandLine(snapf snap.Container) (cmdline string, full bool, err error) {
+func KernelCommandLineFromGadget(snapf snap.Container) (cmdline string, full bool, err error) {
 	contentExtra, err := snapf.ReadFile("cmdline.extra")
 	if err != nil && !os.IsNotExist(err) {
 		return "", false, err

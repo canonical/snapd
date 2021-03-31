@@ -2451,7 +2451,7 @@ func (s *gadgetYamlTestSuite) TestKernelCommandLineBasic(c *C) {
 		snapf, err := snapfile.Open(snapPath)
 		c.Assert(err, IsNil)
 
-		cmdline, full, err := gadget.KernelCommandLine(snapf)
+		cmdline, full, err := gadget.KernelCommandLineFromGadget(snapf)
 		if tc.err != "" {
 			c.Assert(err, ErrorMatches, tc.err)
 			c.Check(cmdline, Equals, "")
@@ -2484,7 +2484,7 @@ func (s *gadgetYamlTestSuite) TestKernelCommandLineArgs(c *C) {
 		err := ioutil.WriteFile(filepath.Join(info.MountDir(), "cmdline.extra"), []byte(arg), 0644)
 		c.Assert(err, IsNil)
 
-		cmdline, _, err := gadget.KernelCommandLine(snapf)
+		cmdline, _, err := gadget.KernelCommandLineFromGadget(snapf)
 		c.Assert(err, IsNil)
 		c.Check(cmdline, Equals, arg)
 	}
@@ -2502,7 +2502,7 @@ func (s *gadgetYamlTestSuite) TestKernelCommandLineArgs(c *C) {
 		err := ioutil.WriteFile(filepath.Join(info.MountDir(), "cmdline.extra"), []byte(arg), 0644)
 		c.Assert(err, IsNil)
 
-		cmdline, _, err := gadget.KernelCommandLine(snapf)
+		cmdline, _, err := gadget.KernelCommandLineFromGadget(snapf)
 		c.Assert(err, ErrorMatches, `disallowed kernel argument ".*"`)
 		c.Check(cmdline, Equals, "")
 	}
