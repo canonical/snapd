@@ -57,10 +57,6 @@ type SetupRequest struct {
 	Key     []byte `json:"key,omitempty"`
 	KeyName string `json:"key-name,omitempty"`
 
-	// List of models with their related fields, this will be set
-	// to follow the secboot:SnapModel interface.
-	Models []map[string]string `json:"models,omitempty"`
-
 	// TODO: provide LoadChains, KernelCmdline etc to support full
 	//       tpm sealing
 }

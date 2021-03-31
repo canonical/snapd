@@ -1329,7 +1329,7 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetup(c *C) {
 
 	st.Lock()
 	makeInstalledMockKernelSnap(c, st, kernelYamlWithFdeSetup)
-	mockModel := s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1355,15 +1355,6 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetup(c *C) {
 			Op:      "initial-setup",
 			Key:     mockKey[:],
 			KeyName: "some-key-name",
-			Models: []map[string]string{
-				{
-					"series":     "16",
-					"brand-id":   "canonical",
-					"model":      "pc",
-					"grade":      "unset",
-					"signkey-id": mockModel.SignKeyID(),
-				},
-			},
 		})
 
 		// the snapctl fde-setup-result will set the data
@@ -1381,7 +1372,6 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetup(c *C) {
 	params := &boot.FDESetupHookParams{
 		Key:     mockKey,
 		KeyName: "some-key-name",
-		Models:  []*asserts.Model{mockModel},
 	}
 	st.Lock()
 	data, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, "initial-setup", params)
@@ -1396,7 +1386,7 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetupErrors(c *C) {
 
 	st.Lock()
 	makeInstalledMockKernelSnap(c, st, kernelYamlWithFdeSetup)
-	mockModel := s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1420,7 +1410,6 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetupErrors(c *C) {
 	params := &boot.FDESetupHookParams{
 		Key:     secboot.EncryptionKey{1, 2, 3, 4},
 		KeyName: "some-key-name",
-		Models:  []*asserts.Model{mockModel},
 	}
 	st.Lock()
 	_, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, "initial-setup", params)
@@ -1433,7 +1422,7 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetupErrorResult(c *C) {
 
 	st.Lock()
 	makeInstalledMockKernelSnap(c, st, kernelYamlWithFdeSetup)
-	mockModel := s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
 		"architecture": "amd64",
 		"kernel":       "pc-kernel",
 		"gadget":       "pc",
@@ -1464,7 +1453,6 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetupErrorResult(c *C) {
 	params := &boot.FDESetupHookParams{
 		Key:     secboot.EncryptionKey{1, 2, 3, 4},
 		KeyName: "some-key-name",
-		Models:  []*asserts.Model{mockModel},
 	}
 	st.Lock()
 	_, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, "initial-setup", params)
