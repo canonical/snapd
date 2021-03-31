@@ -442,10 +442,10 @@ func (*systemd) LogReader(serviceNames []string, n int, follow bool) (io.ReadClo
 var statusregex = regexp.MustCompile(`(?m)^(?:(.+?)=(.*)|(.*))?$`)
 
 type UnitStatus struct {
-	Daemon    string
-	UnitName  string
-	Enabled   bool
-	Active    bool
+	Daemon   string
+	UnitName string
+	Enabled  bool
+	Active   bool
 	// Installed is false if the queried unit doesn't exist.
 	Installed bool
 }
