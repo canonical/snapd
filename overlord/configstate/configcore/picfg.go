@@ -98,13 +98,9 @@ func piConfigFile(opts *fsOnlyContext) (string, error) {
 		// not a filesystem only apply, so we may be operating on a run system
 		// on UC20, in which case we shouldn't use the /boot/uboot/ option and
 		// instead should use /run/mnt/ubuntu-seed/
-		kCmdlineVals, err := osutil.KernelCommandLineKeyValues("snapd_recovery_mode")
-		if err != nil {
-			return "", err
-		}
-
+		mode, _, _ := boot.ModeAndRecoverySystemFromKernelCommandLine()
 		// TODO: what about recover mode?
-		if kCmdlineVals["snapd_recovery_mode"] == "run" {
+		if mode == boot.ModeRun {
 			rootDir = boot.InitramfsUbuntuSeedDir
 			subdir = ""
 		}
