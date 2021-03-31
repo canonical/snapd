@@ -20,5 +20,5 @@
 package daemon
 
 var (
-	CohortsCmd = cohortsCmd
+	MinLane = minLane
 )

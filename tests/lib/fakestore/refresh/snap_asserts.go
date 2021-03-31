@@ -21,6 +21,7 @@ package refresh
 
 import (
 	"fmt"
+	"io/ioutil"
 	"path/filepath"
 	"strings"
 	"time"
@@ -36,7 +37,7 @@ func snapNameFromPath(snapPath string) string {
 // TODO: also support reading/copying form a store snap
 
 func NewSnapRevision(targetDir string, snap string, headers map[string]interface{}) (string, error) {
-	db, err := newAssertsDB()
+	db, err := newAssertsDB(systestkeys.TestStorePrivKey)
 	if err != nil {
 		return "", err
 	}
@@ -68,7 +69,7 @@ func NewSnapRevision(targetDir string, snap string, headers map[string]interface
 }
 
 func NewSnapDeclaration(targetDir string, snap string, headers map[string]interface{}) (string, error) {
-	db, err := newAssertsDB()
+	db, err := newAssertsDB(systestkeys.TestStorePrivKey)
 	if err != nil {
 		return "", err
 	}
@@ -91,5 +92,43 @@ func NewSnapDeclaration(targetDir string, snap string, headers map[string]interf
 	if err != nil {
 		return "", err
 	}
+	return writeAssert(a, targetDir)
+}
+
+// NewRepair signs a repair assertion, including the specified script as the
+// body of the assertion.
+func NewRepair(targetDir string, scriptFilename string, headers map[string]interface{}) (string, error) {
+	// use the separate root of trust for signing repair assertions
+	db, err := newAssertsDB(systestkeys.TestRepairRootPrivKey)
+	if err != nil {
+		return "", err
+	}
+
+	fallbacks := map[string]interface{}{
+		"brand-id":  "testrootorg",
+		"repair-id": "1",
+		"summary":   "some test keys repair",
+	}
+	for k, v := range fallbacks {
+		if _, ok := headers[k]; !ok {
+			headers[k] = v
+		}
+	}
+
+	scriptBodyBytes, err := ioutil.ReadFile(scriptFilename)
+	if err != nil {
+		return "", err
+	}
+
+	headers["authority-id"] = "testrootorg"
+	// note that series is a list for repair assertions
+	headers["series"] = []interface{}{"16"}
+	headers["timestamp"] = time.Now().Format(time.RFC3339)
+
+	a, err := db.Sign(asserts.RepairType, headers, scriptBodyBytes, systestkeys.TestRepairKeyID)
+	if err != nil {
+		return "", err
+	}
+
 	return writeAssert(a, targetDir)
 }

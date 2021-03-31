@@ -1,6 +1,6 @@
 summary: Check that ubuntu-save is set up in a UC20 device
 
-description: |
+details: |
     This test checks that ubuntu-save is preset and set up correctly in a UC20
     device or that a device can boot when ubuntu-save is not required
 
@@ -47,12 +47,12 @@ execute: |
     . "$TESTSLIB/nested.sh"
 
     if [ "${NESTED_UBUNTU_SAVE:-}" != "add" ] && [ "$NESTED_ENABLE_TPM" != "true" ]; then
-        # no ubuntu-save, make sure one isn't mounted
+        echo "Check that ubuntu-save is not mounted"
         nested_exec "! mountpoint /run/mnt/ubuntu-save"
         nested_exec "! mountpoint /var/lib/snapd/save"
     else
-        # check that ubuntu-save is mounted and has a reasonable amount of free
-        # space, example df output:
+        echo "Check that ubuntu-save is mounted and has a reasonable amount of free space"
+        #example df output:
         # Filesystem                                                   1B-blocks  Used Available Use% Mounted on
         # /dev/mapper/ubuntu-save-0bed13ef-f71f-418f-b046-b1ce32dd04a7   5079040 28672   4390912   1% /run/mnt/ubuntu-save
         save_out="$(nested_exec "df -B1 /run/mnt/ubuntu-save | tail -1")"
@@ -64,6 +64,7 @@ execute: |
             echo "$save_out" | MATCH '^/dev/vda[0-9]\s+'
         fi
         save_size="$(echo "$save_out" | awk '{print $4}')"
+        
         echo "check that there is at least 6MB of free space available on ubuntu-save"
         test "$save_size" -gt "$((6*1024*1024))"
 
@@ -77,7 +78,7 @@ execute: |
         nested_exec "test -f /var/lib/snapd/save/canary"
     fi
 
-    # transition to recovery mode and check again
+    echo "Transition to recovery mode and check again"
     recovery_system=$(nested_exec "sudo snap recovery | grep -v Notes | grep -Po '^[0-9]+'")
     nested_uc20_transition_to_system_mode "$recovery_system" "recover"
 

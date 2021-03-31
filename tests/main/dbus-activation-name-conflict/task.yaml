@@ -7,7 +7,6 @@ prepare: |
 restore: |
     snap unset system experimental.dbus-activation
     snap unset system experimental.user-daemons
-    rm -f error.txt
 
 execute: |
     if ! tests.session has-system-systemd-and-dbus; then

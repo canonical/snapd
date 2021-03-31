@@ -32,8 +32,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-var MinLane = minLane
-
 func NewAndAddRoutes() (*Daemon, error) {
 	d, err := New()
 	if err != nil {
@@ -191,9 +189,16 @@ func MockSnapstateRemoveMany(mock func(*state.State, []string) ([]string, []*sta
 
 type (
 	Resp            = resp
+	RespJSON        = respJSON
+	FileResponse    = fileResponse
 	ErrorResult     = errorResult
 	SnapInstruction = snapInstruction
 )
+
+// XXX this is not used very consistently
+func (rsp *resp) ErrorResult() *errorResult {
+	return rsp.Result.(*errorResult)
+}
 
 func (inst *snapInstruction) Dispatch() snapActionFunc {
 	return inst.dispatch()
@@ -210,3 +215,12 @@ func (inst *snapInstruction) SetUserID(userID int) {
 func (inst *snapInstruction) ModeFlags() (snapstate.Flags, error) {
 	return inst.modeFlags()
 }
+
+func (inst *snapInstruction) ErrToResponse(err error) Response {
+	return inst.errToResponse(err)
+}
+
+var (
+	MakeErrorResponder = makeErrorResponder
+	ErrToResponse      = errToResponse
+)

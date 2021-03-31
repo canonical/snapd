@@ -724,3 +724,36 @@ func (s *snapdOnCoreUnlinkSuite) TestUnlinkNonFirstSnapdOnCoreDoesNothing(c *C) 
 	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FilePresent)
 	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FileEquals, "refresh")
 }
+
+func (s *linkSuite) TestLinkOptRequiresTooling(c *C) {
+	const yaml = `name: hello
+version: 1.0
+
+apps:
+ svc:
+   command: svc
+   daemon: simple
+`
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
+
+	linkCtxWithTooling := backend.LinkContext{
+		RequireMountedSnapdSnap: true,
+	}
+	_, err := s.be.LinkSnap(info, mockDev, linkCtxWithTooling, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Assert(filepath.Join(dirs.SnapServicesDir, "snap.hello.svc.service"), testutil.FileContains,
+		`Requires=usr-lib-snapd.mount
+After=usr-lib-snapd.mount`)
+
+	// remove it now
+	err = s.be.UnlinkSnap(info, linkCtxWithTooling, nil)
+	c.Assert(err, IsNil)
+	c.Assert(filepath.Join(dirs.SnapServicesDir, "snap.hello.svc.service"), testutil.FileAbsent)
+
+	linkCtxNoTooling := backend.LinkContext{
+		RequireMountedSnapdSnap: false,
+	}
+	_, err = s.be.LinkSnap(info, mockDev, linkCtxNoTooling, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Assert(filepath.Join(dirs.SnapServicesDir, "snap.hello.svc.service"), Not(testutil.FileContains), `usr-lib-snapd.mount`)
+}

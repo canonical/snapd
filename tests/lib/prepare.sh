@@ -459,26 +459,40 @@ EOF
 uc20_build_initramfs_kernel_snap() {
     # carries ubuntu-core-initframfs
     add-apt-repository ppa:snappy-dev/image -y
-    apt install ubuntu-core-initramfs -y
+    # TODO: install the linux-firmware as the current version of
+    # ubuntu-core-initramfs does not depend on it, but nonetheless requires it
+    # to build the initrd
+    apt install ubuntu-core-initramfs linux-firmware -y
 
     local ORIG_SNAP="$1"
     local TARGET="$2"
 
+    # TODO proper option support here would be nice but bash is hard and this is
+    # easier, and likely we won't need to both inject a panic and set the epoch
+    # bump simultaneously
     local injectKernelPanic=false
-    injectKernelPanicArg=${3:-}
-    if [ "$injectKernelPanicArg" = "--inject-kernel-panic-in-initramfs" ]; then
-        injectKernelPanic=true
-    fi
+    local initramfsEpochBumpTime
+    initramfsEpochBumpTime=$(date '+%s')
+    optArg=${3:-}
+    case "$optArg" in
+        --inject-kernel-panic-in-initramfs)
+            injectKernelPanic=true
+            ;;
+        --epoch-bump-time=*)
+            # this strips the option and just gives us the value
+            initramfsEpochBumpTime="${optArg#--epoch-bump-time=}"
+            ;;
+    esac
     
     # kernel snap is huge, unpacking to current dir
     unsquashfs -d repacked-kernel "$ORIG_SNAP"
-
 
     # repack initrd magic, beware
     # assumptions: initrd is compressed with LZ4, cpio block size 512, microcode
     # at the beginning of initrd image
     (
         cd repacked-kernel
+        unpackeddir="$PWD"
         #shellcheck disable=SC2010
         kver=$(ls "config"-* | grep -Po 'config-\K.*')
 
@@ -501,14 +515,29 @@ uc20_build_initramfs_kernel_snap() {
         # modify the-tool to verify that our version is used when booting - this
         # is verified in the tests/core/basic20 spread test
         sed -i -e 's/set -e/set -ex/' "$skeletondir/main/usr/lib/the-tool"
-        echo "" >> "$skeletondir/main/usr/lib/the-tool"
-        echo "if test -d /run/mnt/data/system-data; then touch /run/mnt/data/system-data/the-tool-ran; fi" >> \
-            "$skeletondir/main/usr/lib/the-tool"
+        # also save the time before snap-bootstrap runs
+        sed -i -e "s@/usr/lib/snapd/snap-bootstrap@beforeDate=\$(date --utc \'+%s\'); /usr/lib/snapd/snap-bootstrap@"  "$skeletondir/main/usr/lib/the-tool"
+        {
+            echo "" 
+            echo "if test -d /run/mnt/data/system-data; then touch /run/mnt/data/system-data/the-tool-ran; fi" 
+            # also copy the time for the clock-epoch to system-data, this is 
+            # used by a specific test but doesn't hurt anything to do this for 
+            # all tests
+            echo "mode=\$(grep -Eo 'snapd_recovery_mode=([a-z]+)' /proc/cmdline)"
+            echo "mode=\${mode##snapd_recovery_mode=}"
+            echo "stat -c '%Y' /usr/lib/clock-epoch >> /run/mnt/ubuntu-seed/\${mode}-clock-epoch"
+            echo "echo \"\$beforeDate\" > /run/mnt/ubuntu-seed/\${mode}-before-snap-bootstrap-date"
+            echo "date --utc '+%s' > /run/mnt/ubuntu-seed/\${mode}-after-snap-bootstrap-date"
+        } >> "$skeletondir/main/usr/lib/the-tool"
 
         if [ "$injectKernelPanic" = "true" ]; then
             # add a kernel panic to the end of the-tool execution
             echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> "$skeletondir/main/usr/lib/the-tool"
         fi
+
+        # bump the epoch time file timestamp, converting unix timestamp to 
+        # touch's date format
+        touch -t "$(date --utc "--date=@$initramfsEpochBumpTime" '+%Y%m%d%H%M')" "$skeletondir/main/usr/lib/clock-epoch"
 
         # copy any extra files to the same location inside the initrd
         if [ -d ../extra-initrd/ ]; then
@@ -522,10 +551,14 @@ uc20_build_initramfs_kernel_snap() {
             # accommodate assumptions about tree layout, use the unpacked initrd
             # to pick up the right modules
             cd unpacked-initrd/main
+            # XXX: pass feature 'main' and u-c-i picks up any directory named
+            # after feature inside skeletondir and uses that a template
             ubuntu-core-initramfs create-initrd \
                                   --kernelver "$kver" \
                                   --skeleton "$skeletondir" \
-                                  --kerneldir "lib/modules" \
+                                  --kerneldir "lib/modules/$kver" \
+                                  --firmwaredir "$unpackeddir/firmware" \
+                                  --feature 'main' \
                                   --output ../../repacked-initrd
         )
 
@@ -745,10 +778,8 @@ setup_reflash_magic() {
     snap model --verbose
     # remove the above debug lines once the mentioned bug is fixed
     snap install "--channel=${CORE_CHANNEL}" "$core_name"
-    if os.query is-core16 || os.query is-core18; then
-        UNPACK_DIR="/tmp/$core_name-snap"
-        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
-    fi
+    UNPACK_DIR="/tmp/$core_name-snap"
+    unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
 
     # install ubuntu-image
     snap install --classic --edge ubuntu-image
@@ -925,13 +956,19 @@ EOF
           /home/gopath /mnt/user-data/
     elif os.query is-core20; then
         # prepare passwd for run-mode-overlay-data
+
+        # use /etc/{group,passwd,shadow,gshadow} from the core20 snap, merged
+        # with some bits from our current system - we don't want to use the
+        # /etc/group from the current system as classic and core gids and uids
+        # don't match, but we still need the same test/ubuntu/root user info
+        # in core as we currently have in classic
         mkdir -p /root/test-etc
         mkdir -p /var/lib/extrausers
         touch /var/lib/extrausers/sub{uid,gid}
         for f in group gshadow passwd shadow; do
-            grep -v "^root:" /etc/"$f" > /root/test-etc/"$f"
+            grep -v "^root:" "$UNPACK_DIR/etc/$f" > /root/test-etc/"$f"
             grep "^root:" /etc/"$f" >> /root/test-etc/"$f"
-            chgrp --reference /etc/"$f" /root/test-etc/"$f"
+            chgrp --reference "$UNPACK_DIR/etc/$f" /root/test-etc/"$f"
             # create /var/lib/extrausers/$f
             # append ubuntu, test user for the testing
             grep "^test:" /etc/"$f" >> /var/lib/extrausers/"$f"
@@ -940,8 +977,9 @@ EOF
             MATCH "^test:" </var/lib/extrausers/"$f"
             MATCH "^ubuntu:" </var/lib/extrausers/"$f"
         done
-        # Make sure systemd-journal group has the "test" user as a member. Due to the way we copy that from the host
-        # and merge it from the core snap this is done explicitly as a second step.
+        # Make sure systemd-journal group has the "test" user as a member. Due
+        # to the way we copy that from the host and merge it from the core snap
+        # this is done explicitly as a second step.
         sed -r -i -e 's/^systemd-journal:x:([0-9]+):$/systemd-journal:x:\1:test/' /root/test-etc/group
         tar -c -z \
           --exclude '*.a' \

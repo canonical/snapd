@@ -42,7 +42,7 @@ var _ = check.Suite(&appOpSuite{})
 func (s *appOpSuite) SetUpTest(c *check.C) {
 	s.BaseSnapSuite.SetUpTest(c)
 
-	restoreClientRetry := client.MockDoTimings(time.Millisecond, 100*time.Millisecond)
+	restoreClientRetry := client.MockDoTimings(time.Millisecond, time.Second)
 	restorePollTime := snap.MockPollTime(time.Millisecond)
 	s.AddCleanup(restoreClientRetry)
 	s.AddCleanup(restorePollTime)
@@ -182,19 +182,39 @@ func (s *appOpSuite) TestAppStatus(c *check.C) {
 			enc.Encode(map[string]interface{}{
 				"type": "sync",
 				"result": []map[string]interface{}{
-					{"snap": "foo", "name": "bar", "daemon": "oneshot",
-						"active": false, "enabled": true,
+					{
+						"snap":         "foo",
+						"name":         "bar",
+						"daemon":       "oneshot",
+						"daemon-scope": "system",
+						"active":       false,
+						"enabled":      true,
 						"activators": []map[string]interface{}{
 							{"name": "bar", "type": "timer", "active": true, "enabled": true},
 						},
-					}, {"snap": "foo", "name": "baz", "daemon": "oneshot",
-						"active": false, "enabled": true,
+					}, {
+						"snap":         "foo",
+						"name":         "baz",
+						"daemon":       "oneshot",
+						"daemon-scope": "system",
+						"active":       false,
+						"enabled":      true,
 						"activators": []map[string]interface{}{
 							{"name": "baz-sock1", "type": "socket", "active": true, "enabled": true},
 							{"name": "baz-sock2", "type": "socket", "active": false, "enabled": true},
 						},
-					}, {"snap": "foo", "name": "zed",
-						"active": true, "enabled": true,
+					}, {
+						"snap":         "foo",
+						"name":         "qux",
+						"daemon":       "simple",
+						"daemon-scope": "user",
+						"active":       false,
+						"enabled":      true,
+					}, {
+						"snap":    "foo",
+						"name":    "zed",
+						"active":  true,
+						"enabled": true,
 					},
 				},
 				"status":      "OK",
@@ -213,6 +233,7 @@ func (s *appOpSuite) TestAppStatus(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, `Service  Startup  Current   Notes
 foo.bar  enabled  inactive  timer-activated
 foo.baz  enabled  inactive  socket-activated
+foo.qux  enabled  -         user
 foo.zed  enabled  active    -
 `)
 	// ensure that the fake server api was actually hit

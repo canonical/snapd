@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,23 +17,24 @@
  *
  */
 
-package daemon
+package osutil
 
 import (
-	"net/http"
-
-	"github.com/snapcore/snapd/overlord/auth"
+	"syscall"
+	"time"
 )
 
-func GetAssertTypeNames(c *Command, r *http.Request, user *auth.UserState) *resp {
-	return getAssertTypeNames(c, r, user).(*resp)
-}
+// exposed for different 32-bit vs 64-bit definitions of syscall.Timeval
+var timeToTimeval func(time.Time) *syscall.Timeval
 
-func DoAssert(c *Command, r *http.Request, user *auth.UserState) *resp {
-	return doAssert(c, r, user).(*resp)
-}
+// exposed for mocking, since we can't actually call this without being root
+// on system running tests
+var syscallSettimeofday = syscall.Settimeofday
 
-var (
-	AssertsCmd         = assertsCmd
-	AssertsFindManyCmd = assertsFindManyCmd
-)
+// SetTime sets the time of the system using settimeofday(). This syscall needs
+// to be performed as root or with CAP_SYS_TIME.
+func SetTime(t time.Time) error {
+	tv := timeToTimeval(t)
+
+	return syscallSettimeofday(tv)
+}
