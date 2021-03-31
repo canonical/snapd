@@ -305,6 +305,7 @@ type FDERevealKeyRequest struct {
 	Op string `json:"op"`
 
 	SealedKey []byte `json:"sealed-key,omitempty"`
+	Handle    []byte `json:"handle,omitempty"`
 	KeyName   string `json:"key-name,omitempty"`
 
 	// TODO: add VolumeName,SourceDevicePath later
@@ -436,6 +437,10 @@ func runFDERevealKeyCommand(stdin []byte) (output []byte, err error) {
 	return nil, fmt.Errorf("internal error: systemd-run did not honor RuntimeMax=%s setting", fdeRevealKeyRuntimeMax)
 }
 
+type fdeRevealKeyResult struct {
+	Key []byte `json:"key"`
+}
+
 func unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
 	res := UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
 
@@ -443,9 +448,14 @@ func unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourc
 	if err != nil {
 		return res, fmt.Errorf("cannot read sealed key file: %v", err)
 	}
+	handle, err := ioutil.ReadFile(sealedEncryptionKeyFile + ".handle")
+	if err != nil && !os.IsNotExist(err) {
+		return res, fmt.Errorf("cannot read handle file: %v", err)
+	}
 	buf, err := json.Marshal(FDERevealKeyRequest{
 		Op:        "reveal",
 		SealedKey: sealedKey,
+		Handle:    handle,
 		KeyName:   name,
 	})
 	if err != nil {
@@ -455,12 +465,24 @@ func unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourc
 	if err != nil {
 		return res, fmt.Errorf("cannot run fde-reveal-key: %v", osutil.OutputErr(output, err))
 	}
+	// We expect json output that fits the fdeRevealKeyResult json
+	// at this point. However the "denver" project uses the old
+	// and deprecated v1 API that returns raw bytes and we still
+	// need to support this.
+	var fdeRevealKeyResult fdeRevealKeyResult
+	if err := json.Unmarshal(output, &fdeRevealKeyResult); err != nil {
+		// TODO: check if size of hookOutput matches
+		// the size of the denver project key and only
+		// then assume it's v1 api
+		// if len(hookOutput) != sizeDenverKey { return err}
+		fdeRevealKeyResult.Key = output
+	}
 
 	// the output of fde-reveal-key is the unsealed key
-	unsealedKey := output
-	if err := unlockEncryptedPartitionWithKey(mapperName, sourceDevice, unsealedKey); err != nil {
+	if err := unlockEncryptedPartitionWithKey(mapperName, sourceDevice, fdeRevealKeyResult.Key); err != nil {
 		return res, fmt.Errorf("cannot unlock encrypted partition: %v", err)
 	}
+
 	res.FsDevice = targetDevice
 	res.UnlockMethod = UnlockedWithSealedKey
 	return res, nil
