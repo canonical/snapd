@@ -1032,6 +1032,7 @@ func KernelCommandLineFromGadget(snapf snap.Container) (cmdline string, full boo
 		return "", false, err
 	}
 	content := contentExtra
+	whichFile := "cmdline.extra"
 	switch {
 	case contentExtra != nil && contentFull != nil:
 		return "", false, fmt.Errorf("cannot support both extra and full kernel command lines")
@@ -1039,17 +1040,18 @@ func KernelCommandLineFromGadget(snapf snap.Container) (cmdline string, full boo
 		return "", false, ErrNoKernelCommandline
 	case contentFull != nil:
 		content = contentFull
+		whichFile = "cmdline.full"
 		full = true
 	}
 	cleaned := strings.TrimSpace(string(content))
 	kargs, err := osutil.KernelCommandLineSplit(cleaned)
 	if err != nil {
-		return "", full, fmt.Errorf("invalid kernel command line %q: %v", cleaned, err)
+		return "", full, fmt.Errorf("invalid kernel command line %q in %v: %v", cleaned, whichFile, err)
 	}
 	for _, argValue := range kargs {
 		split := strings.SplitN(argValue, "=", 2)
 		if !isKernelArgumentAllowed(split[0]) {
-			return "", full, fmt.Errorf("disallowed kernel argument %q", argValue)
+			return "", full, fmt.Errorf("disallowed kernel argument %q in %v", argValue, whichFile)
 		}
 	}
 	return cleaned, full, nil
