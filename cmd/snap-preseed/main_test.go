@@ -215,7 +215,7 @@ func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 	c.Assert(mockMountCmd.Calls(), HasLen, 1)
 	// note, tmpDir, targetSnapdRoot are contactenated again cause we're not really chrooting in the test
 	// and mocking dirs.RootDir
-	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", "-o", "ro,x-gdu.hide", "/a/core.snap", filepath.Join(tmpDir, targetSnapdRoot)})
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", "-o", "ro,x-gdu.hide,x-gvfs-hide", "/a/core.snap", filepath.Join(tmpDir, targetSnapdRoot)})
 
 	c.Assert(mockTargetSnapd.Calls(), HasLen, 1)
 	c.Check(mockTargetSnapd.Calls()[0], DeepEquals, []string{"snapd"})
@@ -279,7 +279,7 @@ func (s *startPreseedSuite) TestRunPreseedHappyDebVersionIsNewer(c *C) {
 	c.Assert(mockMountCmd.Calls(), HasLen, 1)
 	// note, tmpDir, targetSnapdRoot are contactenated again cause we're not really chrooting in the test
 	// and mocking dirs.RootDir
-	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", "-o", "ro,x-gdu.hide", "/a/core.snap", filepath.Join(tmpDir, targetSnapdRoot)})
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", "-o", "ro,x-gdu.hide,x-gvfs-hide", "/a/core.snap", filepath.Join(tmpDir, targetSnapdRoot)})
 
 	c.Assert(mockSnapdFromDeb.Calls(), HasLen, 1)
 	c.Check(mockSnapdFromDeb.Calls()[0], DeepEquals, []string{"snapd"})
