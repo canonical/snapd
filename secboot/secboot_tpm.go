@@ -475,7 +475,7 @@ func unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourc
 		// the "denver" project encrypton key (64 bytes) we
 		// assume we deal with a v1 API.
 		if len(output) != encryptionKeySize {
-			return res, fmt.Errorf("cannot decode fde-reveal-key result: %v", err)
+			return res, fmt.Errorf("cannot decode fde-reveal-key result %q: %v", output, err)
 		}
 		fdeRevealKeyResult.Key = output
 	}
