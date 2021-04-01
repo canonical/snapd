@@ -140,8 +140,8 @@ func fallbackKeySealRequests(key, saveKey secboot.EncryptionKey) []secboot.SealK
 }
 
 type fdeSetupHookResult struct {
-	EncryptionKey []byte `json:"encryption-key"`
-	Handle        []byte `json:"handle"`
+	EncryptedKey []byte `json:"encrypted-key"`
+	Handle       []byte `json:"handle"`
 }
 
 func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
@@ -166,17 +166,18 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model
 			// size of the "denver" project encrypton key
 			// (64 bytes) we assume we deal with a v1 API.
 			if len(hookOutput) != len(secboot.EncryptionKey{}) {
-				return err
+				return fmt.Errorf("cannot decode hook output %q: %v", hookOutput, err)
 			}
-			res.EncryptionKey = hookOutput
+			res.EncryptedKey = hookOutput
 		}
-		if err := osutil.AtomicWriteFile(filepath.Join(skr.KeyFile), res.EncryptionKey, 0600, 0); err != nil {
+		// XXX: should we do basic checking here that we got a non-nil
+		//      res.EncryptedKey, res.Handle?
+		if err := osutil.AtomicWriteFile(filepath.Join(skr.KeyFile), res.EncryptedKey, 0600, 0); err != nil {
 			return fmt.Errorf("cannot store key: %v", err)
 		}
 		if err := osutil.AtomicWriteFile(filepath.Join(skr.KeyFile+".handle"), res.Handle, 0600, 0); err != nil {
 			return fmt.Errorf("cannot store key: %v", err)
 		}
-
 	}
 
 	if err := stampSealedKeys(InstallHostWritableDir, "fde-setup-hook"); err != nil {
