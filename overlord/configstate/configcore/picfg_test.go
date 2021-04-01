@@ -214,6 +214,48 @@ func (s *piCfgSuite) TestUpdateConfigUC20RunMode(c *C) {
 	c.Check(piCfg, testutil.FileEquals, expected)
 }
 
+func (s *piCfgSuite) testUpdateConfigUC20NonRunMode(c *C, mode string) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	defer func() { dirs.SetRootDir("") }()
+
+	// mock the device as the specified uc20 mode
+	mockCmdline := filepath.Join(dirs.GlobalRootDir, "cmdline")
+	err := ioutil.WriteFile(mockCmdline, []byte("snapd_recovery_mode="+mode), 0644)
+	c.Assert(err, IsNil)
+	restore = osutil.MockProcCmdline(mockCmdline)
+	defer restore()
+
+	piCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "config.txt")
+
+	err = os.MkdirAll(filepath.Dir(piCfg), 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(piCfg, []byte(mockConfigTxt), 0644)
+	c.Assert(err, IsNil)
+
+	// apply the config
+	err = configcore.Run(&mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"pi-config.gpu-mem-512": true,
+		},
+	})
+	c.Assert(err, IsNil)
+
+	// the config.txt didn't change at all
+	c.Check(piCfg, testutil.FileEquals, mockConfigTxt)
+}
+
+func (s *piCfgSuite) TestUpdateConfigUC20RecoverModeDoesNothing(c *C) {
+	s.testUpdateConfigUC20NonRunMode(c, "recover")
+}
+
+func (s *piCfgSuite) TestUpdateConfigUC20InstallModeDoesNothing(c *C) {
+	s.testUpdateConfigUC20NonRunMode(c, "install")
+}
+
 func (s *piCfgSuite) TestFilesystemOnlyApply(c *C) {
 	conf := configcore.PlainCoreConfig(map[string]interface{}{
 		"pi-config.gpu-mem-512": true,
