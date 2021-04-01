@@ -377,8 +377,14 @@ prepare_project() {
             if [ -d /var/lib/snapd ]; then
                 echo "# /var/lib/snapd"
                 ls -lR /var/lib/snapd || true
-                journalctl -b | tail -100 || true
+                journalctl --no-pager || true
                 cat /var/lib/snapd/state.json || true
+                snap debug state /var/lib/snapd/state.json || true
+                (
+                    for chg in $(snap debug state /var/lib/snapd/state.json | tail -n +2 | awk '{print $1}'); do
+                        snap debug state --abs-time "--change=$chg" /var/lib/snapd/state.json || true
+                    done
+                ) || true
                 exit 1
             fi
             ;;
