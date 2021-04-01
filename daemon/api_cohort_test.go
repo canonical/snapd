@@ -64,36 +64,27 @@ func (s *cohortSuite) TestCreateCohort(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]}]`))
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil)
-	c.Check(rsp, check.DeepEquals, &daemon.Resp{
-		Status: 200,
-		Type:   "sync",
-		Result: s.coh,
-	})
+	rsp := s.syncReq(c, req, nil)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Result, check.DeepEquals, s.coh)
 }
 
 func (s *cohortSuite) TestCreateCohortNoSnaps(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create"}]`))
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil)
-	c.Check(rsp, check.DeepEquals, &daemon.Resp{
-		Status: 200,
-		Type:   "sync",
-		Result: map[string]string{},
-	})
+	rsp := s.syncReq(c, req, nil)
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Check(rsp.Result, check.DeepEquals, map[string]string{})
 }
 
 func (s *cohortSuite) TestCreateCohortBadAction(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "pupate", "snaps": ["foo","bar"]}]`))
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil)
-	c.Check(rsp, check.DeepEquals, &daemon.Resp{
-		Status: 400,
-		Type:   "error",
-		Result: &daemon.ErrorResult{Message: `unknown cohort action "pupate"`},
-	})
+	rsp := s.errorReq(c, req, nil)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result, check.DeepEquals, &daemon.ErrorResult{Message: `unknown cohort action "pupate"`})
 }
 
 func (s *cohortSuite) TestCreateCohortError(c *check.C) {
@@ -102,34 +93,25 @@ func (s *cohortSuite) TestCreateCohortError(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]}]`))
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil)
-	c.Check(rsp, check.DeepEquals, &daemon.Resp{
-		Status: 500,
-		Type:   "error",
-		Result: &daemon.ErrorResult{Message: `something went wrong`},
-	})
+	rsp := s.errorReq(c, req, nil)
+	c.Check(rsp.Status, check.Equals, 500)
+	c.Check(rsp.Result, check.DeepEquals, &daemon.ErrorResult{Message: `something went wrong`})
 }
 
 func (s *cohortSuite) TestCreateBadBody1(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]`))
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil)
-	c.Check(rsp, check.DeepEquals, &daemon.Resp{
-		Status: 400,
-		Type:   "error",
-		Result: &daemon.ErrorResult{Message: `cannot decode request body into cohort instruction: unexpected EOF`},
-	})
+	rsp := s.errorReq(c, req, nil)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result, check.DeepEquals, &daemon.ErrorResult{Message: `cannot decode request body into cohort instruction: unexpected EOF`})
 }
 
 func (s *cohortSuite) TestCreateBadBody2(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]}xx`))
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil)
-	c.Check(rsp, check.DeepEquals, &daemon.Resp{
-		Status: 400,
-		Type:   "error",
-		Result: &daemon.ErrorResult{Message: `spurious content after cohort instruction`},
-	})
+	rsp := s.errorReq(c, req, nil)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result, check.DeepEquals, &daemon.ErrorResult{Message: `spurious content after cohort instruction`})
 }

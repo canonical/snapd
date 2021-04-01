@@ -191,9 +191,8 @@ UnitFileState=enabled
 	req, err := http.NewRequest("GET", "/v2/apps", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 200)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Assert(rsp.Result, check.FitsTypeOf, []client.AppInfo{})
 	apps := rsp.Result.([]client.AppInfo)
 	c.Assert(apps, check.HasLen, 7)
@@ -239,9 +238,8 @@ func (s *appsSuite) TestGetAppsInfoNames(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/apps?names=snap-d", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 200)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Assert(rsp.Result, check.FitsTypeOf, []client.AppInfo{})
 	apps := rsp.Result.([]client.AppInfo)
 	c.Assert(apps, check.HasLen, 2)
@@ -281,9 +279,8 @@ UnitFileState=enabled
 	req, err := http.NewRequest("GET", "/v2/apps?select=service", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 200)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Assert(rsp.Result, check.FitsTypeOf, []client.AppInfo{})
 	svcs := rsp.Result.([]client.AppInfo)
 	c.Assert(svcs, check.HasLen, 4)
@@ -320,18 +317,16 @@ func (s *appsSuite) TestGetAppsInfoBadSelect(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/apps?select=potato", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 400)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
 }
 
 func (s *appsSuite) TestGetAppsInfoBadName(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/apps?names=potato", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 404)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
 }
 
 func (s *appsSuite) TestAppInfosForOne(c *check.C) {
@@ -463,9 +458,8 @@ func (s *appsSuite) testPostApps(c *check.C, inst servicestate.Instruction, serv
 	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBuffer(postBody))
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.asyncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 202)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeAsync)
 	c.Check(rsp.Change, check.Matches, `[0-9]+`)
 
 	st := s.d.Overlord().State()
@@ -577,36 +571,32 @@ func (s *appsSuite) TestPostAppsDisableNow(c *check.C) {
 func (s *appsSuite) TestPostAppsBadJSON(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`'junk`))
 	c.Assert(err, check.IsNil)
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, ".*cannot decode request body.*")
 }
 
 func (s *appsSuite) TestPostAppsBadOp(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"random": "json"}`))
 	c.Assert(err, check.IsNil)
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, ".*cannot perform operation on services without a list of services.*")
 }
 
 func (s *appsSuite) TestPostAppsBadSnap(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "stop", "names": ["snap-c"]}`))
 	c.Assert(err, check.IsNil)
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 404)
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, `snap "snap-c" has no services`)
 }
 
 func (s *appsSuite) TestPostAppsBadApp(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "stop", "names": ["snap-a.what"]}`))
 	c.Assert(err, check.IsNil)
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 404)
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, `snap "snap-a" has no service "what"`)
 }
 
@@ -614,9 +604,8 @@ func (s *appsSuite) TestPostAppsServiceControlError(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "start", "names": ["snap-a.svc1"]}`))
 	c.Assert(err, check.IsNil)
 	s.serviceControlError = fmt.Errorf("total failure")
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, `total failure`)
 }
 
@@ -624,9 +613,8 @@ func (s *appsSuite) TestPostAppsConflict(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/apps", bytes.NewBufferString(`{"action": "start", "names": ["snap-a.svc1"]}`))
 	c.Assert(err, check.IsNil)
 	s.serviceControlError = &snapstate.ChangeConflictError{Snap: "snap-a", ChangeKind: "enable"}
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, `snap "snap-a" has "enable" change in progress`)
 }
 
@@ -691,9 +679,8 @@ func (s *appsSuite) TestLogsBadN(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/logs?n=hello", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 400)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
 }
 
 func (s *appsSuite) TestLogsFollow(c *check.C) {
@@ -722,18 +709,16 @@ func (s *appsSuite) TestLogsBadFollow(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/logs?follow=hello", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 400)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
 }
 
 func (s *appsSuite) TestLogsBadName(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/logs?names=hello", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 404)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
 }
 
 func (s *appsSuite) TestLogsSad(c *check.C) {
@@ -741,9 +726,8 @@ func (s *appsSuite) TestLogsSad(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/logs", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 500)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
 }
 
 func (s *appsSuite) TestLogsNoServices(c *check.C) {
@@ -756,7 +740,6 @@ func (s *appsSuite) TestLogsNoServices(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/logs", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 404)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
 }
