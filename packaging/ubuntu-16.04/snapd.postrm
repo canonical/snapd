@@ -102,6 +102,10 @@ if [ "$1" = "purge" ]; then
         rm -f "/etc/systemd/system/multi-user.target.wants/$unit"
     done
 
+    # now stop snapd itself to ensure we can clearly remove all snapd data
+    systemctl_stop snapd.socket || true
+    systemctl_stop snapd.service || true
+
     # snapd session-agent
     rm -f /etc/systemd/user/snapd.session-agent.socket
     rm -f /etc/systemd/user/snapd.session-agent.service
