@@ -13,7 +13,8 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-// super secure crypto
+// This is a very insecure crypto just for demonstration purposes.
+// Please delete it you use this for real.
 func xor13(bs []byte) []byte {
 	out := make([]byte, len(bs))
 	for i := range bs {
@@ -30,11 +31,18 @@ type fdeSetupJSON struct {
 
 	Key     []byte `json:"key,omitempty"`
 	KeyName string `json:"key-name,omitempty"`
-
-	Models []map[string]string `json:"models,omitempty"`
 }
 
-// this is the same as fdeSetupJSON, but is more strict in that it decodes Key
+type fdeSetupResultJSON struct {
+	EncryptedKey []byte `json:"encrypted-key"`
+	Handle       []byte `json:"handle"`
+}
+
+// Note that this can be removed when using the hook as an example for
+// how to implement your own hook, the below Base64 is here so that
+// we can test that strict base64 is used.
+//
+// This is the same as fdeSetupJSON, but is more strict in that it decodes Key
 // as a string, which _must_ be a base64 encoded version of the same []byte Key
 // we have above, the handler below validates this as a test
 type fdeSetupJSONStrictBase64 struct {
@@ -72,8 +80,16 @@ func runFdeSetup() error {
 		// no special features supported by this hook
 		fdeSetupResult = []byte(`{"features":[]}`)
 	case "initial-setup":
-		// "seal"
-		fdeSetupResult = xor13(js.Key)
+		// "seal" using a really bad crypto algorithm
+		var res fdeSetupResultJSON
+		res.EncryptedKey = xor13(js.Key)
+		// Note that in real implementations this would be something
+		// like an internal handle for the crypto hardware.
+		res.Handle = []byte("my-handle")
+		fdeSetupResult, err = json.Marshal(res)
+		if err != nil {
+			return err
+		}
 	default:
 		return fmt.Errorf("unsupported op %q", js.Op)
 	}
@@ -90,10 +106,16 @@ type fdeRevealJSON struct {
 	Op string `json:"op"`
 
 	SealedKey []byte `json:"sealed-key"`
+	Handle    []byte `json:"handle"`
 }
 
 type fdeRevealJSONStrict struct {
 	SealedKey string `json:"sealed-key"`
+	Handle    string `json:"handle"`
+}
+
+type fdeRevealKeyResultJSON struct {
+	Key []byte `json:"key"`
 }
 
 func runFdeRevealKey() error {
@@ -125,16 +147,23 @@ func runFdeRevealKey() error {
 
 	switch js.Op {
 	case "reveal":
-		unsealedKey := xor13(js.SealedKey)
-		fmt.Fprintf(os.Stdout, "%s", unsealedKey)
+		// we expect to get the handle back we passed in
+		if string(js.Handle) != "my-handle" {
+			return fmt.Errorf(`fde-reveal-key expected handle "my-handle" but got %s`, js.Handle)
+		}
+		// "decrypt" key
+		var res fdeRevealKeyResultJSON
+		res.Key = xor13(js.SealedKey)
+		if err := json.NewEncoder(os.Stdout).Encode(res); err != nil {
+			return err
+		}
 	case "lock":
-		// nothing right now
-
-		// NOTE: when using this file as an example code for implementing a real
-		// world, production grade FDE hook, the lock operation must be
-		// implemented here to block decryption operations
+		// NOTE: when using this file as an example code for
+		// implementing a real world, production grade FDE
+		// hook, the lock operation must be implemented here
+		// to block decryption operations. This example does
+		// nothing.
 	case "features":
-		// XXX: Not used right now but might in the future?
 		fmt.Fprintf(os.Stdout, `{"features":[]}`)
 	default:
 		return fmt.Errorf(`unsupported operations %q`, js.Op)
