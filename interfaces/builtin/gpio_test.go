@@ -20,6 +20,8 @@
 package builtin_test
 
 import (
+	"os"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
@@ -33,6 +35,8 @@ import (
 )
 
 type GpioInterfaceSuite struct {
+	testutil.BaseTest
+
 	iface                       interfaces.Interface
 	gadgetGpioSlotInfo          *snap.SlotInfo
 	gadgetGpioSlot              *interfaces.ConnectedSlot
@@ -72,6 +76,9 @@ slots:
 plugs:
     plug: gpio
     bad-interface-plug: other-interface
+apps:
+    svc:
+        command: bin/foo.sh
 `, nil)
 	s.gadgetGpioSlotInfo = gadgetInfo.Slots["my-pin"]
 	s.gadgetGpioSlot = interfaces.NewConnectedSlot(s.gadgetGpioSlotInfo, nil, nil)
@@ -144,11 +151,29 @@ func (s *GpioInterfaceSuite) TestApparmorConnectedPlugIgnoresMissingSymlink(c *C
 	log, restore := logger.MockLogger()
 	defer restore()
 
+	builtin.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
+		c.Assert(path, Equals, "/sys/class/gpio/gpio100")
+		return "", os.ErrNotExist
+	})
+
 	spec := &apparmor.Specification{}
 	err := spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetGpioSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
 	c.Assert(log.String(), testutil.Contains, "cannot export not existing gpio /sys/class/gpio/gpio100")
+}
+
+func (s *GpioInterfaceSuite) TestApparmorConnectedSlot(c *C) {
+	builtin.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
+		c.Assert(path, Equals, "/sys/class/gpio/gpio100")
+		// TODO: what is this actually a symlink to on a real device?
+		return "/sys/dev/foo/class/gpio/gpio100", nil
+	})
+
+	spec := &apparmor.Specification{}
+	err := spec.AddConnectedPlug(s.iface, s.gadgetPlug, s.gadgetGpioSlot)
+	c.Assert(err, IsNil)
+	c.Assert(spec.SnippetForTag("snap.my-device.svc"), testutil.Contains, `/sys/dev/foo/class/gpio/gpio100/* rwk`)
 }
 
 func (s *GpioInterfaceSuite) TestInterfaces(c *C) {
