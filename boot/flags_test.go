@@ -144,7 +144,7 @@ func (s *bootFlagsSuite) TestSetImageBootFlagsVerification(c *C) {
 	c.Assert(flags, HasLen, 0)
 
 	err = boot.SetImageBootFlags([]string{"not-a-real-flag"}, blDir)
-	c.Assert(err, ErrorMatches, "flag \"not-a-real-flag\" is not allowed")
+	c.Assert(err, ErrorMatches, `unknown boot flags \[not-a-real-flag\] not allowed`)
 
 	err = boot.SetImageBootFlags([]string{longVal}, blDir)
 	c.Assert(err, ErrorMatches, "internal error: boot flags too large to fit inside bootenv value")
@@ -224,9 +224,11 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20RRunModeHappy(c *C) {
 
 func (s *bootFlagsSuite) TestInitramfsSetBootFlags(c *C) {
 	tt := []struct {
-		flags       []string
-		expFlags    []string
-		expFlagFile string
+		flags               []string
+		expFlags            []string
+		expFlagFile         string
+		bootFlagsErr        string
+		bootFlagsErrUnknown bool
 	}{
 		{
 			flags:       []string{"factory"},
@@ -234,9 +236,11 @@ func (s *bootFlagsSuite) TestInitramfsSetBootFlags(c *C) {
 			expFlagFile: "factory",
 		},
 		{
-			flags:       []string{"factory", "unknown-new-flag"},
-			expFlags:    []string{"factory", "unknown-new-flag"},
-			expFlagFile: "factory,unknown-new-flag",
+			flags:               []string{"factory", "unknown-new-flag"},
+			expFlagFile:         "factory,unknown-new-flag",
+			expFlags:            []string{"factory"},
+			bootFlagsErr:        `unknown boot flags \[unknown-new-flag\] not allowed`,
+			bootFlagsErrUnknown: true,
 		},
 		{
 			flags:       []string{"", "", "", "factory"},
@@ -258,7 +262,14 @@ func (s *bootFlagsSuite) TestInitramfsSetBootFlags(c *C) {
 
 		// also read the flags as if from user space to make sure they match
 		flags, err := boot.BootFlags(uc20Dev)
-		c.Assert(err, IsNil)
+		if t.bootFlagsErr != "" {
+			c.Assert(err, ErrorMatches, t.bootFlagsErr)
+			if t.bootFlagsErrUnknown {
+				c.Assert(boot.IsUnknownBootFlagError(err), Equals, true)
+			}
+		} else {
+			c.Assert(err, IsNil)
+		}
 		c.Assert(flags, DeepEquals, t.expFlags)
 	}
 }
@@ -277,11 +288,11 @@ func (s *bootFlagsSuite) TestUserspaceBootFlagsUC20(c *C) {
 		},
 		{
 			flags: []string{"factory", "new-unsupported-flag"},
-			err:   "flag \"new-unsupported-flag\" is not allowed",
+			err:   `unknown boot flags \[new-unsupported-flag\] not allowed`,
 		},
 		{
 			flags: []string{""},
-			err:   "flag \"\" is not allowed",
+			err:   `unknown boot flags \[\"\"\] not allowed`,
 		},
 		{
 			beforeFlags: []string{},

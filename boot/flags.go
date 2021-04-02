@@ -40,6 +40,17 @@ var (
 	}
 )
 
+type unknownFlagErr string
+
+func (e unknownFlagErr) Error() string {
+	return string(e)
+}
+
+func IsUnknownBootFlagError(e error) bool {
+	_, ok := e.(unknownFlagErr)
+	return ok
+}
+
 // splitBootFlagString splits the given comma delimited list of boot flags, removing
 // empty strings.
 // Note that this explicitly does not filter out unsupported boot flags in the
@@ -56,16 +67,28 @@ func splitBootFlagString(s string) []string {
 	return flags
 }
 
-func checkFlagList(flags []string, allowList []string) error {
+func checkBootFlagList(flags []string, allowList []string) ([]string, error) {
+	allowedFlags := make([]string, 0, len(flags))
+	disallowedFlags := make([]string, 0, len(flags))
 	if len(allowList) != 0 {
 		// then we need to enforce the allow list
 		for _, flag := range flags {
-			if !strutil.ListContains(allowList, flag) {
-				return fmt.Errorf("flag %q is not allowed", flag)
+			if strutil.ListContains(allowList, flag) {
+				allowedFlags = append(allowedFlags, flag)
+			} else {
+				if flag == "" {
+					// this is to make it more obvious
+					disallowedFlags = append(disallowedFlags, "\"\"")
+				} else {
+					disallowedFlags = append(disallowedFlags, flag)
+				}
 			}
 		}
 	}
-	return nil
+	if len(allowedFlags) != len(flags) {
+		return allowedFlags, unknownFlagErr(fmt.Sprintf("unknown boot flags %v not allowed", disallowedFlags))
+	}
+	return flags, nil
 }
 
 func serializeBootFlags(flags []string) string {
@@ -78,7 +101,6 @@ func serializeBootFlags(flags []string) string {
 	}
 
 	return strings.Join(nonEmptyFlags, ",")
-	return strings.Join(flags, ",")
 }
 
 // SetImageBootFlags writes the provided flags to the bootenv of the recovery
@@ -86,7 +108,7 @@ func serializeBootFlags(flags []string) string {
 // prepare-image customization time by ubuntu-image/prepare-image.
 func SetImageBootFlags(flags []string, rootDir string) error {
 	// check that the flagList is supported
-	if err := checkFlagList(flags, understoodBootFlags); err != nil {
+	if _, err := checkBootFlagList(flags, understoodBootFlags); err != nil {
 		return err
 	}
 
@@ -181,23 +203,35 @@ func InitramfsSetBootFlags(flags []string) error {
 	return ioutil.WriteFile(snapBootstrapBootFlagsFile, []byte(s), 0644)
 }
 
-// BootFlags returns the current set of boot flags that were active when this
-// device was booted, using a file in /run/ instead of the source of truth. This
-// is to reduce ambiguity about which flags are active for this boot versus the
-// next boot.
+// BootFlags returns the current set of boot flags active for this boot. It uses
+// the initramfs-capture values in /run. The flags from the initramfs are
+// checked against the currently understood set of flags, so that if there are
+// unrecognized flags, they are removed from the returned list and the returned
+// error will have IsUnknownFlagError() return true. This is to allow gracefully
+// ignoring unknown boot flags while still processing supported flags.
 // Only to be used on UC20+ systems with recovery systems.
 func BootFlags(dev Device) ([]string, error) {
 	if !dev.HasModeenv() {
 		return nil, errNotUC20
 	}
 
-	// read the file that the initramfs wrote in /run
+	// read the file that the initramfs wrote in /run, we don't use the modeenv
+	// or bootenv to avoid ambiguity about whether the flags in the modeenv or
+	// bootenv are for this boot or the next one, but the initramfs will always
+	// copy the flags that were set into /run, so we always know the current
+	// boot's flags are written in /run
 	b, err := ioutil.ReadFile(snapBootstrapBootFlagsFile)
 	if err != nil {
 		return nil, err
 	}
 
 	flags := splitBootFlagString(string(b))
+	if allowFlags, err := checkBootFlagList(flags, understoodBootFlags); err != nil {
+		if e, ok := err.(unknownFlagErr); ok {
+			return allowFlags, e
+		}
+		return nil, err
+	}
 	return flags, nil
 }
 
@@ -238,7 +272,7 @@ func SetNextBootFlags(dev Device, rootDir string, flags []string) error {
 
 	// for run time, enforce the allow list so we don't write unsupported boot
 	// flags
-	if err := checkFlagList(flags, understoodBootFlags); err != nil {
+	if _, err := checkBootFlagList(flags, understoodBootFlags); err != nil {
 		return err
 	}
 
