@@ -68,7 +68,7 @@ func checkFlagList(flags []string, allowList []string) error {
 	return nil
 }
 
-func dropEmptyBootFlags(flags []string) []string {
+func serializeBootFlags(flags []string) string {
 	// drop empty strings before serializing
 	nonEmptyFlags := make([]string, 0, len(flags))
 	for _, flag := range flags {
@@ -76,10 +76,8 @@ func dropEmptyBootFlags(flags []string) []string {
 			nonEmptyFlags = append(nonEmptyFlags, flag)
 		}
 	}
-	return nonEmptyFlags
-}
 
-func serializeFlagString(flags []string) string {
+	return strings.Join(nonEmptyFlags, ",")
 	return strings.Join(flags, ",")
 }
 
@@ -94,7 +92,7 @@ func SetImageBootFlags(flags []string, rootDir string) error {
 
 	// also ensure that the serialized value of the boot flags fits inside the
 	// bootenv value, on lk systems the max size of a bootenv value is 255 chars
-	s := serializeFlagString(dropEmptyBootFlags(flags))
+	s := serializeBootFlags(flags)
 	if len(s) > 254 {
 		return fmt.Errorf("internal error: boot flags too large to fit inside bootenv value")
 	}
@@ -174,16 +172,7 @@ func InitramfsActiveBootFlags(mode string) ([]string, error) {
 // dropped automatically.
 // Only to be used on UC20+ systems with recovery systems.
 func InitramfsSetBootFlags(flags []string) error {
-	// when we are processing boot flags from the initramfs, don't enforce the
-	// allow list such that an old initramfs doesn't drop new boot flags that
-	// userspace snapd understands
-
-	// we do however drop empty boot flags to protect against the fact that
-	// in install mode, the bootenv is untrusted input, so we want some
-	// assurance that garbage is not being propagated through the system
-	// inadvertently
-	nonEmptyFlags := dropEmptyBootFlags(flags)
-	s := serializeFlagString(nonEmptyFlags)
+	s := serializeBootFlags(flags)
 
 	if err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0755); err != nil {
 		return err
