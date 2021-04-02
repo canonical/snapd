@@ -326,5 +326,6 @@ func (s *bootFlagsSuite) TestUserspaceBootFlagsUC20(c *C) {
 		// get the next boot flags with NextBootFlags and compare with expected
 		flags, err := boot.NextBootFlags(uc20Dev)
 		c.Assert(flags, DeepEquals, t.expFlags)
+		c.Assert(err, IsNil)
 	}
 }
