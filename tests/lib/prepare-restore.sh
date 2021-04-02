@@ -370,7 +370,7 @@ prepare_project() {
             # to purge it
 
             # first abort all ongoing changes and wait for them all to be done
-            for chg in $(snap changes | tail -n +2 | grep Do); do
+            for chg in $(snap changes | tail -n +2 | grep Do | grep -v Done); do
                 snap abort "$chg"
             done
 
