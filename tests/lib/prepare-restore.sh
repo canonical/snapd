@@ -366,7 +366,23 @@ prepare_project() {
     rm -rf /var/cache/snapd/aux
     case "$SPREAD_SYSTEM" in
         ubuntu-*)
-            # Ubuntu is the only system where snapd is preinstalled
+            # Ubuntu is the only system where snapd is preinstalled, so we have
+            # to purge it
+
+            # first abort all ongoing changes and wait for them all to be done
+            for chg in $(snap changes | tail -n +2 | grep Do); do
+                snap abort "$chg"
+            done
+
+            # now remove all snaps that aren't base snaps and are not snapd and
+            # not core
+            for sn in $(snap list | tail -n +2 | awk '{print $1,$6}' | grep -Po '(.+)\s+.*(?!base).*' | awk '{print $1}'); do
+                if [ "$sn" != snapd ] && [ "$sn" != core ]; then
+                    snap remove "$sn" || true
+                fi
+            done
+
+            # now we can attempt to purge the actual distro package via apt
             distro_purge_package snapd
             # XXX: the original package's purge may have left socket units behind
             find /etc/systemd/system -name "snap.*.socket" | while read -r f; do
