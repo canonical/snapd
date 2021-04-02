@@ -154,6 +154,10 @@ var (
 	WriteBootChains                     = writeBootChains
 	ReadBootChains                      = readBootChains
 	IsResealNeeded                      = isResealNeeded
+
+	SetImageBootFlags = setImageBootFlags
+	NextBootFlags     = nextBootFlags
+	SetNextBootFlags  = setNextBootFlags
 )
 
 func (b *bootChain) SetModelAssertion(model *asserts.Model) {

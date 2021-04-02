@@ -103,10 +103,10 @@ func serializeBootFlags(flags []string) string {
 	return strings.Join(nonEmptyFlags, ",")
 }
 
-// SetImageBootFlags writes the provided flags to the bootenv of the recovery
+// setImageBootFlags writes the provided flags to the bootenv of the recovery
 // bootloader in the specified system rootDir. It is only meant to be called at
 // prepare-image customization time by ubuntu-image/prepare-image.
-func SetImageBootFlags(flags []string, rootDir string) error {
+func setImageBootFlags(flags []string, rootDir string) error {
 	// check that the flagList is supported
 	if _, err := checkBootFlagList(flags, understoodBootFlags); err != nil {
 		return err
@@ -235,7 +235,7 @@ func BootFlags(dev Device) ([]string, error) {
 	return flags, nil
 }
 
-// NextBootFlags returns the set of boot flags that are applicable for the next
+// nextBootFlags returns the set of boot flags that are applicable for the next
 // boot. This information always comes from the modeenv, since the only
 // situation where boot flags are set for the next boot and we query their state
 // is during run mode. The next boot flags for install mode are not queried
@@ -244,7 +244,7 @@ func BootFlags(dev Device) ([]string, error) {
 // Only to be used on UC20+ systems with recovery systems.
 // TODO: should this accept a modeenv that was previously read from i.e.
 // devicestate manager?
-func NextBootFlags(dev Device) ([]string, error) {
+func nextBootFlags(dev Device) ([]string, error) {
 	if !dev.HasModeenv() {
 		return nil, errNotUC20
 	}
@@ -257,10 +257,10 @@ func NextBootFlags(dev Device) ([]string, error) {
 	return m.BootFlags, nil
 }
 
-// SetNextBootFlags sets the boot flags for the next boot to take effect after
+// setNextBootFlags sets the boot flags for the next boot to take effect after
 // rebooting. This information always gets saved to the modeenv.
 // Only to be used on UC20+ systems with recovery systems.
-func SetNextBootFlags(dev Device, rootDir string, flags []string) error {
+func setNextBootFlags(dev Device, rootDir string, flags []string) error {
 	if !dev.HasModeenv() {
 		return errNotUC20
 	}
