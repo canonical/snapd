@@ -35,7 +35,7 @@ var (
 
 	understoodBootFlags = []string{
 		// the factory boot flag is set to indicate that this is a
-		// boot inside a trusted factory environment
+		// boot inside a factory environment
 		"factory",
 	}
 )
@@ -121,6 +121,9 @@ func SetImageBootFlags(flags []string, rootDir string) error {
 // For detecting the current set of boot flags outside of the initramfs, use
 // BootFlags(), which will query for the runtime version of the flags in /run
 // that the initramfs will have setup for userspace.
+// Note that no filtering is done on the flags in order to allow new flags to be
+// used by a userspace that is newer than the initramfs, but empty flags will be
+// dropped automatically.
 // Only to be used on UC20+ systems with recovery systems.
 func InitramfsActiveBootFlags(mode string) ([]string, error) {
 	switch mode {
@@ -166,6 +169,10 @@ func InitramfsActiveBootFlags(mode string) ([]string, error) {
 // InitramfsSetBootFlags sets the boot flags for the current boot in the /run
 // file that will be consulted in userspace by BootFlags() below. It is meant to
 // be used only from the initramfs.
+// Note that no filtering is done on the flags in order to allow new flags to be
+// used by a userspace that is newer than the initramfs, but empty flags will be
+// dropped automatically.
+// Only to be used on UC20+ systems with recovery systems.
 func InitramfsSetBootFlags(flags []string) error {
 	// when we are processing boot flags from the initramfs, don't enforce the
 	// allow list such that an old initramfs doesn't drop new boot flags that
