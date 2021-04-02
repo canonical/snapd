@@ -25,8 +25,6 @@ type (
 )
 
 var (
-	// XXX it would be nice to not export this
-	ThemesCmd                    = themesCmd
 	InstalledThemes              = installedThemes
 	ThemePackageCandidates       = themePackageCandidates
 	ThemeStatusAndCandidateSnaps = themeStatusAndCandidateSnaps
