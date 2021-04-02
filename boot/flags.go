@@ -40,12 +40,12 @@ var (
 	}
 )
 
-// splitFlagString splits the given comma delimited list of boot flags, removing
+// splitBootFlagString splits the given comma delimited list of boot flags, removing
 // empty strings.
 // Note that this explicitly does not filter out unsupported boot flags in the
 // off chance that an old version of the initramfs is reading new boot flags
 // written by a new version of snapd in userspace on a previous boot.
-func splitFlagString(s string) []string {
+func splitBootFlagString(s string) []string {
 	flags := []string{}
 	for _, flag := range strings.Split(s, ",") {
 		if flag != "" {
@@ -159,7 +159,7 @@ func InitramfsActiveBootFlags(mode string) ([]string, error) {
 			return nil, err
 		}
 
-		return splitFlagString(m["snapd_boot_flags"]), nil
+		return splitBootFlagString(m["snapd_boot_flags"]), nil
 
 	default:
 		return nil, fmt.Errorf("internal error: unsupported mode %q", mode)
@@ -208,7 +208,8 @@ func BootFlags(dev Device) ([]string, error) {
 		return nil, err
 	}
 
-	return splitFlagString(string(b)), nil
+	flags := splitBootFlagString(string(b))
+	return flags, nil
 }
 
 // NextBootFlags returns the set of boot flags that are applicable for the next
