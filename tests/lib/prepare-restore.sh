@@ -371,11 +371,12 @@ prepare_project() {
 
             # first abort all ongoing changes and wait for them all to be done
             for chg in $(snap changes | tail -n +2 | grep Do | grep -v Done | awk '{print $1}'); do
-                snap abort "$chg"
+                snap abort "$chg" || true
+                snap watch "$chg" || true
             done
 
             # now remove all snaps that aren't a base, core or snapd
-            for sn in $(snap list | tail -n +2 | awk '{print $1,$6}' | grep -Po '(.+)\s+.*(?!base).*' | awk '{print $1}'); do
+            for sn in $(snap list | tail -n +2 | awk '{print $1,$6}' | grep -Po '(.+)\s+(?!base)' | awk '{print $1}'); do
                 if [ "$sn" != snapd ] && [ "$sn" != core ]; then
                     snap remove "$sn" || true
                 fi
