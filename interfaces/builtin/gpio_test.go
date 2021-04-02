@@ -163,7 +163,7 @@ func (s *GpioInterfaceSuite) TestApparmorConnectedPlugIgnoresMissingSymlink(c *C
 	c.Assert(log.String(), testutil.Contains, "cannot export not existing gpio /sys/class/gpio/gpio100")
 }
 
-func (s *GpioInterfaceSuite) TestApparmorConnectedSlot(c *C) {
+func (s *GpioInterfaceSuite) TestApparmorConnectedPlug(c *C) {
 	builtin.MockEvalSymlinks(&s.BaseTest, func(path string) (string, error) {
 		c.Assert(path, Equals, "/sys/class/gpio/gpio100")
 		// TODO: what is this actually a symlink to on a real device?
