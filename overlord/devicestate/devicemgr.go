@@ -135,7 +135,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		return nil, err
 	}
 
-	hookManager.Register(regexp.MustCompile("^prepare-device$"), newPrepareDeviceHandler)
+	hookManager.Register(regexp.MustCompile("^prepare-device$"), newBasicHookStateHandler)
+	hookManager.Register(regexp.MustCompile("^install-device$"), newBasicHookStateHandler)
 
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
@@ -167,6 +168,16 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	hookManager.Register(regexp.MustCompile("^fde-setup$"), newFdeSetupHandler)
 
 	return m, nil
+}
+
+type genericHook struct{}
+
+func (h genericHook) Before() error         { return nil }
+func (h genericHook) Done() error           { return nil }
+func (h genericHook) Error(err error) error { return nil }
+
+func newBasicHookStateHandler(context *hookstate.Context) hookstate.Handler {
+	return genericHook{}
 }
 
 func maybeReadModeenv() (*boot.Modeenv, error) {
@@ -275,35 +286,16 @@ func gadgetUpdateBlocked(cand *state.Task, running []*state.Task) bool {
 	if cand.Kind() == "update-gadget-assets" && len(running) != 0 {
 		// update-gadget-assets must be the only task running
 		return true
-	} else {
-		for _, other := range running {
-			if other.Kind() == "update-gadget-assets" {
-				// no other task can be started when
-				// update-gadget-assets is running
-				return true
-			}
+	}
+	for _, other := range running {
+		if other.Kind() == "update-gadget-assets" {
+			// no other task can be started when
+			// update-gadget-assets is running
+			return true
 		}
 	}
 
 	return false
-}
-
-type prepareDeviceHandler struct{}
-
-func newPrepareDeviceHandler(context *hookstate.Context) hookstate.Handler {
-	return prepareDeviceHandler{}
-}
-
-func (h prepareDeviceHandler) Before() error {
-	return nil
-}
-
-func (h prepareDeviceHandler) Done() error {
-	return nil
-}
-
-func (h prepareDeviceHandler) Error(err error) error {
-	return nil
 }
 
 func (m *DeviceManager) changeInFlight(kind string) bool {
@@ -493,9 +485,6 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 		prepareDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
 		tasks = append(tasks, prepareDevice)
-		// hooks are under a different manager, make sure we consider
-		// it immediately
-		m.state.EnsureBefore(0)
 	}
 
 	genKey := m.state.NewTask("generate-device-key", i18n.G("Generate device key"))
@@ -926,6 +915,23 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
+	model, err := m.Model()
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if err != nil {
+		return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
+	}
+
+	// check if the gadget has an install-device hook
+	var hasInstallDeviceHook bool
+
+	gadgetInfo, err := snapstate.CurrentInfo(m.state, model.Gadget())
+	if err != nil {
+		return fmt.Errorf("internal error: device is seeded in install mode but has no gadget snap: %v", err)
+	}
+	hasInstallDeviceHook = (gadgetInfo.Hooks["install-device"] != nil)
+
 	m.ensureInstalledRan = true
 
 	var prev *state.Task
@@ -938,6 +944,19 @@ func (m *DeviceManager) ensureInstalled() error {
 		prev = t
 	}
 	prev = setupRunSystem
+
+	// add the install-device hook before ensure-next-boot-to-run-mode if it
+	// exists in the snap
+	if hasInstallDeviceHook {
+		summary := i18n.G("Run install-device hook")
+		hooksup := &hookstate.HookSetup{
+			// TODO: what's a reasonable timeout for the install-device hook?
+			Snap: model.Gadget(),
+			Hook: "install-device",
+		}
+		installDevice := hookstate.HookTask(m.state, summary, hooksup, nil)
+		addTask(installDevice)
+	}
 
 	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
 	addTask(restartSystem)
@@ -1545,7 +1564,7 @@ func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookPara
 		return nil, fmt.Errorf("cannot run hook for %q: %v", op, err)
 	}
 	// the hook is expected to call "snapctl fde-setup-result" which
-	// wil set the "fde-setup-result" value on the task
+	// will set the "fde-setup-result" value on the task
 	var hookResult []byte
 	context.Lock()
 	err = context.Get("fde-setup-result", &hookResult)

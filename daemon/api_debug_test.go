@@ -53,9 +53,7 @@ func (s *postDebugSuite) TestPostDebugEnsureStateSoon(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/debug", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Result, check.Equals, true)
 	c.Check(soon, check.Equals, 1)
 }
@@ -67,9 +65,7 @@ func (s *postDebugSuite) TestPostDebugGetBaseDeclaration(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/debug", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Result.(map[string]interface{})["base-declaration"],
 		testutil.Contains, "type: base-declaration")
 }
@@ -82,21 +78,17 @@ func (s *postDebugSuite) testDebugConnectivityHappy(c *check.C, post bool) {
 		"another.good.host.com": true,
 	}
 
-	var rsp *daemon.Resp
+	var req *http.Request
+	var err error
 	if post {
 		buf := bytes.NewBufferString(`{"action": "connectivity"}`)
-		req, err := http.NewRequest("POST", "/v2/debug", buf)
-		c.Assert(err, check.IsNil)
-
-		rsp = s.req(c, req, nil).(*daemon.Resp)
+		req, err = http.NewRequest("POST", "/v2/debug", buf)
 	} else {
-		req, err := http.NewRequest("GET", "/v2/debug?aspect=connectivity", nil)
-		c.Assert(err, check.IsNil)
-		rsp = s.req(c, req, nil).(*daemon.Resp)
-
+		req, err = http.NewRequest("GET", "/v2/debug?aspect=connectivity", nil)
 	}
+	c.Assert(err, check.IsNil)
 
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Result, check.DeepEquals, daemon.ConnectivityStatus{
 		Connectivity: true,
 		Unreachable:  []string(nil),
@@ -119,20 +111,17 @@ func (s *postDebugSuite) testDebugConnectivityUnhappy(c *check.C, post bool) {
 		"bad.host.com":  false,
 	}
 
-	var rsp *daemon.Resp
+	var req *http.Request
+	var err error
 	if post {
 		buf := bytes.NewBufferString(`{"action": "connectivity"}`)
-		req, err := http.NewRequest("POST", "/v2/debug", buf)
-		c.Assert(err, check.IsNil)
-
-		rsp = s.req(c, req, nil).(*daemon.Resp)
+		req, err = http.NewRequest("POST", "/v2/debug", buf)
 	} else {
-		req, err := http.NewRequest("GET", "/v2/debug?aspect=connectivity", nil)
-		c.Assert(err, check.IsNil)
-		rsp = s.req(c, req, nil).(*daemon.Resp)
+		req, err = http.NewRequest("GET", "/v2/debug?aspect=connectivity", nil)
 	}
+	c.Assert(err, check.IsNil)
 
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Result, check.DeepEquals, daemon.ConnectivityStatus{
 		Connectivity: false,
 		Unreachable:  []string{"bad.host.com"},
@@ -153,9 +142,8 @@ func (s *postDebugSuite) TestGetDebugBaseDeclaration(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/debug?aspect=base-declaration", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Check(rsp.Result.(map[string]interface{})["base-declaration"],
 		testutil.Contains, "type: base-declaration")
 }
@@ -215,13 +203,12 @@ func (s *postDebugSuite) getDebugTimings(c *check.C, request string) []interface
 
 	st.Unlock()
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 	data, err := json.Marshal(rsp.Result)
 	c.Assert(err, check.IsNil)
 	var dataJSON []interface{}
 	json.Unmarshal(data, &dataJSON)
 
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	return dataJSON
 }
 
@@ -264,12 +251,12 @@ func (s *postDebugSuite) TestGetDebugTimingsError(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/debug?aspect=change-timings&ensure=unknown", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 400)
 
 	req, err = http.NewRequest("GET", "/v2/debug?aspect=change-timings&change-id=9999", nil)
 	c.Assert(err, check.IsNil)
-	rsp = s.req(c, req, nil).(*daemon.Resp)
+	rsp = s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 400)
 }
 
