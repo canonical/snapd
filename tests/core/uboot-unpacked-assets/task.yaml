@@ -11,7 +11,7 @@ execute: |
         echo "Check that on UC20, the kernel snap is extracted onto ubuntu-seed, not on ubuntu-boot"
         output=$(find /run/mnt/ubuntu-seed/systems/*/kernel/ -name "$NAME" )
         if [ -z "$output" ]; then
-            echo "Not found expected file $NAME in /run/mnt/ubuntu-seed/systems/*/kernel/*-kernel_*.snap/"
+            echo "Not found expected file $NAME in /run/mnt/ubuntu-seed/systems/*/kernel/"
             exit 1
         fi
     else

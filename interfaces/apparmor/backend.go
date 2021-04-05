@@ -564,6 +564,7 @@ func (b *Backend) Remove(snapName string) error {
 	globs := profileGlobs(snapName)
 	cache := apparmor_sandbox.CacheDir
 	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dir, globs, nil)
+	// always try to unload affected profiles
 	errUnload := unloadProfiles(removed, cache)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot synchronize security files for snap %q: %s", snapName, errEnsure)
@@ -572,7 +573,7 @@ func (b *Backend) Remove(snapName string) error {
 }
 
 func (b *Backend) RemoveLate(snapName string, rev snap.Revision, typ snap.Type) error {
-	logger.Noticef("remove late for snap %v (%s) type %v", snapName, rev, typ)
+	logger.Debugf("remove late for snap %v (%s) type %v", snapName, rev, typ)
 	if typ != snap.TypeSnapd {
 		// late remove is relevant only for snap confine profiles
 		return nil
@@ -582,6 +583,7 @@ func (b *Backend) RemoveLate(snapName string, rev snap.Revision, typ snap.Type) 
 	_, removed, errEnsure := osutil.EnsureDirStateGlobs(dirs.SnapAppArmorDir, globs, nil)
 	// XXX: unloadProfiles() does not unload profiles from the kernel, but
 	// only removes profiles from the cache
+	// always try to unload the affected profile
 	errUnload := unloadProfiles(removed, apparmor_sandbox.CacheDir)
 	if errEnsure != nil {
 		return fmt.Errorf("cannot remove security profiles for snap %q (%s): %s", snapName, rev, errEnsure)
