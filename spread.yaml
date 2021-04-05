@@ -624,10 +624,11 @@ prepare: |
                 zypper -q install -y xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
             arch-*)
-                # NOTE: we ought to do pacman -Syu, but this may update the
+                # XXX: there may be a libc upgrade which only -Syu handles;
+                # we shouldn't do pacman -Syu, as this may update the
                 # kernel which we will not detect at this stage and fail to
-                # reboot; actual distro upgrade is done later in prepare
-                pacman -Sy --noconfirm xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
+                # reboot; actual distro upgrade is done later in prepare.
+                pacman -Syu --noconfirm xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
         esac
         rm -f "$tf"
