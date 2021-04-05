@@ -12,7 +12,7 @@ execute: |
     local OUT="$1"
     case "$SPREAD_SYSTEM" in
         # special case systems using unified cgroup v2 hierarchy
-        fedora-32-*|fedora-33-*|debian-sid-*)
+        fedora-32-*|fedora-33-*|debian-sid-*|arch-*)
             echo "$OUT" | MATCH '^WARNING: cgroup v2 is not fully supported yet, proceeding with partial confinement$'
             ;;
         *)
