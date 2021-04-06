@@ -224,6 +224,16 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	recoveryBlVars := map[string]string{
 		"snapd_recovery_kernel": filepath.Join("/", kernelPath),
 	}
+	if _, ok := bl.(bootloader.TrustedAssetsBootloader); ok {
+		recoveryCmdlineArgs, err := bootVarsForTrustedCommandLineFromGadget(bootWith.UnpackedGadgetDir)
+		if err != nil {
+			return fmt.Errorf("cannot obtain recovery system command line: %v", err)
+		}
+		for k, v := range recoveryCmdlineArgs {
+			recoveryBlVars[k] = v
+		}
+	}
+
 	if err := rbl.SetRecoverySystemEnv(bootWith.RecoverySystemDir, recoveryBlVars); err != nil {
 		return fmt.Errorf("cannot set recovery system environment: %v", err)
 	}
