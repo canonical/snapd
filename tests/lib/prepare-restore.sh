@@ -216,10 +216,6 @@ install_dependencies_from_published(){
 ###
 
 prepare_project() {
-    # TODO: some distros started shipping Go 1.16 which defaults to having
-    # modules enabled, drop this when snapd starts supporting Go modules
-    export GO111MODULE=off
-
     if os.query is-ubuntu && os.query is-classic; then
         apt-get remove --purge -y lxd lxcfs || true
         apt-get autoremove --purge -y
