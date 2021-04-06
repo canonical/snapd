@@ -6279,6 +6279,33 @@ func tsWithoutReRefresh(c *C, ts *state.TaskSet) *state.TaskSet {
 	return ts
 }
 
+// XXX: We have some very similar code in hookstate/ctlcmd/is_connected_test.go
+//      should this be moved to overlord/snapstate/snapstatetest as a common
+//      helper
+func (ms *gadgetUpdatesSuite) mockInstalledSnapWithFiles(c *C, snapYaml string, files [][]string) {
+	st := ms.o.State()
+
+	info := snaptest.MockSnapWithFiles(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)}, files)
+	si := &snap.SideInfo{
+		RealName: info.SnapName(),
+		SnapID:   fakeSnapID(info.SnapName()),
+		Revision: info.Revision,
+	}
+	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  info.Revision,
+		SnapType: string(info.Type()),
+	})
+}
+
+// mockSnapUpgradeWithFiles will put a "rev 2" of the given snapYaml/files
+// into the mock snapstore
+func (ms *gadgetUpdatesSuite) mockSnapUpgradeWithFiles(c *C, snapYaml string, files [][]string) {
+	snapPath, _ := ms.makeStoreTestSnapWithFiles(c, snapYaml, "2", files)
+	ms.serveSnap(snapPath, "2")
+}
+
 func (ms *gadgetUpdatesSuite) TestRefreshGadgetUpdates(c *C) {
 	structureName := "ubuntu-seed"
 	gadgetYaml := fmt.Sprintf(`
@@ -6307,32 +6334,19 @@ volumes:
 	defer st.Unlock()
 
 	// we have an installed gadget
-	si := &snap.SideInfo{RealName: "pi", SnapID: fakeSnapID("pi"), Revision: snap.R(1)}
 	gadgetSnapYaml := "name: pi\nversion: 1.0\ntype: gadget"
-	snapstate.Set(st, "pi", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{si},
-		Current:  snap.R(1),
-		SnapType: "gadget",
-	})
-	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, si, [][]string{
+	ms.mockInstalledSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"meta/gadget.yaml", gadgetYaml},
 	})
 
 	// add new gadget snap to fake store
-	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "pi",
-		"publisher-id": "can0nical",
-		"revision":     "2",
-	})
-	snapPath, _ := ms.makeStoreTestSnapWithFiles(c, gadgetSnapYaml, "2", [][]string{
+	ms.mockSnapUpgradeWithFiles(c, gadgetSnapYaml, [][]string{
 		{"meta/gadget.yaml", newGadgetYaml},
 		{"boot-assets/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev2"},
 		{"boot-assets/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev2"},
 		{"boot-assets/overlays/uart0.dtbo", "uart0.dtbo rev2"},
 		{"foo.img", "foo rev2"},
 	})
-	ms.serveSnap(snapPath, "2")
 
 	ts, err := snapstate.Update(st, "pi", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
@@ -6404,44 +6418,24 @@ volumes:
 	defer st.Unlock()
 
 	// we have an installed gadget with kernel refs
-	si := &snap.SideInfo{RealName: "pi", SnapID: fakeSnapID("pi"), Revision: snap.R(1)}
 	gadgetSnapYaml := "name: pi\nversion: 1.0\ntype: gadget"
-	snapstate.Set(st, "pi", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{si},
-		Current:  snap.R(1),
-		SnapType: "gadget",
-	})
-	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, si, [][]string{
+	ms.mockInstalledSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"meta/gadget.yaml", gadgetYaml},
 		{"boot-assets/start.elf", "start.elf rev1"},
 	})
 	// we have an installed kernel with kernel.yaml
-	si2 := &snap.SideInfo{RealName: "pi-kernel", SnapID: fakeSnapID("pi-kernel"), Revision: snap.R(1)}
 	kernelSnapYaml := "name: pi-kernel\nversion: 1.0\ntype: kernel"
-	snapstate.Set(st, "pi-kernel", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
-		Current:  snap.R(1),
-		SnapType: "kernel",
-	})
-	snaptest.MockSnapWithFiles(c, kernelSnapYaml, si2, [][]string{
+	ms.mockInstalledSnapWithFiles(c, kernelSnapYaml, [][]string{
 		{"meta/kernel.yaml", kernelYaml},
 	})
 
 	// add new kernel snap to fake store
-	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "pi-kernel",
-		"publisher-id": "can0nical",
-		"revision":     "2",
-	})
-	snapPath, _ := ms.makeStoreTestSnapWithFiles(c, kernelSnapYaml, "2", [][]string{
+	ms.mockSnapUpgradeWithFiles(c, kernelSnapYaml, [][]string{
 		{"meta/kernel.yaml", kernelYaml},
 		{"dtbs/broadcom/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev2"},
 		{"dtbs/broadcom/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev2"},
 		{"dtbs/overlays/uart0.dtbo", "uart0.dtbo rev2"},
 	})
-	ms.serveSnap(snapPath, "2")
 
 	ts, err := snapstate.Update(st, "pi-kernel", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
@@ -6519,27 +6513,13 @@ volumes:
 	defer st.Unlock()
 
 	// we have an installed gadget with kernel refs
-	si := &snap.SideInfo{RealName: "pi", SnapID: fakeSnapID("pi"), Revision: snap.R(1)}
 	gadgetSnapYaml := "name: pi\nversion: 1.0\ntype: gadget"
-	snapstate.Set(st, "pi", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{si},
-		Current:  snap.R(1),
-		SnapType: "gadget",
-	})
-	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, si, [][]string{
+	ms.mockInstalledSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"meta/gadget.yaml", gadgetYaml},
 	})
 	// we have an installed kernel with kernel.yaml
-	si2 := &snap.SideInfo{RealName: "pi-kernel", SnapID: fakeSnapID("pi-kernel"), Revision: snap.R(1)}
 	kernelSnapYaml := "name: pi-kernel\nversion: 1.0\ntype: kernel"
-	snapstate.Set(st, "pi-kernel", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
-		Current:  snap.R(1),
-		SnapType: "kernel",
-	})
-	snaptest.MockSnapWithFiles(c, kernelSnapYaml, si2, [][]string{
+	ms.mockInstalledSnapWithFiles(c, kernelSnapYaml, [][]string{
 		{"meta/kernel.yaml", kernelYaml},
 		{"dtbs/broadcom/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev2"},
 		{"dtbs/broadcom/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev2"},
@@ -6548,16 +6528,10 @@ volumes:
 
 	// add new gadget snap to fake store that has an "update: true"
 	// for the kernel ref structure
-	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "pi",
-		"publisher-id": "can0nical",
-		"revision":     "2",
-	})
-	snapPath, _ := ms.makeStoreTestSnapWithFiles(c, gadgetSnapYaml, "2", [][]string{
+	ms.mockSnapUpgradeWithFiles(c, gadgetSnapYaml, [][]string{
 		{"meta/gadget.yaml", newGadgetYaml},
 		{"boot-assets/start.elf", "start.elf rev2"},
 	})
-	ms.serveSnap(snapPath, "2")
 
 	ts, err := snapstate.Update(st, "pi", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
@@ -6645,15 +6619,8 @@ volumes:
 	defer st.Unlock()
 
 	// we have an installed old style pi gadget
-	si := &snap.SideInfo{RealName: "pi", SnapID: fakeSnapID("pi"), Revision: snap.R(1)}
 	gadgetSnapYaml := "name: pi\nversion: 1.0\ntype: gadget"
-	snapstate.Set(st, "pi", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{si},
-		Current:  snap.R(1),
-		SnapType: "gadget",
-	})
-	snaptest.MockSnapWithFiles(c, gadgetSnapYaml, si, [][]string{
+	ms.mockInstalledSnapWithFiles(c, gadgetSnapYaml, [][]string{
 		{"meta/gadget.yaml", oldGadgetYaml},
 		{"boot-assets/start.elf", "start.elf rev1"},
 		{"boot-assets/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev1"},
@@ -6667,42 +6634,23 @@ volumes:
 	})
 
 	// we have an installed old-style kernel snap
-	si2 := &snap.SideInfo{RealName: "pi-kernel", SnapID: fakeSnapID("pi-kernel"), Revision: snap.R(1)}
 	kernelSnapYaml := "name: pi-kernel\nversion: 1.0\ntype: kernel"
-	snapstate.Set(st, "pi-kernel", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{si2},
-		Current:  snap.R(1),
-		SnapType: "kernel",
-	})
-	snaptest.MockSnapWithFiles(c, kernelSnapYaml, si2, nil)
+	ms.mockInstalledSnapWithFiles(c, kernelSnapYaml, nil)
 
 	// add new kernel snap with kernel-refs to fake store
-	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "pi-kernel",
-		"publisher-id": "can0nical",
-		"revision":     "2",
-	})
-	snapPath, _ := ms.makeStoreTestSnapWithFiles(c, kernelSnapYaml, "2", [][]string{
+	ms.mockSnapUpgradeWithFiles(c, kernelSnapYaml, [][]string{
 		{"meta/kernel.yaml", kernelYaml},
 		{"dtbs/broadcom/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev2-from-kernel"},
 		{"dtbs/broadcom/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev2-from-kernel"},
 		{"dtbs/overlays/uart0.dtbo", "uart0.dtbo rev2-from-kernel"},
 	})
-	ms.serveSnap(snapPath, "2")
 
 	// add new gadget snap with kernel-refs to fake store
-	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "pi",
-		"publisher-id": "can0nical",
-		"revision":     "2",
-	})
-	snapPath2, _ := ms.makeStoreTestSnapWithFiles(c, gadgetSnapYaml, "2", [][]string{
+	ms.mockSnapUpgradeWithFiles(c, gadgetSnapYaml, [][]string{
 		{"meta/gadget.yaml", newGadgetYaml},
 		{"boot-assets/start.elf", "start.elf rev1"},
 		// notice: no dtbs anymore in the gadget
 	})
-	ms.serveSnap(snapPath2, "2")
 
 	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
@@ -6712,7 +6660,7 @@ volumes:
 	chg := st.NewChange("upgrade-snaps", "...")
 	for _, ts := range tasksets {
 		// skip the taskset of UpdateMany that does the
-		// check-refresheh, see tsWithoutReRefresh for details
+		// check-rerefresh, see tsWithoutReRefresh for details
 		if ts.Tasks()[0].Kind() == "check-rerefresh" {
 			continue
 		}
@@ -6724,6 +6672,15 @@ volumes:
 	st.Lock()
 	c.Assert(err, IsNil)
 	c.Assert(chg.Err(), IsNil)
+
+	// At this point the gadget and kernel are updated and the kernel
+	// required a restart. Check that *before* this restart the DTB
+	// files from the kernel are in place.
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-2-b.dtb"), testutil.FileContains, "bcm2710-rpi-2-b.dtb rev2-from-kernel")
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-3-b.dtb"), testutil.FileContains, "bcm2710-rpi-3-b.dtb rev2-from-kernel")
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "overlays/uart0.dtbo"), testutil.FileContains, "uart0.dtbo rev2-from-kernel")
+	//  gadget content is not updated because there is no edition update
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "start.elf"), testutil.FileContains, "start.elf rev1")
 
 	// pretend we restarted
 	ms.mockSuccessfulReboot(c, ms.bloader, []snap.Type{snap.TypeKernel})
@@ -6733,24 +6690,131 @@ volumes:
 	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
-	// this failure is expected, the auto-refresh will fail first
-	//
-	// XXX: error message is a bit misleading: gadget "pi-kernel" (pi-kernel is not a gadget)
-	c.Assert(chg.Err(), ErrorMatches, `(?ms).*Update assets from gadget "pi-kernel" \(2\) \(cannot find required kernel asset "pidtbs" in gadget\).*`)
+	c.Assert(chg.Err(), IsNil)
+}
 
-	// run the auto-refresh again, now it will succeed
-	affected, tasksets, err = snapstate.UpdateMany(context.TODO(), st, nil, 0, &snapstate.Flags{})
+func snapTaskStatusForChange(chg *state.Change) map[string]state.Status {
+	taskStates := make(map[string]state.Status)
+	for _, t := range chg.Tasks() {
+		if snapsup, err := snapstate.TaskSnapSetup(t); err == nil {
+			taskStates[snapsup.SnapName()+":"+t.Kind()] = t.Status()
+		}
+	}
+	return taskStates
+}
+
+func (ms *gadgetUpdatesSuite) TestGadgetWithKernelRefUpgradeFromOldErrorGadget(c *C) {
+	kernelYaml := `
+assets:
+  pidtbs:
+    update: true
+    content:
+    - dtbs/broadcom/
+    - dtbs/overlays/`
+
+	structureName := "ubuntu-seed"
+	oldGadgetYaml := fmt.Sprintf(`
+volumes:
+    volume-id:
+        schema: mbr
+        bootloader: u-boot
+        structure:
+          - name: %s
+            filesystem: vfat
+            type: 0C
+            size: 1200M
+            content:
+              - source: boot-assets/
+                target: /`, structureName)
+	// Note that there is no "edition" jump here for the new "$kernel:ref"
+	// content. This is driven by the kernel.yaml "update: true" value.
+	newGadgetYaml := fmt.Sprintf(`
+volumes:
+    volume-id:
+        schema: mbr
+        bootloader: u-boot
+        structure:
+          - name: %s
+            filesystem: vfat
+            type: 0C
+            size: 1200M
+            content:
+              - source: boot-assets/
+                target: /
+              - source: $kernel:pidtbs/dtbs/broadcom/
+                target: /
+              - source: $kernel:pidtbs/dtbs/overlays/
+                target: /overlays`, structureName)
+	ms.makeMockedDev(c, structureName)
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// we have an installed old style pi gadget
+	gadgetSnapYaml := "name: pi\nversion: 1.0\ntype: gadget"
+	ms.mockInstalledSnapWithFiles(c, gadgetSnapYaml, [][]string{
+		{"meta/gadget.yaml", oldGadgetYaml},
+		{"boot-assets/start.elf", "start.elf rev1"},
+		{"boot-assets/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev1"},
+		{"boot-assets/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev1"},
+	})
+	// we have old style boot asssets in the bootloader dir
+	snaptest.PopulateDir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName), [][]string{
+		{"start.elf", "start.elf rev1"},
+		{"bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev1"},
+		{"bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev1"},
+	})
+
+	// we have an installed old-style kernel snap
+	kernelSnapYaml := "name: pi-kernel\nversion: 1.0\ntype: kernel"
+	ms.mockInstalledSnapWithFiles(c, kernelSnapYaml, nil)
+
+	// add new kernel snap with kernel-refs to fake store
+	ms.mockSnapUpgradeWithFiles(c, kernelSnapYaml, [][]string{
+		{"meta/kernel.yaml", kernelYaml},
+		{"dtbs/broadcom/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev2-from-kernel"},
+		{"dtbs/broadcom/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev2-from-kernel"},
+		{"dtbs/overlays/uart0.dtbo", "uart0.dtbo rev2-from-kernel"},
+	})
+
+	// add new gadget snap with kernel-refs to fake store
+	ms.mockSnapUpgradeWithFiles(c, gadgetSnapYaml, [][]string{
+		{"meta/gadget.yaml", newGadgetYaml},
+		{"boot-assets/start.elf", "start.elf rev1"},
+		// notice: no dtbs anymore in the gadget
+	})
+
+	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
-	c.Check(affected, DeepEquals, []string{"pi-kernel"})
+	c.Check(affected, DeepEquals, []string{"pi", "pi-kernel"})
 
-	chg = st.NewChange("upgrade-snaps", "...")
+	chg := st.NewChange("upgrade-snaps", "...")
+	tError := st.NewTask("error-trigger", "gadget failed")
 	for _, ts := range tasksets {
 		// skip the taskset of UpdateMany that does the
-		// check-refresheh, see tsWithoutReRefresh for details
-		if ts.Tasks()[0].Kind() == "check-rerefresh" {
+		// check-rerefresh, see tsWithoutReRefresh for details
+		tasks := ts.Tasks()
+		if tasks[0].Kind() == "check-rerefresh" {
 			continue
 		}
+
+		snapsup, err := snapstate.TaskSnapSetup(tasks[0])
+		c.Assert(err, IsNil)
+		// trigger an error as last operation of gadget refresh
+		if snapsup.SnapName() == "pi" {
+			last := tasks[len(tasks)-1]
+			tError.WaitFor(last)
+			// XXX: or just use "snap-setup" here?
+			tError.Set("snap-setup-task", tasks[0].ID())
+			ts.AddTask(tError)
+			// must be in the same lane as the gadget update
+			lanes := last.Lanes()
+			c.Assert(lanes, HasLen, 1)
+			tError.JoinLane(lanes[0])
+		}
+
 		chg.AddAll(ts)
 	}
 
@@ -6758,7 +6822,151 @@ volumes:
 	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
-	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n- gadget failed.*`)
+
+	// check that files/dirs from the kernel did  *not* get updated or installed
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-2-b.dtb"), testutil.FileContains, "bcm2710-rpi-2-b.dtb rev1")
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-3-b.dtb"), testutil.FileContains, "bcm2710-rpi-3-b.dtb rev1")
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "overlays/uart0.dtbo"), testutil.FileAbsent)
+
+	// Ensure that tasks states are valid
+	taskStates := snapTaskStatusForChange(chg)
+	// The pi gadget failed in error-trigger and got rolled back
+	c.Check(taskStates["pi:error-trigger"], Equals, state.ErrorStatus)
+	c.Check(taskStates["pi:mount-snap"], Equals, state.UndoneStatus)
+	// And the pi-kernel did not even get started
+	c.Check(taskStates["pi-kernel:download-snap"], Equals, state.HoldStatus)
+}
+
+func (ms *gadgetUpdatesSuite) TestGadgetWithKernelRefUpgradeFromOldErrorKernel(c *C) {
+	kernelYaml := `
+assets:
+  pidtbs:
+    update: true
+    content:
+    - dtbs/broadcom/
+    - dtbs/overlays/`
+
+	structureName := "ubuntu-seed"
+	oldGadgetYaml := fmt.Sprintf(`
+volumes:
+    volume-id:
+        schema: mbr
+        bootloader: u-boot
+        structure:
+          - name: %s
+            filesystem: vfat
+            type: 0C
+            size: 1200M
+            content:
+              - source: boot-assets/
+                target: /`, structureName)
+	// Note that there is no "edition" jump here for the new "$kernel:ref"
+	// content. This is driven by the kernel.yaml "update: true" value.
+	newGadgetYaml := fmt.Sprintf(`
+volumes:
+    volume-id:
+        schema: mbr
+        bootloader: u-boot
+        structure:
+          - name: %s
+            filesystem: vfat
+            type: 0C
+            size: 1200M
+            content:
+              - source: boot-assets/
+                target: /
+              - source: $kernel:pidtbs/dtbs/broadcom/
+                target: /
+              - source: $kernel:pidtbs/dtbs/overlays/
+                target: /overlays`, structureName)
+	ms.makeMockedDev(c, structureName)
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// we have an installed old style pi gadget
+	gadgetSnapYaml := "name: pi\nversion: 1.0\ntype: gadget"
+	ms.mockInstalledSnapWithFiles(c, gadgetSnapYaml, [][]string{
+		{"meta/gadget.yaml", oldGadgetYaml},
+		{"boot-assets/start.elf", "start.elf rev1"},
+		{"boot-assets/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev1"},
+		{"boot-assets/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev1"},
+	})
+	// we have old style boot asssets in the bootloader dir
+	snaptest.PopulateDir(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName), [][]string{
+		{"start.elf", "start.elf rev1"},
+		{"bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev1"},
+		{"bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev1"},
+	})
+
+	// we have an installed old-style kernel snap
+	kernelSnapYaml := "name: pi-kernel\nversion: 1.0\ntype: kernel"
+	ms.mockInstalledSnapWithFiles(c, kernelSnapYaml, nil)
+
+	// add new kernel snap with kernel-refs to fake store
+	ms.mockSnapUpgradeWithFiles(c, kernelSnapYaml, [][]string{
+		{"meta/kernel.yaml", kernelYaml},
+		{"dtbs/broadcom/bcm2710-rpi-2-b.dtb", "bcm2710-rpi-2-b.dtb rev2-from-kernel"},
+		{"dtbs/broadcom/bcm2710-rpi-3-b.dtb", "bcm2710-rpi-3-b.dtb rev2-from-kernel"},
+		{"dtbs/overlays/uart0.dtbo", "uart0.dtbo rev2-from-kernel"},
+	})
+
+	// add new gadget snap with kernel-refs to fake store
+	ms.mockSnapUpgradeWithFiles(c, gadgetSnapYaml, [][]string{
+		{"meta/gadget.yaml", newGadgetYaml},
+		{"boot-assets/start.elf", "start.elf rev1"},
+		// notice: no dtbs anymore in the gadget
+	})
+
+	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, &snapstate.Flags{})
+	c.Assert(err, IsNil)
+	sort.Strings(affected)
+	c.Check(affected, DeepEquals, []string{"pi", "pi-kernel"})
+
+	chg := st.NewChange("upgrade-snaps", "...")
+	tError := st.NewTask("error-trigger", "kernel failed")
+	for _, ts := range tasksets {
+		// skip the taskset of UpdateMany that does the
+		// check-rerefresh, see tsWithoutReRefresh for details
+		tasks := ts.Tasks()
+		if tasks[0].Kind() == "check-rerefresh" {
+			continue
+		}
+
+		snapsup, err := snapstate.TaskSnapSetup(tasks[0])
+		c.Assert(err, IsNil)
+		// trigger an error as last operation of gadget refresh
+		if snapsup.SnapName() == "pi-kernel" {
+			last := tasks[len(tasks)-1]
+			tError.WaitFor(last)
+			// XXX: or just use "snap-setup" here?
+			tError.Set("snap-setup-task", tasks[0].ID())
+			ts.AddTask(tError)
+			// must be in the same lane as the kernel update
+			lanes := last.Lanes()
+			c.Assert(lanes, HasLen, 1)
+			tError.JoinLane(lanes[0])
+		}
+
+		chg.AddAll(ts)
+	}
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Check(chg.Err(), IsNil)
+
+	// At this point the gadget and kernel are updated and the kernel
+	// required a restart. Check that *before* this restart the DTB
+	// files from the kernel are in place.
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-2-b.dtb"), testutil.FileContains, "bcm2710-rpi-2-b.dtb rev2-from-kernel")
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-3-b.dtb"), testutil.FileContains, "bcm2710-rpi-3-b.dtb rev2-from-kernel")
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "overlays/uart0.dtbo"), testutil.FileContains, "uart0.dtbo rev2-from-kernel")
+	//  gadget content is not updated because there is no edition update
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "start.elf"), testutil.FileContains, "start.elf rev1")
 
 	// pretend we restarted
 	ms.mockSuccessfulReboot(c, ms.bloader, []snap.Type{snap.TypeKernel})
@@ -6767,10 +6975,32 @@ volumes:
 	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
-	c.Assert(chg.Err(), IsNil)
-	c.Assert(chg.Status(), Equals, state.DoneStatus)
+	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n- kernel failed.*`)
 
-	// check that files/dirs got updated and subdirs are correct
+	// Ensure that tasks states are what we expect
+	taskStates := snapTaskStatusForChange(chg)
+	// The pi-kernel failed in error-trigger and got rolled back
+	c.Check(taskStates["pi-kernel:error-trigger"], Equals, state.ErrorStatus)
+	c.Check(taskStates["pi-kernel:mount-snap"], Equals, state.UndoneStatus)
+	// But the pi gadget was installed just fine
+	c.Check(taskStates["pi:download-snap"], Equals, state.DoneStatus)
+	c.Check(taskStates["pi:link-snap"], Equals, state.DoneStatus)
+
+	// Note that the undo of the kernel did *not* revert the DTBs on
+	// disk. The reason is that we never undo asset updates on the
+	// basis that if the system booted they are probably good enough.
+	// A really broken DTB can brick the device if the new DTB is written
+	// to disk, the system reboots and neither new kernel nor fallback
+	// kernel will boot because there is no A/B DTB. This is a flaw
+	// of the Pi and u-boot.
+	//
+	// In the future we will integrate with the "pi-boot" mechanism that
+	// allows doing a A/B boot using the config.txt "os-prefix" dir. This
+	// will allow us to write the DTBs to A/B locations.
+	//
+	// TODO:UC20: port this so that it integrates with pi-boot and the
+	//            A/B os-prefix mechanism there so that we can have
+	//            robust DTB updates.
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-2-b.dtb"), testutil.FileContains, "bcm2710-rpi-2-b.dtb rev2-from-kernel")
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "bcm2710-rpi-3-b.dtb"), testutil.FileContains, "bcm2710-rpi-3-b.dtb rev2-from-kernel")
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "overlays/uart0.dtbo"), testutil.FileContains, "uart0.dtbo rev2-from-kernel")

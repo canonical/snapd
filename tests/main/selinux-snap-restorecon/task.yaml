@@ -1,6 +1,6 @@
 summary: Check that snap run automatically restores SELinux context
 
-description: |
+details: |
     Verify that snap run automatically restores the SELinux context of $HOME/snap.
 
 systems: [fedora-*, centos-*]

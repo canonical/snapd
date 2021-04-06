@@ -139,19 +139,9 @@ func applyHandlers(cfg config.Conf, handlers []configHandler) error {
 }
 
 func Early(cfg config.Conf, values map[string]interface{}) error {
-	early := make(map[string]interface{})
-	// keep track of which handlers have early config to process
-	var relevant []configHandler
-	for _, h := range handlers {
-		flt := h.flags().earlyConfigFilter
-		if flt != nil {
-			cur := len(early)
-			flt(values, early)
-			if len(early) > cur {
-				relevant = append(relevant, h)
-			}
-		}
-	}
+	early, relevant := applyFilters(func(f flags) filterFunc {
+		return f.earlyConfigFilter
+	}, values)
 
 	if err := config.Patch(cfg, "core", early); err != nil {
 		return err

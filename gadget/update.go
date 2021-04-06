@@ -35,7 +35,7 @@ var (
 
 var (
 	// default positioning constraints that match ubuntu-image
-	defaultConstraints = LayoutConstraints{
+	DefaultConstraints = LayoutConstraints{
 		NonMBRStartOffset: 1 * quantity.OffsetMiB,
 	}
 )
@@ -53,10 +53,11 @@ type GadgetData struct {
 }
 
 // UpdatePolicyFunc is a callback that evaluates the provided pair of
-// structures and returns true when the pair should be part of an
-// update. It may also return a filter function for the resolved
-// content when not all of the content should be applied as part of
-//  the update (e.g. when updating assets from the kernel snap).
+// (potentially not yet resolved) structures and returns true when the
+// pair should be part of an update. It may also return a filter
+// function for the resolved content when not all of the content
+// should be applied as part of the update (e.g. when updating assets
+// from the kernel snap).
 type UpdatePolicyFunc func(from, to *LaidOutStructure) (bool, ResolvedContentFilterFunc)
 
 // ResolvedContentFilterFunc is a callback that evaluates the given
@@ -178,21 +179,17 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 
 	// layout old partially, without going deep into the layout of structure
 	// content
-	pOld, err := LayoutVolumePartially(oldVol, defaultConstraints)
+	pOld, err := LayoutVolumePartially(oldVol, DefaultConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the old volume: %v", err)
 	}
 
 	// Layout new volume, delay resolving of filesystem content
-	constraints := defaultConstraints
+	constraints := DefaultConstraints
 	constraints.SkipResolveContent = true
 	pNew, err := LayoutVolume(new.RootDir, new.KernelRootDir, newVol, constraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the new volume: %v", err)
-	}
-	// ensure all required kernel assets are found in the gadget
-	if err := checkVolumetHasAllKernelRefs(pNew, new.KernelRootDir); err != nil {
-		return err
 	}
 
 	if err := canUpdateVolume(pOld, pNew); err != nil {
@@ -203,10 +200,15 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 		updatePolicy = defaultPolicy
 	}
 
+	// ensure all required kernel assets are found in the gadget
 	kernelInfo, err := kernel.ReadInfo(new.KernelRootDir)
 	if err != nil {
 		return err
 	}
+	if err := gadgetVolumeConsumesOneKernelUpdateAsset(pNew.Volume, kernelInfo); err != nil {
+		return err
+	}
+
 	// now we know which structure is which, find which ones need an update
 	updates, err := resolveUpdate(pOld, pNew, updatePolicy, new.RootDir, new.KernelRootDir, kernelInfo)
 	if err != nil {
@@ -340,8 +342,6 @@ func canUpdateVolume(from *PartiallyLaidOutVolume, to *LaidOutVolume) error {
 type updatePair struct {
 	from *LaidOutStructure
 	to   *LaidOutStructure
-
-	resolvedContentFilter func(*ResolvedContent) bool
 }
 
 func defaultPolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilterFunc) {
@@ -388,14 +388,18 @@ func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy
 		newStruct := newVol.LaidOutStructure[j]
 		// update only when the policy says so; boot assets
 		// are assumed to be backwards compatible, once
-		// deployed are not rolled back or replaced unless
+		// deployed they are not rolled back or replaced unless
 		// told by the new policy
 		if update, filter := policy(&oldStruct, &newStruct); update {
-
-			// always ensure content is resolved at this point
-			resolvedContent, err := resolveVolumeContent(newGadgetRootDir, newKernelRootDir, kernelInfo, &newStruct)
+			// Ensure content is resolved and filtered. Filtering
+			// is required for e.g. KernelUpdatePolicy, see above.
+			resolvedContent, err := resolveVolumeContent(newGadgetRootDir, newKernelRootDir, kernelInfo, &newStruct, filter)
 			if err != nil {
 				return nil, err
+			}
+			// Nothing to do after filtering
+			if filter != nil && len(resolvedContent) == 0 && len(newStruct.LaidOutContent) == 0 {
+				continue
 			}
 			newVol.LaidOutStructure[j].ResolvedContent = resolvedContent
 
@@ -403,26 +407,10 @@ func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy
 			updates = append(updates, updatePair{
 				from: &oldVol.LaidOutStructure[j],
 				to:   &newVol.LaidOutStructure[j],
-
-				resolvedContentFilter: filter,
 			})
 		}
 	}
 	return updates, nil
-}
-
-func filterUpdates(updates []updatePair) {
-	for _, update := range updates {
-		if update.resolvedContentFilter != nil {
-			filteredResolvedContent := make([]ResolvedContent, 0, len(update.to.ResolvedContent))
-			for _, rn := range update.to.ResolvedContent {
-				if update.resolvedContentFilter(&rn) {
-					filteredResolvedContent = append(filteredResolvedContent, rn)
-				}
-			}
-			update.to.ResolvedContent = filteredResolvedContent
-		}
-	}
 }
 
 type Updater interface {
@@ -438,14 +426,6 @@ type Updater interface {
 }
 
 func applyUpdates(new GadgetData, updates []updatePair, rollbackDir string, observer ContentUpdateObserver) error {
-	// XXX: we may need to revisit filterUpdates later and instead
-	// pass the ResolvedContentFilterFunc to the updaters. But for
-	// now using filterUpdates() is simpler.
-	//
-	// ResolvedContentFilterFunc from updatePair down to the
-	// MountedFileSystem instead?
-	filterUpdates(updates)
-
 	updaters := make([]Updater, len(updates))
 
 	for i, one := range updates {

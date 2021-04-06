@@ -123,7 +123,7 @@ func decodeModelAssertion(opts *Options) (*asserts.Model, error) {
 	return modela, nil
 }
 
-func unpackGadget(gadgetFname, gadgetUnpackDir string) error {
+func unpackSnap(gadgetFname, gadgetUnpackDir string) error {
 	// FIXME: jumping through layers here, we need to make
 	//        unpack part of the container interface (again)
 	snap := squashfs.New(gadgetFname)
@@ -239,12 +239,15 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
-	var gadgetUnpackDir string
+	var gadgetUnpackDir, kernelUnpackDir string
 	// create directory for later unpacking the gadget in
 	if !opts.Classic {
 		gadgetUnpackDir = filepath.Join(opts.PrepareDir, "gadget")
-		if err := os.MkdirAll(gadgetUnpackDir, 0755); err != nil {
-			return fmt.Errorf("cannot create gadget unpack dir %q: %s", gadgetUnpackDir, err)
+		kernelUnpackDir = filepath.Join(opts.PrepareDir, "kernel")
+		for _, unpackDir := range []string{gadgetUnpackDir, kernelUnpackDir} {
+			if err := os.MkdirAll(unpackDir, 0755); err != nil {
+				return fmt.Errorf("cannot create unpack dir %q: %s", unpackDir, err)
+			}
 		}
 	}
 
@@ -396,6 +399,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	// find the snap.Info/path for kernel/os/base so
 	// that boot.MakeBootable can DTRT
 	gadgetFname := ""
+	kernelFname := ""
 	for _, sn := range bootSnaps {
 		switch sn.Info.Type() {
 		case snap.TypeGadget:
@@ -406,15 +410,33 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		case snap.TypeKernel:
 			bootWith.Kernel = sn.Info
 			bootWith.KernelPath = sn.Path
+			kernelFname = sn.Path
 		}
 	}
 
 	// unpacking the gadget for core models
-	if err := unpackGadget(gadgetFname, gadgetUnpackDir); err != nil {
+	if err := unpackSnap(gadgetFname, gadgetUnpackDir); err != nil {
+		return err
+	}
+	if err := unpackSnap(kernelFname, kernelUnpackDir); err != nil {
 		return err
 	}
 
-	if err := boot.MakeBootable(model, bootRootDir, bootWith, nil); err != nil {
+	if err := boot.MakeBootableImage(model, bootRootDir, bootWith, nil); err != nil {
+		return err
+	}
+
+	gadgetInfo, err := gadget.ReadInfoAndValidate(gadgetUnpackDir, model, nil)
+	if err != nil {
+		return err
+	}
+	// validate content against the kernel as well
+	if err := gadget.ValidateContent(gadgetInfo, gadgetUnpackDir, kernelUnpackDir); err != nil {
+		return err
+	}
+
+	// write resolved content to structure root
+	if err := writeResolvedContent(opts.PrepareDir, gadgetInfo, gadgetUnpackDir, kernelUnpackDir); err != nil {
 		return err
 	}
 
@@ -422,11 +444,6 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	if !core20 {
 		// and the cloud-init things
 		if err := installCloudConfig(rootDir, gadgetUnpackDir); err != nil {
-			return err
-		}
-
-		gadgetInfo, err := gadget.ReadInfoAndValidate(gadgetUnpackDir, model, nil)
-		if err != nil {
 			return err
 		}
 

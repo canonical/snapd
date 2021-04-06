@@ -93,7 +93,7 @@ Before=snapd.service
 What=/var/lib/snapd/snaps/foo_13.snap
 Where=%s/foo/13
 Type=squashfs
-Options=nodev,ro,x-gdu.hide
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 LazyUnmount=yes
 
 [Install]

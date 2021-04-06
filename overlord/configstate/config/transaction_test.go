@@ -212,6 +212,64 @@ var setGetTests = [][]setGetOp{{
 	`commit`,
 	`get x=-`,
 }, {
+	// Nulls, set then unset and set back over same partial path
+	`set doc.x.a=1`,
+	`commit`,
+	`set doc.x.a=null`,
+	`get doc={"x":{}}}`,
+	`set doc.x.a=6`,
+	`get doc={"x":{"a":6}}`,
+	`commit`,
+	`get doc={"x":{"a":6}}`,
+	`getrootunder ={"doc":{"x":{"a":6}}}`,
+}, {
+	// Nulls, set then unset and set back over same path
+	`set doc.x.a=1`,
+	`commit`,
+	`set doc.x=null`,
+	`get doc={}`,
+	`set doc.x.a=3`,
+	`get doc={"x":{"a":3}}`,
+	`commit`,
+	`get doc={"x":{"a":3}}`,
+	`getrootunder ={"doc":{"x":{"a":3}}}`,
+}, {
+	// Nulls, set then unset and set back root element
+	`set doc.x.a=1`,
+	`commit`,
+	`set doc.x=null`,
+	`get doc={}`,
+	`set doc=null`,
+	`get doc=-`,
+	`set doc=99`,
+	`commit`,
+	`get doc=99`,
+	`getrootunder ={"doc":99}`,
+}, {
+	// Nulls, set then unset over same path
+	`set doc.x.a=1 doc.x.b=2`,
+	`commit`,
+	`set doc.x=null`,
+	`set doc.x.a=null`,
+	`set doc.x.b=null`,
+	`get doc={"x":{}}`,
+	`commit`,
+	`get doc={"x":{}}`,
+	`getrootunder ={"doc":{"x":{}}}`,
+}, {
+	// Nulls, set then unset and set back over same path
+	`set doc.x.a=1`,
+	`commit`,
+	`set doc.x=null`,
+	`set doc.x.a=null`,
+	`get doc={"x":{}}`,
+	`set doc={"x":{"a":9}}`,
+	`set doc.x.a=1`,
+	`get doc={"x":{"a":1}}`,
+	`commit`,
+	`get doc={"x":{"a":1}}`,
+	`getrootunder ={"doc":{"x":{"a":1}}}`,
+}, {
 	// Root doc
 	`set doc={"one":1,"two":2}`,
 	`changes core.doc.one core.doc.two`,
@@ -428,6 +486,21 @@ func (b *brokenType) UnmarshalJSON(data []byte) error {
 		return fmt.Errorf("BAM!")
 	}
 	return nil
+}
+
+func (s *transactionSuite) TestCommitOverNilSnapConfig(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// simulate invalid nil map created due to LP #1917870 by snap restore
+	s.state.Set("config", map[string]interface{}{"test-snap": nil})
+	t := config.NewTransaction(s.state)
+
+	c.Assert(t.Set("test-snap", "foo", "bar"), IsNil)
+	t.Commit()
+	var v string
+	t.Get("test-snap", "foo", &v)
+	c.Assert(v, Equals, "bar")
 }
 
 func (s *transactionSuite) TestGetUnmarshalError(c *C) {

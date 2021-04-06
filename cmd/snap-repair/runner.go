@@ -660,7 +660,7 @@ func verifySignatures(a asserts.Assertion, workBS asserts.Backstore, trusted ass
 				return err
 			}
 		}
-		if err := asserts.CheckSignature(a, key.(*asserts.AccountKey), nil, time.Time{}); err != nil {
+		if err := asserts.CheckSignature(a, key.(*asserts.AccountKey), nil, time.Time{}, time.Time{}); err != nil {
 			return err
 		}
 		a = key
