@@ -932,6 +932,7 @@ var squashfsFsType = squashfs.FsType
 var mountUnitTemplate = `[Unit]
 Description=Mount unit for %s, revision %s
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
