@@ -115,8 +115,8 @@ func (t *Transaction) Set(instanceName, key string, value interface{}) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	config, ok := t.changes[instanceName]
-	if !ok {
+	config := t.changes[instanceName]
+	if config == nil {
 		config = make(map[string]interface{})
 	}
 
@@ -140,6 +140,10 @@ func (t *Transaction) Set(instanceName, key string, value interface{}) error {
 			return err
 		}
 	}
+
+	// config here is never nil and PatchConfig always operates
+	// directly on and returns config if it's a
+	// map[string]interface{}
 	_, err = PatchConfig(instanceName, subkeys, 0, config, &raw)
 	if err != nil {
 		return err
