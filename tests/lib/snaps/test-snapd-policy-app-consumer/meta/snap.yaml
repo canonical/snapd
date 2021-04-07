@@ -341,6 +341,9 @@ apps:
   pulseaudio:
     command: bin/run
     plugs: [ pulseaudio ]
+  pwm:
+    command: bin/run
+    plugs: [ pwm ]
   raw-usb:
     command: bin/run
     plugs: [ raw-usb ]
