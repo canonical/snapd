@@ -2891,6 +2891,7 @@ type bootConfigSuite struct {
 	baseBootenvSuite
 
 	bootloader *bootloadertest.MockTrustedAssetsBootloader
+	gadgetSnap string
 }
 
 var _ = Suite(&bootConfigSuite{})
@@ -2904,6 +2905,7 @@ func (s *bootConfigSuite) SetUpTest(c *C) {
 	s.forceBootloader(s.bootloader)
 
 	s.mockCmdline(c, "snapd_recovery_mode=run this is mocked panic=-1")
+	s.gadgetSnap = snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, nil)
 }
 
 func (s *bootConfigSuite) mockCmdline(c *C, cmdline string) {
@@ -2929,7 +2931,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateHappyNoKeysNoReseal(c *C) {
 	})
 	defer restore()
 
-	updated, err := boot.UpdateManagedBootConfigs(coreDev)
+	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap)
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 1)
@@ -2985,7 +2987,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateHappyWithReseal(c *C) {
 	})
 	defer restore()
 
-	updated, err := boot.UpdateManagedBootConfigs(coreDev)
+	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap)
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 1)
@@ -3024,7 +3026,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateHappyNoChange(c *C) {
 	})
 	defer restore()
 
-	updated, err := boot.UpdateManagedBootConfigs(coreDev)
+	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap)
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 1)
@@ -3038,7 +3040,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateHappyNoChange(c *C) {
 func (s *bootConfigSuite) TestBootConfigUpdateNonUC20DoesNothing(c *C) {
 	nonUC20coreDev := boottest.MockDevice("pc-kernel")
 	c.Assert(nonUC20coreDev.HasModeenv(), Equals, false)
-	updated, err := boot.UpdateManagedBootConfigs(nonUC20coreDev)
+	updated, err := boot.UpdateManagedBootConfigs(nonUC20coreDev, s.gadgetSnap)
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 0)
@@ -3047,7 +3049,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateNonUC20DoesNothing(c *C) {
 func (s *bootConfigSuite) TestBootConfigUpdateBadModeErr(c *C) {
 	uc20Dev := boottest.MockUC20Device("recover", nil)
 	c.Assert(uc20Dev.HasModeenv(), Equals, true)
-	updated, err := boot.UpdateManagedBootConfigs(uc20Dev)
+	updated, err := boot.UpdateManagedBootConfigs(uc20Dev, s.gadgetSnap)
 	c.Assert(err, ErrorMatches, "internal error: boot config can only be updated in run mode")
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 0)
@@ -3067,7 +3069,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateFailErr(c *C) {
 
 	s.bootloader.UpdateErr = errors.New("update fail")
 
-	updated, err := boot.UpdateManagedBootConfigs(coreDev)
+	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap)
 	c.Assert(err, ErrorMatches, "update fail")
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 1)
@@ -3084,7 +3086,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateCmdlineMismatchErr(c *C) {
 
 	s.mockCmdline(c, "snapd_recovery_mode=run unexpected cmdline")
 
-	updated, err := boot.UpdateManagedBootConfigs(coreDev)
+	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap)
 	c.Assert(err, ErrorMatches, `internal error: current kernel command lines is unset`)
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 0)
@@ -3103,7 +3105,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateNotManagedErr(c *C) {
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
-	updated, err := boot.UpdateManagedBootConfigs(coreDev)
+	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap)
 	c.Assert(err, IsNil)
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 0)
@@ -3121,8 +3123,76 @@ func (s *bootConfigSuite) TestBootConfigUpdateBootloaderFindErr(c *C) {
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
-	updated, err := boot.UpdateManagedBootConfigs(coreDev)
+	updated, err := boot.UpdateManagedBootConfigs(coreDev, s.gadgetSnap)
 	c.Assert(err, ErrorMatches, "internal error: cannot find trusted assets bootloader under .*: mocked find error")
 	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 0)
+}
+
+func (s *bootConfigSuite) TestBootConfigUpdateWithGadgetAndReseal(c *C) {
+	s.stampSealedKeys(c, dirs.GlobalRootDir)
+
+	gadgetSnap := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
+		{"cmdline.extra", "foo bar baz"},
+	})
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	runKernelBf := bootloader.NewBootFile("/var/lib/snapd/snap/pc-kernel_600.snap", "kernel.efi", bootloader.RoleRunMode)
+	recoveryKernelBf := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
+	mockAssetsCache(c, dirs.GlobalRootDir, "trusted", []string{
+		"asset-hash-1",
+	})
+
+	s.bootloader.TrustedAssetsList = []string{"asset"}
+	s.bootloader.BootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "asset", bootloader.RoleRunMode),
+		runKernelBf,
+	}
+	s.bootloader.RecoveryBootChainList = []bootloader.BootFile{
+		bootloader.NewBootFile("", "asset", bootloader.RoleRecovery),
+		recoveryKernelBf,
+	}
+	m := &boot.Modeenv{
+		Mode:           "run",
+		CurrentKernels: []string{"pc-kernel_500.snap"},
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			// the extra arguments would be included in the current
+			// command line already
+			"snapd_recovery_mode=run this is mocked panic=-1 foo bar baz",
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": []string{"hash-1"},
+		},
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": []string{"hash-1"},
+		},
+	}
+	c.Assert(m.WriteTo(""), IsNil)
+
+	resealCalls := 0
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		resealCalls++
+		c.Assert(params, NotNil)
+		c.Assert(params.ModelParams, HasLen, 1)
+		c.Check(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+			"snapd_recovery_mode=run mocked candidate panic=-1 foo bar baz",
+			"snapd_recovery_mode=run this is mocked panic=-1 foo bar baz",
+		})
+		return nil
+	})
+	defer restore()
+
+	updated, err := boot.UpdateManagedBootConfigs(coreDev, gadgetSnap)
+	c.Assert(err, IsNil)
+	c.Check(updated, Equals, false)
+	c.Check(s.bootloader.UpdateCalls, Equals, 1)
+	c.Check(resealCalls, Equals, 1)
+
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert(m2.CurrentKernelCommandLines, DeepEquals, boot.BootCommandLines{
+		"snapd_recovery_mode=run this is mocked panic=-1 foo bar baz",
+		"snapd_recovery_mode=run mocked candidate panic=-1 foo bar baz",
+	})
 }
