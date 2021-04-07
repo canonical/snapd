@@ -302,3 +302,11 @@ func MockGenericRefreshCheck(fn func(info *snap.Info, canAppRunDuringRefresh fun
 func (m *autoRefresh) EnsureRefreshHoldAtLeast(d time.Duration) error {
 	return m.ensureRefreshHoldAtLeast(d)
 }
+
+func MockSecurityProfilesDiscardLate(fn func(snapName string, rev snap.Revision, typ snap.Type) error) (restore func()) {
+	old := SecurityProfilesRemoveLate
+	SecurityProfilesRemoveLate = fn
+	return func() {
+		SecurityProfilesRemoveLate = old
+	}
+}
