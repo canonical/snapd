@@ -2422,13 +2422,13 @@ func (s *gadgetYamlTestSuite) TestKernelCommandLineBasic(c *C) {
 	}, {
 		// no cmdline
 		files: nil,
-		err:   gadget.ErrNoKernelCommandline.Error(),
+		err:   "no kernel command line in the gadget",
 	}, {
 		// not what we are looking for
 		files: [][]string{
 			{"cmdline.other", `ignored`},
 		},
-		err: gadget.ErrNoKernelCommandline.Error(),
+		err: "no kernel command line in the gadget",
 	}, {
 		files: [][]string{
 			{"cmdline.full", "foo bad =\n"},
