@@ -229,6 +229,10 @@ jobs:
       with:
         # spread uses tags as delta reference
         fetch-depth: 0
+    - name: Setup Node.js
+      uses: actions/setup-node@v1
+      with:
+        node-version: '12.x'
     - name: Configure npm proxy
       id: npm-cache-proxy
       run: |
@@ -289,6 +293,10 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
+    - name: Setup Node.js
+      uses: actions/setup-node@v1
+      with:
+        node-version: '12.x'
     - name: Configure npm proxy
       id: npm-cache-proxy
       run: |
