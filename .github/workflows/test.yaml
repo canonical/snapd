@@ -238,7 +238,7 @@ jobs:
         npm config set http-proxy "$proxy"
     - name: Cache snapd test results
       id: cache-snapd-test-results
-      uses: actions/cache@v1z
+      uses: actions/cache@v2
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
@@ -298,7 +298,7 @@ jobs:
         npm config set http-proxy "$proxy"
     - name: Cache snapd test results
       id: cache-snapd-test-results
-      uses: actions/cache@v1
+      uses: actions/cache@v2
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-nested-results"
