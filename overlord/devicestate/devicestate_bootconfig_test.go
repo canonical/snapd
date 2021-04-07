@@ -35,12 +35,14 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 )
 
 type deviceMgrBootconfigSuite struct {
 	deviceMgrBaseSuite
 
-	managedbl *bootloadertest.MockTrustedAssetsBootloader
+	managedbl      *bootloadertest.MockTrustedAssetsBootloader
+	gadgetSnapInfo *snap.Info
 }
 
 var _ = Suite(&deviceMgrBootconfigSuite{})
@@ -67,6 +69,14 @@ func (s *deviceMgrBootconfigSuite) SetUpTest(c *C) {
 		Active:   true,
 	})
 	s.state.Set("seeded", true)
+
+	const pcGadgetSnapYaml = `
+name: pc
+type: gadget
+`
+	s.gadgetSnapInfo = snaptest.MockSnapWithFiles(c, pcGadgetSnapYaml, si, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+	})
 
 	// minimal mocking to reach the mocked bootloader API call
 	modeenv := boot.Modeenv{

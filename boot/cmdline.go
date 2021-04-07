@@ -300,7 +300,7 @@ func observeSuccessfulCommandLineCompatBoot(model *asserts.Model, m *Modeenv) (*
 // by an update of boot config. When needed, the modeenv is updated with a
 // candidate command line and the encryption keys are resealed. This helper
 // should be called right before updating the managed boot config.
-func observeCommandLineUpdate(model *asserts.Model) error {
+func observeCommandLineUpdate(model *asserts.Model, gadgetSnapOrDir string) error {
 	// TODO:UC20: consider updating a recovery system command line
 
 	m, err := loadModeenv()
@@ -315,7 +315,7 @@ func observeCommandLineUpdate(model *asserts.Model) error {
 	// bootstate
 	cmdline := m.CurrentKernelCommandLines[0]
 	// this is the new expected command line
-	candidateCmdline, err := ComposeCandidateCommandLine(model, "")
+	candidateCmdline, err := ComposeCandidateCommandLine(model, gadgetSnapOrDir)
 	if err != nil {
 		return err
 	}

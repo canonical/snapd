@@ -400,7 +400,7 @@ func SetRecoveryBootSystemAndMode(dev Device, systemLabel, mode string) error {
 // UpdateManagedBootConfigs updates managed boot config assets if those are
 // present for the ubuntu-boot bootloader. Returns true when an update was
 // carried out.
-func UpdateManagedBootConfigs(dev Device) (updated bool, err error) {
+func UpdateManagedBootConfigs(dev Device, gadgetSnapOrDir string) (updated bool, err error) {
 	if !dev.HasModeenv() {
 		// only UC20 devices use managed boot config
 		return false, nil
@@ -408,10 +408,10 @@ func UpdateManagedBootConfigs(dev Device) (updated bool, err error) {
 	if !dev.RunMode() {
 		return false, fmt.Errorf("internal error: boot config can only be updated in run mode")
 	}
-	return updateManagedBootConfigForBootloader(dev, ModeRun)
+	return updateManagedBootConfigForBootloader(dev, ModeRun, gadgetSnapOrDir)
 }
 
-func updateManagedBootConfigForBootloader(dev Device, mode string) (updated bool, err error) {
+func updateManagedBootConfigForBootloader(dev Device, mode, gadgetSnapOrDir string) (updated bool, err error) {
 	if mode != ModeRun {
 		return false, fmt.Errorf("internal error: updating boot config of recovery bootloader is not supported yet")
 	}
@@ -429,7 +429,7 @@ func updateManagedBootConfigForBootloader(dev Device, mode string) (updated bool
 		return false, err
 	}
 	// boot config update can lead to a change of kernel command line
-	if err := observeCommandLineUpdate(dev.Model()); err != nil {
+	if err := observeCommandLineUpdate(dev.Model(), gadgetSnapOrDir); err != nil {
 		return false, err
 	}
 	return tbl.UpdateBootConfig()
