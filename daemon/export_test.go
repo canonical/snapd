@@ -32,6 +32,10 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+func APICommands() []*Command {
+	return api
+}
+
 func NewAndAddRoutes() (*Daemon, error) {
 	d, err := New()
 	if err != nil {
@@ -221,6 +225,9 @@ func (inst *snapInstruction) ErrToResponse(err error) Response {
 }
 
 var (
+	UserFromRequest = userFromRequest
+	IsTrue          = isTrue
+
 	MakeErrorResponder = makeErrorResponder
 	ErrToResponse      = errToResponse
 )

@@ -125,7 +125,7 @@ func assertsFindOneRemote(c *Command, at *asserts.AssertionType, headers map[str
 	if err != nil {
 		return nil, fmt.Errorf("cannot query remote assertion: %v", err)
 	}
-	sto := getStore(c)
+	sto := storeFrom(c.d)
 	as, err := sto.Assertion(at, primaryKeys, user)
 	if err != nil {
 		return nil, err

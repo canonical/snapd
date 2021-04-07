@@ -1016,7 +1016,7 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 
 	tryingCurrentSystem, err := boot.InitramfsIsTryingRecoverySystem(mst.recoverySystem)
 	if err != nil {
-		if boot.IsInconsystemRecoverySystemState(err) {
+		if boot.IsInconsistentRecoverySystemState(err) {
 			// there is some try recovery system state in bootenv
 			// but it is inconsistent, make sure we clear it and
 			// return back to run mode
@@ -1025,7 +1025,6 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 			logger.Noticef("try recovery system state is inconsistent: %v", err)
 			finalizeTryRecoverySystemAndReboot(boot.TryRecoverySystemOutcomeInconsistent)
 		}
-		// this could be an inconsistency in the state
 		return err
 	}
 	if tryingCurrentSystem {
@@ -1063,11 +1062,11 @@ func generateMountsModeRecover(mst *initramfsMountsState) error {
 	if tryingCurrentSystem {
 		// end of the line for a recovery system we are only trying out,
 		// this branch always ends with a reboot (or a panic)
-		outcome := boot.TryRecoverySystemOutcomeFailure
+		var outcome boot.TryRecoverySystemOutcome
 		if err == nil && !machine.degraded() {
 			outcome = boot.TryRecoverySystemOutcomeSuccess
-		}
-		if outcome == boot.TryRecoverySystemOutcomeFailure {
+		} else {
+			outcome = boot.TryRecoverySystemOutcomeFailure
 			if err == nil {
 				err = fmt.Errorf("in degraded state")
 			}
