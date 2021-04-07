@@ -109,7 +109,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	st := c.d.state
 	st.Lock()
 	// TODO Look at the error and fail if there's an attempt to authenticate with invalid data.
-	user, _ := UserFromRequest(st, r)
+	user, _ := userFromRequest(st, r)
 	st.Unlock()
 
 	// check if we are in degradedMode

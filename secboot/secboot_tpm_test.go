@@ -585,7 +585,7 @@ func (s *secbootSuite) TestEFIImageFromBootFile(c *C) {
 		{
 			// happy case for snap file
 			bootFile: bootloader.NewBootFile(snapFile, "rel", bootloader.RoleRecovery),
-			efiImage: sb.SnapFileEFIImage{Container: snapf, Path: snapFile, FileName: "rel"},
+			efiImage: sb.SnapFileEFIImage{Container: snapf, FileName: "rel"},
 		},
 		{
 			// invalid snap file
@@ -731,7 +731,6 @@ func (s *secbootSuite) TestSealKey(c *C) {
 						Source: sb.Shim,
 						Image: sb.SnapFileEFIImage{
 							Container: kernelSnap,
-							Path:      mockBF[4].Snap,
 							FileName:  "kernel.efi",
 						},
 					},
@@ -751,7 +750,6 @@ func (s *secbootSuite) TestSealKey(c *C) {
 						Source: sb.Shim,
 						Image: sb.SnapFileEFIImage{
 							Container: kernelSnap,
-							Path:      mockBF[4].Snap,
 							FileName:  "kernel.efi",
 						},
 					},
@@ -765,7 +763,6 @@ func (s *secbootSuite) TestSealKey(c *C) {
 						Source: sb.Shim,
 						Image: sb.SnapFileEFIImage{
 							Container: kernelSnap,
-							Path:      mockBF[4].Snap,
 							FileName:  "kernel.efi",
 						},
 					},
@@ -1082,7 +1079,7 @@ func createMockSnapFile(snapDir, snapPath, snapType string) (snap.Container, err
 }
 
 func mockSbTPMConnection(c *C, tpmErr error) (*sb.TPMConnection, func()) {
-	tcti, err := os.Open("/dev/null")
+	tcti, err := tpm2.OpenTPMDevice("/dev/null")
 	c.Assert(err, IsNil)
 	tpmctx, err := tpm2.NewTPMContext(tcti)
 	c.Assert(err, IsNil)

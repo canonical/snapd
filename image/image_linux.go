@@ -430,6 +430,10 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	if err != nil {
 		return err
 	}
+	// validate content against the kernel as well
+	if err := gadget.ValidateContent(gadgetInfo, gadgetUnpackDir, kernelUnpackDir); err != nil {
+		return err
+	}
 
 	// write resolved content to structure root
 	if err := writeResolvedContent(opts.PrepareDir, gadgetInfo, gadgetUnpackDir, kernelUnpackDir); err != nil {

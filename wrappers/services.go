@@ -378,8 +378,9 @@ func userDaemonReload() error {
 // AddSnapServicesOptions is a struct for controlling the generated service
 // definition for a snap service.
 type AddSnapServicesOptions struct {
-	Preseeding   bool
-	VitalityRank int
+	Preseeding              bool
+	VitalityRank            int
+	RequireMountedSnapdSnap bool
 }
 
 // AddSnapServices adds service units for the applications from the snap which
@@ -715,6 +716,10 @@ After={{ stringsJoin .After " " }}
 {{- if .Before}}
 Before={{ stringsJoin .Before " "}}
 {{- end}}
+{{- if .CoreMountedSnapdSnapDep}}
+Requires={{ stringsJoin .CoreMountedSnapdSnapDep " "}}
+After={{ stringsJoin .CoreMountedSnapdSnapDep " "}}
+{{- end}}
 X-Snappy=yes
 
 [Service]
@@ -837,6 +842,8 @@ WantedBy={{.ServicesTarget}}
 
 		Home    string
 		EnvVars string
+
+		CoreMountedSnapdSnapDep []string
 	}{
 		App: appInfo,
 
@@ -879,6 +886,14 @@ WantedBy={{.ServicesTarget}}
 	}
 	if wrapperData.MountUnit != "" {
 		wrapperData.After = append([]string{wrapperData.MountUnit}, wrapperData.After...)
+	}
+
+	if opts.RequireMountedSnapdSnap {
+		// on core 18+ systems, the snapd tooling is exported
+		// into the host system via a special mount unit, which
+		// also adds an implicit dependency on the snapd snap
+		// mount thus /usr/bin/snap points
+		wrapperData.CoreMountedSnapdSnapDep = []string{snapdToolingMountUnit}
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {

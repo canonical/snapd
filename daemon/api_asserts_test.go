@@ -74,9 +74,8 @@ func (s *assertsSuite) userAuth(req *http.Request) {
 func (s *assertsSuite) TestGetAsserts(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/assertions", nil)
 	c.Assert(err, check.IsNil)
-	resp := s.req(c, req, nil).(*daemon.Resp)
+	resp := s.syncReq(c, req, nil)
 	c.Check(resp.Status, check.Equals, 200)
-	c.Check(resp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Check(resp.Result, check.DeepEquals, map[string][]string{"types": asserts.TypeNames()})
 }
 
@@ -99,9 +98,8 @@ func (s *assertsSuite) TestAssertOK(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 	// Verify (external)
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Check(rsp.Status, check.Equals, 200)
 	// Verify (internal)
 	st.Lock()
@@ -126,9 +124,8 @@ func (s *assertsSuite) TestAssertStreamOK(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 	// Verify (external)
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Check(rsp.Status, check.Equals, 200)
 	// Verify (internal)
 	st.Lock()

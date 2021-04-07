@@ -142,7 +142,7 @@ func (s *systemsSuite) TestSystemsGetSome(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/systems", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 
 	c.Assert(rsp.Status, check.Equals, 200)
 	sys := rsp.Result.(*daemon.SystemsResponse)
@@ -207,7 +207,7 @@ func (s *systemsSuite) TestSystemsGetNone(c *check.C) {
 	// no system seeds
 	req, err := http.NewRequest("GET", "/v2/systems", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 
 	c.Assert(rsp.Status, check.Equals, 200)
 	sys := rsp.Result.(*daemon.SystemsResponse)
@@ -299,8 +299,7 @@ func (s *systemsSuite) TestSystemActionRequestErrors(c *check.C) {
 		c.Logf("tc: %#v", tc)
 		req, err := http.NewRequest("POST", path.Join("/v2/systems", tc.label), strings.NewReader(tc.body))
 		c.Assert(err, check.IsNil)
-		rsp := s.req(c, req, nil).(*daemon.Resp)
-		c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
+		rsp := s.errorReq(c, req, nil)
 		c.Check(rsp.Status, check.Equals, tc.status)
 		c.Check(rsp.ErrorResult().Message, check.Matches, tc.error)
 	}
@@ -540,7 +539,7 @@ func (s *systemsSuite) TestSystemActionBrokenSeed(c *check.C) {
 	body := `{"action":"do","title":"reinstall","mode":"install"}`
 	req, err := http.NewRequest("POST", "/v2/systems/20191119", strings.NewReader(body))
 	c.Assert(err, check.IsNil)
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 500)
 	c.Check(rsp.ErrorResult().Message, check.Matches, `cannot load seed system: cannot load assertions: .*`)
 }
