@@ -71,7 +71,9 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		)
 	}
 	if opts&updatesGadget != 0 {
-		expected = append(expected, "update-gadget-assets")
+		expected = append(expected,
+			"update-gadget-assets",
+			"update-gadget-cmdline")
 	}
 	expected = append(expected,
 		"copy-snap-data",
@@ -5337,8 +5339,8 @@ func (s *snapmgrTestSuite) TestStopSnapServicesFirstSavesSnapSetupLastActiveDisa
 		Sequence: []*snap.SideInfo{
 			{RealName: "services-snap", Revision: snap.R(11)},
 		},
-		Current: snap.R(11),
-		Active:  true,
+		Current:                    snap.R(11),
+		Active:                     true,
 		LastActiveDisabledServices: []string{"svc2"},
 	})
 

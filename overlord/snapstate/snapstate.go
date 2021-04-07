@@ -263,6 +263,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		addTask(gadgetUpdate)
 		prev = gadgetUpdate
 	}
+	if !release.OnClassic && snapsup.Type == snap.TypeGadget {
+		// XXX: kernel command line from gadget is for core systems only
+		gadgetCmdline := st.NewTask("update-gadget-cmdline", fmt.Sprintf(i18n.G("Update kernel command line from gadget %q%s"), snapsup.InstanceName(), revisionStr))
+		addTask(gadgetCmdline)
+		prev = gadgetCmdline
+	}
 
 	// copy-data (needs stopped services by unlink)
 	if !snapsup.Flags.Revert {
