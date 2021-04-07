@@ -232,7 +232,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v1
       with:
-        node-version: '12.x'
+        node-version: 12
     - name: Configure npm proxy
       id: npm-cache-proxy
       run: |
@@ -296,7 +296,7 @@ jobs:
     - name: Setup Node.js
       uses: actions/setup-node@v1
       with:
-        node-version: '12.x'
+        node-version: 12
     - name: Configure npm proxy
       id: npm-cache-proxy
       run: |
