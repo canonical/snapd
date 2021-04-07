@@ -1223,3 +1223,73 @@ assets:
 		},
 	})
 }
+
+func (p *layoutTestSuite) TestResolveContentPathsLp1907056(c *C) {
+	var gadgetYamlWithKernelRef = `
+ volumes:
+  pi:
+    schema: mbr
+    bootloader: u-boot
+    structure:
+      - name: ubuntu-seed
+        role: system-seed
+        filesystem: vfat
+        type: 0C
+        size: 1200M
+        content:
+          - source: $kernel:pidtbs/dtbs/broadcom/
+            target: /
+          - source: $kernel:pidtbs/dtbs/overlays/
+            target: /overlays
+          - source: boot-assets/
+            target: /
+`
+
+	kernelYaml := `
+assets:
+  pidtbs:
+    update: true
+    content:
+      - dtbs/
+`
+	vol := mustParseVolume(c, gadgetYamlWithKernelRef, "pi")
+	c.Assert(vol.Structure, HasLen, 1)
+
+	kernelSnapDir := mockKernel(c, kernelYaml, nil)
+	lv, err := gadget.LayoutVolume(p.dir, kernelSnapDir, vol, defaultConstraints)
+	c.Assert(err, IsNil)
+	// Volume.Content is unchanged
+	c.Assert(lv.Structure, HasLen, 1)
+	c.Check(lv.Structure[0].Content, DeepEquals, []gadget.VolumeContent{
+		{
+			UnresolvedSource: "$kernel:pidtbs/dtbs/broadcom/",
+			Target:           "/",
+		},
+		{
+			UnresolvedSource: "$kernel:pidtbs/dtbs/overlays/",
+			Target:           "/overlays",
+		},
+		{
+			UnresolvedSource: "boot-assets/",
+			Target:           "/",
+		},
+	})
+	// and the LaidOutSturctures ResolvedContent has the correct paths
+	c.Assert(lv.LaidOutStructure, HasLen, 1)
+	c.Check(lv.LaidOutStructure[0].ResolvedContent, DeepEquals, []gadget.ResolvedContent{
+		{
+			VolumeContent:  &lv.Structure[0].Content[0],
+			ResolvedSource: filepath.Join(kernelSnapDir, "dtbs/broadcom/") + "/",
+			KernelUpdate:   true,
+		},
+		{
+			VolumeContent:  &lv.Structure[0].Content[1],
+			ResolvedSource: filepath.Join(kernelSnapDir, "dtbs/overlays") + "/",
+			KernelUpdate:   true,
+		},
+		{
+			VolumeContent:  &lv.Structure[0].Content[2],
+			ResolvedSource: filepath.Join(p.dir, "boot-assets") + "/",
+		},
+	})
+}
