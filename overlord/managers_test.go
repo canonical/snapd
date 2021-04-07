@@ -3943,6 +3943,10 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update assets from gadget "%s" (%s)`, name, revno))
 		i++
 	}
+	if flags&isGadget != 0 {
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update kernel command line from gadget %q (%s)`, name, revno))
+		i++
+	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Copy snap "%s" data`, name))
 	i++
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Setup snap "%s" (%s) security profiles`, name, revno))
@@ -3983,7 +3987,10 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	if flags&isGadget != 0 || flags&isKernel != 0 {
 		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update assets from gadget %q (%s)`, name, revno))
 		i++
-
+	}
+	if flags&isGadget != 0 {
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update kernel command line from gadget %q (%s)`, name, revno))
+		i++
 	}
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Copy snap "%s" data`, name))
 	i++
@@ -6701,6 +6708,282 @@ type: snapd`
 
 	s.testNonUC20RunUpdateManagedBootConfig(c, snapPath, si, mabloader)
 	c.Check(mabloader.UpdateCalls, Equals, 0)
+}
+
+const pcGadget = `
+name: pc
+version: 1.0
+type: gadget
+`
+const pcGadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+    structure:
+      - name: ubuntu-seed
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        role: system-seed
+        filesystem: vfat
+        size: 100M
+      - name: ubuntu-boot
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        role: system-boot
+        filesystem: ext4
+        size: 100M
+      - name: ubuntu-data
+        role: system-data
+        type: EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B
+        filesystem: ext4
+        size: 500M
+`
+
+func (s *mgrsSuite) testGadgetKernelCommandLine(c *C, snapPath string, si *snap.SideInfo, bl bootloader.Bootloader, currentFiles [][]string, currentModeenvCmdline string, commandLineAfterReboot string, update bool) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	cmdlineAfterRebootPath := filepath.Join(c.MkDir(), "mock-cmdline")
+	c.Assert(ioutil.WriteFile(cmdlineAfterRebootPath, []byte(commandLineAfterReboot), 0644), IsNil)
+
+	// pretend we booted with the right kernel
+	bl.SetBootVars(map[string]string{"snap_kernel": "pc-kernel_1.snap"})
+
+	uc20ModelDefaults := map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"store":        "my-brand-store-id",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	}
+
+	model := s.brands.Model("my-brand", "my-model", uc20ModelDefaults)
+
+	// mock the modeenv file
+	m := boot.Modeenv{
+		Mode:                      "run",
+		RecoverySystem:            "20191127",
+		Base:                      "core20_1.snap",
+		CurrentKernelCommandLines: []string{currentModeenvCmdline},
+	}
+	err := m.WriteTo("")
+	c.Assert(err, IsNil)
+
+	st := s.o.State()
+	st.Lock()
+	st.Set("seeded", true)
+
+	si1 := &snap.SideInfo{RealName: "snapd", Revision: snap.R(1)}
+	snapstate.Set(st, "snapd", &snapstate.SnapState{
+		SnapType: "snapd",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si1},
+		Current:  si1.Revision,
+	})
+	snaptest.MockSnapWithFiles(c, "name: snapd\ntype: snapd\nversion: 123", si1, nil)
+
+	si2 := &snap.SideInfo{RealName: "core20", Revision: snap.R(1)}
+	snapstate.Set(st, "core20", &snapstate.SnapState{
+		SnapType: "base",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si2},
+		Current:  si2.Revision,
+	})
+	si3 := &snap.SideInfo{RealName: "pc-kernel", Revision: snap.R(1)}
+	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
+		SnapType: "kernel",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si3},
+		Current:  si3.Revision,
+	})
+	si4 := &snap.SideInfo{RealName: "pc", Revision: snap.R(1)}
+	snapstate.Set(st, "pc", &snapstate.SnapState{
+		SnapType: "gadget",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si4},
+		Current:  si4.Revision,
+	})
+	snaptest.MockSnapWithFiles(c, pcGadget, si4, currentFiles)
+
+	// setup model assertion
+	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial",
+	})
+	err = assertstate.Add(st, model)
+	c.Assert(err, IsNil)
+
+	ts, _, err := snapstate.InstallPath(st, si, snapPath, "", "", snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("install-snap", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	if update {
+		// when updated, a system restart will be requested
+		c.Check(chg.Status(), Equals, state.DoingStatus, Commentf("change failed: %v", chg.Err()))
+		restarting, kind := st.Restarting()
+		c.Check(restarting, Equals, true)
+		c.Assert(kind, Equals, state.RestartSystem)
+
+		// simulate successful system restart happened
+		state.MockRestarting(st, state.RestartUnset)
+
+		m, err := boot.ReadModeenv("")
+		c.Assert(err, IsNil)
+		// old and pending command line
+		c.Assert(m.CurrentKernelCommandLines, HasLen, 2)
+
+		restore := osutil.MockProcCmdline(cmdlineAfterRebootPath)
+		defer restore()
+
+		// reset bootstate, so that after-reboot command line is
+		// asserted
+		st.Unlock()
+		s.o.DeviceManager().ResetBootOk()
+		err = s.o.DeviceManager().Ensure()
+		st.Lock()
+		c.Assert(err, IsNil)
+
+		// let the change run its course
+		st.Unlock()
+		err = s.o.Settle(settleTimeout)
+		st.Lock()
+		c.Assert(err, IsNil)
+	}
+
+	c.Check(chg.Status(), Equals, state.DoneStatus, Commentf("change failed: %v", chg.Err()))
+}
+
+func (s *mgrsSuite) TestGadgetKernelCommandLineAddCmdline(c *C) {
+	mabloader := bootloadertest.Mock("mock", c.MkDir()).WithTrustedAssets()
+	mabloader.StaticCommandLine = "mock static"
+	bootloader.Force(mabloader)
+	defer bootloader.Force(nil)
+
+	err := mabloader.SetBootVars(map[string]string{
+		"snapd_extra_cmdline_args": "",
+	})
+	c.Assert(err, IsNil)
+
+	// add new gadget snap kernel command line drop-in file
+	sf := snaptest.MakeTestSnapWithFiles(c, pcGadget, [][]string{
+		{"meta/gadget.yaml", pcGadgetYaml},
+		{"cmdline.extra", "args from gadget"},
+	})
+
+	const currentCmdline = "snapd_recovery_mode=run mock static"
+	const update = true
+	currentFiles := [][]string{{"meta/gadget.yaml", pcGadgetYaml}}
+	const cmdlineAfterReboot = "snapd_recovery_mode=run mock static args from gadget"
+	s.testGadgetKernelCommandLine(c, sf, &snap.SideInfo{RealName: "pc"}, mabloader,
+		currentFiles, currentCmdline, cmdlineAfterReboot, update)
+
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run mock static args from gadget",
+	})
+	vars, err := mabloader.GetBootVars("snapd_extra_cmdline_args")
+	c.Assert(err, IsNil)
+	c.Assert(vars, DeepEquals, map[string]string{
+		"snapd_extra_cmdline_args": "args from gadget",
+	})
+}
+
+func (s *mgrsSuite) TestGadgetKernelCommandLineRemoveCmdline(c *C) {
+	mabloader := bootloadertest.Mock("mock", c.MkDir()).WithTrustedAssets()
+	mabloader.StaticCommandLine = "mock static"
+	bootloader.Force(mabloader)
+	defer bootloader.Force(nil)
+
+	err := mabloader.SetBootVars(map[string]string{
+		"snapd_extra_cmdline_args": "args from gadget",
+	})
+	c.Assert(err, IsNil)
+
+	// current gadget has the command line
+	currentFiles := [][]string{
+		{"meta/gadget.yaml", pcGadgetYaml},
+		{"cmdline.extra", "args from old gadget"},
+	}
+	// add new gadget snap kernel command line drop-in file
+	sf := snaptest.MakeTestSnapWithFiles(c, pcGadget, [][]string{
+		{"meta/gadget.yaml", pcGadgetYaml},
+	})
+
+	const currentCmdline = "snapd_recovery_mode=run mock static args from old gadget"
+	const update = true
+	const cmdlineAfterReboot = "snapd_recovery_mode=run mock static"
+	s.testGadgetKernelCommandLine(c, sf, &snap.SideInfo{RealName: "pc"}, mabloader,
+		currentFiles, currentCmdline, cmdlineAfterReboot, update)
+
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run mock static",
+	})
+	vars, err := mabloader.GetBootVars("snapd_extra_cmdline_args")
+	c.Assert(err, IsNil)
+	c.Assert(vars, DeepEquals, map[string]string{
+		"snapd_extra_cmdline_args": "",
+	})
+}
+
+func (s *mgrsSuite) TestGadgetKernelCommandLineNoChange(c *C) {
+	mabloader := bootloadertest.Mock("mock", c.MkDir()).WithTrustedAssets()
+	mabloader.StaticCommandLine = "mock static"
+	bootloader.Force(mabloader)
+	defer bootloader.Force(nil)
+
+	err := mabloader.SetBootVars(map[string]string{
+		"snapd_extra_cmdline_args": "args from gadget",
+	})
+	c.Assert(err, IsNil)
+	// current gadget has the command line
+	currentFiles := [][]string{
+		{"meta/gadget.yaml", pcGadgetYaml},
+		{"cmdline.extra", "args from gadget"},
+	}
+	// add new gadget snap kernel command line drop-in file
+	sf := snaptest.MakeTestSnapWithFiles(c, pcGadget, [][]string{
+		{"meta/gadget.yaml", pcGadgetYaml},
+		{"cmdline.extra", "args from gadget"},
+	})
+
+	const currentCmdline = "snapd_recovery_mode=run mock static args from gadget"
+	const update = false
+	const cmdlineAfterReboot = "snapd_recovery_mode=run mock static args from gadget"
+	s.testGadgetKernelCommandLine(c, sf, &snap.SideInfo{RealName: "pc"}, mabloader,
+		currentFiles, currentCmdline, cmdlineAfterReboot, update)
+
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run mock static args from gadget",
+	})
+	// bootenv is unchanged
+	vars, err := mabloader.GetBootVars("snapd_extra_cmdline_args")
+	c.Assert(err, IsNil)
+	c.Assert(vars, DeepEquals, map[string]string{
+		"snapd_extra_cmdline_args": "args from gadget",
+	})
 }
 
 type gadgetUpdatesSuite struct {
