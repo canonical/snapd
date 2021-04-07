@@ -72,10 +72,6 @@ func (s *deviceMgrBootconfigSuite) SetUpTest(c *C) {
 	})
 	s.state.Set("seeded", true)
 
-	const pcGadgetSnapYaml = `
-name: pc
-type: gadget
-`
 	s.gadgetSnapInfo = snaptest.MockSnapWithFiles(c, pcGadgetSnapYaml, si, [][]string{
 		{"meta/gadget.yaml", gadgetYaml},
 	})
