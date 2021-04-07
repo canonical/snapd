@@ -229,11 +229,16 @@ jobs:
       with:
         # spread uses tags as delta reference
         fetch-depth: 0
-    - name: Cache snapd test results with proxy
+    - name: Configure npm proxy
+      id: npm-cache-proxy
+      run: |
+        proxy="$(echo $HTTPS_PROXY)"
+        npm config set proxy "$proxy"
+        npm config set https-proxy "$proxy"
+        npm config set http-proxy "$proxy"
+    - name: Cache snapd test results
       id: cache-snapd-test-results
-      uses: actions/cache@v1
-      env:
-        HTTPS_PROXY: http://squid.internal:3128
+      uses: actions/cache@v1z
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-results"
@@ -284,11 +289,16 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
-    - name: Cache snapd test results with proxy
+    - name: Configure npm proxy
+      id: npm-cache-proxy
+      run: |
+        proxy="$(echo $HTTPS_PROXY)"
+        npm config set proxy "$proxy"
+        npm config set https-proxy "$proxy"
+        npm config set http-proxy "$proxy"
+    - name: Cache snapd test results
       id: cache-snapd-test-results
       uses: actions/cache@v1
-      env:
-        HTTPS_PROXY: http://squid.internal:3128
       with:
         path: "${{ github.workspace }}/.test-results"
         key: "${{ github.run_id }}-${{ github.job }}-${{ matrix.system }}-nested-results"
