@@ -10,15 +10,16 @@ summary: Ensure snapd builds as a snap
 systems:
     # snapcraft is a classic snap, can't run on ubuntu-core
     - -ubuntu-core*
-    # LXD doesn't work properly on amazon linux, fedora, tumbleweed, or debian
-    # to build the snap, it complains about fuse.snapfuse getting EPERM when
+    # LXD doesn't work properly on amazon linux, fedora 31, opensuse, or debian
+    # 9 to build the snap, it complains about fuse.snapfuse getting EPERM when
     # snaps are installed inside the LXD container that snapcraft creates
     - -amazon-linux*
     - -debian-*
     - -fedora-*
     - -opensuse-*
-    # LXD is unsupported on Arch, it fails to be installed with the LXD service
-    # timing out
+    # additionally on fedora 32 and 33, and arch linux which are all cgroupsv2
+    # now, LXD does not work either, with the service failing to start up at all
+    # when we install LXD
     - -arch-*
     # snapcraft does not support running on centos due to errors with the locale
     # see https://bugs.launchpad.net/snapcraft/+bug/1922140
@@ -63,8 +64,15 @@ prepare: |
         # apt -v to test if apt is usable
         if command -v apt && apt -v; then
             # meh trusty's apt doesn't support -y, so use apt-get
-            apt-get autoremove -y lxd lxd-client
+            apt-get autoremove -y lxd
+            if [ "$SPREAD_SYSTEM" != "debian-sid-64" ]; then
+                # no lxd-client on debian sid
+                apt-get autoremove -y lxd-client
+            fi
         fi
+
+        # load the fuse kernel module before installing lxd
+        modprobe fuse
 
         echo "Install lxd"
         snap install lxd --channel="$LXD_SNAP_CHANNEL"
