@@ -21,14 +21,15 @@ package daemon
 
 import (
 	"fmt"
+	"mime/multipart"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/gorilla/mux"
 
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
@@ -84,9 +85,9 @@ const (
 	polkitActionManageInterfaces = "io.snapcraft.snapd.manage-interfaces"
 )
 
-// UserFromRequest extracts user information from request and return the respective user in state, if valid
+// userFromRequest extracts user information from request and return the respective user in state, if valid
 // It requires the state to be locked
-func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error) {
+func userFromRequest(st *state.State, req *http.Request) (*auth.UserState, error) {
 	// extract macaroons data from request
 	header := req.Header.Get("Authorization")
 	if header == "" {
@@ -119,8 +120,8 @@ func UserFromRequest(st *state.State, req *http.Request) (*auth.UserState, error
 
 var muxVars = mux.Vars
 
-func getStore(c *Command) snapstate.StoreService {
-	st := c.d.overlord.State()
+func storeFrom(d *Daemon) snapstate.StoreService {
+	st := d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 
@@ -140,14 +141,6 @@ var (
 	snapstateRevertToRevision  = snapstate.RevertToRevision
 	snapstateSwitch            = snapstate.Switch
 
-	snapshotList    = snapshotstate.List
-	snapshotCheck   = snapshotstate.Check
-	snapshotForget  = snapshotstate.Forget
-	snapshotRestore = snapshotstate.Restore
-	snapshotSave    = snapshotstate.Save
-	snapshotExport  = snapshotstate.Export
-	snapshotImport  = snapshotstate.Import
-
 	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
 )
 
@@ -166,4 +159,17 @@ func newChange(st *state.State, kind, summary string, tsets []*state.TaskSet, sn
 		chg.Set("snap-names", snapNames)
 	}
 	return chg
+}
+
+func isTrue(form *multipart.Form, key string) bool {
+	value := form.Value[key]
+	if len(value) == 0 {
+		return false
+	}
+	b, err := strconv.ParseBool(value[0])
+	if err != nil {
+		return false
+	}
+
+	return b
 }

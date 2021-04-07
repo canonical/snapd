@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -49,6 +50,16 @@ var snapshotExportCmd = &Command{
 	GET:        getSnapshotExport,
 	ReadAccess: authenticatedAccess{},
 }
+
+var (
+	snapshotList    = snapshotstate.List
+	snapshotCheck   = snapshotstate.Check
+	snapshotForget  = snapshotstate.Forget
+	snapshotRestore = snapshotstate.Restore
+	snapshotSave    = snapshotstate.Save
+	snapshotExport  = snapshotstate.Export
+	snapshotImport  = snapshotstate.Import
+)
 
 func listSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()

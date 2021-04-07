@@ -409,7 +409,9 @@ func getSingleSeqFormingAssertion(st *state.State, accountID, name string, seque
 	}
 
 	sequenceKey := []string{release.Series, accountID, name}
+	st.Unlock()
 	as, err := sto.SeqFormingAssertion(at, sequenceKey, sequence, user)
+	st.Lock()
 	if err != nil {
 		return nil, err
 	}

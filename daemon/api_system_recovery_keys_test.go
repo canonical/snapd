@@ -31,7 +31,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/secboot"
 )
@@ -70,7 +69,7 @@ func (s *recoveryKeysSuite) TestSystemGetRecoveryKeysAsRootHappy(c *C) {
 	req, err := http.NewRequest("GET", "/v2/system-recovery-keys", nil)
 	c.Assert(err, IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 200)
 	srk := rsp.Result.(*client.SystemRecoveryKeysResponse)
 	c.Assert(srk, DeepEquals, &client.SystemRecoveryKeysResponse{

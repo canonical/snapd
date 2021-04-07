@@ -28,9 +28,10 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
-// clearTryRecoverySystem removes a given candidate recovery system from the
-// modeenv state file, reseals and clears related bootloader variables.
-func clearTryRecoverySystem(dev Device, systemLabel string) error {
+// ClearTryRecoverySystem removes a given candidate recovery system from the
+// modeenv state file, reseals and clears related bootloader variables. An empty
+// system label can be passed when the boot variables state is inconsistent.
+func ClearTryRecoverySystem(dev Device, systemLabel string) error {
 	if !dev.HasModeenv() {
 		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
 	}
@@ -119,7 +120,7 @@ func SetTryRecoverySystem(dev Device, systemLabel string) (err error) {
 		if err == nil {
 			return
 		}
-		if cleanupErr := clearTryRecoverySystem(dev, systemLabel); cleanupErr != nil {
+		if cleanupErr := ClearTryRecoverySystem(dev, systemLabel); cleanupErr != nil {
 			err = fmt.Errorf("%v (cleanup failed: %v)", err, cleanupErr)
 		}
 	}()
@@ -147,7 +148,7 @@ type errInconsistentRecoverySystemState struct {
 }
 
 func (e *errInconsistentRecoverySystemState) Error() string { return e.why }
-func IsInconsystemRecoverySystemState(err error) bool {
+func IsInconsistentRecoverySystemState(err error) bool {
 	_, ok := err.(*errInconsistentRecoverySystemState)
 	return ok
 }

@@ -127,7 +127,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	overlord := c.d.overlord
 	st := overlord.State()
-	theStore := getStore(c)
+	theStore := storeFrom(c.d)
 	macaroon, discharge, err := theStore.LoginUser(loginData.Email, loginData.Password, loginData.Otp)
 	switch err {
 	case store.ErrAuthenticationNeeds2fa:
@@ -383,7 +383,7 @@ func createUser(c *Command, createData postUserCreateData) Response {
 	if createKnown {
 		username, opts, err = getUserDetailsFromAssertion(st, model, serial, createData.Email)
 	} else {
-		username, opts, err = getUserDetailsFromStore(getStore(c), createData.Email)
+		username, opts, err = getUserDetailsFromStore(storeFrom(c.d), createData.Email)
 	}
 	if err != nil {
 		return BadRequest("%s", err)
