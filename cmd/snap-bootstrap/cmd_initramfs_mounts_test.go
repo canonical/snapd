@@ -551,6 +551,136 @@ grade=signed
 	c.Check(sealedKeysLocked, Equals, true)
 }
 
+func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootFlagsSet(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
+
+	tt := []struct {
+		bootFlags        string
+		expBootFlagsFile string
+	}{
+		{
+			"factory",
+			"factory",
+		},
+		{
+			"factory,,,,",
+			"factory",
+		},
+		{
+			"factory,,,,unknown-new-flag",
+			"factory,unknown-new-flag",
+		},
+		{
+			"",
+			"",
+		},
+	}
+
+	for _, t := range tt {
+		restore := s.mockSystemdMountSequence(c, []systemdMount{
+			ubuntuLabelMount("ubuntu-seed", "install"),
+			s.makeSeedSnapSystemdMount(snap.TypeSnapd),
+			s.makeSeedSnapSystemdMount(snap.TypeKernel),
+			s.makeSeedSnapSystemdMount(snap.TypeBase),
+			{
+				"tmpfs",
+				boot.InitramfsDataDir,
+				tmpfsMountOpts,
+			},
+		}, nil)
+		defer restore()
+
+		// mock a bootloader
+		bl := bootloadertest.Mock("bootloader", c.MkDir())
+		err := bl.SetBootVars(map[string]string{
+			"snapd_boot_flags": t.bootFlags,
+		})
+		c.Assert(err, IsNil)
+		bootloader.Force(bl)
+		defer bootloader.Force(nil)
+
+		_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+		c.Assert(err, IsNil)
+
+		// check that we wrote the /run file with the boot flags in it
+		c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "boot-flags"), testutil.FileEquals, t.expBootFlagsFile)
+	}
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBootFlagsSet(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	tt := []struct {
+		bootFlags        []string
+		expBootFlagsFile string
+	}{
+		{
+			[]string{"factory"},
+			"factory",
+		},
+		{
+			[]string{"factory", ""},
+			"factory",
+		},
+		{
+			[]string{"factory", "unknown-new-flag"},
+			"factory,unknown-new-flag",
+		},
+		{
+			[]string{},
+			"",
+		},
+	}
+
+	for _, t := range tt {
+		restore := disks.MockMountPointDisksToPartitionMapping(
+			map[disks.Mountpoint]*disks.MockDiskMapping{
+				{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootWithSaveDisk,
+				{Mountpoint: boot.InitramfsDataDir}:       defaultBootWithSaveDisk,
+				{Mountpoint: boot.InitramfsUbuntuSaveDir}: defaultBootWithSaveDisk,
+			},
+		)
+		defer restore()
+
+		restore = s.mockSystemdMountSequence(c, []systemdMount{
+			ubuntuLabelMount("ubuntu-boot", "run"),
+			ubuntuPartUUIDMount("ubuntu-seed-partuuid", "run"),
+			ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
+			ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
+			s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
+			s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+		}, nil)
+		defer restore()
+
+		// mock a bootloader
+		bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+		bootloader.Force(bloader)
+		defer bootloader.Force(nil)
+
+		// set the current kernel
+		restore = bloader.SetEnabledKernel(s.kernel)
+		defer restore()
+
+		makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20)
+
+		// write modeenv with boot flags
+		modeEnv := boot.Modeenv{
+			Mode:           "run",
+			Base:           s.core20.Filename(),
+			CurrentKernels: []string{s.kernel.Filename()},
+			BootFlags:      t.bootFlags,
+		}
+		err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+		c.Assert(err, IsNil)
+
+		_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+		c.Assert(err, IsNil)
+
+		// check that we wrote the /run file with the boot flags in it
+		c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "boot-flags"), testutil.FileEquals, t.expBootFlagsFile)
+	}
+}
+
 func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeTimeMovesForwardHappy(c *C) {
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=install snapd_recovery_system="+s.sysLabel)
 
@@ -2665,6 +2795,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 
 	// we should not have written a degraded.json
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
+
+	// we also should have written an empty boot-flags file
+	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "boot-flags"), testutil.FileEquals, "")
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeTimeMovesForwardHappy(c *C) {
