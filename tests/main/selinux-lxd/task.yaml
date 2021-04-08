@@ -21,15 +21,12 @@ restore: |
     fi
 
     setenforce "$(cat enforcing.mode)"
-    rm -f stamp enforcing.mode
 
     if mountinfo.query /proc/sys/fs/binfmt_misc .fs_type=binfmt_misc; then
         umount /proc/sys/fs/binfmt_misc
     fi
 
     "$TESTSTOOLS"/lxd-state undo-mount-changes
-
-    rm -f avc-after
 
 debug: |
     if [ -e avc-after ]; then
