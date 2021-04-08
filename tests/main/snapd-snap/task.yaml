@@ -21,8 +21,9 @@ systems:
     # now, LXD does not work either, with the service failing to start up at all
     # when we install LXD
     - -arch-*
-    # snapcraft does not support running on centos due to errors with the locale
-    # see https://bugs.launchpad.net/snapcraft/+bug/1922140
+    # snapcraft does not support running on centos 7 due to errors with the
+    # locale, see https://bugs.launchpad.net/snapcraft/+bug/1922140
+    # a separate error occurs on centos 8, see https://bugs.launchpad.net/snapcraft/+bug/1922981
     - -centos-*
 
 # Start early as it takes a long time.
