@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1253,7 +1253,6 @@ func (s *snapsSuite) TestPostSnapSetsUser(c *check.C) {
 	buf := bytes.NewBufferString(`{"action": "install"}`)
 	req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
 
 	rsp := s.asyncReq(c, req, user)
 
@@ -1509,7 +1508,7 @@ func (s *snapsSuite) TestInstallUserAgentContextCreated(c *check.C) {
 	var buf bytes.Buffer
 	buf.WriteString(`{"action": "install"}`)
 	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", &buf)
-	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
+	s.asRootAuth(req)
 	c.Assert(err, check.IsNil)
 	req.Header.Add("User-Agent", "some-agent/1.0")
 

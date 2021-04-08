@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -208,7 +208,6 @@ func (s *userSuite) TestLoginUserNoEmailWithExistentLocalUser(c *check.C) {
 	buf := bytes.NewBufferString(`{"username": "username", "email": "", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, localUser.Macaroon))
 
 	rsp := s.syncReq(c, req, localUser)
 
@@ -250,7 +249,6 @@ func (s *userSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
 	buf := bytes.NewBufferString(`{"username": "username", "email": "email@test.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, localUser.Macaroon))
 
 	rsp := s.syncReq(c, req, localUser)
 
@@ -293,7 +291,6 @@ func (s *userSuite) TestLoginUserNewEmailWithExistentLocalUser(c *check.C) {
 	buf := bytes.NewBufferString(`{"username": "username", "email": "new.email@test.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, localUser.Macaroon))
 
 	rsp := s.syncReq(c, req, localUser)
 
@@ -330,7 +327,6 @@ func (s *userSuite) TestLogoutUser(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/logout", nil)
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
 
 	rsp := s.syncReq(c, req, user)
 	c.Check(rsp.Status, check.Equals, 200)

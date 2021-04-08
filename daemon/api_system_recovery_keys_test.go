@@ -21,7 +21,6 @@ package daemon_test
 
 import (
 	"encoding/hex"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -85,7 +84,8 @@ func (s *recoveryKeysSuite) TestSystemGetRecoveryAsUserErrors(c *C) {
 	req, err := http.NewRequest("GET", "/v2/system-recovery-keys", nil)
 	c.Assert(err, IsNil)
 
-	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapdSocket)
+	// being properly authorized as user is not enough, needs root
+	s.asUserAuth(c, req)
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
 	c.Assert(rec.Code, Equals, 403)

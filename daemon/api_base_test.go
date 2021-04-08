@@ -90,6 +90,8 @@ type apiBaseSuite struct {
 
 	restoreSanitize func()
 	restoreMuxVars  func()
+
+	authUser *auth.UserState
 }
 
 func (s *apiBaseSuite) pokeStateLock() {
@@ -213,6 +215,7 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.d = nil
 	s.currentSnaps = nil
 	s.actions = nil
+	s.authUser = nil
 	// Disable real security backends for all API tests
 	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
 
@@ -316,6 +319,28 @@ func (s *apiBaseSuite) daemonWithOverlordMockAndStore(c *check.C) *daemon.Daemon
 
 	s.d = d
 	return d
+}
+
+// asUserAuth fakes authorization into the request as for root
+func (s *apiBaseSuite) asRootAuth(req *http.Request) {
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
+}
+
+// asUserAuth adds authorization to the request as for a logged in user
+func (s *apiBaseSuite) asUserAuth(c *check.C, req *http.Request) {
+	if s.d == nil {
+		panic("call s.daemon(c) etc in your test first")
+	}
+	if s.authUser == nil {
+		st := s.d.Overlord().State()
+		st.Lock()
+		u, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
+		st.Unlock()
+		c.Assert(err, check.IsNil)
+		s.authUser = u
+	}
+	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, s.authUser.Macaroon))
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapdSocket)
 }
 
 type fakeSnapManager struct{}
