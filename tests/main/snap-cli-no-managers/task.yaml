@@ -1,4 +1,5 @@
 summary: Check that snap binary does not inadvertently import snapstate.
+
 details: |
   This test checks that snap binary does not import snapstate when built
   with -tags nomanagers.

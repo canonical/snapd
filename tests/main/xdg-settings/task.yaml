@@ -8,11 +8,6 @@ systems:
     - -ubuntu-14.04-*  # not supported as desktop OS, systemd too old for tests.session
     - -ubuntu-core-*  # test exercises regular xdg-settings, not the custom one in ubuntu-core
 
-restore: |
-    tests.session -u test restore
-    umount -f /usr/bin/xdg-settings || true
-    umount -f /usr/bin/zenity || true
-
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-xdg-settings
 
@@ -38,6 +33,11 @@ prepare: |
     chmod +x /tmp/xdg-settings
     touch /usr/bin/xdg-settings
     mount --bind /tmp/xdg-settings /usr/bin/xdg-settings
+
+restore: |
+    tests.session -u test restore
+    umount -f /usr/bin/xdg-settings || true
+    umount -f /usr/bin/zenity || true
 
 execute: |
     #shellcheck source=tests/lib/systems.sh

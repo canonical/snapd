@@ -5,23 +5,23 @@ details: |
     under sudo to some predefined set of locations. Make sure to account for all
     distros supported by snapd that have sudo set up this way.
 
+# ubuntu-14.04: no support for user sessions used by test helpers
+systems: [ -ubuntu-14.04-* ]
+
 environment:
     # list of regular expressions that match systems where sudo is set up to use
     # secure_path without snap bindir
     SECURE_PATH_SUDO_NO_SNAP: "centos-.* amazon-linux-2-64 opensuse-.* debian-.*"
-
-# ubuntu-14.04: no support for user sessions used by test helpers
-systems: [ -ubuntu-14.04-* ]
-
-debug: |
-    cat sudo.path || true
-    cat sudo-login.path || true
 
 prepare: |
     tests.session -u test prepare
 
 restore: |
     tests.session -u test restore
+
+debug: |
+    cat sudo.path || true
+    cat sudo-login.path || true
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh

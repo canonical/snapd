@@ -3,6 +3,9 @@ summary: Ensure the snapd gets auto installed when needed
 # not testing on ubuntu-core because we have core/snapd installed there
 systems: [-ubuntu-core-*]
 
+restore: |
+    snap remove --purge test-snapd-sh-core18
+
 execute: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB"/pkgdb.sh
@@ -21,6 +24,3 @@ execute: |
     snap list | MATCH ^snapd
     snap list | MATCH ^core18
     snap list | MATCH ^test-snapd-sh
-
-restore: |
-    snap remove --purge test-snapd-sh-core18

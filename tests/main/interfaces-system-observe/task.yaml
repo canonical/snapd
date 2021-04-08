@@ -1,8 +1,5 @@
 summary: Ensures that the system-observe interface works.
 
-# on s390x we do not have a serial port to observe
-systems: [-ubuntu-*-s390x]
-
 details: |
     A snap declaring the system-observe plug is defined, its command
     just calls ps -ax.
@@ -10,6 +7,9 @@ details: |
     The test itself checks for the lack of autoconnect and then tries
     to execute the snap command with the plug connected (it must succeed)
     and disconnected (it must fail).
+
+# on s390x we do not have a serial port to observe
+systems: [-ubuntu-*-s390x]
 
 prepare: |
     echo "Given a snap declaring a plug on the system-observe interface is installed"

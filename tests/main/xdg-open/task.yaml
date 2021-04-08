@@ -12,15 +12,6 @@ environment:
     # XXX: why is this here?
     DISPLAY: :0
 
-restore: |
-    tests.session -u test restore
-
-    umount /usr/bin/xdg-open
-    rm /usr/bin/xdg-open
-    if [ -e /usr/bin/xdg-open.orig ]; then
-        mv /usr/bin/xdg-open.orig /usr/bin/xdg-open
-    fi
-
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop
 
@@ -47,6 +38,15 @@ prepare: |
     fi
     touch /usr/bin/xdg-open
     mount --bind /tmp/xdg-open /usr/bin/xdg-open
+
+restore: |
+    tests.session -u test restore
+
+    umount /usr/bin/xdg-open
+    rm /usr/bin/xdg-open
+    if [ -e /usr/bin/xdg-open.orig ]; then
+        mv /usr/bin/xdg-open.orig /usr/bin/xdg-open
+    fi
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh
