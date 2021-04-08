@@ -40,6 +40,12 @@ type recoveryKeysSuite struct {
 	apiBaseSuite
 }
 
+func (s *recoveryKeysSuite) SetUpTest(c *C) {
+	s.apiBaseSuite.SetUpTest(c)
+
+	s.expectRootAccess()
+}
+
 func mockSystemRecoveryKeys(c *C) {
 	// same inputs/outputs as secboot:crypt_test.go in this test
 	rkeystr, err := hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e")

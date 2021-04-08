@@ -58,6 +58,12 @@ type snapsSuite struct {
 
 var _ = check.Suite(&snapsSuite{})
 
+func (s *snapsSuite) SetUpTest(c *check.C) {
+	s.apiBaseSuite.SetUpTest(c)
+
+	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
+}
+
 func (s *snapsSuite) TestSnapsInfoIntegration(c *check.C) {
 	s.checkSnapsInfoIntegration(c, false, nil)
 }

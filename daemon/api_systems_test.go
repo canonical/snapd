@@ -56,6 +56,12 @@ type systemsSuite struct {
 	apiBaseSuite
 }
 
+func (s *systemsSuite) SetUpTest(c *check.C) {
+	s.apiBaseSuite.SetUpTest(c)
+
+	s.expectRootAccess()
+}
+
 func (s *systemsSuite) mockSystemSeeds(c *check.C) (restore func()) {
 	// now create a minimal uc20 seed dir with snaps/assertions
 	seed20 := &seedtest.TestingSeed20{
@@ -137,6 +143,8 @@ func (s *systemsSuite) TestSystemsGetSome(c *check.C) {
 	}})
 	st.Unlock()
 
+	s.expectAuthenticatedAccess()
+
 	restore := s.mockSystemSeeds(c)
 	defer restore()
 
@@ -203,6 +211,8 @@ func (s *systemsSuite) TestSystemsGetNone(c *check.C) {
 	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
 	c.Assert(err, check.IsNil)
 	d.Overlord().AddManager(mgr)
+
+	s.expectAuthenticatedAccess()
 
 	// no system seeds
 	req, err := http.NewRequest("GET", "/v2/systems", nil)

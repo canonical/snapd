@@ -92,6 +92,9 @@ type apiBaseSuite struct {
 	restoreMuxVars  func()
 
 	authUser *auth.UserState
+
+	expectedReadAccess  daemon.AccessChecker
+	expectedWriteAccess daemon.AccessChecker
 }
 
 func (s *apiBaseSuite) pokeStateLock() {
@@ -216,6 +219,12 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.currentSnaps = nil
 	s.actions = nil
 	s.authUser = nil
+
+	// TODO: consider making the default ReadAccess expectation
+	// authenticatedAccess, but that would need even more test changes
+	s.expectedReadAccess = daemon.OpenAccess{}
+	s.expectedWriteAccess = daemon.AuthenticatedAccess{}
+
 	// Disable real security backends for all API tests
 	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
 
@@ -544,6 +553,28 @@ func (s *apiBaseSuite) checkGetOnly(c *check.C, req *http.Request) {
 	c.Check(cmd.GET, check.NotNil)
 }
 
+func (s *apiBaseSuite) expectOpenAccess() {
+	s.expectedReadAccess = daemon.OpenAccess{}
+}
+
+func (s *apiBaseSuite) expectRootAccess() {
+	s.expectedReadAccess = daemon.RootAccess{}
+	s.expectedWriteAccess = daemon.RootAccess{}
+}
+
+func (s *apiBaseSuite) expectAuthenticatedAccess() {
+	s.expectedReadAccess = daemon.AuthenticatedAccess{}
+	s.expectedWriteAccess = daemon.AuthenticatedAccess{}
+}
+
+func (s *apiBaseSuite) expectReadAccess(a daemon.AccessChecker) {
+	s.expectedReadAccess = a
+}
+
+func (s *apiBaseSuite) expectWriteAccess(a daemon.AccessChecker) {
+	s.expectedWriteAccess = a
+}
+
 func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState) daemon.Response {
 	if s.d == nil {
 		panic("call s.daemon(c) etc in your test first")
@@ -552,19 +583,31 @@ func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState) dae
 	cmd, vars := handlerCommand(c, s.d, req)
 	s.vars = vars
 	var f daemon.ResponseFunc
+	var acc, expAcc daemon.AccessChecker
+	var whichAcc string
 	switch req.Method {
 	case "GET":
 		f = cmd.GET
+		acc = cmd.ReadAccess
+		expAcc = s.expectedReadAccess
+		whichAcc = "ReadAccess"
 	case "POST":
 		f = cmd.POST
+		acc = cmd.WriteAccess
+		expAcc = s.expectedWriteAccess
+		whichAcc = "WriteAccess"
 	case "PUT":
 		f = cmd.PUT
+		acc = cmd.WriteAccess
+		expAcc = s.expectedWriteAccess
+		whichAcc = "WriteAccess"
 	default:
 		c.Fatalf("unsupported HTTP method %q", req.Method)
 	}
 	if f == nil {
 		c.Fatalf("no support for %q for %q", req.Method, req.URL)
 	}
+	c.Check(acc, check.DeepEquals, expAcc, check.Commentf("expected %s check mismatch, use the apiBaseSuite.expect*Access methods to match the appropriate access check for the API under test", whichAcc))
 	return f(cmd, req, u)
 }
 
