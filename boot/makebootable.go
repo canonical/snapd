@@ -389,7 +389,7 @@ func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 
 	if sealer != nil {
 		// seal the encryption key to the parameters specified in modeenv
-		if err := sealKeyToModeenv(sealer.dataEncryptionKey, sealer.saveEncryptionKey, model, modeenv); err != nil {
+		if err := sealKeyToModeenv(sealer.dataEncryptionKey, sealer.saveEncryptionKey, sealer.auxEncryptionKey, model, modeenv); err != nil {
 			return err
 		}
 	}

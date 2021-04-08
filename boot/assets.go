@@ -265,6 +265,9 @@ type TrustedAssetsInstallObserver struct {
 
 	dataEncryptionKey secboot.EncryptionKey
 	saveEncryptionKey secboot.EncryptionKey
+
+	// XXX: auxEncryptionKey will be "nil" for the TPM case currently
+	auxEncryptionKey *secboot.AuxKey
 }
 
 // Observe observes the operation related to the content of a given gadget
@@ -342,6 +345,10 @@ func (o *TrustedAssetsInstallObserver) currentTrustedRecoveryBootAssetsMap() boo
 func (o *TrustedAssetsInstallObserver) ChosenEncryptionKeys(key, saveKey secboot.EncryptionKey) {
 	o.dataEncryptionKey = key
 	o.saveEncryptionKey = saveKey
+}
+
+func (o *TrustedAssetsInstallObserver) SetAuxKey(key *secboot.AuxKey) {
+	o.auxEncryptionKey = key
 }
 
 // TrustedAssetsUpdateObserverForModel returns a new trusted assets observer for

@@ -193,7 +193,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		})
 		defer restore()
 
-		err = boot.SealKeyToModeenv(myKey, myKey2, model, modeenv)
+		err = boot.SealKeyToModeenv(myKey, myKey2, nil, model, modeenv)
 		if tc.sealErr != nil {
 			c.Assert(sealKeysCalls, Equals, 1)
 		} else {
@@ -1344,7 +1344,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	saveKey := secboot.EncryptionKey{5, 6, 7, 8}
 
 	model := boottest.MakeMockUC20Model()
-	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv)
+	err := boot.SealKeyToModeenv(key, saveKey, nil, model, modeenv)
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookParams, DeepEquals, []*boot.FDESetupHookParams{
@@ -1386,7 +1386,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	saveKey := secboot.EncryptionKey{5, 6, 7, 8}
 
 	model := boottest.MakeMockUC20Model()
-	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv)
+	err := boot.SealKeyToModeenv(key, saveKey, nil, model, modeenv)
 	c.Assert(err, ErrorMatches, "hook failed")
 	marker := filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys")
 	c.Check(marker, testutil.FileAbsent)

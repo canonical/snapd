@@ -41,4 +41,7 @@ type EncryptionKeySet struct {
 type InstalledSystemSideData struct {
 	// KeysForRoles contains key sets for the relevant structure roles.
 	KeysForRoles map[string]*EncryptionKeySet
+
+	// The AuxKey is used system-wide
+	AuxKey *secboot.AuxKey
 }

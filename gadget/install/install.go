@@ -181,8 +181,24 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 		}
 	}
 
+	// XXX: In the future we will always create the auxKey, for now
+	//      it is only used when using FDE
+	var auxKey *secboot.AuxKey
+	hasHook, err := boot.HasFDESetupHook()
+	if err != nil {
+		return nil, fmt.Errorf("cannot check for fde-hook: %v", err)
+	}
+	if options.Encrypt && hasHook {
+		k, err := secboot.NewAuxKey()
+		if err != nil {
+			return nil, fmt.Errorf("cannot create aux-key: %v", err)
+		}
+		auxKey = &k
+	}
+
 	return &InstalledSystemSideData{
 		KeysForRoles: keysForRoles,
+		AuxKey:       auxKey,
 	}, nil
 }
 

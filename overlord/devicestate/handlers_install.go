@@ -218,7 +218,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 
 		// make note of the encryption keys
 		trustedInstallObserver.ChosenEncryptionKeys(dataKeySet.Key, saveKeySet.Key)
-
+		trustedInstallObserver.SetAuxKey(installedSystem.AuxKey)
 		// keep track of recovery assets
 		if err := trustedInstallObserver.ObserveExistingTrustedRecoveryAssets(boot.InitramfsUbuntuSeedDir); err != nil {
 			return fmt.Errorf("cannot observe existing trusted recovery assets: err")

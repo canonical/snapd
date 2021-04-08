@@ -91,7 +91,7 @@ func recoveryBootChainsFileUnder(rootdir string) string {
 // sealKeyToModeenv seals the supplied keys to the parameters specified
 // in modeenv.
 // It assumes to be invoked in install mode.
-func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
+func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, auxKey *secboot.AuxKey, model *asserts.Model, modeenv *Modeenv) error {
 	// make sure relevant locations exist
 	for _, p := range []string{
 		InitramfsSeedEncryptionKeyDir,
@@ -110,10 +110,10 @@ func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, 
 		return fmt.Errorf("cannot check for fde-setup hook %v", err)
 	}
 	if hasHook {
-		return sealKeyToModeenvUsingFDESetupHook(key, saveKey, model, modeenv)
+		return sealKeyToModeenvUsingFDESetupHook(key, saveKey, auxKey, model, modeenv)
 	}
 
-	return sealKeyToModeenvUsingSecboot(key, saveKey, model, modeenv)
+	return sealKeyToModeenvUsingSecboot(key, saveKey, auxKey, model, modeenv)
 }
 
 func runKeySealRequests(key secboot.EncryptionKey) []secboot.SealKeyRequest {
@@ -141,7 +141,7 @@ func fallbackKeySealRequests(key, saveKey secboot.EncryptionKey) []secboot.SealK
 	}
 }
 
-func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
+func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, auxKey *secboot.AuxKey, model *asserts.Model, modeenv *Modeenv) error {
 	// TODO: support full boot chains
 
 	for _, skr := range append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey)...) {
@@ -166,7 +166,7 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model
 	return nil
 }
 
-func sealKeyToModeenvUsingSecboot(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
+func sealKeyToModeenvUsingSecboot(key, saveKey secboot.EncryptionKey, auxKey *secboot.AuxKey, model *asserts.Model, modeenv *Modeenv) error {
 	// build the recovery mode boot chain
 	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
 		Role: bootloader.RoleRecovery,
