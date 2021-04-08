@@ -1,4 +1,5 @@
 summary: Check that preseeding of current ubuntu cloud image works.
+
 details: |
   This test checks that preseeding of Ubuntu cloud images with snap-preseed
   command works, up to the point where the image is ready to be booted.

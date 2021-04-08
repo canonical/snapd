@@ -1,4 +1,5 @@
 summary: Check that the document portal is activated when needed
+
 details: |
     In order for xdg-document-portal to securely share files with a
     confined applications, it must be started prior to setting up the

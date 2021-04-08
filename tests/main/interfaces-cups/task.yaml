@@ -1,12 +1,12 @@
 summary: Ensure that the cups interfaces work with app providers
 
-systems: [ubuntu-*]
-
 details: |
     A snap providing the cups-control and cups interfaces should be able to
     create the control socket, with connecting consuming snaps able to use it.
     This intentionally does not test the mediation properties of the cupsd
     server.
+
+systems: [ubuntu-*]
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-provider

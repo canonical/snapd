@@ -1,5 +1,8 @@
 summary: Checks for parallel installation of snaps from the store
 
+restore: |
+    snap set system experimental.parallel-instances=
+
 execute: |
     not snap install test-snapd-tools_foo 2> run.err
     MATCH 'experimental feature disabled' < run.err
@@ -26,6 +29,3 @@ execute: |
 
     echo "Installing more than one instance at a time works too"
     snap install test-snapd-tools_baz test-snapd-tools_zed
-
-restore: |
-    snap set system experimental.parallel-instances=
