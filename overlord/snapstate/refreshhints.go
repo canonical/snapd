@@ -22,9 +22,11 @@ package snapstate
 import (
 	"time"
 
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/timings"
 )
@@ -71,12 +73,24 @@ func (r *refreshHints) refresh() error {
 	perfTimings := timings.New(map[string]string{"ensure": "refresh-hints"})
 	defer perfTimings.Save(r.state)
 
+	var updates []*snap.Info
+	var ignoreValidationByInstanceName map[string]bool
 	timings.Run(perfTimings, "refresh-candidates", "query store for refresh candidates", func(tm timings.Measurer) {
-		_, _, _, err = refreshCandidates(auth.EnsureContextTODO(), r.state, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged})
+		updates, _, ignoreValidationByInstanceName, err = refreshCandidates(auth.EnsureContextTODO(), r.state, nil, nil, &store.RefreshOptions{RefreshManaged: refreshManaged})
 	})
 	// TODO: we currently set last-refresh-hints even when there was an
 	// error. In the future we may retry with a backoff.
 	r.state.Set("last-refresh-hints", time.Now())
+	if err == nil {
+		deviceCtx, err := DeviceCtxFromState(r.state, nil)
+		if err != nil {
+			return err
+		}
+		hints, err := refreshHintsFromCandidates(r.state, updates, ignoreValidationByInstanceName, deviceCtx)
+		if err == nil {
+			r.state.Set("refresh-candidates", hints)
+		}
+	}
 	return err
 }
 
@@ -121,3 +135,79 @@ func (r *refreshHints) Ensure() error {
 	}
 	return r.refresh()
 }
+
+func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreValidationByInstanceName map[string]bool, deviceCtx DeviceContext) ([]*refreshCandidate, error) {
+	if ValidateRefreshes != nil && len(updates) != 0 {
+		userID := 0
+		var err error
+		updates, err = ValidateRefreshes(st, updates, ignoreValidationByInstanceName, userID, deviceCtx)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	hints := make([]*refreshCandidate, len(updates))
+	for _, update := range updates {
+		var snapst SnapState
+		if err := Get(st, update.InstanceName(), &snapst); err != nil {
+			return nil, err
+		}
+
+		flags := snapst.Flags
+		flags.IsAutoRefresh = true
+		flags, err := earlyChecks(st, &snapst, update, flags)
+		if err != nil {
+			logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
+			continue
+		}
+
+		if err := earlyEpochCheck(update, &snapst); err != nil {
+			logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
+			continue
+		}
+		snapsup := &refreshCandidate{
+			SnapSetup{
+				Base:         update.Base,
+				Prereq:       defaultContentPlugProviders(st, update),
+				DownloadInfo: &update.DownloadInfo,
+				SideInfo:     &update.SideInfo,
+				Type:         update.Type(),
+				PlugsOnly:    len(update.Slots) == 0,
+				Flags:        flags.ForSnapSetup(),
+				InstanceKey:  update.InstanceKey,
+				auxStoreInfo: auxStoreInfo{
+					Website: update.Website,
+					Media:   update.Media,
+				},
+		}}
+
+		hints = append(hints, snapsup)
+	}
+	return hints, nil
+}
+
+func updatesFromRefreshHints(st *state.State) ([]*refreshCandidate, map[string]*SnapState, error) {
+	var hints []*refreshCandidate
+	err := st.Get("refresh-candidates", &hints)
+	if err != nil && err != state.ErrNoState {
+		return nil, nil, err
+	}
+	if err != nil {
+		return nil, nil, nil
+	}
+
+	snapStates, err := All(st)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	stateByInstanceName := make(map[string]*SnapState, len(snapStates))
+	for _, hint := range hints {
+		if _, ok := snapStates[hint.SnapSetup.InstanceName()]; !ok {
+			return nil, nil, snap.NotInstalledError{Snap: hint.SnapSetup.InstanceName()}
+		}
+	}
+
+	return hints, stateByInstanceName, nil
+}
+

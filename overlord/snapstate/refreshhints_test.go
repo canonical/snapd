@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -63,6 +64,7 @@ type refreshHintsTestSuite struct {
 	state *state.State
 
 	store *recordingStore
+	restoreModel func()
 }
 
 var _ = Suite(&refreshHintsTestSuite{})
@@ -91,11 +93,14 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 	}
 
 	s.state.Set("refresh-privacy-key", "privacy-key")
+
+	s.restoreModel = snapstatetest.MockDeviceModel(DefaultModel())
 }
 
 func (s *refreshHintsTestSuite) TearDownTest(c *C) {
 	snapstate.CanAutoRefresh = nil
 	snapstate.AutoAliases = nil
+	s.restoreModel()
 }
 
 func (s *refreshHintsTestSuite) TestLastRefresh(c *C) {
