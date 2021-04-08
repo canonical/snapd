@@ -5,7 +5,7 @@ environment:
     GOPATH: $GOHOME
     # TODO: some distros started shipping Go 1.16 which defaults to having
     # modules enabled, drop this when snapd starts supporting Go modules
-    GO111MODULE: off
+    GO111MODULE: "off"
     REUSE_PROJECT: '$(HOST: echo "$REUSE_PROJECT")'
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
     # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
@@ -623,10 +623,10 @@ prepare: |
                 zypper -q install -y xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
             arch-*)
-                # NOTE: we ought to do pacman -Syu, but this may update the
-                # kernel which we will not detect at this stage and fail to
-                # reboot; actual distro upgrade is done later in prepare
-                pacman -Sy --noconfirm xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
+                # there may be a libc upgrade which only -Syu handles;
+                # ignore linux kernel as we would fail to detect it and handle
+                # reboot; actual distro upgrade is done later in prepare.
+                pacman -Syu --noconfirm xdelta3 curl --ignore linux &> "$tf" || (cat "$tf"; exit 1)
                 ;;
         esac
         rm -f "$tf"
@@ -946,11 +946,11 @@ suites:
         environment:
             NESTED_TYPE: "core"
             # Enable kvm in the qemu command line
-            NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-true}")'
+            NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-}")'
             # Enable tpm in the nested vm in case it is supported
-            NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-false}")'
+            NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-}")'
             # Enable secure boot in the nested vm in case it is supported
-            NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
+            NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
         manual: true
         debug: |
             #shellcheck source=tests/lib/nested.sh
@@ -977,49 +977,6 @@ suites:
         restore: |
             "$TESTSTOOLS"/nested-state restore
 
-            #shellcheck source=tests/lib/pkgdb.sh
-            . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
-
-    tests/nested/core20/:
-        summary: Tests for nested uc20 images
-        backends: [google-nested, qemu-nested]
-        systems: [ubuntu-20.04-64]
-        environment:
-            NESTED_TYPE: "core"
-            # Enable kvm in the qemu command line
-            NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-true}")'
-            # Enable secure boot in the nested vm in case it is supported
-            NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-true}")'
-            # Enable secure boot in the nested vm in case it is supported
-            NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-true}")'
-        manual: true
-        debug: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_print_serial_log
-        warn-timeout: 10m
-        kill-timeout: 60m
-        prepare: |
-            #shellcheck source=tests/lib/pkgdb.sh
-            . "$TESTSLIB"/pkgdb.sh
-            distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils haveged
-            snap install ubuntu-image --classic
-
-            # Install the snapd built
-            dpkg -i "$SPREAD_PATH"/../snapd_*.deb
-
-            "$TESTSTOOLS"/nested-state prepare
-            "$TESTSTOOLS"/nested-state build-image core
-        prepare-each: |
-            tests.backup prepare
-            "$TESTSTOOLS"/nested-state create-vm core
-        restore-each: |
-            "$TESTSTOOLS"/nested-state remove-vm
-            tests.backup restore
-        restore: |
-            "$TESTSTOOLS"/nested-state restore
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils

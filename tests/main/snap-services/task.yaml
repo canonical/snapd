@@ -10,6 +10,17 @@ restore: |
     snap unset system experimental.user-daemons
 
 execute: |
+    # sanity check of systemctl behavior for non-existing services;
+    # it is expected that the returned UnitFileState is empty.
+    systemctl show --property=Id foo.service | MATCH "foo.service"
+    systemctl show --property=ActiveState foo.service | MATCH "inactive"
+    UNIT_FILE_STATE=$(systemctl show --property=UnitFileState foo.service)
+    if [[ "$UNIT_FILE_STATE" != "UnitFileState=" ]]; then
+        echo "unexpected value of UnitFileState for non-existing service: $UNIT_FILE_STATE"
+        systemctl --version
+        exit 1
+    fi
+
     "$TESTSTOOLS"/snaps-state install-local test-snapd-service
     "$TESTSTOOLS"/snaps-state install-local socket-activation
     "$TESTSTOOLS"/snaps-state install-local test-snapd-timer-service

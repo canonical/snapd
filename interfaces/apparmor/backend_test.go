@@ -1171,7 +1171,7 @@ func (s *backendSuite) TestSnapConfineProfileFromSnapdSnap(c *C) {
 	// We expect to see the same profile, just anchored at a different directory.
 	expectedProfileDir := filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/apparmor/profiles")
 	expectedProfileName := "snap-confine.snapd.222"
-	expectedProfileGlob := "snap-confine.snapd.*"
+	expectedProfileGlob := "snap-confine.snapd.222"
 	expectedProfileText := fmt.Sprintf(`#include <tunables/global>
 %s/usr/lib/snapd/snap-confine (attach_disconnected) {
     # We run privileged, so be fanatical about what we include and don't use
@@ -1226,7 +1226,7 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecCleans(c *C) {
 	// install the new core snap on classic triggers cleanup
 	s.InstallSnap(c, interfaces.ConfinementOptions{}, "", coreYaml, 111)
 
-	c.Check(osutil.FileExists(canary), Equals, false)
+	c.Check(canary, testutil.FileAbsent)
 }
 
 func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) {
@@ -1265,6 +1265,31 @@ func (s *backendSuite) TestSetupHostSnapConfineApparmorForReexecWritesNew(c *C) 
 	// snap-confine directory was created
 	_, err = os.Stat(dirs.SnapConfineAppArmorDir)
 	c.Check(err, IsNil)
+}
+
+func (s *backendSuite) TestSnapConfineProfileDiscardedLateSnapd(c *C) {
+	restorer := release.MockOnClassic(false)
+	defer restorer()
+	restorer = apparmor_sandbox.MockLevel(apparmor_sandbox.Full)
+	defer restorer()
+	// snapd snap at revision 222.
+	snapdInfo := snaptest.MockInfo(c, snapdYaml, &snap.SideInfo{Revision: snap.R(222)})
+	s.writeVanillaSnapConfineProfile(c, snapdInfo)
+	err := s.Backend.Setup(snapdInfo, interfaces.ConfinementOptions{}, s.Repo, s.perf)
+	c.Assert(err, IsNil)
+	// sanity
+	c.Assert(filepath.Join(dirs.SnapAppArmorDir, "snap-confine.snapd.222"), testutil.FilePresent)
+	// place a canary
+	c.Assert(ioutil.WriteFile(filepath.Join(dirs.SnapAppArmorDir, "snap-confine.snapd.111"), nil, 0644), IsNil)
+
+	// backed implements the right interface
+	late, ok := s.Backend.(interfaces.SecurityBackendDiscardingLate)
+	c.Assert(ok, Equals, true)
+	err = late.RemoveLate(snapdInfo.InstanceName(), snapdInfo.Revision, snapdInfo.Type())
+	c.Assert(err, IsNil)
+	c.Check(filepath.Join(dirs.SnapAppArmorDir, "snap-confine.snapd.222"), testutil.FileAbsent)
+	// but the canary is still present
+	c.Assert(filepath.Join(dirs.SnapAppArmorDir, "snap-confine.snapd.111"), testutil.FilePresent)
 }
 
 func (s *backendSuite) TestCoreOnCoreCleansApparmorCache(c *C) {
