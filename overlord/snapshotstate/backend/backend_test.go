@@ -938,10 +938,10 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		// reset
 		err = os.RemoveAll(dirs.SnapshotsDir)
 		c.Assert(err, check.IsNil, comm)
-		err := os.MkdirAll(dirs.SnapshotsDir, 0700)
-		c.Assert(err, check.IsNil, comm)
 		importingFile := filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_importing", t.setID))
 		if t.inProgress {
+			err := os.MkdirAll(dirs.SnapshotsDir, 0700)
+			c.Assert(err, check.IsNil, comm)
 			err = ioutil.WriteFile(importingFile, nil, 0644)
 			c.Assert(err, check.IsNil)
 		} else {
@@ -953,7 +953,7 @@ func (s *snapshotSuite) TestImport(c *check.C) {
 		c.Assert(err, check.IsNil, comm)
 		defer f.Close()
 
-		snapNames, err := backend.Import(context.Background(), t.setID, f)
+		snapNames, err := backend.Import(context.Background(), t.setID, f, nil)
 		if t.error != "" {
 			c.Check(err, check.ErrorMatches, t.error, comm)
 			continue
@@ -986,7 +986,7 @@ func (s *snapshotSuite) TestImportCheckError(c *check.C) {
 
 	f, err := os.Open(tarFile1)
 	c.Assert(err, check.IsNil)
-	_, err = backend.Import(context.Background(), 14, f)
+	_, err = backend.Import(context.Background(), 14, f, nil)
 	c.Assert(err, check.ErrorMatches, `cannot import snapshot 14: validation failed for .+/14_foo_1.0_199.zip": snapshot entry "archive.tgz" expected hash \(d5ef563…\) does not match actual \(6655519…\)`)
 }
 
@@ -1013,7 +1013,7 @@ func (s *snapshotSuite) TestImportDuplicated(c *check.C) {
 	c.Check(buf.Len(), check.Equals, int(export.Size()))
 
 	// now import it
-	_, err = backend.Import(ctx, 123, buf)
+	_, err = backend.Import(ctx, 123, buf, nil)
 	dupErr, ok := err.(backend.DuplicatedSnapshotImportError)
 	c.Assert(ok, check.Equals, true)
 	c.Assert(dupErr, check.DeepEquals, backend.DuplicatedSnapshotImportError{SetID: shID, SnapNames: []string{"hello-snap"}})
@@ -1049,7 +1049,7 @@ func (s *snapshotSuite) TestImportExportRoundtrip(c *check.C) {
 	// now import it
 	c.Assert(os.Remove(filepath.Join(dirs.SnapshotsDir, "12_hello-snap_v1.33_42.zip")), check.IsNil)
 
-	names, err := backend.Import(ctx, 123, buf)
+	names, err := backend.Import(ctx, 123, buf, nil)
 	c.Assert(err, check.IsNil)
 	c.Check(names, check.DeepEquals, []string{"hello-snap"})
 

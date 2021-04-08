@@ -74,7 +74,7 @@ build_deb(){
     # Use fake version to ensure we are always bigger than anything else
     dch --newversion "1337.$(dpkg-parsechangelog --show-field Version)" "testing build"
 
-    if [[ "$SPREAD_SYSTEM" == debian-sid-* ]]; then
+    if os.query is-debian-sid; then
         # ensure we really build without vendored packages
         rm -rf vendor/*/*
     fi
@@ -87,7 +87,7 @@ build_deb(){
 build_rpm() {
     distro=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[1]}')
     release=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[2]}')
-    if [[ "$SPREAD_SYSTEM" == amazon-linux-2-* ]]; then
+    if os.query is-amazon-linux; then
         distro=amzn
         release=2
     fi
@@ -308,7 +308,7 @@ prepare_project() {
     fi
 
     # debian-sid packaging is special
-    if [[ "$SPREAD_SYSTEM" == debian-sid-* ]]; then
+    if os.query is-debian-sid; then
         if [ ! -d packaging/debian-sid ]; then
             echo "no packaging/debian-sid/ directory "
             echo "broken test setup"
@@ -564,6 +564,10 @@ prepare_suite() {
     else
         prepare_classic
     fi
+
+    # Make sure the suite starts with a clean environment and with the snapd state restored
+    # shellcheck source=tests/lib/reset.sh
+    "$TESTSLIB"/reset.sh --reuse-core
 }
 
 install_snap_profiler(){
@@ -583,17 +587,9 @@ prepare_suite_each() {
     # back test directory to be restored during the restore
     tests.backup prepare
 
-    # WORKAROUND for memleak https://github.com/systemd/systemd/issues/11502
-    if [[ "$SPREAD_SYSTEM" == debian-sid* ]]; then
-        systemctl restart systemd-journald
-    fi
-
     # save the job which is going to be executed in the system
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
-    if [[ "$variant" = full ]]; then
-        # shellcheck source=tests/lib/reset.sh
-        "$TESTSLIB"/reset.sh --reuse-core
-    fi
+
     # Restart journal log and reset systemd journal cursor.
     systemctl reset-failed systemd-journald.service
     if ! systemctl restart systemd-journald.service; then
@@ -670,11 +666,27 @@ restore_suite_each() {
         # to prevent hitting the system restart rate-limit for these services
         systemctl reset-failed snapd.service snapd.socket snapd.failure.service
     fi
+
+    if [[ "$variant" = full ]]; then
+        # shellcheck source=tests/lib/reset.sh
+        "$TESTSLIB"/reset.sh --reuse-core
+    fi
+
+    # Check for invariants late, in order to detect any bugs in the code above.
+    if [[ "$variant" = full ]]; then
+        "$TESTSTOOLS"/cleanup-state pre-invariant
+    fi
+    tests.invariant check
 }
 
 restore_suite() {
     # shellcheck source=tests/lib/reset.sh
-    "$TESTSLIB"/reset.sh --store
+    if [ "$REMOTE_STORE" = staging ]; then
+        # shellcheck source=tests/lib/store.sh
+        . "$TESTSLIB"/store.sh
+        teardown_staging_store
+    fi
+
     if os.query is-classic; then
         # shellcheck source=tests/lib/pkgdb.sh
         . "$TESTSLIB"/pkgdb.sh

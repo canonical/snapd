@@ -137,7 +137,8 @@ derived from the snap at SeedSnap.Path, then InfoDerived is called.
          |   \        |         /
           >   > SnapsToDownload<
                       |     ^
-                      |     |
+                      v     |
+                   SetInfo  |
                       |     | complete = false
                       v     /
                   Downloaded

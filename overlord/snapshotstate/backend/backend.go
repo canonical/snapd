@@ -444,7 +444,13 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 
 	cmd := tarAsUser(username, tarArgs...)
 	cmd.Stdout = io.MultiWriter(archiveWriter, hasher, &sz)
-	matchCounter := &strutil.MatchCounter{N: 1}
+	matchCounter := &strutil.MatchCounter{
+		// keep at most 5 matches
+		N: 5,
+		// keep the last lines only, those likely contain the reason for
+		// fatal errors
+		LastN: true,
+	}
 	cmd.Stderr = matchCounter
 	if isTesting {
 		matchCounter.N = -1
@@ -453,7 +459,13 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 	if err := osutil.RunWithContext(ctx, cmd); err != nil {
 		matches, count := matchCounter.Matches()
 		if count > 0 {
-			return fmt.Errorf("cannot create archive: %s (and %d more)", matches[0], count-1)
+			note := ""
+			if count > 5 {
+				note = fmt.Sprintf(" (showing last 5 lines out of %d)", count)
+			}
+			// we have at most 5 matches here
+			errStr := strings.Join(matches, "\n")
+			return fmt.Errorf("cannot create archive%s:\n%s", note, errStr)
 		}
 		return fmt.Errorf("tar failed: %v", err)
 	}
@@ -645,8 +657,19 @@ func CleanupAbandondedImports() (cleaned int, err error) {
 	return cleaned, nil
 }
 
+// ImportFlags carries extra flags to drive import behavior.
+type ImportFlags struct {
+	// noDuplicatedImportCheck tells import not to check for existing snapshot
+	// with same content hash (and not report DuplicatedSnapshotImportError).
+	NoDuplicatedImportCheck bool
+}
+
 // Import a snapshot from the export file format
-func Import(ctx context.Context, id uint64, r io.Reader) (snapNames []string, err error) {
+func Import(ctx context.Context, id uint64, r io.Reader, flags *ImportFlags) (snapNames []string, err error) {
+	if err := os.MkdirAll(dirs.SnapshotsDir, 0700); err != nil {
+		return nil, err
+	}
+
 	errPrefix := fmt.Sprintf("cannot import snapshot %d", id)
 
 	tr := newImportTransaction(id)
@@ -664,7 +687,7 @@ func Import(ctx context.Context, id uint64, r io.Reader) (snapNames []string, er
 	// XXX: this will leak snapshot IDs, i.e. we allocate a new
 	// snapshot ID before but then we error here because of e.g.
 	// duplicated import attempts
-	snapNames, err = unpackVerifySnapshotImport(ctx, r, id)
+	snapNames, err = unpackVerifySnapshotImport(ctx, r, id, flags)
 	if err != nil {
 		if _, ok := err.(DuplicatedSnapshotImportError); ok {
 			return nil, err
@@ -732,12 +755,16 @@ func checkDuplicatedSnapshotSetWithContentHash(ctx context.Context, contentHash 
 	return nil
 }
 
-func unpackVerifySnapshotImport(ctx context.Context, r io.Reader, realSetID uint64) (snapNames []string, err error) {
+func unpackVerifySnapshotImport(ctx context.Context, r io.Reader, realSetID uint64, flags *ImportFlags) (snapNames []string, err error) {
 	var exportFound bool
 
 	tr := tar.NewReader(r)
 	var tarErr error
 	var header *tar.Header
+
+	if flags == nil {
+		flags = &ImportFlags{}
+	}
 
 	for tarErr == nil {
 		header, tarErr = tr.Next()
@@ -760,11 +787,13 @@ func unpackVerifySnapshotImport(ctx context.Context, r io.Reader, realSetID uint
 			if err := dec.Decode(&ej); err != nil {
 				return nil, err
 			}
-			// XXX: this is potentially slow as it needs
-			//      to open all snapshots files and read a
-			//      small amount of data from them
-			if err := checkDuplicatedSnapshotSetWithContentHash(ctx, ej.ContentHash); err != nil {
-				return nil, err
+			if !flags.NoDuplicatedImportCheck {
+				// XXX: this is potentially slow as it needs
+				//      to open all snapshots files and read a
+				//      small amount of data from them
+				if err := checkDuplicatedSnapshotSetWithContentHash(ctx, ej.ContentHash); err != nil {
+					return nil, err
+				}
 			}
 			continue
 		}

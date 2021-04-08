@@ -46,6 +46,8 @@ type SeedSnaps struct {
 	snaps map[string]string
 	infos map[string]*snap.Info
 
+	snapAssertNow time.Time
+
 	snapRevs map[string]*asserts.SnapRevision
 }
 
@@ -63,6 +65,17 @@ func (ss *SeedSnaps) AssertedSnapID(snapName string) string {
 	return snaptest.AssertedSnapID(snapName)
 }
 
+func (ss *SeedSnaps) snapAssertionNow() time.Time {
+	if ss.snapAssertNow.IsZero() {
+		return time.Now()
+	}
+	return ss.snapAssertNow
+}
+
+func (ss *SeedSnaps) SetSnapAssertionNow(t time.Time) {
+	ss.snapAssertNow = t
+}
+
 func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
@@ -76,7 +89,7 @@ func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, r
 		"snap-id":      snapID,
 		"publisher-id": developerID,
 		"snap-name":    snapName,
-		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+		"timestamp":    ss.snapAssertionNow().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
 
@@ -89,7 +102,7 @@ func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, r
 		"snap-id":       snapID,
 		"developer-id":  developerID,
 		"snap-revision": revision.String(),
-		"timestamp":     time.Now().UTC().Format(time.RFC3339),
+		"timestamp":     ss.snapAssertionNow().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
 

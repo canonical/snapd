@@ -30,6 +30,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -63,7 +64,9 @@ ExecReload=/usr/bin/snap run --command=reload snap.app
 ExecStopPost=/usr/bin/snap run --command=post-stop snap.app
 TimeoutStopSec=10
 Type=%s
+%s`
 
+const expectedInstallSection = `
 [Install]
 WantedBy=multi-user.target
 `
@@ -94,9 +97,9 @@ var (
 )
 
 var (
-	expectedAppService     = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "simple")
-	expectedDbusService    = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "dbus\nBusName=foo.bar.baz")
-	expectedOneshotService = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "no", "oneshot\nRemainAfterExit=yes")
+	expectedAppService     = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "simple", expectedInstallSection)
+	expectedDbusService    = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "dbus\nBusName=foo.bar.baz", "")
+	expectedOneshotService = fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "no", "oneshot\nRemainAfterExit=yes", expectedInstallSection)
 	expectedUserAppService = fmt.Sprintf(expectedUserServiceFmt, "on-failure", "simple")
 )
 
@@ -121,7 +124,7 @@ ExecStopPost=/usr/bin/snap run --command=post-stop xkcd-webserver
 TimeoutStopSec=30
 Type=%s
 %s`
-	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, mountUnitPrefix, mountUnitPrefix, "forking", "\n[Install]\nWantedBy=multi-user.target\n")
+	expectedTypeForkingWrapper = fmt.Sprintf(expectedServiceWrapperFmt, mountUnitPrefix, mountUnitPrefix, "forking", expectedInstallSection)
 )
 
 func (s *servicesWrapperGenSuite) SetUpTest(c *C) {
@@ -133,7 +136,7 @@ func (s *servicesWrapperGenSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 }
 
-func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFile(c *C) {
+func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileOnClassic(c *C) {
 	yamlText := `
 name: snap
 version: 1.0
@@ -154,6 +157,90 @@ apps:
 	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, nil)
 	c.Assert(err, IsNil)
 	c.Check(string(generatedWrapper), Equals, expectedAppService)
+}
+
+func (s *servicesWrapperGenSuite) TestGenerateSnapServiceOnCore(c *C) {
+	defer func() { dirs.SetRootDir("/") }()
+
+	expectedAppServiceOnCore := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application foo.app
+Requires=snap-foo-44.mount
+Wants=network.target
+After=snap-foo-44.mount network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run foo.app
+SyslogIdentifier=foo.app
+Restart=on-failure
+WorkingDirectory=/var/snap/foo/44
+TimeoutStopSec=30
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
+`
+
+	yamlText := `
+name: foo
+version: 1.0
+apps:
+    app:
+        command: bin/start
+        daemon: simple
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	c.Assert(err, IsNil)
+	info.Revision = snap.R(44)
+	app := info.Apps["app"]
+
+	// we are on core
+	restore := release.MockOnClassic(false)
+	defer restore()
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core"})
+	defer restore()
+	dirs.SetRootDir("/")
+
+	opts := wrappers.AddSnapServicesOptions{
+		RequireMountedSnapdSnap: false,
+	}
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, &opts)
+	c.Assert(err, IsNil)
+	c.Check(string(generatedWrapper), Equals, expectedAppServiceOnCore)
+
+	// now with additional dependency on tooling
+	opts = wrappers.AddSnapServicesOptions{
+		RequireMountedSnapdSnap: true,
+	}
+	generatedWrapper, err = wrappers.GenerateSnapServiceFile(app, &opts)
+	c.Assert(err, IsNil)
+	// we gain additional Requires= & After= on usr-lib-snapd.mount
+	expectedAppServiceOnCoreWithSnapd := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application foo.app
+Requires=snap-foo-44.mount
+Wants=network.target
+After=snap-foo-44.mount network.target snapd.apparmor.service
+Requires=usr-lib-snapd.mount
+After=usr-lib-snapd.mount
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run foo.app
+SyslogIdentifier=foo.app
+Restart=on-failure
+WorkingDirectory=/var/snap/foo/44
+TimeoutStopSec=30
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
+`
+
+	c.Check(string(generatedWrapper), Equals, expectedAppServiceOnCoreWithSnapd)
 }
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileWithStartTimeout(c *C) {
@@ -249,7 +336,6 @@ func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileIllegalChars(c *C) 
 }
 
 func (s *servicesWrapperGenSuite) TestGenServiceFileWithBusName(c *C) {
-
 	yamlText := `
 name: snap
 version: 1.0
@@ -305,6 +391,7 @@ apps:
 	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, nil)
 	c.Assert(err, IsNil)
 
+	expectedDbusService := fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "dbus\nBusName=foo.bar.baz", expectedInstallSection)
 	c.Assert(string(generatedWrapper), Equals, expectedDbusService)
 }
 
@@ -437,7 +524,7 @@ WantedBy=sockets.target
 		Command:     "bin/foo start",
 		Daemon:      "simple",
 		DaemonScope: snap.SystemDaemon,
-		Plugs:       map[string]*snap.PlugInfo{"network-bind": {}},
+		Plugs:       map[string]*snap.PlugInfo{"network-bind": {Interface: "network-bind"}},
 		Sockets: map[string]*snap.SocketInfo{
 			"sock1": {
 				Name:         "sock1",
@@ -646,9 +733,6 @@ Restart=%s
 WorkingDirectory=/var/snap/snap/44
 TimeoutStopSec=30
 Type=%s
-
-[Install]
-WantedBy=multi-user.target
 `
 
 	expectedService := fmt.Sprintf(expectedServiceFmt, mountUnitPrefix, mountUnitPrefix, "on-failure", "simple")

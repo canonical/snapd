@@ -169,7 +169,7 @@ func (s *KubernetesSupportInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.default"), testutil.Contains, "# Allow running as the kubeproxy service\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.default"), testutil.Contains, "# Common rules for kubernetes use of systemd_run\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.default"), testutil.Contains, "# kubelet mount rules\n")
-	c.Check(spec.SnippetForTag("snap.kubernetes-support.default"), testutil.Contains, "# Allow using the 'autobind' feature of bind() (eg, for journald).\n")
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.default"), testutil.Contains, "# Allow using the 'autobind' feature of bind() (eg, for journald via go-systemd)\n")
 	c.Check(spec.UsesPtraceTrace(), Equals, true)
 
 	// kubeproxy should have its rules and autobind rules
@@ -182,7 +182,7 @@ func (s *KubernetesSupportInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubeproxy"), Not(testutil.Contains), "# Allow running as the kubelet service\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubeproxy"), testutil.Contains, "# Common rules for kubernetes use of systemd_run\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubeproxy"), Not(testutil.Contains), "# kubelet mount rules\n")
-	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubeproxy"), testutil.Contains, "# Allow using the 'autobind' feature of bind() (eg, for journald).\n")
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubeproxy"), testutil.Contains, "# Allow using the 'autobind' feature of bind() (eg, for journald via go-systemd)\n")
 	c.Check(spec.UsesPtraceTrace(), Equals, false)
 
 	// kubelet should have its rules and autobind rules
@@ -195,7 +195,7 @@ func (s *KubernetesSupportInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubelet"), Not(testutil.Contains), "# Allow running as the kubeproxy service\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubelet"), testutil.Contains, "# Common rules for kubernetes use of systemd_run\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubelet"), testutil.Contains, "# kubelet mount rules\n")
-	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubelet"), testutil.Contains, "# Allow using the 'autobind' feature of bind() (eg, for journald).\n")
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.kubelet"), testutil.Contains, "# Allow using the 'autobind' feature of bind() (eg, for journald via go-systemd)\n")
 	c.Check(spec.UsesPtraceTrace(), Equals, true)
 
 	// kube-autobind-unix should have only its autobind rules
@@ -208,7 +208,7 @@ func (s *KubernetesSupportInterfaceSuite) TestAppArmorConnectedPlug(c *C) {
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kube-autobind-unix"), Not(testutil.Contains), "# Allow running as the kubeproxy service\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kube-autobind-unix"), Not(testutil.Contains), "# Common rules for kubernetes use of systemd_run\n")
 	c.Check(spec.SnippetForTag("snap.kubernetes-support.kube-autobind-unix"), Not(testutil.Contains), "# kubelet mount rules\n")
-	c.Check(spec.SnippetForTag("snap.kubernetes-support.kube-autobind-unix"), testutil.Contains, "# Allow using the 'autobind' feature of bind() (eg, for journald).\n")
+	c.Check(spec.SnippetForTag("snap.kubernetes-support.kube-autobind-unix"), testutil.Contains, "# Allow using the 'autobind' feature of bind() (eg, for journald via go-systemd)\n")
 	c.Check(spec.UsesPtraceTrace(), Equals, false)
 }
 
@@ -274,4 +274,21 @@ KERNEL=="kmsg", TAG+="snap_kubernetes-support_kubelet"`)
 
 func (s *KubernetesSupportInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
+
+func (s *KubernetesSupportInterfaceSuite) TestPermanentPlugServiceSnippets(c *C) {
+	for _, t := range []struct {
+		plug *snap.PlugInfo
+		exp  []string
+	}{
+		{s.plugInfo, []string{"Delegate=true"}},
+		{s.plugKubeletInfo, []string{"Delegate=true"}},
+		{s.plugKubeproxyInfo, []string{"Delegate=true"}},
+		// only autobind-unix flavor does not get Delegate=true
+		{s.plugKubeAutobindInfo, nil},
+	} {
+		snips, err := interfaces.PermanentPlugServiceSnippets(s.iface, t.plug)
+		c.Assert(err, IsNil)
+		c.Check(snips, DeepEquals, t.exp)
+	}
 }

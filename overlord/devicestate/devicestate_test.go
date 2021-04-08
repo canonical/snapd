@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/osutil"
@@ -192,6 +193,12 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 
 	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
+
+	devicestate.EarlyConfig = func(*state.State, func() (*gadget.Info, error)) error {
+		return nil
+	}
+	s.AddCleanup(func() { devicestate.EarlyConfig = nil })
+
 	mgr, err := devicestate.Manager(s.state, hookMgr, s.o.TaskRunner(), s.newStore)
 	c.Assert(err, IsNil)
 
@@ -1346,7 +1353,7 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetup(c *C) {
 		ctx.Get("fde-setup-request", &fdeSetup)
 		c.Check(fdeSetup, DeepEquals, fde.SetupRequest{
 			Op:      "initial-setup",
-			Key:     &mockKey,
+			Key:     mockKey[:],
 			KeyName: "some-key-name",
 			Models: []map[string]string{
 				{

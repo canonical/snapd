@@ -297,28 +297,44 @@ func (snapshotSuite) TestCheckConflict(c *check.C) {
 	chg.AddTask(tsk)
 
 	// no snapshot state
-	err := snapshotstate.CheckSnapshotTaskConflict(st, 42, "some-task")
+	err := snapshotstate.CheckSnapshotConflict(st, 42, "some-task")
 	c.Assert(err, check.ErrorMatches, "internal error: task 1 .some-task. is missing snapshot information")
 
 	// wrong snapshot state
 	tsk.Set("snapshot-setup", "hello")
-	err = snapshotstate.CheckSnapshotTaskConflict(st, 42, "some-task")
+	err = snapshotstate.CheckSnapshotConflict(st, 42, "some-task")
 	c.Assert(err, check.ErrorMatches, "internal error.* could not unmarshal.*")
 
 	tsk.Set("snapshot-setup", map[string]int{"set-id": 42})
 
-	err = snapshotstate.CheckSnapshotTaskConflict(st, 42, "some-task")
+	err = snapshotstate.CheckSnapshotConflict(st, 42, "some-task")
 	c.Assert(err, check.ErrorMatches, "cannot operate on snapshot set #42 while change \"1\" is in progress")
 
 	// no change with that label
-	c.Assert(snapshotstate.CheckSnapshotTaskConflict(st, 42, "some-other-task"), check.IsNil)
+	c.Assert(snapshotstate.CheckSnapshotConflict(st, 42, "some-other-task"), check.IsNil)
 
 	// no change with that snapshot id
-	c.Assert(snapshotstate.CheckSnapshotTaskConflict(st, 43, "some-task"), check.IsNil)
+	c.Assert(snapshotstate.CheckSnapshotConflict(st, 43, "some-task"), check.IsNil)
 
 	// no non-ready change
 	tsk.SetStatus(state.DoneStatus)
-	c.Assert(snapshotstate.CheckSnapshotTaskConflict(st, 42, "some-task"), check.IsNil)
+	c.Assert(snapshotstate.CheckSnapshotConflict(st, 42, "some-task"), check.IsNil)
+}
+
+func (snapshotSuite) TestCheckConflictSnapshotOpInProgress(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	snapshotstate.SetSnapshotOpInProgress(st, 1, "foo-op")
+	snapshotstate.SetSnapshotOpInProgress(st, 2, "bar-op")
+
+	c.Assert(snapshotstate.CheckSnapshotConflict(st, 1, "foo-op"), check.ErrorMatches, `cannot operate on snapshot set #1 while operation foo-op is in progress`)
+	// unrelated set-id doesn't conflict
+	c.Assert(snapshotstate.CheckSnapshotConflict(st, 3, "foo-op"), check.IsNil)
+	c.Assert(snapshotstate.CheckSnapshotConflict(st, 3, "bar-op"), check.IsNil)
+	// non-conflicting op
+	c.Assert(snapshotstate.CheckSnapshotConflict(st, 1, "safe-op"), check.IsNil)
 }
 
 func (snapshotSuite) TestSaveChecksSnapnamesError(c *check.C) {
@@ -714,7 +730,9 @@ exec /bin/tar "$@"
 	// task 1 (for "too-snap") will have errored
 	c.Check(tasks[1].Summary(), testutil.Contains, `"too-snap"`) // sanity check: task 1 is too-snap's
 	c.Check(tasks[1].Status(), check.Equals, state.ErrorStatus)
-	c.Check(strings.Join(tasks[1].Log(), "\n"), check.Matches, `\S+ ERROR cannot create archive: .* Permission denied .and \d+ more.`)
+	c.Check(strings.Join(tasks[1].Log(), "\n"), check.Matches, `(?ms)\S+ ERROR cannot create archive:
+/bin/tar: common/common-too-snap: .* Permission denied
+/bin/tar: Exiting with failure status due to previous errors`)
 
 	// task 2 (for "tri-snap") will have errored as well, hopefully, but it's a race (see the "tar" comment above)
 	c.Check(tasks[2].Summary(), testutil.Contains, `"tri-snap"`) // sanity check: task 2 is tri-snap's
@@ -726,6 +744,122 @@ exec /bin/tar "$@"
 	out, err = exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
 	c.Assert(err, check.IsNil)
 	c.Check(string(out), check.Equals, "")
+}
+
+func (snapshotSuite) testSaveIntegrationTarFails(c *check.C, tarLogLines int, expectedErr string) {
+	if os.Geteuid() == 0 {
+		c.Skip("this test cannot run as root (runuser will fail)")
+	}
+	c.Assert(os.MkdirAll(dirs.SnapshotsDir, 0755), check.IsNil)
+	// sanity check: no files in snapshot dir
+	out, err := exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
+	c.Assert(err, check.IsNil)
+	c.Check(string(out), check.Equals, "")
+
+	homedir := filepath.Join(dirs.GlobalRootDir, "home", "a-user")
+	// mock tar so that it outputs a desired number of lines
+	tarFailScript := fmt.Sprintf(`
+export LANG=C
+for c in $(seq %d); do echo "log line $c" >&2 ; done
+exec /bin/tar "$@"
+`, tarLogLines)
+	if tarLogLines == 1 {
+		tarFailScript = "echo nope >&2 ; exit 1"
+	} else if tarLogLines == 0 {
+		tarFailScript = "exit 1"
+	}
+	mocktar := testutil.MockCommand(c, "tar", tarFailScript)
+	defer mocktar.Restore()
+
+	defer backend.MockUserLookup(func(username string) (*user.User, error) {
+		if username != "a-user" {
+			c.Fatalf("unexpected user %q", username)
+		}
+		return &user.User{
+			Uid:      fmt.Sprint(sys.Geteuid()),
+			Username: username,
+			HomeDir:  homedir,
+		}, nil
+	})()
+
+	o := overlord.Mock()
+	st := o.State()
+
+	stmgr, err := snapstate.Manager(st, o.TaskRunner())
+	c.Assert(err, check.IsNil)
+	o.AddManager(stmgr)
+	shmgr := snapshotstate.Manager(st, o.TaskRunner())
+	o.AddManager(shmgr)
+	o.AddManager(o.TaskRunner())
+
+	st.Lock()
+	defer st.Unlock()
+
+	sideInfo := &snap.SideInfo{RealName: "tar-fail-snap", Revision: snap.R(1)}
+	snapstate.Set(st, "tar-fail-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{sideInfo},
+		Current:  sideInfo.Revision,
+		SnapType: "app",
+	})
+	snaptest.MockSnap(c, "name: tar-fail-snap\nversion: v1", sideInfo)
+	c.Assert(os.MkdirAll(filepath.Join(homedir, "snap/tar-fail-snap/1/canary-tar-fail-snap"), 0755), check.IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(homedir, "snap/tar-fail-snap/common"), 0755), check.IsNil)
+	// these dir permissions (000) make tar unhappy
+	c.Assert(os.Mkdir(filepath.Join(homedir, "snap/tar-fail-snap/common/common-tar-fail-snap"), 00), check.IsNil)
+
+	setID, saved, taskset, err := snapshotstate.Save(st, nil, []string{"a-user"})
+	c.Assert(err, check.IsNil)
+	c.Check(setID, check.Equals, uint64(1))
+	c.Check(saved, check.DeepEquals, []string{"tar-fail-snap"})
+
+	change := st.NewChange("save-snapshot", "...")
+	change.AddAll(taskset)
+
+	st.Unlock()
+	c.Assert(o.Settle(testutil.HostScaledTimeout(5*time.Second)), check.IsNil)
+	st.Lock()
+	c.Check(change.Err(), check.NotNil)
+	tasks := change.Tasks()
+	c.Assert(tasks, check.HasLen, 1)
+
+	// task 1 (for "too-snap") will have errored
+	c.Check(tasks[0].Summary(), testutil.Contains, `"tar-fail-snap"`) // sanity check: task 1 is too-snap's
+	c.Check(tasks[0].Status(), check.Equals, state.ErrorStatus)
+	c.Check(strings.Join(tasks[0].Log(), "\n"), check.Matches, expectedErr)
+
+	// no zips left behind, not for errors, not for undos \o/
+	out, err = exec.Command("find", dirs.SnapshotsDir, "-type", "f").CombinedOutput()
+	c.Assert(err, check.IsNil)
+	c.Check(string(out), check.Equals, "")
+}
+
+func (s *snapshotSuite) TestSaveIntegrationTarFailsManyLines(c *check.C) {
+	// cutoff at 5 lines, 3 lines of log + 2 lines from tar
+	s.testSaveIntegrationTarFails(c, 3, `(?ms)\S+ ERROR cannot create archive:
+log line 1
+log line 2
+log line 3
+/bin/tar: common/common-tar-fail-snap: .* Permission denied
+/bin/tar: Exiting with failure status due to previous errors`)
+}
+
+func (s *snapshotSuite) TestSaveIntegrationTarFailsTrimmedLines(c *check.C) {
+	s.testSaveIntegrationTarFails(c, 10, `(?ms)\S+ ERROR cannot create archive \(showing last 5 lines out of 12\):
+log line 8
+log line 9
+log line 10
+/bin/tar: common/common-tar-fail-snap: .* Permission denied
+/bin/tar: Exiting with failure status due to previous errors`)
+}
+
+func (s *snapshotSuite) TestSaveIntegrationTarFailsSingleLine(c *check.C) {
+	s.testSaveIntegrationTarFails(c, 1, `(?ms)\S+ ERROR cannot create archive:
+nope`)
+}
+
+func (s *snapshotSuite) TestSaveIntegrationTarFailsNoLines(c *check.C) {
+	s.testSaveIntegrationTarFails(c, 0, `(?ms)\S+ ERROR tar failed: exit status 1`)
 }
 
 func (snapshotSuite) TestRestoreChecksIterError(c *check.C) {
@@ -1320,6 +1454,30 @@ func (snapshotSuite) TestForgetChecksCheckConflicts(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `cannot operate on snapshot set #42 while change \"1\" is in progress`)
 }
 
+func (snapshotSuite) TestForgetChecksExportConflicts(c *check.C) {
+	shotfile, err := os.Create(filepath.Join(c.MkDir(), "yadda.zip"))
+	c.Assert(err, check.IsNil)
+	defer shotfile.Close()
+	fakeIter := func(_ context.Context, f func(*backend.Reader) error) error {
+		c.Assert(f(&backend.Reader{
+			Snapshot: client.Snapshot{SetID: 42, Snap: "a-snap"},
+			File:     shotfile,
+		}), check.IsNil)
+
+		return nil
+	}
+	defer snapshotstate.MockBackendIter(fakeIter)()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	snapshotstate.SetSnapshotOpInProgress(st, 42, "export-snapshot")
+
+	_, _, err = snapshotstate.Forget(st, 42, nil)
+	c.Assert(err, check.ErrorMatches, `cannot operate on snapshot set #42 while operation export-snapshot is in progress`)
+}
+
 func (snapshotSuite) TestForgetChecksRestoreConflicts(c *check.C) {
 	shotfile, err := os.Create(filepath.Join(c.MkDir(), "yadda.zip"))
 	c.Assert(err, check.IsNil)
@@ -1608,7 +1766,7 @@ func (snapshotSuite) TestImportSnapshotHappy(c *check.C) {
 	fakeSnapshotData := "fake-import-data"
 
 	buf := bytes.NewBufferString(fakeSnapshotData)
-	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader) ([]string, error) {
+	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader, flags *backend.ImportFlags) ([]string, error) {
 		d, err := ioutil.ReadAll(r)
 		c.Assert(err, check.IsNil)
 		c.Check(fakeSnapshotData, check.Equals, string(d))
@@ -1625,7 +1783,7 @@ func (snapshotSuite) TestImportSnapshotHappy(c *check.C) {
 func (snapshotSuite) TestImportSnapshotImportError(c *check.C) {
 	st := state.New(nil)
 
-	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader) ([]string, error) {
+	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader, flags *backend.ImportFlags) ([]string, error) {
 		return nil, errors.New("some-error")
 	})
 	defer restore()
@@ -1640,7 +1798,7 @@ func (snapshotSuite) TestImportSnapshotImportError(c *check.C) {
 func (snapshotSuite) TestImportSnapshotDuplicate(c *check.C) {
 	st := state.New(nil)
 
-	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader) ([]string, error) {
+	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader, flags *backend.ImportFlags) ([]string, error) {
 		return nil, backend.DuplicatedSnapshotImportError{SetID: 3, SnapNames: []string{"foo-snap"}}
 	})
 	defer restore()
@@ -1757,4 +1915,127 @@ func (snapshotSuite) TestEstimateSnapshotSizeWithUsers(c *check.C) {
 	_, err := snapshotstate.EstimateSnapshotSize(st, "some-snap", []string{"user1", "user2"})
 	c.Assert(err, check.IsNil)
 	c.Check(gotUsers, check.DeepEquals, []string{"user1", "user2"})
+}
+
+func (snapshotSuite) TestExportSnapshotConflictsWithForget(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("forget-snapshot-change", "...")
+	tsk := st.NewTask("forget-snapshot", "...")
+	tsk.SetStatus(state.DoingStatus)
+	tsk.Set("snapshot-setup", map[string]int{"set-id": 42})
+	chg.AddTask(tsk)
+
+	_, err := snapshotstate.Export(context.TODO(), st, 42)
+	c.Assert(err, check.NotNil)
+	c.Assert(err.Error(), check.Equals, `cannot operate on snapshot set #42 while change "1" is in progress`)
+}
+
+func (snapshotSuite) TestImportSnapshotDuplicatedNoConflict(c *check.C) {
+	buf := &bytes.Buffer{}
+	var importCalls int
+	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader, flags *backend.ImportFlags) ([]string, error) {
+		importCalls++
+		c.Check(id, check.Equals, uint64(1))
+		return nil, backend.DuplicatedSnapshotImportError{SetID: 42, SnapNames: []string{"foo-snap"}}
+	})
+	defer restore()
+
+	st := state.New(nil)
+	setID, snaps, err := snapshotstate.Import(context.TODO(), st, buf)
+	c.Check(importCalls, check.Equals, 1)
+	c.Assert(err, check.IsNil)
+	c.Check(setID, check.Equals, uint64(42))
+	c.Check(snaps, check.DeepEquals, []string{"foo-snap"})
+}
+
+func (snapshotSuite) TestImportSnapshotConflictsWithForget(c *check.C) {
+	buf := &bytes.Buffer{}
+	var importCalls int
+	restore := snapshotstate.MockBackendImport(func(ctx context.Context, id uint64, r io.Reader, flags *backend.ImportFlags) ([]string, error) {
+		importCalls++
+		switch importCalls {
+		case 1:
+			c.Assert(flags, check.IsNil)
+		case 2:
+			c.Assert(flags, check.NotNil)
+			c.Assert(flags.NoDuplicatedImportCheck, check.Equals, true)
+			return []string{"foo"}, nil
+		default:
+			c.Fatal("unexpected number call to Import")
+		}
+		// DuplicatedSnapshotImportError is the only case where we can encounter
+		// conflict on import (trying to reuse existing snapshot).
+		return nil, backend.DuplicatedSnapshotImportError{SetID: 42, SnapNames: []string{"not-relevant-because-of-retry"}}
+	})
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	// conflicting change
+	chg := st.NewChange("forget-snapshot-change", "...")
+	tsk := st.NewTask("forget-snapshot", "...")
+	tsk.SetStatus(state.DoingStatus)
+	tsk.Set("snapshot-setup", map[string]int{"set-id": 42})
+	chg.AddTask(tsk)
+
+	st.Unlock()
+	setID, snaps, err := snapshotstate.Import(context.TODO(), st, buf)
+	st.Lock()
+	c.Check(importCalls, check.Equals, 2)
+	c.Assert(err, check.IsNil)
+	c.Check(setID, check.Equals, uint64(1))
+	c.Check(snaps, check.DeepEquals, []string{"foo"})
+}
+
+func (snapshotSuite) TestExportSnapshotSetsOpInProgress(c *check.C) {
+	restore := snapshotstate.MockBackendNewSnapshotExport(func(ctx context.Context, setID uint64) (se *backend.SnapshotExport, err error) {
+		return nil, nil
+	})
+	defer restore()
+
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := snapshotstate.Export(context.TODO(), st, 42)
+	c.Assert(err, check.IsNil)
+
+	ops := st.Cached("snapshot-ops")
+	c.Assert(ops, check.DeepEquals, map[uint64]string{
+		uint64(42): "export-snapshot",
+	})
+}
+
+func (snapshotSuite) TestSetSnapshotOpInProgress(c *check.C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	c.Assert(snapshotstate.UnsetSnapshotOpInProgress(st, 9999), check.Equals, "")
+
+	snapshotstate.SetSnapshotOpInProgress(st, 1, "foo-op")
+	snapshotstate.SetSnapshotOpInProgress(st, 2, "bar-op")
+
+	val := st.Cached("snapshot-ops")
+	c.Check(val, check.DeepEquals, map[uint64]string{
+		uint64(1): "foo-op",
+		uint64(2): "bar-op",
+	})
+
+	c.Check(snapshotstate.UnsetSnapshotOpInProgress(st, 1), check.Equals, "foo-op")
+
+	val = st.Cached("snapshot-ops")
+	c.Check(val, check.DeepEquals, map[uint64]string{
+		uint64(2): "bar-op",
+	})
+
+	c.Check(snapshotstate.UnsetSnapshotOpInProgress(st, 2), check.Equals, "bar-op")
+
+	val = st.Cached("snapshot-ops")
+	c.Check(val, check.HasLen, 0)
 }

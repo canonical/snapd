@@ -13,9 +13,7 @@ execute: |
     systemctl reload snap.test-snapd-service.test-snapd-service
 
     echo "We see the reload command from the snap was run"
-    while ! systemctl status snap.test-snapd-service.test-snapd-service|grep "reloading reloading reloading"; do
-        sleep 1
-    done
+    retry -n 30 --wait 1 sh -c 'systemctl status snap.test-snapd-service.test-snapd-service | MATCH "reloading reloading reloading"'
 
     echo "A snap that refuses to stop is killed eventually"
     snap stop test-snapd-service.test-snapd-service-refuses-to-stop

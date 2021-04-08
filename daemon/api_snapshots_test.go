@@ -59,7 +59,7 @@ func (s *snapshotSuite) TestSnapshotMany(c *check.C) {
 	inst := daemon.MustUnmarshalSnapInstruction(c, `{"action": "snapshot", "snaps": ["foo", "bar"]}`)
 	st := s.d.Overlord().State()
 	st.Lock()
-	res, err := daemon.SnapshotMany(inst, st)
+	res, err := inst.DispatchForMany()(inst, st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 	c.Check(res.Summary, check.Equals, `Snapshot snaps "foo", "bar"`)
@@ -73,12 +73,10 @@ func (s *snapshotSuite) TestListSnapshots(c *check.C) {
 		return snapshots, nil
 	})()
 
-	c.Check(daemon.SnapshotCmd.Path, check.Equals, "/v2/snapshots")
 	req, err := http.NewRequest("GET", "/v2/snapshots", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Result, check.DeepEquals, snapshots)
 }
@@ -94,8 +92,7 @@ func (s *snapshotSuite) TestListSnapshotsFiltering(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/snapshots?set=42", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Result, check.DeepEquals, []client.SnapshotSet{{ID: 42}})
 }
@@ -109,8 +106,7 @@ func (s *snapshotSuite) TestListSnapshotsBadFiltering(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/snapshots?set=no", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.ErrorResult().Message, check.Equals, `'set', if given, must be a positive base 10 number; got "no"`)
 }
@@ -120,12 +116,10 @@ func (s *snapshotSuite) TestListSnapshotsListError(c *check.C) {
 		return nil, errors.New("no")
 	})()
 
-	c.Check(daemon.SnapshotCmd.Path, check.Equals, "/v2/snapshots")
 	req, err := http.NewRequest("GET", "/v2/snapshots", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 500)
 	c.Check(rsp.ErrorResult().Message, check.Equals, "no")
 }
@@ -192,8 +186,7 @@ func (s *snapshotSuite) TestChangeSnapshots400(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/snapshots", strings.NewReader(test.body))
 		c.Assert(err, check.IsNil, comm)
 
-		rsp := s.req(c, req, nil).(*daemon.Resp)
-		c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError, comm)
+		rsp := s.errorReq(c, req, nil)
 		c.Check(rsp.Status, check.Equals, 400, comm)
 		c.Check(rsp.ErrorResult().Message, check.Matches, test.error, comm)
 	}
@@ -222,8 +215,7 @@ func (s *snapshotSuite) TestChangeSnapshots404(c *check.C) {
 			req, err := http.NewRequest("POST", "/v2/snapshots", strings.NewReader(body))
 			c.Assert(err, check.IsNil, comm)
 
-			rsp := s.req(c, req, nil).(*daemon.Resp)
-			c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError, comm)
+			rsp := s.errorReq(c, req, nil)
 			c.Check(rsp.Status, check.Equals, 404, comm)
 			c.Check(rsp.ErrorResult().Message, check.Matches, expectedError.Error(), comm)
 			c.Check(done, check.Equals, action, comm)
@@ -252,8 +244,7 @@ func (s *snapshotSuite) TestChangeSnapshots500(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/snapshots", strings.NewReader(body))
 		c.Assert(err, check.IsNil, comm)
 
-		rsp := s.req(c, req, nil).(*daemon.Resp)
-		c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError, comm)
+		rsp := s.errorReq(c, req, nil)
 		c.Check(rsp.Status, check.Equals, 500, comm)
 		c.Check(rsp.ErrorResult().Message, check.Matches, expectedError.Error(), comm)
 		c.Check(done, check.Equals, action, comm)
@@ -286,10 +277,9 @@ func (s *snapshotSuite) TestChangeSnapshot(c *check.C) {
 		c.Assert(err, check.IsNil, comm)
 
 		st.Unlock()
-		rsp := s.req(c, req, nil).(*daemon.Resp)
+		rsp := s.asyncReq(c, req, nil)
 		st.Lock()
 
-		c.Check(rsp.Type, check.Equals, daemon.ResponseTypeAsync, comm)
 		c.Check(rsp.Status, check.Equals, 202, comm)
 		c.Check(done, check.Equals, action, comm)
 
@@ -311,16 +301,12 @@ func (s *snapshotSuite) TestChangeSnapshot(c *check.C) {
 func (s *snapshotSuite) TestExportSnapshots(c *check.C) {
 	var snapshotExportCalled int
 
-	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
-		return map[string]string{"id": "1"}
-	})()
-	defer daemon.MockSnapshotExport(func(ctx context.Context, setID uint64) (*snapshotstate.SnapshotExport, error) {
+	defer daemon.MockSnapshotExport(func(ctx context.Context, st *state.State, setID uint64) (*snapshotstate.SnapshotExport, error) {
 		snapshotExportCalled++
 		c.Check(setID, check.Equals, uint64(1))
 		return &snapshotstate.SnapshotExport{}, nil
 	})()
 
-	c.Check(daemon.SnapshotExportCmd.Path, check.Equals, "/v2/snapshots/{id}/export")
 	req, err := http.NewRequest("GET", "/v2/snapshots/1/export", nil)
 	c.Assert(err, check.IsNil)
 
@@ -330,16 +316,10 @@ func (s *snapshotSuite) TestExportSnapshots(c *check.C) {
 }
 
 func (s *snapshotSuite) TestExportSnapshotsBadRequestOnNonNumericID(c *check.C) {
-	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
-		return map[string]string{"id": "xxx"}
-	})()
-
-	c.Check(daemon.SnapshotExportCmd.Path, check.Equals, "/v2/snapshots/{id}/export")
 	req, err := http.NewRequest("GET", "/v2/snapshots/xxx/export", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Result, check.DeepEquals, &daemon.ErrorResult{Message: `'id' must be a positive base 10 number; got "xxx"`})
 }
@@ -347,20 +327,15 @@ func (s *snapshotSuite) TestExportSnapshotsBadRequestOnNonNumericID(c *check.C) 
 func (s *snapshotSuite) TestExportSnapshotsBadRequestOnError(c *check.C) {
 	var snapshotExportCalled int
 
-	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
-		return map[string]string{"id": "1"}
-	})()
-	defer daemon.MockSnapshotExport(func(ctx context.Context, setID uint64) (*snapshotstate.SnapshotExport, error) {
+	defer daemon.MockSnapshotExport(func(ctx context.Context, st *state.State, setID uint64) (*snapshotstate.SnapshotExport, error) {
 		snapshotExportCalled++
 		return nil, fmt.Errorf("boom")
 	})()
 
-	c.Check(daemon.SnapshotExportCmd.Path, check.Equals, "/v2/snapshots/{id}/export")
 	req, err := http.NewRequest("GET", "/v2/snapshots/1/export", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Result, check.DeepEquals, &daemon.ErrorResult{Message: `cannot export 1: boom`})
 	c.Check(snapshotExportCalled, check.Equals, 1)
@@ -380,8 +355,7 @@ func (s *snapshotSuite) TestImportSnapshot(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", client.SnapshotExportMediaType)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Result, check.DeepEquals, map[string]interface{}{"set-id": setID, "snaps": snapNames})
 }
@@ -397,8 +371,7 @@ func (s *snapshotSuite) TestImportSnapshotError(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", client.SnapshotExportMediaType)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.ErrorResult().Message, check.Equals, "no")
 }
@@ -409,8 +382,7 @@ func (s *snapshotSuite) TestImportSnapshotNoContentLengthError(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", client.SnapshotExportMediaType)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.ErrorResult().Message, check.Equals, `cannot parse Content-Length: strconv.ParseInt: parsing "": invalid syntax`)
 }
@@ -432,8 +404,7 @@ func (s *snapshotSuite) TestImportSnapshotLimits(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", client.SnapshotExportMediaType)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(dataRead, check.Equals, 10)
 }

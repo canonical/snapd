@@ -55,7 +55,7 @@ func (s *installSuite) SetUpTest(c *C) {
 }
 
 func (s *installSuite) TestInstallRunError(c *C) {
-	sys, err := install.Run(nil, "", "", install.Options{}, nil)
+	sys, err := install.Run(nil, "", "", "", install.Options{}, nil)
 	c.Assert(err, ErrorMatches, "cannot use empty gadget root directory")
 	c.Check(sys, IsNil)
 }
@@ -119,6 +119,20 @@ func (s *installSuite) TestLayoutCompatibility(c *C) {
 	err := install.EnsureLayoutCompatibility(gadgetLayout, &mockDeviceLayout)
 	c.Assert(err, IsNil)
 
+	// layout still compatible with a larger disk sector size
+	mockDeviceLayout.SectorSize = 4096
+	err = install.EnsureLayoutCompatibility(gadgetLayout, &mockDeviceLayout)
+	c.Assert(err, IsNil)
+
+	// layout not compatible with a sector size that's not a factor of the
+	// structure sizes
+	mockDeviceLayout.SectorSize = 513
+	err = install.EnsureLayoutCompatibility(gadgetLayout, &mockDeviceLayout)
+	c.Assert(err, ErrorMatches, `gadget volume structure #1 \(\"BIOS Boot\"\) size is not a multiple of disk sector size 513`)
+
+	// rest for the rest of the test
+	mockDeviceLayout.SectorSize = 512
+
 	// missing structure (that's ok)
 	gadgetLayoutWithExtras := layoutFromYaml(c, mockGadgetYaml+mockExtraStructure, nil)
 	err = install.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &mockDeviceLayout)
@@ -149,6 +163,7 @@ func (s *installSuite) TestLayoutCompatibility(c *C) {
 	c.Check(gadgetLayoutWithExtras.Size > smallDeviceLayout.Size, Equals, true)
 	err = install.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &smallDeviceLayout)
 	c.Assert(err, ErrorMatches, `device /dev/node \(100 MiB\) is too small to fit the requested layout \(1\.17 GiB\)`)
+
 }
 
 func (s *installSuite) TestMBRLayoutCompatibility(c *C) {
@@ -226,6 +241,19 @@ func (s *installSuite) TestMBRLayoutCompatibility(c *C) {
 	)
 	err = install.EnsureLayoutCompatibility(gadgetLayoutWithExtras, &deviceLayoutWithExtras)
 	c.Assert(err, IsNil)
+
+	// test with a larger sector size that is still an even multiple of the
+	// structure sizes in the gadget
+	mockMBRDeviceLayout.SectorSize = 4096
+	err = install.EnsureLayoutCompatibility(gadgetLayout, &mockMBRDeviceLayout)
+	c.Assert(err, IsNil)
+
+	// but with a sector size that is not an even multiple of the structure size
+	// then we have an error
+	mockMBRDeviceLayout.SectorSize = 513
+	err = install.EnsureLayoutCompatibility(gadgetLayout, &mockMBRDeviceLayout)
+	c.Assert(err, ErrorMatches, `gadget volume structure #1 \(\"BIOS Boot\"\) size is not a multiple of disk sector size 513`)
+
 	// add another structure that's not part of the gadget
 	deviceLayoutWithExtras.Structure = append(deviceLayoutWithExtras.Structure,
 		gadget.OnDiskStructure{
@@ -377,7 +405,7 @@ func layoutFromYaml(c *C, gadgetYaml string, model gadget.Model) *gadget.LaidOut
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(filepath.Join(gadgetRoot, "meta", "gadget.yaml"), []byte(gadgetYaml), 0644)
 	c.Assert(err, IsNil)
-	pv, err := mustLayOutVolumeFromGadget(c, gadgetRoot, model)
+	pv, err := mustLayOutVolumeFromGadget(c, gadgetRoot, "", model)
 	c.Assert(err, IsNil)
 	return pv
 }

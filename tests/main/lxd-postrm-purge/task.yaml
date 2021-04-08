@@ -72,11 +72,14 @@ debug: |
     "$TESTSTOOLS"/journal-state get-log -u snap.lxd.daemon.service
 
 execute: |
+    echo "Install the hello-world snap inside the lxd container"
     lxd.lxc exec my-ubuntu -- snap install hello-world
     lxd.lxc exec my-ubuntu -- hello-world
-    # purge completes successfully
+
+    echo "Remove and purge snapd in the lxd container"
     lxd.lxc exec my-ubuntu -- apt remove --purge -y snapd
-    # sanity check that potentially problematic directories are gone
+
+    echo "Check that potentially problematic directories are gone"
     lxd.lxc exec my-ubuntu -- test ! -d /snap
     lxd.lxc exec my-ubuntu -- test ! -d /var/snap
     lxd.lxc exec my-ubuntu -- test ! -d /var/lib/snapd

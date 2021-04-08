@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -84,8 +85,6 @@ volumes:
 `)
 
 var mockMultiVolumeUC20GadgetYaml = []byte(`
-device-tree: frobinator-3000.dtb
-device-tree-origin: kernel
 volumes:
   frobinator-image:
     bootloader: u-boot
@@ -122,8 +121,6 @@ volumes:
 `)
 
 var mockMultiVolumeGadgetYaml = []byte(`
-device-tree: frobinator-3000.dtb
-device-tree-origin: kernel
 volumes:
   frobinator-image:
     bootloader: u-boot
@@ -297,7 +294,6 @@ volumes:
 `)
 
 var gadgetYamlRPi = []byte(`
-device-tree: bcm2709-rpi-2-b
 volumes:
   pi:
     schema: mbr
@@ -349,7 +345,6 @@ volumes:
 `)
 
 var gadgetYamlLkUC20 = []byte(`
-device-tree-origin: kernel
 volumes:
   dragonboard:
     schema: gpt
@@ -1398,6 +1393,14 @@ size: 1M
 content:
   - source: foo
 `
+	sourceEmpty := `
+type: 21686148-6449-6E6F-744E-656564454649
+filesystem: ext4
+size: 1M
+content:
+  - source:
+    target: /
+`
 
 	for i, tc := range []struct {
 		s   *gadget.VolumeStructure
@@ -1409,7 +1412,8 @@ content:
 		{mustParseStructure(c, bareMissing), nil, `invalid content #0: missing image file name`},
 		{mustParseStructure(c, fsOk), nil, ""},
 		{mustParseStructure(c, fsMixed), nil, `invalid content #1: cannot use image content for non-bare file system`},
-		{mustParseStructure(c, fsMissing), nil, `invalid content #0: missing source or target`},
+		{mustParseStructure(c, fsMissing), nil, `invalid content #0: missing target`},
+		{mustParseStructure(c, sourceEmpty), nil, `invalid content #0: missing source`},
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
@@ -1720,6 +1724,29 @@ func (s *gadgetYamlTestSuite) TestGadgetReadInfoVsFromMeta(c *C) {
 	c.Assert(giRead, DeepEquals, giMeta)
 }
 
+func (s *gadgetYamlTestSuite) TestReadInfoValidatesEmptySource(c *C) {
+	var gadgetYamlContent = `
+volumes:
+  missing:
+    bootloader: grub
+    structure:
+      - name: missing-content-source
+        type: DA,21686148-6449-6E6F-744E-656564454649
+        size: 1M
+        filesystem: ext4
+        content:
+          - source: foo
+            target: /
+          - source:
+            target: /
+
+`
+	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContent))
+
+	_, err := gadget.ReadInfo(s.dir, nil)
+	c.Assert(err, ErrorMatches, `invalid volume "missing": invalid structure #0 \("missing-content-source"\): invalid content #1: missing source`)
+}
+
 func (s *gadgetYamlTestSuite) TestGadgetImplicitSchema(c *C) {
 	var minimal = []byte(`
 volumes:
@@ -1757,12 +1784,20 @@ volumes:
 		"pc":      gadgetYamlPC,
 	}
 
+	constr := gadget.LayoutConstraints{NonMBRStartOffset: 1 * quantity.OffsetMiB}
+
 	for volName, yaml := range tests {
 		giMeta, err := gadget.InfoFromGadgetYaml(yaml, nil)
 		c.Assert(err, IsNil)
 
 		vs := giMeta.Volumes[volName].Structure[0]
 		c.Check(vs.Role, Equals, "mbr")
+
+		// also layout the volume and check that when laying out the MBR
+		// structure it retains the role of MBR, as validated by IsRoleMBR
+		ls, err := gadget.LayoutVolumePartially(giMeta.Volumes[volName], constr)
+		c.Assert(err, IsNil)
+		c.Check(gadget.IsRoleMBR(ls.LaidOutStructure[0]), Equals, true)
 	}
 }
 
@@ -2021,7 +2056,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetMultiVolume(c *C)
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockMultiVolumeUC20GadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, uc20Mod)
+	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, "", uc20Mod)
 	c.Assert(err, IsNil)
 
 	c.Assert(lv.Volume.Bootloader, Equals, "u-boot")
@@ -2037,7 +2072,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetHappy(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, coreMod)
+	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, "", coreMod)
 	c.Assert(err, IsNil)
 	c.Assert(lv.Volume.Bootloader, Equals, "grub")
 	// mbr, bios-boot, efi-system
@@ -2054,7 +2089,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetNeedsModel(c *C) 
 
 	// need the model in order to lay out system volumes due to the verification
 	// and other metadata we use with the gadget
-	_, err = gadget.LaidOutSystemVolumeFromGadget(s.dir, nil)
+	_, err = gadget.LaidOutSystemVolumeFromGadget(s.dir, "", nil)
 	c.Assert(err, ErrorMatches, "internal error: must have model to lay out system volumes from a gadget")
 }
 
@@ -2066,7 +2101,7 @@ func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetUC20Happy(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, uc20Mod)
+	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, "", uc20Mod)
 	c.Assert(err, IsNil)
 	c.Assert(lv.Volume.Bootloader, Equals, "grub")
 	// mbr, bios-boot, ubuntu-seed, ubuntu-save, ubuntu-boot, and ubuntu-data
@@ -2226,11 +2261,11 @@ volumes:
     bootloader: grub
     id: 0C
 `)
-	var mockBadStructureSizeYaml = []byte(`
+	var mockNewStructuresYaml = []byte(`
 volumes:
   volumename:
     schema: mbr
-    bootloader: grub
+    bootloader: u-boot
     id: 0C
     structure:
       - name: bad-size
@@ -2243,7 +2278,7 @@ volumes:
 	}{
 		{mockOtherYaml, `cannot find entry for volume "volumename" in updated gadget info`},
 		{mockManyYaml, "gadgets with multiple volumes are unsupported"},
-		{mockBadStructureSizeYaml, `cannot lay out the new volume: cannot lay out volume, structure #0 \("bad-size"\) size is not a multiple of sector size 512`},
+		{mockNewStructuresYaml, `incompatible layout change: incompatible change in the number of structures from 0 to 1`},
 		{mockBadIDYaml, "incompatible layout change: incompatible ID change from 0C to 0D"},
 		{mockSchemaYaml, "incompatible layout change: incompatible schema change from mbr to gpt"},
 		{mockBootloaderYaml, "incompatible layout change: incompatible bootloader change from u-boot to grub"},
@@ -2259,7 +2294,6 @@ volumes:
 		} else {
 			c.Check(err, ErrorMatches, tc.err)
 		}
-
 	}
 }
 
@@ -2366,4 +2400,121 @@ volumes:
 	c.Assert(err, IsNil)
 	err = gadget.IsCompatible(gi, giNew)
 	c.Check(err, IsNil)
+}
+
+func (s *gadgetYamlTestSuite) TestKernelCommandLineBasic(c *C) {
+	for _, tc := range []struct {
+		files [][]string
+
+		cmdline string
+		full    bool
+		err     string
+	}{{
+		files: [][]string{
+			{"cmdline.extra", "   foo bar baz just-extra\n"},
+		},
+		cmdline: "foo bar baz just-extra", full: false,
+	}, {
+		files: [][]string{
+			{"cmdline.full", "    foo bar baz full\n"},
+		},
+		cmdline: "foo bar baz full", full: true,
+	}, {
+		// no cmdline
+		files: nil,
+		err:   "no kernel command line in the gadget",
+	}, {
+		// not what we are looking for
+		files: [][]string{
+			{"cmdline.other", `ignored`},
+		},
+		err: "no kernel command line in the gadget",
+	}, {
+		files: [][]string{
+			{"cmdline.full", "foo bad =\n"},
+		},
+		full: true, err: `invalid kernel command line "foo bad =" in cmdline.full: unexpected assignment`,
+	}, {
+		files: [][]string{
+			{"cmdline.extra", "foo bad ="},
+		},
+		full: false, err: `invalid kernel command line "foo bad =" in cmdline.extra: unexpected assignment`,
+	}, {
+		files: [][]string{
+			{"cmdline.extra", `extra`},
+			{"cmdline.full", `full`},
+		},
+		err: "cannot support both extra and full kernel command lines",
+	}} {
+		c.Logf("files: %q", tc.files)
+		snapPath := snaptest.MakeTestSnapWithFiles(c, string(mockSnapYaml), tc.files)
+		snapf, err := snapfile.Open(snapPath)
+		c.Assert(err, IsNil)
+
+		cmdline, full, err := gadget.KernelCommandLineFromGadget(snapf)
+		if tc.err != "" {
+			c.Assert(err, ErrorMatches, tc.err)
+			c.Check(cmdline, Equals, "")
+			c.Check(full, Equals, tc.full)
+		} else {
+			c.Assert(err, IsNil)
+			c.Check(cmdline, Equals, tc.cmdline)
+			c.Check(full, Equals, tc.full)
+		}
+	}
+}
+
+func (s *gadgetYamlTestSuite) testKernelCommandLineArgs(c *C, whichCmdline string) {
+	c.Logf("checking %v", whichCmdline)
+	// mock test snap creates a snap directory
+	info := snaptest.MockSnapWithFiles(c, string(mockSnapYaml),
+		&snap.SideInfo{Revision: snap.R(1234)},
+		[][]string{
+			{whichCmdline, "## TO BE FILLED BY TEST ##"},
+		})
+	snapf, err := snapfile.Open(info.MountDir())
+	c.Assert(err, IsNil)
+
+	allowedArgs := []string{
+		"debug", "panic", "panic=-1",
+		"snapd.debug=1", "snapd.debug",
+		"serial=ttyS0,9600n8",
+	}
+
+	for _, arg := range allowedArgs {
+		c.Logf("trying allowed arg: %q", arg)
+		err := ioutil.WriteFile(filepath.Join(info.MountDir(), whichCmdline), []byte(arg), 0644)
+		c.Assert(err, IsNil)
+
+		cmdline, _, err := gadget.KernelCommandLineFromGadget(snapf)
+		c.Assert(err, IsNil)
+		c.Check(cmdline, Equals, arg)
+	}
+
+	disallowedArgs := []string{
+		"snapd_recovery_mode", "snapd_recovery_mode=recover",
+		"snapd_recovery_system", "snapd_recovery_system=", "snapd_recovery_system=1234",
+		"root", "root=/foo", "nfsroot=127.0.0.1:/foo",
+		"root=123=123",
+		"panic root", // chokes on root
+		"init", "init=/bin/bash",
+	}
+
+	for _, arg := range disallowedArgs {
+		c.Logf("trying disallowed arg: %q", arg)
+		err := ioutil.WriteFile(filepath.Join(info.MountDir(), whichCmdline), []byte(arg), 0644)
+		c.Assert(err, IsNil)
+
+		cmdline, _, err := gadget.KernelCommandLineFromGadget(snapf)
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`disallowed kernel argument ".*" in %s`, whichCmdline))
+		c.Check(cmdline, Equals, "")
+	}
+}
+
+func (s *gadgetYamlTestSuite) TestKernelCommandLineArgsExtra(c *C) {
+	s.testKernelCommandLineArgs(c, "cmdline.extra")
+}
+
+func (s *gadgetYamlTestSuite) TestKernelCommandLineArgsFull(c *C) {
+	s.testKernelCommandLineArgs(c, "cmdline.full")
 }

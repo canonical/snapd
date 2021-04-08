@@ -21,6 +21,7 @@ package systemd_test
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -531,29 +532,187 @@ func (s *SystemdTestSuite) TestLogs(c *C) {
 	c.Check(s.j, Equals, 1)
 }
 
-func (s *SystemdTestSuite) TestLogPID(c *C) {
+// mustJSONMarshal panic's if the value cannot be marshaled
+func mustJSONMarshal(v interface{}) *json.RawMessage {
+	b, err := json.Marshal(v)
+	if err != nil {
+		panic(fmt.Sprintf("couldn't marshal json in test fixture: %v", err))
+	}
+	msg := json.RawMessage(b)
+	return &msg
+}
+
+func (s *SystemdTestSuite) TestLogPIDWithNonTrivialKeyValues(c *C) {
+	l1 := Log{
+		"_PID": mustJSONMarshal([]string{}),
+	}
+	l2 := Log{
+		"_PID": mustJSONMarshal(6),
+	}
+	l3 := Log{
+		"_PID": mustJSONMarshal([]string{"pid1", "pid2", "pid3"}),
+	}
+	l4 := Log{
+		"SYSLOG_PID": mustJSONMarshal([]string{"pid1", "pid2", "pid3"}),
+	}
+	l5 := Log{
+		"_PID":       mustJSONMarshal("42"),
+		"SYSLOG_PID": mustJSONMarshal([]string{"pid1", "pid2", "pid3"}),
+	}
+	l6 := Log{
+		"_PID":       mustJSONMarshal([]string{"42"}),
+		"SYSLOG_PID": mustJSONMarshal([]string{"pid1", "pid2", "pid3"}),
+	}
+	l7 := Log{
+		"_PID":       mustJSONMarshal([]string{"42", "42"}),
+		"SYSLOG_PID": mustJSONMarshal([]string{"singlepid"}),
+	}
 	c.Check(Log{}.PID(), Equals, "-")
-	c.Check(Log{"_PID": "99"}.PID(), Equals, "99")
-	c.Check(Log{"SYSLOG_PID": "99"}.PID(), Equals, "99")
+	c.Check(l1.PID(), Equals, "-")
+	c.Check(l2.PID(), Equals, "-")
+	c.Check(l3.PID(), Equals, "-")
+	c.Check(l4.PID(), Equals, "-")
 	// things starting with underscore are "trusted", so we trust
 	// them more than the user-settable ones:
-	c.Check(Log{"_PID": "42", "SYSLOG_PID": "99"}.PID(), Equals, "42")
+	c.Check(l5.PID(), Equals, "42")
+	c.Check(l6.PID(), Equals, "42")
+	c.Check(l7.PID(), Equals, "singlepid")
+}
+
+func (s *SystemdTestSuite) TestLogsMessageWithNonUniqueKeys(c *C) {
+
+	tt := []struct {
+		msg     *json.RawMessage
+		exp     string
+		comment string
+	}{
+		{
+			mustJSONMarshal("m1"),
+			"m1",
+			"simple string",
+		},
+		{
+			mustJSONMarshal("Я"),
+			"Я",
+			"simple utf-8 string",
+		},
+		{
+			mustJSONMarshal([]rune{65, 66, 67, 192, 69}),
+			"ABC\xc0E",
+			"invalid utf-8 bytes",
+		},
+		{
+			mustJSONMarshal(""),
+			"",
+			"empty string",
+		},
+		{
+			mustJSONMarshal([]string{"m1", "m2", "m3"}),
+			"m1\nm2\nm3",
+			"slice of strings",
+		},
+		{
+			// this is just "hello" in ascii
+			mustJSONMarshal([]rune{104, 101, 108, 108, 111}),
+			"hello",
+			"rune arrays are converted to strings",
+		},
+		{
+			// this is "hello\r" in ascii, the \r char is unprintable
+			mustJSONMarshal([]rune{104, 101, 108, 108, 111, 13}),
+			"hello\r",
+			"rune arrays are converted to strings",
+		},
+		{
+			// this is "hel" and "lo" in ascii
+			mustJSONMarshal([][]rune{
+				{104, 101, 108},
+				{108, 111},
+			}),
+			"hel\nlo",
+			"arrays of rune arrays are converted to arrays of strings",
+		},
+		{
+			// this is invalid utf-8 string followed by a valid one
+			mustJSONMarshal([][]byte{
+				{65, 66, 67, 192, 69},
+				{104, 101, 108, 108, 111},
+			}),
+			"ABC\xc0E\nhello",
+			"arrays of bytes, some are invalid utf-8 strings",
+		},
+		{
+			mustJSONMarshal(5),
+			"- (error decoding original message: unsupported JSON encoding format)",
+			"invalid message format of raw scalar number",
+		},
+		{
+			mustJSONMarshal(map[string]int{"hello": 1}),
+			"- (error decoding original message: unsupported JSON encoding format)",
+			"invalid message format of map object",
+		},
+	}
+
+	// trivial case
+	c.Check(Log{}.Message(), Equals, "-")
+
+	// case where the JSON has a "null" JSON value for the key, which happens if
+	// the actual message is too large for journald to send
+	// we can't use the mustJSONMarshal helper for this in the test table
+	// because that gets decoded by Go differently than a verbatim nil here, it
+	// gets interpreted as the empty string rather than nil directly
+	c.Check(Log{"MESSAGE": nil}.Message(), Equals, "- (error decoding original message: message key \"MESSAGE\" truncated)")
+
+	for _, t := range tt {
+		if t.msg == nil {
+
+		}
+		c.Check(Log{
+			"MESSAGE": t.msg,
+		}.Message(), Equals, t.exp, Commentf(t.comment))
+	}
+}
+
+func (s *SystemdTestSuite) TestLogSID(c *C) {
+	c.Check(Log{}.SID(), Equals, "-")
+	c.Check(Log{"SYSLOG_IDENTIFIER": mustJSONMarshal("abcdef")}.SID(), Equals, "abcdef")
+	c.Check(Log{"SYSLOG_IDENTIFIER": mustJSONMarshal([]string{"abcdef"})}.SID(), Equals, "abcdef")
+	// multiple string values are not supported
+	c.Check(Log{"SYSLOG_IDENTIFIER": mustJSONMarshal([]string{"abc", "def"})}.SID(), Equals, "-")
+
+}
+
+func (s *SystemdTestSuite) TestLogPID(c *C) {
+	c.Check(Log{}.PID(), Equals, "-")
+	c.Check(Log{"_PID": mustJSONMarshal("99")}.PID(), Equals, "99")
+	c.Check(Log{"SYSLOG_PID": mustJSONMarshal("99")}.PID(), Equals, "99")
+	// things starting with underscore are "trusted", so we trust
+	// them more than the user-settable ones:
+	c.Check(Log{
+		"_PID":       mustJSONMarshal("42"),
+		"SYSLOG_PID": mustJSONMarshal("99"),
+	}.PID(), Equals, "42")
 }
 
 func (s *SystemdTestSuite) TestTime(c *C) {
 	t, err := Log{}.Time()
 	c.Check(t.IsZero(), Equals, true)
-	c.Check(err, ErrorMatches, "no timestamp")
+	c.Check(err, ErrorMatches, "key \"__REALTIME_TIMESTAMP\" missing from message")
 
-	t, err = Log{"__REALTIME_TIMESTAMP": "what"}.Time()
+	// multiple timestampe keys mean we don't have a timestamp
+	t, err = Log{"__REALTIME_TIMESTAMP": mustJSONMarshal([]string{"1", "2"})}.Time()
+	c.Check(t.IsZero(), Equals, true)
+	c.Check(err, ErrorMatches, `no timestamp`)
+
+	t, err = Log{"__REALTIME_TIMESTAMP": mustJSONMarshal("what")}.Time()
 	c.Check(t.IsZero(), Equals, true)
 	c.Check(err, ErrorMatches, `timestamp not a decimal number: "what"`)
 
-	t, err = Log{"__REALTIME_TIMESTAMP": "0"}.Time()
+	t, err = Log{"__REALTIME_TIMESTAMP": mustJSONMarshal("0")}.Time()
 	c.Check(err, IsNil)
 	c.Check(t.String(), Equals, "1970-01-01 00:00:00 +0000 UTC")
 
-	t, err = Log{"__REALTIME_TIMESTAMP": "42"}.Time()
+	t, err = Log{"__REALTIME_TIMESTAMP": mustJSONMarshal("42")}.Time()
 	c.Check(err, IsNil)
 	c.Check(t.String(), Equals, "1970-01-01 00:00:00.000042 +0000 UTC")
 }
@@ -591,7 +750,7 @@ Before=snapd.service
 What=%s
 Where=/snap/snapname/123
 Type=squashfs
-Options=nodev,ro,x-gdu.hide
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 LazyUnmount=yes
 
 [Install]
@@ -624,7 +783,7 @@ Before=snapd.service
 What=%s
 Where=/snap/snapname/x1
 Type=none
-Options=nodev,ro,x-gdu.hide,bind
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide,bind
 LazyUnmount=yes
 
 [Install]
@@ -665,7 +824,7 @@ Before=snapd.service
 What=%s
 Where=/snap/snapname/123
 Type=squashfs
-Options=nodev,context=system_u:object_r:snappy_snap_t:s0,ro,x-gdu.hide
+Options=nodev,context=system_u:object_r:snappy_snap_t:s0,ro,x-gdu.hide,x-gvfs-hide
 LazyUnmount=yes
 
 [Install]
@@ -708,7 +867,7 @@ Before=snapd.service
 What=%s
 Where=/snap/snapname/123
 Type=fuse.squashfuse
-Options=nodev,ro,x-gdu.hide,allow_other
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide,allow_other
 LazyUnmount=yes
 
 [Install]
@@ -747,7 +906,7 @@ Before=snapd.service
 What=%s
 Where=/snap/snapname/123
 Type=squashfs
-Options=nodev,ro,x-gdu.hide
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 LazyUnmount=yes
 
 [Install]
@@ -938,8 +1097,44 @@ func (s *SystemdTestSuite) TestGlobalUserMode(c *C) {
 	c.Check(func() { sysd.Stop("foo", 0) }, Panics, "cannot call stop with GlobalUserMode")
 	c.Check(func() { sysd.Restart("foo", 0) }, Panics, "cannot call restart with GlobalUserMode")
 	c.Check(func() { sysd.Kill("foo", "HUP", "") }, Panics, "cannot call kill with GlobalUserMode")
-	c.Check(func() { sysd.Status("foo") }, Panics, "cannot call status with GlobalUserMode")
 	c.Check(func() { sysd.IsActive("foo") }, Panics, "cannot call is-active with GlobalUserMode")
+}
+
+func (s *SystemdTestSuite) TestStatusGlobalUserMode(c *C) {
+	output := []byte("enabled\ndisabled\nstatic\n")
+	sysdErr := &Error{}
+	sysdErr.SetExitCode(1)
+	sysdErr.SetMsg(output)
+
+	s.outs = [][]byte{output, nil, output}
+	s.errors = []error{nil, sysdErr, nil}
+
+	rootDir := dirs.GlobalRootDir
+	sysd := NewUnderRoot(rootDir, GlobalUserMode, nil)
+	sts, err := sysd.Status("foo", "bar", "baz")
+	c.Check(err, IsNil)
+	c.Check(sts, DeepEquals, []*UnitStatus{
+		{UnitName: "foo", Enabled: true},
+		{UnitName: "bar", Enabled: false},
+		{UnitName: "baz", Enabled: true},
+	})
+	c.Check(s.argses[0], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "foo", "bar", "baz"})
+
+	// Output is collected if systemctl has a non-zero exit status
+	sts, err = sysd.Status("one", "two", "three")
+	c.Check(err, IsNil)
+	c.Check(sts, DeepEquals, []*UnitStatus{
+		{UnitName: "one", Enabled: true},
+		{UnitName: "two", Enabled: false},
+		{UnitName: "three", Enabled: true},
+	})
+	c.Check(s.argses[1], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "one", "two", "three"})
+
+	// An error is returned if the wrong number of statuses are returned
+	sts, err = sysd.Status("one")
+	c.Check(err, ErrorMatches, "cannot get enabled status of services: expected 1 results, got 3")
+	c.Check(sts, IsNil)
+	c.Check(s.argses[2], DeepEquals, []string{"--user", "--global", "--root", rootDir, "is-enabled", "one"})
 }
 
 const unitTemplate = `
@@ -977,10 +1172,10 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
 	// systemd was not called
 	c.Check(s.argses, HasLen, 0)
 	// mount was called
-	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", mockSnapPath, "/snap/snapname/123", "-o", "nodev,ro,x-gdu.hide"})
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", mockSnapPath, "/snap/snapname/123", "-o", "nodev,ro,x-gdu.hide,x-gvfs-hide"})
 	// unit was enabled with a symlink
 	c.Check(osutil.IsSymlink(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", mountUnitName)), Equals, true)
-	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide"))
+	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide,x-gvfs-hide"))
 }
 
 func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
@@ -1000,7 +1195,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
 	defer os.Remove(mountUnitName)
 
 	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "fuse.squashfuse", mockSnapPath, "/snap/snapname/123", "-o", "nodev,a,b,c"})
-	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide"))
+	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide,x-gvfs-hide"))
 }
 
 func (s *SystemdTestSuite) TestPreseedModeMountError(c *C) {

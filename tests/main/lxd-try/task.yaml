@@ -1,0 +1,43 @@
+summary: Check that try command works inside lxd container
+
+systems: [ubuntu-20.04-*, ubuntu-20.10-*]
+
+prepare: |
+  echo "Install lxd"
+  snap install lxd
+
+  lxd waitready
+  lxd init --auto
+
+  echo "Setting up proxy for lxc"
+  if [ -n "${http_proxy:-}" ]; then
+      lxd.lxc config set core.proxy_http "$http_proxy"
+  fi
+  if [ -n "${https_proxy:-}" ]; then
+      lxd.lxc config set core.proxy_https "$http_proxy"
+  fi
+
+  VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
+  lxd.lxc launch --quiet "ubuntu:$VERSION_ID" ubuntu
+
+  echo "Setting up proxy *inside* the container"
+  if [ -n "${http_proxy:-}" ]; then
+      lxd.lxc exec ubuntu -- sh -c "echo http_proxy=$http_proxy >> /etc/environment"
+  fi
+  if [ -n "${https_proxy:-}" ]; then
+      lxd.lxc exec ubuntu -- sh -c "echo https_proxy=$https_proxy >> /etc/environment"
+  fi
+
+  lxd.lxc file push --quiet "$GOHOME"/snapd_*.deb "ubuntu/root/"
+  DEB=$(basename "$GOHOME"/snapd_*.deb)
+  lxd.lxc exec ubuntu -- apt install -y /root/"$DEB"
+  lxd.lxc file push -r --quiet "$TESTSLIB"/snaps/test-snapd-tools "ubuntu/root/"
+
+execute: |
+  lxd.lxc exec ubuntu -- snap try /root/test-snapd-tools
+  lxd.lxc exec ubuntu -- snap list | MATCH '^test-snapd-tools .* try'
+
+restore: |
+  lxd.lxc stop ubuntu --force || true
+  lxd.lxc delete ubuntu || true
+  snap remove --purge lxd

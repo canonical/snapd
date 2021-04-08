@@ -7,7 +7,7 @@ on:
 
 jobs:
   snap-builds:
-    runs-on: ubuntu-16.04
+    runs-on: ubuntu-20.04
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -52,7 +52,7 @@ jobs:
         touch "$CACHE_RESULT_STAMP"
 
   unit-tests:
-    runs-on: ubuntu-16.04
+    runs-on: ubuntu-20.04
     env:
       GOPATH: ${{ github.workspace }}
       GO111MODULE: off
@@ -172,7 +172,7 @@ jobs:
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=withbootassetstesting ./run-checks --unit
+        SKIP_COVERAGE=1 SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=withbootassetstesting ./run-checks --unit
     - name: Test Go (nosecboot)
       if: steps.cached-results.outputs.already-passed != 'true'
       run: |
@@ -182,7 +182,8 @@ jobs:
         # install secboot again
         ${{ github.workspace }}/bin/govendor remove github.com/snapcore/secboot
         ${{ github.workspace }}/bin/govendor remove +unused
-        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
+        # we don't need coverage anymore
+        SKIP_COVERAGE=1 SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
@@ -217,6 +218,7 @@ jobs:
         - ubuntu-18.04-64
         - ubuntu-20.04-64
         - ubuntu-20.10-64
+        - ubuntu-21.04-64
         - ubuntu-core-16-64
         - ubuntu-core-18-64
         - ubuntu-core-20-64

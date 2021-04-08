@@ -1,6 +1,6 @@
 summary: Regression test for LP 1802581
 
-description: |
+details: |
     When using the snapd GPIO interface the slot side needs to export the GPIO
     pint so that a file appears under /sys/class/gpio/gpioNNN. That file is a
     symbolic link to a special, platform specific device path. The symbolic

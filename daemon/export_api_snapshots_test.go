@@ -47,7 +47,7 @@ func MockSnapshotList(newList func(context.Context, *state.State, uint64, []stri
 	}
 }
 
-func MockSnapshotExport(newExport func(context.Context, uint64) (*snapshotstate.SnapshotExport, error)) (restore func()) {
+func MockSnapshotExport(newExport func(context.Context, *state.State, uint64) (*snapshotstate.SnapshotExport, error)) (restore func()) {
 	oldExport := snapshotExport
 	snapshotExport = newExport
 	return func() {
@@ -102,15 +102,5 @@ func MustUnmarshalSnapshotAction(c *check.C, jact string) *snapshotAction {
 	}
 	return &act
 }
-
-func (rsp *resp) ErrorResult() *errorResult {
-	return rsp.Result.(*errorResult)
-}
-
-var (
-	SnapshotMany      = snapshotMany
-	SnapshotCmd       = snapshotCmd
-	SnapshotExportCmd = snapshotExportCmd
-)
 
 type SnapshotExportResponse = snapshotExportResponse

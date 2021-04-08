@@ -1,6 +1,6 @@
 summary: Check that basic snap management does not raise any SELinux denials
 
-description: |
+details: |
     On systems where SELinux is supported, make sure that starting snapd and
     performing basic install/remove tasks does not cause SELinux denials. Even
     though we do not support SELinux for enforcing confinement of snaps, we do

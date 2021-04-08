@@ -26,6 +26,7 @@
 #include "config.h"
 
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/infofile.h"
 #include "../libsnap-confine-private/mountinfo.h"
 #include "../libsnap-confine-private/string-utils.h"
 
@@ -66,7 +67,8 @@ int ensure_root_fs_shared(const char *normal_dir)
 	// Construct the file name for a new systemd mount unit.
 	char fname[PATH_MAX + 1] = { 0 };
 	sc_must_snprintf(fname, sizeof fname,
-			 "%s/" SNAP_MOUNT_DIR_SYSTEMD_UNIT ".mount", normal_dir);
+			 "%s/" SNAP_MOUNT_DIR_SYSTEMD_UNIT ".mount",
+			 normal_dir);
 
 	// Open the mount unit and write the contents.
 	FILE *f SC_CLEANUP(sc_cleanup_file) = NULL;
@@ -92,7 +94,8 @@ int ensure_root_fs_shared(const char *normal_dir)
 	return 0;
 }
 
-static bool file_exists(const char *path) {
+static bool file_exists(const char *path)
+{
 	struct stat buf;
 	// Not using lstat to automatically resolve symbolic links,
 	// including handling, as an error, dangling symbolic links.
@@ -103,9 +106,11 @@ static bool file_exists(const char *path) {
 // for looking up squashfuse / snapfuse executable.
 // Based on what systemd uses when compiled for systems with "unmerged /usr"
 // (see man systemd.exec).
-static const char * const path_fallback = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
+static const char *const path_fallback =
+    "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
 
-static bool executable_exists(const char *name) {
+static bool executable_exists(const char *name)
+{
 	char *path = getenv("PATH");
 	char *path_copy SC_CLEANUP(sc_cleanup_string) = NULL;
 	if (path == NULL) {
@@ -125,6 +130,35 @@ static bool executable_exists(const char *name) {
 		token = strtok_r(NULL, ":", &ptr);
 	}
 	return false;
+}
+
+static bool is_snap_try_snap_unit(const char *units_dir,
+				  const char *mount_unit_name)
+{
+	char fname[PATH_MAX + 1] = { 0 };
+	sc_must_snprintf(fname, sizeof fname, "%s/%s", units_dir,
+			 mount_unit_name);
+	FILE *f SC_CLEANUP(sc_cleanup_file) = NULL;
+	f = fopen(fname, "r");
+	if (!f) {
+		// not really expected
+		fprintf(stderr, "cannot open mount unit %s: %m\n", fname);
+		return false;
+	}
+
+	char *what SC_CLEANUP(sc_cleanup_string) = NULL;
+	sc_error *err = NULL;
+	if (sc_infofile_get_ini_section_key(f, "Mount", "What", &what, &err) <
+	    0) {
+		fprintf(stderr, "cannot read mount unit %s: %s\n", fname,
+			sc_error_msg(err));
+		sc_cleanup_error(&err);
+		return false;
+	}
+
+	struct stat st;
+	// if What points to a directory, then it's a snap try unit.
+	return stat(what, &st) == 0 && (st.st_mode & S_IFMT) == S_IFDIR;
 }
 
 int ensure_fusesquashfs_inside_container(const char *normal_dir)
@@ -163,21 +197,27 @@ int ensure_fusesquashfs_inside_container(const char *normal_dir)
 		if (!sc_endswith(ent->d_name, ".mount")) {
 			continue;
 		}
-		if (!(sc_startswith(ent->d_name, "snap-") || sc_startswith(ent->d_name, "var-lib-snapd-snap-"))) {
+		if (!(sc_startswith(ent->d_name, "snap-")
+		      || sc_startswith(ent->d_name, "var-lib-snapd-snap-"))) {
+			continue;
+		}
+		if (is_snap_try_snap_unit("/etc/systemd/system", ent->d_name)) {
 			continue;
 		}
 		sc_must_snprintf(fname, sizeof fname,
-			"%s/%s.d", normal_dir, ent->d_name);
+				 "%s/%s.d", normal_dir, ent->d_name);
 		if (mkdir(fname, 0755) != 0) {
 			if (errno != EEXIST) {
 				fprintf(stderr,
-					"cannot create %s directory: %m\n", fname);
+					"cannot create %s directory: %m\n",
+					fname);
 				return 2;
 			}
 		}
 
 		sc_must_snprintf(fname, sizeof fname,
-			"%s/%s.d/container.conf", normal_dir, ent->d_name);
+				 "%s/%s.d/container.conf", normal_dir,
+				 ent->d_name);
 
 		FILE *f SC_CLEANUP(sc_cleanup_file) = NULL;
 		f = fopen(fname, "w");
@@ -185,16 +225,19 @@ int ensure_fusesquashfs_inside_container(const char *normal_dir)
 			fprintf(stderr, "cannot open %s: %m\n", fname);
 			return 2;
 		}
-		fprintf(f, "[Mount]\nType=%s\nOptions=nodev,ro,x-gdu.hide,allow_other\nLazyUnmount=yes\n", fstype);
+		fprintf(f,
+			"[Mount]\nType=%s\nOptions=nodev,ro,x-gdu.hide,x-gvfs-hide,allow_other\nLazyUnmount=yes\n",
+			fstype);
 	}
-	
+
 	return 0;
 }
 
 int main(int argc, char **argv)
 {
 	if (argc != 4) {
-		printf("usage: snapd-generator normal-dir early-dir late-dir\n");
+		printf
+		    ("usage: snapd-generator normal-dir early-dir late-dir\n");
 		return 1;
 	}
 	const char *normal_dir = argv[1];

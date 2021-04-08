@@ -42,7 +42,10 @@ execute: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+
+    echo "Checks the snap can read from the IIO device node"
     test "$($SNAP_MOUNT_DIR/bin/iio-consumer.read)" = "iio-0"
 
+    echo "Checks the snap can write to the IIO device node"
     $SNAP_MOUNT_DIR/bin/iio-consumer.write "hello"
     test "$($SNAP_MOUNT_DIR/bin/iio-consumer.read)" = "hello"

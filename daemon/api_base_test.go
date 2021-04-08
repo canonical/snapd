@@ -86,9 +86,7 @@ type apiBaseSuite struct {
 	systemctlRestorer func()
 	SysctlBufs        [][]byte
 
-	connectivityResult     map[string]bool
-	loginUserStoreMacaroon string
-	loginUserDischarge     string
+	connectivityResult map[string]bool
 
 	restoreSanitize func()
 	restoreMuxVars  func()
@@ -125,11 +123,11 @@ func (s *apiBaseSuite) Find(ctx context.Context, search *store.Search, user *aut
 func (s *apiBaseSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
 	s.pokeStateLock()
 	if assertQuery != nil {
-		toResolve, err := assertQuery.ToResolve()
+		toResolve, toResolveSeq, err := assertQuery.ToResolve()
 		if err != nil {
 			return nil, nil, err
 		}
-		if len(toResolve) != 0 {
+		if len(toResolve) != 0 || len(toResolveSeq) != 0 {
 			panic("no assertion query support")
 		}
 	}
@@ -158,12 +156,6 @@ func (s *apiBaseSuite) ConnectivityCheck() (map[string]bool, error) {
 	s.pokeStateLock()
 
 	return s.connectivityResult, s.err
-}
-
-func (s *apiBaseSuite) LoginUser(username, password, otp string) (string, string, error) {
-	s.pokeStateLock()
-
-	return s.loginUserStoreMacaroon, s.loginUserDischarge, s.err
 }
 
 func (s *apiBaseSuite) muxVars(*http.Request) map[string]string {
@@ -262,19 +254,21 @@ func (s *apiBaseSuite) mockModel(c *check.C, st *state.State, model *asserts.Mod
 
 func (s *apiBaseSuite) daemonWithStore(c *check.C, sto snapstate.StoreService) *daemon.Daemon {
 	if s.d != nil {
-		panic("called Daemon*() twice")
+		panic("called daemon*() twice")
 	}
 	d, err := daemon.NewAndAddRoutes()
 	c.Assert(err, check.IsNil)
 
+	st := d.Overlord().State()
+	// mark as already seeded
+	st.Lock()
+	st.Set("seeded", true)
+	st.Unlock()
 	c.Assert(d.Overlord().StartUp(), check.IsNil)
 
-	st := d.Overlord().State()
 	st.Lock()
 	defer st.Unlock()
 	snapstate.ReplaceStore(st, sto)
-	// mark as already seeded
-	st.Set("seeded", true)
 	// registered
 	s.mockModel(c, st, nil)
 
@@ -297,7 +291,7 @@ func (s *apiBaseSuite) daemon(c *check.C) *daemon.Daemon {
 
 func (s *apiBaseSuite) daemonWithOverlordMock(c *check.C) *daemon.Daemon {
 	if s.d != nil {
-		panic("called Daemon*() twice")
+		panic("called daemon*() twice")
 	}
 
 	o := overlord.Mock()
@@ -307,7 +301,7 @@ func (s *apiBaseSuite) daemonWithOverlordMock(c *check.C) *daemon.Daemon {
 
 func (s *apiBaseSuite) daemonWithOverlordMockAndStore(c *check.C) *daemon.Daemon {
 	if s.d != nil {
-		panic("called Daemon*() twice")
+		panic("called daemon*() twice")
 	}
 
 	o := overlord.Mock()
@@ -371,7 +365,7 @@ func (s *apiBaseSuite) mkInstalledDesktopFile(c *check.C, name, content string) 
 
 func (s *apiBaseSuite) mockSnap(c *check.C, yamlText string) *snap.Info {
 	if s.d == nil {
-		panic("call s.Daemon(c) etc in your test first")
+		panic("call s.daemon(c) etc in your test first")
 	}
 
 	snapInfo := snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: snap.R(1)})
@@ -516,7 +510,7 @@ func handlerCommand(c *check.C, d *daemon.Daemon, req *http.Request) (cmd *daemo
 
 func (s *apiBaseSuite) checkGetOnly(c *check.C, req *http.Request) {
 	if s.d == nil {
-		panic("call s.Daemon(c) etc in your test first")
+		panic("call s.daemon(c) etc in your test first")
 	}
 
 	cmd, _ := handlerCommand(c, s.d, req)
@@ -527,7 +521,7 @@ func (s *apiBaseSuite) checkGetOnly(c *check.C, req *http.Request) {
 
 func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState) daemon.Response {
 	if s.d == nil {
-		panic("call s.Daemon(c) etc in your test first")
+		panic("call s.daemon(c) etc in your test first")
 	}
 
 	cmd, vars := handlerCommand(c, s.d, req)
@@ -549,9 +543,33 @@ func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState) dae
 	return f(cmd, req, u)
 }
 
+func (s *apiBaseSuite) jsonReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.Resp {
+	rsp, ok := s.req(c, req, u).(*daemon.Resp)
+	c.Assert(ok, check.Equals, true, check.Commentf("expected structured response"))
+	return rsp
+}
+
+func (s *apiBaseSuite) syncReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.Resp {
+	rsp := s.jsonReq(c, req, u)
+	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeSync, check.Commentf("expected sync resp: %#v", rsp))
+	return rsp
+}
+
+func (s *apiBaseSuite) asyncReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.Resp {
+	rsp := s.jsonReq(c, req, u)
+	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeAsync, check.Commentf("expected async resp: %#v", rsp))
+	return rsp
+}
+
+func (s *apiBaseSuite) errorReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.Resp {
+	rsp := s.jsonReq(c, req, u)
+	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError, check.Commentf("expected error resp: %#v", rsp))
+	return rsp
+}
+
 func (s *apiBaseSuite) serveHTTP(c *check.C, w http.ResponseWriter, req *http.Request) {
 	if s.d == nil {
-		panic("call s.Daemon(c) etc in your test first")
+		panic("call s.daemon(c) etc in your test first")
 	}
 
 	cmd, vars := handlerCommand(c, s.d, req)
@@ -562,7 +580,7 @@ func (s *apiBaseSuite) serveHTTP(c *check.C, w http.ResponseWriter, req *http.Re
 
 func (s *apiBaseSuite) simulateConflict(name string) {
 	if s.d == nil {
-		panic("call s.Daemon(c) etc in your test first")
+		panic("call s.daemon(c) etc in your test first")
 	}
 
 	o := s.d.Overlord()
