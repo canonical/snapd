@@ -4,12 +4,6 @@ prepare: |
     snap pack test-snap.v1
     snap pack test-snap.v2
 
-restore: |
-    rm -f ./*.snap
-    snap remove test-snap || true
-    snap remove network-consumer || true
-    snap remove test-snapd-daemon-notify || true
-
 execute: |
     snap connections > all.out 2>&1
     initial_connections="$(wc -l < all.out)"

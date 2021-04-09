@@ -42,14 +42,14 @@ var (
 	}
 )
 
-type unknownFlagErr string
+type unknownFlagError string
 
-func (e unknownFlagErr) Error() string {
+func (e unknownFlagError) Error() string {
 	return string(e)
 }
 
 func IsUnknownBootFlagError(e error) bool {
-	_, ok := e.(unknownFlagErr)
+	_, ok := e.(unknownFlagError)
 	return ok
 }
 
@@ -80,7 +80,7 @@ func checkBootFlagList(flags []string, allowList []string) ([]string, error) {
 			} else {
 				if flag == "" {
 					// this is to make it more obvious
-					disallowedFlags = append(disallowedFlags, "\"\"")
+					disallowedFlags = append(disallowedFlags, `""`)
 				} else {
 					disallowedFlags = append(disallowedFlags, flag)
 				}
@@ -88,7 +88,7 @@ func checkBootFlagList(flags []string, allowList []string) ([]string, error) {
 		}
 	}
 	if len(allowedFlags) != len(flags) {
-		return allowedFlags, unknownFlagErr(fmt.Sprintf("unknown boot flags %v not allowed", disallowedFlags))
+		return allowedFlags, unknownFlagError(fmt.Sprintf("unknown boot flags %v not allowed", disallowedFlags))
 	}
 	return flags, nil
 }
@@ -165,7 +165,7 @@ func InitramfsActiveBootFlags(mode string) ([]string, error) {
 		return modeenv.BootFlags, nil
 
 	case ModeInstall:
-		// boot flags always come from the bootenv for the recover bootloader
+		// boot flags always come from the bootenv of the recovery bootloader
 		// in install mode
 
 		opts := &bootloader.Options{
@@ -209,7 +209,7 @@ func InitramfsSetBootFlags(flags []string) error {
 // the initramfs-capture values in /run. The flags from the initramfs are
 // checked against the currently understood set of flags, so that if there are
 // unrecognized flags, they are removed from the returned list and the returned
-// error will have IsUnknownFlagError() return true. This is to allow gracefully
+// error will have IsUnknownFlagErroror() return true. This is to allow gracefully
 // ignoring unknown boot flags while still processing supported flags.
 // Only to be used on UC20+ systems with recovery systems.
 func BootFlags(dev Device) ([]string, error) {
@@ -229,7 +229,7 @@ func BootFlags(dev Device) ([]string, error) {
 
 	flags := splitBootFlagString(string(b))
 	if allowFlags, err := checkBootFlagList(flags, understoodBootFlags); err != nil {
-		if e, ok := err.(unknownFlagErr); ok {
+		if e, ok := err.(unknownFlagError); ok {
 			return allowFlags, e
 		}
 		return nil, err

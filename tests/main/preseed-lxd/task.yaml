@@ -58,10 +58,7 @@ restore: |
     apt autoremove --purge -y
   fi
 
-  rm -f preseeded-rootfs.tar.gz
-  rm -f overrides.log
-
-  umount "$IMAGE_MOUNTPOINT"
+    umount "$IMAGE_MOUNTPOINT"
   rmdir "$IMAGE_MOUNTPOINT"
 
   # qemu-nbd -d may sporadically fail when removing the device,
