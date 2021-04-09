@@ -35,8 +35,6 @@ prepare: |
     mksnap_fast squashfs-root core-customized.snap
 
 restore: |
-    rm -rf squashfs-root
-    rm -f core-customized.snap
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
     # Remove the locale revision of core, if we installed one.

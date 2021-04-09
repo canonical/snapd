@@ -56,6 +56,7 @@ prepare: |
         mount --bind ./fake-snap-update-ns "$SNAP_MOUNT_DIR/snapd/current/usr/lib/snapd/snap-update-ns"
     fi
     echo "snap-update-ns has been replaced" | systemd-cat
+
 restore: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
@@ -66,9 +67,6 @@ restore: |
     if [ -e "$SNAP_MOUNT_DIR/snapd/current/" ]; then
         umount "$SNAP_MOUNT_DIR/snapd/current/usr/lib/snapd/snap-update-ns" || true
     fi
-
-    rm -f real-snap-update-ns
-    rm -f fake-snap-update-ns
     echo "snap-update-ns has been restored" | systemd-cat
 
     systemctl start snapd.service
@@ -77,6 +75,13 @@ restore: |
     snap remove --purge test-snapd-sh
     snap remove --purge test-snapd-simple-service
     echo "snaps have been removed" | systemd-cat
+
+debug: |
+    echo "Status of the test service"
+    systemctl status snap.test-snapd-simple-service.test-snapd-simple-service.service || true
+    echo "Apparmor denials"
+    dmesg | grep DENIED || true
+
 
 execute: |
     # When snap-update-ns is artificially slowed down so that snap-confine
@@ -99,8 +104,3 @@ execute: |
 
     # Nothing should have been denied as a part of this test.
     test "$(dmesg | grep -c DENIED)" -eq 0
-debug: |
-    echo "Status of the test service"
-    systemctl status snap.test-snapd-simple-service.test-snapd-simple-service.service || true
-    echo "Apparmor denials"
-    dmesg | grep DENIED || true

@@ -7,10 +7,6 @@ details: |
 
 systems: [ubuntu-16.04-64]
     
-restore: |
-    rm -f prevBoot nextBoot
-    rm -f core_*.{assert,snap} 
-
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"

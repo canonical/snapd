@@ -59,7 +59,7 @@ func (s *findSuite) TestFind(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/find?q=hi", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
@@ -93,7 +93,7 @@ func (s *findSuite) TestFindRefreshes(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/find?select=refresh", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
@@ -136,7 +136,7 @@ func (s *findSuite) TestFindRefreshSideloaded(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/find?select=refresh", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 0)
@@ -152,7 +152,7 @@ func (s *findSuite) TestFindPrivate(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/find?q=foo&select=private", nil)
 	c.Assert(err, check.IsNil)
 
-	_ = s.req(c, req, nil).(*daemon.Resp)
+	_ = s.syncReq(c, req, nil)
 
 	c.Check(s.storeSearch, check.DeepEquals, store.Search{
 		Query:   "foo",
@@ -167,7 +167,7 @@ func (s *findSuite) TestFindUserAgentContextCreated(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Add("User-Agent", "some-agent/1.0")
 
-	_ = s.req(c, req, nil).(*daemon.Resp)
+	_ = s.syncReq(c, req, nil)
 
 	c.Check(store.ClientUserAgent(s.ctx), check.Equals, "some-agent/1.0")
 }
@@ -192,7 +192,7 @@ func (s *findSuite) TestFindOneUserAgentContextCreated(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Add("User-Agent", "some-agent/1.0")
 
-	_ = s.req(c, req, nil).(*daemon.Resp)
+	_ = s.syncReq(c, req, nil)
 
 	c.Check(store.ClientUserAgent(s.ctx), check.Equals, "some-agent/1.0")
 }
@@ -205,7 +205,7 @@ func (s *findSuite) TestFindPrefix(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/find?name=foo*", nil)
 	c.Assert(err, check.IsNil)
 
-	_ = s.req(c, req, nil).(*daemon.Resp)
+	_ = s.syncReq(c, req, nil)
 
 	c.Check(s.storeSearch, check.DeepEquals, store.Search{Query: "foo", Prefix: true})
 }
@@ -218,7 +218,7 @@ func (s *findSuite) TestFindSection(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/find?q=foo&section=bar", nil)
 	c.Assert(err, check.IsNil)
 
-	_ = s.req(c, req, nil).(*daemon.Resp)
+	_ = s.syncReq(c, req, nil)
 
 	c.Check(s.storeSearch, check.DeepEquals, store.Search{
 		Query:    "foo",
@@ -234,7 +234,7 @@ func (s *findSuite) TestFindScope(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/find?q=foo&scope=creep", nil)
 	c.Assert(err, check.IsNil)
 
-	_ = s.req(c, req, nil).(*daemon.Resp)
+	_ = s.syncReq(c, req, nil)
 
 	c.Check(s.storeSearch, check.DeepEquals, store.Search{
 		Query: "foo",
@@ -262,7 +262,7 @@ func (s *findSuite) TestFindCommonID(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/find?name=foo", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
@@ -289,7 +289,7 @@ func (s *findSuite) TestFindByCommonID(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/find?common-id=org.foo", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
@@ -321,7 +321,7 @@ func (s *findSuite) TestFindOne(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/find?name=foo", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 
 	c.Check(s.storeSearch, check.DeepEquals, store.Search{})
 
@@ -349,7 +349,7 @@ func (s *findSuite) TestFindOneNotFound(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/find?name=foo", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.errorReq(c, req, nil)
 
 	c.Check(s.storeSearch, check.DeepEquals, store.Search{})
 	c.Check(rsp.Status, check.Equals, 404)
@@ -369,8 +369,8 @@ func (s *findSuite) TestFindOneWithAuth(c *check.C) {
 
 	c.Assert(s.user, check.IsNil)
 
-	_, ok := s.req(c, req, user).(*daemon.Resp)
-	c.Assert(ok, check.Equals, true)
+	_ = s.syncReq(c, req, user)
+
 	// ensure user was set
 	c.Assert(s.user, check.DeepEquals, user)
 }
@@ -382,8 +382,7 @@ func (s *findSuite) TestFindRefreshNotOther(c *check.C) {
 		req, err := http.NewRequest("GET", "/v2/find?select=refresh&"+other+"=foo*", nil)
 		c.Assert(err, check.IsNil)
 
-		rsp := s.req(c, req, nil).(*daemon.Resp)
-		c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
+		rsp := s.errorReq(c, req, nil)
 		c.Check(rsp.Status, check.Equals, 400)
 		c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, "cannot use '"+other+"' with 'select=refresh'")
 	}
@@ -402,8 +401,7 @@ func (s *findSuite) TestFindNotTogether(c *check.C) {
 			req, err := http.NewRequest("GET", fmt.Sprintf("/v2/find?%s=%s&%s=%s", ki, vi, kj, vj), nil)
 			c.Assert(err, check.IsNil)
 
-			rsp := s.req(c, req, nil).(*daemon.Resp)
-			c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
+			rsp := s.errorReq(c, req, nil)
 			c.Check(rsp.Status, check.Equals, 400)
 			exp1 := "cannot use '" + ki + "' and '" + kj + "' together"
 			exp2 := "cannot use '" + kj + "' and '" + ki + "' together"
@@ -419,8 +417,7 @@ func (s *findSuite) TestFindBadQueryReturnsCorrectErrorKind(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/find?q=return-bad-query-please", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, "bad query")
 	c.Check(rsp.Result.(*daemon.ErrorResult).Kind, check.Equals, client.ErrorKindBadQuery)
@@ -452,8 +449,7 @@ func (s *findSuite) TestFindPriced(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/find?q=banana&channel=stable", nil)
 	c.Assert(err, check.IsNil)
-	rsp, ok := s.req(c, req, nil).(*daemon.Resp)
-	c.Assert(ok, check.Equals, true)
+	rsp := s.syncReq(c, req, nil)
 
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
@@ -501,8 +497,7 @@ func (s *findSuite) TestFindScreenshotted(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/find?q=test-screenshot", nil)
 	c.Assert(err, check.IsNil)
-	rsp, ok := s.req(c, req, nil).(*daemon.Resp)
-	c.Assert(ok, check.Equals, true)
+	rsp := s.syncReq(c, req, nil)
 
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 1)
@@ -549,7 +544,7 @@ func (s *findSuite) TestSnapsStoreConfinement(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/find", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 
 	snaps := snapList(rsp.Result)
 	c.Assert(snaps, check.HasLen, 3)
