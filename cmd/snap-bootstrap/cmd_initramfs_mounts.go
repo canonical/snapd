@@ -168,7 +168,7 @@ func generateInitramfsMounts() (err error) {
 		logger.Noticef("error accessing boot flags: %v", err)
 	} else {
 		// write the boot flags
-		if err := boot.InitramfsSetBootFlags(flags); err != nil {
+		if err := boot.InitramfsExposeBootFlagsForSystem(flags); err != nil {
 			// cannot write to /run, error here since arguably we have major
 			// problems if we can't write to /run
 			return err
