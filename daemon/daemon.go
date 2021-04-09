@@ -29,7 +29,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -37,7 +36,6 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -47,7 +45,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
@@ -114,17 +111,6 @@ type Command struct {
 
 	d *Daemon
 }
-
-type accessResult int
-
-const (
-	accessOK accessResult = iota
-	accessUnauthorized
-	accessForbidden
-	accessCancelled
-)
-
-var polkitCheckAuthorization = polkit.CheckAuthorization
 
 // canAccess checks the following properties:
 //
@@ -194,26 +180,7 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 	}
 
 	if c.PolkitOK != "" {
-		var flags polkit.CheckFlags
-		allowHeader := r.Header.Get(client.AllowInteractionHeader)
-		if allowHeader != "" {
-			if allow, err := strconv.ParseBool(allowHeader); err != nil {
-				logger.Noticef("error parsing %s header: %s", client.AllowInteractionHeader, err)
-			} else if allow {
-				flags |= polkit.CheckAllowInteraction
-			}
-		}
-		// Pass both pid and uid from the peer ucred to avoid pid race
-		if authorized, err := polkitCheckAuthorization(ucred.Pid, ucred.Uid, c.PolkitOK, nil, flags); err == nil {
-			if authorized {
-				// polkit says user is authorised
-				return accessOK
-			}
-		} else if err == polkit.ErrDismissed {
-			return accessCancelled
-		} else {
-			logger.Noticef("polkit error: %s", err)
-		}
+		return checkPolkitAction(r, ucred, c.PolkitOK)
 	}
 
 	return accessUnauthorized
