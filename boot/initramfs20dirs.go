@@ -79,6 +79,10 @@ var (
 	// InitramfsBootEncryptionKeyDir is the location of the encrypted partition
 	// keys during the initramfs on ubuntu-boot.
 	InitramfsBootEncryptionKeyDir string
+
+	// snapBootstrapBootFlagsFile is the location of the file that is used
+	// internally for saving the current boot flags active for this boot.
+	snapBootstrapBootFlagsFile string
 )
 
 func setInitramfsDirVars(rootdir string) {
@@ -95,6 +99,8 @@ func setInitramfsDirVars(rootdir string) {
 	InitramfsWritableDir = filepath.Join(InitramfsDataDir, "system-data")
 	InitramfsSeedEncryptionKeyDir = filepath.Join(InitramfsUbuntuSeedDir, "device/fde")
 	InitramfsBootEncryptionKeyDir = filepath.Join(InitramfsUbuntuBootDir, "device/fde")
+
+	snapBootstrapBootFlagsFile = filepath.Join(dirs.SnapBootstrapRunDir, "boot-flags")
 }
 
 func init() {
