@@ -37,13 +37,31 @@ import (
 
 type servicesSuite struct {
 	configcoreSuite
+	serviceInstalled bool
 }
 
 var _ = Suite(&servicesSuite{})
 
 func (s *servicesSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
+	s.systemctlOutput = func(args ...string) []byte {
+		var output []byte
+		if args[0] == "show" {
+			if args[1] == "--property=ActiveState" {
+				output = []byte("ActiveState=inactive")
+			} else {
+				if s.serviceInstalled {
+					output = []byte(fmt.Sprintf("Id=%s\nType=daemon\nActiveState=inactive\nUnitFileState=enabled\n", args[2]))
+				} else {
+					output = []byte(fmt.Sprintf("Id=%s\nType=\nActiveState=inactive\nUnitFileState=\n", args[2]))
+				}
+			}
+		}
+		return output
+	}
+
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
+	s.serviceInstalled = true
 	s.systemctlArgs = nil
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
@@ -69,6 +87,7 @@ func (s *servicesSuite) TestConfigureServiceNotDisabled(c *C) {
 	err := configcore.SwitchDisableService("sshd.service", false, nil)
 	c.Assert(err, IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type", "sshd.service"},
 		{"unmask", "sshd.service"},
 		{"enable", "sshd.service"},
 		{"start", "sshd.service"},
@@ -79,6 +98,7 @@ func (s *servicesSuite) TestConfigureServiceDisabled(c *C) {
 	err := configcore.SwitchDisableService("sshd.service", true, nil)
 	c.Assert(err, IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type", "sshd.service"},
 		{"disable", "sshd.service"},
 		{"mask", "sshd.service"},
 		{"stop", "sshd.service"},
@@ -96,13 +116,17 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 	for _, service := range []struct {
 		cfgName     string
 		systemdName string
+		installed   bool
 	}{
-		{"ssh", "ssh.service"},
-		{"rsyslog", "rsyslog.service"},
-		{"systemd-resolved", "systemd-resolved.service"},
+		{"ssh", "ssh.service", true},  // no installed check for ssh
+		{"ssh", "ssh.service", false}, // no installed check for ssh
+		{"rsyslog", "rsyslog.service", true},
+		{"rsyslog", "rsyslog.service", false},
+		{"systemd-resolved", "systemd-resolved.service", true},
+		{"systemd-resolved", "systemd-resolved.service", false},
 	} {
 		s.systemctlArgs = nil
-
+		s.serviceInstalled = service.installed
 		err := configcore.Run(&mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
@@ -121,12 +145,19 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 				{"show", "--property=ActiveState", srv},
 			})
 		default:
-			c.Check(s.systemctlArgs, DeepEquals, [][]string{
-				{"disable", srv},
-				{"mask", srv},
-				{"stop", srv},
-				{"show", "--property=ActiveState", srv},
-			})
+			if service.installed {
+				c.Check(s.systemctlArgs, DeepEquals, [][]string{
+					{"show", "--property=Id,ActiveState,UnitFileState,Type", srv},
+					{"disable", srv},
+					{"mask", srv},
+					{"stop", srv},
+					{"show", "--property=ActiveState", srv},
+				})
+			} else {
+				c.Check(s.systemctlArgs, DeepEquals, [][]string{
+					{"show", "--property=Id,ActiveState,UnitFileState,Type", srv},
+				})
+			}
 		}
 	}
 }
@@ -265,12 +296,17 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 	for _, service := range []struct {
 		cfgName     string
 		systemdName string
+		installed   bool
 	}{
-		{"ssh", "ssh.service"},
-		{"rsyslog", "rsyslog.service"},
-		{"systemd-resolved", "systemd-resolved.service"},
+		{"ssh", "ssh.service", true},  // no installed check for ssh
+		{"ssh", "ssh.service", false}, // no installed check for ssh
+		{"rsyslog", "rsyslog.service", true},
+		{"rsyslog", "rsyslog.service", false},
+		{"systemd-resolved", "systemd-resolved.service", true},
+		{"systemd-resolved", "systemd-resolved.service", false},
 	} {
 		s.systemctlArgs = nil
+		s.serviceInstalled = service.installed
 		err := configcore.Run(&mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
@@ -291,11 +327,18 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 			_, err := os.Stat(sshCanary)
 			c.Assert(err, ErrorMatches, ".* no such file or directory")
 		default:
-			c.Check(s.systemctlArgs, DeepEquals, [][]string{
-				{"unmask", srv},
-				{"enable", srv},
-				{"start", srv},
-			})
+			if service.installed {
+				c.Check(s.systemctlArgs, DeepEquals, [][]string{
+					{"show", "--property=Id,ActiveState,UnitFileState,Type", srv},
+					{"unmask", srv},
+					{"enable", srv},
+					{"start", srv},
+				})
+			} else {
+				c.Check(s.systemctlArgs, DeepEquals, [][]string{
+					{"show", "--property=Id,ActiveState,UnitFileState,Type", srv},
+				})
+			}
 		}
 	}
 }

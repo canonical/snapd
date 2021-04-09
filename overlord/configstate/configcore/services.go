@@ -156,6 +156,21 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 		return switchDisableConsoleConfService(sysd, serviceName, disabled, opts)
 	}
 
+	if opts == nil {
+		// ignore the service if not installed
+		status, err := sysd.Status(serviceName)
+		if err != nil {
+			return err
+		}
+		if len(status) != 1 {
+			return fmt.Errorf("internal error: expected status of service %s, got %v", serviceName, status)
+		}
+		if !status[0].Installed {
+			// ignore
+			return nil
+		}
+	}
+
 	if disabled {
 		if opts == nil {
 			if err := sysd.Disable(serviceName); err != nil {
