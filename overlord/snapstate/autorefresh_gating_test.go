@@ -205,7 +205,7 @@ func (s *autorefreshGatingSuite) TestAffectedByCore(c *C) {
 		"snap-c": {
 			Base: true,
 			AffectingSnaps: map[string]bool{
-				"core": true, // ??
+				"core": true,
 			}}})
 }
 
