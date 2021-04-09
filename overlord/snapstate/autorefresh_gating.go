@@ -106,7 +106,7 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 		// on core system, affected by update of boot base
 		if bootBase != "" && up.InstanceName() == bootBase {
 			for _, snapSt := range all {
-				addAffected(snapSt.InstanceName(), up.InstanceName(), true, true)
+				addAffected(snapSt.InstanceName(), up.InstanceName(), true, false)
 			}
 		}
 
@@ -131,7 +131,9 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 		// consider slots provided by refreshed snap, but exclude core and snapd
 		// since they provide system-level slots that are generally not disrupted
 		// by snap updates.
-		if up.SnapType != snap.TypeSnapd && up.SnapName() != "core" {
+		// Note: the check for "core" is omitted (unnecessary) because we handle
+		// it above.
+		if up.SnapType != snap.TypeSnapd {
 			for _, slotInfo := range up.Slots {
 				conns, err := repo.Connected(up.InstanceName(), slotInfo.Name)
 				if err != nil {
@@ -140,7 +142,7 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 				for _, cref := range conns {
 					// affected only if it wasn't optimized out above
 					if all[cref.PlugRef.Snap] != nil {
-						addAffected(cref.PlugRef.Snap, up.InstanceName(), false, false)
+						addAffected(cref.PlugRef.Snap, up.InstanceName(), true, false)
 					}
 				}
 			}
@@ -162,7 +164,7 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 			for _, cref := range conns {
 				// affected only if it wasn't optimized out above
 				if all[cref.SlotRef.Snap] != nil {
-					addAffected(cref.SlotRef.Snap, up.InstanceName(), false, false)
+					addAffected(cref.SlotRef.Snap, up.InstanceName(), true, false)
 				}
 			}
 		}

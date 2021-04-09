@@ -57,6 +57,8 @@ func (s *autorefreshGatingSuite) SetUpTest(c *C) {
 
 	s.repo = interfaces.NewRepository()
 
+	// note: TestInterface defines mount backend methods, so it falls
+	// into the checks of plugs using this backend.
 	iface1 := &ifacetest.TestInterface{InterfaceName: "iface1"}
 	c.Assert(s.repo.AddInterface(iface1), IsNil)
 
@@ -132,7 +134,7 @@ plugs:
     plug: iface1
 `
 
-const snapFyaml = `name: snap-e
+const snapFyaml = `name: snap-f
 type: app
 version: 1
 plugs:
@@ -278,6 +280,7 @@ func (s *autorefreshGatingSuite) TestAffectedBySlot(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
 		"snap-e": {
+			Restart: true,
 			AffectingSnaps: map[string]bool{
 				"snap-d": true,
 			}}})
@@ -336,6 +339,7 @@ func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackend(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
 		"snap-d": {
+			Restart: true,
 			AffectingSnaps: map[string]bool{
 				"snap-e": true,
 			}}})
@@ -363,28 +367,28 @@ func (s *autorefreshGatingSuite) TestAffectedByBootBase(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
 		"snap-a": {
-			Base:    true,
+			Base:    false,
 			Restart: true,
 			AffectingSnaps: map[string]bool{
 				"core18": true,
 			},
 		},
 		"snap-b": {
-			Base:    true,
+			Base:    false,
 			Restart: true,
 			AffectingSnaps: map[string]bool{
 				"core18": true,
 			},
 		},
 		"snap-d": {
-			Base:    true,
+			Base:    false,
 			Restart: true,
 			AffectingSnaps: map[string]bool{
 				"core18": true,
 			},
 		},
 		"snap-e": {
-			Base:    true,
+			Base:    false,
 			Restart: true,
 			AffectingSnaps: map[string]bool{
 				"core18": true,
