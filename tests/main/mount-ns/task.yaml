@@ -11,6 +11,7 @@ systems: [ubuntu-18.04-64]
 # The test is sensitive to backend type, which designates the used image.
 # Backends are enabled one-by-one along with the matching data set.
 backends: [google]
+
 details: |
     This test measures the mount table of the host, of the mount namespace for
     a simple core16-based snap for the per-user mount namespace of a simple
@@ -54,9 +55,11 @@ details: |
     If you see this test randomly failing it may be because it has observed
     state leaked by another test that ran on the same machine earlier in the
     spread  execution chain.
+
 environment:
     MACHINE_STATE/inherit: inherit
     MACHINE_STATE/reboot: reboot
+
 prepare: |
     case "$MACHINE_STATE" in
         inherit)
@@ -185,6 +188,14 @@ prepare: |
     fi
     snap remove --purge test-snapd-mountinfo-core16
     snap remove --purge test-snapd-mountinfo-core18
+
+debug: |
+    for fname in ./*.deterministic.txt; do
+        echo
+        cat "$fname"
+        echo
+    done
+
 execute: |
     if [ -e please-skip-this-test ]; then
         exit 0
@@ -200,15 +211,3 @@ execute: |
         diff -u "$SPREAD_BACKEND.$SPREAD_SYSTEM/PER-SNAP-C7.expected.txt" PER-SNAP-C7.deterministic.txt
         diff -u "$SPREAD_BACKEND.$SPREAD_SYSTEM/PER-USER-C7.expected.txt" PER-USER-C7.deterministic.txt
     fi
-restore: |
-    rm -f ./*.raw.txt ./*.deterministic.txt
-    rm -f test-snapd-mountinfo-classic_1_all.snap
-    rm -f test-snapd-mountinfo-core16_1_all.snap
-    rm -f test-snapd-mountinfo-core18-1_all.snap
-    rm -f please-skip-this-test
-debug: |
-    for fname in ./*.deterministic.txt; do
-        echo
-        cat "$fname"
-        echo
-    done

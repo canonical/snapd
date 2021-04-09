@@ -366,7 +366,27 @@ prepare_project() {
     rm -rf /var/cache/snapd/aux
     case "$SPREAD_SYSTEM" in
         ubuntu-*)
-            # Ubuntu is the only system where snapd is preinstalled
+            # Ubuntu is the only system where snapd is preinstalled, so we have
+            # to purge it
+
+            # first mask snapd.failure so that even if we kill snapd and it 
+            # dies, snap-failure doesn't run and try to revive snapd
+            systemctl mask snapd.failure
+
+            # next abort all ongoing changes and wait for them all to be done
+            for chg in $(snap changes | tail -n +2 | grep Do | grep -v Done | awk '{print $1}'); do
+                snap abort "$chg" || true
+                snap watch "$chg" || true
+            done
+
+            # now remove all snaps that aren't a base, core or snapd
+            for sn in $(snap list | tail -n +2 | awk '{print $1,$6}' | grep -Po '(.+)\s+(?!base)' | awk '{print $1}'); do
+                if [ "$sn" != snapd ] && [ "$sn" != core ]; then
+                    snap remove "$sn" || true
+                fi
+            done
+
+            # now we can attempt to purge the actual distro package via apt
             distro_purge_package snapd
             # XXX: the original package's purge may have left socket units behind
             find /etc/systemd/system -name "snap.*.socket" | while read -r f; do
@@ -377,10 +397,19 @@ prepare_project() {
             if [ -d /var/lib/snapd ]; then
                 echo "# /var/lib/snapd"
                 ls -lR /var/lib/snapd || true
-                journalctl -b | tail -100 || true
+                journalctl --no-pager || true
                 cat /var/lib/snapd/state.json || true
+                snap debug state /var/lib/snapd/state.json || true
+                (
+                    for chg in $(snap debug state /var/lib/snapd/state.json | tail -n +2 | awk '{print $1}'); do
+                        snap debug state --abs-time "--change=$chg" /var/lib/snapd/state.json || true
+                    done
+                ) || true
                 exit 1
             fi
+
+            # unmask snapd.failure so that it can run during tests if needed
+            systemctl unmask snapd.failure 
             ;;
         *)
             # snapd state directory must not exist when the package is not

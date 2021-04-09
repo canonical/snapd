@@ -63,6 +63,11 @@ var u2fDevices = []u2fDevice{
 		ProductIDPattern: "0880",
 	},
 	{
+		Name:             "HyperSecu HyperFIDO Pro",
+		VendorIDPattern:  "2ccf",
+		ProductIDPattern: "0854",
+	},
+	{
 		Name:             "Feitian ePass FIDO, BioPass FIDO2",
 		VendorIDPattern:  "096e",
 		ProductIDPattern: "0850|0852|0853|0854|0856|0858|085a|085b|085d",
