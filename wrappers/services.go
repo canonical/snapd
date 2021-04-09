@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -375,6 +376,185 @@ func userDaemonReload() error {
 	return cli.ServicesDaemonReload(ctx)
 }
 
+// EnsureSnapServices will ensure that the specified snap services' file states
+// are up to date with the specified options and infos.
+func EnsureSnapServices(snaps map[*snap.Info]*AddSnapServicesOptions, inter interacter) (modified map[*snap.Info][]*snap.AppInfo, err error) {
+	modified = make(map[*snap.Info][]*snap.AppInfo)
+
+	preseeding := false
+
+	// note, sysd is not used when preseeding
+	sysd := systemd.New(systemd.SystemMode, inter)
+	modifiedUnits := make(map[string]*osutil.FileState)
+	var modifiedSystem, modifiedUser bool
+
+	defer func() {
+		if err == nil {
+			return
+		}
+		for file, state := range modifiedUnits {
+			if state == nil {
+				// we don't have anything to rollback to, so just remove the
+				// file
+				if e := os.Remove(file); e != nil {
+					inter.Notify(fmt.Sprintf("while trying to remove %s due to previous failure: %v", file, e))
+				}
+			} else {
+				// rollback the file to the previous state
+				if e := osutil.EnsureFileState(file, *state); e != nil {
+					inter.Notify(fmt.Sprintf("while trying to rollback %s due to previous failure: %v", file, e))
+				}
+			}
+		}
+		if modifiedSystem && !preseeding {
+			if e := sysd.DaemonReload(); e != nil {
+				inter.Notify(fmt.Sprintf("while trying to perform systemd daemon-reload due to previous failure: %v", e))
+			}
+		}
+		if modifiedUser && !preseeding {
+			if e := userDaemonReload(); e != nil {
+				inter.Notify(fmt.Sprintf("while trying to perform user systemd daemon-reload due to previous failure: %v", e))
+			}
+		}
+	}()
+
+	for s, opts := range snaps {
+		if s.Type() == snap.TypeSnapd {
+			return nil, fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
+		}
+
+		if opts == nil {
+			opts = &AddSnapServicesOptions{}
+		}
+
+		// TODO: do we still need this?
+		if opts.Preseeding {
+			preseeding = true
+		}
+
+		for _, app := range s.Apps {
+			if !app.IsService() {
+				continue
+			}
+
+			handleFile := func(path string, desiredContent []byte) error {
+				// get the existing file state (if any) of the service to have
+				// something to rollback to if we have any errors
+
+				// note we can't use FileReference here since we may be modifying
+				// the file, and the FileReference.State() wouldn't be evaluated
+				// until _after_ we attempted modification
+				oldFileState := osutil.MemoryFileState{}
+				haveOldFile := false
+				st, stErr := os.Stat(path)
+				if stErr == nil {
+					haveOldFile = true
+					b, err := ioutil.ReadFile(path)
+					if err != nil {
+						return err
+					}
+					oldFileState.Content = b
+					oldFileState.Mode = st.Mode()
+				}
+
+				newFileState := osutil.MemoryFileState{
+					Content: desiredContent,
+					Mode:    os.FileMode(0644),
+				}
+				if haveOldFile {
+					// use whatever the old mode was if we have it
+					newFileState.Mode = st.Mode()
+				}
+
+				if mkdirErr := os.MkdirAll(filepath.Dir(path), 0755); mkdirErr != nil {
+					return mkdirErr
+				}
+				ensureErr := osutil.EnsureFileState(path, &newFileState)
+				if ensureErr != nil && ensureErr != osutil.ErrSameState {
+					// fatal error trying to write the file
+					return ensureErr
+				}
+				if ensureErr == nil {
+					// then we modified the file and should save this as something
+					// to roll back to
+					if haveOldFile {
+						st := osutil.FileState(&oldFileState)
+						modifiedUnits[path] = &st
+					} else {
+						modifiedUnits[path] = nil
+					}
+					modified[s] = append(modified[s], app)
+				}
+
+				switch app.DaemonScope {
+				case snap.SystemDaemon:
+					modifiedSystem = true
+				case snap.UserDaemon:
+					modifiedUser = true
+				}
+
+				return nil
+			}
+
+			// create services first; this doesn't trigger systemd
+
+			// Generate new service file state
+			path := app.ServiceFile()
+			var content []byte
+			content, err = generateSnapServiceFile(app, opts)
+			if err != nil {
+				return nil, err
+			}
+
+			err = handleFile(path, content)
+			if err != nil {
+				return nil, err
+			}
+
+			// Generate systemd .socket files if needed
+			var socketFiles *map[string][]byte
+			socketFiles, err = generateSnapSocketFiles(app)
+			if err != nil {
+				return nil, err
+			}
+			for path, content := range *socketFiles {
+				err = handleFile(path, content)
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			if app.Timer != nil {
+				content, err = generateSnapTimerFile(app)
+				if err != nil {
+					return nil, err
+				}
+				path := app.Timer.File()
+
+				err = handleFile(path, content)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+
+	if !preseeding {
+		if modifiedSystem {
+			if err = sysd.DaemonReload(); err != nil {
+				return nil, err
+			}
+		}
+		if modifiedUser {
+			if err = userDaemonReload(); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return modified, nil
+}
+
 // AddSnapServicesOptions is a struct for controlling the generated service
 // definition for a snap service.
 type AddSnapServicesOptions struct {
@@ -385,110 +565,13 @@ type AddSnapServicesOptions struct {
 
 // AddSnapServices adds service units for the applications from the snap which
 // are services. The services do not get enabled or started.
-func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter interacter) (err error) {
-	if s.Type() == snap.TypeSnapd {
-		return fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
+func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter interacter) error {
+	m := map[*snap.Info]*AddSnapServicesOptions{
+		s: opts,
 	}
 
-	if opts == nil {
-		opts = &AddSnapServicesOptions{}
-	}
-
-	// TODO: remove once services get enabled on start and not when created.
-	preseeding := opts.Preseeding
-
-	// note, sysd is not used when preseeding
-	sysd := systemd.New(systemd.SystemMode, inter)
-	var written []string
-	var writtenSystem, writtenUser bool
-
-	defer func() {
-		if err == nil {
-			return
-		}
-		for _, s := range written {
-			if e := os.Remove(s); e != nil {
-				inter.Notify(fmt.Sprintf("while trying to remove %s due to previous failure: %v", s, e))
-			}
-		}
-		if writtenSystem && !preseeding {
-			if e := sysd.DaemonReload(); e != nil {
-				inter.Notify(fmt.Sprintf("while trying to perform systemd daemon-reload due to previous failure: %v", e))
-			}
-		}
-		if writtenUser && !preseeding {
-			if e := userDaemonReload(); e != nil {
-				inter.Notify(fmt.Sprintf("while trying to perform user systemd daemon-reload due to previous failure: %v", e))
-			}
-		}
-	}()
-
-	// create services first; this doesn't trigger systemd
-	for _, app := range s.Apps {
-		if !app.IsService() {
-			continue
-		}
-		// Generate service file
-		content, err := generateSnapServiceFile(app, opts)
-		if err != nil {
-			return err
-		}
-		svcFilePath := app.ServiceFile()
-		os.MkdirAll(filepath.Dir(svcFilePath), 0755)
-		if err := osutil.AtomicWriteFile(svcFilePath, content, 0644, 0); err != nil {
-			return err
-		}
-		written = append(written, svcFilePath)
-		switch app.DaemonScope {
-		case snap.SystemDaemon:
-			writtenSystem = true
-		case snap.UserDaemon:
-			writtenUser = true
-		}
-
-		// Generate systemd .socket files if needed
-		var socketFiles *map[string][]byte
-		socketFiles, err = generateSnapSocketFiles(app)
-		if err != nil {
-			return err
-		}
-		for path, content := range *socketFiles {
-			os.MkdirAll(filepath.Dir(path), 0755)
-			if err = osutil.AtomicWriteFile(path, content, 0644, 0); err != nil {
-				return err
-			}
-			written = append(written, path)
-		}
-
-		if app.Timer != nil {
-			var content []byte
-			content, err = generateSnapTimerFile(app)
-			if err != nil {
-				return err
-			}
-			path := app.Timer.File()
-			os.MkdirAll(filepath.Dir(path), 0755)
-			if err = osutil.AtomicWriteFile(path, content, 0644, 0); err != nil {
-				return err
-			}
-			written = append(written, path)
-		}
-	}
-
-	if !preseeding {
-		if writtenSystem {
-			if err = sysd.DaemonReload(); err != nil {
-				return err
-			}
-		}
-		if writtenUser {
-			if err = userDaemonReload(); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
+	_, err := EnsureSnapServices(m, inter)
+	return err
 }
 
 // StopServicesFlags carries extra flags for StopServices.

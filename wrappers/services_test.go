@@ -163,6 +163,291 @@ WantedBy=multi-user.target
 	c.Check(s.sysdLog[1], DeepEquals, []string{"daemon-reload"})
 }
 
+func (s *servicesTestSuite) TestEnsureSnapServicesAdds(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	m := map[*snap.Info]*wrappers.AddSnapServicesOptions{
+		info: nil,
+	}
+
+	modified, err := wrappers.EnsureSnapServices(m, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+	c.Assert(modified, HasLen, 1)
+	for modifiedSn, modifiedApps := range modified {
+		// don't try a DeepEquals on this, it could be a recursive data
+		// structure which go-check doesn't handle very well
+		c.Assert(modifiedSn.SnapName(), Equals, info.SnapName())
+		c.Assert(modifiedApps, HasLen, 1)
+		c.Assert(modifiedApps, DeepEquals, []*snap.AppInfo{info.Apps["svc1"]})
+	}
+
+	content, err := ioutil.ReadFile(svcFile)
+	c.Assert(err, IsNil)
+
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	c.Assert(string(content), Equals, fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
+TimeoutStopSec=30
+Type=forking
+
+[Install]
+WantedBy=multi-user.target
+`,
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+	))
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesChanges(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+
+	// pretend we already have a unit file with no VitalityRank options set
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	template := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
+TimeoutStopSec=30
+Type=forking
+%s
+[Install]
+WantedBy=multi-user.target
+`
+	origContent := fmt.Sprintf(template,
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"",
+	)
+
+	err := os.MkdirAll(filepath.Dir(svcFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(svcFile, []byte(origContent), 0644)
+	c.Assert(err, IsNil)
+
+	// now ensuring with the VitalityRank set will modify the file
+	m := map[*snap.Info]*wrappers.AddSnapServicesOptions{
+		info: {VitalityRank: 1},
+	}
+
+	modified, err := wrappers.EnsureSnapServices(m, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+	c.Assert(modified, HasLen, 1)
+
+	content, err := ioutil.ReadFile(svcFile)
+	c.Assert(err, IsNil)
+
+	// now the file has been modified to have OOMScoreAdjust set for it
+	c.Assert(string(content), Equals, fmt.Sprintf(template,
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"OOMScoreAdjust=-899\n",
+	))
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesRollsback(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	// pretend we already have a unit file with no VitalityRank options set
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	template := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
+TimeoutStopSec=30
+Type=forking
+%s
+[Install]
+WantedBy=multi-user.target
+`
+	origContent := fmt.Sprintf(template,
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"",
+	)
+
+	// make systemctl fail the first time when we try to do a daemon-reload,
+	// then the next time don't return an error
+	systemctlCalls := 0
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		systemctlCalls++
+		switch systemctlCalls {
+		case 1:
+			// double check that we wrote the new file here before calling
+			// daemon reload
+
+			content, err := ioutil.ReadFile(svcFile)
+			c.Assert(err, IsNil)
+
+			// now the file has been modified to have OOMScoreAdjust set for it
+			c.Assert(string(content), Equals, fmt.Sprintf(template,
+				systemd.EscapeUnitNamePath(dir),
+				dirs.GlobalRootDir,
+				"OOMScoreAdjust=-899\n",
+			))
+
+			// now return error to trigger a rollback
+			return nil, fmt.Errorf("oops")
+		case 2:
+			// after the rollback, check that the rollback happened to the
+			// original content
+			content, err := ioutil.ReadFile(svcFile)
+			c.Assert(err, IsNil)
+			c.Assert(string(content), Equals, origContent)
+
+			return nil, nil
+		default:
+			c.Errorf("unexpected call (number %d) to systemctl: %+v", systemctlCalls, cmd)
+			return nil, fmt.Errorf("broken test")
+		}
+	})
+	defer r()
+
+	err := os.MkdirAll(filepath.Dir(svcFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(svcFile, []byte(origContent), 0644)
+	c.Assert(err, IsNil)
+
+	// now ensuring with the VitalityRank set will modify the file
+	m := map[*snap.Info]*wrappers.AddSnapServicesOptions{
+		info: {VitalityRank: 1},
+	}
+
+	_, err = wrappers.EnsureSnapServices(m, progress.Null)
+	c.Assert(err, ErrorMatches, "oops")
+	c.Assert(systemctlCalls, Equals, 2)
+
+	// double-check that after the function is done, the file is back to what we
+	// had before (this check duplicates the one in MockSystemctl but doesn't
+	// hurt anything to do again)
+	content, err := ioutil.ReadFile(svcFile)
+	c.Assert(err, IsNil)
+	c.Assert(string(content), Equals, origContent)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesRemovesNewAddOnRollback(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	// pretend we already have a unit file with no VitalityRank options set
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	template := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
+TimeoutStopSec=30
+Type=forking
+%s
+[Install]
+WantedBy=multi-user.target
+`
+	// make systemctl fail the first time when we try to do a daemon-reload,
+	// then the next time don't return an error
+	systemctlCalls := 0
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		systemctlCalls++
+		switch systemctlCalls {
+		case 1:
+			// double check that we wrote the new file here before calling
+			// daemon reload
+
+			content, err := ioutil.ReadFile(svcFile)
+			c.Assert(err, IsNil)
+
+			// now the file has been modified to have OOMScoreAdjust set for it
+			c.Assert(string(content), Equals, fmt.Sprintf(template,
+				systemd.EscapeUnitNamePath(dir),
+				dirs.GlobalRootDir,
+				"",
+			))
+
+			// now return error to trigger a rollback
+			return nil, fmt.Errorf("oops")
+		case 2:
+			// after the rollback, check that the new file was deleted
+			c.Assert(svcFile, testutil.FileAbsent)
+
+			return nil, nil
+		default:
+			c.Errorf("unexpected call (number %d) to systemctl: %+v", systemctlCalls, cmd)
+			return nil, fmt.Errorf("broken test")
+		}
+	})
+	defer r()
+
+	m := map[*snap.Info]*wrappers.AddSnapServicesOptions{
+		info: nil,
+	}
+
+	_, err := wrappers.EnsureSnapServices(m, progress.Null)
+	c.Assert(err, ErrorMatches, "oops")
+	c.Assert(systemctlCalls, Equals, 2)
+
+	// double-check that after the function is done, the file is gone again
+	c.Assert(svcFile, testutil.FileAbsent)
+}
+
 func (s *servicesTestSuite) TestAddSnapServicesWithInterfaceSnippets(c *C) {
 	tt := []struct {
 		comment     string
