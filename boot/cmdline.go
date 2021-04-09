@@ -100,7 +100,10 @@ func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (boo
 	return mbl, nil
 }
 
-func bootVarsForcommandLineFromGadget(gadgetSnap string) (map[string]string, error) {
+// bootVarsForTrustedCommandLineFromGadget returns a set of boot variables that
+// carry the command line arguments requested by the gadget. This is only useful
+// if snapd is managing the boot config.
+func bootVarsForTrustedCommandLineFromGadget(gadgetSnap string) (map[string]string, error) {
 	sf, err := snapfile.Open(gadgetSnap)
 	if err != nil {
 		return nil, fmt.Errorf("cannot open gadget snap: %v", err)
