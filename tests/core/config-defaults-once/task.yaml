@@ -54,11 +54,12 @@ restore: |
 
     # XXX: this should work once it is possible to install snapd on core
     SNAP=snapd
-    SERVICES="ssh systemd-resolved"
+    SERVICES="ssh rsyslog"
     if os.query is-core18; then
         # a core18 already has a snapd snap, verify whether installation of core
         # does not break the configuration
         SNAP=core
+        SERVICES=ssh
     fi
 
     echo "Undo the service disable"
@@ -107,11 +108,12 @@ execute: |
 
     # XXX: this should work once it is possible to install snapd on core
     SNAP=snapd
-    SERVICES="ssh systemd-resolved"
+    SERVICES="ssh rsyslog"
     if os.query is-core18; then
         # a core18 already has a snapd snap, verify whether installation of core
         # does not break the configuration
         SNAP=core
+        SERVICES=ssh
     fi
 
     echo "The defaults are applied"
@@ -134,7 +136,7 @@ execute: |
     done
     test ! -e /etc/ssh/sshd_not_to_be_run
 
-    # Unmask systemd-resolved service on core18
+    # Unmask rsyslog service on core18
     if os.query is-core18; then
-        systemctl unmask systemd-resolved
+        systemctl unmask rsyslog
     fi
