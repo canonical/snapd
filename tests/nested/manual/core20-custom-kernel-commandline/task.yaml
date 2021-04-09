@@ -1,0 +1,47 @@
+summary: Verify custom kernel command line handling in UC20
+
+systems: [ubuntu-20.04-64]
+
+environment:
+    NESTED_BUILD_SNAPD_FROM_CURRENT: true
+    # TODO: enable TPM once resealing with custom kernel command lines lands
+    NESTED_ENABLE_TPM: false
+    NESTED_ENABLE_SECURE_BOOT: false
+
+details: |
+    This test checks support for customized kernel command line arguments in UC20
+
+prepare: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    echo "Grab and prepare the gadget snap"
+    snap download --basename=pc --channel="20/edge" pc
+    unsquashfs -d pc-gadget pc.snap
+
+    echo 'hello from test' > pc-gadget/cmdline.extra
+    snap pack pc-gadget/ extra-snaps/
+
+    "$TESTSTOOLS"/nested-state build-image core
+    "$TESTSTOOLS"/nested-state create-vm core
+
+execute: |
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    # TODO: verify /proc/cmdline has the right arguments when run system support
+    # lands
+
+    echo "Transition to recover mode to verify kernel command line"
+    boot_id="$(nested_get_boot_id)"
+    # shellcheck disable=SC2016
+    nested_exec 'sudo snap reboot --recover'
+    nested_wait_for_reboot "${boot_id}"
+
+    echo "Check the vm is in recover mode"
+    nested_exec 'sudo cat /proc/cmdline' > system.cmdline
+
+    echo "Verify that system is in recover mode"
+    MATCH snapd_recovery_mode=recover < system.cmdline
+
+    MATCH 'hello from test' < system.cmdline
