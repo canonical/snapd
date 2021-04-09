@@ -157,22 +157,20 @@ func generateInitramfsMounts() (err error) {
 	// the boot flags for the current boot from
 	flags, err := boot.InitramfsActiveBootFlags(mode)
 	if err != nil {
-		// We don't die on failing to read boot flags, we just
-		// log the error and don't set any flags, this is because the boot flags
-		// in the case  of install comes from untrusted input, the bootenv. In
-		// the case of run mode, boot flags are read from the modeenv, which
-		// should be valid and trusted, but if the modeenv becomes corrupted, we
-		// would block accessing the system (except through an initramfs shell),
-		// to recover the modeenv (though maybe we could enable some sort of
-		// fixing from recover mode instead?)
+		// We don't die on failing to read boot flags, we just log the error and
+		// don't set any flags, this is because the boot flags in the case of
+		// install comes from untrusted input, the bootenv. In the case of run
+		// mode, boot flags are read from the modeenv, which should be valid and
+		// trusted, but if the modeenv becomes corrupted, we would block
+		// accessing the system (except through an initramfs shell), to recover
+		// the modeenv (though maybe we could enable some sort of fixing from
+		// recover mode instead?)
 		logger.Noticef("error accessing boot flags: %v", err)
 	} else {
 		// write the boot flags
 		if err := boot.InitramfsSetBootFlags(flags); err != nil {
-			// TODO: should we die here if we can't write the boot flags?
-			//       boot flags are written to /run, so if we can't write there
-			//       arguably we would have other major problems so it's
-			//       something of a moot point
+			// cannot write to /run, error here since arguably we have major
+			// problems if we can't write to /run
 			return err
 		}
 	}
