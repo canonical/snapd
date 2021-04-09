@@ -256,7 +256,7 @@ func (s *bootFlagsSuite) TestInitramfsSetBootFlags(c *C) {
 	uc20Dev := boottest.MockUC20Device("run", nil)
 
 	for _, t := range tt {
-		err := boot.InitramfsSetBootFlags(t.flags)
+		err := boot.InitramfsExposeBootFlagsForSystem(t.flags)
 		c.Assert(err, IsNil)
 		c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "boot-flags"), testutil.FileEquals, t.expFlagFile)
 
