@@ -1099,6 +1099,10 @@ func mockKernel(c *C, kernelYaml string, filesWithContent map[string]string) str
 		c.Assert(err, IsNil)
 	}
 
+	// ensure we have valid kernel.yaml in our tests
+	err = kernel.Validate(kernelRootDir)
+	c.Assert(err, IsNil)
+
 	return kernelRootDir
 }
 
@@ -1150,14 +1154,15 @@ assets:
   dtbs:
     update: true
     content:
-      - dtbs
+      - dtbs/
 `
 
 	vol := mustParseVolume(c, gadgetYamlWithKernelRef, "pi")
 	c.Assert(vol.Structure, HasLen, 1)
 
-	kernelSnapFiles := map[string]string{}
-	kernelSnapDir := mockKernel(c, kernelYaml, kernelSnapFiles)
+	kernelSnapDir := mockKernel(c, kernelYaml, map[string]string{
+		"dtbs/foo.dtb": "foo.dtb content",
+	})
 	_, err := gadget.LayoutVolume(p.dir, kernelSnapDir, vol, defaultConstraints)
 	c.Assert(err, ErrorMatches, `cannot resolve content for structure #0 at index 0: cannot find wanted kernel content "boot-assets/" in "/.*"`)
 }
@@ -1176,6 +1181,7 @@ assets:
 
 	kernelSnapFiles := map[string]string{
 		"boot-assets/foo": "foo-content",
+		"some-file":       "some-file content",
 	}
 	kernelSnapDir := mockKernel(c, kernelYaml, kernelSnapFiles)
 	lv, err := gadget.LayoutVolume(p.dir, kernelSnapDir, vol, defaultConstraints)
@@ -1255,7 +1261,9 @@ assets:
 	vol := mustParseVolume(c, gadgetYamlWithKernelRef, "pi")
 	c.Assert(vol.Structure, HasLen, 1)
 
-	kernelSnapDir := mockKernel(c, kernelYaml, nil)
+	kernelSnapDir := mockKernel(c, kernelYaml, map[string]string{
+		"dtbs/foo.dtb": "foo.dtb content",
+	})
 	lv, err := gadget.LayoutVolume(p.dir, kernelSnapDir, vol, defaultConstraints)
 	c.Assert(err, IsNil)
 	// Volume.Content is unchanged
