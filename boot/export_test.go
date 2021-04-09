@@ -66,7 +66,7 @@ var (
 	RecoveryBootChainsForSystems    = recoveryBootChainsForSystems
 	SealKeyModelParams              = sealKeyModelParams
 
-	BootVarsForcommandLineFromGadget = bootVarsForcommandLineFromGadget
+	BootVarsForTrustedCommandLineFromGadget = bootVarsForTrustedCommandLineFromGadget
 )
 
 type BootAssetsMap = bootAssetsMap
