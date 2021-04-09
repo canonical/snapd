@@ -624,6 +624,7 @@ var (
 		"power-control":           {"core"},
 		"ppp":                     {"core"},
 		"pulseaudio":              {"app", "core"},
+		"pwm":                     {"core", "gadget"},
 		"raw-volume":              {"core", "gadget"},
 		"serial-port":             {"core", "gadget"},
 		"spi":                     {"core", "gadget"},
