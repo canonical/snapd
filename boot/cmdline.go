@@ -103,7 +103,7 @@ const (
 	candidateEdition
 )
 
-func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, system, gadgetSnap string) (string, error) {
+func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, system, gadgetDirOrSnapPath string) (string, error) {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return "", nil
 	}
@@ -147,28 +147,28 @@ func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, syst
 
 // ComposeRecoveryCommandLine composes the kernel command line used when booting
 // a given system in recover mode.
-func ComposeRecoveryCommandLine(model *asserts.Model, system, gadgetSnap string) (string, error) {
-	return composeCommandLine(model, currentEdition, ModeRecover, system, gadgetSnap)
+func ComposeRecoveryCommandLine(model *asserts.Model, system, gadgetDirOrSnapPath string) (string, error) {
+	return composeCommandLine(model, currentEdition, ModeRecover, system, gadgetDirOrSnapPath)
 }
 
 // ComposeCommandLine composes the kernel command line used when booting the
 // system in run mode.
-func ComposeCommandLine(model *asserts.Model, gadgetDirOrSnap string) (string, error) {
-	return composeCommandLine(model, currentEdition, ModeRun, "", gadgetDirOrSnap)
+func ComposeCommandLine(model *asserts.Model, gadgetDirOrSnapPath string) (string, error) {
+	return composeCommandLine(model, currentEdition, ModeRun, "", gadgetDirOrSnapPath)
 }
 
 // ComposeCandidateCommandLine composes the kernel command line used when
 // booting the system in run mode with the current built-in edition of managed
 // boot assets.
-func ComposeCandidateCommandLine(model *asserts.Model, gadgetDirOrSnap string) (string, error) {
-	return composeCommandLine(model, candidateEdition, ModeRun, "", gadgetDirOrSnap)
+func ComposeCandidateCommandLine(model *asserts.Model, gadgetDirOrSnapPath string) (string, error) {
+	return composeCommandLine(model, candidateEdition, ModeRun, "", gadgetDirOrSnapPath)
 }
 
 // ComposeCandidateRecoveryCommandLine composes the kernel command line used
 // when booting the given system in recover mode with the current built-in
 // edition of managed boot assets.
-func ComposeCandidateRecoveryCommandLine(model *asserts.Model, system, gadgetDirOrSnap string) (string, error) {
-	return composeCommandLine(model, candidateEdition, ModeRecover, system, gadgetDirOrSnap)
+func ComposeCandidateRecoveryCommandLine(model *asserts.Model, system, gadgetDirOrSnapPath string) (string, error) {
+	return composeCommandLine(model, candidateEdition, ModeRecover, system, gadgetDirOrSnapPath)
 }
 
 // observeSuccessfulCommandLine observes a successful boot with a command line
