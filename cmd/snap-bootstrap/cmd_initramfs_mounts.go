@@ -894,7 +894,12 @@ func (m *recoverModeStateMachine) unlockDataFallbackKey() (stateFunc, error) {
 func (m *recoverModeStateMachine) mountData() (stateFunc, error) {
 	data := m.degradedState.partition("ubuntu-data")
 	// don't do fsck on the data partition, it could be corrupted
-	mountErr := doSystemdMount(data.fsDevice, boot.InitramfsHostUbuntuDataDir, nil)
+	// however, data should always be mounted nosuid to prevent snaps from
+	// extracting suid executables there and trying to circumvent the sandbox
+	nosuidMountOpts := &systemdMountOptions{
+		NoSuid: true,
+	}
+	mountErr := doSystemdMount(data.fsDevice, boot.InitramfsHostUbuntuDataDir, nosuidMountOpts)
 	if err := m.setMountState("ubuntu-data", boot.InitramfsHostUbuntuDataDir, mountErr); err != nil {
 		return nil, err
 	}
@@ -1221,6 +1226,8 @@ func mountPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 		// first partition we will be mounting, we can't know if anything is
 		// corrupted yet
 		NeedsFsck: true,
+		// don't need nosuid option here, since this function is only used
+		// for ubuntu-boot and ubuntu-seed, never ubuntu-data
 	}
 	return doSystemdMount(partSrc, dir, opts)
 }
@@ -1288,9 +1295,12 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asser
 	//            mounted, we should also implement writable-paths here too as
 	//            writing it in Go instead of shellscript is desirable
 
-	// 2.3. mount "ubuntu-data" on a tmpfs
+	// 2.3. mount "ubuntu-data" on a tmpfs, and also mount with nosuid to prevent
+	// snaps from being able to bypass the sandbox by creating suid root files
+	// there and escape the sandbox
 	mntOpts := &systemdMountOptions{
-		Tmpfs: true,
+		Tmpfs:  true,
+		NoSuid: true,
 	}
 	err = doSystemdMount("tmpfs", boot.InitramfsDataDir, mntOpts)
 	if err != nil {
@@ -1424,7 +1434,11 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 
 	// TODO: do we actually need fsck if we are mounting a mapper device?
 	// probably not?
-	if err := doSystemdMount(unlockRes.FsDevice, boot.InitramfsDataDir, fsckSystemdOpts); err != nil {
+	dataMountOpts := &systemdMountOptions{
+		NeedsFsck: true,
+		NoSuid:    true,
+	}
+	if err := doSystemdMount(unlockRes.FsDevice, boot.InitramfsDataDir, dataMountOpts); err != nil {
 		return err
 	}
 	isEncryptedDev := unlockRes.IsEncrypted
