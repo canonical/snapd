@@ -1301,3 +1301,38 @@ assets:
 		},
 	})
 }
+
+func (p *layoutTestSuite) TestResolveContentSamePrefixErrors(c *C) {
+	var gadgetYamlWithKernelRef = `
+ volumes:
+  pi:
+    schema: mbr
+    bootloader: u-boot
+    structure:
+      - name: ubuntu-seed
+        role: system-seed
+        filesystem: vfat
+        type: 0C
+        size: 1200M
+        content:
+          - source: $kernel:dtbs/a
+            target: /
+          - source: $kernel:dtbs/ab
+            target: /
+`
+	kernelYaml := `
+assets:
+  dtbs:
+    update: true
+    content:
+      - a
+`
+	vol := mustParseVolume(c, gadgetYamlWithKernelRef, "pi")
+	c.Assert(vol.Structure, HasLen, 1)
+
+	kernelSnapDir := mockKernel(c, kernelYaml, map[string]string{
+		"a/foo.dtb": "foo.dtb content",
+	})
+	_, err := gadget.LayoutVolume(p.dir, kernelSnapDir, vol, defaultConstraints)
+	c.Assert(err, ErrorMatches, `.*: cannot find wanted kernel content "ab" in.*`)
+}

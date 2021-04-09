@@ -335,10 +335,19 @@ func resolveContentPathOrRef(gadgetRootDir, kernelRootDir string, kernelInfo *ke
 		if !ok {
 			return "", false, fmt.Errorf("cannot find %q in kernel info from %q", wantedAsset, kernelRootDir)
 		}
-		// look for content prefix
+		// look for exact content match or for a directory prefix match
 		found := false
 		for _, kcontent := range kernelAsset.Content {
-			if strings.HasPrefix(wantedContent, kcontent) {
+			if wantedContent == kcontent {
+				found = true
+				break
+			}
+			// ensure we only check subdirs
+			suffix := ""
+			if !strings.HasSuffix(kcontent, "/") {
+				suffix = "/"
+			}
+			if strings.HasPrefix(wantedContent, kcontent+suffix) {
 				found = true
 				break
 			}
