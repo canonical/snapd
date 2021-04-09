@@ -12,7 +12,6 @@ restore: |
     tests.session -u test restore
     umount -f /usr/bin/xdg-settings || true
     umount -f /usr/bin/zenity || true
-    rm -f stderr.log
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-xdg-settings

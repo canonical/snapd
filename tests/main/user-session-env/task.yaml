@@ -21,7 +21,6 @@ prepare: |
 restore: |
     tests.session restore -u test,test-zsh
     userdel -f -r "$TEST_ZSH_USER"
-    rm -f test-profile-env test-profile-zsh-env test-session-env test-zsh-session-env
 
 execute: |
     #shellcheck source=tests/lib/dirs.sh
