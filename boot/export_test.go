@@ -65,6 +65,8 @@ var (
 	ResealKeyToModeenv              = resealKeyToModeenv
 	RecoveryBootChainsForSystems    = recoveryBootChainsForSystems
 	SealKeyModelParams              = sealKeyModelParams
+
+	BootVarsForTrustedCommandLineFromGadget = bootVarsForTrustedCommandLineFromGadget
 )
 
 type BootAssetsMap = bootAssetsMap
