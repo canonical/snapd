@@ -134,15 +134,13 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 		return accessOK
 	}
 
-	// isUser means we have a UID for the request
-	isUser := false
 	ucred, err := ucrednetGet(r.RemoteAddr)
-	if err == nil {
-		isUser = true
-	} else if err != errNoID {
+	if err != nil && err != errNoID {
 		logger.Noticef("unexpected error when attempting to get UID: %s", err)
 		return accessForbidden
 	}
+	// isUser means we have a UID for the request
+	isUser := ucred != nil
 	isSnap := (ucred != nil && ucred.Socket == dirs.SnapSocket)
 
 	// ensure that snaps can only access SnapOK things
