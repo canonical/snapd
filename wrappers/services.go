@@ -376,10 +376,24 @@ func userDaemonReload() error {
 	return cli.ServicesDaemonReload(ctx)
 }
 
+// EnsureSnapServicesOptions is the set of options applying to the
+// EnsureSnapServices operation. It does not include per-snap specific options
+// such as VitalityRank or RequireMountedSnapdSnap from AddSnapServiceOptions,
+// since those are expected to be provided in the snaps argument.
+type EnsureSnapServicesOptions struct {
+	// Preseeding is whether the system is currently being preseeded, in which
+	// case there is not a running systemd for EnsureSnapServicesOptions to
+	// issue commands like systemctl daemon-reload to.
+	Preseeding bool
+}
+
 // EnsureSnapServices will ensure that the specified snap services' file states
 // are up to date with the specified options and infos. It will add new services
 // if those units don't already exist, but it does not delete existing service
 // units that are not present in the snap's Info structures.
+// The opts argument applies to the whole operation, and overrides any per-snap
+// options that are shared between AddSnapServicesOptions and
+// EnsureSnapServicesOptions (currently just Preseeding)
 // The return value is a map of the snap's Info the a list of App's that were
 // updated or modified. Apps in a snap that did not have their service
 // definitions change are not included in the map's list value.
@@ -387,17 +401,29 @@ func userDaemonReload() error {
 // changes performed up to that point are rolled back, meaning newly written
 // units are deleted and modified units are attempted to be restored to their
 // previous state. In this case the modified return value is nil.
-func EnsureSnapServices(snaps map[*snap.Info]*AddSnapServicesOptions, inter interacter) (modified map[*snap.Info][]*snap.AppInfo, err error) {
+func EnsureSnapServices(snaps map[*snap.Info]*AddSnapServicesOptions, opts *EnsureSnapServicesOptions, inter interacter) (modified map[*snap.Info][]*snap.AppInfo, err error) {
 	modified = make(map[*snap.Info][]*snap.AppInfo)
-
-	preseeding := false
 
 	// note, sysd is not used when preseeding
 	sysd := systemd.New(systemd.SystemMode, inter)
 
+	if opts == nil {
+		opts = &EnsureSnapServicesOptions{}
+	}
+
+	// we only consider the global EnsureSnapServicesOptions to decide if we
+	// are preseeding or not to reduce confusion about which set of options
+	// determines whether we are preseeding or not during the ensure operation
+	preseeding := opts.Preseeding
+
 	// modifiedUnits is the set of units that were modified and the previous
 	// state of the unit before modification that we can roll back to if there
-	// are any issues
+	// are any issues.
+	// note that the rollback is best effort, if we are rebooted in the middle,
+	// there is no guarantee about the state of files, some may have been
+	// updated and some may have been rolled back, higher level tasks/changes
+	// should have do/undo handlers to properly handle the case where this
+	// function is interrupted midway
 	modifiedUnitsPreviousState := make(map[string]*osutil.FileState)
 	var modifiedSystem, modifiedUser bool
 
@@ -491,18 +517,13 @@ func EnsureSnapServices(snaps map[*snap.Info]*AddSnapServicesOptions, inter inte
 		return nil
 	}
 
-	for s, opts := range snaps {
+	for s, snapSvcOpts := range snaps {
 		if s.Type() == snap.TypeSnapd {
 			return nil, fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
 		}
 
-		if opts == nil {
-			opts = &AddSnapServicesOptions{}
-		}
-
-		// TODO: do we still need this?
-		if opts.Preseeding {
-			preseeding = true
+		if snapSvcOpts == nil {
+			snapSvcOpts = &AddSnapServicesOptions{}
 		}
 
 		for _, app := range s.Apps {
@@ -514,7 +535,7 @@ func EnsureSnapServices(snaps map[*snap.Info]*AddSnapServicesOptions, inter inte
 
 			// Generate new service file state
 			path := app.ServiceFile()
-			content, err := generateSnapServiceFile(app, opts)
+			content, err := generateSnapServiceFile(app, snapSvcOpts)
 			if err != nil {
 				return nil, err
 			}
@@ -566,9 +587,23 @@ func EnsureSnapServices(snaps map[*snap.Info]*AddSnapServicesOptions, inter inte
 // AddSnapServicesOptions is a struct for controlling the generated service
 // definition for a snap service.
 type AddSnapServicesOptions struct {
-	Preseeding              bool
-	VitalityRank            int
+	// VitalityRank is the rank of all services in the specified snap used by
+	// the OOM killer when OOM conditions are reached.
+	VitalityRank int
+	// RequireMountedSnapdSnap is whether the generated units should depend on
+	// the snapd snap being mounted, this is specific to systems like UC18 and
+	// UC20 which have the snapd snap and need to have units generated
 	RequireMountedSnapdSnap bool
+
+	// Note the following options should all be shared with the
+	// EnsureSnapServicesOptions struct. We don't embed that struct here since
+	// it gets cumbersome to use from other packages to specify struct literals
+	// with other embedded structs.
+
+	// Preseeding is whether the system is currently being preseeded, in which
+	// case there is not a running systemd for EnsureSnapServicesOptions to
+	// issue commands like systemctl daemon-reload to.
+	Preseeding bool
 }
 
 // AddSnapServices adds service units for the applications from the snap which
@@ -578,7 +613,14 @@ func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter interacte
 		s: opts,
 	}
 
-	_, err := EnsureSnapServices(m, inter)
+	// copy the globally applicable opts from AddSnapServicesOptions to
+	// EnsureSnapServicesOptions, since those options override the per-snap opts
+	// we put in the map argument
+	ensureOpts := &EnsureSnapServicesOptions{
+		Preseeding: opts != nil && opts.Preseeding,
+	}
+
+	_, err := EnsureSnapServices(m, ensureOpts, inter)
 	return err
 }
 
