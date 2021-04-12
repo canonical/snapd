@@ -58,11 +58,6 @@ func (s *sealSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 }
 
-const gadgetSnapYaml = `name: gadget
-version: 1.0
-type: gadget
-`
-
 func mockKernelSeedSnap(c *C, rev snap.Revision) *seed.Snap {
 	return mockNamedKernelSeedSnap(c, rev, "pc-kernel")
 }
