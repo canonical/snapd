@@ -22,6 +22,10 @@ prepare: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+    if os.query is-arm; then
+        echo "Test not supported on arm architecture, skipping..."
+        exit
+    fi
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
@@ -79,6 +83,10 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+    if os.query is-arm; then
+        echo "Test not supported on arm architecture, skipping..."
+        exit
+    fi
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
     teardown_fake_store "$BLOB_DIR"
@@ -86,6 +94,15 @@ restore: |
     #      restore requires a reboot :/
     
 execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+    if os.query is-arm; then
+        echo "Test not supported on arm architecture, skipping..."
+        exit
+    fi
+
     if [ "$SPREAD_REBOOT" = 0 ]; then
         # first install the gadget that knows about the kernel
         # (but no edition bump so this will install fine)
