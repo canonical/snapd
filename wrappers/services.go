@@ -377,7 +377,16 @@ func userDaemonReload() error {
 }
 
 // EnsureSnapServices will ensure that the specified snap services' file states
-// are up to date with the specified options and infos.
+// are up to date with the specified options and infos. It will add new services
+// if those units don't already exist, but it does not delete existing service
+// units that are not present in the snap's Info structures.
+// The return value is a map of the snap's Info the a list of App's that were
+// updated or modified. Apps in a snap that did not have their service
+// definitions change are not included in the map's list value.
+// If any errors are encountered trying to update systemd units, then all
+// changes performed up to that point are rolled back, meaning newly written
+// units are deleted and modified units are attempted to be restored to their
+// previous state. In this case the modified return value is nil.
 func EnsureSnapServices(snaps map[*snap.Info]*AddSnapServicesOptions, inter interacter) (modified map[*snap.Info][]*snap.AppInfo, err error) {
 	modified = make(map[*snap.Info][]*snap.AppInfo)
 
@@ -385,14 +394,18 @@ func EnsureSnapServices(snaps map[*snap.Info]*AddSnapServicesOptions, inter inte
 
 	// note, sysd is not used when preseeding
 	sysd := systemd.New(systemd.SystemMode, inter)
-	modifiedUnits := make(map[string]*osutil.FileState)
+
+	// modifiedUnits is the set of units that were modified and the previous
+	// state of the unit before modification that we can roll back to if there
+	// are any issues
+	modifiedUnitsPreviousState := make(map[string]*osutil.FileState)
 	var modifiedSystem, modifiedUser bool
 
 	defer func() {
 		if err == nil {
 			return
 		}
-		for file, state := range modifiedUnits {
+		for file, state := range modifiedUnitsPreviousState {
 			if state == nil {
 				// we don't have anything to rollback to, so just remove the
 				// file
@@ -418,6 +431,66 @@ func EnsureSnapServices(snaps map[*snap.Info]*AddSnapServicesOptions, inter inte
 		}
 	}()
 
+	// helper lambda for updating a file and tracking the change so we can
+	// rollback properly
+	handleFileModification := func(s *snap.Info, app *snap.AppInfo, path string, desiredContent []byte) error {
+		newFileState := osutil.MemoryFileState{
+			Content: desiredContent,
+			Mode:    os.FileMode(0644),
+		}
+
+		// get the existing file state (if any) of the service to have
+		// something to rollback to if we have any errors
+
+		// note we can't use FileReference here since we may be modifying
+		// the file, and the FileReference.State() wouldn't be evaluated
+		// until _after_ we attempted modification
+		oldFileState := osutil.MemoryFileState{}
+		haveOldFile := false
+
+		if st, err := os.Stat(path); err == nil {
+			haveOldFile = true
+			b, err := ioutil.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			oldFileState.Content = b
+			oldFileState.Mode = st.Mode()
+			newFileState.Mode = st.Mode()
+		}
+
+		if mkdirErr := os.MkdirAll(filepath.Dir(path), 0755); mkdirErr != nil {
+			return mkdirErr
+		}
+		ensureErr := osutil.EnsureFileState(path, &newFileState)
+		if ensureErr != nil && ensureErr != osutil.ErrSameState {
+			// fatal error trying to write the file
+			return ensureErr
+		}
+		if ensureErr == nil {
+			// then we modified the file and should save this as
+			// something to roll back to
+			if haveOldFile {
+				st := osutil.FileState(&oldFileState)
+				modifiedUnitsPreviousState[path] = &st
+			} else {
+				modifiedUnitsPreviousState[path] = nil
+			}
+			modified[s] = append(modified[s], app)
+
+			// also mark that we need to reload either the system or
+			// user instance of systemd
+			switch app.DaemonScope {
+			case snap.SystemDaemon:
+				modifiedSystem = true
+			case snap.UserDaemon:
+				modifiedUser = true
+			}
+		}
+
+		return nil
+	}
+
 	for s, opts := range snaps {
 		if s.Type() == snap.TypeSnapd {
 			return nil, fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
@@ -437,102 +510,37 @@ func EnsureSnapServices(snaps map[*snap.Info]*AddSnapServicesOptions, inter inte
 				continue
 			}
 
-			handleFile := func(path string, desiredContent []byte) error {
-				// get the existing file state (if any) of the service to have
-				// something to rollback to if we have any errors
-
-				// note we can't use FileReference here since we may be modifying
-				// the file, and the FileReference.State() wouldn't be evaluated
-				// until _after_ we attempted modification
-				oldFileState := osutil.MemoryFileState{}
-				haveOldFile := false
-				st, stErr := os.Stat(path)
-				if stErr == nil {
-					haveOldFile = true
-					b, err := ioutil.ReadFile(path)
-					if err != nil {
-						return err
-					}
-					oldFileState.Content = b
-					oldFileState.Mode = st.Mode()
-				}
-
-				newFileState := osutil.MemoryFileState{
-					Content: desiredContent,
-					Mode:    os.FileMode(0644),
-				}
-				if haveOldFile {
-					// use whatever the old mode was if we have it
-					newFileState.Mode = st.Mode()
-				}
-
-				if mkdirErr := os.MkdirAll(filepath.Dir(path), 0755); mkdirErr != nil {
-					return mkdirErr
-				}
-				ensureErr := osutil.EnsureFileState(path, &newFileState)
-				if ensureErr != nil && ensureErr != osutil.ErrSameState {
-					// fatal error trying to write the file
-					return ensureErr
-				}
-				if ensureErr == nil {
-					// then we modified the file and should save this as something
-					// to roll back to
-					if haveOldFile {
-						st := osutil.FileState(&oldFileState)
-						modifiedUnits[path] = &st
-					} else {
-						modifiedUnits[path] = nil
-					}
-					modified[s] = append(modified[s], app)
-				}
-
-				switch app.DaemonScope {
-				case snap.SystemDaemon:
-					modifiedSystem = true
-				case snap.UserDaemon:
-					modifiedUser = true
-				}
-
-				return nil
-			}
-
 			// create services first; this doesn't trigger systemd
 
 			// Generate new service file state
 			path := app.ServiceFile()
-			var content []byte
-			content, err = generateSnapServiceFile(app, opts)
+			content, err := generateSnapServiceFile(app, opts)
 			if err != nil {
 				return nil, err
 			}
 
-			err = handleFile(path, content)
-			if err != nil {
+			if err := handleFileModification(s, app, path, content); err != nil {
 				return nil, err
 			}
 
 			// Generate systemd .socket files if needed
-			var socketFiles *map[string][]byte
-			socketFiles, err = generateSnapSocketFiles(app)
+			socketFiles, err := generateSnapSocketFiles(app)
 			if err != nil {
 				return nil, err
 			}
-			for path, content := range *socketFiles {
-				err = handleFile(path, content)
-				if err != nil {
+			for path, content := range socketFiles {
+				if err := handleFileModification(s, app, path, content); err != nil {
 					return nil, err
 				}
 			}
 
 			if app.Timer != nil {
-				content, err = generateSnapTimerFile(app)
+				content, err := generateSnapTimerFile(app)
 				if err != nil {
 					return nil, err
 				}
 				path := app.Timer.File()
-
-				err = handleFile(path, content)
-				if err != nil {
+				if err := handleFileModification(s, app, path, content); err != nil {
 					return nil, err
 				}
 			}
@@ -1046,7 +1054,7 @@ WantedBy={{.SocketsTarget}}
 	return templateOut.Bytes()
 }
 
-func generateSnapSocketFiles(app *snap.AppInfo) (*map[string][]byte, error) {
+func generateSnapSocketFiles(app *snap.AppInfo) (map[string][]byte, error) {
 	if err := snap.ValidateApp(app); err != nil {
 		return nil, err
 	}
@@ -1055,7 +1063,7 @@ func generateSnapSocketFiles(app *snap.AppInfo) (*map[string][]byte, error) {
 	for name, socket := range app.Sockets {
 		socketFiles[socket.File()] = genServiceSocketFile(app, name)
 	}
-	return &socketFiles, nil
+	return socketFiles, nil
 }
 
 func renderListenStream(socket *snap.SocketInfo) string {
