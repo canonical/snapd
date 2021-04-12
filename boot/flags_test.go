@@ -258,7 +258,7 @@ func (s *bootFlagsSuite) TestInitramfsSetBootFlags(c *C) {
 	for _, t := range tt {
 		err := boot.InitramfsExposeBootFlagsForSystem(t.flags)
 		c.Assert(err, IsNil)
-		c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "boot-flags"), testutil.FileEquals, t.expFlagFile)
+		c.Assert(filepath.Join(dirs.SnapRunDir, "boot-flags"), testutil.FileEquals, t.expFlagFile)
 
 		// also read the flags as if from user space to make sure they match
 		flags, err := boot.BootFlags(uc20Dev)

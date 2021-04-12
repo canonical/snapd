@@ -23,10 +23,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/snapcore/snapd/bootloader"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -196,11 +196,11 @@ func InitramfsActiveBootFlags(mode string) ([]string, error) {
 func InitramfsExposeBootFlagsForSystem(flags []string) error {
 	s := serializeBootFlags(flags)
 
-	if err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(snapBootFlagsFile), 0755); err != nil {
 		return err
 	}
 
-	return ioutil.WriteFile(snapBootstrapBootFlagsFile, []byte(s), 0644)
+	return ioutil.WriteFile(snapBootFlagsFile, []byte(s), 0644)
 }
 
 // BootFlags returns the current set of boot flags active for this boot. It uses
@@ -220,7 +220,7 @@ func BootFlags(dev Device) ([]string, error) {
 	// bootenv are for this boot or the next one, but the initramfs will always
 	// copy the flags that were set into /run, so we always know the current
 	// boot's flags are written in /run
-	b, err := ioutil.ReadFile(snapBootstrapBootFlagsFile)
+	b, err := ioutil.ReadFile(snapBootFlagsFile)
 	if err != nil {
 		return nil, err
 	}
