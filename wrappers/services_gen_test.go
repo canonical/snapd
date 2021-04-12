@@ -552,9 +552,8 @@ WantedBy=sockets.target
 
 	generatedSockets, err := wrappers.GenerateSnapSocketFiles(service)
 	c.Assert(err, IsNil)
-	c.Assert(generatedSockets, Not(IsNil))
-	c.Assert(*generatedSockets, HasLen, 2)
-	c.Assert(*generatedSockets, DeepEquals, map[string][]byte{
+	c.Assert(generatedSockets, HasLen, 2)
+	c.Assert(generatedSockets, DeepEquals, map[string][]byte{
 		sock1Path: []byte(sock1Expected),
 		sock2Path: []byte(sock2Expected),
 	})
