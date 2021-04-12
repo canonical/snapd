@@ -26,8 +26,10 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -98,12 +100,43 @@ func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (boo
 	return mbl, nil
 }
 
+// bootVarsForTrustedCommandLineFromGadget returns a set of boot variables that
+// carry the command line arguments requested by the gadget. This is only useful
+// if snapd is managing the boot config.
+func bootVarsForTrustedCommandLineFromGadget(gadgetSnap string) (map[string]string, error) {
+	sf, err := snapfile.Open(gadgetSnap)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open gadget snap: %v", err)
+	}
+	extraOrFull, full, err := gadget.KernelCommandLineFromGadget(sf)
+	if err != nil {
+		if err == gadget.ErrNoKernelCommandline {
+			// nothing set by the gadget, but we could have had
+			// arguments before, so make sure those are cleared now
+			clear := map[string]string{
+				"snapd_extra_cmdline_args": "",
+			}
+			return clear, nil
+		}
+		return nil, fmt.Errorf("cannot use kernel command line from gadget: %v", err)
+	}
+	// gadget has the kernel command line
+	// TODO:UC20: support full command lines
+	if full {
+		return nil, fmt.Errorf("full kernel command line provided by the gadget is not supported yet")
+	}
+	args := map[string]string{
+		"snapd_extra_cmdline_args": extraOrFull,
+	}
+	return args, nil
+}
+
 const (
 	currentEdition = iota
 	candidateEdition
 )
 
-func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, system string) (string, error) {
+func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, system, gadgetDirOrSnapPath string) (string, error) {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return "", nil
 	}
@@ -147,28 +180,28 @@ func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, syst
 
 // ComposeRecoveryCommandLine composes the kernel command line used when booting
 // a given system in recover mode.
-func ComposeRecoveryCommandLine(model *asserts.Model, system string) (string, error) {
-	return composeCommandLine(model, currentEdition, ModeRecover, system)
+func ComposeRecoveryCommandLine(model *asserts.Model, system, gadgetDirOrSnapPath string) (string, error) {
+	return composeCommandLine(model, currentEdition, ModeRecover, system, gadgetDirOrSnapPath)
 }
 
 // ComposeCommandLine composes the kernel command line used when booting the
 // system in run mode.
-func ComposeCommandLine(model *asserts.Model) (string, error) {
-	return composeCommandLine(model, currentEdition, ModeRun, "")
+func ComposeCommandLine(model *asserts.Model, gadgetDirOrSnapPath string) (string, error) {
+	return composeCommandLine(model, currentEdition, ModeRun, "", gadgetDirOrSnapPath)
 }
 
 // ComposeCandidateCommandLine composes the kernel command line used when
 // booting the system in run mode with the current built-in edition of managed
 // boot assets.
-func ComposeCandidateCommandLine(model *asserts.Model) (string, error) {
-	return composeCommandLine(model, candidateEdition, ModeRun, "")
+func ComposeCandidateCommandLine(model *asserts.Model, gadgetDirOrSnapPath string) (string, error) {
+	return composeCommandLine(model, candidateEdition, ModeRun, "", gadgetDirOrSnapPath)
 }
 
 // ComposeCandidateRecoveryCommandLine composes the kernel command line used
 // when booting the given system in recover mode with the current built-in
 // edition of managed boot assets.
-func ComposeCandidateRecoveryCommandLine(model *asserts.Model, system string) (string, error) {
-	return composeCommandLine(model, candidateEdition, ModeRecover, system)
+func ComposeCandidateRecoveryCommandLine(model *asserts.Model, system, gadgetDirOrSnapPath string) (string, error) {
+	return composeCommandLine(model, candidateEdition, ModeRecover, system, gadgetDirOrSnapPath)
 }
 
 // observeSuccessfulCommandLine observes a successful boot with a command line
@@ -225,7 +258,7 @@ func observeSuccessfulCommandLineUpdate(m *Modeenv) (*Modeenv, error) {
 // expected kernel command line matches the one the system booted with and
 // populates modeenv kernel command line list accordingly.
 func observeSuccessfulCommandLineCompatBoot(model *asserts.Model, m *Modeenv) (*Modeenv, error) {
-	cmdlineExpected, err := ComposeCommandLine(model)
+	cmdlineExpected, err := ComposeCommandLine(model, "")
 	if err != nil {
 		return nil, err
 	}
@@ -263,7 +296,7 @@ func observeCommandLineUpdate(model *asserts.Model) error {
 	// bootstate
 	cmdline := m.CurrentKernelCommandLines[0]
 	// this is the new expected command line
-	candidateCmdline, err := ComposeCandidateCommandLine(model)
+	candidateCmdline, err := ComposeCandidateCommandLine(model, "")
 	if err != nil {
 		return err
 	}
@@ -293,7 +326,7 @@ func kernelCommandLinesForResealWithFallback(model *asserts.Model, modeenv *Mode
 	}
 	// fallback for when reseal is called before mark boot successful set a
 	// default during snapd update
-	cmdline, err := ComposeCommandLine(model)
+	cmdline, err := ComposeCommandLine(model, "")
 	if err != nil {
 		return nil, err
 	}

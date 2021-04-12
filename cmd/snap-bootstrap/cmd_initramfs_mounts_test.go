@@ -603,7 +603,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsInstallModeBootFlagsSet(c *C) 
 		c.Assert(err, IsNil)
 
 		// check that we wrote the /run file with the boot flags in it
-		c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "boot-flags"), testutil.FileEquals, t.expBootFlagsFile)
+		c.Assert(filepath.Join(dirs.SnapRunDir, "boot-flags"), testutil.FileEquals, t.expBootFlagsFile)
 	}
 }
 
@@ -677,7 +677,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBootFlagsSet(c *C) {
 		c.Assert(err, IsNil)
 
 		// check that we wrote the /run file with the boot flags in it
-		c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "boot-flags"), testutil.FileEquals, t.expBootFlagsFile)
+		c.Assert(filepath.Join(dirs.SnapRunDir, "boot-flags"), testutil.FileEquals, t.expBootFlagsFile)
 	}
 }
 
@@ -2797,7 +2797,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappy(c *C) {
 	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"), testutil.FileAbsent)
 
 	// we also should have written an empty boot-flags file
-	c.Assert(filepath.Join(dirs.SnapBootstrapRunDir, "boot-flags"), testutil.FileEquals, "")
+	c.Assert(filepath.Join(dirs.SnapRunDir, "boot-flags"), testutil.FileEquals, "")
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeTimeMovesForwardHappy(c *C) {
