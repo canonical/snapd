@@ -329,21 +329,19 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20(c *C) {
 	unpackedGadgetDir := c.MkDir()
 	grubRecoveryCfg := []byte("#grub-recovery cfg")
 	grubRecoveryCfgAsset := []byte("#grub-recovery cfg from assets")
-	err = ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "grub-recovery.conf"), grubRecoveryCfg, 0644)
-	c.Assert(err, IsNil)
+	grubCfg := []byte("#grub cfg")
+	grubCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub cfg from assets")
+	snaptest.PopulateDir(unpackedGadgetDir, [][]string{
+		{"grub-recovery.conf", string(grubRecoveryCfg)},
+		{"grub.conf", string(grubCfg)},
+		{"bootx64.efi", "shim content"},
+		{"grubx64.efi", "grub content"},
+		{"meta/snap.yaml", gadgetSnapYaml},
+	})
 	restore := assets.MockInternal("grub-recovery.cfg", grubRecoveryCfgAsset)
 	defer restore()
-	grubCfg := []byte("#grub cfg")
-	err = ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "grub.conf"), grubCfg, 0644)
-	c.Assert(err, IsNil)
-	grubCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub cfg from assets")
 	restore = assets.MockInternal("grub.cfg", grubCfgAsset)
 	defer restore()
-
-	err = ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "bootx64.efi"), []byte("shim content"), 0644)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "grubx64.efi"), []byte("grub content"), 0644)
-	c.Assert(err, IsNil)
 
 	// make the snaps symlinks so that we can ensure that makebootable follows
 	// the symlinks and copies the files and not the symlinks
@@ -409,14 +407,7 @@ version: 5.0
 	readSystemEssentialCalls := 0
 	restore = boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 		readSystemEssentialCalls++
-		kernelSnap := &seed.Snap{
-			Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
-			SideInfo: &snap.SideInfo{
-				Revision: snap.Revision{N: 1},
-				RealName: "pc-kernel",
-			},
-		}
-		return model, []*seed.Snap{kernelSnap}, nil
+		return model, []*seed.Snap{mockKernelSeedSnap(c, snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 
@@ -677,21 +668,19 @@ func (s *makeBootable20Suite) TestMakeRunnableSystem20RunModeSealKeyErr(c *C) {
 	unpackedGadgetDir := c.MkDir()
 	grubRecoveryCfg := []byte("#grub-recovery cfg")
 	grubRecoveryCfgAsset := []byte("#grub-recovery cfg from assets")
-	err = ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "grub-recovery.conf"), grubRecoveryCfg, 0644)
-	c.Assert(err, IsNil)
+	grubCfg := []byte("#grub cfg")
+	grubCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub cfg from assets")
+	snaptest.PopulateDir(unpackedGadgetDir, [][]string{
+		{"grub-recovery.conf", string(grubRecoveryCfg)},
+		{"grub.conf", string(grubCfg)},
+		{"bootx64.efi", "shim content"},
+		{"grubx64.efi", "grub content"},
+		{"meta/snap.yaml", gadgetSnapYaml},
+	})
 	restore := assets.MockInternal("grub-recovery.cfg", grubRecoveryCfgAsset)
 	defer restore()
-	grubCfg := []byte("#grub cfg")
-	err = ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "grub.conf"), grubCfg, 0644)
-	c.Assert(err, IsNil)
-	grubCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub cfg from assets")
 	restore = assets.MockInternal("grub.cfg", grubCfgAsset)
 	defer restore()
-
-	err = ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "bootx64.efi"), []byte("shim content"), 0644)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(unpackedGadgetDir, "grubx64.efi"), []byte("grub content"), 0644)
-	c.Assert(err, IsNil)
 
 	// make the snaps symlinks so that we can ensure that makebootable follows
 	// the symlinks and copies the files and not the symlinks
@@ -757,14 +746,7 @@ version: 5.0
 	readSystemEssentialCalls := 0
 	restore = boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 		readSystemEssentialCalls++
-		kernelSnap := &seed.Snap{
-			Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
-			SideInfo: &snap.SideInfo{
-				Revision: snap.Revision{N: 0},
-				RealName: "pc-kernel",
-			},
-		}
-		return model, []*seed.Snap{kernelSnap}, nil
+		return model, []*seed.Snap{mockKernelSeedSnap(c, snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 

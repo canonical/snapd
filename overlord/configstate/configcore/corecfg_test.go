@@ -122,6 +122,7 @@ type configcoreSuite struct {
 
 	state *state.State
 
+	systemctlOutput   func(args ...string) []byte
 	systemctlArgs     [][]string
 	systemdSysctlArgs [][]string
 }
@@ -134,10 +135,13 @@ func (s *configcoreSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	s.AddCleanup(func() { dirs.SetRootDir("") })
 
+	s.systemctlOutput = func(args ...string) []byte {
+		return []byte("ActiveState=inactive")
+	}
+
 	s.AddCleanup(systemd.MockSystemctl(func(args ...string) ([]byte, error) {
 		s.systemctlArgs = append(s.systemctlArgs, args[:])
-		output := []byte("ActiveState=inactive")
-		return output, nil
+		return s.systemctlOutput(args...), nil
 	}))
 	s.systemctlArgs = nil
 	s.AddCleanup(systemd.MockSystemdSysctl(func(args ...string) error {
