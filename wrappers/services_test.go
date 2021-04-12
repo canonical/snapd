@@ -115,11 +115,8 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 		{"start", filepath.Base(svcFile)},
 	})
 
-	content, err := ioutil.ReadFile(svcFile)
-	c.Assert(err, IsNil)
-
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
-	c.Assert(string(content), Equals, fmt.Sprintf(`[Unit]
+	c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=%[1]s
@@ -157,10 +154,11 @@ WantedBy=multi-user.target
 	s.sysdLog = nil
 	err = wrappers.RemoveSnapServices(info, progress.Null)
 	c.Assert(err, IsNil)
-	c.Check(osutil.FileExists(svcFile), Equals, false)
-	c.Assert(s.sysdLog, HasLen, 2)
-	c.Check(s.sysdLog[0], DeepEquals, []string{"disable", filepath.Base(svcFile)})
-	c.Check(s.sysdLog[1], DeepEquals, []string{"daemon-reload"})
+	c.Check(svcFile, testutil.FileAbsent)
+	c.Assert(s.sysdLog, DeepEquals, [][]string{
+		{"disable", filepath.Base(svcFile)},
+		{"daemon-reload"},
+	})
 }
 
 func (s *servicesTestSuite) TestEnsureSnapServicesAdds(c *C) {
@@ -185,11 +183,8 @@ func (s *servicesTestSuite) TestEnsureSnapServicesAdds(c *C) {
 		c.Assert(modifiedApps, DeepEquals, []*snap.AppInfo{info.Apps["svc1"]})
 	}
 
-	content, err := ioutil.ReadFile(svcFile)
-	c.Assert(err, IsNil)
-
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
-	c.Assert(string(content), Equals, fmt.Sprintf(`[Unit]
+	c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=%[1]s
@@ -214,6 +209,144 @@ WantedBy=multi-user.target
 		systemd.EscapeUnitNamePath(dir),
 		dirs.GlobalRootDir,
 	))
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesAddsNewSvc(c *C) {
+	// test that with an existing service unit defintion, it is not changed
+	// but we do add the new one
+	info := snaptest.MockSnap(c, packageHello+` svc2:
+  command: bin/hello
+  stop-command: bin/goodbye
+  post-stop-command: bin/missya
+  daemon: forking
+`, &snap.SideInfo{Revision: snap.R(12)})
+	svc1File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svc2File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service")
+
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	template := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.%[1]s
+Requires=%[2]s
+Wants=network.target
+After=%[2]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.%[1]s
+SyslogIdentifier=hello-snap.%[1]s
+Restart=on-failure
+WorkingDirectory=%[3]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.%[1]s
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.%[1]s
+TimeoutStopSec=30
+Type=forking
+%[4]s
+[Install]
+WantedBy=multi-user.target
+`
+	svc1Content := fmt.Sprintf(template,
+		"svc1",
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"",
+	)
+
+	err := os.MkdirAll(filepath.Dir(svc1File), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(svc1File, []byte(svc1Content), 0644)
+	c.Assert(err, IsNil)
+
+	m := map[*snap.Info]*wrappers.AddSnapServicesOptions{
+		info: nil,
+	}
+
+	modified, err := wrappers.EnsureSnapServices(m, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+	c.Assert(modified, HasLen, 1)
+	// we only modified svc2
+	for modifiedSn, modifiedApps := range modified {
+		// don't try a DeepEquals on this, it could be a recursive data
+		// structure which go-check doesn't handle very well
+		c.Assert(modifiedSn.SnapName(), Equals, info.SnapName())
+		c.Assert(modifiedApps, HasLen, 1)
+		c.Assert(modifiedApps, DeepEquals, []*snap.AppInfo{info.Apps["svc2"]})
+	}
+
+	// svc2 was written as expected
+	c.Assert(svc2File, testutil.FileEquals, fmt.Sprintf(template,
+		"svc2",
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"",
+	))
+
+	// and svc1 didn't change
+	c.Assert(svc1File, testutil.FileEquals, fmt.Sprintf(template,
+		"svc1",
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"",
+	))
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesNoChangeNoop(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+
+	// pretend we already have a unit file setup
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	template := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
+TimeoutStopSec=30
+Type=forking
+%s
+[Install]
+WantedBy=multi-user.target
+`
+	origContent := fmt.Sprintf(template,
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"",
+	)
+
+	err := os.MkdirAll(filepath.Dir(svcFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(svcFile, []byte(origContent), 0644)
+	c.Assert(err, IsNil)
+
+	// now ensuring with no options will not modify anything or trigger a
+	// daemon-reload
+	m := map[*snap.Info]*wrappers.AddSnapServicesOptions{
+		info: nil,
+	}
+
+	modified, err := wrappers.EnsureSnapServices(m, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, HasLen, 0)
+	c.Assert(modified, HasLen, 0)
+
+	// the file is not changed
+	c.Assert(svcFile, testutil.FileEquals, origContent)
 }
 
 func (s *servicesTestSuite) TestEnsureSnapServicesChanges(c *C) {
@@ -268,11 +401,8 @@ WantedBy=multi-user.target
 	})
 	c.Assert(modified, HasLen, 1)
 
-	content, err := ioutil.ReadFile(svcFile)
-	c.Assert(err, IsNil)
-
 	// now the file has been modified to have OOMScoreAdjust set for it
-	c.Assert(string(content), Equals, fmt.Sprintf(template,
+	c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(template,
 		systemd.EscapeUnitNamePath(dir),
 		dirs.GlobalRootDir,
 		"OOMScoreAdjust=-899\n",
@@ -314,6 +444,11 @@ WantedBy=multi-user.target
 		"",
 	)
 
+	err := os.MkdirAll(filepath.Dir(svcFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(svcFile, []byte(origContent), 0644)
+	c.Assert(err, IsNil)
+
 	// make systemctl fail the first time when we try to do a daemon-reload,
 	// then the next time don't return an error
 	systemctlCalls := 0
@@ -321,27 +456,19 @@ WantedBy=multi-user.target
 		systemctlCalls++
 		switch systemctlCalls {
 		case 1:
-			// double check that we wrote the new file here before calling
-			// daemon reload
-
-			content, err := ioutil.ReadFile(svcFile)
-			c.Assert(err, IsNil)
-
-			// now the file has been modified to have OOMScoreAdjust set for it
-			c.Assert(string(content), Equals, fmt.Sprintf(template,
+			// check that the file has been modified to have OOMScoreAdjust set
+			// for it
+			c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(template,
 				systemd.EscapeUnitNamePath(dir),
 				dirs.GlobalRootDir,
 				"OOMScoreAdjust=-899\n",
 			))
 
-			// now return error to trigger a rollback
+			// now return an error to trigger a rollback
 			return nil, fmt.Errorf("oops")
 		case 2:
-			// after the rollback, check that the rollback happened to the
-			// original content
-			content, err := ioutil.ReadFile(svcFile)
-			c.Assert(err, IsNil)
-			c.Assert(string(content), Equals, origContent)
+			// check that the rollback happened to restore the original content
+			c.Assert(svcFile, testutil.FileEquals, origContent)
 
 			return nil, nil
 		default:
@@ -350,11 +477,6 @@ WantedBy=multi-user.target
 		}
 	})
 	defer r()
-
-	err := os.MkdirAll(filepath.Dir(svcFile), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(svcFile, []byte(origContent), 0644)
-	c.Assert(err, IsNil)
 
 	// now ensuring with the VitalityRank set will modify the file
 	m := map[*snap.Info]*wrappers.AddSnapServicesOptions{
@@ -368,9 +490,7 @@ WantedBy=multi-user.target
 	// double-check that after the function is done, the file is back to what we
 	// had before (this check duplicates the one in MockSystemctl but doesn't
 	// hurt anything to do again)
-	content, err := ioutil.ReadFile(svcFile)
-	c.Assert(err, IsNil)
-	c.Assert(string(content), Equals, origContent)
+	c.Assert(svcFile, testutil.FileEquals, origContent)
 }
 
 func (s *servicesTestSuite) TestEnsureSnapServicesRemovesNewAddOnRollback(c *C) {
@@ -411,18 +531,13 @@ WantedBy=multi-user.target
 		case 1:
 			// double check that we wrote the new file here before calling
 			// daemon reload
-
-			content, err := ioutil.ReadFile(svcFile)
-			c.Assert(err, IsNil)
-
-			// now the file has been modified to have OOMScoreAdjust set for it
-			c.Assert(string(content), Equals, fmt.Sprintf(template,
+			c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(template,
 				systemd.EscapeUnitNamePath(dir),
 				dirs.GlobalRootDir,
 				"",
 			))
 
-			// now return error to trigger a rollback
+			// now return an error to trigger a rollback
 			return nil, fmt.Errorf("oops")
 		case 2:
 			// after the rollback, check that the new file was deleted
@@ -446,6 +561,104 @@ WantedBy=multi-user.target
 
 	// double-check that after the function is done, the file is gone again
 	c.Assert(svcFile, testutil.FileAbsent)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesOnlyRemovesNewAddOnRollback(c *C) {
+	info := snaptest.MockSnap(c, packageHello+` svc2:
+  command: bin/hello
+  stop-command: bin/goodbye
+  post-stop-command: bin/missya
+  daemon: forking
+`, &snap.SideInfo{Revision: snap.R(12)})
+
+	// we won't delete existing files, but we will delete new files, so mock an
+	// existing file to check that it doesn't get deleted
+	svc1File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svc2File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service")
+
+	// pretend we already have a unit file with no VitalityRank options set
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	template := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.%[1]s
+Requires=%[2]s
+Wants=network.target
+After=%[2]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.%[1]s
+SyslogIdentifier=hello-snap.%[1]s
+Restart=on-failure
+WorkingDirectory=%[3]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.%[1]s
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.%[1]s
+TimeoutStopSec=30
+Type=forking
+%[4]s
+[Install]
+WantedBy=multi-user.target
+`
+
+	svc1Content := fmt.Sprintf(template,
+		"svc1",
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"",
+	)
+	svc2Content := fmt.Sprintf(template,
+		"svc2",
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"",
+	)
+
+	err := os.MkdirAll(filepath.Dir(svc1File), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(svc1File, []byte(svc1Content), 0644)
+	c.Assert(err, IsNil)
+
+	// make systemctl fail the first time when we try to do a daemon-reload,
+	// then the next time don't return an error
+	systemctlCalls := 0
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		systemctlCalls++
+		switch systemctlCalls {
+		case 1:
+			// double check that we wrote the new file here before calling
+			// daemon reload
+			c.Assert(svc2File, testutil.FileEquals, svc2Content)
+
+			// and the existing file is still the same
+			c.Assert(svc1File, testutil.FileEquals, svc1Content)
+
+			// now return error to trigger a rollback
+			return nil, fmt.Errorf("oops")
+		case 2:
+			// after the rollback, check that the new file was deleted
+			c.Assert(svc2File, testutil.FileAbsent)
+
+			return nil, nil
+		default:
+			c.Errorf("unexpected call (number %d) to systemctl: %+v", systemctlCalls, cmd)
+			return nil, fmt.Errorf("broken test")
+		}
+	})
+	defer r()
+
+	m := map[*snap.Info]*wrappers.AddSnapServicesOptions{
+		info: nil,
+	}
+
+	_, err = wrappers.EnsureSnapServices(m, progress.Null)
+	c.Assert(err, ErrorMatches, "oops")
+	c.Assert(systemctlCalls, Equals, 2)
+
+	// double-check that after the function, svc2 (the new one) is missing, but
+	// svc1 is still the same
+	c.Assert(svc2File, testutil.FileAbsent)
+	c.Assert(svc1File, testutil.FileEquals, svc1Content)
 }
 
 func (s *servicesTestSuite) TestAddSnapServicesWithInterfaceSnippets(c *C) {
@@ -544,11 +757,8 @@ plugs:
 			{"daemon-reload"},
 		}, comment)
 
-		content, err := ioutil.ReadFile(svcFile)
-		c.Assert(err, IsNil, comment)
-
 		dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
-		c.Assert(string(content), Equals, fmt.Sprintf(`[Unit]
+		c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=%[1]s
@@ -610,11 +820,8 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemoveUserDaemons(c *C) {
 		{"--user", "daemon-reload"},
 	})
 
-	content, err := ioutil.ReadFile(svcFile)
-	c.Assert(err, IsNil)
-
 	expected := "ExecStart=/usr/bin/snap run hello-snap.svc1"
-	c.Check(string(content), Matches, "(?ms).*^"+regexp.QuoteMeta(expected)) // check.v1 adds ^ and $ around the regexp provided
+	c.Check(svcFile, testutil.FileMatches, "(?ms).*^"+regexp.QuoteMeta(expected)) // check.v1 adds ^ and $ around the regexp provided
 
 	s.sysdLog = nil
 	err = wrappers.StopServices(info.Services(), nil, "", progress.Null, s.perfTimings)
@@ -1703,11 +1910,8 @@ func (s *servicesTestSuite) TestServiceAfterBefore(c *C) {
 	c.Assert(err, IsNil)
 
 	for _, check := range checks {
-		content, err := ioutil.ReadFile(check.file)
-		c.Assert(err, IsNil)
-
 		for _, m := range check.matches {
-			c.Check(string(content), Matches,
+			c.Check(check.file, testutil.FileMatches,
 				// match:
 				//   ...
 				//   After=other.mount some.target foo.service bar.service
@@ -1723,7 +1927,6 @@ func (s *servicesTestSuite) TestServiceAfterBefore(c *C) {
 				"(?ms).*^(?U)"+check.kind+"=.*\\s?"+regexp.QuoteMeta(m)+"\\s?[^=]*$")
 		}
 	}
-
 }
 
 func (s *servicesTestSuite) TestServiceWatchdog(c *C) {
