@@ -3,6 +3,7 @@ summary: Verify custom kernel command line handling in UC20
 systems: [ubuntu-20.04-64]
 
 environment:
+    NESTED_IMAGE_ID: core20-kernel-commandline
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
 
 details: |
