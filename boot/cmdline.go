@@ -136,7 +136,7 @@ const (
 	candidateEdition
 )
 
-func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, system string) (string, error) {
+func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, system, gadgetDirOrSnapPath string) (string, error) {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return "", nil
 	}
@@ -180,28 +180,28 @@ func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, syst
 
 // ComposeRecoveryCommandLine composes the kernel command line used when booting
 // a given system in recover mode.
-func ComposeRecoveryCommandLine(model *asserts.Model, system string) (string, error) {
-	return composeCommandLine(model, currentEdition, ModeRecover, system)
+func ComposeRecoveryCommandLine(model *asserts.Model, system, gadgetDirOrSnapPath string) (string, error) {
+	return composeCommandLine(model, currentEdition, ModeRecover, system, gadgetDirOrSnapPath)
 }
 
 // ComposeCommandLine composes the kernel command line used when booting the
 // system in run mode.
-func ComposeCommandLine(model *asserts.Model) (string, error) {
-	return composeCommandLine(model, currentEdition, ModeRun, "")
+func ComposeCommandLine(model *asserts.Model, gadgetDirOrSnapPath string) (string, error) {
+	return composeCommandLine(model, currentEdition, ModeRun, "", gadgetDirOrSnapPath)
 }
 
 // ComposeCandidateCommandLine composes the kernel command line used when
 // booting the system in run mode with the current built-in edition of managed
 // boot assets.
-func ComposeCandidateCommandLine(model *asserts.Model) (string, error) {
-	return composeCommandLine(model, candidateEdition, ModeRun, "")
+func ComposeCandidateCommandLine(model *asserts.Model, gadgetDirOrSnapPath string) (string, error) {
+	return composeCommandLine(model, candidateEdition, ModeRun, "", gadgetDirOrSnapPath)
 }
 
 // ComposeCandidateRecoveryCommandLine composes the kernel command line used
 // when booting the given system in recover mode with the current built-in
 // edition of managed boot assets.
-func ComposeCandidateRecoveryCommandLine(model *asserts.Model, system string) (string, error) {
-	return composeCommandLine(model, candidateEdition, ModeRecover, system)
+func ComposeCandidateRecoveryCommandLine(model *asserts.Model, system, gadgetDirOrSnapPath string) (string, error) {
+	return composeCommandLine(model, candidateEdition, ModeRecover, system, gadgetDirOrSnapPath)
 }
 
 // observeSuccessfulCommandLine observes a successful boot with a command line
@@ -258,7 +258,7 @@ func observeSuccessfulCommandLineUpdate(m *Modeenv) (*Modeenv, error) {
 // expected kernel command line matches the one the system booted with and
 // populates modeenv kernel command line list accordingly.
 func observeSuccessfulCommandLineCompatBoot(model *asserts.Model, m *Modeenv) (*Modeenv, error) {
-	cmdlineExpected, err := ComposeCommandLine(model)
+	cmdlineExpected, err := ComposeCommandLine(model, "")
 	if err != nil {
 		return nil, err
 	}
@@ -296,7 +296,7 @@ func observeCommandLineUpdate(model *asserts.Model) error {
 	// bootstate
 	cmdline := m.CurrentKernelCommandLines[0]
 	// this is the new expected command line
-	candidateCmdline, err := ComposeCandidateCommandLine(model)
+	candidateCmdline, err := ComposeCandidateCommandLine(model, "")
 	if err != nil {
 		return err
 	}
@@ -326,7 +326,7 @@ func kernelCommandLinesForResealWithFallback(model *asserts.Model, modeenv *Mode
 	}
 	// fallback for when reseal is called before mark boot successful set a
 	// default during snapd update
-	cmdline, err := ComposeCommandLine(model)
+	cmdline, err := ComposeCommandLine(model, "")
 	if err != nil {
 		return nil, err
 	}
