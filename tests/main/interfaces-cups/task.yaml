@@ -18,11 +18,6 @@ prepare: |
     mkdir -m 0755 /run/cups
 
 restore: |
-    snap remove --purge test-snapd-provider
-    rm -f ./test-snapd-provider_1_all.snap
-    snap remove --purge test-snapd-consumer
-    rm -f ./test-snapd-consumer_1_all.snap
-
     rm -rf /run/cups
     if [ -e /run/cups.orig ]; then
         mv /run/cups.orig /run/cups

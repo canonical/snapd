@@ -10,9 +10,6 @@ prepare: |
     rm -rf /root/snap
     rm -rf /home/test/snap
 
-restore: |
-    rm -rf ./*-labels
-
 execute: |
     # verify that we're actually running on a SELinux system
     selinuxenabled

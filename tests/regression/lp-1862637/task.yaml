@@ -1,11 +1,12 @@
 summary: /var/lib/dhcp is shared with host
+
 prepare: |
     snap pack test-snapd-app
     snap install --dangerous ./test-snapd-app_1_all.snap
+
 restore: |
     rm -f /var/lib/dhcp/.canary
-    snap remove test-snapd-app
-    rm -f test-snapd-app_1_all.snap
+
 execute: |
     # The snap always sees /var/lib/dhcp. 
     test-snapd-app.sh -c 'test -d /var/lib/dhcp'

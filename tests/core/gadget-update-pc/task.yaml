@@ -89,7 +89,6 @@ prepare: |
     snap install pc_x1.snap
 
 restore: |
-    rm -f gadget.yaml.orig
     # external backends do not enable test keys
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
@@ -107,7 +106,6 @@ restore: |
 
     # Restore the state of the gadget snap.
     snap revert pc --revision="$(cat original-revision.txt)"
-    rm -f original-revision.txt
     for rev in $(seq "$START_REVISION" "$((START_REVISION + 2))") ; do
         snap remove --revision="$rev" pc
     done

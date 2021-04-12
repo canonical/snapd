@@ -29,7 +29,6 @@ prepare: |
 
 restore: |
     setenforce "$(cat enforcing.mode)"
-    rm -f stamp enforcing.mode
 
     tests.session -u test restore
     # Stop dbus activated by test-snapd-desktop snap.

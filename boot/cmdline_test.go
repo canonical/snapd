@@ -215,6 +215,11 @@ func (s *kernelCommandLineSuite) TestComposeCandidateRecoveryCommandLineManagedH
 	c.Check(cmdline, Equals, "")
 }
 
+const gadgetSnapYaml = `name: gadget
+version: 1.0
+type: gadget
+`
+
 func (s *kernelCommandLineSuite) TestComposeCommandLineWithGadget(c *C) {
 	model := boottest.MakeMockUC20Model()
 
@@ -334,6 +339,50 @@ func (s *kernelCommandLineSuite) TestComposeRecoveryCommandLineWithGadget(c *C) 
 		if tc.errMsg == "" {
 			c.Assert(err, IsNil)
 			c.Assert(cmdline, Equals, tc.expCommandLine)
+		} else {
+			c.Assert(err, ErrorMatches, tc.errMsg)
+		}
+	}
+}
+
+func (s *kernelCommandLineSuite) TestBootVarsForGadgetCommandLine(c *C) {
+	for _, tc := range []struct {
+		errMsg       string
+		files        [][]string
+		expectedVars map[string]string
+	}{{
+		files: [][]string{
+			{"cmdline.extra", "foo bar baz"},
+		},
+		expectedVars: map[string]string{"snapd_extra_cmdline_args": "foo bar baz"},
+	}, {
+		files: [][]string{
+			{"cmdline.extra", "snapd.debug=1"},
+		},
+		expectedVars: map[string]string{"snapd_extra_cmdline_args": "snapd.debug=1"},
+	}, {
+		files: [][]string{
+			{"cmdline.extra", "snapd_foo"},
+		},
+		errMsg: `cannot use kernel command line from gadget: disallowed kernel argument \"snapd_foo\" in cmdline.extra`,
+	}, {
+		// TODO: enable full command line override
+		files: [][]string{
+			{"cmdline.full", "unhappy"},
+		},
+		errMsg: `full kernel command line provided by the gadget is not supported yet`,
+	}, {
+		// with no arguments boot variables should be cleared
+		files:        [][]string{},
+		expectedVars: map[string]string{"snapd_extra_cmdline_args": ""},
+	}} {
+		sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, append([][]string{
+			{"meta/snap.yaml", gadgetSnapYaml},
+		}, tc.files...))
+		vars, err := boot.BootVarsForTrustedCommandLineFromGadget(sf)
+		if tc.errMsg == "" {
+			c.Assert(err, IsNil)
+			c.Assert(vars, DeepEquals, tc.expectedVars)
 		} else {
 			c.Assert(err, ErrorMatches, tc.errMsg)
 		}

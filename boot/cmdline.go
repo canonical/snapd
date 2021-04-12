@@ -100,6 +100,37 @@ func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (boo
 	return mbl, nil
 }
 
+// bootVarsForTrustedCommandLineFromGadget returns a set of boot variables that
+// carry the command line arguments requested by the gadget. This is only useful
+// if snapd is managing the boot config.
+func bootVarsForTrustedCommandLineFromGadget(gadgetSnap string) (map[string]string, error) {
+	sf, err := snapfile.Open(gadgetSnap)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open gadget snap: %v", err)
+	}
+	extraOrFull, full, err := gadget.KernelCommandLineFromGadget(sf)
+	if err != nil {
+		if err == gadget.ErrNoKernelCommandline {
+			// nothing set by the gadget, but we could have had
+			// arguments before, so make sure those are cleared now
+			clear := map[string]string{
+				"snapd_extra_cmdline_args": "",
+			}
+			return clear, nil
+		}
+		return nil, fmt.Errorf("cannot use kernel command line from gadget: %v", err)
+	}
+	// gadget has the kernel command line
+	// TODO:UC20: support full command lines
+	if full {
+		return nil, fmt.Errorf("full kernel command line provided by the gadget is not supported yet")
+	}
+	args := map[string]string{
+		"snapd_extra_cmdline_args": extraOrFull,
+	}
+	return args, nil
+}
+
 const (
 	currentEdition = iota
 	candidateEdition
