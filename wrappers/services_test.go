@@ -212,7 +212,7 @@ WantedBy=multi-user.target
 }
 
 func (s *servicesTestSuite) TestEnsureSnapServicesAddsNewSvc(c *C) {
-	// test that with an existing service unit defintion, it is not changed
+	// test that with an existing service unit definition, it is not changed
 	// but we do add the new one
 	info := snaptest.MockSnap(c, packageHello+` svc2:
   command: bin/hello
