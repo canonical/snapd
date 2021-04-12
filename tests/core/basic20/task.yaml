@@ -78,3 +78,6 @@ execute: |
         BRAND_ID="$BRAND_ID\*"
     fi
     snap recovery --unicode=never | MATCH "[0-9]+ +$BRAND_ID +$MODEL +current"
+
+    # check that we have a boot-flags file
+    test -f /run/snapd/boot-flags
