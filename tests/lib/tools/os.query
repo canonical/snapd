@@ -64,7 +64,8 @@ is_debian() {
 }
 
 is_debian_sid() {
-    grep -qFx 'ID=debian' /etc/os-release && grep -qx 'PRETTY_NAME=".*/sid"' /etc/os-release
+    #TODO: remove check for bullseye codename once the os-release file is updated with sid pretty name again
+    grep -qFx 'ID=debian' /etc/os-release && ( grep -qx 'PRETTY_NAME=".*/sid"' /etc/os-release || grep -qFx  'VERSION_CODENAME=bullseye' /etc/os-release )
 }
 
 is_fedora() {
