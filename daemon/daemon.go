@@ -148,7 +148,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	switch access.checkAccess(r, ucred, user) {
+	switch access.CheckAccess(r, ucred, user) {
 	case accessOK:
 		// nothing
 	case accessUnauthorized:

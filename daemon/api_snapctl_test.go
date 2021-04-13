@@ -52,7 +52,7 @@ func (s *snapctlSuite) TestSnapctlForbiddenError(c *check.C) {
 	s.daemon(c)
 
 	defer daemon.MockUcrednetGet(func(string) (*daemon.Ucrednet, error) {
-		return &daemon.Ucrednet{100, 9999, dirs.SnapSocket}, nil
+		return &daemon.Ucrednet{Uid: 100, Pid: 9999, Socket: dirs.SnapSocket}, nil
 	})()
 
 	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {
@@ -70,7 +70,7 @@ func (s *snapctlSuite) TestSnapctlUnsuccesfulError(c *check.C) {
 	s.daemon(c)
 
 	defer daemon.MockUcrednetGet(func(string) (*daemon.Ucrednet, error) {
-		return &daemon.Ucrednet{100, 9999, dirs.SnapSocket}, nil
+		return &daemon.Ucrednet{Uid: 100, Pid: 9999, Socket: dirs.SnapSocket}, nil
 	})()
 
 	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {

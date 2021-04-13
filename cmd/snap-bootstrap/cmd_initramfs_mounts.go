@@ -136,14 +136,46 @@ func generateInitramfsMounts() (err error) {
 
 	switch mode {
 	case "recover":
-		return generateMountsModeRecover(mst)
+		err = generateMountsModeRecover(mst)
 	case "install":
-		return generateMountsModeInstall(mst)
+		err = generateMountsModeInstall(mst)
 	case "run":
-		return generateMountsModeRun(mst)
+		err = generateMountsModeRun(mst)
+	default:
+		// this should never be reached, ModeAndRecoverySystemFromKernelCommandLine
+		// will have returned a non-nill error above if there was another mode
+		// specified on the kernel command line for some reason
+		return fmt.Errorf("internal error: mode in generateInitramfsMounts not handled")
 	}
-	// this should never be reached
-	return fmt.Errorf("internal error: mode in generateInitramfsMounts not handled")
+
+	if err != nil {
+		return err
+	}
+
+	// finally, the initramfs is responsible for reading the boot flags and
+	// copying them to /run, so that userspace has an unambiguous place to read
+	// the boot flags for the current boot from
+	flags, err := boot.InitramfsActiveBootFlags(mode)
+	if err != nil {
+		// We don't die on failing to read boot flags, we just log the error and
+		// don't set any flags, this is because the boot flags in the case of
+		// install comes from untrusted input, the bootenv. In the case of run
+		// mode, boot flags are read from the modeenv, which should be valid and
+		// trusted, but if the modeenv becomes corrupted, we would block
+		// accessing the system (except through an initramfs shell), to recover
+		// the modeenv (though maybe we could enable some sort of fixing from
+		// recover mode instead?)
+		logger.Noticef("error accessing boot flags: %v", err)
+	} else {
+		// write the boot flags
+		if err := boot.InitramfsExposeBootFlagsForSystem(flags); err != nil {
+			// cannot write to /run, error here since arguably we have major
+			// problems if we can't write to /run
+			return err
+		}
+	}
+
+	return nil
 }
 
 // generateMountsMode* is called multiple times from initramfs until it
@@ -1292,7 +1324,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asser
 		return nil, nil, err
 	}
 
-	return model, systemSnaps, err
+	return model, systemSnaps, nil
 }
 
 func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *systemdMountOptions) (haveSave bool, err error) {

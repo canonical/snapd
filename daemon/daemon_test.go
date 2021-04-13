@@ -267,7 +267,7 @@ func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 
 type accessCheckFunc func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult
 
-func (f accessCheckFunc) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+func (f accessCheckFunc) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
 	return f(r, ucred, user)
 }
 

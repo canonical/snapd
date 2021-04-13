@@ -37,6 +37,7 @@ var services = []struct{ configName, systemdName string }{
 	{"ssh", "ssh.service"},
 	{"rsyslog", "rsyslog.service"},
 	{"console-conf", "console-conf@*"},
+	{"systemd-resolved", "systemd-resolved.service"},
 }
 
 func init() {
@@ -144,7 +145,7 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 	if opts != nil {
 		sysd = systemd.NewEmulationMode(opts.RootDir)
 	} else {
-		sysd = systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, &sysdLogger{})
+		sysd = systemd.New(systemd.SystemMode, &sysdLogger{})
 	}
 
 	// some services are special
@@ -153,6 +154,21 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 		return switchDisableSSHService(sysd, serviceName, disabled, opts)
 	case "console-conf@*":
 		return switchDisableConsoleConfService(sysd, serviceName, disabled, opts)
+	}
+
+	if opts == nil {
+		// ignore the service if not installed
+		status, err := sysd.Status(serviceName)
+		if err != nil {
+			return err
+		}
+		if len(status) != 1 {
+			return fmt.Errorf("internal error: expected status of service %s, got %v", serviceName, status)
+		}
+		if !status[0].Installed {
+			// ignore
+			return nil
+		}
 	}
 
 	if disabled {

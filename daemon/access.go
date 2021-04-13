@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -39,10 +39,9 @@ const (
 	accessCancelled
 )
 
-var (
-	polkitCheckAuthorization = polkit.CheckAuthorization
-	checkPolkitAction        = checkPolkitActionImpl
-)
+var polkitCheckAuthorization = polkit.CheckAuthorization
+
+var checkPolkitAction = checkPolkitActionImpl
 
 func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) accessResult {
 	var flags polkit.CheckFlags
@@ -75,7 +74,7 @@ func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) acce
 // accessUnknown, which indicates the decision should be delegated to
 // the next access checker.
 type accessChecker interface {
-	checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult
+	CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult
 }
 
 // requireSnapdSocket ensures the request was received via snapd.socket.
@@ -95,7 +94,7 @@ func requireSnapdSocket(ucred *ucrednet) accessResult {
 // have peer credentials and were not received on snapd-snap.socket
 type openAccess struct{}
 
-func (ac openAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+func (ac openAccess) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
 	return requireSnapdSocket(ucred)
 }
 
@@ -109,7 +108,7 @@ type authenticatedAccess struct {
 	Polkit string
 }
 
-func (ac authenticatedAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+func (ac authenticatedAccess) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
 	if result := requireSnapdSocket(ucred); result != accessOK {
 		return result
 	}
@@ -136,7 +135,7 @@ func (ac authenticatedAccess) checkAccess(r *http.Request, ucred *ucrednet, user
 // were not received on snapd-snap.socket
 type rootAccess struct{}
 
-func (ac rootAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+func (ac rootAccess) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
 	if result := requireSnapdSocket(ucred); result != accessOK {
 		return result
 	}
@@ -150,7 +149,7 @@ func (ac rootAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.Us
 // snapAccess allows requests from the snapd-snap.socket
 type snapAccess struct{}
 
-func (ac snapAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+func (ac snapAccess) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
 	if ucred == nil {
 		return accessForbidden
 	}
