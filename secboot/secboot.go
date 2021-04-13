@@ -26,6 +26,7 @@ package secboot
 
 import (
 	"crypto/ecdsa"
+	"errors"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
@@ -156,3 +157,7 @@ var FDEHasRevealKey = func() bool { return false }
 func EncryptedPartitionName(name string) string {
 	return name + "-enc"
 }
+
+// BuildWithoutSecbootErr is returned by many functions if the package
+// was build without real secboot support. Mostly useful for tests.
+var BuildWithoutSecbootErr = errors.New("build without secboot support")

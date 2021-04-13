@@ -36,12 +36,11 @@ func ResealKeys(params *ResealKeysParams) error {
 	return fmt.Errorf("build without secboot support")
 }
 
-func MarshalKeys(key []byte, auxKey []byte) []byte {
-	panic("not implemented")
-	return nil
+func WriteKeyData(name, path string, encryptedPayload, auxKey, rawhandle []byte) error {
+	return fmt.Errorf("build without secboot support")
 }
 
-func WriteKeyData(name, path string, encryptedPayload, auxKey, rawhandle []byte) error {
-	panic("not implemented")
+func MarshalKeys(key []byte, auxKey []byte) []byte {
+	panic("build without secboot support")
 	return nil
 }
