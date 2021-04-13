@@ -1,8 +1,5 @@
 summary: Check that find works with private snaps.
 
-# ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
-systems: [-ubuntu-*-ppc64el]
-
 details: |
     These tests rely on the existence of a snap in the remote store set to private.
 
@@ -12,11 +9,13 @@ details: |
     the find results without specifying private search or without the owner logged) is
     performed.
 
+# ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
+systems: [-ubuntu-*-ppc64el]
+
 restore: |
     snap logout || true
 
 execute: |
-
     echo "When a snap is private it doesn't show up in the find without login and without specifying private search"
     snap find test-snapd-private | not MATCH 'test-snapd-private +[0-9]+\.[0-9]+'
 

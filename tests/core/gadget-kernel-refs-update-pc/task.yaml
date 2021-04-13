@@ -1,13 +1,5 @@
 summary: Exercise a gadget update with kernel refs on a PC
 
-environment:
-    BLOB_DIR: $(pwd)/fake-store-blobdir
-    # snap-id of 'pc' gadget snap
-    PC_SNAP_ID: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
-    # snap-id of 'pc-kernel' snap
-    PC_KERNEL_ID: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
-    START_REVISION: 1000
-
 # TODO:UC20: once LP: #1907056 is fixed and we have an updated
 #            pi gadget and pi-kernel snap this test should be
 #            replaced with a pi-only test. This test is artificial
@@ -16,6 +8,14 @@ environment:
 # the test is only meaningful on core devices
 # XXX: uc20
 systems: [ubuntu-core-1*]
+
+environment:
+    BLOB_DIR: $(pwd)/fake-store-blobdir
+    # snap-id of 'pc' gadget snap
+    PC_SNAP_ID: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
+    # snap-id of 'pc-kernel' snap
+    PC_KERNEL_ID: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
+    START_REVISION: 1000
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then

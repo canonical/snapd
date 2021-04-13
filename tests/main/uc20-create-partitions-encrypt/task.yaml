@@ -9,32 +9,6 @@ environment:
     # need to disable go modules support for this test
     GO111MODULE: off
 
-debug: |
-    cat /proc/partitions
-
-restore: |
-    for m in ubuntu-seed ubuntu-save ubuntu-data ubuntu-boot; do
-        if mountpoint "/run/mnt/$m"; then
-            umount "/run/mnt/$m"
-        fi
-    done
-    if mountpoint ./mnt; then
-        umount ./mnt
-    fi
-
-    cryptsetup close /dev/mapper/ubuntu-save || true
-    cryptsetup close /dev/mapper/ubuntu-data || true
-    cryptsetup close /dev/mapper/test-udata || true
-
-    if [ -f loop.txt ]; then
-        LOOP="$(cat loop.txt)"
-        losetup -d "$LOOP"
-        losetup -l | NOMATCH "$LOOP"
-    fi
-    apt autoremove -y cryptsetup
-
-    rm -Rf /run/mnt
-
 prepare: |
     echo "Create a fake block device image that looks like an image from u-i"
     truncate --size=10GB fake.img
@@ -71,6 +45,32 @@ prepare: |
     echo "Get the UC20 gadget"
     snap download --channel=20/edge pc
     unsquashfs -d gadget-dir pc_*.snap
+
+restore: |
+    for m in ubuntu-seed ubuntu-save ubuntu-data ubuntu-boot; do
+        if mountpoint "/run/mnt/$m"; then
+            umount "/run/mnt/$m"
+        fi
+    done
+    if mountpoint ./mnt; then
+        umount ./mnt
+    fi
+
+    cryptsetup close /dev/mapper/ubuntu-save || true
+    cryptsetup close /dev/mapper/ubuntu-data || true
+    cryptsetup close /dev/mapper/test-udata || true
+
+    if [ -f loop.txt ]; then
+        LOOP="$(cat loop.txt)"
+        losetup -d "$LOOP"
+        losetup -l | NOMATCH "$LOOP"
+    fi
+    apt autoremove -y cryptsetup
+
+    rm -Rf /run/mnt
+
+debug: |
+    cat /proc/partitions
 
 execute: |
     # this test simulates a reinstall, to clear the TPM this requires

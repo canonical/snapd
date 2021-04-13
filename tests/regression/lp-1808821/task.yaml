@@ -1,4 +1,5 @@
 summary: refreshing a snap with particular layout over itself
+
 details: |
     This bug was hiding two separate bugs in snap-update-ns. The first
     one is that Keep changes were not tracked in filesystem
@@ -10,7 +11,9 @@ details: |
     create prefix, passed a directory name of the prefix with the
     trailing slash, which would not match the restrictive trespassing
     detection code.
-execute: ./task.sh
+
 restore: |
     snap remove --purge test-snapd-app
     rm -f test-snapd-app_1_all.snap
+
+execute: ./task.sh
