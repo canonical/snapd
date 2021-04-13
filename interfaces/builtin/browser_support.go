@@ -63,6 +63,10 @@ owner /{dev,run}/shm/{,.}org.chromium.* mrw,
 owner /{dev,run}/shm/{,.}com.google.Chrome.* mrw,
 owner /{dev,run}/shm/.io.nwjs.* mrw,
 
+# Firefox should also be modified to use snap.$SNAP_INSTANCE_NAME.* or the snap
+# packaging adjusted to use LD_PRELOAD technique from LP: #1577514
+owner /{dev,run}/shm/wayland.mozilla.ipc.[0-9]* mrw,
+
 # Chrome's Singleton API sometimes causes an ouid/fsuid mismatch denial, so
 # for now, allow non-owner read on the singleton socket (LP: #1731012). See
 # https://forum.snapcraft.io/t/electron-snap-killed-when-using-app-makesingleinstance-api/2667/20
