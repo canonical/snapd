@@ -63,15 +63,14 @@ install_local_as() {
 }
 
 show_name() {
-    local snap="$1"
-
     case "${1:-}" in
             core)
                 local core_name="$(snap model --verbose | grep -Po "^base:\\s+\\K.*" || true)"
                 if [ -z "$core_name" ]; then
                     core_name="core"
-                ;;
+                fi
                 echo "$core_name"
+                ;;
             kernel)
                 snap list | grep 'kernel$' | awk '{ print $1 }'
                 ;;
