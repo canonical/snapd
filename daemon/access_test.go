@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -45,7 +45,7 @@ func (s *accessSuite) TestOpenAccess(c *C) {
 	ucred := &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapSocket}
 	c.Check(ac.CheckAccess(nil, ucred, nil), Equals, daemon.AccessForbidden)
 
-	// Access allowed from other sockets
+	// Access allowed from snapd.socket
 	ucred.Socket = dirs.SnapdSocket
 	c.Check(ac.CheckAccess(nil, ucred, nil), Equals, daemon.AccessOK)
 
@@ -71,6 +71,10 @@ func (s *accessSuite) TestAuthenticatedAccess(c *C) {
 	ucred := &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapSocket}
 	c.Check(ac.CheckAccess(req, ucred, nil), Equals, daemon.AccessForbidden)
 	c.Check(ac.CheckAccess(req, ucred, user), Equals, daemon.AccessForbidden)
+
+	// the same for unknown sockets
+	ucred = &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: "unexpected.socket"}
+	c.Check(ac.CheckAccess(req, ucred, nil), Equals, daemon.AccessForbidden)
 
 	// With macaroon auth, a normal user is granted access
 	ucred = &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket}
