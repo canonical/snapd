@@ -296,44 +296,60 @@ func observeSuccessfulCommandLineCompatBoot(model *asserts.Model, m *Modeenv) (*
 	return newM, nil
 }
 
+type commandLineUpdateReason int
+
+const (
+	commandLineUpdateReasonSnapd commandLineUpdateReason = iota
+	commandLineUpdateReasonGadget
+)
+
 // observeCommandLineUpdate observes a pending kernel command line change caused
-// by an update of boot config. When needed, the modeenv is updated with a
-// candidate command line and the encryption keys are resealed. This helper
-// should be called right before updating the managed boot config.
-func observeCommandLineUpdate(model *asserts.Model, gadgetSnapOrDir string) error {
+// by an update of boot config or the gadget snap. When needed, the modeenv is
+// updated with a candidate command line and the encryption keys are resealed.
+// This helper should be called right before updating the managed boot config.
+func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReason, gadgetSnapOrDir string) (updated bool, err error) {
 	// TODO:UC20: consider updating a recovery system command line
 
 	m, err := loadModeenv()
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	if len(m.CurrentKernelCommandLines) == 0 {
-		return fmt.Errorf("internal error: current kernel command lines is unset")
+		return false, fmt.Errorf("internal error: current kernel command lines is unset")
 	}
 	// this is the current expected command line which was recorded by
 	// bootstate
 	cmdline := m.CurrentKernelCommandLines[0]
 	// this is the new expected command line
-	candidateCmdline, err := ComposeCandidateCommandLine(model, gadgetSnapOrDir)
+	var candidateCmdline string
+	switch reason {
+	case commandLineUpdateReasonSnapd:
+		// pending boot config update
+		candidateCmdline, err = ComposeCandidateCommandLine(model, gadgetSnapOrDir)
+	case commandLineUpdateReasonGadget:
+		// pending gadget update
+		candidateCmdline, err = ComposeCommandLine(model, gadgetSnapOrDir)
+	}
 	if err != nil {
-		return err
+		return false, err
 	}
 	if cmdline == candidateCmdline {
-		// no change in command line contents, nothing to do
-		return nil
+		// command line is the same or no actual change in modeenv
+		return false, nil
 	}
+	// actual change of the command line content
 	m.CurrentKernelCommandLines = bootCommandLines{cmdline, candidateCmdline}
 
 	if err := m.Write(); err != nil {
-		return err
+		return false, err
 	}
 
 	expectReseal := true
 	if err := resealKeyToModeenv(dirs.GlobalRootDir, model, m, expectReseal); err != nil {
-		return err
+		return false, err
 	}
-	return nil
+	return true, nil
 }
 
 // kernelCommandLinesForResealWithFallback provides the list of kernel command
