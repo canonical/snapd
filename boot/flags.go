@@ -28,6 +28,8 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -282,7 +284,7 @@ func setNextBootFlags(dev Device, rootDir string, flags []string) error {
 	return m.Write()
 }
 
-// RunModeRootfs returns where the run mode root filesystem is mounted for the
+// HostUbuntuDataForMode returns where the run mode root filesystem is mounted for the
 // given mode.
 // For run mode, it's just "/run/mnt/data".
 // For install mode it's "/run/mnt/ubuntu-data".
@@ -293,11 +295,12 @@ func setNextBootFlags(dev Device, rootDir string, flags []string) error {
 // ubuntu-data in an untrusted manner, but for the purposes of this function
 // that is ignored.
 // This is primarily meant to be consumed by "snap{,ctl} system-mode".
-func RunModeRootfs(mode string) (string, error) {
-	runDataRootfs := ""
+func HostUbuntuDataForMode(mode string) ([]string, error) {
+	var runDataRootfsMountLocations []string
 	switch mode {
 	case ModeRun:
-		runDataRootfs = InitramfsDataDir
+		// in run mode we have both /run/mnt/data and "/"
+		runDataRootfsMountLocations = []string{InitramfsDataDir, dirs.GlobalRootDir}
 	case ModeRecover:
 		// TODO: should this be it's own dedicated helper to read degraded.json?
 
@@ -307,7 +310,7 @@ func RunModeRootfs(mode string) (string, error) {
 		degradedJSONFile := filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json")
 		b, err := ioutil.ReadFile(degradedJSONFile)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
 		degradedJSON := struct {
@@ -319,22 +322,28 @@ func RunModeRootfs(mode string) (string, error) {
 
 		err = json.Unmarshal(b, &degradedJSON)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
 		// don't permit mounted-untrusted state, only mounted state is allowed
 		if degradedJSON.UbuntuData.MountState == "mounted" {
-			runDataRootfs = degradedJSON.UbuntuData.MountLocation
+			runDataRootfsMountLocations = []string{degradedJSON.UbuntuData.MountLocation}
 		}
 		// otherwise leave it empty
 
 	case ModeInstall:
-		// this is /run/mnt/ubuntu-data/writable, but the caller probably wants
-		// /run/mnt/ubuntu-data
-		runDataRootfs = filepath.Dir(InstallHostWritableDir)
+		// the var we have is for /run/mnt/ubuntu-data/writable, but the caller
+		// probably wants /run/mnt/ubuntu-data
+
+		// note that we may be running in install mode before this directory is
+		// actually created so check if it exists first
+		installModeLocation := filepath.Dir(InstallHostWritableDir)
+		if exists, _, _ := osutil.DirExists(installModeLocation); exists {
+			runDataRootfsMountLocations = []string{installModeLocation}
+		}
 	default:
-		return "", ErrUnsupportedSystemMode
+		return nil, ErrUnsupportedSystemMode
 	}
 
-	return runDataRootfs, nil
+	return runDataRootfsMountLocations, nil
 }

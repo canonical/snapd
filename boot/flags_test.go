@@ -344,18 +344,27 @@ func (s *bootFlagsSuite) TestUserspaceBootFlagsUC20(c *C) {
 func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 	tt := []struct {
 		mode               string
-		expDir             string
+		createExpDirs      bool
+		expDirs            []string
 		noExpDirRootPrefix bool
 		degradedJSON       string
 		err                string
+		comment            string
 	}{
 		{
-			mode:   boot.ModeRun,
-			expDir: "/run/mnt/data",
+			mode:    boot.ModeRun,
+			expDirs: []string{"/run/mnt/data", ""},
+			comment: "run mode",
 		},
 		{
-			mode:   boot.ModeInstall,
-			expDir: "/run/mnt/ubuntu-data",
+			mode:    boot.ModeInstall,
+			comment: "install mode before partition creation",
+		},
+		{
+			mode:          boot.ModeInstall,
+			expDirs:       []string{"/run/mnt/ubuntu-data"},
+			createExpDirs: true,
+			comment:       "install mode after partition creation",
 		},
 		{
 			mode: boot.ModeRecover,
@@ -367,8 +376,9 @@ func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 				}
 			}
 			`,
-			expDir:             "/host/ubuntu-data",
+			expDirs:            []string{"/host/ubuntu-data"},
 			noExpDirRootPrefix: true,
+			comment:            "recover degraded.json default mounted location",
 		},
 		{
 			mode: boot.ModeRecover,
@@ -380,8 +390,9 @@ func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 				}
 			}
 			`,
-			expDir:             "/host/elsewhere/ubuntu-data",
+			expDirs:            []string{"/host/elsewhere/ubuntu-data"},
 			noExpDirRootPrefix: true,
+			comment:            "recover degraded.json alternative mounted location",
 		},
 		{
 			mode: boot.ModeRecover,
@@ -392,7 +403,7 @@ func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 				}
 			}
 			`,
-			expDir: "",
+			comment: "recover degraded.json error-mounting",
 		},
 		{
 			mode: boot.ModeRecover,
@@ -403,7 +414,7 @@ func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 				}
 			}
 			`,
-			expDir: "",
+			comment: "recover degraded.json mounted-untrusted",
 		},
 		{
 			mode: boot.ModeRecover,
@@ -414,7 +425,7 @@ func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 				}
 			}
 			`,
-			expDir: "",
+			comment: "recover degraded.json absent-but-optional",
 		},
 		{
 			mode: boot.ModeRecover,
@@ -425,15 +436,16 @@ func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 				}
 			}
 			`,
-			expDir: "",
+			comment: "recover degraded.json new-wild-unknown-state",
 		},
 		{
-			mode: "",
-			err:  "system mode is unsupported",
+			mode:    "",
+			err:     "system mode is unsupported",
+			comment: "unsupported system mode",
 		},
 	}
 	for _, t := range tt {
-
+		comment := Commentf(t.comment)
 		if t.degradedJSON != "" {
 			rootdir := c.MkDir()
 			dirs.SetRootDir(rootdir)
@@ -441,23 +453,36 @@ func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 
 			degradedJSON := filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json")
 			err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0755)
-			c.Assert(err, IsNil)
+			c.Assert(err, IsNil, comment)
 
 			err = ioutil.WriteFile(degradedJSON, []byte(t.degradedJSON), 0644)
-			c.Assert(err, IsNil)
+			c.Assert(err, IsNil, comment)
 		}
 
-		dir, err := boot.RunModeRootfs(t.mode)
+		if t.createExpDirs {
+			for _, dir := range t.expDirs {
+				err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, dir), 0755)
+				c.Assert(err, IsNil, comment)
+			}
+		}
+
+		dataMountDirs, err := boot.HostUbuntuDataForMode(t.mode)
 		if t.err != "" {
-			c.Assert(err, ErrorMatches, t.err)
+			c.Assert(err, ErrorMatches, t.err, comment)
 			continue
 		}
+		c.Assert(err, IsNil, comment)
 
-		c.Assert(err, IsNil)
-		if t.expDir != "" && !t.noExpDirRootPrefix {
-			c.Assert(dir, Equals, filepath.Join(dirs.GlobalRootDir, t.expDir))
+		if t.expDirs != nil && !t.noExpDirRootPrefix {
+			// prefix all the dirs in expDirs with dirs.GlobalRootDir for easier
+			// test case writing above
+			prefixedDir := make([]string, len(t.expDirs))
+			for i, dir := range t.expDirs {
+				prefixedDir[i] = filepath.Join(dirs.GlobalRootDir, dir)
+			}
+			c.Assert(dataMountDirs, DeepEquals, prefixedDir, comment)
 		} else {
-			c.Assert(dir, Equals, t.expDir)
+			c.Assert(dataMountDirs, DeepEquals, t.expDirs, comment)
 		}
 	}
 }
