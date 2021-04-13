@@ -17,11 +17,11 @@ prepare: |
     mkdir -p /usr/src
     echo canary > /usr/src/.canary
 
-execute: |
-    echo "The canary file in /usr/src can be read"
-    [ "$(test-snapd-tools.cmd cat /usr/src/.canary)" = "canary" ]
-
 restore: |
     rm -f /usr/src/.canary
     rm -f -d /usr/src
     mv /usr/src.orig /usr/src || true
+
+execute: |
+    echo "The canary file in /usr/src can be read"
+    [ "$(test-snapd-tools.cmd cat /usr/src/.canary)" = "canary" ]

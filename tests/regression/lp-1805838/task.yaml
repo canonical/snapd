@@ -1,8 +1,10 @@
 summary: system key is not written if security setup fails
+
 details: |
     When snapd is started up and the system key needs regeneration errors from
     establishing the new security profiles should not stop snapd from running
     but should prevent snapd from writing the system key.
+
 prepare: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
