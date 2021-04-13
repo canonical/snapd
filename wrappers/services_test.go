@@ -165,7 +165,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesAdds(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
-	m := map[*snap.Info]*wrappers.AddSnapServicesOptions{
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
 		info: nil,
 	}
 
@@ -215,7 +215,7 @@ func (s *servicesTestSuite) TestEnsureSnapServiceEnsureError(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 	svcFileDir := filepath.Join(s.tempdir, "/etc/systemd/system")
 
-	m := map[*snap.Info]*wrappers.AddSnapServicesOptions{
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
 		info: nil,
 	}
 
@@ -237,16 +237,15 @@ func (s *servicesTestSuite) TestEnsureSnapServiceEnsureError(c *C) {
 	c.Assert(filepath.Join(svcFileDir, "snap.hello-snap.svc1.service"), testutil.FileAbsent)
 }
 
-func (s *servicesTestSuite) TestEnsureSnapServicesPreseedingOptionsOverridePerSnapOptions(c *C) {
+func (s *servicesTestSuite) TestEnsureSnapServicesPreseedingHappy(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
-	// options per snap are nil, so Preseeding here will end up being false
-	m := map[*snap.Info]*wrappers.AddSnapServicesOptions{
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
 		info: nil,
 	}
 
-	// but we provide globally applicable Preseeding option via
+	// we provide globally applicable Preseeding option via
 	// EnsureSnapServiceOptions
 	globalOpts := &wrappers.EnsureSnapServicesOptions{
 		Preseeding: true,
@@ -289,6 +288,105 @@ WantedBy=multi-user.target
 `,
 		systemd.EscapeUnitNamePath(dir),
 		dirs.GlobalRootDir,
+	))
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesRequireMountedSnapdSnapOptionsHappy(c *C) {
+	// use two snaps one with per-snap options and one without to demonstrate
+	// that the global options apply to all snaps
+	info1 := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	info2 := snaptest.MockSnap(c, `
+name: hello-other-snap
+version: 1.10
+summary: hello
+description: Hello...
+apps:
+ hello:
+   command: bin/hello
+ world:
+   command: bin/world
+   completer: world-completer.sh
+ svc1:
+  command: bin/hello
+  stop-command: bin/goodbye
+  post-stop-command: bin/missya
+  daemon: forking
+`, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile1 := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile2 := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-other-snap.svc1.service")
+
+	// some options per-snap
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info1: {VitalityRank: 1},
+		info2: nil,
+	}
+
+	// and also a global option that should propagate to unit generation too
+	globalOpts := &wrappers.EnsureSnapServicesOptions{
+		RequireMountedSnapdSnap: true,
+	}
+	modified, err := wrappers.EnsureSnapServices(m, globalOpts, progress.Null)
+	c.Assert(err, IsNil)
+	// no daemon-reload's since we are preseeding
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+	c.Assert(modified, HasLen, 2)
+	for modifiedSn, modifiedApps := range modified {
+		// don't try a DeepEquals on this, it could be a recursive data
+		// structure which go-check doesn't handle very well
+		switch modifiedSn.SnapName() {
+		case info1.SnapName():
+			c.Assert(modifiedApps, HasLen, 1)
+			c.Assert(modifiedApps, DeepEquals, []*snap.AppInfo{info1.Apps["svc1"]})
+		case info2.SnapName():
+			c.Assert(modifiedApps, HasLen, 1)
+			c.Assert(modifiedApps, DeepEquals, []*snap.AppInfo{info2.Apps["svc1"]})
+		default:
+			c.Errorf("unexpected snap name in modified return value: %s", modifiedSn.SnapName())
+		}
+	}
+
+	template := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application %[1]s.svc1
+Requires=%[2]s
+Wants=network.target
+After=%[2]s network.target snapd.apparmor.service
+Requires=usr-lib-snapd.mount
+After=usr-lib-snapd.mount
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run %[1]s.svc1
+SyslogIdentifier=%[1]s.svc1
+Restart=on-failure
+WorkingDirectory=%[3]s/var/snap/%[1]s/12
+ExecStop=/usr/bin/snap run --command=stop %[1]s.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop %[1]s.svc1
+TimeoutStopSec=30
+Type=forking
+%[4]s
+[Install]
+WantedBy=multi-user.target
+`
+
+	dir1 := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir2 := filepath.Join(dirs.SnapMountDir, "hello-other-snap", "12.mount")
+
+	c.Assert(svcFile1, testutil.FileEquals, fmt.Sprintf(template,
+		"hello-snap",
+		systemd.EscapeUnitNamePath(dir1),
+		dirs.GlobalRootDir,
+		"OOMScoreAdjust=-899\n", // VitalityRank in effect
+	))
+
+	c.Assert(svcFile2, testutil.FileEquals, fmt.Sprintf(template,
+		"hello-other-snap",
+		systemd.EscapeUnitNamePath(dir2),
+		dirs.GlobalRootDir,
+		"", // no VitalityRank in effect
 	))
 }
 
@@ -339,7 +437,7 @@ WantedBy=multi-user.target
 	err = ioutil.WriteFile(svc1File, []byte(svc1Content), 0644)
 	c.Assert(err, IsNil)
 
-	m := map[*snap.Info]*wrappers.AddSnapServicesOptions{
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
 		info: nil,
 	}
 
@@ -417,7 +515,7 @@ WantedBy=multi-user.target
 
 	// now ensuring with no options will not modify anything or trigger a
 	// daemon-reload
-	m := map[*snap.Info]*wrappers.AddSnapServicesOptions{
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
 		info: nil,
 	}
 
@@ -471,7 +569,7 @@ WantedBy=multi-user.target
 	c.Assert(err, IsNil)
 
 	// now ensuring with the VitalityRank set will modify the file
-	m := map[*snap.Info]*wrappers.AddSnapServicesOptions{
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
 		info: {VitalityRank: 1},
 	}
 
@@ -560,7 +658,7 @@ WantedBy=multi-user.target
 	defer r()
 
 	// now ensuring with the VitalityRank set will modify the file
-	m := map[*snap.Info]*wrappers.AddSnapServicesOptions{
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
 		info: {VitalityRank: 1},
 	}
 
@@ -632,7 +730,7 @@ WantedBy=multi-user.target
 	})
 	defer r()
 
-	m := map[*snap.Info]*wrappers.AddSnapServicesOptions{
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
 		info: nil,
 	}
 
@@ -728,7 +826,7 @@ WantedBy=multi-user.target
 	})
 	defer r()
 
-	m := map[*snap.Info]*wrappers.AddSnapServicesOptions{
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
 		info: nil,
 	}
 
