@@ -89,7 +89,7 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 		return nil
 	}
 	s.notified = nil
-	polkitCheckAuthorization = s.checkAuthorization
+	s.AddCleanup(MockPolkitCheckAuthorization(s.checkAuthorization))
 	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
 }
 
@@ -101,10 +101,6 @@ func (s *daemonSuite) TearDownTest(c *check.C) {
 	logger.SetLogger(logger.NullLogger)
 
 	s.BaseTest.TearDownTest(c)
-}
-
-func (s *daemonSuite) TearDownSuite(c *check.C) {
-	polkitCheckAuthorization = polkit.CheckAuthorization
 }
 
 // build a new daemon, with only a little of Init(), suitable for the tests
@@ -444,9 +440,10 @@ func (s *daemonSuite) TestPolkitAccessForGet(c *check.C) {
 
 	// for UserOK commands, polkit is not consulted
 	cmd.UserOK = true
-	polkitCheckAuthorization = func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
-		panic("polkit.CheckAuthorization called")
-	}
+	restore := MockPolkitCheckAuthorization(func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
+		c.Fatal("polkit.CheckAuthorization called")
+	})
+	defer restore()
 	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
 }
 
