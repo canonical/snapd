@@ -127,12 +127,10 @@ execute: |
     snapdver=$(snap --version|grep "snapd ")
     [ "$snapdver" != "$(cat prevsnapdver)" ]
 
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*)
             # All mount units should have been patched on upgrade
+            SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
             unit_prefix="$(systemd-escape -p ${SNAP_MOUNT_DIR})"
             for unit in /etc/systemd/system/"$unit_prefix"-*.mount; do
                 MATCH 'Options=.*context=system_u:object_r:snappy_snap_t:s0' "$unit"
