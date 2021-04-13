@@ -71,7 +71,7 @@ const (
 
 // FDESetupHookParams contains the inputs for the fde-setup hook
 type FDESetupHookParams struct {
-	Key     secboot.EncryptionKey
+	Key     []byte
 	KeyName string
 
 	//TODO:UC20: provide bootchains and a way to track measured
@@ -147,9 +147,21 @@ type fdeSetupHookResult struct {
 func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
 	// TODO: support full boot chains
 
+	// XXX: Move the auxKey creation to a more generic place, see
+	// PR#10123 for a possible way of doing this. However given
+	// that the equivalent key for the TPM case is also created in
+	// sealKeyToModeenvUsingTPM more symetric to create the auxKey
+	// here and when we also move TPM to use the auxKey to move
+	// the creation of it.
+	auxKey, err := secboot.NewAuxKey()
+	if err != nil {
+		return fmt.Errorf("cannot create aux key: %v", err)
+	}
+
 	for _, skr := range append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey)...) {
+		encryptedPayload := secboot.MarshalKeys(skr.Key[:], auxKey[:])
 		params := &FDESetupHookParams{
-			Key:     skr.Key,
+			Key:     encryptedPayload,
 			KeyName: skr.KeyName,
 		}
 		hookOutput, err := RunFDESetupHook("initial-setup", params)
@@ -163,20 +175,18 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model
 		var res fdeSetupHookResult
 		if err := json.Unmarshal(hookOutput, &res); err != nil {
 			// If the input is not json and matches the
-			// size of the "denver" project encrypton key
-			// (64 bytes) we assume we deal with a v1 API.
-			if len(hookOutput) != len(secboot.EncryptionKey{}) {
-				return fmt.Errorf("cannot decode hook output %q: %v", hookOutput, err)
+			// size of the input encrypton key we assume
+			// we deal with a v1 hook that passes us back
+			// raw binary data instead of json.
+			if len(hookOutput) != len(encryptedPayload) {
+				return fmt.Errorf("cannot decode hook output for key %s %q: %v", skr.KeyFile, hookOutput, err)
 			}
+			// v1 hooks do not support a handle
+			res.Handle = nil
 			res.EncryptedKey = hookOutput
 		}
-		// XXX: should we do basic checking here that we got a non-nil
-		//      res.EncryptedKey, res.Handle?
-		if err := osutil.AtomicWriteFile(filepath.Join(skr.KeyFile), res.EncryptedKey, 0600, 0); err != nil {
-			return fmt.Errorf("cannot store key: %v", err)
-		}
-		if err := osutil.AtomicWriteFile(filepath.Join(skr.KeyFile+".handle"), res.Handle, 0600, 0); err != nil {
-			return fmt.Errorf("cannot store key: %v", err)
+		if err := secboot.WriteKeyData(skr.KeyName, skr.KeyFile, res.EncryptedKey, auxKey[:], res.Handle); err != nil {
+			return err
 		}
 	}
 

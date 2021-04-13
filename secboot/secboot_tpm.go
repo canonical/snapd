@@ -22,7 +22,9 @@ package secboot
 
 import (
 	"bytes"
+	"crypto"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -48,7 +50,8 @@ import (
 )
 
 const (
-	keyringPrefix = "ubuntu-fde"
+	keyringPrefix        = "ubuntu-fde"
+	fdeHooksPlatformName = "fde-hook-v2"
 )
 
 var (
@@ -886,4 +889,35 @@ func efiImageFromBootFile(b *bootloader.BootFile) (sb.EFIImage, error) {
 		Container: snapf,
 		FileName:  b.Path,
 	}, nil
+}
+
+func MarshalKeys(key []byte, auxKey []byte) []byte {
+	return sb.MarshalKeys(key, auxKey)
+}
+
+func WriteKeyData(name, path string, encryptedPayload, auxKey, rawhandle []byte) error {
+	handle, err := json.Marshal(base64.StdEncoding.EncodeToString(rawhandle))
+	if err != nil {
+		return fmt.Errorf("cannot encode key-data handle: %v", err)
+	}
+
+	kd, err := sb.NewKeyData(&sb.KeyCreationData{
+		PlatformKeyData: sb.PlatformKeyData{
+			EncryptedPayload: encryptedPayload,
+			Handle:           handle,
+		},
+		PlatformName: fdeHooksPlatformName,
+		AuxiliaryKey: auxKey,
+		// XXX: right hash value?
+		SnapModelAuthHash: crypto.SHA256,
+	})
+	if err != nil {
+		return fmt.Errorf("cannot create key-data: %v", err)
+	}
+	f := sb.NewFileKeyDataWriter(name, path)
+	if err := kd.WriteAtomic(f); err != nil {
+		return fmt.Errorf("cannot write key-data: %v", err)
+	}
+
+	return nil
 }

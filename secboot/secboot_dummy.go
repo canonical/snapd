@@ -35,3 +35,13 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 func ResealKeys(params *ResealKeysParams) error {
 	return fmt.Errorf("build without secboot support")
 }
+
+func MarshalKeys(key []byte, auxKey []byte) []byte {
+	panic("not implemented")
+	return nil
+}
+
+func WriteKeyData(name, path string, encryptedPayload, auxKey, rawhandle []byte) error {
+	panic("not implemented")
+	return nil
+}

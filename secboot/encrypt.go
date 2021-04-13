@@ -38,6 +38,9 @@ const (
 	//      github.com/snapcore/secboot/crypto.go:"type RecoveryKey"
 	// Size of the recovery key.
 	recoveryKeySize = 16
+
+	// The auxiliary key is used to bind keys to models
+	auxKeySize = 32
 )
 
 // EncryptionKey is the key used to encrypt the data partition.
@@ -98,4 +101,17 @@ func RecoveryKeyFromFile(recoveryKeyFile string) (*RecoveryKey, error) {
 		return nil, fmt.Errorf("cannot read recovery key: %v", err)
 	}
 	return &rkey, nil
+}
+
+// AuxKey is the key to bind models to keys
+//
+// Note that there is no Save() here as the read/write is done via secboot
+type AuxKey [auxKeySize]byte
+
+func NewAuxKey() (AuxKey, error) {
+	var key AuxKey
+	// rand.Read() is protected against short reads
+	_, err := rand.Read(key[:])
+	// On return, n == len(b) if and only if err == nil
+	return key, err
 }
