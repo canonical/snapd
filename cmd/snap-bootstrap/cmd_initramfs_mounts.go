@@ -1206,12 +1206,12 @@ func checkDataAndSavePairing(rootdir string) (bool, error) {
 	return subtle.ConstantTimeCompare(marker1, marker2) == 1, nil
 }
 
-// mountPartitionMatchingKernelDisk will select the partition to mount at dir,
-// using the boot package function FindPartitionUUIDForBootedKernelDisk to
+// mountNonDataPartitionMatchingKernelDisk will select the partition to mount at
+// dir, using the boot package function FindPartitionUUIDForBootedKernelDisk to
 // determine what partition the booted kernel came from. If which disk the
 // kernel came from cannot be determined, then it will fallback to mounting via
 // the specified disk label.
-func mountPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
+func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
 	// TODO: the by-partuuid is only available on gpt disks, on mbr we need
 	//       to use by-uuid or by-id
@@ -1235,7 +1235,7 @@ func mountPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asserts.Model, sysSnaps map[snap.Type]snap.PlaceInfo, err error) {
 	// 1. always ensure seed partition is mounted first before the others,
 	//      since the seed partition is needed to mount the snap files there
-	if err := mountPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "ubuntu-seed"); err != nil {
+	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "ubuntu-seed"); err != nil {
 		return nil, nil, err
 	}
 
@@ -1297,7 +1297,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asser
 
 	// 2.3. mount "ubuntu-data" on a tmpfs, and also mount with nosuid to prevent
 	// snaps from being able to bypass the sandbox by creating suid root files
-	// there and escape the sandbox
+	// there and try to escape the sandbox
 	mntOpts := &systemdMountOptions{
 		Tmpfs:  true,
 		NoSuid: true,
@@ -1377,7 +1377,7 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 
 func generateMountsModeRun(mst *initramfsMountsState) error {
 	// 1. mount ubuntu-boot
-	if err := mountPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot"); err != nil {
+	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot"); err != nil {
 		return err
 	}
 
@@ -1434,6 +1434,9 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 
 	// TODO: do we actually need fsck if we are mounting a mapper device?
 	// probably not?
+	// fsck and mount with nosuid to prevent snaps from being able to bypass
+	// the sandbox by creating suid root files there and trying to escape the
+	// sandbox
 	dataMountOpts := &systemdMountOptions{
 		NeedsFsck: true,
 		NoSuid:    true,
