@@ -160,6 +160,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	// config assets are assumed to be always backwards compatible.
 	runner.AddHandler("update-managed-boot-config", m.doUpdateManagedBootConfig, nil)
 
+	runner.AddHandler("update-gadget-cmdline", m.doUpdateGadgetCommandLine, m.undoUpdateGadgetCommandLine)
+
 	runner.AddBlocked(gadgetUpdateBlocked)
 
 	// wire FDE kernel hook support into boot
