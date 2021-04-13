@@ -1,24 +1,17 @@
 summary: Ensure that the ubuntu-core -> core transition works with auth.json
 
+# autopkgtest run only a subset of tests that deals with the integration
+# with the distro
+backends: [-autopkgtest]
+
 # we never test on core because the transition can only happen on "classic"
 # we disable on ppc64el because the downloads are very slow there
 # Fedora, openSUSE and Arch are disabled at the moment as there is something
 # fishy going on and the snapd service gets terminated during the process.
 systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -arch-*]
 
-# autopkgtest run only a subset of tests that deals with the integration
-# with the distro
-backends: [-autopkgtest]
-
 warn-timeout: 1m
-
 kill-timeout: 5m
-
-debug: |
-    snap changes
-    #shellcheck source=tests/lib/changes.sh
-    . "$TESTSLIB/changes.sh"
-    snap change "$(change_id 'Transition ubuntu-core to core')" || true
 
 restore: |
     "$TESTSTOOLS"/fs-state restore-file /root/.snap/auth.json
@@ -26,6 +19,12 @@ restore: |
 
     "$TESTSTOOLS"/fs-state restore-file /home/test/.snap/auth.json
     "$TESTSTOOLS"/fs-state restore-dir /home/test/.snap
+
+debug: |
+    snap changes
+    #shellcheck source=tests/lib/changes.sh
+    . "$TESTSLIB/changes.sh"
+    snap change "$(change_id 'Transition ubuntu-core to core')" || true
 
 execute: |
     #shellcheck source=tests/lib/pkgdb.sh

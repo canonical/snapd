@@ -1,4 +1,5 @@
 summary: Test snapd refresh from a very old snapd snap.
+
 details: |
   Test that a refresh from a very old snapd and core18 to a recent one succeeds.
 

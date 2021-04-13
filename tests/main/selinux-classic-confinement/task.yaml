@@ -5,10 +5,10 @@ details: |
     should the user enable support. Focus on snaps with services and hooks as
     those are run under targeted policy.
 
+systems: [fedora-*, centos-*]
+
 environment:
     CLASSIC_SNAP: test-snapd-classic-service-hooks
-
-systems: [fedora-*, centos-*]
 
 prepare: |
     #shellcheck source=tests/lib/snaps.sh

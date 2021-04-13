@@ -11,15 +11,6 @@ systems:
     - -ubuntu-14.04-*
     - -ubuntu-core-*
 
-restore: |
-    tests.session -u test restore
-    rm -f /usr/share/fonts/dist-font.txt
-    rm -f /usr/local/share/fonts/local-font.txt
-    rm -f /home/test/.fonts/user-font1.txt
-    rm -f /home/test/.local/share/fonts/user-font2.txt
-    rm -f /var/cache/fontconfig/cache.txt
-    rm -f /usr/lib/fontconfig/cache/cache.txt
-
 prepare: |
     tests.session -u test prepare
 
@@ -46,6 +37,15 @@ prepare: |
 
     echo "Install the test-snapd-desktop snap"
     snap try "$TESTSLIB"/snaps/test-snapd-desktop
+
+restore: |
+    tests.session -u test restore
+    rm -f /usr/share/fonts/dist-font.txt
+    rm -f /usr/local/share/fonts/local-font.txt
+    rm -f /home/test/.fonts/user-font1.txt
+    rm -f /home/test/.local/share/fonts/user-font2.txt
+    rm -f /var/cache/fontconfig/cache.txt
+    rm -f /usr/lib/fontconfig/cache/cache.txt
 
 execute: |
     echo "The plug is connected by default"

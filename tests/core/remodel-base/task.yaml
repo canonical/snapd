@@ -1,10 +1,11 @@
 summary: Test a remodel that switches to a new base
-environment:
-    OLD_BASE: core18
-    NEW_BASE: test-snapd-core18
 
 # TODO:UC20: enable on UC20
 systems: [ubuntu-core-18-64]
+
+environment:
+    OLD_BASE: core18
+    NEW_BASE: test-snapd-core18
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
