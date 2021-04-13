@@ -220,6 +220,131 @@ version: 1.0
 type: gadget
 `
 
+func (s *kernelCommandLineSuite) TestComposeCommandLineWithGadget(c *C) {
+	model := boottest.MakeMockUC20Model()
+
+	tbl := bootloadertest.Mock("btloader", c.MkDir()).WithTrustedAssets()
+	bootloader.Force(tbl)
+	defer bootloader.Force(nil)
+
+	tbl.StaticCommandLine = "panic=-1"
+	tbl.CandidateStaticCommandLine = "candidate panic=0"
+
+	for _, tc := range []struct {
+		which          string
+		files          [][]string
+		expCommandLine string
+		errMsg         string
+	}{{
+		which: "current",
+		files: [][]string{
+			{"cmdline.extra", "cmdline extra"},
+		},
+		expCommandLine: "snapd_recovery_mode=run panic=-1 cmdline extra",
+	}, {
+		which: "candidate",
+		files: [][]string{
+			{"cmdline.extra", "cmdline extra"},
+		},
+		expCommandLine: "snapd_recovery_mode=run candidate panic=0 cmdline extra",
+	}, {
+		which: "current",
+		files: [][]string{
+			{"cmdline.full", "cmdline full"},
+		},
+		errMsg: "full kernel command line provided by the gadget is not supported yet",
+	}, {
+		which: "candidate",
+		files: [][]string{
+			{"cmdline.extra", `bad-quote="`},
+		},
+		errMsg: `cannot use kernel command line from gadget: invalid kernel command line "bad-quote=\\"" in cmdline.extra: unbalanced quoting`,
+	}} {
+		sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, append([][]string{
+			{"meta/snap.yaml", gadgetSnapYaml},
+		}, tc.files...))
+		var cmdline string
+		var err error
+		switch tc.which {
+		case "current":
+			cmdline, err = boot.ComposeCommandLine(model, sf)
+		case "candidate":
+			cmdline, err = boot.ComposeCandidateCommandLine(model, sf)
+		default:
+			c.Fatalf("unexpected command line type")
+		}
+		if tc.errMsg == "" {
+			c.Assert(err, IsNil)
+			c.Assert(cmdline, Equals, tc.expCommandLine)
+		} else {
+			c.Assert(err, ErrorMatches, tc.errMsg)
+		}
+	}
+}
+
+func (s *kernelCommandLineSuite) TestComposeRecoveryCommandLineWithGadget(c *C) {
+	model := boottest.MakeMockUC20Model()
+
+	tbl := bootloadertest.Mock("btloader", c.MkDir()).WithTrustedAssets()
+	bootloader.Force(tbl)
+	defer bootloader.Force(nil)
+
+	tbl.StaticCommandLine = "panic=-1"
+	tbl.CandidateStaticCommandLine = "candidate panic=0"
+	system := "1234"
+
+	for _, tc := range []struct {
+		which          string
+		files          [][]string
+		expCommandLine string
+		errMsg         string
+	}{{
+		which: "current",
+		files: [][]string{
+			{"cmdline.extra", "cmdline extra"},
+		},
+		expCommandLine: "snapd_recovery_mode=recover snapd_recovery_system=1234 panic=-1 cmdline extra",
+	}, {
+		which: "candidate",
+		files: [][]string{
+			{"cmdline.extra", "cmdline extra"},
+		},
+		expCommandLine: "snapd_recovery_mode=recover snapd_recovery_system=1234 candidate panic=0 cmdline extra",
+	}, {
+		which: "current",
+		files: [][]string{
+			{"cmdline.full", "cmdline full"},
+		},
+		errMsg: "full kernel command line provided by the gadget is not supported yet",
+	}, {
+		which: "candidate",
+		files: [][]string{
+			{"cmdline.extra", `bad-quote="`},
+		},
+		errMsg: `cannot use kernel command line from gadget: invalid kernel command line "bad-quote=\\"" in cmdline.extra: unbalanced quoting`,
+	}} {
+		sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, append([][]string{
+			{"meta/snap.yaml", gadgetSnapYaml},
+		}, tc.files...))
+		var cmdline string
+		var err error
+		switch tc.which {
+		case "current":
+			cmdline, err = boot.ComposeRecoveryCommandLine(model, system, sf)
+		case "candidate":
+			cmdline, err = boot.ComposeCandidateRecoveryCommandLine(model, system, sf)
+		default:
+			c.Fatalf("unexpected command line type")
+		}
+		if tc.errMsg == "" {
+			c.Assert(err, IsNil)
+			c.Assert(cmdline, Equals, tc.expCommandLine)
+		} else {
+			c.Assert(err, ErrorMatches, tc.errMsg)
+		}
+	}
+}
+
 func (s *kernelCommandLineSuite) TestBootVarsForGadgetCommandLine(c *C) {
 	for _, tc := range []struct {
 		errMsg       string

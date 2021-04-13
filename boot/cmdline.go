@@ -169,8 +169,25 @@ func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, syst
 		}
 		return "", err
 	}
-	// TODO:UC20: fetch extra args from gadget
 	extraArgs := ""
+	if gadgetDirOrSnapPath != "" {
+		sf, err := snapfile.Open(gadgetDirOrSnapPath)
+		if err != nil {
+			return "", fmt.Errorf("cannot open gadget snap: %v", err)
+		}
+		extraOrFull, full, err := gadget.KernelCommandLineFromGadget(sf)
+		if err != nil && err != gadget.ErrNoKernelCommandline {
+			return "", fmt.Errorf("cannot use kernel command line from gadget: %v", err)
+		}
+		if err == nil {
+			// gadget provides some part of the kernel command line
+			if full {
+				// TODO:UC20: support full command lines
+				return "", fmt.Errorf("full kernel command line provided by the gadget is not supported yet")
+			}
+			extraArgs = extraOrFull
+		}
+	}
 	if currentOrCandidate == currentEdition {
 		return mbl.CommandLine(modeArg, systemArg, extraArgs)
 	} else {
@@ -258,6 +275,8 @@ func observeSuccessfulCommandLineUpdate(m *Modeenv) (*Modeenv, error) {
 // expected kernel command line matches the one the system booted with and
 // populates modeenv kernel command line list accordingly.
 func observeSuccessfulCommandLineCompatBoot(model *asserts.Model, m *Modeenv) (*Modeenv, error) {
+	// since this is a compatibility scenario, the kernel command line
+	// arguments would not have come from the gadget before either
 	cmdlineExpected, err := ComposeCommandLine(model, "")
 	if err != nil {
 		return nil, err
@@ -325,7 +344,9 @@ func kernelCommandLinesForResealWithFallback(model *asserts.Model, modeenv *Mode
 		return modeenv.CurrentKernelCommandLines, nil
 	}
 	// fallback for when reseal is called before mark boot successful set a
-	// default during snapd update
+	// default during snapd update, since this is a compatibility scenario
+	// there would be no kernel command lines arguments coming from the
+	// gadget either
 	cmdline, err := ComposeCommandLine(model, "")
 	if err != nil {
 		return nil, err

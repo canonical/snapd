@@ -1010,15 +1010,19 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 
 func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 	for _, tc := range []struct {
-		assetsMap          boot.BootAssetsMap
-		recoverySystems    []string
-		undefinedKernel    bool
-		expectedAssets     []boot.BootAsset
-		expectedKernelRevs []int
-		err                string
+		desc                 string
+		assetsMap            boot.BootAssetsMap
+		recoverySystems      []string
+		undefinedKernel      bool
+		gadgetFilesForSystem map[string][][]string
+		expectedAssets       []boot.BootAsset
+		expectedKernelRevs   []int
+		// in the order of boot chains
+		expectedCmdlines [][]string
+		err              string
 	}{
 		{
-			// transition sequences
+			desc:            "transition sequences",
 			recoverySystems: []string{"20200825"},
 			assetsMap: boot.BootAssetsMap{
 				"grubx64.efi": []string{"grub-hash-1", "grub-hash-2"},
@@ -1029,9 +1033,12 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 				{Role: bootloader.RoleRecovery, Name: "grubx64.efi", Hashes: []string{"grub-hash-1", "grub-hash-2"}},
 			},
 			expectedKernelRevs: []int{1},
+			expectedCmdlines: [][]string{
+				{"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1"},
+			},
 		},
 		{
-			// two systems
+			desc:            "two systems",
 			recoverySystems: []string{"20200825", "20200831"},
 			assetsMap: boot.BootAssetsMap{
 				"grubx64.efi": []string{"grub-hash-1", "grub-hash-2"},
@@ -1042,9 +1049,13 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 				{Role: bootloader.RoleRecovery, Name: "grubx64.efi", Hashes: []string{"grub-hash-1", "grub-hash-2"}},
 			},
 			expectedKernelRevs: []int{1, 3},
+			expectedCmdlines: [][]string{
+				{"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1"},
+				{"snapd_recovery_mode=recover snapd_recovery_system=20200831 console=ttyS0 console=tty1 panic=-1"},
+			},
 		},
 		{
-			// non-transition sequence
+			desc:            "non transition sequence",
 			recoverySystems: []string{"20200825"},
 			assetsMap: boot.BootAssetsMap{
 				"grubx64.efi": []string{"grub-hash-1"},
@@ -1055,13 +1066,43 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 				{Role: bootloader.RoleRecovery, Name: "grubx64.efi", Hashes: []string{"grub-hash-1"}},
 			},
 			expectedKernelRevs: []int{1},
+			expectedCmdlines: [][]string{
+				{"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1"},
+			},
 		},
 		{
-			// invalid recovery system label
+			desc:            "two systems with command lines",
+			recoverySystems: []string{"20200825", "20200831"},
+			assetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"grub-hash-1", "grub-hash-2"},
+				"bootx64.efi": []string{"shim-hash-1"},
+			},
+			expectedAssets: []boot.BootAsset{
+				{Role: bootloader.RoleRecovery, Name: "bootx64.efi", Hashes: []string{"shim-hash-1"}},
+				{Role: bootloader.RoleRecovery, Name: "grubx64.efi", Hashes: []string{"grub-hash-1", "grub-hash-2"}},
+			},
+			gadgetFilesForSystem: map[string][][]string{
+				"20200825": {
+					{"cmdline.extra", "extra for 20200825"},
+				},
+				"20200831": {
+					// TODO: make it a cmdline.full
+					{"cmdline.extra", "some-extra-for-20200831"},
+				},
+			},
+			expectedKernelRevs: []int{1, 3},
+			expectedCmdlines: [][]string{
+				{"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1 extra for 20200825"},
+				{"snapd_recovery_mode=recover snapd_recovery_system=20200831 console=ttyS0 console=tty1 panic=-1 some-extra-for-20200831"},
+			},
+		},
+		{
+			desc:            "invalid recovery system label",
 			recoverySystems: []string{"0"},
 			err:             `cannot read system "0" seed: invalid system seed`,
 		},
 	} {
+		c.Logf("tc: %q", tc.desc)
 		rootdir := c.MkDir()
 		dirs.SetRootDir(rootdir)
 		defer dirs.SetRootDir("")
@@ -1075,7 +1116,7 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 			if label == "20200831" {
 				kernelRev = 3
 			}
-			return nil, []*seed.Snap{mockKernelSeedSnap(c, snap.R(kernelRev)), mockGadgetSeedSnap(c, nil)}, nil
+			return nil, []*seed.Snap{mockKernelSeedSnap(c, snap.R(kernelRev)), mockGadgetSeedSnap(c, tc.gadgetFilesForSystem[label])}, nil
 		})
 		defer restore()
 
@@ -1098,12 +1139,18 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 			c.Assert(bc, HasLen, len(tc.recoverySystems))
+			c.Assert(tc.expectedCmdlines, HasLen, len(bc), Commentf("broken test, expected command lines must be of the same length as recovery systems and recovery boot chains"))
 			for i, chain := range bc {
 				c.Assert(chain.AssetChain, DeepEquals, tc.expectedAssets)
-				c.Check(chain.Kernel, Equals, "pc-kernel")
+				c.Assert(chain.Kernel, Equals, "pc-kernel")
 				expectedKernelRev := tc.expectedKernelRevs[i]
-				c.Check(chain.KernelRevision, Equals, fmt.Sprintf("%d", expectedKernelRev))
-				c.Check(chain.KernelBootFile(), DeepEquals, bootloader.BootFile{Snap: fmt.Sprintf("/var/lib/snapd/seed/snaps/pc-kernel_%d.snap", expectedKernelRev), Path: "kernel.efi", Role: bootloader.RoleRecovery})
+				c.Assert(chain.KernelRevision, Equals, fmt.Sprintf("%d", expectedKernelRev))
+				c.Assert(chain.KernelBootFile(), DeepEquals, bootloader.BootFile{
+					Snap: fmt.Sprintf("/var/lib/snapd/seed/snaps/pc-kernel_%d.snap", expectedKernelRev),
+					Path: "kernel.efi",
+					Role: bootloader.RoleRecovery,
+				})
+				c.Assert(chain.KernelCmdlines, DeepEquals, tc.expectedCmdlines[i])
 			}
 		} else {
 			c.Assert(err, ErrorMatches, tc.err)
