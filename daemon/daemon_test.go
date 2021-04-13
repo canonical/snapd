@@ -441,7 +441,7 @@ func (s *daemonSuite) TestPolkitAccessForGet(c *check.C) {
 	// for UserOK commands, polkit is not consulted
 	cmd.UserOK = true
 	restore := MockPolkitCheckAuthorization(func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
-		c.Fatal("polkit.CheckAuthorization called")
+		panic("polkit.CheckAuthorization called")
 	})
 	defer restore()
 	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
