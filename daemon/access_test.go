@@ -42,15 +42,15 @@ func (s *accessSuite) TestOpenAccess(c *C) {
 
 	// openAccess denies access from snapd-snap.socket
 	ucred := &ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapSocket}
-	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessForbidden)
+	c.Check(ac.CheckAccess(nil, ucred, nil), Equals, accessForbidden)
 
 	// Access allowed from other sockets
 	ucred.Socket = dirs.SnapdSocket
-	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessOK)
+	c.Check(ac.CheckAccess(nil, ucred, nil), Equals, accessOK)
 
 	// Access forbidden without peer credentials.  This will need
 	// to be revisited if the API is ever exposed over TCP.
-	c.Check(ac.checkAccess(nil, nil, nil), Equals, accessForbidden)
+	c.Check(ac.CheckAccess(nil, nil, nil), Equals, accessForbidden)
 }
 
 func (s *accessSuite) TestAuthenticatedAccess(c *C) {
@@ -70,22 +70,22 @@ func (s *accessSuite) TestAuthenticatedAccess(c *C) {
 
 	// authenticatedAccess denies access from snapd-snap.socket
 	ucred := &ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapSocket}
-	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessForbidden)
-	c.Check(ac.checkAccess(req, ucred, user), Equals, accessForbidden)
+	c.Check(ac.CheckAccess(req, ucred, nil), Equals, accessForbidden)
+	c.Check(ac.CheckAccess(req, ucred, user), Equals, accessForbidden)
 
 	// With macaroon auth, a normal user is granted access
 	ucred = &ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket}
-	c.Check(ac.checkAccess(req, ucred, user), Equals, accessOK)
+	c.Check(ac.CheckAccess(req, ucred, user), Equals, accessOK)
 
 	// Macaroon access requires peer credentials
-	c.Check(ac.checkAccess(req, nil, user), Equals, accessForbidden)
+	c.Check(ac.CheckAccess(req, nil, user), Equals, accessForbidden)
 
 	// Without macaroon auth, normal users are unauthorized
-	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessUnauthorized)
+	c.Check(ac.CheckAccess(req, ucred, nil), Equals, accessUnauthorized)
 
 	// The root user is granted access without a macaroon
 	ucred = &ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
-	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessOK)
+	c.Check(ac.CheckAccess(req, ucred, nil), Equals, accessOK)
 }
 
 func (s *accessSuite) TestAuthenticatedAccessPolkit(c *C) {
@@ -107,9 +107,9 @@ func (s *accessSuite) TestAuthenticatedAccessPolkit(c *C) {
 		c.Fail()
 		return accessForbidden
 	}
-	c.Check(ac.checkAccess(req, nil, nil), Equals, accessForbidden)
-	c.Check(ac.checkAccess(req, nil, user), Equals, accessForbidden)
-	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessOK)
+	c.Check(ac.CheckAccess(req, nil, nil), Equals, accessForbidden)
+	c.Check(ac.CheckAccess(req, nil, user), Equals, accessForbidden)
+	c.Check(ac.CheckAccess(req, ucred, nil), Equals, accessOK)
 
 	// polkit is checked for regular users without macaroon auth
 	checkPolkitAction = func(r *http.Request, u *ucrednet, action string) accessResult {
@@ -119,7 +119,7 @@ func (s *accessSuite) TestAuthenticatedAccessPolkit(c *C) {
 		return accessOK
 	}
 	ucred = &ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket}
-	c.Check(ac.checkAccess(req, ucred, nil), Equals, accessOK)
+	c.Check(ac.CheckAccess(req, ucred, nil), Equals, accessOK)
 }
 
 func (s *accessSuite) TestCheckPolkitActionImpl(c *C) {
@@ -185,22 +185,22 @@ func (s *accessSuite) TestRootAccess(c *C) {
 	user := &auth.UserState{}
 
 	// rootAccess denies access without ucred
-	c.Check(ac.checkAccess(nil, nil, nil), Equals, accessForbidden)
-	c.Check(ac.checkAccess(nil, nil, user), Equals, accessForbidden)
+	c.Check(ac.CheckAccess(nil, nil, nil), Equals, accessForbidden)
+	c.Check(ac.CheckAccess(nil, nil, user), Equals, accessForbidden)
 
 	// rootAccess denies access from snapd-snap.socket
 	ucred := &ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapSocket}
-	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessForbidden)
-	c.Check(ac.checkAccess(nil, ucred, user), Equals, accessForbidden)
+	c.Check(ac.CheckAccess(nil, ucred, nil), Equals, accessForbidden)
+	c.Check(ac.CheckAccess(nil, ucred, user), Equals, accessForbidden)
 
 	// Non-root users are forbidden, even with macaroon auth
 	ucred = &ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket}
-	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessForbidden)
-	c.Check(ac.checkAccess(nil, ucred, user), Equals, accessForbidden)
+	c.Check(ac.CheckAccess(nil, ucred, nil), Equals, accessForbidden)
+	c.Check(ac.CheckAccess(nil, ucred, user), Equals, accessForbidden)
 
 	// Root is granted access
 	ucred = &ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
-	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessOK)
+	c.Check(ac.CheckAccess(nil, ucred, nil), Equals, accessOK)
 }
 
 func (s *accessSuite) TestSnapAccess(c *C) {
@@ -208,10 +208,10 @@ func (s *accessSuite) TestSnapAccess(c *C) {
 
 	// snapAccess allows access from snapd-snap.socket
 	ucred := &ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapSocket}
-	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessOK)
+	c.Check(ac.CheckAccess(nil, ucred, nil), Equals, accessOK)
 
 	// access is forbidden on the main socket or without peer creds
 	ucred.Socket = dirs.SnapdSocket
-	c.Check(ac.checkAccess(nil, ucred, nil), Equals, accessForbidden)
-	c.Check(ac.checkAccess(nil, nil, nil), Equals, accessForbidden)
+	c.Check(ac.CheckAccess(nil, ucred, nil), Equals, accessForbidden)
+	c.Check(ac.CheckAccess(nil, nil, nil), Equals, accessForbidden)
 }
