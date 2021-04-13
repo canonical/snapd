@@ -224,6 +224,16 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	recoveryBlVars := map[string]string{
 		"snapd_recovery_kernel": filepath.Join("/", kernelPath),
 	}
+	if _, ok := bl.(bootloader.TrustedAssetsBootloader); ok {
+		recoveryCmdlineArgs, err := bootVarsForTrustedCommandLineFromGadget(bootWith.UnpackedGadgetDir)
+		if err != nil {
+			return fmt.Errorf("cannot obtain recovery system command line: %v", err)
+		}
+		for k, v := range recoveryCmdlineArgs {
+			recoveryBlVars[k] = v
+		}
+	}
+
 	if err := rbl.SetRecoverySystemEnv(bootWith.RecoverySystemDir, recoveryBlVars); err != nil {
 		return fmt.Errorf("cannot set recovery system environment: %v", err)
 	}
@@ -374,11 +384,19 @@ func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 			return fmt.Errorf("cannot install managed bootloader assets: %v", err)
 		}
 		// determine the expected command line
-		cmdline, err := ComposeCandidateCommandLine(model)
+		cmdline, err := ComposeCandidateCommandLine(model, bootWith.UnpackedGadgetDir)
 		if err != nil {
 			return fmt.Errorf("cannot compose the candidate command line: %v", err)
 		}
 		modeenv.CurrentKernelCommandLines = bootCommandLines{cmdline}
+
+		cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(bootWith.UnpackedGadgetDir)
+		if err != nil {
+			return fmt.Errorf("cannot prepare bootloader variables for kernel command line: %v", err)
+		}
+		if err := bl.SetBootVars(cmdlineVars); err != nil {
+			return fmt.Errorf("cannot set run system kernel command line arguments: %v", err)
+		}
 	}
 
 	// all fields that needed to be set in the modeenv must have been set by

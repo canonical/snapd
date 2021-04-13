@@ -1,8 +1,8 @@
 summary: core revert test
 
-kill-timeout: 30m
-
 systems: [ubuntu-16.04-64]
+
+kill-timeout: 30m
 
 environment:
     IMAGE_FILE: /tmp/work-dir/images/ubuntu-core-new.img

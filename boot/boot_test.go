@@ -2067,7 +2067,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 	shimBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("shim-%s", shimHash)), bootloader.RoleRecovery)
 	assetBf := bootloader.NewBootFile("", filepath.Join(dirs.SnapBootAssetsDir, "trusted", fmt.Sprintf("asset-%s", dataHash)), bootloader.RoleRecovery)
 	runKernelBf := bootloader.NewBootFile(filepath.Join(s.kern1.Filename()), "kernel.efi", bootloader.RoleRunMode)
-	recoveryKernelBf := bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
+	recoveryKernelBf := bootloader.NewBootFile("pc-kernel_1.snap", "kernel.efi", bootloader.RoleRecovery)
 
 	tab.BootChainList = []bootloader.BootFile{
 		bootloader.NewBootFile("", "shim", bootloader.RoleRecovery),
@@ -2083,14 +2083,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 	uc20Model := boottest.MakeMockUC20Model()
 
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
-		kernelSnap := &seed.Snap{
-			Path: "/var/lib/snapd/seed/snaps/pc-linux_1.snap",
-			SideInfo: &snap.SideInfo{
-				Revision: snap.Revision{N: 1},
-				RealName: "pc-linux",
-			},
-		}
-		return uc20Model, []*seed.Snap{kernelSnap}, nil
+		return uc20Model, []*seed.Snap{mockKernelSeedSnap(c, snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 
@@ -2137,10 +2130,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
 				secboot.NewLoadChain(shimBf,
 					secboot.NewLoadChain(assetBf,
-						secboot.NewLoadChain(runKernelBf))),
+						secboot.NewLoadChain(recoveryKernelBf))),
 				secboot.NewLoadChain(shimBf,
 					secboot.NewLoadChain(assetBf,
-						secboot.NewLoadChain(recoveryKernelBf))),
+						secboot.NewLoadChain(runKernelBf))),
 			})
 		case 2:
 			c.Check(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
@@ -2221,14 +2214,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 	uc20Model := boottest.MakeMockUC20Model()
 
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
-		kernelSnap := &seed.Snap{
-			Path: "/var/lib/snapd/seed/snaps/pc-kernel-recovery_1.snap",
-			SideInfo: &snap.SideInfo{
-				Revision: snap.Revision{N: 1},
-				RealName: "pc-kernel-recovery",
-			},
-		}
-		return uc20Model, []*seed.Snap{kernelSnap}, nil
+		return uc20Model, []*seed.Snap{mockNamedKernelSeedSnap(c, snap.R(1), "pc-kernel-recovery"), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 
@@ -2381,14 +2367,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 	uc20Model := boottest.MakeMockUC20Model()
 
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
-		kernelSnap := &seed.Snap{
-			Path: "/var/lib/snapd/seed/snaps/pc-kernel-recovery_1.snap",
-			SideInfo: &snap.SideInfo{
-				Revision: snap.Revision{N: 1},
-				RealName: "pc-kernel-recovery",
-			},
-		}
-		return uc20Model, []*seed.Snap{kernelSnap}, nil
+		return uc20Model, []*seed.Snap{mockNamedKernelSeedSnap(c, snap.R(1), "pc-kernel-recovery"), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 

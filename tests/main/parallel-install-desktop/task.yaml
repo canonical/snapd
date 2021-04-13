@@ -1,5 +1,8 @@
 summary: Checks for parallel installation of sideloaded snaps containing desktop applications
 
+restore: |
+    snap set system experimental.parallel-instances=null
+
 execute: |
     echo "Sideload the regular snap"
     "$TESTSTOOLS"/snaps-state install-local basic-desktop
@@ -37,6 +40,3 @@ execute: |
 
     snap remove --purge basic-desktop
     test -f /var/lib/snapd/desktop/applications/basic-desktop+longname_echo.desktop
-
-restore: |
-    snap set system experimental.parallel-instances=null
