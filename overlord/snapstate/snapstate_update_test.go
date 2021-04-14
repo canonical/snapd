@@ -5339,8 +5339,9 @@ func (s *snapmgrTestSuite) TestStopSnapServicesFirstSavesSnapSetupLastActiveDisa
 		Sequence: []*snap.SideInfo{
 			{RealName: "services-snap", Revision: snap.R(11)},
 		},
-		Current:                    snap.R(11),
-		Active:                     true,
+		Current: snap.R(11),
+		Active:  true,
+		// gofmt
 		LastActiveDisabledServices: []string{"svc2"},
 	})
 
