@@ -6770,9 +6770,10 @@ func (s *mgrsSuite) testGadgetKernelCommandLine(c *C, snapPath string, si *snap.
 
 	// mock the modeenv file
 	m := boot.Modeenv{
-		Mode:                      "run",
-		RecoverySystem:            "20191127",
-		Base:                      "core20_1.snap",
+		Mode:           "run",
+		RecoverySystem: "20191127",
+		Base:           "core20_1.snap",
+		// gofmt
 		CurrentKernelCommandLines: []string{currentModeenvCmdline},
 	}
 	err := m.WriteTo("")
