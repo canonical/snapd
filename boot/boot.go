@@ -436,11 +436,11 @@ func updateManagedBootConfigForBootloader(dev Device, mode, gadgetSnapOrDir stri
 	return tbl.UpdateBootConfig()
 }
 
-// CommandLineComponentUpdate handles the update of a component that contributes
-// to the kernel command line of the run system. Returns true when a change in
-// command line has been observed and a reboot is needed. The reboot, if needed,
-// should be requested as the the earliest possible occasion.
-func CommandLineComponentUpdate(dev Device, gadgetSnapOrDir string) (needsReboot bool, err error) {
+// UpdateCommandLineForGadgetComponent handles the update of a gadget that
+// contributes to the kernel command line of the run system. Returns true when a
+// change in command line has been observed and a reboot is needed. The reboot,
+// if needed, should be requested as the the earliest possible occasion.
+func UpdateCommandLineForGadgetComponent(dev Device, gadgetSnapOrDir string) (needsReboot bool, err error) {
 	if !dev.HasModeenv() {
 		// only UC20 devices are supported
 		return false, fmt.Errorf("internal error: command line component cannot be updated on non UC20 devices")

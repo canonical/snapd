@@ -3273,7 +3273,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateNonUC20(c *C) {
 		{"cmdline.extra", "foo"},
 	})
 
-	reboot, err := boot.CommandLineComponentUpdate(nonUC20dev, sf)
+	reboot, err := boot.UpdateCommandLineForGadgetComponent(nonUC20dev, sf)
 	c.Assert(err, ErrorMatches, "internal error: command line component cannot be updated on non UC20 devices")
 	c.Assert(reboot, Equals, false)
 }
@@ -3289,7 +3289,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20NotManagedBootload
 	bl.SetErr = fmt.Errorf("unexpected call")
 	s.forceBootloader(bl)
 
-	reboot, err := boot.CommandLineComponentUpdate(s.uc20dev, sf)
+	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf)
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, false)
 	c.Check(bl.SetBootVarsCalls, Equals, 0)
@@ -3305,7 +3305,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20ArgsAdded(c *C) {
 	s.modeenvWithEncryption.CurrentKernelCommandLines = []string{"snapd_recovery_mode=run static mocked panic=-1"}
 	c.Assert(s.modeenvWithEncryption.WriteTo(""), IsNil)
 
-	reboot, err := boot.CommandLineComponentUpdate(s.uc20dev, sf)
+	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf)
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, true)
 
@@ -3348,7 +3348,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20ArgsSwitch(c *C) {
 	c.Assert(err, IsNil)
 	s.bootloader.SetBootVarsCalls = 0
 
-	reboot, err := boot.CommandLineComponentUpdate(s.uc20dev, sf)
+	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf)
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, false)
 
@@ -3372,7 +3372,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20ArgsSwitch(c *C) {
 		{"cmdline.extra", "changed"},
 	})
 
-	reboot, err = boot.CommandLineComponentUpdate(s.uc20dev, sfChanged)
+	reboot, err = boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sfChanged)
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, true)
 
@@ -3415,7 +3415,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20UnencryptedArgsRem
 	c.Assert(err, IsNil)
 	s.bootloader.SetBootVarsCalls = 0
 
-	reboot, err := boot.CommandLineComponentUpdate(s.uc20dev, sf)
+	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf)
 	c.Assert(err, IsNil)
 	c.Assert(reboot, Equals, true)
 
@@ -3454,7 +3454,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20SetError(c *C) {
 
 	s.bootloader.SetErr = fmt.Errorf("set fails")
 
-	reboot, err := boot.CommandLineComponentUpdate(s.uc20dev, sf)
+	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf)
 	c.Assert(err, ErrorMatches, "cannot set run system kernel command line arguments: set fails")
 	c.Assert(reboot, Equals, false)
 	// set boot vars was called and failed
@@ -3492,7 +3492,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateWithResealError(c *C) 
 	})
 	defer restore()
 
-	reboot, err := boot.CommandLineComponentUpdate(s.uc20dev, gadgetSnap)
+	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, gadgetSnap)
 	c.Assert(err, ErrorMatches, "cannot reseal the encryption key: reseal fails")
 	c.Check(reboot, Equals, false)
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
