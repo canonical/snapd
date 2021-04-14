@@ -151,8 +151,8 @@ type: app
 version: 1
 base: other-base
 plugs:
-    plug: desktop
-    plug2: mir
+    desktop:
+    mir:
 `
 
 const coreYaml = `name: core
@@ -167,10 +167,8 @@ const coreYaml2 = `name: core
 type: os
 version: 1
 slots:
-    slot:
-        interface: desktop
-    slot2:
-        interface: mir
+    desktop:
+    mir:
 `
 
 const core18Yaml = `name: core18
@@ -190,8 +188,7 @@ const snapdYaml2 = `name: snapd
 version: 1
 type: snapd
 slots:
-    slot:
-        interface: desktop
+    desktop:
 `
 
 func (s *autorefreshGatingSuite) TestAffectedByBase(c *C) {
@@ -341,15 +338,13 @@ func (s *autorefreshGatingSuite) TestNotAffectedByCoreOrSnapdSlot(c *C) {
 
 	snapG := s.mockInstalledSnap(c, snapGyaml, true)
 	core := s.mockInstalledSnap(c, coreYaml2, false)
-	//snapd := s.mockInstalledSnap(c, snapdYaml, false)
 	snapB := s.mockInstalledSnap(c, snapByaml, true)
 
 	c.Assert(s.repo.AddSnap(snapG), IsNil)
 	c.Assert(s.repo.AddSnap(core), IsNil)
-	//c.Assert(s.repo.AddSnap(snapd), IsNil)
 	c.Assert(s.repo.AddSnap(snapB), IsNil)
 
-	cref := &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "snap-g", Name: "plug2"}, SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot2"}}
+	cref := &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "snap-g", Name: "mir"}, SlotRef: interfaces.SlotRef{Snap: "core", Name: "mir"}}
 	_, err := s.repo.Connect(cref, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
@@ -418,7 +413,7 @@ func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackendSnapdSlot(c *
 	c.Assert(s.repo.AddSnap(snapF), IsNil)
 	c.Assert(s.repo.AddSnap(snapdSnap), IsNil)
 	c.Assert(s.repo.AddSnap(snapG), IsNil)
-	cref := &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "snap-g", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "snapd", Name: "slot"}}
+	cref := &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "snap-g", Name: "desktop"}, SlotRef: interfaces.SlotRef{Snap: "snapd", Name: "desktop"}}
 	_, err := s.repo.Connect(cref, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
@@ -452,7 +447,7 @@ func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackendCoreSlot(c *C
 
 	c.Assert(s.repo.AddSnap(coreSnap), IsNil)
 	c.Assert(s.repo.AddSnap(snapG), IsNil)
-	cref := &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "snap-g", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "core", Name: "slot"}}
+	cref := &interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "snap-g", Name: "desktop"}, SlotRef: interfaces.SlotRef{Snap: "core", Name: "desktop"}}
 	_, err := s.repo.Connect(cref, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
