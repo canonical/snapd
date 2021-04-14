@@ -439,17 +439,18 @@ func updateManagedBootConfigForBootloader(dev Device, mode, gadgetSnapOrDir stri
 // UpdateCommandLineForGadgetComponent handles the update of a gadget that
 // contributes to the kernel command line of the run system. Returns true when a
 // change in command line has been observed and a reboot is needed. The reboot,
-// if needed, should be requested as the the earliest possible occasion.
+// if needed, should be requested at the the earliest possible occasion.
 func UpdateCommandLineForGadgetComponent(dev Device, gadgetSnapOrDir string) (needsReboot bool, err error) {
 	if !dev.HasModeenv() {
 		// only UC20 devices are supported
 		return false, fmt.Errorf("internal error: command line component cannot be updated on non UC20 devices")
 	}
 	opts := &bootloader.Options{
-		Role:        bootloader.RoleRunMode,
-		NoSlashBoot: true,
+		Role: bootloader.RoleRunMode,
 	}
-	tbl, err := getBootloaderManagingItsAssets(InitramfsUbuntuBootDir, opts)
+	// TODO: add support for bootloaders that that do not have any managed
+	// assets
+	tbl, err := getBootloaderManagingItsAssets("", opts)
 	if err != nil {
 		if err == errBootConfigNotManaged {
 			// we're not managing this bootloader's boot config
