@@ -3,21 +3,30 @@ summary: Verify custom kernel command line handling in UC20
 systems: [ubuntu-20.04-64]
 
 environment:
+    NESTED_IMAGE_ID: core20-kernel-commandline
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
-    # TODO: enable TPM once resealing with custom kernel command lines lands
-    NESTED_ENABLE_TPM: false
-    NESTED_ENABLE_SECURE_BOOT: false
 
 details: |
     This test checks support for customized kernel command line arguments in UC20
+
+debug: |
+    cat system.cmdline.run || true
+    cat system.cmdline.recover || true
 
 prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
+    KEY_NAME=$(nested_get_snakeoil_key)
+    SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
+    SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
+
     echo "Grab and prepare the gadget snap"
     snap download --basename=pc --channel="20/edge" pc
     unsquashfs -d pc-gadget pc.snap
+
+    echo "Sign the shim binary"
+    nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
     echo 'hello from test' > pc-gadget/cmdline.extra
     snap pack pc-gadget/ extra-snaps/
@@ -29,8 +38,12 @@ execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    # TODO: verify /proc/cmdline has the right arguments when run system support
-    # lands
+    # system is in run mode
+    nested_exec 'sudo cat /proc/cmdline' > system.cmdline.run
+    MATCH snapd_recovery_mode=run < system.cmdline.run
+
+    echo "Verify kernel command line in run mode"
+    MATCH 'snapd_recovery_mode=run .* hello from test$' < system.cmdline.run
 
     echo "Transition to recover mode to verify kernel command line"
     boot_id="$(nested_get_boot_id)"
@@ -39,9 +52,7 @@ execute: |
     nested_wait_for_reboot "${boot_id}"
 
     echo "Check the vm is in recover mode"
-    nested_exec 'sudo cat /proc/cmdline' > system.cmdline
+    nested_exec 'sudo cat /proc/cmdline' > system.cmdline.recover
+    MATCH snapd_recovery_mode=recover < system.cmdline.recover
 
-    echo "Verify that system is in recover mode"
-    MATCH snapd_recovery_mode=recover < system.cmdline
-
-    MATCH 'hello from test' < system.cmdline
+    MATCH 'snapd_recovery_mode=recover snapd_recovery_system=.* .* hello from test$' < system.cmdline.recover

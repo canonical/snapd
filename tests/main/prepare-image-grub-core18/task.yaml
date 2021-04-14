@@ -5,12 +5,9 @@ backends: [-autopkgtest]
 systems: [-ubuntu-core-16-*, -fedora-*, -opensuse-*, -arch-*]
 
 environment:
-    ROOT: /tmp/root
-    IMAGE: /tmp/root/image
-    GADGET: /tmp/root/gadget
-
-restore: |
-    rm -rf "$ROOT"
+    ROOT: "$PWD/root"
+    IMAGE: "$PWD/root/image"
+    GADGET: "$PWD/root/gadget"
 
 execute: |
     echo Running prepare-image
