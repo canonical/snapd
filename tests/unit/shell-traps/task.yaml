@@ -1,9 +1,11 @@
 summary: shell is tricky
+
 details: |
     shell can be surprisingly tricky, this test captures some of the things
     we've learned and now guard against. The test is expected to pass all the
     time, it simply contains "executable documentation" that is meant to
     illustrate how non-obvious some behavior is.
+
 # 1: increment if you had to read this or edit this
 execute: |
     # NOTE: Disable set -e that was implicitly provided by spread and check for

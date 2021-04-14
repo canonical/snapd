@@ -1,6 +1,6 @@
 summary: measuring basic properties of device cgroup
-# fedora-32, fedora-33, debian-sid, arch use cgroupv2, which we don't support
 
+# fedora-32, fedora-33, debian-sid, arch use cgroupv2, which we don't support
 systems: [ -fedora-32-*, -fedora-33-*, -debian-sid-*, -arch-* ]
 
 execute: ./task.sh

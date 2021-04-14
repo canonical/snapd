@@ -8,6 +8,11 @@ details: |
 # TODO: enable for ubuntu-21+ once the lxd image is published
 systems: [ubuntu-20*]
 
+restore: |
+    lxd.lxc stop ubuntu --force || true
+    lxd.lxc delete ubuntu || true
+    snap remove --purge lxd
+
 execute: |
     echo "Install lxd"
     snap install lxd
@@ -60,8 +65,3 @@ execute: |
         echo "Actual: $MOUNT_OPTS"
         exit 1
     fi
-
-restore: |
-    lxd.lxc stop ubuntu --force || true
-    lxd.lxc delete ubuntu || true
-    snap remove --purge lxd

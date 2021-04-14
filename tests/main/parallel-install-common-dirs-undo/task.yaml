@@ -3,6 +3,9 @@ summary: Checks handling of common snap directories of parallel installed snaps
 prepare: |
     snap set system experimental.parallel-instances=true
 
+restore: |
+    snap set system experimental.parallel-instances=null
+
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
@@ -30,6 +33,3 @@ execute: |
     echo "Shared snap directories are cleaned up as well"
     not test -d "$SNAP_MOUNT_DIR/test-snapd-service"
     not test -d "/var/snap/test-snapd-service"
-
-restore: |
-    snap set system experimental.parallel-instances=null
