@@ -159,9 +159,9 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model
 	}
 
 	for _, skr := range append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey)...) {
-		encryptedPayload := secboot.MarshalKeys(skr.Key[:], auxKey[:])
+		unencryptedPayload := secboot.MarshalKeys(skr.Key[:], auxKey[:])
 		params := &FDESetupHookParams{
-			Key:     encryptedPayload,
+			Key:     unencryptedPayload,
 			KeyName: skr.KeyName,
 		}
 		hookOutput, err := RunFDESetupHook("initial-setup", params)
@@ -178,7 +178,7 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model
 			// size of the input encrypton key we assume
 			// we deal with a v1 hook that passes us back
 			// raw binary data instead of json.
-			if len(hookOutput) != len(encryptedPayload) {
+			if len(hookOutput) != len(unencryptedPayload) {
 				return fmt.Errorf("cannot decode hook output for key %s %q: %v", skr.KeyFile, hookOutput, err)
 			}
 			// v1 hooks do not support a handle
