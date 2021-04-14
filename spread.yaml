@@ -866,9 +866,9 @@ suites:
             # Enable kvm in the qemu command line
             NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-true}")'
             # Enable tpm in the nested vm in case it is supported
-            NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-false}")'
+            NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-}")'
             # Enable secure boot in the nested vm in case it is supported
-            NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
+            NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m
