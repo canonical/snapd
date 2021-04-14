@@ -123,7 +123,6 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 			for _, snapName := range byBase[up.InstanceName()] {
 				addAffected(snapName, up.InstanceName(), false, true)
 			}
-			continue
 		}
 
 		repo := ifacerepo.Get(st)
@@ -131,9 +130,7 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 		// consider slots provided by refreshed snap, but exclude core and snapd
 		// since they provide system-level slots that are generally not disrupted
 		// by snap updates.
-		// Note: the check for "core" is omitted (unnecessary) because we handle
-		// it above.
-		if up.SnapType != snap.TypeSnapd {
+		if up.SnapType != snap.TypeSnapd && up.SnapName() != "core" {
 			for _, slotInfo := range up.Slots {
 				conns, err := repo.Connected(up.InstanceName(), slotInfo.Name)
 				if err != nil {
@@ -148,7 +145,7 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 			}
 		}
 
-		// consider plugs of the refreshed snap only if mount backend is involved
+		// consider mount backend plugs/slots
 		for _, plugInfo := range up.Plugs {
 			iface := repo.Interface(plugInfo.Interface)
 			if iface == nil {
@@ -162,9 +159,28 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 				return nil, err
 			}
 			for _, cref := range conns {
-				// affected only if it wasn't optimized out above
 				if all[cref.SlotRef.Snap] != nil {
 					addAffected(cref.SlotRef.Snap, up.InstanceName(), true, false)
+				}
+			}
+		}
+		if up.SnapType == snap.TypeSnapd || up.SnapType == snap.TypeOS {
+			for _, slotInfo := range up.Slots {
+				iface := repo.Interface(slotInfo.Interface)
+				if iface == nil {
+					return nil, fmt.Errorf("internal error: unknown interface %s", slotInfo.Interface)
+				}
+				if !usesMountBackend(iface) {
+					continue
+				}
+				conns, err := repo.Connected(up.InstanceName(), slotInfo.Name)
+				if err != nil {
+					return nil, err
+				}
+				for _, cref := range conns {
+					if all[cref.PlugRef.Snap] != nil {
+						addAffected(cref.PlugRef.Snap, up.InstanceName(), true, false)
+					}
 				}
 			}
 		}
@@ -173,6 +189,8 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 	return affected, nil
 }
 
+// XXX: this is too wide and affects all commonInterface-based interfaces; we
+// need metadata on the relevant interfaces.
 func usesMountBackend(iface interfaces.Interface) bool {
 	type definer1 interface {
 		MountConnectedSlot(*mount.Specification, *interfaces.ConnectedPlug, *interfaces.ConnectedSlot) error
