@@ -484,12 +484,10 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sou
 		}
 		return res, err
 	}
-	logger.Noticef("using unlockVolumeUsingSealedKeyFDERevealKeyV2")
 	keyData, err := sb.ReadKeyData(f)
 	if err != nil {
 		return res, xerrors.Errorf("cannot read key-data: %w", err)
 	}
-	logger.Noticef("keydata %v", keyData)
 	key, _, err := keyData.RecoverKeys()
 	if err != nil {
 		return res, err
@@ -553,7 +551,6 @@ func (fh *fdeHookV2DataHandler) RecoverKeys(data *sb.PlatformKeyData) (sb.KeyPay
 		// notice that the handler is unset for v1 hooks
 		fdeRevealKeyResult.Key = output
 	}
-	logger.Noticef("RecoverKeys returns %v", fdeRevealKeyResult.Key)
 	return fdeRevealKeyResult.Key, nil
 }
 
