@@ -1409,7 +1409,7 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetupErrors(c *C) {
 
 	mockKey := secboot.EncryptionKey{1, 2, 3, 4}
 	params := &boot.FDESetupHookParams{
-		Key:      mockKey[:],
+		Key:     mockKey[:],
 		KeyName: "some-key-name",
 	}
 	st.Lock()
