@@ -440,25 +440,137 @@ func runFDERevealKeyCommand(stdin []byte) (output []byte, err error) {
 	return nil, fmt.Errorf("internal error: systemd-run did not honor RuntimeMax=%s setting", fdeRevealKeyRuntimeMax)
 }
 
+var noSecbootV2FileErr = errors.New("no secboot v2 file")
+
+// We have to deal with the following cases:
+// 1. Key created with v1 data-format on disk (raw encrypted key), v1 hook reads the data
+// 2. Key created with v2 data-format on disk (json), v1 hook created the data (no handle) and reads the data (hook output not json but raw binary data)
+// 3. Key created with v1 data-format on disk (raw), v2 hook
+// 4. Key created with v2 data-format on disk (json), v2 hook [easy]
+func unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+	// Try the v2 format first and fallback to v1 if needed.
+	res, err := unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
+	if err == noSecbootV2FileErr {
+		// try the "old" keyfile (which is plain binary)
+		return unlockVolumeUsingSealedKeyFDERevealKeyV1(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
+	}
+	return res, err
+}
+
+func unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+	res := UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
+
+	// XXX: fugly, we need a way to pass the key-name to the hook for
+	//      v1 support. this is a hack we need something better.
+	handler := &fdeHookV2DataHandler{keyName: name}
+	sb.RegisterPlatformKeyDataHandler(fdeHooksPlatformName, handler)
+
+	f, err := sb.NewFileKeyDataReader(sealedEncryptionKeyFile)
+	if err != nil {
+		// The encrypted file is probably created with v1 data format
+		// (raw-binary) so check and fallback to v1 reading if needed
+		// (case 1 above).
+		var syntaxErr *json.SyntaxError
+		if xerrors.As(err, &syntaxErr) {
+			// This can either be corrupted json or a v1 file, the
+			// v1 file has a fixed size so if it's not valid json
+			// and has the size of the v1 file we can assume we need
+			// to retry with v1
+			if st, err := os.Stat(sealedEncryptionKeyFile); err == nil {
+				if st.Size() == encryptionKeySize {
+					return res, noSecbootV2FileErr
+				}
+			}
+		}
+		return res, err
+	}
+	logger.Noticef("using unlockVolumeUsingSealedKeyFDERevealKeyV2")
+	keyData, err := sb.ReadKeyData(f)
+	if err != nil {
+		return res, xerrors.Errorf("cannot read key-data: %w", err)
+	}
+	logger.Noticef("keydata %v", keyData)
+	key, _, err := keyData.RecoverKeys()
+	if err != nil {
+		return res, err
+	}
+
+	// the output of fde-reveal-key is the unsealed key
+	if err := unlockEncryptedPartitionWithKey(mapperName, sourceDevice, key); err != nil {
+		return res, fmt.Errorf("cannot unlock encrypted partition: %v", err)
+	}
+
+	res.FsDevice = targetDevice
+	res.UnlockMethod = UnlockedWithSealedKey
+	return res, nil
+}
+
 type fdeRevealKeyResult struct {
 	Key []byte `json:"key"`
 }
 
-func unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+type fdeHookV2DataHandler struct {
+	keyName string
+}
+
+func (fh *fdeHookV2DataHandler) RecoverKeys(data *sb.PlatformKeyData) (sb.KeyPayload, error) {
+
+	// handle is raw json and needs to get unwrapped yet again
+	var handle []byte
+	if len(data.Handle) > 0 {
+		if err := json.Unmarshal(data.Handle, &handle); err != nil {
+			return nil, xerrors.Errorf("unmarshal error: %w", err)
+		}
+	}
+
+	buf, err := json.Marshal(FDERevealKeyRequest{
+		Op:        "reveal",
+		SealedKey: data.EncryptedPayload,
+		Handle:    handle,
+		KeyName:   fh.keyName,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("cannot build request for fde-reveal-key: %v", err)
+	}
+	output, err := runFDERevealKeyCommand(buf)
+	if err != nil {
+		return nil, fmt.Errorf("cannot run fde-reveal-key: %v", osutil.OutputErr(output, err))
+	}
+	// We expect json output that fits the fdeRevealKeyResult json
+	// at this point. However the "denver" project uses the old
+	// and deprecated v1 API that returns raw bytes and we still
+	// need to support this.
+	var fdeRevealKeyResult fdeRevealKeyResult
+	if err := json.Unmarshal(output, &fdeRevealKeyResult); err != nil {
+		// Not having json output from the hook means that
+		// either the hook is buggy or we have a v1 based hook
+		// (e.g. "denver" project) with v2 based json data on
+		// disk. This is supported and the length of the data
+		// is the length the output of secboot.MarshalKeys()
+		if len(output) != len(data.EncryptedPayload) {
+			return nil, fmt.Errorf("cannot decode fde-reveal-key result %q: %v", output, err)
+		}
+		// notice that the handler is unset for v1 hooks
+		fdeRevealKeyResult.Key = output
+	}
+	logger.Noticef("RecoverKeys returns %v", fdeRevealKeyResult.Key)
+	return fdeRevealKeyResult.Key, nil
+}
+
+// unlockVolumeUsingSealedKeyFDERevealKeyV1 covers the case when we
+// have a v1 data file on disk. This is a raw binary encrypted
+// keyfile. We pass it to the hook which can either be a v1 or v2 hook
+// and then just use the result to unlock the disk.
+func unlockVolumeUsingSealedKeyFDERevealKeyV1(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
 	res := UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
 
 	sealedKey, err := ioutil.ReadFile(sealedEncryptionKeyFile)
 	if err != nil {
 		return res, fmt.Errorf("cannot read sealed key file: %v", err)
 	}
-	handle, err := ioutil.ReadFile(sealedEncryptionKeyFile + ".handle")
-	if err != nil && !os.IsNotExist(err) {
-		return res, fmt.Errorf("cannot read handle file: %v", err)
-	}
 	buf, err := json.Marshal(FDERevealKeyRequest{
 		Op:        "reveal",
 		SealedKey: sealedKey,
-		Handle:    handle,
 		KeyName:   name,
 	})
 	if err != nil {

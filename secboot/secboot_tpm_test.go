@@ -1156,6 +1156,45 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
 	})
 }
 
+func makeMockDiskKey() secboot.EncryptionKey {
+	return secboot.EncryptionKey{0, 1, 2, 3, 4, 5}
+}
+
+func makeMockAuxKey() secboot.AuxKey {
+	return secboot.AuxKey{9, 8, 7, 6}
+}
+
+func makeMockUnencryptedPayload() []byte {
+	diskKey := makeMockDiskKey()
+	auxKey := makeMockAuxKey()
+	return sb.MarshalKeys(diskKey[:], auxKey[:])
+}
+
+func makeMockEncryptedPayload() []byte {
+	pl := makeMockUnencryptedPayload()
+	// rot13 ftw
+	for i := range pl {
+		pl[i] = pl[i] ^ 0x13
+	}
+	return pl
+}
+
+func makeMockEncryptedPayloadString() string {
+	return base64.StdEncoding.EncodeToString(makeMockEncryptedPayload())
+}
+
+func makeMockSealedKeyFile(c *C, handle string) string {
+	mockSealedKeyFile := filepath.Join(c.MkDir(), "keyfile")
+	var handleJSON string
+	if handle != "" {
+		handleJSON = fmt.Sprintf(`"platform_handle":"%s",`, base64.StdEncoding.EncodeToString([]byte(handle)))
+	}
+	sealedKeyContent := fmt.Sprintf(`{"name":"ubuntu-data","data":{"platform_name":"fde-hook-v2",%s"encrypted_payload":"%s"}}`, handleJSON, makeMockEncryptedPayloadString())
+	err := ioutil.WriteFile(mockSealedKeyFile, []byte(sealedKeyContent), 0600)
+	c.Assert(err, IsNil)
+	return mockSealedKeyFile
+}
+
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyTruncatesStreamFiles(c *C) {
 	// this test uses a real systemd-run --user so check here if that
 	// actually works
@@ -1189,7 +1228,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyTrun
 	// check the stderr file for correct permissions
 	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
 # check that stdin has the right sealed key content 
-if [ "$(cat %[1]s)" != "{\"op\":\"reveal\",\"sealed-key\":\"AQIDBA==\",\"key-name\":\"name\"}" ]; then
+if [ "$(cat %[1]s)" != "{\"op\":\"reveal\",\"sealed-key\":\"%[4]s\",\"key-name\":\"name\"}" ]; then
 	echo "test failed: stdin file has wrong content: $(cat %[1]s)" 1>&2
 else
 	echo "stdin file has correct content" 1>&2
@@ -1227,7 +1266,7 @@ echo "making the hook always fail for simpler test code" 1>&2
 
 # always make the hook exit 1 for simpler test code
 exit 1
-`, streamFiles[0], streamFiles[1], streamFiles[2]))
+`, streamFiles[0], streamFiles[1], streamFiles[2], makeMockEncryptedPayloadString()))
 	defer mockSystemdRun.Restore()
 	restore = secboot.MockFdeRevealKeyCommandExtra([]string{"--user"})
 	defer restore()
@@ -1238,13 +1277,11 @@ exit 1
 		},
 	}
 	defaultDevice := "name"
-	mockSealedKeyFile := filepath.Join(c.MkDir(), "vanilla-keyfile")
-	err := ioutil.WriteFile(mockSealedKeyFile, []byte{1, 2, 3, 4}, 0600)
-	c.Assert(err, IsNil)
+	mockSealedKeyFile := makeMockSealedKeyFile(c, "")
 
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
-	_, err = secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
-	c.Assert(err, ErrorMatches, `(?s)cannot run fde-reveal-key: 
+	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
+	c.Assert(err, ErrorMatches, `(?s)cannot recover keys because of an unexpected error: cannot run fde-reveal-key: 
 -----
 stdin file has correct content
 stdout file is correctly empty
@@ -1281,17 +1318,82 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(
 		},
 	}
 	defaultDevice := "name"
-	mockSealedKeyFile := filepath.Join(c.MkDir(), "vanilla-keyfile")
-	err := ioutil.WriteFile(mockSealedKeyFile, []byte{1, 2, 3, 4}, 0600)
-	c.Assert(err, IsNil)
+	mockSealedKeyFile := makeMockSealedKeyFile(c, "")
 
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
-	_, err = secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
-	c.Assert(err, ErrorMatches, `(?s)cannot run fde-reveal-key: 
+	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
+	c.Assert(err, ErrorMatches, `(?s)cannot recover keys because of an unexpected error: cannot run fde-reveal-key: 
 -----
 failed
 service result: exit-code
 -----`)
+	// ensure no tmp files are left behind
+	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
+}
+
+// this test that v1 hooks and raw binary v1 created sealedKey files still work
+func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1AndV1GeneratedSealedKeyFile(c *C) {
+	// this test uses a real systemd-run --user so check here if that
+	// actually works
+	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "--service-type=exec", "/bin/true").CombinedOutput(); err != nil {
+		c.Skip(fmt.Sprintf("systemd-run not working: %v", osutil.OutputErr(output, err)))
+	}
+
+	restore := secboot.MockFDEHasRevealKey(func() bool {
+		return true
+	})
+	defer restore()
+
+	restore = secboot.MockRandomKernelUUID(func() string {
+		return "random-uuid-for-test"
+	})
+	defer restore()
+
+	mockDiskWithEncDev := &disks.MockDiskMapping{
+		FilesystemLabelToPartUUID: map[string]string{
+			"device-name-enc": "enc-dev-partuuid",
+		},
+	}
+
+	restore = secboot.MockFdeRevealKeyCommandExtra([]string{"--user"})
+	defer restore()
+	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
+	// The v1 hooks will just return raw bytes. This is deprecated but
+	// we need to keep compatbility with the v1 implementation because
+	// there is a project "denver" that ships with v1 hooks.
+	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
+cat - > %s
+printf "unsealed-key-64-chars-long-when-not-json-to-match-denver-project"
+`, fdeRevealKeyStdin))
+	defer mockSystemdRun.Restore()
+
+	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte, options *sb.ActivateVolumeOptions) error {
+		c.Check(string(key), Equals, "unsealed-key-64-chars-long-when-not-json-to-match-denver-project")
+		return nil
+	})
+	defer restore()
+
+	defaultDevice := "device-name"
+	mockSealedKeyFile := makeMockSealedKeyFile(c, "")
+	sealedKeyContent := "sealed-key-64-chars-long-when-not-json-to-match-denver-project--"
+	c.Assert(sealedKeyContent, HasLen, 64)
+	err := ioutil.WriteFile(mockSealedKeyFile, []byte(sealedKeyContent), 0600)
+	c.Assert(err, IsNil)
+
+	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
+	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
+	c.Assert(err, IsNil)
+	c.Check(res, DeepEquals, secboot.UnlockResult{
+		UnlockMethod: secboot.UnlockedWithSealedKey,
+		IsEncrypted:  true,
+		PartDevice:   "/dev/disk/by-partuuid/enc-dev-partuuid",
+		FsDevice:     "/dev/mapper/device-name-random-uuid-for-test",
+	})
+	c.Check(mockSystemdRun.Calls(), DeepEquals, [][]string{
+		{"fde-reveal-key"},
+	})
+	c.Check(fdeRevealKeyStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"reveal","sealed-key":%q,"key-name":"device-name"}`, base64.StdEncoding.EncodeToString([]byte(sealedKeyContent))))
+
 	// ensure no tmp files are left behind
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
 }
@@ -1321,25 +1423,33 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1(c
 
 	restore = secboot.MockFdeRevealKeyCommandExtra([]string{"--user"})
 	defer restore()
+
+	// XXX: use makeMockKeyKey() here?
+	mockDiskKey := []byte("unsealed-key--64-chars-long-and-not-json-to-match-denver-project")
+	c.Assert(len(mockDiskKey), Equals, 64)
+	mockEncryptedDiskKey := []byte("encrypted-key-64-chars-long-and-not-json-to-match-denver-project")
+	c.Assert(len(mockEncryptedDiskKey), Equals, 64)
 	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
 	// The v1 hooks will just return raw bytes. This is deprecated but
 	// we need to keep compatbility with the v1 implementation because
 	// there is a project "denver" that ships with v1 hooks.
 	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
 cat - > %s
-printf "unsealed-key-64-chars-long-when-not-json-to-match-denver-project"
-`, fdeRevealKeyStdin))
+printf "%s"
+`, fdeRevealKeyStdin, mockDiskKey))
 	defer mockSystemdRun.Restore()
 
 	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte, options *sb.ActivateVolumeOptions) error {
-		c.Check(string(key), Equals, "unsealed-key-64-chars-long-when-not-json-to-match-denver-project")
+		c.Check(key, DeepEquals, mockDiskKey)
 		return nil
 	})
 	defer restore()
 
 	defaultDevice := "name"
-	mockSealedKeyFile := filepath.Join(c.MkDir(), "vanilla-keyfile")
-	err := ioutil.WriteFile(mockSealedKeyFile, []byte("sealed-key"), 0600)
+	// note that we write a v1 created keyfile here, i.e. it's a raw
+	// disk-key without any json
+	mockSealedKeyFile := filepath.Join(c.MkDir(), "keyfile")
+	err := ioutil.WriteFile(mockSealedKeyFile, mockEncryptedDiskKey, 0600)
 	c.Assert(err, IsNil)
 
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
@@ -1354,7 +1464,7 @@ printf "unsealed-key-64-chars-long-when-not-json-to-match-denver-project"
 	c.Check(mockSystemdRun.Calls(), DeepEquals, [][]string{
 		{"fde-reveal-key"},
 	})
-	c.Check(fdeRevealKeyStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"reveal","sealed-key":%q,"key-name":"name"}`, base64.StdEncoding.EncodeToString([]byte("sealed-key"))))
+	c.Check(fdeRevealKeyStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"reveal","sealed-key":%q,"key-name":"name"}`, base64.StdEncoding.EncodeToString(mockEncryptedDiskKey)))
 
 	// ensure no tmp files are left behind
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
@@ -1475,23 +1585,18 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
 cat - > %s
 printf '{"key": "%s"}'
-`, fdeRevealKeyStdin, base64.StdEncoding.EncodeToString([]byte("unsealed-key"))))
+`, fdeRevealKeyStdin, base64.StdEncoding.EncodeToString(makeMockUnencryptedPayload())))
 	defer mockSystemdRun.Restore()
 
+	expectedKey := makeMockDiskKey()
 	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte, options *sb.ActivateVolumeOptions) error {
-		c.Check(string(key), Equals, "unsealed-key")
+		c.Check(key, DeepEquals, expectedKey[:])
 		return nil
 	})
 	defer restore()
 
 	defaultDevice := "name"
-	keysdir := c.MkDir()
-	mockSealedKeyFile := filepath.Join(keysdir, "vanilla-keyfile")
-	err := ioutil.WriteFile(mockSealedKeyFile, []byte("sealed-key"), 0600)
-	c.Assert(err, IsNil)
-	mockKeyHandleFile := filepath.Join(keysdir, "vanilla-keyfile.handle")
-	err = ioutil.WriteFile(mockKeyHandleFile, []byte("key-handle"), 0600)
-	c.Assert(err, IsNil)
+	mockSealedKeyFile := makeMockSealedKeyFile(c, "key-handle")
 
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
 	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
@@ -1505,7 +1610,7 @@ printf '{"key": "%s"}'
 	c.Check(mockSystemdRun.Calls(), DeepEquals, [][]string{
 		{"fde-reveal-key"},
 	})
-	c.Check(fdeRevealKeyStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"reveal","sealed-key":%q,"handle":%q,"key-name":"name"}`, base64.StdEncoding.EncodeToString([]byte("sealed-key")), base64.StdEncoding.EncodeToString([]byte("key-handle"))))
+	c.Check(fdeRevealKeyStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"reveal","sealed-key":%q,"handle":%q,"key-name":"name"}`, makeMockEncryptedPayloadString(), base64.StdEncoding.EncodeToString([]byte("key-handle"))))
 
 	// ensure no tmp files are left behind
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
@@ -1550,15 +1655,9 @@ printf 'invalid-json'
 	defer restore()
 
 	defaultDevice := "name"
-	keysdir := c.MkDir()
-	mockSealedKeyFile := filepath.Join(keysdir, "vanilla-keyfile")
-	err := ioutil.WriteFile(mockSealedKeyFile, []byte("sealed-key"), 0600)
-	c.Assert(err, IsNil)
-	mockKeyHandleFile := filepath.Join(keysdir, "vanilla-keyfile.handle")
-	err = ioutil.WriteFile(mockKeyHandleFile, []byte("key-handle"), 0600)
-	c.Assert(err, IsNil)
+	mockSealedKeyFile := makeMockSealedKeyFile(c, "")
 
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
-	_, err = secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
-	c.Check(err, ErrorMatches, `cannot decode fde-reveal-key result "invalid-json": invalid character 'i' looking for beginning of value`)
+	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
+	c.Check(err, ErrorMatches, `cannot recover keys because of an unexpected error: cannot decode fde-reveal-key result "invalid-json": invalid character 'i' looking for beginning of value`)
 }
