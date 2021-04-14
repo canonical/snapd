@@ -31,12 +31,28 @@ prepare: |
     echo 'hello from test' > pc-gadget/cmdline.extra
     snap pack pc-gadget/ extra-snaps/
 
+    echo 'updated hello from test' > pc-gadget/cmdline.extra
+    snap pack pc-gadget --filename=pc-gadget-cmdline-extra-updated.snap
+
+    rm pc-gadget/cmdline.extra
+    echo 'full hello from test' > pc-gadget/cmdline.full
+    snap pack pc-gadget --filename=pc-gadget-cmdline-full.snap
+
+    rm pc-gadget/cmdline.full
+    snap pack pc-gadget --filename=pc-gadget-cmdline-none.snap
+
     "$TESTSTOOLS"/nested-state build-image core
     "$TESTSTOOLS"/nested-state create-vm core
+
+    for f in pc-gadget-cmdline-extra-updated.snap pc-gadget-cmdline-full.snap pc-gadget-cmdline-none.snap; do
+        nested_copy "$f"
+    done
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
+
+    boot_id="$(nested_get_boot_id)"
 
     # system is in run mode
     nested_exec 'sudo cat /proc/cmdline' > system.cmdline.run
@@ -45,9 +61,30 @@ execute: |
     echo "Verify kernel command line in run mode"
     MATCH 'snapd_recovery_mode=run .* hello from test$' < system.cmdline.run
 
-    echo "Transition to recover mode to verify kernel command line"
+    echo "Perform an update of the gadget"
+    nested_exec 'sudo snap install --dangerous --no-wait ./pc-gadget-cmdline-extra-updated.snap'
+
+    echo "Wait for reboot"
+    nested_wait_for_reboot "${boot_id}"
     boot_id="$(nested_get_boot_id)"
-    # shellcheck disable=SC2016
+    nested_exec 'sudo cat /proc/cmdline' | MATCH 'snapd_recovery_mode=run .* updated hello from test'
+
+    echo "Update to gadget with no command line"
+    nested_exec 'sudo snap install --dangerous --no-wait ./pc-gadget-cmdline-none.snap'
+    nested_wait_for_reboot "${boot_id}"
+    boot_id="$(nested_get_boot_id)"
+    echo "Verify that custom command line elements are not present"
+    nested_exec 'sudo cat /proc/cmdline' | not MATCH 'hello from test'
+
+    # TODO: enable once full command line override is supported
+
+    # echo "Update to gadget with full command line"
+    # nested_exec 'snap install --dangerous --no-wait ./pc-gadget-cmdline-full.snap'
+    # nested_wait_for_reboot "${boot_id}"
+    # boot_id="$(nested_get_boot_id)"
+    # nested_exec 'sudo cat /proc/cmdline' | not MATCH 'snapd_recovery_mode=run full hello from test'
+
+    echo "Transition to recover mode to verify kernel command line"
     nested_exec 'sudo snap reboot --recover'
     nested_wait_for_reboot "${boot_id}"
 
