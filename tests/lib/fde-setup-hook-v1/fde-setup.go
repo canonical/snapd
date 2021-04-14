@@ -5,15 +5,19 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"time"
 
 	"github.com/snapcore/snapd/osutil"
 )
+
+// DO NOT USE THIS FILE as an example to write fde-hooks. It is just
+// here for historic reasons and uses the obsolte v1 hook
+// format. Please do not change any of the JSON structs in this file,
+// it needs to be kept to ensure we keep compatbility with the
+// "denver" project and fde-hooks v1.
 
 // This is a very insecure crypto just for demonstration purposes.
 // Please delete it you use this for real.
@@ -33,29 +37,11 @@ type fdeSetupJSON struct {
 
 	Key     []byte `json:"key,omitempty"`
 	KeyName string `json:"key-name,omitempty"`
+
+	Models []map[string]string `json:"models,omitempty"`
 }
 
-type fdeSetupResultJSON struct {
-	EncryptedKey []byte `json:"encrypted-key"`
-	Handle       []byte `json:"handle"`
-}
-
-// Note that in real implementations this would be something like an
-// internal handle for the crypto hardware and generated in "initial-setup"
-// for each key
-var testKeyHandle = []byte("my-demo-handle-do-not-use-in-production")
-
-var (
-	// used in tests
-	osStdin  = io.Reader(os.Stdin)
-	osStdout = io.Writer(os.Stdout)
-)
-
-// Note that this can be removed when using the hook as an example for
-// how to implement your own hook, the below Base64 is here so that
-// we can test that strict base64 is used.
-//
-// This is the same as fdeSetupJSON, but is more strict in that it decodes Key
+// this is the same as fdeSetupJSON, but is more strict in that it decodes Key
 // as a string, which _must_ be a base64 encoded version of the same []byte Key
 // we have above, the handler below validates this as a test
 type fdeSetupJSONStrictBase64 struct {
@@ -84,7 +70,7 @@ func runFdeSetup() error {
 		return fmt.Errorf("fde-setup-request is not valid base64: %v", err)
 	}
 	if !bytes.Equal(decodedBase64Key, js.Key) {
-		return fmt.Errorf("fde-setup-request key is not strictly the same base64 decoded as binary decoded")
+		return fmt.Errorf("fde-setup-request is not strictly the same base64 decoded as binary decoded")
 	}
 
 	var fdeSetupResult []byte
@@ -93,15 +79,8 @@ func runFdeSetup() error {
 		// no special features supported by this hook
 		fdeSetupResult = []byte(`{"features":[]}`)
 	case "initial-setup":
-		// "seal" using a really bad crypto algorithm
-		res := fdeSetupResultJSON{
-			EncryptedKey: xor13(js.Key),
-			Handle:       testKeyHandle,
-		}
-		fdeSetupResult, err = json.Marshal(res)
-		if err != nil {
-			return err
-		}
+		// "seal"
+		fdeSetupResult = xor13(js.Key)
 	default:
 		return fmt.Errorf("unsupported op %q", js.Op)
 	}
@@ -118,23 +97,17 @@ type fdeRevealJSON struct {
 	Op string `json:"op"`
 
 	SealedKey []byte `json:"sealed-key"`
-	Handle    []byte `json:"handle"`
 }
 
 type fdeRevealJSONStrict struct {
 	SealedKey string `json:"sealed-key"`
-	Handle    string `json:"handle"`
-}
-
-type fdeRevealKeyResultJSON struct {
-	Key []byte `json:"key"`
 }
 
 func runFdeRevealKey() error {
 	var js fdeRevealJSON
 	var jsStrict fdeRevealJSONStrict
 
-	b, err := ioutil.ReadAll(osStdin)
+	b, err := ioutil.ReadAll(os.Stdin)
 	if err != nil {
 		return err
 	}
@@ -154,37 +127,22 @@ func runFdeRevealKey() error {
 		return fmt.Errorf("fde-reveal-key input is not valid base64: %v", err)
 	}
 	if !bytes.Equal(decodedBase64Key, js.SealedKey) {
-		return fmt.Errorf("fde-reveal-key key input is not strictly the same base64 decoded as binary decoded")
-	}
-	decodedBase64Handle, err := base64.StdEncoding.DecodeString(jsStrict.Handle)
-	if err != nil {
-		return fmt.Errorf("fde-reveal-key handle input is not valid base64: %v", err)
-	}
-	if !bytes.Equal(decodedBase64Handle, js.Handle) {
-		return fmt.Errorf("fde-reveal-key handle input is not strictly the same base64 decoded as binary decoded")
+		return fmt.Errorf("fde-reveal-key input is not strictly the same base64 decoded as binary decoded")
 	}
 
 	switch js.Op {
 	case "reveal":
-		// check that the handle created in initial-setup is passed
-		// back to reveal correctly.
-		if string(js.Handle) != string(testKeyHandle) {
-			return fmt.Errorf(`fde-reveal-key expected handle %q but got %q`, testKeyHandle, js.Handle)
-		}
-		// "decrypt" key
-		var res fdeRevealKeyResultJSON
-		res.Key = xor13(js.SealedKey)
-		if err := json.NewEncoder(osStdout).Encode(res); err != nil {
-			return err
-		}
+		unsealedKey := xor13(js.SealedKey)
+		fmt.Fprintf(os.Stdout, "%s", unsealedKey)
 	case "lock":
-		// NOTE: when using this file as an example code for
-		// implementing a real world, production grade FDE
-		// hook, the lock operation must be implemented here
-		// to block decryption operations. This example does
-		// nothing.
+		// nothing right now
+
+		// NOTE: when using this file as an example code for implementing a real
+		// world, production grade FDE hook, the lock operation must be
+		// implemented here to block decryption operations
 	case "features":
-		fmt.Fprintf(osStdout, `{"features":[]}`)
+		// XXX: Not used right now but might in the future?
+		fmt.Fprintf(os.Stdout, `{"features":[]}`)
 	default:
 		return fmt.Errorf(`unsupported operations %q`, js.Op)
 	}
@@ -194,9 +152,6 @@ func runFdeRevealKey() error {
 
 func main() {
 	var err error
-
-	// XXX: workaround systemd bug
-	time.Sleep(1 * time.Second)
 
 	switch filepath.Base(os.Args[0]) {
 	case "fde-setup":
