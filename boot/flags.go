@@ -284,7 +284,7 @@ func setNextBootFlags(dev Device, rootDir string, flags []string) error {
 	return m.Write()
 }
 
-// HostUbuntuDataForMode returns a list of locations where the run 
+// HostUbuntuDataForMode returns a list of locations where the run
 // mode root filesystem is mounted for the given mode.
 // For run mode, it's "/run/mnt/data" and "/".
 // For install mode it's "/run/mnt/ubuntu-data".
