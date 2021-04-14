@@ -1,0 +1,16 @@
+summary: tests skip for the tests.skip tool
+
+prepare: |
+    # Check set the condition works when cmd doesn't fail
+    tests.skip set "true" || exit 0
+    exit 1
+
+execute: |
+    # Check help
+    tests.skip | MATCH 'usage: tests.skip set \[CMD\] || exit 0'
+    tests.skip -h | MATCH 'usage: tests.skip set \[CMD\] || exit 0'
+    tests.skip --help | MATCH 'usage: tests.skip set \[CMD\] || exit 0'
+
+    # Check the evaluation works
+    tests.skip eval || exit 0
+    exit 1

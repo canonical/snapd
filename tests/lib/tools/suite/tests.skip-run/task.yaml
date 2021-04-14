@@ -1,0 +1,11 @@
+summary: tests run for the tests.skip tool
+
+prepare: |
+    # Check set the condition works when cmd fails
+    tests.skip set "false" || exit 1
+    exit 0
+
+execute: |
+    # Check the evaluation works
+    tests.skip eval || exit 1
+    exit 0

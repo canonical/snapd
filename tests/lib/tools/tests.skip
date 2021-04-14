@@ -1,0 +1,61 @@
+#!/bin/bash -e
+
+show_help() {
+    echo "usage: tests.skip set [CMD] || exit 0"
+    echo "usage: tests.skip eval || exit 0"
+}
+
+run_cmd() {
+    CMD="$1"
+    set +e
+    sh -ec "$CMD"
+    RET=$?
+    set -e
+    if [ $RET -ne 0 ]; then
+        echo "tests.backup: command \"$CMD\" failed with exit code $RET"
+        return 1
+    fi
+    return 0
+}
+
+cmd_set() {
+    local cmd=$1
+
+    if run_cmd "$cmd"; then
+        touch 'test.skip'
+        exit 1
+    fi
+    exit 0
+}
+
+cmd_eval() {
+    if [ -f 'test.skip' ]; then
+        exit 1
+    fi
+}
+
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
+
+    case "$1" in
+        -h|--help)
+            show_help
+            exit
+            ;;
+        set)
+            cmd_set "${2:-'true'}"
+            ;;
+        eval)
+            cmd_eval
+            ;;
+        *)
+            echo "tests.skip: unknown command $1" >&2
+            exit 1
+            ;;
+    esac
+}
+
+main "$@"
