@@ -5954,6 +5954,25 @@ func (s *mgrsSuite) testUC20RunUpdateManagedBootConfig(c *C, snapPath string, si
 		Sequence: []*snap.SideInfo{si3},
 		Current:  si3.Revision,
 	})
+	si4 := &snap.SideInfo{RealName: "pc", Revision: snap.R(1)}
+	snapstate.Set(st, "pc", &snapstate.SnapState{
+		SnapType: "gadget",
+		Active:   true,
+		Sequence: []*snap.SideInfo{si4},
+		Current:  si4.Revision,
+	})
+	const pcGadget = `
+name: pc
+type: gadget
+`
+	const pcGadgetYaml = `
+volumes:
+  pc:
+    bootloader: grub
+`
+	snaptest.MockSnapWithFiles(c, pcGadget, si4, [][]string{
+		{"meta/gadget.yaml", pcGadgetYaml},
+	})
 
 	// setup model assertion
 	assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
@@ -5980,7 +5999,7 @@ func (s *mgrsSuite) testUC20RunUpdateManagedBootConfig(c *C, snapPath string, si
 
 	if si.RealName == "core" {
 		// core on UC20 is done at this point
-		c.Assert(chg.Status(), Equals, state.DoneStatus)
+		c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("failed: %v", chg.Err()))
 		c.Assert(chg.Err(), IsNil)
 	} else {
 		// boot config is updated after link-snap, so first comes the
@@ -5999,7 +6018,7 @@ func (s *mgrsSuite) testUC20RunUpdateManagedBootConfig(c *C, snapPath string, si
 		st.Lock()
 		c.Assert(err, IsNil)
 
-		c.Check(chg.Status(), Equals, state.DoneStatus)
+		c.Check(chg.Status(), Equals, state.DoneStatus, Commentf("change failed: %v", chg.Err()))
 		restarting, kind = st.Restarting()
 		if updated {
 			// boot config updated, thus a system restart was
