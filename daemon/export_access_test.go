@@ -19,6 +19,35 @@
 
 package daemon
 
-type (
-	RootAccess = rootAccess
+import (
+	"net/http"
+
+	"github.com/snapcore/snapd/polkit"
 )
+
+type (
+	AccessChecker = accessChecker
+
+	OpenAccess          = openAccess
+	AuthenticatedAccess = authenticatedAccess
+	RootAccess          = rootAccess
+	SnapAccess          = snapAccess
+)
+
+var CheckPolkitActionImpl = checkPolkitActionImpl
+
+func MockCheckPolkitAction(new func(r *http.Request, ucred *Ucrednet, action string) Response) (restore func()) {
+	old := checkPolkitAction
+	checkPolkitAction = new
+	return func() {
+		checkPolkitAction = old
+	}
+}
+
+func MockPolkitCheckAuthorization(new func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error)) (restore func()) {
+	old := polkitCheckAuthorization
+	polkitCheckAuthorization = new
+	return func() {
+		polkitCheckAuthorization = old
+	}
+}

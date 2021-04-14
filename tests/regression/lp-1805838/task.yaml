@@ -1,8 +1,10 @@
 summary: system key is not written if security setup fails
+
 details: |
     When snapd is started up and the system key needs regeneration errors from
     establishing the new security profiles should not stop snapd from running
     but should prevent snapd from writing the system key.
+
 prepare: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
@@ -34,7 +36,6 @@ restore: |
     test -d "$SNAP_MOUNT_DIR/core" && ( umount "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snap-seccomp" || true )
     test -d "$SNAP_MOUNT_DIR/snapd" && ( umount "$SNAP_MOUNT_DIR/snapd/current/usr/lib/snapd/snap-seccomp" || true )
     mv /var/lib/snapd/system-key.orig /var/lib/snapd/system-key || true
-    rm -f bad-snap-seccomp
 
     # XXX: When this test is sequenced immediately before a test in the main
     # suite something in this test or in the suite prepare/restore logic is

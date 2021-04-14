@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -30,10 +30,9 @@ import (
 	"github.com/snapcore/snapd/polkit"
 )
 
-var (
-	polkitCheckAuthorization = polkit.CheckAuthorization
-	checkPolkitAction        = checkPolkitActionImpl
-)
+var polkitCheckAuthorization = polkit.CheckAuthorization
+
+var checkPolkitAction = checkPolkitActionImpl
 
 func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) Response {
 	var flags polkit.CheckFlags
@@ -66,7 +65,7 @@ func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) Resp
 // accessUnknown, which indicates the decision should be delegated to
 // the next access checker.
 type accessChecker interface {
-	checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) Response
+	CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) Response
 }
 
 // requireSnapdSocket ensures the request was received via snapd.socket.
@@ -86,7 +85,7 @@ func requireSnapdSocket(ucred *ucrednet) Response {
 // have peer credentials and were not received on snapd-snap.socket
 type openAccess struct{}
 
-func (ac openAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
+func (ac openAccess) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
 	return requireSnapdSocket(ucred)
 }
 
@@ -100,7 +99,7 @@ type authenticatedAccess struct {
 	Polkit string
 }
 
-func (ac authenticatedAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
+func (ac authenticatedAccess) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
 	if rsp := requireSnapdSocket(ucred); rsp != nil {
 		return rsp
 	}
@@ -114,8 +113,8 @@ func (ac authenticatedAccess) checkAccess(r *http.Request, ucred *ucrednet, user
 	}
 
 	// We check polkit last because it may result in the user
-	// being prompted for authorisation.  This should be avoided
-	// if access is otherwise granted.
+	// being prompted for authorisation. This should be avoided if
+	// access is otherwise granted.
 	if ac.Polkit != "" {
 		return checkPolkitAction(r, ucred, ac.Polkit)
 	}
@@ -127,7 +126,7 @@ func (ac authenticatedAccess) checkAccess(r *http.Request, ucred *ucrednet, user
 // were not received on snapd-snap.socket
 type rootAccess struct{}
 
-func (ac rootAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
+func (ac rootAccess) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
 	if rsp := requireSnapdSocket(ucred); rsp != nil {
 		return rsp
 	}
@@ -141,7 +140,7 @@ func (ac rootAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.Us
 // snapAccess allows requests from the snapd-snap.socket
 type snapAccess struct{}
 
-func (ac snapAccess) checkAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
+func (ac snapAccess) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
 	if ucred == nil {
 		return Forbidden("access denied")
 	}

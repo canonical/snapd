@@ -1,12 +1,5 @@
 summary: Ensure that the kernel-module-control interface works.
 
-# the s390x kernel has no minix module
-systems: [-fedora-*, -opensuse-*, -ubuntu-*-s390x, -arch-*, -amazon-*, -centos-*]
-
-environment:
-    MODULE: minix
-    MODULE_PATH: /lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko
-
 details: |
     The kernel-module-control interface allows insertion, removal and querying
     of modules.
@@ -17,6 +10,13 @@ details: |
 
     A snap declaring a plug on this interface must be able to list the modules
     loaded, insert and remove a module. For the test we use the $MODULE module.
+
+# the s390x kernel has no minix module
+systems: [-fedora-*, -opensuse-*, -ubuntu-*-s390x, -arch-*, -amazon-*, -centos-*]
+
+environment:
+    MODULE: minix
+    MODULE_PATH: /lib/modules/$(uname -r)/kernel/fs/$MODULE/$MODULE.ko
 
 prepare: |
     echo "Given a snap declaring a plug on the kernel-module-control interface is installed"

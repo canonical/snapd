@@ -10,7 +10,6 @@ restore: |
         exit 0
     fi
     rm -f /var/tmp/myevil.txt
-    rm -f ./do-classic ./prevsnapdver.out
 
     # An older version of snapd might have been missing proper context
     # transitions for fontconfig cache locations, attempt to restore the context

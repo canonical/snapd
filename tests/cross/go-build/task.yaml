@@ -21,13 +21,6 @@ environment:
     X_GCC/ppc64el: gcc-powerpc64le-linux-gnu
     X_CC/ppc64el: powerpc64le-linux-gnu-gcc
 
-restore: |
-    rm -rf /tmp/cross-build
-    dpkg -l | awk "/^ii.*$X_DEBARCH/{print \$2}" | xargs apt --yes --quiet -o Dpkg::Progress-Fancy=false autoremove --purge
-    dpkg --remove-architecture "$X_DEBARCH"
-    mv /etc/apt/sources.list.orig /etc/apt/sources.list
-    apt --quiet -o Dpkg::Progress-Fancy=false update
-
 prepare: |
     . /etc/os-release
     mkdir -p /tmp/cross-build/src/github.com/snapcore
@@ -54,6 +47,13 @@ prepare: |
     dpkg --add-architecture "$X_DEBARCH"
     apt --quiet -o Dpkg::Progress-Fancy=false update
     apt --yes --quiet -o Dpkg::Progress-Fancy=false install "$X_GCC" libseccomp2:"$X_DEBARCH" libseccomp-dev:"$X_DEBARCH"
+
+restore: |
+    rm -rf /tmp/cross-build
+    dpkg -l | awk "/^ii.*$X_DEBARCH/{print \$2}" | xargs apt --yes --quiet -o Dpkg::Progress-Fancy=false autoremove --purge
+    dpkg --remove-architecture "$X_DEBARCH"
+    mv /etc/apt/sources.list.orig /etc/apt/sources.list
+    apt --quiet -o Dpkg::Progress-Fancy=false update
 
 execute: |
     cd /tmp/cross-build/src/github.com/snapcore/snapd

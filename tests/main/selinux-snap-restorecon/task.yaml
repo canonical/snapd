@@ -4,6 +4,7 @@ details: |
     Verify that snap run automatically restores the SELinux context of $HOME/snap.
 
 systems: [fedora-*, centos-*]
+
 prepare: |
     snap install test-snapd-sh
     if [ -d /home/test/snap ]; then
