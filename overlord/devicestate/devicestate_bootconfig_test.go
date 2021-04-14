@@ -52,6 +52,8 @@ func (s *deviceMgrBootconfigSuite) SetUpTest(c *C) {
 
 	s.managedbl = bootloadertest.Mock("mock", c.MkDir()).WithTrustedAssets()
 	bootloader.Force(s.managedbl)
+	s.managedbl.StaticCommandLine = "console=ttyS0 console=tty1 panic=-1"
+	s.managedbl.CandidateStaticCommandLine = "console=ttyS0 console=tty1 panic=-1 candidate"
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -150,6 +152,47 @@ func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunSuccess(c *C) {
 	updateAttempted := true
 	updateApplied := true
 	s.testBootConfigUpdateRun(c, updateAttempted, updateApplied, "")
+
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate",
+	})
+}
+
+func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateWithGadgetExtra(c *C) {
+	s.state.Lock()
+	s.setupUC20Model(c)
+	s.state.Unlock()
+
+	s.managedbl.Updated = true
+
+	// drop the file for gadget
+	snaptest.PopulateDir(s.gadgetSnapInfo.MountDir(), [][]string{
+		{"cmdline.extra", "args from gadget"},
+	})
+
+	// update the modeenv to have the gadget arguments included to mimic the
+	// state we would have in the system
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	m.CurrentKernelCommandLines = []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget",
+	}
+	c.Assert(m.Write(), IsNil)
+
+	updateAttempted := true
+	updateApplied := true
+	s.testBootConfigUpdateRun(c, updateAttempted, updateApplied, "")
+
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget",
+		// gadget arguments are picked up for the candidate command line
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 candidate args from gadget",
+	})
 }
 
 func (s *deviceMgrBootconfigSuite) TestBootConfigUpdateRunButNotUpdated(c *C) {
