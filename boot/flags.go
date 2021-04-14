@@ -284,12 +284,12 @@ func setNextBootFlags(dev Device, rootDir string, flags []string) error {
 	return m.Write()
 }
 
-// HostUbuntuDataForMode returns where the run mode root filesystem is mounted for the
-// given mode.
-// For run mode, it's just "/run/mnt/data".
+// HostUbuntuDataForMode returns a list of locations where the run 
+// mode root filesystem is mounted for the given mode.
+// For run mode, it's "/run/mnt/data" and "/".
 // For install mode it's "/run/mnt/ubuntu-data".
-// For recover mode it's either "/host/ubuntu-data" or "" if that is not
-// mounted. Note that, for recover  mode, this function only returns a non-empty
+// For recover mode it's either "/host/ubuntu-data" or nil if that is not
+// mounted. Note that, for recover mode, this function only returns a non-empty
 // return value if the partition is mounted and trusted, there are certain
 // corner-cases where snap-bootstrap in the initramfs may have mounted
 // ubuntu-data in an untrusted manner, but for the purposes of this function

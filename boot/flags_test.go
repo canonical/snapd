@@ -469,6 +469,7 @@ func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
 		dataMountDirs, err := boot.HostUbuntuDataForMode(t.mode)
 		if t.err != "" {
 			c.Assert(err, ErrorMatches, t.err, comment)
+			c.Assert(dataMountDirs, IsNil)
 			continue
 		}
 		c.Assert(err, IsNil, comment)
