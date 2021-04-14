@@ -145,25 +145,9 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 			}
 		}
 
-		// consider mount backend plugs/slots
-		for _, plugInfo := range up.Plugs {
-			iface := repo.Interface(plugInfo.Interface)
-			if iface == nil {
-				return nil, fmt.Errorf("internal error: unknown interface %s", plugInfo.Interface)
-			}
-			if !usesMountBackend(iface) {
-				continue
-			}
-			conns, err := repo.Connected(up.InstanceName(), plugInfo.Name)
-			if err != nil {
-				return nil, err
-			}
-			for _, cref := range conns {
-				if all[cref.SlotRef.Snap] != nil {
-					addAffected(cref.SlotRef.Snap, up.InstanceName(), true, false)
-				}
-			}
-		}
+		// consider mount backend plugs/slots;
+		// for slot side only consider snapd/core because they are ignored by the
+		// earlier loop around slots.
 		if up.SnapType == snap.TypeSnapd || up.SnapType == snap.TypeOS {
 			for _, slotInfo := range up.Slots {
 				iface := repo.Interface(slotInfo.Interface)
@@ -181,6 +165,24 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 					if all[cref.PlugRef.Snap] != nil {
 						addAffected(cref.PlugRef.Snap, up.InstanceName(), true, false)
 					}
+				}
+			}
+		}
+		for _, plugInfo := range up.Plugs {
+			iface := repo.Interface(plugInfo.Interface)
+			if iface == nil {
+				return nil, fmt.Errorf("internal error: unknown interface %s", plugInfo.Interface)
+			}
+			if !usesMountBackend(iface) {
+				continue
+			}
+			conns, err := repo.Connected(up.InstanceName(), plugInfo.Name)
+			if err != nil {
+				return nil, err
+			}
+			for _, cref := range conns {
+				if all[cref.SlotRef.Snap] != nil {
+					addAffected(cref.SlotRef.Snap, up.InstanceName(), true, false)
 				}
 			}
 		}
