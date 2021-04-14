@@ -122,8 +122,8 @@ func (ac authenticatedAccess) CheckAccess(r *http.Request, ucred *ucrednet, user
 	}
 
 	// We check polkit last because it may result in the user
-	// being prompted for authorisation.  This should be avoided
-	// if access is otherwise granted.
+	// being prompted for authorisation. This should be avoided if
+	// access is otherwise granted.
 	if ac.Polkit != "" {
 		return checkPolkitAction(r, ucred, ac.Polkit)
 	}
