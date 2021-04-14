@@ -211,3 +211,11 @@ func MockFdeRevealKeyPollWaitParanoiaFactor(n int) (restore func()) {
 		fdeRevealKeyPollWaitParanoiaFactor = oldFdeRevealKeyPollWaitParanoiaFactor
 	}
 }
+
+func MockRandRead(f func(p []byte) (int, error)) (restore func()) {
+	oldRandRead := randRead
+	randRead = f
+	return func() {
+		randRead = oldRandRead
+	}
+}
