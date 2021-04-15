@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -1351,11 +1352,10 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetup(c *C) {
 		c.Check(ctx.HookName(), Equals, "fde-setup")
 		var fdeSetup fde.SetupRequest
 		ctx.Get("fde-setup-request", &fdeSetup)
-		c.Check(fdeSetup, DeepEquals, fde.SetupRequest{
-			Op:      "initial-setup",
-			Key:     mockKey[:],
-			KeyName: "some-key-name",
-		})
+		c.Check(fdeSetup.Op, Equals, "initial-setup")
+		c.Check(fdeSetup.Key, DeepEquals, mockKey[:])
+		c.Check(strings.HasPrefix(fdeSetup.KeyName, "deprecated-"), Equals, true)
+		c.Check(fdeSetup.KeyName, HasLen, len("deprecated-")+12)
 
 		// the snapctl fde-setup-result will set the data
 		ctx.Set("fde-setup-result", []byte("sealed-key"))
@@ -1370,8 +1370,7 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetup(c *C) {
 	defer s.o.Stop()
 
 	params := &boot.FDESetupHookParams{
-		Key:     mockKey[:],
-		KeyName: "some-key-name",
+		Key: mockKey[:],
 	}
 	st.Lock()
 	data, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, "initial-setup", params)
@@ -1409,8 +1408,7 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetupErrors(c *C) {
 
 	mockKey := secboot.EncryptionKey{1, 2, 3, 4}
 	params := &boot.FDESetupHookParams{
-		Key:     mockKey[:],
-		KeyName: "some-key-name",
+		Key: mockKey[:],
 	}
 	st.Lock()
 	_, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, "initial-setup", params)
@@ -1453,8 +1451,7 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetupErrorResult(c *C) {
 
 	mockKey := secboot.EncryptionKey{1, 2, 3, 4}
 	params := &boot.FDESetupHookParams{
-		Key:     mockKey[:],
-		KeyName: "some-key-name",
+		Key: mockKey[:],
 	}
 	st.Lock()
 	_, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, "initial-setup", params)

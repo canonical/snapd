@@ -30,6 +30,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -1223,12 +1224,17 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyTrun
 	})
 	defer restore()
 
+	restore = secboot.MockRandutilRandomString(func(n int) string {
+		return strings.Repeat("1", n)
+	})
+	defer restore()
+
 	// the hook script only verifies that the stdout file is empty since we
 	// need to write to the stderr file for performing the test, but we still
 	// check the stderr file for correct permissions
 	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
 # check that stdin has the right sealed key content 
-if [ "$(cat %[1]s)" != "{\"op\":\"reveal\",\"sealed-key\":\"%[4]s\",\"key-name\":\"name\"}" ]; then
+if [ "$(cat %[1]s)" != "{\"op\":\"reveal\",\"sealed-key\":\"%[4]s\",\"key-name\":\"deprecated-111111111111\"}" ]; then
 	echo "test failed: stdin file has wrong content: $(cat %[1]s)" 1>&2
 else
 	echo "stdin file has correct content" 1>&2
@@ -1594,6 +1600,10 @@ printf '{"key": "%s"}'
 		return nil
 	})
 	defer restore()
+	restore = secboot.MockRandutilRandomString(func(n int) string {
+		return strings.Repeat("1", n)
+	})
+	defer restore()
 
 	defaultDevice := "name"
 	mockSealedKeyFile := makeMockSealedKeyFile(c, "key-handle")
@@ -1610,7 +1620,7 @@ printf '{"key": "%s"}'
 	c.Check(mockSystemdRun.Calls(), DeepEquals, [][]string{
 		{"fde-reveal-key"},
 	})
-	c.Check(fdeRevealKeyStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"reveal","sealed-key":%q,"handle":%q,"key-name":"name"}`, makeMockEncryptedPayloadString(), base64.StdEncoding.EncodeToString([]byte("key-handle"))))
+	c.Check(fdeRevealKeyStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"reveal","sealed-key":%q,"handle":%q,"key-name":"deprecated-111111111111"}`, makeMockEncryptedPayloadString(), base64.StdEncoding.EncodeToString([]byte("key-handle"))))
 
 	// ensure no tmp files are left behind
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)

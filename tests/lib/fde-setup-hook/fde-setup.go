@@ -31,8 +31,7 @@ func xor13(bs []byte) []byte {
 type fdeSetupJSON struct {
 	Op string `json:"op"`
 
-	Key     []byte `json:"key,omitempty"`
-	KeyName string `json:"key-name,omitempty"`
+	Key []byte `json:"key,omitempty"`
 }
 
 type fdeSetupResultJSON struct {

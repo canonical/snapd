@@ -51,7 +51,7 @@ $ echo '{"error":"hardware-unsupported"}' | snapctl fde-setup-result
 
 And then it is called again with a request to do the initial key setup:
 $ snapctl fde-setup-request
-{"op":"initial-setup", "key": "key-to-seal", "key-name":"key-for-ubuntu-data"}
+{"op":"initial-setup", "key": "key-to-seal"}
 $ echo "{\"key\":\"$base64_encoded_sealed_key\"}" | snapctl fde-setup-result
 `)
 

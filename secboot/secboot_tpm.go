@@ -70,6 +70,7 @@ var (
 	sbUpdateKeyPCRProtectionPolicyMultiple = sb.UpdateKeyPCRProtectionPolicyMultiple
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
+	randutilRandomString     = randutil.RandomString
 
 	isTPMEnabled = isTPMEnabledImpl
 	provisionTPM = provisionTPMImpl
@@ -77,6 +78,11 @@ var (
 
 func isTPMEnabledImpl(tpm *sb.TPMConnection) bool {
 	return tpm.IsEnabled()
+}
+
+func init() {
+	handler := &fdeHookV2DataHandler{}
+	sb.RegisterPlatformKeyDataHandler(fdeHooksPlatformName, handler)
 }
 
 func CheckKeySealingSupported() error {
@@ -460,11 +466,6 @@ func unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourc
 func unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
 	res := UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
 
-	// XXX: fugly, we need a way to pass the key-name to the hook for
-	//      v1 support. this is a hack we need something better.
-	handler := &fdeHookV2DataHandler{keyName: name}
-	sb.RegisterPlatformKeyDataHandler(fdeHooksPlatformName, handler)
-
 	f, err := sb.NewFileKeyDataReader(sealedEncryptionKeyFile)
 	if err != nil {
 		// The encrypted file is probably created with v1 data format
@@ -508,9 +509,7 @@ type fdeRevealKeyResult struct {
 	Key []byte `json:"key"`
 }
 
-type fdeHookV2DataHandler struct {
-	keyName string
-}
+type fdeHookV2DataHandler struct{}
 
 func (fh *fdeHookV2DataHandler) RecoverKeys(data *sb.PlatformKeyData) (sb.KeyPayload, error) {
 
@@ -527,7 +526,8 @@ func (fh *fdeHookV2DataHandler) RecoverKeys(data *sb.PlatformKeyData) (sb.KeyPay
 		Op:        "reveal",
 		SealedKey: data.EncryptedPayload,
 		Handle:    handle,
-		KeyName:   fh.keyName,
+		// deprecated but needed for v1 hooks
+		KeyName: "deprecated-" + randutilRandomString(12),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("cannot build request for fde-reveal-key: %v", err)

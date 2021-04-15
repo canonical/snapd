@@ -1521,9 +1521,8 @@ func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookPara
 		Timeout: 5 * time.Minute,
 	}
 	req := &fde.SetupRequest{
-		Op:      op,
-		Key:     params.Key[:],
-		KeyName: params.KeyName,
+		Op:  op,
+		Key: params.Key[:],
 		// TODO: include boot chains
 	}
 	contextData := map[string]interface{}{

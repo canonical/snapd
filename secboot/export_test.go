@@ -155,6 +155,14 @@ func MockRandomKernelUUID(f func() string) (restore func()) {
 	}
 }
 
+func MockRandutilRandomString(f func(n int) string) (restore func()) {
+	old := randutilRandomString
+	randutilRandomString = f
+	return func() {
+		randutilRandomString = old
+	}
+}
+
 func MockSbInitializeLUKS2Container(f func(devicePath, label string, key []byte,
 	opts *sb.InitializeLUKS2ContainerOptions) error) (restore func()) {
 	old := sbInitializeLUKS2Container
