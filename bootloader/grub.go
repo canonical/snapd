@@ -360,13 +360,24 @@ func (g *grub) ManagedAssets() []string {
 	}
 }
 
-func (g *grub) commandLineForEdition(edition uint, modeArg, systemArg, extraArgs string) (string, error) {
+func (g *grub) commandLineForEdition(edition uint, pieces CommandLineComponents) (string, error) {
 	assetName := "grub.cfg"
 	if g.recovery {
 		assetName = "grub-recovery.cfg"
 	}
-	staticCmdline := staticCommandLineForGrubAssetEdition(assetName, edition)
-	args, err := osutil.KernelCommandLineSplit(staticCmdline + " " + extraArgs)
+
+	if err := pieces.Validate(); err != nil {
+		return "", err
+	}
+
+	var nonSnapdCmdline string
+	if pieces.FullArgs == "" {
+		staticCmdline := staticCommandLineForGrubAssetEdition(assetName, edition)
+		nonSnapdCmdline = staticCmdline + " " + pieces.ExtraArgs
+	} else {
+		nonSnapdCmdline = pieces.FullArgs
+	}
+	args, err := osutil.KernelCommandLineSplit(nonSnapdCmdline)
 	if err != nil {
 		return "", fmt.Errorf("cannot use badly formatted kernel command line: %v", err)
 	}
@@ -375,11 +386,11 @@ func (g *grub) commandLineForEdition(edition uint, modeArg, systemArg, extraArgs
 	// arguments are separated by a single space, the space after last is
 	// replaced with terminating NULL
 	snapdArgs := make([]string, 0, 2)
-	if modeArg != "" {
-		snapdArgs = append(snapdArgs, modeArg)
+	if pieces.ModeArg != "" {
+		snapdArgs = append(snapdArgs, pieces.ModeArg)
 	}
-	if systemArg != "" {
-		snapdArgs = append(snapdArgs, systemArg)
+	if pieces.SystemArg != "" {
+		snapdArgs = append(snapdArgs, pieces.SystemArg)
 	}
 	return strings.Join(append(snapdArgs, args...), " "), nil
 }
@@ -391,7 +402,7 @@ func (g *grub) commandLineForEdition(edition uint, modeArg, systemArg, extraArgs
 // recovery bootloader.
 //
 // Implements TrustedAssetsBootloader for the grub bootloader.
-func (g *grub) CommandLine(modeArg, systemArg, extraArgs string) (string, error) {
+func (g *grub) CommandLine(pieces CommandLineComponents) (string, error) {
 	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
 	edition, err := editionFromDiskConfigAsset(currentBootConfig)
 	if err != nil {
@@ -405,14 +416,14 @@ func (g *grub) CommandLine(modeArg, systemArg, extraArgs string) (string, error)
 		// used before we started writing out the files ourselves
 		edition = 1
 	}
-	return g.commandLineForEdition(edition, modeArg, systemArg, extraArgs)
+	return g.commandLineForEdition(edition, pieces)
 }
 
 // CandidateCommandLine is similar to CommandLine, but uses the current
 // edition of managed built-in boot assets as reference.
 //
 // Implements TrustedAssetsBootloader for the grub bootloader.
-func (g *grub) CandidateCommandLine(modeArg, systemArg, extraArgs string) (string, error) {
+func (g *grub) CandidateCommandLine(pieces CommandLineComponents) (string, error) {
 	assetName := "grub.cfg"
 	if g.recovery {
 		assetName = "grub-recovery.cfg"
@@ -421,7 +432,7 @@ func (g *grub) CandidateCommandLine(modeArg, systemArg, extraArgs string) (strin
 	if err != nil {
 		return "", err
 	}
-	return g.commandLineForEdition(edition, modeArg, systemArg, extraArgs)
+	return g.commandLineForEdition(edition, pieces)
 }
 
 // staticCommandLineForGrubAssetEdition fetches a static command line for given
