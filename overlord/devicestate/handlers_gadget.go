@@ -311,6 +311,7 @@ func (m *DeviceManager) undoUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb)
 	}
 	if !updated {
 		logger.Debugf("no kernel command line update to undo")
+		return nil
 	}
 	t.Logf("Reverted kernel command line change")
 
