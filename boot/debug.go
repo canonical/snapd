@@ -72,6 +72,7 @@ func DebugDumpBootVars(w io.Writer, dir string, uc20 bool) error {
 			"recovery_system_status",
 			"try_recovery_system",
 			"snapd_extra_cmdline_args",
+			"snapd_full_cmdline_args",
 		}
 	}
 	bloader, err := bootloader.Find(dir, opts)
