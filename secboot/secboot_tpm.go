@@ -486,7 +486,8 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sou
 	}
 	keyData, err := sb.ReadKeyData(f)
 	if err != nil {
-		return res, xerrors.Errorf("cannot read key-data: %w", err)
+		fmt := "cannot read key-data: %w"
+		return res, xerrors.Errorf(fmt, err)
 	}
 	key, _, err := keyData.RecoverKeys()
 	if err != nil {
@@ -517,7 +518,8 @@ func (fh *fdeHookV2DataHandler) RecoverKeys(data *sb.PlatformKeyData) (sb.KeyPay
 	var handle []byte
 	if len(data.Handle) > 0 {
 		if err := json.Unmarshal(data.Handle, &handle); err != nil {
-			return nil, xerrors.Errorf("unmarshal error: %w", err)
+			fmt := "unmarshal error: %w"
+			return nil, xerrors.Errorf(fmt, err)
 		}
 	}
 
