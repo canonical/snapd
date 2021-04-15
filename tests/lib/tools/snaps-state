@@ -65,7 +65,8 @@ install_local_as() {
 show_name() {
     case "${1:-}" in
             core)
-                local core_name="$(snap model --verbose | grep -Po "^base:\\s+\\K.*" || true)"
+                local core_name
+                core_name="$(snap model --verbose | grep -Po "^base:\\s+\\K.*" || true)"
                 if [ -z "$core_name" ]; then
                     core_name="core"
                 fi
