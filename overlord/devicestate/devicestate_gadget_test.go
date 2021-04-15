@@ -1464,6 +1464,10 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {
 	c.Assert(chg.IsReady(), Equals, true)
 	c.Check(chg.Err(), ErrorMatches, "(?s)cannot perform the following tasks.*total undo.*")
 	c.Check(tsk.Status(), Equals, state.UndoneStatus)
+	log := tsk.Log()
+	c.Assert(log, HasLen, 2)
+	c.Check(log[0], Matches, ".* Updated kernel command line")
+	c.Check(log[1], Matches, ".* Reverted kernel command line change")
 	// update was applied and then undone
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem, state.RestartSystem})
 	c.Check(restartCount, Equals, 2)
