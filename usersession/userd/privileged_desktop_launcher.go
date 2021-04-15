@@ -171,9 +171,6 @@ func findDesktopFile(baseDir string, splitFileId []string) (string, error) {
 	}
 
 	// Iterate through the potential subdirectories formed by the first i elements of the desktop file ID.
-	// Maybe this is overkill: At the time of writing, the only use is in desktopFileIDToFilename() and there
-	// we're only checking dirs.SnapDesktopFilesDir (not all entries in $XDG_DATA_DIRS) and we know that snapd
-	// does not create subdirectories in that location.
 	for i := 1; i != len(splitFileId); i++ {
 		prefix := strings.Join(splitFileId[:i], "-")
 		// Don't treat empty or "." components as directory
@@ -222,10 +219,8 @@ func verifyDesktopFileLocation(desktopFile string) error {
 
 	if !strings.HasPrefix(desktopFile, dirs.SnapDesktopFilesDir+"/") {
 		// We currently only support launching snap applications from desktop files in
-		// /var/lib/snapd/desktop/applications and these desktop files are written by snapd and
-		// considered safe for userd to process. If other directories are added in the future,
-		// verifyDesktopFileLocation() and parseExecCommand() may need to be updated.
-		return fmt.Errorf("internal error: only launching snap applications from %s is supported", dirs.SnapDesktopFilesDir)
+		// /var/lib/snapd/desktop/applications.
+		return fmt.Errorf("only launching snap applications from %s is supported", dirs.SnapDesktopFilesDir)
 	}
 
 	return nil

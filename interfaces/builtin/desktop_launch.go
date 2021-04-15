@@ -19,7 +19,7 @@
 
 package builtin
 
-const desktopLaunchSummary = `allows snaps to identify and launch other snaps`
+const desktopLaunchSummary = `allows snaps to identify and launch desktop applications in (or from) other snaps`
 
 const desktopLaunchBaseDeclarationPlugs = `
   desktop-launch:
@@ -48,7 +48,7 @@ dbus (send)
     bus=session
     path=/io/snapcraft/PrivilegedDesktopLauncher
     interface=io.snapcraft.PrivilegedDesktopLauncher
-    member=OpenDesktopEntry
+    peer=(label=unconfined),member=OpenDesktopEntry
     peer=(label=unconfined),
 `
 
