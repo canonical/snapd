@@ -379,6 +379,51 @@ func userDaemonReload() error {
 	return cli.ServicesDaemonReload(ctx)
 }
 
+func tryFileUpdate(path string, desiredContent []byte) (old *osutil.FileState, modified bool, err error) {
+	newFileState := osutil.MemoryFileState{
+		Content: desiredContent,
+		Mode:    os.FileMode(0644),
+	}
+
+	// get the existing content (if any) of the file to have something to
+	// rollback to if we have any errors
+
+	// note we can't use FileReference here since we may be modifying
+	// the file, and the FileReference.State() wouldn't be evaluated
+	// until _after_ we attempted modification
+	oldFileState := osutil.MemoryFileState{}
+
+	if st, err := os.Stat(path); err == nil {
+		b, err := ioutil.ReadFile(path)
+		if err != nil {
+			return nil, false, err
+		}
+		oldFileState.Content = b
+		oldFileState.Mode = st.Mode()
+		newFileState.Mode = st.Mode()
+
+		// save the old state of the file
+		st := osutil.FileState(&oldFileState)
+		old = &st
+	}
+
+	if mkdirErr := os.MkdirAll(filepath.Dir(path), 0755); mkdirErr != nil {
+		return nil, false, mkdirErr
+	}
+	ensureErr := osutil.EnsureFileState(path, &newFileState)
+	switch ensureErr {
+	case osutil.ErrSameState:
+		// didn't change the file
+		return old, false, nil
+	case nil:
+		// we successfully modified the file
+		return old, true, nil
+	default:
+		// some other fatal error trying to write the file
+		return nil, false, ensureErr
+	}
+}
+
 type SnapServiceOptions struct {
 	// VitalityRank is the rank of all services in the specified snap used by
 	// the OOM killer when OOM conditions are reached.
@@ -430,7 +475,7 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 	// determines whether we are preseeding or not during the ensure operation
 	preseeding := opts.Preseeding
 
-	// modifiedUnits is the set of units that were modified and the previous
+	// modifiedUnitsPreviousState is the set of units that were modified and the previous
 	// state of the unit before modification that we can roll back to if there
 	// are any issues.
 	// note that the rollback is best effort, if we are rebooted in the middle,
@@ -471,51 +516,14 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 		}
 	}()
 
-	// helper lambda for updating a file and tracking the change so we can
-	// rollback properly
-	handleFileModification := func(s *snap.Info, app *snap.AppInfo, path string, desiredContent []byte) error {
-		newFileState := osutil.MemoryFileState{
-			Content: desiredContent,
-			Mode:    os.FileMode(0644),
+	handleFileModification := func(s *snap.Info, app *snap.AppInfo, path string, content []byte) error {
+		old, modifiedFile, err := tryFileUpdate(path, content)
+		if err != nil {
+			return err
 		}
 
-		// get the existing file state (if any) of the service to have
-		// something to rollback to if we have any errors
-
-		// note we can't use FileReference here since we may be modifying
-		// the file, and the FileReference.State() wouldn't be evaluated
-		// until _after_ we attempted modification
-		oldFileState := osutil.MemoryFileState{}
-		haveOldFile := false
-
-		if st, err := os.Stat(path); err == nil {
-			haveOldFile = true
-			b, err := ioutil.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			oldFileState.Content = b
-			oldFileState.Mode = st.Mode()
-			newFileState.Mode = st.Mode()
-		}
-
-		if mkdirErr := os.MkdirAll(filepath.Dir(path), 0755); mkdirErr != nil {
-			return mkdirErr
-		}
-		ensureErr := osutil.EnsureFileState(path, &newFileState)
-		if ensureErr != nil && ensureErr != osutil.ErrSameState {
-			// fatal error trying to write the file
-			return ensureErr
-		}
-		if ensureErr == nil {
-			// then we modified the file and should save this as
-			// something to roll back to
-			if haveOldFile {
-				st := osutil.FileState(&oldFileState)
-				modifiedUnitsPreviousState[path] = &st
-			} else {
-				modifiedUnitsPreviousState[path] = nil
-			}
+		if modifiedFile {
+			modifiedUnitsPreviousState[path] = old
 			modified[s] = append(modified[s], app)
 
 			// also mark that we need to reload either the system or
