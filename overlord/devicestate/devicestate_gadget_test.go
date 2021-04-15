@@ -1130,8 +1130,12 @@ func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, t
 		c.Check(tsk.Status(), Equals, state.DoneStatus)
 		// we log on success
 		log := tsk.Log()
-		c.Assert(log, HasLen, 1)
-		c.Check(log[0], Matches, fmt.Sprintf(".* %v", logMatch))
+		if logMatch != "" {
+			c.Assert(log, HasLen, 1)
+			c.Check(log[0], Matches, fmt.Sprintf(".* %v", logMatch))
+		} else {
+			c.Check(log, HasLen, 0)
+		}
 		if updated {
 			// update was applied, thus a restart was requested
 			c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
@@ -1180,7 +1184,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithExistingArgs(c *C)
 			{"meta/gadget.yaml", gadgetYaml},
 			{"cmdline.extra", "args from updated gadget"},
 		},
-		"", "updated kernel command line", update)
+		"", "Updated kernel command line", update)
 
 	m, err = boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -1232,7 +1236,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithNewArgs(c *C) {
 			{"meta/gadget.yaml", gadgetYaml},
 			{"cmdline.extra", "args from new gadget"},
 		},
-		"", "updated kernel command line", update)
+		"", "Updated kernel command line", update)
 
 	m, err = boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -1285,7 +1289,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineDroppedArgs(c *C) {
 			{"meta/gadget.yaml", gadgetYaml},
 			// new one does not
 		},
-		"", "updated kernel command line", update)
+		"", "Updated kernel command line", update)
 
 	m, err = boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -1334,7 +1338,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineUnchanged(c *C) {
 	// old and new gadget have the same command line arguments, nothing changes
 	const update = false
 	s.testGadgetCommandlineUpdateRun(c, sameFiles, sameFiles,
-		"", "no kernel command line update from gadget", update)
+		"", "", update)
 
 	m, err = boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -1364,7 +1368,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineNonUC20(c *C) {
 			{"meta/gadget.yaml", gadgetYaml},
 			{"cmdline.extra", "args from new gadget"},
 		},
-		"", "no kernel command line update from gadget", update)
+		"", "", update)
 }
 
 func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {

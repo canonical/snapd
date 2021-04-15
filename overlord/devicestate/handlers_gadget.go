@@ -250,7 +250,7 @@ func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, 
 
 func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) error {
 	if release.OnClassic {
-		return fmt.Errorf("cannot run update gadget kernel command line task on a classic system")
+		return fmt.Errorf("internal error: cannot run update gadget kernel command line task on a classic system")
 	}
 
 	st := t.State()
@@ -260,7 +260,6 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 	var seeded bool
 	err := st.Get("seeded", &seeded)
 	if err != nil && err != state.ErrNoState {
-		fmt.Printf("not needed\n")
 		return err
 	}
 	if !seeded {
@@ -274,10 +273,10 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 		return err
 	}
 	if !updated {
-		t.Logf("no kernel command line update from gadget")
+		logger.Debugf("no kernel command line update from gadget")
 		return nil
 	}
-	t.Logf("updated kernel command line")
+	t.Logf("Updated kernel command line")
 
 	t.SetStatus(state.DoneStatus)
 
@@ -288,7 +287,7 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 
 func (m *DeviceManager) undoUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) error {
 	if release.OnClassic {
-		return fmt.Errorf("cannot run update gadget kernel command line task on a classic system")
+		return fmt.Errorf("internal error: cannot run update gadget kernel command line task on a classic system")
 	}
 
 	st := t.State()
@@ -311,9 +310,9 @@ func (m *DeviceManager) undoUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb)
 		return err
 	}
 	if !updated {
-		t.Logf("no kernel command line update to undo")
+		logger.Debugf("no kernel command line update to undo")
 	}
-	t.Logf("kernel command line update undone")
+	t.Logf("Reverted kernel command line change")
 
 	t.SetStatus(state.UndoneStatus)
 
