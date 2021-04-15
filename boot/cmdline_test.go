@@ -247,7 +247,13 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineWithGadget(c *C) {
 		files: [][]string{
 			{"cmdline.full", "cmdline full"},
 		},
-		errMsg: "full kernel command line provided by the gadget is not supported yet",
+		expCommandLine: "snapd_recovery_mode=run cmdline full",
+	}, {
+		which: "candidate",
+		files: [][]string{
+			{"cmdline.full", "cmdline full"},
+		},
+		expCommandLine: "snapd_recovery_mode=run cmdline full",
 	}, {
 		which: "candidate",
 		files: [][]string{
@@ -310,7 +316,13 @@ func (s *kernelCommandLineSuite) TestComposeRecoveryCommandLineWithGadget(c *C) 
 		files: [][]string{
 			{"cmdline.full", "cmdline full"},
 		},
-		errMsg: "full kernel command line provided by the gadget is not supported yet",
+		expCommandLine: "snapd_recovery_mode=recover snapd_recovery_system=1234 cmdline full",
+	}, {
+		which: "candidate",
+		files: [][]string{
+			{"cmdline.full", "cmdline full"},
+		},
+		expCommandLine: "snapd_recovery_mode=recover snapd_recovery_system=1234 cmdline full",
 	}, {
 		which: "candidate",
 		files: [][]string{
@@ -354,27 +366,38 @@ func (s *kernelCommandLineSuite) TestBootVarsForGadgetCommandLine(c *C) {
 		files: [][]string{
 			{"cmdline.extra", "foo bar baz"},
 		},
-		expectedVars: map[string]string{"snapd_extra_cmdline_args": "foo bar baz"},
+		expectedVars: map[string]string{
+			"snapd_extra_cmdline_args": "foo bar baz",
+			"snapd_full_cmdline_args":  "",
+		},
 	}, {
 		files: [][]string{
 			{"cmdline.extra", "snapd.debug=1"},
 		},
-		expectedVars: map[string]string{"snapd_extra_cmdline_args": "snapd.debug=1"},
+		expectedVars: map[string]string{
+			"snapd_extra_cmdline_args": "snapd.debug=1",
+			"snapd_full_cmdline_args":  "",
+		},
 	}, {
 		files: [][]string{
 			{"cmdline.extra", "snapd_foo"},
 		},
 		errMsg: `cannot use kernel command line from gadget: disallowed kernel argument \"snapd_foo\" in cmdline.extra`,
 	}, {
-		// TODO: enable full command line override
 		files: [][]string{
-			{"cmdline.full", "unhappy"},
+			{"cmdline.full", "full foo bar baz"},
 		},
-		errMsg: `full kernel command line provided by the gadget is not supported yet`,
+		expectedVars: map[string]string{
+			"snapd_extra_cmdline_args": "",
+			"snapd_full_cmdline_args":  "full foo bar baz",
+		},
 	}, {
 		// with no arguments boot variables should be cleared
-		files:        [][]string{},
-		expectedVars: map[string]string{"snapd_extra_cmdline_args": ""},
+		files: [][]string{},
+		expectedVars: map[string]string{
+			"snapd_extra_cmdline_args": "",
+			"snapd_full_cmdline_args":  "",
+		},
 	}} {
 		sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, append([][]string{
 			{"meta/snap.yaml", gadgetSnapYaml},
