@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
-	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -57,11 +56,9 @@ func (s *autorefreshGatingSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
 
 	s.repo = interfaces.NewRepository()
-
-	// note: TestInterface defines mount backend methods, so it falls
-	// into the checks of plugs using this backend.
-	iface1 := &ifacetest.TestInterface{InterfaceName: "iface1"}
-	c.Assert(s.repo.AddInterface(iface1), IsNil)
+	for _, iface := range builtin.Interfaces() {
+		c.Assert(s.repo.AddInterface(iface), IsNil)
+	}
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -128,7 +125,7 @@ const snapDyaml = `name: snap-d
 type: app
 version: 1
 slots:
-    slot: iface1
+    slot: desktop
 `
 
 const snapEyaml = `name: snap-e
@@ -136,14 +133,14 @@ type: app
 version: 1
 base: other-base
 plugs:
-    plug: iface1
+    plug: desktop
 `
 
 const snapFyaml = `name: snap-f
 type: app
 version: 1
 plugs:
-    plug: iface1
+    plug: desktop
 `
 
 const snapGyaml = `name: snap-g
@@ -159,14 +156,6 @@ const coreYaml = `name: core
 type: os
 version: 1
 slots:
-    slot:
-        interface: iface1
-`
-
-const coreYaml2 = `name: core
-type: os
-version: 1
-slots:
     desktop:
     mir:
 `
@@ -177,14 +166,6 @@ version: 1
 `
 
 const snapdYaml = `name: snapd
-version: 1
-type: snapd
-slots:
-    slot:
-        interface: iface1
-`
-
-const snapdYaml2 = `name: snapd
 version: 1
 type: snapd
 slots:
@@ -327,17 +308,13 @@ func (s *autorefreshGatingSuite) TestNotAffectedByCoreOrSnapdSlot(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	for _, iface := range builtin.Interfaces() {
-		c.Assert(s.repo.AddInterface(iface), IsNil)
-	}
-
 	st := s.state
 
 	st.Lock()
 	defer st.Unlock()
 
 	snapG := s.mockInstalledSnap(c, snapGyaml, true)
-	core := s.mockInstalledSnap(c, coreYaml2, false)
+	core := s.mockInstalledSnap(c, coreYaml, false)
 	snapB := s.mockInstalledSnap(c, snapByaml, true)
 
 	c.Assert(s.repo.AddSnap(snapG), IsNil)
@@ -391,21 +368,12 @@ func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackendSnapdSlot(c *
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	var desktopIface interfaces.Interface
-	for _, iface := range builtin.Interfaces() {
-		if iface.Name() == "desktop" {
-			desktopIface = iface
-			break
-		}
-	}
-	c.Assert(s.repo.AddInterface(desktopIface), IsNil)
-
 	st := s.state
 
 	st.Lock()
 	defer st.Unlock()
 
-	snapdSnap := s.mockInstalledSnap(c, snapdYaml2, true)
+	snapdSnap := s.mockInstalledSnap(c, snapdYaml, true)
 	snapG := s.mockInstalledSnap(c, snapGyaml, true)
 	// unrelated snap
 	snapF := s.mockInstalledSnap(c, snapFyaml, true)
@@ -433,16 +401,12 @@ func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackendCoreSlot(c *C
 	restore := release.MockOnClassic(true)
 	defer restore()
 
-	for _, iface := range builtin.Interfaces() {
-		c.Assert(s.repo.AddInterface(iface), IsNil)
-	}
-
 	st := s.state
 
 	st.Lock()
 	defer st.Unlock()
 
-	coreSnap := s.mockInstalledSnap(c, coreYaml2, false)
+	coreSnap := s.mockInstalledSnap(c, coreYaml, false)
 	snapG := s.mockInstalledSnap(c, snapGyaml, true)
 
 	c.Assert(s.repo.AddSnap(coreSnap), IsNil)
