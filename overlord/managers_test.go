@@ -6737,7 +6737,9 @@ volumes:
         size: 500M
 `
 
-func (s *mgrsSuite) testGadgetKernelCommandLine(c *C, snapPath string, si *snap.SideInfo, bl bootloader.Bootloader, currentFiles [][]string, currentModeenvCmdline string, commandLineAfterReboot string, update bool) {
+func (s *mgrsSuite) testGadgetKernelCommandLine(c *C, gadgetPath string, gadgetSideInfo *snap.SideInfo,
+	bl bootloader.Bootloader, currentFiles [][]string, currentModeenvCmdline string,
+	commandLineAfterReboot string, update bool) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -6825,7 +6827,7 @@ func (s *mgrsSuite) testGadgetKernelCommandLine(c *C, snapPath string, si *snap.
 	err = assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 
-	ts, _, err := snapstate.InstallPath(st, si, snapPath, "", "", snapstate.Flags{})
+	ts, _, err := snapstate.InstallPath(st, gadgetSideInfo, gadgetPath, "", "", snapstate.Flags{})
 	c.Assert(err, IsNil)
 
 	chg := st.NewChange("install-snap", "...")
