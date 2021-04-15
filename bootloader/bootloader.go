@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -201,10 +201,11 @@ type TrustedAssetsBootloader interface {
 	// the bootloader. Returns true when assets were updated.
 	UpdateBootConfig() (bool, error)
 	// CommandLine returns the kernel command line composed of mode and
-	// system arguments, built-in bootloader specific static arguments
-	// corresponding to the on-disk boot asset edition, followed by any
-	// extra arguments. The command line may be different when using a
-	// recovery bootloader.
+	// system arguments, followed by either a built-in bootloader specific
+	// static arguments corresponding to the on-disk boot asset edition, and
+	// any extra arguments or a separate set of arguments provided in the
+	// components. The command line may be different when using a recovery
+	// bootloader.
 	CommandLine(pieces CommandLineComponents) (string, error)
 	// CandidateCommandLine is similar to CommandLine, but uses the current
 	// edition of managed built-in boot assets as reference.

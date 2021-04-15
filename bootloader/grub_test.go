@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -1106,11 +1106,28 @@ boot script
 	})
 	c.Assert(err, ErrorMatches, "cannot use both full and extra components of command line")
 	c.Check(args, Equals, "")
+	// invalid for the candidate command line too
+	args, err = tg.CandidateCommandLine(bootloader.CommandLineComponents{
+		ModeArg:   "snapd_recovery_mode=run",
+		ExtraArgs: "extra is set",
+		FullArgs:  "full is set",
+	})
+	c.Assert(err, ErrorMatches, "cannot use both full and extra components of command line")
+	c.Check(args, Equals, "")
 
 	// now check the recovery bootloader
 	opts = &bootloader.Options{NoSlashBoot: true, Role: bootloader.RoleRecovery}
 	mrg := bootloader.NewGrub(s.rootdir, opts).(bootloader.TrustedAssetsBootloader)
 	args, err = mrg.CommandLine(bootloader.CommandLineComponents{
+		ModeArg:   "snapd_recovery_mode=recover",
+		SystemArg: "snapd_recovery_system=20200202",
+		ExtraArgs: "extra is set",
+		FullArgs:  "full is set",
+	})
+	c.Assert(err, ErrorMatches, "cannot use both full and extra components of command line")
+	c.Check(args, Equals, "")
+	// candidate recovery command line is checks validity of the components too
+	args, err = mrg.CandidateCommandLine(bootloader.CommandLineComponents{
 		ModeArg:   "snapd_recovery_mode=recover",
 		SystemArg: "snapd_recovery_system=20200202",
 		ExtraArgs: "extra is set",
