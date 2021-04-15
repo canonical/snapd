@@ -2744,6 +2744,82 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineNonRunMode(c *C) {
 	})
 }
 
+func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedNoFDEManagedBootloader(c *C) {
+	s.mockCmdline(c, "snapd_recovery_mode=run candidate panic=-1")
+	tab := s.bootloaderWithTrustedAssets(c, nil)
+	m := s.setupMarkBootSuccessful20CommandLine(c, "run", boot.BootCommandLines{
+		"snapd_recovery_mode=run panic=-1",
+		"snapd_recovery_mode=run candidate panic=-1",
+	})
+	// without encryption, the trusted assets are no tracked in the modeenv,
+	// but we still may want to track command lines so that the gadget can
+	// contribute to the system command line
+	m.CurrentTrustedBootAssets = nil
+	m.CurrentTrustedRecoveryBootAssets = nil
+
+	r := setupUC20Bootenv(
+		c,
+		tab.MockBootloader,
+		&bootenv20Setup{
+			modeenv:    m,
+			kern:       s.kern1,
+			kernStatus: boot.DefaultStatus,
+		},
+	)
+	defer r()
+
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+	// mark successful
+	err := boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+
+	// check the modeenv
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	// modeenv is unchaged
+	c.Check(m2.CurrentKernelCommandLines, DeepEquals, boot.BootCommandLines{
+		"snapd_recovery_mode=run candidate panic=-1",
+	})
+}
+
+func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineCompatNonTrustedBootloader(c *C) {
+	s.mockCmdline(c, "snapd_recovery_mode=run candidate panic=-1")
+	// bootloader has no trusted assets
+	bl := bootloadertest.Mock("not-trusted", "")
+	bootloader.Force(bl)
+	s.AddCleanup(func() { bootloader.Force(nil) })
+	m := s.setupMarkBootSuccessful20CommandLine(c, "run", nil)
+	// no trusted assets
+	m.CurrentTrustedBootAssets = nil
+	m.CurrentTrustedRecoveryBootAssets = nil
+	// no kernel command lines tracked
+	m.CurrentKernelCommandLines = nil
+
+	r := setupUC20Bootenv(
+		c,
+		bl,
+		&bootenv20Setup{
+			modeenv:    m,
+			kern:       s.kern1,
+			kernStatus: boot.DefaultStatus,
+		},
+	)
+	defer r()
+
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+	// mark successful
+	err := boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+
+	// check the modeenv
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	// modeenv isn't changed
+	c.Check(m2.CurrentKernelCommandLines, HasLen, 0)
+}
+
 func (s *bootenv20Suite) TestMarkBootSuccessful20SystemsCompat(c *C) {
 	b := bootloadertest.Mock("mock", s.bootdir)
 	s.forceBootloader(b)
