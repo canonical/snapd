@@ -163,6 +163,31 @@ type ExtractedRunKernelImageBootloader interface {
 	DisableTryKernel() error
 }
 
+// ComamndLineComponents carries the components of the kernel command line. The
+// bootloader is expected to combine the provided components, optionally
+// including its built-in static set of arguments, and produce a command line
+// that will be passed to the kernel during boot.
+type CommandLineComponents struct {
+	// Argument related to mode selection.
+	ModeArg string
+	// Argument related to recovery system selection, relevant for given
+	// mode argument.
+	SystemArg string
+	// Extra arguments requested by the system.
+	ExtraArgs string
+	// A complete set of arguments that overrides both the built-in static
+	// set and ExtraArgs. Note that, it is an error if extra and full
+	// arguments are non-empty.
+	FullArgs string
+}
+
+func (c *CommandLineComponents) Validate() error {
+	if c.ExtraArgs != "" && c.FullArgs != "" {
+		return fmt.Errorf("cannot use both full and extra components of command line")
+	}
+	return nil
+}
+
 // TrustedAssetsBootloader has boot assets that take part in the secure boot
 // process and need to be tracked, while other boot assets (typically boot
 // config) are managed by snapd.
@@ -180,10 +205,10 @@ type TrustedAssetsBootloader interface {
 	// corresponding to the on-disk boot asset edition, followed by any
 	// extra arguments. The command line may be different when using a
 	// recovery bootloader.
-	CommandLine(modeArg, systemArg, extraArgs string) (string, error)
+	CommandLine(pieces CommandLineComponents) (string, error)
 	// CandidateCommandLine is similar to CommandLine, but uses the current
 	// edition of managed built-in boot assets as reference.
-	CandidateCommandLine(modeArg, systemArg, extraArgs string) (string, error)
+	CandidateCommandLine(pieces CommandLineComponents) (string, error)
 
 	// TrustedAssets returns the list of relative paths to assets inside the
 	// bootloader's rootdir that are measured in the boot process in the
