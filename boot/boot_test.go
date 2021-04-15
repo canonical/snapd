@@ -3170,8 +3170,6 @@ func (s *bootConfigSuite) TestBootConfigUpdateWithGadgetAndReseal(c *C) {
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
-	s.bootloader.Updated = true
-
 	resealCalls := 0
 	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealCalls++
@@ -3187,7 +3185,7 @@ func (s *bootConfigSuite) TestBootConfigUpdateWithGadgetAndReseal(c *C) {
 
 	updated, err := boot.UpdateManagedBootConfigs(coreDev, gadgetSnap)
 	c.Assert(err, IsNil)
-	c.Check(updated, Equals, true)
+	c.Check(updated, Equals, false)
 	c.Check(s.bootloader.UpdateCalls, Equals, 1)
 	c.Check(resealCalls, Equals, 1)
 
