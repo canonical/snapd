@@ -41,7 +41,9 @@ const dspBaseDeclarationSlots = `
 const ambarellaDspConnectedPlugApparmor = `
 # Description: can manage and control the integrated digital signal processor on
 # the ambarella device. This allows privileged access to hardware and kernel 
-# drivers related to the digital signal processor and thus is super-privileged.
+# drivers related to the digital signal processor and thus is only allowed on
+# specific devices providing the slot via a gadget and is also not auto-
+# connected.
 
 # The ucode device node corresponds to the firmware on the digital signal 
 # processor
