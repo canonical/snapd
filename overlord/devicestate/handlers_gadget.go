@@ -280,6 +280,10 @@ func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) e
 
 	t.SetStatus(state.DoneStatus)
 
+	// TODO: consider optimization to avoid double reboot when the gadget
+	// snap carries an update to the gadget assets and a change in the
+	// kernel command line
+
 	// kernel command line was updated, request a reboot to make it effective
 	st.RequestRestart(state.RestartSystem)
 	return nil
