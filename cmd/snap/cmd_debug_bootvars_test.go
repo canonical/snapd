@@ -123,6 +123,7 @@ kernel_status=
 recovery_system_status=try
 try_recovery_system=9999
 snapd_extra_cmdline_args=
+snapd_full_cmdline_args=
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 	s.ResetStdStreams()
