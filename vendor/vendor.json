@@ -124,16 +124,22 @@
 			"revisionTime": "2017-09-28T14:21:59Z"
 		},
 		{
-			"checksumSHA1": "bxXH0CTVNCUVJ1uSTO+2mxHb7Mw=",
+			"checksumSHA1": "wJ2txvI2LCJnAZm8RFKxqz6pAYc=",
 			"path": "github.com/snapcore/secboot",
-			"revision": "68eced9638f2d44eb7dbc88884d002dc1b294a92",
-			"revisionTime": "2021-04-09T12:47:43Z"
+			"revision": "796680a13b94250ac53d4866a3da572adf42e021",
+			"revisionTime": "2021-04-15T18:54:04Z"
 		},
 		{
 			"checksumSHA1": "c7jHLQSWFWbymTcFWZMQH0C5Wik=",
 			"path": "github.com/snapcore/secboot/internal/efi",
 			"revision": "122bca1e162df761510e82be1bc9043250fe0bc7",
 			"revisionTime": "2021-02-12T23:46:08Z"
+		},
+		{
+			"checksumSHA1": "o06IvYmSoopV6w9Cz940QcCbYLc=",
+			"path": "github.com/snapcore/secboot/internal/keyring",
+			"revision": "e5de476efb1124816ef452e667d34200e034d0cd",
+			"revisionTime": "2021-04-15T09:56:33Z"
 		},
 		{
 			"checksumSHA1": "loFEiH6evGaDnDSlQgk3ugemkcU=",

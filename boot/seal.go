@@ -185,7 +185,7 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model
 			res.Handle = nil
 			res.EncryptedKey = hookOutput
 		}
-		if err := secboot.WriteKeyData(skr.KeyName, skr.KeyFile, res.EncryptedKey, auxKey[:], res.Handle); err != nil {
+		if err := secboot.WriteKeyData(skr.KeyName, skr.KeyFile, res.EncryptedKey, auxKey[:], res.Handle, model); err != nil {
 			return err
 		}
 	}

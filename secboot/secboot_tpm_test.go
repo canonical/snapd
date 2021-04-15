@@ -526,7 +526,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncrypted(c *C) {
 		opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
 			AllowRecoveryKey: tc.rkAllow,
 		}
-		unlockRes, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(tc.disk, defaultDevice, expKeyPath, opts)
+		unlockRes, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(tc.disk, defaultDevice, expKeyPath, nil, opts)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 			c.Assert(unlockRes.IsEncrypted, Equals, tc.hasEncdev)
@@ -1277,6 +1277,12 @@ exit 1
 	restore = secboot.MockFdeRevealKeyCommandExtra([]string{"--user"})
 	defer restore()
 
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
+		_, _, err := keyData.RecoverKeys()
+		return &mockSnapModelChecker{mockIsAuthorized: true}, err
+	})
+	defer restore()
+
 	mockDiskWithEncDev := &disks.MockDiskMapping{
 		FilesystemLabelToPartUUID: map[string]string{
 			"name-enc": "enc-dev-partuuid",
@@ -1286,8 +1292,8 @@ exit 1
 	mockSealedKeyFile := makeMockSealedKeyFile(c, "")
 
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
-	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
-	c.Assert(err, ErrorMatches, `(?s)cannot recover keys because of an unexpected error: cannot run fde-reveal-key: 
+	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, nil, opts)
+	c.Assert(err, ErrorMatches, `(?s)cannot unlock encrypted partition: cannot recover keys because of an unexpected error: cannot run fde-reveal-key: 
 -----
 stdin file has correct content
 stdout file is correctly empty
@@ -1327,12 +1333,14 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(
 	mockSealedKeyFile := makeMockSealedKeyFile(c, "")
 
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
-	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
-	c.Assert(err, ErrorMatches, `(?s)cannot recover keys because of an unexpected error: cannot run fde-reveal-key: 
+	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, nil, opts)
+	c.Assert(err, ErrorMatches, `(?s)cannot unlock encrypted partition: cannot activate with platform protected keys:
+- ubuntu-data@0: cannot recover key: cannot recover keys because of an unexpected error: cannot run fde-reveal-key: 
 -----
 failed
 service result: exit-code
------`)
+-----
+and activation with recovery key failed: no recovery key tries permitted`)
 	// ensure no tmp files are left behind
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
 }
@@ -1387,7 +1395,7 @@ printf "unsealed-key-64-chars-long-when-not-json-to-match-denver-project"
 	c.Assert(err, IsNil)
 
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
-	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
+	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, nil, opts)
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, secboot.UnlockResult{
 		UnlockMethod: secboot.UnlockedWithSealedKey,
@@ -1459,7 +1467,7 @@ printf "%s"
 	c.Assert(err, IsNil)
 
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
-	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
+	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, nil, opts)
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, secboot.UnlockResult{
 		UnlockMethod: secboot.UnlockedWithSealedKey,
@@ -1562,6 +1570,18 @@ func (s *secbootSuite) TestLockSealedKeysHonorsParanoia(c *C) {
 	c.Assert(err, ErrorMatches, `cannot run fde-reveal-key "lock": internal error: systemd-run did not honor RuntimeMax=1ms setting`)
 }
 
+type mockSnapModelChecker struct {
+	mockIsAuthorized bool
+	mockError        error
+}
+
+func (c *mockSnapModelChecker) IsModelAuthorized(model sb.SnapModel) (bool, error) {
+	return c.mockIsAuthorized, c.mockError
+}
+func (c *mockSnapModelChecker) VolumeName() string {
+	return "volume-name"
+}
+
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c *C) {
 	// this test uses a real systemd-run --user so check here if that
 	// actually works
@@ -1595,9 +1615,17 @@ printf '{"key": "%s"}'
 	defer mockSystemdRun.Restore()
 
 	expectedKey := makeMockDiskKey()
-	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte, options *sb.ActivateVolumeOptions) error {
-		c.Check(key, DeepEquals, expectedKey[:])
-		return nil
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
+		// XXX: this is what the real
+		// MockSbActivateVolumeWithKeyData will do and what
+		// calls fde-reveal-key but it would be nice to test
+		// this in a better way, maybe by mocking
+		// systemd-cryptsetup instead?
+		key, auxKey, err := keyData.RecoverKeys()
+		c.Assert(err, IsNil)
+		c.Check(string(key), Equals, string(expectedKey[:]))
+		c.Check(auxKey, NotNil)
+		return &mockSnapModelChecker{mockIsAuthorized: true}, nil
 	})
 	defer restore()
 	restore = secboot.MockRandutilRandomString(func(n int) string {
@@ -1608,8 +1636,11 @@ printf '{"key": "%s"}'
 	defaultDevice := "name"
 	mockSealedKeyFile := makeMockSealedKeyFile(c, "key-handle")
 
+	findModel := func() (*asserts.Model, error) {
+		return &asserts.Model{}, nil
+	}
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
-	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
+	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, findModel, opts)
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, secboot.UnlockResult{
 		UnlockMethod: secboot.UnlockedWithSealedKey,
@@ -1658,9 +1689,9 @@ printf 'invalid-json'
 `, fdeRevealKeyStdin))
 	defer mockSystemdRun.Restore()
 
-	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte, options *sb.ActivateVolumeOptions) error {
-		c.Check(string(key), Equals, "unsealed-key")
-		return nil
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
+		_, _, err := keyData.RecoverKeys()
+		return nil, err
 	})
 	defer restore()
 
@@ -1668,6 +1699,6 @@ printf 'invalid-json'
 	mockSealedKeyFile := makeMockSealedKeyFile(c, "")
 
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
-	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
-	c.Check(err, ErrorMatches, `cannot recover keys because of an unexpected error: cannot decode fde-reveal-key result "invalid-json": invalid character 'i' looking for beginning of value`)
+	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, nil, opts)
+	c.Check(err, ErrorMatches, `cannot unlock encrypted partition: cannot recover keys because of an unexpected error: cannot decode fde-reveal-key result "invalid-json": invalid character 'i' looking for beginning of value`)
 }

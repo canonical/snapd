@@ -22,6 +22,8 @@ package secboot
 
 import (
 	"fmt"
+
+	"github.com/snapcore/snapd/asserts"
 )
 
 func CheckKeySealingSupported() error {
@@ -36,7 +38,7 @@ func ResealKeys(params *ResealKeysParams) error {
 	return fmt.Errorf("build without secboot support")
 }
 
-func WriteKeyData(name, path string, encryptedPayload, auxKey, rawhandle []byte) error {
+func WriteKeyData(name, path string, encryptedPayload, auxKey, rawhandle []byte, model *asserts.Model) error {
 	return fmt.Errorf("build without secboot support")
 }
 

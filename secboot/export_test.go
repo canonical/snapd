@@ -227,3 +227,11 @@ func MockRandRead(f func(p []byte) (int, error)) (restore func()) {
 		randRead = oldRandRead
 	}
 }
+
+func MockSbActivateVolumeWithKeyData(f func(volumeName, sourceDevicePath string, key *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error)) (restore func()) {
+	oldSbActivateVolumeWithKeyData := sbActivateVolumeWithKeyData
+	sbActivateVolumeWithKeyData = f
+	return func() {
+		sbActivateVolumeWithKeyData = oldSbActivateVolumeWithKeyData
+	}
+}

@@ -62,6 +62,7 @@ var (
 	sbActivateVolumeWithTPMSealedKey       = sb.ActivateVolumeWithTPMSealedKey
 	sbActivateVolumeWithRecoveryKey        = sb.ActivateVolumeWithRecoveryKey
 	sbActivateVolumeWithKey                = sb.ActivateVolumeWithKey
+	sbActivateVolumeWithKeyData            = sb.ActivateVolumeWithKeyData
 	sbAddEFISecureBootPolicyProfile        = sb.AddEFISecureBootPolicyProfile
 	sbAddEFIBootManagerProfile             = sb.AddEFIBootManagerProfile
 	sbAddSystemdEFIStubProfile             = sb.AddSystemdEFIStubProfile
@@ -259,7 +260,7 @@ func lockTPMSealedKeys() error {
 // whether there is an encrypted device or not, IsEncrypted on the return
 // value will be true, even if error is non-nil. This is so that callers can be
 // robust and try unlocking using another method for example.
-func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedEncryptionKeyFile string, findModel func() (*asserts.Model, error), opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
 	res := UnlockResult{}
 
 	// find the encrypted device using the disk we were provided - note that
@@ -301,7 +302,7 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	targetDevice := filepath.Join("/dev/mapper", mapperName)
 
 	if FDEHasRevealKey() {
-		return unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
+		return unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, findModel, opts)
 	} else {
 		return unlockVolumeUsingSealedKeySecboot(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
 	}
@@ -453,9 +454,9 @@ var noSecbootV2FileErr = errors.New("no secboot v2 file")
 // 2. Key created with v2 data-format on disk (json), v1 hook created the data (no handle) and reads the data (hook output not json but raw binary data)
 // 3. Key created with v1 data-format on disk (raw), v2 hook
 // 4. Key created with v2 data-format on disk (json), v2 hook [easy]
-func unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+func unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, findModel func() (*asserts.Model, error), opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
 	// Try the v2 format first and fallback to v1 if needed.
-	res, err := unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
+	res, err := unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, findModel, opts)
 	if err == noSecbootV2FileErr {
 		// try the "old" keyfile (which is plain binary)
 		return unlockVolumeUsingSealedKeyFDERevealKeyV1(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
@@ -463,7 +464,7 @@ func unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourc
 	return res, err
 }
 
-func unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+func unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, findModel func() (*asserts.Model, error), opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
 	res := UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
 
 	f, err := sb.NewFileKeyDataReader(sealedEncryptionKeyFile)
@@ -490,14 +491,27 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sou
 		fmt := "cannot read key-data: %w"
 		return res, xerrors.Errorf(fmt, err)
 	}
-	key, _, err := keyData.RecoverKeys()
-	if err != nil {
-		return res, err
-	}
-
 	// the output of fde-reveal-key is the unsealed key
-	if err := unlockEncryptedPartitionWithKey(mapperName, sourceDevice, key); err != nil {
+	options := &sb.ActivateVolumeOptions{KeyringPrefix: keyringPrefix}
+	smChecker, err := sbActivateVolumeWithKeyData(mapperName, sourceDevice, keyData, options)
+	if err != nil {
 		return res, fmt.Errorf("cannot unlock encrypted partition: %v", err)
+	}
+	model, err := findModel()
+	if err != nil {
+		return res, fmt.Errorf("cannot find model to unlock to: %v", err)
+	}
+	ok, err := smChecker.IsModelAuthorized(model)
+	switch {
+	case err == sb.ErrRecoveryKeyUsed:
+		res.UnlockMethod = UnlockedWithRecoveryKey
+	case err != nil:
+		return res, fmt.Errorf("cannot check if model is authenticated: %v", err)
+	}
+	if !ok {
+		// XXX: do we need to do some cleanup here? like unactivate
+		// the volume or something?
+		return res, fmt.Errorf("cannot unlock volume: model %v not authorized", model)
 	}
 
 	res.FsDevice = targetDevice
@@ -1006,7 +1020,7 @@ func MarshalKeys(key []byte, auxKey []byte) []byte {
 	return sb.MarshalKeys(key, auxKey)
 }
 
-func WriteKeyData(name, path string, encryptedPayload, auxKey, rawhandle []byte) error {
+func WriteKeyData(name, path string, encryptedPayload, auxKey, rawhandle []byte, model *asserts.Model) error {
 	handle, err := json.Marshal(base64.StdEncoding.EncodeToString(rawhandle))
 	if err != nil {
 		return fmt.Errorf("cannot encode key-data handle: %v", err)
@@ -1025,6 +1039,10 @@ func WriteKeyData(name, path string, encryptedPayload, auxKey, rawhandle []byte)
 	if err != nil {
 		return fmt.Errorf("cannot create key-data: %v", err)
 	}
+	if err := kd.SetAuthorizedSnapModels(auxKey, model); err != nil {
+		return fmt.Errorf("cannot set model %v as authorized: %v", model, err)
+	}
+
 	f := sb.NewFileKeyDataWriter(name, path)
 	if err := kd.WriteAtomic(f); err != nil {
 		return fmt.Errorf("cannot write key-data: %v", err)
