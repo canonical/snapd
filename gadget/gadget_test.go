@@ -2448,10 +2448,7 @@ func (s *gadgetYamlTestSuite) TestKernelCommandLineBasic(c *C) {
 	}} {
 		c.Logf("files: %q", tc.files)
 		snapPath := snaptest.MakeTestSnapWithFiles(c, string(mockSnapYaml), tc.files)
-		snapf, err := snapfile.Open(snapPath)
-		c.Assert(err, IsNil)
-
-		cmdline, full, err := gadget.KernelCommandLineFromGadget(snapf)
+		cmdline, full, err := gadget.KernelCommandLineFromGadget(snapPath)
 		if tc.err != "" {
 			c.Assert(err, ErrorMatches, tc.err)
 			c.Check(cmdline, Equals, "")
@@ -2472,8 +2469,6 @@ func (s *gadgetYamlTestSuite) testKernelCommandLineArgs(c *C, whichCmdline strin
 		[][]string{
 			{whichCmdline, "## TO BE FILLED BY TEST ##"},
 		})
-	snapf, err := snapfile.Open(info.MountDir())
-	c.Assert(err, IsNil)
 
 	allowedArgs := []string{
 		"debug", "panic", "panic=-1",
@@ -2486,7 +2481,7 @@ func (s *gadgetYamlTestSuite) testKernelCommandLineArgs(c *C, whichCmdline strin
 		err := ioutil.WriteFile(filepath.Join(info.MountDir(), whichCmdline), []byte(arg), 0644)
 		c.Assert(err, IsNil)
 
-		cmdline, _, err := gadget.KernelCommandLineFromGadget(snapf)
+		cmdline, _, err := gadget.KernelCommandLineFromGadget(info.MountDir())
 		c.Assert(err, IsNil)
 		c.Check(cmdline, Equals, arg)
 	}
@@ -2505,7 +2500,7 @@ func (s *gadgetYamlTestSuite) testKernelCommandLineArgs(c *C, whichCmdline strin
 		err := ioutil.WriteFile(filepath.Join(info.MountDir(), whichCmdline), []byte(arg), 0644)
 		c.Assert(err, IsNil)
 
-		cmdline, _, err := gadget.KernelCommandLineFromGadget(snapf)
+		cmdline, _, err := gadget.KernelCommandLineFromGadget(info.MountDir())
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`disallowed kernel argument ".*" in %s`, whichCmdline))
 		c.Check(cmdline, Equals, "")
 	}
