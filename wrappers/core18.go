@@ -65,8 +65,12 @@ func snapdUnitSkipStart(unitPath string) (skip bool, err error) {
 }
 
 func writeSnapdToolingMountUnit(sysd systemd.Systemd, prefix string) error {
+
+	// TODO: the following comment is wrong, we don't need RequiredBy=snapd here?
+
 	// Not using AddMountUnitFile() because we need
 	// "RequiredBy=snapd.service"
+
 	content := []byte(fmt.Sprintf(`[Unit]
 Description=Make the snapd snap tooling available for the system
 Before=snapd.service
@@ -101,6 +105,9 @@ WantedBy=snapd.service
 		return err
 	}
 
+	// meh this is killing snap services that use Requires=<this-unit> because
+	// it doesn't use verbatim systemctl restart, it instead does it with
+	// a systemctl stop and then a systemctl start, which triggers LP #1924805
 	if err := sysd.Restart(snapdToolingMountUnit, 5*time.Second); err != nil {
 		return err
 	}
