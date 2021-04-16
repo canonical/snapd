@@ -2751,7 +2751,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20CommandLineUpdatedNoFDEManagedB
 		"snapd_recovery_mode=run panic=-1",
 		"snapd_recovery_mode=run candidate panic=-1",
 	})
-	// without encryption, the trusted assets are no tracked in the modeenv,
+	// without encryption, the trusted assets are not tracked in the modeenv,
 	// but we still may want to track command lines so that the gadget can
 	// contribute to the system command line
 	m.CurrentTrustedBootAssets = nil

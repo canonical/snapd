@@ -1203,7 +1203,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithExistingArgs(c *C)
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithNewArgs(c *C) {
-	// no command line arguments prior to the gadget up
+	// no command line arguments prior to the gadget update
 	bootloader.Force(s.managedbl)
 	s.state.Lock()
 	s.setupUC20ModelWithGadget(c, "pc")
@@ -1308,7 +1308,7 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineDroppedArgs(c *C) {
 }
 
 func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineUnchanged(c *C) {
-	// no command line arguments prior to the gadget up
+	// no command line arguments prior to the gadget update
 	bootloader.Force(s.managedbl)
 	s.state.Lock()
 	s.setupUC20ModelWithGadget(c, "pc")

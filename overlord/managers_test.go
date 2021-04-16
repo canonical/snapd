@@ -6926,7 +6926,7 @@ func (s *mgrsSuite) TestGadgetKernelCommandLineRemoveCmdline(c *C) {
 		{"meta/gadget.yaml", pcGadgetYaml},
 		{"cmdline.extra", "args from old gadget"},
 	}
-	// add new gadget snap kernel command line drop-in file
+	// add new gadget snap kernel command line without the file
 	sf := snaptest.MakeTestSnapWithFiles(c, pcGadget, [][]string{
 		{"meta/gadget.yaml", pcGadgetYaml},
 	})
