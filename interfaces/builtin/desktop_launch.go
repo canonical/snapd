@@ -48,7 +48,7 @@ dbus (send)
     bus=session
     path=/io/snapcraft/PrivilegedDesktopLauncher
     interface=io.snapcraft.PrivilegedDesktopLauncher
-    peer=(label=unconfined),member=OpenDesktopEntry
+    member=OpenDesktopEntry
     peer=(label=unconfined),
 `
 
