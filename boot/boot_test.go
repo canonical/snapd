@@ -3206,7 +3206,8 @@ func (s *bootConfigSuite) TestBootConfigUpdateWithGadgetFullAndReseal(c *C) {
 	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
-	// a minimal that works because reseal is not executed
+	// a minimal bootloader and modeenv setup that works because reseal is
+	// not executed
 	s.bootloader.TrustedAssetsList = []string{"asset"}
 	m := &boot.Modeenv{
 		Mode: "run",
