@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -115,18 +115,21 @@ func bootVarsForTrustedCommandLineFromGadget(gadgetSnap string) (map[string]stri
 			// arguments before, so make sure those are cleared now
 			clear := map[string]string{
 				"snapd_extra_cmdline_args": "",
+				"snapd_full_cmdline_args":  "",
 			}
 			return clear, nil
 		}
 		return nil, fmt.Errorf("cannot use kernel command line from gadget: %v", err)
 	}
 	// gadget has the kernel command line
-	// TODO:UC20: support full command lines
-	if full {
-		return nil, fmt.Errorf("full kernel command line provided by the gadget is not supported yet")
-	}
 	args := map[string]string{
-		"snapd_extra_cmdline_args": extraOrFull,
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "",
+	}
+	if full {
+		args["snapd_full_cmdline_args"] = extraOrFull
+	} else {
+		args["snapd_extra_cmdline_args"] = extraOrFull
 	}
 	return args, nil
 }
@@ -149,8 +152,9 @@ func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, syst
 		NoSlashBoot: true,
 	}
 	bootloaderRootDir := InitramfsUbuntuBootDir
-	modeArg := "snapd_recovery_mode=run"
-	systemArg := ""
+	components := bootloader.CommandLineComponents{
+		ModeArg: "snapd_recovery_mode=run",
+	}
 	if mode == ModeRecover {
 		if system == "" {
 			return "", fmt.Errorf("internal error: system is unset")
@@ -159,8 +163,10 @@ func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, syst
 		opts.Role = bootloader.RoleRecovery
 		bootloaderRootDir = InitramfsUbuntuSeedDir
 		// recovery mode & system command line arguments
-		modeArg = "snapd_recovery_mode=recover"
-		systemArg = fmt.Sprintf("snapd_recovery_system=%v", system)
+		components = bootloader.CommandLineComponents{
+			ModeArg:   "snapd_recovery_mode=recover",
+			SystemArg: fmt.Sprintf("snapd_recovery_system=%v", system),
+		}
 	}
 	mbl, err := getBootloaderManagingItsAssets(bootloaderRootDir, opts)
 	if err != nil {
@@ -169,7 +175,6 @@ func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, syst
 		}
 		return "", err
 	}
-	extraArgs := ""
 	if gadgetDirOrSnapPath != "" {
 		sf, err := snapfile.Open(gadgetDirOrSnapPath)
 		if err != nil {
@@ -182,16 +187,16 @@ func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, syst
 		if err == nil {
 			// gadget provides some part of the kernel command line
 			if full {
-				// TODO:UC20: support full command lines
-				return "", fmt.Errorf("full kernel command line provided by the gadget is not supported yet")
+				components.FullArgs = extraOrFull
+			} else {
+				components.ExtraArgs = extraOrFull
 			}
-			extraArgs = extraOrFull
 		}
 	}
 	if currentOrCandidate == currentEdition {
-		return mbl.CommandLine(modeArg, systemArg, extraArgs)
+		return mbl.CommandLine(components)
 	} else {
-		return mbl.CandidateCommandLine(modeArg, systemArg, extraArgs)
+		return mbl.CandidateCommandLine(components)
 	}
 }
 

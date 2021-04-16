@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -309,7 +309,14 @@ version: 5.0
 	systemGenv := grubenv.NewEnv(filepath.Join(s.rootdir, recoverySystemDir, "grubenv"))
 	c.Assert(systemGenv.Load(), IsNil)
 	c.Check(systemGenv.Get("snapd_recovery_kernel"), Equals, "/snaps/pc-kernel_5.snap")
-	c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, content)
+	switch whichFile {
+	case "cmdline.extra":
+		c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, content)
+		c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, "")
+	case "cmdline.full":
+		c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, "")
+		c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, content)
+	}
 }
 
 func (s *makeBootable20Suite) TestMakeBootableImage20CustomKernelExtraArgs(c *C) {
@@ -317,8 +324,7 @@ func (s *makeBootable20Suite) TestMakeBootableImage20CustomKernelExtraArgs(c *C)
 }
 
 func (s *makeBootable20Suite) TestMakeBootableImage20CustomKernelFullArgs(c *C) {
-	errMsg := "cannot obtain recovery system command line: full kernel command line provided by the gadget is not supported yet"
-	s.testMakeBootableImage20CustomKernelArgs(c, "cmdline.full", "foo bar baz", errMsg)
+	s.testMakeBootableImage20CustomKernelArgs(c, "cmdline.full", "foo bar baz", "")
 }
 
 func (s *makeBootable20Suite) TestMakeBootableImage20CustomKernelInvalidArgs(c *C) {
@@ -1039,7 +1045,16 @@ version: 5.0
 	c.Check(mockSeedGrubenv, testutil.FileContains, "snapd_recovery_mode=run")
 	mockBootGrubenv := filepath.Join(mockBootGrubDir, "grubenv")
 	c.Check(mockBootGrubenv, testutil.FilePresent)
-	c.Check(mockBootGrubenv, testutil.FileContains, fmt.Sprintf("snapd_extra_cmdline_args=%v", content))
+	systemGenv := grubenv.NewEnv(mockBootGrubenv)
+	c.Assert(systemGenv.Load(), IsNil)
+	switch whichFile {
+	case "cmdline.extra":
+		c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, content)
+		c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, "")
+	case "cmdline.full":
+		c.Check(systemGenv.Get("snapd_extra_cmdline_args"), Equals, "")
+		c.Check(systemGenv.Get("snapd_full_cmdline_args"), Equals, content)
+	}
 
 	// ensure modeenv looks correct
 	ubuntuDataModeEnvPath := filepath.Join(s.rootdir, "/run/mnt/ubuntu-data/system-data/var/lib/snapd/modeenv")
@@ -1072,8 +1087,9 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20WithCustomKernelExtraArgs(
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20WithCustomKernelFullArgs(c *C) {
-	errMsg := "cannot compose the candidate command line: full kernel command line provided by the gadget is not supported yet"
-	s.testMakeSystemRunnable20WithCustomKernelArgs(c, "cmdline.full", "foo bar baz", errMsg, "", "")
+	cmdlineRun := "snapd_recovery_mode=run foo bar baz"
+	cmdlineRecovery := "snapd_recovery_mode=recover snapd_recovery_system=20191216 foo bar baz"
+	s.testMakeSystemRunnable20WithCustomKernelArgs(c, "cmdline.full", "foo bar baz", "", cmdlineRun, cmdlineRecovery)
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20WithCustomKernelInvalidArgs(c *C) {

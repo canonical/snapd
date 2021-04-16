@@ -131,10 +131,11 @@ nested_is_tpm_enabled() {
     else
         case "${SPREAD_SYSTEM:-}" in
             ubuntu-1*)
-                echo false
+                return 1
                 ;;
             ubuntu-2*)
-                echo true
+                # TPM enabled by default on 20.04 and later
+                return 0
                 ;;
             *)
                 echo "unsupported system"
@@ -150,10 +151,11 @@ nested_is_secure_boot_enabled() {
     else
         case "${SPREAD_SYSTEM:-}" in
             ubuntu-1*)
-                echo false
+                return 1
                 ;;
             ubuntu-2*)
-                echo true
+                # secure boot enabled by default on 20.04 and later
+                return 0
                 ;;
             *)
                 echo "unsupported system"
