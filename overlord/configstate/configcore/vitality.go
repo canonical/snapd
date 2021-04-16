@@ -73,7 +73,7 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	for instanceName, rank := range newVitalityMap {
 		var snapst snapstate.SnapState
 		err := snapstate.Get(st, instanceName, &snapst)
-		// not installed, vitality-score will applied when the snap
+		// not installed, vitality-score will be applied when the snap
 		// gets installed
 		if err == state.ErrNoState {
 			continue
@@ -81,7 +81,7 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		if err != nil {
 			return err
 		}
-		// not active, vitality-score will applied when the snap
+		// not active, vitality-score will be applied when the snap
 		// becomes active
 		if !snapst.Active {
 			continue
@@ -104,16 +104,37 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		}
 
 		// rank changed, rewrite/restart services
-		for _, app := range info.Apps {
-			if !app.IsService() {
-				continue
-			}
 
-			opts := &wrappers.AddSnapServicesOptions{VitalityRank: rank}
-			if err := wrappers.AddSnapServices(info, opts, progress.Null); err != nil {
-				return err
-			}
+		// first get the device context to decide if we need to set
+		// RequireMountedSnapdSnap
+		deviceCtx, err := snapstate.DeviceCtx(st, nil, nil)
+		if err != nil {
+			return err
 		}
+
+		opts := &wrappers.AddSnapServicesOptions{VitalityRank: rank}
+
+		// we need the snapd snap mounted whenever in order for services to
+		// start for all services on UC18+
+		if !deviceCtx.Classic() && deviceCtx.Model().Base() != "" {
+			opts.RequireMountedSnapdSnap = true
+		}
+
+		// now rewrite the services
+		if err := wrappers.AddSnapServices(info, opts, progress.Null); err != nil {
+			return err
+		}
+
+		// and then restart the services
+
+		// TODO: this doesn't actually restart the services, meaning that the
+		// OOMScoreAdjust vitality-hint ranking doesn't take effect until the
+		// service is restarted by a refresh or a reboot, etc.
+		// TODO: this option also doesn't work with services that use
+		// Delegate=true, i.e. docker, greengrass, kubernetes, so we should do
+		// something about that combination because currently we jus silently
+		// apply the setting which never does anything
+
 		// XXX: copied from handlers.go:startSnapServices()
 		svcs := info.Services()
 		startupOrdered, err := snap.SortServices(svcs)

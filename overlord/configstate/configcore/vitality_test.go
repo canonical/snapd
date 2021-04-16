@@ -26,9 +26,12 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -39,6 +42,24 @@ type vitalitySuite struct {
 }
 
 var _ = Suite(&vitalitySuite{})
+
+func (s *vitalitySuite) SetUpTest(c *C) {
+	s.configcoreSuite.SetUpTest(c)
+
+	uc18model := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "model",
+		"authority-id": "canonical",
+		"series":       "16",
+		"brand-id":     "canonical",
+		"model":        "pc",
+		"gadget":       "pc",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+		"base":         "core18",
+	}).(*asserts.Model)
+
+	s.AddCleanup(snapstatetest.MockDeviceModel(uc18model))
+}
 
 func (s *vitalitySuite) TestConfigureVitalityUnhappyName(c *C) {
 	err := configcore.Run(&mockConf{
@@ -79,7 +100,28 @@ apps:
   daemon: simple
 `
 
-func (s *vitalitySuite) TestConfigureVitalityWithValidSnap(c *C) {
+func (s *vitalitySuite) TestConfigureVitalityWithValidSnapUC16(c *C) {
+	uc16model := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "model",
+		"authority-id": "canonical",
+		"series":       "16",
+		"brand-id":     "canonical",
+		"model":        "pc",
+		"gadget":       "pc",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+	}).(*asserts.Model)
+
+	defer snapstatetest.MockDeviceModel(uc16model)()
+
+	s.testConfigureVitalityWithValidSnap(c, false)
+}
+
+func (s *vitalitySuite) TestConfigureVitalityWithValidSnapUC18(c *C) {
+	s.testConfigureVitalityWithValidSnap(c, true)
+}
+
+func (s *vitalitySuite) testConfigureVitalityWithValidSnap(c *C, uc18 bool) {
 	si := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(1)}
 	snaptest.MockSnap(c, mockSnapWithService, si)
 	s.state.Lock()
@@ -107,6 +149,9 @@ func (s *vitalitySuite) TestConfigureVitalityWithValidSnap(c *C) {
 	})
 	svcPath := filepath.Join(dirs.SnapServicesDir, svcName)
 	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-898\n")
+	if uc18 {
+		c.Check(svcPath, testutil.FileContains, "\nRequires=usr-lib-snapd.mount\n")
+	}
 }
 
 func (s *vitalitySuite) TestConfigureVitalityHintTooMany(c *C) {
