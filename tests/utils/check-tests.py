@@ -7,7 +7,6 @@ import sys
 import yaml
 import yamlordereddictloader
 
-TASK_FILENAME = 'task.yaml'
 SUPPORTED_KEYS = [
     'summary',
     'details',
