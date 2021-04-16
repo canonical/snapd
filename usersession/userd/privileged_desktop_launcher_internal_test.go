@@ -465,7 +465,7 @@ func (s *privilegedDesktopLauncherInternalSuite) TestVerifyDesktopFileLocation(c
 	filename, err = userd.DesktopFileIDToFilename("shadow-test.desktop")
 	c.Assert(err, IsNil)
 	err = userd.VerifyDesktopFileLocation(filename)
-	c.Check(err, ErrorMatches, "internal error: only launching snap applications from /var/lib/snapd/desktop/applications is supported")
+	c.Check(err, ErrorMatches, "only launching snap applications from /var/lib/snapd/desktop/applications is supported")
 }
 
 func (s *privilegedDesktopLauncherInternalSuite) TestParseExecCommandSucceedsWithValidEntry(c *C) {
