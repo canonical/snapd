@@ -6279,7 +6279,7 @@ func (s *mgrsSuite) testGadgetKernelCommandLine(c *C, gadgetPath string, gadgetS
 		Mode:           "run",
 		RecoverySystem: "20191127",
 		Base:           "core20_1.snap",
-		// gofmt
+		// leave this line to keep gofmt 1.10 happy
 		CurrentKernelCommandLines: []string{currentModeenvCmdline},
 	}
 	err := m.WriteTo("")
