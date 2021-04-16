@@ -238,8 +238,9 @@ func observeSuccessfulCommandLine(model *asserts.Model, m *Modeenv) (*Modeenv, e
 
 	switch len(m.CurrentKernelCommandLines) {
 	case 0:
-		// compatibility scenario, no command lines tracked in modeenv
-		// yet, this can happen when having booted with a newer snapd
+		// maybe a compatibility scenario, no command lines tracked in
+		// modeenv yet, this can happen when having booted with a newer
+		// snapd
 		return observeSuccessfulCommandLineCompatBoot(model, m)
 	case 1:
 		// no command line update
@@ -285,6 +286,12 @@ func observeSuccessfulCommandLineCompatBoot(model *asserts.Model, m *Modeenv) (*
 	cmdlineExpected, err := ComposeCommandLine(model, "")
 	if err != nil {
 		return nil, err
+	}
+	if cmdlineExpected == "" {
+		// there is no particular command line expected for this model
+		// and system bootloader, indicating that the command line is
+		// not being tracked
+		return m, nil
 	}
 	cmdlineBootedWith, err := osutil.KernelCommandLine()
 	if err != nil {
