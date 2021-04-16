@@ -148,6 +148,29 @@ func (b *MockBootloader) InstallBootConfig(gadgetDir string, opts *bootloader.Op
 	return b.InstallBootConfigErr
 }
 
+// SetMockPanic allows setting any method in the Bootloader interface or derived
+// interface to panic instead of returning. This allows one to test what would
+// happen if the system was rebooted during execution of a particular function.
+// Specifically, the panic will be done immediately entering the function so
+// setting SetBootVars to panic will emulate a reboot before any boot vars are
+// set persistently
+func (b *MockBootloader) SetMockPanic(f string) (restore func()) {
+	switch f {
+	// XXX: update this list as more calls in this interface or derived ones
+	// are added
+	case "SetBootVars", "GetBootVars",
+		"EnableKernel", "EnableTryKernel", "Kernel", "TryKernel", "DisableTryKernel":
+
+		old := b.panicMethods[f]
+		b.panicMethods[f] = true
+		return func() {
+			b.panicMethods[f] = old
+		}
+	default:
+		panic(fmt.Sprintf("unknown ExtractedRunKernelImageBootloader method %q to mock reboot via panic for", f))
+	}
+}
+
 // MockRecoveryAwareBootloader mocks a bootloader implementing the
 // RecoveryAware interface.
 type MockRecoveryAwareBootloader struct {
@@ -283,27 +306,6 @@ func (b *MockExtractedRunKernelImageBootloader) SetRunKernelImageFunctionError(f
 		}
 	default:
 		panic(fmt.Sprintf("unknown ExtractedRunKernelImageBootloader method %q to mock error for", f))
-	}
-}
-
-// SetRunKernelImagePanic allows setting any method in the
-// ExtractedRunKernelImageBootloader interface on
-// MockExtractedRunKernelImageBootloader to panic instead of
-// returning. This allows one to test what would happen if the system
-// was rebooted during execution of a particular
-// function. Specifically, the panic will be done immediately entering
-// the function so setting SetBootVars to panic will emulate a reboot
-// before any boot vars are set persistently
-func (b *MockExtractedRunKernelImageBootloader) SetRunKernelImagePanic(f string) (restore func()) {
-	switch f {
-	case "EnableKernel", "EnableTryKernel", "Kernel", "TryKernel", "DisableTryKernel", "SetBootVars", "GetBootVars":
-		old := b.panicMethods[f]
-		b.panicMethods[f] = true
-		return func() {
-			b.panicMethods[f] = old
-		}
-	default:
-		panic(fmt.Sprintf("unknown ExtractedRunKernelImageBootloader method %q to mock reboot via panic for", f))
 	}
 }
 
