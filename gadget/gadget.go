@@ -20,6 +20,8 @@
 package gadget
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -1048,16 +1050,53 @@ func KernelCommandLineFromGadget(gadgetDirOrSnapPath string) (cmdline string, fu
 		whichFile = "cmdline.full"
 		full = true
 	}
-	cleaned := strings.TrimSpace(string(content))
-	kargs, err := osutil.KernelCommandLineSplit(cleaned)
+	parsed, err := parseCommandLineFromGadget(content, whichFile)
 	if err != nil {
-		return "", full, fmt.Errorf("invalid kernel command line %q in %v: %v", cleaned, whichFile, err)
+		return "", full, fmt.Errorf("invalid kernel command line in %v: %v", whichFile, err)
+	}
+	return parsed, full, nil
+}
+
+// parseCommandLineFromGadget parses the command line file and returns a
+// reassembled kernel command line as a single string. The file can be multi
+// line, where only lines stating with # are treated as comments, eg.
+//
+// foo
+// # this is a comment
+//
+// According to https://elixir.bootlin.com/linux/latest/source/Documentation/admin-guide/kernel-parameters.txt
+// the # character can appear as part of a valid kernel command line argument,
+// specifically in the following argument:
+//   memmap=nn[KMG]#ss[KMG]
+//   memmap=100M@2G,100M#3G,1G!1024G
+// Thus a lone # or a token starting with # are treated as errors.
+func parseCommandLineFromGadget(content []byte, whichFile string) (string, error) {
+	s := bufio.NewScanner(bytes.NewBuffer(content))
+	filtered := &bytes.Buffer{}
+	for s.Scan() {
+		line := s.Text()
+		if len(line) > 0 && line[0] == '#' {
+			// comment
+			continue
+		}
+		filtered.WriteRune(' ')
+		filtered.WriteString(line)
+	}
+	if err := s.Err(); err != nil {
+		return "", err
+	}
+	kargs, err := osutil.KernelCommandLineSplit(filtered.String())
+	if err != nil {
+		return "", err
 	}
 	for _, argValue := range kargs {
+		if strings.HasPrefix(argValue, "#") {
+			return "", fmt.Errorf("incorrect use of # in argument %q", argValue)
+		}
 		split := strings.SplitN(argValue, "=", 2)
 		if !isKernelArgumentAllowed(split[0]) {
-			return "", full, fmt.Errorf("disallowed kernel argument %q in %v", argValue, whichFile)
+			return "", fmt.Errorf("disallowed kernel argument %q", argValue)
 		}
 	}
-	return cleaned, full, nil
+	return strings.Join(kargs, " "), nil
 }
