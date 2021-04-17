@@ -882,7 +882,7 @@ After={{ stringsJoin .After " " }}
 Before={{ stringsJoin .Before " "}}
 {{- end}}
 {{- if .CoreMountedSnapdSnapDep}}
-Requires={{ stringsJoin .CoreMountedSnapdSnapDep " "}}
+Wants={{ stringsJoin .CoreMountedSnapdSnapDep " "}}
 After={{ stringsJoin .CoreMountedSnapdSnapDep " "}}
 {{- end}}
 X-Snappy=yes
