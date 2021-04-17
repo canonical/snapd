@@ -1,0 +1,49 @@
+summary: Check that refreshing snapd does not interfere with snap services
+
+# TODO: UC20
+systems: [ubuntu-core-18-*]
+
+environment:
+  START_WITH/start_w_pr: pr
+  START_WITH/start_w_stable: stable
+  START_WITH/start_w_2_49_2: 2_49_2
+  # have also
+  # SNAPD_2_49_2: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.2_11588.snap
+
+execute: |
+  echo "Ensure that the system is fully seeded"
+  snap changes | MATCH "Done.*Initialize system state"
+
+  if [ "${START_WITH}" = "stable" ]; then
+    echo "Refreshing snapd to stable"
+    snap refresh --amend --channel=latest/stable snapd
+  elif [ "${START_WITH}" = "2_49_2" ]; then
+    echo "Not implemented"
+    exit 0
+  fi
+
+  # repack current snapd to refresh to it again
+  unsquashfs -d ./snapd-unpacked /var/lib/snapd/snaps/snapd_x1.snap
+  snap pack --filename=snapd_repacked.snap snapd-unpacked
+  rm -rf snapd-unpacked
+
+  # TODO: also a oneshot service
+  "$TESTSTOOLS"/snaps-state install-local test-snapd-simple-service
+
+  # check that it is initially active
+  snap services|MATCH ".*test-snapd-simple-service\s*enabled\s*active.*"
+
+  echo "Refresh snapd"
+  snap install --dangerous snapd_repacked.snap
+
+  # TODO: this will also work with stable once the fix is out
+  if [ "${START_WITH}" = "pr" ]; then
+     if systemctl status snap.test-snapd-simple-service.test-snapd-simple-service|MATCH "Stopped" ; then
+        echo "Services should not have been stopped"
+        exit 1
+     fi
+  fi
+
+  echo "Check services were kept active"
+  snap services|MATCH ".*test-snapd-simple-service\s*enabled\s*active.*"
+
