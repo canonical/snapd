@@ -223,7 +223,7 @@ Description=Service for snap application foo.app
 Requires=snap-foo-44.mount
 Wants=network.target
 After=snap-foo-44.mount network.target snapd.apparmor.service
-Requires=usr-lib-snapd.mount
+Wants=usr-lib-snapd.mount
 After=usr-lib-snapd.mount
 X-Snappy=yes
 
