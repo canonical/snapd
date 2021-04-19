@@ -110,6 +110,9 @@ apps:
   docker-support:
     command: bin/run
     plugs: [ docker-support ]
+  dsp-control:
+    command: bin/run
+    plugs: [ dsp-control ]
   fpga:
     command: bin/run
     plugs: [ fpga ]
