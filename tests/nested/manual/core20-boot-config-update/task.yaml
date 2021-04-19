@@ -103,7 +103,8 @@ execute: |
   if [ "$VARIANT" != "gadget-full" ]; then
     # reboot is automatically requested by snapd only if part of the command
     # line is changed, in case of gadget overriding the command line fully
-    # (gadget-full variant), there is no resealing and no reboot
+    # (gadget-full variant) the static part of the command line from new snapd
+    # is not used, hence there is no resealing and no reboot
     nested_wait_for_reboot "${boot_id}"
   fi
   
