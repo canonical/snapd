@@ -1,8 +1,5 @@
 summary: when the base snap changes revision apps are not stuck on the stale one
 
-# slow in autopkgtest (>1m)
-backends: [-autopkgtest]
-
 details: |
     When a snap application starts running the mount namespace it inhabits is
     preserved and cached across all the applications belonging to a given snap.
@@ -13,6 +10,9 @@ details: |
     process inhabit the old mount namespace it will stay as is. When the last
     process dies the subsequently started process will detect those two facts
     (stale and unused mount namespace) and discard it.
+
+# slow in autopkgtest (>1m)
+backends: [-autopkgtest]
 
 # This test doesn't run on core because there snapd will reboot the machine as
 # soon as the new core snap is installed. A variant of this using a non-core

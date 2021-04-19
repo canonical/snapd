@@ -340,3 +340,150 @@ func (s *bootFlagsSuite) TestUserspaceBootFlagsUC20(c *C) {
 		c.Assert(err, IsNil)
 	}
 }
+
+func (s *bootFlagsSuite) TestRunModeRootfs(c *C) {
+	tt := []struct {
+		mode               string
+		createExpDirs      bool
+		expDirs            []string
+		noExpDirRootPrefix bool
+		degradedJSON       string
+		err                string
+		comment            string
+	}{
+		{
+			mode:    boot.ModeRun,
+			expDirs: []string{"/run/mnt/data", ""},
+			comment: "run mode",
+		},
+		{
+			mode:    boot.ModeInstall,
+			comment: "install mode before partition creation",
+		},
+		{
+			mode:          boot.ModeInstall,
+			expDirs:       []string{"/run/mnt/ubuntu-data"},
+			createExpDirs: true,
+			comment:       "install mode after partition creation",
+		},
+		{
+			mode: boot.ModeRecover,
+			degradedJSON: `
+			{
+				"ubuntu-data": {
+					"mount-state": "mounted",
+					"mount-location": "/host/ubuntu-data"
+				}
+			}
+			`,
+			expDirs:            []string{"/host/ubuntu-data"},
+			noExpDirRootPrefix: true,
+			comment:            "recover degraded.json default mounted location",
+		},
+		{
+			mode: boot.ModeRecover,
+			degradedJSON: `
+			{
+				"ubuntu-data": {
+					"mount-state": "mounted",
+					"mount-location": "/host/elsewhere/ubuntu-data"
+				}
+			}
+			`,
+			expDirs:            []string{"/host/elsewhere/ubuntu-data"},
+			noExpDirRootPrefix: true,
+			comment:            "recover degraded.json alternative mounted location",
+		},
+		{
+			mode: boot.ModeRecover,
+			degradedJSON: `
+			{
+				"ubuntu-data": {
+					"mount-state": "error-mounting"
+				}
+			}
+			`,
+			comment: "recover degraded.json error-mounting",
+		},
+		{
+			mode: boot.ModeRecover,
+			degradedJSON: `
+			{
+				"ubuntu-data": {
+					"mount-state": "mounted-untrusted"
+				}
+			}
+			`,
+			comment: "recover degraded.json mounted-untrusted",
+		},
+		{
+			mode: boot.ModeRecover,
+			degradedJSON: `
+			{
+				"ubuntu-data": {
+					"mount-state": "absent-but-optional"
+				}
+			}
+			`,
+			comment: "recover degraded.json absent-but-optional",
+		},
+		{
+			mode: boot.ModeRecover,
+			degradedJSON: `
+			{
+				"ubuntu-data": {
+					"mount-state": "new-wild-unknown-state"
+				}
+			}
+			`,
+			comment: "recover degraded.json new-wild-unknown-state",
+		},
+		{
+			mode:    "",
+			err:     "system mode is unsupported",
+			comment: "unsupported system mode",
+		},
+	}
+	for _, t := range tt {
+		comment := Commentf(t.comment)
+		if t.degradedJSON != "" {
+			rootdir := c.MkDir()
+			dirs.SetRootDir(rootdir)
+			defer func() { dirs.SetRootDir("") }()
+
+			degradedJSON := filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json")
+			err := os.MkdirAll(dirs.SnapBootstrapRunDir, 0755)
+			c.Assert(err, IsNil, comment)
+
+			err = ioutil.WriteFile(degradedJSON, []byte(t.degradedJSON), 0644)
+			c.Assert(err, IsNil, comment)
+		}
+
+		if t.createExpDirs {
+			for _, dir := range t.expDirs {
+				err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, dir), 0755)
+				c.Assert(err, IsNil, comment)
+			}
+		}
+
+		dataMountDirs, err := boot.HostUbuntuDataForMode(t.mode)
+		if t.err != "" {
+			c.Assert(err, ErrorMatches, t.err, comment)
+			c.Assert(dataMountDirs, IsNil)
+			continue
+		}
+		c.Assert(err, IsNil, comment)
+
+		if t.expDirs != nil && !t.noExpDirRootPrefix {
+			// prefix all the dirs in expDirs with dirs.GlobalRootDir for easier
+			// test case writing above
+			prefixedDir := make([]string, len(t.expDirs))
+			for i, dir := range t.expDirs {
+				prefixedDir[i] = filepath.Join(dirs.GlobalRootDir, dir)
+			}
+			c.Assert(dataMountDirs, DeepEquals, prefixedDir, comment)
+		} else {
+			c.Assert(dataMountDirs, DeepEquals, t.expDirs, comment)
+		}
+	}
+}

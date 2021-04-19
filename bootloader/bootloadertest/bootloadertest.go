@@ -420,29 +420,37 @@ func (b *MockTrustedAssetsBootloader) UpdateBootConfig() (bool, error) {
 	return b.Updated, b.UpdateErr
 }
 
-func glueCommandLine(modeArg, systemArg, staticArgs, extraArgs string) string {
+func glueCommandLine(pieces bootloader.CommandLineComponents, staticArgs string) (string, error) {
+	if err := pieces.Validate(); err != nil {
+		return "", err
+	}
+
 	args := []string(nil)
-	for _, argSet := range []string{modeArg, systemArg, staticArgs, extraArgs} {
+	extraOrFull := []string{staticArgs, pieces.ExtraArgs}
+	if pieces.FullArgs != "" {
+		extraOrFull = []string{pieces.FullArgs}
+	}
+	for _, argSet := range append([]string{pieces.ModeArg, pieces.SystemArg}, extraOrFull...) {
 		if argSet != "" {
 			args = append(args, argSet)
 		}
 	}
 	line := strings.Join(args, " ")
-	return strings.TrimSpace(line)
+	return strings.TrimSpace(line), nil
 }
 
-func (b *MockTrustedAssetsBootloader) CommandLine(modeArg, systemArg, extraArgs string) (string, error) {
+func (b *MockTrustedAssetsBootloader) CommandLine(pieces bootloader.CommandLineComponents) (string, error) {
 	if b.CommandLineErr != nil {
 		return "", b.CommandLineErr
 	}
-	return glueCommandLine(modeArg, systemArg, b.StaticCommandLine, extraArgs), nil
+	return glueCommandLine(pieces, b.StaticCommandLine)
 }
 
-func (b *MockTrustedAssetsBootloader) CandidateCommandLine(modeArg, systemArg, extraArgs string) (string, error) {
+func (b *MockTrustedAssetsBootloader) CandidateCommandLine(pieces bootloader.CommandLineComponents) (string, error) {
 	if b.CommandLineErr != nil {
 		return "", b.CommandLineErr
 	}
-	return glueCommandLine(modeArg, systemArg, b.CandidateStaticCommandLine, extraArgs), nil
+	return glueCommandLine(pieces, b.CandidateStaticCommandLine)
 }
 
 func (b *MockTrustedAssetsBootloader) TrustedAssets() ([]string, error) {

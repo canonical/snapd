@@ -599,6 +599,7 @@ var (
 		"cups-control":            {"app", "core"},
 		"dbus":                    {"app"},
 		"docker-support":          {"core"},
+		"dsp":                     {"core", "gadget"},
 		"dummy":                   {"app"},
 		"fwupd":                   {"app", "core"},
 		"gpio":                    {"core", "gadget"},

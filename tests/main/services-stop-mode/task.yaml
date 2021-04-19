@@ -1,12 +1,12 @@
 summary: "Check that stop-modes works"
 
-kill-timeout: 5m
+# takes >1.5min to run
+backends: [-autopkgtest]
 
 # journald in ubuntu-14.04 not reliable
 systems: [-ubuntu-14.04-*]
 
-# takes >1.5min to run
-backends: [-autopkgtest]
+kill-timeout: 5m
 
 restore: |
     # remove to ensure all services are stopped

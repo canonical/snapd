@@ -159,6 +159,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	// There is no undo handler for successful boot config update. The
 	// config assets are assumed to be always backwards compatible.
 	runner.AddHandler("update-managed-boot-config", m.doUpdateManagedBootConfig, nil)
+	// kernel command line updates from a gadget supplied file
+	runner.AddHandler("update-gadget-cmdline", m.doUpdateGadgetCommandLine, m.undoUpdateGadgetCommandLine)
 
 	runner.AddBlocked(gadgetUpdateBlocked)
 

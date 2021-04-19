@@ -389,6 +389,14 @@ func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 			return fmt.Errorf("cannot compose the candidate command line: %v", err)
 		}
 		modeenv.CurrentKernelCommandLines = bootCommandLines{cmdline}
+
+		cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(bootWith.UnpackedGadgetDir)
+		if err != nil {
+			return fmt.Errorf("cannot prepare bootloader variables for kernel command line: %v", err)
+		}
+		if err := bl.SetBootVars(cmdlineVars); err != nil {
+			return fmt.Errorf("cannot set run system kernel command line arguments: %v", err)
+		}
 	}
 
 	// all fields that needed to be set in the modeenv must have been set by
