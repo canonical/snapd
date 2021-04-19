@@ -25,8 +25,12 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -37,7 +41,8 @@ import (
 type recordingStore struct {
 	storetest.Store
 
-	ops []string
+	ops            []string
+	refreshedSnaps []*snap.Info
 }
 
 func (r *recordingStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
@@ -56,13 +61,19 @@ func (r *recordingStore) SnapAction(ctx context.Context, currentSnaps []*store.C
 		}
 	}
 	r.ops = append(r.ops, "list-refresh")
-	return nil, nil, nil
+
+	res := []store.SnapActionResult{}
+	for _, rs := range r.refreshedSnaps {
+		res = append(res, store.SnapActionResult{Info: rs})
+	}
+	return res, nil, nil
 }
 
 type refreshHintsTestSuite struct {
 	state *state.State
 
-	store *recordingStore
+	store        *recordingStore
+	restoreModel func()
 }
 
 var _ = Suite(&refreshHintsTestSuite{})
@@ -91,11 +102,14 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 	}
 
 	s.state.Set("refresh-privacy-key", "privacy-key")
+
+	s.restoreModel = snapstatetest.MockDeviceModel(DefaultModel())
 }
 
 func (s *refreshHintsTestSuite) TearDownTest(c *C) {
 	snapstate.CanAutoRefresh = nil
 	snapstate.AutoAliases = nil
+	s.restoreModel()
 }
 
 func (s *refreshHintsTestSuite) TestLastRefresh(c *C) {
@@ -162,4 +176,127 @@ func (s *refreshHintsTestSuite) TestAtSeedPolicy(c *C) {
 	err = s.state.Get("last-refresh-hints", &t2)
 	c.Check(err, IsNil)
 	c.Check(t1.Equal(t2), Equals, true)
+}
+
+func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
+	s.state.Lock()
+	repo := interfaces.NewRepository()
+	for _, iface := range builtin.Interfaces() {
+		err := repo.AddInterface(iface)
+		c.Assert(err, IsNil)
+	}
+	ifacerepo.Replace(s.state, repo)
+
+	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "other-snap", Revision: snap.R(1), SnapID: "other-snap-id"},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+		UserID:   0,
+	})
+	s.state.Unlock()
+
+	info2 := &snap.Info{
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeApp,
+		SideInfo: snap.SideInfo{
+			RealName: "other-snap",
+			Revision: snap.R(2),
+		},
+		DownloadInfo: snap.DownloadInfo{
+			Size: int64(88),
+		},
+	}
+	plugs := map[string]*snap.PlugInfo{
+		"plug": {
+			Snap:      info2,
+			Name:      "plug",
+			Interface: "content",
+			Attrs: map[string]interface{}{
+				"default-provider": "foo-snap:",
+				"content":          "some-content",
+			},
+			Apps:  map[string]*snap.AppInfo{},
+			Hooks: map[string]*snap.HookInfo{},
+		}}
+	info2.Plugs = plugs
+
+	s.store.refreshedSnaps = []*snap.Info{{
+		Architectures: []string{"all"},
+		Base:          "some-base",
+		SnapType:      snap.TypeApp,
+		SideInfo: snap.SideInfo{
+			RealName: "some-snap",
+			Revision: snap.R(1),
+		},
+		DownloadInfo: snap.DownloadInfo{
+			Size: int64(99),
+		},
+	},
+		info2}
+
+	rh := snapstate.NewRefreshHints(s.state)
+	err := rh.Ensure()
+	c.Check(err, IsNil)
+	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var candidates []snapstate.RefreshCandidate
+	c.Assert(s.state.Get("refresh-candidates", &candidates), IsNil)
+	c.Assert(candidates, HasLen, 2)
+	cand1 := candidates[0]
+	c.Check(cand1.InstanceName(), Equals, "some-snap")
+	c.Check(cand1.Base(), Equals, "some-base")
+	c.Check(cand1.Type(), Equals, snap.TypeApp)
+	c.Check(cand1.Size(), Equals, int64(99))
+
+	cand2 := candidates[1]
+	c.Check(cand2.InstanceName(), Equals, "other-snap")
+	c.Check(cand2.Base(), Equals, "")
+	c.Check(cand2.Type(), Equals, snap.TypeApp)
+	c.Check(cand2.Size(), Equals, int64(88))
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), IsNil)
+	revnoOpts := &snapstate.RevisionOptions{CohortKey: "cohort"}
+	sup, err := cand1.MakeSnapSetup(s.state, &snapst, revnoOpts, 0)
+	c.Assert(err, IsNil)
+	c.Check(sup, DeepEquals, &snapstate.SnapSetup{
+		Base: "some-base",
+		Type: "app",
+		SideInfo: &snap.SideInfo{
+			RealName: "some-snap",
+			Revision: snap.R(1),
+		},
+		PlugsOnly: true,
+		CohortKey: "cohort",
+		Flags: snapstate.Flags{
+			IsAutoRefresh: true,
+		},
+		DownloadInfo: &snap.DownloadInfo{
+			Size: int64(99),
+		},
+	})
+
+	sup, err = cand2.MakeSnapSetup(s.state, &snapst, &snapstate.RevisionOptions{}, 0)
+	c.Assert(err, IsNil)
+	c.Check(sup, DeepEquals, &snapstate.SnapSetup{
+		Type: "app",
+		SideInfo: &snap.SideInfo{
+			RealName: "other-snap",
+			Revision: snap.R(2),
+		},
+		Prereq:    []string{"foo-snap"},
+		PlugsOnly: true,
+		Flags: snapstate.Flags{
+			IsAutoRefresh: true,
+		},
+		DownloadInfo: &snap.DownloadInfo{
+			Size: int64(88),
+		},
+	})
 }

@@ -596,6 +596,19 @@ func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
 	return checkEpochs(nil, info, cur, nil, Flags{}, nil)
 }
 
+func earlyChecks(st *state.State, snapst *SnapState, update *snap.Info, flags Flags) (Flags, error) {
+	var err error
+	flags, err = ensureInstallPreconditions(st, update, flags, snapst)
+	if err != nil {
+		return flags, err
+	}
+
+	if err := earlyEpochCheck(update, snapst); err != nil {
+		return flags, err
+	}
+	return flags, nil
+}
+
 // check that the listed system users are valid
 var osutilEnsureUserGroup = osutil.EnsureUserGroup
 
