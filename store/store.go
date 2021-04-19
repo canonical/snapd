@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -48,6 +48,8 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -1076,35 +1078,14 @@ type SnapSpec struct {
 
 // SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
 func (s *Store) SnapInfo(ctx context.Context, snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
-	query := url.Values{}
-	query.Set("fields", strings.Join(s.infoFields, ","))
-	query.Set("architecture", s.architecture)
+	fields := strings.Join(s.infoFields, ",")
 
-	u := s.endpointURL(path.Join(snapInfoEndpPath, snapSpec.Name), query)
-	reqOptions := &requestOptions{
-		Method:   "GET",
-		URL:      u,
-		APILevel: apiV2Endps,
-	}
-
-	var remote storeInfo
-	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &remote, nil)
+	si, resp, err := s.snapInfo(ctx, snapSpec.Name, fields, user)
 	if err != nil {
 		return nil, err
 	}
 
-	// check statusCode
-	switch resp.StatusCode {
-	case 200:
-		// OK
-	case 404:
-		return nil, ErrSnapNotFound
-	default:
-		msg := fmt.Sprintf("get details for snap %q", snapSpec.Name)
-		return nil, respToError(resp, msg)
-	}
-
-	info, err := infoFromStoreInfo(&remote)
+	info, err := infoFromStoreInfo(si)
 	if err != nil {
 		return nil, err
 	}
@@ -1117,6 +1098,51 @@ func (s *Store) SnapInfo(ctx context.Context, snapSpec SnapSpec, user *auth.User
 	s.extractSuggestedCurrency(resp)
 
 	return info, nil
+}
+
+func (s *Store) snapInfo(ctx context.Context, snapName string, fields string, user *auth.UserState) (*storeInfo, *http.Response, error) {
+	query := url.Values{}
+	query.Set("fields", fields)
+	query.Set("architecture", s.architecture)
+
+	u := s.endpointURL(path.Join(snapInfoEndpPath, snapName), query)
+	reqOptions := &requestOptions{
+		Method:   "GET",
+		URL:      u,
+		APILevel: apiV2Endps,
+	}
+
+	var remote storeInfo
+	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &remote, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// check statusCode
+	switch resp.StatusCode {
+	case 200:
+		// OK
+	case 404:
+		return nil, nil, ErrSnapNotFound
+	default:
+		msg := fmt.Sprintf("get details for snap %q", snapName)
+		return nil, nil, respToError(resp, msg)
+	}
+
+	return &remote, resp, err
+}
+
+// SnapInfo checks whether the store-hosted snap matching the given spec exists and returns a reference with it name and snap-id and default channel, or an error.
+func (s *Store) SnapExists(ctx context.Context, snapSpec SnapSpec, user *auth.UserState) (naming.SnapRef, *channel.Channel, error) {
+	// request the minimal amount information
+	fields := "channel-map"
+
+	si, _, err := s.snapInfo(ctx, snapSpec.Name, fields, user)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return minimalFromStoreInfo(si)
 }
 
 // A Search is what you do in order to Find something
