@@ -6865,27 +6865,21 @@ WantedBy=multi-user.target
 			c.Check(cmd, DeepEquals, []string{"enable", "usr-lib-snapd.mount"})
 			return nil, nil
 		case 6:
-			c.Check(cmd, DeepEquals, []string{"stop", "usr-lib-snapd.mount"})
+			c.Check(cmd, DeepEquals, []string{"restart", "usr-lib-snapd.mount"})
 			return nil, nil
 		case 7:
-			c.Check(cmd, DeepEquals, []string{"show", "--property=ActiveState", "usr-lib-snapd.mount"})
-			return []byte("ActiveState=inactive"), nil
-		case 8:
-			c.Check(cmd, DeepEquals, []string{"start", "usr-lib-snapd.mount"})
-			return nil, nil
-		case 9:
 			c.Check(cmd, DeepEquals, []string{"daemon-reload"})
 			return nil, nil
-		case 10:
+		case 8:
 			c.Check(cmd, DeepEquals, []string{"show", "--property", "InactiveEnterTimestamp", "usr-lib-snapd.mount"})
 			return []byte("InactiveEnterTimestamp=" + t2.Format("Mon 2006-01-02 15:04:05 MST")), nil
-		case 11:
+		case 9:
 			c.Check(cmd, DeepEquals, []string{"show", "--property", "InactiveEnterTimestamp", "snap.test-snap.svc1.service"})
 			return []byte("InactiveEnterTimestamp=" + t1.Format("Mon 2006-01-02 15:04:05 MST")), nil
-		case 12:
+		case 10:
 			c.Check(cmd, DeepEquals, []string{"is-enabled", "snap.test-snap.svc1.service"})
 			return []byte("enabled"), nil
-		case 13:
+		case 11:
 			c.Check(cmd, DeepEquals, []string{"start", "snap.test-snap.svc1.service"})
 			return nil, nil
 		default:
@@ -6895,7 +6889,7 @@ WantedBy=multi-user.target
 	})
 	s.AddCleanup(r)
 	// make sure that we get the expected number of systemctl calls
-	s.AddCleanup(func() { c.Assert(systemctlCalls, Equals, 13) })
+	s.AddCleanup(func() { c.Assert(systemctlCalls, Equals, 11) })
 
 	// also add the snapd snap to state which we will refresh
 	si1 := &snap.SideInfo{RealName: "snapd", Revision: snap.R(1)}
@@ -7095,31 +7089,25 @@ WantedBy=multi-user.target
 			c.Check(cmd, DeepEquals, []string{"enable", "usr-lib-snapd.mount"})
 			return nil, nil
 		case 6:
-			c.Check(cmd, DeepEquals, []string{"stop", "usr-lib-snapd.mount"})
+			c.Check(cmd, DeepEquals, []string{"restart", "usr-lib-snapd.mount"})
 			return nil, nil
 		case 7:
-			c.Check(cmd, DeepEquals, []string{"show", "--property=ActiveState", "usr-lib-snapd.mount"})
-			return []byte("ActiveState=inactive"), nil
-		case 8:
-			c.Check(cmd, DeepEquals, []string{"start", "usr-lib-snapd.mount"})
-			return nil, nil
-		case 9:
 			c.Check(cmd, DeepEquals, []string{"daemon-reload"})
 			return nil, nil
-		case 10:
+		case 8:
 			c.Check(cmd, DeepEquals, []string{"show", "--property", "InactiveEnterTimestamp", "usr-lib-snapd.mount"})
 			return []byte("InactiveEnterTimestamp=" + t2.Format("Mon 2006-01-02 15:04:05 MST")), nil
-		case 11:
+		case 9:
 			c.Check(cmd, DeepEquals, []string{"show", "--property", "InactiveEnterTimestamp", "snap.test-snap.svc1.service"})
 			return []byte("InactiveEnterTimestamp=" + t1.Format("Mon 2006-01-02 15:04:05 MST")), nil
-		case 12:
+		case 10:
 			c.Check(cmd, DeepEquals, []string{"is-enabled", "snap.test-snap.svc1.service"})
 			return []byte("enabled"), nil
-		case 13:
+		case 11:
 			// starting the snap fails
 			c.Check(cmd, DeepEquals, []string{"start", "snap.test-snap.svc1.service"})
 			return nil, fmt.Errorf("the snap service is having a bad day")
-		case 14:
+		case 12:
 			// because starting the snap fails, we will automatically try to
 			// undo the starting of the snap by stopping it, hence the request
 			// to stop it
@@ -7134,7 +7122,7 @@ WantedBy=multi-user.target
 	})
 	s.AddCleanup(r)
 	// make sure that we get the expected number of systemctl calls
-	s.AddCleanup(func() { c.Assert(systemctlCalls, Equals, 14) })
+	s.AddCleanup(func() { c.Assert(systemctlCalls, Equals, 12) })
 
 	// also add the snapd snap to state which we will refresh
 	si1 := &snap.SideInfo{RealName: "snapd", Revision: snap.R(1)}

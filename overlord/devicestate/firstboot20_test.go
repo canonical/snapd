@@ -356,7 +356,7 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	}
 
 	// the right systemd commands were run
-	c.Check(sysdLog, testutil.DeepContains, []string{"start", "usr-lib-snapd.mount"})
+	c.Check(sysdLog, testutil.DeepContains, []string{"restart", "usr-lib-snapd.mount"})
 
 	// and ensure state is now considered seeded
 	var seeded bool

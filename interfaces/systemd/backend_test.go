@@ -92,9 +92,7 @@ func (s *backendSuite) TestInstallingSnapWritesStartsServices(c *C) {
 	c.Check(sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"},
 		{"enable", "snap.samba.interface.foo.service"},
-		{"stop", "snap.samba.interface.foo.service"},
-		{"show", "--property=ActiveState", "snap.samba.interface.foo.service"},
-		{"start", "snap.samba.interface.foo.service"},
+		{"restart", "snap.samba.interface.foo.service"},
 	})
 }
 

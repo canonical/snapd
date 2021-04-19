@@ -68,9 +68,7 @@ SIZE=1
 `)
 
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"stop", "swapfile.service"},
-		{"show", "--property=ActiveState", "swapfile.service"},
-		{"start", "swapfile.service"},
+		{"restart", "swapfile.service"},
 	})
 
 	s.systemctlArgs = nil
@@ -109,9 +107,7 @@ SIZE=1
 `)
 
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"stop", "swapfile.service"},
-		{"show", "--property=ActiveState", "swapfile.service"},
-		{"start", "swapfile.service"},
+		{"restart", "swapfile.service"},
 	})
 
 	s.systemctlArgs = nil
@@ -133,9 +129,7 @@ SIZE=0
 `)
 
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"stop", "swapfile.service"},
-		{"show", "--property=ActiveState", "swapfile.service"},
-		{"start", "swapfile.service"},
+		{"restart", "swapfile.service"},
 	})
 }
 

@@ -814,9 +814,7 @@ func (s *serviceControlSuite) TestRestartServices(c *C) {
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
-		{"stop", "snap.test-snap.foo.service"},
-		{"show", "--property=ActiveState", "snap.test-snap.foo.service"},
-		{"start", "snap.test-snap.foo.service"},
+		{"restart", "snap.test-snap.foo.service"},
 	})
 }
 
@@ -882,12 +880,8 @@ func (s *serviceControlSuite) TestRestartWithSomeExplicitServices(c *C) {
 	s.testRestartWithExplicitServicesCommon(c,
 		[]string{"foo"},
 		[][]string{
-			{"stop", srvFoo},
-			{"show", "--property=ActiveState", srvFoo},
-			{"start", srvFoo},
-			{"stop", srvBar},
-			{"show", "--property=ActiveState", srvBar},
-			{"start", srvBar},
+			{"restart", srvFoo},
+			{"restart", srvBar},
 		})
 }
 
@@ -898,15 +892,9 @@ func (s *serviceControlSuite) TestRestartWithAllExplicitServices(c *C) {
 	s.testRestartWithExplicitServicesCommon(c,
 		[]string{"abc", "bar", "foo"},
 		[][]string{
-			{"stop", srvFoo},
-			{"show", "--property=ActiveState", srvFoo},
-			{"start", srvFoo},
-			{"stop", srvBar},
-			{"show", "--property=ActiveState", srvBar},
-			{"start", srvBar},
-			{"stop", srvAbc},
-			{"show", "--property=ActiveState", srvAbc},
-			{"start", srvAbc},
+			{"restart", srvFoo},
+			{"restart", srvBar},
+			{"restart", srvAbc},
 		})
 }
 
@@ -935,15 +923,9 @@ func (s *serviceControlSuite) TestRestartAllServices(c *C) {
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
-		{"stop", "snap.test-snap.foo.service"},
-		{"show", "--property=ActiveState", "snap.test-snap.foo.service"},
-		{"start", "snap.test-snap.foo.service"},
-		{"stop", "snap.test-snap.bar.service"},
-		{"show", "--property=ActiveState", "snap.test-snap.bar.service"},
-		{"start", "snap.test-snap.bar.service"},
-		{"stop", "snap.test-snap.abc.service"},
-		{"show", "--property=ActiveState", "snap.test-snap.abc.service"},
-		{"start", "snap.test-snap.abc.service"},
+		{"restart", "snap.test-snap.foo.service"},
+		{"restart", "snap.test-snap.bar.service"},
+		{"restart", "snap.test-snap.abc.service"},
 	})
 }
 

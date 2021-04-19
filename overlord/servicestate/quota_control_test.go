@@ -155,12 +155,7 @@ func systemctlCallsForServiceRestart(name string) []expectedSystemctl {
 			expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type", svc},
 			output:  fmt.Sprintf("Id=%s\nActiveState=active\nUnitFileState=enabled\nType=simple\n", svc),
 		},
-		{expArgs: []string{"stop", svc}},
-		{
-			expArgs: []string{"show", "--property=ActiveState", svc},
-			output:  "ActiveState=inactive",
-		},
-		{expArgs: []string{"start", svc}},
+		{expArgs: []string{"restart", svc}},
 	}
 }
 
