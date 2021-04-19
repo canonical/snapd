@@ -485,7 +485,7 @@ version: %s
 		"snap-sha3-384": string(dgst),
 		"snap-size":     "999",
 		"snap-id":       snapID,
-		"snap-revision": fmt.Sprintf("%s", revision),
+		"snap-revision": revision.String(), // this must be a string
 		"developer-id":  devAcct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}, nil, "")
@@ -551,7 +551,7 @@ func (s *apiBaseSuite) jsonReq(c *check.C, req *http.Request, u *auth.UserState)
 
 func (s *apiBaseSuite) syncReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.Resp {
 	rsp := s.jsonReq(c, req, u)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeSync, check.Commentf("expected sync resp: %#v", rsp))
+	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeSync, check.Commentf("expected sync resp: %#v, result: %+v", rsp, rsp.Result))
 	return rsp
 }
 
