@@ -3765,7 +3765,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20TransitionFullExtr
 	})
 }
 
-func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboots(c *C) {
+func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousRebootsBeforeBootVarsSet(c *C) {
 	// simulate spurious reboots
 	s.stampSealedKeys(c, dirs.GlobalRootDir)
 
@@ -3898,5 +3898,102 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboot
 		"snapd_extra_cmdline_args": "extra args",
 		// canary has been cleared
 		"snapd_full_cmdline_args": "",
+	})
+}
+
+func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousRebootsAfterBootVars(c *C) {
+	// simulate spurious reboots
+	s.stampSealedKeys(c, dirs.GlobalRootDir)
+
+	// no command line arguments from gadget
+	s.modeenvWithEncryption.CurrentKernelCommandLines = []string{"snapd_recovery_mode=run static mocked panic=-1"}
+	c.Assert(s.modeenvWithEncryption.WriteTo(""), IsNil)
+
+	cmdlineFile := filepath.Join(c.MkDir(), "cmdline")
+	restore := osutil.MockProcCmdline(cmdlineFile)
+	s.AddCleanup(restore)
+
+	err := s.bootloader.SetBootVars(map[string]string{
+		// those are intentionally filled by the test
+		"snapd_extra_cmdline_args": "canary",
+		"snapd_full_cmdline_args":  "canary",
+	})
+	c.Assert(err, IsNil)
+	s.bootloader.SetBootVarsCalls = 0
+
+	// transition to gadget with cmdline.extra
+	sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
+		{"cmdline.extra", "extra args"},
+	})
+
+	// let's panic after setting bootenv, but before returning, such that if
+	// executed by a task handler, the task's status would not get updated
+	s.bootloader.SetErrFunc = func() error {
+		panic("mocked reboot panic after SetBootVars")
+	}
+	c.Assert(func() {
+		boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf)
+	}, PanicMatches, "mocked reboot panic after SetBootVars")
+	c.Check(s.resealCalls, Equals, 1)
+	c.Check(s.resealCommandLines, DeepEquals, [][]string{{
+		// those come from boot chains which use predictable sorting
+		"snapd_recovery_mode=run static mocked panic=-1",
+		"snapd_recovery_mode=run static mocked panic=-1 extra args",
+	}})
+	// the call to bootloader was executed
+	c.Check(s.bootloader.SetBootVarsCalls, Equals, 1)
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(m.CurrentKernelCommandLines, DeepEquals, boot.BootCommandLines{
+		"snapd_recovery_mode=run static mocked panic=-1",
+		"snapd_recovery_mode=run static mocked panic=-1 extra args",
+	})
+	args, err := s.bootloader.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
+	c.Assert(err, IsNil)
+	c.Check(args, DeepEquals, map[string]string{
+		"snapd_extra_cmdline_args": "extra args",
+		// canary has been cleared
+		"snapd_full_cmdline_args": "",
+	})
+
+	// REBOOT; since we rebooted after updating the bootenv, the kernel
+	// command line will include arguments that came from gadget snap
+	s.bootloader.SetBootVarsCalls = 0
+	s.resealCalls = 0
+	err = ioutil.WriteFile(cmdlineFile, []byte("snapd_recovery_mode=run static mocked panic=-1 extra args"), 0644)
+	c.Assert(err, IsNil)
+	err = boot.MarkBootSuccessful(s.uc20dev)
+	c.Assert(err, IsNil)
+	// we resealed after reboot again
+	c.Check(s.resealCalls, Equals, 1)
+	// bootenv wasn't touched
+	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(m.CurrentKernelCommandLines, DeepEquals, boot.BootCommandLines{
+		"snapd_recovery_mode=run static mocked panic=-1 extra args",
+	})
+
+	// try again, as if the task handler gets to run again
+	s.resealCalls = 0
+	reboot, err := boot.UpdateCommandLineForGadgetComponent(s.uc20dev, sf)
+	c.Assert(err, IsNil)
+	// nothing changed now, we already booted with the new command line
+	c.Check(reboot, Equals, false)
+	// not reseal since nothing changed
+	c.Check(s.resealCalls, Equals, 0)
+	// no changes to the bootenv either
+	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
+	// all done, modeenv
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(m.CurrentKernelCommandLines, DeepEquals, boot.BootCommandLines{
+		"snapd_recovery_mode=run static mocked panic=-1 extra args",
+	})
+	args, err = s.bootloader.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
+	c.Assert(err, IsNil)
+	c.Check(args, DeepEquals, map[string]string{
+		"snapd_extra_cmdline_args": "extra args",
+		"snapd_full_cmdline_args":  "",
 	})
 }
