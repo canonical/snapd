@@ -71,10 +71,8 @@ const (
 
 // FDESetupHookParams contains the inputs for the fde-setup hook
 type FDESetupHookParams struct {
-	Key     secboot.EncryptionKey
+	Key     []byte
 	KeyName string
-
-	Models []*asserts.Model
 
 	//TODO:UC20: provide bootchains and a way to track measured
 	//boot-assets
@@ -141,20 +139,43 @@ func fallbackKeySealRequests(key, saveKey secboot.EncryptionKey) []secboot.SealK
 	}
 }
 
+type fdeSetupHookResult struct {
+	EncryptedKey []byte `json:"encrypted-key"`
+	Handle       []byte `json:"handle"`
+}
+
 func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
 	// TODO: support full boot chains
 
 	for _, skr := range append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey)...) {
+		var unencryptedPayload [len(skr.Key)]byte
+		copy(unencryptedPayload[:], skr.Key[:])
 		params := &FDESetupHookParams{
-			Key:     skr.Key,
+			Key:     unencryptedPayload[:],
 			KeyName: skr.KeyName,
-			Models:  []*asserts.Model{model},
 		}
-		sealedKey, err := RunFDESetupHook("initial-setup", params)
+		hookOutput, err := RunFDESetupHook("initial-setup", params)
 		if err != nil {
 			return err
 		}
-		if err := osutil.AtomicWriteFile(filepath.Join(skr.KeyFile), sealedKey, 0600, 0); err != nil {
+		// We expect json output that fits fdeSetupHookResult
+		// hook at this point. However the "denver" project
+		// uses the old and deprecated v1 API that returns raw
+		// bytes and we still need to support this.
+		var res fdeSetupHookResult
+		if err := json.Unmarshal(hookOutput, &res); err != nil {
+			// If the input is not json and matches the
+			// size of the input encrypton key we assume
+			// we deal with a v1 hook that passes us back
+			// raw binary data instead of json.
+			if len(hookOutput) != len(unencryptedPayload) {
+				return fmt.Errorf("cannot decode hook output for key %s %q: %v", skr.KeyFile, hookOutput, err)
+			}
+			// v1 hooks do not support a handle
+			res.Handle = nil
+			res.EncryptedKey = hookOutput
+		}
+		if err := osutil.AtomicWriteFile(filepath.Join(skr.KeyFile), res.EncryptedKey, 0600, 0); err != nil {
 			return fmt.Errorf("cannot store key: %v", err)
 		}
 	}

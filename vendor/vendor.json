@@ -7,6 +7,14 @@
 			"revision": ""
 		},
 		{
+			"checksumSHA1": "CT15zzEmXx3dQ7/PJCSwZhqSV/o=",
+			"path": "github.com/canonical/go-sp800.90a-drbg",
+			"revision": "6eeb1040d6c3a6b618a8da5e42ef66b35e7a3ddd",
+			"revisionTime": "2021-03-12T20:55:53Z",
+			"version": "main",
+			"versionExact": "main"
+		},
+		{
 			"checksumSHA1": "k/AaLsIMOYZr/PALamIsOMiI66U=",
 			"path": "github.com/canonical/go-tpm2",
 			"revision": "32171bd353b113ff4793dc3c65a019d749674bc6",
@@ -116,10 +124,10 @@
 			"revisionTime": "2017-09-28T14:21:59Z"
 		},
 		{
-			"checksumSHA1": "yektq9faqx9Eo/qUb3GAsM+vQlU=",
+			"checksumSHA1": "wJ2txvI2LCJnAZm8RFKxqz6pAYc=",
 			"path": "github.com/snapcore/secboot",
-			"revision": "122bca1e162df761510e82be1bc9043250fe0bc7",
-			"revisionTime": "2021-02-12T23:46:08Z"
+			"revision": "796680a13b94250ac53d4866a3da572adf42e021",
+			"revisionTime": "2021-04-15T18:54:04Z"
 		},
 		{
 			"checksumSHA1": "c7jHLQSWFWbymTcFWZMQH0C5Wik=",

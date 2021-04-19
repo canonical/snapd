@@ -1547,15 +1547,6 @@ func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookPara
 		KeyName: params.KeyName,
 		// TODO: include boot chains
 	}
-	for _, model := range params.Models {
-		req.Models = append(req.Models, map[string]string{
-			"series":     model.Series(),
-			"brand-id":   model.BrandID(),
-			"model":      model.Model(),
-			"grade":      string(model.Grade()),
-			"signkey-id": model.SignKeyID(),
-		})
-	}
 	contextData := map[string]interface{}{
 		"fde-setup-request": req,
 	}
