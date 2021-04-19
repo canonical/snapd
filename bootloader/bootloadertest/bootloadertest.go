@@ -148,13 +148,13 @@ func (b *MockBootloader) InstallBootConfig(gadgetDir string, opts *bootloader.Op
 	return b.InstallBootConfigErr
 }
 
-// SetMockPanic allows setting any method in the Bootloader interface or derived
+// SetMockToPanic allows setting any method in the Bootloader interface or derived
 // interface to panic instead of returning. This allows one to test what would
 // happen if the system was rebooted during execution of a particular function.
 // Specifically, the panic will be done immediately entering the function so
 // setting SetBootVars to panic will emulate a reboot before any boot vars are
 // set persistently
-func (b *MockBootloader) SetMockPanic(f string) (restore func()) {
+func (b *MockBootloader) SetMockToPanic(f string) (restore func()) {
 	switch f {
 	// XXX: update this list as more calls in this interface or derived ones
 	// are added
@@ -167,7 +167,7 @@ func (b *MockBootloader) SetMockPanic(f string) (restore func()) {
 			b.panicMethods[f] = old
 		}
 	default:
-		panic(fmt.Sprintf("unknown ExtractedRunKernelImageBootloader method %q to mock reboot via panic for", f))
+		panic(fmt.Sprintf("unknown bootloader method %q to mock reboot via panic for", f))
 	}
 }
 

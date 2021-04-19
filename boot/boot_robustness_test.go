@@ -130,7 +130,7 @@ func (s *bootenv20Suite) checkBootStateAfterUnexpectedRebootAndCleanup(
 ) {
 	if panicFunc != "" {
 		// setup a panic during the given bootloader function
-		restoreBootloaderPanic := s.bootloader.SetMockPanic(panicFunc)
+		restoreBootloaderPanic := s.bootloader.SetMockToPanic(panicFunc)
 
 		// run the boot function that will now panic
 		c.Assert(
