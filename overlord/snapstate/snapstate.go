@@ -1818,7 +1818,90 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskS
 		}
 	}
 
-	return UpdateMany(ctx, st, nil, userID, &Flags{IsAutoRefresh: true})
+	tr := config.NewTransaction(st)
+	gateAutoRefreshHook, err := features.Flag(tr, features.GateAutoRefreshHook)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, nil, err
+	}
+	if !gateAutoRefreshHook {
+		// old-style refresh (gate-auto-refresh-hook feature disabled)
+		return UpdateMany(ctx, st, nil, userID, &Flags{IsAutoRefresh: true})
+	}
+
+	return autoRefreshPhase1(ctx, st)
+}
+
+// autoRefreshPhase1 creates gate-auto-refresh hooks and conditional-auto-refresh
+// task that initiates actual refresh.
+// The state needs to be locked by the caller.
+func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state.TaskSet, error) {
+	user, err := userFromUserID(st, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	refreshOpts := &store.RefreshOptions{IsAutoRefresh: true}
+	updates, snapstateByInstance, ignoreValidationByInstanceName, err := refreshCandidates(ctx, st, nil, user, refreshOpts)
+	if err != nil {
+		// XXX: should we reset "refresh-candidates" to nil in state for some types
+		// of errors?
+		return nil, nil, err
+	}
+	deviceCtx, err := DeviceCtxFromState(st, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	hints, err := refreshHintsFromCandidates(st, updates, ignoreValidationByInstanceName, deviceCtx)
+	if err != nil {
+		return nil, nil, err
+	}
+	st.Set("refresh-candidates", hints)
+
+	if len(updates) == 0 {
+		return nil, nil, nil
+	}
+
+	affectedSnaps, err := affectedByRefresh(st, updates)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// affectedByRefresh only considers snaps affected by updates, add
+	// updates themselves as long as they have gate-auto-refresh hooks.
+	for _, up := range updates {
+		snapst := snapstateByInstance[up.InstanceName()]
+		inf, err := snapst.CurrentInfo()
+		if err != nil {
+			return nil, nil, err
+		}
+		if affectedSnaps[up.InstanceName()] == nil && inf.Hooks[gateAutoRefreshHookName] != nil {
+			affectedSnaps[up.InstanceName()] = &affectedSnapInfo{}
+		}
+	}
+
+	var hooks *state.TaskSet
+	if len(affectedSnaps) > 0 {
+		hooks = createGateAutoRefreshHooks(st, affectedSnaps)
+	}
+
+	// gate-auto-refresh hooks, followed by conditional-auto-refresh task waiting
+	// for all hooks.
+	ar := st.NewTask("conditional-auto-refresh", "Run select refreshes")
+	tss := []*state.TaskSet{state.NewTaskSet(ar)}
+	if hooks != nil {
+		ar.WaitAll(hooks)
+		tss = append(tss, hooks)
+	}
+
+	// return all names as potentially getting updated even though some may be
+	// held.
+	names := make([]string, len(updates))
+	for i, up := range updates {
+		names[i] = up.InstanceName()
+	}
+	sort.Strings(names)
+
+	return names, tss, nil
 }
 
 // LinkNewBaseOrKernel will create prepare/link-snap tasks for a remodel

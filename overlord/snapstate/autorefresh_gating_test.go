@@ -20,6 +20,7 @@
 package snapstate_test
 
 import (
+	"context"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -27,6 +28,8 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -35,15 +38,23 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/testutil"
 
 	. "gopkg.in/check.v1"
 )
 
+type autoRefreshGatingStore struct {
+	storetest.Store
+	refreshedSnaps []*snap.Info
+}
+
 type autorefreshGatingSuite struct {
 	testutil.BaseTest
 	state *state.State
 	repo  *interfaces.Repository
+	store *autoRefreshGatingStore
 }
 
 var _ = Suite(&autorefreshGatingSuite{})
@@ -64,6 +75,31 @@ func (s *autorefreshGatingSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	ifacerepo.Replace(s.state, s.repo)
+
+	s.store = &autoRefreshGatingStore{}
+	snapstate.ReplaceStore(s.state, s.store)
+	s.state.Set("refresh-privacy-key", "privacy-key")
+}
+
+func (r *autoRefreshGatingStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	if assertQuery != nil {
+		panic("no assertion query support")
+	}
+	if len(currentSnaps) != len(actions) || len(currentSnaps) == 0 {
+		panic("expected in test one action for each current snaps, and at least one snap")
+	}
+	for _, a := range actions {
+		if a.Action != "refresh" {
+			panic("expected refresh actions")
+		}
+	}
+
+	res := []store.SnapActionResult{}
+	for _, rs := range r.refreshedSnaps {
+		res = append(res, store.SnapActionResult{Info: rs})
+	}
+
+	return res, nil, nil
 }
 
 func (s *autorefreshGatingSuite) mockInstalledSnap(c *C, snapYaml string, hasHook bool) *snap.Info {
@@ -523,4 +559,156 @@ func (s *autorefreshGatingSuite) TestCreateAutoRefreshGateHooks(c *C) {
 	checkHook(ts.Tasks()[1])
 
 	c.Check(seenSnaps, DeepEquals, map[string]bool{"snap-a": true, "snap-b": true})
+}
+
+func (s *autorefreshGatingSuite) TestAutorefreshPhase1FeatureFlag(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	st.Set("seeded", true)
+
+	restore := snapstatetest.MockDeviceModel(DefaultModel())
+	defer restore()
+
+	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
+		return nil, nil
+	}
+	defer func() { snapstate.AutoAliases = nil }()
+
+	s.store.refreshedSnaps = []*snap.Info{{
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeApp,
+		SideInfo: snap.SideInfo{
+			RealName: "snap-a",
+			Revision: snap.R(8),
+		},
+	}}
+	s.mockInstalledSnap(c, snapAyaml, useHook)
+
+	// gate-auto-refresh-hook feature not enabled, expect old-style refresh.
+	_, tss, err := snapstate.AutoRefresh(context.TODO(), st)
+	c.Check(err, IsNil)
+	c.Assert(tss, HasLen, 2)
+	c.Check(tss[0].Tasks()[0].Kind(), Equals, "prerequisites")
+	c.Check(tss[0].Tasks()[1].Kind(), Equals, "download-snap")
+	c.Check(tss[1].Tasks()[0].Kind(), Equals, "check-rerefresh")
+
+	// enable gate-auto-refresh-hook feature
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
+	tr.Commit()
+
+	_, tss, err = snapstate.AutoRefresh(context.TODO(), st)
+	c.Check(err, IsNil)
+	c.Assert(tss, HasLen, 2)
+	c.Check(tss[0].Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
+	c.Check(tss[1].Tasks()[0].Kind(), Equals, "run-hook")
+}
+
+func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
+	s.store.refreshedSnaps = []*snap.Info{{
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeApp,
+		SideInfo: snap.SideInfo{
+			RealName: "snap-a",
+			Revision: snap.R(8),
+		},
+	}, {
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeBase,
+		SideInfo: snap.SideInfo{
+			RealName: "base-snap-b",
+			Revision: snap.R(3),
+		},
+	}, {
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeBase,
+		SideInfo: snap.SideInfo{
+			RealName: "snap-c",
+			Revision: snap.R(5),
+		},
+	}}
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	s.mockInstalledSnap(c, snapAyaml, useHook)
+	s.mockInstalledSnap(c, snapByaml, useHook)
+	s.mockInstalledSnap(c, snapCyaml, noHook)
+	s.mockInstalledSnap(c, baseSnapByaml, noHook)
+
+	restore := snapstatetest.MockDeviceModel(DefaultModel())
+	defer restore()
+
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st)
+	c.Assert(err, IsNil)
+	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-a", "snap-c"})
+	c.Assert(tss, HasLen, 2)
+
+	c.Assert(tss[0].Tasks(), HasLen, 1)
+	c.Check(tss[0].Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
+
+	c.Assert(tss[1].Tasks(), HasLen, 2)
+
+	// check hooks for affected snaps
+	seenSnaps := make(map[string]bool)
+	var hs hookstate.HookSetup
+	c.Assert(tss[1].Tasks()[0].Get("hook-setup", &hs), IsNil)
+	c.Check(hs.Hook, Equals, "gate-auto-refresh")
+	seenSnaps[hs.Snap] = true
+
+	c.Assert(tss[1].Tasks()[1].Get("hook-setup", &hs), IsNil)
+	c.Check(hs.Hook, Equals, "gate-auto-refresh")
+	seenSnaps[hs.Snap] = true
+
+	// hook for snap-a because it gets refreshed, for snap-b because its base
+	// gets refreshed. snap-c is refreshed but doesn't have the hook.
+	c.Check(seenSnaps, DeepEquals, map[string]bool{"snap-a": true, "snap-b": true})
+
+	// check that refresh-candidates in the state were updated
+	var candidates []snapstate.RefreshCandidate
+	c.Assert(st.Get("refresh-candidates", &candidates), IsNil)
+	c.Assert(candidates, HasLen, 3)
+	c.Check(candidates[0].InstanceName(), Equals, "snap-a")
+	c.Check(candidates[1].InstanceName(), Equals, "base-snap-b")
+	c.Check(candidates[2].InstanceName(), Equals, "snap-c")
+}
+
+func (s *autorefreshGatingSuite) TestAutoRefreshPhase1NoHooks(c *C) {
+	s.store.refreshedSnaps = []*snap.Info{{
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeBase,
+		SideInfo: snap.SideInfo{
+			RealName: "base-snap-b",
+			Revision: snap.R(3),
+		},
+	}, {
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeBase,
+		SideInfo: snap.SideInfo{
+			RealName: "snap-c",
+			Revision: snap.R(5),
+		},
+	}}
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	s.mockInstalledSnap(c, snapByaml, noHook)
+	s.mockInstalledSnap(c, snapCyaml, noHook)
+	s.mockInstalledSnap(c, baseSnapByaml, noHook)
+
+	restore := snapstatetest.MockDeviceModel(DefaultModel())
+	defer restore()
+
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st)
+	c.Assert(err, IsNil)
+	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-c"})
+	c.Assert(tss, HasLen, 1)
+
+	c.Assert(tss[0].Tasks(), HasLen, 1)
+	c.Check(tss[0].Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
 }
