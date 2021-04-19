@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/http/httptest"
 
 	. "gopkg.in/check.v1"
@@ -34,6 +35,8 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -52,12 +55,16 @@ func (s *themesSuite) SetUpTest(c *C) {
 	s.err = store.ErrSnapNotFound
 }
 
-func (s *themesSuite) SnapInfo(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
+func (s *themesSuite) SnapExists(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (naming.SnapRef, *channel.Channel, error) {
 	s.pokeStateLock()
 	if info := s.available[spec.Name]; info != nil {
-		return info, nil
+		ch, err := channel.Parse(info.Channel, "")
+		if err != nil {
+			panic(fmt.Sprintf("bad Info Channel: %v", err))
+		}
+		return info, &ch, nil
 	}
-	return nil, s.err
+	return nil, nil, s.err
 }
 
 func (s *themesSuite) daemon(c *C) *daemon.Daemon {
