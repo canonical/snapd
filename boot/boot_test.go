@@ -3801,6 +3801,7 @@ func (s *bootKernelCommandLineSuite) TestCommandLineUpdateUC20OverSpuriousReboot
 	s.bootloader.SetBootVarsCalls = 0
 
 	restoreBootloaderNoPanic := s.bootloader.SetMockToPanic("SetBootVars")
+	defer restoreBootloaderNoPanic()
 
 	// transition to gadget with cmdline.extra
 	sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, [][]string{
