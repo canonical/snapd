@@ -834,10 +834,9 @@ func (s *systemd) Restart(serviceName string, timeout time.Duration) error {
 	if s.mode == GlobalUserMode {
 		panic("cannot call restart with GlobalUserMode")
 	}
-	if err := s.Stop(serviceName, timeout); err != nil {
-		return err
-	}
-	return s.Start(serviceName)
+	// XXX: timeout is ignored
+	_, err := s.systemctl("restart", serviceName)
+	return err
 }
 
 func (s *systemd) RestartAll(serviceName string) error {

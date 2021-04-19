@@ -503,10 +503,8 @@ func (s *SystemdTestSuite) TestRestart(c *C) {
 	s.errors = []error{nil, nil, nil, nil, &Timeout{}}
 	err := New(SystemMode, s.rep).Restart("foo", 100*time.Millisecond)
 	c.Assert(err, IsNil)
-	c.Check(s.argses, HasLen, 3)
-	c.Check(s.argses[0], DeepEquals, []string{"stop", "foo"})
-	c.Check(s.argses[1], DeepEquals, []string{"show", "--property=ActiveState", "foo"})
-	c.Check(s.argses[2], DeepEquals, []string{"start", "foo"})
+	c.Assert(s.argses, HasLen, 1)
+	c.Check(s.argses[0], DeepEquals, []string{"restart", "foo"})
 }
 
 func (s *SystemdTestSuite) TestKill(c *C) {
