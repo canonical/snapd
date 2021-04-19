@@ -1,5 +1,7 @@
 summary: Check that refreshing snapd does not interfere with snap services
 
+# TODO: we should also run it on classic later
+
 # TODO: UC20
 systems: [ubuntu-core-18-*]
 
@@ -18,6 +20,7 @@ execute: |
     echo "Refreshing snapd to stable"
     snap refresh --amend --channel=latest/stable snapd
   elif [ "${START_WITH}" = "2_49_2" ]; then
+    # TODO: check architecture
     echo "Not implemented"
     exit 0
   fi
@@ -33,6 +36,8 @@ execute: |
   # check that it is initially active
   snap services|MATCH ".*test-snapd-simple-service\s*enabled\s*active.*"
 
+  systemctl show -p MainPID snap.test-snapd-simple-service.test-snapd-simple-service > old-main.pid
+
   echo "Refresh snapd"
   snap install --dangerous snapd_repacked.snap
 
@@ -42,6 +47,9 @@ execute: |
         echo "Services should not have been stopped"
         exit 1
      fi
+     systemctl show -p MainPID snap.test-snapd-simple-service.test-snapd-simple-service > new-main.pid
+     # running the same pid
+     test "$(cat new-endure.pid)" = "$(cat old-endure.pid)"
   fi
 
   echo "Check services were kept active"
