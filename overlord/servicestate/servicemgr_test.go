@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -66,6 +67,74 @@ type ensureSnapServiceSuite struct {
 
 	systemctlCalls   int
 	systemctlReturns []expectedSystemctl
+
+	testSnapState    *snapstate.SnapState
+	testSnapSideInfo *snap.SideInfo
+}
+
+var (
+	unitTempl = `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application test-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+%[3]sX-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run test-snap.svc1
+SyslogIdentifier=test-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/test-snap/42
+TimeoutStopSec=30
+Type=simple
+%[4]s
+[Install]
+WantedBy=multi-user.target
+`
+
+	testYaml = `name: test-snap
+version: v1
+apps:
+  svc1:
+    command: bin.sh
+    daemon: simple
+`
+)
+
+type unitOptions struct {
+	usrLibSnapdOrderVerb string
+	snapName             string
+	snapRev              string
+	oomScore             string
+}
+
+func mkUnitFile(c *C, opts *unitOptions) string {
+	if opts == nil {
+		opts = &unitOptions{}
+	}
+	usrLibSnapdSnippet := ""
+	if opts.usrLibSnapdOrderVerb != "" {
+		usrLibSnapdSnippet = fmt.Sprintf(`%[1]s=usr-lib-snapd.mount
+After=usr-lib-snapd.mount
+`,
+			opts.usrLibSnapdOrderVerb)
+	}
+	oomScoreAdjust := ""
+	if opts.oomScore != "" {
+		oomScoreAdjust = fmt.Sprintf(`OOMScoreAdjust=%s
+`,
+			opts.oomScore,
+		)
+	}
+
+	return fmt.Sprintf(unitTempl,
+		systemd.EscapeUnitNamePath(filepath.Join(dirs.SnapMountDir, opts.snapName, opts.snapRev+".mount")),
+		dirs.GlobalRootDir,
+		usrLibSnapdSnippet,
+		oomScoreAdjust,
+	)
 }
 
 var _ = Suite(&ensureSnapServiceSuite{})
@@ -126,6 +195,16 @@ func (s *ensureSnapServiceSuite) SetUpTest(c *C) {
 	// by default mock that we are uc18
 	s.AddCleanup(snapstatetest.MockDeviceModel(s.uc18Model))
 
+	// setup a test-snap with a service that can be easily injected into
+	// snapstate to be setup as needed
+	s.testSnapSideInfo = &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
+	s.testSnapState = &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{s.testSnapSideInfo},
+		Current:  snap.R(42),
+		Active:   true,
+		SnapType: "app",
+	}
+
 	// by default we are seeded
 	s.state.Lock()
 	s.state.Set("seeded", true)
@@ -160,29 +239,17 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesNoSnapsDoesNothing(c *C) 
 
 	// we didn't write any services
 	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileAbsent)
+
+	// we did not request a restart
+	c.Assert(s.restartRequests, HasLen, 0)
 }
 
 func (s *ensureSnapServiceSuite) TestEnsureSnapServicesNotSeeded(c *C) {
 	s.state.Lock()
-	// we are not seeded
+	// we are not seeded but we do have a service which needs to be generated
 	s.state.Set("seeded", false)
-
-	// but there is a snap in snap state that needs a service generated for
-	// it
-	sideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
-	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{sideInfo},
-		Current:  snap.R(42),
-		Active:   true,
-		SnapType: "app",
-	})
-	snaptest.MockSnapCurrent(c, `name: test-snap
-version: v1
-apps:
-  svc1:
-    command: bin.sh
-    daemon: simple`, sideInfo)
-
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 	s.state.Unlock()
 
 	err := s.mgr.Ensure()
@@ -190,26 +257,16 @@ apps:
 
 	// we didn't write any services
 	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileAbsent)
+
+	// we did not request a restart
+	c.Assert(s.restartRequests, HasLen, 0)
 }
 
 func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleWritesServicesFilesUC16(c *C) {
 	s.state.Lock()
 	// there is a snap in snap state that needs a service generated for it
-	sideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
-	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{sideInfo},
-		Current:  snap.R(42),
-		Active:   true,
-		SnapType: "app",
-	})
-	snaptest.MockSnapCurrent(c, `name: test-snap
-version: v1
-apps:
-  svc1:
-    command: bin.sh
-    daemon: simple
-`, sideInfo)
-
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 	// mock the device context as uc16
 	s.AddCleanup(snapstatetest.MockDeviceModel(s.uc16Model))
 
@@ -229,49 +286,147 @@ apps:
 	err := s.mgr.Ensure()
 	c.Assert(err, IsNil)
 
-	// we wrote the service unit file
-	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, fmt.Sprintf(`[Unit]
-# Auto-generated, DO NOT EDIT
-Description=Service for snap application test-snap.svc1
-Requires=%[1]s
-Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
-X-Snappy=yes
+	// we wrote a service unit file
+	content := mkUnitFile(c, &unitOptions{
+		snapName: "test-snap",
+		snapRev:  "42",
+	})
+	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, content)
 
-[Service]
-EnvironmentFile=-/etc/environment
-ExecStart=/usr/bin/snap run test-snap.svc1
-SyslogIdentifier=test-snap.svc1
-Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/test-snap/42
-TimeoutStopSec=30
-Type=simple
-
-[Install]
-WantedBy=multi-user.target
-`,
-		systemd.EscapeUnitNamePath(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount")),
-		dirs.GlobalRootDir,
-	))
+	// we did not request a restart
+	c.Assert(s.restartRequests, HasLen, 0)
 }
 
-func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleWritesServicesFilesUC18(c *C) {
+func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSkipsSnapdSnap(c *C) {
 	s.state.Lock()
-	// there is a snap in snap state that needs a service generated for it
-	sideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
-	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
+	// add an unexpected snapd snap which has services in it, but we
+	// specifically skip the snapd snap when considering services to add since
+	// it is special
+	sideInfo := &snap.SideInfo{RealName: "snapd", Revision: snap.R(42)}
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{sideInfo},
 		Current:  snap.R(42),
 		Active:   true,
-		SnapType: "app",
+		SnapType: string(snap.TypeSnapd),
 	})
-	snaptest.MockSnapCurrent(c, `name: test-snap
+	snaptest.MockSnapCurrent(c, `name: snapd
+type: snapd
 version: v1
 apps:
   svc1:
     command: bin.sh
     daemon: simple
 `, sideInfo)
+
+	s.state.Unlock()
+
+	// don't need to mock usr-lib-snapd.mount since we will skip before that
+	// with snapd as the only snap
+
+	err := s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	// we didn't write a snap service file for snapd
+	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.snapd.svc1.service"), testutil.FileAbsent)
+
+	// we did not request a restart
+	c.Assert(s.restartRequests, HasLen, 0)
+}
+
+func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesUC18(c *C) {
+	s.state.Lock()
+	// there is a snap in snap state that needs a service generated for it
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	s.state.Unlock()
+
+	// add the usr-lib-snapd.mount unit
+	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
+	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	c.Assert(err, IsNil)
+
+	s.systemctlReturns = []expectedSystemctl{
+		{
+			expArgs: []string{"daemon-reload"},
+		},
+		{
+			// usr-lib-snapd.mount has not been stopped this boot "far in the future"
+			expArgs: []string{"show", "--property", "InactiveEnterTimestamp", "usr-lib-snapd.mount"},
+			output:  "InactiveEnterTimestamp=",
+		},
+	}
+
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	// we wrote the service unit file
+	content := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Wants",
+		snapName:             "test-snap",
+		snapRev:              "42",
+	})
+	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, content)
+
+	// we did not request a restart
+	c.Assert(s.restartRequests, HasLen, 0)
+}
+
+func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesVitalityRankUC18(c *C) {
+	s.state.Lock()
+	// there is a snap in snap state that needs a service generated for it
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// also set vitality-hint for this snap
+	t := config.NewTransaction(s.state)
+	err := t.Set("core", "resilience.vitality-hint", "bar,test-snap")
+	c.Assert(err, IsNil)
+	t.Commit()
+
+	s.state.Unlock()
+
+	// add the usr-lib-snapd.mount unit
+	err = os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
+	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	c.Assert(err, IsNil)
+
+	s.systemctlReturns = []expectedSystemctl{
+		{
+			expArgs: []string{"daemon-reload"},
+		},
+		{
+			// usr-lib-snapd.mount has not been stopped this boot "far in the future"
+			expArgs: []string{"show", "--property", "InactiveEnterTimestamp", "usr-lib-snapd.mount"},
+			output:  "InactiveEnterTimestamp=",
+		},
+	}
+
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	// we wrote the service unit file
+	content := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Wants",
+		snapName:             "test-snap",
+		snapRev:              "42",
+		oomScore:             "-898",
+	})
+	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, content)
+
+	// we did not request a restart
+	c.Assert(s.restartRequests, HasLen, 0)
+}
+
+func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRestarts(c *C) {
+	s.state.Lock()
+	// there is a snap in snap state that needs a service generated for it
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 
 	s.state.Unlock()
 
@@ -299,7 +454,8 @@ apps:
 		},
 		{
 			// but the snap.test-snap.svc1 was stopped only slightly in the
-			// future
+			// future (hence before the usr-lib-snapd.mount unit was stopped and
+			// after usr-lib-snapd.mount file was modified)
 			expArgs: []string{"show", "--property", "InactiveEnterTimestamp", "snap.test-snap.svc1.service"},
 			output:  fmt.Sprintf("InactiveEnterTimestamp=%s", slightFuture),
 		},
@@ -316,51 +472,89 @@ apps:
 	c.Assert(err, IsNil)
 
 	// we wrote the service unit file
-	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, fmt.Sprintf(`[Unit]
-# Auto-generated, DO NOT EDIT
-Description=Service for snap application test-snap.svc1
-Requires=%[1]s
-Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
-%[3]s=usr-lib-snapd.mount
-After=usr-lib-snapd.mount
-X-Snappy=yes
+	content := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Wants",
+		snapName:             "test-snap",
+		snapRev:              "42",
+	})
+	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, content)
 
-[Service]
-EnvironmentFile=-/etc/environment
-ExecStart=/usr/bin/snap run test-snap.svc1
-SyslogIdentifier=test-snap.svc1
-Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/test-snap/42
-TimeoutStopSec=30
-Type=simple
+	// we did not request a restart
+	c.Assert(s.restartRequests, HasLen, 0)
+}
 
-[Install]
-WantedBy=multi-user.target
-`,
-		systemd.EscapeUnitNamePath(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount")),
-		dirs.GlobalRootDir,
-		"Wants",
-	))
+type systemctlDisabledServicError struct{}
+
+func (s systemctlDisabledServicError) Msg() []byte   { return []byte("disabled") }
+func (s systemctlDisabledServicError) ExitCode() int { return 1 }
+func (s systemctlDisabledServicError) Error() string { return "disabled service" }
+
+func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesButDoesNotRestartDisabledServices(c *C) {
+	s.state.Lock()
+	// there is a snap in snap state that needs a service generated for it
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	s.state.Unlock()
+
+	// add the usr-lib-snapd.mount unit
+	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
+	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	c.Assert(err, IsNil)
+
+	now := time.Now()
+	os.Chtimes(usrLibSnapdMountFile, now, now)
+
+	slightFuture := now.Add(30 * time.Minute).Format("Mon 2006-01-02 15:04:05 MST")
+	theFuture := now.Add(1 * time.Hour).Format("Mon 2006-01-02 15:04:05 MST")
+
+	s.systemctlReturns = []expectedSystemctl{
+		{
+			expArgs: []string{"daemon-reload"},
+		},
+		{
+			// usr-lib-snapd.mount was stopped "far in the future"
+			expArgs: []string{"show", "--property", "InactiveEnterTimestamp", "usr-lib-snapd.mount"},
+			output:  fmt.Sprintf("InactiveEnterTimestamp=%s", theFuture),
+		},
+		{
+			// but the snap.test-snap.svc1 was stopped only slightly in the
+			// future (hence before the usr-lib-snapd.mount unit was stopped and
+			// after usr-lib-snapd.mount file was modified)
+			expArgs: []string{"show", "--property", "InactiveEnterTimestamp", "snap.test-snap.svc1.service"},
+			output:  fmt.Sprintf("InactiveEnterTimestamp=%s", slightFuture),
+		},
+		// the service is disabled
+		{
+			expArgs: []string{"is-enabled", "snap.test-snap.svc1.service"},
+			output:  "disabled",
+			err:     systemctlDisabledServicError{},
+		},
+		// then we don't restart the service even though it was killed
+	}
+
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	// we wrote the service unit file
+	content := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Wants",
+		snapName:             "test-snap",
+		snapRev:              "42",
+	})
+	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, content)
+
+	// we did not request a restart
+	c.Assert(s.restartRequests, HasLen, 0)
 }
 
 func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesKilledBeforeSnapdRefresh(c *C) {
 	s.state.Lock()
 	// there is a snap in snap state that needs a service generated for it
-	sideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
-	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{sideInfo},
-		Current:  snap.R(42),
-		Active:   true,
-		SnapType: "app",
-	})
-	snaptest.MockSnapCurrent(c, `name: test-snap
-version: v1
-apps:
-  svc1:
-    command: bin.sh
-    daemon: simple
-`, sideInfo)
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 
 	s.state.Unlock()
 
@@ -398,51 +592,22 @@ apps:
 	c.Assert(err, IsNil)
 
 	// we wrote the service unit file
-	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, fmt.Sprintf(`[Unit]
-# Auto-generated, DO NOT EDIT
-Description=Service for snap application test-snap.svc1
-Requires=%[1]s
-Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
-%[3]s=usr-lib-snapd.mount
-After=usr-lib-snapd.mount
-X-Snappy=yes
+	content := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Wants",
+		snapName:             "test-snap",
+		snapRev:              "42",
+	})
+	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, content)
 
-[Service]
-EnvironmentFile=-/etc/environment
-ExecStart=/usr/bin/snap run test-snap.svc1
-SyslogIdentifier=test-snap.svc1
-Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/test-snap/42
-TimeoutStopSec=30
-Type=simple
-
-[Install]
-WantedBy=multi-user.target
-`,
-		systemd.EscapeUnitNamePath(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount")),
-		dirs.GlobalRootDir,
-		"Wants",
-	))
+	// we did not request a restart
+	c.Assert(s.restartRequests, HasLen, 0)
 }
 
 func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesKilledAfterSnapdRefresh(c *C) {
 	s.state.Lock()
 	// there is a snap in snap state that needs a service generated for it
-	sideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
-	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{sideInfo},
-		Current:  snap.R(42),
-		Active:   true,
-		SnapType: "app",
-	})
-	snaptest.MockSnapCurrent(c, `name: test-snap
-version: v1
-apps:
-  svc1:
-    command: bin.sh
-    daemon: simple
-`, sideInfo)
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 
 	s.state.Unlock()
 
@@ -480,51 +645,22 @@ apps:
 	c.Assert(err, IsNil)
 
 	// we wrote the service unit file
-	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, fmt.Sprintf(`[Unit]
-# Auto-generated, DO NOT EDIT
-Description=Service for snap application test-snap.svc1
-Requires=%[1]s
-Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
-%[3]s=usr-lib-snapd.mount
-After=usr-lib-snapd.mount
-X-Snappy=yes
+	content := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Wants",
+		snapName:             "test-snap",
+		snapRev:              "42",
+	})
+	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, content)
 
-[Service]
-EnvironmentFile=-/etc/environment
-ExecStart=/usr/bin/snap run test-snap.svc1
-SyslogIdentifier=test-snap.svc1
-Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/test-snap/42
-TimeoutStopSec=30
-Type=simple
-
-[Install]
-WantedBy=multi-user.target
-`,
-		systemd.EscapeUnitNamePath(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount")),
-		dirs.GlobalRootDir,
-		"Wants",
-	))
+	// we did not request a restart
+	c.Assert(s.restartRequests, HasLen, 0)
 }
 
-func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleRewritesServicesFilesUC18(c *C) {
+func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleRewritesServicesFilesAndRestartsUC18(c *C) {
 	s.state.Lock()
 	// there is a snap in snap state that needs a service generated for it
-	sideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
-	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{sideInfo},
-		Current:  snap.R(42),
-		Active:   true,
-		SnapType: "app",
-	})
-	snaptest.MockSnapCurrent(c, `name: test-snap
-version: v1
-apps:
-  svc1:
-    command: bin.sh
-    daemon: simple
-`, sideInfo)
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 
 	s.state.Unlock()
 
@@ -543,35 +679,13 @@ apps:
 
 	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service")
 
-	templ := `[Unit]
-# Auto-generated, DO NOT EDIT
-Description=Service for snap application test-snap.svc1
-Requires=%[1]s
-Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
-%[3]s=usr-lib-snapd.mount
-After=usr-lib-snapd.mount
-X-Snappy=yes
-
-[Service]
-EnvironmentFile=-/etc/environment
-ExecStart=/usr/bin/snap run test-snap.svc1
-SyslogIdentifier=test-snap.svc1
-Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/test-snap/42
-TimeoutStopSec=30
-Type=simple
-
-[Install]
-WantedBy=multi-user.target
-`
-
 	// add the initial state of the service file using Requires
-	err = ioutil.WriteFile(svcFile, []byte(fmt.Sprintf(templ,
-		systemd.EscapeUnitNamePath(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount")),
-		dirs.GlobalRootDir,
-		"Requires",
-	)), 0644)
+	requiresContent := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Wants",
+		snapName:             "test-snap",
+		snapRev:              "42",
+	})
+	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
 	c.Assert(err, IsNil)
 
 	s.systemctlReturns = []expectedSystemctl{
@@ -602,30 +716,22 @@ WantedBy=multi-user.target
 	c.Assert(err, IsNil)
 
 	// the file was rewritten to use Wants instead now
-	c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(templ,
-		systemd.EscapeUnitNamePath(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount")),
-		dirs.GlobalRootDir,
-		"Wants",
-	))
+	wantsContent := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Wants",
+		snapName:             "test-snap",
+		snapRev:              "42",
+	})
+	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, wantsContent)
+
+	// we did not request a restart
+	c.Assert(s.restartRequests, HasLen, 0)
 }
 
 func (s *ensureSnapServiceSuite) TestEnsureSnapServicesNoChangeServiceFileDoesNothingUC18(c *C) {
 	s.state.Lock()
 	// there is a snap in snap state that needs a service generated for it
-	sideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
-	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{sideInfo},
-		Current:  snap.R(42),
-		Active:   true,
-		SnapType: "app",
-	})
-	snaptest.MockSnapCurrent(c, `name: test-snap
-version: v1
-apps:
-  svc1:
-    command: bin.sh
-    daemon: simple
-`, sideInfo)
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 
 	s.state.Unlock()
 
@@ -641,36 +747,13 @@ apps:
 
 	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service")
 
-	templ := `[Unit]
-# Auto-generated, DO NOT EDIT
-Description=Service for snap application test-snap.svc1
-Requires=%[1]s
-Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
-%[3]s=usr-lib-snapd.mount
-After=usr-lib-snapd.mount
-X-Snappy=yes
-
-[Service]
-EnvironmentFile=-/etc/environment
-ExecStart=/usr/bin/snap run test-snap.svc1
-SyslogIdentifier=test-snap.svc1
-Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/test-snap/42
-TimeoutStopSec=30
-Type=simple
-
-[Install]
-WantedBy=multi-user.target
-`
-
 	// add the initial state of the service file using Wants
-	initial := fmt.Sprintf(templ,
-		systemd.EscapeUnitNamePath(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount")),
-		dirs.GlobalRootDir,
-		"Wants",
-	)
-	err = ioutil.WriteFile(svcFile, []byte(initial), 0644)
+	content := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Wants",
+		snapName:             "test-snap",
+		snapRev:              "42",
+	})
+	err = ioutil.WriteFile(svcFile, []byte(content), 0644)
 	c.Assert(err, IsNil)
 
 	// we don't use systemctl at all because we didn't change anything
@@ -679,27 +762,19 @@ WantedBy=multi-user.target
 	err = s.mgr.Ensure()
 	c.Assert(err, IsNil)
 
-	// the file was rewritten to use Wants instead now
-	c.Assert(svcFile, testutil.FileEquals, initial)
+	// the file was not modified
+	c.Assert(svcFile, testutil.FileEquals, content)
+
+	// we did not request a restart
+	c.Assert(s.restartRequests, HasLen, 0)
+
 }
 
-func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesOnlyWhenUsrLibSnapdWasInactive(c *C) {
+func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesWhenUsrLibSnapdWasInactive(c *C) {
 	s.state.Lock()
 	// there is a snap in snap state that needs a service generated for it
-	sideInfo := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
-	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{sideInfo},
-		Current:  snap.R(42),
-		Active:   true,
-		SnapType: "app",
-	})
-	snaptest.MockSnapCurrent(c, `name: test-snap
-version: v1
-apps:
-  svc1:
-    command: bin.sh
-    daemon: simple
-`, sideInfo)
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 
 	s.state.Unlock()
 
@@ -728,30 +803,133 @@ apps:
 	err = s.mgr.Ensure()
 	c.Assert(err, IsNil)
 
-	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, fmt.Sprintf(`[Unit]
-# Auto-generated, DO NOT EDIT
-Description=Service for snap application test-snap.svc1
-Requires=%[1]s
-Wants=network.target
-After=%[1]s network.target snapd.apparmor.service
-%[3]s=usr-lib-snapd.mount
-After=usr-lib-snapd.mount
-X-Snappy=yes
+	content := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Wants",
+		snapName:             "test-snap",
+		snapRev:              "42",
+	})
+	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, content)
 
-[Service]
-EnvironmentFile=-/etc/environment
-ExecStart=/usr/bin/snap run test-snap.svc1
-SyslogIdentifier=test-snap.svc1
-Restart=on-failure
-WorkingDirectory=%[2]s/var/snap/test-snap/42
-TimeoutStopSec=30
-Type=simple
+	// we did not request a restart
+	c.Assert(s.restartRequests, HasLen, 0)
+}
 
-[Install]
-WantedBy=multi-user.target
-`,
-		systemd.EscapeUnitNamePath(filepath.Join(dirs.SnapMountDir, "test-snap", "42.mount")),
-		dirs.GlobalRootDir,
-		"Wants",
-	))
+func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRestartsButThenFallsbackToReboot(c *C) {
+	s.state.Lock()
+	// there is a snap in snap state that needs a service generated for it
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	s.state.Unlock()
+
+	// add the usr-lib-snapd.mount unit
+	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
+	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	c.Assert(err, IsNil)
+
+	now := time.Now()
+	os.Chtimes(usrLibSnapdMountFile, now, now)
+
+	slightFuture := now.Add(30 * time.Minute).Format("Mon 2006-01-02 15:04:05 MST")
+	theFuture := now.Add(1 * time.Hour).Format("Mon 2006-01-02 15:04:05 MST")
+
+	s.systemctlReturns = []expectedSystemctl{
+		{
+			expArgs: []string{"daemon-reload"},
+		},
+		{
+			// usr-lib-snapd.mount was stopped "far in the future"
+			expArgs: []string{"show", "--property", "InactiveEnterTimestamp", "usr-lib-snapd.mount"},
+			output:  fmt.Sprintf("InactiveEnterTimestamp=%s", theFuture),
+		},
+		{
+			// but the snap.test-snap.svc1 was stopped only slightly in the
+			// future (hence before the usr-lib-snapd.mount unit was stopped and
+			// after usr-lib-snapd.mount file was modified)
+			expArgs: []string{"show", "--property", "InactiveEnterTimestamp", "snap.test-snap.svc1.service"},
+			output:  fmt.Sprintf("InactiveEnterTimestamp=%s", slightFuture),
+		},
+		{
+			expArgs: []string{"is-enabled", "snap.test-snap.svc1.service"},
+			output:  "enabled",
+		},
+		{
+			expArgs: []string{"start", "snap.test-snap.svc1.service"},
+			err:     fmt.Errorf("this service is having a bad day"),
+		},
+	}
+
+	err = s.mgr.Ensure()
+	c.Assert(err, ErrorMatches, "error trying to restart killed services, immediately rebooting: this service is having a bad day")
+
+	// we did write the service unit file
+	content := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Wants",
+		snapName:             "test-snap",
+		snapRev:              "42",
+	})
+	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, content)
+
+	// we requested a restart
+	c.Assert(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+}
+
+func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndTriesRestartButFailsButThenFallsbackToReboot(c *C) {
+	s.state.Lock()
+	// there is a snap in snap state that needs a service generated for it
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	s.state.Unlock()
+
+	// add the usr-lib-snapd.mount unit
+	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
+	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	c.Assert(err, IsNil)
+
+	now := time.Now()
+	os.Chtimes(usrLibSnapdMountFile, now, now)
+
+	slightFuture := now.Add(30 * time.Minute).Format("Mon 2006-01-02 15:04:05 MST")
+	theFuture := now.Add(1 * time.Hour).Format("Mon 2006-01-02 15:04:05 MST")
+
+	s.systemctlReturns = []expectedSystemctl{
+		{
+			expArgs: []string{"daemon-reload"},
+		},
+		{
+			// usr-lib-snapd.mount was stopped "far in the future"
+			expArgs: []string{"show", "--property", "InactiveEnterTimestamp", "usr-lib-snapd.mount"},
+			output:  fmt.Sprintf("InactiveEnterTimestamp=%s", theFuture),
+		},
+		{
+			// but the snap.test-snap.svc1 was stopped only slightly in the
+			// future (hence before the usr-lib-snapd.mount unit was stopped and
+			// after usr-lib-snapd.mount file was modified)
+			expArgs: []string{"show", "--property", "InactiveEnterTimestamp", "snap.test-snap.svc1.service"},
+			output:  fmt.Sprintf("InactiveEnterTimestamp=%s", slightFuture),
+		},
+		{
+			expArgs: []string{"is-enabled", "snap.test-snap.svc1.service"},
+			err:     fmt.Errorf("systemd is having a bad day"),
+		},
+	}
+
+	err = s.mgr.Ensure()
+	c.Assert(err, ErrorMatches, "error trying to restart killed services, immediately rebooting: systemd is having a bad day")
+
+	// we did write the service unit file
+	content := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Wants",
+		snapName:             "test-snap",
+		snapRev:              "42",
+	})
+	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, content)
+
+	// we requested a restart
+	c.Assert(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 }

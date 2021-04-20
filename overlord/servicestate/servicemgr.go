@@ -204,8 +204,11 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 			continue
 		}
 
-		// TODO: handle vitality rank here too from configcore
-		snapsMap[info] = nil
+		snapSvcOpts, err := SnapServiceOptions(m.state, info.InstanceName())
+		if err != nil {
+			return err
+		}
+		snapsMap[info] = snapSvcOpts
 	}
 
 	// setup ensure options
@@ -249,6 +252,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 		// services to a functioning state
 
 		// TODO: implement reboot here
+		m.state.RequestRestart(state.RestartSystemNow)
 		return fmt.Errorf("error trying to restart killed services, immediately rebooting: %v", err)
 	}
 
