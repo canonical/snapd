@@ -12,15 +12,12 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-tools
 
 restore: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     rm -f $SNAP_MOUNT_DIR/bin/test_echo
     rm -f $SNAP_MOUNT_DIR/bin/test_cat
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     SNAP=$SNAP_MOUNT_DIR/test-snapd-tools/current
 
     echo Testing that creating an alias symlinks works

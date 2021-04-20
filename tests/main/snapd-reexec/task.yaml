@@ -4,10 +4,8 @@ summary: Test that snapd reexecs itself into core
 systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
 restore: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     # Remove the locale revision of core, if we installed one.
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     if [ "$(readlink "$SNAP_MOUNT_DIR/core/current")" = x1 ]; then
         snap revert core
         snap remove --revision=x1 core
@@ -36,13 +34,11 @@ execute: |
     echo "Ensure we re-exec by default"
     /usr/bin/env SNAPD_DEBUG=1 snap list 2>&1 | MATCH "DEBUG: restarting into"
 
-    # shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
-
     echo "Ensure that we do not re-exec into older versions"
     systemctl stop snapd.service snapd.socket
     echo "mount something older than our freshly build snapd"
     echo "VERSION=1.0">/tmp/old-info
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     mount --bind /tmp/old-info $SNAP_MOUNT_DIR/core/current/usr/lib/snapd/info
     systemctl start snapd.service snapd.socket
     snap list

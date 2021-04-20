@@ -14,10 +14,8 @@ restore: |
     tests.session -u test restore
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     # run a snap command via sudo
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     output="$(tests.session -u test exec sudo "$SNAP_MOUNT_DIR/bin/test-snapd-sh.sh" -c env)"
 
     # ensure SNAP_USER_DATA points to the right place

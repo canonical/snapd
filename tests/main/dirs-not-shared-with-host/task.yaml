@@ -19,11 +19,10 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
     echo "We can check the inode number of $DIRECTORY"
     host_inode=$(stat -c '%i' "$DIRECTORY")
-    if [ -e $SNAP_MOUNT_DIR/core/current ]; then
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    if [ -e "$SNAP_MOUNT_DIR/core/current" ]; then
         core_inode=$(stat -c '%i' "$SNAP_MOUNT_DIR/core/current/$DIRECTORY")
     else
         core_inode=$(stat -c '%i' "$SNAP_MOUNT_DIR/ubuntu-core/current/$DIRECTORY")

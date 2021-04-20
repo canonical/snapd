@@ -28,13 +28,12 @@ prepare: |
     snap disconnect test-snapd-file-access:home
     snap disconnect test-snapd-file-access:removable-media
 
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
     case "$SPREAD_SYSTEM" in
         fedora-*|arch-*|centos-*)
             # although classic snaps do not work out of the box on fedora,
             # we still want to verify if the basics do work if the user
             # symlinks /snap to $SNAP_MOUNT_DIR themselves
+            SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
             ln -sf $SNAP_MOUNT_DIR /snap
             ;;
     esac

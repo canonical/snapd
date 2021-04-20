@@ -1,14 +1,12 @@
 summary: Check error handling in symlinks to /usr/bin/snap
 
 restore: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     rm -f $SNAP_MOUNT_DIR/bin/xxx
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
     echo Setting up incorrect symlink for snap run
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     mkdir -p $SNAP_MOUNT_DIR/bin
     ln -s /usr/bin/snap $SNAP_MOUNT_DIR/bin/xxx
     echo Running unknown command
