@@ -6386,6 +6386,7 @@ func (s *mgrsSuite) TestGadgetKernelCommandLineAddCmdline(c *C) {
 
 	err := mabloader.SetBootVars(map[string]string{
 		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "",
 	})
 	c.Assert(err, IsNil)
 
@@ -6407,10 +6408,11 @@ func (s *mgrsSuite) TestGadgetKernelCommandLineAddCmdline(c *C) {
 	c.Assert([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
 		"snapd_recovery_mode=run mock static args from gadget",
 	})
-	vars, err := mabloader.GetBootVars("snapd_extra_cmdline_args")
+	vars, err := mabloader.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Assert(vars, DeepEquals, map[string]string{
 		"snapd_extra_cmdline_args": "args from gadget",
+		"snapd_full_cmdline_args":  "",
 	})
 }
 
@@ -6422,6 +6424,7 @@ func (s *mgrsSuite) TestGadgetKernelCommandLineRemoveCmdline(c *C) {
 
 	err := mabloader.SetBootVars(map[string]string{
 		"snapd_extra_cmdline_args": "args from gadget",
+		"snapd_full_cmdline_args":  "",
 	})
 	c.Assert(err, IsNil)
 
@@ -6446,10 +6449,11 @@ func (s *mgrsSuite) TestGadgetKernelCommandLineRemoveCmdline(c *C) {
 	c.Assert([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
 		"snapd_recovery_mode=run mock static",
 	})
-	vars, err := mabloader.GetBootVars("snapd_extra_cmdline_args")
+	vars, err := mabloader.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Assert(vars, DeepEquals, map[string]string{
 		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "",
 	})
 }
 
@@ -6461,6 +6465,7 @@ func (s *mgrsSuite) TestGadgetKernelCommandLineNoChange(c *C) {
 
 	err := mabloader.SetBootVars(map[string]string{
 		"snapd_extra_cmdline_args": "args from gadget",
+		"snapd_full_cmdline_args":  "",
 	})
 	c.Assert(err, IsNil)
 	// current gadget has the command line
@@ -6486,10 +6491,52 @@ func (s *mgrsSuite) TestGadgetKernelCommandLineNoChange(c *C) {
 		"snapd_recovery_mode=run mock static args from gadget",
 	})
 	// bootenv is unchanged
-	vars, err := mabloader.GetBootVars("snapd_extra_cmdline_args")
+	vars, err := mabloader.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
 	c.Assert(err, IsNil)
 	c.Assert(vars, DeepEquals, map[string]string{
 		"snapd_extra_cmdline_args": "args from gadget",
+		"snapd_full_cmdline_args":  "",
+	})
+}
+
+func (s *mgrsSuite) TestGadgetKernelCommandLineTransitionExtraToFull(c *C) {
+	mabloader := bootloadertest.Mock("mock", c.MkDir()).WithTrustedAssets()
+	mabloader.StaticCommandLine = "mock static"
+	bootloader.Force(mabloader)
+	defer bootloader.Force(nil)
+
+	err := mabloader.SetBootVars(map[string]string{
+		"snapd_extra_cmdline_args": "extra args",
+		"snapd_full_cmdline_args":  "",
+	})
+	c.Assert(err, IsNil)
+
+	// add new gadget snap kernel command line drop-in file
+	sf := snaptest.MakeTestSnapWithFiles(c, pcGadget, [][]string{
+		{"meta/gadget.yaml", pcGadgetYaml},
+		{"cmdline.full", "full args"},
+	})
+
+	const currentCmdline = "snapd_recovery_mode=run mock static extra args"
+	const update = true
+	currentFiles := [][]string{
+		{"meta/gadget.yaml", pcGadgetYaml},
+		{"cmdline.extra", "extra args"},
+	}
+	const cmdlineAfterReboot = "snapd_recovery_mode=run full args"
+	s.testGadgetKernelCommandLine(c, sf, &snap.SideInfo{RealName: "pc"}, mabloader,
+		currentFiles, currentCmdline, cmdlineAfterReboot, update)
+
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Assert([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run full args",
+	})
+	vars, err := mabloader.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
+	c.Assert(err, IsNil)
+	c.Assert(vars, DeepEquals, map[string]string{
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "full args",
 	})
 }
 
