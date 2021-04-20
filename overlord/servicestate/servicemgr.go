@@ -22,17 +22,16 @@ package servicestate
 import (
 	"fmt"
 	"os"
-	"os/exec"
-	"strings"
-	"time"
+	"path/filepath"
 
-	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/overlord/devicestate"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -54,125 +53,15 @@ func Manager(st *state.State, runner *state.TaskRunner) *ServiceManager {
 	return m
 }
 
-// inactiveEnterTimestampForUnit returns the time that a given unit entered the
-// inactive state as defined by systemd docs. Specifically this time is the most
-// recent time in which the unit transitioned from deactivating ("Stopping") to
-// dead ("Stopped"). It may be the zero time if this has never happened during
-// the current boot, since this property is only tracked during the current
-// boot. It specifically does not return a time that is monotonic, so the time
-// returned here may be subject to bugs if there was a discontinuous time jump
-// on the system before or during the unit's transition to inactive.
-// XXX: move to systemd package ?
-func inactiveEnterTimestampForUnit(unit string) (time.Time, error) {
-	// XXX: ignore stderr of systemctl command to avoid further infractions
-	//      around LP #1885597
-	out, err := exec.Command("systemctl", "show", "--property", "InactiveEnterTimestamp", unit).Output()
-	if err != nil {
-		return time.Time{}, osutil.OutputErr(out, err)
+func MockEnsureSnapServices(mgr *ServiceManager, ensured bool) (restore func()) {
+	old := mgr.ensuredSnapSvcs
+	mgr.ensuredSnapSvcs = ensured
+	return func() {
+		mgr.ensuredSnapSvcs = old
 	}
-
-	// the time returned by systemctl here will be formatted like so:
-	// InactiveEnterTimestamp=Fri 2021-04-16 15:32:21 UTC
-	// so we have to parse the time with a matching Go time format
-	splitVal := strings.SplitN(string(out), "=", 2)
-	if len(splitVal) != 2 {
-		// then we don't have an equals sign in the output, so systemctl must be
-		// broken
-		return time.Time{}, fmt.Errorf("internal error: systemctl output (%s) is malformed", string(out))
-	}
-
-	if splitVal[1] == "" {
-
-		return time.Time{}, nil
-	}
-
-	// finally parse the time string
-	inactiveEnterTime, err := time.Parse("Mon 2006-01-02 15:04:05 MST", splitVal[1])
-	if err != nil {
-		return time.Time{}, fmt.Errorf("internal error: systemctl time output (%s) is malformed", splitVal[1])
-	}
-	return inactiveEnterTime, nil
 }
 
-func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
-	m.state.Lock()
-	defer m.state.Unlock()
-	if m.ensuredSnapSvcs {
-		return nil
-	}
-
-	// only run after we are seeded
-	var seeded bool
-	err = m.state.Get("seeded", &seeded)
-	if err != nil && err != state.ErrNoState {
-		return err
-	}
-	if !seeded {
-		return nil
-	}
-
-	// we are seeded, now we need to find all snap services and re-generate
-	// services as necessary
-
-	// ensure all snap services are updated
-	allStates, err := snapstate.All(m.state)
-	if err != nil && err != state.ErrNoState {
-		return err
-	}
-
-	snapsMap := map[*snap.Info]*wrappers.SnapServiceOptions{}
-
-	for _, snapSt := range allStates {
-		info, err := snapSt.CurrentInfo()
-		if err != nil {
-			return err
-		}
-
-		// TODO: handle vitality rank here too from configcore
-		snapsMap[info] = nil
-	}
-
-	// setup ensure options
-	ensureOpts := &wrappers.EnsureSnapServicesOptions{
-		Preseeding: snapdenv.Preseeding(),
-	}
-
-	// set RequireMountedSnapdSnap if we are on UC18+ only
-	deviceCtx, err := devicestate.DeviceCtx(m.state, nil, nil)
-	if err != nil {
-		return err
-	}
-
-	if !deviceCtx.Classic() && deviceCtx.Model().Base() != "" {
-		ensureOpts.RequireMountedSnapdSnap = true
-	}
-
-	// TODO: should we use an actual interacter here ?
-	modified, err := wrappers.EnsureSnapServices(snapsMap, ensureOpts, progress.Null)
-	if err != nil {
-		return err
-	}
-
-	// if nothing was modified or we are not on UC18+, we are done
-	if len(modified) == 0 || deviceCtx.Classic() || deviceCtx.Model().Base() == "" {
-		m.ensuredSnapSvcs = true
-		return nil
-	}
-
-	// otherwise we need to check for all the services that were modified if
-	// they were recently killed when we modified usr-lib-snapd.mount as part of
-	// a snapd snap refresh
-
-	// as a last resort, if we fail in trying to start any services, we should
-	// reboot
-	defer func() {
-		if err == nil {
-			return
-		}
-
-		// TODO: reboot the system immediately here
-	}()
-
+func restartServicesKilledInSnapdRefresh(modified map[*snap.Info][]*snap.AppInfo) error {
 	// we decide on which services to restart by identifying (out of the set of
 	// services we just modified) services that were stopped after
 	// usr-lib-snapd.mount was written, but before usr-lib-snapd.mount was last
@@ -181,7 +70,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 	// we need to undo that by restarting those snaps
 
 	// TODO: use the var from core18.go here instead
-	st, err := os.Stat("/etc/systemd/system/usr-lib-snapd.mount")
+	st, err := os.Stat(filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit))
 	if err != nil {
 		return err
 	}
@@ -206,7 +95,10 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 	// that systemd transitioned usr-lib-snapd.mount to inactive, which is given
 	// by InactiveEnterTimestamp.
 
-	upperTimeBound, err := inactiveEnterTimestampForUnit("usr-lib-snapd.mount")
+	// TODO: pass a real interactor here?
+	sysd := systemd.New(systemd.SystemMode, progress.Null)
+
+	upperTimeBound, err := sysd.InactiveEnterTimestamp(wrappers.SnapdToolingMountUnit)
 	if err != nil {
 		return err
 	}
@@ -223,7 +115,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 	for sn, apps := range modified {
 		for _, app := range apps {
 			// get the InactiveEnterTimestamp for the service
-			t, err := inactiveEnterTimestampForUnit(app.ServiceName())
+			t, err := sysd.InactiveEnterTimestamp(app.ServiceName())
 			if err != nil {
 				return err
 			}
@@ -257,9 +149,107 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 			return err
 		}
 
-		if err := wrappers.StartServices(startupOrdered, disabledSvcs, nil, progress.Null, nil); err != nil {
+		// TODO: what to do about timings here?
+		nullPerfTimings := &timings.Timings{}
+		if err := wrappers.StartServices(startupOrdered, disabledSvcs, nil, progress.Null, nullPerfTimings); err != nil {
 			return err
 		}
+	}
+
+	return nil
+}
+
+func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
+	m.state.Lock()
+	defer m.state.Unlock()
+	if m.ensuredSnapSvcs {
+		return nil
+	}
+
+	// only run after we are seeded
+	var seeded bool
+	err = m.state.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if !seeded {
+		return nil
+	}
+
+	// we are seeded, now we need to find all snap services and re-generate
+	// services as necessary
+
+	// ensure all snap services are updated
+	allStates, err := snapstate.All(m.state)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	// if we have no snaps we can exit early
+	if len(allStates) == 0 {
+		m.ensuredSnapSvcs = true
+		return nil
+	}
+
+	snapsMap := map[*snap.Info]*wrappers.SnapServiceOptions{}
+
+	for _, snapSt := range allStates {
+		info, err := snapSt.CurrentInfo()
+		if err != nil {
+			return err
+		}
+
+		// don't use EnsureSnapServices with the snapd snap
+		if info.Type() == snap.TypeSnapd {
+			continue
+		}
+
+		// TODO: handle vitality rank here too from configcore
+		snapsMap[info] = nil
+	}
+
+	// setup ensure options
+	ensureOpts := &wrappers.EnsureSnapServicesOptions{
+		Preseeding: snapdenv.Preseeding(),
+	}
+
+	// set RequireMountedSnapdSnap if we are on UC18+ only
+	deviceCtx, err := snapstate.DeviceCtx(m.state, nil, nil)
+	if err != nil {
+		return err
+	}
+
+	if !deviceCtx.Classic() && deviceCtx.Model().Base() != "" {
+		ensureOpts.RequireMountedSnapdSnap = true
+	}
+
+	// TODO: should we use an actual interacter here ?
+
+	// TODO: this should take a callback so that we can gate the logic about
+	// restarting services below on actually observing a Requires= to Wants=
+	// transition which is what we need to do to fix LP #1924805
+	modified, err := wrappers.EnsureSnapServices(snapsMap, ensureOpts, progress.Null)
+
+	if err != nil {
+		return err
+	}
+
+	// if nothing was modified or we are not on UC18+, we are done
+	if len(modified) == 0 || deviceCtx.Classic() || deviceCtx.Model().Base() == "" {
+		m.ensuredSnapSvcs = true
+		return nil
+	}
+
+	// otherwise, we know now that we have rewritten some snap services, we need
+	// to handle the case of LP #1924805, and restart any services that were
+	// accidentally killed when we refreshed snapd
+	if err := restartServicesKilledInSnapdRefresh(modified); err != nil {
+		// we failed to restart services that were killed by a snapd refresh, so
+		// we need to immediately reboot in the hopes that this restores
+		// services to a functioning state
+
+		// TODO: implement reboot here
+		return fmt.Errorf("error trying to restart killed services, immediately rebooting: %v", err)
 	}
 
 	m.ensuredSnapSvcs = true
