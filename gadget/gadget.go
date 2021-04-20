@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -1022,12 +1023,16 @@ var ErrNoKernelCommandline = errors.New("no kernel command line in the gadget")
 // line or just the extra parameters that will be appended to the static ones.
 // An ErrNoKernelCommandline is returned when thea gadget does not set any
 // kernel command line.
-func KernelCommandLineFromGadget(snapf snap.Container) (cmdline string, full bool, err error) {
-	contentExtra, err := snapf.ReadFile("cmdline.extra")
+func KernelCommandLineFromGadget(gadgetDirOrSnapPath string) (cmdline string, full bool, err error) {
+	sf, err := snapfile.Open(gadgetDirOrSnapPath)
+	if err != nil {
+		return "", false, fmt.Errorf("cannot open gadget snap: %v", err)
+	}
+	contentExtra, err := sf.ReadFile("cmdline.extra")
 	if err != nil && !os.IsNotExist(err) {
 		return "", false, err
 	}
-	contentFull, err := snapf.ReadFile("cmdline.full")
+	contentFull, err := sf.ReadFile("cmdline.full")
 	if err != nil && !os.IsNotExist(err) {
 		return "", false, err
 	}
