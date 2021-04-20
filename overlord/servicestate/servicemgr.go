@@ -61,7 +61,7 @@ func MockEnsureSnapServices(mgr *ServiceManager, ensured bool) (restore func()) 
 	}
 }
 
-func restartServicesKilledInSnapdRefresh(modified map[*snap.Info][]*snap.AppInfo) error {
+func restartServicesKilledInSnapdSnapRefresh(modified map[*snap.Info][]*snap.AppInfo) error {
 	// we decide on which services to restart by identifying (out of the set of
 	// services we just modified) services that were stopped after
 	// usr-lib-snapd.mount was written, but before usr-lib-snapd.mount was last
@@ -87,7 +87,7 @@ func restartServicesKilledInSnapdRefresh(modified map[*snap.Info][]*snap.AppInfo
 	// systemd orders the transactions when we stop usr-lib-snapd.mount thusly:
 	//
 	// 1. Find all units which have Requires=usr-lib-snapd.mount (all snap
-	//    services  which would have been refreshed during snapd 2.49.2)
+	//    services which would have been refreshed during snapd 2.49.2)
 	// 2. Stop all such services found in 1.
 	// 3. Stop usr-lib-snapd.mount itself.
 	//
@@ -232,7 +232,6 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 	// restarting services below on actually observing a Requires= to Wants=
 	// transition which is what we need to do to fix LP #1924805
 	modified, err := wrappers.EnsureSnapServices(snapsMap, ensureOpts, progress.Null)
-
 	if err != nil {
 		return err
 	}
@@ -246,7 +245,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 	// otherwise, we know now that we have rewritten some snap services, we need
 	// to handle the case of LP #1924805, and restart any services that were
 	// accidentally killed when we refreshed snapd
-	if err := restartServicesKilledInSnapdRefresh(modified); err != nil {
+	if err := restartServicesKilledInSnapdSnapRefresh(modified); err != nil {
 		// we failed to restart services that were killed by a snapd refresh, so
 		// we need to immediately reboot in the hopes that this restores
 		// services to a functioning state
