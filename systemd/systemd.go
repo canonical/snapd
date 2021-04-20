@@ -596,7 +596,6 @@ func (s *systemd) InactiveEnterTimestamp(unit string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, osutil.OutputErr(out, err)
 	}
-
 	// the time returned by systemctl here will be formatted like so:
 	// InactiveEnterTimestamp=Fri 2021-04-16 15:32:21 UTC
 	// so we have to parse the time with a matching Go time format
