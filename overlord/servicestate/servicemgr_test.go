@@ -101,6 +101,8 @@ apps:
     command: bin.sh
     daemon: simple
 `
+
+	systemdTimeFormat = "Mon 2006-01-02 15:04:05 MST"
 )
 
 type unitOptions struct {
@@ -440,8 +442,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 	now := time.Now()
 	os.Chtimes(usrLibSnapdMountFile, now, now)
 
-	slightFuture := now.Add(30 * time.Minute).Format("Mon 2006-01-02 15:04:05 MST")
-	theFuture := now.Add(1 * time.Hour).Format("Mon 2006-01-02 15:04:05 MST")
+	slightFuture := now.Add(30 * time.Minute).Format(systemdTimeFormat)
+	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
 
 	s.systemctlReturns = []expectedSystemctl{
 		{
@@ -507,8 +509,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesButDoe
 	now := time.Now()
 	os.Chtimes(usrLibSnapdMountFile, now, now)
 
-	slightFuture := now.Add(30 * time.Minute).Format("Mon 2006-01-02 15:04:05 MST")
-	theFuture := now.Add(1 * time.Hour).Format("Mon 2006-01-02 15:04:05 MST")
+	slightFuture := now.Add(30 * time.Minute).Format(systemdTimeFormat)
+	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
 
 	s.systemctlReturns = []expectedSystemctl{
 		{
@@ -568,8 +570,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesKil
 	now := time.Now()
 	os.Chtimes(usrLibSnapdMountFile, now, now)
 
-	theFuture := now.Add(1 * time.Hour).Format("Mon 2006-01-02 15:04:05 MST")
-	thePast := now.Add(-30 * time.Minute).Format("Mon 2006-01-02 15:04:05 MST")
+	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
+	thePast := now.Add(-30 * time.Minute).Format(systemdTimeFormat)
 
 	s.systemctlReturns = []expectedSystemctl{
 		{
@@ -621,8 +623,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesKil
 	now := time.Now()
 	os.Chtimes(usrLibSnapdMountFile, now, now)
 
-	theFuture := now.Add(1 * time.Hour).Format("Mon 2006-01-02 15:04:05 MST")
-	thePast := now.Add(-30 * time.Minute).Format("Mon 2006-01-02 15:04:05 MST")
+	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
+	thePast := now.Add(-30 * time.Minute).Format(systemdTimeFormat)
 
 	s.systemctlReturns = []expectedSystemctl{
 		{
@@ -674,8 +676,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleRewritesServicesFil
 	now := time.Now()
 	os.Chtimes(usrLibSnapdMountFile, now, now)
 
-	slightFuture := now.Add(30 * time.Minute).Format("Mon 2006-01-02 15:04:05 MST")
-	theFuture := now.Add(1 * time.Hour).Format("Mon 2006-01-02 15:04:05 MST")
+	slightFuture := now.Add(30 * time.Minute).Format(systemdTimeFormat)
+	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
 
 	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service")
 
@@ -832,8 +834,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 	now := time.Now()
 	os.Chtimes(usrLibSnapdMountFile, now, now)
 
-	slightFuture := now.Add(30 * time.Minute).Format("Mon 2006-01-02 15:04:05 MST")
-	theFuture := now.Add(1 * time.Hour).Format("Mon 2006-01-02 15:04:05 MST")
+	slightFuture := now.Add(30 * time.Minute).Format(systemdTimeFormat)
+	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
 
 	s.systemctlReturns = []expectedSystemctl{
 		{
@@ -894,8 +896,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndTri
 	now := time.Now()
 	os.Chtimes(usrLibSnapdMountFile, now, now)
 
-	slightFuture := now.Add(30 * time.Minute).Format("Mon 2006-01-02 15:04:05 MST")
-	theFuture := now.Add(1 * time.Hour).Format("Mon 2006-01-02 15:04:05 MST")
+	slightFuture := now.Add(30 * time.Minute).Format(systemdTimeFormat)
+	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
 
 	s.systemctlReturns = []expectedSystemctl{
 		{
