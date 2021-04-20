@@ -25,6 +25,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
@@ -53,7 +54,8 @@ func Manager(st *state.State, runner *state.TaskRunner) *ServiceManager {
 	return m
 }
 
-func MockEnsureSnapServices(mgr *ServiceManager, ensured bool) (restore func()) {
+func MockEnsuredSnapServices(mgr *ServiceManager, ensured bool) (restore func()) {
+	osutil.MustBeTestBinary("ensured snap services can only be mocked from tests")
 	old := mgr.ensuredSnapSvcs
 	mgr.ensuredSnapSvcs = ensured
 	return func() {
