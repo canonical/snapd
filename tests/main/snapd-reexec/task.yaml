@@ -39,14 +39,14 @@ execute: |
     echo "mount something older than our freshly build snapd"
     echo "VERSION=1.0">/tmp/old-info
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    mount --bind /tmp/old-info $SNAP_MOUNT_DIR/core/current/usr/lib/snapd/info
+    mount --bind /tmp/old-info "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/info"
     systemctl start snapd.service snapd.socket
     snap list
     "$TESTSTOOLS"/journal-state match-log 'snap \(at .*\) is older \(.*\) than distribution package'
 
     echo "Revert back to normal"
     systemctl stop snapd.service snapd.socket
-    umount $SNAP_MOUNT_DIR/core/current/usr/lib/snapd/info
+    umount "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/info"
 
     echo "Ensure SNAP_REEXEC=0 is honored for snapd"
     cat > /etc/systemd/system/snapd.service.d/reexec.conf <<EOF
@@ -60,7 +60,7 @@ execute: |
     exit 1
     EOF
     chmod +x /tmp/broken-snapd
-    mount --bind /tmp/broken-snapd $SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snapd
+    mount --bind /tmp/broken-snapd "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snapd"
     systemctl daemon-reload
     systemctl start snapd.service snapd.socket
     echo "Ensure that snap list works normally"
@@ -69,16 +69,16 @@ execute: |
 
     echo "Revert back to normal"
     systemctl stop snapd.service snapd.socket
-    umount $SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snapd
+    umount "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snapd"
     rm -f /etc/systemd/system/snapd.service.d/reexec.conf
     systemctl daemon-reload
     systemctl start snapd.service snapd.socket
 
     echo "Ensure SNAP_REEXEC=0 is honored for snap"
-    mount --bind /tmp/broken-snapd $SNAP_MOUNT_DIR/core/current/usr/bin/snap
+    mount --bind /tmp/broken-snapd "$SNAP_MOUNT_DIR/core/current/usr/bin/snap"
     snap list|MATCH "from the core snap"
     SNAP_REEXEC=0 snap list|MATCH "core"
-    umount $SNAP_MOUNT_DIR/core/current/usr/bin/snap
+    umount "$SNAP_MOUNT_DIR/core/current/usr/bin/snap"
 
     echo "Ensure a core refresh restart snapd"
     prev_core=$(snap list | awk "/^core / {print(\$3)}")

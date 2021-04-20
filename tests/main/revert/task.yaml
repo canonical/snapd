@@ -81,7 +81,7 @@ execute: |
 
     echo "And the data directories are present"
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    find $SNAP_MOUNT_DIR/test-snapd-tools -maxdepth 1 | MATCH current
+    find "$SNAP_MOUNT_DIR/test-snapd-tools" -maxdepth 1 | MATCH current
     find /var/snap/test-snapd-tools -maxdepth 1 | MATCH current
 
     echo "And the snap runs confined"

@@ -26,7 +26,7 @@ execute: |
     echo "Verify that the /root/snap directory created and root owned"
     if [ "$(stat -c '%U' /root/snap)" != "root" ]; then
         echo "The /root/snap directory is not owned by root"
-        ls -ld $SNAP_MOUNT_DIR/snap
+        ls -ld "$SNAP_MOUNT_DIR/snap"
         exit 1
     fi
 

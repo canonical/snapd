@@ -4,7 +4,7 @@ systems: [-ubuntu-core-*]
 
 restore: |
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    rm -rf $SNAP_MOUNT_DIR/test-snapd-sh
+    rm -rf "$SNAP_MOUNT_DIR/test-snapd-sh"
 
 execute: |
     check_empty_glob(){
@@ -15,7 +15,7 @@ execute: |
 
     echo "Given we make a snap uninstallable"
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    mkdir -p $SNAP_MOUNT_DIR/test-snapd-sh/current/foo
+    mkdir -p "$SNAP_MOUNT_DIR/test-snapd-sh/current/foo"
 
     echo "And we try to install it"
     if "$TESTSTOOLS"/snaps-state install-local test-snapd-sh; then

@@ -16,12 +16,12 @@ restore: |
 execute: |
     echo "Simulating broken current symlink for core"
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    mv $SNAP_MOUNT_DIR/core/current $SNAP_MOUNT_DIR/core/current.renamed
+    mv "$SNAP_MOUNT_DIR/core/current" "$SNAP_MOUNT_DIR/core/current.renamed"
     if test-snapd-sh.sh -c 'echo hello' 2>snap-confine.stderr; then
         echo "test-snapd-sh.sh should fail to run, test broken"
     fi
     MATCH 'cannot locate base snap core: No such file or directory' < snap-confine.stderr
-    mv $SNAP_MOUNT_DIR/core/current.renamed $SNAP_MOUNT_DIR/core/current
+    mv "$SNAP_MOUNT_DIR/core/current.renamed" "$SNAP_MOUNT_DIR/core/current"
 
     echo "Test nvidia device fix"
     # For https://github.com/snapcore/snapd/pull/4042

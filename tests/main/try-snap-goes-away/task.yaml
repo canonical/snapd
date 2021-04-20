@@ -36,7 +36,7 @@ execute: |
 
     echo And all its binaries
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    N="$(find $SNAP_MOUNT_DIR/bin -name "$SNAP_NAME*"|wc -l)"
+    N="$(find \"$SNAP_MOUNT_DIR/bin\" -name "$SNAP_NAME*"|wc -l)"
     if [ "$N" -ne 0 ]; then
        echo "Some binaries are not cleaned"
        exit 1

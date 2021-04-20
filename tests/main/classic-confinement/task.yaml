@@ -17,7 +17,7 @@ prepare: |
             # Arch linux and Centos, we still want to verify if the basics
             # do work if the user symlinks /snap to $SNAP_MOUNT_DIR themselves
             SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-            ln -sf $SNAP_MOUNT_DIR /snap
+            ln -sf "$SNAP_MOUNT_DIR" /snap
             ;;
     esac
 

@@ -63,11 +63,11 @@ execute: |
 
     echo "Verify that snapctl get can be executed by the app and shows the value set by configure hook"
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    $SNAP_MOUNT_DIR/bin/"$SNAP".snapctl-get foo | MATCH bar
+    "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-get foo | MATCH bar
 
     echo "Verify that snapctl set can modify configuration values"
-    $SNAP_MOUNT_DIR/bin/"$SNAP".snapctl-set foo=123
-    $SNAP_MOUNT_DIR/bin/"$SNAP".snapctl-get foo | MATCH 123
+    "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set foo=123
+    "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-get foo | MATCH 123
 
     echo "Verify configuration value with snap get"
     snap get "$SNAP" foo | MATCH 123

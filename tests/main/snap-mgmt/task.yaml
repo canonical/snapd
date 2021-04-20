@@ -38,7 +38,7 @@ prepare: |
     fi
 
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    before=$(find ${SNAP_MOUNT_DIR} -type d | wc -l)
+    before=$(find "${SNAP_MOUNT_DIR}" -type d | wc -l)
     if [ "$before" -lt 2 ]; then
         echo "${SNAP_MOUNT_DIR} empty - test setup broken"
         exit 1

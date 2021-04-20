@@ -67,7 +67,7 @@ execute: |
     echo "Then the new version is installed"
     snap list | MATCH 'test-snapd-tools +[0-9]+\.[0-9]+\+fake1'
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    LATEST=$(readlink $SNAP_MOUNT_DIR/test-snapd-tools/current)
+    LATEST=$(readlink "$SNAP_MOUNT_DIR"/test-snapd-tools/current)
 
     echo "When a revert is made without --devmode flag"
     snap revert test-snapd-tools

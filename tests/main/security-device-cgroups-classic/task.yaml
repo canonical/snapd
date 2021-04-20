@@ -32,4 +32,4 @@ execute: |
     "$SNAP_MOUNT_DIR"/bin/test-classic-cgroup.read-fb 2>&1 | not MATCH '(Permission denied|Operation not permitted)'
 
     echo "the classic snap can access other devices"
-    test "$($SNAP_MOUNT_DIR/bin/test-classic-cgroup.read-kmsg)"
+    test "$("$SNAP_MOUNT_DIR"/bin/test-classic-cgroup.read-kmsg)"
