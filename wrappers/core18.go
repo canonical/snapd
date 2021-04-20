@@ -44,7 +44,7 @@ var snapdServiceStopTimeout = time.Duration(timeout.DefaultTimeout)
 var execStartRe = regexp.MustCompile(`(?m)^ExecStart=(/usr/bin/snap\s+.*|/usr/lib/snapd/.*)$`)
 
 // snapdToolingMountUnit is the name of the mount unit that makes the
-const snapdToolingMountUnit = "usr-lib-snapd.mount"
+const SnapdToolingMountUnit = "usr-lib-snapd.mount"
 
 func snapdSkipStart(content []byte) bool {
 	return bytes.Contains(content, []byte("X-Snapd-Snap: do-not-start"))
@@ -84,7 +84,7 @@ Options=bind
 [Install]
 WantedBy=snapd.service
 `, prefix))
-	fullPath := filepath.Join(dirs.SnapServicesDir, snapdToolingMountUnit)
+	fullPath := filepath.Join(dirs.SnapServicesDir, SnapdToolingMountUnit)
 
 	err := osutil.EnsureFileState(fullPath,
 		&osutil.MemoryFileState{
@@ -101,14 +101,14 @@ WantedBy=snapd.service
 	if err := sysd.DaemonReload(); err != nil {
 		return err
 	}
-	if err := sysd.Enable(snapdToolingMountUnit); err != nil {
+	if err := sysd.Enable(SnapdToolingMountUnit); err != nil {
 		return err
 	}
 
 	// meh this is killing snap services that use Requires=<this-unit> because
 	// it doesn't use verbatim systemctl restart, it instead does it with
 	// a systemctl stop and then a systemctl start, which triggers LP #1924805
-	if err := sysd.Restart(snapdToolingMountUnit, 5*time.Second); err != nil {
+	if err := sysd.Restart(SnapdToolingMountUnit, 5*time.Second); err != nil {
 		return err
 	}
 

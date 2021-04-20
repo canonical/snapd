@@ -1058,7 +1058,7 @@ WantedBy={{.ServicesTarget}}
 		// into the host system via a special mount unit, which
 		// also adds an implicit dependency on the snapd snap
 		// mount thus /usr/bin/snap points
-		wrapperData.CoreMountedSnapdSnapDep = []string{snapdToolingMountUnit}
+		wrapperData.CoreMountedSnapdSnapDep = []string{SnapdToolingMountUnit}
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
