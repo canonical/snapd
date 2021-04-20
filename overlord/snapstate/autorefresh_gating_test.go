@@ -479,3 +479,30 @@ func (s *autorefreshGatingSuite) TestAffectedByBootBase(c *C) {
 				"core18": true,
 			}}})
 }
+
+func (s *autorefreshGatingSuite) TestCreateAutoRefreshGateHooks(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	affected := map[string]*snapstate.AffectedSnapInfo{
+		"snap-a": {
+			Base:    true,
+			Restart: true,
+		},
+		"snap-b": {},
+	}
+
+	ts := snapstate.CreateAutoRefreshGateHooks(st, affected)
+	c.Assert(ts.Tasks(), HasLen, 2)
+	t := ts.Tasks()[0]
+	c.Assert(t.Kind(), Equals, "run-hook")
+	var data interface{}
+	c.Assert(t.Get("hook-context", &data), IsNil)
+	c.Check(data, DeepEquals, map[string]interface{}{"base": true, "restart": true})
+
+	t = ts.Tasks()[1]
+	c.Assert(t.Kind(), Equals, "run-hook")
+	c.Assert(t.Get("hook-context", &data), IsNil)
+	c.Check(data, DeepEquals, map[string]interface{}{"base": false, "restart": false})
+}

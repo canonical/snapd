@@ -220,3 +220,17 @@ func usesMountBackend(iface interfaces.Interface) bool {
 	}
 	return false
 }
+
+func createAutoRefreshGateHooks(st *state.State, affectedSnaps map[string]*affectedSnapInfo) *state.TaskSet {
+	ts := state.NewTaskSet()
+	var prev *state.Task
+	for snapName, affected := range affectedSnaps {
+		hookTask := SetupAutoRefreshGatingHook(st, snapName, affected.Base, affected.Restart)
+		if prev != nil {
+			hookTask.WaitFor(prev)
+		}
+		ts.AddTask(hookTask)
+		prev = hookTask
+	}
+	return ts
+}

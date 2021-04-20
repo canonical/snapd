@@ -31,6 +31,7 @@ func init() {
 	snapstate.SetupPreRefreshHook = SetupPreRefreshHook
 	snapstate.SetupPostRefreshHook = SetupPostRefreshHook
 	snapstate.SetupRemoveHook = SetupRemoveHook
+	snapstate.SetupAutoRefreshGatingHook = SetupAutoRefreshGatingHook
 }
 
 func SetupInstallHook(st *state.State, snapName string) *state.Task {
@@ -67,6 +68,22 @@ func SetupPreRefreshHook(st *state.State, snapName string) *state.Task {
 	summary := fmt.Sprintf(i18n.G("Run pre-refresh hook of %q snap if present"), hooksup.Snap)
 	task := HookTask(st, summary, hooksup, nil)
 
+	return task
+}
+
+func SetupAutoRefreshGatingHook(st *state.State, snapName string, base, restart bool) *state.Task {
+	hookSup := &HookSetup{
+		Snap:     snapName,
+		Hook:     "gate-auto-refresh",
+		Optional: true,
+		IgnoreError: true,
+	}
+	summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), hookSup.Hook, hookSup.Snap)
+	hookCtx := map[string]interface{}{
+		"base": base,
+		"restart": restart,
+	}
+	task := HookTask(st, summary, hookSup, hookCtx)
 	return task
 }
 

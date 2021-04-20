@@ -471,6 +471,10 @@ var CheckHealthHook = func(st *state.State, snapName string, rev snap.Revision) 
 	panic("internal error: snapstate.CheckHealthHook is unset")
 }
 
+var SetupAutoRefreshGatingHook = func(st *state.State, snapName string, base, restart bool) *state.Task {
+	panic("internal error: snapstate.SetupAutoRefreshGatingHook is unset")
+}
+
 var generateSnapdWrappers = backend.GenerateSnapdWrappers
 
 // FinishRestart will return a Retry error if there is a pending restart
