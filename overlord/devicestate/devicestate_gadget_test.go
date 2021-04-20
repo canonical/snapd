@@ -1556,3 +1556,56 @@ func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateNoChangeNoRebootsUndo(
 		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget",
 	})
 }
+
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithFullArgs(c *C) {
+	bootloader.Force(s.managedbl)
+	s.state.Lock()
+	s.setupUC20ModelWithGadget(c, "pc")
+	s.mockModeenvForMode(c, "run")
+	devicestate.SetBootOkRan(s.mgr, true)
+	s.state.Set("seeded", true)
+
+	// mimic system state
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	m.CurrentKernelCommandLines = []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 extra args",
+	}
+	c.Assert(m.Write(), IsNil)
+	err = s.managedbl.SetBootVars(map[string]string{
+		"snapd_extra_cmdline_args": "extra args",
+		"snapd_full_cmdline_args":  "",
+	})
+	c.Assert(err, IsNil)
+	s.managedbl.SetBootVarsCalls = 0
+
+	s.state.Unlock()
+
+	const update = true
+	s.testGadgetCommandlineUpdateRun(c,
+		[][]string{
+			{"meta/gadget.yaml", gadgetYaml},
+			{"cmdline.extra", "extra args"},
+		},
+		[][]string{
+			{"meta/gadget.yaml", gadgetYaml},
+			{"cmdline.full", "full args"},
+		},
+		"", "Updated kernel command line", update)
+
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 extra args",
+		// gadget arguments are picked up for the candidate command line
+		"snapd_recovery_mode=run full args",
+	})
+	c.Check(s.managedbl.SetBootVarsCalls, Equals, 1)
+	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args", "snapd_full_cmdline_args")
+	c.Assert(err, IsNil)
+	// bootenv was cleared
+	c.Assert(vars, DeepEquals, map[string]string{
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "full args",
+	})
+}
