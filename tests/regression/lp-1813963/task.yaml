@@ -1,8 +1,8 @@
 summary: "regression test for LP: #1813963"
 
-systems: [ubuntu-16.04-64, ubuntu-18.04-64]
-
 backends: [-external]
+
+systems: [ubuntu-16.04-64, ubuntu-18.04-64]
 
 prepare: |
     #shellcheck source=tests/lib/dirs.sh

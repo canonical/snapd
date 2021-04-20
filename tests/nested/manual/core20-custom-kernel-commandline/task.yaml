@@ -1,5 +1,8 @@
 summary: Verify custom kernel command line handling in UC20
 
+details: |
+    This test checks support for customized kernel command line arguments in UC20
+
 systems: [ubuntu-20.04-64]
 
 environment:
@@ -7,13 +10,6 @@ environment:
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
     NESTED_ENABLE_TPM: true
     NESTED_ENABLE_SECURE_BOOT: true
-
-details: |
-    This test checks support for customized kernel command line arguments in UC20
-
-debug: |
-    cat system.cmdline.run || true
-    cat system.cmdline.recover || true
 
 prepare: |
     #shellcheck source=tests/lib/nested.sh
@@ -50,6 +46,10 @@ prepare: |
     for f in pc-gadget-cmdline-extra-updated.snap pc-gadget-cmdline-full.snap pc-gadget-cmdline-none.snap; do
         nested_copy "$f"
     done
+
+debug: |
+    cat system.cmdline.run || true
+    cat system.cmdline.recover || true
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
