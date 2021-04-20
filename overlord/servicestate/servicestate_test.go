@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -30,9 +30,13 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 type statusDecoratorSuite struct{}
@@ -254,4 +258,42 @@ UnitFileState=%s
 			{Name: "org.example.Svc", Type: "dbus", Active: true, Enabled: true},
 		})
 	}
+}
+
+type snapServiceOptionsSuite struct {
+	testutil.BaseTest
+	state *state.State
+}
+
+var _ = Suite(&snapServiceOptionsSuite{})
+
+func (s *snapServiceOptionsSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.state = state.New(nil)
+}
+
+func (s *snapServiceOptionsSuite) TestSnapServiceOptions(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+	t := config.NewTransaction(st)
+	err := t.Set("core", "resilience.vitality-hint", "bar,foo")
+	c.Assert(err, IsNil)
+	t.Commit()
+
+	opts, err := servicestate.SnapServiceOptions(st, "foo")
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
+		VitalityRank: 2,
+	})
+	opts, err = servicestate.SnapServiceOptions(st, "bar")
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
+		VitalityRank: 1,
+	})
+	opts, err = servicestate.SnapServiceOptions(st, "unknown")
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
+		VitalityRank: 0,
+	})
 }
