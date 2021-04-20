@@ -102,7 +102,7 @@ missing_interface_spread_test() {
     for iface in $(go run ./tests/lib/list-interfaces.go) ; do
         search="plugs: \\[ $iface \\]"
         case "$iface" in
-            bool-file|gpio|pwm|hidraw|i2c|iio|serial-port|spi)
+            bool-file|gpio|pwm|dsp|hidraw|i2c|iio|serial-port|spi)
                 # skip gadget provided interfaces for now
                 continue
                 ;;
