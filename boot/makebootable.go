@@ -40,7 +40,10 @@ type BootableSet struct {
 	KernelPath string
 
 	RecoverySystemLabel string
-	RecoverySystemDir   string
+	// RecoverySystemDir is a path to a directory with recovery system
+	// assets. The path is relative to the recovery bootloader root
+	// directory.
+	RecoverySystemDir string
 
 	UnpackedGadgetDir string
 
@@ -191,6 +194,37 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 		return fmt.Errorf("cannot set recovery environment: %v", err)
 	}
 
+	return MakeRecoverySystemBootable(rootdir, bootWith.RecoverySystemDir, &RecoverySystemBootableSet{
+		Kernel:          bootWith.Kernel,
+		KernelPath:      bootWith.KernelPath,
+		GadgetSnapOrDir: bootWith.UnpackedGadgetDir,
+	})
+}
+
+// RecoverySystemBootableSet is a set of snaps relevant to booting a recovery
+// system.
+type RecoverySystemBootableSet struct {
+	Kernel          *snap.Info
+	KernelPath      string
+	GadgetSnapOrDir string
+}
+
+// MakeRecoverySystemBootable prepares a recovery system under a path relative
+// to recovery bootloader's rootdir for booting.
+func MakeRecoverySystemBootable(rootdir string, relativeRecoverySystemDir string, bootWith *RecoverySystemBootableSet) error {
+	opts := &bootloader.Options{
+		// XXX: this is only needed by LK, it is unclear whether LK does
+		// too much when extracting recovery kernel assets
+		PrepareImageTime: true,
+		// setup the recovery bootloader
+		Role: bootloader.RoleRecovery,
+	}
+
+	bl, err := bootloader.Find(rootdir, opts)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot find bootloader: %v", err)
+	}
+
 	// on e.g. ARM we need to extract the kernel assets on the recovery
 	// system as well, but the bootloader does not load any environment from
 	// the recovery system
@@ -202,7 +236,7 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 		}
 
 		err = erkbl.ExtractRecoveryKernelAssets(
-			bootWith.RecoverySystemDir,
+			relativeRecoverySystemDir,
 			bootWith.Kernel,
 			kernelf,
 		)
@@ -225,7 +259,7 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 		"snapd_recovery_kernel": filepath.Join("/", kernelPath),
 	}
 	if _, ok := bl.(bootloader.TrustedAssetsBootloader); ok {
-		recoveryCmdlineArgs, err := bootVarsForTrustedCommandLineFromGadget(bootWith.UnpackedGadgetDir)
+		recoveryCmdlineArgs, err := bootVarsForTrustedCommandLineFromGadget(bootWith.GadgetSnapOrDir)
 		if err != nil {
 			return fmt.Errorf("cannot obtain recovery system command line: %v", err)
 		}
@@ -234,7 +268,7 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 		}
 	}
 
-	if err := rbl.SetRecoverySystemEnv(bootWith.RecoverySystemDir, recoveryBlVars); err != nil {
+	if err := rbl.SetRecoverySystemEnv(relativeRecoverySystemDir, recoveryBlVars); err != nil {
 		return fmt.Errorf("cannot set recovery system environment: %v", err)
 	}
 	return nil
