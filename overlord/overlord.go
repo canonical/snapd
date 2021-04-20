@@ -626,6 +626,11 @@ func (o *Overlord) SnapshotManager() *snapshotstate.SnapshotManager {
 	return o.shotMgr
 }
 
+// ServiceManager returns the manager responsible for services.
+func (o *Overlord) ServiceManager() *servicestate.ServiceManager {
+	return o.serviceMgr
+}
+
 // Mock creates an Overlord without any managers and with a backend
 // not using disk. Managers can be added with AddManager. For testing.
 func Mock() *Overlord {
