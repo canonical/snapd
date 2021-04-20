@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -169,7 +169,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesAdds(c *C) {
 		info: nil,
 	}
 
-	modified, err := wrappers.EnsureSnapServices(m, nil, progress.Null)
+	modified, err := wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"},
@@ -227,7 +227,7 @@ func (s *servicesTestSuite) TestEnsureSnapServiceEnsureError(c *C) {
 	err = os.Chmod(svcFileDir, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = wrappers.EnsureSnapServices(m, nil, progress.Null)
+	_, err = wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
 	c.Assert(err, ErrorMatches, ".* permission denied")
 	// we don't issue a daemon-reload since we didn't actually end up making any
 	// changes (there was nothing to rollback to)
@@ -250,7 +250,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesPreseedingHappy(c *C) {
 	globalOpts := &wrappers.EnsureSnapServicesOptions{
 		Preseeding: true,
 	}
-	modified, err := wrappers.EnsureSnapServices(m, globalOpts, progress.Null)
+	modified, err := wrappers.EnsureSnapServices(m, globalOpts, nil, progress.Null)
 	c.Assert(err, IsNil)
 	// no daemon-reload's since we are preseeding
 	c.Check(s.sysdLog, HasLen, 0)
@@ -325,7 +325,7 @@ apps:
 	globalOpts := &wrappers.EnsureSnapServicesOptions{
 		RequireMountedSnapdSnap: true,
 	}
-	modified, err := wrappers.EnsureSnapServices(m, globalOpts, progress.Null)
+	modified, err := wrappers.EnsureSnapServices(m, globalOpts, nil, progress.Null)
 	c.Assert(err, IsNil)
 	// no daemon-reload's since we are preseeding
 	c.Check(s.sysdLog, DeepEquals, [][]string{
@@ -390,6 +390,101 @@ WantedBy=multi-user.target
 	))
 }
 
+func (s *servicesTestSuite) TestEnsureSnapServicesCallback(c *C) {
+	// hava a 2nd new service definition
+	info := snaptest.MockSnap(c, packageHello+` svc2:
+  command: bin/hello
+  stop-command: bin/goodbye
+  post-stop-command: bin/missya
+  daemon: forking
+`, &snap.SideInfo{Revision: snap.R(12)})
+	svc1File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svc2File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service")
+
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	template := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.%[1]s
+Requires=%[2]s
+Wants=network.target
+After=%[2]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.%[1]s
+SyslogIdentifier=hello-snap.%[1]s
+Restart=on-failure
+WorkingDirectory=%[3]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.%[1]s
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.%[1]s
+TimeoutStopSec=30
+Type=forking
+%[4]s
+[Install]
+WantedBy=multi-user.target
+`
+	svc1Content := fmt.Sprintf(template,
+		"svc1",
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"",
+	)
+
+	err := os.MkdirAll(filepath.Dir(svc1File), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(svc1File, []byte(svc1Content), 0644)
+	c.Assert(err, IsNil)
+
+	// both will be written, one is new
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: {VitalityRank: 1},
+	}
+
+	seen := make(map[string][]string)
+
+	cb := func(app *snap.AppInfo, unitType string, old, new string) {
+		seen[fmt.Sprintf("%s:%s:%s", app.Snap.InstanceName(), unitType, app.Name)] = []string{old, new}
+	}
+
+	modified, err := wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+	c.Assert(modified, HasLen, 1)
+	// we only modified both
+	for modifiedSn, modifiedApps := range modified {
+		// don't try a DeepEquals on this, it could be a recursive data
+		// structure which go-check doesn't handle very well
+		c.Assert(modifiedSn.SnapName(), Equals, info.SnapName())
+		c.Assert(modifiedApps, HasLen, 2)
+	}
+
+	// svc2 was written as expected
+	svc2New := fmt.Sprintf(template,
+		"svc2",
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"OOMScoreAdjust=-899\n",
+	)
+	c.Assert(svc2File, testutil.FileEquals, svc2New)
+
+	// and svc1 was changed as well
+	svc1New := fmt.Sprintf(template,
+		"svc1",
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"OOMScoreAdjust=-899\n",
+	)
+	c.Assert(svc1File, testutil.FileEquals, svc1New)
+
+	c.Check(seen, DeepEquals, map[string][]string{
+		"hello-snap:service:svc1": {svc1Content, svc1New},
+		"hello-snap:service:svc2": {"", svc2New},
+	})
+}
+
 func (s *servicesTestSuite) TestEnsureSnapServicesAddsNewSvc(c *C) {
 	// test that with an existing service unit definition, it is not changed
 	// but we do add the new one
@@ -441,7 +536,7 @@ WantedBy=multi-user.target
 		info: nil,
 	}
 
-	modified, err := wrappers.EnsureSnapServices(m, nil, progress.Null)
+	modified, err := wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"},
@@ -519,13 +614,21 @@ WantedBy=multi-user.target
 		info: nil,
 	}
 
-	modified, err := wrappers.EnsureSnapServices(m, nil, progress.Null)
+	cbCalled := 0
+	cb := func(app *snap.AppInfo, unitType string, old, new string) {
+		cbCalled++
+	}
+
+	modified, err := wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, HasLen, 0)
 	c.Assert(modified, HasLen, 0)
 
 	// the file is not changed
 	c.Assert(svcFile, testutil.FileEquals, origContent)
+
+	// callback is not called if no change
+	c.Check(cbCalled, Equals, 0)
 }
 
 func (s *servicesTestSuite) TestEnsureSnapServicesChanges(c *C) {
@@ -573,7 +676,7 @@ WantedBy=multi-user.target
 		info: {VitalityRank: 1},
 	}
 
-	modified, err := wrappers.EnsureSnapServices(m, nil, progress.Null)
+	modified, err := wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"},
@@ -662,7 +765,7 @@ WantedBy=multi-user.target
 		info: {VitalityRank: 1},
 	}
 
-	_, err = wrappers.EnsureSnapServices(m, nil, progress.Null)
+	_, err = wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
 	c.Assert(err, ErrorMatches, "oops")
 	c.Assert(systemctlCalls, Equals, 2)
 
@@ -734,7 +837,7 @@ WantedBy=multi-user.target
 		info: nil,
 	}
 
-	_, err := wrappers.EnsureSnapServices(m, nil, progress.Null)
+	_, err := wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
 	c.Assert(err, ErrorMatches, "oops")
 	c.Assert(systemctlCalls, Equals, 2)
 
@@ -830,7 +933,7 @@ WantedBy=multi-user.target
 		info: nil,
 	}
 
-	_, err = wrappers.EnsureSnapServices(m, nil, progress.Null)
+	_, err = wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
 	c.Assert(err, ErrorMatches, "oops")
 	c.Assert(systemctlCalls, Equals, 2)
 

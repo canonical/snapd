@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -379,7 +379,7 @@ func userDaemonReload() error {
 	return cli.ServicesDaemonReload(ctx)
 }
 
-func tryFileUpdate(path string, desiredContent []byte) (old *osutil.FileState, modified bool, err error) {
+func tryFileUpdate(path string, desiredContent []byte) (old *osutil.MemoryFileState, modified bool, err error) {
 	newFileState := osutil.MemoryFileState{
 		Content: desiredContent,
 		Mode:    os.FileMode(0644),
@@ -403,8 +403,7 @@ func tryFileUpdate(path string, desiredContent []byte) (old *osutil.FileState, m
 		newFileState.Mode = st.Mode()
 
 		// save the old state of the file
-		st := osutil.FileState(&oldFileState)
-		old = &st
+		old = &oldFileState
 	}
 
 	if mkdirErr := os.MkdirAll(filepath.Dir(path), 0755); mkdirErr != nil {
@@ -429,6 +428,11 @@ type SnapServiceOptions struct {
 	// the OOM killer when OOM conditions are reached.
 	VitalityRank int
 }
+
+// ObserveChangeCallback can be invoked by EnsureSnapServices to observe
+// the previous content of a unit and the new on a change.
+// unitType can be "service", "socket", "timer".
+type ObserveChangeCallback func(app *snap.AppInfo, unitType string, old, new string)
 
 // EnsureSnapServicesOptions is the set of options applying to the
 // EnsureSnapServices operation. It does not include per-snap specific options
@@ -460,7 +464,7 @@ type EnsureSnapServicesOptions struct {
 // changes performed up to that point are rolled back, meaning newly written
 // units are deleted and modified units are attempted to be restored to their
 // previous state. In this case the modified return value is nil.
-func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSnapServicesOptions, inter interacter) (modified map[*snap.Info][]*snap.AppInfo, err error) {
+func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSnapServicesOptions, observeChange ObserveChangeCallback, inter interacter) (modified map[*snap.Info][]*snap.AppInfo, err error) {
 	modified = make(map[*snap.Info][]*snap.AppInfo)
 
 	// note, sysd is not used when preseeding
@@ -483,7 +487,7 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 	// updated and some may have been rolled back, higher level tasks/changes
 	// should have do/undo handlers to properly handle the case where this
 	// function is interrupted midway
-	modifiedUnitsPreviousState := make(map[string]*osutil.FileState)
+	modifiedUnitsPreviousState := make(map[string]*osutil.MemoryFileState)
 	var modifiedSystem, modifiedUser bool
 
 	defer func() {
@@ -499,7 +503,7 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 				}
 			} else {
 				// rollback the file to the previous state
-				if e := osutil.EnsureFileState(file, *state); e != nil {
+				if e := osutil.EnsureFileState(file, state); e != nil {
 					inter.Notify(fmt.Sprintf("while trying to rollback %s due to previous failure: %v", file, e))
 				}
 			}
@@ -516,13 +520,20 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 		}
 	}()
 
-	handleFileModification := func(s *snap.Info, app *snap.AppInfo, path string, content []byte) error {
+	handleFileModification := func(s *snap.Info, app *snap.AppInfo, unitType string, path string, content []byte) error {
 		old, modifiedFile, err := tryFileUpdate(path, content)
 		if err != nil {
 			return err
 		}
 
 		if modifiedFile {
+			if observeChange != nil {
+				var oldContent []byte
+				if old != nil {
+					oldContent = old.Content
+				}
+				observeChange(app, unitType, string(oldContent), string(content))
+			}
 			modifiedUnitsPreviousState[path] = old
 			modified[s] = append(modified[s], app)
 
@@ -569,7 +580,7 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 				return nil, err
 			}
 
-			if err := handleFileModification(s, app, path, content); err != nil {
+			if err := handleFileModification(s, app, "service", path, content); err != nil {
 				return nil, err
 			}
 
@@ -579,7 +590,7 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 				return nil, err
 			}
 			for path, content := range socketFiles {
-				if err := handleFileModification(s, app, path, content); err != nil {
+				if err := handleFileModification(s, app, "socket", path, content); err != nil {
 					return nil, err
 				}
 			}
@@ -590,7 +601,7 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 					return nil, err
 				}
 				path := app.Timer.File()
-				if err := handleFileModification(s, app, path, content); err != nil {
+				if err := handleFileModification(s, app, "timer", path, content); err != nil {
 					return nil, err
 				}
 			}
@@ -649,7 +660,7 @@ func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter interacte
 		ensureOpts.RequireMountedSnapdSnap = opts.RequireMountedSnapdSnap
 	}
 
-	_, err := EnsureSnapServices(m, ensureOpts, inter)
+	_, err := EnsureSnapServices(m, ensureOpts, nil, inter)
 	return err
 }
 
