@@ -168,11 +168,12 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 				Prereq:       defaultContentPlugProviders(st, update),
 				Channel:      snapst.TrackingChannel,
 				CohortKey:    snapst.CohortKey,
+				// UserID not set
+				Flags:        flags.ForSnapSetup(),
 				DownloadInfo: &update.DownloadInfo,
 				SideInfo:     &update.SideInfo,
 				Type:         update.Type(),
 				PlugsOnly:    len(update.Slots) == 0,
-				Flags:        flags.ForSnapSetup(),
 				InstanceKey:  update.InstanceKey,
 				auxStoreInfo: auxStoreInfo{
 					Website: update.Website,
