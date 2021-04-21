@@ -597,8 +597,7 @@ func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
 }
 
 func earlyChecks(st *state.State, snapst *SnapState, update *snap.Info, flags Flags) (Flags, error) {
-	var err error
-	flags, err = ensureInstallPreconditions(st, update, flags, snapst)
+	flags, err := ensureInstallPreconditions(st, update, flags, snapst)
 	if err != nil {
 		return flags, err
 	}

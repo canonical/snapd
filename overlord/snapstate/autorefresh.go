@@ -64,20 +64,20 @@ type refreshCandidate struct {
 	SnapSetup
 }
 
-func (rh *refreshCandidate) Type() snap.Type {
-	return rh.SnapSetup.Type
+func (rc *refreshCandidate) Type() snap.Type {
+	return rc.SnapSetup.Type
 }
 
-func (rh *refreshCandidate) Base() string {
-	return rh.SnapSetup.Base
+func (rc *refreshCandidate) Base() string {
+	return rc.SnapSetup.Base
 }
 
-func (rh *refreshCandidate) MakeSnapSetup(*state.State, *SnapState) (*SnapSetup, error) {
-	return &rh.SnapSetup, nil
+func (rc *refreshCandidate) MakeSnapSetup(*state.State, *SnapState) (*SnapSetup, error) {
+	return &rc.SnapSetup, nil
 }
 
-func (rh *refreshCandidate) Size() int64 {
-	return rh.DownloadInfo.Size
+func (rc *refreshCandidate) Size() int64 {
+	return rc.DownloadInfo.Size
 }
 
 // autoRefresh will ensure that snaps are refreshed automatically

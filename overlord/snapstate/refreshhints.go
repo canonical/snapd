@@ -82,17 +82,19 @@ func (r *refreshHints) refresh() error {
 	// error. In the future we may retry with a backoff.
 	r.state.Set("last-refresh-hints", time.Now())
 
-	if err == nil {
-		deviceCtx, err := DeviceCtxFromState(r.state, nil)
-		if err != nil {
-			return err
-		}
-		hints, err := refreshHintsFromCandidates(r.state, updates, ignoreValidationByInstanceName, deviceCtx)
-		if err == nil {
-			r.state.Set("refresh-candidates", hints)
-		}
+	if err != nil {
+		return err
 	}
-	return err
+	deviceCtx, err := DeviceCtxFromState(r.state, nil)
+	if err != nil {
+		return err
+	}
+	hints, err := refreshHintsFromCandidates(r.state, updates, ignoreValidationByInstanceName, deviceCtx)
+	if err != nil {
+		return err
+	}
+	r.state.Set("refresh-candidates", hints)
+	return nil
 }
 
 // AtSeed configures hints refresh policies at end of seeding.
