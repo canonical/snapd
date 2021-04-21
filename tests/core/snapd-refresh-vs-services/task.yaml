@@ -2,56 +2,161 @@ summary: Check that refreshing snapd does not interfere with snap services
 
 # TODO: we should also run it on classic later
 
-# TODO: UC20
-systems: [ubuntu-core-18-*]
+systems: [ubuntu-core-18-*, ubuntu-core-20-*]
 
 environment:
-  START_WITH/start_w_pr: pr
-  START_WITH/start_w_stable: stable
-  START_WITH/start_w_2_49_2: 2_49_2
-  # have also
-  # SNAPD_2_49_2: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.2_11588.snap
+  SNAPD_VERSION_UNDER_TEST/start_w_pr: pr
+  SNAPD_VERSION_UNDER_TEST/start_w_stable: stable
+  SNAPD_VERSION_UNDER_TEST/start_w_2_49_2: "2.49.2"
+
+  # links to specific snapd versions
+  SNAPD_2_49_2: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.2_11588.snap
+  SNAPD_2_49_1: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.1_11402.snap
+
+prepare: |
+  tests.cleanup prepare
+  # install http snap to download files, jq + remarshal to simplify the check if
+  # stable == 2.49.2 so we can skip that case automatically until a new version
+  # is released to stable
+  snap install http --devmode # devmode so it can save to any dir
+  snap install jq remarshal
+  # save the current version of snapd for later
+  INITIAL_REV=$(snap list snapd | tail -n +2 | awk '{print $3}')
+  cp "/var/lib/snapd/snaps/snapd_$INITIAL_REV.snap" snapd-pr.snap
+
+  snap set system experimental.parallel-instances=true
+  tests.cleanup defer snap unset system experimental.parallel-instances
+
+  # keep around all the snapd snap revisions we will use in the test so that we
+  # can always easily revert back to the one at the end of the test
+  snap set system refresh.retain=5
+  tests.cleanup defer snap unset system refresh.retain
+
+restore: |
+  tests.cleanup restore
 
 execute: |
+  # check if snapd 2.49.2 is the current latest/stable release as it simplifies
+  # some of the logic below
+  if snap info snapd | yaml2json | jq -r '.channels."latest/stable"'  | grep -q -Po '2.49.2\s+'; then
+    # skip the stable variant of the test
+    if [ "${SNAPD_VERSION_UNDER_TEST}" = "stable" ]; then
+      echo "Skipping duplicated test case"
+      exit 0
+    fi
+  else
+    STABLE_IS_2_49_2=0
+  fi
+
   echo "Ensure that the system is fully seeded"
   snap changes | MATCH "Done.*Initialize system state"
 
-  if [ "${START_WITH}" = "stable" ]; then
-    echo "Refreshing snapd to stable"
-    snap refresh --amend --channel=latest/stable snapd
-  elif [ "${START_WITH}" = "2_49_2" ]; then
-    # TODO: check architecture
-    echo "Not implemented"
-    exit 0
-  fi
+  INITIAL_REV=$(snap list snapd | tail -n +2 | awk '{print $3}')
 
-  # repack current snapd to refresh to it again
-  unsquashfs -d ./snapd-unpacked /var/lib/snapd/snaps/snapd_x1.snap
-  snap pack --filename=snapd_repacked.snap snapd-unpacked
-  rm -rf snapd-unpacked
+  # first thing is to install snapd 2.49.1 before the Requires= change was 
+  # introduced so we can install a snap service that will not have Requires= in
+  # it
+  http --quiet --download --output snapd_2.49.1.snap GET "$SNAPD_2_49_1"
 
-  # TODO: also a oneshot service
+  snap install --dangerous snapd_2.49.1.snap\
+
+  # always go back to the original revision from the pr at the end of the test
+  tests.cleanup defer snap revert snapd --revision="$INITIAL_REV"
+
+  echo "Install a service from snapd 2.49.1 to have one without Requires= in it"
   "$TESTSTOOLS"/snaps-state install-local test-snapd-simple-service
 
   # check that it is initially active
   snap services|MATCH ".*test-snapd-simple-service\s*enabled\s*active.*"
 
+  # check that it doesn't have any dependencies on usr-lib-snapd.mount at the 
+  # start
+  NOMATCH Requires=usr-lib-snapd.mount < /etc/systemd/system/snap.test-snapd-simple-service.test-snapd-simple-service.service
+  NOMATCH Wants=usr-lib-snapd.mount < /etc/systemd/system/snap.test-snapd-simple-service.test-snapd-simple-service.service
+
+  # now refresh to the variant of the test
+  if [ "${SNAPD_VERSION_UNDER_TEST}" = "stable" ]; then
+    echo "Refreshing snapd to stable"
+    snap refresh --amend --channel=latest/stable snapd
+  elif [ "${SNAPD_VERSION_UNDER_TEST}" = "2.49.2" ]; then
+    # only run on amd64 right now, download and install snapd 2.49.2
+    if os.query is-pc-amd64; then
+      http --quiet --download --output snapd_2.49.2.snap GET "$SNAPD_2_49_2"
+      echo "Refreshing snapd to 2.49.2"
+      snap install --dangerous snapd_2.49.2.snap
+    else 
+      echo "architecture not supported for this variant"
+    fi
+  elif [ "${SNAPD_VERSION_UNDER_TEST}" = "pr" ]; then
+      # refresh back to the version we originally had from before the test 
+      # started
+      echo "Refreshing snapd to version from the pr"
+      snap install --dangerous snapd-pr.snap
+  fi
+
+  # now install another service that will either get Requires= or Wants= for
+  # usr-lib-snapd.mount, depending on the variant of the test
+  "$TESTSTOOLS"/snaps-state install-local-as test-snapd-simple-service test-snapd-simple-service_alt
+
+  # check that it is still initially active
+  snap services|MATCH ".*test-snapd-simple-service_alt.test-snapd-simple-service\s*enabled\s*active.*"
+
+  # if we are not running with 2.49.2, then the second service should have been
+  # generated with Wants=, but if we are doing 2.49.2 then the second service 
+  # should have Requires= in it
+  if [ "${SNAPD_VERSION_UNDER_TEST}" = "2.49.2" ];then 
+    MATCH Requires=usr-lib-snapd.mount < /etc/systemd/system/snap.test-snapd-simple-service_alt.test-snapd-simple-service.service
+  else
+    MATCH Wants=usr-lib-snapd.mount < /etc/systemd/system/snap.test-snapd-simple-service_alt.test-snapd-simple-service.service
+  fi
+
+  # now repack current snapd to refresh to it again and observe the results
+  unsquashfs -d ./snapd-unpacked snapd-pr.snap
+  snap pack --filename=snapd_repacked.snap snapd-unpacked
+  rm -rf snapd-unpacked
+
+  # save the PID's of the services
   systemctl show -p MainPID snap.test-snapd-simple-service.test-snapd-simple-service > old-main.pid
+  systemctl show -p MainPID snap.test-snapd-simple-service_alt.test-snapd-simple-service > old-main_alt.pid
 
   echo "Refresh snapd"
   snap install --dangerous snapd_repacked.snap
 
-  # TODO: this will also work with stable once the fix is out
-  if [ "${START_WITH}" = "pr" ]; then
-     if systemctl status snap.test-snapd-simple-service.test-snapd-simple-service|MATCH "Stopped" ; then
-        echo "Services should not have been stopped"
-        exit 1
-     fi
-     systemctl show -p MainPID snap.test-snapd-simple-service.test-snapd-simple-service > new-main.pid
-     # running the same pid
-     test "$(cat new-endure.pid)" = "$(cat old-endure.pid)"
+  # for all variants of the test, the main.pid should be the same since it did
+  # not ever contain the Requires=
+  systemctl show -p MainPID snap.test-snapd-simple-service.test-snapd-simple-service > new-main.pid
+
+  if [ "$(cat new-main.pid)" != "$(cat old-main.pid)" ]; then
+    echo "The service without Requires= was restarted, test is broken"
+    exit 1
   fi
 
+  # for the variants of the test that have the fix in them, that is stable and
+  # and pr, then we also should not have had the alt service pid change due to a
+  # restart
+  # for the other variant (2.49.2 only), we unfortunately ended up needing to
+  # restart the service so it should have a different PID, but it should be 
+  # running again
+
+  systemctl show -p MainPID snap.test-snapd-simple-service_alt.test-snapd-simple-service > new-main_alt.pid
+  if [ "${SNAPD_VERSION_UNDER_TEST}" = "2.49.2" ]; then
+    if [ "$(cat new-main_alt.pid)" = "$(cat old-main_alt.pid)" ]; then
+      echo "Somehow the service was not killed as expected ... test is probably broken"
+      exit 1
+    fi
+  else
+    if [ "$(cat new-main.pid)" != "$(cat old-main.pid)" ]; then
+      echo "The service with Wants= was unexpectedly killed test is broken"
+      exit 1
+    fi
+  fi
+
+  # in all cases both services should be active after the refresh
   echo "Check services were kept active"
   snap services|MATCH ".*test-snapd-simple-service\s*enabled\s*active.*"
+  snap services|MATCH ".*test-snapd-simple-service_alt.test-snapd-simple-service\s*enabled\s*active.*"
 
+  # and both services should have Wants= now
+  echo "Check services were re-written to use Wants=usr-lib-snapd.mount now"
+  MATCH Wants=usr-lib-snapd.mount < /etc/systemd/system/snap.test-snapd-simple-service_alt.test-snapd-simple-service.service
+  MATCH Wants=usr-lib-snapd.mount < /etc/systemd/system/snap.test-snapd-simple-service.test-snapd-simple-service.service
