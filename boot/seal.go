@@ -72,7 +72,7 @@ const (
 
 // FDESetupHookParams contains the inputs for the fde-setup hook
 type FDESetupHookParams struct {
-	Key     []byte
+	Key     secboot.EncryptionKey
 	KeyName string
 
 	//TODO:UC20: provide bootchains and a way to track measured
@@ -141,8 +141,8 @@ func fallbackKeySealRequests(key, saveKey secboot.EncryptionKey) []secboot.SealK
 }
 
 type fdeSetupHookResult struct {
-	EncryptedKey []byte `json:"encrypted-key"`
-	Handle       []byte `json:"handle"`
+	EncryptedKey []byte           `json:"encrypted-key"`
+	Handle       *json.RawMessage `json:"handle"`
 }
 
 func isV1Hook(hookOutput []byte) bool {
@@ -156,10 +156,8 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model
 	// TODO: support full boot chains
 
 	for _, skr := range append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey)...) {
-		var unencryptedPayload [len(skr.Key)]byte
-		copy(unencryptedPayload[:], skr.Key[:])
 		params := &FDESetupHookParams{
-			Key:     unencryptedPayload[:],
+			Key:     skr.Key,
 			KeyName: skr.KeyName,
 		}
 		hookOutput, err := RunFDESetupHook("initial-setup", params)
