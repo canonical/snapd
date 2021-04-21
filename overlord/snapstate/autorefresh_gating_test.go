@@ -493,7 +493,7 @@ func (s *autorefreshGatingSuite) TestCreateAutoRefreshGateHooks(c *C) {
 		"snap-b": {},
 	}
 
-	ts := snapstate.CreateAutoRefreshGateHooks(st, affected)
+	ts := snapstate.CreateGateAutoRefreshHooks(st, affected)
 	c.Assert(ts.Tasks(), HasLen, 2)
 	t := ts.Tasks()[0]
 	c.Assert(t.Kind(), Equals, "run-hook")
