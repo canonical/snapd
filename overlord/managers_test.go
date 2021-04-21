@@ -6300,8 +6300,8 @@ WantedBy=multi-user.target
 	// the change is still in doing status
 	c.Check(chg.Status(), Equals, state.DoingStatus)
 
-	// we don't restart since the unit file was just rewritten, no services were
-	// killed
+	// we do end up restarting now, since we tried to restart the service but
+	// failed and so to be safe as possible we reboot the system immediately
 	restarting, kind = st.Restarting()
 	c.Check(restarting, Equals, true)
 	c.Assert(kind, Equals, state.RestartSystemNow)
@@ -6318,6 +6318,9 @@ WantedBy=multi-user.target
 	// properly - note that this isn't a fully honest test, since in reality it
 	// should be done with a real overlord.RestartBehavior implemented like what
 	// daemon actually provides and here we are using nil, but for the purposes
+	// of this test it's enough to ensure that 1) a restart is requested and 2)
+	// the manager ensure loop doesn't fail after we restart since the unit
+	// files don't need to be rewritten
 	state.MockRestarting(st, state.RestartUnset)
 
 	// we want the service ensure loop to run again to show it doesn't break

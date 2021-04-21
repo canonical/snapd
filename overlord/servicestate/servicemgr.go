@@ -284,7 +284,7 @@ func restartServicesKilledInSnapdSnapRefresh(modified map[*snap.Info][]*snap.App
 
 	upperTimeBound = upperTimeBound.Truncate(time.Second)
 
-	// if the lower time bound is ever in the future pastthe upperTimeBound,
+	// if the lower time bound is ever in the future past the upperTimeBound,
 	// then  just use the upperTimeBound as both limits, since we know that the
 	// upper bound and the time for each service being stopped are of the same
 	// precision
