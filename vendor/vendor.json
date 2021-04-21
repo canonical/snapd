@@ -136,6 +136,12 @@
 			"revisionTime": "2021-02-12T23:46:08Z"
 		},
 		{
+			"checksumSHA1": "o06IvYmSoopV6w9Cz940QcCbYLc=",
+			"path": "github.com/snapcore/secboot/internal/keyring",
+			"revision": "785f3aec664fcad504befe8b59b55949b6e68dc6",
+			"revisionTime": "2021-04-20T15:53:42Z"
+		},
+		{
 			"checksumSHA1": "loFEiH6evGaDnDSlQgk3ugemkcU=",
 			"path": "github.com/snapcore/secboot/internal/pe1.14",
 			"revision": "122bca1e162df761510e82be1bc9043250fe0bc7",
