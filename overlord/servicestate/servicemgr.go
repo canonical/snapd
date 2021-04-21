@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
@@ -80,7 +81,17 @@ func restartServicesKilledInSnapdSnapRefresh(modified map[*snap.Info][]*snap.App
 	// TODO: we should check if usr-lib-snapd.mount was modified before the
 	// current boot time, if it was then we can just skip this since we know
 	// any service stops that happened were unrelated
-	lowerTimeBound := st.ModTime()
+
+	// always truncate all times to second precision, since that is the least
+	// precise time we have of all the times we consider, due to using systemctl
+	// for getting the InactiveEnterTimestamp for systemd units
+	// TODO: we should switch back to using D-Bus for this, where we get much
+	// more accurate times, down to the microsecond, which is the same precision
+	// we have for the modification time here, and thus we can more easily avoid
+	// the truncation issue, and we can ensure that we are minimizing the risk
+	// of inadvertently starting services that just so happened to have been
+	// stopped in the same second that we modified and usr-lib-snapd.mount.
+	lowerTimeBound := st.ModTime().Truncate(time.Second)
 
 	// Get the InactiveEnterTimestamp property for the usr-lib-snapd.mount unit,
 	// this is the time that usr-lib-snapd.mount was transitioned from
@@ -112,6 +123,16 @@ func restartServicesKilledInSnapdSnapRefresh(modified map[*snap.Info][]*snap.App
 		return nil
 	}
 
+	upperTimeBound = upperTimeBound.Truncate(time.Second)
+
+	// if the lower time bound is ever in the future pastthe upperTimeBound,
+	// then  just use the upperTimeBound as both limits, since we know that the
+	// upper bound and the time for each service being stopped are of the same
+	// precision
+	if lowerTimeBound.After(upperTimeBound) {
+		lowerTimeBound = upperTimeBound
+	}
+
 	candidateAppsToRestartBySnap := make(map[*snap.Info][]*snap.AppInfo)
 
 	for sn, apps := range modified {
@@ -121,6 +142,9 @@ func restartServicesKilledInSnapdSnapRefresh(modified map[*snap.Info][]*snap.App
 			if err != nil {
 				return err
 			}
+
+			// always truncate to second precision
+			t = t.Truncate(time.Second)
 
 			// check if this unit entered the inactive state between the time
 			// range, but be careful about time precision here, we want an

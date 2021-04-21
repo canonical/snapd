@@ -667,6 +667,180 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesKil
 	c.Assert(s.restartRequests, HasLen, 0)
 }
 
+func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleRewritesServicesFilesAndRestartsTimePrecisionSilly(c *C) {
+	s.state.Lock()
+	// there is a snap in snap state that needs a service generated for it
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	s.state.Unlock()
+
+	// add the usr-lib-snapd.mount unit
+	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
+	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// this test is about the specific scenario we have now when using systemctl
+	// show --property where the time precision of the InactiveEnterTimestamp's
+	// is much lower than that of the modification file time, so we need to
+	// set the inactive enter time for both the usr-lib-snapd.mount and the snap
+	// service to be the same time, which is actually _in the past_ compared to
+	// the file modification time
+
+	// truncate the current time and add 500 milliseconds
+	t0 := time.Now().Truncate(time.Second).Add(500 * time.Millisecond)
+	err = os.Chtimes(usrLibSnapdMountFile, t0, t0)
+	c.Assert(err, IsNil)
+
+	// drop the milliseconds
+	t1 := t0.Truncate(time.Second)
+	t1Str := t1.Format(systemdTimeFormat)
+
+	// double check our math for the times is correct
+	c.Assert(t1.Before(t0), Equals, true)
+	c.Assert(t0.After(t1), Equals, true)
+	c.Assert(t1.Equal(t0), Equals, false)
+
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service")
+
+	// add the initial state of the service file using Requires
+	requiresContent := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Requires",
+		snapName:             "test-snap",
+		snapRev:              "42",
+	})
+	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
+	c.Assert(err, IsNil)
+
+	r := s.mockSystemctlCalls(c, []expectedSystemctl{
+		{
+			expArgs: []string{"daemon-reload"},
+		},
+		{
+			// usr-lib-snapd.mount was stopped "far in the future"
+			expArgs: []string{"show", "--property", "InactiveEnterTimestamp", "usr-lib-snapd.mount"},
+			output:  fmt.Sprintf("InactiveEnterTimestamp=%s", t1Str),
+		},
+		{
+			// but the snap.test-snap.svc1 was stopped only slightly in the
+			// future
+			expArgs: []string{"show", "--property", "InactiveEnterTimestamp", "snap.test-snap.svc1.service"},
+			output:  fmt.Sprintf("InactiveEnterTimestamp=%s", t1Str),
+		},
+		{
+			expArgs: []string{"is-enabled", "snap.test-snap.svc1.service"},
+			output:  "enabled",
+		},
+		{
+			expArgs: []string{"start", "snap.test-snap.svc1.service"},
+		},
+	})
+	defer r()
+
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	// the file was rewritten to use Wants instead now
+	wantsContent := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Wants",
+		snapName:             "test-snap",
+		snapRev:              "42",
+	})
+	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, wantsContent)
+
+	// we did not request a restart
+	c.Assert(s.restartRequests, HasLen, 0)
+}
+
+func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleRewritesServicesFilesAndRestartsTimePrecisionMoreSilly(c *C) {
+	s.state.Lock()
+	// there is a snap in snap state that needs a service generated for it
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	s.state.Unlock()
+
+	// add the usr-lib-snapd.mount unit
+	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
+	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
+	c.Assert(err, IsNil)
+
+	// this test is like TestEnsureSnapServicesSimpleRewritesServicesFilesAndRestartsTimePrecisionSilly,
+	// but more extreme, in that we don't have precision problems of less than a
+	// second, we have some more critical error where the lower timestamp range
+	// is somehow way in the future and we want our system to act rationally and
+	// pick the upper time bound as the lower time bound when the initially
+	// identified lower time bound is nonsensical
+
+	// truncate the current time and add 500 minutes
+	now := time.Now().Truncate(time.Second)
+	t0 := now.Add(500 * time.Minute)
+	err = os.Chtimes(usrLibSnapdMountFile, t0, t0)
+	c.Assert(err, IsNil)
+
+	t1 := now
+	t1Str := t1.Format(systemdTimeFormat)
+
+	// double check our math for the times is correct
+	c.Assert(t1.Before(t0), Equals, true)
+	c.Assert(t0.After(t1), Equals, true)
+	c.Assert(t1.Equal(t0), Equals, false)
+
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service")
+
+	// add the initial state of the service file using Requires
+	requiresContent := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Requires",
+		snapName:             "test-snap",
+		snapRev:              "42",
+	})
+	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
+	c.Assert(err, IsNil)
+
+	r := s.mockSystemctlCalls(c, []expectedSystemctl{
+		{
+			expArgs: []string{"daemon-reload"},
+		},
+		{
+			// usr-lib-snapd.mount was stopped "far in the future"
+			expArgs: []string{"show", "--property", "InactiveEnterTimestamp", "usr-lib-snapd.mount"},
+			output:  fmt.Sprintf("InactiveEnterTimestamp=%s", t1Str),
+		},
+		{
+			// but the snap.test-snap.svc1 was stopped only slightly in the
+			// future
+			expArgs: []string{"show", "--property", "InactiveEnterTimestamp", "snap.test-snap.svc1.service"},
+			output:  fmt.Sprintf("InactiveEnterTimestamp=%s", t1Str),
+		},
+		{
+			expArgs: []string{"is-enabled", "snap.test-snap.svc1.service"},
+			output:  "enabled",
+		},
+		{
+			expArgs: []string{"start", "snap.test-snap.svc1.service"},
+		},
+	})
+	defer r()
+
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	// the file was rewritten to use Wants instead now
+	wantsContent := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Wants",
+		snapName:             "test-snap",
+		snapRev:              "42",
+	})
+	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, wantsContent)
+
+	// we did not request a restart
+	c.Assert(s.restartRequests, HasLen, 0)
+}
+
 func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleRewritesServicesFilesAndRestartsUC18(c *C) {
 	s.state.Lock()
 	// there is a snap in snap state that needs a service generated for it
