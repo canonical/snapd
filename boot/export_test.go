@@ -182,7 +182,7 @@ func MockHasFDESetupHook(f func() (bool, error)) (restore func()) {
 	}
 }
 
-func MockRunFDESetupHook(f func(string, *FDESetupHookParams) ([]byte, error)) (restore func()) {
+func MockRunFDESetupHook(f func(*FDESetupHookParams) (*FDESetupHookResult, error)) (restore func()) {
 	oldRunFDESetupHook := RunFDESetupHook
 	RunFDESetupHook = f
 	return func() { RunFDESetupHook = oldRunFDESetupHook }

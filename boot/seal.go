@@ -20,7 +20,6 @@
 package boot
 
 import (
-	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -57,7 +56,7 @@ var (
 	HasFDESetupHook = func() (bool, error) {
 		return false, nil
 	}
-	RunFDESetupHook = func(op string, params *FDESetupHookParams) ([]byte, error) {
+	RunFDESetupHook = func(params *FDESetupHookParams) (*FDESetupHookResult, error) {
 		return nil, fmt.Errorf("internal error: RunFDESetupHook not set yet")
 	}
 )
@@ -77,6 +76,13 @@ type FDESetupHookParams struct {
 
 	//TODO:UC20: provide bootchains and a way to track measured
 	//boot-assets
+}
+
+// FdeSetupHookResult contains the outputs of the fde-setup hook
+type FDESetupHookResult struct {
+	// result when called with "initial-setup"
+	EncryptedKey []byte           `json:"encrypted-key"`
+	Handle       *json.RawMessage `json:"handle"`
 }
 
 func bootChainsFileUnder(rootdir string) string {
@@ -140,18 +146,6 @@ func fallbackKeySealRequests(key, saveKey secboot.EncryptionKey) []secboot.SealK
 	}
 }
 
-type fdeSetupHookResult struct {
-	EncryptedKey []byte           `json:"encrypted-key"`
-	Handle       *json.RawMessage `json:"handle"`
-}
-
-func isV1Hook(hookOutput []byte) bool {
-	// This is the prefix of a tpm secboot v1 key as used in the
-	// "denver" project. So if we see this prefix we know it's
-	// v1 hook output.
-	return bytes.HasPrefix(hookOutput, []byte("USK$"))
-}
-
 func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
 	// TODO: support full boot chains
 
@@ -160,23 +154,9 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model
 			Key:     skr.Key,
 			KeyName: skr.KeyName,
 		}
-		hookOutput, err := RunFDESetupHook("initial-setup", params)
+		res, err := RunFDESetupHook(params)
 		if err != nil {
 			return err
-		}
-		// We expect json output that fits fdeSetupHookResult
-		// hook at this point. However the "denver" project
-		// uses the old and deprecated v1 API that returns raw
-		// bytes and we still need to support this.
-		var res fdeSetupHookResult
-		if err := json.Unmarshal(hookOutput, &res); err != nil {
-			// If the outout is not json and looks like va
-			if !isV1Hook(hookOutput) {
-				return fmt.Errorf("cannot decode hook output for key %s %q: %v", skr.KeyFile, hookOutput, err)
-			}
-			// v1 hooks do not support a handle
-			res.Handle = nil
-			res.EncryptedKey = hookOutput
 		}
 		if err := osutil.AtomicWriteFile(skr.KeyFile, res.EncryptedKey, 0600, 0); err != nil {
 			return fmt.Errorf("cannot store key: %v", err)

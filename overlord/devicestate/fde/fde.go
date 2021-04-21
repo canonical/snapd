@@ -25,8 +25,12 @@
 package fde
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"os/exec"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/secboot"
 )
 
@@ -63,4 +67,31 @@ type SetupRequest struct {
 
 	// TODO: provide LoadChains, KernelCmdline etc to support full
 	//       tpm sealing
+}
+
+func isV1Hook(hookOutput []byte) bool {
+	// This is the prefix of a tpm secboot v1 key as used in the
+	// "denver" project. So if we see this prefix we know it's
+	// v1 hook output.
+	return bytes.HasPrefix(hookOutput, []byte("USK$"))
+}
+
+func UnmarshalFDESetupResult(hookOutput []byte) (*boot.FDESetupHookResult, error) {
+	// We expect json output that fits fdeSetupHookResult
+	// hook at this point. However the "denver" project
+	// uses the old and deprecated v1 API that returns raw
+	// bytes and we still need to support this.
+	var res boot.FDESetupHookResult
+	if err := json.Unmarshal(hookOutput, &res); err != nil {
+		// If the outout is not json and looks like va
+		if !isV1Hook(hookOutput) {
+			return nil, fmt.Errorf("cannot decode hook output %q: %v", hookOutput, err)
+		}
+		// v1 hooks do not support a handle
+		handle := json.RawMessage("{v1-no-handle: true}")
+		res.Handle = &handle
+		res.EncryptedKey = hookOutput
+	}
+
+	return &res, nil
 }

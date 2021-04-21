@@ -1518,7 +1518,7 @@ func (m *DeviceManager) hasFDESetupHook() (bool, error) {
 	return hasFDESetupHookInKernel(kernelInfo), nil
 }
 
-func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookParams) ([]byte, error) {
+func (m *DeviceManager) runFDESetupHookLowLevel(op string, params *boot.FDESetupHookParams) ([]byte, error) {
 	// TODO:UC20: when this runs on refresh we need to be very careful
 	// that we never run this when the kernel is not fully configured
 	// i.e. when there are no security profiles for the hook
@@ -1558,15 +1558,26 @@ func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookPara
 	}
 	// the hook is expected to call "snapctl fde-setup-result" which
 	// will set the "fde-setup-result" value on the task
-	var hookResult []byte
+	var hookOutput []byte
 	context.Lock()
-	err = context.Get("fde-setup-result", &hookResult)
+	err = context.Get("fde-setup-result", &hookOutput)
 	context.Unlock()
 	if err != nil {
 		return nil, fmt.Errorf("cannot get result from fde-setup hook %q: %v", op, err)
 	}
+	return hookOutput, nil
+}
 
-	return hookResult, nil
+func (m *DeviceManager) runFDESetupHook(params *boot.FDESetupHookParams) (*boot.FDESetupHookResult, error) {
+	hookOutput, err := m.runFDESetupHookLowLevel("initial-setup", params)
+	if err != nil {
+		return nil, err
+	}
+	res, err := fde.UnmarshalFDESetupResult(hookOutput)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }
 
 func (m *DeviceManager) checkFDEFeatures(st *state.State) error {
@@ -1574,7 +1585,7 @@ func (m *DeviceManager) checkFDEFeatures(st *state.State) error {
 	// returns any {"features":[...]} reply we consider the
 	// hardware supported. If the hook errors or if it returns
 	// {"error":"hardware-unsupported"} we don't.
-	output, err := m.runFDESetupHook("features", &boot.FDESetupHookParams{})
+	output, err := m.runFDESetupHookLowLevel("features", &boot.FDESetupHookParams{})
 	if err != nil {
 		return err
 	}

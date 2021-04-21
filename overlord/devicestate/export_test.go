@@ -310,8 +310,8 @@ func DeviceManagerHasFDESetupHook(mgr *DeviceManager) (bool, error) {
 	return mgr.hasFDESetupHook()
 }
 
-func DeviceManagerRunFDESetupHook(mgr *DeviceManager, op string, params *boot.FDESetupHookParams) ([]byte, error) {
-	return mgr.runFDESetupHook(op, params)
+func DeviceManagerRunFDESetupHook(mgr *DeviceManager, params *boot.FDESetupHookParams) (*boot.FDESetupHookResult, error) {
+	return mgr.runFDESetupHook(params)
 }
 
 func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx snapstate.DeviceContext) (bool, error) {
