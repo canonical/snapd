@@ -65,9 +65,6 @@ type ensureSnapServiceSuite struct {
 	uc18Model *asserts.Model
 	uc16Model *asserts.Model
 
-	systemctlCalls   int
-	systemctlReturns []expectedSystemctl
-
 	testSnapState    *snapstate.SnapState
 	testSnapSideInfo *snap.SideInfo
 }
@@ -141,6 +138,28 @@ After=usr-lib-snapd.mount
 
 var _ = Suite(&ensureSnapServiceSuite{})
 
+func (s *ensureSnapServiceSuite) mockSystemctlCalls(c *C, expCalls []expectedSystemctl) (restore func()) {
+	systemctlCalls := 0
+	r := systemd.MockSystemctl(func(args ...string) ([]byte, error) {
+		if systemctlCalls < len(expCalls) {
+			res := expCalls[systemctlCalls]
+			c.Assert(args, DeepEquals, res.expArgs)
+			systemctlCalls++
+			return []byte(res.output), res.err
+		}
+		c.Errorf("unexpected and unhandled systemctl command: %+v", args)
+		return nil, fmt.Errorf("broken test")
+	})
+
+	return func() {
+		r()
+		// double-check at the end of the test that we got as many systemctl calls
+		// as were mocked and that we didn't get less, then re-set it for the next
+		// test
+		c.Assert(systemctlCalls, Equals, len(expCalls))
+	}
+}
+
 func (s *ensureSnapServiceSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
@@ -211,27 +230,6 @@ func (s *ensureSnapServiceSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	s.state.Set("seeded", true)
 	s.state.Unlock()
-
-	r := systemd.MockSystemctl(func(args ...string) ([]byte, error) {
-		if s.systemctlCalls < len(s.systemctlReturns) {
-			res := s.systemctlReturns[s.systemctlCalls]
-			c.Assert(args, DeepEquals, res.expArgs)
-			s.systemctlCalls++
-			return []byte(res.output), res.err
-		}
-		c.Errorf("unexpected and unhandled systemctl command: %+v", args)
-		return nil, fmt.Errorf("broken test")
-	})
-	s.AddCleanup(r)
-
-	// double-check at the end of the test that we got as many systemctl calls
-	// as were mocked and that we didn't get less, then re-set it for the next
-	// test
-	s.AddCleanup(func() {
-		c.Check(s.systemctlReturns, HasLen, s.systemctlCalls)
-		s.systemctlReturns = nil
-		s.systemctlCalls = 0
-	})
 }
 
 func (s *ensureSnapServiceSuite) TestEnsureSnapServicesNoSnapsDoesNothing(c *C) {
@@ -279,11 +277,12 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleWritesServicesFiles
 
 	// we will only trigger a daemon-reload once after generating the service
 	// file
-	s.systemctlReturns = []expectedSystemctl{
+	r := s.mockSystemctlCalls(c, []expectedSystemctl{
 		{
 			expArgs: []string{"daemon-reload"},
 		},
-	}
+	})
+	defer r()
 
 	err := s.mgr.Ensure()
 	c.Assert(err, IsNil)
@@ -350,7 +349,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesUC18(c
 	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
 	c.Assert(err, IsNil)
 
-	s.systemctlReturns = []expectedSystemctl{
+	r := s.mockSystemctlCalls(c, []expectedSystemctl{
 		{
 			expArgs: []string{"daemon-reload"},
 		},
@@ -359,7 +358,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesUC18(c
 			expArgs: []string{"show", "--property", "InactiveEnterTimestamp", "usr-lib-snapd.mount"},
 			output:  "InactiveEnterTimestamp=",
 		},
-	}
+	})
+	defer r()
 
 	err = s.mgr.Ensure()
 	c.Assert(err, IsNil)
@@ -397,7 +397,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesVitali
 	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
 	c.Assert(err, IsNil)
 
-	s.systemctlReturns = []expectedSystemctl{
+	r := s.mockSystemctlCalls(c, []expectedSystemctl{
 		{
 			expArgs: []string{"daemon-reload"},
 		},
@@ -406,7 +406,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesVitali
 			expArgs: []string{"show", "--property", "InactiveEnterTimestamp", "usr-lib-snapd.mount"},
 			output:  "InactiveEnterTimestamp=",
 		},
-	}
+	})
+	defer r()
 
 	err = s.mgr.Ensure()
 	c.Assert(err, IsNil)
@@ -446,7 +447,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 	slightFuture := now.Add(30 * time.Minute).Format(systemdTimeFormat)
 	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
 
-	s.systemctlReturns = []expectedSystemctl{
+	r := s.mockSystemctlCalls(c, []expectedSystemctl{
 		{
 			expArgs: []string{"daemon-reload"},
 		},
@@ -469,7 +470,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 		{
 			expArgs: []string{"start", "snap.test-snap.svc1.service"},
 		},
-	}
+	})
+	defer r()
 
 	err = s.mgr.Ensure()
 	c.Assert(err, IsNil)
@@ -514,7 +516,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesButDoe
 	slightFuture := now.Add(30 * time.Minute).Format(systemdTimeFormat)
 	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
 
-	s.systemctlReturns = []expectedSystemctl{
+	r := s.mockSystemctlCalls(c, []expectedSystemctl{
 		{
 			expArgs: []string{"daemon-reload"},
 		},
@@ -537,7 +539,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesButDoe
 			err:     systemctlDisabledServicError{},
 		},
 		// then we don't restart the service even though it was killed
-	}
+	})
+	defer r()
 
 	err = s.mgr.Ensure()
 	c.Assert(err, IsNil)
@@ -576,7 +579,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesKil
 	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
 	thePast := now.Add(-30 * time.Minute).Format(systemdTimeFormat)
 
-	s.systemctlReturns = []expectedSystemctl{
+	r := s.mockSystemctlCalls(c, []expectedSystemctl{
 		{
 			expArgs: []string{"daemon-reload"},
 		},
@@ -591,7 +594,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesKil
 			expArgs: []string{"show", "--property", "InactiveEnterTimestamp", "snap.test-snap.svc1.service"},
 			output:  fmt.Sprintf("InactiveEnterTimestamp=%s", thePast),
 		},
-	}
+	})
+	defer r()
 
 	err = s.mgr.Ensure()
 	c.Assert(err, IsNil)
@@ -630,7 +634,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesKil
 	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
 	thePast := now.Add(-30 * time.Minute).Format(systemdTimeFormat)
 
-	s.systemctlReturns = []expectedSystemctl{
+	r := s.mockSystemctlCalls(c, []expectedSystemctl{
 		{
 			expArgs: []string{"daemon-reload"},
 		},
@@ -645,7 +649,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesKil
 			expArgs: []string{"show", "--property", "InactiveEnterTimestamp", "snap.test-snap.svc1.service"},
 			output:  fmt.Sprintf("InactiveEnterTimestamp=%s", theFuture),
 		},
-	}
+	})
+	defer r()
 
 	err = s.mgr.Ensure()
 	c.Assert(err, IsNil)
@@ -688,14 +693,14 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleRewritesServicesFil
 
 	// add the initial state of the service file using Requires
 	requiresContent := mkUnitFile(c, &unitOptions{
-		usrLibSnapdOrderVerb: "Wants",
+		usrLibSnapdOrderVerb: "Requires",
 		snapName:             "test-snap",
 		snapRev:              "42",
 	})
 	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
 	c.Assert(err, IsNil)
 
-	s.systemctlReturns = []expectedSystemctl{
+	r := s.mockSystemctlCalls(c, []expectedSystemctl{
 		{
 			expArgs: []string{"daemon-reload"},
 		},
@@ -717,7 +722,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleRewritesServicesFil
 		{
 			expArgs: []string{"start", "snap.test-snap.svc1.service"},
 		},
-	}
+	})
+	defer r()
 
 	err = s.mgr.Ensure()
 	c.Assert(err, IsNil)
@@ -765,7 +771,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesNoChangeServiceFileDoesNo
 	c.Assert(err, IsNil)
 
 	// we don't use systemctl at all because we didn't change anything
-	s.systemctlReturns = []expectedSystemctl{}
+	// s.systemctlReturns = []expectedSystemctl{}
 
 	err = s.mgr.Ensure()
 	c.Assert(err, IsNil)
@@ -796,7 +802,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesWhe
 	now := time.Now()
 	os.Chtimes(usrLibSnapdMountFile, now, now)
 
-	s.systemctlReturns = []expectedSystemctl{
+	r := s.mockSystemctlCalls(c, []expectedSystemctl{
 		{
 			expArgs: []string{"daemon-reload"},
 		},
@@ -806,7 +812,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesWhe
 			expArgs: []string{"show", "--property", "InactiveEnterTimestamp", "usr-lib-snapd.mount"},
 			output:  "InactiveEnterTimestamp=",
 		},
-	}
+	})
+	defer r()
 
 	err = s.mgr.Ensure()
 	c.Assert(err, IsNil)
@@ -844,7 +851,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 	slightFuture := now.Add(30 * time.Minute).Format(systemdTimeFormat)
 	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
 
-	s.systemctlReturns = []expectedSystemctl{
+	r := s.mockSystemctlCalls(c, []expectedSystemctl{
 		{
 			expArgs: []string{"daemon-reload"},
 		},
@@ -868,7 +875,12 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 			expArgs: []string{"start", "snap.test-snap.svc1.service"},
 			err:     fmt.Errorf("this service is having a bad day"),
 		},
-	}
+		{
+			expArgs: []string{"stop", "snap.test-snap.svc1.service"},
+			err:     fmt.Errorf("this service is still having a bad day"),
+		},
+	})
+	defer r()
 
 	err = s.mgr.Ensure()
 	c.Assert(err, ErrorMatches, "error trying to restart killed services, immediately rebooting: this service is having a bad day")
@@ -907,7 +919,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndTri
 	slightFuture := now.Add(30 * time.Minute).Format(systemdTimeFormat)
 	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
 
-	s.systemctlReturns = []expectedSystemctl{
+	r := s.mockSystemctlCalls(c, []expectedSystemctl{
 		{
 			expArgs: []string{"daemon-reload"},
 		},
@@ -927,7 +939,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndTri
 			expArgs: []string{"is-enabled", "snap.test-snap.svc1.service"},
 			err:     fmt.Errorf("systemd is having a bad day"),
 		},
-	}
+	})
+	defer r()
 
 	err = s.mgr.Ensure()
 	c.Assert(err, ErrorMatches, "error trying to restart killed services, immediately rebooting: systemd is having a bad day")
