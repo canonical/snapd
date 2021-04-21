@@ -145,9 +145,6 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 		}
 	}
 
-	// TODO: this should take a callback so that we can gate the logic about
-	// restarting services below on actually observing a Requires= to Wants=
-	// transition which is what we need to do to fix LP #1924805
 	err = wrappers.EnsureSnapServices(snapsMap, ensureOpts, observeChange, progress.Null)
 	if err != nil {
 		return err
@@ -206,7 +203,6 @@ func restartServicesKilledInSnapdSnapRefresh(modified map[*snap.Info][]*snap.App
 	// all snap services using Requires=, see LP #1924805 for full details, so
 	// we need to undo that by restarting those snaps
 
-	// TODO: use the var from core18.go here instead
 	st, err := os.Stat(filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit))
 	if err != nil {
 		return err
