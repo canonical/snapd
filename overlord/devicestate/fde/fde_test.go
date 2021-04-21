@@ -20,12 +20,16 @@
 package fde_test
 
 import (
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/devicestate/fde"
 )
 
@@ -56,4 +60,29 @@ func (s *fdeSuite) TestHasRevealKey(c *C) {
 	// correct fde-reveal-key, no logging
 	err = os.Chmod(mockBin+"fde-reveal-key", 0755)
 	c.Assert(err, IsNil)
+}
+
+func (s *fdeSuite) TestUnmarshalFDESetupResultSad(c *C) {
+	_, err := fde.UnmarshalFDESetupResult([]byte(`bad json`))
+	c.Check(err, ErrorMatches, `cannot decode hook output "bad json": invalid char.*`)
+}
+
+func (s *fdeSuite) TestUnmarshalFDESetupResultCompatSecbootV1(c *C) {
+	res, err := fde.UnmarshalFDESetupResult([]byte(`USK$old-v1-secboot-generated-key`))
+	c.Check(err, IsNil)
+	handle := json.RawMessage(`{v1-no-handle: true}`)
+	c.Check(res, DeepEquals, &boot.FDESetupHookResult{
+		EncryptedKey: []byte("USK$old-v1-secboot-generated-key"),
+		Handle:       &handle,
+	})
+}
+
+func (s *fdeSuite) TestUnmarshalFDESetupResultHappy(c *C) {
+	res, err := fde.UnmarshalFDESetupResult([]byte(fmt.Sprintf(`{"encrypted-key":"%s","handle":{"the":"handle","is":"raw-json"}}`, base64.StdEncoding.EncodeToString([]byte("the-key")))))
+	c.Check(err, IsNil)
+	handle := json.RawMessage(`{"the":"handle","is":"raw-json"}`)
+	c.Check(res, DeepEquals, &boot.FDESetupHookResult{
+		EncryptedKey: []byte("the-key"),
+		Handle:       &handle,
+	})
 }
