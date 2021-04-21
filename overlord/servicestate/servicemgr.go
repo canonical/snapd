@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -132,9 +133,15 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 	}
 
 	rewrittenServices := make(map[*snap.Info][]*snap.AppInfo)
+	serviceKillingMightHaveOccurred := false
 	observeChange := func(app *snap.AppInfo, unitType, name string, old, new string) {
 		if unitType == "service" {
 			rewrittenServices[app.Snap] = append(rewrittenServices[app.Snap], app)
+			if !serviceKillingMightHaveOccurred {
+				if strings.Contains(old, "\nRequires=usr-lib-snapd.mount\n") {
+					serviceKillingMightHaveOccurred = true
+				}
+			}
 		}
 	}
 
@@ -147,7 +154,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 	}
 
 	// if nothing was modified or we are not on UC18+, we are done
-	if len(rewrittenServices) == 0 || deviceCtx.Classic() || deviceCtx.Model().Base() == "" {
+	if len(rewrittenServices) == 0 || deviceCtx.Classic() || deviceCtx.Model().Base() == "" || !serviceKillingMightHaveOccurred {
 		m.ensuredSnapSvcs = true
 		return nil
 	}

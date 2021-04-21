@@ -353,11 +353,6 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesUC18(c
 		{
 			expArgs: []string{"daemon-reload"},
 		},
-		{
-			// usr-lib-snapd.mount has not been stopped this boot "far in the future"
-			expArgs: []string{"show", "--property", "InactiveEnterTimestamp", "usr-lib-snapd.mount"},
-			output:  "InactiveEnterTimestamp=",
-		},
 	})
 	defer r()
 
@@ -401,11 +396,6 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesVitali
 		{
 			expArgs: []string{"daemon-reload"},
 		},
-		{
-			// usr-lib-snapd.mount has not been stopped this boot "far in the future"
-			expArgs: []string{"show", "--property", "InactiveEnterTimestamp", "usr-lib-snapd.mount"},
-			output:  "InactiveEnterTimestamp=",
-		},
 	})
 	defer r()
 
@@ -442,6 +432,17 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 
 	now := time.Now()
 	err = os.Chtimes(usrLibSnapdMountFile, now, now)
+	c.Assert(err, IsNil)
+
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service")
+
+	// add the initial state of the service file using Requires
+	requiresContent := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Requires",
+		snapName:             "test-snap",
+		snapRev:              "42",
+	})
+	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
 	c.Assert(err, IsNil)
 
 	slightFuture := now.Add(30 * time.Minute).Format(systemdTimeFormat)
@@ -482,7 +483,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 		snapName:             "test-snap",
 		snapRev:              "42",
 	})
-	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, content)
+	c.Assert(svcFile, testutil.FileEquals, content)
 
 	// we did not request a restart
 	c.Assert(s.restartRequests, HasLen, 0)
@@ -511,6 +512,17 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesButDoe
 
 	now := time.Now()
 	err = os.Chtimes(usrLibSnapdMountFile, now, now)
+	c.Assert(err, IsNil)
+
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service")
+
+	// add the initial state of the service file using Requires
+	requiresContent := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Requires",
+		snapName:             "test-snap",
+		snapRev:              "42",
+	})
+	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
 	c.Assert(err, IsNil)
 
 	slightFuture := now.Add(30 * time.Minute).Format(systemdTimeFormat)
@@ -551,7 +563,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesButDoe
 		snapName:             "test-snap",
 		snapRev:              "42",
 	})
-	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, content)
+	c.Assert(svcFile, testutil.FileEquals, content)
 
 	// we did not request a restart
 	c.Assert(s.restartRequests, HasLen, 0)
@@ -574,6 +586,17 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesKil
 
 	now := time.Now()
 	err = os.Chtimes(usrLibSnapdMountFile, now, now)
+	c.Assert(err, IsNil)
+
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service")
+
+	// add the initial state of the service file using Requires
+	requiresContent := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Requires",
+		snapName:             "test-snap",
+		snapRev:              "42",
+	})
+	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
 	c.Assert(err, IsNil)
 
 	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
@@ -606,7 +629,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesKil
 		snapName:             "test-snap",
 		snapRev:              "42",
 	})
-	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, content)
+	c.Assert(svcFile, testutil.FileEquals, content)
 
 	// we did not request a restart
 	c.Assert(s.restartRequests, HasLen, 0)
@@ -629,6 +652,17 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesKil
 
 	now := time.Now()
 	err = os.Chtimes(usrLibSnapdMountFile, now, now)
+	c.Assert(err, IsNil)
+
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service")
+
+	// add the initial state of the service file using Requires
+	requiresContent := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Requires",
+		snapName:             "test-snap",
+		snapRev:              "42",
+	})
+	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
 	c.Assert(err, IsNil)
 
 	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
@@ -661,7 +695,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesKil
 		snapName:             "test-snap",
 		snapRev:              "42",
 	})
-	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, content)
+	c.Assert(svcFile, testutil.FileEquals, content)
 
 	// we did not request a restart
 	c.Assert(s.restartRequests, HasLen, 0)
@@ -958,7 +992,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesNoChangeServiceFileDoesNo
 
 }
 
-func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesWhenUsrLibSnapdWasInactive(c *C) {
+func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesWhenUsrLibSnapdWasNeverInactive(c *C) {
 	s.state.Lock()
 	// there is a snap in snap state that needs a service generated for it
 	snapstate.Set(s.state, "test-snap", s.testSnapState)
@@ -975,6 +1009,17 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesWhe
 
 	now := time.Now()
 	os.Chtimes(usrLibSnapdMountFile, now, now)
+
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service")
+
+	// add the initial state of the service file using Requires
+	requiresContent := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Requires",
+		snapName:             "test-snap",
+		snapRev:              "42",
+	})
+	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
+	c.Assert(err, IsNil)
 
 	r := s.mockSystemctlCalls(c, []expectedSystemctl{
 		{
@@ -997,7 +1042,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesWhe
 		snapName:             "test-snap",
 		snapRev:              "42",
 	})
-	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, content)
+	c.Assert(svcFile, testutil.FileEquals, content)
 
 	// we did not request a restart
 	c.Assert(s.restartRequests, HasLen, 0)
@@ -1020,6 +1065,17 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 
 	now := time.Now()
 	err = os.Chtimes(usrLibSnapdMountFile, now, now)
+	c.Assert(err, IsNil)
+
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service")
+
+	// add the initial state of the service file using Requires
+	requiresContent := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Requires",
+		snapName:             "test-snap",
+		snapRev:              "42",
+	})
+	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
 	c.Assert(err, IsNil)
 
 	slightFuture := now.Add(30 * time.Minute).Format(systemdTimeFormat)
@@ -1065,7 +1121,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 		snapName:             "test-snap",
 		snapRev:              "42",
 	})
-	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, content)
+	c.Assert(svcFile, testutil.FileEquals, content)
 
 	// we requested a restart
 	c.Assert(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
@@ -1088,6 +1144,17 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndTri
 
 	now := time.Now()
 	err = os.Chtimes(usrLibSnapdMountFile, now, now)
+	c.Assert(err, IsNil)
+
+	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service")
+
+	// add the initial state of the service file using Requires
+	requiresContent := mkUnitFile(c, &unitOptions{
+		usrLibSnapdOrderVerb: "Requires",
+		snapName:             "test-snap",
+		snapRev:              "42",
+	})
+	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
 	c.Assert(err, IsNil)
 
 	slightFuture := now.Add(30 * time.Minute).Format(systemdTimeFormat)
@@ -1125,7 +1192,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndTri
 		snapName:             "test-snap",
 		snapRev:              "42",
 	})
-	c.Assert(filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service"), testutil.FileEquals, content)
+	c.Assert(svcFile, testutil.FileEquals, content)
 
 	// we requested a restart
 	c.Assert(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
