@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -62,127 +62,6 @@ func MockEnsuredSnapServices(mgr *ServiceManager, ensured bool) (restore func())
 	return func() {
 		mgr.ensuredSnapSvcs = old
 	}
-}
-
-func restartServicesKilledInSnapdSnapRefresh(modified map[*snap.Info][]*snap.AppInfo) error {
-	// we decide on which services to restart by identifying (out of the set of
-	// services we just modified) services that were stopped after
-	// usr-lib-snapd.mount was written, but before usr-lib-snapd.mount was last
-	// stopped - this is the time window in which snapd (accidentally) killed
-	// all snap services using Requires=, see LP #1924805 for full details, so
-	// we need to undo that by restarting those snaps
-
-	// TODO: use the var from core18.go here instead
-	st, err := os.Stat(filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit))
-	if err != nil {
-		return err
-	}
-
-	// TODO: we should check if usr-lib-snapd.mount was modified before the
-	// current boot time, if it was then we can just skip this since we know
-	// any service stops that happened were unrelated
-
-	// always truncate all times to second precision, since that is the least
-	// precise time we have of all the times we consider, due to using systemctl
-	// for getting the InactiveEnterTimestamp for systemd units
-	// TODO: we should switch back to using D-Bus for this, where we get much
-	// more accurate times, down to the microsecond, which is the same precision
-	// we have for the modification time here, and thus we can more easily avoid
-	// the truncation issue, and we can ensure that we are minimizing the risk
-	// of inadvertently starting services that just so happened to have been
-	// stopped in the same second that we modified and usr-lib-snapd.mount.
-	lowerTimeBound := st.ModTime().Truncate(time.Second)
-
-	// Get the InactiveEnterTimestamp property for the usr-lib-snapd.mount unit,
-	// this is the time that usr-lib-snapd.mount was transitioned from
-	// deactivating to inactive and was done being started. This is the correct
-	// upper bound for our window in which systemd killed snap services because
-	// systemd orders the transactions when we stop usr-lib-snapd.mount thusly:
-	//
-	// 1. Find all units which have Requires=usr-lib-snapd.mount (all snap
-	//    services which would have been refreshed during snapd 2.49.2)
-	// 2. Stop all such services found in 1.
-	// 3. Stop usr-lib-snapd.mount itself.
-	//
-	// Thus the time after all the services were killed is given by the time
-	// that systemd transitioned usr-lib-snapd.mount to inactive, which is given
-	// by InactiveEnterTimestamp.
-
-	// TODO: pass a real interactor here?
-	sysd := systemd.New(systemd.SystemMode, progress.Null)
-
-	upperTimeBound, err := sysd.InactiveEnterTimestamp(wrappers.SnapdToolingMountUnit)
-	if err != nil {
-		return err
-	}
-
-	if upperTimeBound.IsZero() {
-		// this means that the usr-lib-snapd.mount unit never exited during this
-		// boot, which means we are done in this ensure because the bug we care
-		// about (LP #1924805) here was never triggered
-		return nil
-	}
-
-	upperTimeBound = upperTimeBound.Truncate(time.Second)
-
-	// if the lower time bound is ever in the future pastthe upperTimeBound,
-	// then  just use the upperTimeBound as both limits, since we know that the
-	// upper bound and the time for each service being stopped are of the same
-	// precision
-	if lowerTimeBound.After(upperTimeBound) {
-		lowerTimeBound = upperTimeBound
-	}
-
-	candidateAppsToRestartBySnap := make(map[*snap.Info][]*snap.AppInfo)
-
-	for sn, apps := range modified {
-		for _, app := range apps {
-			// get the InactiveEnterTimestamp for the service
-			t, err := sysd.InactiveEnterTimestamp(app.ServiceName())
-			if err != nil {
-				return err
-			}
-
-			// always truncate to second precision
-			t = t.Truncate(time.Second)
-
-			// check if this unit entered the inactive state between the time
-			// range, but be careful about time precision here, we want an
-			// inclusive range i.e. [lower,upper] not (lower,upper) in case the
-			// time that systemd saves these events as is imprecise or slow and
-			// things get saved as having happened at the exact same time
-			if !t.Before(lowerTimeBound) && !t.After(upperTimeBound) {
-				candidateAppsToRestartBySnap[sn] = append(candidateAppsToRestartBySnap[sn], app)
-			}
-		}
-	}
-
-	// Second loop actually restarts the services per-snap by sorting them and
-	// removing disabled services. Note that we could have disabled services
-	// here because a service could have been running, but disabled when snapd
-	// was refreshed, hence it got killed, but we don't want to restart it,
-	// since it is disabled, and so that disabled running service is just SOL.
-	for sn, apps := range candidateAppsToRestartBySnap {
-		// TODO: should we try to start as many services as possible here before
-		// giving up given the severity of the bug?
-		disabledSvcs, err := wrappers.QueryDisabledServices(sn, progress.Null)
-		if err != nil {
-			return err
-		}
-
-		startupOrdered, err := snap.SortServices(apps)
-		if err != nil {
-			return err
-		}
-
-		// TODO: what to do about timings here?
-		nullPerfTimings := &timings.Timings{}
-		if err := wrappers.StartServices(startupOrdered, disabledSvcs, nil, progress.Null, nullPerfTimings); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
 
 func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
@@ -305,4 +184,125 @@ func serviceControlAffectedSnaps(t *state.Task) ([]string, error) {
 		return nil, fmt.Errorf("internal error: cannot obtain service action from task: %s", t.Summary())
 	}
 	return []string{serviceAction.SnapName}, nil
+}
+
+func restartServicesKilledInSnapdSnapRefresh(modified map[*snap.Info][]*snap.AppInfo) error {
+	// we decide on which services to restart by identifying (out of the set of
+	// services we just modified) services that were stopped after
+	// usr-lib-snapd.mount was written, but before usr-lib-snapd.mount was last
+	// stopped - this is the time window in which snapd (accidentally) killed
+	// all snap services using Requires=, see LP #1924805 for full details, so
+	// we need to undo that by restarting those snaps
+
+	// TODO: use the var from core18.go here instead
+	st, err := os.Stat(filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit))
+	if err != nil {
+		return err
+	}
+
+	// TODO: we should check if usr-lib-snapd.mount was modified before the
+	// current boot time, if it was then we can just skip this since we know
+	// any service stops that happened were unrelated
+
+	// always truncate all times to second precision, since that is the least
+	// precise time we have of all the times we consider, due to using systemctl
+	// for getting the InactiveEnterTimestamp for systemd units
+	// TODO: we should switch back to using D-Bus for this, where we get much
+	// more accurate times, down to the microsecond, which is the same precision
+	// we have for the modification time here, and thus we can more easily avoid
+	// the truncation issue, and we can ensure that we are minimizing the risk
+	// of inadvertently starting services that just so happened to have been
+	// stopped in the same second that we modified and usr-lib-snapd.mount.
+	lowerTimeBound := st.ModTime().Truncate(time.Second)
+
+	// Get the InactiveEnterTimestamp property for the usr-lib-snapd.mount unit,
+	// this is the time that usr-lib-snapd.mount was transitioned from
+	// deactivating to inactive and was done being started. This is the correct
+	// upper bound for our window in which systemd killed snap services because
+	// systemd orders the transactions when we stop usr-lib-snapd.mount thusly:
+	//
+	// 1. Find all units which have Requires=usr-lib-snapd.mount (all snap
+	//    services which would have been refreshed during snapd 2.49.2)
+	// 2. Stop all such services found in 1.
+	// 3. Stop usr-lib-snapd.mount itself.
+	//
+	// Thus the time after all the services were killed is given by the time
+	// that systemd transitioned usr-lib-snapd.mount to inactive, which is given
+	// by InactiveEnterTimestamp.
+
+	// TODO: pass a real interactor here?
+	sysd := systemd.New(systemd.SystemMode, progress.Null)
+
+	upperTimeBound, err := sysd.InactiveEnterTimestamp(wrappers.SnapdToolingMountUnit)
+	if err != nil {
+		return err
+	}
+
+	if upperTimeBound.IsZero() {
+		// this means that the usr-lib-snapd.mount unit never exited during this
+		// boot, which means we are done in this ensure because the bug we care
+		// about (LP #1924805) here was never triggered
+		return nil
+	}
+
+	upperTimeBound = upperTimeBound.Truncate(time.Second)
+
+	// if the lower time bound is ever in the future pastthe upperTimeBound,
+	// then  just use the upperTimeBound as both limits, since we know that the
+	// upper bound and the time for each service being stopped are of the same
+	// precision
+	if lowerTimeBound.After(upperTimeBound) {
+		lowerTimeBound = upperTimeBound
+	}
+
+	candidateAppsToRestartBySnap := make(map[*snap.Info][]*snap.AppInfo)
+
+	for sn, apps := range modified {
+		for _, app := range apps {
+			// get the InactiveEnterTimestamp for the service
+			t, err := sysd.InactiveEnterTimestamp(app.ServiceName())
+			if err != nil {
+				return err
+			}
+
+			// always truncate to second precision
+			t = t.Truncate(time.Second)
+
+			// check if this unit entered the inactive state between the time
+			// range, but be careful about time precision here, we want an
+			// inclusive range i.e. [lower,upper] not (lower,upper) in case the
+			// time that systemd saves these events as is imprecise or slow and
+			// things get saved as having happened at the exact same time
+			if !t.Before(lowerTimeBound) && !t.After(upperTimeBound) {
+				candidateAppsToRestartBySnap[sn] = append(candidateAppsToRestartBySnap[sn], app)
+			}
+		}
+	}
+
+	// Second loop actually restarts the services per-snap by sorting them and
+	// removing disabled services. Note that we could have disabled services
+	// here because a service could have been running, but disabled when snapd
+	// was refreshed, hence it got killed, but we don't want to restart it,
+	// since it is disabled, and so that disabled running service is just SOL.
+	for sn, apps := range candidateAppsToRestartBySnap {
+		// TODO: should we try to start as many services as possible here before
+		// giving up given the severity of the bug?
+		disabledSvcs, err := wrappers.QueryDisabledServices(sn, progress.Null)
+		if err != nil {
+			return err
+		}
+
+		startupOrdered, err := snap.SortServices(apps)
+		if err != nil {
+			return err
+		}
+
+		// TODO: what to do about timings here?
+		nullPerfTimings := &timings.Timings{}
+		if err := wrappers.StartServices(startupOrdered, disabledSvcs, nil, progress.Null, nullPerfTimings); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
