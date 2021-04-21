@@ -195,9 +195,10 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	}
 
 	return MakeRecoverySystemBootable(rootdir, bootWith.RecoverySystemDir, &RecoverySystemBootableSet{
-		Kernel:          bootWith.Kernel,
-		KernelPath:      bootWith.KernelPath,
-		GadgetSnapOrDir: bootWith.UnpackedGadgetDir,
+		Kernel:           bootWith.Kernel,
+		KernelPath:       bootWith.KernelPath,
+		GadgetSnapOrDir:  bootWith.UnpackedGadgetDir,
+		PrepareImageTime: true,
 	})
 }
 
@@ -207,6 +208,9 @@ type RecoverySystemBootableSet struct {
 	Kernel          *snap.Info
 	KernelPath      string
 	GadgetSnapOrDir string
+	// PrepareImageTime is true when the structure is being used when
+	// preparing a bootable system image.
+	PrepareImageTime bool
 }
 
 // MakeRecoverySystemBootable prepares a recovery system under a path relative
@@ -214,8 +218,10 @@ type RecoverySystemBootableSet struct {
 func MakeRecoverySystemBootable(rootdir string, relativeRecoverySystemDir string, bootWith *RecoverySystemBootableSet) error {
 	opts := &bootloader.Options{
 		// XXX: this is only needed by LK, it is unclear whether LK does
-		// too much when extracting recovery kernel assets
-		PrepareImageTime: true,
+		// too much when extracting recovery kernel assets, in the end
+		// it is currently not possible to create a recovery system at
+		// runtime when using LK.
+		PrepareImageTime: bootWith.PrepareImageTime,
 		// setup the recovery bootloader
 		Role: bootloader.RoleRecovery,
 	}
