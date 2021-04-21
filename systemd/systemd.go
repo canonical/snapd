@@ -589,35 +589,6 @@ func (s *systemd) getGlobalUserStatus(unitNames ...string) ([]*UnitStatus, error
 	return sts, nil
 }
 
-func (s *systemd) InactiveEnterTimestamp(unit string) (time.Time, error) {
-	// XXX: ignore stderr of systemctl command to avoid further infractions
-	//      around LP #1885597
-	out, err := s.systemctl("show", "--property", "InactiveEnterTimestamp", unit)
-	if err != nil {
-		return time.Time{}, osutil.OutputErr(out, err)
-	}
-	// the time returned by systemctl here will be formatted like so:
-	// InactiveEnterTimestamp=Fri 2021-04-16 15:32:21 UTC
-	// so we have to parse the time with a matching Go time format
-	splitVal := strings.SplitN(strings.TrimSpace(string(out)), "=", 2)
-	if len(splitVal) != 2 {
-		// then we don't have an equals sign in the output, so systemctl must be
-		// broken
-		return time.Time{}, fmt.Errorf("internal error: systemctl output (%s) is malformed", string(out))
-	}
-
-	if splitVal[1] == "" {
-		return time.Time{}, nil
-	}
-
-	// finally parse the time string
-	inactiveEnterTime, err := time.Parse("Mon 2006-01-02 15:04:05 MST", splitVal[1])
-	if err != nil {
-		return time.Time{}, fmt.Errorf("internal error: systemctl time output (%s) is malformed", splitVal[1])
-	}
-	return inactiveEnterTime, nil
-}
-
 func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 	if s.mode == GlobalUserMode {
 		return s.getGlobalUserStatus(unitNames...)
@@ -665,6 +636,35 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 	}
 
 	return sts, nil
+}
+
+func (s *systemd) InactiveEnterTimestamp(unit string) (time.Time, error) {
+	// XXX: ignore stderr of systemctl command to avoid further infractions
+	//      around LP #1885597
+	out, err := s.systemctl("show", "--property", "InactiveEnterTimestamp", unit)
+	if err != nil {
+		return time.Time{}, osutil.OutputErr(out, err)
+	}
+	// the time returned by systemctl here will be formatted like so:
+	// InactiveEnterTimestamp=Fri 2021-04-16 15:32:21 UTC
+	// so we have to parse the time with a matching Go time format
+	splitVal := strings.SplitN(strings.TrimSpace(string(out)), "=", 2)
+	if len(splitVal) != 2 {
+		// then we don't have an equals sign in the output, so systemctl must be
+		// broken
+		return time.Time{}, fmt.Errorf("internal error: systemctl output (%s) is malformed", string(out))
+	}
+
+	if splitVal[1] == "" {
+		return time.Time{}, nil
+	}
+
+	// finally parse the time string
+	inactiveEnterTime, err := time.Parse("Mon 2006-01-02 15:04:05 MST", splitVal[1])
+	if err != nil {
+		return time.Time{}, fmt.Errorf("internal error: systemctl time output (%s) is malformed", splitVal[1])
+	}
+	return inactiveEnterTime, nil
 }
 
 func (s *systemd) IsEnabled(serviceName string) (bool, error) {
