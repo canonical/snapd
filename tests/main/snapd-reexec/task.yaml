@@ -14,10 +14,10 @@ restore: |
     rm -f /etc/systemd/system/snapd.service.d/no-reexec.conf
     systemctl stop snapd.service snapd.socket
     if mount|grep "/snap/core/.*/usr/lib/snapd/info"; then
-        umount $SNAP_MOUNT_DIR/core/current/usr/lib/snapd/info
+        umount "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/info"
     fi
     if mount|grep "/snap/core/.*/usr/lib/snapd/snapd"; then
-        umount $SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snapd
+        umount "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snapd"
     fi
     rm -f /tmp/old-info
 

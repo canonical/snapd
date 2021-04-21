@@ -13,8 +13,8 @@ prepare: |
 
 restore: |
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    rm -f $SNAP_MOUNT_DIR/bin/test_echo
-    rm -f $SNAP_MOUNT_DIR/bin/test_cat
+    rm -f "$SNAP_MOUNT_DIR/bin/test_echo"
+    rm -f "$SNAP_MOUNT_DIR/bin/test_cat"
 
 execute: |
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"

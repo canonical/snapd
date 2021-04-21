@@ -2,7 +2,7 @@ summary: Check error handling in symlinks to /usr/bin/snap
 
 restore: |
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    rm -f $SNAP_MOUNT_DIR/bin/xxx
+    rm -f "$SNAP_MOUNT_DIR/bin/xxx"
 
 execute: |
     echo Setting up incorrect symlink for snap run

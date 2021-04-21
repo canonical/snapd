@@ -11,7 +11,7 @@ prepare: |
 restore: |
     echo "Restore current symlink"
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    mv $SNAP_MOUNT_DIR/core/current.renamed $SNAP_MOUNT_DIR/core/current ||  true
+    mv "$SNAP_MOUNT_DIR/core/current.renamed" "$SNAP_MOUNT_DIR/core/current" ||  true
 
 execute: |
     echo "Simulating broken current symlink for core"

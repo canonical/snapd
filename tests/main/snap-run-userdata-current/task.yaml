@@ -8,7 +8,7 @@ prepare: |
 execute: |
     echo "Test that 'current' symlink is created in user data dir"
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    CURRENT=$(readlink $SNAP_MOUNT_DIR/test-snapd-sh/current)
+    CURRENT=$(readlink "$SNAP_MOUNT_DIR/test-snapd-sh/current")
     if [ -z "$CURRENT" ]; then
       echo "Could not determine current version of $SNAP"
       exit 1
