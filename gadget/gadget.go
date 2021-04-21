@@ -1091,7 +1091,7 @@ func parseCommandLineFromGadget(content []byte, whichFile string) (string, error
 	}
 	for _, argValue := range kargs {
 		if strings.HasPrefix(argValue, "#") {
-			return "", fmt.Errorf("incorrect use of # in argument %q", argValue)
+			return "", fmt.Errorf("unexpected or invalid use of # in argument %q", argValue)
 		}
 		split := strings.SplitN(argValue, "=", 2)
 		if !isKernelArgumentAllowed(split[0]) {
