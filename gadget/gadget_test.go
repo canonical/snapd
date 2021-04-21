@@ -2459,10 +2459,10 @@ func (s *gadgetYamlTestSuite) TestKernelCommandLineBasic(c *C) {
 		err: "no kernel command line in the gadget",
 	}, {
 		files: [][]string{{"cmdline.full", " # error"}},
-		full:  true, err: `invalid kernel command line in cmdline\.full: incorrect use of # in argument "#"`,
+		full:  true, err: `invalid kernel command line in cmdline\.full: unexpected or invalid use of # in argument "#"`,
 	}, {
 		files: [][]string{{"cmdline.full", "foo bar baz #error"}},
-		full:  true, err: `invalid kernel command line in cmdline\.full: incorrect use of # in argument "#error"`,
+		full:  true, err: `invalid kernel command line in cmdline\.full: unexpected or invalid use of # in argument "#error"`,
 	}, {
 		files: [][]string{
 			{"cmdline.full", "foo bad =\n"},
