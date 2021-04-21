@@ -19,16 +19,6 @@
 
 package servicestate
 
-import "time"
-
 var (
 	UpdateSnapstateServices = updateSnapstateServices
 )
-
-func MockBootTime(f func() (time.Time, error)) (restore func()) {
-	old := getBootTime
-	getBootTime = f
-	return func() {
-		getBootTime = old
-	}
-}

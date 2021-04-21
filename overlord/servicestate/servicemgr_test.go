@@ -435,70 +435,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndDoe
 	err = os.Chtimes(usrLibSnapdMountFile, now, now)
 	c.Assert(err, IsNil)
 
-	future := now.Add(30 * time.Minute)
-
-	// we won't try to start services if the current boot time is ahead of the
-	// modification time
-	bootTimeCalled := 0
-	r := servicestate.MockBootTime(func() (time.Time, error) {
-		bootTimeCalled++
-		return future, nil
-	})
+	logbuf, r := logger.MockLogger()
 	defer r()
-
-	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service")
-
-	// add the initial state of the service file using Requires
-	requiresContent := mkUnitFile(c, &unitOptions{
-		usrLibSnapdOrderVerb: "Requires",
-		snapName:             "test-snap",
-		snapRev:              "42",
-	})
-	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
-	c.Assert(err, IsNil)
-
-	r = s.mockSystemctlCalls(c, []expectedSystemctl{
-		{
-			expArgs: []string{"daemon-reload"},
-		},
-	})
-	defer r()
-
-	err = s.mgr.Ensure()
-	c.Assert(err, IsNil)
-
-	// we wrote the service unit file
-	content := mkUnitFile(c, &unitOptions{
-		usrLibSnapdOrderVerb: "Wants",
-		snapName:             "test-snap",
-		snapRev:              "42",
-	})
-	c.Assert(svcFile, testutil.FileEquals, content)
-
-	c.Assert(bootTimeCalled, Equals, 1)
-
-	// we did not request a restart
-	c.Assert(s.restartRequests, HasLen, 0)
-}
-
-func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndDoesNotRestartIfBootTimeAfterModTimeRealBootTime(c *C) {
-	s.state.Lock()
-	// there is a snap in snap state that needs a service generated for it
-	snapstate.Set(s.state, "test-snap", s.testSnapState)
-	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
-
-	s.state.Unlock()
-
-	// add the usr-lib-snapd.mount unit
-	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
-	c.Assert(err, IsNil)
-	usrLibSnapdMountFile := filepath.Join(dirs.SnapServicesDir, wrappers.SnapdToolingMountUnit)
-	err = ioutil.WriteFile(usrLibSnapdMountFile, nil, 0644)
-	c.Assert(err, IsNil)
-
-	now := time.Now()
-	err = os.Chtimes(usrLibSnapdMountFile, now, now)
-	c.Assert(err, IsNil)
 
 	// TZ's are important for the boot time specifically, we need to output the
 	// UTC time from the uptime script below, otherwise using local time here
@@ -537,7 +475,7 @@ echo %[1]q
 	err = ioutil.WriteFile(svcFile, []byte(requiresContent), 0644)
 	c.Assert(err, IsNil)
 
-	r := s.mockSystemctlCalls(c, []expectedSystemctl{
+	r = s.mockSystemctlCalls(c, []expectedSystemctl{
 		{
 			expArgs: []string{"daemon-reload"},
 		},
@@ -558,6 +496,8 @@ echo %[1]q
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"uptime", "-s"},
 	})
+
+	c.Assert(logbuf.String(), Equals, "")
 
 	// we did not request a restart
 	c.Assert(s.restartRequests, HasLen, 0)
@@ -585,12 +525,12 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndIgn
 	// if the boot time can't be determined, we log a message and continue on
 	// considering whether or not the service should be restarted based on when
 	// it exited
-	bootTimeCalled := 0
-	r := servicestate.MockBootTime(func() (time.Time, error) {
-		bootTimeCalled++
-		return time.Time{}, fmt.Errorf("boot time broken")
-	})
-	defer r()
+	cmd := testutil.MockCommand(c, "uptime", `
+#!/bin/sh
+echo "boot time broken"
+exit 1
+`)
+	defer cmd.Restore()
 
 	logbuf, r := logger.MockLogger()
 	defer r()
@@ -630,7 +570,10 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndIgn
 	})
 	c.Assert(svcFile, testutil.FileEquals, content)
 
-	c.Assert(bootTimeCalled, Equals, 1)
+	c.Assert(cmd.Calls(), DeepEquals, [][]string{
+		{"uptime", "-s"},
+	})
+
 	c.Assert(logbuf.String(), Matches, ".*error getting boot time: boot time broken\n")
 
 	// we did not request a restart

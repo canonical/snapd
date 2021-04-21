@@ -197,7 +197,7 @@ func serviceControlAffectedSnaps(t *state.Task) ([]string, error) {
 	return []string{serviceAction.SnapName}, nil
 }
 
-var getBootTime = func() (time.Time, error) {
+func getBootTime() (time.Time, error) {
 	cmd := exec.Command("uptime", "-s")
 	cmd.Env = append(cmd.Env, "TZ=UTC")
 	out, err := cmd.CombinedOutput()
