@@ -516,10 +516,10 @@ nested_create_core_vm() {
 
     mkdir -p "$NESTED_IMAGES_DIR"
 
-    if [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME".xz ]; then
-        nested_uncompress_image "$IMAGE_NAME"
-    elif [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
+    if [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" ]; then
+        cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
 
+    elif [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
         if [ -n "$NESTED_CUSTOM_IMAGE_URL" ]; then
             # download the ubuntu-core image from $CUSTOM_IMAGE_URL
             nested_download_image "$NESTED_CUSTOM_IMAGE_URL" "$IMAGE_NAME"
@@ -669,6 +669,7 @@ EOF
             else 
                 UBUNTU_IMAGE_CHANNEL_ARG=""
             fi
+            # ubuntu-image creates sparse image files
             "$UBUNTU_IMAGE" snap --image-size 10G "$NESTED_MODEL" \
                 "$UBUNTU_IMAGE_CHANNEL_ARG" \
                 --output "$NESTED_IMAGES_DIR/$IMAGE_NAME" \
@@ -690,9 +691,8 @@ EOF
         nested_create_assertions_disk
     fi
 
-    # Save a compressed copy of the image
-    # TODO: analyze if it is better to compress just when the image is generic
-    nested_compress_image "$IMAGE_NAME"
+    # Save a copy of the image
+    cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine"
 }
 
 nested_configure_cloud_init_on_core_vm() {
@@ -1034,35 +1034,31 @@ nested_start_core_vm() {
         # exists
         local IMAGE_NAME
         IMAGE_NAME="$(nested_get_image_name core)"
-        if ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz" ] && ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
+        if ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
             echo "No image found to be started"
             exit 1
         fi
 
-        # First time the image is used $IMAGE_NAME exists so it is used, otherwise
-        # the saved image from previous run is uncompressed
-        if ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
-            nested_uncompress_image "$IMAGE_NAME"
-        fi
-        mv "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$CURRENT_IMAGE"
+        # images are created as sparse files, simple cp should preserve that
+        # property
+        cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$CURRENT_IMAGE"
 
         # Start the nested core vm
         nested_start_core_vm_unit "$CURRENT_IMAGE"
 
-        if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz.configured" ]; then
+        if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.configured" ]; then
             # configure ssh for first time
             nested_prepare_ssh
             sync
 
-            # compress the current image if it is a generic image
+            # keep a copy of the current image if it is a generic image
             if nested_is_generic_image && [ "$NESTED_CONFIGURE_IMAGES" = "true" ]; then
                 # Stop the current image and compress it
                 nested_shutdown
-                nested_compress_image "$CURRENT_NAME"
 
                 # Save the image with the name of the original image
-                mv "${CURRENT_IMAGE}.xz" "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz"
-                touch "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz.configured"
+                cp -v "${CURRENT_IMAGE}" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+                touch "$NESTED_IMAGES_DIR/$IMAGE_NAME.configured"
 
                 # Start the current image again and wait until it is ready
                 nested_start
@@ -1094,18 +1090,6 @@ nested_start() {
     nested_wait_for_ssh
 }
 
-nested_compress_image() {
-    local IMAGE_NAME=$1
-    if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME".xz ]; then
-        xz -k0 "$NESTED_IMAGES_DIR/$IMAGE_NAME"
-    fi
-}
-
-nested_uncompress_image() {
-    local IMAGE_NAME=$1
-    unxz -kf "$NESTED_IMAGES_DIR/$IMAGE_NAME".xz
-}
-
 nested_create_classic_vm() {
     local IMAGE_NAME
     IMAGE_NAME="$(nested_get_image_name classic)"
@@ -1123,8 +1107,8 @@ nested_create_classic_vm() {
         cloud-localds -H "$(hostname)" "$NESTED_ASSETS_DIR/seed.img" "$NESTED_ASSETS_DIR/seed"
     fi
 
-    # Save a compressed copy of the image
-    nested_compress_image "$IMAGE_NAME"
+    # Save a copy of the image
+    cp -v "$IMAGE_NAME" "$IMAGE_NAME.pristine"
 }
 
 nested_start_classic_vm() {
@@ -1132,8 +1116,8 @@ nested_start_classic_vm() {
     QEMU="$(nested_qemu_name)"
     IMAGE_NAME="$(nested_get_image_name classic)"
 
-    if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ] && [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz" ]; then
-        nested_uncompress_image "$IMAGE_NAME"
+    if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ] ; then
+        cp -v "$IMAGE_NAME.pristine" "$IMAGE_NAME"
     fi
 
     # Now qemu parameters are defined
