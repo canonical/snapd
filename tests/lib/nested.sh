@@ -518,6 +518,7 @@ nested_create_core_vm() {
 
     if [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" ]; then
         cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+        return
 
     elif [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
         if [ -n "$NESTED_CUSTOM_IMAGE_URL" ]; then
