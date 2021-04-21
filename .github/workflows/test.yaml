@@ -149,7 +149,7 @@ jobs:
               echo "Formatting checks will be skipped due to the use of Go version ${{ matrix.gochannel }}"
           fi
           sudo apt-get install -y python3-yamlordereddictloader
-          ./run-checks --static
+          SKIP_TESTS_CHECK=0 ./run-checks --static
     - name: Build C
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
