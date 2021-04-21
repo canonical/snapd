@@ -162,10 +162,6 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 			continue
 		}
 
-		if err := earlyEpochCheck(update, &snapst); err != nil {
-			logger.Debugf("update hint for %q is not applicable: %v", update.InstanceName(), err)
-			continue
-		}
 		snapsup := &refreshCandidate{
 			SnapSetup{
 				Base:         update.Base,

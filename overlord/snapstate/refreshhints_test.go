@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -34,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
 )
@@ -79,6 +81,8 @@ type refreshHintsTestSuite struct {
 var _ = Suite(&refreshHintsTestSuite{})
 
 func (s *refreshHintsTestSuite) SetUpTest(c *C) {
+	dirs.SetRootDir(c.MkDir())
+
 	s.state = state.New(nil)
 
 	s.store = &recordingStore{}
@@ -109,6 +113,7 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 }
 
 func (s *refreshHintsTestSuite) TearDownTest(c *C) {
+	dirs.SetRootDir("/")
 	snapstate.CanAutoRefresh = nil
 	snapstate.AutoAliases = nil
 	s.restoreModel()
@@ -237,8 +242,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 		DownloadInfo: snap.DownloadInfo{
 			Size: int64(99),
 		},
-	},
-		info2}
+	}, info2}
 
 	rh := snapstate.NewRefreshHints(s.state)
 	err := rh.Ensure()
@@ -303,4 +307,93 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 			Size: int64(88),
 		},
 	})
+}
+
+func (s *refreshHintsTestSuite) TestRefreshHintsNotApplicableWrongArch(c *C) {
+	s.state.Lock()
+	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "other-snap", Revision: snap.R(1), SnapID: "other-snap-id"},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	s.state.Unlock()
+
+	s.store.refreshedSnaps = []*snap.Info{{
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeApp,
+		SideInfo: snap.SideInfo{
+			RealName: "some-snap",
+			Revision: snap.R(1),
+		},
+	}, {
+		Architectures: []string{"somearch"},
+		SnapType:      snap.TypeApp,
+		SideInfo: snap.SideInfo{
+			RealName: "other-snap",
+			Revision: snap.R(2),
+		},
+	}}
+
+	rh := snapstate.NewRefreshHints(s.state)
+	c.Assert(rh.Ensure(), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var candidates []snapstate.RefreshCandidate
+	c.Assert(s.state.Get("refresh-candidates", &candidates), IsNil)
+	c.Assert(candidates, HasLen, 1)
+	c.Check(candidates[0].InstanceName(), Equals, "some-snap")
+}
+
+const otherSnapYaml = `name: other-snap
+version: 1.0
+epoch: 1
+type: app
+`
+
+func (s *refreshHintsTestSuite) TestRefreshHintsNotApplicableWrongEpoch(c *C) {
+	s.state.Lock()
+
+	si := &snap.SideInfo{RealName: "other-snap", Revision: snap.R(1), SnapID: "other-snap-id"}
+	snaptest.MockSnap(c, otherSnapYaml, si)
+	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	s.state.Unlock()
+
+	s.store.refreshedSnaps = []*snap.Info{{
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeApp,
+		SideInfo: snap.SideInfo{
+			RealName: "some-snap",
+			Revision: snap.R(1),
+		},
+	}, {
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeApp,
+		SideInfo: snap.SideInfo{
+			RealName: "other-snap",
+			Revision: snap.R(2),
+		},
+		Epoch: snap.Epoch{Read: []uint32{2}, Write: []uint32{2}},
+	}}
+
+	rh := snapstate.NewRefreshHints(s.state)
+	c.Assert(rh.Ensure(), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var candidates []snapstate.RefreshCandidate
+	c.Assert(s.state.Get("refresh-candidates", &candidates), IsNil)
+	c.Assert(candidates, HasLen, 1)
+	// other-snap ignored due to epoch
+	c.Check(candidates[0].InstanceName(), Equals, "some-snap")
 }
