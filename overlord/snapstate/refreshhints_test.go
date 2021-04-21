@@ -91,9 +91,11 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "some-snap", Revision: snap.R(5), SnapID: "some-snap-id"},
 		},
-		Current:  snap.R(5),
-		SnapType: "app",
-		UserID:   1,
+		Current:         snap.R(5),
+		SnapType:        "app",
+		UserID:          1,
+		CohortKey:       "cohort",
+		TrackingChannel: "stable",
 	})
 
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
@@ -192,9 +194,10 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 		Sequence: []*snap.SideInfo{
 			{RealName: "other-snap", Revision: snap.R(1), SnapID: "other-snap-id"},
 		},
-		Current:  snap.R(1),
-		SnapType: "app",
-		UserID:   0,
+		Current:         snap.R(1),
+		SnapType:        "app",
+		TrackingChannel: "devel",
+		UserID:          0,
 	})
 	s.state.Unlock()
 
@@ -261,9 +264,8 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 	c.Check(cand2.Size(), Equals, int64(88))
 
 	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), IsNil)
-	revnoOpts := &snapstate.RevisionOptions{CohortKey: "cohort"}
-	sup, err := cand1.MakeSnapSetup(s.state, &snapst, revnoOpts, 0)
+
+	sup, err := cand1.MakeSnapSetup(s.state, &snapst)
 	c.Assert(err, IsNil)
 	c.Check(sup, DeepEquals, &snapstate.SnapSetup{
 		Base: "some-base",
@@ -274,6 +276,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 		},
 		PlugsOnly: true,
 		CohortKey: "cohort",
+		Channel:   "stable",
 		Flags: snapstate.Flags{
 			IsAutoRefresh: true,
 		},
@@ -282,7 +285,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 		},
 	})
 
-	sup, err = cand2.MakeSnapSetup(s.state, &snapst, &snapstate.RevisionOptions{}, 0)
+	sup, err = cand2.MakeSnapSetup(s.state, &snapst)
 	c.Assert(err, IsNil)
 	c.Check(sup, DeepEquals, &snapstate.SnapSetup{
 		Type: "app",
@@ -292,6 +295,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 		},
 		Prereq:    []string{"foo-snap"},
 		PlugsOnly: true,
+		Channel:   "devel",
 		Flags: snapstate.Flags{
 			IsAutoRefresh: true,
 		},

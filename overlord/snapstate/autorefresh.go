@@ -72,9 +72,7 @@ func (rh *refreshCandidate) Base() string {
 	return rh.SnapSetup.Base
 }
 
-func (rh *refreshCandidate) MakeSnapSetup(st *state.State, snapst *SnapState, revnoOpts *RevisionOptions, snapUserID int) (*SnapSetup, error) {
-	rh.Channel = revnoOpts.Channel
-	rh.CohortKey = revnoOpts.CohortKey
+func (rh *refreshCandidate) MakeSnapSetup(*state.State, *SnapState) (*SnapSetup, error) {
 	return &rh.SnapSetup, nil
 }
 

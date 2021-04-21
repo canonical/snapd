@@ -158,18 +158,20 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 		flags.IsAutoRefresh = true
 		flags, err := earlyChecks(st, &snapst, update, flags)
 		if err != nil {
-			logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
+			logger.Debugf("update hint for %q is not applicable: %v", update.InstanceName(), err)
 			continue
 		}
 
 		if err := earlyEpochCheck(update, &snapst); err != nil {
-			logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
+			logger.Debugf("update hint for %q is not applicable: %v", update.InstanceName(), err)
 			continue
 		}
 		snapsup := &refreshCandidate{
 			SnapSetup{
 				Base:         update.Base,
 				Prereq:       defaultContentPlugProviders(st, update),
+				Channel:      snapst.TrackingChannel,
+				CohortKey:    snapst.CohortKey,
 				DownloadInfo: &update.DownloadInfo,
 				SideInfo:     &update.SideInfo,
 				Type:         update.Type(),
