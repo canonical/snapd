@@ -1403,6 +1403,20 @@ func (s *SystemdTestSuite) TestInactiveEnterTimestampZero(c *C) {
 	c.Check(stamp.IsZero(), Equals, true)
 }
 
+func (s *SystemdTestSuite) TestInactiveEnterTimestampValidWhitespace(c *C) {
+	s.outs = [][]byte{
+		[]byte(`InactiveEnterTimestamp=Fri 2021-04-16 15:32:21 UTC
+`),
+	}
+
+	stamp, err := New(SystemMode, s.rep).InactiveEnterTimestamp("bar.service")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
+	})
+	c.Check(stamp.Equal(time.Date(2021, time.April, 16, 15, 32, 21, 0, time.UTC)), Equals, true)
+}
+
 func (s *SystemdTestSuite) TestInactiveEnterTimestampValid(c *C) {
 	s.outs = [][]byte{
 		[]byte(`InactiveEnterTimestamp=Fri 2021-04-16 15:32:21 UTC`),

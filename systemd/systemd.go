@@ -599,7 +599,7 @@ func (s *systemd) InactiveEnterTimestamp(unit string) (time.Time, error) {
 	// the time returned by systemctl here will be formatted like so:
 	// InactiveEnterTimestamp=Fri 2021-04-16 15:32:21 UTC
 	// so we have to parse the time with a matching Go time format
-	splitVal := strings.SplitN(string(out), "=", 2)
+	splitVal := strings.SplitN(strings.TrimSpace(string(out)), "=", 2)
 	if len(splitVal) != 2 {
 		// then we don't have an equals sign in the output, so systemctl must be
 		// broken
