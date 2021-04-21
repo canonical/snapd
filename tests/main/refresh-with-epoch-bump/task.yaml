@@ -24,7 +24,7 @@ execute: |
     test "$(readlink "$p")" = 1
     snap refresh --beta test-snapd-epoch
     # after the refresh, on epoch 2 (which can't read 1!), revision 3
-    MATCH '^epoch: 2$' $p/meta/snap.yaml
+    MATCH '^epoch: 2$' "$p/meta/snap.yaml"
     test "$(readlink "$p")" = 3
     # this was done by going through revision 2
     snap tasks --last=refresh | MATCH 'Download snap "test-snapd-epoch" \(2\)'
