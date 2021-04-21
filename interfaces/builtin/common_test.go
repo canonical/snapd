@@ -20,10 +20,12 @@
 package builtin
 
 import (
+	"fmt"
 	"os"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/testutil"
@@ -61,11 +63,11 @@ slots:
 	c.Assert(spec.Snippets(), DeepEquals, []string{
 		`# common
 KERNEL=="foo", TAG+="snap_consumer_app-a"`,
-		`TAG=="snap_consumer_app-a", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app-a $devpath $major:$minor"`,
+		fmt.Sprintf(`TAG=="snap_consumer_app-a", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app-a $devpath $major:$minor"`, dirs.DistroLibExecDir),
 		// NOTE: app-b is unaffected as it doesn't have a plug reference.
 		`# common
 KERNEL=="foo", TAG+="snap_consumer_app-c"`,
-		`TAG=="snap_consumer_app-c", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app-c $devpath $major:$minor"`,
+		fmt.Sprintf(`TAG=="snap_consumer_app-c", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app-c $devpath $major:$minor"`, dirs.DistroLibExecDir),
 	})
 
 	// connected plug udev rules are optional

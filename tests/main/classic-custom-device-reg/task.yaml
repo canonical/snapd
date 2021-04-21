@@ -18,6 +18,7 @@ prepare: |
     snap pack "$TESTSLIB/snaps/classic-gadget"
     snap download "--$CORE_CHANNEL" core
 
+    echo "Create new seed.yaml with the downloaded core and the classic gadget"
     "$TESTSLIB/reset.sh" --keep-stopped
     mkdir -p "$SEED_DIR/snaps"
     mkdir -p "$SEED_DIR/assertions"
@@ -53,8 +54,6 @@ restore: |
     systemctl stop snapd.service snapd.socket fakedevicesvc
 
     rm -rf "$SEED_DIR"
-    rm -f -- *.snap
-    rm -f -- *.assert
     systemctl start snapd.socket snapd.service
 
 execute: |
@@ -63,19 +62,23 @@ execute: |
         exit
     fi
 
-    # kick seeding
+    #shellcheck source=tests/lib/core-config.sh
+    . "$TESTSLIB"/core-config.sh
+
+    echo "Kick seeding"
     systemctl start snapd.service snapd.socket
 
     echo "Wait for seeding to be done"
-    while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+    wait_for_first_boot_change
+
     echo "We have a model assertion"
     snap model --verbose | MATCH "model:\s* my-classic-w-gadget"
 
     echo "Wait for device initialisation to be done"
-    while ! snap changes | grep -q "Done.*Initialize device"; do sleep 1; done
+    wait_for_device_initialized_change
 
     echo "Check we have a serial"
-    snap model --serial --assertion|MATCH "authority-id: developer1"
-    snap model --serial --assertion|MATCH "brand-id: developer1"
-    snap model --serial --assertion|MATCH "model: my-classic-w-gadget"
-    snap model --serial --assertion|MATCH "serial: 7777"
+    snap model --serial --assertion | MATCH "authority-id: developer1"
+    snap model --serial --assertion | MATCH "brand-id: developer1"
+    snap model --serial --assertion | MATCH "model: my-classic-w-gadget"
+    snap model --serial --assertion | MATCH "serial: 7777"

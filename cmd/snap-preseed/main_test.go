@@ -215,7 +215,7 @@ func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 	c.Assert(mockMountCmd.Calls(), HasLen, 1)
 	// note, tmpDir, targetSnapdRoot are contactenated again cause we're not really chrooting in the test
 	// and mocking dirs.RootDir
-	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", "-o", "ro,x-gdu.hide", "/a/core.snap", filepath.Join(tmpDir, targetSnapdRoot)})
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", "-o", "ro,x-gdu.hide,x-gvfs-hide", "/a/core.snap", filepath.Join(tmpDir, targetSnapdRoot)})
 
 	c.Assert(mockTargetSnapd.Calls(), HasLen, 1)
 	c.Check(mockTargetSnapd.Calls()[0], DeepEquals, []string{"snapd"})
@@ -279,7 +279,7 @@ func (s *startPreseedSuite) TestRunPreseedHappyDebVersionIsNewer(c *C) {
 	c.Assert(mockMountCmd.Calls(), HasLen, 1)
 	// note, tmpDir, targetSnapdRoot are contactenated again cause we're not really chrooting in the test
 	// and mocking dirs.RootDir
-	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", "-o", "ro,x-gdu.hide", "/a/core.snap", filepath.Join(tmpDir, targetSnapdRoot)})
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", "-o", "ro,x-gdu.hide,x-gvfs-hide", "/a/core.snap", filepath.Join(tmpDir, targetSnapdRoot)})
 
 	c.Assert(mockSnapdFromDeb.Calls(), HasLen, 1)
 	c.Check(mockSnapdFromDeb.Calls()[0], DeepEquals, []string{"snapd"})
@@ -326,6 +326,10 @@ func (fs *Fake16Seed) Brand() (*asserts.Account, error) {
 		"timestamp":    "2018-01-01T08:00:00+00:00",
 	}
 	return assertstest.FakeAssertion(headers, nil).(*asserts.Account), nil
+}
+
+func (fs *Fake16Seed) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error {
+	panic("unexpected")
 }
 
 func (fs *Fake16Seed) LoadMeta(tm timings.Measurer) error {
@@ -679,4 +683,27 @@ func (s *startPreseedSuite) TestReset(c *C) {
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot reset %q, it is not a directory`, dummyFile))
 	}
 
+}
+
+func (s *startPreseedSuite) TestReadInfoSanity(c *C) {
+	var called bool
+	inf := &snap.Info{
+		BadInterfaces: make(map[string]string),
+		Plugs: map[string]*snap.PlugInfo{
+			"foo": {
+				Interface: "bad"},
+		},
+	}
+
+	// set a dummy sanitize method.
+	snap.SanitizePlugsSlots = func(*snap.Info) { called = true }
+
+	parser := testParser(c)
+	tmpDir := c.MkDir()
+	_ = main.Run(parser, []string{tmpDir})
+
+	// real sanitize method should be set after Run()
+	snap.SanitizePlugsSlots(inf)
+	c.Assert(called, Equals, false)
+	c.Assert(inf.BadInterfaces, HasLen, 1)
 }

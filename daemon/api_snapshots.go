@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -48,6 +49,16 @@ var snapshotExportCmd = &Command{
 	Path: "/v2/snapshots/{id}/export",
 	GET:  getSnapshotExport,
 }
+
+var (
+	snapshotList    = snapshotstate.List
+	snapshotCheck   = snapshotstate.Check
+	snapshotForget  = snapshotstate.Forget
+	snapshotRestore = snapshotstate.Restore
+	snapshotSave    = snapshotstate.Save
+	snapshotExport  = snapshotstate.Export
+	snapshotImport  = snapshotstate.Import
+)
 
 func listSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
@@ -169,7 +180,7 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 		return BadRequest("'id' must be a positive base 10 number; got %q", sid)
 	}
 
-	export, err := snapshotExport(context.TODO(), setID)
+	export, err := snapshotExport(context.TODO(), st, setID)
 	if err != nil {
 		return BadRequest("cannot export %v: %v", setID, err)
 	}
@@ -181,7 +192,7 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 		return BadRequest("cannot calculate size of exported snapshot %v: %v", setID, err)
 	}
 
-	return &snapshotExportResponse{SnapshotExport: export}
+	return &snapshotExportResponse{SnapshotExport: export, setID: setID, st: st}
 }
 
 func doSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Response {

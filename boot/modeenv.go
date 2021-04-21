@@ -45,16 +45,30 @@ type bootCommandLines []string
 // Modeenv is a file on UC20 that provides additional information
 // about the current mode (run,recover,install)
 type Modeenv struct {
-	Mode                   string   `key:"mode"`
-	RecoverySystem         string   `key:"recovery_system"`
+	Mode           string `key:"mode"`
+	RecoverySystem string `key:"recovery_system"`
+	// CurrentRecoverySystems is a list of labels corresponding to recovery
+	// systems that have been tested or are in the process of being tried,
+	// thus only the run key is resealed for these systems.
 	CurrentRecoverySystems []string `key:"current_recovery_systems"`
-	Base                   string   `key:"base"`
-	TryBase                string   `key:"try_base"`
-	BaseStatus             string   `key:"base_status"`
-	CurrentKernels         []string `key:"current_kernels"`
-	Model                  string   `key:"model"`
-	BrandID                string   `key:"model,secondary"`
-	Grade                  string   `key:"grade"`
+	// GoodRecoverySystems is a list of labels corresponding to recovery
+	// systems that were tested and are prepared to use for recovering.
+	// The fallback keys are resealed for these systems.
+	GoodRecoverySystems []string `key:"good_recovery_systems"`
+	Base                string   `key:"base"`
+	TryBase             string   `key:"try_base"`
+	BaseStatus          string   `key:"base_status"`
+	CurrentKernels      []string `key:"current_kernels"`
+	Model               string   `key:"model"`
+	BrandID             string   `key:"model,secondary"`
+	Grade               string   `key:"grade"`
+	// BootFlags is the set of boot flags. Whether this applies for the current
+	// or next boot is not indicated in the modeenv. When the modeenv is read in
+	// the initramfs these flags apply to the current boot and are copied into
+	// a file in /run that userspace should read instead of reading from this
+	// key. When setting boot flags for the next boot, then this key will be
+	// written to and used by the initramfs after rebooting.
+	BootFlags []string `key:"boot_flags"`
 	// CurrentTrustedBootAssets is a map of a run bootloader's asset names to
 	// a list of hashes of the asset contents. Typically the first entry in
 	// the list is a hash of an asset the system currently boots with (or is
@@ -143,6 +157,9 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	}
 	unmarshalModeenvValueFromCfg(cfg, "recovery_system", &m.RecoverySystem)
 	unmarshalModeenvValueFromCfg(cfg, "current_recovery_systems", &m.CurrentRecoverySystems)
+	unmarshalModeenvValueFromCfg(cfg, "good_recovery_systems", &m.GoodRecoverySystems)
+	unmarshalModeenvValueFromCfg(cfg, "boot_flags", &m.BootFlags)
+
 	unmarshalModeenvValueFromCfg(cfg, "mode", &m.Mode)
 	if m.Mode == "" {
 		return nil, fmt.Errorf("internal error: mode is unset")
@@ -241,6 +258,8 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 	marshalModeenvEntryTo(buf, "mode", m.Mode)
 	marshalModeenvEntryTo(buf, "recovery_system", m.RecoverySystem)
 	marshalModeenvEntryTo(buf, "current_recovery_systems", m.CurrentRecoverySystems)
+	marshalModeenvEntryTo(buf, "good_recovery_systems", m.GoodRecoverySystems)
+	marshalModeenvEntryTo(buf, "boot_flags", m.BootFlags)
 	marshalModeenvEntryTo(buf, "base", m.Base)
 	marshalModeenvEntryTo(buf, "try_base", m.TryBase)
 	marshalModeenvEntryTo(buf, "base_status", m.BaseStatus)

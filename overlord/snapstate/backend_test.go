@@ -77,6 +77,8 @@ type fakeOp struct {
 	vitalityRank int
 
 	inhibitHint runinhibit.Hint
+
+	requireSnapdTooling bool
 }
 
 type fakeOps []fakeOp
@@ -887,12 +889,18 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx b
 		<-f.linkSnapWaitCh
 	}
 
+	vitalityRank := 0
+	if linkCtx.ServiceOptions != nil {
+		vitalityRank = linkCtx.ServiceOptions.VitalityRank
+	}
+
 	op := fakeOp{
 		op:   "link-snap",
 		path: info.MountDir(),
-	}
 
-	op.vitalityRank = linkCtx.VitalityRank
+		vitalityRank:        vitalityRank,
+		requireSnapdTooling: linkCtx.RequireMountedSnapdSnap,
+	}
 
 	if info.MountDir() == f.linkSnapFailTrigger {
 		op.op = "link-snap.failed"

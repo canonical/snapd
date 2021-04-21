@@ -20,6 +20,8 @@
 package gadget
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -35,8 +37,10 @@ import (
 	"github.com/snapcore/snapd/gadget/edition"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/metautil"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -186,11 +190,6 @@ type VolumeContent struct {
 	Unpack bool `yaml:"unpack"`
 }
 
-func (vc VolumeContent) ResolvedSource() string {
-	// TODO: implement resolved sources
-	return vc.UnresolvedSource
-}
-
 func (vc VolumeContent) String() string {
 	if vc.Image != "" {
 		return fmt.Sprintf("image:%s", vc.Image)
@@ -282,14 +281,14 @@ func systemOrSnapID(s string) bool {
 	return true
 }
 
-// Model carries information about the model that is relevant to gadget.
+// Model carries characteristics about the model that are relevant to gadget.
 // Note *asserts.Model implements this, and that's the expected use case.
 type Model interface {
 	Classic() bool
 	Grade() asserts.ModelGrade
 }
 
-func classicOrUnconstrained(m Model) bool {
+func classicOrUndetermined(m Model) bool {
 	return m == nil || m.Classic()
 }
 
@@ -300,7 +299,7 @@ func wantsSystemSeed(m Model) bool {
 // InfoFromGadgetYaml parses the provided gadget metadata.
 // If model is nil only self-consistency checks are performed.
 // If model is not nil implied values for filesystem labels will be set
-// as well, based whether the model is for classic, UC16/18 or UC20.
+// as well, based on whether the model is for classic, UC16/18 or UC20.
 // UC gadget metadata is expected to have volumes definitions.
 func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 	var gi Info
@@ -330,7 +329,7 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 		}
 	}
 
-	if len(gi.Volumes) == 0 && classicOrUnconstrained(model) {
+	if len(gi.Volumes) == 0 && classicOrUndetermined(model) {
 		// volumes can be left out on classic
 		// can still specify defaults though
 		return &gi, nil
@@ -338,8 +337,9 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 
 	// basic validation
 	var bootloadersFound int
+	knownFsLabelsPerVolume := make(map[string]map[string]bool, len(gi.Volumes))
 	for name, v := range gi.Volumes {
-		if err := validateVolume(name, v, model); err != nil {
+		if err := validateVolume(name, v, model, knownFsLabelsPerVolume); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 
@@ -360,15 +360,10 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 	}
 
 	for name, v := range gi.Volumes {
-		if err := setImplicitForVolume(name, v, model); err != nil {
+		if err := setImplicitForVolume(name, v, model, knownFsLabelsPerVolume[name]); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 	}
-
-	/*// XXX non-basic validation, should be done optionally/separately
-	if err := ruleValidateVolumes(gi.Volumes, model); err != nil {
-		return nil, err
-	}*/
 
 	return &gi, nil
 }
@@ -391,21 +386,21 @@ func whichVolRuleset(model Model) volRuleset {
 	return volRuleset16
 }
 
-func setImplicitForVolume(name string, vol *Volume, model Model) error {
+func setImplicitForVolume(name string, vol *Volume, model Model, knownFsLabels map[string]bool) error {
 	rs := whichVolRuleset(model)
 	if vol.Schema == "" {
 		// default for schema is gpt
 		vol.Schema = schemaGPT
 	}
 	for i := range vol.Structure {
-		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs); err != nil {
+		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs, knownFsLabels); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset) error {
+func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset, knownFsLabels map[string]bool) error {
 	if vs.Role == "" && vs.Type == schemaMBR {
 		vs.Role = schemaMBR
 		return nil
@@ -416,17 +411,25 @@ func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset) error {
 		return nil
 	}
 	if vs.Label == "" {
+		var implicitLabel string
 		switch {
 		case rs == volRuleset16 && vs.Role == SystemData:
-			vs.Label = implicitSystemDataLabel
+			implicitLabel = implicitSystemDataLabel
 		case rs == volRuleset20 && vs.Role == SystemData:
-			vs.Label = ubuntuDataLabel
+			implicitLabel = ubuntuDataLabel
 		case rs == volRuleset20 && vs.Role == SystemSeed:
-			vs.Label = ubuntuSeedLabel
+			implicitLabel = ubuntuSeedLabel
 		case rs == volRuleset20 && vs.Role == SystemBoot:
-			vs.Label = ubuntuBootLabel
+			implicitLabel = ubuntuBootLabel
 		case rs == volRuleset20 && vs.Role == SystemSave:
-			vs.Label = ubuntuSaveLabel
+			implicitLabel = ubuntuSaveLabel
+		}
+		if implicitLabel != "" {
+			if knownFsLabels[implicitLabel] {
+				return fmt.Errorf("filesystem label %q is implied by %s role but was already set elsewhere", implicitLabel, vs.Role)
+			}
+			knownFsLabels[implicitLabel] = true
+			vs.Label = implicitLabel
 		}
 	}
 	return nil
@@ -434,7 +437,7 @@ func setImplicitForVolumeStructure(vs *VolumeStructure, rs volRuleset) error {
 
 func readInfo(f func(string) ([]byte, error), gadgetYamlFn string, model Model) (*Info, error) {
 	gmeta, err := f(gadgetYamlFn)
-	if classicOrUnconstrained(model) && os.IsNotExist(err) {
+	if classicOrUndetermined(model) && os.IsNotExist(err) {
 		// gadget.yaml is optional for classic gadgets
 		return &Info{}, nil
 	}
@@ -510,7 +513,7 @@ func fmtIndexAndName(idx int, name string) string {
 	return fmt.Sprintf("#%v", idx)
 }
 
-func validateVolume(name string, vol *Volume, model Model) error {
+func validateVolume(name string, vol *Volume, model Model, knownFsLabelsPerVolume map[string]map[string]bool) error {
 	if !validVolumeName.MatchString(name) {
 		return errors.New("invalid name")
 	}
@@ -524,6 +527,10 @@ func validateVolume(name string, vol *Volume, model Model) error {
 	knownFsLabels := make(map[string]bool, len(vol.Structure))
 	// for validating structure overlap
 	structures := make([]LaidOutStructure, len(vol.Structure))
+
+	if knownFsLabelsPerVolume != nil {
+		knownFsLabelsPerVolume[name] = knownFsLabels
+	}
 
 	previousEnd := quantity.Offset(0)
 	// TODO: should we also validate that if there is a system-recovery-select
@@ -554,7 +561,6 @@ func validateVolume(name string, vol *Volume, model Model) error {
 			knownStructures[s.Name] = &ps
 		}
 		if s.Label != "" {
-			// XXX what about implicit labels
 			if seen := knownFsLabels[s.Label]; seen {
 				return fmt.Errorf("filesystem label %q is not unique", s.Label)
 			}
@@ -790,8 +796,11 @@ func validateFilesystemContent(vc *VolumeContent) error {
 	if vc.Image != "" || vc.Offset != nil || vc.OffsetWrite != nil || vc.Size != 0 {
 		return fmt.Errorf("cannot use image content for non-bare file system")
 	}
-	if vc.UnresolvedSource == "" || vc.Target == "" {
-		return fmt.Errorf("missing source or target")
+	if vc.UnresolvedSource == "" {
+		return fmt.Errorf("missing source")
+	}
+	if vc.Target == "" {
+		return fmt.Errorf("missing target")
 	}
 	return nil
 }
@@ -907,11 +916,11 @@ func IsCompatible(current, new *Info) error {
 	// layout both volumes partially, without going deep into the layout of
 	// structure content, we only want to make sure that structures are
 	// comapatible
-	pCurrent, err := LayoutVolumePartially(currentVol, defaultConstraints)
+	pCurrent, err := LayoutVolumePartially(currentVol, DefaultConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the current volume: %v", err)
 	}
-	pNew, err := LayoutVolumePartially(newVol, defaultConstraints)
+	pNew, err := LayoutVolumePartially(newVol, DefaultConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the new volume: %v", err)
 	}
@@ -921,32 +930,46 @@ func IsCompatible(current, new *Info) error {
 	return nil
 }
 
-// LaidOutVolumeFromGadget takes a gadget rootdir and lays out the
-// partitions as specified.
-func LaidOutVolumeFromGadget(gadgetRoot string, model Model) (*LaidOutVolume, error) {
-	info, err := ReadInfo(gadgetRoot, model)
+// LaidOutSystemVolumeFromGadget takes a gadget rootdir and lays out the
+// partitions as specified. It returns one specific volume, which is the volume
+// on which system-* roles/partitions exist, all other volumes are assumed to
+// already be flashed and managed separately at image build/flash time, while
+// the system-* roles can be manipulated on the returned volume during install
+// mode.
+func LaidOutSystemVolumeFromGadget(gadgetRoot, kernelRoot string, model Model) (*LaidOutVolume, error) {
+	// model should never be nil here
+	if model == nil {
+		return nil, fmt.Errorf("internal error: must have model to lay out system volumes from a gadget")
+	}
+	// rely on the basic validation from ReadInfo to ensure that the system-*
+	// roles are all on the same volume for example
+	info, err := ReadInfoAndValidate(gadgetRoot, model, nil)
 	if err != nil {
 		return nil, err
-	}
-	// Limit ourselves to just one volume for now.
-	if len(info.Volumes) != 1 {
-		return nil, fmt.Errorf("cannot position multiple volumes yet")
 	}
 
 	constraints := LayoutConstraints{
 		NonMBRStartOffset: 1 * quantity.OffsetMiB,
-		SectorSize:        512,
 	}
 
+	// find the volume with the system-boot role on it, we already validated
+	// that the system-* roles are all on the same volume
 	for _, vol := range info.Volumes {
-		pvol, err := LayoutVolume(gadgetRoot, vol, constraints)
-		if err != nil {
-			return nil, err
+		for _, structure := range vol.Structure {
+			// use the system-boot role to identify the system volume
+			if structure.Role == SystemBoot {
+				pvol, err := LayoutVolume(gadgetRoot, kernelRoot, vol, constraints)
+				if err != nil {
+					return nil, err
+				}
+
+				return pvol, nil
+			}
 		}
-		// we know  info.Volumes map has size 1 so we can return here
-		return pvol, nil
 	}
-	return nil, fmt.Errorf("internal error in PositionedVolumeFromGadget: this line cannot be reached")
+
+	// this should be impossible, the validation above should ensure this
+	return nil, fmt.Errorf("internal error: gadget passed validation but does not have system-* roles on any volume")
 }
 
 func flatten(path string, cfg interface{}, out map[string]interface{}) {
@@ -973,4 +996,107 @@ func SystemDefaults(gadgetDefaults map[string]map[string]interface{}) map[string
 		}
 	}
 	return nil
+}
+
+// See https://www.kernel.org/doc/html/latest/admin-guide/kernel-parameters.html
+var disallowedKernelArguments = []string{
+	"root", "nfsroot",
+	"init",
+}
+
+// isKernelArgumentAllowed checks whether the kernel command line argument is
+// allowed. Prohibits all arguments listed explicitly in
+// disallowedKernelArguments list and those prefixed with snapd, with exception
+// of snapd.debug. All other arguments are allowed.
+func isKernelArgumentAllowed(arg string) bool {
+	if strings.HasPrefix(arg, "snapd") && arg != "snapd.debug" {
+		return false
+	}
+	if strutil.ListContains(disallowedKernelArguments, arg) {
+		return false
+	}
+	return true
+}
+
+var ErrNoKernelCommandline = errors.New("no kernel command line in the gadget")
+
+// KernelCommandLineFromGadget returns the desired kernel command line provided by the
+// gadget. The full flag indicates whether the gadget provides a full command
+// line or just the extra parameters that will be appended to the static ones.
+// An ErrNoKernelCommandline is returned when thea gadget does not set any
+// kernel command line.
+func KernelCommandLineFromGadget(gadgetDirOrSnapPath string) (cmdline string, full bool, err error) {
+	sf, err := snapfile.Open(gadgetDirOrSnapPath)
+	if err != nil {
+		return "", false, fmt.Errorf("cannot open gadget snap: %v", err)
+	}
+	contentExtra, err := sf.ReadFile("cmdline.extra")
+	if err != nil && !os.IsNotExist(err) {
+		return "", false, err
+	}
+	contentFull, err := sf.ReadFile("cmdline.full")
+	if err != nil && !os.IsNotExist(err) {
+		return "", false, err
+	}
+	content := contentExtra
+	whichFile := "cmdline.extra"
+	switch {
+	case contentExtra != nil && contentFull != nil:
+		return "", false, fmt.Errorf("cannot support both extra and full kernel command lines")
+	case contentExtra == nil && contentFull == nil:
+		return "", false, ErrNoKernelCommandline
+	case contentFull != nil:
+		content = contentFull
+		whichFile = "cmdline.full"
+		full = true
+	}
+	parsed, err := parseCommandLineFromGadget(content, whichFile)
+	if err != nil {
+		return "", full, fmt.Errorf("invalid kernel command line in %v: %v", whichFile, err)
+	}
+	return parsed, full, nil
+}
+
+// parseCommandLineFromGadget parses the command line file and returns a
+// reassembled kernel command line as a single string. The file can be multi
+// line, where only lines stating with # are treated as comments, eg.
+//
+// foo
+// # this is a comment
+//
+// According to https://elixir.bootlin.com/linux/latest/source/Documentation/admin-guide/kernel-parameters.txt
+// the # character can appear as part of a valid kernel command line argument,
+// specifically in the following argument:
+//   memmap=nn[KMG]#ss[KMG]
+//   memmap=100M@2G,100M#3G,1G!1024G
+// Thus a lone # or a token starting with # are treated as errors.
+func parseCommandLineFromGadget(content []byte, whichFile string) (string, error) {
+	s := bufio.NewScanner(bytes.NewBuffer(content))
+	filtered := &bytes.Buffer{}
+	for s.Scan() {
+		line := s.Text()
+		if len(line) > 0 && line[0] == '#' {
+			// comment
+			continue
+		}
+		filtered.WriteRune(' ')
+		filtered.WriteString(line)
+	}
+	if err := s.Err(); err != nil {
+		return "", err
+	}
+	kargs, err := osutil.KernelCommandLineSplit(filtered.String())
+	if err != nil {
+		return "", err
+	}
+	for _, argValue := range kargs {
+		if strings.HasPrefix(argValue, "#") {
+			return "", fmt.Errorf("unexpected or invalid use of # in argument %q", argValue)
+		}
+		split := strings.SplitN(argValue, "=", 2)
+		if !isKernelArgumentAllowed(split[0]) {
+			return "", fmt.Errorf("disallowed kernel argument %q", argValue)
+		}
+	}
+	return strings.Join(kargs, " "), nil
 }

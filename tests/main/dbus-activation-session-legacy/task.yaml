@@ -32,9 +32,6 @@ execute: |
     retry -n 3 --wait 1 test -s dbus-launch.env
     eval "$(cat dbus-launch.env)"
 
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     echo "Install a snap containing an activatable D-Bus session service"
     snap install --edge test-snapd-dbus-service
 
@@ -42,7 +39,7 @@ execute: |
     test -f /var/lib/snapd/dbus-1/services/io.snapcraft.SnapDbusService.service
 
     echo "Making a method call wakes the service"
-    install_local test-snapd-dbus-service-client
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-dbus-service-client
     snap connect test-snapd-dbus-service-client:dbus-session-plug \
                  test-snapd-dbus-service:dbus-session-slot
     test-snapd-dbus-service-client.session | MATCH "hello world"

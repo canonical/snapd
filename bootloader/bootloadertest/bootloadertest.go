@@ -36,6 +36,7 @@ type MockBootloader struct {
 	BootVars         map[string]string
 	SetBootVarsCalls int
 	SetErr           error
+	SetErrFunc       func() error
 	GetErr           error
 
 	name    string
@@ -82,6 +83,9 @@ func (b *MockBootloader) SetBootVars(values map[string]string) error {
 	b.SetBootVarsCalls++
 	for k, v := range values {
 		b.BootVars[k] = v
+	}
+	if b.SetErrFunc != nil {
+		return b.SetErrFunc()
 	}
 	return b.SetErr
 }
@@ -142,6 +146,29 @@ func (b *MockBootloader) SetEnabledTryKernel(s snap.PlaceInfo) (restore func()) 
 func (b *MockBootloader) InstallBootConfig(gadgetDir string, opts *bootloader.Options) error {
 	b.InstallBootConfigCalled = append(b.InstallBootConfigCalled, gadgetDir)
 	return b.InstallBootConfigErr
+}
+
+// SetMockToPanic allows setting any method in the Bootloader interface or derived
+// interface to panic instead of returning. This allows one to test what would
+// happen if the system was rebooted during execution of a particular function.
+// Specifically, the panic will be done immediately entering the function so
+// setting SetBootVars to panic will emulate a reboot before any boot vars are
+// set persistently
+func (b *MockBootloader) SetMockToPanic(f string) (restore func()) {
+	switch f {
+	// XXX: update this list as more calls in this interface or derived ones
+	// are added
+	case "SetBootVars", "GetBootVars",
+		"EnableKernel", "EnableTryKernel", "Kernel", "TryKernel", "DisableTryKernel":
+
+		old := b.panicMethods[f]
+		b.panicMethods[f] = true
+		return func() {
+			b.panicMethods[f] = old
+		}
+	default:
+		panic(fmt.Sprintf("unknown bootloader method %q to mock reboot via panic for", f))
+	}
 }
 
 // MockRecoveryAwareBootloader mocks a bootloader implementing the
@@ -282,27 +309,6 @@ func (b *MockExtractedRunKernelImageBootloader) SetRunKernelImageFunctionError(f
 	}
 }
 
-// SetRunKernelImagePanic allows setting any method in the
-// ExtractedRunKernelImageBootloader interface on
-// MockExtractedRunKernelImageBootloader to panic instead of
-// returning. This allows one to test what would happen if the system
-// was rebooted during execution of a particular
-// function. Specifically, the panic will be done immediately entering
-// the function so setting SetBootVars to panic will emulate a reboot
-// before any boot vars are set persistently
-func (b *MockExtractedRunKernelImageBootloader) SetRunKernelImagePanic(f string) (restore func()) {
-	switch f {
-	case "EnableKernel", "EnableTryKernel", "Kernel", "TryKernel", "DisableTryKernel", "SetBootVars", "GetBootVars":
-		old := b.panicMethods[f]
-		b.panicMethods[f] = true
-		return func() {
-			b.panicMethods[f] = old
-		}
-	default:
-		panic(fmt.Sprintf("unknown ExtractedRunKernelImageBootloader method %q to mock reboot via panic for", f))
-	}
-}
-
 // GetRunKernelImageFunctionSnapCalls returns which snaps were specified during
 // execution, in order of calls, as well as the number of calls for methods that
 // don't take a snap to set.
@@ -416,29 +422,37 @@ func (b *MockTrustedAssetsBootloader) UpdateBootConfig() (bool, error) {
 	return b.Updated, b.UpdateErr
 }
 
-func glueCommandLine(modeArg, systemArg, staticArgs, extraArgs string) string {
+func glueCommandLine(pieces bootloader.CommandLineComponents, staticArgs string) (string, error) {
+	if err := pieces.Validate(); err != nil {
+		return "", err
+	}
+
 	args := []string(nil)
-	for _, argSet := range []string{modeArg, systemArg, staticArgs, extraArgs} {
+	extraOrFull := []string{staticArgs, pieces.ExtraArgs}
+	if pieces.FullArgs != "" {
+		extraOrFull = []string{pieces.FullArgs}
+	}
+	for _, argSet := range append([]string{pieces.ModeArg, pieces.SystemArg}, extraOrFull...) {
 		if argSet != "" {
 			args = append(args, argSet)
 		}
 	}
 	line := strings.Join(args, " ")
-	return strings.TrimSpace(line)
+	return strings.TrimSpace(line), nil
 }
 
-func (b *MockTrustedAssetsBootloader) CommandLine(modeArg, systemArg, extraArgs string) (string, error) {
+func (b *MockTrustedAssetsBootloader) CommandLine(pieces bootloader.CommandLineComponents) (string, error) {
 	if b.CommandLineErr != nil {
 		return "", b.CommandLineErr
 	}
-	return glueCommandLine(modeArg, systemArg, b.StaticCommandLine, extraArgs), nil
+	return glueCommandLine(pieces, b.StaticCommandLine)
 }
 
-func (b *MockTrustedAssetsBootloader) CandidateCommandLine(modeArg, systemArg, extraArgs string) (string, error) {
+func (b *MockTrustedAssetsBootloader) CandidateCommandLine(pieces bootloader.CommandLineComponents) (string, error) {
 	if b.CommandLineErr != nil {
 		return "", b.CommandLineErr
 	}
-	return glueCommandLine(modeArg, systemArg, b.CandidateStaticCommandLine, extraArgs), nil
+	return glueCommandLine(pieces, b.CandidateStaticCommandLine)
 }
 
 func (b *MockTrustedAssetsBootloader) TrustedAssets() ([]string, error) {

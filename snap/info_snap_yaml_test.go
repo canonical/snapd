@@ -1627,8 +1627,8 @@ apps:
        socket-mode: asdfasdf
 `)
 	_, err := snap.InfoFromSnapYaml(y)
-	c.Check(err.Error(), Equals, "cannot parse snap.yaml: yaml: unmarshal errors:\n"+
-		"  line 9: cannot unmarshal !!str `asdfasdf` into os.FileMode")
+	c.Check(err.Error(), Matches, "cannot parse snap.yaml: yaml: unmarshal errors:\n"+
+		"  line 9: cannot unmarshal !!str `asdfasdf` into (os|fs).FileMode")
 }
 
 func (s *YamlSuite) TestDaemonInvalidDaemonScope(c *C) {

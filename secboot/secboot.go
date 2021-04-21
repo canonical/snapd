@@ -56,7 +56,10 @@ func NewLoadChain(bf bootloader.BootFile, next ...*LoadChain) *LoadChain {
 type SealKeyRequest struct {
 	// The key to seal
 	Key EncryptionKey
-	// The path to store the sealed key file
+	// The key name; identical keys should have identical names
+	KeyName string
+	// The path to store the sealed key file. The same Key/KeyName
+	// can be stored under multiple KeyFile names for safety.
 	KeyFile string
 }
 
@@ -147,3 +150,9 @@ type UnlockResult struct {
 // FDEHasReveal is setup by devicestate/fde to support device-specific
 // full disk encryption implementations.
 var FDEHasRevealKey = func() bool { return false }
+
+// EncryptedPartitionName returns the name/label used by an encrypted partition
+// corresponding to a given name.
+func EncryptedPartitionName(name string) string {
+	return name + "-enc"
+}

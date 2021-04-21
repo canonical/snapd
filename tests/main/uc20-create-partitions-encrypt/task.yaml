@@ -9,29 +9,6 @@ environment:
     # need to disable go modules support for this test
     GO111MODULE: off
 
-debug: |
-    cat /proc/partitions
-
-restore: |
-    if [[ -d ./mnt ]]; then
-        umount ./mnt || true
-    fi
-    umount /run/mnt/ubuntu-seed || true
-    umount /dev/mapper/ubuntu-save || true
-    umount /dev/mapper/ubuntu-data || true
-    umount /dev/mapper/test-udata || true
-
-    cryptsetup close /dev/mapper/ubuntu-save || true
-    cryptsetup close /dev/mapper/ubuntu-data || true
-    cryptsetup close /dev/mapper/test-udata || true
-
-    if [ -f loop.txt ]; then
-        losetup -d "$(cat loop.txt)"
-    fi
-    apt autoremove -y cryptsetup
-
-    rm -Rf /run/mnt
-
 prepare: |
     echo "Create a fake block device image that looks like an image from u-i"
     truncate --size=10GB fake.img
@@ -69,6 +46,32 @@ prepare: |
     snap download --channel=20/edge pc
     unsquashfs -d gadget-dir pc_*.snap
 
+restore: |
+    for m in ubuntu-seed ubuntu-save ubuntu-data ubuntu-boot; do
+        if mountpoint "/run/mnt/$m"; then
+            umount "/run/mnt/$m"
+        fi
+    done
+    if mountpoint ./mnt; then
+        umount ./mnt
+    fi
+
+    cryptsetup close /dev/mapper/ubuntu-save || true
+    cryptsetup close /dev/mapper/ubuntu-data || true
+    cryptsetup close /dev/mapper/test-udata || true
+
+    if [ -f loop.txt ]; then
+        LOOP="$(cat loop.txt)"
+        losetup -d "$LOOP"
+        losetup -l | NOMATCH "$LOOP"
+    fi
+    apt autoremove -y cryptsetup
+
+    rm -Rf /run/mnt
+
+debug: |
+    cat /proc/partitions
+
 execute: |
     # this test simulates a reinstall, to clear the TPM this requires
     # a reboot so the losetup has to be redone
@@ -92,12 +95,15 @@ execute: |
     sbverify --list "$seedbootdir"/bootx64.efi
     sbverify --list "$seedbootdir"/grubx64.efi
     sbverify --list "$bootdir"/grubx64.efi
+    # TODO:UC20: make kernel-dir non-empty once we have a gadget that has a
+    #            "$kernel:" style ref in the meta/gadget.yaml
+    kerneldir=""
 
     echo "Run the snap-bootstrap tool"
     go get ../../lib/uc20-create-partitions
     uc20-create-partitions \
         --encrypt \
-        ./gadget-dir "$LOOP"
+        ./gadget-dir "$kerneldir" "$LOOP"
     # keep for later
 
     echo "Check that the ubuntu-data key files were created"

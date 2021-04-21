@@ -26,10 +26,16 @@ prepare: |
 restore: |
     tests.session -u test restore
     snap unset system experimental.user-daemons
+
     if [ -f agent-was-enabled ]; then
         systemctl --user --global disable snapd.session-agent.socket
-        rm agent-was-enabled
     fi
+
+
+debug: |
+    tests.session dump
+    tests.session -u test exec systemctl --user status snapd.session-agent.service || true
+    tests.session -u test exec journalctl --user || true
 
 execute: |
     function systemctl_user() {
@@ -50,8 +56,3 @@ execute: |
     systemctl_user is-active snap.test-snapd-user-service.test-snapd-user-service
     systemctl_user show -p MainPID snap.test-snapd-user-service.test-snapd-user-service > new-main.pid
     test "$(cat new-main.pid)" != "$(cat old-main.pid)"
-
-debug: |
-    tests.session dump
-    tests.session -u test exec systemctl --user status snapd.session-agent.service || true
-    tests.session -u test exec journalctl --user || true

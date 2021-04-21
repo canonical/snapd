@@ -64,7 +64,7 @@ is_debian() {
 }
 
 is_debian_sid() {
-    grep -qFx 'ID=debian' /etc/os-release && grep -qx 'PRETTY_NAME=".*/sid"' /etc/os-release
+    [[ "$SPREAD_SYSTEM" == debian-sid-* ]]
 }
 
 is_fedora() {
@@ -88,7 +88,7 @@ is_opensuse() {
 }
 
 is_opensuse_tumbleweed() {
-    grep -qFx 'ID="opensuse-tumbleweed"'
+    grep -qFx 'ID="opensuse-tumbleweed"' /etc/os-release
 }
 
 is_pc_amd64() {
@@ -100,7 +100,7 @@ is_pc_i386() {
 }
 
 is_arm() {
-    uname -m | grep -qx '^arm.*'
+    uname -m | grep -Eq '(^arm.*|^aarch*)'
 }
 
 is_armhf() {

@@ -43,6 +43,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -89,7 +90,7 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 		return nil
 	}
 	s.notified = nil
-	polkitCheckAuthorization = s.checkAuthorization
+	s.AddCleanup(MockPolkitCheckAuthorization(s.checkAuthorization))
 	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
 }
 
@@ -101,10 +102,6 @@ func (s *daemonSuite) TearDownTest(c *check.C) {
 	logger.SetLogger(logger.NullLogger)
 
 	s.BaseTest.TearDownTest(c)
-}
-
-func (s *daemonSuite) TearDownSuite(c *check.C) {
-	polkitCheckAuthorization = polkit.CheckAuthorization
 }
 
 // build a new daemon, with only a little of Init(), suitable for the tests
@@ -230,8 +227,10 @@ func (s *daemonSuite) TestMaintenanceJsonDeletedOnStart(c *check.C) {
 	d := newTestDaemon(c)
 	makeDaemonListeners(c, d)
 
+	s.markSeeded(d)
+
 	// after starting, maintenance.json should be removed
-	d.Start()
+	c.Assert(d.Start(), check.IsNil)
 	c.Assert(dirs.SnapdMaintenanceFile, testutil.FileAbsent)
 	d.Stop(nil)
 }
@@ -442,9 +441,10 @@ func (s *daemonSuite) TestPolkitAccessForGet(c *check.C) {
 
 	// for UserOK commands, polkit is not consulted
 	cmd.UserOK = true
-	polkitCheckAuthorization = func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
+	restore := MockPolkitCheckAuthorization(func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
 		panic("polkit.CheckAuthorization called")
-	}
+	})
+	defer restore()
 	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
 }
 
@@ -850,10 +850,14 @@ func (s *daemonSuite) TestGracefulStopHasLimits(c *check.C) {
 	}
 }
 
-func (s *daemonSuite) testRestartSystemWiring(c *check.C, restartKind state.RestartType) {
+func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), restart func(*state.State, state.RestartType), restartKind state.RestartType) {
 	d := newTestDaemon(c)
 	// mark as already seeded
 	s.markSeeded(d)
+
+	if prep != nil {
+		prep(d)
+	}
 
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
@@ -863,6 +867,22 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, restartKind state.Rest
 
 	snapAccept := make(chan struct{})
 	d.snapListener = &witnessAcceptListener{Listener: l, accept: snapAccept}
+
+	oldRebootNoticeWait := rebootNoticeWait
+	oldRebootWaitTimeout := rebootWaitTimeout
+	defer func() {
+		reboot = rebootImpl
+		rebootNoticeWait = oldRebootNoticeWait
+		rebootWaitTimeout = oldRebootWaitTimeout
+	}()
+	rebootWaitTimeout = 100 * time.Millisecond
+	rebootNoticeWait = 150 * time.Millisecond
+
+	var delays []time.Duration
+	reboot = func(d time.Duration) error {
+		delays = append(delays, d)
+		return nil
+	}
 
 	c.Assert(d.Start(), check.IsNil)
 	defer d.Stop(nil)
@@ -892,24 +912,8 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, restartKind state.Rest
 	<-snapdDone
 	<-snapDone
 
-	oldRebootNoticeWait := rebootNoticeWait
-	oldRebootWaitTimeout := rebootWaitTimeout
-	defer func() {
-		reboot = rebootImpl
-		rebootNoticeWait = oldRebootNoticeWait
-		rebootWaitTimeout = oldRebootWaitTimeout
-	}()
-	rebootWaitTimeout = 100 * time.Millisecond
-	rebootNoticeWait = 150 * time.Millisecond
-
-	var delays []time.Duration
-	reboot = func(d time.Duration) error {
-		delays = append(delays, d)
-		return nil
-	}
-
 	st.Lock()
-	st.RequestRestart(restartKind)
+	restart(st, restartKind)
 	st.Unlock()
 
 	defer func() {
@@ -975,11 +979,54 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, restartKind state.Rest
 }
 
 func (s *daemonSuite) TestRestartSystemGracefulWiring(c *check.C) {
-	s.testRestartSystemWiring(c, state.RestartSystem)
+	s.testRestartSystemWiring(c, nil, (*state.State).RequestRestart, state.RestartSystem)
 }
 
 func (s *daemonSuite) TestRestartSystemImmediateWiring(c *check.C) {
-	s.testRestartSystemWiring(c, state.RestartSystemNow)
+	s.testRestartSystemWiring(c, nil, (*state.State).RequestRestart, state.RestartSystemNow)
+}
+
+type rstManager struct {
+	st *state.State
+}
+
+func (m *rstManager) Ensure() error {
+	m.st.Lock()
+	defer m.st.Unlock()
+	m.st.RequestRestart(state.RestartSystemNow)
+	return nil
+}
+
+type witnessManager struct {
+	ensureCalled int
+}
+
+func (m *witnessManager) Ensure() error {
+	m.ensureCalled++
+	return nil
+}
+
+func (s *daemonSuite) TestRestartSystemFromEnsure(c *check.C) {
+	// Test that calling RequestRestart from inside the first
+	// Ensure loop works.
+	wm := &witnessManager{}
+
+	prep := func(d *Daemon) {
+		st := d.overlord.State()
+		hm := d.overlord.HookManager()
+		o := overlord.MockWithStateAndRestartHandler(st, d.HandleRestart)
+		d.overlord = o
+		o.AddManager(hm)
+		rm := &rstManager{st: st}
+		o.AddManager(rm)
+		o.AddManager(wm)
+	}
+
+	nop := func(*state.State, state.RestartType) {}
+
+	s.testRestartSystemWiring(c, prep, nop, state.RestartSystemNow)
+
+	c.Check(wm.ensureCalled, check.Equals, 1)
 }
 
 func (s *daemonSuite) TestRebootHelper(c *check.C) {

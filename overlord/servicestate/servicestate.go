@@ -23,15 +23,18 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/cmdstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 type Instruction struct {
@@ -205,7 +208,8 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, flags
 
 // StatusDecorator supports decorating client.AppInfos with service status.
 type StatusDecorator struct {
-	sysd systemd.Systemd
+	sysd           systemd.Systemd
+	globalUserSysd systemd.Systemd
 }
 
 // NewStatusDecorator returns a new StatusDecorator.
@@ -213,7 +217,8 @@ func NewStatusDecorator(rep interface {
 	Notify(string)
 }) *StatusDecorator {
 	return &StatusDecorator{
-		sysd: systemd.New(systemd.SystemMode, rep),
+		sysd:           systemd.New(systemd.SystemMode, rep),
+		globalUserSysd: systemd.New(systemd.GlobalUserMode, rep),
 	}
 }
 
@@ -227,6 +232,15 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 	if !snapApp.Snap.IsActive() || !snapApp.IsService() {
 		// nothing to do
 		return nil
+	}
+	var sysd systemd.Systemd
+	switch snapApp.DaemonScope {
+	case snap.SystemDaemon:
+		sysd = sd.sysd
+	case snap.UserDaemon:
+		sysd = sd.globalUserSysd
+	default:
+		return fmt.Errorf("internal error: unknown daemon-scope %q", snapApp.DaemonScope)
 	}
 
 	// collect all services for a single call to systemctl
@@ -250,7 +264,7 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 
 	// sysd.Status() makes sure that we get only the units we asked
 	// for and raises an error otherwise
-	sts, err := sd.sysd.Status(serviceNames...)
+	sts, err := sysd.Status(serviceNames...)
 	if err != nil {
 		return fmt.Errorf("cannot get status of services of app %q: %v", appInfo.Name, err)
 	}
@@ -278,6 +292,45 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 			})
 		}
 	}
+	// Decorate with D-Bus names that activate this service
+	for _, slot := range snapApp.ActivatesOn {
+		var busName string
+		if err := slot.Attr("name", &busName); err != nil {
+			return fmt.Errorf("cannot get D-Bus bus name of slot %q: %v", slot.Name, err)
+		}
+		// D-Bus activators do not correspond to systemd
+		// units, so don't have the concept of being disabled
+		// or deactivated.  As the service activation file is
+		// created when the snap is installed, report as
+		// enabled/active.
+		appInfo.Activators = append(appInfo.Activators, client.AppActivator{
+			Name:    busName,
+			Enabled: true,
+			Active:  true,
+			Type:    "dbus",
+		})
+	}
 
 	return nil
+}
+
+// SnapServiceOptions computes the options to configure services for
+// the given snap. This function might not check for the existence
+// of instanceName.
+func SnapServiceOptions(st *state.State, instanceName string) (opts *wrappers.SnapServiceOptions, err error) {
+	opts = &wrappers.SnapServiceOptions{}
+
+	tr := config.NewTransaction(st)
+	var vitalityStr string
+	err = tr.GetMaybe("core", "resilience.vitality-hint", &vitalityStr)
+	if err != nil {
+		return nil, err
+	}
+	for i, s := range strings.Split(vitalityStr, ",") {
+		if s == instanceName {
+			opts.VitalityRank = i + 1
+			break
+		}
+	}
+	return opts, nil
 }

@@ -361,9 +361,9 @@ func (l *lk) ExtractRecoveryKernelAssets(recoverySystemDir string, sn snap.Place
 		// error case, we cannot be extracting a recovery kernel and also be
 		// called with !opts.PrepareImageTime (yet)
 
-		// TODO:UC20: however this codepath will likely be exercised when we
-		//            support creating new recovery systems from runtime
-		return fmt.Errorf("internal error: ExtractRecoveryKernelAssets not yet implemented for a runtime lk bootloader")
+		// TODO:UC20: this codepath is exercised when creating new
+		// recovery systems from runtime
+		return fmt.Errorf("internal error: extracting recovery kernel assets is not supported for a runtime lk bootloader")
 	}
 
 	env, err := l.newenv()

@@ -56,6 +56,14 @@ func MockTimeNow(f func() time.Time) (restore func()) {
 	}
 }
 
+func MockOsutilSetTime(f func(t time.Time) error) (restore func()) {
+	old := osutilSetTime
+	osutilSetTime = f
+	return func() {
+		osutilSetTime = old
+	}
+}
+
 func MockOsutilIsMounted(f func(string) (bool, error)) (restore func()) {
 	old := osutilIsMounted
 	osutilIsMounted = f
@@ -142,5 +150,13 @@ func MockPartitionUUIDForBootedKernelDisk(uuid string) (restore func()) {
 
 	return func() {
 		bootFindPartitionUUIDForBootedKernelDisk = old
+	}
+}
+
+func MockTryRecoverySystemHealthCheck(mock func() error) (restore func()) {
+	old := tryRecoverySystemHealthCheck
+	tryRecoverySystemHealthCheck = mock
+	return func() {
+		tryRecoverySystemHealthCheck = old
 	}
 }

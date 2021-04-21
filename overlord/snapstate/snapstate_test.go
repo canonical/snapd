@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -121,10 +122,12 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	oldSetupPreRefreshHook := snapstate.SetupPreRefreshHook
 	oldSetupPostRefreshHook := snapstate.SetupPostRefreshHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
+	oldSnapServiceOptions := snapstate.SnapServiceOptions
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
 	snapstate.SetupPreRefreshHook = hookstate.SetupPreRefreshHook
 	snapstate.SetupPostRefreshHook = hookstate.SetupPostRefreshHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
+	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions
 
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state, s.o.TaskRunner())
@@ -155,6 +158,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 		snapstate.SetupPreRefreshHook = oldSetupPreRefreshHook
 		snapstate.SetupPostRefreshHook = oldSetupPostRefreshHook
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
+		snapstate.SnapServiceOptions = oldSnapServiceOptions
 
 		dirs.SetRootDir("/")
 	})
@@ -213,11 +217,18 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 		Current:  snap.R(1),
 		SnapType: "os",
 	})
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
 	s.state.Unlock()
 
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
 	}
+
+	s.AddCleanup(snapstate.MockSecurityProfilesDiscardLate(func(snapName string, rev snap.Revision, typ snap.Type) error {
+		return nil
+	}))
 }
 
 func (s *snapmgrTestSuite) TearDownTest(c *C) {
@@ -380,6 +391,7 @@ const (
 	runCoreConfigure
 	doesReRefresh
 	updatesGadget
+	updatesBootConfig
 	noConfigure
 )
 
@@ -6449,4 +6461,133 @@ func (s *snapmgrTestSuite) TestInstallModeDisableFreshInstallEnabledByHook(c *C)
 	op := s.fakeBackend.ops.First("start-snap-services")
 	c.Assert(op, Not(IsNil))
 	c.Check(op.disabledServices, HasLen, 0)
+}
+
+func (s *snapmgrTestSuite) TestSnapdRefreshTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "snapd",
+	})
+
+	chg := s.state.NewChange("snapd-refresh", "refresh snapd")
+	ts, err := snapstate.Update(s.state, "snapd", nil, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// various backend operations, but no unlink-current-snap
+	expected := fakeOps{
+		{
+			op: "storesvc-snap-action",
+			curSnaps: []store.CurrentSnap{
+				{
+					InstanceName:  "snapd",
+					SnapID:        "snapd-snap-id",
+					Revision:      snap.R(1),
+					RefreshedDate: fakeRevDateEpoch.AddDate(0, 0, 1),
+					Epoch:         snap.E("1*"),
+				},
+			},
+		},
+		{
+			op: "storesvc-snap-action:action",
+			action: store.SnapAction{
+				Action:       "refresh",
+				SnapID:       "snapd-snap-id",
+				InstanceName: "snapd",
+				Flags:        store.SnapActionEnforceValidation,
+			},
+			revno: snap.R(11),
+		},
+		{
+			op:   "storesvc-download",
+			name: "snapd",
+		},
+		{
+			op:    "validate-snap:Doing",
+			name:  "snapd",
+			revno: snap.R(11),
+		},
+		{
+			op:  "current",
+			old: filepath.Join(dirs.SnapMountDir, "snapd/1"),
+		},
+		{
+			op:   "open-snap-file",
+			path: filepath.Join(dirs.SnapBlobDir, "snapd_11.snap"),
+			sinfo: snap.SideInfo{
+				RealName: "snapd",
+				SnapID:   "snapd-snap-id",
+				Revision: snap.R(11),
+			},
+		},
+		{
+			op:    "setup-snap",
+			name:  "snapd",
+			path:  filepath.Join(dirs.SnapBlobDir, "snapd_11.snap"),
+			revno: snap.R(11),
+		},
+		{
+			op:   "remove-snap-aliases",
+			name: "snapd",
+		},
+		{
+			op:   "copy-data",
+			path: filepath.Join(dirs.SnapMountDir, "snapd/11"),
+			old:  filepath.Join(dirs.SnapMountDir, "snapd/1"),
+		},
+		{
+			op:    "setup-profiles:Doing",
+			name:  "snapd",
+			revno: snap.R(11),
+		},
+		{
+			op: "candidate",
+			sinfo: snap.SideInfo{
+				RealName: "snapd",
+				SnapID:   "snapd-snap-id",
+				Revision: snap.R(11),
+			},
+		},
+		{
+			op:   "link-snap",
+			path: filepath.Join(dirs.SnapMountDir, "snapd/11"),
+		},
+		{
+			op:    "auto-connect:Doing",
+			name:  "snapd",
+			revno: snap.R(11),
+		},
+		{
+			op: "update-aliases",
+		},
+		{
+			op:    "cleanup-trash",
+			name:  "snapd",
+			revno: snap.R(11),
+		},
+	}
+	// start with an easier-to-read error if this fails:
+	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Assert(s.fakeBackend.ops, DeepEquals, expected)
+
+	// verify that the R(2) version is active now and R(7) is still there
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "snapd", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Assert(snapst.Active, Equals, true)
+	c.Assert(snapst.Current, Equals, snap.R(11))
 }

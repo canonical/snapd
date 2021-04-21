@@ -4,7 +4,6 @@ prepare: |
     systemctl status snapd > before.txt
 
 restore: |
-    rm before.txt
     # disable persistent journal
     rm -rf /var/log/journal
     systemctl kill --signal=SIGUSR1 systemd-journald

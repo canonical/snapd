@@ -55,7 +55,9 @@ execute: |
     echo "Then the snap command is able to print files"
     echo "Hello World" > "$TEST_FILE"
     test-snapd-cups-control-consumer.lpr "$TEST_FILE"
-    while "$(find "$HOME"/PDF -name '*.pdf' | wc -l)" -lt 1 ; do sleep 1; done
+    #shellcheck disable=SC2148
+    #shellcheck disable=SC2016
+    retry -n 60 --wait 1 sh -c 'test "$(find "$HOME"/PDF -name "*.pdf" | wc -l)" -ge 1'
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -69,4 +71,4 @@ execute: |
         echo "Expected error with plug disconnected"
         exit 1
     fi
-    grep -q "scheduler not responding" print.error
+    MATCH "scheduler not responding" < print.error

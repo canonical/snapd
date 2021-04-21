@@ -272,6 +272,7 @@ var templateCommon = `
   @{PROC}/sys/fs/inotify/max_* r,
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/random/boot_id r,
+  @{PROC}/sys/kernel/random/entropy_avail r,
   @{PROC}/sys/kernel/random/uuid r,
   # Allow access to the uuidd daemon (this daemon is a thin wrapper around
   # time and getrandom()/{,u}random and, when available, runs under an

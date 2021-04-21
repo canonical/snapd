@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -125,7 +126,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	overlord := c.d.overlord
 	st := overlord.State()
-	theStore := getStore(c)
+	theStore := storeFrom(c.d)
 	macaroon, discharge, err := theStore.LoginUser(loginData.Email, loginData.Password, loginData.Otp)
 	switch err {
 	case store.ErrAuthenticationNeeds2fa:
@@ -327,6 +328,22 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		}
 	}
 	if createData.Automatic {
+		var enabled bool
+		st.Lock()
+		tr := config.NewTransaction(st)
+		err := tr.Get("core", "users.create.automatic", &enabled)
+		st.Unlock()
+		if err != nil {
+			if !config.IsNoOption(err) {
+				return InternalError("%v", err)
+			}
+			// defaults to enabled
+			enabled = true
+		}
+		if !enabled {
+			// disabled, do nothing
+			return SyncResponse([]userResponseData{}, nil)
+		}
 		// Automatic implies known/sudoers
 		createData.Known = true
 		createData.Sudoer = true
@@ -365,7 +382,7 @@ func createUser(c *Command, createData postUserCreateData) Response {
 	if createKnown {
 		username, opts, err = getUserDetailsFromAssertion(st, model, serial, createData.Email)
 	} else {
-		username, opts, err = getUserDetailsFromStore(getStore(c), createData.Email)
+		username, opts, err = getUserDetailsFromStore(storeFrom(c.d), createData.Email)
 	}
 	if err != nil {
 		return BadRequest("%s", err)
