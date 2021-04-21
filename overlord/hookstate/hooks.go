@@ -108,4 +108,5 @@ func setupHooks(hookMgr *HookManager) {
 	hookMgr.Register(regexp.MustCompile("^post-refresh$"), handlerGenerator)
 	hookMgr.Register(regexp.MustCompile("^pre-refresh$"), handlerGenerator)
 	hookMgr.Register(regexp.MustCompile("^remove$"), handlerGenerator)
+	hookMgr.Register(regexp.MustCompile("^gate-auto-refresh$"), handlerGenerator)
 }
