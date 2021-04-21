@@ -164,10 +164,10 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 
 		snapsup := &refreshCandidate{
 			SnapSetup{
-				Base:         update.Base,
-				Prereq:       defaultContentPlugProviders(st, update),
-				Channel:      snapst.TrackingChannel,
-				CohortKey:    snapst.CohortKey,
+				Base:      update.Base,
+				Prereq:    defaultContentPlugProviders(st, update),
+				Channel:   snapst.TrackingChannel,
+				CohortKey: snapst.CohortKey,
 				// UserID not set
 				Flags:        flags.ForSnapSetup(),
 				DownloadInfo: &update.DownloadInfo,
