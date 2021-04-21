@@ -440,7 +440,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 	c.Assert(err, IsNil)
 
 	now := time.Now()
-	os.Chtimes(usrLibSnapdMountFile, now, now)
+	err = os.Chtimes(usrLibSnapdMountFile, now, now)
+	c.Assert(err, IsNil)
 
 	slightFuture := now.Add(30 * time.Minute).Format(systemdTimeFormat)
 	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
@@ -507,7 +508,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesButDoe
 	c.Assert(err, IsNil)
 
 	now := time.Now()
-	os.Chtimes(usrLibSnapdMountFile, now, now)
+	err = os.Chtimes(usrLibSnapdMountFile, now, now)
+	c.Assert(err, IsNil)
 
 	slightFuture := now.Add(30 * time.Minute).Format(systemdTimeFormat)
 	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
@@ -568,7 +570,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesKil
 	c.Assert(err, IsNil)
 
 	now := time.Now()
-	os.Chtimes(usrLibSnapdMountFile, now, now)
+	err = os.Chtimes(usrLibSnapdMountFile, now, now)
+	c.Assert(err, IsNil)
 
 	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
 	thePast := now.Add(-30 * time.Minute).Format(systemdTimeFormat)
@@ -621,7 +624,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesDoesNotRestartServicesKil
 	c.Assert(err, IsNil)
 
 	now := time.Now()
-	os.Chtimes(usrLibSnapdMountFile, now, now)
+	err = os.Chtimes(usrLibSnapdMountFile, now, now)
+	c.Assert(err, IsNil)
 
 	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
 	thePast := now.Add(-30 * time.Minute).Format(systemdTimeFormat)
@@ -674,7 +678,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesSimpleRewritesServicesFil
 	c.Assert(err, IsNil)
 
 	now := time.Now()
-	os.Chtimes(usrLibSnapdMountFile, now, now)
+	err = os.Chtimes(usrLibSnapdMountFile, now, now)
+	c.Assert(err, IsNil)
 
 	slightFuture := now.Add(30 * time.Minute).Format(systemdTimeFormat)
 	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
@@ -745,7 +750,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesNoChangeServiceFileDoesNo
 	c.Assert(err, IsNil)
 
 	now := time.Now()
-	os.Chtimes(usrLibSnapdMountFile, now, now)
+	err = os.Chtimes(usrLibSnapdMountFile, now, now)
+	c.Assert(err, IsNil)
 
 	svcFile := filepath.Join(dirs.GlobalRootDir, "/etc/systemd/system/snap.test-snap.svc1.service")
 
@@ -832,7 +838,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 	c.Assert(err, IsNil)
 
 	now := time.Now()
-	os.Chtimes(usrLibSnapdMountFile, now, now)
+	err = os.Chtimes(usrLibSnapdMountFile, now, now)
+	c.Assert(err, IsNil)
 
 	slightFuture := now.Add(30 * time.Minute).Format(systemdTimeFormat)
 	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
@@ -894,7 +901,8 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndTri
 	c.Assert(err, IsNil)
 
 	now := time.Now()
-	os.Chtimes(usrLibSnapdMountFile, now, now)
+	err = os.Chtimes(usrLibSnapdMountFile, now, now)
+	c.Assert(err, IsNil)
 
 	slightFuture := now.Add(30 * time.Minute).Format(systemdTimeFormat)
 	theFuture := now.Add(1 * time.Hour).Format(systemdTimeFormat)
