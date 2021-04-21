@@ -431,8 +431,8 @@ type SnapServiceOptions struct {
 
 // ObserveChangeCallback can be invoked by EnsureSnapServices to observe
 // the previous content of a unit and the new on a change.
-// unitType can be "service", "socket", "timer".
-type ObserveChangeCallback func(app *snap.AppInfo, unitType string, old, new string)
+// unitType can be "service", "socket", "timer". name is empty for a timer.
+type ObserveChangeCallback func(app *snap.AppInfo, unitType string, name, old, new string)
 
 // EnsureSnapServicesOptions is the set of options applying to the
 // EnsureSnapServices operation. It does not include per-snap specific options
@@ -457,16 +457,16 @@ type EnsureSnapServicesOptions struct {
 // There are two sets of options; there are global options which apply to the
 // entire transaction and to every snap service that is ensured, and options
 // which are per-snap service and specified in the map argument.
-// The return value is a map of the snap's Info the a list of App's that were
-// updated or modified. Apps in a snap that did not have their service
-// definitions change are not included in the map's list value.
 // If any errors are encountered trying to update systemd units, then all
 // changes performed up to that point are rolled back, meaning newly written
 // units are deleted and modified units are attempted to be restored to their
-// previous state. In this case the modified return value is nil.
-func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSnapServicesOptions, observeChange ObserveChangeCallback, inter interacter) (modified map[*snap.Info][]*snap.AppInfo, err error) {
-	modified = make(map[*snap.Info][]*snap.AppInfo)
-
+// previous state.
+// To observe which units were added or modified a
+// ObserveChangeCallback calllback can be provided. The callback is
+// invoked while processing the changes. Because of that it should not
+// produce immediate side-effects, as the changes are in effect only
+// if the function did not return an error.
+func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSnapServicesOptions, observeChange ObserveChangeCallback, inter interacter) (err error) {
 	// note, sysd is not used when preseeding
 	sysd := systemd.New(systemd.SystemMode, inter)
 
@@ -520,7 +520,7 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 		}
 	}()
 
-	handleFileModification := func(s *snap.Info, app *snap.AppInfo, unitType string, path string, content []byte) error {
+	handleFileModification := func(app *snap.AppInfo, unitType string, name, path string, content []byte) error {
 		old, modifiedFile, err := tryFileUpdate(path, content)
 		if err != nil {
 			return err
@@ -532,10 +532,9 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 				if old != nil {
 					oldContent = old.Content
 				}
-				observeChange(app, unitType, string(oldContent), string(content))
+				observeChange(app, unitType, name, string(oldContent), string(content))
 			}
 			modifiedUnitsPreviousState[path] = old
-			modified[s] = append(modified[s], app)
 
 			// also mark that we need to reload either the system or
 			// user instance of systemd
@@ -552,7 +551,7 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 
 	for s, snapSvcOpts := range snaps {
 		if s.Type() == snap.TypeSnapd {
-			return nil, fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
+			return fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
 		}
 
 		// always use RequireMountedSnapdSnap options from the global options
@@ -577,32 +576,33 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 			path := app.ServiceFile()
 			content, err := generateSnapServiceFile(app, genServiceOpts)
 			if err != nil {
-				return nil, err
+				return err
 			}
 
-			if err := handleFileModification(s, app, "service", path, content); err != nil {
-				return nil, err
+			if err := handleFileModification(app, "service", app.Name, path, content); err != nil {
+				return err
 			}
 
 			// Generate systemd .socket files if needed
 			socketFiles, err := generateSnapSocketFiles(app)
 			if err != nil {
-				return nil, err
+				return err
 			}
-			for path, content := range socketFiles {
-				if err := handleFileModification(s, app, "socket", path, content); err != nil {
-					return nil, err
+			for name, content := range socketFiles {
+				path := app.Sockets[name].File()
+				if err := handleFileModification(app, "socket", name, path, content); err != nil {
+					return err
 				}
 			}
 
 			if app.Timer != nil {
 				content, err := generateSnapTimerFile(app)
 				if err != nil {
-					return nil, err
+					return err
 				}
 				path := app.Timer.File()
-				if err := handleFileModification(s, app, "timer", path, content); err != nil {
-					return nil, err
+				if err := handleFileModification(app, "timer", "", path, content); err != nil {
+					return err
 				}
 			}
 		}
@@ -611,17 +611,17 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 	if !preseeding {
 		if modifiedSystem {
 			if err = sysd.DaemonReload(); err != nil {
-				return nil, err
+				return err
 			}
 		}
 		if modifiedUser {
 			if err = userDaemonReload(); err != nil {
-				return nil, err
+				return err
 			}
 		}
 	}
 
-	return modified, nil
+	return nil
 }
 
 // AddSnapServicesOptions is a struct for controlling the generated service
@@ -660,8 +660,7 @@ func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter interacte
 		ensureOpts.RequireMountedSnapdSnap = opts.RequireMountedSnapdSnap
 	}
 
-	_, err := EnsureSnapServices(m, ensureOpts, nil, inter)
-	return err
+	return EnsureSnapServices(m, ensureOpts, nil, inter)
 }
 
 // StopServicesFlags carries extra flags for StopServices.
@@ -1145,8 +1144,8 @@ func generateSnapSocketFiles(app *snap.AppInfo) (map[string][]byte, error) {
 	}
 
 	socketFiles := make(map[string][]byte)
-	for name, socket := range app.Sockets {
-		socketFiles[socket.File()] = genServiceSocketFile(app, name)
+	for name := range app.Sockets {
+		socketFiles[name] = genServiceSocketFile(app, name)
 	}
 	return socketFiles, nil
 }
