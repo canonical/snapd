@@ -131,18 +131,23 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 		ensureOpts.RequireMountedSnapdSnap = true
 	}
 
-	// TODO: should we use an actual interacter here ?
+	rewrittenServices := make(map[*snap.Info][]*snap.AppInfo)
+	observeChange := func(app *snap.AppInfo, unitType, name string, old, new string) {
+		if unitType == "service" {
+			rewrittenServices[app.Snap] = append(rewrittenServices[app.Snap], app)
+		}
+	}
 
 	// TODO: this should take a callback so that we can gate the logic about
 	// restarting services below on actually observing a Requires= to Wants=
 	// transition which is what we need to do to fix LP #1924805
-	modified, err := wrappers.EnsureSnapServices(snapsMap, ensureOpts, progress.Null)
+	err = wrappers.EnsureSnapServices(snapsMap, ensureOpts, observeChange, progress.Null)
 	if err != nil {
 		return err
 	}
 
 	// if nothing was modified or we are not on UC18+, we are done
-	if len(modified) == 0 || deviceCtx.Classic() || deviceCtx.Model().Base() == "" {
+	if len(rewrittenServices) == 0 || deviceCtx.Classic() || deviceCtx.Model().Base() == "" {
 		m.ensuredSnapSvcs = true
 		return nil
 	}
@@ -150,7 +155,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 	// otherwise, we know now that we have rewritten some snap services, we need
 	// to handle the case of LP #1924805, and restart any services that were
 	// accidentally killed when we refreshed snapd
-	if err := restartServicesKilledInSnapdSnapRefresh(modified); err != nil {
+	if err := restartServicesKilledInSnapdSnapRefresh(rewrittenServices); err != nil {
 		// we failed to restart services that were killed by a snapd refresh, so
 		// we need to immediately reboot in the hopes that this restores
 		// services to a functioning state
