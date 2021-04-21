@@ -22,11 +22,13 @@ package servicestate
 import (
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -195,6 +197,23 @@ func serviceControlAffectedSnaps(t *state.Task) ([]string, error) {
 	return []string{serviceAction.SnapName}, nil
 }
 
+var getBootTime = func() (time.Time, error) {
+	cmd := exec.Command("uptime", "-s")
+	cmd.Env = append(cmd.Env, "TZ=UTC")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return time.Time{}, osutil.OutputErr(out, err)
+	}
+
+	// parse the output from the command as a time
+	t, err := time.ParseInLocation("2006-01-02 15:04:05", strings.TrimSpace(string(out)), time.UTC)
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return t, nil
+}
+
 func restartServicesKilledInSnapdSnapRefresh(modified map[*snap.Info][]*snap.AppInfo) error {
 	// we decide on which services to restart by identifying (out of the set of
 	// services we just modified) services that were stopped after
@@ -208,10 +227,6 @@ func restartServicesKilledInSnapdSnapRefresh(modified map[*snap.Info][]*snap.App
 		return err
 	}
 
-	// TODO: we should check if usr-lib-snapd.mount was modified before the
-	// current boot time, if it was then we can just skip this since we know
-	// any service stops that happened were unrelated
-
 	// always truncate all times to second precision, since that is the least
 	// precise time we have of all the times we consider, due to using systemctl
 	// for getting the InactiveEnterTimestamp for systemd units
@@ -222,6 +237,20 @@ func restartServicesKilledInSnapdSnapRefresh(modified map[*snap.Info][]*snap.App
 	// of inadvertently starting services that just so happened to have been
 	// stopped in the same second that we modified and usr-lib-snapd.mount.
 	lowerTimeBound := st.ModTime().Truncate(time.Second)
+
+	// if the time that the usr-lib-snapd.mount was modified is before the time
+	// that this device was booted up, then we can skip this since we know we
+	// that a refresh is not being performed
+	bootTime, err := getBootTime()
+	if err != nil {
+		// don't fail if we can't get the boot time, if we don't get it the
+		// below check will be always false (no time can be before zero time)
+		logger.Noticef("error getting boot time: %v", err)
+	}
+
+	if lowerTimeBound.Before(bootTime) {
+		return nil
+	}
 
 	// Get the InactiveEnterTimestamp property for the usr-lib-snapd.mount unit,
 	// this is the time that usr-lib-snapd.mount was transitioned from
