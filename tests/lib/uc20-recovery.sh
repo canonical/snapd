@@ -10,9 +10,18 @@ transition_to_recover_mode(){
         HAVE_LABEL=0
     fi
 
+    # TODO: the following mocking of systemctl should be combined with the code
+    # in tests/core/snapd-refresh-vs-services-reboots into a generic shutdown
+    # helper to get better observability and less race conditions around 
+    # snapd rebooting things from a live system under spread
+
+    # save the original systemctl command since we essentially need to mock it
+    cp /bin/systemctl /tmp/orig-systemctl
+    chmod +x /tmp/orig-systemctl
+
     # redirect shutdown command to our mock to observe calls and avoid racing
     # with spread
-    mount -o bind "$TESTSLIB/mock-shutdown" /usr/sbin/shutdown
+    mount -o bind "$TESTSLIB/mock-shutdown" /bin/systemctl
 
     # reboot to recovery mode
     echo "Request rebooting into recovery mode"
@@ -32,7 +41,7 @@ transition_to_recover_mode(){
     MATCH -- '-r \+0' < /tmp/mock-shutdown.calls
 
     # restore shutdown so that spread can reboot the host
-    umount /usr/sbin/shutdown
+    umount /bin/systemctl
 
     # with the external backend, we do not have the special snapd snap with
     # the first-boot run mode tweaks as created from $TESTLIB/prepare.sh's 

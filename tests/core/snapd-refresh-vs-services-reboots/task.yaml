@@ -1,0 +1,92 @@
+summary: Check that refreshing snapd in the worst case reboots if things go sideways
+
+# TODO: move this test to tests/regression/lp-1924805 ?
+
+systems: [ubuntu-core-18-*, ubuntu-core-20-*]
+
+environment:
+  # the test needs to start from 2.49.2 to reproduce the bug and demonstrate the
+  # worst case behavior still works
+  SNAPD_2_49_2: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.2_11588.snap
+
+prepare: |
+  tests.cleanup prepare
+  snap install http --devmode # devmode so it can save to any dir
+
+  # save the version of snapd from the PR to refresh to later
+  INITIAL_REV=$(snap list snapd | tail -n +2 | awk '{print $3}')
+  cp "/var/lib/snapd/snaps/snapd_$INITIAL_REV.snap" snapd-pr.snap
+
+  # download and install snapd 2.49.2
+  http --quiet --download --output snapd_2.49.2.snap GET "$SNAPD_2_49_2"
+  snap install --dangerous snapd_2.49.2.snap
+  tests.cleanup defer snap revert snapd --revision="$INITIAL_REV"
+
+restore: |
+  tests.cleanup restore
+
+execute: |
+  if [ "$SPREAD_REBOOT" = "0" ]; then
+    # install the special service snap which will fail to startup every other time
+    # it is started
+    snap pack . --filename=app.snap
+
+    # install the snap so it is running
+    snap install --dangerous app.snap
+
+    # ensure that the service is active and has a running PID
+    snap services | MATCH 'test-snapd-svc-flip-flop\.svc1\s+enabled\s+active.*'
+
+    # ensure that the service was installed with Requires= which triggers the bug
+    MATCH Requires=usr-lib-snapd.mount < /etc/systemd/system/snap.test-snapd-svc-flip-flop.svc1.service
+
+    # mock the reboot command so that when we try to refresh snapd and it fails,
+    # we can observe this and reboot with spread instead
+
+    # TODO: make this a common helper for mocking expected snapd reboots, this
+    # code is shared with uc20-recovery.sh right now
+
+    # save the original systemctl command since we essentially need to mock it
+    cp /bin/systemctl /tmp/orig-systemctl
+    chmod +x /tmp/orig-systemctl
+
+    mount -o bind "$TESTSLIB/mock-shutdown" /bin/systemctl
+
+    # now refresh to the new version of snapd - this will trigger a reboot of 
+    # the system
+    snap install --dangerous snapd-pr.snap 2>&1 | MATCH "snapd is about to reboot the system"
+
+    # snapd schedules a slow timeout and an immediate one, however it is
+    # scheduled asynchronously, try to keep the check simple
+    # shellcheck disable=SC2016
+    retry -n 30 --wait 1 sh -c 'test "$(wc -l < /tmp/mock-shutdown.calls)" = "2"'
+    # a reboot in 10 minutes should have been scheduled
+    MATCH -- '-r \+10' < /tmp/mock-shutdown.calls
+    # and an immediate reboot should have been scheduled
+    MATCH -- '-r \+0' < /tmp/mock-shutdown.calls
+
+    # check that before shutting down, snapd rewrote the unit service file to
+    # contain Wants= instead of Requires=
+    MATCH Wants=usr-lib-snapd.mount < /etc/systemd/system/snap.test-snapd-svc-flip-flop.svc1.service
+
+    # and the service should not be running anymore
+    if [ "$(systemctl is-active snap.test-snapd-svc-flip-flop.svc.service)" != "inactive" ]; then
+      echo "the service is still active somehow, test probably broken"
+      exit 1
+    fi
+
+    # restore shutdown so that spread can reboot the host
+    umount /bin/systemctl
+
+    REBOOT
+  elif [ "$SPREAD_REBOOT" = "1" ]; then
+    # we rebooted after installing the new snapd as expected, make sure that the
+    # service is active and that the snap change finishes successfully 
+
+    snap watch --last=install
+    snap changes snapd | NOMATCH Error 
+    snap changes snapd | NOMATCH Undone
+    snap changes snapd | NOMATCH Hold
+
+    snap services | MATCH 'test-snapd-svc-flip-flop\.svc1\s+enabled\s+active.*'
+  fi
