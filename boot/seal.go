@@ -20,6 +20,7 @@
 package boot
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -144,6 +145,13 @@ type fdeSetupHookResult struct {
 	Handle       []byte `json:"handle"`
 }
 
+func isV1Hook(hookOutput []byte) bool {
+	// This is the prefix of a tpm secboot v1 key as used in the
+	// "denver" project. So if we see this prefix we know it's
+	// v1 hook output.
+	return bytes.HasPrefix(hookOutput, []byte("USK$"))
+}
+
 func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
 	// TODO: support full boot chains
 
@@ -164,11 +172,8 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model
 		// bytes and we still need to support this.
 		var res fdeSetupHookResult
 		if err := json.Unmarshal(hookOutput, &res); err != nil {
-			// If the input is not json and matches the
-			// size of the input encrypton key we assume
-			// we deal with a v1 hook that passes us back
-			// raw binary data instead of json.
-			if len(hookOutput) != len(unencryptedPayload) {
+			// If the outout is not json and looks like va
+			if !isV1Hook(hookOutput) {
 				return fmt.Errorf("cannot decode hook output for key %s %q: %v", skr.KeyFile, hookOutput, err)
 			}
 			// v1 hooks do not support a handle

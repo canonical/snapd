@@ -20,10 +20,9 @@
 package boot_test
 
 import (
-	"errors"
-	"strings"
-	"fmt"
 	"encoding/base64"
+	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -1376,7 +1375,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappyV1(c *C) {
 		c.Assert(op, Equals, "initial-setup")
 		runFDESetupHookParams = append(runFDESetupHookParams, params)
 		// simulate v1 hook output here - raw binary data
-		mockedSealedKey := strings.Repeat(strconv.Itoa(n), len(params.Key))
+		mockedSealedKey := "USK$secboot-sealed-v1-key" + strconv.Itoa(n)
 		return []byte(mockedSealedKey), nil
 	})
 	defer restore()
@@ -1392,9 +1391,9 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappyV1(c *C) {
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookParams, DeepEquals, []*boot.FDESetupHookParams{
-		{Key: key[:], KeyName: "ubuntu-data" },
-		{Key: key[:], KeyName: "ubuntu-data" },
-		{Key: saveKey[:], KeyName: "ubuntu-save" },
+		{Key: key[:], KeyName: "ubuntu-data"},
+		{Key: key[:], KeyName: "ubuntu-data"},
+		{Key: saveKey[:], KeyName: "ubuntu-save"},
 	})
 	// check that the sealed keys got written to the expected places
 	for i, p := range []string{
@@ -1402,8 +1401,8 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappyV1(c *C) {
 		filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
 		filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 	} {
-		mockedSealedKey := strings.Repeat(strconv.Itoa(i+1), len(runFDESetupHookParams[i].Key))
-		c.Check(p, testutil.FileEquals, mockedSealedKey)
+		expectedMockSealedKey := "USK$secboot-sealed-v1-key" + strconv.Itoa(i+1)
+		c.Check(p, testutil.FileEquals, expectedMockSealedKey)
 	}
 	marker := filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys")
 	c.Check(marker, testutil.FileEquals, "fde-setup-hook")
@@ -1503,7 +1502,6 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySad(c *C) {
 	c.Check(resealKeyToModeenvUsingFDESetupHookCalled, Equals, 1)
 }
 
-
 func (s *sealSuite) TestSealToModeenvWithFdeHookHappyV2(c *C) {
 	rootdir := c.MkDir()
 	dirs.SetRootDir(rootdir)
@@ -1540,9 +1538,9 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappyV2(c *C) {
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookParams, DeepEquals, []*boot.FDESetupHookParams{
-		{Key: key[:], KeyName: "ubuntu-data" },
-		{Key: key[:], KeyName: "ubuntu-data" },
-		{Key: saveKey[:], KeyName: "ubuntu-save" },
+		{Key: key[:], KeyName: "ubuntu-data"},
+		{Key: key[:], KeyName: "ubuntu-data"},
+		{Key: saveKey[:], KeyName: "ubuntu-save"},
 	})
 	// check that the sealed keys got written to the expected places
 	for i, p := range []string{
