@@ -328,7 +328,7 @@ func (s *makeBootable20Suite) TestMakeBootableImage20CustomKernelFullArgs(c *C) 
 }
 
 func (s *makeBootable20Suite) TestMakeBootableImage20CustomKernelInvalidArgs(c *C) {
-	errMsg := `cannot obtain recovery system command line: cannot use kernel command line from gadget: disallowed kernel argument "snapd_foo=bar" in cmdline.extra`
+	errMsg := `cannot obtain recovery system command line: cannot use kernel command line from gadget: invalid kernel command line in cmdline.extra: disallowed kernel argument "snapd_foo=bar"`
 	s.testMakeBootableImage20CustomKernelArgs(c, "cmdline.extra", "snapd_foo=bar", errMsg)
 }
 
@@ -1093,7 +1093,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20WithCustomKernelFullArgs(c
 }
 
 func (s *makeBootable20Suite) TestMakeSystemRunnable20WithCustomKernelInvalidArgs(c *C) {
-	errMsg := `cannot compose the candidate command line: cannot use kernel command line from gadget: disallowed kernel argument "snapd=unhappy" in cmdline.extra`
+	errMsg := `cannot compose the candidate command line: cannot use kernel command line from gadget: invalid kernel command line in cmdline.extra: disallowed kernel argument "snapd=unhappy"`
 	s.testMakeSystemRunnable20WithCustomKernelArgs(c, "cmdline.extra", "foo bar snapd=unhappy", errMsg, "", "")
 }
 

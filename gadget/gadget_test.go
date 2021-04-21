@@ -2402,6 +2402,22 @@ volumes:
 	c.Check(err, IsNil)
 }
 
+const cmdlineMultiLineWithComments = `
+# reboot 5 seconds after panic
+panic=5
+# reserve range
+reserve=0x300,32
+foo=bar     baz=baz
+# random op
+                                  random=op
+debug
+# snapd logging level to debug (does not trip the disallowed argument check)
+# or this snapd_ or this snapd.
+snapd.debug=1
+# this is valid
+memmap=100M@2G,100M#3G,1G!1024G
+`
+
 func (s *gadgetYamlTestSuite) TestKernelCommandLineBasic(c *C) {
 	for _, tc := range []struct {
 		files [][]string
@@ -2420,6 +2436,18 @@ func (s *gadgetYamlTestSuite) TestKernelCommandLineBasic(c *C) {
 		},
 		cmdline: "foo bar baz full", full: true,
 	}, {
+		files: [][]string{
+			{"cmdline.full", cmdlineMultiLineWithComments},
+		},
+		cmdline: "panic=5 reserve=0x300,32 foo=bar baz=baz random=op debug snapd.debug=1 memmap=100M@2G,100M#3G,1G!1024G",
+		full:    true,
+	}, {
+		files: [][]string{
+			{"cmdline.full", ""},
+		},
+		cmdline: "",
+		full:    true,
+	}, {
 		// no cmdline
 		files: nil,
 		err:   "no kernel command line in the gadget",
@@ -2430,15 +2458,21 @@ func (s *gadgetYamlTestSuite) TestKernelCommandLineBasic(c *C) {
 		},
 		err: "no kernel command line in the gadget",
 	}, {
+		files: [][]string{{"cmdline.full", " # error"}},
+		full:  true, err: `invalid kernel command line in cmdline\.full: unexpected or invalid use of # in argument "#"`,
+	}, {
+		files: [][]string{{"cmdline.full", "foo bar baz #error"}},
+		full:  true, err: `invalid kernel command line in cmdline\.full: unexpected or invalid use of # in argument "#error"`,
+	}, {
 		files: [][]string{
 			{"cmdline.full", "foo bad =\n"},
 		},
-		full: true, err: `invalid kernel command line "foo bad =" in cmdline.full: unexpected assignment`,
+		full: true, err: `invalid kernel command line in cmdline\.full: unexpected assignment`,
 	}, {
 		files: [][]string{
 			{"cmdline.extra", "foo bad ="},
 		},
-		full: false, err: `invalid kernel command line "foo bad =" in cmdline.extra: unexpected assignment`,
+		full: false, err: `invalid kernel command line in cmdline\.extra: unexpected assignment`,
 	}, {
 		files: [][]string{
 			{"cmdline.extra", `extra`},
@@ -2501,7 +2535,7 @@ func (s *gadgetYamlTestSuite) testKernelCommandLineArgs(c *C, whichCmdline strin
 		c.Assert(err, IsNil)
 
 		cmdline, _, err := gadget.KernelCommandLineFromGadget(info.MountDir())
-		c.Assert(err, ErrorMatches, fmt.Sprintf(`disallowed kernel argument ".*" in %s`, whichCmdline))
+		c.Assert(err, ErrorMatches, fmt.Sprintf(`invalid kernel command line in %v: disallowed kernel argument ".*"`, whichCmdline))
 		c.Check(cmdline, Equals, "")
 	}
 }
