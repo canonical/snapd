@@ -67,7 +67,7 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 		if err != nil {
 			return nil, err
 		}
-		// optimize: do not consider snaps that don't have gate-auto-refresh hook.
+		// optimization: do not consider snaps that don't have gate-auto-refresh hook.
 		if inf.Hooks[gateAutoRefreshHookName] == nil {
 			delete(all, name)
 			continue
@@ -86,13 +86,12 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 	affected := make(map[string]*affectedSnapInfo)
 
 	addAffected := func(snapName, affectedBy string, restart bool, base bool) {
-		affectedInfo := affected[snapName]
-		if affectedInfo == nil {
-			affectedInfo = &affectedSnapInfo{
+		if affected[snapName] == nil {
+			affected[snapName] = &affectedSnapInfo{
 				AffectingSnaps: map[string]bool{},
 			}
-			affected[snapName] = affectedInfo
 		}
+		affectedInfo := affected[snapName]
 		if restart {
 			affectedInfo.Restart = restart
 		}

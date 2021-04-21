@@ -50,7 +50,7 @@ var _ = Suite(&autorefreshGatingSuite{})
 func (s *autorefreshGatingSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
-	s.BaseTest.AddCleanup(func() {
+	s.AddCleanup(func() {
 		dirs.SetRootDir("/")
 	})
 	s.state = state.New(nil)
@@ -172,6 +172,9 @@ slots:
     desktop:
 `
 
+const useHook = true
+const noHook = false
+
 func (s *autorefreshGatingSuite) TestAffectedByBase(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
@@ -180,11 +183,11 @@ func (s *autorefreshGatingSuite) TestAffectedByBase(c *C) {
 
 	st.Lock()
 	defer st.Unlock()
-	s.mockInstalledSnap(c, snapAyaml, true)
-	baseSnapA := s.mockInstalledSnap(c, baseSnapAyaml, false)
+	s.mockInstalledSnap(c, snapAyaml, useHook)
+	baseSnapA := s.mockInstalledSnap(c, baseSnapAyaml, noHook)
 	// unrelated snaps
-	snapB := s.mockInstalledSnap(c, snapByaml, true)
-	s.mockInstalledSnap(c, baseSnapByaml, false)
+	snapB := s.mockInstalledSnap(c, snapByaml, useHook)
+	s.mockInstalledSnap(c, baseSnapByaml, noHook)
 
 	c.Assert(s.repo.AddSnap(snapB), IsNil)
 
@@ -207,9 +210,9 @@ func (s *autorefreshGatingSuite) TestAffectedByCore(c *C) {
 
 	st.Lock()
 	defer st.Unlock()
-	snapC := s.mockInstalledSnap(c, snapCyaml, true)
-	core := s.mockInstalledSnap(c, coreYaml, false)
-	snapB := s.mockInstalledSnap(c, snapByaml, true)
+	snapC := s.mockInstalledSnap(c, snapCyaml, useHook)
+	core := s.mockInstalledSnap(c, coreYaml, noHook)
+	snapB := s.mockInstalledSnap(c, snapByaml, useHook)
 
 	c.Assert(s.repo.AddSnap(core), IsNil)
 	c.Assert(s.repo.AddSnap(snapB), IsNil)
@@ -234,9 +237,9 @@ func (s *autorefreshGatingSuite) TestAffectedByKernel(c *C) {
 
 	st.Lock()
 	defer st.Unlock()
-	kernel := s.mockInstalledSnap(c, kernelYaml, false)
-	s.mockInstalledSnap(c, snapCyaml, true)
-	s.mockInstalledSnap(c, snapByaml, false)
+	kernel := s.mockInstalledSnap(c, kernelYaml, noHook)
+	s.mockInstalledSnap(c, snapCyaml, useHook)
+	s.mockInstalledSnap(c, snapByaml, noHook)
 
 	updates := []*snap.Info{kernel}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
@@ -257,9 +260,9 @@ func (s *autorefreshGatingSuite) TestAffectedByGadget(c *C) {
 
 	st.Lock()
 	defer st.Unlock()
-	kernel := s.mockInstalledSnap(c, gadget1Yaml, false)
-	s.mockInstalledSnap(c, snapCyaml, true)
-	s.mockInstalledSnap(c, snapByaml, false)
+	kernel := s.mockInstalledSnap(c, gadget1Yaml, noHook)
+	s.mockInstalledSnap(c, snapCyaml, useHook)
+	s.mockInstalledSnap(c, snapByaml, noHook)
 
 	updates := []*snap.Info{kernel}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
@@ -281,10 +284,10 @@ func (s *autorefreshGatingSuite) TestAffectedBySlot(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	snapD := s.mockInstalledSnap(c, snapDyaml, true)
-	snapE := s.mockInstalledSnap(c, snapEyaml, true)
+	snapD := s.mockInstalledSnap(c, snapDyaml, useHook)
+	snapE := s.mockInstalledSnap(c, snapEyaml, useHook)
 	// unrelated snap
-	snapF := s.mockInstalledSnap(c, snapFyaml, true)
+	snapF := s.mockInstalledSnap(c, snapFyaml, useHook)
 
 	c.Assert(s.repo.AddSnap(snapF), IsNil)
 	c.Assert(s.repo.AddSnap(snapD), IsNil)
@@ -313,9 +316,9 @@ func (s *autorefreshGatingSuite) TestNotAffectedByCoreOrSnapdSlot(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	snapG := s.mockInstalledSnap(c, snapGyaml, true)
-	core := s.mockInstalledSnap(c, coreYaml, false)
-	snapB := s.mockInstalledSnap(c, snapByaml, true)
+	snapG := s.mockInstalledSnap(c, snapGyaml, useHook)
+	core := s.mockInstalledSnap(c, coreYaml, noHook)
+	snapB := s.mockInstalledSnap(c, snapByaml, useHook)
 
 	c.Assert(s.repo.AddSnap(snapG), IsNil)
 	c.Assert(s.repo.AddSnap(core), IsNil)
@@ -340,10 +343,10 @@ func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackend(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	snapD := s.mockInstalledSnap(c, snapDyaml, true)
-	snapE := s.mockInstalledSnap(c, snapEyaml, true)
+	snapD := s.mockInstalledSnap(c, snapDyaml, useHook)
+	snapE := s.mockInstalledSnap(c, snapEyaml, useHook)
 	// unrelated snap
-	snapF := s.mockInstalledSnap(c, snapFyaml, true)
+	snapF := s.mockInstalledSnap(c, snapFyaml, useHook)
 
 	c.Assert(s.repo.AddSnap(snapF), IsNil)
 	c.Assert(s.repo.AddSnap(snapD), IsNil)
@@ -373,10 +376,10 @@ func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackendSnapdSlot(c *
 	st.Lock()
 	defer st.Unlock()
 
-	snapdSnap := s.mockInstalledSnap(c, snapdYaml, true)
-	snapG := s.mockInstalledSnap(c, snapGyaml, true)
+	snapdSnap := s.mockInstalledSnap(c, snapdYaml, useHook)
+	snapG := s.mockInstalledSnap(c, snapGyaml, useHook)
 	// unrelated snap
-	snapF := s.mockInstalledSnap(c, snapFyaml, true)
+	snapF := s.mockInstalledSnap(c, snapFyaml, useHook)
 
 	c.Assert(s.repo.AddSnap(snapF), IsNil)
 	c.Assert(s.repo.AddSnap(snapdSnap), IsNil)
@@ -406,8 +409,8 @@ func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackendCoreSlot(c *C
 	st.Lock()
 	defer st.Unlock()
 
-	coreSnap := s.mockInstalledSnap(c, coreYaml, false)
-	snapG := s.mockInstalledSnap(c, snapGyaml, true)
+	coreSnap := s.mockInstalledSnap(c, coreYaml, noHook)
+	snapG := s.mockInstalledSnap(c, snapGyaml, useHook)
 
 	c.Assert(s.repo.AddSnap(coreSnap), IsNil)
 	c.Assert(s.repo.AddSnap(snapG), IsNil)
@@ -438,11 +441,11 @@ func (s *autorefreshGatingSuite) TestAffectedByBootBase(c *C) {
 
 	st.Lock()
 	defer st.Unlock()
-	s.mockInstalledSnap(c, snapAyaml, true)
-	s.mockInstalledSnap(c, snapByaml, true)
-	s.mockInstalledSnap(c, snapDyaml, true)
-	s.mockInstalledSnap(c, snapEyaml, true)
-	core18 := s.mockInstalledSnap(c, core18Yaml, false)
+	s.mockInstalledSnap(c, snapAyaml, useHook)
+	s.mockInstalledSnap(c, snapByaml, useHook)
+	s.mockInstalledSnap(c, snapDyaml, useHook)
+	s.mockInstalledSnap(c, snapEyaml, useHook)
+	core18 := s.mockInstalledSnap(c, core18Yaml, noHook)
 
 	updates := []*snap.Info{core18}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
