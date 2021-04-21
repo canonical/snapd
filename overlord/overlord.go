@@ -591,6 +591,12 @@ func (o *Overlord) SnapManager() *snapstate.SnapManager {
 	return o.snapMgr
 }
 
+// ServiceManager returns the manager responsible for services
+// under the overlord.
+func (o *Overlord) ServiceManager() *servicestate.ServiceManager {
+	return o.serviceMgr
+}
+
 // AssertManager returns the assertion manager enforcing assertions
 // under the overlord.
 func (o *Overlord) AssertManager() *assertstate.AssertManager {
@@ -624,11 +630,6 @@ func (o *Overlord) CommandManager() *cmdstate.CommandManager {
 // SnapshotManager returns the manager responsible for snapshots.
 func (o *Overlord) SnapshotManager() *snapshotstate.SnapshotManager {
 	return o.shotMgr
-}
-
-// ServiceManager returns the manager responsible for services.
-func (o *Overlord) ServiceManager() *servicestate.ServiceManager {
-	return o.serviceMgr
 }
 
 // Mock creates an Overlord without any managers and with a backend
