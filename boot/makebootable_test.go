@@ -1322,7 +1322,7 @@ grade=dangerous
 `)
 }
 
-func (s *makeBootable20Suite) TestMakeRecoverySystemBootable20(c *C) {
+func (s *makeBootable20Suite) TestMakeRecoverySystemBootableAtRuntime20(c *C) {
 	bootloader.Force(nil)
 
 	// on uc20 the seed layout if different
@@ -1366,6 +1366,8 @@ version: 5.0
 		KernelPath: kernelInSeed,
 		// use gadget revision 1
 		GadgetSnapOrDir: gadgets["1"],
+		// like it's called when creating a new recovery system
+		PrepareImageTime: false,
 	})
 	c.Assert(err, IsNil)
 	// the recovery partition grubenv was not modified
@@ -1385,6 +1387,8 @@ version: 5.0
 		Kernel:          kernelInfo,
 		KernelPath:      kernelInSeed,
 		GadgetSnapOrDir: gadgets["5"],
+		// like it's called when creating a new recovery system
+		PrepareImageTime: false,
 	})
 	c.Assert(err, IsNil)
 
