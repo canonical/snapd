@@ -1109,7 +1109,7 @@ nested_create_classic_vm() {
     fi
 
     # Save a copy of the image
-    cp -v "$IMAGE_NAME" "$IMAGE_NAME.pristine"
+    cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine"
 }
 
 nested_start_classic_vm() {
@@ -1118,7 +1118,7 @@ nested_start_classic_vm() {
     IMAGE_NAME="$(nested_get_image_name classic)"
 
     if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ] ; then
-        cp -v "$IMAGE_NAME.pristine" "$IMAGE_NAME"
+        cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$IMAGE_NAME"
     fi
 
     # Now qemu parameters are defined
