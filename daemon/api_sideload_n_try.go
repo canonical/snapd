@@ -26,7 +26,6 @@ import (
 	"mime/multipart"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -202,19 +201,6 @@ out:
 	changeTriggered = true
 
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
-}
-
-func isTrue(form *multipart.Form, key string) bool {
-	value := form.Value[key]
-	if len(value) == 0 {
-		return false
-	}
-	b, err := strconv.ParseBool(value[0])
-	if err != nil {
-		return false
-	}
-
-	return b
 }
 
 func trySnap(st *state.State, trydir string, flags snapstate.Flags) Response {

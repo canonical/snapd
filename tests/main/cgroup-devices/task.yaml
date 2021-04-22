@@ -1,10 +1,6 @@
 summary: measuring basic properties of device cgroup
-# fedora-32: uses cgroupv2, which we don't support
-# fedora-33: uses cgroupv2, which we don't support
-# debian-sid: uses cgroupv2, which we don't support
 
-systems: [ -fedora-32-*, -fedora-33-*, -debian-sid-* ]
+# fedora-32, fedora-33, debian-sid, arch use cgroupv2, which we don't support
+systems: [ -fedora-32-*, -fedora-33-*, -debian-sid-*, -arch-* ]
+
 execute: ./task.sh
-restore: |
-    rm -f test-snapd-service_1.0_all.snap
-    snap remove --purge test-snapd-service

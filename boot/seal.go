@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
@@ -56,7 +57,7 @@ var (
 	HasFDESetupHook = func() (bool, error) {
 		return false, nil
 	}
-	RunFDESetupHook = func(op string, params *FDESetupHookParams) ([]byte, error) {
+	RunFDESetupHook fde.RunSetupHookFunc = func(req *fde.SetupRequest) ([]byte, error) {
 		return nil, fmt.Errorf("internal error: RunFDESetupHook not set yet")
 	}
 )
@@ -68,15 +69,6 @@ const (
 	sealingMethodTPM          = sealingMethod("tpm")
 	sealingMethodFDESetupHook = sealingMethod("fde-setup-hook")
 )
-
-// FDESetupHookParams contains the inputs for the fde-setup hook
-type FDESetupHookParams struct {
-	Key     []byte
-	KeyName string
-
-	//TODO:UC20: provide bootchains and a way to track measured
-	//boot-assets
-}
 
 func bootChainsFileUnder(rootdir string) string {
 	return filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains")
@@ -159,31 +151,13 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model
 	}
 
 	for _, skr := range append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey)...) {
-		unencryptedPayload := secboot.MarshalKeys(skr.Key[:], auxKey[:])
-		params := &FDESetupHookParams{
-			Key:     unencryptedPayload,
+		params := &fde.InitialSetupParams{
+			Key:     skr.Key,
 			KeyName: skr.KeyName,
 		}
-		hookOutput, err := RunFDESetupHook("initial-setup", params)
+		res, err := fde.InitialSetup(RunFDESetupHook, params)
 		if err != nil {
 			return err
-		}
-		// We expect json output that fits fdeSetupHookResult
-		// hook at this point. However the "denver" project
-		// uses the old and deprecated v1 API that returns raw
-		// bytes and we still need to support this.
-		var res fdeSetupHookResult
-		if err := json.Unmarshal(hookOutput, &res); err != nil {
-			// If the input is not json and matches the
-			// size of the input encrypton key we assume
-			// we deal with a v1 hook that passes us back
-			// raw binary data instead of json.
-			if len(hookOutput) != len(unencryptedPayload) {
-				return fmt.Errorf("cannot decode hook output for key %s %q: %v", skr.KeyFile, hookOutput, err)
-			}
-			// v1 hooks do not support a handle
-			res.Handle = nil
-			res.EncryptedKey = hookOutput
 		}
 		if err := secboot.WriteKeyData(skr.KeyName, skr.KeyFile, res.EncryptedKey, auxKey[:], res.Handle); err != nil {
 			return err
@@ -546,22 +520,25 @@ func resealFallbackObjectKeys(pbc predictableBootChains, authKeyFile string, rol
 
 func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAssetsBootloader, model *asserts.Model, modeenv *Modeenv) (chains []bootChain, err error) {
 	for _, system := range systems {
-		// get the command line
-		cmdline, err := ComposeRecoveryCommandLine(model, system)
-		if err != nil {
-			return nil, fmt.Errorf("cannot obtain recovery kernel command line: %v", err)
-		}
-
-		// get kernel information from seed
+		// get kernel and gadget information from seed
 		perf := timings.New(nil)
-		_, snaps, err := seedReadSystemEssential(dirs.SnapSeedDir, system, []snap.Type{snap.TypeKernel}, perf)
+		_, snaps, err := seedReadSystemEssential(dirs.SnapSeedDir, system, []snap.Type{snap.TypeKernel, snap.TypeGadget}, perf)
 		if err != nil {
 			return nil, fmt.Errorf("cannot read system %q seed: %v", system, err)
 		}
-		if len(snaps) != 1 {
-			return nil, fmt.Errorf("cannot obtain recovery kernel snap")
+		if len(snaps) != 2 {
+			return nil, fmt.Errorf("cannot obtain recovery system snaps")
 		}
-		seedKernel := snaps[0]
+		seedKernel, seedGadget := snaps[0], snaps[1]
+		if snaps[0].EssentialType == snap.TypeGadget {
+			seedKernel, seedGadget = seedGadget, seedKernel
+		}
+
+		// get the command line
+		cmdline, err := ComposeRecoveryCommandLine(model, system, seedGadget.Path)
+		if err != nil {
+			return nil, fmt.Errorf("cannot obtain recovery kernel command line: %v", err)
+		}
 
 		var kernelRev string
 		if seedKernel.SideInfo.Revision.Store() {

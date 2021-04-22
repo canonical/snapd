@@ -1,8 +1,6 @@
 summary: Ensure that the locale-control interface works.
 
-systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
-
-summary: |
+details: |
     The locale-control interface allows a snap to access the locale configuration.
 
     A snap which defines the locale-control plug must be shown in the interfaces list.
@@ -11,6 +9,8 @@ summary: |
 
     A snap declaring a plug on this interface must be able to access the /etc/default/locale
     file both for reading and writing. This path doesn't exist on the excluded distributions.
+
+systems: [-fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
 
 prepare: |
     if os.query is-core; then

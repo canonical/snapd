@@ -307,6 +307,8 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 	}
 }
 
+// TODO: move some of this to kernel/fde?
+
 // FDERevealKeyRequest carries the operation and parameters for the
 // fde-reveal-key binary to support unsealing keys that were sealed
 // with the "fde-setup" hook.

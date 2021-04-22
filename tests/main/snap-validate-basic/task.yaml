@@ -1,6 +1,4 @@
-summary: Ensure `snap validate` commands work.
-
-# TODO: add tests using store when snapcraft is ready.
+summary: Ensure `snap validate` commands work with local assertions.
 
 # This test uses a local validation set assertion (vs1.json) signed upfront
 # with my (stolowski) private store key (account-id: xSfWKGdLoQBoQx88vIM1MpbFNMq53t1f,

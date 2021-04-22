@@ -99,6 +99,8 @@ var (
 	HasOtherInstances = hasOtherInstances
 
 	SafetyMarginDiskSpace = safetyMarginDiskSpace
+
+	AffectedByRefresh = affectedByRefresh
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
@@ -310,3 +312,6 @@ func MockSecurityProfilesDiscardLate(fn func(snapName string, rev snap.Revision,
 		SecurityProfilesRemoveLate = old
 	}
 }
+
+// autorefresh gating
+type AffectedSnapInfo = affectedSnapInfo

@@ -2493,14 +2493,7 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 	})
 
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
-		kernelSnap := &seed.Snap{
-			Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
-			SideInfo: &snap.SideInfo{
-				Revision: snap.Revision{N: 1},
-				RealName: "pc-kernel",
-			},
-		}
-		return uc20model, []*seed.Snap{kernelSnap}, nil
+		return uc20model, []*seed.Snap{mockKernelSeedSnap(c, snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 
@@ -2633,14 +2626,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 	c.Check(res, Equals, gadget.ChangeApply)
 
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
-		kernelSnap := &seed.Snap{
-			Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
-			SideInfo: &snap.SideInfo{
-				Revision: snap.Revision{N: 1},
-				RealName: "pc-kernel",
-			},
-		}
-		return uc20model, []*seed.Snap{kernelSnap}, nil
+		return uc20model, []*seed.Snap{mockKernelSeedSnap(c, snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 

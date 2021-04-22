@@ -24,7 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/overlord/devicestate/fde"
+	"github.com/snapcore/snapd/kernel/fde"
 )
 
 type fdeSetupRequestCommand struct {

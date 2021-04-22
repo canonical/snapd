@@ -80,7 +80,9 @@ func runFdeSetup() error {
 		fdeSetupResult = []byte(`{"features":[]}`)
 	case "initial-setup":
 		// "seal"
-		fdeSetupResult = xor13(js.Key)
+		buf := bytes.NewBufferString("USK$")
+		buf.Write(xor13(js.Key))
+		fdeSetupResult = buf.Bytes()
 	default:
 		return fmt.Errorf("unsupported op %q", js.Op)
 	}
@@ -132,7 +134,8 @@ func runFdeRevealKey() error {
 
 	switch js.Op {
 	case "reveal":
-		unsealedKey := xor13(js.SealedKey)
+		// strip the "USK$" prefix
+		unsealedKey := xor13(js.SealedKey[len("USK$"):])
 		fmt.Fprintf(os.Stdout, "%s", unsealedKey)
 	case "lock":
 		// nothing right now

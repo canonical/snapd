@@ -105,6 +105,7 @@ func runFdeSetup() error {
 		return fmt.Errorf("unsupported op %q", js.Op)
 	}
 	cmd := exec.Command("snapctl", "fde-setup-result")
+	// simulate a secboot v1 encrypted key
 	cmd.Stdin = bytes.NewBuffer(fdeSetupResult)
 	output, err = cmd.CombinedOutput()
 	if err != nil {

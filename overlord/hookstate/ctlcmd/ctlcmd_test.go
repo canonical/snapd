@@ -24,14 +24,14 @@ import (
 	"testing"
 
 	"github.com/jessevdk/go-flags"
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
-
-	. "gopkg.in/check.v1"
 )
 
 func Test(t *testing.T) { TestingT(t) }

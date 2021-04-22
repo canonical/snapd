@@ -14,15 +14,12 @@ execute: |
         exit 0
     fi
 
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     echo "Install a snap that provides the io.snapcraft.SnapDbusService session service"
     snap install --edge test-snapd-dbus-service
     test -f /var/lib/snapd/dbus-1/services/io.snapcraft.SnapDbusService.service
 
     echo "Installing a second snap that tries to provide the name fails"
-    if install_local test-snapd-dbus-service-conflicting 2> error.txt; then
+    if "$TESTSTOOLS"/snaps-state install-local test-snapd-dbus-service-conflicting 2> error.txt; then
         echo "Installation of conflicting snap should have failed"
         exit 1
     fi

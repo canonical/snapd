@@ -74,3 +74,18 @@ execute: |
         snap remove "$SNAP_JAILMODE"
         rm -f "$TESTSLIB/snaps/${SNAP_JAILMODE}/${SNAP_JAILMODE}_1.0_all.snap"
     fi
+
+    # Check the core, kernel and gadget snap name
+    core_name=$("$TESTSTOOLS"/snaps-state show-name core)
+    kernel_name=$("$TESTSTOOLS"/snaps-state show-name kernel)
+    gadget_name=$("$TESTSTOOLS"/snaps-state show-name gadget)
+
+    # Check the core, kernel and gadget snaps
+    snap list "$core_name"
+    if os.query is-core; then
+        snap list "$kernel_name"
+        snap list "$gadget_name"
+    else
+        test -z "$kernel_name"
+        test -z "$gadget_name"
+    fi

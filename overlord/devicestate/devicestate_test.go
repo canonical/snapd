@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -47,7 +48,6 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
-	"github.com/snapcore/snapd/overlord/devicestate/fde"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -89,6 +89,7 @@ type deviceMgrBaseSuite struct {
 	ancillary []asserts.Assertion
 
 	restartRequests []state.RestartType
+	restartObserve  func()
 
 	newFakeStore func(storecontext.DeviceBackend) snapstate.StoreService
 
@@ -154,8 +155,12 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	s.AddCleanup(release.MockOnClassic(false))
 
 	s.storeSigning = assertstest.NewStoreStack("canonical", nil)
+	s.restartObserve = nil
 	s.o = overlord.MockWithStateAndRestartHandler(nil, func(req state.RestartType) {
 		s.restartRequests = append(s.restartRequests, req)
+		if s.restartObserve != nil {
+			s.restartObserve()
+		}
 	})
 	s.state = s.o.State()
 	s.state.Lock()
@@ -1324,7 +1329,7 @@ func (s *deviceMgrSuite) TestHasFdeSetupHook(c *C) {
 	}
 }
 
-func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetup(c *C) {
+func (s *deviceMgrSuite) TestRunFDESetupHookHappy(c *C) {
 	st := s.state
 
 	st.Lock()
@@ -1352,11 +1357,11 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetup(c *C) {
 		var fdeSetup fde.SetupRequest
 		ctx.Get("fde-setup-request", &fdeSetup)
 		c.Check(fdeSetup, DeepEquals, fde.SetupRequest{
-			Op:  "initial-setup",
-			Key: mockKey[:],
+			Op:      "op",
+			Key:     mockKey[:],
+			KeyName: "some-key-name",
 		})
-		// the snapctl fde-setup-result will set the data
-		ctx.Set("fde-setup-result", []byte("sealed-key"))
+		ctx.Set("fde-setup-result", []byte("result"))
 		hookCalled = append(hookCalled, ctx.InstanceName())
 		return nil, nil
 	}
@@ -1367,18 +1372,20 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetup(c *C) {
 	s.o.Loop()
 	defer s.o.Stop()
 
-	params := &boot.FDESetupHookParams{
-		Key: mockKey[:],
+	req := &fde.SetupRequest{
+		Op:      "op",
+		Key:     mockKey[:],
+		KeyName: "some-key-name",
 	}
 	st.Lock()
-	data, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, "initial-setup", params)
+	res, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, req)
 	st.Unlock()
 	c.Assert(err, IsNil)
-	c.Check(string(data), Equals, "sealed-key")
+	c.Check(res, DeepEquals, []byte("result"))
 	c.Check(hookCalled, DeepEquals, []string{"pc-kernel"})
 }
 
-func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetupErrors(c *C) {
+func (s *deviceMgrSuite) TestRunFDESetupHookErrors(c *C) {
 	st := s.state
 
 	st.Lock()
@@ -1404,17 +1411,16 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetupErrors(c *C) {
 	s.o.Loop()
 	defer s.o.Stop()
 
-	mockKey := secboot.EncryptionKey{1, 2, 3, 4}
-	params := &boot.FDESetupHookParams{
-		Key: mockKey[:],
+	req := &fde.SetupRequest{
+		Op: "op",
 	}
 	st.Lock()
-	_, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, "initial-setup", params)
+	_, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, req)
 	st.Unlock()
-	c.Assert(err, ErrorMatches, `cannot run hook for "initial-setup": run hook "fde-setup": hook failed`)
+	c.Assert(err, ErrorMatches, `cannot run hook for "op": run hook "fde-setup": hook failed`)
 }
 
-func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetupErrorResult(c *C) {
+func (s *deviceMgrSuite) TestRunFDESetupHookErrorResult(c *C) {
 	st := s.state
 
 	st.Lock()
@@ -1447,14 +1453,13 @@ func (s *deviceMgrSuite) TestRunFdeSetupHookOpInitialSetupErrorResult(c *C) {
 	s.o.Loop()
 	defer s.o.Stop()
 
-	mockKey := secboot.EncryptionKey{1, 2, 3, 4}
-	params := &boot.FDESetupHookParams{
-		Key: mockKey[:],
+	req := &fde.SetupRequest{
+		Op: "op",
 	}
 	st.Lock()
-	_, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, "initial-setup", params)
+	_, err := devicestate.DeviceManagerRunFDESetupHook(s.mgr, req)
 	st.Unlock()
-	c.Assert(err, ErrorMatches, `cannot get result from fde-setup hook "initial-setup": cannot unmarshal context value for "fde-setup-result": illegal base64 data at input byte 3`)
+	c.Assert(err, ErrorMatches, `cannot get result from fde-setup hook "op": cannot unmarshal context value for "fde-setup-result": illegal base64 data at input byte 3`)
 }
 
 type startOfOperationTimeSuite struct {

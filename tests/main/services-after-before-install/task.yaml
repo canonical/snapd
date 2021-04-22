@@ -3,18 +3,18 @@ summary: Check that snap install respects after/before ordering of services
 # slow in autopkgtest (>3m)
 backends: [-autopkgtest]
 
+prepare: |
+    snap set system experimental.parallel-instances=true
+
+restore: |
+    snap set system experimental.parallel-instances=null
+
 debug: |
     for name in $(snap list | grep '^test-snapd-after-before-service' | awk '{print $1}'); do
         for service in before-middle middle after-middle; do
             systemctl status "snap.$name.$service" || true
         done
     done
-
-prepare: |
-    snap set system experimental.parallel-instances=true
-
-restore: |
-    snap set system experimental.parallel-instances=null
 
 execute: |
     echo "When the service snap is installed"

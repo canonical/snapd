@@ -1,8 +1,10 @@
 summary: Experimental features are exported by snapd
+
 details: |
     Some of the experimental features are exported as flag files that can be
     easily read by snap-confine and snap-update-ns that otherwise don't have
     access to the system state.
+
 execute: |
     # When a feature that is exported is enabled, a file is created.
     snap set core experimental.per-user-mount-namespace=true

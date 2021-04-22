@@ -3,6 +3,8 @@ summary: Check that tpm works properly on UC20
 details: |
     This test check UC20 can boot with secure boot successfully
 
+systems: [ubuntu-20.04-64]
+
 debug: |
     cat modeenv || true
     cat modeenv.after-reboot || true
