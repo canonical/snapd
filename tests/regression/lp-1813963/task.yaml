@@ -5,8 +5,6 @@ systems: [ubuntu-16.04-64, ubuntu-18.04-64]
 backends: [-external]
 
 prepare: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
     # Install the versatile test snap.
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     # Discard the mount namespace in case the snap has any hooks. We rely on
@@ -29,11 +27,14 @@ prepare: |
     systemctl stop snapd.service
     echo "snapd has been stopped" | systemd-cat
 
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    LIBEXEC_DIR="$(os.paths libexec-dir)"
+
     # Replace snap-update-ns with a fake version that waits for the given
     # amount of time before doing its real work. Since snap-update-ns doesn't
     # have access to real environment craft the script with appropriate paths
     # baked-in from the outside.
-    cp "$LIBEXECDIR/snapd/snap-update-ns" ./real-snap-update-ns
+    cp "$LIBEXEC_DIR/snapd/snap-update-ns" ./real-snap-update-ns
 
     # We could install our own go here via `snap install go --classic`
     # but instead we just run this on systems (via systems above) that
@@ -48,7 +49,7 @@ prepare: |
     go build fake-snap-update-ns.go
 
     # Replace snap-update-ns in all the places it might exist in.
-    mount --bind ./fake-snap-update-ns "$LIBEXECDIR/snapd/snap-update-ns"
+    mount --bind ./fake-snap-update-ns "$LIBEXEC_DIR/snapd/snap-update-ns"
     if [ -e "$SNAP_MOUNT_DIR/core/current/" ]; then
         mount --bind ./fake-snap-update-ns "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snap-update-ns"
     fi
@@ -58,9 +59,10 @@ prepare: |
     echo "snap-update-ns has been replaced" | systemd-cat
 
 restore: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-    umount "$LIBEXECDIR/snapd/snap-update-ns" || true
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    LIBEXEC_DIR="$(os.paths libexec-dir)"
+
+    umount "$LIBEXEC_DIR/snapd/snap-update-ns" || true
     if [ -e "$SNAP_MOUNT_DIR/core/current/" ]; then
         umount "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snap-update-ns" || true
     fi

@@ -4,9 +4,12 @@ show_help() {
     echo "usage: pack-local <snap-name>"
     echo "       install-local <snap-name> [OPTIONS]"
     echo "       install-local-as <snap-name> <dest-name> [OPTIONS]"
+    echo "       show-name <snap>"
     echo ""
     echo "Available options:"
     echo "  --devmode --jailmode --classic"
+    echo "Supported names:"
+    echo "  core kernel gadget"
     echo ""
     echo "Pack and install commands save the packed snap for future uses,"
     echo "which is reused on the following calls."
@@ -57,6 +60,30 @@ install_local_as() {
     local name="$2"
     shift 2
     install_local "$snap" --name "$name" "$@"
+}
+
+show_name() {
+    case "${1:-}" in
+            core)
+                local core_name
+                core_name="$(snap model --verbose | grep -Po "^base:\\s+\\K.*" || true)"
+                if [ -z "$core_name" ]; then
+                    core_name="core"
+                fi
+                echo "$core_name"
+                ;;
+            kernel)
+                snap list | grep 'kernel$' | awk '{ print $1 }'
+                ;;
+            gadget)
+                snap list | grep 'gadget$' | awk '{ print $1 }'
+                ;;
+            *)
+                echo "snaps-state: unsupported snap $1" >&2
+                show_help
+                exit 1
+                ;;
+        esac
 }
 
 main() {
