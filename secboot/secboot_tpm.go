@@ -1007,11 +1007,15 @@ func MarshalKeys(key []byte, auxKey []byte) []byte {
 	return sb.MarshalKeys(key, auxKey)
 }
 
-func WriteKeyData(name, path string, encryptedPayload, auxKey []byte, handle *json.RawMessage) error {
+func WriteKeyData(name, path string, encryptedPayload, auxKey []byte, rawhandle *json.RawMessage) error {
+	handle, err := json.Marshal(*rawhandle)
+	if err != nil {
+		return err
+	}
 	kd, err := sb.NewKeyData(&sb.KeyCreationData{
 		PlatformKeyData: sb.PlatformKeyData{
 			EncryptedPayload: encryptedPayload,
-			Handle:           *handle,
+			Handle:           handle,
 		},
 		PlatformName: fdeHooksPlatformName,
 		AuxiliaryKey: auxKey,

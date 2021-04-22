@@ -35,14 +35,15 @@ type fdeSetupJSON struct {
 }
 
 type fdeSetupResultJSON struct {
-	EncryptedKey []byte `json:"encrypted-key"`
+	// XXX call this encrypted-key if possible?
+	EncryptedKey []byte `json:"sealed-key"`
 	Handle       []byte `json:"handle"`
 }
 
 // Note that in real implementations this would be something like an
 // internal handle for the crypto hardware and generated in "initial-setup"
 // for each key
-var testKeyHandle = []byte("my-demo-handle-do-not-use-in-production")
+var testKeyHandle = []byte(`{"some":"json-handle"}`)
 
 var (
 	// used in tests

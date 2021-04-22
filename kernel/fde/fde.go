@@ -68,7 +68,7 @@ func unmarshalInitialSetupResult(hookOutput []byte) (*InitialSetupResult, error)
 			return nil, fmt.Errorf("cannot decode hook output %q: %v", hookOutput, err)
 		}
 		// v1 hooks do not support a handle
-		handle := json.RawMessage("{v1-no-handle: true}")
+		handle := json.RawMessage(`{"v1-no-handle": true}`)
 		res.Handle = &handle
 		res.EncryptedKey = hookOutput
 	}
