@@ -79,7 +79,7 @@ func SetupGateAutoRefreshHook(st *state.State, snapName string, base, restart bo
 	}
 	summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), hookSup.Hook, hookSup.Snap)
 	hookCtx := map[string]interface{}{
-		"base": base,
+		"base":    base,
 		"restart": restart,
 	}
 	task := HookTask(st, summary, hookSup, hookCtx)
