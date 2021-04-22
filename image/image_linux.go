@@ -422,12 +422,16 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
-	if err := boot.MakeBootable(model, bootRootDir, bootWith, nil); err != nil {
+	if err := boot.MakeBootableImage(model, bootRootDir, bootWith, nil); err != nil {
 		return err
 	}
 
 	gadgetInfo, err := gadget.ReadInfoAndValidate(gadgetUnpackDir, model, nil)
 	if err != nil {
+		return err
+	}
+	// validate content against the kernel as well
+	if err := gadget.ValidateContent(gadgetInfo, gadgetUnpackDir, kernelUnpackDir); err != nil {
 		return err
 	}
 

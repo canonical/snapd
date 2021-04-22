@@ -29,7 +29,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -37,7 +36,6 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -47,7 +45,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
@@ -115,17 +112,6 @@ type Command struct {
 	d *Daemon
 }
 
-type accessResult int
-
-const (
-	accessOK accessResult = iota
-	accessUnauthorized
-	accessForbidden
-	accessCancelled
-)
-
-var polkitCheckAuthorization = polkit.CheckAuthorization
-
 // canAccess checks the following properties:
 //
 // - if the user is `root` everything is allowed
@@ -148,16 +134,14 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 		return accessOK
 	}
 
-	// isUser means we have a UID for the request
-	isUser := false
-	pid, uid, socket, err := ucrednetGet(r.RemoteAddr)
-	if err == nil {
-		isUser = true
-	} else if err != errNoID {
+	ucred, err := ucrednetGet(r.RemoteAddr)
+	if err != nil && err != errNoID {
 		logger.Noticef("unexpected error when attempting to get UID: %s", err)
 		return accessForbidden
 	}
-	isSnap := (socket == dirs.SnapSocket)
+	// isUser means we have a UID for the request
+	isUser := ucred != nil
+	isSnap := (ucred != nil && ucred.Socket == dirs.SnapSocket)
 
 	// ensure that snaps can only access SnapOK things
 	if isSnap {
@@ -184,7 +168,7 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 		return accessUnauthorized
 	}
 
-	if uid == 0 {
+	if ucred.Uid == 0 {
 		// Superuser does anything.
 		return accessOK
 	}
@@ -194,26 +178,7 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 	}
 
 	if c.PolkitOK != "" {
-		var flags polkit.CheckFlags
-		allowHeader := r.Header.Get(client.AllowInteractionHeader)
-		if allowHeader != "" {
-			if allow, err := strconv.ParseBool(allowHeader); err != nil {
-				logger.Noticef("error parsing %s header: %s", client.AllowInteractionHeader, err)
-			} else if allow {
-				flags |= polkit.CheckAllowInteraction
-			}
-		}
-		// Pass both pid and uid from the peer ucred to avoid pid race
-		if authorized, err := polkitCheckAuthorization(pid, uid, c.PolkitOK, nil, flags); err == nil {
-			if authorized {
-				// polkit says user is authorised
-				return accessOK
-			}
-		} else if err == polkit.ErrDismissed {
-			return accessCancelled
-		} else {
-			logger.Noticef("polkit error: %s", err)
-		}
+		return checkPolkitAction(r, ucred, c.PolkitOK)
 	}
 
 	return accessUnauthorized
@@ -223,7 +188,7 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	st := c.d.state
 	st.Lock()
 	// TODO Look at the error and fail if there's an attempt to authenticate with invalid data.
-	user, _ := UserFromRequest(st, r)
+	user, _ := userFromRequest(st, r)
 	st.Unlock()
 
 	// check if we are in degradedMode

@@ -1,13 +1,5 @@
 summary: Exercise a gadget update with kernel refs on a PC
 
-environment:
-    BLOB_DIR: $(pwd)/fake-store-blobdir
-    # snap-id of 'pc' gadget snap
-    PC_SNAP_ID: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
-    # snap-id of 'pc-kernel' snap
-    PC_KERNEL_ID: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
-    START_REVISION: 1000
-
 # TODO:UC20: once LP: #1907056 is fixed and we have an updated
 #            pi gadget and pi-kernel snap this test should be
 #            replaced with a pi-only test. This test is artificial
@@ -17,9 +9,21 @@ environment:
 # XXX: uc20
 systems: [ubuntu-core-1*]
 
+environment:
+    BLOB_DIR: $(pwd)/fake-store-blobdir
+    # snap-id of 'pc' gadget snap
+    PC_SNAP_ID: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
+    # snap-id of 'pc-kernel' snap
+    PC_KERNEL_ID: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
+    START_REVISION: 1000
+
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
+        exit
+    fi
+    if os.query is-arm; then
+        echo "Test not supported on arm architecture, skipping..."
         exit
     fi
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
@@ -79,6 +83,10 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+    if os.query is-arm; then
+        echo "Test not supported on arm architecture, skipping..."
+        exit
+    fi
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
     teardown_fake_store "$BLOB_DIR"
@@ -86,35 +94,26 @@ restore: |
     #      restore requires a reboot :/
     
 execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+    if os.query is-arm; then
+        echo "Test not supported on arm architecture, skipping..."
+        exit
+    fi
+
     if [ "$SPREAD_REBOOT" = 0 ]; then
-        # XXX: Note that the order will change here as we adjust the policy.
-        #
-        # first install the asserted kernel so that the gadget can resolve
-        # the kernel refs
-        snap install pc-kernel_x1.snap
+        # first install the gadget that knows about the kernel
+        # (but no edition bump so this will install fine)
+        snap install pc_x1.snap
         REBOOT
     fi
     if [ "$SPREAD_REBOOT" = 1 ]; then
         # wait for change to complete
         snap watch --last=install\?
-        # now install the asserted gadget
-        snap install  pc_x1.snap
-        # and kernel again because the previous gadget update did not
-        # have a edition bump so it won't have installed the new kernel
-        # refs automatically (XXX: that is what we want, right?)
-        snap pack --filename=pc-kernel_x2.snap pc-kernel-snap
-        # has to be asserted
-        cat <<EOF > decl-headers.json
-    {"snap-id": "$PC_KERNEL_ID"}
-    EOF
-        cat <<EOF > rev-headers.json
-    {"snap-id": "$PC_KERNEL_ID", "snap-revision": "$((START_REVISION+1))"}
-    EOF
-        #shellcheck source=tests/lib/store.sh
-        . "$TESTSLIB"/store.sh
-        new_snap_declaration "$BLOB_DIR" pc-kernel_x2.snap --snap-decl-json decl-headers.json
-        new_snap_revision "$BLOB_DIR" pc-kernel_x2.snap --snap-rev-json rev-headers.json
-        snap install pc-kernel_x2.snap
+        # now install the kernel that has the kernel assets
+        snap install pc-kernel_x1.snap
         REBOOT
     fi
     if [ "$SPREAD_REBOOT" = 2 ]; then
@@ -125,8 +124,17 @@ execute: |
         test -e "$bootdir"/foo-from-some-dir
         test -e "$bootdir"/some-subdir
         test -e "$bootdir"/some-file
-        # restore
-        snap revert pc --revision="$(cat pc-revision.txt)"
+
+        # at this point we cannot revert because the new gadget
+        # has "$kernel:refs" so and the new kernel has "kernel.yaml".
+        # - If we revert the gadget snapd will complain because the old
+        #   gadget does not have any of the new pc "$kernel:refs"
+        # - If we revert the kernel snapd will complain because the
+        #   new gadget has "$kernel:refs" but the old kernel does not
+        #   provide them
+        # So to revert this hack is needed
+        mount -o bind /snap/pc/"$(cat pc-revision.txt)"/meta/gadget.yaml /snap/pc/current/meta/gadget.yaml
+
         snap revert pc-kernel --revision="$(cat pc-kernel-revision.txt)"
         REBOOT
     fi
@@ -135,4 +143,6 @@ execute: |
         # finish.  This reboot is only needed so that the system is
         # fully restored to the original state.
         snap watch --last=revert\?
+
+        snap revert pc --revision="$(cat pc-revision.txt)"
     fi

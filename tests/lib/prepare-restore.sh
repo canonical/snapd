@@ -8,10 +8,6 @@ set -e
 # shellcheck source=tests/lib/quiet.sh
 . "$TESTSLIB/quiet.sh"
 
-# XXX: dirs.sh has side-effects
-# shellcheck source=tests/lib/dirs.sh
-. "$TESTSLIB/dirs.sh"
-
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
 
@@ -366,7 +362,27 @@ prepare_project() {
     rm -rf /var/cache/snapd/aux
     case "$SPREAD_SYSTEM" in
         ubuntu-*)
-            # Ubuntu is the only system where snapd is preinstalled
+            # Ubuntu is the only system where snapd is preinstalled, so we have
+            # to purge it
+
+            # first mask snapd.failure so that even if we kill snapd and it 
+            # dies, snap-failure doesn't run and try to revive snapd
+            systemctl mask snapd.failure
+
+            # next abort all ongoing changes and wait for them all to be done
+            for chg in $(snap changes | tail -n +2 | grep Do | grep -v Done | awk '{print $1}'); do
+                snap abort "$chg" || true
+                snap watch "$chg" || true
+            done
+
+            # now remove all snaps that aren't a base, core or snapd
+            for sn in $(snap list | tail -n +2 | awk '{print $1,$6}' | grep -Po '(.+)\s+(?!base)' | awk '{print $1}'); do
+                if [ "$sn" != snapd ] && [ "$sn" != core ]; then
+                    snap remove "$sn" || true
+                fi
+            done
+
+            # now we can attempt to purge the actual distro package via apt
             distro_purge_package snapd
             # XXX: the original package's purge may have left socket units behind
             find /etc/systemd/system -name "snap.*.socket" | while read -r f; do
@@ -377,10 +393,19 @@ prepare_project() {
             if [ -d /var/lib/snapd ]; then
                 echo "# /var/lib/snapd"
                 ls -lR /var/lib/snapd || true
-                journalctl -b | tail -100 || true
+                journalctl --no-pager || true
                 cat /var/lib/snapd/state.json || true
+                snap debug state /var/lib/snapd/state.json || true
+                (
+                    for chg in $(snap debug state /var/lib/snapd/state.json | tail -n +2 | awk '{print $1}'); do
+                        snap debug state --abs-time "--change=$chg" /var/lib/snapd/state.json || true
+                    done
+                ) || true
                 exit 1
             fi
+
+            # unmask snapd.failure so that it can run during tests if needed
+            systemctl unmask snapd.failure 
             ;;
         *)
             # snapd state directory must not exist when the package is not
@@ -564,17 +589,10 @@ prepare_suite() {
     else
         prepare_classic
     fi
-}
 
-install_snap_profiler(){
-    echo "install snaps profiler"
-
-    if [ "$PROFILE_SNAPS" = 1 ]; then
-        profiler_snap="$(get_snap_for_system test-snapd-profiler)"
-        rm -f "/var/snap/${profiler_snap}/common/profiler.log"
-        snap install "${profiler_snap}"
-        snap connect "${profiler_snap}":system-observe
-    fi
+    # Make sure the suite starts with a clean environment and with the snapd state restored
+    # shellcheck source=tests/lib/reset.sh
+    "$TESTSLIB"/reset.sh --reuse-core
 }
 
 prepare_suite_each() {
@@ -583,17 +601,9 @@ prepare_suite_each() {
     # back test directory to be restored during the restore
     tests.backup prepare
 
-    # WORKAROUND for memleak https://github.com/systemd/systemd/issues/11502
-    if os.query is-debian-sid; then
-        systemctl restart systemd-journald
-    fi
-
     # save the job which is going to be executed in the system
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
-    if [[ "$variant" = full ]]; then
-        # shellcheck source=tests/lib/reset.sh
-        "$TESTSLIB"/reset.sh --reuse-core
-    fi
+
     # Restart journal log and reset systemd journal cursor.
     systemctl reset-failed systemd-journald.service
     if ! systemctl restart systemd-journald.service; then
@@ -604,9 +614,6 @@ prepare_suite_each() {
     "$TESTSTOOLS"/journal-state start-new-log
 
     if [[ "$variant" = full ]]; then
-        echo "Install the snaps profiler snap"
-        install_snap_profiler
-
         # shellcheck source=tests/lib/prepare.sh
         . "$TESTSLIB"/prepare.sh
         if os.query is-classic; then
@@ -637,22 +644,6 @@ restore_suite_each() {
     # restore test directory saved during prepare
     tests.backup restore
 
-    if [[ "$variant" = full && "$PROFILE_SNAPS" = 1 ]]; then
-        echo "Save snaps profiler log"
-        local logs_id logs_dir logs_file
-        logs_dir="$RUNTIME_STATE_PATH/logs"
-        logs_id=$(find "$logs_dir" -maxdepth 1 -name '*.journal.log' | wc -l)
-        logs_file=$(echo "${logs_id}_${SPREAD_JOB}" | tr '/' '_' | tr ':' '__')
-
-        profiler_snap="$(get_snap_for_system test-snapd-profiler)"
-
-        mkdir -p "$logs_dir"
-        if [ -e "/var/snap/${profiler_snap}/common/profiler.log" ]; then
-            cp -f "/var/snap/${profiler_snap}/common/profiler.log" "${logs_dir}/${logs_file}.profiler.log"
-        fi
-        "$TESTSTOOLS"/journal-state get-log > "${logs_dir}/${logs_file}.journal.log"
-    fi
-
     # On Arch it seems that using sudo / su for working with the test user
     # spawns the /run/user/12345 tmpfs for XDG_RUNTIME_DIR which asynchronously
     # cleans up itself sometime after the test but not instantly, leading to
@@ -670,11 +661,27 @@ restore_suite_each() {
         # to prevent hitting the system restart rate-limit for these services
         systemctl reset-failed snapd.service snapd.socket snapd.failure.service
     fi
+
+    if [[ "$variant" = full ]]; then
+        # shellcheck source=tests/lib/reset.sh
+        "$TESTSLIB"/reset.sh --reuse-core
+    fi
+
+    # Check for invariants late, in order to detect any bugs in the code above.
+    if [[ "$variant" = full ]]; then
+        "$TESTSTOOLS"/cleanup-state pre-invariant
+    fi
+    tests.invariant check
 }
 
 restore_suite() {
     # shellcheck source=tests/lib/reset.sh
-    "$TESTSLIB"/reset.sh --store
+    if [ "$REMOTE_STORE" = staging ]; then
+        # shellcheck source=tests/lib/store.sh
+        . "$TESTSLIB"/store.sh
+        teardown_staging_store
+    fi
+
     if os.query is-classic; then
         # shellcheck source=tests/lib/pkgdb.sh
         . "$TESTSLIB"/pkgdb.sh

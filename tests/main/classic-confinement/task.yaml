@@ -1,10 +1,10 @@
 summary: Ensure that classic confinement works
 
-environment:
-    CLASSIC_SNAP: test-snapd-classic-confinement
-
 # Classic confinement isn't working yet on Fedora, Arch linux and Centos
 systems: [-ubuntu-core-*]
+
+environment:
+    CLASSIC_SNAP: test-snapd-classic-confinement
 
 prepare: |
     #shellcheck source=tests/lib/snaps.sh

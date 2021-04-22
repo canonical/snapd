@@ -20,6 +20,8 @@
 package configcore_test
 
 import (
+	"time"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
@@ -49,6 +51,46 @@ func (s *refreshSuite) TestConfigureRefreshTimerRejected(c *C) {
 		},
 	})
 	c.Assert(err, ErrorMatches, `cannot parse "invalid": "invalid" is not a valid weekday`)
+}
+
+func (s *refreshSuite) TestConfigureRefreshTimerManagedIgnored(c *C) {
+	for _, opt := range []string{"refresh.timer", "refresh.schedule"} {
+		cfg := &mockConf{
+			state: s.state,
+			// invalid value present in the state
+			conf: map[string]interface{}{
+				opt: "managed",
+			},
+		}
+		s.state.Lock()
+		s.state.OkayWarnings(time.Now())
+		s.state.Unlock()
+		err := configcore.Run(cfg)
+		c.Assert(err, IsNil)
+
+		s.state.Lock()
+		c.Check(cfg.conf[opt], Equals, "managed")
+		s.state.Unlock()
+	}
+}
+
+func (s *refreshSuite) TestConfigureRefreshTimerManagedChangeError(c *C) {
+	for _, opt := range []string{"refresh.timer", "refresh.schedule"} {
+		cfg := &mockConf{
+			state: s.state,
+			conf: map[string]interface{}{
+				// valid value in the state, should remain intact
+				opt: "fri",
+			},
+			changes: map[string]interface{}{
+				opt: "managed",
+			},
+		}
+		err := configcore.Run(cfg)
+		c.Assert(err, ErrorMatches, `cannot set schedule to managed`)
+		// old value still present
+		c.Check(cfg.conf[opt], Equals, "fri")
+	}
 }
 
 func (s *refreshSuite) TestConfigureLegacyRefreshScheduleHappy(c *C) {

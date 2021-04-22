@@ -36,7 +36,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-type AssetsMap map[string][]string
+type bootAssetsMap map[string][]string
 
 // bootCommandLines is a list of kernel command lines. The command lines are
 // marshalled as JSON as a comma can be present in the module parameters.
@@ -62,17 +62,24 @@ type Modeenv struct {
 	Model               string   `key:"model"`
 	BrandID             string   `key:"model,secondary"`
 	Grade               string   `key:"grade"`
+	// BootFlags is the set of boot flags. Whether this applies for the current
+	// or next boot is not indicated in the modeenv. When the modeenv is read in
+	// the initramfs these flags apply to the current boot and are copied into
+	// a file in /run that userspace should read instead of reading from this
+	// key. When setting boot flags for the next boot, then this key will be
+	// written to and used by the initramfs after rebooting.
+	BootFlags []string `key:"boot_flags"`
 	// CurrentTrustedBootAssets is a map of a run bootloader's asset names to
 	// a list of hashes of the asset contents. Typically the first entry in
 	// the list is a hash of an asset the system currently boots with (or is
 	// expected to have booted with). The second entry, if present, is the
 	// hash of an entry added when an update of the asset was being applied
 	// and will become the sole entry after a successful boot.
-	CurrentTrustedBootAssets AssetsMap `key:"current_trusted_boot_assets"`
+	CurrentTrustedBootAssets bootAssetsMap `key:"current_trusted_boot_assets"`
 	// CurrentTrustedRecoveryBootAssetsMap is a map of a recovery bootloader's
 	// asset names to a list of hashes of the asset contents. Used similarly
 	// to CurrentTrustedBootAssets.
-	CurrentTrustedRecoveryBootAssets AssetsMap `key:"current_trusted_recovery_boot_assets"`
+	CurrentTrustedRecoveryBootAssets bootAssetsMap `key:"current_trusted_recovery_boot_assets"`
 	// CurrentKernelCommandLines is a list of the expected kernel command
 	// lines when booting into run mode. It will typically only be one
 	// element for normal operations, but may contain two elements during
@@ -151,6 +158,8 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	unmarshalModeenvValueFromCfg(cfg, "recovery_system", &m.RecoverySystem)
 	unmarshalModeenvValueFromCfg(cfg, "current_recovery_systems", &m.CurrentRecoverySystems)
 	unmarshalModeenvValueFromCfg(cfg, "good_recovery_systems", &m.GoodRecoverySystems)
+	unmarshalModeenvValueFromCfg(cfg, "boot_flags", &m.BootFlags)
+
 	unmarshalModeenvValueFromCfg(cfg, "mode", &m.Mode)
 	if m.Mode == "" {
 		return nil, fmt.Errorf("internal error: mode is unset")
@@ -250,6 +259,7 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 	marshalModeenvEntryTo(buf, "recovery_system", m.RecoverySystem)
 	marshalModeenvEntryTo(buf, "current_recovery_systems", m.CurrentRecoverySystems)
 	marshalModeenvEntryTo(buf, "good_recovery_systems", m.GoodRecoverySystems)
+	marshalModeenvEntryTo(buf, "boot_flags", m.BootFlags)
 	marshalModeenvEntryTo(buf, "base", m.Base)
 	marshalModeenvEntryTo(buf, "try_base", m.TryBase)
 	marshalModeenvEntryTo(buf, "base_status", m.BaseStatus)
@@ -408,17 +418,17 @@ func (m *modeenvModel) UnmarshalModeenvValue(brandSlashModel string) error {
 	return nil
 }
 
-func (b AssetsMap) MarshalJSON() ([]byte, error) {
+func (b bootAssetsMap) MarshalJSON() ([]byte, error) {
 	asMap := map[string][]string(b)
 	return json.Marshal(asMap)
 }
 
-func (b *AssetsMap) UnmarshalJSON(data []byte) error {
+func (b *bootAssetsMap) UnmarshalJSON(data []byte) error {
 	var asMap map[string][]string
 	if err := json.Unmarshal(data, &asMap); err != nil {
 		return err
 	}
-	*b = AssetsMap(asMap)
+	*b = bootAssetsMap(asMap)
 	return nil
 }
 

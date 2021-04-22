@@ -226,7 +226,7 @@ int ensure_fusesquashfs_inside_container(const char *normal_dir)
 			return 2;
 		}
 		fprintf(f,
-			"[Mount]\nType=%s\nOptions=nodev,ro,x-gdu.hide,allow_other\nLazyUnmount=yes\n",
+			"[Mount]\nType=%s\nOptions=nodev,ro,x-gdu.hide,x-gvfs-hide,allow_other\nLazyUnmount=yes\n",
 			fstype);
 	}
 

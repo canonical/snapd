@@ -1,9 +1,9 @@
 summary: Check that prepare-image --classic works.
 
+backends: [-autopkgtest]
+
 # building images is only supported on classic ubuntu, but ubuntu 14.04 does not have systemd-run to perform the test
 systems: [ubuntu-16*, ubuntu-18*, ubuntu-2*]
-
-backends: [-autopkgtest]
 
 environment:
     ROOT: /tmp/root
@@ -57,7 +57,6 @@ restore: |
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
     teardown_fake_store "$STORE_DIR"
-    rm -f -- *.snap
     rm -rf "$ROOT"
 
 execute: |
@@ -65,6 +64,9 @@ execute: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+
+    #shellcheck source=tests/lib/core-config.sh
+    . "$TESTSLIB"/core-config.sh
 
     # kick seeding
     systemctl start snapd.service snapd.socket
@@ -76,7 +78,7 @@ execute: |
     snap model --verbose|MATCH "model:\s* my-classic-w-gadget-18"
 
     echo "Wait for device initialisation to be done"
-    while ! snap changes | grep -q "Done.*Initialize device"; do sleep 1; done
+    wait_for_device_initialized_change
 
     echo "Check we have a serial"
     snap model --serial --assertion|MATCH "authority-id: developer1"

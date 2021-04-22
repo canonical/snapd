@@ -65,8 +65,11 @@ var (
 	ResealKeyToModeenv              = resealKeyToModeenv
 	RecoveryBootChainsForSystems    = recoveryBootChainsForSystems
 	SealKeyModelParams              = sealKeyModelParams
+
+	BootVarsForTrustedCommandLineFromGadget = bootVarsForTrustedCommandLineFromGadget
 )
 
+type BootAssetsMap = bootAssetsMap
 type BootCommandLines = bootCommandLines
 type TrackedAsset = trackedAsset
 
@@ -80,11 +83,11 @@ func (t *TrackedAsset) Equals(blName, name, hash string) error {
 	return nil
 }
 
-func (o *TrustedAssetsInstallObserver) CurrentTrustedBootAssetsMap() AssetsMap {
+func (o *TrustedAssetsInstallObserver) CurrentTrustedBootAssetsMap() BootAssetsMap {
 	return o.currentTrustedBootAssetsMap()
 }
 
-func (o *TrustedAssetsInstallObserver) CurrentTrustedRecoveryBootAssetsMap() AssetsMap {
+func (o *TrustedAssetsInstallObserver) CurrentTrustedRecoveryBootAssetsMap() BootAssetsMap {
 	return o.currentTrustedRecoveryBootAssetsMap()
 }
 
@@ -153,6 +156,10 @@ var (
 	WriteBootChains                     = writeBootChains
 	ReadBootChains                      = readBootChains
 	IsResealNeeded                      = isResealNeeded
+
+	SetImageBootFlags = setImageBootFlags
+	NextBootFlags     = nextBootFlags
+	SetNextBootFlags  = setNextBootFlags
 )
 
 func (b *bootChain) SetModelAssertion(model *asserts.Model) {
@@ -186,5 +193,13 @@ func MockResealKeyToModeenvUsingFDESetupHook(f func(string, *asserts.Model, *Mod
 	resealKeyToModeenvUsingFDESetupHook = f
 	return func() {
 		resealKeyToModeenvUsingFDESetupHook = old
+	}
+}
+
+func MockAdditionalBootFlags(bootFlags []string) (restore func()) {
+	old := understoodBootFlags
+	understoodBootFlags = append(understoodBootFlags, bootFlags...)
+	return func() {
+		understoodBootFlags = old
 	}
 }

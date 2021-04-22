@@ -9,18 +9,6 @@ environment:
     # need to disable go modules support for this test
     GO111MODULE: off
 
-debug: |
-    cat /proc/partitions
-
-restore: |
-    if [ -f loop.txt ]; then
-        losetup -d "$(cat loop.txt)"
-    fi
-    umount ./ubuntu-seed || true
-    umount ./ubuntu-boot || true
-    umount ./ubuntu-save || true
-    umount ./ubuntu-data || true
-
 prepare: |
     echo "Create a fake block device image that looks like an image from u-i"
     truncate --size=20GB fake.img
@@ -48,6 +36,24 @@ prepare: |
     echo "Get the UC20 gadget"
     snap download --channel=20/edge pc
     unsquashfs -d gadget-dir pc_*.snap
+
+restore: |
+    for label in ubuntu-seed ubuntu-save ubuntu-data ubuntu-boot; do
+        if mountpoint "/run/mnt/$label"; then
+            umount "/run/mnt/$label"
+        fi
+        if mountpoint "./$label"; then
+            umount "./$label"
+        fi
+    done
+    if [ -f loop.txt ]; then
+        LOOP="$(cat loop.txt)"
+        losetup -d "$LOOP"
+        losetup -l | NOMATCH "$LOOP"
+    fi
+
+debug: |
+    cat /proc/partitions
 
 execute: |
     LOOP="$(cat loop.txt)"

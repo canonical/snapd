@@ -6,6 +6,9 @@ details: |
     functionality itself). This will help catch things like AppArmor 
     policy syntax errors, seccomp policy parsing, udev querying bugs, etc.
 
+# memory issue inside the adt environment
+backends: [-autopkgtest]
+
 # Ideally we would run this everywhere, but on systems with full security
 # support, it takes a while, which leads to travis timeouts. Limit to:
 # - Ubuntu Core 16 amd64
@@ -18,14 +21,20 @@ details: |
 # - TODO: All Fedora systems (for classic-only; unrelated error elsewhere)
 systems: [ubuntu-core-1*-64, ubuntu-14.04-32, ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-18.04-32, ubuntu-*-amd64, ubuntu-*-armhf, ubuntu-*-arm64, ubuntu-*-i386, ubuntu-*-ppc64el, debian-*]
 
-# memory issue inside the adt environment
-backends: [-autopkgtest]
-
 # Start early as it takes a long time.
 priority: 100
 
 environment:
     CONSUMER_SNAP: test-snapd-policy-app-consumer
+
+restore: |
+    # Remove the snaps to avoid timeout in next test
+    PROVIDER_SNAP="test-snapd-policy-app-provider-classic"
+    if os.query is-core; then
+        PROVIDER_SNAP="test-snapd-policy-app-provider-core"
+    fi
+    snap remove --purge "$PROVIDER_SNAP"
+    snap remove --purge "$CONSUMER_SNAP"
 
 debug: |
     # get the full journal to see any out-of-memory errors
@@ -67,12 +76,3 @@ execute: |
         echo "Then $plugcmd should succeed"
         "$plugcmd" | MATCH PASS
     done
-
-restore: |
-    # Remove the snaps to avoid timeout in next test
-    PROVIDER_SNAP="test-snapd-policy-app-provider-classic"    
-    if os.query is-core; then
-        PROVIDER_SNAP="test-snapd-policy-app-provider-core"
-    fi
-    snap remove --purge "$PROVIDER_SNAP"
-    snap remove --purge "$CONSUMER_SNAP"

@@ -23,15 +23,18 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/cmdstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 type Instruction struct {
@@ -309,4 +312,25 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 	}
 
 	return nil
+}
+
+// SnapServiceOptions computes the options to configure services for
+// the given snap. This function might not check for the existence
+// of instanceName.
+func SnapServiceOptions(st *state.State, instanceName string) (opts *wrappers.SnapServiceOptions, err error) {
+	opts = &wrappers.SnapServiceOptions{}
+
+	tr := config.NewTransaction(st)
+	var vitalityStr string
+	err = tr.GetMaybe("core", "resilience.vitality-hint", &vitalityStr)
+	if err != nil {
+		return nil, err
+	}
+	for i, s := range strings.Split(vitalityStr, ",") {
+		if s == instanceName {
+			opts.VitalityRank = i + 1
+			break
+		}
+	}
+	return opts, nil
 }
