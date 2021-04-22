@@ -44,8 +44,6 @@ execute: |
       echo "Skipping duplicated test case"
       exit 0
     fi
-  else
-    STABLE_IS_2_49_2=0
   fi
 
   echo "Ensure that the system is fully seeded"
