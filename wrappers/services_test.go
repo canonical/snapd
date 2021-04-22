@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -162,6 +162,12 @@ WantedBy=multi-user.target
 }
 
 func (s *servicesTestSuite) TestEnsureSnapServicesAdds(c *C) {
+	// map unit -> new
+	seen := make(map[string]bool)
+	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
+	}
+
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
@@ -169,19 +175,14 @@ func (s *servicesTestSuite) TestEnsureSnapServicesAdds(c *C) {
 		info: nil,
 	}
 
-	modified, err := wrappers.EnsureSnapServices(m, nil, progress.Null)
+	err := wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"},
 	})
-	c.Assert(modified, HasLen, 1)
-	for modifiedSn, modifiedApps := range modified {
-		// don't try a DeepEquals on this, it could be a recursive data
-		// structure which go-check doesn't handle very well
-		c.Assert(modifiedSn.SnapName(), Equals, info.SnapName())
-		c.Assert(modifiedApps, HasLen, 1)
-		c.Assert(modifiedApps, DeepEquals, []*snap.AppInfo{info.Apps["svc1"]})
-	}
+	c.Check(seen, DeepEquals, map[string]bool{
+		"hello-snap:svc1:service:svc1": true,
+	})
 
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
 	c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
@@ -227,7 +228,7 @@ func (s *servicesTestSuite) TestEnsureSnapServiceEnsureError(c *C) {
 	err = os.Chmod(svcFileDir, 0644)
 	c.Assert(err, IsNil)
 
-	_, err = wrappers.EnsureSnapServices(m, nil, progress.Null)
+	err = wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
 	c.Assert(err, ErrorMatches, ".* permission denied")
 	// we don't issue a daemon-reload since we didn't actually end up making any
 	// changes (there was nothing to rollback to)
@@ -238,6 +239,12 @@ func (s *servicesTestSuite) TestEnsureSnapServiceEnsureError(c *C) {
 }
 
 func (s *servicesTestSuite) TestEnsureSnapServicesPreseedingHappy(c *C) {
+	// map unit -> new
+	seen := make(map[string]bool)
+	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
+	}
+
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
@@ -250,18 +257,13 @@ func (s *servicesTestSuite) TestEnsureSnapServicesPreseedingHappy(c *C) {
 	globalOpts := &wrappers.EnsureSnapServicesOptions{
 		Preseeding: true,
 	}
-	modified, err := wrappers.EnsureSnapServices(m, globalOpts, progress.Null)
+	err := wrappers.EnsureSnapServices(m, globalOpts, cb, progress.Null)
 	c.Assert(err, IsNil)
 	// no daemon-reload's since we are preseeding
 	c.Check(s.sysdLog, HasLen, 0)
-	c.Assert(modified, HasLen, 1)
-	for modifiedSn, modifiedApps := range modified {
-		// don't try a DeepEquals on this, it could be a recursive data
-		// structure which go-check doesn't handle very well
-		c.Assert(modifiedSn.SnapName(), Equals, info.SnapName())
-		c.Assert(modifiedApps, HasLen, 1)
-		c.Assert(modifiedApps, DeepEquals, []*snap.AppInfo{info.Apps["svc1"]})
-	}
+	c.Check(seen, DeepEquals, map[string]bool{
+		"hello-snap:svc1:service:svc1": true,
+	})
 
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
 	c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
@@ -292,6 +294,12 @@ WantedBy=multi-user.target
 }
 
 func (s *servicesTestSuite) TestEnsureSnapServicesRequireMountedSnapdSnapOptionsHappy(c *C) {
+	// map unit -> new
+	seen := make(map[string]bool)
+	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
+	}
+
 	// use two snaps one with per-snap options and one without to demonstrate
 	// that the global options apply to all snaps
 	info1 := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
@@ -325,27 +333,16 @@ apps:
 	globalOpts := &wrappers.EnsureSnapServicesOptions{
 		RequireMountedSnapdSnap: true,
 	}
-	modified, err := wrappers.EnsureSnapServices(m, globalOpts, progress.Null)
+	err := wrappers.EnsureSnapServices(m, globalOpts, cb, progress.Null)
 	c.Assert(err, IsNil)
 	// no daemon-reload's since we are preseeding
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"},
 	})
-	c.Assert(modified, HasLen, 2)
-	for modifiedSn, modifiedApps := range modified {
-		// don't try a DeepEquals on this, it could be a recursive data
-		// structure which go-check doesn't handle very well
-		switch modifiedSn.SnapName() {
-		case info1.SnapName():
-			c.Assert(modifiedApps, HasLen, 1)
-			c.Assert(modifiedApps, DeepEquals, []*snap.AppInfo{info1.Apps["svc1"]})
-		case info2.SnapName():
-			c.Assert(modifiedApps, HasLen, 1)
-			c.Assert(modifiedApps, DeepEquals, []*snap.AppInfo{info2.Apps["svc1"]})
-		default:
-			c.Errorf("unexpected snap name in modified return value: %s", modifiedSn.SnapName())
-		}
-	}
+	c.Check(seen, DeepEquals, map[string]bool{
+		"hello-snap:svc1:service:svc1":       true,
+		"hello-other-snap:svc1:service:svc1": true,
+	})
 
 	template := `[Unit]
 # Auto-generated, DO NOT EDIT
@@ -390,7 +387,99 @@ WantedBy=multi-user.target
 	))
 }
 
+func (s *servicesTestSuite) TestEnsureSnapServicesCallback(c *C) {
+	// hava a 2nd new service definition
+	info := snaptest.MockSnap(c, packageHello+` svc2:
+  command: bin/hello
+  stop-command: bin/goodbye
+  post-stop-command: bin/missya
+  daemon: forking
+`, &snap.SideInfo{Revision: snap.R(12)})
+	svc1File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svc2File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service")
+
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	template := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.%[1]s
+Requires=%[2]s
+Wants=network.target
+After=%[2]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.%[1]s
+SyslogIdentifier=hello-snap.%[1]s
+Restart=on-failure
+WorkingDirectory=%[3]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.%[1]s
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.%[1]s
+TimeoutStopSec=30
+Type=forking
+%[4]s
+[Install]
+WantedBy=multi-user.target
+`
+	svc1Content := fmt.Sprintf(template,
+		"svc1",
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"",
+	)
+
+	err := os.MkdirAll(filepath.Dir(svc1File), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(svc1File, []byte(svc1Content), 0644)
+	c.Assert(err, IsNil)
+
+	// both will be written, one is new
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: {VitalityRank: 1},
+	}
+
+	seen := make(map[string][]string)
+	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = []string{old, new}
+	}
+
+	err = wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+
+	// svc2 was written as expected
+	svc2New := fmt.Sprintf(template,
+		"svc2",
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"OOMScoreAdjust=-899\n",
+	)
+	c.Assert(svc2File, testutil.FileEquals, svc2New)
+
+	// and svc1 was changed as well
+	svc1New := fmt.Sprintf(template,
+		"svc1",
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"OOMScoreAdjust=-899\n",
+	)
+	c.Assert(svc1File, testutil.FileEquals, svc1New)
+
+	c.Check(seen, DeepEquals, map[string][]string{
+		"hello-snap:svc1:service:svc1": {svc1Content, svc1New},
+		"hello-snap:svc2:service:svc2": {"", svc2New},
+	})
+}
+
 func (s *servicesTestSuite) TestEnsureSnapServicesAddsNewSvc(c *C) {
+	// map unit -> new
+	seen := make(map[string]bool)
+	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
+	}
+
 	// test that with an existing service unit definition, it is not changed
 	// but we do add the new one
 	info := snaptest.MockSnap(c, packageHello+` svc2:
@@ -441,20 +530,15 @@ WantedBy=multi-user.target
 		info: nil,
 	}
 
-	modified, err := wrappers.EnsureSnapServices(m, nil, progress.Null)
+	err = wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"},
 	})
-	c.Assert(modified, HasLen, 1)
-	// we only modified svc2
-	for modifiedSn, modifiedApps := range modified {
-		// don't try a DeepEquals on this, it could be a recursive data
-		// structure which go-check doesn't handle very well
-		c.Assert(modifiedSn.SnapName(), Equals, info.SnapName())
-		c.Assert(modifiedApps, HasLen, 1)
-		c.Assert(modifiedApps, DeepEquals, []*snap.AppInfo{info.Apps["svc2"]})
-	}
+	// we only added svc2
+	c.Check(seen, DeepEquals, map[string]bool{
+		"hello-snap:svc2:service:svc2": true,
+	})
 
 	// svc2 was written as expected
 	c.Assert(svc2File, testutil.FileEquals, fmt.Sprintf(template,
@@ -519,16 +603,29 @@ WantedBy=multi-user.target
 		info: nil,
 	}
 
-	modified, err := wrappers.EnsureSnapServices(m, nil, progress.Null)
+	cbCalled := 0
+	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+		cbCalled++
+	}
+
+	err = wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, HasLen, 0)
-	c.Assert(modified, HasLen, 0)
 
 	// the file is not changed
 	c.Assert(svcFile, testutil.FileEquals, origContent)
+
+	// callback is not called if no change
+	c.Check(cbCalled, Equals, 0)
 }
 
 func (s *servicesTestSuite) TestEnsureSnapServicesChanges(c *C) {
+	// map unit -> new
+	seen := make(map[string]bool)
+	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
+	}
+
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 
 	// pretend we already have a unit file with no VitalityRank options set
@@ -573,12 +670,16 @@ WantedBy=multi-user.target
 		info: {VitalityRank: 1},
 	}
 
-	modified, err := wrappers.EnsureSnapServices(m, nil, progress.Null)
+	err = wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"},
 	})
-	c.Assert(modified, HasLen, 1)
+
+	// only modified
+	c.Check(seen, DeepEquals, map[string]bool{
+		"hello-snap:svc1:service:svc1": false,
+	})
 
 	// now the file has been modified to have OOMScoreAdjust set for it
 	c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(template,
@@ -662,7 +763,7 @@ WantedBy=multi-user.target
 		info: {VitalityRank: 1},
 	}
 
-	_, err = wrappers.EnsureSnapServices(m, nil, progress.Null)
+	err = wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
 	c.Assert(err, ErrorMatches, "oops")
 	c.Assert(systemctlCalls, Equals, 2)
 
@@ -734,7 +835,7 @@ WantedBy=multi-user.target
 		info: nil,
 	}
 
-	_, err := wrappers.EnsureSnapServices(m, nil, progress.Null)
+	err := wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
 	c.Assert(err, ErrorMatches, "oops")
 	c.Assert(systemctlCalls, Equals, 2)
 
@@ -830,7 +931,7 @@ WantedBy=multi-user.target
 		info: nil,
 	}
 
-	_, err = wrappers.EnsureSnapServices(m, nil, progress.Null)
+	err = wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
 	c.Assert(err, ErrorMatches, "oops")
 	c.Assert(systemctlCalls, Equals, 2)
 
@@ -838,6 +939,52 @@ WantedBy=multi-user.target
 	// svc1 is still the same
 	c.Assert(svc2File, testutil.FileAbsent)
 	c.Assert(svc1File, testutil.FileEquals, svc1Content)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesSubunits(c *C) {
+	// map unit -> new
+	seen := make(map[string]bool)
+	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
+	}
+
+	info := snaptest.MockSnap(c, packageHello+`
+  timer: 10:00-12:00
+`, &snap.SideInfo{Revision: snap.R(11)})
+
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: nil,
+	}
+	err := wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
+	c.Assert(err, IsNil)
+
+	c.Check(seen, DeepEquals, map[string]bool{
+		"hello-snap:svc1:service:svc1": true,
+		"hello-snap:svc1:timer:":       true,
+	})
+	// reset
+	seen = make(map[string]bool)
+
+	// change vitality, timer, add socket
+	info = snaptest.MockSnap(c, packageHello+`
+  plugs: [network-bind]
+  timer: 10:00-12:00,20:00-22:00
+  sockets:
+    sock1:
+      listen-stream: $SNAP_DATA/sock1.socket
+`, &snap.SideInfo{Revision: snap.R(12)})
+
+	m = map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: {VitalityRank: 1},
+	}
+	err = wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
+	c.Assert(err, IsNil)
+
+	c.Check(seen, DeepEquals, map[string]bool{
+		"hello-snap:svc1:service:svc1": false,
+		"hello-snap:svc1:timer:":       false,
+		"hello-snap:svc1:socket:sock1": true,
+	})
 }
 
 func (s *servicesTestSuite) TestAddSnapServicesWithInterfaceSnippets(c *C) {
