@@ -150,7 +150,7 @@ func (s *vitalitySuite) testConfigureVitalityWithValidSnap(c *C, uc18 bool) {
 	svcPath := filepath.Join(dirs.SnapServicesDir, svcName)
 	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-898\n")
 	if uc18 {
-		c.Check(svcPath, testutil.FileContains, "\nRequires=usr-lib-snapd.mount\n")
+		c.Check(svcPath, testutil.FileContains, "\nWants=usr-lib-snapd.mount\n")
 	}
 }
 

@@ -68,7 +68,9 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 		)
 	}
 	if opts&updatesGadget != 0 {
-		expected = append(expected, "update-gadget-assets")
+		expected = append(expected,
+			"update-gadget-assets",
+			"update-gadget-cmdline")
 	}
 	expected = append(expected,
 		"copy-snap-data",

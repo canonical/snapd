@@ -263,6 +263,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		addTask(gadgetUpdate)
 		prev = gadgetUpdate
 	}
+	if !release.OnClassic && snapsup.Type == snap.TypeGadget {
+		// kernel command line from gadget is for core systems only
+		gadgetCmdline := st.NewTask("update-gadget-cmdline", fmt.Sprintf(i18n.G("Update kernel command line from gadget %q%s"), snapsup.InstanceName(), revisionStr))
+		addTask(gadgetCmdline)
+		prev = gadgetCmdline
+	}
 
 	// copy-data (needs stopped services by unlink)
 	if !snapsup.Flags.Revert {
@@ -463,6 +469,10 @@ var SetupRemoveHook = func(st *state.State, snapName string) *state.Task {
 
 var CheckHealthHook = func(st *state.State, snapName string, rev snap.Revision) *state.Task {
 	panic("internal error: snapstate.CheckHealthHook is unset")
+}
+
+var SetupGateAutoRefreshHook = func(st *state.State, snapName string, base, restart bool) *state.Task {
+	panic("internal error: snapstate.SetupAutoRefreshGatingHook is unset")
 }
 
 var generateSnapdWrappers = backend.GenerateSnapdWrappers
@@ -1187,16 +1197,8 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		revnoOpts, flags, snapst := params(update)
 		flags.IsAutoRefresh = globalFlags.IsAutoRefresh
 
-		flags, err := ensureInstallPreconditions(st, update, flags, snapst)
+		flags, err := earlyChecks(st, snapst, update, flags)
 		if err != nil {
-			if refreshAll {
-				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
-				continue
-			}
-			return nil, nil, err
-		}
-
-		if err := earlyEpochCheck(update, snapst); err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
 				continue

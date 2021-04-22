@@ -31,6 +31,7 @@ func init() {
 	snapstate.SetupPreRefreshHook = SetupPreRefreshHook
 	snapstate.SetupPostRefreshHook = SetupPostRefreshHook
 	snapstate.SetupRemoveHook = SetupRemoveHook
+	snapstate.SetupGateAutoRefreshHook = SetupGateAutoRefreshHook
 }
 
 func SetupInstallHook(st *state.State, snapName string) *state.Task {
@@ -67,6 +68,21 @@ func SetupPreRefreshHook(st *state.State, snapName string) *state.Task {
 	summary := fmt.Sprintf(i18n.G("Run pre-refresh hook of %q snap if present"), hooksup.Snap)
 	task := HookTask(st, summary, hooksup, nil)
 
+	return task
+}
+
+func SetupGateAutoRefreshHook(st *state.State, snapName string, base, restart bool) *state.Task {
+	hookSup := &HookSetup{
+		Snap:     snapName,
+		Hook:     "gate-auto-refresh",
+		Optional: true,
+	}
+	summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), hookSup.Hook, hookSup.Snap)
+	hookCtx := map[string]interface{}{
+		"base":    base,
+		"restart": restart,
+	}
+	task := HookTask(st, summary, hookSup, hookCtx)
 	return task
 }
 
@@ -108,4 +124,5 @@ func setupHooks(hookMgr *HookManager) {
 	hookMgr.Register(regexp.MustCompile("^post-refresh$"), handlerGenerator)
 	hookMgr.Register(regexp.MustCompile("^pre-refresh$"), handlerGenerator)
 	hookMgr.Register(regexp.MustCompile("^remove$"), handlerGenerator)
+	hookMgr.Register(regexp.MustCompile("^gate-auto-refresh$"), handlerGenerator)
 }

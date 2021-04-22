@@ -99,6 +99,8 @@ var (
 	HasOtherInstances = hasOtherInstances
 
 	SafetyMarginDiskSpace = safetyMarginDiskSpace
+
+	AffectedByRefresh = affectedByRefresh
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
@@ -284,6 +286,8 @@ var (
 	MaxInhibition  = maxInhibition
 )
 
+type RefreshCandidate = refreshCandidate
+
 func NewBusySnapError(info *snap.Info, pids []int, busyAppNames, busyHookNames []string) *BusySnapError {
 	return &BusySnapError{
 		SnapInfo:      info,
@@ -310,3 +314,8 @@ func MockSecurityProfilesDiscardLate(fn func(snapName string, rev snap.Revision,
 		SecurityProfilesRemoveLate = old
 	}
 }
+
+// autorefresh gating
+type AffectedSnapInfo = affectedSnapInfo
+
+var CreateGateAutoRefreshHooks = createGateAutoRefreshHooks
