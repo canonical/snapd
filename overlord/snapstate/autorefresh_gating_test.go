@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -493,16 +494,33 @@ func (s *autorefreshGatingSuite) TestCreateAutoRefreshGateHooks(c *C) {
 		"snap-b": {},
 	}
 
+	seenSnaps := make(map[string]bool)
+
 	ts := snapstate.CreateGateAutoRefreshHooks(st, affected)
 	c.Assert(ts.Tasks(), HasLen, 2)
-	t := ts.Tasks()[0]
-	c.Assert(t.Kind(), Equals, "run-hook")
-	var data interface{}
-	c.Assert(t.Get("hook-context", &data), IsNil)
-	c.Check(data, DeepEquals, map[string]interface{}{"base": true, "restart": true})
 
-	t = ts.Tasks()[1]
-	c.Assert(t.Kind(), Equals, "run-hook")
-	c.Assert(t.Get("hook-context", &data), IsNil)
-	c.Check(data, DeepEquals, map[string]interface{}{"base": false, "restart": false})
+	checkHook := func(t *state.Task) {
+		c.Assert(t.Kind(), Equals, "run-hook")
+		var hs hookstate.HookSetup
+		c.Assert(t.Get("hook-setup", &hs), IsNil)
+		c.Check(hs.Hook, Equals, "gate-auto-refresh")
+		c.Check(hs.Optional, Equals, true)
+		seenSnaps[hs.Snap] = true
+
+		var data interface{}
+		c.Assert(t.Get("hook-context", &data), IsNil)
+
+		// the order of hook tasks is not deterministic
+		if hs.Snap == "snap-a" {
+			c.Check(data, DeepEquals, map[string]interface{}{"base": true, "restart": true})
+		} else {
+			c.Assert(hs.Snap, Equals, "snap-b")
+			c.Check(data, DeepEquals, map[string]interface{}{"base": false, "restart": false})
+		}
+	}
+
+	checkHook(ts.Tasks()[0])
+	checkHook(ts.Tasks()[1])
+
+	c.Check(seenSnaps, DeepEquals, map[string]bool{"snap-a": true, "snap-b": true})
 }
