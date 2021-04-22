@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
@@ -56,7 +57,7 @@ var (
 	HasFDESetupHook = func() (bool, error) {
 		return false, nil
 	}
-	RunFDESetupHook = func(params *FDESetupHookParams) (*FDESetupHookResult, error) {
+	RunFDESetupHook fde.RunSetupHookFunc = func(req *fde.SetupRequest) ([]byte, error) {
 		return nil, fmt.Errorf("internal error: RunFDESetupHook not set yet")
 	}
 )
@@ -68,22 +69,6 @@ const (
 	sealingMethodTPM          = sealingMethod("tpm")
 	sealingMethodFDESetupHook = sealingMethod("fde-setup-hook")
 )
-
-// FDESetupHookParams contains the inputs for the fde-setup hook
-type FDESetupHookParams struct {
-	Key     secboot.EncryptionKey
-	KeyName string
-
-	//TODO:UC20: provide bootchains and a way to track measured
-	//boot-assets
-}
-
-// FdeSetupHookResult contains the outputs of the fde-setup hook
-type FDESetupHookResult struct {
-	// result when called with "initial-setup"
-	EncryptedKey []byte           `json:"encrypted-key"`
-	Handle       *json.RawMessage `json:"handle"`
-}
 
 func bootChainsFileUnder(rootdir string) string {
 	return filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains")
@@ -150,11 +135,11 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model
 	// TODO: support full boot chains
 
 	for _, skr := range append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey)...) {
-		params := &FDESetupHookParams{
+		params := &fde.InitialSetupParams{
 			Key:     skr.Key,
 			KeyName: skr.KeyName,
 		}
-		res, err := RunFDESetupHook(params)
+		res, err := fde.InitialSetup(RunFDESetupHook, params)
 		if err != nil {
 			return err
 		}

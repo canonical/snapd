@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
@@ -1369,20 +1370,20 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	defer restore()
 
 	n := 0
-	var runFDESetupHookParams []*boot.FDESetupHookParams
-	restore = boot.MockRunFDESetupHook(func(params *boot.FDESetupHookParams) (*boot.FDESetupHookResult, error) {
+	var runFDESetupHookReqs []*fde.SetupRequest
+	restore = boot.MockRunFDESetupHook(func(req *fde.SetupRequest) ([]byte, error) {
 		n++
-		runFDESetupHookParams = append(runFDESetupHookParams, params)
+		runFDESetupHookReqs = append(runFDESetupHookReqs, req)
 
 		key := []byte(fmt.Sprintf("key-%v", strconv.Itoa(n)))
 		b, err := json.Marshal(fmt.Sprintf("handle-%v", strconv.Itoa(n)))
 		c.Assert(err, IsNil)
 		handle := json.RawMessage(b)
-		res := &boot.FDESetupHookResult{
+		res := &fde.InitialSetupResult{
 			EncryptedKey: key,
 			Handle:       &handle,
 		}
-		return res, nil
+		return json.Marshal(res)
 	})
 	defer restore()
 
@@ -1396,10 +1397,10 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv)
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
-	c.Check(runFDESetupHookParams, DeepEquals, []*boot.FDESetupHookParams{
-		{Key: key, KeyName: "ubuntu-data"},
-		{Key: key, KeyName: "ubuntu-data"},
-		{Key: saveKey, KeyName: "ubuntu-save"},
+	c.Check(runFDESetupHookReqs, DeepEquals, []*fde.SetupRequest{
+		{Op: "initial-setup", Key: key[:], KeyName: "ubuntu-data"},
+		{Op: "initial-setup", Key: key[:], KeyName: "ubuntu-data"},
+		{Op: "initial-setup", Key: saveKey[:], KeyName: "ubuntu-save"},
 	})
 	// check that the sealed keys got written to the expected places
 	for i, p := range []string{
@@ -1426,7 +1427,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	})
 	defer restore()
 
-	restore = boot.MockRunFDESetupHook(func(params *boot.FDESetupHookParams) (*boot.FDESetupHookResult, error) {
+	restore = boot.MockRunFDESetupHook(func(req *fde.SetupRequest) ([]byte, error) {
 		return nil, fmt.Errorf("hook failed")
 	})
 	defer restore()
