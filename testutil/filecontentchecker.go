@@ -35,7 +35,7 @@ type fileContentChecker struct {
 }
 
 // FileEquals verifies that the given file's content is equal to the string (or
-// fmt.Stringer), []byte provided, or the contents of a ReferenceFile.
+// fmt.Stringer), []byte provided, or the contents referred by a FileContentRef.
 var FileEquals check.Checker = &fileContentChecker{
 	CheckerInfo: &check.CheckerInfo{Name: "FileEquals", Params: []string{"filename", "contents"}},
 	exact:       true,
@@ -53,8 +53,9 @@ var FileMatches check.Checker = &fileContentChecker{
 	CheckerInfo: &check.CheckerInfo{Name: "FileMatches", Params: []string{"filename", "regex"}},
 }
 
-// ReferenceFile wraps a file with reference contents.
-type ReferenceFile string
+// FileContentRef refers to the content of file by its name, to use in
+// conjunction with FileEquals.
+type FileContentRef string
 
 func (c *fileContentChecker) Check(params []interface{}, names []string) (result bool, error string) {
 	filename, ok := params[0].(string)
@@ -90,7 +91,7 @@ func fileContentCheck(filename string, content interface{}, exact bool) (result 
 			presentableBuf = "<binary data>"
 		case fmt.Stringer:
 			result = presentableBuf == content.String()
-		case ReferenceFile:
+		case FileContentRef:
 			referenceFilename := string(content)
 			reference, err := ioutil.ReadFile(referenceFilename)
 			if err != nil {
@@ -115,7 +116,7 @@ func fileContentCheck(filename string, content interface{}, exact bool) (result 
 			result = content.Match(buf)
 		case fmt.Stringer:
 			result = strings.Contains(presentableBuf, content.String())
-		case ReferenceFile:
+		case FileContentRef:
 			error = "Non-exact match with reference file is not supported"
 		default:
 			error = fmt.Sprintf("Cannot compare file contents with something of type %T", content)
