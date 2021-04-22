@@ -224,6 +224,8 @@ var (
 	PendingGadgetInfo   = pendingGadgetInfo
 
 	CriticalTaskEdges = criticalTaskEdges
+
+	CreateSystemForModelFromValidatedSnaps = createSystemForModelFromValidatedSnaps
 )
 
 func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error) (restore func()) {
