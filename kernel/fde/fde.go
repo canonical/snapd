@@ -86,6 +86,9 @@ type SetupRequest struct {
 	// encode it automatically for us
 	Key []byte `json:"key,omitempty"`
 
+	// XXX: remove KeyName everywhere
+	KeyName string
+
 	// TODO: provide LoadChains, KernelCmdline etc to support full
 	//       tpm sealing
 }
@@ -95,7 +98,7 @@ type RunSetupHookFunc func(req *SetupRequest) ([]byte, error)
 
 // InitialSetupParams contains the inputs for the fde-setup hook
 type InitialSetupParams struct {
-	Key     secboot.EncryptionKey
+	Key     []byte
 	KeyName string
 
 	//TODO:UC20: provide bootchains and a way to track measured

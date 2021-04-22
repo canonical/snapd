@@ -24,7 +24,6 @@ import (
 	"bytes"
 	"crypto"
 	"crypto/rand"
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -1008,16 +1007,11 @@ func MarshalKeys(key []byte, auxKey []byte) []byte {
 	return sb.MarshalKeys(key, auxKey)
 }
 
-func WriteKeyData(name, path string, encryptedPayload, auxKey, rawhandle []byte) error {
-	handle, err := json.Marshal(base64.StdEncoding.EncodeToString(rawhandle))
-	if err != nil {
-		return fmt.Errorf("cannot encode key-data handle: %v", err)
-	}
-
+func WriteKeyData(name, path string, encryptedPayload, auxKey []byte, handle *json.RawMessage) error {
 	kd, err := sb.NewKeyData(&sb.KeyCreationData{
 		PlatformKeyData: sb.PlatformKeyData{
 			EncryptedPayload: encryptedPayload,
-			Handle:           handle,
+			Handle:           *handle,
 		},
 		PlatformName: fdeHooksPlatformName,
 		AuxiliaryKey: auxKey,

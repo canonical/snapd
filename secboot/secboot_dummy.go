@@ -21,6 +21,7 @@
 package secboot
 
 import (
+	"encoding/json"
 	"fmt"
 )
 
@@ -36,7 +37,7 @@ func ResealKeys(params *ResealKeysParams) error {
 	return fmt.Errorf("build without secboot support")
 }
 
-func WriteKeyData(name, path string, encryptedPayload, auxKey, rawhandle []byte) error {
+func WriteKeyData(path string, encryptedPayload, auxKey []byte, rawhandle *json.RawMessage) error {
 	return fmt.Errorf("build without secboot support")
 }
 

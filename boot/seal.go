@@ -151,8 +151,9 @@ func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model
 	}
 
 	for _, skr := range append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey)...) {
+		unencryptedPayload := secboot.MarshalKeys(skr.Key[:], auxKey[:])
 		params := &fde.InitialSetupParams{
-			Key:     skr.Key,
+			Key:     unencryptedPayload,
 			KeyName: skr.KeyName,
 		}
 		res, err := fde.InitialSetup(RunFDESetupHook, params)

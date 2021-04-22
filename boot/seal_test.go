@@ -28,7 +28,6 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -1373,7 +1372,7 @@ func buildWithSecbootSupport() (hasSecboot bool) {
 	return true
 }
 
-func (s *sealSuite) TestSealToModeenvWithFdeHookHappyV1(c *C) {
+func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	if !buildWithSecbootSupport() {
 		c.Skip("test needs secboot")
 	}
@@ -1393,12 +1392,12 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappyV1(c *C) {
 		n++
 		runFDESetupHookReqs = append(runFDESetupHookReqs, req)
 
-		key := []byte(fmt.Sprintf("key-%v", strconv.Itoa(n)))
+		mockedSealedKey := []byte(fmt.Sprintf("key-%v", strconv.Itoa(n)))
 		b, err := json.Marshal(fmt.Sprintf("handle-%v", strconv.Itoa(n)))
 		c.Assert(err, IsNil)
 		handle := json.RawMessage(b)
 		res := &fde.InitialSetupResult{
-			EncryptedKey: key,
+			EncryptedKey: mockedSealedKey,
 			Handle:       &handle,
 		}
 		return json.Marshal(res)
@@ -1408,40 +1407,38 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappyV1(c *C) {
 	modeenv := &boot.Modeenv{
 		RecoverySystem: "20200825",
 	}
-	key := secboot.EncryptionKey{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 1, 2, 3, 4}
+	key := secboot.EncryptionKey{0, 1, 2, 3, 4}
 	saveKey := secboot.EncryptionKey{5, 6, 7, 8}
 
 	model := boottest.MakeMockUC20Model()
 	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv)
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
-	c.Assert(runFDESetupHookParams, HasLen, 3)
-	c.Check(runFDESetupHookParams[0].KeyName, Equals, "ubuntu-data")
-	c.Check(runFDESetupHookParams[1].KeyName, Equals, "ubuntu-data")
-	c.Check(runFDESetupHookParams[2].KeyName, Equals, "ubuntu-save")
+	c.Assert(runFDESetupHookReqs, HasLen, 3)
+	c.Check(runFDESetupHookReqs[0].KeyName, Equals, "ubuntu-data")
+	c.Check(runFDESetupHookReqs[1].KeyName, Equals, "ubuntu-data")
+	c.Check(runFDESetupHookReqs[2].KeyName, Equals, "ubuntu-save")
 	for i := 0; i < 3; i++ {
 		// check size: uint16 len (2) + encryptionKey(64)+uint16 len +
 		// auxKey(32), see secboot.MarshallKeys()
-		c.Check(runFDESetupHookParams[i].Key, HasLen, 2+64+2+32)
+		c.Check(runFDESetupHookReqs[i].Key, HasLen, 2+64+2+32)
 	}
 	// the encrypted payload passed by secboot contains
 	// the encryption key and the aux key and size
 	// information, the aux-key is randomly generated so
 	// we can't check for let's check for the encryption
 	// key
-	c.Check(string(runFDESetupHookParams[0].Key), testutil.Contains, string(key[:]))
-	c.Check(string(runFDESetupHookParams[1].Key), testutil.Contains, string(key[:]))
-	c.Check(string(runFDESetupHookParams[2].Key), testutil.Contains, string(saveKey[:]))
+	c.Check(string(runFDESetupHookReqs[0].Key), testutil.Contains, string(key[:]))
+	c.Check(string(runFDESetupHookReqs[1].Key), testutil.Contains, string(key[:]))
+	c.Check(string(runFDESetupHookReqs[2].Key), testutil.Contains, string(saveKey[:]))
 	// check that the sealed keys got written to the expected places
 	for i, p := range []string{
 		filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 		filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
 		filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 	} {
-		// Notice that we check for an *empty* platform handle here as
-		// v1 hooks do not generate one
-		mockedSealedKey := strings.Repeat(strconv.Itoa(i+1), len(runFDESetupHookParams[i].Key))
-		c.Check(p, testutil.FileContains, fmt.Sprintf(`,"data":{"platform_name":"fde-hook-v2","platform_handle":"","encrypted_payload":"%s"`, base64.StdEncoding.EncodeToString([]byte(mockedSealedKey))))
+		mockedSealedKey := []byte(fmt.Sprintf("key-%v", strconv.Itoa(i+1)))
+		c.Check(p, testutil.FileContains, fmt.Sprintf(`,"data":{"platform_name":"fde-hook-v2","platform_handle":"handle-%v","encrypted_payload":"%s"`, i+1, base64.StdEncoding.EncodeToString([]byte(mockedSealedKey))))
 	}
 
 	marker := filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys")
@@ -1545,80 +1542,6 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySadV1andV2(c *C) {
 	c.Assert(err, ErrorMatches, "fde setup hook failed")
 	c.Check(resealKeyToModeenvUsingFDESetupHookCalled, Equals, 1)
 }
-
-func (s *sealSuite) TestSealToModeenvWithFdeHookHappyV2(c *C) {
-	if !buildWithSecbootSupport() {
-		c.Skip("test needs secboot")
-	}
-
-	rootdir := c.MkDir()
-	dirs.SetRootDir(rootdir)
-	defer dirs.SetRootDir("")
-
-	restore := boot.MockHasFDESetupHook(func() (bool, error) {
-		return true, nil
-	})
-	defer restore()
-
-	n := 0
-	var runFDESetupHookParams []*boot.FDESetupHookParams
-	restore = boot.MockRunFDESetupHook(func(op string, params *boot.FDESetupHookParams) ([]byte, error) {
-		n++
-		c.Assert(op, Equals, "initial-setup")
-		runFDESetupHookParams = append(runFDESetupHookParams, params)
-
-		// the output is base64 encrypted json
-		key := []byte(fmt.Sprintf("key-%v", strconv.Itoa(n)))
-		handle := []byte(fmt.Sprintf("handle-%v", strconv.Itoa(n)))
-		mockedOutput := fmt.Sprintf(`{"encrypted-key": "%s", "handle": "%s"}`, base64.StdEncoding.EncodeToString(key), base64.StdEncoding.EncodeToString(handle))
-		return []byte(mockedOutput), nil
-	})
-	defer restore()
-
-	modeenv := &boot.Modeenv{
-		RecoverySystem: "20200825",
-	}
-	key := secboot.EncryptionKey{1, 2, 3, 4}
-	saveKey := secboot.EncryptionKey{5, 6, 7, 8}
-
-	model := boottest.MakeMockUC20Model()
-	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv)
-	c.Assert(err, IsNil)
-	// check that runFDESetupHook was called the expected way
-	// check that runFDESetupHook was called the expected way
-	c.Assert(runFDESetupHookParams, HasLen, 3)
-	c.Check(runFDESetupHookParams[0].KeyName, Equals, "ubuntu-data")
-	c.Check(runFDESetupHookParams[1].KeyName, Equals, "ubuntu-data")
-	c.Check(runFDESetupHookParams[2].KeyName, Equals, "ubuntu-save")
-	for i := 0; i < 3; i++ {
-		// check size: uint16 len (2) + encryptionKey(64)+uint16 len +
-		// auxKey(32), see secboot.MarshallKeys()
-		c.Check(runFDESetupHookParams[i].Key, HasLen, 2+64+2+32)
-	}
-	// the encrypted payload passed by secboot contains
-	// the encryption key and the aux key and size
-	// information, the aux-key is randomly generated so
-	// we can't check for let's check for the encryption
-	// key
-	c.Check(string(runFDESetupHookParams[0].Key), testutil.Contains, string(key[:]))
-	c.Check(string(runFDESetupHookParams[1].Key), testutil.Contains, string(key[:]))
-	c.Check(string(runFDESetupHookParams[2].Key), testutil.Contains, string(saveKey[:]))
-	// check that the sealed keys got written to the expected places
-	for i, p := range []string{
-		filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
-		filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
-		filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
-	} {
-		// Check for a valid platform handle, encrypted payload (base64)
-		mockedSealedKey := []byte(fmt.Sprintf("key-%v", strconv.Itoa(i+1)))
-		handle := []byte(fmt.Sprintf("handle-%v", strconv.Itoa(i+1)))
-		c.Check(p, testutil.FileContains, fmt.Sprintf(`,"data":{"platform_name":"fde-hook-v2","platform_handle":"%s","encrypted_payload":"%s"`, base64.StdEncoding.EncodeToString(handle), base64.StdEncoding.EncodeToString([]byte(mockedSealedKey))))
-	}
-
-	marker := filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys")
-	c.Check(marker, testutil.FileEquals, "fde-setup-hook")
-}
-
 func (s *sealSuite) TestSealToModeenvWithFdeHookBadJSONv2(c *C) {
 	if !buildWithSecbootSupport() {
 		c.Skip("test needs secboot")
@@ -1634,11 +1557,11 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookBadJSONv2(c *C) {
 	defer restore()
 
 	n := 0
-	var runFDESetupHookParams []*boot.FDESetupHookParams
-	restore = boot.MockRunFDESetupHook(func(op string, params *boot.FDESetupHookParams) ([]byte, error) {
+	var runFDESetupHookReqs []*fde.SetupRequest
+	restore = boot.MockRunFDESetupHook(func(req *fde.SetupRequest) ([]byte, error) {
 		n++
-		c.Assert(op, Equals, "initial-setup")
-		runFDESetupHookParams = append(runFDESetupHookParams, params)
+		c.Assert(req.Op, Equals, "initial-setup")
+		runFDESetupHookReqs = append(runFDESetupHookReqs, req)
 		// invalid json is an error (except when it has the
 		// size of the denver key, see above)
 		return []byte(`invalid-json`), nil
@@ -1653,6 +1576,6 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookBadJSONv2(c *C) {
 
 	model := boottest.MakeMockUC20Model()
 	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv)
-	c.Assert(err, ErrorMatches, `cannot decode hook output for key /.*/run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key "invalid-json": invalid character 'i' looking for beginning of value`)
+	c.Assert(err, ErrorMatches, `cannot decode hook output "invalid-json": invalid character 'i' looking for beginning of value`)
 	c.Check(n, Equals, 1)
 }

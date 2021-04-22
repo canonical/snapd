@@ -78,7 +78,7 @@ func (s *fdeSuite) TestInitialSetupV2(c *C) {
 	}
 
 	params := &fde.InitialSetupParams{
-		Key:     mockKey,
+		Key:     mockKey[:],
 		KeyName: "some-key-name",
 	}
 	res, err := fde.InitialSetup(runSetupHook, params)
@@ -104,7 +104,7 @@ func (s *fdeSuite) TestInitialSetupError(c *C) {
 	}
 
 	params := &fde.InitialSetupParams{
-		Key:     mockKey,
+		Key:     mockKey[:],
 		KeyName: "some-key-name",
 	}
 	_, err := fde.InitialSetup(runSetupHook, params)
@@ -125,7 +125,7 @@ func (s *fdeSuite) TestInitialSetupV1(c *C) {
 	}
 
 	params := &fde.InitialSetupParams{
-		Key:     mockKey,
+		Key:     mockKey[:],
 		KeyName: "some-key-name",
 	}
 	res, err := fde.InitialSetup(runSetupHook, params)
@@ -145,7 +145,7 @@ func (s *fdeSuite) TestInitialSetupBadJSON(c *C) {
 	}
 
 	params := &fde.InitialSetupParams{
-		Key:     mockKey,
+		Key:     mockKey[:],
 		KeyName: "some-key-name",
 	}
 	_, err := fde.InitialSetup(runSetupHook, params)
