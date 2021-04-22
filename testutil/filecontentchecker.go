@@ -34,8 +34,8 @@ type fileContentChecker struct {
 	exact bool
 }
 
-// FileEquals verifies that the given file's content is equal
-// to the string (or fmt.Stringer) or []byte provided.
+// FileEquals verifies that the given file's content is equal to the string (or
+// fmt.Stringer), []byte provided, or the contents of a ReferenceFile.
 var FileEquals check.Checker = &fileContentChecker{
 	CheckerInfo: &check.CheckerInfo{Name: "FileEquals", Params: []string{"filename", "contents"}},
 	exact:       true,
@@ -52,6 +52,9 @@ var FileContains check.Checker = &fileContentChecker{
 var FileMatches check.Checker = &fileContentChecker{
 	CheckerInfo: &check.CheckerInfo{Name: "FileMatches", Params: []string{"filename", "regex"}},
 }
+
+// ReferenceFile wraps a file with reference contents.
+type ReferenceFile string
 
 func (c *fileContentChecker) Check(params []interface{}, names []string) (result bool, error string) {
 	filename, ok := params[0].(string)
@@ -87,6 +90,17 @@ func fileContentCheck(filename string, content interface{}, exact bool) (result 
 			presentableBuf = "<binary data>"
 		case fmt.Stringer:
 			result = presentableBuf == content.String()
+		case ReferenceFile:
+			referenceFilename := string(content)
+			reference, err := ioutil.ReadFile(referenceFilename)
+			if err != nil {
+				return false, fmt.Sprintf("Cannot read reference file %q: %v", referenceFilename, err)
+			}
+			result = bytes.Equal(buf, reference)
+			if !result {
+				error = fmt.Sprintf("Failed to match contents with reference file %q:\n%v", referenceFilename, presentableBuf)
+			}
+
 		default:
 			error = fmt.Sprintf("Cannot compare file contents with something of type %T", content)
 		}
@@ -101,6 +115,8 @@ func fileContentCheck(filename string, content interface{}, exact bool) (result 
 			result = content.Match(buf)
 		case fmt.Stringer:
 			result = strings.Contains(presentableBuf, content.String())
+		case ReferenceFile:
+			error = "Non-exact match with reference file is not supported"
 		default:
 			error = fmt.Sprintf("Cannot compare file contents with something of type %T", content)
 		}
