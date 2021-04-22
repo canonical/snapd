@@ -534,7 +534,7 @@ func (s *deviceMgrBaseSuite) setupBrands(c *C) {
 	assertstatetest.AddMany(s.state, otherAcct)
 }
 
-func (s *deviceMgrSuite) setupSnapDecl(c *C, info *snap.Info, publisherID string) {
+func (s *deviceMgrBaseSuite) setupSnapDecl(c *C, info *snap.Info, publisherID string) {
 	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
 		"snap-name":    info.SnapName(),
@@ -544,6 +544,22 @@ func (s *deviceMgrSuite) setupSnapDecl(c *C, info *snap.Info, publisherID string
 	}, nil, "")
 	c.Assert(err, IsNil)
 	assertstatetest.AddMany(s.state, snapDecl)
+}
+
+func (s *deviceMgrBaseSuite) setupSnapRevision(c *C, info *snap.Info, publisherID string, revision snap.Revision) {
+	sha3_384, size, err := asserts.SnapFileSHA3_384(info.MountFile())
+	c.Assert(err, IsNil)
+
+	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+		"snap-sha3-384": sha3_384,
+		"snap-size":     fmt.Sprintf("%d", size),
+		"snap-id":       info.SnapID,
+		"developer-id":  publisherID,
+		"snap-revision": revision.String(),
+		"timestamp":     time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	assertstatetest.AddMany(s.state, snapRev)
 }
 
 func fakeMyModel(extra map[string]interface{}) *asserts.Model {
