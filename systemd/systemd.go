@@ -95,6 +95,8 @@ func (m *extMutex) Taken(errMsg string) {
 
 // systemctlCmd calls systemctl with the given args, returning its standard output (and wrapped error)
 var systemctlCmd = func(args ...string) ([]byte, error) {
+	// TODO: including stderr here breaks many things when systemd is in debug
+	// output mode, see LP #1885597
 	bs, err := exec.Command("systemctl", args...).CombinedOutput()
 	if err != nil {
 		exitCode, _ := osutil.ExitCode(err)
@@ -231,6 +233,17 @@ type Systemd interface {
 	// returned in the same order as unit names passed in
 	// argument.
 	Status(units ...string) ([]*UnitStatus, error)
+	// InactiveEnterTimestamp returns the time that the given unit entered the
+	// inactive state as defined by the systemd docs. Specifically, this time is
+	// the most recent time in which the unit transitioned from deactivating
+	// ("Stopping") to dead ("Stopped"). It may be the zero time if this has
+	// never happened during the current boot, since this property is only
+	// tracked during the current boot. It specifically does not return a time
+	// that is monotonic, so the time returned here may be subject to bugs if
+	// there was a discontinuous time jump on the system before or during the
+	// unit's transition to inactive.
+	// TODO: incorporate this result into Status instead?
+	InactiveEnterTimestamp(unit string) (time.Time, error)
 	// IsEnabled checks whether the given service is enabled.
 	IsEnabled(service string) (bool, error)
 	// IsActive checks whether the given service is Active
@@ -623,6 +636,35 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 	}
 
 	return sts, nil
+}
+
+func (s *systemd) InactiveEnterTimestamp(unit string) (time.Time, error) {
+	// XXX: ignore stderr of systemctl command to avoid further infractions
+	//      around LP #1885597
+	out, err := s.systemctl("show", "--property", "InactiveEnterTimestamp", unit)
+	if err != nil {
+		return time.Time{}, osutil.OutputErr(out, err)
+	}
+	// the time returned by systemctl here will be formatted like so:
+	// InactiveEnterTimestamp=Fri 2021-04-16 15:32:21 UTC
+	// so we have to parse the time with a matching Go time format
+	splitVal := strings.SplitN(strings.TrimSpace(string(out)), "=", 2)
+	if len(splitVal) != 2 {
+		// then we don't have an equals sign in the output, so systemctl must be
+		// broken
+		return time.Time{}, fmt.Errorf("internal error: systemctl output (%s) is malformed", string(out))
+	}
+
+	if splitVal[1] == "" {
+		return time.Time{}, nil
+	}
+
+	// finally parse the time string
+	inactiveEnterTime, err := time.Parse("Mon 2006-01-02 15:04:05 MST", splitVal[1])
+	if err != nil {
+		return time.Time{}, fmt.Errorf("internal error: systemctl time output (%s) is malformed", splitVal[1])
+	}
+	return inactiveEnterTime, nil
 }
 
 func (s *systemd) IsEnabled(serviceName string) (bool, error) {
