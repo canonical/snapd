@@ -429,8 +429,51 @@ func updateManagedBootConfigForBootloader(dev Device, mode, gadgetSnapOrDir stri
 		return false, err
 	}
 	// boot config update can lead to a change of kernel command line
-	if err := observeCommandLineUpdate(dev.Model(), gadgetSnapOrDir); err != nil {
+	_, err = observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonSnapd, gadgetSnapOrDir)
+	if err != nil {
 		return false, err
 	}
 	return tbl.UpdateBootConfig()
+}
+
+// UpdateCommandLineForGadgetComponent handles the update of a gadget that
+// contributes to the kernel command line of the run system. Returns true when a
+// change in command line has been observed and a reboot is needed. The reboot,
+// if needed, should be requested at the the earliest possible occasion.
+func UpdateCommandLineForGadgetComponent(dev Device, gadgetSnapOrDir string) (needsReboot bool, err error) {
+	if !dev.HasModeenv() {
+		// only UC20 devices are supported
+		return false, fmt.Errorf("internal error: command line component cannot be updated on non UC20 devices")
+	}
+	opts := &bootloader.Options{
+		Role: bootloader.RoleRunMode,
+	}
+	// TODO: add support for bootloaders that that do not have any managed
+	// assets
+	tbl, err := getBootloaderManagingItsAssets("", opts)
+	if err != nil {
+		if err == errBootConfigNotManaged {
+			// we're not managing this bootloader's boot config
+			return false, nil
+		}
+		return false, err
+	}
+	// gadget update can lead to a change of kernel command line
+	cmdlineChange, err := observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonGadget, gadgetSnapOrDir)
+	if err != nil {
+		return false, err
+	}
+	if !cmdlineChange {
+		return false, nil
+	}
+	// update the bootloader environment, maybe clearing the relevant
+	// variables
+	cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(gadgetSnapOrDir)
+	if err != nil {
+		return false, fmt.Errorf("cannot prepare bootloader variables for kernel command line: %v", err)
+	}
+	if err := tbl.SetBootVars(cmdlineVars); err != nil {
+		return false, fmt.Errorf("cannot set run system kernel command line arguments: %v", err)
+	}
+	return cmdlineChange, nil
 }
