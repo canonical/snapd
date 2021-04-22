@@ -60,6 +60,8 @@ var _ bootloader.RecoveryAwareBootloader = (*MockRecoveryAwareBootloader)(nil)
 var _ bootloader.TrustedAssetsBootloader = (*MockTrustedAssetsBootloader)(nil)
 var _ bootloader.ExtractedRunKernelImageBootloader = (*MockExtractedRunKernelImageBootloader)(nil)
 var _ bootloader.ExtractedRecoveryKernelImageBootloader = (*MockExtractedRecoveryKernelImageBootloader)(nil)
+var _ bootloader.RecoveryAwareBootloader = (*MockRecoveryAwareTrustedAssetsBootloader)(nil)
+var _ bootloader.TrustedAssetsBootloader = (*MockRecoveryAwareTrustedAssetsBootloader)(nil)
 
 func Mock(name, bootdir string) *MockBootloader {
 	return &MockBootloader{
@@ -500,4 +502,20 @@ func (b *MockTrustedAssetsMixin) BootChain(runBl bootloader.Bootloader, kernelPa
 	b.BootChainRunBl = append(b.BootChainRunBl, runBl)
 	b.BootChainKernelPath = append(b.BootChainKernelPath, kernelPath)
 	return b.BootChainList, b.BootChainErr
+}
+
+// MockRecoveryAwareTrustedAssetsBootloader implements the
+// bootloader.RecoveryAwareBootloader and bootloader.TrustedAssetsBootloader
+// interfaces.
+type MockRecoveryAwareTrustedAssetsBootloader struct {
+	*MockBootloader
+
+	MockRecoveryAwareMixin
+	MockTrustedAssetsMixin
+}
+
+func (b *MockBootloader) WithRecoveryAwareTrustedAssets() *MockRecoveryAwareTrustedAssetsBootloader {
+	return &MockRecoveryAwareTrustedAssetsBootloader{
+		MockBootloader: b,
+	}
 }
