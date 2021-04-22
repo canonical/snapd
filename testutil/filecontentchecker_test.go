@@ -20,6 +20,7 @@
 package testutil_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"path/filepath"
 	"regexp"
@@ -42,11 +43,17 @@ func (s *fileContentCheckerSuite) TestFileEquals(c *check.C) {
 	content := "not-so-random-string"
 	filename := filepath.Join(d, "canary")
 	c.Assert(ioutil.WriteFile(filename, []byte(content), 0644), check.IsNil)
+	equalRefereceFilename := filepath.Join(d, "canary-reference-equal")
+	c.Assert(ioutil.WriteFile(equalRefereceFilename, []byte(content), 0644), check.IsNil)
+	notEqualRefereceFilename := filepath.Join(d, "canary-reference-not-equal")
+	c.Assert(ioutil.WriteFile(notEqualRefereceFilename, []byte("not-equal"), 0644), check.IsNil)
 
 	testInfo(c, FileEquals, "FileEquals", []string{"filename", "contents"})
 	testCheck(c, FileEquals, true, "", filename, content)
 	testCheck(c, FileEquals, true, "", filename, []byte(content))
 	testCheck(c, FileEquals, true, "", filename, myStringer{content})
+	testCheck(c, FileEquals, true, "", filename, ReferenceFile(filename))
+	testCheck(c, FileEquals, true, "", filename, ReferenceFile(equalRefereceFilename))
 
 	twofer := content + content
 	testCheck(c, FileEquals, false, "Failed to match with file contents:\nnot-so-random-string", filename, twofer)
@@ -56,6 +63,9 @@ func (s *fileContentCheckerSuite) TestFileEquals(c *check.C) {
 	testCheck(c, FileEquals, false, `Cannot read file "": open : no such file or directory`, "", "")
 	testCheck(c, FileEquals, false, "Filename must be a string", 42, "")
 	testCheck(c, FileEquals, false, "Cannot compare file contents with something of type int", filename, 1)
+	testCheck(c, FileEquals, false,
+		fmt.Sprintf("Failed to match contents with reference file \"%s\":\nnot-so-random-string", notEqualRefereceFilename),
+		filename, ReferenceFile(notEqualRefereceFilename))
 }
 
 func (s *fileContentCheckerSuite) TestFileContains(c *check.C) {
@@ -81,6 +91,8 @@ func (s *fileContentCheckerSuite) TestFileContains(c *check.C) {
 	testCheck(c, FileContains, false, `Cannot read file "": open : no such file or directory`, "", "")
 	testCheck(c, FileContains, false, "Filename must be a string", 42, "")
 	testCheck(c, FileContains, false, "Cannot compare file contents with something of type int", filename, 1)
+	testCheck(c, FileContains, false, `Non-exact match with reference file is not supported`,
+		filename, ReferenceFile(filename))
 }
 
 func (s *fileContentCheckerSuite) TestFileMatches(c *check.C) {
@@ -99,4 +111,6 @@ func (s *fileContentCheckerSuite) TestFileMatches(c *check.C) {
 	testCheck(c, FileMatches, false, `Cannot read file "": open : no such file or directory`, "", "")
 	testCheck(c, FileMatches, false, "Filename must be a string", 42, ".*")
 	testCheck(c, FileMatches, false, "Regex must be a string", filename, 1)
+	testCheck(c, FileContains, false, `Non-exact match with reference file is not supported`,
+		filename, ReferenceFile(filename))
 }
