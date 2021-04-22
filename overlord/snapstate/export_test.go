@@ -286,6 +286,8 @@ var (
 	MaxInhibition  = maxInhibition
 )
 
+type RefreshCandidate = refreshCandidate
+
 func NewBusySnapError(info *snap.Info, pids []int, busyAppNames, busyHookNames []string) *BusySnapError {
 	return &BusySnapError{
 		SnapInfo:      info,
