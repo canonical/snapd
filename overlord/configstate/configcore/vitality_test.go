@@ -142,8 +142,8 @@ func (s *vitalitySuite) testConfigureVitalityWithValidSnap(c *C, uc18 bool) {
 	c.Assert(err, IsNil)
 	svcName := "snap.test-snap.foo.service"
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"is-enabled", "snap.test-snap.foo.service"},
 		{"daemon-reload"},
+		{"is-enabled", "snap.test-snap.foo.service"},
 		{"enable", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.foo.service"},
 	})

@@ -96,13 +96,6 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 			continue
 		}
 
-		// TODO: this should become some kind of Ensure*
-		// method in wrappers
-		disabledSvcs, err := wrappers.QueryDisabledServices(info, progress.Null)
-		if err != nil {
-			return err
-		}
-
 		// rank changed, rewrite/restart services
 
 		// first get the device context to decide if we need to set
@@ -112,16 +105,20 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 			return err
 		}
 
-		opts := &wrappers.AddSnapServicesOptions{VitalityRank: rank}
+		ensureOpts := &wrappers.EnsureSnapServicesOptions{}
 
 		// we need the snapd snap mounted whenever in order for services to
 		// start for all services on UC18+
 		if !deviceCtx.Classic() && deviceCtx.Model().Base() != "" {
-			opts.RequireMountedSnapdSnap = true
+			ensureOpts.RequireMountedSnapdSnap = true
 		}
 
-		// now rewrite the services
-		if err := wrappers.AddSnapServices(info, opts, progress.Null); err != nil {
+		m := map[*snap.Info]*wrappers.SnapServiceOptions{
+			info: {VitalityRank: rank},
+		}
+
+		// ensure that the snap services are re-written with these units
+		if err := wrappers.EnsureSnapServices(m, ensureOpts, nil, progress.Null); err != nil {
 			return err
 		}
 
@@ -136,6 +133,12 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		// apply the setting which never does anything
 
 		// XXX: copied from handlers.go:startSnapServices()
+
+		disabledSvcs, err := wrappers.QueryDisabledServices(info, progress.Null)
+		if err != nil {
+			return err
+		}
+
 		svcs := info.Services()
 		startupOrdered, err := snap.SortServices(svcs)
 		if err != nil {
