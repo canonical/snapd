@@ -56,8 +56,10 @@ The 'pending' flag can be "ready", "none" or "inhibited". It is set to "none" if
 there are no pending refreshes for the snap. It is set to "ready" if there are,
 and to inhibited if there are but are inhibited because some of the snap
 applications are running and "refresh app awareness" feature is enabled.
-The "base" and "restart" flags indicate whether a base snap is going to be
-updated and/or if restart will occur, both of which are disruptive.
+The "base" and "restart" flags indicate whether the base snap is going to be
+updated and/or if restart will occur, both of which are disruptive. A base snap
+update can disrupt temporarily the starting of applications or hooks from the
+snap.
 
 To tell snapd to proceed with pending refreshes:
     $ snapctl refresh --pending --proceed
@@ -65,7 +67,7 @@ To tell snapd to proceed with pending refreshes:
 Note, a snap using --proceed cannot assume that the updates will occur as they
 might be held by other snaps.
 
-To hold refresh for up to 90 days:
+To hold refresh for up to 90 days for the calling snap:
     $ snapctl refresh --pending --hold
 `)
 
@@ -113,7 +115,7 @@ type updateDetails struct {
 	channel  string
 	version  string
 	revision snap.Revision
-	epoch    snap.Epoch
+	// TODO: epoch
 	base     bool
 	restart  bool
 }
@@ -153,9 +155,6 @@ func (c *refreshCommand) printPendingInfo() {
 	}
 	if !details.revision.Unset() {
 		c.printf("revision: %s\n", details.revision)
-	}
-	if !details.epoch.IsZero() {
-		c.printf("epoch: %s", details.epoch)
 	}
 	c.printf("base: %v\n", details.base)
 	c.printf("restart: %v\n", details.restart)
