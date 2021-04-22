@@ -1,16 +1,16 @@
 summary: Check that installing and running a snap works
 
-debug: |
-    if test -e stderr.log; then
-        echo "content of stderr.log"
-        cat stderr.log
-    fi
-
 restore: |
     rm -f stderr.log
     rm -f stdout.log
     # requied! in autopkgtest no suite restore is run at all
     snap remove --purge test-snapd-sh
+
+debug: |
+    if test -e stderr.log; then
+        echo "content of stderr.log"
+        cat stderr.log
+    fi
 
 execute: |
     #shellcheck source=tests/lib/systems.sh

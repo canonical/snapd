@@ -90,6 +90,10 @@ func (s *emulation) Status(units ...string) ([]*UnitStatus, error) {
 	return nil, errNotImplemented
 }
 
+func (s *emulation) InactiveEnterTimestamp(unit string) (time.Time, error) {
+	return time.Time{}, errNotImplemented
+}
+
 func (s *emulation) IsEnabled(service string) (bool, error) {
 	return false, errNotImplemented
 }
