@@ -350,7 +350,7 @@ Description=Service for snap application %[1]s.svc1
 Requires=%[2]s
 Wants=network.target
 After=%[2]s network.target snapd.apparmor.service
-Requires=usr-lib-snapd.mount
+Wants=usr-lib-snapd.mount
 After=usr-lib-snapd.mount
 X-Snappy=yes
 
