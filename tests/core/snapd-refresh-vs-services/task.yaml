@@ -112,7 +112,6 @@ execute: |
   # now repack current snapd to refresh to it again and observe the results
   unsquashfs -d ./snapd-unpacked snapd-pr.snap
   snap pack --filename=snapd_repacked.snap snapd-unpacked
-  rm -rf snapd-unpacked
 
   # save the PID's of the services
   systemctl show -p MainPID snap.test-snapd-simple-service.test-snapd-simple-service > old-main.pid
