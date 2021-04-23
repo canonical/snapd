@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
@@ -312,8 +313,8 @@ func DeviceManagerHasFDESetupHook(mgr *DeviceManager) (bool, error) {
 	return mgr.hasFDESetupHook()
 }
 
-func DeviceManagerRunFDESetupHook(mgr *DeviceManager, op string, params *boot.FDESetupHookParams) ([]byte, error) {
-	return mgr.runFDESetupHook(op, params)
+func DeviceManagerRunFDESetupHook(mgr *DeviceManager, req *fde.SetupRequest) ([]byte, error) {
+	return mgr.runFDESetupHook(req)
 }
 
 func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx snapstate.DeviceContext) (bool, error) {

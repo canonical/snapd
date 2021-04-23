@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020  Canonical Ltd
+ * Copyright (C) 2021  Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,6 +25,9 @@
 package fde
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"os/exec"
 
 	"github.com/snapcore/snapd/secboot"
@@ -46,6 +49,33 @@ func HasRevealKey() bool {
 	return err == nil
 }
 
+func isV1Hook(hookOutput []byte) bool {
+	// This is the prefix of a tpm secboot v1 key as used in the
+	// "denver" project. So if we see this prefix we know it's
+	// v1 hook output.
+	return bytes.HasPrefix(hookOutput, []byte("USK$"))
+}
+
+func unmarshalInitialSetupResult(hookOutput []byte) (*InitialSetupResult, error) {
+	// We expect json output that fits InitalSetupResult
+	// hook at this point. However the "denver" project
+	// uses the old and deprecated v1 API that returns raw
+	// bytes and we still need to support this.
+	var res InitialSetupResult
+	if err := json.Unmarshal(hookOutput, &res); err != nil {
+		// If the outout is not json and looks like va
+		if !isV1Hook(hookOutput) {
+			return nil, fmt.Errorf("cannot decode hook output %q: %v", hookOutput, err)
+		}
+		// v1 hooks do not support a handle
+		handle := json.RawMessage("{v1-no-handle: true}")
+		res.Handle = &handle
+		res.EncryptedKey = hookOutput
+	}
+
+	return &res, nil
+}
+
 // SetupRequest carries the operation and parameters for the fde-setup hooks
 // made available to them via the snapctl fde-setup-request command.
 type SetupRequest struct {
@@ -63,4 +93,42 @@ type SetupRequest struct {
 
 	// TODO: provide LoadChains, KernelCmdline etc to support full
 	//       tpm sealing
+}
+
+// A RunSetupHookFunc implements running the fde-setup kernel hook.
+type RunSetupHookFunc func(req *SetupRequest) ([]byte, error)
+
+// InitialSetupParams contains the inputs for the fde-setup hook
+type InitialSetupParams struct {
+	Key     secboot.EncryptionKey
+	KeyName string
+
+	//TODO:UC20: provide bootchains and a way to track measured
+	//boot-assets
+}
+
+// InitalSetupResult contains the outputs of the fde-setup hook
+type InitialSetupResult struct {
+	// result when called with "initial-setup"
+	// XXX call this encrypted-key if possible?
+	EncryptedKey []byte           `json:"sealed-key"`
+	Handle       *json.RawMessage `json:"handle"`
+}
+
+// InitialSetup invokes the initial-setup op running the kernel hook via runSetupHook.
+func InitialSetup(runSetupHook RunSetupHookFunc, params *InitialSetupParams) (*InitialSetupResult, error) {
+	req := &SetupRequest{
+		Op:      "initial-setup",
+		Key:     params.Key[:],
+		KeyName: params.KeyName,
+	}
+	hookOutput, err := runSetupHook(req)
+	if err != nil {
+		return nil, err
+	}
+	res, err := unmarshalInitialSetupResult(hookOutput)
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
 }
