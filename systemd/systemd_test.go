@@ -761,6 +761,7 @@ func (s *SystemdTestSuite) TestAddMountUnit(c *C) {
 [Unit]
 Description=Mount unit for foo, revision 42
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
@@ -794,6 +795,7 @@ func (s *SystemdTestSuite) TestAddMountUnitForDirs(c *C) {
 [Unit]
 Description=Mount unit for foodir, revision x1
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
@@ -835,6 +837,7 @@ func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 [Unit]
 Description=Mount unit for foo, revision 42
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
@@ -878,6 +881,7 @@ exit 0
 [Unit]
 Description=Mount unit for foo, revision x1
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
@@ -917,6 +921,7 @@ exit 0
 [Unit]
 Description=Mount unit for foo, revision x1
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
@@ -1157,6 +1162,7 @@ const unitTemplate = `
 [Unit]
 Description=Mount unit for foo, revision 42
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
