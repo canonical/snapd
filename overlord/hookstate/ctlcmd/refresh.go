@@ -36,12 +36,12 @@ type refreshCommand struct {
 	Hold    bool `long:"hold" description:"Do not proceed with potentially disruptive refreshes"`
 }
 
-var shortRefreshHelp = i18n.G("The refresh command prints pending refreshes and can hold disruptive ones.")
+var shortRefreshHelp = i18n.G("The refresh command prints pending refreshes and can hold back disruptive ones.")
 var longRefreshHelp = i18n.G(`
 The refresh command prints pending refreshes of the calling snap and can hold
-disruptive refreshes of other snaps, such as refreshes of kernel or
-base snaps that can trigger restart. This command can be used from
-gate-auto-refresh hook. The hook is only run during auto-refresh.
+back disruptive refreshes of other snaps, such as refreshes of the kernel or
+base snaps that can trigger a restart. This command can be used from the
+gate-auto-refresh hook which is only run during auto-refresh.
 
 Snap can query pending refreshes with:
     $ snapctl refresh --pending
@@ -52,20 +52,22 @@ Snap can query pending refreshes with:
     base: false
     restart: false
 
-The 'pending' flag can be "ready", "none" or "inhibited". It is set to "none" if
-there are no pending refreshes for the snap. It is set to "ready" if there are,
-and to inhibited if there are but are inhibited because some of the snap
-applications are running and "refresh app awareness" feature is enabled.
+The 'pending' flag can be "ready", "none" or "inhibited". It is set to "none"
+when a snap has no pending refreshes. It is set to "ready" when there are
+pending refreshes and to ”inhibited” when pending refreshes are being
+held back because more or more snap applications are running with the
+“refresh app awareness” feature enabled.
+
 The "base" and "restart" flags indicate whether the base snap is going to be
-updated and/or if restart will occur, both of which are disruptive. A base snap
-update can disrupt temporarily the starting of applications or hooks from the
-snap.
+updated and/or if a restart will occur, both of which are disruptive. A base
+snap update can temporarily disrupt the starting of applications or hooks from
+the snap.
 
 To tell snapd to proceed with pending refreshes:
     $ snapctl refresh --pending --proceed
 
 Note, a snap using --proceed cannot assume that the updates will occur as they
-might be held by other snaps.
+might be held back by other snaps.
 
 To hold refresh for up to 90 days for the calling snap:
     $ snapctl refresh --pending --hold
@@ -116,8 +118,8 @@ type updateDetails struct {
 	version  string
 	revision snap.Revision
 	// TODO: epoch
-	base     bool
-	restart  bool
+	base    bool
+	restart bool
 }
 
 func getUpdateDetails(context *hookstate.Context) *updateDetails {
