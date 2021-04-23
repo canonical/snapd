@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/osutil"
 )
 
 var fdeHasRevealKey = fde.HasRevealKey
@@ -53,4 +54,25 @@ func unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourc
 	res.FsDevice = targetDevice
 	res.UnlockMethod = UnlockedWithSealedKey
 	return res, nil
+}
+
+// SealKeysWithFDESetupHook protects the given keys through using the
+// fde-setup hook and saves each protected key to the KeyFile
+// indicated in the key SealKeyRequest.
+func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest) error {
+	for _, skr := range keys {
+		params := &fde.InitialSetupParams{
+			Key:     skr.Key,
+			KeyName: skr.KeyName,
+		}
+		res, err := fde.InitialSetup(runHook, params)
+		if err != nil {
+			return err
+		}
+		if err := osutil.AtomicWriteFile(skr.KeyFile, res.EncryptedKey, 0600, 0); err != nil {
+			return fmt.Errorf("cannot store key: %v", err)
+		}
+	}
+
+	return nil
 }

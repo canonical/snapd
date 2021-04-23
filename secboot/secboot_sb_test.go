@@ -22,12 +22,14 @@ package secboot_test
 
 import (
 	"crypto/ecdsa"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
@@ -1245,4 +1247,64 @@ func (s *secbootSuite) TestLockSealedKeysCallsFdeReveal(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(ops, DeepEquals, []string{"lock"})
+}
+
+func (s *secbootSuite) TestSealKeysWithFDESetupHookHappy(c *C) {
+	tmpdir := c.MkDir()
+
+	n := 0
+	var runFDESetupHookReqs []*fde.SetupRequest
+	runFDESetupHook := func(req *fde.SetupRequest) ([]byte, error) {
+		n++
+		runFDESetupHookReqs = append(runFDESetupHookReqs, req)
+
+		key := []byte(fmt.Sprintf("key-%v", strconv.Itoa(n)))
+		b, err := json.Marshal(fmt.Sprintf("handle-%v", strconv.Itoa(n)))
+		c.Assert(err, IsNil)
+		handle := json.RawMessage(b)
+		res := &fde.InitialSetupResult{
+			EncryptedKey: key,
+			Handle:       &handle,
+		}
+		return json.Marshal(res)
+	}
+
+	key1 := secboot.EncryptionKey{1, 2, 3, 4}
+	key2 := secboot.EncryptionKey{5, 6, 7, 8}
+	key1Fn := filepath.Join(tmpdir, "key1.key")
+	key2Fn := filepath.Join(tmpdir, "key2.key")
+	err := secboot.SealKeysWithFDESetupHook(runFDESetupHook,
+		[]secboot.SealKeyRequest{
+			{Key: key1, KeyName: "key1", KeyFile: key1Fn},
+			{Key: key2, KeyName: "key2", KeyFile: key2Fn},
+		})
+	c.Assert(err, IsNil)
+	// check that runFDESetupHook was called the expected way
+	c.Check(runFDESetupHookReqs, DeepEquals, []*fde.SetupRequest{
+		{Op: "initial-setup", Key: key1[:], KeyName: "key1"},
+		{Op: "initial-setup", Key: key2[:], KeyName: "key2"},
+	})
+	// check that the sealed keys got written to the expected places
+	for i, p := range []string{key1Fn, key2Fn} {
+		// Check for a valid platform handle, encrypted payload (base64)
+		mockedSealedKey := []byte(fmt.Sprintf("key-%v", strconv.Itoa(i+1)))
+		c.Check(p, testutil.FileEquals, mockedSealedKey)
+	}
+}
+
+func (s *secbootSuite) TestSealKeysWithFDESetupHookSad(c *C) {
+	tmpdir := c.MkDir()
+
+	runFDESetupHook := func(req *fde.SetupRequest) ([]byte, error) {
+		return nil, fmt.Errorf("hook failed")
+	}
+
+	key := secboot.EncryptionKey{1, 2, 3, 4}
+	keyFn := filepath.Join(tmpdir, "key.key")
+	err := secboot.SealKeysWithFDESetupHook(runFDESetupHook,
+		[]secboot.SealKeyRequest{
+			{Key: key, KeyName: "key1", KeyFile: keyFn},
+		})
+	c.Assert(err, ErrorMatches, "hook failed")
+	c.Check(keyFn, testutil.FileAbsent)
 }
