@@ -13,7 +13,14 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-// super secure crypto
+// DO NOT USE THIS FILE as an example to write fde-hooks. It is just
+// here for historic reasons and uses the obsolte v1 hook
+// format. Please do not change any of the JSON structs in this file,
+// it needs to be kept to ensure we keep compatbility with the
+// "denver" project and fde-hooks v1.
+
+// This is a very insecure crypto just for demonstration purposes.
+// Please delete it you use this for real.
 func xor13(bs []byte) []byte {
 	out := make([]byte, len(bs))
 	for i := range bs {
@@ -73,11 +80,14 @@ func runFdeSetup() error {
 		fdeSetupResult = []byte(`{"features":[]}`)
 	case "initial-setup":
 		// "seal"
-		fdeSetupResult = xor13(js.Key)
+		buf := bytes.NewBufferString("USK$")
+		buf.Write(xor13(js.Key))
+		fdeSetupResult = buf.Bytes()
 	default:
 		return fmt.Errorf("unsupported op %q", js.Op)
 	}
 	cmd := exec.Command("snapctl", "fde-setup-result")
+	// simulate a secboot v1 encrypted key
 	cmd.Stdin = bytes.NewBuffer(fdeSetupResult)
 	output, err = cmd.CombinedOutput()
 	if err != nil {
@@ -125,7 +135,8 @@ func runFdeRevealKey() error {
 
 	switch js.Op {
 	case "reveal":
-		unsealedKey := xor13(js.SealedKey)
+		// strip the "USK$" prefix
+		unsealedKey := xor13(js.SealedKey[len("USK$"):])
 		fmt.Fprintf(os.Stdout, "%s", unsealedKey)
 	case "lock":
 		// nothing right now

@@ -28,7 +28,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 
 	// this import will init "secboot.FDEHasRevealKey" correctly
-	_ "github.com/snapcore/snapd/overlord/devicestate/fde"
+	_ "github.com/snapcore/snapd/kernel/fde"
 )
 
 var (

@@ -52,8 +52,8 @@ func (s *fileContentCheckerSuite) TestFileEquals(c *check.C) {
 	testCheck(c, FileEquals, true, "", filename, content)
 	testCheck(c, FileEquals, true, "", filename, []byte(content))
 	testCheck(c, FileEquals, true, "", filename, myStringer{content})
-	testCheck(c, FileEquals, true, "", filename, ReferenceFile(filename))
-	testCheck(c, FileEquals, true, "", filename, ReferenceFile(equalRefereceFilename))
+	testCheck(c, FileEquals, true, "", filename, FileContentRef(filename))
+	testCheck(c, FileEquals, true, "", filename, FileContentRef(equalRefereceFilename))
 
 	twofer := content + content
 	testCheck(c, FileEquals, false, "Failed to match with file contents:\nnot-so-random-string", filename, twofer)
@@ -65,7 +65,7 @@ func (s *fileContentCheckerSuite) TestFileEquals(c *check.C) {
 	testCheck(c, FileEquals, false, "Cannot compare file contents with something of type int", filename, 1)
 	testCheck(c, FileEquals, false,
 		fmt.Sprintf("Failed to match contents with reference file \"%s\":\nnot-so-random-string", notEqualRefereceFilename),
-		filename, ReferenceFile(notEqualRefereceFilename))
+		filename, FileContentRef(notEqualRefereceFilename))
 }
 
 func (s *fileContentCheckerSuite) TestFileContains(c *check.C) {
@@ -92,7 +92,7 @@ func (s *fileContentCheckerSuite) TestFileContains(c *check.C) {
 	testCheck(c, FileContains, false, "Filename must be a string", 42, "")
 	testCheck(c, FileContains, false, "Cannot compare file contents with something of type int", filename, 1)
 	testCheck(c, FileContains, false, `Non-exact match with reference file is not supported`,
-		filename, ReferenceFile(filename))
+		filename, FileContentRef(filename))
 }
 
 func (s *fileContentCheckerSuite) TestFileMatches(c *check.C) {
@@ -112,5 +112,5 @@ func (s *fileContentCheckerSuite) TestFileMatches(c *check.C) {
 	testCheck(c, FileMatches, false, "Filename must be a string", 42, ".*")
 	testCheck(c, FileMatches, false, "Regex must be a string", filename, 1)
 	testCheck(c, FileContains, false, `Non-exact match with reference file is not supported`,
-		filename, ReferenceFile(filename))
+		filename, FileContentRef(filename))
 }
