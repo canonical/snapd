@@ -1407,7 +1407,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	modeenv := &boot.Modeenv{
 		RecoverySystem: "20200825",
 	}
-	key := secboot.EncryptionKey{0, 1, 2, 3, 4}
+	key := secboot.EncryptionKey{1, 2, 3, 4}
 	saveKey := secboot.EncryptionKey{5, 6, 7, 8}
 
 	model := boottest.MakeMockUC20Model()
@@ -1445,7 +1445,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	c.Check(marker, testutil.FileEquals, "fde-setup-hook")
 }
 
-func (s *sealSuite) TestSealToModeenvWithFdeHookSadV1andV2(c *C) {
+func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	if !buildWithSecbootSupport() {
 		c.Skip("test needs secboot")
 	}
@@ -1477,7 +1477,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSadV1andV2(c *C) {
 	c.Check(marker, testutil.FileAbsent)
 }
 
-func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalledV1andV2(c *C) {
+func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 	rootdir := c.MkDir()
 	dirs.SetRootDir(rootdir)
 	defer dirs.SetRootDir("")
@@ -1514,7 +1514,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalledV1andV2(c *C) {
 	c.Check(resealKeyToModeenvUsingFDESetupHookCalled, Equals, 1)
 }
 
-func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySadV1andV2(c *C) {
+func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySad(c *C) {
 	rootdir := c.MkDir()
 	dirs.SetRootDir(rootdir)
 	defer dirs.SetRootDir("")
@@ -1541,41 +1541,4 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySadV1andV2(c *C) {
 	err = boot.ResealKeyToModeenv(rootdir, model, modeenv, expectReseal)
 	c.Assert(err, ErrorMatches, "fde setup hook failed")
 	c.Check(resealKeyToModeenvUsingFDESetupHookCalled, Equals, 1)
-}
-func (s *sealSuite) TestSealToModeenvWithFdeHookBadJSONv2(c *C) {
-	if !buildWithSecbootSupport() {
-		c.Skip("test needs secboot")
-	}
-
-	rootdir := c.MkDir()
-	dirs.SetRootDir(rootdir)
-	defer dirs.SetRootDir("")
-
-	restore := boot.MockHasFDESetupHook(func() (bool, error) {
-		return true, nil
-	})
-	defer restore()
-
-	n := 0
-	var runFDESetupHookReqs []*fde.SetupRequest
-	restore = boot.MockRunFDESetupHook(func(req *fde.SetupRequest) ([]byte, error) {
-		n++
-		c.Assert(req.Op, Equals, "initial-setup")
-		runFDESetupHookReqs = append(runFDESetupHookReqs, req)
-		// invalid json is an error (except when it has the
-		// size of the denver key, see above)
-		return []byte(`invalid-json`), nil
-	})
-	defer restore()
-
-	modeenv := &boot.Modeenv{
-		RecoverySystem: "20200825",
-	}
-	key := secboot.EncryptionKey{1, 2, 3, 4}
-	saveKey := secboot.EncryptionKey{5, 6, 7, 8}
-
-	model := boottest.MakeMockUC20Model()
-	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv)
-	c.Assert(err, ErrorMatches, `cannot decode hook output "invalid-json": invalid character 'i' looking for beginning of value`)
-	c.Check(n, Equals, 1)
 }

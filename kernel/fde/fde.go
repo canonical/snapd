@@ -84,10 +84,8 @@ type SetupRequest struct {
 
 	// This needs to be a []byte so that Go's standard library will base64
 	// encode it automatically for us
-	Key []byte `json:"key,omitempty"`
-
-	// XXX: remove KeyName everywhere
-	KeyName string
+	Key     []byte `json:"key,omitempty"`
+	KeyName string `json:"key-name,omitempty"`
 
 	// TODO: provide LoadChains, KernelCmdline etc to support full
 	//       tpm sealing
