@@ -30,7 +30,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"testing"
 	"time"
 
 	"github.com/canonical/go-tpm2"
@@ -50,8 +49,6 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-func TestSecboot(t *testing.T) { TestingT(t) }
-
 type secbootSuite struct {
 	testutil.BaseTest
 }
@@ -66,7 +63,9 @@ func (s *secbootSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 }
 
-func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
+func (s *secbootSuite) TestCheckTPMKeySealingSupported(c *C) {
+	c.Check(secboot.WithSecbootSupport, Equals, true)
+
 	sbEmpty := []uint8{}
 	sbEnabled := []uint8{1}
 	sbDisabled := []uint8{0}
@@ -112,7 +111,7 @@ func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
 		restoreEfiVars := efi.MockVars(vars, nil)
 		defer restoreEfiVars()
 
-		err := secboot.CheckKeySealingSupported()
+		err := secboot.CheckTPMKeySealingSupported()
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {

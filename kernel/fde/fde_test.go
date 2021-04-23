@@ -31,7 +31,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/kernel/fde"
-	"github.com/snapcore/snapd/secboot"
 )
 
 func TestFde(t *testing.T) { TestingT(t) }
@@ -64,7 +63,7 @@ func (s *fdeSuite) TestHasRevealKey(c *C) {
 }
 
 func (s *fdeSuite) TestInitialSetupV2(c *C) {
-	mockKey := secboot.EncryptionKey{1, 2, 3, 4}
+	mockKey := []byte{1, 2, 3, 4}
 
 	runSetupHook := func(req *fde.SetupRequest) ([]byte, error) {
 		c.Check(req, DeepEquals, &fde.SetupRequest{
@@ -91,7 +90,7 @@ func (s *fdeSuite) TestInitialSetupV2(c *C) {
 }
 
 func (s *fdeSuite) TestInitialSetupError(c *C) {
-	mockKey := secboot.EncryptionKey{1, 2, 3, 4}
+	mockKey := []byte{1, 2, 3, 4}
 
 	errHook := errors.New("hook running error")
 	runSetupHook := func(req *fde.SetupRequest) ([]byte, error) {
@@ -112,7 +111,7 @@ func (s *fdeSuite) TestInitialSetupError(c *C) {
 }
 
 func (s *fdeSuite) TestInitialSetupV1(c *C) {
-	mockKey := secboot.EncryptionKey{1, 2, 3, 4}
+	mockKey := []byte{1, 2, 3, 4}
 
 	runSetupHook := func(req *fde.SetupRequest) ([]byte, error) {
 		c.Check(req, DeepEquals, &fde.SetupRequest{
@@ -138,7 +137,7 @@ func (s *fdeSuite) TestInitialSetupV1(c *C) {
 }
 
 func (s *fdeSuite) TestInitialSetupBadJSON(c *C) {
-	mockKey := secboot.EncryptionKey{1, 2, 3, 4}
+	mockKey := []byte{1, 2, 3, 4}
 
 	runSetupHook := func(req *fde.SetupRequest) ([]byte, error) {
 		return []byte("bad json"), nil

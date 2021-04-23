@@ -21,17 +21,19 @@
 package secboot
 
 import (
-	"fmt"
+	"errors"
 )
 
-func CheckKeySealingSupported() error {
-	return fmt.Errorf("build without secboot support")
+var errBuildWithoutSecboot = errors.New("build without secboot support")
+
+func CheckTPMKeySealingSupported() error {
+	return errBuildWithoutSecboot
 }
 
 func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
-	return fmt.Errorf("build without secboot support")
+	return errBuildWithoutSecboot
 }
 
 func ResealKeys(params *ResealKeysParams) error {
-	return fmt.Errorf("build without secboot support")
+	return errBuildWithoutSecboot
 }

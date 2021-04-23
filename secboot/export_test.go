@@ -181,10 +181,10 @@ func MockIsTPMEnabled(f func(tpm *sb.TPMConnection) bool) (restore func()) {
 }
 
 func MockFDEHasRevealKey(f func() bool) (restore func()) {
-	old := FDEHasRevealKey
-	FDEHasRevealKey = f
+	old := fdeHasRevealKey
+	fdeHasRevealKey = f
 	return func() {
-		FDEHasRevealKey = old
+		fdeHasRevealKey = old
 	}
 }
 

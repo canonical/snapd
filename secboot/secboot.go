@@ -37,6 +37,9 @@ const (
 	FallbackObjectPCRPolicyCounterHandle = 0x01880002
 )
 
+// WithSecbootSupport is true if this package was built with githbu.com/snapcore/secboot.
+var WithSecbootSupport = false
+
 type LoadChain struct {
 	*bootloader.BootFile
 	// Next is a list of alternative chains that can be loaded
@@ -146,10 +149,6 @@ type UnlockResult struct {
 	// - UnlockedWithKey
 	UnlockMethod UnlockMethod
 }
-
-// FDEHasReveal is setup by devicestate/fde to support device-specific
-// full disk encryption implementations.
-var FDEHasRevealKey = func() bool { return false }
 
 // EncryptedPartitionName returns the name/label used by an encrypted partition
 // corresponding to a given name.
