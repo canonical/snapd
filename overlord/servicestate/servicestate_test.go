@@ -30,10 +30,12 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/wrappers"
@@ -272,7 +274,7 @@ func (s *snapServiceOptionsSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
 }
 
-func (s *snapServiceOptionsSuite) TestSnapServiceOptions(c *C) {
+func (s *snapServiceOptionsSuite) TestSnapServiceOptionsVitalityRank(c *C) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -295,5 +297,55 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptions(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
 		VitalityRank: 0,
+	})
+}
+
+func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// make a quota group
+	grp, err := quota.NewGroup("foogroup", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	grp.Snaps = []string{"foosnap"}
+
+	// add it into the state
+	err = servicestate.UpdateQuotas(st, grp)
+	c.Assert(err, IsNil)
+
+	opts, err := servicestate.SnapServiceOptions(st, "foosnap")
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
+		QuotaGroup: grp,
+	})
+
+	// works with instance names too
+	grp.Snaps = []string{"foosnap_instance"}
+	err = servicestate.UpdateQuotas(st, grp)
+	c.Assert(err, IsNil)
+
+	opts, err = servicestate.SnapServiceOptions(st, "foosnap")
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{})
+
+	opts, err = servicestate.SnapServiceOptions(st, "foosnap_instance")
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
+		QuotaGroup: grp,
+	})
+
+	// works with vitality rank for the snap too
+	t := config.NewTransaction(st)
+	err = t.Set("core", "resilience.vitality-hint", "bar,foosnap_instance")
+	c.Assert(err, IsNil)
+	t.Commit()
+
+	opts, err = servicestate.SnapServiceOptions(st, "foosnap_instance")
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
+		VitalityRank: 2,
+		QuotaGroup:   grp,
 	})
 }

@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/wrappers"
 )
@@ -332,5 +333,19 @@ func SnapServiceOptions(st *state.State, instanceName string) (opts *wrappers.Sn
 			break
 		}
 	}
+
+	// also check for quota group for this instance name
+	allGrps, err := AllQuotas(st)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+
+	for _, grp := range allGrps {
+		if strutil.ListContains(grp.Snaps, instanceName) {
+			opts.QuotaGroup = grp
+			break
+		}
+	}
+
 	return opts, nil
 }
