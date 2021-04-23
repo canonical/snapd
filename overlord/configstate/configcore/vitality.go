@@ -58,6 +58,8 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	st.Lock()
 	defer st.Unlock()
 
+	// TODO: Reimplement most of this as a servicestate.UpdateVitalityRank
+
 	oldVitalityMap := map[string]int{}
 	newVitalityMap := map[string]int{}
 	// assign "0" (delete) rank to all old entries
