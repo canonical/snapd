@@ -129,7 +129,8 @@ func (s *fdeSuite) TestInitialSetupV1(c *C) {
 	}
 	res, err := fde.InitialSetup(runSetupHook, params)
 	c.Assert(err, IsNil)
-	expectedHandle := json.RawMessage(`{v1-no-handle: true}`)
+	expectedHandle := json.RawMessage(`{"v1-no-handle": true}`)
+	c.Assert(json.Valid(expectedHandle), Equals, true)
 	c.Check(res, DeepEquals, &fde.InitialSetupResult{
 		EncryptedKey: []byte("USK$sealed-key"),
 		Handle:       &expectedHandle,
