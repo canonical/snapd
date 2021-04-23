@@ -7,7 +7,9 @@ systems: [ubuntu-core-18-*, ubuntu-core-20-*]
 environment:
   # the test needs to start from 2.49.2 to reproduce the bug and demonstrate the
   # worst case behavior still works
-  SNAPD_2_49_2: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.2_11588.snap
+  SNAPD_2_49_2_X86: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.2_11588.snap
+  SNAPD_2_49_2_ARM64: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.2_11584.snap
+  SNAPD_2_49_2_ARMHF: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.2_11586.snap
 
 prepare: |
   tests.cleanup prepare
@@ -18,7 +20,16 @@ prepare: |
   cp "/var/lib/snapd/snaps/snapd_$INITIAL_REV.snap" snapd-pr.snap
 
   # download and install snapd 2.49.2
-  http --quiet --download --output snapd_2.49.2.snap GET "$SNAPD_2_49_2"
+  if os.query is-pc-amd64; then
+    http --quiet --download --output snapd_2.49.2.snap GET "$SNAPD_2_49_2_X86"
+  elif os.query is-arm64; then
+    http --quiet --download --output snapd_2.49.2.snap GET "$SNAPD_2_49_2_ARM64"
+  elif os.query is-armhf; then
+    http --quiet --download --output snapd_2.49.2.snap GET "$SNAPD_2_49_2_ARMHF"
+  else
+    echo "architecture not supported for this variant"
+    exit 0
+  fi
   snap install --dangerous snapd_2.49.2.snap
   tests.cleanup defer snap revert snapd --revision="$INITIAL_REV"
 
@@ -26,6 +37,11 @@ restore: |
   tests.cleanup restore
 
 execute: |
+  if ! os.query is-pc-amd64 && ! os.query is-arm; then
+    echo "architecture not supported for this variant"
+    exit 0
+  fi
+
   if [ "$SPREAD_REBOOT" = "0" ]; then
     # install the special service snap which will fail to startup every other time
     # it is started

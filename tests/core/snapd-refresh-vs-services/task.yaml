@@ -10,8 +10,14 @@ environment:
   SNAPD_VERSION_UNDER_TEST/start_w_2_49_2: "2.49.2"
 
   # links to specific snapd versions
-  SNAPD_2_49_2: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.2_11588.snap
-  SNAPD_2_49_1: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.1_11402.snap
+
+  SNAPD_2_49_1_X86: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.1_11402.snap
+  SNAPD_2_49_1_ARM64: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.1_11408.snap
+  SNAPD_2_49_1_ARMHF: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.1_11410.snap
+
+  SNAPD_2_49_2_X86: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.2_11588.snap
+  SNAPD_2_49_2_ARM64: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.2_11584.snap
+  SNAPD_2_49_2_ARMHF: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.2_11586.snap
 
 prepare: |
   tests.cleanup prepare
@@ -46,6 +52,11 @@ execute: |
     fi
   fi
 
+  if ! os.query is-pc-amd64 && ! os.query is-arm; then
+    echo "architecture not supported for this variant"
+    exit 0
+  fi
+
   echo "Ensure that the system is fully seeded"
   snap changes | MATCH "Done.*Initialize system state"
 
@@ -54,9 +65,15 @@ execute: |
   # first thing is to install snapd 2.49.1 before the Requires= change was 
   # introduced so we can install a snap service that will not have Requires= in
   # it
-  http --quiet --download --output snapd_2.49.1.snap GET "$SNAPD_2_49_1"
+  if os.query is-pc-amd64; then
+    http --quiet --download --output snapd_2.49.1.snap GET "$SNAPD_2_49_1_X86"
+  elif os.query is-arm64; then
+    http --quiet --download --output snapd_2.49.1.snap GET "$SNAPD_2_49_1_ARM64"
+  elif os.query is-armhf; then
+    http --quiet --download --output snapd_2.49.1.snap GET "$SNAPD_2_49_1_ARMHF"
+  fi
 
-  snap install --dangerous snapd_2.49.1.snap\
+  snap install --dangerous snapd_2.49.1.snap
 
   # always go back to the original revision from the pr at the end of the test
   tests.cleanup defer snap revert snapd --revision="$INITIAL_REV"
@@ -77,15 +94,18 @@ execute: |
     echo "Refreshing snapd to stable"
     snap refresh --amend --channel=latest/stable snapd
   elif [ "${SNAPD_VERSION_UNDER_TEST}" = "2.49.2" ]; then
-    # only run on amd64 right now, download and install snapd 2.49.2
+    # download and install snapd 2.49.2
     if os.query is-pc-amd64; then
-      http --quiet --download --output snapd_2.49.2.snap GET "$SNAPD_2_49_2"
-      echo "Refreshing snapd to 2.49.2"
-      snap install --dangerous snapd_2.49.2.snap
-    else 
-      echo "architecture not supported for this variant"
-      exit 0
+      http --quiet --download --output snapd_2.49.2.snap GET "$SNAPD_2_49_2_X86"
+    elif os.query is-arm64; then
+      http --quiet --download --output snapd_2.49.2.snap GET "$SNAPD_2_49_2_ARM64"
+    elif os.query is-armhf; then
+      http --quiet --download --output snapd_2.49.2.snap GET "$SNAPD_2_49_2_ARMHF"
     fi
+
+    echo "Refreshing snapd to 2.49.2"
+    snap install --dangerous snapd_2.49.2.snap
+
   elif [ "${SNAPD_VERSION_UNDER_TEST}" = "pr" ]; then
       # refresh back to the version we originally had from before the test 
       # started
