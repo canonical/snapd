@@ -1381,8 +1381,7 @@ printf "unsealed-key-64-chars-long-when-not-json-to-match-denver-project"
 
 	defaultDevice := "device-name"
 	mockSealedKeyFile := makeMockSealedKeyFile(c, "")
-	sealedKeyContent := "sealed-key-64-chars-long-when-not-json-to-match-denver-project--"
-	c.Assert(sealedKeyContent, HasLen, 64)
+	sealedKeyContent := "USK$sealed-key-not-json-to-match-denver-project"
 	err := ioutil.WriteFile(mockSealedKeyFile, []byte(sealedKeyContent), 0600)
 	c.Assert(err, IsNil)
 
@@ -1433,8 +1432,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1(c
 	// XXX: use makeMockKeyKey() here?
 	mockDiskKey := []byte("unsealed-key--64-chars-long-and-not-json-to-match-denver-project")
 	c.Assert(len(mockDiskKey), Equals, 64)
-	mockEncryptedDiskKey := []byte("encrypted-key-64-chars-long-and-not-json-to-match-denver-project")
-	c.Assert(len(mockEncryptedDiskKey), Equals, 64)
+	mockEncryptedDiskKey := []byte("USK$encrypted-key-no-json-to-match-denver-project")
 	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
 	// The v1 hooks will just return raw bytes. This is deprecated but
 	// we need to keep compatbility with the v1 implementation because

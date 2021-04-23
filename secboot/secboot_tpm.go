@@ -455,13 +455,30 @@ var noSecbootV2FileErr = errors.New("no secboot v2 file")
 // 3. Key created with v1 data-format on disk (raw), v2 hook
 // 4. Key created with v2 data-format on disk (json), v2 hook [easy]
 func unlockVolumeUsingSealedKeyFDERevealKey(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
-	// Try the v2 format first and fallback to v1 if needed.
-	res, err := unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
-	if err == noSecbootV2FileErr {
-		// try the "old" keyfile (which is plain binary)
+
+	// deal with v1 keys
+	if isV1EncryptedKeyFile(sealedEncryptionKeyFile) {
 		return unlockVolumeUsingSealedKeyFDERevealKeyV1(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
 	}
-	return res, err
+
+	return unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName, opts)
+}
+
+// XXX: move to fde but right there there is a cirular import
+func isV1EncryptedKeyFile(p string) bool {
+	var v1KeyPrefix = []byte("USK$")
+
+	f, err := os.Open(p)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	buf := make([]byte, len(v1KeyPrefix))
+	if _, err := f.Read(buf); err != nil {
+		return false
+	}
+	return bytes.HasPrefix(buf, v1KeyPrefix)
 }
 
 func unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
@@ -469,21 +486,6 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sou
 
 	f, err := sb.NewFileKeyDataReader(sealedEncryptionKeyFile)
 	if err != nil {
-		// The encrypted file is probably created with v1 data format
-		// (raw-binary) so check and fallback to v1 reading if needed
-		// (case 1 above).
-		var syntaxErr *json.SyntaxError
-		if xerrors.As(err, &syntaxErr) {
-			// This can either be corrupted json or a v1 file, the
-			// v1 file has a fixed size so if it's not valid json
-			// and has the size of the v1 file we can assume we need
-			// to retry with v1
-			if st, err := os.Stat(sealedEncryptionKeyFile); err == nil {
-				if st.Size() == encryptionKeySize {
-					return res, noSecbootV2FileErr
-				}
-			}
-		}
 		return res, err
 	}
 	keyData, err := sb.ReadKeyData(f)
@@ -1017,9 +1019,8 @@ func WriteKeyData(name, path string, encryptedPayload, auxKey []byte, rawhandle 
 			EncryptedPayload: encryptedPayload,
 			Handle:           handle,
 		},
-		PlatformName: fdeHooksPlatformName,
-		AuxiliaryKey: auxKey,
-		// XXX: right hash value?
+		PlatformName:      fdeHooksPlatformName,
+		AuxiliaryKey:      auxKey,
 		SnapModelAuthHash: crypto.SHA256,
 	})
 	if err != nil {
