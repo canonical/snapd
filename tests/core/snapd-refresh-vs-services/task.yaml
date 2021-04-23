@@ -84,6 +84,7 @@ execute: |
       snap install --dangerous snapd_2.49.2.snap
     else 
       echo "architecture not supported for this variant"
+      exit 0
     fi
   elif [ "${SNAPD_VERSION_UNDER_TEST}" = "pr" ]; then
       # refresh back to the version we originally had from before the test 
