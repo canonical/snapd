@@ -229,7 +229,7 @@ func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
 	for _, info := range infos {
 		c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps", filepath.Base(info.MountFile())),
 			testutil.FileEquals,
-			testutil.ReferenceFile(info.MountFile()))
+			testutil.FileContentRef(info.MountFile()))
 	}
 	// recovery system bootenv was set
 	c.Check(bl.RecoverySystemDir, Equals, "/systems/1234")
@@ -313,12 +313,12 @@ func (s *createSystemSuite) TestCreateSystemFromUnassertedSnaps(c *C) {
 		if info.Revision.Store() {
 			c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps", filepath.Base(info.MountFile())),
 				testutil.FileEquals,
-				testutil.ReferenceFile(info.MountFile()))
+				testutil.FileContentRef(info.MountFile()))
 		} else {
 			fileName := fmt.Sprintf("%s_%s.snap", info.SnapName(), info.Version)
 			c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234/snaps", fileName),
 				testutil.FileEquals,
-				testutil.ReferenceFile(info.MountFile()))
+				testutil.FileContentRef(info.MountFile()))
 		}
 	}
 	// load the seed
