@@ -131,11 +131,6 @@ func fallbackKeySealRequests(key, saveKey secboot.EncryptionKey) []secboot.SealK
 	}
 }
 
-type fdeSetupHookResult struct {
-	EncryptedKey []byte `json:"encrypted-key"`
-	Handle       []byte `json:"handle"`
-}
-
 func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
 	// TODO: support full boot chains
 
