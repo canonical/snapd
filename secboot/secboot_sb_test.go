@@ -63,7 +63,7 @@ func (s *secbootSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 }
 
-func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
+func (s *secbootSuite) TestCheckTPMKeySealingSupported(c *C) {
 	c.Check(secboot.WithSecbootSupport, Equals, true)
 
 	sbEmpty := []uint8{}
@@ -111,7 +111,7 @@ func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
 		restoreEfiVars := efi.MockVars(vars, nil)
 		defer restoreEfiVars()
 
-		err := secboot.CheckKeySealingSupported()
+		err := secboot.CheckTPMKeySealingSupported()
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {

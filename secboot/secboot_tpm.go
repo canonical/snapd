@@ -67,7 +67,7 @@ func isTPMEnabledImpl(tpm *sb.TPMConnection) bool {
 	return tpm.IsEnabled()
 }
 
-func CheckKeySealingSupported() error {
+func CheckTPMKeySealingSupported() error {
 	logger.Noticef("checking if secure boot is enabled...")
 	if err := checkSecureBootEnabled(); err != nil {
 		logger.Noticef("secure boot not enabled: %v", err)

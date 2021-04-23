@@ -26,7 +26,7 @@ import (
 
 var errBuildWithoutSecboot = errors.New("build without secboot support")
 
-func CheckKeySealingSupported() error {
+func CheckTPMKeySealingSupported() error {
 	return errBuildWithoutSecboot
 }
 
