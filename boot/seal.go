@@ -44,8 +44,9 @@ import (
 )
 
 var (
-	secbootSealKeys   = secboot.SealKeys
-	secbootResealKeys = secboot.ResealKeys
+	secbootSealKeys                 = secboot.SealKeys
+	secbootSealKeysWithFDESetupHook = secboot.SealKeysWithFDESetupHook
+	secbootResealKeys               = secboot.ResealKeys
 
 	seedReadSystemEssential = seed.ReadSystemEssential
 )
@@ -133,7 +134,7 @@ func fallbackKeySealRequests(key, saveKey secboot.EncryptionKey) []secboot.SealK
 
 func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
 	skrs := append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey)...)
-	if err := secboot.SealKeysWithFDESetupHook(RunFDESetupHook, skrs); err != nil {
+	if err := secbootSealKeysWithFDESetupHook(RunFDESetupHook, skrs); err != nil {
 		return err
 	}
 

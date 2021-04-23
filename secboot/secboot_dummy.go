@@ -2,7 +2,7 @@
 // +build nosecboot
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,8 @@ package secboot
 
 import (
 	"errors"
+
+	"github.com/snapcore/snapd/kernel/fde"
 )
 
 var errBuildWithoutSecboot = errors.New("build without secboot support")
@@ -31,6 +33,10 @@ func CheckTPMKeySealingSupported() error {
 }
 
 func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
+	return errBuildWithoutSecboot
+}
+
+func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest) error {
 	return errBuildWithoutSecboot
 }
 
