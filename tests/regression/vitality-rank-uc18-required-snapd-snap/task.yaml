@@ -16,9 +16,9 @@ restore: |
 execute: |
     # first verify that the service unit contains the Requires for the snapd
     # mount
-    MATCH 'Requires=usr-lib-snapd.mount' < "$SVC"
+    MATCH 'Wants=usr-lib-snapd.mount' < "$SVC"
     snap set system resilience.vitality-hint=test-snapd-service
     # check that the Requires is still there
-    MATCH 'Requires=usr-lib-snapd.mount' < "$SVC"
+    MATCH 'Wants=usr-lib-snapd.mount' < "$SVC"
     # also check that OOMScoreAdjust is used too
     MATCH 'OOMScoreAdjust=-899' < "$SVC"
