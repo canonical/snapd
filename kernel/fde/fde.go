@@ -80,13 +80,6 @@ type SetupRequest struct {
 	// encode it automatically for us
 	Key     []byte `json:"key,omitempty"`
 	KeyName string `json:"key-name,omitempty"`
-
-	// List of models with their related fields, this will be set
-	// to follow the secboot:SnapModel interface.
-	Models []map[string]string `json:"models,omitempty"`
-
-	// TODO: provide LoadChains, KernelCmdline etc to support full
-	//       tpm sealing
 }
 
 // A RunSetupHookFunc implements running the fde-setup kernel hook.
@@ -96,9 +89,6 @@ type RunSetupHookFunc func(req *SetupRequest) ([]byte, error)
 type InitialSetupParams struct {
 	Key     []byte
 	KeyName string
-
-	//TODO:UC20: provide bootchains and a way to track measured
-	//boot-assets
 }
 
 // InitalSetupResult contains the outputs of the fde-setup hook
