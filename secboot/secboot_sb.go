@@ -27,6 +27,7 @@ import (
 	sb "github.com/snapcore/secboot"
 	"golang.org/x/xerrors"
 
+	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil/disks"
 )
@@ -46,7 +47,7 @@ func init() {
 // given call is the last one to unlock a volume like in degraded recover mode.
 func LockSealedKeys() error {
 	if fdeHasRevealKey() {
-		return lockFDERevealSealedKeys()
+		return fde.LockSealedKeys()
 	}
 	return lockTPMSealedKeys()
 }
