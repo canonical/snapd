@@ -5889,6 +5889,15 @@ type: kernel`
 }
 
 func (s *mgrsSuite) TestUC18SnapdRefreshUpdatesSnapServiceUnitsAndRestartsKilledUnits(c *C) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+	// reload directories
+	dirs.SetRootDir(dirs.GlobalRootDir)
+	restore = release.MockOnClassic(false)
+	defer restore()
+	bl := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bl)
+	defer bootloader.Force(nil)
 	const snapdSnap = `
 name: snapd
 version: 1.0
@@ -5972,33 +5981,49 @@ WantedBy=multi-user.target
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		systemctlCalls++
 
+		c.Logf("call: %v", systemctlCalls)
 		switch systemctlCalls {
 		// first 3 calls are for the snapd refresh itself
 		case 1:
-			c.Assert(cmd, DeepEquals, []string{"daemon-reload"})
+			c.Check(cmd, DeepEquals, []string{"daemon-reload"})
 			return nil, nil
 		case 2:
-			c.Assert(cmd, DeepEquals, []string{"enable", "snap-snapd-x1.mount"})
+			c.Check(cmd, DeepEquals, []string{"enable", "snap-snapd-x1.mount"})
 			return nil, nil
 		case 3:
-			c.Assert(cmd, DeepEquals, []string{"start", "snap-snapd-x1.mount"})
+			c.Check(cmd, DeepEquals, []string{"start", "snap-snapd-x1.mount"})
 			return nil, nil
 			// next we get the calls for the rewritten service files after snapd
 			// restarts
 		case 4:
-			c.Assert(cmd, DeepEquals, []string{"daemon-reload"})
+			c.Check(cmd, DeepEquals, []string{"daemon-reload"})
 			return nil, nil
 		case 5:
-			c.Assert(cmd, DeepEquals, []string{"show", "--property", "InactiveEnterTimestamp", "usr-lib-snapd.mount"})
-			return []byte("InactiveEnterTimestamp=" + t2.Format("Mon 2006-01-02 15:04:05 MST")), nil
+			c.Check(cmd, DeepEquals, []string{"enable", "usr-lib-snapd.mount"})
+			return nil, nil
 		case 6:
-			c.Assert(cmd, DeepEquals, []string{"show", "--property", "InactiveEnterTimestamp", "snap.test-snap.svc1.service"})
-			return []byte("InactiveEnterTimestamp=" + t1.Format("Mon 2006-01-02 15:04:05 MST")), nil
+			c.Check(cmd, DeepEquals, []string{"stop", "usr-lib-snapd.mount"})
+			return nil, nil
 		case 7:
-			c.Assert(cmd, DeepEquals, []string{"is-enabled", "snap.test-snap.svc1.service"})
-			return []byte("enabled"), nil
+			c.Check(cmd, DeepEquals, []string{"show", "--property=ActiveState", "usr-lib-snapd.mount"})
+			return []byte("ActiveState=inactive"), nil
 		case 8:
-			c.Assert(cmd, DeepEquals, []string{"start", "snap.test-snap.svc1.service"})
+			c.Check(cmd, DeepEquals, []string{"start", "usr-lib-snapd.mount"})
+			return nil, nil
+		case 9:
+			c.Check(cmd, DeepEquals, []string{"daemon-reload"})
+			return nil, nil
+		case 10:
+			c.Check(cmd, DeepEquals, []string{"show", "--property", "InactiveEnterTimestamp", "usr-lib-snapd.mount"})
+			return []byte("InactiveEnterTimestamp=" + t2.Format("Mon 2006-01-02 15:04:05 MST")), nil
+		case 11:
+			c.Check(cmd, DeepEquals, []string{"show", "--property", "InactiveEnterTimestamp", "snap.test-snap.svc1.service"})
+			return []byte("InactiveEnterTimestamp=" + t1.Format("Mon 2006-01-02 15:04:05 MST")), nil
+		case 12:
+			c.Check(cmd, DeepEquals, []string{"is-enabled", "snap.test-snap.svc1.service"})
+			return []byte("enabled"), nil
+		case 13:
+			c.Check(cmd, DeepEquals, []string{"start", "snap.test-snap.svc1.service"})
 			return nil, nil
 		default:
 			c.Errorf("unexpected call to systemctl: %+v", cmd)
@@ -6007,7 +6032,7 @@ WantedBy=multi-user.target
 	})
 	s.AddCleanup(r)
 	// make sure that we get the expected number of systemctl calls
-	s.AddCleanup(func() { c.Assert(systemctlCalls, Equals, 8) })
+	s.AddCleanup(func() { c.Assert(systemctlCalls, Equals, 13) })
 
 	// also add the snapd snap to state which we will refresh
 	si1 := &snap.SideInfo{RealName: "snapd", Revision: snap.R(1)}
@@ -6094,6 +6119,16 @@ WantedBy=multi-user.target
 }
 
 func (s *mgrsSuite) TestUC18SnapdRefreshUpdatesSnapServiceUnitsAndAttemptsToRestartsKilledUnitsButFails(c *C) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+	// reload directories
+	dirs.SetRootDir(dirs.GlobalRootDir)
+	restore = release.MockOnClassic(false)
+	defer restore()
+	bl := bootloadertest.Mock("mock", c.MkDir())
+	bootloader.Force(bl)
+	defer bootloader.Force(nil)
+
 	const snapdSnap = `
 name: snapd
 version: 1.0
@@ -6180,39 +6215,54 @@ WantedBy=multi-user.target
 		switch systemctlCalls {
 		// first 3 calls are for the snapd refresh itself
 		case 1:
-			c.Assert(cmd, DeepEquals, []string{"daemon-reload"})
+			c.Check(cmd, DeepEquals, []string{"daemon-reload"})
 			return nil, nil
 		case 2:
-			c.Assert(cmd, DeepEquals, []string{"enable", "snap-snapd-x1.mount"})
+			c.Check(cmd, DeepEquals, []string{"enable", "snap-snapd-x1.mount"})
 			return nil, nil
 		case 3:
-			c.Assert(cmd, DeepEquals, []string{"start", "snap-snapd-x1.mount"})
+			c.Check(cmd, DeepEquals, []string{"start", "snap-snapd-x1.mount"})
 			return nil, nil
 			// next we get the calls for the rewritten service files after snapd
 			// restarts
 		case 4:
-			c.Assert(cmd, DeepEquals, []string{"daemon-reload"})
+			c.Check(cmd, DeepEquals, []string{"daemon-reload"})
 			return nil, nil
 		case 5:
-			c.Assert(cmd, DeepEquals, []string{"show", "--property", "InactiveEnterTimestamp", "usr-lib-snapd.mount"})
-			return []byte("InactiveEnterTimestamp=" + t2.Format("Mon 2006-01-02 15:04:05 MST")), nil
+			c.Check(cmd, DeepEquals, []string{"enable", "usr-lib-snapd.mount"})
+			return nil, nil
 		case 6:
-			c.Assert(cmd, DeepEquals, []string{"show", "--property", "InactiveEnterTimestamp", "snap.test-snap.svc1.service"})
-			return []byte("InactiveEnterTimestamp=" + t1.Format("Mon 2006-01-02 15:04:05 MST")), nil
+			c.Check(cmd, DeepEquals, []string{"stop", "usr-lib-snapd.mount"})
+			return nil, nil
 		case 7:
-			c.Assert(cmd, DeepEquals, []string{"is-enabled", "snap.test-snap.svc1.service"})
-			return []byte("enabled"), nil
+			c.Check(cmd, DeepEquals, []string{"show", "--property=ActiveState", "usr-lib-snapd.mount"})
+			return []byte("ActiveState=inactive"), nil
 		case 8:
-			// starting the snap fails
-			c.Assert(cmd, DeepEquals, []string{"start", "snap.test-snap.svc1.service"})
-			return nil, fmt.Errorf("the snap service is having a bad day")
+			c.Check(cmd, DeepEquals, []string{"start", "usr-lib-snapd.mount"})
+			return nil, nil
 		case 9:
+			c.Check(cmd, DeepEquals, []string{"daemon-reload"})
+			return nil, nil
+		case 10:
+			c.Check(cmd, DeepEquals, []string{"show", "--property", "InactiveEnterTimestamp", "usr-lib-snapd.mount"})
+			return []byte("InactiveEnterTimestamp=" + t2.Format("Mon 2006-01-02 15:04:05 MST")), nil
+		case 11:
+			c.Check(cmd, DeepEquals, []string{"show", "--property", "InactiveEnterTimestamp", "snap.test-snap.svc1.service"})
+			return []byte("InactiveEnterTimestamp=" + t1.Format("Mon 2006-01-02 15:04:05 MST")), nil
+		case 12:
+			c.Check(cmd, DeepEquals, []string{"is-enabled", "snap.test-snap.svc1.service"})
+			return []byte("enabled"), nil
+		case 13:
+			// starting the snap fails
+			c.Check(cmd, DeepEquals, []string{"start", "snap.test-snap.svc1.service"})
+			return nil, fmt.Errorf("the snap service is having a bad day")
+		case 14:
 			// because starting the snap fails, we will automatically try to
 			// undo the starting of the snap by stopping it, hence the request
 			// to stop it
 			// TODO: is this desirable? in the field, what if stopping the
 			// service also dies?
-			c.Assert(cmd, DeepEquals, []string{"stop", "snap.test-snap.svc1.service"})
+			c.Check(cmd, DeepEquals, []string{"stop", "snap.test-snap.svc1.service"})
 			return nil, fmt.Errorf("the snap service is still having a bad day")
 		default:
 			c.Errorf("unexpected call to systemctl: %+v", cmd)
@@ -6221,7 +6271,7 @@ WantedBy=multi-user.target
 	})
 	s.AddCleanup(r)
 	// make sure that we get the expected number of systemctl calls
-	s.AddCleanup(func() { c.Assert(systemctlCalls, Equals, 9) })
+	s.AddCleanup(func() { c.Assert(systemctlCalls, Equals, 14) })
 
 	// also add the snapd snap to state which we will refresh
 	si1 := &snap.SideInfo{RealName: "snapd", Revision: snap.R(1)}
