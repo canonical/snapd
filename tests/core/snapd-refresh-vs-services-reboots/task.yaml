@@ -51,6 +51,7 @@ execute: |
     chmod +x /tmp/orig-systemctl
 
     mount -o bind "$TESTSLIB/mock-shutdown" /bin/systemctl
+    tests.cleanup defer umount /bin/systemctl
 
     # now refresh to the new version of snapd - this will trigger a reboot of 
     # the system
@@ -76,7 +77,7 @@ execute: |
     fi
 
     # restore shutdown so that spread can reboot the host
-    umount /bin/systemctl
+    tests.cleanup pop
 
     REBOOT
   elif [ "$SPREAD_REBOOT" = "1" ]; then
