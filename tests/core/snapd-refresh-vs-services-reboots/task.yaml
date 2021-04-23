@@ -29,7 +29,7 @@ execute: |
   if [ "$SPREAD_REBOOT" = "0" ]; then
     # install the special service snap which will fail to startup every other time
     # it is started
-    snap pack . --filename=app.snap
+    snap pack test-snapd-svc-flip-flop --filename=app.snap
 
     # install the snap so it is running
     snap install --dangerous app.snap
