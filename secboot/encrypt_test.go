@@ -1,8 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build !nosecboot
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,12 +22,15 @@ package secboot_test
 import (
 	"os"
 	"path/filepath"
+	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/testutil"
 )
+
+func TestSecboot(t *testing.T) { TestingT(t) }
 
 type encryptSuite struct {
 	dir string
@@ -68,7 +70,7 @@ func (s *encryptSuite) TestEncryptionKeySave(c *C) {
 	ekey := secboot.EncryptionKey{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 255}
 	err := ekey.Save(kf)
 	c.Assert(err, IsNil)
-	c.Assert(kf, testutil.FileEquals, ekey[:])
+	c.Assert(kf, testutil.FileEquals, []byte(ekey))
 
 	fileInfo, err := os.Stat(kf)
 	c.Assert(err, IsNil)
@@ -76,7 +78,7 @@ func (s *encryptSuite) TestEncryptionKeySave(c *C) {
 
 	err = ekey.Save(kfNested)
 	c.Assert(err, IsNil)
-	c.Assert(kfNested, testutil.FileEquals, ekey[:])
+	c.Assert(kfNested, testutil.FileEquals, []byte(ekey))
 	di, err := os.Stat(filepath.Dir(kfNested))
 	c.Assert(err, IsNil)
 	c.Assert(di.Mode().Perm(), Equals, os.FileMode(0755))

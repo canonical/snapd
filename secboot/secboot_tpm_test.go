@@ -30,7 +30,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"testing"
 	"time"
 
 	"github.com/canonical/go-tpm2"
@@ -49,8 +48,6 @@ import (
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/testutil"
 )
-
-func TestSecboot(t *testing.T) { TestingT(t) }
 
 type secbootSuite struct {
 	testutil.BaseTest
