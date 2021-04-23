@@ -29,13 +29,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
-
-	"github.com/snapcore/snapd/secboot"
 )
-
-func init() {
-	secboot.FDEHasRevealKey = HasRevealKey
-}
 
 // HasRevealKey return true if the current system has a "fde-reveal-key"
 // binary (usually used in the initrd).
@@ -100,7 +94,7 @@ type RunSetupHookFunc func(req *SetupRequest) ([]byte, error)
 
 // InitialSetupParams contains the inputs for the fde-setup hook
 type InitialSetupParams struct {
-	Key     secboot.EncryptionKey
+	Key     []byte
 	KeyName string
 
 	//TODO:UC20: provide bootchains and a way to track measured

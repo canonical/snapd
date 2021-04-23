@@ -64,6 +64,8 @@ func (s *secbootSuite) SetUpTest(c *C) {
 }
 
 func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
+	c.Check(secboot.WithSecbootSupport, Equals, true)
+
 	sbEmpty := []uint8{}
 	sbEnabled := []uint8{1}
 	sbDisabled := []uint8{0}
