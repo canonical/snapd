@@ -44,7 +44,7 @@ The fde-setup hook should do what is requested and then call
 Here is an example for how the fde-setup hook is called initially:
 $ snapctl fde-setup-request
 {"op":"features"}
-$ echo '[]' | snapctl fde-setup-result
+$ echo  '{"features": []}' | snapctl fde-setup-result
 
 Alternatively the hook could reply with:
 $ echo '{"error":"hardware-unsupported"}' | snapctl fde-setup-result
@@ -52,7 +52,7 @@ $ echo '{"error":"hardware-unsupported"}' | snapctl fde-setup-result
 And then it is called again with a request to do the initial key setup:
 $ snapctl fde-setup-request
 {"op":"initial-setup", "key": "key-to-seal"}
-$ echo "{\"key\":\"$base64_encoded_sealed_key\"}" | snapctl fde-setup-result
+$ echo "{\"sealed-key\":\"$base64_encoded_sealed_key\"}" | snapctl fde-setup-result
 `)
 
 func init() {
@@ -104,10 +104,10 @@ reading it from stdin.
 
 For example:
 When the fde-setup hook is called with "op":"features:
-$ echo "[]" | snapctl fde-setup-result
+$ echo '{"features": []}' | snapctl fde-setup-result
 
 When the fde-setup hook is called with "op":"initial-setup":
-$ echo "{\"key\":\"$base64_encoded_sealed_key\"}" | snapctl fde-setup-result
+$ echo "{\"sealed-key\":\"$base64_encoded_sealed_key\"}" | snapctl fde-setup-result
 `)
 
 func init() {
