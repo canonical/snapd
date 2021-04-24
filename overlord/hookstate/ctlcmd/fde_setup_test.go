@@ -129,8 +129,9 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpFeatures(c *C) {
 func (s *fdeSetupSuite) TestFdeSetupRequestOpInitialSetup(c *C) {
 	mockKey := secboot.EncryptionKey{1, 2, 3, 4}
 	fdeSetup := &fde.SetupRequest{
-		Op:  "initial-setup",
-		Key: mockKey[:],
+		Op:      "initial-setup",
+		Key:     mockKey[:],
+		KeyName: "the-key-name",
 	}
 	s.mockContext.Lock()
 	s.mockContext.Set("fde-setup-request", fdeSetup)
@@ -142,7 +143,7 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpInitialSetup(c *C) {
 	// the encryption key should be base64 encoded
 	encodedBase64Key := base64.StdEncoding.EncodeToString(mockKey[:])
 
-	c.Check(string(stdout), Equals, fmt.Sprintf(`{"op":"initial-setup","key":%q}`+"\n", encodedBase64Key))
+	c.Check(string(stdout), Equals, fmt.Sprintf(`{"op":"initial-setup","key":%q,"key-name":"the-key-name"}`+"\n", encodedBase64Key))
 	c.Check(string(stderr), Equals, "")
 }
 

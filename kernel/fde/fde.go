@@ -29,13 +29,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
-
-	"github.com/snapcore/snapd/secboot"
 )
-
-func init() {
-	secboot.FDEHasRevealKey = HasRevealKey
-}
 
 // HasRevealKey return true if the current system has a "fde-reveal-key"
 // binary (usually used in the initrd).
@@ -68,7 +62,7 @@ func unmarshalInitialSetupResult(hookOutput []byte) (*InitialSetupResult, error)
 			return nil, fmt.Errorf("cannot decode hook output %q: %v", hookOutput, err)
 		}
 		// v1 hooks do not support a handle
-		handle := json.RawMessage(`{"v1-no-handle": true}`)
+		handle := json.RawMessage(v1NoHandle)
 		res.Handle = &handle
 		res.EncryptedKey = hookOutput
 	}
@@ -86,9 +80,6 @@ type SetupRequest struct {
 	// encode it automatically for us
 	Key     []byte `json:"key,omitempty"`
 	KeyName string `json:"key-name,omitempty"`
-
-	// TODO: provide LoadChains, KernelCmdline etc to support full
-	//       tpm sealing
 }
 
 // A RunSetupHookFunc implements running the fde-setup kernel hook.
@@ -98,9 +89,6 @@ type RunSetupHookFunc func(req *SetupRequest) ([]byte, error)
 type InitialSetupParams struct {
 	Key     []byte
 	KeyName string
-
-	//TODO:UC20: provide bootchains and a way to track measured
-	//boot-assets
 }
 
 // InitalSetupResult contains the outputs of the fde-setup hook

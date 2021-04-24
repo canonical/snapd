@@ -26,7 +26,6 @@ package secboot
 
 import (
 	"crypto/ecdsa"
-	"errors"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
@@ -37,6 +36,9 @@ const (
 	RunObjectPCRPolicyCounterHandle      = 0x01880001
 	FallbackObjectPCRPolicyCounterHandle = 0x01880002
 )
+
+// WithSecbootSupport is true if this package was built with githbu.com/snapcore/secboot.
+var WithSecbootSupport = false
 
 type LoadChain struct {
 	*bootloader.BootFile
@@ -148,16 +150,8 @@ type UnlockResult struct {
 	UnlockMethod UnlockMethod
 }
 
-// FDEHasReveal is setup by devicestate/fde to support device-specific
-// full disk encryption implementations.
-var FDEHasRevealKey = func() bool { return false }
-
 // EncryptedPartitionName returns the name/label used by an encrypted partition
 // corresponding to a given name.
 func EncryptedPartitionName(name string) string {
 	return name + "-enc"
 }
-
-// BuildWithoutSecbootErr is returned by many functions if the package
-// was build without real secboot support. Mostly useful for tests.
-var BuildWithoutSecbootErr = errors.New("build without secboot support")

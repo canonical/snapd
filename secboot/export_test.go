@@ -22,7 +22,6 @@ package secboot
 
 import (
 	"io"
-	"time"
 
 	sb "github.com/snapcore/secboot"
 )
@@ -155,14 +154,6 @@ func MockRandomKernelUUID(f func() string) (restore func()) {
 	}
 }
 
-func MockRandutilRandomString(f func(n int) string) (restore func()) {
-	old := randutilRandomString
-	randutilRandomString = f
-	return func() {
-		randutilRandomString = old
-	}
-}
-
 func MockSbInitializeLUKS2Container(f func(devicePath, label string, key []byte,
 	opts *sb.InitializeLUKS2ContainerOptions) error) (restore func()) {
 	old := sbInitializeLUKS2Container
@@ -189,41 +180,9 @@ func MockIsTPMEnabled(f func(tpm *sb.TPMConnection) bool) (restore func()) {
 }
 
 func MockFDEHasRevealKey(f func() bool) (restore func()) {
-	old := FDEHasRevealKey
-	FDEHasRevealKey = f
+	old := fdeHasRevealKey
+	fdeHasRevealKey = f
 	return func() {
-		FDEHasRevealKey = old
-	}
-}
-
-func MockFdeRevealKeyCommandExtra(args []string) (restore func()) {
-	oldFdeRevealKeyCommandExtra := fdeRevealKeyCommandExtra
-	fdeRevealKeyCommandExtra = args
-	return func() {
-		fdeRevealKeyCommandExtra = oldFdeRevealKeyCommandExtra
-	}
-}
-
-func MockFdeRevealKeyRuntimeMax(d time.Duration) (restore func()) {
-	oldFdeRevealKeyRuntimeMax := fdeRevealKeyRuntimeMax
-	fdeRevealKeyRuntimeMax = d
-	return func() {
-		fdeRevealKeyRuntimeMax = oldFdeRevealKeyRuntimeMax
-	}
-}
-
-func MockFdeRevealKeyPollWaitParanoiaFactor(n int) (restore func()) {
-	oldFdeRevealKeyPollWaitParanoiaFactor := fdeRevealKeyPollWaitParanoiaFactor
-	fdeRevealKeyPollWaitParanoiaFactor = n
-	return func() {
-		fdeRevealKeyPollWaitParanoiaFactor = oldFdeRevealKeyPollWaitParanoiaFactor
-	}
-}
-
-func MockRandRead(f func(p []byte) (int, error)) (restore func()) {
-	oldRandRead := randRead
-	randRead = f
-	return func() {
-		randRead = oldRandRead
+		fdeHasRevealKey = old
 	}
 }
