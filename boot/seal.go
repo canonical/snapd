@@ -44,8 +44,9 @@ import (
 )
 
 var (
-	secbootSealKeys   = secboot.SealKeys
-	secbootResealKeys = secboot.ResealKeys
+	secbootSealKeys                 = secboot.SealKeys
+	secbootSealKeysWithFDESetupHook = secboot.SealKeysWithFDESetupHook
+	secbootResealKeys               = secboot.ResealKeys
 
 	seedReadSystemEssential = seed.ReadSystemEssential
 )
@@ -132,20 +133,9 @@ func fallbackKeySealRequests(key, saveKey secboot.EncryptionKey) []secboot.SealK
 }
 
 func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
-	// TODO: support full boot chains
-
-	for _, skr := range append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey)...) {
-		params := &fde.InitialSetupParams{
-			Key:     skr.Key,
-			KeyName: skr.KeyName,
-		}
-		res, err := fde.InitialSetup(RunFDESetupHook, params)
-		if err != nil {
-			return err
-		}
-		if err := osutil.AtomicWriteFile(skr.KeyFile, res.EncryptedKey, 0600, 0); err != nil {
-			return fmt.Errorf("cannot store key: %v", err)
-		}
+	skrs := append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey)...)
+	if err := secbootSealKeysWithFDESetupHook(RunFDESetupHook, skrs); err != nil {
+		return err
 	}
 
 	if err := stampSealedKeys(InstallHostWritableDir, "fde-setup-hook"); err != nil {
