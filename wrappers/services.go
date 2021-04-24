@@ -892,7 +892,7 @@ After={{ stringsJoin .After " " }}
 Before={{ stringsJoin .Before " "}}
 {{- end}}
 {{- if .CoreMountedSnapdSnapDep}}
-Requires={{ stringsJoin .CoreMountedSnapdSnapDep " "}}
+Wants={{ stringsJoin .CoreMountedSnapdSnapDep " "}}
 After={{ stringsJoin .CoreMountedSnapdSnapDep " "}}
 {{- end}}
 X-Snappy=yes
@@ -1068,7 +1068,7 @@ WantedBy={{.ServicesTarget}}
 		// into the host system via a special mount unit, which
 		// also adds an implicit dependency on the snapd snap
 		// mount thus /usr/bin/snap points
-		wrapperData.CoreMountedSnapdSnapDep = []string{snapdToolingMountUnit}
+		wrapperData.CoreMountedSnapdSnapDep = []string{SnapdToolingMountUnit}
 	}
 
 	if err := t.Execute(&templateOut, wrapperData); err != nil {
