@@ -64,7 +64,7 @@ fi
 	defer mockedSnapctl.Restore()
 	err := fdeHook.RunFdeSetup()
 	c.Assert(err, IsNil)
-	c.Check(fdeSetupResultStdin, testutil.FileEquals, fmt.Sprintf(`{"encrypted-key":"%s","handle":"%s"}`, b64EncryptedKey, b64testKeyHandle))
+	c.Check(fdeSetupResultStdin, testutil.FileEquals, fmt.Sprintf(`{"sealed-key":"%s","handle":"%s"}`, b64EncryptedKey, b64testKeyHandle))
 }
 
 func (r *fdeSetupSuite) TestRunFdeRevealKey(c *C) {
