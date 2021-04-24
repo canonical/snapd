@@ -21,6 +21,7 @@
 package secboot_test
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"encoding/base64"
 	"encoding/json"
@@ -30,7 +31,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
@@ -1208,7 +1208,9 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1An
 		},
 	}
 
+	activated := 0
 	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte, options *sb.ActivateVolumeOptions) error {
+		activated++
 		c.Check(string(key), Equals, "unsealed-key-64-chars-long-when-not-json-to-match-denver-project")
 		return nil
 	})
@@ -1231,6 +1233,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1An
 		PartDevice:   "/dev/disk/by-partuuid/enc-dev-partuuid",
 		FsDevice:     "/dev/mapper/device-name-random-uuid-for-test",
 	})
+	c.Check(activated, Equals, 1)
 	c.Check(reqs, HasLen, 1)
 	c.Check(reqs[0].Op, Equals, "reveal")
 	c.Check(reqs[0].SealedKey, DeepEquals, sealedKeyContent)
@@ -1258,18 +1261,20 @@ func (s *secbootSuite) TestSealKeysWithFDESetupHookHappy(c *C) {
 	tmpdir := c.MkDir()
 
 	n := 0
+	sealedPrefix := []byte("SEALED:")
+	rawHandle1 := json.RawMessage(`{"handle-for":"key1"}`)
 	var runFDESetupHookReqs []*fde.SetupRequest
 	runFDESetupHook := func(req *fde.SetupRequest) ([]byte, error) {
 		n++
 		runFDESetupHookReqs = append(runFDESetupHookReqs, req)
-
-		key := []byte(fmt.Sprintf("key-%v", strconv.Itoa(n)))
-		b, err := json.Marshal(fmt.Sprintf("handle-%v", strconv.Itoa(n)))
-		c.Assert(err, IsNil)
-		handle := json.RawMessage(b)
+		payload := append(sealedPrefix, req.Key...)
+		var handle *json.RawMessage
+		if req.KeyName == "key1" {
+			handle = &rawHandle1
+		}
 		res := &fde.InitialSetupResult{
-			EncryptedKey: key,
-			Handle:       &handle,
+			EncryptedKey: payload,
+			Handle:       handle,
 		}
 		return json.Marshal(res)
 	}
@@ -1285,16 +1290,21 @@ func (s *secbootSuite) TestSealKeysWithFDESetupHookHappy(c *C) {
 		})
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
+	key1Payload := sb.MarshalKeys([]byte(key1), secboot.DummyAuxKey)
+	key2Payload := sb.MarshalKeys([]byte(key2), secboot.DummyAuxKey)
 	c.Check(runFDESetupHookReqs, DeepEquals, []*fde.SetupRequest{
-		{Op: "initial-setup", Key: key1[:], KeyName: "key1"},
-		{Op: "initial-setup", Key: key2[:], KeyName: "key2"},
+		{Op: "initial-setup", Key: key1Payload, KeyName: "key1"},
+		{Op: "initial-setup", Key: key2Payload, KeyName: "key2"},
 	})
 	// check that the sealed keys got written to the expected places
-	for i, p := range []string{key1Fn, key2Fn} {
-		// Check for a valid platform handle, encrypted payload (base64)
-		mockedSealedKey := []byte(fmt.Sprintf("key-%v", strconv.Itoa(i+1)))
-		c.Check(p, testutil.FileEquals, mockedSealedKey)
+	for _, p := range []string{key1Fn, key2Fn} {
+		c.Check(p, testutil.FilePresent)
 	}
+
+	// roundtrip to check what was written
+	s.checkV2Key(c, key1Fn, sealedPrefix, key1, &rawHandle1)
+	nullHandle := json.RawMessage("null")
+	s.checkV2Key(c, key2Fn, sealedPrefix, key2, &nullHandle)
 }
 
 func (s *secbootSuite) TestSealKeysWithFDESetupHookSad(c *C) {
@@ -1374,7 +1384,9 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 	}
 
 	expectedKey := makeMockDiskKey()
+	activated := 0
 	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte, options *sb.ActivateVolumeOptions) error {
+		activated++
 		c.Check(key, DeepEquals, []byte(expectedKey))
 		return nil
 	})
@@ -1393,10 +1405,57 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 		PartDevice:   "/dev/disk/by-partuuid/enc-dev-partuuid",
 		FsDevice:     "/dev/mapper/device-name-random-uuid-for-test",
 	})
+	c.Check(activated, Equals, 1)
 	c.Check(reqs, HasLen, 1)
 	c.Check(reqs[0].Op, Equals, "reveal")
 	c.Check(reqs[0].SealedKey, DeepEquals, makeMockEncryptedPayload())
 	c.Check(reqs[0].Handle, DeepEquals, &handle)
+}
+
+func (s *secbootSuite) checkV2Key(c *C, keyFn string, prefixToDrop, expectedKey []byte, handle *json.RawMessage) {
+	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
+		c.Check(req.Handle, DeepEquals, handle)
+		c.Check(bytes.HasPrefix(req.SealedKey, prefixToDrop), Equals, true)
+		payload := req.SealedKey[len(prefixToDrop):]
+		return []byte(fmt.Sprintf(`{"key": "%s"}`, base64.StdEncoding.EncodeToString(payload))), nil
+	})
+	defer restore()
+
+	restore = secboot.MockFDEHasRevealKey(func() bool {
+		return true
+	})
+	defer restore()
+
+	restore = secboot.MockRandomKernelUUID(func() string {
+		return "random-uuid-for-test"
+	})
+	defer restore()
+
+	mockDiskWithEncDev := &disks.MockDiskMapping{
+		FilesystemLabelToPartUUID: map[string]string{
+			"device-name-enc": "enc-dev-partuuid",
+		},
+	}
+
+	activated := 0
+	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte, options *sb.ActivateVolumeOptions) error {
+		activated++
+		c.Check(key, DeepEquals, expectedKey)
+		return nil
+	})
+	defer restore()
+
+	defaultDevice := "device-name"
+	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
+	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, keyFn, opts)
+	c.Assert(err, IsNil)
+	c.Check(res, DeepEquals, secboot.UnlockResult{
+		UnlockMethod: secboot.UnlockedWithSealedKey,
+		IsEncrypted:  true,
+		PartDevice:   "/dev/disk/by-partuuid/enc-dev-partuuid",
+		FsDevice:     "/dev/mapper/device-name-random-uuid-for-test",
+	})
+	c.Check(activated, Equals, 1)
 }
 
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1(c *C) {
@@ -1430,7 +1489,9 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1(c
 	}
 
 	mockEncryptedDiskKey := []byte("USK$encrypted-key-no-json-to-match-denver-project")
+	activated := 0
 	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte, options *sb.ActivateVolumeOptions) error {
+		activated++
 		c.Check(key, DeepEquals, mockDiskKey)
 		return nil
 	})
@@ -1452,6 +1513,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV1(c
 		PartDevice:   "/dev/disk/by-partuuid/enc-dev-partuuid",
 		FsDevice:     "/dev/mapper/device-name-random-uuid-for-test",
 	})
+	c.Check(activated, Equals, 1)
 	c.Check(reqs, HasLen, 1)
 	c.Check(reqs[0].Op, Equals, "reveal")
 	c.Check(reqs[0].SealedKey, DeepEquals, mockEncryptedDiskKey)

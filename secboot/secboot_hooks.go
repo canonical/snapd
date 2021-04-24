@@ -22,6 +22,7 @@ package secboot
 
 import (
 	"bytes"
+	"crypto"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -32,7 +33,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/kernel/fde"
-	"github.com/snapcore/snapd/osutil"
 )
 
 var fdeHasRevealKey = fde.HasRevealKey
@@ -44,20 +44,24 @@ func init() {
 	sb.RegisterPlatformKeyDataHandler(fdeHooksPlatformName, handler)
 }
 
+// XXX accept a real aux key
+var dummyAuxKey = make([]byte, 32)
+
 // SealKeysWithFDESetupHook protects the given keys through using the
 // fde-setup hook and saves each protected key to the KeyFile
 // indicated in the key SealKeyRequest.
 func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest) error {
 	for _, skr := range keys {
+		payload := sb.MarshalKeys([]byte(skr.Key), dummyAuxKey)
 		params := &fde.InitialSetupParams{
-			Key:     skr.Key,
+			Key:     payload,
 			KeyName: skr.KeyName,
 		}
 		res, err := fde.InitialSetup(runHook, params)
 		if err != nil {
 			return err
 		}
-		if err := osutil.AtomicWriteFile(skr.KeyFile, res.EncryptedKey, 0600, 0); err != nil {
+		if err := writeKeyData(skr.KeyFile, res, dummyAuxKey); err != nil {
 			return fmt.Errorf("cannot store key: %v", err)
 		}
 	}
@@ -65,20 +69,17 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 	return nil
 }
 
-/*
-
-func MarshalKeys(key []byte, auxKey []byte) []byte {
-	return sb.MarshalKeys(key, auxKey)
-}
-
-func WriteKeyData(name, path string, encryptedPayload, auxKey []byte, rawhandle *json.RawMessage) error {
-	handle, err := json.Marshal(*rawhandle)
-	if err != nil {
-		return err
+func writeKeyData(path string, keySetup *fde.InitialSetupResult, auxKey []byte) error {
+	var handle []byte
+	if keySetup.Handle == nil || len(*keySetup.Handle) == 0 {
+		// XXX should we error or do this in in kernel/fde instead?
+		handle = []byte("null")
+	} else {
+		handle = *keySetup.Handle
 	}
 	kd, err := sb.NewKeyData(&sb.KeyCreationData{
 		PlatformKeyData: sb.PlatformKeyData{
-			EncryptedPayload: encryptedPayload,
+			EncryptedPayload: keySetup.EncryptedKey,
 			Handle:           handle,
 		},
 		PlatformName:      fdeHooksPlatformName,
@@ -86,16 +87,14 @@ func WriteKeyData(name, path string, encryptedPayload, auxKey []byte, rawhandle 
 		SnapModelAuthHash: crypto.SHA256,
 	})
 	if err != nil {
-		return fmt.Errorf("cannot create key-data: %v", err)
+		return fmt.Errorf("cannot create key data: %v", err)
 	}
-	f := sb.NewFileKeyDataWriter(name, path)
+	f := sb.NewFileKeyDataWriter(path)
 	if err := kd.WriteAtomic(f); err != nil {
-		return fmt.Errorf("cannot write key-data: %v", err)
+		return fmt.Errorf("cannot write key data: %v", err)
 	}
-
 	return nil
 }
-*/
 
 func isV1EncryptedKeyFile(p string) bool {
 	// XXX move some of this to kernel/fde
