@@ -46,6 +46,9 @@ var featureSet = map[string]bool{
 	"snap-env": true,
 	// Support for the "command-chain" feature for apps and hooks in snap.yaml
 	"command-chain": true,
+	// Support for "kernel-assets" in gadget.yaml. I.e. having volume
+	// content of the style $kernel:ref`
+	"kernel-assets": true,
 }
 
 // supportedSystemUsernames for now contains the hardcoded list of system
