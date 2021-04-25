@@ -108,6 +108,9 @@ type UnlockVolumeUsingSealedKeyOptions struct {
 	// AllowRecoveryKey when true indicates activation with the recovery key
 	// will be attempted if activation with the sealed key failed.
 	AllowRecoveryKey bool
+	// WhichModel if invoked should return the device model
+	// assertion for which the disk is being unlocked.
+	WhichModel func() (*asserts.Model, error)
 }
 
 // UnlockMethod is the method that was used to unlock a volume.
