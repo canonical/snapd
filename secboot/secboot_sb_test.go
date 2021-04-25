@@ -37,6 +37,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/dirs"
@@ -1372,6 +1373,45 @@ func makeMockSealedKeyFile(c *C, handle json.RawMessage) string {
 	return mockSealedKeyFile
 }
 
+var fakeModel = assertstest.FakeAssertion(map[string]interface{}{
+	"type":         "model",
+	"authority-id": "my-brand",
+	"series":       "16",
+	"brand-id":     "my-brand",
+	"model":        "my-model",
+	"grade":        "signed",
+	"architecture": "amd64",
+	"base":         "core20",
+	"snaps": []interface{}{
+		map[string]interface{}{
+			"name":            "pc-kernel",
+			"id":              "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza",
+			"type":            "kernel",
+			"default-channel": "20",
+		},
+		map[string]interface{}{
+			"name":            "pc",
+			"id":              "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH",
+			"type":            "gadget",
+			"default-channel": "20",
+		}},
+}).(*asserts.Model)
+
+type mockSnapModelChecker struct {
+	mockIsAuthorized bool
+	mockError        error
+}
+
+func (c *mockSnapModelChecker) IsModelAuthorized(model sb.SnapModel) (bool, error) {
+	if model.BrandID() != "my-brand" || model.Model() != "my-model" {
+		return false, fmt.Errorf("not the test model")
+	}
+	return c.mockIsAuthorized, c.mockError
+}
+func (c *mockSnapModelChecker) VolumeName() string {
+	return "volume-name"
+}
+
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c *C) {
 	var reqs []*fde.RevealKeyRequest
 	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
@@ -1407,8 +1447,8 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 		key, _, err := keyData.RecoverKeys()
 		c.Assert(err, IsNil)
 		c.Check([]byte(key), DeepEquals, []byte(expectedKey))
-		// XXX model checker
-		return nil, nil
+		modChecker := &mockSnapModelChecker{mockIsAuthorized: true}
+		return modChecker, nil
 	})
 	defer restore()
 
@@ -1416,7 +1456,11 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 	handle := json.RawMessage(`{"a": "handle"}`)
 	mockSealedKeyFile := makeMockSealedKeyFile(c, handle)
 
-	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
+	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
+		WhichModel: func() (*asserts.Model, error) {
+			return fakeModel, nil
+		},
+	}
 	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, secboot.UnlockResult{
@@ -1430,6 +1474,92 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 	c.Check(reqs[0].Op, Equals, "reveal")
 	c.Check(reqs[0].SealedKey, DeepEquals, makeMockEncryptedPayload())
 	c.Check(reqs[0].Handle, DeepEquals, &handle)
+}
+
+func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2ModelUnauthorized(c *C) {
+	restore := secboot.MockFDEHasRevealKey(func() bool {
+		return true
+	})
+	defer restore()
+
+	restore = secboot.MockRandomKernelUUID(func() string {
+		return "random-uuid-for-test"
+	})
+	defer restore()
+
+	mockDiskWithEncDev := &disks.MockDiskMapping{
+		FilesystemLabelToPartUUID: map[string]string{
+			"device-name-enc": "enc-dev-partuuid",
+		},
+	}
+
+	activated := 0
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
+		activated++
+		modChecker := &mockSnapModelChecker{mockIsAuthorized: false}
+		return modChecker, nil
+	})
+	defer restore()
+
+	defaultDevice := "device-name"
+	handle := json.RawMessage(`{"a": "handle"}`)
+	mockSealedKeyFile := makeMockSealedKeyFile(c, handle)
+
+	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
+		WhichModel: func() (*asserts.Model, error) {
+			return fakeModel, nil
+		},
+	}
+	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
+	c.Assert(err, ErrorMatches, `cannot unlock volume: model my-brand/my-model not authorized`)
+	c.Check(res, DeepEquals, secboot.UnlockResult{
+		IsEncrypted: true,
+		PartDevice:  "/dev/disk/by-partuuid/enc-dev-partuuid",
+	})
+	c.Check(activated, Equals, 1)
+}
+
+func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2ModelCheckerError(c *C) {
+	restore := secboot.MockFDEHasRevealKey(func() bool {
+		return true
+	})
+	defer restore()
+
+	restore = secboot.MockRandomKernelUUID(func() string {
+		return "random-uuid-for-test"
+	})
+	defer restore()
+
+	mockDiskWithEncDev := &disks.MockDiskMapping{
+		FilesystemLabelToPartUUID: map[string]string{
+			"device-name-enc": "enc-dev-partuuid",
+		},
+	}
+
+	activated := 0
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
+		activated++
+		modChecker := &mockSnapModelChecker{mockError: errors.New("model checker error")}
+		return modChecker, nil
+	})
+	defer restore()
+
+	defaultDevice := "device-name"
+	handle := json.RawMessage(`{"a": "handle"}`)
+	mockSealedKeyFile := makeMockSealedKeyFile(c, handle)
+
+	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
+		WhichModel: func() (*asserts.Model, error) {
+			return fakeModel, nil
+		},
+	}
+	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
+	c.Assert(err, ErrorMatches, `cannot check if model is authorized to unlock disk: model checker error`)
+	c.Check(res, DeepEquals, secboot.UnlockResult{
+		IsEncrypted: true,
+		PartDevice:  "/dev/disk/by-partuuid/enc-dev-partuuid",
+	})
+	c.Check(activated, Equals, 1)
 }
 
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2AllowRecoverKey(c *C) {
@@ -1523,13 +1653,17 @@ func (s *secbootSuite) checkV2Key(c *C, keyFn string, prefixToDrop, expectedKey 
 		key, _, err := keyData.RecoverKeys()
 		c.Assert(err, IsNil)
 		c.Check([]byte(key), DeepEquals, []byte(expectedKey))
-		// XXX model checker
-		return nil, nil
+		modChecker := &mockSnapModelChecker{mockIsAuthorized: true}
+		return modChecker, nil
 	})
 	defer restore()
 
 	defaultDevice := "device-name"
-	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
+	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
+		WhichModel: func() (*asserts.Model, error) {
+			return fakeModel, nil
+		},
+	}
 	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, keyFn, opts)
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, secboot.UnlockResult{

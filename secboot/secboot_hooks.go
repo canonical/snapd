@@ -168,7 +168,7 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sou
 
 	// the output of fde-reveal-key is the unsealed key
 	options := activateVolOpts(opts.AllowRecoveryKey)
-	_, err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, keyData, options) // XXX smChecker
+	modChecker, err := sbActivateVolumeWithKeyData(mapperName, sourceDevice, keyData, options)
 	if err == sb.ErrRecoveryKeyUsed {
 		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
 		res.FsDevice = targetDevice
@@ -177,6 +177,19 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sou
 	}
 	if err != nil {
 		return res, fmt.Errorf("cannot unlock encrypted partition: %v", err)
+	}
+	model, err := opts.WhichModel()
+	if err != nil {
+		return res, fmt.Errorf("cannot retrieve which model to unlock for: %v", err)
+	}
+	ok, err := modChecker.IsModelAuthorized(model)
+	if err != nil {
+		return res, fmt.Errorf("cannot check if model is authorized to unlock disk: %v", err)
+	}
+	if !ok {
+		// XXX: do we need to do some cleanup here? like unactivate
+		// the volume or something?
+		return res, fmt.Errorf("cannot unlock volume: model %s/%s not authorized", model.BrandID(), model.Model())
 	}
 
 	logger.Noticef("successfully activated encrypted device %q using FDE kernel hooks", sourceDevice)
