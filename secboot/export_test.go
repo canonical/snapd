@@ -29,9 +29,15 @@ import (
 var (
 	EFIImageFromBootFile = efiImageFromBootFile
 	LockTPMSealedKeys    = lockTPMSealedKeys
-
-	DummyAuxKey = dummyAuxKey
 )
+
+func MockRandRead(f func(p []byte) (int, error)) (restore func()) {
+	oldRandRead := randRead
+	randRead = f
+	return func() {
+		randRead = oldRandRead
+	}
+}
 
 func MockSbConnectToDefaultTPM(f func() (*sb.TPMConnection, error)) (restore func()) {
 	old := sbConnectToDefaultTPM

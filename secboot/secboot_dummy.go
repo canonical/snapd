@@ -36,7 +36,7 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 	return errBuildWithoutSecboot
 }
 
-func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest) error {
+func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
 	return errBuildWithoutSecboot
 }
 

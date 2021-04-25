@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -91,6 +91,16 @@ type SealKeysParams struct {
 	TPMProvision bool
 	// The handle at which to create a NV index for dynamic authorization policy revocation support
 	PCRPolicyCounterHandle uint32
+}
+
+type SealKeysWithFDESetupHookParams struct {
+	// Initial model to bind sealed keys to.
+	Model *asserts.Model
+	// AuxKey is the auxiliary key used to bind models.
+	AuxKey AuxKey
+	// The path to the aux key file (if empty the key will not be
+	// saved)
+	AuxKeyFile string
 }
 
 type ResealKeysParams struct {

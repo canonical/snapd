@@ -34,6 +34,7 @@ import (
 
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 )
 
 var fdeHasRevealKey = fde.HasRevealKey
@@ -45,32 +46,35 @@ func init() {
 	sb.RegisterPlatformKeyDataHandler(fdeHooksPlatformName, handler)
 }
 
-// XXX accept a real aux key
-var dummyAuxKey = make([]byte, 32)
-
 // SealKeysWithFDESetupHook protects the given keys through using the
 // fde-setup hook and saves each protected key to the KeyFile
 // indicated in the key SealKeyRequest.
-func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest) error {
+func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
+	auxKey := params.AuxKey[:]
 	for _, skr := range keys {
-		payload := sb.MarshalKeys([]byte(skr.Key), dummyAuxKey)
-		params := &fde.InitialSetupParams{
+		payload := sb.MarshalKeys([]byte(skr.Key), auxKey)
+		keyParams := &fde.InitialSetupParams{
 			Key:     payload,
 			KeyName: skr.KeyName,
 		}
-		res, err := fde.InitialSetup(runHook, params)
+		res, err := fde.InitialSetup(runHook, keyParams)
 		if err != nil {
 			return err
 		}
-		if err := writeKeyData(skr.KeyFile, res, dummyAuxKey); err != nil {
+		if err := writeKeyData(skr.KeyFile, res, auxKey, params.Model); err != nil {
 			return fmt.Errorf("cannot store key: %v", err)
+		}
+	}
+	if params.AuxKeyFile != "" {
+		if err := osutil.AtomicWriteFile(params.AuxKeyFile, auxKey, 0600, 0); err != nil {
+			return fmt.Errorf("cannot write the aux key file: %v", err)
 		}
 	}
 
 	return nil
 }
 
-func writeKeyData(path string, keySetup *fde.InitialSetupResult, auxKey []byte) error {
+func writeKeyData(path string, keySetup *fde.InitialSetupResult, auxKey []byte, model sb.SnapModel) error {
 	var handle []byte
 	if keySetup.Handle == nil {
 		// this will reach fde-reveal-key as null but should be ok
@@ -89,6 +93,9 @@ func writeKeyData(path string, keySetup *fde.InitialSetupResult, auxKey []byte) 
 	})
 	if err != nil {
 		return fmt.Errorf("cannot create key data: %v", err)
+	}
+	if err := kd.SetAuthorizedSnapModels(auxKey, model); err != nil {
+		return fmt.Errorf("cannot set model %s/%s as authorized: %v", model.BrandID(), model.Model(), err)
 	}
 	f := sb.NewFileKeyDataWriter(path)
 	if err := kd.WriteAtomic(f); err != nil {

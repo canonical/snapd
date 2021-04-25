@@ -1368,6 +1368,8 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	})
 	defer restore()
 
+	model := boottest.MakeMockUC20Model()
+
 	n := 0
 	var runFDESetupHookReqs []*fde.SetupRequest
 	restore = boot.MockRunFDESetupHook(func(req *fde.SetupRequest) ([]byte, error) {
@@ -1379,7 +1381,9 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	})
 	defer restore()
 	keyToSave := make(map[string][]byte)
-	restore = boot.MockSecbootSealKeysWithFDESetupHook(func(runHook fde.RunSetupHookFunc, skrs []secboot.SealKeyRequest) error {
+	restore = boot.MockSecbootSealKeysWithFDESetupHook(func(runHook fde.RunSetupHookFunc, skrs []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error {
+		c.Check(params.Model, DeepEquals, model)
+		c.Check(params.AuxKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "aux-key"))
 		for _, skr := range skrs {
 			out, err := runHook(&fde.SetupRequest{
 				Key:     skr.Key,
@@ -1398,7 +1402,6 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	key := secboot.EncryptionKey{1, 2, 3, 4}
 	saveKey := secboot.EncryptionKey{5, 6, 7, 8}
 
-	model := boottest.MakeMockUC20Model()
 	err := boot.SealKeyToModeenv(key, saveKey, model, modeenv)
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
@@ -1432,7 +1435,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	})
 	defer restore()
 
-	restore = boot.MockSecbootSealKeysWithFDESetupHook(func(fde.RunSetupHookFunc, []secboot.SealKeyRequest) error {
+	restore = boot.MockSecbootSealKeysWithFDESetupHook(func(fde.RunSetupHookFunc, []secboot.SealKeyRequest, *secboot.SealKeysWithFDESetupHookParams) error {
 		return fmt.Errorf("hook failed")
 	})
 	defer restore()

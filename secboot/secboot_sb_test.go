@@ -1179,7 +1179,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(
 	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
 		// XXX: this is what the real
 		// MockSbActivateVolumeWithKeyData will do
-		// XXX aux key
 		_, _, err := keyData.RecoverKeys()
 		if err != nil {
 			return nil, err
@@ -1295,17 +1294,24 @@ func (s *secbootSuite) TestSealKeysWithFDESetupHookHappy(c *C) {
 
 	key1 := secboot.EncryptionKey{1, 2, 3, 4}
 	key2 := secboot.EncryptionKey{5, 6, 7, 8}
+	auxKey := secboot.AuxKey{9, 10, 11, 12}
 	key1Fn := filepath.Join(tmpdir, "key1.key")
 	key2Fn := filepath.Join(tmpdir, "key2.key")
+	auxKeyFn := filepath.Join(tmpdir, "aux-key")
+	params := secboot.SealKeysWithFDESetupHookParams{
+		Model:      fakeModel,
+		AuxKey:     auxKey,
+		AuxKeyFile: auxKeyFn,
+	}
 	err := secboot.SealKeysWithFDESetupHook(runFDESetupHook,
 		[]secboot.SealKeyRequest{
 			{Key: key1, KeyName: "key1", KeyFile: key1Fn},
 			{Key: key2, KeyName: "key2", KeyFile: key2Fn},
-		})
+		}, &params)
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
-	key1Payload := sb.MarshalKeys([]byte(key1), secboot.DummyAuxKey)
-	key2Payload := sb.MarshalKeys([]byte(key2), secboot.DummyAuxKey)
+	key1Payload := sb.MarshalKeys([]byte(key1), auxKey[:])
+	key2Payload := sb.MarshalKeys([]byte(key2), auxKey[:])
 	c.Check(runFDESetupHookReqs, DeepEquals, []*fde.SetupRequest{
 		{Op: "initial-setup", Key: key1Payload, KeyName: "key1"},
 		{Op: "initial-setup", Key: key2Payload, KeyName: "key2"},
@@ -1314,11 +1320,12 @@ func (s *secbootSuite) TestSealKeysWithFDESetupHookHappy(c *C) {
 	for _, p := range []string{key1Fn, key2Fn} {
 		c.Check(p, testutil.FilePresent)
 	}
+	c.Check(auxKeyFn, testutil.FileEquals, auxKey[:])
 
 	// roundtrip to check what was written
-	s.checkV2Key(c, key1Fn, sealedPrefix, key1, &rawHandle1)
+	s.checkV2Key(c, key1Fn, sealedPrefix, key1, auxKey[:], fakeModel, &rawHandle1)
 	nullHandle := json.RawMessage("null")
-	s.checkV2Key(c, key2Fn, sealedPrefix, key2, &nullHandle)
+	s.checkV2Key(c, key2Fn, sealedPrefix, key2, auxKey[:], fakeModel, &nullHandle)
 }
 
 func (s *secbootSuite) TestSealKeysWithFDESetupHookSad(c *C) {
@@ -1329,23 +1336,35 @@ func (s *secbootSuite) TestSealKeysWithFDESetupHookSad(c *C) {
 	}
 
 	key := secboot.EncryptionKey{1, 2, 3, 4}
+	auxKey := secboot.AuxKey{5, 6, 7, 8}
 	keyFn := filepath.Join(tmpdir, "key.key")
+	auxKeyFn := filepath.Join(tmpdir, "aux-key")
+	params := secboot.SealKeysWithFDESetupHookParams{
+		Model:      fakeModel,
+		AuxKey:     auxKey,
+		AuxKeyFile: auxKeyFn,
+	}
 	err := secboot.SealKeysWithFDESetupHook(runFDESetupHook,
 		[]secboot.SealKeyRequest{
 			{Key: key, KeyName: "key1", KeyFile: keyFn},
-		})
+		}, &params)
 	c.Assert(err, ErrorMatches, "hook failed")
 	c.Check(keyFn, testutil.FileAbsent)
+	c.Check(auxKeyFn, testutil.FileAbsent)
 }
 
 func makeMockDiskKey() secboot.EncryptionKey {
 	return secboot.EncryptionKey{0, 1, 2, 3, 4, 5}
 }
 
+func makeMockAuxKey() secboot.AuxKey {
+	return secboot.AuxKey{6, 7, 8, 9}
+}
+
 func makeMockUnencryptedPayload() []byte {
 	diskKey := makeMockDiskKey()
-	auxKey := []byte("dummy-aux-key")
-	return sb.MarshalKeys([]byte(diskKey), auxKey)
+	auxKey := makeMockAuxKey()
+	return sb.MarshalKeys([]byte(diskKey), auxKey[:])
 }
 
 func makeMockEncryptedPayload() []byte {
@@ -1437,16 +1456,17 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 	}
 
 	expectedKey := makeMockDiskKey()
+	expectedAuxKey := makeMockAuxKey()
 	activated := 0
 	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
 		activated++
 		c.Check(options.RecoveryKeyTries, Equals, 0)
 		// XXX: this is what the real
 		// MockSbActivateVolumeWithKeyData will do
-		// XXX aux key
-		key, _, err := keyData.RecoverKeys()
+		key, auxKey, err := keyData.RecoverKeys()
 		c.Assert(err, IsNil)
 		c.Check([]byte(key), DeepEquals, []byte(expectedKey))
+		c.Check([]byte(auxKey), DeepEquals, expectedAuxKey[:])
 		modChecker := &mockSnapModelChecker{mockIsAuthorized: true}
 		return modChecker, nil
 	})
@@ -1592,7 +1612,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Al
 		c.Check(options.RecoveryKeyTries, Equals, 3)
 		// XXX: this is what the real
 		// MockSbActivateVolumeWithKeyData will do
-		// XXX aux key
 		_, _, err := keyData.RecoverKeys()
 		c.Assert(err, NotNil)
 		return nil, sb.ErrRecoveryKeyUsed
@@ -1619,7 +1638,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Al
 	c.Check(reqs[0].Handle, DeepEquals, &handle)
 }
 
-func (s *secbootSuite) checkV2Key(c *C, keyFn string, prefixToDrop, expectedKey []byte, handle *json.RawMessage) {
+func (s *secbootSuite) checkV2Key(c *C, keyFn string, prefixToDrop, expectedKey, expectedAuxKey []byte, authModel *asserts.Model, handle *json.RawMessage) {
 	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
 		c.Check(req.Handle, DeepEquals, handle)
 		c.Check(bytes.HasPrefix(req.SealedKey, prefixToDrop), Equals, true)
@@ -1649,10 +1668,14 @@ func (s *secbootSuite) checkV2Key(c *C, keyFn string, prefixToDrop, expectedKey 
 		activated++
 		// XXX: this is what the real
 		// MockSbActivateVolumeWithKeyData will do
-		// XXX aux key
-		key, _, err := keyData.RecoverKeys()
+		key, auxKey, err := keyData.RecoverKeys()
 		c.Assert(err, IsNil)
 		c.Check([]byte(key), DeepEquals, []byte(expectedKey))
+		c.Check([]byte(auxKey), DeepEquals, []byte(expectedAuxKey))
+		// check against model
+		ok, err := keyData.IsSnapModelAuthorized(auxKey, authModel)
+		c.Assert(err, IsNil)
+		c.Check(ok, Equals, true)
 		modChecker := &mockSnapModelChecker{mockIsAuthorized: true}
 		return modChecker, nil
 	})
@@ -1762,7 +1785,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJ
 	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
 		// XXX: this is what the real
 		// MockSbActivateVolumeWithKeyData will do
-		// XXX aux key
 		_, _, err := keyData.RecoverKeys()
 		if err != nil {
 			return nil, err
