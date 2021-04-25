@@ -45,8 +45,8 @@ const greengrassSupportBaseDeclarationSlots = `
 `
 
 const greengrassSupportConnectedPlugAppArmorCore = `
-# these accesses are necessary for Ubuntu Core 16, likely due to the version 
-# of apparmor or the kernel which doesn't resolve the upper layer of an 
+# these accesses are necessary for Ubuntu Core 16, likely due to the version
+# of apparmor or the kernel which doesn't resolve the upper layer of an
 # overlayfs mount correctly
 # the accesses show up as runc trying to read from
 # /system-data/var/snap/greengrass/x1/ggc-writable/packages/1.7.0/var/worker/overlays/$UUID/upper/
@@ -56,9 +56,9 @@ const greengrassSupportConnectedPlugAppArmorCore = `
 
 const greengrassSupportProcessModeConnectedPlugAppArmor = `
 # Description: can manage greengrass 'things' and their sandboxes. This policy
-# is meant currently only to enable Greengrass to run _only_ process-mode or 
+# is meant currently only to enable Greengrass to run _only_ process-mode or
 # "no container" lambdas.
-# needed by older versions of cloneBinary.ensureSelfCloned() to avoid 
+# needed by older versions of cloneBinary.ensureSelfCloned() to avoid
 # CVE-2019-5736
 / ix,
 # newer versions of runC have this denial instead of "/ ix" above
@@ -117,7 +117,7 @@ capability dac_override,  # for various overlayfs accesses
 
 # cgroup accesses
 # greengrassd extensively uses cgroups to confine it's containers (AKA lambdas)
-# and needs to read what cgroups are available; we allow reading any cgroup, 
+# and needs to read what cgroups are available; we allow reading any cgroup,
 # but limit writes below
 # also note that currently greengrass is not implemented in such a way that it
 # can stack it's cgroups inside the cgroup that snapd would normally enforce
@@ -143,7 +143,7 @@ owner /old_rootfs/sys/fs/cgroup/cpu,cpuacct/system.slice/snap.@{SNAP_NAME}.green
 # specific rule for cpuset files
 owner /old_rootfs/sys/fs/cgroup/cpuset/{,system.slice/}cpuset.{cpus,mems} rw,
 
-# the wrapper scripts need to use mount/umount and pivot_root from the 
+# the wrapper scripts need to use mount/umount and pivot_root from the
 # core snap
 /bin/{,u}mount ixr,
 /sbin/pivot_root ixr,
@@ -187,9 +187,9 @@ mount options=ro /dev/loop[0-9]* -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME
 # completeness allow SNAP_INSTANCE_NAME too
 mount options=(rw, bind) /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** ,
 mount options=(rw, rbind) /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** ,
-# also allow mounting new files anywhere underneath the rootfs of the target 
+# also allow mounting new files anywhere underneath the rootfs of the target
 # overlayfs directory, which is the rootfs of the container
-# this is for allowing local resource access which first makes a mount at 
+# this is for allowing local resource access which first makes a mount at
 # the target destination and then a bind mount from the source to the destination
 # the source destination mount will be allowed under the above rule
 mount -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/**,
@@ -236,7 +236,7 @@ mount options=(rw, bind) /dev/urandom -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE
 mount options=(rw, bind) /run/ -> /run/,
 
 # mounts for resolv.conf inside the container
-# we have to manually do this otherwise the go DNS resolver fails to work, because it isn't configured to 
+# we have to manually do this otherwise the go DNS resolver fails to work, because it isn't configured to
 # use the system DNS server and attempts to do DNS resolution itself, manually inspecting /etc/resolv.conf
 mount options=(ro, bind) /run/systemd/resolve/stub-resolv.conf -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/etc/resolv.conf,
 mount options=(ro, bind) /run/resolvconf/resolv.conf -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/etc/resolv.conf,
@@ -245,7 +245,7 @@ mount options=(ro, remount, bind) -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAM
 # pivot_root for the container initialization into the rootfs
 # note that the actual syscall is pivotroot(".",".")
 # so the oldroot is the same as the new root
-pivot_root 
+pivot_root
 	oldroot=/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/
 	/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/,
 
@@ -281,12 +281,12 @@ capability mknod,
 # and /run is explicitly disallowed for use by layouts
 # also note that technically this access is post-pivot_root, but during the setup
 # for the mount ns that the snap performs (not snapd), /var/run is bind mounted
-# from outside the pivot_root to inside the pivot_root, so this will always 
+# from outside the pivot_root to inside the pivot_root, so this will always
 # access the same files inside or outside the pivot_root
 owner /{var/,}run/greengrassd.pid rw,
 
-# all of the rest of the accesses are made by child containers and as such are 
-# "post-pivot_root", meaning that they aren't accessing these files on the 
+# all of the rest of the accesses are made by child containers and as such are
+# "post-pivot_root", meaning that they aren't accessing these files on the
 # host root filesystem, but rather somewhere inside $SNAP_DATA/rootfs/
 # Note: eventually greengrass will gain the ability to specify child profiles
 # for it's containers and include these rules in that profile so they won't
@@ -386,7 +386,7 @@ sethostname
 # by greengrassd.
 keyctl
 
-# special character device creation is necessary for creating the overlayfs 
+# special character device creation is necessary for creating the overlayfs
 # mounts
 # Unfortunately this grants device ownership to the snap.
 mknod - |S_IFCHR -
