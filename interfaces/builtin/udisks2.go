@@ -96,8 +96,8 @@ umount /{,run/}media/**,
 /run/udisks2/{,**} rw,
 
 # udisksd execs mount/umount to do the actual operations
-/bin/mount ixr,
-/bin/umount ixr,
+/{,usr/}bin/mount ixr,
+/{,usr/}bin/umount ixr,
 
 # mount/umount (via libmount) track some mount info in these files
 /run/mount/utab* wrlk,
