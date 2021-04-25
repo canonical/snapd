@@ -203,7 +203,7 @@ func LockSealedKeys() error {
 // RevealParams contains the parameters for fde-reveal-key reveal operation.
 type RevealParams struct {
 	SealedKey []byte
-	Handle    *json.RawMessage `json:"handle,omitempty"`
+	Handle    *json.RawMessage
 	// V2Payload is set true if SealedKey is expected to contain a v2 payload
 	// (disk key + aux key)
 	V2Payload bool

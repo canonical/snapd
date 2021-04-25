@@ -71,8 +71,8 @@ func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyReques
 
 func writeKeyData(path string, keySetup *fde.InitialSetupResult, auxKey []byte) error {
 	var handle []byte
-	if keySetup.Handle == nil || len(*keySetup.Handle) == 0 {
-		// XXX should we error or do this in in kernel/fde instead?
+	if keySetup.Handle == nil {
+		// this will reach fde-reveal-key as null but should be ok
 		handle = []byte("null")
 	} else {
 		handle = *keySetup.Handle
