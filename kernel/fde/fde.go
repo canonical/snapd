@@ -103,7 +103,7 @@ type InitialSetupResult struct {
 func InitialSetup(runSetupHook RunSetupHookFunc, params *InitialSetupParams) (*InitialSetupResult, error) {
 	req := &SetupRequest{
 		Op:      "initial-setup",
-		Key:     params.Key[:],
+		Key:     params.Key,
 		KeyName: params.KeyName,
 	}
 	hookOutput, err := runSetupHook(req)

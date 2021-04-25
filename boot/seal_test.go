@@ -1403,9 +1403,9 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookReqs, DeepEquals, []*fde.SetupRequest{
-		{Key: key[:], KeyName: "ubuntu-data"},
-		{Key: key[:], KeyName: "ubuntu-data"},
-		{Key: saveKey[:], KeyName: "ubuntu-save"},
+		{Key: key, KeyName: "ubuntu-data"},
+		{Key: key, KeyName: "ubuntu-data"},
+		{Key: saveKey, KeyName: "ubuntu-save"},
 	})
 	// check that the sealed keys got written to the expected places
 	for i, p := range []string{

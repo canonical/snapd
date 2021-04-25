@@ -880,7 +880,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		restore = secboot.MockSbSealKeyToTPMMultiple(func(t *sb.TPMConnection, kr []*sb.SealKeyRequest, params *sb.KeyCreationParams) (sb.TPMPolicyAuthKey, error) {
 			sealCalls++
 			c.Assert(t, Equals, tpm)
-			c.Assert(kr, DeepEquals, []*sb.SealKeyRequest{{Key: myKey[:], Path: "keyfile"}, {Key: myKey2[:], Path: "keyfile2"}})
+			c.Assert(kr, DeepEquals, []*sb.SealKeyRequest{{Key: myKey, Path: "keyfile"}, {Key: myKey2, Path: "keyfile2"}})
 			c.Assert(params.AuthKey, Equals, myAuthKey)
 			c.Assert(params.PCRPolicyCounterHandle, Equals, tpm2.Handle(42))
 			return sb.TPMPolicyAuthKey{}, tc.sealErr

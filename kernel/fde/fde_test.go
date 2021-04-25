@@ -82,7 +82,7 @@ func (s *fdeSuite) TestInitialSetupV2(c *C) {
 	runSetupHook := func(req *fde.SetupRequest) ([]byte, error) {
 		c.Check(req, DeepEquals, &fde.SetupRequest{
 			Op:      "initial-setup",
-			Key:     mockKey[:],
+			Key:     mockKey,
 			KeyName: "some-key-name",
 		})
 		// sealed-key/handle
@@ -110,7 +110,7 @@ func (s *fdeSuite) TestInitialSetupError(c *C) {
 	runSetupHook := func(req *fde.SetupRequest) ([]byte, error) {
 		c.Check(req, DeepEquals, &fde.SetupRequest{
 			Op:      "initial-setup",
-			Key:     mockKey[:],
+			Key:     mockKey,
 			KeyName: "some-key-name",
 		})
 		return nil, errHook
@@ -130,7 +130,7 @@ func (s *fdeSuite) TestInitialSetupV1(c *C) {
 	runSetupHook := func(req *fde.SetupRequest) ([]byte, error) {
 		c.Check(req, DeepEquals, &fde.SetupRequest{
 			Op:      "initial-setup",
-			Key:     mockKey[:],
+			Key:     mockKey,
 			KeyName: "some-key-name",
 		})
 		// needs the USK$ prefix to simulate v1 key
