@@ -145,8 +145,8 @@ owner /old_rootfs/sys/fs/cgroup/cpuset/{,system.slice/}cpuset.{cpus,mems} rw,
 
 # the wrapper scripts need to use mount/umount and pivot_root from the
 # core snap
-/bin/{,u}mount ixr,
-/sbin/pivot_root ixr,
+/{,usr/}bin/{,u}mount ixr,
+/{,usr/}sbin/pivot_root ixr,
 
 # allow pivot_root'ing into the rootfs prepared for the greengrass daemon
 # parallel-installs: SNAP_{DATA,COMMON} are remapped, need to use SNAP_NAME, for

@@ -164,13 +164,13 @@ capability setuid,
 /etc/hosts w,
 
 # resolvconf
-/sbin/resolvconf ixr,
+/{,usr/}sbin/resolvconf ixr,
 /run/resolvconf/{,**} rk,
 /run/resolvconf/** w,
 /etc/resolvconf/{,**} r,
 /lib/resolvconf/* ix,
 # Required by resolvconf
-/bin/run-parts ixr,
+/{,usr/}bin/run-parts ixr,
 /etc/resolvconf/update.d/* ix,
 
 # wpa_suplicant

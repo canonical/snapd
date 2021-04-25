@@ -103,7 +103,7 @@ network packet,
 /etc/machine-id r,
 
 # Needed to use resolvconf from core
-/sbin/resolvconf ixr,
+/{,usr/}sbin/resolvconf ixr,
 /run/resolvconf/{,**} rk,
 /run/resolvconf/** w,
 /etc/resolvconf/{,**} r,
@@ -111,7 +111,7 @@ network packet,
 # NM peeks into ifupdown configuration
 /run/network/ifstate* r,
 # Required by resolvconf
-/bin/run-parts ixr,
+/{,usr/}bin/run-parts ixr,
 /etc/resolvconf/update.d/* ix,
 
 #include <abstractions/nameservice>
