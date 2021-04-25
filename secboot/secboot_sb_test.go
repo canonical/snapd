@@ -1175,9 +1175,22 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(
 	defaultDevice := "name"
 	mockSealedKeyFile := makeMockSealedKeyFile(c, nil)
 
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
+		// XXX: this is what the real
+		// MockSbActivateVolumeWithKeyData will do
+		// XXX aux key
+		_, _, err := keyData.RecoverKeys()
+		if err != nil {
+			return nil, err
+		}
+		c.Fatal("should not get this far")
+		return nil, nil
+	})
+	defer restore()
+
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
 	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
-	c.Assert(err, ErrorMatches, `cannot recover keys because of an unexpected error: cannot run fde-reveal-key "reveal": helper error`)
+	c.Assert(err, ErrorMatches, `cannot unlock encrypted partition: cannot recover keys because of an unexpected error: cannot run fde-reveal-key "reveal": helper error`)
 }
 
 // this test that v1 hooks and raw binary v1 created sealedKey files still work
@@ -1385,10 +1398,17 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 
 	expectedKey := makeMockDiskKey()
 	activated := 0
-	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte, options *sb.ActivateVolumeOptions) error {
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
 		activated++
-		c.Check(key, DeepEquals, []byte(expectedKey))
-		return nil
+		c.Check(options.RecoveryKeyTries, Equals, 0)
+		// XXX: this is what the real
+		// MockSbActivateVolumeWithKeyData will do
+		// XXX aux key
+		key, _, err := keyData.RecoverKeys()
+		c.Assert(err, IsNil)
+		c.Check([]byte(key), DeepEquals, []byte(expectedKey))
+		// XXX model checker
+		return nil, nil
 	})
 	defer restore()
 
@@ -1401,6 +1421,63 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2(c
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, secboot.UnlockResult{
 		UnlockMethod: secboot.UnlockedWithSealedKey,
+		IsEncrypted:  true,
+		PartDevice:   "/dev/disk/by-partuuid/enc-dev-partuuid",
+		FsDevice:     "/dev/mapper/device-name-random-uuid-for-test",
+	})
+	c.Check(activated, Equals, 1)
+	c.Check(reqs, HasLen, 1)
+	c.Check(reqs[0].Op, Equals, "reveal")
+	c.Check(reqs[0].SealedKey, DeepEquals, makeMockEncryptedPayload())
+	c.Check(reqs[0].Handle, DeepEquals, &handle)
+}
+
+func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2AllowRecoverKey(c *C) {
+	var reqs []*fde.RevealKeyRequest
+	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
+		reqs = append(reqs, req)
+		return []byte("invalid-json"), nil
+	})
+	defer restore()
+
+	restore = secboot.MockFDEHasRevealKey(func() bool {
+		return true
+	})
+	defer restore()
+
+	restore = secboot.MockRandomKernelUUID(func() string {
+		return "random-uuid-for-test"
+	})
+	defer restore()
+
+	mockDiskWithEncDev := &disks.MockDiskMapping{
+		FilesystemLabelToPartUUID: map[string]string{
+			"device-name-enc": "enc-dev-partuuid",
+		},
+	}
+
+	activated := 0
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
+		activated++
+		c.Check(options.RecoveryKeyTries, Equals, 3)
+		// XXX: this is what the real
+		// MockSbActivateVolumeWithKeyData will do
+		// XXX aux key
+		_, _, err := keyData.RecoverKeys()
+		c.Assert(err, NotNil)
+		return nil, sb.ErrRecoveryKeyUsed
+	})
+	defer restore()
+
+	defaultDevice := "device-name"
+	handle := json.RawMessage(`{"a": "handle"}`)
+	mockSealedKeyFile := makeMockSealedKeyFile(c, handle)
+
+	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{AllowRecoveryKey: true}
+	res, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
+	c.Assert(err, IsNil)
+	c.Check(res, DeepEquals, secboot.UnlockResult{
+		UnlockMethod: secboot.UnlockedWithRecoveryKey,
 		IsEncrypted:  true,
 		PartDevice:   "/dev/disk/by-partuuid/enc-dev-partuuid",
 		FsDevice:     "/dev/mapper/device-name-random-uuid-for-test",
@@ -1438,10 +1515,16 @@ func (s *secbootSuite) checkV2Key(c *C, keyFn string, prefixToDrop, expectedKey 
 	}
 
 	activated := 0
-	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte, options *sb.ActivateVolumeOptions) error {
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
 		activated++
-		c.Check(key, DeepEquals, expectedKey)
-		return nil
+		// XXX: this is what the real
+		// MockSbActivateVolumeWithKeyData will do
+		// XXX aux key
+		key, _, err := keyData.RecoverKeys()
+		c.Assert(err, IsNil)
+		c.Check([]byte(key), DeepEquals, []byte(expectedKey))
+		// XXX model checker
+		return nil, nil
 	})
 	defer restore()
 
@@ -1542,13 +1625,24 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyBadJ
 		},
 	}
 
+	restore = secboot.MockSbActivateVolumeWithKeyData(func(volumeName, sourceDevicePath string, keyData *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error) {
+		// XXX: this is what the real
+		// MockSbActivateVolumeWithKeyData will do
+		// XXX aux key
+		_, _, err := keyData.RecoverKeys()
+		if err != nil {
+			return nil, err
+		}
+		c.Fatal("should not get this far")
+		return nil, nil
+	})
+	defer restore()
+
 	defaultDevice := "device-name"
 	mockSealedKeyFile := makeMockSealedKeyFile(c, nil)
 
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
 	_, err := secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
 
-	// XXX should we try to unmarshal already in fde.Reveal to produce
-	// a better error message? it breaks separation of concerns though
-	c.Check(err, ErrorMatches, `invalid key data:.*`)
+	c.Check(err, ErrorMatches, `cannot unlock encrypted partition: invalid key data:.*`)
 }

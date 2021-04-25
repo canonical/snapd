@@ -132,6 +132,14 @@ func MockSbActivateVolumeWithKey(f func(volumeName, sourceDevicePath string, key
 	}
 }
 
+func MockSbActivateVolumeWithKeyData(f func(volumeName, sourceDevicePath string, key *sb.KeyData, options *sb.ActivateVolumeOptions) (sb.SnapModelChecker, error)) (restore func()) {
+	oldSbActivateVolumeWithKeyData := sbActivateVolumeWithKeyData
+	sbActivateVolumeWithKeyData = f
+	return func() {
+		sbActivateVolumeWithKeyData = oldSbActivateVolumeWithKeyData
+	}
+}
+
 func MockSbMeasureSnapSystemEpochToTPM(f func(tpm *sb.TPMConnection, pcrIndex int) error) (restore func()) {
 	old := sbMeasureSnapSystemEpochToTPM
 	sbMeasureSnapSystemEpochToTPM = f

@@ -263,23 +263,27 @@ func isActivatedWithRecoveryKey(err error) bool {
 	return activateErr.RecoveryKeyUsageErr == nil
 }
 
-// unlockEncryptedPartitionWithSealedKey unseals the keyfile and opens an encrypted
-// device. If activation with the sealed key fails, this function will attempt to
-// activate it with the fallback recovery key instead.
-func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, keyfile, pinfile string, allowRecovery bool) (UnlockMethod, error) {
+func activateVolOpts(allowRecoveryKey bool) *sb.ActivateVolumeOptions {
 	options := sb.ActivateVolumeOptions{
 		PassphraseTries: 1,
 		// disable recovery key by default
 		RecoveryKeyTries: 0,
 		KeyringPrefix:    keyringPrefix,
 	}
-	if allowRecovery {
+	if allowRecoveryKey {
 		// enable recovery key only when explicitly allowed
 		options.RecoveryKeyTries = 3
 	}
+	return &options
+}
 
+// unlockEncryptedPartitionWithSealedKey unseals the keyfile and opens an encrypted
+// device. If activation with the sealed key fails, this function will attempt to
+// activate it with the fallback recovery key instead.
+func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, keyfile, pinfile string, allowRecovery bool) (UnlockMethod, error) {
+	options := activateVolOpts(allowRecovery)
 	// XXX: pinfile is currently not used
-	activated, err := sbActivateVolumeWithTPMSealedKey(tpm, name, device, keyfile, nil, &options)
+	activated, err := sbActivateVolumeWithTPMSealedKey(tpm, name, device, keyfile, nil, options)
 
 	if activated {
 		// non nil error may indicate the volume was unlocked using the

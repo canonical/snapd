@@ -33,6 +33,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/kernel/fde"
+	"github.com/snapcore/snapd/logger"
 )
 
 var fdeHasRevealKey = fde.HasRevealKey
@@ -164,16 +165,21 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sou
 		fmt := "cannot read key data: %w"
 		return res, xerrors.Errorf(fmt, err)
 	}
-	key, _, err := keyData.RecoverKeys()
-	if err != nil {
-		return res, err
-	}
 
 	// the output of fde-reveal-key is the unsealed key
-	if err := unlockEncryptedPartitionWithKey(mapperName, sourceDevice, key); err != nil {
+	options := activateVolOpts(opts.AllowRecoveryKey)
+	_, err = sbActivateVolumeWithKeyData(mapperName, sourceDevice, keyData, options) // XXX smChecker
+	if err == sb.ErrRecoveryKeyUsed {
+		logger.Noticef("successfully activated encrypted device %q using a fallback activation method", sourceDevice)
+		res.FsDevice = targetDevice
+		res.UnlockMethod = UnlockedWithRecoveryKey
+		return res, nil
+	}
+	if err != nil {
 		return res, fmt.Errorf("cannot unlock encrypted partition: %v", err)
 	}
 
+	logger.Noticef("successfully activated encrypted device %q using FDE kernel hooks", sourceDevice)
 	res.FsDevice = targetDevice
 	res.UnlockMethod = UnlockedWithSealedKey
 	return res, nil
