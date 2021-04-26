@@ -50,7 +50,7 @@ type Group struct {
 	// group where if the total used memory of all the processes exceeds the
 	// limit, oom-killer is invoked which will start killing processes. The
 	// specific behavior of which processes are killed is subject to the
-	// ExhaustionBehavior.
+	// ExhaustionBehavior. MemoryLimit is expressed in bytes.
 	MemoryLimit quantity.Size `json:"memory-limit,omitempty"`
 
 	// MemoryExhaustionBehavior is the behavior that is implemented to decide
