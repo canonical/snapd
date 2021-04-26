@@ -83,6 +83,12 @@ func (ts *quotaTestSuite) TestNewGroup(c *C) {
 			comment: "small group name",
 		},
 		{
+			name:    "",
+			limit:   quantity.SizeMiB,
+			err:     `group name must not be empty`,
+			comment: "empty group name",
+		},
+		{
 			name:    "g",
 			limit:   quantity.SizeMiB,
 			err:     `group name "g" contains invalid character.*`,

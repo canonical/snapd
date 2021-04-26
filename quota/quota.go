@@ -120,6 +120,10 @@ func (grp *Group) SliceFileName() string {
 var validGroupNameRegexp = regexp.MustCompile(`^[a-z][a-z0-9]+$`)
 
 func (grp *Group) validate() error {
+	if grp.Name == "" {
+		return fmt.Errorf("group name must not be empty")
+	}
+
 	// check that the name is a simple alphanumeric name
 	if !validGroupNameRegexp.MatchString(grp.Name) {
 		return fmt.Errorf("group name %q contains invalid characters (valid names are alphanumeric starting with a letter)", grp.Name)
