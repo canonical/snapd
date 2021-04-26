@@ -115,9 +115,9 @@ func (grp *Group) SliceFileName() string {
 	return buf.String()
 }
 
-// allow only alphanumerics at least one character long, and not starting with
+// allow only alphanumerics at least two characters long, and not starting with
 // a number
-var validGroupNameRegexp = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9]*$`)
+var validGroupNameRegexp = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9]+$`)
 
 func (grp *Group) validate() error {
 	// check that the name is a simple alphanumeric name
