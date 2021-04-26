@@ -197,10 +197,10 @@ func NewGroup(name string, memLimit quantity.Size) (*Group, error) {
 	return grp, nil
 }
 
-// CompleteCrossReferences takes a set of deserialized groups and sets all
+// ResolveCrossReferences takes a set of deserialized groups and sets all
 // cross references amongst them using the unexported fields which are not
 // serialized.
-func CompleteCrossReferences(grps map[string]*Group) error {
+func ResolveCrossReferences(grps map[string]*Group) error {
 	// iterate over all groups, looking for sub-groups which need to be threaded
 	// together with their respective parent groups from the set
 	for _, grp := range grps {
