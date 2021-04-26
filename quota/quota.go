@@ -95,7 +95,7 @@ const (
 func (grp *Group) SliceFileName() string {
 	if grp.ParentGroup == "" {
 		// root group name, then the slice unit is just "<name>.slice"
-		return fmt.Sprintf("%s.slice", grp.Name)
+		return fmt.Sprintf("snap.%s.slice", grp.Name)
 	}
 
 	// otherwise we need to track back to get all of the parent elements
@@ -107,6 +107,7 @@ func (grp *Group) SliceFileName() string {
 	}
 
 	buf := &bytes.Buffer{}
+	fmt.Fprintf(buf, "snap.")
 	for _, parentGrpName := range grpNames {
 		fmt.Fprintf(buf, "%s-", parentGrpName)
 	}

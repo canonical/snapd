@@ -106,7 +106,7 @@ func (ts *quotaTestSuite) TestNewGroup(c *C) {
 		}
 		c.Assert(err, IsNil, comment)
 
-		c.Assert(grp.SliceFileName(), Equals, t.name+".slice", comment)
+		c.Assert(grp.SliceFileName(), Equals, "snap."+t.name+".slice", comment)
 	}
 }
 
@@ -181,7 +181,7 @@ func (ts *quotaTestSuite) TestSimpleSubGroupVerification(c *C) {
 		}
 		c.Assert(err, IsNil, comment)
 
-		c.Assert(subGrp.SliceFileName(), Equals, "myroot-"+t.subname+".slice")
+		c.Assert(subGrp.SliceFileName(), Equals, "snap.myroot-"+t.subname+".slice")
 	}
 }
 
@@ -192,11 +192,11 @@ func (ts *quotaTestSuite) TestComplexSubGroups(c *C) {
 	// try adding 2 sub-groups with total quota split exactly equally
 	sub1, err := rootGrp.NewSubGroup("sub1", quantity.SizeMiB/2)
 	c.Assert(err, IsNil)
-	c.Assert(sub1.SliceFileName(), Equals, "myroot-sub1.slice")
+	c.Assert(sub1.SliceFileName(), Equals, "snap.myroot-sub1.slice")
 
 	sub2, err := rootGrp.NewSubGroup("sub2", quantity.SizeMiB/2)
 	c.Assert(err, IsNil)
-	c.Assert(sub2.SliceFileName(), Equals, "myroot-sub2.slice")
+	c.Assert(sub2.SliceFileName(), Equals, "snap.myroot-sub2.slice")
 
 	// adding another sub-group to this group fails
 	_, err = rootGrp.NewSubGroup("sub3", 1)
@@ -206,10 +206,10 @@ func (ts *quotaTestSuite) TestComplexSubGroups(c *C) {
 	// size of the parent sub-group
 	subsub1, err := sub1.NewSubGroup("subsub1", quantity.SizeMiB/2)
 	c.Assert(err, IsNil)
-	c.Assert(subsub1.SliceFileName(), Equals, "myroot-sub1-subsub1.slice")
+	c.Assert(subsub1.SliceFileName(), Equals, "snap.myroot-sub1-subsub1.slice")
 
 	// and we can even add a smaller sub-sub-sub-group to the sub-group
 	subsubsub1, err := subsub1.NewSubGroup("subsubsub1", quantity.SizeMiB/4)
 	c.Assert(err, IsNil)
-	c.Assert(subsubsub1.SliceFileName(), Equals, "myroot-sub1-subsub1-subsubsub1.slice")
+	c.Assert(subsubsub1.SliceFileName(), Equals, "snap.myroot-sub1-subsub1-subsubsub1.slice")
 }
