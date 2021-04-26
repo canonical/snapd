@@ -34,17 +34,16 @@ type systemModeCommand struct {
 
 var shortSystemModeHelp = i18n.G("Get the current system mode information")
 
-var longSystemModeHelp = i18n.G(` The system-mode command returns
- information about system mode the device is in, including the mode
- itself, whether the model snaps have been seeded, and whether the
- device is in factory mode. Its output is in YAML format.  The system
- mode will be one of run, recover, or install.
- Example output:
+var longSystemModeHelp = i18n.G(`
+The system-mode command returns information about the system mode the device is in.
 
- $ snapctl system-mode
- system-mode: install
- seeded: true
- factory: true
+This information includes the mode itself, whether the model snaps have been installed from the seed (seed-loaded), and whether the device is in factory mode. The system mode will be one of run, recover, or install.
+
+The output is in YAML format. Example output:
+    $ snapctl system-mode
+    system-mode: install
+    seed-loaded: true
+    factory: true
 `)
 
 func init() {
@@ -55,7 +54,7 @@ var devicestateSystemModeInfoFromState = devicestate.SystemModeInfoFromState
 
 type systemModeResult struct {
 	SystemMode string `yaml:"system-mode,omitempty"`
-	Seeded     bool   `yaml:"seeded"`
+	Seeded     bool   `yaml:"seed-loaded"`
 	Factory    bool   `yaml:"factory,omitempty"`
 }
 

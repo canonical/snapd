@@ -74,9 +74,9 @@ func (s *systemModeSuite) TestSystemMode(c *C) {
 		exitCode            int
 	}{
 		{smiErr: fmt.Errorf("too early"), err: "too early"},
-		{smi: devicestate.SystemModeInfo{Mode: "run", Seeded: true}, stdout: "system-mode: run\nseeded: true\n"},
-		{smi: devicestate.SystemModeInfo{Mode: "install", HasModeenv: true, Seeded: true, BootFlags: []string{"factory"}}, stdout: "system-mode: install\nseeded: true\nfactory: true\n"},
-		{smi: devicestate.SystemModeInfo{Mode: "run", HasModeenv: true, Seeded: false}, stdout: "system-mode: run\nseeded: false\n"},
+		{smi: devicestate.SystemModeInfo{Mode: "run", Seeded: true}, stdout: "system-mode: run\nseed-loaded: true\n"},
+		{smi: devicestate.SystemModeInfo{Mode: "install", HasModeenv: true, Seeded: true, BootFlags: []string{"factory"}}, stdout: "system-mode: install\nseed-loaded: true\nfactory: true\n"},
+		{smi: devicestate.SystemModeInfo{Mode: "run", HasModeenv: true, Seeded: false}, stdout: "system-mode: run\nseed-loaded: false\n"},
 	}
 
 	for _, test := range tests {
