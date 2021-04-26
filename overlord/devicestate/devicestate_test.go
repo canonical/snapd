@@ -1340,6 +1340,17 @@ func (s *deviceMgrSuite) TestDeviceManagerSystemModeInfoUC20Run(c *C) {
 		BootFlags:         []string{},
 		HostDataLocations: []string{boot.InitramfsDataDir, dirs.GlobalRootDir},
 	})
+
+	// given state only
+	smi, err = devicestate.SystemModeInfoFromState(s.state)
+	c.Assert(err, IsNil)
+	c.Check(smi, DeepEquals, &devicestate.SystemModeInfo{
+		Mode:              "run",
+		HasModeenv:        true,
+		Seeded:            false,
+		BootFlags:         []string{},
+		HostDataLocations: []string{boot.InitramfsDataDir, dirs.GlobalRootDir},
+	})
 }
 
 const (
