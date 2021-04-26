@@ -239,16 +239,6 @@ func (grp *Group) subTree() []*Group {
 	return subTreeList
 }
 
-func deleteGrpFromList(grps []*Group, grpToDelete *Group) []*Group {
-	grpCp := make([]*Group, 0, len(grps))
-	for _, grp := range grps {
-		if grp != grpToDelete {
-			grpCp = append(grpCp, grp)
-		}
-	}
-	return grpCp
-}
-
 type QuotaGroupSet struct {
 	grps map[*Group]bool
 }
@@ -265,46 +255,18 @@ func (s *QuotaGroupSet) AddAllNecessaryGroups(grp *Group) {
 		s.grps = make(map[*Group]bool)
 	}
 
-	// add this group first directly
-	s.grps[grp] = true
-
-	// first get all sub-trees of this group
-	for _, child := range grp.subGroups {
-		// add the direct sub-group
-		s.grps[child] = true
-		// add any indirect sub-sub-groups
-		for _, subchild := range child.subTree() {
-			s.grps[subchild] = true
-		}
+	// the easy way to find all the quotas necessary for any arbitrary sub-group
+	// is to walk up all the way to the root parent group, then get the full
+	// tree beneath that and add all groups
+	prevParentGrp := grp
+	nextParentGrp := grp.parentGroup
+	for nextParentGrp != nil {
+		prevParentGrp = nextParentGrp
+		nextParentGrp = nextParentGrp.parentGroup
 	}
 
-	// now get all parents, and for each parent get the other sub-tree that
-	// excludes this branch of the tree to not duplicate anything and not
-	// traverse the same branch again
-	// we need all the other branches in the tree in order to
-	// properly enforce limits since other branches will share total resources
-	// with this branch
-	parentGrp := grp.parentGroup
-	currentBranch := grp
-	for parentGrp != nil {
-		// don't include the current branch in the sub-tree of our current
-		// parent, since the parent will have a link to us here
-		siblings := deleteGrpFromList(parentGrp.subGroups, currentBranch)
-
-		// get all the sub-trees for the siblings
-		for _, sibling := range siblings {
-			// add the direct sibling
-			s.grps[sibling] = true
-
-			// add any children of sibling branches
-			for _, indirectSiblingChild := range sibling.subTree() {
-				s.grps[indirectSiblingChild] = true
-			}
-		}
-
-		// move up a level
-		currentBranch = grp
-		parentGrp = parentGrp.parentGroup
+	for _, g := range prevParentGrp.subTree() {
+		s.grps[g] = true
 	}
 }
 
