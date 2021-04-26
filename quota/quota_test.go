@@ -72,6 +72,12 @@ func (ts *quotaTestSuite) TestNewGroup(c *C) {
 			comment: "size negative",
 		},
 		{
+			name:    "CAPITALIZED",
+			limit:   quantity.SizeMiB,
+			err:     `group name "CAPITALIZED" contains invalid characters.*`,
+			comment: "capitalized letters",
+		},
+		{
 			name:    "g1",
 			limit:   quantity.SizeMiB,
 			comment: "small group name",
