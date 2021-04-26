@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -32,6 +32,7 @@ import (
 const (
 	// The encryption key size is set so it has the same entropy as the derived
 	// key.
+	// XXX Chris suggest we could reduce this to 32?
 	encryptionKeySize = 64
 
 	// XXX: needs to be in sync with
@@ -41,10 +42,10 @@ const (
 )
 
 // EncryptionKey is the key used to encrypt the data partition.
-type EncryptionKey [encryptionKeySize]byte
+type EncryptionKey []byte
 
 func NewEncryptionKey() (EncryptionKey, error) {
-	var key EncryptionKey
+	key := make(EncryptionKey, encryptionKeySize)
 	// rand.Read() is protected against short reads
 	_, err := rand.Read(key[:])
 	// On return, n == len(b) if and only if err == nil

@@ -22,16 +22,14 @@ package secboot_test
 
 import (
 	"crypto/ecdsa"
-	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"testing"
-	"time"
+	"strconv"
 
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
@@ -41,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/efi"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
@@ -49,8 +48,6 @@ import (
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/testutil"
 )
-
-func TestSecboot(t *testing.T) { TestingT(t) }
 
 type secbootSuite struct {
 	testutil.BaseTest
@@ -66,7 +63,9 @@ func (s *secbootSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 }
 
-func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
+func (s *secbootSuite) TestCheckTPMKeySealingSupported(c *C) {
+	c.Check(secboot.WithSecbootSupport, Equals, true)
+
 	sbEmpty := []uint8{}
 	sbEnabled := []uint8{1}
 	sbDisabled := []uint8{0}
@@ -112,7 +111,7 @@ func (s *secbootSuite) TestCheckKeySealingSupported(c *C) {
 		restoreEfiVars := efi.MockVars(vars, nil)
 		defer restoreEfiVars()
 
-		err := secboot.CheckKeySealingSupported()
+		err := secboot.CheckTPMKeySealingSupported()
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 		} else {
@@ -1156,123 +1155,15 @@ func (s *secbootSuite) TestUnlockEncryptedVolumeUsingKeyErr(c *C) {
 	})
 }
 
-func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyTruncatesStreamFiles(c *C) {
-	// this test uses a real systemd-run --user so check here if that
-	// actually works
-	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "--service-type=exec", "true").CombinedOutput(); err != nil {
-		c.Skip(fmt.Sprintf("systemd-run not working: %v", osutil.OutputErr(output, err)))
-	}
-
-	// create the temporary output file streams with garbage data to ensure that
-	// by the time the hook runs the files are emptied and recreated with the
-	// right permissions
-	streamFiles := []string{}
-	for _, stream := range []string{"stdin", "stdout", "stderr"} {
-		streamFile := filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key/fde-reveal-key."+stream)
-		streamFiles = append(streamFiles, streamFile)
-		// make the dir 0700
-		err := os.MkdirAll(filepath.Dir(streamFile), 0700)
-		c.Assert(err, IsNil)
-		// but make the file world-readable as it should be reset to 0600 before
-		// the hook is run
-		err = ioutil.WriteFile(streamFile, []byte("blah blah blah blah blah blah blah blah blah blah"), 0755)
-		c.Assert(err, IsNil)
-	}
-
-	restore := secboot.MockFDEHasRevealKey(func() bool {
-		return true
-	})
-	defer restore()
-
-	// the hook script only verifies that the stdout file is empty since we
-	// need to write to the stderr file for performing the test, but we still
-	// check the stderr file for correct permissions
-	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
-# check that stdin has the right sealed key content 
-if [ "$(cat %[1]s)" != "{\"op\":\"reveal\",\"sealed-key\":\"AQIDBA==\",\"key-name\":\"name\"}" ]; then
-	echo "test failed: stdin file has wrong content: $(cat %[1]s)" 1>&2
-else
-	echo "stdin file has correct content" 1>&2
-fi
-
-# check that stdout is empty
-if [ -n "$(cat %[2]s)" ]; then
-	echo "test failed: stdout file is not empty: $(cat %[2]s)" 1>&2
-else
-	echo "stdout file is correctly empty" 1>&2
-fi
-
-# check that stdin has the right 600 perms
-if [ "$(stat --format=%%a %[1]s)" != "600" ]; then
-	echo "test failed: stdin file has wrong permissions: $(stat --format=%%a %[1]s)" 1>&2
-else 
-	echo "stdin file has correct 600 permissions" 1>&2
-fi
-
-# check that stdout has the right 600 perms
-if [ "$(stat --format=%%a %[2]s)" != "600" ]; then
-	echo "test failed: stdout file has wrong permissions: $(stat --format=%%a %[2]s)" 1>&2
-else 
-	echo "stdout file has correct 600 permissions" 1>&2
-fi
-
-# check that stderr has the right 600 perms
-if [ "$(stat --format=%%a %[3]s)" != "600" ]; then
-	echo "test failed: stderr file has wrong permissions: $(stat --format=%%a %[3]s)" 1>&2
-else 
-	echo "stderr file has correct 600 permissions" 1>&2
-fi
-
-echo "making the hook always fail for simpler test code" 1>&2
-
-# always make the hook exit 1 for simpler test code
-exit 1
-`, streamFiles[0], streamFiles[1], streamFiles[2]))
-	defer mockSystemdRun.Restore()
-	restore = secboot.MockFdeRevealKeyCommandExtra([]string{"--user"})
-	defer restore()
-
-	mockDiskWithEncDev := &disks.MockDiskMapping{
-		FilesystemLabelToPartUUID: map[string]string{
-			"name-enc": "enc-dev-partuuid",
-		},
-	}
-	defaultDevice := "name"
-	mockSealedKeyFile := filepath.Join(c.MkDir(), "vanilla-keyfile")
-	err := ioutil.WriteFile(mockSealedKeyFile, []byte{1, 2, 3, 4}, 0600)
-	c.Assert(err, IsNil)
-
-	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
-	_, err = secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
-	c.Assert(err, ErrorMatches, `(?s)cannot run fde-reveal-key: 
------
-stdin file has correct content
-stdout file is correctly empty
-stdin file has correct 600 permissions
-stdout file has correct 600 permissions
-stderr file has correct 600 permissions
-making the hook always fail for simpler test code
-service result: exit-code
------`)
-	// ensure no tmp files are left behind
-	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
-}
-
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(c *C) {
-	// this test uses a real systemd-run --user so check here if that
-	// actually works
-	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "--service-type=exec", "/bin/true").CombinedOutput(); err != nil {
-		c.Skip(fmt.Sprintf("systemd-run not working: %v", osutil.OutputErr(output, err)))
-	}
-
-	restore := secboot.MockFDEHasRevealKey(func() bool {
-		return true
+	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
+		return nil, fmt.Errorf("helper error")
 	})
 	defer restore()
 
-	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", `echo failed 1>&2; false`)
-	defer mockSystemdRun.Restore()
-	restore = secboot.MockFdeRevealKeyCommandExtra([]string{"--user"})
+	restore = secboot.MockFDEHasRevealKey(func() bool {
+		return true
+	})
 	defer restore()
 
 	mockDiskWithEncDev := &disks.MockDiskMapping{
@@ -1287,23 +1178,18 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyErr(
 
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
 	_, err = secboot.UnlockVolumeUsingSealedKeyIfEncrypted(mockDiskWithEncDev, defaultDevice, mockSealedKeyFile, opts)
-	c.Assert(err, ErrorMatches, `(?s)cannot run fde-reveal-key: 
------
-failed
-service result: exit-code
------`)
-	// ensure no tmp files are left behind
-	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
+	c.Assert(err, ErrorMatches, `cannot run fde-reveal-key "reveal": helper error`)
 }
 
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKey(c *C) {
-	// this test uses a real systemd-run --user so check here if that
-	// actually works
-	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "--service-type=exec", "/bin/true").CombinedOutput(); err != nil {
-		c.Skip(fmt.Sprintf("systemd-run not working: %v", osutil.OutputErr(output, err)))
-	}
+	var reqs []*fde.RevealKeyRequest
+	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
+		reqs = append(reqs, req)
+		return []byte("unsealed-key-from-hook"), nil
+	})
+	defer restore()
 
-	restore := secboot.MockFDEHasRevealKey(func() bool {
+	restore = secboot.MockFDEHasRevealKey(func() bool {
 		return true
 	})
 	defer restore()
@@ -1319,15 +1205,6 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKey(c *
 		},
 	}
 
-	restore = secboot.MockFdeRevealKeyCommandExtra([]string{"--user"})
-	defer restore()
-	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
-	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
-cat - > %s
-printf "unsealed-key-from-hook"
-`, fdeRevealKeyStdin))
-	defer mockSystemdRun.Restore()
-
 	restore = secboot.MockSbActivateVolumeWithKey(func(volumeName, sourceDevicePath string, key []byte, options *sb.ActivateVolumeOptions) error {
 		c.Check(string(key), Equals, "unsealed-key-from-hook")
 		return nil
@@ -1336,7 +1213,8 @@ printf "unsealed-key-from-hook"
 
 	defaultDevice := "name"
 	mockSealedKeyFile := filepath.Join(c.MkDir(), "vanilla-keyfile")
-	err := ioutil.WriteFile(mockSealedKeyFile, []byte("sealed-key"), 0600)
+	sealedKey := []byte("sealed-key")
+	err := ioutil.WriteFile(mockSealedKeyFile, sealedKey, 0600)
 	c.Assert(err, IsNil)
 
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{}
@@ -1348,97 +1226,85 @@ printf "unsealed-key-from-hook"
 		PartDevice:   "/dev/disk/by-partuuid/enc-dev-partuuid",
 		FsDevice:     "/dev/mapper/name-random-uuid-for-test",
 	})
-	c.Check(mockSystemdRun.Calls(), DeepEquals, [][]string{
-		{"fde-reveal-key"},
-	})
-	c.Check(fdeRevealKeyStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"reveal","sealed-key":%q,"key-name":"name"}`, base64.StdEncoding.EncodeToString([]byte("sealed-key"))))
-
-	// ensure no tmp files are left behind
-	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
+	c.Check(reqs, HasLen, 1)
+	c.Check(reqs[0].Op, Equals, "reveal")
+	c.Check(reqs[0].SealedKey, DeepEquals, sealedKey)
 }
 
 func (s *secbootSuite) TestLockSealedKeysCallsFdeReveal(c *C) {
-	// this test uses a real systemd-run --user so check here if that
-	// actually works
-	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "--service-type=exec", "/bin/true").CombinedOutput(); err != nil {
-		c.Skip(fmt.Sprintf("systemd-run not working: %v", osutil.OutputErr(output, err)))
-	}
-
-	restore := secboot.MockFDEHasRevealKey(func() bool {
+	var ops []string
+	restore := fde.MockRunFDERevealKey(func(req *fde.RevealKeyRequest) ([]byte, error) {
+		ops = append(ops, req.Op)
+		return nil, nil
+	})
+	defer restore()
+	restore = secboot.MockFDEHasRevealKey(func() bool {
 		return true
 	})
 	defer restore()
-
-	restore = secboot.MockFdeRevealKeyCommandExtra([]string{"--user"})
-	defer restore()
-	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
-	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
-cat - > %s
-`, fdeRevealKeyStdin))
-	defer mockSystemdRun.Restore()
 
 	err := secboot.LockSealedKeys()
 	c.Assert(err, IsNil)
-	c.Check(mockSystemdRun.Calls(), DeepEquals, [][]string{
-		{"fde-reveal-key"},
-	})
-	c.Check(fdeRevealKeyStdin, testutil.FileEquals, `{"op":"lock"}`)
 
-	// ensure no tmp files are left behind
-	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
+	c.Check(ops, DeepEquals, []string{"lock"})
 }
 
-func (s *secbootSuite) TestLockSealedKeysHonorsRuntimeMax(c *C) {
-	// this test uses a real systemd-run --user so check here if that
-	// actually works
-	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "--service-type=exec", "/bin/true").CombinedOutput(); err != nil {
-		c.Skip(fmt.Sprintf("systemd-run not working: %v", osutil.OutputErr(output, err)))
+func (s *secbootSuite) TestSealKeysWithFDESetupHookHappy(c *C) {
+	tmpdir := c.MkDir()
+
+	n := 0
+	var runFDESetupHookReqs []*fde.SetupRequest
+	runFDESetupHook := func(req *fde.SetupRequest) ([]byte, error) {
+		n++
+		runFDESetupHookReqs = append(runFDESetupHookReqs, req)
+
+		key := []byte(fmt.Sprintf("key-%v", strconv.Itoa(n)))
+		b, err := json.Marshal(fmt.Sprintf("handle-%v", strconv.Itoa(n)))
+		c.Assert(err, IsNil)
+		handle := json.RawMessage(b)
+		res := &fde.InitialSetupResult{
+			EncryptedKey: key,
+			Handle:       &handle,
+		}
+		return json.Marshal(res)
 	}
 
-	restore := secboot.MockFDEHasRevealKey(func() bool {
-		return true
+	key1 := secboot.EncryptionKey{1, 2, 3, 4}
+	key2 := secboot.EncryptionKey{5, 6, 7, 8}
+	key1Fn := filepath.Join(tmpdir, "key1.key")
+	key2Fn := filepath.Join(tmpdir, "key2.key")
+	err := secboot.SealKeysWithFDESetupHook(runFDESetupHook,
+		[]secboot.SealKeyRequest{
+			{Key: key1, KeyName: "key1", KeyFile: key1Fn},
+			{Key: key2, KeyName: "key2", KeyFile: key2Fn},
+		})
+	c.Assert(err, IsNil)
+	// check that runFDESetupHook was called the expected way
+	c.Check(runFDESetupHookReqs, DeepEquals, []*fde.SetupRequest{
+		{Op: "initial-setup", Key: key1[:], KeyName: "key1"},
+		{Op: "initial-setup", Key: key2[:], KeyName: "key2"},
 	})
-	defer restore()
-
-	restore = secboot.MockFdeRevealKeyCommandExtra([]string{"--user"})
-	defer restore()
-	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", "sleep 60")
-	defer mockSystemdRun.Restore()
-
-	restore = secboot.MockFdeRevealKeyPollWaitParanoiaFactor(100)
-	defer restore()
-
-	restore = secboot.MockFdeRevealKeyRuntimeMax(100 * time.Millisecond)
-	defer restore()
-
-	err := secboot.LockSealedKeys()
-	c.Assert(err, ErrorMatches, `cannot run fde-reveal-key "lock": service result: timeout`)
+	// check that the sealed keys got written to the expected places
+	for i, p := range []string{key1Fn, key2Fn} {
+		// Check for a valid platform handle, encrypted payload (base64)
+		mockedSealedKey := []byte(fmt.Sprintf("key-%v", strconv.Itoa(i+1)))
+		c.Check(p, testutil.FileEquals, mockedSealedKey)
+	}
 }
 
-func (s *secbootSuite) TestLockSealedKeysHonorsParanoia(c *C) {
-	// this test uses a real systemd-run --user so check here if that
-	// actually works
-	if output, err := exec.Command("systemd-run", "--user", "--wait", "--collect", "--service-type=exec", "/bin/true").CombinedOutput(); err != nil {
-		c.Skip(fmt.Sprintf("systemd-run not working: %v", osutil.OutputErr(output, err)))
+func (s *secbootSuite) TestSealKeysWithFDESetupHookSad(c *C) {
+	tmpdir := c.MkDir()
+
+	runFDESetupHook := func(req *fde.SetupRequest) ([]byte, error) {
+		return nil, fmt.Errorf("hook failed")
 	}
 
-	restore := secboot.MockFDEHasRevealKey(func() bool {
-		return true
-	})
-	defer restore()
-
-	restore = secboot.MockFdeRevealKeyCommandExtra([]string{"--user"})
-	defer restore()
-	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", "sleep 60")
-	defer mockSystemdRun.Restore()
-
-	restore = secboot.MockFdeRevealKeyPollWaitParanoiaFactor(1)
-	defer restore()
-
-	// shorter than the fdeRevealKeyPollWait time
-	restore = secboot.MockFdeRevealKeyRuntimeMax(1 * time.Millisecond)
-	defer restore()
-
-	err := secboot.LockSealedKeys()
-	c.Assert(err, ErrorMatches, `cannot run fde-reveal-key "lock": internal error: systemd-run did not honor RuntimeMax=1ms setting`)
+	key := secboot.EncryptionKey{1, 2, 3, 4}
+	keyFn := filepath.Join(tmpdir, "key.key")
+	err := secboot.SealKeysWithFDESetupHook(runFDESetupHook,
+		[]secboot.SealKeyRequest{
+			{Key: key, KeyName: "key1", KeyFile: keyFn},
+		})
+	c.Assert(err, ErrorMatches, "hook failed")
+	c.Check(keyFn, testutil.FileAbsent)
 }

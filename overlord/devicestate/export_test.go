@@ -265,11 +265,11 @@ func MockBootEnsureNextBootToRunMode(f func(systemLabel string) error) (restore 
 	}
 }
 
-func MockSecbootCheckKeySealingSupported(f func() error) (restore func()) {
-	old := secbootCheckKeySealingSupported
-	secbootCheckKeySealingSupported = f
+func MockSecbootCheckTPMKeySealingSupported(f func() error) (restore func()) {
+	old := secbootCheckTPMKeySealingSupported
+	secbootCheckTPMKeySealingSupported = f
 	return func() {
-		secbootCheckKeySealingSupported = old
+		secbootCheckTPMKeySealingSupported = old
 	}
 }
 

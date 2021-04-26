@@ -20,7 +20,6 @@
 package boot_test
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -1376,14 +1375,20 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 		runFDESetupHookReqs = append(runFDESetupHookReqs, req)
 
 		key := []byte(fmt.Sprintf("key-%v", strconv.Itoa(n)))
-		b, err := json.Marshal(fmt.Sprintf("handle-%v", strconv.Itoa(n)))
-		c.Assert(err, IsNil)
-		handle := json.RawMessage(b)
-		res := &fde.InitialSetupResult{
-			EncryptedKey: key,
-			Handle:       &handle,
+		return key, nil
+	})
+	defer restore()
+	keyToSave := make(map[string][]byte)
+	restore = boot.MockSecbootSealKeysWithFDESetupHook(func(runHook fde.RunSetupHookFunc, skrs []secboot.SealKeyRequest) error {
+		for _, skr := range skrs {
+			out, err := runHook(&fde.SetupRequest{
+				Key:     skr.Key,
+				KeyName: skr.KeyName,
+			})
+			c.Assert(err, IsNil)
+			keyToSave[skr.KeyFile] = out
 		}
-		return json.Marshal(res)
+		return nil
 	})
 	defer restore()
 
@@ -1398,9 +1403,9 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	c.Assert(err, IsNil)
 	// check that runFDESetupHook was called the expected way
 	c.Check(runFDESetupHookReqs, DeepEquals, []*fde.SetupRequest{
-		{Op: "initial-setup", Key: key[:], KeyName: "ubuntu-data"},
-		{Op: "initial-setup", Key: key[:], KeyName: "ubuntu-data"},
-		{Op: "initial-setup", Key: saveKey[:], KeyName: "ubuntu-save"},
+		{Key: key[:], KeyName: "ubuntu-data"},
+		{Key: key[:], KeyName: "ubuntu-data"},
+		{Key: saveKey[:], KeyName: "ubuntu-save"},
 	})
 	// check that the sealed keys got written to the expected places
 	for i, p := range []string{
@@ -1410,7 +1415,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	} {
 		// Check for a valid platform handle, encrypted payload (base64)
 		mockedSealedKey := []byte(fmt.Sprintf("key-%v", strconv.Itoa(i+1)))
-		c.Check(p, testutil.FileEquals, mockedSealedKey)
+		c.Check(keyToSave[p], DeepEquals, mockedSealedKey)
 	}
 
 	marker := filepath.Join(dirs.SnapFDEDirUnder(boot.InstallHostWritableDir), "sealed-keys")
@@ -1427,8 +1432,8 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookSad(c *C) {
 	})
 	defer restore()
 
-	restore = boot.MockRunFDESetupHook(func(req *fde.SetupRequest) ([]byte, error) {
-		return nil, fmt.Errorf("hook failed")
+	restore = boot.MockSecbootSealKeysWithFDESetupHook(func(fde.RunSetupHookFunc, []secboot.SealKeyRequest) error {
+		return fmt.Errorf("hook failed")
 	})
 	defer restore()
 
