@@ -142,12 +142,14 @@ func (grp *Group) validate() error {
 	// to accommodate this new group (we assume that other existing sub-groups
 	// in the parent group have already been validated)
 	if grp.parentGroup != nil {
-		totalAvailable := quantity.Size(0)
+		alreadyUsed := quantity.Size(0)
 		for _, child := range grp.parentGroup.subGroups {
-			totalAvailable += child.MemoryLimit
+			alreadyUsed += child.MemoryLimit
 		}
-		if totalAvailable+grp.MemoryLimit > grp.parentGroup.MemoryLimit {
-			remaining := grp.parentGroup.MemoryLimit - totalAvailable
+		// careful arithmetic here in case we somehow overflow the max size of
+		// quantity.Size
+		if grp.parentGroup.MemoryLimit-alreadyUsed < grp.MemoryLimit {
+			remaining := grp.parentGroup.MemoryLimit - alreadyUsed
 			return fmt.Errorf("sub-group memory limit of %s is too large to fit inside remaining quota space %s for parent group %s", grp.MemoryLimit.IECString(), remaining.IECString(), grp.parentGroup.Name)
 		}
 	}
