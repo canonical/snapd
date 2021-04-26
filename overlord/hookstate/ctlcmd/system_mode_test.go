@@ -53,7 +53,7 @@ func (s *systemModeSuite) SetUpTest(c *C) {
 func (s *systemModeSuite) TestSystemMode(c *C) {
 	s.st.Lock()
 	task := s.st.NewTask("test-task", "my test task")
-	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1), Hook: "gate-auto-refresh"}
+	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1), Hook: "test-hook"}
 	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
 	c.Check(err, IsNil)
 	s.st.Unlock()
