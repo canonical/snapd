@@ -219,14 +219,40 @@ func NewGroup(name string, memLimit quantity.Size) (*Group, error) {
 func ResolveCrossReferences(grps map[string]*Group) error {
 	// iterate over all groups, looking for sub-groups which need to be threaded
 	// together with their respective parent groups from the set
-	for _, grp := range grps {
+	for name, grp := range grps {
+		if name != grp.Name {
+			return fmt.Errorf("group has name %q, but is referenced as %q", grp.Name, name)
+		}
+
+		// validate the group, assuming it is unresolved
+		if err := grp.validate(); err != nil {
+			return fmt.Errorf("group %q is invalid: %v", name, err)
+		}
+
 		// first thread the parent link
 		if grp.ParentGroup != "" {
 			parent, ok := grps[grp.ParentGroup]
 			if !ok {
-				return fmt.Errorf("internal error: missing group %q referenced as the parent of group %q", grp.ParentGroup, grp.Name)
+				return fmt.Errorf("missing group %q referenced as the parent of group %q", grp.ParentGroup, grp.Name)
 			}
 			grp.parentGroup = parent
+
+			// also add an internal link from the parent to this group, this
+			// will in most case be overwritten when the parent group is
+			// resolved, but in the case it is not, we will catch missing links
+			// that are only specified in one direction
+			parent.subGroups = append(parent.subGroups, grp)
+
+			// make sure that the parent group references this group
+			found := false
+			for _, parentChildName := range parent.SubGroups {
+				if parentChildName == grp.Name {
+					found = true
+				}
+			}
+			if !found {
+				return fmt.Errorf("group %q does not reference necessary child group %q", parent.Name, grp.Name)
+			}
 		}
 
 		// now thread any child links from this group to any children
@@ -235,8 +261,15 @@ func ResolveCrossReferences(grps map[string]*Group) error {
 			for i, subName := range grp.SubGroups {
 				sub, ok := grps[subName]
 				if !ok {
-					return fmt.Errorf("internal error: missing group %q referenced as the child of group %q", subName, grp.Name)
+					return fmt.Errorf("missing group %q referenced as the sub-group of group %q", subName, grp.Name)
 				}
+
+				// check that this sub-group references this group as it's
+				// parent
+				if sub.ParentGroup != grp.Name {
+					return fmt.Errorf("group %q does not reference necessary parent group %q", sub.Name, grp.Name)
+				}
+
 				grp.subGroups[i] = sub
 			}
 		}

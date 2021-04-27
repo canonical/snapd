@@ -236,3 +236,220 @@ func (ts *quotaTestSuite) TestComplexSubGroups(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(subsubsub1.SliceFileName(), Equals, "snap.myroot-sub1-subsub1-subsubsub1.slice")
 }
+
+func (ts *quotaTestSuite) TestResolveCrossReferences(c *C) {
+	tt := []struct {
+		grps    map[string]*quota.Group
+		err     string
+		comment string
+	}{
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB,
+				},
+			},
+			comment: "single group",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB,
+					ParentGroup: "foogroup",
+				},
+			},
+			err:     `group "foogroup" is invalid: group has circular parent reference to itself`,
+			comment: "parent group self-reference group",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB,
+					SubGroups:   []string{"foogroup"},
+				},
+			},
+			err:     `group "foogroup" is invalid: group has circular sub-group reference to itself`,
+			comment: "parent group self-reference group",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: 0,
+				},
+			},
+			err:     `group "foogroup" is invalid: group memory limit must be non-zero`,
+			comment: "invalid group",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB,
+				},
+				"foogroup2": {
+					Name:        "foogroup2",
+					MemoryLimit: quantity.SizeMiB,
+				},
+			},
+			comment: "multiple root groups",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB,
+				},
+				"subgroup": {
+					Name:        "subgroup",
+					MemoryLimit: quantity.SizeMiB,
+					ParentGroup: "foogroup",
+				},
+			},
+			err:     `group "foogroup" does not reference necessary child group "subgroup"`,
+			comment: "incomplete references in parent group to child group",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB,
+					SubGroups:   []string{"subgroup"},
+				},
+				"subgroup": {
+					Name:        "subgroup",
+					MemoryLimit: quantity.SizeMiB,
+				},
+			},
+			err:     `group "subgroup" does not reference necessary parent group "foogroup"`,
+			comment: "incomplete references in sub-group to parent group",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB,
+					SubGroups:   []string{"subgroup"},
+				},
+				"subgroup": {
+					Name:        "subgroup",
+					MemoryLimit: quantity.SizeMiB,
+					ParentGroup: "foogroup",
+				},
+			},
+			comment: "valid fully specified sub-group",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB,
+					SubGroups:   []string{"subgroup1", "subgroup2"},
+				},
+				"subgroup1": {
+					Name:        "subgroup1",
+					MemoryLimit: quantity.SizeMiB / 2,
+					ParentGroup: "foogroup",
+				},
+				"subgroup2": {
+					Name:        "subgroup2",
+					MemoryLimit: quantity.SizeMiB / 2,
+					ParentGroup: "foogroup",
+				},
+			},
+			comment: "multiple valid fully specified sub-groups",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB,
+					SubGroups:   []string{"subgroup1"},
+				},
+				"subgroup1": {
+					Name:        "subgroup1",
+					MemoryLimit: quantity.SizeMiB,
+					ParentGroup: "foogroup",
+					SubGroups:   []string{"subgroup2"},
+				},
+				"subgroup2": {
+					Name:        "subgroup2",
+					MemoryLimit: quantity.SizeMiB,
+					ParentGroup: "subgroup1",
+				},
+			},
+			comment: "deeply nested valid fully specified sub-groups",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB,
+					SubGroups:   []string{"subgroup1"},
+				},
+				"subgroup1": {
+					Name:        "subgroup1",
+					MemoryLimit: quantity.SizeMiB,
+					ParentGroup: "foogroup",
+					SubGroups:   []string{"subgroup2"},
+				},
+				"subgroup2": {
+					Name:        "subgroup2",
+					MemoryLimit: quantity.SizeMiB,
+					// missing parent reference
+				},
+			},
+			err:     `group "subgroup2" does not reference necessary parent group "subgroup1"`,
+			comment: "deeply nested invalid fully specified sub-groups",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"not-foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB,
+				},
+			},
+			err:     `group has name "foogroup", but is referenced as "not-foogroup"`,
+			comment: "group misname",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB,
+					SubGroups:   []string{"other-missing"},
+				},
+			},
+			err:     `missing group "other-missing" referenced as the sub-group of group "foogroup"`,
+			comment: "missing sub-group name",
+		},
+		{
+			grps: map[string]*quota.Group{
+				"foogroup": {
+					Name:        "foogroup",
+					MemoryLimit: quantity.SizeMiB,
+					ParentGroup: "other-missing",
+				},
+			},
+			err:     `missing group "other-missing" referenced as the parent of group "foogroup"`,
+			comment: "missing sub-group name",
+		},
+	}
+
+	for _, t := range tt {
+		comment := Commentf(t.comment)
+		err := quota.ResolveCrossReferences(t.grps)
+		if t.err != "" {
+			c.Assert(err, ErrorMatches, t.err, comment)
+		} else {
+			c.Assert(err, IsNil, comment)
+		}
+	}
+}
+
+func (ts *quotaTestSuite) TestAddAllNecessaryGroups(c *C) {
+
+}
