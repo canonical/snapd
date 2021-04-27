@@ -170,15 +170,15 @@ func (grp *Group) NewSubGroup(name string, memLimit quantity.Size) (*Group, erro
 		parentGroup: grp,
 	}
 
-	if err := subGrp.validate(); err != nil {
-		return nil, err
-	}
-
-	// also double check that the sub group name is not the same as that of the
+	// check early that the sub group name is not the same as that of the
 	// parent, this is fine in systemd world, but in snapd we want unique quota
 	// groups
 	if name == grp.Name {
 		return nil, fmt.Errorf("cannot use same name %q for sub group as parent group", name)
+	}
+
+	if err := subGrp.validate(); err != nil {
+		return nil, err
 	}
 
 	// save the details of this new sub-group in the parent group
