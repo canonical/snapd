@@ -63,19 +63,19 @@ func (ts *quotaTestSuite) TestNewGroup(c *C) {
 		{
 			name:    "group1-unsupported chars",
 			limit:   quantity.SizeMiB,
-			err:     `invalid group name: contains invalid characters.*`,
+			err:     `invalid quota group name: contains invalid characters.*`,
 			comment: "unsupported characters in group name",
 		},
 		{
 			name:    "group%%%",
 			limit:   quantity.SizeMiB,
-			err:     `invalid group name: contains invalid characters.*`,
+			err:     `invalid quota group name: contains invalid characters.*`,
 			comment: "more invalid characters in name",
 		},
 		{
 			name:    "CAPITALIZED",
 			limit:   quantity.SizeMiB,
-			err:     `invalid group name: contains invalid characters.*`,
+			err:     `invalid quota group name: contains invalid characters.*`,
 			comment: "capitalized letters",
 		},
 		{
@@ -92,13 +92,13 @@ func (ts *quotaTestSuite) TestNewGroup(c *C) {
 		{
 			name:    "",
 			limit:   quantity.SizeMiB,
-			err:     `invalid group name: must not be empty`,
+			err:     `invalid quota group name: must not be empty`,
 			comment: "empty group name",
 		},
 		{
 			name:    "g",
 			limit:   quantity.SizeMiB,
-			err:     `invalid group name: must be between 2 and 40 characters long.*`,
+			err:     `invalid quota group name: must be between 2 and 40 characters long.*`,
 			comment: "too small group name",
 		},
 		{
@@ -183,7 +183,7 @@ func (ts *quotaTestSuite) TestSimpleSubGroupVerification(c *C) {
 			rootlimit: quantity.SizeMiB,
 			subname:   "sub invalid chars",
 			sublimit:  quantity.SizeMiB,
-			err:       `invalid group name: contains invalid characters.*`,
+			err:       `invalid quota group name: contains invalid characters.*`,
 			comment:   "sub group with invalid name",
 		},
 		{

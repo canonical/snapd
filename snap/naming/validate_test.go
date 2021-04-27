@@ -336,7 +336,7 @@ func (s *ValidateSuite) TestValidQuotaGroup(c *C) {
 		"u-94903713687486543234157734673284536758",
 	}
 	for _, name := range validNames {
-		err := naming.ValidateSnap(name)
+		err := naming.ValidateQuotaGroup(name)
 		c.Assert(err, IsNil)
 	}
 	invalidNames := []string{
@@ -367,6 +367,6 @@ func (s *ValidateSuite) TestValidQuotaGroup(c *C) {
 	}
 	for _, name := range invalidNames {
 		err := naming.ValidateQuotaGroup(name)
-		c.Assert(err, ErrorMatches, `invalid group name:.*`)
+		c.Assert(err, ErrorMatches, `invalid quota group name:.*`)
 	}
 }
