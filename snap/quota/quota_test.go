@@ -560,7 +560,7 @@ func (ts *quotaTestSuite) TestAddAllNecessaryGroups(c *C) {
 	c.Assert(qs2.AllQuotaGroups(), DeepEquals, []*quota.Group{grp4, subgrp4, subgrp5})
 }
 
-func (ts *quotaTestSuite) TestTestResolveCrossReferencesLimitCheckSkipsSelf(c *C) {
+func (ts *quotaTestSuite) TestResolveCrossReferencesLimitCheckSkipsSelf(c *C) {
 	grp1, err := quota.NewGroup("myroot", quantity.SizeGiB)
 	c.Assert(err, IsNil)
 

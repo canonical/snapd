@@ -58,15 +58,8 @@ type Group struct {
 	// ExhaustionBehavior. MemoryLimit is expressed in bytes.
 	MemoryLimit quantity.Size `json:"memory-limit,omitempty"`
 
-	// MemoryExhaustionBehavior is the behavior that is implemented to decide
-	// what processes to kill in the quota group when the memory limits are
-	// exhausted.
-	MemoryExhaustionBehavior MemoryExhaustionBehavior `json:"memory-exhaustion-behavior,omitempty"`
-
-	// ParentGroup is the the parent group that this group is a child of. It is
-	// here mainly for coding convenience to easily construct the full chain
-	// back to a root group to generate the full slice unit name of the quota
-	// group. If it is nil, then this is a "root" quota group.
+	// ParentGroup is the the parent group that this group is a child of. If it
+	// is empty, then this is a "root" quota group.
 	ParentGroup string `json:"parent-group,omitempty"`
 
 	// parentGroup is the actual parent group object, needed for tracking and
@@ -77,19 +70,6 @@ type Group struct {
 	// empty then the underlying slice may not exist on the system.
 	Snaps []string `json:"snaps,omitempty"`
 }
-
-// MemoryExhaustionBehavior is the behavior determining what the system should
-// do when memory available to a quota group is exhausted.
-type MemoryExhaustionBehavior int
-
-const (
-	// DefaultOOMKiller is the default behavior to invoke to choose which
-	// processes when the memory quota resource limit is reached, and it
-	// consists of letting the Linux kernel's oom-killer run and decide, which
-	// is available on all cgroups version systems, but is not deterministic as
-	// to which processes are killed.
-	DefaultOOMKiller MemoryExhaustionBehavior = iota
-)
 
 // NewGroup creates a new top quota group with the given name and memory limit.
 func NewGroup(name string, memLimit quantity.Size) (*Group, error) {
@@ -108,9 +88,9 @@ func NewGroup(name string, memLimit quantity.Size) (*Group, error) {
 // SliceFileName returns the name of the slice file that should be used for this
 // quota group. This name will include all of the group's parents in the name.
 // For example, a group named "bar" that is a child of the "foo" group will have
-// a systemd slice name as "foo-bar.slice". Note that the slice name may differ
-// from the snapd friendly group name, mainly in the case that the group is a
-// sub group.
+// a systemd slice name as "snap.foo-bar.slice". Note that the slice name may
+// differ from the snapd friendly group name, mainly in the case that the group
+// is a sub group.
 func (grp *Group) SliceFileName() string {
 	escapedGrpName := systemd.EscapeUnitNamePath(grp.Name)
 	if grp.ParentGroup == "" {
@@ -303,7 +283,7 @@ type QuotaGroupSet struct {
 // set is the set of quota groups that must exist for this quota group to be
 // fully realized on a system, since all sub-branches of the full tree must
 // exist since this group may share some quota resources with the other
-// branches. There is no support fo manipulating group trees while
+// branches. There is no support for manipulating group trees while
 // accumulating to a QuotaGroupSet using this.
 func (s *QuotaGroupSet) AddAllNecessaryGroups(grp *Group) {
 	if s.grps == nil {
