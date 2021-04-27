@@ -494,7 +494,7 @@ func (ts *quotaTestSuite) TestAddAllNecessaryGroupsAvoidsInfiniteRecursion(c *C)
 	grp2, err := grp.NewSubGroup("infinite-group2", quantity.SizeGiB)
 	c.Assert(err, IsNil)
 
-	// create a cycle artifically to the same group
+	// create a cycle artificially to the same group
 	grp2.SetInternalSubGroups([]*quota.Group{grp2})
 
 	// now we fail to add this to a quota set
