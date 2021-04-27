@@ -35,10 +35,10 @@ import (
 // to specific resource quotas. The only quota resource types currently
 // supported is memory, but this can be expanded in the future.
 type Group struct {
-	// Name is the name of the quota group. Certain names are reserved and have
-	// special meaning such as user.* or system.* or snapd.*, but are otherwise
-	// generically choosable by a user. This name will correspond to the name of
-	// the systemd slice underlying the quota group.
+	// Name is the name of the quota group. This name is used the
+	// name of the systemd slice underlying the quota group.
+	// Certain names are reserved for future use: system, snapd, root, user.
+	// Otherwise names following the same rules as snap names can be used.
 	Name string `json:"name,omitempty"`
 
 	// SubGroups is the set of sub-groups that are subject to this quota.
