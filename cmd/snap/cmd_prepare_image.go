@@ -20,6 +20,8 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 
@@ -39,6 +41,9 @@ type cmdPrepareImage struct {
 	} `positional-args:"yes" required:"yes"`
 
 	Channel string `long:"channel"`
+
+	Customize string `long:"customize" hidden:"yes"`
+
 	// TODO: introduce SnapWithChannel?
 	Snaps      []string `long:"snap" value-name:"<snap>[=<channel>]"`
 	ExtraSnaps []string `long:"extra-snaps" hidden:"yes"` // DEPRECATED
@@ -67,6 +72,8 @@ For preparing classic images it supports a --classic mode`),
 			"extra-snaps": i18n.G("Extra snaps to be installed (DEPRECATED)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"channel": i18n.G("The channel to use"),
+			// TRANSLATORS: This should not start with a lowercase letter.
+			"customize": i18n.G("Image customizations specified as JSON file."),
 		}, []argDesc{
 			{
 				// TRANSLATORS: This needs to begin with < and end with >
@@ -90,6 +97,19 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 		ModelFile:    x.Positional.ModelAssertionFn,
 		Channel:      x.Channel,
 		Architecture: x.Architecture,
+	}
+
+	if x.Customize != "" {
+		f, err := os.Open(x.Customize)
+		if err != nil {
+			return fmt.Errorf("cannot read image customizations: %v", err)
+		}
+		dec := json.NewDecoder(f)
+		var custo image.Customizations
+		if err := dec.Decode(&custo); err != nil {
+			return fmt.Errorf("cannot parse customizations %q: %v", x.Customize, err)
+		}
+		opts.Customizations = custo
 	}
 
 	snaps := make([]string, 0, len(x.Snaps)+len(x.ExtraSnaps))
