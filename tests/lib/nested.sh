@@ -224,19 +224,19 @@ nested_qemu_name() {
 nested_get_google_image_url_for_vm() {
     case "${1:-$SPREAD_SYSTEM}" in
         ubuntu-16.04-64)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/xenial-server-cloudimg-amd64-disk1.img"
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/xenial-server-cloudimg-amd64-disk1.img"
             ;;
         ubuntu-18.04-64)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/bionic-server-cloudimg-amd64.img"
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/bionic-server-cloudimg-amd64.img"
             ;;
         ubuntu-20.04-64)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
             ;;
         ubuntu-20.10-64*)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/groovy-server-cloudimg-amd64.img"
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/groovy-server-cloudimg-amd64.img"
             ;;
         ubuntu-21.04-64*)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/hirsute-server-cloudimg-amd64.img"
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/hirsute-server-cloudimg-amd64.img"
             ;;
         *)
             echo "unsupported system"
