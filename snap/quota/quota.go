@@ -223,6 +223,7 @@ func ResolveCrossReferences(grps map[string]*Group) error {
 			for _, parentChildName := range parent.SubGroups {
 				if parentChildName == grp.Name {
 					found = true
+					break
 				}
 			}
 			if !found {
