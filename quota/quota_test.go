@@ -510,10 +510,15 @@ func (ts *quotaTestSuite) TestAddAllNecessaryGroups(c *C) {
 	qs.AddAllNecessaryGroups(grp2)
 	c.Assert(qs.AllQuotaGroups(), DeepEquals, []*quota.Group{grp1, grp2})
 
-	// make a sub-group and re-add the root group - it will automatically add
+	// start again
+	qs = &quota.QuotaGroupSet{}
+
+	// make a sub-group and add the root group - it will automatically add
 	// the sub-group without us needing to explicitly add the sub-group
 	subgrp1, err := grp1.NewSubGroup("mysub1", quantity.SizeGiB)
 	c.Assert(err, IsNil)
+	// add grp2 as well
+	qs.AddAllNecessaryGroups(grp2)
 
 	qs.AddAllNecessaryGroups(grp1)
 	c.Assert(qs.AllQuotaGroups(), DeepEquals, []*quota.Group{grp1, grp2, subgrp1})

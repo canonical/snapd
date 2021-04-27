@@ -297,7 +297,8 @@ type QuotaGroupSet struct {
 // set is the set of quota groups that must exist for this quota group to be
 // fully realized on a system, since all sub-branches of the full tree must
 // exist since this group may share some quota resources with the other
-// branches.
+// branches. There is no support fo manipulating group trees while
+// accumulating to a QuotaGroupSet using this.
 func (s *QuotaGroupSet) AddAllNecessaryGroups(grp *Group) {
 	if s.grps == nil {
 		s.grps = make(map[*Group]bool)
@@ -311,6 +312,11 @@ func (s *QuotaGroupSet) AddAllNecessaryGroups(grp *Group) {
 	for nextParentGrp != nil {
 		prevParentGrp = nextParentGrp
 		nextParentGrp = nextParentGrp.parentGroup
+	}
+
+	if s.grps[prevParentGrp] {
+		// nothing to do
+		return
 	}
 
 	for _, g := range prevParentGrp.tree() {
