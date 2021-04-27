@@ -28,8 +28,7 @@ import (
 )
 
 // AllQuotas returns all currently tracked quota groups in the state. They are
-// validated for consistency before returned and internally updated using
-// ResolveCrossReferences before returned.
+// validated for consistency using ResolveCrossReferences before being returned.
 func AllQuotas(st *state.State) (map[string]*quota.Group, error) {
 	var quotas map[string]*quota.Group
 	if err := st.Get("quotas", &quotas); err != nil {
@@ -62,11 +61,11 @@ func GetQuota(st *state.State, name string) (*quota.Group, error) {
 }
 
 // UpdateQuotas will update the state quota group map with the provided quota
-// groups. The groups provided will be added on top of the current set of quota
-// groups in the state, and verified for consistency before committed to state.
-// When adding sub-groups, both the parent and the sub-group must be added at
-// once since the sub-group needs to reference the parent group and vice versa
-// to be fully consistent.
+// groups. The groups provided will replace group states if present or be added
+// on top of the current set of quota groups in the state, and verified for
+// consistency before committed to state. When adding sub-groups, both the
+// parent and the sub-group must be added at once since the sub-group needs to
+// reference the parent group and vice versa to be fully consistent.
 func UpdateQuotas(st *state.State, grps ...*quota.Group) error {
 	// get the current set of quotas
 	allGrps, err := AllQuotas(st)
