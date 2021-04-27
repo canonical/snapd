@@ -38,10 +38,11 @@ var _ = Suite(&quotaTestSuite{})
 func (ts *quotaTestSuite) TestNewGroup(c *C) {
 
 	tt := []struct {
-		name    string
-		limit   quantity.Size
-		err     string
-		comment string
+		name          string
+		sliceFileName string
+		limit         quantity.Size
+		err           string
+		comment       string
 	}{
 		{
 			name:    "group1",
@@ -81,6 +82,12 @@ func (ts *quotaTestSuite) TestNewGroup(c *C) {
 			name:    "g1",
 			limit:   quantity.SizeMiB,
 			comment: "small group name",
+		},
+		{
+			name:          "name-with-dashes",
+			sliceFileName: `name\x2dwith\x2ddashes`,
+			limit:         quantity.SizeMiB,
+			comment:       "name with dashes",
 		},
 		{
 			name:    "",
@@ -129,17 +136,22 @@ func (ts *quotaTestSuite) TestNewGroup(c *C) {
 		}
 		c.Assert(err, IsNil, comment)
 
-		c.Assert(grp.SliceFileName(), Equals, "snap."+t.name+".slice", comment)
+		if t.sliceFileName != "" {
+			c.Assert(grp.SliceFileName(), Equals, "snap."+t.sliceFileName+".slice", comment)
+		} else {
+			c.Assert(grp.SliceFileName(), Equals, "snap."+t.name+".slice", comment)
+		}
 	}
 }
 
 func (ts *quotaTestSuite) TestSimpleSubGroupVerification(c *C) {
 	tt := []struct {
-		rootlimit quantity.Size
-		subname   string
-		sublimit  quantity.Size
-		err       string
-		comment   string
+		rootlimit     quantity.Size
+		subname       string
+		sliceFileName string
+		sublimit      quantity.Size
+		err           string
+		comment       string
 	}{
 		{
 			rootlimit: quantity.SizeMiB,
@@ -152,6 +164,13 @@ func (ts *quotaTestSuite) TestSimpleSubGroupVerification(c *C) {
 			subname:   "sub",
 			sublimit:  quantity.SizeMiB / 2,
 			comment:   "basic sub group with smaller quota than parent happy",
+		},
+		{
+			rootlimit:     quantity.SizeMiB,
+			subname:       "sub-with-dashes",
+			sliceFileName: `sub\x2dwith\x2ddashes`,
+			sublimit:      quantity.SizeMiB / 2,
+			comment:       "basic sub group with dashes in the name",
 		},
 		{
 			rootlimit: quantity.SizeMiB,
@@ -204,7 +223,11 @@ func (ts *quotaTestSuite) TestSimpleSubGroupVerification(c *C) {
 		}
 		c.Assert(err, IsNil, comment)
 
-		c.Assert(subGrp.SliceFileName(), Equals, "snap.myroot-"+t.subname+".slice")
+		if t.sliceFileName != "" {
+			c.Assert(subGrp.SliceFileName(), Equals, "snap.myroot-"+t.sliceFileName+".slice")
+		} else {
+			c.Assert(subGrp.SliceFileName(), Equals, "snap.myroot-"+t.subname+".slice")
+		}
 	}
 }
 

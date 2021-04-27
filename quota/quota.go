@@ -26,6 +26,7 @@ import (
 
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/systemd"
 )
 
 // Group is a quota group of snaps, services or sub-groups that are all subject
@@ -94,9 +95,10 @@ const (
 // from the snapd friendly group name, mainly in the case that the group is a
 // sub group.
 func (grp *Group) SliceFileName() string {
+	escapedGrpName := systemd.EscapeUnitNamePath(grp.Name)
 	if grp.ParentGroup == "" {
 		// root group name, then the slice unit is just "<name>.slice"
-		return fmt.Sprintf("snap.%s.slice", grp.Name)
+		return fmt.Sprintf("snap.%s.slice", escapedGrpName)
 	}
 
 	// otherwise we need to track back to get all of the parent elements
@@ -110,9 +112,9 @@ func (grp *Group) SliceFileName() string {
 	buf := &bytes.Buffer{}
 	fmt.Fprintf(buf, "snap.")
 	for _, parentGrpName := range grpNames {
-		fmt.Fprintf(buf, "%s-", parentGrpName)
+		fmt.Fprintf(buf, "%s-", systemd.EscapeUnitNamePath(parentGrpName))
 	}
-	fmt.Fprintf(buf, "%s.slice", grp.Name)
+	fmt.Fprintf(buf, "%s.slice", escapedGrpName)
 	return buf.String()
 }
 
