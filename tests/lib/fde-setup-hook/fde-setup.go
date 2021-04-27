@@ -152,7 +152,7 @@ func runFdeRevealKey() error {
 	// decoding the base64 string in the stricter case
 	decodedBase64Key, err := base64.StdEncoding.DecodeString(jsStrict.SealedKey)
 	if err != nil {
-		return fmt.Errorf("fde-reveal-key input is not valid base64: %v", err)
+		return fmt.Errorf("fde-reveal-key key input is not valid base64: %v", err)
 	}
 	if !bytes.Equal(decodedBase64Key, js.SealedKey) {
 		return fmt.Errorf("fde-reveal-key key input is not strictly the same base64 decoded as binary decoded")
@@ -187,7 +187,7 @@ func runFdeRevealKey() error {
 	case "features":
 		fmt.Fprintf(osStdout, `{"features":[]}`)
 	default:
-		return fmt.Errorf(`unsupported operations %q`, js.Op)
+		return fmt.Errorf(`unsupported operation %q`, js.Op)
 	}
 
 	return nil
@@ -197,6 +197,7 @@ func main() {
 	var err error
 
 	// XXX: workaround systemd bug
+	// https://bugs.launchpad.net/ubuntu/+source/systemd/+bug/1921145
 	time.Sleep(1 * time.Second)
 
 	switch filepath.Base(os.Args[0]) {
