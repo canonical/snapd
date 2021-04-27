@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -100,16 +100,11 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 	}
 
 	if x.Customize != "" {
-		f, err := os.Open(x.Customize)
+		custo, err := readImageCustomizations(x.Customize)
 		if err != nil {
-			return fmt.Errorf("cannot read image customizations: %v", err)
+			return err
 		}
-		dec := json.NewDecoder(f)
-		var custo image.Customizations
-		if err := dec.Decode(&custo); err != nil {
-			return fmt.Errorf("cannot parse customizations %q: %v", x.Customize, err)
-		}
-		opts.Customizations = custo
+		opts.Customizations = *custo
 	}
 
 	snaps := make([]string, 0, len(x.Snaps)+len(x.ExtraSnaps))
@@ -138,4 +133,18 @@ func (x *cmdPrepareImage) Execute(args []string) error {
 	opts.Classic = x.Classic
 
 	return imagePrepare(opts)
+}
+
+func readImageCustomizations(customizationsFile string) (*image.Customizations, error) {
+	f, err := os.Open(customizationsFile)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read image customizations: %v", err)
+	}
+	defer f.Close()
+	dec := json.NewDecoder(f)
+	var custo image.Customizations
+	if err := dec.Decode(&custo); err != nil {
+		return nil, fmt.Errorf("cannot parse customizations %q: %v", customizationsFile, err)
+	}
+	return &custo, nil
 }
