@@ -17,6 +17,8 @@
  *
  */
 
+// Package quota defines state structures for resource quota groups
+// for snaps.
 package quota
 
 import (
