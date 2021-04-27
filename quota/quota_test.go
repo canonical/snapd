@@ -146,6 +146,7 @@ func (ts *quotaTestSuite) TestNewGroup(c *C) {
 
 func (ts *quotaTestSuite) TestSimpleSubGroupVerification(c *C) {
 	tt := []struct {
+		rootname      string
 		rootlimit     quantity.Size
 		subname       string
 		sliceFileName string
@@ -168,9 +169,17 @@ func (ts *quotaTestSuite) TestSimpleSubGroupVerification(c *C) {
 		{
 			rootlimit:     quantity.SizeMiB,
 			subname:       "sub-with-dashes",
-			sliceFileName: `sub\x2dwith\x2ddashes`,
+			sliceFileName: `myroot-sub\x2dwith\x2ddashes`,
 			sublimit:      quantity.SizeMiB / 2,
 			comment:       "basic sub group with dashes in the name",
+		},
+		{
+			rootname:      "my-root",
+			rootlimit:     quantity.SizeMiB,
+			subname:       "sub-with-dashes",
+			sliceFileName: `my\x2droot-sub\x2dwith\x2ddashes`,
+			sublimit:      quantity.SizeMiB / 2,
+			comment:       "parent and sub group have dashes in name",
 		},
 		{
 			rootlimit: quantity.SizeMiB,
@@ -212,7 +221,11 @@ func (ts *quotaTestSuite) TestSimpleSubGroupVerification(c *C) {
 	for _, t := range tt {
 		comment := Commentf(t.comment)
 		// make a root group
-		rootGrp, err := quota.NewGroup("myroot", t.rootlimit)
+		rootname := t.rootname
+		if rootname == "" {
+			rootname = "myroot"
+		}
+		rootGrp, err := quota.NewGroup(rootname, t.rootlimit)
 		c.Assert(err, IsNil, comment)
 
 		// make a sub-group under the root group
@@ -224,7 +237,7 @@ func (ts *quotaTestSuite) TestSimpleSubGroupVerification(c *C) {
 		c.Assert(err, IsNil, comment)
 
 		if t.sliceFileName != "" {
-			c.Assert(subGrp.SliceFileName(), Equals, "snap.myroot-"+t.sliceFileName+".slice")
+			c.Assert(subGrp.SliceFileName(), Equals, "snap."+t.sliceFileName+".slice")
 		} else {
 			c.Assert(subGrp.SliceFileName(), Equals, "snap.myroot-"+t.subname+".slice")
 		}
