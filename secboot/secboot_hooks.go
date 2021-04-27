@@ -194,8 +194,9 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sou
 		return res, fmt.Errorf("cannot check if model is authorized to unlock disk: %v", err)
 	}
 	if !ok {
-		// XXX: do we need to do some cleanup here? like unactivate
-		// the volume or something?
+		if err := sbDeactivateVolume(mapperName); err != nil {
+			logger.Noticef("cannot deactivate volume %q", mapperName)
+		}
 		return res, fmt.Errorf("cannot unlock volume: model %s/%s not authorized", model.BrandID(), model.Model())
 	}
 

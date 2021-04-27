@@ -1521,6 +1521,14 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Mo
 	})
 	defer restore()
 
+	deactivated := 0
+	restore = secboot.MockSbDeactivateVolume(func(volumeName string) error {
+		deactivated++
+		c.Check(volumeName, Equals, "device-name-random-uuid-for-test")
+		return nil
+	})
+	defer restore()
+
 	defaultDevice := "device-name"
 	handle := json.RawMessage(`{"a": "handle"}`)
 	mockSealedKeyFile := makeMockSealedKeyFile(c, handle)
@@ -1537,6 +1545,7 @@ func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2Mo
 		PartDevice:  "/dev/disk/by-partuuid/enc-dev-partuuid",
 	})
 	c.Check(activated, Equals, 1)
+	c.Check(deactivated, Equals, 1)
 }
 
 func (s *secbootSuite) TestUnlockVolumeUsingSealedKeyIfEncryptedFdeRevealKeyV2ModelCheckerError(c *C) {
