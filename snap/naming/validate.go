@@ -194,20 +194,20 @@ var ValidGroupName = almostValidName
 // resource group. Currently the rules are exactly the same as for snap names.
 func ValidateQuotaGroup(grp string) error {
 	if grp == "" {
-		return fmt.Errorf("group name must not be empty")
+		return fmt.Errorf("invalid group name: must not be empty")
 	}
 
 	if len(grp) < 2 || len(grp) > 40 {
-		return fmt.Errorf("group name must be between 2 and 40 characters long")
+		return fmt.Errorf("invalid group name: must be between 2 and 40 characters long")
 	}
 
 	// check that the name matches the regexp
 	if !ValidGroupName.MatchString(grp) {
-		return fmt.Errorf("group name %q contains invalid characters (valid names start with a letter and are otherwise alphanumeric with dashes)", grp)
+		return fmt.Errorf("invalid group name: contains invalid characters (valid names start with a letter and are otherwise alphanumeric with dashes)")
 	}
 
 	if grp[0] == '-' || grp[len(grp)-1] == '-' || strings.Contains(grp, "--") {
-		return fmt.Errorf("group name %q has invalid %q characters in it", grp, "-")
+		return fmt.Errorf("invalid group name: has invalid \"-\" sequences in it in it")
 	}
 
 	return nil

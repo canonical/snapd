@@ -21,6 +21,7 @@ package naming_test
 
 import (
 	"fmt"
+
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/snap/naming"
@@ -323,4 +324,49 @@ func (s *ValidateSuite) TestValidateSecurityTag(c *C) {
 	c.Check(naming.ValidateSecurityTag("snap.pkg"), ErrorMatches, "invalid security tag")
 	c.Check(naming.ValidateSecurityTag("snap."), ErrorMatches, "invalid security tag")
 	c.Check(naming.ValidateSecurityTag("snap"), ErrorMatches, "invalid security tag")
+}
+
+func (s *ValidateSuite) TestValidQuotaGroup(c *C) {
+	validNames := []string{
+		"aa", "aaa", "aaaa",
+		"a-a", "aa-a", "a-aa", "a-b-c",
+		"a0", "a-0", "a-0a",
+		"01game", "1-or-2",
+		// a regexp stresser
+		"u-94903713687486543234157734673284536758",
+	}
+	for _, name := range validNames {
+		err := naming.ValidateSnap(name)
+		c.Assert(err, IsNil)
+	}
+	invalidNames := []string{
+		// name cannot be empty
+		"",
+		// too short (min 2 chars)
+		"a",
+		// names cannot be too long
+		"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+		"xxxxxxxxxxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxx",
+		"1111111111111111111111111111111111111111x",
+		"x1111111111111111111111111111111111111111",
+		"x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x-x",
+		// a regexp stresser
+		"u-9490371368748654323415773467328453675-",
+		// dashes alone are not a name
+		"-", "--",
+		// double dashes in a name are not allowed
+		"a--a",
+		// name should not end with a dash
+		"a-",
+		// name cannot have any spaces in it
+		"a ", " a", "a a",
+		// a number alone is not a name
+		"0", "123",
+		// identifier must be plain ASCII
+		"日本語", "한글", "ру́сский язы́к",
+	}
+	for _, name := range invalidNames {
+		err := naming.ValidateQuotaGroup(name)
+		c.Assert(err, ErrorMatches, `invalid group name:.*`)
+	}
 }
