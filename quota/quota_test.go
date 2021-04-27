@@ -451,5 +451,70 @@ func (ts *quotaTestSuite) TestResolveCrossReferences(c *C) {
 }
 
 func (ts *quotaTestSuite) TestAddAllNecessaryGroups(c *C) {
+	qs := &quota.QuotaGroupSet{}
 
+	// it should initially be empty
+	c.Assert(qs.AllQuotaGroups(), HasLen, 0)
+
+	grp1, err := quota.NewGroup("myroot", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	// add the group and make sure it is in the set
+	qs.AddAllNecessaryGroups(grp1)
+	c.Assert(qs.AllQuotaGroups(), DeepEquals, []*quota.Group{grp1})
+
+	// adding multiple times doesn't change the set
+	qs.AddAllNecessaryGroups(grp1)
+	qs.AddAllNecessaryGroups(grp1)
+	c.Assert(qs.AllQuotaGroups(), DeepEquals, []*quota.Group{grp1})
+
+	// add a new group and make sure it is in the set now
+	grp2, err := quota.NewGroup("myroot2", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+	qs.AddAllNecessaryGroups(grp2)
+	c.Assert(qs.AllQuotaGroups(), DeepEquals, []*quota.Group{grp1, grp2})
+
+	// make a sub-group and re-add the root group - it will automatically add
+	// the sub-group without us needing to explicitly add the sub-group
+	subgrp1, err := grp1.NewSubGroup("mysub1", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	qs.AddAllNecessaryGroups(grp1)
+	c.Assert(qs.AllQuotaGroups(), DeepEquals, []*quota.Group{grp1, grp2, subgrp1})
+
+	// we can explicitly add the sub-group and still have the same set too
+	qs.AddAllNecessaryGroups(subgrp1)
+	c.Assert(qs.AllQuotaGroups(), DeepEquals, []*quota.Group{grp1, grp2, subgrp1})
+
+	// create a new set of group and sub-groups to add the deepest child group
+	// and add that, and notice that the root groups are also added
+	grp3, err := quota.NewGroup("myroot3", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	subgrp3, err := grp3.NewSubGroup("mysub3", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	subsubgrp3, err := subgrp3.NewSubGroup("mysubsub3", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	qs.AddAllNecessaryGroups(subsubgrp3)
+	c.Assert(qs.AllQuotaGroups(), DeepEquals, []*quota.Group{grp1, grp2, grp3, subgrp1, subgrp3, subsubgrp3})
+
+	// finally create a tree with multiple branches and ensure that adding just
+	// a single deepest child will add all the other deepest children from other
+	// branches
+	grp4, err := quota.NewGroup("myroot4", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	subgrp4, err := grp4.NewSubGroup("mysub4", quantity.SizeGiB/2)
+	c.Assert(err, IsNil)
+
+	subgrp5, err := grp4.NewSubGroup("mysub5", quantity.SizeGiB/2)
+	c.Assert(err, IsNil)
+
+	// adding just subgrp5 to a quota set will automatically add the other sub
+	// group, subgrp4
+	qs2 := &quota.QuotaGroupSet{}
+	qs2.AddAllNecessaryGroups(subgrp4)
+	c.Assert(qs2.AllQuotaGroups(), DeepEquals, []*quota.Group{grp4, subgrp4, subgrp5})
 }

@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
+	"sort"
 
 	"github.com/snapcore/snapd/gadget/quantity"
 )
@@ -278,14 +279,18 @@ func ResolveCrossReferences(grps map[string]*Group) error {
 	return nil
 }
 
-// subTree recursively returns all of the sub-groups of the group
-func (grp *Group) subTree() []*Group {
-	subTreeList := grp.subGroups
+// tree recursively returns all of the sub-groups of the group and the group
+// itself.
+func (grp *Group) tree() []*Group {
+	treeList := grp.subGroups
 	for _, sub := range grp.subGroups {
-		subTreeList = append(subTreeList, sub.subTree()...)
+		treeList = append(treeList, sub.tree()...)
 	}
 
-	return subTreeList
+	// add this group too to get the full tree flattened
+	treeList = append(treeList, grp)
+
+	return treeList
 }
 
 type QuotaGroupSet struct {
@@ -314,7 +319,7 @@ func (s *QuotaGroupSet) AddAllNecessaryGroups(grp *Group) {
 		nextParentGrp = nextParentGrp.parentGroup
 	}
 
-	for _, g := range prevParentGrp.subTree() {
+	for _, g := range prevParentGrp.tree() {
 		s.grps[g] = true
 	}
 }
@@ -324,6 +329,11 @@ func (s *QuotaGroupSet) AllQuotaGroups() []*Group {
 	for grp := range s.grps {
 		grps = append(grps, grp)
 	}
+
+	// sort the groups by their name for easier testing
+	sort.SliceStable(grps, func(i, j int) bool {
+		return grps[i].Name < grps[j].Name
+	})
 
 	return grps
 }
