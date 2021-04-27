@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	"github.com/snapcore/snapd/gadget/quantity"
-	"github.com/snapcore/snapd/quota"
+	"github.com/snapcore/snapd/snap/quota"
 	. "gopkg.in/check.v1"
 )
 

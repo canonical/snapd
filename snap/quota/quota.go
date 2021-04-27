@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"sort"
 
+	// TODO: move this to snap/quantity? or similar
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/systemd"
