@@ -293,6 +293,10 @@ func (grp *Group) tree() []*Group {
 	return treeList
 }
 
+// QuotaGroupSet is a set of quota groups, it is used for tracking a set of
+// necessary quota groups using AddAllNecessaryGroups to add groups (and their
+// implicit dependencies), and AllQuotaGroups to enumerate all the quota groups
+// in the set.
 type QuotaGroupSet struct {
 	grps map[*Group]bool
 }
@@ -324,6 +328,8 @@ func (s *QuotaGroupSet) AddAllNecessaryGroups(grp *Group) {
 	}
 }
 
+// AllQuotaGroups returns a flattend list of all quota groups and necessary
+// quota groups that have been added to the set.
 func (s *QuotaGroupSet) AllQuotaGroups() []*Group {
 	grps := make([]*Group, 0, len(s.grps))
 	for grp := range s.grps {
