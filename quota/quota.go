@@ -234,12 +234,6 @@ func ResolveCrossReferences(grps map[string]*Group) error {
 			}
 			grp.parentGroup = parent
 
-			// also add an internal link from the parent to this group, this
-			// will in most case be overwritten when the parent group is
-			// resolved, but in the case it is not, we will catch missing links
-			// that are only specified in one direction
-			parent.subGroups = append(parent.subGroups, grp)
-
 			// make sure that the parent group references this group
 			found := false
 			for _, parentChildName := range parent.SubGroups {
