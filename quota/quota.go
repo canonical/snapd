@@ -275,6 +275,8 @@ func ResolveCrossReferences(grps map[string]*Group) error {
 // tree recursively returns all of the sub-groups of the group and the group
 // itself.
 func (grp *Group) tree() []*Group {
+	// TODO: should we be paranoid about circular references and
+	// recursion here?
 	treeList := grp.subGroups
 	for _, sub := range grp.subGroups {
 		treeList = append(treeList, sub.tree()...)
