@@ -170,6 +170,9 @@ func (grp *Group) validate() error {
 	if grp.parentGroup != nil {
 		alreadyUsed := quantity.Size(0)
 		for _, child := range grp.parentGroup.subGroups {
+			if child.Name == grp.Name {
+				continue
+			}
 			alreadyUsed += child.MemoryLimit
 		}
 		// careful arithmetic here in case we somehow overflow the max size of

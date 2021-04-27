@@ -559,3 +559,43 @@ func (ts *quotaTestSuite) TestAddAllNecessaryGroups(c *C) {
 	qs2.AddAllNecessaryGroups(subgrp4)
 	c.Assert(qs2.AllQuotaGroups(), DeepEquals, []*quota.Group{grp4, subgrp4, subgrp5})
 }
+
+func (ts *quotaTestSuite) TestTestResolveCrossReferencesLimitCheckSkipsSelf(c *C) {
+	grp1, err := quota.NewGroup("myroot", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	subgrp1, err := grp1.NewSubGroup("mysub1", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	subgrp2, err := subgrp1.NewSubGroup("mysub2", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	all := map[string]*quota.Group{
+		"myroot": grp1,
+		"mysub1": subgrp1,
+		"mysub2": subgrp2,
+	}
+	err = quota.ResolveCrossReferences(all)
+	c.Assert(err, IsNil)
+}
+
+func (ts *quotaTestSuite) TestResolveCrossReferencesCircular(c *C) {
+	grp1, err := quota.NewGroup("myroot", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	subgrp1, err := grp1.NewSubGroup("mysub1", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	subgrp2, err := subgrp1.NewSubGroup("mysub2", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	all := map[string]*quota.Group{
+		"myroot": grp1,
+		"mysub1": subgrp1,
+		"mysub2": subgrp2,
+	}
+	// try to set up circular ref
+	subgrp2.SubGroups = append(subgrp2.SubGroups, "mysub1")
+	err = quota.ResolveCrossReferences(all)
+	c.Assert(err, ErrorMatches, `.*reference necessary parent.*`)
+}
