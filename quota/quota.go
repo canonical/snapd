@@ -142,6 +142,18 @@ func (grp *Group) validate() error {
 	// TODO: probably there is a minimum amount of bytes here that is
 	// technically usable/enforcable, should we check that too?
 
+	if grp.ParentGroup != "" && grp.Name == grp.ParentGroup {
+		return fmt.Errorf("group has circular parent reference to itself")
+	}
+
+	if len(grp.SubGroups) != 0 {
+		for _, subGrp := range grp.SubGroups {
+			if subGrp == grp.Name {
+				return fmt.Errorf("group has circular sub-group reference to itself")
+			}
+		}
+	}
+
 	// check that if this is a sub-group, then the parent group has enough space
 	// to accommodate this new group (we assume that other existing sub-groups
 	// in the parent group have already been validated)
