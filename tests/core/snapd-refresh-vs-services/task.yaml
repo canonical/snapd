@@ -11,13 +11,13 @@ environment:
 
   # links to specific snapd versions
 
-  SNAPD_2_49_1_X86: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.1_11402.snap
-  SNAPD_2_49_1_ARM64: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.1_11408.snap
-  SNAPD_2_49_1_ARMHF: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.1_11410.snap
+  SNAPD_2_49_1_X86: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_2.49.1_11402.snap
+  SNAPD_2_49_1_ARM64: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_2.49.1_11408.snap
+  SNAPD_2_49_1_ARMHF: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_2.49.1_11410.snap
 
-  SNAPD_2_49_2_X86: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.2_11588.snap
-  SNAPD_2_49_2_ARM64: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.2_11584.snap
-  SNAPD_2_49_2_ARMHF: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.49.2_11586.snap
+  SNAPD_2_49_2_X86: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_2.49.2_11588.snap
+  SNAPD_2_49_2_ARM64: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_2.49.2_11584.snap
+  SNAPD_2_49_2_ARMHF: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_2.49.2_11586.snap
 
 prepare: |
   tests.cleanup prepare
