@@ -266,18 +266,39 @@ func ResolveCrossReferences(grps map[string]*Group) error {
 
 // tree recursively returns all of the sub-groups of the group and the group
 // itself.
-func (grp *Group) tree() []*Group {
-	// TODO: should we be paranoid about circular references and
-	// recursion here?
-	treeList := grp.subGroups
+func (grp *Group) tree(acc []*Group) ([]*Group, error) {
+	// make sure that none of the sub-groups seen already are present in the
+	// sub-groups of this group
 	for _, sub := range grp.subGroups {
-		treeList = append(treeList, sub.tree()...)
+		// check if we have already seen this sub-group
+		for _, alreadySeen := range acc {
+			if sub == alreadySeen {
+				return nil, fmt.Errorf("internal error: circular reference found")
+			}
+		}
+
+		// check if this sub-group is actually the same group
+		if sub == grp {
+			return nil, fmt.Errorf("internal error: circular reference found")
+		}
+	}
+
+	// add all the sub-groups for this group to the list
+	acc = append(acc, grp.subGroups...)
+
+	for _, sub := range grp.subGroups {
+		flattendedSubTree, err := sub.tree(acc)
+		if err != nil {
+			return nil, err
+		}
+
+		acc = append(acc, flattendedSubTree...)
 	}
 
 	// add this group too to get the full tree flattened
-	treeList = append(treeList, grp)
+	acc = append(acc, grp)
 
-	return treeList
+	return acc, nil
 }
 
 // QuotaGroupSet is a set of quota groups, it is used for tracking a set of
@@ -296,7 +317,7 @@ type QuotaGroupSet struct {
 // exist since this group may share some quota resources with the other
 // branches. There is no support for manipulating group trees while
 // accumulating to a QuotaGroupSet using this.
-func (s *QuotaGroupSet) AddAllNecessaryGroups(grp *Group) {
+func (s *QuotaGroupSet) AddAllNecessaryGroups(grp *Group) error {
 	if s.grps == nil {
 		s.grps = make(map[*Group]bool)
 	}
@@ -313,12 +334,18 @@ func (s *QuotaGroupSet) AddAllNecessaryGroups(grp *Group) {
 
 	if s.grps[prevParentGrp] {
 		// nothing to do
-		return
+		return nil
 	}
 
-	for _, g := range prevParentGrp.tree() {
+	flattenedTree, err := prevParentGrp.tree(nil)
+	if err != nil {
+		return err
+	}
+	for _, g := range flattenedTree {
 		s.grps[g] = true
 	}
+
+	return nil
 }
 
 // AllQuotaGroups returns a flattend list of all quota groups and necessary
