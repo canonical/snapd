@@ -76,16 +76,13 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 		return fmt.Errorf("missing required --max-memory argument")
 	}
 
-	var mem int64
-	if maxMemory != "" {
-		mem, err = strutil.ParseByteSize(maxMemory)
-		if err != nil {
-			return err
-		}
+	mem, err := strutil.ParseByteSize(maxMemory)
+	if err != nil {
+		return err
 	}
 
 	names := installedSnapNames(x.Positional.Snaps)
-	return x.client.CreateOrUpdateQuota(x.Positional.GroupName, x.Parent, names, mem)
+	return x.client.CreateOrUpdateQuota(x.Positional.GroupName, x.Parent, names, uint64(mem))
 }
 
 func (x *cmdQuota) showQuotaGroupInfo(groupName string) error {
@@ -94,6 +91,8 @@ func (x *cmdQuota) showQuotaGroupInfo(groupName string) error {
 	if err != nil {
 		return err
 	}
+
+	// TODO: show current quota usage
 
 	fmt.Fprintf(w, "name: %s\n", group.GroupName)
 	if group.Parent != "" {
@@ -105,7 +104,7 @@ func (x *cmdQuota) showQuotaGroupInfo(groupName string) error {
 			fmt.Fprintf(w, "  - %s\n", name)
 		}
 	}
-	fmt.Fprintf(w, "max-memory: %s\n", fmtSize(group.MaxMemory))
+	fmt.Fprintf(w, "max-memory: %s\n", fmtSize(int64(group.MaxMemory)))
 	if len(group.Snaps) > 0 {
 		fmt.Fprint(w, "snaps:\n")
 		for _, snapName := range group.Snaps {

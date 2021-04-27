@@ -31,7 +31,7 @@ type postQuotaData struct {
 	GroupName string   `json:"group-name"`
 	Parent    string   `json:"parent,omitempty"`
 	Snaps     []string `json:"snaps,omitempty"`
-	MaxMemory int64    `json:"max-memory"`
+	MaxMemory uint64    `json:"max-memory"`
 }
 
 type QuotaGroupResult struct {
@@ -39,12 +39,12 @@ type QuotaGroupResult struct {
 	Parent    string   `json:"parent,omitempty"`
 	Subgroups []string `json:"subgroups,omitempty"`
 	Snaps     []string `json:"snaps,omitempty"`
-	MaxMemory int64    `json:"max-memory"`
+	MaxMemory uint64    `json:"max-memory"`
 }
 
 // CreateOrUpdateQuota creates a quota group or updates an existing group.
 // The list of snaps can be empty.
-func (client *Client) CreateOrUpdateQuota(groupName string, parent string, snaps []string, maxMemory int64) error {
+func (client *Client) CreateOrUpdateQuota(groupName string, parent string, snaps []string, maxMemory uint64) error {
 	if groupName == "" {
 		return xerrors.Errorf("cannot create or update quota group without a name")
 	}
