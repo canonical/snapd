@@ -200,7 +200,17 @@ func (grp *Group) NewSubGroup(name string, memLimit quantity.Size) (*Group, erro
 func ResolveCrossReferences(grps map[string]*Group) error {
 	// iterate over all groups, looking for sub-groups which need to be threaded
 	// together with their respective parent groups from the set
-	for name, grp := range grps {
+
+	// iterate in the same order
+	grpNames := make([]string, 0, len(grps))
+	for name := range grps {
+		grpNames = append(grpNames, name)
+	}
+
+	sort.Strings(grpNames)
+
+	for _, name := range grpNames {
+		grp := grps[name]
 		if name != grp.Name {
 			return fmt.Errorf("group has name %q, but is referenced as %q", grp.Name, name)
 		}
