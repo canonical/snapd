@@ -90,6 +90,20 @@ const (
 	DefaultOOMKiller MemoryExhaustionBehavior = iota
 )
 
+// NewGroup creates a new top quota group with the given name and memory limit.
+func NewGroup(name string, memLimit quantity.Size) (*Group, error) {
+	grp := &Group{
+		Name:        name,
+		MemoryLimit: memLimit,
+	}
+
+	if err := grp.validate(); err != nil {
+		return nil, err
+	}
+
+	return grp, nil
+}
+
 // SliceFileName returns the name of the slice file that should be used for this
 // quota group. This name will include all of the group's parents in the name.
 // For example, a group named "bar" that is a child of the "foo" group will have
@@ -169,7 +183,7 @@ func (grp *Group) validate() error {
 	return nil
 }
 
-// NewSubGroup creates a new sub group under the current group
+// NewSubGroup creates a new sub group under the current group.
 func (grp *Group) NewSubGroup(name string, memLimit quantity.Size) (*Group, error) {
 	subGrp := &Group{
 		Name:        name,
@@ -194,19 +208,6 @@ func (grp *Group) NewSubGroup(name string, memLimit quantity.Size) (*Group, erro
 	grp.SubGroups = append(grp.SubGroups, name)
 
 	return subGrp, nil
-}
-
-func NewGroup(name string, memLimit quantity.Size) (*Group, error) {
-	grp := &Group{
-		Name:        name,
-		MemoryLimit: memLimit,
-	}
-
-	if err := grp.validate(); err != nil {
-		return nil, err
-	}
-
-	return grp, nil
 }
 
 // ResolveCrossReferences takes a set of deserialized groups and sets all
