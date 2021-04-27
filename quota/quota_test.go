@@ -66,10 +66,10 @@ func (ts *quotaTestSuite) TestNewGroup(c *C) {
 			comment: "unsupported characters in group name",
 		},
 		{
-			name:    "1group",
+			name:    "group%%%",
 			limit:   quantity.SizeMiB,
-			err:     `group name "1group" contains invalid characters.*`,
-			comment: "size negative",
+			err:     `group name "group%%%" contains invalid characters.*`,
+			comment: "more invalid characters in name",
 		},
 		{
 			name:    "CAPITALIZED",
@@ -91,7 +91,7 @@ func (ts *quotaTestSuite) TestNewGroup(c *C) {
 		{
 			name:    "g",
 			limit:   quantity.SizeMiB,
-			err:     `group name "g" contains invalid character.*`,
+			err:     `group name must be between 2 and 40 characters long.*`,
 			comment: "too small group name",
 		},
 		{
@@ -162,9 +162,9 @@ func (ts *quotaTestSuite) TestSimpleSubGroupVerification(c *C) {
 		},
 		{
 			rootlimit: quantity.SizeMiB,
-			subname:   "sub-invalid-chars",
+			subname:   "sub invalid chars",
 			sublimit:  quantity.SizeMiB,
-			err:       `group name "sub-invalid-chars" contains invalid characters.*`,
+			err:       `group name "sub invalid chars" contains invalid characters.*`,
 			comment:   "sub group with invalid name",
 		},
 		{

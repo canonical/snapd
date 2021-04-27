@@ -185,3 +185,30 @@ func ValidateSecurityTag(tag string) error {
 	_, err := ParseSecurityTag(tag)
 	return err
 }
+
+// ValidGroupName is a regular expression describing a valid quota resource
+// group. It is the same regular expression as a snap name
+var ValidGroupName = almostValidName
+
+// ValidateQuotaGroup checks if a string can be used as a name for a quota
+// resource group. Currently the rules are exactly the same as for snap names.
+func ValidateQuotaGroup(grp string) error {
+	if grp == "" {
+		return fmt.Errorf("group name must not be empty")
+	}
+
+	if len(grp) < 2 || len(grp) > 40 {
+		return fmt.Errorf("group name must be between 2 and 40 characters long")
+	}
+
+	// check that the name matches the regexp
+	if !ValidGroupName.MatchString(grp) {
+		return fmt.Errorf("group name %q contains invalid characters (valid names start with a letter and are otherwise alphanumeric with dashes)", grp)
+	}
+
+	if grp[0] == '-' || grp[len(grp)-1] == '-' || strings.Contains(grp, "--") {
+		return fmt.Errorf("group name %q has invalid %q characters in it", grp, "-")
+	}
+
+	return nil
+}

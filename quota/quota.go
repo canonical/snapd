@@ -22,10 +22,10 @@ package quota
 import (
 	"bytes"
 	"fmt"
-	"regexp"
 	"sort"
 
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 // Group is a quota group of snaps, services or sub-groups that are all subject
@@ -116,18 +116,9 @@ func (grp *Group) SliceFileName() string {
 	return buf.String()
 }
 
-// allow only alphanumerics at least two characters long, and not starting with
-// a number
-var validGroupNameRegexp = regexp.MustCompile(`^[a-z][a-z0-9]+$`)
-
 func (grp *Group) validate() error {
-	if grp.Name == "" {
-		return fmt.Errorf("group name must not be empty")
-	}
-
-	// check that the name is a simple alphanumeric name
-	if !validGroupNameRegexp.MatchString(grp.Name) {
-		return fmt.Errorf("group name %q contains invalid characters (valid names are alphanumeric starting with a letter)", grp.Name)
+	if err := naming.ValidateQuotaGroup(grp.Name); err != nil {
+		return err
 	}
 
 	// check if the name is reserved for future usage
