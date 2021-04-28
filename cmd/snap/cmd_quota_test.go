@@ -79,16 +79,16 @@ func (s *quotaSuite) TestQuotaInvalidArgs(c *check.C) {
 		args []string
 		err  string
 	}{
-		{[]string{""}, `cannot get quota group without a name`},
-		{[]string{"--memory-max=99B"}, "the required argument `<group-name>` was not provided"},
-		{[]string{"--memory-max=99B", "--max-memory=88B", "foo"}, `cannot use --max-memory and --memory-max together`},
-		{[]string{"--memory-max=99", "foo"}, `cannot parse "99": need a number with a unit as input`},
-		{[]string{"--memory-max=888X", "foo"}, `cannot parse "888X\": try 'kB' or 'MB'`},
+		{[]string{"quota"}, "the required argument `<group-name>` was not provided"},
+		{[]string{"quota", "--memory-max=99B"}, "the required argument `<group-name>` was not provided"},
+		{[]string{"quota", "--memory-max=99B", "--max-memory=88B", "foo"}, `cannot use --max-memory and --memory-max together`},
+		{[]string{"quota", "--memory-max=99", "foo"}, `cannot parse "99": need a number with a unit as input`},
+		{[]string{"quota", "--memory-max=888X", "foo"}, `cannot parse "888X\": try 'kB' or 'MB'`},
 	} {
 		s.stdout.Reset()
 		s.stderr.Reset()
 
-		_, err := main.Parser(main.Client()).ParseArgs(append([]string{"quota"}, args.args...))
+		_, err := main.Parser(main.Client()).ParseArgs(args.args)
 		c.Assert(err, check.ErrorMatches, args.err)
 	}
 }
