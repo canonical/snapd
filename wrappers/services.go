@@ -78,7 +78,6 @@ func generateSnapServiceFile(app *snap.AppInfo, opts *AddSnapServicesOptions) ([
 // generateGroupSliceFile generates a systemd slice unit definition for the
 // specified quota group.
 func generateGroupSliceFile(grp *quota.Group) ([]byte, error) {
-
 	buf := bytes.Buffer{}
 
 	template := `[Unit]
