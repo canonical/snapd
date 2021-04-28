@@ -99,6 +99,11 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 		return nil
 	}
 
+	allGrps, err := AllQuotas(m.state)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
 	snapsMap := map[*snap.Info]*wrappers.SnapServiceOptions{}
 
 	for _, snapSt := range allStates {
@@ -112,7 +117,8 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 			continue
 		}
 
-		snapSvcOpts, err := SnapServiceOptions(m.state, info.InstanceName())
+		// use the cached copy of all quota groups
+		snapSvcOpts, err := SnapServiceOptions(m.state, allGrps, info.InstanceName())
 		if err != nil {
 			return err
 		}
