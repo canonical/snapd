@@ -21,12 +21,15 @@ package configcore_test
 
 import (
 	"fmt"
+	"io/ioutil"
+	"path/filepath"
 	"reflect"
 	"testing"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/state"
@@ -153,6 +156,15 @@ func (s *configcoreSuite) SetUpTest(c *C) {
 	s.state = state.New(nil)
 
 	restore := snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	s.AddCleanup(restore)
+
+	// mock an empty cmdline since we check the cmdline to check whether we are
+	// in install mode or uc20 run mode, etc. and we don't want to use the
+	// host's proc/cmdline
+	mockCmdline := filepath.Join(dirs.GlobalRootDir, "cmdline")
+	err := ioutil.WriteFile(mockCmdline, nil, 0644)
+	c.Assert(err, IsNil)
+	restore = osutil.MockProcCmdline(mockCmdline)
 	s.AddCleanup(restore)
 }
 
