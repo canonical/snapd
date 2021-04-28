@@ -32,8 +32,8 @@ var longQuotaHelp = i18n.G(`
 The quota command creates, updates or shows quota groups for a a set of snaps.
 
 A quota group sets resource limits (currently maximum memory only) on the set of
-snaps that belong to it. Quotas groups are controlled by systemd slice units.
-Snaps can be at most in one quota group. Quota groups can be nested.
+snaps that belong to it. Snaps can be at most in one quota group. Quota groups
+can be nested.
 `)
 
 type cmdQuota struct {
@@ -70,8 +70,7 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 		return x.showQuotaGroupInfo(x.Positional.GroupName)
 	}
 
-	// XXX: we could support update without max-memory (i.e. the list of
-	// snaps/parent gets updated).
+	// TODO: update without max-memory (i.e. append snaps operation).
 	if maxMemory == "" {
 		return fmt.Errorf("missing required --max-memory argument")
 	}
@@ -82,7 +81,7 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 	}
 
 	names := installedSnapNames(x.Positional.Snaps)
-	return x.client.CreateOrUpdateQuota(x.Positional.GroupName, x.Parent, names, uint64(mem))
+	return x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, uint64(mem))
 }
 
 func (x *cmdQuota) showQuotaGroupInfo(groupName string) error {

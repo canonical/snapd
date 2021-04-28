@@ -28,10 +28,11 @@ import (
 )
 
 type postQuotaData struct {
+	Action    string   `json:"action"`
 	GroupName string   `json:"group-name"`
 	Parent    string   `json:"parent,omitempty"`
 	Snaps     []string `json:"snaps,omitempty"`
-	MaxMemory uint64    `json:"max-memory"`
+	MaxMemory uint64   `json:"max-memory"`
 }
 
 type QuotaGroupResult struct {
@@ -39,18 +40,19 @@ type QuotaGroupResult struct {
 	Parent    string   `json:"parent,omitempty"`
 	Subgroups []string `json:"subgroups,omitempty"`
 	Snaps     []string `json:"snaps,omitempty"`
-	MaxMemory uint64    `json:"max-memory"`
+	MaxMemory uint64   `json:"max-memory"`
 }
 
-// CreateOrUpdateQuota creates a quota group or updates an existing group.
+// EnsureQuota creates a quota group or updates an existing group.
 // The list of snaps can be empty.
-func (client *Client) CreateOrUpdateQuota(groupName string, parent string, snaps []string, maxMemory uint64) error {
+func (client *Client) EnsureQuota(groupName string, parent string, snaps []string, maxMemory uint64) error {
 	if groupName == "" {
 		return xerrors.Errorf("cannot create or update quota group without a name")
 	}
 	// TODO: use naming.ValidateQuotaGroup()
 
 	data := &postQuotaData{
+		Action:    "ensure",
 		GroupName: groupName,
 		Parent:    parent,
 		Snaps:     snaps,
@@ -61,7 +63,7 @@ func (client *Client) CreateOrUpdateQuota(groupName string, parent string, snaps
 	if err := json.NewEncoder(&body).Encode(data); err != nil {
 		return err
 	}
-	if _, err := client.doSync("POST", "/v2/quota", nil, nil, &body, nil); err != nil {
+	if _, err := client.doSync("POST", "/v2/quotas", nil, nil, &body, nil); err != nil {
 		fmt := "cannot create or update quota group: %w"
 		return xerrors.Errorf(fmt, err)
 	}
@@ -74,7 +76,7 @@ func (client *Client) GetQuotaGroup(groupName string) (*QuotaGroupResult, error)
 	}
 
 	var res *QuotaGroupResult
-	path := fmt.Sprintf("/v2/quota/%s", groupName)
+	path := fmt.Sprintf("/v2/quotas/%s", groupName)
 	if _, err := client.doSync("GET", path, nil, nil, nil, &res); err != nil {
 		fmt := "cannot get quota group: %w"
 		return nil, xerrors.Errorf(fmt, err)

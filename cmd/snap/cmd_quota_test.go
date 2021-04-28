@@ -42,7 +42,7 @@ func makeFakeGetQuotaGroupHandler(c *check.C, body string) func(w http.ResponseW
 			c.Fatalf("expected a single request")
 		}
 		called = true
-		c.Check(r.URL.Path, check.Equals, "/v2/quota/foo")
+		c.Check(r.URL.Path, check.Equals, "/v2/quotas/foo")
 		c.Check(r.Method, check.Equals, "GET")
 		w.WriteHeader(200)
 		fmt.Fprintln(w, body)
@@ -56,7 +56,7 @@ func makeFakeQuotaPostHandler(c *check.C, body, groupName, parentName string, sn
 			c.Fatalf("expected a single request")
 		}
 		called = true
-		c.Check(r.URL.Path, check.Equals, "/v2/quota")
+		c.Check(r.URL.Path, check.Equals, "/v2/quotas")
 		c.Check(r.Method, check.Equals, "POST")
 
 		buf, err := ioutil.ReadAll(r.Body)
@@ -67,7 +67,7 @@ func makeFakeQuotaPostHandler(c *check.C, body, groupName, parentName string, sn
 			snapNames = append(snapNames, fmt.Sprintf("%q", sn))
 		}
 		snapsStr := strings.Join(snapNames, ",")
-		c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"group-name\":%q,\"parent\":%q,\"snaps\":[%s],\"max-memory\":%d}\n", groupName, parentName, snapsStr, maxMemory))
+		c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"action\":\"ensure\",\"group-name\":%q,\"parent\":%q,\"snaps\":[%s],\"max-memory\":%d}\n", groupName, parentName, snapsStr, maxMemory))
 
 		w.WriteHeader(200)
 		fmt.Fprintln(w, body)
