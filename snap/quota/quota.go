@@ -259,39 +259,34 @@ func ResolveCrossReferences(grps map[string]*Group) error {
 
 // tree recursively returns all of the sub-groups of the group and the group
 // itself.
-func (grp *Group) tree(acc []*Group) ([]*Group, error) {
-	// make sure that none of the sub-groups seen already are present in the
-	// sub-groups of this group
+func (grp *Group) visitTree(visited map[*Group]bool) error {
+	// be paranoid about cycles here and check that none of the sub-groups here
+	// has already been seen before recursing
 	for _, sub := range grp.subGroups {
-		// check if we have already seen this sub-group
-		for _, alreadySeen := range acc {
-			if sub == alreadySeen {
-				return nil, fmt.Errorf("internal error: circular reference found")
-			}
-		}
-
 		// check if this sub-group is actually the same group
 		if sub == grp {
-			return nil, fmt.Errorf("internal error: circular reference found")
+			return fmt.Errorf("internal error: circular reference found")
 		}
+
+		// check if we have already seen this sub-group
+		if _, ok := visited[sub]; ok {
+			return fmt.Errorf("internal error: circular reference found")
+		}
+
+		// add it to the map
+		visited[sub] = true
 	}
 
-	// add all the sub-groups for this group to the list
-	acc = append(acc, grp.subGroups...)
-
 	for _, sub := range grp.subGroups {
-		flattendedSubTree, err := sub.tree(acc)
-		if err != nil {
-			return nil, err
+		if err := sub.visitTree(visited); err != nil {
+			return err
 		}
-
-		acc = append(acc, flattendedSubTree...)
 	}
 
 	// add this group too to get the full tree flattened
-	acc = append(acc, grp)
+	visited[grp] = true
 
-	return acc, nil
+	return nil
 }
 
 // QuotaGroupSet is a set of quota groups, it is used for tracking a set of
@@ -330,11 +325,15 @@ func (s *QuotaGroupSet) AddAllNecessaryGroups(grp *Group) error {
 		return nil
 	}
 
-	flattenedTree, err := prevParentGrp.tree(nil)
-	if err != nil {
+	// use a different map to prevent any accumulations to the quota group set
+	// that happen before a cycle is detected, we only want to add the groups
+	treeGroupMap := make(map[*Group]bool)
+	if err := prevParentGrp.visitTree(treeGroupMap); err != nil {
 		return err
 	}
-	for _, g := range flattenedTree {
+
+	// add all the groups in the tree to the quota group set
+	for g := range treeGroupMap {
 		s.grps[g] = true
 	}
 
