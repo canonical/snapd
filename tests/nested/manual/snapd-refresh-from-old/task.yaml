@@ -13,8 +13,8 @@ environment:
   VARIANT/edge_first: edge_first
   NESTED_BUILD_SNAPD_FROM_CURRENT: false
   NESTED_IMAGE_ID: snapd-refresh-from-old
-  SNAPD_SNAP_URL: https://storage.googleapis.com/spread-snapd-tests/snaps/snapd_2.45.2_5760.snap
-  CORE18_SNAP_URL: https://storage.googleapis.com/spread-snapd-tests/snaps/core18_20191126_1279.snap
+  SNAPD_SNAP_URL: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_2.45.2_5760.snap
+  CORE18_SNAP_URL: https://storage.googleapis.com/snapd-spread-tests/snaps/core18_20191126_1279.snap
 
 prepare: |
   #shellcheck source=tests/lib/nested.sh
