@@ -169,6 +169,8 @@ func (grp *Group) validate() error {
 
 // NewSubGroup creates a new sub group under the current group.
 func (grp *Group) NewSubGroup(name string, memLimit quantity.Size) (*Group, error) {
+	// TODO: implement a maximum sub-group depth
+
 	subGrp := &Group{
 		Name:        name,
 		MemoryLimit: memLimit,
@@ -260,6 +262,8 @@ func ResolveCrossReferences(grps map[string]*Group) error {
 // tree recursively returns all of the sub-groups of the group and the group
 // itself.
 func (grp *Group) visitTree(visited map[*Group]bool) error {
+	// TODO: limit the depth of the tree we traverse
+
 	// be paranoid about cycles here and check that none of the sub-groups here
 	// has already been seen before recursing
 	for _, sub := range grp.subGroups {
