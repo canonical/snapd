@@ -119,5 +119,6 @@ func (s *servicestateQuotasSuite) TestQuotas(c *C) {
 	}
 
 	err = servicestate.UpdateQuotas(st, otherGrp2, otherGrp)
-	c.Assert(err, ErrorMatches, `cannot update quotas "other-group", "other-group2": group "other-group" is invalid: group memory limit must be non-zero`)
+	// either group can get checked first
+	c.Assert(err, ErrorMatches, `cannot update quotas "other-group", "other-group2": group "other-group2?" is invalid: group memory limit must be non-zero`)
 }
