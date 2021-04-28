@@ -169,6 +169,8 @@ func (grp *Group) validate() error {
 
 // NewSubGroup creates a new sub group under the current group.
 func (grp *Group) NewSubGroup(name string, memLimit quantity.Size) (*Group, error) {
+	// TODO: implement a maximum sub-group depth
+
 	subGrp := &Group{
 		Name:        name,
 		MemoryLimit: memLimit,
@@ -203,16 +205,7 @@ func ResolveCrossReferences(grps map[string]*Group) error {
 	// iterate over all groups, looking for sub-groups which need to be threaded
 	// together with their respective parent groups from the set
 
-	// iterate in the same order
-	grpNames := make([]string, 0, len(grps))
-	for name := range grps {
-		grpNames = append(grpNames, name)
-	}
-
-	sort.Strings(grpNames)
-
-	for _, name := range grpNames {
-		grp := grps[name]
+	for name, grp := range grps {
 		if name != grp.Name {
 			return fmt.Errorf("group has name %q, but is referenced as %q", grp.Name, name)
 		}
@@ -268,39 +261,36 @@ func ResolveCrossReferences(grps map[string]*Group) error {
 
 // tree recursively returns all of the sub-groups of the group and the group
 // itself.
-func (grp *Group) tree(acc []*Group) ([]*Group, error) {
-	// make sure that none of the sub-groups seen already are present in the
-	// sub-groups of this group
-	for _, sub := range grp.subGroups {
-		// check if we have already seen this sub-group
-		for _, alreadySeen := range acc {
-			if sub == alreadySeen {
-				return nil, fmt.Errorf("internal error: circular reference found")
-			}
-		}
+func (grp *Group) visitTree(visited map[*Group]bool) error {
+	// TODO: limit the depth of the tree we traverse
 
+	// be paranoid about cycles here and check that none of the sub-groups here
+	// has already been seen before recursing
+	for _, sub := range grp.subGroups {
 		// check if this sub-group is actually the same group
 		if sub == grp {
-			return nil, fmt.Errorf("internal error: circular reference found")
+			return fmt.Errorf("internal error: circular reference found")
 		}
+
+		// check if we have already seen this sub-group
+		if visited[sub] {
+			return fmt.Errorf("internal error: circular reference found")
+		}
+
+		// add it to the map
+		visited[sub] = true
 	}
 
-	// add all the sub-groups for this group to the list
-	acc = append(acc, grp.subGroups...)
-
 	for _, sub := range grp.subGroups {
-		flattendedSubTree, err := sub.tree(acc)
-		if err != nil {
-			return nil, err
+		if err := sub.visitTree(visited); err != nil {
+			return err
 		}
-
-		acc = append(acc, flattendedSubTree...)
 	}
 
 	// add this group too to get the full tree flattened
-	acc = append(acc, grp)
+	visited[grp] = true
 
-	return acc, nil
+	return nil
 }
 
 // QuotaGroupSet is a set of quota groups, it is used for tracking a set of
@@ -339,11 +329,15 @@ func (s *QuotaGroupSet) AddAllNecessaryGroups(grp *Group) error {
 		return nil
 	}
 
-	flattenedTree, err := prevParentGrp.tree(nil)
-	if err != nil {
+	// use a different map to prevent any accumulations to the quota group set
+	// that happen before a cycle is detected, we only want to add the groups
+	treeGroupMap := make(map[*Group]bool)
+	if err := prevParentGrp.visitTree(treeGroupMap); err != nil {
 		return err
 	}
-	for _, g := range flattenedTree {
+
+	// add all the groups in the tree to the quota group set
+	for g := range treeGroupMap {
 		s.grps[g] = true
 	}
 
