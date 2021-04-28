@@ -82,7 +82,7 @@ func (s *fdeSuite) TestInitialSetupV2(c *C) {
 	runSetupHook := func(req *fde.SetupRequest) ([]byte, error) {
 		c.Check(req, DeepEquals, &fde.SetupRequest{
 			Op:      "initial-setup",
-			Key:     mockKey[:],
+			Key:     mockKey,
 			KeyName: "some-key-name",
 		})
 		// sealed-key/handle
@@ -110,7 +110,7 @@ func (s *fdeSuite) TestInitialSetupError(c *C) {
 	runSetupHook := func(req *fde.SetupRequest) ([]byte, error) {
 		c.Check(req, DeepEquals, &fde.SetupRequest{
 			Op:      "initial-setup",
-			Key:     mockKey[:],
+			Key:     mockKey,
 			KeyName: "some-key-name",
 		})
 		return nil, errHook
@@ -130,7 +130,7 @@ func (s *fdeSuite) TestInitialSetupV1(c *C) {
 	runSetupHook := func(req *fde.SetupRequest) ([]byte, error) {
 		c.Check(req, DeepEquals, &fde.SetupRequest{
 			Op:      "initial-setup",
-			Key:     mockKey[:],
+			Key:     mockKey,
 			KeyName: "some-key-name",
 		})
 		// needs the USK$ prefix to simulate v1 key
@@ -143,7 +143,7 @@ func (s *fdeSuite) TestInitialSetupV1(c *C) {
 	}
 	res, err := fde.InitialSetup(runSetupHook, params)
 	c.Assert(err, IsNil)
-	expectedHandle := json.RawMessage(`{"v1-no-handle": true}`)
+	expectedHandle := json.RawMessage(`{"v1-no-handle":true}`)
 	c.Assert(json.Valid(expectedHandle), Equals, true)
 	c.Check(res, DeepEquals, &fde.InitialSetupResult{
 		EncryptedKey: []byte("USK$sealed-key"),
@@ -240,12 +240,49 @@ func (s *fdeSuite) TestReveal(c *C) {
 	// fix randutil outcome
 	rand.Seed(1)
 
+	sealedKey := []byte("sealed-v2-payload")
+	v2payload := []byte("unsealed-v2-payload")
+
 	restore := fde.MockFdeRevealKeyCommandExtra([]string{"--user"})
 	defer restore()
 	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
 	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
 cat - > %s
-printf "unsealed-key-from-hook"
+printf '{"key": "%s"}'
+`, fdeRevealKeyStdin, base64.StdEncoding.EncodeToString(v2payload)))
+	defer mockSystemdRun.Restore()
+
+	handle := json.RawMessage(`{"some": "handle"}`)
+	p := fde.RevealParams{
+		SealedKey: sealedKey,
+		Handle:    &handle,
+		V2Payload: true,
+	}
+	res, err := fde.Reveal(&p)
+	c.Assert(err, IsNil)
+	c.Check(res, DeepEquals, v2payload)
+	c.Check(mockSystemdRun.Calls(), DeepEquals, [][]string{
+		{"fde-reveal-key"},
+	})
+	c.Check(fdeRevealKeyStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"reveal","sealed-key":%q,"handle":{"some":"handle"},"key-name":"deprecated-pw7MpXh0JB4P"}`, base64.StdEncoding.EncodeToString(sealedKey)))
+
+	// ensure no tmp files are left behind
+	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
+}
+
+func (s *fdeSuite) TestRevealV1(c *C) {
+	// this test that v1 hooks and raw binary v1 created sealedKey files still work
+	checkSystemdRunOrSkip(c)
+
+	// fix randutil outcome
+	rand.Seed(1)
+
+	restore := fde.MockFdeRevealKeyCommandExtra([]string{"--user"})
+	defer restore()
+	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
+	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
+cat - > %s
+printf "unsealed-key-64-chars-long-when-not-json-to-match-denver-project"
 `, fdeRevealKeyStdin))
 	defer mockSystemdRun.Restore()
 
@@ -255,13 +292,111 @@ printf "unsealed-key-from-hook"
 	}
 	res, err := fde.Reveal(&p)
 	c.Assert(err, IsNil)
-	c.Check(res, DeepEquals, []byte("unsealed-key-from-hook"))
+	c.Check(res, DeepEquals, []byte("unsealed-key-64-chars-long-when-not-json-to-match-denver-project"))
 	c.Check(mockSystemdRun.Calls(), DeepEquals, [][]string{
 		{"fde-reveal-key"},
 	})
 	c.Check(fdeRevealKeyStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"reveal","sealed-key":%q,"key-name":"deprecated-pw7MpXh0JB4P"}`, base64.StdEncoding.EncodeToString([]byte("sealed-key"))))
 
 	// ensure no tmp files are left behind
+	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
+}
+
+func (s *fdeSuite) TestRevealV2PayloadV1Hook(c *C) {
+	checkSystemdRunOrSkip(c)
+
+	// fix randutil outcome
+	rand.Seed(1)
+
+	sealedKey := []byte("sealed-v2-payload")
+	v2payload := []byte("unsealed-v2-payload")
+
+	restore := fde.MockFdeRevealKeyCommandExtra([]string{"--user"})
+	defer restore()
+	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
+	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
+cat - > %s
+printf %q
+`, fdeRevealKeyStdin, v2payload))
+	defer mockSystemdRun.Restore()
+
+	handle := json.RawMessage(`{"v1-no-handle":true}`)
+	p := fde.RevealParams{
+		SealedKey: sealedKey,
+		Handle:    &handle,
+		V2Payload: true,
+	}
+	res, err := fde.Reveal(&p)
+	c.Assert(err, IsNil)
+	c.Check(res, DeepEquals, v2payload)
+	c.Check(mockSystemdRun.Calls(), DeepEquals, [][]string{
+		{"fde-reveal-key"},
+	})
+	c.Check(fdeRevealKeyStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"reveal","sealed-key":%q,"key-name":"deprecated-pw7MpXh0JB4P"}`, base64.StdEncoding.EncodeToString(sealedKey)))
+
+	// ensure no tmp files are left behind
+	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
+}
+
+func (s *fdeSuite) TestRevealV2BadJSON(c *C) {
+	// we need let higher level deal with this
+	checkSystemdRunOrSkip(c)
+
+	// fix randutil outcome
+	rand.Seed(1)
+
+	sealedKey := []byte("sealed-v2-payload")
+
+	restore := fde.MockFdeRevealKeyCommandExtra([]string{"--user"})
+	defer restore()
+	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
+	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
+cat - > %s
+printf 'invalid-json'
+`, fdeRevealKeyStdin))
+	defer mockSystemdRun.Restore()
+
+	handle := json.RawMessage(`{"some": "handle"}`)
+	p := fde.RevealParams{
+		SealedKey: sealedKey,
+		Handle:    &handle,
+		V2Payload: true,
+	}
+	res, err := fde.Reveal(&p)
+	c.Assert(err, IsNil)
+	// we just get the bad json out
+	c.Check(res, DeepEquals, []byte("invalid-json"))
+	c.Check(mockSystemdRun.Calls(), DeepEquals, [][]string{
+		{"fde-reveal-key"},
+	})
+	c.Check(fdeRevealKeyStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"reveal","sealed-key":%q,"handle":{"some":"handle"},"key-name":"deprecated-pw7MpXh0JB4P"}`, base64.StdEncoding.EncodeToString(sealedKey)))
+
+	// ensure no tmp files are left behind
+	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
+}
+
+func (s *fdeSuite) TestRevealV1BadOutputSize(c *C) {
+	checkSystemdRunOrSkip(c)
+
+	// fix randutil outcome
+	rand.Seed(1)
+
+	restore := fde.MockFdeRevealKeyCommandExtra([]string{"--user"})
+	defer restore()
+	fdeRevealKeyStdin := filepath.Join(c.MkDir(), "stdin")
+	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", fmt.Sprintf(`
+cat - > %s
+printf "bad-size"
+`, fdeRevealKeyStdin))
+	defer mockSystemdRun.Restore()
+
+	sealedKey := []byte("sealed-key")
+	p := fde.RevealParams{
+		SealedKey: sealedKey,
+	}
+	_, err := fde.Reveal(&p)
+	c.Assert(err, ErrorMatches, `cannot decode fde-reveal-key \"reveal\" result: .*`)
+
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
 }
 

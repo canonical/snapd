@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -93,6 +93,16 @@ type SealKeysParams struct {
 	PCRPolicyCounterHandle uint32
 }
 
+type SealKeysWithFDESetupHookParams struct {
+	// Initial model to bind sealed keys to.
+	Model *asserts.Model
+	// AuxKey is the auxiliary key used to bind models.
+	AuxKey AuxKey
+	// The path to the aux key file (if empty the key will not be
+	// saved)
+	AuxKeyFile string
+}
+
 type ResealKeysParams struct {
 	// The snap model parameters
 	ModelParams []*SealKeyModelParams
@@ -108,6 +118,9 @@ type UnlockVolumeUsingSealedKeyOptions struct {
 	// AllowRecoveryKey when true indicates activation with the recovery key
 	// will be attempted if activation with the sealed key failed.
 	AllowRecoveryKey bool
+	// WhichModel if invoked should return the device model
+	// assertion for which the disk is being unlocked.
+	WhichModel func() (*asserts.Model, error)
 }
 
 // UnlockMethod is the method that was used to unlock a volume.
