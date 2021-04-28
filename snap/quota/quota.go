@@ -198,6 +198,8 @@ func (grp *Group) NewSubGroup(name string, memLimit quantity.Size) (*Group, erro
 // cross references amongst them using the unexported fields which are not
 // serialized.
 func ResolveCrossReferences(grps map[string]*Group) error {
+	// TODO: consider returning a form of multi-error instead?
+
 	// iterate over all groups, looking for sub-groups which need to be threaded
 	// together with their respective parent groups from the set
 
