@@ -21,10 +21,11 @@ restore: |
     rm -rf "$SNAP_INSTALL_DIR" /tmp/foo /tmp/snap.not-test-snapd-sh /tmp/snap.test-snapd-sh/
 
 execute: |
-    echo "When a temporary file is created by one snap"
-    expect -d -f tmp-create.exp
-
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+
+    echo "When a temporary file is created by one snap"
+    expect -d -f tmp-create.exp "$SNAP_MOUNT_DIR"
+
     LIBEXEC_DIR="$(os.paths libexec-dir)"
     if [ -e "$LIBEXEC_DIR/snapd/snap-discard-ns" ]; then
         echo "Then that file is accessible from other calls of commands from the same snap"
