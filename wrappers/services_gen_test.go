@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -223,7 +222,7 @@ Description=Service for snap application foo.app
 Requires=snap-foo-44.mount
 Wants=network.target
 After=snap-foo-44.mount network.target snapd.apparmor.service
-Requires=usr-lib-snapd.mount
+Wants=usr-lib-snapd.mount
 After=usr-lib-snapd.mount
 X-Snappy=yes
 
@@ -540,8 +539,6 @@ WantedBy=sockets.target
 	service.Sockets["sock1"].App = service
 	service.Sockets["sock2"].App = service
 
-	sock1Path := filepath.Join(dirs.SnapServicesDir, "snap.some-snap.app.sock1.socket")
-	sock2Path := filepath.Join(dirs.SnapServicesDir, "snap.some-snap.app.sock2.socket")
 	sock1Expected := fmt.Sprintf(sock1ExpectedFmt, mountUnitPrefix, mountUnitPrefix, si.DataDir())
 	sock2Expected := fmt.Sprintf(sock2ExpectedFmt, mountUnitPrefix, mountUnitPrefix, si.DataDir())
 
@@ -554,8 +551,8 @@ WantedBy=sockets.target
 	c.Assert(err, IsNil)
 	c.Assert(generatedSockets, HasLen, 2)
 	c.Assert(generatedSockets, DeepEquals, map[string][]byte{
-		sock1Path: []byte(sock1Expected),
-		sock2Path: []byte(sock2Expected),
+		"sock1": []byte(sock1Expected),
+		"sock2": []byte(sock2Expected),
 	})
 }
 

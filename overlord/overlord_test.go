@@ -107,6 +107,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	c.Check(o.StateEngine(), NotNil)
 	c.Check(o.TaskRunner(), NotNil)
 	c.Check(o.SnapManager(), NotNil)
+	c.Check(o.ServiceManager(), NotNil)
 	c.Check(o.AssertManager(), NotNil)
 	c.Check(o.InterfaceManager(), NotNil)
 	c.Check(o.HookManager(), NotNil)

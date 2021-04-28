@@ -26,7 +26,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/overlord/devicestate/fde"
+	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
@@ -132,15 +132,6 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpInitialSetup(c *C) {
 		Op:      "initial-setup",
 		Key:     mockKey[:],
 		KeyName: "the-key-name",
-		Models: []map[string]string{
-			{
-				"series":     "16",
-				"brand-id":   "my-brand",
-				"model":      "my-model",
-				"grade":      "secured",
-				"signkey-id": "the-signkey-id",
-			},
-		},
 	}
 	s.mockContext.Lock()
 	s.mockContext.Set("fde-setup-request", fdeSetup)
@@ -152,7 +143,7 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpInitialSetup(c *C) {
 	// the encryption key should be base64 encoded
 	encodedBase64Key := base64.StdEncoding.EncodeToString(mockKey[:])
 
-	c.Check(string(stdout), Equals, fmt.Sprintf(`{"op":"initial-setup","key":%q,"key-name":"the-key-name","models":[{"brand-id":"my-brand","grade":"secured","model":"my-model","series":"16","signkey-id":"the-signkey-id"}]}`+"\n", encodedBase64Key))
+	c.Check(string(stdout), Equals, fmt.Sprintf(`{"op":"initial-setup","key":%q,"key-name":"the-key-name"}`+"\n", encodedBase64Key))
 	c.Check(string(stderr), Equals, "")
 }
 

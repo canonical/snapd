@@ -264,7 +264,7 @@ func (s *kernelCommandLineSuite) TestComposeCommandLineWithGadget(c *C) {
 		files: [][]string{
 			{"cmdline.extra", `bad-quote="`},
 		},
-		errMsg: `cannot use kernel command line from gadget: invalid kernel command line "bad-quote=\\"" in cmdline.extra: unbalanced quoting`,
+		errMsg: `cannot use kernel command line from gadget: invalid kernel command line in cmdline.extra: unbalanced quoting`,
 	}} {
 		sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, append([][]string{
 			{"meta/snap.yaml", gadgetSnapYaml},
@@ -333,7 +333,7 @@ func (s *kernelCommandLineSuite) TestComposeRecoveryCommandLineWithGadget(c *C) 
 		files: [][]string{
 			{"cmdline.extra", `bad-quote="`},
 		},
-		errMsg: `cannot use kernel command line from gadget: invalid kernel command line "bad-quote=\\"" in cmdline.extra: unbalanced quoting`,
+		errMsg: `cannot use kernel command line from gadget: invalid kernel command line in cmdline.extra: unbalanced quoting`,
 	}} {
 		sf := snaptest.MakeTestSnapWithFiles(c, gadgetSnapYaml, append([][]string{
 			{"meta/snap.yaml", gadgetSnapYaml},
@@ -382,7 +382,7 @@ func (s *kernelCommandLineSuite) TestBootVarsForGadgetCommandLine(c *C) {
 		files: [][]string{
 			{"cmdline.extra", "snapd_foo"},
 		},
-		errMsg: `cannot use kernel command line from gadget: disallowed kernel argument \"snapd_foo\" in cmdline.extra`,
+		errMsg: `cannot use kernel command line from gadget: invalid kernel command line in cmdline.extra: disallowed kernel argument \"snapd_foo\"`,
 	}, {
 		files: [][]string{
 			{"cmdline.full", "full foo bar baz"},

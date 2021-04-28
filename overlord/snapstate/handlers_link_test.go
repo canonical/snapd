@@ -36,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -73,6 +74,12 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 	s.setup(c, s.stateBackend)
 
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
+
+	oldSnapServiceOptions := snapstate.SnapServiceOptions
+	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions
+	s.AddCleanup(func() {
+		snapstate.SnapServiceOptions = oldSnapServiceOptions
+	})
 }
 
 func checkHasCookieForSnap(c *C, st *state.State, instanceName string) {
