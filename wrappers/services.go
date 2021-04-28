@@ -647,6 +647,9 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 	}
 
 	handleSliceModification := func(path string, content []byte) error {
+		// TODO: call the observe callback function to notify that a slice was
+		// updated too?
+
 		old, modifiedFile, err := tryFileUpdate(path, content)
 		if err != nil {
 			return err
