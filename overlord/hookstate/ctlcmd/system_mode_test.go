@@ -61,6 +61,8 @@ func (s *systemModeSuite) TestSystemMode(c *C) {
 	var smi *devicestate.SystemModeInfo
 	var smiErr error
 	r := ctlcmd.MockDevicestateSystemModeInfoFromState(func(s *state.State) (*devicestate.SystemModeInfo, error) {
+		// the mocked function requires the state lock,
+		// panic if it is not held
 		s.Unlock()
 		defer s.Lock()
 		return smi, smiErr
@@ -73,10 +75,31 @@ func (s *systemModeSuite) TestSystemMode(c *C) {
 		stdout, stderr, err string
 		exitCode            int
 	}{
-		{smiErr: fmt.Errorf("too early"), err: "too early"},
-		{smi: devicestate.SystemModeInfo{Mode: "run", Seeded: true}, stdout: "system-mode: run\nseed-loaded: true\n"},
-		{smi: devicestate.SystemModeInfo{Mode: "install", HasModeenv: true, Seeded: true, BootFlags: []string{"factory"}}, stdout: "system-mode: install\nseed-loaded: true\nfactory: true\n"},
-		{smi: devicestate.SystemModeInfo{Mode: "run", HasModeenv: true, Seeded: false}, stdout: "system-mode: run\nseed-loaded: false\n"},
+		{
+			smiErr: fmt.Errorf("too early"),
+			err:    "too early",
+		}, {
+			smi: devicestate.SystemModeInfo{
+				Mode:   "run",
+				Seeded: true,
+			},
+			stdout: "system-mode: run\nseed-loaded: true\n",
+		}, {
+			smi: devicestate.SystemModeInfo{
+				Mode:       "install",
+				HasModeenv: true,
+				Seeded:     true,
+				BootFlags:  []string{"factory"},
+			},
+			stdout: "system-mode: install\nseed-loaded: true\nfactory: true\n",
+		}, {
+			smi: devicestate.SystemModeInfo{
+				Mode:       "run",
+				HasModeenv: true,
+				Seeded:     false,
+			},
+			stdout: "system-mode: run\nseed-loaded: false\n",
+		},
 	}
 
 	for _, test := range tests {
