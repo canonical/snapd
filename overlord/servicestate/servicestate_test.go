@@ -283,17 +283,17 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsVitalityRank(c *C) {
 	c.Assert(err, IsNil)
 	t.Commit()
 
-	opts, err := servicestate.SnapServiceOptions(st, nil, "foo")
+	opts, err := servicestate.SnapServiceOptions(st, "foo", nil)
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
 		VitalityRank: 2,
 	})
-	opts, err = servicestate.SnapServiceOptions(st, nil, "bar")
+	opts, err = servicestate.SnapServiceOptions(st, "bar", nil)
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
 		VitalityRank: 1,
 	})
-	opts, err = servicestate.SnapServiceOptions(st, nil, "unknown")
+	opts, err = servicestate.SnapServiceOptions(st, "unknown", nil)
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
 		VitalityRank: 0,
@@ -315,7 +315,7 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 	err = servicestate.UpdateQuotas(st, grp)
 	c.Assert(err, IsNil)
 
-	opts, err := servicestate.SnapServiceOptions(st, nil, "foosnap")
+	opts, err := servicestate.SnapServiceOptions(st, "foosnap", nil)
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
 		QuotaGroup: grp,
@@ -333,7 +333,7 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 
 	// we can still get the quota group using the local map we got before
 	// modifying state
-	opts, err = servicestate.SnapServiceOptions(st, grps, "foosnap")
+	opts, err = servicestate.SnapServiceOptions(st, "foosnap", grps)
 	c.Assert(err, IsNil)
 	grp.Snaps = []string{"foosnap"}
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
@@ -341,13 +341,13 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 	})
 
 	// but using state produces nothing for the non-instance name snap
-	opts, err = servicestate.SnapServiceOptions(st, nil, "foosnap")
+	opts, err = servicestate.SnapServiceOptions(st, "foosnap", nil)
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{})
 
 	// but it does work with instance names
 	grp.Snaps = []string{"foosnap_instance"}
-	opts, err = servicestate.SnapServiceOptions(st, nil, "foosnap_instance")
+	opts, err = servicestate.SnapServiceOptions(st, "foosnap_instance", nil)
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
 		QuotaGroup: grp,
@@ -359,7 +359,7 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 	c.Assert(err, IsNil)
 	t.Commit()
 
-	opts, err = servicestate.SnapServiceOptions(st, nil, "foosnap_instance")
+	opts, err = servicestate.SnapServiceOptions(st, "foosnap_instance", nil)
 	c.Assert(err, IsNil)
 	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
 		VitalityRank: 2,
