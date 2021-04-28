@@ -71,6 +71,8 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 	}
 
 	// TODO: update without max-memory (i.e. append snaps operation).
+	// Also how do we remove snaps from a group? Should the default be append?
+	// Do we want a "reset" operation to start from scratch?
 	if maxMemory == "" {
 		return fmt.Errorf("missing required --max-memory argument")
 	}
