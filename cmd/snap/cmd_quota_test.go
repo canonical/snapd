@@ -49,6 +49,20 @@ func makeFakeGetQuotaGroupHandler(c *check.C, body string) func(w http.ResponseW
 	}
 }
 
+func makeFakeGetQuotaGroupsHandler(c *check.C, body string) func(w http.ResponseWriter, r *http.Request) {
+	var called bool
+	return func(w http.ResponseWriter, r *http.Request) {
+		if called {
+			c.Fatalf("expected a single request")
+		}
+		called = true
+		c.Check(r.URL.Path, check.Equals, "/v2/quotas")
+		c.Check(r.Method, check.Equals, "GET")
+		w.WriteHeader(200)
+		fmt.Fprintln(w, body)
+	}
+}
+
 func makeFakeQuotaPostHandler(c *check.C, action, body, groupName, parentName string, snaps []string, maxMemory int64) func(w http.ResponseWriter, r *http.Request) {
 	var called bool
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -153,4 +167,48 @@ func (s *validateSuite) TestRemoveQuotaGroup(c *check.C) {
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals, "")
+}
+
+func (s *quotaSuite) TestGetAllQuotaGroups(c *check.C) {
+	restore := main.MockIsStdinTTY(true)
+	defer restore()
+
+	s.RedirectClientToTestServer(makeFakeGetQuotaGroupsHandler(c,
+		`{"type": "sync", "status-code": 200, "result": [
+			{"group-name":"aaa","subgroups":["ccc","ddd"],"parent":"zzz","max-memory":1000},
+			{"group-name":"ddd","parent":"aaa","max-memory":400},
+			{"group-name":"bbb","parent":"zzz","max-memory":1000},
+			{"group-name":"yyy","max-memory":1000},
+			{"group-name":"zzz","subgroups":["bbb","aaa"],"max-memory":5000},
+			{"group-name":"ccc","parent":"aaa","max-memory":400},
+			{"group-name":"xxx","max-memory":9900}
+			]}`))
+
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quotas"})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.HasLen, 0)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals,
+		"Quota  Parent  Max-Memory\n" +
+		"xxx             9.9kB\n" +
+		"yyy             1000B\n" +
+		"zzz             5000B\n" +
+		"aaa    zzz      1000B\n" +
+		"ccc    aaa       400B\n" +
+		"ddd    aaa       400B\n" +
+		"bbb    zzz      1000B\n")
+}
+
+func (s *quotaSuite) TestNoQuotaGroups(c *check.C) {
+	restore := main.MockIsStdinTTY(true)
+	defer restore()
+
+	s.RedirectClientToTestServer(makeFakeGetQuotaGroupsHandler(c,
+		`{"type": "sync", "status-code": 200, "result": []}`))
+
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quotas"})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.HasLen, 0)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, "No quota groups defined.\n")
 }
