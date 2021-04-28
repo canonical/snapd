@@ -437,7 +437,7 @@ apps:
 	c.Assert(err, IsNil)
 
 	// the second group is a sub-group with the same limit, but is for the
-	// second group
+	// second snap
 	subgrp, err := grp.NewSubGroup("subgroup", memLimit)
 	c.Assert(err, IsNil)
 
@@ -498,6 +498,82 @@ WantedBy=multi-user.target
 
 	// check that the slice units were also generated
 
+	templ := `[Unit]
+Description=Slice for snap quota group %s
+Before=slices.target
+
+[Slice]
+# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+MemoryMax=%s
+`
+
+	c.Assert(sliceFile, testutil.FileEquals, fmt.Sprintf(templ, "foogroup", memLimit.String()))
+	c.Assert(subSliceFile, testutil.FileEquals, fmt.Sprintf(templ, "subgroup", memLimit.String()))
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGeneratesParentGroups(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile1 := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	var err error
+	memLimit := quantity.SizeGiB
+	// make a root quota group without any snaps in it
+	grp, err := quota.NewGroup("foogroup", memLimit)
+	c.Assert(err, IsNil)
+
+	// the second group is a sub-group with the same limit, but it is the one
+	// with the snap in it
+	subgrp, err := grp.NewSubGroup("subgroup", memLimit)
+	c.Assert(err, IsNil)
+
+	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
+	subSliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup-subgroup.slice")
+
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: {QuotaGroup: subgrp},
+	}
+
+	err = wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+
+	svcTemplate := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application %[1]s.svc1
+Requires=%[2]s
+Wants=network.target
+After=%[2]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run %[1]s.svc1
+SyslogIdentifier=%[1]s.svc1
+Restart=on-failure
+WorkingDirectory=%[3]s/var/snap/%[1]s/12
+ExecStop=/usr/bin/snap run --command=stop %[1]s.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop %[1]s.svc1
+TimeoutStopSec=30
+Type=forking
+Slice=%[4]s
+
+[Install]
+WantedBy=multi-user.target
+`
+
+	dir1 := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+
+	c.Assert(svcFile1, testutil.FileEquals, fmt.Sprintf(svcTemplate,
+		"hello-snap",
+		systemd.EscapeUnitNamePath(dir1),
+		dirs.GlobalRootDir,
+		"snap.foogroup-subgroup.slice",
+	))
+
+	// check that both the parent and sub-group slice units were generated
 	templ := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
