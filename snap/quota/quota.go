@@ -269,7 +269,7 @@ func (grp *Group) visitTree(visited map[*Group]bool) error {
 		}
 
 		// check if we have already seen this sub-group
-		if _, ok := visited[sub]; ok {
+		if visited[sub] {
 			return fmt.Errorf("internal error: circular reference found")
 		}
 
