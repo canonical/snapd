@@ -823,6 +823,32 @@ func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error
 	return snapSvcsState, nil
 }
 
+// RemoveQuotaGroup ensures that the slice file for a quota group is removed. It
+// only works on groups that have no sub-groups, in order to remove a parent
+// group with sub-groups, one must remove all the sub-groups first.
+func RemoveQuotaGroup(grp *quota.Group, inter interacter) error {
+	// TODO: it only works on leaf sub-groups currently
+	if len(grp.SubGroups) != 0 {
+		return fmt.Errorf("cannot remove quota group with sub-groups, remove the sub-groups first")
+	}
+
+	systemSysd := systemd.New(systemd.SystemMode, inter)
+
+	// remove the slice file
+	err := os.Remove(filepath.Join(dirs.SnapServicesDir, grp.SliceFileName()))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	if err == nil {
+		// we deleted the slice unit, so we need to daemon-reload
+		if err := systemSysd.DaemonReload(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // RemoveSnapServices disables and removes service units for the applications
 // from the snap which are services. The optional flag indicates whether
 // services are removed as part of undoing of first install of a given snap.
