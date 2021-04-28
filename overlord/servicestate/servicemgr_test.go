@@ -45,13 +45,7 @@ import (
 	"github.com/snapcore/snapd/wrappers"
 )
 
-type expectedSystemctl struct {
-	expArgs []string
-	output  string
-	err     error
-}
-
-type ensureSnapServiceSuite struct {
+type baseServiceMgrTestSuite struct {
 	testutil.BaseTest
 
 	mgr *servicestate.ServiceManager
@@ -62,6 +56,51 @@ type ensureSnapServiceSuite struct {
 
 	restartRequests []state.RestartType
 	restartObserve  func()
+}
+
+func (s *baseServiceMgrTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+
+	s.restartRequests = nil
+
+	s.restartObserve = nil
+	s.o = overlord.MockWithStateAndRestartHandler(nil, func(req state.RestartType) {
+		s.restartRequests = append(s.restartRequests, req)
+		if s.restartObserve != nil {
+			s.restartObserve()
+		}
+	})
+
+	s.state = s.o.State()
+	s.state.Lock()
+	s.state.VerifyReboot("boot-id-0")
+	s.state.Unlock()
+	s.se = s.o.StateEngine()
+
+	s.mgr = servicestate.Manager(s.state, s.o.TaskRunner())
+	s.o.AddManager(s.mgr)
+	s.o.AddManager(s.o.TaskRunner())
+
+	err := s.o.StartUp()
+	c.Assert(err, IsNil)
+
+	// by default we are seeded
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+}
+
+type expectedSystemctl struct {
+	expArgs []string
+	output  string
+	err     error
+}
+
+type ensureSnapServiceSuite struct {
+	baseServiceMgrTestSuite
 
 	uc18Model *asserts.Model
 	uc16Model *asserts.Model
@@ -162,33 +201,7 @@ func (s *ensureSnapServiceSuite) mockSystemctlCalls(c *C, expCalls []expectedSys
 }
 
 func (s *ensureSnapServiceSuite) SetUpTest(c *C) {
-	s.BaseTest.SetUpTest(c)
-
-	dirs.SetRootDir(c.MkDir())
-	s.AddCleanup(func() { dirs.SetRootDir("") })
-
-	s.restartRequests = nil
-
-	s.restartObserve = nil
-	s.o = overlord.MockWithStateAndRestartHandler(nil, func(req state.RestartType) {
-		s.restartRequests = append(s.restartRequests, req)
-		if s.restartObserve != nil {
-			s.restartObserve()
-		}
-	})
-
-	s.state = s.o.State()
-	s.state.Lock()
-	s.state.VerifyReboot("boot-id-0")
-	s.state.Unlock()
-	s.se = s.o.StateEngine()
-
-	s.mgr = servicestate.Manager(s.state, s.o.TaskRunner())
-	s.o.AddManager(s.mgr)
-	s.o.AddManager(s.o.TaskRunner())
-
-	err := s.o.StartUp()
-	c.Assert(err, IsNil)
+	s.baseServiceMgrTestSuite.SetUpTest(c)
 
 	s.uc18Model = assertstest.FakeAssertion(map[string]interface{}{
 		"type":         "model",
@@ -226,11 +239,6 @@ func (s *ensureSnapServiceSuite) SetUpTest(c *C) {
 		Active:   true,
 		SnapType: "app",
 	}
-
-	// by default we are seeded
-	s.state.Lock()
-	s.state.Set("seeded", true)
-	s.state.Unlock()
 }
 
 func (s *ensureSnapServiceSuite) TestEnsureSnapServicesNoSnapsDoesNothing(c *C) {

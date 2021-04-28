@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -333,7 +333,7 @@ func saveKeys(keysForRoles map[string]*install.EncryptionKeySet) error {
 	return nil
 }
 
-var secbootCheckKeySealingSupported = secboot.CheckKeySealingSupported
+var secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
 
 // checkEncryption verifies whether encryption should be used based on the
 // model grade and the availability of a TPM device or a fde-setup hook
@@ -371,7 +371,7 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	// Note that having a fde-setup hook will disable the build-in
 	// secboot encryption
 	if !hasFDESetupHook {
-		checkEncryptionErr = secbootCheckKeySealingSupported()
+		checkEncryptionErr = secbootCheckTPMKeySealingSupported()
 	}
 
 	// check if encryption is required
