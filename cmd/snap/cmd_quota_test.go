@@ -49,7 +49,7 @@ func makeFakeGetQuotaGroupHandler(c *check.C, body string) func(w http.ResponseW
 	}
 }
 
-func makeFakeQuotaPostHandler(c *check.C, body, groupName, parentName string, snaps []string, maxMemory int64) func(w http.ResponseWriter, r *http.Request) {
+func makeFakeQuotaPostHandler(c *check.C, action, body, groupName, parentName string, snaps []string, maxMemory int64) func(w http.ResponseWriter, r *http.Request) {
 	var called bool
 	return func(w http.ResponseWriter, r *http.Request) {
 		if called {
@@ -62,13 +62,19 @@ func makeFakeQuotaPostHandler(c *check.C, body, groupName, parentName string, sn
 		buf, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, check.IsNil)
 
-		var snapNames []string
-		for _, sn := range snaps {
-			snapNames = append(snapNames, fmt.Sprintf("%q", sn))
+		switch action {
+		case "remove":
+			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"action\":\"remove\",\"group-name\":%q}\n", groupName))
+		case "ensure":
+			var snapNames []string
+			for _, sn := range snaps {
+				snapNames = append(snapNames, fmt.Sprintf("%q", sn))
+			}
+			snapsStr := strings.Join(snapNames, ",")
+			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"action\":\"ensure\",\"group-name\":%q,\"parent\":%q,\"snaps\":[%s],\"max-memory\":%d}\n", groupName, parentName, snapsStr, maxMemory))
+		default:
+			c.Fatalf("unexpected action %q", action)
 		}
-		snapsStr := strings.Join(snapNames, ",")
-		c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"action\":\"ensure\",\"group-name\":%q,\"parent\":%q,\"snaps\":[%s],\"max-memory\":%d}\n", groupName, parentName, snapsStr, maxMemory))
-
 		w.WriteHeader(200)
 		fmt.Fprintln(w, body)
 	}
@@ -84,6 +90,8 @@ func (s *quotaSuite) TestQuotaInvalidArgs(c *check.C) {
 		{[]string{"quota", "--memory-max=99B", "--max-memory=88B", "foo"}, `cannot use --max-memory and --memory-max together`},
 		{[]string{"quota", "--memory-max=99", "foo"}, `cannot parse "99": need a number with a unit as input`},
 		{[]string{"quota", "--memory-max=888X", "foo"}, `cannot parse "888X\": try 'kB' or 'MB'`},
+		// remove-quota command
+		{[]string{"remove-quota"}, "the required argument `<group-name>` was not provided"},
 	} {
 		s.stdout.Reset()
 		s.stderr.Reset()
@@ -128,9 +136,19 @@ func (s *quotaSuite) TestGetQuotaGroupSimple(c *check.C) {
 }
 
 func (s *validateSuite) TestCreateQuotaGroup(c *check.C) {
-	s.RedirectClientToTestServer(makeFakeQuotaPostHandler(c, `{"type": "sync", "status-code": 200, "result": []}`, "foo", "bar", []string{"snap-a"}, 999))
+	s.RedirectClientToTestServer(makeFakeQuotaPostHandler(c, "ensure", `{"type": "sync", "status-code": 200, "result": []}`, "foo", "bar", []string{"snap-a"}, 999))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quota", "foo", "--max-memory=999B", "--parent=bar", "snap-a"})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.HasLen, 0)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, "")
+}
+
+func (s *validateSuite) TestRemoveQuotaGroup(c *check.C) {
+	s.RedirectClientToTestServer(makeFakeQuotaPostHandler(c, "remove", `{"type": "sync", "status-code": 200, "result": []}`, "foo", "", nil, 0))
+
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"remove-quota", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
