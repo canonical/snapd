@@ -32,6 +32,7 @@ prepare: |
   fi
   snap install --dangerous snapd_2.49.2.snap
   tests.cleanup defer snap revert snapd --revision="$INITIAL_REV"
+  snap version | MATCH 2.49.2
 
 restore: |
   tests.cleanup restore

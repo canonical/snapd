@@ -74,6 +74,7 @@ execute: |
   fi
 
   snap install --dangerous snapd_2.49.1.snap
+  snap version | MATCH 2.49.1
 
   # always go back to the original revision from the pr at the end of the test
   tests.cleanup defer snap revert snapd --revision="$INITIAL_REV"
@@ -105,6 +106,7 @@ execute: |
 
     echo "Refreshing snapd to 2.49.2"
     snap install --dangerous snapd_2.49.2.snap
+    snap version | MATCH 2.49.2
 
   elif [ "${SNAPD_VERSION_UNDER_TEST}" = "pr" ]; then
       # refresh back to the version we originally had from before the test 
