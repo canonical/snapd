@@ -40,9 +40,8 @@ type LinkContext struct {
 	// installed
 	FirstInstall bool
 
-	// VitalityRank is used to hint how much the services should be
-	// protected from the OOM killer
-	VitalityRank int
+	// ServiceOptions is used to configure services.
+	ServiceOptions *wrappers.SnapServiceOptions
 
 	// RunInhibitHint is used only in Unlink snap, and can be used to
 	// establish run inhibition lock for refresh operations.
@@ -192,12 +191,17 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapBinaries)
 
+	vitalityRank := 0
+	if linkCtx.ServiceOptions != nil {
+		vitalityRank = linkCtx.ServiceOptions.VitalityRank
+	}
 	// add the daemons from the snap.yaml
 	opts := &wrappers.AddSnapServicesOptions{
+		VitalityRank:            vitalityRank,
 		Preseeding:              b.preseed,
-		VitalityRank:            linkCtx.VitalityRank,
 		RequireMountedSnapdSnap: linkCtx.RequireMountedSnapdSnap,
 	}
+	// TODO: switch to EnsureSnapServices
 	if err = wrappers.AddSnapServices(s, opts, progress.Null); err != nil {
 		return err
 	}

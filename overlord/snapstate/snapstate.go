@@ -263,6 +263,12 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		addTask(gadgetUpdate)
 		prev = gadgetUpdate
 	}
+	if !release.OnClassic && snapsup.Type == snap.TypeGadget {
+		// kernel command line from gadget is for core systems only
+		gadgetCmdline := st.NewTask("update-gadget-cmdline", fmt.Sprintf(i18n.G("Update kernel command line from gadget %q%s"), snapsup.InstanceName(), revisionStr))
+		addTask(gadgetCmdline)
+		prev = gadgetCmdline
+	}
 
 	// copy-data (needs stopped services by unlink)
 	if !snapsup.Flags.Revert {
@@ -465,6 +471,10 @@ var CheckHealthHook = func(st *state.State, snapName string, rev snap.Revision) 
 	panic("internal error: snapstate.CheckHealthHook is unset")
 }
 
+var SetupGateAutoRefreshHook = func(st *state.State, snapName string, base, restart bool) *state.Task {
+	panic("internal error: snapstate.SetupAutoRefreshGatingHook is unset")
+}
+
 var generateSnapdWrappers = backend.GenerateSnapdWrappers
 
 // FinishRestart will return a Retry error if there is a pending restart
@@ -665,7 +675,7 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	return nil
 }
 
-func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState, deviceCtx DeviceContext) (Flags, error) {
+func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState) (Flags, error) {
 	// if snap is allowed to be devmode via the dangerous model and it's
 	// confinement is indeed devmode, promote the flags.DevMode to true
 	if flags.ApplySnapDevMode && info.NeedsDevMode() {
@@ -757,7 +767,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	}
 	info.InstanceKey = instanceKey
 
-	flags, err = ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
+	flags, err = ensureInstallPreconditions(st, info, flags, &snapst)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -844,7 +854,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())
 	}
 
-	flags, err = ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
+	flags, err = ensureInstallPreconditions(st, info, flags, &snapst)
 	if err != nil {
 		return nil, err
 	}
@@ -974,7 +984,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		var snapst SnapState
 		var flags Flags
 
-		flags, err := ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
+		flags, err := ensureInstallPreconditions(st, info, flags, &snapst)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1187,16 +1197,8 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		revnoOpts, flags, snapst := params(update)
 		flags.IsAutoRefresh = globalFlags.IsAutoRefresh
 
-		flags, err := ensureInstallPreconditions(st, update, flags, snapst, deviceCtx)
+		flags, err := earlyChecks(st, snapst, update, flags)
 		if err != nil {
-			if refreshAll {
-				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
-				continue
-			}
-			return nil, nil, err
-		}
-
-		if err := earlyEpochCheck(update, snapst); err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
 				continue
