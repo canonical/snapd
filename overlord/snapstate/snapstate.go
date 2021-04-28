@@ -471,6 +471,10 @@ var CheckHealthHook = func(st *state.State, snapName string, rev snap.Revision) 
 	panic("internal error: snapstate.CheckHealthHook is unset")
 }
 
+var SetupGateAutoRefreshHook = func(st *state.State, snapName string, base, restart bool) *state.Task {
+	panic("internal error: snapstate.SetupAutoRefreshGatingHook is unset")
+}
+
 var generateSnapdWrappers = backend.GenerateSnapdWrappers
 
 // FinishRestart will return a Retry error if there is a pending restart
@@ -1193,16 +1197,8 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		revnoOpts, flags, snapst := params(update)
 		flags.IsAutoRefresh = globalFlags.IsAutoRefresh
 
-		flags, err := ensureInstallPreconditions(st, update, flags, snapst)
+		flags, err := earlyChecks(st, snapst, update, flags)
 		if err != nil {
-			if refreshAll {
-				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
-				continue
-			}
-			return nil, nil, err
-		}
-
-		if err := earlyEpochCheck(update, snapst); err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
 				continue

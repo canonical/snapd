@@ -75,7 +75,7 @@ environment:
 backends:
     google:
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: computeengine/us-east1-b
+        location: snapd-spread/us-east1-b
         halt-timeout: 2h
         systems:
             - ubuntu-14.04-64:
@@ -146,7 +146,7 @@ backends:
     google-sru:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: computeengine/us-east1-b
+        location: snapd-spread/us-east1-b
         halt-timeout: 2h
         systems:
             - ubuntu-16.04-64:
@@ -161,7 +161,7 @@ backends:
     google-nested:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: computeengine/us-east1-b
+        location: snapd-spread/us-east1-b
         plan: n1-standard-2
         halt-timeout: 2h
         systems:
@@ -176,7 +176,7 @@ backends:
             - ubuntu-20.04-64:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
-                  workers: 6
+                  workers: 7
             - ubuntu-20.10-64:
                   image: ubuntu-2010-64-virt-enabled
                   storage: 20G

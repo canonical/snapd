@@ -38,7 +38,13 @@ prepare: |
 
     rm pc-gadget/cmdline.extra
     # keep the console so that we get some logging
-    echo 'snapd.debug=1 console=ttyS0 full hello from test' > pc-gadget/cmdline.full
+    cat <<'EOF' > pc-gadget/cmdline.full
+    snapd.debug=1
+    # keep the console
+    console=ttyS0
+    full hello from
+    test
+    EOF
     snap pack pc-gadget --filename=pc-gadget-cmdline-full.snap
 
     rm pc-gadget/cmdline.full

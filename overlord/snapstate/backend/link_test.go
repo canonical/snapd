@@ -760,7 +760,7 @@ apps:
 	_, err := s.be.LinkSnap(info, mockDev, linkCtxWithTooling, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(filepath.Join(dirs.SnapServicesDir, "snap.hello.svc.service"), testutil.FileContains,
-		`Requires=usr-lib-snapd.mount
+		`Wants=usr-lib-snapd.mount
 After=usr-lib-snapd.mount`)
 
 	// remove it now

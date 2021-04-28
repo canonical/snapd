@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -81,7 +81,7 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	})
 	s.AddCleanup(restore)
 
-	restore = devicestate.MockSecbootCheckKeySealingSupported(func() error {
+	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func() error {
 		return fmt.Errorf("TPM not available")
 	})
 	s.AddCleanup(restore)
@@ -233,7 +233,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	})
 	defer restore()
 
-	restore = devicestate.MockSecbootCheckKeySealingSupported(func() error {
+	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func() error {
 		if tc.tpm {
 			return nil
 		} else {
@@ -725,7 +725,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPMAndSave(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(boot.InstallHostFDEDataDir, "recovery.key"), testutil.FileEquals, dataRecoveryKey[:])
-	c.Check(filepath.Join(boot.InstallHostFDEDataDir, "ubuntu-save.key"), testutil.FileEquals, saveKey[:])
+	c.Check(filepath.Join(boot.InstallHostFDEDataDir, "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
 	c.Check(filepath.Join(boot.InstallHostFDEDataDir, "reinstall.key"), testutil.FileEquals, reinstallKey[:])
 	marker, err := ioutil.ReadFile(filepath.Join(boot.InstallHostFDEDataDir, "marker"))
 	c.Assert(err, IsNil)
@@ -753,7 +753,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallBootloaderVarSetFails(c *C) {
 	})
 	defer restore()
 
-	restore = devicestate.MockSecbootCheckKeySealingSupported(func() error { return fmt.Errorf("no encrypted soup for you") })
+	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return fmt.Errorf("no encrypted soup for you") })
 	defer restore()
 
 	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
@@ -781,7 +781,7 @@ func (s *deviceMgrInstallModeSuite) testInstallEncryptionSanityChecks(c *C, errM
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockSecbootCheckKeySealingSupported(func() error { return nil })
+	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
 	defer restore()
 
 	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
@@ -1053,7 +1053,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithEncryptionValidatesGadgetErr(
 	defer restore()
 
 	// pretend we have a TPM
-	restore = devicestate.MockSecbootCheckKeySealingSupported(func() error { return nil })
+	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
 	defer restore()
 
 	s.testInstallGadgetNoSave(c)
@@ -1078,7 +1078,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithoutEncryptionValidatesGadgetW
 	defer restore()
 
 	// pretend we have a TPM
-	restore = devicestate.MockSecbootCheckKeySealingSupported(func() error { return fmt.Errorf("TPM2 not available") })
+	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return fmt.Errorf("TPM2 not available") })
 	defer restore()
 
 	s.testInstallGadgetNoSave(c)
@@ -1133,7 +1133,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 		} else {
 			makeInstalledMockKernelSnap(c, st, kernelYamlNoFdeSetup)
 		}
-		restore := devicestate.MockSecbootCheckKeySealingSupported(func() error {
+		restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error {
 			if tc.hasTPM {
 				return nil
 			}
@@ -1151,7 +1151,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedStorageSafety(c *C)
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := devicestate.MockSecbootCheckKeySealingSupported(func() error { return nil })
+	restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
 	defer restore()
 
 	var testCases = []struct {
@@ -1204,7 +1204,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrors(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := devicestate.MockSecbootCheckKeySealingSupported(func() error { return fmt.Errorf("tpm says no") })
+	restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return fmt.Errorf("tpm says no") })
 	defer restore()
 
 	var testCases = []struct {
@@ -1333,7 +1333,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrorsLogsTPM(c *C)
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := devicestate.MockSecbootCheckKeySealingSupported(func() error {
+	restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error {
 		return fmt.Errorf("tpm says no")
 	})
 	defer restore()

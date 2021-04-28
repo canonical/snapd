@@ -37,6 +37,7 @@ var supportedHooks = []*HookType{
 	NewHookType(regexp.MustCompile("^disconnect-(?:plug|slot)-[-a-z0-9]+$")),
 	NewHookType(regexp.MustCompile("^check-health$")),
 	NewHookType(regexp.MustCompile("^fde-setup$")),
+	NewHookType(regexp.MustCompile("^gate-auto-refresh$")),
 }
 
 // HookType represents a pattern of supported hook names.
