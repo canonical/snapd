@@ -592,8 +592,7 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 			genServiceOpts.QuotaGroup = snapSvcOpts.QuotaGroup
 
 			if snapSvcOpts.QuotaGroup != nil {
-				err := neededQuotaGrps.AddAllNecessaryGroups(snapSvcOpts.QuotaGroup)
-				if err != nil {
+				if err := neededQuotaGrps.AddAllNecessaryGroups(snapSvcOpts.QuotaGroup); err != nil {
 					// this error can basically only be a circular reference
 					// in the quota group tree
 					return fmt.Errorf("internal error: %v", err)
