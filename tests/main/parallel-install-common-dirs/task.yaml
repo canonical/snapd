@@ -6,6 +6,9 @@ backends: [-autopkgtest]
 prepare: |
     snap set system experimental.parallel-instances=true
 
+restore: |
+    snap set system experimental.parallel-instances=null
+
 execute: |
     #shellcheck source=tests/lib/dirs.sh
     . "$TESTSLIB"/dirs.sh
@@ -78,5 +81,3 @@ execute: |
     not test -d "$SNAP_MOUNT_DIR/test-snapd-sh"
     not test -d "/var/snap/test-snapd-sh"
 
-restore: |
-    snap set system experimental.parallel-instances=null

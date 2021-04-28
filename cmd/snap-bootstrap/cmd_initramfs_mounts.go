@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -136,14 +136,46 @@ func generateInitramfsMounts() (err error) {
 
 	switch mode {
 	case "recover":
-		return generateMountsModeRecover(mst)
+		err = generateMountsModeRecover(mst)
 	case "install":
-		return generateMountsModeInstall(mst)
+		err = generateMountsModeInstall(mst)
 	case "run":
-		return generateMountsModeRun(mst)
+		err = generateMountsModeRun(mst)
+	default:
+		// this should never be reached, ModeAndRecoverySystemFromKernelCommandLine
+		// will have returned a non-nill error above if there was another mode
+		// specified on the kernel command line for some reason
+		return fmt.Errorf("internal error: mode in generateInitramfsMounts not handled")
 	}
-	// this should never be reached
-	return fmt.Errorf("internal error: mode in generateInitramfsMounts not handled")
+
+	if err != nil {
+		return err
+	}
+
+	// finally, the initramfs is responsible for reading the boot flags and
+	// copying them to /run, so that userspace has an unambiguous place to read
+	// the boot flags for the current boot from
+	flags, err := boot.InitramfsActiveBootFlags(mode)
+	if err != nil {
+		// We don't die on failing to read boot flags, we just log the error and
+		// don't set any flags, this is because the boot flags in the case of
+		// install comes from untrusted input, the bootenv. In the case of run
+		// mode, boot flags are read from the modeenv, which should be valid and
+		// trusted, but if the modeenv becomes corrupted, we would block
+		// accessing the system (except through an initramfs shell), to recover
+		// the modeenv (though maybe we could enable some sort of fixing from
+		// recover mode instead?)
+		logger.Noticef("error accessing boot flags: %v", err)
+	} else {
+		// write the boot flags
+		if err := boot.InitramfsExposeBootFlagsForSystem(flags); err != nil {
+			// cannot write to /run, error here since arguably we have major
+			// problems if we can't write to /run
+			return err
+		}
+	}
+
+	return nil
 }
 
 // generateMountsMode* is called multiple times from initramfs until it
@@ -417,6 +449,10 @@ type recoverModeStateMachine struct {
 	// state for tracking what happens as we progress through degraded mode of
 	// recovery
 	degradedState *recoverDegradedState
+}
+
+func (m *recoverModeStateMachine) whichModel() (*asserts.Model, error) {
+	return m.model, nil
 }
 
 // degraded returns whether a degraded recover mode state has fallen back from
@@ -800,6 +836,7 @@ func (m *recoverModeStateMachine) unlockDataRunKey() (stateFunc, error) {
 		// don't allow using the recovery key to unlock, we only try using the
 		// recovery key after we first try the fallback object
 		AllowRecoveryKey: false,
+		WhichModel:       m.whichModel,
 	}
 	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.disk, "ubuntu-data", runModeKey, unlockOpts)
 	if err := m.setUnlockStateWithRunKey("ubuntu-data", unlockRes, unlockErr); err != nil {
@@ -839,6 +876,7 @@ func (m *recoverModeStateMachine) unlockDataFallbackKey() (stateFunc, error) {
 		// using the fallback object is the last chance before we give up trying
 		// to unlock data
 		AllowRecoveryKey: true,
+		WhichModel:       m.whichModel,
 	}
 	// TODO: this prompts for a recovery key
 	// TODO: we should somehow customize the prompt to mention what key we need
@@ -966,6 +1004,7 @@ func (m *recoverModeStateMachine) unlockEncryptedSaveFallbackKey() (stateFunc, e
 		// using the fallback object is the last chance before we give up trying
 		// to unlock save
 		AllowRecoveryKey: true,
+		WhichModel:       m.whichModel,
 	}
 	saveFallbackKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key")
 	// TODO: this prompts again for a recover key, but really this is the
@@ -1292,7 +1331,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asser
 		return nil, nil, err
 	}
 
-	return model, systemSnaps, err
+	return model, systemSnaps, nil
 }
 
 func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *systemdMountOptions) (haveSave bool, err error) {
@@ -1384,6 +1423,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	runModeKey := filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key")
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
 		AllowRecoveryKey: true,
+		WhichModel:       mst.UnverifiedBootModel,
 	}
 	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", runModeKey, opts)
 	if err != nil {

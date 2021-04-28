@@ -7,9 +7,6 @@ systems: [-ubuntu-14.04-*, -ubuntu-core*]
 prepare: |
     snap install --edge jq
 
-restore: |
-    rm -f response
-
 debug: |
     test -e response && cat response
 

@@ -1,4 +1,5 @@
 summary: Check that snaps vanishing are handled gracefully
+
 details: |
     Note that this test is subtly different from tests/regression/lp-1764977.
     See the description of that test for details.

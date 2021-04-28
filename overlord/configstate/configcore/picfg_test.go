@@ -173,8 +173,6 @@ func (s *piCfgSuite) TestUpdateConfigUC20RunMode(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	defer func() { dirs.SetRootDir("") }()
-
 	// mock the device as uc20 run mode
 	mockCmdline := filepath.Join(dirs.GlobalRootDir, "cmdline")
 	err := ioutil.WriteFile(mockCmdline, []byte("snapd_recovery_mode=run"), 0644)
@@ -218,8 +216,6 @@ func (s *piCfgSuite) TestUpdateConfigUC20RunMode(c *C) {
 func (s *piCfgSuite) testUpdateConfigUC20NonRunMode(c *C, mode string) {
 	restore := release.MockOnClassic(false)
 	defer restore()
-
-	defer func() { dirs.SetRootDir("") }()
 
 	// mock the device as the specified uc20 mode
 	mockCmdline := filepath.Join(dirs.GlobalRootDir, "cmdline")

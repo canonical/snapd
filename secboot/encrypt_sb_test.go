@@ -2,7 +2,7 @@
 // +build !nosecboot
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -49,7 +49,7 @@ func (s *encryptSuite) TestFormatEncryptedDevice(c *C) {
 			calls++
 			c.Assert(devicePath, Equals, "/dev/node")
 			c.Assert(label, Equals, "my label")
-			c.Assert(key, DeepEquals, myKey[:])
+			c.Assert(key, DeepEquals, []byte(myKey))
 			c.Assert(opts, DeepEquals, &sb.InitializeLUKS2ContainerOptions{
 				MetadataKiBSize:     2048,
 				KeyslotsAreaKiBSize: 2560,
@@ -89,7 +89,7 @@ func (s *encryptSuite) TestAddRecoveryKey(c *C) {
 			calls++
 			c.Assert(devicePath, Equals, "/dev/node")
 			c.Assert(recoveryKey[:], DeepEquals, myRecoveryKey[:])
-			c.Assert(key, DeepEquals, myKey[:])
+			c.Assert(key, DeepEquals, []byte(myKey))
 			return tc.addErr
 		})
 		defer restore()

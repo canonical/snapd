@@ -205,6 +205,11 @@ Type=potato
 Id=baz.service
 ActiveState=inactive
 UnitFileState=disabled
+
+Type=
+Id=missing.service
+ActiveState=inactive
+UnitFileState=
 `[1:]),
 		[]byte(`
 Id=some.timer
@@ -217,37 +222,48 @@ UnitFileState=disabled
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.service", "bar.service", "baz.service", "some.timer", "other.socket")
+	out, err := New(SystemMode, s.rep).Status("foo.service", "bar.service", "baz.service", "missing.service", "some.timer", "other.socket")
 	c.Assert(err, IsNil)
 	c.Check(out, DeepEquals, []*UnitStatus{
 		{
-			Daemon:   "simple",
-			UnitName: "foo.service",
-			Active:   true,
-			Enabled:  true,
+			Daemon:    "simple",
+			UnitName:  "foo.service",
+			Active:    true,
+			Enabled:   true,
+			Installed: true,
 		}, {
-			Daemon:   "simple",
-			UnitName: "bar.service",
-			Active:   true,
-			Enabled:  true,
+			Daemon:    "simple",
+			UnitName:  "bar.service",
+			Active:    true,
+			Enabled:   true,
+			Installed: true,
 		}, {
-			Daemon:   "potato",
-			UnitName: "baz.service",
-			Active:   false,
-			Enabled:  false,
+			Daemon:    "potato",
+			UnitName:  "baz.service",
+			Active:    false,
+			Enabled:   false,
+			Installed: true,
 		}, {
-			UnitName: "some.timer",
-			Active:   true,
-			Enabled:  true,
+			Daemon:    "",
+			UnitName:  "missing.service",
+			Active:    false,
+			Enabled:   false,
+			Installed: false,
 		}, {
-			UnitName: "other.socket",
-			Active:   true,
-			Enabled:  false,
+			UnitName:  "some.timer",
+			Active:    true,
+			Enabled:   true,
+			Installed: true,
+		}, {
+			UnitName:  "other.socket",
+			Active:    true,
+			Enabled:   false,
+			Installed: true,
 		},
 	})
 	c.Check(s.rep.msgs, IsNil)
 	c.Assert(s.argses, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type", "foo.service", "bar.service", "baz.service"},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type", "foo.service", "bar.service", "baz.service", "missing.service"},
 		{"show", "--property=Id,ActiveState,UnitFileState", "some.timer", "other.socket"},
 	})
 }
@@ -745,12 +761,13 @@ func (s *SystemdTestSuite) TestAddMountUnit(c *C) {
 [Unit]
 Description=Mount unit for foo, revision 42
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
 Where=/snap/snapname/123
 Type=squashfs
-Options=nodev,ro,x-gdu.hide
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 LazyUnmount=yes
 
 [Install]
@@ -778,12 +795,13 @@ func (s *SystemdTestSuite) TestAddMountUnitForDirs(c *C) {
 [Unit]
 Description=Mount unit for foodir, revision x1
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
 Where=/snap/snapname/x1
 Type=none
-Options=nodev,ro,x-gdu.hide,bind
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide,bind
 LazyUnmount=yes
 
 [Install]
@@ -819,12 +837,13 @@ func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 [Unit]
 Description=Mount unit for foo, revision 42
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
 Where=/snap/snapname/123
 Type=squashfs
-Options=nodev,context=system_u:object_r:snappy_snap_t:s0,ro,x-gdu.hide
+Options=nodev,context=system_u:object_r:snappy_snap_t:s0,ro,x-gdu.hide,x-gvfs-hide
 LazyUnmount=yes
 
 [Install]
@@ -862,12 +881,13 @@ exit 0
 [Unit]
 Description=Mount unit for foo, revision x1
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
 Where=/snap/snapname/123
 Type=fuse.squashfuse
-Options=nodev,ro,x-gdu.hide,allow_other
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide,allow_other
 LazyUnmount=yes
 
 [Install]
@@ -901,12 +921,13 @@ exit 0
 [Unit]
 Description=Mount unit for foo, revision x1
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
 Where=/snap/snapname/123
 Type=squashfs
-Options=nodev,ro,x-gdu.hide
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 LazyUnmount=yes
 
 [Install]
@@ -1141,6 +1162,7 @@ const unitTemplate = `
 [Unit]
 Description=Mount unit for foo, revision 42
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
@@ -1172,10 +1194,10 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
 	// systemd was not called
 	c.Check(s.argses, HasLen, 0)
 	// mount was called
-	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", mockSnapPath, "/snap/snapname/123", "-o", "nodev,ro,x-gdu.hide"})
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", mockSnapPath, "/snap/snapname/123", "-o", "nodev,ro,x-gdu.hide,x-gvfs-hide"})
 	// unit was enabled with a symlink
 	c.Check(osutil.IsSymlink(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", mountUnitName)), Equals, true)
-	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide"))
+	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide,x-gvfs-hide"))
 }
 
 func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
@@ -1195,7 +1217,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
 	defer os.Remove(mountUnitName)
 
 	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "fuse.squashfuse", mockSnapPath, "/snap/snapname/123", "-o", "nodev,a,b,c"})
-	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide"))
+	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide,x-gvfs-hide"))
 }
 
 func (s *SystemdTestSuite) TestPreseedModeMountError(c *C) {
@@ -1372,4 +1394,76 @@ func (s *SystemdTestSuite) TestUmountErr(c *C) {
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"systemd-mount", "--umount", "bar"},
 	})
+}
+
+func (s *SystemdTestSuite) TestInactiveEnterTimestampZero(c *C) {
+	s.outs = [][]byte{
+		[]byte(`InactiveEnterTimestamp=`),
+	}
+	sysd := New(SystemMode, s.rep)
+	stamp, err := sysd.InactiveEnterTimestamp("bar.service")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
+	})
+	c.Check(stamp.IsZero(), Equals, true)
+}
+
+func (s *SystemdTestSuite) TestInactiveEnterTimestampValidWhitespace(c *C) {
+	s.outs = [][]byte{
+		[]byte(`InactiveEnterTimestamp=Fri 2021-04-16 15:32:21 UTC
+`),
+	}
+
+	stamp, err := New(SystemMode, s.rep).InactiveEnterTimestamp("bar.service")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
+	})
+	c.Check(stamp.Equal(time.Date(2021, time.April, 16, 15, 32, 21, 0, time.UTC)), Equals, true)
+}
+
+func (s *SystemdTestSuite) TestInactiveEnterTimestampValid(c *C) {
+	s.outs = [][]byte{
+		[]byte(`InactiveEnterTimestamp=Fri 2021-04-16 15:32:21 UTC`),
+	}
+
+	stamp, err := New(SystemMode, s.rep).InactiveEnterTimestamp("bar.service")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
+	})
+	c.Check(stamp.Equal(time.Date(2021, time.April, 16, 15, 32, 21, 0, time.UTC)), Equals, true)
+}
+
+func (s *SystemdTestSuite) TestInactiveEnterTimestampFailure(c *C) {
+	s.outs = [][]byte{
+		[]byte(`mocked failure`),
+	}
+	s.errors = []error{
+		fmt.Errorf("mocked failure"),
+	}
+	stamp, err := New(SystemMode, s.rep).InactiveEnterTimestamp("bar.service")
+	c.Assert(err, ErrorMatches, "mocked failure")
+	c.Check(stamp.IsZero(), Equals, true)
+}
+
+func (s *SystemdTestSuite) TestInactiveEnterTimestampMalformed(c *C) {
+	s.outs = [][]byte{
+		[]byte(`InactiveEnterTimestamp`),
+		[]byte(``),
+		[]byte(`some random garbage
+with newlines`),
+		[]byte(`InactiveEnterTimestamp=0`), // 0 is valid for InactiveEnterTimestampMonotonic
+	}
+	sysd := New(SystemMode, s.rep)
+	for i := 0; i < len(s.outs); i++ {
+		s.argses = nil
+		stamp, err := sysd.InactiveEnterTimestamp("bar.service")
+		c.Assert(err, ErrorMatches, `(?s)internal error: systemctl (time )?output \(.*\) is malformed`)
+		c.Check(s.argses, DeepEquals, [][]string{
+			{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
+		})
+		c.Check(stamp.IsZero(), Equals, true)
+	}
 }

@@ -25,6 +25,7 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
@@ -210,5 +211,116 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	// core20, have fallback code as well there
 	st.RequestRestart(state.RestartSystem)
 
+	return nil
+}
+
+func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, isUndo bool) (updated bool, err error) {
+	snapsup, err := snapstate.TaskSnapSetup(t)
+	if err != nil {
+		return false, err
+	}
+	devCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return false, err
+	}
+	if devCtx.Model().Grade() == asserts.ModelGradeUnset {
+		// pre UC20 system, do nothing
+		return false, nil
+	}
+	var gadgetData *gadget.GadgetData
+	if !isUndo {
+		// when updating, command line comes from the new gadget
+		gadgetData, err = pendingGadgetInfo(snapsup, devCtx)
+	} else {
+		// but when undoing, we use the current gadget which should have
+		// been restored
+		currentGadgetData, err := currentGadgetInfo(st, devCtx)
+		if err != nil {
+			return false, err
+		}
+		gadgetData = currentGadgetData
+	}
+	updated, err = boot.UpdateCommandLineForGadgetComponent(devCtx, gadgetData.RootDir)
+	if err != nil {
+		return false, fmt.Errorf("cannot update kernel command line from gadget: %v", err)
+	}
+	return updated, nil
+}
+
+func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) error {
+	if release.OnClassic {
+		return fmt.Errorf("internal error: cannot run update gadget kernel command line task on a classic system")
+	}
+
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var seeded bool
+	err := st.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if !seeded {
+		// do nothing during first boot & seeding
+		return nil
+	}
+
+	const isUndo = false
+	updated, err := m.updateGadgetCommandLine(t, st, isUndo)
+	if err != nil {
+		return err
+	}
+	if !updated {
+		logger.Debugf("no kernel command line update from gadget")
+		return nil
+	}
+	t.Logf("Updated kernel command line")
+
+	t.SetStatus(state.DoneStatus)
+
+	// TODO: consider optimization to avoid double reboot when the gadget
+	// snap carries an update to the gadget assets and a change in the
+	// kernel command line
+
+	// kernel command line was updated, request a reboot to make it effective
+	st.RequestRestart(state.RestartSystem)
+	return nil
+}
+
+func (m *DeviceManager) undoUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) error {
+	if release.OnClassic {
+		return fmt.Errorf("internal error: cannot run update gadget kernel command line task on a classic system")
+	}
+
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var seeded bool
+	err := st.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if !seeded {
+		// do nothing during first boot & seeding
+		return nil
+	}
+
+	const isUndo = true
+	updated, err := m.updateGadgetCommandLine(t, st, isUndo)
+	if err != nil {
+		return err
+	}
+	if !updated {
+		logger.Debugf("no kernel command line update to undo")
+		return nil
+	}
+	t.Logf("Reverted kernel command line change")
+
+	t.SetStatus(state.UndoneStatus)
+
+	// kernel command line was updated, request a reboot to make it effective
+	st.RequestRestart(state.RestartSystem)
 	return nil
 }

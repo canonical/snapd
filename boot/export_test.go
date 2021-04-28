@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -65,6 +66,8 @@ var (
 	ResealKeyToModeenv              = resealKeyToModeenv
 	RecoveryBootChainsForSystems    = recoveryBootChainsForSystems
 	SealKeyModelParams              = sealKeyModelParams
+
+	BootVarsForTrustedCommandLineFromGadget = bootVarsForTrustedCommandLineFromGadget
 )
 
 type BootAssetsMap = bootAssetsMap
@@ -102,6 +105,14 @@ func MockSecbootSealKeys(f func(keys []secboot.SealKeyRequest, params *secboot.S
 	secbootSealKeys = f
 	return func() {
 		secbootSealKeys = old
+	}
+}
+
+func MockSecbootSealKeysWithFDESetupHook(f func(runHook fde.RunSetupHookFunc, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error) (restore func()) {
+	old := secbootSealKeysWithFDESetupHook
+	secbootSealKeysWithFDESetupHook = f
+	return func() {
+		secbootSealKeysWithFDESetupHook = old
 	}
 }
 
@@ -154,6 +165,10 @@ var (
 	WriteBootChains                     = writeBootChains
 	ReadBootChains                      = readBootChains
 	IsResealNeeded                      = isResealNeeded
+
+	SetImageBootFlags = setImageBootFlags
+	NextBootFlags     = nextBootFlags
+	SetNextBootFlags  = setNextBootFlags
 )
 
 func (b *bootChain) SetModelAssertion(model *asserts.Model) {
@@ -176,7 +191,7 @@ func MockHasFDESetupHook(f func() (bool, error)) (restore func()) {
 	}
 }
 
-func MockRunFDESetupHook(f func(string, *FDESetupHookParams) ([]byte, error)) (restore func()) {
+func MockRunFDESetupHook(f fde.RunSetupHookFunc) (restore func()) {
 	oldRunFDESetupHook := RunFDESetupHook
 	RunFDESetupHook = f
 	return func() { RunFDESetupHook = oldRunFDESetupHook }
@@ -187,5 +202,13 @@ func MockResealKeyToModeenvUsingFDESetupHook(f func(string, *asserts.Model, *Mod
 	resealKeyToModeenvUsingFDESetupHook = f
 	return func() {
 		resealKeyToModeenvUsingFDESetupHook = old
+	}
+}
+
+func MockAdditionalBootFlags(bootFlags []string) (restore func()) {
+	old := understoodBootFlags
+	understoodBootFlags = append(understoodBootFlags, bootFlags...)
+	return func() {
+		understoodBootFlags = old
 	}
 }
