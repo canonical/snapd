@@ -312,8 +312,11 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 	grp.Snaps = []string{"foosnap"}
 
 	// add it into the state
-	err = servicestate.UpdateQuotas(st, grp)
+	newGrps, err := servicestate.PatchQuotasState(st, grp)
 	c.Assert(err, IsNil)
+	c.Assert(newGrps, DeepEquals, map[string]*quota.Group{
+		"foogroup": grp,
+	})
 
 	opts, err := servicestate.SnapServiceOptions(st, "foosnap", nil)
 	c.Assert(err, IsNil)
@@ -328,8 +331,11 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 
 	// modify state to use an instance name instead now
 	grp.Snaps = []string{"foosnap_instance"}
-	err = servicestate.UpdateQuotas(st, grp)
+	newGrps, err = servicestate.PatchQuotasState(st, grp)
 	c.Assert(err, IsNil)
+	c.Assert(newGrps, DeepEquals, map[string]*quota.Group{
+		"foogroup": grp,
+	})
 
 	// we can still get the quota group using the local map we got before
 	// modifying state
