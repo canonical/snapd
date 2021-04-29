@@ -135,7 +135,9 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 	return nil
 }
 
-// RemoveQuota deletes the specific quota group.
+// RemoveQuota deletes the specific quota group. Any snaps currently in the
+// quota will no longer be in any quota group, even if the quota group being
+// removed is a sub-group.
 // TODO: currently this only supports removing leaf sub-group groups, it doesn't
 // support removing parent quotas, but probably it makes sense to allow that too
 func RemoveQuota(st *state.State, name string) error {
@@ -164,12 +166,17 @@ func RemoveQuota(st *state.State, name string) error {
 	delete(allGrps, name)
 	st.Set("quotas", allGrps)
 
+	// update snap service units that may need to be re-written because they are
+	// not in a slice anymore
 	if err := ensureSnapServicesForGroup(st, grp, allGrps); err != nil {
 		return err
 	}
 
 	// separately delete the slice unit, EnsureSnapServices does not do this for
 	// us
+	// TODO: this results in a second systemctl daemon-reload which is
+	// undesirable, we should figure out how to do this operation with a single
+	// daemon-reload
 	if err := wrappers.RemoveQuotaGroup(grp, progress.Null); err != nil {
 		return err
 	}
