@@ -253,7 +253,6 @@ func ResolveCrossReferences(grps map[string]*Group) error {
 		// now thread any child links from this group to any children
 		if len(grp.SubGroups) != 0 {
 			// re-build the internal sub group list
-			fmt.Println("for group", grp.Name, "Subgroups", grp.SubGroups, "subgroups", grp.subGroups)
 			grp.subGroups = make([]*Group, len(grp.SubGroups))
 			for i, subName := range grp.SubGroups {
 				sub, ok := grps[subName]
