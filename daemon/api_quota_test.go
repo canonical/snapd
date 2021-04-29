@@ -100,9 +100,9 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUnhappy(c *check.C) {
 }
 
 func (s *apiQuotaSuite) TestPostEnsureQuotaHappy(c *check.C) {
-	var called bool
+	var called int
 	daemon.MockServicestateCreateQuota(func(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) error {
-		called = true
+		called++
 		c.Check(name, check.Equals, "booze")
 		c.Check(parentName, check.Equals, "foo")
 		c.Check(snaps, check.DeepEquals, []string{"some-snap"})
@@ -123,13 +123,13 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaHappy(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 200)
-	c.Assert(called, check.Equals, true)
+	c.Assert(called, check.Equals, 1)
 }
 
 func (s *apiQuotaSuite) TestPostRemoveQuotaHappy(c *check.C) {
-	var called bool
+	var called int
 	daemon.MockServicestateRemoveQuota(func(st *state.State, name string) error {
-		called = true
+		called++
 		c.Check(name, check.Equals, "booze")
 		return nil
 	})
@@ -144,7 +144,7 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaHappy(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 200)
-	c.Assert(called, check.Equals, true)
+	c.Assert(called, check.Equals, 1)
 }
 
 func (s *apiQuotaSuite) TestPostRemoveQuotaUnhappy(c *check.C) {
