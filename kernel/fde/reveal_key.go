@@ -40,8 +40,10 @@ import (
 type RevealKeyRequest struct {
 	Op string `json:"op"`
 
-	SealedKey []byte `json:"sealed-key,omitempty"`
-	KeyName   string `json:"key-name,omitempty"`
+	SealedKey []byte           `json:"sealed-key,omitempty"`
+	Handle    *json.RawMessage `json:"handle,omitempty"`
+	// depracated for v1
+	KeyName string `json:"key-name,omitempty"`
 
 	// TODO: add VolumeName,SourceDevicePath later
 }
@@ -201,13 +203,31 @@ func LockSealedKeys() error {
 // RevealParams contains the parameters for fde-reveal-key reveal operation.
 type RevealParams struct {
 	SealedKey []byte
+	Handle    *json.RawMessage
+	// V2Payload is set true if SealedKey is expected to contain a v2 payload
+	// (disk key + aux key)
+	V2Payload bool
 }
+
+type revealKeyResult struct {
+	Key []byte `json:"key"`
+}
+
+const (
+	v1keySize  = 64
+	v1NoHandle = `{"v1-no-handle":true}`
+)
 
 // Reveal invokes the fde-reveal-key reveal operation.
 func Reveal(params *RevealParams) (payload []byte, err error) {
+	handle := params.Handle
+	if params.V2Payload && handle != nil && bytes.Equal([]byte(*handle), []byte(v1NoHandle)) {
+		handle = nil
+	}
 	req := &RevealKeyRequest{
 		Op:        "reveal",
 		SealedKey: params.SealedKey,
+		Handle:    handle,
 		// deprecated but needed for v1 hooks
 		KeyName: "deprecated-" + randutil.RandomString(12),
 	}
@@ -215,5 +235,30 @@ func Reveal(params *RevealParams) (payload []byte, err error) {
 	if err != nil {
 		return nil, fmt.Errorf(`cannot run fde-reveal-key "reveal": %v`, osutil.OutputErr(output, err))
 	}
-	return output, nil
+	// We expect json output that fits the revealKeyResult json at
+	// this point. However the "denver" project uses the old and
+	// deprecated v1 API that returns raw bytes and we still need
+	// to support this.
+	var res revealKeyResult
+	if err := json.Unmarshal(output, &res); err != nil {
+		if params.V2Payload {
+			// We expect a v2 payload but not having json
+			// output from the hook means that either the
+			// hook is buggy or we have a v1 based hook
+			// (e.g. "denver" project) with v2 based json
+			// data on disk. This is supported but we let
+			// the higher levels unmarshaling of the
+			// payload deal with the buggy case.
+			return output, nil
+		}
+		// If the payload is not expected to be v2 and, the
+		// output is not json but matches the size of the
+		// "denver" project encrypton key (64 bytes) we assume
+		// we deal with a v1 API.
+		if len(output) != v1keySize {
+			return nil, fmt.Errorf(`cannot decode fde-reveal-key "reveal" result: %v`, err)
+		}
+		return output, nil
+	}
+	return res.Key, nil
 }

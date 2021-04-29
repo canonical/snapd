@@ -1,5 +1,4 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
-// +build nosecboot
 
 /*
  * Copyright (C) 2021 Canonical Ltd
@@ -18,28 +17,8 @@
  *
  */
 
-package secboot
+package quota
 
-import (
-	"errors"
-
-	"github.com/snapcore/snapd/kernel/fde"
-)
-
-var errBuildWithoutSecboot = errors.New("build without secboot support")
-
-func CheckTPMKeySealingSupported() error {
-	return errBuildWithoutSecboot
-}
-
-func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
-	return errBuildWithoutSecboot
-}
-
-func SealKeysWithFDESetupHook(runHook fde.RunSetupHookFunc, keys []SealKeyRequest, params *SealKeysWithFDESetupHookParams) error {
-	return errBuildWithoutSecboot
-}
-
-func ResealKeys(params *ResealKeysParams) error {
-	return errBuildWithoutSecboot
+func (grp *Group) SetInternalSubGroups(grps []*Group) {
+	grp.subGroups = grps
 }

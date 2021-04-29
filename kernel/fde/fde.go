@@ -62,7 +62,7 @@ func unmarshalInitialSetupResult(hookOutput []byte) (*InitialSetupResult, error)
 			return nil, fmt.Errorf("cannot decode hook output %q: %v", hookOutput, err)
 		}
 		// v1 hooks do not support a handle
-		handle := json.RawMessage(`{"v1-no-handle": true}`)
+		handle := json.RawMessage(v1NoHandle)
 		res.Handle = &handle
 		res.EncryptedKey = hookOutput
 	}
@@ -103,7 +103,7 @@ type InitialSetupResult struct {
 func InitialSetup(runSetupHook RunSetupHookFunc, params *InitialSetupParams) (*InitialSetupResult, error) {
 	req := &SetupRequest{
 		Op:      "initial-setup",
-		Key:     params.Key[:],
+		Key:     params.Key,
 		KeyName: params.KeyName,
 	}
 	hookOutput, err := runSetupHook(req)

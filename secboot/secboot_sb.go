@@ -34,6 +34,7 @@ import (
 
 var (
 	sbActivateVolumeWithKey         = sb.ActivateVolumeWithKey
+	sbActivateVolumeWithKeyData     = sb.ActivateVolumeWithKeyData
 	sbActivateVolumeWithRecoveryKey = sb.ActivateVolumeWithRecoveryKey
 )
 
