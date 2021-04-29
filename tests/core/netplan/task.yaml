@@ -44,6 +44,12 @@ execute: |
             exit 1
         fi
 
+        echo "Running netplan generate without network-setup-control fails"
+        if netplan-snap.netplan generate; then
+            echo "Expected access denied error for netplan generate"
+            exit 1
+        fi
+
         echo "Count how many network service restarts happened before calling netplan apply"
         stopped_before="$("$TESTSTOOLS"/journal-state get-log -u systemd-networkd | grep -c 'Stopped Network Service.' || true)"
         started_before="$("$TESTSTOOLS"/journal-state get-log -u systemd-networkd | grep -c 'Started Network Service.' || true)"
@@ -56,6 +62,12 @@ execute: |
         echo "Running netplan apply now works"
         if ! netplan-snap.netplan --debug apply; then
             echo "Unexpected error running netplan apply"
+            exit 1
+        fi
+
+        echo "Running netplan generate now works"
+        if ! netplan-snap.netplan generate; then
+            echo "Unexpected error running netplan generate"
             exit 1
         fi
 
