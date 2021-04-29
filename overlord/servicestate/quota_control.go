@@ -50,6 +50,8 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[s
 		snapSvcMap[info] = opts
 	}
 
+	// TODO: the following lines should maybe be EnsureOptionsForDevice() or
+	// something since it is duplicated a few places
 	ensureOpts := &wrappers.EnsureSnapServicesOptions{
 		Preseeding: snapdenv.Preseeding(),
 	}
