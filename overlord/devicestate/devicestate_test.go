@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -1164,6 +1165,192 @@ func (s *deviceMgrSuite) TestDeviceManagerEmptySystemModeRun(c *C) {
 
 	// empty is returned as "run"
 	c.Check(s.mgr.SystemMode(), Equals, "run")
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerSystemModeInfoTooEarly(c *C) {
+	runner := s.o.TaskRunner()
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, s.newStore)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	_, err = mgr.SystemModeInfo()
+	c.Check(err, ErrorMatches, `cannot report system mode information before device model is acknowledged`)
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerSystemModeInfoUC18(c *C) {
+	runner := s.o.TaskRunner()
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, s.newStore)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a model
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+		"base:":        "core18",
+	})
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc",
+	})
+
+	smi, err := mgr.SystemModeInfo()
+	c.Assert(err, IsNil)
+	c.Check(smi, DeepEquals, &devicestate.SystemModeInfo{
+		Mode:   "run",
+		Seeded: false,
+	})
+
+	// seeded
+	s.state.Set("seeded", true)
+
+	smi, err = mgr.SystemModeInfo()
+	c.Assert(err, IsNil)
+	c.Check(smi, DeepEquals, &devicestate.SystemModeInfo{
+		Mode:   "run",
+		Seeded: true,
+	})
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerSystemModeInfoUC20Install(c *C) {
+	modeEnv := &boot.Modeenv{Mode: "install"}
+	err := modeEnv.WriteTo("")
+	c.Assert(err, IsNil)
+
+	runner := s.o.TaskRunner()
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, s.newStore)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a model
+	s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+		"architecture": "amd64",
+		// UC20
+		"grade": "dangerous",
+		"base":  "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-20",
+	})
+
+	// seeded
+	s.state.Set("seeded", true)
+	// no flags
+	c.Assert(boot.InitramfsExposeBootFlagsForSystem(nil), IsNil)
+	// data present
+	ubuntuData := filepath.Dir(boot.InstallHostWritableDir)
+	c.Assert(os.MkdirAll(ubuntuData, 0755), IsNil)
+
+	smi, err := mgr.SystemModeInfo()
+	c.Assert(err, IsNil)
+	c.Check(smi, DeepEquals, &devicestate.SystemModeInfo{
+		Mode:              "install",
+		HasModeenv:        true,
+		Seeded:            true,
+		BootFlags:         []string{},
+		HostDataLocations: []string{ubuntuData},
+	})
+
+	// factory
+	c.Assert(boot.InitramfsExposeBootFlagsForSystem([]string{"factory"}), IsNil)
+	smi, err = mgr.SystemModeInfo()
+	c.Assert(err, IsNil)
+	c.Check(smi, DeepEquals, &devicestate.SystemModeInfo{
+		Mode:              "install",
+		HasModeenv:        true,
+		Seeded:            true,
+		BootFlags:         []string{"factory"},
+		HostDataLocations: []string{ubuntuData},
+	})
+}
+
+func (s *deviceMgrSuite) TestDeviceManagerSystemModeInfoUC20Run(c *C) {
+	modeEnv := &boot.Modeenv{Mode: "run"}
+	err := modeEnv.WriteTo("")
+	c.Assert(err, IsNil)
+
+	runner := s.o.TaskRunner()
+	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, s.newStore)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a model
+	s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+		"architecture": "amd64",
+		// UC20
+		"grade": "dangerous",
+		"base":  "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-20",
+	})
+
+	// not seeded
+	// no flags
+	c.Assert(boot.InitramfsExposeBootFlagsForSystem(nil), IsNil)
+
+	smi, err := mgr.SystemModeInfo()
+	c.Assert(err, IsNil)
+	c.Check(smi, DeepEquals, &devicestate.SystemModeInfo{
+		Mode:              "run",
+		HasModeenv:        true,
+		Seeded:            false,
+		BootFlags:         []string{},
+		HostDataLocations: []string{boot.InitramfsDataDir, dirs.GlobalRootDir},
+	})
+
+	// given state only
+	smi, err = devicestate.SystemModeInfoFromState(s.state)
+	c.Assert(err, IsNil)
+	c.Check(smi, DeepEquals, &devicestate.SystemModeInfo{
+		Mode:              "run",
+		HasModeenv:        true,
+		Seeded:            false,
+		BootFlags:         []string{},
+		HostDataLocations: []string{boot.InitramfsDataDir, dirs.GlobalRootDir},
+	})
 }
 
 const (
