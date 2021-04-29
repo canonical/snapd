@@ -68,6 +68,22 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[s
 	return wrappers.EnsureSnapServices(snapSvcMap, ensureOpts, nil, progress.Null)
 }
 
+func validateSnapForAddingToGroup(st *state.State, name string, allGrps map[string]*quota.Group) error {
+	// validate that the snap exists
+	_, err := snapstate.CurrentInfo(st, name)
+	if err != nil {
+		return err
+	}
+
+	// check that the snap is not already in a group
+	for _, grp := range allGrps {
+		if strutil.ListContains(grp.Snaps, name) {
+			return fmt.Errorf("snap already in quota group %q", grp.Name)
+		}
+	}
+	return nil
+}
+
 // CreateQuota attempts to create the specified quota group with the specified
 // snaps in it.
 // TODO: should this use something like QuotaGroupUpdate with fewer fields?
@@ -181,22 +197,6 @@ func RemoveQuota(st *state.State, name string) error {
 		return err
 	}
 
-	return nil
-}
-
-func validateSnapForAddingToGroup(st *state.State, name string, allGrps map[string]*quota.Group) error {
-	// validate that the snap exists
-	_, err := snapstate.CurrentInfo(st, name)
-	if err != nil {
-		return err
-	}
-
-	// check that the snap is not already in a group
-	for _, grp := range allGrps {
-		if strutil.ListContains(grp.Snaps, name) {
-			return fmt.Errorf("snap already in quota group %q", grp.Name)
-		}
-	}
 	return nil
 }
 
