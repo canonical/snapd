@@ -824,12 +824,13 @@ func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error
 }
 
 // RemoveQuotaGroup ensures that the slice file for a quota group is removed. It
-// only works on groups that have no sub-groups, in order to remove a parent
+// assumes that the slice corresponding to the group is not in use anymore by
+// any services or sub-groups of the group when it is invoked.
 // group with sub-groups, one must remove all the sub-groups first.
 func RemoveQuotaGroup(grp *quota.Group, inter interacter) error {
 	// TODO: it only works on leaf sub-groups currently
 	if len(grp.SubGroups) != 0 {
-		return fmt.Errorf("cannot remove quota group with sub-groups, remove the sub-groups first")
+		return fmt.Errorf("internal error: cannot remove quota group with sub-groups")
 	}
 
 	systemSysd := systemd.New(systemd.SystemMode, inter)
