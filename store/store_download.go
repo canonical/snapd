@@ -50,12 +50,11 @@ import (
 	"github.com/snapcore/snapd/snapdtool"
 )
 
-var downloadRetryStrategy = retry.LimitCount(7, retry.LimitTime(90*time.Second,
-	retry.Exponential{
-		Initial: 500 * time.Millisecond,
-		Factor:  2.5,
-	},
-))
+var downloadRetryStrategy = retry.LimitCount(7, retry.Exponential{
+	Initial: 500 * time.Millisecond,
+	Factor:  2.0,
+},
+)
 
 var downloadSpeedMeasureWindow = 5 * time.Minute
 
