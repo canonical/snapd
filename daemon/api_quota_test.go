@@ -77,7 +77,7 @@ func (s *apiQuotaSuite) TestPostQuotaInvalidGroupName(c *check.C) {
 }
 
 func (s *apiQuotaSuite) TestPostEnsureQuotaUnhappy(c *check.C) {
-	daemon.MockServicestateCreateQuota(func(name string, parentName string, snaps []string, memoryLimit quantity.Size) error {
+	daemon.MockServicestateCreateQuota(func(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) error {
 		c.Check(name, check.Equals, "booze")
 		c.Check(parentName, check.Equals, "foo")
 		c.Check(snaps, check.DeepEquals, []string{"bar"})
@@ -103,7 +103,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUnhappy(c *check.C) {
 
 func (s *apiQuotaSuite) TestPostEnsureQuotaHappy(c *check.C) {
 	var called bool
-	daemon.MockServicestateCreateQuota(func(name string, parentName string, snaps []string, memoryLimit quantity.Size) error {
+	daemon.MockServicestateCreateQuota(func(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) error {
 		called = true
 		c.Check(name, check.Equals, "booze")
 		c.Check(parentName, check.Equals, "foo")
@@ -130,7 +130,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaHappy(c *check.C) {
 
 func (s *apiQuotaSuite) TestPostRemoveQuotaHappy(c *check.C) {
 	var called bool
-	daemon.MockServicestateRemoveQuota(func(name string) error {
+	daemon.MockServicestateRemoveQuota(func(st *state.State, name string) error {
 		called = true
 		c.Check(name, check.Equals, "booze")
 		return nil
@@ -150,7 +150,7 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaHappy(c *check.C) {
 }
 
 func (s *apiQuotaSuite) TestPostRemoveQuotaUnhappy(c *check.C) {
-	daemon.MockServicestateRemoveQuota(func(name string) error {
+	daemon.MockServicestateRemoveQuota(func(st *state.State, name string) error {
 		c.Check(name, check.Equals, "booze")
 		return fmt.Errorf("boom")
 	})

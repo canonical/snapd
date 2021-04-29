@@ -19,14 +19,17 @@
 
 package daemon
 
-import "github.com/snapcore/snapd/gadget/quantity"
+import (
+	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/overlord/state"
+)
 
 type (
 	PostQuotaGroupData   = postQuotaGroupData
 	QuotaGroupResultJSON = quotaGroupResultJSON
 )
 
-func MockServicestateCreateQuota(f func(name string, parentName string, snaps []string, memoryLimit quantity.Size) error) func() {
+func MockServicestateCreateQuota(f func(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) error) func() {
 	old := servicestateCreateQuota
 	servicestateCreateQuota = f
 	return func() {
@@ -34,7 +37,7 @@ func MockServicestateCreateQuota(f func(name string, parentName string, snaps []
 	}
 }
 
-func MockServicestateRemoveQuota(f func(name string) error) func() {
+func MockServicestateRemoveQuota(f func(st *state.State, name string) error) func() {
 	old := servicestateRemoveQuota
 	servicestateRemoveQuota = f
 	return func() {

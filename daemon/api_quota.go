@@ -148,12 +148,12 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 	switch data.Action {
 	case "ensure":
 		// TODO: quota updates
-		if err := servicestateCreateQuota(data.GroupName, data.Parent, data.Snaps, quantity.Size(data.MaxMemory)); err != nil {
+		if err := servicestateCreateQuota(st, data.GroupName, data.Parent, data.Snaps, quantity.Size(data.MaxMemory)); err != nil {
 			// XXX: dedicated error type?
 			return BadRequest(err.Error())
 		}
 	case "remove":
-		if err := servicestateRemoveQuota(data.GroupName); err != nil {
+		if err := servicestateRemoveQuota(st, data.GroupName); err != nil {
 			return BadRequest(err.Error())
 		}
 	default:
