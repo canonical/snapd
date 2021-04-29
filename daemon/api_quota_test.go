@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap/quota"
 	"gopkg.in/check.v1"
 )
 
@@ -45,13 +44,12 @@ func (s *apiQuotaSuite) SetUpTest(c *check.C) {
 }
 
 func mockQuotas(st *state.State, c *check.C) {
-	grp0, err := quota.NewGroup("foo", 9000)
+	err := servicestate.CreateQuota(st, "foo", "", nil, 9000)
 	c.Assert(err, check.IsNil)
-	grp1, err := grp0.NewSubGroup("bar", 1000)
+	err = servicestate.CreateQuota(st, "bar", "foo", nil, 1000)
 	c.Assert(err, check.IsNil)
-	grp2, err := quota.NewGroup("baz", 2000)
+	err = servicestate.CreateQuota(st, "baz", "foo", nil, 2000)
 	c.Assert(err, check.IsNil)
-	c.Assert(servicestate.UpdateQuotas(st, grp0, grp1, grp2), check.IsNil)
 }
 
 func (s *apiQuotaSuite) TestPostQuotaUnknownAction(c *check.C) {
