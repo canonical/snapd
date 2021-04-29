@@ -32,14 +32,14 @@ type systemModeCommand struct {
 	baseCommand
 }
 
-var shortSystemModeHelp = i18n.G("Get the current system mode information")
+var shortSystemModeHelp = i18n.G("Get the current system mode and associated details")
 
 var longSystemModeHelp = i18n.G(`
-The system-mode command returns information about the system mode the device is in.
+The system-mode command returns information about the device's current system mode.
 
-This information includes the mode itself, whether the model snaps have been installed from the seed (seed-loaded). The system mode will be one of run, recover, or install.
+This information includes the mode itself and whether the model snaps have been installed from the seed (seed-loaded). The system mode is either run, recover, or install.
 
-The information can also include (factory: true) whether the device booted an image flagged as for factory use ("factory mode"). This can be set for convenience when building the image but no security sensitive decisions should be based on this bit alone.
+Retrieved information can also include "factory mode" details: 'factory: true' declares whether the device booted an image flagged as for factory use. This flag can be set for convenience when building the image. No security sensitive decisions should be based on this bit alone.
 
 The output is in YAML format. Example output:
     $ snapctl system-mode
