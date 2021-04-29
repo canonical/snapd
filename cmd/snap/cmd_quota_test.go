@@ -64,14 +64,14 @@ func makeFakeQuotaPostHandler(c *check.C, action, body, groupName, parentName st
 
 		switch action {
 		case "remove":
-			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"action\":\"remove\",\"group-name\":%q}\n", groupName))
+			c.Check(string(buf), check.Equals, fmt.Sprintf(`{"action":"remove","group-name":%q}` + "\n", groupName))
 		case "ensure":
 			var snapNames []string
 			for _, sn := range snaps {
 				snapNames = append(snapNames, fmt.Sprintf("%q", sn))
 			}
 			snapsStr := strings.Join(snapNames, ",")
-			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"action\":\"ensure\",\"group-name\":%q,\"parent\":%q,\"snaps\":[%s],\"max-memory\":%d}\n", groupName, parentName, snapsStr, maxMemory))
+			c.Check(string(buf), check.Equals, fmt.Sprintf(`{"action":"ensure","group-name":%q,"parent":%q,"snaps":[%s],"max-memory":%d}` + "\n", groupName, parentName, snapsStr, maxMemory))
 		default:
 			c.Fatalf("unexpected action %q", action)
 		}
