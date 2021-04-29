@@ -22,6 +22,7 @@ package devicestate_test
 import (
 	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
@@ -325,4 +327,317 @@ func (s *createSystemSuite) TestCreateSystemFromUnassertedSnaps(c *C) {
 	s.validateSeed(c, "1234")
 	// we have unasserted snaps, so a warning should have been logged
 	c.Check(s.logbuf.String(), testutil.Contains, `system "1234" contains unasserted snaps "other-unasserted"`)
+}
+
+func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
+	bl := bootloadertest.Mock("trusted", c.MkDir()).WithRecoveryAwareTrustedAssets()
+	bootloader.Force(bl)
+	infos := map[string]*snap.Info{}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.setupBrands(c)
+	infos["pc-kernel"] = s.makeSnap(c, "pc-kernel", snap.R(1))
+	infos["pc"] = s.makeSnap(c, "pc", snap.R(2))
+	infos["core20"] = s.makeSnap(c, "core20", snap.R(3))
+	infos["snapd"] = s.makeSnap(c, "snapd", snap.R(4))
+	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.ss.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.ss.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   s.ss.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+		},
+	})
+
+	infoGetter := func(name string) (*snap.Info, bool, error) {
+		c.Logf("called for: %q", name)
+		info, present := infos[name]
+		return info, present, nil
+	}
+
+	assertedSnapsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps")
+	c.Assert(os.MkdirAll(assertedSnapsDir, 0755), IsNil)
+	// procure the file in place
+	err := osutil.CopyFile(infos["core20"].MountFile(), filepath.Join(assertedSnapsDir, "core20_3.snap"), 0)
+	c.Assert(err, IsNil)
+
+	// when a given snap in asserted snaps directory already exists, it is
+	// not copied over
+	newFiles, dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(infoGetter, s.db, "1234", model)
+	c.Assert(err, IsNil)
+	c.Check(newFiles, DeepEquals, []string{
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/snapd_4.snap"),
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/pc-kernel_1.snap"),
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/pc_2.snap"),
+	})
+	c.Check(dir, Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"))
+	// naive check for files being present
+	for _, info := range infos {
+		c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps", filepath.Base(info.MountFile())),
+			testutil.FileEquals,
+			testutil.FileContentRef(info.MountFile()))
+	}
+	// recovery system bootenv was set
+	c.Check(bl.RecoverySystemDir, Equals, "/systems/1234")
+	c.Check(bl.RecoverySystemBootVars, DeepEquals, map[string]string{
+		"snapd_full_cmdline_args":  "",
+		"snapd_extra_cmdline_args": "args from gadget",
+		"snapd_recovery_kernel":    "/snaps/pc-kernel_1.snap",
+	})
+	// load the seed
+	s.validateSeed(c, "1234")
+
+	//
+	infos["other-unasserted"] = s.makeSnap(c, "other-unasserted", snap.R(-1))
+	modelWithUnasserted := s.makeModelAssertionInState(c, "my-brand", "pc-with-unasserted", map[string]interface{}{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.ss.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.ss.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   s.ss.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+			// required
+			map[string]interface{}{
+				"name":     "other-unasserted",
+				"presence": "required",
+			},
+		},
+	})
+
+	unassertedSnapsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234unasserted/snaps")
+	c.Assert(os.MkdirAll(unassertedSnapsDir, 0755), IsNil)
+	err = osutil.CopyFile(infos["other-unasserted"].MountFile(),
+		filepath.Join(unassertedSnapsDir, "other-unasserted_1.0.snap"), 0)
+	c.Assert(err, IsNil)
+
+	// when a given snap in asserted snaps directory already exists, it is
+	// not copied over
+	newFiles, dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(infoGetter, s.db,
+		"1234unasserted", modelWithUnasserted)
+	c.Assert(err, ErrorMatches, "unable to create .*/other-unasserted_1.0.snap: file exists")
+	c.Check(newFiles, DeepEquals, []string{
+		// returned as new file so that cleanup can be properly
+		// performed even if the file was partially written
+		filepath.Join(unassertedSnapsDir, "other-unasserted_1.0.snap"),
+	})
+	c.Check(dir, Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234unasserted"))
+	c.Check(osutil.IsDirectory(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234unasserted")), Equals, true)
+}
+
+func (s *createSystemSuite) TestCreateSystemInfoAndAssertsChecks(c *C) {
+	bl := bootloadertest.Mock("trusted", c.MkDir()).WithRecoveryAwareTrustedAssets()
+	bootloader.Force(bl)
+	infos := map[string]*snap.Info{}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.setupBrands(c)
+	// missing info for the pc snap
+	infos["pc-kernel"] = s.makeSnap(c, "pc-kernel", snap.R(1))
+	infos["core20"] = s.makeSnap(c, "core20", snap.R(3))
+	infos["snapd"] = s.makeSnap(c, "snapd", snap.R(4))
+	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.ss.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			// pc snap is the gadget, but we have no info for it
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.ss.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   s.ss.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+			map[string]interface{}{
+				"name":     "other-required",
+				"id":       s.ss.AssertedSnapID("other-required"),
+				"presence": "required",
+			},
+		},
+	})
+
+	infoGetter := func(name string) (*snap.Info, bool, error) {
+		c.Logf("called for: %q", name)
+		info, present := infos[name]
+		return info, present, nil
+	}
+
+	systemDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234")
+
+	// when a given snap in asserted snaps directory already exists, it is
+	// not copied over
+	newFiles, dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(infoGetter, s.db, "1234", model)
+	c.Assert(err, ErrorMatches, `internal error: essential snap "pc" not present`)
+	c.Check(newFiles, HasLen, 0)
+	c.Check(dir, Equals, "")
+	// the directory shouldn't be there, as we haven't written anything yet
+	c.Check(osutil.IsDirectory(systemDir), Equals, false)
+
+	// create the info now
+	infos["pc"] = s.makeSnap(c, "pc", snap.R(2))
+
+	// and try with with a non essential snap
+	newFiles, dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(infoGetter, s.db, "1234", model)
+	c.Assert(err, ErrorMatches, `internal error: non-essential but "required" snap "other-required" not present`)
+	c.Check(newFiles, HasLen, 0)
+	c.Check(dir, Equals, "")
+	// the directory shouldn't be there, as we haven't written anything yet
+	c.Check(osutil.IsDirectory(systemDir), Equals, false)
+
+	// create the info now
+	infos["other-required"] = s.makeSnap(c, "other-required", snap.R(5))
+
+	// but change the file contents of 'pc' snap so that deriving side info fails
+	c.Assert(ioutil.WriteFile(infos["pc"].MountFile(), []byte("canary"), 0644), IsNil)
+	newFiles, dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(infoGetter, s.db, "1234", model)
+	c.Assert(err, ErrorMatches, `internal error: no assertions for asserted snap with ID: pcididididididididididididididid`)
+	// we're past the start, so the system directory is there
+	c.Check(dir, Equals, systemDir)
+	c.Check(osutil.IsDirectory(systemDir), Equals, true)
+	// but no files were copied
+	c.Check(newFiles, HasLen, 0)
+}
+
+func (s *createSystemSuite) TestCreateSystemGetInfoErr(c *C) {
+	bl := bootloadertest.Mock("trusted", c.MkDir()).WithRecoveryAwareTrustedAssets()
+	bootloader.Force(bl)
+	infos := map[string]*snap.Info{}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.setupBrands(c)
+	// missing info for the pc snap
+	infos["pc-kernel"] = s.makeSnap(c, "pc-kernel", snap.R(1))
+	infos["pc"] = s.makeSnap(c, "pc", snap.R(2))
+	infos["core20"] = s.makeSnap(c, "core20", snap.R(3))
+	infos["snapd"] = s.makeSnap(c, "snapd", snap.R(4))
+	infos["other-required"] = s.makeSnap(c, "other-required", snap.R(5))
+	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.ss.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			// pc snap is the gadget, but we have no info for it
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.ss.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   s.ss.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+			map[string]interface{}{
+				"name":     "other-required",
+				"id":       s.ss.AssertedSnapID("other-required"),
+				"presence": "required",
+			},
+		},
+	})
+
+	failOn := map[string]bool{}
+
+	infoGetter := func(name string) (*snap.Info, bool, error) {
+		c.Logf("called for: %q", name)
+		if failOn[name] {
+			return nil, false, fmt.Errorf("mock failure for snap %q", name)
+		}
+		info, present := infos[name]
+		return info, present, nil
+	}
+
+	systemDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234")
+
+	// when a given snap in asserted snaps directory already exists, it is
+	// not copied over
+
+	failOn["pc"] = true
+	newFiles, dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(infoGetter, s.db, "1234", model)
+	c.Assert(err, ErrorMatches, `cannot obtain snap information: mock failure for snap "pc"`)
+	c.Check(newFiles, HasLen, 0)
+	c.Check(dir, Equals, "")
+	c.Check(osutil.IsDirectory(systemDir), Equals, false)
+
+	failOn["pc"] = false
+	failOn["other-required"] = true
+	newFiles, dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(infoGetter, s.db, "1234", model)
+	c.Assert(err, ErrorMatches, `cannot obtain non-essential snap information: mock failure for snap "other-required"`)
+	c.Check(newFiles, HasLen, 0)
+	c.Check(dir, Equals, "")
+	c.Check(osutil.IsDirectory(systemDir), Equals, false)
+}
+
+func (s *createSystemSuite) TestCreateSystemNonUC20(c *C) {
+	bl := bootloadertest.Mock("trusted", c.MkDir()).WithRecoveryAwareTrustedAssets()
+	bootloader.Force(bl)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.setupBrands(c)
+	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core18",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+
+	infoGetter := func(name string) (*snap.Info, bool, error) {
+		c.Fatalf("unexpected call")
+		return nil, false, fmt.Errorf("unexpected call")
+	}
+	newFiles, dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(infoGetter, s.db, "1234", model)
+	c.Assert(err, ErrorMatches, `cannot create a system for non UC20 model`)
+	c.Check(newFiles, HasLen, 0)
+	c.Check(dir, Equals, "")
 }
