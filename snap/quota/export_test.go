@@ -22,15 +22,3 @@ package quota
 func (grp *Group) SetInternalSubGroups(grps []*Group) {
 	grp.subGroups = grps
 }
-
-func (grp *Group) SetInternalParent(parent *Group) {
-	grp.parentGroup = parent
-}
-
-func (grp *Group) InternalSubGroups() []*Group {
-	return grp.subGroups
-}
-
-func (grp *Group) InternalParent() *Group {
-	return grp.parentGroup
-}

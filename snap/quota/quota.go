@@ -78,7 +78,7 @@ func NewGroup(name string, memLimit quantity.Size) (*Group, error) {
 		MemoryLimit: memLimit,
 	}
 
-	if err := grp.validate(true); err != nil {
+	if err := grp.validate(); err != nil {
 		return nil, err
 	}
 
@@ -115,7 +115,7 @@ func (grp *Group) SliceFileName() string {
 	return buf.String()
 }
 
-func (grp *Group) validate(internallyResolved bool) error {
+func (grp *Group) validate() error {
 	if err := naming.ValidateQuotaGroup(grp.Name); err != nil {
 		return err
 	}
@@ -145,32 +145,22 @@ func (grp *Group) validate(internallyResolved bool) error {
 		}
 	}
 
-	if internallyResolved {
-		if len(grp.subGroups) != len(grp.SubGroups) {
-			return fmt.Errorf("group's sub-groups are not internally resolved")
-		}
-
-		if (grp.parentGroup == nil) != (grp.ParentGroup == "") {
-			return fmt.Errorf("group's parent group is not internally resolved")
-		}
-
-		// check that if this is a sub-group, then the parent group has enough space
-		// to accommodate this new group (we assume that other existing sub-groups
-		// in the parent group have already been validated)
-		if grp.parentGroup != nil {
-			alreadyUsed := quantity.Size(0)
-			for _, child := range grp.parentGroup.subGroups {
-				if child.Name == grp.Name {
-					continue
-				}
-				alreadyUsed += child.MemoryLimit
+	// check that if this is a sub-group, then the parent group has enough space
+	// to accommodate this new group (we assume that other existing sub-groups
+	// in the parent group have already been validated)
+	if grp.parentGroup != nil {
+		alreadyUsed := quantity.Size(0)
+		for _, child := range grp.parentGroup.subGroups {
+			if child.Name == grp.Name {
+				continue
 			}
-			// careful arithmetic here in case we somehow overflow the max size of
-			// quantity.Size
-			if grp.parentGroup.MemoryLimit-alreadyUsed < grp.MemoryLimit {
-				remaining := grp.parentGroup.MemoryLimit - alreadyUsed
-				return fmt.Errorf("sub-group memory limit of %s is too large to fit inside remaining quota space %s for parent group %s", grp.MemoryLimit.IECString(), remaining.IECString(), grp.parentGroup.Name)
-			}
+			alreadyUsed += child.MemoryLimit
+		}
+		// careful arithmetic here in case we somehow overflow the max size of
+		// quantity.Size
+		if grp.parentGroup.MemoryLimit-alreadyUsed < grp.MemoryLimit {
+			remaining := grp.parentGroup.MemoryLimit - alreadyUsed
+			return fmt.Errorf("sub-group memory limit of %s is too large to fit inside remaining quota space %s for parent group %s", grp.MemoryLimit.IECString(), remaining.IECString(), grp.parentGroup.Name)
 		}
 	}
 
@@ -195,7 +185,7 @@ func (grp *Group) NewSubGroup(name string, memLimit quantity.Size) (*Group, erro
 		return nil, fmt.Errorf("cannot use same name %q for sub group as parent group", name)
 	}
 
-	if err := subGrp.validate(true); err != nil {
+	if err := subGrp.validate(); err != nil {
 		return nil, err
 	}
 
@@ -220,8 +210,8 @@ func ResolveCrossReferences(grps map[string]*Group) error {
 			return fmt.Errorf("group has name %q, but is referenced as %q", grp.Name, name)
 		}
 
-		// validate the group assuming it is not resolved
-		if err := grp.validate(false); err != nil {
+		// validate the group, assuming it is unresolved
+		if err := grp.validate(); err != nil {
 			return fmt.Errorf("group %q is invalid: %v", name, err)
 		}
 
@@ -244,10 +234,6 @@ func ResolveCrossReferences(grps map[string]*Group) error {
 			if !found {
 				return fmt.Errorf("group %q does not reference necessary child group %q", parent.Name, grp.Name)
 			}
-		} else {
-			// there is not a parent group for this group, so clear the parent
-			// reference
-			grp.parentGroup = nil
 		}
 
 		// now thread any child links from this group to any children
@@ -268,18 +254,6 @@ func ResolveCrossReferences(grps map[string]*Group) error {
 
 				grp.subGroups[i] = sub
 			}
-		} else {
-			// there are no sub-groups for this group so clear the sub-group
-			// list
-			grp.subGroups = nil
-		}
-	}
-
-	// perform a final validation assuming that all groups are internally
-	// resolved
-	for name, grp := range grps {
-		if err := grp.validate(true); err != nil {
-			return fmt.Errorf("group %q is invalid: %v", name, err)
 		}
 	}
 
