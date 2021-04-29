@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
@@ -49,6 +50,25 @@ func (s *quotaControlSuite) SetUpTest(c *C) {
 
 	// we don't need the EnsureSnapServices ensure loop to run by default
 	servicestate.MockEnsuredSnapServices(s.mgr, true)
+
+	// we enable quota-groups by default
+	s.state.Lock()
+	defer s.state.Unlock()
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.quota-groups", true)
+	tr.Commit()
+}
+
+func (s *quotaControlSuite) TestCreateQuotaNotEnabled(c *C) {
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.quota-groups", false)
+	tr.Commit()
+	s.state.Unlock()
+
+	// try to create an empty quota group
+	err := s.mgr.CreateQuota("foo", "", nil, quantity.SizeGiB)
+	c.Assert(err, ErrorMatches, `cannot create quota group: please enable the experimental.quota-groups option`)
 }
 
 type quotaGroupState struct {
@@ -348,6 +368,19 @@ func (s *quotaControlSuite) TestUpdateQuotaSubGroupTooBig(c *C) {
 		"foo":  expFooGroupState,
 		"foo2": expFoo2GroupState,
 	})
+}
+
+// TODO: remove again once UpdateQuota is no longer exported
+func (s *quotaControlSuite) TestUpdateQuotaGroupNotEnabled(c *C) {
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.quota-groups", false)
+	tr.Commit()
+	s.state.Unlock()
+
+	opts := servicestate.QuotaGroupUpdate{}
+	err := s.mgr.UpdateQuota("foo", opts)
+	c.Assert(err, ErrorMatches, `cannot create quota group: please enable the experimental.quota-groups option`)
 }
 
 func (s *quotaControlSuite) TestUpdateQuotaChangeMemLimit(c *C) {

@@ -22,7 +22,9 @@ package servicestate
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
@@ -86,12 +88,28 @@ func validateSnapForAddingToGroup(st *state.State, name string, allGrps map[stri
 	return nil
 }
 
+func quotaGroupsAvailable(st *state.State) error {
+	tr := config.NewTransaction(st)
+	enableQuotaGroups, err := features.Flag(tr, features.QuotaGroups)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	if !enableQuotaGroups {
+		return fmt.Errorf("cannot create quota group: please enable the experimental.quota-groups option")
+	}
+	return nil
+}
+
 // CreateQuota attempts to create the specified quota group with the specified
 // snaps in it.
 // TODO: should this use something like QuotaGroupUpdate with fewer fields?
 func CreateQuota(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) error {
 	st.Lock()
 	defer st.Unlock()
+
+	if err := quotaGroupsAvailable(st); err != nil {
+		return err
+	}
 
 	// ensure that the quota group does not exist yet
 	allGrps, err := AllQuotas(st)
@@ -219,6 +237,13 @@ type QuotaGroupUpdate struct {
 func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) error {
 	st.Lock()
 	defer st.Unlock()
+
+	// TODO: remove again once UpdateQuota is no longer exported
+	//       If creation is blocked manipulation and removal do not
+	//       need extra checks.
+	if err := quotaGroupsAvailable(st); err != nil {
+		return err
+	}
 
 	// ensure that the quota group exists
 	allGrps, err := AllQuotas(st)
