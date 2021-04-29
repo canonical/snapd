@@ -78,14 +78,14 @@ func makeFakeQuotaPostHandler(c *check.C, action, body, groupName, parentName st
 
 		switch action {
 		case "remove":
-			c.Check(string(buf), check.Equals, fmt.Sprintf(`{"action":"remove","group-name":%q}` + "\n", groupName))
+			c.Check(string(buf), check.Equals, fmt.Sprintf(`{"action":"remove","group-name":%q}`+"\n", groupName))
 		case "ensure":
 			var snapNames []string
 			for _, sn := range snaps {
 				snapNames = append(snapNames, fmt.Sprintf("%q", sn))
 			}
 			snapsStr := strings.Join(snapNames, ",")
-			c.Check(string(buf), check.Equals, fmt.Sprintf(`{"action":"ensure","group-name":%q,"parent":%q,"snaps":[%s],"max-memory":%d}` + "\n", groupName, parentName, snapsStr, maxMemory))
+			c.Check(string(buf), check.Equals, fmt.Sprintf(`{"action":"ensure","group-name":%q,"parent":%q,"snaps":[%s],"max-memory":%d}`+"\n", groupName, parentName, snapsStr, maxMemory))
 		default:
 			c.Fatalf("unexpected action %q", action)
 		}
@@ -178,7 +178,7 @@ func (s *quotaSuite) TestGetAllQuotaGroups(c *check.C) {
 			{"group-name":"aaa","subgroups":["ccc","ddd"],"parent":"zzz","max-memory":1000},
 			{"group-name":"ddd","parent":"aaa","max-memory":400},
 			{"group-name":"bbb","parent":"zzz","max-memory":1000},
-			{"group-name":"yyy","max-memory":1000},
+			{"group-name":"yyyyyyy","max-memory":1000},
 			{"group-name":"zzz","subgroups":["bbb","aaa"],"max-memory":5000},
 			{"group-name":"ccc","parent":"aaa","max-memory":400},
 			{"group-name":"xxx","max-memory":9900}
@@ -189,14 +189,14 @@ func (s *quotaSuite) TestGetAllQuotaGroups(c *check.C) {
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(s.Stdout(), check.Equals,
-		"Quota  Parent  Max-Memory\n" +
-		"xxx             9.9kB\n" +
-		"yyy             1000B\n" +
-		"zzz             5000B\n" +
-		"aaa    zzz      1000B\n" +
-		"ccc    aaa       400B\n" +
-		"ddd    aaa       400B\n" +
-		"bbb    zzz      1000B\n")
+		"Quota    Parent  Max-Memory\n"+
+			"xxx               9.9kB\n"+
+			"yyyyyyy           1000B\n"+
+			"zzz               5000B\n"+
+			"aaa      zzz      1000B\n"+
+			"ccc      aaa       400B\n"+
+			"ddd      aaa       400B\n"+
+			"bbb      zzz      1000B\n")
 }
 
 func (s *quotaSuite) TestNoQuotaGroups(c *check.C) {
