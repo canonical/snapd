@@ -142,8 +142,6 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	st := c.d.overlord.State()
-	st.Lock()
-	defer st.Unlock()
 
 	switch data.Action {
 	case "ensure":
