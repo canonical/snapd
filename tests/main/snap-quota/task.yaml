@@ -1,0 +1,48 @@
+summary: Basic test for quota-related snap commands.
+
+details: |
+  Basic test for snap quota, remove-quota and quotas commands.
+
+prepare: |
+  snap install hello-world
+  snap install test-snapd-tools
+
+execute: |
+  echo "Creating top-level quota groups (no snaps)"
+  snap quota group-top1 --max-memory 4MB
+  snap quota group-top2 --max-memory 500MB
+
+  echo "Creating groups with snaps in them"
+  snap quota group-one --parent group-top1 --max-memory 1MB hello-world
+  snap quota group-two --parent group-top1 --max-memory 2MB test-snapd-tools
+
+  echo "Creating some more nested empty quota groups"
+  snap quota group-sub-one --parent group-one
+  snap quota group-sub-sub-one --parent group-sub-one
+
+  echo "Trying to add snap to more than one group fails"
+  snap quota group-bad --max-memory 1MB hello-world 2>&1 | MATCH "XXX"
+
+  echo "Checking that all quotas can be listed"
+  snap quotas | cat -n > quotas.txt
+  MATCH "1 Quota .*Parent.*Max-Memory$"
+  MATCH "2 group-top1 .*4MB$" < quotas.txt
+  MATCH "3 group-one .*group-top1 .*1MB$" < quotas.txt
+  MATCH "4 group-sub-one .*group-one$" < quotas.txt
+  MATCH "5 group-sub-sub-one .*group-sub-one$" < quotas.txt
+  MATCH "6 group-two .*group-top1 .*2MB$" < quotas.txt
+  MATCH "7 group-top2 .*500MB$" < quotas.txt
+
+  echo "Checking quota group details"
+  snap quota group-one | cat -n > details.txt
+  MATCH "1 name: .*group-one$" < details.txt
+  MATCH "2 parent: .*group-top1$" < details.txt
+  MATCH "3 subgroups:$" < details.txt
+  MATCH "4 .* - group-sub-one$" < details.txt
+  MATCH "5 snaps:$" < details.txt
+  MATCH "6 .*- hello-world$" < details.txt
+
+  echo "Checking that quota groups can be removed"
+  snap remove-quota group-two
+
+  snap quota group-two 2>&1 | MATCH "quota group-two not found"
