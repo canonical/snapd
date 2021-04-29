@@ -71,8 +71,7 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[s
 // CreateQuota attempts to create the specified quota group with the specified
 // snaps in it.
 // TODO: should this use something like QuotaGroupUpdate with fewer fields?
-func (mgr *ServiceManager) CreateQuota(name string, parentName string, snaps []string, memoryLimit quantity.Size) error {
-	st := mgr.state
+func CreateQuota(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) error {
 	st.Lock()
 	defer st.Unlock()
 
@@ -139,8 +138,7 @@ func (mgr *ServiceManager) CreateQuota(name string, parentName string, snaps []s
 // RemoveQuota deletes the specific quota group.
 // TODO: currently this only supports removing leaf sub-group groups, it doesn't
 // support removing parent quotas, but probably it makes sense to allow that too
-func (mgr *ServiceManager) RemoveQuota(name string) error {
-	st := mgr.state
+func RemoveQuota(st *state.State, name string) error {
 	st.Lock()
 	defer st.Unlock()
 
@@ -209,8 +207,7 @@ type QuotaGroupUpdate struct {
 }
 
 // UpdateQuota updates the quota as per the options.
-func (mgr *ServiceManager) UpdateQuota(name string, updateOpts QuotaGroupUpdate) error {
-	st := mgr.state
+func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) error {
 	st.Lock()
 	defer st.Unlock()
 

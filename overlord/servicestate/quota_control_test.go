@@ -57,7 +57,7 @@ func (s *quotaControlSuite) TestCreateQuota(c *C) {
 
 	// trying to create a quota with a snap that doesn't exist fails
 
-	err := s.mgr.CreateQuota("foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	err := servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
 	c.Assert(err, ErrorMatches, `cannot use snap "test-snap" in group "foo": snap "test-snap" is not installed`)
 
 	st := s.state
@@ -68,15 +68,15 @@ func (s *quotaControlSuite) TestCreateQuota(c *C) {
 	st.Unlock()
 
 	// now we can create the quota group
-	err = s.mgr.CreateQuota("foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
 	c.Assert(err, IsNil)
 
 	// we can't add the same snap to a different group though
-	err = s.mgr.CreateQuota("foo2", "", []string{"test-snap"}, quantity.SizeGiB)
+	err = servicestate.CreateQuota(s.state, "foo2", "", []string{"test-snap"}, quantity.SizeGiB)
 	c.Assert(err, ErrorMatches, `cannot use snap "test-snap" in group "foo2": snap already in quota group "foo"`)
 
 	// creating the same group again will fail
-	err = s.mgr.CreateQuota("foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
 	c.Assert(err, ErrorMatches, `group "foo" already exists`)
 
 	// check that the quota groups were created in the state
@@ -115,11 +115,11 @@ func (s *quotaControlSuite) TestCreateSubGroupQuota(c *C) {
 	st.Unlock()
 
 	// create a quota group with no snaps to be the parent
-	err := s.mgr.CreateQuota("foo", "", nil, quantity.SizeGiB)
+	err := servicestate.CreateQuota(s.state, "foo", "", nil, quantity.SizeGiB)
 	c.Assert(err, IsNil)
 
 	// now we can create a sub-quota
-	err = s.mgr.CreateQuota("foo2", "foo", []string{"test-snap"}, quantity.SizeGiB)
+	err = servicestate.CreateQuota(s.state, "foo2", "foo", []string{"test-snap"}, quantity.SizeGiB)
 	c.Assert(err, IsNil)
 
 	// check that the quota groups were created in the state
@@ -171,11 +171,11 @@ func (s *quotaControlSuite) TestRemoveQuota(c *C) {
 	st.Unlock()
 
 	// trying to remove a group that does not exist fails
-	err := s.mgr.RemoveQuota("not-exists")
+	err := servicestate.RemoveQuota(s.state, "not-exists")
 	c.Assert(err, ErrorMatches, `cannot remove non-existent quota group "not-exists"`)
 
 	// create a quota
-	err = s.mgr.CreateQuota("foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
 	c.Assert(err, IsNil)
 
 	// check that the quota groups was created in the state
@@ -198,7 +198,7 @@ func (s *quotaControlSuite) TestRemoveQuota(c *C) {
 	// remove the quota from the state
 	st.Unlock()
 	defer st.Lock()
-	err = s.mgr.RemoveQuota("foo")
+	err = servicestate.RemoveQuota(s.state, "foo")
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -210,7 +210,7 @@ func (s *quotaControlSuite) TestRemoveQuota(c *C) {
 
 func (s *quotaControlSuite) TestUpdateQuotaGroupNotExist(c *C) {
 	opts := servicestate.QuotaGroupUpdate{}
-	err := s.mgr.UpdateQuota("non-existing", opts)
+	err := servicestate.UpdateQuota(s.state, "non-existing", opts)
 	c.Check(err, ErrorMatches, `group "non-existing" does not exist`)
 }
 
@@ -236,7 +236,7 @@ func (s *quotaControlSuite) TestUpdateQuotaChangeMemLimit(c *C) {
 	st.Unlock()
 
 	// create a quota group
-	err := s.mgr.CreateQuota("foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	err := servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
 	c.Assert(err, IsNil)
 
 	// ensure mem-limit is 1 GB
@@ -249,7 +249,7 @@ func (s *quotaControlSuite) TestUpdateQuotaChangeMemLimit(c *C) {
 
 	// modify to 2 GB
 	opts := servicestate.QuotaGroupUpdate{NewMemoryLimit: 2 * quantity.SizeGiB}
-	err = s.mgr.UpdateQuota("foo", opts)
+	err = servicestate.UpdateQuota(s.state, "foo", opts)
 	c.Assert(err, IsNil)
 
 	// and check that it got updated in the state
@@ -295,7 +295,7 @@ func (s *quotaControlSuite) TestUpdateQuotaAddSnap(c *C) {
 	st.Unlock()
 
 	// create a quota group
-	err := s.mgr.CreateQuota("foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	err := servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
 	c.Assert(err, IsNil)
 
 	st.Lock()
@@ -307,7 +307,7 @@ func (s *quotaControlSuite) TestUpdateQuotaAddSnap(c *C) {
 
 	// add a snap
 	opts := servicestate.QuotaGroupUpdate{AddSnaps: []string{"test-snap2"}}
-	err = s.mgr.UpdateQuota("foo", opts)
+	err = servicestate.UpdateQuota(s.state, "foo", opts)
 	c.Assert(err, IsNil)
 
 	// and check that it got updated in the state
