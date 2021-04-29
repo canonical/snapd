@@ -850,7 +850,7 @@ func (s *daemonSuite) TestGracefulStopHasLimits(c *check.C) {
 	}
 }
 
-func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), restart func(*state.State, state.RestartType), restartKind state.RestartType) {
+func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), restart func(*state.State, state.RestartType), restartKind state.RestartType, wait time.Duration) {
 	d := newTestDaemon(c)
 	// mark as already seeded
 	s.markSeeded(d)
@@ -878,8 +878,15 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 	rebootWaitTimeout = 100 * time.Millisecond
 	rebootNoticeWait = 150 * time.Millisecond
 
+	expectedAction := rebootReboot
+	if restartKind == state.RestartSystemHaltNow {
+		expectedAction = rebootHalt
+	} else if restartKind == state.RestartSystemPoweroffNow {
+		expectedAction = rebootPoweroff
+	}
 	var delays []time.Duration
-	reboot = func(d time.Duration) error {
+	reboot = func(a rebootAction, d time.Duration) error {
+		c.Check(a, check.Equals, expectedAction)
 		delays = append(delays, d)
 		return nil
 	}
@@ -941,14 +948,10 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 
 	err = d.Stop(nil)
 
-	c.Check(err, check.ErrorMatches, "expected reboot did not happen")
+	c.Check(err, check.ErrorMatches, fmt.Sprintf("expected %s did not happen", expectedAction))
 
 	c.Check(delays, check.HasLen, 2)
-	if restartKind == state.RestartSystem {
-		c.Check(delays[1], check.DeepEquals, 1*time.Minute)
-	} else if restartKind == state.RestartSystemNow {
-		c.Check(delays[1], check.DeepEquals, time.Duration(0))
-	}
+	c.Check(delays[1], check.DeepEquals, wait)
 
 	// we are not stopping, we wait for the reboot instead
 	c.Check(s.notified, check.DeepEquals, []string{"EXTEND_TIMEOUT_USEC=30000000", "READY=1"})
@@ -958,10 +961,10 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 	var rebootAt time.Time
 	err = st.Get("daemon-system-restart-at", &rebootAt)
 	c.Assert(err, check.IsNil)
-	if restartKind == state.RestartSystem {
-		approxAt := now.Add(time.Minute)
+	if wait > 0 {
+		approxAt := now.Add(wait)
 		c.Check(rebootAt.After(approxAt) || rebootAt.Equal(approxAt), check.Equals, true)
-	} else if restartKind == state.RestartSystemNow {
+	} else {
 		// should be good enough
 		c.Check(rebootAt.Before(now.Add(10*time.Second)), check.Equals, true)
 	}
@@ -979,11 +982,19 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 }
 
 func (s *daemonSuite) TestRestartSystemGracefulWiring(c *check.C) {
-	s.testRestartSystemWiring(c, nil, (*state.State).RequestRestart, state.RestartSystem)
+	s.testRestartSystemWiring(c, nil, (*state.State).RequestRestart, state.RestartSystem, 1*time.Minute)
 }
 
 func (s *daemonSuite) TestRestartSystemImmediateWiring(c *check.C) {
-	s.testRestartSystemWiring(c, nil, (*state.State).RequestRestart, state.RestartSystemNow)
+	s.testRestartSystemWiring(c, nil, (*state.State).RequestRestart, state.RestartSystemNow, 0)
+}
+
+func (s *daemonSuite) TestRestartSystemHaltImmediateWiring(c *check.C) {
+	s.testRestartSystemWiring(c, nil, (*state.State).RequestRestart, state.RestartSystemHaltNow, 0)
+}
+
+func (s *daemonSuite) TestRestartSystemPoweroffImmediateWiring(c *check.C) {
+	s.testRestartSystemWiring(c, nil, (*state.State).RequestRestart, state.RestartSystemPoweroffNow, 0)
 }
 
 type rstManager struct {
@@ -1024,7 +1035,7 @@ func (s *daemonSuite) TestRestartSystemFromEnsure(c *check.C) {
 
 	nop := func(*state.State, state.RestartType) {}
 
-	s.testRestartSystemWiring(c, prep, nop, state.RestartSystemNow)
+	s.testRestartSystemWiring(c, prep, nop, state.RestartSystemNow, 0)
 
 	c.Check(wm.ensureCalled, check.Equals, 1)
 }
@@ -1044,14 +1055,26 @@ func (s *daemonSuite) TestRebootHelper(c *check.C) {
 		{30 * time.Second, "+0"},
 	}
 
-	for _, t := range tests {
-		err := reboot(t.delay)
-		c.Assert(err, check.IsNil)
-		c.Check(cmd.Calls(), check.DeepEquals, [][]string{
-			{"shutdown", "-r", t.delayArg, "reboot scheduled to update the system"},
-		})
+	args := []struct {
+		a   rebootAction
+		arg string
+		msg string
+	}{
+		{rebootReboot, "-r", "reboot scheduled to update the system"},
+		{rebootHalt, "--halt", "system halt scheduled"},
+		{rebootPoweroff, "--poweroff", "system poweroff scheduled"},
+	}
 
-		cmd.ForgetCalls()
+	for _, arg := range args {
+		for _, t := range tests {
+			err := reboot(arg.a, t.delay)
+			c.Assert(err, check.IsNil)
+			c.Check(cmd.Calls(), check.DeepEquals, [][]string{
+				{"shutdown", arg.arg, t.delayArg, arg.msg},
+			})
+
+			cmd.ForgetCalls()
+		}
 	}
 }
 
