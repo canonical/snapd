@@ -21,6 +21,7 @@ package quota_test
 
 import (
 	"math"
+	"sort"
 	"testing"
 
 	. "gopkg.in/check.v1"
@@ -272,6 +273,99 @@ func (ts *quotaTestSuite) TestComplexSubGroups(c *C) {
 	subsubsub1, err := subsub1.NewSubGroup("subsubsub1", quantity.SizeMiB/4)
 	c.Assert(err, IsNil)
 	c.Assert(subsubsub1.SliceFileName(), Equals, "snap.myroot-sub1-subsub1-subsubsub1.slice")
+}
+
+func (ts *quotaTestSuite) TestResolveCrossReferencesOrphaningWorks(c *C) {
+	// create valid parent and sub-groups
+	grp, err := quota.NewGroup("parent", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	subgrp, err := grp.NewSubGroup("sub", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	// ensure that both of these are valid
+	m := map[string]*quota.Group{
+		"parent": grp,
+		"sub":    subgrp,
+	}
+
+	err = quota.ResolveCrossReferences(m)
+	c.Assert(err, IsNil)
+
+	// now try to orphan sub from parent
+	subgrp.ParentGroup = ""
+	grp.SubGroups = nil
+
+	c.Assert(subgrp.InternalParent(), DeepEquals, grp)
+	c.Assert(grp.InternalSubGroups(), DeepEquals, []*quota.Group{subgrp})
+
+	err = quota.ResolveCrossReferences(m)
+	c.Assert(err, IsNil)
+
+	// check that the orphaning works externally and internally
+	c.Assert(subgrp.InternalParent(), IsNil)
+	c.Assert(subgrp.ParentGroup, Equals, "")
+	c.Assert(grp.InternalSubGroups(), HasLen, 0)
+	c.Assert(grp.SubGroups, HasLen, 0)
+}
+
+func (ts *quotaTestSuite) TestResolveCrossReferencesAdoptionWorks(c *C) {
+	// create valid groups that are not linked
+	grp, err := quota.NewGroup("parent", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	child, err := grp.NewSubGroup("existing-child", quantity.SizeGiB/2)
+	c.Assert(err, IsNil)
+
+	grp2, err := quota.NewGroup("child-to-be", quantity.SizeGiB/2)
+	c.Assert(err, IsNil)
+
+	// ensure that all of these are valid initially
+	m := map[string]*quota.Group{
+		"parent":         grp,
+		"existing-child": child,
+		"child-to-be":    grp2,
+	}
+
+	err = quota.ResolveCrossReferences(m)
+	c.Assert(err, IsNil)
+
+	// now try to have parent adopt child-to-be
+	grp2.ParentGroup = "parent"
+	grp.SubGroups = append(grp.SubGroups, "child-to-be")
+
+	// ensure that they are not initially internally linked
+	c.Assert(grp2.InternalParent(), IsNil)
+	c.Assert(grp.InternalSubGroups(), DeepEquals, []*quota.Group{child})
+
+	err = quota.ResolveCrossReferences(m)
+	c.Assert(err, IsNil)
+
+	// check that the adoption worked externally and internally
+	sort.Strings(grp.SubGroups)
+	c.Assert(grp.SubGroups, DeepEquals, []string{"child-to-be", "existing-child"})
+	c.Assert(child.ParentGroup, Equals, "parent")
+	c.Assert(grp2.ParentGroup, Equals, "parent")
+
+	c.Assert(grp2.InternalParent(), DeepEquals, grp)
+	c.Assert(child.InternalParent(), DeepEquals, grp)
+	subs := grp.InternalSubGroups()
+	sort.Slice(subs, func(i, j int) bool {
+		return subs[i].Name < subs[j].Name
+	})
+	c.Assert(subs, DeepEquals, []*quota.Group{grp2, child})
+
+	// make sure that adoption still validates that the adoptee fits inside the
+	// parent group and that we get an error trying to adopt a child that is too
+	// big
+	grpTooBig, err := quota.NewGroup("too-big-child", 2*quantity.SizeGiB)
+	c.Assert(err, IsNil)
+	grp.SubGroups = append(grp.SubGroups, "too-big-child")
+	grpTooBig.ParentGroup = "parent"
+	m["too-big-child"] = grpTooBig
+
+	err = quota.ResolveCrossReferences(m)
+	c.Assert(err, ErrorMatches, `group "too-big-child" is invalid: sub-group memory limit of 2 GiB is too large to fit inside remaining quota space 0 B for parent group parent`)
 }
 
 func (ts *quotaTestSuite) TestResolveCrossReferences(c *C) {
