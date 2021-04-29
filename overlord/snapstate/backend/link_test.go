@@ -801,6 +801,5 @@ apps:
 	_, err = s.be.LinkSnap(info, mockDev, linkCtxWithGroup, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(filepath.Join(dirs.SnapServicesDir, "snap.hello.svc.service"), testutil.FileContains,
-		`Slice=snap.foogroup.slice
-`)
+		"\nSlice=snap.foogroup.slice\n")
 }
