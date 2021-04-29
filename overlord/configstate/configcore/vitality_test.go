@@ -26,10 +26,16 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -39,6 +45,24 @@ type vitalitySuite struct {
 }
 
 var _ = Suite(&vitalitySuite{})
+
+func (s *vitalitySuite) SetUpTest(c *C) {
+	s.configcoreSuite.SetUpTest(c)
+
+	uc18model := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "model",
+		"authority-id": "canonical",
+		"series":       "16",
+		"brand-id":     "canonical",
+		"model":        "pc",
+		"gadget":       "pc",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+		"base":         "core18",
+	}).(*asserts.Model)
+
+	s.AddCleanup(snapstatetest.MockDeviceModel(uc18model))
+}
 
 func (s *vitalitySuite) TestConfigureVitalityUnhappyName(c *C) {
 	err := configcore.Run(&mockConf{
@@ -79,7 +103,28 @@ apps:
   daemon: simple
 `
 
-func (s *vitalitySuite) TestConfigureVitalityWithValidSnap(c *C) {
+func (s *vitalitySuite) TestConfigureVitalityWithValidSnapUC16(c *C) {
+	uc16model := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "model",
+		"authority-id": "canonical",
+		"series":       "16",
+		"brand-id":     "canonical",
+		"model":        "pc",
+		"gadget":       "pc",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+	}).(*asserts.Model)
+
+	defer snapstatetest.MockDeviceModel(uc16model)()
+
+	s.testConfigureVitalityWithValidSnap(c, false)
+}
+
+func (s *vitalitySuite) TestConfigureVitalityWithValidSnapUC18(c *C) {
+	s.testConfigureVitalityWithValidSnap(c, true)
+}
+
+func (s *vitalitySuite) testConfigureVitalityWithValidSnap(c *C, uc18 bool) {
 	si := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(1)}
 	snaptest.MockSnap(c, mockSnapWithService, si)
 	s.state.Lock()
@@ -100,13 +145,57 @@ func (s *vitalitySuite) TestConfigureVitalityWithValidSnap(c *C) {
 	c.Assert(err, IsNil)
 	svcName := "snap.test-snap.foo.service"
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"is-enabled", "snap.test-snap.foo.service"},
 		{"daemon-reload"},
+		{"is-enabled", "snap.test-snap.foo.service"},
 		{"enable", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.foo.service"},
 	})
 	svcPath := filepath.Join(dirs.SnapServicesDir, svcName)
 	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-898\n")
+	if uc18 {
+		c.Check(svcPath, testutil.FileContains, "\nWants=usr-lib-snapd.mount\n")
+	}
+}
+
+func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
+	si := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(1)}
+	snaptest.MockSnap(c, mockSnapWithService, si)
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: "app",
+	})
+
+	// make a new quota group with this snap in it
+	grp, err := quota.NewGroup("foogroup", quantity.SizeMiB)
+	c.Assert(err, IsNil)
+
+	grp.Snaps = []string{"test-snap"}
+
+	err = servicestate.UpdateQuotas(s.state, grp)
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+
+	err = configcore.Run(&mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"resilience.vitality-hint": "unrelated,test-snap",
+		},
+	})
+	c.Assert(err, IsNil)
+	svcName := "snap.test-snap.foo.service"
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"daemon-reload"},
+		{"is-enabled", "snap.test-snap.foo.service"},
+		{"enable", "snap.test-snap.foo.service"},
+		{"start", "snap.test-snap.foo.service"},
+	})
+	svcPath := filepath.Join(dirs.SnapServicesDir, svcName)
+	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-898\n")
+	c.Check(svcPath, testutil.FileContains, "\nSlice=snap.foogroup.slice\n")
 }
 
 func (s *vitalitySuite) TestConfigureVitalityHintTooMany(c *C) {

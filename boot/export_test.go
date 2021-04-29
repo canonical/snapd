@@ -108,6 +108,14 @@ func MockSecbootSealKeys(f func(keys []secboot.SealKeyRequest, params *secboot.S
 	}
 }
 
+func MockSecbootSealKeysWithFDESetupHook(f func(runHook fde.RunSetupHookFunc, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error) (restore func()) {
+	old := secbootSealKeysWithFDESetupHook
+	secbootSealKeysWithFDESetupHook = f
+	return func() {
+		secbootSealKeysWithFDESetupHook = old
+	}
+}
+
 func MockSecbootResealKeys(f func(params *secboot.ResealKeysParams) error) (restore func()) {
 	old := secbootResealKeys
 	secbootResealKeys = f

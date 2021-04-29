@@ -44,8 +44,9 @@ import (
 )
 
 var (
-	secbootSealKeys   = secboot.SealKeys
-	secbootResealKeys = secboot.ResealKeys
+	secbootSealKeys                 = secboot.SealKeys
+	secbootSealKeysWithFDESetupHook = secboot.SealKeysWithFDESetupHook
+	secbootResealKeys               = secboot.ResealKeys
 
 	seedReadSystemEssential = seed.ReadSystemEssential
 )
@@ -132,20 +133,24 @@ func fallbackKeySealRequests(key, saveKey secboot.EncryptionKey) []secboot.SealK
 }
 
 func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
-	// TODO: support full boot chains
-
-	for _, skr := range append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey)...) {
-		params := &fde.InitialSetupParams{
-			Key:     skr.Key,
-			KeyName: skr.KeyName,
-		}
-		res, err := fde.InitialSetup(RunFDESetupHook, params)
-		if err != nil {
-			return err
-		}
-		if err := osutil.AtomicWriteFile(skr.KeyFile, res.EncryptedKey, 0600, 0); err != nil {
-			return fmt.Errorf("cannot store key: %v", err)
-		}
+	// XXX: Move the auxKey creation to a more generic place, see
+	// PR#10123 for a possible way of doing this. However given
+	// that the equivalent key for the TPM case is also created in
+	// sealKeyToModeenvUsingTPM more symetric to create the auxKey
+	// here and when we also move TPM to use the auxKey to move
+	// the creation of it.
+	auxKey, err := secboot.NewAuxKey()
+	if err != nil {
+		return fmt.Errorf("cannot create aux key: %v", err)
+	}
+	params := secboot.SealKeysWithFDESetupHookParams{
+		Model:      model,
+		AuxKey:     auxKey,
+		AuxKeyFile: filepath.Join(InstallHostFDESaveDir, "aux-key"),
+	}
+	skrs := append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey)...)
+	if err := secbootSealKeysWithFDESetupHook(RunFDESetupHook, skrs, &params); err != nil {
+		return err
 	}
 
 	if err := stampSealedKeys(InstallHostWritableDir, "fde-setup-hook"); err != nil {
@@ -328,7 +333,11 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 var resealKeyToModeenvUsingFDESetupHook = resealKeyToModeenvUsingFDESetupHookImpl
 
 func resealKeyToModeenvUsingFDESetupHookImpl(rootdir string, model *asserts.Model, modeenv *Modeenv, expectReseal bool) error {
-	// TODO: Implement reseal using the fde-setup hook. This will
+	// TODO: we need to implement reseal at least in terms of
+	//       rebinding the keys to models on remodeling
+
+	// TODO: If we have situations that do TPM-like full sealing then:
+	//       Implement reseal using the fde-setup hook. This will
 	//       require a helper like "FDEShouldResealUsingSetupHook"
 	//       that will be set by devicestate and returns (bool,
 	//       error).  It needs to return "false" during seeding
