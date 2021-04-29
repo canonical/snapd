@@ -168,7 +168,7 @@ capability setuid,
 /run/resolvconf/{,**} rk,
 /run/resolvconf/** w,
 /etc/resolvconf/{,**} r,
-/lib/resolvconf/* ix,
+/{,usr/}lib/resolvconf/* ix,
 # Required by resolvconf
 /{,usr/}bin/run-parts ixr,
 /etc/resolvconf/update.d/* ix,

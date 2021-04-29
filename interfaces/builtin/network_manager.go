@@ -107,7 +107,7 @@ network packet,
 /run/resolvconf/{,**} rk,
 /run/resolvconf/** w,
 /etc/resolvconf/{,**} r,
-/lib/resolvconf/* ix,
+/{,usr/}lib/resolvconf/* ix,
 # NM peeks into ifupdown configuration
 /run/network/ifstate* r,
 # Required by resolvconf
