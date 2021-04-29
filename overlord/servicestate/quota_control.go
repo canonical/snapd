@@ -237,7 +237,7 @@ func (mgr *ServiceManager) UpdateQuota(name string, updateOpts QuotaGroupUpdate)
 	// now ensure that all of the snaps mentioned in AddSnaps exist as snaps and
 	// that they aren't already in an existing quota group
 	for _, sn := range updateOpts.AddSnaps {
-		if err := validateSnapForAddingToGroup(st, name, allGrps); err != nil {
+		if err := validateSnapForAddingToGroup(st, sn, allGrps); err != nil {
 			return fmt.Errorf("cannot add snap %q to group %q: %v", sn, name, err)
 		}
 	}

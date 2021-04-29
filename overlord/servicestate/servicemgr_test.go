@@ -175,6 +175,13 @@ apps:
     command: bin.sh
     daemon: simple
 `
+	testYaml2 = `name: test-snap2
+version: v1
+apps:
+  svc1:
+    command: bin.sh
+    daemon: simple
+`
 
 	systemdTimeFormat = "Mon 2006-01-02 15:04:05 MST"
 )
