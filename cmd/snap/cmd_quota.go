@@ -36,6 +36,9 @@ snaps that belong to it. Snaps can be at most in one quota group. Quota groups
 can be nested.
 `)
 
+var shortRemoveQuotaHelp = i18n.G("Remove quota group")
+var longRemoveQuotaHelp = i18n.G(`The remove-quota command removes the given quota group.`)
+
 type cmdQuota struct {
 	clientMixin
 	// MaxMemory and MemoryMax are mutually exclusive and provided for
@@ -52,6 +55,9 @@ type cmdQuota struct {
 func init() {
 	cmd := addCommand("quota", shortQuotaHelp, longQuotaHelp, func() flags.Commander { return &cmdQuota{} }, nil, nil)
 	// XXX: unhide
+	cmd.hidden = true
+
+	cmd = addCommand("remove-quota", shortRemoveQuotaHelp, longRemoveQuotaHelp, func() flags.Commander { return &cmdRemoveQuota{} }, nil, nil)
 	cmd.hidden = true
 }
 
@@ -114,4 +120,15 @@ func (x *cmdQuota) showQuotaGroupInfo(groupName string) error {
 	}
 
 	return nil
+}
+
+type cmdRemoveQuota struct {
+	clientMixin
+	Positional struct {
+		GroupName string `positional-arg-name:"<group-name>" required:"true"`
+	} `positional-args:"yes"`
+}
+
+func (x *cmdRemoveQuota) Execute(args []string) (err error) {
+	return x.client.RemoveQuotaGroup(x.Positional.GroupName)
 }
