@@ -91,7 +91,7 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 	st.Lock()
 	defer st.Unlock()
 
-	// ensure that the quota group exists
+	// ensure that the quota group does not exist yet
 	allGrps, err := AllQuotas(st)
 	if err != nil {
 		return err
