@@ -199,20 +199,13 @@ func validateSnapForAddingToGroup(st *state.State, name string, allGrps map[stri
 // a quota group in one operation.
 type QuotaGroupUpdate struct {
 	// AddSnaps is the set of snaps to add to the quota group. These are
-	// instance names of snaps, and either are appended to the existing snaps in
-	// the quota group or fully replace the existing set of snaps in the quota
-	// group depending on the ReplaceSnaps setting.
+	// instance names of snaps, and are appended to the existing snaps in
+	// the quota group
 	AddSnaps []string
 
 	// NewMemoryLimit is the new memory limit to be used for the quota group. If
 	// zero, then the quota group's memory limit is not changed.
 	NewMemoryLimit quantity.Size
-
-	// ReplaceSnaps is whether or not the AddSnaps field replaces the existing
-	// list of snaps in the quota group or not. By default with this setting
-	// false, snaps in AddSnaps are appended to the existing list of snaps in
-	// the quota group.
-	ReplaceSnaps bool
 }
 
 // UpdateQuota updates the quota as per the options.
@@ -242,12 +235,8 @@ func (mgr *ServiceManager) UpdateQuota(name string, updateOpts QuotaGroupUpdate)
 		}
 	}
 
-	// either update or append the snaps list in the group
-	if updateOpts.ReplaceSnaps {
-		grp.Snaps = updateOpts.AddSnaps
-	} else {
-		grp.Snaps = append(grp.Snaps, updateOpts.AddSnaps...)
-	}
+	//  append the snaps list in the group
+	grp.Snaps = append(grp.Snaps, updateOpts.AddSnaps...)
 
 	// if the memory limit is not zero then change it too
 	if updateOpts.NewMemoryLimit != 0 {
