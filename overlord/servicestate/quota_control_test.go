@@ -67,7 +67,7 @@ func (s *quotaControlSuite) TestCreateQuotaNotEnabled(c *C) {
 	s.state.Unlock()
 
 	// try to create an empty quota group
-	err := s.mgr.CreateQuota("foo", "", nil, quantity.SizeGiB)
+	err := servicestate.CreateQuota(s.state, "foo", "", nil, quantity.SizeGiB)
 	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.quota-groups' to true`)
 }
 
@@ -379,7 +379,7 @@ func (s *quotaControlSuite) TestUpdateQuotaGroupNotEnabled(c *C) {
 	s.state.Unlock()
 
 	opts := servicestate.QuotaGroupUpdate{}
-	err := s.mgr.UpdateQuota("foo", opts)
+	err := servicestate.UpdateQuota(s.state, "foo", opts)
 	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.quota-groups' to true`)
 }
 
