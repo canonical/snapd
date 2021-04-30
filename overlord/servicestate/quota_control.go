@@ -174,39 +174,23 @@ func RemoveQuota(st *state.State, name string) error {
 	// if this group has a parent, we need to remove the linkage to this
 	// sub-group from the parent first
 	if grp.ParentGroup != "" {
-		parent, ok := allGrps[grp.ParentGroup]
-		if !ok {
-			return fmt.Errorf("internal error: parent group of %q, %q not found", name, grp.ParentGroup)
-		}
+		// the parent here must exist otherwise AllQuotas would have failed
+		// because state would have been inconsistent
+		parent := allGrps[grp.ParentGroup]
 
-		errParentNoRefChildMsg := fmt.Errorf("internal error: parent group of %q, %q does not reference %q", name, parent.Name, name)
-
-		switch {
-		case len(parent.SubGroups) == 1:
-			if parent.SubGroups[0] != name {
-				return errParentNoRefChildMsg
-			}
-
-			// there are no other children just assign the sub-groups for the
-			// parent as nil
+		// ensure that the parent group of this group no longer mentions this
+		// group as a sub-group - we know that it must since AllQuotas validated
+		// the state for us
+		if len(parent.SubGroups) == 1 {
+			// this group was an only child, so clear the whole list
 			parent.SubGroups = nil
-		case len(parent.SubGroups) == 0:
-			// internal error somehow the parent is not wired up with the child
-			return errParentNoRefChildMsg
-		default:
-			// more than one child, we need to
+		} else {
+			// we have to delete the child but keep the other children
 			newSubgroups := make([]string, 0, len(parent.SubGroups)-1)
-			sawChild := false
 			for _, sub := range parent.SubGroups {
 				if sub != name {
 					newSubgroups = append(newSubgroups, sub)
-				} else {
-					sawChild = true
 				}
-			}
-
-			if !sawChild {
-				return errParentNoRefChildMsg
 			}
 
 			parent.SubGroups = newSubgroups
