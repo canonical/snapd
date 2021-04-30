@@ -183,6 +183,11 @@ func (s *quotaControlSuite) TestCreateSubGroupQuota(c *C) {
 	err = servicestate.CreateQuota(s.state, "foo2", "foo-non-real", []string{"test-snap"}, quantity.SizeGiB)
 	c.Assert(err, ErrorMatches, `cannot create group under non-existent parent group "foo-non-real"`)
 
+	// trying to create a quota group with too big of a limit to fit inside the
+	// parent fails
+	err = servicestate.CreateQuota(s.state, "foo2", "foo", []string{"test-snap"}, 2*quantity.SizeGiB)
+	c.Assert(err, ErrorMatches, `sub-group memory limit of 2 GiB is too large to fit inside remaining quota space 1 GiB for parent group foo`)
+
 	// now we can create a sub-quota
 	err = servicestate.CreateQuota(s.state, "foo2", "foo", []string{"test-snap"}, quantity.SizeGiB)
 	c.Assert(err, IsNil)
