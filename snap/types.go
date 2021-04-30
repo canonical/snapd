@@ -139,10 +139,13 @@ func (confinementType *ConfinementType) fromString(str string) error {
 type ServiceStopReason string
 
 const (
-	StopReasonRefresh ServiceStopReason = "refresh"
-	StopReasonRemove  ServiceStopReason = "remove"
-	StopReasonDisable ServiceStopReason = "disable"
-	StopReasonOther   ServiceStopReason = ""
+	StopReasonRefresh            ServiceStopReason = "refresh"
+	StopReasonRemove             ServiceStopReason = "remove"
+	StopReasonDisable            ServiceStopReason = "disable"
+	StopReasonQuotaGroupModified ServiceStopReason = "quota-group-modified"
+	// TODO: use this from configcore/vitality.go
+	StopReasonVitalityRankChanged ServiceStopReason = "vitality-rank-modified"
+	StopReasonOther               ServiceStopReason = ""
 )
 
 // DaemonScope represents the scope of the daemon running under systemd
