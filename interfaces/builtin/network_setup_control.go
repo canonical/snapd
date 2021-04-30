@@ -54,7 +54,11 @@ const networkSetupControlConnectedPlugAppArmor = `
 # netplan generate
 /run/ r,
 /run/systemd/network/{,**} r,
+/run/systemd/system/{,**} r,
+/run/systemd/system/systemd-networkd.service.wants/{,**} r,
 /run/systemd/network/*-netplan-* w,
+/run/systemd/system/netplan-* w,
+/run/systemd/system/systemd-networkd.service.wants/netplan-* w,
 /run/NetworkManager/conf.d/{,**} r,
 /run/NetworkManager/conf.d/*netplan*.conf* w,
 
