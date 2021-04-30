@@ -103,3 +103,12 @@ func (client *Client) RemoveQuotaGroup(groupName string) error {
 	}
 	return nil
 }
+
+func (client *Client) Quotas() ([]*QuotaGroupResult, error) {
+	var res []*QuotaGroupResult
+	if _, err := client.doSync("GET", "/v2/quotas", nil, nil, nil, &res); err != nil {
+		fmt := "cannot get quota groups: %w"
+		return nil, xerrors.Errorf(fmt, err)
+	}
+	return res, nil
+}
