@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -189,27 +189,65 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(rst.Maintenance, check.IsNil)
 
-	state.MockRestarting(d.overlord.State(), state.RestartSystem)
-	rec = httptest.NewRecorder()
-	cmd.ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 200)
-	err = json.Unmarshal(rec.Body.Bytes(), &rst)
-	c.Assert(err, check.IsNil)
-	c.Check(rst.Maintenance, check.DeepEquals, &errorResult{
-		Kind:    client.ErrorKindSystemRestart,
-		Message: "system is restarting",
-	})
+	tests := []struct {
+		rst  state.RestartType
+		kind client.ErrorKind
+		msg  string
+		op   string
+	}{
+		{
+			rst:  state.RestartSystem,
+			kind: client.ErrorKindSystemRestart,
+			msg:  "system is restarting",
+			op:   "reboot",
+		}, {
+			rst:  state.RestartSystemNow,
+			kind: client.ErrorKindSystemRestart,
+			msg:  "system is restarting",
+			op:   "reboot",
+		}, {
+			rst:  state.RestartDaemon,
+			kind: client.ErrorKindDaemonRestart,
+			msg:  "daemon is restarting",
+		}, {
+			rst:  state.RestartSystemHaltNow,
+			kind: client.ErrorKindSystemRestart,
+			msg:  "system is halting",
+			op:   "halt",
+		}, {
+			rst:  state.RestartSystemPoweroffNow,
+			kind: client.ErrorKindSystemRestart,
+			msg:  "system is powering off",
+			op:   "poweroff",
+		}, {
+			rst:  state.RestartSocket,
+			kind: client.ErrorKindDaemonRestart,
+			msg:  "daemon is stopping to wait for socket activation",
+		},
+	}
 
-	state.MockRestarting(d.overlord.State(), state.RestartDaemon)
-	rec = httptest.NewRecorder()
-	cmd.ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 200)
-	err = json.Unmarshal(rec.Body.Bytes(), &rst)
-	c.Assert(err, check.IsNil)
-	c.Check(rst.Maintenance, check.DeepEquals, &errorResult{
-		Kind:    client.ErrorKindDaemonRestart,
-		Message: "daemon is restarting",
-	})
+	for _, t := range tests {
+		state.MockRestarting(d.overlord.State(), t.rst)
+		rec = httptest.NewRecorder()
+		cmd.ServeHTTP(rec, req)
+		c.Check(rec.Code, check.Equals, 200)
+		var rst struct {
+			Maintenance *errorResult `json:"maintenance"`
+		}
+		err = json.Unmarshal(rec.Body.Bytes(), &rst)
+		c.Assert(err, check.IsNil)
+		var val errorValue
+		if t.op != "" {
+			val = map[string]interface{}{
+				"op": t.op,
+			}
+		}
+		c.Check(rst.Maintenance, check.DeepEquals, &errorResult{
+			Kind:    t.kind,
+			Message: t.msg,
+			Value:   val,
+		})
+	}
 }
 
 func (s *daemonSuite) TestMaintenanceJsonDeletedOnStart(c *check.C) {
@@ -879,10 +917,13 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 	rebootNoticeWait = 150 * time.Millisecond
 
 	expectedAction := rebootReboot
+	expectedOp := "reboot"
 	if restartKind == state.RestartSystemHaltNow {
 		expectedAction = rebootHalt
+		expectedOp = "halt"
 	} else if restartKind == state.RestartSystemPoweroffNow {
 		expectedAction = rebootPoweroff
+		expectedOp = "poweroff"
 	}
 	var delays []time.Duration
 	reboot = func(a rebootAction, d time.Duration) error {
@@ -976,6 +1017,10 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 
 	maintErr := &errorResult{}
 	c.Assert(json.Unmarshal(b, maintErr), check.IsNil)
+	c.Check(maintErr.Kind, check.Equals, client.ErrorKindSystemRestart)
+	c.Check(maintErr.Value, check.DeepEquals, map[string]interface{}{
+		"op": expectedOp,
+	})
 
 	exp := maintenanceForRestartType(restartKind)
 	c.Assert(maintErr, check.DeepEquals, exp)

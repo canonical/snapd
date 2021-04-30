@@ -55,9 +55,11 @@ var ErrRestartSocket = fmt.Errorf("daemon stop requested to wait for socket acti
 var systemdSdNotify = systemd.SdNotify
 
 const (
-	daemonRestartMsg = "system is restarting"
-	systemRestartMsg = "daemon is restarting"
-	socketRestartMsg = "daemon is stopping to wait for socket activation"
+	daemonRestartMsg  = "daemon is restarting"
+	systemRestartMsg  = "system is restarting"
+	systemHaltMsg     = "system is halting"
+	systemPoweroffMsg = "system is powering off"
+	socketRestartMsg  = "daemon is stopping to wait for socket activation"
 )
 
 // A Daemon listens for requests and routes them to the right command
