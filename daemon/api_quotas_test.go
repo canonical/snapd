@@ -142,9 +142,12 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaHappy(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	req.RemoteAddr = "pid=100;uid=0;socket=;"
 	c.Assert(err, check.IsNil)
-	rsp := s.syncReq(c, req, nil)
-	c.Assert(rsp.Status, check.Equals, 200)
+
+	rec := httptest.NewRecorder()
+	s.serveHTTP(c, rec, req)
+	c.Assert(rec.Code, check.Equals, 200)
 	c.Assert(called, check.Equals, 1)
 }
 
