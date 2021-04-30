@@ -90,9 +90,6 @@ func validateSnapForAddingToGroup(st *state.State, name string, allGrps map[stri
 // snaps in it.
 // TODO: should this use something like QuotaGroupUpdate with fewer fields?
 func CreateQuota(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) error {
-	st.Lock()
-	defer st.Unlock()
-
 	// ensure that the quota group does not exist yet
 	allGrps, err := AllQuotas(st)
 	if err != nil {
@@ -140,7 +137,7 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 	}
 
 	// update the modified groups in state
-	allGrps, err = PatchQuotasState(st, updatedGrps...)
+	allGrps, err = patchQuotas(st, updatedGrps...)
 	if err != nil {
 		return err
 	}
@@ -159,9 +156,6 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 // TODO: currently this only supports removing leaf sub-group groups, it doesn't
 // support removing parent quotas, but probably it makes sense to allow that too
 func RemoveQuota(st *state.State, name string) error {
-	st.Lock()
-	defer st.Unlock()
-
 	allGrps, err := AllQuotas(st)
 	if err != nil {
 		return err
@@ -217,9 +211,6 @@ type QuotaGroupUpdate struct {
 
 // UpdateQuota updates the quota as per the options.
 func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) error {
-	st.Lock()
-	defer st.Unlock()
-
 	// ensure that the quota group exists
 	allGrps, err := AllQuotas(st)
 	if err != nil {
@@ -250,7 +241,7 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) erro
 	}
 
 	// update the quota group state
-	allGrps, err = PatchQuotasState(st, modifiedGrps...)
+	allGrps, err = patchQuotas(st, modifiedGrps...)
 	if err != nil {
 		return err
 	}

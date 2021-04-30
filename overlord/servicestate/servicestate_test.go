@@ -312,7 +312,7 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 	grp.Snaps = []string{"foosnap"}
 
 	// add it into the state
-	newGrps, err := servicestate.PatchQuotasState(st, grp)
+	newGrps, err := servicestate.PatchQuotas(st, grp)
 	c.Assert(err, IsNil)
 	c.Assert(newGrps, DeepEquals, map[string]*quota.Group{
 		"foogroup": grp,
@@ -331,7 +331,7 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 
 	// modify state to use an instance name instead now
 	grp.Snaps = []string{"foosnap_instance"}
-	newGrps, err = servicestate.PatchQuotasState(st, grp)
+	newGrps, err = servicestate.PatchQuotas(st, grp)
 	c.Assert(err, IsNil)
 	c.Assert(newGrps, DeepEquals, map[string]*quota.Group{
 		"foogroup": grp,
