@@ -179,14 +179,38 @@ func RemoveQuota(st *state.State, name string) error {
 			return fmt.Errorf("internal error: parent group of %q, %q not found", name, grp.ParentGroup)
 		}
 
-		newSubgroups := make([]string, 0, len(parent.SubGroups)-1)
-		for _, sub := range parent.SubGroups {
-			if sub != name {
-				newSubgroups = append(newSubgroups, sub)
-			}
-		}
+		errParentNoRefChildMsg := fmt.Errorf("internal error: parent group of %q, %q does not reference %q", name, parent.Name, name)
 
-		parent.SubGroups = newSubgroups
+		switch {
+		case len(parent.SubGroups) == 1:
+			if parent.SubGroups[0] != name {
+				return errParentNoRefChildMsg
+			}
+
+			// there are no other children just assign the sub-groups for the
+			// parent as nil
+			parent.SubGroups = nil
+		case len(parent.SubGroups) == 0:
+			// internal error somehow the parent is not wired up with the child
+			return errParentNoRefChildMsg
+		default:
+			// more than one child, we need to
+			newSubgroups := make([]string, 0, len(parent.SubGroups)-1)
+			sawChild := false
+			for _, sub := range parent.SubGroups {
+				if sub != name {
+					newSubgroups = append(newSubgroups, sub)
+				} else {
+					sawChild = true
+				}
+			}
+
+			if !sawChild {
+				return errParentNoRefChildMsg
+			}
+
+			parent.SubGroups = newSubgroups
+		}
 
 		allGrps[grp.ParentGroup] = parent
 	}
