@@ -186,11 +186,12 @@ func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
 		},
 		{
 			GroupName: "baz",
+			Parent:    "foo",
 			MaxMemory: 2000,
 		},
 		{
 			GroupName: "foo",
-			SubGroups: []string{"bar"},
+			SubGroups: []string{"bar", "baz"},
 			MaxMemory: 9000,
 		},
 	})
