@@ -29,7 +29,9 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
@@ -152,6 +154,45 @@ func (s *vitalitySuite) testConfigureVitalityWithValidSnap(c *C, uc18 bool) {
 	if uc18 {
 		c.Check(svcPath, testutil.FileContains, "\nWants=usr-lib-snapd.mount\n")
 	}
+}
+
+func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
+	si := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(1)}
+	snaptest.MockSnap(c, mockSnapWithService, si)
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: "app",
+	})
+
+	// make a new quota group with this snap in it
+	err := servicestate.CreateQuota(s.state, "foogroup", "", []string{"test-snap"}, quantity.SizeMiB)
+	c.Assert(err, IsNil)
+
+	// CreateQuota uses systemctl, but we don't care about that here
+	s.systemctlArgs = nil
+
+	s.state.Unlock()
+
+	err = configcore.Run(&mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"resilience.vitality-hint": "unrelated,test-snap",
+		},
+	})
+	c.Assert(err, IsNil)
+	svcName := "snap.test-snap.foo.service"
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"daemon-reload"},
+		{"is-enabled", "snap.test-snap.foo.service"},
+		{"enable", "snap.test-snap.foo.service"},
+		{"start", "snap.test-snap.foo.service"},
+	})
+	svcPath := filepath.Join(dirs.SnapServicesDir, svcName)
+	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-898\n")
+	c.Check(svcPath, testutil.FileContains, "\nSlice=snap.foogroup.slice\n")
 }
 
 func (s *vitalitySuite) TestConfigureVitalityHintTooMany(c *C) {

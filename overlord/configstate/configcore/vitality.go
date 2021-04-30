@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
@@ -72,6 +73,13 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		newVitalityMap[instanceName] = i + 1
 	}
 
+	// use a single cache of the quota groups for calculating the quota groups
+	// that services should be in
+	grps, err := servicestate.AllQuotas(st)
+	if err != nil {
+		return err
+	}
+
 	for instanceName, rank := range newVitalityMap {
 		var snapst snapstate.SnapState
 		err := snapstate.Get(st, instanceName, &snapst)
@@ -115,9 +123,19 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 			ensureOpts.RequireMountedSnapdSnap = true
 		}
 
-		m := map[*snap.Info]*wrappers.SnapServiceOptions{
-			info: {VitalityRank: rank},
+		// get the options for this snap service
+		snapSvcOpts, err := servicestate.SnapServiceOptions(st, instanceName, grps)
+		if err != nil {
+			return err
 		}
+
+		m := map[*snap.Info]*wrappers.SnapServiceOptions{
+			info: snapSvcOpts,
+		}
+
+		// overwrite the VitalityRank we got from SnapServiceOptions to use the
+		// rank we calculated as part of this transaction
+		m[info].VitalityRank = rank
 
 		// ensure that the snap services are re-written with these units
 		if err := wrappers.EnsureSnapServices(m, ensureOpts, nil, progress.Null); err != nil {

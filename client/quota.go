@@ -32,7 +32,7 @@ type postQuotaData struct {
 	GroupName string   `json:"group-name"`
 	Parent    string   `json:"parent,omitempty"`
 	Snaps     []string `json:"snaps,omitempty"`
-	MaxMemory uint64   `json:"max-memory"`
+	MaxMemory uint64   `json:"max-memory,omitempty"`
 }
 
 type QuotaGroupResult struct {
@@ -79,6 +79,35 @@ func (client *Client) GetQuotaGroup(groupName string) (*QuotaGroupResult, error)
 	path := fmt.Sprintf("/v2/quotas/%s", groupName)
 	if _, err := client.doSync("GET", path, nil, nil, nil, &res); err != nil {
 		fmt := "cannot get quota group: %w"
+		return nil, xerrors.Errorf(fmt, err)
+	}
+	return res, nil
+}
+
+func (client *Client) RemoveQuotaGroup(groupName string) error {
+	if groupName == "" {
+		return xerrors.Errorf("cannot remove quota group without a name")
+	}
+	data := &postQuotaData{
+		Action:    "remove",
+		GroupName: groupName,
+	}
+
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(data); err != nil {
+		return err
+	}
+	if _, err := client.doSync("POST", "/v2/quotas", nil, nil, &body, nil); err != nil {
+		fmt := "cannot remove quota group: %w"
+		return xerrors.Errorf(fmt, err)
+	}
+	return nil
+}
+
+func (client *Client) Quotas() ([]*QuotaGroupResult, error) {
+	var res []*QuotaGroupResult
+	if _, err := client.doSync("GET", "/v2/quotas", nil, nil, nil, &res); err != nil {
+		fmt := "cannot get quota groups: %w"
 		return nil, xerrors.Errorf(fmt, err)
 	}
 	return res, nil

@@ -93,3 +93,31 @@ func (cs *clientSuite) TestGetQuotaGroupError(c *check.C) {
 	_, err := cs.cli.GetQuotaGroup("foo")
 	c.Check(err, check.ErrorMatches, `cannot get quota group: server error: "Internal Server Error"`)
 }
+
+func (cs *clientSuite) TestRemoveQuotaGroup(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"status-code": 200
+	}`
+
+	err := cs.cli.RemoveQuotaGroup("foo")
+	c.Assert(err, check.IsNil)
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/quotas")
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+	var req map[string]interface{}
+	err = json.Unmarshal(body, &req)
+	c.Assert(err, check.IsNil)
+	c.Assert(req, check.DeepEquals, map[string]interface{}{
+		"action":     "remove",
+		"group-name": "foo",
+	})
+}
+
+func (cs *clientSuite) TestRemoveQuotaGroupError(c *check.C) {
+	cs.status = 500
+	cs.rsp = `{"type": "error"}`
+	err := cs.cli.RemoveQuotaGroup("foo")
+	c.Check(err, check.ErrorMatches, `cannot remove quota group: server error: "Internal Server Error"`)
+}
