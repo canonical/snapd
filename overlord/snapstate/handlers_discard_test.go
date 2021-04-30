@@ -24,10 +24,12 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 )
 
 type discardSnapSuite struct {
@@ -43,6 +45,12 @@ func (s *discardSnapSuite) SetUpTest(c *C) {
 	defer s.state.Unlock()
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.state, repo)
+
+	oldSnapStateAllQuotas := snapstate.AllQuotas
+	snapstate.AllQuotas = servicestate.AllQuotas
+	s.AddCleanup(func() {
+		snapstate.AllQuotas = oldSnapStateAllQuotas
+	})
 
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 }
@@ -79,6 +87,67 @@ func (s *discardSnapSuite) TestDoDiscardSnapSuccess(c *C) {
 
 	c.Check(snapst.Sequence, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(3))
+	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+func (s *discardSnapSuite) TestDoDiscardSnapInQuotaGroup(c *C) {
+	s.state.Lock()
+
+	fooGrp := &quota.Group{
+		Name:  "foogroup",
+		Snaps: []string{"foo"},
+	}
+
+	old := snapstate.AllQuotas
+	defer func() {
+		snapstate.AllQuotas = old
+	}()
+
+	allQuotasCalls := 0
+	snapstate.AllQuotas = func(st *state.State) (map[string]*quota.Group, error) {
+		allQuotasCalls++
+		return map[string]*quota.Group{
+			"foogroup": fooGrp,
+		}, nil
+	}
+	defer func() { c.Assert(allQuotasCalls, Equals, 1) }()
+
+	removeSnapFromQuotaCalls := 0
+	snapstate.RemoveSnapFromQuota = func(st *state.State, group, snap string) error {
+		removeSnapFromQuotaCalls++
+		c.Assert(group, Equals, "foogroup")
+		c.Assert(snap, Equals, "foo")
+		return nil
+	}
+	defer func() { c.Assert(removeSnapFromQuotaCalls, Equals, 1) }()
+
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(3)},
+		},
+		Current:  snap.R(3),
+		SnapType: "app",
+	})
+	t := s.state.NewTask("discard-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "foo", &snapst)
+	c.Assert(err, Equals, state.ErrNoState)
+
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 
