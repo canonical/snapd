@@ -374,7 +374,6 @@ func (s *quotaControlSuite) TestUpdateQuotaSubGroupTooBig(c *C) {
 	})
 }
 
-// TODO: remove again once UpdateQuota is no longer exported
 func (s *quotaControlSuite) TestUpdateQuotaGroupNotEnabled(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

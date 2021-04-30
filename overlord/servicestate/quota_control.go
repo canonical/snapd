@@ -229,9 +229,6 @@ type QuotaGroupUpdate struct {
 
 // UpdateQuota updates the quota as per the options.
 func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) error {
-	// TODO: remove again once UpdateQuota is no longer exported
-	//       If creation is blocked manipulation and removal do not
-	//       need extra checks.
 	if err := quotaGroupsAvailable(st); err != nil {
 		return err
 	}
