@@ -231,6 +231,7 @@ func (s *baseServiceMgrTestSuite) mockSystemctlCalls(c *C, expCalls []expectedSy
 			systemctlCalls++
 			return []byte(res.output), res.err
 		}
+		systemctlCalls++
 		c.Errorf("unexpected and unhandled systemctl command: %+v", args)
 		return nil, fmt.Errorf("broken test")
 	})
