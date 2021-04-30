@@ -31,11 +31,14 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
@@ -51,16 +54,22 @@ type mockedSystemSeed struct {
 	brand *asserts.Account
 }
 
-type deviceMgrSystemsSuite struct {
+type deviceMgrSystemsBaseSuite struct {
 	deviceMgrBaseSuite
 
 	logbuf            *bytes.Buffer
 	mockedSystemSeeds []mockedSystemSeed
+	ss                *seedtest.SeedSnaps
+}
+
+type deviceMgrSystemsSuite struct {
+	deviceMgrSystemsBaseSuite
 }
 
 var _ = Suite(&deviceMgrSystemsSuite{})
+var _ = Suite(&deviceMgrSystemsCreateSuite{})
 
-func (s *deviceMgrSystemsSuite) SetUpTest(c *C) {
+func (s *deviceMgrSystemsBaseSuite) SetUpTest(c *C) {
 	s.deviceMgrBaseSuite.SetUpTest(c)
 
 	s.brands.Register("other-brand", brandPrivKey3, map[string]interface{}{
@@ -68,6 +77,11 @@ func (s *deviceMgrSystemsSuite) SetUpTest(c *C) {
 	})
 	s.state.Lock()
 	defer s.state.Unlock()
+	s.ss = &seedtest.SeedSnaps{
+		StoreSigning: s.storeSigning,
+		Brands:       s.brands,
+	}
+
 	s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
 		"architecture": "amd64",
 		// UC20
@@ -76,15 +90,25 @@ func (s *deviceMgrSystemsSuite) SetUpTest(c *C) {
 		"snaps": []interface{}{
 			map[string]interface{}{
 				"name":            "pc-kernel",
-				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"id":              s.ss.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
 			map[string]interface{}{
 				"name":            "pc",
-				"id":              snaptest.AssertedSnapID("pc"),
+				"id":              s.ss.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "core20",
+				"id":   s.ss.AssertedSnapID("core20"),
+				"type": "base",
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   s.ss.AssertedSnapID("snapd"),
+				"type": "snapd",
 			},
 		},
 	})
@@ -96,14 +120,32 @@ func (s *deviceMgrSystemsSuite) SetUpTest(c *C) {
 	assertstest.AddMany(s.storeSigning.Database, s.brands.AccountsAndKeys("my-brand")...)
 	assertstest.AddMany(s.storeSigning.Database, s.brands.AccountsAndKeys("other-brand")...)
 
+	// all tests should be in run mode by default, if they need to be in
+	// different modes they should set that individually
+	devicestate.SetSystemMode(s.mgr, "run")
+
+	// state after mark-seeded ran
+	modeenv := boot.Modeenv{
+		Mode:           "run",
+		RecoverySystem: "",
+	}
+	err := modeenv.WriteTo("")
+	s.state.Set("seeded", true)
+
+	c.Assert(err, IsNil)
+
+	logbuf, restore := logger.MockLogger()
+	s.logbuf = logbuf
+	s.AddCleanup(restore)
+}
+
+func (s *deviceMgrSystemsSuite) SetUpTest(c *C) {
+	s.deviceMgrSystemsBaseSuite.SetUpTest(c)
+
 	// now create a minimal uc20 seed dir with snaps/assertions
 	seed20 := &seedtest.TestingSeed20{
-		SeedSnaps: seedtest.SeedSnaps{
-			StoreSigning: s.storeSigning,
-			Brands:       s.brands,
-		},
-
-		SeedDir: dirs.SnapSeedDir,
+		SeedSnaps: *s.ss,
+		SeedDir:   dirs.SnapSeedDir,
 	}
 
 	restore := seed.MockTrusted(s.storeSigning.Trusted)
@@ -186,24 +228,6 @@ func (s *deviceMgrSystemsSuite) SetUpTest(c *C) {
 		model: model3,
 		brand: otherBrandAcc,
 	}}
-
-	// all tests should be in run mode by default, if they need to be in
-	// different modes they should set that individually
-	devicestate.SetSystemMode(s.mgr, "run")
-
-	// state after mark-seeded ran
-	modeenv := boot.Modeenv{
-		Mode:           "run",
-		RecoverySystem: "",
-	}
-	err := modeenv.WriteTo("")
-	s.state.Set("seeded", true)
-
-	c.Assert(err, IsNil)
-
-	logbuf, restore := logger.MockLogger()
-	s.logbuf = logbuf
-	s.AddCleanup(restore)
 }
 
 func (s *deviceMgrSystemsSuite) TestListNoSystems(c *C) {
@@ -1017,4 +1041,310 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemManyLabels(c *
 	c.Assert(triedSystems, DeepEquals, []string{"0000", "1111", "1234"})
 
 	c.Check(s.logbuf.String(), testutil.Contains, `tried recovery system "1234" was successful`)
+}
+
+type deviceMgrSystemsCreateSuite struct {
+	deviceMgrSystemsBaseSuite
+
+	bootloader *bootloadertest.MockRecoveryAwareTrustedAssetsBootloader
+}
+
+func (s *deviceMgrSystemsCreateSuite) SetUpTest(c *C) {
+	s.deviceMgrSystemsBaseSuite.SetUpTest(c)
+
+	s.bootloader = s.deviceMgrSystemsBaseSuite.bootloader.WithRecoveryAwareTrustedAssets()
+	bootloader.Force(s.bootloader)
+	s.AddCleanup(func() { bootloader.Force(nil) })
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemTasksAndChange(c *C) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234")
+	c.Assert(err, IsNil)
+	c.Assert(chg, NotNil)
+	tsks := chg.Tasks()
+	c.Check(tsks, HasLen, 2)
+	tskCreate := tsks[0]
+	tskFinalize := tsks[1]
+	c.Check(tskCreate.Summary(), Matches, `Create recovery system with label "1234"`)
+	c.Check(tskFinalize.Summary(), Matches, `Finalize recovery system with label "1234"`)
+	var systemSetupData map[string]interface{}
+	err = tskCreate.Get("recovery-system-setup", &systemSetupData)
+	c.Assert(err, IsNil)
+	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
+		"label": "1234",
+		// not set yet
+		"directory":        "",
+		"new-common-files": nil,
+		"snap-setup-tasks": nil,
+	})
+
+	var otherTaskID string
+	err = tskFinalize.Get("recovery-system-setup-task", &otherTaskID)
+	c.Assert(err, IsNil)
+	c.Assert(otherTaskID, Equals, tskCreate.ID())
+}
+
+func (s *deviceMgrSystemsCreateSuite) makeSnapInState(c *C, name string, rev snap.Revision) *snap.Info {
+	snapID := s.ss.AssertedSnapID(name)
+	c.Logf("snap %q ID %q rev %v", name, snapID, rev.String())
+	if rev.Unset() || rev.Local() {
+		snapID = ""
+	}
+	si := &snap.SideInfo{
+		RealName: name,
+		SnapID:   snapID,
+		Revision: rev,
+	}
+	// asserted?
+	info := snaptest.MakeSnapFileAndDir(c, snapYamls[name], snapFiles[name], si)
+	if !rev.Unset() && !rev.Local() {
+		s.setupSnapDecl(c, info, "canonical")
+		s.setupSnapRevision(c, info, "canonical", rev)
+	}
+	c.Logf("setting type: %v", info.Type())
+	snapstate.Set(s.state, info.InstanceName(), &snapstate.SnapState{
+		SnapType: string(info.Type()),
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+
+	return info
+}
+
+func (s *deviceMgrSystemsCreateSuite) mockStandardSnapsModeenvAndBootloaderState(c *C) {
+	s.makeSnapInState(c, "pc", snap.R(1))
+	s.makeSnapInState(c, "pc-kernel", snap.R(2))
+	s.makeSnapInState(c, "core20", snap.R(3))
+	s.makeSnapInState(c, "snapd", snap.R(4))
+
+	err := s.bootloader.SetBootVars(map[string]string{
+		"snap_kernel": "pc-kernel_2.snap",
+		"snap_core":   "core20_3.snap",
+	})
+	c.Assert(err, IsNil)
+	modeenv := boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem"},
+		GoodRecoverySystems:    []string{"othersystem"},
+	}
+	err = modeenv.WriteTo("")
+	c.Assert(err, IsNil)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy(c *C) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.state.Lock()
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234")
+	c.Assert(err, IsNil)
+	c.Assert(chg, NotNil)
+	tsks := chg.Tasks()
+	c.Check(tsks, HasLen, 2)
+	tskCreate := tsks[0]
+	tskFinalize := tsks[1]
+	c.Assert(tskCreate.Summary(), Matches, `Create recovery system with label "1234"`)
+	c.Check(tskFinalize.Summary(), Matches, `Finalize recovery system with label "1234"`)
+
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
+
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+
+	validateSeed(c, "1234", s.storeSigning.Trusted)
+	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"try_recovery_system":    "1234",
+		"recovery_system_status": "try",
+	})
+	modeenvAfterCreate, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(modeenvAfterCreate.CurrentRecoverySystems, DeepEquals, []string{"othersystem", "1234"})
+	c.Check(modeenvAfterCreate.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+
+	// these things happen on snapd startup
+	state.MockRestarting(s.state, state.RestartUnset)
+	s.state.Set("tried-systems", []string{"1234"})
+	s.bootloader.SetBootVars(map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+	s.bootloader.SetBootVarsCalls = 0
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.IsReady(), Equals, true)
+	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoneStatus)
+
+	var triedSystemsAfterFinalize []string
+	err = s.state.Get("tried-systems", &triedSystemsAfterFinalize)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	modeenvAfterFinalize, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(modeenvAfterFinalize.CurrentRecoverySystems, DeepEquals, []string{"othersystem", "1234"})
+	c.Check(modeenvAfterFinalize.GoodRecoverySystems, DeepEquals, []string{"othersystem", "1234"})
+	// no more calls to the bootloader past creating the system
+	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(c *C) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.state.Lock()
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234undo")
+	c.Assert(err, IsNil)
+	c.Assert(chg, NotNil)
+	tsks := chg.Tasks()
+	c.Check(tsks, HasLen, 2)
+	tskCreate := tsks[0]
+	tskFinalize := tsks[1]
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(tskFinalize)
+	chg.AddTask(terr)
+
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
+
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	validateSeed(c, "1234undo", s.storeSigning.Trusted)
+	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"try_recovery_system":    "1234undo",
+		"recovery_system_status": "try",
+	})
+	modeenvAfterCreate, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(modeenvAfterCreate.CurrentRecoverySystems, DeepEquals, []string{"othersystem", "1234undo"})
+	c.Check(modeenvAfterCreate.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+
+	// these things happen on snapd startup
+	state.MockRestarting(s.state, state.RestartUnset)
+	s.state.Set("tried-systems", []string{"1234undo"})
+	s.bootloader.SetBootVars(map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+	s.bootloader.SetBootVarsCalls = 0
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(chg.Err(), ErrorMatches, "(?s)cannot perform the following tasks.* provoking total undo.*")
+	c.Check(chg.IsReady(), Equals, true)
+	c.Assert(tskCreate.Status(), Equals, state.UndoneStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.UndoneStatus)
+
+	var triedSystemsAfter []string
+	err = s.state.Get("tried-systems", &triedSystemsAfter)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	modeenvAfterFinalize, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(modeenvAfterFinalize.CurrentRecoverySystems, DeepEquals, []string{"othersystem"})
+	c.Check(modeenvAfterFinalize.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+	// no more calls to the bootloader
+	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinalizeErrsWhenSystemFailed(c *C) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.state.Lock()
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234")
+	c.Assert(err, IsNil)
+	c.Assert(chg, NotNil)
+	tsks := chg.Tasks()
+	c.Check(tsks, HasLen, 2)
+	tskCreate := tsks[0]
+	tskFinalize := tsks[1]
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(tskFinalize)
+	chg.AddTask(terr)
+
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
+
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+
+	validateSeed(c, "1234", s.storeSigning.Trusted)
+	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"try_recovery_system":    "1234",
+		"recovery_system_status": "try",
+	})
+	modeenvAfterCreate, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(modeenvAfterCreate.CurrentRecoverySystems, DeepEquals, []string{"othersystem", "1234"})
+	c.Check(modeenvAfterCreate.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+
+	// these things happen on snapd startup
+	state.MockRestarting(s.state, state.RestartUnset)
+	// after reboot the relevant startup code identified that the tried
+	// system failed to operate properly
+	s.state.Set("tried-systems", []string{})
+	s.bootloader.SetBootVars(map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+	s.bootloader.SetBootVarsCalls = 0
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(chg.Err(), ErrorMatches, `(?s)cannot perform the following tasks.* Finalize recovery system with label "1234" \(tried recovery system "1234" failed\)`)
+	c.Check(chg.IsReady(), Equals, true)
+	c.Assert(tskCreate.Status(), Equals, state.UndoneStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.ErrorStatus)
+
+	var triedSystemsAfter []string
+	err = s.state.Get("tried-systems", &triedSystemsAfter)
+	c.Assert(err, IsNil)
+	c.Assert(triedSystemsAfter, HasLen, 0)
+
+	modeenvAfterFinalize, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(modeenvAfterFinalize.CurrentRecoverySystems, DeepEquals, []string{"othersystem"})
+	c.Check(modeenvAfterFinalize.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+	// no more calls to the bootloader
+	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
 }
