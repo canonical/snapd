@@ -17,7 +17,7 @@ execute: |
   snap quota group-two --parent group-top1 --max-memory 2MB test-snapd-tools
 
   echo "Creating some more nested empty quota groups"
-  snap quota group-sub-one --parent group-one
+  snap quota group-sub-one --parent group-one --max-memory=500B
   snap quota group-sub-sub-one --parent group-sub-one
 
   echo "Trying to add snap to more than one group fails"
@@ -25,7 +25,7 @@ execute: |
 
   echo "Checking that all quotas can be listed"
   snap quotas | cat -n > quotas.txt
-  MATCH "1 Quota .*Parent.*Max-Memory$"
+  MATCH "1 Quota .*Parent.*Max-Memory$" < quotas.txt
   MATCH "2 group-top1 .*4MB$" < quotas.txt
   MATCH "3 group-one .*group-top1 .*1MB$" < quotas.txt
   MATCH "4 group-sub-one .*group-one$" < quotas.txt
