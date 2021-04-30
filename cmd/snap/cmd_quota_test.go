@@ -149,7 +149,7 @@ func (s *quotaSuite) TestGetQuotaGroupSimple(c *check.C) {
 		"max-memory:  1000B\n")
 }
 
-func (s *validateSuite) TestCreateQuotaGroup(c *check.C) {
+func (s *quotaSuite) TestCreateQuotaGroup(c *check.C) {
 	s.RedirectClientToTestServer(makeFakeQuotaPostHandler(c, "ensure", `{"type": "sync", "status-code": 200, "result": []}`, "foo", "bar", []string{"snap-a"}, 999))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quota", "foo", "--max-memory=999B", "--parent=bar", "snap-a"})
@@ -159,7 +159,7 @@ func (s *validateSuite) TestCreateQuotaGroup(c *check.C) {
 	c.Check(s.Stdout(), check.Equals, "")
 }
 
-func (s *validateSuite) TestRemoveQuotaGroup(c *check.C) {
+func (s *quotaSuite) TestRemoveQuotaGroup(c *check.C) {
 	s.RedirectClientToTestServer(makeFakeQuotaPostHandler(c, "remove", `{"type": "sync", "status-code": 200, "result": []}`, "foo", "", nil, 0))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"remove-quota", "foo"})
