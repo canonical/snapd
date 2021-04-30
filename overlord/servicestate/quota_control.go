@@ -90,12 +90,12 @@ func validateSnapForAddingToGroup(st *state.State, name string, allGrps map[stri
 // snaps in it.
 // TODO: should this use something like QuotaGroupUpdate with fewer fields?
 func CreateQuota(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) error {
-	// ensure that the quota group does not exist yet
 	allGrps, err := AllQuotas(st)
 	if err != nil {
 		return err
 	}
 
+	// ensure that the quota group does not exist yet
 	if _, ok := allGrps[name]; ok {
 		return fmt.Errorf("group %q already exists", name)
 	}
