@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,9 +17,8 @@
  *
  */
 
-package servicestate
+package quota
 
-var (
-	UpdateSnapstateServices = updateSnapstateServices
-	PatchQuotas             = patchQuotas
-)
+func (grp *Group) SetInternalSubGroups(grps []*Group) {
+	grp.subGroups = grps
+}

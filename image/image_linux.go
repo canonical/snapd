@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -52,6 +52,29 @@ var (
 	Stderr io.Writer = os.Stderr
 )
 
+func (custo *Customizations) validate(model *asserts.Model) error {
+	core20 := model.Grade() != asserts.ModelGradeUnset
+	switch {
+	case core20:
+		// TODO:UC20: consider supporting these with grade dangerous?
+		var unsupported []string
+		if custo.ConsoleConf == "disabled" {
+			unsupported = append(unsupported, "console-conf disable")
+		}
+		if custo.CloudInitUserData != "" {
+			unsupported = append(unsupported, "cloud-init user-data")
+		}
+		if len(unsupported) != 0 {
+			return fmt.Errorf("cannot support with UC20 model requested customizations: %s", strings.Join(unsupported, ", "))
+		}
+	case model.Classic():
+		if custo.ConsoleConf == "disabled" {
+			return fmt.Errorf("cannot support with classic model console-conf disable")
+		}
+	}
+	return nil
+}
+
 // classicHasSnaps returns whether the model or options specify any snaps for the classic case
 func classicHasSnaps(model *asserts.Model, opts *Options) bool {
 	return model.Gadget() != "" || len(model.RequiredNoEssentialSnaps()) != 0 || len(opts.Snaps) != 0
@@ -88,6 +111,10 @@ func Prepare(opts *Options) error {
 	// FIXME: limitation until we can pass series parametrized much more
 	if model.Series() != release.Series {
 		return fmt.Errorf("model with series %q != %q unsupported", model.Series(), release.Series)
+	}
+
+	if err := opts.Customizations.validate(model); err != nil {
+		return err
 	}
 
 	return setupSeed(tsto, model, opts)
@@ -142,6 +169,36 @@ func installCloudConfig(rootDir, gadgetDir string) error {
 	}
 	dst := filepath.Join(cloudDir, "cloud.cfg")
 	return osutil.CopyFile(cloudConfig, dst, osutil.CopyFlagOverwrite)
+}
+
+func customizeImage(rootDir, defaultsDir string, custo *Customizations) error {
+	// customize with cloud-init user-data
+	if custo.CloudInitUserData != "" {
+		varCloudDir := filepath.Join(rootDir, "/var/lib/cloud/seed/nocloud-net")
+		if err := os.MkdirAll(varCloudDir, 0755); err != nil {
+			return err
+		}
+		if err := ioutil.WriteFile(filepath.Join(varCloudDir, "meta-data"), []byte("instance-id: nocloud-static\n"), 0644); err != nil {
+			return err
+		}
+		dst := filepath.Join(varCloudDir, "user-data")
+		if err := osutil.CopyFile(custo.CloudInitUserData, dst, osutil.CopyFlagOverwrite); err != nil {
+			return err
+		}
+	}
+
+	if custo.ConsoleConf == "disabled" {
+		// TODO: maybe share code with configcore somehow
+		consoleConfDisabled := filepath.Join(defaultsDir, "/var/lib/console-conf/complete")
+		if err := os.MkdirAll(filepath.Dir(consoleConfDisabled), 0755); err != nil {
+			return err
+		}
+		if err := ioutil.WriteFile(consoleConfDisabled, []byte("console-conf has been disabled by image customization\n"), 0644); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 var trusted = sysdb.Trusted()
@@ -456,6 +513,8 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			applyOpts := &sysconfig.FilesystemOnlyApplyOptions{Classic: opts.Classic}
 			return sysconfig.ApplyFilesystemOnlyDefaults(defaultsDir, defaults, applyOpts)
 		}
+
+		customizeImage(rootDir, defaultsDir, &opts.Customizations)
 	}
 
 	return nil
