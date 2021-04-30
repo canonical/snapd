@@ -60,7 +60,7 @@ func GetQuota(st *state.State, name string) (*quota.Group, error) {
 	return allGrps[name], nil
 }
 
-// PatchQuotasState will update the state quota group map with the provided quota
+// patchQuotas will update the state quota group map with the provided quota
 // groups. It returns the full set of all quota groups after a successful
 // update for convenience. The groups provided will replace group states if
 // present or be added on top of the current set of quota groups in the state,
@@ -68,7 +68,7 @@ func GetQuota(st *state.State, name string) (*quota.Group, error) {
 // sub-groups, both the parent and the sub-group must be added at once since the
 // sub-group needs to reference the parent group and vice versa to be fully
 // consistent.
-func PatchQuotasState(st *state.State, grps ...*quota.Group) (map[string]*quota.Group, error) {
+func patchQuotas(st *state.State, grps ...*quota.Group) (map[string]*quota.Group, error) {
 	// get the current set of quotas
 	allGrps, err := AllQuotas(st)
 	if err != nil {

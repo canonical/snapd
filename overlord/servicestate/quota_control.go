@@ -140,7 +140,7 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 	}
 
 	// update the modified groups in state
-	allGrps, err = PatchQuotasState(st, updatedGrps...)
+	allGrps, err = patchQuotas(st, updatedGrps...)
 	if err != nil {
 		return err
 	}
@@ -250,7 +250,7 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) erro
 	}
 
 	// update the quota group state
-	allGrps, err = PatchQuotasState(st, modifiedGrps...)
+	allGrps, err = patchQuotas(st, modifiedGrps...)
 	if err != nil {
 		return err
 	}
