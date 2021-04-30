@@ -166,7 +166,7 @@ WantedBy=multi-user.target
 func (s *servicesTestSuite) TestEnsureSnapServicesAdds(c *C) {
 	// map unit -> new
 	seen := make(map[string]bool)
-	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
 		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
 	}
 
@@ -661,7 +661,7 @@ func (s *servicesTestSuite) TestEnsureSnapServiceEnsureError(c *C) {
 func (s *servicesTestSuite) TestEnsureSnapServicesPreseedingHappy(c *C) {
 	// map unit -> new
 	seen := make(map[string]bool)
-	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
 		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
 	}
 
@@ -716,7 +716,7 @@ WantedBy=multi-user.target
 func (s *servicesTestSuite) TestEnsureSnapServicesRequireMountedSnapdSnapOptionsHappy(c *C) {
 	// map unit -> new
 	seen := make(map[string]bool)
-	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
 		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
 	}
 
@@ -859,7 +859,7 @@ WantedBy=multi-user.target
 	}
 
 	seen := make(map[string][]string)
-	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
 		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = []string{old, new}
 	}
 
@@ -896,7 +896,7 @@ WantedBy=multi-user.target
 func (s *servicesTestSuite) TestEnsureSnapServicesAddsNewSvc(c *C) {
 	// map unit -> new
 	seen := make(map[string]bool)
-	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
 		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
 	}
 
@@ -1024,7 +1024,7 @@ WantedBy=multi-user.target
 	}
 
 	cbCalled := 0
-	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
 		cbCalled++
 	}
 
@@ -1042,7 +1042,7 @@ WantedBy=multi-user.target
 func (s *servicesTestSuite) TestEnsureSnapServicesChanges(c *C) {
 	// map unit -> new
 	seen := make(map[string]bool)
-	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
 		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
 	}
 
@@ -1364,7 +1364,7 @@ WantedBy=multi-user.target
 func (s *servicesTestSuite) TestEnsureSnapServicesSubunits(c *C) {
 	// map unit -> new
 	seen := make(map[string]bool)
-	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
 		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
 	}
 
