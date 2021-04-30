@@ -168,7 +168,9 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaUnhappy(c *check.C) {
 
 func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
 	st := s.d.Overlord().State()
+	st.Lock()
 	mockQuotas(st, c)
+	st.Unlock()
 
 	req, err := http.NewRequest("GET", "/v2/quotas", nil)
 	c.Assert(err, check.IsNil)
@@ -184,12 +186,11 @@ func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
 		},
 		{
 			GroupName: "baz",
-			Parent:    "foo",
 			MaxMemory: 2000,
 		},
 		{
 			GroupName: "foo",
-			SubGroups: []string{"bar", "baz"},
+			SubGroups: []string{"bar"},
 			MaxMemory: 9000,
 		},
 	})
@@ -197,7 +198,9 @@ func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
 
 func (s *apiQuotaSuite) TestGetQuota(c *check.C) {
 	st := s.d.Overlord().State()
+	st.Lock()
 	mockQuotas(st, c)
+	st.Unlock()
 
 	req, err := http.NewRequest("GET", "/v2/quotas/bar", nil)
 	c.Assert(err, check.IsNil)
@@ -214,7 +217,9 @@ func (s *apiQuotaSuite) TestGetQuota(c *check.C) {
 
 func (s *apiQuotaSuite) TestGetQuotaInvalidName(c *check.C) {
 	st := s.d.Overlord().State()
+	st.Lock()
 	mockQuotas(st, c)
+	st.Unlock()
 
 	req, err := http.NewRequest("GET", "/v2/quotas/000", nil)
 	c.Assert(err, check.IsNil)
