@@ -21,8 +21,10 @@ package main
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/jessevdk/go-flags"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -34,6 +36,11 @@ The quota command creates, updates or shows quota groups for a a set of snaps.
 A quota group sets resource limits (currently maximum memory only) on the set of
 snaps that belong to it. Snaps can be at most in one quota group. Quota groups
 can be nested.
+`)
+
+var shortQuotasHelp = i18n.G("Show quota groups")
+var longQuotasHelp = i18n.G(`
+The quotas command shows all quota groups.
 `)
 
 var shortRemoveQuotaHelp = i18n.G("Remove quota group")
@@ -55,6 +62,9 @@ type cmdQuota struct {
 func init() {
 	cmd := addCommand("quota", shortQuotaHelp, longQuotaHelp, func() flags.Commander { return &cmdQuota{} }, nil, nil)
 	// XXX: unhide
+	cmd.hidden = true
+
+	cmd = addCommand("quotas", shortQuotasHelp, longQuotasHelp, func() flags.Commander { return &cmdQuotas{} }, nil, nil)
 	cmd.hidden = true
 
 	cmd = addCommand("remove-quota", shortRemoveQuotaHelp, longRemoveQuotaHelp, func() flags.Commander { return &cmdRemoveQuota{} }, nil, nil)
@@ -131,4 +141,75 @@ type cmdRemoveQuota struct {
 
 func (x *cmdRemoveQuota) Execute(args []string) (err error) {
 	return x.client.RemoveQuotaGroup(x.Positional.GroupName)
+}
+
+type cmdQuotas struct {
+	clientMixin
+}
+
+func (x *cmdQuotas) Execute(args []string) (err error) {
+	res, err := x.client.Quotas()
+	if err != nil {
+		return err
+	}
+	if len(res) == 0 {
+		fmt.Fprintln(Stdout, i18n.G("No quota groups defined."))
+		return nil
+	}
+
+	w := tabWriter()
+	fmt.Fprintf(w, "Quota\tParent\tMax-Memory\n")
+	processQuotaGroupsTree(res, func(q *client.QuotaGroupResult) {
+		fmt.Fprintf(w, "%s\t%s\t%s\n", q.GroupName, q.Parent, fmtSize(int64(q.MaxMemory)))
+	})
+	w.Flush()
+	return nil
+}
+
+type quotaGroup struct {
+	res       *client.QuotaGroupResult
+	subGroups []*quotaGroup
+}
+
+type byQuotaName []*quotaGroup
+
+func (q byQuotaName) Len() int           { return len(q) }
+func (q byQuotaName) Swap(i, j int)      { q[i], q[j] = q[j], q[i] }
+func (q byQuotaName) Less(i, j int) bool { return q[i].res.GroupName < q[j].res.GroupName }
+
+// processQuotaGroupsTree recreates the hierarchy of quotas and then visits it
+// recursively following the hierarchy first, then naming order.
+func processQuotaGroupsTree(quotas []*client.QuotaGroupResult, handleGroup func(q *client.QuotaGroupResult)) {
+	var roots []*quotaGroup
+	groupLookup := make(map[string]*quotaGroup, len(quotas))
+
+	for _, q := range quotas {
+		grp := &quotaGroup{res: q}
+		groupLookup[q.GroupName] = grp
+
+		if q.Parent == "" {
+			roots = append(roots, grp)
+		}
+	}
+
+	sort.Sort(byQuotaName(roots))
+
+	// populate sub-groups
+	for _, g := range groupLookup {
+		sort.Strings(g.res.Subgroups)
+		for _, subgrpName := range g.res.Subgroups {
+			g.subGroups = append(g.subGroups, groupLookup[subgrpName])
+		}
+	}
+
+	var processGroups func(groups []*quotaGroup)
+	processGroups = func(groups []*quotaGroup) {
+		for _, g := range groups {
+			handleGroup(g.res)
+			if len(g.subGroups) > 0 {
+				processGroups(g.subGroups)
+			}
+		}
+	}
+	processGroups(roots)
 }
