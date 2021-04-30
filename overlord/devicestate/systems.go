@@ -289,7 +289,7 @@ func createSystemForModelFromValidatedSnaps(getInfo func(name string) (*snap.Inf
 	for _, sn := range localSnaps {
 		info, ok := modelSnaps[sn.Path]
 		if !ok {
-			return nil, recoverySystemDir, fmt.Errorf("internal error: no snap info for %q", sn.SnapName())
+			return nil, recoverySystemDir, fmt.Errorf("internal error: no snap info for %q", sn.Path)
 		}
 		// TODO: the side info derived here can be different from what
 		// we have in snap.Info, but getting it this way can be
