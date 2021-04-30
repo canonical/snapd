@@ -108,10 +108,10 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 	}
 
 	// make sure that the parent group exists if we are creating a sub-group
-	var grp, parentGrp *quota.Group
+	var grp *quota.Group
+	updatedGrps := []*quota.Group{}
 	if parentName != "" {
-		var ok bool
-		parentGrp, ok = allGrps[parentName]
+		parentGrp, ok := allGrps[parentName]
 		if !ok {
 			return fmt.Errorf("cannot create group under non-existent parent group %q", parentName)
 		}
@@ -120,6 +120,8 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 		if err != nil {
 			return err
 		}
+
+		updatedGrps = append(updatedGrps, parentGrp)
 	} else {
 		// make a new group
 		grp, err = quota.NewGroup(name, memoryLimit)
@@ -127,14 +129,10 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 			return err
 		}
 	}
+	updatedGrps = append(updatedGrps, grp)
 
 	// put the snaps in the group
 	grp.Snaps = snaps
-
-	updatedGrps := []*quota.Group{grp}
-	if parentName != "" {
-		updatedGrps = append(updatedGrps, parentGrp)
-	}
 
 	// update the modified groups in state
 	allGrps, err = patchQuotas(st, updatedGrps...)
