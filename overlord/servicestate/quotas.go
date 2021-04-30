@@ -20,12 +20,15 @@
 package servicestate
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/quota"
 )
+
+var ErrQuotaNotFound = errors.New("quota not found")
 
 // AllQuotas returns all currently tracked quota groups in the state. They are
 // validated for consistency using ResolveCrossReferences before being returned.
@@ -56,8 +59,12 @@ func GetQuota(st *state.State, name string) (*quota.Group, error) {
 		return nil, err
 	}
 
-	// if the referenced group does not exist we return a nil group
-	return allGrps[name], nil
+	group, ok := allGrps[name]
+	if !ok {
+		return nil, ErrQuotaNotFound
+	}
+
+	return group, nil
 }
 
 // patchQuotas will update the state quota group map with the provided quota

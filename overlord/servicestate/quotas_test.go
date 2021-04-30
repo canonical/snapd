@@ -114,6 +114,9 @@ func (s *servicestateQuotasSuite) TestQuotas(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(res2, DeepEquals, grp2)
 
+	_, err = servicestate.GetQuota(st, "unknown")
+	c.Assert(err, Equals, servicestate.ErrQuotaNotFound)
+
 	// adding multiple quotas that are invalid produces a nice error message
 	otherGrp := &quota.Group{
 		Name: "other-group",
