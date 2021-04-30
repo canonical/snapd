@@ -637,3 +637,48 @@ func Remodeling(st *state.State) bool {
 	}
 	return false
 }
+
+type recoverySystemSetup struct {
+	// Label of the recovery system
+	Label string `json:"label"`
+	// Directory inside the seed filesystem where the recovery system files
+	// are kept
+	Directory string `json:"directory"`
+	// NewCommonFiles is a list of new files added to the shared snaps
+	// directory in seed
+	NewCommonFiles []string `json:"new-common-files"`
+	// SnapSetupTasks is a list of tasks that carry snap setup information,
+	// relevant only during remodel
+	SnapSetupTasks []string `json:"snap-setup-tasks"`
+}
+
+func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []string) *state.TaskSet {
+	create := st.NewTask("create-recovery-system", fmt.Sprintf("Create recovery system with label %q", label))
+	// the label we want
+	create.Set("recovery-system-setup", &recoverySystemSetup{
+		Label: label,
+		// IDs of the tasks carrying snap-setup
+		SnapSetupTasks: snapSetupTasks,
+	})
+
+	finalize := st.NewTask("finalize-recovery-system", fmt.Sprintf("Finalize recovery system with label %q", label))
+	finalize.WaitFor(create)
+	// finalize needs to know the label too
+	finalize.Set("recovery-system-setup-task", create.ID())
+	return state.NewTaskSet(create, finalize)
+}
+
+func CreateRecoverySystem(st *state.State, label string) (*state.Change, error) {
+	var seeded bool
+	err := st.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if !seeded {
+		return nil, fmt.Errorf("cannot remodel until fully seeded")
+	}
+	chg := st.NewChange("create-recovery-system", fmt.Sprintf("Create new recovery system with label %q", label))
+	ts := createRecoverySystemTasks(st, label, nil)
+	chg.AddAll(ts)
+	return chg, nil
+}

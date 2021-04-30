@@ -110,11 +110,11 @@ func (s *createSystemSuite) makeSnap(c *C, name string, rev snap.Revision) *snap
 	return info
 }
 
-func (s *createSystemSuite) validateSeed(c *C, name string, runModeSnapNames ...string) {
+func validateSeed(c *C, name string, trusted []asserts.Assertion, runModeSnapNames ...string) {
 	tm := &timings.Timings{}
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
-		Trusted:   s.storeSigning.Trusted,
+		Trusted:   trusted,
 	})
 	c.Assert(err, IsNil)
 	commitTo := func(b *asserts.Batch) error {
@@ -259,7 +259,8 @@ func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
 		"snapd_recovery_kernel":    "/snaps/pc-kernel_1.snap",
 	})
 	// load the seed
-	s.validateSeed(c, "1234", "other-core18", "core18", "other-present", "other-required")
+	validateSeed(c, "1234", s.storeSigning.Trusted,
+		"other-core18", "core18", "other-present", "other-required")
 }
 
 func (s *createSystemSuite) TestCreateSystemFromUnassertedSnaps(c *C) {
@@ -342,7 +343,7 @@ func (s *createSystemSuite) TestCreateSystemFromUnassertedSnaps(c *C) {
 		}
 	}
 	// load the seed
-	s.validateSeed(c, "1234", "other-unasserted")
+	validateSeed(c, "1234", s.storeSigning.Trusted, "other-unasserted")
 	// we have unasserted snaps, so a warning should have been logged
 	c.Check(s.logbuf.String(), testutil.Contains, `system "1234" contains unasserted snaps "other-unasserted"`)
 }
@@ -420,9 +421,9 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 		"snapd_recovery_kernel":    "/snaps/pc-kernel_1.snap",
 	})
 	// load the seed
-	s.validateSeed(c, "1234")
+	validateSeed(c, "1234", s.storeSigning.Trusted)
 
-	//
+	// add an unasserted snap
 	infos["other-unasserted"] = s.makeSnap(c, "other-unasserted", snap.R(-1))
 	modelWithUnasserted := s.makeModelAssertionInState(c, "my-brand", "pc-with-unasserted", map[string]interface{}{
 		"architecture": "amd64",
@@ -711,5 +712,5 @@ func (s *createSystemSuite) TestCreateSystemImplicitSnaps(c *C) {
 	})
 	c.Check(dir, Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"))
 	// validate the seed
-	s.validateSeed(c, "1234")
+	validateSeed(c, "1234", s.ss.StoreSigning.Trusted)
 }
