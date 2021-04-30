@@ -167,14 +167,14 @@ func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
 		SnapType: "app",
 	})
 
-	s.state.Unlock()
-
 	// make a new quota group with this snap in it
 	err := servicestate.CreateQuota(s.state, "foogroup", "", []string{"test-snap"}, quantity.SizeMiB)
 	c.Assert(err, IsNil)
 
-	// CreateQuota will call systemctl but we don't care for this test
+	// CreateQuota uses systemctl, but we don't care about that here
 	s.systemctlArgs = nil
+
+	s.state.Unlock()
 
 	err = configcore.Run(&mockConf{
 		state: s.state,
