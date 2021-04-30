@@ -329,6 +329,9 @@ apps:
   physical-memory-observe:
     command: bin/run
     plugs: [ physical-memory-observe ]
+  polkit:
+    command: bin/run
+    plugs: [ polkit ]
   power-control:
     command: bin/run
     plugs: [ power-control ]
@@ -469,6 +472,9 @@ plugs:
     interface: dbus
     bus: system
     name: test.system
+  polkit:
+    interface: polkit
+    action-prefix: io.snapcraft.example
   system-files:
     interface: system-files
     read: [/file1]
