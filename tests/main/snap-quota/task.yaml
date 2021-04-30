@@ -9,40 +9,43 @@ prepare: |
 
 execute: |
   echo "Creating top-level quota groups (no snaps)"
-  snap quota group-top1 --max-memory 4MB
-  snap quota group-top2 --max-memory 500MB
+  snap quota group-top1 --max-memory=4MB
+  snap quota group-top2 --max-memory=500MB
 
   echo "Creating groups with snaps in them"
-  snap quota group-one --parent group-top1 --max-memory 1MB hello-world
-  snap quota group-two --parent group-top1 --max-memory 2MB test-snapd-tools
+  snap quota group-one --parent=group-top1 --max-memory=1MB hello-world
+  snap quota group-two --parent=group-top1 --max-memory=2MB test-snapd-tools
 
   echo "Creating some more nested empty quota groups"
-  snap quota group-sub-one --parent group-one --max-memory=500B
-  snap quota group-sub-sub-one --parent group-sub-one
+  snap quota group-sub-one --parent=group-one --max-memory=500B
+  snap quota group-sub-sub-one --parent=group-sub-one --max-memory=500B
 
   echo "Trying to add snap to more than one group fails"
-  snap quota group-bad --max-memory 1MB hello-world 2>&1 | MATCH "XXX"
+  snap quota group-bad --max-memory=1MB hello-world 2>&1 | MATCH "error: cannot create or update quota group: cannot use snap \"hello-world\" in group \"group-bad\": snap already in quota group \"group-one\""
 
   echo "Checking that all quotas can be listed"
   snap quotas | cat -n > quotas.txt
-  MATCH "1 Quota .*Parent.*Max-Memory$" < quotas.txt
-  MATCH "2 group-top1 .*4MB$" < quotas.txt
-  MATCH "3 group-one .*group-top1 .*1MB$" < quotas.txt
-  MATCH "4 group-sub-one .*group-one$" < quotas.txt
-  MATCH "5 group-sub-sub-one .*group-sub-one$" < quotas.txt
-  MATCH "6 group-two .*group-top1 .*2MB$" < quotas.txt
-  MATCH "7 group-top2 .*500MB$" < quotas.txt
+  MATCH ".*1.*Quota.*Parent.*Max-Memory$" < quotas.txt
+  MATCH ".*2.*group-top1.*4.00MB$" < quotas.txt
+  MATCH ".*3.*group-one.*group-top1.*1.00MB$" < quotas.txt
+  MATCH ".*4.*group-sub-one.*group-one.*500B$" < quotas.txt
+  MATCH ".*5.*group-sub-sub-one.*group-sub-one.*500B$" < quotas.txt
+  MATCH ".*6.*group-two.*group-top1.*2.00MB$" < quotas.txt
+  MATCH ".*7.*group-top2.*500MB$" < quotas.txt
 
   echo "Checking quota group details"
   snap quota group-one | cat -n > details.txt
-  MATCH "1 name: .*group-one$" < details.txt
-  MATCH "2 parent: .*group-top1$" < details.txt
-  MATCH "3 subgroups:$" < details.txt
-  MATCH "4 .* - group-sub-one$" < details.txt
-  MATCH "5 snaps:$" < details.txt
-  MATCH "6 .*- hello-world$" < details.txt
+  MATCH ".*1.*name:.*group-one$" < details.txt
+  MATCH ".*2.*parent:.*group-top1$" < details.txt
+  MATCH ".*3.*subgroups:$" < details.txt
+  MATCH ".*4.* - group-sub-one$" < details.txt
+  MATCH ".*5.*max-memory: 1.00MB$" < details.txt
+  MATCH ".*6.*snaps:$" < details.txt
+  MATCH ".*7.*- hello-world$" < details.txt
 
-  echo "Checking that quota groups can be removed"
-  snap remove-quota group-two
-
-  snap quota group-two 2>&1 | MATCH "quota group-two not found"
+  # XXX: uncomment when quota removal bug is fixed with
+  # https://github.com/snapcore/snapd/pull/10216
+  #echo "Checking that quota groups can be removed"
+  #snap remove-quota group-two
+  #snap quota group-two 2>&1 | MATCH 'error: cannot find quota group "group-two"'
+  snap quota unknown 2>&1 | MATCH 'error: cannot find quota group "unknown"'
