@@ -68,7 +68,7 @@ func (s *quotaControlSuite) TestCreateQuotaNotEnabled(c *C) {
 
 	// try to create an empty quota group
 	err := s.mgr.CreateQuota("foo", "", nil, quantity.SizeGiB)
-	c.Assert(err, ErrorMatches, `cannot create quota group: please enable the experimental.quota-groups option`)
+	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.quota-groups' to true`)
 }
 
 type quotaGroupState struct {
@@ -380,7 +380,7 @@ func (s *quotaControlSuite) TestUpdateQuotaGroupNotEnabled(c *C) {
 
 	opts := servicestate.QuotaGroupUpdate{}
 	err := s.mgr.UpdateQuota("foo", opts)
-	c.Assert(err, ErrorMatches, `cannot create quota group: please enable the experimental.quota-groups option`)
+	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.quota-groups' to true`)
 }
 
 func (s *quotaControlSuite) TestUpdateQuotaChangeMemLimit(c *C) {

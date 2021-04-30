@@ -95,7 +95,7 @@ func quotaGroupsAvailable(st *state.State) error {
 		return err
 	}
 	if !enableQuotaGroups {
-		return fmt.Errorf("cannot create quota group: please enable the experimental.quota-groups option")
+		return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.quota-groups' to true")
 	}
 	return nil
 }
