@@ -39,7 +39,7 @@ const networkSetupControlConnectedPlugAppArmor = `
 # core18+ has /usr/sbin/netplan as a symlink to this script
 /usr/share/netplan/netplan.script ixr,
 # the C binary is used to generate actual configuration from the YAML
-/usr/lib/netplan/generate ixr,
+/usr/lib/netplan/generate Uxr,
 # netplan related files
 /usr/share/netplan/ r,
 /usr/share/netplan/** r,
@@ -54,11 +54,7 @@ const networkSetupControlConnectedPlugAppArmor = `
 # netplan generate
 /run/ r,
 /run/systemd/network/{,**} r,
-/run/systemd/system/{,**} r,
-/run/systemd/system/systemd-networkd.service.wants/{,**} r,
 /run/systemd/network/*-netplan-* w,
-/run/systemd/system/netplan-* w,
-/run/systemd/system/systemd-networkd.service.wants/netplan-* w,
 /run/NetworkManager/conf.d/{,**} r,
 /run/NetworkManager/conf.d/*netplan*.conf* w,
 
