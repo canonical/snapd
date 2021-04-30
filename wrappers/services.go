@@ -592,11 +592,10 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 			genServiceOpts.QuotaGroup = snapSvcOpts.QuotaGroup
 
 			if snapSvcOpts.QuotaGroup != nil {
-				err := neededQuotaGrps.AddAllNecessaryGroups(snapSvcOpts.QuotaGroup)
-				if err != nil {
+				if err := neededQuotaGrps.AddAllNecessaryGroups(snapSvcOpts.QuotaGroup); err != nil {
 					// this error can basically only be a circular reference
 					// in the quota group tree
-					return fmt.Errorf("internal error: %v", err)
+					return err
 				}
 			}
 		}
@@ -822,6 +821,33 @@ func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error
 		snapSvcsState[name] = state
 	}
 	return snapSvcsState, nil
+}
+
+// RemoveQuotaGroup ensures that the slice file for a quota group is removed. It
+// assumes that the slice corresponding to the group is not in use anymore by
+// any services or sub-groups of the group when it is invoked.
+// group with sub-groups, one must remove all the sub-groups first.
+func RemoveQuotaGroup(grp *quota.Group, inter interacter) error {
+	// TODO: it only works on leaf sub-groups currently
+	if len(grp.SubGroups) != 0 {
+		return fmt.Errorf("internal error: cannot remove quota group with sub-groups")
+	}
+
+	systemSysd := systemd.New(systemd.SystemMode, inter)
+
+	// remove the slice file
+	err := os.Remove(filepath.Join(dirs.SnapServicesDir, grp.SliceFileName()))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	if err == nil {
+		// we deleted the slice unit, so we need to daemon-reload
+		if err := systemSysd.DaemonReload(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // RemoveSnapServices disables and removes service units for the applications

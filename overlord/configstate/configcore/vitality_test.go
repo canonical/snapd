@@ -174,7 +174,7 @@ func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
 
 	grp.Snaps = []string{"test-snap"}
 
-	err = servicestate.UpdateQuotas(s.state, grp)
+	_, err = servicestate.PatchQuotasState(s.state, grp)
 	c.Assert(err, IsNil)
 
 	s.state.Unlock()

@@ -60,19 +60,21 @@ func GetQuota(st *state.State, name string) (*quota.Group, error) {
 	return allGrps[name], nil
 }
 
-// UpdateQuotas will update the state quota group map with the provided quota
-// groups. The groups provided will replace group states if present or be added
-// on top of the current set of quota groups in the state, and verified for
-// consistency before committed to state. When adding sub-groups, both the
-// parent and the sub-group must be added at once since the sub-group needs to
-// reference the parent group and vice versa to be fully consistent.
-func UpdateQuotas(st *state.State, grps ...*quota.Group) error {
+// PatchQuotasState will update the state quota group map with the provided quota
+// groups. It returns the full set of all quota groups after a successful
+// update for convenience. The groups provided will replace group states if
+// present or be added on top of the current set of quota groups in the state,
+// and verified for consistency before committed to state. When adding
+// sub-groups, both the parent and the sub-group must be added at once since the
+// sub-group needs to reference the parent group and vice versa to be fully
+// consistent.
+func PatchQuotasState(st *state.State, grps ...*quota.Group) (map[string]*quota.Group, error) {
 	// get the current set of quotas
 	allGrps, err := AllQuotas(st)
 	if err != nil {
 		// AllQuotas() can't return ErrNoState, in that case it just returns a
 		// nil map, which we handle below
-		return err
+		return nil, err
 	}
 	if allGrps == nil {
 		allGrps = make(map[string]*quota.Group)
@@ -80,7 +82,7 @@ func UpdateQuotas(st *state.State, grps ...*quota.Group) error {
 
 	// handle trivial case here to prevent panics below
 	if len(grps) == 0 {
-		return nil
+		return allGrps, nil
 	}
 
 	sort.SliceStable(grps, func(i, j int) bool {
@@ -108,9 +110,9 @@ func UpdateQuotas(st *state.State, grps ...*quota.Group) error {
 		if len(grps) > 1 {
 			plural = "s"
 		}
-		return fmt.Errorf("cannot update quota%s %s: %v", plural, updated, err)
+		return nil, fmt.Errorf("cannot update quota%s %s: %v", plural, updated, err)
 	}
 
 	st.Set("quotas", allGrps)
-	return nil
+	return allGrps, nil
 }

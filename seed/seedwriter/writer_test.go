@@ -2156,8 +2156,9 @@ func (s *writerSuite) TestDownloadedCore20CheckBaseCoreXX(c *C) {
 		{[]interface{}{requiredBaseCore16Ent}, `cannot add snap "required-base-core16" without also adding its base "core16" \(or "core"\) explicitly`},
 	}
 
-	s.opts.Label = "20191003"
-	for _, t := range tests {
+	baseLabel := "20191003"
+	for idx, t := range tests {
+		s.opts.Label = fmt.Sprintf("%s%d", baseLabel, idx)
 		snaps := []interface{}{
 			map[string]interface{}{
 				"name":            "pc-kernel",
@@ -2326,7 +2327,7 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedOptionsSnaps(c *C) {
 
 	pcFn := s.makeLocalSnap(c, "pc")
 
-	s.opts.Label = "20191107"
+	baseLabel := "20191107"
 
 	tests := []struct {
 		optSnap *seedwriter.OptionsSnap
@@ -2338,7 +2339,8 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedOptionsSnaps(c *C) {
 
 	const expectedErr = `cannot override channels, add devmode snaps, local snaps, or extra snaps with a model of grade higher than dangerous`
 
-	for _, t := range tests {
+	for idx, t := range tests {
+		s.opts.Label = fmt.Sprintf("%s%d", baseLabel, idx)
 		w, err := seedwriter.New(model, s.opts)
 		c.Assert(err, IsNil)
 
@@ -3200,4 +3202,36 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20SignedLocalAssertedSnaps(c *C)
 
 	// no options file was created
 	c.Check(filepath.Join(systemDir, "options.yaml"), testutil.FileAbsent)
+}
+
+func (s *writerSuite) TestSeedSnapsWriteCore20ErrWhenDirExists(c *C) {
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "signed",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	})
+
+	err := os.MkdirAll(filepath.Join(s.opts.SeedDir, "systems", "1234"), 0755)
+	c.Assert(err, IsNil)
+	s.opts.Label = "1234"
+	w, err := seedwriter.New(model, s.opts)
+	c.Assert(err, IsNil)
+	c.Assert(w, NotNil)
+
+	_, err = w.Start(s.db, s.newFetcher)
+	c.Assert(err, ErrorMatches, "mkdir .*/seed/systems/1234: file exists")
 }

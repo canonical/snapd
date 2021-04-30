@@ -408,6 +408,50 @@ WantedBy=multi-user.target
 	c.Assert(sliceFile, testutil.FileEquals, fmt.Sprintf(sliceTempl, "foogroup", memLimit.String()))
 }
 
+func (s *servicesTestSuite) TestRemoveQuotaGroup(c *C) {
+	// create the group
+	grp, err := quota.NewGroup("foogroup", quantity.SizeKiB)
+	c.Assert(err, IsNil)
+
+	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
+	c.Assert(sliceFile, testutil.FileAbsent)
+
+	// removing the group when the slice file doesn't exist is not an error
+	err = wrappers.RemoveQuotaGroup(grp, progress.Null)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.sysdLog, HasLen, 0)
+
+	c.Assert(sliceFile, testutil.FileAbsent)
+
+	// now write slice file and ensure it is deleted
+	sliceTempl := `[Unit]
+Description=Slice for snap quota group %s
+Before=slices.target
+
+[Slice]
+# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+MemoryMax=1024
+`
+
+	err = os.MkdirAll(filepath.Dir(sliceFile), 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(sliceFile, []byte(fmt.Sprintf(sliceTempl, "foogroup")), 0644)
+	c.Assert(err, IsNil)
+
+	// removing it deletes it
+	err = wrappers.RemoveQuotaGroup(grp, progress.Null)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+
+	c.Assert(sliceFile, testutil.FileAbsent)
+}
+
 func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsForSnaps(c *C) {
 	info1 := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 	info2 := snaptest.MockSnap(c, `
