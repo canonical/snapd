@@ -1213,9 +1213,35 @@ func (s *imageSuite) TestPrepareClassicCustomizationsUnsupported(c *C) {
 		Customizations: image.Customizations{
 			ConsoleConf:       "disabled",
 			CloudInitUserData: "cloud-init-user-data",
+			BootFlags:         []string{"boot-flag"},
 		},
 	})
-	c.Assert(err, ErrorMatches, `cannot support with classic model console-conf disable`)
+	c.Assert(err, ErrorMatches, `cannot support with classic model requested customizations: console-conf disable, boot flags \(boot-flag\)`)
+}
+
+func (s *imageSuite) TestPrepareUC18CustomizationsUnsupported(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "pc18",
+		"kernel":       "pc-kernel",
+		"base":         "core18",
+	})
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err := ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		ModelFile: fn,
+		Customizations: image.Customizations{
+			ConsoleConf:       "disabled",
+			CloudInitUserData: "cloud-init-user-data",
+			BootFlags:         []string{"boot-flag"},
+		},
+	})
+	c.Assert(err, ErrorMatches, `cannot support with UC16/18 model requested customizations: boot flags \(boot-flag\)`)
 }
 
 func (s *imageSuite) TestSetupSeedWithBaseLegacySnap(c *C) {
@@ -2730,6 +2756,9 @@ func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
 
 	opts := &image.Options{
 		PrepareDir: prepareDir,
+		Customizations: image.Customizations{
+			BootFlags: []string{"factory"},
+		},
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -2802,6 +2831,7 @@ func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
 	c.Assert(seedGenv.Load(), IsNil)
 	c.Check(seedGenv.Get("snapd_recovery_system"), Equals, filepath.Base(systems[0]))
 	c.Check(seedGenv.Get("snapd_recovery_mode"), Equals, "install")
+	c.Check(seedGenv.Get("snapd_boot_flags"), Equals, "factory")
 
 	c.Check(s.stderr.String(), Equals, "")
 
@@ -2886,6 +2916,9 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 
 	opts := &image.Options{
 		PrepareDir: prepareDir,
+		Customizations: image.Customizations{
+			BootFlags: []string{"factory"},
+		},
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -2915,6 +2948,7 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(env.Get("snapd_recovery_system"), Equals, expectedLabel)
 	c.Assert(env.Get("snapd_recovery_mode"), Equals, "install")
+	c.Assert(env.Get("snapd_boot_flags"), Equals, "factory")
 
 	// check recovery system specific config
 	systems, err := filepath.Glob(filepath.Join(seeddir, "systems", "*"))

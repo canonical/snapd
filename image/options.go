@@ -52,4 +52,8 @@ type Customizations struct {
 	// CloudInitUserData can optionally point to cloud init user-data
 	// (UC16/18 only)
 	CloudInitUserData string `json:"cloud-init-user-data"`
+	// BootFlags can be set to a list of boot flags
+	// to set in the recovery bootloader (UC20 only).
+	// Currently only the "factory" hint flag is supported.
+	BootFlags []string `json:"boot-flags"`
 }
