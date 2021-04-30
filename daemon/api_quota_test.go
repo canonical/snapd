@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -60,7 +61,7 @@ func (s *apiQuotaSuite) TestPostQuotaUnknownAction(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, `unknown action "foo"`)
+	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, `unknown quota action "foo"`)
 }
 
 func (s *apiQuotaSuite) TestPostQuotaInvalidGroupName(c *check.C) {
@@ -164,6 +165,29 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaUnhappy(c *check.C) {
 	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `boom`)
+}
+
+func (s *systemsSuite) TestPostQuotaRequiresRoot(c *check.C) {
+	s.daemon(c)
+
+	daemon.MockServicestateRemoveQuota(func(st *state.State, name string) error {
+		c.Fatalf("remove quota should not get called")
+		return nil
+	})
+
+	data, err := json.Marshal(daemon.PostQuotaGroupData{
+		Action:    "remove",
+		GroupName: "booze",
+	})
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	c.Assert(err, check.IsNil)
+	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+
+	rec := httptest.NewRecorder()
+	s.serveHTTP(c, rec, req)
+	c.Check(rec.Code, check.Equals, 401)
 }
 
 func (s *apiQuotaSuite) TestListQuotas(c *check.C) {

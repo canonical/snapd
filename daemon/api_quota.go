@@ -35,6 +35,7 @@ var (
 		Path: "/v2/quotas",
 		GET:  getQuotaGroups,
 		POST: postQuotaGroup,
+		RootOnly: true,
 	}
 	quotaGroupInfoCmd = &Command{
 		Path: "/v2/quotas/{group}",
@@ -134,7 +135,7 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&data); err != nil {
-		return BadRequest("cannot decode create-user data from request body: %v", err)
+		return BadRequest("cannot decode quota action from request body: %v", err)
 	}
 
 	if err := naming.ValidateQuotaGroup(data.GroupName); err != nil {
@@ -157,7 +158,7 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 			return BadRequest(err.Error())
 		}
 	default:
-		return BadRequest("unknown action %q", data.Action)
+		return BadRequest("unknown quota action %q", data.Action)
 	}
 	return SyncResponse(nil, nil)
 }
