@@ -70,19 +70,22 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[s
 	return wrappers.EnsureSnapServices(snapSvcMap, ensureOpts, nil, progress.Null)
 }
 
-func validateSnapForAddingToGroup(st *state.State, name string, allGrps map[string]*quota.Group) error {
-	// validate that the snap exists
-	_, err := snapstate.CurrentInfo(st, name)
-	if err != nil {
-		return err
-	}
+func validateSnapForAddingToGroup(st *state.State, snaps []string, group string, allGrps map[string]*quota.Group) error {
+	for _, name := range snaps {
+		// validate that the snap exists
+		_, err := snapstate.CurrentInfo(st, name)
+		if err != nil {
+			return fmt.Errorf("cannot use snap %q in group %q: %v", name, group, err)
+		}
 
-	// check that the snap is not already in a group
-	for _, grp := range allGrps {
-		if strutil.ListContains(grp.Snaps, name) {
-			return fmt.Errorf("snap already in quota group %q", grp.Name)
+		// check that the snap is not already in a group
+		for _, grp := range allGrps {
+			if strutil.ListContains(grp.Snaps, name) {
+				return fmt.Errorf("cannot add snap %q to group %q: snap already in quota group %q", name, group, grp.Name)
+			}
 		}
 	}
+
 	return nil
 }
 
@@ -101,10 +104,8 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 	}
 
 	// make sure the specified snaps exist and aren't currently in another group
-	for _, sn := range snaps {
-		if err := validateSnapForAddingToGroup(st, sn, allGrps); err != nil {
-			return fmt.Errorf("cannot use snap %q in group %q: %v", sn, name, err)
-		}
+	if err := validateSnapForAddingToGroup(st, snaps, name, allGrps); err != nil {
+		return err
 	}
 
 	// make sure that the parent group exists if we are creating a sub-group
@@ -224,10 +225,8 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) erro
 
 	// now ensure that all of the snaps mentioned in AddSnaps exist as snaps and
 	// that they aren't already in an existing quota group
-	for _, sn := range updateOpts.AddSnaps {
-		if err := validateSnapForAddingToGroup(st, sn, allGrps); err != nil {
-			return fmt.Errorf("cannot add snap %q to group %q: %v", sn, name, err)
-		}
+	if err := validateSnapForAddingToGroup(st, updateOpts.AddSnaps, name, allGrps); err != nil {
+		return err
 	}
 
 	//  append the snaps list in the group

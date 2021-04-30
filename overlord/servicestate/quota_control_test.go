@@ -142,7 +142,7 @@ func (s *quotaControlSuite) TestCreateQuota(c *C) {
 
 	// we can't add the same snap to a different group though
 	err = servicestate.CreateQuota(s.state, "foo2", "", []string{"test-snap"}, quantity.SizeGiB)
-	c.Assert(err, ErrorMatches, `cannot use snap "test-snap" in group "foo2": snap already in quota group "foo"`)
+	c.Assert(err, ErrorMatches, `cannot add snap "test-snap" to group "foo2": snap already in quota group "foo"`)
 
 	// creating the same group again will fail
 	err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
