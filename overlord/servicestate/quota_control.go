@@ -171,10 +171,38 @@ func RemoveQuota(st *state.State, name string) error {
 		return fmt.Errorf("cannot remove quota group with sub-groups, remove the sub-groups first")
 	}
 
+	// if this group has a parent, we need to remove the linkage to this
+	// sub-group from the parent first
+	if grp.ParentGroup != "" {
+		parent, ok := allGrps[grp.ParentGroup]
+		if !ok {
+			return fmt.Errorf("internal error: parent group of %q, %q not found", name, grp.ParentGroup)
+		}
+
+		newSubgroups := make([]string, 0, len(parent.SubGroups)-1)
+		for _, sub := range parent.SubGroups {
+			if sub != name {
+				newSubgroups = append(newSubgroups, sub)
+			}
+		}
+
+		parent.SubGroups = newSubgroups
+
+		allGrps[grp.ParentGroup] = parent
+	}
+
 	// now delete the group from state - do this first for convenience to ensure
 	// that we can just use SnapServiceOptions below and since it operates via
 	// state, it will immediately reflect the deletion
 	delete(allGrps, name)
+
+	// make sure that the group set is consistent before saving it - we may need
+	// to delete old links from this group's parent to the child
+	if err := quota.ResolveCrossReferences(allGrps); err != nil {
+		return fmt.Errorf("cannot remove quota %q: %v", name, err)
+	}
+
+	// now set it in state
 	st.Set("quotas", allGrps)
 
 	// update snap service units that may need to be re-written because they are
