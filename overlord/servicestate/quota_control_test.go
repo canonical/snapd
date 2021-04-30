@@ -134,14 +134,67 @@ func checkSliceState(c *C, sliceName string, sliceMem quantity.Size) {
 	}
 }
 
-func (s *quotaControlSuite) TestCreateQuota(c *C) {
-	r := s.mockSystemctlCalls(c, []expectedSystemctl{
+func systemctlCallsForSliceRestart(name string) []expectedSystemctl {
+	slice := "snap." + name + ".slice"
+	return []expectedSystemctl{
+		{expArgs: []string{"stop", slice}},
 		{
-			// called for new slice unit written by CreateQuota after we create
-			// the snap in state
-			expArgs: []string{"daemon-reload"},
+			expArgs: []string{"show", "--property=ActiveState", slice},
+			output:  "ActiveState=inactive",
 		},
-	})
+		{expArgs: []string{"start", slice}},
+	}
+}
+
+func systemctlCallsForSliceStop(name string) []expectedSystemctl {
+	slice := "snap." + name + ".slice"
+	return []expectedSystemctl{
+		{expArgs: []string{"stop", slice}},
+		{
+			expArgs: []string{"show", "--property=ActiveState", slice},
+			output:  "ActiveState=inactive",
+		},
+	}
+}
+
+func systemctlCallsForServiceRestart(name string) []expectedSystemctl {
+	svc := "snap." + name + ".svc1.service"
+	return []expectedSystemctl{
+		{
+			expArgs: []string{"is-enabled", svc},
+			output:  "enabled",
+		},
+		{expArgs: []string{"stop", svc}},
+		{
+			expArgs: []string{"show", "--property=ActiveState", svc},
+			output:  "ActiveState=inactive",
+		},
+		{expArgs: []string{"start", svc}},
+	}
+}
+
+func systemctlCallsForCreateQuota(groupName, snapName string) []expectedSystemctl {
+	return join(
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		systemctlCallsForSliceRestart(groupName),
+		systemctlCallsForServiceRestart(snapName),
+	)
+}
+
+func join(calls ...[]expectedSystemctl) []expectedSystemctl {
+	fullCall := []expectedSystemctl{}
+	for _, call := range calls {
+		fullCall = append(fullCall, call...)
+	}
+
+	return fullCall
+}
+
+func (s *quotaControlSuite) TestCreateQuota(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		systemctlCallsForCreateQuota("foo", "test-snap"),
+	))
 	defer r()
 
 	st := s.state
@@ -178,13 +231,14 @@ func (s *quotaControlSuite) TestCreateQuota(c *C) {
 }
 
 func (s *quotaControlSuite) TestCreateSubGroupQuota(c *C) {
-	r := s.mockSystemctlCalls(c, []expectedSystemctl{
-		{
-			// called for new slice unit written by CreateQuota after we create
-			// the snap in state
-			expArgs: []string{"daemon-reload"},
-		},
-	})
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo2 - we don't write anything for the first quota
+		// since there are no snaps in the quota to track
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		systemctlCallsForSliceRestart("foo"),
+		systemctlCallsForSliceRestart("foo-foo2"),
+		systemctlCallsForServiceRestart("test-snap"),
+	))
 	defer r()
 
 	st := s.state
@@ -230,22 +284,25 @@ func (s *quotaControlSuite) TestCreateSubGroupQuota(c *C) {
 }
 
 func (s *quotaControlSuite) TestRemoveQuota(c *C) {
-	r := s.mockSystemctlCalls(c, []expectedSystemctl{
-		{
-			// called for new slice unit written by CreateQuota after we create
-			// the snap in state
-			expArgs: []string{"daemon-reload"},
-		},
-		{
-			// called for the deleted slice unit from RemoveQuota
-			expArgs: []string{"daemon-reload"},
-		},
-		{
-			// called for the modified service unit files from EnsureSnapServices
-			// TODO: this call should go away?
-			expArgs: []string{"daemon-reload"},
-		},
-	})
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		systemctlCallsForCreateQuota("foo", "test-snap"),
+
+		// RemoveQuota for foo2 - no daemon reload initially because
+		// we didn't modify anything, as there are no snaps in foo2 so we don't
+		// create that group on disk
+		// TODO: is this bit correct in practice? we are in effect calling
+		// systemctl stop <non-existing-slice> ?
+		systemctlCallsForSliceStop("foo-foo3"),
+
+		systemctlCallsForSliceStop("foo-foo2"),
+
+		// RemoveQuota for foo
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		systemctlCallsForSliceStop("foo"),
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		systemctlCallsForServiceRestart("test-snap"),
+	))
 	defer r()
 
 	st := s.state
@@ -340,20 +397,17 @@ func (s *quotaControlSuite) TestUpdateQuotaGroupNotExist(c *C) {
 }
 
 func (s *quotaControlSuite) TestUpdateQuotaSubGroupTooBig(c *C) {
-	r := s.mockSystemctlCalls(c, []expectedSystemctl{
-		{
-			// called by CreateQuota for foo
-			expArgs: []string{"daemon-reload"},
-		},
-		{
-			// called by CreateQuota for foo2
-			expArgs: []string{"daemon-reload"},
-		},
-		{
-			// called by UpdateQuota for foo2's new memory limit
-			expArgs: []string{"daemon-reload"},
-		},
-	})
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		systemctlCallsForCreateQuota("foo", "test-snap"),
+
+		// CreateQuota for foo2
+		systemctlCallsForCreateQuota("foo-foo2", "test-snap2"),
+
+		// UpdateQuota for foo2 - just the slice changes
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		systemctlCallsForSliceRestart("foo-foo2"),
+	))
 	defer r()
 
 	st := s.state
@@ -444,17 +498,14 @@ func (s *quotaControlSuite) TestUpdateQuotaGroupNotEnabled(c *C) {
 }
 
 func (s *quotaControlSuite) TestUpdateQuotaChangeMemLimit(c *C) {
-	r := s.mockSystemctlCalls(c, []expectedSystemctl{
-		{
-			// called for new slice unit written by CreateQuota after we create
-			// the snap in state
-			expArgs: []string{"daemon-reload"},
-		},
-		{
-			// called by UpdateQuota
-			expArgs: []string{"daemon-reload"},
-		},
-	})
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		systemctlCallsForCreateQuota("foo", "test-snap"),
+
+		// UpdateQuota for foo - just the slice changes
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		systemctlCallsForSliceRestart("foo"),
+	))
 	defer r()
 
 	st := s.state
@@ -492,17 +543,15 @@ func (s *quotaControlSuite) TestUpdateQuotaChangeMemLimit(c *C) {
 }
 
 func (s *quotaControlSuite) TestUpdateQuotaAddSnap(c *C) {
-	r := s.mockSystemctlCalls(c, []expectedSystemctl{
-		{
-			// called for new slice unit written by CreateQuota after we create
-			// the snap in state
-			expArgs: []string{"daemon-reload"},
-		},
-		{
-			// called by UpdateQuota
-			expArgs: []string{"daemon-reload"},
-		},
-	})
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		systemctlCallsForCreateQuota("foo", "test-snap"),
+
+		// UpdateQuota with just test-snap2 restarted since the group already
+		// exists
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		systemctlCallsForServiceRestart("test-snap2"),
+	))
 	defer r()
 
 	st := s.state
@@ -549,17 +598,13 @@ func (s *quotaControlSuite) TestUpdateQuotaAddSnap(c *C) {
 }
 
 func (s *quotaControlSuite) TestUpdateQuotaAddSnapAlreadyInOtherGroup(c *C) {
-	r := s.mockSystemctlCalls(c, []expectedSystemctl{
-		{
-			// called for new slice unit written by CreateQuota after we create
-			// the snap in state
-			expArgs: []string{"daemon-reload"},
-		},
-		{
-			// called by UpdateQuota
-			expArgs: []string{"daemon-reload"},
-		},
-	})
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		systemctlCallsForCreateQuota("foo", "test-snap"),
+
+		// CreateQuota for foo2
+		systemctlCallsForCreateQuota("foo2", "test-snap2"),
+	))
 	defer r()
 
 	st := s.state

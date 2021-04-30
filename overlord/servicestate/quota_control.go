@@ -21,6 +21,7 @@ package servicestate
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -32,6 +33,8 @@ import (
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -68,8 +71,82 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[s
 		ensureOpts.RequireMountedSnapdSnap = true
 	}
 
-	// TODO: do we need to restart modified services ?
-	return wrappers.EnsureSnapServices(snapSvcMap, ensureOpts, nil, progress.Null)
+	grpsToRestart := []*quota.Group{}
+	appsToRestartBySnap := map[*snap.Info][]*snap.AppInfo{}
+
+	collectModifiedUnits := func(app *snap.AppInfo, grp *quota.Group, unitType string, name, old, new string) {
+		switch unitType {
+		case "slice":
+			// this slice was modified and needs to be restarted
+			grpsToRestart = append(grpsToRestart, grp)
+
+		case "service":
+			sn := app.Snap
+			appsToRestartBySnap[sn] = append(appsToRestartBySnap[sn], app)
+
+			// TODO: what about sockets and timers? activation units just start
+			// the full unit, so as long as the full unit is restarted we should
+			// be okay?
+		}
+	}
+	if err := wrappers.EnsureSnapServices(snapSvcMap, ensureOpts, collectModifiedUnits, progress.Null); err != nil {
+		return err
+	}
+
+	// now restart the slices
+
+	// TODO: should this logic move to wrappers in wrappers.RestartGroups() ?
+	systemSysd := systemd.New(systemd.SystemMode, progress.Null)
+
+	for _, grp := range grpsToRestart {
+		// TODO: what should these timeouts for stopping/restart slices be?
+		if err := systemSysd.Restart(grp.SliceFileName(), 5*time.Second); err != nil {
+			return err
+		}
+	}
+
+	// after restarting all the grps that we modified from EnsureSnapServices,
+	// we need to handle the case where a quota was removed, this will only
+	// happen one at a time and can be identified by the grp provided to us not
+	// existing in the state
+	if _, ok := allGrps[grp.Name]; !ok {
+		// stop the quota group, then remove it
+		if err := systemSysd.Stop(grp.SliceFileName(), 5*time.Second); err != nil {
+			return err
+		}
+
+		// TODO: this results in a second systemctl daemon-reload which is
+		// undesirable, we should figure out how to do this operation with a
+		// single daemon-reload
+		if err := wrappers.RemoveQuotaGroup(grp, progress.Null); err != nil {
+			return err
+		}
+	}
+
+	// now restart the services for each snap
+	for sn, apps := range appsToRestartBySnap {
+		disabledSvcs, err := wrappers.QueryDisabledServices(sn, progress.Null)
+		if err != nil {
+			return err
+		}
+
+		startupOrdered, err := snap.SortServices(apps)
+		if err != nil {
+			return err
+		}
+
+		// stop the services first, then start them up in the right order,
+		// obeying which ones were disabled
+		nullPerfTimings := &timings.Timings{}
+		if err := wrappers.StopServices(apps, nil, snap.StopReasonQuotaGroupModified, progress.Null, nullPerfTimings); err != nil {
+			return err
+		}
+
+		if err := wrappers.StartServices(startupOrdered, disabledSvcs, nil, progress.Null, nullPerfTimings); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func validateSnapForAddingToGroup(st *state.State, snaps []string, group string, allGrps map[string]*quota.Group) error {
@@ -234,15 +311,6 @@ func RemoveQuota(st *state.State, name string) error {
 	// update snap service units that may need to be re-written because they are
 	// not in a slice anymore
 	if err := ensureSnapServicesForGroup(st, grp, allGrps); err != nil {
-		return err
-	}
-
-	// separately delete the slice unit, EnsureSnapServices does not do this for
-	// us
-	// TODO: this results in a second systemctl daemon-reload which is
-	// undesirable, we should figure out how to do this operation with a single
-	// daemon-reload
-	if err := wrappers.RemoveQuotaGroup(grp, progress.Null); err != nil {
 		return err
 	}
 
