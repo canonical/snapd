@@ -244,8 +244,11 @@ func (s *quotaControlSuite) TestRemoveQuota(c *C) {
 	err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
 	c.Assert(err, IsNil)
 
-	// create a quota sub-group too
-	err = servicestate.CreateQuota(s.state, "foo2", "foo", nil, quantity.SizeGiB)
+	// create 2 quota sub-groups too
+	err = servicestate.CreateQuota(s.state, "foo2", "foo", nil, quantity.SizeGiB/2)
+	c.Assert(err, IsNil)
+
+	err = servicestate.CreateQuota(s.state, "foo3", "foo", nil, quantity.SizeGiB/2)
 	c.Assert(err, IsNil)
 
 	// check that the quota groups was created in the state
@@ -253,10 +256,14 @@ func (s *quotaControlSuite) TestRemoveQuota(c *C) {
 		"foo": {
 			MemoryLimit: quantity.SizeGiB,
 			Snaps:       []string{"test-snap"},
-			SubGroups:   []string{"foo2"},
+			SubGroups:   []string{"foo2", "foo3"},
 		},
 		"foo2": {
-			MemoryLimit: quantity.SizeGiB,
+			MemoryLimit: quantity.SizeGiB / 2,
+			ParentGroup: "foo",
+		},
+		"foo3": {
+			MemoryLimit: quantity.SizeGiB / 2,
 			ParentGroup: "foo",
 		},
 	})
@@ -267,6 +274,22 @@ func (s *quotaControlSuite) TestRemoveQuota(c *C) {
 	c.Assert(err, ErrorMatches, "cannot remove quota group with sub-groups, remove the sub-groups first")
 
 	// but we can remove the sub-group successfully first
+	err = servicestate.RemoveQuota(s.state, "foo3")
+	c.Assert(err, IsNil)
+
+	checkQuotaState(c, st, map[string]quotaGroupState{
+		"foo": {
+			MemoryLimit: quantity.SizeGiB,
+			Snaps:       []string{"test-snap"},
+			SubGroups:   []string{"foo2"},
+		},
+		"foo2": {
+			MemoryLimit: quantity.SizeGiB / 2,
+			ParentGroup: "foo",
+		},
+	})
+
+	// and we can remove the other sub-group
 	err = servicestate.RemoveQuota(s.state, "foo2")
 	c.Assert(err, IsNil)
 
