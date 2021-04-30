@@ -179,6 +179,10 @@ func (s *quotaControlSuite) TestCreateSubGroupQuota(c *C) {
 	err := servicestate.CreateQuota(s.state, "foo", "", nil, quantity.SizeGiB)
 	c.Assert(err, IsNil)
 
+	// trying to create a quota group with a non-existent parent group fails
+	err = servicestate.CreateQuota(s.state, "foo2", "foo-non-real", []string{"test-snap"}, quantity.SizeGiB)
+	c.Assert(err, ErrorMatches, `cannot create group under non-existent parent group "foo-non-real"`)
+
 	// now we can create a sub-quota
 	err = servicestate.CreateQuota(s.state, "foo2", "foo", []string{"test-snap"}, quantity.SizeGiB)
 	c.Assert(err, IsNil)
