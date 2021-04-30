@@ -174,6 +174,9 @@ func installCloudConfig(rootDir, gadgetDir string) error {
 func customizeImage(rootDir, defaultsDir string, custo *Customizations) error {
 	// customize with cloud-init user-data
 	if custo.CloudInitUserData != "" {
+		// See
+		// https://cloudinit.readthedocs.io/en/latest/topics/dir_layout.html
+		// https://cloudinit.readthedocs.io/en/latest/topics/datasources/nocloud.html
 		varCloudDir := filepath.Join(rootDir, "/var/lib/cloud/seed/nocloud-net")
 		if err := os.MkdirAll(varCloudDir, 0755); err != nil {
 			return err
