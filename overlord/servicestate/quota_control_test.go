@@ -90,22 +90,22 @@ func checkQuotaState(c *C, st *state.State, exp map[string]quotaGroupState) {
 	}
 }
 
-func checkSvcAndSliceState(c *C, snapSvc string, group string, sliceMem quantity.Size) {
+func checkSvcAndSliceState(c *C, snapSvc string, sliceName string, sliceMem quantity.Size) {
 	// make sure the service file exists
 	svcFileName := filepath.Join(dirs.SnapServicesDir, "snap."+snapSvc+".service")
 	c.Assert(svcFileName, testutil.FilePresent)
 
 	if sliceMem != 0 {
 		// the service file should mention this slice
-		c.Assert(svcFileName, testutil.FileContains, fmt.Sprintf("\nSlice=snap.%s.slice\n", group))
+		c.Assert(svcFileName, testutil.FileContains, fmt.Sprintf("\nSlice=snap.%s.slice\n", sliceName))
 	} else {
-		c.Assert(svcFileName, Not(testutil.FileContains), fmt.Sprintf("Slice=snap.%s.slice", group))
+		c.Assert(svcFileName, Not(testutil.FileContains), fmt.Sprintf("Slice=snap.%s.slice", sliceName))
 	}
-	checkSliceState(c, group, sliceMem)
+	checkSliceState(c, sliceName, sliceMem)
 }
 
-func checkSliceState(c *C, group string, sliceMem quantity.Size) {
-	sliceFileName := filepath.Join(dirs.SnapServicesDir, "snap."+group+".slice")
+func checkSliceState(c *C, sliceName string, sliceMem quantity.Size) {
+	sliceFileName := filepath.Join(dirs.SnapServicesDir, "snap."+sliceName+".slice")
 	if sliceMem != 0 {
 		c.Assert(sliceFileName, testutil.FilePresent)
 		c.Assert(sliceFileName, testutil.FileContains, fmt.Sprintf("\nMemoryMax=%s\n", sliceMem.String()))
