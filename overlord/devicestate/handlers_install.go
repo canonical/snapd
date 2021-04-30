@@ -397,6 +397,17 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	return true, nil
 }
 
+// RebootOptions can be attached to restart-system-to-run-mode tasks to control
+// their restart behavior.
+type RebootOptions struct {
+	Op string `json:"op,omitempty"`
+}
+
+const (
+	RebootHaltOp     = "halt"
+	RebootPoweroffOp = "poweroff"
+)
+
 func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -424,9 +435,27 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 		return err
 	}
 
-	// request a restart as the last action after a successful install
-	logger.Noticef("request system restart")
-	st.RequestRestart(state.RestartSystemNow)
+	var rebootOpts RebootOptions
+	err = t.Get("reboot", &rebootOpts)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	// request by default a restart as the last action after a
+	// successful install or what install-device requested via
+	// snapctl reboot
+	rst := state.RestartSystemNow
+	what := "restart"
+	switch rebootOpts.Op {
+	case RebootHaltOp:
+		what = "halt"
+		rst = state.RestartSystemHaltNow
+	case RebootPoweroffOp:
+		what = "poweroff"
+		rst = state.RestartSystemPoweroffNow
+	}
+	logger.Noticef("request immediate system %s", what)
+	st.RequestRestart(rst)
 
 	return nil
 }
