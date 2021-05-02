@@ -77,6 +77,8 @@ var api = []*Command{
 	validationSetsCmd,
 	routineConsoleConfStartCmd,
 	systemRecoveryKeysCmd,
+	quotaGroupsCmd,
+	quotaGroupInfoCmd,
 }
 
 // userFromRequest extracts user information from request and return the respective user in state, if valid
