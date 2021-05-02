@@ -210,43 +210,60 @@ func createSystemForModelFromValidatedSnaps(getInfo func(name string) (*snap.Inf
 	}
 
 	optsSnaps := make([]*seedwriter.OptionsSnap, 0, len(model.RequiredWithEssentialSnaps()))
-
 	// collect all snaps that are present
 	modelSnaps := make(map[string]*snap.Info)
-	for _, sn := range model.EssentialSnaps() {
-		info, present, err := getInfo(sn.SnapName())
+
+	getModelSnap := func(name string, essential bool, nonEssentialPresence string) error {
+		kind := "essential"
+		if !essential {
+			kind = "non-essential"
+			if nonEssentialPresence != "" {
+				kind = fmt.Sprintf("non-essential but %q",
+					nonEssentialPresence)
+			}
+		}
+		info, present, err := getInfo(name)
 		if err != nil {
-			return nil, "", fmt.Errorf("cannot obtain snap information: %v", err)
+			return fmt.Errorf("cannot obtain %v snap information: %v", kind, err)
+		}
+		if !essential && !present && nonEssentialPresence == "optional" {
+			// non-essential snap which is declared as optionally
+			// present in the model
+			return nil
 		}
 		// grab those
-		logger.Noticef("essential snap: %v", sn.SnapName())
+		logger.Noticef("%v snap: %v", kind, name)
 		if !present {
-			return nil, "", fmt.Errorf("internal error: essential snap %q not present", sn.SnapName())
+			return fmt.Errorf("internal error: %v snap %q not present", kind, name)
+		}
+		if _, ok := modelSnaps[info.MountFile()]; ok {
+			// we've already seen this snap
+			return nil
 		}
 		// present locally
 		optsSnaps = append(optsSnaps, &seedwriter.OptionsSnap{
 			Path: info.MountFile(),
 		})
 		modelSnaps[info.MountFile()] = info
+		return nil
+	}
+
+	// snapd is implicitly needed
+	const snapdIsEssential = true
+	if err := getModelSnap("snapd", snapdIsEssential, ""); err != nil {
+		return nil, "", err
+	}
+	for _, sn := range model.EssentialSnaps() {
+		const essential = true
+		if err := getModelSnap(sn.SnapName(), essential, ""); err != nil {
+			return nil, "", err
+		}
 	}
 	for _, sn := range model.SnapsWithoutEssential() {
-		info, present, err := getInfo(sn.SnapName())
-		if err != nil {
-			return nil, "", fmt.Errorf("cannot obtain non-essential snap information: %v", err)
+		const essential = false
+		if err := getModelSnap(sn.SnapName(), essential, sn.Presence); err != nil {
+			return nil, "", err
 		}
-		logger.Noticef("non-essential but %q snap %v", sn.Presence, sn.SnapName())
-		if sn.Presence == "optional" && !present {
-			// the snap is optional
-			continue
-		}
-		if !present {
-			return nil, "", fmt.Errorf("internal error: non-essential but %q snap %q not present", sn.Presence, sn.SnapName())
-		}
-		// present locally
-		optsSnaps = append(optsSnaps, &seedwriter.OptionsSnap{
-			Path: info.MountFile(),
-		})
-		modelSnaps[info.MountFile()] = info
 	}
 	if err := w.SetOptionsSnaps(optsSnaps); err != nil {
 		return nil, "", err
@@ -272,7 +289,7 @@ func createSystemForModelFromValidatedSnaps(getInfo func(name string) (*snap.Inf
 	for _, sn := range localSnaps {
 		info, ok := modelSnaps[sn.Path]
 		if !ok {
-			return nil, recoverySystemDir, fmt.Errorf("internal error: no snap info for %q", sn.SnapName())
+			return nil, recoverySystemDir, fmt.Errorf("internal error: no snap info for %q", sn.Path)
 		}
 		// TODO: the side info derived here can be different from what
 		// we have in snap.Info, but getting it this way can be

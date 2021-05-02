@@ -70,19 +70,22 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[s
 	return wrappers.EnsureSnapServices(snapSvcMap, ensureOpts, nil, progress.Null)
 }
 
-func validateSnapForAddingToGroup(st *state.State, name string, allGrps map[string]*quota.Group) error {
-	// validate that the snap exists
-	_, err := snapstate.CurrentInfo(st, name)
-	if err != nil {
-		return err
-	}
+func validateSnapForAddingToGroup(st *state.State, snaps []string, group string, allGrps map[string]*quota.Group) error {
+	for _, name := range snaps {
+		// validate that the snap exists
+		_, err := snapstate.CurrentInfo(st, name)
+		if err != nil {
+			return fmt.Errorf("cannot use snap %q in group %q: %v", name, group, err)
+		}
 
-	// check that the snap is not already in a group
-	for _, grp := range allGrps {
-		if strutil.ListContains(grp.Snaps, name) {
-			return fmt.Errorf("snap already in quota group %q", grp.Name)
+		// check that the snap is not already in a group
+		for _, grp := range allGrps {
+			if strutil.ListContains(grp.Snaps, name) {
+				return fmt.Errorf("cannot add snap %q to group %q: snap already in quota group %q", name, group, grp.Name)
+			}
 		}
 	}
+
 	return nil
 }
 
@@ -90,31 +93,26 @@ func validateSnapForAddingToGroup(st *state.State, name string, allGrps map[stri
 // snaps in it.
 // TODO: should this use something like QuotaGroupUpdate with fewer fields?
 func CreateQuota(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) error {
-	st.Lock()
-	defer st.Unlock()
-
-	// ensure that the quota group does not exist yet
 	allGrps, err := AllQuotas(st)
 	if err != nil {
 		return err
 	}
 
+	// ensure that the quota group does not exist yet
 	if _, ok := allGrps[name]; ok {
 		return fmt.Errorf("group %q already exists", name)
 	}
 
 	// make sure the specified snaps exist and aren't currently in another group
-	for _, sn := range snaps {
-		if err := validateSnapForAddingToGroup(st, sn, allGrps); err != nil {
-			return fmt.Errorf("cannot use snap %q in group %q: %v", sn, name, err)
-		}
+	if err := validateSnapForAddingToGroup(st, snaps, name, allGrps); err != nil {
+		return err
 	}
 
 	// make sure that the parent group exists if we are creating a sub-group
-	var grp, parentGrp *quota.Group
+	var grp *quota.Group
+	updatedGrps := []*quota.Group{}
 	if parentName != "" {
-		var ok bool
-		parentGrp, ok = allGrps[parentName]
+		parentGrp, ok := allGrps[parentName]
 		if !ok {
 			return fmt.Errorf("cannot create group under non-existent parent group %q", parentName)
 		}
@@ -123,6 +121,8 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 		if err != nil {
 			return err
 		}
+
+		updatedGrps = append(updatedGrps, parentGrp)
 	} else {
 		// make a new group
 		grp, err = quota.NewGroup(name, memoryLimit)
@@ -130,17 +130,13 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 			return err
 		}
 	}
+	updatedGrps = append(updatedGrps, grp)
 
 	// put the snaps in the group
 	grp.Snaps = snaps
 
-	updatedGrps := []*quota.Group{grp}
-	if parentName != "" {
-		updatedGrps = append(updatedGrps, parentGrp)
-	}
-
 	// update the modified groups in state
-	allGrps, err = PatchQuotasState(st, updatedGrps...)
+	allGrps, err = patchQuotas(st, updatedGrps...)
 	if err != nil {
 		return err
 	}
@@ -159,9 +155,6 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 // TODO: currently this only supports removing leaf sub-group groups, it doesn't
 // support removing parent quotas, but probably it makes sense to allow that too
 func RemoveQuota(st *state.State, name string) error {
-	st.Lock()
-	defer st.Unlock()
-
 	allGrps, err := AllQuotas(st)
 	if err != nil {
 		return err
@@ -178,10 +171,46 @@ func RemoveQuota(st *state.State, name string) error {
 		return fmt.Errorf("cannot remove quota group with sub-groups, remove the sub-groups first")
 	}
 
+	// if this group has a parent, we need to remove the linkage to this
+	// sub-group from the parent first
+	if grp.ParentGroup != "" {
+		// the parent here must exist otherwise AllQuotas would have failed
+		// because state would have been inconsistent
+		parent := allGrps[grp.ParentGroup]
+
+		// ensure that the parent group of this group no longer mentions this
+		// group as a sub-group - we know that it must since AllQuotas validated
+		// the state for us
+		if len(parent.SubGroups) == 1 {
+			// this group was an only child, so clear the whole list
+			parent.SubGroups = nil
+		} else {
+			// we have to delete the child but keep the other children
+			newSubgroups := make([]string, 0, len(parent.SubGroups)-1)
+			for _, sub := range parent.SubGroups {
+				if sub != name {
+					newSubgroups = append(newSubgroups, sub)
+				}
+			}
+
+			parent.SubGroups = newSubgroups
+		}
+
+		allGrps[grp.ParentGroup] = parent
+	}
+
 	// now delete the group from state - do this first for convenience to ensure
 	// that we can just use SnapServiceOptions below and since it operates via
 	// state, it will immediately reflect the deletion
 	delete(allGrps, name)
+
+	// make sure that the group set is consistent before saving it - we may need
+	// to delete old links from this group's parent to the child
+	if err := quota.ResolveCrossReferences(allGrps); err != nil {
+		return fmt.Errorf("cannot remove quota %q: %v", name, err)
+	}
+
+	// now set it in state
 	st.Set("quotas", allGrps)
 
 	// update snap service units that may need to be re-written because they are
@@ -217,9 +246,6 @@ type QuotaGroupUpdate struct {
 
 // UpdateQuota updates the quota as per the options.
 func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) error {
-	st.Lock()
-	defer st.Unlock()
-
 	// ensure that the quota group exists
 	allGrps, err := AllQuotas(st)
 	if err != nil {
@@ -235,10 +261,8 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) erro
 
 	// now ensure that all of the snaps mentioned in AddSnaps exist as snaps and
 	// that they aren't already in an existing quota group
-	for _, sn := range updateOpts.AddSnaps {
-		if err := validateSnapForAddingToGroup(st, sn, allGrps); err != nil {
-			return fmt.Errorf("cannot add snap %q to group %q: %v", sn, name, err)
-		}
+	if err := validateSnapForAddingToGroup(st, updateOpts.AddSnaps, name, allGrps); err != nil {
+		return err
 	}
 
 	//  append the snaps list in the group
@@ -250,7 +274,7 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) erro
 	}
 
 	// update the quota group state
-	allGrps, err = PatchQuotasState(st, modifiedGrps...)
+	allGrps, err = patchQuotas(st, modifiedGrps...)
 	if err != nil {
 		return err
 	}

@@ -604,7 +604,7 @@ func (s *createSystemSuite) TestCreateSystemGetInfoErr(c *C) {
 
 	failOn["pc"] = true
 	newFiles, dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(infoGetter, s.db, "1234", model)
-	c.Assert(err, ErrorMatches, `cannot obtain snap information: mock failure for snap "pc"`)
+	c.Assert(err, ErrorMatches, `cannot obtain essential snap information: mock failure for snap "pc"`)
 	c.Check(newFiles, HasLen, 0)
 	c.Check(dir, Equals, "")
 	c.Check(osutil.IsDirectory(systemDir), Equals, false)
@@ -612,7 +612,7 @@ func (s *createSystemSuite) TestCreateSystemGetInfoErr(c *C) {
 	failOn["pc"] = false
 	failOn["other-required"] = true
 	newFiles, dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(infoGetter, s.db, "1234", model)
-	c.Assert(err, ErrorMatches, `cannot obtain non-essential snap information: mock failure for snap "other-required"`)
+	c.Assert(err, ErrorMatches, `cannot obtain non-essential but "required" snap information: mock failure for snap "other-required"`)
 	c.Check(newFiles, HasLen, 0)
 	c.Check(dir, Equals, "")
 	c.Check(osutil.IsDirectory(systemDir), Equals, false)
@@ -640,4 +640,58 @@ func (s *createSystemSuite) TestCreateSystemNonUC20(c *C) {
 	c.Assert(err, ErrorMatches, `cannot create a system for non UC20 model`)
 	c.Check(newFiles, HasLen, 0)
 	c.Check(dir, Equals, "")
+}
+
+func (s *createSystemSuite) TestCreateSystemImplicitSnaps(c *C) {
+	bl := bootloadertest.Mock("trusted", c.MkDir()).WithRecoveryAwareTrustedAssets()
+	bootloader.Force(bl)
+	infos := map[string]*snap.Info{}
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.setupBrands(c)
+	infos["pc-kernel"] = s.makeSnap(c, "pc-kernel", snap.R(1))
+	infos["pc"] = s.makeSnap(c, "pc", snap.R(2))
+	infos["core20"] = s.makeSnap(c, "core20", snap.R(3))
+	infos["snapd"] = s.makeSnap(c, "snapd", snap.R(4))
+
+	// snapd snap is implicitly required
+	model := s.makeModelAssertionInState(c, "my-brand", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"grade":        "dangerous",
+		// base does not need to be listed among snaps
+		"base": "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.ss.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.ss.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+
+	infoGetter := func(name string) (*snap.Info, bool, error) {
+		c.Logf("called for: %q", name)
+		info, present := infos[name]
+		return info, present, nil
+	}
+
+	newFiles, dir, err := devicestate.CreateSystemForModelFromValidatedSnaps(infoGetter, s.db, "1234", model)
+	c.Assert(err, IsNil)
+	c.Check(newFiles, DeepEquals, []string{
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/snapd_4.snap"),
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/pc-kernel_1.snap"),
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/core20_3.snap"),
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/pc_2.snap"),
+	})
+	c.Check(dir, Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"))
+	// validate the seed
+	s.validateSeed(c, "1234")
 }
