@@ -6,6 +6,7 @@ details: |
 prepare: |
   snap install hello-world
   snap install test-snapd-tools
+  snap set system experimental.quota-groups=true
 
 execute: |
   echo "Creating top-level quota groups (no snaps)"
@@ -21,7 +22,7 @@ execute: |
   snap quota group-sub-sub-one --parent=group-sub-one --max-memory=500B
 
   echo "Trying to add snap to more than one group fails"
-  snap quota group-bad --max-memory=1MB hello-world 2>&1 | MATCH "error: cannot create or update quota group: cannot use snap \"hello-world\" in group \"group-bad\": snap already in quota group \"group-one\""
+  snap quota group-bad --max-memory=1MB hello-world 2>&1 | MATCH 'error: cannot create or update quota group: cannot add snap "hello-world" to group "group-bad": snap already in quota group "group-one"'
 
   echo "Checking that all quotas can be listed"
   snap quotas | cat -n > quotas.txt
