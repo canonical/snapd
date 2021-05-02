@@ -1131,6 +1131,93 @@ func (s *imageSuite) TestSetupSeedWithBaseWithCloudConf(c *C) {
 	c.Check(filepath.Join(rootdir, "/etc/cloud/cloud.cfg"), testutil.FileEquals, "# cloud config")
 }
 
+func (s *imageSuite) TestSetupSeedWithBaseWithCustomizations(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "pc18",
+		"kernel":       "pc-kernel",
+		"base":         "core18",
+	})
+
+	tmpdir := c.MkDir()
+	rootdir := filepath.Join(tmpdir, "image")
+	cloudInitUserData := filepath.Join(tmpdir, "cloudstuff")
+	err := ioutil.WriteFile(cloudInitUserData, []byte(`# user cloud data`), 0644)
+	c.Assert(err, IsNil)
+	s.setupSnaps(c, map[string]string{
+		"core18":    "canonical",
+		"pc-kernel": "canonical",
+		"snapd":     "canonical",
+	}, "")
+	s.MakeAssertedSnap(c, packageGadgetWithBase, [][]string{
+		{"grub.conf", ""},
+		{"grub.cfg", "I'm a grub.cfg"},
+		{"meta/gadget.yaml", pcGadgetYaml},
+	}, snap.R(5), "canonical")
+
+	opts := &image.Options{
+		PrepareDir: filepath.Dir(rootdir),
+		Customizations: image.Customizations{
+			ConsoleConf:       "disabled",
+			CloudInitUserData: cloudInitUserData,
+		},
+	}
+
+	err = image.SetupSeed(s.tsto, model, opts)
+	c.Assert(err, IsNil)
+
+	// check customization impl files were written
+	varCloudDir := filepath.Join(rootdir, "/var/lib/cloud/seed/nocloud-net")
+	c.Check(filepath.Join(varCloudDir, "meta-data"), testutil.FileEquals, "instance-id: nocloud-static\n")
+	c.Check(filepath.Join(varCloudDir, "user-data"), testutil.FileEquals, "# user cloud data")
+	// console-conf disable
+	c.Check(filepath.Join(rootdir, "_writable_defaults", "var/lib/console-conf/complete"), testutil.FilePresent)
+}
+
+func (s *imageSuite) TestPrepareUC20CustomizationsUnsupported(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	model := s.makeUC20Model(nil)
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err := ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		ModelFile: fn,
+		Customizations: image.Customizations{
+			ConsoleConf:       "disabled",
+			CloudInitUserData: "cloud-init-user-data",
+		},
+	})
+	c.Assert(err, ErrorMatches, `cannot support with UC20 model requested customizations: console-conf disable, cloud-init user-data`)
+}
+
+func (s *imageSuite) TestPrepareClassicCustomizationsUnsupported(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"classic": "true",
+	})
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err := ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		Classic:   true,
+		ModelFile: fn,
+		Customizations: image.Customizations{
+			ConsoleConf:       "disabled",
+			CloudInitUserData: "cloud-init-user-data",
+		},
+	})
+	c.Assert(err, ErrorMatches, `cannot support with classic model console-conf disable`)
+}
+
 func (s *imageSuite) TestSetupSeedWithBaseLegacySnap(c *C) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
