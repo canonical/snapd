@@ -108,6 +108,14 @@ func MockSecbootSealKeys(f func(keys []secboot.SealKeyRequest, params *secboot.S
 	}
 }
 
+func MockSecbootSealKeysWithFDESetupHook(f func(runHook fde.RunSetupHookFunc, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error) (restore func()) {
+	old := secbootSealKeysWithFDESetupHook
+	secbootSealKeysWithFDESetupHook = f
+	return func() {
+		secbootSealKeysWithFDESetupHook = old
+	}
+}
+
 func MockSecbootResealKeys(f func(params *secboot.ResealKeysParams) error) (restore func()) {
 	old := secbootResealKeys
 	secbootResealKeys = f
@@ -162,6 +170,26 @@ var (
 	NextBootFlags     = nextBootFlags
 	SetNextBootFlags  = setNextBootFlags
 )
+
+func SetBootFlagsInBootloader(flags []string, rootDir string) error {
+	blVars := make(map[string]string, 1)
+
+	if err := setImageBootFlags(flags, blVars); err != nil {
+		return err
+	}
+
+	// now find the recovery bootloader in the system dir and set the value on
+	// it
+	opts := &bootloader.Options{
+		Role: bootloader.RoleRecovery,
+	}
+	bl, err := bootloader.Find(rootDir, opts)
+	if err != nil {
+		return err
+	}
+
+	return bl.SetBootVars(blVars)
+}
 
 func (b *bootChain) SetModelAssertion(model *asserts.Model) {
 	b.model = model
