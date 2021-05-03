@@ -949,6 +949,7 @@ func (m *DeviceManager) ensureInstalled() error {
 
 	// add the install-device hook before ensure-next-boot-to-run-mode if it
 	// exists in the snap
+	var installDevice *state.Task
 	if hasInstallDeviceHook {
 		summary := i18n.G("Run install-device hook")
 		hooksup := &hookstate.HookSetup{
@@ -956,12 +957,17 @@ func (m *DeviceManager) ensureInstalled() error {
 			Snap: model.Gadget(),
 			Hook: "install-device",
 		}
-		installDevice := hookstate.HookTask(m.state, summary, hooksup, nil)
+		installDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
 		addTask(installDevice)
 	}
 
 	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
 	addTask(restartSystem)
+
+	if installDevice != nil {
+		// reference used by snapctl reboot
+		installDevice.Set("restart-task", restartSystem.ID())
+	}
 
 	chg := m.state.NewChange("install-system", i18n.G("Install the system"))
 	chg.AddAll(state.NewTaskSet(tasks...))
@@ -1240,6 +1246,52 @@ func (m *DeviceManager) Model() (*asserts.Model, error) {
 // Serial returns the device serial assertion.
 func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return findSerial(m.state, nil)
+}
+
+type SystemModeInfo struct {
+	Mode              string
+	HasModeenv        bool
+	Seeded            bool
+	BootFlags         []string
+	HostDataLocations []string
+}
+
+// SystemModeInfo returns details about the current system mode the device is in.
+func (m *DeviceManager) SystemModeInfo() (*SystemModeInfo, error) {
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err == state.ErrNoState {
+		return nil, fmt.Errorf("cannot report system mode information before device model is acknowledged")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var seeded bool
+	err = m.state.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+
+	mode := m.SystemMode()
+	smi := SystemModeInfo{
+		Mode:       mode,
+		HasModeenv: deviceCtx.HasModeenv(),
+		Seeded:     seeded,
+	}
+	if smi.HasModeenv {
+		bootFlags, err := boot.BootFlags(deviceCtx)
+		if err != nil {
+			return nil, err
+		}
+		smi.BootFlags = bootFlags
+
+		hostDataLocs, err := boot.HostUbuntuDataForMode(mode)
+		if err != nil {
+			return nil, err
+		}
+		smi.HostDataLocations = hostDataLocs
+	}
+	return &smi, nil
 }
 
 type SystemAction struct {

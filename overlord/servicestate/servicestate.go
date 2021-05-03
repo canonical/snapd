@@ -33,6 +33,8 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/wrappers"
 )
@@ -316,8 +318,20 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 
 // SnapServiceOptions computes the options to configure services for
 // the given snap. This function might not check for the existence
-// of instanceName.
-func SnapServiceOptions(st *state.State, instanceName string) (opts *wrappers.SnapServiceOptions, err error) {
+// of instanceName. It also takes as argument a map of all quota groups as an
+// optimization, the map if non-nil is used in place of checking state for
+// whether or not the specified snap is in a quota group or not. If nil, state
+// is consulted directly instead.
+func SnapServiceOptions(st *state.State, instanceName string, quotaGroups map[string]*quota.Group) (opts *wrappers.SnapServiceOptions, err error) {
+	// if quotaGroups was not provided to us, then go get that
+	if quotaGroups == nil {
+		allGrps, err := AllQuotas(st)
+		if err != nil && err != state.ErrNoState {
+			return nil, err
+		}
+		quotaGroups = allGrps
+	}
+
 	opts = &wrappers.SnapServiceOptions{}
 
 	tr := config.NewTransaction(st)
@@ -332,5 +346,14 @@ func SnapServiceOptions(st *state.State, instanceName string) (opts *wrappers.Sn
 			break
 		}
 	}
+
+	// also check for quota group for this instance name
+	for _, grp := range quotaGroups {
+		if strutil.ListContains(grp.Snaps, instanceName) {
+			opts.QuotaGroup = grp
+			break
+		}
+	}
+
 	return opts, nil
 }
