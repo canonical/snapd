@@ -191,16 +191,6 @@ jobs:
 
   spread-cat:
     runs-on: self-hosted
-    strategy:
-      # FIXME: enable fail-fast mode once spread can cancel an executing job.
-      # Disable fail-fast mode as it doesn't function with spread. It seems
-      # that cancelling tasks requires short, interruptible actions and
-      # interrupting spread, notably, does not work today. As such disable
-      # fail-fast while we tackle that problem upstream.
-      fail-fast: false
-      matrix:
-        system:
-        - ubuntu-20.04-64
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -210,7 +200,7 @@ jobs:
     - name: Run spread tests
       run: |
           # Register a problem matcher to highlight spread failures
-          SPREAD_EXTERNAL_ADDRESS=10.48.54.1 spread -abend external:${{ matrix.system }}:tests/...
+          SPREAD_EXTERNAL_ADDRESS=10.48.54.1 spread external:ubuntu-core-20-64:tests
 
   spread:
     needs: [unit-tests]
