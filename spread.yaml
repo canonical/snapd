@@ -360,6 +360,7 @@ backends:
             MANAGED_DEVICE: "true"
             TRUST_TEST_KEYS: "false"
         allocate: |
+            cat /home/ubuntu/.config/gcloud/application_default_credentials.json
             ADDRESS $SPREAD_EXTERNAL_ADDRESS
         systems:
             - ubuntu-core-16-64:
