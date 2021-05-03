@@ -487,6 +487,9 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 				expResp["maintenance"] = map[string]interface{}{
 					"kind":    "system-restart",
 					"message": "system is restarting",
+					"value": map[string]interface{}{
+						"op": "reboot",
+					},
 				}
 
 				// daemon is not started, only check whether reboot was scheduled as expected
