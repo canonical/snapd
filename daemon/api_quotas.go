@@ -73,7 +73,7 @@ func getQuotaGroups(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	quotas, err := servicestate.AllQuotas(st)
 	if err != nil {
-		return InternalError("cannot get quotas: %v", err)
+		return InternalError(err.Error())
 	}
 
 	i := 0
@@ -115,7 +115,7 @@ func getQuotaGroupInfo(c *Command, r *http.Request, _ *auth.UserState) Response 
 		return NotFound("cannot find quota group %q", groupName)
 	}
 	if err != nil {
-		return InternalError("cannot get quota %q: %v", err)
+		return InternalError(err.Error())
 	}
 
 	res := quotaGroupResultJSON{
