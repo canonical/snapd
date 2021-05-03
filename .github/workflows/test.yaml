@@ -200,7 +200,7 @@ jobs:
     - name: Run spread tests
       run: |
           # Register a problem matcher to highlight spread failures
-          SPREAD_EXTERNAL_ADDRESS=10.48.54.1 spread external:ubuntu-core-20-64:tests
+          SPREAD_EXTERNAL_ADDRESS=10.48.54.1 spread external:ubuntu-core-20-64:tests/
 
   spread:
     needs: [unit-tests]
