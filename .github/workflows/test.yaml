@@ -208,8 +208,6 @@ jobs:
         # spread uses tags as delta reference
         fetch-depth: 0
     - name: Run spread tests
-      env:
-          SPREAD_GOOGLE_KEY: ${{ secrets.SPREAD_GOOGLE_KEY }}
       run: |
           # Register a problem matcher to highlight spread failures
           SPREAD_EXTERNAL_ADDRESS=10.48.54.1 spread -abend external:${{ matrix.system }}:tests/...
