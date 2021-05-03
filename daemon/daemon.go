@@ -713,7 +713,7 @@ type rebootAction int
 func (a rebootAction) String() string {
 	switch a {
 	case rebootReboot:
-		return "reboot"
+		return "system reboot"
 	case rebootHalt:
 		return "system halt"
 	case rebootPoweroff:
