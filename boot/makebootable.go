@@ -60,15 +60,20 @@ type BootableSet struct {
 // system bootable. It does not make a run system bootable, for that
 // functionality see MakeRunnableSystem, which is meant to be used at runtime
 // from UC20 install mode.
-func MakeBootableImage(model *asserts.Model, rootdir string, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
+// For a UC20 image a set of boot flags that will be set in the recovery
+// boot environment can be specified.
+func MakeBootableImage(model *asserts.Model, rootdir string, bootWith *BootableSet, bootFlags []string) error {
 	if model.Grade() == asserts.ModelGradeUnset {
+		if len(bootFlags) != 0 {
+			return fmt.Errorf("no boot flags support for UC16/18")
+		}
 		return makeBootable16(model, rootdir, bootWith)
 	}
 
 	if !bootWith.Recovery {
 		return fmt.Errorf("internal error: MakeBootableImage called at runtime, use MakeRunnableSystem instead")
 	}
-	return makeBootable20(model, rootdir, bootWith)
+	return makeBootable20(model, rootdir, bootWith, bootFlags)
 }
 
 // makeBootable16 setups the image filesystem for boot with UC16
@@ -148,7 +153,7 @@ func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	return nil
 }
 
-func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
+func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet, bootFlags []string) error {
 	// we can only make a single recovery system bootable right now
 	recoverySystems, err := filepath.Glob(filepath.Join(rootdir, "systems/*"))
 	if err != nil {
@@ -160,6 +165,13 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 
 	if bootWith.RecoverySystemLabel == "" {
 		return fmt.Errorf("internal error: recovery system label unset")
+	}
+
+	blVars := make(map[string]string, 3)
+	if len(bootFlags) != 0 {
+		if err := setImageBootFlags(bootFlags, blVars); err != nil {
+			return err
+		}
 	}
 
 	opts := &bootloader.Options{
@@ -185,11 +197,9 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	// bootloader, this env var is set on the ubuntu-seed root grubenv, and
 	// not on the recovery system grubenv in the systems/20200314/ subdir on
 	// ubuntu-seed
-	blVars := map[string]string{
-		"snapd_recovery_system": bootWith.RecoverySystemLabel,
-		// always set the mode as install
-		"snapd_recovery_mode": ModeInstall,
-	}
+	blVars["snapd_recovery_system"] = bootWith.RecoverySystemLabel
+	// always set the mode as install
+	blVars["snapd_recovery_mode"] = ModeInstall
 	if err := bl.SetBootVars(blVars); err != nil {
 		return fmt.Errorf("cannot set recovery environment: %v", err)
 	}

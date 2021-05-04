@@ -318,6 +318,25 @@ func InspectTryRecoverySystemOutcome(dev Device) (outcome TryRecoverySystemOutco
 			why: fmt.Sprintf("try recovery system is unset but status is %q", status),
 		}
 	case status == "tried":
+		// check that try_recovery_system ended up in the modeenv's
+		// CurrentRecoverySystems
+		m, err := ReadModeenv("")
+		if err != nil {
+			return TryRecoverySystemOutcomeFailure, trySystem, err
+		}
+
+		found := false
+		for _, sys := range m.CurrentRecoverySystems {
+			if sys == trySystem {
+				found = true
+			}
+		}
+		if !found {
+			return TryRecoverySystemOutcomeFailure, trySystem, &errInconsistentRecoverySystemState{
+				why: fmt.Sprintf("recovery system %q was tried, but is not present in the modeenv CurrentRecoverySystems", trySystem),
+			}
+		}
+
 		outcome = TryRecoverySystemOutcomeSuccess
 	}
 

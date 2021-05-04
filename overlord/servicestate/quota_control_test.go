@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
@@ -49,6 +50,25 @@ func (s *quotaControlSuite) SetUpTest(c *C) {
 
 	// we don't need the EnsureSnapServices ensure loop to run by default
 	servicestate.MockEnsuredSnapServices(s.mgr, true)
+
+	// we enable quota-groups by default
+	s.state.Lock()
+	defer s.state.Unlock()
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.quota-groups", true)
+	tr.Commit()
+}
+
+func (s *quotaControlSuite) TestCreateQuotaNotEnabled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.quota-groups", false)
+	tr.Commit()
+
+	// try to create an empty quota group
+	err := servicestate.CreateQuota(s.state, "foo", "", nil, quantity.SizeGiB)
+	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.quota-groups' to true`)
 }
 
 type quotaGroupState struct {
@@ -90,22 +110,22 @@ func checkQuotaState(c *C, st *state.State, exp map[string]quotaGroupState) {
 	}
 }
 
-func checkSvcAndSliceState(c *C, snapSvc string, group string, sliceMem quantity.Size) {
+func checkSvcAndSliceState(c *C, snapSvc string, sliceName string, sliceMem quantity.Size) {
 	// make sure the service file exists
 	svcFileName := filepath.Join(dirs.SnapServicesDir, "snap."+snapSvc+".service")
 	c.Assert(svcFileName, testutil.FilePresent)
 
 	if sliceMem != 0 {
 		// the service file should mention this slice
-		c.Assert(svcFileName, testutil.FileContains, fmt.Sprintf("\nSlice=snap.%s.slice\n", group))
+		c.Assert(svcFileName, testutil.FileContains, fmt.Sprintf("\nSlice=snap.%s.slice\n", sliceName))
 	} else {
-		c.Assert(svcFileName, Not(testutil.FileContains), fmt.Sprintf("Slice=snap.%s.slice", group))
+		c.Assert(svcFileName, Not(testutil.FileContains), fmt.Sprintf("Slice=snap.%s.slice", sliceName))
 	}
-	checkSliceState(c, group, sliceMem)
+	checkSliceState(c, sliceName, sliceMem)
 }
 
-func checkSliceState(c *C, group string, sliceMem quantity.Size) {
-	sliceFileName := filepath.Join(dirs.SnapServicesDir, "snap."+group+".slice")
+func checkSliceState(c *C, sliceName string, sliceMem quantity.Size) {
+	sliceFileName := filepath.Join(dirs.SnapServicesDir, "snap."+sliceName+".slice")
 	if sliceMem != 0 {
 		c.Assert(sliceFileName, testutil.FilePresent)
 		c.Assert(sliceFileName, testutil.FileContains, fmt.Sprintf("\nMemoryMax=%s\n", sliceMem.String()))
@@ -142,7 +162,7 @@ func (s *quotaControlSuite) TestCreateQuota(c *C) {
 
 	// we can't add the same snap to a different group though
 	err = servicestate.CreateQuota(s.state, "foo2", "", []string{"test-snap"}, quantity.SizeGiB)
-	c.Assert(err, ErrorMatches, `cannot use snap "test-snap" in group "foo2": snap already in quota group "foo"`)
+	c.Assert(err, ErrorMatches, `cannot add snap "test-snap" to group "foo2": snap already in quota group "foo"`)
 
 	// creating the same group again will fail
 	err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
@@ -178,6 +198,15 @@ func (s *quotaControlSuite) TestCreateSubGroupQuota(c *C) {
 	// create a quota group with no snaps to be the parent
 	err := servicestate.CreateQuota(s.state, "foo", "", nil, quantity.SizeGiB)
 	c.Assert(err, IsNil)
+
+	// trying to create a quota group with a non-existent parent group fails
+	err = servicestate.CreateQuota(s.state, "foo2", "foo-non-real", []string{"test-snap"}, quantity.SizeGiB)
+	c.Assert(err, ErrorMatches, `cannot create group under non-existent parent group "foo-non-real"`)
+
+	// trying to create a quota group with too big of a limit to fit inside the
+	// parent fails
+	err = servicestate.CreateQuota(s.state, "foo2", "foo", []string{"test-snap"}, 2*quantity.SizeGiB)
+	c.Assert(err, ErrorMatches, `sub-group memory limit of 2 GiB is too large to fit inside remaining quota space 1 GiB for parent group foo`)
 
 	// now we can create a sub-quota
 	err = servicestate.CreateQuota(s.state, "foo2", "foo", []string{"test-snap"}, quantity.SizeGiB)
@@ -235,7 +264,55 @@ func (s *quotaControlSuite) TestRemoveQuota(c *C) {
 	err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
 	c.Assert(err, IsNil)
 
+	// create 2 quota sub-groups too
+	err = servicestate.CreateQuota(s.state, "foo2", "foo", nil, quantity.SizeGiB/2)
+	c.Assert(err, IsNil)
+
+	err = servicestate.CreateQuota(s.state, "foo3", "foo", nil, quantity.SizeGiB/2)
+	c.Assert(err, IsNil)
+
 	// check that the quota groups was created in the state
+	checkQuotaState(c, st, map[string]quotaGroupState{
+		"foo": {
+			MemoryLimit: quantity.SizeGiB,
+			Snaps:       []string{"test-snap"},
+			SubGroups:   []string{"foo2", "foo3"},
+		},
+		"foo2": {
+			MemoryLimit: quantity.SizeGiB / 2,
+			ParentGroup: "foo",
+		},
+		"foo3": {
+			MemoryLimit: quantity.SizeGiB / 2,
+			ParentGroup: "foo",
+		},
+	})
+
+	// try removing the parent and it fails since it still has a sub-group
+	// under it
+	err = servicestate.RemoveQuota(s.state, "foo")
+	c.Assert(err, ErrorMatches, "cannot remove quota group with sub-groups, remove the sub-groups first")
+
+	// but we can remove the sub-group successfully first
+	err = servicestate.RemoveQuota(s.state, "foo3")
+	c.Assert(err, IsNil)
+
+	checkQuotaState(c, st, map[string]quotaGroupState{
+		"foo": {
+			MemoryLimit: quantity.SizeGiB,
+			Snaps:       []string{"test-snap"},
+			SubGroups:   []string{"foo2"},
+		},
+		"foo2": {
+			MemoryLimit: quantity.SizeGiB / 2,
+			ParentGroup: "foo",
+		},
+	})
+
+	// and we can remove the other sub-group
+	err = servicestate.RemoveQuota(s.state, "foo2")
+	c.Assert(err, IsNil)
+
 	checkQuotaState(c, st, map[string]quotaGroupState{
 		"foo": {
 			MemoryLimit: quantity.SizeGiB,
@@ -243,7 +320,7 @@ func (s *quotaControlSuite) TestRemoveQuota(c *C) {
 		},
 	})
 
-	// remove the quota from the state
+	// now we can remove the quota from the state
 	err = servicestate.RemoveQuota(s.state, "foo")
 	c.Assert(err, IsNil)
 
@@ -352,6 +429,18 @@ func (s *quotaControlSuite) TestUpdateQuotaSubGroupTooBig(c *C) {
 		"foo":  expFooGroupState,
 		"foo2": expFoo2GroupState,
 	})
+}
+
+func (s *quotaControlSuite) TestUpdateQuotaGroupNotEnabled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.quota-groups", false)
+	tr.Commit()
+
+	opts := servicestate.QuotaGroupUpdate{}
+	err := servicestate.UpdateQuota(s.state, "foo", opts)
+	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.quota-groups' to true`)
 }
 
 func (s *quotaControlSuite) TestUpdateQuotaChangeMemLimit(c *C) {
