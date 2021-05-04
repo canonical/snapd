@@ -952,6 +952,7 @@ func (m *DeviceManager) ensureInstalled() error {
 
 	// add the install-device hook before ensure-next-boot-to-run-mode if it
 	// exists in the snap
+	var installDevice *state.Task
 	if hasInstallDeviceHook {
 		summary := i18n.G("Run install-device hook")
 		hooksup := &hookstate.HookSetup{
@@ -959,12 +960,17 @@ func (m *DeviceManager) ensureInstalled() error {
 			Snap: model.Gadget(),
 			Hook: "install-device",
 		}
-		installDevice := hookstate.HookTask(m.state, summary, hooksup, nil)
+		installDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
 		addTask(installDevice)
 	}
 
 	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
 	addTask(restartSystem)
+
+	if installDevice != nil {
+		// reference used by snapctl reboot
+		installDevice.Set("restart-task", restartSystem.ID())
+	}
 
 	chg := m.state.NewChange("install-system", i18n.G("Install the system"))
 	chg.AddAll(state.NewTaskSet(tasks...))

@@ -25,7 +25,6 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
-	// "github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
@@ -187,8 +186,21 @@ func seededSystemFromModeenv() (*seededSystem, error) {
 	return seededSys, nil
 }
 
-func createSystemForModelFromValidatedSnaps(getInfo func(name string) (*snap.Info, bool, error), db asserts.RODatabase, label string, model *asserts.Model) (newFiles []string, dir string, err error) {
-	if isUC20 := model.Grade() != asserts.ModelGradeUnset; !isUC20 {
+// createSystemForModelFromValidatedSnaps creates a new recovery system for the
+// specified model with the specified label using the snaps in the database and
+// the getInfo function. getInfo is expected to return for a given snap name
+// a snap.Info for that snap and whether the snap is present is present in the
+// recovery system. The second bit is relevant for optional snaps - required and
+// essential snaps from the model must always be present in the recovery system,
+// and it is an error for an essential or required snap from the model to be
+// returned as not present in the recovery system from getInfo.
+// The function returns the directory of the new recovery system as well as the
+// set of absolute file paths to the new snap files that were written for the
+// recovery system - some snaps may be in the recovery system directory while
+// others may be in the common snaps directory shared between multiple recovery
+// systems on ubuntu-seed.
+func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, db asserts.RODatabase, getInfo func(name string) (*snap.Info, bool, error)) (newFiles []string, dir string, err error) {
+	if model.Grade() == asserts.ModelGradeUnset {
 		return nil, "", fmt.Errorf("cannot create a system for non UC20 model")
 	}
 
@@ -232,7 +244,7 @@ func createSystemForModelFromValidatedSnaps(getInfo func(name string) (*snap.Inf
 			return nil
 		}
 		// grab those
-		logger.Noticef("%v snap: %v", kind, name)
+		logger.Debugf("%v snap: %v", kind, name)
 		if !present {
 			return fmt.Errorf("internal error: %v snap %q not present", kind, name)
 		}
@@ -241,6 +253,8 @@ func createSystemForModelFromValidatedSnaps(getInfo func(name string) (*snap.Inf
 			return nil
 		}
 		// present locally
+		// TODO: for grade dangerous we could have a channel here which is not
+		//       the model channel, handle that here
 		optsSnaps = append(optsSnaps, &seedwriter.OptionsSnap{
 			Path: info.MountFile(),
 		})
@@ -248,16 +262,16 @@ func createSystemForModelFromValidatedSnaps(getInfo func(name string) (*snap.Inf
 		return nil
 	}
 
-	// snapd is implicitly needed
-	const snapdIsEssential = true
-	if err := getModelSnap("snapd", snapdIsEssential, ""); err != nil {
-		return nil, "", err
-	}
 	for _, sn := range model.EssentialSnaps() {
 		const essential = true
 		if err := getModelSnap(sn.SnapName(), essential, ""); err != nil {
 			return nil, "", err
 		}
+	}
+	// snapd is implicitly needed
+	const snapdIsEssential = true
+	if err := getModelSnap("snapd", snapdIsEssential, ""); err != nil {
+		return nil, "", err
 	}
 	for _, sn := range model.SnapsWithoutEssential() {
 		const essential = false
@@ -337,13 +351,13 @@ func createSystemForModelFromValidatedSnaps(getInfo func(name string) (*snap.Inf
 			return nil, recoverySystemDir, err
 		}
 		if complete {
-			logger.Noticef("snap processing complete")
+			logger.Debugf("snap processing for creating %q complete", label)
 			break
 		}
 	}
 
 	for _, warn := range w.Warnings() {
-		logger.Noticef("WARNING: %s", warn)
+		logger.Noticef("WARNING creating system %q: %s", label, warn)
 	}
 
 	unassertedSnaps, err := w.UnassertedSnaps()
@@ -359,10 +373,14 @@ func createSystemForModelFromValidatedSnaps(getInfo func(name string) (*snap.Inf
 	}
 
 	copySnap := func(name, src, dst string) error {
-		if osutil.FileExists(dst) && strings.HasPrefix(dst, assertedSnapsDir+"/") {
-			// unasserted snaps are not shared
+		// if the destination snap is in the asserted snaps dir and already
+		// exists, we don't need to copy it since asserted snaps are shared
+		if strings.HasPrefix(dst, assertedSnapsDir+"/") && osutil.FileExists(dst) {
 			return nil
 		}
+		// otherwise, unasserted snaps are not shared, so even if the
+		// destination already exists if it is not in the asserted snaps we
+		// should copy it
 		logger.Noticef("copying new seed snap %q from %v to %v", name, src, dst)
 		newFiles = append(newFiles, dst)
 		return osutil.CopyFile(src, dst, 0)
@@ -391,7 +409,7 @@ func createSystemForModelFromValidatedSnaps(getInfo func(name string) (*snap.Inf
 	if err := boot.MakeRecoverySystemBootable(boot.InitramfsUbuntuSeedDir, recoverySystemDirInRootDir, bootWith); err != nil {
 		return newFiles, recoverySystemDir, fmt.Errorf("cannot make candidate recovery system %q bootable: %v", label, err)
 	}
-	logger.Noticef("all done")
+	logger.Noticef("created recovery system %q", label)
 
 	return newFiles, recoverySystemDir, nil
 }

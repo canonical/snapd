@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"gopkg.in/check.v1"
@@ -42,6 +43,13 @@ type apiQuotaSuite struct {
 func (s *apiQuotaSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 	s.daemon(c)
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	tr := config.NewTransaction(st)
+	tr.Set("core", "experimental.quota-groups", true)
+	tr.Commit()
 }
 
 func mockQuotas(st *state.State, c *check.C) {

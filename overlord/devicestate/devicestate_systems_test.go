@@ -837,6 +837,14 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemSuccessfuly(c 
 	c.Assert(err, IsNil)
 	devicestate.SetBootOkRan(s.mgr, true)
 
+	modeenv := boot.Modeenv{
+		Mode: boot.ModeRun,
+		// the system is in CurrentRecoverySystems
+		CurrentRecoverySystems: []string{"29112019", "1234"},
+	}
+	err = modeenv.WriteTo("")
+	c.Assert(err, IsNil)
+
 	// system is considered successful, bootenv is cleared, the label is
 	// recorded in tried-systems
 	err = s.mgr.Ensure()
@@ -874,6 +882,43 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemSuccessfuly(c 
 	c.Assert(err, IsNil)
 	// the system was already there, no duplicate got appended
 	c.Assert(triedSystems, DeepEquals, []string{"1234"})
+}
+
+func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemMissingInModeenvUnhappy(c *C) {
+	err := s.bootloader.SetBootVars(map[string]string{
+		"try_recovery_system":    "1234",
+		"recovery_system_status": "tried",
+	})
+	c.Assert(err, IsNil)
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	modeenv := boot.Modeenv{
+		Mode: boot.ModeRun,
+		// the system is not in CurrentRecoverySystems
+		CurrentRecoverySystems: []string{"29112019"},
+	}
+	err = modeenv.WriteTo("")
+	c.Assert(err, IsNil)
+
+	// system is considered successful, bootenv is cleared, the label is
+	// recorded in tried-systems
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+
+	var triedSystems []string
+	s.state.Lock()
+	err = s.state.Get("tried-systems", &triedSystems)
+	c.Assert(err, Equals, state.ErrNoState)
+	// also logged
+	c.Check(s.logbuf.String(), testutil.Contains, `tried recovery system outcome error: recovery system "1234" was tried, but is not present in the modeenv CurrentRecoverySystems`)
+	s.state.Unlock()
 }
 
 func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemBad(c *C) {
@@ -943,6 +988,14 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemManyLabels(c *
 	s.state.Lock()
 	s.state.Set("tried-systems", []string{"0000", "1111"})
 	s.state.Unlock()
+
+	modeenv := boot.Modeenv{
+		Mode: boot.ModeRun,
+		// the system is in CurrentRecoverySystems
+		CurrentRecoverySystems: []string{"29112019", "1234"},
+	}
+	err = modeenv.WriteTo("")
+	c.Assert(err, IsNil)
 
 	// successful system label is appended
 	err = s.mgr.Ensure()
