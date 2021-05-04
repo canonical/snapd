@@ -54,23 +54,37 @@ var (
 
 func (custo *Customizations) validate(model *asserts.Model) error {
 	core20 := model.Grade() != asserts.ModelGradeUnset
-	switch {
-	case core20:
-		// TODO:UC20: consider supporting these with grade dangerous?
-		var unsupported []string
+	var unsupported []string
+	unsupportedConsoleConfDisable := func() {
 		if custo.ConsoleConf == "disabled" {
 			unsupported = append(unsupported, "console-conf disable")
 		}
+	}
+	unsupportedBootFlags := func() {
+		if len(custo.BootFlags) != 0 {
+			unsupported = append(unsupported, fmt.Sprintf("boot flags (%s)", strings.Join(custo.BootFlags, " ")))
+		}
+	}
+
+	kind := "UC16/18"
+	switch {
+	case core20:
+		kind = "UC20"
+		// TODO:UC20: consider supporting these with grade dangerous?
+		unsupportedConsoleConfDisable()
 		if custo.CloudInitUserData != "" {
 			unsupported = append(unsupported, "cloud-init user-data")
 		}
-		if len(unsupported) != 0 {
-			return fmt.Errorf("cannot support with UC20 model requested customizations: %s", strings.Join(unsupported, ", "))
-		}
 	case model.Classic():
-		if custo.ConsoleConf == "disabled" {
-			return fmt.Errorf("cannot support with classic model console-conf disable")
-		}
+		kind = "classic"
+		unsupportedConsoleConfDisable()
+		unsupportedBootFlags()
+	default:
+		// UC16/18
+		unsupportedBootFlags()
+	}
+	if len(unsupported) != 0 {
+		return fmt.Errorf("cannot support with %s model requested customizations: %s", kind, strings.Join(unsupported, ", "))
 	}
 	return nil
 }
@@ -174,6 +188,9 @@ func installCloudConfig(rootDir, gadgetDir string) error {
 func customizeImage(rootDir, defaultsDir string, custo *Customizations) error {
 	// customize with cloud-init user-data
 	if custo.CloudInitUserData != "" {
+		// See
+		// https://cloudinit.readthedocs.io/en/latest/topics/dir_layout.html
+		// https://cloudinit.readthedocs.io/en/latest/topics/datasources/nocloud.html
 		varCloudDir := filepath.Join(rootDir, "/var/lib/cloud/seed/nocloud-net")
 		if err := os.MkdirAll(varCloudDir, 0755); err != nil {
 			return err
@@ -479,7 +496,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
-	if err := boot.MakeBootableImage(model, bootRootDir, bootWith, nil); err != nil {
+	if err := boot.MakeBootableImage(model, bootRootDir, bootWith, opts.Customizations.BootFlags); err != nil {
 		return err
 	}
 

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -129,16 +129,19 @@ derived from the snap at SeedSnap.Path, then InfoDerived is called.
          /          Start       \
          |            |         |
          |            v         |
-   no    |   /    LocalSnaps    | no option
-   local |   |        |         | snaps
-   snaps |   |        v         |
+         |   /    LocalSnaps    |
+   no    |   |        |         |
+   local |   |        v         | no option
+   snaps |   |     SetInfo*     | snaps
+         |   |        |         |
+         |   |        v         |
          |   |    InfoDerived   |
          |   |        |         |
-         |   \        |         /
+         \   \        |         /
           >   > SnapsToDownload<
                       |     ^
                       v     |
-                   SetInfo  |
+                   SetInfo* |
                       |     | complete = false
                       v     /
                   Downloaded
@@ -150,6 +153,8 @@ derived from the snap at SeedSnap.Path, then InfoDerived is called.
                       |
                       v
                   WriteMeta
+
+  * = 0 or many calls (as needed)
 
 */
 type Writer struct {

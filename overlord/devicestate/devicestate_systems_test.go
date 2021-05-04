@@ -42,6 +42,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type mockedSystemSeed struct {
@@ -826,4 +827,194 @@ func (s *deviceMgrSystemsSuite) TestRebootUnhappy(c *C) {
 		c.Check(s.logbuf.String(), Equals, "")
 	}
 	c.Check(s.logbuf.String(), Equals, "")
+}
+
+func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemSuccessfuly(c *C) {
+	err := s.bootloader.SetBootVars(map[string]string{
+		"try_recovery_system":    "1234",
+		"recovery_system_status": "tried",
+	})
+	c.Assert(err, IsNil)
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	modeenv := boot.Modeenv{
+		Mode: boot.ModeRun,
+		// the system is in CurrentRecoverySystems
+		CurrentRecoverySystems: []string{"29112019", "1234"},
+	}
+	err = modeenv.WriteTo("")
+	c.Assert(err, IsNil)
+
+	// system is considered successful, bootenv is cleared, the label is
+	// recorded in tried-systems
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+
+	var triedSystems []string
+	s.state.Lock()
+	err = s.state.Get("tried-systems", &triedSystems)
+	c.Assert(err, IsNil)
+	c.Check(triedSystems, DeepEquals, []string{"1234"})
+	// also logged
+	c.Check(s.logbuf.String(), testutil.Contains, `tried recovery system "1234" was successful`)
+	s.state.Unlock()
+
+	// reset and run again, we need to populate boot variables again
+	err = s.bootloader.SetBootVars(map[string]string{
+		"try_recovery_system":    "1234",
+		"recovery_system_status": "tried",
+	})
+	c.Assert(err, IsNil)
+	devicestate.SetTriedSystemsRan(s.mgr, false)
+
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	s.state.Lock()
+	defer s.state.Unlock()
+	err = s.state.Get("tried-systems", &triedSystems)
+	c.Assert(err, IsNil)
+	// the system was already there, no duplicate got appended
+	c.Assert(triedSystems, DeepEquals, []string{"1234"})
+}
+
+func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemMissingInModeenvUnhappy(c *C) {
+	err := s.bootloader.SetBootVars(map[string]string{
+		"try_recovery_system":    "1234",
+		"recovery_system_status": "tried",
+	})
+	c.Assert(err, IsNil)
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	modeenv := boot.Modeenv{
+		Mode: boot.ModeRun,
+		// the system is not in CurrentRecoverySystems
+		CurrentRecoverySystems: []string{"29112019"},
+	}
+	err = modeenv.WriteTo("")
+	c.Assert(err, IsNil)
+
+	// system is considered successful, bootenv is cleared, the label is
+	// recorded in tried-systems
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+
+	var triedSystems []string
+	s.state.Lock()
+	err = s.state.Get("tried-systems", &triedSystems)
+	c.Assert(err, Equals, state.ErrNoState)
+	// also logged
+	c.Check(s.logbuf.String(), testutil.Contains, `tried recovery system outcome error: recovery system "1234" was tried, but is not present in the modeenv CurrentRecoverySystems`)
+	s.state.Unlock()
+}
+
+func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemBad(c *C) {
+	// after reboot, the recovery system status is still try
+	err := s.bootloader.SetBootVars(map[string]string{
+		"try_recovery_system":    "1234",
+		"recovery_system_status": "try",
+	})
+	c.Assert(err, IsNil)
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	// thus the system is considered bad, bootenv is cleared, and system is
+	// not recorded as successful
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+
+	var triedSystems []string
+	s.state.Lock()
+	err = s.state.Get("tried-systems", &triedSystems)
+	c.Assert(err, Equals, state.ErrNoState)
+	c.Check(s.logbuf.String(), testutil.Contains, `tried recovery system "1234" failed`)
+	s.state.Unlock()
+
+	// procure an inconsistent state, reset and run again
+	err = s.bootloader.SetBootVars(map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "try",
+	})
+	c.Assert(err, IsNil)
+	devicestate.SetTriedSystemsRan(s.mgr, false)
+
+	// clear the log buffer
+	s.logbuf.Reset()
+
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+	s.state.Lock()
+	defer s.state.Unlock()
+	err = s.state.Get("tried-systems", &triedSystems)
+	c.Assert(err, Equals, state.ErrNoState)
+	// bootenv got cleared
+	m, err = s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+	c.Check(s.logbuf.String(), testutil.Contains, `tried recovery system outcome error: try recovery system is unset but status is "try"`)
+	c.Check(s.logbuf.String(), testutil.Contains, `inconsistent outcome of a tried recovery system`)
+}
+
+func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemManyLabels(c *C) {
+	err := s.bootloader.SetBootVars(map[string]string{
+		"try_recovery_system":    "1234",
+		"recovery_system_status": "tried",
+	})
+	c.Assert(err, IsNil)
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.state.Lock()
+	s.state.Set("tried-systems", []string{"0000", "1111"})
+	s.state.Unlock()
+
+	modeenv := boot.Modeenv{
+		Mode: boot.ModeRun,
+		// the system is in CurrentRecoverySystems
+		CurrentRecoverySystems: []string{"29112019", "1234"},
+	}
+	err = modeenv.WriteTo("")
+	c.Assert(err, IsNil)
+
+	// successful system label is appended
+	err = s.mgr.Ensure()
+	c.Assert(err, IsNil)
+
+	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	var triedSystems []string
+	err = s.state.Get("tried-systems", &triedSystems)
+	c.Assert(err, IsNil)
+	c.Assert(triedSystems, DeepEquals, []string{"0000", "1111", "1234"})
+
+	c.Check(s.logbuf.String(), testutil.Contains, `tried recovery system "1234" was successful`)
 }
