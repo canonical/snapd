@@ -186,20 +186,22 @@ func seededSystemFromModeenv() (*seededSystem, error) {
 	return seededSys, nil
 }
 
+// getInfoFunc is expected to return for a given snap name a snap.Info for that
+// snap and whether the snap is present is present. The second bit is relevant
+// for non-essential snaps mentioned in the model, which if present and having
+// an 'optional' presence in the model, will be added to the recovery system.
+type getSnapInfoFunc func(name string) (info *snap.Info, snapIsPresent bool, err error)
+
 // createSystemForModelFromValidatedSnaps creates a new recovery system for the
 // specified model with the specified label using the snaps in the database and
-// the getInfo function. getInfo is expected to return for a given snap name
-// a snap.Info for that snap and whether the snap is present is present in the
-// recovery system. The second bit is relevant for optional snaps - required and
-// essential snaps from the model must always be present in the recovery system,
-// and it is an error for an essential or required snap from the model to be
-// returned as not present in the recovery system from getInfo.
+// the getInfo function.
+//
 // The function returns the directory of the new recovery system as well as the
 // set of absolute file paths to the new snap files that were written for the
 // recovery system - some snaps may be in the recovery system directory while
 // others may be in the common snaps directory shared between multiple recovery
 // systems on ubuntu-seed.
-func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, db asserts.RODatabase, getInfo func(name string) (*snap.Info, bool, error)) (newFiles []string, dir string, err error) {
+func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, db asserts.RODatabase, getInfo getSnapInfoFunc) (newFiles []string, dir string, err error) {
 	if model.Grade() == asserts.ModelGradeUnset {
 		return nil, "", fmt.Errorf("cannot create a system for non UC20 model")
 	}
@@ -230,8 +232,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		if !essential {
 			kind = "non-essential"
 			if nonEssentialPresence != "" {
-				kind = fmt.Sprintf("non-essential but %q",
-					nonEssentialPresence)
+				kind = fmt.Sprintf("non-essential but %q", nonEssentialPresence)
 			}
 		}
 		info, present, err := getInfo(name)

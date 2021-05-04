@@ -99,11 +99,11 @@ func (s *createSystemSuite) makeSnap(c *C, name string, rev snap.Revision) *snap
 		SnapID:   snapID,
 		Revision: rev,
 	}
-	// asserted?
 	where, info := snaptest.MakeTestSnapInfoWithFiles(c, snapYamls[name], snapFiles[name], si)
 	c.Assert(os.MkdirAll(filepath.Dir(info.MountFile()), 0755), IsNil)
 	c.Assert(os.Rename(where, info.MountFile()), IsNil)
 	if !rev.Unset() && !rev.Local() {
+		// snap is non local, generate relevant assertions
 		s.setupSnapDecl(c, info, "my-brand")
 		s.setupSnapRevision(c, info, "my-brand", rev)
 	}
