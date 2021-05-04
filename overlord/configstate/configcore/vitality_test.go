@@ -172,6 +172,17 @@ func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
 	tr.Set("core", "experimental.quota-groups", true)
 	tr.Commit()
 
+	systemctlCalls := 0
+	s.systemctlOutput = func(args ...string) []byte {
+		systemctlCalls++
+		if systemctlCalls == 1 {
+			c.Assert(args, DeepEquals, []string{"--version"})
+			return []byte("systemd 248\n+FOO +BAR\n")
+		}
+
+		return []byte("ActiveState=inactive")
+	}
+
 	// make a new quota group with this snap in it
 	err := servicestate.CreateQuota(s.state, "foogroup", "", []string{"test-snap"}, quantity.SizeMiB)
 	c.Assert(err, IsNil)

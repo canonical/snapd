@@ -71,6 +71,19 @@ func (s *quotaControlSuite) TestCreateQuotaNotEnabled(c *C) {
 	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.quota-groups' to true`)
 }
 
+func (s *quotaControlSuite) TestCreateQuotaSystemdTooOld(c *C) {
+	r := s.mockSystemctlCalls(c, systemctlCallsVersion(204))
+	defer r()
+
+	// try to create an empty quota group
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	err := servicestate.CreateQuota(s.state, "foo", "", nil, quantity.SizeGiB)
+	c.Assert(err, ErrorMatches, `systemd version too old: snap quotas requires systemd 205 and newer \(currently have 204\)`)
+
+}
+
 type quotaGroupState struct {
 	MemoryLimit quantity.Size
 	SubGroups   []string
@@ -175,10 +188,20 @@ func systemctlCallsForServiceRestart(name string) []expectedSystemctl {
 
 func systemctlCallsForCreateQuota(groupName, snapName string) []expectedSystemctl {
 	return join(
+		systemctlCallsVersion(248),
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
 		systemctlCallsForSliceRestart(groupName),
 		systemctlCallsForServiceRestart(snapName),
 	)
+}
+
+func systemctlCallsVersion(version int) []expectedSystemctl {
+	return []expectedSystemctl{
+		{
+			expArgs: []string{"--version"},
+			output:  fmt.Sprintf("systemd %d\n+FOO +BAR\n", version),
+		},
+	}
 }
 
 func join(calls ...[]expectedSystemctl) []expectedSystemctl {
@@ -192,8 +215,17 @@ func join(calls ...[]expectedSystemctl) []expectedSystemctl {
 
 func (s *quotaControlSuite) TestCreateQuota(c *C) {
 	r := s.mockSystemctlCalls(c, join(
-		// CreateQuota for foo
+		// CreateQuota for non-installed snap
+		systemctlCallsVersion(248),
+
+		// CreateQuota for foo - success
 		systemctlCallsForCreateQuota("foo", "test-snap"),
+
+		// CreateQuota for foo2 with overlapping snap already in foo
+		systemctlCallsVersion(248),
+
+		// CreateQuota for foo again - fails
+		systemctlCallsVersion(248),
 	))
 	defer r()
 
@@ -232,8 +264,16 @@ func (s *quotaControlSuite) TestCreateQuota(c *C) {
 
 func (s *quotaControlSuite) TestCreateSubGroupQuota(c *C) {
 	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		systemctlCallsVersion(248),
+
+		// CreateQuota for foo2 - fails
+		systemctlCallsVersion(248),
+		systemctlCallsVersion(248),
+
 		// CreateQuota for foo2 - we don't write anything for the first quota
 		// since there are no snaps in the quota to track
+		systemctlCallsVersion(248),
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
 		systemctlCallsForSliceRestart("foo"),
 		systemctlCallsForSliceRestart("foo-foo2"),
@@ -287,6 +327,11 @@ func (s *quotaControlSuite) TestRemoveQuota(c *C) {
 	r := s.mockSystemctlCalls(c, join(
 		// CreateQuota for foo
 		systemctlCallsForCreateQuota("foo", "test-snap"),
+
+		// for CreateQuota foo2
+		systemctlCallsVersion(248),
+		// for CreateQuota foo3
+		systemctlCallsVersion(248),
 
 		// RemoveQuota for foo2 - no daemon reload initially because
 		// we didn't modify anything, as there are no snaps in foo2 so we don't
@@ -405,8 +450,12 @@ func (s *quotaControlSuite) TestUpdateQuotaSubGroupTooBig(c *C) {
 		systemctlCallsForCreateQuota("foo-foo2", "test-snap2"),
 
 		// UpdateQuota for foo2 - just the slice changes
+		systemctlCallsVersion(248),
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
 		systemctlCallsForSliceRestart("foo-foo2"),
+
+		// UpdateQuota for foo2 which fails
+		systemctlCallsVersion(248),
 	))
 	defer r()
 
@@ -503,6 +552,7 @@ func (s *quotaControlSuite) TestUpdateQuotaChangeMemLimit(c *C) {
 		systemctlCallsForCreateQuota("foo", "test-snap"),
 
 		// UpdateQuota for foo - just the slice changes
+		systemctlCallsVersion(248),
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
 		systemctlCallsForSliceRestart("foo"),
 	))
@@ -549,6 +599,7 @@ func (s *quotaControlSuite) TestUpdateQuotaAddSnap(c *C) {
 
 		// UpdateQuota with just test-snap2 restarted since the group already
 		// exists
+		systemctlCallsVersion(248),
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
 		systemctlCallsForServiceRestart("test-snap2"),
 	))
@@ -604,6 +655,9 @@ func (s *quotaControlSuite) TestUpdateQuotaAddSnapAlreadyInOtherGroup(c *C) {
 
 		// CreateQuota for foo2
 		systemctlCallsForCreateQuota("foo2", "test-snap2"),
+
+		// UpdateQuota for foo which fails
+		systemctlCallsVersion(248),
 	))
 	defer r()
 

@@ -177,6 +177,16 @@ func quotaGroupsAvailable(st *state.State) error {
 	if !enableQuotaGroups {
 		return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.quota-groups' to true")
 	}
+
+	// check if the systemd version is too old
+	systemdVersion, err := systemd.Version()
+	if err != nil {
+		return err
+	}
+
+	if systemdVersion < 205 {
+		return fmt.Errorf("systemd version too old: snap quotas requires systemd 205 and newer (currently have %d)", systemdVersion)
+	}
 	return nil
 }
 

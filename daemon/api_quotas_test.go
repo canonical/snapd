@@ -202,6 +202,11 @@ func (s *systemsSuite) TestPostQuotaRequiresRoot(c *check.C) {
 }
 
 func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
+	s.SysctlBufs = [][]byte{
+		[]byte("systemd 248\n+FOO +BAR\n"),
+		[]byte("systemd 248\n+FOO +BAR\n"),
+		[]byte("systemd 248\n+FOO +BAR\n"),
+	}
 	st := s.d.Overlord().State()
 	st.Lock()
 	mockQuotas(st, c)
@@ -233,6 +238,11 @@ func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
 }
 
 func (s *apiQuotaSuite) TestGetQuota(c *check.C) {
+	s.SysctlBufs = [][]byte{
+		[]byte("systemd 248\n+FOO +BAR\n"),
+		[]byte("systemd 248\n+FOO +BAR\n"),
+		[]byte("systemd 248\n+FOO +BAR\n"),
+	}
 	st := s.d.Overlord().State()
 	st.Lock()
 	mockQuotas(st, c)
@@ -252,6 +262,11 @@ func (s *apiQuotaSuite) TestGetQuota(c *check.C) {
 }
 
 func (s *apiQuotaSuite) TestGetQuotaInvalidName(c *check.C) {
+	s.SysctlBufs = [][]byte{
+		[]byte("systemd 248\n+FOO +BAR\n"),
+		[]byte("systemd 248\n+FOO +BAR\n"),
+		[]byte("systemd 248\n+FOO +BAR\n"),
+	}
 	st := s.d.Overlord().State()
 	st.Lock()
 	mockQuotas(st, c)

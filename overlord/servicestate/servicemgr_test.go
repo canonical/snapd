@@ -229,7 +229,7 @@ func (s *baseServiceMgrTestSuite) mockSystemctlCalls(c *C, expCalls []expectedSy
 		allSystemctlCalls = append(allSystemctlCalls, args)
 		if systemctlCalls < len(expCalls) {
 			res := expCalls[systemctlCalls]
-			c.Assert(args, DeepEquals, res.expArgs)
+			c.Check(args, DeepEquals, res.expArgs)
 			systemctlCalls++
 			return []byte(res.output), res.err
 		}
