@@ -253,6 +253,87 @@ func (s *deviceMgrBaseSuite) seeding() {
 	chg.SetStatus(state.DoingStatus)
 }
 
+func (s *deviceMgrBaseSuite) makeModelAssertionInState(c *C, brandID, model string, extras map[string]interface{}) *asserts.Model {
+	modelAs := s.brands.Model(brandID, model, extras)
+
+	s.setupBrands(c)
+	assertstatetest.AddMany(s.state, modelAs)
+	return modelAs
+}
+
+func (s *deviceMgrBaseSuite) setPCModelInState(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc",
+		Serial: "serialserialserial",
+	})
+}
+
+func (s *deviceMgrBaseSuite) setupBrands(c *C) {
+	assertstatetest.AddMany(s.state, s.brands.AccountsAndKeys("my-brand")...)
+	otherAcct := assertstest.NewAccount(s.storeSigning, "other-brand", map[string]interface{}{
+		"account-id": "other-brand",
+	}, "")
+	assertstatetest.AddMany(s.state, otherAcct)
+}
+
+func (s *deviceMgrBaseSuite) setupSnapDecl(c *C, info *snap.Info, publisherID string) {
+	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
+		"series":       "16",
+		"snap-name":    info.SnapName(),
+		"snap-id":      info.SnapID,
+		"publisher-id": publisherID,
+		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	assertstatetest.AddMany(s.state, snapDecl)
+}
+
+func (s *deviceMgrBaseSuite) setupSnapRevision(c *C, info *snap.Info, publisherID string, revision snap.Revision) {
+	sha3_384, size, err := asserts.SnapFileSHA3_384(info.MountFile())
+	c.Assert(err, IsNil)
+
+	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
+		"snap-sha3-384": sha3_384,
+		"snap-size":     fmt.Sprintf("%d", size),
+		"snap-id":       info.SnapID,
+		"developer-id":  publisherID,
+		"snap-revision": revision.String(),
+		"timestamp":     time.Now().UTC().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	assertstatetest.AddMany(s.state, snapRev)
+}
+
+func makeSerialAssertionInState(c *C, brands *assertstest.SigningAccounts, st *state.State, brandID, model, serialN string) *asserts.Serial {
+	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
+	c.Assert(err, IsNil)
+	serial, err := brands.Signing(brandID).Sign(asserts.SerialType, map[string]interface{}{
+		"brand-id":            brandID,
+		"model":               model,
+		"serial":              serialN,
+		"device-key":          string(encDevKey),
+		"device-key-sha3-384": devKey.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, serial)
+	c.Assert(err, IsNil)
+	return serial.(*asserts.Serial)
+}
+
+func (s *deviceMgrBaseSuite) makeSerialAssertionInState(c *C, brandID, model, serialN string) *asserts.Serial {
+	return makeSerialAssertionInState(c, s.brands, s.state, brandID, model, serialN)
+}
+
 func (s *deviceMgrSuite) TestDeviceManagerSetTimeOnce(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -399,30 +480,6 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureSeededHappyWithModeenv(c *C) {
 	c.Check(n, Equals, 1)
 }
 
-func (s *deviceMgrBaseSuite) makeModelAssertionInState(c *C, brandID, model string, extras map[string]interface{}) *asserts.Model {
-	modelAs := s.brands.Model(brandID, model, extras)
-
-	s.setupBrands(c)
-	assertstatetest.AddMany(s.state, modelAs)
-	return modelAs
-}
-
-func (s *deviceMgrBaseSuite) setPCModelInState(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	s.makeModelAssertionInState(c, "canonical", "pc", map[string]interface{}{
-		"architecture": "amd64",
-		"kernel":       "pc-kernel",
-		"gadget":       "pc",
-	})
-
-	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand:  "canonical",
-		Model:  "pc",
-		Serial: "serialserialserial",
-	})
-}
-
 func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkBootloaderHappy(c *C) {
 	s.setPCModelInState(c)
 
@@ -525,42 +582,6 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkError(c *C) {
 
 	err := s.mgr.Ensure()
 	c.Assert(err, ErrorMatches, "devicemgr: cannot mark boot successful: bootloader err")
-}
-
-func (s *deviceMgrBaseSuite) setupBrands(c *C) {
-	assertstatetest.AddMany(s.state, s.brands.AccountsAndKeys("my-brand")...)
-	otherAcct := assertstest.NewAccount(s.storeSigning, "other-brand", map[string]interface{}{
-		"account-id": "other-brand",
-	}, "")
-	assertstatetest.AddMany(s.state, otherAcct)
-}
-
-func (s *deviceMgrBaseSuite) setupSnapDecl(c *C, info *snap.Info, publisherID string) {
-	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
-		"series":       "16",
-		"snap-name":    info.SnapName(),
-		"snap-id":      info.SnapID,
-		"publisher-id": publisherID,
-		"timestamp":    time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	assertstatetest.AddMany(s.state, snapDecl)
-}
-
-func (s *deviceMgrBaseSuite) setupSnapRevision(c *C, info *snap.Info, publisherID string, revision snap.Revision) {
-	sha3_384, size, err := asserts.SnapFileSHA3_384(info.MountFile())
-	c.Assert(err, IsNil)
-
-	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
-		"snap-sha3-384": sha3_384,
-		"snap-size":     fmt.Sprintf("%d", size),
-		"snap-id":       info.SnapID,
-		"developer-id":  publisherID,
-		"snap-revision": revision.String(),
-		"timestamp":     time.Now().UTC().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	assertstatetest.AddMany(s.state, snapRev)
 }
 
 func fakeMyModel(extra map[string]interface{}) *asserts.Model {
@@ -790,27 +811,6 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	otherKrnlInfo.InstanceKey = "foo"
 	err = devicestate.CheckGadgetOrKernel(s.state, otherKrnlInfo, nil, nil, snapstate.Flags{}, deviceCtx)
 	c.Check(err, ErrorMatches, `cannot install "krnl_foo", parallel installation of kernel or gadget snaps is not supported`)
-}
-
-func makeSerialAssertionInState(c *C, brands *assertstest.SigningAccounts, st *state.State, brandID, model, serialN string) *asserts.Serial {
-	encDevKey, err := asserts.EncodePublicKey(devKey.PublicKey())
-	c.Assert(err, IsNil)
-	serial, err := brands.Signing(brandID).Sign(asserts.SerialType, map[string]interface{}{
-		"brand-id":            brandID,
-		"model":               model,
-		"serial":              serialN,
-		"device-key":          string(encDevKey),
-		"device-key-sha3-384": devKey.PublicKey().ID(),
-		"timestamp":           time.Now().Format(time.RFC3339),
-	}, nil, "")
-	c.Assert(err, IsNil)
-	err = assertstate.Add(st, serial)
-	c.Assert(err, IsNil)
-	return serial.(*asserts.Serial)
-}
-
-func (s *deviceMgrBaseSuite) makeSerialAssertionInState(c *C, brandID, model, serialN string) *asserts.Serial {
-	return makeSerialAssertionInState(c, s.brands, s.state, brandID, model, serialN)
 }
 
 func (s *deviceMgrSuite) TestCanAutoRefreshOnCore(c *C) {
