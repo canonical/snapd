@@ -25,8 +25,9 @@ import (
 	"net/http"
 	"strings"
 
-	main "github.com/snapcore/snapd/cmd/snap"
 	"gopkg.in/check.v1"
+
+	main "github.com/snapcore/snapd/cmd/snap"
 )
 
 type quotaSuite struct {
