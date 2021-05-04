@@ -181,6 +181,10 @@ func SetInstalledRan(m *DeviceManager, b bool) {
 	m.ensureInstalledRan = b
 }
 
+func SetTriedSystemsRan(m *DeviceManager, b bool) {
+	m.ensureTriedRecoverySystemRan = b
+}
+
 func StartTime() time.Time {
 	return startTime
 }
