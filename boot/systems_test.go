@@ -630,7 +630,8 @@ func (s *systemsSuite) TestInspectRecoverySystemOutcomeHappySuccess(c *C) {
 	c.Assert(err, IsNil)
 
 	m := boot.Modeenv{
-		Mode:                   boot.ModeRun,
+		Mode: boot.ModeRun,
+		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"29112019", "1234"},
 	}
 	err = m.WriteTo("")
