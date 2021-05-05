@@ -8,7 +8,7 @@ details: |
     The test also checks the interface connection and disconnection works properly.
 
 prepare: |
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-adb-support
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-framebuffer
 
 execute: |
     echo "The plug is not connected by default"

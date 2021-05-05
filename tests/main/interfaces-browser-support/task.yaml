@@ -34,7 +34,7 @@ prepare: |
     echo "Given a snap declaring a plug on browser-support with allow-sandbox set to $ALLOW_SANDBOX is installed"
     sed "s/@ALLOW_SANDBOX@/$ALLOW_SANDBOX/" browser-support-consumer/meta/snap.yaml.in > browser-support-consumer/meta/snap.yaml
     chmod 644 browser-support-consumer/meta/snap.yaml
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-adb-support
+    "$TESTSTOOLS"/snaps-state install-local browser-support-consumer
 
 restore: |
     rm -f /var/tmp/test
