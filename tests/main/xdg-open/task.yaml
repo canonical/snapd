@@ -49,9 +49,6 @@ restore: |
     fi
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
-
     ensure_xdg_open_output() {
         rm -f /tmp/xdg-open-output
         tests.session -u test exec test-snapd-desktop.cmd /usr/bin/xdg-open "$1"
