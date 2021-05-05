@@ -95,7 +95,7 @@ func requestLoginWith2faRetry(cli *client.Client, email, password string) error 
 }
 
 func requestLogin(cli *client.Client, email string) error {
-	fmt.Fprint(Stdout, fmt.Sprintf(i18n.G("Password of %q: "), email))
+	fmt.Fprintf(Stdout, i18n.G("Password of %q: "), email)
 	password, err := ReadPassword(0)
 	fmt.Fprint(Stdout, "\n")
 	if err != nil {
