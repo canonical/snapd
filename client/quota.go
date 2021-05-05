@@ -78,8 +78,7 @@ func (client *Client) GetQuotaGroup(groupName string) (*QuotaGroupResult, error)
 	var res *QuotaGroupResult
 	path := fmt.Sprintf("/v2/quotas/%s", groupName)
 	if _, err := client.doSync("GET", path, nil, nil, nil, &res); err != nil {
-		fmt := "cannot get quota group: %w"
-		return nil, xerrors.Errorf(fmt, err)
+		return nil, err
 	}
 	return res, nil
 }
@@ -98,8 +97,7 @@ func (client *Client) RemoveQuotaGroup(groupName string) error {
 		return err
 	}
 	if _, err := client.doSync("POST", "/v2/quotas", nil, nil, &body, nil); err != nil {
-		fmt := "cannot remove quota group: %w"
-		return xerrors.Errorf(fmt, err)
+		return err
 	}
 	return nil
 }
@@ -107,8 +105,7 @@ func (client *Client) RemoveQuotaGroup(groupName string) error {
 func (client *Client) Quotas() ([]*QuotaGroupResult, error) {
 	var res []*QuotaGroupResult
 	if _, err := client.doSync("GET", "/v2/quotas", nil, nil, nil, &res); err != nil {
-		fmt := "cannot get quota groups: %w"
-		return nil, xerrors.Errorf(fmt, err)
+		return nil, err
 	}
 	return res, nil
 }

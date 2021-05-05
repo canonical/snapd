@@ -62,7 +62,7 @@ execute: |
         transition_to_recover_mode "$label"
 
     elif [ "$SPREAD_REBOOT" == "1" ]; then
-            echo "We should be back in run mode again"
+        echo "We should be back in run mode again"
         test-snapd-curl.curl -s --unix-socket /run/snapd.socket http://localhost/v2/system-info > system-info
         jq -r '.result["system-mode"]' < system-info | MATCH 'run'
 
@@ -71,6 +71,11 @@ execute: |
         test -n "$label"
 
         snap debug boot-vars --uc20 --root-dir /run/mnt/ubuntu-seed > recovery-vars
-        MATCH recovery_system_status=tried < recovery-vars
-        MATCH "try_recovery_system=$label" < recovery-vars
+        echo "Boot variables have been cleared"
+        MATCH 'recovery_system_status=$' < recovery-vars
+        MATCH 'try_recovery_system=$' < recovery-vars
+
+        echo "Tried system is recorded in the state"
+        fromstate=$(python3 -c 'import json, sys; print(" ".join(json.load(sys.stdin)["data"]["tried-systems"]))' < /var/lib/snapd/state.json)
+        test "$fromstate" = "$label"
     fi
