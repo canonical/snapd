@@ -38,8 +38,6 @@ const networkSetupControlConnectedPlugAppArmor = `
 /usr/sbin/netplan ixr,
 # core18+ has /usr/sbin/netplan as a symlink to this script
 /usr/share/netplan/netplan.script ixr,
-# the C binary is used to generate actual configuration from the YAML
-/usr/lib/netplan/generate Uxr,
 # netplan related files
 /usr/share/netplan/ r,
 /usr/share/netplan/** r,
