@@ -3,8 +3,9 @@ summary: |
   devices by simulating how udev calls snap-device-helper with prototypical 
   paths, including the various types of nvme devices.
 
-# fedora-32, fedora-33, debian-sid, arch use cgroupv2, which we don't support
-systems: [-fedora-32-*, -fedora-33-*, -debian-sid-*, -arch-*]
+# fedora-32, fedora-33, debian-sid, arch, opensuse TW use cgroupv2, which we
+# don't support
+systems: [-fedora-32-*, -fedora-33-*, -debian-sid-*, -arch-*, -opensuse-tumbleweed-*]
 
 execute: |
   # make a fake snap devices cgroup
