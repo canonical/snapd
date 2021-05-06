@@ -162,9 +162,9 @@ type fakeStore struct {
 	fakeCurrentProgress int
 	fakeTotalProgress   int
 	// snap -> error map for simulating download errors
-	downloadError       map[string]error
-	state               *state.State
-	seenPrivacyKeys     map[string]bool
+	downloadError   map[string]error
+	state           *state.State
+	seenPrivacyKeys map[string]bool
 }
 
 func (f *fakeStore) pokeStateLock() {
