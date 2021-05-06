@@ -5501,7 +5501,7 @@ func (s *snapmgrTestSuite) TestRefreshDoesntRestoreRevisionConfig(c *C) {
 	c.Assert(res, Equals, "100")
 }
 
-func (s *snapmgrTestSuite) TestUpdateWithDefaultProviderConsumerFails(c *C) {
+func (s *snapmgrTestSuite) TestUpdateContentProviderDownloadFailure(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
