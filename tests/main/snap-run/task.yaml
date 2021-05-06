@@ -33,7 +33,7 @@ execute: |
         snap install strace-static
     fi
     # the strace on opensuse is too old
-    if os.query is-opensuse; then
+    if os.query is-opensuse && ! os.query is-opensuse-tumbleweed; then
         snap install strace-static
     fi
     # install the snap if no system strace is found
