@@ -90,9 +90,6 @@ restore: |
     rm -rf /usr/lib32/nvidia-123
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     "$TESTSTOOLS"/snaps-state install-local test-snapd-policy-app-consumer
 
     echo "When the interface is connected"

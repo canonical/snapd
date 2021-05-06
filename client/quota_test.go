@@ -23,8 +23,9 @@ import (
 	"encoding/json"
 	"io/ioutil"
 
-	"github.com/snapcore/snapd/client"
 	"gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/client"
 )
 
 func (cs *clientSuite) TestCreateQuotaGroupInvalidName(c *check.C) {
@@ -91,7 +92,7 @@ func (cs *clientSuite) TestGetQuotaGroupError(c *check.C) {
 	cs.status = 500
 	cs.rsp = `{"type": "error"}`
 	_, err := cs.cli.GetQuotaGroup("foo")
-	c.Check(err, check.ErrorMatches, `cannot get quota group: server error: "Internal Server Error"`)
+	c.Check(err, check.ErrorMatches, `server error: "Internal Server Error"`)
 }
 
 func (cs *clientSuite) TestRemoveQuotaGroup(c *check.C) {
@@ -119,5 +120,5 @@ func (cs *clientSuite) TestRemoveQuotaGroupError(c *check.C) {
 	cs.status = 500
 	cs.rsp = `{"type": "error"}`
 	err := cs.cli.RemoveQuotaGroup("foo")
-	c.Check(err, check.ErrorMatches, `cannot remove quota group: server error: "Internal Server Error"`)
+	c.Check(err, check.ErrorMatches, `server error: "Internal Server Error"`)
 }

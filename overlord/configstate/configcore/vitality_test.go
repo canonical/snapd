@@ -30,12 +30,12 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -168,14 +168,16 @@ func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
 		SnapType: "app",
 	})
 
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.quota-groups", true)
+	tr.Commit()
+
 	// make a new quota group with this snap in it
-	grp, err := quota.NewGroup("foogroup", quantity.SizeMiB)
+	err := servicestate.CreateQuota(s.state, "foogroup", "", []string{"test-snap"}, quantity.SizeMiB)
 	c.Assert(err, IsNil)
 
-	grp.Snaps = []string{"test-snap"}
-
-	_, err = servicestate.PatchQuotasState(s.state, grp)
-	c.Assert(err, IsNil)
+	// CreateQuota uses systemctl, but we don't care about that here
+	s.systemctlArgs = nil
 
 	s.state.Unlock()
 
