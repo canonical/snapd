@@ -3666,3 +3666,38 @@ volumes:
 	defer s.state.Unlock()
 	c.Assert(hookstate.HookTask(s.state, "", hooksup, contextData), NotNil)
 }
+
+func (s *snapmgrTestSuite) TestInstallContentPrerequisiteFailure(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// trigger download error on content provider
+	s.fakeStore.downloadError["snap-content-slot"] = fmt.Errorf("boom")
+
+	snapstate.ReplaceStore(s.state, contentStore{fakeStore: s.fakeStore, state: s.state})
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
+
+	chg := s.state.NewChange("install", "install a snap")
+	opts := &snapstate.RevisionOptions{Channel: "stable", Revision: snap.R(42)}
+	ts, err := snapstate.Install(context.Background(), s.state, "snap-content-plug", opts, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Download snap \"snap-content-slot\" \\(11\\) from channel \"stable\" \\(boom\\).*")
+	c.Assert(chg.IsReady(), Equals, true)
+
+	var snapSt snapstate.SnapState
+	// XXX: content provider not installed
+	c.Assert(snapstate.Get(s.state, "snap-content-slot", &snapSt), Equals, state.ErrNoState)
+
+	// but content consumer gets installed
+	c.Assert(snapstate.Get(s.state, "snap-content-plug", &snapSt), IsNil)
+	c.Check(snapSt.Current, Equals, snap.R(42))
+}

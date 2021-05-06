@@ -5508,7 +5508,8 @@ func (s *snapmgrTestSuite) TestUpdateWithDefaultProviderConsumerFails(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.fakeStore.downloadError["snap-content-plug"] = fmt.Errorf("boom")
+	// trigger download error on content provider
+	s.fakeStore.downloadError["snap-content-slot"] = fmt.Errorf("boom")
 
 	snapstate.ReplaceStore(s.state, contentStore{fakeStore: s.fakeStore, state: s.state})
 
@@ -5554,13 +5555,16 @@ func (s *snapmgrTestSuite) TestUpdateWithDefaultProviderConsumerFails(c *C) {
 	s.state.Lock()
 
 	// content consumer snap fails to download
-	c.Assert(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Download snap \"snap-content-plug\" \\(11\\) from channel \"latest/edge\" \\(boom\\).*")
+	c.Assert(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Download snap \"snap-content-slot\" \\(11\\) from channel \"latest/stable\" \\(boom\\).*")
 	c.Assert(chg.IsReady(), Equals, true)
 
 	var snapSt snapstate.SnapState
+	// content provider not updated
 	c.Assert(snapstate.Get(s.state, "snap-content-slot", &snapSt), IsNil)
+	c.Check(snapSt.Current, Equals, snap.R(1))
 
-	// XXX: content provider got updated to the new revision
+	c.Assert(snapstate.Get(s.state, "snap-content-plug", &snapSt), IsNil)
+	// XXX: content consumer got updated to the new revision
 	c.Check(snapSt.Current, Equals, snap.R(11))
 }
 
