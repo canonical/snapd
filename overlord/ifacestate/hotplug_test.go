@@ -274,15 +274,6 @@ func (s *hotplugSuite) TearDownTest(c *C) {
 	s.mockSnapCmd.Restore()
 }
 
-func testPlugSlotRefs(c *C, t *state.Task, plugSnap, plugName, slotSnap, slotName string) {
-	var plugRef interfaces.PlugRef
-	var slotRef interfaces.SlotRef
-	c.Assert(t.Get("plug", &plugRef), IsNil)
-	c.Assert(t.Get("slot", &slotRef), IsNil)
-	c.Assert(plugRef, DeepEquals, interfaces.PlugRef{Snap: plugSnap, Name: plugName})
-	c.Assert(slotRef, DeepEquals, interfaces.SlotRef{Snap: slotSnap, Name: slotName})
-}
-
 func testHotplugTaskAttrs(c *C, t *state.Task, ifaceName, hotplugKey string) {
 	iface, key, err := ifacestate.GetHotplugAttrs(t)
 	c.Assert(err, IsNil)
