@@ -121,16 +121,6 @@ var (
 	mockStateContent = `{"data":{"auth":{"users":[{"id":1,"name":"mvo"}],"macaroon-key":"not-a-cookie","last-id":1}},"some":{"other":"stuff"}}`
 )
 
-// because 1.9 vet does not like xerrors.Errorf(".. %w")
-type mockedWrappedError struct {
-	err error
-	fmt string
-}
-
-func (m *mockedWrappedError) Unwrap() error { return m.err }
-
-func (m *mockedWrappedError) Error() string { return fmt.Sprintf(m.fmt, m.err) }
-
 func (s *initramfsMountsSuite) setupSeed(c *C, modelAssertTime time.Time, gadgetSnapFiles [][]string) {
 	// pretend /run/mnt/ubuntu-seed has a valid seed
 	s.seedDir = boot.InitramfsUbuntuSeedDir
@@ -3168,7 +3158,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRecoverModeHappyEncrypted(c *C
 func checkDegradedJSON(c *C, exp map[string]interface{}) {
 	b, err := ioutil.ReadFile(filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json"))
 	c.Assert(err, IsNil)
-	degradedJSONObj := make(map[string]interface{}, 0)
+	degradedJSONObj := make(map[string]interface{})
 	err = json.Unmarshal(b, &degradedJSONObj)
 	c.Assert(err, IsNil)
 

@@ -28,14 +28,13 @@ import (
 	"text/tabwriter"
 
 	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
 type cmdDebugState struct {
 	timeMixin
-
-	st *state.State
 
 	Changes  bool   `long:"changes"`
 	TaskID   string `long:"task"`
@@ -289,7 +288,7 @@ func (c *cmdDebugState) Execute(args []string) error {
 	if c.TaskID != "" {
 		cmds = append(cmds, "--task=")
 	}
-	if c.IsSeeded != false {
+	if c.IsSeeded {
 		cmds = append(cmds, "--is-seeded")
 	}
 	if len(cmds) > 1 {

@@ -34,18 +34,16 @@ execute: |
     echo And is gone afterwards
     not snap list "$SNAP_NAME"
 
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     echo And all its binaries
-    N="$(find $SNAP_MOUNT_DIR/bin -name "$SNAP_NAME*"|wc -l)"
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    N=$(find "$SNAP_MOUNT_DIR/bin" -name "$SNAP_NAME*" | wc -l)
     if [ "$N" -ne 0 ]; then
        echo "Some binaries are not cleaned"
        exit 1
     fi
 
     echo And all its services
-    N="$(find /etc/systemd/system -name "snap.$SNAP_NAME*" |wc -l)"
+    N=$(find /etc/systemd/system -name "snap.$SNAP_NAME*" | wc -l)
     if [ "$N" -ne 0 ]; then
        echo "Some services are not cleaned"
        exit 1

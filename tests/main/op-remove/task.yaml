@@ -1,11 +1,9 @@
 summary: Check snap remove operations.
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     snap_revisions(){
         local snap_name=$1
+        SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
         echo -n "$(find "$SNAP_MOUNT_DIR/$snap_name/" -maxdepth 1 -type d -name "x*" | wc -l)"
     }
 
