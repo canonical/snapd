@@ -277,7 +277,7 @@ func (s *hotplugSuite) TearDownTest(c *C) {
 func testHotplugTaskAttrs(c *C, t *state.Task, ifaceName, hotplugKey string) {
 	iface, key, err := ifacestate.GetHotplugAttrs(t)
 	c.Assert(err, IsNil)
-	c.Assert(key, Equals, hotplugKey)
+	c.Assert(key, Equals, snap.HotplugKey(hotplugKey))
 	c.Assert(iface, Equals, ifaceName)
 }
 
@@ -1118,18 +1118,12 @@ func (s *hotplugSuite) TestUpdateDeviceTasks(c *C) {
 
 	task1 := tss.Tasks()[0]
 	c.Assert(task1.Kind(), Equals, "hotplug-disconnect")
-
-	iface, key, err := ifacestate.GetHotplugAttrs(task1)
-	c.Assert(err, IsNil)
-	c.Assert(iface, Equals, "interface")
-	c.Assert(key, DeepEquals, snap.HotplugKey("key"))
+	testHotplugTaskAttrs(c, task1, "interface", "key")
 
 	task2 := tss.Tasks()[1]
 	c.Assert(task2.Kind(), Equals, "hotplug-update-slot")
-	iface, key, err = ifacestate.GetHotplugAttrs(task2)
-	c.Assert(err, IsNil)
-	c.Assert(iface, Equals, "interface")
-	c.Assert(key, DeepEquals, snap.HotplugKey("key"))
+	testHotplugTaskAttrs(c, task2, "interface", "key")
+
 	var attrs map[string]interface{}
 	c.Assert(task2.Get("slot-attrs", &attrs), IsNil)
 	c.Assert(attrs, DeepEquals, map[string]interface{}{"attr": "value"})
@@ -1150,18 +1144,11 @@ func (s *hotplugSuite) TestRemoveDeviceTasks(c *C) {
 
 	task1 := tss.Tasks()[0]
 	c.Assert(task1.Kind(), Equals, "hotplug-disconnect")
-
-	iface, key, err := ifacestate.GetHotplugAttrs(task1)
-	c.Assert(err, IsNil)
-	c.Assert(iface, Equals, "interface")
-	c.Assert(key, DeepEquals, snap.HotplugKey("key"))
+	testHotplugTaskAttrs(c, task1, "interface", "key")
 
 	task2 := tss.Tasks()[1]
 	c.Assert(task2.Kind(), Equals, "hotplug-remove-slot")
-	iface, key, err = ifacestate.GetHotplugAttrs(task2)
-	c.Assert(err, IsNil)
-	c.Assert(iface, Equals, "interface")
-	c.Assert(key, DeepEquals, snap.HotplugKey("key"))
+	testHotplugTaskAttrs(c, task2, "interface", "key")
 
 	wt := task2.WaitTasks()
 	c.Assert(wt, HasLen, 1)
