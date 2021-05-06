@@ -1285,7 +1285,7 @@ nested_get_core_revision_installed() {
 nested_fetch_spread() {
     if [ ! -f "$NESTED_WORK_DIR/spread" ]; then
         mkdir -p "$NESTED_WORK_DIR"
-        curl https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz | tar -xzv -C "$NESTED_WORK_DIR"
+        curl https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | tar -xzv -C "$NESTED_WORK_DIR"
         # make sure spread really exists
         test -x "$NESTED_WORK_DIR/spread"
         echo "$NESTED_WORK_DIR/spread"
