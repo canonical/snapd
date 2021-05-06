@@ -5501,6 +5501,69 @@ func (s *snapmgrTestSuite) TestRefreshDoesntRestoreRevisionConfig(c *C) {
 	c.Assert(res, Equals, "100")
 }
 
+func (s *snapmgrTestSuite) TestUpdateWithDefaultProviderConsumerFails(c *C) {
+	restore := release.MockOnClassic(true)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.fakeStore.downloadError["snap-content-plug"] = fmt.Errorf("boom")
+
+	snapstate.ReplaceStore(s.state, contentStore{fakeStore: s.fakeStore, state: s.state})
+
+	si := &snap.SideInfo{
+		RealName: "snap-content-plug",
+		SnapID:   "snap-content-plug-id",
+		Revision: snap.R(7),
+	}
+	snaptest.MockSnap(c, `name: snap-content-plug`, si)
+	snapstate.Set(s.state, "snap-content-plug", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/edge",
+		Sequence:        []*snap.SideInfo{si},
+		Current:         snap.R(7),
+		SnapType:        "app",
+	})
+	snapstate.Set(s.state, "snap-content-slot", &snapstate.SnapState{
+		Active:          true,
+		TrackingChannel: "latest/stable",
+		Sequence: []*snap.SideInfo{{
+			RealName: "snap-content-slot",
+			SnapID:   "snap-content-slot-id",
+			Revision: snap.R(1),
+		}},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	chg := s.state.NewChange("refresh", "refresh all snaps")
+	updated, tts, err := snapstate.UpdateMany(context.Background(), s.state, nil, 0, nil)
+	c.Assert(err, IsNil)
+	sort.Strings(updated)
+	// both the content consumer snap and content provider snap get refreshed at
+	// the same time.
+	c.Check(updated, DeepEquals, []string{"snap-content-plug", "snap-content-slot"})
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// content consumer snap fails to download
+	c.Assert(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Download snap \"snap-content-plug\" \\(11\\) from channel \"latest/edge\" \\(boom\\).*")
+	c.Assert(chg.IsReady(), Equals, true)
+
+	var snapSt snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "snap-content-slot", &snapSt), IsNil)
+
+	// XXX: content provider got updated to the new revision
+	c.Check(snapSt.Current, Equals, snap.R(11))
+}
+
 func (s *snapmgrTestSuite) TestRefreshFailureCausesErrorReport(c *C) {
 	var errSnap, errMsg, errSig string
 	var errExtra map[string]string
