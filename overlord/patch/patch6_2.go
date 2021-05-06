@@ -134,7 +134,7 @@ func patch6_2(st *state.State) error {
 			if err := json.Unmarshal([]byte(*raw), &snapst); err != nil {
 				return err
 			}
-			if hasSnapdSnapID(snapst) && snapst.SnapType != string(snap.TypeSnapd) {
+			if hasSnapdSnapID(snapst) {
 				snapst.SnapType = string(snap.TypeSnapd)
 				data, err := json.Marshal(snapst)
 				if err != nil {
