@@ -724,6 +724,7 @@ pkg_dependencies_opensuse(){
         nfs-kernel-server
         PackageKit
         python3-yaml
+        strace
         netcat-openbsd
         osc
         udisks2
