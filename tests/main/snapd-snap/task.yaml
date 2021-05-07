@@ -52,7 +52,8 @@ prepare: |
     if os.query is-fedora || os.query is-arch-linux || os.query is-centos; then
         # in order to install classic snaps, we need to setup the /snap 
         # symlink on these distros
-        ln -sf /var/lib/snapd/snap /snap
+        SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+        ln -sf "$SNAP_MOUNT_DIR" /snap
         tests.cleanup defer rm -f /snap
     fi
 
