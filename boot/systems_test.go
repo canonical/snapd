@@ -55,6 +55,7 @@ type systemsSuite struct {
 	runKernelBf      bootloader.BootFile
 	recoveryKernelBf bootloader.BootFile
 	seedKernelSnap   *seed.Snap
+	seedGadgetSnap   *seed.Snap
 }
 
 var _ = Suite(&systemsSuite{})
@@ -94,13 +95,8 @@ func (s *systemsSuite) SetUpTest(c *C) {
 	s.recoveryKernelBf = bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
 		"kernel.efi", bootloader.RoleRecovery)
 
-	s.seedKernelSnap = &seed.Snap{
-		Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
-		SideInfo: &snap.SideInfo{
-			RealName: "pc-kernel",
-			Revision: snap.Revision{N: 1},
-		},
-	}
+	s.seedKernelSnap = mockKernelSeedSnap(c, snap.R(1))
+	s.seedGadgetSnap = mockGadgetSeedSnap(c, nil)
 }
 
 func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
@@ -135,7 +131,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 		// the mock bootloader can only mock a single recovery boot
 		// chain, so pretend both seeds use the same kernel, but keep track of the labels
 		readSeedSeenLabels = append(readSeedSeenLabels, label)
-		return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap}, nil
+		return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
 	})
 	defer restore()
 
@@ -327,7 +323,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 			// called for the first system
 			c.Assert(label, Equals, "20200825")
 			c.Check(mtbl.SetBootVarsCalls, Equals, 1)
-			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap}, nil
+			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
 		case 2:
 			// called for the 'try' system
 			c.Assert(label, Equals, "1234")
@@ -350,7 +346,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 			c.Assert(label, Equals, "20200825")
 			// boot variables already updated
 			c.Check(mtbl.SetBootVarsCalls, Equals, 2)
-			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap}, nil
+			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
 		default:
 			return nil, nil, fmt.Errorf("unexpected call %v", readSeedCalls)
 		}
@@ -424,7 +420,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 			// called for the first system
 			c.Assert(label, Equals, "20200825")
 			c.Check(mtbl.SetBootVarsCalls, Equals, 1)
-			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap}, nil
+			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
 		case 2:
 			// called for the 'try' system
 			c.Assert(label, Equals, "1234")
@@ -436,7 +432,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 			})
 			c.Check(mtbl.SetBootVarsCalls, Equals, 1)
 			// still good
-			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap}, nil
+			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
 		case 3:
 			// recovery boot chains for a good recovery system
 			c.Check(mtbl.SetBootVarsCalls, Equals, 1)
@@ -452,7 +448,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 			if readSeedCalls >= 4 {
 				c.Check(mtbl.SetBootVarsCalls, Equals, 2)
 			}
-			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap}, nil
+			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
 		default:
 			return nil, nil, fmt.Errorf("unexpected call %v", readSeedCalls)
 		}
@@ -532,12 +528,12 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 		case 1:
 			// called for the first system
 			c.Assert(label, Equals, "20200825")
-			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap}, nil
+			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
 		case 2:
 			// called for the 'try' system
 			c.Assert(label, Equals, "1234")
 			// still good
-			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap}, nil
+			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
 		case 3:
 			// recovery boot chains for a good recovery system
 			fallthrough
@@ -548,7 +544,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 		case 5:
 			// (cleanup) recovery boot chains for recovery keys
 			c.Assert(label, Equals, "20200825")
-			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap}, nil
+			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
 		default:
 			return nil, nil, fmt.Errorf("unexpected call %v", readSeedCalls)
 		}
@@ -633,7 +629,39 @@ func (s *systemsSuite) TestInspectRecoverySystemOutcomeHappySuccess(c *C) {
 	err := mtbl.SetBootVars(triedVars)
 	c.Assert(err, IsNil)
 
+	m := boot.Modeenv{
+		Mode: boot.ModeRun,
+		// keep this comment to make old gofmt happy
+		CurrentRecoverySystems: []string{"29112019", "1234"},
+	}
+	err = m.WriteTo("")
+	c.Assert(err, IsNil)
+
 	s.testInspectRecoverySystemOutcomeHappy(c, mtbl, boot.TryRecoverySystemOutcomeSuccess, "")
+
+	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, triedVars)
+}
+
+func (s *systemsSuite) TestInspectRecoverySystemOutcomeFailureMissingSystemInModeenv(c *C) {
+	triedVars := map[string]string{
+		"recovery_system_status": "tried",
+		"try_recovery_system":    "1234",
+	}
+	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
+	err := mtbl.SetBootVars(triedVars)
+	c.Assert(err, IsNil)
+
+	m := boot.Modeenv{
+		Mode: boot.ModeRun,
+		// we don't have the tried recovery system in the modeenv
+		CurrentRecoverySystems: []string{"29112019"},
+	}
+	err = m.WriteTo("")
+	c.Assert(err, IsNil)
+
+	s.testInspectRecoverySystemOutcomeHappy(c, mtbl, boot.TryRecoverySystemOutcomeFailure, `recovery system "1234" was tried, but is not present in the modeenv CurrentRecoverySystems`)
 
 	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
@@ -743,7 +771,7 @@ func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTr
 		// the mock bootloader can only mock a single recovery boot
 		// chain, so pretend both seeds use the same kernel, but keep track of the labels
 		readSeedSeenLabels = append(readSeedSeenLabels, label)
-		return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap}, nil
+		return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
 	})
 	defer restore()
 
@@ -950,7 +978,7 @@ func (s *systemsSuite) TestClearRecoverySystemReboot(c *C) {
 		// the mock bootloader can only mock a single recovery boot
 		// chain, so pretend both seeds use the same kernel, but keep track of the labels
 		readSeedSeenLabels = append(readSeedSeenLabels, label)
-		return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap}, nil
+		return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
 	})
 	defer restore()
 

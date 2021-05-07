@@ -10,9 +10,6 @@ prepare: |
     snap pack "$TESTSLIB"/snaps/snapctl-from-snap
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     check_single_cookie() {
         cnt=$(jq -r '.data["snap-cookies"]' /var/lib/snapd/state.json | grep -c "$1" || true)
         if [ "$cnt" -ne 1 ]; then
@@ -65,11 +62,12 @@ execute: |
     check_cookie "$SNAP"
 
     echo "Verify that snapctl get can be executed by the app and shows the value set by configure hook"
-    $SNAP_MOUNT_DIR/bin/"$SNAP".snapctl-get foo | MATCH bar
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-get foo | MATCH bar
 
     echo "Verify that snapctl set can modify configuration values"
-    $SNAP_MOUNT_DIR/bin/"$SNAP".snapctl-set foo=123
-    $SNAP_MOUNT_DIR/bin/"$SNAP".snapctl-get foo | MATCH 123
+    "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-set foo=123
+    "$SNAP_MOUNT_DIR/bin/$SNAP".snapctl-get foo | MATCH 123
 
     echo "Verify configuration value with snap get"
     snap get "$SNAP" foo | MATCH 123

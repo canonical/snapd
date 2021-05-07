@@ -1,6 +1,6 @@
 summary: Ensure conffile removal from upgrades <2.46 works
 
-description: |
+details: |
     Ensure that upgrading from 2.45.1 works and conffile cleanup for
     /etc/sudoers.d/99-snapd.conf happens.
     

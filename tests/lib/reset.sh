@@ -1,7 +1,5 @@
 #!/bin/bash -x
 
-# shellcheck source=tests/lib/dirs.sh
-. "$TESTSLIB/dirs.sh"
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 # shellcheck source=tests/lib/systemd.sh
@@ -14,6 +12,7 @@ reset_classic() {
     systemctl daemon-reload
     systemd_stop_units snapd.service snapd.socket
 
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             sh -x "${SPREAD_PATH}/debian/snapd.prerm" remove
@@ -109,7 +108,7 @@ reset_all_snap() {
 
     # shellcheck source=tests/lib/names.sh
     . "$TESTSLIB/names.sh"
-
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     remove_bases=""
     # remove all app snaps first
     for snap in "$SNAP_MOUNT_DIR"/*; do

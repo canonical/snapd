@@ -9,6 +9,18 @@ prepare: |
     snap install jq
     tests.cleanup defer snap remove jq
 
+restore: |
+    tests.cleanup restore
+
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
+    #shellcheck source=tests/lib/store.sh
+    . "$TESTSLIB"/store.sh
+    teardown_fake_store "$BLOB_DIR"
+
 execute: |
     echo "Ensure the snap-repair timer is enabled"
     systemctl list-timers | MATCH snapd.snap-repair.timer
@@ -143,15 +155,3 @@ execute: |
             exit 1
         fi
     fi
-
-restore: |
-    tests.cleanup restore
-
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
-
-    #shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    teardown_fake_store "$BLOB_DIR"

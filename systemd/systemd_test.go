@@ -761,6 +761,7 @@ func (s *SystemdTestSuite) TestAddMountUnit(c *C) {
 [Unit]
 Description=Mount unit for foo, revision 42
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
@@ -794,6 +795,7 @@ func (s *SystemdTestSuite) TestAddMountUnitForDirs(c *C) {
 [Unit]
 Description=Mount unit for foodir, revision x1
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
@@ -835,6 +837,7 @@ func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 [Unit]
 Description=Mount unit for foo, revision 42
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
@@ -878,6 +881,7 @@ exit 0
 [Unit]
 Description=Mount unit for foo, revision x1
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
@@ -917,6 +921,7 @@ exit 0
 [Unit]
 Description=Mount unit for foo, revision x1
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
@@ -1157,6 +1162,7 @@ const unitTemplate = `
 [Unit]
 Description=Mount unit for foo, revision 42
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
@@ -1388,4 +1394,76 @@ func (s *SystemdTestSuite) TestUmountErr(c *C) {
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"systemd-mount", "--umount", "bar"},
 	})
+}
+
+func (s *SystemdTestSuite) TestInactiveEnterTimestampZero(c *C) {
+	s.outs = [][]byte{
+		[]byte(`InactiveEnterTimestamp=`),
+	}
+	sysd := New(SystemMode, s.rep)
+	stamp, err := sysd.InactiveEnterTimestamp("bar.service")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
+	})
+	c.Check(stamp.IsZero(), Equals, true)
+}
+
+func (s *SystemdTestSuite) TestInactiveEnterTimestampValidWhitespace(c *C) {
+	s.outs = [][]byte{
+		[]byte(`InactiveEnterTimestamp=Fri 2021-04-16 15:32:21 UTC
+`),
+	}
+
+	stamp, err := New(SystemMode, s.rep).InactiveEnterTimestamp("bar.service")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
+	})
+	c.Check(stamp.Equal(time.Date(2021, time.April, 16, 15, 32, 21, 0, time.UTC)), Equals, true)
+}
+
+func (s *SystemdTestSuite) TestInactiveEnterTimestampValid(c *C) {
+	s.outs = [][]byte{
+		[]byte(`InactiveEnterTimestamp=Fri 2021-04-16 15:32:21 UTC`),
+	}
+
+	stamp, err := New(SystemMode, s.rep).InactiveEnterTimestamp("bar.service")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
+	})
+	c.Check(stamp.Equal(time.Date(2021, time.April, 16, 15, 32, 21, 0, time.UTC)), Equals, true)
+}
+
+func (s *SystemdTestSuite) TestInactiveEnterTimestampFailure(c *C) {
+	s.outs = [][]byte{
+		[]byte(`mocked failure`),
+	}
+	s.errors = []error{
+		fmt.Errorf("mocked failure"),
+	}
+	stamp, err := New(SystemMode, s.rep).InactiveEnterTimestamp("bar.service")
+	c.Assert(err, ErrorMatches, "mocked failure")
+	c.Check(stamp.IsZero(), Equals, true)
+}
+
+func (s *SystemdTestSuite) TestInactiveEnterTimestampMalformed(c *C) {
+	s.outs = [][]byte{
+		[]byte(`InactiveEnterTimestamp`),
+		[]byte(``),
+		[]byte(`some random garbage
+with newlines`),
+		[]byte(`InactiveEnterTimestamp=0`), // 0 is valid for InactiveEnterTimestampMonotonic
+	}
+	sysd := New(SystemMode, s.rep)
+	for i := 0; i < len(s.outs); i++ {
+		s.argses = nil
+		stamp, err := sysd.InactiveEnterTimestamp("bar.service")
+		c.Assert(err, ErrorMatches, `(?s)internal error: systemctl (time )?output \(.*\) is malformed`)
+		c.Check(s.argses, DeepEquals, [][]string{
+			{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
+		})
+		c.Check(stamp.IsZero(), Equals, true)
+	}
 }

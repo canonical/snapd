@@ -1,4 +1,5 @@
 summary: A snap migrates from base "core" to "core18"
+
 environment:
     DIRECTION/forward: forward
     DIRECTION/back: back

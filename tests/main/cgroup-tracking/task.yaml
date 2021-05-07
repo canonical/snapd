@@ -1,15 +1,18 @@
 summary: Each snap app and hook is tracked via cgroups
+
+details: |
+    This test creates a snap process that suspends itself and ensures that it
+    placed into the appropriate hierarchy.
+
 systems:
     # Ubuntu 14.04's special version of systemd doesn't have StartTransientUnit API.
     # This is covered in more depth in the sister cgroup-tracking-failure test.
     - -ubuntu-14.04-*
 
-details: |
-    This test creates a snap process that suspends itself and ensures that it
-    placed into the appropriate hierarchy.
 environment:
     USER/root: root
     USER/test: test
+
 prepare: |
     tests.cleanup prepare
 
