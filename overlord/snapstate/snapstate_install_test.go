@@ -2176,6 +2176,34 @@ version: 1.0`)
 	c.Assert(snapst.Required, Equals, true)
 }
 
+func (s *snapmgrTestSuite) TestInstallPathWithMetadataSameRevision(c *C) {
+	// use the real thing for this one
+	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapYaml := `name: some-snap
+version: 1.0
+epoch: 1*
+`
+	si := &snap.SideInfo{
+		RealName: "some-snap",
+		SnapID:   "some-snap-id",
+		Revision: snap.R(1),
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		Active:   true,
+	})
+	snaptest.MockSnap(c, snapYaml, si)
+
+	mockSnap := makeTestSnap(c, snapYaml)
+	_, _, err := snapstate.InstallPath(s.state, si, mockSnap, "", "", snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `snap "some-snap" revision 1 already installed and current`)
+}
+
 func (s *snapmgrTestSuite) TestInstallPathSkipConfigure(c *C) {
 	r := release.MockOnClassic(false)
 	defer r()

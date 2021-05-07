@@ -182,6 +182,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 				return nil, err
 			}
 		}
+
+		if info.Revision == snapsup.Revision() {
+			return nil, fmt.Errorf("snap %q revision %v already installed and current", info.InstanceName(), info.Revision)
+		}
 	}
 
 	ts := state.NewTaskSet()
