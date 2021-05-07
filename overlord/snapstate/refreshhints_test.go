@@ -260,18 +260,18 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 	cand1 := candidates["some-snap"]
 	c.Assert(cand1, NotNil)
 	c.Check(cand1.InstanceName(), Equals, "some-snap")
-	c.Check(cand1.Base(), Equals, "some-base")
+	c.Check(cand1.SnapBase(), Equals, "some-base")
 	c.Check(cand1.Type(), Equals, snap.TypeApp)
-	c.Check(cand1.Size(), Equals, int64(99))
 	c.Check(cand1.Version, Equals, "2")
+	c.Check(cand1.DownloadSize(), Equals, int64(99))
 
 	cand2 := candidates["other-snap"]
 	c.Assert(cand2, NotNil)
 	c.Check(cand2.InstanceName(), Equals, "other-snap")
-	c.Check(cand2.Base(), Equals, "")
+	c.Check(cand2.SnapBase(), Equals, "")
 	c.Check(cand2.Type(), Equals, snap.TypeApp)
-	c.Check(cand2.Size(), Equals, int64(88))
 	c.Check(cand2.Version, Equals, "v1")
+	c.Check(cand2.DownloadSize(), Equals, int64(88))
 
 	var snapst snapstate.SnapState
 
