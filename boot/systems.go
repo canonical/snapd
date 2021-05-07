@@ -345,9 +345,10 @@ func InspectTryRecoverySystemOutcome(dev Device) (outcome TryRecoverySystemOutco
 }
 
 // MarkRecoverySystemGood marks the provided recovery system as a good one, and
-// promotes it to the list of good recovery systems in modeenv. If the system
-// uses encryption, the keys will updated state. If resealing fails, an attempt
-// to restore the previous state is made
+// esures that the system is present in the list of good recovery systems and
+// current recovery systems in modeenv. If the system uses encryption, the keys
+// will updated state. If resealing fails, an attempt to restore the previous
+// state is made
 func MarkRecoverySystemGood(dev Device, systemLabel string) (err error) {
 	if !dev.HasModeenv() {
 		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
@@ -357,8 +358,16 @@ func MarkRecoverySystemGood(dev Device, systemLabel string) (err error) {
 	if err != nil {
 		return err
 	}
+	rewriteModeenv := false
+	if !strutil.ListContains(m.CurrentRecoverySystems, systemLabel) {
+		m.CurrentRecoverySystems = append(m.CurrentRecoverySystems, systemLabel)
+		rewriteModeenv = true
+	}
 	if !strutil.ListContains(m.GoodRecoverySystems, systemLabel) {
 		m.GoodRecoverySystems = append(m.GoodRecoverySystems, systemLabel)
+		rewriteModeenv = true
+	}
+	if rewriteModeenv {
 		if err := m.Write(); err != nil {
 			return err
 		}
@@ -368,7 +377,7 @@ func MarkRecoverySystemGood(dev Device, systemLabel string) (err error) {
 		if err == nil {
 			return
 		}
-		if cleanupErr := undoMarkGoodRecoverySystem(dev, systemLabel); cleanupErr != nil {
+		if cleanupErr := DropRecoverySystem(dev, systemLabel); cleanupErr != nil {
 			err = fmt.Errorf("%v (cleanup failed: %v)", err, cleanupErr)
 		}
 	}()
