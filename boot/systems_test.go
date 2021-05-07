@@ -1120,10 +1120,16 @@ func (s *systemsSuite) testMarkRecoverySystemGood(c *C, systemLabel string, tc r
 			c.Check(params.KeyFiles, DeepEquals, []string{
 				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 			})
-			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
-				fmt.Sprintf("snapd_recovery_mode=recover snapd_recovery_system=%s static cmdline", systemLabel),
-				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
-			})
+			if tc.systemLabelAddToCurrent {
+				c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+					fmt.Sprintf("snapd_recovery_mode=recover snapd_recovery_system=%s static cmdline", systemLabel),
+					"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
+				})
+			} else {
+				c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+					"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
+				})
+			}
 			return nil
 		case 2:
 			c.Check(params.KeyFiles, DeepEquals, []string{
@@ -1183,6 +1189,19 @@ func (s *systemsSuite) testMarkRecoverySystemGood(c *C, systemLabel string, tc r
 
 func (s *systemsSuite) TestMarkRecoverySystemGoodHappy(c *C) {
 	s.testMarkRecoverySystemGood(c, "1234", recoverySystemGoodTestCase{
+		resealCalls: 2,
+
+		readSeedSystems: []string{
+			// run key
+			"20200825",
+			// recovery keys
+			"20200825", "1234",
+		},
+	})
+}
+
+func (s *systemsSuite) TestMarkRecoverySystemGoodInCurrent(c *C) {
+	s.testMarkRecoverySystemGood(c, "1234", recoverySystemGoodTestCase{
 		systemLabelAddToCurrent: true,
 		resealCalls:             2,
 
@@ -1195,19 +1214,9 @@ func (s *systemsSuite) TestMarkRecoverySystemGoodHappy(c *C) {
 	})
 }
 
-func (s *systemsSuite) TestMarkRecoverySystemGoodNotInCurrent(c *C) {
-	s.testMarkRecoverySystemGood(c, "1234", recoverySystemGoodTestCase{
-		systemLabelAddToCurrent: false,
-		resealCalls:             0,
-
-		expectedErr: `internal error: recovery system "1234" not in current systems list`,
-	})
-}
-
 func (s *systemsSuite) TestMarkRecoverySystemGoodResealFails(c *C) {
 	s.testMarkRecoverySystemGood(c, "1234", recoverySystemGoodTestCase{
-		systemLabelAddToCurrent: true,
-		resealRecoveryKeyErr:    fmt.Errorf("recovery key reseal mock failure"),
+		resealRecoveryKeyErr: fmt.Errorf("recovery key reseal mock failure"),
 		// no failure during cleanup
 		resealRecoveryKeyDuringCleanupErr: nil,
 
@@ -1217,12 +1226,12 @@ func (s *systemsSuite) TestMarkRecoverySystemGoodResealFails(c *C) {
 
 		readSeedSystems: []string{
 			// run key
-			"20200825", "1234",
+			"20200825",
 			// recovery keys
 			"20200825", "1234",
 			// cleanup run key reseal (the seed system is still in
 			// current-recovery-systems)
-			"20200825", "1234",
+			"20200825",
 			// cleanup recovery keys
 			"20200825",
 		},
@@ -1231,7 +1240,6 @@ func (s *systemsSuite) TestMarkRecoverySystemGoodResealFails(c *C) {
 
 func (s *systemsSuite) TestMarkRecoverySystemGoodResealUndoFails(c *C) {
 	s.testMarkRecoverySystemGood(c, "1234", recoverySystemGoodTestCase{
-		systemLabelAddToCurrent:           true,
 		resealRecoveryKeyErr:              fmt.Errorf("recovery key reseal mock failure"),
 		resealRecoveryKeyDuringCleanupErr: fmt.Errorf("recovery key reseal mock fail in cleanup"),
 
@@ -1241,13 +1249,13 @@ func (s *systemsSuite) TestMarkRecoverySystemGoodResealUndoFails(c *C) {
 
 		readSeedSystems: []string{
 			// run key
-			"20200825", "1234",
+			"20200825",
 			// recovery keys
 			"20200825", "1234",
 			// cleanup run key reseal (the seed system is still in
 			// current-recovery-systems)
 			// cleanup run key
-			"20200825", "1234",
+			"20200825",
 			// cleanup recovery keys
 			"20200825",
 		},

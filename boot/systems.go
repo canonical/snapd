@@ -357,14 +357,11 @@ func MarkRecoverySystemGood(dev Device, systemLabel string) (err error) {
 	if err != nil {
 		return err
 	}
-	if !strutil.ListContains(m.CurrentRecoverySystems, systemLabel) {
-		return fmt.Errorf("internal error: recovery system %q not in current systems list", systemLabel)
-	}
 	if !strutil.ListContains(m.GoodRecoverySystems, systemLabel) {
 		m.GoodRecoverySystems = append(m.GoodRecoverySystems, systemLabel)
-	}
-	if err := m.Write(); err != nil {
-		return err
+		if err := m.Write(); err != nil {
+			return err
+		}
 	}
 
 	defer func() {
