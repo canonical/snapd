@@ -69,7 +69,7 @@ dbus (receive)
     bus=system
     path=/org/freedesktop/login1
     interface=org.freedesktop.login1.Manager
-    member={PrepareForSleep}
+    member=PrepareForSleep
     peer=(label=unconfined),
 # do not use peer=(label=unconfined) here since this is DBus activated
 dbus (send)
