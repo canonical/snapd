@@ -324,7 +324,7 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		"snaps": []interface{}{
 			map[string]interface{}{
 				"name":            "pc-kernel",
-				"id":              snaptest.AssertedSnapID("oc-kernel"),
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
@@ -487,6 +487,9 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 				expResp["maintenance"] = map[string]interface{}{
 					"kind":    "system-restart",
 					"message": "system is restarting",
+					"value": map[string]interface{}{
+						"op": "reboot",
+					},
 				}
 
 				// daemon is not started, only check whether reboot was scheduled as expected
@@ -656,7 +659,7 @@ func (s *systemsSuite) TestSystemRebootUnhappy(c *check.C) {
 		})
 		defer restore()
 
-		body := fmt.Sprintf(`{"action":"reboot"}`)
+		body := `{"action":"reboot"}`
 		url := "/v2/systems"
 		req, err := http.NewRequest("POST", url, strings.NewReader(body))
 		c.Assert(err, check.IsNil)

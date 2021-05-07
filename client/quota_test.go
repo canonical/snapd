@@ -23,8 +23,9 @@ import (
 	"encoding/json"
 	"io/ioutil"
 
-	"github.com/snapcore/snapd/client"
 	"gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/client"
 )
 
 func (cs *clientSuite) TestCreateQuotaGroupInvalidName(c *check.C) {
@@ -91,5 +92,33 @@ func (cs *clientSuite) TestGetQuotaGroupError(c *check.C) {
 	cs.status = 500
 	cs.rsp = `{"type": "error"}`
 	_, err := cs.cli.GetQuotaGroup("foo")
-	c.Check(err, check.ErrorMatches, `cannot get quota group: server error: "Internal Server Error"`)
+	c.Check(err, check.ErrorMatches, `server error: "Internal Server Error"`)
+}
+
+func (cs *clientSuite) TestRemoveQuotaGroup(c *check.C) {
+	cs.rsp = `{
+		"type": "sync",
+		"status-code": 200
+	}`
+
+	err := cs.cli.RemoveQuotaGroup("foo")
+	c.Assert(err, check.IsNil)
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/quotas")
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+	var req map[string]interface{}
+	err = json.Unmarshal(body, &req)
+	c.Assert(err, check.IsNil)
+	c.Assert(req, check.DeepEquals, map[string]interface{}{
+		"action":     "remove",
+		"group-name": "foo",
+	})
+}
+
+func (cs *clientSuite) TestRemoveQuotaGroupError(c *check.C) {
+	cs.status = 500
+	cs.rsp = `{"type": "error"}`
+	err := cs.cli.RemoveQuotaGroup("foo")
+	c.Check(err, check.ErrorMatches, `server error: "Internal Server Error"`)
 }

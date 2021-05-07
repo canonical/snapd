@@ -247,6 +247,73 @@ version: 5.0
 	c.Check(systemGenv.Get("snapd_recovery_kernel"), Equals, "/snaps/pc-kernel_5.snap")
 }
 
+func (s *makeBootable20Suite) TestMakeBootableImage20BootFlags(c *C) {
+	bootloader.Force(nil)
+	model := boottest.MakeMockUC20Model()
+
+	unpackedGadgetDir := c.MkDir()
+	grubRecoveryCfg := "#grub-recovery cfg"
+	grubRecoveryCfgAsset := "#grub-recovery cfg from assets"
+	grubCfg := "#grub cfg"
+	snaptest.PopulateDir(unpackedGadgetDir, [][]string{
+		{"grub-recovery.conf", grubRecoveryCfg},
+		{"grub.conf", grubCfg},
+		{"meta/snap.yaml", gadgetSnapYaml},
+	})
+	restore := assets.MockInternal("grub-recovery.cfg", []byte(grubRecoveryCfgAsset))
+	defer restore()
+
+	// on uc20 the seed layout if different
+	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
+	err := os.MkdirAll(seedSnapsDirs, 0755)
+	c.Assert(err, IsNil)
+
+	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
+type: base
+version: 5.0
+`, snap.R(3))
+	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
+	err = os.Rename(baseFn, baseInSeed)
+	c.Assert(err, IsNil)
+	kernelFn, kernelInfo := makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
+type: kernel
+version: 5.0
+`, snap.R(5), [][]string{
+		{"kernel.efi", "I'm a kernel.efi"},
+	})
+	kernelInSeed := filepath.Join(seedSnapsDirs, kernelInfo.Filename())
+	err = os.Rename(kernelFn, kernelInSeed)
+	c.Assert(err, IsNil)
+
+	label := "20191209"
+	recoverySystemDir := filepath.Join("/systems", label)
+	bootWith := &boot.BootableSet{
+		Base:                baseInfo,
+		BasePath:            baseInSeed,
+		Kernel:              kernelInfo,
+		KernelPath:          kernelInSeed,
+		RecoverySystemDir:   recoverySystemDir,
+		RecoverySystemLabel: label,
+		UnpackedGadgetDir:   unpackedGadgetDir,
+		Recovery:            true,
+	}
+	bootFlags := []string{"factory"}
+
+	err = boot.MakeBootableImage(model, s.rootdir, bootWith, bootFlags)
+	c.Assert(err, IsNil)
+
+	// ensure the correct recovery system configuration was set
+	seedGenv := grubenv.NewEnv(filepath.Join(s.rootdir, "EFI/ubuntu/grubenv"))
+	c.Assert(seedGenv.Load(), IsNil)
+	c.Check(seedGenv.Get("snapd_recovery_system"), Equals, label)
+	c.Check(seedGenv.Get("snapd_boot_flags"), Equals, "factory")
+
+	systemGenv := grubenv.NewEnv(filepath.Join(s.rootdir, recoverySystemDir, "grubenv"))
+	c.Assert(systemGenv.Load(), IsNil)
+	c.Check(systemGenv.Get("snapd_recovery_kernel"), Equals, "/snaps/pc-kernel_5.snap")
+
+}
+
 func (s *makeBootable20Suite) testMakeBootableImage20CustomKernelArgs(c *C, whichFile, content, errMsg string) {
 	bootloader.Force(nil)
 	model := boottest.MakeMockUC20Model()
