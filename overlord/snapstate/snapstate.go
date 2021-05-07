@@ -74,6 +74,35 @@ var ErrNothingToDo = errors.New("nothing to do")
 
 var osutilCheckFreeSpace = osutil.CheckFreeSpace
 
+type minimalInstallInfo interface {
+	InstanceName() string
+	Type() snap.Type
+	SnapBase() string
+	DownloadSize() int64
+	DefaultContentPlugProviders(st *state.State) []string
+}
+
+type manualUpdateInfo struct {
+	snap.Info
+}
+
+func (up *manualUpdateInfo) DownloadSize() int64 {
+	return up.DownloadInfo.Size
+}
+
+func (up *manualUpdateInfo) DefaultContentPlugProviders(st *state.State) []string {
+	return defaultContentPlugProviders(st, &up.Info)
+}
+
+// ByType supports sorting by snap type. The most important types come first.
+type byType []minimalInstallInfo
+
+func (r byType) Len() int      { return len(r) }
+func (r byType) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+func (r byType) Less(i, j int) bool {
+	return r[i].Type().SortsBefore(r[j].Type())
+}
+
 // InsufficientSpaceError represents an error where there is not enough disk
 // space to perform an operation.
 type InsufficientSpaceError struct {
@@ -867,7 +896,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	if checkDiskSpaceInstall {
 		// check if there is enough disk space for requested snap and its
 		// prerequisites.
-		totalSize, err := installSize(st, []*snap.Info{info}, userID)
+		totalSize, err := installSize(st, []minimalInstallInfo{&manualUpdateInfo{*info}}, userID)
 		if err != nil {
 			return nil, err
 		}
@@ -955,9 +984,9 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 	if checkDiskSpaceInstall {
 		// check if there is enough disk space for requested snaps and their
 		// prerequisites.
-		snapInfos := make([]*snap.Info, len(installs))
+		snapInfos := make([]minimalInstallInfo, len(installs))
 		for i, sar := range installs {
-			snapInfos[i] = sar.Info
+			snapInfos[i] = &manualUpdateInfo{*sar.Info}
 		}
 		totalSize, err := installSize(st, snapInfos, userID)
 		if err != nil {
@@ -1105,7 +1134,11 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 	if checkDiskSpaceRefresh {
 		// check if there is enough disk space for requested snap and its
 		// prerequisites.
-		totalSize, err := installSize(st, updates, userID)
+		toUpdate := make([]minimalInstallInfo, len(updates))
+		for i, up := range updates {
+			toUpdate[i] = &manualUpdateInfo{*up}
+		}
+		totalSize, err := installSize(st, toUpdate, userID)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1151,7 +1184,11 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		}
 	}
 
-	newAutoAliases, mustPruneAutoAliases, transferTargets, err := autoAliasesUpdate(st, names, updates)
+	toUpdate := make([]minimalInstallInfo, len(updates))
+	for i, up := range updates {
+		toUpdate[i] = &manualUpdateInfo{*up}
+	}
+	newAutoAliases, mustPruneAutoAliases, transferTargets, err := autoAliasesUpdate(st, names, toUpdate)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1183,12 +1220,6 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 	// first snapd, core, bases, then rest
 	sort.Stable(snap.ByType(updates))
 	prereqs := make(map[string]*state.TaskSet)
-	waitPrereq := func(ts *state.TaskSet, prereqName string) {
-		preTs := prereqs[prereqName]
-		if preTs != nil {
-			ts.WaitAll(preTs)
-		}
-	}
 	var kernelTs, gadgetTs *state.TaskSet
 
 	// updates is sorted by kind so this will process first core
@@ -1239,25 +1270,8 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			return nil, nil, err
 		}
 		ts.JoinLane(st.NewLane())
+		updatePrerequsitesTasksets(ts, &manualUpdateInfo{*update}, prereqs)
 
-		// because of the sorting of updates we fill prereqs
-		// first (if branch) and only then use it to setup
-		// waits (else branch)
-		if t := update.Type(); t == snap.TypeOS || t == snap.TypeBase || t == snap.TypeSnapd {
-			// prereq types come first in updates, we
-			// also assume bases don't have hooks, otherwise
-			// they would need to wait on core or snapd
-			prereqs[update.InstanceName()] = ts
-		} else {
-			// prereqs were processed already, wait for
-			// them as necessary for the other kind of
-			// snaps
-			waitPrereq(ts, defaultCoreSnapName)
-			waitPrereq(ts, "snapd")
-			if update.Base != "" {
-				waitPrereq(ts, update.Base)
-			}
-		}
 		// keep track of kernel/gadget udpates
 		switch update.Type() {
 		case snap.TypeKernel:
@@ -1310,6 +1324,34 @@ func finalizeUpdate(st *state.State, tasksets []*state.TaskSet, hasUpdates bool,
 	return tasksets
 }
 
+func updatePrerequsitesTasksets(ts *state.TaskSet, up minimalInstallInfo, prereqs map[string]*state.TaskSet) {
+	waitPrereq := func(ts *state.TaskSet, prereqName string) {
+		preTs := prereqs[prereqName]
+		if preTs != nil {
+			ts.WaitAll(preTs)
+		}
+	}
+
+	// because of the sorting of updates we fill prereqs
+	// first (if branch) and only then use it to setup
+	// waits (else branch)
+	if t := up.Type(); t == snap.TypeOS || t == snap.TypeBase || t == snap.TypeSnapd {
+		// prereq types come first in updates, we
+		// also assume bases don't have hooks, otherwise
+		// they would need to wait on core or snapd
+		prereqs[up.InstanceName()] = ts
+	} else {
+		// prereqs were processed already, wait for
+		// them as necessary for the other kind of
+		// snaps
+		waitPrereq(ts, defaultCoreSnapName)
+		waitPrereq(ts, "snapd")
+		if up.SnapBase() != "" {
+			waitPrereq(ts, up.SnapBase())
+		}
+	}
+}
+
 func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, fromChange string, linkTs func(instanceName string, ts *state.TaskSet)) (*state.TaskSet, error) {
 	applyTs := state.NewTaskSet()
 	kind := "refresh-aliases"
@@ -1345,7 +1387,7 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 	return applyTs, nil
 }
 
-func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (changed map[string][]string, mustPrune map[string][]string, transferTargets map[string]bool, err error) {
+func autoAliasesUpdate(st *state.State, names []string, updates []minimalInstallInfo) (changed map[string][]string, mustPrune map[string][]string, transferTargets map[string]bool, err error) {
 	changed, dropped, err := autoAliasesDelta(st, nil)
 	if err != nil {
 		if len(names) != 0 {
@@ -1673,7 +1715,11 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 	if checkDiskSpaceRefresh {
 		// check if there is enough disk space for requested snap and its
 		// prerequisites.
-		totalSize, err := installSize(st, updates, userID)
+		toUpdate := make([]minimalInstallInfo, len(updates))
+		for i, up := range updates {
+			toUpdate[i] = &manualUpdateInfo{*up}
+		}
+		totalSize, err := installSize(st, toUpdate, userID)
 		if err != nil {
 			return nil, err
 		}
@@ -1863,6 +1909,10 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 	// check conflicts
 	fromChange := ""
 	for _, up := range candidates {
+		if _, ok := hints[up.InstanceName()]; !ok {
+			// filtered out by refreshHintsFromCandidates
+			continue
+		}
 		snapst := snapstateByInstance[up.InstanceName()]
 		if err := checkChangeConflictIgnoringOneChange(st, up.InstanceName(), snapst, fromChange); err != nil {
 			logger.Noticef("cannot refresh snap %q: %v", up.InstanceName(), err)
@@ -1915,15 +1965,154 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 	// return all names as potentially getting updated even though some may be
 	// held.
 	names := make([]string, len(updates))
+	toUpdate := make(map[string]*refreshCandidate, len(updates))
 	for i, up := range updates {
 		names[i] = up.InstanceName()
+		toUpdate[up.InstanceName()] = hints[up.InstanceName()]
 	}
 	sort.Strings(names)
 
-	// TODO: store the list of snaps to update on the conditional-auto-refresh task
-	// (this may be a subset refresh-candidates due to conflicts).
+	// store the list of snaps to update on the conditional-auto-refresh task
+	// (this may be a subset of refresh-candidates due to conflicts).
+	ar.Set("snaps", toUpdate)
 
 	return names, tss, nil
+}
+
+// autoRefreshPhase2 creates tasks for refreshing snaps from updates.
+func autoRefreshPhase2(st *state.State, updates []*refreshCandidate) ([]*state.TaskSet, error) {
+	refreshAll := true
+	fromChange := ""
+	flags := &Flags{IsAutoRefresh: true}
+	userID := 0
+
+	deviceCtx, err := DevicePastSeeding(st, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	toUpdate := make([]minimalInstallInfo, len(updates))
+	for i, up := range updates {
+		toUpdate[i] = up
+	}
+
+	tr := config.NewTransaction(st)
+	checkDiskSpaceRefresh, err := features.Flag(tr, features.CheckDiskSpaceRefresh)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
+	if checkDiskSpaceRefresh {
+		// check if there is enough disk space for requested snap and its
+		// prerequisites.
+		totalSize, err := installSize(st, toUpdate, 0)
+		if err != nil {
+			return nil, err
+		}
+		requiredSpace := safetyMarginDiskSpace(totalSize)
+		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+			snaps := make([]string, len(updates))
+			for i, up := range updates {
+				snaps[i] = up.InstanceName()
+			}
+			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+				return nil, &InsufficientSpaceError{
+					Path:       path,
+					Snaps:      snaps,
+					ChangeKind: "refresh",
+				}
+			}
+			return nil, err
+		}
+	}
+
+	newAutoAliases, mustPruneAutoAliases, transferTargets, err := autoAliasesUpdate(st, nil, toUpdate)
+	if err != nil {
+		return nil, err
+	}
+
+	tasksets := make([]*state.TaskSet, 0, len(updates)+2) // 1 for auto-aliases, 1 for re-refresh
+
+	var pruningAutoAliasesTs *state.TaskSet
+	if len(mustPruneAutoAliases) != 0 {
+		var err error
+		pruningAutoAliasesTs, err = applyAutoAliasesDelta(st, mustPruneAutoAliases, "prune", refreshAll, fromChange, func(snapName string, _ *state.TaskSet) {})
+		if err != nil {
+			return nil, err
+		}
+		tasksets = append(tasksets, pruningAutoAliasesTs)
+	}
+
+	// wait for the auto-alias prune tasks as needed
+	scheduleUpdate := func(snapName string, ts *state.TaskSet) {
+		if pruningAutoAliasesTs != nil && (mustPruneAutoAliases[snapName] != nil || transferTargets[snapName]) {
+			ts.WaitAll(pruningAutoAliasesTs)
+		}
+	}
+
+	// first snapd, core, bases, then rest
+	sort.Stable(byType(toUpdate))
+	prereqs := make(map[string]*state.TaskSet)
+	var kernelTs, gadgetTs *state.TaskSet
+
+	for _, up := range toUpdate {
+		var snapst SnapState
+		if err := Get(st, up.InstanceName(), &snapst); err != nil {
+			if err != state.ErrNoState {
+				return nil, err
+			}
+			logger.Noticef("cannot refresh snap %q, it is no longer installed", up.InstanceName())
+			continue
+		}
+
+		snapUserID, err := userIDForSnap(st, &snapst, 0)
+		if err != nil {
+			return nil, err
+		}
+
+		snapsup := up.(*refreshCandidate).SnapSetup
+		snapsup.UserID = snapUserID
+
+		ts, err := doInstall(st, &snapst, &snapsup, 0, fromChange, inUseFor(deviceCtx))
+		if err != nil {
+			logger.Noticef("cannot refresh snap %q: %v", up.InstanceName(), err)
+			continue
+		}
+		ts.JoinLane(st.NewLane())
+		updatePrerequsitesTasksets(ts, up, prereqs)
+
+		// keep track of kernel/gadget udpates
+		switch up.Type() {
+		case snap.TypeKernel:
+			kernelTs = ts
+		case snap.TypeGadget:
+			gadgetTs = ts
+		}
+
+		scheduleUpdate(up.InstanceName(), ts)
+		tasksets = append(tasksets, ts)
+	}
+
+	// Kernel must wait for gadget because the gadget may define
+	// new "$kernel:refs". Sorting the other way is impossible
+	// because a kernel with new kernel-assets would never refresh
+	// because the matching gadget could never get installed
+	// because the gadget always waits for the kernel and if the
+	// kernel aborts the wait tasks (the gadget) is put on "Hold".
+	if kernelTs != nil && gadgetTs != nil {
+		kernelTs.WaitAll(gadgetTs)
+	}
+
+	if len(newAutoAliases) != 0 {
+		addAutoAliasesTs, err := applyAutoAliasesDelta(st, newAutoAliases, "refresh", refreshAll, "", scheduleUpdate)
+		if err != nil {
+			return nil, err
+		}
+		tasksets = append(tasksets, addAutoAliasesTs)
+	}
+
+	tasksets = finalizeUpdate(st, tasksets, len(updates) > 0, nil, userID, flags)
+	return tasksets, nil
 }
 
 // LinkNewBaseOrKernel will create prepare/link-snap tasks for a remodel

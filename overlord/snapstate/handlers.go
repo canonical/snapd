@@ -2970,8 +2970,33 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 }
 
 func (m *SnapManager) doAutoRefreshGate(t *state.Task, tomb *tomb.Tomb) error {
-	// TODO: autoRefreshPhase2 - create refresh tasks for snaps that are
-	// not held.
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snaps, err := snapsToRefresh(t)
+	if err != nil {
+		return err
+	}
+
+	if len(snaps) == 0 {
+		logger.Debugf("refresh gating: no snaps to refresh")
+		return nil
+	}
+
+	tss, err := autoRefreshPhase2(st, snaps)
+	if err != nil {
+		return err
+	}
+
+	// update original auto-refresh change
+	chg := t.Change()
+	for _, ts := range tss {
+		ts.WaitFor(t)
+		chg.AddAll(ts)
+	}
+
+	st.EnsureBefore(0)
 	return nil
 }
 
