@@ -406,6 +406,13 @@ func resealKeyToModeenvSecboot(rootdir string, model *asserts.Model, modeenv *Mo
 		return fmt.Errorf("cannot compose run mode boot chains: %v", err)
 	}
 
+	roleToBlName := map[bootloader.Role]string{
+		bootloader.RoleRecovery: rbl.Name(),
+		bootloader.RoleRunMode:  bl.Name(),
+	}
+	saveFDEDir := dirs.SnapFDEDirUnderSave(dirs.SnapSaveDirUnder(rootdir))
+	authKeyFile := filepath.Join(saveFDEDir, "tpm-policy-auth-key")
+
 	// reseal the run object
 	pbc := toPredictableBootChains(append(runModeBootChains, recoveryBootChainsForRunKey...))
 
@@ -415,26 +422,19 @@ func resealKeyToModeenvSecboot(rootdir string, model *asserts.Model, modeenv *Mo
 	}
 	if !needed {
 		logger.Debugf("reseal not necessary")
-		return nil
-	}
-	pbcJSON, _ := json.Marshal(pbc)
-	logger.Debugf("resealing (%d) to boot chains: %s", nextCount, pbcJSON)
+	} else {
+		pbcJSON, _ := json.Marshal(pbc)
+		logger.Debugf("resealing (%d) to boot chains: %s", nextCount, pbcJSON)
 
-	roleToBlName := map[bootloader.Role]string{
-		bootloader.RoleRecovery: rbl.Name(),
-		bootloader.RoleRunMode:  bl.Name(),
-	}
+		if err := resealRunObjectKeys(pbc, authKeyFile, roleToBlName); err != nil {
+			return err
+		}
+		logger.Debugf("resealing (%d) succeeded", nextCount)
 
-	saveFDEDir := dirs.SnapFDEDirUnderSave(dirs.SnapSaveDirUnder(rootdir))
-	authKeyFile := filepath.Join(saveFDEDir, "tpm-policy-auth-key")
-	if err := resealRunObjectKeys(pbc, authKeyFile, roleToBlName); err != nil {
-		return err
-	}
-	logger.Debugf("resealing (%d) succeeded", nextCount)
-
-	bootChainsPath := bootChainsFileUnder(rootdir)
-	if err := writeBootChains(pbc, bootChainsPath, nextCount); err != nil {
-		return err
+		bootChainsPath := bootChainsFileUnder(rootdir)
+		if err := writeBootChains(pbc, bootChainsPath, nextCount); err != nil {
+			return err
+		}
 	}
 
 	// reseal the fallback object
