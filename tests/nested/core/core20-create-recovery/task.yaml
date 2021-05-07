@@ -1,0 +1,26 @@
+summary: verify creating recovery system on UC20
+
+systems: [ubuntu-20.04-64]
+
+prepare: |
+    # shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
+    nested_exec sudo snap install http
+
+execute: |
+    # shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+    boot_id="$( nested_get_boot_id )"
+    echo '{"action":"create-recovery","params":{"recovery-system-label":"1234"}}' | nested_exec sudo http POST snapd:///v2/debug > change.out
+    REMOTE_CHG_ID=$(jq -r .change < change.out)
+    nested_wait_for_reboot "${boot_id}"
+    nested_exec sudo snap watch "${REMOTE_CHG_ID}"
+
+    echo "Verify the system is back in run mode"
+    nested_exec "sudo cat /proc/cmdline" | MATCH snapd_recovery_mode=run
+
+    nested_exec "test -f /run/mnt/ubuntu-seed/systems/1234/model"
+    nested_exec "sudo cat /var/lib/snapd/modeenv" > modeenv
+    MATCH 'current_recovery_systems=.*,1234' < modeenv
+    MATCH 'good_recovery_systems=.*,1234' < modeenv
