@@ -24,6 +24,7 @@ import (
 	"sort"
 
 	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/strutil"

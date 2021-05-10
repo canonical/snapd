@@ -51,12 +51,11 @@ import (
 type fakeOp struct {
 	op string
 
-	name    string
-	channel string
-	path    string
-	revno   snap.Revision
-	sinfo   snap.SideInfo
-	stype   snap.Type
+	name  string
+	path  string
+	revno snap.Revision
+	sinfo snap.SideInfo
+	stype snap.Type
 
 	curSnaps []store.CurrentSnap
 	action   store.SnapAction

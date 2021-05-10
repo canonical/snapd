@@ -51,9 +51,6 @@ restore: |
     rm -f created_dirs
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
-
     if [ "$ALLOW_SANDBOX" = "false" ]; then
        echo "If allow-sandbox is false then the plug is connected by default"
     else
@@ -66,6 +63,7 @@ execute: |
 
     echo "And the snap is able to access tmp"
     echo "test" > /var/tmp/test
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     su -l -c "$SNAP_MOUNT_DIR/bin/browser-support-consumer.cmd ls /var/tmp/" test | MATCH test
 
     echo "And the snap is able to access owned files"

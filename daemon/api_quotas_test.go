@@ -26,12 +26,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 
+	"gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/state"
-	"gopkg.in/check.v1"
 )
 
 var _ = check.Suite(&apiQuotaSuite{})

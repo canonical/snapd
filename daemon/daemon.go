@@ -278,7 +278,7 @@ func logit(handler http.Handler) http.Handler {
 		ww := &wrappedWriter{w: w}
 		t0 := time.Now()
 		handler.ServeHTTP(ww, r)
-		t := time.Now().Sub(t0)
+		t := time.Since(t0)
 		url := r.URL.String()
 		if !strings.Contains(url, "/changes/") {
 			logger.Debugf("%s %s %s %s %d", r.RemoteAddr, r.Method, r.URL, t, ww.s)
