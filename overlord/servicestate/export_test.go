@@ -23,3 +23,7 @@ var (
 	UpdateSnapstateServices = updateSnapstateServices
 	PatchQuotas             = patchQuotas
 )
+
+func ResetSystemdVersionCheck() {
+	systemdVersionChecked = false
+}

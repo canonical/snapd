@@ -25,6 +25,8 @@ import (
 
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -37,6 +39,35 @@ import (
 	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/wrappers"
 )
+
+var (
+	systemdVersionChecked = false
+	systemdVersion        int
+)
+
+func checkSystemdVersion() {
+	if !systemdVersionChecked {
+		vers, err := systemd.Version()
+		if err != nil {
+			logger.Noticef("failed to check systemd version: %v", err)
+		}
+		systemdVersionChecked = true
+		systemdVersion = vers
+	}
+}
+
+func init() {
+	checkSystemdVersion()
+}
+
+func MockSystemdVersion(vers int) (restore func()) {
+	osutil.MustBeTestBinary("cannot mock systemd version outside of tests")
+	old := systemdVersion
+	systemdVersion = vers
+	return func() {
+		systemdVersion = old
+	}
+}
 
 func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[string]*quota.Group) error {
 	// build the map of snap infos to options to provide to EnsureSnapServices
@@ -179,14 +210,11 @@ func quotaGroupsAvailable(st *state.State) error {
 	}
 
 	// check if the systemd version is too old
-	systemdVersion, err := systemd.Version()
-	if err != nil {
-		return err
-	}
-
+	checkSystemdVersion()
 	if systemdVersion < 205 {
 		return fmt.Errorf("systemd version too old: snap quotas requires systemd 205 and newer (currently have %d)", systemdVersion)
 	}
+
 	return nil
 }
 

@@ -158,6 +158,9 @@ func (s *vitalitySuite) testConfigureVitalityWithValidSnap(c *C, uc18 bool) {
 }
 
 func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
+	r := servicestate.MockSystemdVersion(248)
+	defer r()
+
 	si := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(1)}
 	snaptest.MockSnap(c, mockSnapWithService, si)
 	s.state.Lock()
@@ -171,17 +174,6 @@ func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.quota-groups", true)
 	tr.Commit()
-
-	systemctlCalls := 0
-	s.systemctlOutput = func(args ...string) []byte {
-		systemctlCalls++
-		if systemctlCalls == 1 {
-			c.Assert(args, DeepEquals, []string{"--version"})
-			return []byte("systemd 248\n+FOO +BAR\n")
-		}
-
-		return []byte("ActiveState=inactive")
-	}
 
 	// make a new quota group with this snap in it
 	err := servicestate.CreateQuota(s.state, "foogroup", "", []string{"test-snap"}, quantity.SizeMiB)
