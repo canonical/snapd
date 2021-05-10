@@ -420,9 +420,7 @@ func resealKeyToModeenvSecboot(rootdir string, model *asserts.Model, modeenv *Mo
 	if err != nil {
 		return err
 	}
-	if !needed {
-		logger.Debugf("reseal not necessary")
-	} else {
+	if needed {
 		pbcJSON, _ := json.Marshal(pbc)
 		logger.Debugf("resealing (%d) to boot chains: %s", nextCount, pbcJSON)
 
@@ -435,6 +433,8 @@ func resealKeyToModeenvSecboot(rootdir string, model *asserts.Model, modeenv *Mo
 		if err := writeBootChains(pbc, bootChainsPath, nextCount); err != nil {
 			return err
 		}
+	} else {
+		logger.Debugf("reseal not necessary")
 	}
 
 	// reseal the fallback object
@@ -445,21 +445,24 @@ func resealKeyToModeenvSecboot(rootdir string, model *asserts.Model, modeenv *Mo
 	if err != nil {
 		return err
 	}
-	if !needed {
+	if needed {
+		rpbcJSON, _ := json.Marshal(rpbc)
+		logger.Debugf("resealing (%d) to recovery boot chains: %s", nextCount, rpbcJSON)
+
+		if err := resealFallbackObjectKeys(rpbc, authKeyFile, roleToBlName); err != nil {
+			return err
+		}
+		logger.Debugf("fallback resealing (%d) succeeded", nextFallbackCount)
+
+		recoveryBootChainsPath := recoveryBootChainsFileUnder(rootdir)
+		if err := writeBootChains(rpbc, recoveryBootChainsPath, nextFallbackCount); err != nil {
+			return err
+		}
+	} else {
 		logger.Debugf("fallback reseal not necessary")
-		return nil
 	}
 
-	rpbcJSON, _ := json.Marshal(rpbc)
-	logger.Debugf("resealing (%d) to recovery boot chains: %s", nextCount, rpbcJSON)
-
-	if err := resealFallbackObjectKeys(rpbc, authKeyFile, roleToBlName); err != nil {
-		return err
-	}
-	logger.Debugf("fallback resealing (%d) succeeded", nextFallbackCount)
-
-	recoveryBootChainsPath := recoveryBootChainsFileUnder(rootdir)
-	return writeBootChains(rpbc, recoveryBootChainsPath, nextFallbackCount)
+	return nil
 }
 
 func resealRunObjectKeys(pbc predictableBootChains, authKeyFile string, roleToBlName map[bootloader.Role]string) error {
