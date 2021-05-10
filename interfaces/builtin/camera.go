@@ -49,6 +49,7 @@ const cameraConnectedPlugAppArmor = `
 /run/udev/data/+usb:* r,
 /sys/class/video4linux/ r,
 /sys/devices/pci**/usb*/**/video4linux/** r,
+/sys/devices/platform/**/usb*/**/video4linux/** r,
 `
 
 var cameraConnectedPlugUDev = []string{
