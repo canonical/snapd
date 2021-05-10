@@ -1841,7 +1841,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 	}
 
 	refreshOpts := &store.RefreshOptions{IsAutoRefresh: true}
-	updates, snapstateByInstance, ignoreValidationByInstanceName, err := refreshCandidates(ctx, st, nil, user, refreshOpts)
+	candidates, snapstateByInstance, ignoreValidationByInstanceName, err := refreshCandidates(ctx, st, nil, user, refreshOpts)
 	if err != nil {
 		// XXX: should we reset "refresh-candidates" to nil in state for some types
 		// of errors?
@@ -1851,11 +1851,24 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 	if err != nil {
 		return nil, nil, err
 	}
-	hints, err := refreshHintsFromCandidates(st, updates, ignoreValidationByInstanceName, deviceCtx)
+	hints, err := refreshHintsFromCandidates(st, candidates, ignoreValidationByInstanceName, deviceCtx)
 	if err != nil {
 		return nil, nil, err
 	}
 	st.Set("refresh-candidates", hints)
+
+	var updates []*snap.Info
+
+	// check conflicts
+	fromChange := ""
+	for _, up := range candidates {
+		snapst := snapstateByInstance[up.InstanceName()]
+		if err := checkChangeConflictIgnoringOneChange(st, up.InstanceName(), snapst, fromChange); err != nil {
+			logger.Noticef("cannot refresh snap %q: %v", up.InstanceName(), err)
+		} else {
+			updates = append(updates, up)
+		}
+	}
 
 	if len(updates) == 0 {
 		return nil, nil, nil
@@ -1886,7 +1899,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 
 	// gate-auto-refresh hooks, followed by conditional-auto-refresh task waiting
 	// for all hooks.
-	ar := st.NewTask("conditional-auto-refresh", "Run select refreshes")
+	ar := st.NewTask("conditional-auto-refresh", "Run auto-refresh for ready snaps")
 	tss := []*state.TaskSet{state.NewTaskSet(ar)}
 	if hooks != nil {
 		ar.WaitAll(hooks)
@@ -1900,6 +1913,9 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 		names[i] = up.InstanceName()
 	}
 	sort.Strings(names)
+
+	// TODO: store the list of snaps to update on the conditional-auto-refresh task
+	// (this may be a subset refresh-candidates due to conflicts).
 
 	return names, tss, nil
 }

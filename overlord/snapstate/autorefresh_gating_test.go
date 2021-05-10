@@ -676,6 +676,69 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 	c.Check(candidates[2].InstanceName(), Equals, "snap-c")
 }
 
+func (s *autorefreshGatingSuite) TestAutoRefreshPhase1ConflictsFilteredOut(c *C) {
+	s.store.refreshedSnaps = []*snap.Info{{
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeApp,
+		SideInfo: snap.SideInfo{
+			RealName: "snap-a",
+			Revision: snap.R(8),
+		},
+	}, {
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeBase,
+		SideInfo: snap.SideInfo{
+			RealName: "snap-c",
+			Revision: snap.R(5),
+		},
+	}}
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	s.mockInstalledSnap(c, snapAyaml, useHook)
+	s.mockInstalledSnap(c, snapCyaml, noHook)
+
+	conflictChange := st.NewChange("conflicting change", "")
+	conflictTask := st.NewTask("conflicting task", "")
+	si := &snap.SideInfo{
+		RealName: "snap-c",
+		Revision: snap.R(1),
+	}
+	sup := snapstate.SnapSetup{SideInfo: si}
+	conflictTask.Set("snap-setup", sup)
+	conflictChange.AddTask(conflictTask)
+
+	restore := snapstatetest.MockDeviceModel(DefaultModel())
+	defer restore()
+
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st)
+	c.Assert(err, IsNil)
+	c.Check(names, DeepEquals, []string{"snap-a"})
+	c.Assert(tss, HasLen, 2)
+
+	c.Assert(tss[0].Tasks(), HasLen, 1)
+	c.Check(tss[0].Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
+
+	c.Assert(tss[1].Tasks(), HasLen, 1)
+
+	seenSnaps := make(map[string]bool)
+	var hs hookstate.HookSetup
+	c.Assert(tss[1].Tasks()[0].Get("hook-setup", &hs), IsNil)
+	c.Check(hs.Hook, Equals, "gate-auto-refresh")
+	seenSnaps[hs.Snap] = true
+
+	c.Check(seenSnaps, DeepEquals, map[string]bool{"snap-a": true})
+
+	// check that refresh-candidates in the state were updated
+	var candidates []snapstate.RefreshCandidate
+	c.Assert(st.Get("refresh-candidates", &candidates), IsNil)
+	c.Assert(candidates, HasLen, 2)
+	c.Check(candidates[0].InstanceName(), Equals, "snap-a")
+	c.Check(candidates[1].InstanceName(), Equals, "snap-c")
+}
+
 func (s *autorefreshGatingSuite) TestAutoRefreshPhase1NoHooks(c *C) {
 	s.store.refreshedSnaps = []*snap.Info{{
 		Architectures: []string{"all"},
