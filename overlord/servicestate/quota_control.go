@@ -45,6 +45,7 @@ var (
 	systemdVersion        int
 )
 
+// TODO: move to a systemd.AtLeast() ?
 func checkSystemdVersion() {
 	if !systemdVersionChecked {
 		vers, err := systemd.Version()
