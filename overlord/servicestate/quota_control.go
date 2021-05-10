@@ -131,8 +131,10 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[s
 
 	for _, grp := range grpsToRestart {
 		// TODO: what should these timeouts for stopping/restart slices be?
-		if err := systemSysd.Restart(grp.SliceFileName(), 5*time.Second); err != nil {
-			return err
+		if !ensureOpts.Preseeding {
+			if err := systemSysd.Restart(grp.SliceFileName(), 5*time.Second); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -142,8 +144,10 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[s
 	// existing in the state
 	if _, ok := allGrps[grp.Name]; !ok {
 		// stop the quota group, then remove it
-		if err := systemSysd.Stop(grp.SliceFileName(), 5*time.Second); err != nil {
-			return err
+		if !ensureOpts.Preseeding {
+			if err := systemSysd.Stop(grp.SliceFileName(), 5*time.Second); err != nil {
+				logger.Noticef("unable to stop systemd slice while removing group %q: %v", grp.Name, err)
+			}
 		}
 
 		// TODO: this results in a second systemctl daemon-reload which is
@@ -155,26 +159,28 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[s
 	}
 
 	// now restart the services for each snap
-	for sn, apps := range appsToRestartBySnap {
-		disabledSvcs, err := wrappers.QueryDisabledServices(sn, progress.Null)
-		if err != nil {
-			return err
-		}
-
-		startupOrdered, err := snap.SortServices(apps)
-		if err != nil {
-			return err
-		}
-
-		// stop the services first, then start them up in the right order,
-		// obeying which ones were disabled
+	if !ensureOpts.Preseeding {
 		nullPerfTimings := &timings.Timings{}
-		if err := wrappers.StopServices(apps, nil, snap.StopReasonQuotaGroupModified, progress.Null, nullPerfTimings); err != nil {
-			return err
-		}
+		for sn, apps := range appsToRestartBySnap {
+			disabledSvcs, err := wrappers.QueryDisabledServices(sn, progress.Null)
+			if err != nil {
+				return err
+			}
 
-		if err := wrappers.StartServices(startupOrdered, disabledSvcs, nil, progress.Null, nullPerfTimings); err != nil {
-			return err
+			startupOrdered, err := snap.SortServices(apps)
+			if err != nil {
+				return err
+			}
+
+			// stop the services first, then start them up in the right order,
+			// obeying which ones were disabled
+			if err := wrappers.StopServices(apps, nil, snap.StopReasonQuotaGroupModified, progress.Null, nullPerfTimings); err != nil {
+				return err
+			}
+
+			if err := wrappers.StartServices(startupOrdered, disabledSvcs, nil, progress.Null, nullPerfTimings); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

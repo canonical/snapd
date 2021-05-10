@@ -29,6 +29,7 @@ import (
 	_ "github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
 	_ "github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/testutil"
 
 	"github.com/snapcore/snapd/gadget/quantity"
@@ -215,6 +216,32 @@ func join(calls ...[]expectedSystemctl) []expectedSystemctl {
 	}
 
 	return fullCall
+}
+
+func (s *quotaControlSuite) TestCreateQuotaPreseeding(c *C) {
+	// should be no systemctl calls since we are preseeding
+	r := snapdenv.MockPreseeding(true)
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup the snap so it exists
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// now we can create the quota group
+	err := servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	// check that the quota groups were created in the state
+	checkQuotaState(c, st, map[string]quotaGroupState{
+		"foo": {
+			MemoryLimit: quantity.SizeGiB,
+			Snaps:       []string{"test-snap"},
+		},
+	})
 }
 
 func (s *quotaControlSuite) TestCreateQuota(c *C) {
