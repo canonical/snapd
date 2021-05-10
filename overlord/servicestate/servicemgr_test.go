@@ -223,17 +223,15 @@ After=usr-lib-snapd.mount
 var _ = Suite(&ensureSnapServiceSuite{})
 
 func (s *baseServiceMgrTestSuite) mockSystemctlCalls(c *C, expCalls []expectedSystemctl) (restore func()) {
-	systemctlCalls := 0
 	allSystemctlCalls := [][]string{}
 	r := systemd.MockSystemctl(func(args ...string) ([]byte, error) {
+		systemctlCalls := len(allSystemctlCalls)
 		allSystemctlCalls = append(allSystemctlCalls, args)
 		if systemctlCalls < len(expCalls) {
 			res := expCalls[systemctlCalls]
 			c.Check(args, DeepEquals, res.expArgs)
-			systemctlCalls++
 			return []byte(res.output), res.err
 		}
-		systemctlCalls++
 		c.Errorf("unexpected and unhandled systemctl command: %+v", args)
 		return nil, fmt.Errorf("broken test")
 	})
@@ -243,7 +241,11 @@ func (s *baseServiceMgrTestSuite) mockSystemctlCalls(c *C, expCalls []expectedSy
 		// double-check at the end of the test that we got as many systemctl calls
 		// as were mocked and that we didn't get less, then re-set it for the next
 		// test
-		c.Assert(systemctlCalls, Equals, len(expCalls), Commentf("got: %v", allSystemctlCalls))
+		expArgCalls := make([][]string, 0, len(expCalls))
+		for _, call := range expCalls {
+			expArgCalls = append(expArgCalls, call.expArgs)
+		}
+		c.Assert(allSystemctlCalls, DeepEquals, expArgCalls)
 	}
 }
 
