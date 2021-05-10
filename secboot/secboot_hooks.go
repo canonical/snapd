@@ -160,8 +160,8 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV1(name, sealedEncryptionKeyFile, sou
 	return res, nil
 }
 
-func unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
-	res := UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
+func unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sourceDevice, targetDevice, mapperName string, opts *UnlockVolumeUsingSealedKeyOptions) (res UnlockResult, err error) {
+	res = UnlockResult{IsEncrypted: true, PartDevice: sourceDevice}
 
 	f, err := sb.NewFileKeyDataReader(sealedEncryptionKeyFile)
 	if err != nil {
@@ -185,6 +185,15 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sou
 	if err != nil {
 		return res, fmt.Errorf("cannot unlock encrypted partition: %v", err)
 	}
+	// ensure we close the open volume under any error condition
+	defer func() {
+		if err != nil {
+			if err := sbDeactivateVolume(mapperName); err != nil {
+				logger.Noticef("cannot deactivate volume %q", mapperName)
+			}
+		}
+	}()
+	// ensure that the model is authorized to open the volume
 	model, err := opts.WhichModel()
 	if err != nil {
 		return res, fmt.Errorf("cannot retrieve which model to unlock for: %v", err)
@@ -194,9 +203,6 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sou
 		return res, fmt.Errorf("cannot check if model is authorized to unlock disk: %v", err)
 	}
 	if !ok {
-		if err := sbDeactivateVolume(mapperName); err != nil {
-			logger.Noticef("cannot deactivate volume %q", mapperName)
-		}
 		return res, fmt.Errorf("cannot unlock volume: model %s/%s not authorized", model.BrandID(), model.Model())
 	}
 
