@@ -97,8 +97,10 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 		// Raw replaces pristine on commit. Unpack, update, and repack.
 		var configm map[string]interface{}
 
-		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*config), &configm); err != nil {
-			return nil, fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos], "."))
+		if config != nil {
+			if err := jsonutil.DecodeWithNumber(bytes.NewReader(*config), &configm); err != nil {
+				return nil, fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos], "."))
+			}
 		}
 		// preserve the invariant that if PatchConfig is
 		// passed a map[string]interface{} it is not nil.
@@ -133,6 +135,20 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 			config[subkeys[pos]] = result
 			return config, nil
 		}
+
+	case map[string]*json.RawMessage:
+		if pos+1 == len(subkeys) {
+			config[subkeys[pos]] = jsonRaw(value)
+			return config, nil
+		} else {
+			result, err := PatchConfig(snapName, subkeys, pos+1, config[subkeys[pos]], value)
+			if err != nil {
+				return nil, err
+			}
+			config[subkeys[pos]] = jsonRaw(result)
+			return config, nil
+		}
+
 	}
 	return nil, fmt.Errorf("internal error: unexpected configuration type %T", config)
 }
@@ -290,6 +306,8 @@ type Conf interface {
 	Get(snapName, key string, result interface{}) error
 	GetMaybe(snapName, key string, result interface{}) error
 	GetPristine(snapName, key string, result interface{}) error
+	// XXX: should we instead add "Options" to Get()?
+	GetNoVirtual(snapName, key string, result interface{}) error
 	Set(snapName, key string, value interface{}) error
 	Changes() []string
 	State() *state.State
@@ -299,6 +317,7 @@ type Conf interface {
 type ConfGetter interface {
 	Get(snapName, key string, result interface{}) error
 	GetMaybe(snapName, key string, result interface{}) error
+	GetNoVirtual(snapName, key string, result interface{}) error
 }
 
 // Patch sets values in cfg for the provided snap's configuration

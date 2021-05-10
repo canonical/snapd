@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -135,9 +136,26 @@ func (t *Transaction) Set(instanceName, key string, value interface{}) error {
 	// would go unperceived by the configuration patching below.
 	if len(subkeys) > 1 {
 		var result interface{}
-		err = getFromConfig(instanceName, subkeys, 0, t.pristine[instanceName], &result)
+		err = getFromConfig(instanceName, subkeys, 0, t.pristine[instanceName], &result, nil)
 		if err != nil && !IsNoOption(err) {
 			return err
+		}
+	}
+
+	// Check that we not "block" the path to a virtual config with
+	// a non-map type. E.g. if "network.netplan" is virtual it must
+	// be impossible to set "network=false" or getting the document
+	// under "network" would be wrong.
+	if v := reflect.ValueOf(value); v.Kind() != reflect.Map {
+		virtualMu.Lock()
+		km, ok := virtualMap[instanceName]
+		virtualMu.Unlock()
+		if ok {
+			for virtualKey := range km {
+				if len(key) < len(virtualKey) && strings.HasPrefix(virtualKey, key) {
+					return fmt.Errorf("cannot set %q for %q to non-map value because %q is a virtual configuration", key, instanceName, virtualKey)
+				}
+			}
 		}
 	}
 
@@ -170,20 +188,7 @@ func (t *Transaction) copyPristine(snapName string) map[string]*json.RawMessage 
 //
 // Transactions do not see updates from the current state or from other transactions.
 func (t *Transaction) Get(snapName, key string, result interface{}) error {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	subkeys, err := ParseKey(key)
-	if err != nil {
-		return err
-	}
-
-	// commit changes onto a copy of pristine configuration, so that get has a complete view of the config.
-	config := t.copyPristine(snapName)
-	applyChanges(config, t.changes[snapName])
-
-	purgeNulls(config)
-	return getFromConfig(snapName, subkeys, 0, config, result)
+	return t.get(snapName, key, result, nil)
 }
 
 // GetMaybe unmarshals into result the cached value of the provided snap's configuration key.
@@ -212,7 +217,7 @@ func (t *Transaction) GetPristine(snapName, key string, result interface{}) erro
 		return err
 	}
 
-	return getFromConfig(snapName, subkeys, 0, t.pristine[snapName], result)
+	return getFromConfig(snapName, subkeys, 0, t.pristine[snapName], result, nil)
 }
 
 // GetPristineMaybe unmarshals the cached pristine (before applying any
@@ -228,12 +233,70 @@ func (t *Transaction) GetPristineMaybe(instanceName, key string, result interfac
 	return nil
 }
 
-func getFromConfig(instanceName string, subkeys []string, pos int, config map[string]*json.RawMessage, result interface{}) error {
+// GetNoVirtual gets the configuration but ignores any virtual configuration.
+func (t *Transaction) GetNoVirtual(snapName, key string, result interface{}) error {
+	return t.get(snapName, key, result, &options{ExcludeVirtual: true})
+}
+
+type options struct {
+	ExcludeVirtual bool
+}
+
+func (t *Transaction) get(snapName, key string, result interface{}, opts *options) error {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if opts == nil {
+		opts = &options{}
+	}
+
+	subkeys, err := ParseKey(key)
+	if err != nil {
+		return err
+	}
+
+	// first check if this is a virtual configuration key
+	if !opts.ExcludeVirtual {
+		virtualMu.Lock()
+		km, ok := virtualMap[snapName]
+		virtualMu.Unlock()
+		if ok && km != nil {
+			// check if this is a subkey of a virtualed key
+			for i := 0; i < len(subkeys); i++ {
+				k := strings.Join(subkeys[:len(subkeys)-i], ".")
+				if hif, ok := km[k]; ok {
+					return hif(snapName, key, VirtualResult{result})
+				}
+			}
+
+		}
+	}
+
+	// commit changes onto a copy of pristine configuration, so that get has a complete view of the config.
+	config := t.copyPristine(snapName)
+	applyChanges(config, t.changes[snapName])
+
+	purgeNulls(config)
+	return getFromConfig(snapName, subkeys, 0, config, result, opts)
+}
+
+func getFromConfig(instanceName string, subkeys []string, pos int, config map[string]*json.RawMessage, result interface{}, opts *options) error {
+	if opts == nil {
+		opts = &options{}
+	}
+
 	// special case - get root document
 	if len(subkeys) == 0 {
+		// merge any virtual configuration
+		if !opts.ExcludeVirtual {
+			if err := mergeConfigWithVirtual(instanceName, config); err != nil {
+				return err
+			}
+		}
 		if len(config) == 0 {
 			return &NoOptionError{SnapName: instanceName}
 		}
+
 		raw := jsonRaw(config)
 		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result); err != nil {
 			return fmt.Errorf("internal error: cannot unmarshal snap %q root document: %s", instanceName, err)
@@ -265,7 +328,7 @@ func getFromConfig(instanceName string, subkeys []string, pos int, config map[st
 	if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &configm); err != nil {
 		return fmt.Errorf("snap %q option %q is not a map", instanceName, strings.Join(subkeys[:pos+1], "."))
 	}
-	return getFromConfig(instanceName, subkeys, pos+1, configm, result)
+	return getFromConfig(instanceName, subkeys, pos+1, configm, result, opts)
 }
 
 // Commit applies to the state the configuration changes made in the transaction
@@ -343,6 +406,39 @@ func commitChange(pristine *json.RawMessage, change interface{}) *json.RawMessag
 	panic(fmt.Errorf("internal error: unexpected configuration type %T", change))
 }
 
+func mergeConfigWithVirtual(instanceName string, config map[string]*json.RawMessage) error {
+	virtualMu.Lock()
+	km, ok := virtualMap[instanceName]
+	virtualMu.Unlock()
+	if !ok {
+		return nil
+	}
+
+	// create a "patch" from the virtual entries
+	patch := make(map[string]interface{})
+	for key, virtualFn := range km {
+		if virtualFn == nil {
+			continue
+		}
+		var res interface{}
+		if err := virtualFn(instanceName, key, VirtualResult{&res}); err != nil {
+			return err
+		}
+		patch[key] = jsonRaw(res)
+	}
+
+	// and apply that on top of the config
+	patchKeys := sortPatchKeysByDepth(patch)
+	for _, subkeys := range patchKeys {
+		raw := jsonRaw(patch[subkeys])
+		if _, err := PatchConfig(instanceName, strings.Split(subkeys, "."), 0, config, raw); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // IsNoOption returns whether the provided error is a *NoOptionError.
 func IsNoOption(err error) bool {
 	_, ok := err.(*NoOptionError)
@@ -360,4 +456,45 @@ func (e *NoOptionError) Error() string {
 		return fmt.Sprintf("snap %q has no configuration", e.SnapName)
 	}
 	return fmt.Sprintf("snap %q has no %q configuration option", e.SnapName, e.Key)
+}
+
+// VirtualCfgFunc can be used for virtual "transaction.Get()" calls
+type VirtualCfgFunc func(snapName, key string, result VirtualResult) error
+
+// VirtualResult is used to store the result of a VirtualCfgFunc call
+type VirtualResult struct {
+	res interface{}
+}
+
+func (vcr *VirtualResult) Set(val interface{}) {
+	rv := reflect.ValueOf(vcr.res)
+	rv.Elem().Set(reflect.ValueOf(val))
+}
+
+// virtualMap contain "virtual" configuration keys like
+// e.g. "core.hostname".  The data is never stored in the state but
+// instead directly get/set.
+var (
+	virtualMap map[string]map[string]VirtualCfgFunc
+	virtualMu  sync.Mutex
+)
+
+func RegisterVirtualConfig(snapName, key string, hi VirtualCfgFunc) {
+	virtualMu.Lock()
+	defer virtualMu.Unlock()
+
+	if virtualMap == nil {
+		virtualMap = make(map[string]map[string]VirtualCfgFunc)
+	}
+	if _, ok := virtualMap[snapName]; !ok {
+		virtualMap[snapName] = make(map[string]VirtualCfgFunc)
+	}
+	virtualMap[snapName][key] = hi
+}
+
+func clearVirtualMap() {
+	virtualMu.Lock()
+	defer virtualMu.Unlock()
+
+	virtualMap = nil
 }

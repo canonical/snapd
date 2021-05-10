@@ -47,6 +47,8 @@ func (s *transactionSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.transaction = config.NewTransaction(s.state)
+
+	config.ClearVirtualMap()
 }
 
 type setGetOp string
@@ -603,4 +605,123 @@ func (s *transactionSuite) TestPristineGet(c *C) {
 	err = tr.Get("some-snap", "opt2", &res2)
 	c.Assert(err, IsNil)
 	c.Assert(res2, Equals, "other-value")
+}
+
+func (s *transactionSuite) TestVirtualGetSimple(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("config", map[string]map[string]interface{}{
+		"some-snap": {
+			"other-key": "other-value",
+		},
+	})
+
+	n := 0
+	config.RegisterVirtualConfig("some-snap", "key.virtual", func(snapName, key string, result config.VirtualResult) error {
+		c.Check(snapName, Equals, "some-snap")
+		n++
+
+		s := fmt.Sprintf("%s:%s=virtual-value", snapName, key)
+		result.Set(s)
+		return nil
+	})
+
+	tr := config.NewTransaction(s.state)
+
+	var res string
+	// non-virtual keys work fine
+	err := tr.Get("some-snap", "other-key", &res)
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, "other-value")
+	// the virtual config function was not called
+	c.Check(n, Equals, 0)
+
+	// simple case: subkey is virtual
+	err = tr.Get("some-snap", "key.virtual", &res)
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, "some-snap:key.virtual=virtual-value")
+	c.Check(n, Equals, 1)
+
+	// virtual deep nesting works too
+	err = tr.Get("some-snap", "key.virtual.subkey", &res)
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, "some-snap:key.virtual.subkey=virtual-value")
+	c.Check(n, Equals, 2)
+}
+
+func (s *transactionSuite) TestVirtualSetNotShadowHijacked(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	config.RegisterVirtualConfig("some-snap", "key.virtual", func(snapName, key string, result config.VirtualResult) error {
+		c.Fatalf("unexpected cal to virtual config function")
+		return nil
+	})
+
+	// cannot set "path" to virtual key to non-map type
+	tr := config.NewTransaction(s.state)
+	err := tr.Set("some-snap", "key", "value")
+	c.Assert(err, ErrorMatches, `cannot set "key" for "some-snap" to non-map value because "key.virtual" is a virtual configuration`)
+}
+
+func (s *transactionSuite) TestVirtualGetRootDocIsMerged(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("config", map[string]map[string]interface{}{
+		"some-snap": {
+			"some-key":  "some-value",
+			"other-key": "value",
+		},
+	})
+
+	n := 0
+	config.RegisterVirtualConfig("some-snap", "key.virtual", func(snapName, key string, result config.VirtualResult) error {
+		c.Check(snapName, Equals, "some-snap")
+		n++
+
+		s := fmt.Sprintf("%s:%s=virtual-value", snapName, key)
+		result.Set(s)
+		return nil
+	})
+
+	tr := config.NewTransaction(s.state)
+
+	var res map[string]interface{}
+	// the root doc
+	err := tr.Get("some-snap", "", &res)
+	c.Assert(err, IsNil)
+	c.Check(res, DeepEquals, map[string]interface{}{
+		"some-key":  "some-value",
+		"other-key": "value",
+		"key": map[string]interface{}{
+			"virtual": "some-snap:key.virtual=virtual-value",
+		},
+	})
+}
+
+func (s *transactionSuite) TestGetNoVirtualIsNotMerged(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("config", map[string]map[string]interface{}{
+		"some-snap": {
+			"some-key":  "some-value",
+			"other-key": "value",
+		},
+	})
+
+	config.RegisterVirtualConfig("some-snap", "key.virtual", func(snapName, key string, result config.VirtualResult) error {
+		c.Fatalf("virtual configuration should not get called")
+		return nil
+	})
+
+	tr := config.NewTransaction(s.state)
+
+	var res map[string]interface{}
+	// the root doc
+	err := tr.GetNoVirtual("some-snap", "", &res)
+	c.Assert(err, IsNil)
+	c.Check(res, DeepEquals, map[string]interface{}{
+		"some-key":  "some-value",
+		"other-key": "value",
+	})
 }

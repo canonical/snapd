@@ -40,7 +40,7 @@ var (
 // coreCfg returns the configuration value for the core snap.
 func coreCfg(tr config.ConfGetter, key string) (result string, err error) {
 	var v interface{} = ""
-	if err := tr.Get("core", key, &v); err != nil && !config.IsNoOption(err) {
+	if err := tr.GetNoVirtual("core", key, &v); err != nil && !config.IsNoOption(err) {
 		return "", err
 	}
 	// TODO: we could have a fully typed approach but at the
@@ -94,6 +94,11 @@ func (cfg plainCoreConfig) GetMaybe(instanceName, key string, result interface{}
 		return err
 	}
 	return nil
+}
+
+// GetNoVirtual implements config.ConfGetter interface.
+func (cfg plainCoreConfig) GetNoVirtual(snapName, key string, result interface{}) error {
+	return cfg.Get(snapName, key, result)
 }
 
 // fsOnlyContext encapsulates extra options passed to individual core config
