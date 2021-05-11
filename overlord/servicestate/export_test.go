@@ -22,8 +22,5 @@ package servicestate
 var (
 	UpdateSnapstateServices = updateSnapstateServices
 	PatchQuotas             = patchQuotas
+	CheckSystemdVersion     = checkSystemdVersion
 )
-
-func ResetSystemdVersionCheck() {
-	systemdVersionChecked = false
-}

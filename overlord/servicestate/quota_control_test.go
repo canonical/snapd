@@ -77,17 +77,17 @@ func (s *quotaControlSuite) TestCreateQuotaNotEnabled(c *C) {
 }
 
 func (s *quotaControlSuite) TestCreateQuotaSystemdTooOld(c *C) {
-	servicestate.ResetSystemdVersionCheck()
-	r := s.mockSystemctlCalls(c, systemctlCallsVersion(204))
-	defer r()
-
-	// try to create an empty quota group
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	err := servicestate.CreateQuota(s.state, "foo", "", nil, quantity.SizeGiB)
-	c.Assert(err, ErrorMatches, `systemd version too old: snap quotas requires systemd 205 and newer \(currently have 204\)`)
+	r := s.mockSystemctlCalls(c, systemctlCallsVersion(204))
+	defer r()
 
+	err := servicestate.CheckSystemdVersion()
+	c.Assert(err, IsNil)
+
+	err = servicestate.CreateQuota(s.state, "foo", "", nil, quantity.SizeGiB)
+	c.Assert(err, ErrorMatches, `systemd version too old: snap quotas requires systemd 205 and newer \(currently have 204\)`)
 }
 
 type quotaGroupState struct {

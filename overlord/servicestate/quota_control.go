@@ -41,24 +41,23 @@ import (
 )
 
 var (
-	systemdVersionChecked = false
-	systemdVersion        int
+	systemdVersion int
 )
 
 // TODO: move to a systemd.AtLeast() ?
-func checkSystemdVersion() {
-	if !systemdVersionChecked {
-		vers, err := systemd.Version()
-		if err != nil {
-			logger.Noticef("failed to check systemd version: %v", err)
-		}
-		systemdVersionChecked = true
-		systemdVersion = vers
+func checkSystemdVersion() error {
+	vers, err := systemd.Version()
+	if err != nil {
+		return err
 	}
+	systemdVersion = vers
+	return nil
 }
 
 func init() {
-	checkSystemdVersion()
+	if err := checkSystemdVersion(); err != nil {
+		logger.Noticef("failed to check systemd version: %v", err)
+	}
 }
 
 func MockSystemdVersion(vers int) (restore func()) {
@@ -217,7 +216,6 @@ func quotaGroupsAvailable(st *state.State) error {
 	}
 
 	// check if the systemd version is too old
-	checkSystemdVersion()
 	if systemdVersion < 205 {
 		return fmt.Errorf("systemd version too old: snap quotas requires systemd 205 and newer (currently have %d)", systemdVersion)
 	}
