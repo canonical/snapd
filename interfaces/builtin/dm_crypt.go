@@ -23,7 +23,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
-const dmCryptSummary = `allows encryption of block storages`
+const dmCryptSummary = `allows encryption and decryption of block storage devices`
 
 const dmCryptBaseDeclarationSlots = `
   dm-crypt:

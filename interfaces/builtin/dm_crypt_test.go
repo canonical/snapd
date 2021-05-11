@@ -129,7 +129,7 @@ func (s *DmCryptInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows encryption of block storages`)
+	c.Assert(si.Summary, Equals, `allows encryption and decryption of block storage devices`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "dm-crypt")
 	c.Assert(si.BaseDeclarationPlugs, testutil.Contains, "allow-installation: false")
 }
