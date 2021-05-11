@@ -104,6 +104,9 @@ apps:
   display-control:
     command: bin/run
     plugs: [ display-control ]
+  dm-crypt:
+    command: bin/run
+    plugs: [ dm-crypt ]
   docker:
     command: bin/run
     plugs: [ docker ]
