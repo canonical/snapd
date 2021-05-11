@@ -33,7 +33,7 @@ const dmCryptBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 const dmCryptBaseDeclarationPlugs = `
-  tee:
+  dm-crypt:
     allow-installation: false
     deny-auto-connection: true
 `
@@ -68,8 +68,9 @@ keyctl
 request_key
 `
 
-// dm-crypt Note also that
-// in many cases ppp_generic is statically linked into the kernel (CONFIG_DM_CRYPT=y)
+// dm-crypt
+// Note that often dm-crypt is statically linked into the kernel (CONFIG_DM_CRYPT=y)
+// This is usual for the custom kernels for projects where disk encryption is required.
 var dmCryptConnectedPlugKmod = []string{
 	"dm_crypt",
 }
