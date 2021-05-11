@@ -101,7 +101,7 @@ func (s *DmCryptInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.Snippets(), testutil.Contains, `# dm-crypt
 KERNEL=="device-mapper", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# dm-crypt
-KERNEL=="dm[0-9]", TAG+="snap_consumer_app"`)
+KERNEL=="dm-[0-9]", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# dm-crypt
 SUBSYSTEM=="block", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains,

@@ -76,7 +76,7 @@ var dmCryptConnectedPlugKmod = []string{
 
 var dmCryptConnectedPlugUDev = []string{
 	`KERNEL=="device-mapper"`,
-	`KERNEL=="dm[0-9]"`,
+	`KERNEL=="dm-[0-9]"`,
 	`SUBSYSTEM=="block"`,
 }
 
