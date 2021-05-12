@@ -28,6 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
@@ -35,6 +36,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -72,6 +74,12 @@ func (s *linkSnapSuite) SetUpTest(c *C) {
 	s.setup(c, s.stateBackend)
 
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
+
+	oldSnapServiceOptions := snapstate.SnapServiceOptions
+	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions
+	s.AddCleanup(func() {
+		snapstate.SnapServiceOptions = oldSnapServiceOptions
+	})
 }
 
 func checkHasCookieForSnap(c *C, st *state.State, instanceName string) {
@@ -1825,4 +1833,74 @@ func (s *linkSnapSuite) TestMaybeUndoRemodelBootChangesNeedsUndo(c *C) {
 	})
 	c.Check(s.stateBackend.restartRequested, HasLen, 1)
 	c.Check(s.stateBackend.restartRequested[0], Equals, state.RestartSystem)
+}
+
+func (s *linkSnapSuite) testDoLinkSnapWithToolingDependency(c *C, classicOrBase string) {
+	var model *asserts.Model
+	var needsTooling bool
+	switch classicOrBase {
+	case "classic-system":
+		model = ClassicModel()
+	case "":
+		model = DefaultModel()
+	default:
+		// the tooling mount is needed on UC18+
+		needsTooling = true
+		model = ModelWithBase(classicOrBase)
+	}
+	r := snapstatetest.MockDeviceModel(model)
+	defer r()
+
+	s.state.Lock()
+	si := &snap.SideInfo{
+		RealName: "services-snap",
+		SnapID:   "services-snap-id",
+		Revision: snap.R(11),
+	}
+	t := s.state.NewTask("link-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: si,
+		Type:     snap.TypeApp,
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	expected := fakeOps{
+		{
+			op:    "candidate",
+			sinfo: *si,
+		},
+		{
+			op:                  "link-snap",
+			path:                filepath.Join(dirs.SnapMountDir, "services-snap/11"),
+			requireSnapdTooling: needsTooling,
+		},
+	}
+
+	// start with an easier-to-read error if this fails:
+	c.Check(s.fakeBackend.ops.Ops(), DeepEquals, expected.Ops())
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapWithToolingClassic(c *C) {
+	s.testDoLinkSnapWithToolingDependency(c, "classic-system")
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapWithToolingCore(c *C) {
+	s.testDoLinkSnapWithToolingDependency(c, "")
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapWithToolingCore18(c *C) {
+	s.testDoLinkSnapWithToolingDependency(c, "core18")
+}
+
+func (s *linkSnapSuite) TestDoLinkSnapWithToolingCore20(c *C) {
+	s.testDoLinkSnapWithToolingDependency(c, "core20")
 }

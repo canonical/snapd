@@ -58,6 +58,7 @@ func (s *modeenvSuite) TestKnownKnown(c *C) {
 		"recovery_system":          true,
 		"current_recovery_systems": true,
 		"good_recovery_systems":    true,
+		"boot_flags":               true,
 		// keep this comment to make old go fmt happy
 		"base":            true,
 		"try_base":        true,
@@ -236,6 +237,8 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		BrandID: "brand",
 		Grade:   "secured",
 
+		BootFlags: []string{"foo", "factory"},
+
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"thing1": {"hash1", "hash2"},
 			"thing2": {"hash3"},
@@ -261,6 +264,8 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		Model:   "model",
 		BrandID: "brand",
 		Grade:   "secured",
+
+		BootFlags: []string{"foo", "factory"},
 
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"thing1": {"hash1", "hash2"},

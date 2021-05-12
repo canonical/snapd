@@ -591,6 +591,12 @@ func (o *Overlord) SnapManager() *snapstate.SnapManager {
 	return o.snapMgr
 }
 
+// ServiceManager returns the manager responsible for services
+// under the overlord.
+func (o *Overlord) ServiceManager() *servicestate.ServiceManager {
+	return o.serviceMgr
+}
+
 // AssertManager returns the assertion manager enforcing assertions
 // under the overlord.
 func (o *Overlord) AssertManager() *assertstate.AssertManager {

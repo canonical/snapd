@@ -732,15 +732,6 @@ func (bcl20 *bootState20CommandLine) markSuccessful(update bootStateUpdate) (boo
 	if err != nil {
 		return nil, err
 	}
-	if len(u20.modeenv.CurrentTrustedBootAssets) == 0 && len(u20.modeenv.CurrentTrustedRecoveryBootAssets) == 0 {
-		// XXX: does this change when we expose the ability to add
-		// things to the command line?
-
-		// not using trusted boot assets, bootloader config is not
-		// managed and command line can be manipulated externally
-		return update, nil
-	}
-
 	newM, err := observeSuccessfulCommandLine(bcl20.dev.Model(), u20.writeModeenv)
 	if err != nil {
 		return nil, fmt.Errorf("cannot mark successful boot command line: %v", err)

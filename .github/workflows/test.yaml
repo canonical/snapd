@@ -231,8 +231,10 @@ jobs:
         - centos-8-64
         - debian-9-64
         - debian-sid-64
+        # TODO: drop Fedora 32 once it goes EOL on 25.05.2021
         - fedora-32-64
         - fedora-33-64
+        - fedora-34-64
         - opensuse-15.1-64
         - opensuse-15.2-64
         - opensuse-tumbleweed-64

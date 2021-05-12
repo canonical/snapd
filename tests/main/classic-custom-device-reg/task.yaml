@@ -54,8 +54,6 @@ restore: |
     systemctl stop snapd.service snapd.socket fakedevicesvc
 
     rm -rf "$SEED_DIR"
-    rm -f -- *.snap
-    rm -f -- *.assert
     systemctl start snapd.socket snapd.service
 
 execute: |

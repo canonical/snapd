@@ -45,11 +45,6 @@ prepare: |
     "$TESTSTOOLS"/nested-state build-image core
     "$TESTSTOOLS"/nested-state create-vm core
 
-restore: |
-    if [ -f skip.test ]; then
-        rm -f skip.test
-    fi
-
 debug: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"

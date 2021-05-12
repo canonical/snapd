@@ -68,7 +68,9 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 		)
 	}
 	if opts&updatesGadget != 0 {
-		expected = append(expected, "update-gadget-assets")
+		expected = append(expected,
+			"update-gadget-assets",
+			"update-gadget-cmdline")
 	}
 	expected = append(expected,
 		"copy-snap-data",
@@ -3631,8 +3633,7 @@ volumes:
 		TrackError:  false,
 	}
 
-	var contextData map[string]interface{}
-	contextData = map[string]interface{}{"patch": gi.Defaults}
+	contextData := map[string]interface{}{"patch": gi.Defaults}
 
 	s.state.Lock()
 	defer s.state.Unlock()

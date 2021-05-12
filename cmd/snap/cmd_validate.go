@@ -97,9 +97,9 @@ func splitValidationSetArg(arg string) (account, name string, seq int, err error
 
 func fmtValid(res *client.ValidationSetResult) string {
 	if res.Valid {
-		return fmt.Sprint("valid")
+		return "valid"
 	}
-	return fmt.Sprint("invalid")
+	return "invalid"
 }
 
 func fmtValidationSet(res *client.ValidationSetResult) string {

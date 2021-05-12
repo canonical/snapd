@@ -64,7 +64,7 @@ is_debian() {
 }
 
 is_debian_sid() {
-    grep -qFx 'ID=debian' /etc/os-release && grep -qx 'PRETTY_NAME=".*/sid"' /etc/os-release
+    [[ "$SPREAD_SYSTEM" == debian-sid-* ]]
 }
 
 is_fedora() {

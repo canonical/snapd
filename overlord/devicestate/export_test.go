@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
@@ -180,6 +181,10 @@ func SetInstalledRan(m *DeviceManager, b bool) {
 	m.ensureInstalledRan = b
 }
 
+func SetTriedSystemsRan(m *DeviceManager, b bool) {
+	m.ensureTriedRecoverySystemRan = b
+}
+
 func StartTime() time.Time {
 	return startTime
 }
@@ -224,6 +229,8 @@ var (
 	PendingGadgetInfo   = pendingGadgetInfo
 
 	CriticalTaskEdges = criticalTaskEdges
+
+	CreateSystemForModelFromValidatedSnaps = createSystemForModelFromValidatedSnaps
 )
 
 func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error) (restore func()) {
@@ -258,11 +265,11 @@ func MockBootEnsureNextBootToRunMode(f func(systemLabel string) error) (restore 
 	}
 }
 
-func MockSecbootCheckKeySealingSupported(f func() error) (restore func()) {
-	old := secbootCheckKeySealingSupported
-	secbootCheckKeySealingSupported = f
+func MockSecbootCheckTPMKeySealingSupported(f func() error) (restore func()) {
+	old := secbootCheckTPMKeySealingSupported
+	secbootCheckTPMKeySealingSupported = f
 	return func() {
-		secbootCheckKeySealingSupported = old
+		secbootCheckTPMKeySealingSupported = old
 	}
 }
 
@@ -310,8 +317,8 @@ func DeviceManagerHasFDESetupHook(mgr *DeviceManager) (bool, error) {
 	return mgr.hasFDESetupHook()
 }
 
-func DeviceManagerRunFDESetupHook(mgr *DeviceManager, op string, params *boot.FDESetupHookParams) ([]byte, error) {
-	return mgr.runFDESetupHook(op, params)
+func DeviceManagerRunFDESetupHook(mgr *DeviceManager, req *fde.SetupRequest) ([]byte, error) {
+	return mgr.runFDESetupHook(req)
 }
 
 func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx snapstate.DeviceContext) (bool, error) {

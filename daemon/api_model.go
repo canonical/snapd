@@ -44,13 +44,6 @@ var (
 	}
 )
 
-type assertType int
-
-const (
-	serialType assertType = iota
-	modelType
-)
-
 var devicestateRemodel = devicestate.Remodel
 
 type postModelData struct {

@@ -180,8 +180,7 @@ func (s *aliasesSuite) TestAliasErrors(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/aliases", buf)
 		c.Assert(err, check.IsNil)
 
-		rsp := s.req(c, req, nil).(*daemon.Resp)
-		c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
+		rsp := s.errorReq(c, req, nil)
 		c.Check(rsp.Status, check.Equals, 400)
 		c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, scen.err)
 	}
@@ -549,8 +548,7 @@ func (s *aliasesSuite) TestAliases(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/aliases", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Result, check.DeepEquals, map[string]map[string]daemon.AliasStatus{
 		"alias-snap1": {

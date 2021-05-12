@@ -47,10 +47,21 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
+	"github.com/snapcore/snapd/wrappers"
 )
+
+// SnapServiceOptions is a hook set by servicestate.
+var SnapServiceOptions = func(st *state.State, instanceName string, grps map[string]*quota.Group) (opts *wrappers.SnapServiceOptions, err error) {
+	panic("internal error: snapstate.SanpServiceOptions is unset")
+}
+
+var SecurityProfilesRemoveLate = func(snapName string, rev snap.Revision, typ snap.Type) error {
+	panic("internal error: snapstate.SecurityProfilesRemoveLate is unset")
+}
 
 // TaskSnapSetup returns the SnapSetup with task params hold by or referred to by the task.
 func TaskSnapSetup(t *state.Task) (*SnapSetup, error) {
@@ -887,13 +898,13 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	snapst.Active = true
-	vitalityRank, err := vitalityRank(st, snapsup.InstanceName())
+	opts, err := SnapServiceOptions(st, snapsup.InstanceName(), nil)
 	if err != nil {
 		return err
 	}
 	linkCtx := backend.LinkContext{
-		FirstInstall: false,
-		VitalityRank: vitalityRank,
+		FirstInstall:   false,
+		ServiceOptions: opts,
 	}
 	reboot, err := m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
 	if err != nil {
@@ -1078,22 +1089,6 @@ func missingDisabledServices(svcs []string, info *snap.Info) ([]string, []string
 	return foundSvcs, missingSvcs, nil
 }
 
-func vitalityRank(st *state.State, instanceName string) (rank int, err error) {
-	tr := config.NewTransaction(st)
-
-	var vitalityStr string
-	err = tr.GetMaybe("core", "resilience.vitality-hint", &vitalityStr)
-	if err != nil {
-		return 0, err
-	}
-	for i, s := range strings.Split(vitalityStr, ",") {
-		if s == instanceName {
-			return i + 1, nil
-		}
-	}
-	return 0, nil
-}
-
 // LinkSnapParticipant is an interface for interacting with snap link/unlink
 // operations.
 //
@@ -1236,14 +1231,19 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		return err
 	}
 
-	vitalityRank, err := vitalityRank(st, snapsup.InstanceName())
+	opts, err := SnapServiceOptions(st, snapsup.InstanceName(), nil)
 	if err != nil {
 		return err
 	}
 	firstInstall := oldCurrent.Unset()
 	linkCtx := backend.LinkContext{
-		FirstInstall: firstInstall,
-		VitalityRank: vitalityRank,
+		FirstInstall:   firstInstall,
+		ServiceOptions: opts,
+	}
+	// on UC18+, snap tooling comes from the snapd snap so we need generated
+	// mount units to depend on the snapd snap mount units
+	if !deviceCtx.Classic() && deviceCtx.Model().Base() != "" {
+		linkCtx.RequireMountedSnapdSnap = true
 	}
 	reboot, err := m.backend.LinkSnap(newInfo, deviceCtx, linkCtx, perfTimings)
 	// defer a cleanup helper which will unlink the snap if anything fails after
@@ -2121,13 +2121,13 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Active = true
 	Set(st, snapsup.InstanceName(), snapst)
 
-	vitalityRank, err := vitalityRank(st, snapsup.InstanceName())
+	opts, err := SnapServiceOptions(st, snapsup.InstanceName(), nil)
 	if err != nil {
 		return err
 	}
 	linkCtx := backend.LinkContext{
-		FirstInstall: false,
-		VitalityRank: vitalityRank,
+		FirstInstall:   false,
+		ServiceOptions: opts,
 	}
 	reboot, err := m.backend.LinkSnap(info, deviceCtx, linkCtx, perfTimings)
 	if err != nil {
@@ -2269,6 +2269,9 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		// XXX: also remove sequence files?
 	}
 	if err = config.DiscardRevisionConfig(st, snapsup.InstanceName(), snapsup.Revision()); err != nil {
+		return err
+	}
+	if err = SecurityProfilesRemoveLate(snapsup.InstanceName(), snapsup.Revision(), snapsup.Type); err != nil {
 		return err
 	}
 	Set(st, snapsup.InstanceName(), snapst)
