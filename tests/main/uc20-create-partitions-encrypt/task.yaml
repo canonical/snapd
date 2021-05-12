@@ -107,11 +107,11 @@ execute: |
     # keep for later
 
     echo "Check that the ubuntu-data key files were created"
-    test "$(stat --printf=%s unsealed-key)" -eq 64
+    test "$(stat --printf=%s unsealed-key)" -eq 32
     # recovery key is 16 bytes long
     test "$(stat --printf=%s recovery-key)" -eq 16
     echo "Check that the ubuntu-save key files were created"
-    test "$(stat --printf=%s save-key)" -eq 64
+    test "$(stat --printf=%s save-key)" -eq 32
     # recovery key is 16 bytes long
     test "$(stat --printf=%s reinstall-key)" -eq 16
 

@@ -89,6 +89,13 @@ dbus (bind)
     bus=###DBUS_BUS###
     name=###DBUS_NAME###{_,-}[1-9]{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9]}{,_[1-9]{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9_]}{,[0-9]}},
 
+# For Firefox, support using org.mozilla.firefox.<id> as the 'well-known' name
+# where <id> is the base64-encoded profile name.
+# See https://bugzilla.mozilla.org/1441894 for a discussion and details.
+dbus (bind)
+    bus=###DBUS_BUS###
+    name="###DBUS_NAME###.*",
+
 # Allow us to talk to dbus-daemon
 dbus (receive)
     bus=###DBUS_BUS###
