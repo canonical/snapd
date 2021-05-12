@@ -177,9 +177,11 @@ linters:
     - misspell
     - deadcode
     - unused
-    - gosimple
+    # gosimple may suggest patterns that work only with more recent Go versions
+    # - gosimple
     - nakedret
-    - gofmt
+    # formatting is disabled until we move to Go 1.13
+    # - gofmt
     - ineffassign
     - goimports
     - testpackage
@@ -205,11 +207,17 @@ issues:
         - dupl
         - gosec
 
-    - path: export_test\.go
+    - path: export.*_test\.go
       linters:
         - deadcode
+        - testpackage
 
     - path: osutil/.*_test.go
+      linters:
+        - testpackage
+
+    # an external dependency that was imported
+    - path: udev/netlink/.*_test.go
       linters:
         - testpackage
 
