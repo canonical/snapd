@@ -205,7 +205,7 @@ jobs:
         - arch-linux-64
         - centos-7-64
         - centos-8-64
-        - debian-9-64
+        - debian-10-64
         - debian-sid-64
         # TODO: drop Fedora 32 once it goes EOL on 25.05.2021
         - fedora-32-64
