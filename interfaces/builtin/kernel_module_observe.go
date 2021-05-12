@@ -44,7 +44,7 @@ capability syslog,
 # Allow reading information about loaded kernel modules
 /sys/module/{,**} r,
 /etc/modprobe.d/{,**} r,
-/lib/modprobe.d/{,**} r,
+/{,usr/}lib/modprobe.d/{,**} r,
 `
 
 func init() {
