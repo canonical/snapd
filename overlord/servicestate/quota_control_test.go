@@ -153,14 +153,9 @@ func checkSliceState(c *C, sliceName string, sliceMem quantity.Size) {
 	}
 }
 
-func systemctlCallsForSliceRestart(name string) []expectedSystemctl {
+func systemctlCallsForSliceStart(name string) []expectedSystemctl {
 	slice := "snap." + name + ".slice"
 	return []expectedSystemctl{
-		{expArgs: []string{"stop", slice}},
-		{
-			expArgs: []string{"show", "--property=ActiveState", slice},
-			output:  "ActiveState=inactive",
-		},
 		{expArgs: []string{"start", slice}},
 	}
 }
@@ -195,7 +190,7 @@ func systemctlCallsForServiceRestart(name string) []expectedSystemctl {
 func systemctlCallsForCreateQuota(groupName, snapName string) []expectedSystemctl {
 	return join(
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
-		systemctlCallsForSliceRestart(groupName),
+		systemctlCallsForSliceStart(groupName),
 		systemctlCallsForServiceRestart(snapName),
 	)
 }
@@ -299,8 +294,8 @@ func (s *quotaControlSuite) TestCreateSubGroupQuota(c *C) {
 		// CreateQuota for foo2 - we don't write anything for the first quota
 		// since there are no snaps in the quota to track
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
-		systemctlCallsForSliceRestart("foo"),
-		systemctlCallsForSliceRestart("foo-foo2"),
+		systemctlCallsForSliceStart("foo"),
+		systemctlCallsForSliceStart("foo-foo2"),
 		systemctlCallsForServiceRestart("test-snap"),
 	))
 	defer r()
@@ -474,7 +469,6 @@ func (s *quotaControlSuite) TestUpdateQuotaSubGroupTooBig(c *C) {
 
 		// UpdateQuota for foo2 - just the slice changes
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
-		systemctlCallsForSliceRestart("foo-foo2"),
 
 		// UpdateQuota for foo2 which fails - no systemctl calls
 	))
@@ -572,9 +566,9 @@ func (s *quotaControlSuite) TestUpdateQuotaChangeMemLimit(c *C) {
 		// CreateQuota for foo
 		systemctlCallsForCreateQuota("foo", "test-snap"),
 
-		// UpdateQuota for foo - just the slice changes
+		// UpdateQuota for foo - an existing slice was changed, so all we need
+		// to is daemon-reload
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
-		systemctlCallsForSliceRestart("foo"),
 	))
 	defer r()
 
@@ -610,6 +604,11 @@ func (s *quotaControlSuite) TestUpdateQuotaChangeMemLimit(c *C) {
 			Snaps:       []string{"test-snap"},
 		},
 	})
+
+	// trying to decrease the memory limit is not yet supported
+	opts = servicestate.QuotaGroupUpdate{NewMemoryLimit: quantity.SizeGiB}
+	err = servicestate.UpdateQuota(s.state, "foo", opts)
+	c.Assert(err, ErrorMatches, "cannot decrease memory limit of existing quota-group, remove and re-create it to decrease the limit")
 }
 
 func (s *quotaControlSuite) TestUpdateQuotaAddSnap(c *C) {
