@@ -320,7 +320,29 @@ func expChangeObserver(c *C, exp []changesObservation) (restore func(), obs wrap
 		})
 	}
 
-	return func() { c.Assert(changesObserved, DeepEquals, exp) }, f
+	r := func() {
+		// sort the changesObserved by snapName, with all services being
+		// observed first, then all groups secondly
+		groupObservations := make([]changesObservation, 0, len(changesObserved))
+		svcObservations := make([]changesObservation, 0, len(changesObserved))
+
+		for _, chg := range changesObserved {
+			if chg.unitType == "slice" {
+				groupObservations = append(groupObservations, chg)
+			} else {
+				svcObservations = append(svcObservations, chg)
+			}
+		}
+		sort.SliceStable(svcObservations, func(i, j int) bool {
+			return svcObservations[i].snapName < svcObservations[j].snapName
+		})
+		finalSortChangesObserved := make([]changesObservation, 0, len(changesObserved))
+		finalSortChangesObserved = append(finalSortChangesObserved, svcObservations...)
+		finalSortChangesObserved = append(finalSortChangesObserved, groupObservations...)
+		c.Assert(finalSortChangesObserved, DeepEquals, exp)
+	}
+
+	return r, f
 }
 
 func (s *servicesTestSuite) TestEnsureSnapServicesRewritesQuotaSlices(c *C) {
@@ -631,18 +653,18 @@ WantedBy=multi-user.target
 
 	exp := []changesObservation{
 		{
-			snapName: "hello-snap",
-			unitType: "service",
-			name:     "svc1",
-			old:      "",
-			new:      helloSnapContent,
-		},
-		{
 			snapName: "hello-other-snap",
 			unitType: "service",
 			name:     "svc1",
 			old:      "",
 			new:      helloOtherSnapContent,
+		},
+		{
+			snapName: "hello-snap",
+			unitType: "service",
+			name:     "svc1",
+			old:      "",
+			new:      helloSnapContent,
 		},
 		{
 			grp:      grp,
