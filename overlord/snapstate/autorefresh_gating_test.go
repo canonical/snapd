@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -713,6 +714,9 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1ConflictsFilteredOut(c *C)
 	restore := snapstatetest.MockDeviceModel(DefaultModel())
 	defer restore()
 
+	logbuf, restoreLogger := logger.MockLogger()
+	defer restoreLogger()
+
 	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st)
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"snap-a"})
@@ -722,6 +726,8 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1ConflictsFilteredOut(c *C)
 	c.Check(tss[0].Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
 
 	c.Assert(tss[1].Tasks(), HasLen, 1)
+
+	c.Assert(logbuf.String(), testutil.Contains, `cannot refresh snap "snap-c": snap "snap-c" has "conflicting change" change in progress`)
 
 	seenSnaps := make(map[string]bool)
 	var hs hookstate.HookSetup
