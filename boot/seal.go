@@ -353,6 +353,7 @@ func resealKeyToModeenvUsingFDESetupHookImpl(rootdir string, model *asserts.Mode
 	return nil
 }
 
+// TODO:UC20: allow more than one model to accommodate the remodel scenario
 func resealKeyToModeenvSecboot(rootdir string, model *asserts.Model, modeenv *Modeenv, expectReseal bool) error {
 	// build the recovery mode boot chain
 	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
@@ -447,7 +448,7 @@ func resealKeyToModeenvSecboot(rootdir string, model *asserts.Model, modeenv *Mo
 	}
 	if needed {
 		rpbcJSON, _ := json.Marshal(rpbc)
-		logger.Debugf("resealing (%d) to recovery boot chains: %s", nextCount, rpbcJSON)
+		logger.Debugf("resealing (%d) to recovery boot chains: %s", nextFallbackCount, rpbcJSON)
 
 		if err := resealFallbackObjectKeys(rpbc, authKeyFile, roleToBlName); err != nil {
 			return err
@@ -514,6 +515,8 @@ func resealFallbackObjectKeys(pbc predictableBootChains, authKeyFile string, rol
 	return nil
 }
 
+// TODO:UC20: this needs to take more than one model to accommodate the remodel
+// scenario
 func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAssetsBootloader, model *asserts.Model, modeenv *Modeenv) (chains []bootChain, err error) {
 	for _, system := range systems {
 		// get kernel and gadget information from seed
@@ -674,7 +677,7 @@ func sealKeyModelParams(pbc predictableBootChains, roleToBlName map[bootloader.R
 
 // isResealNeeded returns true when the predictable boot chains provided as
 // input do not match the cached boot chains on disk under rootdir.
-// It also returns the next value for the reasel count that is saved
+// It also returns the next value for the reseal count that is saved
 // together with the boot chains.
 // A hint expectReseal can be provided, it is used when the matching
 // is ambigous because the boot chains contain unrevisioned kernels.
