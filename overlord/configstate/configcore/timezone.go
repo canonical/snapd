@@ -25,7 +25,9 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/sysconfig"
@@ -34,6 +36,8 @@ import (
 func init() {
 	// add supported configuration of this module
 	supportedConfigurations["core.system.timezone"] = true
+	// and register it as a virtual config
+	config.RegisterVirtualConfig("core", "system.timezone", getTimezoneFromSystemVC)
 }
 
 var validTimezone = regexp.MustCompile(`^[a-zA-Z0-9+_-]+(/[a-zA-Z0-9+_-]+)?(/[a-zA-Z0-9+_-]+)?$`).MatchString
@@ -69,6 +73,15 @@ func handleTimezoneConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts 
 	if timezone == "" {
 		return nil
 	}
+	// see if anything has changed
+	currentTimezone, err := getTimezoneFromSystem()
+	if err != nil {
+		return err
+	}
+	if timezone == currentTimezone {
+		return nil
+	}
+	
 	// runtime system
 	if opts == nil {
 		output, err := exec.Command("timedatectl", "set-timezone", timezone).CombinedOutput()
@@ -94,4 +107,24 @@ func handleTimezoneConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts 
 	}
 
 	return nil
+}
+
+func getTimezoneFromSystemVC(key string) (interface{}, error) {
+	return getTimezoneFromSystem()
+}
+
+func getTimezoneFromSystem() (string, error) {
+	// We cannot use "timedatectl show" here because it is only
+	// available on UC20
+	link, err := os.Readlink(filepath.Join(dirs.GlobalRootDir, "/etc/writable/localtime"))
+	// see localtime(5)
+	// "If /etc/localtime is missing, the default "UTC" timezone is used."
+	if os.IsNotExist(err) {
+		return "UTC", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("cannot get timezone: %v", err)
+	}
+	val := strings.TrimPrefix(link, "/usr/share/zoneinfo/")
+	return val, nil
 }
