@@ -961,10 +961,10 @@ nested_start_core_vm_unit() {
         fi
 
         if nested_is_tpm_enabled; then
-            if snap list swtpm-mvo; then
+            if snap list swtpm-mvo >/dev/null; then
                 # reset the tpm state
                 rm /var/snap/swtpm-mvo/current/tpm2-00.permall
-                snap restart swtpm-mvo
+                snap restart swtpm-mvo > /dev/null
             else
                 snap install swtpm-mvo --beta
             fi
