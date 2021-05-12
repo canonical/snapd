@@ -629,7 +629,39 @@ func (s *systemsSuite) TestInspectRecoverySystemOutcomeHappySuccess(c *C) {
 	err := mtbl.SetBootVars(triedVars)
 	c.Assert(err, IsNil)
 
+	m := boot.Modeenv{
+		Mode: boot.ModeRun,
+		// keep this comment to make old gofmt happy
+		CurrentRecoverySystems: []string{"29112019", "1234"},
+	}
+	err = m.WriteTo("")
+	c.Assert(err, IsNil)
+
 	s.testInspectRecoverySystemOutcomeHappy(c, mtbl, boot.TryRecoverySystemOutcomeSuccess, "")
+
+	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, triedVars)
+}
+
+func (s *systemsSuite) TestInspectRecoverySystemOutcomeFailureMissingSystemInModeenv(c *C) {
+	triedVars := map[string]string{
+		"recovery_system_status": "tried",
+		"try_recovery_system":    "1234",
+	}
+	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
+	err := mtbl.SetBootVars(triedVars)
+	c.Assert(err, IsNil)
+
+	m := boot.Modeenv{
+		Mode: boot.ModeRun,
+		// we don't have the tried recovery system in the modeenv
+		CurrentRecoverySystems: []string{"29112019"},
+	}
+	err = m.WriteTo("")
+	c.Assert(err, IsNil)
+
+	s.testInspectRecoverySystemOutcomeHappy(c, mtbl, boot.TryRecoverySystemOutcomeFailure, `recovery system "1234" was tried, but is not present in the modeenv CurrentRecoverySystems`)
 
 	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)

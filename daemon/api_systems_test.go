@@ -659,7 +659,7 @@ func (s *systemsSuite) TestSystemRebootUnhappy(c *check.C) {
 		})
 		defer restore()
 
-		body := fmt.Sprintf(`{"action":"reboot"}`)
+		body := `{"action":"reboot"}`
 		url := "/v2/systems"
 		req, err := http.NewRequest("POST", url, strings.NewReader(body))
 		c.Assert(err, check.IsNil)

@@ -62,8 +62,6 @@ type SnapManager struct {
 	refreshHints   *refreshHints
 	catalogRefresh *catalogRefresh
 
-	lastUbuntuCoreTransitionAttempt time.Time
-
 	preseed bool
 }
 

@@ -12,9 +12,6 @@ prepare: |
     fi
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
-
     echo "The dbus consumer plug is disconnected by default"
     snap interfaces -i dbus | MATCH '^- +test-snapd-dbus-consumer:dbus-system-test'
 

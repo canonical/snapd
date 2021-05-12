@@ -3129,8 +3129,6 @@ type storeCtxSetupSuite struct {
 
 	brands *assertstest.SigningAccounts
 
-	deviceKey asserts.PrivateKey
-
 	model  *asserts.Model
 	serial *asserts.Serial
 

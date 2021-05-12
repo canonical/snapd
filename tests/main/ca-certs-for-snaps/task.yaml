@@ -15,9 +15,6 @@ restore: |
     rm -f /etc/ssl/file-from-host
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
-
     # XXX: update when we get more systems that support custom ssl
     #      certificate usage
     if [[ "$SPREAD_SYSTEM" = ubuntu-[0-9]* ]] || [[ "$SPREAD_SYSTEM" = debian-* ]]; then

@@ -24,6 +24,7 @@ import (
 	"sort"
 
 	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/strutil"
@@ -159,9 +160,12 @@ func (x *cmdQuotas) Execute(args []string) (err error) {
 
 	w := tabWriter()
 	fmt.Fprintf(w, "Quota\tParent\tMax-Memory\n")
-	processQuotaGroupsTree(res, func(q *client.QuotaGroupResult) {
+	err = processQuotaGroupsTree(res, func(q *client.QuotaGroupResult) {
 		fmt.Fprintf(w, "%s\t%s\t%s\n", q.GroupName, q.Parent, fmtSize(int64(q.MaxMemory)))
 	})
+	if err != nil {
+		return err
+	}
 	w.Flush()
 	return nil
 }
@@ -179,7 +183,7 @@ func (q byQuotaName) Less(i, j int) bool { return q[i].res.GroupName < q[j].res.
 
 // processQuotaGroupsTree recreates the hierarchy of quotas and then visits it
 // recursively following the hierarchy first, then naming order.
-func processQuotaGroupsTree(quotas []*client.QuotaGroupResult, handleGroup func(q *client.QuotaGroupResult)) {
+func processQuotaGroupsTree(quotas []*client.QuotaGroupResult, handleGroup func(q *client.QuotaGroupResult)) error {
 	var roots []*quotaGroup
 	groupLookup := make(map[string]*quotaGroup, len(quotas))
 
@@ -198,7 +202,11 @@ func processQuotaGroupsTree(quotas []*client.QuotaGroupResult, handleGroup func(
 	for _, g := range groupLookup {
 		sort.Strings(g.res.Subgroups)
 		for _, subgrpName := range g.res.Subgroups {
-			g.subGroups = append(g.subGroups, groupLookup[subgrpName])
+			subGroup, ok := groupLookup[subgrpName]
+			if !ok {
+				return fmt.Errorf("internal error: inconsistent groups received, unknown subgroup %q", subgrpName)
+			}
+			g.subGroups = append(g.subGroups, subGroup)
 		}
 	}
 
@@ -212,4 +220,6 @@ func processQuotaGroupsTree(quotas []*client.QuotaGroupResult, handleGroup func(
 		}
 	}
 	processGroups(roots)
+
+	return nil
 }

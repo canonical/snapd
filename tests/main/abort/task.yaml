@@ -1,38 +1,5 @@
 summary: Check change abort
 
-environment:
-    SNAP_NAME: test-snapd-tools
-
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
-
-    echo "Abort with invalid id"
-    if snap abort 10000000; then
-        echo "abort with invalid id should fail"
-        exit 1
-    fi
-
-    echo "Abort with valid id - error"
-    subdirPath="$SNAP_MOUNT_DIR/$SNAP_NAME/current/foo"
-    mkdir -p "$subdirPath"
-    if "$TESTSTOOLS"/snaps-state install-local "$SNAP_NAME"; then
-        echo "install should fail when the target directory exists"
-        exit 1
-    fi
-    idPattern="\\d+(?= +Error.*?Install \"$SNAP_NAME\" snap)"
-    id=$(snap changes | grep -Pzo "$idPattern")
-    if snap abort "$id"; then
-        echo "abort with valid failed id should fail"
-        exit 1
-    fi
-    rm -rf "$subdirPath"
-
-    echo "Abort with valid id - done"
-    "$TESTSTOOLS"/snaps-state install-local "$SNAP_NAME"
-    idPattern="\\d+(?= +Done.*?Install \"$SNAP_NAME\" snap)"
-    id=$(snap changes | grep -Pzo "$idPattern")
-    if snap abort "$id"; then
-        echo "abort with valid done id should fail"
-        exit 1
-    fi
+    echo "$TEST_TEST"
+    exit 1

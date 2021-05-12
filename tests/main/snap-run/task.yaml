@@ -30,15 +30,15 @@ execute: |
 
     # the strace on 14.04 is too old
     if os.query is-trusty; then
-        snap install strace-static
+        snap install strace-static --edge
     fi
     # the strace on opensuse is too old
-    if os.query is-opensuse; then
-        snap install strace-static
+    if os.query is-opensuse && ! os.query is-opensuse-tumbleweed; then
+        snap install strace-static --edge
     fi
     # install the snap if no system strace is found
     if ! command -v strace; then
-        snap install strace-static
+        snap install strace-static --edge
     fi
 
     echo "Test snap --strace invalid works"

@@ -23,8 +23,9 @@ import (
 	"encoding/json"
 	"io/ioutil"
 
-	"github.com/snapcore/snapd/client"
 	"gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/client"
 )
 
 func (cs *clientSuite) TestCreateQuotaGroupInvalidName(c *check.C) {
