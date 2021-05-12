@@ -72,7 +72,10 @@ environment:
     # Configure nested images to be reused on the following tests
     NESTED_CONFIGURE_IMAGES: '$(HOST: echo "${NESTED_CONFIGURE_IMAGES:-false}")'
     # Configure nested images to be reused on the following tests
-    TEST_TEST: '$(HOST: cp /home/ubuntu/.config/gcloud/application_default_credentials.json test.json && cat test.json)'
+    TEST_TEST_1: '$(HOST: ls -al /home/ubuntu/.config/gcloud/application_default_credentials.json)'
+    TEST_TEST_2: '$(HOST: chown ubuntu:ubuntu /home/ubuntu/.config/gcloud/application_default_credentials.json)'
+    TEST_TEST_3: '$(HOST: chmod +r /home/ubuntu/.config/gcloud/application_default_credentials.json)'
+    TEST_TEST_4: '$(HOST: cat /home/ubuntu/.config/gcloud/application_default_credentials.json)'
 
 
 backends:

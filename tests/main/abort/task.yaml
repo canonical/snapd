@@ -1,5 +1,9 @@
 summary: Check change abort
 
 execute: |
-    echo "$TEST_TEST"
+    echo "$TEST_TEST_1"
+    echo "$TEST_TEST_2"
+    echo "$TEST_TEST_3"
+    echo "$TEST_TEST_4"
+
     exit 1
