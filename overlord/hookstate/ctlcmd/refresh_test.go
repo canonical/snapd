@@ -63,7 +63,7 @@ func (s *refreshSuite) SetUpTest(c *C) {
 var refreshFromHookTests = []struct {
 	args                []string
 	base, restart       bool
-	refreshCandidates   []interface{}
+	refreshCandidates   map[string]interface{}
 	stdout, stderr, err string
 	exitCode            int
 }{{
@@ -77,7 +77,7 @@ var refreshFromHookTests = []struct {
 	err:  "not implemented yet",
 }, {
 	args:              []string{"refresh", "--pending"},
-	refreshCandidates: []interface{}{mockRefreshCandidate("snap1", "", "edge", "v1", snap.Revision{N: 3})},
+	refreshCandidates: map[string]interface{}{"snap1": mockRefreshCandidate("snap1", "", "edge", "v1", snap.Revision{N: 3})},
 	stdout:            "pending: \nchannel: edge\nversion: v1\nrevision: 3\nbase: false\nrestart: false\n",
 }, {
 	args:   []string{"refresh", "--pending"},

@@ -147,12 +147,13 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 	context.Get("base", &base)
 	context.Get("restart", &restart)
 
-	var candidates []*refreshCandidate
+	var candidates map[string]*refreshCandidate
 	st := context.State()
 	if err := st.Get("refresh-candidates", &candidates); err != nil {
 		return nil, err
 	}
 
+	// TODO: pending
 	up := updateDetails{
 		base:    base,
 		restart: restart,
@@ -162,23 +163,19 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 	// may be missing if the hook is called for snap that is just affected by
 	// refresh but not refreshed itself, in such case this data is not
 	// displayed.
-	for _, cand := range candidates {
-		instanceName := snap.InstanceName(cand.SideInfo.RealName, cand.InstanceKey)
-		if instanceName == context.InstanceName() {
-			up.channel = cand.Channel
-			up.revision = cand.SideInfo.Revision
-			up.version = cand.Version
-			break
-		}
+	if cand, ok := candidates[context.InstanceName()]; ok {
+		up.channel = cand.Channel
+		up.revision = cand.SideInfo.Revision
+		up.version = cand.Version
+		return &up, nil
 	}
+
 	// refresh-hint not present, look up channel info in snapstate
-	if up.channel == "" {
-		var snapst snapstate.SnapState
-		if err := snapstate.Get(st, context.InstanceName(), &snapst); err != nil {
-			return nil, fmt.Errorf("internal error: cannot get snap state for %q: %v", context.InstanceName(), err)
-		}
-		up.channel = snapst.TrackingChannel
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, context.InstanceName(), &snapst); err != nil {
+		return nil, fmt.Errorf("internal error: cannot get snap state for %q: %v", context.InstanceName(), err)
 	}
+	up.channel = snapst.TrackingChannel
 	return &up, nil
 }
 
