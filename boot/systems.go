@@ -393,27 +393,6 @@ func PromoteTriedRecoverySystem(dev Device, systemLabel string, triedSystems []s
 
 }
 
-func undoMarkGoodRecoverySystem(dev Device, systemLabel string) error {
-	if !dev.HasModeenv() {
-		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
-	}
-
-	m, err := loadModeenv()
-	if err != nil {
-		return err
-	}
-
-	if updated, found := dropFromRecoverySystemsList(m.GoodRecoverySystems, systemLabel); found {
-		m.GoodRecoverySystems = updated
-		if err := m.Write(); err != nil {
-			return err
-		}
-	}
-
-	const expectReseal = true
-	return resealKeyToModeenv(dirs.GlobalRootDir, dev.Model(), m, expectReseal)
-}
-
 // DropRecoverySystem drops a provided system from the list of good and current
 // recovery systems, updates the modeenv and reseals the keys a needed. Note,
 // this call *DOES NOT* clear the boot environment variables.
