@@ -22,6 +22,8 @@ package ctlcmd
 import (
 	"fmt"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -116,13 +118,13 @@ func (c *refreshCommand) Execute(args []string) error {
 }
 
 type updateDetails struct {
-	pending  string
-	channel  string
-	version  string
-	revision snap.Revision
+	Pending  string `yaml:"pending,omitempty"`
+	Channel  string `yaml:"channel,omitempty"`
+	Version  string `yaml:"version,omitempty"`
+	Revision int    `yaml:"revision,omitempty"`
 	// TODO: epoch
-	base    bool
-	restart bool
+	Base    bool `yaml:"base"`
+	Restart bool `yaml:"restart"`
 }
 
 // refreshCandidate is a subset of refreshCandidate defined by snapstate and
@@ -155,8 +157,8 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 
 	// TODO: pending
 	up := updateDetails{
-		base:    base,
-		restart: restart,
+		Base:    base,
+		Restart: restart,
 	}
 
 	// try to find revision/version/channel info from refresh-candidates; it
@@ -164,9 +166,9 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 	// refresh but not refreshed itself, in such case this data is not
 	// displayed.
 	if cand, ok := candidates[context.InstanceName()]; ok {
-		up.channel = cand.Channel
-		up.revision = cand.SideInfo.Revision
-		up.version = cand.Version
+		up.Channel = cand.Channel
+		up.Revision = cand.SideInfo.Revision.N
+		up.Version = cand.Version
 		return &up, nil
 	}
 
@@ -175,7 +177,7 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 	if err := snapstate.Get(st, context.InstanceName(), &snapst); err != nil {
 		return nil, fmt.Errorf("internal error: cannot get snap state for %q: %v", context.InstanceName(), err)
 	}
-	up.channel = snapst.TrackingChannel
+	up.Channel = snapst.TrackingChannel
 	return &up, nil
 }
 
@@ -188,16 +190,10 @@ func (c *refreshCommand) printPendingInfo() error {
 	if details == nil {
 		return nil
 	}
-	c.printf("pending: %s\n", details.pending)
-	c.printf("channel: %s\n", details.channel)
-	if details.version != "" {
-		c.printf("version: %s\n", details.version)
+	out, err := yaml.Marshal(details)
+	if err != nil {
+		return err
 	}
-	if !details.revision.Unset() {
-		c.printf("revision: %s\n", details.revision)
-	}
-	c.printf("base: %v\n", details.base)
-	c.printf("restart: %v\n", details.restart)
-
+	c.printf("%s", string(out))
 	return nil
 }

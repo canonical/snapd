@@ -78,15 +78,15 @@ var refreshFromHookTests = []struct {
 }, {
 	args:              []string{"refresh", "--pending"},
 	refreshCandidates: map[string]interface{}{"snap1": mockRefreshCandidate("snap1", "", "edge", "v1", snap.Revision{N: 3})},
-	stdout:            "pending: \nchannel: edge\nversion: v1\nrevision: 3\nbase: false\nrestart: false\n",
+	stdout:            "channel: edge\nversion: v1\nrevision: 3\nbase: false\nrestart: false\n",
 }, {
 	args:   []string{"refresh", "--pending"},
-	stdout: "pending: \nchannel: stable\nbase: false\nrestart: false\n",
+	stdout: "channel: stable\nbase: false\nrestart: false\n",
 }, {
 	args:    []string{"refresh", "--pending"},
 	base:    true,
 	restart: true,
-	stdout:  "pending: \nchannel: stable\nbase: true\nrestart: true\n",
+	stdout:  "channel: stable\nbase: true\nrestart: true\n",
 }}
 
 func (s *refreshSuite) TestRefreshFromHook(c *C) {
