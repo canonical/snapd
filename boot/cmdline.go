@@ -41,10 +41,12 @@ const (
 	// ModeRecover is a mode in which the device boots into the recovery
 	// system.
 	ModeRecover = "recover"
+	// ModeCloudImg is a classic mode for cloud images
+	ModeCloudImg = "cloudimg-rootfs"
 )
 
 var (
-	validModes = []string{ModeInstall, ModeRecover, ModeRun}
+	validModes = []string{ModeInstall, ModeRecover, ModeRun, ModeCloudImg}
 )
 
 // ModeAndRecoverySystemFromKernelCommandLine returns the current system mode

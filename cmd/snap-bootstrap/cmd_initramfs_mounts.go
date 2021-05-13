@@ -141,6 +141,8 @@ func generateInitramfsMounts() (err error) {
 		err = generateMountsModeInstall(mst)
 	case "run":
 		err = generateMountsModeRun(mst)
+	case "cloudimg-rootfs":
+		err = generateMountsModeClassic(mst, "cloudimg-rootfs")
 	default:
 		// this should never be reached, ModeAndRecoverySystemFromKernelCommandLine
 		// will have returned a non-nill error above if there was another mode
@@ -1380,6 +1382,73 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 		return true, err
 	}
 	return true, nil
+}
+
+func generateMountsModeClassic(mst *initramfsMountsState, label string) error {
+	// Mount ESP
+	// Must be where the kernel came from, without fallbacks
+	espuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
+	if err != nil {
+		return err
+	}
+	espSrc := filepath.Join("/dev/disk/by-partuuid", espuuid)
+	espOpts := &systemdMountOptions{
+		// vfat needs fsck to mount ESP that was unsafely
+		// unmounted
+		NeedsFsck: true,
+		// do not persist mount into running system, otherwise
+		// regular fstab cannot mount ESP at /boot/efi as
+		// expected
+		Ephemeral: true,
+	}
+	if err := doSystemdMount(espSrc, boot.InitramfsUbuntuSeedDir, espOpts); err != nil {
+		return err
+	}
+
+	// get the disk that we mounted the ESP from as a reference
+	// point for future mounts
+	disk, err := disks.DiskFromMountPoint(boot.InitramfsUbuntuSeedDir, nil)
+	if err != nil {
+		return err
+	}
+
+	// TODO measure model, if we will have one
+
+	// Mount rootfs
+	runModeKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, label + ".sealed-key")
+	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
+		AllowRecoveryKey: true,
+	}
+	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, label, runModeKey, opts)
+	if err != nil {
+		return err
+	}
+	fsckSystemdOpts := &systemdMountOptions{
+		NeedsFsck: true,
+	}
+	if err := doSystemdMount(unlockRes.FsDevice, boot.InitramfsSysrootDir, fsckSystemdOpts); err != nil {
+		return err
+	}
+
+	// Verify that cloudimg-rootfs comes from where we expect it to
+	diskOpts := &disks.Options{}
+	if unlockRes.IsEncrypted {
+		// then we need to specify that the data mountpoint is expected to be a
+		// decrypted device, applies to both ubuntu-data and ubuntu-save
+		diskOpts.IsDecryptedDevice = true
+	}
+
+	matches, err := disk.MountPointIsFromDisk(boot.InitramfsSysrootDir, diskOpts)
+	if err != nil {
+		return err
+	}
+	if !matches {
+		// failed to verify that cloudimg-rootfs mountpoint
+		// comes from the same disk as ESP
+		return fmt.Errorf("cannot validate boot: cloudimg-rootfs mountpoint is expected to be from disk %s but is not", disk.Dev())
+	}
+
+	return nil
 }
 
 func generateMountsModeRun(mst *initramfsMountsState) error {
