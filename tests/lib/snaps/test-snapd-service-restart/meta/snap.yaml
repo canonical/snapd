@@ -1,0 +1,19 @@
+name: test-snapd-service-restart
+version: 1.0
+apps:
+    test-snapd-service1:
+        command: bin/start
+        daemon: notify
+        plugs: [daemon-notify]
+    test-snapd-service2:
+        command: bin/start
+        daemon: notify
+        plugs: [daemon-notify]
+    test-snapd-service3:
+        command: bin/start
+        daemon: notify
+        plugs: [daemon-notify]
+    test-snapd-service4:
+        command: bin/start
+        daemon: notify
+        plugs: [daemon-notify]

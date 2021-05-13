@@ -1566,19 +1566,34 @@ type RestartServicesFlags struct {
 func RestartServices(svcs []*snap.AppInfo, flags *RestartServicesFlags, inter interacter, tm timings.Measurer) error {
 	sysd := systemd.New(systemd.SystemMode, inter)
 
+	unitNames := make([]string, 0, len(svcs))
 	for _, srv := range svcs {
 		// they're *supposed* to be all services, but checking doesn't hurt
 		if !srv.IsService() {
 			continue
 		}
+		unitNames = append(unitNames, srv.ServiceName())
+	}
+
+	unitStatuses, err := sysd.Status(unitNames...)
+	if err != nil {
+		return err
+	}
+
+	for _, unit := range unitStatuses {
+		// restart all active services (even if disabled), as described in
+		// https://forum.snapcraft.io/t/command-line-interface-to-manipulate-services/262/47
+		if !unit.Active {
+			continue
+		}
 
 		var err error
-		timings.Run(tm, "restart-service", fmt.Sprintf("restart service %q", srv), func(nested timings.Measurer) {
+		timings.Run(tm, "restart-service", fmt.Sprintf("restart service %s", unit.UnitName), func(nested timings.Measurer) {
 			if flags != nil && flags.Reload {
-				err = sysd.ReloadOrRestart(srv.ServiceName())
+				err = sysd.ReloadOrRestart(unit.UnitName)
 			} else {
 				// note: stop followed by start, not just 'restart'
-				err = sysd.Restart(srv.ServiceName(), 5*time.Second)
+				err = sysd.Restart(unit.UnitName, 5*time.Second)
 			}
 		})
 		if err != nil {

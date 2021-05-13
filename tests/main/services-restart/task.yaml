@@ -1,0 +1,41 @@
+summary: Check that snap restarts affects only running services
+
+execute: |
+    echo "Installing the service snap"
+
+    # we are using systemd-notify indicate the service is active, this is
+    # currently not allowed by daemon-notify interface, so we may as well just
+    # install in devmode
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service-restart --devmode
+
+    echo "We can see all services running"
+    for id in 1 2 3 4; do
+        systemctl is-active snap.test-snapd-service-restart.service$id
+    done
+
+    echo "Stopping services 3 and 4"
+    snap stop test-snapd-service-restart.service3
+    snap stop test-snapd-service-restart.service4
+
+    echo "Disabling services 1 and 3"
+    systemctl disable snap.test-snapd-service-restart.service1
+    systemctl disable snap.test-snapd-service-restart.service3
+
+    # At this point, we have:
+    # 1 disabled service that is running (service1)
+    # 1 enabled service that is running (service2)
+    # 1 disabled service that is stopped (service3)
+    # 1 enabled service that is stopped (service4)
+
+    echo "Restarting services via restart"
+    snap restart test-snapd-service-restart
+
+    echo "Check that services 1 and 2 are running"
+    for id in 1 2; do
+        systemctl status snap.test-snapd-service-restart.service$id | MATCH "running"
+    done
+
+    echo "Check that services 3 and 4 are not running"
+    for id in 3 4; do
+        systemctl is-active snap.test-snapd-service-restart.service$id | MATCH "inactive"
+    done
