@@ -1331,7 +1331,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	c.Assert(chg.Err(), ErrorMatches, `(?s)cannot perform the following tasks.* Finalize recovery system with label "1234" \(tried recovery system "1234" failed\)`)
+	c.Assert(chg.Err(), ErrorMatches, `(?s)cannot perform the following tasks.* Finalize recovery system with label "1234" \(cannot promote recovery system "1234": system has not been successfully tried\)`)
 	c.Check(chg.IsReady(), Equals, true)
 	c.Assert(tskCreate.Status(), Equals, state.UndoneStatus)
 	c.Assert(tskFinalize.Status(), Equals, state.ErrorStatus)

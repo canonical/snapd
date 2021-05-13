@@ -260,21 +260,22 @@ func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tom
 	}
 	label := setup.Label
 
-	// so far so good
-	if !strutil.ListContains(triedSystems, label) {
-		// system failed, trigger undoing of everything we did so far
-		return fmt.Errorf("tried recovery system %q failed", label)
-	}
-
 	if isRemodel {
+		// so far so good, a recovery system created during remodel was
+		// tested successfully
+		if !strutil.ListContains(triedSystems, label) {
+			// system failed, trigger undoing of everything we did so far
+			return fmt.Errorf("tried recovery system %q failed", label)
+		}
+
 		// XXX: candidate system is promoted to the list of good ones once we
 		// complete the whole remodel change
 		logger.Noticef("recovery system will be promoted later")
 		return nil
 	}
 
-	if err := boot.MarkRecoverySystemGood(remodelCtx, label); err != nil {
-		return fmt.Errorf("cannot mark recovery system %q as good: %v", label, err)
+	if err := boot.PromoteTriedRecoverySystem(remodelCtx, label, triedSystems); err != nil {
+		return fmt.Errorf("cannot promote recovery system %q: %v", label, err)
 	}
 
 	// tried systems should be a one item list, we can clear it now
