@@ -107,7 +107,8 @@ func (c *cmdChanges) Execute(args []string) error {
 	}
 
 	if len(changes) == 0 {
-		return fmt.Errorf(i18n.G("no changes found"))
+		fmt.Fprintln(Stderr, i18n.G("no changes found"))
+		return nil
 	}
 
 	sort.Sort(changesByTime(changes))
