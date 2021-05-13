@@ -150,7 +150,7 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 		}
 	}
 
-	hints := make(map[string]*refreshCandidate)
+	hints := make(map[string]*refreshCandidate, len(updates))
 	for _, update := range updates {
 		var snapst SnapState
 		if err := Get(st, update.InstanceName(), &snapst); err != nil {
