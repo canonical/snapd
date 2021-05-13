@@ -150,7 +150,7 @@ To run the spread tests locally via QEMU, you need the latest version of
 build tools to build QEMU images with:
 
     $ sudo apt update && sudo apt install -y qemu-kvm autopkgtest
-    $ curl https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz | tar -xz -C $GOPATH/bin
+    $ curl https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | tar -xz -C $GOPATH/bin
 
 #### Building spread VM images
 
