@@ -344,14 +344,20 @@ func InspectTryRecoverySystemOutcome(dev Device) (outcome TryRecoverySystemOutco
 	return outcome, trySystem, nil
 }
 
-// MarkRecoverySystemGood marks the provided recovery system as a good one, and
-// esures that the system is present in the list of good recovery systems and
-// current recovery systems in modeenv. If the system uses encryption, the keys
-// will updated state. If resealing fails, an attempt to restore the previous
-// state is made
-func MarkRecoverySystemGood(dev Device, systemLabel string) (err error) {
+// PromoteTriedRecoverySystem promotes the provided recovery system to be
+// recognized as a good one, and ensures that the system is present in the list
+// of good recovery systems and current recovery systems in modeenv. The
+// provided list of tried systems should contain the system in question. If the
+// system uses encryption, the keys will updated state. If resealing fails, an
+// attempt to restore the previous state is made
+func PromoteTriedRecoverySystem(dev Device, systemLabel string, triedSystems []string) (err error) {
 	if !dev.HasModeenv() {
 		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
+	}
+
+	if !strutil.ListContains(triedSystems, systemLabel) {
+		// system is not among the tried systems
+		return fmt.Errorf("system has not been successfully tried")
 	}
 
 	m, err := loadModeenv()

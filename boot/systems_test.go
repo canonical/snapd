@@ -1061,6 +1061,7 @@ func (s *systemsSuite) TestClearRecoverySystemReboot(c *C) {
 type recoverySystemGoodTestCase struct {
 	systemLabelAddToCurrent bool
 	systemLabelAddToGood    bool
+	triedSystems            []string
 
 	resealRecoveryKeyErr              error
 	resealRecoveryKeyDuringCleanupErr error
@@ -1072,7 +1073,7 @@ type recoverySystemGoodTestCase struct {
 	expectedGoodSystemsList    []string
 }
 
-func (s *systemsSuite) testMarkRecoverySystemGood(c *C, systemLabel string, tc recoverySystemGoodTestCase) {
+func (s *systemsSuite) testPromoteTriedRecoverySystem(c *C, systemLabel string, tc recoverySystemGoodTestCase) {
 	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
 	mockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
@@ -1174,7 +1175,7 @@ func (s *systemsSuite) testMarkRecoverySystemGood(c *C, systemLabel string, tc r
 	})
 	defer restore()
 
-	err := boot.MarkRecoverySystemGood(s.uc20dev, systemLabel)
+	err := boot.PromoteTriedRecoverySystem(s.uc20dev, systemLabel, tc.triedSystems)
 	if tc.expectedErr == "" {
 		c.Assert(err, IsNil)
 	} else {
@@ -1189,8 +1190,10 @@ func (s *systemsSuite) testMarkRecoverySystemGood(c *C, systemLabel string, tc r
 	c.Check(modeenvRead.CurrentRecoverySystems, DeepEquals, tc.expectedCurrentSystemsList)
 }
 
-func (s *systemsSuite) TestMarkRecoverySystemGoodHappy(c *C) {
-	s.testMarkRecoverySystemGood(c, "1234", recoverySystemGoodTestCase{
+func (s *systemsSuite) TestPromoteTriedRecoverySystemHappy(c *C) {
+	s.testPromoteTriedRecoverySystem(c, "1234", recoverySystemGoodTestCase{
+		triedSystems: []string{"1234"},
+
 		resealCalls: 2,
 
 		readSeedSystems: []string{
@@ -1205,8 +1208,9 @@ func (s *systemsSuite) TestMarkRecoverySystemGoodHappy(c *C) {
 	})
 }
 
-func (s *systemsSuite) TestMarkRecoverySystemGoodInCurrent(c *C) {
-	s.testMarkRecoverySystemGood(c, "1234", recoverySystemGoodTestCase{
+func (s *systemsSuite) TestPromoteTriedRecoverySystemInCurrent(c *C) {
+	s.testPromoteTriedRecoverySystem(c, "1234", recoverySystemGoodTestCase{
+		triedSystems:            []string{"1234"},
 		systemLabelAddToCurrent: true,
 		resealCalls:             2,
 
@@ -1221,8 +1225,9 @@ func (s *systemsSuite) TestMarkRecoverySystemGoodInCurrent(c *C) {
 	})
 }
 
-func (s *systemsSuite) TestMarkRecoverySystemGoodPresentEverywhere(c *C) {
-	s.testMarkRecoverySystemGood(c, "1234", recoverySystemGoodTestCase{
+func (s *systemsSuite) TestPromoteTriedRecoverySystemPresentEverywhere(c *C) {
+	s.testPromoteTriedRecoverySystem(c, "1234", recoverySystemGoodTestCase{
+		triedSystems:            []string{"1234"},
 		systemLabelAddToCurrent: true,
 		systemLabelAddToGood:    true,
 
@@ -1239,8 +1244,9 @@ func (s *systemsSuite) TestMarkRecoverySystemGoodPresentEverywhere(c *C) {
 	})
 }
 
-func (s *systemsSuite) TestMarkRecoverySystemGoodResealFails(c *C) {
-	s.testMarkRecoverySystemGood(c, "1234", recoverySystemGoodTestCase{
+func (s *systemsSuite) TestPromoteTriedRecoverySystemResealFails(c *C) {
+	s.testPromoteTriedRecoverySystem(c, "1234", recoverySystemGoodTestCase{
+		triedSystems:         []string{"1234"},
 		resealRecoveryKeyErr: fmt.Errorf("recovery key reseal mock failure"),
 		// no failure during cleanup
 		resealRecoveryKeyDuringCleanupErr: nil,
@@ -1265,8 +1271,9 @@ func (s *systemsSuite) TestMarkRecoverySystemGoodResealFails(c *C) {
 	})
 }
 
-func (s *systemsSuite) TestMarkRecoverySystemGoodResealUndoFails(c *C) {
-	s.testMarkRecoverySystemGood(c, "1234", recoverySystemGoodTestCase{
+func (s *systemsSuite) TestPromoteTriedRecoverySystemResealUndoFails(c *C) {
+	s.testPromoteTriedRecoverySystem(c, "1234", recoverySystemGoodTestCase{
+		triedSystems:                      []string{"1234"},
 		resealRecoveryKeyErr:              fmt.Errorf("recovery key reseal mock failure"),
 		resealRecoveryKeyDuringCleanupErr: fmt.Errorf("recovery key reseal mock fail in cleanup"),
 
@@ -1286,6 +1293,27 @@ func (s *systemsSuite) TestMarkRecoverySystemGoodResealUndoFails(c *C) {
 			// cleanup recovery keys
 			"20200825",
 		},
+		expectedCurrentSystemsList: []string{"20200825"},
+		expectedGoodSystemsList:    []string{"20200825"},
+	})
+}
+
+func (s *systemsSuite) TestPromoteTriedRecoverySystemNotTried(c *C) {
+	s.testPromoteTriedRecoverySystem(c, "1234", recoverySystemGoodTestCase{
+		triedSystems: []string{"not-here"},
+
+		expectedErr: `system has not been successfully tried`,
+
+		expectedCurrentSystemsList: []string{"20200825"},
+		expectedGoodSystemsList:    []string{"20200825"},
+	})
+
+	// also works if tried systems list is nil
+	s.testPromoteTriedRecoverySystem(c, "1234", recoverySystemGoodTestCase{
+		triedSystems: nil,
+
+		expectedErr: `system has not been successfully tried`,
+
 		expectedCurrentSystemsList: []string{"20200825"},
 		expectedGoodSystemsList:    []string{"20200825"},
 	})
