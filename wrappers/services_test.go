@@ -66,6 +66,38 @@ type servicesTestSuite struct {
 
 var _ = Suite(&servicesTestSuite{})
 
+type serviceState struct {
+	activeState   string
+	unitFileState string
+}
+
+// If `cmd` is the command issued by systemd.Status(), this function returns
+// the output to be produced by the command so that the queried services will
+// appear having the ActiveState and UnitFileState according to the data
+// passed in the `states` map.
+func mockSystemCtlShow(cmd []string, states map[string]serviceState) []byte {
+	if cmd[0] != "show" ||
+		cmd[1] != "--property=Id,ActiveState,UnitFileState,Type" {
+		return nil
+	}
+	var output []byte
+	for _, unit := range cmd[2:] {
+		if len(output) > 0 {
+			output = append(output, byte('\n'))
+		}
+		state, ok := states[unit]
+		if !ok {
+			state = serviceState{"active", "enabled"}
+		}
+		output = append(output, []byte(fmt.Sprintf(`Id=%s
+ActiveState=%s
+UnitFileState=%s
+Type=simple
+`, unit, state.activeState, state.unitFileState))...)
+	}
+	return output
+}
+
 func (s *servicesTestSuite) SetUpTest(c *C) {
 	s.DBusTest.SetUpTest(c)
 	s.tempdir = c.MkDir()
@@ -3151,6 +3183,15 @@ apps:
 	info := snaptest.MockSnap(c, surviveYaml, &snap.SideInfo{Revision: snap.R(1)})
 	srvFile := "snap.test-snap.foo.service"
 
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		if out := mockSystemCtlShow(cmd, nil); out != nil {
+			return out, nil
+		}
+		s.sysdLog = append(s.sysdLog, cmd)
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
 	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
 
@@ -3177,6 +3218,60 @@ apps:
 		{"stop", srvFile},
 		{"show", "--property=ActiveState", srvFile},
 		{"start", srvFile},
+	})
+}
+
+func (s *servicesTestSuite) TestRestartInDifferentStates(c *C) {
+	const manyServicesYaml = `name: test-snap
+version: 1.0
+apps:
+  svc1:
+    command: bin/foo
+    daemon: simple
+  svc2:
+    command: bin/foo
+    daemon: simple
+  svc3:
+    command: bin/foo
+    daemon: simple
+  svc4:
+    command: bin/foo
+    daemon: simple
+`
+	srvFile1 := "snap.test-snap.svc1.service"
+	srvFile2 := "snap.test-snap.svc2.service"
+	srvFile3 := "snap.test-snap.svc3.service"
+	srvFile4 := "snap.test-snap.svc4.service"
+
+	info := snaptest.MockSnap(c, manyServicesYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		states := map[string]serviceState{
+			srvFile1: serviceState{"active", "enabled"},
+			srvFile2: serviceState{"inactive", "enabled"},
+			srvFile3: serviceState{"active", "disabled"},
+			srvFile4: serviceState{"inactive", "disabled"},
+		}
+		if out := mockSystemCtlShow(cmd, states); out != nil {
+			return out, nil
+		}
+		s.sysdLog = append(s.sysdLog, cmd)
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
+	c.Assert(err, IsNil)
+
+	s.sysdLog = nil
+	c.Assert(wrappers.RestartServices(info.Services(), nil, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"stop", srvFile1},
+		{"show", "--property=ActiveState", srvFile1},
+		{"start", srvFile1},
+		{"stop", srvFile3},
+		{"show", "--property=ActiveState", srvFile3},
+		{"start", srvFile3},
 	})
 }
 
