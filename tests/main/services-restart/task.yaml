@@ -14,8 +14,8 @@ execute: |
     done
 
     echo "Stopping services 3 and 4"
-    snap stop test-snapd-service-restart.svc3.service
-    snap stop test-snapd-service-restart.svc4.service
+    snap stop test-snapd-service-restart.svc3
+    snap stop test-snapd-service-restart.svc4
 
     echo "Disabling services 1 and 3"
     systemctl disable snap.test-snapd-service-restart.svc1.service
