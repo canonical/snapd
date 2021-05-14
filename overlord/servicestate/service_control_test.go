@@ -20,6 +20,7 @@
 package servicestate_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -81,6 +82,26 @@ func (s *serviceControlSuite) SetUpTest(c *C) {
 
 	s.sysctlArgs = nil
 	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) (buf []byte, err error) {
+		// When calling the "snap restart" command, the initial status will be
+		// retrieved first. Services which are not running will be
+		// ignored. Therefore, mock this "show" operation by pretending that
+		// all requested services are active:
+		if cmd[0] == "show" &&
+			cmd[1] == "--property=Id,ActiveState,UnitFileState,Type" {
+			var output []byte
+			for _, unit := range cmd[2:] {
+				if len(output) > 0 {
+					output = append(output, byte('\n'))
+				}
+				output = append(output, []byte(fmt.Sprintf(`Id=%s
+ActiveState=active
+UnitFileState=enabled
+Type=simple
+`, unit))...)
+			}
+			return output, nil
+		}
+
 		s.sysctlArgs = append(s.sysctlArgs, cmd)
 		if cmd[0] == "show" {
 			return []byte("ActiveState=inactive\n"), nil
