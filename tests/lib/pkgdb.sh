@@ -435,8 +435,14 @@ distro_install_build_snapd(){
                 # to create sockets with incorrect context, this installation of
                 # socket activated snaps fails, see:
                 # https://bugzilla.redhat.com/show_bug.cgi?id=1660141
+                # https://bugzilla.redhat.com/show_bug.cgi?id=1197886
                 # https://github.com/systemd/systemd/issues/9997
                 systemctl daemon-reexec
+                # also affects the user instance in 248, see:
+                # https://bugzilla.redhat.com/show_bug.cgi?id=1960576
+                # note, this fixes it for the root user only, the test user
+                # session is created dynamically as needed
+                systemctl --user daemon-reexec
                 ;;
         esac
 
