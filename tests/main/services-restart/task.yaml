@@ -10,7 +10,7 @@ execute: |
 
     echo "We can see all services running"
     for id in 1 2 3 4; do
-        systemctl is-active snap.test-snapd-service-restart.service$id
+        systemctl status snap.test-snapd-service-restart.service$id | MATCH "running"
     done
 
     echo "Stopping services 3 and 4"
@@ -37,5 +37,5 @@ execute: |
 
     echo "Check that services 3 and 4 are not running"
     for id in 3 4; do
-        systemctl is-active snap.test-snapd-service-restart.service$id | MATCH "inactive"
+        systemctl status snap.test-snapd-service-restart.service$id | MATCH "inactive"
     done
