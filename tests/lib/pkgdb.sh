@@ -438,7 +438,12 @@ distro_install_build_snapd(){
                 # https://bugzilla.redhat.com/show_bug.cgi?id=1197886
                 # https://github.com/systemd/systemd/issues/9997
                 systemctl daemon-reexec
-                # also affects the user instance in 248, see:
+                ;;
+        esac
+        case "$SPREAD_SYSTEM" in
+            fedora-*)
+                # the problem with SELinux policy also affects the user instance
+                # in 248, see:
                 # https://bugzilla.redhat.com/show_bug.cgi?id=1960576
                 # note, this fixes it for the root user only, the test user
                 # session is created dynamically as needed
