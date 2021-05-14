@@ -3247,10 +3247,10 @@ apps:
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		states := map[string]serviceState{
-			srvFile1: serviceState{"active", "enabled"},
-			srvFile2: serviceState{"inactive", "enabled"},
-			srvFile3: serviceState{"active", "disabled"},
-			srvFile4: serviceState{"inactive", "disabled"},
+			srvFile1: {"active", "enabled"},
+			srvFile2: {"inactive", "enabled"},
+			srvFile3: {"active", "disabled"},
+			srvFile4: {"inactive", "disabled"},
 		}
 		if out := mockSystemCtlShow(cmd, states); out != nil {
 			return out, nil
