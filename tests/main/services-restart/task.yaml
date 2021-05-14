@@ -27,6 +27,15 @@ execute: |
     # 1 disabled service that is stopped (service3)
     # 1 enabled service that is stopped (service4)
 
+    echo "Fetching execution timestamps before restart"
+    function service_start_time {
+        systemctl show --property=ExecMainStartTimestampMonotonic "$1" | cut -d= -f2
+    }
+    for id in 1 2 3 4; do
+        TIMESTAMP=$(service_start_time snap.test-snapd-service-restart.service$id)
+        eval TIMESTAMP${id}_BEFORE="$TIMESTAMP"
+    done
+
     echo "Restarting services via restart"
     snap restart test-snapd-service-restart
 
@@ -39,3 +48,15 @@ execute: |
     for id in 3 4; do
         systemctl status snap.test-snapd-service-restart.service$id | MATCH "inactive"
     done
+
+    echo "Fetching execution timestamps after restart"
+    for id in 1 2 3 4; do
+        TIMESTAMP=$(service_start_time snap.test-snapd-service-restart.service$id)
+        eval TIMESTAMP${id}_AFTER="$TIMESTAMP"
+    done
+
+    echo "Verify expectations in execution timestamps"
+    test "$TIMESTAMP1_AFTER" -gt "$TIMESTAMP1_BEFORE"
+    test "$TIMESTAMP2_AFTER" -gt "$TIMESTAMP2_BEFORE"
+    test "$TIMESTAMP3_AFTER" -eq "$TIMESTAMP3_BEFORE"
+    test "$TIMESTAMP4_AFTER" -eq "$TIMESTAMP4_BEFORE"
