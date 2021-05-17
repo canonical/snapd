@@ -9,8 +9,7 @@ execute: |
     shellcheck "$TESTSTOOLS"/tests.cleanup
 
     # Without any arguments a help message is printed.
-    tests.cleanup | MATCH "usage: tests.cleanup prepare"
-    tests.cleanup | MATCH "       tests.cleanup defer <cmd> \[args\]"
+    tests.cleanup | MATCH "usage: tests.cleanup defer <cmd> \[args\]"
     tests.cleanup | MATCH "       tests.cleanup pop"
     tests.cleanup | MATCH "       tests.cleanup restore"
 
@@ -22,9 +21,8 @@ execute: |
     tests.cleanup --foo 2>&1 | MATCH "tests.cleanup: unknown option --foo"
     tests.cleanup foo 2>&1 | MATCH "tests.cleanup: unknown command foo"
 
-    # Normal usage consists of a sequence of prepare, defer+, restore
+    # Normal usage consists of a sequence of defer+, restore
     # Note that restore runs the deferred commands in the opposite order.
-    tests.cleanup prepare
     tests.cleanup defer echo one
     tests.cleanup defer echo two
     tests.cleanup defer echo three
@@ -35,20 +33,11 @@ execute: |
     one
     EXPECTED
 
-    # Preparing twice is detected
-    tests.cleanup prepare
-    not tests.cleanup prepare
-    tests.cleanup prepare 2>&1 | MATCH "tests.cleanup: cannot prepare, already prepared"
+    # Restoring twice is possible
     tests.cleanup restore
-
-    # Restoring twice is detected
-    tests.cleanup prepare
     tests.cleanup restore
-    not tests.cleanup restore
-    tests.cleanup restore 2>&1 | MATCH "tests.cleanup: cannot restore, must call tests.cleanup prepare first"
 
     # Deferred commands are appended to defer.sh
-    tests.cleanup prepare
     test -e defer.sh
     tests.cleanup defer echo a b c
     tests.cleanup defer echo 1 2 3
@@ -61,7 +50,6 @@ execute: |
 
     # Deferred commands can fail their exit code is retained and the defer
     # stack is not purged.
-    tests.cleanup prepare
     tests.cleanup defer false
     not tests.cleanup restore
     tests.cleanup restore 2>&1 | MATCH 'tests.cleanup: deferred command "false" failed with exit code 1'
@@ -77,7 +65,6 @@ execute: |
     # Deferred commands can be popped and executed one by one. This is useful
     # to ensure correctness in case of failure while still allowing precise
     # resource management.
-    tests.cleanup prepare
     tests.cleanup defer echo popped
     tests.cleanup pop | MATCH popped
 
@@ -93,6 +80,5 @@ execute: |
     tests.cleanup restore
 
     # Popping a command when there isn't any fails with an appropriate message
-    tests.cleanup prepare
     tests.cleanup pop 2>&1 | MATCH 'tests.cleanup: cannot pop, cleanup stack is empty'
     not tests.cleanup pop

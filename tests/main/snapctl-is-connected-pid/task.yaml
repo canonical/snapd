@@ -1,8 +1,6 @@
 summary: Ensure "snapctl is-connected" --pid and --apparmor-label options work.
 
 prepare: |
-    tests.cleanup prepare
-
     "$TESTSTOOLS"/snaps-state install-local test-snap1
     "$TESTSTOOLS"/snaps-state install-local test-snap2
 
@@ -16,9 +14,6 @@ prepare: |
             tests.cleanup defer rm -f /snap
         ;;
     esac
-
-restore: |
-    tests.cleanup restore
 
 execute: |
     echo "The test-snap1 service is running"

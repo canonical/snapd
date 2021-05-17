@@ -641,6 +641,9 @@ restore_suite_each() {
 
     rm -f "$RUNTIME_STATE_PATH/audit-stamp"
 
+    # Run the cleanup restore in case the commands have not been restored
+    tests.cleanup restore
+
     # restore test directory saved during prepare
     tests.backup restore
 
