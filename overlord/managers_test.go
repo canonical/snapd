@@ -53,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -118,6 +119,8 @@ type baseMgrsSuite struct {
 	failNextDownload string
 
 	automaticSnapshots []automaticSnapshotCall
+
+	logbuf *bytes.Buffer
 }
 
 var (
@@ -391,6 +394,10 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(snapdCloudInitRestrictedFile, nil, 0644)
 	c.Assert(err, IsNil)
+
+	logbuf, restore := logger.MockLogger()
+	s.AddCleanup(restore)
+	s.logbuf = logbuf
 }
 
 type mgrsSuite struct {
