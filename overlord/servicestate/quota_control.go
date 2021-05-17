@@ -60,6 +60,8 @@ func init() {
 	}
 }
 
+// MockSystemdVersion mocks the systemd version to the given version. This is
+// only available for unit tests and will panic when run in production.
 func MockSystemdVersion(vers int) (restore func()) {
 	osutil.MustBeTestBinary("cannot mock systemd version outside of tests")
 	old := systemdVersion
