@@ -1077,7 +1077,7 @@ func (m *DeviceManager) ensureTriedRecoverySystem() error {
 	if release.OnClassic {
 		return nil
 	}
-	if m.systemMode != "run" {
+	if m.SystemMode() != "run" {
 		return nil
 	}
 	if m.ensureTriedRecoverySystemRan {
