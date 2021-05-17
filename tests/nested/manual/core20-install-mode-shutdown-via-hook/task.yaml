@@ -16,8 +16,11 @@ prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
+    tests.cleanup prepare
+
     # needed for inspecting the partitions
     snap install jq
+    tests.cleanup defer snap remove jq
 
     KEY_NAME=$(nested_get_snakeoil_key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
@@ -36,6 +39,9 @@ prepare: |
     snap pack pc-gadget/ extra-snaps/
 
     "$TESTSTOOLS"/nested-state build-image core
+
+restore: |
+    tests.cleanup restore
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
