@@ -213,6 +213,35 @@ func join(calls ...[]expectedSystemctl) []expectedSystemctl {
 	return fullCall
 }
 
+func (s *quotaControlSuite) TestRemoveQuotaPreseeding(c *C) {
+	r := snapdenv.MockPreseeding(true)
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// create a quota group
+	err := servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	// check that the quota groups were created in the state
+	checkQuotaState(c, st, map[string]quotaGroupState{
+		"foo": {
+			MemoryLimit: quantity.SizeGiB,
+			Snaps:       []string{"test-snap"},
+		},
+	})
+
+	// but removing a quota doesn't work, since it just doesn't make sense to be
+	// able to remove a quota group while preseeding, so we purposely fail
+	err = servicestate.RemoveQuota(st, "foo")
+	c.Assert(err, ErrorMatches, `removing quota groups not supported while preseeding`)
+}
+
 func (s *quotaControlSuite) TestCreateQuotaPreseeding(c *C) {
 	// should be no systemctl calls since we are preseeding
 	r := snapdenv.MockPreseeding(true)

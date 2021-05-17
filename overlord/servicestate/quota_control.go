@@ -178,44 +178,41 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[s
 		return err
 	}
 
-	// now start the slices
+	if !ensureOpts.Preseeding {
+		// TODO: should this logic move to wrappers in wrappers.RestartGroups()?
+		systemSysd := systemd.New(systemd.SystemMode, progress.Null)
 
-	// TODO: should this logic move to wrappers in wrappers.RestartGroups() ?
-	systemSysd := systemd.New(systemd.SystemMode, progress.Null)
-
-	for _, grp := range grpsToStart {
-		// TODO: what should these timeouts for stopping/restart slices be?
-		if !ensureOpts.Preseeding {
+		// now start the slices
+		for _, grp := range grpsToStart {
+			// TODO: what should these timeouts for stopping/restart slices be?
 			if err := systemSysd.Start(grp.SliceFileName()); err != nil {
 				return err
 			}
 		}
-	}
 
-	// after starting all the grps that we modified from EnsureSnapServices,
-	// we need to handle the case where a quota was removed, this will only
-	// happen one at a time and can be identified by the grp provided to us not
-	// existing in the state
-	if _, ok := allGrps[grp.Name]; !ok {
-		// stop the quota group, then remove it
-		if !ensureOpts.Preseeding {
-			if err := systemSysd.Stop(grp.SliceFileName(), 5*time.Second); err != nil {
-				logger.Noticef("unable to stop systemd slice while removing group %q: %v", grp.Name, err)
+		// after starting all the grps that we modified from EnsureSnapServices,
+		// we need to handle the case where a quota was removed, this will only
+		// happen one at a time and can be identified by the grp provided to us
+		// not existing in the state
+		if _, ok := allGrps[grp.Name]; !ok {
+			// stop the quota group, then remove it
+			if !ensureOpts.Preseeding {
+				if err := systemSysd.Stop(grp.SliceFileName(), 5*time.Second); err != nil {
+					logger.Noticef("unable to stop systemd slice while removing group %q: %v", grp.Name, err)
+				}
+			}
+
+			// TODO: this results in a second systemctl daemon-reload which is
+			// undesirable, we should figure out how to do this operation with a
+			// single daemon-reload
+			if err := wrappers.RemoveQuotaGroup(grp, progress.Null); err != nil {
+				return err
 			}
 		}
 
-		// TODO: this results in a second systemctl daemon-reload which is
-		// undesirable, we should figure out how to do this operation with a
-		// single daemon-reload
-		if err := wrappers.RemoveQuotaGroup(grp, progress.Null); err != nil {
-			return err
-		}
-	}
-
-	// now restart the services for each snap that was newly moved into a quota
-	// group
-	// TODO: handle snaps removed from a quota in #10218
-	if !ensureOpts.Preseeding {
+		// now restart the services for each snap that was newly moved into a
+		// quota group
+		// TODO: handle snaps removed from a quota in #10218
 		nullPerfTimings := &timings.Timings{}
 		for sn, apps := range appsToRestartBySnap {
 			disabledSvcs, err := wrappers.QueryDisabledServices(sn, progress.Null)
@@ -343,6 +340,10 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 // TODO: currently this only supports removing leaf sub-group groups, it doesn't
 // support removing parent quotas, but probably it makes sense to allow that too
 func RemoveQuota(st *state.State, name string) error {
+	if snapdenv.Preseeding() {
+		return fmt.Errorf("removing quota groups not supported while preseeding")
+	}
+
 	allGrps, err := AllQuotas(st)
 	if err != nil {
 		return err
