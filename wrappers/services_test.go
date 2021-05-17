@@ -333,6 +333,9 @@ func expChangeObserver(c *C, exp []changesObservation) (restore func(), obs wrap
 				svcObservations = append(svcObservations, chg)
 			}
 		}
+		// sort svcObservations, note we do not need to sort groups, since
+		// quota groups are iterated over in a stable sorted order via
+		// QuotaGroupSet.AllQuotaGroups
 		sort.SliceStable(svcObservations, func(i, j int) bool {
 			return svcObservations[i].snapName < svcObservations[j].snapName
 		})
