@@ -1076,36 +1076,6 @@ profile "snap.foo.hook.configure" (attach_disconnected,mediate_deleted) {
 	s.RemoveSnap(c, snapInfo)
 }
 
-func mockPartalAppArmorOnDistro(c *C, kernelVersion string, releaseID string, releaseIDLike ...string) (restore func()) {
-	restore1 := apparmor_sandbox.MockLevel(apparmor_sandbox.Partial)
-	restore2 := release.MockReleaseInfo(&release.OS{ID: releaseID, IDLike: releaseIDLike})
-	restore3 := osutil.MockKernelVersion(kernelVersion)
-	restore4 := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
-	restore5 := apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
-	// Replace the real template with a shorter variant that is easier to test.
-	restore6 := apparmor.MockTemplate("\n" +
-		"###VAR###\n" +
-		"###PROFILEATTACH### (attach_disconnected) {\n" +
-		"###SNIPPETS###\n" +
-		"}\n")
-	restore7 := apparmor.MockClassicTemplate("\n" +
-		"#classic\n" +
-		"###VAR###\n" +
-		"###PROFILEATTACH### (attach_disconnected) {\n" +
-		"###SNIPPETS###\n" +
-		"}\n")
-
-	return func() {
-		restore1()
-		restore2()
-		restore3()
-		restore4()
-		restore5()
-		restore6()
-		restore7()
-	}
-}
-
 const coreYaml = `name: core
 version: 1
 type: os
