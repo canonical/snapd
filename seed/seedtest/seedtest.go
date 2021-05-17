@@ -31,11 +31,13 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/timings"
 )
 
 // SeedSnaps helps creating snaps for a seed.
@@ -336,4 +338,31 @@ func (s *TestingSeed20) MakeSeed(c *C, label, brandID, modelID string, modelHead
 	c.Assert(err, IsNil)
 
 	return model
+}
+
+func ValidateSeed(c *C, root, label string, trusted []asserts.Assertion) seed.Seed {
+	tm := &timings.Timings{}
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   trusted,
+	})
+	c.Assert(err, IsNil)
+	commitTo := func(b *asserts.Batch) error {
+		return b.CommitTo(db, nil)
+	}
+
+	sd, err := seed.Open(root, label)
+	c.Assert(err, IsNil)
+
+	err = sd.LoadAssertions(db, commitTo)
+	c.Assert(err, IsNil)
+
+	err = sd.LoadMeta(tm)
+	c.Assert(err, IsNil)
+	// uc20 recovery systems use snapd
+	c.Check(sd.UsesSnapdSnap(), Equals, true)
+	// XXX: more extensive seed validation?
+
+	c.Check(sd.EssentialSnaps(), HasLen, 4)
+	return sd
 }
