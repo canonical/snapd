@@ -3184,10 +3184,10 @@ apps:
 	srvFile := "snap.test-snap.foo.service"
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
 		if out := mockSystemCtlShow(cmd, nil); out != nil {
 			return out, nil
 		}
-		s.sysdLog = append(s.sysdLog, cmd)
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer r()
@@ -3200,6 +3200,7 @@ apps:
 	c.Assert(wrappers.RestartServices(info.Services(), flags, progress.Null, s.perfTimings), IsNil)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type", srvFile},
 		{"reload-or-restart", srvFile},
 	})
 
@@ -3207,6 +3208,7 @@ apps:
 	flags.Reload = false
 	c.Assert(wrappers.RestartServices(info.Services(), flags, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type", srvFile},
 		{"stop", srvFile},
 		{"show", "--property=ActiveState", srvFile},
 		{"start", srvFile},
@@ -3215,6 +3217,7 @@ apps:
 	s.sysdLog = nil
 	c.Assert(wrappers.RestartServices(info.Services(), nil, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type", srvFile},
 		{"stop", srvFile},
 		{"show", "--property=ActiveState", srvFile},
 		{"start", srvFile},
@@ -3246,6 +3249,7 @@ apps:
 	info := snaptest.MockSnap(c, manyServicesYaml, &snap.SideInfo{Revision: snap.R(1)})
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
 		states := map[string]serviceState{
 			srvFile1: {"active", "enabled"},
 			srvFile2: {"inactive", "enabled"},
@@ -3255,7 +3259,6 @@ apps:
 		if out := mockSystemCtlShow(cmd, states); out != nil {
 			return out, nil
 		}
-		s.sysdLog = append(s.sysdLog, cmd)
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	defer r()
@@ -3266,6 +3269,8 @@ apps:
 	s.sysdLog = nil
 	c.Assert(wrappers.RestartServices(info.Services(), nil, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type",
+			srvFile1, srvFile2, srvFile3, srvFile4},
 		{"stop", srvFile1},
 		{"show", "--property=ActiveState", srvFile1},
 		{"start", srvFile1},
