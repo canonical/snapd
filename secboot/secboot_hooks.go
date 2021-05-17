@@ -189,7 +189,7 @@ func unlockVolumeUsingSealedKeyFDERevealKeyV2(name, sealedEncryptionKeyFile, sou
 	defer func() {
 		if err != nil {
 			if err := sbDeactivateVolume(mapperName); err != nil {
-				logger.Noticef("cannot deactivate volume %q", mapperName)
+				logger.Noticef("cannot deactivate volume %q: %v", mapperName, err)
 			}
 		}
 	}()
