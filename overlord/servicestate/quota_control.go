@@ -71,6 +71,24 @@ func MockSystemdVersion(vers int) (restore func()) {
 	}
 }
 
+func quotaGroupsAvailable(st *state.State) error {
+	// check if the systemd version is too old
+	if systemdVersion < 205 {
+		return fmt.Errorf("systemd version too old: snap quotas requires systemd 205 and newer (currently have %d)", systemdVersion)
+	}
+
+	tr := config.NewTransaction(st)
+	enableQuotaGroups, err := features.Flag(tr, features.QuotaGroups)
+	if err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	if !enableQuotaGroups {
+		return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.quota-groups' to true")
+	}
+
+	return nil
+}
+
 func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[string]*quota.Group) error {
 	// build the map of snap infos to options to provide to EnsureSnapServices
 	snapSvcMap := map[*snap.Info]*wrappers.SnapServiceOptions{}
@@ -250,24 +268,6 @@ func validateSnapForAddingToGroup(st *state.State, snaps []string, group string,
 				return fmt.Errorf("cannot add snap %q to group %q: snap already in quota group %q", name, group, grp.Name)
 			}
 		}
-	}
-
-	return nil
-}
-
-func quotaGroupsAvailable(st *state.State) error {
-	tr := config.NewTransaction(st)
-	enableQuotaGroups, err := features.Flag(tr, features.QuotaGroups)
-	if err != nil && !config.IsNoOption(err) {
-		return err
-	}
-	if !enableQuotaGroups {
-		return fmt.Errorf("experimental feature disabled - test it by setting 'experimental.quota-groups' to true")
-	}
-
-	// check if the systemd version is too old
-	if systemdVersion < 205 {
-		return fmt.Errorf("systemd version too old: snap quotas requires systemd 205 and newer (currently have %d)", systemdVersion)
 	}
 
 	return nil
