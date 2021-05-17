@@ -41,6 +41,9 @@ execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
+    #shellcheck source=tests/lib/systemd.sh
+    . "$TESTSLIB/systemd.sh"
+
     # we expect the VM to shut itself down so don't wait for SSH, etc. to become
     # available
     echo "Start the VM, which should automatically shut itself down"
@@ -57,7 +60,7 @@ execute: |
     NESTED_EXPECT_SHUTDOWN=1 nested_start_core_vm_unit "$IMAGE_FILE"
 
     echo "Wait for the VM to become inactive as it installs and shuts itself down"
-    retry -n 200 --wait 1 sh -c '! systemctl is-active nested-vm'
+    wait_for_service "$NESTED_VM" inactive
 
     echo "Check that the partitions were created on the VM's disk"
     sfdisk --json "$IMAGE_FILE" | jq -r '.partitiontable.partitions | .[].name' > partitions.txt
