@@ -98,21 +98,6 @@ Type=simple
 	return output
 }
 
-type AppInfos []*snap.AppInfo
-
-// implement the functions from the sort.Interface
-func (a AppInfos) Len() int{
-    return len(a)
-}
-
-func (a AppInfos) Less(i, j int) bool{
-    return a[i].ServiceName() < a[j].ServiceName()
-}
-
-func (a AppInfos) Swap(i, j int){
-    a[i], a[j] = a[j], a[i]
-}
-
 func (s *servicesTestSuite) SetUpTest(c *C) {
 	s.DBusTest.SetUpTest(c)
 	s.tempdir = c.MkDir()
@@ -3282,9 +3267,9 @@ apps:
 	c.Assert(err, IsNil)
 
 	s.sysdLog = nil
-	sortedServices := AppInfos(info.Services())
-	sort.Sort(sortedServices)
-	c.Assert(wrappers.RestartServices(sortedServices, nil, progress.Null, s.perfTimings), IsNil)
+	services := info.Services()
+	sort.Sort(snap.AppInfoBySnapApp(services))
+	c.Assert(wrappers.RestartServices(services, nil, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"show", "--property=Id,ActiveState,UnitFileState,Type",
 			srvFile1, srvFile2, srvFile3, srvFile4},
