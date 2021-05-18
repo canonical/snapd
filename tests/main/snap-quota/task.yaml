@@ -9,6 +9,14 @@ prepare: |
   snap set system experimental.quota-groups=true
 
 execute: |
+  if os.query is-trusty; then
+    # just check that we can't do anything with quota groups on trusty, systemd
+    # there is 204, but we need at least 205 for slice units
+
+    snap quota foobar --max-memory=1MB 2>&1 | MATCH "systemd version too old: snap quotas requires systemd 205 and newer \(currently have 204\)"
+    exit 0
+  fi
+
   echo "Creating top-level quota groups (no snaps)"
   snap quota group-top1 --max-memory=4MB
   snap quota group-top2 --max-memory=500MB
