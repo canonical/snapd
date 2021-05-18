@@ -12,15 +12,13 @@ restore: |
 execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-service
 
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     check_services_active() {
        test -n "$1"
        systemctl is-active "snap.$1.test-snapd-service.service"
        systemctl is-active "snap.$1.test-snapd-other-service.service"
     }
 
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     for instance in foo longname; do
         echo "Install a snap as instance named test-snapd-service_$instance"
         expected="^test-snapd-service_$instance 1.0 installed\$"

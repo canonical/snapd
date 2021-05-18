@@ -7,9 +7,6 @@ restore: |
     snap set system experimental.parallel-instances=null
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     # the snap is named 'test-snapd-service'
     path="$("$TESTSTOOLS"/snaps-state pack-local test-snapd-service-v2-bad)"
     test -n "$path"
@@ -19,6 +16,7 @@ execute: |
     snap change --last=install | MATCH 'Error.*Start snap "test-snapd-service" \(unset\) services'
 
     echo "Shared snap directories are cleaned up in undo"
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     not test -d "$SNAP_MOUNT_DIR/test-snapd-service"
     not test -d "/var/snap/test-snapd-service"
 

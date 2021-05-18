@@ -26,12 +26,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 
+	"gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/state"
-	"gopkg.in/check.v1"
 )
 
 var _ = check.Suite(&apiQuotaSuite{})
@@ -50,6 +51,9 @@ func (s *apiQuotaSuite) SetUpTest(c *check.C) {
 	tr := config.NewTransaction(st)
 	tr.Set("core", "experimental.quota-groups", true)
 	tr.Commit()
+
+	r := servicestate.MockSystemdVersion(248)
+	s.AddCleanup(r)
 }
 
 func mockQuotas(st *state.State, c *check.C) {

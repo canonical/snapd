@@ -62,6 +62,7 @@ var refreshRetryDelay = 20 * time.Minute
 // of auto-refresh.
 type refreshCandidate struct {
 	SnapSetup
+	Version string `json:"version,omitempty"`
 }
 
 func (rc *refreshCandidate) Type() snap.Type {
@@ -642,4 +643,12 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker
 	// Send the notification asynchronously to avoid holding the state lock.
 	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 	return checkerErr
+}
+
+// for testing outside of snapstate
+func MockRefreshCandidate(snapSetup *SnapSetup, version string) interface{} {
+	return &refreshCandidate{
+		SnapSetup: *snapSetup,
+		Version:   version,
+	}
 }
