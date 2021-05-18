@@ -21,6 +21,7 @@ package servicestate
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/snapcore/snapd/features"
@@ -213,11 +214,20 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[s
 		}
 	}
 
-	// now restart the services for each snap that was newly moved into a
-	// quota group
-	// TODO: handle snaps removed from a quota in #10218
+	// now restart the services for each snap that was newly moved into a quota
+	// group
 	nullPerfTimings := &timings.Timings{}
-	for sn, apps := range appsToRestartBySnap {
+	// iterate in a stable order over the snaps to restart their apps
+	snaps := make([]*snap.Info, 0, len(appsToRestartBySnap))
+	for sn := range appsToRestartBySnap {
+		snaps = append(snaps, sn)
+	}
+
+	sort.SliceStable(snaps, func(i, j int) bool {
+		return snaps[i].InstanceName() < snaps[j].InstanceName()
+	})
+
+	for _, sn := range snaps {
 		disabledSvcs, err := wrappers.QueryDisabledServices(sn, progress.Null)
 		if err != nil {
 			return err
@@ -228,7 +238,7 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[s
 			isDisabledSvc[svc] = true
 		}
 
-		startupOrdered, err := snap.SortServices(apps)
+		startupOrdered, err := snap.SortServices(appsToRestartBySnap[sn])
 		if err != nil {
 			return err
 		}
