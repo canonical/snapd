@@ -83,16 +83,25 @@ func bindTextDomain(domain, dir string) {
 
 func setLocale(loc string) {
 	if loc == "" {
-		loc = os.Getenv("LC_MESSAGES")
-		if loc == "" {
-			loc = os.Getenv("LANG")
-		}
+		loc = CurrentLocale()
 	}
 	// de_DE.UTF-8, de_DE@euro all need to get simplified
 	loc = strings.Split(loc, "@")[0]
 	loc = strings.Split(loc, ".")[0]
 
 	locale = translations.Locale(loc)
+}
+
+func CurrentLocale() string {
+	loc := os.Getenv("LC_MESSAGES")
+	if loc == "" {
+		loc = os.Getenv("LANG")
+	}
+
+	loc = strings.Split(loc, "@")[0]
+	loc = strings.Split(loc, ".")[0]
+
+	return loc
 }
 
 // G is the shorthand for Gettext
