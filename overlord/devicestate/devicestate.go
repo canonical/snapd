@@ -639,16 +639,17 @@ func Remodeling(st *state.State) bool {
 }
 
 type recoverySystemSetup struct {
-	// Label of the recovery system
+	// Label of the recovery system, selected when tasks are created
 	Label string `json:"label"`
 	// Directory inside the seed filesystem where the recovery system files
-	// are kept
+	// are kept, typically /run/mnt/ubuntu-seed/systems/<label>, set by
+	// create-recovery-system task
 	Directory string `json:"directory"`
 	// NewCommonFiles is a list of new files added to the shared snaps
-	// directory in seed
+	// directory in seed, set by create-recovery-system task
 	NewCommonFiles []string `json:"new-common-files"`
 	// SnapSetupTasks is a list of tasks that carry snap setup information,
-	// relevant only during remodel
+	// relevant only during remodel, set when creating the tasks
 	SnapSetupTasks []string `json:"snap-setup-tasks"`
 }
 
