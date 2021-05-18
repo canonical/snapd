@@ -3366,10 +3366,10 @@ apps:
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		s.sysdLog = append(s.sysdLog, cmd)
 		states := map[string]systemd.ServiceState{
-			srvFile1: {"active", "enabled"},
-			srvFile2: {"inactive", "enabled"},
-			srvFile3: {"active", "disabled"},
-			srvFile4: {"inactive", "disabled"},
+			srvFile1: {ActiveState: "active", UnitFileState: "enabled"},
+			srvFile2: {ActiveState: "inactive", UnitFileState: "enabled"},
+			srvFile3: {ActiveState: "active", UnitFileState: "disabled"},
+			srvFile4: {ActiveState: "inactive", UnitFileState: "disabled"},
 		}
 		if out := systemd.MockAllUnitsActiveOutput(cmd, states); out != nil {
 			return out, nil
