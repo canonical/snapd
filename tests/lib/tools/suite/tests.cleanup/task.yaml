@@ -38,7 +38,7 @@ execute: |
     tests.cleanup restore
 
     # Deferred commands are appended to defer.sh
-    test -e defer.sh
+    test ! -e defer.sh
     tests.cleanup defer echo a b c
     tests.cleanup defer echo 1 2 3
     diff -u defer.sh - <<EXPECTED
