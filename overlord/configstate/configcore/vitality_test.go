@@ -37,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -171,6 +172,19 @@ func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
 		SnapType: "app",
 	})
 
+	// CreateQuota is calling "systemctl.Restart", which needs to be mocked
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) (buf []byte, err error) {
+		s.systemctlArgs = append(s.systemctlArgs, cmd)
+		if out := systemd.MockAllUnitsActiveOutput(cmd, nil); out != nil {
+			return out, nil
+		}
+
+		if cmd[0] == "show" {
+			return []byte("ActiveState=inactive\n"), nil
+		}
+		return nil, nil
+	})
+	s.AddCleanup(systemctlRestorer)
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.quota-groups", true)
 	tr.Commit()
