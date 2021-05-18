@@ -21,6 +21,7 @@ package devicestate_test
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -50,9 +51,16 @@ import (
 
 type deviceMgrGadgetSuite struct {
 	deviceMgrBaseSuite
+
+	managedbl *bootloadertest.MockTrustedAssetsBootloader
 }
 
 var _ = Suite(&deviceMgrGadgetSuite{})
+
+const pcGadgetSnapYaml = `
+name: pc
+type: gadget
+`
 
 var snapYaml = `
 name: foo-gadget
@@ -130,6 +138,30 @@ volumes:
         filesystem-label: ubuntu-boot
         size: 750M
 `
+
+func (s *deviceMgrGadgetSuite) SetUpTest(c *C) {
+	s.deviceMgrBaseSuite.SetUpTest(c)
+
+	s.managedbl = bootloadertest.Mock("mock", c.MkDir()).WithTrustedAssets()
+	s.managedbl.StaticCommandLine = "console=ttyS0 console=tty1 panic=-1"
+	s.managedbl.CandidateStaticCommandLine = "console=ttyS0 console=tty1 panic=-1 candidate"
+
+	s.state.Lock()
+	defer s.state.Unlock()
+}
+
+func (s *deviceMgrGadgetSuite) mockModeenvForMode(c *C, mode string) {
+	// mock minimal modeenv
+	modeenv := boot.Modeenv{
+		Mode:           mode,
+		RecoverySystem: "",
+		CurrentKernelCommandLines: []string{
+			"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		},
+	}
+	err := modeenv.WriteTo("")
+	c.Assert(err, IsNil)
+}
 
 func (s *deviceMgrGadgetSuite) setupModelWithGadget(c *C, gadget string) {
 	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
@@ -1054,4 +1086,473 @@ func (s *deviceMgrGadgetSuite) TestUpdateGadgetOnCoreFromKernelRemodel(c *C) {
 	c.Check(updateCalled, Equals, 1)
 	rollbackDir := filepath.Join(dirs.SnapRollbackDir, "pc-kernel_34")
 	c.Check(rollbackDir, Equals, passedRollbackDir)
+}
+
+func (s *deviceMgrGadgetSuite) testGadgetCommandlineUpdateRun(c *C, fromFiles, toFiles [][]string, errMatch, logMatch string, updated bool) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+
+	currentSi := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	snapstate.Set(s.state, "pc", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{currentSi},
+		Current:  currentSi.Revision,
+		Active:   true,
+	})
+	snaptest.MockSnapWithFiles(c, pcGadgetSnapYaml, currentSi, fromFiles)
+	updateSi := *currentSi
+	updateSi.Revision = snap.R(34)
+	snaptest.MockSnapWithFiles(c, pcGadgetSnapYaml, &updateSi, toFiles)
+
+	tsk := s.state.NewTask("update-gadget-cmdline", "update gadget command line")
+	tsk.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &updateSi,
+		Type:     snap.TypeGadget,
+	})
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(tsk)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(chg.IsReady(), Equals, true)
+	if errMatch == "" {
+		c.Check(chg.Err(), IsNil)
+		c.Check(tsk.Status(), Equals, state.DoneStatus)
+		// we log on success
+		log := tsk.Log()
+		if logMatch != "" {
+			c.Assert(log, HasLen, 1)
+			c.Check(log[0], Matches, fmt.Sprintf(".* %v", logMatch))
+		} else {
+			c.Check(log, HasLen, 0)
+		}
+		if updated {
+			// update was applied, thus a restart was requested
+			c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem})
+		} else {
+			// update was not applied or failed
+			c.Check(s.restartRequests, HasLen, 0)
+		}
+	} else {
+		c.Check(chg.Err(), ErrorMatches, errMatch)
+		c.Check(tsk.Status(), Equals, state.ErrorStatus)
+	}
+}
+
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithExistingArgs(c *C) {
+	// arguments change
+	bootloader.Force(s.managedbl)
+	s.state.Lock()
+	s.setupUC20ModelWithGadget(c, "pc")
+	s.mockModeenvForMode(c, "run")
+	devicestate.SetBootOkRan(s.mgr, true)
+	s.state.Set("seeded", true)
+
+	// update the modeenv to have the gadget arguments included to mimic the
+	// state we would have in the system
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	m.CurrentKernelCommandLines = []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from old gadget",
+	}
+	c.Assert(m.Write(), IsNil)
+	err = s.managedbl.SetBootVars(map[string]string{
+		"snapd_extra_cmdline_args": "args from old gadget",
+	})
+	c.Assert(err, IsNil)
+	s.managedbl.SetBootVarsCalls = 0
+
+	s.state.Unlock()
+
+	const update = true
+	s.testGadgetCommandlineUpdateRun(c,
+		[][]string{
+			{"meta/gadget.yaml", gadgetYaml},
+			{"cmdline.extra", "args from old gadget"},
+		},
+		[][]string{
+			{"meta/gadget.yaml", gadgetYaml},
+			{"cmdline.extra", "args from updated gadget"},
+		},
+		"", "Updated kernel command line", update)
+
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from old gadget",
+		// gadget arguments are picked up for the candidate command line
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from updated gadget",
+	})
+	c.Check(s.managedbl.SetBootVarsCalls, Equals, 1)
+	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args")
+	c.Assert(err, IsNil)
+	// bootenv was cleared
+	c.Assert(vars, DeepEquals, map[string]string{
+		"snapd_extra_cmdline_args": "args from updated gadget",
+	})
+}
+
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineWithNewArgs(c *C) {
+	// no command line arguments prior to the gadget update
+	bootloader.Force(s.managedbl)
+	s.state.Lock()
+	s.setupUC20ModelWithGadget(c, "pc")
+	s.mockModeenvForMode(c, "run")
+	devicestate.SetBootOkRan(s.mgr, true)
+	s.state.Set("seeded", true)
+
+	// mimic system state
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	m.CurrentKernelCommandLines = []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+	}
+	c.Assert(m.Write(), IsNil)
+	err = s.managedbl.SetBootVars(map[string]string{
+		"snapd_extra_cmdline_args": "",
+	})
+	c.Assert(err, IsNil)
+	s.managedbl.SetBootVarsCalls = 0
+
+	s.state.Unlock()
+
+	const update = true
+	s.testGadgetCommandlineUpdateRun(c,
+		[][]string{
+			{"meta/gadget.yaml", gadgetYaml},
+			// old gadget does not carry command line arguments
+		},
+		[][]string{
+			{"meta/gadget.yaml", gadgetYaml},
+			{"cmdline.extra", "args from new gadget"},
+		},
+		"", "Updated kernel command line", update)
+
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+		// gadget arguments are picked up for the candidate command line
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from new gadget",
+	})
+	c.Check(s.managedbl.SetBootVarsCalls, Equals, 1)
+	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args")
+	c.Assert(err, IsNil)
+	// bootenv was cleared
+	c.Assert(vars, DeepEquals, map[string]string{
+		"snapd_extra_cmdline_args": "args from new gadget",
+	})
+}
+
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineDroppedArgs(c *C) {
+	// no command line arguments prior to the gadget up
+	s.state.Lock()
+	bootloader.Force(s.managedbl)
+	s.setupUC20ModelWithGadget(c, "pc")
+	s.mockModeenvForMode(c, "run")
+	devicestate.SetBootOkRan(s.mgr, true)
+	s.state.Set("seeded", true)
+
+	// mimic system state
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	m.CurrentKernelCommandLines = []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget",
+	}
+	c.Assert(m.Write(), IsNil)
+	err = s.managedbl.SetBootVars(map[string]string{
+		"snapd_extra_cmdline_args": "args from gadget",
+	})
+	c.Assert(err, IsNil)
+	s.managedbl.SetBootVarsCalls = 0
+
+	s.state.Unlock()
+
+	const update = true
+	s.testGadgetCommandlineUpdateRun(c,
+		[][]string{
+			{"meta/gadget.yaml", gadgetYaml},
+			// old gadget carries command line arguments
+			{"cmdline.extra", "args from gadget"},
+		},
+		[][]string{
+			{"meta/gadget.yaml", gadgetYaml},
+			// new one does not
+		},
+		"", "Updated kernel command line", update)
+
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget",
+		// this is the expected new command line
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+	})
+	c.Check(s.managedbl.SetBootVarsCalls, Equals, 1)
+	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args")
+	c.Assert(err, IsNil)
+	// bootenv was cleared
+	c.Assert(vars, DeepEquals, map[string]string{
+		"snapd_extra_cmdline_args": "",
+	})
+}
+
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineUnchanged(c *C) {
+	// no command line arguments prior to the gadget update
+	bootloader.Force(s.managedbl)
+	s.state.Lock()
+	s.setupUC20ModelWithGadget(c, "pc")
+	s.mockModeenvForMode(c, "run")
+	devicestate.SetBootOkRan(s.mgr, true)
+	s.state.Set("seeded", true)
+
+	// mimic system state
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	m.CurrentKernelCommandLines = []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget",
+	}
+	c.Assert(m.Write(), IsNil)
+	err = s.managedbl.SetBootVars(map[string]string{
+		"snapd_extra_cmdline_args": "args from gadget",
+	})
+	c.Assert(err, IsNil)
+	s.managedbl.SetBootVarsCalls = 0
+
+	s.state.Unlock()
+
+	sameFiles := [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+		{"cmdline.extra", "args from gadget"},
+	}
+	// old and new gadget have the same command line arguments, nothing changes
+	const update = false
+	s.testGadgetCommandlineUpdateRun(c, sameFiles, sameFiles,
+		"", "", update)
+
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget",
+	})
+	c.Check(s.managedbl.SetBootVarsCalls, Equals, 0)
+}
+
+func (s *deviceMgrGadgetSuite) TestUpdateGadgetCommandlineNonUC20(c *C) {
+	// arguments are ignored on non UC20
+	s.state.Lock()
+	s.setupModelWithGadget(c, "pc")
+	devicestate.SetBootOkRan(s.mgr, true)
+	s.state.Set("seeded", true)
+
+	// there is no modeenv either
+
+	s.state.Unlock()
+	const update = false
+	s.testGadgetCommandlineUpdateRun(c,
+		[][]string{
+			{"meta/gadget.yaml", gadgetYaml},
+			// old gadget does not carry command line arguments
+		},
+		[][]string{
+			{"meta/gadget.yaml", gadgetYaml},
+			{"cmdline.extra", "args from new gadget"},
+		},
+		"", "", update)
+}
+
+func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateUndo(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	bootloader.Force(s.managedbl)
+	s.state.Lock()
+	s.setupUC20ModelWithGadget(c, "pc")
+	s.mockModeenvForMode(c, "run")
+	devicestate.SetBootOkRan(s.mgr, true)
+	s.state.Set("seeded", true)
+
+	// mimic system state
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	m.CurrentKernelCommandLines = []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from old gadget",
+	}
+	c.Assert(m.Write(), IsNil)
+
+	err = s.managedbl.SetBootVars(map[string]string{
+		"snapd_extra_cmdline_args": "args from old gadget",
+	})
+	c.Assert(err, IsNil)
+	s.managedbl.SetBootVarsCalls = 0
+
+	currentSi := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	snapstate.Set(s.state, "pc", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{currentSi},
+		Current:  currentSi.Revision,
+		Active:   true,
+	})
+	snaptest.MockSnapWithFiles(c, pcGadgetSnapYaml, currentSi, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+		{"cmdline.extra", "args from old gadget"},
+	})
+	updateSi := *currentSi
+	updateSi.Revision = snap.R(34)
+	snaptest.MockSnapWithFiles(c, pcGadgetSnapYaml, &updateSi, [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+		{"cmdline.extra", "args from new gadget"},
+	})
+
+	tsk := s.state.NewTask("update-gadget-cmdline", "update gadget command line")
+	tsk.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &updateSi,
+		Type:     snap.TypeGadget,
+	})
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(tsk)
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(tsk)
+	chg.AddTask(terr)
+	s.state.Unlock()
+
+	restartCount := 0
+	s.restartObserve = func() {
+		// we want to observe restarts and mangle modeenv like
+		// devicemanager boot handling would do
+		restartCount++
+		m, err := boot.ReadModeenv("")
+		c.Assert(err, IsNil)
+		switch restartCount {
+		case 1:
+			c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from old gadget",
+				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from new gadget",
+			})
+			m.CurrentKernelCommandLines = []string{"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from new gadget"}
+		case 2:
+			c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from new gadget",
+				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from old gadget",
+			})
+			m.CurrentKernelCommandLines = []string{"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from old gadget"}
+		default:
+			c.Fatalf("unexpected restart %v", restartCount)
+		}
+		c.Assert(m.Write(), IsNil)
+	}
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), ErrorMatches, "(?s)cannot perform the following tasks.*total undo.*")
+	c.Check(tsk.Status(), Equals, state.UndoneStatus)
+	log := tsk.Log()
+	c.Assert(log, HasLen, 2)
+	c.Check(log[0], Matches, ".* Updated kernel command line")
+	c.Check(log[1], Matches, ".* Reverted kernel command line change")
+	// update was applied and then undone
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystem, state.RestartSystem})
+	c.Check(restartCount, Equals, 2)
+	vars, err := s.managedbl.GetBootVars("snapd_extra_cmdline_args")
+	c.Assert(err, IsNil)
+	c.Assert(vars, DeepEquals, map[string]string{
+		"snapd_extra_cmdline_args": "args from old gadget",
+	})
+	// 2 calls, one to set the new arguments, and one to reset them back
+	c.Check(s.managedbl.SetBootVarsCalls, Equals, 2)
+}
+
+func (s *deviceMgrGadgetSuite) TestGadgetCommandlineUpdateNoChangeNoRebootsUndo(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	bootloader.Force(s.managedbl)
+	s.state.Lock()
+	s.setupUC20ModelWithGadget(c, "pc")
+	s.mockModeenvForMode(c, "run")
+	devicestate.SetBootOkRan(s.mgr, true)
+	s.state.Set("seeded", true)
+
+	// mimic system state
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	m.CurrentKernelCommandLines = []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget",
+	}
+	c.Assert(m.Write(), IsNil)
+
+	err = s.managedbl.SetBootVars(map[string]string{
+		"snapd_extra_cmdline_args": "args from gadget",
+	})
+	c.Assert(err, IsNil)
+	s.managedbl.SetBootVarsCalls = 0
+
+	currentSi := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(33),
+		SnapID:   "foo-id",
+	}
+	snapstate.Set(s.state, "pc", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{currentSi},
+		Current:  currentSi.Revision,
+		Active:   true,
+	})
+	sameFiles := [][]string{
+		{"meta/gadget.yaml", gadgetYaml},
+		{"cmdline.extra", "args from gadget"},
+	}
+	snaptest.MockSnapWithFiles(c, pcGadgetSnapYaml, currentSi, sameFiles)
+	updateSi := *currentSi
+	updateSi.Revision = snap.R(34)
+	// identical content, just a revision bump
+	snaptest.MockSnapWithFiles(c, pcGadgetSnapYaml, &updateSi, sameFiles)
+
+	tsk := s.state.NewTask("update-gadget-cmdline", "update gadget command line")
+	tsk.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &updateSi,
+		Type:     snap.TypeGadget,
+	})
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(tsk)
+	chg := s.state.NewChange("dummy", "...")
+	chg.AddTask(tsk)
+	chg.AddTask(terr)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), ErrorMatches, "(?s)cannot perform the following tasks.*total undo.*")
+	c.Check(tsk.Status(), Equals, state.UndoneStatus)
+	// there was nothing to update and thus nothing to undo
+	c.Check(s.restartRequests, HasLen, 0)
+	c.Check(s.managedbl.SetBootVarsCalls, Equals, 0)
+	// modeenv wasn't changed
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check([]string(m.CurrentKernelCommandLines), DeepEquals, []string{
+		"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 args from gadget",
+	})
 }
