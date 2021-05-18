@@ -162,7 +162,15 @@ func (tr *tree20) mkFixedDirs() error {
 	if err := os.MkdirAll(filepath.Dir(tr.systemDir), 0755); err != nil {
 		return err
 	}
-	return os.Mkdir(tr.systemDir, 0755)
+	if err := os.Mkdir(tr.systemDir, 0755); err != nil {
+		if os.IsExist(err) {
+			return &ErrSystemAlreadyExists{
+				label: tr.opts.Label,
+			}
+		}
+		return err
+	}
+	return nil
 }
 
 func (tr *tree20) ensureSystemSnapsDir() (string, error) {

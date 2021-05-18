@@ -3233,5 +3233,6 @@ func (s *writerSuite) TestSeedSnapsWriteCore20ErrWhenDirExists(c *C) {
 	c.Assert(w, NotNil)
 
 	_, err = w.Start(s.db, s.newFetcher)
-	c.Assert(err, ErrorMatches, "mkdir .*/seed/systems/1234: file exists")
+	c.Assert(err, ErrorMatches, `system "1234" already exists`)
+	c.Assert(seedwriter.IsErrSytemDirectoryExists(err), Equals, true)
 }
