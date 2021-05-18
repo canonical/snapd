@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/snapcore/snapd/logger"
@@ -91,7 +92,7 @@ func (r *refreshHints) refresh() error {
 	}
 	hints, err := refreshHintsFromCandidates(r.state, updates, ignoreValidationByInstanceName, deviceCtx)
 	if err != nil {
-		return err
+		return fmt.Errorf("internal error: cannot get refresh-candidates: %v", err)
 	}
 	r.state.Set("refresh-candidates", hints)
 	return nil
@@ -165,7 +166,7 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 		}
 
 		snapsup := &refreshCandidate{
-			SnapSetup{
+			SnapSetup: SnapSetup{
 				Base:      update.Base,
 				Prereq:    defaultContentPlugProviders(st, update),
 				Channel:   snapst.TrackingChannel,
@@ -181,7 +182,9 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 					Website: update.Website,
 					Media:   update.Media,
 				},
-			}}
+			},
+			Version: update.Version,
+		}
 		hints = append(hints, snapsup)
 	}
 	return hints, nil

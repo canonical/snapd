@@ -207,6 +207,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 	s.state.Unlock()
 
 	info2 := &snap.Info{
+		Version:       "v1",
 		Architectures: []string{"all"},
 		SnapType:      snap.TypeApp,
 		SideInfo: snap.SideInfo{
@@ -232,6 +233,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 	info2.Plugs = plugs
 
 	s.store.refreshedSnaps = []*snap.Info{{
+		Version:       "2",
 		Architectures: []string{"all"},
 		Base:          "some-base",
 		SnapType:      snap.TypeApp,
@@ -260,12 +262,14 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 	c.Check(cand1.Base(), Equals, "some-base")
 	c.Check(cand1.Type(), Equals, snap.TypeApp)
 	c.Check(cand1.Size(), Equals, int64(99))
+	c.Check(cand1.Version, Equals, "2")
 
 	cand2 := candidates[1]
 	c.Check(cand2.InstanceName(), Equals, "other-snap")
 	c.Check(cand2.Base(), Equals, "")
 	c.Check(cand2.Type(), Equals, snap.TypeApp)
 	c.Check(cand2.Size(), Equals, int64(88))
+	c.Check(cand2.Version, Equals, "v1")
 
 	var snapst snapstate.SnapState
 
