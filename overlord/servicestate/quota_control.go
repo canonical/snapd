@@ -479,26 +479,28 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) erro
 	return ensureSnapServicesForGroup(st, grp, allGrps, nil)
 }
 
-// RemoveSnapFromQuota removes the specified snap from the quota.
-// XXX: this should go away and just become an option to UpdateQuota but that is
-// more complexity than we can handle right now
-func RemoveSnapFromQuota(st *state.State, group, snap string) error {
+// EnsureSnapAbsentFromQuotaGroup ensures that the specified snap is not present
+// in any quota group, usually in preparation for removing that snap from the
+// system to keep the quota group itself consistent.
+func EnsureSnapAbsentFromQuotaGroup(st *state.State, snap string) error {
 	allGrps, err := AllQuotas(st)
 	if err != nil {
 		return err
 	}
 
-	// ensure that the quota group exists
-	grp, ok := allGrps[group]
-	if !ok {
-		return fmt.Errorf("quota group %q does not exist", group)
+	// try to find the snap in any group
+	var grp *quota.Group
+	for _, maybeGrp := range allGrps {
+		if strutil.ListContains(maybeGrp.Snaps, snap) {
+			grp = maybeGrp
+		}
 	}
 
-	// ensure that the snap is currently in the group
-	if !strutil.ListContains(grp.Snaps, snap) {
-		return fmt.Errorf("snap %q is not in quota group %q", snap, group)
+	if grp == nil {
+		return nil
 	}
 
+	// drop this snap from the snaps list of the group
 	newSnapList := make([]string, 0, len(grp.Snaps)-1)
 	for _, sn := range grp.Snaps {
 		if sn != snap {

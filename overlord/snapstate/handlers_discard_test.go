@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/quota"
 )
 
 type discardSnapSuite struct {
@@ -45,11 +44,10 @@ func (s *discardSnapSuite) SetUpTest(c *C) {
 	defer s.state.Unlock()
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.state, repo)
-
-	oldSnapStateAllQuotas := snapstate.AllQuotas
-	snapstate.AllQuotas = servicestate.AllQuotas
+	oldSnapStateEnsureSnapAbsentFromQuotaGroup := snapstate.EnsureSnapAbsentFromQuotaGroup
+	snapstate.EnsureSnapAbsentFromQuotaGroup = servicestate.EnsureSnapAbsentFromQuotaGroup
 	s.AddCleanup(func() {
-		snapstate.AllQuotas = oldSnapStateAllQuotas
+		snapstate.EnsureSnapAbsentFromQuotaGroup = oldSnapStateEnsureSnapAbsentFromQuotaGroup
 	})
 
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
@@ -93,33 +91,18 @@ func (s *discardSnapSuite) TestDoDiscardSnapSuccess(c *C) {
 func (s *discardSnapSuite) TestDoDiscardSnapInQuotaGroup(c *C) {
 	s.state.Lock()
 
-	fooGrp := &quota.Group{
-		Name:  "foogroup",
-		Snaps: []string{"foo"},
-	}
-
-	old := snapstate.AllQuotas
+	old := snapstate.EnsureSnapAbsentFromQuotaGroup
 	defer func() {
-		snapstate.AllQuotas = old
+		snapstate.EnsureSnapAbsentFromQuotaGroup = old
 	}()
 
-	allQuotasCalls := 0
-	snapstate.AllQuotas = func(st *state.State) (map[string]*quota.Group, error) {
-		allQuotasCalls++
-		return map[string]*quota.Group{
-			"foogroup": fooGrp,
-		}, nil
-	}
-	defer func() { c.Assert(allQuotasCalls, Equals, 1) }()
-
-	removeSnapFromQuotaCalls := 0
-	snapstate.RemoveSnapFromQuota = func(st *state.State, group, snap string) error {
-		removeSnapFromQuotaCalls++
-		c.Assert(group, Equals, "foogroup")
+	ensureSnapAbsentFromQuotaGroupCalls := 0
+	snapstate.EnsureSnapAbsentFromQuotaGroup = func(st *state.State, snap string) error {
+		ensureSnapAbsentFromQuotaGroupCalls++
 		c.Assert(snap, Equals, "foo")
 		return nil
 	}
-	defer func() { c.Assert(removeSnapFromQuotaCalls, Equals, 1) }()
+	defer func() { c.Assert(ensureSnapAbsentFromQuotaGroupCalls, Equals, 1) }()
 
 	snapstate.Set(s.state, "foo", &snapstate.SnapState{
 		Sequence: []*snap.SideInfo{

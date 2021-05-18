@@ -776,7 +776,7 @@ func (s *quotaControlSuite) TestUpdateQuotaAddSnapAlreadyInOtherGroup(c *C) {
 	})
 }
 
-func (s *quotaControlSuite) TestUpdateQuotaRemoveSnapFromQuota(c *C) {
+func (s *quotaControlSuite) TestEnsureSnapAbsentFromQuotaGroup(c *C) {
 	r := s.mockSystemctlCalls(c, join(
 		// CreateQuota for foo
 		systemctlCallsForCreateQuota("foo", "test-snap", "test-snap2"),
@@ -822,7 +822,7 @@ func (s *quotaControlSuite) TestUpdateQuotaRemoveSnapFromQuota(c *C) {
 	})
 
 	// remove test-snap from the group
-	err = servicestate.RemoveSnapFromQuota(s.state, "foo", "test-snap")
+	err = servicestate.EnsureSnapAbsentFromQuotaGroup(s.state, "test-snap")
 	c.Assert(err, IsNil)
 
 	checkQuotaState(c, st, map[string]quotaGroupState{
@@ -833,7 +833,7 @@ func (s *quotaControlSuite) TestUpdateQuotaRemoveSnapFromQuota(c *C) {
 	})
 
 	// now remove test-snap2 too
-	err = servicestate.RemoveSnapFromQuota(s.state, "foo", "test-snap2")
+	err = servicestate.EnsureSnapAbsentFromQuotaGroup(s.state, "test-snap2")
 	c.Assert(err, IsNil)
 
 	// and check that it got updated in the state
@@ -842,4 +842,9 @@ func (s *quotaControlSuite) TestUpdateQuotaRemoveSnapFromQuota(c *C) {
 			MemoryLimit: quantity.SizeGiB,
 		},
 	})
+
+	// it's not an error to call EnsureSnapAbsentFromQuotaGroup on a snap that
+	// is not in any quota group
+	err = servicestate.EnsureSnapAbsentFromQuotaGroup(s.state, "test-snap33333")
+	c.Assert(err, IsNil)
 }

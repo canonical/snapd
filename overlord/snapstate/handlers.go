@@ -59,12 +59,8 @@ var SnapServiceOptions = func(st *state.State, instanceName string, grps map[str
 	panic("internal error: snapstate.SnapServiceOptions is unset")
 }
 
-var AllQuotas = func(st *state.State) (grps map[string]*quota.Group, err error) {
-	panic("internal error: snapstate.AllQuotas is unset")
-}
-
-var RemoveSnapFromQuota = func(st *state.State, grpName, snapName string) error {
-	panic("internal error: snapstate.RemoveSnapFromQuota is unset")
+var EnsureSnapAbsentFromQuotaGroup = func(st *state.State, snap string) error {
+	panic("internal error: snapstate.EnsureSnapAbsentFromQuotaGroup is unset")
 }
 
 var SecurityProfilesRemoveLate = func(snapName string, rev snap.Revision, typ snap.Type) error {
@@ -2276,19 +2272,10 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 
 		// XXX: also remove sequence files?
 
-		// remove the snap from any quota groups it may have been in
-		allGrps, err := AllQuotas(st)
-		if err != nil {
+		// remove the snap from any quota groups it may have been in, otherwise
+		// that quota group may get into an inconsistent state
+		if err := EnsureSnapAbsentFromQuotaGroup(st, snapsup.InstanceName()); err != nil {
 			return err
-		}
-		for grpName, grp := range allGrps {
-			if strutil.ListContains(grp.Snaps, snapsup.InstanceName()) {
-				// need to remove this snap from the quota group otherwise that
-				// quota group gets into an inconsistent state
-				if err := RemoveSnapFromQuota(st, grpName, snapsup.InstanceName()); err != nil {
-					return err
-				}
-			}
 		}
 	}
 	if err = config.DiscardRevisionConfig(st, snapsup.InstanceName(), snapsup.Revision()); err != nil {
