@@ -379,18 +379,14 @@ func PromoteTriedRecoverySystem(dev Device, systemLabel string, triedSystems []s
 		}
 	}
 
-	defer func() {
-		if err == nil {
-			return
-		}
+	const expectReseal = true
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, dev.Model(), m, expectReseal); err != nil {
 		if cleanupErr := DropRecoverySystem(dev, systemLabel); cleanupErr != nil {
 			err = fmt.Errorf("%v (cleanup failed: %v)", err, cleanupErr)
 		}
-	}()
-
-	const expectReseal = true
-	return resealKeyToModeenv(dirs.GlobalRootDir, dev.Model(), m, expectReseal)
-
+		return err
+	}
+	return nil
 }
 
 // DropRecoverySystem drops a provided system from the list of good and current

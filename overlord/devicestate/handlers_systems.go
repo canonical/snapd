@@ -91,13 +91,7 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) erro
 	if err != nil {
 		return err
 	}
-	isRemodel := remodelCtx.ForRemodeling()
-	groundDeviceCtx := remodelCtx.GroundContext()
-
-	model := groundDeviceCtx.Model()
-	if isRemodel {
-		model = remodelCtx.Model()
-	}
+	model := remodelCtx.Model()
 
 	setup, err := taskRecoverySystemSetup(t)
 	if err != nil {
@@ -239,8 +233,6 @@ func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tom
 		return &state.Retry{}
 	}
 
-	logger.Noticef("in finalize recovery system")
-
 	remodelCtx, err := DeviceCtx(st, t, nil)
 	if err != nil {
 		return err
@@ -260,6 +252,8 @@ func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tom
 	}
 	label := setup.Label
 
+	logger.Debugf("finalize recovery system with label %q", label)
+
 	if isRemodel {
 		// so far so good, a recovery system created during remodel was
 		// tested successfully
@@ -270,16 +264,18 @@ func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tom
 
 		// XXX: candidate system is promoted to the list of good ones once we
 		// complete the whole remodel change
-		logger.Noticef("recovery system will be promoted later")
-		return nil
+		logger.Debugf("recovery system created during remodel will be promoted later")
+	} else {
+		if err := boot.PromoteTriedRecoverySystem(remodelCtx, label, triedSystems); err != nil {
+			return fmt.Errorf("cannot promote recovery system %q: %v", label, err)
+		}
+
+		// tried systems should be a one item list, we can clear it now
+		st.Set("tried-systems", nil)
 	}
 
-	if err := boot.PromoteTriedRecoverySystem(remodelCtx, label, triedSystems); err != nil {
-		return fmt.Errorf("cannot promote recovery system %q: %v", label, err)
-	}
-
-	// tried systems should be a one item list, we can clear it now
-	st.Set("tried-systems", nil)
+	// we are done
+	t.SetStatus(state.DoneStatus)
 
 	return nil
 }
