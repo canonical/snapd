@@ -89,10 +89,10 @@ func quotaGroupsAvailable(st *state.State) error {
 	return nil
 }
 
-func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[string]*quota.Group) error {
+func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[string]*quota.Group, extraSnaps []string) error {
 	// build the map of snap infos to options to provide to EnsureSnapServices
 	snapSvcMap := map[*snap.Info]*wrappers.SnapServiceOptions{}
-	for _, sn := range grp.Snaps {
+	for _, sn := range append(grp.Snaps, extraSnaps...) {
 		info, err := snapstate.CurrentInfo(st, sn)
 		if err != nil {
 			return err
@@ -329,7 +329,7 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 	}
 
 	// ensure the snap services with the group
-	if err := ensureSnapServicesForGroup(st, grp, allGrps); err != nil {
+	if err := ensureSnapServicesForGroup(st, grp, allGrps, nil); err != nil {
 		return err
 	}
 
@@ -406,7 +406,7 @@ func RemoveQuota(st *state.State, name string) error {
 
 	// update snap service units that may need to be re-written because they are
 	// not in a slice anymore
-	if err := ensureSnapServicesForGroup(st, grp, allGrps); err != nil {
+	if err := ensureSnapServicesForGroup(st, grp, allGrps, nil); err != nil {
 		return err
 	}
 
@@ -427,6 +427,9 @@ type QuotaGroupUpdate struct {
 }
 
 // UpdateQuota updates the quota as per the options.
+// TODO: this should support more kinds of updates such as moving groups between
+// parents, removing sub-groups from their parents, and removing snaps from
+// the group.
 func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) error {
 	if err := quotaGroupsAvailable(st); err != nil {
 		return err
@@ -473,5 +476,46 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) erro
 	}
 
 	// ensure service states are updated
-	return ensureSnapServicesForGroup(st, grp, allGrps)
+	return ensureSnapServicesForGroup(st, grp, allGrps, nil)
+}
+
+// RemoveSnapFromQuota removes the specified snap from the quota.
+// XXX: this should go away and just become an option to UpdateQuota but that is
+// more complexity than we can handle right now
+func RemoveSnapFromQuota(st *state.State, group, snap string) error {
+	allGrps, err := AllQuotas(st)
+	if err != nil {
+		return err
+	}
+
+	// ensure that the quota group exists
+	grp, ok := allGrps[group]
+	if !ok {
+		return fmt.Errorf("quota group %q does not exist", group)
+	}
+
+	// ensure that the snap is currently in the group
+	if !strutil.ListContains(grp.Snaps, snap) {
+		return fmt.Errorf("snap %q is not in quota group %q", snap, group)
+	}
+
+	newSnapList := make([]string, 0, len(grp.Snaps)-1)
+	for _, sn := range grp.Snaps {
+		if sn != snap {
+			newSnapList = append(newSnapList, sn)
+		}
+	}
+
+	grp.Snaps = newSnapList
+
+	// update the quota group state
+	allGrps, err = patchQuotas(st, grp)
+	if err != nil {
+		return err
+	}
+
+	// ensure service states are updated - note we have to add the snap as an
+	// extra snap to ensure since was removed from the group and thus won't be
+	// considered if we didn't add it
+	return ensureSnapServicesForGroup(st, grp, allGrps, []string{snap})
 }
