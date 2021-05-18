@@ -421,18 +421,18 @@ func (w *Writer) SetOptionsSnaps(optSnaps []*OptionsSnap) error {
 	return nil
 }
 
-// ErrSystemAlreadyExists is an error returned when given seed system already
+// SystemAlreadyExistsError is an error returned when given seed system already
 // exists.
-type ErrSystemAlreadyExists struct {
+type SystemAlreadyExistsError struct {
 	label string
 }
 
-func (e *ErrSystemAlreadyExists) Error() string {
+func (e *SystemAlreadyExistsError) Error() string {
 	return fmt.Sprintf("system %q already exists", e.label)
 }
 
-func IsErrSytemDirectoryExists(err error) bool {
-	_, ok := err.(*ErrSystemAlreadyExists)
+func IsSytemDirectoryExistsError(err error) bool {
+	_, ok := err.(*SystemAlreadyExistsError)
 	return ok
 }
 
@@ -442,7 +442,7 @@ func IsErrSytemDirectoryExists(err error) bool {
 // that the writer delegates as well as snap downloading. The writer assumes
 // that the snap assertions will end up in the given db (writing assertion
 // database). When the system seed directory is already present,
-// ErrSystemAlreadyExists error is returned.
+// SystemAlreadyExistsError is returned.
 func (w *Writer) Start(db asserts.RODatabase, newFetcher NewFetcherFunc) (RefAssertsFetcher, error) {
 	if err := w.checkStep(startStep); err != nil {
 		return nil, err

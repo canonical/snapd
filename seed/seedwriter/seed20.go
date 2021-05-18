@@ -164,7 +164,7 @@ func (tr *tree20) mkFixedDirs() error {
 	}
 	if err := os.Mkdir(tr.systemDir, 0755); err != nil {
 		if os.IsExist(err) {
-			return &ErrSystemAlreadyExists{
+			return &SystemAlreadyExistsError{
 				label: tr.opts.Label,
 			}
 		}
