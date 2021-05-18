@@ -20,7 +20,6 @@
 package servicestate_test
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
