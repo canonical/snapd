@@ -914,7 +914,7 @@ func (ss *stateSuite) TestPruneMaxChangesHonored(c *C) {
 	c.Assert(st.Changes(), HasLen, 10)
 
 	// one extra change that just now entered ready state
-	chg := st.NewChange(fmt.Sprintf("chg99"), "so-ready")
+	chg := st.NewChange("chg99", "so-ready")
 	t := st.NewTask("foo", "so-ready")
 	when := 1 * time.Second
 	state.MockChangeTimes(chg, time.Now().Add(-when), time.Now().Add(-when))
