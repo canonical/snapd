@@ -38,8 +38,6 @@ import (
 	"github.com/snapcore/snapd/store"
 )
 
-type fakeStore struct{}
-
 var _ = check.Suite(&snapDownloadSuite{})
 
 type snapDownloadSuite struct {
@@ -206,7 +204,6 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 		dataJSON string
 		status   int
 		resume   int
-		noBody   bool
 		err      string
 	}
 

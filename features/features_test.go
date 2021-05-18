@@ -54,6 +54,7 @@ func (*featureSuite) TestName(c *C) {
 	c.Check(features.CheckDiskSpaceRefresh.String(), Equals, "check-disk-space-refresh")
 	c.Check(features.CheckDiskSpaceRemove.String(), Equals, "check-disk-space-remove")
 	c.Check(features.GateAutoRefreshHook.String(), Equals, "gate-auto-refresh-hook")
+	c.Check(features.QuotaGroups.String(), Equals, "quota-groups")
 	c.Check(func() { _ = features.SnapdFeature(1000).String() }, PanicMatches, "unknown feature flag code 1000")
 }
 

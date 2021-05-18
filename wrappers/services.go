@@ -32,6 +32,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -39,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timeout"
@@ -71,6 +73,26 @@ func generateSnapServiceFile(app *snap.AppInfo, opts *AddSnapServicesOptions) ([
 	}
 
 	return genServiceFile(app, opts)
+}
+
+// generateGroupSliceFile generates a systemd slice unit definition for the
+// specified quota group.
+func generateGroupSliceFile(grp *quota.Group) ([]byte, error) {
+	buf := bytes.Buffer{}
+
+	template := `[Unit]
+Description=Slice for snap quota group %[1]s
+Before=slices.target
+
+[Slice]
+# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+MemoryMax=%[2]d
+`
+
+	fmt.Fprintf(&buf, template, grp.Name, grp.MemoryLimit)
+
+	return buf.Bytes(), nil
 }
 
 func stopUserServices(cli *client.Client, inter interacter, services ...string) error {
@@ -427,12 +449,15 @@ type SnapServiceOptions struct {
 	// VitalityRank is the rank of all services in the specified snap used by
 	// the OOM killer when OOM conditions are reached.
 	VitalityRank int
+
+	// QuotaGroup is the quota group for all services in the specified snap.
+	QuotaGroup *quota.Group
 }
 
 // ObserveChangeCallback can be invoked by EnsureSnapServices to observe
 // the previous content of a unit and the new on a change.
 // unitType can be "service", "socket", "timer". name is empty for a timer.
-type ObserveChangeCallback func(app *snap.AppInfo, unitType string, name, old, new string)
+type ObserveChangeCallback func(app *snap.AppInfo, grp *quota.Group, unitType string, name, old, new string)
 
 // EnsureSnapServicesOptions is the set of options applying to the
 // EnsureSnapServices operation. It does not include per-snap specific options
@@ -532,7 +557,7 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 				if old != nil {
 					oldContent = old.Content
 				}
-				observeChange(app, unitType, name, string(oldContent), string(content))
+				observeChange(app, nil, unitType, name, string(oldContent), string(content))
 			}
 			modifiedUnitsPreviousState[path] = old
 
@@ -549,6 +574,8 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 		return nil
 	}
 
+	neededQuotaGrps := &quota.QuotaGroupSet{}
+
 	for s, snapSvcOpts := range snaps {
 		if s.Type() == snap.TypeSnapd {
 			return fmt.Errorf("internal error: adding explicit services for snapd snap is unexpected")
@@ -562,6 +589,15 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 			// and if there are per-snap options specified, use that for
 			// VitalityRank
 			genServiceOpts.VitalityRank = snapSvcOpts.VitalityRank
+			genServiceOpts.QuotaGroup = snapSvcOpts.QuotaGroup
+
+			if snapSvcOpts.QuotaGroup != nil {
+				if err := neededQuotaGrps.AddAllNecessaryGroups(snapSvcOpts.QuotaGroup); err != nil {
+					// this error can basically only be a circular reference
+					// in the quota group tree
+					return err
+				}
+			}
 		}
 		// note that the Preseeding option is not used here at all
 
@@ -608,6 +644,46 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 		}
 	}
 
+	handleSliceModification := func(grp *quota.Group, path string, content []byte) error {
+		old, modifiedFile, err := tryFileUpdate(path, content)
+		if err != nil {
+			return err
+		}
+
+		if modifiedFile {
+			if observeChange != nil {
+				var oldContent []byte
+				if old != nil {
+					oldContent = old.Content
+				}
+				observeChange(nil, grp, "slice", grp.Name, string(oldContent), string(content))
+			}
+
+			modifiedUnitsPreviousState[path] = old
+
+			// also mark that we need to reload the system instance of systemd
+			// TODO: also handle reloading the user instance of systemd when
+			// needed
+			modifiedSystem = true
+		}
+
+		return nil
+	}
+
+	// now make sure that all of the slice units exist
+	for _, grp := range neededQuotaGrps.AllQuotaGroups() {
+		content, err := generateGroupSliceFile(grp)
+		if err != nil {
+			return err
+		}
+
+		sliceFileName := grp.SliceFileName()
+		path := filepath.Join(dirs.SnapServicesDir, sliceFileName)
+		if err := handleSliceModification(grp, path, content); err != nil {
+			return err
+		}
+	}
+
 	if !preseeding {
 		if modifiedSystem {
 			if err = sysd.DaemonReload(); err != nil {
@@ -631,6 +707,9 @@ type AddSnapServicesOptions struct {
 	// the OOM killer when OOM conditions are reached.
 	VitalityRank int
 
+	// QuotaGroup is the quota group for all services in the specified snap.
+	QuotaGroup *quota.Group
+
 	// RequireMountedSnapdSnap is whether the generated units should depend on
 	// the snapd snap being mounted, this is specific to systems like UC18 and
 	// UC20 which have the snapd snap and need to have units generated
@@ -652,6 +731,7 @@ func AddSnapServices(s *snap.Info, opts *AddSnapServicesOptions, inter interacte
 	if opts != nil {
 		// set the per-snap service options
 		m[s].VitalityRank = opts.VitalityRank
+		m[s].QuotaGroup = opts.QuotaGroup
 
 		// copy the globally applicable opts from AddSnapServicesOptions to
 		// EnsureSnapServicesOptions, since those options override the per-snap opts
@@ -746,6 +826,33 @@ func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error
 		snapSvcsState[name] = state
 	}
 	return snapSvcsState, nil
+}
+
+// RemoveQuotaGroup ensures that the slice file for a quota group is removed. It
+// assumes that the slice corresponding to the group is not in use anymore by
+// any services or sub-groups of the group when it is invoked.
+// group with sub-groups, one must remove all the sub-groups first.
+func RemoveQuotaGroup(grp *quota.Group, inter interacter) error {
+	// TODO: it only works on leaf sub-groups currently
+	if len(grp.SubGroups) != 0 {
+		return fmt.Errorf("internal error: cannot remove quota group with sub-groups")
+	}
+
+	systemSysd := systemd.New(systemd.SystemMode, inter)
+
+	// remove the slice file
+	err := os.Remove(filepath.Join(dirs.SnapServicesDir, grp.SliceFileName()))
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	if err == nil {
+		// we deleted the slice unit, so we need to daemon-reload
+		if err := systemSysd.DaemonReload(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // RemoveSnapServices disables and removes service units for the applications
@@ -943,6 +1050,9 @@ OOMScoreAdjust={{.OOMAdjustScore}}
 {{- if .InterfaceServiceSnippets}}
 {{.InterfaceServiceSnippets}}
 {{- end}}
+{{- if .SliceUnit}}
+Slice={{.SliceUnit}}
+{{- end}}
 {{- if not (or .App.Sockets .App.Timer .App.ActivatesOn) }}
 
 [Install]
@@ -1014,6 +1124,7 @@ WantedBy={{.ServicesTarget}}
 		Before                   []string
 		After                    []string
 		InterfaceServiceSnippets string
+		SliceUnit                string
 
 		Home    string
 		EnvVars string
@@ -1053,6 +1164,11 @@ WantedBy={{.ServicesTarget}}
 		wrapperData.WorkingDir = appInfo.Snap.DataDir()
 	default:
 		panic("unknown snap.DaemonScope")
+	}
+
+	// check the quota group slice
+	if opts.QuotaGroup != nil {
+		wrapperData.SliceUnit = opts.QuotaGroup.SliceFileName()
 	}
 
 	// Add extra "After" targets

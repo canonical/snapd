@@ -40,8 +40,6 @@ type IioInterfaceSuite struct {
 
 	// OS Snap
 	testSlot1Info       *snap.SlotInfo
-	testSlot2Info       *snap.SlotInfo
-	testSlotCleaned     *interfaces.ConnectedSlot
 	testSlotCleanedInfo *snap.SlotInfo
 
 	// Gadget Snap

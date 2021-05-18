@@ -106,10 +106,9 @@ func serializeBootFlags(flags []string) string {
 	return strings.Join(nonEmptyFlags, ",")
 }
 
-// setImageBootFlags writes the provided flags to the bootenv of the recovery
-// bootloader in the specified system rootDir. It is only meant to be called at
-// prepare-image customization time by ubuntu-image/prepare-image.
-func setImageBootFlags(flags []string, rootDir string) error {
+// setImageBootFlags sets the provided flags in the provided
+// bootenv-representing map. It first checks them.
+func setImageBootFlags(flags []string, blVars map[string]string) error {
 	// check that the flagList is supported
 	if _, err := checkBootFlagList(flags, understoodBootFlags); err != nil {
 		return err
@@ -122,19 +121,8 @@ func setImageBootFlags(flags []string, rootDir string) error {
 		return fmt.Errorf("internal error: boot flags too large to fit inside bootenv value")
 	}
 
-	// now find the recovery bootloader in the system dir and set the value on
-	// it
-	opts := &bootloader.Options{
-		Role: bootloader.RoleRecovery,
-	}
-	bl, err := bootloader.Find(rootDir, opts)
-	if err != nil {
-		return err
-	}
-
-	return bl.SetBootVars(map[string]string{
-		"snapd_boot_flags": s,
-	})
+	blVars["snapd_boot_flags"] = s
+	return nil
 }
 
 // InitramfsActiveBootFlags returns the set of boot flags that are currently set
