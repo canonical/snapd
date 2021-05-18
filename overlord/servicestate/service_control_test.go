@@ -86,20 +86,8 @@ func (s *serviceControlSuite) SetUpTest(c *C) {
 		// retrieved first. Services which are not running will be
 		// ignored. Therefore, mock this "show" operation by pretending that
 		// all requested services are active:
-		if cmd[0] == "show" &&
-			cmd[1] == "--property=Id,ActiveState,UnitFileState,Type" {
-			var output []byte
-			for _, unit := range cmd[2:] {
-				if len(output) > 0 {
-					output = append(output, byte('\n'))
-				}
-				output = append(output, []byte(fmt.Sprintf(`Id=%s
-ActiveState=active
-UnitFileState=enabled
-Type=simple
-`, unit))...)
-			}
-			return output, nil
+		if out := systemd.MockAllUnitsActiveOutput(cmd, nil); out != nil {
+			return out, nil
 		}
 
 		s.sysctlArgs = append(s.sysctlArgs, cmd)

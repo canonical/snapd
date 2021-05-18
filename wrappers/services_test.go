@@ -66,38 +66,6 @@ type servicesTestSuite struct {
 
 var _ = Suite(&servicesTestSuite{})
 
-type serviceState struct {
-	activeState   string
-	unitFileState string
-}
-
-// If `cmd` is the command issued by systemd.Status(), this function returns
-// the output to be produced by the command so that the queried services will
-// appear having the ActiveState and UnitFileState according to the data
-// passed in the `states` map.
-func mockSystemCtlShow(cmd []string, states map[string]serviceState) []byte {
-	if cmd[0] != "show" ||
-		cmd[1] != "--property=Id,ActiveState,UnitFileState,Type" {
-		return nil
-	}
-	var output []byte
-	for _, unit := range cmd[2:] {
-		if len(output) > 0 {
-			output = append(output, byte('\n'))
-		}
-		state, ok := states[unit]
-		if !ok {
-			state = serviceState{"active", "enabled"}
-		}
-		output = append(output, []byte(fmt.Sprintf(`Id=%s
-ActiveState=%s
-UnitFileState=%s
-Type=simple
-`, unit, state.activeState, state.unitFileState))...)
-	}
-	return output
-}
-
 func (s *servicesTestSuite) SetUpTest(c *C) {
 	s.DBusTest.SetUpTest(c)
 	s.tempdir = c.MkDir()
@@ -3185,7 +3153,7 @@ apps:
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		s.sysdLog = append(s.sysdLog, cmd)
-		if out := mockSystemCtlShow(cmd, nil); out != nil {
+		if out := systemd.MockAllUnitsActiveOutput(cmd, nil); out != nil {
 			return out, nil
 		}
 		return []byte("ActiveState=inactive\n"), nil
@@ -3250,13 +3218,13 @@ apps:
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		s.sysdLog = append(s.sysdLog, cmd)
-		states := map[string]serviceState{
+		states := map[string]systemd.ServiceState{
 			srvFile1: {"active", "enabled"},
 			srvFile2: {"inactive", "enabled"},
 			srvFile3: {"active", "disabled"},
 			srvFile4: {"inactive", "disabled"},
 		}
-		if out := mockSystemCtlShow(cmd, states); out != nil {
+		if out := systemd.MockAllUnitsActiveOutput(cmd, states); out != nil {
 			return out, nil
 		}
 		return []byte("ActiveState=inactive\n"), nil

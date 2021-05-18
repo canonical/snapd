@@ -116,6 +116,38 @@ func MockSystemctl(f func(args ...string) ([]byte, error)) func() {
 	}
 }
 
+type ServiceState struct {
+	ActiveState   string
+	UnitFileState string
+}
+
+// If `cmd` is the command issued by systemd.Status(), this function returns
+// the output to be produced by the command so that the queried services will
+// appear having the ActiveState and UnitFileState according to the data
+// passed in the `states` map.
+func MockAllUnitsActiveOutput(cmd []string, states map[string]ServiceState) []byte {
+	if cmd[0] != "show" ||
+		cmd[1] != "--property=Id,ActiveState,UnitFileState,Type" {
+		return nil
+	}
+	var output []byte
+	for _, unit := range cmd[2:] {
+		if len(output) > 0 {
+			output = append(output, byte('\n'))
+		}
+		state, ok := states[unit]
+		if !ok {
+			state = ServiceState{"active", "enabled"}
+		}
+		output = append(output, []byte(fmt.Sprintf(`Id=%s
+ActiveState=%s
+UnitFileState=%s
+Type=simple
+`, unit, state.ActiveState, state.UnitFileState))...)
+	}
+	return output
+}
+
 // MockStopDelays is used from tests so that Stop can be less
 // forgiving there.
 func MockStopDelays(checkDelay, notifyDelay time.Duration) func() {
