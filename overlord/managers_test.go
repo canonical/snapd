@@ -71,6 +71,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
@@ -362,6 +363,45 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	c.Assert(assertstate.Add(st, a9), IsNil)
 	c.Assert(s.storeSigning.Add(a9), IsNil)
 
+	// add core18 snap declaration
+	headers = map[string]interface{}{
+		"series":       "16",
+		"snap-name":    "core18",
+		"publisher-id": "can0nical",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	headers["snap-id"] = fakeSnapID(headers["snap-name"].(string))
+	a10, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(st, a10), IsNil)
+	c.Assert(s.storeSigning.Add(a10), IsNil)
+
+	// add core20 snap declaration
+	headers = map[string]interface{}{
+		"series":       "16",
+		"snap-name":    "core20",
+		"publisher-id": "can0nical",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	headers["snap-id"] = fakeSnapID(headers["snap-name"].(string))
+	a11, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(st, a11), IsNil)
+	c.Assert(s.storeSigning.Add(a11), IsNil)
+
+	// add snapd snap declaration
+	headers = map[string]interface{}{
+		"series":       "16",
+		"snap-name":    "snapd",
+		"publisher-id": "can0nical",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}
+	headers["snap-id"] = fakeSnapID(headers["snap-name"].(string))
+	a12, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	c.Assert(assertstate.Add(st, a12), IsNil)
+	c.Assert(s.storeSigning.Add(a12), IsNil)
+
 	// add core itself
 	snapstate.Set(st, "core", &snapstate.SnapState{
 		Active: true,
@@ -614,8 +654,10 @@ apps:
 }
 
 func fakeSnapID(name string) string {
-	const suffix = "idididididididididididididididid"
-	return name + suffix[len(name)+1:]
+	if id := naming.WellKnownSnapID(name); id != "" {
+		return id
+	}
+	return snaptest.AssertedSnapID(name)
 }
 
 const (
@@ -4213,9 +4255,6 @@ func (s *mgrsSuite) TestRemodelRequiredSnapsAddedUndo(c *C) {
 
 func (s *mgrsSuite) TestRemodelDifferentBase(c *C) {
 	// make "core18" snap available in the store
-	s.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name": "core18",
-	})
 	snapYamlContent := `name: core18
 version: 18.04
 type: base`
@@ -4299,10 +4338,6 @@ volumes:
 	const core20Yaml = `name: core20
 type: base
 version: 20.04`
-	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "core20",
-		"publisher-id": "can0nical",
-	})
 	snapPath, _ := ms.makeStoreTestSnap(c, core20Yaml, "2")
 	ms.serveSnap(snapPath, "2")
 
@@ -4444,10 +4479,6 @@ volumes:
 	const core20Yaml = `name: core20
 type: base
 version: 20.04`
-	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "core20",
-		"publisher-id": "can0nical",
-	})
 	snapPath, _ := ms.makeStoreTestSnap(c, core20Yaml, "2")
 	ms.serveSnap(snapPath, "2")
 
@@ -4587,10 +4618,6 @@ volumes:
 	const core20Yaml = `name: core20
 type: base
 version: 20.04`
-	ms.prereqSnapAssertions(c, map[string]interface{}{
-		"snap-name":    "core20",
-		"publisher-id": "can0nical",
-	})
 	snapPath, _ := ms.makeStoreTestSnap(c, core20Yaml, "2")
 	ms.serveSnap(snapPath, "2")
 
