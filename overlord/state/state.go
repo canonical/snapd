@@ -87,6 +87,10 @@ const (
 	RestartSocket
 	// Stop just stops the daemon (used with image pre-seeding)
 	StopDaemon
+	// RestartSystemHaltNow will shutdown --halt the system asap
+	RestartSystemHaltNow
+	// RestartSystemPoweroffNow will shutdown --poweroff the system asap
+	RestartSystemPoweroffNow
 )
 
 // State represents an evolving system state that persists across restarts.
@@ -263,7 +267,8 @@ func (s *State) EnsureBefore(d time.Duration) {
 // The state needs to be locked to request a RestartSystem.
 func (s *State) RequestRestart(t RestartType) {
 	if s.backend != nil {
-		if t == RestartSystem || t == RestartSystemNow {
+		switch t {
+		case RestartSystem, RestartSystemNow, RestartSystemHaltNow, RestartSystemPoweroffNow:
 			if s.bootID == "" {
 				panic("internal error: cannot request a system restart if current boot ID was not provided via VerifyReboot")
 			}

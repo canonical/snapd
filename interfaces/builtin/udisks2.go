@@ -64,6 +64,20 @@ dbus (send)
     member="GetConnectionUnix{ProcessID,User}"
     peer=(label=unconfined),
 
+# Allow accessing logind services to reinitialise devices on resume
+dbus (receive)
+    bus=system
+    path=/org/freedesktop/login1
+    interface=org.freedesktop.login1.Manager
+    member=PrepareForSleep
+    peer=(label=unconfined),
+# do not use peer=(label=unconfined) here since this is DBus activated
+dbus (send)
+    bus=system
+    path=/org/freedesktop/login1
+    interface=org.freedesktop.login1.Manager
+    member=Inhibit,
+
 # Allow binding the service to the requested connection name
 dbus (bind)
     bus=system
@@ -96,8 +110,8 @@ umount /{,run/}media/**,
 /run/udisks2/{,**} rw,
 
 # udisksd execs mount/umount to do the actual operations
-/bin/mount ixr,
-/bin/umount ixr,
+/{,usr/}bin/mount ixr,
+/{,usr/}bin/umount ixr,
 
 # mount/umount (via libmount) track some mount info in these files
 /run/mount/utab* wrlk,

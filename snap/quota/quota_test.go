@@ -23,9 +23,10 @@ import (
 	"math"
 	"testing"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/snap/quota"
-	. "gopkg.in/check.v1"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -486,6 +487,38 @@ func (ts *quotaTestSuite) TestResolveCrossReferences(c *C) {
 	}
 }
 
+func (ts *quotaTestSuite) TestAddAllNecessaryGroupsAvoidsInfiniteRecursion(c *C) {
+	grp, err := quota.NewGroup("infinite-group", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	grp2, err := grp.NewSubGroup("infinite-group2", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	// create a cycle artificially to the same group
+	grp2.SetInternalSubGroups([]*quota.Group{grp2})
+
+	// now we fail to add this to a quota set
+	qs := &quota.QuotaGroupSet{}
+	err = qs.AddAllNecessaryGroups(grp)
+	c.Assert(err, ErrorMatches, "internal error: circular reference found")
+
+	// create a more difficult to detect cycle going from the child to the
+	// parent
+	grp2.SetInternalSubGroups([]*quota.Group{grp})
+	err = qs.AddAllNecessaryGroups(grp)
+	c.Assert(err, ErrorMatches, "internal error: circular reference found")
+
+	// make a real sub-group and try one more level of indirection going back
+	// to the parent
+	grp2.SetInternalSubGroups(nil)
+	grp3, err := grp2.NewSubGroup("infinite-group3", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+	grp3.SetInternalSubGroups([]*quota.Group{grp})
+
+	err = qs.AddAllNecessaryGroups(grp)
+	c.Assert(err, ErrorMatches, "internal error: circular reference found")
+}
+
 func (ts *quotaTestSuite) TestAddAllNecessaryGroups(c *C) {
 	qs := &quota.QuotaGroupSet{}
 
@@ -496,18 +529,22 @@ func (ts *quotaTestSuite) TestAddAllNecessaryGroups(c *C) {
 	c.Assert(err, IsNil)
 
 	// add the group and make sure it is in the set
-	qs.AddAllNecessaryGroups(grp1)
+	err = qs.AddAllNecessaryGroups(grp1)
+	c.Assert(err, IsNil)
 	c.Assert(qs.AllQuotaGroups(), DeepEquals, []*quota.Group{grp1})
 
 	// adding multiple times doesn't change the set
-	qs.AddAllNecessaryGroups(grp1)
-	qs.AddAllNecessaryGroups(grp1)
+	err = qs.AddAllNecessaryGroups(grp1)
+	c.Assert(err, IsNil)
+	err = qs.AddAllNecessaryGroups(grp1)
+	c.Assert(err, IsNil)
 	c.Assert(qs.AllQuotaGroups(), DeepEquals, []*quota.Group{grp1})
 
 	// add a new group and make sure it is in the set now
 	grp2, err := quota.NewGroup("myroot2", quantity.SizeGiB)
 	c.Assert(err, IsNil)
-	qs.AddAllNecessaryGroups(grp2)
+	err = qs.AddAllNecessaryGroups(grp2)
+	c.Assert(err, IsNil)
 	c.Assert(qs.AllQuotaGroups(), DeepEquals, []*quota.Group{grp1, grp2})
 
 	// start again
@@ -518,13 +555,16 @@ func (ts *quotaTestSuite) TestAddAllNecessaryGroups(c *C) {
 	subgrp1, err := grp1.NewSubGroup("mysub1", quantity.SizeGiB)
 	c.Assert(err, IsNil)
 	// add grp2 as well
-	qs.AddAllNecessaryGroups(grp2)
+	err = qs.AddAllNecessaryGroups(grp2)
+	c.Assert(err, IsNil)
 
-	qs.AddAllNecessaryGroups(grp1)
+	err = qs.AddAllNecessaryGroups(grp1)
+	c.Assert(err, IsNil)
 	c.Assert(qs.AllQuotaGroups(), DeepEquals, []*quota.Group{grp1, grp2, subgrp1})
 
 	// we can explicitly add the sub-group and still have the same set too
-	qs.AddAllNecessaryGroups(subgrp1)
+	err = qs.AddAllNecessaryGroups(subgrp1)
+	c.Assert(err, IsNil)
 	c.Assert(qs.AllQuotaGroups(), DeepEquals, []*quota.Group{grp1, grp2, subgrp1})
 
 	// create a new set of group and sub-groups to add the deepest child group
@@ -538,7 +578,8 @@ func (ts *quotaTestSuite) TestAddAllNecessaryGroups(c *C) {
 	subsubgrp3, err := subgrp3.NewSubGroup("mysubsub3", quantity.SizeGiB)
 	c.Assert(err, IsNil)
 
-	qs.AddAllNecessaryGroups(subsubgrp3)
+	err = qs.AddAllNecessaryGroups(subsubgrp3)
+	c.Assert(err, IsNil)
 	c.Assert(qs.AllQuotaGroups(), DeepEquals, []*quota.Group{grp1, grp2, grp3, subgrp1, subgrp3, subsubgrp3})
 
 	// finally create a tree with multiple branches and ensure that adding just
@@ -556,7 +597,8 @@ func (ts *quotaTestSuite) TestAddAllNecessaryGroups(c *C) {
 	// adding just subgrp5 to a quota set will automatically add the other sub
 	// group, subgrp4
 	qs2 := &quota.QuotaGroupSet{}
-	qs2.AddAllNecessaryGroups(subgrp4)
+	err = qs2.AddAllNecessaryGroups(subgrp4)
+	c.Assert(err, IsNil)
 	c.Assert(qs2.AllQuotaGroups(), DeepEquals, []*quota.Group{grp4, subgrp4, subgrp5})
 }
 

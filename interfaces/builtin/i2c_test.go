@@ -39,9 +39,7 @@ type I2cInterfaceSuite struct {
 	iface interfaces.Interface
 
 	// OS Snap
-	testSlot1           *interfaces.ConnectedSlot
 	testSlot1Info       *snap.SlotInfo
-	testSlotCleaned     *interfaces.ConnectedSlot
 	testSlotCleanedInfo *snap.SlotInfo
 
 	// Gadget Snap
@@ -67,7 +65,6 @@ type I2cInterfaceSuite struct {
 	testUDevBadValue6Info      *snap.SlotInfo
 	testUDevBadValue7          *interfaces.ConnectedSlot
 	testUDevBadValue7Info      *snap.SlotInfo
-	testUDevBadInterface1      *interfaces.ConnectedSlot
 	testUDevBadInterface1Info  *snap.SlotInfo
 	testSysfsNameBadValue1     *interfaces.ConnectedSlot
 	testSysfsNameBadValue1Info *snap.SlotInfo

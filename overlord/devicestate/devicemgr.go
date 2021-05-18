@@ -53,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
@@ -94,6 +95,8 @@ type DeviceManager struct {
 	ensureSeedInConfigRan bool
 
 	ensureInstalledRan bool
+
+	ensureTriedRecoverySystemRan bool
 
 	cloudInitAlreadyRestricted           bool
 	cloudInitErrorAttemptStart           *time.Time
@@ -949,6 +952,7 @@ func (m *DeviceManager) ensureInstalled() error {
 
 	// add the install-device hook before ensure-next-boot-to-run-mode if it
 	// exists in the snap
+	var installDevice *state.Task
 	if hasInstallDeviceHook {
 		summary := i18n.G("Run install-device hook")
 		hooksup := &hookstate.HookSetup{
@@ -956,12 +960,17 @@ func (m *DeviceManager) ensureInstalled() error {
 			Snap: model.Gadget(),
 			Hook: "install-device",
 		}
-		installDevice := hookstate.HookTask(m.state, summary, hooksup, nil)
+		installDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
 		addTask(installDevice)
 	}
 
 	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
 	addTask(restartSystem)
+
+	if installDevice != nil {
+		// reference used by snapctl reboot
+		installDevice.Set("restart-task", restartSystem.ID())
+	}
 
 	chg := m.state.NewChange("install-system", i18n.G("Install the system"))
 	chg.AddAll(state.NewTaskSet(tasks...))
@@ -1048,6 +1057,72 @@ func (m *DeviceManager) ensureSeedInConfig() error {
 
 }
 
+func (m *DeviceManager) appendTriedRecoverySystem(label string) error {
+	// state is locked by the caller
+
+	var triedSystems []string
+	if err := m.state.Get("tried-systems", &triedSystems); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if strutil.ListContains(triedSystems, label) {
+		// system already recorded as tried?
+		return nil
+	}
+	triedSystems = append(triedSystems, label)
+	m.state.Set("tried-systems", triedSystems)
+	return nil
+}
+
+func (m *DeviceManager) ensureTriedRecoverySystem() error {
+	if release.OnClassic {
+		return nil
+	}
+	if m.systemMode != "run" {
+		return nil
+	}
+	if m.ensureTriedRecoverySystemRan {
+		return nil
+	}
+
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	outcome, label, err := boot.InspectTryRecoverySystemOutcome(deviceCtx)
+	if err != nil {
+		if !boot.IsInconsistentRecoverySystemState(err) {
+			return err
+		}
+		// boot variables state was inconsistent
+		logger.Noticef("tried recovery system outcome error: %v", err)
+	}
+	switch outcome {
+	case boot.TryRecoverySystemOutcomeSuccess:
+		logger.Noticef("tried recovery system %q was successful", label)
+		if err := m.appendTriedRecoverySystem(label); err != nil {
+			return err
+		}
+	case boot.TryRecoverySystemOutcomeFailure:
+		logger.Noticef("tried recovery system %q failed", label)
+	case boot.TryRecoverySystemOutcomeInconsistent:
+		logger.Noticef("inconsistent outcome of a tried recovery system")
+	case boot.TryRecoverySystemOutcomeNoneTried:
+		// no system was tried
+	}
+	if outcome != boot.TryRecoverySystemOutcomeNoneTried {
+		if err := boot.ClearTryRecoverySystem(deviceCtx, label); err != nil {
+			logger.Noticef("cannot clear tried recovery system status: %v", err)
+			return err
+		}
+	}
+
+	m.ensureTriedRecoverySystemRan = true
+	return nil
+}
+
 type ensureError struct {
 	errs []error
 }
@@ -1095,6 +1170,10 @@ func (m *DeviceManager) Ensure() error {
 		}
 
 		if err := m.ensureInstalled(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensureTriedRecoverySystem(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -1240,6 +1319,52 @@ func (m *DeviceManager) Model() (*asserts.Model, error) {
 // Serial returns the device serial assertion.
 func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return findSerial(m.state, nil)
+}
+
+type SystemModeInfo struct {
+	Mode              string
+	HasModeenv        bool
+	Seeded            bool
+	BootFlags         []string
+	HostDataLocations []string
+}
+
+// SystemModeInfo returns details about the current system mode the device is in.
+func (m *DeviceManager) SystemModeInfo() (*SystemModeInfo, error) {
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err == state.ErrNoState {
+		return nil, fmt.Errorf("cannot report system mode information before device model is acknowledged")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var seeded bool
+	err = m.state.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+
+	mode := m.SystemMode()
+	smi := SystemModeInfo{
+		Mode:       mode,
+		HasModeenv: deviceCtx.HasModeenv(),
+		Seeded:     seeded,
+	}
+	if smi.HasModeenv {
+		bootFlags, err := boot.BootFlags(deviceCtx)
+		if err != nil {
+			return nil, err
+		}
+		smi.BootFlags = bootFlags
+
+		hostDataLocs, err := boot.HostUbuntuDataForMode(mode)
+		if err != nil {
+			return nil, err
+		}
+		smi.HostDataLocations = hostDataLocs
+	}
+	return &smi, nil
 }
 
 type SystemAction struct {

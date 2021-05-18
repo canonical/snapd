@@ -4699,7 +4699,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTimeLimitWorks(c *C) {
 
 	var t time.Time
 	s.state.Get("ubuntu-core-transition-last-retry-time", &t)
-	c.Assert(time.Now().Sub(t) < 2*time.Minute, Equals, true)
+	c.Assert(time.Since(t) < 2*time.Minute, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestTransitionCoreNoOtherChanges(c *C) {
@@ -4903,7 +4903,7 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapTimeLimitWorks(c *C) {
 
 	var t time.Time
 	s.state.Get("snapd-transition-last-retry-time", &t)
-	c.Assert(time.Now().Sub(t) < 2*time.Minute, Equals, true)
+	c.Assert(time.Since(t) < 2*time.Minute, Equals, true)
 }
 
 type unhappyStore struct {
@@ -4939,7 +4939,7 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapError(c *C) {
 	// all the attempts were recorded
 	var t time.Time
 	s.state.Get("snapd-transition-last-retry-time", &t)
-	c.Assert(time.Now().Sub(t) < 2*time.Minute, Equals, true)
+	c.Assert(time.Since(t) < 2*time.Minute, Equals, true)
 
 	var cnt int
 	s.state.Get("snapd-transition-retry", &cnt)
