@@ -1828,6 +1828,7 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskS
 		return UpdateMany(ctx, st, nil, userID, &Flags{IsAutoRefresh: true})
 	}
 
+	// TODO: rename to autoRefreshTasks when old auto refresh logic gets removed.
 	return autoRefreshPhase1(ctx, st)
 }
 

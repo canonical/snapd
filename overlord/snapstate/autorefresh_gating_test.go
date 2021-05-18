@@ -668,12 +668,12 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 	c.Check(seenSnaps, DeepEquals, map[string]bool{"snap-a": true, "snap-b": true})
 
 	// check that refresh-candidates in the state were updated
-	var candidates []snapstate.RefreshCandidate
+	var candidates map[string]*snapstate.RefreshCandidate
 	c.Assert(st.Get("refresh-candidates", &candidates), IsNil)
 	c.Assert(candidates, HasLen, 3)
-	c.Check(candidates[0].InstanceName(), Equals, "snap-a")
-	c.Check(candidates[1].InstanceName(), Equals, "base-snap-b")
-	c.Check(candidates[2].InstanceName(), Equals, "snap-c")
+	c.Check(candidates["snap-a"], NotNil)
+	c.Check(candidates["base-snap-b"], NotNil)
+	c.Check(candidates["snap-c"], NotNil)
 }
 
 func (s *autorefreshGatingSuite) TestAutoRefreshPhase1ConflictsFilteredOut(c *C) {
@@ -732,11 +732,11 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1ConflictsFilteredOut(c *C)
 	c.Check(seenSnaps, DeepEquals, map[string]bool{"snap-a": true})
 
 	// check that refresh-candidates in the state were updated
-	var candidates []snapstate.RefreshCandidate
+	var candidates map[string]*snapstate.RefreshCandidate
 	c.Assert(st.Get("refresh-candidates", &candidates), IsNil)
 	c.Assert(candidates, HasLen, 2)
-	c.Check(candidates[0].InstanceName(), Equals, "snap-a")
-	c.Check(candidates[1].InstanceName(), Equals, "snap-c")
+	c.Check(candidates["snap-a"], NotNil)
+	c.Check(candidates["snap-c"], NotNil)
 }
 
 func (s *autorefreshGatingSuite) TestAutoRefreshPhase1NoHooks(c *C) {
