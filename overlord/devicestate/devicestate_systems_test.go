@@ -1185,6 +1185,14 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 	c.Assert(err, IsNil)
 	c.Check(modeenvAfterCreate.CurrentRecoverySystems, DeepEquals, []string{"othersystem", "1234"})
 	c.Check(modeenvAfterCreate.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+	// verify that new files are tracked correctly
+	expectedFilesLog := &bytes.Buffer{}
+	// new snap files are logged in this order
+	for _, fname := range []string{"snapd_4.snap", "pc-kernel_2.snap", "core20_3.snap", "pc_1.snap"} {
+		fmt.Fprintln(expectedFilesLog, filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps", fname))
+	}
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"),
+		testutil.FileEquals, expectedFilesLog.String())
 
 	// these things happen on snapd startup
 	state.MockRestarting(s.state, state.RestartUnset)
@@ -1215,6 +1223,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 	c.Check(modeenvAfterFinalize.GoodRecoverySystems, DeepEquals, []string{"othersystem", "1234"})
 	// no more calls to the bootloader past creating the system
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"), testutil.FileAbsent)
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(c *C) {
@@ -1234,6 +1243,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 
 	s.mockStandardSnapsModeenvAndBootloaderState(c)
 
+	snaptest.PopulateDir(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps"), [][]string{
+		{"core20_10.snap", "canary"},
+		{"some-snap_1.snap", "canary"},
+	})
+
 	s.state.Unlock()
 	s.settle(c)
 	s.state.Lock()
@@ -1243,6 +1257,19 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
 
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	// sanity check asserted snaps location
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234undo"), testutil.FilePresent)
+	p, err := filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*"))
+	c.Assert(err, IsNil)
+	c.Check(p, DeepEquals, []string{
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/core20_10.snap"),
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/core20_3.snap"),
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/pc-kernel_2.snap"),
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/pc_1.snap"),
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/snapd_4.snap"),
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/some-snap_1.snap"),
+	})
+	// do more extensive validation
 	validateSeed(c, "1234undo", s.storeSigning.Trusted)
 	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
@@ -1284,6 +1311,15 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 	c.Check(modeenvAfterFinalize.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
 	// no more calls to the bootloader
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
+	// system directory was removed
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234undo"), testutil.FileAbsent)
+	// only the canary files are left now
+	p, err = filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*"))
+	c.Assert(err, IsNil)
+	c.Check(p, DeepEquals, []string{
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/core20_10.snap"),
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/some-snap_1.snap"),
+	})
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinalizeErrsWhenSystemFailed(c *C) {
@@ -1357,4 +1393,81 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 	c.Check(modeenvAfterFinalize.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
 	// no more calls to the bootloader
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
+	// seed directory was removed
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"), testutil.FileAbsent)
+	// all common snaps were cleaned up
+	p, err := filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*"))
+	c.Assert(err, IsNil)
+	c.Check(p, HasLen, 0)
+}
+
+type systemSnapTrackingSuite struct {
+	deviceMgrSystemsBaseSuite
+}
+
+var _ = Suite(&systemSnapTrackingSuite{})
+
+func (s *systemSnapTrackingSuite) TestSnapFileTracking(c *C) {
+	otherDir := c.MkDir()
+	systemDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234")
+	flog := filepath.Join(otherDir, "files-log")
+
+	snaptest.PopulateDir(systemDir, [][]string{
+		{"this-will-be-removed", "canary"},
+		{"this-one-too", "canary"},
+		{"this-one-stays", "canary"},
+		{"snaps/to-be-removed", "canary"},
+		{"snaps/this-one-stays", "canary"},
+	})
+
+	// complain loudly if the file is under unexpected location
+	err := devicestate.LogNewSystemSnapFile(flog, filepath.Join(otherDir, "some-file"))
+	c.Assert(err, ErrorMatches, `internal error: unexpected file location ".*/some-file"`)
+	c.Check(flog, testutil.FileAbsent)
+
+	expectedContent := &bytes.Buffer{}
+
+	for _, p := range []string{
+		filepath.Join(systemDir, "this-will-be-removed"),
+		filepath.Join(systemDir, "this-one-too"),
+		filepath.Join(systemDir, "does-not-exist"),
+		filepath.Join(systemDir, "snaps/to-be-removed"),
+	} {
+		err = devicestate.LogNewSystemSnapFile(flog, p)
+		c.Check(err, IsNil)
+		fmt.Fprintln(expectedContent, p)
+		// logged content is accumulated
+		c.Check(flog, testutil.FileEquals, expectedContent.String())
+	}
+
+	// add some empty spaces to log file, which should get ignored when purging
+	f, err := os.OpenFile(flog, os.O_APPEND, 0644)
+	c.Assert(err, IsNil)
+	defer f.Close()
+	fmt.Fprintln(f, "    ")
+	fmt.Fprintln(f, "")
+	// and double some entries
+	fmt.Fprintln(f, filepath.Join(systemDir, "this-will-be-removed"))
+
+	err = devicestate.PurgeNewSystemSnapFiles(flog)
+	c.Assert(err, IsNil)
+
+	// those are removed
+	for _, p := range []string{
+		filepath.Join(systemDir, "this-will-be-removed"),
+		filepath.Join(systemDir, "this-one-too"),
+		filepath.Join(systemDir, "snaps/to-be-removed"),
+	} {
+		c.Check(p, testutil.FileAbsent)
+	}
+	c.Check(filepath.Join(systemDir, "this-one-stays"), testutil.FileEquals, "canary")
+	c.Check(filepath.Join(systemDir, "snaps/this-one-stays"), testutil.FileEquals, "canary")
+}
+
+func (s *systemSnapTrackingSuite) TestSnapFilePurgeWhenNoLog(c *C) {
+	otherDir := c.MkDir()
+	flog := filepath.Join(otherDir, "files-log")
+	// purge is still happy even if log file does not exist
+	err := devicestate.PurgeNewSystemSnapFiles(flog)
+	c.Assert(err, IsNil)
 }

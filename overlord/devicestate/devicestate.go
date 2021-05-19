@@ -648,9 +648,6 @@ type recoverySystemSetup struct {
 	// are kept, typically /run/mnt/ubuntu-seed/systems/<label>, set when
 	// tasks are created
 	Directory string `json:"directory"`
-	// NewCommonFiles is a list of new files added to the shared snaps
-	// directory in seed, set by create-recovery-system task
-	NewCommonFiles []string `json:"new-common-files"`
 	// SnapSetupTasks is a list of tasks that carry snap setup information,
 	// relevant only during remodel, set when tasks are created
 	SnapSetupTasks []string `json:"snap-setup-tasks"`

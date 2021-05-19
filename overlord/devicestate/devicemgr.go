@@ -167,6 +167,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	// recovery systems
 	runner.AddHandler("create-recovery-system", m.doCreateRecoverySystem, m.undoCreateRecoverySystem)
 	runner.AddHandler("finalize-recovery-system", m.doFinalizeTriedRecoverySystem, m.undoFinalizeTriedRecoverySystem)
+	runner.AddCleanup("finalize-recovery-system", m.cleanupRecoverySystem)
 
 	runner.AddBlocked(gadgetUpdateBlocked)
 
