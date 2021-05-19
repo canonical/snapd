@@ -1,11 +1,9 @@
 summary: Check that prepare-image works for grub-systems
 
-systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -amazon-*, -centos-*]
-
 backends: [-autopkgtest]
 
-# ubuntu-14.04: systemd-run not supported
-systems: [-ubuntu-14.04*]
+# building images is only supported on classic ubuntu, but ubuntu 14.04 does not have systemd-run to perform the test
+systems: [ubuntu-16*, ubuntu-18*, ubuntu-2*]
 
 # TODO: use the real stores with proper assertions fully as well once possible
 environment:

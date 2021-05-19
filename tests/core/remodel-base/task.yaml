@@ -1,10 +1,11 @@
 summary: Test a remodel that switches to a new base
-environment:
-    OLD_BASE: core18
-    NEW_BASE: test-snapd-core18
 
 # TODO:UC20: enable on UC20
 systems: [ubuntu-core-18-64]
+
+environment:
+    OLD_BASE: core18
+    NEW_BASE: test-snapd-core18
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -71,8 +72,6 @@ execute: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-    #shellcheck source=tests/lib/boot.sh
-    . "$TESTSLIB"/boot.sh
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
 
@@ -110,7 +109,7 @@ execute: |
         echo "and we have the new base snap installed"
         snap list "$NEW_BASE"
         echo "And are using it"
-        wait_core_post_boot
+        "$TESTSTOOLS"/boot-state wait-core-post-boot
         MATCH "snap_core=$NEW_BASE" < /boot/grub/grubenv
         echo "and we got the new model assertion"
         wait_change_done "Refresh model assertion from revision 0 to 2"
@@ -127,7 +126,7 @@ execute: |
 
     # reboot from new model to undo the new model again (to not pollute tests)
     if [ "$SPREAD_REBOOT" = 2 ]; then
-        wait_core_post_boot
+        "$TESTSTOOLS"/boot-state wait-core-post-boot
         MATCH "snap_core=$OLD_BASE" < /boot/grub/grubenv
         wait_change_done "Refresh model assertion from revision 2 to 3"
         snap debug model|MATCH "revision: 3"

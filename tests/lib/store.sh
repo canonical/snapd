@@ -108,6 +108,13 @@ new_snap_revision(){
     snap ack "$p"
 }
 
+new_repair(){
+    local dir="$1"
+    local script_path="$2"
+    shift 2
+
+    p=$(fakestore new-repair --dir "$dir" "$@" "${script_path}")
+}
 
 setup_fake_store(){
     # before switching make sure we have a session macaroon
@@ -147,6 +154,9 @@ setup_fake_store(){
 teardown_fake_store(){
     local top_dir=$1
     systemctl stop fakestore || true
+    # when a unit fails, systemd may keep its status, resetting it allows to
+    # start the unit again with a clean slate
+    systemctl reset-failed fakestore || true
 
     if [ "$REMOTE_STORE" = "staging" ]; then
         setup_staging_store

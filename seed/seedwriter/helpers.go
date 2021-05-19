@@ -21,6 +21,7 @@ package seedwriter
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -118,6 +119,13 @@ func checkType(sn *SeedSnap, model *asserts.Model) error {
 		return fmt.Errorf("%s has unexpected type: %s", what, sn.Info.Type())
 	}
 	return nil
+}
+
+func errorMsgForModesSuffix(modes []string) string {
+	if len(modes) == 1 && modes[0] == "run" {
+		return ""
+	}
+	return fmt.Sprintf(" for all relevant modes (%s)", strings.Join(modes, ", "))
 }
 
 type seedSnapsByType []*SeedSnap

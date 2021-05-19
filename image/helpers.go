@@ -40,6 +40,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -403,4 +404,56 @@ func (tsto *ToolingStore) Find(at *asserts.AssertionType, headers map[string]str
 		return nil, err
 	}
 	return tsto.sto.Assertion(at, pk, tsto.user)
+}
+
+// var so that it can be mocked for tests
+var writeResolvedContent = writeResolvedContentImpl
+
+// writeResolvedContent takes gadget.Info and the unpacked
+// gadget/kernel snaps and outputs the resolved content from the
+// {gadget,kernel}.yaml into a filesystem tree with the structure:
+// <prepareImageDir>/resolved-content/<volume-name>/part<structure-nr>/...
+//
+// E.g.
+// /tmp/prep-img/resolved-content/pi/part0/{config.txt,bootcode.bin,...}
+func writeResolvedContentImpl(prepareDir string, info *gadget.Info, gadgetUnpackDir, kernelUnpackDir string) error {
+	fullPrepareDir, err := filepath.Abs(prepareDir)
+	if err != nil {
+		return err
+	}
+	targetDir := filepath.Join(fullPrepareDir, "resolved-content")
+
+	for volName, vol := range info.Volumes {
+		pvol, err := gadget.LayoutVolume(gadgetUnpackDir, kernelUnpackDir, vol, gadget.DefaultConstraints)
+		if err != nil {
+			return err
+		}
+		for i, ps := range pvol.LaidOutStructure {
+			if !ps.HasFilesystem() {
+				continue
+			}
+			mw, err := gadget.NewMountedFilesystemWriter(&ps, nil)
+			if err != nil {
+				return err
+			}
+			// ubuntu-image uses the "part{}" nomenclature
+			dst := filepath.Join(targetDir, volName, fmt.Sprintf("part%d", i))
+			// on UC20, ensure system-seed links back to the
+			// <PrepareDir>/system-seed
+			if ps.Role == gadget.SystemSeed {
+				uc20systemSeedDir := filepath.Join(fullPrepareDir, "system-seed")
+				if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+					return err
+				}
+				if err := os.Symlink(uc20systemSeedDir, dst); err != nil {
+					return err
+				}
+			}
+			if err := mw.Write(dst, nil); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
 }

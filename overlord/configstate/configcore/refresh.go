@@ -40,6 +40,19 @@ func init() {
 	supportedConfigurations["core.refresh.rate-limit"] = true
 }
 
+func reportOrIgnoreInvalidManageRefreshes(tr config.Conf, optName string) error {
+	// check if the option is set as part of transaction changes; if not than
+	// it's already set in the config state and we shouldn't error out about it
+	// now. refreshScheduleManaged will do the right thing when refresh cannot
+	// be managed anymore.
+	for _, k := range tr.Changes() {
+		if k == "core."+optName {
+			return fmt.Errorf("cannot set schedule to managed")
+		}
+	}
+	return nil
+}
+
 func validateRefreshSchedule(tr config.Conf) error {
 	refreshRetainStr, err := coreCfg(tr, "refresh.retain")
 	if err != nil {
@@ -83,7 +96,7 @@ func validateRefreshSchedule(tr config.Conf) error {
 		defer st.Unlock()
 
 		if !devicestate.CanManageRefreshes(st) {
-			return fmt.Errorf("cannot set schedule to managed")
+			return reportOrIgnoreInvalidManageRefreshes(tr, "refresh.timer")
 		}
 		return nil
 	}
@@ -110,7 +123,7 @@ func validateRefreshSchedule(tr config.Conf) error {
 		defer st.Unlock()
 
 		if !devicestate.CanManageRefreshes(st) {
-			return fmt.Errorf("cannot set schedule to managed")
+			return reportOrIgnoreInvalidManageRefreshes(tr, "refresh.schedule")
 		}
 		return nil
 	}

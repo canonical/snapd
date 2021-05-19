@@ -20,6 +20,7 @@
 package hookstate_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"path/filepath"
@@ -29,6 +30,7 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
@@ -1171,6 +1173,110 @@ func (s *hookManagerSuite) TestHookHijackingNoConflict(c *C) {
 	// no conflict on hijacked hooks
 	_, err := snapstate.Disable(s.state, "test-snap")
 	c.Assert(err, IsNil)
+}
+
+func (s *hookManagerSuite) TestEphemeralRunHook(c *C) {
+	contextData := map[string]interface{}{
+		"key":  "value",
+		"key2": "value2",
+	}
+	s.testEphemeralRunHook(c, contextData)
+}
+
+func (s *hookManagerSuite) TestEphemeralRunHookNoContextData(c *C) {
+	var contextData map[string]interface{} = nil
+	s.testEphemeralRunHook(c, contextData)
+}
+
+func (s *hookManagerSuite) testEphemeralRunHook(c *C, contextData map[string]interface{}) {
+	var hookInvokeCalled []string
+	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+		c.Check(ctx.HookName(), Equals, "configure")
+		hookInvokeCalled = append(hookInvokeCalled, ctx.HookName())
+
+		// check that context data was set correctly
+		var s string
+		ctx.Lock()
+		defer ctx.Unlock()
+		for k, v := range contextData {
+			ctx.Get(k, &s)
+			c.Check(s, Equals, v)
+		}
+		ctx.Set("key-set-from-hook", "value-set-from-hook")
+
+		return []byte("some output"), nil
+	}
+	restore := hookstate.MockRunHook(hookInvoke)
+	defer restore()
+
+	hooksup := &hookstate.HookSetup{
+		Snap:     "test-snap",
+		Revision: snap.R(1),
+		Hook:     "configure",
+	}
+	context, err := s.manager.EphemeralRunHook(context.Background(), hooksup, contextData)
+	c.Assert(err, IsNil)
+	c.Check(hookInvokeCalled, DeepEquals, []string{"configure"})
+
+	var value string
+	context.Lock()
+	context.Get("key-set-from-hook", &value)
+	context.Unlock()
+	c.Check(value, Equals, "value-set-from-hook")
+}
+
+func (s *hookManagerSuite) TestEphemeralRunHookNoSnap(c *C) {
+	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+		c.Fatalf("hook should not be invoked in this test")
+		return nil, nil
+	}
+	restore := hookstate.MockRunHook(hookInvoke)
+	defer restore()
+
+	hooksup := &hookstate.HookSetup{
+		Snap:     "not-installed-snap",
+		Revision: snap.R(1),
+		Hook:     "configure",
+	}
+	contextData := map[string]interface{}{
+		"key": "value",
+	}
+	_, err := s.manager.EphemeralRunHook(context.Background(), hooksup, contextData)
+	c.Assert(err, ErrorMatches, `cannot run ephemeral hook "configure" for snap "not-installed-snap": no state entry for key`)
+}
+
+func (s *hookManagerSuite) TestEphemeralRunHookContextCanCancel(c *C) {
+	tombDying := 0
+	hookRunning := make(chan struct{})
+
+	hookInvoke := func(_ *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+		close(hookRunning)
+
+		select {
+		case <-tomb.Dying():
+			tombDying++
+		case <-time.After(10 * time.Second):
+			c.Fatalf("hook not canceled after 10s")
+		}
+		return nil, nil
+	}
+	restore := hookstate.MockRunHook(hookInvoke)
+	defer restore()
+
+	hooksup := &hookstate.HookSetup{
+		Snap:     "test-snap",
+		Revision: snap.R(1),
+		Hook:     "configure",
+	}
+
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	go func() {
+		<-hookRunning
+		cancelFunc()
+	}()
+	_, err := s.manager.EphemeralRunHook(ctx, hooksup, nil)
+	c.Assert(err, IsNil)
+	c.Check(tombDying, Equals, 1)
 }
 
 type parallelInstancesHookManagerSuite struct {

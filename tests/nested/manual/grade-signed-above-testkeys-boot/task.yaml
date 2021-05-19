@@ -74,9 +74,6 @@ prepare: |
   snap download --basename=pc --channel="20/edge" pc
   unsquashfs -d pc-gadget pc.snap
 
-  # ensure ubuntu-save is there
-  nested_ensure_ubuntu_save pc-gadget
-
   # delay all refreshes for a week from now, as otherwise refreshes for our 
   # snaps (which are asserted by the testrootorg authority-id) may happen, which
   # will break things because the signing keys won't match, etc. and 
@@ -127,7 +124,7 @@ execute: |
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
 
-  # we have the right model from snap model
+  echo "Check we have the right model from snap model"
   nested_exec "sudo snap model --verbose" | MATCH "model:\s+testkeys-snapd-${MODEL_GRADE}-core-20-amd64"
   nested_exec "sudo snap model --verbose" | MATCH "grade:\s+${MODEL_GRADE}"
 

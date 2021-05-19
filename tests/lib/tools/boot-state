@@ -40,6 +40,9 @@ get_grub_envfile() {
 }
 
 bootenv() {
+    # Core 18/20 not supported on ARM devices
+    # TODO: try to support doing this kind of test not with fw_printenv/setenv and friends
+    # but instead through snap debug boot-state ... much like we do with snap debug boot-vars
     case "${1:-}" in
         show)
             shift

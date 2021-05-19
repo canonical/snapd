@@ -943,3 +943,100 @@ func (s *storeDownloadSuite) TestDownloadStreamCachedOK(c *C) {
 	buf.ReadFrom(stream)
 	c.Check(buf.String(), Equals, string(expectedContent[2:]))
 }
+
+func (s *storeDownloadSuite) TestDownloadTimeout(c *C) {
+	var mockServer *httptest.Server
+
+	restore := store.MockDownloadSpeedParams(1*time.Second, 32768)
+	defer restore()
+
+	// our mock download content
+	buf := make([]byte, 65535)
+
+	h := crypto.SHA3_384.New()
+	io.Copy(h, bytes.NewBuffer(buf))
+
+	quit := make(chan bool)
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("Content-Length", fmt.Sprintf("%d", len(buf)))
+		w.WriteHeader(200)
+
+		// push enough data to fill in internal buffers, so that download code
+		// hits io.Copy over the body and gets stuck there, and not immediately
+		// on doRequest.
+		w.Write(buf[:20000])
+
+		// block the handler
+		select {
+		case <-quit:
+		case <-time.After(10 * time.Second):
+			c.Fatalf("unexpected server timeout")
+		}
+		mockServer.CloseClientConnections()
+	}))
+
+	c.Assert(mockServer, NotNil)
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = mockServer.URL
+	snap.DownloadURL = "AUTH-URL"
+	snap.Sha3_384 = fmt.Sprintf("%x", h.Sum(nil))
+	snap.Size = 50000
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
+	ok, speed := store.IsTransferSpeedError(err)
+	c.Assert(ok, Equals, true)
+	// in reality speed can be 0, but here it's an extra sanity check.
+	c.Check(speed > 1, Equals, true)
+	c.Check(speed < 32768, Equals, true)
+	close(quit)
+	defer mockServer.Close()
+}
+
+func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterHappy(c *C) {
+	origCtx := context.TODO()
+	w, ctx := store.NewTransferSpeedMonitoringWriterAndContext(origCtx, 50*time.Millisecond, 1)
+
+	data := []byte{0, 0, 0, 0, 0}
+	quit := w.Monitor()
+
+	// write a few bytes every ~5ms, this should satisfy >=1 speed in 50ms
+	// measure windows defined above; 100 iterations ensures we hit a few
+	// measurement windows.
+	for i := 0; i < 100; i++ {
+		n, err := w.Write(data)
+		c.Assert(err, IsNil)
+		c.Assert(n, Equals, len(data))
+		time.Sleep(5 * time.Millisecond)
+	}
+	close(quit)
+	c.Check(store.Cancelled(ctx), Equals, false)
+	c.Check(w.Err(), IsNil)
+
+	// we should hit at least 100*5/50 = 10 measurement windows
+	c.Assert(w.MeasuredWindowsCount() >= 10, Equals, true, Commentf("%d", w.MeasuredWindowsCount()))
+}
+
+func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterUnhappy(c *C) {
+	origCtx := context.TODO()
+	w, ctx := store.NewTransferSpeedMonitoringWriterAndContext(origCtx, 50*time.Millisecond, 1000)
+
+	data := []byte{0}
+	quit := w.Monitor()
+
+	// write just one byte every ~5ms, this will trigger download timeout
+	// since the writer expects 1000 bytes per 50ms as defined above.
+	for i := 0; i < 100; i++ {
+		n, err := w.Write(data)
+		c.Assert(err, IsNil)
+		c.Assert(n, Equals, len(data))
+		time.Sleep(5 * time.Millisecond)
+	}
+	close(quit)
+	c.Check(store.Cancelled(ctx), Equals, true)
+	terr, _ := store.IsTransferSpeedError(w.Err())
+	c.Assert(terr, Equals, true)
+	c.Check(w.Err(), ErrorMatches, "download too slow: .* bytes/sec")
+}

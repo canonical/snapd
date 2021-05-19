@@ -20,7 +20,6 @@
 package main
 
 import (
-	"fmt"
 	"io/ioutil"
 	"os"
 
@@ -40,6 +39,7 @@ type cmdCreatePartitions struct {
 
 	Positional struct {
 		GadgetRoot string `positional-arg-name:"<gadget-root>"`
+		KernelRoot string `positional-arg-name:"<kernel-root>"`
 		Device     string `positional-arg-name:"<device>"`
 	} `positional-args:"yes"`
 }
@@ -49,34 +49,18 @@ const (
 	long  = ""
 )
 
-type simpleObserver struct {
-	encryptionKey secboot.EncryptionKey
-}
+type simpleObserver struct{}
 
 func (o *simpleObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, dst string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	return gadget.ChangeApply, nil
 }
 
-func (o *simpleObserver) ChosenEncryptionKey(key secboot.EncryptionKey) {
-	o.encryptionKey = key
-}
+func (o *simpleObserver) ChosenEncryptionKey(key secboot.EncryptionKey) {}
 
-func readModel(modelPath string) (*asserts.Model, error) {
-	f, err := os.Open(modelPath)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
+type uc20Constraints struct{}
 
-	a, err := asserts.NewDecoder(f).Decode()
-	if err != nil {
-		return nil, fmt.Errorf("cannot decode assertion: %v", err)
-	}
-	if a.Type() != asserts.ModelType {
-		return nil, fmt.Errorf("not a model assertion")
-	}
-	return a.(*asserts.Model), nil
-}
+func (c uc20Constraints) Classic() bool             { return false }
+func (c uc20Constraints) Grade() asserts.ModelGrade { return asserts.ModelSigned }
 
 func main() {
 	args := &cmdCreatePartitions{}
@@ -91,7 +75,7 @@ func main() {
 		Mount:   args.Mount,
 		Encrypt: args.Encrypt,
 	}
-	installSideData, err := installRun(args.Positional.GadgetRoot, args.Positional.Device, options, obs)
+	installSideData, err := installRun(uc20Constraints{}, args.Positional.GadgetRoot, args.Positional.KernelRoot, args.Positional.Device, options, obs)
 	if err != nil {
 		panic(err)
 	}
@@ -104,11 +88,20 @@ func main() {
 		if dataKey == nil {
 			panic("ubuntu-data encryption key is unset")
 		}
-		if err := ioutil.WriteFile("unsealed-key", dataKey.Key[:], 0644); err != nil {
-			panic(err)
+		saveKey := installSideData.KeysForRoles[gadget.SystemSave]
+		if saveKey == nil {
+			panic("ubuntu-save encryption key is unset")
 		}
-		if err := ioutil.WriteFile("recovery-key", dataKey.RecoveryKey[:], 0644); err != nil {
-			panic(err)
+		toWrite := map[string][]byte{
+			"unsealed-key":  dataKey.Key[:],
+			"recovery-key":  dataKey.RecoveryKey[:],
+			"save-key":      saveKey.Key[:],
+			"reinstall-key": saveKey.RecoveryKey[:],
+		}
+		for keyFileName, keyData := range toWrite {
+			if err := ioutil.WriteFile(keyFileName, keyData, 0644); err != nil {
+				panic(err)
+			}
 		}
 	}
 }

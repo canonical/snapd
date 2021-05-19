@@ -24,13 +24,16 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
@@ -41,10 +44,31 @@ import (
 )
 
 var (
-	secbootSealKeys   = secboot.SealKeys
-	secbootResealKeys = secboot.ResealKeys
+	secbootSealKeys                 = secboot.SealKeys
+	secbootSealKeysWithFDESetupHook = secboot.SealKeysWithFDESetupHook
+	secbootResealKeys               = secboot.ResealKeys
 
 	seedReadSystemEssential = seed.ReadSystemEssential
+)
+
+// Hook functions setup by devicestate to support device-specific full
+// disk encryption implementations. The state must be locked when these
+// functions are called.
+var (
+	HasFDESetupHook = func() (bool, error) {
+		return false, nil
+	}
+	RunFDESetupHook fde.RunSetupHookFunc = func(req *fde.SetupRequest) ([]byte, error) {
+		return nil, fmt.Errorf("internal error: RunFDESetupHook not set yet")
+	}
+)
+
+type sealingMethod string
+
+const (
+	sealingMethodLegacyTPM    = sealingMethod("")
+	sealingMethodTPM          = sealingMethod("tpm")
+	sealingMethodFDESetupHook = sealingMethod("fde-setup-hook")
 )
 
 func bootChainsFileUnder(rootdir string) string {
@@ -59,6 +83,84 @@ func recoveryBootChainsFileUnder(rootdir string) string {
 // in modeenv.
 // It assumes to be invoked in install mode.
 func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
+	// make sure relevant locations exist
+	for _, p := range []string{
+		InitramfsSeedEncryptionKeyDir,
+		InitramfsBootEncryptionKeyDir,
+		InstallHostFDEDataDir,
+		InstallHostFDESaveDir,
+	} {
+		// XXX: should that be 0700 ?
+		if err := os.MkdirAll(p, 0755); err != nil {
+			return err
+		}
+	}
+
+	hasHook, err := HasFDESetupHook()
+	if err != nil {
+		return fmt.Errorf("cannot check for fde-setup hook %v", err)
+	}
+	if hasHook {
+		return sealKeyToModeenvUsingFDESetupHook(key, saveKey, model, modeenv)
+	}
+
+	return sealKeyToModeenvUsingSecboot(key, saveKey, model, modeenv)
+}
+
+func runKeySealRequests(key secboot.EncryptionKey) []secboot.SealKeyRequest {
+	return []secboot.SealKeyRequest{
+		{
+			Key:     key,
+			KeyName: "ubuntu-data",
+			KeyFile: filepath.Join(InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
+		},
+	}
+}
+
+func fallbackKeySealRequests(key, saveKey secboot.EncryptionKey) []secboot.SealKeyRequest {
+	return []secboot.SealKeyRequest{
+		{
+			Key:     key,
+			KeyName: "ubuntu-data",
+			KeyFile: filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+		},
+		{
+			Key:     saveKey,
+			KeyName: "ubuntu-save",
+			KeyFile: filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+		},
+	}
+}
+
+func sealKeyToModeenvUsingFDESetupHook(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
+	// XXX: Move the auxKey creation to a more generic place, see
+	// PR#10123 for a possible way of doing this. However given
+	// that the equivalent key for the TPM case is also created in
+	// sealKeyToModeenvUsingTPM more symetric to create the auxKey
+	// here and when we also move TPM to use the auxKey to move
+	// the creation of it.
+	auxKey, err := secboot.NewAuxKey()
+	if err != nil {
+		return fmt.Errorf("cannot create aux key: %v", err)
+	}
+	params := secboot.SealKeysWithFDESetupHookParams{
+		Model:      model,
+		AuxKey:     auxKey,
+		AuxKeyFile: filepath.Join(InstallHostFDESaveDir, "aux-key"),
+	}
+	skrs := append(runKeySealRequests(key), fallbackKeySealRequests(key, saveKey)...)
+	if err := secbootSealKeysWithFDESetupHook(RunFDESetupHook, skrs, &params); err != nil {
+		return err
+	}
+
+	if err := stampSealedKeys(InstallHostWritableDir, "fde-setup-hook"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func sealKeyToModeenvUsingSecboot(key, saveKey secboot.EncryptionKey, model *asserts.Model, modeenv *Modeenv) error {
 	// build the recovery mode boot chain
 	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
 		Role: bootloader.RoleRecovery,
@@ -85,12 +187,10 @@ func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, 
 	if err != nil {
 		return fmt.Errorf("cannot find the bootloader: %v", err)
 	}
-	cmdline, err := ComposeCandidateCommandLine(model)
-	if err != nil {
-		return fmt.Errorf("cannot compose the candidate command line: %v", err)
-	}
 
-	runModeBootChains, err := runModeBootChains(rbl, bl, model, modeenv, cmdline)
+	// kernel command lines are filled during install
+	cmdlines := modeenv.CurrentKernelCommandLines
+	runModeBootChains, err := runModeBootChains(rbl, bl, model, modeenv, cmdlines)
 	if err != nil {
 		return fmt.Errorf("cannot compose run mode boot chains: %v", err)
 	}
@@ -100,19 +200,6 @@ func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, 
 	roleToBlName := map[bootloader.Role]string{
 		bootloader.RoleRecovery: rbl.Name(),
 		bootloader.RoleRunMode:  bl.Name(),
-	}
-
-	// make sure relevant locations exist
-	for _, p := range []string{
-		InitramfsSeedEncryptionKeyDir,
-		InitramfsBootEncryptionKeyDir,
-		InstallHostFDEDataDir,
-		InstallHostFDESaveDir,
-	} {
-		// XXX: should that be 0700 ?
-		if err := os.MkdirAll(p, 0755); err != nil {
-			return err
-		}
 	}
 
 	// the boot chains we seal the fallback object to
@@ -132,7 +219,7 @@ func sealKeyToModeenv(key, saveKey secboot.EncryptionKey, model *asserts.Model, 
 		return err
 	}
 
-	if err := stampSealedKeys(InstallHostWritableDir); err != nil {
+	if err := stampSealedKeys(InstallHostWritableDir, sealingMethodTPM); err != nil {
 		return err
 	}
 
@@ -168,13 +255,7 @@ func sealRunObjectKeys(key secboot.EncryptionKey, pbc predictableBootChains, aut
 	// path only unseals one object because unsealing is expensive.
 	// Furthermore, the run object key is stored on ubuntu-boot so that we do not
 	// need to continually write/read keys from ubuntu-seed.
-	keys := []secboot.SealKeyRequest{
-		{
-			Key:     key,
-			KeyFile: filepath.Join(InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
-		},
-	}
-	if err := secbootSealKeys(keys, sealKeyParams); err != nil {
+	if err := secbootSealKeys(runKeySealRequests(key), sealKeyParams); err != nil {
 		return fmt.Errorf("cannot seal the encryption keys: %v", err)
 	}
 
@@ -195,51 +276,85 @@ func sealFallbackObjectKeys(key, saveKey secboot.EncryptionKey, pbc predictableB
 	// The fallback object contains the ubuntu-data and ubuntu-save keys. The
 	// key files are stored on ubuntu-seed, separate from ubuntu-data so they
 	// can be used if ubuntu-data and ubuntu-boot are corrupted or unavailable.
-	keys := []secboot.SealKeyRequest{
-		{
-			Key:     key,
-			KeyFile: filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
-		},
-		{
-			Key:     saveKey,
-			KeyFile: filepath.Join(InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
-		},
-	}
-	if err := secbootSealKeys(keys, sealKeyParams); err != nil {
+	if err := secbootSealKeys(fallbackKeySealRequests(key, saveKey), sealKeyParams); err != nil {
 		return fmt.Errorf("cannot seal the fallback encryption keys: %v", err)
 	}
 
 	return nil
 }
 
-func stampSealedKeys(rootdir string) error {
+func stampSealedKeys(rootdir string, content sealingMethod) error {
 	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
 	if err := os.MkdirAll(filepath.Dir(stamp), 0755); err != nil {
 		return fmt.Errorf("cannot create device fde state directory: %v", err)
 	}
 
-	if err := osutil.AtomicWriteFile(stamp, nil, 0644, 0); err != nil {
+	if err := osutil.AtomicWriteFile(stamp, []byte(content), 0644, 0); err != nil {
 		return fmt.Errorf("cannot create fde sealed keys stamp file: %v", err)
 	}
 	return nil
 }
 
-// hasSealedKeys return whether any keys were sealed at all
-func hasSealedKeys(rootdir string) bool {
+var errNoSealedKeys = errors.New("no sealed keys")
+
+// sealedKeysMethod return whether any keys were sealed at all
+func sealedKeysMethod(rootdir string) (sm sealingMethod, err error) {
 	// TODO:UC20: consider more than the marker for cases where we reseal
 	// outside of run mode
 	stamp := filepath.Join(dirs.SnapFDEDirUnder(rootdir), "sealed-keys")
-	return osutil.FileExists(stamp)
+	content, err := ioutil.ReadFile(stamp)
+	if os.IsNotExist(err) {
+		return sm, errNoSealedKeys
+	}
+	return sealingMethod(content), err
 }
 
 // resealKeyToModeenv reseals the existing encryption key to the
 // parameters specified in modeenv.
 func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, expectReseal bool) error {
-	if !hasSealedKeys(rootdir) {
+	method, err := sealedKeysMethod(rootdir)
+	if err == errNoSealedKeys {
 		// nothing to do
 		return nil
 	}
+	if err != nil {
+		return err
+	}
+	switch method {
+	case sealingMethodFDESetupHook:
+		return resealKeyToModeenvUsingFDESetupHook(rootdir, model, modeenv, expectReseal)
+	case sealingMethodTPM, sealingMethodLegacyTPM:
+		return resealKeyToModeenvSecboot(rootdir, model, modeenv, expectReseal)
+	default:
+		return fmt.Errorf("unknown key sealing method: %q", method)
+	}
+}
 
+var resealKeyToModeenvUsingFDESetupHook = resealKeyToModeenvUsingFDESetupHookImpl
+
+func resealKeyToModeenvUsingFDESetupHookImpl(rootdir string, model *asserts.Model, modeenv *Modeenv, expectReseal bool) error {
+	// TODO: we need to implement reseal at least in terms of
+	//       rebinding the keys to models on remodeling
+
+	// TODO: If we have situations that do TPM-like full sealing then:
+	//       Implement reseal using the fde-setup hook. This will
+	//       require a helper like "FDEShouldResealUsingSetupHook"
+	//       that will be set by devicestate and returns (bool,
+	//       error).  It needs to return "false" during seeding
+	//       because then there is no kernel available yet.  It
+	//       can though return true as soon as there's an active
+	//       kernel if seeded is false
+	//
+	//       It will also need to run HasFDESetupHook internally
+	//       and return an error if the hook goes missing
+	//       (e.g. because a kernel refresh losses the hook by
+	//       accident). It could also run features directly and
+	//       check for "reseal" in features.
+	return nil
+}
+
+// TODO:UC20: allow more than one model to accommodate the remodel scenario
+func resealKeyToModeenvSecboot(rootdir string, model *asserts.Model, modeenv *Modeenv, expectReseal bool) error {
 	// build the recovery mode boot chain
 	rbl, err := bootloader.Find(InitramfsUbuntuSeedDir, &bootloader.Options{
 		Role: bootloader.RoleRecovery,
@@ -252,7 +367,25 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 		// TODO:UC20: later the exact kind of bootloaders we expect here might change
 		return fmt.Errorf("internal error: sealed keys but not a trusted assets bootloader")
 	}
-	recoveryBootChains, err := recoveryBootChainsForSystems(modeenv.CurrentRecoverySystems, tbl, model, modeenv)
+
+	// the recovery boot chains for the run key are generated for all
+	// recovery systems, including those that are being tried
+	recoveryBootChainsForRunKey, err := recoveryBootChainsForSystems(modeenv.CurrentRecoverySystems, tbl, model, modeenv)
+	if err != nil {
+		return fmt.Errorf("cannot compose recovery boot chains for run key: %v", err)
+	}
+
+	// the boot chains for recovery keys include only those system that were
+	// tested and are known to be good
+	testedRecoverySystems := modeenv.GoodRecoverySystems
+	if len(testedRecoverySystems) == 0 && len(modeenv.CurrentRecoverySystems) > 0 {
+		// compatibility for systems where good recovery systems list
+		// has not been populated yet
+		testedRecoverySystems = modeenv.CurrentRecoverySystems[:1]
+		logger.Noticef("no good recovery systems for reseal, fallback to known current system %v",
+			testedRecoverySystems[0])
+	}
+	recoveryBootChains, err := recoveryBootChainsForSystems(testedRecoverySystems, tbl, model, modeenv)
 	if err != nil {
 		return fmt.Errorf("cannot compose recovery boot chains: %v", err)
 	}
@@ -265,45 +398,44 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 	if err != nil {
 		return fmt.Errorf("cannot find the bootloader: %v", err)
 	}
-	cmdline, err := ComposeCommandLine(model)
-	if err != nil {
-		return fmt.Errorf("cannot compose the run mode command line: %v", err)
-	}
-
-	runModeBootChains, err := runModeBootChains(rbl, bl, model, modeenv, cmdline)
-	if err != nil {
-		return fmt.Errorf("cannot compose run mode boot chains: %v", err)
-	}
-
-	// reseal the run object
-	pbc := toPredictableBootChains(append(runModeBootChains, recoveryBootChains...))
-
-	needed, nextCount, err := isResealNeeded(pbc, bootChainsFileUnder(rootdir), expectReseal)
+	cmdlines, err := kernelCommandLinesForResealWithFallback(model, modeenv)
 	if err != nil {
 		return err
 	}
-	if !needed {
-		logger.Debugf("reseal not necessary")
-		return nil
+	runModeBootChains, err := runModeBootChains(rbl, bl, model, modeenv, cmdlines)
+	if err != nil {
+		return fmt.Errorf("cannot compose run mode boot chains: %v", err)
 	}
-	pbcJSON, _ := json.Marshal(pbc)
-	logger.Debugf("resealing (%d) to boot chains: %s", nextCount, pbcJSON)
 
 	roleToBlName := map[bootloader.Role]string{
 		bootloader.RoleRecovery: rbl.Name(),
 		bootloader.RoleRunMode:  bl.Name(),
 	}
-
 	saveFDEDir := dirs.SnapFDEDirUnderSave(dirs.SnapSaveDirUnder(rootdir))
 	authKeyFile := filepath.Join(saveFDEDir, "tpm-policy-auth-key")
-	if err := resealRunObjectKeys(pbc, authKeyFile, roleToBlName); err != nil {
+
+	// reseal the run object
+	pbc := toPredictableBootChains(append(runModeBootChains, recoveryBootChainsForRunKey...))
+
+	needed, nextCount, err := isResealNeeded(pbc, bootChainsFileUnder(rootdir), expectReseal)
+	if err != nil {
 		return err
 	}
-	logger.Debugf("resealing (%d) succeeded", nextCount)
+	if needed {
+		pbcJSON, _ := json.Marshal(pbc)
+		logger.Debugf("resealing (%d) to boot chains: %s", nextCount, pbcJSON)
 
-	bootChainsPath := bootChainsFileUnder(rootdir)
-	if err := writeBootChains(pbc, bootChainsPath, nextCount); err != nil {
-		return err
+		if err := resealRunObjectKeys(pbc, authKeyFile, roleToBlName); err != nil {
+			return err
+		}
+		logger.Debugf("resealing (%d) succeeded", nextCount)
+
+		bootChainsPath := bootChainsFileUnder(rootdir)
+		if err := writeBootChains(pbc, bootChainsPath, nextCount); err != nil {
+			return err
+		}
+	} else {
+		logger.Debugf("reseal not necessary")
 	}
 
 	// reseal the fallback object
@@ -314,21 +446,24 @@ func resealKeyToModeenv(rootdir string, model *asserts.Model, modeenv *Modeenv, 
 	if err != nil {
 		return err
 	}
-	if !needed {
+	if needed {
+		rpbcJSON, _ := json.Marshal(rpbc)
+		logger.Debugf("resealing (%d) to recovery boot chains: %s", nextFallbackCount, rpbcJSON)
+
+		if err := resealFallbackObjectKeys(rpbc, authKeyFile, roleToBlName); err != nil {
+			return err
+		}
+		logger.Debugf("fallback resealing (%d) succeeded", nextFallbackCount)
+
+		recoveryBootChainsPath := recoveryBootChainsFileUnder(rootdir)
+		if err := writeBootChains(rpbc, recoveryBootChainsPath, nextFallbackCount); err != nil {
+			return err
+		}
+	} else {
 		logger.Debugf("fallback reseal not necessary")
-		return nil
 	}
 
-	rpbcJSON, _ := json.Marshal(rpbc)
-	logger.Debugf("resealing (%d) to recovery boot chains: %s", nextCount, rpbcJSON)
-
-	if err := resealFallbackObjectKeys(rpbc, authKeyFile, roleToBlName); err != nil {
-		return err
-	}
-	logger.Debugf("fallback resealing (%d) succeeded", nextFallbackCount)
-
-	recoveryBootChainsPath := recoveryBootChainsFileUnder(rootdir)
-	return writeBootChains(rpbc, recoveryBootChainsPath, nextFallbackCount)
+	return nil
 }
 
 func resealRunObjectKeys(pbc predictableBootChains, authKeyFile string, roleToBlName map[bootloader.Role]string) error {
@@ -380,24 +515,29 @@ func resealFallbackObjectKeys(pbc predictableBootChains, authKeyFile string, rol
 	return nil
 }
 
+// TODO:UC20: this needs to take more than one model to accommodate the remodel
+// scenario
 func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAssetsBootloader, model *asserts.Model, modeenv *Modeenv) (chains []bootChain, err error) {
 	for _, system := range systems {
+		// get kernel and gadget information from seed
+		perf := timings.New(nil)
+		_, snaps, err := seedReadSystemEssential(dirs.SnapSeedDir, system, []snap.Type{snap.TypeKernel, snap.TypeGadget}, perf)
+		if err != nil {
+			return nil, fmt.Errorf("cannot read system %q seed: %v", system, err)
+		}
+		if len(snaps) != 2 {
+			return nil, fmt.Errorf("cannot obtain recovery system snaps")
+		}
+		seedKernel, seedGadget := snaps[0], snaps[1]
+		if snaps[0].EssentialType == snap.TypeGadget {
+			seedKernel, seedGadget = seedGadget, seedKernel
+		}
+
 		// get the command line
-		cmdline, err := ComposeRecoveryCommandLine(model, system)
+		cmdline, err := ComposeRecoveryCommandLine(model, system, seedGadget.Path)
 		if err != nil {
 			return nil, fmt.Errorf("cannot obtain recovery kernel command line: %v", err)
 		}
-
-		// get kernel information from seed
-		perf := timings.New(nil)
-		_, snaps, err := seedReadSystemEssential(dirs.SnapSeedDir, system, []snap.Type{snap.TypeKernel}, perf)
-		if err != nil {
-			return nil, err
-		}
-		if len(snaps) != 1 {
-			return nil, fmt.Errorf("cannot obtain recovery kernel snap")
-		}
-		seedKernel := snaps[0]
 
 		var kernelRev string
 		if seedKernel.SideInfo.Revision.Store() {
@@ -431,12 +571,11 @@ func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAsset
 	return chains, nil
 }
 
-func runModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model, modeenv *Modeenv, cmdline string) ([]bootChain, error) {
+func runModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model, modeenv *Modeenv, cmdlines []string) ([]bootChain, error) {
 	tbl, ok := rbl.(bootloader.TrustedAssetsBootloader)
 	if !ok {
 		return nil, fmt.Errorf("recovery bootloader doesn't support trusted assets")
 	}
-
 	chains := make([]bootChain, 0, len(modeenv.CurrentKernels))
 	for _, k := range modeenv.CurrentKernels {
 		info, err := snap.ParsePlaceInfoFromSnapFileName(k)
@@ -465,7 +604,7 @@ func runModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model, mode
 			AssetChain:     assetChain,
 			Kernel:         info.SnapName(),
 			KernelRevision: kernelRev,
-			KernelCmdlines: []string{cmdline},
+			KernelCmdlines: cmdlines,
 			model:          model,
 			kernelBootFile: kbf,
 		})
@@ -478,6 +617,10 @@ func runModeBootChains(rbl, bl bootloader.Bootloader, model *asserts.Model, mode
 // hashes from modeenv plus it returns separately the last BootFile
 // which is for the kernel.
 func buildBootAssets(bootFiles []bootloader.BootFile, modeenv *Modeenv) (assets []bootAsset, kernel bootloader.BootFile, err error) {
+	if len(bootFiles) == 0 {
+		// useful in testing, when mocking is insufficient
+		return nil, bootloader.BootFile{}, fmt.Errorf("internal error: cannot build boot assets without boot files")
+	}
 	assets = make([]bootAsset, len(bootFiles)-1)
 
 	// the last element is the kernel which is not a boot asset
@@ -534,7 +677,7 @@ func sealKeyModelParams(pbc predictableBootChains, roleToBlName map[bootloader.R
 
 // isResealNeeded returns true when the predictable boot chains provided as
 // input do not match the cached boot chains on disk under rootdir.
-// It also returns the next value for the reasel count that is saved
+// It also returns the next value for the reseal count that is saved
 // together with the boot chains.
 // A hint expectReseal can be provided, it is used when the matching
 // is ambigous because the boot chains contain unrevisioned kernels.

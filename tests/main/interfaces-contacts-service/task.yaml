@@ -1,20 +1,5 @@
 summary: Ensure that the contacts-service interface works
 
-# TODO: teach snapd about host's EDS support so that the interface can be
-# genuinely unsupported or versioned and tested appropriately.
-systems:
-    - -amazon-*  # no need to run this on amazon
-    - -arch-linux-*  # test-snapd-eds is incompatible with eds version shipped with the distro
-    - -centos-*
-    - -debian-sid-*
-    - -fedora-31-*  # test-snapd-eds is incompatible with eds version shipped with the distro
-    - -fedora-32-*  # test-snapd-eds is incompatible with eds version shipped with the distro
-    - -opensuse-15.2-*  # test-snapd-eds is incompatible with eds version shipped with the distro
-    - -opensuse-tumbleweed-*  # test-snapd-eds is incompatible with eds version shipped with the distro
-    - -ubuntu-14.04-*  # no tests.session support, eds is too old
-    - -ubuntu-2*  # test-snapd-eds is incompatible with eds shipped with the distro
-    - -ubuntu-core-*  # EDS is unsupported on core systems
-
 # fails in autopkgtest environment with:
 # [Wed Aug 15 16:08:23 2018] audit: type=1400
 # audit(1534349304.173:1681): apparmor="DENIED" operation="connect"
@@ -24,11 +9,29 @@ systems:
 # peer_addr="@/tmp/dbus-GZTRALrYYm" peer="unconfined"
 backends: [-autopkgtest]
 
+# TODO: teach snapd about host's EDS support so that the interface can be
+# genuinely unsupported or versioned and tested appropriately.
+systems:
+    - -amazon-*  # no need to run this on amazon
+    - -arch-linux-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -centos-*
+    - -debian-sid-*
+    - -fedora-32-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -fedora-33-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -fedora-34-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -opensuse-15.2-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -opensuse-tumbleweed-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -ubuntu-14.04-*  # no tests.session support, eds is too old
+    - -ubuntu-2*  # test-snapd-eds is incompatible with eds shipped with the distro
+    - -ubuntu-core-*  # EDS is unsupported on core systems
+
 prepare: |
     tests.session -u test prepare
+
 restore: |
     snap remove --purge test-snapd-eds
     tests.session -u test restore
+
 execute: |
     if ! snap install --edge test-snapd-eds ; then
         if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then

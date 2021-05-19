@@ -35,14 +35,15 @@ restore: |
     rm -f /dev/iio:device0
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
         exit
     fi
-    test "$($SNAP_MOUNT_DIR/bin/iio-consumer.read)" = "iio-0"
 
-    $SNAP_MOUNT_DIR/bin/iio-consumer.write "hello"
-    test "$($SNAP_MOUNT_DIR/bin/iio-consumer.read)" = "hello"
+    echo "Checks the snap can read from the IIO device node"
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    test "$("$SNAP_MOUNT_DIR"/bin/iio-consumer.read)" = "iio-0"
+
+    echo "Checks the snap can write to the IIO device node"
+    "$SNAP_MOUNT_DIR"/bin/iio-consumer.write "hello"
+    test "$("$SNAP_MOUNT_DIR"/bin/iio-consumer.read)" = "hello"

@@ -1,10 +1,7 @@
-#!/bin/bash
+#!/bin/bash -x
 
-# shellcheck source=tests/lib/dirs.sh
-. "$TESTSLIB/dirs.sh"
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
-
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB/systemd.sh"
 
@@ -15,6 +12,7 @@ reset_classic() {
     systemctl daemon-reload
     systemd_stop_units snapd.service snapd.socket
 
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             sh -x "${SPREAD_PATH}/debian/snapd.prerm" remove
@@ -63,7 +61,7 @@ reset_classic() {
         systemctl reset-failed "$unit" || true
     done
 
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+    if os.query is-trusty; then
         systemctl start snap.mount.service
     fi
 
@@ -88,15 +86,19 @@ reset_classic() {
     if [ "$1" != "--keep-stopped" ]; then
         systemctl start snapd.socket
 
-        # wait for snapd listening
         EXTRA_NC_ARGS="-q 1"
         case "$SPREAD_SYSTEM" in
+            fedora-34*)
+                # Param -q is not available on fedora 34
+                EXTRA_NC_ARGS="-w 1"
+                ;;
             fedora-*|amazon-*|centos-*)
                 EXTRA_NC_ARGS=""
                 ;;
         esac
-        # shellcheck disable=SC2086
-        while ! printf 'GET / HTTP/1.0\r\n\r\n' | nc -U $EXTRA_NC_ARGS /run/snapd.socket; do sleep 0.5; done
+
+        # wait for snapd listening
+        retry -n 120 --wait 0.5 sh -c "printf 'GET / HTTP/1.0\r\n\r\n' | nc -U $EXTRA_NC_ARGS /run/snapd.socket"
     fi
 }
 
@@ -110,7 +112,7 @@ reset_all_snap() {
 
     # shellcheck source=tests/lib/names.sh
     . "$TESTSLIB/names.sh"
-
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     remove_bases=""
     # remove all app snaps first
     for snap in "$SNAP_MOUNT_DIR"/*; do
@@ -189,10 +191,4 @@ if [ -d /run/snapd/ns ]; then
         rm -f "$mnt"
     done
     find /run/snapd/ns/ \( -name '*.fstab' -o -name '*.user-fstab' -o -name '*.info' \) -delete
-fi
-
-if [ "$REMOTE_STORE" = staging ] && [ "$1" = "--store" ]; then
-    # shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    teardown_staging_store
 fi

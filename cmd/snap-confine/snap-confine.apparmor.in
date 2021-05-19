@@ -38,8 +38,6 @@
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libudev.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libseccomp.so* mr,
     /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcap.so* mr,
-    # Needed to run /usr/bin/sh for snap-device-helper.
-    /{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libtinfo.so* mr,
 
     @LIBEXECDIR@/snap-confine mr,
 
@@ -55,9 +53,11 @@
     capability sys_admin,
     capability dac_read_search,
     capability dac_override,
-    /sys/fs/cgroup/devices/snap{,py}.*/ w,
-    /sys/fs/cgroup/devices/snap{,py}.*/cgroup.procs w,
-    /sys/fs/cgroup/devices/snap{,py}.*/devices.{allow,deny} w,
+    /sys/fs/cgroup/ r,
+    /sys/fs/cgroup/devices/ r,
+    /sys/fs/cgroup/devices/snap.*/ rw,
+    /sys/fs/cgroup/devices/snap.*/cgroup.procs w,
+    /sys/fs/cgroup/devices/snap.*/devices.{allow,deny} w,
 
     # cgroup: freezer
     # Allow creating per-snap cgroup freezers and adding snap command (task)
@@ -71,8 +71,6 @@
     # querying udev
     /etc/udev/udev.conf r,
     /sys/**/uevent r,
-    @LIBEXECDIR@/snap-device-helper ixr, # drop
-    /{,usr/}lib/udev/snappy-app-dev ixr, # drop
     /run/udev/** rw,
     /{,usr/}bin/tr ixr,
     /usr/lib/locale/** r,
@@ -182,6 +180,8 @@
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/var/snap/,
 
     mount options=(rw rbind) /var/tmp/ -> /tmp/snap.rootfs_*/var/tmp/,
+    # /var/volatile is the default volatile location on Yocto/Poky, typically used with read-only rootfs setups
+    mount options=(rw rbind) /var/volatile/tmp/ -> /tmp/snap.rootfs_*/var/tmp/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/var/tmp/,
 
     mount options=(rw rbind) /run/ -> /tmp/snap.rootfs_*/run/,
@@ -197,6 +197,8 @@
     mount options=(rw rslave) -> /tmp/snap.rootfs_*{,/usr}/lib/firmware/,
 
     mount options=(rw rbind) /var/log/ -> /tmp/snap.rootfs_*/var/log/,
+    # /var/volatile is the default volatile location on Yocto/Poky, typically used with read-only rootfs setups
+    mount options=(rw rbind) /var/volatile/log/ -> /tmp/snap.rootfs_*/var/log/,
     mount options=(rw rslave) -> /tmp/snap.rootfs_*/var/log/,
 
     mount options=(rw rbind) /usr/src/ -> /tmp/snap.rootfs_*/usr/src/,

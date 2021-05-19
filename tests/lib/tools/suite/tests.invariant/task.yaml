@@ -1,8 +1,5 @@
 summary: tests.invariant is detecting problems
-prepare: |
-    tests.cleanup prepare
-restore: |
-    tests.cleanup restore
+
 execute: |
     # Invariant tool presents the usage screen when invoked without arguments
     # or with the -h or --help options.

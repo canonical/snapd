@@ -20,6 +20,7 @@
 package image
 
 import (
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/store"
 )
@@ -50,4 +51,14 @@ func (opts *DownloadOptions) Validate() error {
 var (
 	ErrRevisionAndCohort = errRevisionAndCohort
 	ErrPathInBase        = errPathInBase
+
+	WriteResolvedContent = writeResolvedContent
 )
+
+func MockWriteResolvedContent(f func(prepareImageDir string, info *gadget.Info, gadgetRoot, kernelRoot string) error) (restore func()) {
+	oldWriteResolvedContent := writeResolvedContent
+	writeResolvedContent = f
+	return func() {
+		writeResolvedContent = oldWriteResolvedContent
+	}
+}

@@ -6,73 +6,88 @@ details: |
 environment:
     NETPLAN: io.netplan.Netplan
 
-# the test is only meaningful on core devices
-# TODO:UC20: enable, fails right now with: "The permission of the
-#            setuid helper is not correct"
-systems: [ubuntu-core-1*]
-
 prepare: |
-    snap install test-snapd-netplan-apply --edge
+    # build the netplan snap for this system
+    #shellcheck source=tests/lib/snaps.sh
+    . "$TESTSLIB"/snaps.sh
+
+    # use no base setting to use effectively "base: core"
+    sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" -e "s/base: BASESNAP/# no base snap for core base/" > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
+    snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-16.snap
+
+    # use base: core18
+    sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" -e "s/base: BASESNAP/base: core18/" > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
+    snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-18.snap
+
+    # use base: core20
+    sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" -e "s/base: BASESNAP/base: core20/" > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
+    snap pack "$TESTSLIB/snaps/netplan-snap" --filename=netplan-snap-20.snap
 
 execute: |
-    echo "The interface is disconnected by default"
-    snap connections test-snapd-netplan-apply | MATCH 'network-setup-control +test-snapd-netplan-apply:network-setup-control +- +-'
+    # test all base versions of netplan on all combos of core releases
+    for rel in 16 18 20; do
+        snap install --dangerous "netplan-snap-$rel.snap"
+        echo "The interface is disconnected by default"
+        snap connections netplan-snap | MATCH 'network-setup-control +netplan-snap:network-setup-control +- +-'
 
-    echo "Running netplan apply without network-setup-control fails"
-    if test-snapd-netplan-apply.netplan apply; then
-        echo "Expected access denied error for netplan apply"
-        exit 1
-    fi
-
-    echo "Count how many network service restarts happened before calling netplan apply"
-    stopped_before="$("$TESTSTOOLS"/journal-state get-log -u systemd-networkd | grep -c 'Stopped Network Service.' || true)"
-    started_before="$("$TESTSTOOLS"/journal-state get-log -u systemd-networkd | grep -c 'Started Network Service.' || true)"
-
-    echo "When the interface is connected"
-    snap connect test-snapd-netplan-apply:network-setup-control
-
-    echo "Running netplan apply now works"
-    if ! test-snapd-netplan-apply.netplan apply; then
-        echo "Unexpected error running netplan apply"
-        exit 1
-    fi
-
-    echo "Ensure that network config was stopped and restarted from netplan"
-    for _ in $(seq 60); do
-        stopped_after="$("$TESTSTOOLS"/journal-state get-log -u systemd-networkd | grep -c 'Stopped Network Service.' || true)"
-        started_after="$("$TESTSTOOLS"/journal-state get-log -u systemd-networkd | grep -c 'Started Network Service.' || true)"
-        if [ "$stopped_after" -gt "$stopped_before" ] && \
-           [ "$started_after" -gt "$started_before" ] ; then
-            break
+        echo "Running netplan apply without network-setup-control fails"
+        if netplan-snap.netplan apply; then
+            echo "Expected access denied error for netplan apply"
+            exit 1
         fi
-        sleep 1
+
+        echo "Count how many network service restarts happened before calling netplan apply"
+        stopped_before="$("$TESTSTOOLS"/journal-state get-log -u systemd-networkd | grep -c 'Stopped Network Service.' || true)"
+        started_before="$("$TESTSTOOLS"/journal-state get-log -u systemd-networkd | grep -c 'Started Network Service.' || true)"
+
+        echo "When the interface is connected"
+        snap connect netplan-snap:network-setup-control
+
+        echo "Running netplan apply now works"
+        if ! netplan-snap.netplan apply; then
+            echo "Unexpected error running netplan apply"
+            exit 1
+        fi
+
+        echo "Ensure that network config was stopped and restarted from netplan"
+        for _ in $(seq 60); do
+            stopped_after="$("$TESTSTOOLS"/journal-state get-log -u systemd-networkd | grep -c 'Stopped Network Service.' || true)"
+            started_after="$("$TESTSTOOLS"/journal-state get-log -u systemd-networkd | grep -c 'Started Network Service.' || true)"
+            if [ "$stopped_after" -gt "$stopped_before" ] && \
+            [ "$started_after" -gt "$started_before" ] ; then
+                break
+            fi
+            sleep 1
+        done
+
+        echo "Ensure that the number of network restarts is greater after netplan apply was run"
+        [ "$stopped_after" -gt "$stopped_before" ] && [ "$started_after" -gt "$started_before" ]
+
+        if os.query is-core16; then
+            echo "Skipping Ubuntu Core 16 which does not have Info D-Bus method"
+            exit 0
+        fi
+
+        echo "Disconnecting network-setup-control to test network-setup-observe"
+        snap disconnect netplan-snap:network-setup-control
+
+        echo "The network-setup-observe interface is disconnected by default"
+        snap connections netplan-snap | MATCH 'network-setup-observe +netplan-snap:network-setup-observe +- +-'
+
+        echo "Running netplan info via D-Bus without network-setup-observe fails"
+        if netplan-snap.netplan-info; then
+            echo "Expected access denied error for netplan info via D-Bus"
+            exit 1
+        fi
+
+        echo "When the interface is connected"
+        snap connect netplan-snap:network-setup-observe
+
+        echo "Running netplan info via D-Bus now works"
+        if ! netplan-snap.netplan-info; then
+            echo "Unexpected error running netplan info via D-Bus"
+            exit 1
+        fi
+
+        snap remove netplan-snap
     done
-
-    echo "Ensure that the number of network restarts is greater after netplan apply was run"
-    [ "$stopped_after" -gt "$stopped_before" ] && [ "$started_after" -gt "$started_before" ]
-
-    if os.query is-core16; then
-        echo "Skipping Ubuntu Core 16 which does not have Info D-Bus method"
-        exit 0
-    fi
-
-    echo "Disconnecting network-setup-control to test network-setup-observe"
-    snap disconnect test-snapd-netplan-apply:network-setup-control
-
-    echo "The network-setup-observe interface is disconnected by default"
-    snap connections test-snapd-netplan-apply | MATCH 'network-setup-observe +test-snapd-netplan-apply:network-setup-observe +- +-'
-
-    echo "Running netplan info via D-Bus without network-setup-observe fails"
-    if test-snapd-netplan-apply.info; then
-        echo "Expected access denied error for netplan info via D-Bus"
-        exit 1
-    fi
-
-    echo "When the interface is connected"
-    snap connect test-snapd-netplan-apply:network-setup-observe
-
-    echo "Running netplan info via D-Bus now works"
-    if ! test-snapd-netplan-apply.info; then
-        echo "Unexpected error running netplan info via D-Bus"
-        exit 1
-    fi

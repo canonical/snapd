@@ -257,11 +257,17 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = unlink
 	}
 
-	if !release.OnClassic && snapsup.Type == snap.TypeGadget {
+	if !release.OnClassic && (snapsup.Type == snap.TypeGadget || snapsup.Type == snap.TypeKernel) {
 		// XXX: gadget update currently for core systems only
 		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from gadget %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(gadgetUpdate)
 		prev = gadgetUpdate
+	}
+	if !release.OnClassic && snapsup.Type == snap.TypeGadget {
+		// kernel command line from gadget is for core systems only
+		gadgetCmdline := st.NewTask("update-gadget-cmdline", fmt.Sprintf(i18n.G("Update kernel command line from gadget %q%s"), snapsup.InstanceName(), revisionStr))
+		addTask(gadgetCmdline)
+		prev = gadgetCmdline
 	}
 
 	// copy-data (needs stopped services by unlink)
@@ -294,6 +300,14 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	setupAliases := st.NewTask("setup-aliases", fmt.Sprintf(i18n.G("Setup snap %q aliases"), snapsup.InstanceName()))
 	addTask(setupAliases)
 	prev = setupAliases
+
+	if !release.OnClassic && snapsup.Type == snap.TypeSnapd {
+		// only run for core devices and the snapd snap, run late enough
+		// so that the task is executed by the new snapd
+		bootConfigUpdate := st.NewTask("update-managed-boot-config", fmt.Sprintf(i18n.G("Update managed boot config assets from %q%s"), snapsup.InstanceName(), revisionStr))
+		addTask(bootConfigUpdate)
+		prev = bootConfigUpdate
+	}
 
 	if runRefreshHooks {
 		postRefreshHook := SetupPostRefreshHook(st, snapsup.InstanceName())
@@ -338,7 +352,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 				// but don't discard this one; its' the thing we're switching to!
 				continue
 			}
-			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision)
+			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision, snapsup.Type)
 			ts.WaitFor(prev)
 			tasks = append(tasks, ts.Tasks()...)
 			prev = tasks[len(tasks)-1]
@@ -372,7 +386,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			if inUse(snapsup.InstanceName(), si.Revision) {
 				continue
 			}
-			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision)
+			ts := removeInactiveRevision(st, snapsup.InstanceName(), si.SnapID, si.Revision, snapsup.Type)
 			ts.WaitFor(prev)
 			tasks = append(tasks, ts.Tasks()...)
 			prev = tasks[len(tasks)-1]
@@ -455,6 +469,10 @@ var SetupRemoveHook = func(st *state.State, snapName string) *state.Task {
 
 var CheckHealthHook = func(st *state.State, snapName string, rev snap.Revision) *state.Task {
 	panic("internal error: snapstate.CheckHealthHook is unset")
+}
+
+var SetupGateAutoRefreshHook = func(st *state.State, snapName string, base, restart bool) *state.Task {
+	panic("internal error: snapstate.SetupAutoRefreshGatingHook is unset")
 }
 
 var generateSnapdWrappers = backend.GenerateSnapdWrappers
@@ -657,7 +675,16 @@ func validateFeatureFlags(st *state.State, info *snap.Info) error {
 	return nil
 }
 
-func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState, deviceCtx DeviceContext) (Flags, error) {
+func ensureInstallPreconditions(st *state.State, info *snap.Info, flags Flags, snapst *SnapState) (Flags, error) {
+	// if snap is allowed to be devmode via the dangerous model and it's
+	// confinement is indeed devmode, promote the flags.DevMode to true
+	if flags.ApplySnapDevMode && info.NeedsDevMode() {
+		// TODO: what about jail-mode? will we also allow putting devmode
+		// snaps (i.e. snaps with snap.yaml with confinement: devmode) into
+		// strict confinement via the model assertion?
+		flags.DevMode = true
+	}
+
 	if flags.Classic && !info.NeedsClassic() {
 		// snap does not require classic confinement, silently drop the flag
 		flags.Classic = false
@@ -740,7 +767,7 @@ func InstallPath(st *state.State, si *snap.SideInfo, path, instanceName, channel
 	}
 	info.InstanceKey = instanceKey
 
-	flags, err = ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
+	flags, err = ensureInstallPreconditions(st, info, flags, &snapst)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -827,7 +854,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, fmt.Errorf("unexpected snap type %q, instead of 'base'", info.Type())
 	}
 
-	flags, err = ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
+	flags, err = ensureInstallPreconditions(st, info, flags, &snapst)
 	if err != nil {
 		return nil, err
 	}
@@ -957,7 +984,7 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 		var snapst SnapState
 		var flags Flags
 
-		flags, err := ensureInstallPreconditions(st, info, flags, &snapst, deviceCtx)
+		flags, err := ensureInstallPreconditions(st, info, flags, &snapst)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1162,6 +1189,7 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 			ts.WaitAll(preTs)
 		}
 	}
+	var kernelTs, gadgetTs *state.TaskSet
 
 	// updates is sorted by kind so this will process first core
 	// and bases and then other snaps
@@ -1169,16 +1197,8 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		revnoOpts, flags, snapst := params(update)
 		flags.IsAutoRefresh = globalFlags.IsAutoRefresh
 
-		flags, err := ensureInstallPreconditions(st, update, flags, snapst, deviceCtx)
+		flags, err := earlyChecks(st, snapst, update, flags)
 		if err != nil {
-			if refreshAll {
-				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
-				continue
-			}
-			return nil, nil, err
-		}
-
-		if err := earlyEpochCheck(update, snapst); err != nil {
 			if refreshAll {
 				logger.Noticef("cannot update %q: %v", update.InstanceName(), err)
 				continue
@@ -1238,9 +1258,25 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 				waitPrereq(ts, update.Base)
 			}
 		}
+		// keep track of kernel/gadget udpates
+		switch update.Type() {
+		case snap.TypeKernel:
+			kernelTs = ts
+		case snap.TypeGadget:
+			gadgetTs = ts
+		}
 
 		scheduleUpdate(update.InstanceName(), ts)
 		tasksets = append(tasksets, ts)
+	}
+	// Kernel must wait for gadget because the gadget may define
+	// new "$kernel:refs". Sorting the other way is impossible
+	// because a kernel with new kernel-assets would never refresh
+	// because the matching gadget could never get installed
+	// because the gadget always waits for the kernel and if the
+	// kernel aborts the wait tasks (the gadget) is put on "Hold".
+	if kernelTs != nil && gadgetTs != nil {
+		kernelTs.WaitAll(gadgetTs)
 	}
 
 	if len(newAutoAliases) != 0 {
@@ -1782,7 +1818,112 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskS
 		}
 	}
 
-	return UpdateMany(ctx, st, nil, userID, &Flags{IsAutoRefresh: true})
+	tr := config.NewTransaction(st)
+	gateAutoRefreshHook, err := features.Flag(tr, features.GateAutoRefreshHook)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, nil, err
+	}
+	if !gateAutoRefreshHook {
+		// old-style refresh (gate-auto-refresh-hook feature disabled)
+		return UpdateMany(ctx, st, nil, userID, &Flags{IsAutoRefresh: true})
+	}
+
+	// TODO: rename to autoRefreshTasks when old auto refresh logic gets removed.
+	return autoRefreshPhase1(ctx, st)
+}
+
+// autoRefreshPhase1 creates gate-auto-refresh hooks and conditional-auto-refresh
+// task that initiates actual refresh.
+// The state needs to be locked by the caller.
+func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state.TaskSet, error) {
+	user, err := userFromUserID(st, 0)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	refreshOpts := &store.RefreshOptions{IsAutoRefresh: true}
+	candidates, snapstateByInstance, ignoreValidationByInstanceName, err := refreshCandidates(ctx, st, nil, user, refreshOpts)
+	if err != nil {
+		// XXX: should we reset "refresh-candidates" to nil in state for some types
+		// of errors?
+		return nil, nil, err
+	}
+	deviceCtx, err := DeviceCtxFromState(st, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+	hints, err := refreshHintsFromCandidates(st, candidates, ignoreValidationByInstanceName, deviceCtx)
+	if err != nil {
+		return nil, nil, err
+	}
+	st.Set("refresh-candidates", hints)
+
+	var updates []*snap.Info
+
+	// check conflicts
+	fromChange := ""
+	for _, up := range candidates {
+		snapst := snapstateByInstance[up.InstanceName()]
+		if err := checkChangeConflictIgnoringOneChange(st, up.InstanceName(), snapst, fromChange); err != nil {
+			logger.Noticef("cannot refresh snap %q: %v", up.InstanceName(), err)
+		} else {
+			updates = append(updates, up)
+		}
+	}
+
+	if len(updates) == 0 {
+		return nil, nil, nil
+	}
+
+	// all snaps in updates are now considered to be operated on and should
+	// provoke conflicts until updated or until we know (after running
+	// gate-auto-refresh hooks) that some are not going to be updated
+	// and can stop conflicting.
+
+	affectedSnaps, err := affectedByRefresh(st, updates)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// affectedByRefresh only considers snaps affected by updates, add
+	// updates themselves as long as they have gate-auto-refresh hooks.
+	for _, up := range updates {
+		snapst := snapstateByInstance[up.InstanceName()]
+		inf, err := snapst.CurrentInfo()
+		if err != nil {
+			return nil, nil, err
+		}
+		if affectedSnaps[up.InstanceName()] == nil && inf.Hooks[gateAutoRefreshHookName] != nil {
+			affectedSnaps[up.InstanceName()] = &affectedSnapInfo{}
+		}
+	}
+
+	var hooks *state.TaskSet
+	if len(affectedSnaps) > 0 {
+		hooks = createGateAutoRefreshHooks(st, affectedSnaps)
+	}
+
+	// gate-auto-refresh hooks, followed by conditional-auto-refresh task waiting
+	// for all hooks.
+	ar := st.NewTask("conditional-auto-refresh", "Run auto-refresh for ready snaps")
+	tss := []*state.TaskSet{state.NewTaskSet(ar)}
+	if hooks != nil {
+		ar.WaitAll(hooks)
+		tss = append(tss, hooks)
+	}
+
+	// return all names as potentially getting updated even though some may be
+	// held.
+	names := make([]string, len(updates))
+	for i, up := range updates {
+		names[i] = up.InstanceName()
+	}
+	sort.Strings(names)
+
+	// TODO: store the list of snaps to update on the conditional-auto-refresh task
+	// (this may be a subset refresh-candidates due to conflicts).
+
+	return names, tss, nil
 }
 
 // LinkNewBaseOrKernel will create prepare/link-snap tasks for a remodel
@@ -2151,22 +2292,22 @@ func removeTasks(st *state.State, name string, revision snap.Revision, flags *Re
 		for i := len(seq) - 1; i >= 0; i-- {
 			if i != currentIndex {
 				si := seq[i]
-				addNext(removeInactiveRevision(st, name, info.SnapID, si.Revision))
+				addNext(removeInactiveRevision(st, name, info.SnapID, si.Revision, snapsup.Type))
 			}
 		}
 		// add tasks for removing the current revision last,
 		// this is then also when common data will be removed
 		if currentIndex >= 0 {
-			addNext(removeInactiveRevision(st, name, info.SnapID, seq[currentIndex].Revision))
+			addNext(removeInactiveRevision(st, name, info.SnapID, seq[currentIndex].Revision, snapsup.Type))
 		}
 	} else {
-		addNext(removeInactiveRevision(st, name, info.SnapID, revision))
+		addNext(removeInactiveRevision(st, name, info.SnapID, revision, snapsup.Type))
 	}
 
 	return removeTs, snapshotSize, nil
 }
 
-func removeInactiveRevision(st *state.State, name, snapID string, revision snap.Revision) *state.TaskSet {
+func removeInactiveRevision(st *state.State, name, snapID string, revision snap.Revision, typ snap.Type) *state.TaskSet {
 	snapName, instanceKey := snap.SplitInstanceName(name)
 	snapsup := SnapSetup{
 		SideInfo: &snap.SideInfo{
@@ -2175,6 +2316,7 @@ func removeInactiveRevision(st *state.State, name, snapID string, revision snap.
 			Revision: revision,
 		},
 		InstanceKey: instanceKey,
+		Type:        typ,
 	}
 
 	clearData := st.NewTask("clear-snap", fmt.Sprintf(i18n.G("Remove data for snap %q (%s)"), name, revision))

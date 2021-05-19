@@ -221,8 +221,8 @@ func (cs *clientSuite) TestClientDoRetryWorks(c *C) {
 	c.Check(err, ErrorMatches, "cannot communicate with server: borken")
 	// best effort checking given that execution could be slow
 	// on some machines
-	c.Assert(cs.doCalls > 500, Equals, true)
-	c.Assert(cs.doCalls < 1100, Equals, true)
+	c.Assert(cs.doCalls > 100, Equals, true, Commentf("got only %v calls", cs.doCalls))
+	c.Assert(cs.doCalls < 1100, Equals, true, Commentf("got %v calls", cs.doCalls))
 }
 
 func (cs *clientSuite) TestClientUnderstandsStatusCode(c *C) {
@@ -435,7 +435,7 @@ func (cs *clientSuite) TestSnapClientIntegration(c *C) {
 		Args:      []string{"bar", "--baz"},
 	}
 
-	stdout, stderr, err := cli.RunSnapctl(options)
+	stdout, stderr, err := cli.RunSnapctl(options, nil)
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "test stdout")
 	c.Check(string(stderr), Equals, "test stderr")

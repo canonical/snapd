@@ -33,37 +33,25 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/daemon"
-	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
-	"github.com/snapcore/snapd/store/storetest"
 )
-
-type fakeStore struct{}
 
 var _ = check.Suite(&snapDownloadSuite{})
 
 type snapDownloadSuite struct {
-	storetest.Store
-	d *daemon.Daemon
+	apiBaseSuite
 
 	snaps []string
 }
 
 func (s *snapDownloadSuite) SetUpTest(c *check.C) {
+	s.apiBaseSuite.SetUpTest(c)
+
 	s.snaps = nil
 
-	o := overlord.Mock()
-	s.d = daemon.NewWithOverlord(o)
-
-	st := o.State()
-	st.Lock()
-	defer st.Unlock()
-	snapstate.ReplaceStore(st, s)
-	dirs.SetRootDir(c.MkDir())
+	s.daemonWithStore(c, s)
 }
 
 var snapContent = "SNAP"
@@ -126,6 +114,8 @@ var storeSnaps = map[string]*snap.Info{
 }
 
 func (s *snapDownloadSuite) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	s.pokeStateLock()
+
 	if assertQuery != nil {
 		panic("no assertion query support")
 	}
@@ -150,6 +140,8 @@ func (s *snapDownloadSuite) SnapAction(ctx context.Context, currentSnaps []*stor
 }
 
 func (s *snapDownloadSuite) DownloadStream(ctx context.Context, name string, downloadInfo *snap.DownloadInfo, resume int64, user *auth.UserState) (io.ReadCloser, int, error) {
+	s.pokeStateLock()
+
 	if name == "download-error-trigger-snap" {
 		return nil, 0, fmt.Errorf("error triggered by download-error-trigger-snap")
 	}
@@ -195,13 +187,13 @@ func (s *snapDownloadSuite) TestDownloadSnapErrors(c *check.C) {
 
 		req, err := http.NewRequest("POST", "/v2/download", bytes.NewBuffer(data))
 		c.Assert(err, check.IsNil)
-		rsp := daemon.PostSnapDownload(daemon.SnapDownloadCmd, req, nil)
+		rsp := s.errorReq(c, req, nil)
 
-		c.Assert(rsp.(*daemon.Resp).Status, check.Equals, scen.status)
+		c.Assert(rsp.Status, check.Equals, scen.status)
 		if scen.err == "" {
 			c.Errorf("error was expected")
 		}
-		result := rsp.(*daemon.Resp).Result
+		result := rsp.Result
 		c.Check(result.(*daemon.ErrorResult).Message, check.Matches, scen.err)
 	}
 }
@@ -212,11 +204,10 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 		dataJSON string
 		status   int
 		resume   int
-		noBody   bool
 		err      string
 	}
 
-	sec, err := daemon.DownloadTokensSecret(daemon.SnapDownloadCmd)
+	sec, err := daemon.DownloadTokensSecret(s.d)
 	c.Assert(err, check.IsNil)
 
 	fooResume3SS, err := daemon.NewSnapStream("foo-resume-3", storeSnaps["foo-resume-3"], sec)
@@ -227,7 +218,7 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 
 	brokenHashToken := base64.RawURLEncoding.EncodeToString(append(tok[:len(tok)-1], tok[len(tok)-1]-1))
 
-	for _, s := range []scenario{
+	for _, t := range []scenario{
 		{
 			snapName: "doom",
 			dataJSON: `{"snap-name": "doom"}`,
@@ -332,39 +323,39 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 			err:      "cannot request header-only peek when resuming",
 		},
 	} {
-		req, err := http.NewRequest("POST", "/v2/download", strings.NewReader(s.dataJSON))
+		req, err := http.NewRequest("POST", "/v2/download", strings.NewReader(t.dataJSON))
 		c.Assert(err, check.IsNil)
-		if s.resume != 0 {
-			req.Header.Add("Range", fmt.Sprintf("bytes=%d-", s.resume))
+		if t.resume != 0 {
+			req.Header.Add("Range", fmt.Sprintf("bytes=%d-", t.resume))
 		}
 
-		rsp := daemon.SnapDownloadCmd.POST(daemon.SnapDownloadCmd, req, nil)
+		rsp := s.req(c, req, nil)
 
-		if s.err != "" {
-			c.Check(rsp.(*daemon.Resp).Status, check.Equals, s.status, check.Commentf("unexpected result for %v", s.dataJSON))
+		if t.err != "" {
+			c.Check(rsp.(*daemon.Resp).Status, check.Equals, t.status, check.Commentf("unexpected result for %v", t.dataJSON))
 			result := rsp.(*daemon.Resp).Result
-			c.Check(result.(*daemon.ErrorResult).Message, check.Matches, s.err, check.Commentf("unexpected result for %v", s.dataJSON))
+			c.Check(result.(*daemon.ErrorResult).Message, check.Matches, t.err, check.Commentf("unexpected result for %v", t.dataJSON))
 		} else {
-			c.Assert(rsp, check.FitsTypeOf, &daemon.SnapStream{}, check.Commentf("unexpected result for %v", s.dataJSON))
+			c.Assert(rsp, check.FitsTypeOf, &daemon.SnapStream{}, check.Commentf("unexpected result for %v", t.dataJSON))
 			ss := rsp.(*daemon.SnapStream)
-			c.Assert(ss.SnapName, check.Equals, s.snapName, check.Commentf("invalid result %v for %v", rsp, s.dataJSON))
+			c.Assert(ss.SnapName, check.Equals, t.snapName, check.Commentf("invalid result %v for %v", rsp, t.dataJSON))
 			c.Assert(ss.Info.Size, check.Equals, int64(len(snapContent)))
 
 			w := httptest.NewRecorder()
 			ss.ServeHTTP(w, nil)
 
-			expectedLength := fmt.Sprintf("%d", len(snapContent)-s.resume)
+			expectedLength := fmt.Sprintf("%d", len(snapContent)-t.resume)
 
-			info := storeSnaps[s.snapName]
-			c.Assert(w.Code, check.Equals, s.status)
+			info := storeSnaps[t.snapName]
+			c.Assert(w.Code, check.Equals, t.status)
 			c.Assert(w.Header().Get("Content-Length"), check.Equals, expectedLength)
 			c.Assert(w.Header().Get("Content-Type"), check.Equals, "application/octet-stream")
-			c.Assert(w.Header().Get("Content-Disposition"), check.Equals, fmt.Sprintf("attachment; filename=%s_%s.snap", s.snapName, info.Revision))
-			c.Assert(w.Header().Get("Snap-Sha3-384"), check.Equals, "sha3sha3sha3", check.Commentf("invalid sha3 for %v", s.snapName))
-			c.Assert(w.Body.Bytes(), check.DeepEquals, []byte("SNAP")[s.resume:])
+			c.Assert(w.Header().Get("Content-Disposition"), check.Equals, fmt.Sprintf("attachment; filename=%s_%s.snap", t.snapName, info.Revision))
+			c.Assert(w.Header().Get("Snap-Sha3-384"), check.Equals, "sha3sha3sha3", check.Commentf("invalid sha3 for %v", t.snapName))
+			c.Assert(w.Body.Bytes(), check.DeepEquals, []byte("SNAP")[t.resume:])
 			c.Assert(w.Header().Get("Snap-Download-Token"), check.Equals, ss.Token)
-			if s.status == 206 {
-				c.Assert(w.Header().Get("Content-Range"), check.Equals, fmt.Sprintf("bytes %d-%d/%d", s.resume, len(snapContent)-1, len(snapContent)))
+			if t.status == 206 {
+				c.Assert(w.Header().Get("Content-Range"), check.Equals, fmt.Sprintf("bytes %d-%d/%d", t.resume, len(snapContent)-1, len(snapContent)))
 				c.Assert(ss.Token, check.Not(check.HasLen), 0)
 			}
 		}
@@ -376,7 +367,7 @@ func (s *snapDownloadSuite) TestStreamOneSnapHeaderOnlyPeek(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/download", strings.NewReader(dataJSON))
 	c.Assert(err, check.IsNil)
 
-	rsp := daemon.SnapDownloadCmd.POST(daemon.SnapDownloadCmd, req, nil)
+	rsp := s.req(c, req, nil)
 
 	c.Assert(rsp, check.FitsTypeOf, &daemon.SnapStream{})
 	ss := rsp.(*daemon.SnapStream)
@@ -397,7 +388,7 @@ func (s *snapDownloadSuite) TestStreamOneSnapHeaderOnlyPeek(c *check.C) {
 func (s *snapDownloadSuite) TestStreamRangeHeaderErrors(c *check.C) {
 	dataJSON := `{"snap-name":"bar"}`
 
-	for _, s := range []string{
+	for _, t := range []string{
 		// missing "-" at the end
 		"bytes=123",
 		// missing "bytes="
@@ -410,9 +401,9 @@ func (s *snapDownloadSuite) TestStreamRangeHeaderErrors(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/download", strings.NewReader(dataJSON))
 		c.Assert(err, check.IsNil)
 		// missng "-" at the end
-		req.Header.Add("Range", s)
+		req.Header.Add("Range", t)
 
-		rsp := daemon.SnapDownloadCmd.POST(daemon.SnapDownloadCmd, req, nil)
+		rsp := s.req(c, req, nil)
 		if dr, ok := rsp.(*daemon.Resp); ok {
 			c.Fatalf("unexpected daemon result (test broken): %v", dr.Result)
 		}

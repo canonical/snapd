@@ -75,10 +75,12 @@ type cmdRun struct {
 	// This options is both a selector (use or don't use strace) and it
 	// can also carry extra options for strace. This is why there is
 	// "default" and "optional-value" to distinguish this.
-	Strace    string `long:"strace" optional:"true" optional-value:"with-strace" default:"no-strace" default-mask:"-"`
-	Gdb       bool   `long:"gdb"`
-	Gdbserver string `long:"experimental-gdbserver" default:"no-gdbserver" optional-value:":0" optional:"true"`
-	TraceExec bool   `long:"trace-exec"`
+	Strace string `long:"strace" optional:"true" optional-value:"with-strace" default:"no-strace" default-mask:"-"`
+	// deprecated in favor of Gdbserver
+	Gdb                   bool   `long:"gdb" hidden:"yes"`
+	Gdbserver             string `long:"gdbserver" default:"no-gdbserver" optional-value:":0" optional:"true"`
+	ExperimentalGdbserver string `long:"experimental-gdbserver" default:"no-gdbserver" optional-value:":0" optional:"true" hidden:"yes"`
+	TraceExec             bool   `long:"trace-exec"`
 
 	// not a real option, used to check if cmdRun is initialized by
 	// the parser
@@ -107,9 +109,10 @@ and environment.
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"strace": i18n.G("Run the command under strace (useful for debugging). Extra strace options can be specified as well here. Pass --raw to strace early snap helpers."),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"gdb": i18n.G("Run the command with gdb"),
+			"gdb": i18n.G("Run the command with gdb (deprecated, use --gdbserver instead)"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"experimental-gdbserver": i18n.G("Run the command with gdbserver (experimental)"),
+			"gdbserver": i18n.G("Run the command with gdbserver"),
+			"experimental-gdbserver": "",
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"timer": i18n.G("Run as a timer service with given schedule"),
 			// TRANSLATORS: This should not start with a lowercase letter.
@@ -779,6 +782,11 @@ func racyFindFreePort() (int, error) {
 }
 
 func (x *cmdRun) useGdbserver() bool {
+	// compatibility, can be removed after 2021
+	if x.ExperimentalGdbserver != "no-gdbserver" {
+		x.Gdbserver = x.ExperimentalGdbserver
+	}
+
 	// make sure the go-flag parser ran and assigned default values
 	return x.ParserRan == 1 && x.Gdbserver != "no-gdbserver"
 }
@@ -1014,6 +1022,22 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	}
 	if info.Base != "" {
 		cmd = append(cmd, "--base", info.Base)
+	} else {
+		if info.Type() == snap.TypeKernel {
+			// kernels have no explicit base, we use the boot base
+			modelAssertion, err := x.client.CurrentModelAssertion()
+			if err != nil {
+				if hook != "" {
+					return fmt.Errorf("cannot get model assertion to setup kernel hook run: %v", err)
+				} else {
+					return fmt.Errorf("cannot get model assertion to setup kernel app run: %v", err)
+				}
+			}
+			modelBase := modelAssertion.Base()
+			if modelBase != "" {
+				cmd = append(cmd, "--base", modelBase)
+			}
+		}
 	}
 	cmd = append(cmd, securityTag)
 
@@ -1151,6 +1175,16 @@ func (x *cmdRun) runSnapConfine(info *snap.Info, securityTag, snapApp, hook stri
 	} else if x.Gdb {
 		return x.runCmdUnderGdb(cmd, envForExec)
 	} else if x.useGdbserver() {
+		if _, err := exec.LookPath("gdbserver"); err != nil {
+			// TODO: use xerrors.Is(err, exec.ErrNotFound) once
+			// we moved off from go-1.9
+			if execErr, ok := err.(*exec.Error); ok {
+				if execErr.Err == exec.ErrNotFound {
+					return fmt.Errorf("please install gdbserver on your system")
+				}
+			}
+			return err
+		}
 		return x.runCmdUnderGdbserver(cmd, envForExec)
 	} else if x.useStrace() {
 		return x.runCmdUnderStrace(cmd, envForExec)

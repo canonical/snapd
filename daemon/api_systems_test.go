@@ -17,7 +17,7 @@
  *
  */
 
-package daemon
+package daemon_test
 
 import (
 	"bytes"
@@ -26,6 +26,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 
@@ -36,6 +37,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/devicestate"
@@ -48,24 +50,30 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-func (s *apiSuite) mockSystemSeeds(c *check.C) (restore func()) {
+var _ = check.Suite(&systemsSuite{})
+
+type systemsSuite struct {
+	apiBaseSuite
+}
+
+func (s *systemsSuite) mockSystemSeeds(c *check.C) (restore func()) {
 	// now create a minimal uc20 seed dir with snaps/assertions
 	seed20 := &seedtest.TestingSeed20{
 		SeedSnaps: seedtest.SeedSnaps{
-			StoreSigning: s.storeSigning,
-			Brands:       s.brands,
+			StoreSigning: s.StoreSigning,
+			Brands:       s.Brands,
 		},
 		SeedDir: dirs.SnapSeedDir,
 	}
 
 	restore = seed.MockTrusted(seed20.StoreSigning.Trusted)
 
-	assertstest.AddMany(s.storeSigning.Database, s.brands.AccountsAndKeys("my-brand")...)
+	assertstest.AddMany(s.StoreSigning.Database, s.Brands.AccountsAndKeys("my-brand")...)
 	// add essential snaps
-	seed20.MakeAssertedSnap(c, "name: snapd\nversion: 1\ntype: snapd", nil, snap.R(1), "my-brand", s.storeSigning.Database)
-	seed20.MakeAssertedSnap(c, "name: pc\nversion: 1\ntype: gadget\nbase: core20", nil, snap.R(1), "my-brand", s.storeSigning.Database)
-	seed20.MakeAssertedSnap(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil, snap.R(1), "my-brand", s.storeSigning.Database)
-	seed20.MakeAssertedSnap(c, "name: core20\nversion: 1\ntype: base", nil, snap.R(1), "my-brand", s.storeSigning.Database)
+	seed20.MakeAssertedSnap(c, "name: snapd\nversion: 1\ntype: snapd", nil, snap.R(1), "my-brand", s.StoreSigning.Database)
+	seed20.MakeAssertedSnap(c, "name: pc\nversion: 1\ntype: gadget\nbase: core20", nil, snap.R(1), "my-brand", s.StoreSigning.Database)
+	seed20.MakeAssertedSnap(c, "name: pc-kernel\nversion: 1\ntype: kernel", nil, snap.R(1), "my-brand", s.StoreSigning.Database)
+	seed20.MakeAssertedSnap(c, "name: core20\nversion: 1\ntype: base", nil, snap.R(1), "my-brand", s.StoreSigning.Database)
 	seed20.MakeSeed(c, "20191119", "my-brand", "my-model", map[string]interface{}{
 		"display-name": "my fancy model",
 		"architecture": "amd64",
@@ -106,21 +114,21 @@ func (s *apiSuite) mockSystemSeeds(c *check.C) (restore func()) {
 	return restore
 }
 
-func (s *apiSuite) TestSystemsGetSome(c *check.C) {
+func (s *systemsSuite) TestSystemsGetSome(c *check.C) {
 	m := boot.Modeenv{
 		Mode: "run",
 	}
 	err := m.WriteTo("")
 	c.Assert(err, check.IsNil)
 
-	d := s.daemonWithOverlordMock(c)
-	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
+	d := s.daemonWithOverlordMockAndStore(c)
+	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
-	mgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
+	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
 	c.Assert(err, check.IsNil)
-	d.overlord.AddManager(mgr)
+	d.Overlord().AddManager(mgr)
 
-	st := d.overlord.State()
+	st := d.Overlord().State()
 	st.Lock()
 	st.Set("seeded-systems", []map[string]interface{}{{
 		"system": "20200318", "model": "my-model-2", "brand-id": "my-brand",
@@ -134,12 +142,12 @@ func (s *apiSuite) TestSystemsGetSome(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/systems", nil)
 	c.Assert(err, check.IsNil)
-	rsp := getSystems(systemsCmd, req, nil).(*resp)
+	rsp := s.syncReq(c, req, nil)
 
 	c.Assert(rsp.Status, check.Equals, 200)
-	sys := rsp.Result.(*systemsResponse)
+	sys := rsp.Result.(*daemon.SystemsResponse)
 
-	c.Assert(sys, check.DeepEquals, &systemsResponse{
+	c.Assert(sys, check.DeepEquals, &daemon.SystemsResponse{
 		Systems: []client.System{
 			{
 				Current: false,
@@ -181,7 +189,7 @@ func (s *apiSuite) TestSystemsGetSome(c *check.C) {
 		}})
 }
 
-func (s *apiSuite) TestSystemsGetNone(c *check.C) {
+func (s *systemsSuite) TestSystemsGetNone(c *check.C) {
 	m := boot.Modeenv{
 		Mode: "run",
 	}
@@ -189,25 +197,25 @@ func (s *apiSuite) TestSystemsGetNone(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// model assertion setup
-	d := s.daemonWithOverlordMock(c)
-	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
+	d := s.daemonWithOverlordMockAndStore(c)
+	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
-	mgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
+	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
 	c.Assert(err, check.IsNil)
-	d.overlord.AddManager(mgr)
+	d.Overlord().AddManager(mgr)
 
 	// no system seeds
 	req, err := http.NewRequest("GET", "/v2/systems", nil)
 	c.Assert(err, check.IsNil)
-	rsp := getSystems(systemsCmd, req, nil).(*resp)
+	rsp := s.syncReq(c, req, nil)
 
 	c.Assert(rsp.Status, check.Equals, 200)
-	sys := rsp.Result.(*systemsResponse)
+	sys := rsp.Result.(*daemon.SystemsResponse)
 
-	c.Assert(sys, check.DeepEquals, &systemsResponse{})
+	c.Assert(sys, check.DeepEquals, &daemon.SystemsResponse{})
 }
 
-func (s *apiSuite) TestSystemActionRequestErrors(c *check.C) {
+func (s *systemsSuite) TestSystemActionRequestErrors(c *check.C) {
 	// modenev must be mocked before daemon is initialized
 	m := boot.Modeenv{
 		Mode: "run",
@@ -215,18 +223,18 @@ func (s *apiSuite) TestSystemActionRequestErrors(c *check.C) {
 	err := m.WriteTo("")
 	c.Assert(err, check.IsNil)
 
-	d := s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMockAndStore(c)
 
-	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
+	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
-	mgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
+	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
 	c.Assert(err, check.IsNil)
-	d.overlord.AddManager(mgr)
+	d.Overlord().AddManager(mgr)
 
 	restore := s.mockSystemSeeds(c)
 	defer restore()
 
-	st := d.overlord.State()
+	st := d.Overlord().State()
 
 	type table struct {
 		label, body, error string
@@ -288,18 +296,16 @@ func (s *apiSuite) TestSystemActionRequestErrors(c *check.C) {
 			st.Set("seeded", true)
 		}
 		st.Unlock()
-		s.vars = map[string]string{"label": tc.label}
 		c.Logf("tc: %#v", tc)
-		req, err := http.NewRequest("POST", "/v2/systems/"+tc.label, strings.NewReader(tc.body))
+		req, err := http.NewRequest("POST", path.Join("/v2/systems", tc.label), strings.NewReader(tc.body))
 		c.Assert(err, check.IsNil)
-		rsp := postSystemsAction(systemsActionCmd, req, nil).(*resp)
-		c.Assert(rsp.Type, check.Equals, ResponseTypeError)
+		rsp := s.errorReq(c, req, nil)
 		c.Check(rsp.Status, check.Equals, tc.status)
 		c.Check(rsp.ErrorResult().Message, check.Matches, tc.error)
 	}
 }
 
-func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
+func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 	bt := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bt)
 	defer func() { bootloader.Force(nil) }()
@@ -310,7 +316,7 @@ func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 	restore := s.mockSystemSeeds(c)
 	defer restore()
 
-	model := s.brands.Model("my-brand", "pc", map[string]interface{}{
+	model := s.Brands.Model("my-brand", "pc", map[string]interface{}{
 		"architecture": "amd64",
 		// UC20
 		"grade": "dangerous",
@@ -318,7 +324,7 @@ func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		"snaps": []interface{}{
 			map[string]interface{}{
 				"name":            "pc-kernel",
-				"id":              snaptest.AssertedSnapID("oc-kernel"),
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
@@ -407,7 +413,6 @@ func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 			comment:        "install mode to recover mode not supported",
 		},
 	}
-	s.vars = map[string]string{"label": "20191119"}
 
 	for _, tc := range tt {
 		c.Logf("tc: %v", tc.comment)
@@ -422,13 +427,13 @@ func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		err := m.WriteTo("")
 		c.Assert(err, check.IsNil)
 		d := s.daemon(c)
-		st := d.overlord.State()
+		st := d.Overlord().State()
 		st.Lock()
 		// devicemgr needs boot id to request a reboot
 		st.VerifyReboot("boot-id-0")
 		// device model
-		assertstatetest.AddMany(st, s.storeSigning.StoreAccountKey(""))
-		assertstatetest.AddMany(st, s.brands.AccountsAndKeys("my-brand")...)
+		assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
+		assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
 		s.mockModel(c, st, model)
 		if tc.currentMode == "run" {
 			// only set in run mode
@@ -450,7 +455,7 @@ func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		// as root
 		req.RemoteAddr = "pid=100;uid=0;socket=;"
 		rec := httptest.NewRecorder()
-		systemsActionCmd.ServeHTTP(rec, req)
+		s.serveHTTP(c, rec, req)
 		if tc.expUnsupported {
 			c.Check(rec.Code, check.Equals, 400, check.Commentf(tc.comment))
 		} else {
@@ -482,12 +487,15 @@ func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 				expResp["maintenance"] = map[string]interface{}{
 					"kind":    "system-restart",
 					"message": "system is restarting",
+					"value": map[string]interface{}{
+						"op": "reboot",
+					},
 				}
 
 				// daemon is not started, only check whether reboot was scheduled as expected
 
 				// reboot flag
-				c.Check(d.requestedRestart, check.Equals, state.RestartSystemNow, check.Commentf(tc.comment))
+				c.Check(d.RequestedRestart(), check.Equals, state.RestartSystemNow, check.Commentf(tc.comment))
 				// slow reboot schedule
 				c.Check(cmd.Calls(), check.DeepEquals, [][]string{
 					{"shutdown", "-r", "+10", "reboot scheduled to update the system"},
@@ -500,27 +508,27 @@ func (s *apiSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		c.Assert(rspBody, check.DeepEquals, expResp, check.Commentf(tc.comment))
 
 		cmd.ForgetCalls()
-		s.d = nil
+		s.resetDaemon()
 	}
 
 }
 
-func (s *apiSuite) TestSystemActionBrokenSeed(c *check.C) {
+func (s *systemsSuite) TestSystemActionBrokenSeed(c *check.C) {
 	m := boot.Modeenv{
 		Mode: "run",
 	}
 	err := m.WriteTo("")
 	c.Assert(err, check.IsNil)
 
-	d := s.daemonWithOverlordMock(c)
-	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
+	d := s.daemonWithOverlordMockAndStore(c)
+	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
-	mgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
+	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
 	c.Assert(err, check.IsNil)
-	d.overlord.AddManager(mgr)
+	d.Overlord().AddManager(mgr)
 
 	// the seeding is done
-	st := d.overlord.State()
+	st := d.Overlord().State()
 	st.Lock()
 	st.Set("seeded", true)
 	st.Unlock()
@@ -531,24 +539,22 @@ func (s *apiSuite) TestSystemActionBrokenSeed(c *check.C) {
 	err = os.Remove(filepath.Join(dirs.SnapSeedDir, "systems", "20191119", "model"))
 	c.Assert(err, check.IsNil)
 
-	s.vars = map[string]string{"label": "20191119"}
 	body := `{"action":"do","title":"reinstall","mode":"install"}`
 	req, err := http.NewRequest("POST", "/v2/systems/20191119", strings.NewReader(body))
 	c.Assert(err, check.IsNil)
-	rsp := postSystemsAction(systemsActionCmd, req, nil).(*resp)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 500)
 	c.Check(rsp.ErrorResult().Message, check.Matches, `cannot load seed system: cannot load assertions: .*`)
 }
 
-func (s *apiSuite) TestSystemActionNonRoot(c *check.C) {
-	d := s.daemonWithOverlordMock(c)
-	hookMgr, err := hookstate.Manager(d.overlord.State(), d.overlord.TaskRunner())
+func (s *systemsSuite) TestSystemActionNonRoot(c *check.C) {
+	d := s.daemonWithOverlordMockAndStore(c)
+	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
-	mgr, err := devicestate.Manager(d.overlord.State(), hookMgr, d.overlord.TaskRunner(), nil)
+	mgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
 	c.Assert(err, check.IsNil)
-	d.overlord.AddManager(mgr)
+	d.Overlord().AddManager(mgr)
 
-	s.vars = map[string]string{"label": "20191119"}
 	body := `{"action":"do","title":"reinstall","mode":"install"}`
 
 	// pretend to be a simple user
@@ -558,7 +564,7 @@ func (s *apiSuite) TestSystemActionNonRoot(c *check.C) {
 	req.RemoteAddr = "pid=100;uid=1234;socket=;"
 
 	rec := httptest.NewRecorder()
-	systemsActionCmd.ServeHTTP(rec, req)
+	s.serveHTTP(c, rec, req)
 	c.Assert(rec.Code, check.Equals, 401)
 
 	var rspBody map[string]interface{}
@@ -575,8 +581,10 @@ func (s *apiSuite) TestSystemActionNonRoot(c *check.C) {
 	})
 }
 
-func (s *apiSuite) TestSystemRebootNeedsRoot(c *check.C) {
-	restore := MockDeviceManagerReboot(func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
+func (s *systemsSuite) TestSystemRebootNeedsRoot(c *check.C) {
+	s.daemon(c)
+
+	restore := daemon.MockDeviceManagerReboot(func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
 		c.Fatalf("request reboot should not get called")
 		return nil
 	})
@@ -589,11 +597,11 @@ func (s *apiSuite) TestSystemRebootNeedsRoot(c *check.C) {
 	req.RemoteAddr = "pid=100;uid=1000;socket=;"
 
 	rec := httptest.NewRecorder()
-	systemsActionCmd.ServeHTTP(rec, req)
+	s.serveHTTP(c, rec, req)
 	c.Check(rec.Code, check.Equals, 401)
 }
 
-func (s *apiSuite) TestSystemRebootHappy(c *check.C) {
+func (s *systemsSuite) TestSystemRebootHappy(c *check.C) {
 	s.daemon(c)
 
 	for _, tc := range []struct {
@@ -607,7 +615,7 @@ func (s *apiSuite) TestSystemRebootHappy(c *check.C) {
 		{"20200101", "recover"},
 	} {
 		called := 0
-		restore := MockDeviceManagerReboot(func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
+		restore := daemon.MockDeviceManagerReboot(func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
 			called++
 			c.Check(dm, check.NotNil)
 			c.Check(systemLabel, check.Equals, tc.systemLabel)
@@ -621,19 +629,18 @@ func (s *apiSuite) TestSystemRebootHappy(c *check.C) {
 		if tc.systemLabel != "" {
 			url += "/" + tc.systemLabel
 		}
-		s.vars = map[string]string{"label": tc.systemLabel}
 		req, err := http.NewRequest("POST", url, strings.NewReader(body))
 		c.Assert(err, check.IsNil)
 		req.RemoteAddr = "pid=100;uid=0;socket=;"
 
 		rec := httptest.NewRecorder()
-		systemsActionCmd.ServeHTTP(rec, req)
+		s.serveHTTP(c, rec, req)
 		c.Check(rec.Code, check.Equals, 200)
 		c.Check(called, check.Equals, 1)
 	}
 }
 
-func (s *apiSuite) TestSystemRebootUnhappy(c *check.C) {
+func (s *systemsSuite) TestSystemRebootUnhappy(c *check.C) {
 	s.daemon(c)
 
 	for _, tc := range []struct {
@@ -646,20 +653,20 @@ func (s *apiSuite) TestSystemRebootUnhappy(c *check.C) {
 		{devicestate.ErrUnsupportedAction, 400, `requested action is not supported by system ""`},
 	} {
 		called := 0
-		restore := MockDeviceManagerReboot(func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
+		restore := daemon.MockDeviceManagerReboot(func(dm *devicestate.DeviceManager, systemLabel, mode string) error {
 			called++
 			return tc.rebootErr
 		})
 		defer restore()
 
-		body := fmt.Sprintf(`{"action":"reboot"}`)
+		body := `{"action":"reboot"}`
 		url := "/v2/systems"
 		req, err := http.NewRequest("POST", url, strings.NewReader(body))
 		c.Assert(err, check.IsNil)
 		req.RemoteAddr = "pid=100;uid=0;socket=;"
 
 		rec := httptest.NewRecorder()
-		systemsActionCmd.ServeHTTP(rec, req)
+		s.serveHTTP(c, rec, req)
 		c.Check(rec.Code, check.Equals, tc.expectedHttpCode)
 		c.Check(called, check.Equals, 1)
 

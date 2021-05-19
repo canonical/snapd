@@ -28,111 +28,37 @@ import (
 	"github.com/godbus/dbus/v5"
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dbusutil"
-	"github.com/snapcore/snapd/dbusutil/dbustest"
 	"github.com/snapcore/snapd/desktop/notification"
-	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/desktop/notification/notificationtest"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type fdoSuite struct {
 	testutil.BaseTest
+	testutil.DBusTest
+
+	backend *notificationtest.FdoServer
 }
 
 var _ = Suite(&fdoSuite{})
 
-func (s *fdoSuite) connectWithHandler(c *C, handler dbustest.DBusHandlerFunc) *notification.Server {
-	conn, err := dbustest.Connection(handler)
+func (s *fdoSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.DBusTest.SetUpTest(c)
+
+	backend, err := notificationtest.NewFdoServer()
 	c.Assert(err, IsNil)
-	restore := dbusutil.MockOnlySessionBusAvailable(conn)
-	s.AddCleanup(restore)
-	return notification.New(conn)
+	s.AddCleanup(func() { c.Check(backend.Stop(), IsNil) })
+	s.backend = backend
 }
 
-func (s *fdoSuite) checkGetServerInformationRequest(c *C, msg *dbus.Message) {
-	c.Assert(msg.Type, Equals, dbus.TypeMethodCall)
-	c.Check(msg.Flags, Equals, dbus.Flags(0))
-	c.Check(msg.Headers, DeepEquals, map[dbus.HeaderField]dbus.Variant{
-		dbus.FieldDestination: dbus.MakeVariant("org.freedesktop.Notifications"),
-		dbus.FieldPath:        dbus.MakeVariant(dbus.ObjectPath("/org/freedesktop/Notifications")),
-		dbus.FieldInterface:   dbus.MakeVariant("org.freedesktop.Notifications"),
-		dbus.FieldMember:      dbus.MakeVariant("GetServerInformation"),
-	})
-	c.Check(msg.Body, HasLen, 0)
-}
-
-func (s *fdoSuite) checkGetCapabilitiesRequest(c *C, msg *dbus.Message) {
-	c.Assert(msg.Type, Equals, dbus.TypeMethodCall)
-	c.Check(msg.Flags, Equals, dbus.Flags(0))
-	c.Check(msg.Headers, DeepEquals, map[dbus.HeaderField]dbus.Variant{
-		dbus.FieldDestination: dbus.MakeVariant("org.freedesktop.Notifications"),
-		dbus.FieldPath:        dbus.MakeVariant(dbus.ObjectPath("/org/freedesktop/Notifications")),
-		dbus.FieldInterface:   dbus.MakeVariant("org.freedesktop.Notifications"),
-		dbus.FieldMember:      dbus.MakeVariant("GetCapabilities"),
-	})
-	c.Check(msg.Body, HasLen, 0)
-}
-
-func (s *fdoSuite) checkNotifyRequest(c *C, msg *dbus.Message) {
-	c.Assert(msg.Type, Equals, dbus.TypeMethodCall)
-	c.Check(msg.Flags, Equals, dbus.Flags(0))
-	c.Check(msg.Headers, DeepEquals, map[dbus.HeaderField]dbus.Variant{
-		dbus.FieldDestination: dbus.MakeVariant("org.freedesktop.Notifications"),
-		dbus.FieldPath:        dbus.MakeVariant(dbus.ObjectPath("/org/freedesktop/Notifications")),
-		dbus.FieldInterface:   dbus.MakeVariant("org.freedesktop.Notifications"),
-		dbus.FieldMember:      dbus.MakeVariant("Notify"),
-		dbus.FieldSignature: dbus.MakeVariant(dbus.SignatureOf(
-			"", uint32(0), "", "", "", []string{}, map[string]dbus.Variant{}, int32(0),
-		)),
-	})
-	c.Check(msg.Body, HasLen, 8)
-}
-
-func (s *fdoSuite) checkCloseNotificationRequest(c *C, msg *dbus.Message) {
-	c.Assert(msg.Type, Equals, dbus.TypeMethodCall)
-	c.Check(msg.Flags, Equals, dbus.Flags(0))
-	c.Check(msg.Headers, DeepEquals, map[dbus.HeaderField]dbus.Variant{
-		dbus.FieldDestination: dbus.MakeVariant("org.freedesktop.Notifications"),
-		dbus.FieldPath:        dbus.MakeVariant(dbus.ObjectPath("/org/freedesktop/Notifications")),
-		dbus.FieldInterface:   dbus.MakeVariant("org.freedesktop.Notifications"),
-		dbus.FieldMember:      dbus.MakeVariant("CloseNotification"),
-		dbus.FieldSignature:   dbus.MakeVariant(dbus.SignatureOf(uint32(0))),
-	})
-	c.Check(msg.Body, HasLen, 1)
-}
-
-func (s *fdoSuite) nameHasNoOwnerResponse(c *C, msg *dbus.Message) *dbus.Message {
-	return &dbus.Message{
-		Type: dbus.TypeError,
-		Headers: map[dbus.HeaderField]dbus.Variant{
-			dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
-			dbus.FieldSender:      dbus.MakeVariant(":1"), // This does not matter.
-			// dbus.FieldDestination is provided automatically by DBus test helper.
-			dbus.FieldErrorName: dbus.MakeVariant("org.freedesktop.DBus.Error.NameHasNoOwner"),
-		},
-	}
+func (s *fdoSuite) TearDownTest(c *C) {
+	s.DBusTest.TearDownTest(c)
+	s.BaseTest.TearDownTest(c)
 }
 
 func (s *fdoSuite) TestServerInformationSuccess(c *C) {
-	srv := s.connectWithHandler(c, func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
-		switch n {
-		case 0:
-			s.checkGetServerInformationRequest(c, msg)
-			responseSig := dbus.SignatureOf("", "", "", "")
-			response := &dbus.Message{
-				Type: dbus.TypeMethodReply,
-				Headers: map[dbus.HeaderField]dbus.Variant{
-					dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
-					dbus.FieldSender:      dbus.MakeVariant(":1"), // This does not matter.
-					// dbus.FieldDestination is provided automatically by DBus test helper.
-					dbus.FieldSignature: dbus.MakeVariant(responseSig),
-				},
-				Body: []interface{}{"name", "vendor", "version", "specVersion"},
-			}
-			return []*dbus.Message{response}, nil
-		}
-		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
-	})
+	srv := notification.New(s.SessionBus)
 	name, vendor, version, specVersion, err := srv.ServerInformation()
 	c.Assert(err, IsNil)
 	c.Check(name, Equals, "name")
@@ -142,91 +68,28 @@ func (s *fdoSuite) TestServerInformationSuccess(c *C) {
 }
 
 func (s *fdoSuite) TestServerInformationError(c *C) {
-	srv := s.connectWithHandler(c, func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
-		switch n {
-		case 0:
-			s.checkGetServerInformationRequest(c, msg)
-			response := s.nameHasNoOwnerResponse(c, msg)
-			return []*dbus.Message{response}, nil
-		}
-		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
-	})
+	s.backend.SetError(&dbus.Error{Name: "org.freedesktop.DBus.Error.Failed"})
+	srv := notification.New(s.SessionBus)
 	_, _, _, _, err := srv.ServerInformation()
-	c.Assert(err, ErrorMatches, "org.freedesktop.DBus.Error.NameHasNoOwner")
+	c.Assert(err, ErrorMatches, "org.freedesktop.DBus.Error.Failed")
 }
 
 func (s *fdoSuite) TestServerCapabilitiesSuccess(c *C) {
-	srv := s.connectWithHandler(c, func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
-		switch n {
-		case 0:
-			s.checkGetCapabilitiesRequest(c, msg)
-			responseSig := dbus.SignatureOf([]string{})
-			response := &dbus.Message{
-				Type: dbus.TypeMethodReply,
-				Headers: map[dbus.HeaderField]dbus.Variant{
-					dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
-					dbus.FieldSender:      dbus.MakeVariant(":1"), // This does not matter.
-					// dbus.FieldDestination is provided automatically by DBus test helper.
-					dbus.FieldSignature: dbus.MakeVariant(responseSig),
-				},
-				Body: []interface{}{
-					[]string{"cap-foo", "cap-bar"},
-				},
-			}
-			return []*dbus.Message{response}, nil
-		}
-		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
-	})
+	srv := notification.New(s.SessionBus)
 	caps, err := srv.ServerCapabilities()
 	c.Assert(err, IsNil)
 	c.Check(caps, DeepEquals, []notification.ServerCapability{"cap-foo", "cap-bar"})
 }
 
 func (s *fdoSuite) TestServerCapabilitiesError(c *C) {
-	srv := s.connectWithHandler(c, func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
-		switch n {
-		case 0:
-			s.checkGetCapabilitiesRequest(c, msg)
-			response := s.nameHasNoOwnerResponse(c, msg)
-			return []*dbus.Message{response}, nil
-		}
-		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
-	})
+	s.backend.SetError(&dbus.Error{Name: "org.freedesktop.DBus.Error.Failed"})
+	srv := notification.New(s.SessionBus)
 	_, err := srv.ServerCapabilities()
-	c.Assert(err, ErrorMatches, "org.freedesktop.DBus.Error.NameHasNoOwner")
+	c.Assert(err, ErrorMatches, "org.freedesktop.DBus.Error.Failed")
 }
 
 func (s *fdoSuite) TestSendNotificationSuccess(c *C) {
-	srv := s.connectWithHandler(c, func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
-		switch n {
-		case 0:
-			s.checkNotifyRequest(c, msg)
-			c.Check(msg.Body[0], Equals, "app-name")
-			c.Check(msg.Body[1], Equals, uint32(42))
-			c.Check(msg.Body[2], Equals, "icon")
-			c.Check(msg.Body[3], Equals, "summary")
-			c.Check(msg.Body[4], Equals, "body")
-			c.Check(msg.Body[5], DeepEquals, []string{"key-1", "text-1", "key-2", "text-2"})
-			c.Check(msg.Body[6], DeepEquals, map[string]dbus.Variant{
-				"hint-str":  dbus.MakeVariant("str"),
-				"hint-bool": dbus.MakeVariant(true),
-			})
-			c.Check(msg.Body[7], Equals, int32(1000))
-			responseSig := dbus.SignatureOf(uint32(0))
-			response := &dbus.Message{
-				Type: dbus.TypeMethodReply,
-				Headers: map[dbus.HeaderField]dbus.Variant{
-					dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
-					dbus.FieldSender:      dbus.MakeVariant(":1"), // This does not matter.
-					// dbus.FieldDestination is provided automatically by DBus test helper.
-					dbus.FieldSignature: dbus.MakeVariant(responseSig),
-				},
-				Body: []interface{}{uint32(7)},
-			}
-			return []*dbus.Message{response}, nil
-		}
-		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
-	})
+	srv := notification.New(s.SessionBus)
 	id, err := srv.SendNotification(&notification.Message{
 		AppName:       "app-name",
 		Icon:          "icon",
@@ -244,85 +107,59 @@ func (s *fdoSuite) TestSendNotificationSuccess(c *C) {
 		},
 	})
 	c.Assert(err, IsNil)
-	c.Check(id, Equals, notification.ID(7))
+
+	c.Check(s.backend.Get(uint32(id)), DeepEquals, &notificationtest.FdoNotification{
+		ID:      uint32(id),
+		AppName: "app-name",
+		Icon:    "icon",
+		Summary: "summary",
+		Body:    "body",
+		Actions: []string{"key-1", "text-1", "key-2", "text-2"},
+		Hints: map[string]dbus.Variant{
+			"hint-str":  dbus.MakeVariant("str"),
+			"hint-bool": dbus.MakeVariant(true),
+		},
+		Expires: 1000,
+	})
 }
 
-func (s *fdoSuite) TestSendNotificationWithServerDecitedExpireTimeout(c *C) {
-	srv := s.connectWithHandler(c, func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
-		switch n {
-		case 0:
-			s.checkNotifyRequest(c, msg)
-			c.Check(msg.Body[7], Equals, int32(-1))
-			responseSig := dbus.SignatureOf(uint32(0))
-			response := &dbus.Message{
-				Type: dbus.TypeMethodReply,
-				Headers: map[dbus.HeaderField]dbus.Variant{
-					dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
-					dbus.FieldSender:      dbus.MakeVariant(":1"), // This does not matter.
-					// dbus.FieldDestination is provided automatically by DBus test helper.
-					dbus.FieldSignature: dbus.MakeVariant(responseSig),
-				},
-				Body: []interface{}{uint32(7)},
-			}
-			return []*dbus.Message{response}, nil
-		}
-		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
-	})
+func (s *fdoSuite) TestSendNotificationWithServerDecidedExpireTimeout(c *C) {
+	srv := notification.New(s.SessionBus)
 	id, err := srv.SendNotification(&notification.Message{
 		ExpireTimeout: notification.ServerSelectedExpireTimeout,
 	})
 	c.Assert(err, IsNil)
-	c.Check(id, Equals, notification.ID(7))
+
+	c.Check(s.backend.Get(uint32(id)), DeepEquals, &notificationtest.FdoNotification{
+		ID:      uint32(id),
+		Actions: []string{},
+		Hints:   map[string]dbus.Variant{},
+		Expires: -1,
+	})
 }
 
 func (s *fdoSuite) TestSendNotificationError(c *C) {
-	srv := s.connectWithHandler(c, func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
-		switch n {
-		case 0:
-			s.checkNotifyRequest(c, msg)
-			response := s.nameHasNoOwnerResponse(c, msg)
-			return []*dbus.Message{response}, nil
-		}
-		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
-	})
+	s.backend.SetError(&dbus.Error{Name: "org.freedesktop.DBus.Error.Failed"})
+	srv := notification.New(s.SessionBus)
 	_, err := srv.SendNotification(&notification.Message{})
-	c.Assert(err, ErrorMatches, "org.freedesktop.DBus.Error.NameHasNoOwner")
+	c.Assert(err, ErrorMatches, "org.freedesktop.DBus.Error.Failed")
 }
 
 func (s *fdoSuite) TestCloseNotificationSuccess(c *C) {
-	srv := s.connectWithHandler(c, func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
-		switch n {
-		case 0:
-			s.checkCloseNotificationRequest(c, msg)
-			c.Check(msg.Body[0], Equals, uint32(42))
-			response := &dbus.Message{
-				Type: dbus.TypeMethodReply,
-				Headers: map[dbus.HeaderField]dbus.Variant{
-					dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
-					dbus.FieldSender:      dbus.MakeVariant(":1"), // This does not matter.
-					// dbus.FieldDestination is provided automatically by DBus test helper.
-				},
-			}
-			return []*dbus.Message{response}, nil
-		}
-		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
-	})
-	err := srv.CloseNotification(notification.ID(42))
+	srv := notification.New(s.SessionBus)
+	id, err := srv.SendNotification(&notification.Message{})
 	c.Assert(err, IsNil)
+
+	err = srv.CloseNotification(id)
+	c.Assert(err, IsNil)
+	c.Check(s.backend.Get(uint32(id)), IsNil)
 }
 
 func (s *fdoSuite) TestCloseNotificationError(c *C) {
-	srv := s.connectWithHandler(c, func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
-		switch n {
-		case 0:
-			s.checkCloseNotificationRequest(c, msg)
-			response := s.nameHasNoOwnerResponse(c, msg)
-			return []*dbus.Message{response}, nil
-		}
-		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
-	})
+	s.backend.SetError(&dbus.Error{Name: "org.freedesktop.DBus.Error.Failed"})
+	srv := notification.New(s.SessionBus)
 	err := srv.CloseNotification(notification.ID(42))
-	c.Assert(err, ErrorMatches, "org.freedesktop.DBus.Error.NameHasNoOwner")
+	c.Assert(err, ErrorMatches, "org.freedesktop.DBus.Error.Failed")
 }
 
 type testObserver struct {
@@ -344,188 +181,74 @@ func (o *testObserver) ActionInvoked(id notification.ID, actionKey string) error
 	return nil
 }
 
-func (s *fdoSuite) checkAddMatchRequest(c *C, msg *dbus.Message) {
-	c.Assert(msg.Type, Equals, dbus.TypeMethodCall)
-	c.Check(msg.Flags, Equals, dbus.Flags(0))
-	c.Check(msg.Headers, DeepEquals, map[dbus.HeaderField]dbus.Variant{
-		dbus.FieldDestination: dbus.MakeVariant("org.freedesktop.DBus"),
-		dbus.FieldPath:        dbus.MakeVariant(dbus.ObjectPath("/org/freedesktop/DBus")),
-		dbus.FieldInterface:   dbus.MakeVariant("org.freedesktop.DBus"),
-		dbus.FieldMember:      dbus.MakeVariant("AddMatch"),
-		dbus.FieldSignature:   dbus.MakeVariant(dbus.SignatureOf("")),
-	})
-}
-
-func (s *fdoSuite) checkRemoveMatchRequest(c *C, msg *dbus.Message) {
-	c.Assert(msg.Type, Equals, dbus.TypeMethodCall)
-	c.Check(msg.Flags, Equals, dbus.Flags(0))
-	c.Check(msg.Headers, DeepEquals, map[dbus.HeaderField]dbus.Variant{
-		dbus.FieldDestination: dbus.MakeVariant("org.freedesktop.DBus"),
-		dbus.FieldPath:        dbus.MakeVariant(dbus.ObjectPath("/org/freedesktop/DBus")),
-		dbus.FieldInterface:   dbus.MakeVariant("org.freedesktop.DBus"),
-		dbus.FieldMember:      dbus.MakeVariant("RemoveMatch"),
-		dbus.FieldSignature:   dbus.MakeVariant(dbus.SignatureOf("")),
-	})
-}
-
-func (s *fdoSuite) addMatchResponse(c *C, msg *dbus.Message) *dbus.Message {
-	return &dbus.Message{
-		Type: dbus.TypeMethodReply,
-		Headers: map[dbus.HeaderField]dbus.Variant{
-			dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
-			dbus.FieldSender:      dbus.MakeVariant(":1"), // This does not matter.
-			// dbus.FieldDestination is provided automatically by DBus test helper.
-		},
-	}
-}
-
-func (s *fdoSuite) removeMatchResponse(c *C, msg *dbus.Message) *dbus.Message {
-	return &dbus.Message{
-		Type: dbus.TypeMethodReply,
-		Headers: map[dbus.HeaderField]dbus.Variant{
-			dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
-			dbus.FieldSender:      dbus.MakeVariant(":1"), // This does not matter.
-			// dbus.FieldDestination is provided automatically by DBus test helper.
-		},
-	}
-}
-
 func (s *fdoSuite) TestObserveNotificationsContextAndSignalWatch(c *C) {
-	ctx, cancel := context.WithCancel(context.TODO())
-	msgsSeen := 0
-	addMatchSeen := make(chan struct{}, 1)
-	defer close(addMatchSeen)
-	srv := s.connectWithHandler(c, func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
-		msgsSeen++
-		switch n {
-		case 0:
-			s.checkAddMatchRequest(c, msg)
-			c.Check(msg.Body, HasLen, 1)
-			c.Check(msg.Body[0], Equals, "type='signal',sender='org.freedesktop.Notifications',path='/org/freedesktop/Notifications',interface='org.freedesktop.Notifications'")
-			response := s.addMatchResponse(c, msg)
-			addMatchSeen <- struct{}{}
-			return []*dbus.Message{response}, nil
-		case 1:
-			s.checkRemoveMatchRequest(c, msg)
-			c.Check(msg.Body, HasLen, 1)
-			c.Check(msg.Body[0], Equals, "type='signal',sender='org.freedesktop.Notifications',path='/org/freedesktop/Notifications',interface='org.freedesktop.Notifications'")
-			response := s.removeMatchResponse(c, msg)
-			return []*dbus.Message{response}, nil
-		default:
-			return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
-		}
-	})
+	srv := notification.New(s.SessionBus)
 
+	ctx, cancel := context.WithCancel(context.TODO())
+	signalDelivered := make(chan struct{}, 1)
+	defer close(signalDelivered)
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
-		err := srv.ObserveNotifications(ctx, &testObserver{})
+		err := srv.ObserveNotifications(ctx, &testObserver{
+			actionInvoked: func(id notification.ID, actionKey string) error {
+				select {
+				case signalDelivered <- struct{}{}:
+				default:
+				}
+				return nil
+			},
+		})
 		c.Assert(err, ErrorMatches, "context canceled")
 		wg.Done()
 	}()
-	// Wait for the signal that we saw the AddMatch message and then stop.
-	<-addMatchSeen
+	// Send signals until we've got confirmation that the observer
+	// is firing
+	for sendSignal := true; sendSignal; {
+		c.Check(s.backend.InvokeAction(42, "action-key"), IsNil)
+		select {
+		case <-signalDelivered:
+			sendSignal = false
+		default:
+		}
+	}
 	cancel()
 	// Wait for ObserveNotifications to return
 	wg.Wait()
-	c.Check(msgsSeen, Equals, 2)
-}
-
-func (s *fdoSuite) TestObserveNotificationsAddWatchError(c *C) {
-	srv := s.connectWithHandler(c, func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
-		switch n {
-		case 0:
-			s.checkAddMatchRequest(c, msg)
-			response := s.nameHasNoOwnerResponse(c, msg)
-			return []*dbus.Message{response}, nil
-		default:
-			return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
-		}
-	})
-	err := srv.ObserveNotifications(context.TODO(), &testObserver{})
-	c.Assert(err, ErrorMatches, "org.freedesktop.DBus.Error.NameHasNoOwner")
-}
-
-func (s *fdoSuite) TestObserveNotificationsRemoveWatchError(c *C) {
-	logBuffer, restore := logger.MockLogger()
-	defer restore()
-
-	ctx, cancel := context.WithCancel(context.TODO())
-	msgsSeen := 0
-	addMatchSeen := make(chan struct{}, 1)
-	defer close(addMatchSeen)
-	srv := s.connectWithHandler(c, func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
-		msgsSeen++
-		switch n {
-		case 0:
-			s.checkAddMatchRequest(c, msg)
-			response := s.addMatchResponse(c, msg)
-			addMatchSeen <- struct{}{}
-			return []*dbus.Message{response}, nil
-		case 1:
-			s.checkRemoveMatchRequest(c, msg)
-			response := s.nameHasNoOwnerResponse(c, msg)
-			return []*dbus.Message{response}, nil
-		default:
-			return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
-		}
-	})
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		err := srv.ObserveNotifications(ctx, &testObserver{})
-		// The error from RemoveWatch is not clobbering the return value of ObserveNotifications.
-		c.Assert(err, ErrorMatches, "context canceled")
-		c.Check(logBuffer.String(), testutil.Contains, "Cannot remove D-Bus signal matcher: org.freedesktop.DBus.Error.NameHasNoOwner\n")
-		wg.Done()
-	}()
-	// Wait for the signal that we saw the AddMatch message and then stop.
-	<-addMatchSeen
-	cancel()
-	// Wait for ObserveNotifications to return
-	wg.Wait()
-	c.Check(msgsSeen, Equals, 2)
 }
 
 func (s *fdoSuite) TestObserveNotificationsProcessingError(c *C) {
-	msgsSeen := 0
-	srv := s.connectWithHandler(c, func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
-		msgsSeen++
-		switch n {
-		case 0:
-			s.checkAddMatchRequest(c, msg)
-			response := s.addMatchResponse(c, msg)
-			sig := &dbus.Message{
-				Type: dbus.TypeSignal,
-				Headers: map[dbus.HeaderField]dbus.Variant{
-					dbus.FieldPath:      dbus.MakeVariant(dbus.ObjectPath("/org/freedesktop/Notifications")),
-					dbus.FieldInterface: dbus.MakeVariant("org.freedesktop.Notifications"),
-					dbus.FieldMember:    dbus.MakeVariant("ActionInvoked"),
-					dbus.FieldSender:    dbus.MakeVariant("org.freedesktop.Notifications"),
-					dbus.FieldSignature: dbus.MakeVariant(dbus.SignatureOf(uint32(0), "")),
-				},
-				Body: []interface{}{uint32(42), "action-key"},
-			}
-			// Send the DBus response for the method call and an additional signal.
-			return []*dbus.Message{response, sig}, nil
-		case 1:
-			s.checkRemoveMatchRequest(c, msg)
-			response := s.removeMatchResponse(c, msg)
-			return []*dbus.Message{response}, nil
+	srv := notification.New(s.SessionBus)
+
+	signalDelivered := make(chan struct{}, 1)
+	defer close(signalDelivered)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		err := srv.ObserveNotifications(context.TODO(), &testObserver{
+			actionInvoked: func(id notification.ID, actionKey string) error {
+				signalDelivered <- struct{}{}
+				c.Check(id, Equals, notification.ID(42))
+				c.Check(actionKey, Equals, "action-key")
+				return fmt.Errorf("boom")
+			},
+		})
+		c.Log("End of goroutine")
+		c.Check(err, ErrorMatches, "cannot process ActionInvoked signal: boom")
+		wg.Done()
+	}()
+	// We don't know if the other goroutine has set up the signal
+	// match yet, so send signals until we get confirmation.
+	for sendSignal := true; sendSignal; {
+		c.Check(s.backend.InvokeAction(42, "action-key"), IsNil)
+		select {
+		case <-signalDelivered:
+			sendSignal = false
 		default:
-			return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
 		}
-	})
-	err := srv.ObserveNotifications(context.TODO(), &testObserver{
-		actionInvoked: func(id notification.ID, actionKey string) error {
-			c.Check(id, Equals, notification.ID(42))
-			c.Check(actionKey, Equals, "action-key")
-			return fmt.Errorf("boom")
-		},
-	})
-	c.Assert(err, ErrorMatches, "cannot process ActionInvoked signal: boom")
-	c.Check(msgsSeen, Equals, 2)
+	}
+	// Wait for ObserveNotifications to return
+	wg.Wait()
 }
 
 func (s *fdoSuite) TestProcessActionInvokedSignalSuccess(c *C) {

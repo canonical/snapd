@@ -25,7 +25,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 )
@@ -44,8 +46,10 @@ var piConfigKeys = map[string]bool{
 	"overscan_bottom":          true,
 	"overscan_scale":           true,
 	"display_rotate":           true,
+	"hdmi_cvt":                 true,
 	"hdmi_group":               true,
 	"hdmi_mode":                true,
+	"hdmi_timings":             true,
 	"hdmi_drive":               true,
 	"avoid_warnings":           true,
 	"gpu_mem_256":              true,
@@ -87,16 +91,43 @@ func updatePiConfig(path string, config map[string]string) error {
 	return nil
 }
 
-func piConfigFile(opts *fsOnlyContext) string {
+var (
+	errPiConfigNotSupported = fmt.Errorf("configuring pi-config not supported in current mode")
+)
+
+func piConfigFile(opts *fsOnlyContext) (string, error) {
 	rootDir := dirs.GlobalRootDir
+	subdir := "/boot/uboot"
 	if opts != nil {
 		rootDir = opts.RootDir
+	} else {
+		// not a filesystem only apply, so we may be operating on a run system
+		// on UC20, in which case we shouldn't use the /boot/uboot/ option and
+		// instead should use /run/mnt/ubuntu-seed/
+		mode, _, _ := boot.ModeAndRecoverySystemFromKernelCommandLine()
+		switch mode {
+		case boot.ModeRun:
+			rootDir = boot.InitramfsUbuntuSeedDir
+			subdir = ""
+		case boot.ModeInstall, boot.ModeRecover:
+			// we don't support configuring pi-config in these modes as it is
+			// unclear what the right behavior is
+			return "", errPiConfigNotSupported
+		}
 	}
-	return filepath.Join(rootDir, "/boot/uboot/config.txt")
+	return filepath.Join(rootDir, subdir, "config.txt"), nil
 }
 
 func handlePiConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
-	if osutil.FileExists(piConfigFile(opts)) {
+	configFile, err := piConfigFile(opts)
+	if err != nil && err != errPiConfigNotSupported {
+		return err
+	}
+	if err == errPiConfigNotSupported {
+		logger.Debugf("ignoring pi-config settings mode where pi-config changes are unsupported")
+		return nil
+	}
+	if osutil.FileExists(configFile) {
 		// snapctl can actually give us the whole dict in
 		// JSON, in a single call; use that instead of this.
 		config := map[string]string{}
@@ -107,7 +138,7 @@ func handlePiConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
 			}
 			config[key] = output
 		}
-		if err := updatePiConfig(piConfigFile(opts), config); err != nil {
+		if err := updatePiConfig(configFile, config); err != nil {
 			return err
 		}
 	}

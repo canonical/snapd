@@ -83,7 +83,7 @@
 
 
 Name:           snapd
-Version:        2.47.1
+Version:        2.49.2
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -124,6 +124,8 @@ BuildRequires:  glibc-devel-32bit
 BuildRequires:  glibc-devel-static-32bit
 BuildRequires:  gcc-32bit
 %endif
+BuildRequires:  ca-certificates
+BuildRequires:  ca-certificates-mozilla
 
 %if %{with apparmor}
 BuildRequires:  libapparmor-devel
@@ -409,10 +411,12 @@ fi
 %verify(not user group mode) %attr(04755,root,root) %{_libexecdir}/snapd/snap-confine
 %{_bindir}/snap
 %{_bindir}/snapctl
+%{_datadir}/applications/io.snapcraft.SessionAgent.desktop
 %{_datadir}/applications/snap-handle-link.desktop
 %{_datadir}/bash-completion/completions/snap
 %{_datadir}/zsh/site-functions/_snap
 %{_datadir}/dbus-1/services/io.snapcraft.Launcher.service
+%{_datadir}/dbus-1/services/io.snapcraft.SessionAgent.service
 %{_datadir}/dbus-1/services/io.snapcraft.Settings.service
 %{_datadir}/dbus-1/session.d/snapd.session-services.conf
 %{_datadir}/dbus-1/system.d/snapd.system-services.conf

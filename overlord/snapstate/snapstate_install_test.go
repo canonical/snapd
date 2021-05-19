@@ -68,7 +68,9 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 		)
 	}
 	if opts&updatesGadget != 0 {
-		expected = append(expected, "update-gadget-assets")
+		expected = append(expected,
+			"update-gadget-assets",
+			"update-gadget-cmdline")
 	}
 	expected = append(expected,
 		"copy-snap-data",
@@ -78,7 +80,11 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 	expected = append(expected,
 		"auto-connect",
 		"set-auto-aliases",
-		"setup-aliases",
+		"setup-aliases")
+	if opts&updatesBootConfig != 0 {
+		expected = append(expected, "update-managed-boot-config")
+	}
+	expected = append(expected,
 		"run-hook[install]",
 		"start-snap-services")
 	for i := 0; i < discards; i++ {
@@ -116,6 +122,19 @@ func (s *snapmgrTestSuite) TestInstallDevModeConfinementFiltering(c *C) {
 	// if a snap is devmode, you *can* install it with --devmode
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{DevMode: true})
 	c.Assert(err, IsNil)
+
+	// if a model assertion says that it's okay to install a snap (via seeding)
+	// with devmode then you can install it with --devmode
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{ApplySnapDevMode: true})
+	c.Assert(err, IsNil)
+	// and with this, snapstate for the install tasks does not have
+	// ApplySnapDevMode set, but does have DevMode set now.
+	task0 := ts.Tasks()[0]
+	snapsup, err := snapstate.TaskSnapSetup(task0)
+	c.Assert(err, IsNil, Commentf("%#v", task0))
+	c.Assert(snapsup.InstanceName(), Equals, "some-snap")
+	c.Assert(snapsup.DevMode, Equals, true)
+	c.Assert(snapsup.ApplySnapDevMode, Equals, false)
 
 	// if a snap is *not* devmode, you can still install it with --devmode
 	opts.Channel = "channel-for-strict"
@@ -188,7 +207,7 @@ version: 1.0
 	}
 }
 
-func (s *snapmgrTestSuite) TestInstallSnapdSnapType(c *C) {
+func (s *snapmgrTestSuite) TestInstallSnapdSnapTypeOnClassic(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -197,6 +216,24 @@ func (s *snapmgrTestSuite) TestInstallSnapdSnapType(c *C) {
 	c.Assert(err, IsNil)
 
 	verifyInstallTasks(c, noConfigure, 0, ts, s.state)
+
+	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Type, Equals, snap.TypeSnapd)
+}
+
+func (s *snapmgrTestSuite) TestInstallSnapdSnapTypeOnCore(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	ts, err := snapstate.Install(context.Background(), s.state, "snapd", opts, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	verifyInstallTasks(c, noConfigure|updatesBootConfig, 0, ts, s.state)
 
 	snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
 	c.Assert(err, IsNil)
@@ -3596,8 +3633,7 @@ volumes:
 		TrackError:  false,
 	}
 
-	var contextData map[string]interface{}
-	contextData = map[string]interface{}{"patch": gi.Defaults}
+	contextData := map[string]interface{}{"patch": gi.Defaults}
 
 	s.state.Lock()
 	defer s.state.Unlock()

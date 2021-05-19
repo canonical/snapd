@@ -22,31 +22,16 @@ package testutil
 import (
 	"bufio"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/godbus/dbus/v5"
-
 	. "gopkg.in/check.v1"
-)
 
-func dbusSessionBus() (*dbus.Conn, error) {
-	// the test suite *must* use a private connection to the bus to avoid
-	// breaking things for code that might use a shared connection
-	conn, err := dbus.SessionBusPrivate()
-	if err != nil {
-		return nil, err
-	}
-	if err := conn.Auth(nil); err != nil {
-		conn.Close()
-		return nil, err
-	}
-	if err := conn.Hello(); err != nil {
-		conn.Close()
-		return nil, err
-	}
-	return conn, nil
-}
+	"github.com/snapcore/snapd/dbusutil"
+)
 
 // DBusTest provides a separate dbus session bus for running tests
 type DBusTest struct {
@@ -57,6 +42,26 @@ type DBusTest struct {
 	// the dbus.Conn to the session bus that tests can use
 	SessionBus *dbus.Conn
 }
+
+// sessionBusConfigTemplate is a minimal session dbus daemon
+// configuration template for use in the unit tests. In comparison to
+// the typical disto session config, it contains no <servicedir>
+// directives to avoid activating services installed on the test
+// system.
+const sessionBusConfigTemplate = `<busconfig>
+  <type>session</type>
+  <listen>unix:path=%s/user_bus_socket</listen>
+  <auth>EXTERNAL</auth>
+  <policy context="default">
+    <!-- Allow everything to be sent -->
+    <allow send_destination="*" eavesdrop="true"/>
+    <!-- Allow everything to be received -->
+    <allow eavesdrop="true"/>
+    <!-- Allow anyone to own anything -->
+    <allow own="*"/>
+  </policy>
+</busconfig>
+`
 
 func (s *DBusTest) SetUpSuite(c *C) {
 	if _, err := exec.LookPath("dbus-daemon"); err != nil {
@@ -69,7 +74,11 @@ func (s *DBusTest) SetUpSuite(c *C) {
 	}
 
 	s.tmpdir = c.MkDir()
-	s.dbusDaemon = exec.Command("dbus-daemon", "--session", "--print-address", fmt.Sprintf("--address=unix:path=%s/user_bus_socket", s.tmpdir))
+	configFile := filepath.Join(s.tmpdir, "session.conf")
+	err := ioutil.WriteFile(configFile, []byte(fmt.Sprintf(sessionBusConfigTemplate, s.tmpdir)), 0644)
+	c.Assert(err, IsNil)
+	s.dbusDaemon = exec.Command("dbus-daemon", "--print-address", fmt.Sprintf("--config-file=%s", configFile))
+	s.dbusDaemon.Stderr = os.Stderr
 	pout, err := s.dbusDaemon.StdoutPipe()
 	c.Assert(err, IsNil)
 	err = s.dbusDaemon.Start()
@@ -81,7 +90,7 @@ func (s *DBusTest) SetUpSuite(c *C) {
 	s.oldSessionBusEnv = os.Getenv("DBUS_SESSION_BUS_ADDRESS")
 	os.Setenv("DBUS_SESSION_BUS_ADDRESS", scanner.Text())
 
-	s.SessionBus, err = dbusSessionBus()
+	s.SessionBus, err = dbusutil.SessionBusPrivate()
 	c.Assert(err, IsNil)
 }
 

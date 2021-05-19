@@ -10,7 +10,6 @@
 +2:+0 /etc/apparmor /etc/apparmor ro,nodev,relatime master:+14 - squashfs /dev/loop0 ro
 +0:+0 /etc/apparmor.d /etc/apparmor.d ro,nodev,relatime master:+0 - squashfs /dev/loop0 ro
 +0:+0 /etc/nsswitch.conf /etc/nsswitch.conf ro,nodev,relatime master:+0 - squashfs /dev/loop0 ro
-+0:+0 /etc/ssl /etc/ssl ro,nodev,relatime master:+0 - squashfs /dev/loop0 ro
 -2:+0 /home /home rw,relatime master:-14 - ext4 /dev/sda1 rw
 +0:+0 /lib/firmware /lib/firmware rw,relatime master:+0 - ext4 /dev/sda1 rw
 +0:+0 /lib/modules /lib/modules rw,relatime master:+0 - ext4 /dev/sda1 rw
@@ -62,7 +61,7 @@
 +0:+0 /var/lib/snapd /var/lib/snapd rw,relatime master:+0 - ext4 /dev/sda1 rw
 +0:+0 / /var/lib/snapd/hostfs rw,relatime master:+0 - ext4 /dev/sda1 rw
 +0:+0 /var/lib/snapd/hostfs /var/lib/snapd/hostfs rw,relatime - ext4 /dev/sda1 rw
-+0:+1 / /var/lib/snapd/hostfs/boot/efi rw,relatime master:2 - vfat /dev/sda15 rw,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
++0:+1 / /var/lib/snapd/hostfs/boot/efi rw,relatime master:2 - vfat /dev/sda15 rw,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
 +1:+7 / /var/lib/snapd/hostfs/run rw,nosuid,noexec,relatime master:+9 - tmpfs tmpfs rw,size=VARIABLE,mode=755
 +0:+1 / /var/lib/snapd/hostfs/run/lock rw,nosuid,nodev,noexec,relatime master:+1 - tmpfs tmpfs rw,size=VARIABLE
 +0:+1 / /var/lib/snapd/hostfs/run/rpc_pipefs rw,relatime master:+1 - rpc_pipefs sunrpc rw

@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/wrappers"
 )
@@ -40,13 +41,16 @@ type LinkContext struct {
 	// installed
 	FirstInstall bool
 
-	// VitalityRank is used to hint how much the services should be
-	// protected from the OOM killer
-	VitalityRank int
+	// ServiceOptions is used to configure services.
+	ServiceOptions *wrappers.SnapServiceOptions
 
 	// RunInhibitHint is used only in Unlink snap, and can be used to
 	// establish run inhibition lock for refresh operations.
 	RunInhibitHint runinhibit.Hint
+
+	// RequireMountedSnapdSnap indicates that the apps and services
+	// generated when linking need to use tooling from the snapd snap mount.
+	RequireMountedSnapdSnap bool
 }
 
 func updateCurrentSymlinks(info *snap.Info) (e error) {
@@ -188,17 +192,32 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapBinaries)
 
+	vitalityRank := 0
+	var quotaGrp *quota.Group
+	if linkCtx.ServiceOptions != nil {
+		vitalityRank = linkCtx.ServiceOptions.VitalityRank
+		quotaGrp = linkCtx.ServiceOptions.QuotaGroup
+	}
 	// add the daemons from the snap.yaml
 	opts := &wrappers.AddSnapServicesOptions{
-		Preseeding:   b.preseed,
-		VitalityRank: linkCtx.VitalityRank,
+		VitalityRank:            vitalityRank,
+		Preseeding:              b.preseed,
+		RequireMountedSnapdSnap: linkCtx.RequireMountedSnapdSnap,
+		QuotaGroup:              quotaGrp,
 	}
+	// TODO: switch to EnsureSnapServices
 	if err = wrappers.AddSnapServices(s, opts, progress.Null); err != nil {
 		return err
 	}
 	cleanupFuncs = append(cleanupFuncs, func(s *snap.Info) error {
 		return wrappers.RemoveSnapServices(s, progress.Null)
 	})
+
+	// add D-Bus service activation files
+	if err = wrappers.AddSnapDBusActivationFiles(s); err != nil {
+		return err
+	}
+	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapDBusActivationFiles)
 
 	// add the desktop files
 	if err = wrappers.AddSnapDesktopFiles(s); err != nil {
@@ -225,22 +244,27 @@ func removeGeneratedWrappers(s *snap.Info, firstInstallUndo bool, meter progress
 		logger.Noticef("Cannot remove binaries for %q: %v", s.InstanceName(), err1)
 	}
 
-	err2 := wrappers.RemoveSnapServices(s, meter)
+	err2 := wrappers.RemoveSnapDBusActivationFiles(s)
 	if err2 != nil {
-		logger.Noticef("Cannot remove services for %q: %v", s.InstanceName(), err2)
+		logger.Noticef("Cannot remove D-Bus activation for %q: %v", s.InstanceName(), err2)
 	}
 
-	err3 := wrappers.RemoveSnapDesktopFiles(s)
+	err3 := wrappers.RemoveSnapServices(s, meter)
 	if err3 != nil {
-		logger.Noticef("Cannot remove desktop files for %q: %v", s.InstanceName(), err3)
+		logger.Noticef("Cannot remove services for %q: %v", s.InstanceName(), err3)
 	}
 
-	err4 := wrappers.RemoveSnapIcons(s)
+	err4 := wrappers.RemoveSnapDesktopFiles(s)
 	if err4 != nil {
-		logger.Noticef("Cannot remove desktop icons for %q: %v", s.InstanceName(), err4)
+		logger.Noticef("Cannot remove desktop files for %q: %v", s.InstanceName(), err4)
 	}
 
-	return firstErr(err1, err2, err3, err4)
+	err5 := wrappers.RemoveSnapIcons(s)
+	if err5 != nil {
+		logger.Noticef("Cannot remove desktop icons for %q: %v", s.InstanceName(), err5)
+	}
+
+	return firstErr(err1, err2, err3, err4, err5)
 }
 
 func GenerateSnapdWrappers(s *snap.Info) error {

@@ -1,6 +1,6 @@
 summary: Check that the core-fixup-sh script works
 
-# TODO:UC20: enable for UC20, currently fails with "Image not repaired"
+# currently no fixups for UC20, so don't run this test there
 systems: [ubuntu-core-1*]
 
 restore: |

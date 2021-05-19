@@ -22,6 +22,7 @@ package systemd
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -94,6 +95,8 @@ func (m *extMutex) Taken(errMsg string) {
 
 // systemctlCmd calls systemctl with the given args, returning its standard output (and wrapped error)
 var systemctlCmd = func(args ...string) ([]byte, error) {
+	// TODO: including stderr here breaks many things when systemd is in debug
+	// output mode, see LP #1885597
 	bs, err := exec.Command("systemctl", args...).CombinedOutput()
 	if err != nil {
 		exitCode, _ := osutil.ExitCode(err)
@@ -230,6 +233,17 @@ type Systemd interface {
 	// returned in the same order as unit names passed in
 	// argument.
 	Status(units ...string) ([]*UnitStatus, error)
+	// InactiveEnterTimestamp returns the time that the given unit entered the
+	// inactive state as defined by the systemd docs. Specifically, this time is
+	// the most recent time in which the unit transitioned from deactivating
+	// ("Stopping") to dead ("Stopped"). It may be the zero time if this has
+	// never happened during the current boot, since this property is only
+	// tracked during the current boot. It specifically does not return a time
+	// that is monotonic, so the time returned here may be subject to bugs if
+	// there was a discontinuous time jump on the system before or during the
+	// unit's transition to inactive.
+	// TODO: incorporate this result into Status instead?
+	InactiveEnterTimestamp(unit string) (time.Time, error)
 	// IsEnabled checks whether the given service is enabled.
 	IsEnabled(service string) (bool, error)
 	// IsActive checks whether the given service is Active
@@ -250,8 +264,24 @@ type Systemd interface {
 	Umount(whatOrWhere string) error
 }
 
-// A Log is a single entry in the systemd journal
-type Log map[string]string
+// A Log is a single entry in the systemd journal.
+// In almost all cases, the strings map to a single string value, but as per the
+// manpage for journalctl, under the json format,
+//
+//    Journal entries permit non-unique fields within the same log entry. JSON
+//    does not allow non-unique fields within objects. Due to this, if a
+//    non-unique field is encountered a JSON array is used as field value,
+//    listing all field values as elements.
+//
+// and this snippet as well,
+//
+//    Fields containing non-printable or non-UTF8 bytes are
+//    encoded as arrays containing the raw bytes individually
+//    formatted as unsigned numbers.
+//
+// as such, we sometimes get array values which need to be handled differently,
+// so we manually try to decode the json for each message into different types.
+type Log map[string]*json.RawMessage
 
 const (
 	// the default target for systemd units that we generate
@@ -429,6 +459,8 @@ type UnitStatus struct {
 	UnitName string
 	Enabled  bool
 	Active   bool
+	// Installed is false if the queried unit doesn't exist.
+	Installed bool
 }
 
 var baseProperties = []string{"Id", "ActiveState", "UnitFileState"}
@@ -493,7 +525,7 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 		k := string(bs[1])
 		v := string(bs[2])
 
-		if v == "" {
+		if v == "" && k != "UnitFileState" && k != "Type" {
 			return nil, fmt.Errorf("cannot get unit status: empty field %q in ‘systemctl show’ output", k)
 		}
 
@@ -508,6 +540,7 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 		case "UnitFileState":
 			// "static" means it can't be disabled
 			cur.Enabled = v == "enabled" || v == "static"
+			cur.Installed = v != ""
 		default:
 			return nil, fmt.Errorf("cannot get unit status: unexpected field %q in ‘systemctl show’ output", k)
 		}
@@ -524,9 +557,41 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 	return sts, nil
 }
 
+func (s *systemd) getGlobalUserStatus(unitNames ...string) ([]*UnitStatus, error) {
+	// As there is one instance per user, the active state does
+	// not make sense.  We can determine the global "enabled"
+	// state of the services though.
+	cmd := append([]string{"is-enabled"}, unitNames...)
+	if s.rootDir != "" {
+		cmd = append([]string{"--root", s.rootDir}, cmd...)
+	}
+	bs, err := s.systemctl(cmd...)
+	if err != nil {
+		// is-enabled returns non-zero if no units are
+		// enabled.  We still need to examine the output to
+		// track the other units.
+		sysdErr := err.(systemctlError)
+		bs = sysdErr.Msg()
+	}
+
+	results := bytes.Split(bytes.Trim(bs, "\n"), []byte("\n"))
+	if len(results) != len(unitNames) {
+		return nil, fmt.Errorf("cannot get enabled status of services: expected %d results, got %d", len(unitNames), len(results))
+	}
+
+	sts := make([]*UnitStatus, len(unitNames))
+	for i, line := range results {
+		sts[i] = &UnitStatus{
+			UnitName: unitNames[i],
+			Enabled:  bytes.Equal(line, []byte("enabled")) || bytes.Equal(line, []byte("static")),
+		}
+	}
+	return sts, nil
+}
+
 func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 	if s.mode == GlobalUserMode {
-		panic("cannot call status with GlobalUserMode")
+		return s.getGlobalUserStatus(unitNames...)
 	}
 	unitToStatus := make(map[string]*UnitStatus, len(unitNames))
 
@@ -571,6 +636,35 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 	}
 
 	return sts, nil
+}
+
+func (s *systemd) InactiveEnterTimestamp(unit string) (time.Time, error) {
+	// XXX: ignore stderr of systemctl command to avoid further infractions
+	//      around LP #1885597
+	out, err := s.systemctl("show", "--property", "InactiveEnterTimestamp", unit)
+	if err != nil {
+		return time.Time{}, osutil.OutputErr(out, err)
+	}
+	// the time returned by systemctl here will be formatted like so:
+	// InactiveEnterTimestamp=Fri 2021-04-16 15:32:21 UTC
+	// so we have to parse the time with a matching Go time format
+	splitVal := strings.SplitN(strings.TrimSpace(string(out)), "=", 2)
+	if len(splitVal) != 2 {
+		// then we don't have an equals sign in the output, so systemctl must be
+		// broken
+		return time.Time{}, fmt.Errorf("internal error: systemctl output (%s) is malformed", string(out))
+	}
+
+	if splitVal[1] == "" {
+		return time.Time{}, nil
+	}
+
+	// finally parse the time string
+	inactiveEnterTime, err := time.Parse("Mon 2006-01-02 15:04:05 MST", splitVal[1])
+	if err != nil {
+		return time.Time{}, fmt.Errorf("internal error: systemctl time output (%s) is malformed", splitVal[1])
+	}
+	return inactiveEnterTime, nil
 }
 
 func (s *systemd) IsEnabled(serviceName string) (bool, error) {
@@ -732,12 +826,85 @@ func IsTimeout(err error) bool {
 	return isTimeout
 }
 
+func (l Log) parseLogRawMessageString(key string, sliceHandler func([]string) (string, error)) (string, error) {
+	valObject, ok := l[key]
+	if !ok {
+		// NOTE: journalctl says that sometimes if a json string would be too
+		// large null is returned, so we may miss a message here
+		return "", fmt.Errorf("key %q missing from message", key)
+	}
+	if valObject == nil {
+		// NOTE: journalctl says that sometimes if a json string would be too
+		// large null is returned, so in this case the message may be truncated
+		return "", fmt.Errorf("message key %q truncated", key)
+	}
+
+	// first try normal string
+	s := ""
+	err := json.Unmarshal(*valObject, &s)
+	if err == nil {
+		return s, nil
+	}
+
+	// next up, try a list of bytes that is utf-8 next, this is the case if
+	// journald thinks the output is not valid utf-8 or is not printable ascii
+	b := []byte{}
+	err = json.Unmarshal(*valObject, &b)
+	if err == nil {
+		// we have an array of bytes here, and there is a chance that it is
+		// not valid utf-8, but since this feature is used in snapd to present
+		// user-facing messages, we simply let Go do its best to turn the bytes
+		// into a string, with the chance that some byte sequences that are
+		// invalid end up getting replaced with Go's hex encoding of the byte
+		// sequence.
+		// Programs that are concerned with reading the exact sequence of
+		// characters or binary data, etc. should probably talk to journald
+		// directly instead of going through snapd using this API.
+		return string(b), nil
+	}
+
+	// next, try slice of slices of bytes
+	bb := [][]byte{}
+	err = json.Unmarshal(*valObject, &bb)
+	if err == nil {
+		// turn the slice of slices of bytes into a slice of strings to call the
+		// handler on it, see above about how invalid utf8 bytes are handled
+		l := make([]string, 0, len(bb))
+		for _, r := range bb {
+			l = append(l, string(r))
+		}
+		return sliceHandler(l)
+	}
+
+	// finally try list of strings
+	stringSlice := []string{}
+	err = json.Unmarshal(*valObject, &stringSlice)
+	if err == nil {
+		// if the slice is of length 1, just promote it to a plain scalar string
+		if len(stringSlice) == 1 {
+			return stringSlice[0], nil
+		}
+		// otherwise let the caller handle it
+		return sliceHandler(stringSlice)
+	}
+
+	// some examples of input data that would get here would be a raw scalar
+	// number, or a JSON map object, etc.
+	return "", fmt.Errorf("unsupported JSON encoding format")
+}
+
 // Time returns the time the Log was received by the journal.
 func (l Log) Time() (time.Time, error) {
-	sus, ok := l["__REALTIME_TIMESTAMP"]
-	if !ok {
-		return time.Time{}, errors.New("no timestamp")
+	// since the __REALTIME_TIMESTAMP is underscored and thus "trusted" by
+	// systemd, we assume that it will always be a valid string and not try to
+	// handle any possible array cases
+	sus, err := l.parseLogRawMessageString("__REALTIME_TIMESTAMP", func([]string) (string, error) {
+		return "", errors.New("no timestamp")
+	})
+	if err != nil {
+		return time.Time{}, err
 	}
+
 	// according to systemd.journal-fields(7) it's microseconds as a decimal string
 	us, err := strconv.ParseInt(sus, 10, 64)
 	if err != nil {
@@ -749,28 +916,50 @@ func (l Log) Time() (time.Time, error) {
 
 // Message of the Log, if any; otherwise, "-".
 func (l Log) Message() string {
-	if msg, ok := l["MESSAGE"]; ok {
-		return msg
+	// for MESSAGE, if there are multiple strings, just concatenate them with a
+	// newline to keep as much data from journald as possible
+	msg, err := l.parseLogRawMessageString("MESSAGE", func(stringSlice []string) (string, error) {
+		return strings.Join(stringSlice, "\n"), nil
+	})
+	if err != nil {
+		if _, ok := l["MESSAGE"]; !ok {
+			// if the MESSAGE key is just missing, then return "-"
+			return "-"
+		}
+		return fmt.Sprintf("- (error decoding original message: %v)", err)
 	}
-
-	return "-"
+	return msg
 }
 
 // SID is the syslog identifier of the Log, if any; otherwise, "-".
 func (l Log) SID() string {
-	if sid, ok := l["SYSLOG_IDENTIFIER"]; ok {
-		return sid
+	// if there are multiple SYSLOG_IDENTIFIER values, just act like there was
+	// not one, making an arbitrary choice here is probably not helpful
+	sid, err := l.parseLogRawMessageString("SYSLOG_IDENTIFIER", func([]string) (string, error) {
+		return "", fmt.Errorf("multiple identifiers not supported")
+	})
+	if err != nil || sid == "" {
+		return "-"
 	}
-
-	return "-"
+	return sid
 }
 
 // PID is the pid of the client pid, if any; otherwise, "-".
 func (l Log) PID() string {
-	if pid, ok := l["_PID"]; ok {
+	// look for _PID first as that is underscored and thus "trusted" from
+	// systemd, also don't support multiple arrays if we find then
+	multiplePIDsErr := fmt.Errorf("multiple pids not supported")
+	pid, err := l.parseLogRawMessageString("_PID", func([]string) (string, error) {
+		return "", multiplePIDsErr
+	})
+	if err == nil && pid != "" {
 		return pid
 	}
-	if pid, ok := l["SYSLOG_PID"]; ok {
+
+	pid, err = l.parseLogRawMessageString("SYSLOG_PID", func([]string) (string, error) {
+		return "", multiplePIDsErr
+	})
+	if err == nil && pid != "" {
 		return pid
 	}
 
@@ -785,9 +974,12 @@ func MountUnitPath(baseDir string) string {
 
 var squashfsFsType = squashfs.FsType
 
+// XXX: After=zfs-mount.service is a workaround for LP: #1922293 (a problem
+// with order of mounting most likely related to zfs-linux and/or systemd).
 var mountUnitTemplate = `[Unit]
 Description=Mount unit for %s, revision %s
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s

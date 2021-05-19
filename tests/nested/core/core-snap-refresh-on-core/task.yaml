@@ -7,10 +7,6 @@ details: |
 
 systems: [ubuntu-16.04-64]
     
-restore: |
-    rm -f prevBoot nextBoot
-    rm -f core_*.{assert,snap} 
-
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
@@ -23,39 +19,39 @@ execute: |
         exit
     fi
 
-    # Install test snap
+    echo "Install test snap"
     nested_exec "sudo snap install test-snapd-sh"
 
-    # Ensure we have a good starting place
+    echo "Ensure we have a good starting place"
     nested_exec "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
 
-    # go to known good starting place
+    echo "Go to known good starting place"
     nested_exec "snap download core --${NESTED_CORE_CHANNEL}"
     nested_exec "sudo snap ack core_*.assert"
     nested_exec "sudo snap install core_*.snap"
 
-    # Check the initial core is installed and snaps can be executed
+    echo "Check the initial core is installed and snaps can be executed"
     test "$(get_nested_core_revision_installed)" = "${INITIAL_REV}"
 
-    # Ensure test-snapd-sh works
+    echo "Ensure test-snapd-sh works"
     nested_exec "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
 
-    # Refresh
+    echo "Refresh core snap to $NESTED_CORE_REFRESH_CHANNEL"
     refresh_to_new_core "$NESTED_CORE_REFRESH_CHANNEL"
 
-    # After refresh, check new core is installed  
+    echo "After refresh, check new core is installed"
     test "$(get_nested_core_revision_installed)" = "${NEW_REV}"
 
-    # Ensure test-snapd-sh works
+    echo "Ensure test-snapd-sh works"
     nested_exec "test-snapd-sh.sh -c 'echo hello'" | MATCH hello
 
-    # Revert core
+    echo "Revert core"
     nested_exec "sudo snap revert core" || true
     nested_nested_wait_for_no_ssh
     nested_nested_wait_for_ssh
 
-    # After revert, check initial core is installed  
+    echo "After revert, check initial core is installed"
     test "$(get_nested_core_revision_installed)" = "${INITIAL_REV}"
 
-    # Ensure test-snapd-sh works
+    echo "Ensure test-snapd-sh works"
     nested_exec "test-snapd-sh.sh -c 'echo hello'" | MATCH hello

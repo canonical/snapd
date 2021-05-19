@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,6 +20,8 @@
 package devicestate
 
 import (
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -32,7 +34,9 @@ import (
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -45,7 +49,11 @@ import (
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seed"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
@@ -55,6 +63,10 @@ var (
 	cloudInitStatus   = sysconfig.CloudInitStatus
 	restrictCloudInit = sysconfig.RestrictCloudInit
 )
+
+// EarlyConfig is a hook set by configstate that can process early configuration
+// during managers' startup.
+var EarlyConfig func(st *state.State, preloadGadget func() (*gadget.Info, error)) error
 
 // DeviceManager is responsible for managing the device identity and device
 // policies.
@@ -67,7 +79,8 @@ type DeviceManager struct {
 	// save as rw vs ro, or mount/umount it fully on demand
 	saveAvailable bool
 
-	state *state.State
+	state   *state.State
+	hookMgr *hookstate.HookManager
 
 	cachedKeypairMgr asserts.KeypairManager
 
@@ -77,9 +90,13 @@ type DeviceManager struct {
 	bootOkRan            bool
 	bootRevisionsUpdated bool
 
+	seedTimings *timings.Timings
+
 	ensureSeedInConfigRan bool
 
 	ensureInstalledRan bool
+
+	ensureTriedRecoverySystemRan bool
 
 	cloudInitAlreadyRestricted           bool
 	cloudInitErrorAttemptStart           *time.Time
@@ -99,6 +116,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 	m := &DeviceManager{
 		state:    s,
+		hookMgr:  hookManager,
 		newStore: newStore,
 		reg:      make(chan struct{}),
 		preseed:  snapdenv.Preseeding(),
@@ -120,13 +138,15 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		return nil, err
 	}
 
-	hookManager.Register(regexp.MustCompile("^prepare-device$"), newPrepareDeviceHandler)
+	hookManager.Register(regexp.MustCompile("^prepare-device$"), newBasicHookStateHandler)
+	hookManager.Register(regexp.MustCompile("^install-device$"), newBasicHookStateHandler)
 
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
 	runner.AddHandler("mark-preseeded", m.doMarkPreseeded, nil)
 	runner.AddHandler("mark-seeded", m.doMarkSeeded, nil)
 	runner.AddHandler("setup-run-system", m.doSetupRunSystem, nil)
+	runner.AddHandler("restart-system-to-run-mode", m.doRestartSystemToRunMode, nil)
 	runner.AddHandler("prepare-remodeling", m.doPrepareRemodeling, nil)
 	runner.AddCleanup("prepare-remodeling", m.cleanupRemodel)
 	// this *must* always run last and finalizes a remodel
@@ -139,10 +159,30 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	// or gadget snaps. There are no further changes to the boot assets,
 	// unless a new gadget update is deployed.
 	runner.AddHandler("update-gadget-assets", m.doUpdateGadgetAssets, nil)
+	// There is no undo handler for successful boot config update. The
+	// config assets are assumed to be always backwards compatible.
+	runner.AddHandler("update-managed-boot-config", m.doUpdateManagedBootConfig, nil)
+	// kernel command line updates from a gadget supplied file
+	runner.AddHandler("update-gadget-cmdline", m.doUpdateGadgetCommandLine, m.undoUpdateGadgetCommandLine)
 
 	runner.AddBlocked(gadgetUpdateBlocked)
 
+	// wire FDE kernel hook support into boot
+	boot.HasFDESetupHook = m.hasFDESetupHook
+	boot.RunFDESetupHook = m.runFDESetupHook
+	hookManager.Register(regexp.MustCompile("^fde-setup$"), newFdeSetupHandler)
+
 	return m, nil
+}
+
+type genericHook struct{}
+
+func (h genericHook) Before() error         { return nil }
+func (h genericHook) Done() error           { return nil }
+func (h genericHook) Error(err error) error { return nil }
+
+func newBasicHookStateHandler(context *hookstate.Context) hookstate.Handler {
+	return genericHook{}
 }
 
 func maybeReadModeenv() (*boot.Modeenv, error) {
@@ -163,7 +203,11 @@ func (m *DeviceManager) StartUp() error {
 		}
 	}
 
-	return nil
+	// TODO: setup proper timings measurements for this
+
+	m.state.Lock()
+	defer m.state.Unlock()
+	return EarlyConfig(m.state, m.preloadGadget)
 }
 
 func (m *DeviceManager) maybeSetupUbuntuSave() error {
@@ -247,35 +291,16 @@ func gadgetUpdateBlocked(cand *state.Task, running []*state.Task) bool {
 	if cand.Kind() == "update-gadget-assets" && len(running) != 0 {
 		// update-gadget-assets must be the only task running
 		return true
-	} else {
-		for _, other := range running {
-			if other.Kind() == "update-gadget-assets" {
-				// no other task can be started when
-				// update-gadget-assets is running
-				return true
-			}
+	}
+	for _, other := range running {
+		if other.Kind() == "update-gadget-assets" {
+			// no other task can be started when
+			// update-gadget-assets is running
+			return true
 		}
 	}
 
 	return false
-}
-
-type prepareDeviceHandler struct{}
-
-func newPrepareDeviceHandler(context *hookstate.Context) hookstate.Handler {
-	return prepareDeviceHandler{}
-}
-
-func (h prepareDeviceHandler) Before() error {
-	return nil
-}
-
-func (h prepareDeviceHandler) Done() error {
-	return nil
-}
-
-func (h prepareDeviceHandler) Error(err error) error {
-	return nil
 }
 
 func (m *DeviceManager) changeInFlight(kind string) bool {
@@ -465,9 +490,6 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 		prepareDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
 		tasks = append(tasks, prepareDevice)
-		// hooks are under a different manager, make sure we consider
-		// it immediately
-		m.state.EnsureBefore(0)
 	}
 
 	genKey := m.state.NewTask("generate-device-key", i18n.G("Generate device key"))
@@ -508,6 +530,99 @@ func (m *DeviceManager) setTimeOnce(name string, t time.Time) error {
 	return nil
 }
 
+func (m *DeviceManager) seedStart() (*timings.Timings, error) {
+	if m.seedTimings != nil {
+		// reuse the early cached one
+		return m.seedTimings, nil
+	}
+	perfTimings := timings.New(map[string]string{"ensure": "seed"})
+
+	var recordedStart string
+	var start time.Time
+	if m.preseed {
+		recordedStart = "preseed-start-time"
+		start = timeNow()
+	} else {
+		recordedStart = "seed-start-time"
+		start = startTime
+	}
+	if err := m.setTimeOnce(recordedStart, start); err != nil {
+		return nil, err
+	}
+	return perfTimings, nil
+}
+
+func (m *DeviceManager) preloadGadget() (*gadget.Info, error) {
+	var sysLabel string
+	modeEnv, err := maybeReadModeenv()
+	if err != nil {
+		return nil, err
+	}
+	if modeEnv != nil {
+		sysLabel = modeEnv.RecoverySystem
+	}
+
+	// we time preloadGadget + first ensureSeeded together
+	// under --ensure=seed
+	tm, err := m.seedStart()
+	if err != nil {
+		return nil, err
+	}
+	// cached for first ensureSeeded
+	m.seedTimings = tm
+
+	// Here we behave as if there was no gadget if we encounter
+	// errors, under the assumption that those will be resurfaced
+	// in ensureSeed. This preserves having a failing to seed
+	// snapd continuing running.
+	//
+	// TODO: consider changing that again but we need consider the
+	// effect of the different failure mode.
+	//
+	// We also assume that anything sensitive will not be guarded
+	// just by option flags. For example automatic user creation
+	// also requires the model to be known/set. Otherwise ignoring
+	// errors here would be problematic.
+	var deviceSeed seed.Seed
+	timings.Run(tm, "import-assertions[early]", "early import assertions from seed", func(nested timings.Measurer) {
+		deviceSeed, err = loadDeviceSeed(m.state, sysLabel)
+	})
+	if err != nil {
+		// this same error will be resurfaced in ensureSeed later
+		if err != seed.ErrNoAssertions {
+			logger.Debugf("early import assertions from seed failed: %v", err)
+		}
+		return nil, state.ErrNoState
+	}
+	model := deviceSeed.Model()
+	if model.Gadget() == "" {
+		// no gadget
+		return nil, state.ErrNoState
+	}
+	var gi *gadget.Info
+	timings.Run(tm, "preload-verified-gadget-metadata", "preload verified gadget metadata from seed", func(nested timings.Measurer) {
+		gi, err = func() (*gadget.Info, error) {
+			if err := deviceSeed.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, nested); err != nil {
+				return nil, err
+			}
+			essGadget := deviceSeed.EssentialSnaps()
+			if len(essGadget) != 1 {
+				return nil, fmt.Errorf("multiple gadgets among essential snaps are unexpected")
+			}
+			snapf, err := snapfile.Open(essGadget[0].Path)
+			if err != nil {
+				return nil, err
+			}
+			return gadget.ReadInfoFromSnapFile(snapf, model)
+		}()
+	})
+	if err != nil {
+		logger.Noticef("preload verified gadget metadata from seed failed: %v", err)
+		return nil, state.ErrNoState
+	}
+	return gi, nil
+}
+
 var populateStateFromSeed = populateStateFromSeedImpl
 
 // ensureSeeded makes sure that the snaps from seed.yaml get installed
@@ -525,24 +640,17 @@ func (m *DeviceManager) ensureSeeded() error {
 		return nil
 	}
 
-	perfTimings := timings.New(map[string]string{"ensure": "seed"})
-
 	if m.changeInFlight("seed") {
 		return nil
 	}
 
-	var recordedStart string
-	var start time.Time
-	if m.preseed {
-		recordedStart = "preseed-start-time"
-		start = timeNow()
-	} else {
-		recordedStart = "seed-start-time"
-		start = startTime
-	}
-	if err := m.setTimeOnce(recordedStart, start); err != nil {
+	perfTimings, err := m.seedStart()
+	if err != nil {
 		return err
 	}
+	// we time preloadGadget + first ensureSeeded together
+	// succcessive ensureSeeded should be timed separately
+	m.seedTimings = nil
 
 	var opts *populateStateFromSeedOptions
 	if m.preseed {
@@ -663,6 +771,9 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 			// already been permanently disabled, nothing to do
 			m.cloudInitAlreadyRestricted = true
 			return nil
+		case sysconfig.CloudInitNotFound:
+			// no cloud init at all
+			statusMsg = "not found"
 		case sysconfig.CloudInitUntriggered:
 			// hasn't been used
 			statusMsg = "reported to be in disabled state"
@@ -809,11 +920,57 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
+	model, err := m.Model()
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if err != nil {
+		return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
+	}
+
+	// check if the gadget has an install-device hook
+	var hasInstallDeviceHook bool
+
+	gadgetInfo, err := snapstate.CurrentInfo(m.state, model.Gadget())
+	if err != nil {
+		return fmt.Errorf("internal error: device is seeded in install mode but has no gadget snap: %v", err)
+	}
+	hasInstallDeviceHook = (gadgetInfo.Hooks["install-device"] != nil)
+
 	m.ensureInstalledRan = true
 
-	tasks := []*state.Task{}
+	var prev *state.Task
 	setupRunSystem := m.state.NewTask("setup-run-system", i18n.G("Setup system for run mode"))
-	tasks = append(tasks, setupRunSystem)
+
+	tasks := []*state.Task{setupRunSystem}
+	addTask := func(t *state.Task) {
+		t.WaitFor(prev)
+		tasks = append(tasks, t)
+		prev = t
+	}
+	prev = setupRunSystem
+
+	// add the install-device hook before ensure-next-boot-to-run-mode if it
+	// exists in the snap
+	var installDevice *state.Task
+	if hasInstallDeviceHook {
+		summary := i18n.G("Run install-device hook")
+		hooksup := &hookstate.HookSetup{
+			// TODO: what's a reasonable timeout for the install-device hook?
+			Snap: model.Gadget(),
+			Hook: "install-device",
+		}
+		installDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
+		addTask(installDevice)
+	}
+
+	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
+	addTask(restartSystem)
+
+	if installDevice != nil {
+		// reference used by snapctl reboot
+		installDevice.Set("restart-task", restartSystem.ID())
+	}
 
 	chg := m.state.NewChange("install-system", i18n.G("Install the system"))
 	chg.AddAll(state.NewTaskSet(tasks...))
@@ -900,6 +1057,72 @@ func (m *DeviceManager) ensureSeedInConfig() error {
 
 }
 
+func (m *DeviceManager) appendTriedRecoverySystem(label string) error {
+	// state is locked by the caller
+
+	var triedSystems []string
+	if err := m.state.Get("tried-systems", &triedSystems); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if strutil.ListContains(triedSystems, label) {
+		// system already recorded as tried?
+		return nil
+	}
+	triedSystems = append(triedSystems, label)
+	m.state.Set("tried-systems", triedSystems)
+	return nil
+}
+
+func (m *DeviceManager) ensureTriedRecoverySystem() error {
+	if release.OnClassic {
+		return nil
+	}
+	if m.systemMode != "run" {
+		return nil
+	}
+	if m.ensureTriedRecoverySystemRan {
+		return nil
+	}
+
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	outcome, label, err := boot.InspectTryRecoverySystemOutcome(deviceCtx)
+	if err != nil {
+		if !boot.IsInconsistentRecoverySystemState(err) {
+			return err
+		}
+		// boot variables state was inconsistent
+		logger.Noticef("tried recovery system outcome error: %v", err)
+	}
+	switch outcome {
+	case boot.TryRecoverySystemOutcomeSuccess:
+		logger.Noticef("tried recovery system %q was successful", label)
+		if err := m.appendTriedRecoverySystem(label); err != nil {
+			return err
+		}
+	case boot.TryRecoverySystemOutcomeFailure:
+		logger.Noticef("tried recovery system %q failed", label)
+	case boot.TryRecoverySystemOutcomeInconsistent:
+		logger.Noticef("inconsistent outcome of a tried recovery system")
+	case boot.TryRecoverySystemOutcomeNoneTried:
+		// no system was tried
+	}
+	if outcome != boot.TryRecoverySystemOutcomeNoneTried {
+		if err := boot.ClearTryRecoverySystem(deviceCtx, label); err != nil {
+			logger.Noticef("cannot clear tried recovery system status: %v", err)
+			return err
+		}
+	}
+
+	m.ensureTriedRecoverySystemRan = true
+	return nil
+}
+
 type ensureError struct {
 	errs []error
 }
@@ -947,6 +1170,10 @@ func (m *DeviceManager) Ensure() error {
 		}
 
 		if err := m.ensureInstalled(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensureTriedRecoverySystem(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -1094,6 +1321,52 @@ func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return findSerial(m.state, nil)
 }
 
+type SystemModeInfo struct {
+	Mode              string
+	HasModeenv        bool
+	Seeded            bool
+	BootFlags         []string
+	HostDataLocations []string
+}
+
+// SystemModeInfo returns details about the current system mode the device is in.
+func (m *DeviceManager) SystemModeInfo() (*SystemModeInfo, error) {
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err == state.ErrNoState {
+		return nil, fmt.Errorf("cannot report system mode information before device model is acknowledged")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var seeded bool
+	err = m.state.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+
+	mode := m.SystemMode()
+	smi := SystemModeInfo{
+		Mode:       mode,
+		HasModeenv: deviceCtx.HasModeenv(),
+		Seeded:     seeded,
+	}
+	if smi.HasModeenv {
+		bootFlags, err := boot.BootFlags(deviceCtx)
+		if err != nil {
+			return nil, err
+		}
+		smi.BootFlags = bootFlags
+
+		hostDataLocs, err := boot.HostUbuntuDataForMode(mode)
+		if err != nil {
+			return nil, err
+		}
+		smi.HostDataLocations = hostDataLocs
+	}
+	return &smi, nil
+}
+
 type SystemAction struct {
 	Title string
 	Mode  string
@@ -1191,7 +1464,7 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 		systemMode := m.SystemMode()
 		currentSys, err := currentSystemForMode(m.state, systemMode)
 		if err != nil {
-			return fmt.Errorf("cannot get curent system: %v", err)
+			return fmt.Errorf("cannot get current system: %v", err)
 		}
 		systemLabel = currentSys.System
 	}
@@ -1352,4 +1625,118 @@ func (scb storeContextBackend) SignDeviceSessionRequest(serial *asserts.Serial, 
 
 func (m *DeviceManager) StoreContextBackend() storecontext.Backend {
 	return storeContextBackend{m}
+}
+
+func (m *DeviceManager) hasFDESetupHook() (bool, error) {
+	// state must be locked
+	st := m.state
+
+	deviceCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		return false, fmt.Errorf("cannot get device context: %v", err)
+	}
+
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return false, fmt.Errorf("cannot get kernel info: %v", err)
+	}
+	return hasFDESetupHookInKernel(kernelInfo), nil
+}
+
+func (m *DeviceManager) runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
+	// TODO:UC20: when this runs on refresh we need to be very careful
+	// that we never run this when the kernel is not fully configured
+	// i.e. when there are no security profiles for the hook
+
+	// state must be locked
+	st := m.state
+
+	deviceCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get device context to run fde-setup hook: %v", err)
+	}
+	kernelInfo, err := snapstate.KernelInfo(st, deviceCtx)
+	if err != nil {
+		return nil, fmt.Errorf("cannot get kernel info to run fde-setup hook: %v", err)
+	}
+	hooksup := &hookstate.HookSetup{
+		Snap:     kernelInfo.InstanceName(),
+		Revision: kernelInfo.Revision,
+		Hook:     "fde-setup",
+		// XXX: should this be configurable somehow?
+		Timeout: 5 * time.Minute,
+	}
+	contextData := map[string]interface{}{
+		"fde-setup-request": req,
+	}
+	st.Unlock()
+	defer st.Lock()
+	context, err := m.hookMgr.EphemeralRunHook(context.Background(), hooksup, contextData)
+	if err != nil {
+		return nil, fmt.Errorf("cannot run hook for %q: %v", req.Op, err)
+	}
+	// the hook is expected to call "snapctl fde-setup-result" which
+	// will set the "fde-setup-result" value on the task
+	var hookOutput []byte
+	context.Lock()
+	err = context.Get("fde-setup-result", &hookOutput)
+	context.Unlock()
+	if err != nil {
+		return nil, fmt.Errorf("cannot get result from fde-setup hook %q: %v", req.Op, err)
+	}
+	return hookOutput, nil
+}
+
+func (m *DeviceManager) checkFDEFeatures(st *state.State) error {
+	// TODO: move most of this to kernel/fde.Features
+	// Run fde-setup hook with "op":"features". If the hook
+	// returns any {"features":[...]} reply we consider the
+	// hardware supported. If the hook errors or if it returns
+	// {"error":"hardware-unsupported"} we don't.
+	req := &fde.SetupRequest{
+		Op: "features",
+	}
+	output, err := m.runFDESetupHook(req)
+	if err != nil {
+		return err
+	}
+	var res struct {
+		Features []string `json:"features"`
+		Error    string   `json:"error"`
+	}
+	if err := json.Unmarshal(output, &res); err != nil {
+		return fmt.Errorf("cannot parse hook output %q: %v", output, err)
+	}
+	if res.Features == nil && res.Error == "" {
+		return fmt.Errorf(`cannot use hook: neither "features" nor "error" returned`)
+	}
+	if res.Error != "" {
+		return fmt.Errorf("cannot use hook: it returned error: %v", res.Error)
+	}
+	return nil
+}
+
+func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {
+	_, ok := kernelInfo.Hooks["fde-setup"]
+	return ok
+}
+
+type fdeSetupHandler struct {
+	context *hookstate.Context
+}
+
+func newFdeSetupHandler(ctx *hookstate.Context) hookstate.Handler {
+	return fdeSetupHandler{context: ctx}
+}
+
+func (h fdeSetupHandler) Before() error {
+	return nil
+}
+
+func (h fdeSetupHandler) Done() error {
+	return nil
+}
+
+func (h fdeSetupHandler) Error(err error) error {
+	return nil
 }

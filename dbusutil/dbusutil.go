@@ -110,3 +110,24 @@ func MockOnlySessionBusAvailable(conn *dbus.Conn) (restore func()) {
 	sessionBus := func() (*dbus.Conn, error) { return conn, nil }
 	return MockConnections(systemBus, sessionBus)
 }
+
+// SessionBusPrivate opens a connection to the D-Bus session bus
+// independent of the default shared connection.
+func SessionBusPrivate() (*dbus.Conn, error) {
+	if !isSessionBusLikelyPresent() {
+		return nil, fmt.Errorf("cannot find session bus")
+	}
+	conn, err := dbus.SessionBusPrivate()
+	if err != nil {
+		return nil, err
+	}
+	if err := conn.Auth(nil); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	if err := conn.Hello(); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	return conn, nil
+}

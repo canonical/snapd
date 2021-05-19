@@ -2,14 +2,10 @@
 
 set -eux
 
-# shellcheck source=tests/lib/dirs.sh
-. "$TESTSLIB/dirs.sh"
 # shellcheck source=tests/lib/snaps.sh
 . "$TESTSLIB/snaps.sh"
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
-# shellcheck source=tests/lib/boot.sh
-. "$TESTSLIB/boot.sh"
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 
@@ -113,6 +109,8 @@ update_core_snap_for_classic_reexec() {
     # we re-exec by default.
     # To accomplish that, we'll just unpack the core we just grabbed,
     # shove the new snap-exec and snapctl in there, and repack it.
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    LIBEXEC_DIR="$(os.paths libexec-dir)"
 
     # First of all, unmount the core
     core="$(readlink -f "$SNAP_MOUNT_DIR/core/current" || readlink -f "$SNAP_MOUNT_DIR/ubuntu-core/current")"
@@ -124,7 +122,7 @@ update_core_snap_for_classic_reexec() {
     # clean the old snapd binaries, just in case
     rm squashfs-root/usr/lib/snapd/* squashfs-root/usr/bin/snap
     # and copy in the current libexec
-    cp -a "$LIBEXECDIR"/snapd/* squashfs-root/usr/lib/snapd/
+    cp -a "$LIBEXEC_DIR"/snapd/* squashfs-root/usr/lib/snapd/
     # also the binaries themselves
     cp -a /usr/bin/snap squashfs-root/usr/bin/
     # make sure bin/snapctl is a symlink to lib/
@@ -187,7 +185,7 @@ update_core_snap_for_classic_reexec() {
     }
 
     # Make sure we're running with the correct copied bits
-    for p in "$LIBEXECDIR/snapd/snap-exec" "$LIBEXECDIR/snapd/snap-confine" "$LIBEXECDIR/snapd/snap-discard-ns" "$LIBEXECDIR/snapd/snapd" "$LIBEXECDIR/snapd/snap-update-ns"; do
+    for p in "$LIBEXEC_DIR/snapd/snap-exec" "$LIBEXEC_DIR/snapd/snap-confine" "$LIBEXEC_DIR/snapd/snap-discard-ns" "$LIBEXEC_DIR/snapd/snapd" "$LIBEXEC_DIR/snapd/snap-update-ns"; do
         check_file "$p" "$core/usr/lib/snapd/$(basename "$p")"
     done
     for p in /usr/bin/snapctl /usr/bin/snap; do
@@ -280,11 +278,6 @@ prepare_classic() {
         # shellcheck disable=SC2086
         cache_snaps core ${PRE_CACHE_SNAPS}
 
-        echo "Cache the snaps profiler snap"
-        if [ "$PROFILE_SNAPS" = 1 ]; then
-            cache_snaps test-snapd-profiler
-        fi
-
         # now use parameterized core channel (defaults to edge) instead
         # of a fixed one and close to stable in order to detect defects
         # earlier
@@ -304,7 +297,7 @@ prepare_classic() {
 
         echo "Ensure that the bootloader environment output does not contain any of the snap_* variables on classic"
         # shellcheck disable=SC2119
-        output=$(bootenv)
+        output=$("$TESTSTOOLS"/boot-state bootenv show)
         if echo "$output" | MATCH snap_ ; then
             echo "Expected bootloader environment without snap_*, got:"
             echo "$output"
@@ -318,7 +311,7 @@ prepare_classic() {
 
     disable_kernel_rate_limiting
 
-    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+    if os.query is-arch-linux; then
         # Arch packages do not ship empty directories by default, hence there is
         # no /etc/dbus-1/system.d what prevents dbus from properly establishing
         # inotify watch on that path
@@ -461,26 +454,40 @@ EOF
 uc20_build_initramfs_kernel_snap() {
     # carries ubuntu-core-initframfs
     add-apt-repository ppa:snappy-dev/image -y
-    apt install ubuntu-core-initramfs -y
+    # TODO: install the linux-firmware as the current version of
+    # ubuntu-core-initramfs does not depend on it, but nonetheless requires it
+    # to build the initrd
+    apt install ubuntu-core-initramfs linux-firmware -y
 
     local ORIG_SNAP="$1"
     local TARGET="$2"
 
+    # TODO proper option support here would be nice but bash is hard and this is
+    # easier, and likely we won't need to both inject a panic and set the epoch
+    # bump simultaneously
     local injectKernelPanic=false
-    injectKernelPanicArg=${3:-}
-    if [ "$injectKernelPanicArg" = "--inject-kernel-panic-in-initramfs" ]; then
-        injectKernelPanic=true
-    fi
+    local initramfsEpochBumpTime
+    initramfsEpochBumpTime=$(date '+%s')
+    optArg=${3:-}
+    case "$optArg" in
+        --inject-kernel-panic-in-initramfs)
+            injectKernelPanic=true
+            ;;
+        --epoch-bump-time=*)
+            # this strips the option and just gives us the value
+            initramfsEpochBumpTime="${optArg#--epoch-bump-time=}"
+            ;;
+    esac
     
     # kernel snap is huge, unpacking to current dir
     unsquashfs -d repacked-kernel "$ORIG_SNAP"
-
 
     # repack initrd magic, beware
     # assumptions: initrd is compressed with LZ4, cpio block size 512, microcode
     # at the beginning of initrd image
     (
         cd repacked-kernel
+        unpackeddir="$PWD"
         #shellcheck disable=SC2010
         kver=$(ls "config"-* | grep -Po 'config-\K.*')
 
@@ -503,13 +510,33 @@ uc20_build_initramfs_kernel_snap() {
         # modify the-tool to verify that our version is used when booting - this
         # is verified in the tests/core/basic20 spread test
         sed -i -e 's/set -e/set -ex/' "$skeletondir/main/usr/lib/the-tool"
-        echo "" >> "$skeletondir/main/usr/lib/the-tool"
-        echo "if test -d /run/mnt/data/system-data; then touch /run/mnt/data/system-data/the-tool-ran; fi" >> \
-            "$skeletondir/main/usr/lib/the-tool"
+        # also save the time before snap-bootstrap runs
+        sed -i -e "s@/usr/lib/snapd/snap-bootstrap@beforeDate=\$(date --utc \'+%s\'); /usr/lib/snapd/snap-bootstrap@"  "$skeletondir/main/usr/lib/the-tool"
+        {
+            echo "" 
+            echo "if test -d /run/mnt/data/system-data; then touch /run/mnt/data/system-data/the-tool-ran; fi" 
+            # also copy the time for the clock-epoch to system-data, this is 
+            # used by a specific test but doesn't hurt anything to do this for 
+            # all tests
+            echo "mode=\$(grep -Eo 'snapd_recovery_mode=([a-z]+)' /proc/cmdline)"
+            echo "mode=\${mode##snapd_recovery_mode=}"
+            echo "stat -c '%Y' /usr/lib/clock-epoch >> /run/mnt/ubuntu-seed/\${mode}-clock-epoch"
+            echo "echo \"\$beforeDate\" > /run/mnt/ubuntu-seed/\${mode}-before-snap-bootstrap-date"
+            echo "date --utc '+%s' > /run/mnt/ubuntu-seed/\${mode}-after-snap-bootstrap-date"
+        } >> "$skeletondir/main/usr/lib/the-tool"
 
         if [ "$injectKernelPanic" = "true" ]; then
             # add a kernel panic to the end of the-tool execution
             echo "echo 'forcibly panicing'; echo c > /proc/sysrq-trigger" >> "$skeletondir/main/usr/lib/the-tool"
+        fi
+
+        # bump the epoch time file timestamp, converting unix timestamp to 
+        # touch's date format
+        touch -t "$(date --utc "--date=@$initramfsEpochBumpTime" '+%Y%m%d%H%M')" "$skeletondir/main/usr/lib/clock-epoch"
+
+        # copy any extra files to the same location inside the initrd
+        if [ -d ../extra-initrd/ ]; then
+            cp -a ../extra-initrd/* "$skeletondir"/main
         fi
 
         # XXX: need to be careful to build an initrd using the right kernel
@@ -519,10 +546,14 @@ uc20_build_initramfs_kernel_snap() {
             # accommodate assumptions about tree layout, use the unpacked initrd
             # to pick up the right modules
             cd unpacked-initrd/main
+            # XXX: pass feature 'main' and u-c-i picks up any directory named
+            # after feature inside skeletondir and uses that a template
             ubuntu-core-initramfs create-initrd \
                                   --kernelver "$kver" \
                                   --skeleton "$skeletondir" \
-                                  --kerneldir "lib/modules" \
+                                  --kerneldir "lib/modules/$kver" \
+                                  --firmwaredir "$unpackeddir/firmware" \
+                                  --feature 'main' \
                                   --output ../../repacked-initrd
         )
 
@@ -578,6 +609,11 @@ uc20_build_initramfs_kernel_snap() {
         rm -rf fake
     )
 
+    # copy any extra files that tests may need for the kernel
+    if [ -d ./extra-kernel-snap/ ]; then
+        cp -a ./extra-kernel-snap/* ./repacked-kernel
+    fi
+    
     snap pack repacked-kernel "$TARGET"
     rm -rf repacked-kernel
 }
@@ -737,10 +773,8 @@ setup_reflash_magic() {
     snap model --verbose
     # remove the above debug lines once the mentioned bug is fixed
     snap install "--channel=${CORE_CHANNEL}" "$core_name"
-    if os.query is-core16 || os.query is-core18; then
-        UNPACK_DIR="/tmp/$core_name-snap"
-        unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
-    fi
+    UNPACK_DIR="/tmp/$core_name-snap"
+    unsquashfs -no-progress -d "$UNPACK_DIR" /var/lib/snapd/snaps/${core_name}_*.snap
 
     # install ubuntu-image
     snap install --classic --edge ubuntu-image
@@ -917,13 +951,19 @@ EOF
           /home/gopath /mnt/user-data/
     elif os.query is-core20; then
         # prepare passwd for run-mode-overlay-data
+
+        # use /etc/{group,passwd,shadow,gshadow} from the core20 snap, merged
+        # with some bits from our current system - we don't want to use the
+        # /etc/group from the current system as classic and core gids and uids
+        # don't match, but we still need the same test/ubuntu/root user info
+        # in core as we currently have in classic
         mkdir -p /root/test-etc
         mkdir -p /var/lib/extrausers
         touch /var/lib/extrausers/sub{uid,gid}
         for f in group gshadow passwd shadow; do
-            grep -v "^root:" /etc/"$f" > /root/test-etc/"$f"
+            grep -v "^root:" "$UNPACK_DIR/etc/$f" > /root/test-etc/"$f"
             grep "^root:" /etc/"$f" >> /root/test-etc/"$f"
-            chgrp --reference /etc/"$f" /root/test-etc/"$f"
+            chgrp --reference "$UNPACK_DIR/etc/$f" /root/test-etc/"$f"
             # create /var/lib/extrausers/$f
             # append ubuntu, test user for the testing
             grep "^test:" /etc/"$f" >> /var/lib/extrausers/"$f"
@@ -932,8 +972,9 @@ EOF
             MATCH "^test:" </var/lib/extrausers/"$f"
             MATCH "^ubuntu:" </var/lib/extrausers/"$f"
         done
-        # Make sure systemd-journal group has the "test" user as a member. Due to the way we copy that from the host
-        # and merge it from the core snap this is done explicitly as a second step.
+        # Make sure systemd-journal group has the "test" user as a member. Due
+        # to the way we copy that from the host and merge it from the core snap
+        # this is done explicitly as a second step.
         sed -r -i -e 's/^systemd-journal:x:([0-9]+):$/systemd-journal:x:\1:test/' /root/test-etc/group
         tar -c -z \
           --exclude '*.a' \
@@ -959,22 +1000,36 @@ EOF
     # the reflash magic
     # FIXME: ideally in initrd, but this is good enough for now
     cat > "$IMAGE_HOME/reflash.sh" << EOF
-#!/bin/sh -ex
-mount -t tmpfs none /tmp
-cp /bin/busybox /tmp
-cp $IMAGE_HOME/$IMAGE /tmp
-sync
+#!/tmp/busybox sh
+set -e
+set -x
+
 # blow away everything
 OF=/dev/sda
 if [ -e /dev/vda ]; then
     OF=/dev/vda
 fi
-/tmp/busybox dd if=/tmp/$IMAGE of=\$OF bs=4M
+dd if=/tmp/$IMAGE of=\$OF bs=4M
 # and reboot
-/tmp/busybox sync
-/tmp/busybox echo b > /proc/sysrq-trigger
+sync
+echo b > /proc/sysrq-trigger
+
+EOF
+
+    cat > "$IMAGE_HOME/prep-reflash.sh" << EOF
+#!/bin/sh -ex
+mount -t tmpfs none /tmp
+cp /bin/busybox /tmp
+cp $IMAGE_HOME/reflash.sh /tmp
+cp $IMAGE_HOME/$IMAGE /tmp
+sync
+
+# re-exec using busybox from /tmp
+exec /tmp/reflash.sh
+
 EOF
     chmod +x "$IMAGE_HOME/reflash.sh"
+    chmod +x "$IMAGE_HOME/prep-reflash.sh"
 
     DEVPREFIX=""
     if os.query is-core20; then
@@ -986,7 +1041,7 @@ EOF
 set default=0
 set timeout=2
 menuentry 'flash-all-snaps' {
-linux $DEVPREFIX/vmlinuz root=$ROOT ro init=$IMAGE_HOME/reflash.sh console=ttyS0
+linux $DEVPREFIX/vmlinuz root=$ROOT ro init=$IMAGE_HOME/prep-reflash.sh console=tty1 console=ttyS0
 initrd $DEVPREFIX/initrd.img
 }
 EOF
@@ -1069,15 +1124,6 @@ prepare_ubuntu_core() {
         cache_snaps core
         if os.query is-core18; then
             cache_snaps test-snapd-sh-core18
-        fi
-    fi
-
-    echo "Cache the snaps profiler snap"
-    if [ "$PROFILE_SNAPS" = 1 ]; then
-        if os.query is-core18; then
-            cache_snaps test-snapd-profiler-core18
-        else
-            cache_snaps test-snapd-profiler
         fi
     fi
 

@@ -865,6 +865,7 @@ type AppInfo struct {
 	Completer       string
 	RefreshMode     string
 	StopMode        StopModeType
+	InstallMode     string
 
 	// TODO: this should go away once we have more plumbing and can change
 	// things vs refactor
@@ -1315,14 +1316,22 @@ func SortServices(apps []*AppInfo) (sorted []*AppInfo, err error) {
 	// count of predecessors (i.e. incoming edges) of given app
 	predecessors := make(map[string]int, len(apps))
 
+	// identify the successors and predecessors of each app, input data set may
+	// be a subset of all apps in the snap (eg. when restarting only few select
+	// apps), thus make sure to look only at those after/before apps that are
+	// listed in the input
 	for _, app := range apps {
 		for _, other := range app.After {
-			predecessors[app.Name]++
-			successors[other] = append(successors[other], app)
+			if _, ok := nameToApp[other]; ok {
+				predecessors[app.Name]++
+				successors[other] = append(successors[other], app)
+			}
 		}
 		for _, other := range app.Before {
-			predecessors[other]++
-			successors[app.Name] = append(successors[app.Name], nameToApp[other])
+			if _, ok := nameToApp[other]; ok {
+				predecessors[other]++
+				successors[app.Name] = append(successors[app.Name], nameToApp[other])
+			}
 		}
 	}
 
