@@ -603,6 +603,7 @@ func (s *autorefreshGatingSuite) TestAutorefreshPhase1FeatureFlag(c *C) {
 	_, tss, err = snapstate.AutoRefresh(context.TODO(), st)
 	c.Check(err, IsNil)
 	c.Assert(tss, HasLen, 2)
+	// TODO: verify conditional-auto-refresh task data
 	c.Check(tss[0].Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
 	c.Check(tss[1].Tasks()[0].Kind(), Equals, "run-hook")
 }

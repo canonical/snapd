@@ -1867,10 +1867,6 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 		if err := checkChangeConflictIgnoringOneChange(st, up.InstanceName(), snapst, fromChange); err != nil {
 			logger.Noticef("cannot refresh snap %q: %v", up.InstanceName(), err)
 		} else {
-			// all snaps in updates are now considered to be operated on and should
-			// provoke conflicts until updated or until we know (after running
-			// gate-auto-refresh hooks) that some are not going to be updated
-			// and can stop conflicting.
 			updates = append(updates, up)
 		}
 	}
@@ -1878,6 +1874,11 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 	if len(updates) == 0 {
 		return nil, nil, nil
 	}
+
+	// all snaps in updates are now considered to be operated on and should
+	// provoke conflicts until updated or until we know (after running
+	// gate-auto-refresh hooks) that some are not going to be updated
+	// and can stop conflicting.
 
 	affectedSnaps, err := affectedByRefresh(st, updates)
 	if err != nil {
