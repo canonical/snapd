@@ -59,6 +59,7 @@ func (s *deviceMgrBootconfigSuite) SetUpTest(c *C) {
 	defer s.state.Unlock()
 
 	devicestate.SetBootOkRan(s.mgr, true)
+	devicestate.SetTriedSystemsRan(s.mgr, true)
 	si := &snap.SideInfo{
 		RealName: "pc",
 		Revision: snap.R(33),

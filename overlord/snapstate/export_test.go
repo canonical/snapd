@@ -318,4 +318,7 @@ func MockSecurityProfilesDiscardLate(fn func(snapName string, rev snap.Revision,
 // autorefresh gating
 type AffectedSnapInfo = affectedSnapInfo
 
-var CreateGateAutoRefreshHooks = createGateAutoRefreshHooks
+var (
+	CreateGateAutoRefreshHooks = createGateAutoRefreshHooks
+	AutoRefreshPhase1          = autoRefreshPhase1
+)

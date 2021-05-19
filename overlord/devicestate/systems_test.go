@@ -466,7 +466,7 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 	// seed writer
 	newFiles, dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(modelWithUnasserted, "1234unasserted", s.db, infoGetter)
 
-	c.Assert(err, ErrorMatches, "mkdir .*/ubuntu-seed/systems/1234unasserted: file exists")
+	c.Assert(err, ErrorMatches, `system "1234unasserted" already exists`)
 	// we failed early
 	c.Check(newFiles, HasLen, 0)
 	c.Check(dir, Equals, "")
