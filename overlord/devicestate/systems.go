@@ -192,6 +192,11 @@ func seededSystemFromModeenv() (*seededSystem, error) {
 // an 'optional' presence in the model, will be added to the recovery system.
 type getSnapInfoFunc func(name string) (info *snap.Info, snapIsPresent bool, err error)
 
+// snapWriteObserveFunc is called with the recovery system directory and the
+// path to a snap file being written. The snap file may be written to a location
+// under the common snaps directory.
+type snapWriteObserveFunc func(systemDir, where string) error
+
 // createSystemForModelFromValidatedSnaps creates a new recovery system for the
 // specified model with the specified label using the snaps in the database and
 // the getInfo function.
@@ -201,9 +206,9 @@ type getSnapInfoFunc func(name string) (info *snap.Info, snapIsPresent bool, err
 // recovery system - some snaps may be in the recovery system directory while
 // others may be in the common snaps directory shared between multiple recovery
 // systems on ubuntu-seed.
-func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, db asserts.RODatabase, getInfo getSnapInfoFunc) (newFiles []string, dir string, err error) {
+func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, db asserts.RODatabase, getInfo getSnapInfoFunc, observeWrite snapWriteObserveFunc) (dir string, err error) {
 	if model.Grade() == asserts.ModelGradeUnset {
-		return nil, "", fmt.Errorf("cannot create a system for non UC20 model")
+		return "", fmt.Errorf("cannot create a system for non UC20 model")
 	}
 
 	logger.Noticef("creating recovery system with label %q for %q", label, model.Model())
@@ -220,7 +225,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 	}
 	w, err := seedwriter.New(model, wOpts)
 	if err != nil {
-		return nil, "", err
+		return "", err
 	}
 
 	optsSnaps := make([]*seedwriter.OptionsSnap, 0, len(model.RequiredWithEssentialSnaps()))
@@ -266,22 +271,22 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 	for _, sn := range model.EssentialSnaps() {
 		const essential = true
 		if err := getModelSnap(sn.SnapName(), essential, ""); err != nil {
-			return nil, "", err
+			return "", err
 		}
 	}
 	// snapd is implicitly needed
 	const snapdIsEssential = true
 	if err := getModelSnap("snapd", snapdIsEssential, ""); err != nil {
-		return nil, "", err
+		return "", err
 	}
 	for _, sn := range model.SnapsWithoutEssential() {
 		const essential = false
 		if err := getModelSnap(sn.SnapName(), essential, sn.Presence); err != nil {
-			return nil, "", err
+			return "", err
 		}
 	}
 	if err := w.SetOptionsSnaps(optsSnaps); err != nil {
-		return nil, "", err
+		return "", err
 	}
 
 	newFetcher := func(save func(asserts.Assertion) error) asserts.Fetcher {
@@ -292,19 +297,19 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 	}
 	f, err := w.Start(db, newFetcher)
 	if err != nil {
-		return nil, "", err
+		return "", err
 	}
 	// past this point the system directory is present
 
 	localSnaps, err := w.LocalSnaps()
 	if err != nil {
-		return nil, recoverySystemDir, err
+		return recoverySystemDir, err
 	}
 
 	for _, sn := range localSnaps {
 		info, ok := modelSnaps[sn.Path]
 		if !ok {
-			return nil, recoverySystemDir, fmt.Errorf("internal error: no snap info for %q", sn.Path)
+			return recoverySystemDir, fmt.Errorf("internal error: no snap info for %q", sn.Path)
 		}
 		// TODO: the side info derived here can be different from what
 		// we have in snap.Info, but getting it this way can be
@@ -313,29 +318,29 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		_, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, f, db)
 		if err != nil {
 			if !asserts.IsNotFound(err) {
-				return nil, recoverySystemDir, err
+				return recoverySystemDir, err
 			} else if info.SnapID != "" {
 				// snap info from state must have come
 				// from the store, so it is unexpected
 				// if no assertions for it were found
-				return nil, recoverySystemDir, fmt.Errorf("internal error: no assertions for asserted snap with ID: %v", info.SnapID)
+				return recoverySystemDir, fmt.Errorf("internal error: no assertions for asserted snap with ID: %v", info.SnapID)
 			}
 		}
 		if err := w.SetInfo(sn, info); err != nil {
-			return nil, recoverySystemDir, err
+			return recoverySystemDir, err
 		}
 		sn.ARefs = aRefs
 	}
 
 	if err := w.InfoDerived(); err != nil {
-		return nil, recoverySystemDir, err
+		return recoverySystemDir, err
 	}
 
 	for {
 		// get the list of snaps we need in this iteration
 		toDownload, err := w.SnapsToDownload()
 		if err != nil {
-			return nil, recoverySystemDir, err
+			return recoverySystemDir, err
 		}
 		// which should be empty as all snaps should be accounted for
 		// already
@@ -344,12 +349,12 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 			for _, sn := range toDownload {
 				which = append(which, sn.SnapName())
 			}
-			return nil, recoverySystemDir, fmt.Errorf("internal error: need to download snaps: %v", strings.Join(which, ", "))
+			return recoverySystemDir, fmt.Errorf("internal error: need to download snaps: %v", strings.Join(which, ", "))
 		}
 
 		complete, err := w.Downloaded()
 		if err != nil {
-			return nil, recoverySystemDir, err
+			return recoverySystemDir, err
 		}
 		if complete {
 			logger.Debugf("snap processing for creating %q complete", label)
@@ -363,7 +368,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 
 	unassertedSnaps, err := w.UnassertedSnaps()
 	if err != nil {
-		return nil, recoverySystemDir, err
+		return recoverySystemDir, err
 	}
 	if len(unassertedSnaps) > 0 {
 		locals := make([]string, len(unassertedSnaps))
@@ -383,19 +388,24 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		// destination already exists if it is not in the asserted snaps we
 		// should copy it
 		logger.Noticef("copying new seed snap %q from %v to %v", name, src, dst)
-		newFiles = append(newFiles, dst)
+
+		if observeWrite != nil {
+			if err := observeWrite(recoverySystemDir, dst); err != nil {
+				return err
+			}
+		}
 		return osutil.CopyFile(src, dst, 0)
 	}
 	if err := w.SeedSnaps(copySnap); err != nil {
-		return newFiles, recoverySystemDir, err
+		return recoverySystemDir, err
 	}
 	if err := w.WriteMeta(); err != nil {
-		return newFiles, recoverySystemDir, err
+		return recoverySystemDir, err
 	}
 
 	bootSnaps, err := w.BootSnaps()
 	if err != nil {
-		return newFiles, recoverySystemDir, err
+		return recoverySystemDir, err
 	}
 	bootWith := &boot.RecoverySystemBootableSet{}
 	for _, sn := range bootSnaps {
@@ -408,9 +418,9 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		}
 	}
 	if err := boot.MakeRecoverySystemBootable(boot.InitramfsUbuntuSeedDir, recoverySystemDirInRootDir, bootWith); err != nil {
-		return newFiles, recoverySystemDir, fmt.Errorf("cannot make candidate recovery system %q bootable: %v", label, err)
+		return recoverySystemDir, fmt.Errorf("cannot make candidate recovery system %q bootable: %v", label, err)
 	}
 	logger.Noticef("created recovery system %q", label)
 
-	return newFiles, recoverySystemDir, nil
+	return recoverySystemDir, nil
 }
