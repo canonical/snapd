@@ -1,0 +1,19 @@
+summary: Ensure that the polkit interface works.
+
+systems: [-ubuntu-core-*]
+
+prepare: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-pk-service
+
+execute: |
+    echo "Snapd has installed the policy file for the service"
+    test -f /usr/share/polkit-1/actions/snap.test-snapd-pk-service.interface.polkit.policy
+    echo "The contents match the file provided by the snap"
+    cmp /usr/share/polkit-1/actions/snap.test-snapd-pk-service.interface.polkit.policy ./test-snapd-pk-service/meta/polkit.policy
+
+    this_pid=$$
+    echo "The snap can talk to polkitd"
+    test-snapd-pk-service.check-pid $this_pid org.example.foo.AlwaysAllow \
+      | MATCH '^\(\(true, false,'
+    test-snapd-pk-service.check-pid $this_pid org.example.foo.AlwaysDeny \
+      | MATCH '^\(\(false, false,'
