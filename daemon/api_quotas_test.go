@@ -55,6 +55,9 @@ func (s *apiQuotaSuite) SetUpTest(c *check.C) {
 
 	r := servicestate.MockSystemdVersion(248)
 	s.AddCleanup(r)
+
+	// POST requires root
+	s.expectedWriteAccess = daemon.RootAccess{}
 }
 
 func mockQuotas(st *state.State, c *check.C) {
