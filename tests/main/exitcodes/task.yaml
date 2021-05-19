@@ -2,12 +2,6 @@ summary: Checks for snap exit codes
 
 systems: [ubuntu-1*, ubuntu-2*]
 
-prepare: |
-    tests.cleanup prepare
-
-restore: |
-    tests.cleanup restore
-
 execute: |
     echo "snap command with unknown command return exit code 5"
     set +e

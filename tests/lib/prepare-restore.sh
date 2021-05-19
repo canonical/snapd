@@ -8,10 +8,6 @@ set -e
 # shellcheck source=tests/lib/quiet.sh
 . "$TESTSLIB/quiet.sh"
 
-# XXX: dirs.sh has side-effects
-# shellcheck source=tests/lib/dirs.sh
-. "$TESTSLIB/dirs.sh"
-
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
 
@@ -599,17 +595,6 @@ prepare_suite() {
     "$TESTSLIB"/reset.sh --reuse-core
 }
 
-install_snap_profiler(){
-    echo "install snaps profiler"
-
-    if [ "$PROFILE_SNAPS" = 1 ]; then
-        profiler_snap="$(get_snap_for_system test-snapd-profiler)"
-        rm -f "/var/snap/${profiler_snap}/common/profiler.log"
-        snap install "${profiler_snap}"
-        snap connect "${profiler_snap}":system-observe
-    fi
-}
-
 prepare_suite_each() {
     local variant="$1"
 
@@ -629,9 +614,6 @@ prepare_suite_each() {
     "$TESTSTOOLS"/journal-state start-new-log
 
     if [[ "$variant" = full ]]; then
-        echo "Install the snaps profiler snap"
-        install_snap_profiler
-
         # shellcheck source=tests/lib/prepare.sh
         . "$TESTSLIB"/prepare.sh
         if os.query is-classic; then
@@ -659,24 +641,11 @@ restore_suite_each() {
 
     rm -f "$RUNTIME_STATE_PATH/audit-stamp"
 
+    # Run the cleanup restore in case the commands have not been restored
+    tests.cleanup restore
+
     # restore test directory saved during prepare
     tests.backup restore
-
-    if [[ "$variant" = full && "$PROFILE_SNAPS" = 1 ]]; then
-        echo "Save snaps profiler log"
-        local logs_id logs_dir logs_file
-        logs_dir="$RUNTIME_STATE_PATH/logs"
-        logs_id=$(find "$logs_dir" -maxdepth 1 -name '*.journal.log' | wc -l)
-        logs_file=$(echo "${logs_id}_${SPREAD_JOB}" | tr '/' '_' | tr ':' '__')
-
-        profiler_snap="$(get_snap_for_system test-snapd-profiler)"
-
-        mkdir -p "$logs_dir"
-        if [ -e "/var/snap/${profiler_snap}/common/profiler.log" ]; then
-            cp -f "/var/snap/${profiler_snap}/common/profiler.log" "${logs_dir}/${logs_file}.profiler.log"
-        fi
-        "$TESTSTOOLS"/journal-state get-log > "${logs_dir}/${logs_file}.journal.log"
-    fi
 
     # On Arch it seems that using sudo / su for working with the test user
     # spawns the /run/user/12345 tmpfs for XDG_RUNTIME_DIR which asynchronously

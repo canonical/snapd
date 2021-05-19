@@ -6,11 +6,11 @@ execute: |
         snap debug sandbox-features | grep "confinement-options: " | not MATCH "classic"
         snap debug sandbox-features | MATCH "apparmor: .+"
         ;;
-    ubuntu-*|opensuse-*|debian-sid-*|arch-linux-*)
+    ubuntu-*|opensuse-*|debian-10-*|debian-sid-*|arch-linux-*)
         # Debian, openSUSE, Arch because partial apparmor is enabled
         snap debug sandbox-features | MATCH "apparmor: .+"
         ;;
-    fedora-*|debian-*)
+    fedora-*|debian-9-*)
         # Fedora because it uses SELinux
         snap debug sandbox-features | not MATCH "apparmor: .+"
         ;;

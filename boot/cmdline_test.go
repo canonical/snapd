@@ -215,6 +215,11 @@ func (s *kernelCommandLineSuite) TestComposeCandidateRecoveryCommandLineManagedH
 	c.Check(cmdline, Equals, "")
 }
 
+const gadgetSnapYaml = `name: gadget
+version: 1.0
+type: gadget
+`
+
 func (s *kernelCommandLineSuite) TestComposeCommandLineWithGadget(c *C) {
 	model := boottest.MakeMockUC20Model()
 
@@ -351,11 +356,6 @@ func (s *kernelCommandLineSuite) TestComposeRecoveryCommandLineWithGadget(c *C) 
 		}
 	}
 }
-
-const gadgetSnapYaml = `name: gadget
-version: 1.0
-type: gadget
-`
 
 func (s *kernelCommandLineSuite) TestBootVarsForGadgetCommandLine(c *C) {
 	for _, tc := range []struct {

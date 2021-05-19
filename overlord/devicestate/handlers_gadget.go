@@ -227,18 +227,17 @@ func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, 
 		// pre UC20 system, do nothing
 		return false, nil
 	}
-	// but when undoing, we use the current gadget which should have
-	// been restored
-	currentGadgetData, err := currentGadgetInfo(st, devCtx)
-	if err != nil {
-		return false, err
-	}
 	var gadgetData *gadget.GadgetData
 	if !isUndo {
 		// when updating, command line comes from the new gadget
 		gadgetData, err = pendingGadgetInfo(snapsup, devCtx)
 	} else {
-		// when undoing command line comes from the current gadget
+		// but when undoing, we use the current gadget which should have
+		// been restored
+		currentGadgetData, err := currentGadgetInfo(st, devCtx)
+		if err != nil {
+			return false, err
+		}
 		gadgetData = currentGadgetData
 	}
 	updated, err = boot.UpdateCommandLineForGadgetComponent(devCtx, gadgetData.RootDir)

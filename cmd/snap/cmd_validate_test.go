@@ -55,7 +55,7 @@ func makeFakeValidationSetPostHandler(c *check.C, body, action string, sequence 
 		case sequence != 0 && action == "forget":
 			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"action\":\"forget\",\"sequence\":%d}\n", sequence))
 		case action == "forget":
-			c.Check(string(buf), check.DeepEquals, fmt.Sprintf("{\"action\":\"forget\"}\n"))
+			c.Check(string(buf), check.DeepEquals, "{\"action\":\"forget\"}\n")
 		default:
 			c.Fatalf("unexpected action: %s", action)
 		}

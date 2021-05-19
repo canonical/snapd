@@ -10,13 +10,11 @@ restore: |
     snap set system experimental.parallel-instances=null
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     echo "Install a snap with instance key set"
     "$TESTSTOOLS"/snaps-state install-local-as test-snapd-sh test-snapd-sh_foo
 
     # foo instance directories are present
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     test -d "$SNAP_MOUNT_DIR/test-snapd-sh_foo"
     test -d "/var/snap/test-snapd-sh_foo"
 

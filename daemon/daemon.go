@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,7 +29,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -37,7 +36,6 @@ import (
 	"github.com/gorilla/mux"
 	"gopkg.in/tomb.v2"
 
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
@@ -47,7 +45,6 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
@@ -58,9 +55,11 @@ var ErrRestartSocket = fmt.Errorf("daemon stop requested to wait for socket acti
 var systemdSdNotify = systemd.SdNotify
 
 const (
-	daemonRestartMsg = "system is restarting"
-	systemRestartMsg = "daemon is restarting"
-	socketRestartMsg = "daemon is stopping to wait for socket activation"
+	daemonRestartMsg  = "daemon is restarting"
+	systemRestartMsg  = "system is restarting"
+	systemHaltMsg     = "system is halting"
+	systemPoweroffMsg = "system is powering off"
+	socketRestartMsg  = "daemon is stopping to wait for socket activation"
 )
 
 // A Daemon listens for requests and routes them to the right command
@@ -115,17 +114,6 @@ type Command struct {
 	d *Daemon
 }
 
-type accessResult int
-
-const (
-	accessOK accessResult = iota
-	accessUnauthorized
-	accessForbidden
-	accessCancelled
-)
-
-var polkitCheckAuthorization = polkit.CheckAuthorization
-
 // canAccess checks the following properties:
 //
 // - if the user is `root` everything is allowed
@@ -148,16 +136,14 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 		return accessOK
 	}
 
-	// isUser means we have a UID for the request
-	isUser := false
-	pid, uid, socket, err := ucrednetGet(r.RemoteAddr)
-	if err == nil {
-		isUser = true
-	} else if err != errNoID {
+	ucred, err := ucrednetGet(r.RemoteAddr)
+	if err != nil && err != errNoID {
 		logger.Noticef("unexpected error when attempting to get UID: %s", err)
 		return accessForbidden
 	}
-	isSnap := (socket == dirs.SnapSocket)
+	// isUser means we have a UID for the request
+	isUser := ucred != nil
+	isSnap := (ucred != nil && ucred.Socket == dirs.SnapSocket)
 
 	// ensure that snaps can only access SnapOK things
 	if isSnap {
@@ -184,7 +170,7 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 		return accessUnauthorized
 	}
 
-	if uid == 0 {
+	if ucred.Uid == 0 {
 		// Superuser does anything.
 		return accessOK
 	}
@@ -194,26 +180,7 @@ func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult 
 	}
 
 	if c.PolkitOK != "" {
-		var flags polkit.CheckFlags
-		allowHeader := r.Header.Get(client.AllowInteractionHeader)
-		if allowHeader != "" {
-			if allow, err := strconv.ParseBool(allowHeader); err != nil {
-				logger.Noticef("error parsing %s header: %s", client.AllowInteractionHeader, err)
-			} else if allow {
-				flags |= polkit.CheckAllowInteraction
-			}
-		}
-		// Pass both pid and uid from the peer ucred to avoid pid race
-		if authorized, err := polkitCheckAuthorization(pid, uid, c.PolkitOK, nil, flags); err == nil {
-			if authorized {
-				// polkit says user is authorised
-				return accessOK
-			}
-		} else if err == polkit.ErrDismissed {
-			return accessCancelled
-		} else {
-			logger.Noticef("polkit error: %s", err)
-		}
+		return checkPolkitAction(r, ucred, c.PolkitOK)
 	}
 
 	return accessUnauthorized
@@ -311,7 +278,7 @@ func logit(handler http.Handler) http.Handler {
 		ww := &wrappedWriter{w: w}
 		t0 := time.Now()
 		handler.ServeHTTP(ww, r)
-		t := time.Now().Sub(t0)
+		t := time.Since(t0)
 		url := r.URL.String()
 		if !strings.Contains(url, "/changes/") {
 			logger.Debugf("%s %s %s %s %d", r.RemoteAddr, r.Method, r.URL, t, ww.s)
@@ -492,6 +459,12 @@ func (d *Daemon) HandleRestart(t state.RestartType) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
+	scheduleFallback := func(a rebootAction) {
+		if err := reboot(a, rebootWaitTimeout); err != nil {
+			logger.Noticef("%s", err)
+		}
+	}
+
 	// die when asked to restart (systemd should get us back up!) etc
 	switch t {
 	case state.RestartDaemon:
@@ -500,11 +473,15 @@ func (d *Daemon) HandleRestart(t state.RestartType) {
 	case state.RestartSystem, state.RestartSystemNow:
 		// try to schedule a fallback slow reboot already here
 		// in case we get stuck shutting down
-		if err := reboot(rebootWaitTimeout); err != nil {
-			logger.Noticef("%s", err)
-		}
 
 		// save the restart kind to write out a maintenance.json in a bit
+		scheduleFallback(rebootReboot)
+		d.requestedRestart = t
+	case state.RestartSystemHaltNow:
+		scheduleFallback(rebootHalt)
+		d.requestedRestart = t
+	case state.RestartSystemPoweroffNow:
+		scheduleFallback(rebootPoweroff)
 		d.requestedRestart = t
 	case state.RestartSocket:
 		// save the restart kind to write out a maintenance.json in a bit
@@ -553,7 +530,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	if d.expectedRebootDidNotHappen {
 		// make the reboot retry immediate
 		immediateReboot := true
-		return d.doReboot(sigCh, immediateReboot, rebootRetryWaitTimeout)
+		return d.doReboot(sigCh, state.RestartSystem, immediateReboot, rebootRetryWaitTimeout)
 	}
 	if d.overlord == nil {
 		return fmt.Errorf("internal error: no Overlord")
@@ -564,10 +541,18 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	// check the state associated with a potential restart with the lock to
 	// prevent races
 	d.mu.Lock()
-	// needsFullReboot is whether the entire system will be rebooted or not as
-	// a consequence of this restart
-	needsFullReboot := (d.requestedRestart == state.RestartSystemNow || d.requestedRestart == state.RestartSystem)
-	immediateReboot := d.requestedRestart == state.RestartSystemNow
+	// needsFullShutdown is whether the entire system will
+	// shutdown or not as a consequence of this request
+	needsFullShutdown := false
+	switch d.requestedRestart {
+	case state.RestartSystem, state.RestartSystemNow, state.RestartSystemHaltNow, state.RestartSystemPoweroffNow:
+		needsFullShutdown = true
+	}
+	immediateShutdown := false
+	switch d.requestedRestart {
+	case state.RestartSystemNow, state.RestartSystemHaltNow, state.RestartSystemPoweroffNow:
+		immediateShutdown = true
+	}
 	restartSocket := d.restartSocket
 	d.mu.Unlock()
 
@@ -594,7 +579,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		d.snapListener.Close()
 	}
 
-	if needsFullReboot {
+	if needsFullShutdown {
 		// give time to polling clients to notice restart
 		time.Sleep(rebootNoticeWait)
 	}
@@ -606,7 +591,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 	d.tomb.Kill(d.serve.Shutdown(ctx))
 	cancel()
 
-	if !needsFullReboot {
+	if !needsFullShutdown {
 		// tell systemd that we are stopping
 		systemdSdNotify("STOPPING=1")
 	}
@@ -637,7 +622,7 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 			// because we already scheduled a slow shutdown and
 			// exiting here will just restart snapd (via systemd)
 			// which will lead to confusing results.
-			if needsFullReboot {
+			if needsFullShutdown {
 				logger.Noticef("WARNING: cannot stop daemon: %v", err)
 			} else {
 				return err
@@ -645,8 +630,8 @@ func (d *Daemon) Stop(sigCh chan<- os.Signal) error {
 		}
 	}
 
-	if needsFullReboot {
-		return d.doReboot(sigCh, immediateReboot, rebootWaitTimeout)
+	if needsFullShutdown {
+		return d.doReboot(sigCh, d.requestedRestart, immediateShutdown, rebootWaitTimeout)
 	}
 
 	if d.restartSocket {
@@ -686,18 +671,25 @@ func (d *Daemon) rebootDelay(immediate bool) (time.Duration, error) {
 	return rebootDelay, nil
 }
 
-func (d *Daemon) doReboot(sigCh chan<- os.Signal, immediate bool, waitTimeout time.Duration) error {
+func (d *Daemon) doReboot(sigCh chan<- os.Signal, rst state.RestartType, immediate bool, waitTimeout time.Duration) error {
 	rebootDelay, err := d.rebootDelay(immediate)
 	if err != nil {
 		return err
 	}
+	action := rebootReboot
+	switch rst {
+	case state.RestartSystemHaltNow:
+		action = rebootHalt
+	case state.RestartSystemPoweroffNow:
+		action = rebootPoweroff
+	}
 	// ask for shutdown and wait for it to happen.
 	// if we exit snapd will be restared by systemd
-	if err := reboot(rebootDelay); err != nil {
+	if err := reboot(action, rebootDelay); err != nil {
 		return err
 	}
 	// wait for reboot to happen
-	logger.Noticef("Waiting for system reboot")
+	logger.Noticef("Waiting for %s", action)
 	if sigCh != nil {
 		signal.Stop(sigCh)
 		if len(sigCh) > 0 {
@@ -707,17 +699,56 @@ func (d *Daemon) doReboot(sigCh chan<- os.Signal, immediate bool, waitTimeout ti
 		close(sigCh)
 	}
 	time.Sleep(waitTimeout)
-	return fmt.Errorf("expected reboot did not happen")
+	return fmt.Errorf("expected %s did not happen", action)
 }
 
-var shutdownMsg = i18n.G("reboot scheduled to update the system")
+var (
+	shutdownMsg = i18n.G("reboot scheduled to update the system")
+	haltMsg     = i18n.G("system halt scheduled")
+	poweroffMsg = i18n.G("system poweroff scheduled")
+)
 
-func rebootImpl(rebootDelay time.Duration) error {
+type rebootAction int
+
+func (a rebootAction) String() string {
+	switch a {
+	case rebootReboot:
+		return "system reboot"
+	case rebootHalt:
+		return "system halt"
+	case rebootPoweroff:
+		return "system poweroff"
+	default:
+		panic(fmt.Sprintf("unknown reboot action %d", a))
+	}
+}
+
+const (
+	rebootReboot rebootAction = iota
+	rebootHalt
+	rebootPoweroff
+)
+
+func rebootImpl(action rebootAction, rebootDelay time.Duration) error {
 	if rebootDelay < 0 {
 		rebootDelay = 0
 	}
 	mins := int64(rebootDelay / time.Minute)
-	cmd := exec.Command("shutdown", "-r", fmt.Sprintf("+%d", mins), shutdownMsg)
+	var arg, msg string
+	switch action {
+	case rebootReboot:
+		arg = "-r"
+		msg = shutdownMsg
+	case rebootHalt:
+		arg = "--halt"
+		msg = haltMsg
+	case rebootPoweroff:
+		arg = "--poweroff"
+		msg = poweroffMsg
+	default:
+		return fmt.Errorf("unknown reboot action: %v", action)
+	}
+	cmd := exec.Command("shutdown", arg, fmt.Sprintf("+%d", mins), msg)
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return osutil.OutputErr(out, err)
 	}

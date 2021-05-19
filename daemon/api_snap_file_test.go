@@ -42,7 +42,6 @@ func (s *snapFileSuite) TestGetFile(c *check.C) {
 	st := d.Overlord().State()
 
 	type scenario struct {
-		status                   int
 		exists, active, try, wat bool
 		err                      string
 	}

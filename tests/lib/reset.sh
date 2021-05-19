@@ -1,7 +1,5 @@
 #!/bin/bash -x
 
-# shellcheck source=tests/lib/dirs.sh
-. "$TESTSLIB/dirs.sh"
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
 # shellcheck source=tests/lib/systemd.sh
@@ -14,6 +12,7 @@ reset_classic() {
     systemctl daemon-reload
     systemd_stop_units snapd.service snapd.socket
 
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             sh -x "${SPREAD_PATH}/debian/snapd.prerm" remove
@@ -89,6 +88,10 @@ reset_classic() {
 
         EXTRA_NC_ARGS="-q 1"
         case "$SPREAD_SYSTEM" in
+            fedora-34*)
+                # Param -q is not available on fedora 34
+                EXTRA_NC_ARGS="-w 1"
+                ;;
             fedora-*|amazon-*|centos-*)
                 EXTRA_NC_ARGS=""
                 ;;
@@ -109,7 +112,7 @@ reset_all_snap() {
 
     # shellcheck source=tests/lib/names.sh
     . "$TESTSLIB/names.sh"
-
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     remove_bases=""
     # remove all app snaps first
     for snap in "$SNAP_MOUNT_DIR"/*; do

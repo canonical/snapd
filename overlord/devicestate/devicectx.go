@@ -114,3 +114,8 @@ func (dc *modelDeviceContext) Store() snapstate.StoreService {
 
 // sanity
 var _ snapstate.DeviceContext = &modelDeviceContext{}
+
+// SystemModeInfoFromState returns details about the system mode the device is in.
+func SystemModeInfoFromState(st *state.State) (*SystemModeInfo, error) {
+	return deviceMgr(st).SystemModeInfo()
+}
