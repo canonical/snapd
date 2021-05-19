@@ -2969,6 +2969,12 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	return nil
 }
 
+func (m *SnapManager) doAutoRefreshGate(t *state.Task, tomb *tomb.Tomb) error {
+	// TODO: autoRefreshPhase2 - create refresh tasks for snaps that are
+	// not held.
+	return nil
+}
+
 // InjectTasks makes all the halt tasks of the mainTask wait for extraTasks;
 // extraTasks join the same lane and change as the mainTask.
 func InjectTasks(mainTask *state.Task, extraTasks *state.TaskSet) {
