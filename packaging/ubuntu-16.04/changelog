@@ -1,3 +1,21 @@
+snapd (2.50.1) xenial; urgency=medium
+
+  * New upstream release, LP: #1926005
+    - interfaces: update permitted /lib/.. paths to be compatible with 
+      UC20
+    - interfaces: builtin: update permitted paths to be compatible with
+      UC20
+    - interfaces/greengrass-support: delete white spaces at the end of
+      lines
+    - snap-seccomp: update syscalls.go list
+    - many: backport kernel command line for 2.50
+    - interfaces/dbus: allow claiming 'well-known' D-Bus names with a
+      wildcard suffix
+    - interfaces/camera: allow devices in /sys/devices/platform/**/usb*
+    - interfaces/builtin: introduce dsp interface
+
+ -- Ian Johnson <ian.johnson@canonical.com>  Wed, 19 May 2021 10:46:02 -0500
+
 snapd (2.50) xenial; urgency=medium
 
   * New upstream release, LP: #1926005

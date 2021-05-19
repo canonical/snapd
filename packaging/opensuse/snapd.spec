@@ -83,7 +83,7 @@
 
 
 Name:           snapd
-Version:        2.50
+Version:        2.50.1
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0

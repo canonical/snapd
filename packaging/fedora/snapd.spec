@@ -96,7 +96,7 @@
 %endif
 
 Name:           snapd
-Version:        2.50
+Version:        2.50.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -942,6 +942,21 @@ fi
 
 
 %changelog
+* Wed May 19 2021 Ian Johnson <ian.johnson@canonical.com>
+- New upstream release 2.50.1
+ - interfaces: update permitted /lib/.. paths to be compatible with 
+   UC20
+ - interfaces: builtin: update permitted paths to be compatible with
+   UC20
+ - interfaces/greengrass-support: delete white spaces at the end of
+   lines
+ - snap-seccomp: update syscalls.go list
+ - many: backport kernel command line for 2.50
+ - interfaces/dbus: allow claiming 'well-known' D-Bus names with a
+   wildcard suffix
+ - interfaces/camera: allow devices in /sys/devices/platform/**/usb*
+ - interfaces/builtin: introduce dsp interface
+
 * Sat Apr 24 2021 Michael Vogt <mvo@ubuntu.com>
 - New upstream release 2.50
  - overlord: properly mock usr-lib-snapd tests to mimic an Ubuntu
