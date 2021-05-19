@@ -77,6 +77,8 @@ var api = []*Command{
 	validationSetsCmd,
 	routineConsoleConfStartCmd,
 	systemRecoveryKeysCmd,
+	quotaGroupsCmd,
+	quotaGroupInfoCmd,
 }
 
 const (

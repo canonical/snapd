@@ -160,7 +160,7 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 		cj := connectionJSON{
 			Slot:      slotRef,
 			Plug:      plugRef,
-			Manual:    cstate.Auto == false,
+			Manual:    !cstate.Auto,
 			Gadget:    cstate.ByGadget,
 			Interface: cstate.Interface,
 			PlugAttrs: mergeAttrs(cstate.StaticPlugAttrs, cstate.DynamicPlugAttrs),

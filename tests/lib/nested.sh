@@ -226,19 +226,19 @@ nested_qemu_name() {
 nested_get_google_image_url_for_vm() {
     case "${1:-$SPREAD_SYSTEM}" in
         ubuntu-16.04-64)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/xenial-server-cloudimg-amd64-disk1.img"
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/xenial-server-cloudimg-amd64-disk1.img"
             ;;
         ubuntu-18.04-64)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/bionic-server-cloudimg-amd64.img"
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/bionic-server-cloudimg-amd64.img"
             ;;
         ubuntu-20.04-64)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
             ;;
         ubuntu-20.10-64*)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/groovy-server-cloudimg-amd64.img"
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/groovy-server-cloudimg-amd64.img"
             ;;
         ubuntu-21.04-64*)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/hirsute-server-cloudimg-amd64.img"
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/hirsute-server-cloudimg-amd64.img"
             ;;
         *)
             echo "unsupported system"
@@ -961,10 +961,10 @@ nested_start_core_vm_unit() {
         fi
 
         if nested_is_tpm_enabled; then
-            if snap list swtpm-mvo; then
+            if snap list swtpm-mvo >/dev/null; then
                 # reset the tpm state
                 rm /var/snap/swtpm-mvo/current/tpm2-00.permall
-                snap restart swtpm-mvo
+                snap restart swtpm-mvo > /dev/null
             else
                 snap install swtpm-mvo --beta
             fi
@@ -1005,14 +1005,19 @@ nested_start_core_vm_unit() {
     # wait for the nested-vm service to appear active
     wait_for_service "$NESTED_VM"
 
-    # Wait until ssh is ready
-    nested_wait_for_ssh
-    # Wait for the snap command to be available
-    nested_wait_for_snap_command
-    # Wait for snap seeding to be done
-    nested_exec "sudo snap wait system seed.loaded"
-    # Wait for cloud init to be done
-    nested_exec "cloud-init status --wait"
+    local EXPECT_SHUTDOWN
+    EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}
+
+    if [ "$EXPECT_SHUTDOWN" != "1" ]; then
+        # Wait until ssh is ready
+        nested_wait_for_ssh
+        # Wait for the snap command to be available
+        nested_wait_for_snap_command
+        # Wait for snap seeding to be done
+        nested_exec "sudo snap wait system seed.loaded"
+        # Wait for cloud init to be done
+        nested_exec "cloud-init status --wait"
+    fi
 }
 
 nested_get_current_image_name() {
@@ -1184,7 +1189,8 @@ nested_start_classic_vm() {
     # save logs from previous runs
     nested_save_serial_log
 
-    # Systemd unit is created, it is important to respect the qemu parameters order
+    # Systemd unit is created, it is important to respect the qemu parameters 
+    # order
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
         ${PARAM_SMP} \
         ${PARAM_CPU} \
@@ -1272,7 +1278,7 @@ nested_get_core_revision_installed() {
 nested_fetch_spread() {
     if [ ! -f "$NESTED_WORK_DIR/spread" ]; then
         mkdir -p "$NESTED_WORK_DIR"
-        curl https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz | tar -xzv -C "$NESTED_WORK_DIR"
+        curl https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | tar -xzv -C "$NESTED_WORK_DIR"
         # make sure spread really exists
         test -x "$NESTED_WORK_DIR/spread"
         echo "$NESTED_WORK_DIR/spread"

@@ -1549,28 +1549,6 @@ apps:
         slots: [iface]
 `
 
-const testConsumerInvalidSlotNameYaml = `
-name: consumer
-version: 0
-slots:
- ttyS5:
-  interface: iface
-apps:
-    app:
-        slots: [iface]
-`
-
-const testConsumerInvalidPlugNameYaml = `
-name: consumer
-version: 0
-plugs:
- ttyS3:
-  interface: iface
-apps:
-    app:
-        plugs: [iface]
-`
-
 func (s *AddRemoveSuite) addSnap(c *C, yaml string) (*snap.Info, error) {
 	snapInfo := snaptest.MockInfo(c, yaml, nil)
 	return snapInfo, s.repo.AddSnap(snapInfo)
