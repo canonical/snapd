@@ -14,6 +14,6 @@ execute: |
     this_pid=$$
     echo "The snap can talk to polkitd"
     test-snapd-pk-service.check-pid $this_pid org.example.foo.AlwaysAllow \
-      | MATCH '^\(\(true, false,'
+      | MATCH '^\(bba\{ss\}\) true false '
     test-snapd-pk-service.check-pid $this_pid org.example.foo.AlwaysDeny \
-      | MATCH '^\(\(false, false,'
+      | MATCH '^\(bba\{ss\}\) false false '
