@@ -460,18 +460,15 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 		filepath.Join(unassertedSnapsDir, "other-unasserted_1.0.snap"), 0)
 	c.Assert(err, IsNil)
 
-	// when a given snap in asserted snaps directory already exists, it is
-	// not copied over
+	// the unasserted snap goes into the snaps directory under the system
+	// directory, which triggers the error in creating the directory by
+	// seed writer
 	newFiles, dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(modelWithUnasserted, "1234unasserted", s.db, infoGetter)
 
-	c.Assert(err, ErrorMatches, "unable to create .*/other-unasserted_1.0.snap: file exists")
-	c.Check(newFiles, DeepEquals, []string{
-		// returned as new file so that cleanup can be properly
-		// performed even if the file was partially written
-		filepath.Join(unassertedSnapsDir, "other-unasserted_1.0.snap"),
-	})
-	c.Check(dir, Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234unasserted"))
-	c.Check(osutil.IsDirectory(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234unasserted")), Equals, true)
+	c.Assert(err, ErrorMatches, `system "1234unasserted" already exists`)
+	// we failed early
+	c.Check(newFiles, HasLen, 0)
+	c.Check(dir, Equals, "")
 }
 
 func (s *createSystemSuite) TestCreateSystemInfoAndAssertsChecks(c *C) {
