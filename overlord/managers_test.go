@@ -655,6 +655,9 @@ apps:
 }
 
 func (s *mgrsSuite) TestHappyRemoveWithQuotas(c *C) {
+	r := servicestate.MockSystemdVersion(248)
+	defer r()
+
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
