@@ -2,10 +2,20 @@ summary: Ensure that the polkit interface works.
 
 systems: [-ubuntu-core-*]
 
-prepare: |
+execute: |
+    echo "Install the test snap"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-pk-service
 
-execute: |
+    echo "The polkit interface is disconnected by default"
+    snap connections test-snapd-pk-service | MATCH "polkit +test-snapd-pk-service:polkit +- +-"
+
+    echo "The polkit policy file is not installed"
+    test ! -f /usr/share/polkit-1/actions/snap.test-snapd-pk-service.interface.polkit.policy
+    
+    echo "The interface can be connected"
+    snap connect test-snapd-pk-service:polkit
+    snap connections test-snapd-pk-service | MATCH "polkit +test-snapd-pk-service:polkit +:polkit +manual"
+
     echo "Snapd has installed the policy file for the service"
     test -f /usr/share/polkit-1/actions/snap.test-snapd-pk-service.interface.polkit.policy
     echo "The contents match the file provided by the snap"
