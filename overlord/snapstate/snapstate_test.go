@@ -129,7 +129,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	snapstate.SetupPostRefreshHook = hookstate.SetupPostRefreshHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions
-	snapstate.EnsureSnapAbsentFromQuotaGroup = servicestate.EnsureSnapAbsentFromQuotaGroup
+	snapstate.EnsureSnapAbsentFromQuotaGroup = servicestate.EnsureSnapAbsentFromQuota
 
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state, s.o.TaskRunner())

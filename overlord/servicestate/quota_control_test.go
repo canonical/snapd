@@ -822,7 +822,7 @@ func (s *quotaControlSuite) TestEnsureSnapAbsentFromQuotaGroup(c *C) {
 	})
 
 	// remove test-snap from the group
-	err = servicestate.EnsureSnapAbsentFromQuotaGroup(s.state, "test-snap")
+	err = servicestate.EnsureSnapAbsentFromQuota(s.state, "test-snap")
 	c.Assert(err, IsNil)
 
 	checkQuotaState(c, st, map[string]quotaGroupState{
@@ -833,7 +833,7 @@ func (s *quotaControlSuite) TestEnsureSnapAbsentFromQuotaGroup(c *C) {
 	})
 
 	// now remove test-snap2 too
-	err = servicestate.EnsureSnapAbsentFromQuotaGroup(s.state, "test-snap2")
+	err = servicestate.EnsureSnapAbsentFromQuota(s.state, "test-snap2")
 	c.Assert(err, IsNil)
 
 	// and check that it got updated in the state
@@ -845,6 +845,6 @@ func (s *quotaControlSuite) TestEnsureSnapAbsentFromQuotaGroup(c *C) {
 
 	// it's not an error to call EnsureSnapAbsentFromQuotaGroup on a snap that
 	// is not in any quota group
-	err = servicestate.EnsureSnapAbsentFromQuotaGroup(s.state, "test-snap33333")
+	err = servicestate.EnsureSnapAbsentFromQuota(s.state, "test-snap33333")
 	c.Assert(err, IsNil)
 }

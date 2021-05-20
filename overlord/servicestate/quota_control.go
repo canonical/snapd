@@ -490,10 +490,10 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) erro
 	return ensureSnapServicesForGroup(st, grp, allGrps, nil)
 }
 
-// EnsureSnapAbsentFromQuotaGroup ensures that the specified snap is not present
+// EnsureSnapAbsentFromQuota ensures that the specified snap is not present
 // in any quota group, usually in preparation for removing that snap from the
 // system to keep the quota group itself consistent.
-func EnsureSnapAbsentFromQuotaGroup(st *state.State, snap string) error {
+func EnsureSnapAbsentFromQuota(st *state.State, snap string) error {
 	allGrps, err := AllQuotas(st)
 	if err != nil {
 		return err

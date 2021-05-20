@@ -45,7 +45,7 @@ func (s *discardSnapSuite) SetUpTest(c *C) {
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.state, repo)
 	oldSnapStateEnsureSnapAbsentFromQuotaGroup := snapstate.EnsureSnapAbsentFromQuotaGroup
-	snapstate.EnsureSnapAbsentFromQuotaGroup = servicestate.EnsureSnapAbsentFromQuotaGroup
+	snapstate.EnsureSnapAbsentFromQuotaGroup = servicestate.EnsureSnapAbsentFromQuota
 	s.AddCleanup(func() {
 		snapstate.EnsureSnapAbsentFromQuotaGroup = oldSnapStateEnsureSnapAbsentFromQuotaGroup
 	})

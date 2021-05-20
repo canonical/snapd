@@ -194,7 +194,7 @@ func delayedCrossMgrInit() {
 	// hook into conflict checks mechanisms
 	snapstate.AddAffectedSnapsByAttr("service-action", serviceControlAffectedSnaps)
 	snapstate.SnapServiceOptions = SnapServiceOptions
-	snapstate.EnsureSnapAbsentFromQuotaGroup = EnsureSnapAbsentFromQuotaGroup
+	snapstate.EnsureSnapAbsentFromQuotaGroup = EnsureSnapAbsentFromQuota
 }
 
 func serviceControlAffectedSnaps(t *state.Task) ([]string, error) {
