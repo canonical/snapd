@@ -42,6 +42,9 @@ const hugepagesControlConnectedPlugAppArmor = `
 /sys/devices/system/node/node[0-9]*/hugepages/{,hugepages-[0-9]*}/nr_hugepages w,
 @{PROC}/sys/vm/nr_{hugepages,hugepages_mempolicy,overcommit_hugepages} rw,
 
+# Allow mounting hugetlbfs
+mount fstype=hugetlbfs,
+
 # Observe which group can create shm segments using hugetlb pages
 @{PROC}/sys/vm/hugetlb_shm_group r,
 
