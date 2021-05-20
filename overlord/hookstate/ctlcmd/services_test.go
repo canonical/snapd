@@ -133,8 +133,8 @@ apps:
   reload-command: bin/reload
 `
 
-func mockServiceChangeFunc(testServiceControlInputs func(appInfos []*snap.AppInfo, inst *servicestate.Instruction)) func() {
-	return ctlcmd.MockServicestateControlFunc(func(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction, flags *servicestate.Flags, context *hookstate.Context) ([]*state.TaskSet, error) {
+func mockServiceChangeFunc(testServiceControlInputs func(appInfos []*servicestate.ResolvedAppInfo, inst *servicestate.Instruction)) func() {
+	return ctlcmd.MockServicestateControlFunc(func(st *state.State, appInfos []*servicestate.ResolvedAppInfo, inst *servicestate.Instruction, flags *servicestate.Flags, context *hookstate.Context) ([]*state.TaskSet, error) {
 		testServiceControlInputs(appInfos, inst)
 		return nil, fmt.Errorf("forced error")
 	})
@@ -204,7 +204,7 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 
 func (s *servicectlSuite) TestStopCommand(c *C) {
 	var serviceChangeFuncCalled bool
-	restore := mockServiceChangeFunc(func(appInfos []*snap.AppInfo, inst *servicestate.Instruction) {
+	restore := mockServiceChangeFunc(func(appInfos []*servicestate.ResolvedAppInfo, inst *servicestate.Instruction) {
 		serviceChangeFuncCalled = true
 		c.Assert(appInfos, HasLen, 1)
 		c.Assert(appInfos[0].Name, Equals, "test-service")
@@ -226,7 +226,7 @@ func (s *servicectlSuite) TestStopCommand(c *C) {
 
 func (s *servicectlSuite) TestStopCommandUnknownService(c *C) {
 	var serviceChangeFuncCalled bool
-	restore := mockServiceChangeFunc(func(appInfos []*snap.AppInfo, inst *servicestate.Instruction) {
+	restore := mockServiceChangeFunc(func(appInfos []*servicestate.ResolvedAppInfo, inst *servicestate.Instruction) {
 		serviceChangeFuncCalled = true
 	})
 	defer restore()
@@ -238,7 +238,7 @@ func (s *servicectlSuite) TestStopCommandUnknownService(c *C) {
 
 func (s *servicectlSuite) TestStopCommandFailsOnOtherSnap(c *C) {
 	var serviceChangeFuncCalled bool
-	restore := mockServiceChangeFunc(func(appInfos []*snap.AppInfo, inst *servicestate.Instruction) {
+	restore := mockServiceChangeFunc(func(appInfos []*servicestate.ResolvedAppInfo, inst *servicestate.Instruction) {
 		serviceChangeFuncCalled = true
 	})
 	defer restore()
@@ -251,7 +251,7 @@ func (s *servicectlSuite) TestStopCommandFailsOnOtherSnap(c *C) {
 
 func (s *servicectlSuite) TestStartCommand(c *C) {
 	var serviceChangeFuncCalled bool
-	restore := mockServiceChangeFunc(func(appInfos []*snap.AppInfo, inst *servicestate.Instruction) {
+	restore := mockServiceChangeFunc(func(appInfos []*servicestate.ResolvedAppInfo, inst *servicestate.Instruction) {
 		serviceChangeFuncCalled = true
 		c.Assert(appInfos, HasLen, 1)
 		c.Assert(appInfos[0].Name, Equals, "test-service")
@@ -273,7 +273,7 @@ func (s *servicectlSuite) TestStartCommand(c *C) {
 
 func (s *servicectlSuite) TestRestartCommand(c *C) {
 	var serviceChangeFuncCalled bool
-	restore := mockServiceChangeFunc(func(appInfos []*snap.AppInfo, inst *servicestate.Instruction) {
+	restore := mockServiceChangeFunc(func(appInfos []*servicestate.ResolvedAppInfo, inst *servicestate.Instruction) {
 		serviceChangeFuncCalled = true
 		c.Assert(appInfos, HasLen, 1)
 		c.Assert(appInfos[0].Name, Equals, "test-service")

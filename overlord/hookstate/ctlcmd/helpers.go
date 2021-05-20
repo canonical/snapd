@@ -33,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
 )
 
 var finalTasks map[string]bool
@@ -45,7 +44,7 @@ func init() {
 	}
 }
 
-func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([]*snap.AppInfo, error) {
+func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([]*servicestate.ResolvedAppInfo, error) {
 	st.Lock()
 	defer st.Unlock()
 
@@ -60,14 +59,14 @@ func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([
 	}
 	if len(serviceNames) == 0 {
 		// all services
-		return info.Services(), nil
+		return servicestate.NewResolvedAppInfos(info.Services()), nil
 	}
 
-	var svcs []*snap.AppInfo
+	var svcs []*servicestate.ResolvedAppInfo
 	for _, svcName := range serviceNames {
 		if svcName == snapName {
 			// all the services
-			return info.Services(), nil
+			return servicestate.NewResolvedAppInfos(info.Services()), nil
 		}
 		if !strings.HasPrefix(svcName, snapName+".") {
 			return nil, fmt.Errorf(i18n.G("unknown service: %q"), svcName)
@@ -77,7 +76,9 @@ func getServiceInfos(st *state.State, snapName string, serviceNames []string) ([
 		if !(ok && app.IsService()) {
 			return nil, fmt.Errorf(i18n.G("unknown service: %q"), svcName)
 		}
-		svcs = append(svcs, app)
+		appInfo := servicestate.NewResolvedAppInfo(app)
+		appInfo.ExplicitlyRequested = true
+		svcs = append(svcs, appInfo)
 	}
 
 	return svcs, nil

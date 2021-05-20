@@ -49,8 +49,40 @@ type Instruction struct {
 
 type ServiceActionConflictError struct{ error }
 
+type ResolvedAppInfo struct {
+	snap.AppInfo
+	ExplicitlyRequested bool
+}
+
+func NewResolvedAppInfo(app *snap.AppInfo) *ResolvedAppInfo {
+	resolvedAppInfo := new(ResolvedAppInfo)
+	resolvedAppInfo.AppInfo = *app
+	return resolvedAppInfo
+}
+
+type ResolvedAppInfos []*ResolvedAppInfo
+
+func NewResolvedAppInfos(appInfos []*snap.AppInfo) ResolvedAppInfos {
+	resolvedAppInfos := make(ResolvedAppInfos, 0, len(appInfos))
+	for _, app := range appInfos {
+		resolvedAppInfos = append(resolvedAppInfos, NewResolvedAppInfo(app))
+	}
+	return resolvedAppInfos
+}
+
+func (a ResolvedAppInfos) Len() int      { return len(a) }
+func (a ResolvedAppInfos) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a ResolvedAppInfos) Less(i, j int) bool {
+	iName := a[i].Snap.InstanceName()
+	jName := a[j].Snap.InstanceName()
+	if iName == jName {
+		return a[i].Name < a[j].Name
+	}
+	return iName < jName
+}
+
 // serviceControlTs creates "service-control" task for every snap derived from appInfos.
-func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instruction) (*state.TaskSet, error) {
+func serviceControlTs(st *state.State, appInfos []*ResolvedAppInfo, inst *Instruction) (*state.TaskSet, error) {
 	servicesBySnap := make(map[string][]string, len(appInfos))
 	sortedNames := make([]string, 0, len(appInfos))
 
@@ -60,7 +92,14 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 		if _, ok := servicesBySnap[snapName]; !ok {
 			sortedNames = append(sortedNames, snapName)
 		}
-		servicesBySnap[snapName] = append(servicesBySnap[snapName], app.Name)
+		if app.ExplicitlyRequested {
+			servicesBySnap[snapName] = append(servicesBySnap[snapName], app.Name)
+		} else {
+			// Don't populate the list if the service was not explicitly
+			// requested; but we still need to allocate the map entry because
+			// it's used to keep the sortedNames list unique.
+			servicesBySnap[snapName] = nil
+		}
 	}
 	sort.Strings(sortedNames)
 
@@ -101,7 +140,12 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 		sort.Strings(svcs)
 		cmd.Services = svcs
 
-		summary := fmt.Sprintf("Run service command %q for services %q of snap %q", cmd.Action, svcs, cmd.SnapName)
+		var summary string
+		if len(cmd.Services) > 0 {
+			summary = fmt.Sprintf("Run service command %q for services %q of snap %q", cmd.Action, svcs, cmd.SnapName)
+		} else {
+			summary = fmt.Sprintf("Run service command %q for all services of snap %q", cmd.Action, cmd.SnapName)
+		}
 		task := st.NewTask("service-control", summary)
 		task.Set("service-action", cmd)
 		if prev != nil {
@@ -124,7 +168,7 @@ type Flags struct {
 // The appInfos and inst define the services and the command to execute.
 // Context is used to determine change conflicts - we will not conflict with
 // tasks from same change as that of context's.
-func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, flags *Flags, context *hookstate.Context) ([]*state.TaskSet, error) {
+func Control(st *state.State, appInfos []*ResolvedAppInfo, inst *Instruction, flags *Flags, context *hookstate.Context) ([]*state.TaskSet, error) {
 	var tts []*state.TaskSet
 	var ctlcmds []string
 

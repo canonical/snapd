@@ -52,7 +52,7 @@ type servicesCommand struct {
 
 var errNoContextForServices = errors.New(i18n.G("cannot query services without a context"))
 
-type byApp []*snap.AppInfo
+type byApp []*servicestate.ResolvedAppInfo
 
 func (a byApp) Len() int      { return len(a) }
 func (a byApp) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
@@ -75,7 +75,11 @@ func (c *servicesCommand) Execute([]string) error {
 
 	sd := servicestate.NewStatusDecorator(progress.Null)
 
-	services, err := clientutil.ClientAppInfosFromSnapAppInfos(svcInfos, sd)
+	appInfos := make([]*snap.AppInfo, 0, len(svcInfos))
+	for _, svcInfo := range svcInfos {
+		appInfos = append(appInfos, &svcInfo.AppInfo)
+	}
+	services, err := clientutil.ClientAppInfosFromSnapAppInfos(appInfos, sd)
 	if err != nil || len(services) == 0 {
 		return err
 	}

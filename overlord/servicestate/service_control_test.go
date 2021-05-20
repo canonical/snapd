@@ -70,6 +70,10 @@ apps:
     after: [foo]
 `
 
+func makeResolvedAppInfos(app *snap.AppInfo) []*servicestate.ResolvedAppInfo {
+	return []*servicestate.ResolvedAppInfo{servicestate.NewResolvedAppInfo(app)}
+}
+
 func (s *serviceControlSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
@@ -209,7 +213,7 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, actionModifie
 			obtainedServices := sa.Services
 			sort.Strings(obtainedServices)
 			sort.Strings(bySnap[sa.SnapName])
-			c.Assert(obtainedServices, DeepEquals, bySnap[sa.SnapName])
+			c.Assert(obtainedServices, HasLen, 0)
 		} else {
 			c.Fatalf("unexpected task: %s", tasks[i].Kind())
 		}
@@ -234,7 +238,7 @@ func makeControlChange(c *C, st *state.State, inst *servicestate.Instruction, in
 	}
 
 	flags := &servicestate.Flags{CreateExecCommandTasks: true}
-	tss, err := servicestate.Control(st, apps, inst, flags, nil)
+	tss, err := servicestate.Control(st, servicestate.NewResolvedAppInfos(apps), inst, flags, nil)
 	c.Assert(err, IsNil)
 
 	chg := st.NewChange("service-control", "...")
@@ -256,7 +260,7 @@ func (s *serviceControlSuite) TestControlDoesntCreateExecCommandTasksIfNoFlags(c
 	}
 
 	flags := &servicestate.Flags{}
-	tss, err := servicestate.Control(st, []*snap.AppInfo{info.Apps["foo"]}, inst, flags, nil)
+	tss, err := servicestate.Control(st, makeResolvedAppInfos(info.Apps["foo"]), inst, flags, nil)
 	c.Assert(err, IsNil)
 	// service-control is the only task
 	c.Assert(tss, HasLen, 1)
@@ -279,7 +283,7 @@ func (s *serviceControlSuite) TestControlConflict(c *C) {
 	chg.AddTask(t)
 
 	inst := &servicestate.Instruction{Action: "start", Names: []string{"foo"}}
-	_, err := servicestate.Control(st, []*snap.AppInfo{inf.Apps["foo"]}, inst, nil, nil)
+	_, err := servicestate.Control(st, makeResolvedAppInfos(inf.Apps["foo"]), inst, nil, nil)
 	c.Check(err, ErrorMatches, `snap "test-snap" has "manip" change in progress`)
 }
 
@@ -394,7 +398,7 @@ func (s *serviceControlSuite) TestControlUnknownInstruction(c *C) {
 		RestartOptions: client.RestartOptions{Reload: true},
 	}
 
-	_, err := servicestate.Control(st, []*snap.AppInfo{info.Apps["foo"]}, inst, nil, nil)
+	_, err := servicestate.Control(st, makeResolvedAppInfos(info.Apps["foo"]), inst, nil, nil)
 	c.Assert(err, ErrorMatches, `unknown action "boo"`)
 }
 
