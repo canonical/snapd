@@ -102,12 +102,12 @@ func (s *systemModeSuite) TestSystemMode(c *C) {
 		},
 	}
 
-	for uid := range []int{0 /* root */, 1000 /* regular */} {
+	for _, uid := range []uint32{0 /* root */, 1000 /* regular */} {
 		for _, test := range tests {
 			smi = &test.smi
 			smiErr = test.smiErr
 
-			stdout, stderr, err := ctlcmd.Run(mockContext, []string{"system-mode"}, uint32(uid))
+			stdout, stderr, err := ctlcmd.Run(mockContext, []string{"system-mode"}, uid)
 			comment := Commentf("%v", test)
 			if test.exitCode > 0 {
 				c.Check(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: test.exitCode}, comment)
