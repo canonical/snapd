@@ -688,7 +688,7 @@ func CreateRecoverySystem(st *state.State, label string) (*state.Change, error) 
 		return nil, err
 	}
 	if !seeded {
-		return nil, fmt.Errorf("cannot remodel until fully seeded")
+		return nil, fmt.Errorf("cannot create new recovery systems until fully seeded")
 	}
 	chg := st.NewChange("create-recovery-system", fmt.Sprintf("Create new recovery system with label %q", label))
 	ts, err := createRecoverySystemTasks(st, label, nil)

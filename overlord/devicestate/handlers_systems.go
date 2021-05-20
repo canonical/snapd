@@ -71,16 +71,7 @@ func setTaskRecoverySystemSetup(t *state.Task, setup *recoverySystemSetup) error
 		t.Set("recovery-system-setup", setup)
 		return nil
 	}
-	var id string
-	if err := t.Get("recovery-system-setup-task", &id); err != nil {
-		return err
-	}
-	ts := t.State().Task(id)
-	if ts == nil {
-		return fmt.Errorf("internal error: cannot find referenced task %v", id)
-	}
-	ts.Set("recovery-system-setup", setup)
-	return nil
+	return fmt.Errorf("internal error: cannot indirectly set recovery-system-setup")
 }
 
 func logNewSystemSnapFile(logfile, fileName string) error {
@@ -132,7 +123,7 @@ func purgeNewSystemSnapFiles(logfile string) error {
 	return nil
 }
 
-func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) error {
+func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err error) {
 	if release.OnClassic {
 		// TODO: this may need to be lifted in the future
 		return fmt.Errorf("cannot run update gadget assets task on a classic system")
@@ -203,6 +194,14 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) erro
 		if err := os.RemoveAll(systemDirectory); err != nil && !os.IsNotExist(err) {
 			logger.Noticef("when removing recovery system %q: %v", label, err)
 		}
+		if err := boot.DropRecoverySystem(remodelCtx, label); err != nil {
+			logger.Noticef("when dropping the recovery system %q: %v", label, err)
+		}
+		// we could have reentered the task after a reboot, but the
+		// state was set up sufficiently such that the system was
+		// actually tried and ended up in the tried systems list, which
+		// we should reset now
+		st.Set("tried-systems", nil)
 	}()
 	// 1. prepare recovery system from remodel snaps (or current snaps)
 	_, err = createSystemForModelFromValidatedSnaps(model, label, db, infoGetter, observeSnapFileWrite)
@@ -257,7 +256,7 @@ func (m *DeviceManager) undoCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) er
 	var undoErr error
 
 	if err := purgeNewSystemSnapFiles(filepath.Join(setup.Directory, "snapd-new-file-log")); err != nil {
-		logger.Noticef("when removing seed files: %v", err)
+		t.Logf("when removing seed files: %v", err)
 	}
 	if err := os.RemoveAll(setup.Directory); err != nil && !os.IsNotExist(err) {
 		t.Logf("when removing recovery system %q: %v", setup.Label, err)

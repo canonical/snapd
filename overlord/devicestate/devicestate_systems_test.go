@@ -1098,6 +1098,18 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemTasks
 	c.Check(chg, IsNil)
 }
 
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemNotSeeded(c *C) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", nil)
+
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234")
+	c.Assert(err, ErrorMatches, `cannot create new recovery systems until fully seeded`)
+	c.Check(chg, IsNil)
+}
+
 func (s *deviceMgrSystemsCreateSuite) makeSnapInState(c *C, name string, rev snap.Revision) *snap.Info {
 	snapID := s.ss.AssertedSnapID(name)
 	c.Logf("snap %q ID %q rev %v", name, snapID, rev.String())
@@ -1171,7 +1183,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
 	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
-
+	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 
 	validateSeed(c, "1234", s.storeSigning.Trusted)
@@ -1255,7 +1267,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
 	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
-
+	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 	// sanity check asserted snaps location
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234undo"), testutil.FilePresent)
@@ -1346,7 +1358,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
 	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
-
+	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 
 	validateSeed(c, "1234", s.storeSigning.Trusted)
@@ -1399,6 +1411,159 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 	p, err := filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*"))
 	c.Assert(err, IsNil)
 	c.Check(p, HasLen, 0)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemErrCleanup(c *C) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.state.Lock()
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234error")
+	c.Assert(err, IsNil)
+	c.Assert(chg, NotNil)
+	tsks := chg.Tasks()
+	c.Check(tsks, HasLen, 2)
+	tskCreate := tsks[0]
+	tskFinalize := tsks[1]
+
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+	s.bootloader.SetBootVarsCalls = 0
+
+	s.bootloader.SetErrFunc = func() error {
+		c.Logf("boot calls: %v", s.bootloader.SetBootVarsCalls)
+		// for simplicity error out only when we try to set the recovery
+		// system variables in bootenv (and not in the cleanup path)
+		if s.bootloader.SetBootVarsCalls == 1 {
+			return fmt.Errorf("mock bootloader error")
+		}
+		return nil
+	}
+
+	snaptest.PopulateDir(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps"), [][]string{
+		{"core20_10.snap", "canary"},
+		{"some-snap_1.snap", "canary"},
+	})
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(chg.Err(), ErrorMatches, `(?s)cannot perform the following tasks.* \(cannot attempt booting into recovery system "1234error": mock bootloader error\)`)
+	c.Check(chg.IsReady(), Equals, true)
+	c.Assert(tskCreate.Status(), Equals, state.ErrorStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.HoldStatus)
+
+	c.Check(s.restartRequests, HasLen, 0)
+	// sanity check asserted snaps location
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234error"), testutil.FileAbsent)
+	p, err := filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*"))
+	c.Assert(err, IsNil)
+	c.Check(p, DeepEquals, []string{
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/core20_10.snap"),
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/some-snap_1.snap"),
+	})
+	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+	modeenvAfterCreate, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(modeenvAfterCreate.CurrentRecoverySystems, DeepEquals, []string{"othersystem"})
+	c.Check(modeenvAfterCreate.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemReboot(c *C) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.state.Lock()
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234reboot")
+	c.Assert(err, IsNil)
+	c.Assert(chg, NotNil)
+	tsks := chg.Tasks()
+	c.Check(tsks, HasLen, 2)
+	tskCreate := tsks[0]
+	tskFinalize := tsks[1]
+
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+	s.bootloader.SetBootVarsCalls = 0
+
+	setBootVarsOk := true
+	s.bootloader.SetErrFunc = func() error {
+		c.Logf("boot calls: %v", s.bootloader.SetBootVarsCalls)
+		if setBootVarsOk {
+			return nil
+		}
+		return fmt.Errorf("unexpected call")
+	}
+
+	snaptest.PopulateDir(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps"), [][]string{
+		{"core20_10.snap", "canary"},
+		{"some-snap_1.snap", "canary"},
+	})
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	// so far so good
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
+	// a reboot is expected
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	c.Check(s.bootloader.SetBootVarsCalls, Equals, 2)
+	s.restartRequests = nil
+
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234reboot"), testutil.FilePresent)
+	// since we can't inject a panic into the task and recover from it in
+	// the tests, reset the task states to as state which we would have if
+	// the system unexpectedly reboots before the task is marked as done
+	tskCreate.SetStatus(state.DoStatus)
+	tskFinalize.SetStatus(state.DoStatus)
+	state.MockRestarting(s.state, state.RestartUnset)
+	// we may have rebooted just before the task was marked as done, in
+	// which case tried systems would be populated
+	s.state.Set("tried-systems", []string{"1234undo"})
+	s.bootloader.SetBootVars(map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+	setBootVarsOk = false
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(chg.Err(), ErrorMatches, `(?s)cannot perform the following tasks.* \(cannot create a recovery system with label "1234reboot" for pc-20: system "1234reboot" already exists\)`)
+	c.Assert(tskCreate.Status(), Equals, state.ErrorStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.HoldStatus)
+	c.Check(s.restartRequests, HasLen, 0)
+
+	// recovery system was removed
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234reboot"), testutil.FileAbsent)
+	// and so were the new snaps
+	p, err := filepath.Glob(filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/*"))
+	c.Assert(err, IsNil)
+	c.Check(p, DeepEquals, []string{
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/core20_10.snap"),
+		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/some-snap_1.snap"),
+	})
+	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+	modeenvAfterCreate, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(modeenvAfterCreate.CurrentRecoverySystems, DeepEquals, []string{"othersystem"})
+	c.Check(modeenvAfterCreate.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+	var triedSystems []string
+	s.state.Get("tried-systems", &triedSystems)
+	c.Check(triedSystems, HasLen, 0)
 }
 
 type systemSnapTrackingSuite struct {
