@@ -65,12 +65,17 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("invalid select parameter: %q", sel)
 	}
 
-	appInfos, rsp := appInfosFor(c.d.overlord.State(), strutil.CommaSeparatedList(query.Get("names")), opts)
+	resolvedAppInfos, rsp := appInfosFor(c.d.overlord.State(), strutil.CommaSeparatedList(query.Get("names")), opts)
 	if rsp != nil {
 		return rsp
 	}
 
 	sd := servicestate.NewStatusDecorator(progress.Null)
+
+	appInfos := make([]*snap.AppInfo, 0, len(resolvedAppInfos))
+	for _, app := range resolvedAppInfos {
+		appInfos = append(appInfos, &app.AppInfo)
+	}
 
 	clientAppInfos, err := clientutil.ClientAppInfosFromSnapAppInfos(appInfos, sd)
 	if err != nil {
@@ -107,7 +112,7 @@ func (opts appInfoOptions) String() string {
 //
 // It's a programming error to call this with wanted having neither
 // services nor commands set.
-func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.AppInfo, Response) {
+func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*servicestate.ResolvedAppInfo, Response) {
 	snapNames := make(map[string]bool)
 	requested := make(map[string]bool)
 	for _, name := range names {
@@ -122,13 +127,13 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.
 	}
 
 	found := make(map[string]bool)
-	appInfos := make([]*snap.AppInfo, 0, len(requested))
+	appInfos := make([]*servicestate.ResolvedAppInfo, 0, len(requested))
 	for _, snp := range snaps {
 		snapName := snp.info.InstanceName()
-		apps := make([]*snap.AppInfo, 0, len(snp.info.Apps))
+		apps := make([]*servicestate.ResolvedAppInfo, 0, len(snp.info.Apps))
 		for _, app := range snp.info.Apps {
 			if !opts.service || app.IsService() {
-				apps = append(apps, app)
+				apps = append(apps, servicestate.NewResolvedAppInfo(app))
 			}
 		}
 
@@ -144,6 +149,7 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.
 
 		for _, app := range apps {
 			appName := snapName + "." + app.Name
+			app.ExplicitlyRequested = requested[appName]
 			if includeAll || requested[appName] {
 				appInfos = append(appInfos, app)
 				found[appName] = true
@@ -162,7 +168,7 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.
 		}
 	}
 
-	sort.Sort(snap.AppInfoBySnapApp(appInfos))
+	sort.Sort(servicestate.ResolvedAppInfos(appInfos))
 
 	return appInfos, nil
 }

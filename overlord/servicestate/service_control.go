@@ -40,6 +40,7 @@ type ServiceAction struct {
 	Action         string   `json:"action"`
 	ActionModifier string   `json:"action-modifier,omitempty"`
 	Services       []string `json:"services,omitempty"`
+	ActionIsOnSnap bool     `json:"action-on-snap"`
 }
 
 func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
