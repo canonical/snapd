@@ -74,6 +74,40 @@ var ErrNothingToDo = errors.New("nothing to do")
 
 var osutilCheckFreeSpace = osutil.CheckFreeSpace
 
+type manualUpdateInfo struct {
+	snap.Info
+}
+
+func (up *manualUpdateInfo) DownloadSize() int64 {
+	return up.DownloadInfo.Size
+}
+
+// SnapBase returns the base snap of the snap.
+func (s *manualUpdateInfo) SnapBase() string {
+	return s.Base
+}
+
+func (up *manualUpdateInfo) Prereq(st *state.State) []string {
+	return defaultContentPlugProviders(st, &up.Info)
+}
+
+type minimalInstallInfo interface {
+	InstanceName() string
+	Type() snap.Type
+	SnapBase() string
+	DownloadSize() int64
+	Prereq(st *state.State) []string
+}
+
+// ByType supports sorting by snap type. The most important types come first.
+type byType []minimalInstallInfo
+
+func (r byType) Len() int      { return len(r) }
+func (r byType) Swap(i, j int) { r[i], r[j] = r[j], r[i] }
+func (r byType) Less(i, j int) bool {
+	return r[i].Type().SortsBefore(r[j].Type())
+}
+
 // InsufficientSpaceError represents an error where there is not enough disk
 // space to perform an operation.
 type InsufficientSpaceError struct {
@@ -867,7 +901,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 	if checkDiskSpaceInstall {
 		// check if there is enough disk space for requested snap and its
 		// prerequisites.
-		totalSize, err := installSize(st, []*snap.Info{info}, userID)
+		totalSize, err := installSize(st, []minimalInstallInfo{&manualUpdateInfo{*info}}, userID)
 		if err != nil {
 			return nil, err
 		}
@@ -955,9 +989,9 @@ func InstallMany(st *state.State, names []string, userID int) ([]string, []*stat
 	if checkDiskSpaceInstall {
 		// check if there is enough disk space for requested snaps and their
 		// prerequisites.
-		snapInfos := make([]*snap.Info, len(installs))
+		snapInfos := make([]minimalInstallInfo, len(installs))
 		for i, sar := range installs {
-			snapInfos[i] = sar.Info
+			snapInfos[i] = &manualUpdateInfo{*sar.Info}
 		}
 		totalSize, err := installSize(st, snapInfos, userID)
 		if err != nil {
@@ -1105,7 +1139,11 @@ func updateManyFiltered(ctx context.Context, st *state.State, names []string, us
 	if checkDiskSpaceRefresh {
 		// check if there is enough disk space for requested snap and its
 		// prerequisites.
-		totalSize, err := installSize(st, updates, userID)
+		toUpdate := make([]minimalInstallInfo, len(updates))
+		for i, up := range updates {
+			toUpdate[i] = &manualUpdateInfo{*up}
+		}
+		totalSize, err := installSize(st, toUpdate, userID)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -1151,7 +1189,11 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []*s
 		}
 	}
 
-	newAutoAliases, mustPruneAutoAliases, transferTargets, err := autoAliasesUpdate(st, names, updates)
+	toUpdate := make([]minimalInstallInfo, len(updates))
+	for i, up := range updates {
+		toUpdate[i] = &manualUpdateInfo{*up}
+	}
+	newAutoAliases, mustPruneAutoAliases, transferTargets, err := autoAliasesUpdate(st, names, toUpdate)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1345,7 +1387,7 @@ func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string
 	return applyTs, nil
 }
 
-func autoAliasesUpdate(st *state.State, names []string, updates []*snap.Info) (changed map[string][]string, mustPrune map[string][]string, transferTargets map[string]bool, err error) {
+func autoAliasesUpdate(st *state.State, names []string, updates []minimalInstallInfo) (changed map[string][]string, mustPrune map[string][]string, transferTargets map[string]bool, err error) {
 	changed, dropped, err := autoAliasesDelta(st, nil)
 	if err != nil {
 		if len(names) != 0 {
@@ -1673,7 +1715,11 @@ func UpdateWithDeviceContext(st *state.State, name string, opts *RevisionOptions
 	if checkDiskSpaceRefresh {
 		// check if there is enough disk space for requested snap and its
 		// prerequisites.
-		totalSize, err := installSize(st, updates, userID)
+		toUpdate := make([]minimalInstallInfo, len(updates))
+		for i, up := range updates {
+			toUpdate[i] = &manualUpdateInfo{*up}
+		}
+		totalSize, err := installSize(st, toUpdate, userID)
 		if err != nil {
 			return nil, err
 		}

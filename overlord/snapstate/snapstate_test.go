@@ -175,7 +175,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	snapstate.EstimateSnapshotSize = func(st *state.State, instanceName string, users []string) (uint64, error) {
 		return 1, nil
 	}
-	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
 		return 0, nil
 	})
 	s.AddCleanup(restoreInstallSize)
