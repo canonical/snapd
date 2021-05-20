@@ -2,6 +2,12 @@ summary: Ensure that the polkit interface works.
 
 systems: [-ubuntu-core-*]
 
+prepare: |
+    tests.session -u test prepare
+
+restore: |
+    tests.session -u test restore
+
 execute: |
     echo "Install the test snap"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-pk-service
@@ -11,7 +17,7 @@ execute: |
 
     echo "The polkit policy file is not installed"
     test ! -f /usr/share/polkit-1/actions/snap.test-snapd-pk-service.interface.polkit.policy
-    
+
     echo "The interface can be connected"
     snap connect test-snapd-pk-service:polkit
     snap connections test-snapd-pk-service | MATCH "polkit +test-snapd-pk-service:polkit +:polkit +manual"
@@ -23,7 +29,7 @@ execute: |
 
     this_pid=$$
     echo "The snap can talk to polkitd"
-    test-snapd-pk-service.check-pid $this_pid org.example.foo.AlwaysAllow \
+    tests.session -u test exec test-snapd-pk-service.check-pid $this_pid org.example.foo.AlwaysAllow \
       | MATCH '^\(bba\{ss\}\) true false '
-    test-snapd-pk-service.check-pid $this_pid org.example.foo.AlwaysDeny \
+    tests.session -u test exec test-snapd-pk-service.check-pid $this_pid org.example.foo.AlwaysDeny \
       | MATCH '^\(bba\{ss\}\) false false '
