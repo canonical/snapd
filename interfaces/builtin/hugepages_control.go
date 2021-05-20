@@ -43,7 +43,7 @@ const hugepagesControlConnectedPlugAppArmor = `
 @{PROC}/sys/vm/nr_{hugepages,hugepages_mempolicy,overcommit_hugepages} rw,
 
 # Allow mounting hugetlbfs
-mount fstype=hugetlbfs,
+mount fstype=hugetlbfs none -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** ,
 
 # Observe which group can create shm segments using hugetlb pages
 @{PROC}/sys/vm/hugetlb_shm_group r,
