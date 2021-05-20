@@ -546,7 +546,6 @@ func (s *createSystemSuite) TestCreateSystemInfoAndAssertsChecks(c *C) {
 	}
 	var observerCalls int
 	snapWriteObserver := func(dir, where string) error {
-		c.Fatalf("unexpected call")
 		observerCalls++
 		return fmt.Errorf("unexpected call")
 	}
@@ -642,9 +641,9 @@ func (s *createSystemSuite) TestCreateSystemGetInfoErr(c *C) {
 		info, present := infos[name]
 		return info, present, nil
 	}
-	var obnserverCalls int
+	var observerCalls int
 	snapWriteObserver := func(dir, where string) error {
-		obnserverCalls++
+		observerCalls++
 		return fmt.Errorf("unexpected call")
 	}
 
@@ -658,7 +657,7 @@ func (s *createSystemSuite) TestCreateSystemGetInfoErr(c *C) {
 		infoGetter, snapWriteObserver)
 	c.Assert(err, ErrorMatches, `cannot obtain essential snap information: mock failure for snap "pc"`)
 	c.Check(dir, Equals, "")
-	c.Check(obnserverCalls, Equals, 0)
+	c.Check(observerCalls, Equals, 0)
 	c.Check(osutil.IsDirectory(systemDir), Equals, false)
 
 	failOn["pc"] = false
@@ -667,7 +666,7 @@ func (s *createSystemSuite) TestCreateSystemGetInfoErr(c *C) {
 		infoGetter, snapWriteObserver)
 	c.Assert(err, ErrorMatches, `cannot obtain non-essential but "required" snap information: mock failure for snap "other-required"`)
 	c.Check(dir, Equals, "")
-	c.Check(obnserverCalls, Equals, 0)
+	c.Check(observerCalls, Equals, 0)
 	c.Check(osutil.IsDirectory(systemDir), Equals, false)
 }
 
