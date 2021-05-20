@@ -69,7 +69,7 @@ func (rc *refreshCandidate) Type() snap.Type {
 	return rc.SnapSetup.Type
 }
 
-func (rc *refreshCandidate) Base() string {
+func (rc *refreshCandidate) SnapBase() string {
 	return rc.SnapSetup.Base
 }
 
@@ -77,7 +77,7 @@ func (rc *refreshCandidate) MakeSnapSetup(*state.State, *SnapState) (*SnapSetup,
 	return &rc.SnapSetup, nil
 }
 
-func (rc *refreshCandidate) Size() int64 {
+func (rc *refreshCandidate) DownloadSize() int64 {
 	return rc.DownloadInfo.Size
 }
 
