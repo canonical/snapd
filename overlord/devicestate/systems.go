@@ -388,7 +388,6 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		// destination already exists if it is not in the asserted snaps we
 		// should copy it
 		logger.Noticef("copying new seed snap %q from %v to %v", name, src, dst)
-
 		if observeWrite != nil {
 			if err := observeWrite(recoverySystemDir, dst); err != nil {
 				return err

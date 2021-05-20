@@ -405,10 +405,8 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 		return info, present, nil
 	}
 	var newFiles []string
-	var observeCalls int
 	snapWriteObserver := func(dir, where string) error {
 		c.Check(dir, Equals, expectedDir)
-		observeCalls++
 		// we are not called for the snap which already exists
 		c.Check(where, testutil.FileAbsent)
 		newFiles = append(newFiles, where)
@@ -485,7 +483,7 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 		filepath.Join(unassertedSnapsDir, "other-unasserted_1.0.snap"), 0)
 	c.Assert(err, IsNil)
 
-	observeCalls = 0
+	newFiles = nil
 	// the unasserted snap goes into the snaps directory under the system
 	// directory, which triggers the error in creating the directory by
 	// seed writer
@@ -495,7 +493,7 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 	c.Assert(err, ErrorMatches, `system "1234unasserted" already exists`)
 	// we failed early, no files were written yet
 	c.Check(dir, Equals, "")
-	c.Check(observeCalls, Equals, 0)
+	c.Check(newFiles, IsNil)
 }
 
 func (s *createSystemSuite) TestCreateSystemInfoAndAssertsChecks(c *C) {
