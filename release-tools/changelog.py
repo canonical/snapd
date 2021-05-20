@@ -67,8 +67,6 @@ def updateFedoraChangelog(opts, snapdPackagingDir, newChangelogEntry, maintainer
 
     dedentedChangeLogLines = []
     for line in newChangelogEntry.splitlines():
-        if len(line) < 5 or not line.startswith("    "):
-            raise RuntimeError("unexpected changelog line, line too short")
         # strip the first 3 characters which are space characters so
         # that we only have one single whitespace
         dedentedChangeLogLines.append(line[3:] + "\n")
@@ -139,6 +137,17 @@ def main(opts):
 
     # read all the changelog entries, expected to be formatted by snappy-dch
     newChangelogEntry = opts.changelog.read()
+
+    # verify that the changelog entry lines are all in the right format
+    for lineNumber, line in enumerate(newChangelogEntry.splitlines(), start=1):
+        # each line should start with either 4 spaces, a - and then another
+        # space, or 6 spaces
+        if not line.startswith("    - ") and not line.startswith("      "):
+            raise RuntimeError(f"unexpected changelog line format in line {lineNumber}")
+        if len(line) >= 72:
+            raise RuntimeError(
+                f"line {lineNumber} too long, should wrap properly to next line"
+            )
 
     # read the name and email of the person running the script using i.e. dch
     # conventions
