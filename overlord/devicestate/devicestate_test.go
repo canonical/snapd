@@ -579,8 +579,6 @@ func (s *deviceMgrSuite) TestDeviceManagerEnsureBootOkError(c *C) {
 	s.bootloader.GetErr = fmt.Errorf("bootloader err")
 
 	devicestate.SetBootOkRan(s.mgr, false)
-	// tried systems checks access the bootloader
-	devicestate.SetTriedSystemsRan(s.mgr, true)
 
 	err := s.mgr.Ensure()
 	c.Assert(err, ErrorMatches, "devicemgr: cannot mark boot successful: bootloader err")
