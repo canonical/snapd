@@ -1775,7 +1775,7 @@ func (s *snapmgrTestSuite) TestInstallFirstLocalRunThrough(c *C) {
 	// use the real thing for this one
 	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
 
-	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
 		c.Fatalf("installSize shouldn't be hit with local install")
 		return 0, nil
 	})
@@ -2899,7 +2899,7 @@ func (s *snapmgrTestSuite) TestInstallDiskSpaceError(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestInstallSizeError(c *C) {
-	restore := snapstate.MockInstallSize(func(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
+	restore := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
 		return 0, fmt.Errorf("boom")
 	})
 	defer restore()

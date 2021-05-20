@@ -31,6 +31,9 @@ import (
 
 type ManagerBackend managerBackend
 
+type MinimalInstallInfo = minimalInstallInfo
+type ManualUpdateInfo = manualUpdateInfo
+
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 	s.backend = b
 }
@@ -260,7 +263,7 @@ func MockCurrentSnaps(f func(st *state.State) ([]*store.CurrentSnap, error)) fun
 	}
 }
 
-func MockInstallSize(f func(st *state.State, snaps []*snap.Info, userID int) (uint64, error)) func() {
+func MockInstallSize(f func(st *state.State, snaps []minimalInstallInfo, userID int) (uint64, error)) func() {
 	old := installSize
 	installSize = f
 	return func() {
