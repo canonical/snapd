@@ -58,6 +58,10 @@ type SerialPortInterfaceSuite struct {
 	testSlot8Info        *snap.SlotInfo
 	testSlot9            *interfaces.ConnectedSlot
 	testSlot9Info        *snap.SlotInfo
+	testSlot10           *interfaces.ConnectedSlot
+	testSlot10Info       *snap.SlotInfo
+	testSlot11           *interfaces.ConnectedSlot
+	testSlot11Info       *snap.SlotInfo
 	testSlotCleaned      *interfaces.ConnectedSlot
 	testSlotCleanedInfo  *snap.SlotInfo
 	missingPathSlot      *interfaces.ConnectedSlot
@@ -84,6 +88,10 @@ type SerialPortInterfaceSuite struct {
 	badPathSlot10Info    *snap.SlotInfo
 	badPathSlot11        *interfaces.ConnectedSlot
 	badPathSlot11Info    *snap.SlotInfo
+	badPathSlot12        *interfaces.ConnectedSlot
+	badPathSlot12Info    *snap.SlotInfo
+	badPathSlot13        *interfaces.ConnectedSlot
+	badPathSlot13Info    *snap.SlotInfo
 	badInterfaceSlot     *interfaces.ConnectedSlot
 	badInterfaceSlotInfo *snap.SlotInfo
 
@@ -151,6 +159,12 @@ slots:
     test-port-9:
         interface: serial-port
         path: /dev/ttySC0
+    test-port-10:
+        interface: serial-port
+        path: /dev/ttyMSM0
+    test-port-11:
+        interface: serial-port
+        path: /dev/ttyHS0
     test-port-unclean:
         interface: serial-port
         path: /dev/./././ttyS1////
@@ -187,6 +201,12 @@ slots:
         path: /dev/ttySC
     bad-path-11:
         interface: serial-port
+        path: /dev/ttyMSM
+    bad-path-12:
+        interface: serial-port
+        path: /dev/ttyHS
+    bad-path-13:
+        interface: serial-port
         path: /dev/ttyillegal0
     bad-interface: other-interface
 `, nil)
@@ -208,6 +228,10 @@ slots:
 	s.testSlot8 = interfaces.NewConnectedSlot(s.testSlot8Info, nil, nil)
 	s.testSlot9Info = osSnapInfo.Slots["test-port-9"]
 	s.testSlot9 = interfaces.NewConnectedSlot(s.testSlot9Info, nil, nil)
+	s.testSlot10Info = osSnapInfo.Slots["test-port-10"]
+	s.testSlot10 = interfaces.NewConnectedSlot(s.testSlot10Info, nil, nil)
+	s.testSlot11Info = osSnapInfo.Slots["test-port-11"]
+	s.testSlot11 = interfaces.NewConnectedSlot(s.testSlot11Info, nil, nil)
 	s.testSlotCleanedInfo = osSnapInfo.Slots["test-port-unclean"]
 	s.testSlotCleaned = interfaces.NewConnectedSlot(s.testSlotCleanedInfo, nil, nil)
 	s.missingPathSlotInfo = osSnapInfo.Slots["missing-path"]
@@ -234,6 +258,10 @@ slots:
 	s.badPathSlot10 = interfaces.NewConnectedSlot(s.badPathSlot10Info, nil, nil)
 	s.badPathSlot11Info = osSnapInfo.Slots["bad-path-11"]
 	s.badPathSlot11 = interfaces.NewConnectedSlot(s.badPathSlot11Info, nil, nil)
+	s.badPathSlot12Info = osSnapInfo.Slots["bad-path-12"]
+	s.badPathSlot12 = interfaces.NewConnectedSlot(s.badPathSlot12Info, nil, nil)
+	s.badPathSlot13Info = osSnapInfo.Slots["bad-path-13"]
+	s.badPathSlot13 = interfaces.NewConnectedSlot(s.badPathSlot13Info, nil, nil)
 	s.badInterfaceSlotInfo = osSnapInfo.Slots["bad-interface"]
 	s.badInterfaceSlot = interfaces.NewConnectedSlot(s.badInterfaceSlotInfo, nil, nil)
 
@@ -338,7 +366,7 @@ func (s *SerialPortInterfaceSuite) TestName(c *C) {
 }
 
 func (s *SerialPortInterfaceSuite) TestSanitizeCoreSnapSlots(c *C) {
-	for _, slot := range []*snap.SlotInfo{s.testSlot1Info, s.testSlot2Info, s.testSlot3Info, s.testSlot4Info, s.testSlot5Info, s.testSlot6Info, s.testSlot7Info, s.testSlot8Info} {
+	for _, slot := range []*snap.SlotInfo{s.testSlot1Info, s.testSlot2Info, s.testSlot3Info, s.testSlot4Info, s.testSlot5Info, s.testSlot6Info, s.testSlot7Info, s.testSlot8Info, s.testSlot9Info, s.testSlot10Info, s.testSlot11Info} {
 		c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), IsNil)
 	}
 }
@@ -348,7 +376,7 @@ func (s *SerialPortInterfaceSuite) TestSanitizeBadCoreSnapSlots(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.missingPathSlotInfo), ErrorMatches, `serial-port slot must have a path attribute`)
 
 	// Slots with incorrect value of the "path" attribute are rejected.
-	for _, slot := range []*snap.SlotInfo{s.badPathSlot1Info, s.badPathSlot2Info, s.badPathSlot3Info, s.badPathSlot4Info, s.badPathSlot5Info, s.badPathSlot6Info, s.badPathSlot7Info, s.badPathSlot8Info, s.badPathSlot9Info, s.badPathSlot10Info, s.badPathSlot11Info} {
+	for _, slot := range []*snap.SlotInfo{s.badPathSlot1Info, s.badPathSlot2Info, s.badPathSlot3Info, s.badPathSlot4Info, s.badPathSlot5Info, s.badPathSlot6Info, s.badPathSlot7Info, s.badPathSlot8Info, s.badPathSlot9Info, s.badPathSlot10Info, s.badPathSlot11Info, s.badPathSlot12Info, s.badPathSlot13Info} {
 		c.Assert(interfaces.BeforePrepareSlot(s.iface, slot), ErrorMatches, "serial-port path attribute must be a valid device node")
 	}
 }
@@ -501,14 +529,20 @@ func (s *SerialPortInterfaceSuite) TestConnectedPlugAppArmorSnippets(c *C) {
 	expectedSnippet9 := `/dev/ttySC0 rwk,`
 	checkConnectedPlugSnippet(s.testPlugPort1, s.testSlot9, expectedSnippet9)
 
-	expectedSnippet10 := `/dev/tty[A-Z]*[0-9] rwk,`
-	checkConnectedPlugSnippet(s.testPlugPort1, s.testUDev1, expectedSnippet10)
+	expectedSnippet10 := `/dev/ttyMSM0 rwk,`
+	checkConnectedPlugSnippet(s.testPlugPort1, s.testSlot10, expectedSnippet10)
 
-	expectedSnippet11 := `/dev/tty[A-Z]*[0-9] rwk,`
-	checkConnectedPlugSnippet(s.testPlugPort2, s.testUDev2, expectedSnippet11)
+	expectedSnippet11 := `/dev/ttyHS0 rwk,`
+	checkConnectedPlugSnippet(s.testPlugPort1, s.testSlot11, expectedSnippet11)
 
 	expectedSnippet12 := `/dev/tty[A-Z]*[0-9] rwk,`
-	checkConnectedPlugSnippet(s.testPlugPort2, s.testUDev3, expectedSnippet12)
+	checkConnectedPlugSnippet(s.testPlugPort1, s.testUDev1, expectedSnippet12)
+
+	expectedSnippet13 := `/dev/tty[A-Z]*[0-9] rwk,`
+	checkConnectedPlugSnippet(s.testPlugPort2, s.testUDev2, expectedSnippet13)
+
+	expectedSnippet14 := `/dev/tty[A-Z]*[0-9] rwk,`
+	checkConnectedPlugSnippet(s.testPlugPort2, s.testUDev3, expectedSnippet14)
 }
 
 func (s *SerialPortInterfaceSuite) TestConnectedPlugUDevSnippetsForPath(c *C) {
@@ -570,18 +604,28 @@ SUBSYSTEM=="tty", KERNEL=="ttySC0", TAG+="snap_client-snap_app-accessing-3rd-por
 	expectedExtraSnippet9 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-3rd-port $devpath $major:$minor"`, dirs.DistroLibExecDir)
 	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot9, expectedSnippet9, expectedExtraSnippet9)
 
-	// these have product and vendor ids
 	expectedSnippet10 := `# serial-port
-IMPORT{builtin}="usb_id"
-SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", TAG+="snap_client-snap_app-accessing-3rd-port"`
+SUBSYSTEM=="tty", KERNEL=="ttyMSM0", TAG+="snap_client-snap_app-accessing-3rd-port"`
 	expectedExtraSnippet10 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-3rd-port $devpath $major:$minor"`, dirs.DistroLibExecDir)
-	checkConnectedPlugSnippet(s.testPlugPort3, s.testUDev1, expectedSnippet10, expectedExtraSnippet10)
+	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot10, expectedSnippet10, expectedExtraSnippet10)
 
 	expectedSnippet11 := `# serial-port
+SUBSYSTEM=="tty", KERNEL=="ttyHS0", TAG+="snap_client-snap_app-accessing-3rd-port"`
+	expectedExtraSnippet11 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-3rd-port $devpath $major:$minor"`, dirs.DistroLibExecDir)
+	checkConnectedPlugSnippet(s.testPlugPort3, s.testSlot11, expectedSnippet11, expectedExtraSnippet11)
+
+	// these have product and vendor ids
+	expectedSnippet12 := `# serial-port
+IMPORT{builtin}="usb_id"
+SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="0001", ATTRS{idProduct}=="0001", TAG+="snap_client-snap_app-accessing-3rd-port"`
+	expectedExtraSnippet12 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-3rd-port $devpath $major:$minor"`, dirs.DistroLibExecDir)
+	checkConnectedPlugSnippet(s.testPlugPort3, s.testUDev1, expectedSnippet12, expectedExtraSnippet12)
+
+	expectedSnippet13 := `# serial-port
 IMPORT{builtin}="usb_id"
 SUBSYSTEM=="tty", SUBSYSTEMS=="usb", ATTRS{idVendor}=="ffff", ATTRS{idProduct}=="ffff", TAG+="snap_client-snap_app-accessing-3rd-port"`
-	expectedExtraSnippet11 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-3rd-port $devpath $major:$minor"`, dirs.DistroLibExecDir)
-	checkConnectedPlugSnippet(s.testPlugPort3, s.testUDev2, expectedSnippet11, expectedExtraSnippet11)
+	expectedExtraSnippet13 := fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-3rd-port", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-3rd-port $devpath $major:$minor"`, dirs.DistroLibExecDir)
+	checkConnectedPlugSnippet(s.testPlugPort3, s.testUDev2, expectedSnippet13, expectedExtraSnippet13)
 }
 
 func (s *SerialPortInterfaceSuite) TestHotplugDeviceDetected(c *C) {
