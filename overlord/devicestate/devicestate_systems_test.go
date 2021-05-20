@@ -1075,10 +1075,8 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemTasks
 	err = tskCreate.Get("recovery-system-setup", &systemSetupData)
 	c.Assert(err, IsNil)
 	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
-		"label": "1234",
-		// not set yet
-		"directory":        "",
-		"new-common-files": nil,
+		"label":            "1234",
+		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"),
 		"snap-setup-tasks": nil,
 	})
 
@@ -1086,6 +1084,18 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemTasks
 	err = tskFinalize.Get("recovery-system-setup-task", &otherTaskID)
 	c.Assert(err, IsNil)
 	c.Assert(otherTaskID, Equals, tskCreate.ID())
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemTasksWhenDirExists(c *C) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"), 0755), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	chg, err := devicestate.CreateRecoverySystem(s.state, "1234")
+	c.Assert(err, ErrorMatches, `recovery system "1234" already exists`)
+	c.Check(chg, IsNil)
 }
 
 func (s *deviceMgrSystemsCreateSuite) makeSnapInState(c *C, name string, rev snap.Revision) *snap.Info {

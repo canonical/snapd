@@ -148,7 +148,6 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) erro
 	}()
 
 	setup.NewCommonFiles = newFiles
-	setup.Directory = systemDir
 	// 2. keep track of the system in task state
 	if err := setTaskRecoverySystemSetup(t, setup); err != nil {
 		return fmt.Errorf("cannot record recovery system setup state: %v", err)
