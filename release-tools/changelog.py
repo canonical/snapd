@@ -36,7 +36,7 @@ otherDistros = [
 ]
 
 
-def rewriteVersionNumberFile(file, vers, pattern):
+def rewriteVersionNumberFile(file, pattern, version):
     # simple sed implementation, read all the lines first, then write them out
     # again, applying the given pattern to every line (the pattern is expected
     # to only ever match one line)
@@ -44,7 +44,7 @@ def rewriteVersionNumberFile(file, vers, pattern):
         lines = fh.readlines()
     with open(file, "w") as fh:
         for line in lines:
-            fh.write(re.sub(pattern + ".+$", pattern + vers, line))
+            fh.write(re.sub(pattern + ".+$", pattern + version, line))
 
 
 def updateFedoraChangelog(opts, snapdPackagingDir, newChangelogEntry, maintainer):
@@ -55,8 +55,8 @@ def updateFedoraChangelog(opts, snapdPackagingDir, newChangelogEntry, maintainer
         # prepend the number of spaces we currently have in the file to
         # the version number
         specFile,
-        "        %s" % opts.version,
         "Version:",
+        f"        {opts.version}",
     )
 
     # now we also need to add the changelog entry to the snapd.spec file
@@ -67,7 +67,7 @@ def updateFedoraChangelog(opts, snapdPackagingDir, newChangelogEntry, maintainer
 
     dedentedChangeLogLines = []
     for line in newChangelogEntry.splitlines():
-        if len(line) < 5:
+        if len(line) < 5 or not line.startswith("    "):
             raise RuntimeError("unexpected changelog line, line too short")
         # strip the first 3 characters which are space characters so
         # that we only have one single whitespace
@@ -75,12 +75,8 @@ def updateFedoraChangelog(opts, snapdPackagingDir, newChangelogEntry, maintainer
 
     date = datetime.datetime.now().strftime("%a %d %b %Y")
 
-    dateAndMaintainerHeader = "* %s %s <%s>\n" % (
-        date,
-        maintainer[0],
-        maintainer[1],
-    )
-    changeLogHeader = "- New upstream release %s\n" % opts.version
+    dateAndMaintainerHeader = f"* {date} {maintainer[0]} <{maintainer[1]}>\n"
+    changeLogHeader = f"- New upstream release {opts.version}\n"
     fedoraChangeLogEntryLines = [
         dateAndMaintainerHeader,
         changeLogHeader,
@@ -113,24 +109,20 @@ def updateOpensuseChangelog(opts, snapdPackagingDir, newChangelogEntry, maintain
         # prepend the number of spaces we currently have in the file to
         # the version number
         specFile,
-        "        " + opts.version,
         "Version:",
+        "        " + opts.version,
     )
 
     # also add a template changelog to the changes file
     date = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S %z")
 
     email = maintainer[1]
-    templ = """-------------------------------------------------------------------
-%s - %s
+    templ = f"""-------------------------------------------------------------------
+{date} - {email}
 
-- Update to upstream release %s
+- Update to upstream release {opts.version}
 
-""" % (
-        date,
-        email,
-        opts.version,
-    )
+"""
 
     # first read the existing changelog lines
     with open(changesFile, "r") as fh:
@@ -166,7 +158,7 @@ def main(opts):
             version=opts.version + distro[2],
             distributions=distro[1],
             urgency="medium",
-            author="%s <%s>" % maintainer,
+            author=f"{maintainer[0]} <{maintainer[1]}>",
             date=debian.changelog.format_date(),
         )
 
@@ -186,8 +178,8 @@ def main(opts):
             # for arch all we need to do is change the PKGBUILD "pkgver" key
             rewriteVersionNumberFile(
                 os.path.join(snapdPackagingDir, "arch", "PKGBUILD"),
-                opts.version,
                 "pkgver=",
+                opts.version,
             )
         elif distro == "fedora":
             updateFedoraChangelog(
