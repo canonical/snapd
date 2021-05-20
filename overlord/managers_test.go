@@ -655,14 +655,6 @@ apps:
 }
 
 func (s *mgrsSuite) TestHappyRemoveWithQuotas(c *C) {
-	oldEstimateSnapshotSize := snapstate.EstimateSnapshotSize
-	snapstate.EstimateSnapshotSize = func(st *state.State, instanceName string, users []string) (uint64, error) {
-		return 0, nil
-	}
-	defer func() {
-		snapstate.EstimateSnapshotSize = oldEstimateSnapshotSize
-	}()
-
 	st := s.o.State()
 	st.Lock()
 	defer st.Unlock()
@@ -683,7 +675,7 @@ apps:
 	err := servicestate.CreateQuota(st, "quota-grp", "", []string{"foo"}, quantity.SizeMiB)
 	c.Assert(err, IsNil)
 
-	ts, err := snapstate.Remove(st, "foo", snap.R(0), nil)
+	ts, err := snapstate.Remove(st, "foo", snap.R(0), &snapstate.RemoveFlags{Purge: true})
 	c.Assert(err, IsNil)
 	chg := st.NewChange("remove-snap", "...")
 	chg.AddAll(ts)
