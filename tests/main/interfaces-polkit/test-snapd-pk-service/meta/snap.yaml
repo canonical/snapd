@@ -1,6 +1,5 @@
 name: test-snapd-pk-service
 version: 1
-base: core20
 plugs:
   polkit:
     action-prefix: org.example.foo
