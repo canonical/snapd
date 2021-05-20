@@ -6,6 +6,7 @@ prepare: |
     tests.session -u test prepare
 
 restore: |
+    rm -f /home/test/sleep.stamp
     tests.session -u test restore
 
 execute: |
@@ -27,9 +28,13 @@ execute: |
     echo "The contents match the file provided by the snap"
     cmp /usr/share/polkit-1/actions/snap.test-snapd-pk-service.interface.polkit.policy ./test-snapd-pk-service/meta/polkit.policy
 
-    this_pid=$$
+    echo "Create a non-privileged process, and get its pid"
+    tests.session -u test exec systemd-run --user --unit test-snapd-sleep.service sh -c 'touch /home/test/sleep.stamp && exec sleep 1h'
+    retry -n 30 --wait 0.1 test -e /home/test/sleep.stamp
+    user_pid=$(tests.session -u test exec systemctl --user show --property=MainPID test-snapd-sleep.service | cut -d = -f 2)
+
     echo "The snap can talk to polkitd"
-    tests.session -u test exec test-snapd-pk-service.check-pid $this_pid org.example.foo.AlwaysAllow \
+    test-snapd-pk-service.check-pid "$user_pid" org.example.foo.AlwaysAllow \
       | MATCH '^\(bba\{ss\}\) true false '
-    tests.session -u test exec test-snapd-pk-service.check-pid $this_pid org.example.foo.AlwaysDeny \
+    test-snapd-pk-service.check-pid "$user_pid" org.example.foo.AlwaysDeny \
       | MATCH '^\(bba\{ss\}\) false false '
