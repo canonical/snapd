@@ -18,7 +18,6 @@ systems:
     - ubuntu-core-20-*  # tracking works correctly, for completeness
 
 prepare: |
-    tests.cleanup prepare
     # This feature depends on the release-app-awareness feature
     snap set core experimental.refresh-app-awareness=true
     tests.cleanup defer snap unset core experimental.refresh-app-awareness
@@ -26,7 +25,6 @@ prepare: |
     tests.cleanup defer snap remove --purge test-snapd-sh
 
 restore: |
-    tests.cleanup restore
     systemctl --user stop dbus.service || true
 
 debug: |

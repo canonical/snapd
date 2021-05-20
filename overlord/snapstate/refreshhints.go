@@ -140,7 +140,7 @@ func (r *refreshHints) Ensure() error {
 	return r.refresh()
 }
 
-func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreValidationByInstanceName map[string]bool, deviceCtx DeviceContext) ([]*refreshCandidate, error) {
+func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreValidationByInstanceName map[string]bool, deviceCtx DeviceContext) (map[string]*refreshCandidate, error) {
 	if ValidateRefreshes != nil && len(updates) != 0 {
 		userID := 0
 		var err error
@@ -150,7 +150,7 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 		}
 	}
 
-	hints := []*refreshCandidate{}
+	hints := make(map[string]*refreshCandidate, len(updates))
 	for _, update := range updates {
 		var snapst SnapState
 		if err := Get(st, update.InstanceName(), &snapst); err != nil {
@@ -185,7 +185,7 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 			},
 			Version: update.Version,
 		}
-		hints = append(hints, snapsup)
+		hints[update.InstanceName()] = snapsup
 	}
 	return hints, nil
 }
