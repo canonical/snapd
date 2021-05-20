@@ -217,13 +217,14 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[s
 	// now restart the services for each snap that was newly moved into a quota
 	// group
 	nullPerfTimings := &timings.Timings{}
-	// iterate in a stable order over the snaps to restart their apps
+	// iterate in a sorted order over the snaps to restart their apps for easy
+	// tests
 	snaps := make([]*snap.Info, 0, len(appsToRestartBySnap))
 	for sn := range appsToRestartBySnap {
 		snaps = append(snaps, sn)
 	}
 
-	sort.SliceStable(snaps, func(i, j int) bool {
+	sort.Slice(snaps, func(i, j int) bool {
 		return snaps[i].InstanceName() < snaps[j].InstanceName()
 	})
 
