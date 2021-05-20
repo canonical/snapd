@@ -528,7 +528,7 @@ func EnsureSnapAbsentFromQuotaGroup(st *state.State, snap string) error {
 	}
 
 	// ensure service states are updated - note we have to add the snap as an
-	// extra snap to ensure since was removed from the group and thus won't be
-	// considered if we didn't add it
+	// extra snap to ensure since it was removed from the group and thus won't
+	// be considered just by looking at the group pointer directly
 	return ensureSnapServicesForGroup(st, grp, allGrps, []string{snap})
 }
