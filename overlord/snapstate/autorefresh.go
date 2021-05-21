@@ -73,10 +73,6 @@ func (rc *refreshCandidate) SnapBase() string {
 	return rc.SnapSetup.Base
 }
 
-func (rc *refreshCandidate) MakeSnapSetup(*state.State, *SnapState) (*SnapSetup, error) {
-	return &rc.SnapSetup, nil
-}
-
 func (rc *refreshCandidate) DownloadSize() int64 {
 	return rc.DownloadInfo.Size
 }
@@ -85,9 +81,20 @@ func (rc *refreshCandidate) InstanceName() string {
 	return rc.SnapSetup.InstanceName()
 }
 
-func (rh *refreshCandidate) DefaultContentPlugProviders(st *state.State) []string {
-	return rh.Prereq
+func (rc *refreshCandidate) Prereq(st *state.State) []string {
+	return rc.SnapSetup.Prereq
 }
+
+func (rc *refreshCandidate) SnapSetupForUpdate(st *state.State, params updateParamsFunc, userID int, globalFlags *Flags) (*SnapSetup, *SnapState, error) {
+	var snapst SnapState
+	if err := Get(st, rc.InstanceName(), &snapst); err != nil {
+		return nil, nil, err
+	}
+	return &rc.SnapSetup, &snapst, nil
+}
+
+// soundness check
+var _ readyUpdateInfo = (*refreshCandidate)(nil)
 
 // autoRefresh will ensure that snaps are refreshed automatically
 // according to the refresh schedule.

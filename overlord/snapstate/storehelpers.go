@@ -121,7 +121,7 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int) 
 				accountedSnaps[base] = true
 			}
 		}
-		for _, snapName := range inst.DefaultContentPlugProviders(st) {
+		for _, snapName := range inst.Prereq(st) {
 			if !accountedSnaps[snapName] {
 				prereqs = append(prereqs, snapName)
 				accountedSnaps[snapName] = true
@@ -170,7 +170,7 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int) 
 		for _, res := range results {
 			snapSizes[res.InstanceName()] = uint64(res.Size)
 			// results may have new base or content providers
-			resolveBaseAndContentProviders(&manualUpdateInfo{*res.Info})
+			resolveBaseAndContentProviders(installSnapInfo{res.Info})
 		}
 	}
 
