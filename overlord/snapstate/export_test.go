@@ -32,7 +32,7 @@ import (
 type ManagerBackend managerBackend
 
 type MinimalInstallInfo = minimalInstallInfo
-type ManualUpdateInfo = manualUpdateInfo
+type InstallSnapInfo = installSnapInfo
 
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 	s.backend = b

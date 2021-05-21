@@ -273,9 +273,11 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 	c.Check(cand2.DownloadSize(), Equals, int64(88))
 	c.Check(cand2.Version, Equals, "v1")
 
-	var snapst snapstate.SnapState
+	var snapst1 snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst1)
+	c.Assert(err, IsNil)
 
-	sup, err := cand1.MakeSnapSetup(s.state, &snapst)
+	sup, snapst, err := cand1.SnapSetupForUpdate(s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(sup, DeepEquals, &snapstate.SnapSetup{
 		Base: "some-base",
@@ -294,8 +296,13 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 			Size: int64(99),
 		},
 	})
+	c.Check(snapst, DeepEquals, &snapst1)
 
-	sup, err = cand2.MakeSnapSetup(s.state, &snapst)
+	var snapst2 snapstate.SnapState
+	err = snapstate.Get(s.state, "other-snap", &snapst2)
+	c.Assert(err, IsNil)
+
+	sup, snapst, err = cand2.SnapSetupForUpdate(s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
 	c.Check(sup, DeepEquals, &snapstate.SnapSetup{
 		Type: "app",
@@ -313,6 +320,7 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 			Size: int64(88),
 		},
 	})
+	c.Check(snapst, DeepEquals, &snapst2)
 }
 
 func (s *refreshHintsTestSuite) TestRefreshHintsNotApplicableWrongArch(c *C) {
