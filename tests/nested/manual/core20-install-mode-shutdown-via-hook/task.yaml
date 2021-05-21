@@ -40,7 +40,7 @@ prepare: |
 
 restore: |
     # Cleanup restore is needed in this case because nested tests are not
-    # doint automatic cleanups
+    # doing automatic cleanups
     tests.cleanup restore
 
 execute: |
