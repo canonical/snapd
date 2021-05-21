@@ -4,6 +4,7 @@ import argparse
 import datetime
 import os
 import re
+from typing import NamedTuple
 
 import debian.changelog
 
@@ -19,15 +20,18 @@ def parse_arguments():
     return parser.parse_args()
 
 
+class Distro(NamedTuple):
+    name: str  # name of the distro in the packaging directory
+    debian_name: str  # debian distribution name
+    version_suffix: str  # suffix to add to the version number in changelogs
+
+
 debianish_distros = [
-    # first element is the name of the distro in the packaging directory
-    # second element is the debian distribution name
-    # third element is the suffix to add to the version number when generating
-    # the changelog
-    ("ubuntu-14.04", "trusty", "~14.04"),
-    ("ubuntu-16.04", "xenial", ""),
-    ("debian-sid", "unstable", "-1"),
+    Distro("ubuntu-14.04", "trusty", "~14.04"),
+    Distro("ubuntu-16.04", "xenial", ""),
+    Distro("debian-sid", "unstable", "-1"),
 ]
+
 
 other_distros = [
     "opensuse",
@@ -160,7 +164,7 @@ def main(opts):
     # first handle all of the debian packaging files
     for distro in debianish_distros:
         debian_packaging_changelog = os.path.join(
-            snapd_packaging_dir, distro[0], "changelog"
+            snapd_packaging_dir, distro.name, "changelog"
         )
         with open(debian_packaging_changelog) as fh:
             ch = debian.changelog.Changelog(fh)
@@ -168,8 +172,8 @@ def main(opts):
         # setup a new block
         ch.new_block(
             package="snapd",
-            version=opts.version + distro[2],
-            distributions=distro[1],
+            version=opts.version + distro.version_suffix,
+            distributions=distro.debian_name,
             urgency="medium",
             author=f"{maintainer[0]} <{maintainer[1]}>",
             date=debian.changelog.format_date(),
