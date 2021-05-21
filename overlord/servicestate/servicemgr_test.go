@@ -45,13 +45,7 @@ import (
 	"github.com/snapcore/snapd/wrappers"
 )
 
-type expectedSystemctl struct {
-	expArgs []string
-	output  string
-	err     error
-}
-
-type ensureSnapServiceSuite struct {
+type baseServiceMgrTestSuite struct {
 	testutil.BaseTest
 
 	mgr *servicestate.ServiceManager
@@ -68,6 +62,88 @@ type ensureSnapServiceSuite struct {
 
 	testSnapState    *snapstate.SnapState
 	testSnapSideInfo *snap.SideInfo
+}
+
+func (s *baseServiceMgrTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
+
+	s.restartRequests = nil
+
+	s.restartObserve = nil
+	s.o = overlord.MockWithStateAndRestartHandler(nil, func(req state.RestartType) {
+		s.restartRequests = append(s.restartRequests, req)
+		if s.restartObserve != nil {
+			s.restartObserve()
+		}
+	})
+
+	s.state = s.o.State()
+	s.state.Lock()
+	s.state.VerifyReboot("boot-id-0")
+	s.state.Unlock()
+	s.se = s.o.StateEngine()
+
+	s.mgr = servicestate.Manager(s.state, s.o.TaskRunner())
+	s.o.AddManager(s.mgr)
+	s.o.AddManager(s.o.TaskRunner())
+
+	err := s.o.StartUp()
+	c.Assert(err, IsNil)
+
+	// by default we are seeded
+	s.state.Lock()
+	s.state.Set("seeded", true)
+	s.state.Unlock()
+
+	s.uc18Model = assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "model",
+		"authority-id": "canonical",
+		"series":       "16",
+		"brand-id":     "canonical",
+		"model":        "pc",
+		"gadget":       "pc",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+		"base":         "core18",
+	}).(*asserts.Model)
+
+	s.uc16Model = assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "model",
+		"authority-id": "canonical",
+		"series":       "16",
+		"brand-id":     "canonical",
+		"model":        "pc",
+		"gadget":       "pc",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+		// no base
+	}).(*asserts.Model)
+
+	// by default mock that we are uc18
+	s.AddCleanup(snapstatetest.MockDeviceModel(s.uc18Model))
+
+	// setup a test-snap with a service that can be easily injected into
+	// snapstate to be setup as needed
+	s.testSnapSideInfo = &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
+	s.testSnapState = &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{s.testSnapSideInfo},
+		Current:  snap.R(42),
+		Active:   true,
+		SnapType: "app",
+	}
+}
+
+type expectedSystemctl struct {
+	expArgs []string
+	output  string
+	err     error
+}
+
+type ensureSnapServiceSuite struct {
+	baseServiceMgrTestSuite
 }
 
 var (
@@ -93,6 +169,13 @@ WantedBy=multi-user.target
 `
 
 	testYaml = `name: test-snap
+version: v1
+apps:
+  svc1:
+    command: bin.sh
+    daemon: simple
+`
+	testYaml2 = `name: test-snap2
 version: v1
 apps:
   svc1:
@@ -139,13 +222,14 @@ After=usr-lib-snapd.mount
 
 var _ = Suite(&ensureSnapServiceSuite{})
 
-func (s *ensureSnapServiceSuite) mockSystemctlCalls(c *C, expCalls []expectedSystemctl) (restore func()) {
-	systemctlCalls := 0
+func (s *baseServiceMgrTestSuite) mockSystemctlCalls(c *C, expCalls []expectedSystemctl) (restore func()) {
+	allSystemctlCalls := [][]string{}
 	r := systemd.MockSystemctl(func(args ...string) ([]byte, error) {
+		systemctlCalls := len(allSystemctlCalls)
+		allSystemctlCalls = append(allSystemctlCalls, args)
 		if systemctlCalls < len(expCalls) {
 			res := expCalls[systemctlCalls]
-			c.Assert(args, DeepEquals, res.expArgs)
-			systemctlCalls++
+			c.Check(args, DeepEquals, res.expArgs)
 			return []byte(res.output), res.err
 		}
 		c.Errorf("unexpected and unhandled systemctl command: %+v", args)
@@ -157,80 +241,16 @@ func (s *ensureSnapServiceSuite) mockSystemctlCalls(c *C, expCalls []expectedSys
 		// double-check at the end of the test that we got as many systemctl calls
 		// as were mocked and that we didn't get less, then re-set it for the next
 		// test
-		c.Assert(systemctlCalls, Equals, len(expCalls))
+		expArgCalls := make([][]string, 0, len(expCalls))
+		for _, call := range expCalls {
+			expArgCalls = append(expArgCalls, call.expArgs)
+		}
+		c.Assert(allSystemctlCalls, DeepEquals, expArgCalls)
 	}
 }
 
 func (s *ensureSnapServiceSuite) SetUpTest(c *C) {
-	s.BaseTest.SetUpTest(c)
-
-	dirs.SetRootDir(c.MkDir())
-	s.AddCleanup(func() { dirs.SetRootDir("") })
-
-	s.restartRequests = nil
-
-	s.restartObserve = nil
-	s.o = overlord.MockWithStateAndRestartHandler(nil, func(req state.RestartType) {
-		s.restartRequests = append(s.restartRequests, req)
-		if s.restartObserve != nil {
-			s.restartObserve()
-		}
-	})
-
-	s.state = s.o.State()
-	s.state.Lock()
-	s.state.VerifyReboot("boot-id-0")
-	s.state.Unlock()
-	s.se = s.o.StateEngine()
-
-	s.mgr = servicestate.Manager(s.state, s.o.TaskRunner())
-	s.o.AddManager(s.mgr)
-	s.o.AddManager(s.o.TaskRunner())
-
-	err := s.o.StartUp()
-	c.Assert(err, IsNil)
-
-	s.uc18Model = assertstest.FakeAssertion(map[string]interface{}{
-		"type":         "model",
-		"authority-id": "canonical",
-		"series":       "16",
-		"brand-id":     "canonical",
-		"model":        "pc",
-		"gadget":       "pc",
-		"kernel":       "kernel",
-		"architecture": "amd64",
-		"base":         "core18",
-	}).(*asserts.Model)
-
-	s.uc16Model = assertstest.FakeAssertion(map[string]interface{}{
-		"type":         "model",
-		"authority-id": "canonical",
-		"series":       "16",
-		"brand-id":     "canonical",
-		"model":        "pc",
-		"gadget":       "pc",
-		"kernel":       "kernel",
-		"architecture": "amd64",
-		// no base
-	}).(*asserts.Model)
-
-	// by default mock that we are uc18
-	s.AddCleanup(snapstatetest.MockDeviceModel(s.uc18Model))
-
-	// setup a test-snap with a service that can be easily injected into
-	// snapstate to be setup as needed
-	s.testSnapSideInfo = &snap.SideInfo{RealName: "test-snap", Revision: snap.R(42)}
-	s.testSnapState = &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{s.testSnapSideInfo},
-		Current:  snap.R(42),
-		Active:   true,
-		SnapType: "app",
-	}
-
-	// by default we are seeded
-	s.state.Lock()
-	s.state.Set("seeded", true)
-	s.state.Unlock()
+	s.baseServiceMgrTestSuite.SetUpTest(c)
 }
 
 func (s *ensureSnapServiceSuite) TestEnsureSnapServicesNoSnapsDoesNothing(c *C) {

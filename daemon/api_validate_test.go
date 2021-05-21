@@ -813,7 +813,7 @@ func (s *apiValidationSetsSuite) TestForgetValidationSet(c *check.C) {
 		if sequence != 0 {
 			body = fmt.Sprintf(`{"action":"forget", "sequence":%d}`, sequence)
 		} else {
-			body = fmt.Sprintf(`{"action":"forget"}`)
+			body = `{"action":"forget"}`
 		}
 
 		var tr assertstate.ValidationSetTracking
@@ -919,7 +919,7 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetsErrors(c *check.C) {
 }
 
 func (s *apiValidationSetsSuite) TestApplyValidationSetUnsupportedAction(c *check.C) {
-	body := fmt.Sprintf(`{"action":"baz","mode":"monitor"}`)
+	body := `{"action":"baz","mode":"monitor"}`
 
 	req, err := http.NewRequest("POST", "/v2/validation-sets/foo/bar", strings.NewReader(body))
 	c.Assert(err, check.IsNil)

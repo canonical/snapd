@@ -72,8 +72,6 @@ type baseRunnerSuite struct {
 	repairsAcctKey    *asserts.AccountKey
 
 	repairsSigning *assertstest.SigningDB
-
-	restoreLogger func()
 }
 
 func makeReadOnly(c *C, dir string) (restore func()) {
@@ -1871,8 +1869,7 @@ type runScriptSuite struct {
 
 	runDir string
 
-	restoreErrTrackerReportRepair func()
-	errReport                     struct {
+	errReport struct {
 		repair string
 		errMsg string
 		dupSig string
@@ -1934,12 +1931,6 @@ func (s *runScriptSuite) verifyRundir(c *C, names []string) {
 		c.Check(dirents[i].Name(), Matches, names[i])
 	}
 }
-
-type byMtime []os.FileInfo
-
-func (m byMtime) Len() int           { return len(m) }
-func (m byMtime) Less(i, j int) bool { return m[i].ModTime().Before(m[j].ModTime()) }
-func (m byMtime) Swap(i, j int)      { m[i], m[j] = m[j], m[i] }
 
 func (s *runScriptSuite) verifyOutput(c *C, name, expectedOutput string) {
 	c.Check(filepath.Join(s.runDir, name), testutil.FileEquals, expectedOutput)
@@ -2138,7 +2129,7 @@ ls -l ${PATH##*:}/repair
 	err = rpr.Run()
 	c.Assert(err, IsNil)
 
-	c.Check(filepath.Join(s.runDir, "r0.retry"), testutil.FileMatches, fmt.Sprintf(`(?ms).*^PATH=.*:.*/run/snapd/repair/tools.*`))
+	c.Check(filepath.Join(s.runDir, "r0.retry"), testutil.FileMatches, `(?ms).*^PATH=.*:.*/run/snapd/repair/tools.*`)
 	c.Check(filepath.Join(s.runDir, "r0.retry"), testutil.FileContains, `/repair -> /usr/lib/snapd/snap-repair`)
 
 	// run again and ensure no error happens

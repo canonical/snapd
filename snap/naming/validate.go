@@ -209,7 +209,7 @@ func ValidateQuotaGroup(grp string) error {
 	}
 
 	if grp[0] == '-' || grp[len(grp)-1] == '-' || strings.Contains(grp, "--") {
-		return fmt.Errorf("invalid quota group name: has invalid \"-\" sequences in it in it")
+		return fmt.Errorf("invalid quota group name: has invalid \"-\" sequences in it")
 	}
 
 	return nil
