@@ -500,36 +500,31 @@ func EnsureSnapAbsentFromQuota(st *state.State, snap string) error {
 	}
 
 	// try to find the snap in any group
-	var grp *quota.Group
-	for _, maybeGrp := range allGrps {
-		if strutil.ListContains(maybeGrp.Snaps, snap) {
-			grp = maybeGrp
-			break
+	for _, grp := range allGrps {
+		for idx, sn := range grp.Snaps {
+			if sn == snap {
+				// drop this snap from the list of Snaps by swapping it with the
+				// last snap in the list, and then dropping the last snap from
+				// the list
+				grp.Snaps[idx] = grp.Snaps[len(grp.Snaps)-1]
+				grp.Snaps = grp.Snaps[:len(grp.Snaps)-1]
+
+				// update the quota group state
+				allGrps, err = patchQuotas(st, grp)
+				if err != nil {
+					return err
+				}
+
+				// ensure service states are updated - note we have to add the
+				// snap as an extra snap to ensure since it was removed from the
+				// group and thus won't be considered just by looking at the
+				// group pointer directly
+				return ensureSnapServicesForGroup(st, grp, allGrps, []string{snap})
+
+			}
 		}
 	}
 
-	if grp == nil {
-		return nil
-	}
-
-	// drop this snap from the snaps list of the group
-	newSnapList := make([]string, 0, len(grp.Snaps)-1)
-	for _, sn := range grp.Snaps {
-		if sn != snap {
-			newSnapList = append(newSnapList, sn)
-		}
-	}
-
-	grp.Snaps = newSnapList
-
-	// update the quota group state
-	allGrps, err = patchQuotas(st, grp)
-	if err != nil {
-		return err
-	}
-
-	// ensure service states are updated - note we have to add the snap as an
-	// extra snap to ensure since it was removed from the group and thus won't
-	// be considered just by looking at the group pointer directly
-	return ensureSnapServicesForGroup(st, grp, allGrps, []string{snap})
+	// the snap wasn't in any group, nothing to do
+	return nil
 }
