@@ -1587,7 +1587,7 @@ func (s *systemSnapTrackingSuite) TestSnapFileTracking(c *C) {
 
 	// complain loudly if the file is under unexpected location
 	err := devicestate.LogNewSystemSnapFile(flog, filepath.Join(otherDir, "some-file"))
-	c.Assert(err, ErrorMatches, `internal error: unexpected file location ".*/some-file"`)
+	c.Assert(err, ErrorMatches, `internal error: unexpected recovery system snap location ".*/some-file"`)
 	c.Check(flog, testutil.FileAbsent)
 
 	expectedContent := &bytes.Buffer{}

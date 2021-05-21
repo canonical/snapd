@@ -76,7 +76,7 @@ func setTaskRecoverySystemSetup(t *state.Task, setup *recoverySystemSetup) error
 
 func logNewSystemSnapFile(logfile, fileName string) error {
 	if !strings.HasPrefix(fileName, boot.InitramfsUbuntuSeedDir) {
-		return fmt.Errorf("internal error: unexpected file location %q", fileName)
+		return fmt.Errorf("internal error: unexpected recovery system snap location %q", fileName)
 	}
 	currentLog, err := ioutil.ReadFile(logfile)
 	if err != nil && !os.IsNotExist(err) {
@@ -110,11 +110,11 @@ func purgeNewSystemSnapFiles(logfile string) error {
 			continue
 		}
 		if !strings.HasPrefix(fileName, boot.InitramfsUbuntuSeedDir) {
-			logger.Noticef("while removing new seed file %q: unexpected file location", fileName)
+			logger.Noticef("while removing new seed snap %q: unexpected recovery system snap location", fileName)
 			continue
 		}
 		if err := os.Remove(fileName); err != nil && !os.IsNotExist(err) {
-			logger.Noticef("while removing new seed file %q: %v", fileName, err)
+			logger.Noticef("while removing new seed snap %q: %v", fileName, err)
 		}
 	}
 	if err := s.Err(); err != nil {
@@ -126,7 +126,7 @@ func purgeNewSystemSnapFiles(logfile string) error {
 func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err error) {
 	if release.OnClassic {
 		// TODO: this may need to be lifted in the future
-		return fmt.Errorf("cannot run update gadget assets task on a classic system")
+		return fmt.Errorf("cannot create recovery systems on a classic system")
 	}
 
 	st := t.State()
@@ -204,6 +204,10 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 		st.Set("tried-systems", nil)
 	}()
 	// 1. prepare recovery system from remodel snaps (or current snaps)
+	// TODO: this fails when there is a partially complete system seed which
+	// creation could have been interrupted by an unexpected reboot;
+	// consider clearing the recovery system directory and restarting from
+	// scratch
 	_, err = createSystemForModelFromValidatedSnaps(model, label, db, infoGetter, observeSnapFileWrite)
 	if err != nil {
 		return fmt.Errorf("cannot create a recovery system with label %q for %v: %v", label, model.Model(), err)
@@ -235,7 +239,7 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 func (m *DeviceManager) undoCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) error {
 	if release.OnClassic {
 		// TODO: this may need to be lifted in the future
-		return fmt.Errorf("cannot run update gadget assets task on a classic system")
+		return fmt.Errorf("internal error: cannot create recovery systems on a classic system")
 	}
 
 	st := t.State()
@@ -275,7 +279,7 @@ func (m *DeviceManager) undoCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) er
 func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tomb) error {
 	if release.OnClassic {
 		// TODO: this may need to be lifted in the future
-		return fmt.Errorf("cannot run update gadget assets task on a classic system")
+		return fmt.Errorf("internal error: cannot finalize recovery systems on a classic system")
 	}
 
 	st := t.State()
