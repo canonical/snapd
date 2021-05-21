@@ -12,7 +12,6 @@ environment:
   SNAPD_2_49_2_ARMHF: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_2.49.2_11586.snap
 
 prepare: |
-  tests.cleanup prepare
   snap install http --devmode # devmode so it can save to any dir
 
   # save the version of snapd from the PR to refresh to later
@@ -33,9 +32,6 @@ prepare: |
   snap install --dangerous snapd_2.49.2.snap
   tests.cleanup defer snap revert snapd --revision="$INITIAL_REV"
   snap version | MATCH 2.49.2
-
-restore: |
-  tests.cleanup restore
 
 execute: |
   if ! os.query is-pc-amd64 && ! os.query is-arm; then

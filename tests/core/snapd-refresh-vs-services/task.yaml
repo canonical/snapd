@@ -20,7 +20,6 @@ environment:
   SNAPD_2_49_2_ARMHF: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_2.49.2_11586.snap
 
 prepare: |
-  tests.cleanup prepare
   # install http snap to download files, jq + remarshal to simplify the check if
   # stable == 2.49.2 so we can skip that case automatically until a new version
   # is released to stable
@@ -37,9 +36,6 @@ prepare: |
   # can always easily revert back to the one at the end of the test
   snap set system refresh.retain=5
   tests.cleanup defer snap unset system refresh.retain
-
-restore: |
-  tests.cleanup restore
 
 execute: |
   # check if snapd 2.49.2 is the current latest/stable release as it simplifies
