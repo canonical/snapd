@@ -322,7 +322,36 @@ func MockSecurityProfilesDiscardLate(fn func(snapName string, rev snap.Revision,
 // autorefresh gating
 type AffectedSnapInfo = affectedSnapInfo
 
+type HoldInfo = holdInfo
+
 var (
+	LastRefreshed              = lastRefreshed
+	HeldSnaps                  = heldSnaps
+	ResetGatingForRefreshed    = resetGatingForRefreshed
+	ResetGating                = resetGating
 	CreateGateAutoRefreshHooks = createGateAutoRefreshHooks
 	AutoRefreshPhase1          = autoRefreshPhase1
 )
+
+func MockTimeNow(f func() time.Time) (restore func()) {
+	old := timeNow
+	timeNow = f
+	return func() {
+		timeNow = old
+	}
+}
+
+func MockHoldInfo(firstHeld string, holdUntil string) *HoldInfo {
+	first, err := time.Parse(time.RFC3339, firstHeld)
+	if err != nil {
+		panic(err)
+	}
+	until, err := time.Parse(time.RFC3339, holdUntil)
+	if err != nil {
+		panic(err)
+	}
+	return &holdInfo{
+		FirstHeld: first,
+		HoldUntil: until,
+	}
+}

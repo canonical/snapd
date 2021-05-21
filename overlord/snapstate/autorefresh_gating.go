@@ -21,6 +21,9 @@ package snapstate
 
 import (
 	"fmt"
+	"os"
+	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/mount"
@@ -31,6 +34,249 @@ import (
 )
 
 var gateAutoRefreshHookName = "gate-auto-refresh"
+
+// cumulative hold time for snaps other than self
+const maxOtherHoldDuration = time.Hour * 48
+
+type holdInfo struct {
+	// FirstHeld keeps the time when the given snap was first held for refresh by a gating snap.
+	FirstHeld time.Time
+	// HoldUntil stores the desired end time for holding.
+	HoldUntil time.Time
+}
+
+var timeNow = func() time.Time {
+	return time.Now()
+}
+
+func lastRefreshed(st *state.State, snapName string) (*time.Time, error) {
+	var snapst SnapState
+	if err := Get(st, snapName, &snapst); err != nil {
+		return nil, fmt.Errorf("internal error, cannot get snap %q: %v", snapName, err)
+	}
+	if snapst.LastRefresh != nil {
+		return snapst.LastRefresh, nil
+	}
+	inf, err := snapst.CurrentInfo()
+	if err != nil {
+		return nil, err
+	}
+	fst, err := os.Stat(inf.MountFile())
+	if err != nil {
+		return nil, err
+	}
+	t := fst.ModTime()
+	return &t, nil
+}
+
+func refreshGating(st *state.State) (map[string]map[string]*holdInfo, error) {
+	// affecting snap -> gating snap(s) -> first-held/hold-until time
+	var gating map[string]map[string]*holdInfo
+	err := st.Get("refresh-gating", &gating)
+	if err != nil && err != state.ErrNoState {
+		return nil, fmt.Errorf("internal error: cannot get refresh-gating: %v", err)
+	}
+	if err == state.ErrNoState {
+		return make(map[string]map[string]*holdInfo), nil
+	}
+	return gating, nil
+}
+
+// HoldError contains the details of snaps that cannot to be held.
+type HoldError struct {
+	SnapsInError map[string]error
+}
+
+func (h *HoldError) Error() string {
+	l := []string{""}
+	for _, e := range h.SnapsInError {
+		l = append(l, e.Error())
+	}
+	return fmt.Sprintf("cannot hold some snaps:%s", strings.Join(l, "\n - "))
+}
+
+// HoldRefresh marks affectingSnaps as held for refresh for up to holdTime.
+// HoldTime of zero denotes maximum allowed hold time.
+// Holding may fail for only some snaps in which case HoldError is returned and
+// it contains the details of failed ones.
+func HoldRefresh(st *state.State, gatingSnap string, holdTime time.Time, affectingSnaps ...string) error {
+	gating, err := refreshGating(st)
+	if err != nil {
+		return err
+	}
+	herr := &HoldError{
+		SnapsInError: make(map[string]error),
+	}
+	now := timeNow()
+	for _, affecting := range affectingSnaps {
+		refreshed, err := lastRefreshed(st, affecting)
+		if err != nil {
+			return err
+		}
+		if now.Sub(*refreshed) > maxPostponement {
+			herr.SnapsInError[affecting] = fmt.Errorf("cannot hold the refresh of snap %q, maximum postponement time exceeded", affecting)
+			continue
+		}
+		if _, ok := gating[affecting]; !ok {
+			gating[affecting] = make(map[string]*holdInfo)
+		}
+		hold, ok := gating[affecting][gatingSnap]
+		if !ok {
+			hold = &holdInfo{
+				FirstHeld: now,
+			}
+		}
+		// determine the maximum time the snap can be held by this gating snap.
+		var maxHoldDur time.Duration
+		if affecting == gatingSnap {
+			maxHoldDur = maxPostponement
+		} else {
+			maxHoldDur = maxOtherHoldDuration
+		}
+		var holdDur time.Duration
+		// explicit hold time requested
+		if !holdTime.IsZero() {
+			holdDur = holdTime.Sub(hold.FirstHeld)
+			if holdDur > maxHoldDur {
+				herr.SnapsInError[affecting] = fmt.Errorf("requested holding time %s exceeds maximum holding time for snap %q", holdTime, affecting)
+				continue
+			}
+		} else {
+			holdDur = maxHoldDur
+		}
+		// HoldUntil is relative to the time the snap was first held, so in case
+		// of consecutive refreshes and hold attempts this cannot go beyond
+		// maximum allowed hold time.
+		hold.HoldUntil = hold.FirstHeld.Add(holdDur)
+		gating[affecting][gatingSnap] = hold
+	}
+	st.Set("refresh-gating", gating)
+	if len(herr.SnapsInError) > 0 {
+		return herr
+	}
+	return nil
+}
+
+// ProceedWithRefresh unblocks all snaps held by gatingSnap for refresh. This
+// should be called for --proceed on the gatingSnap.
+func ProceedWithRefresh(st *state.State, gatingSnap string) error {
+	gating, err := refreshGating(st)
+	if err != nil {
+		return err
+	}
+	if len(gating) == 0 {
+		return nil
+	}
+
+	var changed bool
+	for affectingSnap, gatingSnaps := range gating {
+		if _, ok := gatingSnaps[gatingSnap]; ok {
+			delete(gatingSnaps, gatingSnap)
+			changed = true
+		}
+		if len(gating[affectingSnap]) == 0 {
+			delete(gating, affectingSnap)
+		}
+	}
+
+	if changed {
+		st.Set("refresh-gating", gating)
+	}
+	return nil
+}
+
+// resetGating resets gating information by:
+// - removing affecting snaps whose held time expired.
+// - removing affecting snaps that are not in candidates (meaning there is no update for them anymore).
+func resetGating(st *state.State, candidates map[string]*refreshCandidate) error {
+	gating, err := refreshGating(st)
+	if err != nil {
+		return err
+	}
+
+	// optimize some edge cases
+	if len(gating) == 0 {
+		return nil
+	}
+	if len(candidates) == 0 {
+		gating = map[string]map[string]*holdInfo{}
+		st.Set("refresh-gating", gating)
+		return nil
+	}
+
+	now := timeNow()
+
+	var changed bool
+	for affectingSnap, gatingSnaps := range gating {
+		if candidates[affectingSnap] == nil {
+			// the snap doesn't have an update anymore, forget it
+			delete(gating, affectingSnap)
+			changed = true
+			continue
+		}
+
+		for gatingSnap, tm := range gatingSnaps {
+			if tm.HoldUntil.Before(now) {
+				delete(gatingSnaps, gatingSnap)
+				changed = true
+			}
+		}
+		// after deleting gating snaps we may end up with empty map under
+		// gating[affectingSnap], so remove it.
+		if len(gatingSnaps) == 0 {
+			delete(gating, affectingSnap)
+		}
+	}
+	if changed {
+		st.Set("refresh-gating", gating)
+	}
+	return nil
+}
+
+// resetGatingForRefreshed resets gating information by removing refreshedSnaps
+// (they are not held anymore). This should be called for all successfully
+// refreshed snaps.
+func resetGatingForRefreshed(st *state.State, refreshedSnaps ...string) error {
+	gating, err := refreshGating(st)
+	if err != nil {
+		return err
+	}
+	if len(gating) == 0 {
+		return nil
+	}
+
+	var changed bool
+	for _, snapName := range refreshedSnaps {
+		if _, ok := gating[snapName]; ok {
+			delete(gating, snapName)
+			changed = true
+		}
+	}
+
+	if changed {
+		st.Set("refresh-gating", gating)
+	}
+	return nil
+}
+
+// heldSnaps returns all snaps that are gated and shouldn't be refreshed.
+func heldSnaps(st *state.State) (map[string]bool, error) {
+	gating, err := refreshGating(st)
+	if err != nil {
+		return nil, err
+	}
+	if len(gating) == 0 {
+		return nil, nil
+	}
+
+	held := make(map[string]bool)
+	for affecting, gatingSnaps := range gating {
+		if len(gatingSnaps) > 0 {
+			held[affecting] = true
+		}
+	}
+	return held, nil
+}
 
 type affectedSnapInfo struct {
 	Restart        bool
