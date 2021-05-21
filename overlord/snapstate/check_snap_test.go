@@ -199,7 +199,10 @@ var assumesTests = []struct {
 	version: "2.15~pre1",
 }, {
 	assumes: "[command-chain]",
-}}
+}, {
+	assumes: "[kernel-assets]",
+},
+}
 
 func (s *checkSnapSuite) TestCheckSnapAssumes(c *C) {
 	restore := snapdtool.MockVersion("2.15")

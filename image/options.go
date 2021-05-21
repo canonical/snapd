@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -39,4 +39,21 @@ type Options struct {
 	// Architecture to use if none is specified by the model,
 	// useful only for classic mode. If set must match the model otherwise.
 	Architecture string
+
+	Customizations Customizations
+}
+
+// Customizatons defines possible image customizations. Not all of
+// them applies to all kind of systems.
+type Customizations struct {
+	// ConsoleConf can be set to "disabled" to disable console-conf
+	// forcefully (UC16/18 only ATM).
+	ConsoleConf string `json:"console-conf"`
+	// CloudInitUserData can optionally point to cloud init user-data
+	// (UC16/18 only)
+	CloudInitUserData string `json:"cloud-init-user-data"`
+	// BootFlags can be set to a list of boot flags
+	// to set in the recovery bootloader (UC20 only).
+	// Currently only the "factory" hint flag is supported.
+	BootFlags []string `json:"boot-flags"`
 }

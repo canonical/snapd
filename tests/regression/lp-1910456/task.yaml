@@ -5,8 +5,6 @@ details: |
     Delegate=true snippet added to prevent CVE-2020-27352.
 
 prepare: |
-    tests.cleanup prepare
-
     # build and install the strict test snap
     snap pack container-mgr-snap
     snap install --dangerous test-snapd-container-mgrs*.snap
@@ -32,9 +30,6 @@ prepare: |
         snap pack classic-container-mgr-snap
         snap install --dangerous --classic test-snapd-classic-container-mgrs*.snap
     fi
-
-restore: |
-    tests.cleanup restore
 
 execute: |
     for confinement in classic strict; do

@@ -85,9 +85,6 @@ prepare: |
     disabled-svcs-kept3/meta/snap.yaml.in > disabled-svcs-kept3/meta/snap.yaml
   snap pack ./disabled-svcs-kept3
 
-restore: |
-  rm -rf disabled-svcs-kept*
-
 execute: |
   # shellcheck source=tests/lib/disabled-svcs.sh
   . "$TESTSLIB/disabled-svcs.sh"

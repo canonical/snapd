@@ -1,5 +1,14 @@
 summary: Ensure that the contacts-service interface works
 
+# fails in autopkgtest environment with:
+# [Wed Aug 15 16:08:23 2018] audit: type=1400
+# audit(1534349304.173:1681): apparmor="DENIED" operation="connect"
+# profile="snap.test-snapd-eds.contacts" pid=18321 comm="contacts"
+# family="unix" sock_type="stream" protocol=0 requested_mask="send
+# receive connect" denied_mask="send connect" addr=none
+# peer_addr="@/tmp/dbus-GZTRALrYYm" peer="unconfined"
+backends: [-autopkgtest]
+
 # TODO: teach snapd about host's EDS support so that the interface can be
 # genuinely unsupported or versioned and tested appropriately.
 systems:
@@ -9,20 +18,12 @@ systems:
     - -debian-sid-*
     - -fedora-32-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -fedora-33-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -fedora-34-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -opensuse-15.2-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -opensuse-tumbleweed-*  # test-snapd-eds is incompatible with eds version shipped with the distro
     - -ubuntu-14.04-*  # no tests.session support, eds is too old
     - -ubuntu-2*  # test-snapd-eds is incompatible with eds shipped with the distro
     - -ubuntu-core-*  # EDS is unsupported on core systems
-
-# fails in autopkgtest environment with:
-# [Wed Aug 15 16:08:23 2018] audit: type=1400
-# audit(1534349304.173:1681): apparmor="DENIED" operation="connect"
-# profile="snap.test-snapd-eds.contacts" pid=18321 comm="contacts"
-# family="unix" sock_type="stream" protocol=0 requested_mask="send
-# receive connect" denied_mask="send connect" addr=none
-# peer_addr="@/tmp/dbus-GZTRALrYYm" peer="unconfined"
-backends: [-autopkgtest]
 
 prepare: |
     tests.session -u test prepare

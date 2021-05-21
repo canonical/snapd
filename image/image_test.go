@@ -1131,6 +1131,119 @@ func (s *imageSuite) TestSetupSeedWithBaseWithCloudConf(c *C) {
 	c.Check(filepath.Join(rootdir, "/etc/cloud/cloud.cfg"), testutil.FileEquals, "# cloud config")
 }
 
+func (s *imageSuite) TestSetupSeedWithBaseWithCustomizations(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "pc18",
+		"kernel":       "pc-kernel",
+		"base":         "core18",
+	})
+
+	tmpdir := c.MkDir()
+	rootdir := filepath.Join(tmpdir, "image")
+	cloudInitUserData := filepath.Join(tmpdir, "cloudstuff")
+	err := ioutil.WriteFile(cloudInitUserData, []byte(`# user cloud data`), 0644)
+	c.Assert(err, IsNil)
+	s.setupSnaps(c, map[string]string{
+		"core18":    "canonical",
+		"pc-kernel": "canonical",
+		"snapd":     "canonical",
+	}, "")
+	s.MakeAssertedSnap(c, packageGadgetWithBase, [][]string{
+		{"grub.conf", ""},
+		{"grub.cfg", "I'm a grub.cfg"},
+		{"meta/gadget.yaml", pcGadgetYaml},
+	}, snap.R(5), "canonical")
+
+	opts := &image.Options{
+		PrepareDir: filepath.Dir(rootdir),
+		Customizations: image.Customizations{
+			ConsoleConf:       "disabled",
+			CloudInitUserData: cloudInitUserData,
+		},
+	}
+
+	err = image.SetupSeed(s.tsto, model, opts)
+	c.Assert(err, IsNil)
+
+	// check customization impl files were written
+	varCloudDir := filepath.Join(rootdir, "/var/lib/cloud/seed/nocloud-net")
+	c.Check(filepath.Join(varCloudDir, "meta-data"), testutil.FileEquals, "instance-id: nocloud-static\n")
+	c.Check(filepath.Join(varCloudDir, "user-data"), testutil.FileEquals, "# user cloud data")
+	// console-conf disable
+	c.Check(filepath.Join(rootdir, "_writable_defaults", "var/lib/console-conf/complete"), testutil.FilePresent)
+}
+
+func (s *imageSuite) TestPrepareUC20CustomizationsUnsupported(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	model := s.makeUC20Model(nil)
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err := ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		ModelFile: fn,
+		Customizations: image.Customizations{
+			ConsoleConf:       "disabled",
+			CloudInitUserData: "cloud-init-user-data",
+		},
+	})
+	c.Assert(err, ErrorMatches, `cannot support with UC20 model requested customizations: console-conf disable, cloud-init user-data`)
+}
+
+func (s *imageSuite) TestPrepareClassicCustomizationsUnsupported(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"classic": "true",
+	})
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err := ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		Classic:   true,
+		ModelFile: fn,
+		Customizations: image.Customizations{
+			ConsoleConf:       "disabled",
+			CloudInitUserData: "cloud-init-user-data",
+			BootFlags:         []string{"boot-flag"},
+		},
+	})
+	c.Assert(err, ErrorMatches, `cannot support with classic model requested customizations: console-conf disable, boot flags \(boot-flag\)`)
+}
+
+func (s *imageSuite) TestPrepareUC18CustomizationsUnsupported(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "pc18",
+		"kernel":       "pc-kernel",
+		"base":         "core18",
+	})
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err := ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		ModelFile: fn,
+		Customizations: image.Customizations{
+			ConsoleConf:       "disabled",
+			CloudInitUserData: "cloud-init-user-data",
+			BootFlags:         []string{"boot-flag"},
+		},
+	})
+	c.Assert(err, ErrorMatches, `cannot support with UC16/18 model requested customizations: boot flags \(boot-flag\)`)
+}
+
 func (s *imageSuite) TestSetupSeedWithBaseLegacySnap(c *C) {
 	restore := image.MockTrusted(s.StoreSigning.Trusted)
 	defer restore()
@@ -2643,6 +2756,9 @@ func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
 
 	opts := &image.Options{
 		PrepareDir: prepareDir,
+		Customizations: image.Customizations{
+			BootFlags: []string{"factory"},
+		},
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -2715,6 +2831,7 @@ func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
 	c.Assert(seedGenv.Load(), IsNil)
 	c.Check(seedGenv.Get("snapd_recovery_system"), Equals, filepath.Base(systems[0]))
 	c.Check(seedGenv.Get("snapd_recovery_mode"), Equals, "install")
+	c.Check(seedGenv.Get("snapd_boot_flags"), Equals, "factory")
 
 	c.Check(s.stderr.String(), Equals, "")
 
@@ -2799,6 +2916,9 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 
 	opts := &image.Options{
 		PrepareDir: prepareDir,
+		Customizations: image.Customizations{
+			BootFlags: []string{"factory"},
+		},
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -2828,6 +2948,7 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(env.Get("snapd_recovery_system"), Equals, expectedLabel)
 	c.Assert(env.Get("snapd_recovery_mode"), Equals, "install")
+	c.Assert(env.Get("snapd_boot_flags"), Equals, "factory")
 
 	// check recovery system specific config
 	systems, err := filepath.Glob(filepath.Join(seeddir, "systems", "*"))
@@ -2841,6 +2962,67 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 		content := fileAndContent[1]
 		c.Assert(filepath.Join(systems[0], "kernel", file), testutil.FileEquals, content)
 	}
+}
+
+func (s *imageSuite) TestSetupSeedCore20NoKernelRefsConsumed(c *C) {
+	bootloader.Force(nil)
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	// a model that uses core20 and our gadget
+	headers := map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "arm64",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "arm-kernel",
+				"id":              s.AssertedSnapID("arm-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "uboot-gadget",
+				"id":              s.AssertedSnapID("uboot-gadget"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	}
+	model := s.Brands.Model("my-brand", "my-model", headers)
+
+	prepareDir := c.MkDir()
+
+	s.makeSnap(c, "snapd", nil, snap.R(1), "")
+	s.makeSnap(c, "core20", nil, snap.R(20), "")
+	kernelYaml := `
+assets:
+ ref:
+  update: true
+  content:
+   - dtbs/`
+	kernelContent := [][]string{
+		{"meta/kernel.yaml", kernelYaml},
+		{"kernel.img", "some kernel"},
+		{"initrd.img", "some initrd"},
+		{"dtbs/foo.dtb", "some dtb"},
+	}
+	s.makeSnap(c, "arm-kernel=20", kernelContent, snap.R(1), "")
+	gadgetContent := [][]string{
+		// this file must be empty
+		// TODO:UC20: write this test with non-empty uboot.env when we support
+		//            that
+		{"uboot.conf", ""},
+		{"meta/gadget.yaml", piUC20GadgetYaml},
+	}
+	s.makeSnap(c, "uboot-gadget=20", gadgetContent, snap.R(22), "")
+
+	opts := &image.Options{
+		PrepareDir: prepareDir,
+	}
+
+	err := image.SetupSeed(s.tsto, model, opts)
+	c.Assert(err, ErrorMatches, `no asset from the kernel.yaml needing synced update is consumed by the gadget at "/.*"`)
 }
 
 type toolingStoreContextSuite struct {

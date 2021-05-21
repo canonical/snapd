@@ -3,10 +3,9 @@ summary: |
   devices by simulating how udev calls snap-device-helper with prototypical 
   paths, including the various types of nvme devices.
 
-# fedora-32: uses cgroupv2, which we don't support
-# fedora-33: uses cgroupv2, which we don't support
-# debian-sid: uses cgroupv2, which we don't support
-systems: [-fedora-32-*, -fedora-33-*, -debian-sid-*]
+# fedora-32, fedora-33, fedora-34, debian-sid, arch, opensuse TW use cgroupv2, which we
+# don't support
+systems: [-fedora-32-*, -fedora-33-*, -fedora-34-*, -debian-sid-*, -arch-*, -opensuse-tumbleweed-*]
 
 execute: |
   # make a fake snap devices cgroup
@@ -15,9 +14,8 @@ execute: |
   # deny all devices by default
   echo "a *.* rwm" > /sys/fs/cgroup/devices/snap.test.me/devices.deny
 
-  #shellcheck source=tests/lib/dirs.sh
-  . "$TESTSLIB"/dirs.sh
-  SNAP_DEVICE_HELPER="$LIBEXECDIR/snapd/snap-device-helper"
+  LIBEXEC_DIR="$(os.paths libexec-dir)"
+  SNAP_DEVICE_HELPER="$LIBEXEC_DIR/snapd/snap-device-helper"
 
   echo "Simulating devices being added to the device cgroup by udev by invoking snap-device-helper directly"
   # add some example devices, including both char and block devs for nvme

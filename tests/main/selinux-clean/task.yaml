@@ -8,6 +8,7 @@ details: |
     management tasks on snaps.
 
 systems: [fedora-*, centos-*]
+
 prepare: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB"/pkgdb.sh
@@ -29,7 +30,6 @@ prepare: |
 
 restore: |
     setenforce "$(cat enforcing.mode)"
-    rm -f stamp enforcing.mode
 
     tests.session -u test restore
     # Stop dbus activated by test-snapd-desktop snap.

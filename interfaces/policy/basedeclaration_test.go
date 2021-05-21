@@ -580,8 +580,6 @@ plugs:
 // ATM a nil entry means even stricter rules that would need be tested
 // separately and whose implementation is in flux for now
 var (
-	unconstrained = []string{"core", "kernel", "gadget", "app"}
-
 	slotInstallation = map[string][]string{
 		// other
 		"adb-support":             {"core"},
@@ -600,6 +598,7 @@ var (
 		"dbus":                    {"app"},
 		"docker-support":          {"core"},
 		"desktop-launch":          {"core"},
+		"dsp":                     {"core", "gadget"},
 		"dummy":                   {"app"},
 		"fwupd":                   {"app", "core"},
 		"gpio":                    {"core", "gadget"},
@@ -625,6 +624,7 @@ var (
 		"power-control":           {"core"},
 		"ppp":                     {"core"},
 		"pulseaudio":              {"app", "core"},
+		"pwm":                     {"core", "gadget"},
 		"raw-volume":              {"core", "gadget"},
 		"serial-port":             {"core", "gadget"},
 		"spi":                     {"core", "gadget"},
@@ -715,6 +715,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"personal-files":        true,
 		"snapd-control":         true,
 		"system-files":          true,
+		"tee":                   true,
 		"uinput":                true,
 		"unity8":                true,
 	}
@@ -948,6 +949,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"personal-files":        true,
 		"snapd-control":         true,
 		"system-files":          true,
+		"tee":                   true,
 		"udisks2":               true,
 		"uinput":                true,
 		"unity8":                true,

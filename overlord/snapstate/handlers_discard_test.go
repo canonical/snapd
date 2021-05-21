@@ -22,6 +22,8 @@ package snapstate_test
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -36,6 +38,11 @@ var _ = Suite(&discardSnapSuite{})
 
 func (s *discardSnapSuite) SetUpTest(c *C) {
 	s.setup(c, nil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(s.state, repo)
 
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 }
@@ -174,4 +181,53 @@ func (s *discardSnapSuite) TestDoDiscardSnapNoErrorsForActive(c *C) {
 	c.Check(snapst.Sequence, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(33))
 	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+func (s *discardSnapSuite) TestDoDiscardSnapdRemovesLate(c *C) {
+	var removeLateCalledFor [][]string
+	restore := snapstate.MockSecurityProfilesDiscardLate(func(snapName string, rev snap.Revision, typ snap.Type) error {
+		removeLateCalledFor = append(removeLateCalledFor, []string{
+			snapName, rev.String(), string(typ),
+		})
+		return nil
+	})
+	defer restore()
+
+	s.state.Lock()
+
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", Revision: snap.R(3)},
+			{RealName: "snapd", Revision: snap.R(33)},
+		},
+		Current:  snap.R(33),
+		SnapType: "snapd",
+	})
+	t := s.state.NewTask("discard-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "snapd",
+			Revision: snap.R(33),
+		},
+		Type: snap.TypeSnapd,
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "snapd", &snapst)
+	c.Assert(err, IsNil)
+
+	c.Check(snapst.Sequence, HasLen, 1)
+	c.Check(snapst.Current, Equals, snap.R(3))
+	c.Check(t.Status(), Equals, state.DoneStatus)
+	c.Check(removeLateCalledFor, DeepEquals, [][]string{
+		{"snapd", "33", "snapd"},
+	})
 }

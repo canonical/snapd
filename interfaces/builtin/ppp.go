@@ -42,7 +42,7 @@ const pppConnectedPlugAppArmor = `
 /run/ppp* rwk,
 /var/run/ppp* rwk,
 /var/log/ppp* rw,
-/bin/run-parts ix,
+/{,usr/}bin/run-parts ix,
 @{PROC}/@{pid}/loginuid r,
 capability setgid,
 capability setuid,

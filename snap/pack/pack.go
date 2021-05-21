@@ -133,7 +133,7 @@ func loadAndValidate(sourceDir string) (*snap.Info, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err := gadget.ValidateContent(ginfo, sourceDir); err != nil {
+		if err := gadget.ValidateContent(ginfo, sourceDir, ""); err != nil {
 			return nil, err
 		}
 	}
