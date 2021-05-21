@@ -113,7 +113,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUnhappy(c *check.C) {
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `boom`)
 }
 
-func (s *apiQuotaSuite) TestPostEnsureQuotaHappy(c *check.C) {
+func (s *apiQuotaSuite) TestPostEnsureQuotaCreateHappy(c *check.C) {
 	var called int
 	daemon.MockServicestateCreateQuota(func(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) error {
 		called++
@@ -138,6 +138,46 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaHappy(c *check.C) {
 	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 200)
 	c.Assert(called, check.Equals, 1)
+}
+
+func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateHappy(c *check.C) {
+	st := s.d.Overlord().State()
+	st.Lock()
+	err := servicestate.CreateQuota(st, "ginger-ale", "", nil, 9000)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	r := daemon.MockServicestateCreateQuota(func(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) error {
+		c.Errorf("should not have called create quota")
+		return fmt.Errorf("broken test")
+	})
+	defer r()
+
+	updateCalled := 0
+	r = daemon.MockServicestateUpdateQuota(func(st *state.State, name string, opts servicestate.QuotaGroupUpdate) error {
+		updateCalled++
+		c.Assert(name, check.Equals, "ginger-ale")
+		c.Assert(opts, check.DeepEquals, servicestate.QuotaGroupUpdate{
+			AddSnaps:       []string{"some-snap"},
+			NewMemoryLimit: 1000,
+		})
+		return nil
+	})
+	defer r()
+
+	data, err := json.Marshal(daemon.PostQuotaGroupData{
+		Action:    "ensure",
+		GroupName: "ginger-ale",
+		Snaps:     []string{"some-snap"},
+		MaxMemory: 1000,
+	})
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	c.Assert(err, check.IsNil)
+	rsp := s.syncReq(c, req, nil)
+	c.Assert(rsp.Status, check.Equals, 200)
+	c.Assert(updateCalled, check.Equals, 1)
 }
 
 func (s *apiQuotaSuite) TestPostRemoveQuotaHappy(c *check.C) {
