@@ -106,6 +106,7 @@ func localeFromEnv() string {
 	return loc
 }
 
+// CurrentLocale returns the current locale without encoding or variants.
 func CurrentLocale() string {
 	return simplifyLocale(localeFromEnv())
 }
