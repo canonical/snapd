@@ -504,6 +504,7 @@ func EnsureSnapAbsentFromQuota(st *state.State, snap string) error {
 	for _, maybeGrp := range allGrps {
 		if strutil.ListContains(maybeGrp.Snaps, snap) {
 			grp = maybeGrp
+			break
 		}
 	}
 

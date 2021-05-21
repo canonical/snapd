@@ -26,18 +26,15 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	_ "github.com/snapcore/snapd/overlord/devicestate"
-	"github.com/snapcore/snapd/overlord/state"
-	_ "github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snapdenv"
-	"github.com/snapcore/snapd/testutil"
-
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type quotaControlSuite struct {
