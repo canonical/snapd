@@ -19,7 +19,7 @@ def parse_arguments():
     return parser.parse_args()
 
 
-debianishDistros = [
+debianish_distros = [
     # first element is the name of the distro in the packaging directory
     # second element is the debian distribution name
     # third element is the suffix to add to the version number when generating
@@ -29,14 +29,14 @@ debianishDistros = [
     ("debian-sid", "unstable", "-1"),
 ]
 
-otherDistros = [
+other_distros = [
     "opensuse",
     "fedora",
     "arch",
 ]
 
 
-def rewriteVersionNumberFile(file, pattern, version):
+def rewrite_version_number_file(file, pattern, version):
     # simple sed implementation, read all the lines first, then write them out
     # again, applying the given pattern to every line (the pattern is expected
     # to only ever match one line)
@@ -47,10 +47,10 @@ def rewriteVersionNumberFile(file, pattern, version):
             fh.write(re.sub(pattern + ".+$", pattern + version, line))
 
 
-def updateFedoraChangelog(opts, snapdPackagingDir, newChangelogEntry, maintainer):
-    specFile = os.path.join(snapdPackagingDir, "fedora", "snapd.spec")
+def update_fedora_changelog(opts, snapd_packaging_dir, new_changelog_entry, maintainer):
+    specFile = os.path.join(snapd_packaging_dir, "fedora", "snapd.spec")
     # rewrite the snapd.spec file with the right version
-    rewriteVersionNumberFile(
+    rewrite_version_number_file(
         # meh this is terrible, to keep the right indentation level,
         # prepend the number of spaces we currently have in the file to
         # the version number
@@ -65,44 +65,46 @@ def updateFedoraChangelog(opts, snapdPackagingDir, newChangelogEntry, maintainer
     # just trimming whitespace off the front of each line in the
     # changelog
 
-    dedentedChangeLogLines = []
-    for line in newChangelogEntry.splitlines():
+    dedented_changelog_lines = []
+    for line in new_changelog_entry.splitlines():
         # strip the first 3 characters which are space characters so
         # that we only have one single whitespace
-        dedentedChangeLogLines.append(line[3:] + "\n")
+        dedented_changelog_lines.append(line[3:] + "\n")
 
     date = datetime.datetime.now().strftime("%a %d %b %Y")
 
-    dateAndMaintainerHeader = f"* {date} {maintainer[0]} <{maintainer[1]}>\n"
-    changeLogHeader = f"- New upstream release {opts.version}\n"
-    fedoraChangeLogEntryLines = [
-        dateAndMaintainerHeader,
-        changeLogHeader,
-    ] + dedentedChangeLogLines
+    date_and_maintainer_header = f"* {date} {maintainer[0]} <{maintainer[1]}>\n"
+    changelog_header = f"- New upstream release {opts.version}\n"
+    fedora_changelog_lines = [
+        date_and_maintainer_header,
+        changelog_header,
+    ] + dedented_changelog_lines
 
     # now read all the existing lines of the snapd.spec file
     with open(specFile, "r") as fh:
-        currentSpecLines = fh.readlines()
+        current_spec_lines = fh.readlines()
 
     # re-write them all out to the file again, inserting our new
     # changelog entryfiles when we get to that section
     with open(specFile, "w") as fh:
-        for line in currentSpecLines:
+        for line in current_spec_lines:
             fh.write(line)
             # if this line was the start of the changelog section, then
             # we need to insert our change log entry lines
             if line.strip() == "%changelog":
                 # before continuing to write the rest of the file,
                 # insert our new changelog entry here
-                for chLine in fedoraChangeLogEntryLines:
-                    fh.write(chLine)
+                for ch_line in fedora_changelog_lines:
+                    fh.write(ch_line)
                 fh.write("\n")
 
 
-def updateOpensuseChangelog(opts, snapdPackagingDir, newChangelogEntry, maintainer):
-    specFile = os.path.join(snapdPackagingDir, "opensuse", "snapd.spec")
-    changesFile = os.path.join(snapdPackagingDir, "opensuse", "snapd.changes")
-    rewriteVersionNumberFile(
+def update_opensuse_changlog(
+    opts, snapd_packaging_dir, new_changelog_entry, maintainer
+):
+    specFile = os.path.join(snapd_packaging_dir, "opensuse", "snapd.spec")
+    changesFile = os.path.join(snapd_packaging_dir, "opensuse", "snapd.changes")
+    rewrite_version_number_file(
         # meh this is terrible, to keep the right indentation level,
         # prepend the number of spaces we currently have in the file to
         # the version number
@@ -131,22 +133,24 @@ def updateOpensuseChangelog(opts, snapdPackagingDir, newChangelogEntry, maintain
 
 
 def main(opts):
-    thisScript = os.path.realpath(__file__)
-    snapdRootGitDir = os.path.dirname(os.path.dirname(thisScript))
-    snapdPackagingDir = os.path.join(snapdRootGitDir, "packaging")
+    this_script = os.path.realpath(__file__)
+    snapd_root_git_dir = os.path.dirname(os.path.dirname(this_script))
+    snapd_packaging_dir = os.path.join(snapd_root_git_dir, "packaging")
 
     # read all the changelog entries, expected to be formatted by snappy-dch
-    newChangelogEntry = opts.changelog.read()
+    new_changelog_entry = opts.changelog.read()
 
     # verify that the changelog entry lines are all in the right format
-    for lineNumber, line in enumerate(newChangelogEntry.splitlines(), start=1):
+    for line_number, line in enumerate(new_changelog_entry.splitlines(), start=1):
         # each line should start with either 4 spaces, a - and then another
         # space, or 6 spaces
         if not line.startswith("    - ") and not line.startswith("      "):
-            raise RuntimeError(f"unexpected changelog line format in line {lineNumber}")
+            raise RuntimeError(
+                f"unexpected changelog line format in line {line_number}"
+            )
         if len(line) >= 72:
             raise RuntimeError(
-                f"line {lineNumber} too long, should wrap properly to next line"
+                f"line {line_number} too long, should wrap properly to next line"
             )
 
     # read the name and email of the person running the script using i.e. dch
@@ -154,11 +158,11 @@ def main(opts):
     maintainer = debian.changelog.get_maintainer()
 
     # first handle all of the debian packaging files
-    for distro in debianishDistros:
-        debianPackagingChangelog = os.path.join(
-            snapdPackagingDir, distro[0], "changelog"
+    for distro in debianish_distros:
+        debian_packaging_changelog = os.path.join(
+            snapd_packaging_dir, distro[0], "changelog"
         )
-        with open(debianPackagingChangelog) as fh:
+        with open(debian_packaging_changelog) as fh:
             ch = debian.changelog.Changelog(fh)
 
         # setup a new block
@@ -174,30 +178,30 @@ def main(opts):
         # add the new changelog entry with our standard header
         # the spacing here is manually adjusted, the top of the comment is always
         # the same
-        templ = "\n  * New upstream release, LP: #1926005\n" + newChangelogEntry
+        templ = "\n  * New upstream release, LP: #1926005\n" + new_changelog_entry
         ch.add_change(templ)
 
         # write it out back to the changelog file
-        with open(debianPackagingChangelog, "w") as fh:
+        with open(debian_packaging_changelog, "w") as fh:
             ch.write_to_open_file(fh)
 
     # now handle all of the non-debian packaging files
-    for distro in otherDistros:
+    for distro in other_distros:
         if distro == "arch":
             # for arch all we need to do is change the PKGBUILD "pkgver" key
-            rewriteVersionNumberFile(
-                os.path.join(snapdPackagingDir, "arch", "PKGBUILD"),
+            rewrite_version_number_file(
+                os.path.join(snapd_packaging_dir, "arch", "PKGBUILD"),
                 "pkgver=",
                 opts.version,
             )
         elif distro == "fedora":
-            updateFedoraChangelog(
-                opts, snapdPackagingDir, newChangelogEntry, maintainer
+            update_fedora_changelog(
+                opts, snapd_packaging_dir, new_changelog_entry, maintainer
             )
 
         elif distro == "opensuse":
-            updateOpensuseChangelog(
-                opts, snapdPackagingDir, newChangelogEntry, maintainer
+            update_opensuse_changlog(
+                opts, snapd_packaging_dir, new_changelog_entry, maintainer
             )
 
 
