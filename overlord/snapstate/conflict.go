@@ -106,6 +106,9 @@ func CheckChangeKindExclusiveConflict(st *state.State, newChangeKind string) err
 		if chg.Kind() == "remodel" {
 			return &ChangeConflictError{Message: "remodeling in progress, no other changes allowed until this is done", ChangeKind: "remodel"}
 		}
+		if chg.Kind() == "create-recovery-system" {
+			return &ChangeConflictError{Message: "creating recovery system in progress, no other changes allowed until this is done", ChangeKind: "create-recovery-system"}
+		}
 		return &ChangeConflictError{
 			Message: fmt.Sprintf("other changes in progress, change %q not allowed until they are done",
 				newChangeKind),
@@ -142,6 +145,12 @@ func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChan
 				continue
 			}
 			return &ChangeConflictError{Message: "remodeling in progress, no other changes allowed until this is done", ChangeKind: "remodel"}
+		}
+		if chg.Kind() == "create-recovery-system" {
+			if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
+				continue
+			}
+			return &ChangeConflictError{Message: "creating recovery system in progress, no other changes allowed until this is done", ChangeKind: "create-recovery-system"}
 		}
 	}
 
