@@ -303,6 +303,7 @@ func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSession(c *C) {
 
 	// verify individual bind rules
 	c.Check(snippet, testutil.Contains, "dbus (bind)\n    bus=session\n    name=org.test-session-slot,\n")
+	c.Check(snippet, testutil.Contains, "dbus (bind)\n    bus=session\n    name=\"org.test-session-slot.*\",\n")
 
 	// verify individual path in rules
 	c.Check(snippet, testutil.Contains, "path=\"/org/test-session-slot{,/**}\"\n")
@@ -349,6 +350,7 @@ func (s *DbusInterfaceSuite) TestPermanentSlotAppArmorSystem(c *C) {
 
 	// verify bind rule
 	c.Check(snippet, testutil.Contains, "dbus (bind)\n    bus=system\n    name=org.test-system-slot,\n")
+	c.Check(snippet, testutil.Contains, "dbus (bind)\n    bus=system\n    name=\"org.test-system-slot.*\",\n")
 
 	// verify path in rule
 	c.Check(snippet, testutil.Contains, "path=\"/org/test-system-slot{,/**}\"\n")

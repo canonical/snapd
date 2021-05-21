@@ -96,7 +96,6 @@ type SerialPortInterfaceSuite struct {
 	testUDev3Info         *snap.SlotInfo
 	testUDevBadValue1     *interfaces.ConnectedSlot
 	testUDevBadValue1Info *snap.SlotInfo
-	testUDevBadValue2     *interfaces.ConnectedSlot
 	testUDevBadValue2Info *snap.SlotInfo
 	testUDevBadValue3     *interfaces.ConnectedSlot
 	testUDevBadValue3Info *snap.SlotInfo

@@ -61,13 +61,6 @@ var patch1ReadType = func(name string, rev snap.Revision) (snap.Type, error) {
 
 type patch1Flags int
 
-const (
-	// DevMode switches confinement to non-enforcing mode.
-	patch1DevMode = 1 << iota
-	// TryMode is set for snaps installed to try directly from a local directory.
-	patch1TryMode
-)
-
 type patch1SnapSetup struct {
 	Name     string        `json:"name,omitempty"`
 	Revision snap.Revision `json:"revision,omitempty"`
