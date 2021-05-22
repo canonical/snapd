@@ -6,13 +6,13 @@ summary: Check that snaps can use stop-timeout
 systems: [-ubuntu-14*]
 
 restore: |
-    f="$TESTSLIB/snaps/test-snapd-service-stop-timeout/staaap.sh"
+    f="$PWD/test-snapd-service-stop-timeout/staaap.sh"
     if [ -e "$f.bak" ]; then
         mv -v "$f.bak" "$f"
     fi
 
 execute: |
-    dir="$TESTSLIB/snaps/test-snapd-service-stop-timeout"
+    dir="$PWD/test-snapd-service-stop-timeout"
     stamp="/var/snap/test-snapd-service-stop-timeout/current/stamp"
     snap try "$dir"
 
