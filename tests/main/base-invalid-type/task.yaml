@@ -1,7 +1,7 @@
 summary: Check that installing a snap requiring a base fails if base has invalid type
 
 prepare: |
-    snap pack "$TESTSLIB/snaps/test-snapd-invalid-base"
+    snap pack "$PWD"/test-snapd-invalid-base
 
 execute: |
     #shellcheck source=tests/lib/snaps.sh
