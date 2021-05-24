@@ -75,7 +75,7 @@ func setTaskRecoverySystemSetup(t *state.Task, setup *recoverySystemSetup) error
 }
 
 func logNewSystemSnapFile(logfile, fileName string) error {
-	if !strings.HasPrefix(fileName, boot.InitramfsUbuntuSeedDir) {
+	if !strings.HasPrefix(filepath.Dir(fileName), boot.InitramfsUbuntuSeedDir+"/") {
 		return fmt.Errorf("internal error: unexpected recovery system snap location %q", fileName)
 	}
 	currentLog, err := ioutil.ReadFile(logfile)
@@ -84,10 +84,7 @@ func logNewSystemSnapFile(logfile, fileName string) error {
 	}
 	modifiedLog := bytes.NewBuffer(currentLog)
 	fmt.Fprintln(modifiedLog, fileName)
-	if err := osutil.AtomicWriteFile(logfile, modifiedLog.Bytes(), 0644, 0); err != nil {
-		return err
-	}
-	return nil
+	return osutil.AtomicWriteFile(logfile, modifiedLog.Bytes(), 0644, 0)
 }
 
 func purgeNewSystemSnapFiles(logfile string) error {
@@ -117,10 +114,7 @@ func purgeNewSystemSnapFiles(logfile string) error {
 			logger.Noticef("while removing new seed snap %q: %v", fileName, err)
 		}
 	}
-	if err := s.Err(); err != nil {
-		return err
-	}
-	return nil
+	return s.Err()
 }
 
 func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err error) {
@@ -263,7 +257,7 @@ func (m *DeviceManager) undoCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) er
 		t.Logf("when removing seed files: %v", err)
 	}
 	if err := os.RemoveAll(setup.Directory); err != nil && !os.IsNotExist(err) {
-		t.Logf("when removing recovery system %q: %v", setup.Label, err)
+		t.Logf("when removing recovery system %q: %v", label, err)
 		undoErr = err
 	} else {
 		t.Logf("removed recovery system directory %v", setup.Directory)

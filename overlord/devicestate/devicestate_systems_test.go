@@ -1112,7 +1112,6 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemNotSe
 
 func (s *deviceMgrSystemsCreateSuite) makeSnapInState(c *C, name string, rev snap.Revision) *snap.Info {
 	snapID := s.ss.AssertedSnapID(name)
-	c.Logf("snap %q ID %q rev %v", name, snapID, rev.String())
 	if rev.Unset() || rev.Local() {
 		snapID = ""
 	}
@@ -1121,13 +1120,12 @@ func (s *deviceMgrSystemsCreateSuite) makeSnapInState(c *C, name string, rev sna
 		SnapID:   snapID,
 		Revision: rev,
 	}
-	// asserted?
 	info := snaptest.MakeSnapFileAndDir(c, snapYamls[name], snapFiles[name], si)
+	// asserted?
 	if !rev.Unset() && !rev.Local() {
 		s.setupSnapDecl(c, info, "canonical")
 		s.setupSnapRevision(c, info, "canonical", rev)
 	}
-	c.Logf("setting type: %v", info.Type())
 	snapstate.Set(s.state, info.InstanceName(), &snapstate.SnapState{
 		SnapType: string(info.Type()),
 		Active:   true,
