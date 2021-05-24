@@ -910,11 +910,8 @@ func (s *deviceMgrRemodelSuite) TestReregRemodelClashAnyChange(c *C) {
 		"revision":       "1",
 	})
 	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
-		mod, err := devBE.Model()
-		c.Check(err, IsNil)
-		if err == nil {
-			c.Check(mod, DeepEquals, new)
-		}
+		// we never reach the place where this gets called
+		c.Fatalf("unexpected call")
 		return nil
 	}
 
