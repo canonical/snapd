@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
@@ -54,8 +55,12 @@ import (
 )
 
 // SnapServiceOptions is a hook set by servicestate.
-var SnapServiceOptions = func(st *state.State, instanceName string) (opts *wrappers.SnapServiceOptions, err error) {
-	panic("internal error: snapstate.SanpServiceOptions is unset")
+var SnapServiceOptions = func(st *state.State, instanceName string, grps map[string]*quota.Group) (opts *wrappers.SnapServiceOptions, err error) {
+	panic("internal error: snapstate.SnapServiceOptions is unset")
+}
+
+var EnsureSnapAbsentFromQuotaGroup = func(st *state.State, snap string) error {
+	panic("internal error: snapstate.EnsureSnapAbsentFromQuotaGroup is unset")
 }
 
 var SecurityProfilesRemoveLate = func(snapName string, rev snap.Revision, typ snap.Type) error {
@@ -897,7 +902,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	snapst.Active = true
-	opts, err := SnapServiceOptions(st, snapsup.InstanceName())
+	opts, err := SnapServiceOptions(st, snapsup.InstanceName(), nil)
 	if err != nil {
 		return err
 	}
@@ -1230,7 +1235,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		return err
 	}
 
-	opts, err := SnapServiceOptions(st, snapsup.InstanceName())
+	opts, err := SnapServiceOptions(st, snapsup.InstanceName(), nil)
 	if err != nil {
 		return err
 	}
@@ -2120,7 +2125,7 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Active = true
 	Set(st, snapsup.InstanceName(), snapst)
 
-	opts, err := SnapServiceOptions(st, snapsup.InstanceName())
+	opts, err := SnapServiceOptions(st, snapsup.InstanceName(), nil)
 	if err != nil {
 		return err
 	}
@@ -2266,6 +2271,12 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 
 		// XXX: also remove sequence files?
+
+		// remove the snap from any quota groups it may have been in, otherwise
+		// that quota group may get into an inconsistent state
+		if err := EnsureSnapAbsentFromQuotaGroup(st, snapsup.InstanceName()); err != nil {
+			return err
+		}
 	}
 	if err = config.DiscardRevisionConfig(st, snapsup.InstanceName(), snapsup.Revision()); err != nil {
 		return err
@@ -2965,6 +2976,12 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	}
 	t.SetStatus(state.DoneStatus)
 
+	return nil
+}
+
+func (m *SnapManager) doAutoRefreshGate(t *state.Task, tomb *tomb.Tomb) error {
+	// TODO: autoRefreshPhase2 - create refresh tasks for snaps that are
+	// not held.
 	return nil
 }
 

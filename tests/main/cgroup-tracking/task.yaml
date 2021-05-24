@@ -14,8 +14,6 @@ environment:
     USER/test: test
 
 prepare: |
-    tests.cleanup prepare
-
     # This feature depends on the release-app-awareness feature
     snap set core experimental.refresh-app-awareness=true
     tests.cleanup defer snap unset core experimental.refresh-app-awareness
@@ -30,8 +28,6 @@ prepare: |
     tests.cleanup defer tests.session -u "$USER" restore
 
 restore: |
-    tests.cleanup restore
-
     rm -f /tmp/*.pid /tmp/*.stamp
 
     if [ "$USER" = root ]; then

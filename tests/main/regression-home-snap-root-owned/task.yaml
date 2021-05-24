@@ -14,10 +14,8 @@ restore: |
     tests.session -u test restore
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     # run a snap command via sudo
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     output="$(tests.session -u test exec sudo "$SNAP_MOUNT_DIR/bin/test-snapd-sh.sh" -c env)"
 
     # ensure SNAP_USER_DATA points to the right place
@@ -28,7 +26,7 @@ execute: |
     echo "Verify that the /root/snap directory created and root owned"
     if [ "$(stat -c '%U' /root/snap)" != "root" ]; then
         echo "The /root/snap directory is not owned by root"
-        ls -ld $SNAP_MOUNT_DIR/snap
+        ls -ld "$SNAP_MOUNT_DIR/snap"
         exit 1
     fi
 

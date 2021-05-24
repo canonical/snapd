@@ -580,8 +580,6 @@ plugs:
 // ATM a nil entry means even stricter rules that would need be tested
 // separately and whose implementation is in flux for now
 var (
-	unconstrained = []string{"core", "kernel", "gadget", "app"}
-
 	slotInstallation = map[string][]string{
 		// other
 		"adb-support":             {"core"},

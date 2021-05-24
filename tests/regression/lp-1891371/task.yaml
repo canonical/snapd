@@ -1,12 +1,8 @@
 summary: mount changes can happen while a bind-mount file is open
 
 prepare: |
-    tests.cleanup prepare
     snap pack test-snapd-app
     snap pack test-snapd-extra-content
-
-restore: |
-    tests.cleanup restore
 
 execute: |
     # This starts a service that opens /opt/foo via bind-file layout.

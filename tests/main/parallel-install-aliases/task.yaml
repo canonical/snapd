@@ -10,14 +10,12 @@ restore: |
     snap set system experimental.parallel-instances=null
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
-
     echo "Create manual aliases"
     snap alias aliases.cmd1 alias1|MATCH ".*- aliases.cmd1 as alias1.*"
     snap alias aliases.cmd2 alias2
 
     echo "Test the aliases"
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     test "$(readlink "$SNAP_MOUNT_DIR"/bin/alias1)" = "aliases.cmd1"
     test "$(readlink "$SNAP_MOUNT_DIR"/bin/alias2)" = "aliases.cmd2"
     alias1|MATCH "ok command 1"

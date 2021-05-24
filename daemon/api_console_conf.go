@@ -38,8 +38,6 @@ var (
 
 var delayTime = 20 * time.Minute
 
-type consoleConfRoutine struct{}
-
 // consoleConfStartRoutineResult is the result of running the console-conf start
 // routine..
 type consoleConfStartRoutineResult struct {
