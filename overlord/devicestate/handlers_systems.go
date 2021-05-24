@@ -19,14 +19,20 @@
 package devicestate
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -65,22 +71,56 @@ func setTaskRecoverySystemSetup(t *state.Task, setup *recoverySystemSetup) error
 		t.Set("recovery-system-setup", setup)
 		return nil
 	}
-	var id string
-	if err := t.Get("recovery-system-setup-task", &id); err != nil {
-		return err
-	}
-	ts := t.State().Task(id)
-	if ts == nil {
-		return fmt.Errorf("internal error: cannot find referenced task %v", id)
-	}
-	ts.Set("recovery-system-setup", setup)
-	return nil
+	return fmt.Errorf("internal error: cannot indirectly set recovery-system-setup")
 }
 
-func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) error {
+func logNewSystemSnapFile(logfile, fileName string) error {
+	if !strings.HasPrefix(filepath.Dir(fileName), boot.InitramfsUbuntuSeedDir+"/") {
+		return fmt.Errorf("internal error: unexpected recovery system snap location %q", fileName)
+	}
+	currentLog, err := ioutil.ReadFile(logfile)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	modifiedLog := bytes.NewBuffer(currentLog)
+	fmt.Fprintln(modifiedLog, fileName)
+	return osutil.AtomicWriteFile(logfile, modifiedLog.Bytes(), 0644, 0)
+}
+
+func purgeNewSystemSnapFiles(logfile string) error {
+	f, err := os.Open(logfile)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	defer f.Close()
+	s := bufio.NewScanner(f)
+	for {
+		if !s.Scan() {
+			break
+		}
+		// one file per line
+		fileName := strings.TrimSpace(s.Text())
+		if fileName == "" {
+			continue
+		}
+		if !strings.HasPrefix(fileName, boot.InitramfsUbuntuSeedDir) {
+			logger.Noticef("while removing new seed snap %q: unexpected recovery system snap location", fileName)
+			continue
+		}
+		if err := os.Remove(fileName); err != nil && !os.IsNotExist(err) {
+			logger.Noticef("while removing new seed snap %q: %v", fileName, err)
+		}
+	}
+	return s.Err()
+}
+
+func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err error) {
 	if release.OnClassic {
 		// TODO: this may need to be lifted in the future
-		return fmt.Errorf("cannot run update gadget assets task on a classic system")
+		return fmt.Errorf("cannot create recovery systems on a classic system")
 	}
 
 	st := t.State()
@@ -98,6 +138,7 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) erro
 		return fmt.Errorf("internal error: cannot obtain recovery system setup information")
 	}
 	label := setup.Label
+	systemDirectory := setup.Directory
 
 	// get all infos
 	infoGetter := func(name string) (*snap.Info, bool, error) {
@@ -122,33 +163,51 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) erro
 		return nil, false, fmt.Errorf("not implemented")
 	}
 
-	db := assertstate.DB(st)
-	// 1. prepare recovery system from remodel snaps (or current snaps)
-	newFiles, systemDir, err := createSystemForModelFromValidatedSnaps(model, label, db, infoGetter)
-	if err != nil {
-		return fmt.Errorf("cannot create a recovery system with label %q for %v: %v", label, model.Model(), err)
+	observeSnapFileWrite := func(recoverySystemDir, where string) error {
+		if recoverySystemDir != systemDirectory {
+			return fmt.Errorf("internal error: unexpected recovery system path %q", recoverySystemDir)
+		}
+		// track all the files, both asserted shared snaps and private
+		// ones
+		return logNewSystemSnapFile(filepath.Join(recoverySystemDir, "snapd-new-file-log"), where)
 	}
-	logger.Debugf("recovery system dir: %v", systemDir)
-	logger.Debugf("new common snap files: %v", newFiles)
 
+	db := assertstate.DB(st)
 	defer func() {
 		if err == nil {
 			return
 		}
-		if err := os.RemoveAll(systemDir); err != nil && !os.IsNotExist(err) {
+		if err := purgeNewSystemSnapFiles(filepath.Join(systemDirectory, "snapd-new-file-log")); err != nil {
+			logger.Noticef("when removing seed files: %v", err)
+		}
+		// this is ok, as before the change with this task was created,
+		// we checked that the system directory did not exist; it may
+		// exist now if one of the post-create steps failed, or the the
+		// task is being re-run after a reboot and creating a system
+		// failed
+		if err := os.RemoveAll(systemDirectory); err != nil && !os.IsNotExist(err) {
 			logger.Noticef("when removing recovery system %q: %v", label, err)
 		}
-		for _, f := range newFiles {
-			// new files under the recovery system dir would have
-			// been removed with the directory already
-			if err := os.Remove(f); err != nil && !os.IsNotExist(err) {
-				logger.Noticef("when removing seed file %q: %v", f, err)
-			}
+		if err := boot.DropRecoverySystem(remodelCtx, label); err != nil {
+			logger.Noticef("when dropping the recovery system %q: %v", label, err)
 		}
+		// we could have reentered the task after a reboot, but the
+		// state was set up sufficiently such that the system was
+		// actually tried and ended up in the tried systems list, which
+		// we should reset now
+		st.Set("tried-systems", nil)
 	}()
+	// 1. prepare recovery system from remodel snaps (or current snaps)
+	// TODO: this fails when there is a partially complete system seed which
+	// creation could have been interrupted by an unexpected reboot;
+	// consider clearing the recovery system directory and restarting from
+	// scratch
+	_, err = createSystemForModelFromValidatedSnaps(model, label, db, infoGetter, observeSnapFileWrite)
+	if err != nil {
+		return fmt.Errorf("cannot create a recovery system with label %q for %v: %v", label, model.Model(), err)
+	}
+	logger.Debugf("recovery system dir: %v", systemDirectory)
 
-	setup.NewCommonFiles = newFiles
-	setup.Directory = systemDir
 	// 2. keep track of the system in task state
 	if err := setTaskRecoverySystemSetup(t, setup); err != nil {
 		return fmt.Errorf("cannot record recovery system setup state: %v", err)
@@ -174,7 +233,7 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) erro
 func (m *DeviceManager) undoCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) error {
 	if release.OnClassic {
 		// TODO: this may need to be lifted in the future
-		return fmt.Errorf("cannot run update gadget assets task on a classic system")
+		return fmt.Errorf("internal error: cannot create recovery systems on a classic system")
 	}
 
 	st := t.State()
@@ -193,21 +252,15 @@ func (m *DeviceManager) undoCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) er
 	label := setup.Label
 
 	var undoErr error
+
+	if err := purgeNewSystemSnapFiles(filepath.Join(setup.Directory, "snapd-new-file-log")); err != nil {
+		t.Logf("when removing seed files: %v", err)
+	}
 	if err := os.RemoveAll(setup.Directory); err != nil && !os.IsNotExist(err) {
-		t.Logf("when removing recovery system %q: %v", setup.Label, err)
+		t.Logf("when removing recovery system %q: %v", label, err)
 		undoErr = err
 	} else {
 		t.Logf("removed recovery system directory %v", setup.Directory)
-	}
-	for _, f := range setup.NewCommonFiles {
-		if err := os.Remove(f); err != nil && !os.IsNotExist(err) {
-			t.Logf("when removing seed file %q: %v", f, err)
-			if undoErr == nil {
-				undoErr = err
-			}
-		} else {
-			t.Logf("removed new file %q", f)
-		}
 	}
 
 	if err := boot.DropRecoverySystem(remodelCtx, label); err != nil {
@@ -220,7 +273,7 @@ func (m *DeviceManager) undoCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) er
 func (m *DeviceManager) doFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.Tomb) error {
 	if release.OnClassic {
 		// TODO: this may need to be lifted in the future
-		return fmt.Errorf("cannot run update gadget assets task on a classic system")
+		return fmt.Errorf("internal error: cannot finalize recovery systems on a classic system")
 	}
 
 	st := t.State()
@@ -300,5 +353,20 @@ func (m *DeviceManager) undoFinalizeTriedRecoverySystem(t *state.Task, _ *tomb.T
 		return fmt.Errorf("cannot drop a good recovery system %q: %v", label, err)
 	}
 
+	return nil
+}
+
+func (m *DeviceManager) cleanupRecoverySystem(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	setup, err := taskRecoverySystemSetup(t)
+	if err != nil {
+		return err
+	}
+	if os.Remove(filepath.Join(setup.Directory, "snapd-new-file-log")); err != nil && !os.IsNotExist(err) {
+		return err
+	}
 	return nil
 }

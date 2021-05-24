@@ -16,8 +16,6 @@ prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    tests.cleanup prepare
-
     # needed for inspecting the partitions
     snap install jq
     tests.cleanup defer snap remove jq
@@ -41,6 +39,8 @@ prepare: |
     "$TESTSTOOLS"/nested-state build-image core
 
 restore: |
+    # Cleanup restore is needed in this case because nested tests are not
+    # doing automatic cleanups
     tests.cleanup restore
 
 execute: |

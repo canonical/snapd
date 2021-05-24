@@ -21,6 +21,7 @@ package servicestate
 
 import (
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/snapcore/snapd/features"
@@ -89,10 +90,10 @@ func quotaGroupsAvailable(st *state.State) error {
 	return nil
 }
 
-func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[string]*quota.Group) error {
+func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[string]*quota.Group, extraSnaps []string) error {
 	// build the map of snap infos to options to provide to EnsureSnapServices
 	snapSvcMap := map[*snap.Info]*wrappers.SnapServiceOptions{}
-	for _, sn := range grp.Snaps {
+	for _, sn := range append(grp.Snaps, extraSnaps...) {
 		info, err := snapstate.CurrentInfo(st, sn)
 		if err != nil {
 			return err
@@ -213,11 +214,21 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[s
 		}
 	}
 
-	// now restart the services for each snap that was newly moved into a
-	// quota group
-	// TODO: handle snaps removed from a quota in #10218
+	// now restart the services for each snap that was newly moved into a quota
+	// group
 	nullPerfTimings := &timings.Timings{}
-	for sn, apps := range appsToRestartBySnap {
+	// iterate in a sorted order over the snaps to restart their apps for easy
+	// tests
+	snaps := make([]*snap.Info, 0, len(appsToRestartBySnap))
+	for sn := range appsToRestartBySnap {
+		snaps = append(snaps, sn)
+	}
+
+	sort.Slice(snaps, func(i, j int) bool {
+		return snaps[i].InstanceName() < snaps[j].InstanceName()
+	})
+
+	for _, sn := range snaps {
 		disabledSvcs, err := wrappers.QueryDisabledServices(sn, progress.Null)
 		if err != nil {
 			return err
@@ -228,7 +239,7 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[s
 			isDisabledSvc[svc] = true
 		}
 
-		startupOrdered, err := snap.SortServices(apps)
+		startupOrdered, err := snap.SortServices(appsToRestartBySnap[sn])
 		if err != nil {
 			return err
 		}
@@ -329,7 +340,7 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 	}
 
 	// ensure the snap services with the group
-	if err := ensureSnapServicesForGroup(st, grp, allGrps); err != nil {
+	if err := ensureSnapServicesForGroup(st, grp, allGrps, nil); err != nil {
 		return err
 	}
 
@@ -406,7 +417,7 @@ func RemoveQuota(st *state.State, name string) error {
 
 	// update snap service units that may need to be re-written because they are
 	// not in a slice anymore
-	if err := ensureSnapServicesForGroup(st, grp, allGrps); err != nil {
+	if err := ensureSnapServicesForGroup(st, grp, allGrps, nil); err != nil {
 		return err
 	}
 
@@ -427,6 +438,9 @@ type QuotaGroupUpdate struct {
 }
 
 // UpdateQuota updates the quota as per the options.
+// TODO: this should support more kinds of updates such as moving groups between
+// parents, removing sub-groups from their parents, and removing snaps from
+// the group.
 func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) error {
 	if err := quotaGroupsAvailable(st); err != nil {
 		return err
@@ -473,5 +487,44 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) erro
 	}
 
 	// ensure service states are updated
-	return ensureSnapServicesForGroup(st, grp, allGrps)
+	return ensureSnapServicesForGroup(st, grp, allGrps, nil)
+}
+
+// EnsureSnapAbsentFromQuota ensures that the specified snap is not present
+// in any quota group, usually in preparation for removing that snap from the
+// system to keep the quota group itself consistent.
+func EnsureSnapAbsentFromQuota(st *state.State, snap string) error {
+	allGrps, err := AllQuotas(st)
+	if err != nil {
+		return err
+	}
+
+	// try to find the snap in any group
+	for _, grp := range allGrps {
+		for idx, sn := range grp.Snaps {
+			if sn == snap {
+				// drop this snap from the list of Snaps by swapping it with the
+				// last snap in the list, and then dropping the last snap from
+				// the list
+				grp.Snaps[idx] = grp.Snaps[len(grp.Snaps)-1]
+				grp.Snaps = grp.Snaps[:len(grp.Snaps)-1]
+
+				// update the quota group state
+				allGrps, err = patchQuotas(st, grp)
+				if err != nil {
+					return err
+				}
+
+				// ensure service states are updated - note we have to add the
+				// snap as an extra snap to ensure since it was removed from the
+				// group and thus won't be considered just by looking at the
+				// group pointer directly
+				return ensureSnapServicesForGroup(st, grp, allGrps, []string{snap})
+
+			}
+		}
+	}
+
+	// the snap wasn't in any group, nothing to do
+	return nil
 }

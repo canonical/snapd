@@ -406,10 +406,8 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 		return info, present, nil
 	}
 	var newFiles []string
-	var observeCalls int
 	snapWriteObserver := func(dir, where string) error {
 		c.Check(dir, Equals, expectedDir)
-		observeCalls++
 		// we are not called for the snap which already exists
 		c.Check(where, testutil.FileAbsent)
 		newFiles = append(newFiles, where)
@@ -486,7 +484,7 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 		filepath.Join(unassertedSnapsDir, "other-unasserted_1.0.snap"), 0)
 	c.Assert(err, IsNil)
 
-	observeCalls = 0
+	newFiles = nil
 	// the unasserted snap goes into the snaps directory under the system
 	// directory, which triggers the error in creating the directory by
 	// seed writer
@@ -496,7 +494,7 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 	c.Assert(err, ErrorMatches, `system "1234unasserted" already exists`)
 	// we failed early, no files were written yet
 	c.Check(dir, Equals, "")
-	c.Check(observeCalls, Equals, 0)
+	c.Check(newFiles, IsNil)
 }
 
 func (s *createSystemSuite) TestCreateSystemInfoAndAssertsChecks(c *C) {
@@ -549,7 +547,6 @@ func (s *createSystemSuite) TestCreateSystemInfoAndAssertsChecks(c *C) {
 	}
 	var observerCalls int
 	snapWriteObserver := func(dir, where string) error {
-		c.Fatalf("unexpected call")
 		observerCalls++
 		return fmt.Errorf("unexpected call")
 	}
@@ -645,9 +642,9 @@ func (s *createSystemSuite) TestCreateSystemGetInfoErr(c *C) {
 		info, present := infos[name]
 		return info, present, nil
 	}
-	var obnserverCalls int
+	var observerCalls int
 	snapWriteObserver := func(dir, where string) error {
-		obnserverCalls++
+		observerCalls++
 		return fmt.Errorf("unexpected call")
 	}
 
@@ -661,7 +658,7 @@ func (s *createSystemSuite) TestCreateSystemGetInfoErr(c *C) {
 		infoGetter, snapWriteObserver)
 	c.Assert(err, ErrorMatches, `cannot obtain essential snap information: mock failure for snap "pc"`)
 	c.Check(dir, Equals, "")
-	c.Check(obnserverCalls, Equals, 0)
+	c.Check(observerCalls, Equals, 0)
 	c.Check(osutil.IsDirectory(systemDir), Equals, false)
 
 	failOn["pc"] = false
@@ -670,7 +667,7 @@ func (s *createSystemSuite) TestCreateSystemGetInfoErr(c *C) {
 		infoGetter, snapWriteObserver)
 	c.Assert(err, ErrorMatches, `cannot obtain non-essential but "required" snap information: mock failure for snap "other-required"`)
 	c.Check(dir, Equals, "")
-	c.Check(obnserverCalls, Equals, 0)
+	c.Check(observerCalls, Equals, 0)
 	c.Check(osutil.IsDirectory(systemDir), Equals, false)
 }
 
