@@ -22,8 +22,6 @@ environment:
     STORE_TYPE/parallel_strict_remote,strict_remote,classic_remote: ${REMOTE_STORE}
 
 prepare: |
-    tests.cleanup prepare
-
     if [ "$STORE_TYPE" = "fake" ]; then
         if os.query is-core; then
             exit
@@ -63,8 +61,6 @@ prepare: |
     fi
 
 restore: |
-    tests.cleanup restore
-
     if [ "$STORE_TYPE" = "fake" ]; then
         if os.query is-core; then
             exit

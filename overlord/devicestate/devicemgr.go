@@ -361,6 +361,9 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	return nil
 }
 
+// SystemMode returns the current mode of the system. Note, that for pre-UC20
+// systems, the mode is not explicitly set and a default "run" mode is always
+// returned.
 func (m *DeviceManager) SystemMode() string {
 	if m.systemMode == "" {
 		return "run"
@@ -1077,6 +1080,8 @@ func (m *DeviceManager) ensureTriedRecoverySystem() error {
 	if release.OnClassic {
 		return nil
 	}
+	// use direct check rather than though a getter, so that we know that
+	// the mode was explicitly set like it is on UC20 devices
 	if m.systemMode != "run" {
 		return nil
 	}

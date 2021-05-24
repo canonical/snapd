@@ -6,7 +6,6 @@ summary: docker-support and multipass-support should mount base /etc/apparmor.d
 systems: [-ubuntu-14.04-*, -ubuntu-core-16-*]
 
 prepare: |
-    tests.cleanup prepare
     snap pack test-snapd-docker-support-app
     snap install --dangerous ./test-snapd-docker-support-app_1_all.snap
 
@@ -25,9 +24,6 @@ prepare: |
     fi
     snap connect test-snapd-docker-support-app:docker-support
     snap connect test-snapd-multipass-support-app:multipass-support
-
-restore: |
-    tests.cleanup restore
 
 execute: |
     # now connect it and verify profile can be compiled

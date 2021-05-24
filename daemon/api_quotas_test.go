@@ -51,6 +51,9 @@ func (s *apiQuotaSuite) SetUpTest(c *check.C) {
 	tr := config.NewTransaction(st)
 	tr.Set("core", "experimental.quota-groups", true)
 	tr.Commit()
+
+	r := servicestate.MockSystemdVersion(248)
+	s.AddCleanup(r)
 }
 
 func mockQuotas(st *state.State, c *check.C) {
