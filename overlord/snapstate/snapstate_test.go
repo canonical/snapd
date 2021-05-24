@@ -5350,6 +5350,9 @@ func (s contentStore) SnapAction(ctx context.Context, currentSnaps []*store.Curr
 	if err != nil {
 		return nil, nil, err
 	}
+	if len(sars) < 1 || len(sars) > 2 {
+		panic("expected to be queried for install of 1 or 2 snaps at a time")
+	}
 
 	var res []store.SnapActionResult
 	for _, s := range sars {
