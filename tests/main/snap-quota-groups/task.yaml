@@ -63,8 +63,7 @@ execute: |
   systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=active"
 
   echo "But the service is not running after a short amount of time"
-  sleep 10 # meh probably unnecessarily long
-  snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+inactive"
+  retry --wait 1 -n 100 sh -c 'snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+inactive"'
   systemctl show --property=ExecMainStatus snap.go-example-webserver.webserver.service | MATCH ExecMainStatus=9
 
   echo "And after removing the quota group, the snap is restarted and active again"
