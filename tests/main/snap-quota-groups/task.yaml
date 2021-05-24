@@ -52,6 +52,9 @@ execute: |
   echo "And the service is not in a slice anymore"
   systemctl show --property=ControlGroup snap.go-example-webserver.webserver.service | NOMATCH "/$sliceName/snap.go-example-webserver.webserver.service"
 
+  echo "And the slice is not active anymore"
+  systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=inactive"
+
   echo "Creating a quota with a very small memory limit results in the service being unable to start"
   snap quota too-small --max-memory=1MB go-example-webserver
 
