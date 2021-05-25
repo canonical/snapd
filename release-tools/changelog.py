@@ -49,13 +49,15 @@ def rewrite_version_number_file(file_name, pattern, version, write):
     """
 
     with open(file_name, "r") as fh:
-        file_bytes = fh.read()
+        file_contents = fh.read()
 
     # replace the pattern (which should have one capturing group in it for the
     # version specifier pattern) with the captured group + the new version such
     # that we can keep any whitespace, etc in between the version specified and
     # the version number
-    new_bytes, n = re.subn(pattern, r"\g<1>" + version, file_bytes, flags=re.MULTILINE)
+    new_contents, n = re.subn(
+        pattern, r"\g<1>" + version, file_contents, flags=re.MULTILINE
+    )
 
     # check that we only did one replacement in the file
     if n > 1:
@@ -67,16 +69,16 @@ def rewrite_version_number_file(file_name, pattern, version, write):
 
     if write is True:
         with open(file_name, "w") as fh:
-            fh.write(new_bytes)
+            fh.write(new_contents)
 
-    return new_bytes
+    return new_contents
 
 
 def update_fedora_changelog(opts, snapd_packaging_dir, new_changelog_entry, maintainer):
     spec_file = os.path.join(snapd_packaging_dir, "fedora", "snapd.spec")
 
     # rewrite the snapd.spec file with the right version
-    spec_file_bytes = rewrite_version_number_file(
+    spec_file_content = rewrite_version_number_file(
         spec_file,
         r"^(Version:\s+).*$",
         opts.version,
@@ -106,23 +108,24 @@ def update_fedora_changelog(opts, snapd_packaging_dir, new_changelog_entry, main
 
     # find the start of the changelog section in the rewritten spec file bytes
     changelog_section = "\n%changelog\n"
-    idx = spec_file_bytes.find(changelog_section)
+    idx = spec_file_content.find(changelog_section)
     if idx < 0:
         raise RuntimeError(
             "'%changelog' line in fedora spec file not found (was a comment or whitespace added to that line?)"
         )
     # rewrite the spec file using the replaced bits up to the changelog section,
-    # then insert our new changelog entry lines, then add the rest of the 
+    # then insert our new changelog entry lines, then add the rest of the
     # replaced bits of the spec file
     with open(spec_file, "w") as fh:
         # write the spec file up to and including the changelog section
-        fh.write(spec_file_bytes[: idx + len(changelog_section)])
+        fh.write(spec_file_content[: idx + len(changelog_section)])
         # insert our new changelog entry
         for ch_line in fedora_changelog_lines:
             fh.write(ch_line)
         fh.write("\n")
         # write the rest of the original spec file
-        fh.write(spec_file_bytes[idx + len(changelog_section) :])
+        fh.write(spec_file_content[idx + len(changelog_section) :])
+
 
 def update_opensuse_changlog(
     opts, snapd_packaging_dir, new_changelog_entry, maintainer
