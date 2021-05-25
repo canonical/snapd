@@ -35,9 +35,15 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
+var debugStacktraceCmd = &Command{
+	Path:     "/v2/debug/stacktrace",
+	RootOnly: true,
+	GET:      getDebugStacktrace,
+}
+
 var debugCmd = &Command{
 	Path:     "/v2/debug",
-	RootOnly: true,
+	UserOK: true,
 	GET:      getDebug,
 	POST:     postDebug,
 }
@@ -290,8 +296,6 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		return getChangeTimings(st, chgID, ensureTag, startupTag, all == "true")
 	case "seeding":
 		return getSeedingInfo(st)
-	case "stacktrace":
-		return getStacktrace()
 	default:
 		return BadRequest("unknown debug aspect %q", aspect)
 	}

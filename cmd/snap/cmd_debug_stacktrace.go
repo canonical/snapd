@@ -46,7 +46,7 @@ func printStacktrace(stacktrace []string) {
 
 func (x *cmdGetStacktrace) Execute(args []string) error {
 	var stacktrace []string
-	if err := x.client.DebugGet("stacktrace", &stacktrace, nil); err != nil {
+	if err := x.client.DebugGetStacktrace(&stacktrace); err != nil {
 		return err
 	}
 	printStacktrace(stacktrace)

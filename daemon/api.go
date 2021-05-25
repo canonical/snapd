@@ -63,6 +63,7 @@ var api = []*Command{
 	logsCmd,
 	warningsCmd,
 	debugPprofCmd,
+	debugStacktraceCmd,
 	debugCmd,
 	snapshotCmd,
 	snapshotExportCmd,
