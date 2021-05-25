@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap/quota"
 )
 
 var _ = check.Suite(&apiQuotaSuite{})
@@ -254,6 +255,26 @@ func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
 	mockQuotas(st, c)
 	st.Unlock()
 
+	calls := 0
+	r := daemon.MockGetQuotaMemUsage(func(grp *quota.Group) (quantity.Size, error) {
+		calls++
+		switch grp.Name {
+		case "bar":
+			return quantity.Size(500), nil
+		case "baz":
+			return quantity.Size(1000), nil
+		case "foo":
+			return quantity.Size(5000), nil
+		default:
+			c.Errorf("unexpected call to get group memory usage for group %q", grp.Name)
+			return 0, fmt.Errorf("broken test")
+		}
+	})
+	defer r()
+	defer func() {
+		c.Assert(calls, check.Equals, 3)
+	}()
+
 	req, err := http.NewRequest("GET", "/v2/quotas", nil)
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
@@ -262,19 +283,22 @@ func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
 	res := rsp.Result.([]daemon.QuotaGroupResultJSON)
 	c.Check(res, check.DeepEquals, []daemon.QuotaGroupResultJSON{
 		{
-			GroupName: "bar",
-			Parent:    "foo",
-			MaxMemory: 1000,
+			GroupName:     "bar",
+			Parent:        "foo",
+			MaxMemory:     1000,
+			CurrentMemory: 500,
 		},
 		{
-			GroupName: "baz",
-			Parent:    "foo",
-			MaxMemory: 2000,
+			GroupName:     "baz",
+			Parent:        "foo",
+			MaxMemory:     2000,
+			CurrentMemory: 1000,
 		},
 		{
-			GroupName: "foo",
-			SubGroups: []string{"bar", "baz"},
-			MaxMemory: 9000,
+			GroupName:     "foo",
+			SubGroups:     []string{"bar", "baz"},
+			MaxMemory:     9000,
+			CurrentMemory: 5000,
 		},
 	})
 }
@@ -285,6 +309,17 @@ func (s *apiQuotaSuite) TestGetQuota(c *check.C) {
 	mockQuotas(st, c)
 	st.Unlock()
 
+	calls := 0
+	r := daemon.MockGetQuotaMemUsage(func(grp *quota.Group) (quantity.Size, error) {
+		calls++
+		c.Assert(grp.Name, check.Equals, "bar")
+		return quantity.Size(500), nil
+	})
+	defer r()
+	defer func() {
+		c.Assert(calls, check.Equals, 1)
+	}()
+
 	req, err := http.NewRequest("GET", "/v2/quotas/bar", nil)
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
@@ -292,9 +327,10 @@ func (s *apiQuotaSuite) TestGetQuota(c *check.C) {
 	c.Assert(rsp.Result, check.FitsTypeOf, daemon.QuotaGroupResultJSON{})
 	res := rsp.Result.(daemon.QuotaGroupResultJSON)
 	c.Check(res, check.DeepEquals, daemon.QuotaGroupResultJSON{
-		GroupName: "bar",
-		Parent:    "foo",
-		MaxMemory: 1000,
+		GroupName:     "bar",
+		Parent:        "foo",
+		MaxMemory:     1000,
+		CurrentMemory: 500,
 	})
 }
 

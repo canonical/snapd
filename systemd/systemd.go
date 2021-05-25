@@ -598,10 +598,12 @@ func (s *systemd) CurrentMemoryUsage(unit string) (quantity.Size, error) {
 	if err != nil {
 		return 0, osutil.OutputErr(out, err)
 	}
+	cleanVal := strings.TrimSpace(string(out))
+
 	// strip the MemoryCurrent= from the output
-	splitVal := strings.SplitN(strings.TrimSpace(string(out)), "=", 2)
+	splitVal := strings.SplitN(cleanVal, "=", 2)
 	if len(splitVal) != 2 {
-		return 0, fmt.Errorf("invalid property format from systemd for MemoryCurrent")
+		return 0, fmt.Errorf("invalid property format from systemd for MemoryCurrent (got %s)", cleanVal)
 	}
 
 	trimmedVal := strings.TrimSpace(splitVal[1])
