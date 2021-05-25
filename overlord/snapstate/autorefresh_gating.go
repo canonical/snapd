@@ -38,43 +38,42 @@ var gateAutoRefreshHookName = "gate-auto-refresh"
 // cumulative hold time for snaps other than self
 const maxOtherHoldDuration = time.Hour * 48
 
-type holdInfo struct {
-	// FirstHeld keeps the time when the given snap was first held for refresh by a gating snap.
-	FirstHeld time.Time
-	// HoldUntil stores the desired end time for holding.
-	HoldUntil time.Time
-}
-
 var timeNow = func() time.Time {
 	return time.Now()
 }
 
-func lastRefreshed(st *state.State, snapName string) (*time.Time, error) {
+func lastRefreshed(st *state.State, snapName string) (time.Time, error) {
 	var snapst SnapState
 	if err := Get(st, snapName, &snapst); err != nil {
-		return nil, fmt.Errorf("internal error, cannot get snap %q: %v", snapName, err)
+		return time.Time{}, fmt.Errorf("internal error, cannot get snap %q: %v", snapName, err)
 	}
-	if snapst.LastRefresh != nil {
-		return snapst.LastRefresh, nil
+	if snapst.LastRefreshTime != nil {
+		return *snapst.LastRefreshTime, nil
 	}
 	inf, err := snapst.CurrentInfo()
 	if err != nil {
-		return nil, err
+		return time.Time{}, err
 	}
 	fst, err := os.Stat(inf.MountFile())
 	if err != nil {
-		return nil, err
+		return time.Time{}, err
 	}
-	t := fst.ModTime()
-	return &t, nil
+	return fst.ModTime(), nil
+}
+
+type holdInfo struct {
+	// FirstHeld keeps the time when the given snap was first held for refresh by a gating snap.
+	FirstHeld time.Time `json:"first-held"`
+	// HoldUntil stores the desired end time for holding.
+	HoldUntil time.Time `json:"hold-until"`
 }
 
 func refreshGating(st *state.State) (map[string]map[string]*holdInfo, error) {
-	// affecting snap -> gating snap(s) -> first-held/hold-until time
+	// held snaps -> holding snap(s) -> first-held/hold-until time
 	var gating map[string]map[string]*holdInfo
-	err := st.Get("refresh-gating", &gating)
+	err := st.Get("snaps-hold", &gating)
 	if err != nil && err != state.ErrNoState {
-		return nil, fmt.Errorf("internal error: cannot get refresh-gating: %v", err)
+		return nil, fmt.Errorf("internal error: cannot get snaps-hold: %v", err)
 	}
 	if err == state.ErrNoState {
 		return make(map[string]map[string]*holdInfo), nil
@@ -113,7 +112,7 @@ func HoldRefresh(st *state.State, gatingSnap string, holdTime time.Time, affecti
 		if err != nil {
 			return err
 		}
-		if now.Sub(*refreshed) > maxPostponement {
+		if now.Sub(refreshed) > maxPostponement {
 			herr.SnapsInError[affecting] = fmt.Errorf("cannot hold the refresh of snap %q, maximum postponement time exceeded", affecting)
 			continue
 		}
@@ -150,7 +149,7 @@ func HoldRefresh(st *state.State, gatingSnap string, holdTime time.Time, affecti
 		hold.HoldUntil = hold.FirstHeld.Add(holdDur)
 		gating[affecting][gatingSnap] = hold
 	}
-	st.Set("refresh-gating", gating)
+	st.Set("snaps-hold", gating)
 	if len(herr.SnapsInError) > 0 {
 		return herr
 	}
@@ -180,15 +179,15 @@ func ProceedWithRefresh(st *state.State, gatingSnap string) error {
 	}
 
 	if changed {
-		st.Set("refresh-gating", gating)
+		st.Set("snaps-hold", gating)
 	}
 	return nil
 }
 
-// resetGating resets gating information by:
+// pruneGating resets gating information by:
 // - removing affecting snaps whose held time expired.
 // - removing affecting snaps that are not in candidates (meaning there is no update for them anymore).
-func resetGating(st *state.State, candidates map[string]*refreshCandidate) error {
+func pruneGating(st *state.State, candidates map[string]*refreshCandidate) error {
 	gating, err := refreshGating(st)
 	if err != nil {
 		return err
@@ -200,7 +199,7 @@ func resetGating(st *state.State, candidates map[string]*refreshCandidate) error
 	}
 	if len(candidates) == 0 {
 		gating = map[string]map[string]*holdInfo{}
-		st.Set("refresh-gating", gating)
+		st.Set("snaps-hold", gating)
 		return nil
 	}
 
@@ -228,7 +227,7 @@ func resetGating(st *state.State, candidates map[string]*refreshCandidate) error
 		}
 	}
 	if changed {
-		st.Set("refresh-gating", gating)
+		st.Set("snaps-hold", gating)
 	}
 	return nil
 }
@@ -254,7 +253,7 @@ func resetGatingForRefreshed(st *state.State, refreshedSnaps ...string) error {
 	}
 
 	if changed {
-		st.Set("refresh-gating", gating)
+		st.Set("snaps-hold", gating)
 	}
 	return nil
 }

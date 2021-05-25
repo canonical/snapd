@@ -173,8 +173,8 @@ type SnapState struct {
 	// reset on each successful refresh.
 	RefreshInhibitedTime *time.Time `json:"refresh-inhibited-time,omitempty"`
 
-	// LastRefresh records the time when the snap was last refreshed.
-	LastRefresh *time.Time `json:"last-refresh,omitempty"`
+	// LastRefreshTime records the time when the snap was last refreshed.
+	LastRefreshTime *time.Time `json:"last-refresh,omitempty"`
 }
 
 func (snapst *SnapState) SetTrackingChannel(s string) error {
