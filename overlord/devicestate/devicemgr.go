@@ -164,6 +164,10 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("update-managed-boot-config", m.doUpdateManagedBootConfig, nil)
 	// kernel command line updates from a gadget supplied file
 	runner.AddHandler("update-gadget-cmdline", m.doUpdateGadgetCommandLine, m.undoUpdateGadgetCommandLine)
+	// recovery systems
+	runner.AddHandler("create-recovery-system", m.doCreateRecoverySystem, m.undoCreateRecoverySystem)
+	runner.AddHandler("finalize-recovery-system", m.doFinalizeTriedRecoverySystem, m.undoFinalizeTriedRecoverySystem)
+	runner.AddCleanup("finalize-recovery-system", m.cleanupRecoverySystem)
 
 	runner.AddBlocked(gadgetUpdateBlocked)
 
@@ -361,6 +365,9 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	return nil
 }
 
+// SystemMode returns the current mode of the system. Note, that for pre-UC20
+// systems, the mode is not explicitly set and a default "run" mode is always
+// returned.
 func (m *DeviceManager) SystemMode() string {
 	if m.systemMode == "" {
 		return "run"
@@ -1077,6 +1084,8 @@ func (m *DeviceManager) ensureTriedRecoverySystem() error {
 	if release.OnClassic {
 		return nil
 	}
+	// use direct check rather than though a getter, so that we know that
+	// the mode was explicitly set like it is on UC20 devices
 	if m.systemMode != "run" {
 		return nil
 	}
