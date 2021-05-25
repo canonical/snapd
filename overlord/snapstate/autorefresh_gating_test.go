@@ -567,11 +567,6 @@ func (s *autorefreshGatingSuite) TestPruneGatingHelperNoCandidates(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(held, HasLen, 1)
 
-	snapstate.MockTimeNow(func() time.Time {
-		c.Fatalf("not expected")
-		return time.Time{}
-	})
-
 	c.Assert(snapstate.PruneGating(st, nil), IsNil)
 	var gating2 map[string]map[string]*snapstate.HoldInfo
 	c.Assert(st.Get("snaps-hold", &gating2), IsNil)

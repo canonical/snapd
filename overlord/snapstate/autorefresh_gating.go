@@ -197,11 +197,6 @@ func pruneGating(st *state.State, candidates map[string]*refreshCandidate) error
 	if len(gating) == 0 {
 		return nil
 	}
-	if len(candidates) == 0 {
-		gating = map[string]map[string]*holdInfo{}
-		st.Set("snaps-hold", gating)
-		return nil
-	}
 
 	now := timeNow()
 
