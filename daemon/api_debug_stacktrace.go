@@ -22,7 +22,6 @@ package daemon
 import (
 	"net/http"
 	"runtime"
-	"strings"
 
 	"github.com/snapcore/snapd/overlord/auth"
 )
@@ -31,6 +30,5 @@ func getDebugStacktrace(c *Command, r *http.Request, user *auth.UserState) Respo
 	stack := make([]byte, 65535)
 	all := true
 	n := runtime.Stack(stack, all)
-	data := strings.Split(string(stack[:n]), "\n")
-	return SyncResponse(data, nil)
+	return SyncResponse(string(stack[:n]), nil)
 }

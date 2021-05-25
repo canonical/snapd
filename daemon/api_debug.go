@@ -42,10 +42,10 @@ var debugStacktraceCmd = &Command{
 }
 
 var debugCmd = &Command{
-	Path:     "/v2/debug",
+	Path:   "/v2/debug",
 	UserOK: true,
-	GET:      getDebug,
-	POST:     postDebug,
+	GET:    getDebug,
+	POST:   postDebug,
 }
 
 type debugAction struct {

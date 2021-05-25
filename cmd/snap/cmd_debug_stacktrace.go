@@ -38,17 +38,11 @@ func init() {
 		}, nil, nil)
 }
 
-func printStacktrace(stacktrace []string) {
-	for _, line := range stacktrace {
-		fmt.Fprintf(Stdout, "%s\n", line)
-	}
-}
-
 func (x *cmdGetStacktrace) Execute(args []string) error {
-	var stacktrace []string
+	var stacktrace string
 	if err := x.client.DebugGetStacktrace(&stacktrace); err != nil {
 		return err
 	}
-	printStacktrace(stacktrace)
+	fmt.Fprintf(Stdout, stacktrace)
 	return nil
 }
