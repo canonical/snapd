@@ -1,0 +1,9 @@
+name: test-snapd-classic-content-slot
+version: 1.0
+confinement: classic
+slots:
+    shared-content-slot:
+        interface: content
+        content: mylib
+        read:
+            - /

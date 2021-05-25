@@ -1,0 +1,12 @@
+name: test-snapd-content-plug-to-classic-slot
+version: 1.0
+apps:
+    content-plug:
+        command: bin/content-plug
+        plugs: [shared-content-plug]
+plugs:
+    shared-content-plug:
+        interface: content
+        target: import
+        content: myclib
+        default-provider: test-snapd-classic-content-slot
