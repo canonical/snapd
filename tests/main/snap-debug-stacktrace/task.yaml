@@ -1,0 +1,8 @@
+summary: Ensure `snap debug stacktrace` command works
+
+execute: |
+  snap debug stacktrace | MATCH 'goroutine'
+  snap debug stacktrace | MATCH 'github.com/snapcore/snapd/daemon'
+
+  echo "Ensure that stacktrace is not available to non-root users"
+  su - test /bin/sh -c "snap debug stacktrace 2>&1" | MATCH "error: access denied"
