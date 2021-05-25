@@ -21,11 +21,14 @@ package daemon_test
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 
 	"gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/dirs"
 )
 
 var _ = check.Suite(&pprofDebugSuite{})
@@ -40,7 +43,7 @@ func (s *pprofDebugSuite) TestGetPprofCmdline(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/debug/pprof/cmdline", nil)
 	c.Assert(err, check.IsNil)
 	// as root
-	req.RemoteAddr = "pid=100;uid=0;socket=;"
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 
 	rr := httptest.NewRecorder()
 	s.serveHTTP(c, rr, req)

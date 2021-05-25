@@ -29,6 +29,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/daemon"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -154,7 +155,7 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaHappy(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
-	req.RemoteAddr = "pid=100;uid=0;socket=;"
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 	c.Assert(err, check.IsNil)
 
 	rec := httptest.NewRecorder()
@@ -198,11 +199,11 @@ func (s *systemsSuite) TestPostQuotaRequiresRoot(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapdSocket)
 
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
-	c.Check(rec.Code, check.Equals, 401)
+	c.Check(rec.Code, check.Equals, 403)
 }
 
 func (s *apiQuotaSuite) TestListQuotas(c *check.C) {

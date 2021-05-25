@@ -453,7 +453,7 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
 		c.Assert(err, check.IsNil, check.Commentf(tc.comment))
 		// as root
-		req.RemoteAddr = "pid=100;uid=0;socket=;"
+		req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 		rec := httptest.NewRecorder()
 		s.serveHTTP(c, rec, req)
 		if tc.expUnsupported {
@@ -561,11 +561,11 @@ func (s *systemsSuite) TestSystemActionNonRoot(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/systems/20191119", strings.NewReader(body))
 	c.Assert(err, check.IsNil)
 	// non root
-	req.RemoteAddr = "pid=100;uid=1234;socket=;"
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1234;socket=%s;", dirs.SnapdSocket)
 
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
-	c.Assert(rec.Code, check.Equals, 401)
+	c.Assert(rec.Code, check.Equals, 403)
 
 	var rspBody map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &rspBody)
@@ -575,8 +575,8 @@ func (s *systemsSuite) TestSystemActionNonRoot(c *check.C) {
 			"message": "access denied",
 			"kind":    "login-required",
 		},
-		"status":      "Unauthorized",
-		"status-code": 401.0,
+		"status":      "Forbidden",
+		"status-code": 403.0,
 		"type":        "error",
 	})
 }
@@ -594,11 +594,11 @@ func (s *systemsSuite) TestSystemRebootNeedsRoot(c *check.C) {
 	url := "/v2/systems"
 	req, err := http.NewRequest("POST", url, strings.NewReader(body))
 	c.Assert(err, check.IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapdSocket)
 
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
-	c.Check(rec.Code, check.Equals, 401)
+	c.Check(rec.Code, check.Equals, 403)
 }
 
 func (s *systemsSuite) TestSystemRebootHappy(c *check.C) {
@@ -631,7 +631,7 @@ func (s *systemsSuite) TestSystemRebootHappy(c *check.C) {
 		}
 		req, err := http.NewRequest("POST", url, strings.NewReader(body))
 		c.Assert(err, check.IsNil)
-		req.RemoteAddr = "pid=100;uid=0;socket=;"
+		req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 
 		rec := httptest.NewRecorder()
 		s.serveHTTP(c, rec, req)
@@ -663,7 +663,7 @@ func (s *systemsSuite) TestSystemRebootUnhappy(c *check.C) {
 		url := "/v2/systems"
 		req, err := http.NewRequest("POST", url, strings.NewReader(body))
 		c.Assert(err, check.IsNil)
-		req.RemoteAddr = "pid=100;uid=0;socket=;"
+		req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 
 		rec := httptest.NewRecorder()
 		s.serveHTTP(c, rec, req)

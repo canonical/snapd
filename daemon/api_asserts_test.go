@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/daemon"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -67,6 +68,7 @@ func (s *assertsSuite) SetUpTest(c *check.C) {
 
 func (s *assertsSuite) userAuth(req *http.Request) {
 	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, s.authUser.Macaroon))
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapdSocket)
 }
 
 func (s *assertsSuite) TestGetAsserts(c *check.C) {

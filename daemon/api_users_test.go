@@ -398,7 +398,12 @@ func (s *userSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 func (s *userSuite) TestUsersOnlyRoot(c *check.C) {
 	for _, cmd := range daemon.APICommands() {
 		if strings.Contains(cmd.Path, "user") {
-			c.Check(cmd.RootOnly, check.Equals, true, check.Commentf(cmd.Path))
+			if cmd.ReadAccess != nil {
+				c.Check(cmd.ReadAccess, check.Equals, daemon.RootAccess{}, check.Commentf(cmd.Path))
+			}
+			if cmd.WriteAccess != nil {
+				c.Check(cmd.WriteAccess, check.Equals, daemon.RootAccess{}, check.Commentf(cmd.Path))
+			}
 		}
 	}
 }
