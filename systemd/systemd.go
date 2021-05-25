@@ -39,6 +39,7 @@ import (
 	_ "github.com/snapcore/squashfuse"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/sandbox/selinux"
@@ -262,6 +263,9 @@ type Systemd interface {
 	Mount(what, where string, options ...string) error
 	// Umount requests a mount from what or at where to be unmounted.
 	Umount(whatOrWhere string) error
+	// CurrentMemoryUsage returns the current memory usage for the specified
+	// unit.
+	CurrentMemoryUsage(unit string) (quantity.Size, error)
 }
 
 // A Log is a single entry in the systemd journal.
@@ -587,6 +591,33 @@ func (s *systemd) getGlobalUserStatus(unitNames ...string) ([]*UnitStatus, error
 		}
 	}
 	return sts, nil
+}
+
+func (s *systemd) CurrentMemoryUsage(unit string) (quantity.Size, error) {
+	out, err := s.systemctl("show", "--property", "MemoryCurrent", unit)
+	if err != nil {
+		return 0, osutil.OutputErr(out, err)
+	}
+	// strip the MemoryCurrent= from the output
+	splitVal := strings.SplitN(strings.TrimSpace(string(out)), "=", 2)
+	if len(splitVal) != 2 {
+		return 0, fmt.Errorf("invalid format from systemd")
+	}
+
+	trimmedVal := strings.TrimSpace(splitVal[1])
+
+	// if the unit is inactive or doesn't exist, the memory usage can be
+	// reported as "[not set]"
+	if trimmedVal == "[not set]" {
+		return 0, fmt.Errorf("memory usage unavailable")
+	}
+
+	intVal, err := strconv.Atoi(trimmedVal)
+	if err != nil {
+		return 0, err
+	}
+
+	return quantity.Size(intVal), nil
 }
 
 func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {

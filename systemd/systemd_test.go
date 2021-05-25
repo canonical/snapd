@@ -34,6 +34,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/sandbox/selinux"
@@ -1394,6 +1395,31 @@ func (s *SystemdTestSuite) TestUmountErr(c *C) {
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"systemd-mount", "--umount", "bar"},
 	})
+}
+
+func (s *SystemdTestSuite) TestCurrentMemoryUsageInactive(c *C) {
+	s.outs = [][]byte{
+		[]byte(`MemoryCurrent=[not set]`),
+	}
+	sysd := New(SystemMode, s.rep)
+	_, err := sysd.CurrentMemoryUsage("bar.service")
+	c.Assert(err, ErrorMatches, "memory usage unavailable")
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "MemoryCurrent", "bar.service"},
+	})
+}
+
+func (s *SystemdTestSuite) TestCurrentMemoryUsage(c *C) {
+	s.outs = [][]byte{
+		[]byte(`MemoryCurrent=1024`),
+	}
+	sysd := New(SystemMode, s.rep)
+	usage, err := sysd.CurrentMemoryUsage("bar.service")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "MemoryCurrent", "bar.service"},
+	})
+	c.Check(usage, Equals, quantity.SizeKiB)
 }
 
 func (s *SystemdTestSuite) TestInactiveEnterTimestampZero(c *C) {
