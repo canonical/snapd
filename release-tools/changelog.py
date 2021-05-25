@@ -40,27 +40,49 @@ other_distros = [
 ]
 
 
-def rewrite_version_number_file(file, pattern, version):
-    # simple sed implementation, read all the lines first, then write them out
-    # again, applying the given pattern to every line (the pattern is expected
-    # to only ever match one line)
-    with open(file, "r") as fh:
-        lines = fh.readlines()
-    with open(file, "w") as fh:
-        for line in lines:
-            fh.write(re.sub(pattern + ".+$", pattern + version, line))
+def rewrite_version_number_file(file_name, pattern, version, write):
+    """rewrite_version_number_file reads a packaging file with a version number
+    in it and updates the version number to the new one specified using the
+    regex pattern.
+    It returns the new file contents and optionally writes out the new contents
+    back to the file as well.
+    """
+
+    with open(file_name, "r") as fh:
+        file_contents = fh.read()
+
+    # replace the pattern (which should have one capturing group in it for the
+    # version specifier pattern) with the captured group + the new version such
+    # that we can keep any whitespace, etc in between the version specified and
+    # the version number
+    new_contents, n = re.subn(
+        pattern, r"\g<1>" + version, file_contents, flags=re.MULTILINE
+    )
+
+    # check that we only did one replacement in the file
+    if n > 1:
+        raise RuntimeError(
+            f"too many version patterns ({n}) matched in packaging file {file_name}"
+        )
+    elif n < 1:
+        raise RuntimeError(f"version pattern not matched in packaging file {file_name}")
+
+    if write is True:
+        with open(file_name, "w") as fh:
+            fh.write(new_contents)
+
+    return new_contents
 
 
 def update_fedora_changelog(opts, snapd_packaging_dir, new_changelog_entry, maintainer):
-    specFile = os.path.join(snapd_packaging_dir, "fedora", "snapd.spec")
+    spec_file = os.path.join(snapd_packaging_dir, "fedora", "snapd.spec")
+
     # rewrite the snapd.spec file with the right version
-    rewrite_version_number_file(
-        # meh this is terrible, to keep the right indentation level,
-        # prepend the number of spaces we currently have in the file to
-        # the version number
-        specFile,
-        "Version:",
-        f"        {opts.version}",
+    spec_file_content = rewrite_version_number_file(
+        spec_file,
+        r"^(Version:\s+).*$",
+        opts.version,
+        False,
     )
 
     # now we also need to add the changelog entry to the snapd.spec file
@@ -84,40 +106,41 @@ def update_fedora_changelog(opts, snapd_packaging_dir, new_changelog_entry, main
         changelog_header,
     ] + dedented_changelog_lines
 
-    # now read all the existing lines of the snapd.spec file
-    with open(specFile, "r") as fh:
-        current_spec_lines = fh.readlines()
-
-    # re-write them all out to the file again, inserting our new
-    # changelog entryfiles when we get to that section
-    with open(specFile, "w") as fh:
-        for line in current_spec_lines:
-            fh.write(line)
-            # if this line was the start of the changelog section, then
-            # we need to insert our change log entry lines
-            if line.strip() == "%changelog":
-                # before continuing to write the rest of the file,
-                # insert our new changelog entry here
-                for ch_line in fedora_changelog_lines:
-                    fh.write(ch_line)
-                fh.write("\n")
+    # find the start of the changelog section in the rewritten spec file bytes
+    changelog_section = "\n%changelog\n"
+    idx = spec_file_content.find(changelog_section)
+    if idx < 0:
+        raise RuntimeError(
+            "'%changelog' line in fedora spec file not found (was a comment or whitespace added to that line?)"
+        )
+    # rewrite the spec file using the replaced bits up to the changelog section,
+    # then insert our new changelog entry lines, then add the rest of the
+    # replaced bits of the spec file
+    with open(spec_file, "w") as fh:
+        # write the spec file up to and including the changelog section
+        fh.write(spec_file_content[: idx + len(changelog_section)])
+        # insert our new changelog entry
+        for ch_line in fedora_changelog_lines:
+            fh.write(ch_line)
+        fh.write("\n")
+        # write the rest of the original spec file
+        fh.write(spec_file_content[idx + len(changelog_section) :])
 
 
 def update_opensuse_changlog(
     opts, snapd_packaging_dir, new_changelog_entry, maintainer
 ):
-    specFile = os.path.join(snapd_packaging_dir, "opensuse", "snapd.spec")
-    changesFile = os.path.join(snapd_packaging_dir, "opensuse", "snapd.changes")
+    spec_file = os.path.join(snapd_packaging_dir, "opensuse", "snapd.spec")
+    changes_file = os.path.join(snapd_packaging_dir, "opensuse", "snapd.changes")
+
     rewrite_version_number_file(
-        # meh this is terrible, to keep the right indentation level,
-        # prepend the number of spaces we currently have in the file to
-        # the version number
-        specFile,
-        "Version:",
-        "        " + opts.version,
+        spec_file,
+        r"^(Version:\s+).*$",
+        opts.version,
+        True,
     )
 
-    # also add a template changelog to the changes file
+    # add a template changelog to the changes file
     date = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S %z")
 
     email = maintainer[1]
@@ -128,10 +151,11 @@ def update_opensuse_changlog(
 
 """
 
-    # first read the existing changelog lines
-    with open(changesFile, "r") as fh:
+    # read the existing changes file and then write the new changelog entry at
+    # the top and then write the rest of the file
+    with open(changes_file, "r") as fh:
         current = fh.read()
-    with open(changesFile, "w") as fh:
+    with open(changes_file, "w") as fh:
         fh.write(templ)
         fh.write(current)
 
@@ -195,8 +219,9 @@ def main(opts):
             # for arch all we need to do is change the PKGBUILD "pkgver" key
             rewrite_version_number_file(
                 os.path.join(snapd_packaging_dir, "arch", "PKGBUILD"),
-                "pkgver=",
+                r"^(pkgver=).*$",
                 opts.version,
+                True,
             )
         elif distro == "fedora":
             update_fedora_changelog(
