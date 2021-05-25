@@ -57,6 +57,8 @@ execute: |
 
   echo "Creating a quota with a very small memory limit results in the service being unable to start"
   snap quota too-small --max-memory=1MB go-example-webserver
+  # clear "oom-killer" message from dmesg or prepare-restore.sh will fail here.
+  tests.cleanup defer dmesg -c
 
   echo "The systemd slice should be active"
   sliceName="snap.$(systemd-escape --path too-small).slice"
