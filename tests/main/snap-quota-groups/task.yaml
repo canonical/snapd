@@ -32,8 +32,8 @@ execute: |
   snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+active"
 
   echo "The systemd slice should have one process in it now"
-  cgroupProcsFile="/sys/fs/cgroup/memory/$sliceName/snap.go-example-webserver.webserver.service/cgroup.procs"
-  wc -l < "$cgroupProcsFile" | MATCH 1
+  cgroupProcsFile="/sys/fs/cgroup/memory/$sliceName/cgroup.procs"
+  wc -l < "$cgroupProcsFile" | MATCH '^1$'
   SERVER_PID=$(cat "$cgroupProcsFile")
 
   echo "And that process is the main PID for the example webserver"
