@@ -738,11 +738,6 @@ func (client *Client) DebugGet(aspect string, result interface{}, params map[str
 	return err
 }
 
-func (client *Client) DebugGetStacktrace(result interface{}) error {
-	_, err := client.doSync("GET", "/v2/debug/stacktrace", nil, nil, nil, &result)
-	return err
-}
-
 type SystemRecoveryKeysResponse struct {
 	RecoveryKey  string `json:"recovery-key"`
 	ReinstallKey string `json:"reinstall-key"`

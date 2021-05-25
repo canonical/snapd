@@ -35,12 +35,6 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-var debugStacktraceCmd = &Command{
-	Path:     "/v2/debug/stacktrace",
-	RootOnly: true,
-	GET:      getDebugStacktrace,
-}
-
 var debugCmd = &Command{
 	Path:   "/v2/debug",
 	UserOK: true,
@@ -335,6 +329,8 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		st.Prune(opTime, 0, 0, 0)
 		return SyncResponse(true, nil)
+	case "stacktrace":
+		return getStacktrace()
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}

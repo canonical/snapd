@@ -40,7 +40,7 @@ func init() {
 
 func (x *cmdGetStacktrace) Execute(args []string) error {
 	var stacktrace string
-	if err := x.client.DebugGetStacktrace(&stacktrace); err != nil {
+	if err := x.client.Debug("stacktrace", nil, &stacktrace); err != nil {
 		return err
 	}
 	fmt.Fprintf(Stdout, stacktrace)

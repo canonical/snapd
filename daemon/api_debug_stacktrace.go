@@ -20,13 +20,10 @@
 package daemon
 
 import (
-	"net/http"
 	"runtime"
-
-	"github.com/snapcore/snapd/overlord/auth"
 )
 
-func getDebugStacktrace(c *Command, r *http.Request, user *auth.UserState) Response {
+func getStacktrace() Response {
 	stack := make([]byte, 65535)
 	all := true
 	n := runtime.Stack(stack, all)
