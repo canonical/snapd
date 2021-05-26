@@ -51,6 +51,12 @@ func (s *apiQuotaSuite) SetUpTest(c *check.C) {
 	tr := config.NewTransaction(st)
 	tr.Set("core", "experimental.quota-groups", true)
 	tr.Commit()
+
+	r := servicestate.MockSystemdVersion(248)
+	s.AddCleanup(r)
+
+	// POST requires root
+	s.expectedWriteAccess = daemon.RootAccess{}
 }
 
 func mockQuotas(st *state.State, c *check.C) {
@@ -151,8 +157,8 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaHappy(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
-	req.RemoteAddr = "pid=100;uid=0;socket=;"
 	c.Assert(err, check.IsNil)
+	s.asRootAuth(req)
 
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
@@ -195,11 +201,11 @@ func (s *systemsSuite) TestPostQuotaRequiresRoot(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	s.asUserAuth(c, req)
 
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
-	c.Check(rec.Code, check.Equals, 401)
+	c.Check(rec.Code, check.Equals, 403)
 }
 
 func (s *apiQuotaSuite) TestListQuotas(c *check.C) {

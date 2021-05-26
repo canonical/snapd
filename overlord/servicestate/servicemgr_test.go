@@ -223,12 +223,13 @@ After=usr-lib-snapd.mount
 var _ = Suite(&ensureSnapServiceSuite{})
 
 func (s *baseServiceMgrTestSuite) mockSystemctlCalls(c *C, expCalls []expectedSystemctl) (restore func()) {
-	systemctlCalls := 0
+	allSystemctlCalls := [][]string{}
 	r := systemd.MockSystemctl(func(args ...string) ([]byte, error) {
+		systemctlCalls := len(allSystemctlCalls)
+		allSystemctlCalls = append(allSystemctlCalls, args)
 		if systemctlCalls < len(expCalls) {
 			res := expCalls[systemctlCalls]
-			c.Assert(args, DeepEquals, res.expArgs)
-			systemctlCalls++
+			c.Check(args, DeepEquals, res.expArgs)
 			return []byte(res.output), res.err
 		}
 		c.Errorf("unexpected and unhandled systemctl command: %+v", args)
@@ -240,7 +241,11 @@ func (s *baseServiceMgrTestSuite) mockSystemctlCalls(c *C, expCalls []expectedSy
 		// double-check at the end of the test that we got as many systemctl calls
 		// as were mocked and that we didn't get less, then re-set it for the next
 		// test
-		c.Assert(systemctlCalls, Equals, len(expCalls))
+		expArgCalls := make([][]string, 0, len(expCalls))
+		for _, call := range expCalls {
+			expArgCalls = append(expArgCalls, call.expArgs)
+		}
+		c.Assert(allSystemctlCalls, DeepEquals, expArgCalls)
 	}
 }
 
@@ -669,11 +674,11 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 	c.Assert(s.restartRequests, HasLen, 0)
 }
 
-type systemctlDisabledServicError struct{}
+type systemctlDisabledServiceError struct{}
 
-func (s systemctlDisabledServicError) Msg() []byte   { return []byte("disabled") }
-func (s systemctlDisabledServicError) ExitCode() int { return 1 }
-func (s systemctlDisabledServicError) Error() string { return "disabled service" }
+func (s systemctlDisabledServiceError) Msg() []byte   { return []byte("disabled") }
+func (s systemctlDisabledServiceError) ExitCode() int { return 1 }
+func (s systemctlDisabledServiceError) Error() string { return "disabled service" }
 
 func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesButDoesNotRestartDisabledServices(c *C) {
 	s.state.Lock()
@@ -728,7 +733,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesButDoe
 		{
 			expArgs: []string{"is-enabled", "snap.test-snap.svc1.service"},
 			output:  "disabled",
-			err:     systemctlDisabledServicError{},
+			err:     systemctlDisabledServiceError{},
 		},
 		// then we don't restart the service even though it was killed
 	})

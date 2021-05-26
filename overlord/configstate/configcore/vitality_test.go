@@ -158,6 +158,9 @@ func (s *vitalitySuite) testConfigureVitalityWithValidSnap(c *C, uc18 bool) {
 }
 
 func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
+	r := servicestate.MockSystemdVersion(248)
+	defer r()
+
 	si := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(1)}
 	snaptest.MockSnap(c, mockSnapWithService, si)
 	s.state.Lock()

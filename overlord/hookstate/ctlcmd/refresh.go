@@ -22,8 +22,11 @@ package ctlcmd
 import (
 	"fmt"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -99,7 +102,9 @@ func (c *refreshCommand) Execute(args []string) error {
 	}
 
 	if c.Pending {
-		c.printPendingInfo()
+		if err := c.printPendingInfo(); err != nil {
+			return err
+		}
 	}
 
 	if c.Proceed {
@@ -113,51 +118,93 @@ func (c *refreshCommand) Execute(args []string) error {
 }
 
 type updateDetails struct {
-	pending  string
-	channel  string
-	version  string
-	revision snap.Revision
+	Pending  string `yaml:"pending,omitempty"`
+	Channel  string `yaml:"channel,omitempty"`
+	Version  string `yaml:"version,omitempty"`
+	Revision int    `yaml:"revision,omitempty"`
 	// TODO: epoch
-	base    bool
-	restart bool
+	Base    bool `yaml:"base"`
+	Restart bool `yaml:"restart"`
 }
 
-func getUpdateDetails(context *hookstate.Context) *updateDetails {
+// refreshCandidate is a subset of refreshCandidate defined by snapstate and
+// stored in "refresh-candidates".
+type refreshCandidate struct {
+	Channel     string         `json:"channel,omitempty"`
+	Version     string         `json:"version,omitempty"`
+	SideInfo    *snap.SideInfo `json:"side-info,omitempty"`
+	InstanceKey string         `json:"instance-key,omitempty"`
+}
+
+func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 	context.Lock()
 	defer context.Unlock()
 
 	if context.IsEphemeral() {
 		// TODO: support ephemeral context
-		return nil
+		return nil, nil
 	}
 
 	var base, restart bool
 	context.Get("base", &base)
 	context.Get("restart", &restart)
 
-	// TODO: get revision, version etc. from refresh-candidates.
+	var candidates map[string]*refreshCandidate
+	st := context.State()
+	if err := st.Get("refresh-candidates", &candidates); err != nil {
+		return nil, err
+	}
+
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, context.InstanceName(), &snapst); err != nil {
+		return nil, fmt.Errorf("internal error: cannot get snap state for %q: %v", context.InstanceName(), err)
+	}
+
+	var pending string
+	switch {
+	case snapst.RefreshInhibitedTime != nil:
+		pending = "inhibited"
+	case candidates[context.InstanceName()] != nil:
+		pending = "ready"
+	default:
+		pending = "none"
+	}
 
 	up := updateDetails{
-		base:    base,
-		restart: restart,
+		Base:    base,
+		Restart: restart,
+		Pending: pending,
 	}
-	return &up
+
+	// try to find revision/version/channel info from refresh-candidates; it
+	// may be missing if the hook is called for snap that is just affected by
+	// refresh but not refreshed itself, in such case this data is not
+	// displayed.
+	if cand, ok := candidates[context.InstanceName()]; ok {
+		up.Channel = cand.Channel
+		up.Revision = cand.SideInfo.Revision.N
+		up.Version = cand.Version
+		return &up, nil
+	}
+
+	// refresh-hint not present, look up channel info in snapstate
+	up.Channel = snapst.TrackingChannel
+	return &up, nil
 }
 
-func (c *refreshCommand) printPendingInfo() {
-	details := getUpdateDetails(c.context())
+func (c *refreshCommand) printPendingInfo() error {
+	details, err := getUpdateDetails(c.context())
+	if err != nil {
+		return err
+	}
 	// XXX: remove when ephemeral context is supported.
 	if details == nil {
-		return
+		return nil
 	}
-	c.printf("pending: %s\n", details.pending)
-	c.printf("channel: %s\n", details.channel)
-	if details.version != "" {
-		c.printf("version: %s\n", details.version)
+	out, err := yaml.Marshal(details)
+	if err != nil {
+		return err
 	}
-	if !details.revision.Unset() {
-		c.printf("revision: %s\n", details.revision)
-	}
-	c.printf("base: %v\n", details.base)
-	c.printf("restart: %v\n", details.restart)
+	c.printf("%s", string(out))
+	return nil
 }

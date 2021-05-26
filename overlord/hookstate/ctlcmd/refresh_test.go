@@ -20,10 +20,13 @@
 package ctlcmd_test
 
 import (
+	"time"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -39,6 +42,18 @@ type refreshSuite struct {
 
 var _ = Suite(&refreshSuite{})
 
+func mockRefreshCandidate(snapName, instanceKey, channel, version string, revision snap.Revision) interface{} {
+	sup := &snapstate.SnapSetup{
+		Channel:     channel,
+		InstanceKey: instanceKey,
+		SideInfo: &snap.SideInfo{
+			Revision: revision,
+			RealName: snapName,
+		},
+	}
+	return snapstate.MockRefreshCandidate(sup, version)
+}
+
 func (s *refreshSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
@@ -50,6 +65,8 @@ func (s *refreshSuite) SetUpTest(c *C) {
 var refreshFromHookTests = []struct {
 	args                []string
 	base, restart       bool
+	inhibited           bool
+	refreshCandidates   map[string]interface{}
 	stdout, stderr, err string
 	exitCode            int
 }{{
@@ -62,13 +79,21 @@ var refreshFromHookTests = []struct {
 	args: []string{"refresh", "--hold"},
 	err:  "not implemented yet",
 }, {
+	args:              []string{"refresh", "--pending"},
+	refreshCandidates: map[string]interface{}{"snap1": mockRefreshCandidate("snap1", "", "edge", "v1", snap.Revision{N: 3})},
+	stdout:            "pending: ready\nchannel: edge\nversion: v1\nrevision: 3\nbase: false\nrestart: false\n",
+}, {
 	args:   []string{"refresh", "--pending"},
-	stdout: "pending: \nchannel: \nbase: false\nrestart: false\n",
+	stdout: "pending: none\nchannel: stable\nbase: false\nrestart: false\n",
 }, {
 	args:    []string{"refresh", "--pending"},
 	base:    true,
 	restart: true,
-	stdout:  "pending: \nchannel: \nbase: true\nrestart: true\n",
+	stdout:  "pending: none\nchannel: stable\nbase: true\nrestart: true\n",
+}, {
+	args:      []string{"refresh", "--pending"},
+	inhibited: true,
+	stdout:    "pending: inhibited\nchannel: stable\nbase: false\nrestart: false\n",
 }}
 
 func (s *refreshSuite) TestRefreshFromHook(c *C) {
@@ -83,6 +108,17 @@ func (s *refreshSuite) TestRefreshFromHook(c *C) {
 		mockContext.Lock()
 		mockContext.Set("base", test.base)
 		mockContext.Set("restart", test.restart)
+		s.st.Set("refresh-candidates", test.refreshCandidates)
+		snapst := &snapstate.SnapState{
+			Active:          true,
+			Sequence:        []*snap.SideInfo{{RealName: "snap1", Revision: snap.R(1)}},
+			Current:         snap.R(2),
+			TrackingChannel: "stable",
+		}
+		if test.inhibited {
+			snapst.RefreshInhibitedTime = &time.Time{}
+		}
+		snapstate.Set(s.st, "snap1", snapst)
 		mockContext.Unlock()
 
 		stdout, stderr, err := ctlcmd.Run(mockContext, test.args, 0)

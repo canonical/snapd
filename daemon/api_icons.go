@@ -30,9 +30,9 @@ import (
 
 var (
 	appIconCmd = &Command{
-		Path:   "/v2/icons/{name}/icon",
-		UserOK: true,
-		GET:    appIconGet,
+		Path:       "/v2/icons/{name}/icon",
+		GET:        appIconGet,
+		ReadAccess: openAccess{},
 	}
 )
 
