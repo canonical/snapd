@@ -6594,3 +6594,47 @@ func (s *snapmgrTestSuite) TestSnapdRefreshTasks(c *C) {
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Current, Equals, snap.R(11))
 }
+
+type installTestType struct {
+	t snap.Type
+}
+
+func (t *installTestType) InstanceName() string {
+	panic("not expected")
+}
+
+func (t *installTestType) Type() snap.Type {
+	return t.t
+}
+
+func (t *installTestType) SnapBase() string {
+	panic("not expected")
+}
+
+func (t *installTestType) DownloadSize() int64 {
+	panic("not expected")
+}
+
+func (t *installTestType) Prereq(st *state.State) []string {
+	panic("not expected")
+}
+
+func (s *snapmgrTestSuite) TestMinimalInstallInfoSortByType(c *C) {
+	snaps := []snapstate.MinimalInstallInfo{
+		&installTestType{snap.TypeApp},
+		&installTestType{snap.TypeBase},
+		&installTestType{snap.TypeApp},
+		&installTestType{snap.TypeSnapd},
+		&installTestType{snap.TypeKernel},
+		&installTestType{snap.TypeGadget},
+	}
+
+	sort.Sort(snapstate.ByType(snaps))
+	c.Check(snaps, DeepEquals, []snapstate.MinimalInstallInfo{
+		&installTestType{snap.TypeSnapd},
+		&installTestType{snap.TypeKernel},
+		&installTestType{snap.TypeBase},
+		&installTestType{snap.TypeGadget},
+		&installTestType{snap.TypeApp},
+		&installTestType{snap.TypeApp}})
+}
