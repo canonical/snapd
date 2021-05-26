@@ -143,7 +143,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateHappy(c *check.C) {
 func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateHappy(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestate.CreateQuota(st, "ginger-ale", "", nil, 9000)
+	err := servicestate.CreateQuota(st, "ginger-ale", "", nil, 1000)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -159,7 +159,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateHappy(c *check.C) {
 		c.Assert(name, check.Equals, "ginger-ale")
 		c.Assert(opts, check.DeepEquals, servicestate.QuotaGroupUpdate{
 			AddSnaps:       []string{"some-snap"},
-			NewMemoryLimit: 1000,
+			NewMemoryLimit: 9000,
 		})
 		return nil
 	})
@@ -169,7 +169,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateHappy(c *check.C) {
 		Action:    "ensure",
 		GroupName: "ginger-ale",
 		Snaps:     []string{"some-snap"},
-		MaxMemory: 1000,
+		MaxMemory: 9000,
 	})
 	c.Assert(err, check.IsNil)
 
