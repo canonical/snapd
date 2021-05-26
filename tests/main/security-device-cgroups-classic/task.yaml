@@ -26,12 +26,10 @@ restore: |
     fi
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     # classic snaps don't use 'plugs', so just test the accesses after install
     echo "the classic snap can access the framebuffer"
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     "$SNAP_MOUNT_DIR"/bin/test-classic-cgroup.read-fb 2>&1 | not MATCH '(Permission denied|Operation not permitted)'
 
     echo "the classic snap can access other devices"
-    test "$($SNAP_MOUNT_DIR/bin/test-classic-cgroup.read-kmsg)"
+    test "$("$SNAP_MOUNT_DIR"/bin/test-classic-cgroup.read-kmsg)"

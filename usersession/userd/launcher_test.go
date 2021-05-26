@@ -31,6 +31,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/usersession/userd"
 )
@@ -38,25 +39,24 @@ import (
 func Test(t *testing.T) { TestingT(t) }
 
 type launcherSuite struct {
-	launcher *userd.Launcher
+	testutil.BaseTest
 
-	mockXdgOpen           *testutil.MockCmd
-	restoreSnapFromSender func()
+	launcher    *userd.Launcher
+	mockXdgOpen *testutil.MockCmd
 }
 
 var _ = Suite(&launcherSuite{})
 
 func (s *launcherSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
+	s.AddCleanup(release.MockOnClassic(true))
 	s.launcher = &userd.Launcher{}
 	s.mockXdgOpen = testutil.MockCommand(c, "xdg-open", "")
-	s.restoreSnapFromSender = userd.MockSnapFromSender(func(*dbus.Conn, dbus.Sender) (string, error) {
+	s.AddCleanup(s.mockXdgOpen.Restore)
+	s.AddCleanup(userd.MockSnapFromSender(func(*dbus.Conn, dbus.Sender) (string, error) {
 		return "some-snap", nil
-	})
-}
-
-func (s *launcherSuite) TearDownTest(c *C) {
-	s.mockXdgOpen.Restore()
-	s.restoreSnapFromSender()
+	}))
 }
 
 func (s *launcherSuite) TestOpenURLWithNotAllowedScheme(c *C) {
@@ -196,4 +196,25 @@ func (s *launcherSuite) TestOpenFileFailsWithPathDescriptor(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, "cannot use file descriptors opened using O_PATH")
 	c.Assert(s.mockXdgOpen.Calls(), IsNil)
+}
+
+func (s *launcherSuite) TestFailsOnUbuntuCore(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	path := filepath.Join(c.MkDir(), "test.txt")
+	c.Assert(ioutil.WriteFile(path, []byte("Hello world"), 0644), IsNil)
+	file, err := os.Open(path)
+	c.Assert(err, IsNil)
+	defer file.Close()
+	dupFd, err := syscall.Dup(int(file.Fd()))
+	c.Assert(err, IsNil)
+
+	err = s.launcher.OpenFile("", dbus.UnixFD(dupFd), ":some-dbus-sender")
+	c.Check(err, ErrorMatches, "not supported on Ubuntu Core")
+
+	err = s.launcher.OpenURL("https://snapcraft.io", ":some-dbus-sender")
+	c.Check(err, ErrorMatches, "not supported on Ubuntu Core")
+
+	c.Check(s.mockXdgOpen.Calls(), HasLen, 0)
 }

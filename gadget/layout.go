@@ -28,7 +28,6 @@ import (
 
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // LayoutConstraints defines the constraints for arranging structures within a
@@ -336,7 +335,24 @@ func resolveContentPathOrRef(gadgetRootDir, kernelRootDir string, kernelInfo *ke
 		if !ok {
 			return "", false, fmt.Errorf("cannot find %q in kernel info from %q", wantedAsset, kernelRootDir)
 		}
-		if !strutil.ListContains(kernelAsset.Content, wantedContent) {
+		// look for exact content match or for a directory prefix match
+		found := false
+		for _, kcontent := range kernelAsset.Content {
+			if wantedContent == kcontent {
+				found = true
+				break
+			}
+			// ensure we only check subdirs
+			suffix := ""
+			if !strings.HasSuffix(kcontent, "/") {
+				suffix = "/"
+			}
+			if strings.HasPrefix(wantedContent, kcontent+suffix) {
+				found = true
+				break
+			}
+		}
+		if !found {
 			return "", false, fmt.Errorf("cannot find wanted kernel content %q in %q", wantedContent, kernelRootDir)
 		}
 		resolvedSource = filepath.Join(kernelRootDir, wantedContent)

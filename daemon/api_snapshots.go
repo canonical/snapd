@@ -31,23 +31,35 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 )
 
 var snapshotCmd = &Command{
 	// TODO: also support /v2/snapshots/<id>
-	Path:     "/v2/snapshots",
-	UserOK:   true,
-	PolkitOK: "io.snapcraft.snapd.manage",
-	GET:      listSnapshots,
-	POST:     changeSnapshots,
+	Path:        "/v2/snapshots",
+	GET:         listSnapshots,
+	POST:        changeSnapshots,
+	ReadAccess:  openAccess{},
+	WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 }
 
 var snapshotExportCmd = &Command{
-	Path: "/v2/snapshots/{id}/export",
-	GET:  getSnapshotExport,
+	Path:       "/v2/snapshots/{id}/export",
+	GET:        getSnapshotExport,
+	ReadAccess: authenticatedAccess{},
 }
+
+var (
+	snapshotList    = snapshotstate.List
+	snapshotCheck   = snapshotstate.Check
+	snapshotForget  = snapshotstate.Forget
+	snapshotRestore = snapshotstate.Restore
+	snapshotSave    = snapshotstate.Save
+	snapshotExport  = snapshotstate.Export
+	snapshotImport  = snapshotstate.Import
+)
 
 func listSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()

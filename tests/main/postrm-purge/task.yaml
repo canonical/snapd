@@ -2,14 +2,6 @@ summary: Check that package remove and purge removes everything related to snaps
 
 systems: [-ubuntu-core-*]
 
-restore: |
-    #shellcheck source=tests/lib/pkgdb.sh
-    . "$TESTSLIB/pkgdb.sh"
-    if [ -e pkg-removed ]; then
-        distro_install_build_snapd
-        rm pkg-removed
-    fi
-
 prepare: |
     # TODO: unify this with tests/main/snap-mgmt/task.yaml
     echo "When some snaps are installed"
@@ -51,6 +43,14 @@ prepare: |
         test "$(find /etc/systemd/user -name 'snap.*.socket' | wc -l)" -gt 0
     fi
 
+restore: |
+    #shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+    if [ -e pkg-removed ]; then
+        distro_install_build_snapd
+        rm pkg-removed
+    fi
+
 debug: |
     systemctl --no-legend --full | grep -E 'snap\..*\.(service|timer|socket)'
 
@@ -63,10 +63,8 @@ execute: |
     distro_purge_package snapd
     touch pkg-removed
 
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     echo "Nothing is left"
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     for d in $SNAP_MOUNT_DIR /var/snap; do
         if [ -d "$d" ]; then
             echo "$d is not removed"

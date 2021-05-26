@@ -39,16 +39,17 @@ import (
 
 var (
 	appsCmd = &Command{
-		Path:   "/v2/apps",
-		UserOK: true,
-		GET:    getAppsInfo,
-		POST:   postApps,
+		Path:        "/v2/apps",
+		GET:         getAppsInfo,
+		POST:        postApps,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{},
 	}
 
 	logsCmd = &Command{
-		Path:     "/v2/logs",
-		PolkitOK: "io.snapcraft.snapd.manage",
-		GET:      getLogs,
+		Path:       "/v2/logs",
+		GET:        getLogs,
+		ReadAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 )
 
@@ -265,7 +266,7 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 	// names received in the request can be snap or snap.app, we need to
 	// extract the actual snap names before associating them with a change
-	chg := newChange(st, "service-control", fmt.Sprintf("Running service command"), tss, namesToSnapNames(&inst))
+	chg := newChange(st, "service-control", "Running service command", tss, namesToSnapNames(&inst))
 	st.EnsureBefore(0)
 	return AsyncResponse(nil, &Meta{Change: chg.ID()})
 }

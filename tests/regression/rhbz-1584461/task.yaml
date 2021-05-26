@@ -16,8 +16,6 @@ restore: |
         mv /etc/ssl-backup /etc/ssl
     fi
 
-    rm -f ./in-snap ./on-host
-
 execute: |
     # the following mount entries are visible on a broken system:
     # /var/lib/snapd/snaps/core_6818.snap on /etc/authselect/nsswitch.conf type squashfs (ro,nodev,relatime,context=system_u:object_r:snappy_snap_t:s0)

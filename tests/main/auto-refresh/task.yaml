@@ -16,9 +16,6 @@ restore: |
     fi
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
-
     echo "Auto refresh information is shown"
     output=$(snap refresh --time)
     for expected in ^schedule: ^last: ^next:; do

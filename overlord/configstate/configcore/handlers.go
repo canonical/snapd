@@ -46,7 +46,7 @@ type flags struct {
 	// set before even seeding is finished).
 	// If set the function should copy such options from values
 	// to early.
-	earlyConfigFilter func(values, early map[string]interface{})
+	earlyConfigFilter filterFunc
 }
 
 type fsOnlyHandler struct {
@@ -98,7 +98,7 @@ func init() {
 	addFSOnlyHandler(validateTimezoneSettings, handleTimezoneConfiguration, coreOnly)
 
 	sysconfig.ApplyFilesystemOnlyDefaultsImpl = func(rootDir string, defaults map[string]interface{}, options *sysconfig.FilesystemOnlyApplyOptions) error {
-		return filesystemOnlyApply(rootDir, plainCoreConfig(defaults), options)
+		return filesystemOnlyApply(rootDir, defaults, options)
 	}
 }
 
@@ -144,12 +144,20 @@ func (h *fsOnlyHandler) handle(cfg config.ConfGetter, opts *fsOnlyContext) error
 // early during boot, before all the configuration is applied as part of
 // normal execution of configure hook.
 // Exposed for use via sysconfig.ApplyFilesystemOnlyDefaults.
-func filesystemOnlyApply(rootDir string, cfg config.ConfGetter, opts *sysconfig.FilesystemOnlyApplyOptions) error {
+func filesystemOnlyApply(rootDir string, values map[string]interface{}, opts *sysconfig.FilesystemOnlyApplyOptions) error {
 	if rootDir == "" {
 		return fmt.Errorf("internal error: root directory for configcore.FilesystemOnlyApply() not set")
 	}
 
-	ctx := &fsOnlyContext{RootDir: rootDir}
+	if opts == nil {
+		opts = &sysconfig.FilesystemOnlyApplyOptions{}
+	}
+
+	cfg := plainCoreConfig(values)
+
+	ctx := &fsOnlyContext{
+		RootDir: rootDir,
+	}
 	for _, h := range handlers {
 		if h.needsState() {
 			continue

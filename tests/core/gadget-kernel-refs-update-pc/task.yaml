@@ -1,13 +1,5 @@
 summary: Exercise a gadget update with kernel refs on a PC
 
-environment:
-    BLOB_DIR: $(pwd)/fake-store-blobdir
-    # snap-id of 'pc' gadget snap
-    PC_SNAP_ID: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
-    # snap-id of 'pc-kernel' snap
-    PC_KERNEL_ID: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
-    START_REVISION: 1000
-
 # TODO:UC20: once LP: #1907056 is fixed and we have an updated
 #            pi gadget and pi-kernel snap this test should be
 #            replaced with a pi-only test. This test is artificial
@@ -17,9 +9,21 @@ environment:
 # XXX: uc20
 systems: [ubuntu-core-1*]
 
+environment:
+    BLOB_DIR: $(pwd)/fake-store-blobdir
+    # snap-id of 'pc' gadget snap
+    PC_SNAP_ID: UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
+    # snap-id of 'pc-kernel' snap
+    PC_KERNEL_ID: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
+    START_REVISION: 1000
+
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
         echo "This test needs test keys to be trusted"
+        exit
+    fi
+    if os.query is-arm; then
+        echo "Test not supported on arm architecture, skipping..."
         exit
     fi
     snap ack "$TESTSLIB/assertions/testrootorg-store.account-key"
@@ -79,6 +83,10 @@ restore: |
         echo "This test needs test keys to be trusted"
         exit
     fi
+    if os.query is-arm; then
+        echo "Test not supported on arm architecture, skipping..."
+        exit
+    fi
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
     teardown_fake_store "$BLOB_DIR"
@@ -86,6 +94,15 @@ restore: |
     #      restore requires a reboot :/
     
 execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+    if os.query is-arm; then
+        echo "Test not supported on arm architecture, skipping..."
+        exit
+    fi
+
     if [ "$SPREAD_REBOOT" = 0 ]; then
         # first install the gadget that knows about the kernel
         # (but no edition bump so this will install fine)

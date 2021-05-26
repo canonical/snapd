@@ -38,14 +38,17 @@ import (
 
 var (
 	validationSetsListCmd = &Command{
-		Path: "/v2/validation-sets",
-		GET:  listValidationSets,
+		Path:       "/v2/validation-sets",
+		GET:        listValidationSets,
+		ReadAccess: authenticatedAccess{},
 	}
 
 	validationSetsCmd = &Command{
-		Path: "/v2/validation-sets/{account}/{name}",
-		GET:  getValidationSet,
-		POST: applyValidationSet,
+		Path:        "/v2/validation-sets/{account}/{name}",
+		GET:         getValidationSet,
+		POST:        applyValidationSet,
+		ReadAccess:  authenticatedAccess{},
+		WriteAccess: authenticatedAccess{},
 	}
 )
 

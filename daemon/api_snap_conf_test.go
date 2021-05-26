@@ -38,6 +38,12 @@ type snapConfSuite struct {
 	apiBaseSuite
 }
 
+func (s *snapConfSuite) SetUpTest(c *check.C) {
+	s.apiBaseSuite.SetUpTest(c)
+
+	s.expectAuthenticatedAccess()
+}
+
 func (s *snapConfSuite) runGetConf(c *check.C, snapName string, keys []string, statusCode int) map[string]interface{} {
 	req, err := http.NewRequest("GET", "/v2/snaps/"+snapName+"/conf?keys="+strings.Join(keys, ","), nil)
 	c.Check(err, check.IsNil)

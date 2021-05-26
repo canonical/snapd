@@ -51,12 +51,11 @@ import (
 type fakeOp struct {
 	op string
 
-	name    string
-	channel string
-	path    string
-	revno   snap.Revision
-	sinfo   snap.SideInfo
-	stype   snap.Type
+	name  string
+	path  string
+	revno snap.Revision
+	sinfo snap.SideInfo
+	stype snap.Type
 
 	curSnaps []store.CurrentSnap
 	action   store.SnapAction
@@ -889,11 +888,16 @@ func (f *fakeSnappyBackend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx b
 		<-f.linkSnapWaitCh
 	}
 
+	vitalityRank := 0
+	if linkCtx.ServiceOptions != nil {
+		vitalityRank = linkCtx.ServiceOptions.VitalityRank
+	}
+
 	op := fakeOp{
 		op:   "link-snap",
 		path: info.MountDir(),
 
-		vitalityRank:        linkCtx.VitalityRank,
+		vitalityRank:        vitalityRank,
 		requireSnapdTooling: linkCtx.RequireMountedSnapdSnap,
 	}
 

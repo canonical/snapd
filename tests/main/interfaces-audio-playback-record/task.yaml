@@ -10,8 +10,6 @@ environment:
     EXFAIL: "ubuntu-14"
 
 prepare: |
-    tests.cleanup prepare
-
     # Install pulseaudio.
     apt-get update
     apt-get install -y pulseaudio pulseaudio-utils
@@ -97,9 +95,6 @@ debug: |
     ps -u test
     echo "Pulseaudio log"
     tests.session -u test exec journalctl --user -u pulseaudio.service || true
-
-restore: |
-    tests.cleanup restore
 
 execute: |
     echo "The unconfined user can play audio"

@@ -36,12 +36,12 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/overlord/devicestate/fde"
 	"github.com/snapcore/snapd/overlord/devicestate/internal"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -53,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
@@ -95,6 +96,8 @@ type DeviceManager struct {
 
 	ensureInstalledRan bool
 
+	ensureTriedRecoverySystemRan bool
+
 	cloudInitAlreadyRestricted           bool
 	cloudInitErrorAttemptStart           *time.Time
 	cloudInitEnabledInactiveAttemptStart *time.Time
@@ -135,7 +138,8 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		return nil, err
 	}
 
-	hookManager.Register(regexp.MustCompile("^prepare-device$"), newPrepareDeviceHandler)
+	hookManager.Register(regexp.MustCompile("^prepare-device$"), newBasicHookStateHandler)
+	hookManager.Register(regexp.MustCompile("^install-device$"), newBasicHookStateHandler)
 
 	runner.AddHandler("generate-device-key", m.doGenerateDeviceKey, nil)
 	runner.AddHandler("request-serial", m.doRequestSerial, nil)
@@ -158,6 +162,12 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	// There is no undo handler for successful boot config update. The
 	// config assets are assumed to be always backwards compatible.
 	runner.AddHandler("update-managed-boot-config", m.doUpdateManagedBootConfig, nil)
+	// kernel command line updates from a gadget supplied file
+	runner.AddHandler("update-gadget-cmdline", m.doUpdateGadgetCommandLine, m.undoUpdateGadgetCommandLine)
+	// recovery systems
+	runner.AddHandler("create-recovery-system", m.doCreateRecoverySystem, m.undoCreateRecoverySystem)
+	runner.AddHandler("finalize-recovery-system", m.doFinalizeTriedRecoverySystem, m.undoFinalizeTriedRecoverySystem)
+	runner.AddCleanup("finalize-recovery-system", m.cleanupRecoverySystem)
 
 	runner.AddBlocked(gadgetUpdateBlocked)
 
@@ -169,12 +179,35 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	return m, nil
 }
 
+type genericHook struct{}
+
+func (h genericHook) Before() error         { return nil }
+func (h genericHook) Done() error           { return nil }
+func (h genericHook) Error(err error) error { return nil }
+
+func newBasicHookStateHandler(context *hookstate.Context) hookstate.Handler {
+	return genericHook{}
+}
+
 func maybeReadModeenv() (*boot.Modeenv, error) {
 	modeEnv, err := boot.ReadModeenv("")
 	if err != nil && !os.IsNotExist(err) {
 		return nil, fmt.Errorf("cannot read modeenv: %v", err)
 	}
 	return modeEnv, nil
+}
+
+// ReloadModeenv is only useful for integration testing
+func (m *DeviceManager) ReloadModeenv() error {
+	osutil.MustBeTestBinary("ReloadModeenv can only be called from tests")
+	modeEnv, err := maybeReadModeenv()
+	if err != nil {
+		return err
+	}
+	if modeEnv != nil {
+		m.systemMode = modeEnv.Mode
+	}
+	return nil
 }
 
 // StartUp implements StateStarterUp.Startup.
@@ -275,35 +308,16 @@ func gadgetUpdateBlocked(cand *state.Task, running []*state.Task) bool {
 	if cand.Kind() == "update-gadget-assets" && len(running) != 0 {
 		// update-gadget-assets must be the only task running
 		return true
-	} else {
-		for _, other := range running {
-			if other.Kind() == "update-gadget-assets" {
-				// no other task can be started when
-				// update-gadget-assets is running
-				return true
-			}
+	}
+	for _, other := range running {
+		if other.Kind() == "update-gadget-assets" {
+			// no other task can be started when
+			// update-gadget-assets is running
+			return true
 		}
 	}
 
 	return false
-}
-
-type prepareDeviceHandler struct{}
-
-func newPrepareDeviceHandler(context *hookstate.Context) hookstate.Handler {
-	return prepareDeviceHandler{}
-}
-
-func (h prepareDeviceHandler) Before() error {
-	return nil
-}
-
-func (h prepareDeviceHandler) Done() error {
-	return nil
-}
-
-func (h prepareDeviceHandler) Error(err error) error {
-	return nil
 }
 
 func (m *DeviceManager) changeInFlight(kind string) bool {
@@ -364,6 +378,9 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	return nil
 }
 
+// SystemMode returns the current mode of the system. Note, that for pre-UC20
+// systems, the mode is not explicitly set and a default "run" mode is always
+// returned.
 func (m *DeviceManager) SystemMode() string {
 	if m.systemMode == "" {
 		return "run"
@@ -493,9 +510,6 @@ func (m *DeviceManager) ensureOperational() error {
 		}
 		prepareDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
 		tasks = append(tasks, prepareDevice)
-		// hooks are under a different manager, make sure we consider
-		// it immediately
-		m.state.EnsureBefore(0)
 	}
 
 	genKey := m.state.NewTask("generate-device-key", i18n.G("Generate device key"))
@@ -698,6 +712,7 @@ func (m *DeviceManager) ensureSeeded() error {
 
 // ResetBootOk is only useful for integration testing
 func (m *DeviceManager) ResetBootOk() {
+	osutil.MustBeTestBinary("ResetBootOk can only be called from tests")
 	m.bootOkRan = false
 	m.bootRevisionsUpdated = false
 }
@@ -926,6 +941,23 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
+	model, err := m.Model()
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if err != nil {
+		return fmt.Errorf("internal error: core device brand and model are set but there is no model assertion")
+	}
+
+	// check if the gadget has an install-device hook
+	var hasInstallDeviceHook bool
+
+	gadgetInfo, err := snapstate.CurrentInfo(m.state, model.Gadget())
+	if err != nil {
+		return fmt.Errorf("internal error: device is seeded in install mode but has no gadget snap: %v", err)
+	}
+	hasInstallDeviceHook = (gadgetInfo.Hooks["install-device"] != nil)
+
 	m.ensureInstalledRan = true
 
 	var prev *state.Task
@@ -939,8 +971,27 @@ func (m *DeviceManager) ensureInstalled() error {
 	}
 	prev = setupRunSystem
 
+	// add the install-device hook before ensure-next-boot-to-run-mode if it
+	// exists in the snap
+	var installDevice *state.Task
+	if hasInstallDeviceHook {
+		summary := i18n.G("Run install-device hook")
+		hooksup := &hookstate.HookSetup{
+			// TODO: what's a reasonable timeout for the install-device hook?
+			Snap: model.Gadget(),
+			Hook: "install-device",
+		}
+		installDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
+		addTask(installDevice)
+	}
+
 	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
 	addTask(restartSystem)
+
+	if installDevice != nil {
+		// reference used by snapctl reboot
+		installDevice.Set("restart-task", restartSystem.ID())
+	}
 
 	chg := m.state.NewChange("install-system", i18n.G("Install the system"))
 	chg.AddAll(state.NewTaskSet(tasks...))
@@ -1027,6 +1078,74 @@ func (m *DeviceManager) ensureSeedInConfig() error {
 
 }
 
+func (m *DeviceManager) appendTriedRecoverySystem(label string) error {
+	// state is locked by the caller
+
+	var triedSystems []string
+	if err := m.state.Get("tried-systems", &triedSystems); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if strutil.ListContains(triedSystems, label) {
+		// system already recorded as tried?
+		return nil
+	}
+	triedSystems = append(triedSystems, label)
+	m.state.Set("tried-systems", triedSystems)
+	return nil
+}
+
+func (m *DeviceManager) ensureTriedRecoverySystem() error {
+	if release.OnClassic {
+		return nil
+	}
+	// use direct check rather than though a getter, so that we know that
+	// the mode was explicitly set like it is on UC20 devices
+	if m.systemMode != "run" {
+		return nil
+	}
+	if m.ensureTriedRecoverySystemRan {
+		return nil
+	}
+
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	outcome, label, err := boot.InspectTryRecoverySystemOutcome(deviceCtx)
+	if err != nil {
+		if !boot.IsInconsistentRecoverySystemState(err) {
+			return err
+		}
+		// boot variables state was inconsistent
+		logger.Noticef("tried recovery system outcome error: %v", err)
+	}
+	switch outcome {
+	case boot.TryRecoverySystemOutcomeSuccess:
+		logger.Noticef("tried recovery system %q was successful", label)
+		if err := m.appendTriedRecoverySystem(label); err != nil {
+			return err
+		}
+	case boot.TryRecoverySystemOutcomeFailure:
+		logger.Noticef("tried recovery system %q failed", label)
+	case boot.TryRecoverySystemOutcomeInconsistent:
+		logger.Noticef("inconsistent outcome of a tried recovery system")
+	case boot.TryRecoverySystemOutcomeNoneTried:
+		// no system was tried
+	}
+	if outcome != boot.TryRecoverySystemOutcomeNoneTried {
+		if err := boot.ClearTryRecoverySystem(deviceCtx, label); err != nil {
+			logger.Noticef("cannot clear tried recovery system status: %v", err)
+			return err
+		}
+	}
+
+	m.ensureTriedRecoverySystemRan = true
+	return nil
+}
+
 type ensureError struct {
 	errs []error
 }
@@ -1074,6 +1193,10 @@ func (m *DeviceManager) Ensure() error {
 		}
 
 		if err := m.ensureInstalled(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensureTriedRecoverySystem(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -1219,6 +1342,52 @@ func (m *DeviceManager) Model() (*asserts.Model, error) {
 // Serial returns the device serial assertion.
 func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return findSerial(m.state, nil)
+}
+
+type SystemModeInfo struct {
+	Mode              string
+	HasModeenv        bool
+	Seeded            bool
+	BootFlags         []string
+	HostDataLocations []string
+}
+
+// SystemModeInfo returns details about the current system mode the device is in.
+func (m *DeviceManager) SystemModeInfo() (*SystemModeInfo, error) {
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err == state.ErrNoState {
+		return nil, fmt.Errorf("cannot report system mode information before device model is acknowledged")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var seeded bool
+	err = m.state.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+
+	mode := m.SystemMode()
+	smi := SystemModeInfo{
+		Mode:       mode,
+		HasModeenv: deviceCtx.HasModeenv(),
+		Seeded:     seeded,
+	}
+	if smi.HasModeenv {
+		bootFlags, err := boot.BootFlags(deviceCtx)
+		if err != nil {
+			return nil, err
+		}
+		smi.BootFlags = bootFlags
+
+		hostDataLocs, err := boot.HostUbuntuDataForMode(mode)
+		if err != nil {
+			return nil, err
+		}
+		smi.HostDataLocations = hostDataLocs
+	}
+	return &smi, nil
 }
 
 type SystemAction struct {
@@ -1497,7 +1666,7 @@ func (m *DeviceManager) hasFDESetupHook() (bool, error) {
 	return hasFDESetupHookInKernel(kernelInfo), nil
 }
 
-func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookParams) ([]byte, error) {
+func (m *DeviceManager) runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
 	// TODO:UC20: when this runs on refresh we need to be very careful
 	// that we never run this when the kernel is not fully configured
 	// i.e. when there are no security profiles for the hook
@@ -1520,21 +1689,6 @@ func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookPara
 		// XXX: should this be configurable somehow?
 		Timeout: 5 * time.Minute,
 	}
-	req := &fde.SetupRequest{
-		Op:      op,
-		Key:     params.Key[:],
-		KeyName: params.KeyName,
-		// TODO: include boot chains
-	}
-	for _, model := range params.Models {
-		req.Models = append(req.Models, map[string]string{
-			"series":     model.Series(),
-			"brand-id":   model.BrandID(),
-			"model":      model.Model(),
-			"grade":      string(model.Grade()),
-			"signkey-id": model.SignKeyID(),
-		})
-	}
 	contextData := map[string]interface{}{
 		"fde-setup-request": req,
 	}
@@ -1542,27 +1696,30 @@ func (m *DeviceManager) runFDESetupHook(op string, params *boot.FDESetupHookPara
 	defer st.Lock()
 	context, err := m.hookMgr.EphemeralRunHook(context.Background(), hooksup, contextData)
 	if err != nil {
-		return nil, fmt.Errorf("cannot run hook for %q: %v", op, err)
+		return nil, fmt.Errorf("cannot run hook for %q: %v", req.Op, err)
 	}
 	// the hook is expected to call "snapctl fde-setup-result" which
-	// wil set the "fde-setup-result" value on the task
-	var hookResult []byte
+	// will set the "fde-setup-result" value on the task
+	var hookOutput []byte
 	context.Lock()
-	err = context.Get("fde-setup-result", &hookResult)
+	err = context.Get("fde-setup-result", &hookOutput)
 	context.Unlock()
 	if err != nil {
-		return nil, fmt.Errorf("cannot get result from fde-setup hook %q: %v", op, err)
+		return nil, fmt.Errorf("cannot get result from fde-setup hook %q: %v", req.Op, err)
 	}
-
-	return hookResult, nil
+	return hookOutput, nil
 }
 
 func (m *DeviceManager) checkFDEFeatures(st *state.State) error {
+	// TODO: move most of this to kernel/fde.Features
 	// Run fde-setup hook with "op":"features". If the hook
 	// returns any {"features":[...]} reply we consider the
 	// hardware supported. If the hook errors or if it returns
 	// {"error":"hardware-unsupported"} we don't.
-	output, err := m.runFDESetupHook("features", &boot.FDESetupHookParams{})
+	req := &fde.SetupRequest{
+		Op: "features",
+	}
+	output, err := m.runFDESetupHook(req)
 	if err != nil {
 		return err
 	}

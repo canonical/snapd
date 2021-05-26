@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018-2020 Canonical Ltd
+ * Copyright (C) 2018-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -184,4 +184,33 @@ func ValidateSnapID(id string) error {
 func ValidateSecurityTag(tag string) error {
 	_, err := ParseSecurityTag(tag)
 	return err
+}
+
+// validQuotaGroupName is a regular expression describing a valid quota resource
+// group name. It is the same regular expression as a snap name
+var validQuotaGroupName = almostValidName
+
+// ValidateQuotaGroup checks if a string can be used as a name for a quota
+// resource group. Currently the rules are exactly the same as for snap names.
+// Higher levels might also reserve some names, that is not taken into
+// account by ValidateQuotaGroup itself.
+func ValidateQuotaGroup(grp string) error {
+	if grp == "" {
+		return fmt.Errorf("invalid quota group name: must not be empty")
+	}
+
+	if len(grp) < 2 || len(grp) > 40 {
+		return fmt.Errorf("invalid quota group name: must be between 2 and 40 characters long")
+	}
+
+	// check that the name matches the regexp
+	if !validQuotaGroupName.MatchString(grp) {
+		return fmt.Errorf("invalid quota group name: contains invalid characters (valid names start with a letter and are otherwise alphanumeric with dashes)")
+	}
+
+	if grp[0] == '-' || grp[len(grp)-1] == '-' || strings.Contains(grp, "--") {
+		return fmt.Errorf("invalid quota group name: has invalid \"-\" sequences in it")
+	}
+
+	return nil
 }

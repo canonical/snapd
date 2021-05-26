@@ -36,14 +36,17 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
+	"github.com/snapcore/snapd/wrappers"
 
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 )
@@ -304,7 +307,13 @@ type: snapd
 		{"usr/lib/systemd/user/snapd.session-agent.service", "[Unit]\n[Service]\nExecStart=/usr/bin/snap session-agent"},
 		{"usr/lib/systemd/user/snapd.session-agent.socket", "[Unit]\n[Socket]\nListenStream=%t/snap-session.socket"},
 	}
-	info := snaptest.MockSnapWithFiles(c, yaml, &snap.SideInfo{Revision: snap.R(11)}, snapdUnits)
+	otherFiles := [][]string{
+		// D-Bus activation files
+		{"usr/share/dbus-1/services/io.snapcraft.Launcher.service", "[D-BUS Service]\nName=io.snapcraft.Launcher"},
+		{"usr/share/dbus-1/services/io.snapcraft.Settings.service", "[D-BUS Service]\nName=io.snapcraft.Settings"},
+		{"usr/share/dbus-1/services/io.snapcraft.SessionAgent.service", "[D-BUS Service]\nName=io.snapcraft.SessionAgent"},
+	}
+	info := snaptest.MockSnapWithFiles(c, yaml, &snap.SideInfo{Revision: snap.R(11)}, append(snapdUnits, otherFiles...))
 	return info, snapdUnits
 }
 
@@ -350,6 +359,13 @@ Options=bind
 WantedBy=snapd.service
 `, info.MountDir())
 	c.Check(filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount"), testutil.FileEquals, mountUnit)
+	// D-Bus service activation files for snap userd
+	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Launcher.service"), testutil.FileEquals,
+		"[D-BUS Service]\nName=io.snapcraft.Launcher")
+	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Settings.service"), testutil.FileEquals,
+		"[D-BUS Service]\nName=io.snapcraft.Settings")
+	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.SessionAgent.service"), testutil.FileEquals,
+		"[D-BUS Service]\nName=io.snapcraft.SessionAgent")
 }
 
 type linkCleanupSuite struct {
@@ -606,6 +622,11 @@ func (s *linkCleanupSuite) testLinkCleanupFailedSnapdSnapOnCorePastWrappers(c *C
 	c.Check(filepath.Join(dirs.SnapUserServicesDir, "snapd.session-agent.socket"), checker)
 	c.Check(filepath.Join(dirs.SnapServicesDir, "usr-lib-snapd.mount"), checker)
 	c.Check(filepath.Join(runinhibit.InhibitDir, "snapd.lock"), testutil.FileAbsent)
+
+	// D-Bus service activation
+	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Launcher.service"), checker)
+	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.Settings.service"), checker)
+	c.Check(filepath.Join(dirs.SnapDBusSessionServicesDir, "io.snapcraft.SessionAgent.service"), checker)
 }
 
 func (s *linkCleanupSuite) TestLinkCleanupFailedSnapdSnapFirstInstallOnCore(c *C) {
@@ -742,7 +763,7 @@ apps:
 	_, err := s.be.LinkSnap(info, mockDev, linkCtxWithTooling, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(filepath.Join(dirs.SnapServicesDir, "snap.hello.svc.service"), testutil.FileContains,
-		`Requires=usr-lib-snapd.mount
+		`Wants=usr-lib-snapd.mount
 After=usr-lib-snapd.mount`)
 
 	// remove it now
@@ -756,4 +777,29 @@ After=usr-lib-snapd.mount`)
 	_, err = s.be.LinkSnap(info, mockDev, linkCtxNoTooling, s.perfTimings)
 	c.Assert(err, IsNil)
 	c.Assert(filepath.Join(dirs.SnapServicesDir, "snap.hello.svc.service"), Not(testutil.FileContains), `usr-lib-snapd.mount`)
+}
+
+func (s *linkSuite) TestLinkOptHasQuotaGroup(c *C) {
+	const yaml = `name: hello
+version: 1.0
+
+apps:
+ svc:
+   command: svc
+   daemon: simple
+`
+	info := snaptest.MockSnap(c, yaml, &snap.SideInfo{Revision: snap.R(11)})
+
+	grp, err := quota.NewGroup("foogroup", quantity.SizeMiB)
+	c.Assert(err, IsNil)
+
+	linkCtxWithGroup := backend.LinkContext{
+		ServiceOptions: &wrappers.SnapServiceOptions{
+			QuotaGroup: grp,
+		},
+	}
+	_, err = s.be.LinkSnap(info, mockDev, linkCtxWithGroup, s.perfTimings)
+	c.Assert(err, IsNil)
+	c.Assert(filepath.Join(dirs.SnapServicesDir, "snap.hello.svc.service"), testutil.FileContains,
+		"\nSlice=snap.foogroup.slice\n")
 }
