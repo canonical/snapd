@@ -30,9 +30,9 @@ import (
 
 var (
 	sectionsCmd = &Command{
-		Path:   "/v2/sections",
-		UserOK: true,
-		GET:    getSections,
+		Path:       "/v2/sections",
+		GET:        getSections,
+		ReadAccess: openAccess{},
 	}
 )
 

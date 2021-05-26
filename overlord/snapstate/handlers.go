@@ -56,7 +56,11 @@ import (
 
 // SnapServiceOptions is a hook set by servicestate.
 var SnapServiceOptions = func(st *state.State, instanceName string, grps map[string]*quota.Group) (opts *wrappers.SnapServiceOptions, err error) {
-	panic("internal error: snapstate.SanpServiceOptions is unset")
+	panic("internal error: snapstate.SnapServiceOptions is unset")
+}
+
+var EnsureSnapAbsentFromQuotaGroup = func(st *state.State, snap string) error {
+	panic("internal error: snapstate.EnsureSnapAbsentFromQuotaGroup is unset")
 }
 
 var SecurityProfilesRemoveLate = func(snapName string, rev snap.Revision, typ snap.Type) error {
@@ -2267,6 +2271,12 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 
 		// XXX: also remove sequence files?
+
+		// remove the snap from any quota groups it may have been in, otherwise
+		// that quota group may get into an inconsistent state
+		if err := EnsureSnapAbsentFromQuotaGroup(st, snapsup.InstanceName()); err != nil {
+			return err
+		}
 	}
 	if err = config.DiscardRevisionConfig(st, snapsup.InstanceName(), snapsup.Revision()); err != nil {
 		return err
