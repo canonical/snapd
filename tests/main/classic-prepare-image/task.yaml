@@ -1,9 +1,9 @@
 summary: Check that prepare-image --classic works.
 
+backends: [-autopkgtest]
+
 # building images is only supported on classic ubuntu, but ubuntu 14.04 does not have systemd-run to perform the test
 systems: [ubuntu-16*, ubuntu-18*, ubuntu-2*]
-
-backends: [-autopkgtest]
 
 environment:
     ROOT: /tmp/root
@@ -57,7 +57,6 @@ restore: |
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
     teardown_fake_store "$STORE_DIR"
-    rm -f -- *.snap
     rm -rf "$ROOT"
 
 execute: |

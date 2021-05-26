@@ -13,6 +13,12 @@ prepare: |
 restore: |
     rmdir /tmp/test || true
 
+debug: |
+    # Much of what we do depends on permissions. If the permissions on those
+    # two essential (for this test) directories are wrong the test will
+    # misbehave.
+    ls -ld /root /var/lib/snapd/void
+
 execute: |
     # The current working directory that exists in the snap mount namespace and
     # represents the same inode is is preserved.
@@ -40,9 +46,3 @@ execute: |
     # place. The directory is sometimes created on demand so check for the
     # actual permissions at the end of the test.
     test "$(stat -c %a /var/lib/snapd/void)" = 111
-
-debug: |
-    # Much of what we do depends on permissions. If the permissions on those
-    # two essential (for this test) directories are wrong the test will
-    # misbehave.
-    ls -ld /root /var/lib/snapd/void

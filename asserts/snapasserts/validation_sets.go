@@ -329,7 +329,6 @@ func (v *ValidationSets) addSnap(sn *asserts.ValidationSetSnap, validationSetKey
 	}
 	// we are left with a combo of required and invalid => conflict
 	cs.presence = presConflict
-	return
 }
 
 // Conflict returns a non-nil error if the combination is in conflict,

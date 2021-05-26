@@ -1,4 +1,5 @@
 summary: Check that preseeded chroot can be re-set.
+
 details: |
   This test checks that preseeding of Ubuntu cloud images with snap-preseed
   can be undone with --reset flag.

@@ -1,9 +1,9 @@
 summary: Ensure that classic confinement works
 
+systems: [ubuntu-core-*, fedora-*]
+
 environment:
     CLASSIC_SNAP: test-snapd-classic-confinement
-
-systems: [ubuntu-core-*, fedora-*]
 
 prepare: |
     #shellcheck source=tests/lib/snaps.sh

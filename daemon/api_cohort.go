@@ -29,8 +29,9 @@ import (
 )
 
 var cohortsCmd = &Command{
-	Path: "/v2/cohorts",
-	POST: postCohorts,
+	Path:        "/v2/cohorts",
+	POST:        postCohorts,
+	WriteAccess: authenticatedAccess{},
 }
 
 func postCohorts(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -52,7 +53,7 @@ func postCohorts(c *Command, r *http.Request, user *auth.UserState) Response {
 		return SyncResponse(map[string]string{}, nil)
 	}
 
-	cohorts, err := getStore(c).CreateCohorts(context.TODO(), inst.Snaps)
+	cohorts, err := storeFrom(c.d).CreateCohorts(context.TODO(), inst.Snaps)
 	if err != nil {
 		return InternalError(err.Error())
 	}

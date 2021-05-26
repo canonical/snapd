@@ -42,9 +42,9 @@ import (
 )
 
 var snapDownloadCmd = &Command{
-	Path:     "/v2/download",
-	PolkitOK: "io.snapcraft.snapd.manage",
-	POST:     postSnapDownload,
+	Path:        "/v2/download",
+	POST:        postSnapDownload,
+	WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 }
 
 var validRangeRegexp = regexp.MustCompile(`^\s*bytes=(\d+)-\s*$`)
@@ -113,7 +113,7 @@ func streamOneSnap(c *Command, action snapDownloadAction, user *auth.UserState) 
 	if err != nil {
 		return InternalError(err.Error())
 	}
-	theStore := getStore(c)
+	theStore := storeFrom(c.d)
 
 	var ss *snapStream
 	if action.ResumeToken == "" {

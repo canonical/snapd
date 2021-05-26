@@ -73,8 +73,7 @@ func attrs(yml string) *attrerObject {
 		panic(err)
 	}
 
-	var ao attrerObject
-	ao = info.Plugs["plug"].Attrs
+	ao := attrerObject(info.Plugs["plug"].Attrs)
 	return &ao
 }
 

@@ -42,10 +42,11 @@ import (
 
 var (
 	themesCmd = &Command{
-		Path:   "/v2/accessories/themes",
-		UserOK: true,
-		GET:    checkThemes,
-		POST:   installThemes,
+		Path:        "/v2/accessories/themes",
+		GET:         checkThemes,
+		POST:        installThemes,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{},
 	}
 )
 
@@ -153,13 +154,13 @@ func collectThemeStatusForPrefix(ctx context.Context, theStore snapstate.StoreSe
 	return nil
 }
 
-func themeStatusAndCandidateSnaps(ctx context.Context, c *Command, user *auth.UserState, gtkThemes, iconThemes, soundThemes []string) (status themeStatusResponse, candidateSnaps map[string]bool, err error) {
-	installedGtk, installedIcon, installedSound, err := installedThemes(c.d.overlord)
+func themeStatusAndCandidateSnaps(ctx context.Context, d *Daemon, user *auth.UserState, gtkThemes, iconThemes, soundThemes []string) (status themeStatusResponse, candidateSnaps map[string]bool, err error) {
+	installedGtk, installedIcon, installedSound, err := installedThemes(d.overlord)
 	if err != nil {
 		return themeStatusResponse{}, nil, err
 	}
 
-	theStore := getStore(c)
+	theStore := storeFrom(d)
 	status.GtkThemes = make(map[string]themeStatus, len(gtkThemes))
 	status.IconThemes = make(map[string]themeStatus, len(iconThemes))
 	status.SoundThemes = make(map[string]themeStatus, len(soundThemes))
@@ -180,7 +181,7 @@ func themeStatusAndCandidateSnaps(ctx context.Context, c *Command, user *auth.Us
 func checkThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 	ctx := store.WithClientUserAgent(r.Context(), r)
 	q := r.URL.Query()
-	status, _, err := themeStatusAndCandidateSnaps(ctx, c, user, q["gtk-theme"], q["icon-theme"], q["sound-theme"])
+	status, _, err := themeStatusAndCandidateSnaps(ctx, c.d, user, q["gtk-theme"], q["icon-theme"], q["sound-theme"])
 	if err != nil {
 		return InternalError("cannot get theme status: %s", err)
 	}
@@ -202,7 +203,7 @@ func installThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	ctx := store.WithClientUserAgent(r.Context(), r)
-	_, candidateSnaps, err := themeStatusAndCandidateSnaps(ctx, c, user, req.GtkThemes, req.IconThemes, req.SoundThemes)
+	_, candidateSnaps, err := themeStatusAndCandidateSnaps(ctx, c.d, user, req.GtkThemes, req.IconThemes, req.SoundThemes)
 	if err != nil {
 		return InternalError("cannot get theme status: %s", err)
 	}

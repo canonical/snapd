@@ -1,4 +1,5 @@
 summary: The file-access command provides information about access to file paths
+
 details: |
     The "snap routine file-access" command is intended to be a helper for
     xdg-document-portal.  When xdg-document-portal is asked to make a
@@ -27,14 +28,13 @@ prepare: |
     snap disconnect test-snapd-file-access:home
     snap disconnect test-snapd-file-access:removable-media
 
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
     case "$SPREAD_SYSTEM" in
         fedora-*|arch-*|centos-*)
             # although classic snaps do not work out of the box on fedora,
             # we still want to verify if the basics do work if the user
             # symlinks /snap to $SNAP_MOUNT_DIR themselves
-            ln -sf $SNAP_MOUNT_DIR /snap
+            SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+            ln -sf "$SNAP_MOUNT_DIR" /snap
             ;;
     esac
 

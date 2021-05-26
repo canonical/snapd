@@ -30,9 +30,9 @@ import (
 
 var (
 	sectionsCmd = &Command{
-		Path:   "/v2/sections",
-		UserOK: true,
-		GET:    getSections,
+		Path:       "/v2/sections",
+		GET:        getSections,
+		ReadAccess: openAccess{},
 	}
 )
 
@@ -43,7 +43,7 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot find route for snaps")
 	}
 
-	theStore := getStore(c)
+	theStore := storeFrom(c.d)
 
 	// TODO: use a per-request context
 	sections, err := theStore.Sections(context.TODO(), user)

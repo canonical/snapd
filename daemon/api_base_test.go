@@ -90,6 +90,11 @@ type apiBaseSuite struct {
 
 	restoreSanitize func()
 	restoreMuxVars  func()
+
+	authUser *auth.UserState
+
+	expectedReadAccess  daemon.AccessChecker
+	expectedWriteAccess daemon.AccessChecker
 }
 
 func (s *apiBaseSuite) pokeStateLock() {
@@ -213,6 +218,13 @@ func (s *apiBaseSuite) SetUpTest(c *check.C) {
 	s.d = nil
 	s.currentSnaps = nil
 	s.actions = nil
+	s.authUser = nil
+
+	// TODO: consider making the default ReadAccess expectation
+	// authenticatedAccess, but that would need even more test changes
+	s.expectedReadAccess = daemon.OpenAccess{}
+	s.expectedWriteAccess = daemon.AuthenticatedAccess{}
+
 	// Disable real security backends for all API tests
 	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
 
@@ -254,7 +266,7 @@ func (s *apiBaseSuite) mockModel(c *check.C, st *state.State, model *asserts.Mod
 
 func (s *apiBaseSuite) daemonWithStore(c *check.C, sto snapstate.StoreService) *daemon.Daemon {
 	if s.d != nil {
-		panic("called Daemon*() twice")
+		panic("called daemon*() twice")
 	}
 	d, err := daemon.NewAndAddRoutes()
 	c.Assert(err, check.IsNil)
@@ -291,7 +303,7 @@ func (s *apiBaseSuite) daemon(c *check.C) *daemon.Daemon {
 
 func (s *apiBaseSuite) daemonWithOverlordMock(c *check.C) *daemon.Daemon {
 	if s.d != nil {
-		panic("called Daemon*() twice")
+		panic("called daemon*() twice")
 	}
 
 	o := overlord.Mock()
@@ -301,7 +313,7 @@ func (s *apiBaseSuite) daemonWithOverlordMock(c *check.C) *daemon.Daemon {
 
 func (s *apiBaseSuite) daemonWithOverlordMockAndStore(c *check.C) *daemon.Daemon {
 	if s.d != nil {
-		panic("called Daemon*() twice")
+		panic("called daemon*() twice")
 	}
 
 	o := overlord.Mock()
@@ -316,6 +328,28 @@ func (s *apiBaseSuite) daemonWithOverlordMockAndStore(c *check.C) *daemon.Daemon
 
 	s.d = d
 	return d
+}
+
+// asUserAuth fakes authorization into the request as for root
+func (s *apiBaseSuite) asRootAuth(req *http.Request) {
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
+}
+
+// asUserAuth adds authorization to the request as for a logged in user
+func (s *apiBaseSuite) asUserAuth(c *check.C, req *http.Request) {
+	if s.d == nil {
+		panic("call s.daemon(c) etc in your test first")
+	}
+	if s.authUser == nil {
+		st := s.d.Overlord().State()
+		st.Lock()
+		u, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
+		st.Unlock()
+		c.Assert(err, check.IsNil)
+		s.authUser = u
+	}
+	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, s.authUser.Macaroon))
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapdSocket)
 }
 
 type fakeSnapManager struct{}
@@ -365,7 +399,7 @@ func (s *apiBaseSuite) mkInstalledDesktopFile(c *check.C, name, content string) 
 
 func (s *apiBaseSuite) mockSnap(c *check.C, yamlText string) *snap.Info {
 	if s.d == nil {
-		panic("call s.Daemon(c) etc in your test first")
+		panic("call s.daemon(c) etc in your test first")
 	}
 
 	snapInfo := snaptest.MockSnap(c, yamlText, &snap.SideInfo{Revision: snap.R(1)})
@@ -485,7 +519,7 @@ version: %s
 		"snap-sha3-384": string(dgst),
 		"snap-size":     "999",
 		"snap-id":       snapID,
-		"snap-revision": fmt.Sprintf("%s", revision),
+		"snap-revision": revision.String(), // this must be a string
 		"developer-id":  devAcct.AccountID(),
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}, nil, "")
@@ -510,7 +544,7 @@ func handlerCommand(c *check.C, d *daemon.Daemon, req *http.Request) (cmd *daemo
 
 func (s *apiBaseSuite) checkGetOnly(c *check.C, req *http.Request) {
 	if s.d == nil {
-		panic("call s.Daemon(c) etc in your test first")
+		panic("call s.daemon(c) etc in your test first")
 	}
 
 	cmd, _ := handlerCommand(c, s.d, req)
@@ -519,33 +553,91 @@ func (s *apiBaseSuite) checkGetOnly(c *check.C, req *http.Request) {
 	c.Check(cmd.GET, check.NotNil)
 }
 
+func (s *apiBaseSuite) expectOpenAccess() {
+	s.expectedReadAccess = daemon.OpenAccess{}
+}
+
+func (s *apiBaseSuite) expectRootAccess() {
+	s.expectedReadAccess = daemon.RootAccess{}
+	s.expectedWriteAccess = daemon.RootAccess{}
+}
+
+func (s *apiBaseSuite) expectAuthenticatedAccess() {
+	s.expectedReadAccess = daemon.AuthenticatedAccess{}
+	s.expectedWriteAccess = daemon.AuthenticatedAccess{}
+}
+
+func (s *apiBaseSuite) expectReadAccess(a daemon.AccessChecker) {
+	s.expectedReadAccess = a
+}
+
+func (s *apiBaseSuite) expectWriteAccess(a daemon.AccessChecker) {
+	s.expectedWriteAccess = a
+}
+
 func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState) daemon.Response {
 	if s.d == nil {
-		panic("call s.Daemon(c) etc in your test first")
+		panic("call s.daemon(c) etc in your test first")
 	}
 
 	cmd, vars := handlerCommand(c, s.d, req)
 	s.vars = vars
 	var f daemon.ResponseFunc
+	var acc, expAcc daemon.AccessChecker
+	var whichAcc string
 	switch req.Method {
 	case "GET":
 		f = cmd.GET
+		acc = cmd.ReadAccess
+		expAcc = s.expectedReadAccess
+		whichAcc = "ReadAccess"
 	case "POST":
 		f = cmd.POST
+		acc = cmd.WriteAccess
+		expAcc = s.expectedWriteAccess
+		whichAcc = "WriteAccess"
 	case "PUT":
 		f = cmd.PUT
+		acc = cmd.WriteAccess
+		expAcc = s.expectedWriteAccess
+		whichAcc = "WriteAccess"
 	default:
 		c.Fatalf("unsupported HTTP method %q", req.Method)
 	}
 	if f == nil {
 		c.Fatalf("no support for %q for %q", req.Method, req.URL)
 	}
+	c.Check(acc, check.DeepEquals, expAcc, check.Commentf("expected %s check mismatch, use the apiBaseSuite.expect*Access methods to match the appropriate access check for the API under test", whichAcc))
 	return f(cmd, req, u)
+}
+
+func (s *apiBaseSuite) jsonReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.Resp {
+	rsp, ok := s.req(c, req, u).(*daemon.Resp)
+	c.Assert(ok, check.Equals, true, check.Commentf("expected structured response"))
+	return rsp
+}
+
+func (s *apiBaseSuite) syncReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.Resp {
+	rsp := s.jsonReq(c, req, u)
+	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeSync, check.Commentf("expected sync resp: %#v, result: %+v", rsp, rsp.Result))
+	return rsp
+}
+
+func (s *apiBaseSuite) asyncReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.Resp {
+	rsp := s.jsonReq(c, req, u)
+	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeAsync, check.Commentf("expected async resp: %#v", rsp))
+	return rsp
+}
+
+func (s *apiBaseSuite) errorReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.Resp {
+	rsp := s.jsonReq(c, req, u)
+	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError, check.Commentf("expected error resp: %#v", rsp))
+	return rsp
 }
 
 func (s *apiBaseSuite) serveHTTP(c *check.C, w http.ResponseWriter, req *http.Request) {
 	if s.d == nil {
-		panic("call s.Daemon(c) etc in your test first")
+		panic("call s.daemon(c) etc in your test first")
 	}
 
 	cmd, vars := handlerCommand(c, s.d, req)
@@ -556,7 +648,7 @@ func (s *apiBaseSuite) serveHTTP(c *check.C, w http.ResponseWriter, req *http.Re
 
 func (s *apiBaseSuite) simulateConflict(name string) {
 	if s.d == nil {
-		panic("call s.Daemon(c) etc in your test first")
+		panic("call s.daemon(c) etc in your test first")
 	}
 
 	o := s.d.Overlord()
