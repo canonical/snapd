@@ -446,12 +446,12 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil, nil)
 	}
-	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
 		c.Fail()
-		return accessForbidden
+		return Forbidden("")
 	})
 	var accessCalled bool
-	cmd.WriteAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+	cmd.WriteAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
 		accessCalled = true
 		c.Check(r, check.NotNil)
 		c.Assert(ucred, check.NotNil)
@@ -459,7 +459,7 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 		c.Check(ucred.Pid, check.Equals, int32(100))
 		c.Check(ucred.Socket, check.Equals, "xyz")
 		c.Check(user, check.DeepEquals, authUser)
-		return accessOK
+		return nil
 	})
 
 	req := httptest.NewRequest("PUT", "/", nil)
@@ -487,13 +487,13 @@ func (s *daemonSuite) TestPolkitAccessPath(c *check.C) {
 	}
 	access := false
 	cmd.WriteAccess = authenticatedAccess{Polkit: "foo"}
-	checkPolkitAction = func(r *http.Request, ucred *ucrednet, action string) accessResult {
+	checkPolkitAction = func(r *http.Request, ucred *ucrednet, action string) Response {
 		c.Check(action, check.Equals, "foo")
 		c.Check(ucred.Uid, check.Equals, uint32(1001))
 		if access {
-			return accessOK
+			return nil
 		}
-		return accessCancelled
+		return AuthCancelled("")
 	}
 
 	req := httptest.NewRequest("POST", "/", nil)
