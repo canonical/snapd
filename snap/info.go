@@ -390,11 +390,6 @@ func (s *Info) SnapName() string {
 	return s.SuggestedName
 }
 
-// SnapBase returns the base snap of the snap.
-func (s *Info) SnapBase() string {
-	return s.Base
-}
-
 // Filename returns the name of the snap with the revision number,
 // as used on the filesystem. This is the equivalent of
 // filepath.Base(s.MountFile()).
