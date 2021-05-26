@@ -584,6 +584,10 @@ func (s *generalSuite) TestStateChange(c *check.C) {
 	})
 }
 
+func (s *generalSuite) expectManageAccess() {
+	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
+}
+
 func (s *generalSuite) TestStateChangeAbort(c *check.C) {
 	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC))
 	defer restore()
@@ -600,6 +604,8 @@ func (s *generalSuite) TestStateChangeAbort(c *check.C) {
 	st.Lock()
 	ids := setupChanges(st)
 	st.Unlock()
+
+	s.expectManageAccess()
 
 	buf := bytes.NewBufferString(`{"action": "abort"}`)
 
@@ -665,6 +671,8 @@ func (s *generalSuite) TestStateChangeAbortIsReady(c *check.C) {
 	st.Change(ids[0]).SetStatus(state.DoneStatus)
 	st.Unlock()
 
+	s.expectManageAccess()
+
 	buf := bytes.NewBufferString(`{"action": "abort"}`)
 
 	// Execute
@@ -689,6 +697,8 @@ func (s *generalSuite) TestStateChangeAbortIsReady(c *check.C) {
 
 func (s *generalSuite) testWarnings(c *check.C, all bool, body io.Reader) (calls string, result interface{}) {
 	s.daemon(c)
+
+	s.expectManageAccess()
 
 	okayWarns := func(*state.State, time.Time) int { calls += "ok"; return 0 }
 	allWarns := func(*state.State) []*state.Warning { calls += "all"; return nil }

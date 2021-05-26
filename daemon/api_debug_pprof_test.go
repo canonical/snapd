@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,14 +21,11 @@ package daemon_test
 
 import (
 	"bytes"
-	"fmt"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 
 	"gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/dirs"
 )
 
 var _ = check.Suite(&pprofDebugSuite{})
@@ -43,7 +40,7 @@ func (s *pprofDebugSuite) TestGetPprofCmdline(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/debug/pprof/cmdline", nil)
 	c.Assert(err, check.IsNil)
 	// as root
-	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
+	s.asRootAuth(req)
 
 	rr := httptest.NewRecorder()
 	s.serveHTTP(c, rr, req)

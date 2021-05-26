@@ -142,6 +142,10 @@ func (s *appsSuite) SetUpTest(c *check.C) {
 	restoreServicestateCtrl := daemon.MockServicestateControl(s.fakeServiceControl)
 	s.AddCleanup(restoreServicestateCtrl)
 
+	// turn off ensuring snap services which will call systemctl automatically
+	r := servicestate.MockEnsuredSnapServices(s.d.Overlord().ServiceManager(), true)
+	s.AddCleanup(r)
+
 	s.infoA = s.mkInstalledInState(c, s.d, "snap-a", "dev", "v1", snap.R(1), true, "apps: {svc1: {daemon: simple}, svc2: {daemon: simple, reload-command: x}}")
 	s.infoB = s.mkInstalledInState(c, s.d, "snap-b", "dev", "v1", snap.R(1), false, "apps: {svc3: {daemon: simple}, cmd1: {}}")
 	s.infoC = s.mkInstalledInState(c, s.d, "snap-c", "dev", "v1", snap.R(1), true, "")
@@ -618,7 +622,13 @@ func (s *appsSuite) TestPostAppsConflict(c *check.C) {
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, `snap "snap-a" has "enable" change in progress`)
 }
 
+func (s *appsSuite) expectLogsAccess() {
+	s.expectReadAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
+}
+
 func (s *appsSuite) TestLogs(c *check.C) {
+	s.expectLogsAccess()
+
 	s.jctlRCs = []io.ReadCloser{ioutil.NopCloser(strings.NewReader(`
 {"MESSAGE": "hello1", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "42"}
 {"MESSAGE": "hello2", "SYSLOG_IDENTIFIER": "xyzzy", "_PID": "42", "__REALTIME_TIMESTAMP": "44"}
@@ -649,6 +659,8 @@ func (s *appsSuite) TestLogs(c *check.C) {
 }
 
 func (s *appsSuite) TestLogsN(c *check.C) {
+	s.expectLogsAccess()
+
 	type T struct {
 		in  string
 		out int
@@ -676,6 +688,8 @@ func (s *appsSuite) TestLogsN(c *check.C) {
 }
 
 func (s *appsSuite) TestLogsBadN(c *check.C) {
+	s.expectLogsAccess()
+
 	req, err := http.NewRequest("GET", "/v2/logs?n=hello", nil)
 	c.Assert(err, check.IsNil)
 
@@ -684,6 +698,8 @@ func (s *appsSuite) TestLogsBadN(c *check.C) {
 }
 
 func (s *appsSuite) TestLogsFollow(c *check.C) {
+	s.expectLogsAccess()
+
 	s.jctlRCs = []io.ReadCloser{
 		ioutil.NopCloser(strings.NewReader("")),
 		ioutil.NopCloser(strings.NewReader("")),
@@ -706,6 +722,8 @@ func (s *appsSuite) TestLogsFollow(c *check.C) {
 }
 
 func (s *appsSuite) TestLogsBadFollow(c *check.C) {
+	s.expectLogsAccess()
+
 	req, err := http.NewRequest("GET", "/v2/logs?follow=hello", nil)
 	c.Assert(err, check.IsNil)
 
@@ -714,6 +732,8 @@ func (s *appsSuite) TestLogsBadFollow(c *check.C) {
 }
 
 func (s *appsSuite) TestLogsBadName(c *check.C) {
+	s.expectLogsAccess()
+
 	req, err := http.NewRequest("GET", "/v2/logs?names=hello", nil)
 	c.Assert(err, check.IsNil)
 
@@ -722,6 +742,8 @@ func (s *appsSuite) TestLogsBadName(c *check.C) {
 }
 
 func (s *appsSuite) TestLogsSad(c *check.C) {
+	s.expectLogsAccess()
+
 	s.jctlErrs = []error{errors.New("potato")}
 	req, err := http.NewRequest("GET", "/v2/logs", nil)
 	c.Assert(err, check.IsNil)
@@ -731,6 +753,8 @@ func (s *appsSuite) TestLogsSad(c *check.C) {
 }
 
 func (s *appsSuite) TestLogsNoServices(c *check.C) {
+	s.expectLogsAccess()
+
 	// no installed snaps with services
 	st := s.d.Overlord().State()
 	st.Lock()

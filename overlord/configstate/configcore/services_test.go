@@ -64,10 +64,6 @@ func (s *servicesSuite) SetUpTest(c *C) {
 	s.serviceInstalled = true
 	s.systemctlArgs = nil
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
-
-	// mock an empty cmdline since we check the cmdline to check whether we are
-	// in install mode or not and we don't want to use the host's proc/cmdline
-	s.AddCleanup(osutil.MockProcCmdline(filepath.Join(c.MkDir(), "proc/cmdline")))
 }
 
 func (s *servicesSuite) TestConfigureServiceInvalidValue(c *C) {

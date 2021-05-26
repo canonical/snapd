@@ -8,10 +8,6 @@ set -e
 # shellcheck source=tests/lib/quiet.sh
 . "$TESTSLIB/quiet.sh"
 
-# XXX: dirs.sh has side-effects
-# shellcheck source=tests/lib/dirs.sh
-. "$TESTSLIB/dirs.sh"
-
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
 
@@ -644,6 +640,9 @@ restore_suite_each() {
     local variant="$1"
 
     rm -f "$RUNTIME_STATE_PATH/audit-stamp"
+
+    # Run the cleanup restore in case the commands have not been restored
+    tests.cleanup restore
 
     # restore test directory saved during prepare
     tests.backup restore

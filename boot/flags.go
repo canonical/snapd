@@ -20,6 +20,7 @@
 package boot
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -27,6 +28,8 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -103,10 +106,9 @@ func serializeBootFlags(flags []string) string {
 	return strings.Join(nonEmptyFlags, ",")
 }
 
-// setImageBootFlags writes the provided flags to the bootenv of the recovery
-// bootloader in the specified system rootDir. It is only meant to be called at
-// prepare-image customization time by ubuntu-image/prepare-image.
-func setImageBootFlags(flags []string, rootDir string) error {
+// setImageBootFlags sets the provided flags in the provided
+// bootenv-representing map. It first checks them.
+func setImageBootFlags(flags []string, blVars map[string]string) error {
 	// check that the flagList is supported
 	if _, err := checkBootFlagList(flags, understoodBootFlags); err != nil {
 		return err
@@ -119,19 +121,8 @@ func setImageBootFlags(flags []string, rootDir string) error {
 		return fmt.Errorf("internal error: boot flags too large to fit inside bootenv value")
 	}
 
-	// now find the recovery bootloader in the system dir and set the value on
-	// it
-	opts := &bootloader.Options{
-		Role: bootloader.RoleRecovery,
-	}
-	bl, err := bootloader.Find(rootDir, opts)
-	if err != nil {
-		return err
-	}
-
-	return bl.SetBootVars(map[string]string{
-		"snapd_boot_flags": s,
-	})
+	blVars["snapd_boot_flags"] = s
+	return nil
 }
 
 // InitramfsActiveBootFlags returns the set of boot flags that are currently set
@@ -279,4 +270,68 @@ func setNextBootFlags(dev Device, rootDir string, flags []string) error {
 	m.BootFlags = flags
 
 	return m.Write()
+}
+
+// HostUbuntuDataForMode returns a list of locations where the run
+// mode root filesystem is mounted for the given mode.
+// For run mode, it's "/run/mnt/data" and "/".
+// For install mode it's "/run/mnt/ubuntu-data".
+// For recover mode it's either "/host/ubuntu-data" or nil if that is not
+// mounted. Note that, for recover mode, this function only returns a non-empty
+// return value if the partition is mounted and trusted, there are certain
+// corner-cases where snap-bootstrap in the initramfs may have mounted
+// ubuntu-data in an untrusted manner, but for the purposes of this function
+// that is ignored.
+// This is primarily meant to be consumed by "snap{,ctl} system-mode".
+func HostUbuntuDataForMode(mode string) ([]string, error) {
+	var runDataRootfsMountLocations []string
+	switch mode {
+	case ModeRun:
+		// in run mode we have both /run/mnt/data and "/"
+		runDataRootfsMountLocations = []string{InitramfsDataDir, dirs.GlobalRootDir}
+	case ModeRecover:
+		// TODO: should this be it's own dedicated helper to read degraded.json?
+
+		// for recover mode, the source of truth to determine if we have the
+		// host mount is snap-bootstrap's /run/snapd/snap-bootstrap/degraded.json, so
+		// we have to go parse that
+		degradedJSONFile := filepath.Join(dirs.SnapBootstrapRunDir, "degraded.json")
+		b, err := ioutil.ReadFile(degradedJSONFile)
+		if err != nil {
+			return nil, err
+		}
+
+		degradedJSON := struct {
+			UbuntuData struct {
+				MountState    string `json:"mount-state"`
+				MountLocation string `json:"mount-location"`
+			} `json:"ubuntu-data"`
+		}{}
+
+		err = json.Unmarshal(b, &degradedJSON)
+		if err != nil {
+			return nil, err
+		}
+
+		// don't permit mounted-untrusted state, only mounted state is allowed
+		if degradedJSON.UbuntuData.MountState == "mounted" {
+			runDataRootfsMountLocations = []string{degradedJSON.UbuntuData.MountLocation}
+		}
+		// otherwise leave it empty
+
+	case ModeInstall:
+		// the var we have is for /run/mnt/ubuntu-data/writable, but the caller
+		// probably wants /run/mnt/ubuntu-data
+
+		// note that we may be running in install mode before this directory is
+		// actually created so check if it exists first
+		installModeLocation := filepath.Dir(InstallHostWritableDir)
+		if exists, _, _ := osutil.DirExists(installModeLocation); exists {
+			runDataRootfsMountLocations = []string{installModeLocation}
+		}
+	default:
+		return nil, ErrUnsupportedSystemMode
+	}
+
+	return runDataRootfsMountLocations, nil
 }

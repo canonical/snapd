@@ -58,6 +58,29 @@ var (
 // refreshRetryDelay specified the minimum time to retry failed refreshes
 var refreshRetryDelay = 20 * time.Minute
 
+// refreshCandidate carries information about a single snap to update as part
+// of auto-refresh.
+type refreshCandidate struct {
+	SnapSetup
+	Version string `json:"version,omitempty"`
+}
+
+func (rc *refreshCandidate) Type() snap.Type {
+	return rc.SnapSetup.Type
+}
+
+func (rc *refreshCandidate) Base() string {
+	return rc.SnapSetup.Base
+}
+
+func (rc *refreshCandidate) MakeSnapSetup(*state.State, *SnapState) (*SnapSetup, error) {
+	return &rc.SnapSetup, nil
+}
+
+func (rc *refreshCandidate) Size() int64 {
+	return rc.DownloadInfo.Size
+}
+
 // autoRefresh will ensure that snaps are refreshed automatically
 // according to the refresh schedule.
 type autoRefresh struct {
@@ -620,4 +643,12 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker
 	// Send the notification asynchronously to avoid holding the state lock.
 	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 	return checkerErr
+}
+
+// for testing outside of snapstate
+func MockRefreshCandidate(snapSetup *SnapSetup, version string) interface{} {
+	return &refreshCandidate{
+		SnapSetup: *snapSetup,
+		Version:   version,
+	}
 }

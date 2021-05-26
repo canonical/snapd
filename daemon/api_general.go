@@ -22,7 +22,6 @@ package daemon
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"os/exec"
 	"sort"
@@ -171,7 +170,7 @@ func formatRefreshTime(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
-	return fmt.Sprintf("%s", t.Truncate(time.Minute).Format(time.RFC3339))
+	return t.Truncate(time.Minute).Format(time.RFC3339)
 }
 
 func sandboxFeatures(backends []interfaces.SecurityBackend) map[string][]string {

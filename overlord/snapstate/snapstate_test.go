@@ -47,6 +47,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -121,10 +122,14 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	oldSetupPreRefreshHook := snapstate.SetupPreRefreshHook
 	oldSetupPostRefreshHook := snapstate.SetupPostRefreshHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
+	oldSnapServiceOptions := snapstate.SnapServiceOptions
+	oldEnsureSnapAbsentFromQuotaGroup := snapstate.EnsureSnapAbsentFromQuotaGroup
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
 	snapstate.SetupPreRefreshHook = hookstate.SetupPreRefreshHook
 	snapstate.SetupPostRefreshHook = hookstate.SetupPostRefreshHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
+	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions
+	snapstate.EnsureSnapAbsentFromQuotaGroup = servicestate.EnsureSnapAbsentFromQuota
 
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state, s.o.TaskRunner())
@@ -155,6 +160,8 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 		snapstate.SetupPreRefreshHook = oldSetupPreRefreshHook
 		snapstate.SetupPostRefreshHook = oldSetupPostRefreshHook
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
+		snapstate.SnapServiceOptions = oldSnapServiceOptions
+		snapstate.EnsureSnapAbsentFromQuotaGroup = oldEnsureSnapAbsentFromQuotaGroup
 
 		dirs.SetRootDir("/")
 	})
@@ -4695,7 +4702,7 @@ func (s *snapmgrTestSuite) TestTransitionCoreTimeLimitWorks(c *C) {
 
 	var t time.Time
 	s.state.Get("ubuntu-core-transition-last-retry-time", &t)
-	c.Assert(time.Now().Sub(t) < 2*time.Minute, Equals, true)
+	c.Assert(time.Since(t) < 2*time.Minute, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestTransitionCoreNoOtherChanges(c *C) {
@@ -4899,7 +4906,7 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapTimeLimitWorks(c *C) {
 
 	var t time.Time
 	s.state.Get("snapd-transition-last-retry-time", &t)
-	c.Assert(time.Now().Sub(t) < 2*time.Minute, Equals, true)
+	c.Assert(time.Since(t) < 2*time.Minute, Equals, true)
 }
 
 type unhappyStore struct {
@@ -4935,7 +4942,7 @@ func (s *snapmgrTestSuite) TestTransitionSnapdSnapError(c *C) {
 	// all the attempts were recorded
 	var t time.Time
 	s.state.Get("snapd-transition-last-retry-time", &t)
-	c.Assert(time.Now().Sub(t) < 2*time.Minute, Equals, true)
+	c.Assert(time.Since(t) < 2*time.Minute, Equals, true)
 
 	var cnt int
 	s.state.Get("snapd-transition-retry", &cnt)
