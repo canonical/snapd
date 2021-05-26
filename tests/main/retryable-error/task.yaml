@@ -5,7 +5,7 @@ backends: [-autopkgtest]
 
 execute: |
     echo "Install a snap which takes some time to be installed"
-    snap pack "$PWD/test-snapd-sleep-install"
+    snap pack test-snapd-sleep-install
     snap install --dangerous test-snapd-sleep-install_*.snap &
 
     echo "And try to install it again which results in a change confict error"

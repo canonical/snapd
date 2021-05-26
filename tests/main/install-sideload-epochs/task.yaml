@@ -7,13 +7,13 @@ environment:
     SNAP_REEXEC/reexec1: 1
 
 prepare: |
-    snap pack "$PWD"/test-snapd-epoch-1
-    snap pack "$PWD"/test-snapd-epoch-2
+    snap pack test-snapd-epoch-1
+    snap pack test-snapd-epoch-2
 
 execute: |
     rx="cannot refresh \"[^ \"]*\" to local snap with epoch [^ ]*, because it can't read the current epoch"
-    snap try "$TESTSLIB"/snaps/test-snapd-epoch-1
-    not snap try "$TESTSLIB"/snaps/test-snapd-epoch-2 2> try.err
+    snap try test-snapd-epoch-1
+    not snap try test-snapd-epoch-2 2> try.err
     tr -s "\n " "  "  < try.err      | MATCH "$rx"
 
     not snap install --dangerous test-snapd-epoch_2_all.snap 2>install.err
