@@ -22,7 +22,6 @@ package daemon_test
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -44,8 +43,6 @@ type assertsSuite struct {
 	apiBaseSuite
 
 	mockAssertionFn func(at *asserts.AssertionType, headers []string, user *auth.UserState) (asserts.Assertion, error)
-
-	authUser *auth.UserState
 }
 
 var _ = check.Suite(&assertsSuite{})
@@ -55,18 +52,7 @@ func (s *assertsSuite) SetUpTest(c *check.C) {
 
 	s.mockAssertionFn = nil
 
-	d := s.daemonWithStore(c, s)
-
-	st := d.Overlord().State()
-	st.Lock()
-	defer st.Unlock()
-	u, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
-	c.Assert(err, check.IsNil)
-	s.authUser = u
-}
-
-func (s *assertsSuite) userAuth(req *http.Request) {
-	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, s.authUser.Macaroon))
+	s.daemonWithStore(c, s)
 }
 
 func (s *assertsSuite) TestGetAsserts(c *check.C) {
@@ -139,7 +125,7 @@ func (s *assertsSuite) TestAssertInvalid(c *check.C) {
 	buf := bytes.NewBufferString("blargh")
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
-	s.userAuth(req)
+	s.asUserAuth(c, req)
 
 	rec := httptest.NewRecorder()
 	// Execute
@@ -156,7 +142,7 @@ func (s *assertsSuite) TestAssertError(c *check.C) {
 	buf := bytes.NewBuffer(asserts.Encode(acct))
 	req, err := http.NewRequest("POST", "/v2/assertions", buf)
 	c.Assert(err, check.IsNil)
-	s.userAuth(req)
+	s.asUserAuth(c, req)
 
 	rec := httptest.NewRecorder()
 	// Execute
@@ -175,7 +161,7 @@ func (s *assertsSuite) TestAssertsFindManyAll(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/assertions/account", nil)
 	c.Assert(err, check.IsNil)
-	s.userAuth(req)
+	s.asUserAuth(c, req)
 
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
@@ -212,7 +198,7 @@ func (s *assertsSuite) TestAssertsFindManyFilter(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/assertions/account?username=developer1", nil)
 	c.Assert(err, check.IsNil)
-	s.userAuth(req)
+	s.asUserAuth(c, req)
 
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
@@ -236,7 +222,7 @@ func (s *assertsSuite) TestAssertsFindManyNoResults(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/assertions/account?username=xyzzyx", nil)
 	c.Assert(err, check.IsNil)
-	s.userAuth(req)
+	s.asUserAuth(c, req)
 
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
@@ -252,7 +238,7 @@ func (s *assertsSuite) TestAssertsInvalidType(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/assertions/foo", nil)
 	c.Assert(err, check.IsNil)
-	s.userAuth(req)
+	s.asUserAuth(c, req)
 
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
@@ -277,7 +263,7 @@ func (s *assertsSuite) testAssertsFindManyJSONFilter(c *check.C, urlPath string)
 	// Execute
 	req, err := http.NewRequest("GET", urlPath, nil)
 	c.Assert(err, check.IsNil)
-	s.userAuth(req)
+	s.asUserAuth(c, req)
 
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
@@ -302,7 +288,7 @@ func (s *assertsSuite) TestAssertsFindManyJSONNoResults(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/assertions/account?json=true&username=xyz", nil)
 	c.Assert(err, check.IsNil)
-	s.userAuth(req)
+	s.asUserAuth(c, req)
 
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
@@ -323,7 +309,7 @@ func (s *assertsSuite) TestAssertsFindManyJSONWithBody(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/assertions/account-key?json=true", nil)
 	c.Assert(err, check.IsNil)
-	s.userAuth(req)
+	s.asUserAuth(c, req)
 
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
@@ -354,7 +340,7 @@ func (s *assertsSuite) TestAssertsFindManyJSONHeadersOnly(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/assertions/account-key?json=headers&account-id=can0nical", nil)
 	c.Assert(err, check.IsNil)
-	s.userAuth(req)
+	s.asUserAuth(c, req)
 
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
@@ -384,7 +370,7 @@ func (s *assertsSuite) TestAssertsFindManyJSONInvalidParam(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/assertions/account-key?json=header&account-id=can0nical", nil)
 	c.Assert(err, check.IsNil)
-	s.userAuth(req)
+	s.asUserAuth(c, req)
 
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
@@ -408,7 +394,7 @@ func (s *assertsSuite) TestAssertsFindManyJSONNopFilter(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/assertions/account?json=false&username=developer1", nil)
 	c.Assert(err, check.IsNil)
-	s.userAuth(req)
+	s.asUserAuth(c, req)
 
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
@@ -429,7 +415,7 @@ func (s *assertsSuite) TestAssertsFindManyRemoteInvalidParam(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/assertions/account-key?remote=invalid&account-id=can0nical", nil)
 	c.Assert(err, check.IsNil)
-	s.userAuth(req)
+	s.asUserAuth(c, req)
 
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
@@ -464,7 +450,7 @@ func (s *assertsSuite) TestAssertsFindManyRemote(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("GET", "/v2/assertions/account?remote=true&account-id=can0nical", nil)
 	c.Assert(err, check.IsNil)
-	s.userAuth(req)
+	s.asUserAuth(c, req)
 
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
