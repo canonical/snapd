@@ -23,7 +23,7 @@ import (
 	"runtime"
 )
 
-func getStacktrace() Response {
+func getStacktraces() Response {
 	stack := make([]byte, 65535)
 	all := true
 	n := runtime.Stack(stack, all)

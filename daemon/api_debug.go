@@ -330,8 +330,8 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		st.Prune(opTime, 0, 0, 0)
 		return SyncResponse(true, nil)
-	case "stacktrace":
-		return getStacktrace()
+	case "stacktraces":
+		return getStacktraces()
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}
