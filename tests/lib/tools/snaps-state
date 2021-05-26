@@ -22,6 +22,11 @@ pack_local() {
     local SNAP_DIR="${2:-$TESTSLIB/snaps/${SNAP_NAME}}"
     local SNAP_VERSION="${3:-1.0}"
 
+    # Use local snap in case it exists
+    if [ -d "$SNAP_NAME" ]; then
+        SNAP_DIR="$PWD/$SNAP_NAME"
+    fi
+
     local META_FILE META_NAME SNAP_FILE
     META_FILE="$SNAP_DIR/meta/snap.yaml"
     if [ ! -f "$META_FILE" ]; then
