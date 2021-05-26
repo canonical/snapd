@@ -2202,6 +2202,7 @@ type: kernel`
 	}
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
+	c.Assert(s.o.DeviceManager().ReloadModeenv(), IsNil)
 
 	st := s.o.State()
 	st.Lock()
@@ -2369,6 +2370,7 @@ type: kernel`
 	}
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
+	c.Assert(s.o.DeviceManager().ReloadModeenv(), IsNil)
 
 	st := s.o.State()
 	st.Lock()
@@ -6503,6 +6505,7 @@ func (s *mgrsSuite) testUC20RunUpdateManagedBootConfig(c *C, snapPath string, si
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
+	c.Assert(s.o.DeviceManager().ReloadModeenv(), IsNil)
 
 	st := s.o.State()
 	st.Lock()
@@ -6856,6 +6859,7 @@ func (s *mgrsSuite) testGadgetKernelCommandLine(c *C, gadgetPath string, gadgetS
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
+	c.Assert(s.o.DeviceManager().ReloadModeenv(), IsNil)
 
 	st := s.o.State()
 	st.Lock()
