@@ -1415,7 +1415,7 @@ func (s *SystemdTestSuite) TestCurrentMemoryUsageInvalid(c *C) {
 	}
 	sysd := New(SystemMode, s.rep)
 	_, err := sysd.CurrentMemoryUsage("bar.service")
-	c.Assert(err, ErrorMatches, `invalid property format for memory: cannot parse "blahhhhhhhhhhhh" as an integer`)
+	c.Assert(err, ErrorMatches, `invalid property value from systemd for MemoryCurrent: cannot parse "blahhhhhhhhhhhh" as an integer`)
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"show", "--property", "MemoryCurrent", "bar.service"},
 	})

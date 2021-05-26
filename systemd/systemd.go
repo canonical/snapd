@@ -614,7 +614,7 @@ func (s *systemd) CurrentMemoryUsage(unit string) (quantity.Size, error) {
 
 	intVal, err := strconv.Atoi(trimmedVal)
 	if err != nil {
-		return 0, fmt.Errorf("invalid property format for memory: cannot parse %q as an integer", trimmedVal)
+		return 0, fmt.Errorf("invalid property value from systemd for MemoryCurrent: cannot parse %q as an integer", trimmedVal)
 	}
 
 	return quantity.Size(intVal), nil
