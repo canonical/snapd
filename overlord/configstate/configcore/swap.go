@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/mvo5/goconfigparser"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
