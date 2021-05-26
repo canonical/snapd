@@ -15,8 +15,8 @@ environment:
 
 prepare: |
     echo "Given a good (v1) and a bad (v2) snap"
-    snap pack "$SNAP_NAME_GOOD"
-    snap pack "$SNAP_NAME_BAD"
+    snap pack "$TESTSLIB/snaps/$SNAP_NAME_GOOD"
+    snap pack "$TESTSLIB/snaps/$SNAP_NAME_BAD"
 
 debug: |
     "$TESTSTOOLS"/journal-state get-log -u snap.test-snapd-service.service.service
