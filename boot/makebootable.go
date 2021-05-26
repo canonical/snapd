@@ -40,7 +40,10 @@ type BootableSet struct {
 	KernelPath string
 
 	RecoverySystemLabel string
-	RecoverySystemDir   string
+	// RecoverySystemDir is a path to a directory with recovery system
+	// assets. The path is relative to the recovery bootloader root
+	// directory.
+	RecoverySystemDir string
 
 	UnpackedGadgetDir string
 
@@ -57,15 +60,20 @@ type BootableSet struct {
 // system bootable. It does not make a run system bootable, for that
 // functionality see MakeRunnableSystem, which is meant to be used at runtime
 // from UC20 install mode.
-func MakeBootableImage(model *asserts.Model, rootdir string, bootWith *BootableSet, sealer *TrustedAssetsInstallObserver) error {
+// For a UC20 image a set of boot flags that will be set in the recovery
+// boot environment can be specified.
+func MakeBootableImage(model *asserts.Model, rootdir string, bootWith *BootableSet, bootFlags []string) error {
 	if model.Grade() == asserts.ModelGradeUnset {
+		if len(bootFlags) != 0 {
+			return fmt.Errorf("no boot flags support for UC16/18")
+		}
 		return makeBootable16(model, rootdir, bootWith)
 	}
 
 	if !bootWith.Recovery {
 		return fmt.Errorf("internal error: MakeBootableImage called at runtime, use MakeRunnableSystem instead")
 	}
-	return makeBootable20(model, rootdir, bootWith)
+	return makeBootable20(model, rootdir, bootWith, bootFlags)
 }
 
 // makeBootable16 setups the image filesystem for boot with UC16
@@ -145,7 +153,7 @@ func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	return nil
 }
 
-func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet) error {
+func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet, bootFlags []string) error {
 	// we can only make a single recovery system bootable right now
 	recoverySystems, err := filepath.Glob(filepath.Join(rootdir, "systems/*"))
 	if err != nil {
@@ -157,6 +165,13 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 
 	if bootWith.RecoverySystemLabel == "" {
 		return fmt.Errorf("internal error: recovery system label unset")
+	}
+
+	blVars := make(map[string]string, 3)
+	if len(bootFlags) != 0 {
+		if err := setImageBootFlags(bootFlags, blVars); err != nil {
+			return err
+		}
 	}
 
 	opts := &bootloader.Options{
@@ -182,13 +197,48 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	// bootloader, this env var is set on the ubuntu-seed root grubenv, and
 	// not on the recovery system grubenv in the systems/20200314/ subdir on
 	// ubuntu-seed
-	blVars := map[string]string{
-		"snapd_recovery_system": bootWith.RecoverySystemLabel,
-		// always set the mode as install
-		"snapd_recovery_mode": ModeInstall,
-	}
+	blVars["snapd_recovery_system"] = bootWith.RecoverySystemLabel
+	// always set the mode as install
+	blVars["snapd_recovery_mode"] = ModeInstall
 	if err := bl.SetBootVars(blVars); err != nil {
 		return fmt.Errorf("cannot set recovery environment: %v", err)
+	}
+
+	return MakeRecoverySystemBootable(rootdir, bootWith.RecoverySystemDir, &RecoverySystemBootableSet{
+		Kernel:           bootWith.Kernel,
+		KernelPath:       bootWith.KernelPath,
+		GadgetSnapOrDir:  bootWith.UnpackedGadgetDir,
+		PrepareImageTime: true,
+	})
+}
+
+// RecoverySystemBootableSet is a set of snaps relevant to booting a recovery
+// system.
+type RecoverySystemBootableSet struct {
+	Kernel          *snap.Info
+	KernelPath      string
+	GadgetSnapOrDir string
+	// PrepareImageTime is true when the structure is being used when
+	// preparing a bootable system image.
+	PrepareImageTime bool
+}
+
+// MakeRecoverySystemBootable prepares a recovery system under a path relative
+// to recovery bootloader's rootdir for booting.
+func MakeRecoverySystemBootable(rootdir string, relativeRecoverySystemDir string, bootWith *RecoverySystemBootableSet) error {
+	opts := &bootloader.Options{
+		// XXX: this is only needed by LK, it is unclear whether LK does
+		// too much when extracting recovery kernel assets, in the end
+		// it is currently not possible to create a recovery system at
+		// runtime when using LK.
+		PrepareImageTime: bootWith.PrepareImageTime,
+		// setup the recovery bootloader
+		Role: bootloader.RoleRecovery,
+	}
+
+	bl, err := bootloader.Find(rootdir, opts)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot find bootloader: %v", err)
 	}
 
 	// on e.g. ARM we need to extract the kernel assets on the recovery
@@ -202,7 +252,7 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 		}
 
 		err = erkbl.ExtractRecoveryKernelAssets(
-			bootWith.RecoverySystemDir,
+			relativeRecoverySystemDir,
 			bootWith.Kernel,
 			kernelf,
 		)
@@ -225,7 +275,7 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 		"snapd_recovery_kernel": filepath.Join("/", kernelPath),
 	}
 	if _, ok := bl.(bootloader.TrustedAssetsBootloader); ok {
-		recoveryCmdlineArgs, err := bootVarsForTrustedCommandLineFromGadget(bootWith.UnpackedGadgetDir)
+		recoveryCmdlineArgs, err := bootVarsForTrustedCommandLineFromGadget(bootWith.GadgetSnapOrDir)
 		if err != nil {
 			return fmt.Errorf("cannot obtain recovery system command line: %v", err)
 		}
@@ -234,7 +284,7 @@ func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet)
 		}
 	}
 
-	if err := rbl.SetRecoverySystemEnv(bootWith.RecoverySystemDir, recoveryBlVars); err != nil {
+	if err := rbl.SetRecoverySystemEnv(relativeRecoverySystemDir, recoveryBlVars); err != nil {
 		return fmt.Errorf("cannot set recovery system environment: %v", err)
 	}
 	return nil
@@ -389,6 +439,14 @@ func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 			return fmt.Errorf("cannot compose the candidate command line: %v", err)
 		}
 		modeenv.CurrentKernelCommandLines = bootCommandLines{cmdline}
+
+		cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(bootWith.UnpackedGadgetDir)
+		if err != nil {
+			return fmt.Errorf("cannot prepare bootloader variables for kernel command line: %v", err)
+		}
+		if err := bl.SetBootVars(cmdlineVars); err != nil {
+			return fmt.Errorf("cannot set run system kernel command line arguments: %v", err)
+		}
 	}
 
 	// all fields that needed to be set in the modeenv must have been set by

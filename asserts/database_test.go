@@ -43,6 +43,7 @@ func Test(t *testing.T) { TestingT(t) }
 
 var _ = Suite(&openSuite{})
 var _ = Suite(&revisionErrorSuite{})
+var _ = Suite(&isUnacceptedUpdateSuite{})
 
 type openSuite struct{}
 

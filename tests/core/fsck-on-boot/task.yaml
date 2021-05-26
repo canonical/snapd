@@ -7,12 +7,6 @@ details: |
   such file system is mounted. This is an essential property to ensure
   longevity of devices that rely on write to vfat to operate.
 
-prepare: |
-  tests.cleanup prepare
-
-restore: |
-  tests.cleanup restore
-
 execute: |
   unmount_vfat() {
     if os.query is-core16; then

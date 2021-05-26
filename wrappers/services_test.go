@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2016 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -32,6 +32,9 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/snap/quota"
+
 	// imported to ensure actual interfaces are defined,
 	// in production this is guaranteed by ifacestate
 	_ "github.com/snapcore/snapd/interfaces/builtin"
@@ -115,11 +118,8 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemove(c *C) {
 		{"start", filepath.Base(svcFile)},
 	})
 
-	content, err := ioutil.ReadFile(svcFile)
-	c.Assert(err, IsNil)
-
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
-	c.Assert(string(content), Equals, fmt.Sprintf(`[Unit]
+	c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=%[1]s
@@ -157,10 +157,1401 @@ WantedBy=multi-user.target
 	s.sysdLog = nil
 	err = wrappers.RemoveSnapServices(info, progress.Null)
 	c.Assert(err, IsNil)
-	c.Check(osutil.FileExists(svcFile), Equals, false)
-	c.Assert(s.sysdLog, HasLen, 2)
-	c.Check(s.sysdLog[0], DeepEquals, []string{"disable", filepath.Base(svcFile)})
-	c.Check(s.sysdLog[1], DeepEquals, []string{"daemon-reload"})
+	c.Check(svcFile, testutil.FileAbsent)
+	c.Assert(s.sysdLog, DeepEquals, [][]string{
+		{"disable", filepath.Base(svcFile)},
+		{"daemon-reload"},
+	})
+}
+func (s *servicesTestSuite) TestEnsureSnapServicesAdds(c *C) {
+	// map unit -> new
+	seen := make(map[string]bool)
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
+		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
+	}
+
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: nil,
+	}
+
+	err := wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+	c.Check(seen, DeepEquals, map[string]bool{
+		"hello-snap:svc1:service:svc1": true,
+	})
+
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
+TimeoutStopSec=30
+Type=forking
+
+[Install]
+WantedBy=multi-user.target
+`,
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+	))
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesWithQuotas(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	memLimit := quantity.SizeGiB
+	grp, err := quota.NewGroup("foogroup", memLimit)
+	c.Assert(err, IsNil)
+
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: {QuotaGroup: grp},
+	}
+
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	svcContent := fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
+TimeoutStopSec=30
+Type=forking
+Slice=snap.foogroup.slice
+
+[Install]
+WantedBy=multi-user.target
+`,
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+	)
+
+	sliceTempl := `[Unit]
+Description=Slice for snap quota group %s
+Before=slices.target
+
+[Slice]
+# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+MemoryMax=%s
+`
+
+	sliceContent := fmt.Sprintf(sliceTempl, grp.Name, memLimit.String())
+
+	exp := []changesObservation{
+		{
+			snapName: "hello-snap",
+			unitType: "service",
+			name:     "svc1",
+			old:      "",
+			new:      svcContent,
+		},
+		{
+			grp:      grp,
+			unitType: "slice",
+			new:      sliceContent,
+			old:      "",
+			name:     "foogroup",
+		},
+	}
+	r, observe := expChangeObserver(c, exp)
+	defer r()
+
+	err = wrappers.EnsureSnapServices(m, nil, observe, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+
+	c.Assert(svcFile, testutil.FileEquals, svcContent)
+}
+
+type changesObservation struct {
+	snapName string
+	grp      *quota.Group
+	unitType string
+	name     string
+	old      string
+	new      string
+}
+
+func expChangeObserver(c *C, exp []changesObservation) (restore func(), obs wrappers.ObserveChangeCallback) {
+	changesObserved := []changesObservation{}
+	f := func(app *snap.AppInfo, grp *quota.Group, unitType, name, old, new string) {
+		snapName := ""
+		if app != nil {
+			snapName = app.Snap.SnapName()
+		}
+		changesObserved = append(changesObserved, changesObservation{
+			snapName: snapName,
+			grp:      grp,
+			unitType: unitType,
+			name:     name,
+			old:      old,
+			new:      new,
+		})
+	}
+
+	r := func() {
+		// sort the changesObserved by snapName, with all services being
+		// observed first, then all groups secondly
+		groupObservations := make([]changesObservation, 0, len(changesObserved))
+		svcObservations := make([]changesObservation, 0, len(changesObserved))
+
+		for _, chg := range changesObserved {
+			if chg.unitType == "slice" {
+				groupObservations = append(groupObservations, chg)
+			} else {
+				svcObservations = append(svcObservations, chg)
+			}
+		}
+		// sort svcObservations, note we do not need to sort groups, since
+		// quota groups are iterated over in a stable sorted order via
+		// QuotaGroupSet.AllQuotaGroups
+		sort.SliceStable(svcObservations, func(i, j int) bool {
+			return svcObservations[i].snapName < svcObservations[j].snapName
+		})
+		finalSortChangesObserved := make([]changesObservation, 0, len(changesObserved))
+		finalSortChangesObserved = append(finalSortChangesObserved, svcObservations...)
+		finalSortChangesObserved = append(finalSortChangesObserved, groupObservations...)
+		c.Assert(finalSortChangesObserved, DeepEquals, exp)
+	}
+
+	return r, f
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesRewritesQuotaSlices(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	memLimit1 := quantity.SizeGiB
+	memLimit2 := quantity.SizeGiB * 2
+
+	// write both the unit file and a slice with a different memory limit
+	// setting than will be provided below
+	sliceTempl := `[Unit]
+Description=Slice for snap quota group %s
+Before=slices.target
+
+[Slice]
+# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+MemoryMax=%s
+`
+	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
+
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	svcContent := fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
+TimeoutStopSec=30
+Type=forking
+Slice=snap.foogroup.slice
+
+[Install]
+WantedBy=multi-user.target
+`,
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+	)
+
+	err := os.MkdirAll(filepath.Dir(sliceFile), 0755)
+	c.Assert(err, IsNil)
+
+	oldContent := fmt.Sprintf(sliceTempl, "foogroup", memLimit1.String())
+	err = ioutil.WriteFile(sliceFile, []byte(oldContent), 0644)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(svcFile, []byte(svcContent), 0644)
+	c.Assert(err, IsNil)
+
+	// use new memory limit
+	grp, err := quota.NewGroup("foogroup", memLimit2)
+	c.Assert(err, IsNil)
+
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: {QuotaGroup: grp},
+	}
+
+	newContent := fmt.Sprintf(sliceTempl, "foogroup", memLimit2.String())
+	exp := []changesObservation{
+		{
+			grp:      grp,
+			unitType: "slice",
+			new:      newContent,
+			old:      oldContent,
+			name:     "foogroup",
+		},
+	}
+	r, observe := expChangeObserver(c, exp)
+	defer r()
+
+	err = wrappers.EnsureSnapServices(m, nil, observe, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+
+	c.Assert(svcFile, testutil.FileEquals, svcContent)
+
+	c.Assert(sliceFile, testutil.FileEquals, newContent)
+
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesDoesNotRewriteQuotaSlicesOnNoop(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	memLimit := quantity.SizeGiB
+
+	// write both the unit file and a slice before running the ensure
+	sliceTempl := `[Unit]
+Description=Slice for snap quota group %s
+Before=slices.target
+
+[Slice]
+# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+MemoryMax=%s
+`
+	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
+
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	svcContent := fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
+TimeoutStopSec=30
+Type=forking
+Slice=snap.foogroup.slice
+
+[Install]
+WantedBy=multi-user.target
+`,
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+	)
+
+	err := os.MkdirAll(filepath.Dir(sliceFile), 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(sliceFile, []byte(fmt.Sprintf(sliceTempl, "foogroup", memLimit.String())), 0644)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(svcFile, []byte(svcContent), 0644)
+	c.Assert(err, IsNil)
+
+	grp, err := quota.NewGroup("foogroup", memLimit)
+	c.Assert(err, IsNil)
+
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: {QuotaGroup: grp},
+	}
+
+	observe := func(app *snap.AppInfo, grp *quota.Group, unitType, name, old, new string) {
+		c.Error("unexpected call to observe function")
+	}
+
+	err = wrappers.EnsureSnapServices(m, nil, observe, progress.Null)
+	c.Assert(err, IsNil)
+	// no daemon restart since the files didn't change
+	c.Check(s.sysdLog, HasLen, 0)
+
+	c.Assert(svcFile, testutil.FileEquals, svcContent)
+
+	c.Assert(sliceFile, testutil.FileEquals, fmt.Sprintf(sliceTempl, "foogroup", memLimit.String()))
+}
+
+func (s *servicesTestSuite) TestRemoveQuotaGroup(c *C) {
+	// create the group
+	grp, err := quota.NewGroup("foogroup", quantity.SizeKiB)
+	c.Assert(err, IsNil)
+
+	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
+	c.Assert(sliceFile, testutil.FileAbsent)
+
+	// removing the group when the slice file doesn't exist is not an error
+	err = wrappers.RemoveQuotaGroup(grp, progress.Null)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.sysdLog, HasLen, 0)
+
+	c.Assert(sliceFile, testutil.FileAbsent)
+
+	// now write slice file and ensure it is deleted
+	sliceTempl := `[Unit]
+Description=Slice for snap quota group %s
+Before=slices.target
+
+[Slice]
+# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+MemoryMax=1024
+`
+
+	err = os.MkdirAll(filepath.Dir(sliceFile), 0755)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(sliceFile, []byte(fmt.Sprintf(sliceTempl, "foogroup")), 0644)
+	c.Assert(err, IsNil)
+
+	// removing it deletes it
+	err = wrappers.RemoveQuotaGroup(grp, progress.Null)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+
+	c.Assert(sliceFile, testutil.FileAbsent)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsForSnaps(c *C) {
+	info1 := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	info2 := snaptest.MockSnap(c, `
+name: hello-other-snap
+version: 1.10
+summary: hello
+description: Hello...
+apps:
+ hello:
+   command: bin/hello
+ world:
+   command: bin/world
+   completer: world-completer.sh
+ svc1:
+  command: bin/hello
+  stop-command: bin/goodbye
+  post-stop-command: bin/missya
+  daemon: forking
+`, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile1 := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile2 := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-other-snap.svc1.service")
+
+	var err error
+	memLimit := quantity.SizeGiB
+	// make a root quota group and add the first snap to it
+	grp, err := quota.NewGroup("foogroup", memLimit)
+	c.Assert(err, IsNil)
+
+	// the second group is a sub-group with the same limit, but is for the
+	// second snap
+	subgrp, err := grp.NewSubGroup("subgroup", memLimit)
+	c.Assert(err, IsNil)
+
+	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
+	subSliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup-subgroup.slice")
+
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info1: {QuotaGroup: grp},
+		info2: {QuotaGroup: subgrp},
+	}
+
+	sliceTempl := `[Unit]
+Description=Slice for snap quota group %s
+Before=slices.target
+
+[Slice]
+# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+MemoryMax=%s
+`
+
+	sliceContent := fmt.Sprintf(sliceTempl, "foogroup", memLimit.String())
+	subSliceContent := fmt.Sprintf(sliceTempl, "subgroup", memLimit.String())
+
+	svcTemplate := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application %[1]s.svc1
+Requires=%[2]s
+Wants=network.target
+After=%[2]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run %[1]s.svc1
+SyslogIdentifier=%[1]s.svc1
+Restart=on-failure
+WorkingDirectory=%[3]s/var/snap/%[1]s/12
+ExecStop=/usr/bin/snap run --command=stop %[1]s.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop %[1]s.svc1
+TimeoutStopSec=30
+Type=forking
+Slice=%[4]s
+
+[Install]
+WantedBy=multi-user.target
+`
+
+	dir1 := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir2 := filepath.Join(dirs.SnapMountDir, "hello-other-snap", "12.mount")
+
+	helloSnapContent := fmt.Sprintf(svcTemplate,
+		"hello-snap",
+		systemd.EscapeUnitNamePath(dir1),
+		dirs.GlobalRootDir,
+		"snap.foogroup.slice",
+	)
+
+	helloOtherSnapContent := fmt.Sprintf(svcTemplate,
+		"hello-other-snap",
+		systemd.EscapeUnitNamePath(dir2),
+		dirs.GlobalRootDir,
+		"snap.foogroup-subgroup.slice",
+	)
+
+	exp := []changesObservation{
+		{
+			snapName: "hello-other-snap",
+			unitType: "service",
+			name:     "svc1",
+			old:      "",
+			new:      helloOtherSnapContent,
+		},
+		{
+			snapName: "hello-snap",
+			unitType: "service",
+			name:     "svc1",
+			old:      "",
+			new:      helloSnapContent,
+		},
+		{
+			grp:      grp,
+			unitType: "slice",
+			new:      sliceContent,
+			old:      "",
+			name:     "foogroup",
+		},
+		{
+			grp:      subgrp,
+			unitType: "slice",
+			new:      subSliceContent,
+			old:      "",
+			name:     "subgroup",
+		},
+	}
+	r, observe := expChangeObserver(c, exp)
+	defer r()
+
+	err = wrappers.EnsureSnapServices(m, nil, observe, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+
+	c.Assert(svcFile1, testutil.FileEquals, helloSnapContent)
+
+	c.Assert(svcFile2, testutil.FileEquals, helloOtherSnapContent)
+
+	// check that the slice units were also generated
+
+	c.Assert(sliceFile, testutil.FileEquals, sliceContent)
+	c.Assert(subSliceFile, testutil.FileEquals, subSliceContent)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGeneratesParentGroups(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile1 := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	var err error
+	memLimit := quantity.SizeGiB
+	// make a root quota group without any snaps in it
+	grp, err := quota.NewGroup("foogroup", memLimit)
+	c.Assert(err, IsNil)
+
+	// the second group is a sub-group with the same limit, but it is the one
+	// with the snap in it
+	subgrp, err := grp.NewSubGroup("subgroup", memLimit)
+	c.Assert(err, IsNil)
+
+	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
+	subSliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup-subgroup.slice")
+
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: {QuotaGroup: subgrp},
+	}
+
+	err = wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+
+	svcTemplate := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application %[1]s.svc1
+Requires=%[2]s
+Wants=network.target
+After=%[2]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run %[1]s.svc1
+SyslogIdentifier=%[1]s.svc1
+Restart=on-failure
+WorkingDirectory=%[3]s/var/snap/%[1]s/12
+ExecStop=/usr/bin/snap run --command=stop %[1]s.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop %[1]s.svc1
+TimeoutStopSec=30
+Type=forking
+Slice=%[4]s
+
+[Install]
+WantedBy=multi-user.target
+`
+
+	dir1 := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+
+	c.Assert(svcFile1, testutil.FileEquals, fmt.Sprintf(svcTemplate,
+		"hello-snap",
+		systemd.EscapeUnitNamePath(dir1),
+		dirs.GlobalRootDir,
+		"snap.foogroup-subgroup.slice",
+	))
+
+	// check that both the parent and sub-group slice units were generated
+	templ := `[Unit]
+Description=Slice for snap quota group %s
+Before=slices.target
+
+[Slice]
+# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+MemoryMax=%s
+`
+
+	c.Assert(sliceFile, testutil.FileEquals, fmt.Sprintf(templ, "foogroup", memLimit.String()))
+	c.Assert(subSliceFile, testutil.FileEquals, fmt.Sprintf(templ, "subgroup", memLimit.String()))
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServiceEnsureError(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFileDir := filepath.Join(s.tempdir, "/etc/systemd/system")
+
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: nil,
+	}
+
+	// make the directory where the service file is written not writable, this
+	// will make EnsureFileState return an error
+	err := os.MkdirAll(svcFileDir, 0755)
+	c.Assert(err, IsNil)
+
+	err = os.Chmod(svcFileDir, 0644)
+	c.Assert(err, IsNil)
+
+	err = wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
+	c.Assert(err, ErrorMatches, ".* permission denied")
+	// we don't issue a daemon-reload since we didn't actually end up making any
+	// changes (there was nothing to rollback to)
+	c.Check(s.sysdLog, HasLen, 0)
+
+	// we didn't write any files
+	c.Assert(filepath.Join(svcFileDir, "snap.hello-snap.svc1.service"), testutil.FileAbsent)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesPreseedingHappy(c *C) {
+	// map unit -> new
+	seen := make(map[string]bool)
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
+		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
+	}
+
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: nil,
+	}
+
+	// we provide globally applicable Preseeding option via
+	// EnsureSnapServiceOptions
+	globalOpts := &wrappers.EnsureSnapServicesOptions{
+		Preseeding: true,
+	}
+	err := wrappers.EnsureSnapServices(m, globalOpts, cb, progress.Null)
+	c.Assert(err, IsNil)
+	// no daemon-reload's since we are preseeding
+	c.Check(s.sysdLog, HasLen, 0)
+	c.Check(seen, DeepEquals, map[string]bool{
+		"hello-snap:svc1:service:svc1": true,
+	})
+
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
+TimeoutStopSec=30
+Type=forking
+
+[Install]
+WantedBy=multi-user.target
+`,
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+	))
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesRequireMountedSnapdSnapOptionsHappy(c *C) {
+	// map unit -> new
+	seen := make(map[string]bool)
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
+		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
+	}
+
+	// use two snaps one with per-snap options and one without to demonstrate
+	// that the global options apply to all snaps
+	info1 := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+	info2 := snaptest.MockSnap(c, `
+name: hello-other-snap
+version: 1.10
+summary: hello
+description: Hello...
+apps:
+ hello:
+   command: bin/hello
+ world:
+   command: bin/world
+   completer: world-completer.sh
+ svc1:
+  command: bin/hello
+  stop-command: bin/goodbye
+  post-stop-command: bin/missya
+  daemon: forking
+`, &snap.SideInfo{Revision: snap.R(12)})
+	svcFile1 := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svcFile2 := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-other-snap.svc1.service")
+
+	// some options per-snap
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info1: {VitalityRank: 1},
+		info2: nil,
+	}
+
+	// and also a global option that should propagate to unit generation too
+	globalOpts := &wrappers.EnsureSnapServicesOptions{
+		RequireMountedSnapdSnap: true,
+	}
+	err := wrappers.EnsureSnapServices(m, globalOpts, cb, progress.Null)
+	c.Assert(err, IsNil)
+	// no daemon-reload's since we are preseeding
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+	c.Check(seen, DeepEquals, map[string]bool{
+		"hello-snap:svc1:service:svc1":       true,
+		"hello-other-snap:svc1:service:svc1": true,
+	})
+
+	template := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application %[1]s.svc1
+Requires=%[2]s
+Wants=network.target
+After=%[2]s network.target snapd.apparmor.service
+Wants=usr-lib-snapd.mount
+After=usr-lib-snapd.mount
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run %[1]s.svc1
+SyslogIdentifier=%[1]s.svc1
+Restart=on-failure
+WorkingDirectory=%[3]s/var/snap/%[1]s/12
+ExecStop=/usr/bin/snap run --command=stop %[1]s.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop %[1]s.svc1
+TimeoutStopSec=30
+Type=forking
+%[4]s
+[Install]
+WantedBy=multi-user.target
+`
+
+	dir1 := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	dir2 := filepath.Join(dirs.SnapMountDir, "hello-other-snap", "12.mount")
+
+	c.Assert(svcFile1, testutil.FileEquals, fmt.Sprintf(template,
+		"hello-snap",
+		systemd.EscapeUnitNamePath(dir1),
+		dirs.GlobalRootDir,
+		"OOMScoreAdjust=-899\n", // VitalityRank in effect
+	))
+
+	c.Assert(svcFile2, testutil.FileEquals, fmt.Sprintf(template,
+		"hello-other-snap",
+		systemd.EscapeUnitNamePath(dir2),
+		dirs.GlobalRootDir,
+		"", // no VitalityRank in effect
+	))
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesCallback(c *C) {
+	// hava a 2nd new service definition
+	info := snaptest.MockSnap(c, packageHello+` svc2:
+  command: bin/hello
+  stop-command: bin/goodbye
+  post-stop-command: bin/missya
+  daemon: forking
+`, &snap.SideInfo{Revision: snap.R(12)})
+	svc1File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svc2File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service")
+
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	template := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.%[1]s
+Requires=%[2]s
+Wants=network.target
+After=%[2]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.%[1]s
+SyslogIdentifier=hello-snap.%[1]s
+Restart=on-failure
+WorkingDirectory=%[3]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.%[1]s
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.%[1]s
+TimeoutStopSec=30
+Type=forking
+%[4]s
+[Install]
+WantedBy=multi-user.target
+`
+	svc1Content := fmt.Sprintf(template,
+		"svc1",
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"",
+	)
+
+	err := os.MkdirAll(filepath.Dir(svc1File), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(svc1File, []byte(svc1Content), 0644)
+	c.Assert(err, IsNil)
+
+	// both will be written, one is new
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: {VitalityRank: 1},
+	}
+
+	seen := make(map[string][]string)
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
+		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = []string{old, new}
+	}
+
+	err = wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+
+	// svc2 was written as expected
+	svc2New := fmt.Sprintf(template,
+		"svc2",
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"OOMScoreAdjust=-899\n",
+	)
+	c.Assert(svc2File, testutil.FileEquals, svc2New)
+
+	// and svc1 was changed as well
+	svc1New := fmt.Sprintf(template,
+		"svc1",
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"OOMScoreAdjust=-899\n",
+	)
+	c.Assert(svc1File, testutil.FileEquals, svc1New)
+
+	c.Check(seen, DeepEquals, map[string][]string{
+		"hello-snap:svc1:service:svc1": {svc1Content, svc1New},
+		"hello-snap:svc2:service:svc2": {"", svc2New},
+	})
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesAddsNewSvc(c *C) {
+	// map unit -> new
+	seen := make(map[string]bool)
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
+		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
+	}
+
+	// test that with an existing service unit definition, it is not changed
+	// but we do add the new one
+	info := snaptest.MockSnap(c, packageHello+` svc2:
+  command: bin/hello
+  stop-command: bin/goodbye
+  post-stop-command: bin/missya
+  daemon: forking
+`, &snap.SideInfo{Revision: snap.R(12)})
+	svc1File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svc2File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service")
+
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	template := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.%[1]s
+Requires=%[2]s
+Wants=network.target
+After=%[2]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.%[1]s
+SyslogIdentifier=hello-snap.%[1]s
+Restart=on-failure
+WorkingDirectory=%[3]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.%[1]s
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.%[1]s
+TimeoutStopSec=30
+Type=forking
+%[4]s
+[Install]
+WantedBy=multi-user.target
+`
+	svc1Content := fmt.Sprintf(template,
+		"svc1",
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"",
+	)
+
+	err := os.MkdirAll(filepath.Dir(svc1File), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(svc1File, []byte(svc1Content), 0644)
+	c.Assert(err, IsNil)
+
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: nil,
+	}
+
+	err = wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+	// we only added svc2
+	c.Check(seen, DeepEquals, map[string]bool{
+		"hello-snap:svc2:service:svc2": true,
+	})
+
+	// svc2 was written as expected
+	c.Assert(svc2File, testutil.FileEquals, fmt.Sprintf(template,
+		"svc2",
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"",
+	))
+
+	// and svc1 didn't change
+	c.Assert(svc1File, testutil.FileEquals, fmt.Sprintf(template,
+		"svc1",
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"",
+	))
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesNoChangeNoop(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+
+	// pretend we already have a unit file setup
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	template := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
+TimeoutStopSec=30
+Type=forking
+%s
+[Install]
+WantedBy=multi-user.target
+`
+	origContent := fmt.Sprintf(template,
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"",
+	)
+
+	err := os.MkdirAll(filepath.Dir(svcFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(svcFile, []byte(origContent), 0644)
+	c.Assert(err, IsNil)
+
+	// now ensuring with no options will not modify anything or trigger a
+	// daemon-reload
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: nil,
+	}
+
+	cbCalled := 0
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
+		cbCalled++
+	}
+
+	err = wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, HasLen, 0)
+
+	// the file is not changed
+	c.Assert(svcFile, testutil.FileEquals, origContent)
+
+	// callback is not called if no change
+	c.Check(cbCalled, Equals, 0)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesChanges(c *C) {
+	// map unit -> new
+	seen := make(map[string]bool)
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
+		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
+	}
+
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+
+	// pretend we already have a unit file with no VitalityRank options set
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	template := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
+TimeoutStopSec=30
+Type=forking
+%s
+[Install]
+WantedBy=multi-user.target
+`
+	origContent := fmt.Sprintf(template,
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"",
+	)
+
+	err := os.MkdirAll(filepath.Dir(svcFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(svcFile, []byte(origContent), 0644)
+	c.Assert(err, IsNil)
+
+	// now ensuring with the VitalityRank set will modify the file
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: {VitalityRank: 1},
+	}
+
+	err = wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+
+	// only modified
+	c.Check(seen, DeepEquals, map[string]bool{
+		"hello-snap:svc1:service:svc1": false,
+	})
+
+	// now the file has been modified to have OOMScoreAdjust set for it
+	c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(template,
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"OOMScoreAdjust=-899\n",
+	))
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesRollsback(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	// pretend we already have a unit file with no VitalityRank options set
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	template := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
+TimeoutStopSec=30
+Type=forking
+%s
+[Install]
+WantedBy=multi-user.target
+`
+	origContent := fmt.Sprintf(template,
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"",
+	)
+
+	err := os.MkdirAll(filepath.Dir(svcFile), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(svcFile, []byte(origContent), 0644)
+	c.Assert(err, IsNil)
+
+	// make systemctl fail the first time when we try to do a daemon-reload,
+	// then the next time don't return an error
+	systemctlCalls := 0
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		systemctlCalls++
+		switch systemctlCalls {
+		case 1:
+			// check that the file has been modified to have OOMScoreAdjust set
+			// for it
+			c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(template,
+				systemd.EscapeUnitNamePath(dir),
+				dirs.GlobalRootDir,
+				"OOMScoreAdjust=-899\n",
+			))
+
+			// now return an error to trigger a rollback
+			return nil, fmt.Errorf("oops")
+		case 2:
+			// check that the rollback happened to restore the original content
+			c.Assert(svcFile, testutil.FileEquals, origContent)
+
+			return nil, nil
+		default:
+			c.Errorf("unexpected call (number %d) to systemctl: %+v", systemctlCalls, cmd)
+			return nil, fmt.Errorf("broken test")
+		}
+	})
+	defer r()
+
+	// now ensuring with the VitalityRank set will modify the file
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: {VitalityRank: 1},
+	}
+
+	err = wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
+	c.Assert(err, ErrorMatches, "oops")
+	c.Assert(systemctlCalls, Equals, 2)
+
+	// double-check that after the function is done, the file is back to what we
+	// had before (this check duplicates the one in MockSystemctl but doesn't
+	// hurt anything to do again)
+	c.Assert(svcFile, testutil.FileEquals, origContent)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesRemovesNewAddOnRollback(c *C) {
+	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
+
+	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+
+	// pretend we already have a unit file with no VitalityRank options set
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	template := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.svc1
+Requires=%[1]s
+Wants=network.target
+After=%[1]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.svc1
+SyslogIdentifier=hello-snap.svc1
+Restart=on-failure
+WorkingDirectory=%[2]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.svc1
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.svc1
+TimeoutStopSec=30
+Type=forking
+%s
+[Install]
+WantedBy=multi-user.target
+`
+	// make systemctl fail the first time when we try to do a daemon-reload,
+	// then the next time don't return an error
+	systemctlCalls := 0
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		systemctlCalls++
+		switch systemctlCalls {
+		case 1:
+			// double check that we wrote the new file here before calling
+			// daemon reload
+			c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(template,
+				systemd.EscapeUnitNamePath(dir),
+				dirs.GlobalRootDir,
+				"",
+			))
+
+			// now return an error to trigger a rollback
+			return nil, fmt.Errorf("oops")
+		case 2:
+			// after the rollback, check that the new file was deleted
+			c.Assert(svcFile, testutil.FileAbsent)
+
+			return nil, nil
+		default:
+			c.Errorf("unexpected call (number %d) to systemctl: %+v", systemctlCalls, cmd)
+			return nil, fmt.Errorf("broken test")
+		}
+	})
+	defer r()
+
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: nil,
+	}
+
+	err := wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
+	c.Assert(err, ErrorMatches, "oops")
+	c.Assert(systemctlCalls, Equals, 2)
+
+	// double-check that after the function is done, the file is gone again
+	c.Assert(svcFile, testutil.FileAbsent)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesOnlyRemovesNewAddOnRollback(c *C) {
+	info := snaptest.MockSnap(c, packageHello+` svc2:
+  command: bin/hello
+  stop-command: bin/goodbye
+  post-stop-command: bin/missya
+  daemon: forking
+`, &snap.SideInfo{Revision: snap.R(12)})
+
+	// we won't delete existing files, but we will delete new files, so mock an
+	// existing file to check that it doesn't get deleted
+	svc1File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
+	svc2File := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc2.service")
+
+	// pretend we already have a unit file with no VitalityRank options set
+	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
+	template := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application hello-snap.%[1]s
+Requires=%[2]s
+Wants=network.target
+After=%[2]s network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run hello-snap.%[1]s
+SyslogIdentifier=hello-snap.%[1]s
+Restart=on-failure
+WorkingDirectory=%[3]s/var/snap/hello-snap/12
+ExecStop=/usr/bin/snap run --command=stop hello-snap.%[1]s
+ExecStopPost=/usr/bin/snap run --command=post-stop hello-snap.%[1]s
+TimeoutStopSec=30
+Type=forking
+%[4]s
+[Install]
+WantedBy=multi-user.target
+`
+
+	svc1Content := fmt.Sprintf(template,
+		"svc1",
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"",
+	)
+	svc2Content := fmt.Sprintf(template,
+		"svc2",
+		systemd.EscapeUnitNamePath(dir),
+		dirs.GlobalRootDir,
+		"",
+	)
+
+	err := os.MkdirAll(filepath.Dir(svc1File), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(svc1File, []byte(svc1Content), 0644)
+	c.Assert(err, IsNil)
+
+	// make systemctl fail the first time when we try to do a daemon-reload,
+	// then the next time don't return an error
+	systemctlCalls := 0
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		systemctlCalls++
+		switch systemctlCalls {
+		case 1:
+			// double check that we wrote the new file here before calling
+			// daemon reload
+			c.Assert(svc2File, testutil.FileEquals, svc2Content)
+
+			// and the existing file is still the same
+			c.Assert(svc1File, testutil.FileEquals, svc1Content)
+
+			// now return error to trigger a rollback
+			return nil, fmt.Errorf("oops")
+		case 2:
+			// after the rollback, check that the new file was deleted
+			c.Assert(svc2File, testutil.FileAbsent)
+
+			return nil, nil
+		default:
+			c.Errorf("unexpected call (number %d) to systemctl: %+v", systemctlCalls, cmd)
+			return nil, fmt.Errorf("broken test")
+		}
+	})
+	defer r()
+
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: nil,
+	}
+
+	err = wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
+	c.Assert(err, ErrorMatches, "oops")
+	c.Assert(systemctlCalls, Equals, 2)
+
+	// double-check that after the function, svc2 (the new one) is missing, but
+	// svc1 is still the same
+	c.Assert(svc2File, testutil.FileAbsent)
+	c.Assert(svc1File, testutil.FileEquals, svc1Content)
+}
+
+func (s *servicesTestSuite) TestEnsureSnapServicesSubunits(c *C) {
+	// map unit -> new
+	seen := make(map[string]bool)
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
+		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
+	}
+
+	info := snaptest.MockSnap(c, packageHello+`
+  timer: 10:00-12:00
+`, &snap.SideInfo{Revision: snap.R(11)})
+
+	m := map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: nil,
+	}
+	err := wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
+	c.Assert(err, IsNil)
+
+	c.Check(seen, DeepEquals, map[string]bool{
+		"hello-snap:svc1:service:svc1": true,
+		"hello-snap:svc1:timer:":       true,
+	})
+	// reset
+	seen = make(map[string]bool)
+
+	// change vitality, timer, add socket
+	info = snaptest.MockSnap(c, packageHello+`
+  plugs: [network-bind]
+  timer: 10:00-12:00,20:00-22:00
+  sockets:
+    sock1:
+      listen-stream: $SNAP_DATA/sock1.socket
+`, &snap.SideInfo{Revision: snap.R(12)})
+
+	m = map[*snap.Info]*wrappers.SnapServiceOptions{
+		info: {VitalityRank: 1},
+	}
+	err = wrappers.EnsureSnapServices(m, nil, cb, progress.Null)
+	c.Assert(err, IsNil)
+
+	c.Check(seen, DeepEquals, map[string]bool{
+		"hello-snap:svc1:service:svc1": false,
+		"hello-snap:svc1:timer:":       false,
+		"hello-snap:svc1:socket:sock1": true,
+	})
 }
 
 func (s *servicesTestSuite) TestAddSnapServicesWithInterfaceSnippets(c *C) {
@@ -259,11 +1650,8 @@ plugs:
 			{"daemon-reload"},
 		}, comment)
 
-		content, err := ioutil.ReadFile(svcFile)
-		c.Assert(err, IsNil, comment)
-
 		dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
-		c.Assert(string(content), Equals, fmt.Sprintf(`[Unit]
+		c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=%[1]s
@@ -325,11 +1713,8 @@ func (s *servicesTestSuite) TestAddSnapServicesAndRemoveUserDaemons(c *C) {
 		{"--user", "daemon-reload"},
 	})
 
-	content, err := ioutil.ReadFile(svcFile)
-	c.Assert(err, IsNil)
-
 	expected := "ExecStart=/usr/bin/snap run hello-snap.svc1"
-	c.Check(string(content), Matches, "(?ms).*^"+regexp.QuoteMeta(expected)) // check.v1 adds ^ and $ around the regexp provided
+	c.Check(svcFile, testutil.FileMatches, "(?ms).*^"+regexp.QuoteMeta(expected)) // check.v1 adds ^ and $ around the regexp provided
 
 	s.sysdLog = nil
 	err = wrappers.StopServices(info.Services(), nil, "", progress.Null, s.perfTimings)
@@ -1418,11 +2803,8 @@ func (s *servicesTestSuite) TestServiceAfterBefore(c *C) {
 	c.Assert(err, IsNil)
 
 	for _, check := range checks {
-		content, err := ioutil.ReadFile(check.file)
-		c.Assert(err, IsNil)
-
 		for _, m := range check.matches {
-			c.Check(string(content), Matches,
+			c.Check(check.file, testutil.FileMatches,
 				// match:
 				//   ...
 				//   After=other.mount some.target foo.service bar.service
@@ -1438,7 +2820,6 @@ func (s *servicesTestSuite) TestServiceAfterBefore(c *C) {
 				"(?ms).*^(?U)"+check.kind+"=.*\\s?"+regexp.QuoteMeta(m)+"\\s?[^=]*$")
 		}
 	}
-
 }
 
 func (s *servicesTestSuite) TestServiceWatchdog(c *C) {

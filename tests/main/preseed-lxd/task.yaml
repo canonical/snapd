@@ -1,4 +1,5 @@
 summary: Check that preseeding of current ubuntu cloud image works under lxd.
+
 details: |
   This test checks that preseeding of Ubuntu cloud images with snap-preseed
   command works in lxc container and that the resulting image can be run

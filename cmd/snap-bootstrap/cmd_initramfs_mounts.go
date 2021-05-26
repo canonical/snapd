@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -451,6 +451,10 @@ type recoverModeStateMachine struct {
 	degradedState *recoverDegradedState
 }
 
+func (m *recoverModeStateMachine) whichModel() (*asserts.Model, error) {
+	return m.model, nil
+}
+
 // degraded returns whether a degraded recover mode state has fallen back from
 // the typical operation to some sort of degraded mode.
 func (m *recoverModeStateMachine) degraded() bool {
@@ -832,6 +836,7 @@ func (m *recoverModeStateMachine) unlockDataRunKey() (stateFunc, error) {
 		// don't allow using the recovery key to unlock, we only try using the
 		// recovery key after we first try the fallback object
 		AllowRecoveryKey: false,
+		WhichModel:       m.whichModel,
 	}
 	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.disk, "ubuntu-data", runModeKey, unlockOpts)
 	if err := m.setUnlockStateWithRunKey("ubuntu-data", unlockRes, unlockErr); err != nil {
@@ -871,6 +876,7 @@ func (m *recoverModeStateMachine) unlockDataFallbackKey() (stateFunc, error) {
 		// using the fallback object is the last chance before we give up trying
 		// to unlock data
 		AllowRecoveryKey: true,
+		WhichModel:       m.whichModel,
 	}
 	// TODO: this prompts for a recovery key
 	// TODO: we should somehow customize the prompt to mention what key we need
@@ -1003,6 +1009,7 @@ func (m *recoverModeStateMachine) unlockEncryptedSaveFallbackKey() (stateFunc, e
 		// using the fallback object is the last chance before we give up trying
 		// to unlock save
 		AllowRecoveryKey: true,
+		WhichModel:       m.whichModel,
 	}
 	saveFallbackKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key")
 	// TODO: this prompts again for a recover key, but really this is the
@@ -1426,6 +1433,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	runModeKey := filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key")
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
 		AllowRecoveryKey: true,
+		WhichModel:       mst.UnverifiedBootModel,
 	}
 	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", runModeKey, opts)
 	if err != nil {

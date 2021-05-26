@@ -42,10 +42,11 @@ import (
 
 var (
 	themesCmd = &Command{
-		Path:   "/v2/accessories/themes",
-		UserOK: true,
-		GET:    checkThemes,
-		POST:   installThemes,
+		Path:        "/v2/accessories/themes",
+		GET:         checkThemes,
+		POST:        installThemes,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{},
 	}
 )
 

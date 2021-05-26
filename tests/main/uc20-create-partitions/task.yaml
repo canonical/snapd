@@ -9,29 +9,6 @@ environment:
     # need to disable go modules support for this test
     GO111MODULE: off
 
-debug: |
-    cat /proc/partitions
-
-restore: |
-    for label in ubuntu-seed ubuntu-save ubuntu-data ubuntu-boot other-ext4; do
-        if mountpoint "/run/mnt/$label"; then
-            umount "/run/mnt/$label"
-        fi
-        if mountpoint "./$label"; then
-            umount "./$label"
-        fi
-    done
-    if mountpoint ./mnt; then
-        umount ./mnt
-    fi
-    # sanity check
-    mount | NOMATCH /run/mnt
-    if [ -f loop.txt ]; then
-        LOOP="$(cat loop.txt)"
-        losetup -d "$LOOP"
-        losetup -l | NOMATCH "$LOOP"
-    fi
-
 prepare: |
     echo "Create a fake block device image that looks like an image from u-i"
     truncate --size=20GB fake.img
@@ -59,6 +36,29 @@ prepare: |
     echo "Get the UC20 gadget"
     snap download --channel=20/edge pc
     unsquashfs -d gadget-dir pc_*.snap
+
+restore: |
+    for label in ubuntu-seed ubuntu-save ubuntu-data ubuntu-boot other-ext4; do
+        if mountpoint "/run/mnt/$label"; then
+            umount "/run/mnt/$label"
+        fi
+        if mountpoint "./$label"; then
+            umount "./$label"
+        fi
+    done
+    if mountpoint ./mnt; then
+        umount ./mnt
+    fi
+    # sanity check
+    mount | NOMATCH /run/mnt
+    if [ -f loop.txt ]; then
+        LOOP="$(cat loop.txt)"
+        losetup -d "$LOOP"
+        losetup -l | NOMATCH "$LOOP"
+    fi
+
+debug: |
+    cat /proc/partitions
 
 execute: |
     LOOP="$(cat loop.txt)"
