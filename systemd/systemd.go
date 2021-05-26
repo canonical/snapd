@@ -734,9 +734,9 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 	// services, the stderr output may be `inactive\n` for services that are
 	// inactive (or not found), or `failed\n` for services that are in a
 	// failed state; nevertheless make sure to check any non-0 exit code
-	sysdErr, ok := err.(*Error)
+	sysdErr, ok := err.(systemctlError)
 	if ok {
-		switch strings.TrimSpace(string(sysdErr.msg)) {
+		switch strings.TrimSpace(string(sysdErr.Msg())) {
 		case "inactive", "failed":
 			return false, nil
 		}
