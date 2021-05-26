@@ -33,6 +33,7 @@ type ManagerBackend managerBackend
 
 type MinimalInstallInfo = minimalInstallInfo
 type InstallSnapInfo = installSnapInfo
+type ByType = byType
 
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 	s.backend = b
