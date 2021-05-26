@@ -282,3 +282,49 @@ func (s *refreshSuite) TestDoHardRefreshFlowRefreshDisallowed(c *C) {
 	op := backend.ops.MustFindOp(c, "run-inhibit-snap-for-unlink")
 	c.Check(op.inhibitHint, Equals, runinhibit.Hint("refresh"))
 }
+
+func (s *refreshSuite) TestSoftCheckNothingRunningForRefreshKeepLockedAllowed(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapst, info := s.addDummyInstalledSnap()
+
+	// Pretend that snaps can refresh.
+	restore := snapstate.MockGenericRefreshCheck(func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
+		return nil
+	})
+	defer restore()
+
+	lock, inhibited, err := snapstate.SoftCheckNothingRunningForRefreshKeepLocked(s.state, snapst, info)
+	c.Assert(err, IsNil)
+	c.Assert(lock, NotNil)
+	defer lock.Close()
+	c.Check(inhibited, Equals, false)
+
+	// The run inhibition lock is not set.
+	hint, err := runinhibit.IsLocked(info.InstanceName())
+	c.Assert(err, IsNil)
+	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+}
+
+func (s *refreshSuite) TestSoftCheckNothingRunningForRefreshKeepLockedDisallowed(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapst, info := s.addDummyInstalledSnap()
+
+	// Pretend that snaps cannot refresh.
+	restore := snapstate.MockGenericRefreshCheck(func(info *snap.Info, canAppRunDuringRefresh func(app *snap.AppInfo) bool) error {
+		return &snapstate.BusySnapError{SnapInfo: info}
+	})
+	defer restore()
+
+	lock, inhibited, err := snapstate.SoftCheckNothingRunningForRefreshKeepLocked(s.state, snapst, info)
+	c.Assert(err, IsNil)
+	c.Assert(lock, NotNil)
+	defer lock.Close()
+	c.Check(inhibited, Equals, true)
+
+	// The run inhibition lock is not set.
+	hint, err := runinhibit.IsLocked(info.InstanceName())
+	c.Assert(err, IsNil)
+	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+}

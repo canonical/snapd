@@ -25,6 +25,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
@@ -228,4 +229,22 @@ func softCheckNothingRunningForRefresh(st *state.State, snapst *SnapState, info 
 		// on failure.
 		return inhibitRefresh(st, snapst, info, SoftNothingRunningRefreshCheck)
 	})
+}
+
+// SoftCheckNothingRunningForRefreshKeepLocked checks if non-service apps are off for a snap refresh and
+// keeps the snap lock on return. The lock must be released by the caller.
+func SoftCheckNothingRunningForRefreshKeepLocked(st *state.State, snapst *SnapState, info *snap.Info) (lock *osutil.FileLock, inhibited bool, err error) {
+	// Grab per-snap lock to prevent new processes from starting.
+	lock, err = snaplock.OpenLock(info.InstanceName())
+	if err != nil {
+		return nil, false, err
+	}
+	err = lock.Lock()
+	if err != nil {
+		return nil, false, err
+	}
+
+	err = inhibitRefresh(st, snapst, info, SoftNothingRunningRefreshCheck)
+	_, inhibited = err.(*BusySnapError)
+	return lock, inhibited, nil
 }
