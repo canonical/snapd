@@ -123,11 +123,13 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	oldSetupPostRefreshHook := snapstate.SetupPostRefreshHook
 	oldSetupRemoveHook := snapstate.SetupRemoveHook
 	oldSnapServiceOptions := snapstate.SnapServiceOptions
+	oldEnsureSnapAbsentFromQuotaGroup := snapstate.EnsureSnapAbsentFromQuotaGroup
 	snapstate.SetupInstallHook = hookstate.SetupInstallHook
 	snapstate.SetupPreRefreshHook = hookstate.SetupPreRefreshHook
 	snapstate.SetupPostRefreshHook = hookstate.SetupPostRefreshHook
 	snapstate.SetupRemoveHook = hookstate.SetupRemoveHook
 	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions
+	snapstate.EnsureSnapAbsentFromQuotaGroup = servicestate.EnsureSnapAbsentFromQuota
 
 	var err error
 	s.snapmgr, err = snapstate.Manager(s.state, s.o.TaskRunner())
@@ -159,6 +161,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 		snapstate.SetupPostRefreshHook = oldSetupPostRefreshHook
 		snapstate.SetupRemoveHook = oldSetupRemoveHook
 		snapstate.SnapServiceOptions = oldSnapServiceOptions
+		snapstate.EnsureSnapAbsentFromQuotaGroup = oldEnsureSnapAbsentFromQuotaGroup
 
 		dirs.SetRootDir("/")
 	})
@@ -6590,4 +6593,48 @@ func (s *snapmgrTestSuite) TestSnapdRefreshTasks(c *C) {
 
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Current, Equals, snap.R(11))
+}
+
+type installTestType struct {
+	t snap.Type
+}
+
+func (t *installTestType) InstanceName() string {
+	panic("not expected")
+}
+
+func (t *installTestType) Type() snap.Type {
+	return t.t
+}
+
+func (t *installTestType) SnapBase() string {
+	panic("not expected")
+}
+
+func (t *installTestType) DownloadSize() int64 {
+	panic("not expected")
+}
+
+func (t *installTestType) Prereq(st *state.State) []string {
+	panic("not expected")
+}
+
+func (s *snapmgrTestSuite) TestMinimalInstallInfoSortByType(c *C) {
+	snaps := []snapstate.MinimalInstallInfo{
+		&installTestType{snap.TypeApp},
+		&installTestType{snap.TypeBase},
+		&installTestType{snap.TypeApp},
+		&installTestType{snap.TypeSnapd},
+		&installTestType{snap.TypeKernel},
+		&installTestType{snap.TypeGadget},
+	}
+
+	sort.Sort(snapstate.ByType(snaps))
+	c.Check(snaps, DeepEquals, []snapstate.MinimalInstallInfo{
+		&installTestType{snap.TypeSnapd},
+		&installTestType{snap.TypeKernel},
+		&installTestType{snap.TypeBase},
+		&installTestType{snap.TypeGadget},
+		&installTestType{snap.TypeApp},
+		&installTestType{snap.TypeApp}})
 }
