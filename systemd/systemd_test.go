@@ -1409,6 +1409,18 @@ func (s *SystemdTestSuite) TestCurrentMemoryUsageInactive(c *C) {
 	})
 }
 
+func (s *SystemdTestSuite) TestCurrentMemoryUsageInvalid(c *C) {
+	s.outs = [][]byte{
+		[]byte(`MemoryCurrent=blahhhhhhhhhhhh`),
+	}
+	sysd := New(SystemMode, s.rep)
+	_, err := sysd.CurrentMemoryUsage("bar.service")
+	c.Assert(err, ErrorMatches, `invalid property format for memory: cannot parse "blahhhhhhhhhhhh" as an integer`)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "MemoryCurrent", "bar.service"},
+	})
+}
+
 func (s *SystemdTestSuite) TestCurrentMemoryUsage(c *C) {
 	s.outs = [][]byte{
 		[]byte(`MemoryCurrent=1024`),

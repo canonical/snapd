@@ -601,7 +601,7 @@ func (s *systemd) CurrentMemoryUsage(unit string) (quantity.Size, error) {
 	// strip the MemoryCurrent= from the output
 	splitVal := strings.SplitN(strings.TrimSpace(string(out)), "=", 2)
 	if len(splitVal) != 2 {
-		return 0, fmt.Errorf("invalid format from systemd")
+		return 0, fmt.Errorf("invalid property format from systemd for MemoryCurrent")
 	}
 
 	trimmedVal := strings.TrimSpace(splitVal[1])
@@ -614,7 +614,7 @@ func (s *systemd) CurrentMemoryUsage(unit string) (quantity.Size, error) {
 
 	intVal, err := strconv.Atoi(trimmedVal)
 	if err != nil {
-		return 0, err
+		return 0, fmt.Errorf("invalid property format for memory: cannot parse %q as an integer", trimmedVal)
 	}
 
 	return quantity.Size(intVal), nil
