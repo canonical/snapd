@@ -103,12 +103,23 @@ func (s *meminfoSuite) TestMemInfoHappy(c *C) {
 	mem, err = osutil.TotalSystemMemory()
 	c.Assert(err, IsNil)
 	c.Check(mem, Equals, uint64(1234)*1024)
+
+	const meminfoReorderedWithEmptyLine = `MemAvailable:   20527370 kB
+
+MemTotal:       32876699 kB
+MemFree:         3478104 kB
+`
+	c.Assert(ioutil.WriteFile(p, []byte(meminfoReorderedWithEmptyLine), 0644), IsNil)
+
+	mem, err = osutil.TotalSystemMemory()
+	c.Assert(err, IsNil)
+	c.Check(mem, Equals, uint64(32876699)*1024)
 }
 
 func (s *meminfoSuite) TestMemInfoFromHost(c *C) {
 	mem, err := osutil.TotalSystemMemory()
 	c.Assert(err, IsNil)
-	c.Check(mem > uint64(128*1024*1024),
+	c.Check(mem > uint64(32*1024*1024),
 		Equals, true, Commentf("unexpected system memory %v", mem))
 }
 
