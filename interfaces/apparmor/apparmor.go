@@ -73,19 +73,15 @@ var runtimeNumCPU = runtime.NumCPU
 func maybeSetNumberOfJobs() string {
 	cpus := runtimeNumCPU()
 	// Do not use all CPUs as this may have negative impact when booting.
-	if cpus > 1 {
-		if cpus == 2 {
-			// systems with only two CPUs, spare 1
-			return fmt.Sprintf("-j%d", cpus-1)
-		} else {
-			// otherwise spare 2
-			return fmt.Sprintf("-j%d", cpus-2)
-		}
+	if cpus > 2 {
+		// otherwise spare 2
+		return fmt.Sprintf("-j%d", cpus-2)
 	}
-	// We have a single CPU, which could be beefy, but likely isn't, pass
-	// -j0 which has a special meaning so that the main apparmor_parser
-	// process is used for compilation.
-	return "-j0"
+	// On Systems with only two CPUs, spare 1. When there is a a single CPU,
+	// which could be beefy, but likely isn't, pass -j0 which has a special
+	// meaning so that the main apparmor_parser process is used for
+	// compilation without spawning additional workers.
+	return fmt.Sprintf("-j%d", cpus-1)
 }
 
 // loadProfiles loads apparmor profiles from the given files.
