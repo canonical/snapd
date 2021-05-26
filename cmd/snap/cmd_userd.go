@@ -62,6 +62,8 @@ func init() {
 	cmd.hidden = true
 }
 
+var osChmod = os.Chmod
+
 func maybeFixupUsrSnapPermissions() error {
 	usr, err := userCurrent()
 	if err != nil {
@@ -76,11 +78,11 @@ func maybeFixupUsrSnapPermissions() error {
 	// note that this operation is safe since `userd --autostart` runs as the
 	// user so there is no issue with this modification being performed as root,
 	// and being vulnerable to symlink switching attacks, etc.
-	if err := os.Chmod(usrSnapDir, 0700); err != nil {
+	if err := osChmod(usrSnapDir, 0700); err != nil {
 		// if the dir doesn't exist for some reason (i.e. maybe this user has
 		// never used snaps but snapd is still installed) then ignore the error
 		if !os.IsNotExist(err) {
-			return fmt.Errorf("failed to restrict user snap home dir: %v", err)
+			return fmt.Errorf("failed to restrict user snap home dir %q: %v", usrSnapDir, err)
 		}
 	}
 
@@ -96,7 +98,7 @@ func (x *cmdUserd) Execute(args []string) error {
 		// autostart is called when starting the graphical session, use that as
 		// an opportunity to fix ~/snap permission bits
 		if err := maybeFixupUsrSnapPermissions(); err != nil {
-			fmt.Fprintf(os.Stderr, "failed to fixup ~/snap permissions: %v\n", err)
+			fmt.Fprintf(Stderr, "failed to fixup ~/snap permissions: %v\n", err)
 		}
 
 		return x.runAutostart()

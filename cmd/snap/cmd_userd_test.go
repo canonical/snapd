@@ -229,6 +229,33 @@ func (s *userdSuite) TestAutostartSessionAppsRestrictsPermissions(c *C) {
 	c.Assert(st.Mode()&os.ModePerm, Equals, os.FileMode(0700))
 }
 
+func (s *userdSuite) TestAutostartSessionAppsLogsWhenItCannotRestrictPermissions(c *C) {
+	userDir := path.Join(c.MkDir(), "home")
+	mockUserCurrent := func() (*user.User, error) {
+		return &user.User{HomeDir: userDir}, nil
+	}
+	r := snap.MockUserCurrent(mockUserCurrent)
+	defer r()
+
+	r = autostart.MockUserCurrent(mockUserCurrent)
+	defer r()
+
+	r = snap.MockOsChmod(func(name string, mode os.FileMode) error {
+		c.Assert(name, Equals, filepath.Join(userDir, "snap"))
+		c.Assert(mode, Equals, os.FileMode(0700))
+
+		return fmt.Errorf("cannot os.Chmod because the test says so")
+	})
+	defer r()
+
+	// run autostart
+	args, err := snap.Parser(snap.Client()).ParseArgs([]string{"userd", "--autostart"})
+	c.Assert(err, IsNil)
+	c.Assert(args, DeepEquals, []string{})
+
+	c.Assert(s.stderr.String(), testutil.Contains, "cannot os.Chmod because the test says so")
+}
+
 func (s *userdSuite) TestAutostartSessionAppsRestrictsPermissionsNoCreateSnapDir(c *C) {
 	userDir := path.Join(c.MkDir(), "home")
 	mockUserCurrent := func() (*user.User, error) {
