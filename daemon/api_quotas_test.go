@@ -29,7 +29,6 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/daemon"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -55,6 +54,9 @@ func (s *apiQuotaSuite) SetUpTest(c *check.C) {
 
 	r := servicestate.MockSystemdVersion(248)
 	s.AddCleanup(r)
+
+	// POST requires root
+	s.expectedWriteAccess = daemon.RootAccess{}
 }
 
 func mockQuotas(st *state.State, c *check.C) {
@@ -155,8 +157,8 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaHappy(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
-	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 	c.Assert(err, check.IsNil)
+	s.asRootAuth(req)
 
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
@@ -199,7 +201,7 @@ func (s *systemsSuite) TestPostQuotaRequiresRoot(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1000;socket=%s;", dirs.SnapdSocket)
+	s.asUserAuth(c, req)
 
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
