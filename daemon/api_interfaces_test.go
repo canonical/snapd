@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -42,6 +42,12 @@ var _ = check.Suite(&interfacesSuite{})
 
 type interfacesSuite struct {
 	apiBaseSuite
+}
+
+func (s *interfacesSuite) SetUpTest(c *check.C) {
+	s.apiBaseSuite.SetUpTest(c)
+
+	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage-interfaces"})
 }
 
 func mockIface(c *check.C, d *daemon.Daemon, iface interfaces.Interface) {

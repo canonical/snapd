@@ -66,6 +66,8 @@ func (s *apiValidationSetsSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 	d := s.daemon(c)
 
+	s.expectAuthenticatedAccess()
+
 	restore := asserts.MockMaxSupportedFormat(asserts.ValidationSetType, 1)
 	s.AddCleanup(restore)
 

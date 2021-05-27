@@ -66,6 +66,8 @@ func (s *buySuite) SetUpTest(c *check.C) {
 	s.buyResult = nil
 
 	s.daemonWithStore(c, s)
+
+	s.expectAuthenticatedAccess()
 }
 
 const validBuyInput = `{

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -2202,6 +2202,7 @@ type: kernel`
 	}
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
+	c.Assert(s.o.DeviceManager().ReloadModeenv(), IsNil)
 
 	st := s.o.State()
 	st.Lock()
@@ -2369,6 +2370,7 @@ type: kernel`
 	}
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
+	c.Assert(s.o.DeviceManager().ReloadModeenv(), IsNil)
 
 	st := s.o.State()
 	st.Lock()
@@ -4031,7 +4033,11 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Mount snap "%s" (%s)`, name, revno))
 	i++
 	if flags&isGadget != 0 || flags&isKernel != 0 {
-		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update assets from gadget "%s" (%s)`, name, revno))
+		what := "gadget"
+		if flags&isKernel != 0 {
+			what = "kernel"
+		}
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update assets from %s "%s" (%s)`, what, name, revno))
 		i++
 	}
 	if flags&isGadget != 0 {
@@ -4076,7 +4082,11 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Make current revision for snap "%s" unavailable`, name))
 	i++
 	if flags&isGadget != 0 || flags&isKernel != 0 {
-		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update assets from gadget %q (%s)`, name, revno))
+		what := "gadget"
+		if flags&isKernel != 0 {
+			what = "kernel"
+		}
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update assets from %s %q (%s)`, what, name, revno))
 		i++
 	}
 	if flags&isGadget != 0 {
@@ -6503,6 +6513,7 @@ func (s *mgrsSuite) testUC20RunUpdateManagedBootConfig(c *C, snapPath string, si
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
+	c.Assert(s.o.DeviceManager().ReloadModeenv(), IsNil)
 
 	st := s.o.State()
 	st.Lock()
@@ -6856,6 +6867,7 @@ func (s *mgrsSuite) testGadgetKernelCommandLine(c *C, gadgetPath string, gadgetS
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
+	c.Assert(s.o.DeviceManager().ReloadModeenv(), IsNil)
 
 	st := s.o.State()
 	st.Lock()

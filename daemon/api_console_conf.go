@@ -31,8 +31,9 @@ import (
 
 var (
 	routineConsoleConfStartCmd = &Command{
-		Path: "/v2/internal/console-conf-start",
-		POST: consoleConfStartRoutine,
+		Path:        "/v2/internal/console-conf-start",
+		POST:        consoleConfStartRoutine,
+		WriteAccess: authenticatedAccess{},
 	}
 )
 
