@@ -31,8 +31,8 @@ type cmdGetStacktraces struct {
 
 func init() {
 	addDebugCommand("stacktraces",
-		"obtain stacktraces of all snapd goroutines",
-		"obtain stacktraces of all snapd goroutines",
+		"Obtain stacktraces of all snapd goroutines",
+		"Obtain stacktraces of all snapd goroutines.",
 		func() flags.Commander {
 			return &cmdGetStacktraces{}
 		}, nil, nil)
