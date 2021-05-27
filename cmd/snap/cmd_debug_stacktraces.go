@@ -25,24 +25,24 @@ import (
 	"github.com/jessevdk/go-flags"
 )
 
-type cmdGetStacktrace struct {
+type cmdGetStacktraces struct {
 	clientMixin
 }
 
 func init() {
-	addDebugCommand("stacktrace",
-		"obtain stacktrace of all snapd goroutines",
-		"obtain stacktrace of all snapd goroutines",
+	addDebugCommand("stacktraces",
+		"obtain stacktraces of all snapd goroutines",
+		"obtain stacktraces of all snapd goroutines",
 		func() flags.Commander {
-			return &cmdGetStacktrace{}
+			return &cmdGetStacktraces{}
 		}, nil, nil)
 }
 
-func (x *cmdGetStacktrace) Execute(args []string) error {
-	var stacktrace string
-	if err := x.client.Debug("stacktraces", nil, &stacktrace); err != nil {
+func (x *cmdGetStacktraces) Execute(args []string) error {
+	var stacktraces string
+	if err := x.client.Debug("stacktraces", nil, &stacktraces); err != nil {
 		return err
 	}
-	fmt.Fprintf(Stdout, stacktrace)
+	fmt.Fprintf(Stdout, stacktraces)
 	return nil
 }
