@@ -9,9 +9,6 @@ details: |
     The plug must be autoconnected on install and, as usual, must be able to be
     reconnected.
 
-# slow in autopkgtest (>4m)
-backends: [-autopkgtest]
-
 # We use classic snaps for the test, so it cannot run on core
 systems: [-ubuntu-core-*]
 
@@ -23,26 +20,30 @@ prepare: |
     . "$TESTSLIB/systemd.sh"
 
     systemd_stop_units snapd.service
-    rm -f /var/lib/snapd/state.json
+    "$TESTSTOOLS"/fs-state mock-file /var/lib/snapd/state.json
     systemctl start snapd
     snap wait system seed.loaded
 
+restore: |
+    "$TESTSTOOLS"/fs-state restore-file /var/lib/snapd/state.json
+
 execute: |
+    echo "Install classic snap with content slot - no automatic pull for classic"
+    
+    snap install --edge --classic test-snapd-classic-content-slot
+
     echo "When a snap declaring a content sharing plug is installed"
     snap install --edge test-snapd-content-plug-to-classic-slot
 
-    echo "Then this pulls in the default provider, classic in this case"
-    snap list | MATCH test-snapd-classic-content-slot
-
     echo "Then the snap is listed as connected"
-    snap interfaces -i content |
-        grep -Pzq "test-snapd-classic-content-slot:shared-content-slot +test-snapd-content-plug-to-classic-slot:shared-content-plug"
+    snap connections test-snapd-classic-content-slot |
+        MATCH "test-snapd-content-plug-to-classic-slot:shared-content-plug \+test-snapd-classic-content-slot:shared-content-slot"
 
     echo "And fstab files are created"
     [ "$(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l)" -gt 0 ]
 
     echo "And we can use the shared content"
-    test-snapd-content-plug-to-classic-slot.content-plug | grep "Some shared content"
+    test-snapd-content-plug-to-classic-slot.content-plug | MATCH "Some shared content"
 
     echo "And the current mount profile is the same as the desired mount profile"
     diff -u /run/snapd/ns/snap.test-snapd-content-plug-to-classic-slot.fstab /var/lib/snapd/mount/snap.test-snapd-content-plug-to-classic-slot.fstab
