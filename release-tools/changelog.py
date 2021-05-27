@@ -12,6 +12,7 @@ import debian.changelog
 def parse_arguments():
     parser = argparse.ArgumentParser(description="automatic changelog writer for snapd")
     parser.add_argument("version", type=str, help="new snapd version")
+    parser.add_argument("lpbug", type=str, help="new snapd major release LP bug")
     parser.add_argument(
         "changelog",
         type=argparse.FileType("r"),
@@ -206,7 +207,7 @@ def main(opts):
         # add the new changelog entry with our standard header
         # the spacing here is manually adjusted, the top of the comment is always
         # the same
-        templ = "\n  * New upstream release, LP: #1926005\n" + new_changelog_entry
+        templ = f"\n  * New upstream release, LP: #{opts.lpbug}\n" + new_changelog_entry
         ch.add_change(templ)
 
         # write it out back to the changelog file
