@@ -76,15 +76,16 @@ func maybeSetNumberOfJobs() string {
 	if cpus > 2 {
 		// otherwise spare 2
 		cpus = cpus - 2
-	} else if cpus == 2 {
-		// systems with only two CPUs, spare 1
-		cpus = cpus - 1
+	} else {
+		// Systems with only two CPUs, spare 1.
+		//
+		// When there is a a single CPU, pass -j1 to allow a single
+		// compilation job only. Note, we could pass -j0 in such case
+		// for further improvement, but that has incompatible meaning
+		// between apparmor 2.x (automatic job count, equivalent to
+		// -jauto) and 3.x (compile everything in the main process).
+		cpus = 1
 	}
-	// When there is a a single CPU, which could be beefy, but likely isn't,
-	// pass -j1 to allow a single compilation job only. Note, we could pass
-	// -j0 in such case for further improvement, but that has incompatible
-	// meaning between apparmor 2.x (automatic job count, equivalent to -jauto)
-	// and 3.x (compile everything in the main process).
 
 	return fmt.Sprintf("-j%d", cpus)
 }
