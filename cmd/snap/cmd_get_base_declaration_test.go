@@ -34,12 +34,12 @@ func (s *SnapSuite) TestGetBaseDeclaration(c *check.C) {
 	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
 		switch n {
 		case 0:
-			c.Check(r.Method, check.Equals, "POST")
+			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/debug")
-			c.Check(r.URL.RawQuery, check.Equals, "")
+			c.Check(r.URL.RawQuery, check.Equals, "aspect=base-declaration")
 			data, err := ioutil.ReadAll(r.Body)
 			c.Check(err, check.IsNil)
-			c.Check(data, check.DeepEquals, []byte(`{"action":"get-base-declaration"}`))
+			c.Check(data, check.HasLen, 0)
 			fmt.Fprintln(w, `{"type": "sync", "result": {"base-declaration": "hello"}}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
@@ -51,7 +51,7 @@ func (s *SnapSuite) TestGetBaseDeclaration(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
 	c.Check(s.Stdout(), check.Equals, "hello\n")
-	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, `'snap debug get-base-declaration' is deprecated; use 'snap debug base-declaration'.`)
 }
 
 func (s *SnapSuite) TestBaseDeclaration(c *check.C) {
