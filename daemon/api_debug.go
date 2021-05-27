@@ -344,7 +344,7 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		st.Prune(opTime, 0, 0, 0)
 		return SyncResponse(true, nil)
-	case "create-recovery":
+	case "create-recovery-system":
 		return createRecovery(st, a.Params.RecoverySystemLabel)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
