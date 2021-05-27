@@ -36,10 +36,11 @@ import (
 )
 
 var debugCmd = &Command{
-	Path:   "/v2/debug",
-	UserOK: true,
-	GET:    getDebug,
-	POST:   postDebug,
+	Path:        "/v2/debug",
+	GET:         getDebug,
+	POST:        postDebug,
+	ReadAccess:  openAccess{},
+	WriteAccess: rootAccess{},
 }
 
 type debugAction struct {
@@ -330,12 +331,8 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	case "ensure-state-soon":
 		ensureStateSoon(st)
 		return SyncResponse(true, nil)
-	case "get-base-declaration":
-		return getBaseDeclaration(st)
 	case "can-manage-refreshes":
 		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
-	case "connectivity":
-		return checkConnectivity(st)
 	case "prune":
 		opTime, err := c.d.overlord.DeviceManager().StartOfOperationTime()
 		if err != nil {
@@ -343,7 +340,7 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		st.Prune(opTime, 0, 0, 0)
 		return SyncResponse(true, nil)
-	case "create-recovery":
+	case "create-recovery-system":
 		return createRecovery(st, a.Params.RecoverySystemLabel)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)

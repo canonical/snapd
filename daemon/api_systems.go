@@ -31,21 +31,22 @@ import (
 )
 
 var systemsCmd = &Command{
-	Path: "/v2/systems",
-	GET:  getSystems,
+	Path:       "/v2/systems",
+	GET:        getSystems,
+	ReadAccess: authenticatedAccess{},
 	// this is awkward, we want the postSystemsAction function to be used
 	// when the label is empty too, but the router will not handle the request
 	// for /v2/systems with the systemsActionCmd and instead handles it through
 	// this command, so we need to set the POST for this command to essentially
 	// forward to that one
-	POST:     postSystemsAction,
-	RootOnly: true,
+	POST:        postSystemsAction,
+	WriteAccess: rootAccess{},
 }
 
 var systemsActionCmd = &Command{
-	Path:     "/v2/systems/{label}",
-	POST:     postSystemsAction,
-	RootOnly: true,
+	Path:        "/v2/systems/{label}",
+	POST:        postSystemsAction,
+	WriteAccess: rootAccess{},
 }
 
 type systemsResponse struct {

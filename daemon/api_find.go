@@ -38,9 +38,9 @@ import (
 
 var (
 	findCmd = &Command{
-		Path:   "/v2/find",
-		UserOK: true,
-		GET:    searchStore,
+		Path:       "/v2/find",
+		GET:        searchStore,
+		ReadAccess: openAccess{},
 	}
 )
 

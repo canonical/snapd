@@ -197,6 +197,19 @@ func maybeReadModeenv() (*boot.Modeenv, error) {
 	return modeEnv, nil
 }
 
+// ReloadModeenv is only useful for integration testing
+func (m *DeviceManager) ReloadModeenv() error {
+	osutil.MustBeTestBinary("ReloadModeenv can only be called from tests")
+	modeEnv, err := maybeReadModeenv()
+	if err != nil {
+		return err
+	}
+	if modeEnv != nil {
+		m.systemMode = modeEnv.Mode
+	}
+	return nil
+}
+
 // StartUp implements StateStarterUp.Startup.
 func (m *DeviceManager) StartUp() error {
 	// system mode is explicitly set on UC20
@@ -699,6 +712,7 @@ func (m *DeviceManager) ensureSeeded() error {
 
 // ResetBootOk is only useful for integration testing
 func (m *DeviceManager) ResetBootOk() {
+	osutil.MustBeTestBinary("ResetBootOk can only be called from tests")
 	m.bootOkRan = false
 	m.bootRevisionsUpdated = false
 }
