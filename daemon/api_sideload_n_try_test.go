@@ -54,6 +54,12 @@ type sideloadSuite struct {
 	apiBaseSuite
 }
 
+func (s *sideloadSuite) SetUpTest(c *check.C) {
+	s.apiBaseSuite.SetUpTest(c)
+
+	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
+}
+
 var sideLoadBodyWithoutDevMode = "" +
 	"----hello--\r\n" +
 	"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
@@ -177,8 +183,7 @@ func (s *sideloadSuite) sideloadCheck(c *check.C, content string, head map[strin
 		req.Header.Set(k, v)
 	}
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeAsync)
+	rsp := s.asyncReq(c, req, nil)
 	n := 1
 	c.Assert(installQueue, check.HasLen, n)
 	c.Check(installQueue[n-1], check.Matches, "local::.*/"+regexp.QuoteMeta(dirs.LocalInstallBlobTempPrefix)+".*")
@@ -233,8 +238,7 @@ func (s *sideloadSuite) TestSideloadSnapJailModeAndDevmode(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, "cannot use devmode and jailmode flags together")
 }
 
@@ -258,8 +262,7 @@ func (s *sideloadSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 	restore := sandbox.MockForceDevMode(true)
 	defer restore()
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, "this system cannot honour the jailmode flag")
 }
 
@@ -316,8 +319,7 @@ func (s *sideloadSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
 		return state.NewTaskSet(), &snap.Info{SuggestedName: "x"}, nil
 	})()
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeAsync)
+	rsp := s.asyncReq(c, req, nil)
 
 	st.Lock()
 	defer st.Unlock()
@@ -352,8 +354,7 @@ func (s *sideloadSuite) TestSideloadSnapNoSignaturesDangerOff(c *check.C) {
 	// this is the prefix used for tempfiles for sideloading
 	glob := filepath.Join(os.TempDir(), "snapd-sideload-pkg-*")
 	glbBefore, _ := filepath.Glob(glob)
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, `cannot find signatures with metadata for snap "x"`)
 	glbAfter, _ := filepath.Glob(glob)
 	c.Check(len(glbBefore), check.Equals, len(glbAfter))
@@ -378,8 +379,7 @@ func (s *sideloadSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
 		req.Header.Set(k, v)
 	}
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `cannot find "snap" file field in provided multipart/form-data payload`)
 }
 
@@ -408,8 +408,7 @@ func (s *sideloadSuite) TestSideloadSnapChangeConflict(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Kind, check.Equals, client.ErrorKindSnapChangeConflict)
 }
 
@@ -454,8 +453,7 @@ func (s *sideloadSuite) TestSideloadSnapInstanceNameMismatch(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, `instance name "foo_instance" does not match snap name "bar"`)
 }
 
@@ -483,6 +481,12 @@ func (s *sideloadSuite) TestInstallPathUnaliased(c *check.C) {
 
 type trySuite struct {
 	apiBaseSuite
+}
+
+func (s *trySuite) SetUpTest(c *check.C) {
+	s.apiBaseSuite.SetUpTest(c)
+
+	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
 }
 
 func (s *trySuite) TestTrySnap(c *check.C) {
@@ -575,9 +579,8 @@ func (s *trySuite) TestTrySnap(c *check.C) {
 
 		// try the snap (without an installed core)
 		st.Unlock()
-		rsp := s.req(c, reqForFlags(t.flags), nil).(*daemon.Resp)
+		rsp := s.asyncReq(c, reqForFlags(t.flags), nil)
 		st.Lock()
-		c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeAsync, check.Commentf(t.desc))
 		c.Assert(tryWasCalled, check.Equals, true, check.Commentf(t.desc))
 
 		chg := st.Change(rsp.Change)

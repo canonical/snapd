@@ -1,26 +1,19 @@
 summary: Ensure "snapctl is-connected" --pid and --apparmor-label options work.
 
 prepare: |
-    tests.cleanup prepare
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snap1
-    install_local test-snap2
+    "$TESTSTOOLS"/snaps-state install-local test-snap1
+    "$TESTSTOOLS"/snaps-state install-local test-snap2
 
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
     case "$SPREAD_SYSTEM" in
         fedora-*|arch-*|centos-*)
             # although classic snaps do not work out of the box on fedora,
             # we still want to verify if the basics do work if the user
             # symlinks /snap to $SNAP_MOUNT_DIR themselves
-            ln -sf $SNAP_MOUNT_DIR /snap
+            SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+            ln -sf "$SNAP_MOUNT_DIR" /snap
             tests.cleanup defer rm -f /snap
         ;;
     esac
-
-restore: |
-    tests.cleanup restore
 
 execute: |
     echo "The test-snap1 service is running"
@@ -78,7 +71,7 @@ execute: |
 
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    install_local_classic test-snap-classic
+    "$TESTSTOOLS"/snaps-state install-local test-snap-classic --classic
 
     echo "The test-snap-classic service is running"
     systemctl is-active snap.test-snap-classic.svc.service

@@ -39,6 +39,7 @@ import (
 	_ "github.com/snapcore/squashfuse"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/sandbox/selinux"
@@ -95,6 +96,8 @@ func (m *extMutex) Taken(errMsg string) {
 
 // systemctlCmd calls systemctl with the given args, returning its standard output (and wrapped error)
 var systemctlCmd = func(args ...string) ([]byte, error) {
+	// TODO: including stderr here breaks many things when systemd is in debug
+	// output mode, see LP #1885597
 	bs, err := exec.Command("systemctl", args...).CombinedOutput()
 	if err != nil {
 		exitCode, _ := osutil.ExitCode(err)
@@ -231,6 +234,17 @@ type Systemd interface {
 	// returned in the same order as unit names passed in
 	// argument.
 	Status(units ...string) ([]*UnitStatus, error)
+	// InactiveEnterTimestamp returns the time that the given unit entered the
+	// inactive state as defined by the systemd docs. Specifically, this time is
+	// the most recent time in which the unit transitioned from deactivating
+	// ("Stopping") to dead ("Stopped"). It may be the zero time if this has
+	// never happened during the current boot, since this property is only
+	// tracked during the current boot. It specifically does not return a time
+	// that is monotonic, so the time returned here may be subject to bugs if
+	// there was a discontinuous time jump on the system before or during the
+	// unit's transition to inactive.
+	// TODO: incorporate this result into Status instead?
+	InactiveEnterTimestamp(unit string) (time.Time, error)
 	// IsEnabled checks whether the given service is enabled.
 	IsEnabled(service string) (bool, error)
 	// IsActive checks whether the given service is Active
@@ -249,6 +263,9 @@ type Systemd interface {
 	Mount(what, where string, options ...string) error
 	// Umount requests a mount from what or at where to be unmounted.
 	Umount(whatOrWhere string) error
+	// CurrentMemoryUsage returns the current memory usage for the specified
+	// unit.
+	CurrentMemoryUsage(unit string) (quantity.Size, error)
 }
 
 // A Log is a single entry in the systemd journal.
@@ -446,6 +463,8 @@ type UnitStatus struct {
 	UnitName string
 	Enabled  bool
 	Active   bool
+	// Installed is false if the queried unit doesn't exist.
+	Installed bool
 }
 
 var baseProperties = []string{"Id", "ActiveState", "UnitFileState"}
@@ -510,7 +529,7 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 		k := string(bs[1])
 		v := string(bs[2])
 
-		if v == "" {
+		if v == "" && k != "UnitFileState" && k != "Type" {
 			return nil, fmt.Errorf("cannot get unit status: empty field %q in ‘systemctl show’ output", k)
 		}
 
@@ -525,6 +544,7 @@ func (s *systemd) getUnitStatus(properties []string, unitNames []string) ([]*Uni
 		case "UnitFileState":
 			// "static" means it can't be disabled
 			cur.Enabled = v == "enabled" || v == "static"
+			cur.Installed = v != ""
 		default:
 			return nil, fmt.Errorf("cannot get unit status: unexpected field %q in ‘systemctl show’ output", k)
 		}
@@ -571,6 +591,33 @@ func (s *systemd) getGlobalUserStatus(unitNames ...string) ([]*UnitStatus, error
 		}
 	}
 	return sts, nil
+}
+
+func (s *systemd) CurrentMemoryUsage(unit string) (quantity.Size, error) {
+	out, err := s.systemctl("show", "--property", "MemoryCurrent", unit)
+	if err != nil {
+		return 0, osutil.OutputErr(out, err)
+	}
+	// strip the MemoryCurrent= from the output
+	splitVal := strings.SplitN(strings.TrimSpace(string(out)), "=", 2)
+	if len(splitVal) != 2 {
+		return 0, fmt.Errorf("invalid property format from systemd for MemoryCurrent")
+	}
+
+	trimmedVal := strings.TrimSpace(splitVal[1])
+
+	// if the unit is inactive or doesn't exist, the memory usage can be
+	// reported as "[not set]"
+	if trimmedVal == "[not set]" {
+		return 0, fmt.Errorf("memory usage unavailable")
+	}
+
+	intVal, err := strconv.Atoi(trimmedVal)
+	if err != nil {
+		return 0, fmt.Errorf("invalid property value from systemd for MemoryCurrent: cannot parse %q as an integer", trimmedVal)
+	}
+
+	return quantity.Size(intVal), nil
 }
 
 func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
@@ -622,6 +669,35 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 	return sts, nil
 }
 
+func (s *systemd) InactiveEnterTimestamp(unit string) (time.Time, error) {
+	// XXX: ignore stderr of systemctl command to avoid further infractions
+	//      around LP #1885597
+	out, err := s.systemctl("show", "--property", "InactiveEnterTimestamp", unit)
+	if err != nil {
+		return time.Time{}, osutil.OutputErr(out, err)
+	}
+	// the time returned by systemctl here will be formatted like so:
+	// InactiveEnterTimestamp=Fri 2021-04-16 15:32:21 UTC
+	// so we have to parse the time with a matching Go time format
+	splitVal := strings.SplitN(strings.TrimSpace(string(out)), "=", 2)
+	if len(splitVal) != 2 {
+		// then we don't have an equals sign in the output, so systemctl must be
+		// broken
+		return time.Time{}, fmt.Errorf("internal error: systemctl output (%s) is malformed", string(out))
+	}
+
+	if splitVal[1] == "" {
+		return time.Time{}, nil
+	}
+
+	// finally parse the time string
+	inactiveEnterTime, err := time.Parse("Mon 2006-01-02 15:04:05 MST", splitVal[1])
+	if err != nil {
+		return time.Time{}, fmt.Errorf("internal error: systemctl time output (%s) is malformed", splitVal[1])
+	}
+	return inactiveEnterTime, nil
+}
+
 func (s *systemd) IsEnabled(serviceName string) (bool, error) {
 	var err error
 	if s.rootDir != "" {
@@ -658,9 +734,9 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 	// services, the stderr output may be `inactive\n` for services that are
 	// inactive (or not found), or `failed\n` for services that are in a
 	// failed state; nevertheless make sure to check any non-0 exit code
-	sysdErr, ok := err.(*Error)
+	sysdErr, ok := err.(systemctlError)
 	if ok {
-		switch strings.TrimSpace(string(sysdErr.msg)) {
+		switch strings.TrimSpace(string(sysdErr.Msg())) {
 		case "inactive", "failed":
 			return false, nil
 		}
@@ -929,9 +1005,12 @@ func MountUnitPath(baseDir string) string {
 
 var squashfsFsType = squashfs.FsType
 
+// XXX: After=zfs-mount.service is a workaround for LP: #1922293 (a problem
+// with order of mounting most likely related to zfs-linux and/or systemd).
 var mountUnitTemplate = `[Unit]
 Description=Mount unit for %s, revision %s
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s

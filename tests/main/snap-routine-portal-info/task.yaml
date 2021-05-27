@@ -12,7 +12,6 @@ prepare: |
     tests.session -u test prepare
 
 restore: |
-    rm -f output.txt
     tests.session -u test exec systemctl --user stop test-snapd-desktop-sleep.service
     tests.session -u test restore
 

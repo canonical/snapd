@@ -24,6 +24,14 @@ prepare: |
   systemctl daemon-reload
   systemctl restart snapd.{socket,service}
 
+restore: |
+  tc filter del dev ens4
+  tc qdisc del dev ens4 ingress
+
+  rm -f "$OVERRIDES_FILE"
+  systemctl daemon-reload
+  systemctl restart snapd.{socket,service}
+
 execute: |
   tc qdisc add dev ens4 ingress
   tc filter add dev ens4 root protocol ip u32 match u32 0 0 police rate 32kbit burst 16k drop flowid :1
@@ -34,11 +42,3 @@ execute: |
 
   echo "Downloading a large snap fails too"
   snap download lxd 2>&1 | MATCH "download too slow:"
-
-restore: |
-  tc filter del dev ens4
-  tc qdisc del dev ens4 ingress
-
-  rm -f "$OVERRIDES_FILE"
-  systemctl daemon-reload
-  systemctl restart snapd.{socket,service}

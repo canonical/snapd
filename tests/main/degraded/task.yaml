@@ -23,6 +23,11 @@ execute: |
             systemctl mask systemd-vconsole-setup.service
             systemctl reset-failed systemd-vconsole-setup.service
             ;;
+        debian-10-*)
+            # modules-load fails trying to modprobe lp and parallel port drivers
+            # which are not part of the cloud kernel package
+            systemctl reset-failed systemd-modules-load.service
+            ;;
     esac
 
     if systemctl status | grep "State: [d]egraded"; then

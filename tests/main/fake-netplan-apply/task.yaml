@@ -3,9 +3,6 @@ summary: Ensure that netplan apply works with network-setup-control
 details: |
     Netplan apply is used to apply network configuration to the system
 
-environment:
-    NETPLAN: io.netplan.Netplan
-
 # Only run on ubuntu lts's which match ubuntu core series
 # We don't run this test on core since there we can't setup the fake dbus
 # service there, but we have a core specific spread test in tests/core/netplan
@@ -20,6 +17,9 @@ systems:
     - ubuntu-16.04*
     - ubuntu-18.04*
     - ubuntu-20.04*
+
+environment:
+    NETPLAN: io.netplan.Netplan
 
 prepare: |
     # build the netplan snap for this system

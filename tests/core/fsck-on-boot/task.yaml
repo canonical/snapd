@@ -7,12 +7,6 @@ details: |
   such file system is mounted. This is an essential property to ensure
   longevity of devices that rely on write to vfat to operate.
 
-prepare: |
-  tests.cleanup prepare
-
-restore: |
-  tests.cleanup restore
-
 execute: |
   unmount_vfat() {
     if os.query is-core16; then
@@ -48,7 +42,7 @@ execute: |
       # seeding anymore
 
       if mountpoint /run/mnt/snapd >/dev/null; then
-        umount /run/mnt/ubuntu-seed/snaps/snapd_*.snap
+        umount /run/mnt/snapd
       fi
       umount /var/lib/snapd/seed
       umount /run/mnt/ubuntu-seed

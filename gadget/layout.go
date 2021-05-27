@@ -28,7 +28,6 @@ import (
 
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/kernel"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // LayoutConstraints defines the constraints for arranging structures within a
@@ -257,7 +256,7 @@ func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constrain
 
 		// resolve filesystem content
 		if !constraints.SkipResolveContent {
-			resolvedContent, err := resolveVolumeContent(gadgetRootDir, kernelRootDir, kernelInfo, &structures[idx])
+			resolvedContent, err := resolveVolumeContent(gadgetRootDir, kernelRootDir, kernelInfo, &structures[idx], nil)
 			if err != nil {
 				return nil, err
 			}
@@ -279,7 +278,7 @@ func LayoutVolume(gadgetRootDir, kernelRootDir string, volume *Volume, constrain
 	return vol, nil
 }
 
-func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, ps *LaidOutStructure) ([]ResolvedContent, error) {
+func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kernel.Info, ps *LaidOutStructure, filter ResolvedContentFilterFunc) ([]ResolvedContent, error) {
 	if !ps.HasFilesystem() {
 		// structures without a file system are not resolved here
 		return nil, nil
@@ -288,17 +287,21 @@ func resolveVolumeContent(gadgetRootDir, kernelRootDir string, kernelInfo *kerne
 		return nil, nil
 	}
 
-	content := make([]ResolvedContent, len(ps.Content))
+	content := make([]ResolvedContent, 0, len(ps.Content))
 	for idx := range ps.Content {
 		resolvedSource, kupdate, err := resolveContentPathOrRef(gadgetRootDir, kernelRootDir, kernelInfo, ps.Content[idx].UnresolvedSource)
 		if err != nil {
 			return nil, fmt.Errorf("cannot resolve content for structure %v at index %v: %v", ps, idx, err)
 		}
-		content[idx] = ResolvedContent{
+		rc := ResolvedContent{
 			VolumeContent:  &ps.Content[idx],
 			ResolvedSource: resolvedSource,
 			KernelUpdate:   kupdate,
 		}
+		if filter != nil && !filter(&rc) {
+			continue
+		}
+		content = append(content, rc)
 	}
 
 	return content, nil
@@ -332,7 +335,24 @@ func resolveContentPathOrRef(gadgetRootDir, kernelRootDir string, kernelInfo *ke
 		if !ok {
 			return "", false, fmt.Errorf("cannot find %q in kernel info from %q", wantedAsset, kernelRootDir)
 		}
-		if !strutil.ListContains(kernelAsset.Content, wantedContent) {
+		// look for exact content match or for a directory prefix match
+		found := false
+		for _, kcontent := range kernelAsset.Content {
+			if wantedContent == kcontent {
+				found = true
+				break
+			}
+			// ensure we only check subdirs
+			suffix := ""
+			if !strings.HasSuffix(kcontent, "/") {
+				suffix = "/"
+			}
+			if strings.HasPrefix(wantedContent, kcontent+suffix) {
+				found = true
+				break
+			}
+		}
+		if !found {
 			return "", false, fmt.Errorf("cannot find wanted kernel content %q in %q", wantedContent, kernelRootDir)
 		}
 		resolvedSource = filepath.Join(kernelRootDir, wantedContent)

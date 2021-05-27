@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2019 Canonical Ltd
+ * Copyright (C) 2015-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -36,10 +36,11 @@ import (
 )
 
 var debugCmd = &Command{
-	Path:   "/v2/debug",
-	UserOK: true,
-	GET:    getDebug,
-	POST:   postDebug,
+	Path:        "/v2/debug",
+	GET:         getDebug,
+	POST:        postDebug,
+	ReadAccess:  openAccess{},
+	WriteAccess: authenticatedAccess{},
 }
 
 type debugAction struct {
@@ -50,7 +51,7 @@ type debugAction struct {
 	} `json:"params"`
 }
 
-type ConnectivityStatus struct {
+type connectivityStatus struct {
 	Connectivity bool     `json:"connectivity"`
 	Unreachable  []string `json:"unreachable,omitempty"`
 }
@@ -73,7 +74,7 @@ func checkConnectivity(st *state.State) Response {
 	if err != nil {
 		return InternalError("cannot run connectivity check: %v", err)
 	}
-	status := ConnectivityStatus{Connectivity: true}
+	status := connectivityStatus{Connectivity: true}
 	for host, reachable := range checkResult {
 		if !reachable {
 			status.Connectivity = false

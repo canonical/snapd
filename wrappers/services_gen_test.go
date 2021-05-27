@@ -23,13 +23,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
@@ -135,7 +135,7 @@ func (s *servicesWrapperGenSuite) TearDownTest(c *C) {
 	s.BaseTest.TearDownTest(c)
 }
 
-func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFile(c *C) {
+func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileOnClassic(c *C) {
 	yamlText := `
 name: snap
 version: 1.0
@@ -156,6 +156,90 @@ apps:
 	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, nil)
 	c.Assert(err, IsNil)
 	c.Check(string(generatedWrapper), Equals, expectedAppService)
+}
+
+func (s *servicesWrapperGenSuite) TestGenerateSnapServiceOnCore(c *C) {
+	defer func() { dirs.SetRootDir("/") }()
+
+	expectedAppServiceOnCore := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application foo.app
+Requires=snap-foo-44.mount
+Wants=network.target
+After=snap-foo-44.mount network.target snapd.apparmor.service
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run foo.app
+SyslogIdentifier=foo.app
+Restart=on-failure
+WorkingDirectory=/var/snap/foo/44
+TimeoutStopSec=30
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
+`
+
+	yamlText := `
+name: foo
+version: 1.0
+apps:
+    app:
+        command: bin/start
+        daemon: simple
+`
+	info, err := snap.InfoFromSnapYaml([]byte(yamlText))
+	c.Assert(err, IsNil)
+	info.Revision = snap.R(44)
+	app := info.Apps["app"]
+
+	// we are on core
+	restore := release.MockOnClassic(false)
+	defer restore()
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu-core"})
+	defer restore()
+	dirs.SetRootDir("/")
+
+	opts := wrappers.AddSnapServicesOptions{
+		RequireMountedSnapdSnap: false,
+	}
+	generatedWrapper, err := wrappers.GenerateSnapServiceFile(app, &opts)
+	c.Assert(err, IsNil)
+	c.Check(string(generatedWrapper), Equals, expectedAppServiceOnCore)
+
+	// now with additional dependency on tooling
+	opts = wrappers.AddSnapServicesOptions{
+		RequireMountedSnapdSnap: true,
+	}
+	generatedWrapper, err = wrappers.GenerateSnapServiceFile(app, &opts)
+	c.Assert(err, IsNil)
+	// we gain additional Requires= & After= on usr-lib-snapd.mount
+	expectedAppServiceOnCoreWithSnapd := `[Unit]
+# Auto-generated, DO NOT EDIT
+Description=Service for snap application foo.app
+Requires=snap-foo-44.mount
+Wants=network.target
+After=snap-foo-44.mount network.target snapd.apparmor.service
+Wants=usr-lib-snapd.mount
+After=usr-lib-snapd.mount
+X-Snappy=yes
+
+[Service]
+EnvironmentFile=-/etc/environment
+ExecStart=/usr/bin/snap run foo.app
+SyslogIdentifier=foo.app
+Restart=on-failure
+WorkingDirectory=/var/snap/foo/44
+TimeoutStopSec=30
+Type=simple
+
+[Install]
+WantedBy=multi-user.target
+`
+
+	c.Check(string(generatedWrapper), Equals, expectedAppServiceOnCoreWithSnapd)
 }
 
 func (s *servicesWrapperGenSuite) TestGenerateSnapServiceFileWithStartTimeout(c *C) {
@@ -455,8 +539,6 @@ WantedBy=sockets.target
 	service.Sockets["sock1"].App = service
 	service.Sockets["sock2"].App = service
 
-	sock1Path := filepath.Join(dirs.SnapServicesDir, "snap.some-snap.app.sock1.socket")
-	sock2Path := filepath.Join(dirs.SnapServicesDir, "snap.some-snap.app.sock2.socket")
 	sock1Expected := fmt.Sprintf(sock1ExpectedFmt, mountUnitPrefix, mountUnitPrefix, si.DataDir())
 	sock2Expected := fmt.Sprintf(sock2ExpectedFmt, mountUnitPrefix, mountUnitPrefix, si.DataDir())
 
@@ -467,11 +549,10 @@ WantedBy=sockets.target
 
 	generatedSockets, err := wrappers.GenerateSnapSocketFiles(service)
 	c.Assert(err, IsNil)
-	c.Assert(generatedSockets, Not(IsNil))
-	c.Assert(*generatedSockets, HasLen, 2)
-	c.Assert(*generatedSockets, DeepEquals, map[string][]byte{
-		sock1Path: []byte(sock1Expected),
-		sock2Path: []byte(sock2Expected),
+	c.Assert(generatedSockets, HasLen, 2)
+	c.Assert(generatedSockets, DeepEquals, map[string][]byte{
+		"sock1": []byte(sock1Expected),
+		"sock2": []byte(sock2Expected),
 	})
 }
 

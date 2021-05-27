@@ -1,6 +1,6 @@
 summary: Ensure that the hardware-random-control interface works.
 
-summary: |
+details: |
     The hardware-observe interface allows a snap to access hardware-random information.
 
     A snap which access to the hardware-random information must be shown in the interfaces list.

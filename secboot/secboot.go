@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -36,6 +36,9 @@ const (
 	RunObjectPCRPolicyCounterHandle      = 0x01880001
 	FallbackObjectPCRPolicyCounterHandle = 0x01880002
 )
+
+// WithSecbootSupport is true if this package was built with githbu.com/snapcore/secboot.
+var WithSecbootSupport = false
 
 type LoadChain struct {
 	*bootloader.BootFile
@@ -90,6 +93,16 @@ type SealKeysParams struct {
 	PCRPolicyCounterHandle uint32
 }
 
+type SealKeysWithFDESetupHookParams struct {
+	// Initial model to bind sealed keys to.
+	Model *asserts.Model
+	// AuxKey is the auxiliary key used to bind models.
+	AuxKey AuxKey
+	// The path to the aux key file (if empty the key will not be
+	// saved)
+	AuxKeyFile string
+}
+
 type ResealKeysParams struct {
 	// The snap model parameters
 	ModelParams []*SealKeyModelParams
@@ -105,6 +118,9 @@ type UnlockVolumeUsingSealedKeyOptions struct {
 	// AllowRecoveryKey when true indicates activation with the recovery key
 	// will be attempted if activation with the sealed key failed.
 	AllowRecoveryKey bool
+	// WhichModel if invoked should return the device model
+	// assertion for which the disk is being unlocked.
+	WhichModel func() (*asserts.Model, error)
 }
 
 // UnlockMethod is the method that was used to unlock a volume.
@@ -147,6 +163,8 @@ type UnlockResult struct {
 	UnlockMethod UnlockMethod
 }
 
-// FDEHasReveal is setup by devicestate/fde to support device-specific
-// full disk encryption implementations.
-var FDEHasRevealKey = func() bool { return false }
+// EncryptedPartitionName returns the name/label used by an encrypted partition
+// corresponding to a given name.
+func EncryptedPartitionName(name string) string {
+	return name + "-enc"
+}

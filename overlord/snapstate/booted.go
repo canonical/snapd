@@ -90,7 +90,7 @@ func UpdateBootRevisions(st *state.State) error {
 		return nil
 	}
 
-	msg := fmt.Sprintf("Update kernel and core snap revisions")
+	msg := "Update kernel and core snap revisions"
 	chg := st.NewChange("update-revisions", msg)
 	for _, ts := range tsAll {
 		chg.AddAll(ts)

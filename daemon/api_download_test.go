@@ -38,8 +38,6 @@ import (
 	"github.com/snapcore/snapd/store"
 )
 
-type fakeStore struct{}
-
 var _ = check.Suite(&snapDownloadSuite{})
 
 type snapDownloadSuite struct {
@@ -54,6 +52,8 @@ func (s *snapDownloadSuite) SetUpTest(c *check.C) {
 	s.snaps = nil
 
 	s.daemonWithStore(c, s)
+
+	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
 }
 
 var snapContent = "SNAP"
@@ -189,13 +189,13 @@ func (s *snapDownloadSuite) TestDownloadSnapErrors(c *check.C) {
 
 		req, err := http.NewRequest("POST", "/v2/download", bytes.NewBuffer(data))
 		c.Assert(err, check.IsNil)
-		rsp := s.req(c, req, nil)
+		rsp := s.errorReq(c, req, nil)
 
-		c.Assert(rsp.(*daemon.Resp).Status, check.Equals, scen.status)
+		c.Assert(rsp.Status, check.Equals, scen.status)
 		if scen.err == "" {
 			c.Errorf("error was expected")
 		}
-		result := rsp.(*daemon.Resp).Result
+		result := rsp.Result
 		c.Check(result.(*daemon.ErrorResult).Message, check.Matches, scen.err)
 	}
 }
@@ -206,7 +206,6 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 		dataJSON string
 		status   int
 		resume   int
-		noBody   bool
 		err      string
 	}
 

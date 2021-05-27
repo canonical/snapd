@@ -1,16 +1,13 @@
 summary: Check that snap-mgmt.sh works
 
-# purging everything on core devices will not work
-systems: [-ubuntu-core-*]
-
 # slow in autopkgtest (>1m)
 backends: [-autopkgtest]
 
+# purging everything on core devices will not work
+systems: [-ubuntu-core-*]
+
 prepare: |
     # TODO: unify this with tests/main/postrm-purge/task.yaml
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     snap set core experimental.user-daemons=true
 
     # Install a number of snaps that contain various features that have
@@ -39,7 +36,8 @@ prepare: |
         snap list | MATCH test-snapd-dbus-service
     fi
 
-    before=$(find ${SNAP_MOUNT_DIR} -type d | wc -l)
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    before=$(find "${SNAP_MOUNT_DIR}" -type d | wc -l)
     if [ "$before" -lt 2 ]; then
         echo "${SNAP_MOUNT_DIR} empty - test setup broken"
         exit 1
@@ -67,13 +65,11 @@ execute: |
     echo "Stop snapd before purging"
     systemctl stop snapd.service snapd.socket
 
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     echo "A purge will really purge things"
     snapd.tool exec snap-mgmt --purge
 
     echo "Data directories are empty"
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     emptydirs="${SNAP_MOUNT_DIR} \
                /var/snap \
                /var/lib/snapd/dbus-1/services/ \

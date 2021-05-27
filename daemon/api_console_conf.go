@@ -31,18 +31,17 @@ import (
 
 var (
 	routineConsoleConfStartCmd = &Command{
-		Path: "/v2/internal/console-conf-start",
-		POST: consoleConfStartRoutine,
+		Path:        "/v2/internal/console-conf-start",
+		POST:        consoleConfStartRoutine,
+		WriteAccess: authenticatedAccess{},
 	}
 )
 
 var delayTime = 20 * time.Minute
 
-type consoleConfRoutine struct{}
-
-// ConsoleConfStartRoutineResult is the result of running the console-conf start
+// consoleConfStartRoutineResult is the result of running the console-conf start
 // routine..
-type ConsoleConfStartRoutineResult struct {
+type consoleConfStartRoutineResult struct {
 	ActiveAutoRefreshChanges []string `json:"active-auto-refreshes,omitempty"`
 	ActiveAutoRefreshSnaps   []string `json:"active-auto-refresh-snaps,omitempty"`
 }
@@ -73,7 +72,7 @@ func consoleConfStartRoutine(c *Command, r *http.Request, _ *auth.UserState) Res
 	if len(snapAutoRefreshChanges) == 0 {
 		// no changes yet, and we delayed the refresh successfully so
 		// console-conf is okay to run normally
-		return SyncResponse(&ConsoleConfStartRoutineResult{}, nil)
+		return SyncResponse(&consoleConfStartRoutineResult{}, nil)
 	}
 
 	chgIds := make([]string, 0, len(snapAutoRefreshChanges))
@@ -89,7 +88,7 @@ func consoleConfStartRoutine(c *Command, r *http.Request, _ *auth.UserState) Res
 	}
 
 	// we have changes that the client should wait for before being ready
-	return SyncResponse(&ConsoleConfStartRoutineResult{
+	return SyncResponse(&consoleConfStartRoutineResult{
 		ActiveAutoRefreshChanges: chgIds,
 		ActiveAutoRefreshSnaps:   snapNames,
 	}, nil)

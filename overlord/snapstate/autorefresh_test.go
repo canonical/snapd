@@ -94,8 +94,6 @@ type autoRefreshTestSuite struct {
 	state *state.State
 
 	store *autoRefreshStore
-
-	restore func()
 }
 
 var _ = Suite(&autoRefreshTestSuite{})

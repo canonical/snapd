@@ -93,7 +93,6 @@ func DeleteValidationSet(st *state.State, accountID, name string) {
 	}
 	delete(vsmap, ValidationSetKey(accountID, name))
 	st.Set("validation-sets", vsmap)
-	return
 }
 
 // GetValidationSet retrieves the ValidationSetTracking for the given account and name.

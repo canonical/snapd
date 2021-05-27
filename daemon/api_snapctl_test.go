@@ -39,20 +39,26 @@ type snapctlSuite struct {
 	apiBaseSuite
 }
 
+func (s *snapctlSuite) SetUpTest(c *check.C) {
+	s.apiBaseSuite.SetUpTest(c)
+
+	s.expectWriteAccess(daemon.SnapAccess{})
+}
+
 func (s *snapctlSuite) TestSnapctlGetNoUID(c *check.C) {
 	s.daemon(c)
 	buf := bytes.NewBufferString(`{"context-id": "some-context", "args": ["get", "something"]}`)
 	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
 	c.Assert(err, check.IsNil)
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 403)
 }
 
 func (s *snapctlSuite) TestSnapctlForbiddenError(c *check.C) {
 	s.daemon(c)
 
-	defer daemon.MockUcrednetGet(func(string) (int32, uint32, string, error) {
-		return 100, 9999, dirs.SnapSocket, nil
+	defer daemon.MockUcrednetGet(func(string) (*daemon.Ucrednet, error) {
+		return &daemon.Ucrednet{Uid: 100, Pid: 9999, Socket: dirs.SnapSocket}, nil
 	})()
 
 	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {
@@ -62,15 +68,15 @@ func (s *snapctlSuite) TestSnapctlForbiddenError(c *check.C) {
 	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "set", "foo=bar"))
 	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
 	c.Assert(err, check.IsNil)
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.errorReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 403)
 }
 
 func (s *snapctlSuite) TestSnapctlUnsuccesfulError(c *check.C) {
 	s.daemon(c)
 
-	defer daemon.MockUcrednetGet(func(string) (int32, uint32, string, error) {
-		return 100, 9999, dirs.SnapSocket, nil
+	defer daemon.MockUcrednetGet(func(string) (*daemon.Ucrednet, error) {
+		return &daemon.Ucrednet{Uid: 100, Pid: 9999, Socket: dirs.SnapSocket}, nil
 	})()
 
 	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {
@@ -80,7 +86,7 @@ func (s *snapctlSuite) TestSnapctlUnsuccesfulError(c *check.C) {
 	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "is-connected", "plug"))
 	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
 	c.Assert(err, check.IsNil)
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Kind, check.Equals, client.ErrorKindUnsuccessful)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Value, check.DeepEquals, map[string]interface{}{
