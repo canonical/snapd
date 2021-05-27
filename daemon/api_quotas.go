@@ -32,14 +32,16 @@ import (
 
 var (
 	quotaGroupsCmd = &Command{
-		Path:     "/v2/quotas",
-		GET:      getQuotaGroups,
-		POST:     postQuotaGroup,
-		RootOnly: true,
+		Path:        "/v2/quotas",
+		GET:         getQuotaGroups,
+		POST:        postQuotaGroup,
+		WriteAccess: rootAccess{},
+		ReadAccess:  openAccess{},
 	}
 	quotaGroupInfoCmd = &Command{
-		Path: "/v2/quotas/{group}",
-		GET:  getQuotaGroupInfo,
+		Path:       "/v2/quotas/{group}",
+		GET:        getQuotaGroupInfo,
+		ReadAccess: openAccess{},
 	}
 )
 
@@ -62,6 +64,7 @@ type quotaGroupResultJSON struct {
 
 var (
 	servicestateCreateQuota = servicestate.CreateQuota
+	servicestateUpdateQuota = servicestate.UpdateQuota
 	servicestateRemoveQuota = servicestate.RemoveQuota
 )
 
@@ -147,11 +150,29 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	switch data.Action {
 	case "ensure":
-		// TODO: quota updates
-		if err := servicestateCreateQuota(st, data.GroupName, data.Parent, data.Snaps, quantity.Size(data.MaxMemory)); err != nil {
-			// XXX: dedicated error type?
-			return BadRequest(err.Error())
+		// check if the quota group exists first, if it does then we need to
+		// update it instead of create it
+		_, err := servicestate.GetQuota(st, data.GroupName)
+		if err != nil && err != servicestate.ErrQuotaNotFound {
+			return InternalError(err.Error())
 		}
+		if err == servicestate.ErrQuotaNotFound {
+			// then we need to create the quota
+			if err := servicestateCreateQuota(st, data.GroupName, data.Parent, data.Snaps, quantity.Size(data.MaxMemory)); err != nil {
+				// XXX: dedicated error type?
+				return BadRequest(err.Error())
+			}
+		} else if err == nil {
+			// the quota group already exists, update it
+			updateOpts := servicestate.QuotaGroupUpdate{
+				AddSnaps:       data.Snaps,
+				NewMemoryLimit: quantity.Size(data.MaxMemory),
+			}
+			if err := servicestateUpdateQuota(st, data.GroupName, updateOpts); err != nil {
+				return BadRequest(err.Error())
+			}
+		}
+
 	case "remove":
 		if err := servicestateRemoveQuota(st, data.GroupName); err != nil {
 			return BadRequest(err.Error())

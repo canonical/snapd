@@ -52,6 +52,8 @@ func (s *snapDownloadSuite) SetUpTest(c *check.C) {
 	s.snaps = nil
 
 	s.daemonWithStore(c, s)
+
+	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
 }
 
 var snapContent = "SNAP"
