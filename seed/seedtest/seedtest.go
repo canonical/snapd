@@ -340,7 +340,7 @@ func (s *TestingSeed20) MakeSeed(c *C, label, brandID, modelID string, modelHead
 	return model
 }
 
-func ValidateSeed(c *C, root, label string, trusted []asserts.Assertion) seed.Seed {
+func ValidateSeed(c *C, root, label string, usesSnapd bool, trusted []asserts.Assertion) seed.Seed {
 	tm := &timings.Timings{}
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
@@ -359,10 +359,15 @@ func ValidateSeed(c *C, root, label string, trusted []asserts.Assertion) seed.Se
 
 	err = sd.LoadMeta(tm)
 	c.Assert(err, IsNil)
-	// uc20 recovery systems use snapd
-	c.Check(sd.UsesSnapdSnap(), Equals, true)
-	// XXX: more extensive seed validation?
 
-	c.Check(sd.EssentialSnaps(), HasLen, 4)
+	// core18/core20 use the snapd snap, old core does not
+	c.Check(sd.UsesSnapdSnap(), Equals, usesSnapd)
+	if usesSnapd {
+		// core*, kernel, gadget, snapd
+		c.Check(sd.EssentialSnaps(), HasLen, 4)
+	} else {
+		// core, kernel, gadget
+		c.Check(sd.EssentialSnaps(), HasLen, 3)
+	}
 	return sd
 }
