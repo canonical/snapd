@@ -98,7 +98,7 @@ def update_fedora_changelog(opts, snapd_packaging_dir, new_changelog_entry, main
         # that we only have one single whitespace
         dedented_changelog_lines.append(line[3:] + "\n")
 
-    date = datetime.datetime.now().strftime("%a %d %b %Y")
+    date = datetime.datetime.now().strftime("%a %b %d %Y")
 
     date_and_maintainer_header = f"* {date} {maintainer[0]} <{maintainer[1]}>\n"
     changelog_header = f"- New upstream release {opts.version}\n"
