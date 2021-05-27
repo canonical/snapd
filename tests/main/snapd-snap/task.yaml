@@ -36,13 +36,6 @@ environment:
     SNAPCRAFT_BUILD_ENVIRONMENT/lxd: lxd
 
 prepare: |
-    # we need to use tests.cleanup from the same dir that we run snapcraft in 
-    # such that we don't need to change directories from the cleanup restore 
-    # script
-    # shellcheck disable=SC2164
-    cd "$PROJECT_PATH"
-    tests.cleanup prepare
-
     # only run the destructive mode variant on xenial
     if ! os.query is-xenial && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
         echo "Skipping destructive mode build on non-xenial"
@@ -59,7 +52,7 @@ prepare: |
 
     echo "Install snapcraft from candidate"
     snap install snapcraft --candidate --classic
-    tests.cleanup defer snap remove snapcraft
+    tests.cleanup defer snap remove --purge snapcraft
 
     if [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "lxd" ]; then
         echo "Remove any installed debs (some images carry them) to ensure we test the snap"
@@ -78,7 +71,7 @@ prepare: |
 
         echo "Install lxd"
         snap install lxd --channel="$LXD_SNAP_CHANNEL"
-        tests.cleanup defer snap remove lxd
+        tests.cleanup defer snap remove --purge lxd
 
         echo "Setup the lxd snap"
         snap set lxd waitready.timeout=240
@@ -121,11 +114,6 @@ prepare: |
         tests.cleanup defer umount "$CORE_SNAP"
     fi
 
-restore: |
-    # shellcheck disable=SC2164
-    cd "$PROJECT_PATH"
-    tests.cleanup restore
-
 execute: |
     # only run the destructive mode variant on xenial
     if ! os.query is-xenial && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
@@ -134,11 +122,22 @@ execute: |
     fi
 
     # shellcheck disable=SC2164
-    cd "$PROJECT_PATH"
+    pushd "$PROJECT_PATH"
     echo "Build the snap"
     snap run snapcraft snap --output=snapd_spread-test.snap
-    tests.cleanup defer rm -f snapd_spread-test.snap
-    tests.cleanup defer snap run snapcraft clean
+    popd
+
+    mv "$PROJECT_PATH/snapd_spread-test.snap" "$PWD/snapd_spread-test.snap"
+
+    # meh it doesn't work well to use quotas and "&&" in the arguments to sh -c
+    # with defer, so just put what we want to run in a script and execute that
+    cat >> snapcraft-cleanup.sh <<EOF
+    #!/bin/sh
+    cd $PROJECT_PATH
+    snap run snapcraft clean
+    EOF
+    chmod +x snapcraft-cleanup.sh
+    tests.cleanup defer sh -c "$PWD/snapcraft-cleanup.sh"
 
     echo "Ensure we have the fc-cache binaries"
     unsquashfs -ll snapd_spread-test.snap | MATCH bin/fc-cache-v6
