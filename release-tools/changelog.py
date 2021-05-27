@@ -141,8 +141,15 @@ def update_opensuse_changlog(
         True,
     )
 
-    # add a template changelog to the changes file
-    date = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S %z")
+    # add a template changelog to the changes file, with special handling for
+    # timezones if we somehow don't have one
+
+    # check if we have a timezone
+    if datetime.datetime.now().strftime("%z") == "":
+        # need to use utc time with a manually specified UTC timezone string
+        date = datetime.datetime.utcnow().strftime("%a, %d %b %Y %H:%M:%S +0000")
+    else:
+        date = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S %z")
 
     email = maintainer[1]
     templ = f"""-------------------------------------------------------------------
