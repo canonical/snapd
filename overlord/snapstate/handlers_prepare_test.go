@@ -76,6 +76,11 @@ func (s *baseHandlerSuite) setup(c *C, b state.Backend) {
 
 	restoreCheckFreeSpace := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return nil })
 	s.AddCleanup(restoreCheckFreeSpace)
+
+	restoreSecurityProfilesDiscardLate := snapstate.MockSecurityProfilesDiscardLate(func(snapName string, rev snap.Revision, typ snap.Type) error {
+		return nil
+	})
+	s.AddCleanup(restoreSecurityProfilesDiscardLate)
 }
 
 func (s *baseHandlerSuite) SetUpTest(c *C) {

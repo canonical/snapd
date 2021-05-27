@@ -272,6 +272,7 @@ var templateCommon = `
   @{PROC}/sys/fs/inotify/max_* r,
   @{PROC}/sys/kernel/pid_max r,
   @{PROC}/sys/kernel/random/boot_id r,
+  @{PROC}/sys/kernel/random/entropy_avail r,
   @{PROC}/sys/kernel/random/uuid r,
   # Allow access to the uuidd daemon (this daemon is a thin wrapper around
   # time and getrandom()/{,u}random and, when available, runs under an
@@ -467,7 +468,7 @@ var defaultCoreRuntimeTemplateRules = `
   # Default rules for core base runtimes
 
   # The base abstraction doesn't yet have this
-  /lib/terminfo/** rk,
+  /{,usr/}lib/terminfo/** rk,
   /usr/share/terminfo/** k,
   /usr/share/zoneinfo/** k,
 
@@ -651,20 +652,20 @@ var defaultOtherBaseTemplateRules = `
   # - /lib/modules
   #
   # Everything but /lib/firmware and /lib/modules
-  /lib/ r,
-  /lib/[^fm]** mrklix,
-  /lib/{f[^i],m[^o]}** mrklix,
-  /lib/{fi[^r],mo[^d]}** mrklix,
-  /lib/{fir[^m],mod[^u]}** mrklix,
-  /lib/{firm[^w],modu[^l]}** mrklix,
-  /lib/{firmw[^a],modul[^e]}** mrklix,
-  /lib/{firmwa[^r],module[^s]}** mrklix,
-  /lib/modules[^/]** mrklix,
-  /lib/firmwar[^e]** mrklix,
-  /lib/firmware[^/]** mrklix,
+  /{,usr/}lib/ r,
+  /{,usr/}lib/[^fm]** mrklix,
+  /{,usr/}lib/{f[^i],m[^o]}** mrklix,
+  /{,usr/}lib/{fi[^r],mo[^d]}** mrklix,
+  /{,usr/}lib/{fir[^m],mod[^u]}** mrklix,
+  /{,usr/}lib/{firm[^w],modu[^l]}** mrklix,
+  /{,usr/}lib/{firmw[^a],modul[^e]}** mrklix,
+  /{,usr/}lib/{firmwa[^r],module[^s]}** mrklix,
+  /{,usr/}lib/modules[^/]** mrklix,
+  /{,usr/}lib/firmwar[^e]** mrklix,
+  /{,usr/}lib/firmware[^/]** mrklix,
 
   # /lib64, etc
-  /lib[^/]** mrklix,
+  /{,usr/}lib[^/]** mrklix,
 
   # /opt
   /opt/ r,
@@ -685,18 +686,12 @@ var defaultOtherBaseTemplateRules = `
   /usr/{lib,src}[^/]** mrklix,
   # Everything in /usr/lib except /usr/lib/firmware, /usr/lib/modules and
   # /usr/lib/snapd, which are handled elsewhere.
-  /usr/lib/ r,
   /usr/lib/[^fms]** mrklix,
   /usr/lib/{f[^i],m[^o],s[^n]}** mrklix,
   /usr/lib/{fi[^r],mo[^d],sn[^a]}** mrklix,
   /usr/lib/{fir[^m],mod[^u],sna[^p]}** mrklix,
   /usr/lib/{firm[^w],modu[^l],snap[^d]}** mrklix,
   /usr/lib/snapd[^/]** mrklix,
-  /usr/lib/{firmw[^a],modul[^e]}** mrklix,
-  /usr/lib/{firmwa[^r],module[^s]}** mrklix,
-  /usr/lib/modules[^/]** mrklix,
-  /usr/lib/firmwar[^e]** mrklix,
-  /usr/lib/firmware[^/]** mrklix,
 
   # /var - the mount setup may bind mount in:
   #

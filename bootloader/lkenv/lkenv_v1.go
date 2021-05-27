@@ -19,6 +19,10 @@
 
 package lkenv
 
+import (
+	"fmt"
+)
+
 /**
  * Following structure has to be kept in sync with c structure defined by
  * include/lk/snappy-boot_v1.h
@@ -39,29 +43,29 @@ type SnapBootSelect_v1 struct {
 	Version uint32
 
 	/* snap_mode, one of: 'empty', "try", "trying" */
-	Snap_mode [SNAP_NAME_MAX_LEN]byte
+	Snap_mode [SNAP_FILE_NAME_MAX_LEN]byte
 	/* current core snap revision */
-	Snap_core [SNAP_NAME_MAX_LEN]byte
+	Snap_core [SNAP_FILE_NAME_MAX_LEN]byte
 	/* try core snap revision */
-	Snap_try_core [SNAP_NAME_MAX_LEN]byte
+	Snap_try_core [SNAP_FILE_NAME_MAX_LEN]byte
 	/* current kernel snap revision */
-	Snap_kernel [SNAP_NAME_MAX_LEN]byte
+	Snap_kernel [SNAP_FILE_NAME_MAX_LEN]byte
 	/* current kernel snap revision */
-	Snap_try_kernel [SNAP_NAME_MAX_LEN]byte
+	Snap_try_kernel [SNAP_FILE_NAME_MAX_LEN]byte
 
 	/* gadget_mode, one of: 'empty', "try", "trying" */
-	Gadget_mode [SNAP_NAME_MAX_LEN]byte
+	Gadget_mode [SNAP_FILE_NAME_MAX_LEN]byte
 	/* GADGET assets: current gadget assets revision */
-	Snap_gadget [SNAP_NAME_MAX_LEN]byte
+	Snap_gadget [SNAP_FILE_NAME_MAX_LEN]byte
 	/* GADGET assets: try gadget assets revision */
-	Snap_try_gadget [SNAP_NAME_MAX_LEN]byte
+	Snap_try_gadget [SNAP_FILE_NAME_MAX_LEN]byte
 
 	/**
 	 * Reboot reason
 	 * optional parameter to signal bootloader alternative reboot reasons
 	 * e.g. recovery/factory-reset/boot asset update
 	 */
-	Reboot_reason [SNAP_NAME_MAX_LEN]byte
+	Reboot_reason [SNAP_FILE_NAME_MAX_LEN]byte
 
 	/**
 	 * Matrix for mapping of boot img partition to installed kernel snap revision
@@ -96,13 +100,13 @@ type SnapBootSelect_v1 struct {
 	 * [ <bootimg 1 part label> ] [ <kernel snap revision installed in this boot partition> ]
 	 * [ <bootimg 2 part label> ] [ <kernel snap revision installed in this boot partition> ]
 	 */
-	Bootimg_matrix [SNAP_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN]byte
+	Bootimg_matrix [SNAP_BOOTIMG_PART_NUM][2][SNAP_FILE_NAME_MAX_LEN]byte
 
 	/**
 	 * name of the boot image from kernel snap to be used for extraction
 	 * when not defined or empty, default boot.img will be used
 	 */
-	Bootimg_file_name [SNAP_NAME_MAX_LEN]byte
+	Bootimg_file_name [SNAP_FILE_NAME_MAX_LEN]byte
 
 	/**
 	 * gadget assets: Matrix for mapping of gadget asset partitions
@@ -116,33 +120,99 @@ type SnapBootSelect_v1 struct {
 	 * [ <boot assets 1 part label> ] [ <currently installed assets revision in this partition> ]
 	 * [ <boot assets 2 part label> ] [ <currently installed assets revision in this partition> ]
 	 */
-	Gadget_asset_matrix [SNAP_BOOTIMG_PART_NUM][2][SNAP_NAME_MAX_LEN]byte
+	Gadget_asset_matrix [SNAP_BOOTIMG_PART_NUM][2][SNAP_FILE_NAME_MAX_LEN]byte
 
 	/* unused placeholders for additional parameters in the future */
-	Unused_key_01 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_02 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_03 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_04 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_05 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_06 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_07 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_08 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_09 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_10 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_11 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_12 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_13 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_14 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_15 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_16 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_17 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_18 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_19 [SNAP_NAME_MAX_LEN]byte
-	Unused_key_20 [SNAP_NAME_MAX_LEN]byte
+	Unused_key_01 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_02 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_03 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_04 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_05 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_06 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_07 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_08 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_09 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_10 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_11 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_12 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_13 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_14 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_15 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_16 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_17 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_18 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_19 [SNAP_FILE_NAME_MAX_LEN]byte
+	Unused_key_20 [SNAP_FILE_NAME_MAX_LEN]byte
 
 	/* unused array of 10 key value pairs */
-	Key_value_pairs [10][2][SNAP_NAME_MAX_LEN]byte
+	Key_value_pairs [10][2][SNAP_FILE_NAME_MAX_LEN]byte
 
 	/* crc32 value for structure */
 	Crc32 uint32
+}
+
+func newV1() *SnapBootSelect_v1 {
+	return &SnapBootSelect_v1{
+		Version:   SNAP_BOOTSELECT_VERSION_V1,
+		Signature: SNAP_BOOTSELECT_SIGNATURE,
+	}
+}
+
+func (v1 *SnapBootSelect_v1) currentCrc32() uint32     { return v1.Crc32 }
+func (v1 *SnapBootSelect_v1) currentVersion() uint32   { return v1.Version }
+func (v1 *SnapBootSelect_v1) currentSignature() uint32 { return v1.Signature }
+
+func (v1 *SnapBootSelect_v1) get(key string) string {
+	switch key {
+	case "snap_mode":
+		return cToGoString(v1.Snap_mode[:])
+	case "snap_kernel":
+		return cToGoString(v1.Snap_kernel[:])
+	case "snap_try_kernel":
+		return cToGoString(v1.Snap_try_kernel[:])
+	case "snap_core":
+		return cToGoString(v1.Snap_core[:])
+	case "snap_try_core":
+		return cToGoString(v1.Snap_try_core[:])
+	case "snap_gadget":
+		return cToGoString(v1.Snap_gadget[:])
+	case "snap_try_gadget":
+		return cToGoString(v1.Snap_try_gadget[:])
+	case "reboot_reason":
+		return cToGoString(v1.Reboot_reason[:])
+	case "bootimg_file_name":
+		return cToGoString(v1.Bootimg_file_name[:])
+	}
+	return ""
+}
+
+func (v1 *SnapBootSelect_v1) set(key, value string) {
+	switch key {
+	case "snap_mode":
+		copyString(v1.Snap_mode[:], value)
+	case "snap_kernel":
+		copyString(v1.Snap_kernel[:], value)
+	case "snap_try_kernel":
+		copyString(v1.Snap_try_kernel[:], value)
+	case "snap_core":
+		copyString(v1.Snap_core[:], value)
+	case "snap_try_core":
+		copyString(v1.Snap_try_core[:], value)
+	case "snap_gadget":
+		copyString(v1.Snap_gadget[:], value)
+	case "snap_try_gadget":
+		copyString(v1.Snap_try_gadget[:], value)
+	case "reboot_reason":
+		copyString(v1.Reboot_reason[:], value)
+	case "bootimg_file_name":
+		copyString(v1.Bootimg_file_name[:], value)
+	}
+}
+
+func (v1 *SnapBootSelect_v1) bootImgKernelMatrix() (bootimgMatrixGeneric, error) {
+	return (bootimgMatrixGeneric)((&v1.Bootimg_matrix)[:]), nil
+}
+
+func (v1 *SnapBootSelect_v1) bootImgRecoverySystemMatrix() (bootimgMatrixGeneric, error) {
+	return nil, fmt.Errorf("internal error: v1 lkenv has no boot image partition recovery system matrix")
 }

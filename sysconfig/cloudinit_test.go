@@ -318,6 +318,19 @@ fi
 	}
 }
 
+func (s *sysconfigSuite) TestCloudInitNotFoundStatus(c *C) {
+	emptyDir := c.MkDir()
+	oldPath := os.Getenv("PATH")
+	defer func() {
+		c.Assert(os.Setenv("PATH", oldPath), IsNil)
+	}()
+	os.Setenv("PATH", emptyDir)
+
+	status, err := sysconfig.CloudInitStatus()
+	c.Assert(err, IsNil)
+	c.Check(status, Equals, sysconfig.CloudInitNotFound)
+}
+
 var gceCloudInitStatusJSON = `{
 	"v1": {
 	 "datasource": "DataSourceGCE",
@@ -370,7 +383,9 @@ var lxdNoCloudCloudInitStatusJSON = `{
 var restrictNoCloudYaml = `datasource_list: [NoCloud]
 datasource:
   NoCloud:
-    fs_label: null`
+    fs_label: null
+manual_cache_clean: true
+`
 
 func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 	tt := []struct {
@@ -435,12 +450,13 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 			expDisableFile: true,
 		},
 		{
-			comment:                "gce done",
-			state:                  sysconfig.CloudInitDone,
-			cloudInitStatusJSON:    gceCloudInitStatusJSON,
-			expDatasource:          "GCE",
-			expAction:              "restrict",
-			expRestrictYamlWritten: "datasource_list: [GCE]",
+			comment:             "gce done",
+			state:               sysconfig.CloudInitDone,
+			cloudInitStatusJSON: gceCloudInitStatusJSON,
+			expDatasource:       "GCE",
+			expAction:           "restrict",
+			expRestrictYamlWritten: `datasource_list: [GCE]
+`,
 		},
 		{
 			comment:                "nocloud done",
@@ -512,6 +528,12 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 				DisableAfterLocalDatasourcesRun: true,
 			},
 			expDatasource:  "NoCloud",
+			expAction:      "disable",
+			expDisableFile: true,
+		},
+		{
+			comment:        "no cloud-init in $PATH",
+			state:          sysconfig.CloudInitNotFound,
 			expAction:      "disable",
 			expDisableFile: true,
 		},

@@ -454,6 +454,13 @@ admin_pattern(snappy_mount_t, snappy_tmp_t)
 # up with user_tmp_t allow acting on it
 allow snappy_mount_t user_tmp_t:dir { mounton rmdir };
 userdom_delete_user_tmp_files(snappy_mount_t)
+# when managing some interfaces, a mount from the host /tmp may need to be set
+# up and files or directories may need to be created or removed (eg. x11
+# interface), in most distros the /tmp is on tmpfs and thus fs_manage_tmpfs_*
+# will provide the right policy, but we still need to allow those operations
+# when the host's /tmp is not a tmpfs
+files_manage_generic_tmp_dirs(snappy_mount_t)
+files_manage_generic_tmp_files(snappy_mount_t)
 
 # Allow snap-{update,discard}-ns to manage mounts
 gen_require(`
@@ -837,3 +844,10 @@ gen_require(`
 # system dbus may look info /var/lib/snapd/dbus-1
 snappy_search_lib(system_dbusd_t)
 snappy_read_lib(system_dbusd_t)
+optional_policy(`
+  gen_require(`
+    # watch permission is defined only in recent versions of refpolicy
+    class dir { watch };
+  ')
+  allow system_dbusd_t  snappy_var_lib_t:dir watch;
+')

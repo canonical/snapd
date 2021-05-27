@@ -1,6 +1,6 @@
 summary: Ensure the canonical-livepatch snap works on 14.04
 
-description: |
+details: |
     This is a specific 14.04 test that ensure live-patch work
     with a snapd that re-execs on 14.04. We don't regularly
     update the deb on 14.04 anymore so we need to be sure that

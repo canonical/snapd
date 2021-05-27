@@ -1,6 +1,6 @@
 summary: verify that user environment settings are added
 
-description: |
+details: |
     User environment variables are added via /etc/profile.d/snapd.sh (bash/sh
     specific) or via /lib/environment.d/ helpers. Make sure that at least one of
     the mechanisms works and XDG_DATA_DIRS and PATH are updated accordingly
@@ -21,12 +21,8 @@ prepare: |
 restore: |
     tests.session restore -u test,test-zsh
     userdel -f -r "$TEST_ZSH_USER"
-    rm -f test-profile-env test-profile-zsh-env test-session-env test-zsh-session-env
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
-
     for user in test "$TEST_ZSH_USER"; do
         # Dump the environment set up by the user session manager
         if tests.session has-session-systemd-and-dbus; then
@@ -35,6 +31,7 @@ execute: |
         tests.session -u "$user" exec env > "${user}-profile-env"
     done
 
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     for user in test "$TEST_ZSH_USER"; do
         if [ -e "${user}-session-env" ]; then
             # Even though there's user session support, systemd may be too old and

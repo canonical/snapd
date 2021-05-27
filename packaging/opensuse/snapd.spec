@@ -83,7 +83,7 @@
 
 
 Name:           snapd
-Version:        2.48
+Version:        2.50.1
 Release:        0
 Summary:        Tools enabling systems to work with .snap files
 License:        GPL-3.0
@@ -124,6 +124,8 @@ BuildRequires:  glibc-devel-32bit
 BuildRequires:  glibc-devel-static-32bit
 BuildRequires:  gcc-32bit
 %endif
+BuildRequires:  ca-certificates
+BuildRequires:  ca-certificates-mozilla
 
 %if %{with apparmor}
 BuildRequires:  libapparmor-devel

@@ -720,3 +720,52 @@ func trustedAssetsBootState(dev Device) *bootState20BootAssets {
 		dev: dev,
 	}
 }
+
+// bootState20CommandLine implements the successfulBootState interface for
+// kernel command line
+type bootState20CommandLine struct {
+	dev Device
+}
+
+func (bcl20 *bootState20CommandLine) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
+	u20, err := toBootStateUpdate20(update)
+	if err != nil {
+		return nil, err
+	}
+	newM, err := observeSuccessfulCommandLine(bcl20.dev.Model(), u20.writeModeenv)
+	if err != nil {
+		return nil, fmt.Errorf("cannot mark successful boot command line: %v", err)
+	}
+	u20.writeModeenv = newM
+	return u20, nil
+}
+
+func trustedCommandLineBootState(dev Device) *bootState20CommandLine {
+	return &bootState20CommandLine{
+		dev: dev,
+	}
+}
+
+// bootState20RecoverySystem implements the successfulBootState interface for
+// tried recovery systems
+type bootState20RecoverySystem struct {
+	dev Device
+}
+
+func (brs20 *bootState20RecoverySystem) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
+	u20, err := toBootStateUpdate20(update)
+	if err != nil {
+		return nil, err
+	}
+
+	newM, err := observeSuccessfulSystems(brs20.dev.Model(), u20.writeModeenv)
+	if err != nil {
+		return nil, fmt.Errorf("cannot mark successful recovery system: %v", err)
+	}
+	u20.writeModeenv = newM
+	return u20, nil
+}
+
+func recoverySystemsBootState(dev Device) *bootState20RecoverySystem {
+	return &bootState20RecoverySystem{dev: dev}
+}

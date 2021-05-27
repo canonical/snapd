@@ -23,9 +23,6 @@ prepare: |
     snap download --basename=pc --channel="20/edge" pc
     unsquashfs -d pc-gadget pc.snap
 
-    # ensure ubuntu-save is there
-    nested_ensure_ubuntu_save pc-gadget
-
     cat defaults.yaml >> pc-gadget/meta/gadget.yaml
     mkdir -p pc-gadget/meta/hooks
     cp install pc-gadget/meta/hooks/
@@ -74,22 +71,19 @@ execute: |
 
     check_core20_early_config
 
-    # now transition to recover mode and check it again
+    echo "Transition to recover mode and check it again"
     boot_id="$(nested_get_boot_id)"
-    # TODO:UC20: shouldn't need to specify the label here, fix when snap reboot
-    #            works
     # shellcheck disable=SC2016
-    nested_exec 'sudo snap reboot --recover $(sudo snap recovery | grep -v Label | awk "{print \$1}")'
+    nested_exec 'sudo snap reboot --recover'
     nested_wait_for_reboot "${boot_id}"
 
-    # verify in recover mode
+    echo "Check the vm is in recover mode"
     nested_exec 'sudo cat /proc/cmdline' | MATCH snapd_recovery_mode=recover
 
-    # Wait for the snap command to be available since recover mode needs to seed
-    # itself
+    echo "Wait for the snap command to be available since recover mode needs to seed itself"
     nested_wait_for_snap_command
 
-    # Wait for snap seeding to be done
+    echo "Wait for snap seeding to be done"
     nested_exec "sudo snap wait system seed.loaded"
 
     check_core20_early_config

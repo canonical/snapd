@@ -54,7 +54,7 @@ prepare: |
   setup_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
   teardown_staging_store
 
-  echo Expose the needed assertions through the fakestore
+  echo "Expose the needed assertions through the fakestore"
   cp "$TESTSLIB"/assertions/developer1.account "$NESTED_FAKESTORE_BLOB_DIR/asserts"
   cp "$TESTSLIB"/assertions/developer1.account-key "$NESTED_FAKESTORE_BLOB_DIR/asserts"
 
@@ -69,9 +69,6 @@ prepare: |
 
   snap download --basename=pc --channel="20/edge" pc
   unsquashfs -d pc-gadget pc.snap
-
-  # ensure ubuntu-save is there
-  nested_ensure_ubuntu_save pc-gadget
 
   # delay all refreshes for a week from now, as otherwise refreshes for our
   # snaps (which are asserted by the testrootorg authority-id) may happen, which

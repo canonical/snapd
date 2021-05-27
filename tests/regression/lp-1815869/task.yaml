@@ -1,5 +1,7 @@
 summary: Regression test for https://bugs.launchpad.net/snapd/+bug/1815869
+
 systems: [ubuntu-16.04-64]
+
 prepare: |
     # Ensure that we don't have LXD installed as a deb
     apt autoremove -y lxd || :

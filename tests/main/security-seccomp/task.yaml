@@ -42,10 +42,10 @@ prepare: |
     fi
 
 restore: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
-    mv -f "$SRC".orig "$SRC"
-    snapd.tool exec snap-seccomp compile "$SRC" "$BIN"
+    if [ -e "$SRC".orig ]; then
+        mv -f "$SRC".orig "$SRC"
+        snapd.tool exec snap-seccomp compile "$SRC" "$BIN"
+    fi
     if [ -f "$AAP".orig ]; then
         mv -f "$AAP".orig "$AAP"
         apparmor_parser -r "$AAP"

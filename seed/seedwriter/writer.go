@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -90,6 +90,15 @@ type SeedSnap struct {
 	optionSnap *OptionsSnap
 }
 
+func (sn *SeedSnap) modes() []string {
+	if sn.modelSnap == nil {
+		// run is the assumed mode for extra snaps not listed
+		// in the model
+		return []string{"run"}
+	}
+	return sn.modelSnap.Modes
+}
+
 var _ naming.SnapRef = (*SeedSnap)(nil)
 
 /* Writer writes Core 16/18 and Core 20 seeds.
@@ -120,15 +129,19 @@ derived from the snap at SeedSnap.Path, then InfoDerived is called.
          /          Start       \
          |            |         |
          |            v         |
-   no    |   /    LocalSnaps    | no option
-   local |   |        |         | snaps
-   snaps |   |        v         |
+         |   /    LocalSnaps    |
+   no    |   |        |         |
+   local |   |        v         | no option
+   snaps |   |     SetInfo*     | snaps
+         |   |        |         |
+         |   |        v         |
          |   |    InfoDerived   |
          |   |        |         |
-         |   \        |         /
+         \   \        |         /
           >   > SnapsToDownload<
                       |     ^
-                      |     |
+                      v     |
+                   SetInfo* |
                       |     | complete = false
                       v     /
                   Downloaded
@@ -140,6 +153,8 @@ derived from the snap at SeedSnap.Path, then InfoDerived is called.
                       |
                       v
                   WriteMeta
+
+  * = 0 or many calls (as needed)
 
 */
 type Writer struct {
@@ -172,7 +187,8 @@ type Writer struct {
 	localSnaps      map[*OptionsSnap]*SeedSnap
 	byRefLocalSnaps *naming.SnapSet
 
-	availableSnaps *naming.SnapSet
+	availableSnaps  *naming.SnapSet
+	availableByMode map[string]*naming.SnapSet
 
 	// toDownload tracks which set of snaps SnapsToDownload should compute
 	// next
@@ -194,11 +210,13 @@ type policy interface {
 	modelSnapDefaultChannel() string
 	extraSnapDefaultChannel() string
 
-	checkBase(*snap.Info, *naming.SnapSet) error
+	checkBase(s *snap.Info, modes []string, availableByMode map[string]*naming.SnapSet) error
 
-	needsImplicitSnaps(*naming.SnapSet) (bool, error)
-	implicitSnaps(*naming.SnapSet) []*asserts.ModelSnap
-	implicitExtraSnaps(*naming.SnapSet) []*OptionsSnap
+	checkAvailable(snpRef naming.SnapRef, modes []string, availableByMode map[string]*naming.SnapSet) bool
+
+	needsImplicitSnaps(availableByMode map[string]*naming.SnapSet) (bool, error)
+	implicitSnaps(availableByMode map[string]*naming.SnapSet) []*asserts.ModelSnap
+	implicitExtraSnaps(availableByMode map[string]*naming.SnapSet) []*OptionsSnap
 }
 
 type tree interface {
@@ -240,7 +258,7 @@ func New(model *asserts.Model, opts *Options) (*Writer, error) {
 			return nil, err
 		}
 		pol = &policy20{model: model, opts: opts, warningf: w.warningf}
-		treeImpl = &tree20{opts: opts}
+		treeImpl = &tree20{grade: model.Grade(), opts: opts}
 	} else {
 		pol = &policy16{model: model, opts: opts, warningf: w.warningf}
 		treeImpl = &tree16{opts: opts}
@@ -403,12 +421,28 @@ func (w *Writer) SetOptionsSnaps(optSnaps []*OptionsSnap) error {
 	return nil
 }
 
+// SystemAlreadyExistsError is an error returned when given seed system already
+// exists.
+type SystemAlreadyExistsError struct {
+	label string
+}
+
+func (e *SystemAlreadyExistsError) Error() string {
+	return fmt.Sprintf("system %q already exists", e.label)
+}
+
+func IsSytemDirectoryExistsError(err error) bool {
+	_, ok := err.(*SystemAlreadyExistsError)
+	return ok
+}
+
 // Start starts the seed writing. It creates a RefAssertsFetcher using
-// newFetcher and uses it to fetch model related assertions. For
-// convenience it returns the fetcher possibly for use to fetch seed
-// snap assertions, a task that the writer delegates as well as snap
-// downloading. The writer assumes that the snap assertions will end up
-// in the given db (writing assertion database).
+// newFetcher and uses it to fetch model related assertions. For convenience it
+// returns the fetcher possibly for use to fetch seed snap assertions, a task
+// that the writer delegates as well as snap downloading. The writer assumes
+// that the snap assertions will end up in the given db (writing assertion
+// database). When the system seed directory is already present,
+// SystemAlreadyExistsError is returned.
 func (w *Writer) Start(db asserts.RODatabase, newFetcher NewFetcherFunc) (RefAssertsFetcher, error) {
 	if err := w.checkStep(startStep); err != nil {
 		return nil, err
@@ -769,11 +803,11 @@ func (w *Writer) SnapsToDownload() (snaps []*SeedSnap, err error) {
 		}
 		return toDownload, nil
 	case toDownloadImplicit:
-		return w.modelSnapsToDownload(w.policy.implicitSnaps(w.availableSnaps))
+		return w.modelSnapsToDownload(w.policy.implicitSnaps(w.availableByMode))
 	case toDownloadExtra:
 		return w.extraSnapsToDownload(w.optExtraSnaps())
 	case toDownloadExtraImplicit:
-		return w.extraSnapsToDownload(w.policy.implicitExtraSnaps(w.availableSnaps))
+		return w.extraSnapsToDownload(w.policy.implicitExtraSnaps(w.availableByMode))
 	default:
 		panic(fmt.Sprintf("unknown to-download set: %d", w.toDownload))
 	}
@@ -820,7 +854,7 @@ func (w *Writer) resolveChannel(whichSnap string, modSnap *asserts.ModelSnap, op
 	return resChannel, nil
 }
 
-func (w *Writer) checkBase(info *snap.Info) error {
+func (w *Writer) checkBase(info *snap.Info, modes []string) error {
 	// Sanity check, note that we could support this case
 	// if we have a use-case but it requires changes in the
 	// devicestate/firstboot.go ordering code.
@@ -833,12 +867,14 @@ func (w *Writer) checkBase(info *snap.Info) error {
 		return nil
 	}
 
-	return w.policy.checkBase(info, w.availableSnaps)
+	return w.policy.checkBase(info, modes, w.availableByMode)
 }
 
 func (w *Writer) downloaded(seedSnaps []*SeedSnap) error {
 	if w.availableSnaps == nil {
 		w.availableSnaps = naming.NewSnapSet(nil)
+		w.availableByMode = make(map[string]*naming.SnapSet)
+		w.availableByMode["run"] = naming.NewSnapSet(nil)
 	}
 
 	for _, sn := range seedSnaps {
@@ -846,6 +882,14 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap) error {
 			return fmt.Errorf("internal error: before seedwriter.Writer.Downloaded snap %q Info should have been set", sn.SnapName())
 		}
 		w.availableSnaps.Add(sn)
+		for _, mode := range sn.modes() {
+			byMode := w.availableByMode[mode]
+			if byMode == nil {
+				byMode = naming.NewSnapSet(nil)
+				w.availableByMode[mode] = byMode
+			}
+			byMode.Add(sn)
+		}
 	}
 
 	for _, sn := range seedSnaps {
@@ -873,14 +917,16 @@ func (w *Writer) downloaded(seedSnaps []*SeedSnap) error {
 			return fmt.Errorf("cannot use classic snap %q in a core system", info.SnapName())
 		}
 
-		if err := w.checkBase(info); err != nil {
+		modes := sn.modes()
+
+		if err := w.checkBase(info, modes); err != nil {
 			return err
 		}
 		// error about missing default providers
 		for dp := range snap.NeededDefaultProviders(info) {
-			if !w.availableSnaps.Contains(naming.Snap(dp)) {
+			if !w.policy.checkAvailable(naming.Snap(dp), modes, w.availableByMode) {
 				// TODO: have a way to ignore this issue on a snap by snap basis?
-				return fmt.Errorf("cannot use snap %q without its default content provider %q being added explicitly", info.SnapName(), dp)
+				return fmt.Errorf("cannot use snap %q without its default content provider %q being added explicitly%s", info.SnapName(), dp, errorMsgForModesSuffix(modes))
 			}
 		}
 
@@ -900,8 +946,6 @@ func (w *Writer) Downloaded() (complete bool, err error) {
 	if err := w.checkStep(downloadedStep); err != nil {
 		return false, err
 	}
-
-	// TODO: w.policy.resetChecks()
 
 	var considered []*SeedSnap
 	switch w.toDownload {
@@ -925,7 +969,7 @@ func (w *Writer) Downloaded() (complete bool, err error) {
 
 	switch w.toDownload {
 	case toDownloadModel:
-		implicitNeeded, err := w.policy.needsImplicitSnaps(w.availableSnaps)
+		implicitNeeded, err := w.policy.needsImplicitSnaps(w.availableByMode)
 		if err != nil {
 			return false, err
 		}
@@ -942,7 +986,7 @@ func (w *Writer) Downloaded() (complete bool, err error) {
 			return false, nil
 		}
 	case toDownloadExtra:
-		implicitNeeded, err := w.policy.needsImplicitSnaps(w.availableSnaps)
+		implicitNeeded, err := w.policy.needsImplicitSnaps(w.availableByMode)
 		if err != nil {
 			return false, err
 		}

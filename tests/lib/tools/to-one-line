@@ -8,13 +8,20 @@ to_one_line(){
     echo "$1" | tr '\r\n' ' ' | tr -s ' '
 }
 
-if [ $# -eq 0 ]; then
-    show_help
-    exit
-fi
+main() {
+	if [ $# -eq 0 ]; then
+	    show_help
+	    exit
+	fi
+	case "${1:-}" in
+		-h|--help)
+			show_help
+			exit 0
+			;;
+		*)
+			to_one_line "$1"
+			;;
+	esac
+}
 
-if [ "$1" = "-h" ] || [ "$1" = "--help" ]; then
-    show_help
-else
-    to_one_line "$1"
-fi
+main "$@"

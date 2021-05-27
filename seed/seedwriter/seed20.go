@@ -54,14 +54,10 @@ func (pol *policy20) allowsDangerousFeatures() error {
 }
 
 func (pol *policy20) checkDefaultChannel(channel.Channel) error {
-	// TODO: consider allowing some channel overrides for >=signed
-	// Core 20 models?
 	return pol.checkAllowedDangerous()
 }
 
 func (pol *policy20) checkSnapChannel(ch channel.Channel, whichSnap string) error {
-	// TODO: consider allowing some channel overrides for >=signed
-	// Core 20 models?
 	return pol.checkAllowedDangerous()
 }
 
@@ -76,12 +72,13 @@ func (pol *policy20) modelSnapDefaultChannel() string {
 }
 
 func (pol *policy20) extraSnapDefaultChannel() string {
-	// We will use latest/stable as default
-	// TODO: consider using just "stable" for these?
+	// We will use latest/stable as default for consistency with
+	// model snaps, this means not taking into account default-tracks
+	// by default
 	return "latest/stable"
 }
 
-func (pol *policy20) checkBase(info *snap.Info, availableSnaps *naming.SnapSet) error {
+func (pol *policy20) checkBase(info *snap.Info, modes []string, availableByMode map[string]*naming.SnapSet) error {
 	base := info.Base
 	if base == "" {
 		if info.Type() != snap.TypeGadget && info.Type() != snap.TypeApp {
@@ -90,37 +87,63 @@ func (pol *policy20) checkBase(info *snap.Info, availableSnaps *naming.SnapSet) 
 		base = "core"
 	}
 
-	if availableSnaps.Contains(naming.Snap(base)) {
+	if pol.checkAvailable(naming.Snap(base), modes, availableByMode) {
 		return nil
 	}
 
 	whichBase := fmt.Sprintf("its base %q", base)
 	if base == "core16" {
-		if availableSnaps.Contains(naming.Snap("core")) {
+		if pol.checkAvailable(naming.Snap("core"), modes, availableByMode) {
 			return nil
 		}
 		whichBase += ` (or "core")`
 	}
 
-	return fmt.Errorf("cannot add snap %q without also adding %s explicitly", info.SnapName(), whichBase)
+	return fmt.Errorf("cannot add snap %q without also adding %s explicitly%s", info.SnapName(), whichBase, errorMsgForModesSuffix(modes))
 }
 
-func (pol *policy20) needsImplicitSnaps(*naming.SnapSet) (bool, error) {
+func (pol *policy20) checkAvailable(snapRef naming.SnapRef, modes []string, availableByMode map[string]*naming.SnapSet) bool {
+	// checks that snapRef is available in all modes
+	for _, mode := range modes {
+		byMode := availableByMode[mode]
+		if !byMode.Contains(snapRef) {
+			if mode == "run" || mode == "ephemeral" {
+				// no additional fallback for these
+				// cases:
+				// * run is not ephemeral,
+				//   is covered only by run
+				// * ephemeral is only covered by ephemeral
+				return false
+			}
+			// all non-run modes (e.g. recover) are
+			// considered ephemeral, as a fallback check
+			// if the snap is listed under the ephemeral mode label
+			ephem := availableByMode["ephemeral"]
+			if ephem == nil || !ephem.Contains(snapRef) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func (pol *policy20) needsImplicitSnaps(map[string]*naming.SnapSet) (bool, error) {
 	// no implicit snaps with Core 20
 	// TODO: unless we want to support them for extra snaps
 	return false, nil
 }
 
-func (pol *policy20) implicitSnaps(*naming.SnapSet) []*asserts.ModelSnap {
+func (pol *policy20) implicitSnaps(map[string]*naming.SnapSet) []*asserts.ModelSnap {
 	return nil
 }
 
-func (pol *policy20) implicitExtraSnaps(*naming.SnapSet) []*OptionsSnap {
+func (pol *policy20) implicitExtraSnaps(map[string]*naming.SnapSet) []*OptionsSnap {
 	return nil
 }
 
 type tree20 struct {
-	opts *Options
+	grade asserts.ModelGrade
+	opts  *Options
 
 	snapsDirPath string
 	systemDir    string
@@ -136,7 +159,18 @@ func (tr *tree20) mkFixedDirs() error {
 		return err
 	}
 
-	return os.MkdirAll(tr.systemDir, 0755)
+	if err := os.MkdirAll(filepath.Dir(tr.systemDir), 0755); err != nil {
+		return err
+	}
+	if err := os.Mkdir(tr.systemDir, 0755); err != nil {
+		if os.IsExist(err) {
+			return &SystemAlreadyExistsError{
+				label: tr.opts.Label,
+			}
+		}
+		return err
+	}
+	return nil
 }
 
 func (tr *tree20) ensureSystemSnapsDir() (string, error) {
@@ -319,7 +353,9 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 	}
 
 	if len(optionsSnaps) != 0 {
-		// XXX internal error if we get here and grade != dangerous
+		if tr.grade != asserts.ModelDangerous {
+			return fmt.Errorf("internal error: unexpected non-model snap overrides with grade %s", tr.grade)
+		}
 		options20 := &internal.Options20{Snaps: optionsSnaps}
 		if err := options20.Write(filepath.Join(tr.systemDir, "options.yaml")); err != nil {
 			return err

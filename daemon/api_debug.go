@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2019 Canonical Ltd
+ * Copyright (C) 2015-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -36,10 +36,11 @@ import (
 )
 
 var debugCmd = &Command{
-	Path:   "/v2/debug",
-	UserOK: true,
-	GET:    getDebug,
-	POST:   postDebug,
+	Path:        "/v2/debug",
+	GET:         getDebug,
+	POST:        postDebug,
+	ReadAccess:  openAccess{},
+	WriteAccess: rootAccess{},
 }
 
 type debugAction struct {
@@ -47,10 +48,12 @@ type debugAction struct {
 	Message string `json:"message"`
 	Params  struct {
 		ChgID string `json:"chg-id"`
+
+		RecoverySystemLabel string `json:"recovery-system-label"`
 	} `json:"params"`
 }
 
-type ConnectivityStatus struct {
+type connectivityStatus struct {
 	Connectivity bool     `json:"connectivity"`
 	Unreachable  []string `json:"unreachable,omitempty"`
 }
@@ -73,7 +76,7 @@ func checkConnectivity(st *state.State) Response {
 	if err != nil {
 		return InternalError("cannot run connectivity check: %v", err)
 	}
-	status := ConnectivityStatus{Connectivity: true}
+	status := connectivityStatus{Connectivity: true}
 	for host, reachable := range checkResult {
 		if !reachable {
 			status.Connectivity = false
@@ -263,6 +266,18 @@ func getChangeTimings(st *state.State, changeID, ensureTag, startupTag string, a
 	return SyncResponse(responseData, nil)
 }
 
+func createRecovery(st *state.State, label string) Response {
+	if label == "" {
+		return BadRequest("cannot create a recovery system with no label")
+	}
+	chg, err := devicestate.CreateRecoverySystem(st, label)
+	if err != nil {
+		return InternalError("cannot create recovery system %q: %v", label, err)
+	}
+	ensureStateSoon(st)
+	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+}
+
 func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
 	aspect := query.Get("aspect")
@@ -316,12 +331,8 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	case "ensure-state-soon":
 		ensureStateSoon(st)
 		return SyncResponse(true, nil)
-	case "get-base-declaration":
-		return getBaseDeclaration(st)
 	case "can-manage-refreshes":
 		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
-	case "connectivity":
-		return checkConnectivity(st)
 	case "prune":
 		opTime, err := c.d.overlord.DeviceManager().StartOfOperationTime()
 		if err != nil {
@@ -329,6 +340,8 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		st.Prune(opTime, 0, 0, 0)
 		return SyncResponse(true, nil)
+	case "create-recovery-system":
+		return createRecovery(st, a.Params.RecoverySystemLabel)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}

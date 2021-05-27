@@ -32,19 +32,40 @@ import (
 // DevNum must be a unique string per unique mocked disk, if only one disk is
 // being mocked it can be left empty.
 type MockDiskMapping struct {
+	// FilesystemLabelToPartUUID is a mapping of the udev encoded filesystem
+	// labels to the expected partition uuids.
 	FilesystemLabelToPartUUID map[string]string
-	DiskHasPartitions         bool
-	DevNum                    string
+	// PartitionLabelToPartUUID is a mapping of the udev encoded partition
+	// labels to the expected partition uuids.
+	PartitionLabelToPartUUID map[string]string
+	DiskHasPartitions        bool
+	DevNum                   string
 }
 
-// FindMatchingPartitionUUID returns a matching PartitionUUID for the specified
-// label if it exists. Part of the Disk interface.
-func (d *MockDiskMapping) FindMatchingPartitionUUID(label string) (string, error) {
+// FindMatchingPartitionUUIDWithFsLabel returns a matching PartitionUUID
+// for the specified filesystem label if it exists. Part of the Disk interface.
+func (d *MockDiskMapping) FindMatchingPartitionUUIDWithFsLabel(label string) (string, error) {
 	osutil.MustBeTestBinary("mock disks only to be used in tests")
 	if partuuid, ok := d.FilesystemLabelToPartUUID[label]; ok {
 		return partuuid, nil
 	}
-	return "", FilesystemLabelNotFoundError{Label: label}
+	return "", PartitionNotFoundError{
+		SearchType:  "filesystem-label",
+		SearchQuery: label,
+	}
+}
+
+// FindMatchingPartitionUUIDWithPartLabel returns a matching PartitionUUID
+// for the specified filesystem label if it exists. Part of the Disk interface.
+func (d *MockDiskMapping) FindMatchingPartitionUUIDWithPartLabel(label string) (string, error) {
+	osutil.MustBeTestBinary("mock disks only to be used in tests")
+	if partuuid, ok := d.PartitionLabelToPartUUID[label]; ok {
+		return partuuid, nil
+	}
+	return "", PartitionNotFoundError{
+		SearchType:  "partition-label",
+		SearchQuery: label,
+	}
 }
 
 // HasPartitions returns if the mock disk has partitions or not. Part of the
@@ -86,6 +107,30 @@ func (d *MockDiskMapping) Dev() string {
 type Mountpoint struct {
 	Mountpoint        string
 	IsDecryptedDevice bool
+}
+
+// MockDeviceNameDisksToPartitionMapping will mock DiskFromDeviceName such that
+// the provided map of device names to mock disks is used instead of the actual
+// implementation using udev.
+func MockDeviceNameDisksToPartitionMapping(mockedMountPoints map[string]*MockDiskMapping) (restore func()) {
+	osutil.MustBeTestBinary("mock disks only to be used in tests")
+
+	// note that devices can have many names that are recognized by
+	// udev/kernel, so we don't do any validation of the mapping here like we do
+	// for MockMountPointDisksToPartitionMapping
+
+	old := diskFromDeviceName
+	diskFromDeviceName = func(deviceName string) (Disk, error) {
+		disk, ok := mockedMountPoints[deviceName]
+		if !ok {
+			return nil, fmt.Errorf("device name %q not mocked", deviceName)
+		}
+		return disk, nil
+	}
+
+	return func() {
+		diskFromDeviceName = old
+	}
 }
 
 // MockMountPointDisksToPartitionMapping will mock DiskFromMountPoint such that

@@ -29,5 +29,5 @@ func init() {
 	secbootMeasureSnapModelWhenPossible = secboot.MeasureSnapModelWhenPossible
 	secbootUnlockVolumeUsingSealedKeyIfEncrypted = secboot.UnlockVolumeUsingSealedKeyIfEncrypted
 	secbootUnlockEncryptedVolumeUsingKey = secboot.UnlockEncryptedVolumeUsingKey
-	secbootLockTPMSealedKeys = secboot.LockTPMSealedKeys
+	secbootLockSealedKeys = secboot.LockSealedKeys
 }

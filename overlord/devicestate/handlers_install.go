@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,15 +20,16 @@
 package devicestate
 
 import (
+	"compress/gzip"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
@@ -41,8 +42,9 @@ import (
 )
 
 var (
-	bootMakeBootable = boot.MakeBootable
-	installRun       = install.Run
+	bootMakeRunnable            = boot.MakeRunnableSystem
+	bootEnsureNextBootToRunMode = boot.EnsureNextBootToRunMode
+	installRun                  = install.Run
 
 	sysconfigConfigureTargetSystem = sysconfig.ConfigureTargetSystem
 )
@@ -90,6 +92,37 @@ func writeModel(model *asserts.Model, where string) error {
 	return asserts.NewEncoder(f).Encode(model)
 }
 
+func writeLogs(rootdir string) error {
+	// XXX: would be great to use native journal format but it's tied
+	//      to machine-id, we could journal -o export but there
+	//      is no systemd-journal-remote on core{,18,20}
+	//
+	// XXX: or only log if persistent journal is enabled?
+	logPath := filepath.Join(rootdir, "var/log/install-mode.log.gz")
+	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+		return err
+	}
+
+	f, err := os.Create(logPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	gz := gzip.NewWriter(f)
+	defer gz.Close()
+
+	cmd := exec.Command("journalctl", "-b", "0")
+	cmd.Stdout = gz
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("cannot collect journal output: %v", err)
+	}
+	if err := gz.Flush(); err != nil {
+		return fmt.Errorf("cannot flush compressed log output: %v", err)
+	}
+	return nil
+}
+
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -113,6 +146,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot get kernel info: %v", err)
 	}
+	kernelDir := kernelInfo.MountDir()
 
 	modeEnv, err := maybeReadModeenv()
 	if err != nil {
@@ -126,24 +160,30 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	bopts := install.Options{
 		Mount: true,
 	}
-	useEncryption, err := checkEncryption(deviceCtx.Model())
+	useEncryption, err := m.checkEncryption(st, deviceCtx)
 	if err != nil {
 		return err
 	}
 	bopts.Encrypt = useEncryption
 
+	model := deviceCtx.Model()
+
 	// make sure that gadget is usable for the set up we want to use it in
-	gadgetContaints := gadget.ValidationConstraints{
+	validationConstraints := gadget.ValidationConstraints{
 		EncryptedData: useEncryption,
 	}
-	if err := gadget.Validate(gadgetDir, deviceCtx.Model(), &gadgetContaints); err != nil {
+	ginfo, err := gadget.ReadInfoAndValidate(gadgetDir, model, &validationConstraints)
+	if err != nil {
+		return fmt.Errorf("cannot use gadget: %v", err)
+	}
+	if err := gadget.ValidateContent(ginfo, gadgetDir, kernelDir); err != nil {
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
 
 	var trustedInstallObserver *boot.TrustedAssetsInstallObserver
 	// get a nice nil interface by default
 	var installObserver gadget.ContentObserver
-	trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(deviceCtx.Model(), gadgetDir, useEncryption)
+	trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(model, gadgetDir, useEncryption)
 	if err != nil && err != boot.ErrObserverNotApplicable {
 		return fmt.Errorf("cannot setup asset install observer: %v", err)
 	}
@@ -162,7 +202,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	func() {
 		st.Unlock()
 		defer st.Lock()
-		installedSystem, err = installRun(gadgetDir, "", bopts, installObserver)
+		installedSystem, err = installRun(model, gadgetDir, kernelDir, "", bopts, installObserver)
 	}()
 	if err != nil {
 		return fmt.Errorf("cannot install system: %v", err)
@@ -197,7 +237,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot store the model: %v", err)
 	}
-	err = writeModel(deviceCtx.Model(), filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
+	err = writeModel(model, filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
 	if err != nil {
 		return fmt.Errorf("cannot store the model: %v", err)
 	}
@@ -205,13 +245,13 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	// configure the run system
 	opts := &sysconfig.Options{TargetRootDir: boot.InstallHostWritableDir, GadgetDir: gadgetDir}
 	// configure cloud init
-	setSysconfigCloudOptions(opts, gadgetDir, deviceCtx.Model())
+	setSysconfigCloudOptions(opts, gadgetDir, model)
 	if err := sysconfigConfigureTargetSystem(opts); err != nil {
 		return err
 	}
 
 	// make it bootable
-	logger.Noticef("make system bootable")
+	logger.Noticef("make system runnable")
 	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
@@ -225,14 +265,9 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		RecoverySystemDir: recoverySystemDir,
 		UnpackedGadgetDir: gadgetDir,
 	}
-	rootdir := dirs.GlobalRootDir
-	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith, trustedInstallObserver); err != nil {
-		return fmt.Errorf("cannot make run system bootable: %v", err)
+	if err := bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver); err != nil {
+		return fmt.Errorf("cannot make system runnable: %v", err)
 	}
-
-	// request a restart as the last action after a successful install
-	logger.Noticef("request system restart")
-	st.RequestRestart(state.RestartSystemNow)
 
 	return nil
 }
@@ -298,11 +333,13 @@ func saveKeys(keysForRoles map[string]*install.EncryptionKeySet) error {
 	return nil
 }
 
-var secbootCheckKeySealingSupported = secboot.CheckKeySealingSupported
+var secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
 
 // checkEncryption verifies whether encryption should be used based on the
-// model grade and the availability of a TPM device.
-func checkEncryption(model *asserts.Model) (res bool, err error) {
+// model grade and the availability of a TPM device or a fde-setup hook
+// in the kernel.
+func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bool, err error) {
+	model := deviceCtx.Model()
 	secured := model.Grade() == asserts.ModelSecured
 	dangerous := model.Grade() == asserts.ModelDangerous
 	encrypted := model.StorageSafety() == asserts.StorageSafetyEncrypted
@@ -313,25 +350,112 @@ func checkEncryption(model *asserts.Model) (res bool, err error) {
 		return false, nil
 	}
 
-	// encryption is required in secured devices and optional in other grades
-	if err := secbootCheckKeySealingSupported(); err != nil {
-		if secured {
-			return false, fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", err)
-		}
-		if encrypted {
-			return false, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", err)
-		}
-		return false, nil
-	}
-
+	// check if the model prefers to be unencrypted
 	// TODO: provide way to select via install chooser menu
-	// if the install is unencrypted or encrypted
+	//       if the install is unencrypted or encrypted
 	if model.StorageSafety() == asserts.StorageSafetyPreferUnencrypted {
 		logger.Noticef(`installing system unencrypted to comply with prefer-unencrypted storage-safety model option`)
 		return false, nil
 	}
 
-	// encrypt if it's supported and the user/model did not express
-	// other preferences
+	// check if encryption is available
+	var (
+		hasFDESetupHook    bool
+		checkEncryptionErr error
+	)
+	if kernelInfo, err := snapstate.KernelInfo(st, deviceCtx); err == nil {
+		if hasFDESetupHook = hasFDESetupHookInKernel(kernelInfo); hasFDESetupHook {
+			checkEncryptionErr = m.checkFDEFeatures(st)
+		}
+	}
+	// Note that having a fde-setup hook will disable the build-in
+	// secboot encryption
+	if !hasFDESetupHook {
+		checkEncryptionErr = secbootCheckTPMKeySealingSupported()
+	}
+
+	// check if encryption is required
+	if checkEncryptionErr != nil {
+		if secured {
+			return false, fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
+		}
+		if encrypted {
+			return false, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
+		}
+
+		if hasFDESetupHook {
+			logger.Noticef("not encrypting device storage as querying kernel fde-setup hook did not succeed: %v", checkEncryptionErr)
+		} else {
+			logger.Noticef("not encrypting device storage as checking TPM gave: %v", checkEncryptionErr)
+		}
+
+		// not required, go without
+		return false, nil
+	}
+
+	// encrypt
 	return true, nil
+}
+
+// RebootOptions can be attached to restart-system-to-run-mode tasks to control
+// their restart behavior.
+type RebootOptions struct {
+	Op string `json:"op,omitempty"`
+}
+
+const (
+	RebootHaltOp     = "halt"
+	RebootPoweroffOp = "poweroff"
+)
+
+func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+
+	modeEnv, err := maybeReadModeenv()
+	if err != nil {
+		return err
+	}
+
+	if modeEnv == nil {
+		return fmt.Errorf("missing modeenv, cannot proceed")
+	}
+
+	// store install-mode log into ubuntu-data partition
+	if err := writeLogs(boot.InstallHostWritableDir); err != nil {
+		logger.Noticef("cannot write installation log: %v", err)
+	}
+
+	// ensure the next boot goes into run mode
+	if err := bootEnsureNextBootToRunMode(modeEnv.RecoverySystem); err != nil {
+		return err
+	}
+
+	var rebootOpts RebootOptions
+	err = t.Get("reboot", &rebootOpts)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	// request by default a restart as the last action after a
+	// successful install or what install-device requested via
+	// snapctl reboot
+	rst := state.RestartSystemNow
+	what := "restart"
+	switch rebootOpts.Op {
+	case RebootHaltOp:
+		what = "halt"
+		rst = state.RestartSystemHaltNow
+	case RebootPoweroffOp:
+		what = "poweroff"
+		rst = state.RestartSystemPoweroffNow
+	}
+	logger.Noticef("request immediate system %s", what)
+	st.RequestRestart(rst)
+
+	return nil
 }

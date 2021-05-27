@@ -180,7 +180,6 @@ type interfaceManagerSuite struct {
 	coreSnap       *snap.Info
 	snapdSnap      *snap.Info
 	plug           *snap.PlugInfo
-	plugSelf       *snap.PlugInfo
 	slot           *snap.SlotInfo
 }
 

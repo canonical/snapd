@@ -38,19 +38,37 @@ import (
 
 type bootAssetsMap map[string][]string
 
+// bootCommandLines is a list of kernel command lines. The command lines are
+// marshalled as JSON as a comma can be present in the module parameters.
+type bootCommandLines []string
+
 // Modeenv is a file on UC20 that provides additional information
 // about the current mode (run,recover,install)
 type Modeenv struct {
-	Mode                   string   `key:"mode"`
-	RecoverySystem         string   `key:"recovery_system"`
+	Mode           string `key:"mode"`
+	RecoverySystem string `key:"recovery_system"`
+	// CurrentRecoverySystems is a list of labels corresponding to recovery
+	// systems that have been tested or are in the process of being tried,
+	// thus only the run key is resealed for these systems.
 	CurrentRecoverySystems []string `key:"current_recovery_systems"`
-	Base                   string   `key:"base"`
-	TryBase                string   `key:"try_base"`
-	BaseStatus             string   `key:"base_status"`
-	CurrentKernels         []string `key:"current_kernels"`
-	Model                  string   `key:"model"`
-	BrandID                string   `key:"model,secondary"`
-	Grade                  string   `key:"grade"`
+	// GoodRecoverySystems is a list of labels corresponding to recovery
+	// systems that were tested and are prepared to use for recovering.
+	// The fallback keys are resealed for these systems.
+	GoodRecoverySystems []string `key:"good_recovery_systems"`
+	Base                string   `key:"base"`
+	TryBase             string   `key:"try_base"`
+	BaseStatus          string   `key:"base_status"`
+	CurrentKernels      []string `key:"current_kernels"`
+	Model               string   `key:"model"`
+	BrandID             string   `key:"model,secondary"`
+	Grade               string   `key:"grade"`
+	// BootFlags is the set of boot flags. Whether this applies for the current
+	// or next boot is not indicated in the modeenv. When the modeenv is read in
+	// the initramfs these flags apply to the current boot and are copied into
+	// a file in /run that userspace should read instead of reading from this
+	// key. When setting boot flags for the next boot, then this key will be
+	// written to and used by the initramfs after rebooting.
+	BootFlags []string `key:"boot_flags"`
 	// CurrentTrustedBootAssets is a map of a run bootloader's asset names to
 	// a list of hashes of the asset contents. Typically the first entry in
 	// the list is a hash of an asset the system currently boots with (or is
@@ -62,6 +80,12 @@ type Modeenv struct {
 	// asset names to a list of hashes of the asset contents. Used similarly
 	// to CurrentTrustedBootAssets.
 	CurrentTrustedRecoveryBootAssets bootAssetsMap `key:"current_trusted_recovery_boot_assets"`
+	// CurrentKernelCommandLines is a list of the expected kernel command
+	// lines when booting into run mode. It will typically only be one
+	// element for normal operations, but may contain two elements during
+	// update scenarios.
+	CurrentKernelCommandLines bootCommandLines `key:"current_kernel_command_lines"`
+	// TODO:UC20 add a per recovery system list of kernel command lines
 
 	// read is set to true when a modenv was read successfully
 	read bool
@@ -133,6 +157,9 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	}
 	unmarshalModeenvValueFromCfg(cfg, "recovery_system", &m.RecoverySystem)
 	unmarshalModeenvValueFromCfg(cfg, "current_recovery_systems", &m.CurrentRecoverySystems)
+	unmarshalModeenvValueFromCfg(cfg, "good_recovery_systems", &m.GoodRecoverySystems)
+	unmarshalModeenvValueFromCfg(cfg, "boot_flags", &m.BootFlags)
+
 	unmarshalModeenvValueFromCfg(cfg, "mode", &m.Mode)
 	if m.Mode == "" {
 		return nil, fmt.Errorf("internal error: mode is unset")
@@ -151,6 +178,7 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	unmarshalModeenvValueFromCfg(cfg, "grade", &m.Grade)
 	unmarshalModeenvValueFromCfg(cfg, "current_trusted_boot_assets", &m.CurrentTrustedBootAssets)
 	unmarshalModeenvValueFromCfg(cfg, "current_trusted_recovery_boot_assets", &m.CurrentTrustedRecoveryBootAssets)
+	unmarshalModeenvValueFromCfg(cfg, "current_kernel_command_lines", &m.CurrentKernelCommandLines)
 
 	// save all the rest of the keys we don't understand
 	keys, err := cfg.Options("")
@@ -230,6 +258,8 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 	marshalModeenvEntryTo(buf, "mode", m.Mode)
 	marshalModeenvEntryTo(buf, "recovery_system", m.RecoverySystem)
 	marshalModeenvEntryTo(buf, "current_recovery_systems", m.CurrentRecoverySystems)
+	marshalModeenvEntryTo(buf, "good_recovery_systems", m.GoodRecoverySystems)
+	marshalModeenvEntryTo(buf, "boot_flags", m.BootFlags)
 	marshalModeenvEntryTo(buf, "base", m.Base)
 	marshalModeenvEntryTo(buf, "try_base", m.TryBase)
 	marshalModeenvEntryTo(buf, "base_status", m.BaseStatus)
@@ -246,6 +276,7 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 	marshalModeenvEntryTo(buf, "grade", m.Grade)
 	marshalModeenvEntryTo(buf, "current_trusted_boot_assets", m.CurrentTrustedBootAssets)
 	marshalModeenvEntryTo(buf, "current_trusted_recovery_boot_assets", m.CurrentTrustedRecoveryBootAssets)
+	marshalModeenvEntryTo(buf, "current_kernel_command_lines", m.CurrentKernelCommandLines)
 
 	// write all the extra keys at the end
 	// sort them for test convenience
@@ -398,5 +429,18 @@ func (b *bootAssetsMap) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*b = bootAssetsMap(asMap)
+	return nil
+}
+
+func (s bootCommandLines) MarshalJSON() ([]byte, error) {
+	return json.Marshal([]string(s))
+}
+
+func (s *bootCommandLines) UnmarshalJSON(data []byte) error {
+	var asList []string
+	if err := json.Unmarshal(data, &asList); err != nil {
+		return err
+	}
+	*s = bootCommandLines(asList)
 	return nil
 }

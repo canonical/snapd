@@ -1,11 +1,13 @@
 type: model
-authority-id: BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz
+authority-id: CA5GLZgNQWPhspDQK63Er46Uxz2SO7ez
 series: 16
-brand-id: BhgbYoDtThegqVkEU7oiZP8GQwCoUIxz
+brand-id: CA5GLZgNQWPhspDQK63Er46Uxz2SO7ez
 model: pc
 architecture: amd64
 base: core20
 grade: dangerous
+serial-authority:
+  - generic
 snaps:
   -
     default-channel: 20/edge
@@ -27,16 +29,16 @@ snaps:
     id: PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
     name: snapd
     type: snapd
-timestamp: 2019-05-16T18:06:04+00:00
-sign-key-sha3-384: 0u-IKZyVlTxwiBVOv7oT1FNKdfkKJyOSwbEWJPurlvtaGZxX6VrMHSESnIPeaNMC
+timestamp: 2020-11-27T15:30:00Z
+sign-key-sha3-384: x1Tnl94nkgb-rMDs_l63gvgkLYGjXKfpkCCIQZwJ72-LR6X6OrSvNS9z2WS1lAGz
 
-AcLBcwQAAQoAHRYhBMWWVcwwFvQaEaz9YITG74Zv2rilBQJecjoSAAoJEITG74Zv2rilrnoQAKGx
-xl13XVBJ1iW1k2W9gLJOakMFL3+xgzJU1rHEdk9b0Rcs7+QXqkodA2D8CAVnUnynHcgEWy6y2/DD
-j3ffOx/w/I7zDQHOM6jEzEPsAjyhJ/Chei/auj1mLV8sVcdxBxgmPmVSiidCbd0GClU5690wiF81
-Maxn1QoiAt4l3unHN7Jke6SZ1p9uL1XnO0lIRL+QXsfkQ34df+EIxvp+AE5zfEG8N3AGjul73Nwo
-iJWX1dFChpcRFcaIBL8ZQoaUGe2HhGrIklQH/EIgIwya4uEop1qSbkF7CIL8yGnkfQKUH03IQa8O
-lE5iZJdRwsKV0Z/SfN2Mw2uLlY1jl6HL4wNO6xLXKUXeyx2h3u104fL+i3e0Bin0ERijhnXqZxtv
-tA10r6mPBGJ+1/znWS8Gyf7pDIghO6pY0uX7YvwEdo2QRdjHWRQnSsq5iFtHopVH0kkVQTWB80Az
-TSEI9y9LMWdUk4dnpGrXffIIgcN9o3bX8t3myvPWZINB+l3RcjCjAEAOAA7FTbwzpdlPO5++hcNY
-LMQR2RI+D8GhclR3IhVzQBRf/7SbkenOV6LPjrD9A35c1+2+RoyA/N96QPxV+KJzN3FqDf/TzhTc
-LpHr++yZoMgvfmjBH0nlLYPl+P1YUvZA9s9IjjMMcVF5dqSl8BtmlK/Uh7/uYKBSkh9DPqiR
+AcLBcwQAAQoAHRYhBJABFPajYkcbyArNXdOZThAVY89JBQJfwRyeAAoJENOZThAVY89JWx4QAMxA
+XuEJiU2DAAXa1pl6w7tmBDf7kQ8jMVSNKW6DXAV58yBAUh7oUjS67duLwgaQoF9uPj6qPt5kEONU
+s6Mc0DAjQt3bT4KNsfclT/4rN944KNV0m1fDJu7ogZVeGt0xFG8OKV6jVc1SII0A7tkT14rfDeDi
+AfeyRMviXQPOjugr8KAR9dG5eHC5yfC1gcN7q89foEH1/l12LQBcyb9GDsNq3Z3mCUMG4l2IrzYy
+vAe49QyaagPBMNmPAx+zdRZQd4YX9xhQqwQeYZwsJWGZWx9omWF41EKYMiD1InJwOtTpYDJvCmRc
+hkriaBdI3WIL9u39Mm1+ZfZ/BY2RftxBMFOUDJwfzts7Z6ceUsPUXwDa2QiI7mxHMI4luLIUDb0w
+Y0pGJR47ZDSrx8ehdpXxYjoNYwRIjwhpzIAUR2tklwFs9gwroq4TOUlx3fBEipAu2QLaVZx9JjTA
+oP6oiQ9vX6pw0hsEqsR8PECO+9cjxymr0vslGkucNvcnp16v0ili6oUTkaXDmrtiBjgGLLXXkHJF
+jD5ln5TCSqWMbWupqHUa6fxOaBnFlSDMwid3UDxkjAoOaO7McrxYgGYb5miqP4fE4+hZVmP7OVu1
+uzSE7tBqCqXHyUUNcy8d4gN0AlLW+H1EtYD+/PEoODt6FPczIwKrj+DwXOhG+zLmDf992I3J

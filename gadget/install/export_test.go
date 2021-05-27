@@ -31,10 +31,12 @@ var (
 	MountFilesystem = mountFilesystem
 
 	CreateMissingPartitions = createMissingPartitions
+	BuildPartitionList      = buildPartitionList
 	RemoveCreatedPartitions = removeCreatedPartitions
 	EnsureNodesExist        = ensureNodesExist
 
 	CreatedDuringInstall = createdDuringInstall
+	CreationSupported    = creationSupported
 )
 
 func MockContentMountpoint(new string) (restore func()) {

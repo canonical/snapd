@@ -31,7 +31,7 @@ prepare: |
 execute: |
     SLOT_PROVIDER=
     SLOT_NAME=upower-observe
-    if [[ "$SPREAD_SYSTEM" = ubuntu-core-* ]]; then
+    if os.query is-core; then
         SLOT_PROVIDER=upower
         SLOT_NAME=service
     fi
@@ -41,12 +41,7 @@ execute: |
 
     echo "When the plug is connected the snap is able to dump info about the upower devices"
     expected="/org/freedesktop/UPower/devices/DisplayDevice.*"
-    for _ in $(seq 20); do
-        if ! test-snapd-upower-observe-consumer.upower --dump | MATCH "$expected"; then
-            sleep 1
-        fi
-    done
-    test-snapd-upower-observe-consumer.upower --dump | MATCH "$expected"
+    retry -n 20 --wait 1 sh -c "test-snapd-upower-observe-consumer.upower --dump | MATCH \"$expected\""
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0

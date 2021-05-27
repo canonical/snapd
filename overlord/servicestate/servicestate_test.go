@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2020 Canonical Ltd
+ * Copyright (C) 2015-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,6 +20,7 @@
 package servicestate_test
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -29,9 +30,15 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 type statusDecoratorSuite struct{}
@@ -54,24 +61,38 @@ func (s *statusDecoratorSuite) TestDecorateWithStatus(c *C) {
 
 	disabled := false
 	r := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
-		c.Assert(args[0], Equals, "show")
-		unit := args[2]
-		activeState, unitState := "active", "enabled"
-		if disabled {
-			activeState = "inactive"
-			unitState = "disabled"
-		}
-		if strings.HasSuffix(unit, ".timer") || strings.HasSuffix(unit, ".socket") {
-			return []byte(fmt.Sprintf(`Id=%s
+		switch args[0] {
+		case "show":
+			c.Assert(args[0], Equals, "show")
+			unit := args[2]
+			activeState, unitState := "active", "enabled"
+			if disabled {
+				activeState = "inactive"
+				unitState = "disabled"
+			}
+			if strings.HasSuffix(unit, ".timer") || strings.HasSuffix(unit, ".socket") {
+				return []byte(fmt.Sprintf(`Id=%s
 ActiveState=%s
 UnitFileState=%s
 `, args[2], activeState, unitState)), nil
-		} else {
-			return []byte(fmt.Sprintf(`Id=%s
+			} else {
+				return []byte(fmt.Sprintf(`Id=%s
 Type=simple
 ActiveState=%s
 UnitFileState=%s
 `, args[2], activeState, unitState)), nil
+			}
+		case "--user":
+			c.Assert(args[1], Equals, "--global")
+			c.Assert(args[2], Equals, "is-enabled")
+			unitState := "enabled\n"
+			if disabled {
+				unitState = "disabled\n"
+			}
+			return bytes.Repeat([]byte(unitState), len(args)-3), nil
+		default:
+			c.Errorf("unexpected systemctl command: %v", args)
+			return nil, fmt.Errorf("should not be reached")
 		}
 	})
 	defer r()
@@ -98,9 +119,10 @@ UnitFileState=%s
 			Daemon: "simple",
 		}
 		snapApp = &snap.AppInfo{
-			Snap:   snp,
-			Name:   "svc",
-			Daemon: "simple",
+			Snap:        snp,
+			Name:        "svc",
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
 		}
 
 		err = sd.DecorateWithStatus(app, snapApp)
@@ -161,5 +183,192 @@ UnitFileState=%s
 			{Name: "socket1", Type: "socket", Active: enabled, Enabled: enabled},
 		})
 
+		// service with D-Bus activation
+		app = &client.AppInfo{
+			Snap:   snp.InstanceName(),
+			Name:   "svc",
+			Daemon: "simple",
+		}
+		snapApp = &snap.AppInfo{
+			Snap:        snp,
+			Name:        "svc",
+			Daemon:      "simple",
+			DaemonScope: snap.SystemDaemon,
+		}
+		snapApp.ActivatesOn = []*snap.SlotInfo{
+			{
+				Snap:      snp,
+				Name:      "dbus-slot",
+				Interface: "dbus",
+				Attrs: map[string]interface{}{
+					"bus":  "system",
+					"name": "org.example.Svc",
+				},
+			},
+		}
+
+		err = sd.DecorateWithStatus(app, snapApp)
+		c.Assert(err, IsNil)
+		c.Check(app.Active, Equals, enabled)
+		c.Check(app.Enabled, Equals, enabled)
+		c.Check(app.Activators, DeepEquals, []client.AppActivator{
+			{Name: "org.example.Svc", Type: "dbus", Active: true, Enabled: true},
+		})
+
+		// No state is currently extracted for user daemons
+		app = &client.AppInfo{
+			Snap:   snp.InstanceName(),
+			Name:   "svc",
+			Daemon: "simple",
+		}
+		snapApp = &snap.AppInfo{
+			Snap:        snp,
+			Name:        "svc",
+			Daemon:      "simple",
+			DaemonScope: snap.UserDaemon,
+		}
+		snapApp.Sockets = map[string]*snap.SocketInfo{
+			"socket1": {
+				App:          snapApp,
+				Name:         "socket1",
+				ListenStream: "a.socket",
+			},
+		}
+		snapApp.Timer = &snap.TimerInfo{
+			App:   snapApp,
+			Timer: "10:00",
+		}
+		snapApp.ActivatesOn = []*snap.SlotInfo{
+			{
+				Snap:      snp,
+				Name:      "dbus-slot",
+				Interface: "dbus",
+				Attrs: map[string]interface{}{
+					"bus":  "session",
+					"name": "org.example.Svc",
+				},
+			},
+		}
+
+		err = sd.DecorateWithStatus(app, snapApp)
+		c.Assert(err, IsNil)
+		c.Check(app.Active, Equals, false)
+		c.Check(app.Enabled, Equals, enabled)
+		c.Check(app.Activators, DeepEquals, []client.AppActivator{
+			{Name: "socket1", Type: "socket", Active: false, Enabled: enabled},
+			{Name: "svc", Type: "timer", Active: false, Enabled: enabled},
+			{Name: "org.example.Svc", Type: "dbus", Active: true, Enabled: true},
+		})
 	}
+}
+
+type snapServiceOptionsSuite struct {
+	testutil.BaseTest
+	state *state.State
+}
+
+var _ = Suite(&snapServiceOptionsSuite{})
+
+func (s *snapServiceOptionsSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	s.state = state.New(nil)
+}
+
+func (s *snapServiceOptionsSuite) TestSnapServiceOptionsVitalityRank(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+	t := config.NewTransaction(st)
+	err := t.Set("core", "resilience.vitality-hint", "bar,foo")
+	c.Assert(err, IsNil)
+	t.Commit()
+
+	opts, err := servicestate.SnapServiceOptions(st, "foo", nil)
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
+		VitalityRank: 2,
+	})
+	opts, err = servicestate.SnapServiceOptions(st, "bar", nil)
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
+		VitalityRank: 1,
+	})
+	opts, err = servicestate.SnapServiceOptions(st, "unknown", nil)
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
+		VitalityRank: 0,
+	})
+}
+
+func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// make a quota group
+	grp, err := quota.NewGroup("foogroup", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	grp.Snaps = []string{"foosnap"}
+
+	// add it into the state
+	newGrps, err := servicestate.PatchQuotas(st, grp)
+	c.Assert(err, IsNil)
+	c.Assert(newGrps, DeepEquals, map[string]*quota.Group{
+		"foogroup": grp,
+	})
+
+	opts, err := servicestate.SnapServiceOptions(st, "foosnap", nil)
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
+		QuotaGroup: grp,
+	})
+
+	// save the current state of the quota group before modifying it to prove
+	// that the group caching works
+	grps, err := servicestate.AllQuotas(st)
+	c.Assert(err, IsNil)
+
+	// modify state to use an instance name instead now
+	grp.Snaps = []string{"foosnap_instance"}
+	newGrps, err = servicestate.PatchQuotas(st, grp)
+	c.Assert(err, IsNil)
+	c.Assert(newGrps, DeepEquals, map[string]*quota.Group{
+		"foogroup": grp,
+	})
+
+	// we can still get the quota group using the local map we got before
+	// modifying state
+	opts, err = servicestate.SnapServiceOptions(st, "foosnap", grps)
+	c.Assert(err, IsNil)
+	grp.Snaps = []string{"foosnap"}
+	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
+		QuotaGroup: grp,
+	})
+
+	// but using state produces nothing for the non-instance name snap
+	opts, err = servicestate.SnapServiceOptions(st, "foosnap", nil)
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{})
+
+	// but it does work with instance names
+	grp.Snaps = []string{"foosnap_instance"}
+	opts, err = servicestate.SnapServiceOptions(st, "foosnap_instance", nil)
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
+		QuotaGroup: grp,
+	})
+
+	// works with vitality rank for the snap too
+	t := config.NewTransaction(st)
+	err = t.Set("core", "resilience.vitality-hint", "bar,foosnap_instance")
+	c.Assert(err, IsNil)
+	t.Commit()
+
+	opts, err = servicestate.SnapServiceOptions(st, "foosnap_instance", nil)
+	c.Assert(err, IsNil)
+	c.Check(opts, DeepEquals, &wrappers.SnapServiceOptions{
+		VitalityRank: 2,
+		QuotaGroup:   grp,
+	})
 }

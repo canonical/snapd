@@ -73,10 +73,25 @@ func maintenanceForRestartType(rst state.RestartType) *errorResult {
 	switch rst {
 	case state.RestartSystem, state.RestartSystemNow:
 		e.Kind = client.ErrorKindSystemRestart
-		e.Message = daemonRestartMsg
+		e.Message = systemRestartMsg
+		e.Value = map[string]interface{}{
+			"op": "reboot",
+		}
+	case state.RestartSystemHaltNow:
+		e.Kind = client.ErrorKindSystemRestart
+		e.Message = systemHaltMsg
+		e.Value = map[string]interface{}{
+			"op": "halt",
+		}
+	case state.RestartSystemPoweroffNow:
+		e.Kind = client.ErrorKindSystemRestart
+		e.Message = systemPoweroffMsg
+		e.Value = map[string]interface{}{
+			"op": "poweroff",
+		}
 	case state.RestartDaemon:
 		e.Kind = client.ErrorKindDaemonRestart
-		e.Message = systemRestartMsg
+		e.Message = daemonRestartMsg
 	case state.RestartSocket:
 		e.Kind = client.ErrorKindDaemonRestart
 		e.Message = socketRestartMsg
@@ -205,7 +220,8 @@ func makeErrorResponder(status int) errorResponder {
 		} else {
 			res.Message = fmt.Sprintf(format, v...)
 		}
-		if status == 401 {
+		// FIXME: forbidden should use a different kind.
+		if status == 401 || status == 403 {
 			res.Kind = client.ErrorKindLoginRequired
 		}
 		return &resp{
@@ -267,6 +283,8 @@ func (s *snapStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 // A snapshotExportResponse 's ServeHTTP method serves a specific snapshot ID
 type snapshotExportResponse struct {
 	*snapshotstate.SnapshotExport
+	setID uint64
+	st    *state.State
 }
 
 // ServeHTTP from the Response interface
@@ -277,6 +295,9 @@ func (s snapshotExportResponse) ServeHTTP(w http.ResponseWriter, r *http.Request
 		logger.Debugf("cannot export snapshot: %v", err)
 	}
 	s.Close()
+	s.st.Lock()
+	defer s.st.Unlock()
+	snapshotstate.UnsetSnapshotOpInProgress(s.st, s.setID)
 }
 
 // A fileResponse 's ServeHTTP method serves the file

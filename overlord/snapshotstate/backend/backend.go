@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -33,6 +33,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strconv"
@@ -69,11 +70,6 @@ var (
 
 	usersForUsernames = usersForUsernamesImpl
 )
-
-// Flags encompasses extra flags for snapshots backend Save.
-type Flags struct {
-	Auto bool
-}
 
 // LastSnapshotSetID returns the highest set id number for the snapshots stored
 // in snapshots directory; set ids are inferred from the filenames.
@@ -306,14 +302,9 @@ func EstimateSnapshotSize(si *snap.Info, usernames []string) (uint64, error) {
 }
 
 // Save a snapshot
-func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string, flags *Flags) (*client.Snapshot, error) {
+func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interface{}, usernames []string) (*client.Snapshot, error) {
 	if err := os.MkdirAll(dirs.SnapshotsDir, 0700); err != nil {
 		return nil, err
-	}
-
-	var auto bool
-	if flags != nil {
-		auto = flags.Auto
 	}
 
 	snapshot := &client.Snapshot{
@@ -327,7 +318,7 @@ func Save(ctx context.Context, id uint64, si *snap.Info, cfg map[string]interfac
 		SHA3_384: make(map[string]string),
 		Size:     0,
 		Conf:     cfg,
-		Auto:     auto,
+		// Note: Auto is no longer set in the Snapshot.
 	}
 
 	aw, err := osutil.NewAtomicFile(Filename(snapshot), 0600, 0, osutil.NoChown, osutil.NoChown)
@@ -453,7 +444,13 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 
 	cmd := tarAsUser(username, tarArgs...)
 	cmd.Stdout = io.MultiWriter(archiveWriter, hasher, &sz)
-	matchCounter := &strutil.MatchCounter{N: 1}
+	matchCounter := &strutil.MatchCounter{
+		// keep at most 5 matches
+		N: 5,
+		// keep the last lines only, those likely contain the reason for
+		// fatal errors
+		LastN: true,
+	}
 	cmd.Stderr = matchCounter
 	if isTesting {
 		matchCounter.N = -1
@@ -462,7 +459,13 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 	if err := osutil.RunWithContext(ctx, cmd); err != nil {
 		matches, count := matchCounter.Matches()
 		if count > 0 {
-			return fmt.Errorf("cannot create archive: %s (and %d more)", matches[0], count-1)
+			note := ""
+			if count > 5 {
+				note = fmt.Sprintf(" (showing last 5 lines out of %d)", count)
+			}
+			// we have at most 5 matches here
+			errStr := strings.Join(matches, "\n")
+			return fmt.Errorf("cannot create archive%s:\n%s", note, errStr)
 		}
 		return fmt.Errorf("tar failed: %v", err)
 	}
@@ -475,6 +478,59 @@ func addDirToZip(ctx context.Context, snapshot *client.Snapshot, w *zip.Writer, 
 
 var ErrCannotCancel = errors.New("cannot cancel: import already finished")
 
+// multiError collects multiple errors that affected an operation.
+type multiError struct {
+	header string
+	errs   []error
+}
+
+// newMultiError returns a new multiError struct initialized with
+// the given format string that explains what operation potentially
+// went wrong. multiError can be nested and will render correctly
+// in these cases.
+func newMultiError(header string, errs []error) error {
+	return &multiError{header: header, errs: errs}
+}
+
+// Error formats the error string.
+func (me *multiError) Error() string {
+	return me.nestedError(0)
+}
+
+// helper to ensure formating of nested multiErrors works.
+func (me *multiError) nestedError(level int) string {
+	indent := strings.Repeat(" ", level)
+	buf := bytes.NewBufferString(fmt.Sprintf("%s:\n", me.header))
+	if level > 8 {
+		return "circular or too deep error nesting (max 8)?!"
+	}
+	for i, err := range me.errs {
+		switch v := err.(type) {
+		case *multiError:
+			fmt.Fprintf(buf, "%s- %v", indent, v.nestedError(level+1))
+		default:
+			fmt.Fprintf(buf, "%s- %v", indent, err)
+		}
+		if i < len(me.errs)-1 {
+			fmt.Fprintf(buf, "\n")
+		}
+	}
+	return buf.String()
+}
+
+var (
+	importingFnRegexp = regexp.MustCompile("^([0-9]+)_importing$")
+	importingFnGlob   = "[0-9]*_importing"
+	importingFnFmt    = "%d_importing"
+	importingForIDFmt = "%d_*.zip"
+)
+
+// importInProgressFor return true if the given snapshot id has an import
+// that is in progress.
+func importInProgressFor(setID uint64) bool {
+	return newImportTransaction(setID).InProgress()
+}
+
 // importTransaction keeps track of the given snapshot ID import and
 // ensures it can be committed/cancelled in an atomic way.
 //
@@ -486,34 +542,43 @@ var ErrCannotCancel = errors.New("cannot cancel: import already finished")
 // a commit.
 type importTransaction struct {
 	id        uint64
+	lockPath  string
 	committed bool
 }
 
+// newImportTransaction creates a new importTransaction for the given
+// snapshot id.
 func newImportTransaction(setID uint64) *importTransaction {
-	return &importTransaction{id: setID}
+	return &importTransaction{
+		id:       setID,
+		lockPath: filepath.Join(dirs.SnapshotsDir, fmt.Sprintf(importingFnFmt, setID)),
+	}
 }
 
-func (t *importTransaction) importInProgressFilesGlob() string {
-	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_*.zip", t.id))
+// newImportTransactionFromImportFile creates a new importTransaction
+// for the given import file path. It may return an error if an
+// invalid file was specified.
+func newImportTransactionFromImportFile(p string) (*importTransaction, error) {
+	parts := importingFnRegexp.FindStringSubmatch(path.Base(p))
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("cannot determine snapshot id from %q", p)
+	}
+	setID, err := strconv.ParseUint(parts[1], 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	return newImportTransaction(setID), nil
 }
 
 // Start marks the start of a snapshot import
 func (t *importTransaction) Start() error {
-	return ioutil.WriteFile(importInProgressFilepath(t.id), nil, 0644)
+	return t.lock()
 }
 
 // InProgress returns true if there is an import for this transactions
 // snapshot ID already.
 func (t *importTransaction) InProgress() bool {
-	return osutil.FileExists(importInProgressFilepath(t.id))
-}
-
-func importInProgressFilepath(setID uint64) string {
-	return filepath.Join(dirs.SnapshotsDir, fmt.Sprintf("%d_importing", setID))
-}
-
-func importInProgressFor(setID uint64) bool {
-	return osutil.FileExists(importInProgressFilepath(setID))
+	return osutil.FileExists(t.lockPath)
 }
 
 // Cancel cancels a snapshot import and cleanups any files on disk belonging
@@ -522,7 +587,7 @@ func (t *importTransaction) Cancel() error {
 	if t.committed {
 		return ErrCannotCancel
 	}
-	inProgressImports, err := filepath.Glob(t.importInProgressFilesGlob())
+	inProgressImports, err := filepath.Glob(filepath.Join(dirs.SnapshotsDir, fmt.Sprintf(importingForIDFmt, t.id)))
 	if err != nil {
 		return err
 	}
@@ -532,27 +597,79 @@ func (t *importTransaction) Cancel() error {
 			errs = append(errs, err)
 		}
 	}
+	if err := t.unlock(); err != nil {
+		errs = append(errs, err)
+	}
 	if len(errs) > 0 {
-		buf := bytes.NewBuffer(nil)
-		for _, err := range errs {
-			fmt.Fprintf(buf, " - %v\n", err)
-		}
-		return fmt.Errorf("cannot cancel import for set id %d:\n%s", t.id, buf.String())
+		return newMultiError(fmt.Sprintf("cannot cancel import for set id %d", t.id), errs)
 	}
 	return nil
 }
 
 // Commit will commit a given transaction
 func (t *importTransaction) Commit() error {
-	if err := os.Remove(importInProgressFilepath(t.id)); err != nil {
+	if err := t.unlock(); err != nil {
 		return err
 	}
 	t.committed = true
 	return nil
 }
 
+func (t *importTransaction) lock() error {
+	return ioutil.WriteFile(t.lockPath, nil, 0644)
+}
+
+func (t *importTransaction) unlock() error {
+	return os.Remove(t.lockPath)
+}
+
+var filepathGlob = filepath.Glob
+
+// CleanupAbandondedImports will clean any import that is in progress.
+// This is meant to be called at startup of snapd before any real imports
+// happen. It is not safe to run this concurrently with any other snapshot
+// operation.
+//
+// The amount of snapshots cleaned is returned and an error if one or
+// more cleanups did not succeed.
+func CleanupAbandondedImports() (cleaned int, err error) {
+	inProgressSnapshots, err := filepathGlob(filepath.Join(dirs.SnapshotsDir, importingFnGlob))
+	if err != nil {
+		return 0, err
+	}
+
+	var errs []error
+	for _, p := range inProgressSnapshots {
+		tr, err := newImportTransactionFromImportFile(p)
+		if err != nil {
+			errs = append(errs, err)
+			continue
+		}
+		if err := tr.Cancel(); err != nil {
+			errs = append(errs, err)
+		} else {
+			cleaned++
+		}
+	}
+	if len(errs) > 0 {
+		return cleaned, newMultiError("cannot cleanup imports", errs)
+	}
+	return cleaned, nil
+}
+
+// ImportFlags carries extra flags to drive import behavior.
+type ImportFlags struct {
+	// noDuplicatedImportCheck tells import not to check for existing snapshot
+	// with same content hash (and not report DuplicatedSnapshotImportError).
+	NoDuplicatedImportCheck bool
+}
+
 // Import a snapshot from the export file format
-func Import(ctx context.Context, id uint64, r io.Reader) (snapNames []string, err error) {
+func Import(ctx context.Context, id uint64, r io.Reader, flags *ImportFlags) (snapNames []string, err error) {
+	if err := os.MkdirAll(dirs.SnapshotsDir, 0700); err != nil {
+		return nil, err
+	}
+
 	errPrefix := fmt.Sprintf("cannot import snapshot %d", id)
 
 	tr := newImportTransaction(id)
@@ -566,8 +683,15 @@ func Import(ctx context.Context, id uint64, r io.Reader) (snapNames []string, er
 	defer tr.Cancel()
 
 	// Unpack and validate the streamed data
-	snapNames, err = unpackVerifySnapshotImport(r, id)
+	//
+	// XXX: this will leak snapshot IDs, i.e. we allocate a new
+	// snapshot ID before but then we error here because of e.g.
+	// duplicated import attempts
+	snapNames, err = unpackVerifySnapshotImport(ctx, r, id, flags)
 	if err != nil {
+		if _, ok := err.(DuplicatedSnapshotImportError); ok {
+			return nil, err
+		}
 		return nil, fmt.Errorf("%s: %v", errPrefix, err)
 	}
 	if err := tr.Commit(); err != nil {
@@ -590,12 +714,57 @@ func writeOneSnapshotFile(targetPath string, tr io.Reader) error {
 	return nil
 }
 
-func unpackVerifySnapshotImport(r io.Reader, realSetID uint64) (snapNames []string, err error) {
+type DuplicatedSnapshotImportError struct {
+	SetID     uint64
+	SnapNames []string
+}
+
+func (e DuplicatedSnapshotImportError) Error() string {
+	return fmt.Sprintf("cannot import snapshot, already available as snapshot id %v", e.SetID)
+}
+
+func checkDuplicatedSnapshotSetWithContentHash(ctx context.Context, contentHash []byte) error {
+	snapshotSetMap := map[uint64]client.SnapshotSet{}
+
+	// XXX: deal with import in progress here
+
+	// get all current snapshotSets
+	err := Iter(ctx, func(reader *Reader) error {
+		ss := snapshotSetMap[reader.SetID]
+		ss.Snapshots = append(ss.Snapshots, &reader.Snapshot)
+		snapshotSetMap[reader.SetID] = ss
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("cannot calculate snapshot set hashes: %v", err)
+	}
+
+	for setID, ss := range snapshotSetMap {
+		h, err := ss.ContentHash()
+		if err != nil {
+			return fmt.Errorf("cannot calculate content hash for %v: %v", setID, err)
+		}
+		if bytes.Equal(h, contentHash) {
+			var snapNames []string
+			for _, snapshot := range ss.Snapshots {
+				snapNames = append(snapNames, snapshot.Snap)
+			}
+			return DuplicatedSnapshotImportError{SetID: setID, SnapNames: snapNames}
+		}
+	}
+	return nil
+}
+
+func unpackVerifySnapshotImport(ctx context.Context, r io.Reader, realSetID uint64, flags *ImportFlags) (snapNames []string, err error) {
 	var exportFound bool
 
 	tr := tar.NewReader(r)
 	var tarErr error
 	var header *tar.Header
+
+	if flags == nil {
+		flags = &ImportFlags{}
+	}
 
 	for tarErr == nil {
 		header, tarErr = tr.Next()
@@ -610,6 +779,23 @@ func unpackVerifySnapshotImport(r io.Reader, realSetID uint64) (snapNames []stri
 			return nil, fmt.Errorf("tar header not found")
 		case header.Typeflag == tar.TypeDir:
 			return nil, errors.New("unexpected directory in import file")
+		}
+
+		if header.Name == "content.json" {
+			var ej contentJSON
+			dec := json.NewDecoder(tr)
+			if err := dec.Decode(&ej); err != nil {
+				return nil, err
+			}
+			if !flags.NoDuplicatedImportCheck {
+				// XXX: this is potentially slow as it needs
+				//      to open all snapshots files and read a
+				//      small amount of data from them
+				if err := checkDuplicatedSnapshotSetWithContentHash(ctx, ej.ContentHash); err != nil {
+					return nil, err
+				}
+			}
+			continue
 		}
 
 		if header.Name == "export.json" {
@@ -665,6 +851,9 @@ type SnapshotExport struct {
 	// open snapshot files
 	snapshotFiles []*os.File
 
+	// contentHash of the full snapshot
+	contentHash []byte
+
 	// remember setID mostly for nicer errors
 	setID uint64
 
@@ -676,6 +865,7 @@ type SnapshotExport struct {
 // Close()ed after use to avoid leaking file descriptors.
 func NewSnapshotExport(ctx context.Context, setID uint64) (se *SnapshotExport, err error) {
 	var snapshotFiles []*os.File
+	var snapshotSet client.SnapshotSet
 
 	defer func() {
 		// cleanup any open FDs if anything goes wrong
@@ -692,9 +882,13 @@ func NewSnapshotExport(ctx context.Context, setID uint64) (se *SnapshotExport, e
 	// files are getting opened.
 	err = Iter(ctx, func(reader *Reader) error {
 		if reader.SetID == setID {
-			// Duplicate the file descriptor of the reader we were handed as
-			// Iter() closes those as soon as this unnamed returns. We
-			// re-package the file descriptor into snapshotFiles below.
+			snapshotSet.Snapshots = append(snapshotSet.Snapshots, &reader.Snapshot)
+
+			// Duplicate the file descriptor of the reader
+			// we were handed as Iter() closes those as
+			// soon as this unnamed returns. We re-package
+			// the file descriptor into snapshotFiles
+			// below.
 			fd, err := syscall.Dup(int(reader.Fd()))
 			if err != nil {
 				return fmt.Errorf("cannot duplicate descriptor: %v", err)
@@ -714,7 +908,11 @@ func NewSnapshotExport(ctx context.Context, setID uint64) (se *SnapshotExport, e
 		return nil, fmt.Errorf("no snapshot data found for %v", setID)
 	}
 
-	se = &SnapshotExport{snapshotFiles: snapshotFiles, setID: setID}
+	h, err := snapshotSet.ContentHash()
+	if err != nil {
+		return nil, fmt.Errorf("cannot calculate content hash for snapshot export %v: %v", setID, err)
+	}
+	se = &SnapshotExport{snapshotFiles: snapshotFiles, setID: setID, contentHash: h}
 
 	// ensure we never leak FDs even if the user does not call close
 	runtime.SetFinalizer(se, (*SnapshotExport).Close)
@@ -753,11 +951,36 @@ func (se *SnapshotExport) Close() {
 	se.snapshotFiles = nil
 }
 
+type contentJSON struct {
+	ContentHash []byte `json:"content-hash"`
+}
+
 func (se *SnapshotExport) StreamTo(w io.Writer) error {
 	// write out a tar
 	var files []string
 	tw := tar.NewWriter(w)
 	defer tw.Close()
+
+	// export contentHash as content.json
+	h, err := json.Marshal(contentJSON{se.contentHash})
+	if err != nil {
+		return err
+	}
+	hdr := &tar.Header{
+		Typeflag: tar.TypeReg,
+		Name:     "content.json",
+		Size:     int64(len(h)),
+		Mode:     0640,
+		ModTime:  timeNow(),
+	}
+	if err := tw.WriteHeader(hdr); err != nil {
+		return err
+	}
+	if _, err := tw.Write(h); err != nil {
+		return err
+	}
+
+	// write out the individual snapshots
 	for _, snapshotFile := range se.snapshotFiles {
 		stat, err := snapshotFile.Stat()
 		if err != nil {
@@ -795,7 +1018,7 @@ func (se *SnapshotExport) StreamTo(w io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("cannot marshal meta-data: %v", err)
 	}
-	hdr := &tar.Header{
+	hdr = &tar.Header{
 		Typeflag: tar.TypeReg,
 		Name:     "export.json",
 		Size:     int64(len(metaDataBuf)),
