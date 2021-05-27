@@ -56,7 +56,7 @@ const multipassSupportBaseDeclarationSlots = `
 const multipassSupportConnectedPlugAppArmor = `
 # Description: this policy intentionally allows the Multipass daemon to configure AppArmor
 # as Multipass generates AppArmor profiles for the utility processes it spawns.
-/sbin/apparmor_parser ixr,
+/{,usr/}sbin/apparmor_parser ixr,
 /etc/apparmor{,.d}/{,**} r,
 /sys/kernel/security/apparmor/{,**} r,
 /sys/kernel/security/apparmor/.remove w,

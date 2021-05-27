@@ -181,6 +181,10 @@ func SetInstalledRan(m *DeviceManager, b bool) {
 	m.ensureInstalledRan = b
 }
 
+func SetTriedSystemsRan(m *DeviceManager, b bool) {
+	m.ensureTriedRecoverySystemRan = b
+}
+
 func StartTime() time.Time {
 	return startTime
 }
@@ -225,6 +229,10 @@ var (
 	PendingGadgetInfo   = pendingGadgetInfo
 
 	CriticalTaskEdges = criticalTaskEdges
+
+	CreateSystemForModelFromValidatedSnaps = createSystemForModelFromValidatedSnaps
+	LogNewSystemSnapFile                   = logNewSystemSnapFile
+	PurgeNewSystemSnapFiles                = purgeNewSystemSnapFiles
 )
 
 func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error) (restore func()) {

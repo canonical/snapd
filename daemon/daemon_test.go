@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,9 +22,7 @@ package daemon
 import (
 	"fmt"
 
-	"bytes"
 	"encoding/json"
-	"errors"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -41,7 +39,6 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -72,11 +69,6 @@ type daemonSuite struct {
 
 var _ = check.Suite(&daemonSuite{})
 
-func (s *daemonSuite) checkAuthorization(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
-	s.lastPolkitFlags = flags
-	return s.authorized, s.err
-}
-
 func (s *daemonSuite) SetUpTest(c *check.C) {
 	s.BaseTest.SetUpTest(c)
 
@@ -90,7 +82,6 @@ func (s *daemonSuite) SetUpTest(c *check.C) {
 		return nil
 	}
 	s.notified = nil
-	s.AddCleanup(MockPolkitCheckAuthorization(s.checkAuthorization))
 	s.AddCleanup(ifacestate.MockSecurityBackends(nil))
 }
 
@@ -99,7 +90,6 @@ func (s *daemonSuite) TearDownTest(c *check.C) {
 	dirs.SetRootDir("")
 	s.authorized = false
 	s.err = nil
-	logger.SetLogger(logger.NullLogger)
 
 	s.BaseTest.TearDownTest(c)
 }
@@ -129,6 +119,57 @@ func (mck *mockHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
+	d := newTestDaemon(c)
+	st := d.Overlord().State()
+	st.Lock()
+	authUser, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	fakeUserAgent := "some-agent-talking-to-snapd/1.0"
+
+	cmd := &Command{d: d}
+	mck := &mockHandler{cmd: cmd}
+	rf := func(innerCmd *Command, req *http.Request, user *auth.UserState) Response {
+		c.Assert(cmd, check.Equals, innerCmd)
+		c.Check(store.ClientUserAgent(req.Context()), check.Equals, fakeUserAgent)
+		c.Check(user, check.DeepEquals, authUser)
+		return mck
+	}
+	cmd.GET = rf
+	cmd.PUT = rf
+	cmd.POST = rf
+	cmd.ReadAccess = authenticatedAccess{}
+	cmd.WriteAccess = authenticatedAccess{}
+
+	for _, method := range []string{"GET", "POST", "PUT"} {
+		req, err := http.NewRequest(method, "", nil)
+		req.Header.Add("User-Agent", fakeUserAgent)
+		c.Assert(err, check.IsNil)
+
+		rec := httptest.NewRecorder()
+		req.RemoteAddr = fmt.Sprintf("pid=100;uid=1001;socket=%s;", dirs.SnapdSocket)
+		cmd.ServeHTTP(rec, req)
+		c.Check(rec.Code, check.Equals, 401, check.Commentf(method))
+
+		rec = httptest.NewRecorder()
+		req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, authUser.Macaroon))
+
+		cmd.ServeHTTP(rec, req)
+		c.Check(mck.lastMethod, check.Equals, method)
+		c.Check(rec.Code, check.Equals, 200)
+	}
+
+	req, err := http.NewRequest("POTATO", "", nil)
+	c.Assert(err, check.IsNil)
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1001;socket=%s;", dirs.SnapdSocket)
+	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, authUser.Macaroon))
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 405)
+}
+
+func (s *daemonSuite) TestCommandMethodDispatchRoot(c *check.C) {
 	fakeUserAgent := "some-agent-talking-to-snapd/1.0"
 
 	cmd := &Command{d: newTestDaemon(c)}
@@ -141,6 +182,8 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 	cmd.GET = rf
 	cmd.PUT = rf
 	cmd.POST = rf
+	cmd.ReadAccess = authenticatedAccess{}
+	cmd.WriteAccess = authenticatedAccess{}
 
 	for _, method := range []string{"GET", "POST", "PUT"} {
 		req, err := http.NewRequest(method, "", nil)
@@ -148,11 +191,12 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 		c.Assert(err, check.IsNil)
 
 		rec := httptest.NewRecorder()
+		// no ucred => forbidden
 		cmd.ServeHTTP(rec, req)
-		c.Check(rec.Code, check.Equals, 401, check.Commentf(method))
+		c.Check(rec.Code, check.Equals, 403, check.Commentf(method))
 
 		rec = httptest.NewRecorder()
-		req.RemoteAddr = "pid=100;uid=0;socket=;"
+		req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 
 		cmd.ServeHTTP(rec, req)
 		c.Check(mck.lastMethod, check.Equals, method)
@@ -161,7 +205,7 @@ func (s *daemonSuite) TestCommandMethodDispatch(c *check.C) {
 
 	req, err := http.NewRequest("POTATO", "", nil)
 	c.Assert(err, check.IsNil)
-	req.RemoteAddr = "pid=100;uid=0;socket=;"
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
@@ -175,9 +219,10 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil, nil)
 	}
+	cmd.ReadAccess = openAccess{}
 	req, err := http.NewRequest("GET", "", nil)
 	c.Assert(err, check.IsNil)
-	req.RemoteAddr = "pid=100;uid=0;socket=;"
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=42;socket=%s;", dirs.SnapdSocket)
 
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
@@ -189,27 +234,65 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 	c.Assert(err, check.IsNil)
 	c.Check(rst.Maintenance, check.IsNil)
 
-	state.MockRestarting(d.overlord.State(), state.RestartSystem)
-	rec = httptest.NewRecorder()
-	cmd.ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 200)
-	err = json.Unmarshal(rec.Body.Bytes(), &rst)
-	c.Assert(err, check.IsNil)
-	c.Check(rst.Maintenance, check.DeepEquals, &errorResult{
-		Kind:    client.ErrorKindSystemRestart,
-		Message: "system is restarting",
-	})
+	tests := []struct {
+		rst  state.RestartType
+		kind client.ErrorKind
+		msg  string
+		op   string
+	}{
+		{
+			rst:  state.RestartSystem,
+			kind: client.ErrorKindSystemRestart,
+			msg:  "system is restarting",
+			op:   "reboot",
+		}, {
+			rst:  state.RestartSystemNow,
+			kind: client.ErrorKindSystemRestart,
+			msg:  "system is restarting",
+			op:   "reboot",
+		}, {
+			rst:  state.RestartDaemon,
+			kind: client.ErrorKindDaemonRestart,
+			msg:  "daemon is restarting",
+		}, {
+			rst:  state.RestartSystemHaltNow,
+			kind: client.ErrorKindSystemRestart,
+			msg:  "system is halting",
+			op:   "halt",
+		}, {
+			rst:  state.RestartSystemPoweroffNow,
+			kind: client.ErrorKindSystemRestart,
+			msg:  "system is powering off",
+			op:   "poweroff",
+		}, {
+			rst:  state.RestartSocket,
+			kind: client.ErrorKindDaemonRestart,
+			msg:  "daemon is stopping to wait for socket activation",
+		},
+	}
 
-	state.MockRestarting(d.overlord.State(), state.RestartDaemon)
-	rec = httptest.NewRecorder()
-	cmd.ServeHTTP(rec, req)
-	c.Check(rec.Code, check.Equals, 200)
-	err = json.Unmarshal(rec.Body.Bytes(), &rst)
-	c.Assert(err, check.IsNil)
-	c.Check(rst.Maintenance, check.DeepEquals, &errorResult{
-		Kind:    client.ErrorKindDaemonRestart,
-		Message: "daemon is restarting",
-	})
+	for _, t := range tests {
+		state.MockRestarting(d.overlord.State(), t.rst)
+		rec = httptest.NewRecorder()
+		cmd.ServeHTTP(rec, req)
+		c.Check(rec.Code, check.Equals, 200)
+		var rst struct {
+			Maintenance *errorResult `json:"maintenance"`
+		}
+		err = json.Unmarshal(rec.Body.Bytes(), &rst)
+		c.Assert(err, check.IsNil)
+		var val errorValue
+		if t.op != "" {
+			val = map[string]interface{}{
+				"op": t.op,
+			}
+		}
+		c.Check(rst.Maintenance, check.DeepEquals, &errorResult{
+			Kind:    t.kind,
+			Message: t.msg,
+			Value:   val,
+		})
+	}
 }
 
 func (s *daemonSuite) TestMaintenanceJsonDeletedOnStart(c *check.C) {
@@ -242,9 +325,10 @@ func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil, nil)
 	}
+	cmd.ReadAccess = openAccess{}
 	req, err := http.NewRequest("GET", "", nil)
 	c.Assert(err, check.IsNil)
-	req.RemoteAddr = "pid=100;uid=0;socket=;"
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=42;socket=%s;", dirs.SnapdSocket)
 
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
@@ -272,206 +356,166 @@ func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 	c.Check(rst.WarningTimestamp, check.NotNil)
 }
 
-func (s *daemonSuite) TestGuestAccess(c *check.C) {
-	get := &http.Request{Method: "GET"}
-	put := &http.Request{Method: "PUT"}
-	pst := &http.Request{Method: "POST"}
-	del := &http.Request{Method: "DELETE"}
+type accessCheckFunc func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult
 
+func (f accessCheckFunc) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+	return f(r, ucred, user)
+}
+
+func (s *daemonSuite) TestReadAccess(c *check.C) {
 	cmd := &Command{d: newTestDaemon(c)}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(pst, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(del, nil), check.Equals, accessUnauthorized)
-
-	cmd = &Command{d: newTestDaemon(c), RootOnly: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(pst, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(del, nil), check.Equals, accessUnauthorized)
-
-	cmd = &Command{d: newTestDaemon(c), UserOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(pst, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(del, nil), check.Equals, accessUnauthorized)
-
-	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(pst, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(del, nil), check.Equals, accessUnauthorized)
-}
-
-func (s *daemonSuite) TestSnapctlAccessSnapOKWithUser(c *check.C) {
-	remoteAddr := "pid=100;uid=1000;socket=" + dirs.SnapSocket + ";"
-	get := &http.Request{Method: "GET", RemoteAddr: remoteAddr}
-	put := &http.Request{Method: "PUT", RemoteAddr: remoteAddr}
-	pst := &http.Request{Method: "POST", RemoteAddr: remoteAddr}
-	del := &http.Request{Method: "DELETE", RemoteAddr: remoteAddr}
-
-	cmd := &Command{d: newTestDaemon(c), SnapOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(pst, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(del, nil), check.Equals, accessOK)
-}
-
-func (s *daemonSuite) TestSnapctlAccessSnapOKWithRoot(c *check.C) {
-	remoteAddr := "pid=100;uid=0;socket=" + dirs.SnapSocket + ";"
-	get := &http.Request{Method: "GET", RemoteAddr: remoteAddr}
-	put := &http.Request{Method: "PUT", RemoteAddr: remoteAddr}
-	pst := &http.Request{Method: "POST", RemoteAddr: remoteAddr}
-	del := &http.Request{Method: "DELETE", RemoteAddr: remoteAddr}
-
-	cmd := &Command{d: newTestDaemon(c), SnapOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(pst, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(del, nil), check.Equals, accessOK)
-}
-
-func (s *daemonSuite) TestUserAccess(c *check.C) {
-	get := &http.Request{Method: "GET", RemoteAddr: "pid=100;uid=42;socket=;"}
-	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=42;socket=;"}
-
-	cmd := &Command{d: newTestDaemon(c)}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-
-	cmd = &Command{d: newTestDaemon(c), RootOnly: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-
-	cmd = &Command{d: newTestDaemon(c), UserOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-
-	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-
-	// Since this request has a RemoteAddr, it must be coming from the snapd
-	// socket instead of the snap one. In that case, SnapOK should have no
-	// bearing on the default behavior, which is to deny access.
-	cmd = &Command{d: newTestDaemon(c), SnapOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-}
-
-func (s *daemonSuite) TestLoggedInUserAccess(c *check.C) {
-	user := &auth.UserState{}
-	get := &http.Request{Method: "GET", RemoteAddr: "pid=100;uid=42;socket=;"}
-	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=42;socket=;"}
-
-	cmd := &Command{d: newTestDaemon(c)}
-	c.Check(cmd.canAccess(get, user), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, user), check.Equals, accessOK)
-
-	cmd = &Command{d: newTestDaemon(c), RootOnly: true}
-	c.Check(cmd.canAccess(get, user), check.Equals, accessUnauthorized)
-	c.Check(cmd.canAccess(put, user), check.Equals, accessUnauthorized)
-
-	cmd = &Command{d: newTestDaemon(c), UserOK: true}
-	c.Check(cmd.canAccess(get, user), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, user), check.Equals, accessOK)
-
-	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
-	c.Check(cmd.canAccess(get, user), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, user), check.Equals, accessOK)
-
-	cmd = &Command{d: newTestDaemon(c), SnapOK: true}
-	c.Check(cmd.canAccess(get, user), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, user), check.Equals, accessOK)
-}
-
-func (s *daemonSuite) TestSuperAccess(c *check.C) {
-	get := &http.Request{Method: "GET", RemoteAddr: "pid=100;uid=0;socket=;"}
-	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=0;socket=;"}
-
-	cmd := &Command{d: newTestDaemon(c)}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-
-	cmd = &Command{d: newTestDaemon(c), RootOnly: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-
-	cmd = &Command{d: newTestDaemon(c), UserOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-
-	cmd = &Command{d: newTestDaemon(c), GuestOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-
-	cmd = &Command{d: newTestDaemon(c), SnapOK: true}
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-}
-
-func (s *daemonSuite) TestPolkitAccess(c *check.C) {
-	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=42;socket=;"}
-	cmd := &Command{d: newTestDaemon(c), PolkitOK: "polkit.action"}
-
-	// polkit says user is not authorised
-	s.authorized = false
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-
-	// polkit grants authorisation
-	s.authorized = true
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-
-	// an error occurs communicating with polkit
-	s.err = errors.New("error")
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessUnauthorized)
-
-	// if the user dismisses the auth request, forbid access
-	s.err = polkit.ErrDismissed
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessCancelled)
-}
-
-func (s *daemonSuite) TestPolkitAccessForGet(c *check.C) {
-	get := &http.Request{Method: "GET", RemoteAddr: "pid=100;uid=42;socket=;"}
-	cmd := &Command{d: newTestDaemon(c), PolkitOK: "polkit.action"}
-
-	// polkit can grant authorisation for GET requests
-	s.authorized = true
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
-
-	// for UserOK commands, polkit is not consulted
-	cmd.UserOK = true
-	restore := MockPolkitCheckAuthorization(func(pid int32, uid uint32, actionId string, details map[string]string, flags polkit.CheckFlags) (bool, error) {
-		panic("polkit.CheckAuthorization called")
+	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil, nil)
+	}
+	var accessCalled bool
+	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+		accessCalled = true
+		c.Check(r, check.NotNil)
+		c.Assert(ucred, check.NotNil)
+		c.Check(ucred.Uid, check.Equals, uint32(42))
+		c.Check(ucred.Pid, check.Equals, int32(100))
+		c.Check(ucred.Socket, check.Equals, "xyz")
+		c.Check(user, check.IsNil)
+		return accessOK
 	})
-	defer restore()
-	c.Check(cmd.canAccess(get, nil), check.Equals, accessOK)
+	cmd.WriteAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+		c.Fail()
+		return accessForbidden
+	})
+
+	req := httptest.NewRequest("GET", "/", nil)
+	req.RemoteAddr = "pid=100;uid=42;socket=xyz;"
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(accessCalled, check.Equals, true)
 }
 
-func (s *daemonSuite) TestPolkitInteractivity(c *check.C) {
-	put := &http.Request{Method: "PUT", RemoteAddr: "pid=100;uid=42;socket=;", Header: make(http.Header)}
-	cmd := &Command{d: newTestDaemon(c), PolkitOK: "polkit.action"}
-	s.authorized = true
+func (s *daemonSuite) TestWriteAccess(c *check.C) {
+	cmd := &Command{d: newTestDaemon(c)}
+	cmd.PUT = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil, nil)
+	}
+	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil, nil)
+	}
+	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+		c.Fail()
+		return accessForbidden
+	})
+	var accessCalled bool
+	cmd.WriteAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+		accessCalled = true
+		c.Check(r, check.NotNil)
+		c.Assert(ucred, check.NotNil)
+		c.Check(ucred.Uid, check.Equals, uint32(42))
+		c.Check(ucred.Pid, check.Equals, int32(100))
+		c.Check(ucred.Socket, check.Equals, "xyz")
+		c.Check(user, check.IsNil)
+		return accessOK
+	})
 
-	var logbuf bytes.Buffer
-	log, err := logger.New(&logbuf, logger.DefaultFlags)
+	req := httptest.NewRequest("PUT", "/", nil)
+	req.RemoteAddr = "pid=100;uid=42;socket=xyz;"
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(accessCalled, check.Equals, true)
+
+	accessCalled = false
+	req = httptest.NewRequest("POST", "/", nil)
+	req.RemoteAddr = "pid=100;uid=42;socket=xyz;"
+	rec = httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(accessCalled, check.Equals, true)
+}
+
+func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
+	d := newTestDaemon(c)
+	st := d.Overlord().State()
+	st.Lock()
+	authUser, err := auth.NewUser(st, "username", "email@test.com", "macaroon", []string{"discharge"})
+	st.Unlock()
 	c.Assert(err, check.IsNil)
-	logger.SetLogger(log)
 
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-	c.Check(s.lastPolkitFlags, check.Equals, polkit.CheckNone)
-	c.Check(logbuf.String(), check.Equals, "")
+	cmd := &Command{d: d}
+	cmd.PUT = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil, nil)
+	}
+	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil, nil)
+	}
+	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+		c.Fail()
+		return accessForbidden
+	})
+	var accessCalled bool
+	cmd.WriteAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+		accessCalled = true
+		c.Check(r, check.NotNil)
+		c.Assert(ucred, check.NotNil)
+		c.Check(ucred.Uid, check.Equals, uint32(1001))
+		c.Check(ucred.Pid, check.Equals, int32(100))
+		c.Check(ucred.Socket, check.Equals, "xyz")
+		c.Check(user, check.DeepEquals, authUser)
+		return accessOK
+	})
 
-	put.Header.Set(client.AllowInteractionHeader, "true")
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-	c.Check(s.lastPolkitFlags, check.Equals, polkit.CheckAllowInteraction)
-	c.Check(logbuf.String(), check.Equals, "")
+	req := httptest.NewRequest("PUT", "/", nil)
+	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, authUser.Macaroon))
+	req.RemoteAddr = "pid=100;uid=1001;socket=xyz;"
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(accessCalled, check.Equals, true)
 
-	// bad values are logged and treated as false
-	put.Header.Set(client.AllowInteractionHeader, "garbage")
-	c.Check(cmd.canAccess(put, nil), check.Equals, accessOK)
-	c.Check(s.lastPolkitFlags, check.Equals, polkit.CheckNone)
-	c.Check(logbuf.String(), testutil.Contains, "error parsing X-Allow-Interaction header:")
+	accessCalled = false
+	req = httptest.NewRequest("POST", "/", nil)
+	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, authUser.Macaroon))
+	req.RemoteAddr = "pid=100;uid=1001;socket=xyz;"
+	rec = httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+	c.Check(accessCalled, check.Equals, true)
+}
+
+func (s *daemonSuite) TestPolkitAccessPath(c *check.C) {
+	cmd := &Command{d: newTestDaemon(c)}
+	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
+		return SyncResponse(nil, nil)
+	}
+	access := false
+	cmd.WriteAccess = authenticatedAccess{Polkit: "foo"}
+	checkPolkitAction = func(r *http.Request, ucred *ucrednet, action string) accessResult {
+		c.Check(action, check.Equals, "foo")
+		c.Check(ucred.Uid, check.Equals, uint32(1001))
+		if access {
+			return accessOK
+		}
+		return accessCancelled
+	}
+
+	req := httptest.NewRequest("POST", "/", nil)
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=1001;socket=%s;", dirs.SnapdSocket)
+	rec := httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 403)
+	c.Check(rec.Body.String(), testutil.Contains, `"kind":"auth-cancelled"`)
+
+	access = true
+	rec = httptest.NewRecorder()
+	cmd.ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 200)
+}
+
+func (s *daemonSuite) TestCommandAccessSane(c *check.C) {
+	for _, cmd := range api {
+		// If Command.GET is set, ReadAccess must be set
+		c.Check(cmd.GET != nil, check.Equals, cmd.ReadAccess != nil, check.Commentf("%q ReadAccess", cmd.Path))
+		// If Command.PUT or POST are set, WriteAccess must be set
+		c.Check(cmd.PUT != nil || cmd.POST != nil, check.Equals, cmd.WriteAccess != nil, check.Commentf("%q WriteAccess", cmd.Path))
+	}
 }
 
 func (s *daemonSuite) TestAddRoutes(c *check.C) {
@@ -850,7 +894,7 @@ func (s *daemonSuite) TestGracefulStopHasLimits(c *check.C) {
 	}
 }
 
-func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), restart func(*state.State, state.RestartType), restartKind state.RestartType) {
+func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), restart func(*state.State, state.RestartType), restartKind state.RestartType, wait time.Duration) {
 	d := newTestDaemon(c)
 	// mark as already seeded
 	s.markSeeded(d)
@@ -878,8 +922,18 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 	rebootWaitTimeout = 100 * time.Millisecond
 	rebootNoticeWait = 150 * time.Millisecond
 
+	expectedAction := rebootReboot
+	expectedOp := "reboot"
+	if restartKind == state.RestartSystemHaltNow {
+		expectedAction = rebootHalt
+		expectedOp = "halt"
+	} else if restartKind == state.RestartSystemPoweroffNow {
+		expectedAction = rebootPoweroff
+		expectedOp = "poweroff"
+	}
 	var delays []time.Duration
-	reboot = func(d time.Duration) error {
+	reboot = func(a rebootAction, d time.Duration) error {
+		c.Check(a, check.Equals, expectedAction)
 		delays = append(delays, d)
 		return nil
 	}
@@ -941,14 +995,10 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 
 	err = d.Stop(nil)
 
-	c.Check(err, check.ErrorMatches, "expected reboot did not happen")
+	c.Check(err, check.ErrorMatches, fmt.Sprintf("expected %s did not happen", expectedAction))
 
 	c.Check(delays, check.HasLen, 2)
-	if restartKind == state.RestartSystem {
-		c.Check(delays[1], check.DeepEquals, 1*time.Minute)
-	} else if restartKind == state.RestartSystemNow {
-		c.Check(delays[1], check.DeepEquals, time.Duration(0))
-	}
+	c.Check(delays[1], check.DeepEquals, wait)
 
 	// we are not stopping, we wait for the reboot instead
 	c.Check(s.notified, check.DeepEquals, []string{"EXTEND_TIMEOUT_USEC=30000000", "READY=1"})
@@ -958,10 +1008,10 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 	var rebootAt time.Time
 	err = st.Get("daemon-system-restart-at", &rebootAt)
 	c.Assert(err, check.IsNil)
-	if restartKind == state.RestartSystem {
-		approxAt := now.Add(time.Minute)
+	if wait > 0 {
+		approxAt := now.Add(wait)
 		c.Check(rebootAt.After(approxAt) || rebootAt.Equal(approxAt), check.Equals, true)
-	} else if restartKind == state.RestartSystemNow {
+	} else {
 		// should be good enough
 		c.Check(rebootAt.Before(now.Add(10*time.Second)), check.Equals, true)
 	}
@@ -973,17 +1023,29 @@ func (s *daemonSuite) testRestartSystemWiring(c *check.C, prep func(d *Daemon), 
 
 	maintErr := &errorResult{}
 	c.Assert(json.Unmarshal(b, maintErr), check.IsNil)
+	c.Check(maintErr.Kind, check.Equals, client.ErrorKindSystemRestart)
+	c.Check(maintErr.Value, check.DeepEquals, map[string]interface{}{
+		"op": expectedOp,
+	})
 
 	exp := maintenanceForRestartType(restartKind)
 	c.Assert(maintErr, check.DeepEquals, exp)
 }
 
 func (s *daemonSuite) TestRestartSystemGracefulWiring(c *check.C) {
-	s.testRestartSystemWiring(c, nil, (*state.State).RequestRestart, state.RestartSystem)
+	s.testRestartSystemWiring(c, nil, (*state.State).RequestRestart, state.RestartSystem, 1*time.Minute)
 }
 
 func (s *daemonSuite) TestRestartSystemImmediateWiring(c *check.C) {
-	s.testRestartSystemWiring(c, nil, (*state.State).RequestRestart, state.RestartSystemNow)
+	s.testRestartSystemWiring(c, nil, (*state.State).RequestRestart, state.RestartSystemNow, 0)
+}
+
+func (s *daemonSuite) TestRestartSystemHaltImmediateWiring(c *check.C) {
+	s.testRestartSystemWiring(c, nil, (*state.State).RequestRestart, state.RestartSystemHaltNow, 0)
+}
+
+func (s *daemonSuite) TestRestartSystemPoweroffImmediateWiring(c *check.C) {
+	s.testRestartSystemWiring(c, nil, (*state.State).RequestRestart, state.RestartSystemPoweroffNow, 0)
 }
 
 type rstManager struct {
@@ -1024,7 +1086,7 @@ func (s *daemonSuite) TestRestartSystemFromEnsure(c *check.C) {
 
 	nop := func(*state.State, state.RestartType) {}
 
-	s.testRestartSystemWiring(c, prep, nop, state.RestartSystemNow)
+	s.testRestartSystemWiring(c, prep, nop, state.RestartSystemNow, 0)
 
 	c.Check(wm.ensureCalled, check.Equals, 1)
 }
@@ -1044,14 +1106,26 @@ func (s *daemonSuite) TestRebootHelper(c *check.C) {
 		{30 * time.Second, "+0"},
 	}
 
-	for _, t := range tests {
-		err := reboot(t.delay)
-		c.Assert(err, check.IsNil)
-		c.Check(cmd.Calls(), check.DeepEquals, [][]string{
-			{"shutdown", "-r", t.delayArg, "reboot scheduled to update the system"},
-		})
+	args := []struct {
+		a   rebootAction
+		arg string
+		msg string
+	}{
+		{rebootReboot, "-r", "reboot scheduled to update the system"},
+		{rebootHalt, "--halt", "system halt scheduled"},
+		{rebootPoweroff, "--poweroff", "system poweroff scheduled"},
+	}
 
-		cmd.ForgetCalls()
+	for _, arg := range args {
+		for _, t := range tests {
+			err := reboot(arg.a, t.delay)
+			c.Assert(err, check.IsNil)
+			c.Check(cmd.Calls(), check.DeepEquals, [][]string{
+				{"shutdown", arg.arg, t.delayArg, arg.msg},
+			})
+
+			cmd.ForgetCalls()
+		}
 	}
 }
 
@@ -1319,7 +1393,7 @@ func (s *daemonSuite) TestConnTrackerCanShutdown(c *check.C) {
 func doTestReq(c *check.C, cmd *Command, mth string) *httptest.ResponseRecorder {
 	req, err := http.NewRequest(mth, "", nil)
 	c.Assert(err, check.IsNil)
-	req.RemoteAddr = "pid=100;uid=0;socket=;"
+	req.RemoteAddr = fmt.Sprintf("pid=100;uid=0;socket=%s;", dirs.SnapdSocket)
 	rec := httptest.NewRecorder()
 	cmd.ServeHTTP(rec, req)
 	return rec
@@ -1334,6 +1408,8 @@ func (s *daemonSuite) TestDegradedModeReply(c *check.C) {
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil, nil)
 	}
+	cmd.ReadAccess = authenticatedAccess{}
+	cmd.WriteAccess = authenticatedAccess{}
 
 	// pretend we are in degraded mode
 	d.SetDegradedMode(fmt.Errorf("foo error"))
