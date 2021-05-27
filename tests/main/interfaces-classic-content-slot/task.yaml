@@ -25,17 +25,28 @@ prepare: |
     snap wait system seed.loaded
 
 restore: |
+    snap remove test-snapd-content-plug-to-classic-slot test-snapd-classic-content-slot
     "$TESTSTOOLS"/fs-state restore-file /var/lib/snapd/state.json
 
 execute: |
+    echo "Install content plug, check that the classic provider is not pulled"
+    snap install --edge test-snapd-content-plug-to-classic-slot
+    if snap list test-snapd-classic-content-slot; then
+        exit 1
+    fi
+
     echo "Install classic snap with content slot - no automatic pull for classic"
-    
     snap install --edge --classic test-snapd-classic-content-slot
 
-    echo "When a snap declaring a content sharing plug is installed"
-    snap install --edge test-snapd-content-plug-to-classic-slot
-
     echo "Then the snap is listed as connected"
+    snap connections test-snapd-classic-content-slot |
+        MATCH "test-snapd-content-plug-to-classic-slot:shared-content-plug \+test-snapd-classic-content-slot:shared-content-slot"
+
+    echo "Remove snaps, install in reverse order"
+    snap remove test-snapd-content-plug-to-classic-slot test-snapd-classic-content-slot
+    snap install --edge --classic test-snapd-classic-content-slot
+    snap install --edge test-snapd-content-plug-to-classic-slot
+    echo "Check that the content interface has been auto-connected"
     snap connections test-snapd-classic-content-slot |
         MATCH "test-snapd-content-plug-to-classic-slot:shared-content-plug \+test-snapd-classic-content-slot:shared-content-slot"
 
