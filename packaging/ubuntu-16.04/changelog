@@ -1,3 +1,9 @@
+snapd (2.51) xenial; urgency=medium
+
+  * placeholder changelog
+
+ -- Ian Johnson <ian.johnson@canonical.com>  Thu, 27 May 2021 10:14:55 -0500
+
 snapd (2.50.1) xenial; urgency=medium
 
   * New upstream release, LP: #1926005
