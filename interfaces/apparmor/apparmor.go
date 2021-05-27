@@ -75,13 +75,18 @@ func maybeSetNumberOfJobs() string {
 	// Do not use all CPUs as this may have negative impact when booting.
 	if cpus > 2 {
 		// otherwise spare 2
-		return fmt.Sprintf("-j%d", cpus-2)
+		cpus = cpus - 2
+	} else if cpus == 2 {
+		// systems with only two CPUs, spare 1
+		cpus = cpus - 1
 	}
-	// On Systems with only two CPUs, spare 1. When there is a a single CPU,
-	// which could be beefy, but likely isn't, pass -j0 which has a special
-	// meaning so that the main apparmor_parser process is used for
-	// compilation without spawning additional workers.
-	return fmt.Sprintf("-j%d", cpus-1)
+	// When there is a a single CPU, which could be beefy, but likely isn't,
+	// pass -j1 to allow a single compilation job only. Note, we could pass
+	// -j0 in such case for further improvement, but that has incompatible
+	// meaning between apparmor 2.x (automatic job count, equivalent to -jauto)
+	// and 3.x (compile everything in the main process).
+
+	return fmt.Sprintf("-j%d", cpus)
 }
 
 // loadProfiles loads apparmor profiles from the given files.
