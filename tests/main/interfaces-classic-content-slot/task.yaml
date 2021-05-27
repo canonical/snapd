@@ -12,61 +12,54 @@ details: |
 # We use classic snaps for the test, so it cannot run on core
 systems: [-ubuntu-core-*]
 
-prepare: |
-    echo "Ensure an empty state so that installing test-snapd-content-plug-to-classic-slot"
-    echo "will pull in test-snapd-classic-content-slot *and* core"
-
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB/systemd.sh"
-
-    systemd_stop_units snapd.service
-    "$TESTSTOOLS"/fs-state mock-file /var/lib/snapd/state.json
-    systemctl start snapd
-    snap wait system seed.loaded
+environment:
+    PROVIDER_SNAP: test-snapd-classic-content-slot
+    CONSUMER_SNAP: test-snapd-content-plug-to-classic-slot
 
 restore: |
-    snap remove test-snapd-content-plug-to-classic-slot test-snapd-classic-content-slot
-    "$TESTSTOOLS"/fs-state restore-file /var/lib/snapd/state.json
+    snap remove --purge test-snapd-content-plug-to-classic-slot
+    snap remove --purge "$PROVIDER_SNAP"
 
 execute: |
     echo "Install content plug, check that the classic provider is not pulled"
-    snap install --edge test-snapd-content-plug-to-classic-slot
-    if snap list test-snapd-classic-content-slot; then
+    snap install --edge "$CONSUMER_SNAP"
+    if snap list "$PROVIDER_SNAP"; then
         exit 1
     fi
 
     echo "Install classic snap with content slot - no automatic pull for classic"
-    snap install --edge --classic test-snapd-classic-content-slot
+    snap install --edge --classic "$PROVIDER_SNAP"
 
     echo "Then the snap is listed as connected"
-    snap connections test-snapd-classic-content-slot |
-        MATCH "test-snapd-content-plug-to-classic-slot:shared-content-plug \+test-snapd-classic-content-slot:shared-content-slot"
+    snap connections "$PROVIDER_SNAP" |
+        MATCH "$CONSUMER_SNAP:shared-content-plug \+$PROVIDER_SNAP:shared-content-slot"
 
     echo "Remove snaps, install in reverse order"
-    snap remove test-snapd-content-plug-to-classic-slot test-snapd-classic-content-slot
-    snap install --edge --classic test-snapd-classic-content-slot
-    snap install --edge test-snapd-content-plug-to-classic-slot
+    snap remove --purge "$CONSUMER_SNAP"
+    snap remove --purge "$PROVIDER_SNAP"
+    snap install --edge --classic "$PROVIDER_SNAP"
+    snap install --edge "$CONSUMER_SNAP"
     echo "Check that the content interface has been auto-connected"
-    snap connections test-snapd-classic-content-slot |
-        MATCH "test-snapd-content-plug-to-classic-slot:shared-content-plug \+test-snapd-classic-content-slot:shared-content-slot"
+    snap connections "$PROVIDER_SNAP" |
+        MATCH "$CONSUMER_SNAP:shared-content-plug \+$PROVIDER_SNAP:shared-content-slot"
 
     echo "And fstab files are created"
     [ "$(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l)" -gt 0 ]
 
     echo "And we can use the shared content"
-    test-snapd-content-plug-to-classic-slot.content-plug | MATCH "Some shared content"
+    "$CONSUMER_SNAP".content-plug | MATCH "Some shared content"
 
     echo "And the current mount profile is the same as the desired mount profile"
-    diff -u /run/snapd/ns/snap.test-snapd-content-plug-to-classic-slot.fstab /var/lib/snapd/mount/snap.test-snapd-content-plug-to-classic-slot.fstab
+    diff -u /run/snapd/ns/snap."$CONSUMER_SNAP".fstab /var/lib/snapd/mount/snap."$CONSUMER_SNAP".fstab
 
     echo "When the plug is disconnected"
-    snap disconnect test-snapd-content-plug-to-classic-slot:shared-content-plug test-snapd-classic-content-slot:shared-content-slot
+    snap disconnect "$CONSUMER_SNAP":shared-content-plug "$PROVIDER_SNAP":shared-content-slot
 
     echo "Then the fstab files are removed"
     [ "$(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l)" -eq 0 ]
 
     echo "When the plug is reconnected"
-    snap connect test-snapd-content-plug-to-classic-slot:shared-content-plug test-snapd-classic-content-slot:shared-content-slot
+    snap connect "$CONSUMER_SNAP":shared-content-plug "$PROVIDER_SNAP":shared-content-slot
 
     echo "Then the fstab files are recreated"
     [ "$(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l)" -gt 0 ]
