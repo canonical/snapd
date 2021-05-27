@@ -43,37 +43,37 @@ import (
 var (
 	// see daemon.go:canAccess for details how the access is controlled
 	rootCmd = &Command{
-		Path:    "/",
-		GuestOK: true,
-		GET:     tbd,
+		Path:       "/",
+		GET:        tbd,
+		ReadAccess: openAccess{},
 	}
 
 	sysInfoCmd = &Command{
-		Path:    "/v2/system-info",
-		GuestOK: true,
-		GET:     sysInfo,
+		Path:       "/v2/system-info",
+		GET:        sysInfo,
+		ReadAccess: openAccess{},
 	}
 
 	stateChangeCmd = &Command{
-		Path:     "/v2/changes/{id}",
-		UserOK:   true,
-		PolkitOK: "io.snapcraft.snapd.manage",
-		GET:      getChange,
-		POST:     abortChange,
+		Path:        "/v2/changes/{id}",
+		GET:         getChange,
+		POST:        abortChange,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 
 	stateChangesCmd = &Command{
-		Path:   "/v2/changes",
-		UserOK: true,
-		GET:    getChanges,
+		Path:       "/v2/changes",
+		GET:        getChanges,
+		ReadAccess: openAccess{},
 	}
 
 	warningsCmd = &Command{
-		Path:     "/v2/warnings",
-		UserOK:   true,
-		PolkitOK: "io.snapcraft.snapd.manage",
-		GET:      getWarnings,
-		POST:     ackWarnings,
+		Path:        "/v2/warnings",
+		GET:         getWarnings,
+		POST:        ackWarnings,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 )
 

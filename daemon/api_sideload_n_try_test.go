@@ -54,6 +54,12 @@ type sideloadSuite struct {
 	apiBaseSuite
 }
 
+func (s *sideloadSuite) SetUpTest(c *check.C) {
+	s.apiBaseSuite.SetUpTest(c)
+
+	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
+}
+
 var sideLoadBodyWithoutDevMode = "" +
 	"----hello--\r\n" +
 	"Content-Disposition: form-data; name=\"snap\"; filename=\"x\"\r\n" +
@@ -475,6 +481,12 @@ func (s *sideloadSuite) TestInstallPathUnaliased(c *check.C) {
 
 type trySuite struct {
 	apiBaseSuite
+}
+
+func (s *trySuite) SetUpTest(c *check.C) {
+	s.apiBaseSuite.SetUpTest(c)
+
+	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
 }
 
 func (s *trySuite) TestTrySnap(c *check.C) {

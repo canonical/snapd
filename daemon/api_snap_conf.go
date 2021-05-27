@@ -35,9 +35,11 @@ import (
 
 var (
 	snapConfCmd = &Command{
-		Path: "/v2/snaps/{name}/conf",
-		GET:  getSnapConf,
-		PUT:  setSnapConf,
+		Path:        "/v2/snaps/{name}/conf",
+		GET:         getSnapConf,
+		PUT:         setSnapConf,
+		ReadAccess:  authenticatedAccess{},
+		WriteAccess: authenticatedAccess{},
 	}
 )
 

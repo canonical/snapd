@@ -674,11 +674,11 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesAndRes
 	c.Assert(s.restartRequests, HasLen, 0)
 }
 
-type systemctlDisabledServicError struct{}
+type systemctlDisabledServiceError struct{}
 
-func (s systemctlDisabledServicError) Msg() []byte   { return []byte("disabled") }
-func (s systemctlDisabledServicError) ExitCode() int { return 1 }
-func (s systemctlDisabledServicError) Error() string { return "disabled service" }
+func (s systemctlDisabledServiceError) Msg() []byte   { return []byte("disabled") }
+func (s systemctlDisabledServiceError) ExitCode() int { return 1 }
+func (s systemctlDisabledServiceError) Error() string { return "disabled service" }
 
 func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesButDoesNotRestartDisabledServices(c *C) {
 	s.state.Lock()
@@ -733,7 +733,7 @@ func (s *ensureSnapServiceSuite) TestEnsureSnapServicesWritesServicesFilesButDoe
 		{
 			expArgs: []string{"is-enabled", "snap.test-snap.svc1.service"},
 			output:  "disabled",
-			err:     systemctlDisabledServicError{},
+			err:     systemctlDisabledServiceError{},
 		},
 		// then we don't restart the service even though it was killed
 	})

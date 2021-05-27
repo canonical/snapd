@@ -32,14 +32,16 @@ import (
 
 var (
 	quotaGroupsCmd = &Command{
-		Path:     "/v2/quotas",
-		GET:      getQuotaGroups,
-		POST:     postQuotaGroup,
-		RootOnly: true,
+		Path:        "/v2/quotas",
+		GET:         getQuotaGroups,
+		POST:        postQuotaGroup,
+		WriteAccess: rootAccess{},
+		ReadAccess:  openAccess{},
 	}
 	quotaGroupInfoCmd = &Command{
-		Path: "/v2/quotas/{group}",
-		GET:  getQuotaGroupInfo,
+		Path:       "/v2/quotas/{group}",
+		GET:        getQuotaGroupInfo,
+		ReadAccess: openAccess{},
 	}
 )
 
