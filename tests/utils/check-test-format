@@ -109,8 +109,7 @@ def main():
     parser = _make_parser()
     args = parser.parse_args()
 
-    if args.directory:
-        sys.exit(not check_dir(args.directory))
+    sys.exit(not check_dir(args.directory))
 
 
 if __name__ == "__main__":
