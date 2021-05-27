@@ -118,8 +118,9 @@ func (s *createSystemSuite) makeEssentialSnapInfos(c *C) map[string]*snap.Info {
 	return infos
 }
 
-func validateSeed(c *C, name string, trusted []asserts.Assertion, runModeSnapNames ...string) {
-	sd := seedtest.ValidateSeed(c, boot.InitramfsUbuntuSeedDir, name, trusted)
+func validateCore20Seed(c *C, name string, trusted []asserts.Assertion, runModeSnapNames ...string) {
+	const usesSnapd = true
+	sd := seedtest.ValidateSeed(c, boot.InitramfsUbuntuSeedDir, name, usesSnapd, trusted)
 
 	snaps, err := sd.ModeSnaps(boot.ModeRun)
 	c.Assert(err, IsNil)
@@ -248,7 +249,7 @@ func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
 		"snapd_recovery_kernel":    "/snaps/pc-kernel_1.snap",
 	})
 	// load the seed
-	validateSeed(c, "1234", s.storeSigning.Trusted,
+	validateCore20Seed(c, "1234", s.storeSigning.Trusted,
 		"other-core18", "core18", "other-present", "other-required")
 }
 
@@ -336,7 +337,7 @@ func (s *createSystemSuite) TestCreateSystemFromUnassertedSnaps(c *C) {
 		}
 	}
 	// load the seed
-	validateSeed(c, "1234", s.storeSigning.Trusted, "other-unasserted")
+	validateCore20Seed(c, "1234", s.storeSigning.Trusted, "other-unasserted")
 	// we have unasserted snaps, so a warning should have been logged
 	c.Check(s.logbuf.String(), testutil.Contains, `system "1234" contains unasserted snaps "other-unasserted"`)
 }
@@ -419,7 +420,7 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 		"snapd_recovery_kernel":    "/snaps/pc-kernel_1.snap",
 	})
 	// load the seed
-	validateSeed(c, "1234", s.storeSigning.Trusted)
+	validateCore20Seed(c, "1234", s.storeSigning.Trusted)
 
 	// add an unasserted snap
 	infos["other-unasserted"] = s.makeSnap(c, "other-unasserted", snap.R(-1))
@@ -729,7 +730,7 @@ func (s *createSystemSuite) TestCreateSystemImplicitSnaps(c *C) {
 	})
 	c.Check(dir, Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"))
 	// validate the seed
-	validateSeed(c, "1234", s.ss.StoreSigning.Trusted)
+	validateCore20Seed(c, "1234", s.ss.StoreSigning.Trusted)
 }
 
 func (s *createSystemSuite) TestCreateSystemObserverErr(c *C) {
