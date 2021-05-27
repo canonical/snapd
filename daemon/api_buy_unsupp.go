@@ -32,13 +32,15 @@ import (
 
 var (
 	buyCmd = &Command{
-		Path: "/v2/buy",
-		POST: postBuy,
+		Path:        "/v2/buy",
+		POST:        postBuy,
+		WriteAccess: authenticatedAccess{},
 	}
 
 	readyToBuyCmd = &Command{
-		Path: "/v2/buy/ready",
-		GET:  readyToBuy,
+		Path:       "/v2/buy/ready",
+		GET:        readyToBuy,
+		ReadAccess: authenticatedAccess{},
 	}
 )
 

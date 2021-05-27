@@ -155,10 +155,25 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 		return nil, err
 	}
 
-	// TODO: pending
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, context.InstanceName(), &snapst); err != nil {
+		return nil, fmt.Errorf("internal error: cannot get snap state for %q: %v", context.InstanceName(), err)
+	}
+
+	var pending string
+	switch {
+	case snapst.RefreshInhibitedTime != nil:
+		pending = "inhibited"
+	case candidates[context.InstanceName()] != nil:
+		pending = "ready"
+	default:
+		pending = "none"
+	}
+
 	up := updateDetails{
 		Base:    base,
 		Restart: restart,
+		Pending: pending,
 	}
 
 	// try to find revision/version/channel info from refresh-candidates; it
@@ -173,10 +188,6 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 	}
 
 	// refresh-hint not present, look up channel info in snapstate
-	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, context.InstanceName(), &snapst); err != nil {
-		return nil, fmt.Errorf("internal error: cannot get snap state for %q: %v", context.InstanceName(), err)
-	}
 	up.Channel = snapst.TrackingChannel
 	return &up, nil
 }
