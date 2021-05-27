@@ -967,7 +967,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 	verifyPhasedAutorefreshTasks(c, chg.Tasks(), expected)
 }
 
-// XXX: this case is probably artifical; with proper conflict prevention
+// XXX: this case is probably artificial; with proper conflict prevention
 // we shouldn't get conflicts from doInstall in phase2.
 func (s *snapmgrTestSuite) TestAutoRefreshPhase2Conflict(c *C) {
 	st := s.state

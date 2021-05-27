@@ -247,7 +247,7 @@ func createGateAutoRefreshHooks(st *state.State, affectedSnaps map[string]*affec
 	return ts
 }
 
-// snapsToRefresh returns all snaps that should proceeed with refresh considering
+// snapsToRefresh returns all snaps that should proceed with refresh considering
 // hold behavior.
 var snapsToRefresh = func(gatingTask *state.Task) ([]*refreshCandidate, error) {
 	// TODO: consider holding (responses from gating hooks) here.
