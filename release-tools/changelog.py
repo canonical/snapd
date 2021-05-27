@@ -177,7 +177,7 @@ def main(opts):
             raise RuntimeError(
                 f"unexpected changelog line format in line {line_number}"
             )
-        if len(line) >= 72:
+        if len(line) > 72:
             raise RuntimeError(
                 f"line {line_number} too long, should wrap properly to next line"
             )
