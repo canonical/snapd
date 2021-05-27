@@ -56,6 +56,8 @@ type modelSuite struct {
 func (s *modelSuite) TestPostRemodelUnhappy(c *check.C) {
 	s.daemon(c)
 
+	s.expectRootAccess()
+
 	data, err := json.Marshal(daemon.PostModelData{NewModel: "invalid model"})
 	c.Check(err, check.IsNil)
 
@@ -67,6 +69,8 @@ func (s *modelSuite) TestPostRemodelUnhappy(c *check.C) {
 }
 
 func (s *modelSuite) TestPostRemodel(c *check.C) {
+	s.expectRootAccess()
+
 	oldModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults)
 	newModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults, map[string]interface{}{
 		"revision": "2",
