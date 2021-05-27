@@ -21,6 +21,7 @@ package daemon
 
 import (
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -34,6 +35,14 @@ func MockServicestateCreateQuota(f func(st *state.State, name string, parentName
 	servicestateCreateQuota = f
 	return func() {
 		servicestateCreateQuota = old
+	}
+}
+
+func MockServicestateUpdateQuota(f func(st *state.State, name string, opts servicestate.QuotaGroupUpdate) error) func() {
+	old := servicestateUpdateQuota
+	servicestateUpdateQuota = f
+	return func() {
+		servicestateUpdateQuota = old
 	}
 }
 
