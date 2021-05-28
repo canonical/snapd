@@ -264,7 +264,6 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 	c.Check(cand1.Type(), Equals, snap.TypeApp)
 	c.Check(cand1.DownloadSize(), Equals, int64(99))
 	c.Check(cand1.Version, Equals, "2")
-	c.Check(cand1.DownloadSize(), Equals, int64(99))
 
 	cand2 := candidates["other-snap"]
 	c.Assert(cand2, NotNil)
