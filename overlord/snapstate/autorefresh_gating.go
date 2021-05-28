@@ -94,11 +94,18 @@ func (h *HoldError) Error() string {
 	return fmt.Sprintf("cannot hold some snaps:%s", strings.Join(l, "\n - "))
 }
 
+func maxAllowedPostponement(gatingSnap, affectedSnap string) time.Duration {
+	if affectedSnap == gatingSnap {
+		return maxPostponement
+	}
+	return maxOtherHoldDuration
+}
+
 // HoldRefresh marks affectingSnaps as held for refresh for up to holdTime.
 // HoldTime of zero denotes maximum allowed hold time.
 // Holding may fail for only some snaps in which case HoldError is returned and
 // it contains the details of failed ones.
-func HoldRefresh(st *state.State, gatingSnap string, holdTime time.Time, affectingSnaps ...string) error {
+func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration, affectingSnaps ...string) error {
 	gating, err := refreshGating(st)
 	if err != nil {
 		return err
@@ -112,10 +119,6 @@ func HoldRefresh(st *state.State, gatingSnap string, holdTime time.Time, affecti
 		if err != nil {
 			return err
 		}
-		if now.Sub(refreshed) > maxPostponement {
-			herr.SnapsInError[affecting] = fmt.Errorf("cannot hold the refresh of snap %q, maximum postponement time exceeded", affecting)
-			continue
-		}
 		if _, ok := gating[affecting]; !ok {
 			gating[affecting] = make(map[string]*holdInfo)
 		}
@@ -125,29 +128,34 @@ func HoldRefresh(st *state.State, gatingSnap string, holdTime time.Time, affecti
 				FirstHeld: now,
 			}
 		}
-		// determine the maximum time the snap can be held by this gating snap.
-		var maxHoldDur time.Duration
-		if affecting == gatingSnap {
-			maxHoldDur = maxPostponement
+
+		defaultDur := maxAllowedPostponement(gatingSnap, affecting)
+		dur := holdDuration
+		if dur == 0 {
+			// duration not specified, using a default one
+			dur = defaultDur
 		} else {
-			maxHoldDur = maxOtherHoldDuration
-		}
-		var holdDur time.Duration
-		// explicit hold time requested
-		if !holdTime.IsZero() {
-			holdDur = holdTime.Sub(hold.FirstHeld)
-			if holdDur > maxHoldDur {
-				herr.SnapsInError[affecting] = fmt.Errorf("requested holding time %s exceeds maximum holding time for snap %q", holdTime, affecting)
+			// explicit hold duration requested
+			if dur > defaultDur {
+				herr.SnapsInError[affecting] = fmt.Errorf("requested holding duration %s exceeds maximum holding for snap %q", holdDuration, affecting)
 				continue
 			}
-		} else {
-			holdDur = maxHoldDur
 		}
-		// HoldUntil is relative to the time the snap was first held, so in case
-		// of consecutive refreshes and hold attempts this cannot go beyond
-		// maximum allowed hold time.
-		hold.HoldUntil = hold.FirstHeld.Add(holdDur)
-		gating[affecting][gatingSnap] = hold
+
+		newHold := now.Add(dur)
+		if newHold.Before(refreshed.Add(maxPostponement)) {
+			hold.HoldUntil = newHold
+			gating[affecting][gatingSnap] = hold
+		} else {
+			// default duration requested but using the maximum exceeds max
+			// postponement, adjust it.
+			if holdDuration == 0 {
+				hold.HoldUntil = refreshed.Add(maxPostponement)
+				gating[affecting][gatingSnap] = hold
+			}
+			// XXX: else - specific duration requested, but it's too much
+			// considering, last refresh - report an error?
+		}
 	}
 	st.Set("snaps-hold", gating)
 	if len(herr.SnapsInError) > 0 {
@@ -193,7 +201,6 @@ func pruneGating(st *state.State, candidates map[string]*refreshCandidate) error
 		return err
 	}
 
-	// optimize some edge cases
 	if len(gating) == 0 {
 		return nil
 	}
@@ -263,10 +270,25 @@ func heldSnaps(st *state.State) (map[string]bool, error) {
 		return nil, nil
 	}
 
+	now := timeNow()
+
 	held := make(map[string]bool)
+affected:
 	for affecting, gatingSnaps := range gating {
-		if len(gatingSnaps) > 0 {
+		refreshed, err := lastRefreshed(st, affecting)
+		if err != nil {
+			return nil, err
+		}
+		// make sure we don't hold any snap for more than maxPostponement
+		if refreshed.Add(maxPostponement).Before(now) {
+			continue
+		}
+		for _, hold := range gatingSnaps {
+			if hold.HoldUntil.Before(now) {
+				continue
+			}
 			held[affecting] = true
+			continue affected
 		}
 	}
 	return held, nil
