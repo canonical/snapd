@@ -38,9 +38,9 @@ import (
 
 var (
 	findCmd = &Command{
-		Path:   "/v2/find",
-		UserOK: true,
-		GET:    searchStore,
+		Path:       "/v2/find",
+		GET:        searchStore,
+		ReadAccess: openAccess{},
 	}
 )
 
@@ -97,7 +97,7 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot use 'common-id' and 'q' together")
 	}
 
-	theStore := getStore(c)
+	theStore := storeFrom(c.d)
 	ctx := store.WithClientUserAgent(r.Context(), r)
 	found, err := theStore.Find(ctx, &store.Search{
 		Query:    q,
@@ -161,7 +161,7 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 		return BadRequest(err.Error())
 	}
 
-	theStore := getStore(c)
+	theStore := storeFrom(c.d)
 	spec := store.SnapSpec{
 		Name: name,
 	}

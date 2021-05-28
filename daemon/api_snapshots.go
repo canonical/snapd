@@ -29,24 +29,37 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 )
 
 var snapshotCmd = &Command{
 	// TODO: also support /v2/snapshots/<id>
-	Path:     "/v2/snapshots",
-	UserOK:   true,
-	PolkitOK: "io.snapcraft.snapd.manage",
-	GET:      listSnapshots,
-	POST:     changeSnapshots,
+	Path:        "/v2/snapshots",
+	GET:         listSnapshots,
+	POST:        changeSnapshots,
+	ReadAccess:  openAccess{},
+	WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 }
 
 var snapshotExportCmd = &Command{
-	Path: "/v2/snapshots/{id}/export",
-	GET:  getSnapshotExport,
+	Path:       "/v2/snapshots/{id}/export",
+	GET:        getSnapshotExport,
+	ReadAccess: authenticatedAccess{},
 }
+
+var (
+	snapshotList    = snapshotstate.List
+	snapshotCheck   = snapshotstate.Check
+	snapshotForget  = snapshotstate.Forget
+	snapshotRestore = snapshotstate.Restore
+	snapshotSave    = snapshotstate.Save
+	snapshotExport  = snapshotstate.Export
+	snapshotImport  = snapshotstate.Import
+)
 
 func listSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
@@ -59,7 +72,10 @@ func listSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	}
 
-	sets, err := snapshotList(context.TODO(), setID, strutil.CommaSeparatedList(r.URL.Query().Get("snaps")))
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	sets, err := snapshotList(context.TODO(), st, setID, strutil.CommaSeparatedList(r.URL.Query().Get("snaps")))
 	if err != nil {
 		return InternalError("%v", err)
 	}
@@ -165,7 +181,7 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 		return BadRequest("'id' must be a positive base 10 number; got %q", sid)
 	}
 
-	export, err := snapshotExport(context.TODO(), setID)
+	export, err := snapshotExport(context.TODO(), st, setID)
 	if err != nil {
 		return BadRequest("cannot export %v: %v", setID, err)
 	}
@@ -177,7 +193,7 @@ func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Respon
 		return BadRequest("cannot calculate size of exported snapshot %v: %v", setID, err)
 	}
 
-	return &snapshotExportResponse{SnapshotExport: export}
+	return &snapshotExportResponse{SnapshotExport: export, setID: setID, st: st}
 }
 
 func doSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -199,4 +215,26 @@ func doSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Respons
 
 	result := map[string]interface{}{"set-id": setID, "snaps": snapNames}
 	return SyncResponse(result, nil)
+}
+
+func snapshotMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+	setID, snapshotted, ts, err := snapshotSave(st, inst.Snaps, inst.Users)
+	if err != nil {
+		return nil, err
+	}
+
+	var msg string
+	if len(inst.Snaps) == 0 {
+		msg = i18n.G("Snapshot all snaps")
+	} else {
+		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+		msg = fmt.Sprintf(i18n.G("Snapshot snaps %s"), strutil.Quoted(inst.Snaps))
+	}
+
+	return &snapInstructionResult{
+		Summary:  msg,
+		Affected: snapshotted,
+		Tasksets: []*state.TaskSet{ts},
+		Result:   map[string]interface{}{"set-id": setID},
+	}, nil
 }

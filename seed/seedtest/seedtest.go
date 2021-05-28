@@ -31,11 +31,13 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/timings"
 )
 
 // SeedSnaps helps creating snaps for a seed.
@@ -45,6 +47,8 @@ type SeedSnaps struct {
 
 	snaps map[string]string
 	infos map[string]*snap.Info
+
+	snapAssertNow time.Time
 
 	snapRevs map[string]*asserts.SnapRevision
 }
@@ -63,6 +67,17 @@ func (ss *SeedSnaps) AssertedSnapID(snapName string) string {
 	return snaptest.AssertedSnapID(snapName)
 }
 
+func (ss *SeedSnaps) snapAssertionNow() time.Time {
+	if ss.snapAssertNow.IsZero() {
+		return time.Now()
+	}
+	return ss.snapAssertNow
+}
+
+func (ss *SeedSnaps) SetSnapAssertionNow(t time.Time) {
+	ss.snapAssertNow = t
+}
+
 func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, revision snap.Revision, developerID string, dbs ...*asserts.Database) (*asserts.SnapDeclaration, *asserts.SnapRevision) {
 	info, err := snap.InfoFromSnapYaml([]byte(snapYaml))
 	c.Assert(err, IsNil)
@@ -76,7 +91,7 @@ func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, r
 		"snap-id":      snapID,
 		"publisher-id": developerID,
 		"snap-name":    snapName,
-		"timestamp":    time.Now().UTC().Format(time.RFC3339),
+		"timestamp":    ss.snapAssertionNow().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
 
@@ -89,7 +104,7 @@ func (ss *SeedSnaps) MakeAssertedSnap(c *C, snapYaml string, files [][]string, r
 		"snap-id":       snapID,
 		"developer-id":  developerID,
 		"snap-revision": revision.String(),
-		"timestamp":     time.Now().UTC().Format(time.RFC3339),
+		"timestamp":     ss.snapAssertionNow().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
 
@@ -323,4 +338,36 @@ func (s *TestingSeed20) MakeSeed(c *C, label, brandID, modelID string, modelHead
 	c.Assert(err, IsNil)
 
 	return model
+}
+
+func ValidateSeed(c *C, root, label string, usesSnapd bool, trusted []asserts.Assertion) seed.Seed {
+	tm := &timings.Timings{}
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   trusted,
+	})
+	c.Assert(err, IsNil)
+	commitTo := func(b *asserts.Batch) error {
+		return b.CommitTo(db, nil)
+	}
+
+	sd, err := seed.Open(root, label)
+	c.Assert(err, IsNil)
+
+	err = sd.LoadAssertions(db, commitTo)
+	c.Assert(err, IsNil)
+
+	err = sd.LoadMeta(tm)
+	c.Assert(err, IsNil)
+
+	// core18/core20 use the snapd snap, old core does not
+	c.Check(sd.UsesSnapdSnap(), Equals, usesSnapd)
+	if usesSnapd {
+		// core*, kernel, gadget, snapd
+		c.Check(sd.EssentialSnaps(), HasLen, 4)
+	} else {
+		// core, kernel, gadget
+		c.Check(sd.EssentialSnaps(), HasLen, 3)
+	}
+	return sd
 }

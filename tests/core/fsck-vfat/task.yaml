@@ -1,4 +1,5 @@
 summary: the boot base provides essential fsck programs
+
 details: |
   Snapd uses vfat on certain essential boot partitions, due to external
   requirements imposed by the bootloader architecture. This test verifies
@@ -7,8 +8,7 @@ details: |
 
   A separate test examines how fsck is automatically invoked during the boot
   process. This is not verified here.
-prepare: |
-  tests.cleanup prepare
+
 execute: |
   echo "Essential fsck programs are in the boot base"
   test -n "$(command -v fsck.vfat)"
@@ -63,5 +63,3 @@ execute: |
   tests.cleanup defer umount /mnt
   dmesg -c | not MATCH "Volume was not properly unmounted. Some data may be corrupt. Please run fsck."
   tests.cleanup pop # unmount
-restore: |
-  tests.cleanup restore

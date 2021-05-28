@@ -64,7 +64,7 @@ func BootstrapAccountForTest(authorityID string) *Account {
 	}
 }
 
-func makeAccountKeyForTest(authorityID string, openPGPPubKey PublicKey, validYears int) *AccountKey {
+func MakeAccountKeyForTest(authorityID string, openPGPPubKey PublicKey, since time.Time, validYears int) *AccountKey {
 	return &AccountKey{
 		assertionBase: assertionBase{
 			headers: map[string]interface{}{
@@ -74,18 +74,28 @@ func makeAccountKeyForTest(authorityID string, openPGPPubKey PublicKey, validYea
 				"public-key-sha3-384": openPGPPubKey.ID(),
 			},
 		},
-		since:  time.Time{},
-		until:  time.Time{}.UTC().AddDate(validYears, 0, 0),
+		since:  since.UTC(),
+		until:  since.UTC().AddDate(validYears, 0, 0),
 		pubKey: openPGPPubKey,
 	}
 }
 
 func BootstrapAccountKeyForTest(authorityID string, pubKey PublicKey) *AccountKey {
-	return makeAccountKeyForTest(authorityID, pubKey, 9999)
+	return MakeAccountKeyForTest(authorityID, pubKey, time.Time{}, 9999)
 }
 
 func ExpiredAccountKeyForTest(authorityID string, pubKey PublicKey) *AccountKey {
-	return makeAccountKeyForTest(authorityID, pubKey, 1)
+	return MakeAccountKeyForTest(authorityID, pubKey, time.Time{}, 1)
+}
+
+func MockTimeNow(t time.Time) (restore func()) {
+	oldTimeNow := timeNow
+	timeNow = func() time.Time {
+		return t
+	}
+	return func() {
+		timeNow = oldTimeNow
+	}
 }
 
 // define dummy assertion types to use in the tests
@@ -177,7 +187,7 @@ type TestOnlySeq struct {
 	seq int
 }
 
-func (seq *TestOnlyRev) N() string {
+func (seq *TestOnlySeq) N() string {
 	return seq.HeaderString("n")
 }
 
@@ -242,6 +252,11 @@ func init() {
 // AccountKeyIsKeyValidAt exposes isKeyValidAt on AccountKey for tests
 func AccountKeyIsKeyValidAt(ak *AccountKey, when time.Time) bool {
 	return ak.isKeyValidAt(when)
+}
+
+// AccountKeyIsKeyValidAssumingCurTimeWithin exposes isKeyValidAssumingCurTimeWithin on AccountKey for tests
+func AccountKeyIsKeyValidAssumingCurTimeWithin(ak *AccountKey, earliest, latest time.Time) bool {
+	return ak.isKeyValidAssumingCurTimeWithin(earliest, latest)
 }
 
 type GPGRunner func(input []byte, args ...string) ([]byte, error)

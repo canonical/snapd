@@ -129,14 +129,14 @@ func queueCommand(context *hookstate.Context, tts []*state.TaskSet) error {
 	return nil
 }
 
-func runServiceCommand(context *hookstate.Context, inst *servicestate.Instruction, serviceNames []string) error {
+func runServiceCommand(context *hookstate.Context, inst *servicestate.Instruction) error {
 	if context == nil {
 		// this message is reused in health.go
 		return fmt.Errorf(i18n.G("cannot %s without a context"), inst.Action)
 	}
 
 	st := context.State()
-	appInfos, err := getServiceInfos(st, context.InstanceName(), serviceNames)
+	appInfos, err := getServiceInfos(st, context.InstanceName(), inst.Names)
 	if err != nil {
 		return err
 	}

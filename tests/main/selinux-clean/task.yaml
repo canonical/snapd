@@ -1,6 +1,6 @@
 summary: Check that basic snap management does not raise any SELinux denials
 
-description: |
+details: |
     On systems where SELinux is supported, make sure that starting snapd and
     performing basic install/remove tasks does not cause SELinux denials. Even
     though we do not support SELinux for enforcing confinement of snaps, we do
@@ -8,6 +8,7 @@ description: |
     management tasks on snaps.
 
 systems: [fedora-*, centos-*]
+
 prepare: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB"/pkgdb.sh
@@ -29,7 +30,6 @@ prepare: |
 
 restore: |
     setenforce "$(cat enforcing.mode)"
-    rm -f stamp enforcing.mode
 
     tests.session -u test restore
     # Stop dbus activated by test-snapd-desktop snap.

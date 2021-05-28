@@ -29,9 +29,12 @@ import (
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
-var MinLane = minLane
+func APICommands() []*Command {
+	return api
+}
 
 func NewAndAddRoutes() (*Daemon, error) {
 	d, err := New()
@@ -60,7 +63,9 @@ func (d *Daemon) RequestedRestart() state.RestartType {
 	return d.requestedRestart
 }
 
-func MockUcrednetGet(mock func(remoteAddr string) (pid int32, uid uint32, socket string, err error)) (restore func()) {
+type Ucrednet = ucrednet
+
+func MockUcrednetGet(mock func(remoteAddr string) (ucred *Ucrednet, err error)) (restore func()) {
 	oldUcrednetGet := ucrednetGet
 	ucrednetGet = mock
 	return func() {
@@ -92,6 +97,22 @@ func MockShutdownTimeout(tm time.Duration) (restore func()) {
 	}
 }
 
+func MockUnsafeReadSnapInfo(mock func(string) (*snap.Info, error)) (restore func()) {
+	oldUnsafeReadSnapInfo := unsafeReadSnapInfo
+	unsafeReadSnapInfo = mock
+	return func() {
+		unsafeReadSnapInfo = oldUnsafeReadSnapInfo
+	}
+}
+
+func MockAssertstateRefreshSnapDeclarations(mock func(*state.State, int) error) (restore func()) {
+	oldAssertstateRefreshSnapDeclarations := assertstateRefreshSnapDeclarations
+	assertstateRefreshSnapDeclarations = mock
+	return func() {
+		assertstateRefreshSnapDeclarations = oldAssertstateRefreshSnapDeclarations
+	}
+}
+
 func MockSnapstateInstall(mock func(context.Context, *state.State, string, *snapstate.RevisionOptions, int, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
 	oldSnapstateInstall := snapstateInstall
 	snapstateInstall = mock
@@ -100,12 +121,115 @@ func MockSnapstateInstall(mock func(context.Context, *state.State, string, *snap
 	}
 }
 
+func MockSnapstateInstallPath(mock func(*state.State, *snap.SideInfo, string, string, string, snapstate.Flags) (*state.TaskSet, *snap.Info, error)) (restore func()) {
+	oldSnapstateInstallPath := snapstateInstallPath
+	snapstateInstallPath = mock
+	return func() {
+		snapstateInstallPath = oldSnapstateInstallPath
+	}
+}
+
+func MockSnapstateUpdate(mock func(*state.State, string, *snapstate.RevisionOptions, int, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
+	oldSnapstateUpdate := snapstateUpdate
+	snapstateUpdate = mock
+	return func() {
+		snapstateUpdate = oldSnapstateUpdate
+	}
+}
+
+func MockSnapstateTryPath(mock func(*state.State, string, string, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
+	oldSnapstateTryPath := snapstateTryPath
+	snapstateTryPath = mock
+	return func() {
+		snapstateTryPath = oldSnapstateTryPath
+	}
+}
+
+func MockSnapstateSwitch(mock func(*state.State, string, *snapstate.RevisionOptions) (*state.TaskSet, error)) (restore func()) {
+	oldSnapstateSwitch := snapstateSwitch
+	snapstateSwitch = mock
+	return func() {
+		snapstateSwitch = oldSnapstateSwitch
+	}
+}
+
+func MockSnapstateRevert(mock func(*state.State, string, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
+	oldSnapstateRevert := snapstateRevert
+	snapstateRevert = mock
+	return func() {
+		snapstateRevert = oldSnapstateRevert
+	}
+}
+
+func MockSnapstateRevertToRevision(mock func(*state.State, string, snap.Revision, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
+	oldSnapstateRevertToRevision := snapstateRevertToRevision
+	snapstateRevertToRevision = mock
+	return func() {
+		snapstateRevertToRevision = oldSnapstateRevertToRevision
+	}
+}
+
+func MockSnapstateInstallMany(mock func(*state.State, []string, int) ([]string, []*state.TaskSet, error)) (restore func()) {
+	oldSnapstateInstallMany := snapstateInstallMany
+	snapstateInstallMany = mock
+	return func() {
+		snapstateInstallMany = oldSnapstateInstallMany
+	}
+}
+
+func MockSnapstateUpdateMany(mock func(context.Context, *state.State, []string, int, *snapstate.Flags) ([]string, []*state.TaskSet, error)) (restore func()) {
+	oldSnapstateUpdateMany := snapstateUpdateMany
+	snapstateUpdateMany = mock
+	return func() {
+		snapstateUpdateMany = oldSnapstateUpdateMany
+	}
+}
+
+func MockSnapstateRemoveMany(mock func(*state.State, []string) ([]string, []*state.TaskSet, error)) (restore func()) {
+	oldSnapstateRemoveMany := snapstateRemoveMany
+	snapstateRemoveMany = mock
+	return func() {
+		snapstateRemoveMany = oldSnapstateRemoveMany
+	}
+}
+
 type (
 	Resp            = resp
+	RespJSON        = respJSON
+	FileResponse    = fileResponse
 	ErrorResult     = errorResult
 	SnapInstruction = snapInstruction
 )
 
+// XXX this is not used very consistently
+func (rsp *resp) ErrorResult() *errorResult {
+	return rsp.Result.(*errorResult)
+}
+
 func (inst *snapInstruction) Dispatch() snapActionFunc {
 	return inst.dispatch()
 }
+
+func (inst *snapInstruction) DispatchForMany() snapManyActionFunc {
+	return inst.dispatchForMany()
+}
+
+func (inst *snapInstruction) SetUserID(userID int) {
+	inst.userID = userID
+}
+
+func (inst *snapInstruction) ModeFlags() (snapstate.Flags, error) {
+	return inst.modeFlags()
+}
+
+func (inst *snapInstruction) ErrToResponse(err error) Response {
+	return inst.errToResponse(err)
+}
+
+var (
+	UserFromRequest = userFromRequest
+	IsTrue          = isTrue
+
+	MakeErrorResponder = makeErrorResponder
+	ErrToResponse      = errToResponse
+)

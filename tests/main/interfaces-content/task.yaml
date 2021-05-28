@@ -1,8 +1,5 @@
 summary: Ensure that the content sharing interface works.
 
-# slow in autopkgtest (>4m)
-backends: [-autopkgtest]
-
 details: |
     The content-sharing interface interface allows a snap to access contents from
     other snap
@@ -10,6 +7,9 @@ details: |
     A snap which defines the content sharing plug must be shown in the interfaces list.
     The plug must be autoconnected on install and, as usual, must be able to be
     reconnected.
+
+# slow in autopkgtest (>4m)
+backends: [-autopkgtest]
 
 # This test purges the state which causes the device to reinitialize
 # with (potentially) a different core snap. Running this on core will
@@ -32,6 +32,7 @@ prepare: |
 execute: |
     echo "When a snap declaring a content sharing plug is installed"
     snap install --edge test-snapd-content-plug
+
     echo "Then this pulls in the default provider"
     snap list | MATCH  test-snapd-content-slot
 

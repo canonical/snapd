@@ -1,10 +1,10 @@
 summary: Check different completions
 
-# ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
-systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
-
 # takes >6min to run in total
 backends: [-autopkgtest]
+
+# ppc64el disabled because of https://bugs.launchpad.net/snappy/+bug/1655594
+systems: [-ubuntu-core-*, -ubuntu-*-ppc64el]
 
 environment:
     NAMES: /var/cache/snapd/names
@@ -14,23 +14,31 @@ prepare: |
     . "$TESTSLIB/systemd.sh"
 
     systemd_stop_units snapd.service snapd.socket
-    [ -e "$NAMES" ] && mv "$NAMES" "$NAMES.orig"
+    if [ -e "$NAMES" ]; then
+        mv "$NAMES" "$NAMES.orig"
+    fi
+
     cat >"$NAMES" <<EOF
     test-assumes
     test-snapd-thumbnailer
     test-snapd-tools
     EOF
+
     chattr +i "$NAMES"
     systemctl start snapd.service
+
     mkdir -p testdir
     touch testdir/foo.snap
     touch bar.snap
+
     snap install core
     snap install test-snapd-tools
+
     #shellcheck source=tests/lib/mkpinentry.sh
     . "$TESTSLIB"/mkpinentry.sh
     #shellcheck source=tests/lib/random.sh
     . "$TESTSLIB"/random.sh
+
     kill_gpg_agent
     expect -d -f key.exp0
 
@@ -38,10 +46,10 @@ restore: |
     systemctl stop snapd.service
     chattr -i "$NAMES"
     rm "$NAMES"
-    [ -e "$NAMES.orig" ] && mv "$NAMES.orig" "$NAMES"
+    if [ -e "$NAMES.orig" ]; then
+        mv "$NAMES.orig" "$NAMES"
+    fi
     systemctl start snapd.service
-    rm -f testdir/foo.snap
-    rmdir testdir
 
 debug: |
     #shellcheck source=tests/lib/random.sh

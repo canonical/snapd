@@ -22,6 +22,7 @@ package devicestate_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -31,13 +32,19 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -45,17 +52,23 @@ import (
 type firstBoot20Suite struct {
 	firstBootBaseTest
 
-	snapYaml map[string]string
+	extraSnapYaml map[string]string
 
 	// TestingSeed20 helps populating seeds (it provides
 	// MakeAssertedSnap, MakeSeed) for tests.
 	*seedtest.TestingSeed20
 }
 
+var (
+	allGrades = []asserts.ModelGrade{
+		asserts.ModelDangerous,
+	}
+)
+
 var _ = Suite(&firstBoot20Suite{})
 
 func (s *firstBoot20Suite) SetUpTest(c *C) {
-	s.snapYaml = seedtest.SampleSnapYaml
+	s.extraSnapYaml = make(map[string]string)
 
 	s.TestingSeed20 = &seedtest.TestingSeed20{}
 
@@ -68,9 +81,19 @@ func (s *firstBoot20Suite) SetUpTest(c *C) {
 
 	// mock the snap mapper as snapd here
 	s.AddCleanup(ifacestate.MockSnapMapper(&ifacestate.CoreSnapdSystemMapper{}))
+
+	r := release.MockReleaseInfo(&release.OS{ID: "ubuntu-core", VersionID: "20"})
+	s.AddCleanup(r)
 }
 
-func (s *firstBoot20Suite) setupCore20Seed(c *C, sysLabel string) *asserts.Model {
+func (s *firstBoot20Suite) snapYaml(snp string) string {
+	if yml, ok := seedtest.SampleSnapYaml[snp]; ok {
+		return yml
+	}
+	return s.extraSnapYaml[snp]
+}
+
+func (s *firstBoot20Suite) setupCore20Seed(c *C, sysLabel string, modelGrade asserts.ModelGrade, extraGadgetYaml string, extraSnaps ...string) *asserts.Model {
 	gadgetYaml := `
 volumes:
     volume-id:
@@ -86,23 +109,29 @@ volumes:
           size: 2G
 `
 
+	gadgetYaml += extraGadgetYaml
+
 	makeSnap := func(yamlKey string) {
 		var files [][]string
 		if yamlKey == "pc=20" {
 			files = append(files, []string{"meta/gadget.yaml", gadgetYaml})
 		}
-		s.MakeAssertedSnap(c, s.snapYaml[yamlKey], files, snap.R(1), "canonical", s.StoreSigning.Database)
+		s.MakeAssertedSnap(c, s.snapYaml(yamlKey), files, snap.R(1), "canonical", s.StoreSigning.Database)
 	}
 
 	makeSnap("snapd")
 	makeSnap("pc-kernel=20")
 	makeSnap("core20")
 	makeSnap("pc=20")
+	for _, sn := range extraSnaps {
+		makeSnap(sn)
+	}
 
-	return s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+	model := map[string]interface{}{
 		"display-name": "my model",
 		"architecture": "amd64",
 		"base":         "core20",
+		"grade":        string(modelGrade),
 		"snaps": []interface{}{
 			map[string]interface{}{
 				"name":            "pc-kernel",
@@ -115,32 +144,97 @@ volumes:
 				"id":              s.AssertedSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
-			}},
-	}, nil)
+			},
+			map[string]interface{}{
+				"name": "snapd",
+				"id":   s.AssertedSnapID("snapd"),
+				"type": "snapd",
+			},
+			map[string]interface{}{
+				"name": "core20",
+				"id":   s.AssertedSnapID("core20"),
+				"type": "base",
+			},
+		},
+	}
+
+	for _, sn := range extraSnaps {
+		name, channel := splitSnapNameWithChannel(sn)
+		model["snaps"] = append(model["snaps"].([]interface{}), map[string]interface{}{
+			"name":            name,
+			"type":            "app",
+			"id":              s.AssertedSnapID(name),
+			"default-channel": channel,
+		})
+	}
+
+	return s.MakeSeed(c, sysLabel, "my-brand", "my-model", model, nil)
 }
 
-func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv) {
+func splitSnapNameWithChannel(sn string) (name, channel string) {
+	nameParts := strings.SplitN(sn, "=", 2)
+	name = nameParts[0]
+	channel = ""
+	if len(nameParts) == 2 {
+		channel = nameParts[1]
+	}
+	return name, channel
+}
+
+func stripSnapNamesWithChannels(snaps []string) []string {
+	names := []string{}
+	for _, sn := range snaps {
+		name, _ := splitSnapNameWithChannel(sn)
+		names = append(names, name)
+	}
+	return names
+}
+
+func checkSnapstateDevModeFlags(c *C, tsAll []*state.TaskSet, snapsWithDevModeFlag ...string) {
+	allDevModeSnaps := stripSnapNamesWithChannels(snapsWithDevModeFlag)
+
+	// XXX: mostly same code from checkOrder helper in firstboot_test.go, maybe
+	// combine someday?
+	matched := 0
+	var prevTask *state.Task
+	for i, ts := range tsAll {
+		task0 := ts.Tasks()[0]
+		waitTasks := task0.WaitTasks()
+		if i == 0 {
+			c.Check(waitTasks, HasLen, 0)
+		} else {
+			c.Check(waitTasks, testutil.Contains, prevTask)
+		}
+		prevTask = task0
+		if task0.Kind() != "prerequisites" {
+			continue
+		}
+		snapsup, err := snapstate.TaskSnapSetup(task0)
+		c.Assert(err, IsNil, Commentf("%#v", task0))
+		if strutil.ListContains(allDevModeSnaps, snapsup.InstanceName()) {
+			c.Assert(snapsup.DevMode, Equals, true)
+			matched++
+		} else {
+			// it should not have DevMode true
+			c.Assert(snapsup.DevMode, Equals, false)
+		}
+	}
+	c.Check(matched, Equals, len(snapsWithDevModeFlag))
+}
+
+func (s *firstBoot20Suite) earlySetup(c *C, m *boot.Modeenv, modelGrade asserts.ModelGrade, extraGadgetYaml string, extraSnaps ...string) (model *asserts.Model, bloader *bootloadertest.MockExtractedRunKernelImageBootloader) {
 	c.Assert(m, NotNil, Commentf("missing modeenv test data"))
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	// restart overlord to pick up the modeenv
-	s.startOverlord(c)
-
-	// XXX some things are not yet completely final/realistic
-	var sysdLog [][]string
-	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		sysdLog = append(sysdLog, cmd)
-		return []byte("ActiveState=inactive\n"), nil
-	})
-	defer systemctlRestorer()
-
 	sysLabel := m.RecoverySystem
-	model := s.setupCore20Seed(c, sysLabel)
+	model = s.setupCore20Seed(c, sysLabel, modelGrade, extraGadgetYaml, extraSnaps...)
+	// sanity check that our returned model has the expected grade
+	c.Assert(model.Grade(), Equals, modelGrade)
 
-	bloader := bootloadertest.Mock("mock", c.MkDir()).WithExtractedRunKernelImage()
+	bloader = bootloadertest.Mock("mock", c.MkDir()).WithExtractedRunKernelImage()
 	bootloader.Force(bloader)
-	defer bootloader.Force(nil)
+	s.AddCleanup(func() { bootloader.Force(nil) })
 
 	// since we are in runmode, MakeBootable will already have run from install
 	// mode, and extracted the kernel assets for the kernel snap into the
@@ -148,10 +242,25 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	kernel, err := snap.ParsePlaceInfoFromSnapFileName("pc-kernel_1.snap")
 	c.Assert(err, IsNil)
 	r := bloader.SetEnabledKernel(kernel)
-	defer r()
+	s.AddCleanup(r)
+
+	return model, bloader
+}
+
+func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv, modelGrade asserts.ModelGrade, extraDevModeSnaps ...string) {
+	var sysdLog [][]string
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		sysdLog = append(sysdLog, cmd)
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer systemctlRestorer()
+
+	model, bloader := s.earlySetup(c, m, modelGrade, "", extraDevModeSnaps...)
+	// create overlord and pick up the modeenv
+	s.startOverlord(c)
 
 	opts := devicestate.PopulateStateFromSeedOptions{
-		Label: sysLabel,
+		Label: m.RecoverySystem,
 		Mode:  m.Mode,
 	}
 
@@ -162,7 +271,20 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
 	c.Assert(err, IsNil)
 
-	checkOrder(c, tsAll, "snapd", "pc-kernel", "core20", "pc")
+	snaps := []string{"snapd", "pc-kernel", "core20", "pc"}
+	allDevModeSnaps := stripSnapNamesWithChannels(extraDevModeSnaps)
+	if len(extraDevModeSnaps) != 0 {
+		snaps = append(snaps, allDevModeSnaps...)
+	}
+	checkOrder(c, tsAll, snaps...)
+
+	// if the model is dangerous check that the devmode snaps in the model have
+	// the flag set in snapstate for DevMode confinement
+	// XXX: eventually we may need more complicated checks here and for
+	// non-dangerous models only specific snaps may have this flag set
+	if modelGrade == asserts.ModelDangerous {
+		checkSnapstateDevModeFlags(c, tsAll, allDevModeSnaps...)
+	}
 
 	// now run the change and check the result
 	// use the expected kind otherwise settle with start another one
@@ -305,13 +427,24 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	}
 }
 
+func (s *firstBoot20Suite) TestPopulateFromSeedCore20RunModeDangerousWithDevmode(c *C) {
+	m := boot.Modeenv{
+		Mode:           "run",
+		RecoverySystem: "20191018",
+		Base:           "core20_1.snap",
+	}
+	s.testPopulateFromSeedCore20Happy(c, &m, asserts.ModelDangerous, "test-devmode=20")
+}
+
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20RunMode(c *C) {
 	m := boot.Modeenv{
 		Mode:           "run",
 		RecoverySystem: "20191018",
 		Base:           "core20_1.snap",
 	}
-	s.testPopulateFromSeedCore20Happy(c, &m)
+	for _, grade := range allGrades {
+		s.testPopulateFromSeedCore20Happy(c, &m, grade)
+	}
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20InstallMode(c *C) {
@@ -320,7 +453,9 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20InstallMode(c *C) {
 		RecoverySystem: "20191019",
 		Base:           "core20_1.snap",
 	}
-	s.testPopulateFromSeedCore20Happy(c, &m)
+	for _, grade := range allGrades {
+		s.testPopulateFromSeedCore20Happy(c, &m, grade)
+	}
 }
 
 func (s *firstBoot20Suite) TestPopulateFromSeedCore20RecoverMode(c *C) {
@@ -329,5 +464,136 @@ func (s *firstBoot20Suite) TestPopulateFromSeedCore20RecoverMode(c *C) {
 		RecoverySystem: "20191020",
 		Base:           "core20_1.snap",
 	}
-	s.testPopulateFromSeedCore20Happy(c, &m)
+	for _, grade := range allGrades {
+		s.testPopulateFromSeedCore20Happy(c, &m, grade)
+	}
+}
+
+func (s *firstBoot20Suite) TestLoadDeviceSeedCore20(c *C) {
+	m := boot.Modeenv{
+		Mode:           "run",
+		RecoverySystem: "20191018",
+		Base:           "core20_1.snap",
+	}
+
+	s.earlySetup(c, &m, "signed", "")
+
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+	st := o.State()
+
+	st.Lock()
+	defer st.Unlock()
+
+	deviceSeed, err := devicestate.LoadDeviceSeed(st, m.RecoverySystem)
+	c.Assert(err, IsNil)
+
+	c.Check(deviceSeed.Model().BrandID(), Equals, "my-brand")
+	c.Check(deviceSeed.Model().Model(), Equals, "my-model")
+	c.Check(deviceSeed.Model().Base(), Equals, "core20")
+
+	// verify that the model was added
+	db := assertstate.DB(st)
+	as, err := db.Find(asserts.ModelType, map[string]string{
+		"series":   "16",
+		"brand-id": "my-brand",
+		"model":    "my-model",
+	})
+	c.Assert(err, IsNil)
+	c.Check(as, DeepEquals, deviceSeed.Model())
+
+	// inconsistent seed request
+	_, err = devicestate.LoadDeviceSeed(st, "20210201")
+	c.Assert(err, ErrorMatches, `internal error: requested inconsistent device seed: 20210201 \(was 20191018\)`)
+}
+
+func (s *firstBoot20Suite) TestPopulateFromSeedCore20RunModeUserServiceTasks(c *C) {
+	// check that this is test is still valid
+	// TODO: have a test for an early config option that is not an
+	// experimental flag
+	c.Assert(features.UserDaemons.IsEnabledWhenUnset(), Equals, false, Commentf("user-daemons is not experimental anymore, this test is not useful anymore"))
+
+	s.extraSnapYaml["user-daemons1"] = `name: user-daemons1
+version: 1.0
+type: app
+base: core20
+
+apps:
+  foo:
+    daemon: simple
+    daemon-scope: user
+`
+	m := boot.Modeenv{
+		Mode:           "run",
+		RecoverySystem: "20191018",
+		Base:           "core20_1.snap",
+	}
+
+	defaultsGadgetYaml := `
+defaults:
+   system:
+      experimental:
+        user-daemons: true
+`
+
+	s.earlySetup(c, &m, "signed", defaultsGadgetYaml, "user-daemons1")
+
+	// create a new overlord and pick up the modeenv
+	// this overlord will use the proper EarlyConfig implementation
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+	o.InterfaceManager().DisableUDevMonitor()
+	c.Assert(o.StartUp(), IsNil)
+
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// early config set the flag to enabled
+	tr := config.NewTransaction(st)
+	enabled, _ := features.Flag(tr, features.UserDaemons)
+	c.Check(enabled, Equals, true)
+
+	opts := devicestate.PopulateStateFromSeedOptions{
+		Label: m.RecoverySystem,
+		Mode:  m.Mode,
+	}
+
+	_, err = devicestate.PopulateStateFromSeedImpl(st, &opts, s.perfTimings)
+	c.Assert(err, IsNil)
+}
+
+func (s *firstBoot20Suite) TestUsersCreateAutomaticIsAvailableEarly(c *C) {
+	m := boot.Modeenv{
+		Mode:           "run",
+		RecoverySystem: "20191018",
+		Base:           "core20_1.snap",
+	}
+
+	defaultsGadgetYaml := `
+defaults:
+   system:
+      users:
+        create.automatic: false
+`
+
+	s.earlySetup(c, &m, "signed", defaultsGadgetYaml)
+
+	// create a new overlord and pick up the modeenv
+	// this overlord will use the proper EarlyConfig implementation
+	o, err := overlord.New(nil)
+	c.Assert(err, IsNil)
+	o.InterfaceManager().DisableUDevMonitor()
+	c.Assert(o.StartUp(), IsNil)
+
+	st := o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// early config in StartUp made the option available already
+	tr := config.NewTransaction(st)
+	var enabled bool
+	err = tr.Get("core", "users.create.automatic", &enabled)
+	c.Assert(err, IsNil)
+	c.Check(enabled, Equals, false)
 }

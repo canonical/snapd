@@ -57,6 +57,8 @@ func (s *modeenvSuite) TestKnownKnown(c *C) {
 		"mode":                     true,
 		"recovery_system":          true,
 		"current_recovery_systems": true,
+		"good_recovery_systems":    true,
+		"boot_flags":               true,
 		// keep this comment to make old go fmt happy
 		"base":            true,
 		"try_base":        true,
@@ -224,6 +226,7 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		Mode:                   "recovery",
 		RecoverySystem:         "20191126",
 		CurrentRecoverySystems: []string{"1", "2"},
+		GoodRecoverySystems:    []string{"3"},
 
 		Base:           "core20_123.snap",
 		TryBase:        "core20_124.snap",
@@ -233,6 +236,8 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		Model:   "model",
 		BrandID: "brand",
 		Grade:   "secured",
+
+		BootFlags: []string{"foo", "factory"},
 
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"thing1": {"hash1", "hash2"},
@@ -249,6 +254,7 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		Mode:                   "recovery",
 		RecoverySystem:         "20191126",
 		CurrentRecoverySystems: []string{"1", "2"},
+		GoodRecoverySystems:    []string{"3"},
 
 		Base:           "core20_123.snap",
 		TryBase:        "core20_124.snap",
@@ -258,6 +264,8 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		Model:   "model",
 		BrandID: "brand",
 		Grade:   "secured",
+
+		BootFlags: []string{"foo", "factory"},
 
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"thing1": {"hash1", "hash2"},
@@ -304,6 +312,24 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
 	// clear kernel command lines list
 	modeenv2.CurrentKernelCommandLines = nil
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
+
+	// make it identical again
+	modeenv2.CurrentKernelCommandLines = boot.BootCommandLines{
+		"foo",
+		"foo bar",
+	}
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, true)
+
+	// change the list of current recovery systems
+	modeenv2.CurrentRecoverySystems = append(modeenv2.CurrentRecoverySystems, "1234")
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
+	// make it identical again
+	modeenv2.CurrentRecoverySystems = []string{"1", "2"}
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, true)
+
+	// change the list of good recovery systems
+	modeenv2.GoodRecoverySystems = append(modeenv2.GoodRecoverySystems, "999")
 	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
 }
 
@@ -572,15 +598,18 @@ func (s *modeenvSuite) TestReadRecoverySystems(c *C) {
 
 	for _, t := range tt {
 		c.Logf("tc: %q", t.systemsString)
-		s.makeMockModeenvFile(c, `mode=recovery
+		s.makeMockModeenvFile(c, fmt.Sprintf(`mode=recovery
 recovery_system=20191126
-current_recovery_systems=`+t.systemsString+"\n")
+current_recovery_systems=%[1]s
+good_recovery_systems=%[1]s
+`, t.systemsString))
 
 		modeenv, err := boot.ReadModeenv(s.tmpdir)
 		c.Assert(err, IsNil)
 		c.Check(modeenv.Mode, Equals, "recovery")
 		c.Check(modeenv.RecoverySystem, Equals, "20191126")
 		c.Check(modeenv.CurrentRecoverySystems, DeepEquals, t.expectedSystems)
+		c.Check(modeenv.GoodRecoverySystems, DeepEquals, t.expectedSystems)
 	}
 }
 

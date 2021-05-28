@@ -33,10 +33,11 @@ import (
 
 var (
 	aliasesCmd = &Command{
-		Path:   "/v2/aliases",
-		UserOK: true,
-		GET:    getAliases,
-		POST:   changeAliases,
+		Path:        "/v2/aliases",
+		GET:         getAliases,
+		POST:        changeAliases,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{},
 	}
 )
 

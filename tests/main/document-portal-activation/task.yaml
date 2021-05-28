@@ -1,5 +1,6 @@
 summary: Check that the document portal is activated when needed
-description: |
+
+details: |
     In order for xdg-document-portal to securely share files with a
     confined applications, it must be started prior to setting up the
     user mount namespace.  This is due to the daemon providing a FUSE
@@ -37,8 +38,6 @@ prepare: |
 
 restore: |
     rm -f /usr/share/dbus-1/services/fake-document-portal.service
-    rm -f doc-portal.log
-    rm -f report-error.txt
     tests.session -u test restore
 
 execute: |

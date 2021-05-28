@@ -248,11 +248,11 @@ func (u *updateTestSuite) TestCanUpdateOffset(c *C) {
 		{
 			// explicitly declared start offset change
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asSizePtr(1024)},
+				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1024)},
 				StartOffset:     1024,
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asSizePtr(2048)},
+				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2048)},
 				StartOffset:     2048,
 			},
 			err: "cannot change structure offset from [0-9]+ to [0-9]+",
@@ -263,7 +263,7 @@ func (u *updateTestSuite) TestCanUpdateOffset(c *C) {
 				StartOffset:     1024,
 			},
 			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asSizePtr(2048)},
+				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(2048)},
 				StartOffset:     2048,
 			},
 			err: "cannot change structure offset from unspecified to [0-9]+",
@@ -271,7 +271,7 @@ func (u *updateTestSuite) TestCanUpdateOffset(c *C) {
 			// explicitly declared start offset in old structure,
 			// missing from new
 			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asSizePtr(1024)},
+				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB, Offset: asOffsetPtr(1024)},
 				StartOffset:     1024,
 			},
 			to: gadget.LaidOutStructure{
@@ -283,11 +283,11 @@ func (u *updateTestSuite) TestCanUpdateOffset(c *C) {
 			// start offset changed due to layout
 			from: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
-				StartOffset:     1 * quantity.SizeMiB,
+				StartOffset:     1 * quantity.OffsetMiB,
 			},
 			to: gadget.LaidOutStructure{
 				VolumeStructure: &gadget.VolumeStructure{Size: 1 * quantity.SizeMiB},
-				StartOffset:     2 * quantity.SizeMiB,
+				StartOffset:     2 * quantity.OffsetMiB,
 			},
 			err: "cannot change structure start offset from [0-9]+ to [0-9]+",
 		},
@@ -480,15 +480,6 @@ func (u *updateTestSuite) TestCanUpdateBareOrFilesystem(c *C) {
 				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4"},
 			},
 			err: `cannot change filesystem label from "writable" to ""`,
-		}, {
-			// from implicit filesystem label to explicit one
-			from: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Role: "system-data"},
-			},
-			to: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{Type: "0C", Filesystem: "ext4", Role: "system-data", Label: "writable"},
-			},
-			err: ``,
 		}, {
 			// all ok
 			from: gadget.LaidOutStructure{
@@ -726,7 +717,7 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 			c.Check(ps.Size, Equals, 5*quantity.SizeMiB)
 			c.Check(ps.IsPartition(), Equals, true)
 			// non MBR start offset defaults to 1MiB
-			c.Check(ps.StartOffset, Equals, 1*quantity.SizeMiB)
+			c.Check(ps.StartOffset, Equals, 1*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 1)
 			c.Check(ps.LaidOutContent[0].Image, Equals, "first.img")
 			c.Check(ps.LaidOutContent[0].Size, Equals, 900*quantity.SizeKiB)
@@ -737,7 +728,7 @@ func (u *updateTestSuite) TestUpdateApplyHappy(c *C) {
 			c.Check(ps.IsPartition(), Equals, true)
 			c.Check(ps.Size, Equals, 10*quantity.SizeMiB)
 			// foo's start offset + foo's size
-			c.Check(ps.StartOffset, Equals, (1+5)*quantity.SizeMiB)
+			c.Check(ps.StartOffset, Equals, (1+5)*quantity.OffsetMiB)
 			c.Assert(ps.LaidOutContent, HasLen, 0)
 			c.Assert(ps.Content, HasLen, 1)
 			c.Check(ps.Content[0].UnresolvedSource, Equals, "/second-content")
@@ -1074,7 +1065,7 @@ func policyDataSet(c *C) (oldData gadget.GadgetData, newData gadget.GadgetData, 
 		Name:   "mbr",
 		Role:   "mbr",
 		Size:   446,
-		Offset: asSizePtr(0),
+		Offset: asOffsetPtr(0),
 	}
 
 	oldVol := oldData.Info.Volumes["foo"]
@@ -1110,9 +1101,9 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 	defer restore()
 
 	policySeen := map[string]int{}
-	err := gadget.Update(oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) bool {
+	err := gadget.Update(oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) (bool, gadget.ResolvedContentFilterFunc) {
 		policySeen[to.Name]++
-		return false
+		return false, nil
 	}, nil)
 	c.Assert(err, Equals, gadget.ErrNoUpdate)
 	c.Assert(policySeen, DeepEquals, map[string]int{
@@ -1126,9 +1117,9 @@ func (u *updateTestSuite) TestUpdateApplyUpdatesArePolicyControlled(c *C) {
 
 	// try with different policy
 	policySeen = map[string]int{}
-	err = gadget.Update(oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) bool {
+	err = gadget.Update(oldData, newData, rollbackDir, func(_, to *gadget.LaidOutStructure) (bool, gadget.ResolvedContentFilterFunc) {
 		policySeen[to.Name]++
-		return to.Name == "second"
+		return to.Name == "second", nil
 	}, nil)
 	c.Assert(err, IsNil)
 	c.Assert(policySeen, DeepEquals, map[string]int{
@@ -1396,7 +1387,7 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 			Filesystem: "none",
 			Size:       10 * quantity.SizeMiB,
 		},
-		StartOffset: 1 * quantity.SizeMiB,
+		StartOffset: 1 * quantity.OffsetMiB,
 	}
 	updater, err := gadget.UpdaterForStructure(psBare, gadgetRootDir, rollbackDir, nil)
 	c.Assert(err, IsNil)
@@ -1408,7 +1399,7 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 			Size:       10 * quantity.SizeMiB,
 			Label:      "writable",
 		},
-		StartOffset: 1 * quantity.SizeMiB,
+		StartOffset: 1 * quantity.OffsetMiB,
 	}
 	updater, err = gadget.UpdaterForStructure(psFs, gadgetRootDir, rollbackDir, nil)
 	c.Assert(err, IsNil)
@@ -1417,10 +1408,6 @@ func (u *updateTestSuite) TestUpdaterForStructure(c *C) {
 	// trigger errors
 	updater, err = gadget.UpdaterForStructure(psBare, gadgetRootDir, "", nil)
 	c.Assert(err, ErrorMatches, "internal error: backup directory cannot be unset")
-	c.Assert(updater, IsNil)
-
-	updater, err = gadget.UpdaterForStructure(psFs, "", rollbackDir, nil)
-	c.Assert(err, ErrorMatches, "internal error: gadget content directory cannot be unset")
 	c.Assert(updater, IsNil)
 }
 
@@ -1600,4 +1587,238 @@ func (u *updateTestSuite) TestUpdateApplyObserverCanceledErrs(c *C) {
 	c.Check(muo.beforeWriteCalled, Equals, 1)
 
 	c.Check(logbuf.String(), testutil.Contains, `cannot observe canceled update: canceled fail`)
+}
+
+func (u *updateTestSuite) TestKernelUpdatePolicy(c *C) {
+	for _, tc := range []struct {
+		from, to *gadget.LaidOutStructure
+		update   bool
+	}{
+		// trivial
+		{
+			from: &gadget.LaidOutStructure{},
+			to: &gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{},
+			},
+			update: false,
+		},
+		// gadget content only, nothing for the kernel
+		{
+			from: &gadget.LaidOutStructure{},
+			to: &gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Content: []gadget.VolumeContent{
+						{UnresolvedSource: "something"},
+					},
+				},
+			},
+		},
+		// ensure that only the `KernelUpdate` of the `to`
+		// structure is relevant
+		{
+			from: &gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Content: []gadget.VolumeContent{
+						{
+							UnresolvedSource: "$kernel:ref",
+						},
+					},
+				},
+			},
+			to: &gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{},
+			},
+			update: false,
+		},
+		// happy case, kernelUpdate is true
+		{
+			from: &gadget.LaidOutStructure{},
+			to: &gadget.LaidOutStructure{
+				VolumeStructure: &gadget.VolumeStructure{
+					Content: []gadget.VolumeContent{
+						{
+							UnresolvedSource: "other",
+						},
+						{
+							UnresolvedSource: "$kernel:ref",
+						},
+					},
+				},
+			},
+			update: true,
+		},
+	} {
+		needsUpdate, filter := gadget.KernelUpdatePolicy(tc.from, tc.to)
+		if tc.update {
+			c.Check(needsUpdate, Equals, true, Commentf("%v", tc))
+			c.Check(filter, NotNil)
+		} else {
+			c.Check(needsUpdate, Equals, false, Commentf("%v", tc))
+			c.Check(filter, IsNil)
+		}
+	}
+}
+
+func (u *updateTestSuite) TestKernelUpdatePolicyFunc(c *C) {
+	from := &gadget.LaidOutStructure{}
+	to := &gadget.LaidOutStructure{
+		VolumeStructure: &gadget.VolumeStructure{
+			Content: []gadget.VolumeContent{
+				{
+					UnresolvedSource: "other",
+				},
+				{
+					UnresolvedSource: "$kernel:ref",
+				},
+			},
+		},
+		ResolvedContent: []gadget.ResolvedContent{
+			{
+				ResolvedSource: "/gadget/path/to/other",
+			},
+			{
+				ResolvedSource: "/kernel/path/to/ref",
+				KernelUpdate:   true,
+			},
+		},
+	}
+	needsUpdate, filter := gadget.KernelUpdatePolicy(from, to)
+	c.Check(needsUpdate, Equals, true)
+	c.Assert(filter, NotNil)
+	c.Check(filter(&to.ResolvedContent[0]), Equals, false)
+	c.Check(filter(&to.ResolvedContent[1]), Equals, true)
+}
+
+func (u *updateTestSuite) TestUpdateApplyUpdatesWithKernelPolicy(c *C) {
+	// prepare the stage
+	fsStruct := gadget.VolumeStructure{
+		Name:       "foo",
+		Size:       5 * quantity.SizeMiB,
+		Filesystem: "ext4",
+		Content: []gadget.VolumeContent{
+			{UnresolvedSource: "/second-content", Target: "/"},
+			{UnresolvedSource: "$kernel:ref/kernel-content", Target: "/"},
+		},
+	}
+	oldInfo := &gadget.Info{
+		Volumes: map[string]*gadget.Volume{
+			"foo": {
+				Bootloader: "grub",
+				Schema:     "gpt",
+				Structure:  []gadget.VolumeStructure{fsStruct},
+			},
+		},
+	}
+
+	oldRootDir := c.MkDir()
+	oldKernelDir := c.MkDir()
+	oldData := gadget.GadgetData{Info: oldInfo, RootDir: oldRootDir, KernelRootDir: oldKernelDir}
+	makeSizedFile(c, filepath.Join(oldRootDir, "some-content"), quantity.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(oldKernelDir, "kernel-content"), quantity.SizeMiB, nil)
+
+	newRootDir := oldRootDir
+	newKernelDir := c.MkDir()
+	kernelYamlFn := filepath.Join(newKernelDir, "meta/kernel.yaml")
+	makeSizedFile(c, kernelYamlFn, 0, []byte(`
+assets:
+  ref:
+    update: true
+    content:
+    - kernel-content`))
+
+	// same volume description
+	newData := gadget.GadgetData{Info: oldInfo, RootDir: newRootDir, KernelRootDir: newKernelDir}
+	// different file from gadget
+	makeSizedFile(c, filepath.Join(newRootDir, "some-content"), 2*quantity.SizeMiB, nil)
+	// same file from kernel, it is still updated because kernel sets
+	// the update flag
+	makeSizedFile(c, filepath.Join(newKernelDir, "kernel-content"), quantity.SizeMiB, nil)
+
+	rollbackDir := c.MkDir()
+	muo := &mockUpdateProcessObserver{}
+
+	// Check that filtering happened via the KernelUpdatePolicy and the
+	// updater is only called with the kernel content, not with the
+	// gadget content.
+	mockUpdaterCalls := 0
+	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		mockUpdaterCalls++
+		c.Check(ps.ResolvedContent, DeepEquals, []gadget.ResolvedContent{
+			{
+				VolumeContent: &gadget.VolumeContent{
+					UnresolvedSource: "$kernel:ref/kernel-content",
+					Target:           "/",
+				},
+				ResolvedSource: filepath.Join(newKernelDir, "kernel-content"),
+				KernelUpdate:   true,
+			},
+		})
+		return &mockUpdater{}, nil
+	})
+	defer restore()
+
+	// exercise KernelUpdatePolicy here
+	err := gadget.Update(oldData, newData, rollbackDir, gadget.KernelUpdatePolicy, muo)
+	c.Assert(err, IsNil)
+
+	// ensure update for kernel content happened
+	c.Assert(mockUpdaterCalls, Equals, 1)
+	c.Assert(muo.beforeWriteCalled, Equals, 1)
+}
+
+func (u *updateTestSuite) TestUpdateApplyUpdatesWithMissingKernelRefInGadget(c *C) {
+	// kernel.yaml has "$kernel:ref" style content
+	kernelYaml := []byte(`
+assets:
+  ref:
+    update: true
+    content:
+    - kernel-content`)
+	// but gadget.yaml does not have this, which violates kernel
+	// update policy rule no. 1 from update.go
+	fsStruct := gadget.VolumeStructure{
+		Name:       "foo",
+		Size:       5 * quantity.SizeMiB,
+		Filesystem: "ext4",
+		Content: []gadget.VolumeContent{
+			// Note that there is no "$kernel:ref" here
+			{UnresolvedSource: "/content", Target: "/"},
+		},
+	}
+	info := &gadget.Info{
+		Volumes: map[string]*gadget.Volume{
+			"foo": {
+				Bootloader: "grub",
+				Schema:     "gpt",
+				Structure:  []gadget.VolumeStructure{fsStruct},
+			},
+		},
+	}
+
+	gadgetDir := c.MkDir()
+	oldKernelDir := c.MkDir()
+	oldData := gadget.GadgetData{Info: info, RootDir: gadgetDir, KernelRootDir: oldKernelDir}
+	makeSizedFile(c, filepath.Join(gadgetDir, "some-content"), quantity.SizeMiB, nil)
+	makeSizedFile(c, filepath.Join(oldKernelDir, "kernel-content"), quantity.SizeMiB, nil)
+
+	newKernelDir := c.MkDir()
+	kernelYamlFn := filepath.Join(newKernelDir, "meta/kernel.yaml")
+	makeSizedFile(c, kernelYamlFn, 0, kernelYaml)
+
+	newData := gadget.GadgetData{Info: info, RootDir: gadgetDir, KernelRootDir: newKernelDir}
+	makeSizedFile(c, filepath.Join(gadgetDir, "content"), 2*quantity.SizeMiB, nil)
+	rollbackDir := c.MkDir()
+	muo := &mockUpdateProcessObserver{}
+
+	restore := gadget.MockUpdaterForStructure(func(ps *gadget.LaidOutStructure, psRootDir, psRollbackDir string, observer gadget.ContentUpdateObserver) (gadget.Updater, error) {
+		panic("should not get called")
+	})
+	defer restore()
+
+	// exercise KernelUpdatePolicy here
+	err := gadget.Update(oldData, newData, rollbackDir, gadget.KernelUpdatePolicy, muo)
+	c.Assert(err, ErrorMatches, `gadget does not consume any of the kernel assets needing synced update "ref"`)
+
+	// ensure update for kernel content didn't happen
+	c.Assert(muo.beforeWriteCalled, Equals, 0)
 }

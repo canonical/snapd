@@ -1,5 +1,6 @@
 summary: the desktop portal screenshot API works for snap applications
-description: |
+
+details: |
     The xdg-desktop-portal screenshot interface provides a way for
     confined applications to take screenshots with the consent of the
     user.
@@ -35,6 +36,14 @@ restore: |
     teardown_portals
     rm -f /tmp/screenshot.txt
 
+debug: |
+    #shellcheck source=tests/lib/desktop-portal.sh
+    . "$TESTSLIB"/desktop-portal.sh
+
+    ls -la "/run/user/$(id -u test)" || true
+    #shellcheck disable=SC2009
+    ps -ef | grep xdg || true
+
 execute: |
     echo "Install the portals test client"
     snap install --edge test-snapd-portal-client
@@ -46,11 +55,3 @@ execute: |
     # AppArmor policy uses the @owner restriction.
     chown test:test /tmp/screenshot.txt
     tests.session -u test exec test-snapd-portal-client screenshot | MATCH "my screenshot"
-
-debug: |
-    #shellcheck source=tests/lib/desktop-portal.sh
-    . "$TESTSLIB"/desktop-portal.sh
-
-    ls -la "/run/user/$(id -u test)" || true
-    #shellcheck disable=SC2009
-    ps -ef | grep xdg || true

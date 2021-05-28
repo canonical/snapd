@@ -4,12 +4,15 @@ show_help() {
     echo "usage: pack-local <snap-name>"
     echo "       install-local <snap-name> [OPTIONS]"
     echo "       install-local-as <snap-name> <dest-name> [OPTIONS]"
+    echo "       show-name <snap>"
     echo "       is-confinement-supported <classic|devmode|strict>"
     echo "       repack-snapd-deb-into-snap <snapd|core>"
     echo "       repack-core-snap-into-snapd-snap"
     echo ""
     echo "Available options:"
     echo "  --devmode --jailmode --classic"
+    echo "Supported names:"
+    echo "  core kernel gadget"
     echo ""
     echo "Pack and install commands save the packed snap for future uses,"
     echo "which is reused on the following calls."
@@ -62,6 +65,28 @@ install_local_as() {
     install_local "$snap" --name "$name" "$@"
 }
 
+show_name() {
+    case "${1:-}" in
+            core)
+                local core_name
+                core_name="$(snap model --verbose | grep -Po "^base:\\s+\\K.*" || true)"
+                if [ -z "$core_name" ]; then
+                    core_name="core"
+                fi
+                echo "$core_name"
+                ;;
+            kernel)
+                snap list | grep 'kernel$' | awk '{ print $1 }'
+                ;;
+            gadget)
+                snap list | grep 'gadget$' | awk '{ print $1 }'
+                ;;
+            *)
+                echo "snaps-state: unsupported snap $1" >&2
+                show_help
+                exit 1
+                ;;
+        esac
 is_confinement_supported() {
     local confinement="$1"
     if [ -z "$confinement" ]; then
@@ -69,7 +94,6 @@ is_confinement_supported() {
         show_help
         exit 1
     fi
-
     snap debug sandbox-features --required=confinement-options:"$confinement"
 }
 
@@ -78,12 +102,10 @@ is_confinement_supported() {
 repack_snapd_deb_into_snap() {
     local snap_name="$1"
     local deb_file="${2:-$(ls "$SPREAD_PATH"/../snapd_*.deb)}"
-
     if [ ! -e "$deb_file" ]; then
         echo "snaps-state: deb file used to repack not found: $deb_file"
         exit 1
     fi
-
     case "$snap_name" in
             core)
                 # use snapd from edge as a recent snap that should be close to what we will

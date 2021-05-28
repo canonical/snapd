@@ -1,13 +1,13 @@
 summary: |
     Test a remodel that switches to a new kernel
 
-environment:
-    OLD_KERNEL: pc-kernel
-    NEW_KERNEL: test-snapd-pc-kernel
-
 # FIXME: add core18 test as well
 # TODO:UC20: enable for UC20
 systems: [ubuntu-core-16-64]
+
+environment:
+    OLD_KERNEL: pc-kernel
+    NEW_KERNEL: test-snapd-pc-kernel
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then

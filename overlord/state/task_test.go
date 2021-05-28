@@ -22,12 +22,12 @@ package state_test
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
-	"time"
 )
 
 type taskSuite struct{}

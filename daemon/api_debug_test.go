@@ -17,7 +17,7 @@
  *
  */
 
-package daemon
+package daemon_test
 
 import (
 	"bytes"
@@ -26,6 +26,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
@@ -34,44 +35,31 @@ import (
 var _ = check.Suite(&postDebugSuite{})
 
 type postDebugSuite struct {
-	APIBaseSuite
+	apiBaseSuite
 }
 
 func (s *postDebugSuite) TestPostDebugEnsureStateSoon(c *check.C) {
 	s.daemonWithOverlordMock(c)
+	s.expectRootAccess()
 
 	soon := 0
-	ensureStateSoon = func(st *state.State) {
+	var origEnsureStateSoon func(*state.State)
+	origEnsureStateSoon, restore := daemon.MockEnsureStateSoon(func(st *state.State) {
 		soon++
-		ensureStateSoonImpl(st)
-	}
+		origEnsureStateSoon(st)
+	})
+	defer restore()
 
 	buf := bytes.NewBufferString(`{"action": "ensure-state-soon"}`)
 	req, err := http.NewRequest("POST", "/v2/debug", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := postDebug(debugCmd, req, nil).(*resp)
-
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
+	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Result, check.Equals, true)
 	c.Check(soon, check.Equals, 1)
 }
 
-func (s *postDebugSuite) TestPostDebugGetBaseDeclaration(c *check.C) {
-	_ = s.daemon(c)
-
-	buf := bytes.NewBufferString(`{"action": "get-base-declaration"}`)
-	req, err := http.NewRequest("POST", "/v2/debug", buf)
-	c.Assert(err, check.IsNil)
-
-	rsp := postDebug(debugCmd, req, nil).(*resp)
-
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Result.(map[string]interface{})["base-declaration"],
-		testutil.Contains, "type: base-declaration")
-}
-
-func (s *postDebugSuite) testDebugConnectivityHappy(c *check.C, post bool) {
+func (s *postDebugSuite) TestDebugConnectivityHappy(c *check.C) {
 	_ = s.daemon(c)
 
 	s.connectivityResult = map[string]bool{
@@ -79,36 +67,17 @@ func (s *postDebugSuite) testDebugConnectivityHappy(c *check.C, post bool) {
 		"another.good.host.com": true,
 	}
 
-	var rsp *resp
-	if post {
-		buf := bytes.NewBufferString(`{"action": "connectivity"}`)
-		req, err := http.NewRequest("POST", "/v2/debug", buf)
-		c.Assert(err, check.IsNil)
+	req, err := http.NewRequest("GET", "/v2/debug?aspect=connectivity", nil)
+	c.Assert(err, check.IsNil)
 
-		rsp = postDebug(debugCmd, req, nil).(*resp)
-	} else {
-		req, err := http.NewRequest("POST", "/v2/debug?aspect=connectivity", nil)
-		c.Assert(err, check.IsNil)
-		rsp = getDebug(debugCmd, req, nil).(*resp)
-
-	}
-
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Result, check.DeepEquals, ConnectivityStatus{
+	rsp := s.syncReq(c, req, nil)
+	c.Check(rsp.Result, check.DeepEquals, daemon.ConnectivityStatus{
 		Connectivity: true,
 		Unreachable:  []string(nil),
 	})
 }
 
-func (s *postDebugSuite) TestPostDebugConnectivityHappy(c *check.C) {
-	s.testDebugConnectivityHappy(c, true)
-}
-
-func (s *postDebugSuite) TestGetDebugConnectivityHappy(c *check.C) {
-	s.testDebugConnectivityHappy(c, false)
-}
-
-func (s *postDebugSuite) testDebugConnectivityUnhappy(c *check.C, post bool) {
+func (s *postDebugSuite) TestDebugConnectivityUnhappy(c *check.C) {
 	_ = s.daemon(c)
 
 	s.connectivityResult = map[string]bool{
@@ -116,32 +85,14 @@ func (s *postDebugSuite) testDebugConnectivityUnhappy(c *check.C, post bool) {
 		"bad.host.com":  false,
 	}
 
-	var rsp *resp
-	if post {
-		buf := bytes.NewBufferString(`{"action": "connectivity"}`)
-		req, err := http.NewRequest("POST", "/v2/debug", buf)
-		c.Assert(err, check.IsNil)
+	req, err := http.NewRequest("GET", "/v2/debug?aspect=connectivity", nil)
+	c.Assert(err, check.IsNil)
 
-		rsp = postDebug(debugCmd, req, nil).(*resp)
-	} else {
-		req, err := http.NewRequest("GET", "/v2/debug?aspect=connectivity", nil)
-		c.Assert(err, check.IsNil)
-		rsp = getDebug(debugCmd, req, nil).(*resp)
-	}
-
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
-	c.Check(rsp.Result, check.DeepEquals, ConnectivityStatus{
+	rsp := s.syncReq(c, req, nil)
+	c.Check(rsp.Result, check.DeepEquals, daemon.ConnectivityStatus{
 		Connectivity: false,
 		Unreachable:  []string{"bad.host.com"},
 	})
-}
-
-func (s *postDebugSuite) TestPostDebugConnectivityUnhappy(c *check.C) {
-	s.testDebugConnectivityUnhappy(c, true)
-}
-
-func (s *postDebugSuite) TestGetDebugConnectivityUnhappy(c *check.C) {
-	s.testDebugConnectivityUnhappy(c, false)
 }
 
 func (s *postDebugSuite) TestGetDebugBaseDeclaration(c *check.C) {
@@ -150,9 +101,8 @@ func (s *postDebugSuite) TestGetDebugBaseDeclaration(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/debug?aspect=base-declaration", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := getDebug(debugCmd, req, nil).(*resp)
+	rsp := s.syncReq(c, req, nil)
 
-	c.Check(rsp.Type, check.Equals, ResponseTypeSync)
 	c.Check(rsp.Result.(map[string]interface{})["base-declaration"],
 		testutil.Contains, "type: base-declaration")
 }
@@ -174,7 +124,7 @@ func (s *postDebugSuite) getDebugTimings(c *check.C, request string) []interface
 	req, err := http.NewRequest("GET", request, nil)
 	c.Assert(err, check.IsNil)
 
-	st := s.d.overlord.State()
+	st := s.d.Overlord().State()
 	st.Lock()
 
 	chg1 := st.NewChange("foo", "...")
@@ -212,13 +162,12 @@ func (s *postDebugSuite) getDebugTimings(c *check.C, request string) []interface
 
 	st.Unlock()
 
-	rsp := getDebug(debugCmd, req, nil).(*resp)
+	rsp := s.syncReq(c, req, nil)
 	data, err := json.Marshal(rsp.Result)
 	c.Assert(err, check.IsNil)
 	var dataJSON []interface{}
 	json.Unmarshal(data, &dataJSON)
 
-	c.Assert(rsp.Type, check.Equals, ResponseTypeSync)
 	return dataJSON
 }
 
@@ -261,12 +210,12 @@ func (s *postDebugSuite) TestGetDebugTimingsError(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/debug?aspect=change-timings&ensure=unknown", nil)
 	c.Assert(err, check.IsNil)
-	rsp := getDebug(debugCmd, req, nil).(*resp)
+	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 400)
 
 	req, err = http.NewRequest("GET", "/v2/debug?aspect=change-timings&change-id=9999", nil)
 	c.Assert(err, check.IsNil)
-	rsp = getDebug(debugCmd, req, nil).(*resp)
+	rsp = s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 400)
 }
 
@@ -276,15 +225,15 @@ func (s *postDebugSuite) TestMinLane(c *check.C) {
 	defer st.Unlock()
 
 	t := st.NewTask("bar", "")
-	c.Check(MinLane(t), check.Equals, 0)
+	c.Check(daemon.MinLane(t), check.Equals, 0)
 
 	lane1 := st.NewLane()
 	t.JoinLane(lane1)
-	c.Check(MinLane(t), check.Equals, lane1)
+	c.Check(daemon.MinLane(t), check.Equals, lane1)
 
 	lane2 := st.NewLane()
 	t.JoinLane(lane2)
-	c.Check(MinLane(t), check.Equals, lane1)
+	c.Check(daemon.MinLane(t), check.Equals, lane1)
 
 	// sanity
 	c.Check(t.Lanes(), check.DeepEquals, []int{lane1, lane2})

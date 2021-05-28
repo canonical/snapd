@@ -46,6 +46,9 @@ var featureSet = map[string]bool{
 	"snap-env": true,
 	// Support for the "command-chain" feature for apps and hooks in snap.yaml
 	"command-chain": true,
+	// Support for "kernel-assets" in gadget.yaml. I.e. having volume
+	// content of the style $kernel:ref`
+	"kernel-assets": true,
 }
 
 // supportedSystemUsernames for now contains the hardcoded list of system
@@ -196,14 +199,26 @@ func checkAssumes(si *snap.Info) error {
 	return nil
 }
 
-var versionExp = regexp.MustCompile(`^([1-9][0-9]*)(?:\.([0-9]+)(?:\.([0-9]+))?)?`)
+// regular expression which matches a version expressed as groups of digits
+// separated with dots, with optional non-numbers afterwards
+var versionExp = regexp.MustCompile(`^(?:[1-9][0-9]*)(?:\.(?:[0-9]+))*`)
 
 func checkVersion(version string) bool {
 	// double check that the input looks like a snapd version
-	req := versionExp.FindStringSubmatch(version)
-	if req == nil || req[0] != version {
+	reqVersionNumMatch := versionExp.FindStringSubmatch(version)
+	if reqVersionNumMatch == nil {
 		return false
 	}
+	// this check ensures that no one can use an assumes like snapd2.48.3~pre2
+	// or snapd2.48.5+20.10, as modifiers past the version number are not meant
+	// to be relied on for snaps via assumes, however the check against the real
+	// snapd version number below allows such non-numeric modifiers since real
+	// snapds do have versions like that (for example debian pkg of snapd)
+	if reqVersionNumMatch[0] != version {
+		return false
+	}
+
+	req := strings.Split(reqVersionNumMatch[0], ".")
 
 	if snapdtool.Version == "unknown" {
 		return true // Development tree.
@@ -213,16 +228,19 @@ func checkVersion(version string) bool {
 	// this code (see PR#7344). However this would change current
 	// behavior, i.e. "2.41~pre1" would *not* match [snapd2.41] anymore
 	// (which the code below does).
-	cur := versionExp.FindStringSubmatch(snapdtool.Version)
-	if cur == nil {
+	curVersionNumMatch := versionExp.FindStringSubmatch(snapdtool.Version)
+	if curVersionNumMatch == nil {
 		return false
 	}
+	cur := strings.Split(curVersionNumMatch[0], ".")
 
-	for i := 1; i < len(req); i++ {
-		if req[i] == "" {
-			return true
-		}
-		if cur[i] == "" {
+	for i := range req {
+		if i == len(cur) {
+			// we hit the end of the elements of the current version number and have
+			// more required version numbers left, so this doesn't match, if the
+			// previous element was higher we would have broken out already, so the
+			// only case left here is where we have version requirements that are
+			// not met
 			return false
 		}
 		reqN, err1 := strconv.Atoi(req[i])
@@ -576,6 +594,18 @@ func earlyEpochCheck(info *snap.Info, snapst *SnapState) error {
 	}
 
 	return checkEpochs(nil, info, cur, nil, Flags{}, nil)
+}
+
+func earlyChecks(st *state.State, snapst *SnapState, update *snap.Info, flags Flags) (Flags, error) {
+	flags, err := ensureInstallPreconditions(st, update, flags, snapst)
+	if err != nil {
+		return flags, err
+	}
+
+	if err := earlyEpochCheck(update, snapst); err != nil {
+		return flags, err
+	}
+	return flags, nil
 }
 
 // check that the listed system users are valid

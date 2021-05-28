@@ -72,6 +72,9 @@ restore: |
     rm -f "$EDITOR_HISTORY"
     rm -f "$BROWSER_HISTORY"
 
+debug: |
+    ls -la /run/user/12345/ || true
+
 execute: |
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
@@ -93,6 +96,3 @@ execute: |
     tests.session -u test exec test-snapd-desktop.cmd xdg-open /home/test/snap/test-snapd-desktop/common/test.txt
     retry -n 4 --wait 0.5 test -e "$EDITOR_HISTORY"
     MATCH /home/test/snap/test-snapd-desktop/common/test.txt < "$EDITOR_HISTORY"
-
-debug: |
-    ls -la /run/user/12345/ || true

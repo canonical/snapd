@@ -26,9 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/seccomp"
-	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
-	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -146,7 +144,7 @@ pivot_root,
 
 # Docker needs to be able to create and load the profile it applies to
 # containers ("docker-default")
-/sbin/apparmor_parser ixr,
+/{,usr/}sbin/apparmor_parser ixr,
 /etc/apparmor.d/cache/ r,            # apparmor 2.12 and below
 /etc/apparmor.d/cache/.features r,
 /etc/apparmor.d/{,cache/}docker* rw,
@@ -204,6 +202,15 @@ ptrace (read, trace) peer=cri-containerd.apparmor.d,
 # snap), but in deployments where the control plane is not a snap, it will tell
 # containerd to use this path for various account information for pods.
 /run/secrets/kubernetes.io/{,**} rk,
+
+# Allow using the 'autobind' feature of bind() (eg, for journald via go-systemd)
+# unix (bind) type=dgram addr=auto,
+# TODO: when snapd vendors in AppArmor userspace, then enable the new syntax
+# above which allows only "empty"/automatic addresses, for now we simply permit
+# all addresses with SOCK_DGRAM type, which leaks info for other addresses than
+# what docker tries to use
+# see https://bugs.launchpad.net/snapd/+bug/1867216
+unix (bind) type=dgram,
 `
 
 const dockerSupportConnectedPlugSecComp = `
@@ -639,30 +646,10 @@ const dockerSupportPrivilegedSecComp = `
 @unrestricted
 `
 
-type dockerSupportInterface struct{}
+const dockerSupportServiceSnippet = `Delegate=true`
 
-func (iface *dockerSupportInterface) Name() string {
-	return "docker-support"
-}
-
-func (iface *dockerSupportInterface) StaticInfo() interfaces.StaticInfo {
-	return interfaces.StaticInfo{
-		Summary:              dockerSupportSummary,
-		ImplicitOnCore:       true,
-		ImplicitOnClassic:    true,
-		BaseDeclarationPlugs: dockerSupportBaseDeclarationPlugs,
-		BaseDeclarationSlots: dockerSupportBaseDeclarationSlots,
-	}
-}
-
-var (
-	parserFeatures = apparmor_sandbox.ParserFeatures
-)
-
-func (iface *dockerSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.SetControlsDeviceCgroup()
-
-	return nil
+type dockerSupportInterface struct {
+	commonInterface
 }
 
 func (iface *dockerSupportInterface) KModConnectedPlug(spec *kmod.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -717,5 +704,16 @@ func (iface *dockerSupportInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo)
 }
 
 func init() {
-	registerIface(&dockerSupportInterface{})
+	registerIface(&dockerSupportInterface{commonInterface{
+		name:                 "docker-support",
+		summary:              dockerSupportSummary,
+		implicitOnCore:       true,
+		implicitOnClassic:    true,
+		baseDeclarationPlugs: dockerSupportBaseDeclarationPlugs,
+		baseDeclarationSlots: dockerSupportBaseDeclarationSlots,
+		controlsDeviceCgroup: true,
+		serviceSnippets:      []string{dockerSupportServiceSnippet},
+		// docker-support also uses ptrace(trace), but it already declares this in
+		// the AppArmorConnectedPlug method
+	}})
 }

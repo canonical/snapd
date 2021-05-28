@@ -17,7 +17,7 @@
  *
  */
 
-package daemon
+package daemon_test
 
 import (
 	"net/http"
@@ -25,17 +25,18 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
 var _ = Suite(&seedingDebugSuite{})
 
 type seedingDebugSuite struct {
-	APIBaseSuite
+	apiBaseSuite
 }
 
 func (s *seedingDebugSuite) SetUpTest(c *C) {
-	s.APIBaseSuite.SetUpTest(c)
+	s.apiBaseSuite.SetUpTest(c)
 	s.daemonWithOverlordMock(c)
 }
 
@@ -43,15 +44,15 @@ func (s *seedingDebugSuite) getSeedingDebug(c *C) interface{} {
 	req, err := http.NewRequest("GET", "/v2/debug?aspect=seeding", nil)
 	c.Assert(err, IsNil)
 
-	rsp := getDebug(debugCmd, req, nil).(*resp)
-	c.Assert(rsp.Type, Equals, ResponseTypeSync)
+	rsp := s.syncReq(c, req, nil)
+	c.Assert(rsp.Type, Equals, daemon.ResponseTypeSync)
 	return rsp.Result
 }
 
 func (s *seedingDebugSuite) TestNoData(c *C) {
 	data := s.getSeedingDebug(c)
 	c.Check(data, NotNil)
-	c.Check(data, DeepEquals, &seedingInfo{})
+	c.Check(data, DeepEquals, &daemon.SeedingInfo{})
 }
 
 func (s *seedingDebugSuite) TestSeedingDebug(c *C) {
@@ -69,7 +70,7 @@ func (s *seedingDebugSuite) TestSeedingDebug(c *C) {
 	seedTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:07Z")
 	c.Assert(err, IsNil)
 
-	st := s.d.overlord.State()
+	st := s.d.Overlord().State()
 	st.Lock()
 
 	st.Set("preseeded", preseeded)
@@ -87,7 +88,7 @@ func (s *seedingDebugSuite) TestSeedingDebug(c *C) {
 	st.Unlock()
 
 	data := s.getSeedingDebug(c)
-	c.Check(data, DeepEquals, &seedingInfo{
+	c.Check(data, DeepEquals, &daemon.SeedingInfo{
 		Seeded:               true,
 		Preseeded:            true,
 		PreseedSystemKey:     "foo",
@@ -103,7 +104,7 @@ func (s *seedingDebugSuite) TestSeedingDebugSeededNoTimes(c *C) {
 	seedTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:07Z")
 	c.Assert(err, IsNil)
 
-	st := s.d.overlord.State()
+	st := s.d.Overlord().State()
 	st.Lock()
 
 	// only set seed-time and seeded
@@ -113,7 +114,7 @@ func (s *seedingDebugSuite) TestSeedingDebugSeededNoTimes(c *C) {
 	st.Unlock()
 
 	data := s.getSeedingDebug(c)
-	c.Check(data, DeepEquals, &seedingInfo{
+	c.Check(data, DeepEquals, &daemon.SeedingInfo{
 		Seeded:   true,
 		SeedTime: &seedTime,
 	})
@@ -127,7 +128,7 @@ func (s *seedingDebugSuite) TestSeedingDebugPreseededStillSeeding(c *C) {
 	seedRestartTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:03Z")
 	c.Assert(err, IsNil)
 
-	st := s.d.overlord.State()
+	st := s.d.Overlord().State()
 	st.Lock()
 
 	st.Set("preseeded", true)
@@ -144,7 +145,7 @@ func (s *seedingDebugSuite) TestSeedingDebugPreseededStillSeeding(c *C) {
 	st.Unlock()
 
 	data := s.getSeedingDebug(c)
-	c.Check(data, DeepEquals, &seedingInfo{
+	c.Check(data, DeepEquals, &daemon.SeedingInfo{
 		Seeded:               false,
 		Preseeded:            true,
 		PreseedSystemKey:     "foo",
@@ -163,7 +164,7 @@ func (s *seedingDebugSuite) TestSeedingDebugPreseededSeedError(c *C) {
 	seedRestartTime, err := time.Parse(time.RFC3339, "2020-01-01T10:00:03Z")
 	c.Assert(err, IsNil)
 
-	st := s.d.overlord.State()
+	st := s.d.Overlord().State()
 	st.Lock()
 
 	st.Set("preseeded", true)
@@ -203,7 +204,7 @@ func (s *seedingDebugSuite) TestSeedingDebugPreseededSeedError(c *C) {
 	st.Unlock()
 
 	data := s.getSeedingDebug(c)
-	c.Check(data, DeepEquals, &seedingInfo{
+	c.Check(data, DeepEquals, &daemon.SeedingInfo{
 		Seeded:               false,
 		Preseeded:            true,
 		PreseedSystemKey:     "foo",

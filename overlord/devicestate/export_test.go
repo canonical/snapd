@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
@@ -120,6 +121,10 @@ func SetTimeOnce(m *DeviceManager, name string, t time.Time) error {
 	return m.setTimeOnce(name, t)
 }
 
+func PreloadGadget(m *DeviceManager) (*gadget.Info, error) {
+	return m.preloadGadget()
+}
+
 func MockRepeatRequestSerial(label string) (restore func()) {
 	old := repeatRequestSerial
 	repeatRequestSerial = label
@@ -172,6 +177,14 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
 }
 
+func SetInstalledRan(m *DeviceManager, b bool) {
+	m.ensureInstalledRan = b
+}
+
+func SetTriedSystemsRan(m *DeviceManager, b bool) {
+	m.ensureTriedRecoverySystemRan = b
+}
+
 func StartTime() time.Time {
 	return startTime
 }
@@ -193,6 +206,8 @@ func RemodelDeviceBackend(remodCtx remodelContext) storecontext.DeviceBackend {
 }
 
 var (
+	LoadDeviceSeed               = loadDeviceSeed
+	UnloadDeviceSeed             = unloadDeviceSeed
 	ImportAssertionsFromSeed     = importAssertionsFromSeed
 	CheckGadgetOrKernel          = checkGadgetOrKernel
 	CheckGadgetValid             = checkGadgetValid
@@ -215,7 +230,9 @@ var (
 
 	CriticalTaskEdges = criticalTaskEdges
 
-	CheckEncryption = checkEncryption
+	CreateSystemForModelFromValidatedSnaps = createSystemForModelFromValidatedSnaps
+	LogNewSystemSnapFile                   = logNewSystemSnapFile
+	PurgeNewSystemSnapFiles                = purgeNewSystemSnapFiles
 )
 
 func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error) (restore func()) {
@@ -234,19 +251,27 @@ func MockGadgetIsCompatible(mock func(current, update *gadget.Info) error) (rest
 	}
 }
 
-func MockBootMakeBootable(f func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error) (restore func()) {
-	old := bootMakeBootable
-	bootMakeBootable = f
+func MockBootMakeSystemRunnable(f func(model *asserts.Model, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error) (restore func()) {
+	old := bootMakeRunnable
+	bootMakeRunnable = f
 	return func() {
-		bootMakeBootable = old
+		bootMakeRunnable = old
 	}
 }
 
-func MockSecbootCheckKeySealingSupported(f func() error) (restore func()) {
-	old := secbootCheckKeySealingSupported
-	secbootCheckKeySealingSupported = f
+func MockBootEnsureNextBootToRunMode(f func(systemLabel string) error) (restore func()) {
+	old := bootEnsureNextBootToRunMode
+	bootEnsureNextBootToRunMode = f
 	return func() {
-		secbootCheckKeySealingSupported = old
+		bootEnsureNextBootToRunMode = old
+	}
+}
+
+func MockSecbootCheckTPMKeySealingSupported(f func() error) (restore func()) {
+	old := secbootCheckTPMKeySealingSupported
+	secbootCheckTPMKeySealingSupported = f
+	return func() {
+		secbootCheckTPMKeySealingSupported = old
 	}
 }
 
@@ -266,7 +291,7 @@ func MockSysconfigConfigureTargetSystem(f func(opts *sysconfig.Options) error) (
 	}
 }
 
-func MockInstallRun(f func(gadgetRoot, device string, options install.Options, observer gadget.ContentObserver) (*install.InstalledSystemSideData, error)) (restore func()) {
+func MockInstallRun(f func(model gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, observer gadget.ContentObserver) (*install.InstalledSystemSideData, error)) (restore func()) {
 	old := installRun
 	installRun = f
 	return func() {
@@ -294,6 +319,14 @@ func DeviceManagerHasFDESetupHook(mgr *DeviceManager) (bool, error) {
 	return mgr.hasFDESetupHook()
 }
 
-func DeviceManagerRunFDESetupHook(mgr *DeviceManager, op string, params *boot.FDESetupHookParams) ([]byte, error) {
-	return mgr.runFDESetupHook(op, params)
+func DeviceManagerRunFDESetupHook(mgr *DeviceManager, req *fde.SetupRequest) ([]byte, error) {
+	return mgr.runFDESetupHook(req)
+}
+
+func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx snapstate.DeviceContext) (bool, error) {
+	return mgr.checkEncryption(st, deviceCtx)
+}
+
+func DeviceManagerCheckFDEFeatures(mgr *DeviceManager, st *state.State) error {
+	return mgr.checkFDEFeatures(st)
 }

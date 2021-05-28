@@ -9,18 +9,6 @@ environment:
     # need to disable go modules support for this test
     GO111MODULE: off
 
-debug: |
-    cat /proc/partitions
-
-restore: |
-    if [ -f loop.txt ]; then
-        LOOP="$(cat loop.txt)"
-        losetup -d "$LOOP"
-        umount "${LOOP}p3"
-        umount "${LOOP}p4"
-        umount "${LOOP}p5"
-    fi
-
 prepare: |
     echo "Create a fake block device image that looks like an image from u-i"
     truncate --size=20GB fake.img
@@ -49,12 +37,38 @@ prepare: |
     snap download --channel=20/edge pc
     unsquashfs -d gadget-dir pc_*.snap
 
+restore: |
+    for label in ubuntu-seed ubuntu-save ubuntu-data ubuntu-boot other-ext4; do
+        if mountpoint "/run/mnt/$label"; then
+            umount "/run/mnt/$label"
+        fi
+        if mountpoint "./$label"; then
+            umount "./$label"
+        fi
+    done
+    if mountpoint ./mnt; then
+        umount ./mnt
+    fi
+    # sanity check
+    mount | NOMATCH /run/mnt
+    if [ -f loop.txt ]; then
+        LOOP="$(cat loop.txt)"
+        losetup -d "$LOOP"
+        losetup -l | NOMATCH "$LOOP"
+    fi
+
+debug: |
+    cat /proc/partitions
+
 execute: |
     LOOP="$(cat loop.txt)"
 
     echo "Run the snap-bootstrap tool"
     go get ../../lib/uc20-create-partitions
-    uc20-create-partitions ./gadget-dir "$LOOP"
+    # TODO:UC20: make kernel-dir non-empty once we have a gadget that has a
+    #            "$kernel:" style ref in the meta/gadget.yaml
+    kerneldir=""
+    uc20-create-partitions ./gadget-dir "$kerneldir" "$LOOP"
 
     echo "And check that the partitions are created"
     sfdisk -l "$LOOP" | MATCH '750M Linux filesystem'
@@ -124,7 +138,7 @@ execute: |
             filesystem-label: other-ext4
             size: 110M
     EOF
-    uc20-create-partitions --mount ./gadget-dir "$LOOP"
+    uc20-create-partitions --mount ./gadget-dir "$kerneldir" "$LOOP"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p1 .* 1M\s* BIOS boot"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p2 .* 1.2G\s* EFI System"
     sfdisk -l "$LOOP" | MATCH "${LOOP}p3 .* 750M\s* Linux filesystem"
@@ -141,7 +155,6 @@ execute: |
     mount | MATCH /run/mnt/other-ext4
     df -T "${LOOP}p6" | MATCH ext4
     file -s "${LOOP}p6" | MATCH 'volume name "other-ext4"'
-    umount /run/mnt/other-ext4
 
     echo "Make sure the filesystem was redeployed"
     ls /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi

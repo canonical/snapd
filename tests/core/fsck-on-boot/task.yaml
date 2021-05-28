@@ -7,19 +7,13 @@ details: |
   such file system is mounted. This is an essential property to ensure
   longevity of devices that rely on write to vfat to operate.
 
-prepare: |
-  tests.cleanup prepare
-
-restore: |
-  tests.cleanup restore
-
 execute: |
   unmount_vfat() {
     if os.query is-core16; then
       # Refer to the core 16 gadgets for details:
       # https://github.com/snapcore/pc-amd64-gadget/blob/16/gadget.yaml
       # https://github.com/snapcore/pi2-gadget/blob/master/gadget.yaml
-      if [[ "$SPREAD_SYSTEM" == ubuntu-core-16-arm-* ]]; then
+      if os.query is-arm; then
         umount /boot/uboot
       else
         umount /boot/efi
@@ -29,7 +23,7 @@ execute: |
       # Refer to the core 18 gadgets for details:
       # https://github.com/snapcore/pc-amd64-gadget/blob/18/gadget.yaml
       # https://github.com/snapcore/pi2-gadget/blob/18/gadget.yaml
-      if [[ "$SPREAD_SYSTEM" == ubuntu-core-18-arm-* ]]; then
+      if os.query is-arm; then
         umount /boot/uboot
       else
         umount /boot/efi
@@ -47,19 +41,16 @@ execute: |
       # unset RecoverySystem in the modeenv, and it's not necessary for
       # seeding anymore
 
-      # Refer to the core 20 gadgets for details:
-      # https://github.com/snapcore/pc-amd64-gadget/blob/20/gadget.yaml
-      # https://github.com/snapcore/pi-gadget/blob/20-arm64/gadget.yaml
       if mountpoint /run/mnt/snapd >/dev/null; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-core-20-arm-* ]]; then
-          umount /run/mnt/ubuntu-seed/snaps/snapd_*.snap
-        else
-          umount /run/mnt/ubuntu-seed/systems/*/snaps/snapd_*.snap
-        fi
+        umount /run/mnt/snapd
       fi
       umount /var/lib/snapd/seed
       umount /run/mnt/ubuntu-seed
-      if [[ "$SPREAD_SYSTEM" == ubuntu-core-20-arm-* ]]; then
+
+      # Refer to the core 20 gadgets for details:
+      # https://github.com/snapcore/pc-amd64-gadget/blob/20/gadget.yaml
+      # https://github.com/snapcore/pi-gadget/blob/20-arm64/gadget.yaml
+      if os.query is-arm; then
         umount /boot/uboot
       else
         umount /boot/efi

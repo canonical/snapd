@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -129,15 +129,19 @@ derived from the snap at SeedSnap.Path, then InfoDerived is called.
          /          Start       \
          |            |         |
          |            v         |
-   no    |   /    LocalSnaps    | no option
-   local |   |        |         | snaps
-   snaps |   |        v         |
+         |   /    LocalSnaps    |
+   no    |   |        |         |
+   local |   |        v         | no option
+   snaps |   |     SetInfo*     | snaps
+         |   |        |         |
+         |   |        v         |
          |   |    InfoDerived   |
          |   |        |         |
-         |   \        |         /
+         \   \        |         /
           >   > SnapsToDownload<
                       |     ^
-                      |     |
+                      v     |
+                   SetInfo* |
                       |     | complete = false
                       v     /
                   Downloaded
@@ -149,6 +153,8 @@ derived from the snap at SeedSnap.Path, then InfoDerived is called.
                       |
                       v
                   WriteMeta
+
+  * = 0 or many calls (as needed)
 
 */
 type Writer struct {
@@ -415,12 +421,28 @@ func (w *Writer) SetOptionsSnaps(optSnaps []*OptionsSnap) error {
 	return nil
 }
 
+// SystemAlreadyExistsError is an error returned when given seed system already
+// exists.
+type SystemAlreadyExistsError struct {
+	label string
+}
+
+func (e *SystemAlreadyExistsError) Error() string {
+	return fmt.Sprintf("system %q already exists", e.label)
+}
+
+func IsSytemDirectoryExistsError(err error) bool {
+	_, ok := err.(*SystemAlreadyExistsError)
+	return ok
+}
+
 // Start starts the seed writing. It creates a RefAssertsFetcher using
-// newFetcher and uses it to fetch model related assertions. For
-// convenience it returns the fetcher possibly for use to fetch seed
-// snap assertions, a task that the writer delegates as well as snap
-// downloading. The writer assumes that the snap assertions will end up
-// in the given db (writing assertion database).
+// newFetcher and uses it to fetch model related assertions. For convenience it
+// returns the fetcher possibly for use to fetch seed snap assertions, a task
+// that the writer delegates as well as snap downloading. The writer assumes
+// that the snap assertions will end up in the given db (writing assertion
+// database). When the system seed directory is already present,
+// SystemAlreadyExistsError is returned.
 func (w *Writer) Start(db asserts.RODatabase, newFetcher NewFetcherFunc) (RefAssertsFetcher, error) {
 	if err := w.checkStep(startStep); err != nil {
 		return nil, err

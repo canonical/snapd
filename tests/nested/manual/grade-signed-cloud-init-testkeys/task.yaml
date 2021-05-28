@@ -54,7 +54,7 @@ prepare: |
   setup_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
   teardown_staging_store
 
-  echo Expose the needed assertions through the fakestore
+  echo "Expose the needed assertions through the fakestore"
   cp "$TESTSLIB"/assertions/developer1.account "$NESTED_FAKESTORE_BLOB_DIR/asserts"
   cp "$TESTSLIB"/assertions/developer1.account-key "$NESTED_FAKESTORE_BLOB_DIR/asserts"
 

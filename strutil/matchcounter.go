@@ -36,6 +36,8 @@ type MatchCounter struct {
 	Regexp *regexp.Regexp
 	// Maximum number of matches to keep; if < 0, keep all matches
 	N int
+	// LastN when true indicates that only N last matches shall be kept.
+	LastN bool
 
 	count   int
 	matches []string
@@ -69,6 +71,25 @@ func (w *MatchCounter) Write(p []byte) (int, error) {
 }
 
 func (w *MatchCounter) check(p []byte) {
+	addMatch := func(m string) {
+		switch {
+		case w.N == 0:
+			// keep none
+			return
+		case w.N < 0:
+			// keep all
+			fallthrough
+		case !w.LastN && len(w.matches) < w.N:
+			w.matches = append(w.matches, m)
+		case w.LastN:
+			// keep only last N matches
+			keep := w.matches
+			if len(w.matches)+1 > w.N {
+				keep = w.matches[1:]
+			}
+			w.matches = append(keep, m)
+		}
+	}
 	if w.Regexp == nil {
 		for {
 			idx := bytes.IndexByte(p, '\n')
@@ -80,19 +101,14 @@ func (w *MatchCounter) check(p []byte) {
 				p = p[1:]
 				continue
 			}
-			if w.N < 0 || len(w.matches) < w.N {
-				w.matches = append(w.matches, string(p[:idx]))
-			}
+			addMatch(string(p[:idx]))
 			w.count++
 			p = p[idx+1:]
 		}
 	}
 	matches := w.Regexp.FindAll(p, -1)
 	for _, match := range matches {
-		if w.N >= 0 && len(w.matches) >= w.N {
-			break
-		}
-		w.matches = append(w.matches, string(match))
+		addMatch(string(match))
 	}
 	w.count += len(matches)
 }
