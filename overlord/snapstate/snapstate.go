@@ -1269,6 +1269,12 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 	// first snapd, core, bases, then rest
 	sort.Stable(byType(updates))
 	prereqs := make(map[string]*state.TaskSet)
+	waitPrereq := func(ts *state.TaskSet, prereqName string) {
+		preTs := prereqs[prereqName]
+		if preTs != nil {
+			ts.WaitAll(preTs)
+		}
+	}
 	var kernelTs, gadgetTs *state.TaskSet
 
 	// updates is sorted by kind so this will process first core
@@ -1293,8 +1299,25 @@ func doUpdate(ctx context.Context, st *state.State, names []string, updates []mi
 			return nil, nil, err
 		}
 		ts.JoinLane(st.NewLane())
-		updatePrerequsitesTasksets(ts, update, prereqs)
 
+		// because of the sorting of updates we fill prereqs
+		// first (if branch) and only then use it to setup
+		// waits (else branch)
+		if t := update.Type(); t == snap.TypeOS || t == snap.TypeBase || t == snap.TypeSnapd {
+			// prereq types come first in updates, we
+			// also assume bases don't have hooks, otherwise
+			// they would need to wait on core or snapd
+			prereqs[update.InstanceName()] = ts
+		} else {
+			// prereqs were processed already, wait for
+			// them as necessary for the other kind of
+			// snaps
+			waitPrereq(ts, defaultCoreSnapName)
+			waitPrereq(ts, "snapd")
+			if update.SnapBase() != "" {
+				waitPrereq(ts, update.SnapBase())
+			}
+		}
 		// keep track of kernel/gadget udpates
 		switch update.Type() {
 		case snap.TypeKernel:
@@ -1345,34 +1368,6 @@ func finalizeUpdate(st *state.State, tasksets []*state.TaskSet, hasUpdates bool,
 		tasksets = append(tasksets, state.NewTaskSet(rerefresh))
 	}
 	return tasksets
-}
-
-func updatePrerequsitesTasksets(ts *state.TaskSet, up minimalInstallInfo, prereqs map[string]*state.TaskSet) {
-	waitPrereq := func(ts *state.TaskSet, prereqName string) {
-		preTs := prereqs[prereqName]
-		if preTs != nil {
-			ts.WaitAll(preTs)
-		}
-	}
-
-	// because of the sorting of updates we fill prereqs
-	// first (if branch) and only then use it to setup
-	// waits (else branch)
-	if t := up.Type(); t == snap.TypeOS || t == snap.TypeBase || t == snap.TypeSnapd {
-		// prereq types come first in updates, we
-		// also assume bases don't have hooks, otherwise
-		// they would need to wait on core or snapd
-		prereqs[up.InstanceName()] = ts
-	} else {
-		// prereqs were processed already, wait for
-		// them as necessary for the other kind of
-		// snaps
-		waitPrereq(ts, defaultCoreSnapName)
-		waitPrereq(ts, "snapd")
-		if up.SnapBase() != "" {
-			waitPrereq(ts, up.SnapBase())
-		}
-	}
 }
 
 func applyAutoAliasesDelta(st *state.State, delta map[string][]string, op string, refreshAll bool, fromChange string, linkTs func(instanceName string, ts *state.TaskSet)) (*state.TaskSet, error) {
