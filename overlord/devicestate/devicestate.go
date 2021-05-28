@@ -555,7 +555,7 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 
 	// Do we do this only for the more complicated cases (anything
 	// more than adding required-snaps really)?
-	if err := snapstate.CheckChangeKindExclusiveConflict(st, "remodel"); err != nil {
+	if err := snapstate.CheckChangeConflictRunExclusively(st, "remodel"); err != nil {
 		return nil, err
 	}
 

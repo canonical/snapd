@@ -5293,11 +5293,11 @@ func (s *snapmgrTestSuite) TestConflictRemodeling(c *C) {
 	c.Check(err, ErrorMatches, `remodeling in progress, no other changes allowed until this is done`)
 
 	// a remodel conflicts with another remodel
-	err = snapstate.CheckChangeKindExclusiveConflict(s.state, "remodel")
+	err = snapstate.CheckChangeConflictRunExclusively(s.state, "remodel")
 	c.Check(err, ErrorMatches, `remodeling in progress, no other changes allowed until this is done`)
 
 	// we have a remodel change in state, a remodel change triggers are conflict
-	err = snapstate.CheckChangeKindExclusiveConflict(s.state, "create-recovery-system")
+	err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
 	c.Check(err, ErrorMatches, `remodeling in progress, no other changes allowed until this is done`)
 }
 
@@ -5314,11 +5314,11 @@ func (s *snapmgrTestSuite) TestConflictCreateRecovery(c *C) {
 	c.Check(err, ErrorMatches, `creating recovery system in progress, no other changes allowed until this is done`)
 
 	// remodeling conflicts with a change that creates a recovery system
-	err = snapstate.CheckChangeKindExclusiveConflict(s.state, "remodel")
+	err = snapstate.CheckChangeConflictRunExclusively(s.state, "remodel")
 	c.Check(err, ErrorMatches, `creating recovery system in progress, no other changes allowed until this is done`)
 
 	// so does another another create recovery system change
-	err = snapstate.CheckChangeKindExclusiveConflict(s.state, "create-recovery-system")
+	err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
 	c.Check(err, ErrorMatches, `creating recovery system in progress, no other changes allowed until this is done`)
 }
 
@@ -5330,10 +5330,10 @@ func (s *snapmgrTestSuite) TestConflictExclusive(c *C) {
 	chg.SetStatus(state.DoingStatus)
 
 	// a remodel conflicts with any other change
-	err := snapstate.CheckChangeKindExclusiveConflict(s.state, "remodel")
+	err := snapstate.CheckChangeConflictRunExclusively(s.state, "remodel")
 	c.Check(err, ErrorMatches, `other changes in progress, change "remodel" not allowed until they are done`)
 	// and so does the  remodel conflicts with any other change
-	err = snapstate.CheckChangeKindExclusiveConflict(s.state, "create-recovery-system")
+	err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
 	c.Check(err, ErrorMatches, `other changes in progress, change "create-recovery-system" not allowed until they are done`)
 }
 
