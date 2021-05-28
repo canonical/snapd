@@ -324,4 +324,3 @@ Exec=no-snap
 - "no-snap.desktop": cannot find current revision for snap c-foo: readlink.*no such file or directory
 `)
 }
-

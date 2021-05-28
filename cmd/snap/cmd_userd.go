@@ -82,7 +82,7 @@ func maybeFixupUsrSnapPermissions() error {
 		// if the dir doesn't exist for some reason (i.e. maybe this user has
 		// never used snaps but snapd is still installed) then ignore the error
 		if !os.IsNotExist(err) {
-			return fmt.Errorf("failed to restrict user snap home dir %q: %v", usrSnapDir, err)
+			return fmt.Errorf("cannot restrict user snap home dir %q: %v", usrSnapDir, err)
 		}
 	}
 
@@ -98,7 +98,7 @@ func (x *cmdUserd) Execute(args []string) error {
 		// autostart is called when starting the graphical session, use that as
 		// an opportunity to fix ~/snap permission bits
 		if err := maybeFixupUsrSnapPermissions(); err != nil {
-			fmt.Fprintf(Stderr, "failed to fixup ~/snap permissions: %v\n", err)
+			fmt.Fprintf(Stderr, "failure fixing ~/snap permissions: %v\n", err)
 		}
 
 		return x.runAutostart()
