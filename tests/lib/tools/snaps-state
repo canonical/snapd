@@ -27,6 +27,11 @@ pack_local() {
         SNAP_DIR="$PWD/$SNAP_NAME"
     fi
 
+    if [ ! -d "$SNAP_DIR" ]
+        echo "snaps-state: can't pack $SNAP_NAME, snap directory not found"
+        exit 1
+    fi
+
     local META_FILE META_NAME SNAP_FILE
     META_FILE="$SNAP_DIR/meta/snap.yaml"
     if [ ! -f "$META_FILE" ]; then

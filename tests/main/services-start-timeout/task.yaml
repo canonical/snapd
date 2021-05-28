@@ -4,13 +4,13 @@ summary: Check that snaps can use start-timeout
 # distros in Enforce mode
 
 restore: |
-    f="$PWD/test-snapd-service-start-timeout/forking.sh"
+    f=test-snapd-service-start-timeout/forking.sh
     if [ -e "$f.bak" ]; then
         mv -v "$f.bak" "$f"
     fi
 
 execute: |
-    dir="$PWD/test-snapd-service-start-timeout"
+    dir=test-snapd-service-start-timeout
 
     # with the 30s sleep, start-timeout stops the snap from working
     not snap try "$dir"
