@@ -35,7 +35,7 @@ execute: |
     [ -f /var/lib/snapd/desktop/applications/test-app_test-app.desktop ]
 
     echo "Install the launcher snap"
-    install_local test-launcher
+    "$TESTSTOOLS"/snaps-state install-local test-launcher
 
     echo "The desktop-launch plug is initially disconnected"
     snap connections test-launcher | MATCH "desktop-launch +test-launcher:desktop-launch +- +-"
