@@ -1397,6 +1397,18 @@ func (s *SystemdTestSuite) TestUmountErr(c *C) {
 	})
 }
 
+func (s *SystemdTestSuite) TestCurrentMemoryUsageReallyInvalid(c *C) {
+	s.outs = [][]byte{
+		[]byte(`nada`),
+	}
+	sysd := New(SystemMode, s.rep)
+	_, err := sysd.CurrentMemoryUsage("bar.service")
+	c.Assert(err, ErrorMatches, `invalid property format from systemd for MemoryCurrent \(got nada\)`)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "MemoryCurrent", "bar.service"},
+	})
+}
+
 func (s *SystemdTestSuite) TestCurrentMemoryUsageInactive(c *C) {
 	s.outs = [][]byte{
 		[]byte(`MemoryCurrent=[not set]`),
