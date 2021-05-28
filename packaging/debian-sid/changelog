@@ -1,3 +1,223 @@
+snapd (2.51-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1929842
+    - cmd/snap: stacktraces debug endpoint
+    - secboot: deactivate volume again when model checker fails
+    - store: extra log message, a few minor cleanups
+    - packaging/debian-sid: update systemd patch
+    - snapstate: adjust update-gadget-assets user visible message
+    - tests/nested/core/core20-create-recovery: verify that recovery
+      system can be created at runtime
+    - gadget: support creating vfat partitions during bootstrap
+    - daemon/api_quotas.go: support updating quotas with ensure action
+    - daemon: tighten access to a couple of POST endpoints that should
+      be really be root-only
+    - seed/seedtest, overlord/devicestate: move seed validation helper
+      to seedtest
+    - overlord/hookstate/ctlcmd: remove unneeded parameter
+    - snap/quota: add CurrentMemoryUsage for current memory usage of a
+      quota group
+    - systemd: add CurrentMemoryUsage to get current memory usage for a
+      unit
+    - o/snapstate: introduce minimalInstallInfo interface
+    - o/hookstate: print pending info (ready, inhibited or none)
+    - osutil: a helper to find out the total amount of memory in the
+      system
+    - overlord, overlord/devicestate: allow for reloading modeenv in
+      devicemgr when testing
+    - daemon: refine access testing
+    - spread: disable unattended-upgrades on debian
+    - tests/lib/reset: make nc exit after a while when connection is
+      idle
+    - daemon: replace access control flags on commands with access
+      checkers
+    - release-tools/changelog.py: refactor regexp + file reading/writing
+    - packaging/debian-sid: update locale patch for the latest master
+    - overlord/devicestate: tasks for creating recovery systems at
+      runtime
+    - release-tools/changelog.py: implement script to update all the
+      changelog files
+    - tests: change machine type used for nested testsPrices:
+    - cmd/snap: include locale when linting description being lower case
+    - o/servicestate: add RemoveSnapFromQuota
+    - interfaces/serial-port: add Qualcomm serial port devices to
+      allowed list
+    - packaging: merge 2.50.1 changelog back
+    - interfaces/builtin: introduce raw-input interface
+    - tests: remove tests.cleanup prepare from nested test
+    - cmd/snap-update-ns: fix linter errors
+    - asserts: fix errors reported by linter
+    - o/hookstate/ctlcmd: allow system-mode for non-root
+    - overlord/devicestate: comment why explicit system mode check is
+      needed in ensuring tried recovery systems (#10275)
+    - overlord/devicesate: observe snap writes when creating recovery
+      systems
+    - packaging/ubuntu-16.04/changelog: add placeholder for 2.50.1
+    - tests: moving to tests directories snaps built locally - part 1
+    - seed/seedwriter: fail early when system seed directory exists
+    - o/snapstate: autorefresh phase1 for refresh-control
+    - c/snap: more precise message for ErrorKindSystemRestart op !=
+      reboot
+    - tests: simplify the tests.cleanup tool
+    - boot: helpers for manipulating current and good recovery systems
+      list
+    - o/hookstate, o/snapstate: print revision, version, channel with
+      snapctl --pending
+    - overlord:  unit test tweaks, use well known snap IDs, setup snap
+      declarations for most common snaps
+    - tests/nested/manual: add test for install-device + snapctl reboot
+    - o/servicestate: restart slices + services on modifications
+    - tests: update mount-ns test to support changes in the distro
+    - interfaces: fix linter issues
+    - overlord: mock logger in managers unit tests
+    - tests: adding support for fedora-34
+    - tests: adding support for debian 10 on gce
+    - boot: reseal given keys when the respective boot chain has changed
+    - secboot: switch encryption key size to 32 byte (thanks to Chris)
+    - interfaces/dbus: allow claiming 'well-known' D-Bus names with a
+      wildcard suffix
+    - spread: bump delta reference version
+    - interfaces: builtin: update permitted paths to be compatible with
+      UC20
+    - overlord: fix errors reported by linter
+    - tests: remove old fedora systems from tests
+    - tests: update spread url
+    - interfaces/camera: allow devices in /sys/devices/platform/**/usb*
+    - interfaces/udisks2: Allow access to the login manager via dbus
+    - cmd/snap: exit normally if "snap changes" has no changes
+      (LP #1823974)
+    - tests: more fixes for spread suite on openSUSE
+    - tests: fix tests expecting cgroup v1/hybrid on openSUSE Tumbleweed
+    - daemon: fix linter errors
+    - spread: add Fedora 34, leave a TODO about dropping Fedora 32
+    - interfaces: fix linter errors
+    - tests: use op.paths tools instead of dirs.sh helper - part 2
+    - client: Fix linter errors
+    - cmd/snap: Fix errors reported by linter
+    - cmd/snap-repair: fix linter issues
+    - cmd/snap-bootstrap: Fix linter errors
+    - tests: update permission denied message for test-snapd-event on
+      ubuntu 2104
+    - cmd/snap: small tweaks based on previous reviews
+    - snap/snaptest: helper that mocks both the squashfs file and a snap
+      directory
+    - overlord/devicestate: tweak comment about creating recovery
+      systems, formatting tweaks
+    - overlord/devicestate: move devicemgr base suite helpers closer to
+      test suite struct
+    - overlord/devicestate: keep track of tried recovery system
+    - seed/seedwriter: clarify in the diagram when SetInfo is called
+    - overlord/devicestate: add helper for creating recovery systems at
+      runtime
+    - snap-seccomp: update syscalls.go list
+    - boot,image: support image.Customizations.BootFlags
+    - overlord: support snapctl --halt|--poweroff in gadget install-
+      device
+    - features,servicestate: add experimental.quota-groups flag
+    - o/servicestate: address comments from previous PR
+    - tests: basic spread test for snap quota commands
+    - tests: moving the snaps which are not locally built to the store
+      directory
+    - image,c/snap: implement prepare-image --customize
+    - daemon: implement REST API for quota groups (create / list / get)
+    - cmd/snap, client: snap quotas command
+    - o/devicestate,o/hookstate/ctlcmd: introduce SystemModeInfo methods
+      and snapctl system-mode
+    - o/servicestate/quota_control.go: introduce (very) basic group
+      manipulation methods
+    - cmd/snap, client: snap remove-quota command
+    - wrappers, quota: implement quota groups slice generation
+    - snap/quotas: followups from previous PR
+    - cmd/snap: introduce 'snap quota' command
+    - o/configstate/configcore/picfg.go: use ubuntu-seed config.txt in
+      uc20 run mode
+    - o/servicestate: test has internal ordering issues, consider both
+      cases
+    - o/servicestate/quotas: add functions for getting and setting
+      quotas in state
+    - tests: new buckets for snapd-spread project on gce
+    - spread.yaml: update the gce project to start using snapd-spread
+    - quota: new package for managing resource groups
+    - many: bind and check keys against models when using FDE hooks v2
+    - many: move responsibilities down seboot -> kernel/fde and boot ->
+      secboot
+    - packaging: add placeholder changelog
+    - o/configstate/configcore/vitality: fix RequireMountedSnapdSnap
+      bug
+    - overlord: properly mock usr-lib-snapd tests to mimic an Ubuntu
+      Core system
+    - many: hide EncryptionKey size and refactors for fde hook v2 next
+      steps
+    - tests: adding debug info for create user tests
+    - o/hookstate: add "refresh" command to snapctl (hidden, not
+      complete yet)
+    - systemd: wait for zfs mounts (LP #1922293)
+    - testutil: support referencing files in FileEquals checker
+    - many: refactor to kernel/fde and allow `fde-setup initial-setup`
+      to return json
+    - o/snapstate: store refresh-candidates in the state
+    - o/snapstate: helper for creating gate-auto-refresh hooks
+    - bootloader/bootloadertest: provide interface implementation as
+      mixins, provide a mock for recovery-aware-trusted-asses bootloader
+    - tests/lib/nested: do not compress images, return early when
+      restored from pristine image
+    - boot: split out a helper for making recovery system bootable
+    - tests: update os.query check to match new bullseye codename used
+      on sid images
+    - o/snapstate: helper for getting snaps affected by refresh, define
+      new hook
+    - wrappers: support in EnsureSnapServices a callback to observe
+      changes (#10176)
+    - gadget: multi line support in gadget's cmdline file
+    - daemon: test that requesting restart from (early) Ensure works
+    - tests: use op.paths tools instead of dirs.sh helper - part 1
+    - tests: add new command to snaps-state to get current core, kernel
+      and gadget
+    - boot, gadget: move opening the snap container into the gadget
+      helper
+    - tests, overlord: extend unit tests, extend spread tests to cover
+      full command line support
+    - interfaces/builtin: introduce dsp interface
+    - boot, bootloader, bootloader/assets: support for full command line
+      override from gadget
+    - overlord/devicestate, overlord/snapstate: add task for updating
+      kernel command lines from gadget
+    - o/snapstate: remove unused DeviceCtx argument of
+      ensureInstallPreconditions
+    - tests/lib/nested: proper status return for tpm/secure boot checks
+    - cmd/snap, boot: add snapd_full_cmdline_args to dumped boot vars
+    - wrappers/services.go: refactor helper lambda function to separate
+      function
+    - boot/flags.go: add HostUbuntuDataForMode
+    - boot: handle updating of components that contribute to kernel
+      command line
+    - tests: add 20.04 to systems for nested/core
+    - daemon: add new accessChecker implementations
+    - boot, overlord/devicestate: consider gadget command lines when
+      updating boot config
+    - tests: fix prepare-image-grub-core18 for arm devices
+    - tests: fix gadget-kernel-refs-update-pc test on arm and when
+      $TRUST_TEST_KEY is false
+    - tests: enable help test for all the systems
+    - boot: set extra command line arguments when preparing run mode
+    - boot: load bits of kernel command line from gadget snaps
+    - tests: update layout for tests - part 2
+    - tests: update layout for tests - part 1
+    - tests: remove the snap profiler from the test suite
+    - boot: drop gadget snap yaml which is already defined elsewhere in
+      the tests
+    - boot: set extra kernel command line arguments when making a
+      recovery system bootable
+    - boot: pass gadget path to command line helpers, load gadget from
+      seed
+    - tests: new os.paths tool
+    - daemon: make ucrednetGet() return a *ucrednet structure
+    - boot: derive boot variables for kernel command lines
+    - cmd/snap-bootstrap/initramfs-mounts: fix boot-flags location from
+      initramfs
+
+ -- Ian Johnson <ian.johnson@canonical.com>  Thu, 27 May 2021 11:15:20 -0500
+
 snapd (2.50.1-1) unstable; urgency=medium
 
   * New upstream release, LP: #1926005

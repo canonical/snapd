@@ -175,7 +175,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	snapstate.EstimateSnapshotSize = func(st *state.State, instanceName string, users []string) (uint64, error) {
 		return 1, nil
 	}
-	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
 		return 0, nil
 	})
 	s.AddCleanup(restoreInstallSize)
@@ -6593,4 +6593,48 @@ func (s *snapmgrTestSuite) TestSnapdRefreshTasks(c *C) {
 
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Current, Equals, snap.R(11))
+}
+
+type installTestType struct {
+	t snap.Type
+}
+
+func (t *installTestType) InstanceName() string {
+	panic("not expected")
+}
+
+func (t *installTestType) Type() snap.Type {
+	return t.t
+}
+
+func (t *installTestType) SnapBase() string {
+	panic("not expected")
+}
+
+func (t *installTestType) DownloadSize() int64 {
+	panic("not expected")
+}
+
+func (t *installTestType) Prereq(st *state.State) []string {
+	panic("not expected")
+}
+
+func (s *snapmgrTestSuite) TestMinimalInstallInfoSortByType(c *C) {
+	snaps := []snapstate.MinimalInstallInfo{
+		&installTestType{snap.TypeApp},
+		&installTestType{snap.TypeBase},
+		&installTestType{snap.TypeApp},
+		&installTestType{snap.TypeSnapd},
+		&installTestType{snap.TypeKernel},
+		&installTestType{snap.TypeGadget},
+	}
+
+	sort.Sort(snapstate.ByType(snaps))
+	c.Check(snaps, DeepEquals, []snapstate.MinimalInstallInfo{
+		&installTestType{snap.TypeSnapd},
+		&installTestType{snap.TypeKernel},
+		&installTestType{snap.TypeBase},
+		&installTestType{snap.TypeGadget},
+		&installTestType{snap.TypeApp},
+		&installTestType{snap.TypeApp}})
 }

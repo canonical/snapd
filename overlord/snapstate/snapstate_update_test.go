@@ -5005,7 +5005,7 @@ func (s *snapmgrTestSuite) testUpdateManyDiskSpaceCheck(c *C, featureFlag, failD
 	})
 	defer restore()
 
-	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
 		installSizeCalled = true
 		if failInstallSize {
 			return 0, fmt.Errorf("boom")
@@ -5631,7 +5631,7 @@ func (s *snapmgrTestSuite) testUpdateDiskSpaceCheck(c *C, featureFlag, failInsta
 
 	var installSizeCalled bool
 
-	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
 		installSizeCalled = true
 		if failInstallSize {
 			return 0, fmt.Errorf("boom")
