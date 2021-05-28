@@ -174,8 +174,9 @@ See https://forum.snapcraft.io/t/the-snapd-roadmap/1973 for high-level overview.
         # write the rest of the actual changelog
         for line in new_changelog_entry.splitlines():
             # strip the first 4 characters which are space characters so
-            # that we no leading prefix
-            fh.write(line[4:] + "\n")
+            # that there's no leading prefix
+            fh.write(line.lstrip())
+            fh.write("\n")
 
 
 def main(opts):
