@@ -54,7 +54,7 @@ def check_keys_order(task_keys):
 
         except ValueError as err:
             findings.append(
-                "key '{}' not included in the suported keys: {}".format(
+                "key '{}' is not among the supported keys: {}".format(
                     curr_key, SUPPORTED_KEYS
                 )
             )
@@ -62,9 +62,9 @@ def check_keys_order(task_keys):
     return findings
 
 
-def check_task(filepath):
+def check_task_format(filepath):
     if not os.path.isfile(filepath):
-        print("Checks failed for task {}".format(filepath))
+        print("Format checks failed for task {}".format(filepath))
         print(" - The path is not a file")
         return False
 
@@ -75,7 +75,7 @@ def check_task(filepath):
     findings = check_keys_order(filemap.keys())
     findings.extend(check_mandatory_keys(filemap.keys()))
     if findings:
-        print("Checks failed for task {}".format(filepath))
+        print("Format checks failed for task {}".format(filepath))
         for finding in findings:
             print(" - " + finding)
         return False
@@ -85,13 +85,13 @@ def check_task(filepath):
 
 def check_dir(directory):
     if not os.path.isdir(directory):
-        print("Checks failed for directory {}".format(directory))
+        print("Format checks failed for directory {}".format(directory))
         print(" - The path is not a directory")
         return False
 
     status = True
     for file in glob.glob(os.path.join(directory, "**/task.yaml"), recursive=True):
-        if not check_task(file):
+        if not check_task_format(file):
             status = False
 
     return status
@@ -100,7 +100,7 @@ def check_dir(directory):
 def _make_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-d", "--directory", required=True, help="path to the directory to check recursively"
+        "directory", help="path to the directory to check recursively"
     )
     return parser
 

@@ -43,7 +43,7 @@ execute: |
             PATH=$PATH \
             GOPATH=/tmp/static-unit-tests \
             ${skip:-} \
-            SKIP_TESTS_CHECK=1 \
+            SKIP_TESTS_FORMAT_CHECK=1 \
             ./run-checks --static"
 
         tests.session -u test exec sh -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
@@ -59,7 +59,7 @@ execute: |
             PATH=$PATH \
             GOPATH=/tmp/static-unit-tests \
             ${skip:-} \
-            SKIP_TESTS_CHECK=1 \
+            SKIP_TESTS_FORMAT_CHECK=1 \
             ./run-checks --static" test
 
         su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
