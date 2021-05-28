@@ -31,7 +31,7 @@ pack_local() {
         SNAP_DIR="$PWD/$SNAP_NAME"
     fi
 
-    if [ ! -d "$SNAP_DIR" ]
+    if [ ! -d "$SNAP_DIR" ]; then
         echo "snaps-state: can't pack $SNAP_NAME, snap directory not found"
         exit 1
     fi
