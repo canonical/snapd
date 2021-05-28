@@ -2994,7 +2994,7 @@ func (m *SnapManager) doAutoRefreshGate(t *state.Task, tomb *tomb.Tomb) error {
 		return nil
 	}
 
-	tss, err := autoRefreshPhase2(st, snaps)
+	tss, err := autoRefreshPhase2(context.TODO(), st, snaps)
 	if err != nil {
 		return err
 	}

@@ -2004,8 +2004,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 }
 
 // autoRefreshPhase2 creates tasks for refreshing snaps from updates.
-func autoRefreshPhase2(st *state.State, updates []*refreshCandidate) ([]*state.TaskSet, error) {
-	refreshAll := true
+func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshCandidate) ([]*state.TaskSet, error) {
 	fromChange := ""
 	flags := &Flags{IsAutoRefresh: true}
 	userID := 0
@@ -2050,89 +2049,9 @@ func autoRefreshPhase2(st *state.State, updates []*refreshCandidate) ([]*state.T
 		}
 	}
 
-	newAutoAliases, mustPruneAutoAliases, transferTargets, err := autoAliasesUpdate(st, nil, toUpdate)
+	_, tasksets, err := doUpdate(ctx, st, nil, toUpdate, nil, userID, flags, deviceCtx, fromChange)
 	if err != nil {
 		return nil, err
-	}
-
-	tasksets := make([]*state.TaskSet, 0, len(updates)+2) // 1 for auto-aliases, 1 for re-refresh
-
-	var pruningAutoAliasesTs *state.TaskSet
-	if len(mustPruneAutoAliases) != 0 {
-		var err error
-		pruningAutoAliasesTs, err = applyAutoAliasesDelta(st, mustPruneAutoAliases, "prune", refreshAll, fromChange, func(snapName string, _ *state.TaskSet) {})
-		if err != nil {
-			return nil, err
-		}
-		tasksets = append(tasksets, pruningAutoAliasesTs)
-	}
-
-	// wait for the auto-alias prune tasks as needed
-	scheduleUpdate := func(snapName string, ts *state.TaskSet) {
-		if pruningAutoAliasesTs != nil && (mustPruneAutoAliases[snapName] != nil || transferTargets[snapName]) {
-			ts.WaitAll(pruningAutoAliasesTs)
-		}
-	}
-
-	// first snapd, core, bases, then rest
-	sort.Stable(byType(toUpdate))
-	prereqs := make(map[string]*state.TaskSet)
-	var kernelTs, gadgetTs *state.TaskSet
-
-	for _, up := range toUpdate {
-		var snapst SnapState
-		if err := Get(st, up.InstanceName(), &snapst); err != nil {
-			if err != state.ErrNoState {
-				return nil, err
-			}
-			logger.Noticef("cannot refresh snap %q, it is no longer installed", up.InstanceName())
-			continue
-		}
-
-		snapUserID, err := userIDForSnap(st, &snapst, 0)
-		if err != nil {
-			return nil, err
-		}
-
-		snapsup := up.(*refreshCandidate).SnapSetup
-		snapsup.UserID = snapUserID
-
-		ts, err := doInstall(st, &snapst, &snapsup, 0, fromChange, inUseFor(deviceCtx))
-		if err != nil {
-			logger.Noticef("cannot refresh snap %q: %v", up.InstanceName(), err)
-			continue
-		}
-		ts.JoinLane(st.NewLane())
-		updatePrerequsitesTasksets(ts, up, prereqs)
-
-		// keep track of kernel/gadget udpates
-		switch up.Type() {
-		case snap.TypeKernel:
-			kernelTs = ts
-		case snap.TypeGadget:
-			gadgetTs = ts
-		}
-
-		scheduleUpdate(up.InstanceName(), ts)
-		tasksets = append(tasksets, ts)
-	}
-
-	// Kernel must wait for gadget because the gadget may define
-	// new "$kernel:refs". Sorting the other way is impossible
-	// because a kernel with new kernel-assets would never refresh
-	// because the matching gadget could never get installed
-	// because the gadget always waits for the kernel and if the
-	// kernel aborts the wait tasks (the gadget) is put on "Hold".
-	if kernelTs != nil && gadgetTs != nil {
-		kernelTs.WaitAll(gadgetTs)
-	}
-
-	if len(newAutoAliases) != 0 {
-		addAutoAliasesTs, err := applyAutoAliasesDelta(st, newAutoAliases, "refresh", refreshAll, "", scheduleUpdate)
-		if err != nil {
-			return nil, err
-		}
-		tasksets = append(tasksets, addAutoAliasesTs)
 	}
 
 	tasksets = finalizeUpdate(st, tasksets, len(updates) > 0, nil, userID, flags)
