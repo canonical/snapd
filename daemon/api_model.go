@@ -41,7 +41,7 @@ var (
 		POST:        postModel,
 		GET:         getModel,
 		ReadAccess:  openAccess{},
-		WriteAccess: authenticatedAccess{},
+		WriteAccess: rootAccess{},
 	}
 )
 
