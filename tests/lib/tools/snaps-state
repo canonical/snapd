@@ -24,7 +24,7 @@ pack_local() {
 
     # Use local snap in case it exists
     if [ -d "$SNAP_NAME" ]; then
-        if [ -d "$SNAP_DIR" ]
+        if [ -d "$SNAP_DIR" ]; then
             echo "snaps-state: the snap $SNAP_NAME is defined twice in $SNAP_DIR and $PWD/$SNAP_NAME"
             exit 1
         fi
