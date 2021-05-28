@@ -84,19 +84,18 @@ func (a ResolvedAppInfosByAppName) Less(i, j int) bool {
 // serviceControlTs creates "service-control" task for every snap derived from appInfos.
 func serviceControlTs(st *state.State, appInfos []*ResolvedAppInfo, inst *Instruction) (*state.TaskSet, error) {
 	servicesBySnap := make(map[string][]string, len(appInfos))
+	explicitServices := make(map[string][]string, len(appInfos))
 	sortedNames := make([]string, 0, len(appInfos))
-	actionIsOnSnap := make(map[string]bool)
 
 	// group services by snap, we need to create one task for every affected snap
 	for _, app := range appInfos {
 		snapName := app.Snap.InstanceName()
 		if _, ok := servicesBySnap[snapName]; !ok {
 			sortedNames = append(sortedNames, snapName)
-			actionIsOnSnap[snapName] = true
 		}
 		servicesBySnap[snapName] = append(servicesBySnap[snapName], app.Name)
 		if app.ExplicitlyRequested {
-			actionIsOnSnap[snapName] = false
+			explicitServices[snapName] = append(explicitServices[snapName], app.Name)
 		}
 	}
 	sort.Strings(sortedNames)
@@ -137,7 +136,9 @@ func serviceControlTs(st *state.State, appInfos []*ResolvedAppInfo, inst *Instru
 		svcs := servicesBySnap[snapName]
 		sort.Strings(svcs)
 		cmd.Services = svcs
-		cmd.ActionIsOnSnap = actionIsOnSnap[snapName]
+		explicitSvcs := explicitServices[snapName]
+		sort.Strings(explicitSvcs)
+		cmd.ExplicitServices = explicitSvcs
 
 		summary := fmt.Sprintf("Run service command %q for services %q of snap %q", cmd.Action, svcs, cmd.SnapName)
 		task := st.NewTask("service-control", summary)
