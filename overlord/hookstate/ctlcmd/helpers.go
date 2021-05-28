@@ -144,7 +144,8 @@ func runServiceCommand(context *hookstate.Context, inst *servicestate.Instructio
 	flags := &servicestate.Flags{CreateExecCommandTasks: true}
 	// passing context so we can ignore self-conflicts with the current change
 	st.Lock()
-	tts, err := servicestateControl(st, servicestate.NewResolvedAppInfos(appInfos), inst, flags, context)
+	apps := servicestate.NewResolvedAppInfosByAppName(appInfos);
+	tts, err := servicestateControl(st, apps, inst, flags, context)
 	st.Unlock()
 	if err != nil {
 		return err

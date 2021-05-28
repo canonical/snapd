@@ -383,7 +383,7 @@ func (s *appsSuite) TestAppInfosForOneSnap(c *check.C) {
 	appInfos, rsp := daemon.AppInfosFor(st, []string{"snap-a"}, daemon.AppInfoServiceTrue)
 	c.Assert(rsp, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 2)
-	sort.Sort(servicestate.ResolvedAppInfos(appInfos))
+	sort.Sort(servicestate.ResolvedAppInfosByAppName(appInfos))
 
 	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
 	c.Check(appInfos[0].Name, check.Equals, "svc1")
@@ -396,7 +396,7 @@ func (s *appsSuite) TestAppInfosForMixedArgs(c *check.C) {
 	appInfos, rsp := daemon.AppInfosFor(st, []string{"snap-a", "snap-a.svc1"}, daemon.AppInfoServiceTrue)
 	c.Assert(rsp, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 2)
-	sort.Sort(servicestate.ResolvedAppInfos(appInfos))
+	sort.Sort(servicestate.ResolvedAppInfosByAppName(appInfos))
 
 	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
 	c.Check(appInfos[0].Name, check.Equals, "svc1")
@@ -418,7 +418,7 @@ func (s *appsSuite) TestAppInfosCleanupAndSorted(c *check.C) {
 	}, daemon.AppInfoServiceTrue)
 	c.Assert(rsp, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 3)
-	sort.Sort(servicestate.ResolvedAppInfos(appInfos))
+	sort.Sort(servicestate.ResolvedAppInfosByAppName(appInfos))
 
 	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
 	c.Check(appInfos[0].Name, check.Equals, "svc1")

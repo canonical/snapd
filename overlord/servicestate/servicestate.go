@@ -60,19 +60,19 @@ func NewResolvedAppInfo(app *snap.AppInfo) *ResolvedAppInfo {
 	return resolvedAppInfo
 }
 
-type ResolvedAppInfos []*ResolvedAppInfo
+type ResolvedAppInfosByAppName []*ResolvedAppInfo
 
-func NewResolvedAppInfos(appInfos []*snap.AppInfo) ResolvedAppInfos {
-	resolvedAppInfos := make(ResolvedAppInfos, 0, len(appInfos))
+func NewResolvedAppInfosByAppName(appInfos []*snap.AppInfo) ResolvedAppInfosByAppName {
+	resolvedAppInfos := make(ResolvedAppInfosByAppName, 0, len(appInfos))
 	for _, app := range appInfos {
 		resolvedAppInfos = append(resolvedAppInfos, NewResolvedAppInfo(app))
 	}
 	return resolvedAppInfos
 }
 
-func (a ResolvedAppInfos) Len() int      { return len(a) }
-func (a ResolvedAppInfos) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a ResolvedAppInfos) Less(i, j int) bool {
+func (a ResolvedAppInfosByAppName) Len() int      { return len(a) }
+func (a ResolvedAppInfosByAppName) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
+func (a ResolvedAppInfosByAppName) Less(i, j int) bool {
 	iName := a[i].Snap.InstanceName()
 	jName := a[j].Snap.InstanceName()
 	if iName == jName {

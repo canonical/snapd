@@ -238,7 +238,8 @@ func makeControlChange(c *C, st *state.State, inst *servicestate.Instruction, in
 	}
 
 	flags := &servicestate.Flags{CreateExecCommandTasks: true}
-	tss, err := servicestate.Control(st, servicestate.NewResolvedAppInfos(apps), inst, flags, nil)
+	appsByName := servicestate.NewResolvedAppInfosByAppName(apps)
+	tss, err := servicestate.Control(st, appsByName, inst, flags, nil)
 	c.Assert(err, IsNil)
 
 	chg := st.NewChange("service-control", "...")

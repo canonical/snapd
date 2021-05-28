@@ -168,7 +168,7 @@ func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*servi
 		}
 	}
 
-	sort.Sort(servicestate.ResolvedAppInfos(appInfos))
+	sort.Sort(servicestate.ResolvedAppInfosByAppName(appInfos))
 
 	return appInfos, nil
 }
