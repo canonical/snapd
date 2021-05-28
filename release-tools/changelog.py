@@ -128,7 +128,7 @@ def update_fedora_changelog(opts, snapd_packaging_dir, new_changelog_entry, main
         fh.write(spec_file_content[idx + len(changelog_section) :])
 
 
-def update_opensuse_changlog(
+def update_opensuse_changelog(
     opts, snapd_packaging_dir, new_changelog_entry, maintainer
 ):
     spec_file = os.path.join(snapd_packaging_dir, "opensuse", "snapd.spec")
@@ -237,7 +237,7 @@ def main(opts):
             )
 
         elif distro == "opensuse":
-            update_opensuse_changlog(
+            update_opensuse_changelog(
                 opts, snapd_packaging_dir, new_changelog_entry, maintainer
             )
 
