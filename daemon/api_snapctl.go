@@ -33,9 +33,9 @@ import (
 
 var (
 	snapctlCmd = &Command{
-		Path:   "/v2/snapctl",
-		SnapOK: true,
-		POST:   runSnapctl,
+		Path:        "/v2/snapctl",
+		POST:        runSnapctl,
+		WriteAccess: snapAccess{},
 	}
 )
 

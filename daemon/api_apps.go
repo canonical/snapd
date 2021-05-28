@@ -39,16 +39,17 @@ import (
 
 var (
 	appsCmd = &Command{
-		Path:   "/v2/apps",
-		UserOK: true,
-		GET:    getAppsInfo,
-		POST:   postApps,
+		Path:        "/v2/apps",
+		GET:         getAppsInfo,
+		POST:        postApps,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{},
 	}
 
 	logsCmd = &Command{
-		Path:     "/v2/logs",
-		PolkitOK: "io.snapcraft.snapd.manage",
-		GET:      getLogs,
+		Path:       "/v2/logs",
+		GET:        getLogs,
+		ReadAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 )
 
