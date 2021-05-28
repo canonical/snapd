@@ -52,7 +52,7 @@ def check_keys_order(task_keys):
             last_index = curr_index
             last_key = curr_key
 
-        except ValueError as err:
+        except ValueError:
             findings.append(
                 "key '{}' is not among the supported keys: {}".format(
                     curr_key, SUPPORTED_KEYS
