@@ -247,5 +247,5 @@ func (s *appArmorSuite) TestMaybeSetNumberOfJobs(c *C) {
 	c.Check(apparmor.MaybeSetNumberOfJobs(), Equals, "-j1")
 
 	cpus = 1
-	c.Check(apparmor.MaybeSetNumberOfJobs(), Equals, "")
+	c.Check(apparmor.MaybeSetNumberOfJobs(), Equals, "-j1")
 }
