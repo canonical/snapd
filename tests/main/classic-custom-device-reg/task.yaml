@@ -4,10 +4,10 @@ summary: |
 # ubuntu-14.04: systemd-run not supported
 systems: [-ubuntu-core-*, -ubuntu-14.04*]
 
+kill-timeout: 5m
+
 environment:
     SEED_DIR: /var/lib/snapd/seed
-
-kill-timeout: 5m
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then

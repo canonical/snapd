@@ -1,5 +1,7 @@
 summary: Check that the boot config is correctly updated when snapd is refreshed
 
+systems: [ubuntu-20.04-64]
+
 environment:
   VARIANT/nogadget: "no-gadget"
   NESTED_IMAGE_ID/nogadget: core20-kernel-commandline-bootconfig-no-gadget
@@ -11,8 +13,6 @@ environment:
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
   NESTED_ENABLE_TPM: true
   NESTED_ENABLE_SECURE_BOOT: true
-
-systems: [ubuntu-20.04-64]
 
 prepare: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
