@@ -64,6 +64,14 @@ type flushBuffer struct{ bytes.Buffer }
 
 func (*flushBuffer) Flush() error { return nil }
 
+func isoDateTimeToLocalDate(textualTime string) string {
+	t, err := time.Parse(time.RFC3339Nano, textualTime)
+	if err != nil {
+		return ""
+	}
+	return t.Local().Format("2006-01-02")
+}
+
 func (s *infoSuite) TestMaybePrintServices(c *check.C) {
 	var buf flushBuffer
 	iw := snap.NewInfoWriter(&buf)
@@ -811,7 +819,8 @@ installed:     2.10                      (100)  1kB disabled
 	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, `name:      hello
+	refreshDate := isoDateTimeToLocalDate("2006-01-02T22:04:07.123456789Z")
+	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(`name:      hello
 summary:   The GNU Hello snap
 publisher: Canonical*
 store-url: https://snapcraft.io/hello
@@ -821,14 +830,14 @@ description: |
   https://snapcraft.io/
 snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
-refresh-date: 2006-01-02
+refresh-date: %s
 channels:
   1/stable:    2.10 2018-12-18   (1) 65kB -
   1/candidate: ^                          
   1/beta:      ^                          
   1/edge:      ^                          
 installed:     2.10            (100)  1kB disabled
-`)
+`, refreshDate))
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(n, check.Equals, 4)
 
@@ -837,7 +846,7 @@ installed:     2.10            (100)  1kB disabled
 	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"info", "--unicode=always", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Equals, `name:      hello
+	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(`name:      hello
 summary:   The GNU Hello snap
 publisher: Canonical✓
 store-url: https://snapcraft.io/hello
@@ -847,14 +856,14 @@ description: |
   https://snapcraft.io/
 snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
-refresh-date: 2006-01-02
+refresh-date: %s
 channels:
   1/stable:    2.10 2018-12-18   (1) 65kB -
   1/candidate: ↑                          
   1/beta:      ↑                          
   1/edge:      ↑                          
 installed:     2.10            (100)  1kB disabled
-`)
+`, refreshDate))
 	c.Check(s.Stderr(), check.Equals, "")
 	c.Check(n, check.Equals, 6)
 }
@@ -1121,8 +1130,9 @@ func (s *infoSuite) TestInfoParllelInstance(c *check.C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello_foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
+	refreshDate := isoDateTimeToLocalDate("2006-01-02T22:04:07.123456789Z")
 	// make sure local and remote info is combined in the output
-	c.Check(s.Stdout(), check.Equals, `name:      hello_foo
+	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(`name:      hello_foo
 summary:   The GNU Hello snap
 publisher: Canonical*
 store-url: https://snapcraft.io/hello
@@ -1132,14 +1142,14 @@ description: |
   https://snapcraft.io/
 snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
-refresh-date: 2006-01-02
+refresh-date: %s
 channels:
   1/stable:    2.10 2018-12-18   (1) 65kB -
   1/candidate: ^                          
   1/beta:      ^                          
   1/edge:      ^                          
 installed:     2.10            (100)  1kB disabled
-`)
+`, refreshDate))
 	c.Check(s.Stderr(), check.Equals, "")
 }
 
@@ -1200,8 +1210,9 @@ func (s *infoSuite) TestInfoStoreURL(c *check.C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
+	refreshDate := isoDateTimeToLocalDate("2006-01-02T22:04:07.123456789Z")
 	// make sure local and remote info is combined in the output
-	c.Check(s.Stdout(), check.Equals, `name:      hello
+	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(`name:      hello
 summary:   The GNU Hello snap
 publisher: Canonical*
 store-url: https://snapcraft.io/hello
@@ -1211,13 +1222,13 @@ description: |
   https://snapcraft.io/
 snap-id:      mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6
 tracking:     beta
-refresh-date: 2006-01-02
+refresh-date: %s
 channels:
   1/stable:    2.10 2018-12-18   (1) 65kB -
   1/candidate: ^                          
   1/beta:      ^                          
   1/edge:      ^                          
 installed:     2.10            (100)  1kB disabled
-`)
+`, refreshDate))
 	c.Check(s.Stderr(), check.Equals, "")
 }
