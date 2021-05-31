@@ -103,6 +103,21 @@ func (grp *Group) CurrentMemoryUsage() (quantity.Size, error) {
 		return 0, nil
 	}
 
+	// also check how many tasks are in the group, it could exist and be active,
+	// but not have any active services running in it, and with systemd 219 on
+	// Amazon Linux 2 / Centos 7, there is a bug where the current memory usage
+	// for a unit in such a state is reported as being 16 exbibytes which is too
+	// large to fit into a 32-bit int and is obviously wrong (it should be 0)
+	numTasks, err := sysd.CurrentTasksCount(grp.SliceFileName())
+	if err != nil {
+		return 0, err
+	}
+	if numTasks == 0 {
+		return 0, nil
+	}
+
+	// otherwise we have tasks and it is active and so we should actually query
+	// the memory usage directly
 	return sysd.CurrentMemoryUsage(grp.SliceFileName())
 }
 

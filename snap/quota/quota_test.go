@@ -664,6 +664,21 @@ func (ts *quotaTestSuite) TestCurrentMemoryUsage(c *C) {
 			c.Assert(args, DeepEquals, []string{"is-active", "snap.group.slice"})
 			return []byte("active"), nil
 		case 3:
+			// since it is active, we will query the tasks count - 0 task count
+			// means it cannot have any memory usage
+			c.Assert(args, DeepEquals, []string{"show", "--property", "TasksCurrent", "snap.group.slice"})
+			return []byte("TasksCurrent=0"), nil
+		case 4:
+			// now pretend it is active again - third time is the charm
+			c.Assert(args, DeepEquals, []string{"is-active", "snap.group.slice"})
+			return []byte("active"), nil
+		case 5:
+			// since it is active, we will query the tasks count, non zero
+			// number here means that we will finally actually perform the check
+			// for memory usage below
+			c.Assert(args, DeepEquals, []string{"show", "--property", "TasksCurrent", "snap.group.slice"})
+			return []byte("TasksCurrent=1"), nil
+		case 6:
 			// now since it is active, we will query the current memory usage
 			c.Assert(args, DeepEquals, []string{"show", "--property", "MemoryCurrent", "snap.group.slice"})
 			return []byte("MemoryCurrent=1024"), nil
@@ -682,7 +697,14 @@ func (ts *quotaTestSuite) TestCurrentMemoryUsage(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(currentMem, Equals, quantity.Size(0))
 
-	// now with systemctl mocked as active, we will get some usage
+	// group next time is active, but has no tasks, so it has no current memory
+	// usage
+	currentMem, err = grp1.CurrentMemoryUsage()
+	c.Assert(err, IsNil)
+	c.Assert(currentMem, Equals, quantity.Size(0))
+
+	// now with systemctl mocked as active and some tasks in the group, it has
+	// memory usage
 	currentMem, err = grp1.CurrentMemoryUsage()
 	c.Assert(err, IsNil)
 	c.Assert(currentMem, Equals, quantity.SizeKiB)
