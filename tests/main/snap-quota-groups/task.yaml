@@ -36,7 +36,7 @@ execute: |
   echo "The systemd slice should have one process in it now"
   cgroupsV1OldSystemdProcsFile="/sys/fs/cgroup/memory/$sliceName/snap.go-example-webserver.webserver.service/cgroup.procs"
   cgroupsV1ProcsFile="/sys/fs/cgroup/memory/$sliceName/cgroup.procs"
-  cgroupsV2ProcsFile="/sys/fs/cgroup/$sliceName/cgroup.procs"
+  cgroupsV2ProcsFile="/sys/fs/cgroup/$sliceName/snap.go-example-webserver.webserver.service/cgroup.procs"
   if [ -e "$cgroupsV2ProcsFile" ]; then
       cgroupProcsFile="$cgroupsV2ProcsFile"
   elif [ -e "$cgroupsV1OldSystemdProcsFile" ]; then
