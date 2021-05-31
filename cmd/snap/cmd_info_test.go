@@ -64,11 +64,9 @@ type flushBuffer struct{ bytes.Buffer }
 
 func (*flushBuffer) Flush() error { return nil }
 
-func isoDateTimeToLocalDate(textualTime string) string {
+func isoDateTimeToLocalDate(c *C, textualTime string) string {
 	t, err := time.Parse(time.RFC3339Nano, textualTime)
-	if err != nil {
-		return ""
-	}
+	c.Assert(err, IsNil)
 	return t.Local().Format("2006-01-02")
 }
 
@@ -819,7 +817,7 @@ installed:     2.10                      (100)  1kB disabled
 	rest, err = snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	refreshDate := isoDateTimeToLocalDate("2006-01-02T22:04:07.123456789Z")
+	refreshDate := isoDateTimeToLocalDate(c, "2006-01-02T22:04:07.123456789Z")
 	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(`name:      hello
 summary:   The GNU Hello snap
 publisher: Canonical*
@@ -1130,7 +1128,7 @@ func (s *infoSuite) TestInfoParllelInstance(c *check.C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello_foo"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	refreshDate := isoDateTimeToLocalDate("2006-01-02T22:04:07.123456789Z")
+	refreshDate := isoDateTimeToLocalDate(c, "2006-01-02T22:04:07.123456789Z")
 	// make sure local and remote info is combined in the output
 	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(`name:      hello_foo
 summary:   The GNU Hello snap
@@ -1210,7 +1208,7 @@ func (s *infoSuite) TestInfoStoreURL(c *check.C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"info", "hello"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	refreshDate := isoDateTimeToLocalDate("2006-01-02T22:04:07.123456789Z")
+	refreshDate := isoDateTimeToLocalDate(c, "2006-01-02T22:04:07.123456789Z")
 	// make sure local and remote info is combined in the output
 	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(`name:      hello
 summary:   The GNU Hello snap
