@@ -47,14 +47,18 @@ func lastRefreshed(st *state.State, snapName string) (time.Time, error) {
 	if err := Get(st, snapName, &snapst); err != nil {
 		return time.Time{}, fmt.Errorf("internal error, cannot get snap %q: %v", snapName, err)
 	}
+	// try to get last refresh time from snapstate, but it may not be present
+	// for snaps installed before the introduction of last-refresh attribute.
 	if snapst.LastRefreshTime != nil {
 		return *snapst.LastRefreshTime, nil
 	}
-	inf, err := snapst.CurrentInfo()
+	snapInfo, err := snapst.CurrentInfo()
 	if err != nil {
 		return time.Time{}, err
 	}
-	fst, err := os.Stat(inf.MountFile())
+	// fall back to the modification time of .snap blob file as it's the best
+	// approximation of last refresh time.
+	fst, err := os.Stat(snapInfo.MountFile())
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -114,22 +118,22 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 		SnapsInError: make(map[string]error),
 	}
 	now := timeNow()
-	for _, affecting := range affectingSnaps {
-		refreshed, err := lastRefreshed(st, affecting)
+	for _, heldSnap := range affectingSnaps {
+		lastRefreshTime, err := lastRefreshed(st, heldSnap)
 		if err != nil {
 			return err
 		}
-		if _, ok := gating[affecting]; !ok {
-			gating[affecting] = make(map[string]*holdInfo)
+		if _, ok := gating[heldSnap]; !ok {
+			gating[heldSnap] = make(map[string]*holdInfo)
 		}
-		hold, ok := gating[affecting][gatingSnap]
+		hold, ok := gating[heldSnap][gatingSnap]
 		if !ok {
 			hold = &holdInfo{
 				FirstHeld: now,
 			}
 		}
 
-		defaultDur := maxAllowedPostponement(gatingSnap, affecting)
+		defaultDur := maxAllowedPostponement(gatingSnap, heldSnap)
 		dur := holdDuration
 		if dur == 0 {
 			// duration not specified, using a default one
@@ -137,21 +141,21 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 		} else {
 			// explicit hold duration requested
 			if dur > defaultDur {
-				herr.SnapsInError[affecting] = fmt.Errorf("requested holding duration %s exceeds maximum holding for snap %q", holdDuration, affecting)
+				herr.SnapsInError[heldSnap] = fmt.Errorf("requested holding duration %s exceeds maximum holding for snap %q", holdDuration, heldSnap)
 				continue
 			}
 		}
 
 		newHold := now.Add(dur)
-		if newHold.Before(refreshed.Add(maxPostponement)) {
+		if newHold.Before(lastRefreshTime.Add(maxPostponement)) {
 			hold.HoldUntil = newHold
-			gating[affecting][gatingSnap] = hold
+			gating[heldSnap][gatingSnap] = hold
 		} else {
-			// default duration requested but using the maximum exceeds max
-			// postponement, adjust it.
 			if holdDuration == 0 {
-				hold.HoldUntil = refreshed.Add(maxPostponement)
-				gating[affecting][gatingSnap] = hold
+				// default duration requested but using the maximum exceeds max
+				// postponement, adjust it.
+				hold.HoldUntil = lastRefreshTime.Add(maxPostponement)
+				gating[heldSnap][gatingSnap] = hold
 			}
 			// XXX: else - specific duration requested, but it's too much
 			// considering, last refresh - report an error?
@@ -176,13 +180,13 @@ func ProceedWithRefresh(st *state.State, gatingSnap string) error {
 	}
 
 	var changed bool
-	for affectingSnap, gatingSnaps := range gating {
+	for heldSnap, gatingSnaps := range gating {
 		if _, ok := gatingSnaps[gatingSnap]; ok {
 			delete(gatingSnaps, gatingSnap)
 			changed = true
 		}
-		if len(gating[affectingSnap]) == 0 {
-			delete(gating, affectingSnap)
+		if len(gating[heldSnap]) == 0 {
+			delete(gating, heldSnap)
 		}
 	}
 
