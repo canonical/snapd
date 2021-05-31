@@ -521,6 +521,14 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if _, err := findSerial(st, nil); err != nil {
+		if err == state.ErrNoState {
+			return nil, fmt.Errorf("cannot remodel without a serial")
+		}
+		return nil, err
+	}
+
 	if current.Series() != new.Series() {
 		return nil, fmt.Errorf("cannot remodel to different series yet")
 	}
