@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/strutil/shlex"
@@ -225,6 +226,15 @@ func makeStdStreams(identifier string) (stdout *os.File, stderr *os.File) {
 }
 
 var userCurrent = user.Current
+
+func MockUserCurrent(f func() (*user.User, error)) (restore func()) {
+	osutil.MustBeTestBinary("mocking can only be done in tests")
+	old := userCurrent
+	userCurrent = f
+	return func() {
+		userCurrent = old
+	}
+}
 
 // AutostartSessionApps starts applications which have placed their desktop
 // files in $SNAP_USER_DATA/.config/autostart

@@ -43,7 +43,7 @@ import (
 const defaultRefreshSchedule = "00:00~24:00/4"
 
 // cannot keep without refreshing for more than maxPostponement
-const maxPostponement = 60 * 24 * time.Hour
+const maxPostponement = 95 * 24 * time.Hour
 
 // cannot inhibit refreshes for more than maxInhibition
 const maxInhibition = 14 * 24 * time.Hour
