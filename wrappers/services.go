@@ -90,6 +90,10 @@ MemoryAccounting=true
 MemoryMax=%[2]d
 # for compatibility with older versions of systemd
 MemoryLimit=%[2]d
+
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
 `
 
 	fmt.Fprintf(&buf, template, grp.Name, grp.MemoryLimit)
