@@ -754,14 +754,15 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
-	// "systemctl is-active <name>" returns exit code 3 for inactive
-	// services, the stderr output may be `inactive\n` for services that are
-	// inactive (or not found), or `failed\n` for services that are in a
-	// failed state; nevertheless make sure to check any non-0 exit code
+	// "systemctl is-active <name>" returns exit code 3 for inactive services,
+	// the stderr output may be `unknown\n` for services that were not found,
+	// `inactive\n` for services that are inactive (or not found for some
+	// systemd versions), or `failed\n` for services that are in a failed state;
+	// nevertheless make sure to check any non-0 exit code
 	sysdErr, ok := err.(systemctlError)
 	if ok {
 		switch strings.TrimSpace(string(sysdErr.Msg())) {
-		case "inactive", "failed":
+		case "inactive", "failed", "unknown":
 			return false, nil
 		}
 	}

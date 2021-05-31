@@ -983,6 +983,21 @@ func (s *SystemdTestSuite) TestIsActiveIsInactive(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"is-active", "foo"}})
 }
 
+func (s *SystemdTestSuite) TestIsActiveIsInactiveAlternativeMessage(c *C) {
+	sysErr := &Error{}
+	// on Centos 7, with systemd 219 we see "unknown" returned when querying the
+	// active state for a slice unit which does not exist, check that we handle
+	// this case properly as well
+	sysErr.SetExitCode(3)
+	sysErr.SetMsg([]byte("unknown\n"))
+	s.errors = []error{sysErr}
+
+	active, err := New(SystemMode, s.rep).IsActive("foo")
+	c.Assert(active, Equals, false)
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"is-active", "foo"}})
+}
+
 func (s *SystemdTestSuite) TestIsActiveIsFailed(c *C) {
 	sysErr := &Error{}
 	// seen in the wild to be reported for a 'failed' service
