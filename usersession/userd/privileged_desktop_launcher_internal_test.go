@@ -20,6 +20,7 @@
 package userd_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -27,6 +28,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/usersession/userd"
@@ -526,19 +529,40 @@ func (s *privilegedDesktopLauncherInternalSuite) TestParseExecCommandFailsWithIn
 	}
 }
 
-func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopFileWithValidContent(c *C) {
+func (s *privilegedDesktopLauncherInternalSuite) testReadExecCommandFromDesktopFileWithValidContent(c *C, desktopFileContent string) {
 	desktopFile := filepath.Join(c.MkDir(), "test.desktop")
 
 	// We need to correct the embedded path to the desktop file before writing the file
-	fileContent := strings.Replace(chromiumDesktopFile, "/var/lib/snapd/desktop/applications/chromium_chromium.desktop", desktopFile, -1)
+	fileContent := strings.Replace(desktopFileContent, "/var/lib/snapd/desktop/applications/chromium_chromium.desktop", desktopFile, -1)
 	err := ioutil.WriteFile(desktopFile, []byte(fileContent), 0644)
 	c.Assert(err, IsNil)
 
 	exec, icon, err := userd.ReadExecCommandFromDesktopFile(desktopFile)
 	c.Assert(err, IsNil)
 
-	c.Check(exec, Equals, "env BAMF_DESKTOP_FILE_HINT="+desktopFile+" /snap/bin/chromium %U")
+	c.Check(exec, Equals, fmt.Sprintf("env BAMF_DESKTOP_FILE_HINT=%s %s/chromium %%U", desktopFile, dirs.SnapBinariesDir))
 	c.Check(icon, Equals, "/snap/chromium/1193/chromium.png")
+}
+
+func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopFileWithValidContentPathSnap(c *C) {
+	// pick a system known to use /snap/bin for launcher symlinks
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+	dirs.SetRootDir("/")
+	defer dirs.SetRootDir("/")
+	s.testReadExecCommandFromDesktopFileWithValidContent(c, chromiumDesktopFile)
+}
+
+func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopFileWithValidContentPathVarLibSnapd(c *C) {
+	// pick a system known to use /var/lib/snapd/bin for launcher symlinks
+	restore := release.MockReleaseInfo(&release.OS{ID: "fedora"})
+	defer restore()
+	dirs.SetRootDir("/")
+	defer dirs.SetRootDir("/")
+
+	// fix the Exec= line
+	fileContentWithVarLibSnapBin := strings.Replace(chromiumDesktopFile, " /snap/bin/chromium", " /var/lib/snapd/snap/bin/chromium", -1)
+	s.testReadExecCommandFromDesktopFileWithValidContent(c, fileContentWithVarLibSnapBin)
 }
 
 func (s *privilegedDesktopLauncherInternalSuite) TestReadExecCommandFromDesktopFileWithInvalidExec(c *C) {
