@@ -68,12 +68,9 @@ func (s *backendSuite) TestName(c *C) {
 }
 
 func (s *backendSuite) TestInstallingSnapWritesPolicyFiles(c *C) {
-	policyFile := filepath.Join(c.MkDir(), "foo.policy")
-	c.Assert(ioutil.WriteFile(policyFile, []byte("<policyconfig/>"), 0644), IsNil)
-
 	// NOTE: Hand out a permanent policy so that .policy file is generated.
 	s.Iface.PolkitPermanentSlotCallback = func(spec *polkit.Specification, slot *snap.SlotInfo) error {
-		return spec.AddPolicy("foo", policyFile)
+		return spec.AddPolicy("foo", polkit.Policy("<policyconfig/>"))
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
@@ -85,12 +82,9 @@ func (s *backendSuite) TestInstallingSnapWritesPolicyFiles(c *C) {
 }
 
 func (s *backendSuite) TestRemovingSnapRemovesPolicyFiles(c *C) {
-	policyFile := filepath.Join(c.MkDir(), "foo.policy")
-	c.Assert(ioutil.WriteFile(policyFile, []byte("<policyconfig/>"), 0644), IsNil)
-
 	// NOTE: Hand out a permanent snippet so that .policy file is generated.
 	s.Iface.PolkitPermanentSlotCallback = func(spec *polkit.Specification, slot *snap.SlotInfo) error {
-		return spec.AddPolicy("foo", policyFile)
+		return spec.AddPolicy("foo", polkit.Policy("<policyconfig/>"))
 	}
 	for _, opts := range testedConfinementOpts {
 		snapInfo := s.InstallSnap(c, opts, "", ifacetest.SambaYamlV1, 0)
