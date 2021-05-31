@@ -170,6 +170,9 @@ dbus (receive, send)
     path=/org/freedesktop/ModemManager1{,/**}
     interface=org.freedesktop.DBus.*
     peer=(label=###SLOT_SECURITY_TAGS###),
+
+# Allow to determine whether a tty device is a serial port or not.
+@{PROC}/tty/drivers r,
 `
 
 const modemManagerConnectedPlugAppArmorClassic = `

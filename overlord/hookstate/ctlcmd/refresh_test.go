@@ -20,6 +20,8 @@
 package ctlcmd_test
 
 import (
+	"time"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
@@ -63,6 +65,7 @@ func (s *refreshSuite) SetUpTest(c *C) {
 var refreshFromHookTests = []struct {
 	args                []string
 	base, restart       bool
+	inhibited           bool
 	refreshCandidates   map[string]interface{}
 	stdout, stderr, err string
 	exitCode            int
@@ -78,15 +81,19 @@ var refreshFromHookTests = []struct {
 }, {
 	args:              []string{"refresh", "--pending"},
 	refreshCandidates: map[string]interface{}{"snap1": mockRefreshCandidate("snap1", "", "edge", "v1", snap.Revision{N: 3})},
-	stdout:            "channel: edge\nversion: v1\nrevision: 3\nbase: false\nrestart: false\n",
+	stdout:            "pending: ready\nchannel: edge\nversion: v1\nrevision: 3\nbase: false\nrestart: false\n",
 }, {
 	args:   []string{"refresh", "--pending"},
-	stdout: "channel: stable\nbase: false\nrestart: false\n",
+	stdout: "pending: none\nchannel: stable\nbase: false\nrestart: false\n",
 }, {
 	args:    []string{"refresh", "--pending"},
 	base:    true,
 	restart: true,
-	stdout:  "channel: stable\nbase: true\nrestart: true\n",
+	stdout:  "pending: none\nchannel: stable\nbase: true\nrestart: true\n",
+}, {
+	args:      []string{"refresh", "--pending"},
+	inhibited: true,
+	stdout:    "pending: inhibited\nchannel: stable\nbase: false\nrestart: false\n",
 }}
 
 func (s *refreshSuite) TestRefreshFromHook(c *C) {
@@ -95,12 +102,6 @@ func (s *refreshSuite) TestRefreshFromHook(c *C) {
 	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1), Hook: "gate-auto-refresh"}
 	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
 	c.Check(err, IsNil)
-	snapstate.Set(s.st, "snap1", &snapstate.SnapState{
-		Active:          true,
-		Sequence:        []*snap.SideInfo{{RealName: "snap1", Revision: snap.R(1)}},
-		Current:         snap.R(2),
-		TrackingChannel: "stable",
-	})
 	s.st.Unlock()
 
 	for _, test := range refreshFromHookTests {
@@ -108,6 +109,16 @@ func (s *refreshSuite) TestRefreshFromHook(c *C) {
 		mockContext.Set("base", test.base)
 		mockContext.Set("restart", test.restart)
 		s.st.Set("refresh-candidates", test.refreshCandidates)
+		snapst := &snapstate.SnapState{
+			Active:          true,
+			Sequence:        []*snap.SideInfo{{RealName: "snap1", Revision: snap.R(1)}},
+			Current:         snap.R(2),
+			TrackingChannel: "stable",
+		}
+		if test.inhibited {
+			snapst.RefreshInhibitedTime = &time.Time{}
+		}
+		snapstate.Set(s.st, "snap1", snapst)
 		mockContext.Unlock()
 
 		stdout, stderr, err := ctlcmd.Run(mockContext, test.args, 0)

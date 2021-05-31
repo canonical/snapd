@@ -45,19 +45,19 @@ import (
 var (
 	// see daemon.go:canAccess for details how the access is controlled
 	snapCmd = &Command{
-		Path:     "/v2/snaps/{name}",
-		UserOK:   true,
-		PolkitOK: "io.snapcraft.snapd.manage",
-		GET:      getSnapInfo,
-		POST:     postSnap,
+		Path:        "/v2/snaps/{name}",
+		GET:         getSnapInfo,
+		POST:        postSnap,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 
 	snapsCmd = &Command{
-		Path:     "/v2/snaps",
-		UserOK:   true,
-		PolkitOK: "io.snapcraft.snapd.manage",
-		GET:      getSnapsInfo,
-		POST:     postSnaps,
+		Path:        "/v2/snaps",
+		GET:         getSnapsInfo,
+		POST:        postSnaps,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 	}
 )
 
