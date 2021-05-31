@@ -72,7 +72,7 @@ execute: |
   systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=inactive"
 
   echo "Creating a quota with a very small memory limit results in the service being unable to start"
-  snap quota too-small --max-memory=1MB go-example-webserver
+  snap quota too-small --max-memory=1KB go-example-webserver
   # clear "oom-killer" message from dmesg or prepare-restore.sh will fail here.
   tests.cleanup defer dmesg -c
 
