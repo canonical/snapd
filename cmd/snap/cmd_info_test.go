@@ -64,9 +64,9 @@ type flushBuffer struct{ bytes.Buffer }
 
 func (*flushBuffer) Flush() error { return nil }
 
-func isoDateTimeToLocalDate(c *C, textualTime string) string {
+func isoDateTimeToLocalDate(c *check.C, textualTime string) string {
 	t, err := time.Parse(time.RFC3339Nano, textualTime)
-	c.Assert(err, IsNil)
+	c.Assert(err, check.IsNil)
 	return t.Local().Format("2006-01-02")
 }
 
