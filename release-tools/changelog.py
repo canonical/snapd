@@ -160,6 +160,25 @@ def update_opensuse_changlog(
         fh.write(current)
 
 
+def write_github_release_entry(opts, new_changelog_entry):
+    with open(f"snapd-{opts.version}-github-release.md", "w") as fh:
+        # write the prefix header
+        fh.write(
+            f"""New snapd release {opts.version}
+
+See https://forum.snapcraft.io/t/the-snapd-roadmap/1973 for high-level overview.
+
+"""
+        )
+
+        # write the rest of the actual changelog
+        for line in new_changelog_entry.splitlines():
+            # strip the first 4 characters which are space characters so
+            # that there's no leading prefix
+            fh.write(line.lstrip())
+            fh.write("\n")
+
+
 def main(opts):
     this_script = os.path.realpath(__file__)
     snapd_root_git_dir = os.path.dirname(os.path.dirname(this_script))
@@ -232,6 +251,8 @@ def main(opts):
             update_opensuse_changlog(
                 opts, snapd_packaging_dir, new_changelog_entry, maintainer
             )
+
+    write_github_release_entry(opts, new_changelog_entry)
 
 
 if __name__ == "__main__":
