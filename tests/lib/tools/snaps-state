@@ -152,7 +152,7 @@ repack_snapd_deb_into_snap() {
 # This is primarily meant to be used in UC16 tests that need to use the snapd
 # snap because neither the snapd snap, nor the snapd deb built for the spread
 # run are seeded on the image
-# The build snap is located in the current working directory at with the
+# The built snap is located in the current working directory with the
 # filename snapd-from-core.snap.
 repack_core_snap_into_snapd_snap() {
     # FIXME: maybe build the snapd snap from the deb in prepare_ubuntu_core /

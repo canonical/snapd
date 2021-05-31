@@ -101,7 +101,7 @@ execute: |
             "$TESTSTOOLS"/snaps-state is-confinement-supported strict
             "$TESTSTOOLS"/snaps-state is-confinement-supported devmode
             ;;
-        ubuntu-1*|ubuntu-2*)
+        ubuntu-*)
             "$TESTSTOOLS"/snaps-state is-confinement-supported classic
             "$TESTSTOOLS"/snaps-state is-confinement-supported strict
             "$TESTSTOOLS"/snaps-state is-confinement-supported devmode
@@ -130,7 +130,7 @@ execute: |
         "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap core noexist.deb 2>&1 | MATCH "snaps-state: deb file used to repack not found: noexist.deb"
     fi
 
-    # Check the repach of the core snap info snapd snap
+    # Check the repack of the core snap info snapd snap
     if [ -d /snap/core/current ]; then
         "$TESTSTOOLS"/snaps-state repack-core-snap-into-snapd-snap
         test -e snapd-from-core.snap
