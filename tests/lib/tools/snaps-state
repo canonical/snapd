@@ -67,26 +67,28 @@ install_local_as() {
 
 show_name() {
     case "${1:-}" in
-            core)
-                local core_name
-                core_name="$(snap model --verbose | grep -Po "^base:\\s+\\K.*" || true)"
-                if [ -z "$core_name" ]; then
-                    core_name="core"
-                fi
-                echo "$core_name"
-                ;;
-            kernel)
-                snap list | grep 'kernel$' | awk '{ print $1 }'
-                ;;
-            gadget)
-                snap list | grep 'gadget$' | awk '{ print $1 }'
-                ;;
-            *)
-                echo "snaps-state: unsupported snap $1" >&2
-                show_help
-                exit 1
-                ;;
-        esac
+        core)
+            local core_name
+            core_name="$(snap model --verbose | grep -Po "^base:\\s+\\K.*" || true)"
+            if [ -z "$core_name" ]; then
+                core_name="core"
+            fi
+            echo "$core_name"
+            ;;
+        kernel)
+            snap list | grep 'kernel$' | awk '{ print $1 }'
+            ;;
+        gadget)
+            snap list | grep 'gadget$' | awk '{ print $1 }'
+            ;;
+        *)
+            echo "snaps-state: unsupported snap $1" >&2
+            show_help
+            exit 1
+            ;;
+    esac
+}
+
 is_confinement_supported() {
     local confinement="$1"
     if [ -z "$confinement" ]; then
@@ -107,42 +109,42 @@ repack_snapd_deb_into_snap() {
         exit 1
     fi
     case "$snap_name" in
-            core)
-                # use snapd from edge as a recent snap that should be close to what we will
-                # have in the snapd deb
-                snap download core --basename=core --edge
-                unsquashfs -d ./core-unpacked core.snap
+        core)
+            # use snapd from edge as a recent snap that should be close to what we will
+            # have in the snapd deb
+            snap download core --basename=core --edge
+            unsquashfs -d ./core-unpacked core.snap
 
-                # extract all the files from the snapd deb
-                dpkg-deb -x "$deb_file" ./core-unpacked
+            # extract all the files from the snapd deb
+            dpkg-deb -x "$deb_file" ./core-unpacked
 
-                # repack into the target dir specified
-                snap pack --filename=core-from-snapd-deb.snap  core-unpacked "$1"
+            # repack into the target dir specified
+            snap pack --filename=core-from-snapd-deb.snap  core-unpacked "$1"
 
-                # cleanup
-                rm -rf core-unpacked
-                ;;
-            snapd)
-                # use snapd from edge as a recent snap that should be close to what we will
-                # have in the snapd deb
-                snap download snapd --basename=snapd --edge
-                unsquashfs -d ./snapd-unpacked snapd.snap
+            # cleanup
+            rm -rf core-unpacked
+            ;;
+        snapd)
+            # use snapd from edge as a recent snap that should be close to what we will
+            # have in the snapd deb
+            snap download snapd --basename=snapd --edge
+            unsquashfs -d ./snapd-unpacked snapd.snap
 
-                # extract all the files from the snapd deb
-                dpkg-deb -x "$deb_file" ./snapd-unpacked
+            # extract all the files from the snapd deb
+            dpkg-deb -x "$deb_file" ./snapd-unpacked
 
-                # repack into the target dir specified
-                snap pack --filename=snapd-from-deb.snap  snapd-unpacked "$1"
+            # repack into the target dir specified
+            snap pack --filename=snapd-from-deb.snap  snapd-unpacked "$1"
 
-                # cleanup
-                rm -rf snapd-unpacked
-                ;;
-            *)
-                echo "snaps-state: use either core or snapd snaps for repack, snapd $snap_name not supported"
-                show_help
-                exit 1
-                ;;
-        esac
+            # cleanup
+            rm -rf snapd-unpacked
+            ;;
+        *)
+            echo "snaps-state: use either core or snapd snaps for repack, snapd $snap_name not supported"
+            show_help
+            exit 1
+            ;;
+    esac
 }
 
 # This function will re-pack the current core snap as the snapd snap,
