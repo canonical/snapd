@@ -24,7 +24,7 @@ prepare: |
     setup_fake_store "$STORE_DIR"
 
     snap pack "$TESTSLIB/snaps/basic18"
-    snap pack "$TESTSLIB/snaps/classic-gadget-18"
+    snap pack classic-gadget-18
 
     echo Expose the needed assertions through the fakestore
     cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
