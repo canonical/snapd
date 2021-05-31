@@ -52,9 +52,7 @@ execute: |
   MATCH ".*6.*snaps:$" < details.txt
   MATCH ".*7.*- hello-world$" < details.txt
 
-  # XXX: uncomment when quota removal bug is fixed with
-  # https://github.com/snapcore/snapd/pull/10216
-  #echo "Checking that quota groups can be removed"
-  #snap remove-quota group-two
-  #snap quota group-two 2>&1 | MATCH 'error: cannot find quota group "group-two"'
+  echo "Checking that quota groups can be removed"
+  snap remove-quota group-two
+  snap quota group-two 2>&1 | MATCH 'error: cannot find quota group "group-two"'
   snap quota unknown 2>&1 | MATCH 'error: cannot find quota group "unknown"'
