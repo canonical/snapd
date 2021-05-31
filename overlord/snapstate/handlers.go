@@ -2979,7 +2979,7 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doAutoRefreshGate(t *state.Task, tomb *tomb.Tomb) error {
+func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -3005,6 +3005,7 @@ func (m *SnapManager) doAutoRefreshGate(t *state.Task, tomb *tomb.Tomb) error {
 		ts.WaitFor(t)
 		chg.AddAll(ts)
 	}
+	t.SetStatus(state.DoneStatus)
 
 	st.EnsureBefore(0)
 	return nil

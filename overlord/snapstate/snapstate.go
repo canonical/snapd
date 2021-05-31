@@ -2004,7 +2004,7 @@ func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshC
 	flags := &Flags{IsAutoRefresh: true}
 	userID := 0
 
-	deviceCtx, err := DevicePastSeeding(st, nil)
+	deviceCtx, err := DeviceCtx(st, nil, nil)
 	if err != nil {
 		return nil, err
 	}
