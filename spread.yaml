@@ -118,9 +118,6 @@ backends:
             - debian-sid-64:
                   workers: 6
 
-            # TODO: drop Fedora 32 once it goes EOL on 25.05.2021
-            - fedora-32-64:
-                  workers: 6
             - fedora-33-64:
                   workers: 6
             - fedora-34-64:

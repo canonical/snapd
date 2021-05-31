@@ -3109,7 +3109,7 @@ func (s *snapmgrTestSuite) TestInstallDbusActivationChecksFeatureFlag(c *C) {
 	// D-Bus activation is disabled by default.
 	opts := &snapstate.RevisionOptions{Channel: "channel-for-dbus-activation"}
 	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.dbus-activation' to true")
+	c.Assert(err, IsNil)
 
 	// D-Bus activation can be explicitly enabled.
 	tr := config.NewTransaction(s.state)
@@ -3125,19 +3125,19 @@ func (s *snapmgrTestSuite) TestInstallDbusActivationChecksFeatureFlag(c *C) {
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.dbus-activation' to true")
 
-	// The default empty value means "disabled"
+	// The default empty value means "enabled"
 	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.dbus-activation", "")
 	tr.Commit()
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.dbus-activation' to true")
+	c.Assert(err, IsNil)
 
-	// D-Bus activation is disabled when the controlling flag is reset to nil.
+	// D-Bus activation is enabled when the controlling flag is reset to nil.
 	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.dbus-activation", nil)
 	tr.Commit()
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.dbus-activation' to true")
+	c.Assert(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestInstallValidatesInstanceNames(c *C) {
