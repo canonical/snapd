@@ -31,8 +31,22 @@ execute: |
   echo "The service should also still be active"
   snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+active"
 
+  # systemd/kernel have three different locations for the cgroup pids depending
+  # on version
   echo "The systemd slice should have one process in it now"
-  cgroupProcsFile="/sys/fs/cgroup/memory/$sliceName/cgroup.procs"
+  cgroupsV1OldSystemdProcsFile="/sys/fs/cgroup/memory/$sliceName/snap.go-example-webserver.webserver.service/cgroup.procs"
+  cgroupsV1ProcsFile="/sys/fs/cgroup/memory/$sliceName/cgroup.procs"
+  cgroupsV2ProcsFile="/sys/fs/cgroup/$sliceName/cgroup.procs"
+  if [ -e "$cgroupsV2ProcsFile" ]; then
+      cgroupProcsFile="$cgroupsV2ProcsFile"
+  elif [ -e "$cgroupsV1OldSystemdProcsFile" ]; then
+      cgroupProcsFile="$cgroupsV1OldSystemdProcsFile"
+  elif [ -e "$cgroupsV1ProcsFile" ]; then
+      cgroupProcsFile="$cgroupsV1ProcsFile"
+  else
+      echo "cannot detect cgroup procs file"
+      exit 1
+  fi
   wc -l < "$cgroupProcsFile" | MATCH '^1$'
   SERVER_PID=$(cat "$cgroupProcsFile")
 
@@ -40,7 +54,9 @@ execute: |
   systemctl show --property=MainPID snap.go-example-webserver.webserver.service | MATCH "MainPID=$SERVER_PID"
 
   echo "And the service is in the Control Group for the slice"
-  test "$(systemctl show --property=ControlGroup snap.go-example-webserver.webserver.service)" = "ControlGroup=/$sliceName/snap.go-example-webserver.webserver.service"
+  # using a regexp for the ControlGroup match here as on older systemd (16.04)
+  # the group is double escaped
+  systemctl show --property=ControlGroup snap.go-example-webserver.webserver.service | MATCH 'ControlGroup=/snap.group(.*)one.slice/snap.go-example-webserver.webserver.service'
 
   # TODO: check that systemctl says the memory usage is the same as "snap quota group-one"
 
