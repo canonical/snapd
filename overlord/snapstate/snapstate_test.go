@@ -5331,10 +5331,10 @@ func (s *snapmgrTestSuite) TestConflictExclusive(c *C) {
 
 	// a remodel conflicts with any other change
 	err := snapstate.CheckChangeConflictRunExclusively(s.state, "remodel")
-	c.Check(err, ErrorMatches, `other changes in progress, change "remodel" not allowed until they are done`)
+	c.Check(err, ErrorMatches, `other changes in progress, change "remodel" not allowed until they are done \(conflicting change "install-snap-a"\)`)
 	// and so does the  remodel conflicts with any other change
 	err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
-	c.Check(err, ErrorMatches, `other changes in progress, change "create-recovery-system" not allowed until they are done`)
+	c.Check(err, ErrorMatches, `other changes in progress, change "create-recovery-system" not allowed until they are done \(conflicting change "install-snap-a"\)`)
 }
 
 type contentStore struct {

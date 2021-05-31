@@ -126,8 +126,8 @@ func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, 
 			if newExclusiveChangeKind != "" {
 				// we want to run a new exclusive change, but other
 				// changes are in progress already
-				msg := fmt.Sprintf("other changes in progress, change %q not allowed until they are done",
-					newExclusiveChangeKind)
+				msg := fmt.Sprintf("other changes in progress, change %q not allowed until they are done (conflicting change %q)",
+					newExclusiveChangeKind, chg.Kind())
 				return &ChangeConflictError{
 					Message:    msg,
 					ChangeKind: chg.Kind(),
