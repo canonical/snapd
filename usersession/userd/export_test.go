@@ -30,3 +30,19 @@ func MockSnapFromSender(f func(*dbus.Conn, dbus.Sender) (string, error)) func() 
 		snapFromSender = origSnapFromSender
 	}
 }
+
+var (
+	DesktopFileSearchPath          = desktopFileSearchPath
+	DesktopFileIDToFilename        = desktopFileIDToFilename
+	VerifyDesktopFileLocation      = verifyDesktopFileLocation
+	ParseExecCommand               = parseExecCommand
+	ReadExecCommandFromDesktopFile = readExecCommandFromDesktopFile
+)
+
+func MockRegularFileExists(f func(string) (bool, bool, error)) func() {
+	old := regularFileExists
+	regularFileExists = f
+	return func() {
+		regularFileExists = old
+	}
+}

@@ -81,6 +81,12 @@ var api = []*Command{
 	quotaGroupInfoCmd,
 }
 
+const (
+	polkitActionLogin            = "io.snapcraft.snapd.login"
+	polkitActionManage           = "io.snapcraft.snapd.manage"
+	polkitActionManageInterfaces = "io.snapcraft.snapd.manage-interfaces"
+)
+
 // userFromRequest extracts user information from request and return the respective user in state, if valid
 // It requires the state to be locked
 func userFromRequest(st *state.State, req *http.Request) (*auth.UserState, error) {
