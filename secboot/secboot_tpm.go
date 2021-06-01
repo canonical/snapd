@@ -26,8 +26,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	"github.com/canonical/go-tpm2"
+	"github.com/canonical/go-tpm2/mu"
 	sb "github.com/snapcore/secboot"
 	sb_efi "github.com/snapcore/secboot/efi"
 	"golang.org/x/xerrors"
@@ -389,6 +391,49 @@ func ResealKeys(params *ResealKeysParams) error {
 	}
 
 	return sbUpdateKeyPCRProtectionPolicyMultiple(tpm, params.KeyFiles, authKey, pcrProfile)
+}
+
+func TpmPrepare(dir string) error {
+	tpm, err := insecureConnectToTPM()
+	if err != nil {
+		if xerrors.Is(err, sb.ErrNoTPM2Device) {
+			return nil
+		}
+		return fmt.Errorf("cannot open TPM connection: %v", err)
+	}
+	defer tpm.Close()
+
+	if !isTPMEnabled(tpm) {
+		return nil
+	}
+
+	srkTmplPath := filepath.Join(dir, "tpm2-srk.tmpl")
+	f, err := os.Open(srkTmplPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("cannot open SRK template file: %v", err)
+	}
+	defer f.Close()
+
+	var srkTmpl struct {
+		Ptr *tpm2.Public `tpm2:"sized"`
+	}
+	if _, err := mu.UnmarshalFromReader(f, &srkTmpl); err != nil {
+		return fmt.Errorf("cannot read SRK template: %v", err)
+	}
+
+	err = tpm.EnsureProvisionedWithCustomSRK(sb.ProvisionModeWithoutLockout, nil, srkTmpl.Ptr)
+	if err != nil && err != sb.ErrTPMProvisioningRequiresLockout {
+		return fmt.Errorf("cannot prepare TPM: %v", err)
+	}
+
+	if err := os.Remove(srkTmplPath); err != nil {
+		return fmt.Errorf("cannot remove SRK template file: %v", err)
+	}
+
+	return nil
 }
 
 func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtectionProfile, error) {

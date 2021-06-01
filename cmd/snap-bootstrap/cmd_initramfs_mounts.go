@@ -77,6 +77,7 @@ var (
 		snap.TypeSnapd:  "snapd",
 	}
 
+	secbootTpmPrepare                            func(dir string) error
 	secbootMeasureSnapSystemEpochWhenPossible    func() error
 	secbootMeasureSnapModelWhenPossible          func(findModel func() (*asserts.Model, error)) error
 	secbootUnlockVolumeUsingSealedKeyIfEncrypted func(disk disks.Disk, name string, encryptionKeyFile string, opts *secboot.UnlockVolumeUsingSealedKeyOptions) (secboot.UnlockResult, error)
@@ -1415,6 +1416,9 @@ func generateMountsModeClassic(mst *initramfsMountsState, label string) error {
 	// TODO measure model, if we will have one
 
 	// Mount rootfs
+	if err := secbootTpmPrepare(boot.InitramfsUbuntuSeedDir); err != nil {
+		return err
+	}
 	runModeKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, label + ".sealed-key")
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
 		AllowRecoveryKey: true,
