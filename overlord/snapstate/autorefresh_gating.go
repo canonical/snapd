@@ -100,7 +100,7 @@ func (h *HoldError) Error() string {
 
 func maxAllowedPostponement(gatingSnap, affectedSnap string) time.Duration {
 	if affectedSnap == gatingSnap {
-		return maxPostponement
+		return maxPostponement - maxPostponementBuffer
 	}
 	return maxOtherHoldDuration
 }
@@ -132,7 +132,7 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 		// requests of this snap. This doesn't take last refresh into consideration
 		// yet (that's handled further down), but it makes sure than a cumulative
 		// time the given gating snap holds another snap (or self) is within
-		// maxAllowedPostponement limit.
+		// (maxAllowedPostponement - maxPostponementBuffer) limit.
 		left := maxDur - now.Sub(hold.FirstHeld)
 		if left <= 0 {
 			herr.SnapsInError[heldSnap] = fmt.Errorf("snap %q cannot hold snap %q anymore", gatingSnap, heldSnap)
@@ -158,17 +158,19 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 		}
 
 		newHold := now.Add(dur)
+		cutOff := lastRefreshTime.Add(maxPostponement - maxPostponementBuffer)
+
 		// consider last refresh time and adjust hold duration if needed so it's
 		// not exceeded.
 		switch {
-		case newHold.Before(lastRefreshTime.Add(maxPostponement)):
+		case newHold.Before(cutOff):
 			hold.HoldUntil = newHold
-		case holdDuration == 0:
+		case holdDuration == 0 && cutOff.After(now):
 			// default duration requested but it exceeds max
 			// postponement, adjust it.
-			hold.HoldUntil = lastRefreshTime.Add(maxPostponement)
+			hold.HoldUntil = cutOff
 		default:
-			herr.SnapsInError[heldSnap] = fmt.Errorf("requested holding duration %s exceeds maximum total holding for snap %q", holdDuration, heldSnap)
+			herr.SnapsInError[heldSnap] = fmt.Errorf("snap %q cannot be held anymore, maximum refresh postponement exceeded", heldSnap)
 			continue
 		}
 

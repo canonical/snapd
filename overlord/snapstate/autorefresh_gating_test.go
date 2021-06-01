@@ -291,7 +291,7 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelper(c *C) {
 		},
 		"snap-f": {
 			// holding self set for maxPostponement minus 1 day due to last refresh.
-			"snap-f": snapstate.MockHoldState("2021-05-10T10:00:00Z", "2021-08-12T10:00:00Z"),
+			"snap-f": snapstate.MockHoldState("2021-05-10T10:00:00Z", "2021-08-07T10:00:00Z"),
 		},
 	})
 }
@@ -363,7 +363,7 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelperCloseToMaxPostponement(c *
 	lastRefreshed, err := time.Parse(time.RFC3339, lastRefreshedStr)
 	c.Assert(err, IsNil)
 	// we are 1 day before maxPostponent
-	now := lastRefreshed.Add(94 * time.Hour * 24)
+	now := lastRefreshed.Add(89 * time.Hour * 24)
 
 	restore := snapstate.MockTimeNow(func() time.Time { return now })
 	defer restore()
@@ -379,7 +379,7 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelperCloseToMaxPostponement(c *
 	var gating map[string]map[string]*snapstate.HoldState
 	c.Assert(st.Get("snaps-hold", &gating), IsNil)
 	c.Assert(gating, HasLen, 1)
-	c.Check(gating["snap-a"]["snap-b"].HoldUntil.String(), DeepEquals, lastRefreshed.Add(95*time.Hour*24).String())
+	c.Check(gating["snap-a"]["snap-b"].HoldUntil.String(), DeepEquals, lastRefreshed.Add(90*time.Hour*24).String())
 }
 
 func (s *autorefreshGatingSuite) TestHoldRefreshExplicitHoldTime(c *C) {
@@ -459,7 +459,8 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelperErrors(c *C) {
 	// refreshed long time ago (> maxPostponement)
 	mockLastRefreshed(c, st, "2021-01-01T10:00:00Z", "snap-b")
 	hold = time.Hour * 2
-	c.Assert(snapstate.HoldRefresh(st, "snap-b", hold, "snap-b"), ErrorMatches, `cannot hold some snaps:\n - requested holding duration 2h0m0s exceeds maximum total holding for snap "snap-b"`)
+	c.Assert(snapstate.HoldRefresh(st, "snap-b", hold, "snap-b"), ErrorMatches, `cannot hold some snaps:\n - snap "snap-b" cannot be held anymore, maximum refresh postponement exceeded`)
+	c.Assert(snapstate.HoldRefresh(st, "snap-b", 0, "snap-b"), ErrorMatches, `cannot hold some snaps:\n - snap "snap-b" cannot be held anymore, maximum refresh postponement exceeded`)
 }
 
 func (s *autorefreshGatingSuite) TestHoldAndProceedWithRefreshHelper(c *C) {
@@ -532,8 +533,8 @@ func (s *autorefreshGatingSuite) TestResetGatingForRefreshedHelper(c *C) {
 	c.Assert(st.Get("snaps-hold", &gating), IsNil)
 	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldState{
 		"snap-d": {
-			// holding self set for maxPostponement (95 days)
-			"snap-d": snapstate.MockHoldState("2021-05-10T10:00:00Z", "2021-08-13T10:00:00Z"),
+			// holding self set for maxPostponement (95 days - buffer = 90 days)
+			"snap-d": snapstate.MockHoldState("2021-05-10T10:00:00Z", "2021-08-08T10:00:00Z"),
 		},
 	})
 
