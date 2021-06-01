@@ -114,7 +114,7 @@ func (*featureSuite) TestIsEnabledWhenUnset(c *C) {
 	c.Check(features.ClassicPreservesXdgRuntimeDir.IsEnabledWhenUnset(), Equals, true)
 	c.Check(features.RobustMountNamespaceUpdates.IsEnabledWhenUnset(), Equals, true)
 	c.Check(features.UserDaemons.IsEnabledWhenUnset(), Equals, false)
-	c.Check(features.DbusActivation.IsEnabledWhenUnset(), Equals, false)
+	c.Check(features.DbusActivation.IsEnabledWhenUnset(), Equals, true)
 	c.Check(features.HiddenSnapFolder.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.CheckDiskSpaceInstall.IsEnabledWhenUnset(), Equals, false)
 	c.Check(features.CheckDiskSpaceRefresh.IsEnabledWhenUnset(), Equals, false)

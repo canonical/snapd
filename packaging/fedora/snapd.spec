@@ -942,7 +942,7 @@ fi
 
 
 %changelog
-* Thu 27 May 2021 Ian Johnson <ian.johnson@canonical.com>
+* Thu May 27 2021 Ian Johnson <ian.johnson@canonical.com>
 - New upstream release 2.51
  - cmd/snap: stacktraces debug endpoint
  - secboot: deactivate volume again when model checker fails
