@@ -24,6 +24,7 @@ import (
 	"io"
 
 	sb "github.com/snapcore/secboot"
+	sb_efi "github.com/snapcore/secboot/efi"
 )
 
 var (
@@ -47,27 +48,27 @@ func MockProvisionTPM(f func(tpm *sb.TPMConnection, mode sb.ProvisionMode, newLo
 	}
 }
 
-func MockSbAddEFISecureBootPolicyProfile(f func(profile *sb.PCRProtectionProfile, params *sb.EFISecureBootPolicyProfileParams) error) (restore func()) {
-	old := sbAddEFISecureBootPolicyProfile
-	sbAddEFISecureBootPolicyProfile = f
+func MockSbEfiAddSecureBootPolicyProfile(f func(profile *sb.PCRProtectionProfile, params *sb_efi.SecureBootPolicyProfileParams) error) (restore func()) {
+	old := sbefiAddSecureBootPolicyProfile
+	sbefiAddSecureBootPolicyProfile = f
 	return func() {
-		sbAddEFISecureBootPolicyProfile = old
+		sbefiAddSecureBootPolicyProfile = old
 	}
 }
 
-func MockSbAddEFIBootManagerProfile(f func(profile *sb.PCRProtectionProfile, params *sb.EFIBootManagerProfileParams) error) (restore func()) {
-	old := sbAddEFIBootManagerProfile
-	sbAddEFIBootManagerProfile = f
+func MockSbEfiAddBootManagerProfile(f func(profile *sb.PCRProtectionProfile, params *sb_efi.BootManagerProfileParams) error) (restore func()) {
+	old := sbefiAddBootManagerProfile
+	sbefiAddBootManagerProfile = f
 	return func() {
-		sbAddEFIBootManagerProfile = old
+		sbefiAddBootManagerProfile = old
 	}
 }
 
-func MockSbAddSystemdEFIStubProfile(f func(profile *sb.PCRProtectionProfile, params *sb.SystemdEFIStubProfileParams) error) (restore func()) {
-	old := sbAddSystemdEFIStubProfile
-	sbAddSystemdEFIStubProfile = f
+func MockSbEfiAddSystemdStubProfile(f func(profile *sb.PCRProtectionProfile, params *sb_efi.SystemdStubProfileParams) error) (restore func()) {
+	old := sbefiAddSystemdStubProfile
+	sbefiAddSystemdStubProfile = f
 	return func() {
-		sbAddSystemdEFIStubProfile = old
+		sbefiAddSystemdStubProfile = old
 	}
 }
 
