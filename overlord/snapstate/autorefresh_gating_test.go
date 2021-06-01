@@ -275,23 +275,23 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelper(c *C) {
 	c.Assert(snapstate.HoldRefresh(st, "snap-d", 0, "snap-e"), IsNil)
 	c.Assert(snapstate.HoldRefresh(st, "snap-f", 0, "snap-f"), IsNil)
 
-	var gating map[string]map[string]*snapstate.HoldInfo
+	var gating map[string]map[string]*snapstate.HoldState
 	c.Assert(st.Get("snaps-hold", &gating), IsNil)
-	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldInfo{
+	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldState{
 		"snap-b": {
 			// holding of other snaps for maxOtherHoldDuration (48h)
-			"snap-a": snapstate.MockHoldInfo("2021-05-10T10:00:00Z", "2021-05-12T10:00:00Z"),
+			"snap-a": snapstate.MockHoldState("2021-05-10T10:00:00Z", "2021-05-12T10:00:00Z"),
 		},
 		"snap-c": {
-			"snap-a": snapstate.MockHoldInfo("2021-05-10T10:00:00Z", "2021-05-12T10:00:00Z"),
+			"snap-a": snapstate.MockHoldState("2021-05-10T10:00:00Z", "2021-05-12T10:00:00Z"),
 		},
 		"snap-e": {
-			"snap-a": snapstate.MockHoldInfo("2021-05-10T10:00:00Z", "2021-05-12T10:00:00Z"),
-			"snap-d": snapstate.MockHoldInfo("2021-05-10T10:00:00Z", "2021-05-12T10:00:00Z"),
+			"snap-a": snapstate.MockHoldState("2021-05-10T10:00:00Z", "2021-05-12T10:00:00Z"),
+			"snap-d": snapstate.MockHoldState("2021-05-10T10:00:00Z", "2021-05-12T10:00:00Z"),
 		},
 		"snap-f": {
 			// holding self set for maxPostponement minus 1 day due to last refresh.
-			"snap-f": snapstate.MockHoldInfo("2021-05-10T10:00:00Z", "2021-08-12T10:00:00Z"),
+			"snap-f": snapstate.MockHoldState("2021-05-10T10:00:00Z", "2021-08-12T10:00:00Z"),
 		},
 	})
 }
@@ -318,11 +318,11 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelperMultipleTimes(c *C) {
 	// hold it for just a bit (10h) initially
 	hold := time.Hour * 10
 	c.Assert(snapstate.HoldRefresh(st, "snap-b", hold, "snap-a"), IsNil)
-	var gating map[string]map[string]*snapstate.HoldInfo
+	var gating map[string]map[string]*snapstate.HoldState
 	c.Assert(st.Get("snaps-hold", &gating), IsNil)
-	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldInfo{
+	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldState{
 		"snap-a": {
-			"snap-b": snapstate.MockHoldInfo(now, "2021-05-10T20:00:00Z"),
+			"snap-b": snapstate.MockHoldState(now, "2021-05-10T20:00:00Z"),
 		},
 	})
 
@@ -330,9 +330,9 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelperMultipleTimes(c *C) {
 	hold = time.Hour * 5
 	c.Assert(snapstate.HoldRefresh(st, "snap-b", hold, "snap-a"), IsNil)
 	c.Assert(st.Get("snaps-hold", &gating), IsNil)
-	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldInfo{
+	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldState{
 		"snap-a": {
-			"snap-b": snapstate.MockHoldInfo(now, "2021-05-10T15:00:00Z"),
+			"snap-b": snapstate.MockHoldState(now, "2021-05-10T15:00:00Z"),
 		},
 	})
 
@@ -345,11 +345,11 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelperMultipleTimes(c *C) {
 	hold = 0
 	c.Assert(snapstate.HoldRefresh(st, "snap-b", hold, "snap-a"), IsNil)
 	c.Assert(st.Get("snaps-hold", &gating), IsNil)
-	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldInfo{
+	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldState{
 		"snap-a": {
 			// maximum for holding other snaps, but taking into consideration
 			// firstHeld time = "2021-05-10T10:00:00".
-			"snap-b": snapstate.MockHoldInfo(oldNow, "2021-05-12T10:00:00Z"),
+			"snap-b": snapstate.MockHoldState(oldNow, "2021-05-12T10:00:00Z"),
 		},
 	})
 }
@@ -376,7 +376,7 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelperCloseToMaxPostponement(c *
 	var hold time.Duration
 	c.Assert(snapstate.HoldRefresh(st, "snap-b", hold, "snap-a"), IsNil)
 
-	var gating map[string]map[string]*snapstate.HoldInfo
+	var gating map[string]map[string]*snapstate.HoldState
 	c.Assert(st.Get("snaps-hold", &gating), IsNil)
 	c.Assert(gating, HasLen, 1)
 	c.Check(gating["snap-a"]["snap-b"].HoldUntil.String(), DeepEquals, lastRefreshed.Add(95*time.Hour*24).String())
@@ -406,12 +406,12 @@ func (s *autorefreshGatingSuite) TestHoldRefreshExplicitHoldTime(c *C) {
 	hold = time.Hour * 24
 	c.Assert(snapstate.HoldRefresh(st, "snap-b", hold, "snap-a"), IsNil)
 
-	var gating map[string]map[string]*snapstate.HoldInfo
+	var gating map[string]map[string]*snapstate.HoldState
 	c.Assert(st.Get("snaps-hold", &gating), IsNil)
-	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldInfo{
+	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldState{
 		"snap-a": {
-			"snap-a": snapstate.MockHoldInfo(now, "2021-05-13T10:00:00Z"),
-			"snap-b": snapstate.MockHoldInfo(now, "2021-05-11T10:00:00Z"),
+			"snap-a": snapstate.MockHoldState(now, "2021-05-13T10:00:00Z"),
+			"snap-b": snapstate.MockHoldState(now, "2021-05-11T10:00:00Z"),
 		},
 	})
 }
@@ -528,12 +528,12 @@ func (s *autorefreshGatingSuite) TestResetGatingForRefreshedHelper(c *C) {
 	c.Assert(snapstate.HoldRefresh(st, "snap-d", 0, "snap-d", "snap-c"), IsNil)
 
 	c.Assert(snapstate.ResetGatingForRefreshed(st, "snap-b", "snap-c"), IsNil)
-	var gating map[string]map[string]*snapstate.HoldInfo
+	var gating map[string]map[string]*snapstate.HoldState
 	c.Assert(st.Get("snaps-hold", &gating), IsNil)
-	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldInfo{
+	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldState{
 		"snap-d": {
 			// holding self set for maxPostponement (95 days)
-			"snap-d": snapstate.MockHoldInfo("2021-05-10T10:00:00Z", "2021-08-13T10:00:00Z"),
+			"snap-d": snapstate.MockHoldState("2021-05-10T10:00:00Z", "2021-08-13T10:00:00Z"),
 		},
 	})
 

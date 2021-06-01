@@ -65,22 +65,22 @@ func lastRefreshed(st *state.State, snapName string) (time.Time, error) {
 	return fst.ModTime(), nil
 }
 
-type holdInfo struct {
+type holdState struct {
 	// FirstHeld keeps the time when the given snap was first held for refresh by a gating snap.
 	FirstHeld time.Time `json:"first-held"`
 	// HoldUntil stores the desired end time for holding.
 	HoldUntil time.Time `json:"hold-until"`
 }
 
-func refreshGating(st *state.State) (map[string]map[string]*holdInfo, error) {
+func refreshGating(st *state.State) (map[string]map[string]*holdState, error) {
 	// held snaps -> holding snap(s) -> first-held/hold-until time
-	var gating map[string]map[string]*holdInfo
+	var gating map[string]map[string]*holdState
 	err := st.Get("snaps-hold", &gating)
 	if err != nil && err != state.ErrNoState {
 		return nil, fmt.Errorf("internal error: cannot get snaps-hold: %v", err)
 	}
 	if err == state.ErrNoState {
-		return make(map[string]map[string]*holdInfo), nil
+		return make(map[string]map[string]*holdState), nil
 	}
 	return gating, nil
 }
@@ -121,7 +121,7 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 	for _, heldSnap := range affectingSnaps {
 		hold, ok := gating[heldSnap][gatingSnap]
 		if !ok {
-			hold = &holdInfo{
+			hold = &holdState{
 				FirstHeld: now,
 			}
 		}
@@ -174,7 +174,7 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 
 		// finally store/update gating hold data
 		if _, ok := gating[heldSnap]; !ok {
-			gating[heldSnap] = make(map[string]*holdInfo)
+			gating[heldSnap] = make(map[string]*holdState)
 		}
 		gating[heldSnap][gatingSnap] = hold
 	}
@@ -255,9 +255,9 @@ func heldSnaps(st *state.State) (map[string]bool, error) {
 	now := timeNow()
 
 	held := make(map[string]bool)
-affected:
-	for affecting, gatingSnaps := range gating {
-		refreshed, err := lastRefreshed(st, affecting)
+Loop:
+	for heldSnap, holdingSnaps := range gating {
+		refreshed, err := lastRefreshed(st, heldSnap)
 		if err != nil {
 			return nil, err
 		}
@@ -265,12 +265,12 @@ affected:
 		if refreshed.Add(maxPostponement).Before(now) {
 			continue
 		}
-		for _, hold := range gatingSnaps {
+		for _, hold := range holdingSnaps {
 			if hold.HoldUntil.Before(now) {
 				continue
 			}
-			held[affecting] = true
-			continue affected
+			held[heldSnap] = true
+			continue Loop
 		}
 	}
 	return held, nil
