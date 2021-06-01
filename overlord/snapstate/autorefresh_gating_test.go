@@ -991,9 +991,14 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2DiskSpaceCheck(c *C, fail bool) 
 	var installSizeCalled bool
 	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
 		installSizeCalled = true
-		c.Assert(snaps, HasLen, 2)
-		c.Check(snaps[0].InstanceName(), Equals, "base-snap-b")
-		c.Check(snaps[1].InstanceName(), Equals, "snap-a")
+		seen := map[string]bool{}
+		for _, sn := range snaps {
+			seen[sn.InstanceName()] = true
+		}
+		c.Check(seen, DeepEquals, map[string]bool{
+			"base-snap-b": true,
+			"snap-a":      true,
+		})
 		return 123, nil
 	})
 	defer restoreInstallSize()
