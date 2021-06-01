@@ -9,7 +9,6 @@ systems: [-ubuntu-core-*]
 prepare: |
     # TODO: unify this with tests/main/postrm-purge/task.yaml
     snap set core experimental.user-daemons=true
-    snap set core experimental.dbus-activation=true
 
     # Install a number of snaps that contain various features that have
     # representation in the file system.
