@@ -34,6 +34,7 @@ import (
 
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
+	sb_efi "github.com/snapcore/secboot/efi"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -570,13 +571,13 @@ func (s *secbootSuite) TestEFIImageFromBootFile(c *C) {
 
 	for _, tc := range []struct {
 		bootFile bootloader.BootFile
-		efiImage sb.EFIImage
+		efiImage sb_efi.Image
 		err      string
 	}{
 		{
 			// happy case for EFI image
 			bootFile: bootloader.NewBootFile("", existingFile, bootloader.RoleRecovery),
-			efiImage: sb.FileEFIImage(existingFile),
+			efiImage: sb_efi.FileImage(existingFile),
 		},
 		{
 			// missing EFI image
@@ -586,7 +587,7 @@ func (s *secbootSuite) TestEFIImageFromBootFile(c *C) {
 		{
 			// happy case for snap file
 			bootFile: bootloader.NewBootFile(snapFile, "rel", bootloader.RoleRecovery),
-			efiImage: sb.SnapFileEFIImage{Container: snapf, FileName: "rel"},
+			efiImage: sb_efi.SnapFileImage{Container: snapf, FileName: "rel"},
 		},
 		{
 			// invalid snap file
@@ -723,14 +724,14 @@ func (s *secbootSuite) TestSealKey(c *C) {
 
 		// events for
 		// a -> kernel
-		sequences1 := []*sb.EFIImageLoadEvent{
+		sequences1 := []*sb_efi.ImageLoadEvent{
 			{
-				Source: sb.Firmware,
-				Image:  sb.FileEFIImage(mockBF[0].Path),
-				Next: []*sb.EFIImageLoadEvent{
+				Source: sb_efi.Firmware,
+				Image:  sb_efi.FileImage(mockBF[0].Path),
+				Next: []*sb_efi.ImageLoadEvent{
 					{
-						Source: sb.Shim,
-						Image: sb.SnapFileEFIImage{
+						Source: sb_efi.Shim,
+						Image: sb_efi.SnapFileImage{
 							Container: kernelSnap,
 							FileName:  "kernel.efi",
 						},
@@ -742,14 +743,14 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		// "cdk" events for
 		// c -> kernel OR
 		// d -> kernel
-		cdk := []*sb.EFIImageLoadEvent{
+		cdk := []*sb_efi.ImageLoadEvent{
 			{
-				Source: sb.Shim,
-				Image:  sb.FileEFIImage(mockBF[2].Path),
-				Next: []*sb.EFIImageLoadEvent{
+				Source: sb_efi.Shim,
+				Image:  sb_efi.FileImage(mockBF[2].Path),
+				Next: []*sb_efi.ImageLoadEvent{
 					{
-						Source: sb.Shim,
-						Image: sb.SnapFileEFIImage{
+						Source: sb_efi.Shim,
+						Image: sb_efi.SnapFileImage{
 							Container: kernelSnap,
 							FileName:  "kernel.efi",
 						},
@@ -757,12 +758,12 @@ func (s *secbootSuite) TestSealKey(c *C) {
 				},
 			},
 			{
-				Source: sb.Shim,
-				Image:  sb.FileEFIImage(mockBF[3].Path),
-				Next: []*sb.EFIImageLoadEvent{
+				Source: sb_efi.Shim,
+				Image:  sb_efi.FileImage(mockBF[3].Path),
+				Next: []*sb_efi.ImageLoadEvent{
 					{
-						Source: sb.Shim,
-						Image: sb.SnapFileEFIImage{
+						Source: sb_efi.Shim,
+						Image: sb_efi.SnapFileImage{
 							Container: kernelSnap,
 							FileName:  "kernel.efi",
 						},
@@ -774,15 +775,15 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		// events for
 		// a -> "cdk"
 		// b -> "cdk"
-		sequences2 := []*sb.EFIImageLoadEvent{
+		sequences2 := []*sb_efi.ImageLoadEvent{
 			{
-				Source: sb.Firmware,
-				Image:  sb.FileEFIImage(mockBF[0].Path),
+				Source: sb_efi.Firmware,
+				Image:  sb_efi.FileImage(mockBF[0].Path),
 				Next:   cdk,
 			},
 			{
-				Source: sb.Firmware,
-				Image:  sb.FileEFIImage(mockBF[1].Path),
+				Source: sb_efi.Firmware,
+				Image:  sb_efi.FileImage(mockBF[1].Path),
 				Next:   cdk,
 			},
 		}
@@ -793,7 +794,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 		// mock adding EFI secure boot policy profile
 		var pcrProfile *sb.PCRProtectionProfile
 		addEFISbPolicyCalls := 0
-		restore = secboot.MockSbAddEFISecureBootPolicyProfile(func(profile *sb.PCRProtectionProfile, params *sb.EFISecureBootPolicyProfileParams) error {
+		restore = secboot.MockSbEfiAddSecureBootPolicyProfile(func(profile *sb.PCRProtectionProfile, params *sb_efi.SecureBootPolicyProfileParams) error {
 			addEFISbPolicyCalls++
 			pcrProfile = profile
 			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
@@ -803,7 +804,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			case 2:
 				c.Assert(params.LoadSequences, DeepEquals, sequences2)
 			default:
-				c.Error("AddEFISecureBootPolicyProfile shouldn't be called a third time")
+				c.Error("AddSecureBootPolicyProfile shouldn't be called a third time")
 			}
 			return tc.addEFISbPolicyErr
 		})
@@ -811,7 +812,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 
 		// mock adding EFI boot manager profile
 		addEFIBootManagerCalls := 0
-		restore = secboot.MockSbAddEFIBootManagerProfile(func(profile *sb.PCRProtectionProfile, params *sb.EFIBootManagerProfileParams) error {
+		restore = secboot.MockSbEfiAddBootManagerProfile(func(profile *sb.PCRProtectionProfile, params *sb_efi.BootManagerProfileParams) error {
 			addEFIBootManagerCalls++
 			c.Assert(profile, Equals, pcrProfile)
 			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
@@ -821,7 +822,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			case 2:
 				c.Assert(params.LoadSequences, DeepEquals, sequences2)
 			default:
-				c.Error("AddEFIBootManagerProfile shouldn't be called a third time")
+				c.Error("AddBootManagerProfile shouldn't be called a third time")
 			}
 			return tc.addEFIBootManagerErr
 		})
@@ -829,7 +830,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 
 		// mock adding systemd EFI stub profile
 		addSystemdEfiStubCalls := 0
-		restore = secboot.MockSbAddSystemdEFIStubProfile(func(profile *sb.PCRProtectionProfile, params *sb.SystemdEFIStubProfileParams) error {
+		restore = secboot.MockSbEfiAddSystemdStubProfile(func(profile *sb.PCRProtectionProfile, params *sb_efi.SystemdStubProfileParams) error {
 			addSystemdEfiStubCalls++
 			c.Assert(profile, Equals, pcrProfile)
 			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
@@ -840,7 +841,7 @@ func (s *secbootSuite) TestSealKey(c *C) {
 			case 2:
 				c.Assert(params.KernelCmdlines, DeepEquals, myParams.ModelParams[1].KernelCmdlines)
 			default:
-				c.Error("AddSystemdEFIStubProfile shouldn't be called a third time")
+				c.Error("AddSystemdStubProfile shouldn't be called a third time")
 			}
 			return tc.addSystemdEFIStubErr
 		})
@@ -959,10 +960,10 @@ func (s *secbootSuite) TestResealKey(c *C) {
 			TPMPolicyAuthKeyFile: mockTPMPolicyAuthKeyFile,
 		}
 
-		sequences := []*sb.EFIImageLoadEvent{
+		sequences := []*sb_efi.ImageLoadEvent{
 			{
-				Source: sb.Firmware,
-				Image:  sb.FileEFIImage(mockEFI.Path),
+				Source: sb_efi.Firmware,
+				Image:  sb_efi.FileImage(mockEFI.Path),
 			},
 		}
 
@@ -979,7 +980,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		// mock adding EFI secure boot policy profile
 		var pcrProfile *sb.PCRProtectionProfile
 		addEFISbPolicyCalls := 0
-		restore = secboot.MockSbAddEFISecureBootPolicyProfile(func(profile *sb.PCRProtectionProfile, params *sb.EFISecureBootPolicyProfileParams) error {
+		restore = secboot.MockSbEfiAddSecureBootPolicyProfile(func(profile *sb.PCRProtectionProfile, params *sb_efi.SecureBootPolicyProfileParams) error {
 			addEFISbPolicyCalls++
 			pcrProfile = profile
 			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
@@ -990,7 +991,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 
 		// mock adding EFI boot manager profile
 		addEFIBootManagerCalls := 0
-		restore = secboot.MockSbAddEFIBootManagerProfile(func(profile *sb.PCRProtectionProfile, params *sb.EFIBootManagerProfileParams) error {
+		restore = secboot.MockSbEfiAddBootManagerProfile(func(profile *sb.PCRProtectionProfile, params *sb_efi.BootManagerProfileParams) error {
 			addEFIBootManagerCalls++
 			c.Assert(profile, Equals, pcrProfile)
 			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)
@@ -1001,7 +1002,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 
 		// mock adding systemd EFI stub profile
 		addSystemdEfiStubCalls := 0
-		restore = secboot.MockSbAddSystemdEFIStubProfile(func(profile *sb.PCRProtectionProfile, params *sb.SystemdEFIStubProfileParams) error {
+		restore = secboot.MockSbEfiAddSystemdStubProfile(func(profile *sb.PCRProtectionProfile, params *sb_efi.SystemdStubProfileParams) error {
 			addSystemdEfiStubCalls++
 			c.Assert(profile, Equals, pcrProfile)
 			c.Assert(params.PCRAlgorithm, Equals, tpm2.HashAlgorithmSHA256)

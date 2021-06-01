@@ -29,6 +29,7 @@ import (
 
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
+	sb_efi "github.com/snapcore/secboot/efi"
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/asserts"
@@ -50,9 +51,9 @@ var (
 	sbMeasureSnapModelToTPM                = sb.MeasureSnapModelToTPM
 	sbBlockPCRProtectionPolicies           = sb.BlockPCRProtectionPolicies
 	sbActivateVolumeWithTPMSealedKey       = sb.ActivateVolumeWithTPMSealedKey
-	sbAddEFISecureBootPolicyProfile        = sb.AddEFISecureBootPolicyProfile
-	sbAddEFIBootManagerProfile             = sb.AddEFIBootManagerProfile
-	sbAddSystemdEFIStubProfile             = sb.AddSystemdEFIStubProfile
+	sbefiAddSecureBootPolicyProfile        = sb_efi.AddSecureBootPolicyProfile
+	sbefiAddBootManagerProfile             = sb_efi.AddBootManagerProfile
+	sbefiAddSystemdStubProfile             = sb_efi.AddSystemdStubProfile
 	sbAddSnapModelProfile                  = sb.AddSnapModelProfile
 	sbSealKeyToTPMMultiple                 = sb.SealKeyToTPMMultiple
 	sbUpdateKeyPCRProtectionPolicyMultiple = sb.UpdateKeyPCRProtectionPolicyMultiple
@@ -403,7 +404,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtec
 		}
 
 		// Add EFI secure boot policy profile
-		policyParams := sb.EFISecureBootPolicyProfileParams{
+		policyParams := sb_efi.SecureBootPolicyProfileParams{
 			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
 			LoadSequences: loadSequences,
 			// TODO:UC20: set SignatureDbUpdateKeystore to support applying forbidden
@@ -412,27 +413,27 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtec
 			//            ensure that the PCR profile is updated before/after sbkeysync executes.
 		}
 
-		if err := sbAddEFISecureBootPolicyProfile(modelProfile, &policyParams); err != nil {
+		if err := sbefiAddSecureBootPolicyProfile(modelProfile, &policyParams); err != nil {
 			return nil, fmt.Errorf("cannot add EFI secure boot policy profile: %v", err)
 		}
 
 		// Add EFI boot manager profile
-		bootManagerParams := sb.EFIBootManagerProfileParams{
+		bootManagerParams := sb_efi.BootManagerProfileParams{
 			PCRAlgorithm:  tpm2.HashAlgorithmSHA256,
 			LoadSequences: loadSequences,
 		}
-		if err := sbAddEFIBootManagerProfile(modelProfile, &bootManagerParams); err != nil {
+		if err := sbefiAddBootManagerProfile(modelProfile, &bootManagerParams); err != nil {
 			return nil, fmt.Errorf("cannot add EFI boot manager profile: %v", err)
 		}
 
 		// Add systemd EFI stub profile
 		if len(mp.KernelCmdlines) != 0 {
-			systemdStubParams := sb.SystemdEFIStubProfileParams{
+			systemdStubParams := sb_efi.SystemdStubProfileParams{
 				PCRAlgorithm:   tpm2.HashAlgorithmSHA256,
 				PCRIndex:       initramfsPCR,
 				KernelCmdlines: mp.KernelCmdlines,
 			}
-			if err := sbAddSystemdEFIStubProfile(modelProfile, &systemdStubParams); err != nil {
+			if err := sbefiAddSystemdStubProfile(modelProfile, &systemdStubParams); err != nil {
 				return nil, fmt.Errorf("cannot add systemd EFI stub profile: %v", err)
 			}
 		}
@@ -491,7 +492,7 @@ func provisionTPMImpl(tpm *sb.TPMConnection, mode sb.ProvisionMode, lockoutAuth 
 }
 
 // buildLoadSequences builds EFI load image event trees from this package LoadChains
-func buildLoadSequences(chains []*LoadChain) (loadseqs []*sb.EFIImageLoadEvent, err error) {
+func buildLoadSequences(chains []*LoadChain) (loadseqs []*sb_efi.ImageLoadEvent, err error) {
 	// this will build load event trees for the current
 	// device configuration, e.g. something like:
 	//
@@ -503,7 +504,7 @@ func buildLoadSequences(chains []*LoadChain) (loadseqs []*sb.EFIImageLoadEvent, 
 
 	for _, chain := range chains {
 		// root of load events has source Firmware
-		loadseq, err := chain.loadEvent(sb.Firmware)
+		loadseq, err := chain.loadEvent(sb_efi.Firmware)
 		if err != nil {
 			return nil, err
 		}
@@ -513,11 +514,11 @@ func buildLoadSequences(chains []*LoadChain) (loadseqs []*sb.EFIImageLoadEvent, 
 }
 
 // loadEvent builds the corresponding load event and its tree
-func (lc *LoadChain) loadEvent(source sb.EFIImageLoadEventSource) (*sb.EFIImageLoadEvent, error) {
-	var next []*sb.EFIImageLoadEvent
+func (lc *LoadChain) loadEvent(source sb_efi.ImageLoadEventSource) (*sb_efi.ImageLoadEvent, error) {
+	var next []*sb_efi.ImageLoadEvent
 	for _, nextChain := range lc.Next {
 		// everything that is not the root has source shim
-		ev, err := nextChain.loadEvent(sb.Shim)
+		ev, err := nextChain.loadEvent(sb_efi.Shim)
 		if err != nil {
 			return nil, err
 		}
@@ -527,26 +528,26 @@ func (lc *LoadChain) loadEvent(source sb.EFIImageLoadEventSource) (*sb.EFIImageL
 	if err != nil {
 		return nil, err
 	}
-	return &sb.EFIImageLoadEvent{
+	return &sb_efi.ImageLoadEvent{
 		Source: source,
 		Image:  image,
 		Next:   next,
 	}, nil
 }
 
-func efiImageFromBootFile(b *bootloader.BootFile) (sb.EFIImage, error) {
+func efiImageFromBootFile(b *bootloader.BootFile) (sb_efi.Image, error) {
 	if b.Snap == "" {
 		if !osutil.FileExists(b.Path) {
 			return nil, fmt.Errorf("file %s does not exist", b.Path)
 		}
-		return sb.FileEFIImage(b.Path), nil
+		return sb_efi.FileImage(b.Path), nil
 	}
 
 	snapf, err := snapfile.Open(b.Snap)
 	if err != nil {
 		return nil, err
 	}
-	return sb.SnapFileEFIImage{
+	return sb_efi.SnapFileImage{
 		Container: snapf,
 		FileName:  b.Path,
 	}, nil
