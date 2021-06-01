@@ -40,6 +40,7 @@ type postDebugSuite struct {
 
 func (s *postDebugSuite) TestPostDebugEnsureStateSoon(c *check.C) {
 	s.daemonWithOverlordMock(c)
+	s.expectRootAccess()
 
 	soon := 0
 	var origEnsureStateSoon func(*state.State)
@@ -58,19 +59,7 @@ func (s *postDebugSuite) TestPostDebugEnsureStateSoon(c *check.C) {
 	c.Check(soon, check.Equals, 1)
 }
 
-func (s *postDebugSuite) TestPostDebugGetBaseDeclaration(c *check.C) {
-	_ = s.daemon(c)
-
-	buf := bytes.NewBufferString(`{"action": "get-base-declaration"}`)
-	req, err := http.NewRequest("POST", "/v2/debug", buf)
-	c.Assert(err, check.IsNil)
-
-	rsp := s.syncReq(c, req, nil)
-	c.Check(rsp.Result.(map[string]interface{})["base-declaration"],
-		testutil.Contains, "type: base-declaration")
-}
-
-func (s *postDebugSuite) testDebugConnectivityHappy(c *check.C, post bool) {
+func (s *postDebugSuite) TestDebugConnectivityHappy(c *check.C) {
 	_ = s.daemon(c)
 
 	s.connectivityResult = map[string]bool{
@@ -78,14 +67,7 @@ func (s *postDebugSuite) testDebugConnectivityHappy(c *check.C, post bool) {
 		"another.good.host.com": true,
 	}
 
-	var req *http.Request
-	var err error
-	if post {
-		buf := bytes.NewBufferString(`{"action": "connectivity"}`)
-		req, err = http.NewRequest("POST", "/v2/debug", buf)
-	} else {
-		req, err = http.NewRequest("GET", "/v2/debug?aspect=connectivity", nil)
-	}
+	req, err := http.NewRequest("GET", "/v2/debug?aspect=connectivity", nil)
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -95,15 +77,7 @@ func (s *postDebugSuite) testDebugConnectivityHappy(c *check.C, post bool) {
 	})
 }
 
-func (s *postDebugSuite) TestPostDebugConnectivityHappy(c *check.C) {
-	s.testDebugConnectivityHappy(c, true)
-}
-
-func (s *postDebugSuite) TestGetDebugConnectivityHappy(c *check.C) {
-	s.testDebugConnectivityHappy(c, false)
-}
-
-func (s *postDebugSuite) testDebugConnectivityUnhappy(c *check.C, post bool) {
+func (s *postDebugSuite) TestDebugConnectivityUnhappy(c *check.C) {
 	_ = s.daemon(c)
 
 	s.connectivityResult = map[string]bool{
@@ -111,14 +85,7 @@ func (s *postDebugSuite) testDebugConnectivityUnhappy(c *check.C, post bool) {
 		"bad.host.com":  false,
 	}
 
-	var req *http.Request
-	var err error
-	if post {
-		buf := bytes.NewBufferString(`{"action": "connectivity"}`)
-		req, err = http.NewRequest("POST", "/v2/debug", buf)
-	} else {
-		req, err = http.NewRequest("GET", "/v2/debug?aspect=connectivity", nil)
-	}
+	req, err := http.NewRequest("GET", "/v2/debug?aspect=connectivity", nil)
 	c.Assert(err, check.IsNil)
 
 	rsp := s.syncReq(c, req, nil)
@@ -126,14 +93,6 @@ func (s *postDebugSuite) testDebugConnectivityUnhappy(c *check.C, post bool) {
 		Connectivity: false,
 		Unreachable:  []string{"bad.host.com"},
 	})
-}
-
-func (s *postDebugSuite) TestPostDebugConnectivityUnhappy(c *check.C) {
-	s.testDebugConnectivityUnhappy(c, true)
-}
-
-func (s *postDebugSuite) TestGetDebugConnectivityUnhappy(c *check.C) {
-	s.testDebugConnectivityUnhappy(c, false)
 }
 
 func (s *postDebugSuite) TestGetDebugBaseDeclaration(c *check.C) {

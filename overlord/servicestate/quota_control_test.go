@@ -26,18 +26,15 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	_ "github.com/snapcore/snapd/overlord/devicestate"
-	"github.com/snapcore/snapd/overlord/state"
-	_ "github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snapdenv"
-	"github.com/snapcore/snapd/testutil"
-
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type quotaControlSuite struct {
@@ -187,12 +184,17 @@ func systemctlCallsForServiceRestart(name string) []expectedSystemctl {
 	}
 }
 
-func systemctlCallsForCreateQuota(groupName, snapName string) []expectedSystemctl {
-	return join(
+func systemctlCallsForCreateQuota(groupName string, snapNames ...string) []expectedSystemctl {
+	calls := join(
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
 		systemctlCallsForSliceStart(groupName),
-		systemctlCallsForServiceRestart(snapName),
 	)
+
+	for _, snapName := range snapNames {
+		calls = join(calls, systemctlCallsForServiceRestart(snapName))
+	}
+
+	return calls
 }
 
 func systemctlCallsVersion(version int) []expectedSystemctl {
@@ -769,4 +771,77 @@ func (s *quotaControlSuite) TestUpdateQuotaAddSnapAlreadyInOtherGroup(c *C) {
 			Snaps:       []string{"test-snap2"},
 		},
 	})
+}
+
+func (s *quotaControlSuite) TestEnsureSnapAbsentFromQuotaGroup(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		systemctlCallsForCreateQuota("foo", "test-snap", "test-snap2"),
+
+		// RemoveSnapFromQuota with just test-snap restarted since it is no
+		// longer in the group
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		systemctlCallsForServiceRestart("test-snap"),
+
+		// RemoveSnapFromQuota with just test-snap2 restarted since it is no
+		// longer in the group
+		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
+		systemctlCallsForServiceRestart("test-snap2"),
+	))
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+	// and test-snap2
+	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
+	snapst2 := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si2},
+		Current:  si2.Revision,
+		Active:   true,
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "test-snap2", snapst2)
+	snaptest.MockSnapCurrent(c, testYaml2, si2)
+
+	// create a quota group
+	err := servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap", "test-snap2"}, quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	checkQuotaState(c, st, map[string]quotaGroupState{
+		"foo": {
+			MemoryLimit: quantity.SizeGiB,
+			Snaps:       []string{"test-snap", "test-snap2"},
+		},
+	})
+
+	// remove test-snap from the group
+	err = servicestate.EnsureSnapAbsentFromQuota(s.state, "test-snap")
+	c.Assert(err, IsNil)
+
+	checkQuotaState(c, st, map[string]quotaGroupState{
+		"foo": {
+			MemoryLimit: quantity.SizeGiB,
+			Snaps:       []string{"test-snap2"},
+		},
+	})
+
+	// now remove test-snap2 too
+	err = servicestate.EnsureSnapAbsentFromQuota(s.state, "test-snap2")
+	c.Assert(err, IsNil)
+
+	// and check that it got updated in the state
+	checkQuotaState(c, st, map[string]quotaGroupState{
+		"foo": {
+			MemoryLimit: quantity.SizeGiB,
+		},
+	})
+
+	// it's not an error to call EnsureSnapAbsentFromQuotaGroup on a snap that
+	// is not in any quota group
+	err = servicestate.EnsureSnapAbsentFromQuota(s.state, "test-snap33333")
+	c.Assert(err, IsNil)
 }
