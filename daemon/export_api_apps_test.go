@@ -23,9 +23,10 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap"
 )
 
-func MockServicestateControl(f func(st *state.State, appInfos []*servicestate.ResolvedAppInfo, inst *servicestate.Instruction, flags *servicestate.Flags, context *hookstate.Context) ([]*state.TaskSet, error)) (restore func()) {
+func MockServicestateControl(f func(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction, flags *servicestate.Flags, context *hookstate.Context) ([]*state.TaskSet, error)) (restore func()) {
 	old := servicestateControl
 	servicestateControl = f
 	return func() {

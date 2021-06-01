@@ -49,42 +49,28 @@ type Instruction struct {
 
 type ServiceActionConflictError struct{ error }
 
-type ResolvedAppInfo struct {
-	snap.AppInfo
-	ExplicitlyRequested bool
-}
+func computeExplicitServices(appInfos []*snap.AppInfo, names []string) map[string][]string {
+	explicitServices := make(map[string][]string, len(appInfos))
+	requested := make(map[string]bool)
+	for _, name := range names {
+		requested[name] = true
+	}
 
-func NewResolvedAppInfo(app *snap.AppInfo) *ResolvedAppInfo {
-	resolvedAppInfo := new(ResolvedAppInfo)
-	resolvedAppInfo.AppInfo = *app
-	return resolvedAppInfo
-}
-
-type ResolvedAppInfosByAppName []*ResolvedAppInfo
-
-func NewResolvedAppInfosByAppName(appInfos []*snap.AppInfo) ResolvedAppInfosByAppName {
-	resolvedAppInfos := make(ResolvedAppInfosByAppName, 0, len(appInfos))
 	for _, app := range appInfos {
-		resolvedAppInfos = append(resolvedAppInfos, NewResolvedAppInfo(app))
+		snapName := app.Snap.InstanceName()
+		appName := snapName + "." + app.Name
+		if requested[appName] {
+			explicitServices[snapName] = append(explicitServices[snapName], app.Name)
+		}
 	}
-	return resolvedAppInfos
-}
 
-func (a ResolvedAppInfosByAppName) Len() int      { return len(a) }
-func (a ResolvedAppInfosByAppName) Swap(i, j int) { a[i], a[j] = a[j], a[i] }
-func (a ResolvedAppInfosByAppName) Less(i, j int) bool {
-	iName := a[i].Snap.InstanceName()
-	jName := a[j].Snap.InstanceName()
-	if iName == jName {
-		return a[i].Name < a[j].Name
-	}
-	return iName < jName
+	return explicitServices
 }
 
 // serviceControlTs creates "service-control" task for every snap derived from appInfos.
-func serviceControlTs(st *state.State, appInfos []*ResolvedAppInfo, inst *Instruction) (*state.TaskSet, error) {
+func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instruction) (*state.TaskSet, error) {
 	servicesBySnap := make(map[string][]string, len(appInfos))
-	explicitServices := make(map[string][]string, len(appInfos))
+	explicitServices := computeExplicitServices(appInfos, inst.Names)
 	sortedNames := make([]string, 0, len(appInfos))
 
 	// group services by snap, we need to create one task for every affected snap
@@ -94,9 +80,6 @@ func serviceControlTs(st *state.State, appInfos []*ResolvedAppInfo, inst *Instru
 			sortedNames = append(sortedNames, snapName)
 		}
 		servicesBySnap[snapName] = append(servicesBySnap[snapName], app.Name)
-		if app.ExplicitlyRequested {
-			explicitServices[snapName] = append(explicitServices[snapName], app.Name)
-		}
 	}
 	sort.Strings(sortedNames)
 
@@ -163,7 +146,7 @@ type Flags struct {
 // The appInfos and inst define the services and the command to execute.
 // Context is used to determine change conflicts - we will not conflict with
 // tasks from same change as that of context's.
-func Control(st *state.State, appInfos []*ResolvedAppInfo, inst *Instruction, flags *Flags, context *hookstate.Context) ([]*state.TaskSet, error) {
+func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, flags *Flags, context *hookstate.Context) ([]*state.TaskSet, error) {
 	var tts []*state.TaskSet
 	var ctlcmds []string
 
