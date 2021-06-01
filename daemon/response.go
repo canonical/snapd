@@ -144,9 +144,6 @@ func (r *respJSON) addMaintenanceFromRestartType(rst state.RestartType) {
 }
 
 func (r *respJSON) addWarningCount(count int, stamp time.Time) {
-	if r.WarningCount != 0 {
-		return
-	}
 	if count == 0 {
 		return
 	}
