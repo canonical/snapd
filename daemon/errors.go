@@ -28,7 +28,7 @@ import (
 
 // XXX move more bits related to errors from response.go
 
-// apiError reprents an error meant for returning to the client.
+// apiError represents an error meant for returning to the client.
 // It can serialize itself to our standard JSON response format.
 type apiError struct {
 	// Status is the error HTTP status code.
@@ -40,13 +40,13 @@ type apiError struct {
 }
 
 func (ae *apiError) Error() string {
-	machine := "api"
+	kindOrStatus := "api"
 	if ae.Kind != "" {
-		machine = fmt.Sprintf("api: %s", ae.Kind)
+		kindOrStatus = fmt.Sprintf("api: %s", ae.Kind)
 	} else if ae.Status != 400 {
-		machine = fmt.Sprintf("api %d", ae.Status)
+		kindOrStatus = fmt.Sprintf("api %d", ae.Status)
 	}
-	return fmt.Sprintf("%s (%s)", ae.Message, machine)
+	return fmt.Sprintf("%s (%s)", ae.Message, kindOrStatus)
 }
 
 func (ae *apiError) JSON() *respJSON {

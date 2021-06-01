@@ -1949,7 +1949,7 @@ func (s *snapsSuite) TestErrToResponseNoSnapsDoesNotPanic(c *check.C) {
 	for _, err := range errors {
 		ae := si.ErrToResponse(err)
 		com := check.Commentf("%v", err)
-		c.Check(ae, check.NotNil, com)
+		c.Assert(ae, check.NotNil, com)
 		status := ae.Status
 		c.Check(status/100 == 4 || status/100 == 5, check.Equals, true, com)
 	}
