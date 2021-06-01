@@ -115,8 +115,8 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkit(c *C) {
 	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 
-	c.Check(polkitSpec.Policies(), DeepEquals, map[string]string{
-		"polkit": policyPath,
+	c.Check(polkitSpec.Policies(), DeepEquals, map[string]polkit.Policy{
+		"polkit": polkit.Policy(samplePolicy),
 	})
 }
 
@@ -126,7 +126,7 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkitNotFile(c *C) {
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Assert(err, ErrorMatches, `snap does not contain Polkit policy file "meta/polkit.policy"`)
+	c.Check(err, ErrorMatches, `could not read file "meta/polkit.policy": read .*: is a directory`)
 }
 
 func (s *polkitInterfaceSuite) TestSanitizeSlot(c *C) {

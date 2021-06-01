@@ -21,11 +21,11 @@ package builtin
 
 import (
 	"fmt"
+	"io/ioutil"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/polkit"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -92,10 +92,11 @@ func (iface *polkitInterface) PolkitConnectedPlug(spec *polkit.Specification, pl
 
 	mountDir := plug.Snap().MountDir()
 	policyFile := filepath.Join(mountDir, fmt.Sprintf("meta/%s.policy", plug.Name()))
-	if _, ok, _ := osutil.RegularFileExists(policyFile); !ok {
-		return fmt.Errorf(`snap does not contain Polkit policy file "meta/%s.policy"`, plug.Name())
+	content, err := ioutil.ReadFile(policyFile)
+	if err != nil {
+		return fmt.Errorf(`could not read file "meta/%s.policy": %v`, plug.Name(), err)
 	}
-	return spec.AddPolicy(plug.Name(), policyFile)
+	return spec.AddPolicy(plug.Name(), polkit.Policy(content))
 }
 
 func (iface *polkitInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
