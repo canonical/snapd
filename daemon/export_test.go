@@ -197,6 +197,7 @@ type (
 	Resp            = resp
 	RespJSON        = respJSON
 	FileResponse    = fileResponse
+	APIError        = apiError
 	ErrorResult     = errorResult
 	SnapInstruction = snapInstruction
 )
@@ -222,7 +223,7 @@ func (inst *snapInstruction) ModeFlags() (snapstate.Flags, error) {
 	return inst.modeFlags()
 }
 
-func (inst *snapInstruction) ErrToResponse(err error) Response {
+func (inst *snapInstruction) ErrToResponse(err error) *APIError {
 	return inst.errToResponse(err)
 }
 

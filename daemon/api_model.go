@@ -82,7 +82,7 @@ func postModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 	ensureStateSoon(st)
 
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+	return AsyncResponse(nil, chg.ID())
 
 }
 

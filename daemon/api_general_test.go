@@ -377,8 +377,10 @@ func (s *generalSuite) TestStateChangesDefaultToInProgress(c *check.C) {
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Assert(rsp.Result, check.HasLen, 1)
 
-	res, err := rsp.MarshalJSON()
-	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	rsp.ServeHTTP(rec, nil)
+	c.Assert(rec.Code, check.Equals, 200)
+	res := rec.Body.Bytes()
 
 	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["2016-04-21T01:02:03Z INFO l11","2016-04-21T01:02:03Z INFO l12"],"progress":{"label":"","done":0,"total":1},"spawn-time":"2016-04-21T01:02:03Z"}.*`)
 }
@@ -403,8 +405,10 @@ func (s *generalSuite) TestStateChangesInProgress(c *check.C) {
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Assert(rsp.Result, check.HasLen, 1)
 
-	res, err := rsp.MarshalJSON()
-	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	rsp.ServeHTTP(rec, nil)
+	c.Assert(rec.Code, check.Equals, 200)
+	res := rec.Body.Bytes()
 
 	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["2016-04-21T01:02:03Z INFO l11","2016-04-21T01:02:03Z INFO l12"],"progress":{"label":"","done":0,"total":1},"spawn-time":"2016-04-21T01:02:03Z"}.*],"ready":false,"spawn-time":"2016-04-21T01:02:03Z"}.*`)
 }
@@ -429,8 +433,10 @@ func (s *generalSuite) TestStateChangesAll(c *check.C) {
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Assert(rsp.Result, check.HasLen, 2)
 
-	res, err := rsp.MarshalJSON()
-	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	rsp.ServeHTTP(rec, nil)
+	c.Assert(rec.Code, check.Equals, 200)
+	res := rec.Body.Bytes()
 
 	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["2016-04-21T01:02:03Z INFO l11","2016-04-21T01:02:03Z INFO l12"],"progress":{"label":"","done":0,"total":1},"spawn-time":"2016-04-21T01:02:03Z"}.*],"ready":false,"spawn-time":"2016-04-21T01:02:03Z"}.*`)
 	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"id":"\w+","kind":"unlink","summary":"1...","status":"Error","log":\["2016-04-21T01:02:03Z ERROR rm failed"],"progress":{"label":"","done":1,"total":1},"spawn-time":"2016-04-21T01:02:03Z","ready-time":"2016-04-21T01:02:03Z"}.*],"ready":true,"err":"[^"]+".*`)
@@ -456,8 +462,10 @@ func (s *generalSuite) TestStateChangesReady(c *check.C) {
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Assert(rsp.Result, check.HasLen, 1)
 
-	res, err := rsp.MarshalJSON()
-	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	rsp.ServeHTTP(rec, nil)
+	c.Assert(rec.Code, check.Equals, 200)
+	res := rec.Body.Bytes()
 
 	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"id":"\w+","kind":"unlink","summary":"1...","status":"Error","log":\["2016-04-21T01:02:03Z ERROR rm failed"],"progress":{"label":"","done":1,"total":1},"spawn-time":"2016-04-21T01:02:03Z","ready-time":"2016-04-21T01:02:03Z"}.*],"ready":true,"err":"[^"]+".*`)
 }
@@ -486,8 +494,9 @@ func (s *generalSuite) TestStateChangesForSnapName(c *check.C) {
 	c.Assert(res, check.HasLen, 1)
 	c.Check(res[0].Kind, check.Equals, `install`)
 
-	_, err = rsp.MarshalJSON()
-	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	rsp.ServeHTTP(rec, nil)
+	c.Assert(rec.Code, check.Equals, 200)
 }
 
 func (s *generalSuite) TestStateChangesForSnapNameWithApp(c *check.C) {
@@ -520,8 +529,9 @@ func (s *generalSuite) TestStateChangesForSnapNameWithApp(c *check.C) {
 	c.Assert(res, check.HasLen, 1)
 	c.Check(res[0].Kind, check.Equals, `service-control`)
 
-	_, err = rsp.MarshalJSON()
-	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	rsp.ServeHTTP(rec, nil)
+	c.Assert(rec.Code, check.Equals, 200)
 }
 
 func (s *generalSuite) TestStateChange(c *check.C) {

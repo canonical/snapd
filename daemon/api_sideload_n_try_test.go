@@ -613,18 +613,16 @@ func (s *trySuite) TestTrySnapRelative(c *check.C) {
 	d := s.daemon(c)
 	st := d.Overlord().State()
 
-	rsp := daemon.TrySnap(st, "relative-path", snapstate.Flags{}).(*daemon.Resp)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, testutil.Contains, "need an absolute path")
+	rspe := daemon.TrySnap(st, "relative-path", snapstate.Flags{}).(*daemon.APIError)
+	c.Check(rspe.Message, testutil.Contains, "need an absolute path")
 }
 
 func (s *trySuite) TestTrySnapNotDir(c *check.C) {
 	d := s.daemon(c)
 	st := d.Overlord().State()
 
-	rsp := daemon.TrySnap(st, "/does/not/exist", snapstate.Flags{}).(*daemon.Resp)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, testutil.Contains, "not a snap directory")
+	rspe := daemon.TrySnap(st, "/does/not/exist", snapstate.Flags{}).(*daemon.APIError)
+	c.Check(rspe.Message, testutil.Contains, "not a snap directory")
 }
 
 func (s *trySuite) TestTryChangeConflict(c *check.C) {
@@ -642,7 +640,6 @@ func (s *trySuite) TestTryChangeConflict(c *check.C) {
 		return nil, &snapstate.ChangeConflictError{Snap: "foo"}
 	})()
 
-	rsp := daemon.TrySnap(st, tryDir, snapstate.Flags{}).(*daemon.Resp)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Kind, check.Equals, client.ErrorKindSnapChangeConflict)
+	rspe := daemon.TrySnap(st, tryDir, snapstate.Flags{}).(*daemon.APIError)
+	c.Check(rspe.Kind, check.Equals, client.ErrorKindSnapChangeConflict)
 }

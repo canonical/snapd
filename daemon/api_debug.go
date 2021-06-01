@@ -275,7 +275,7 @@ func createRecovery(st *state.State, label string) Response {
 		return InternalError("cannot create recovery system %q: %v", label, err)
 	}
 	ensureStateSoon(st)
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+	return AsyncResponse(nil, chg.ID())
 }
 
 func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
