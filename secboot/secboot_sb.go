@@ -36,6 +36,7 @@ var (
 	sbActivateVolumeWithKey         = sb.ActivateVolumeWithKey
 	sbActivateVolumeWithKeyData     = sb.ActivateVolumeWithKeyData
 	sbActivateVolumeWithRecoveryKey = sb.ActivateVolumeWithRecoveryKey
+	sbDeactivateVolume              = sb.DeactivateVolume
 )
 
 func init() {

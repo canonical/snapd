@@ -36,6 +36,7 @@ var (
 	EnsureNodesExist        = ensureNodesExist
 
 	CreatedDuringInstall = createdDuringInstall
+	CreationSupported    = creationSupported
 )
 
 func MockContentMountpoint(new string) (restore func()) {

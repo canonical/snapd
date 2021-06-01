@@ -6,7 +6,7 @@ prepare: |
 execute: |
     echo "Test that 'try'ing a snap with a set-health hook sets health in state:"
     test "$(snap run jq '.data.health."test-snapd-health"' < /var/lib/snapd/state.json)" = "null"
-    snap try "$TESTSLIB/snaps/test-snapd-health"
+    snap try test-snapd-health
     test "$(snap run jq '.data.health."test-snapd-health".status' < /var/lib/snapd/state.json)" = "1"
     # TODO: also check for health in info etc
     # TODO: also check installing from store

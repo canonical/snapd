@@ -13,7 +13,7 @@ environment:
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    snap pack "$TESTSLIB/snaps/$CLASSIC_SNAP/"
+    snap pack "$CLASSIC_SNAP"
 
     # although classic snaps do not work out of the box on Fedora and CentOS we
     # still want to verify if the basics do work if the user symlinks /snap to

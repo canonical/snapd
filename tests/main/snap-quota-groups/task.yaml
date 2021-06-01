@@ -1,0 +1,107 @@
+summary: Functional test for quota-related snap commands.
+
+details: |
+  Functional test for snap quota group commands ensuring that they are 
+  effective in practice.
+
+prepare: |
+  if os.query is-trusty; then
+    exit 0
+  fi
+  snap install go-example-webserver jq remarshal
+  snap set system experimental.quota-groups=true
+  tests.cleanup defer snap unset system experimental.quota-groups
+
+execute: |
+  if os.query is-trusty; then
+    # just check that we can't do anything with quota groups on trusty, systemd
+    # there is 204, but we need at least 205 for slice units
+
+    snap quota foobar --max-memory=1MB 2>&1 | MATCH "systemd version too old: snap quotas requires systemd 205 and newer \(currently have 204\)"
+    exit 0
+  fi
+
+  echo "Create a group with a snap in it"
+  snap quota group-one --max-memory=100MB go-example-webserver
+
+  echo "The systemd slice should be active now"
+  sliceName="snap.$(systemd-escape --path group-one).slice"
+  systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=active"
+
+  echo "The service should also still be active"
+  snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+active"
+
+  # systemd/kernel have three different locations for the cgroup pids depending
+  # on version
+  echo "The systemd slice should have one process in it now"
+  cgroupsV1OldSystemdProcsFile="/sys/fs/cgroup/memory/$sliceName/snap.go-example-webserver.webserver.service/cgroup.procs"
+  cgroupsV1ProcsFile="/sys/fs/cgroup/memory/$sliceName/cgroup.procs"
+  cgroupsV2ProcsFile="/sys/fs/cgroup/$sliceName/snap.go-example-webserver.webserver.service/cgroup.procs"
+  if [ -e "$cgroupsV2ProcsFile" ]; then
+      cgroupProcsFile="$cgroupsV2ProcsFile"
+  elif [ -e "$cgroupsV1OldSystemdProcsFile" ]; then
+      cgroupProcsFile="$cgroupsV1OldSystemdProcsFile"
+  elif [ -e "$cgroupsV1ProcsFile" ]; then
+      cgroupProcsFile="$cgroupsV1ProcsFile"
+  else
+      echo "cannot detect cgroup procs file"
+      exit 1
+  fi
+  wc -l < "$cgroupProcsFile" | MATCH '^1$'
+  SERVER_PID=$(cat "$cgroupProcsFile")
+
+  echo "And that process is the main PID for the example webserver"
+  systemctl show --property=MainPID snap.go-example-webserver.webserver.service | MATCH "MainPID=$SERVER_PID"
+
+  echo "And the service is in the Control Group for the slice"
+  # using a regexp for the ControlGroup match here as on older systemd (16.04)
+  # the group is double escaped
+  systemctl show --property=ControlGroup snap.go-example-webserver.webserver.service | MATCH 'ControlGroup=/snap.group(.*)one.slice/snap.go-example-webserver.webserver.service'
+
+  # TODO: check that systemctl says the memory usage is the same as "snap quota group-one"
+
+  echo "Removing the quota will stop the slice and the service will be restarted"
+  snap remove-quota group-one
+  systemctl show --property=MainPID snap.go-example-webserver.webserver.service | NOMATCH "MainPID=$SERVER_PID"
+  snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+active"
+
+  echo "And the service is not in a slice anymore"
+  systemctl show --property=ControlGroup snap.go-example-webserver.webserver.service | NOMATCH "/$sliceName/snap.go-example-webserver.webserver.service"
+
+  echo "And the slice is not active anymore"
+  systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=inactive"
+
+  echo "Creating a quota with a very small memory limit results in the service being unable to start"
+  snap quota too-small --max-memory=1KB go-example-webserver
+  # clear "oom-killer" message from dmesg or prepare-restore.sh will fail here.
+  tests.cleanup defer dmesg -c
+
+  echo "The systemd slice should be active"
+  sliceName="snap.$(systemd-escape --path too-small).slice"
+  systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=active"
+
+  echo "But the service is not running after a short amount of time"
+  retry --wait 1 -n 100 sh -c 'snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+inactive"'
+  # check for the service to have ExecMainStatus=9 (or =203) here since that is 
+  # indicative of the service being killed by systemd ungracefully or being 
+  # unable to start up properly which is what we are expecting with the low 
+  # memory limit for the quota group.
+  # run the check in a loop, because technically what is happening now is that 
+  # systemd is starting the process, it gets killed because it doesn't have 
+  # enough memory very quickly after being started, and then systemd retries 
+  # again up to the StartLimitBurst related settings. So the service is actually
+  # very quickly transitioning through the various states and we are racing with
+  # systemd as we check the status, so doing it in a loop ensures that if the 
+  # system is working we won't fail the test simply because systemd won the race
+  retry --wait 1 -n 10 sh -c 'systemctl show --property=ExecMainStatus snap.go-example-webserver.webserver.service | MATCH "ExecMainStatus=(203|9)"'
+
+  echo "And after removing the quota group, the snap is restarted and active again"
+  snap remove-quota too-small
+  retry --wait 1 -n 10 sh -c 'snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+active"'
+
+  echo "Removing a snap ensures that the snap is not in the quota group anymore"
+  snap quota group-three --max-memory=100MB go-example-webserver
+  snap quota group-three | yaml2json | jq -r '.snaps | .[]' | MATCH go-example-webserver
+  snap remove go-example-webserver
+  snap quota group-three | yaml2json | jq -r '.snaps' | MATCH null
+  snap remove-quota group-three
