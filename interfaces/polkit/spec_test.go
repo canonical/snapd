@@ -41,16 +41,16 @@ var _ = Suite(&specSuite{
 	iface: &ifacetest.TestInterface{
 		InterfaceName: "test",
 		PolkitConnectedPlugCallback: func(spec *polkit.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-			return spec.AddPolicy("connected-plug", "")
+			return spec.AddPolicy("connected-plug", polkit.Policy("policy-connected-plug"))
 		},
 		PolkitConnectedSlotCallback: func(spec *polkit.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-			return spec.AddPolicy("connected-slot", "")
+			return spec.AddPolicy("connected-slot", polkit.Policy("policy-connected-slot"))
 		},
 		PolkitPermanentPlugCallback: func(spec *polkit.Specification, plug *snap.PlugInfo) error {
-			return spec.AddPolicy("permanent-plug", "")
+			return spec.AddPolicy("permanent-plug", polkit.Policy("policy-permanent-plug"))
 		},
 		PolkitPermanentSlotCallback: func(spec *polkit.Specification, slot *snap.SlotInfo) error {
-			return spec.AddPolicy("permanent-slot", "")
+			return spec.AddPolicy("permanent-slot", polkit.Policy("policy-permanent-slot"))
 		},
 	},
 	plugInfo: &snap.PlugInfo{
@@ -90,10 +90,10 @@ func (s *specSuite) TestSpecificationIface(c *C) {
 	c.Assert(r.AddConnectedSlot(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(r.AddPermanentPlug(s.iface, s.plugInfo), IsNil)
 	c.Assert(r.AddPermanentSlot(s.iface, s.slotInfo), IsNil)
-	c.Assert(s.spec.Policies(), DeepEquals, map[string]string{
-		"connected-plug": "",
-		"connected-slot": "",
-		"permanent-plug": "",
-		"permanent-slot": "",
+	c.Assert(s.spec.Policies(), DeepEquals, map[string]polkit.Policy{
+		"connected-plug": polkit.Policy("policy-connected-plug"),
+		"connected-slot": polkit.Policy("policy-connected-slot"),
+		"permanent-plug": polkit.Policy("policy-permanent-plug"),
+		"permanent-slot": polkit.Policy("policy-permanent-slot"),
 	})
 }

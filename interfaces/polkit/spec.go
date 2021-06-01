@@ -20,37 +20,41 @@
 package polkit
 
 import (
+	"bytes"
 	"fmt"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/snap"
 )
 
+type Policy []byte
+
 // Specification keeps all the polkit policies.
 type Specification struct {
-	policyFiles map[string]string
+	policyFiles map[string]Policy
 }
 
 // AddPolicy adds a polkit policy file to install.
-func (spec *Specification) AddPolicy(name, policyFile string) error {
-	if old, ok := spec.policyFiles[name]; ok && old != policyFile {
-		return fmt.Errorf("interface requires conflicting xyz")
+func (spec *Specification) AddPolicy(name string, content Policy) error {
+	if old, ok := spec.policyFiles[name]; ok && !bytes.Equal(old, content) {
+		return fmt.Errorf("interface %q requires conflicting polkit policy content", name)
 	}
 	if spec.policyFiles == nil {
-		spec.policyFiles = make(map[string]string)
+		spec.policyFiles = make(map[string]Policy)
 	}
-	spec.policyFiles[name] = policyFile
+	spec.policyFiles[name] = content
 	return nil
 }
 
 // Policies returns a map of polkit policies added to the Specification.
-func (spec *Specification) Policies() map[string]string {
+func (spec *Specification) Policies() map[string]Policy {
 	if spec.policyFiles == nil {
 		return nil
 	}
-	result := make(map[string]string, len(spec.policyFiles))
+	result := make(map[string]Policy, len(spec.policyFiles))
 	for k, v := range spec.policyFiles {
-		result[k] = v
+		result[k] = make(Policy, len(v))
+		copy(result[k], v)
 	}
 	return result
 }

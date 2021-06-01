@@ -35,11 +35,11 @@ import (
 
 var (
 	interfacesCmd = &Command{
-		Path:     "/v2/interfaces",
-		UserOK:   true,
-		PolkitOK: "io.snapcraft.snapd.manage-interfaces",
-		GET:      interfacesConnectionsMultiplexer,
-		POST:     changeInterfaces,
+		Path:        "/v2/interfaces",
+		GET:         interfacesConnectionsMultiplexer,
+		POST:        changeInterfaces,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{Polkit: polkitActionManageInterfaces},
 	}
 )
 

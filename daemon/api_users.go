@@ -44,29 +44,30 @@ import (
 
 var (
 	loginCmd = &Command{
-		Path:     "/v2/login",
-		POST:     loginUser,
-		PolkitOK: "io.snapcraft.snapd.login",
+		Path:        "/v2/login",
+		POST:        loginUser,
+		WriteAccess: authenticatedAccess{Polkit: polkitActionLogin},
 	}
 
 	logoutCmd = &Command{
-		Path:     "/v2/logout",
-		POST:     logoutUser,
-		PolkitOK: "io.snapcraft.snapd.login",
+		Path:        "/v2/logout",
+		POST:        logoutUser,
+		WriteAccess: authenticatedAccess{Polkit: polkitActionLogin},
 	}
 
 	// backwards compat; to-be-deprecated
 	createUserCmd = &Command{
-		Path:     "/v2/create-user",
-		POST:     postCreateUser,
-		RootOnly: true,
+		Path:        "/v2/create-user",
+		POST:        postCreateUser,
+		WriteAccess: rootAccess{},
 	}
 
 	usersCmd = &Command{
-		Path:     "/v2/users",
-		GET:      getUsers,
-		POST:     postUsers,
-		RootOnly: true,
+		Path:        "/v2/users",
+		GET:         getUsers,
+		POST:        postUsers,
+		ReadAccess:  rootAccess{},
+		WriteAccess: rootAccess{},
 	}
 )
 

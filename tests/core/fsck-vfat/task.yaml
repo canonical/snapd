@@ -9,12 +9,6 @@ details: |
   A separate test examines how fsck is automatically invoked during the boot
   process. This is not verified here.
 
-prepare: |
-  tests.cleanup prepare
-
-restore: |
-  tests.cleanup restore
-
 execute: |
   echo "Essential fsck programs are in the boot base"
   test -n "$(command -v fsck.vfat)"

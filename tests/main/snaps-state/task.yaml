@@ -28,7 +28,7 @@ execute: |
     rm -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
 
     # Try to pack a local snap which does not exist
-    "$TESTSTOOLS"/snaps-state pack-local SNAP_NO_EXIST 2>&1 | MATCH "snap.yaml file not found for SNAP_NO_EXIST snap"
+    "$TESTSTOOLS"/snaps-state pack-local SNAP_NO_EXIST 2>&1 | MATCH "snaps-state: can't pack SNAP_NO_EXIST, snap directory not found"
 
     # Make and install a snap by using the install-local subcommand
     snap_path=$("$TESTSTOOLS"/snaps-state install-local "$SNAP_NAME")

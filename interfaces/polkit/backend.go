@@ -96,13 +96,11 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]osutil.F
 		return nil
 	}
 	content := make(map[string]osutil.FileState, len(policies)+1)
-	for name, path := range policies {
+	for name, policyContent := range policies {
 		filename := interfaces.InterfacePolkitPolicyName(snapInfo.InstanceName(), name)
-		content[filename] = &osutil.FileReferencePlusMode{
-			FileReference: osutil.FileReference{
-				Path: path,
-			},
-			Mode: 0644,
+		content[filename] = &osutil.MemoryFileState{
+			Content: policyContent,
+			Mode:    0644,
 		}
 	}
 	return content

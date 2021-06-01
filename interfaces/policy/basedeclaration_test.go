@@ -597,6 +597,7 @@ var (
 		"cups-control":            {"app", "core"},
 		"dbus":                    {"app"},
 		"docker-support":          {"core"},
+		"desktop-launch":          {"core"},
 		"dsp":                     {"core", "gadget"},
 		"dummy":                   {"app"},
 		"fwupd":                   {"app", "core"},
@@ -702,6 +703,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 	restricted := map[string]bool{
 		"block-devices":         true,
 		"classic-support":       true,
+		"desktop-launch":        true,
 		"docker-support":        true,
 		"greengrass-support":    true,
 		"gpio-control":          true,
@@ -936,6 +938,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"audio-playback":        true,
 		"classic-support":       true,
 		"core-support":          true,
+		"desktop-launch":        true,
 		"docker-support":        true,
 		"greengrass-support":    true,
 		"gpio-control":          true,
@@ -1203,4 +1206,22 @@ plugs:
 	arity, err = cand.CheckAutoConnect()
 	c.Check(err, IsNil)
 	c.Check(arity.SlotsPerPlugAny(), Equals, false)
+}
+
+func (s *baseDeclSuite) TestAutoConnectionDesktopLaunchOverride(c *C) {
+	cand := s.connectCand(c, "desktop-launch", "", "")
+	_, err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"desktop-launch\"")
+
+	plugsSlots := `
+plugs:
+  desktop-launch:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "some-snap-with-desktop-launch-id", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	_, err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
 }
