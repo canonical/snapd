@@ -223,6 +223,67 @@ slots:
     desktop:
 `
 
+func (s *autorefreshGatingSuite) TestHoldDurationLeft(c *C) {
+	now, err := time.Parse(time.RFC3339, "2021-06-03T10:00:00Z")
+	c.Assert(err, IsNil)
+	maxPostponement := time.Hour * 24 * 90
+
+	for _, tc := range []struct {
+		lastRefresh, firstHeld string
+		maxDuration            string
+		expected               string
+	}{
+		{
+			"2021-05-03T10:00:00Z", // last refreshed (1 month ago
+			"2021-06-03T10:00:00Z", // first held now
+			"48h",                  // max duration
+			"48h",                  // expected
+		},
+		{
+			"2021-05-03T10:00:00Z", // last refreshed (1 month ago)
+			"2021-06-02T10:00:00Z", // first held (1 day ago)
+			"48h",                  // max duration
+			"24h",                  // expected
+		},
+		{
+			"2021-05-03T10:00:00Z", // last refreshed (1 month ago)
+			"2021-06-01T10:00:00Z", // first held (2 days ago)
+			"48h",                  // max duration
+			"00h",                  // expected
+		},
+		{
+			"2021-03-08T10:00:00Z", // last refreshed (almost 3 months ago)
+			"2021-06-01T10:00:00Z", // first held
+			"2160h",                // max duration (90 days)
+			"72h",                  // expected
+		},
+		{
+			"2021-03-04T10:00:00Z", // last refreshed
+			"2021-06-01T10:00:00Z", // first held (2 days ago)
+			"2160h",                // max duration (90 days)
+			"-24h",                 // expected (refresh is 1 day overdue)
+		},
+		{
+			"2021-06-01T10:00:00Z", // last refreshed (2 days ago)
+			"2021-06-03T10:00:00Z", // first held now
+			"2160h",                // max duration (90 days)
+			"2112h",                // expected (max minus 2 days)
+		},
+	} {
+		lastRefresh, err := time.Parse(time.RFC3339, tc.lastRefresh)
+		c.Assert(err, IsNil)
+		firstHeld, err := time.Parse(time.RFC3339, tc.firstHeld)
+		c.Assert(err, IsNil)
+		maxDuration, err := time.ParseDuration(tc.maxDuration)
+		c.Assert(err, IsNil)
+		expected, err := time.ParseDuration(tc.expected)
+		c.Assert(err, IsNil)
+
+		left := snapstate.HoldDurationLeft(now, lastRefresh, firstHeld, maxDuration, maxPostponement)
+		c.Check(left, Equals, expected)
+	}
+}
+
 func (s *autorefreshGatingSuite) TestLastRefreshedHelper(c *C) {
 	st := s.state
 	st.Lock()
@@ -444,8 +505,11 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelperErrors(c *C) {
 	c.Check(err, ErrorMatches, `cannot hold some snaps:\n - requested holding duration 49h0m0s exceeds maximum holding for snap "snap-b"`)
 	herr, ok := err.(*snapstate.HoldError)
 	c.Assert(ok, Equals, true)
-	c.Check(herr.SnapsInError, DeepEquals, map[string]error{
-		"snap-b": fmt.Errorf(`requested holding duration 49h0m0s exceeds maximum holding for snap "snap-b"`),
+	c.Check(herr.SnapsInError, DeepEquals, map[string]snapstate.HoldDurationError{
+		"snap-b": {
+			Err:          fmt.Errorf(`requested holding duration 49h0m0s exceeds maximum holding for snap "snap-b"`),
+			DurationLeft: 48 * time.Hour,
+		},
 	})
 
 	// hold for maximum allowed for other snaps
@@ -454,13 +518,13 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelperErrors(c *C) {
 	// 2 days passed since it was first held
 	now = "2021-05-12T10:00:00Z"
 	hold = time.Minute * 2
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", hold, "snap-b"), ErrorMatches, `cannot hold some snaps:\n - snap "snap-a" cannot hold snap "snap-b" anymore`)
+	c.Assert(snapstate.HoldRefresh(st, "snap-a", hold, "snap-b"), ErrorMatches, `cannot hold some snaps:\n - snap "snap-a" cannot hold snap "snap-b" anymore, maximum refresh postponement exceeded`)
 
 	// refreshed long time ago (> maxPostponement)
 	mockLastRefreshed(c, st, "2021-01-01T10:00:00Z", "snap-b")
 	hold = time.Hour * 2
-	c.Assert(snapstate.HoldRefresh(st, "snap-b", hold, "snap-b"), ErrorMatches, `cannot hold some snaps:\n - snap "snap-b" cannot be held anymore, maximum refresh postponement exceeded`)
-	c.Assert(snapstate.HoldRefresh(st, "snap-b", 0, "snap-b"), ErrorMatches, `cannot hold some snaps:\n - snap "snap-b" cannot be held anymore, maximum refresh postponement exceeded`)
+	c.Assert(snapstate.HoldRefresh(st, "snap-b", hold, "snap-b"), ErrorMatches, `cannot hold some snaps:\n - snap "snap-b" cannot hold snap "snap-b" anymore, maximum refresh postponement exceeded`)
+	c.Assert(snapstate.HoldRefresh(st, "snap-b", 0, "snap-b"), ErrorMatches, `cannot hold some snaps:\n - snap "snap-b" cannot hold snap "snap-b" anymore, maximum refresh postponement exceeded`)
 }
 
 func (s *autorefreshGatingSuite) TestHoldAndProceedWithRefreshHelper(c *C) {

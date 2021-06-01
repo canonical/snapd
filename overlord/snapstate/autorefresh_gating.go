@@ -85,9 +85,20 @@ func refreshGating(st *state.State) (map[string]map[string]*holdState, error) {
 	return gating, nil
 }
 
+// HoldDurationError contains the that error prevents requested hold, along with
+// hold time that's left (if any).
+type HoldDurationError struct {
+	Err          error
+	DurationLeft time.Duration
+}
+
+func (h *HoldDurationError) Error() string {
+	return h.Err.Error()
+}
+
 // HoldError contains the details of snaps that cannot to be held.
 type HoldError struct {
-	SnapsInError map[string]error
+	SnapsInError map[string]HoldDurationError
 }
 
 func (h *HoldError) Error() string {
@@ -105,6 +116,19 @@ func maxAllowedPostponement(gatingSnap, affectedSnap string) time.Duration {
 	return maxOtherHoldDuration
 }
 
+// holdDurationLeft computes the maximum duration that's left for holding a refresh
+// given current time, last refresh time, time when snap was first held, maximum
+// duration allowed for the given snap and maximum overall postponement allowed by
+// snapd.
+func holdDurationLeft(now time.Time, lastRefresh, firstHeld time.Time, maxDuration, maxPostponement time.Duration) time.Duration {
+	d1 := firstHeld.Add(maxDuration).Sub(now)
+	d2 := lastRefresh.Add(maxPostponement).Sub(now)
+	if d1 < d2 {
+		return d1
+	}
+	return d2
+}
+
 // HoldRefresh marks affectingSnaps as held for refresh for up to holdTime.
 // HoldTime of zero denotes maximum allowed hold time.
 // Holding may fail for only some snaps in which case HoldError is returned and
@@ -115,7 +139,7 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 		return err
 	}
 	herr := &HoldError{
-		SnapsInError: make(map[string]error),
+		SnapsInError: make(map[string]HoldDurationError),
 	}
 	now := timeNow()
 	for _, heldSnap := range affectingSnaps {
@@ -126,16 +150,20 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 			}
 		}
 
+		lastRefreshTime, err := lastRefreshed(st, heldSnap)
+		if err != nil {
+			return err
+		}
+
 		maxDur := maxAllowedPostponement(gatingSnap, heldSnap)
 
 		// calculate max hold duration that's left considering previous hold
-		// requests of this snap. This doesn't take last refresh into consideration
-		// yet (that's handled further down), but it makes sure than a cumulative
-		// time the given gating snap holds another snap (or self) is within
-		// (maxAllowedPostponement - maxPostponementBuffer) limit.
-		left := maxDur - now.Sub(hold.FirstHeld)
+		// requests of this snap and last refresh time.
+		left := holdDurationLeft(now, lastRefreshTime, hold.FirstHeld, maxDur, maxPostponement-maxPostponementBuffer)
 		if left <= 0 {
-			herr.SnapsInError[heldSnap] = fmt.Errorf("snap %q cannot hold snap %q anymore", gatingSnap, heldSnap)
+			herr.SnapsInError[heldSnap] = HoldDurationError{
+				Err: fmt.Errorf("snap %q cannot hold snap %q anymore, maximum refresh postponement exceeded", gatingSnap, heldSnap),
+			}
 			continue
 		}
 
@@ -147,14 +175,12 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 		} else {
 			// explicit hold duration requested
 			if dur > maxDur {
-				herr.SnapsInError[heldSnap] = fmt.Errorf("requested holding duration %s exceeds maximum holding for snap %q", holdDuration, heldSnap)
+				herr.SnapsInError[heldSnap] = HoldDurationError{
+					Err:          fmt.Errorf("requested holding duration %s exceeds maximum holding for snap %q", holdDuration, heldSnap),
+					DurationLeft: left,
+				}
 				continue
 			}
-		}
-
-		lastRefreshTime, err := lastRefreshed(st, heldSnap)
-		if err != nil {
-			return err
 		}
 
 		newHold := now.Add(dur)
@@ -162,16 +188,10 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 
 		// consider last refresh time and adjust hold duration if needed so it's
 		// not exceeded.
-		switch {
-		case newHold.Before(cutOff):
+		if newHold.Before(cutOff) {
 			hold.HoldUntil = newHold
-		case holdDuration == 0 && cutOff.After(now):
-			// default duration requested but it exceeds max
-			// postponement, adjust it.
+		} else {
 			hold.HoldUntil = cutOff
-		default:
-			herr.SnapsInError[heldSnap] = fmt.Errorf("snap %q cannot be held anymore, maximum refresh postponement exceeded", heldSnap)
-			continue
 		}
 
 		// finally store/update gating hold data

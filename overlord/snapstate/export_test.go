@@ -325,6 +325,7 @@ type AffectedSnapInfo = affectedSnapInfo
 type HoldState = holdState
 
 var (
+	HoldDurationLeft           = holdDurationLeft
 	LastRefreshed              = lastRefreshed
 	HeldSnaps                  = heldSnaps
 	ResetGatingForRefreshed    = resetGatingForRefreshed
