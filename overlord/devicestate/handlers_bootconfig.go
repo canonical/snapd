@@ -61,8 +61,18 @@ func (m *DeviceManager) doUpdateManagedBootConfig(t *state.Task, _ *tomb.Tomb) e
 		// channel is changed during remodel
 		return nil
 	}
+
+	currentData, err := currentGadgetInfo(st, devCtx)
+	if err != nil {
+		return fmt.Errorf("cannot obtain current gadget data: %v", err)
+	}
+	if currentData == nil {
+		// we should be past seeding
+		return fmt.Errorf("internal error: no current gadget")
+	}
+
 	// TODO:UC20 update recovery boot config
-	updated, err := boot.UpdateManagedBootConfigs(devCtx)
+	updated, err := boot.UpdateManagedBootConfigs(devCtx, currentData.RootDir)
 	if err != nil {
 		return fmt.Errorf("cannot update boot config assets: %v", err)
 	}

@@ -39,6 +39,12 @@ type snapctlSuite struct {
 	apiBaseSuite
 }
 
+func (s *snapctlSuite) SetUpTest(c *check.C) {
+	s.apiBaseSuite.SetUpTest(c)
+
+	s.expectWriteAccess(daemon.SnapAccess{})
+}
+
 func (s *snapctlSuite) TestSnapctlGetNoUID(c *check.C) {
 	s.daemon(c)
 	buf := bytes.NewBufferString(`{"context-id": "some-context", "args": ["get", "something"]}`)
@@ -51,8 +57,8 @@ func (s *snapctlSuite) TestSnapctlGetNoUID(c *check.C) {
 func (s *snapctlSuite) TestSnapctlForbiddenError(c *check.C) {
 	s.daemon(c)
 
-	defer daemon.MockUcrednetGet(func(string) (int32, uint32, string, error) {
-		return 100, 9999, dirs.SnapSocket, nil
+	defer daemon.MockUcrednetGet(func(string) (*daemon.Ucrednet, error) {
+		return &daemon.Ucrednet{Uid: 100, Pid: 9999, Socket: dirs.SnapSocket}, nil
 	})()
 
 	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {
@@ -69,8 +75,8 @@ func (s *snapctlSuite) TestSnapctlForbiddenError(c *check.C) {
 func (s *snapctlSuite) TestSnapctlUnsuccesfulError(c *check.C) {
 	s.daemon(c)
 
-	defer daemon.MockUcrednetGet(func(string) (int32, uint32, string, error) {
-		return 100, 9999, dirs.SnapSocket, nil
+	defer daemon.MockUcrednetGet(func(string) (*daemon.Ucrednet, error) {
+		return &daemon.Ucrednet{Uid: 100, Pid: 9999, Socket: dirs.SnapSocket}, nil
 	})()
 
 	defer daemon.MockCtlcmdRun(func(ctx *hookstate.Context, arg []string, uid uint32) ([]byte, []byte, error) {

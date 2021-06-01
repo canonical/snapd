@@ -2,8 +2,6 @@
 
 set -eux
 
-# shellcheck source=tests/lib/dirs.sh
-. "$TESTSLIB/dirs.sh"
 # shellcheck source=tests/lib/snaps.sh
 . "$TESTSLIB/snaps.sh"
 # shellcheck source=tests/lib/pkgdb.sh
@@ -111,6 +109,8 @@ update_core_snap_for_classic_reexec() {
     # we re-exec by default.
     # To accomplish that, we'll just unpack the core we just grabbed,
     # shove the new snap-exec and snapctl in there, and repack it.
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    LIBEXEC_DIR="$(os.paths libexec-dir)"
 
     # First of all, unmount the core
     core="$(readlink -f "$SNAP_MOUNT_DIR/core/current" || readlink -f "$SNAP_MOUNT_DIR/ubuntu-core/current")"
@@ -122,7 +122,7 @@ update_core_snap_for_classic_reexec() {
     # clean the old snapd binaries, just in case
     rm squashfs-root/usr/lib/snapd/* squashfs-root/usr/bin/snap
     # and copy in the current libexec
-    cp -a "$LIBEXECDIR"/snapd/* squashfs-root/usr/lib/snapd/
+    cp -a "$LIBEXEC_DIR"/snapd/* squashfs-root/usr/lib/snapd/
     # also the binaries themselves
     cp -a /usr/bin/snap squashfs-root/usr/bin/
     # make sure bin/snapctl is a symlink to lib/
@@ -185,7 +185,7 @@ update_core_snap_for_classic_reexec() {
     }
 
     # Make sure we're running with the correct copied bits
-    for p in "$LIBEXECDIR/snapd/snap-exec" "$LIBEXECDIR/snapd/snap-confine" "$LIBEXECDIR/snapd/snap-discard-ns" "$LIBEXECDIR/snapd/snapd" "$LIBEXECDIR/snapd/snap-update-ns"; do
+    for p in "$LIBEXEC_DIR/snapd/snap-exec" "$LIBEXEC_DIR/snapd/snap-confine" "$LIBEXEC_DIR/snapd/snap-discard-ns" "$LIBEXEC_DIR/snapd/snapd" "$LIBEXEC_DIR/snapd/snap-update-ns"; do
         check_file "$p" "$core/usr/lib/snapd/$(basename "$p")"
     done
     for p in /usr/bin/snapctl /usr/bin/snap; do
@@ -277,11 +277,6 @@ prepare_classic() {
         # Cache snaps
         # shellcheck disable=SC2086
         cache_snaps core ${PRE_CACHE_SNAPS}
-
-        echo "Cache the snaps profiler snap"
-        if [ "$PROFILE_SNAPS" = 1 ]; then
-            cache_snaps test-snapd-profiler
-        fi
 
         # now use parameterized core channel (defaults to edge) instead
         # of a fixed one and close to stable in order to detect defects
@@ -1129,15 +1124,6 @@ prepare_ubuntu_core() {
         cache_snaps core
         if os.query is-core18; then
             cache_snaps test-snapd-sh-core18
-        fi
-    fi
-
-    echo "Cache the snaps profiler snap"
-    if [ "$PROFILE_SNAPS" = 1 ]; then
-        if os.query is-core18; then
-            cache_snaps test-snapd-profiler-core18
-        else
-            cache_snaps test-snapd-profiler
         fi
     fi
 

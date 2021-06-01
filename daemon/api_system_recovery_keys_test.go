@@ -40,6 +40,12 @@ type recoveryKeysSuite struct {
 	apiBaseSuite
 }
 
+func (s *recoveryKeysSuite) SetUpTest(c *C) {
+	s.apiBaseSuite.SetUpTest(c)
+
+	s.expectRootAccess()
+}
+
 func mockSystemRecoveryKeys(c *C) {
 	// same inputs/outputs as secboot:crypt_test.go in this test
 	rkeystr, err := hex.DecodeString("e1f01302c5d43726a9b85b4a8d9c7f6e")
@@ -84,8 +90,9 @@ func (s *recoveryKeysSuite) TestSystemGetRecoveryAsUserErrors(c *C) {
 	req, err := http.NewRequest("GET", "/v2/system-recovery-keys", nil)
 	c.Assert(err, IsNil)
 
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	// being properly authorized as user is not enough, needs root
+	s.asUserAuth(c, req)
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
-	c.Assert(rec.Code, Equals, 401)
+	c.Assert(rec.Code, Equals, 403)
 }

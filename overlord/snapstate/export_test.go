@@ -31,6 +31,10 @@ import (
 
 type ManagerBackend managerBackend
 
+type MinimalInstallInfo = minimalInstallInfo
+type InstallSnapInfo = installSnapInfo
+type ByType = byType
+
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 	s.backend = b
 }
@@ -99,6 +103,8 @@ var (
 	HasOtherInstances = hasOtherInstances
 
 	SafetyMarginDiskSpace = safetyMarginDiskSpace
+
+	AffectedByRefresh = affectedByRefresh
 )
 
 func PreviousSideInfo(snapst *SnapState) *snap.SideInfo {
@@ -258,7 +264,7 @@ func MockCurrentSnaps(f func(st *state.State) ([]*store.CurrentSnap, error)) fun
 	}
 }
 
-func MockInstallSize(f func(st *state.State, snaps []*snap.Info, userID int) (uint64, error)) func() {
+func MockInstallSize(f func(st *state.State, snaps []minimalInstallInfo, userID int) (uint64, error)) func() {
 	old := installSize
 	installSize = f
 	return func() {
@@ -283,6 +289,8 @@ var (
 	InhibitRefresh = inhibitRefresh
 	MaxInhibition  = maxInhibition
 )
+
+type RefreshCandidate = refreshCandidate
 
 func NewBusySnapError(info *snap.Info, pids []int, busyAppNames, busyHookNames []string) *BusySnapError {
 	return &BusySnapError{
@@ -310,3 +318,11 @@ func MockSecurityProfilesDiscardLate(fn func(snapName string, rev snap.Revision,
 		SecurityProfilesRemoveLate = old
 	}
 }
+
+// autorefresh gating
+type AffectedSnapInfo = affectedSnapInfo
+
+var (
+	CreateGateAutoRefreshHooks = createGateAutoRefreshHooks
+	AutoRefreshPhase1          = autoRefreshPhase1
+)

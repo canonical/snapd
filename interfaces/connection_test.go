@@ -17,11 +17,12 @@
  *
  */
 
-package interfaces
+package interfaces_test
 
 import (
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -73,13 +74,13 @@ func (s *connSuite) TearDownTest(c *C) {
 }
 
 // Make sure ConnectedPlug,ConnectedSlot, PlugInfo, SlotInfo implement Attrer.
-var _ Attrer = (*ConnectedPlug)(nil)
-var _ Attrer = (*ConnectedSlot)(nil)
-var _ Attrer = (*snap.PlugInfo)(nil)
-var _ Attrer = (*snap.SlotInfo)(nil)
+var _ interfaces.Attrer = (*interfaces.ConnectedPlug)(nil)
+var _ interfaces.Attrer = (*interfaces.ConnectedSlot)(nil)
+var _ interfaces.Attrer = (*snap.PlugInfo)(nil)
+var _ interfaces.Attrer = (*snap.SlotInfo)(nil)
 
 func (s *connSuite) TestStaticSlotAttrs(c *C) {
-	slot := NewConnectedSlot(s.slot, nil, nil)
+	slot := interfaces.NewConnectedSlot(s.slot, nil, nil)
 	c.Assert(slot, NotNil)
 
 	var val string
@@ -100,25 +101,25 @@ func (s *connSuite) TestStaticSlotAttrs(c *C) {
 	c.Check(slot.StaticAttr("attr", val), ErrorMatches, `internal error: cannot get "attr" attribute of interface "interface" with non-pointer value`)
 
 	// static attributes passed via args take precedence over slot.Attrs
-	slot2 := NewConnectedSlot(s.slot, map[string]interface{}{"foo": "bar"}, nil)
+	slot2 := interfaces.NewConnectedSlot(s.slot, map[string]interface{}{"foo": "bar"}, nil)
 	slot2.StaticAttr("foo", &val)
 	c.Assert(val, Equals, "bar")
 }
 
 func (s *connSuite) TestSlotRef(c *C) {
-	slot := NewConnectedSlot(s.slot, nil, nil)
+	slot := interfaces.NewConnectedSlot(s.slot, nil, nil)
 	c.Assert(slot, NotNil)
-	c.Assert(*slot.Ref(), DeepEquals, SlotRef{Snap: "producer", Name: "slot"})
+	c.Assert(*slot.Ref(), DeepEquals, interfaces.SlotRef{Snap: "producer", Name: "slot"})
 }
 
 func (s *connSuite) TestPlugRef(c *C) {
-	plug := NewConnectedPlug(s.plug, nil, nil)
+	plug := interfaces.NewConnectedPlug(s.plug, nil, nil)
 	c.Assert(plug, NotNil)
-	c.Assert(*plug.Ref(), DeepEquals, PlugRef{Snap: "consumer", Name: "plug"})
+	c.Assert(*plug.Ref(), DeepEquals, interfaces.PlugRef{Snap: "consumer", Name: "plug"})
 }
 
 func (s *connSuite) TestStaticPlugAttrs(c *C) {
-	plug := NewConnectedPlug(s.plug, nil, nil)
+	plug := interfaces.NewConnectedPlug(s.plug, nil, nil)
 	c.Assert(plug, NotNil)
 
 	var val string
@@ -138,7 +139,7 @@ func (s *connSuite) TestStaticPlugAttrs(c *C) {
 	c.Check(plug.StaticAttr("attr", val), ErrorMatches, `internal error: cannot get "attr" attribute of interface "interface" with non-pointer value`)
 
 	// static attributes passed via args take precedence over plug.Attrs
-	plug2 := NewConnectedPlug(s.plug, map[string]interface{}{"foo": "bar"}, nil)
+	plug2 := interfaces.NewConnectedPlug(s.plug, map[string]interface{}{"foo": "bar"}, nil)
 	plug2.StaticAttr("foo", &val)
 	c.Assert(val, Equals, "bar")
 }
@@ -148,7 +149,7 @@ func (s *connSuite) TestDynamicSlotAttrs(c *C) {
 		"foo":    "bar",
 		"number": int(100),
 	}
-	slot := NewConnectedSlot(s.slot, nil, attrs)
+	slot := interfaces.NewConnectedSlot(s.slot, nil, attrs)
 	c.Assert(slot, NotNil)
 
 	var strVal string
@@ -183,7 +184,7 @@ func (s *connSuite) TestDottedPathSlot(c *C) {
 	}
 	var strVal string
 
-	slot := NewConnectedSlot(s.slot, nil, attrs)
+	slot := interfaces.NewConnectedSlot(s.slot, nil, attrs)
 	c.Assert(slot, NotNil)
 
 	// static attribute complex.a
@@ -215,7 +216,7 @@ func (s *connSuite) TestDottedPathPlug(c *C) {
 	}
 	var strVal string
 
-	plug := NewConnectedPlug(s.plug, nil, attrs)
+	plug := interfaces.NewConnectedPlug(s.plug, nil, attrs)
 	c.Assert(plug, NotNil)
 
 	v, ok := plug.Lookup("a")
@@ -251,9 +252,9 @@ func (s *connSuite) TestDottedPathPlug(c *C) {
 func (s *connSuite) TestLookupFailure(c *C) {
 	attrs := map[string]interface{}{}
 
-	slot := NewConnectedSlot(s.slot, nil, attrs)
+	slot := interfaces.NewConnectedSlot(s.slot, nil, attrs)
 	c.Assert(slot, NotNil)
-	plug := NewConnectedPlug(s.plug, nil, attrs)
+	plug := interfaces.NewConnectedPlug(s.plug, nil, attrs)
 	c.Assert(plug, NotNil)
 
 	v, ok := slot.Lookup("a")
@@ -270,7 +271,7 @@ func (s *connSuite) TestDynamicPlugAttrs(c *C) {
 		"foo":    "bar",
 		"number": int(100),
 	}
-	plug := NewConnectedPlug(s.plug, nil, attrs)
+	plug := interfaces.NewConnectedPlug(s.plug, nil, attrs)
 	c.Assert(plug, NotNil)
 
 	var strVal string
@@ -300,9 +301,9 @@ func (s *connSuite) TestDynamicPlugAttrs(c *C) {
 func (s *connSuite) TestOverwriteStaticAttrError(c *C) {
 	attrs := map[string]interface{}{}
 
-	plug := NewConnectedPlug(s.plug, nil, attrs)
+	plug := interfaces.NewConnectedPlug(s.plug, nil, attrs)
 	c.Assert(plug, NotNil)
-	slot := NewConnectedSlot(s.slot, nil, attrs)
+	slot := interfaces.NewConnectedSlot(s.slot, nil, attrs)
 	c.Assert(slot, NotNil)
 
 	err := plug.SetAttr("attr", "overwrite")
@@ -339,7 +340,7 @@ func (s *connSuite) TestNewConnectedPlugExplicitStaticAttrs(c *C) {
 	dynAttrs := map[string]interface{}{
 		"foo": "bar",
 	}
-	plug := NewConnectedPlug(s.plug, staticAttrs, dynAttrs)
+	plug := interfaces.NewConnectedPlug(s.plug, staticAttrs, dynAttrs)
 	c.Assert(plug, NotNil)
 	c.Assert(plug.StaticAttrs(), DeepEquals, map[string]interface{}{"baz": "boom"})
 	c.Assert(plug.DynamicAttrs(), DeepEquals, map[string]interface{}{"foo": "bar"})
@@ -352,7 +353,7 @@ func (s *connSuite) TestNewConnectedSlotExplicitStaticAttrs(c *C) {
 	dynAttrs := map[string]interface{}{
 		"foo": "bar",
 	}
-	slot := NewConnectedSlot(s.slot, staticAttrs, dynAttrs)
+	slot := interfaces.NewConnectedSlot(s.slot, staticAttrs, dynAttrs)
 	c.Assert(slot, NotNil)
 	c.Assert(slot.StaticAttrs(), DeepEquals, map[string]interface{}{"baz": "boom"})
 	c.Assert(slot.DynamicAttrs(), DeepEquals, map[string]interface{}{"foo": "bar"})

@@ -2,10 +2,8 @@ summary: D-Bus system services support activation
 
 prepare: |
     snap set system experimental.user-daemons=true
-    snap set system experimental.dbus-activation=true
 
 restore: |
-    snap unset system experimental.dbus-activation
     snap unset system experimental.user-daemons
 
 execute: |

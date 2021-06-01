@@ -9,32 +9,6 @@ environment:
     # need to disable go modules support for this test
     GO111MODULE: off
 
-debug: |
-    cat /proc/partitions
-
-restore: |
-    for m in ubuntu-seed ubuntu-save ubuntu-data ubuntu-boot; do
-        if mountpoint "/run/mnt/$m"; then
-            umount "/run/mnt/$m"
-        fi
-    done
-    if mountpoint ./mnt; then
-        umount ./mnt
-    fi
-
-    cryptsetup close /dev/mapper/ubuntu-save || true
-    cryptsetup close /dev/mapper/ubuntu-data || true
-    cryptsetup close /dev/mapper/test-udata || true
-
-    if [ -f loop.txt ]; then
-        LOOP="$(cat loop.txt)"
-        losetup -d "$LOOP"
-        losetup -l | NOMATCH "$LOOP"
-    fi
-    apt autoremove -y cryptsetup
-
-    rm -Rf /run/mnt
-
 prepare: |
     echo "Create a fake block device image that looks like an image from u-i"
     truncate --size=10GB fake.img
@@ -72,6 +46,32 @@ prepare: |
     snap download --channel=20/edge pc
     unsquashfs -d gadget-dir pc_*.snap
 
+restore: |
+    for m in ubuntu-seed ubuntu-save ubuntu-data ubuntu-boot; do
+        if mountpoint "/run/mnt/$m"; then
+            umount "/run/mnt/$m"
+        fi
+    done
+    if mountpoint ./mnt; then
+        umount ./mnt
+    fi
+
+    cryptsetup close /dev/mapper/ubuntu-save || true
+    cryptsetup close /dev/mapper/ubuntu-data || true
+    cryptsetup close /dev/mapper/test-udata || true
+
+    if [ -f loop.txt ]; then
+        LOOP="$(cat loop.txt)"
+        losetup -d "$LOOP"
+        losetup -l | NOMATCH "$LOOP"
+    fi
+    apt autoremove -y cryptsetup
+
+    rm -Rf /run/mnt
+
+debug: |
+    cat /proc/partitions
+
 execute: |
     # this test simulates a reinstall, to clear the TPM this requires
     # a reboot so the losetup has to be redone
@@ -107,11 +107,11 @@ execute: |
     # keep for later
 
     echo "Check that the ubuntu-data key files were created"
-    test "$(stat --printf=%s unsealed-key)" -eq 64
+    test "$(stat --printf=%s unsealed-key)" -eq 32
     # recovery key is 16 bytes long
     test "$(stat --printf=%s recovery-key)" -eq 16
     echo "Check that the ubuntu-save key files were created"
-    test "$(stat --printf=%s save-key)" -eq 64
+    test "$(stat --printf=%s save-key)" -eq 32
     # recovery key is 16 bytes long
     test "$(stat --printf=%s reinstall-key)" -eq 16
 

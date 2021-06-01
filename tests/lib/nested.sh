@@ -131,10 +131,11 @@ nested_is_tpm_enabled() {
     else
         case "${SPREAD_SYSTEM:-}" in
             ubuntu-1*)
-                echo false
+                return 1
                 ;;
             ubuntu-2*)
-                echo true
+                # TPM enabled by default on 20.04 and later
+                return 0
                 ;;
             *)
                 echo "unsupported system"
@@ -150,10 +151,11 @@ nested_is_secure_boot_enabled() {
     else
         case "${SPREAD_SYSTEM:-}" in
             ubuntu-1*)
-                echo false
+                return 1
                 ;;
             ubuntu-2*)
-                echo true
+                # secure boot enabled by default on 20.04 and later
+                return 0
                 ;;
             *)
                 echo "unsupported system"
@@ -224,19 +226,19 @@ nested_qemu_name() {
 nested_get_google_image_url_for_vm() {
     case "${1:-$SPREAD_SYSTEM}" in
         ubuntu-16.04-64)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/xenial-server-cloudimg-amd64-disk1.img"
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/xenial-server-cloudimg-amd64-disk1.img"
             ;;
         ubuntu-18.04-64)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/bionic-server-cloudimg-amd64.img"
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/bionic-server-cloudimg-amd64.img"
             ;;
         ubuntu-20.04-64)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
             ;;
         ubuntu-20.10-64*)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/groovy-server-cloudimg-amd64.img"
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/groovy-server-cloudimg-amd64.img"
             ;;
         ubuntu-21.04-64*)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/hirsute-server-cloudimg-amd64.img"
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/hirsute-server-cloudimg-amd64.img"
             ;;
         *)
             echo "unsupported system"
@@ -514,10 +516,11 @@ nested_create_core_vm() {
 
     mkdir -p "$NESTED_IMAGES_DIR"
 
-    if [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME".xz ]; then
-        nested_uncompress_image "$IMAGE_NAME"
-    elif [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
+    if [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" ]; then
+        cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+        return
 
+    elif [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
         if [ -n "$NESTED_CUSTOM_IMAGE_URL" ]; then
             # download the ubuntu-core image from $CUSTOM_IMAGE_URL
             nested_download_image "$NESTED_CUSTOM_IMAGE_URL" "$IMAGE_NAME"
@@ -667,6 +670,7 @@ EOF
             else 
                 UBUNTU_IMAGE_CHANNEL_ARG=""
             fi
+            # ubuntu-image creates sparse image files
             "$UBUNTU_IMAGE" snap --image-size 10G "$NESTED_MODEL" \
                 "$UBUNTU_IMAGE_CHANNEL_ARG" \
                 --output "$NESTED_IMAGES_DIR/$IMAGE_NAME" \
@@ -688,9 +692,8 @@ EOF
         nested_create_assertions_disk
     fi
 
-    # Save a compressed copy of the image
-    # TODO: analyze if it is better to compress just when the image is generic
-    nested_compress_image "$IMAGE_NAME"
+    # Save a copy of the image
+    cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine"
 }
 
 nested_configure_cloud_init_on_core_vm() {
@@ -958,10 +961,10 @@ nested_start_core_vm_unit() {
         fi
 
         if nested_is_tpm_enabled; then
-            if snap list swtpm-mvo; then
+            if snap list swtpm-mvo >/dev/null; then
                 # reset the tpm state
                 rm /var/snap/swtpm-mvo/current/tpm2-00.permall
-                snap restart swtpm-mvo
+                snap restart swtpm-mvo > /dev/null
             else
                 snap install swtpm-mvo --beta
             fi
@@ -1002,14 +1005,19 @@ nested_start_core_vm_unit() {
     # wait for the nested-vm service to appear active
     wait_for_service "$NESTED_VM"
 
-    # Wait until ssh is ready
-    nested_wait_for_ssh
-    # Wait for the snap command to be available
-    nested_wait_for_snap_command
-    # Wait for snap seeding to be done
-    nested_exec "sudo snap wait system seed.loaded"
-    # Wait for cloud init to be done
-    nested_exec "cloud-init status --wait"
+    local EXPECT_SHUTDOWN
+    EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}
+
+    if [ "$EXPECT_SHUTDOWN" != "1" ]; then
+        # Wait until ssh is ready
+        nested_wait_for_ssh
+        # Wait for the snap command to be available
+        nested_wait_for_snap_command
+        # Wait for snap seeding to be done
+        nested_exec "sudo snap wait system seed.loaded"
+        # Wait for cloud init to be done
+        nested_exec "cloud-init status --wait"
+    fi
 }
 
 nested_get_current_image_name() {
@@ -1032,35 +1040,31 @@ nested_start_core_vm() {
         # exists
         local IMAGE_NAME
         IMAGE_NAME="$(nested_get_image_name core)"
-        if ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz" ] && ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
+        if ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
             echo "No image found to be started"
             exit 1
         fi
 
-        # First time the image is used $IMAGE_NAME exists so it is used, otherwise
-        # the saved image from previous run is uncompressed
-        if ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
-            nested_uncompress_image "$IMAGE_NAME"
-        fi
-        mv "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$CURRENT_IMAGE"
+        # images are created as sparse files, simple cp should preserve that
+        # property
+        cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$CURRENT_IMAGE"
 
         # Start the nested core vm
         nested_start_core_vm_unit "$CURRENT_IMAGE"
 
-        if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz.configured" ]; then
+        if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.configured" ]; then
             # configure ssh for first time
             nested_prepare_ssh
             sync
 
-            # compress the current image if it is a generic image
+            # keep a copy of the current image if it is a generic image
             if nested_is_generic_image && [ "$NESTED_CONFIGURE_IMAGES" = "true" ]; then
                 # Stop the current image and compress it
                 nested_shutdown
-                nested_compress_image "$CURRENT_NAME"
 
                 # Save the image with the name of the original image
-                mv "${CURRENT_IMAGE}.xz" "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz"
-                touch "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz.configured"
+                cp -v "${CURRENT_IMAGE}" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+                touch "$NESTED_IMAGES_DIR/$IMAGE_NAME.configured"
 
                 # Start the current image again and wait until it is ready
                 nested_start
@@ -1092,18 +1096,6 @@ nested_start() {
     nested_wait_for_ssh
 }
 
-nested_compress_image() {
-    local IMAGE_NAME=$1
-    if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME".xz ]; then
-        xz -k0 "$NESTED_IMAGES_DIR/$IMAGE_NAME"
-    fi
-}
-
-nested_uncompress_image() {
-    local IMAGE_NAME=$1
-    unxz -kf "$NESTED_IMAGES_DIR/$IMAGE_NAME".xz
-}
-
 nested_create_classic_vm() {
     local IMAGE_NAME
     IMAGE_NAME="$(nested_get_image_name classic)"
@@ -1121,8 +1113,8 @@ nested_create_classic_vm() {
         cloud-localds -H "$(hostname)" "$NESTED_ASSETS_DIR/seed.img" "$NESTED_ASSETS_DIR/seed"
     fi
 
-    # Save a compressed copy of the image
-    nested_compress_image "$IMAGE_NAME"
+    # Save a copy of the image
+    cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine"
 }
 
 nested_start_classic_vm() {
@@ -1130,8 +1122,8 @@ nested_start_classic_vm() {
     QEMU="$(nested_qemu_name)"
     IMAGE_NAME="$(nested_get_image_name classic)"
 
-    if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ] && [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz" ]; then
-        nested_uncompress_image "$IMAGE_NAME"
+    if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ] ; then
+        cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$IMAGE_NAME"
     fi
 
     # Now qemu parameters are defined
@@ -1197,7 +1189,8 @@ nested_start_classic_vm() {
     # save logs from previous runs
     nested_save_serial_log
 
-    # Systemd unit is created, it is important to respect the qemu parameters order
+    # Systemd unit is created, it is important to respect the qemu parameters 
+    # order
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
         ${PARAM_SMP} \
         ${PARAM_CPU} \
@@ -1285,7 +1278,7 @@ nested_get_core_revision_installed() {
 nested_fetch_spread() {
     if [ ! -f "$NESTED_WORK_DIR/spread" ]; then
         mkdir -p "$NESTED_WORK_DIR"
-        curl https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz | tar -xzv -C "$NESTED_WORK_DIR"
+        curl https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | tar -xzv -C "$NESTED_WORK_DIR"
         # make sure spread really exists
         test -x "$NESTED_WORK_DIR/spread"
         echo "$NESTED_WORK_DIR/spread"

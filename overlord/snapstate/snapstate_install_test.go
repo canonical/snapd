@@ -68,7 +68,9 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 		)
 	}
 	if opts&updatesGadget != 0 {
-		expected = append(expected, "update-gadget-assets")
+		expected = append(expected,
+			"update-gadget-assets",
+			"update-gadget-cmdline")
 	}
 	expected = append(expected,
 		"copy-snap-data",
@@ -1773,7 +1775,7 @@ func (s *snapmgrTestSuite) TestInstallFirstLocalRunThrough(c *C) {
 	// use the real thing for this one
 	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
 
-	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
 		c.Fatalf("installSize shouldn't be hit with local install")
 		return 0, nil
 	})
@@ -2897,7 +2899,7 @@ func (s *snapmgrTestSuite) TestInstallDiskSpaceError(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestInstallSizeError(c *C) {
-	restore := snapstate.MockInstallSize(func(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
+	restore := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
 		return 0, fmt.Errorf("boom")
 	})
 	defer restore()
@@ -3107,7 +3109,7 @@ func (s *snapmgrTestSuite) TestInstallDbusActivationChecksFeatureFlag(c *C) {
 	// D-Bus activation is disabled by default.
 	opts := &snapstate.RevisionOptions{Channel: "channel-for-dbus-activation"}
 	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.dbus-activation' to true")
+	c.Assert(err, IsNil)
 
 	// D-Bus activation can be explicitly enabled.
 	tr := config.NewTransaction(s.state)
@@ -3123,19 +3125,19 @@ func (s *snapmgrTestSuite) TestInstallDbusActivationChecksFeatureFlag(c *C) {
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.dbus-activation' to true")
 
-	// The default empty value means "disabled"
+	// The default empty value means "enabled"
 	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.dbus-activation", "")
 	tr.Commit()
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.dbus-activation' to true")
+	c.Assert(err, IsNil)
 
-	// D-Bus activation is disabled when the controlling flag is reset to nil.
+	// D-Bus activation is enabled when the controlling flag is reset to nil.
 	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.dbus-activation", nil)
 	tr.Commit()
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.dbus-activation' to true")
+	c.Assert(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestInstallValidatesInstanceNames(c *C) {
@@ -3631,8 +3633,7 @@ volumes:
 		TrackError:  false,
 	}
 
-	var contextData map[string]interface{}
-	contextData = map[string]interface{}{"patch": gi.Defaults}
+	contextData := map[string]interface{}{"patch": gi.Defaults}
 
 	s.state.Lock()
 	defer s.state.Unlock()

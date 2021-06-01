@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -81,7 +82,7 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 	})
 	s.AddCleanup(restore)
 
-	restore = devicestate.MockSecbootCheckKeySealingSupported(func() error {
+	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func() error {
 		return fmt.Errorf("TPM not available")
 	})
 	s.AddCleanup(restore)
@@ -233,7 +234,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	})
 	defer restore()
 
-	restore = devicestate.MockSecbootCheckKeySealingSupported(func() error {
+	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func() error {
 		if tc.tpm {
 			return nil
 		} else {
@@ -474,6 +475,12 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookExpTasks(c *
 	c.Assert(waitTasks, HasLen, 1)
 	c.Assert(waitTasks[0].ID(), Equals, setupRunSystemTask.ID())
 
+	// install-device restart-task references to restart-system-to-run-mode
+	var restartTask string
+	err = installDevice.Get("restart-task", &restartTask)
+	c.Assert(err, IsNil)
+	c.Check(restartTask, Equals, restartSystemToRunModeTask.ID())
+
 	// restart-system-to-run-mode has a pre-req of install-device
 	waitTasks = restartSystemToRunModeTask.WaitTasks()
 	c.Assert(waitTasks, HasLen, 1)
@@ -484,6 +491,53 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookExpTasks(c *
 
 	c.Assert(hooksCalled, HasLen, 1)
 	c.Assert(hooksCalled[0].HookName(), Equals, "install-device")
+}
+
+func (s *deviceMgrInstallModeSuite) testInstallWithInstallDeviceHookSnapctlReboot(c *C, arg string, rst state.RestartType) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver) (*install.InstalledSystemSideData, error) {
+		return nil, nil
+	})
+	defer restore()
+
+	restore = hookstate.MockRunHook(func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+		c.Assert(ctx.HookName(), Equals, "install-device")
+
+		// snapctl reboot --halt
+		_, _, err := ctlcmd.Run(ctx, []string{"reboot", arg}, 0)
+		return nil, err
+	})
+	defer restore()
+
+	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+		[]byte("mode=install\n"), 0644)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	s.makeMockInstalledPcGadget(c, "dangerous", "install-device-hook-content", "")
+	devicestate.SetSystemMode(s.mgr, "install")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installSystem := s.findInstallSystem()
+	c.Check(installSystem.Err(), IsNil)
+
+	// we did end up requesting the right shutdown
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{rst})
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookSnapctlRebootHalt(c *C) {
+	s.testInstallWithInstallDeviceHookSnapctlReboot(c, "--halt", state.RestartSystemHaltNow)
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallWithInstallDeviceHookSnapctlRebootPoweroff(c *C) {
+	s.testInstallWithInstallDeviceHookSnapctlReboot(c, "--poweroff", state.RestartSystemPoweroffNow)
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallWithBrokenInstallDeviceHookUnhappy(c *C) {
@@ -725,7 +779,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredWithTPMAndSave(c *C) {
 	})
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(boot.InstallHostFDEDataDir, "recovery.key"), testutil.FileEquals, dataRecoveryKey[:])
-	c.Check(filepath.Join(boot.InstallHostFDEDataDir, "ubuntu-save.key"), testutil.FileEquals, saveKey[:])
+	c.Check(filepath.Join(boot.InstallHostFDEDataDir, "ubuntu-save.key"), testutil.FileEquals, []byte(saveKey))
 	c.Check(filepath.Join(boot.InstallHostFDEDataDir, "reinstall.key"), testutil.FileEquals, reinstallKey[:])
 	marker, err := ioutil.ReadFile(filepath.Join(boot.InstallHostFDEDataDir, "marker"))
 	c.Assert(err, IsNil)
@@ -753,7 +807,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallBootloaderVarSetFails(c *C) {
 	})
 	defer restore()
 
-	restore = devicestate.MockSecbootCheckKeySealingSupported(func() error { return fmt.Errorf("no encrypted soup for you") })
+	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return fmt.Errorf("no encrypted soup for you") })
 	defer restore()
 
 	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
@@ -781,7 +835,7 @@ func (s *deviceMgrInstallModeSuite) testInstallEncryptionSanityChecks(c *C, errM
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	restore = devicestate.MockSecbootCheckKeySealingSupported(func() error { return nil })
+	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
 	defer restore()
 
 	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
@@ -1053,7 +1107,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithEncryptionValidatesGadgetErr(
 	defer restore()
 
 	// pretend we have a TPM
-	restore = devicestate.MockSecbootCheckKeySealingSupported(func() error { return nil })
+	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
 	defer restore()
 
 	s.testInstallGadgetNoSave(c)
@@ -1078,7 +1132,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithoutEncryptionValidatesGadgetW
 	defer restore()
 
 	// pretend we have a TPM
-	restore = devicestate.MockSecbootCheckKeySealingSupported(func() error { return fmt.Errorf("TPM2 not available") })
+	restore = devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return fmt.Errorf("TPM2 not available") })
 	defer restore()
 
 	s.testInstallGadgetNoSave(c)
@@ -1133,7 +1187,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 		} else {
 			makeInstalledMockKernelSnap(c, st, kernelYamlNoFdeSetup)
 		}
-		restore := devicestate.MockSecbootCheckKeySealingSupported(func() error {
+		restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error {
 			if tc.hasTPM {
 				return nil
 			}
@@ -1151,7 +1205,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedStorageSafety(c *C)
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := devicestate.MockSecbootCheckKeySealingSupported(func() error { return nil })
+	restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return nil })
 	defer restore()
 
 	var testCases = []struct {
@@ -1204,7 +1258,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrors(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := devicestate.MockSecbootCheckKeySealingSupported(func() error { return fmt.Errorf("tpm says no") })
+	restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error { return fmt.Errorf("tpm says no") })
 	defer restore()
 
 	var testCases = []struct {
@@ -1333,7 +1387,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrorsLogsTPM(c *C)
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	restore := devicestate.MockSecbootCheckKeySealingSupported(func() error {
+	restore := devicestate.MockSecbootCheckTPMKeySealingSupported(func() error {
 		return fmt.Errorf("tpm says no")
 	})
 	defer restore()

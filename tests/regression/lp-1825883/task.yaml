@@ -1,15 +1,14 @@
 summary: Ensure that content meta-data is updated on refresh 
+
 details: |
     When a snap providing content is refreshed the peers of that snap would see
     stale information about the provided content.
+
 prepare: |
     snap pack test-snapd-app
     snap pack test-snapd-content.v1
     snap pack test-snapd-content.v2
-restore: |
-    snap remove --purge test-snapd-app
-    snap remove --purge test-snapd-content
-    rm -f test-snapd-content-app_1_all.snap test-snapd-content-{1,2}_all.snap
+
 execute: |
     snap install --dangerous test-snapd-app_1_all.snap
     snap install --dangerous test-snapd-content_1_all.snap

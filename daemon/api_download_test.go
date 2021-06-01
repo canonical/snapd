@@ -38,8 +38,6 @@ import (
 	"github.com/snapcore/snapd/store"
 )
 
-type fakeStore struct{}
-
 var _ = check.Suite(&snapDownloadSuite{})
 
 type snapDownloadSuite struct {
@@ -54,6 +52,8 @@ func (s *snapDownloadSuite) SetUpTest(c *check.C) {
 	s.snaps = nil
 
 	s.daemonWithStore(c, s)
+
+	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
 }
 
 var snapContent = "SNAP"
@@ -206,7 +206,6 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 		dataJSON string
 		status   int
 		resume   int
-		noBody   bool
 		err      string
 	}
 

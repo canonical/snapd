@@ -20,11 +20,12 @@
 package client_test
 
 import (
+	"io/ioutil"
+	"time"
+
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
-	"io/ioutil"
-	"time"
 )
 
 func (cs *clientSuite) TestClientChange(c *check.C) {

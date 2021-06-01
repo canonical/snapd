@@ -4,9 +4,6 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local aliases
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
-
     echo "Sanity check"
     aliases.cmd1|MATCH "ok command 1"
     aliases.cmd2|MATCH "ok command 2"
@@ -16,6 +13,7 @@ execute: |
     snap alias aliases.cmd2 alias2
 
     echo "Test the aliases"
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     test -h "$SNAP_MOUNT_DIR/bin/alias1"
     test -h "$SNAP_MOUNT_DIR/bin/alias2"
     alias1|MATCH "ok command 1"

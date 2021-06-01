@@ -14,8 +14,6 @@ restore: |
     cd "$PROJECT_PATH"
     echo "Cleanup build artifacts"
     not command -v snapcraft >/dev/null || snapcraft clean --destructive-mode
-    echo "Cleanup the installed snapcraft"
-    snap remove snapcraft
     echo "Cleanup the build snapd snap"
     rm -f snapd_spread-test.snap
 

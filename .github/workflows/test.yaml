@@ -148,6 +148,7 @@ jobs:
               export SKIP_GOFMT=1
               echo "Formatting checks will be skipped due to the use of Go version ${{ matrix.gochannel }}"
           fi
+          sudo apt-get install -y python3-yamlordereddictloader
           ./run-checks --static
     - name: Build C
       if: steps.cached-results.outputs.already-passed != 'true'
@@ -205,10 +206,10 @@ jobs:
         - arch-linux-64
         - centos-7-64
         - centos-8-64
-        - debian-9-64
+        - debian-10-64
         - debian-sid-64
-        - fedora-32-64
         - fedora-33-64
+        - fedora-34-64
         - opensuse-15.1-64
         - opensuse-15.2-64
         - opensuse-tumbleweed-64
