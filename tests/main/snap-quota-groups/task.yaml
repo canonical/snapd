@@ -5,7 +5,7 @@ details: |
   effective in practice.
 
 # Memory accounting is not functional without workarounds on these old systemd
-# systems, so disable the test until we make it functional. The issue is that 
+# systems, so disable the test until we make it functional. The issue is that
 # we now will report memory usage information in the daemon response, but due to
 # bugs in systemd, this fails without workarounds, and so any quota information
 # command will fail trying to get this memory information.
@@ -17,7 +17,7 @@ prepare: |
   if os.query is-trusty; then
     exit 0
   fi
-  snap install go-example-webserver jq remarshal
+  snap install go-example-webserver jq remarshal http hello-world
   snap set system experimental.quota-groups=true
   tests.cleanup defer snap unset system experimental.quota-groups
 
@@ -68,7 +68,36 @@ execute: |
   # the group is double escaped
   systemctl show --property=ControlGroup snap.go-example-webserver.webserver.service | MATCH 'ControlGroup=/snap.group(.*)one.slice/snap.go-example-webserver.webserver.service'
 
-  # TODO: check that systemctl says the memory usage is the same as "snap quota group-one"
+  # snap quota group-one formats the memory usage as a nice human readable 
+  # string, which complicates the comparison here, so instead just grab the 
+  # memory usage in raw bytes from the REST API instead
+  echo "The memory usage reported for the slice from snapd is within 10% of what the kernel reports"
+
+  # TODO: the v2 path here is probably wrong
+  cgroupsV1OldSystemdMemFile="/sys/fs/cgroup/memory/$sliceName/memory.usage_in_bytes"
+  cgroupsV1MemFile="/sys/fs/cgroup/memory/$sliceName/memory.usage_in_bytes"
+  cgroupsV2MemFile="/sys/fs/cgroup/$sliceName/memory.current"
+  if [ -e "$cgroupsV2MemFile" ]; then
+      cgroupMemFile="$cgroupsV2MemFile"
+  elif [ -e "$cgroupsV1OldSystemdMemFile" ]; then
+      cgroupMemFile="$cgroupsV1OldSystemdMemFile"
+  elif [ -e "$cgroupsV1MemFile" ]; then
+      cgroupMemFile="$cgroupsV1MemFile"
+  else
+      echo "cannot detect cgroup memory file"
+      exit 1
+  fi
+
+
+  snapdSaysMemUsage="$(sudo snap run http --body GET snapd:///v2/quotas/group-one | jq -r '.result."current-memory"')"
+  kernelSaysMemUsage="$(cat "$cgroupMemFile")"
+
+  percentChg="$(python3 -c "import math; print(math.ceil(abs($snapdSaysMemUsage - $kernelSaysMemUsage) / $snapdSaysMemUsage * 100))")"
+
+  if [ "$percentChg" -gt 10 ]; then
+    echo "memory usage reported by snapd differs from that of the kernel by more than 10%"
+    exit 1
+  fi
 
   echo "Removing the quota will stop the slice and the service will be restarted"
   snap remove-quota group-one
@@ -115,3 +144,36 @@ execute: |
   snap remove go-example-webserver
   snap quota group-three | yaml2json | jq -r '.snaps' | MATCH null
   snap remove-quota group-three
+
+  echo "Creating a quota group with no actual services in it still has logical memory usage reported for it"
+  snap set-quota group-four --memory=100MB
+  # putting a snap inside this one, even a snap with no services will trigger us
+  # to write out the slice unit definition and activate it
+  snap set-quota group-five --memory=10MB --parent=group-four hello-world
+
+  sliceName=snap.$(systemd-escape --path group-four/group-five).slice
+
+  # TODO: the v2 path here is probably wrong
+  cgroupsV1OldSystemdMemFile="/sys/fs/cgroup/memory/$sliceName/memory.usage_in_bytes"
+  cgroupsV1MemFile="/sys/fs/cgroup/memory/$sliceName/memory.usage_in_bytes"
+  cgroupsV2MemFile="/sys/fs/cgroup/$sliceName/memory.current"
+  if [ -e "$cgroupsV2MemFile" ]; then
+      cgroupMemFile="$cgroupsV2MemFile"
+  elif [ -e "$cgroupsV1OldSystemdMemFile" ]; then
+      cgroupMemFile="$cgroupsV1OldSystemdMemFile"
+  elif [ -e "$cgroupsV1MemFile" ]; then
+      cgroupMemFile="$cgroupsV1MemFile"
+  else
+      echo "cannot detect cgroup memory file"
+      exit 1
+  fi
+
+  snapdSaysMemUsage="$(sudo snap run http --body GET snapd:///v2/quotas/group-five | jq -r '.result."current-memory"')"
+  kernelSaysMemUsage="$(cat "$cgroupMemFile/memory.usage_in_bytes")"
+
+  if [ "$snapdSaysMemUsage" = 0 ] && [ "$kernelSaysMemUsage" = 0 ]; then
+    echo "expected output, both are zero"
+  else
+    echo "unexpected memory usage for an empty quota group, kernel says: $kernelSaysMemUsage, snapd says: $snapdSaysMemUsage"
+    exit 1
+  fi
