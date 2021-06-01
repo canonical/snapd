@@ -29,6 +29,7 @@ ACTION = 'action'
 OPERATION = 'operation'
 INFO = 'info'
 ERROR = 'error'
+ERROR_DEBUG = 'error-debug'
 FAILED = 'failed'
 ABORTED = 'aborted'
 SUCCESSFUL = 'successful'
@@ -225,6 +226,9 @@ class LogReader:
         elif details == ERROR:
             print(''.join(str(x) for x in self.full_log if x.type == INFO and \
                 x.info_type == ERROR_TYPE))
+        elif details == ERROR_DEBUG:
+            print(''.join(str(x) for x in self.full_log if x.type == INFO and \
+                ( x.info_type == ERROR_TYPE or x.info_type == DEBUG_TYPE )))
         else:
             print(''.join(str(x) for x in self.full_log if x.type == details))
 
@@ -458,7 +462,7 @@ for the error/debug/warning output.
         "--print-details",
         type=str,
         default=NONE,
-        choices=[ALL, ERROR, OPERATION, ACTION, INFO, NONE],
+        choices=[ALL, ERROR, ERROR_DEBUG, OPERATION, ACTION, INFO, NONE],
         help="Filter which info to print",
     )
     parser.add_argument(
