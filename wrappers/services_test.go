@@ -261,7 +261,9 @@ Before=slices.target
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
-MemoryMax=%s
+MemoryMax=%[2]s
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]s
 
 # Always enable task accounting in order to be able to count the processes/
 # threads, etc for a slice
@@ -368,7 +370,9 @@ Before=slices.target
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
-MemoryMax=%s
+MemoryMax=%[2]s
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]s
 
 # Always enable task accounting in order to be able to count the processes/
 # threads, etc for a slice
@@ -461,7 +465,9 @@ Before=slices.target
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
-MemoryMax=%s
+MemoryMax=%[2]s
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]s
 
 # Always enable task accounting in order to be able to count the processes/
 # threads, etc for a slice
@@ -552,6 +558,8 @@ Before=slices.target
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
 MemoryMax=1024
+# for compatibility with older versions of systemd
+MemoryLimit=1024
 `
 
 	err = os.MkdirAll(filepath.Dir(sliceFile), 0755)
@@ -619,7 +627,9 @@ Before=slices.target
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
-MemoryMax=%s
+MemoryMax=%[2]s
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]s
 
 # Always enable task accounting in order to be able to count the processes/
 # threads, etc for a slice
@@ -788,7 +798,9 @@ Before=slices.target
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
-MemoryMax=%s
+MemoryMax=%[2]s
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]s
 
 # Always enable task accounting in order to be able to count the processes/
 # threads, etc for a slice
