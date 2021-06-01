@@ -9,5 +9,6 @@
     "kernel": "pc-kernel",
     "serial-authority": ["generic"],
     "timestamp": "2021-06-01T12:18:12+00:00",
-    "required-snaps": [ "test-snapd-tools-core18" ]
+    "required-snaps": [ "test-snapd-tools" ],
+    "revision": "2"
 }

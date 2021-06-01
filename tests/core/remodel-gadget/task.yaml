@@ -89,8 +89,8 @@ execute: |
         snap debug model|MATCH "model: my-model"
 
         echo "Now we remodel"
-        MODEL="$(get_test_model valid-for-testing-pc-new-gadget)"
-        snap remodel "$MODEL"
+        MODEL="$(get_test_model valid-for-testing-pc-new-gadget-revno-2)"
+        snap remodel "${TESTSLIB}/assertions/${MODEL}"
 
         echo "Double check that new gadget was installed"
         test "$(cat /boot/efi/canary.txt)" = "this is test-snapd-pc gadget"
@@ -116,7 +116,7 @@ execute: |
 
         echo "And we can remodel again and remove the new gadget"
         MODEL="$(get_test_model valid-for-testing-pc-revno-3)"
-        snap remodel "$MODEL"
+        snap remodel "${TESTSLIB}/assertions/${MODEL}"
 
         REBOOT
     fi
