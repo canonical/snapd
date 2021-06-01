@@ -31,12 +31,12 @@ type errorsSuite struct{}
 var _ = Suite(&errorsSuite{})
 
 func (s *errorsSuite) TestJSON(c *C) {
-	ae := &daemon.APIError{
+	rspe := &daemon.APIError{
 		Status:  400,
 		Message: "req is wrong",
 	}
 
-	c.Check(ae.JSON(), DeepEquals, &daemon.RespJSON{
+	c.Check(rspe.JSON(), DeepEquals, &daemon.RespJSON{
 		Status: 400,
 		Type:   daemon.ResponseTypeError,
 		Result: &daemon.ErrorResult{
@@ -44,7 +44,7 @@ func (s *errorsSuite) TestJSON(c *C) {
 		},
 	})
 
-	ae = &daemon.APIError{
+	rspe = &daemon.APIError{
 		Status:  404,
 		Message: "snap not found",
 		Kind:    client.ErrorKindSnapNotFound,
@@ -52,7 +52,7 @@ func (s *errorsSuite) TestJSON(c *C) {
 			"snap-name": "foo",
 		},
 	}
-	c.Check(ae.JSON(), DeepEquals, &daemon.RespJSON{
+	c.Check(rspe.JSON(), DeepEquals, &daemon.RespJSON{
 		Status: 404,
 		Type:   daemon.ResponseTypeError,
 		Result: &daemon.ErrorResult{
@@ -66,14 +66,14 @@ func (s *errorsSuite) TestJSON(c *C) {
 }
 
 func (s *errorsSuite) TestError(c *C) {
-	ae := &daemon.APIError{
+	rspe := &daemon.APIError{
 		Status:  400,
 		Message: "req is wrong",
 	}
 
-	c.Check(ae.Error(), Equals, `req is wrong (api)`)
+	c.Check(rspe.Error(), Equals, `req is wrong (api)`)
 
-	ae = &daemon.APIError{
+	rspe = &daemon.APIError{
 		Status:  404,
 		Message: "snap not found",
 		Kind:    client.ErrorKindSnapNotFound,
@@ -82,21 +82,21 @@ func (s *errorsSuite) TestError(c *C) {
 		},
 	}
 
-	c.Check(ae.Error(), Equals, `snap not found (api: snap-not-found)`)
+	c.Check(rspe.Error(), Equals, `snap not found (api: snap-not-found)`)
 
-	ae = &daemon.APIError{
+	rspe = &daemon.APIError{
 		Status:  500,
 		Message: "internal error",
 	}
-	c.Check(ae.Error(), Equals, `internal error (api 500)`)
+	c.Check(rspe.Error(), Equals, `internal error (api 500)`)
 }
 
 func (s *errorsSuite) TestThroughSyncResponse(c *C) {
-	ae := &daemon.APIError{
+	rspe := &daemon.APIError{
 		Status:  400,
 		Message: "req is wrong",
 	}
 
-	rsp := daemon.SyncResponse(ae, nil)
-	c.Check(rsp, Equals, ae)
+	rsp := daemon.SyncResponse(rspe, nil)
+	c.Check(rsp, Equals, rspe)
 }

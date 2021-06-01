@@ -66,9 +66,9 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("invalid select parameter: %q", sel)
 	}
 
-	appInfos, ae := appInfosFor(c.d.overlord.State(), strutil.CommaSeparatedList(query.Get("names")), opts)
-	if ae != nil {
-		return ae
+	appInfos, rspe := appInfosFor(c.d.overlord.State(), strutil.CommaSeparatedList(query.Get("names")), opts)
+	if rspe != nil {
+		return rspe
 	}
 
 	sd := servicestate.NewStatusDecorator(progress.Null)
@@ -201,9 +201,9 @@ func getLogs(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	// only services have logs for now
 	opts := appInfoOptions{service: true}
-	appInfos, ae := appInfosFor(c.d.overlord.State(), strutil.CommaSeparatedList(query.Get("names")), opts)
-	if ae != nil {
-		return ae
+	appInfos, rspe := appInfosFor(c.d.overlord.State(), strutil.CommaSeparatedList(query.Get("names")), opts)
+	if rspe != nil {
+		return rspe
 	}
 	if len(appInfos) == 0 {
 		return AppNotFound("no matching services")
@@ -241,9 +241,9 @@ func postApps(c *Command, r *http.Request, user *auth.UserState) Response {
 	}
 
 	st := c.d.overlord.State()
-	appInfos, ae := appInfosFor(st, inst.Names, appInfoOptions{service: true})
-	if ae != nil {
-		return ae
+	appInfos, rspe := appInfosFor(st, inst.Names, appInfoOptions{service: true})
+	if rspe != nil {
+		return rspe
 	}
 	if len(appInfos) == 0 {
 		// can't happen: appInfosFor with a non-empty list of services

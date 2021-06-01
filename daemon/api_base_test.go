@@ -637,9 +637,9 @@ func (s *apiBaseSuite) errorReq(c *check.C, req *http.Request, u *auth.UserState
 
 func (s *apiBaseSuite) apiErrorReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.APIError {
 	rsp := s.req(c, req, u)
-	ae, ok := rsp.(*daemon.APIError)
+	rspe, ok := rsp.(*daemon.APIError)
 	c.Assert(ok, check.Equals, true, check.Commentf("expected apiError resp: %#v", rsp))
-	return ae
+	return rspe
 }
 
 func (s *apiBaseSuite) serveHTTP(c *check.C, w http.ResponseWriter, req *http.Request) {

@@ -1947,10 +1947,10 @@ func (s *snapsSuite) TestErrToResponseNoSnapsDoesNotPanic(c *check.C) {
 	}
 
 	for _, err := range errors {
-		ae := si.ErrToResponse(err)
+		rspe := si.ErrToResponse(err)
 		com := check.Commentf("%v", err)
-		c.Assert(ae, check.NotNil, com)
-		status := ae.Status
+		c.Assert(rspe, check.NotNil, com)
+		status := rspe.Status
 		c.Check(status/100 == 4 || status/100 == 5, check.Equals, true, com)
 	}
 }
@@ -1967,8 +1967,8 @@ func (s *snapsSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 			snaptest.MustParseChannel("beta", thisArch),
 		},
 	}
-	ae := si.ErrToResponse(err)
-	c.Check(ae, check.DeepEquals, &daemon.APIError{
+	rspe := si.ErrToResponse(err)
+	c.Check(rspe, check.DeepEquals, &daemon.APIError{
 		Status:  404,
 		Message: "no snap revision on specified channel",
 		Kind:    client.ErrorKindSnapChannelNotAvailable,
@@ -1990,8 +1990,8 @@ func (s *snapsSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 			snaptest.MustParseChannel("beta", "other-arch"),
 		},
 	}
-	ae = si.ErrToResponse(err)
-	c.Check(ae, check.DeepEquals, &daemon.APIError{
+	rspe = si.ErrToResponse(err)
+	c.Check(rspe, check.DeepEquals, &daemon.APIError{
 		Status:  404,
 		Message: "no snap revision on specified architecture",
 		Kind:    client.ErrorKindSnapArchitectureNotAvailable,
@@ -2007,8 +2007,8 @@ func (s *snapsSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 	})
 
 	err = &store.RevisionNotAvailableError{}
-	ae = si.ErrToResponse(err)
-	c.Check(ae, check.DeepEquals, &daemon.APIError{
+	rspe = si.ErrToResponse(err)
+	c.Check(rspe, check.DeepEquals, &daemon.APIError{
 		Status:  404,
 		Message: "no snap revision available as specified",
 		Kind:    client.ErrorKindSnapRevisionNotAvailable,
@@ -2020,8 +2020,8 @@ func (s *snapsSuite) TestErrToResponseForChangeConflict(c *check.C) {
 	si := &daemon.SnapInstruction{Action: "frobble", Snaps: []string{"foo"}}
 
 	err := &snapstate.ChangeConflictError{Snap: "foo", ChangeKind: "install"}
-	ae := si.ErrToResponse(err)
-	c.Check(ae, check.DeepEquals, &daemon.APIError{
+	rspe := si.ErrToResponse(err)
+	c.Check(rspe, check.DeepEquals, &daemon.APIError{
 		Status:  409,
 		Message: `snap "foo" has "install" change in progress`,
 		Kind:    client.ErrorKindSnapChangeConflict,
@@ -2033,8 +2033,8 @@ func (s *snapsSuite) TestErrToResponseForChangeConflict(c *check.C) {
 
 	// only snap
 	err = &snapstate.ChangeConflictError{Snap: "foo"}
-	ae = si.ErrToResponse(err)
-	c.Check(ae, check.DeepEquals, &daemon.APIError{
+	rspe = si.ErrToResponse(err)
+	c.Check(rspe, check.DeepEquals, &daemon.APIError{
 		Status:  409,
 		Message: `snap "foo" has changes in progress`,
 		Kind:    client.ErrorKindSnapChangeConflict,
@@ -2045,8 +2045,8 @@ func (s *snapsSuite) TestErrToResponseForChangeConflict(c *check.C) {
 
 	// only kind
 	err = &snapstate.ChangeConflictError{Message: "specific error msg", ChangeKind: "some-global-op"}
-	ae = si.ErrToResponse(err)
-	c.Check(ae, check.DeepEquals, &daemon.APIError{
+	rspe = si.ErrToResponse(err)
+	c.Check(rspe, check.DeepEquals, &daemon.APIError{
 		Status:  409,
 		Message: "specific error msg",
 		Kind:    client.ErrorKindSnapChangeConflict,

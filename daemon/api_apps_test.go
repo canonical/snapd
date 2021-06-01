@@ -335,8 +335,8 @@ func (s *appsSuite) TestGetAppsInfoBadName(c *check.C) {
 
 func (s *appsSuite) TestAppInfosForOne(c *check.C) {
 	st := s.d.Overlord().State()
-	appInfos, ae := daemon.AppInfosFor(st, []string{"snap-a.svc1"}, daemon.AppInfoServiceTrue)
-	c.Assert(ae, check.IsNil)
+	appInfos, rspe := daemon.AppInfosFor(st, []string{"snap-a.svc1"}, daemon.AppInfoServiceTrue)
+	c.Assert(rspe, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 1)
 	c.Check(appInfos[0].Snap, check.DeepEquals, s.infoA)
 	c.Check(appInfos[0].Name, check.Equals, "svc1")
@@ -364,8 +364,8 @@ func (s *appsSuite) TestAppInfosForAll(c *check.C) {
 		c.Assert(len(t.names), check.Equals, len(t.snaps), check.Commentf("%s", t.opts))
 
 		st := s.d.Overlord().State()
-		appInfos, ae := daemon.AppInfosFor(st, nil, t.opts)
-		c.Assert(ae, check.IsNil, check.Commentf("%s", t.opts))
+		appInfos, rspe := daemon.AppInfosFor(st, nil, t.opts)
+		c.Assert(rspe, check.IsNil, check.Commentf("%s", t.opts))
 		names := make([]string, len(appInfos))
 		for i, appInfo := range appInfos {
 			names[i] = appInfo.Name
@@ -380,8 +380,8 @@ func (s *appsSuite) TestAppInfosForAll(c *check.C) {
 
 func (s *appsSuite) TestAppInfosForOneSnap(c *check.C) {
 	st := s.d.Overlord().State()
-	appInfos, ae := daemon.AppInfosFor(st, []string{"snap-a"}, daemon.AppInfoServiceTrue)
-	c.Assert(ae, check.IsNil)
+	appInfos, rspe := daemon.AppInfosFor(st, []string{"snap-a"}, daemon.AppInfoServiceTrue)
+	c.Assert(rspe, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 2)
 	sort.Sort(snap.AppInfoBySnapApp(appInfos))
 
@@ -393,8 +393,8 @@ func (s *appsSuite) TestAppInfosForOneSnap(c *check.C) {
 
 func (s *appsSuite) TestAppInfosForMixedArgs(c *check.C) {
 	st := s.d.Overlord().State()
-	appInfos, ae := daemon.AppInfosFor(st, []string{"snap-a", "snap-a.svc1"}, daemon.AppInfoServiceTrue)
-	c.Assert(ae, check.IsNil)
+	appInfos, rspe := daemon.AppInfosFor(st, []string{"snap-a", "snap-a.svc1"}, daemon.AppInfoServiceTrue)
+	c.Assert(rspe, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 2)
 	sort.Sort(snap.AppInfoBySnapApp(appInfos))
 
@@ -406,7 +406,7 @@ func (s *appsSuite) TestAppInfosForMixedArgs(c *check.C) {
 
 func (s *appsSuite) TestAppInfosCleanupAndSorted(c *check.C) {
 	st := s.d.Overlord().State()
-	appInfos, ae := daemon.AppInfosFor(st, []string{
+	appInfos, rspe := daemon.AppInfosFor(st, []string{
 		"snap-b.svc3",
 		"snap-a.svc2",
 		"snap-a.svc1",
@@ -416,7 +416,7 @@ func (s *appsSuite) TestAppInfosCleanupAndSorted(c *check.C) {
 		"snap-b",
 		"snap-a",
 	}, daemon.AppInfoServiceTrue)
-	c.Assert(ae, check.IsNil)
+	c.Assert(rspe, check.IsNil)
 	c.Assert(appInfos, check.HasLen, 3)
 	sort.Sort(snap.AppInfoBySnapApp(appInfos))
 
@@ -430,28 +430,28 @@ func (s *appsSuite) TestAppInfosCleanupAndSorted(c *check.C) {
 
 func (s *appsSuite) TestAppInfosForAppless(c *check.C) {
 	st := s.d.Overlord().State()
-	appInfos, ae := daemon.AppInfosFor(st, []string{"snap-c"}, daemon.AppInfoServiceTrue)
-	c.Assert(ae, check.NotNil)
-	c.Check(ae.Status, check.Equals, 404)
-	c.Check(ae.Kind, check.Equals, client.ErrorKindAppNotFound)
+	appInfos, rspe := daemon.AppInfosFor(st, []string{"snap-c"}, daemon.AppInfoServiceTrue)
+	c.Assert(rspe, check.NotNil)
+	c.Check(rspe.Status, check.Equals, 404)
+	c.Check(rspe.Kind, check.Equals, client.ErrorKindAppNotFound)
 	c.Assert(appInfos, check.IsNil)
 }
 
 func (s *appsSuite) TestAppInfosForMissingApp(c *check.C) {
 	st := s.d.Overlord().State()
-	appInfos, ae := daemon.AppInfosFor(st, []string{"snap-c.whatever"}, daemon.AppInfoServiceTrue)
-	c.Assert(ae, check.NotNil)
-	c.Check(ae.Status, check.Equals, 404)
-	c.Check(ae.Kind, check.Equals, client.ErrorKindAppNotFound)
+	appInfos, rspe := daemon.AppInfosFor(st, []string{"snap-c.whatever"}, daemon.AppInfoServiceTrue)
+	c.Assert(rspe, check.NotNil)
+	c.Check(rspe.Status, check.Equals, 404)
+	c.Check(rspe.Kind, check.Equals, client.ErrorKindAppNotFound)
 	c.Assert(appInfos, check.IsNil)
 }
 
 func (s *appsSuite) TestAppInfosForMissingSnap(c *check.C) {
 	st := s.d.Overlord().State()
-	appInfos, ae := daemon.AppInfosFor(st, []string{"snap-x"}, daemon.AppInfoServiceTrue)
-	c.Assert(ae, check.NotNil)
-	c.Check(ae.Status, check.Equals, 404)
-	c.Check(ae.Kind, check.Equals, client.ErrorKindSnapNotFound)
+	appInfos, rspe := daemon.AppInfosFor(st, []string{"snap-x"}, daemon.AppInfoServiceTrue)
+	c.Assert(rspe, check.NotNil)
+	c.Check(rspe.Status, check.Equals, 404)
+	c.Check(rspe.Kind, check.Equals, client.ErrorKindSnapNotFound)
 	c.Assert(appInfos, check.IsNil)
 }
 

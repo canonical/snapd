@@ -216,8 +216,8 @@ func (s *responseSuite) TestErrToResponse(c *check.C) {
 
 	for _, t := range tests {
 		com := check.Commentf("%v", t.err)
-		ae := daemon.ErrToResponse(t.err, []string{"foo"}, daemon.BadRequest, "%s: %v", "ERR")
-		c.Check(ae, check.DeepEquals, t.expectedRsp, com)
+		rspe := daemon.ErrToResponse(t.err, []string{"foo"}, daemon.BadRequest, "%s: %v", "ERR")
+		c.Check(rspe, check.DeepEquals, t.expectedRsp, com)
 	}
 }
 
@@ -228,8 +228,8 @@ func (s *responseSuite) TestErrToResponseInsufficentSpace(c *check.C) {
 		Path:       "/path",
 		Message:    "specific error msg",
 	}
-	ae := daemon.ErrToResponse(err, nil, daemon.BadRequest, "%s: %v", "ERR")
-	c.Check(ae, check.DeepEquals, &daemon.APIError{
+	rspe := daemon.ErrToResponse(err, nil, daemon.BadRequest, "%s: %v", "ERR")
+	c.Check(rspe, check.DeepEquals, &daemon.APIError{
 		Status:  507,
 		Message: "specific error msg",
 		Kind:    client.ErrorKindInsufficientDiskSpace,
