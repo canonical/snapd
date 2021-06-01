@@ -4,6 +4,15 @@ details: |
   Functional test for snap quota group commands ensuring that they are 
   effective in practice.
 
+# Memory accounting is not functional without workarounds on these old systemd
+# systems, so disable the test until we make it functional. The issue is that 
+# we now will report memory usage information in the daemon response, but due to
+# bugs in systemd, this fails without workarounds, and so any quota information
+# command will fail trying to get this memory information.
+systems:
+  - -centos-7-64
+  - -amazon-*
+
 prepare: |
   if os.query is-trusty; then
     exit 0
