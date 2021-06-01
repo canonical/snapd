@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -876,6 +877,12 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
+		c.Fatal("unexpected call to installSize")
+		return 0, nil
+	})
+	defer restoreInstallSize()
+
 	snapstate.ReplaceStore(s.state, &autoRefreshGatingStore{
 		fakeStore: s.fakeStore,
 		refreshedSnaps: []*snap.Info{{
@@ -965,6 +972,95 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 		"check-rerefresh",
 	}
 	verifyPhasedAutorefreshTasks(c, chg.Tasks(), expected)
+}
+
+func (s *snapmgrTestSuite) testAutoRefreshPhase2DiskSpaceCheck(c *C, fail bool) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	restore := snapstate.MockOsutilCheckFreeSpace(func(path string, sz uint64) error {
+		c.Check(sz, Equals, snapstate.SafetyMarginDiskSpace(123))
+		if fail {
+			return &osutil.NotEnoughDiskSpaceError{}
+		}
+		return nil
+	})
+	defer restore()
+
+	var installSizeCalled bool
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
+		installSizeCalled = true
+		c.Assert(snaps, HasLen, 2)
+		c.Check(snaps[0].InstanceName(), Equals, "base-snap-b")
+		c.Check(snaps[1].InstanceName(), Equals, "snap-a")
+		return 123, nil
+	})
+	defer restoreInstallSize()
+
+	restoreModel := snapstatetest.MockDeviceModel(DefaultModel())
+	defer restoreModel()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.check-disk-space-refresh", true)
+	tr.Commit()
+
+	snapstate.ReplaceStore(s.state, &autoRefreshGatingStore{
+		fakeStore: s.fakeStore,
+		refreshedSnaps: []*snap.Info{{
+			Architectures: []string{"all"},
+			SnapType:      snap.TypeApp,
+			SideInfo: snap.SideInfo{
+				RealName: "snap-a",
+				Revision: snap.R(8),
+			},
+		}, {
+			Architectures: []string{"all"},
+			SnapType:      snap.TypeBase,
+			SideInfo: snap.SideInfo{
+				RealName: "base-snap-b",
+				Revision: snap.R(3),
+			},
+		}}})
+
+	mockInstalledSnap(c, s.state, snapAyaml, useHook)
+	mockInstalledSnap(c, s.state, snapByaml, useHook)
+	mockInstalledSnap(c, s.state, baseSnapByaml, noHook)
+
+	snapstate.MockSnapReadInfo(fakeReadInfo)
+
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st)
+	c.Assert(err, IsNil)
+	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-a"})
+
+	chg := s.state.NewChange("refresh", "...")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(installSizeCalled, Equals, true)
+	if fail {
+		c.Check(chg.Status(), Equals, state.ErrorStatus)
+		c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n- Run auto-refresh for ready snaps \(insufficient space.*`)
+	} else {
+		c.Check(chg.Status(), Equals, state.DoneStatus)
+		c.Check(chg.Err(), IsNil)
+	}
+}
+
+func (s *snapmgrTestSuite) TestAutoRefreshPhase2DiskSpaceError(c *C) {
+	fail := true
+	s.testAutoRefreshPhase2DiskSpaceCheck(c, fail)
+}
+
+func (s *snapmgrTestSuite) TestAutoRefreshPhase2DiskSpaceHappy(c *C) {
+	var nofail bool
+	s.testAutoRefreshPhase2DiskSpaceCheck(c, nofail)
 }
 
 // XXX: this case is probably artificial; with proper conflict prevention
