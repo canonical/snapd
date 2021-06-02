@@ -28,6 +28,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"golang.org/x/crypto/openpgp/packet"
+
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -141,13 +143,13 @@ func (gkm *GPGKeypairManager) retrieve(fpr string) (PrivateKey, error) {
 	}
 
 	pubKeyBuf := bytes.NewBuffer(out)
-	privKey, err := newExtPGPPrivateKey(pubKeyBuf, "GPG", func(content []byte) ([]byte, error) {
+	privKey, err := newExtPGPPrivateKey(pubKeyBuf, "GPG", func(content []byte) (*packet.Signature, error) {
 		return gkm.sign(fpr, content)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("cannot load GPG public key with fingerprint %q: %v", fpr, err)
 	}
-	gotFingerprint := privKey.fingerprint()
+	gotFingerprint := privKey.externalID
 	if gotFingerprint != fpr {
 		return nil, fmt.Errorf("got wrong public key from GPG, expected fingerprint %q: %s", fpr, gotFingerprint)
 	}
@@ -254,12 +256,24 @@ func (gkm *GPGKeypairManager) Get(keyID string) (PrivateKey, error) {
 	return nil, fmt.Errorf("cannot find key %q in GPG keyring", keyID)
 }
 
-func (gkm *GPGKeypairManager) sign(fingerprint string, content []byte) ([]byte, error) {
+func (gkm *GPGKeypairManager) sign(fingerprint string, content []byte) (*packet.Signature, error) {
 	out, err := gkm.gpg(content, "--personal-digest-preferences", "SHA512", "--default-key", "0x"+fingerprint, "--detach-sign")
 	if err != nil {
 		return nil, fmt.Errorf("cannot sign using GPG: %v", err)
 	}
-	return out, nil
+
+	badSig := "bad GPG produced signature: "
+	sigpkt, err := packet.Read(bytes.NewBuffer(out))
+	if err != nil {
+		return nil, fmt.Errorf(badSig+"%v", err)
+	}
+
+	sig, ok := sigpkt.(*packet.Signature)
+	if !ok {
+		return nil, fmt.Errorf(badSig+"got %T", sigpkt)
+	}
+
+	return sig, nil
 }
 
 type gpgKeypairInfo struct {
