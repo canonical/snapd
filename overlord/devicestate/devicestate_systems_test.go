@@ -1184,7 +1184,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 
-	validateSeed(c, "1234", s.storeSigning.Trusted)
+	validateCore20Seed(c, "1234", s.storeSigning.Trusted)
 	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
 	c.Check(m, DeepEquals, map[string]string{
@@ -1280,7 +1280,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/some-snap_1.snap"),
 	})
 	// do more extensive validation
-	validateSeed(c, "1234undo", s.storeSigning.Trusted)
+	validateCore20Seed(c, "1234undo", s.storeSigning.Trusted)
 	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
 	c.Check(m, DeepEquals, map[string]string{
@@ -1359,7 +1359,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 
-	validateSeed(c, "1234", s.storeSigning.Trusted)
+	validateCore20Seed(c, "1234", s.storeSigning.Trusted)
 	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
 	c.Check(m, DeepEquals, map[string]string{

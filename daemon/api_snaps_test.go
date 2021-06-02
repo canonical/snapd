@@ -1947,10 +1947,10 @@ func (s *snapsSuite) TestErrToResponseNoSnapsDoesNotPanic(c *check.C) {
 	}
 
 	for _, err := range errors {
-		rsp := si.ErrToResponse(err)
+		rspe := si.ErrToResponse(err)
 		com := check.Commentf("%v", err)
-		c.Check(rsp, check.NotNil, com)
-		status := rsp.(*daemon.Resp).Status
+		c.Assert(rspe, check.NotNil, com)
+		status := rspe.Status
 		c.Check(status/100 == 4 || status/100 == 5, check.Equals, true, com)
 	}
 }
@@ -1967,21 +1967,18 @@ func (s *snapsSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 			snaptest.MustParseChannel("beta", thisArch),
 		},
 	}
-	rsp := si.ErrToResponse(err).(*daemon.Resp)
-	c.Check(rsp, check.DeepEquals, &daemon.Resp{
-		Status: 404,
-		Type:   daemon.ResponseTypeError,
-		Result: &daemon.ErrorResult{
-			Message: "no snap revision on specified channel",
-			Kind:    client.ErrorKindSnapChannelNotAvailable,
-			Value: map[string]interface{}{
-				"snap-name":    "foo",
-				"action":       "install",
-				"channel":      "stable",
-				"architecture": thisArch,
-				"releases": []map[string]interface{}{
-					{"architecture": thisArch, "channel": "beta"},
-				},
+	rspe := si.ErrToResponse(err)
+	c.Check(rspe, check.DeepEquals, &daemon.APIError{
+		Status:  404,
+		Message: "no snap revision on specified channel",
+		Kind:    client.ErrorKindSnapChannelNotAvailable,
+		Value: map[string]interface{}{
+			"snap-name":    "foo",
+			"action":       "install",
+			"channel":      "stable",
+			"architecture": thisArch,
+			"releases": []map[string]interface{}{
+				{"architecture": thisArch, "channel": "beta"},
 			},
 		},
 	})
@@ -1993,35 +1990,29 @@ func (s *snapsSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 			snaptest.MustParseChannel("beta", "other-arch"),
 		},
 	}
-	rsp = si.ErrToResponse(err).(*daemon.Resp)
-	c.Check(rsp, check.DeepEquals, &daemon.Resp{
-		Status: 404,
-		Type:   daemon.ResponseTypeError,
-		Result: &daemon.ErrorResult{
-			Message: "no snap revision on specified architecture",
-			Kind:    client.ErrorKindSnapArchitectureNotAvailable,
-			Value: map[string]interface{}{
-				"snap-name":    "foo",
-				"action":       "install",
-				"channel":      "stable",
-				"architecture": thisArch,
-				"releases": []map[string]interface{}{
-					{"architecture": "other-arch", "channel": "beta"},
-				},
+	rspe = si.ErrToResponse(err)
+	c.Check(rspe, check.DeepEquals, &daemon.APIError{
+		Status:  404,
+		Message: "no snap revision on specified architecture",
+		Kind:    client.ErrorKindSnapArchitectureNotAvailable,
+		Value: map[string]interface{}{
+			"snap-name":    "foo",
+			"action":       "install",
+			"channel":      "stable",
+			"architecture": thisArch,
+			"releases": []map[string]interface{}{
+				{"architecture": "other-arch", "channel": "beta"},
 			},
 		},
 	})
 
 	err = &store.RevisionNotAvailableError{}
-	rsp = si.ErrToResponse(err).(*daemon.Resp)
-	c.Check(rsp, check.DeepEquals, &daemon.Resp{
-		Status: 404,
-		Type:   daemon.ResponseTypeError,
-		Result: &daemon.ErrorResult{
-			Message: "no snap revision available as specified",
-			Kind:    client.ErrorKindSnapRevisionNotAvailable,
-			Value:   "foo",
-		},
+	rspe = si.ErrToResponse(err)
+	c.Check(rspe, check.DeepEquals, &daemon.APIError{
+		Status:  404,
+		Message: "no snap revision available as specified",
+		Kind:    client.ErrorKindSnapRevisionNotAvailable,
+		Value:   "foo",
 	})
 }
 
@@ -2029,47 +2020,38 @@ func (s *snapsSuite) TestErrToResponseForChangeConflict(c *check.C) {
 	si := &daemon.SnapInstruction{Action: "frobble", Snaps: []string{"foo"}}
 
 	err := &snapstate.ChangeConflictError{Snap: "foo", ChangeKind: "install"}
-	rsp := si.ErrToResponse(err).(*daemon.Resp)
-	c.Check(rsp, check.DeepEquals, &daemon.Resp{
-		Status: 409,
-		Type:   daemon.ResponseTypeError,
-		Result: &daemon.ErrorResult{
-			Message: `snap "foo" has "install" change in progress`,
-			Kind:    client.ErrorKindSnapChangeConflict,
-			Value: map[string]interface{}{
-				"snap-name":   "foo",
-				"change-kind": "install",
-			},
+	rspe := si.ErrToResponse(err)
+	c.Check(rspe, check.DeepEquals, &daemon.APIError{
+		Status:  409,
+		Message: `snap "foo" has "install" change in progress`,
+		Kind:    client.ErrorKindSnapChangeConflict,
+		Value: map[string]interface{}{
+			"snap-name":   "foo",
+			"change-kind": "install",
 		},
 	})
 
 	// only snap
 	err = &snapstate.ChangeConflictError{Snap: "foo"}
-	rsp = si.ErrToResponse(err).(*daemon.Resp)
-	c.Check(rsp, check.DeepEquals, &daemon.Resp{
-		Status: 409,
-		Type:   daemon.ResponseTypeError,
-		Result: &daemon.ErrorResult{
-			Message: `snap "foo" has changes in progress`,
-			Kind:    client.ErrorKindSnapChangeConflict,
-			Value: map[string]interface{}{
-				"snap-name": "foo",
-			},
+	rspe = si.ErrToResponse(err)
+	c.Check(rspe, check.DeepEquals, &daemon.APIError{
+		Status:  409,
+		Message: `snap "foo" has changes in progress`,
+		Kind:    client.ErrorKindSnapChangeConflict,
+		Value: map[string]interface{}{
+			"snap-name": "foo",
 		},
 	})
 
 	// only kind
 	err = &snapstate.ChangeConflictError{Message: "specific error msg", ChangeKind: "some-global-op"}
-	rsp = si.ErrToResponse(err).(*daemon.Resp)
-	c.Check(rsp, check.DeepEquals, &daemon.Resp{
-		Status: 409,
-		Type:   daemon.ResponseTypeError,
-		Result: &daemon.ErrorResult{
-			Message: "specific error msg",
-			Kind:    client.ErrorKindSnapChangeConflict,
-			Value: map[string]interface{}{
-				"change-kind": "some-global-op",
-			},
+	rspe = si.ErrToResponse(err)
+	c.Check(rspe, check.DeepEquals, &daemon.APIError{
+		Status:  409,
+		Message: "specific error msg",
+		Kind:    client.ErrorKindSnapChangeConflict,
+		Value: map[string]interface{}{
+			"change-kind": "some-global-op",
 		},
 	})
 }

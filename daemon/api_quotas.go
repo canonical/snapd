@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/quota"
 )
 
 var (
@@ -55,17 +56,23 @@ type postQuotaGroupData struct {
 }
 
 type quotaGroupResultJSON struct {
-	GroupName string   `json:"group-name"`
-	MaxMemory uint64   `json:"max-memory"`
-	Parent    string   `json:"parent,omitempty"`
-	Snaps     []string `json:"snaps,omitempty"`
-	SubGroups []string `json:"subgroups,omitempty"`
+	GroupName     string   `json:"group-name"`
+	MaxMemory     uint64   `json:"max-memory"`
+	CurrentMemory uint64   `json:"current-memory"`
+	Parent        string   `json:"parent,omitempty"`
+	Snaps         []string `json:"snaps,omitempty"`
+	SubGroups     []string `json:"subgroups,omitempty"`
 }
 
 var (
 	servicestateCreateQuota = servicestate.CreateQuota
+	servicestateUpdateQuota = servicestate.UpdateQuota
 	servicestateRemoveQuota = servicestate.RemoveQuota
 )
+
+var getQuotaMemUsage = func(grp *quota.Group) (quantity.Size, error) {
+	return grp.CurrentMemoryUsage()
+}
 
 // getQuotaGroups returns all quota groups sorted by name.
 func getQuotaGroups(c *Command, r *http.Request, _ *auth.UserState) Response {
@@ -89,12 +96,19 @@ func getQuotaGroups(c *Command, r *http.Request, _ *auth.UserState) Response {
 	results := make([]quotaGroupResultJSON, len(quotas))
 	for i, name := range names {
 		qt := quotas[name]
+
+		memoryUsage, err := getQuotaMemUsage(qt)
+		if err != nil {
+			return InternalError(err.Error())
+		}
+
 		results[i] = quotaGroupResultJSON{
-			GroupName: qt.Name,
-			Parent:    qt.ParentGroup,
-			SubGroups: qt.SubGroups,
-			Snaps:     qt.Snaps,
-			MaxMemory: uint64(qt.MemoryLimit),
+			GroupName:     qt.Name,
+			Parent:        qt.ParentGroup,
+			SubGroups:     qt.SubGroups,
+			Snaps:         qt.Snaps,
+			MaxMemory:     uint64(qt.MemoryLimit),
+			CurrentMemory: uint64(memoryUsage),
 		}
 	}
 	return SyncResponse(results, nil)
@@ -120,12 +134,18 @@ func getQuotaGroupInfo(c *Command, r *http.Request, _ *auth.UserState) Response 
 		return InternalError(err.Error())
 	}
 
+	memoryUsage, err := getQuotaMemUsage(group)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+
 	res := quotaGroupResultJSON{
-		GroupName: group.Name,
-		Parent:    group.ParentGroup,
-		Snaps:     group.Snaps,
-		SubGroups: group.SubGroups,
-		MaxMemory: uint64(group.MemoryLimit),
+		GroupName:     group.Name,
+		Parent:        group.ParentGroup,
+		Snaps:         group.Snaps,
+		SubGroups:     group.SubGroups,
+		MaxMemory:     uint64(group.MemoryLimit),
+		CurrentMemory: uint64(memoryUsage),
 	}
 	return SyncResponse(res, nil)
 }
@@ -149,11 +169,29 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	switch data.Action {
 	case "ensure":
-		// TODO: quota updates
-		if err := servicestateCreateQuota(st, data.GroupName, data.Parent, data.Snaps, quantity.Size(data.MaxMemory)); err != nil {
-			// XXX: dedicated error type?
-			return BadRequest(err.Error())
+		// check if the quota group exists first, if it does then we need to
+		// update it instead of create it
+		_, err := servicestate.GetQuota(st, data.GroupName)
+		if err != nil && err != servicestate.ErrQuotaNotFound {
+			return InternalError(err.Error())
 		}
+		if err == servicestate.ErrQuotaNotFound {
+			// then we need to create the quota
+			if err := servicestateCreateQuota(st, data.GroupName, data.Parent, data.Snaps, quantity.Size(data.MaxMemory)); err != nil {
+				// XXX: dedicated error type?
+				return BadRequest(err.Error())
+			}
+		} else if err == nil {
+			// the quota group already exists, update it
+			updateOpts := servicestate.QuotaGroupUpdate{
+				AddSnaps:       data.Snaps,
+				NewMemoryLimit: quantity.Size(data.MaxMemory),
+			}
+			if err := servicestateUpdateQuota(st, data.GroupName, updateOpts); err != nil {
+				return BadRequest(err.Error())
+			}
+		}
+
 	case "remove":
 		if err := servicestateRemoveQuota(st, data.GroupName); err != nil {
 			return BadRequest(err.Error())

@@ -248,5 +248,5 @@ func installThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 		ensureStateSoon(st)
 	}
 	chg.Set("api-data", map[string]interface{}{"snap-names": installed})
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+	return AsyncResponse(nil, chg.ID())
 }

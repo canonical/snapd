@@ -20,6 +20,7 @@
 package quota_test
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -27,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/snap/quota"
+	"github.com/snapcore/snapd/systemd"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -640,4 +642,48 @@ func (ts *quotaTestSuite) TestResolveCrossReferencesCircular(c *C) {
 	subgrp2.SubGroups = append(subgrp2.SubGroups, "mysub1")
 	err = quota.ResolveCrossReferences(all)
 	c.Assert(err, ErrorMatches, `.*reference necessary parent.*`)
+}
+
+type systemctlInactiveServiceError struct{}
+
+func (s systemctlInactiveServiceError) Msg() []byte   { return []byte("inactive") }
+func (s systemctlInactiveServiceError) ExitCode() int { return 0 }
+func (s systemctlInactiveServiceError) Error() string { return "inactive" }
+
+func (ts *quotaTestSuite) TestCurrentMemoryUsage(c *C) {
+	systemctlCalls := 0
+	r := systemd.MockSystemctl(func(args ...string) ([]byte, error) {
+		systemctlCalls++
+		switch systemctlCalls {
+		case 1:
+			// first time pretend the service is inactive
+			c.Assert(args, DeepEquals, []string{"is-active", "snap.group.slice"})
+			return []byte("inactive"), systemctlInactiveServiceError{}
+		case 2:
+			// now pretend it is active
+			c.Assert(args, DeepEquals, []string{"is-active", "snap.group.slice"})
+			return []byte("active"), nil
+		case 3:
+			// now since it is active, we will query the current memory usage
+			c.Assert(args, DeepEquals, []string{"show", "--property", "MemoryCurrent", "snap.group.slice"})
+			return []byte("MemoryCurrent=1024"), nil
+		default:
+			c.Errorf("too many systemctl calls (%d) (current call is %+v)", systemctlCalls, args)
+			return []byte("broken test"), fmt.Errorf("broken test")
+		}
+	})
+	defer r()
+
+	grp1, err := quota.NewGroup("group", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	// group initially is inactive, so it has no current memory usage
+	currentMem, err := grp1.CurrentMemoryUsage()
+	c.Assert(err, IsNil)
+	c.Assert(currentMem, Equals, quantity.Size(0))
+
+	// now with systemctl mocked as active, we will get some usage
+	currentMem, err = grp1.CurrentMemoryUsage()
+	c.Assert(err, IsNil)
+	c.Assert(currentMem, Equals, quantity.SizeKiB)
 }
