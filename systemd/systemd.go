@@ -100,8 +100,8 @@ var systemctlCmd = func(args ...string) ([]byte, error) {
 	// output mode, see LP #1885597
 	bs, err := exec.Command("systemctl", args...).CombinedOutput()
 	if err != nil {
-		exitCode, _ := osutil.ExitCode(err)
-		return nil, &Error{cmd: args, exitCode: exitCode, msg: bs}
+		exitCode, exitCodeErr := osutil.ExitCode(err)
+		return nil, &Error{cmd: args, exitCode: exitCode, exitCodeErr: exitCodeErr, msg: bs}
 	}
 
 	return bs, nil
@@ -823,9 +823,10 @@ type systemctlError interface {
 
 // Error is returned if the systemd action failed
 type Error struct {
-	cmd      []string
-	msg      []byte
-	exitCode int
+	cmd         []string
+	msg         []byte
+	exitCode    int
+	exitCodeErr error
 }
 
 func (e *Error) Msg() []byte {
@@ -837,7 +838,14 @@ func (e *Error) ExitCode() int {
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("%v failed with exit status %d: %s", e.cmd, e.exitCode, e.msg)
+	var msg string
+	if len(e.msg) > 0 {
+		msg = fmt.Sprintf(": %s", e.msg)
+	}
+	if e.exitCodeErr != nil {
+		return fmt.Sprintf("systemctl command %v failed with: %v%s", e.cmd, e.exitCodeErr, msg)
+	}
+	return fmt.Sprintf("systemctl command %v failed with exit status %d%s", e.cmd, e.exitCode, msg)
 }
 
 // Timeout is returned if the systemd action failed to reach the
