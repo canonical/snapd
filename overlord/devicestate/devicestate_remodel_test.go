@@ -960,13 +960,21 @@ func (s *deviceMgrRemodelSuite) TestReregRemodelClashAnyChange(c *C) {
 		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
 		"revision":       "1",
 	})
+	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
+		// we never reach the place where this gets called
+		c.Fatalf("unexpected call")
+		return nil
+	}
 
 	// simulate any other change
-	s.state.NewChange("chg", "other change")
+	chg := s.state.NewChange("chg", "other change")
+	chg.SetStatus(state.DoingStatus)
 
 	_, err := devicestate.Remodel(s.state, new)
-	c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
-		Message: "cannot start complete remodel, other changes are in progress",
+	c.Assert(err, NotNil)
+	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
+		ChangeKind: "chg",
+		Message:    `other changes in progress, change "remodel" not allowed until they are done (conflicting change "chg")`,
 	})
 }
 

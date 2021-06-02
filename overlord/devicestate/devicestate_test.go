@@ -236,6 +236,7 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	s.AddCleanup(s.restoreCloudInitStatusRestore)
 
 	s.AddCleanup(func() { s.ancillary = nil })
+	s.AddCleanup(func() { s.newFakeStore = nil })
 }
 
 func (s *deviceMgrBaseSuite) newStore(devBE storecontext.DeviceBackend) snapstate.StoreService {
