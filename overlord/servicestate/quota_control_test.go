@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -113,7 +114,7 @@ func checkQuotaState(c *C, st *state.State, exp map[string]quotaGroupState) {
 				// meh assume all services are named svc1
 				sliceName := name
 				if grp.ParentGroup != "" {
-					sliceName = grp.ParentGroup + "-" + name
+					sliceName = grp.ParentGroup + "/" + name
 				}
 				checkSvcAndSliceState(c, sn+".svc1", sliceName, grp.MemoryLimit)
 			}
@@ -127,6 +128,7 @@ func checkQuotaState(c *C, st *state.State, exp map[string]quotaGroupState) {
 }
 
 func checkSvcAndSliceState(c *C, snapSvc string, sliceName string, sliceMem quantity.Size) {
+	sliceName = systemd.EscapeUnitNamePath(sliceName)
 	// make sure the service file exists
 	svcFileName := filepath.Join(dirs.SnapServicesDir, "snap."+snapSvc+".service")
 	c.Assert(svcFileName, testutil.FilePresent)
@@ -151,6 +153,7 @@ func checkSliceState(c *C, sliceName string, sliceMem quantity.Size) {
 }
 
 func systemctlCallsForSliceStart(name string) []expectedSystemctl {
+	name = systemd.EscapeUnitNamePath(name)
 	slice := "snap." + name + ".slice"
 	return []expectedSystemctl{
 		{expArgs: []string{"start", slice}},
@@ -158,6 +161,7 @@ func systemctlCallsForSliceStart(name string) []expectedSystemctl {
 }
 
 func systemctlCallsForSliceStop(name string) []expectedSystemctl {
+	name = systemd.EscapeUnitNamePath(name)
 	slice := "snap." + name + ".slice"
 	return []expectedSystemctl{
 		{expArgs: []string{"stop", slice}},
@@ -189,7 +193,6 @@ func systemctlCallsForCreateQuota(groupName string, snapNames ...string) []expec
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
 		systemctlCallsForSliceStart(groupName),
 	)
-
 	for _, snapName := range snapNames {
 		calls = join(calls, systemctlCallsForServiceRestart(snapName))
 	}
@@ -325,8 +328,8 @@ func (s *quotaControlSuite) TestCreateSubGroupQuota(c *C) {
 		// CreateQuota for foo2 - we don't write anything for the first quota
 		// since there are no snaps in the quota to track
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
-		systemctlCallsForSliceStart("foo"),
-		systemctlCallsForSliceStart("foo-foo2"),
+		systemctlCallsForSliceStart("foo-group"),
+		systemctlCallsForSliceStart("foo-group/foo2"),
 		systemctlCallsForServiceRestart("test-snap"),
 	))
 	defer r()
@@ -340,7 +343,7 @@ func (s *quotaControlSuite) TestCreateSubGroupQuota(c *C) {
 	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 
 	// create a quota group with no snaps to be the parent
-	err := servicestate.CreateQuota(s.state, "foo", "", nil, quantity.SizeGiB)
+	err := servicestate.CreateQuota(s.state, "foo-group", "", nil, quantity.SizeGiB)
 	c.Assert(err, IsNil)
 
 	// trying to create a quota group with a non-existent parent group fails
@@ -349,28 +352,28 @@ func (s *quotaControlSuite) TestCreateSubGroupQuota(c *C) {
 
 	// trying to create a quota group with too big of a limit to fit inside the
 	// parent fails
-	err = servicestate.CreateQuota(s.state, "foo2", "foo", []string{"test-snap"}, 2*quantity.SizeGiB)
-	c.Assert(err, ErrorMatches, `sub-group memory limit of 2 GiB is too large to fit inside remaining quota space 1 GiB for parent group foo`)
+	err = servicestate.CreateQuota(s.state, "foo2", "foo-group", []string{"test-snap"}, 2*quantity.SizeGiB)
+	c.Assert(err, ErrorMatches, `sub-group memory limit of 2 GiB is too large to fit inside remaining quota space 1 GiB for parent group foo-group`)
 
 	// now we can create a sub-quota
-	err = servicestate.CreateQuota(s.state, "foo2", "foo", []string{"test-snap"}, quantity.SizeGiB)
+	err = servicestate.CreateQuota(s.state, "foo2", "foo-group", []string{"test-snap"}, quantity.SizeGiB)
 	c.Assert(err, IsNil)
 
 	// check that the quota groups were created in the state
 	checkQuotaState(c, st, map[string]quotaGroupState{
-		"foo": {
+		"foo-group": {
 			MemoryLimit: quantity.SizeGiB,
 			SubGroups:   []string{"foo2"},
 		},
 		"foo2": {
 			MemoryLimit: quantity.SizeGiB,
 			Snaps:       []string{"test-snap"},
-			ParentGroup: "foo",
+			ParentGroup: "foo-group",
 		},
 	})
 
-	// foo exists but is not in any service
-	checkSliceState(c, "foo", quantity.SizeGiB)
+	// foo-group exists as a slice too, but has no snap services in the slice
+	checkSliceState(c, systemd.EscapeUnitNamePath("foo-group"), quantity.SizeGiB)
 }
 
 func (s *quotaControlSuite) TestRemoveQuota(c *C) {
@@ -387,9 +390,9 @@ func (s *quotaControlSuite) TestRemoveQuota(c *C) {
 		// create that group on disk
 		// TODO: is this bit correct in practice? we are in effect calling
 		// systemctl stop <non-existing-slice> ?
-		systemctlCallsForSliceStop("foo-foo3"),
+		systemctlCallsForSliceStop("foo/foo3"),
 
-		systemctlCallsForSliceStop("foo-foo2"),
+		systemctlCallsForSliceStop("foo/foo2"),
 
 		// RemoveQuota for foo
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
@@ -496,7 +499,7 @@ func (s *quotaControlSuite) TestUpdateQuotaSubGroupTooBig(c *C) {
 		systemctlCallsForCreateQuota("foo", "test-snap"),
 
 		// CreateQuota for foo2
-		systemctlCallsForCreateQuota("foo-foo2", "test-snap2"),
+		systemctlCallsForCreateQuota("foo/foo2", "test-snap2"),
 
 		// UpdateQuota for foo2 - just the slice changes
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
