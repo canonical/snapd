@@ -228,7 +228,7 @@ func (s *autorefreshGatingSuite) TestHoldDurationLeft(c *C) {
 	c.Assert(err, IsNil)
 	maxPostponement := time.Hour * 24 * 90
 
-	for _, tc := range []struct {
+	for i, tc := range []struct {
 		lastRefresh, firstHeld string
 		maxDuration            string
 		expected               string
@@ -280,7 +280,7 @@ func (s *autorefreshGatingSuite) TestHoldDurationLeft(c *C) {
 		c.Assert(err, IsNil)
 
 		left := snapstate.HoldDurationLeft(now, lastRefresh, firstHeld, maxDuration, maxPostponement)
-		c.Check(left, Equals, expected)
+		c.Check(left, Equals, expected, Commentf("case #%d", i))
 	}
 }
 
