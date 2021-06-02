@@ -13,9 +13,9 @@ systems:
   - -amazon-*
 
 prepare: |
-  snap install hello-world
-  snap install test-snapd-tools
+  snap install hello-world go-example-webserver test-snapd-tools
   snap set system experimental.quota-groups=true
+  tests.cleanup defer snap unset experimental.quota-groups
 
 execute: |
   if os.query is-trusty; then
@@ -41,6 +41,9 @@ execute: |
   echo "Trying to add snap to more than one group fails"
   snap set-quota group-bad --memory=1MB hello-world 2>&1 | MATCH 'error: cannot create or update quota group: cannot add snap "hello-world" to group "group-bad": snap already in quota group "group-one"'
 
+  echo "Adding a snap to group-one"
+  snap set-quota group-one go-example-webserver
+
   echo "Checking that all quotas can be listed"
   snap quotas | cat -n > quotas.txt
   MATCH "     1\s+Quota\s+Parent\s+Constraints\s+Current$" < quotas.txt
@@ -58,11 +61,12 @@ execute: |
   MATCH "     3\s+constraints:$" < details.txt
   MATCH "     4\s+memory:\s+1.00MB$" < details.txt
   MATCH "     5\s+current:$" < details.txt
-  MATCH "     6\s+memory:\s+0B$" < details.txt
+  MATCH "     6\s+memory:\s+[0-9.a-zA-Z]+B$" < details.txt
   MATCH "     7\s+subgroups:$" < details.txt
   MATCH "     8\s+- group-sub-one$" < details.txt
   MATCH "     9\s+snaps:$" < details.txt
   MATCH "    10\s+-\s+hello-world$" < details.txt
+  MATCH "    11\s+-\s+go-example-webserver$" < details.txt
 
   echo "Checking that quota groups can be removed"
   snap remove-quota group-two
