@@ -153,13 +153,13 @@ execute: |
   snap set-quota group-five --memory=10MB --parent=group-four hello-world
 
   snapdSaysMemUsage="$(sudo snap run http --body GET snapd:///v2/quotas/group-five | jq -r '.result."current-memory"')"
-  if [ "$snapdSaysMemUsage" != 0 ]
+  if [ "$snapdSaysMemUsage" != 0 ]; then
     echo "unexpected memory usage for empty quota group group-five, snapd says: $snapdSaysMemUsage"
     exit 1
   fi
 
   snapdSaysMemUsage="$(sudo snap run http --body GET snapd:///v2/quotas/group-four | jq -r '.result."current-memory"')"
-  if [ "$snapdSaysMemUsage" != 0 ]
+  if [ "$snapdSaysMemUsage" != 0 ]; then
     echo "unexpected memory usage for empty quota group group-four, snapd says: $snapdSaysMemUsage"
     exit 1
   fi
