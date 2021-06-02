@@ -56,7 +56,8 @@ execute: |
       echo "cannot detect cgroup procs file"
       exit 1
   fi
-  wc -l < "$cgroupProcsFile" | MATCH '^1$'
+
+  retry --wait 1 -n 100 sh -c "test $(wc -l < "$cgroupProcsFile") = 1"
   SERVER_PID=$(cat "$cgroupProcsFile")
 
   echo "And that process is the main PID for the example webserver"
