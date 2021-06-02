@@ -15,7 +15,7 @@ systems:
 prepare: |
   snap install hello-world go-example-webserver test-snapd-tools
   snap set system experimental.quota-groups=true
-  tests.cleanup defer snap unset experimental.quota-groups
+  tests.cleanup defer snap unset system experimental.quota-groups
 
 execute: |
   if os.query is-trusty; then
@@ -48,7 +48,7 @@ execute: |
   snap quotas | cat -n > quotas.txt
   MATCH "     1\s+Quota\s+Parent\s+Constraints\s+Current$" < quotas.txt
   MATCH "     2\s+group-top1\s+memory=400MB\s+memory=[0-9.a-zA-Z]+$" < quotas.txt
-  MATCH "     3\s+group-one\s+group-top1\s+memory=1.00MB\s*$" < quotas.txt
+  MATCH "     3\s+group-one\s+group-top1\s+memory=100MB\s+memory=[0-9.a-zA-Z]+$" < quotas.txt
   MATCH "     4\s+group-sub-one\s+group-one\s+memory=500B\s*$" < quotas.txt
   MATCH "     5\s+group-sub-sub-one\s+group-sub-one\s+memory=500B\s*$" < quotas.txt
   MATCH "     6\s+group-two\s+group-top1\s+memory=2.00MB\s*$" < quotas.txt
