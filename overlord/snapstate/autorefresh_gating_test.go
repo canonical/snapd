@@ -234,22 +234,22 @@ func (s *autorefreshGatingSuite) TestHoldDurationLeft(c *C) {
 		expected               string
 	}{
 		{
-			"2021-05-03T10:00:00Z", // last refreshed (1 month ago
+			"2021-05-03T10:00:00Z", // last refreshed (1 month ago)
 			"2021-06-03T10:00:00Z", // first held now
-			"48h",                  // max duration
-			"48h",                  // expected
+			"48h", // max duration
+			"48h", // expected
 		},
 		{
 			"2021-05-03T10:00:00Z", // last refreshed (1 month ago)
 			"2021-06-02T10:00:00Z", // first held (1 day ago)
-			"48h",                  // max duration
-			"24h",                  // expected
+			"48h", // max duration
+			"24h", // expected
 		},
 		{
 			"2021-05-03T10:00:00Z", // last refreshed (1 month ago)
 			"2021-06-01T10:00:00Z", // first held (2 days ago)
-			"48h",                  // max duration
-			"00h",                  // expected
+			"48h", // max duration
+			"00h", // expected
 		},
 		{
 			"2021-03-08T10:00:00Z", // last refreshed (almost 3 months ago)
