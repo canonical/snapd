@@ -2020,7 +2020,7 @@ func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshC
 		return nil, err
 	}
 	if checkDiskSpaceRefresh {
-		// check if there is enough disk space for requested snap and its
+		// check if there is enough disk space for requested snaps and their
 		// prerequisites.
 		totalSize, err := installSize(st, toUpdate, 0)
 		if err != nil {
