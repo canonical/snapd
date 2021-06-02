@@ -433,6 +433,10 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	//       our remodel change our carefully constructed wait chain
 	//       breaks down.
 
+	// Keep track of downloads tasks carrying snap-setup which is needed for
+	// recovery system tasks
+	var snapSetupTasks []string
+
 	// Ensure all download/check tasks are run *before* the install
 	// tasks. During a remodel the network may not be available so
 	// we need to ensure we have everything local.
@@ -478,12 +482,47 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		if firstInstallInChain == nil {
 			firstInstallInChain = installFirst
 		}
+		// download is always a first task of the 'download' phase
+		snapSetupTasks = append(snapSetupTasks, downloadLast.ID())
 	}
-	// Make sure the first install waits for the last download. With this
-	// our (simplified) wait chain looks like:
-	// download1 <- verify1 <- download2 <- verify2 <- download3 <- verify3 <- install1 <- install2 <- install3
+	// Make sure the first install waits for the recovery system (only in
+	// UC20) which waits for the last download. With this our (simplified)
+	// wait chain looks like this:
+	//
+	// download1
+	//   ^- verify1
+	//        ^- download2
+	//             ^- verify2
+	//                  ^- download3
+	//                       ^- verify3
+	//                            ^- recovery (UC20)
+	//                                 ^- install1
+	//                                      ^- install2
+	//                                           ^- install3
 	if firstInstallInChain != nil && lastDownloadInChain != nil {
 		firstInstallInChain.WaitFor(lastDownloadInChain)
+	}
+
+	recoverySetupTaskID := ""
+	if current.Grade() != asserts.ModelGradeUnset && new.Grade() != asserts.ModelGradeUnset {
+		// right now it's only possible to remodel from a UC20 system to
+		// another UC20 system, when doing so create a recovery
+		label := timeNow().Format("20060102")
+		createRecoveryTasks, err := createRecoverySystemTasks(st, label, snapSetupTasks)
+		if err != nil {
+			return nil, err
+		}
+		if lastDownloadInChain != nil {
+			// wait for all snaps that need to be downloaded
+			createRecoveryTasks.WaitFor(lastDownloadInChain)
+		}
+		if firstInstallInChain != nil {
+			// when any snap installations need to happen, they
+			// should also wait for recovery system to be created
+			firstInstallInChain.WaitAll(createRecoveryTasks)
+		}
+		tss = append(tss, createRecoveryTasks)
+		recoverySetupTaskID = createRecoveryTasks.Tasks()[0].ID()
 	}
 
 	// Set the new model assertion - this *must* be the last thing done
@@ -492,9 +531,25 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	for _, tsPrev := range tss {
 		setModel.WaitAll(tsPrev)
 	}
+	if recoverySetupTaskID != "" {
+		// set model needs to access information about the recovery
+		// system
+		setModel.Set("recovery-system-setup-task", recoverySetupTaskID)
+	}
 	tss = append(tss, state.NewTaskSet(setModel))
 
 	return tss, nil
+}
+
+var allowUC20RemodelTesting = false
+
+func AllowUC20RemodelTesting(allow bool) (restore func()) {
+	osutil.MustBeTestBinary("uc20 remodel testin only can be mocked in tests")
+	oldAllowUC20RemodelTesting := allowUC20RemodelTesting
+	allowUC20RemodelTesting = allow
+	return func() {
+		allowUC20RemodelTesting = oldAllowUC20RemodelTesting
+	}
 }
 
 // Remodel takes a new model assertion and generates a change that
@@ -535,11 +590,18 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 
 	// TODO:UC20: support remodel, also ensure we never remodel to a lower
 	// grade
-	if current.Grade() != asserts.ModelGradeUnset {
-		return nil, fmt.Errorf("cannot remodel Ubuntu Core 20 models yet")
-	}
-	if new.Grade() != asserts.ModelGradeUnset {
-		return nil, fmt.Errorf("cannot remodel to Ubuntu Core 20 models yet")
+	if !allowUC20RemodelTesting {
+		if current.Grade() != asserts.ModelGradeUnset {
+			return nil, fmt.Errorf("cannot remodel Ubuntu Core 20 models yet")
+		}
+		if new.Grade() != asserts.ModelGradeUnset {
+			return nil, fmt.Errorf("cannot remodel to Ubuntu Core 20 models yet")
+		}
+	} else {
+		// also disallows remodel from non-UC20 (grade unset) to UC20
+		if current.Grade() != new.Grade() {
+			return nil, fmt.Errorf("cannot remodel from grade %v to grade %v", current.Grade(), new.Grade())
+		}
 	}
 
 	// TODO: we need dedicated assertion language to permit for
