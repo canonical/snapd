@@ -22,7 +22,7 @@ execute: |
     # just check that we can't do anything with quota groups on trusty, systemd
     # there is 204, but we need at least 205 for slice units
 
-    snap quota foobar --max-memory=1MB 2>&1 | MATCH "systemd version too old: snap quotas requires systemd 205 and newer \(currently have 204\)"
+    snap set-quota foobar --memory=1MB 2>&1 | MATCH "systemd version too old: snap quotas requires systemd 205 and newer \(currently have 204\)"
     exit 0
   fi
 
