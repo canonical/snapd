@@ -92,7 +92,12 @@ execute: |
   snapdSaysMemUsage="$(sudo snap run http --body GET snapd:///v2/quotas/group-one | jq -r '.result."current-memory"')"
   kernelSaysMemUsage="$(cat "$cgroupMemFile")"
 
-  percentChg="$(python3 -c "import math; print(math.ceil(abs($snapdSaysMemUsage - $kernelSaysMemUsage) / $snapdSaysMemUsage * 100))")"
+  pyCmd="import math; print(math.ceil(abs($snapdSaysMemUsage - $kernelSaysMemUsage) / $snapdSaysMemUsage * 100))"
+  if command -v python3 > /dev/null; then
+    percentChg="$(python3 -c "$pyCmd")"
+  else 
+    percentChg="$(python -c "$pyCmd")"
+  fi
 
   if [ "$percentChg" -gt 10 ]; then
     echo "memory usage reported by snapd differs from that of the kernel by more than 10%"
