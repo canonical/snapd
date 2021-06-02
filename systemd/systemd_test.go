@@ -1463,16 +1463,22 @@ func (s *SystemdTestSuite) TestCurrentUsageFamilyInvalid(c *C) {
 func (s *SystemdTestSuite) TestCurrentUsageFamilyHappy(c *C) {
 	s.outs = [][]byte{
 		[]byte(`MemoryCurrent=1024`),
+		[]byte(`MemoryCurrent=18446744073709551615`), // special value from systemd bug
 		[]byte(`TasksCurrent=10`),
 	}
 	sysd := New(SystemMode, s.rep)
 	memUsage, err := sysd.CurrentMemoryUsage("bar.service")
 	c.Assert(err, IsNil)
 	c.Assert(memUsage, Equals, quantity.SizeKiB)
+	memUsage, err = sysd.CurrentMemoryUsage("bar.service")
+	c.Assert(err, IsNil)
+	const sixteenExb = quantity.Size(1<<64 - 1)
+	c.Assert(memUsage, Equals, sixteenExb)
 	tasksUsage, err := sysd.CurrentTasksCount("bar.service")
 	c.Assert(tasksUsage, Equals, 10)
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "MemoryCurrent", "bar.service"},
 		{"show", "--property", "MemoryCurrent", "bar.service"},
 		{"show", "--property", "TasksCurrent", "bar.service"},
 	})

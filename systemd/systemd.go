@@ -647,7 +647,7 @@ func (s *systemd) CurrentMemoryUsage(unit string) (quantity.Size, error) {
 		return 0, fmt.Errorf("memory usage unavailable")
 	}
 
-	intVal, err := strconv.Atoi(memStr)
+	intVal, err := strconv.ParseUint(memStr, 10, 64)
 	if err != nil {
 		return 0, fmt.Errorf("invalid property value from systemd for MemoryCurrent: cannot parse %q as an integer", memStr)
 	}
