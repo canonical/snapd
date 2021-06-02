@@ -28,6 +28,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/usersession/userd"
 )
@@ -74,6 +75,11 @@ func (s *privilegedDesktopLauncherSuite) SetUpTest(c *C) {
 		filepath.Join(dirs.GlobalRootDir, "/usr/share"),
 		filepath.Dir(dirs.SnapDesktopFilesDir),
 	}, ":"))
+
+	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		return []byte("systemd 246\n+PAM and more"), nil
+	})
+	s.AddCleanup(restore)
 }
 
 func (s *privilegedDesktopLauncherSuite) TearDownTest(c *C) {
