@@ -236,38 +236,38 @@ func (s *autorefreshGatingSuite) TestHoldDurationLeft(c *C) {
 		{
 			"2021-05-03T10:00:00Z", // last refreshed (1 month ago
 			"2021-06-03T10:00:00Z", // first held now
-			"48h",                  // max duration
-			"48h",                  // expected
+			"48h", // max duration
+			"48h", // expected
 		},
 		{
 			"2021-05-03T10:00:00Z", // last refreshed (1 month ago)
 			"2021-06-02T10:00:00Z", // first held (1 day ago)
-			"48h",                  // max duration
-			"24h",                  // expected
+			"48h", // max duration
+			"24h", // expected
 		},
 		{
 			"2021-05-03T10:00:00Z", // last refreshed (1 month ago)
 			"2021-06-01T10:00:00Z", // first held (2 days ago)
-			"48h",                  // max duration
-			"00h",                  // expected
+			"48h", // max duration
+			"00h", // expected
 		},
 		{
 			"2021-03-08T10:00:00Z", // last refreshed (almost 3 months ago)
 			"2021-06-01T10:00:00Z", // first held
-			"2160h",                // max duration (90 days)
-			"72h",                  // expected
+			"2160h", // max duration (90 days)
+			"72h", // expected
 		},
 		{
 			"2021-03-04T10:00:00Z", // last refreshed
 			"2021-06-01T10:00:00Z", // first held (2 days ago)
-			"2160h",                // max duration (90 days)
-			"-24h",                 // expected (refresh is 1 day overdue)
+			"2160h", // max duration (90 days)
+			"-24h", // expected (refresh is 1 day overdue)
 		},
 		{
 			"2021-06-01T10:00:00Z", // last refreshed (2 days ago)
 			"2021-06-03T10:00:00Z", // first held now
-			"2160h",                // max duration (90 days)
-			"2112h",                // expected (max minus 2 days)
+			"2160h", // max duration (90 days)
+			"2112h", // expected (max minus 2 days)
 		},
 	} {
 		lastRefresh, err := time.Parse(time.RFC3339, tc.lastRefresh)
