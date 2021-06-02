@@ -23,6 +23,10 @@ prepare: |
     # either. So at the moment this test fails until this is merged into
     # master and so the vendored apparmor gets into the edge build of snapd
 
+debug: |
+    snap list snapd
+    snap debug sandbox-features
+
 execute: |
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -35,7 +39,3 @@ execute: |
 
     echo "Then we should be able to compile policy using the internal apparmor_parser"
     snapd.tool exec apparmor_parser -r "$AAP"
-
-debug: |
-    snap list snapd
-    snap debug sandbox-features
