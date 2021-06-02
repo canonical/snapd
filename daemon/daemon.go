@@ -150,8 +150,8 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if rsp := access.CheckAccess(r, ucred, user); rsp != nil {
-		rsp.ServeHTTP(w, r)
+	if rspe := access.CheckAccess(r, ucred, user); rspe != nil {
+		rspe.ServeHTTP(w, r)
 		return
 	}
 

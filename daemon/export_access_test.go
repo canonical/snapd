@@ -36,7 +36,7 @@ type (
 
 var CheckPolkitActionImpl = checkPolkitActionImpl
 
-func MockCheckPolkitAction(new func(r *http.Request, ucred *Ucrednet, action string) Response) (restore func()) {
+func MockCheckPolkitAction(new func(r *http.Request, ucred *Ucrednet, action string) *APIError) (restore func()) {
 	old := checkPolkitAction
 	checkPolkitAction = new
 	return func() {

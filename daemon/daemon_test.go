@@ -356,9 +356,9 @@ func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 	c.Check(rst.WarningTimestamp, check.NotNil)
 }
 
-type accessCheckFunc func(r *http.Request, ucred *ucrednet, user *auth.UserState) Response
+type accessCheckFunc func(r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError
 
-func (f accessCheckFunc) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
+func (f accessCheckFunc) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 	return f(r, ucred, user)
 }
 
@@ -368,7 +368,7 @@ func (s *daemonSuite) TestReadAccess(c *check.C) {
 		return SyncResponse(nil, nil)
 	}
 	var accessCalled bool
-	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
+	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 		accessCalled = true
 		c.Check(r, check.NotNil)
 		c.Assert(ucred, check.NotNil)
@@ -378,7 +378,7 @@ func (s *daemonSuite) TestReadAccess(c *check.C) {
 		c.Check(user, check.IsNil)
 		return nil
 	})
-	cmd.WriteAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
+	cmd.WriteAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 		c.Fail()
 		return Forbidden("")
 	})
@@ -399,12 +399,12 @@ func (s *daemonSuite) TestWriteAccess(c *check.C) {
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil, nil)
 	}
-	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
+	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 		c.Fail()
 		return Forbidden("")
 	})
 	var accessCalled bool
-	cmd.WriteAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
+	cmd.WriteAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 		accessCalled = true
 		c.Check(r, check.NotNil)
 		c.Assert(ucred, check.NotNil)
@@ -446,12 +446,12 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil, nil)
 	}
-	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
+	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 		c.Fail()
 		return Forbidden("")
 	})
 	var accessCalled bool
-	cmd.WriteAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
+	cmd.WriteAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 		accessCalled = true
 		c.Check(r, check.NotNil)
 		c.Assert(ucred, check.NotNil)
@@ -487,7 +487,7 @@ func (s *daemonSuite) TestPolkitAccessPath(c *check.C) {
 	}
 	access := false
 	cmd.WriteAccess = authenticatedAccess{Polkit: "foo"}
-	checkPolkitAction = func(r *http.Request, ucred *ucrednet, action string) Response {
+	checkPolkitAction = func(r *http.Request, ucred *ucrednet, action string) *apiError {
 		c.Check(action, check.Equals, "foo")
 		c.Check(ucred.Uid, check.Equals, uint32(1001))
 		if access {

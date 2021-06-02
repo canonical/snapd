@@ -34,7 +34,7 @@ var polkitCheckAuthorization = polkit.CheckAuthorization
 
 var checkPolkitAction = checkPolkitActionImpl
 
-func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) Response {
+func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) *apiError {
 	var flags polkit.CheckFlags
 	allowHeader := r.Header.Get(client.AllowInteractionHeader)
 	if allowHeader != "" {
@@ -65,11 +65,11 @@ func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) Resp
 // accessUnknown, which indicates the decision should be delegated to
 // the next access checker.
 type accessChecker interface {
-	CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) Response
+	CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError
 }
 
 // requireSnapdSocket ensures the request was received via snapd.socket.
-func requireSnapdSocket(ucred *ucrednet) Response {
+func requireSnapdSocket(ucred *ucrednet) *apiError {
 	if ucred == nil {
 		return Forbidden("access denied")
 	}
@@ -85,7 +85,7 @@ func requireSnapdSocket(ucred *ucrednet) Response {
 // have peer credentials and were not received on snapd-snap.socket
 type openAccess struct{}
 
-func (ac openAccess) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
+func (ac openAccess) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 	return requireSnapdSocket(ucred)
 }
 
@@ -99,9 +99,9 @@ type authenticatedAccess struct {
 	Polkit string
 }
 
-func (ac authenticatedAccess) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
-	if rsp := requireSnapdSocket(ucred); rsp != nil {
-		return rsp
+func (ac authenticatedAccess) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	if rspe := requireSnapdSocket(ucred); rspe != nil {
+		return rspe
 	}
 
 	if user != nil {
@@ -126,9 +126,9 @@ func (ac authenticatedAccess) CheckAccess(r *http.Request, ucred *ucrednet, user
 // were not received on snapd-snap.socket
 type rootAccess struct{}
 
-func (ac rootAccess) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
-	if rsp := requireSnapdSocket(ucred); rsp != nil {
-		return rsp
+func (ac rootAccess) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	if rspe := requireSnapdSocket(ucred); rspe != nil {
+		return rspe
 	}
 
 	if ucred.Uid == 0 {
@@ -140,7 +140,7 @@ func (ac rootAccess) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.Us
 // snapAccess allows requests from the snapd-snap.socket
 type snapAccess struct{}
 
-func (ac snapAccess) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) Response {
+func (ac snapAccess) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 	if ucred == nil {
 		return Forbidden("access denied")
 	}
