@@ -86,6 +86,9 @@ func NewGroup(name string, memLimit quantity.Size) (*Group, error) {
 	return grp, nil
 }
 
+// special value that systemd sometimes returns in buggy situations
+const sixteenExb = quantity.Size(1<<64 - 1)
+
 // CurrentMemoryUsage returns the current memory usage of the quota group. For
 // quota groups which do not yet have a backing systemd slice on the system (
 // i.e. quota groups without any snaps in them), the memory usage is reported as
@@ -103,22 +106,34 @@ func (grp *Group) CurrentMemoryUsage() (quantity.Size, error) {
 		return 0, nil
 	}
 
-	// also check how many tasks are in the group, it could exist and be active,
-	// but not have any active services running in it, and with systemd 219 on
-	// Amazon Linux 2 / Centos 7, there is a bug where the current memory usage
-	// for a unit in such a state is reported as being 16 exbibytes which is too
-	// large to fit into a 32-bit int and is obviously wrong (it should be 0)
+	// we also check how many tasks are in the group as this could indicate a
+	// bug we need to work around on older systems - specifically if there are
+	// no tasks in the cgroup, we could erroneously get the current memory usage
+	// from systemd back as 16 exbibytes (which is actually the max size of a
+	// 64-bit unsigned integer), and in this case we report the usage as 0
+	// instead.
+
+	// note that we specifically _don't_ treat 0 tasks in the group as implying
+	// that the usage is 0, since on some newer systems, a cgroup with 0 tasks
+	// but still active will have 4K memory usage always, so we only correct
+	// the memory usage when it is 16 exb and when there are no tasks in the
+	// group
+
 	numTasks, err := sysd.CurrentTasksCount(grp.SliceFileName())
 	if err != nil {
 		return 0, err
 	}
-	if numTasks == 0 {
-		return 0, nil
+
+	mem, err := sysd.CurrentMemoryUsage(grp.SliceFileName())
+	if err != nil {
+		return 0, err
 	}
 
-	// otherwise we have tasks and it is active and so we should actually query
-	// the memory usage directly
-	return sysd.CurrentMemoryUsage(grp.SliceFileName())
+	if mem == sixteenExb && numTasks == 0 {
+		// this is the bug situation, return the memory as 0
+		mem = 0
+	}
+	return mem, nil
 }
 
 // SliceFileName returns the name of the slice file that should be used for this
