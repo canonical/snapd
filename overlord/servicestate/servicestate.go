@@ -51,14 +51,17 @@ type ServiceActionConflictError struct{ error }
 
 func computeExplicitServices(appInfos []*snap.AppInfo, names []string) map[string][]string {
 	explicitServices := make(map[string][]string, len(appInfos))
-	requested := make(map[string]bool)
+	requested := make(map[string]bool, len(names))
 	for _, name := range names {
+		// Name might also be a snap name (or other strings the user wrote on
+		// the command line), but the loop below ensures that this function
+		// considers only application names.
 		requested[name] = true
 	}
 
 	for _, app := range appInfos {
 		snapName := app.Snap.InstanceName()
-		appName := snapName + "." + app.Name
+		appName := app.String()
 		if requested[appName] {
 			explicitServices[snapName] = append(explicitServices[snapName], app.Name)
 		}
