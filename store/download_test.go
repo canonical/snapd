@@ -199,7 +199,7 @@ func (s *downloadSuite) TestDownloadCancellation(c *C) {
 
 	err := <-result
 	c.Check(n, Equals, 1)
-	c.Assert(err, Equals, "The download has been cancelled: context canceled")
+	c.Assert(err, Equals, "the download has been cancelled: context canceled")
 }
 
 type nopeSeeker struct{ io.ReadWriter }
@@ -223,7 +223,7 @@ func (s *downloadSuite) TestActualDownloadNonPurchased402(c *C) {
 	var buf bytes.Buffer
 	err := store.Download(context.TODO(), "foo", "sha3", mockServer.URL, nil, theStore, nopeSeeker{&buf}, -1, nil, nil)
 	c.Assert(err, NotNil)
-	c.Check(err.Error(), Equals, "please buy foo before installing it.")
+	c.Check(err.Error(), Equals, "please buy foo before installing it")
 	c.Check(n, Equals, 1)
 }
 

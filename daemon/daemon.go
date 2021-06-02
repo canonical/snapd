@@ -166,18 +166,21 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	rsp := rspf(c, r, user)
 
-	if rsp, ok := rsp.(*resp); ok {
-		_, rst := st.Restarting()
-		if rst != state.RestartUnset {
-			rsp.Maintenance = maintenanceForRestartType(rst)
-		}
+	if srsp, ok := rsp.(StructuredResponse); ok {
+		rjson := srsp.JSON()
 
-		if rsp.Type != ResponseTypeError {
+		_, rst := st.Restarting()
+		rjson.addMaintenanceFromRestartType(rst)
+
+		if rjson.Type != ResponseTypeError {
 			st.Lock()
 			count, stamp := st.WarningsSummary()
 			st.Unlock()
-			rsp.addWarningsToMeta(count, stamp)
+			rjson.addWarningCount(count, stamp)
 		}
+
+		// serve the updated serialisation
+		rsp = rjson
 	}
 
 	rsp.ServeHTTP(w, r)

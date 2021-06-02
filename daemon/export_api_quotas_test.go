@@ -23,6 +23,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap/quota"
 )
 
 type (
@@ -51,5 +52,13 @@ func MockServicestateRemoveQuota(f func(st *state.State, name string) error) fun
 	servicestateRemoveQuota = f
 	return func() {
 		servicestateRemoveQuota = old
+	}
+}
+
+func MockGetQuotaMemUsage(f func(grp *quota.Group) (quantity.Size, error)) (restore func()) {
+	old := getQuotaMemUsage
+	getQuotaMemUsage = f
+	return func() {
+		getQuotaMemUsage = old
 	}
 }

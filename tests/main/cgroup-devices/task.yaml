@@ -1,7 +1,7 @@
 summary: measuring basic properties of device cgroup
 
-# fedora-32, fedora-33, fedora-34, debian-sid, arch, opensuse TW use cgroupv2, which we
+# fedora-33, fedora-34, debian-sid, arch, opensuse TW use cgroupv2, which we
 # don't support
-systems: [ -fedora-32-*, -fedora-33-*, -fedora-34-*, -debian-sid-*, -arch-*, -opensuse-tumbleweed-*]
+systems: [ -fedora-33-*, -fedora-34-*, -debian-sid-*, -arch-*, -opensuse-tumbleweed-*]
 
 execute: ./task.sh

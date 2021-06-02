@@ -28,7 +28,7 @@ execute: |
     rm -f "$TESTSLIB/snaps/${SNAP_NAME}/${SNAP_NAME}_1.0_all.snap"
 
     # Try to pack a local snap which does not exist
-    "$TESTSTOOLS"/snaps-state pack-local SNAP_NO_EXIST 2>&1 | MATCH "snap.yaml file not found for SNAP_NO_EXIST snap"
+    "$TESTSTOOLS"/snaps-state pack-local SNAP_NO_EXIST 2>&1 | MATCH "snaps-state: can't pack SNAP_NO_EXIST, snap directory not found"
 
     # Make and install a snap by using the install-local subcommand
     snap_path=$("$TESTSTOOLS"/snaps-state install-local "$SNAP_NAME")
@@ -89,3 +89,75 @@ execute: |
         test -z "$kernel_name"
         test -z "$gadget_name"
     fi
+    # check the command is-confinement-supported works
+    case "$SPREAD_SYSTEM" in
+        fedora-*)
+            not "$TESTSTOOLS"/snaps-state is-confinement-supported classic
+            not "$TESTSTOOLS"/snaps-state is-confinement-supported strict
+            "$TESTSTOOLS"/snaps-state is-confinement-supported devmode
+            ;;
+        ubuntu-core-*)
+            not "$TESTSTOOLS"/snaps-state is-confinement-supported classic
+            "$TESTSTOOLS"/snaps-state is-confinement-supported strict
+            "$TESTSTOOLS"/snaps-state is-confinement-supported devmode
+            ;;
+        ubuntu-*)
+            "$TESTSTOOLS"/snaps-state is-confinement-supported classic
+            "$TESTSTOOLS"/snaps-state is-confinement-supported strict
+            "$TESTSTOOLS"/snaps-state is-confinement-supported devmode
+            ;;
+    esac
+
+    sha256_of_snap_file() {
+        local snapfile=$1
+        local filename=$2
+        local tmpdir
+        tmpdir=$(mktemp -d)
+
+        unsquashfs -d "$tmpdir/out" "$snapfile" "$filename" &>/dev/null
+
+        local sum
+        sum="$(sha256sum "$tmpdir/out/$filename")"
+        rm -rf "$tmpdir"
+        echo "$sum" | awk '{print $1}'
+    }
+
+    # Check the repack of the snapd deb into core and snapd snaps. This check is executed
+    # on ubuntu/debian systems where the snapd_*.deb is generated while the system is prepared
+    if ls "$SPREAD_PATH"/../snapd_*.deb; then
+        "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap core
+        test -e core/core-from-snapd-deb.snap
+        rm -rf core
+
+        "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap snapd
+        test -e snapd/snapd-from-deb.snap
+        # Check the binary in the snap is the same than the installed in the system
+        test "$(sha256_of_snap_file snapd/snapd-from-deb.snap /usr/lib/snapd/snapd)" = "$(sha256sum /usr/lib/snapd/snapd | awk '{print $1}')"
+        rm -rf snapd
+
+        cp "$SPREAD_PATH"/../snapd_*.deb current_snapd.deb
+        "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap core current_snapd.deb
+        test -e core/core-from-snapd-deb.snap
+        rm -rf core
+
+        "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap snapd current_snapd.deb
+        test -e snapd/snapd-from-deb.snap
+        rm -rf snapd
+
+        "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap core noexist.deb 2>&1 | MATCH "snaps-state: deb file used to repack not found: noexist.deb"
+    fi
+
+    # Check the repack of the core snap info snapd snap. This check is executed 
+    # on any system with the core snap installed
+    if [ -d /snap/core/current ]; then
+        "$TESTSTOOLS"/snaps-state repack-core-snap-into-snapd-snap
+        test -e snapd-from-core.snap
+        rm snapd-from-core.snap
+    fi
+
+    snap download core --basename=core --edge
+    "$TESTSTOOLS"/snaps-state repack-core-snap-into-snapd-snap core.snap
+    test -e snapd-from-core.snap
+    rm snapd-from-core.snap
+
+    "$TESTSTOOLS"/snaps-state repack-core-snap-into-snapd-snap noexist.snap 2>&1 | MATCH "snaps-state: core snap used to repack not found: noexist.snap"

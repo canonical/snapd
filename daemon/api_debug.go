@@ -275,7 +275,7 @@ func createRecovery(st *state.State, label string) Response {
 		return InternalError("cannot create recovery system %q: %v", label, err)
 	}
 	ensureStateSoon(st)
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+	return AsyncResponse(nil, chg.ID())
 }
 
 func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -340,6 +340,8 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		st.Prune(opTime, 0, 0, 0)
 		return SyncResponse(true, nil)
+	case "stacktraces":
+		return getStacktraces()
 	case "create-recovery-system":
 		return createRecovery(st, a.Params.RecoverySystemLabel)
 	default:

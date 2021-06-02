@@ -7,7 +7,7 @@ environment:
 prepare: |
     snap install --devmode jq
     echo "Build basic test package"
-    snap pack "$TESTSLIB"/snaps/snapctl-from-snap
+    snap pack snapctl-from-snap
 
 execute: |
     check_single_cookie() {
