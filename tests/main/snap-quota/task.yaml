@@ -27,11 +27,11 @@ execute: |
   fi
 
   echo "Creating top-level quota groups (no snaps)"
-  snap set-quota group-top1 --memory=4MB
+  snap set-quota group-top1 --memory=400MB
   snap set-quota group-top2 --memory=500MB
 
   echo "Creating groups with snaps in them"
-  snap set-quota group-one --parent=group-top1 --memory=1MB hello-world
+  snap set-quota group-one --parent=group-top1 --memory=100MB hello-world
   snap set-quota group-two --parent=group-top1 --memory=2MB test-snapd-tools
 
   echo "Creating some more nested empty quota groups"
@@ -47,7 +47,7 @@ execute: |
   echo "Checking that all quotas can be listed"
   snap quotas | cat -n > quotas.txt
   MATCH "     1\s+Quota\s+Parent\s+Constraints\s+Current$" < quotas.txt
-  MATCH "     2\s+group-top1\s+memory=4.00MB\s+memory=[0-9.a-zA-Z]+$" < quotas.txt
+  MATCH "     2\s+group-top1\s+memory=400MB\s+memory=[0-9.a-zA-Z]+$" < quotas.txt
   MATCH "     3\s+group-one\s+group-top1\s+memory=1.00MB\s*$" < quotas.txt
   MATCH "     4\s+group-sub-one\s+group-one\s+memory=500B\s*$" < quotas.txt
   MATCH "     5\s+group-sub-sub-one\s+group-sub-one\s+memory=500B\s*$" < quotas.txt
@@ -59,7 +59,7 @@ execute: |
   MATCH "     1\s+name:\s+group-one$" < details.txt
   MATCH "     2\s+parent:\s+group-top1$" < details.txt
   MATCH "     3\s+constraints:$" < details.txt
-  MATCH "     4\s+memory:\s+1.00MB$" < details.txt
+  MATCH "     4\s+memory:\s+100MB$" < details.txt
   MATCH "     5\s+current:$" < details.txt
   MATCH "     6\s+memory:\s+[0-9.a-zA-Z]+B$" < details.txt
   MATCH "     7\s+subgroups:$" < details.txt
