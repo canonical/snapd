@@ -49,7 +49,10 @@ execute: |
   MATCH "     1\s+Quota\s+Parent\s+Constraints\s+Current$" < quotas.txt
   MATCH "     2\s+group-top1\s+memory=400MB\s+memory=[0-9.a-zA-Z]+$" < quotas.txt
   MATCH "     3\s+group-one\s+group-top1\s+memory=100MB\s+memory=[0-9.a-zA-Z]+$" < quotas.txt
-  MATCH "     4\s+group-sub-one\s+group-one\s+memory=500B\s*$" < quotas.txt
+  # this line could be either for memory=0 in the current column, in which case
+  # it is omitted entirely, or it could be memory=4096 on some systems where 
+  # empty cgroups have 4K memory usage even on empty cgroups
+  MATCH "     4\s+group-sub-one\s+group-one\s+memory=500B(?:\s*|\s*memory=4096B)\s*$" < quotas.txt
   MATCH "     5\s+group-sub-sub-one\s+group-sub-one\s+memory=500B\s*$" < quotas.txt
   MATCH "     6\s+group-two\s+group-top1\s+memory=2.00MB\s*$" < quotas.txt
   MATCH "     7\s+group-top2\s+memory=500MB\s*$" < quotas.txt
