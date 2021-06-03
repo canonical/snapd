@@ -294,7 +294,6 @@ func (s *serviceControlSuite) TestControlStartInstruction(c *C) {
 
 	inst := &servicestate.Instruction{
 		Action: "start",
-		Names:  nil,
 	}
 
 	chg := makeControlChange(c, st, inst, inf, []string{"foo"})
@@ -311,7 +310,6 @@ func (s *serviceControlSuite) TestControlStartEnableMultipleInstruction(c *C) {
 
 	inst := &servicestate.Instruction{
 		Action:       "start",
-		Names:        nil,
 		StartOptions: client.StartOptions{Enable: true},
 	}
 
@@ -329,7 +327,6 @@ func (s *serviceControlSuite) TestControlStopInstruction(c *C) {
 
 	inst := &servicestate.Instruction{
 		Action: "stop",
-		Names:  nil,
 	}
 
 	chg := makeControlChange(c, st, inst, inf, []string{"foo"})
@@ -346,7 +343,6 @@ func (s *serviceControlSuite) TestControlStopDisableInstruction(c *C) {
 
 	inst := &servicestate.Instruction{
 		Action:      "stop",
-		Names:       []string{},
 		StopOptions: client.StopOptions{Disable: true},
 	}
 
@@ -364,7 +360,6 @@ func (s *serviceControlSuite) TestControlRestartInstruction(c *C) {
 
 	inst := &servicestate.Instruction{
 		Action: "restart",
-		Names:  nil,
 	}
 
 	chg := makeControlChange(c, st, inst, inf, []string{"bar"})
@@ -381,7 +376,6 @@ func (s *serviceControlSuite) TestControlRestartReloadMultipleInstruction(c *C) 
 
 	inst := &servicestate.Instruction{
 		Action:         "restart",
-		Names:          nil,
 		RestartOptions: client.RestartOptions{Reload: true},
 	}
 
@@ -399,7 +393,6 @@ func (s *serviceControlSuite) TestControlUnknownInstruction(c *C) {
 	info := s.mockTestSnap(c)
 	inst := &servicestate.Instruction{
 		Action:         "boo",
-		Names:          nil,
 		RestartOptions: client.RestartOptions{Reload: true},
 	}
 
@@ -416,7 +409,6 @@ func (s *serviceControlSuite) TestControlStopDisableMultipleInstruction(c *C) {
 
 	inst := &servicestate.Instruction{
 		Action:      "stop",
-		Names:       nil,
 		StopOptions: client.StopOptions{Disable: true},
 	}
 
