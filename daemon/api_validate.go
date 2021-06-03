@@ -80,15 +80,11 @@ func validationSetNotFound(accountID, name string, sequence int) Response {
 	if sequence != 0 {
 		v["sequence"] = sequence
 	}
-	res := &errorResult{
+	return &apiError{
+		Status:  404,
 		Message: "validation set not found",
 		Kind:    client.ErrorKindValidationSetNotFound,
 		Value:   v,
-	}
-	return &resp{
-		Type:   ResponseTypeError,
-		Result: res,
-		Status: 404,
 	}
 }
 

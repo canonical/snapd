@@ -3,6 +3,15 @@ summary: Basic test for quota-related snap commands.
 details: |
   Basic test for snap quota, remove-quota and quotas commands.
 
+# Memory accounting is not functional without workarounds on these old systemd
+# systems, so disable the test until we make it functional. The issue is that
+# we now will report memory usage information in the daemon response, but due to
+# bugs in systemd, this fails without workarounds, and so any quota information
+# command will fail trying to get this memory information.
+systems:
+  - -centos-7-64
+  - -amazon-*
+
 prepare: |
   snap install hello-world
   snap install test-snapd-tools
@@ -52,9 +61,7 @@ execute: |
   MATCH ".*6.*snaps:$" < details.txt
   MATCH ".*7.*- hello-world$" < details.txt
 
-  # XXX: uncomment when quota removal bug is fixed with
-  # https://github.com/snapcore/snapd/pull/10216
-  #echo "Checking that quota groups can be removed"
-  #snap remove-quota group-two
-  #snap quota group-two 2>&1 | MATCH 'error: cannot find quota group "group-two"'
+  echo "Checking that quota groups can be removed"
+  snap remove-quota group-two
+  snap quota group-two 2>&1 | MATCH 'error: cannot find quota group "group-two"'
   snap quota unknown 2>&1 | MATCH 'error: cannot find quota group "unknown"'

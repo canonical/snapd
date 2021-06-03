@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/quota"
 )
 
 var (
@@ -55,11 +56,12 @@ type postQuotaGroupData struct {
 }
 
 type quotaGroupResultJSON struct {
-	GroupName string   `json:"group-name"`
-	MaxMemory uint64   `json:"max-memory"`
-	Parent    string   `json:"parent,omitempty"`
-	Snaps     []string `json:"snaps,omitempty"`
-	SubGroups []string `json:"subgroups,omitempty"`
+	GroupName     string   `json:"group-name"`
+	MaxMemory     uint64   `json:"max-memory"`
+	CurrentMemory uint64   `json:"current-memory"`
+	Parent        string   `json:"parent,omitempty"`
+	Snaps         []string `json:"snaps,omitempty"`
+	SubGroups     []string `json:"subgroups,omitempty"`
 }
 
 var (
@@ -67,6 +69,10 @@ var (
 	servicestateUpdateQuota = servicestate.UpdateQuota
 	servicestateRemoveQuota = servicestate.RemoveQuota
 )
+
+var getQuotaMemUsage = func(grp *quota.Group) (quantity.Size, error) {
+	return grp.CurrentMemoryUsage()
+}
 
 // getQuotaGroups returns all quota groups sorted by name.
 func getQuotaGroups(c *Command, r *http.Request, _ *auth.UserState) Response {
@@ -90,12 +96,19 @@ func getQuotaGroups(c *Command, r *http.Request, _ *auth.UserState) Response {
 	results := make([]quotaGroupResultJSON, len(quotas))
 	for i, name := range names {
 		qt := quotas[name]
+
+		memoryUsage, err := getQuotaMemUsage(qt)
+		if err != nil {
+			return InternalError(err.Error())
+		}
+
 		results[i] = quotaGroupResultJSON{
-			GroupName: qt.Name,
-			Parent:    qt.ParentGroup,
-			SubGroups: qt.SubGroups,
-			Snaps:     qt.Snaps,
-			MaxMemory: uint64(qt.MemoryLimit),
+			GroupName:     qt.Name,
+			Parent:        qt.ParentGroup,
+			SubGroups:     qt.SubGroups,
+			Snaps:         qt.Snaps,
+			MaxMemory:     uint64(qt.MemoryLimit),
+			CurrentMemory: uint64(memoryUsage),
 		}
 	}
 	return SyncResponse(results, nil)
@@ -121,12 +134,18 @@ func getQuotaGroupInfo(c *Command, r *http.Request, _ *auth.UserState) Response 
 		return InternalError(err.Error())
 	}
 
+	memoryUsage, err := getQuotaMemUsage(group)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+
 	res := quotaGroupResultJSON{
-		GroupName: group.Name,
-		Parent:    group.ParentGroup,
-		Snaps:     group.Snaps,
-		SubGroups: group.SubGroups,
-		MaxMemory: uint64(group.MemoryLimit),
+		GroupName:     group.Name,
+		Parent:        group.ParentGroup,
+		Snaps:         group.Snaps,
+		SubGroups:     group.SubGroups,
+		MaxMemory:     uint64(group.MemoryLimit),
+		CurrentMemory: uint64(memoryUsage),
 	}
 	return SyncResponse(res, nil)
 }

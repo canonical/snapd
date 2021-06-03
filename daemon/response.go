@@ -55,17 +55,50 @@ const (
 	ResponseTypeError ResponseType = "error"
 )
 
-// Response knows how to serve itself, and how to find itself
+// Response knows how to serve itself.
 type Response interface {
 	ServeHTTP(w http.ResponseWriter, r *http.Request)
 }
 
-type resp struct {
-	Status int          `json:"status-code"`
-	Type   ResponseType `json:"type"`
-	Result interface{}  `json:"result,omitempty"`
+// A StructuredResponse serializes itself to our standard JSON response format.
+type StructuredResponse interface {
+	Response
+
+	JSON() *respJSON
+}
+
+// XXX drop resp
+type resp = respJSON
+
+// TODO This is being done in a rush to get the proper external
+//      JSON representation in the API in time for the release.
+//      The right code style takes a bit more work and unifies
+//      these fields inside resp.
+// Increment the counter if you read this: 43
+type Meta struct {
+	Sources           []string `json:"sources,omitempty"`
+	SuggestedCurrency string   `json:"suggested-currency,omitempty"`
+}
+
+type respJSON struct {
+	Type ResponseType `json:"type"`
+	// Status is the HTTP status code.
+	Status int `json:"status-code"`
+	// StatusText is filled by the serving pipeline.
+	StatusText string `json:"status"`
+	// Result is a free-form optional result object.
+	Result interface{} `json:"result"`
+	// Change is the change ID for an async response.
+	Change string `json:"change,omitempty"`
 	*Meta
-	Maintenance *errorResult `json:"maintenance,omitempty"`
+	// Maintenance...  are filled as needed by the serving pipeline.
+	WarningTimestamp *time.Time   `json:"warning-timestamp,omitempty"`
+	WarningCount     int          `json:"warning-count,omitempty"`
+	Maintenance      *errorResult `json:"maintenance,omitempty"`
+}
+
+func (r *respJSON) JSON() *respJSON {
+	return r
 }
 
 func maintenanceForRestartType(rst state.RestartType) *errorResult {
@@ -102,56 +135,26 @@ func maintenanceForRestartType(rst state.RestartType) *errorResult {
 	return e
 }
 
-func (r *resp) addWarningsToMeta(count int, stamp time.Time) {
-	if r.Meta != nil && r.Meta.WarningCount != 0 {
+func (r *respJSON) addMaintenanceFromRestartType(rst state.RestartType) {
+	if rst == state.RestartUnset {
+		// nothing to do
 		return
 	}
+	r.Maintenance = maintenanceForRestartType(rst)
+}
+
+func (r *respJSON) addWarningCount(count int, stamp time.Time) {
 	if count == 0 {
 		return
 	}
-	if r.Meta == nil {
-		r.Meta = &Meta{}
-	}
-	r.Meta.WarningCount = count
-	r.Meta.WarningTimestamp = &stamp
+	r.WarningCount = count
+	r.WarningTimestamp = &stamp
 }
 
-// TODO This is being done in a rush to get the proper external
-//      JSON representation in the API in time for the release.
-//      The right code style takes a bit more work and unifies
-//      these fields inside resp.
-// Increment the counter if you read this: 43
-type Meta struct {
-	Sources           []string   `json:"sources,omitempty"`
-	SuggestedCurrency string     `json:"suggested-currency,omitempty"`
-	Change            string     `json:"change,omitempty"`
-	WarningTimestamp  *time.Time `json:"warning-timestamp,omitempty"`
-	WarningCount      int        `json:"warning-count,omitempty"`
-}
-
-type respJSON struct {
-	Type       ResponseType `json:"type"`
-	Status     int          `json:"status-code"`
-	StatusText string       `json:"status"`
-	Result     interface{}  `json:"result"`
-	*Meta
-	Maintenance *errorResult `json:"maintenance,omitempty"`
-}
-
-func (r *resp) MarshalJSON() ([]byte, error) {
-	return json.Marshal(respJSON{
-		Type:        r.Type,
-		Status:      r.Status,
-		StatusText:  http.StatusText(r.Status),
-		Result:      r.Result,
-		Meta:        r.Meta,
-		Maintenance: r.Maintenance,
-	})
-}
-
-func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+func (r *respJSON) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	status := r.Status
-	bs, err := r.MarshalJSON()
+	r.StatusText = http.StatusText(r.Status)
+	bs, err := json.Marshal(r)
 	if err != nil {
 		logger.Noticef("cannot marshal %#v to JSON: %v", *r, err)
 		bs = nil
@@ -185,12 +188,12 @@ type errorResult struct {
 
 // SyncResponse builds a "sync" response from the given result.
 func SyncResponse(result interface{}, meta *Meta) Response {
-	if err, ok := result.(error); ok {
-		return InternalError("internal error: %v", err)
-	}
-
 	if rsp, ok := result.(Response); ok {
 		return rsp
+	}
+
+	if err, ok := result.(error); ok {
+		return InternalError("internal error: %v", err)
 	}
 
 	return &resp{
@@ -201,34 +204,13 @@ func SyncResponse(result interface{}, meta *Meta) Response {
 	}
 }
 
-// AsyncResponse builds an "async" response from the given *Task
-func AsyncResponse(result map[string]interface{}, meta *Meta) Response {
-	return &resp{
+// AsyncResponse builds an "async" response for a created change
+func AsyncResponse(result map[string]interface{}, change string) Response {
+	return &respJSON{
 		Type:   ResponseTypeAsync,
 		Status: 202,
 		Result: result,
-		Meta:   meta,
-	}
-}
-
-// makeErrorResponder builds an errorResponder from the given error status.
-func makeErrorResponder(status int) errorResponder {
-	return func(format string, v ...interface{}) Response {
-		res := &errorResult{}
-		if len(v) == 0 {
-			res.Message = format
-		} else {
-			res.Message = fmt.Sprintf(format, v...)
-		}
-		// FIXME: forbidden should use a different kind.
-		if status == 401 || status == 403 {
-			res.Kind = client.ErrorKindLoginRequired
-		}
-		return &resp{
-			Type:   ResponseTypeError,
-			Result: res,
-			Status: status,
-		}
+		Change: change,
 	}
 }
 
@@ -406,7 +388,28 @@ func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // errorResponder is a callable that produces an error Response.
 // e.g., InternalError("something broke: %v", err), etc.
-type errorResponder func(string, ...interface{}) Response
+type errorResponder func(string, ...interface{}) *apiError
+
+// makeErrorResponder builds an errorResponder from the given error status.
+func makeErrorResponder(status int) errorResponder {
+	return func(format string, v ...interface{}) *apiError {
+		var msg string
+		if len(v) == 0 {
+			msg = format
+		} else {
+			msg = fmt.Sprintf(format, v...)
+		}
+		var kind client.ErrorKind
+		if status == 401 || status == 403 {
+			kind = client.ErrorKindLoginRequired
+		}
+		return &apiError{
+			Status:  status,
+			Message: msg,
+			Kind:    kind,
+		}
+	}
+}
 
 // standard error responses
 var (
@@ -420,17 +423,24 @@ var (
 	Conflict         = makeErrorResponder(409)
 )
 
+// BadQuery is an error responder used when a bad query was
+// provided to the store.
+func BadQuery() *apiError {
+	return &apiError{
+		Status:  400,
+		Message: "bad query",
+		Kind:    client.ErrorKindBadQuery,
+	}
+}
+
 // SnapNotFound is an error responder used when an operation is
 // requested on a snap that doesn't exist.
-func SnapNotFound(snapName string, err error) Response {
-	return &resp{
-		Type: ResponseTypeError,
-		Result: &errorResult{
-			Message: err.Error(),
-			Kind:    client.ErrorKindSnapNotFound,
-			Value:   snapName,
-		},
-		Status: 404,
+func SnapNotFound(snapName string, err error) *apiError {
+	return &apiError{
+		Status:  404,
+		Message: err.Error(),
+		Kind:    client.ErrorKindSnapNotFound,
+		Value:   snapName,
 	}
 }
 
@@ -438,7 +448,7 @@ func SnapNotFound(snapName string, err error) Response {
 // operation is requested for which no revivision can be found
 // in the given context (e.g. request an install from a stable
 // channel when this channel is empty).
-func SnapRevisionNotAvailable(snapName string, rnaErr *store.RevisionNotAvailableError) Response {
+func SnapRevisionNotAvailable(snapName string, rnaErr *store.RevisionNotAvailableError) *apiError {
 	var value interface{} = snapName
 	kind := client.ErrorKindSnapRevisionNotAvailable
 	msg := rnaErr.Error()
@@ -475,20 +485,17 @@ func SnapRevisionNotAvailable(snapName string, rnaErr *store.RevisionNotAvailabl
 		values["releases"] = releases
 		value = values
 	}
-	return &resp{
-		Type: ResponseTypeError,
-		Result: &errorResult{
-			Message: msg,
-			Kind:    kind,
-			Value:   value,
-		},
-		Status: 404,
+	return &apiError{
+		Status:  404,
+		Message: msg,
+		Kind:    kind,
+		Value:   value,
 	}
 }
 
 // SnapChangeConflict is an error responder used when an operation is
 // conflicts with another change.
-func SnapChangeConflict(cce *snapstate.ChangeConflictError) Response {
+func SnapChangeConflict(cce *snapstate.ChangeConflictError) *apiError {
 	value := map[string]interface{}{}
 	if cce.Snap != "" {
 		value["snap-name"] = cce.Snap
@@ -497,20 +504,17 @@ func SnapChangeConflict(cce *snapstate.ChangeConflictError) Response {
 		value["change-kind"] = cce.ChangeKind
 	}
 
-	return &resp{
-		Type: ResponseTypeError,
-		Result: &errorResult{
-			Message: cce.Error(),
-			Kind:    client.ErrorKindSnapChangeConflict,
-			Value:   value,
-		},
-		Status: 409,
+	return &apiError{
+		Status:  409,
+		Message: cce.Error(),
+		Kind:    client.ErrorKindSnapChangeConflict,
+		Value:   value,
 	}
 }
 
 // InsufficientSpace is an error responder used when an operation cannot
 // be performed due to low disk space.
-func InsufficientSpace(dserr *snapstate.InsufficientSpaceError) Response {
+func InsufficientSpace(dserr *snapstate.InsufficientSpaceError) *apiError {
 	value := map[string]interface{}{}
 	if len(dserr.Snaps) > 0 {
 		value["snap-names"] = dserr.Snaps
@@ -518,60 +522,45 @@ func InsufficientSpace(dserr *snapstate.InsufficientSpaceError) Response {
 	if dserr.ChangeKind != "" {
 		value["change-kind"] = dserr.ChangeKind
 	}
-	return &resp{
-		Type: ResponseTypeError,
-		Result: &errorResult{
-			Message: dserr.Error(),
-			Kind:    client.ErrorKindInsufficientDiskSpace,
-			Value:   value,
-		},
-		Status: 507,
+	return &apiError{
+		Status:  507,
+		Message: dserr.Error(),
+		Kind:    client.ErrorKindInsufficientDiskSpace,
+		Value:   value,
 	}
 }
 
 // AppNotFound is an error responder used when an operation is
 // requested on a app that doesn't exist.
-func AppNotFound(format string, v ...interface{}) Response {
-	res := &errorResult{
+func AppNotFound(format string, v ...interface{}) *apiError {
+	return &apiError{
+		Status:  404,
 		Message: fmt.Sprintf(format, v...),
 		Kind:    client.ErrorKindAppNotFound,
-	}
-	return &resp{
-		Type:   ResponseTypeError,
-		Result: res,
-		Status: 404,
 	}
 }
 
 // AuthCancelled is an error responder used when a user cancelled
 // the auth process.
-func AuthCancelled(format string, v ...interface{}) Response {
-	res := &errorResult{
+func AuthCancelled(format string, v ...interface{}) *apiError {
+	return &apiError{
+		Status:  403,
 		Message: fmt.Sprintf(format, v...),
 		Kind:    client.ErrorKindAuthCancelled,
-	}
-	return &resp{
-		Type:   ResponseTypeError,
-		Result: res,
-		Status: 403,
 	}
 }
 
 // InterfacesUnchanged is an error responder used when an operation
 // that would normally change interfaces finds it has nothing to do
-func InterfacesUnchanged(format string, v ...interface{}) Response {
-	res := &errorResult{
+func InterfacesUnchanged(format string, v ...interface{}) *apiError {
+	return &apiError{
+		Status:  400,
 		Message: fmt.Sprintf(format, v...),
 		Kind:    client.ErrorKindInterfacesUnchanged,
 	}
-	return &resp{
-		Type:   ResponseTypeError,
-		Result: res,
-		Status: 400,
-	}
 }
 
-func errToResponse(err error, snaps []string, fallback func(format string, v ...interface{}) Response, format string, v ...interface{}) Response {
+func errToResponse(err error, snaps []string, fallback errorResponder, format string, v ...interface{}) *apiError {
 	var kind client.ErrorKind
 	var snapName string
 
@@ -651,9 +640,10 @@ func errToResponse(err error, snaps []string, fallback func(format string, v ...
 		}
 	}
 
-	return SyncResponse(&resp{
-		Type:   ResponseTypeError,
-		Result: &errorResult{Message: err.Error(), Kind: kind, Value: snapName},
-		Status: 400,
-	}, nil)
+	return &apiError{
+		Status:  400,
+		Message: err.Error(),
+		Kind:    kind,
+		Value:   snapName,
+	}
 }

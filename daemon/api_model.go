@@ -82,7 +82,7 @@ func postModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 	ensureStateSoon(st)
 
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+	return AsyncResponse(nil, chg.ID())
 
 }
 
@@ -101,16 +101,11 @@ func getModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	model, err := devmgr.Model()
 	if err == state.ErrNoState {
-		res := &errorResult{
+		return &apiError{
+			Status:  404,
 			Message: "no model assertion yet",
 			Kind:    client.ErrorKindAssertionNotFound,
 			Value:   "model",
-		}
-
-		return &resp{
-			Type:   ResponseTypeError,
-			Result: res,
-			Status: 404,
 		}
 	}
 	if err != nil {
@@ -146,16 +141,11 @@ func getSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	serial, err := devmgr.Serial()
 	if err == state.ErrNoState {
-		res := &errorResult{
+		return &apiError{
+			Status:  404,
 			Message: "no serial assertion yet",
 			Kind:    client.ErrorKindAssertionNotFound,
 			Value:   "serial",
-		}
-
-		return &resp{
-			Type:   ResponseTypeError,
-			Result: res,
-			Status: 404,
 		}
 	}
 	if err != nil {

@@ -162,7 +162,7 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 	chg.Set("api-data", map[string]interface{}{"snap-names": affected})
 	ensureStateSoon(st)
 
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+	return AsyncResponse(nil, chg.ID())
 }
 
 // getSnapshotExport streams an archive containing an export of existing snapshots.
