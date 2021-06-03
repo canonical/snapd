@@ -35,8 +35,8 @@ execute: |
   snap set-quota group-two --parent=group-top1 --memory=2MB test-snapd-tools
 
   echo "Creating some more nested empty quota groups"
-  snap set-quota group-sub-one --parent=group-one --memory=500B
-  snap set-quota group-sub-sub-one --parent=group-sub-one --memory=500B
+  snap set-quota group-sub-one --parent=group-one --memory=10KB
+  snap set-quota group-sub-sub-one --parent=group-sub-one --memory=5KB
 
   echo "Trying to add snap to more than one group fails"
   snap set-quota group-bad --memory=1MB hello-world 2>&1 | MATCH 'error: cannot create or update quota group: cannot add snap "hello-world" to group "group-bad": snap already in quota group "group-one"'
@@ -52,8 +52,8 @@ execute: |
   # this line could be either for memory=0 in the current column, in which case
   # it is omitted entirely, or it could be memory=4096 on some systems where 
   # empty cgroups have 4K memory usage even on empty cgroups
-  MATCH "     4\s+group-sub-one\s+group-one\s+memory=500B(\s*|\s*memory=4096B)\s*$" < quotas.txt
-  MATCH "     5\s+group-sub-sub-one\s+group-sub-one\s+memory=500B\s*$" < quotas.txt
+  MATCH "     4\s+group-sub-one\s+group-one\s+memory=10.0kB(\s*|\s*memory=4096B)\s*$" < quotas.txt
+  MATCH "     5\s+group-sub-sub-one\s+group-sub-one\s+memory=5000B\s*$" < quotas.txt
   MATCH "     6\s+group-two\s+group-top1\s+memory=2.00MB\s*$" < quotas.txt
   MATCH "     7\s+group-top2\s+memory=500MB\s*$" < quotas.txt
 
