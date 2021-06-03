@@ -26,9 +26,6 @@ execute: |
         exit 0
     fi
 
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     echo "Install the application snap"
     "$TESTSTOOLS"/snaps-state install-local test-app
     echo "The snap installs a desktop file"

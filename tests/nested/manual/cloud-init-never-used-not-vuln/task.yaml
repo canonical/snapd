@@ -43,9 +43,6 @@ execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     echo "The VM here will not ever had used cloud-init so snapd should disable"
     # cloud-init when it is installed
 
@@ -59,7 +56,7 @@ execute: |
     if [ "$NESTED_BUILD_FROM_CURRENT" = "false" ]; then
         if nested_is_core_16_system; then
             # build the core snap for this run
-            repack_snapd_deb_into_core_snap "$PWD"
+            "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap core "$PWD"
             nested_copy "$PWD/core-from-snapd-deb.snap"
 
             # install the core snap
@@ -71,7 +68,7 @@ execute: |
             
         else
             # build the snapd snap for this run
-            repack_snapd_deb_into_snapd_snap "$PWD"
+            "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
             nested_copy "$PWD/snapd-from-deb.snap"
 
             # install the snapd snap

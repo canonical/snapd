@@ -46,9 +46,6 @@ execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     # the VM here will use both system-user assertions and cloud-init to create
     # users on the system, the system-user assertion is for the user1 user, and 
     # the legitimate cloud-init user is the normal-user user
@@ -69,7 +66,7 @@ execute: |
         echo "Refreshing to a version of snapd with the fix"
         if is_core_16_nested_system; then
             # build the core snap for this run
-            repack_snapd_deb_into_core_snap "$PWD"
+            "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap core
             nested_copy "$PWD/core-from-snapd-deb.snap"
 
             # install the core snap
@@ -80,7 +77,7 @@ execute: |
             nested_wait_for_ssh        
         else
             # build the snapd snap for this run
-            repack_snapd_deb_into_snapd_snap "$PWD"
+            "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
             nested_copy "$PWD/snapd-from-deb.snap"
 
             # install the snapd snap
