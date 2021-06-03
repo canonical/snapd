@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -974,7 +974,7 @@ func (s *deviceMgrRemodelSuite) TestReregRemodelClashAnyChange(c *C) {
 	c.Assert(err, NotNil)
 	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
 		ChangeKind: "chg",
-		Message:    `other changes in progress, change "remodel" not allowed until they are done (conflicting change "chg")`,
+		Message:    `other changes in progress (conflicting change "chg"), change "remodel" not allowed until they are done`,
 	})
 }
 
