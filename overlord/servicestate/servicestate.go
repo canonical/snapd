@@ -63,7 +63,7 @@ func computeExplicitServices(appInfos []*snap.AppInfo, names []string) map[strin
 		snapName := app.Snap.InstanceName()
 		appName := app.String()
 		if requested[appName] {
-			explicitServices[snapName] = append(explicitServices[snapName], app.Name)
+			explicitServices[snapName] = append(explicitServices[snapName], app.ServiceName())
 		}
 	}
 
