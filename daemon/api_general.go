@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sandbox"
@@ -141,7 +142,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		},
 		"refresh":      refreshInfo,
 		"architecture": arch.DpkgArchitecture(),
-		"system-mode":  deviceMgr.SystemMode(),
+		"system-mode":  deviceMgr.SystemMode(devicestate.SysAny),
 	}
 	if systemdVirt != "" {
 		m["virtualization"] = systemdVirt
