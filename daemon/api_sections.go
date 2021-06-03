@@ -23,7 +23,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/store"
 )
@@ -51,11 +50,7 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 	case nil:
 		// pass
 	case store.ErrBadQuery:
-		return SyncResponse(&resp{
-			Type:   ResponseTypeError,
-			Result: &errorResult{Message: err.Error(), Kind: client.ErrorKindBadQuery},
-			Status: 400,
-		}, nil)
+		return BadQuery()
 	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
 		return Unauthorized("%v", err)
 	default:
