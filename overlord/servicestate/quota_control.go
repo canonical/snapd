@@ -306,6 +306,14 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 		return err
 	}
 
+	// make sure the memory limit is at least 4K, that is the minimum size
+	// to allow nesting, otherwise groups with less than 4K will trigger the
+	// oom killer to be invoked when a new group is added as a sub-group to the
+	// larger group.
+	if memoryLimit <= 4*quantity.SizeKiB {
+		return fmt.Errorf("memory limit for group %q is too small, 4KB is minimum size", name)
+	}
+
 	// make sure that the parent group exists if we are creating a sub-group
 	var grp *quota.Group
 	updatedGrps := []*quota.Group{}
