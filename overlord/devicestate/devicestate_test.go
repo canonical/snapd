@@ -1172,15 +1172,18 @@ func (s *deviceMgrSuite) TestDeviceManagerReadsModeenv(c *C) {
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, s.newStore)
 	c.Assert(err, IsNil)
 	c.Assert(mgr, NotNil)
-	c.Assert(mgr.SystemMode(), Equals, "install")
+	c.Assert(mgr.SystemMode(devicestate.SysAny), Equals, "install")
+	c.Assert(mgr.SystemMode(devicestate.SysHasModeenv), Equals, "install")
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEmptySystemModeRun(c *C) {
 	// set empty system mode
 	devicestate.SetSystemMode(s.mgr, "")
 
-	// empty is returned as "run"
-	c.Check(s.mgr.SystemMode(), Equals, "run")
+	// empty is returned as "run" for SysAny
+	c.Check(s.mgr.SystemMode(devicestate.SysAny), Equals, "run")
+	// empty is returned as itself for SysHasModeenv
+	c.Check(s.mgr.SystemMode(devicestate.SysHasModeenv), Equals, "")
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerSystemModeInfoTooEarly(c *C) {
