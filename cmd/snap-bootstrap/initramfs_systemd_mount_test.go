@@ -130,6 +130,37 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			expErr:  "cannot mount \"what\" at \"where\": impossible to fsck a tmpfs",
 			comment: "invalid tmpfs + fsck",
 		},
+		{
+			what:  "tmpfs",
+			where: "/run/mnt/data",
+			opts: &main.SystemdMountOptions{
+				NoSuid: true,
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{true},
+			comment:          "happy nosuid",
+		},
+		{
+			what:  "tmpfs",
+			where: "/run/mnt/data",
+			opts: &main.SystemdMountOptions{
+				Bind: true,
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{true},
+			comment:          "happy bind",
+		},
+		{
+			what:  "tmpfs",
+			where: "/run/mnt/data",
+			opts: &main.SystemdMountOptions{
+				NoSuid: true,
+				Bind: true,
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{true},
+			comment:          "happy nosuid+bind",
+		},
 	}
 
 	for _, t := range tt {
@@ -204,6 +235,14 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			if opts.NoWait {
 				args = append(args, "--no-block")
 			}
+			if opts.Bind && opts.NoSuid {
+				args = append(args, "--options=nosuid,bind")
+			} else if opts.NoSuid {
+				args = append(args, "--options=nosuid")
+			} else if opts.Bind {
+				args = append(args, "--options=bind")
+			}
+
 			c.Assert(cmd.Calls(), DeepEquals, [][]string{args})
 
 			// check that the overrides are present if opts.Ephemeral is false,
