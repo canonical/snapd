@@ -423,6 +423,16 @@ var (
 	Conflict         = makeErrorResponder(409)
 )
 
+// BadQuery is an error responder used when a bad query was
+// provided to the store.
+func BadQuery() *apiError {
+	return &apiError{
+		Status:  400,
+		Message: "bad query",
+		Kind:    client.ErrorKindBadQuery,
+	}
+}
+
 // SnapNotFound is an error responder used when an operation is
 // requested on a snap that doesn't exist.
 func SnapNotFound(snapName string, err error) *apiError {
