@@ -82,6 +82,9 @@ var (
 		Tmpfs:  true,
 		NoSuid: true,
 	}
+	needsBindMountOpts = &main.SystemdMountOptions{
+		Bind: true,
+	}
 	needsFsckDiskMountOpts = &main.SystemdMountOptions{
 		NeedsFsck: true,
 	}
@@ -450,6 +453,24 @@ func ubuntuPartUUIDMount(partuuid string, mode string) systemdMount {
 	return mnt
 }
 
+func makeBindMount(purpose string) systemdMount {
+	mnt := systemdMount{
+		opts: needsBindMountOpts,
+	}
+	switch purpose {
+	case "base":
+		mnt.what = filepath.Join(boot.InitramfsRunMntDir, "base")
+		mnt.where = boot.InitramfsSysrootDir
+	case "firmware":
+		mnt.what = filepath.Join(boot.InitramfsRunMntDir, "kernel/firmware")
+		mnt.where = filepath.Join(boot.InitramfsSysrootDir, "usr/lib/firmware")
+	case "modules":
+		mnt.what = filepath.Join(boot.InitramfsRunMntDir, "kernel/modules")
+		mnt.where = filepath.Join(boot.InitramfsSysrootDir, "usr/lib/modules")
+	}
+	return mnt
+}
+
 func (s *initramfsMountsSuite) makeSeedSnapSystemdMount(typ snap.Type) systemdMount {
 	mnt := systemdMount{}
 	var name, dir string
@@ -649,6 +670,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeBootFlagsSet(c *C) {
 			ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
 			s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 			s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+			makeBindMount("base"),
+			makeBindMount("firmware"),
+			makeBindMount("modules"),
 		}, nil)
 		defer restore()
 
@@ -858,6 +882,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUnencryptedWithSaveHapp
 		ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+		makeBindMount("base"),
+		makeBindMount("firmware"),
+		makeBindMount("modules"),
 	}, nil)
 	defer restore()
 
@@ -933,6 +960,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeTimeMovesForwardHappy(c
 				ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
 				s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 				s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+				makeBindMount("base"),
+				makeBindMount("firmware"),
+				makeBindMount("modules"),
 			}
 
 			if isFirstBoot {
@@ -1006,6 +1036,9 @@ func (s *initramfsMountsSuite) testInitramfsMountsRunModeNoSaveUnencrypted(c *C)
 		ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+		makeBindMount("base"),
+		makeBindMount("firmware"),
+		makeBindMount("modules"),
 	}, nil)
 	defer restore()
 
@@ -1594,6 +1627,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdM
 
 	baseMnt := filepath.Join(boot.InitramfsRunMntDir, "base")
 	kernelMnt := filepath.Join(boot.InitramfsRunMntDir, "kernel")
+	sysrootMnt := boot.InitramfsSysrootDir
+	firmwareMnt := filepath.Join(boot.InitramfsSysrootDir, "usr/lib/firmware")
+	modulesMnt := filepath.Join(boot.InitramfsSysrootDir, "usr/lib/modules")
 
 	// don't do anything from systemd-mount, we verify the arguments passed at
 	// the end with cmd.Calls
@@ -1623,6 +1659,15 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeHappyNoSaveRealSystemdM
 			return n%2 == 0, nil
 		case 9, 10:
 			c.Assert(where, Equals, kernelMnt)
+			return n%2 == 0, nil
+		case 11, 12:
+			c.Assert(where, Equals, sysrootMnt)
+			return n%2 == 0, nil
+		case 13, 14:
+			c.Assert(where, Equals, firmwareMnt)
+			return n%2 == 0, nil
+		case 15, 16:
+			c.Assert(where, Equals, modulesMnt)
 			return n%2 == 0, nil
 		default:
 			c.Errorf("unexpected IsMounted check on %s", where)
@@ -1678,8 +1723,8 @@ After=%[1]s
 		}
 	}
 
-	// 2 IsMounted calls per mount point, so 10 total IsMounted calls
-	c.Assert(n, Equals, 10)
+	// 2 IsMounted calls per mount point, so 16 total IsMounted calls
+	c.Assert(n, Equals, 16)
 
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{
@@ -1718,11 +1763,208 @@ After=%[1]s
 			"--no-pager",
 			"--no-ask-password",
 			"--fsck=no",
+		}, {
+			"systemd-mount",
+			baseMnt,
+			sysrootMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=bind",
+		}, {
+			"systemd-mount",
+			filepath.Join(kernelMnt, "firmware"),
+			firmwareMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=bind",
+		}, {
+			"systemd-mount",
+			filepath.Join(kernelMnt, "modules"),
+			modulesMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=bind",
 		},
 	})
 }
 
 func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithSaveHappyRealSystemdMount(c *C) {
+	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
+
+	restore := disks.MockMountPointDisksToPartitionMapping(
+		map[disks.Mountpoint]*disks.MockDiskMapping{
+			{Mountpoint: boot.InitramfsUbuntuBootDir}: defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsDataDir}:       defaultBootWithSaveDisk,
+			{Mountpoint: boot.InitramfsUbuntuSaveDir}: defaultBootWithSaveDisk,
+		},
+	)
+	defer restore()
+
+	baseMnt := filepath.Join(boot.InitramfsRunMntDir, "base")
+	kernelMnt := filepath.Join(boot.InitramfsRunMntDir, "kernel")
+	sysrootMnt := boot.InitramfsSysrootDir
+	firmwareMnt := filepath.Join(boot.InitramfsSysrootDir, "usr/lib/firmware")
+	modulesMnt := filepath.Join(boot.InitramfsSysrootDir, "usr/lib/modules")
+
+	// don't do anything from systemd-mount, we verify the arguments passed at
+	// the end with cmd.Calls
+	cmd := testutil.MockCommand(c, "systemd-mount", ``)
+	defer cmd.Restore()
+
+	isMountedChecks := []string{}
+	restore = main.MockOsutilIsMounted(func(where string) (bool, error) {
+		isMountedChecks = append(isMountedChecks, where)
+		return true, nil
+	})
+	defer restore()
+
+	// mock a bootloader
+	bloader := boottest.MockUC20RunBootenv(bootloadertest.Mock("mock", c.MkDir()))
+	bootloader.Force(bloader)
+	defer bootloader.Force(nil)
+
+	// set the current kernel
+	restore = bloader.SetEnabledKernel(s.kernel)
+	defer restore()
+
+	makeSnapFilesOnEarlyBootUbuntuData(c, s.kernel, s.core20)
+
+	// write modeenv
+	modeEnv := boot.Modeenv{
+		Mode:           "run",
+		Base:           s.core20.Filename(),
+		CurrentKernels: []string{s.kernel.Filename()},
+	}
+	err := modeEnv.WriteTo(boot.InitramfsWritableDir)
+	c.Assert(err, IsNil)
+
+	_, err = main.Parser().ParseArgs([]string{"initramfs-mounts"})
+	c.Assert(err, IsNil)
+	c.Check(s.Stdout.String(), Equals, "")
+
+	// check that all of the override files are present
+	for _, initrdUnit := range []string{
+		"initrd.target",
+		"initrd-fs.target",
+		"initrd-switch-root.target",
+		"local-fs.target",
+	} {
+
+		mountUnit := systemd.EscapeUnitNamePath(boot.InitramfsUbuntuSaveDir)
+		fname := fmt.Sprintf("snap_bootstrap_%s.conf", mountUnit)
+		unitFile := filepath.Join(dirs.GlobalRootDir, "/run/systemd/system", initrdUnit+".d", fname)
+		c.Assert(unitFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
+Requires=%[1]s
+After=%[1]s
+`, mountUnit+".mount"))
+	}
+
+	c.Check(isMountedChecks, DeepEquals, []string{
+		boot.InitramfsUbuntuBootDir,
+		boot.InitramfsUbuntuSeedDir,
+		boot.InitramfsDataDir,
+		boot.InitramfsUbuntuSaveDir,
+		baseMnt,
+		kernelMnt,
+		sysrootMnt,
+		firmwareMnt,
+		modulesMnt,
+	})
+	c.Check(cmd.Calls(), DeepEquals, [][]string{
+		{
+			"systemd-mount",
+			"/dev/disk/by-label/ubuntu-boot",
+			boot.InitramfsUbuntuBootDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=yes",
+		}, {
+			"systemd-mount",
+			"/dev/disk/by-partuuid/ubuntu-seed-partuuid",
+			boot.InitramfsUbuntuSeedDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=yes",
+		}, {
+			"systemd-mount",
+			"/dev/disk/by-partuuid/ubuntu-data-partuuid",
+			boot.InitramfsDataDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=yes",
+			"--options=nosuid",
+		}, {
+			"systemd-mount",
+			"/dev/disk/by-partuuid/ubuntu-save-partuuid",
+			boot.InitramfsUbuntuSaveDir,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=yes",
+		}, {
+			"systemd-mount",
+			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.core20.Filename()),
+			baseMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+		}, {
+			"systemd-mount",
+			filepath.Join(dirs.SnapBlobDirUnder(boot.InitramfsWritableDir), s.kernel.Filename()),
+			kernelMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+		}, {
+			"systemd-mount",
+			baseMnt,
+			sysrootMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=bind",
+		}, {
+			"systemd-mount",
+			filepath.Join(kernelMnt, "firmware"),
+			firmwareMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=bind",
+		}, {
+			"systemd-mount",
+			filepath.Join(kernelMnt, "modules"),
+			modulesMnt,
+			"--no-pager",
+			"--no-ask-password",
+			"--fsck=no",
+			"--options=bind",
+		},
+	})
+}
+
+func makeLegacyBindMounts(c *C) () {
+	systemPath := filepath.Join(dirs.GlobalRootDir, "/usr/lib/systemd/system")
+	os.MkdirAll(systemPath, os.ModePerm)
+	for _, unit := range []string{"sysroot.mount", "sysroot-usr-lib-modules.mount", "sysroot-usr-lib-firmware.mount"} {
+		f, err := os.Create(filepath.Join(systemPath, unit))
+		c.Assert(err, IsNil)
+		f.Close()
+	}
+}
+
+func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithSaveHappyRealSystemdMountLegacyBindMounts(c *C) {
+	// Create the Legacy Bind mounts, like they were present in
+	// the old core-initrds. This means that we assert that
+	// snap-bootstrap does not create sysroot, firmware, modules
+	// bind mounts with old core-initrds and thus remains
+	// backwards compatible with any core-initrd. Otherwise the
+	// testcase is identical to
+	// TestInitramfsMountsRunModeWithSaveHappyRealSystemdMount
+	makeLegacyBindMounts(c)
+
 	s.mockProcCmdlineContent(c, "snapd_recovery_mode=run")
 
 	restore := disks.MockMountPointDisksToPartitionMapping(
@@ -1865,6 +2107,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeFirstBootRecoverySystem
 		ubuntuPartUUIDMount("ubuntu-save-partuuid", "run"),
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+		makeBindMount("base"),
+		makeBindMount("firmware"),
+		makeBindMount("modules"),
 		// RecoverySystem set makes us mount the snapd snap here
 		s.makeSeedSnapSystemdMount(snap.TypeSnapd),
 	}, nil)
@@ -1922,6 +2167,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeWithBootedKernelPartUUI
 		ubuntuPartUUIDMount("ubuntu-data-partuuid", "run"),
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+		makeBindMount("base"),
+		makeBindMount("firmware"),
+		makeBindMount("modules"),
 	}, nil)
 	defer restore()
 
@@ -1983,6 +2231,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeEncryptedDataHappy(c *C
 		},
 		s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 		s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+		makeBindMount("base"),
+		makeBindMount("firmware"),
+		makeBindMount("modules"),
 	}, nil)
 	defer restore()
 
@@ -2353,6 +2604,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 				return []systemdMount{
 					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+					makeBindMount("base"),
+					makeBindMount("firmware"),
+					makeBindMount("modules"),
 				}
 			},
 			enableKernel: s.kernel,
@@ -2371,6 +2625,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 				return []systemdMount{
 					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernelr2),
+					makeBindMount("base"),
+					makeBindMount("firmware"),
+					makeBindMount("modules"),
 				}
 			},
 			kernelStatus:    boot.TryingStatus,
@@ -2391,6 +2648,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 				return []systemdMount{
 					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20r2),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+					makeBindMount("base"),
+					makeBindMount("firmware"),
+					makeBindMount("modules"),
 				}
 			},
 			enableKernel: s.kernel,
@@ -2416,6 +2676,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 				return []systemdMount{
 					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20r2),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernelr2),
+					makeBindMount("base"),
+					makeBindMount("firmware"),
+					makeBindMount("modules"),
 				}
 			},
 			enableKernel:    s.kernel,
@@ -2445,6 +2708,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 				return []systemdMount{
 					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+					makeBindMount("base"),
+					makeBindMount("firmware"),
+					makeBindMount("modules"),
 				}
 			},
 			enableKernel: s.kernel,
@@ -2463,6 +2729,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 				return []systemdMount{
 					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+					makeBindMount("base"),
+					makeBindMount("firmware"),
+					makeBindMount("modules"),
 				}
 			},
 			enableKernel: s.kernel,
@@ -2481,6 +2750,9 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 				return []systemdMount{
 					s.makeRunSnapSystemdMount(snap.TypeBase, s.core20),
 					s.makeRunSnapSystemdMount(snap.TypeKernel, s.kernel),
+					makeBindMount("base"),
+					makeBindMount("firmware"),
+					makeBindMount("modules"),
 				}
 			},
 			enableKernel: s.kernel,
