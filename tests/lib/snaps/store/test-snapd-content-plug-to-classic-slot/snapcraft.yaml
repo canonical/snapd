@@ -12,8 +12,7 @@ plugs:
     shared-content-plug:
         interface: content
         target: import
-        content: myclib
-        default-provider: test-snapd-classic-content-slot
+        content: mylib
 
 parts:
     copy:
