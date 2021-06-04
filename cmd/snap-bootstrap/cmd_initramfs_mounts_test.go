@@ -129,6 +129,18 @@ var (
 	mockStateContent = `{"data":{"auth":{"users":[{"id":1,"name":"mvo"}],"macaroon-key":"not-a-cookie","last-id":1}},"some":{"other":"stuff"}}`
 )
 
+func makeOldCoreInitrdUnits(c *C) () {
+	// fake old core-initrd bind-mounts
+	systemPath := filepath.Join(dirs.GlobalRootDir, "/usr/lib/systemd/system")
+	os.MkdirAll(systemPath, os.ModePerm)
+	for _, unit := range []string{"sysroot.mount", "sysroot-usr-lib-modules.mount", "sysroot-usr-lib-firmware.mount"} {
+		f, err := os.Create(filepath.Join(systemPath, unit))
+		c.Assert(err, IsNil)
+		f.Close()
+	}
+
+}
+
 func (s *initramfsMountsSuite) setupSeed(c *C, modelAssertTime time.Time, gadgetSnapFiles [][]string) {
 	// pretend /run/mnt/ubuntu-seed has a valid seed
 	s.seedDir = boot.InitramfsUbuntuSeedDir
@@ -194,6 +206,7 @@ func (s *initramfsMountsSuite) SetUpTest(c *C) {
 
 	// mock /run/mnt
 	dirs.SetRootDir(s.tmpDir)
+	makeOldCoreInitrdUnits(c)
 	restore = func() { dirs.SetRootDir("") }
 	s.AddCleanup(restore)
 
@@ -2564,6 +2577,7 @@ func (s *initramfsMountsSuite) TestInitramfsMountsRunModeUpgradeScenarios(c *C) 
 		rootDir := c.MkDir()
 		cleanups = append(cleanups, func() { dirs.SetRootDir(dirs.GlobalRootDir) })
 		dirs.SetRootDir(rootDir)
+		makeOldCoreInitrdUnits(c)
 
 		restore := disks.MockMountPointDisksToPartitionMapping(
 			map[disks.Mountpoint]*disks.MockDiskMapping{

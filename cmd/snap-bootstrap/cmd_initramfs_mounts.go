@@ -178,6 +178,44 @@ func generateInitramfsMounts() (err error) {
 	return nil
 }
 
+func maybeDoBaseBindMount() (err error) {
+	// Bind-mount base snap to /sysroot as the start of pivot-root
+	// rootfs. Previously this was in the core-initrd, but it is
+	// best to be controlled by snap-bootstrap. NB! This needs to
+	// be backwards compatible, because older initrds are often
+	// repacked with newer snap-bootstrap.
+	bindSystemdOpts := &systemdMountOptions{
+		Bind: true,
+	}
+	if !osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/usr/lib/systemd/system/sysroot.mount")) {
+		if err := doSystemdMount(filepath.Join(boot.InitramfsRunMntDir, "base"), boot.InitramfsSysrootDir, bindSystemdOpts); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func maybeDoKernelBindMount() (err error) {
+	// Bind-mount kernel snap modules and firmware into /sysroot.
+	// Previously this was in the core-initrd, but it is best to
+	// be controlled by snap-bootstrap. NB! This needs to be
+	// backwards compatible, because older initrds are often
+	// repacked with newer snap-bootstrap.
+	bindSystemdOpts := &systemdMountOptions{
+		Bind: true,
+	}
+	for _, kerneldir := range []string{"firmware", "modules"} {
+		if !osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/usr/lib/systemd/system/sysroot-usr-lib-" + kerneldir + ".mount")) {
+			srcPath := filepath.Join(boot.InitramfsRunMntDir, "kernel", kerneldir)
+			destPath := filepath.Join(boot.InitramfsSysrootDir, "/usr/lib", kerneldir)
+			if err := doSystemdMount(srcPath, destPath, bindSystemdOpts); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 // generateMountsMode* is called multiple times from initramfs until it
 // no longer generates more mount points and just returns an empty output.
 func generateMountsModeInstall(mst *initramfsMountsState) error {
@@ -1536,6 +1574,14 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 				return err
 			}
 		}
+	}
+
+	// Setup bind-mounts in /sysroot
+	if err := maybeDoBaseBindMount(); err != nil {
+		return err
+	}
+	if err := maybeDoKernelBindMount(); err != nil {
+		return err
 	}
 
 	// 4.4 mount snapd snap only on first boot
