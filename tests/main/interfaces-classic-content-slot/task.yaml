@@ -17,20 +17,10 @@ environment:
     CONSUMER_SNAP: test-snapd-content-plug-to-classic-slot
 
 execute: |
-    echo "Install content plug, check that the classic provider is not pulled"
-    snap install --edge "$CONSUMER_SNAP"
-
     echo "Install classic snap with content slot - no automatic pull for classic"
     snap install --edge --classic "$PROVIDER_SNAP"
 
-    echo "Then the snap is listed as connected"
-    snap connections "$PROVIDER_SNAP" |
-        MATCH "$CONSUMER_SNAP:shared-content-plug \+$PROVIDER_SNAP:shared-content-slot"
-
-    echo "Remove snaps, install in reverse order"
-    snap remove --purge "$CONSUMER_SNAP"
-    snap remove --purge "$PROVIDER_SNAP"
-    snap install --edge --classic "$PROVIDER_SNAP"
+    echo "Install content plug"
     snap install --edge "$CONSUMER_SNAP"
 
     echo "Check that the content interface has been auto-connected"
