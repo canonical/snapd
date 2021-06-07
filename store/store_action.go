@@ -56,6 +56,7 @@ type CurrentSnap struct {
 	Block            []snap.Revision
 	Epoch            snap.Epoch
 	CohortKey        string
+	ValidationSets   [][]string
 }
 
 type AssertionQuery interface {
@@ -75,6 +76,7 @@ type currentSnapV2JSON struct {
 	RefreshedDate    *time.Time `json:"refreshed-date,omitempty"`
 	IgnoreValidation bool       `json:"ignore-validation,omitempty"`
 	CohortKey        string     `json:"cohort-key,omitempty"`
+	ValidationSets   [][]string `json:"validation-sets,omitempty"`
 }
 
 type SnapActionFlags int
@@ -93,6 +95,8 @@ type SnapAction struct {
 	CohortKey    string
 	Flags        SnapActionFlags
 	Epoch        snap.Epoch
+	// validation-sets primary keys (only for install action)
+	ValidationSets [][]string
 }
 
 func isValidAction(action string) bool {
@@ -123,8 +127,9 @@ type snapActionJSON struct {
 	// nil epoch is not an empty interface{}, you'll get the null in the json.
 	Epoch interface{} `json:"epoch,omitempty"`
 	// For assertions
-	Key        string        `json:"key,omitempty"`
-	Assertions []interface{} `json:"assertions,omitempty"`
+	Key            string        `json:"key,omitempty"`
+	Assertions     []interface{} `json:"assertions,omitempty"`
+	ValidationSets [][]string    `json:"validation-sets,omitempty"`
 }
 
 type assertAtJSON struct {
@@ -328,6 +333,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			RefreshedDate:    refreshedDate,
 			Epoch:            curSnap.Epoch,
 			CohortKey:        curSnap.CohortKey,
+			ValidationSets:   curSnap.ValidationSets,
 		}
 	}
 
@@ -376,6 +382,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			installNum++
 			instanceKey = fmt.Sprintf("install-%d", installNum)
 			installs[instanceKey] = a
+			aJSON.ValidationSets = a.ValidationSets
 		} else if a.Action == "download" {
 			downloadNum++
 			instanceKey = fmt.Sprintf("download-%d", downloadNum)

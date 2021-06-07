@@ -753,6 +753,10 @@ func (s *storeActionSuite) TestSnapActionIgnoreValidation(c *C) {
 	c.Assert(results[0].Revision, Equals, snap.R(26))
 }
 
+func (s *storeActionSuite) TestSnapActionInstallWithValidationSets(c *C) {
+	s.testSnapActionGet("install", "", "", [][]string{{"foo", "bar"}, {"foo", "baz"}}, c)
+}
+
 func (s *storeActionSuite) TestSnapActionAutoRefresh(c *C) {
 	// the bare TestSnapAction does more SnapAction checks; look there
 	// this one mostly just checks the refresh-reason header
@@ -1177,24 +1181,24 @@ func (s *storeActionSuite) TestSnapActionOptions(c *C) {
 }
 
 func (s *storeActionSuite) TestSnapActionInstall(c *C) {
-	s.testSnapActionGet("install", "", "", c)
+	s.testSnapActionGet("install", "", "", nil, c)
 }
 func (s *storeActionSuite) TestSnapActionInstallWithCohort(c *C) {
-	s.testSnapActionGet("install", "what", "", c)
+	s.testSnapActionGet("install", "what", "", nil, c)
 }
 func (s *storeActionSuite) TestSnapActionDownload(c *C) {
-	s.testSnapActionGet("download", "", "", c)
+	s.testSnapActionGet("download", "", "", nil, c)
 }
 func (s *storeActionSuite) TestSnapActionDownloadWithCohort(c *C) {
-	s.testSnapActionGet("download", "here", "", c)
+	s.testSnapActionGet("download", "here", "", nil, c)
 }
 func (s *storeActionSuite) TestSnapActionInstallRedirect(c *C) {
-	s.testSnapActionGet("install", "", "2.0/candidate", c)
+	s.testSnapActionGet("install", "", "2.0/candidate", nil, c)
 }
 func (s *storeActionSuite) TestSnapActionDownloadRedirect(c *C) {
-	s.testSnapActionGet("download", "", "2.0/candidate", c)
+	s.testSnapActionGet("download", "", "2.0/candidate", nil, c)
 }
-func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel string, c *C) {
+func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel string, vsets [][]string, c *C) {
 	// action here is one of install or download
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -1236,6 +1240,19 @@ func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel str
 		if cohort != "" {
 			expectedAction["cohort-key"] = cohort
 		}
+		if vsets != nil {
+			// XXX: rewrite as otherwise DeepEquals complains about
+			// []interface {}{[]interface {}{..} vs expected [][]string{[]string{..}.
+			var sets []interface{}
+			for _, vs := range vsets {
+				var vss []interface{}
+				for _, vv := range vs {
+					vss = append(vss, vv)
+				}
+				sets = append(sets, vss)
+			}
+			expectedAction["validation-sets"] = sets
+		}
 		c.Assert(req.Actions[0], DeepEquals, expectedAction)
 
 		fmt.Fprintf(w, `{
@@ -1274,10 +1291,11 @@ func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel str
 	results, _, err := sto.SnapAction(s.ctx, nil,
 		[]*store.SnapAction{
 			{
-				Action:       action,
-				InstanceName: "hello-world",
-				Channel:      "beta",
-				CohortKey:    cohort,
+				Action:         action,
+				InstanceName:   "hello-world",
+				Channel:        "beta",
+				CohortKey:      cohort,
+				ValidationSets: vsets,
 			},
 		}, nil, nil, nil)
 	c.Assert(err, IsNil)
@@ -2485,6 +2503,95 @@ func (s *storeActionSuite) TestSnapActionRefreshStableInstanceKey(c *C) {
 	resultsAgain, _, err := sto.SnapAction(s.ctx, currentSnaps, action, nil, nil, opts)
 	c.Assert(err, IsNil)
 	c.Assert(resultsAgain, DeepEquals, results)
+}
+
+func (s *storeActionSuite) TestSnapActionRefreshWithValidationSets(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "POST", snapActionPath)
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		jsonReq, err := ioutil.ReadAll(r.Body)
+		c.Assert(err, IsNil)
+		var req struct {
+			Context []map[string]interface{} `json:"context"`
+			Actions []map[string]interface{} `json:"actions"`
+		}
+
+		err = json.Unmarshal(jsonReq, &req)
+		c.Assert(err, IsNil)
+
+		c.Assert(req.Context, HasLen, 1)
+		c.Assert(req.Context[0], DeepEquals, map[string]interface{}{
+			"snap-id":          helloWorldSnapID,
+			"instance-key":     helloWorldSnapID,
+			"revision":         float64(1),
+			"tracking-channel": "stable",
+			"refreshed-date":   helloRefreshedDateStr,
+			"epoch":            iZeroEpoch,
+			"validation-sets":  []interface{}{[]interface{}{"foo", "bar"}, []interface{}{"foo", "baz"}},
+		})
+		c.Assert(req.Actions, HasLen, 1)
+		c.Assert(req.Actions[0], DeepEquals, map[string]interface{}{
+			"action":       "refresh",
+			"instance-key": helloWorldSnapID,
+			"snap-id":      helloWorldSnapID,
+			"channel":      "stable",
+		})
+
+		io.WriteString(w, `{
+  "results": [{
+     "result": "refresh",
+     "instance-key": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+     "name": "hello-world",
+     "snap": {
+       "snap-id": "buPKUD3TKqCOgLEjjHx5kSiCpIs5cMuQ",
+       "name": "hello-world",
+       "revision": 26,
+       "version": "6.1",
+       "publisher": {
+          "id": "canonical",
+          "username": "canonical",
+          "display-name": "Canonical"
+       }
+     }
+  }]
+}`)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	results, _, err := sto.SnapAction(s.ctx, []*store.CurrentSnap{
+		{
+			InstanceName:    "hello-world",
+			SnapID:          helloWorldSnapID,
+			TrackingChannel: "stable",
+			Revision:        snap.R(1),
+			RefreshedDate:   helloRefreshedDate,
+			ValidationSets:  [][]string{{"foo", "bar"}, {"foo", "baz"}},
+		},
+	}, []*store.SnapAction{
+		{
+			Action:       "refresh",
+			SnapID:       helloWorldSnapID,
+			Channel:      "stable",
+			InstanceName: "hello-world",
+		},
+	}, nil, nil, &store.RefreshOptions{PrivacyKey: "123"})
+	c.Assert(err, IsNil)
+	c.Assert(results, HasLen, 1)
+	c.Assert(results[0].SnapName(), Equals, "hello-world")
+	c.Assert(results[0].InstanceName(), Equals, "hello-world")
+	c.Assert(results[0].Revision, Equals, snap.R(26))
 }
 
 func (s *storeActionSuite) TestSnapActionRevisionNotAvailableParallelInstall(c *C) {
