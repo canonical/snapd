@@ -38,29 +38,32 @@ import (
 )
 
 type ensureSnapServicesForGroupOptions struct {
+	// group is the primary group to consider when re-generating slices and
+	// services
+	grp *quota.Group
+
+	// allGrps is the updated set of quota groups
+	allGrps map[string]*quota.Group
+
 	// extraSnaps is the set of extra snaps to consider when ensuring services,
 	// mainly only used when snaps are removed from quota groups
 	extraSnaps []string
-
-	// meter is the progress meter used by the systemd package for reporting
-	// changes and progress
-	meter progress.Meter
-
-	// perfTimings is the timings for this task
-	perfTimings *timings.Timings
 }
 
-func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[string]*quota.Group, opts *ensureSnapServicesForGroupOptions) error {
+func ensureSnapServicesForGroup(st *state.State, opts *ensureSnapServicesForGroupOptions, meter progress.Meter, perfTimings *timings.Timings) error {
 	if opts == nil {
-		opts = &ensureSnapServicesForGroupOptions{}
+		return fmt.Errorf("internal error: unset group information for ensuring")
 	}
 
-	if opts.meter == nil {
-		opts.meter = progress.Null
+	grp := opts.grp
+	allGrps := opts.allGrps
+
+	if meter == nil {
+		meter = progress.Null
 	}
 
-	if opts.perfTimings == nil {
-		opts.perfTimings = &timings.Timings{}
+	if perfTimings == nil {
+		perfTimings = &timings.Timings{}
 	}
 
 	// extraSnaps []string, meter progress.Meter, perfTimings *timings.Timings
@@ -148,7 +151,7 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[s
 			// be okay?
 		}
 	}
-	if err := wrappers.EnsureSnapServices(snapSvcMap, ensureOpts, collectModifiedUnits, opts.meter); err != nil {
+	if err := wrappers.EnsureSnapServices(snapSvcMap, ensureOpts, collectModifiedUnits, meter); err != nil {
 		return err
 	}
 
@@ -157,7 +160,7 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[s
 	}
 
 	// TODO: should this logic move to wrappers in wrappers.RestartGroups()?
-	systemSysd := systemd.New(systemd.SystemMode, opts.meter)
+	systemSysd := systemd.New(systemd.SystemMode, meter)
 
 	// now start the slices
 	for _, grp := range grpsToStart {
@@ -183,7 +186,7 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[s
 		// undesirable, we should figure out how to do this operation with a
 		// single daemon-reload
 		st.Unlock()
-		err := wrappers.RemoveQuotaGroup(grp, opts.meter)
+		err := wrappers.RemoveQuotaGroup(grp, meter)
 		st.Lock()
 		if err != nil {
 			return err
@@ -206,7 +209,7 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[s
 
 	for _, sn := range snaps {
 		st.Unlock()
-		disabledSvcs, err := wrappers.QueryDisabledServices(sn, opts.meter)
+		disabledSvcs, err := wrappers.QueryDisabledServices(sn, meter)
 		st.Lock()
 		if err != nil {
 			return err
@@ -232,7 +235,7 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[s
 		}
 
 		st.Unlock()
-		err = wrappers.RestartServices(startupOrderedMinusDisabled, nil, opts.meter, opts.perfTimings)
+		err = wrappers.RestartServices(startupOrderedMinusDisabled, nil, meter, perfTimings)
 		st.Lock()
 
 		if err != nil {
