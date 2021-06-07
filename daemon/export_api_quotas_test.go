@@ -27,8 +27,7 @@ import (
 )
 
 type (
-	PostQuotaGroupData   = postQuotaGroupData
-	QuotaGroupResultJSON = quotaGroupResultJSON
+	PostQuotaGroupData = postQuotaGroupData
 )
 
 func MockServicestateCreateQuota(f func(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) error) func() {
