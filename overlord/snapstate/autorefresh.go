@@ -80,6 +80,10 @@ func (rc *refreshCandidate) DownloadSize() int64 {
 	return rc.DownloadInfo.Size
 }
 
+func (rc *refreshCandidate) InstanceName() string {
+	return rc.SnapSetup.InstanceName()
+}
+
 func (rc *refreshCandidate) Prereq(st *state.State) []string {
 	return rc.SnapSetup.Prereq
 }
