@@ -56,6 +56,7 @@ type CurrentSnap struct {
 	Block            []snap.Revision
 	Epoch            snap.Epoch
 	CohortKey        string
+	// ValidationSets is an optional array of validation sets primary keys.
 	ValidationSets   [][]string
 }
 
@@ -76,6 +77,7 @@ type currentSnapV2JSON struct {
 	RefreshedDate    *time.Time `json:"refreshed-date,omitempty"`
 	IgnoreValidation bool       `json:"ignore-validation,omitempty"`
 	CohortKey        string     `json:"cohort-key,omitempty"`
+	// ValidationSets is an optional array of validation sets primary keys.
 	ValidationSets   [][]string `json:"validation-sets,omitempty"`
 }
 
@@ -95,7 +97,8 @@ type SnapAction struct {
 	CohortKey    string
 	Flags        SnapActionFlags
 	Epoch        snap.Epoch
-	// validation-sets primary keys (only for install action)
+	// ValidationSets is an optional array of validation sets primary keys
+	// (relevant only for install action).
 	ValidationSets [][]string
 }
 

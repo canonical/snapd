@@ -1198,7 +1198,7 @@ func (s *storeActionSuite) TestSnapActionInstallRedirect(c *C) {
 func (s *storeActionSuite) TestSnapActionDownloadRedirect(c *C) {
 	s.testSnapActionGet("download", "", "2.0/candidate", nil, c)
 }
-func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel string, vsets [][]string, c *C) {
+func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel string, validationSets [][]string, c *C) {
 	// action here is one of install or download
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -1240,11 +1240,11 @@ func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel str
 		if cohort != "" {
 			expectedAction["cohort-key"] = cohort
 		}
-		if vsets != nil {
+		if validationSets != nil {
 			// XXX: rewrite as otherwise DeepEquals complains about
 			// []interface {}{[]interface {}{..} vs expected [][]string{[]string{..}.
 			var sets []interface{}
-			for _, vs := range vsets {
+			for _, vs := range validationSets {
 				var vss []interface{}
 				for _, vv := range vs {
 					vss = append(vss, vv)
@@ -1295,7 +1295,7 @@ func (s *storeActionSuite) testSnapActionGet(action, cohort, redirectChannel str
 				InstanceName:   "hello-world",
 				Channel:        "beta",
 				CohortKey:      cohort,
-				ValidationSets: vsets,
+				ValidationSets: validationSets,
 			},
 		}, nil, nil, nil)
 	c.Assert(err, IsNil)
