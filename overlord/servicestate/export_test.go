@@ -19,8 +19,23 @@
 
 package servicestate
 
+import (
+	tomb "gopkg.in/tomb.v2"
+
+	"github.com/snapcore/snapd/overlord/state"
+)
+
 var (
 	UpdateSnapstateServices = updateSnapstateServices
 	PatchQuotas             = patchQuotas
 	CheckSystemdVersion     = checkSystemdVersion
+	DoCreateQuota           = doCreateQuota
+	DoRemoveQuota           = doRemoveQuota
+	DoUpdateQuota           = doUpdateQuota
 )
+
+type QuotaControlArgs = quotaControlArgs
+
+func (m *ServiceManager) DoQuotaControl(t *state.Task, to *tomb.Tomb) error {
+	return m.doQuotaControl(t, to)
+}

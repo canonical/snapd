@@ -24,6 +24,9 @@ import (
 	"sort"
 	"time"
 
+	tomb "gopkg.in/tomb.v2"
+
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -36,6 +39,302 @@ import (
 	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/wrappers"
 )
+
+// QuotaControlAction is the serialized representation of a quota group
+// modification that lives in a task.
+type QuotaControlAction struct {
+	// QuotaName is the name of the quota group being controlled.
+	QuotaName string `json:"quota-name"`
+
+	// Action is the action being taken on the quota group. It can be either
+	// "create", "update", or "remove".
+	Action string `json:"action"`
+
+	// AddSnaps is the set of snaps to add to the quota group, valid for either
+	// the "update" or the "create" actions.
+	AddSnaps []string `json:"snaps"`
+
+	// MemoryLimit is the memory limit for the quota group being controlled,
+	// either the initial limit the group is created with for the "create"
+	// action, or if non-zero for the "update" the memory limit, then the new
+	// value to be set.
+	MemoryLimit quantity.Size
+
+	// ParentName is the name of the parent for the quota group if it is being
+	// created. Eventually this could be used with the "update" action to
+	// support moving quota groups from one parent to another, but that is
+	// currently not supported.
+	ParentName string
+}
+
+func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+
+	meter := snapstate.NewTaskProgressAdapterUnlocked(t)
+
+	qcs := []QuotaControlAction{}
+	err := t.Get("quota-control-actions", &qcs)
+	if err != nil {
+		return fmt.Errorf("internal error: cannot get quota-control-action: %v", err)
+	}
+
+	// TODO: support more than one action
+	switch {
+	case len(qcs) > 1:
+		return fmt.Errorf("multiple quota group actions not supported yet")
+	case len(qcs) == 0:
+		return fmt.Errorf("internal error: no quota group actions for quota-control task")
+	}
+
+	qc := qcs[0]
+
+	allGrps, err := AllQuotas(st)
+	if err != nil {
+		return err
+	}
+
+	args := quotaControlArgs{
+		St:          st,
+		AllGrps:     allGrps,
+		Action:      &qc,
+		Meter:       meter,
+		PerfTimings: perfTimings,
+	}
+
+	switch qc.Action {
+	case "create":
+		err = doCreateQuota(args)
+	case "remove":
+		err = doRemoveQuota(args)
+	case "update":
+		err = doUpdateQuota(args)
+	default:
+		err = fmt.Errorf("unknown action %q requested", qc.Action)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	t.SetStatus(state.DoneStatus)
+
+	return nil
+}
+
+func doCreateQuota(args quotaControlArgs) error {
+	st := args.St
+	action := args.Action
+	allGrps := args.AllGrps
+
+	// make sure the group does not exist yet
+	if _, ok := allGrps[action.QuotaName]; ok {
+		return fmt.Errorf("group %q already exists", action.QuotaName)
+	}
+
+	// make sure the specified snaps exist and aren't currently in another group
+	if err := validateSnapForAddingToGroup(st, action.AddSnaps, action.QuotaName, allGrps); err != nil {
+		return err
+	}
+
+	// make sure the memory limit is not zero
+	if action.MemoryLimit == 0 {
+		return fmt.Errorf("internal error, MemoryLimit option is mandatory for create action")
+	}
+
+	grp, allGrps, err := createQuotaImpl(st, action, allGrps)
+	if err != nil {
+		return err
+	}
+
+	// ensure the snap services with the group
+	opts := &ensureSnapServicesForGroupOptions{
+		allGrps: allGrps,
+	}
+	return ensureSnapServicesForGroup(st, grp, opts, args.Meter, args.PerfTimings)
+}
+
+func createQuotaImpl(st *state.State, action *QuotaControlAction, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, error) {
+	// make sure that the parent group exists if we are creating a sub-group
+	var grp *quota.Group
+	var err error
+	updatedGrps := []*quota.Group{}
+	if action.ParentName != "" {
+		parentGrp, ok := allGrps[action.ParentName]
+		if !ok {
+			return nil, nil, fmt.Errorf("cannot create group under non-existent parent group %q", action.ParentName)
+		}
+
+		grp, err = parentGrp.NewSubGroup(action.QuotaName, action.MemoryLimit)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		updatedGrps = append(updatedGrps, parentGrp)
+	} else {
+		// make a new group
+		grp, err = quota.NewGroup(action.QuotaName, action.MemoryLimit)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	updatedGrps = append(updatedGrps, grp)
+
+	// put the snaps in the group
+	grp.Snaps = action.AddSnaps
+	// update the modified groups in state
+	newAllGrps, err := patchQuotas(st, updatedGrps...)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return grp, newAllGrps, nil
+}
+
+type quotaControlArgs struct {
+	St          *state.State
+	AllGrps     map[string]*quota.Group
+	Action      *QuotaControlAction
+	Meter       progress.Meter
+	PerfTimings *timings.Timings
+}
+
+func doRemoveQuota(args quotaControlArgs) error {
+	st := args.St
+	action := args.Action
+	allGrps := args.AllGrps
+
+	// make sure the group exists
+	grp, ok := allGrps[action.QuotaName]
+	if !ok {
+		return fmt.Errorf("group %q does not exist", action.QuotaName)
+	}
+
+	// make sure some of the options are not set, it's an internal error if
+	// anything other than the name and action are set for a removal
+	if action.ParentName != "" {
+		return fmt.Errorf("internal error, ParentName option does not make sense with remove action")
+	}
+
+	if len(action.AddSnaps) != 0 {
+		return fmt.Errorf("internal error, AddSnaps option does not make sense with remove action")
+	}
+
+	if action.MemoryLimit != 0 {
+		return fmt.Errorf("internal error, MemoryLimit option does not make sense with remove action")
+	}
+
+	// XXX: remove this limitation eventually
+	if len(grp.SubGroups) != 0 {
+		return fmt.Errorf("cannot remove quota group with sub-groups, remove the sub-groups first")
+	}
+
+	// if this group has a parent, we need to remove the linkage to this
+	// sub-group from the parent first
+	if grp.ParentGroup != "" {
+		// the parent here must exist otherwise AllQuotas would have failed
+		// because state would have been inconsistent
+		parent := allGrps[grp.ParentGroup]
+
+		// ensure that the parent group of this group no longer mentions this
+		// group as a sub-group - we know that it must since AllQuotas validated
+		// the state for us
+		if len(parent.SubGroups) == 1 {
+			// this group was an only child, so clear the whole list
+			parent.SubGroups = nil
+		} else {
+			// we have to delete the child but keep the other children
+			newSubgroups := make([]string, 0, len(parent.SubGroups)-1)
+			for _, sub := range parent.SubGroups {
+				if sub != action.QuotaName {
+					newSubgroups = append(newSubgroups, sub)
+				}
+			}
+
+			parent.SubGroups = newSubgroups
+		}
+
+		allGrps[grp.ParentGroup] = parent
+	}
+
+	// now delete the group from state - do this first for convenience to ensure
+	// that we can just use SnapServiceOptions below and since it operates via
+	// state, it will immediately reflect the deletion
+	delete(allGrps, action.QuotaName)
+
+	// make sure that the group set is consistent before saving it - we may need
+	// to delete old links from this group's parent to the child
+	if err := quota.ResolveCrossReferences(allGrps); err != nil {
+		return fmt.Errorf("cannot remove quota %q: %v", action.QuotaName, err)
+	}
+
+	// now set it in state
+	st.Set("quotas", allGrps)
+
+	// update snap service units that may need to be re-written because they are
+	// not in a slice anymore
+	opts := &ensureSnapServicesForGroupOptions{
+		allGrps: allGrps,
+	}
+	return ensureSnapServicesForGroup(st, grp, opts, args.Meter, args.PerfTimings)
+}
+
+func doUpdateQuota(args quotaControlArgs) error {
+	st := args.St
+	allGrps := args.AllGrps
+	action := args.Action
+
+	// make sure the group exists
+	grp, ok := allGrps[action.QuotaName]
+	if !ok {
+		return fmt.Errorf("group %q does not exist", action.QuotaName)
+	}
+
+	// check that ParentName is not set, since we don't currently support
+	// re-parenting
+	if action.ParentName != "" {
+		return fmt.Errorf("group %q cannot be moved to a different parent (re-parenting not yet supported)", action.QuotaName)
+	}
+
+	modifiedGrps := []*quota.Group{grp}
+
+	// now ensure that all of the snaps mentioned in AddSnaps exist as snaps and
+	// that they aren't already in an existing quota group
+	if err := validateSnapForAddingToGroup(st, action.AddSnaps, action.QuotaName, allGrps); err != nil {
+		return err
+	}
+
+	//  append the snaps list in the group
+	grp.Snaps = append(grp.Snaps, action.AddSnaps...)
+
+	// if the memory limit is not zero then change it too
+	if action.MemoryLimit != 0 {
+		// we disallow decreasing the memory limit because it is difficult to do
+		// so correctly with the current state of our code in
+		// EnsureSnapServices, see comment in ensureSnapServicesForGroup for
+		// full details
+		if action.MemoryLimit < grp.MemoryLimit {
+			return fmt.Errorf("cannot decrease memory limit of existing quota-group, remove and re-create it to decrease the limit")
+		}
+		grp.MemoryLimit = action.MemoryLimit
+	}
+
+	// update the quota group state
+	allGrps, err := patchQuotas(st, modifiedGrps...)
+	if err != nil {
+		return err
+	}
+
+	// ensure service states are updated
+	opts := &ensureSnapServicesForGroupOptions{
+		allGrps: allGrps,
+	}
+	return ensureSnapServicesForGroup(st, grp, opts, args.Meter, args.PerfTimings)
+}
 
 type ensureSnapServicesForGroupOptions struct {
 	// allGrps is the updated set of quota groups
