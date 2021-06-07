@@ -140,10 +140,9 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 
 	// ensure the snap services with the group
 	opts := &ensureSnapServicesForGroupOptions{
-		grp:     grp,
 		allGrps: allGrps,
 	}
-	if err := ensureSnapServicesForGroup(st, opts, nil, nil); err != nil {
+	if err := ensureSnapServicesForGroup(st, grp, opts, nil, nil); err != nil {
 		return err
 	}
 
@@ -221,10 +220,9 @@ func RemoveQuota(st *state.State, name string) error {
 	// update snap service units that may need to be re-written because they are
 	// not in a slice anymore
 	opts := &ensureSnapServicesForGroupOptions{
-		grp:     grp,
 		allGrps: allGrps,
 	}
-	if err := ensureSnapServicesForGroup(st, opts, nil, nil); err != nil {
+	if err := ensureSnapServicesForGroup(st, grp, opts, nil, nil); err != nil {
 		return err
 	}
 
@@ -295,10 +293,9 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) erro
 
 	// ensure service states are updated
 	opts := &ensureSnapServicesForGroupOptions{
-		grp:     grp,
 		allGrps: allGrps,
 	}
-	return ensureSnapServicesForGroup(st, opts, nil, nil)
+	return ensureSnapServicesForGroup(st, grp, opts, nil, nil)
 }
 
 // EnsureSnapAbsentFromQuota ensures that the specified snap is not present
@@ -331,11 +328,10 @@ func EnsureSnapAbsentFromQuota(st *state.State, snap string) error {
 				// group and thus won't be considered just by looking at the
 				// group pointer directly
 				opts := &ensureSnapServicesForGroupOptions{
-					grp:        grp,
 					allGrps:    allGrps,
 					extraSnaps: []string{snap},
 				}
-				return ensureSnapServicesForGroup(st, opts, nil, nil)
+				return ensureSnapServicesForGroup(st, grp, opts, nil, nil)
 			}
 		}
 	}

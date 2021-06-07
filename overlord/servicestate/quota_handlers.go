@@ -38,10 +38,6 @@ import (
 )
 
 type ensureSnapServicesForGroupOptions struct {
-	// group is the primary group to consider when re-generating slices and
-	// services
-	grp *quota.Group
-
 	// allGrps is the updated set of quota groups
 	allGrps map[string]*quota.Group
 
@@ -50,12 +46,11 @@ type ensureSnapServicesForGroupOptions struct {
 	extraSnaps []string
 }
 
-func ensureSnapServicesForGroup(st *state.State, opts *ensureSnapServicesForGroupOptions, meter progress.Meter, perfTimings *timings.Timings) error {
+func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, opts *ensureSnapServicesForGroupOptions, meter progress.Meter, perfTimings *timings.Timings) error {
 	if opts == nil {
 		return fmt.Errorf("internal error: unset group information for ensuring")
 	}
 
-	grp := opts.grp
 	allGrps := opts.allGrps
 
 	if meter == nil {
