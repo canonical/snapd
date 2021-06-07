@@ -332,6 +332,8 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelper(c *C) {
 	mockLastRefreshed(c, st, "2021-05-09T10:00:00Z", "snap-a", "snap-b", "snap-c", "snap-d", "snap-e", "snap-f")
 
 	c.Assert(snapstate.HoldRefresh(st, "snap-a", 0, "snap-b", "snap-c"), IsNil)
+	// this could be merged with the above HoldRefresh call, but it's fine if
+	// done separately too.
 	c.Assert(snapstate.HoldRefresh(st, "snap-a", 0, "snap-e"), IsNil)
 	c.Assert(snapstate.HoldRefresh(st, "snap-d", 0, "snap-e"), IsNil)
 	c.Assert(snapstate.HoldRefresh(st, "snap-f", 0, "snap-f"), IsNil)

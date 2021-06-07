@@ -110,9 +110,9 @@ func (h *HoldError) Error() string {
 	return fmt.Sprintf("cannot hold some snaps:%s", strings.Join(l, "\n - "))
 }
 
-func maxAllowedPostponement(gatingSnap, affectedSnap string) time.Duration {
+func maxAllowedPostponement(gatingSnap, affectedSnap string, maxPostponement time.Duration) time.Duration {
 	if affectedSnap == gatingSnap {
-		return maxPostponement - maxPostponementBuffer
+		return maxPostponement
 	}
 	return maxOtherHoldDuration
 }
@@ -156,11 +156,12 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 			return err
 		}
 
-		maxDur := maxAllowedPostponement(gatingSnap, heldSnap)
+		mp := maxPostponement - maxPostponementBuffer
+		maxDur := maxAllowedPostponement(gatingSnap, heldSnap, mp)
 
 		// calculate max hold duration that's left considering previous hold
 		// requests of this snap and last refresh time.
-		left := holdDurationLeft(now, lastRefreshTime, hold.FirstHeld, maxDur, maxPostponement-maxPostponementBuffer)
+		left := holdDurationLeft(now, lastRefreshTime, hold.FirstHeld, maxDur, mp)
 		if left <= 0 {
 			herr.SnapsInError[heldSnap] = HoldDurationError{
 				Err: fmt.Errorf("snap %q cannot hold snap %q anymore, maximum refresh postponement exceeded", gatingSnap, heldSnap),
