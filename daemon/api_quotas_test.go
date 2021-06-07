@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -279,9 +280,9 @@ func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 200)
-	c.Assert(rsp.Result, check.FitsTypeOf, []daemon.QuotaGroupResultJSON{})
-	res := rsp.Result.([]daemon.QuotaGroupResultJSON)
-	c.Check(res, check.DeepEquals, []daemon.QuotaGroupResultJSON{
+	c.Assert(rsp.Result, check.FitsTypeOf, []client.QuotaGroupResult{})
+	res := rsp.Result.([]client.QuotaGroupResult)
+	c.Check(res, check.DeepEquals, []client.QuotaGroupResult{
 		{
 			GroupName:     "bar",
 			Parent:        "foo",
@@ -296,7 +297,7 @@ func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
 		},
 		{
 			GroupName:     "foo",
-			SubGroups:     []string{"bar", "baz"},
+			Subgroups:     []string{"bar", "baz"},
 			MaxMemory:     9000,
 			CurrentMemory: 5000,
 		},
@@ -324,9 +325,9 @@ func (s *apiQuotaSuite) TestGetQuota(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 200)
-	c.Assert(rsp.Result, check.FitsTypeOf, daemon.QuotaGroupResultJSON{})
-	res := rsp.Result.(daemon.QuotaGroupResultJSON)
-	c.Check(res, check.DeepEquals, daemon.QuotaGroupResultJSON{
+	c.Assert(rsp.Result, check.FitsTypeOf, client.QuotaGroupResult{})
+	res := rsp.Result.(client.QuotaGroupResult)
+	c.Check(res, check.DeepEquals, client.QuotaGroupResult{
 		GroupName:     "bar",
 		Parent:        "foo",
 		MaxMemory:     1000,

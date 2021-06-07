@@ -441,6 +441,23 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	s.logbuf = logbuf
 }
 
+func (s *baseMgrsSuite) makeSerialAssertionInState(c *C, st *state.State, brandID, model, serialN string) *asserts.Serial {
+	encDevKey, err := asserts.EncodePublicKey(deviceKey.PublicKey())
+	c.Assert(err, IsNil)
+	serial, err := s.brands.Signing(brandID).Sign(asserts.SerialType, map[string]interface{}{
+		"brand-id":            brandID,
+		"model":               model,
+		"serial":              serialN,
+		"device-key":          string(encDevKey),
+		"device-key-sha3-384": deviceKey.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, serial)
+	c.Assert(err, IsNil)
+	return serial.(*asserts.Serial)
+}
+
 type mgrsSuite struct {
 	baseMgrsSuite
 }
@@ -4164,6 +4181,7 @@ func (s *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
+	s.makeSerialAssertionInState(c, st, "my-brand", "my-model", "serialserialserial")
 
 	// create a new model
 	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
@@ -4263,6 +4281,7 @@ func (s *mgrsSuite) TestRemodelRequiredSnapsAddedUndo(c *C) {
 	})
 	err := assertstate.Add(st, curModel)
 	c.Assert(err, IsNil)
+	s.makeSerialAssertionInState(c, st, "my-brand", "my-model", "serialserialserial")
 
 	// create a new model
 	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
@@ -4332,6 +4351,7 @@ type: base`
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
+	s.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// create a new model
 	newModel := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
@@ -4415,6 +4435,7 @@ version: 20.04`
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
+	ms.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// create a new model
 	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
@@ -4556,6 +4577,7 @@ version: 20.04`
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
+	ms.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// create a new model
 	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
@@ -4695,6 +4717,7 @@ version: 20.04`
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
+	ms.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// create a new model
 	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
@@ -4791,6 +4814,7 @@ func (s *kernelSuite) SetUpTest(c *C) {
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
+	s.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// make a mock "pc-kernel" kernel
 	si := &snap.SideInfo{RealName: "pc-kernel", SnapID: fakeSnapID("pc-kernel"), Revision: snap.R(1)}
@@ -5249,6 +5273,7 @@ volumes:
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
+	s.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// create a new model
 	newModel := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
@@ -5381,6 +5406,7 @@ volumes:
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
+	s.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// create a new model
 	newModel := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
@@ -5507,6 +5533,7 @@ volumes:
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
+	s.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// create a new model
 	newModel := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{

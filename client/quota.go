@@ -36,11 +36,12 @@ type postQuotaData struct {
 }
 
 type QuotaGroupResult struct {
-	GroupName string   `json:"group-name"`
-	Parent    string   `json:"parent,omitempty"`
-	Subgroups []string `json:"subgroups,omitempty"`
-	Snaps     []string `json:"snaps,omitempty"`
-	MaxMemory uint64   `json:"max-memory"`
+	GroupName     string   `json:"group-name"`
+	Parent        string   `json:"parent,omitempty"`
+	Subgroups     []string `json:"subgroups,omitempty"`
+	Snaps         []string `json:"snaps,omitempty"`
+	MaxMemory     uint64   `json:"max-memory"`
+	CurrentMemory uint64   `json:"current-memory"`
 }
 
 // EnsureQuota creates a quota group or updates an existing group.

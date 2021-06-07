@@ -112,7 +112,7 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 
 # Xilinx zocl DRM driver
 # https://github.com/Xilinx/XRT/tree/master/src/runtime_src/core/edge/drm
-/sys/devices/platform/amba_pl@[0-9]*/amba_pl@[0-9]*:zyxclmm_drm/* r,
+/sys/devices/platform/amba{,_pl@[0-9]*}/amba{,_pl@[0-9]*}:zyxclmm_drm/* r,
 
 # OpenCL ICD files
 /etc/OpenCL/vendors/ r,

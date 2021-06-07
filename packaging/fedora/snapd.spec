@@ -63,6 +63,7 @@
 %global snappy_user_svcs snapd.session-agent.service snapd.session-agent.socket
 
 # Until we have a way to add more extldflags to gobuild macro...
+# Always use external linking when building static binaries.
 %if 0%{?fedora} || 0%{?rhel} >= 8
 %define gobuild_static(o:) go build -buildmode pie -compiler gc -tags="rpm_crashtraceback ${BUILDTAGS:-}" -ldflags "${LDFLAGS:-} -B 0x$(head -c20 /dev/urandom|od -An -tx1|tr -d ' \\n') -linkmode external -extldflags '%__global_ldflags -static'" -a -v -x %{?**};
 %endif
@@ -307,6 +308,7 @@ Provides:      golang(%{import_path}/advisor) = %{version}-%{release}
 Provides:      golang(%{import_path}/arch) = %{version}-%{release}
 Provides:      golang(%{import_path}/asserts) = %{version}-%{release}
 Provides:      golang(%{import_path}/asserts/assertstest) = %{version}-%{release}
+Provides:      golang(%{import_path}/asserts/internal) = %{version}-%{release}
 Provides:      golang(%{import_path}/asserts/signtool) = %{version}-%{release}
 Provides:      golang(%{import_path}/asserts/snapasserts) = %{version}-%{release}
 Provides:      golang(%{import_path}/asserts/sysdb) = %{version}-%{release}
@@ -315,24 +317,44 @@ Provides:      golang(%{import_path}/boot) = %{version}-%{release}
 Provides:      golang(%{import_path}/boot/boottest) = %{version}-%{release}
 Provides:      golang(%{import_path}/bootloader) = %{version}-%{release}
 Provides:      golang(%{import_path}/bootloader/androidbootenv) = %{version}-%{release}
+Provides:      golang(%{import_path}/bootloader/assets) = %{version}-%{release}
+Provides:      golang(%{import_path}/bootloader/assets/genasset) = %{version}-%{release}
 Provides:      golang(%{import_path}/bootloader/bootloadertest) = %{version}-%{release}
 Provides:      golang(%{import_path}/bootloader/efi) = %{version}-%{release}
 Provides:      golang(%{import_path}/bootloader/grubenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/bootloader/lkenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/bootloader/ubootenv) = %{version}-%{release}
 Provides:      golang(%{import_path}/client) = %{version}-%{release}
-Provides:      golang(%{import_path}/cmd) = %{version}-%{release}
-Provides:      golang(%{import_path}/cmd/cmdutil) = %{version}-%{release}
-Provides:      golang(%{import_path}/cmd/snap-bootstrap/bootstrap) = %{version}-%{release}
-Provides:      golang(%{import_path}/cmd/snap-bootstrap/partition) = %{version}-%{release}
+Provides:      golang(%{import_path}/client/clientutil) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snap) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snap-bootstrap) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-bootstrap/triggerwatch) = %{version}-%{release}
-Provides:      golang(%{import_path}/cmd/snaplock) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snap-exec) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snap-failure) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snap-preseed) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snap-recovery-chooser) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snap-repair) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snap-seccomp) = %{version}-%{release}
 Provides:      golang(%{import_path}/cmd/snap-seccomp/syscalls) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snap-update-ns) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snapctl) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snapd) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snaplock) = %{version}-%{release}
+Provides:      golang(%{import_path}/cmd/snaplock/runinhibit) = %{version}-%{release}
 Provides:      golang(%{import_path}/daemon) = %{version}-%{release}
+Provides:      golang(%{import_path}/dbusutil) = %{version}-%{release}
+Provides:      golang(%{import_path}/dbusutil/dbustest) = %{version}-%{release}
+Provides:      golang(%{import_path}/desktop/notification) = %{version}-%{release}
+Provides:      golang(%{import_path}/desktop/notification/notificationtest) = %{version}-%{release}
 Provides:      golang(%{import_path}/dirs) = %{version}-%{release}
+Provides:      golang(%{import_path}/docs) = %{version}-%{release}
 Provides:      golang(%{import_path}/errtracker) = %{version}-%{release}
 Provides:      golang(%{import_path}/features) = %{version}-%{release}
 Provides:      golang(%{import_path}/gadget) = %{version}-%{release}
+Provides:      golang(%{import_path}/gadget/edition) = %{version}-%{release}
+Provides:      golang(%{import_path}/gadget/install) = %{version}-%{release}
+Provides:      golang(%{import_path}/gadget/internal) = %{version}-%{release}
+Provides:      golang(%{import_path}/gadget/quantity) = %{version}-%{release}
 Provides:      golang(%{import_path}/httputil) = %{version}-%{release}
 Provides:      golang(%{import_path}/i18n) = %{version}-%{release}
 Provides:      golang(%{import_path}/i18n/xgettext-go) = %{version}-%{release}
@@ -353,10 +375,12 @@ Provides:      golang(%{import_path}/interfaces/udev) = %{version}-%{release}
 Provides:      golang(%{import_path}/interfaces/utils) = %{version}-%{release}
 Provides:      golang(%{import_path}/jsonutil) = %{version}-%{release}
 Provides:      golang(%{import_path}/jsonutil/safejson) = %{version}-%{release}
+Provides:      golang(%{import_path}/kernel) = %{version}-%{release}
 Provides:      golang(%{import_path}/logger) = %{version}-%{release}
 Provides:      golang(%{import_path}/metautil) = %{version}-%{release}
 Provides:      golang(%{import_path}/netutil) = %{version}-%{release}
 Provides:      golang(%{import_path}/osutil) = %{version}-%{release}
+Provides:      golang(%{import_path}/osutil/disks) = %{version}-%{release}
 Provides:      golang(%{import_path}/osutil/mount) = %{version}-%{release}
 Provides:      golang(%{import_path}/osutil/squashfs) = %{version}-%{release}
 Provides:      golang(%{import_path}/osutil/strace) = %{version}-%{release}
@@ -375,6 +399,7 @@ Provides:      golang(%{import_path}/overlord/configstate/proxyconf) = %{version
 Provides:      golang(%{import_path}/overlord/configstate/settings) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/devicestate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/devicestate/devicestatetest) = %{version}-%{release}
+Provides:      golang(%{import_path}/overlord/devicestate/fde) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/devicestate/internal) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/healthstate) = %{version}-%{release}
 Provides:      golang(%{import_path}/overlord/hookstate) = %{version}-%{release}
@@ -412,13 +437,16 @@ Provides:      golang(%{import_path}/seed/seedtest) = %{version}-%{release}
 Provides:      golang(%{import_path}/seed/seedwriter) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap/channel) = %{version}-%{release}
-Provides:      golang(%{import_path}/snapdenv) = %{version}-%{release}
+Provides:      golang(%{import_path}/snap/internal) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap/naming) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap/pack) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap/snapdir) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap/snapenv) = %{version}-%{release}
+Provides:      golang(%{import_path}/snap/snapfile) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap/snaptest) = %{version}-%{release}
 Provides:      golang(%{import_path}/snap/squashfs) = %{version}-%{release}
+Provides:      golang(%{import_path}/snapdenv) = %{version}-%{release}
+Provides:      golang(%{import_path}/snapdtool) = %{version}-%{release}
 Provides:      golang(%{import_path}/spdx) = %{version}-%{release}
 Provides:      golang(%{import_path}/store) = %{version}-%{release}
 Provides:      golang(%{import_path}/store/storetest) = %{version}-%{release}
@@ -428,8 +456,6 @@ Provides:      golang(%{import_path}/strutil/quantity) = %{version}-%{release}
 Provides:      golang(%{import_path}/strutil/shlex) = %{version}-%{release}
 Provides:      golang(%{import_path}/sysconfig) = %{version}-%{release}
 Provides:      golang(%{import_path}/systemd) = %{version}-%{release}
-Provides:      golang(%{import_path}/tests/lib/fakestore/refresh) = %{version}-%{release}
-Provides:      golang(%{import_path}/tests/lib/fakestore/store) = %{version}-%{release}
 Provides:      golang(%{import_path}/testutil) = %{version}-%{release}
 Provides:      golang(%{import_path}/timeout) = %{version}-%{release}
 Provides:      golang(%{import_path}/timeutil) = %{version}-%{release}
@@ -439,9 +465,9 @@ Provides:      golang(%{import_path}/usersession/autostart) = %{version}-%{relea
 Provides:      golang(%{import_path}/usersession/client) = %{version}-%{release}
 Provides:      golang(%{import_path}/usersession/userd) = %{version}-%{release}
 Provides:      golang(%{import_path}/usersession/userd/ui) = %{version}-%{release}
+Provides:      golang(%{import_path}/usersession/xdgopenproxy) = %{version}-%{release}
 Provides:      golang(%{import_path}/wrappers) = %{version}-%{release}
 Provides:      golang(%{import_path}/x11) = %{version}-%{release}
-Provides:      golang(%{import_path}/xdgopenproxy) = %{version}-%{release}
 
 %description devel
 This package contains library source intended for
@@ -475,6 +501,9 @@ rm -rf vendor/*
 # Extract each tarball properly
 %setup -q -D -b 1
 %endif
+# Apply patches
+%autopatch -p1
+
 
 %build
 # Generate version files

@@ -367,6 +367,18 @@ func (s *userSuite) TestLoginUserBadRequest(c *check.C) {
 	c.Check(rsp.Result, check.NotNil)
 }
 
+func (s *userSuite) TestLoginUserNotEmailish(c *check.C) {
+	s.expectLoginAccess()
+
+	buf := bytes.NewBufferString(`{"username": "notemail", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.errorReq(c, req, nil)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result.(*daemon.ErrorResult).Message, testutil.Contains, "please use a valid email address")
+}
+
 func (s *userSuite) TestLoginUserDeveloperAPIError(c *check.C) {
 	s.expectLoginAccess()
 
@@ -417,6 +429,34 @@ func (s *userSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
 	rsp := s.errorReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 401)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, "invalid credentials")
+}
+
+func (s *userSuite) TestLoginUserInvalidAuthDataError(c *check.C) {
+	s.expectLoginAccess()
+
+	s.err = store.InvalidAuthDataError{"foo": {"bar"}}
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.errorReq(c, req, nil)
+	c.Check(rsp.Status, check.Equals, 400)
+	c.Check(rsp.Result.(*daemon.ErrorResult).Kind, check.Equals, client.ErrorKindInvalidAuthData)
+	c.Check(rsp.Result.(*daemon.ErrorResult).Value, check.DeepEquals, s.err)
+}
+
+func (s *userSuite) TestLoginUserPasswordPolicyError(c *check.C) {
+	s.expectLoginAccess()
+
+	s.err = store.PasswordPolicyError{"foo": {"bar"}}
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.errorReq(c, req, nil)
+	c.Check(rsp.Status, check.Equals, 401)
+	c.Check(rsp.Result.(*daemon.ErrorResult).Kind, check.Equals, client.ErrorKindPasswordPolicy)
+	c.Check(rsp.Result.(*daemon.ErrorResult).Value, check.DeepEquals, s.err)
 }
 
 func (s *userSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
