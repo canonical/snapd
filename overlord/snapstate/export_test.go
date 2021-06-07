@@ -326,3 +326,11 @@ var (
 	CreateGateAutoRefreshHooks = createGateAutoRefreshHooks
 	AutoRefreshPhase1          = autoRefreshPhase1
 )
+
+func MockSnapsToRefresh(f func(gatingTask *state.Task) ([]*refreshCandidate, error)) (restore func()) {
+	old := snapsToRefresh
+	snapsToRefresh = f
+	return func() {
+		snapsToRefresh = old
+	}
+}
