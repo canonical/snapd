@@ -57,7 +57,7 @@ type CurrentSnap struct {
 	Epoch            snap.Epoch
 	CohortKey        string
 	// ValidationSets is an optional array of validation sets primary keys.
-	ValidationSets   [][]string
+	ValidationSets [][]string
 }
 
 type AssertionQuery interface {
@@ -78,7 +78,7 @@ type currentSnapV2JSON struct {
 	IgnoreValidation bool       `json:"ignore-validation,omitempty"`
 	CohortKey        string     `json:"cohort-key,omitempty"`
 	// ValidationSets is an optional array of validation sets primary keys.
-	ValidationSets   [][]string `json:"validation-sets,omitempty"`
+	ValidationSets [][]string `json:"validation-sets,omitempty"`
 }
 
 type SnapActionFlags int
