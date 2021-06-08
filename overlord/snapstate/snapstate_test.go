@@ -5281,7 +5281,7 @@ func (s *snapmgrTestSuite) TestConflictMany(c *C) {
 	}
 }
 
-func (s *snapmgrTestSuite) TestConflictManyRemodeling(c *C) {
+func (s *snapmgrTestSuite) TestConflictRemodeling(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -5291,6 +5291,50 @@ func (s *snapmgrTestSuite) TestConflictManyRemodeling(c *C) {
 	err := snapstate.CheckChangeConflictMany(s.state, []string{"a-snap"}, "")
 	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
 	c.Check(err, ErrorMatches, `remodeling in progress, no other changes allowed until this is done`)
+
+	// a remodel conflicts with another remodel
+	err = snapstate.CheckChangeConflictRunExclusively(s.state, "remodel")
+	c.Check(err, ErrorMatches, `remodeling in progress, no other changes allowed until this is done`)
+
+	// we have a remodel change in state, a remodel change triggers are conflict
+	err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
+	c.Check(err, ErrorMatches, `remodeling in progress, no other changes allowed until this is done`)
+}
+
+func (s *snapmgrTestSuite) TestConflictCreateRecovery(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("create-recovery-system", "...")
+	c.Check(chg.IsReady(), Equals, false)
+	chg.SetStatus(state.DoingStatus)
+
+	err := snapstate.CheckChangeConflictMany(s.state, []string{"a-snap"}, "")
+	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	c.Check(err, ErrorMatches, `creating recovery system in progress, no other changes allowed until this is done`)
+
+	// remodeling conflicts with a change that creates a recovery system
+	err = snapstate.CheckChangeConflictRunExclusively(s.state, "remodel")
+	c.Check(err, ErrorMatches, `creating recovery system in progress, no other changes allowed until this is done`)
+
+	// so does another another create recovery system change
+	err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
+	c.Check(err, ErrorMatches, `creating recovery system in progress, no other changes allowed until this is done`)
+}
+
+func (s *snapmgrTestSuite) TestConflictExclusive(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("install-snap-a", "...")
+	chg.SetStatus(state.DoingStatus)
+
+	// a remodel conflicts with any other change
+	err := snapstate.CheckChangeConflictRunExclusively(s.state, "remodel")
+	c.Check(err, ErrorMatches, `other changes in progress \(conflicting change "install-snap-a"\), change "remodel" not allowed until they are done`)
+	// and so does the  remodel conflicts with any other change
+	err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
+	c.Check(err, ErrorMatches, `other changes in progress \(conflicting change "install-snap-a"\), change "create-recovery-system" not allowed until they are done`)
 }
 
 type contentStore struct {

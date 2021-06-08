@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -100,8 +100,8 @@ var systemctlCmd = func(args ...string) ([]byte, error) {
 	// output mode, see LP #1885597
 	bs, err := exec.Command("systemctl", args...).CombinedOutput()
 	if err != nil {
-		exitCode, _ := osutil.ExitCode(err)
-		return nil, &Error{cmd: args, exitCode: exitCode, msg: bs}
+		exitCode, runErr := osutil.ExitCode(err)
+		return nil, &Error{cmd: args, exitCode: exitCode, runErr: runErr, msg: bs}
 	}
 
 	return bs, nil
@@ -826,6 +826,7 @@ type Error struct {
 	cmd      []string
 	msg      []byte
 	exitCode int
+	runErr   error
 }
 
 func (e *Error) Msg() []byte {
@@ -837,7 +838,14 @@ func (e *Error) ExitCode() int {
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("%v failed with exit status %d: %s", e.cmd, e.exitCode, e.msg)
+	var msg string
+	if len(e.msg) > 0 {
+		msg = fmt.Sprintf(": %s", e.msg)
+	}
+	if e.runErr != nil {
+		return fmt.Sprintf("systemctl command %v failed with: %v%s", e.cmd, e.runErr, msg)
+	}
+	return fmt.Sprintf("systemctl command %v failed with exit status %d%s", e.cmd, e.exitCode, msg)
 }
 
 // Timeout is returned if the systemd action failed to reach the

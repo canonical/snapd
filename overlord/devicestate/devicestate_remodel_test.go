@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -126,9 +126,11 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappy(c *C) {
 		"kernel":       cur["kernel"],
 		"gadget":       cur["gadget"],
 	})
+	s.makeSerialAssertionInState(c, cur["brand"].(string), cur["model"].(string), "orig-serial")
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: cur["brand"].(string),
-		Model: cur["model"].(string),
+		Brand:  cur["brand"].(string),
+		Model:  cur["model"].(string),
+		Serial: "orig-serial",
 	})
 
 	// ensure all error cases are checked
@@ -161,9 +163,11 @@ func (s *deviceMgrRemodelSuite) TestRemodelNoUC20RemodelYet(c *C) {
 		"grade":        cur["grade"],
 		"snaps":        cur["snaps"],
 	})
+	s.makeSerialAssertionInState(c, cur["brand"].(string), cur["model"].(string), "orig-serial")
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: cur["brand"].(string),
-		Model: cur["model"].(string),
+		Brand:  cur["brand"].(string),
+		Model:  cur["model"].(string),
+		Serial: "orig-serial",
 	})
 
 	// ensure all error cases are checked
@@ -183,6 +187,40 @@ func (s *deviceMgrRemodelSuite) TestRemodelNoUC20RemodelYet(c *C) {
 		c.Check(chg, IsNil)
 		c.Check(err, ErrorMatches, t.errStr)
 	}
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelRequiresSerial(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+
+	// set a model assertion
+	cur := map[string]interface{}{
+		"brand":        "canonical",
+		"model":        "pc-model",
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	}
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"kernel":       "pc-kernel",
+		"gadget":       "pc",
+	})
+	// no serial assertion, no serial in state
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand: "canonical",
+		Model: "pc-model",
+	})
+
+	newModelHdrs := map[string]interface{}{
+		"revision": "2",
+	}
+	mergeMockModelHeaders(cur, newModelHdrs)
+	new := s.brands.Model("canonical", "pc-model", newModelHdrs)
+	chg, err := devicestate.Remodel(s.state, new)
+	c.Check(chg, IsNil)
+	c.Check(err, ErrorMatches, "cannot remodel without a serial")
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchGadgetTrack(c *C) {
@@ -381,9 +419,11 @@ func (s *deviceMgrRemodelSuite) TestRemodelRequiredSnaps(c *C) {
 		"gadget":       "pc",
 		"base":         "core18",
 	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "1234")
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "pc-model",
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "1234",
 	})
 
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
@@ -508,9 +548,11 @@ func (s *deviceMgrRemodelSuite) TestRemodelSwitchKernelTrack(c *C) {
 		"gadget":       "pc",
 		"base":         "core18",
 	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "1234")
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "pc-model",
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "1234",
 	})
 
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
@@ -585,9 +627,11 @@ func (s *deviceMgrRemodelSuite) TestRemodelLessRequiredSnaps(c *C) {
 		"base":           "core18",
 		"required-snaps": []interface{}{"some-required-snap"},
 	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "1234")
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "pc-model",
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "1234",
 	})
 
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
@@ -652,9 +696,11 @@ func (s *deviceMgrRemodelSuite) TestRemodelStoreSwitch(c *C) {
 		"gadget":       "pc",
 		"base":         "core18",
 	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "1234")
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "pc-model",
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "1234",
 	})
 
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
@@ -794,9 +840,11 @@ func (s *deviceMgrRemodelSuite) TestRemodelClash(c *C) {
 		"gadget":       "pc",
 		"base":         "core18",
 	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "1234")
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "pc-model",
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "1234",
 	})
 
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
@@ -823,8 +871,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelClash(c *C) {
 
 	// reset
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "pc-model",
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "1234",
 	})
 	clashing = new
 	_, err = devicestate.Remodel(s.state, new)
@@ -861,9 +910,11 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashInProgress(c *C) {
 		"gadget":       "pc",
 		"base":         "core18",
 	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "1234")
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
-		Brand: "canonical",
-		Model: "pc-model",
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "1234",
 	})
 
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
@@ -909,13 +960,21 @@ func (s *deviceMgrRemodelSuite) TestReregRemodelClashAnyChange(c *C) {
 		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
 		"revision":       "1",
 	})
+	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
+		// we never reach the place where this gets called
+		c.Fatalf("unexpected call")
+		return nil
+	}
 
 	// simulate any other change
-	s.state.NewChange("chg", "other change")
+	chg := s.state.NewChange("chg", "other change")
+	chg.SetStatus(state.DoingStatus)
 
 	_, err := devicestate.Remodel(s.state, new)
-	c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
-		Message: "cannot start complete remodel, other changes are in progress",
+	c.Assert(err, NotNil)
+	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
+		ChangeKind: "chg",
+		Message:    `other changes in progress (conflicting change "chg"), change "remodel" not allowed until they are done`,
 	})
 }
 
@@ -1280,6 +1339,7 @@ volumes:
 		"gadget":       "pc",
 		"base":         "core18",
 	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "serial")
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand:  "canonical",
 		Model:  "pc-model",
@@ -1403,7 +1463,7 @@ volumes:
 	defer restore()
 
 	chg, err := devicestate.Remodel(s.state, new)
-	c.Check(err, IsNil)
+	c.Assert(err, IsNil)
 	s.state.Unlock()
 
 	s.settle(c)
@@ -1435,6 +1495,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
 		"gadget":       "pc",
 		"base":         "core18",
 	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "serial")
 	devicestatetest.SetDevice(s.state, &auth.DeviceState{
 		Brand:  "canonical",
 		Model:  "pc-model",
@@ -1494,7 +1555,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
 	defer restore()
 
 	chg, err := devicestate.Remodel(s.state, new)
-	c.Check(err, IsNil)
+	c.Assert(err, IsNil)
 	s.state.Unlock()
 
 	s.settle(c)
