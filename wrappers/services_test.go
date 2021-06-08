@@ -3324,7 +3324,7 @@ apps:
 
 	s.sysdLog = nil
 	flags := &wrappers.RestartServicesFlags{Reload: true}
-	c.Assert(wrappers.RestartServices(info.Services(), flags, progress.Null, s.perfTimings), IsNil)
+	c.Assert(wrappers.RestartServices(info.Services(), nil, flags, progress.Null, s.perfTimings), IsNil)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"show", "--property=Id,ActiveState,UnitFileState,Type", srvFile},
@@ -3333,7 +3333,7 @@ apps:
 
 	s.sysdLog = nil
 	flags.Reload = false
-	c.Assert(wrappers.RestartServices(info.Services(), flags, progress.Null, s.perfTimings), IsNil)
+	c.Assert(wrappers.RestartServices(info.Services(), nil, flags, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"show", "--property=Id,ActiveState,UnitFileState,Type", srvFile},
 		{"stop", srvFile},
@@ -3342,7 +3342,7 @@ apps:
 	})
 
 	s.sysdLog = nil
-	c.Assert(wrappers.RestartServices(info.Services(), nil, progress.Null, s.perfTimings), IsNil)
+	c.Assert(wrappers.RestartServices(info.Services(), nil, nil, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"show", "--property=Id,ActiveState,UnitFileState,Type", srvFile},
 		{"stop", srvFile},
@@ -3396,7 +3396,7 @@ apps:
 	s.sysdLog = nil
 	services := info.Services()
 	sort.Sort(snap.AppInfoBySnapApp(services))
-	c.Assert(wrappers.RestartServices(services, nil, progress.Null, s.perfTimings), IsNil)
+	c.Assert(wrappers.RestartServices(services, nil, nil, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"show", "--property=Id,ActiveState,UnitFileState,Type",
 			srvFile1, srvFile2, srvFile3, srvFile4},

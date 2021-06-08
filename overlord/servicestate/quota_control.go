@@ -254,7 +254,7 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[s
 		}
 
 		st.Unlock()
-		err = wrappers.RestartServices(startupOrderedMinusDisabled, nil, progress.Null, nullPerfTimings)
+		err = wrappers.RestartServices(startupOrderedMinusDisabled, nil, nil, progress.Null, nullPerfTimings)
 		st.Lock()
 
 		if err != nil {

@@ -1570,7 +1570,8 @@ type RestartServicesFlags struct {
 }
 
 // Restart or reload services; if reload flag is set then "systemctl reload-or-restart" is attempted.
-func RestartServices(svcs []*snap.AppInfo, flags *RestartServicesFlags, inter interacter, tm timings.Measurer) error {
+func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
+	flags *RestartServicesFlags, inter interacter, tm timings.Measurer) error {
 	sysd := systemd.New(systemd.SystemMode, inter)
 
 	unitNames := make([]string, 0, len(svcs))
@@ -1588,9 +1589,11 @@ func RestartServices(svcs []*snap.AppInfo, flags *RestartServicesFlags, inter in
 	}
 
 	for _, unit := range unitStatuses {
-		// restart all active services (even if disabled), as described in
+		// If the unit was explicitly mentioned in the command line, restart it
+		// even if it is disabled; otherwise, we only restart units which are
+		// currently running. Reference:
 		// https://forum.snapcraft.io/t/command-line-interface-to-manipulate-services/262/47
-		if !unit.Active {
+		if !unit.Active && !strutil.ListContains(explicitServices, unit.UnitName) {
 			continue
 		}
 
