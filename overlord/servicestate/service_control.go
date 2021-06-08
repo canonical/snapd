@@ -36,10 +36,11 @@ import (
 // snap if services list is empty.
 // The names of services are app names (as defined in snap yaml).
 type ServiceAction struct {
-	SnapName       string   `json:"snap-name"`
-	Action         string   `json:"action"`
-	ActionModifier string   `json:"action-modifier,omitempty"`
-	Services       []string `json:"services,omitempty"`
+	SnapName         string   `json:"snap-name"`
+	Action           string   `json:"action"`
+	ActionModifier   string   `json:"action-modifier,omitempty"`
+	Services         []string `json:"services,omitempty"`
+	ExplicitServices []string `json:"explicit-services,omitempty"`
 }
 
 func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {

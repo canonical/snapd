@@ -68,15 +68,12 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 					currentConfValues = make(map[string]interface{})
 					break
 				}
-				return SyncResponse(&resp{
-					Type: ResponseTypeError,
-					Result: &errorResult{
-						Message: err.Error(),
-						Kind:    client.ErrorKindConfigNoSuchOption,
-						Value:   err,
-					},
-					Status: 400,
-				}, nil)
+				return &apiError{
+					Status:  400,
+					Message: err.Error(),
+					Kind:    client.ErrorKindConfigNoSuchOption,
+					Value:   err,
+				}
 			} else {
 				return InternalError("%v", err)
 			}
@@ -85,13 +82,13 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 			if len(keys) > 1 {
 				return BadRequest("keys contains zero-length string")
 			}
-			return SyncResponse(value, nil)
+			return SyncResponse(value)
 		}
 
 		currentConfValues[key] = value
 	}
 
-	return SyncResponse(currentConfValues, nil)
+	return SyncResponse(currentConfValues)
 }
 
 func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {

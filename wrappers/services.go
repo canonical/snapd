@@ -83,6 +83,7 @@ func generateGroupSliceFile(grp *quota.Group) ([]byte, error) {
 	template := `[Unit]
 Description=Slice for snap quota group %[1]s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.

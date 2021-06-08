@@ -20,13 +20,17 @@
 package daemon_test
 
 import (
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
+	"net/url"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
@@ -421,6 +425,45 @@ func (s *findSuite) TestFindBadQueryReturnsCorrectErrorKind(c *check.C) {
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, "bad query")
 	c.Check(rsp.Result.(*daemon.ErrorResult).Kind, check.Equals, client.ErrorKindBadQuery)
+}
+
+func (s *findSuite) TestFindNetworkErrorsReturnCorrectErrorKind(c *check.C) {
+	s.daemon(c)
+
+	req, err := http.NewRequest("GET", "/v2/find?q=query", nil)
+	c.Assert(err, check.IsNil)
+
+	pne := &httputil.PersistentNetworkError{Err: errors.New("problem")}
+	neTout := fakeNetError{message: "net problem", timeout: true}
+	dnse := &net.DNSError{Name: "store", IsTemporary: true}
+	uDNSe := &url.Error{
+		Op:  "Get",
+		URL: "http://...",
+		Err: &net.OpError{
+			Op:  "dial",
+			Net: "tcp",
+			Err: dnse,
+		},
+	}
+
+	tests := []struct {
+		err      error
+		kind     client.ErrorKind
+		expected string
+	}{
+		{pne, client.ErrorKindDNSFailure, "persistent network error: problem"},
+		{neTout, client.ErrorKindNetworkTimeout, "net problem"},
+		{uDNSe, client.ErrorKindDNSFailure, dnse.Error()},
+	}
+
+	for _, t := range tests {
+		s.err = t.err
+
+		rsp := s.errorReq(c, req, nil)
+		c.Check(rsp.Status, check.Equals, 400)
+		c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, t.expected)
+		c.Check(rsp.Result.(*daemon.ErrorResult).Kind, check.Equals, t.kind)
+	}
 }
 
 func (s *findSuite) TestFindPriced(c *check.C) {

@@ -186,7 +186,7 @@ func checkThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot get theme status: %s", err)
 	}
 
-	return SyncResponse(status, nil)
+	return SyncResponse(status)
 }
 
 type themeInstallReq struct {

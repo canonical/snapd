@@ -50,12 +50,12 @@ func postCohorts(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	if len(inst.Snaps) == 0 {
 		// nothing to do ¯\_(ツ)_/¯
-		return SyncResponse(map[string]string{}, nil)
+		return SyncResponse(map[string]string{})
 	}
 
 	cohorts, err := storeFrom(c.d).CreateCohorts(context.TODO(), inst.Snaps)
 	if err != nil {
 		return InternalError(err.Error())
 	}
-	return SyncResponse(cohorts, nil)
+	return SyncResponse(cohorts)
 }

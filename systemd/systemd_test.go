@@ -1505,3 +1505,32 @@ with newlines`),
 		c.Check(stamp.IsZero(), Equals, true)
 	}
 }
+
+type systemdErrorSuite struct{}
+
+var _ = Suite(&systemdErrorSuite{})
+
+func (s *systemdErrorSuite) TestErrorStringNormalError(c *C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `echo "I fail"; exit 11`)
+	defer systemctl.Restore()
+
+	_, err := Version()
+	c.Check(err, ErrorMatches, `systemctl command \[--version\] failed with exit status 11: I fail\n`)
+}
+
+func (s *systemdErrorSuite) TestErrorStringNoOutput(c *C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `exit 22`)
+	defer systemctl.Restore()
+
+	_, err := Version()
+	c.Check(err, ErrorMatches, `systemctl command \[--version\] failed with exit status 22`)
+}
+
+func (s *systemdErrorSuite) TestErrorStringNoSystemctl(c *C) {
+	oldPath := os.Getenv("PATH")
+	os.Setenv("PATH", "/xxx")
+	defer func() { os.Setenv("PATH", oldPath) }()
+
+	_, err := Version()
+	c.Check(err, ErrorMatches, `systemctl command \[--version\] failed with: exec: "systemctl": executable file not found in \$PATH`)
+}

@@ -88,7 +88,7 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	result := webify(mapLocal(about, sd), url.String())
 
-	return SyncResponse(result, nil)
+	return SyncResponse(result)
 }
 
 func webify(result *client.Snap, resource string) *client.Snap {
@@ -700,7 +700,10 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		results[i] = &raw
 	}
 
-	return SyncResponse(results, &Meta{Sources: []string{"local"}})
+	return &findResponse{
+		Results: results,
+		Sources: []string{"local"},
+	}
 }
 
 func shouldSearchStore(r *http.Request) bool {
