@@ -178,7 +178,7 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 			// explicit hold duration requested
 			if dur > maxDur {
 				herr.SnapsInError[heldSnap] = HoldDurationError{
-					Err:          fmt.Errorf("requested holding duration %s exceeds maximum holding for snap %q", holdDuration, heldSnap),
+					Err:          fmt.Errorf("requested holding duration for snap %q of %s by snap %q exceeds maximum holding time", heldSnap, holdDuration, gatingSnap),
 					DurationLeft: left,
 				}
 				continue
@@ -229,7 +229,7 @@ func ProceedWithRefresh(st *state.State, gatingSnap string) error {
 			delete(gatingSnaps, gatingSnap)
 			changed = true
 		}
-		if len(gating[heldSnap]) == 0 {
+		if len(gatingSnaps) == 0 {
 			delete(gating, heldSnap)
 		}
 	}

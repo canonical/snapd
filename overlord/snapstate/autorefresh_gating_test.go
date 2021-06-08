@@ -499,17 +499,17 @@ func (s *autorefreshGatingSuite) TestHoldRefreshHelperErrors(c *C) {
 
 	// holding itself
 	hold := time.Hour * 24 * 96
-	c.Assert(snapstate.HoldRefresh(st, "snap-a", hold, "snap-a"), ErrorMatches, `cannot hold some snaps:\n - requested holding duration 2304h0m0s exceeds maximum holding for snap "snap-a"`)
+	c.Assert(snapstate.HoldRefresh(st, "snap-a", hold, "snap-a"), ErrorMatches, `cannot hold some snaps:\n - requested holding duration for snap "snap-a" of 2304h0m0s by snap "snap-a" exceeds maximum holding time`)
 
 	// holding other snap
 	hold = time.Hour * 49
 	err := snapstate.HoldRefresh(st, "snap-a", hold, "snap-b")
-	c.Check(err, ErrorMatches, `cannot hold some snaps:\n - requested holding duration 49h0m0s exceeds maximum holding for snap "snap-b"`)
+	c.Check(err, ErrorMatches, `cannot hold some snaps:\n - requested holding duration for snap "snap-b" of 49h0m0s by snap "snap-a" exceeds maximum holding time`)
 	herr, ok := err.(*snapstate.HoldError)
 	c.Assert(ok, Equals, true)
 	c.Check(herr.SnapsInError, DeepEquals, map[string]snapstate.HoldDurationError{
 		"snap-b": {
-			Err:          fmt.Errorf(`requested holding duration 49h0m0s exceeds maximum holding for snap "snap-b"`),
+			Err:          fmt.Errorf(`requested holding duration for snap "snap-b" of 49h0m0s by snap "snap-a" exceeds maximum holding time`),
 			DurationLeft: 48 * time.Hour,
 		},
 	})
