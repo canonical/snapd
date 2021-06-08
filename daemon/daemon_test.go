@@ -217,7 +217,7 @@ func (s *daemonSuite) TestCommandRestartingState(c *check.C) {
 
 	cmd := &Command{d: d}
 	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
-		return SyncResponse(nil, nil)
+		return SyncResponse(nil)
 	}
 	cmd.ReadAccess = openAccess{}
 	req, err := http.NewRequest("GET", "", nil)
@@ -323,7 +323,7 @@ func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 
 	cmd := &Command{d: d}
 	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
-		return SyncResponse(nil, nil)
+		return SyncResponse(nil)
 	}
 	cmd.ReadAccess = openAccess{}
 	req, err := http.NewRequest("GET", "", nil)
@@ -365,7 +365,7 @@ func (f accessCheckFunc) CheckAccess(r *http.Request, ucred *ucrednet, user *aut
 func (s *daemonSuite) TestReadAccess(c *check.C) {
 	cmd := &Command{d: newTestDaemon(c)}
 	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
-		return SyncResponse(nil, nil)
+		return SyncResponse(nil)
 	}
 	var accessCalled bool
 	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
@@ -394,10 +394,10 @@ func (s *daemonSuite) TestReadAccess(c *check.C) {
 func (s *daemonSuite) TestWriteAccess(c *check.C) {
 	cmd := &Command{d: newTestDaemon(c)}
 	cmd.PUT = func(*Command, *http.Request, *auth.UserState) Response {
-		return SyncResponse(nil, nil)
+		return SyncResponse(nil)
 	}
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
-		return SyncResponse(nil, nil)
+		return SyncResponse(nil)
 	}
 	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
 		c.Fail()
@@ -441,10 +441,10 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 
 	cmd := &Command{d: d}
 	cmd.PUT = func(*Command, *http.Request, *auth.UserState) Response {
-		return SyncResponse(nil, nil)
+		return SyncResponse(nil)
 	}
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
-		return SyncResponse(nil, nil)
+		return SyncResponse(nil)
 	}
 	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
 		c.Fail()
@@ -483,7 +483,7 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 func (s *daemonSuite) TestPolkitAccessPath(c *check.C) {
 	cmd := &Command{d: newTestDaemon(c)}
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
-		return SyncResponse(nil, nil)
+		return SyncResponse(nil)
 	}
 	access := false
 	cmd.WriteAccess = authenticatedAccess{Polkit: "foo"}
@@ -1403,10 +1403,10 @@ func (s *daemonSuite) TestDegradedModeReply(c *check.C) {
 	d := newTestDaemon(c)
 	cmd := &Command{d: d}
 	cmd.GET = func(*Command, *http.Request, *auth.UserState) Response {
-		return SyncResponse(nil, nil)
+		return SyncResponse(nil)
 	}
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
-		return SyncResponse(nil, nil)
+		return SyncResponse(nil)
 	}
 	cmd.ReadAccess = authenticatedAccess{}
 	cmd.WriteAccess = authenticatedAccess{}

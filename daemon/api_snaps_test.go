@@ -807,8 +807,7 @@ UnitFileState=enabled
 	c.Check(m.InstallDate, check.FitsTypeOf, time.Time{})
 	m.InstallDate = time.Time{}
 
-	meta := &daemon.Meta{}
-	expected := &daemon.Resp{
+	expected := &daemon.RespJSON{
 		Type:   daemon.ResponseTypeSync,
 		Status: 200,
 		Result: &client.Snap{
@@ -911,7 +910,6 @@ UnitFileState=enabled
 			CommonIDs: []string{"org.foo.cmd"},
 			CohortKey: "some-long-cohort-key",
 		},
-		Meta: meta,
 	}
 
 	c.Check(rsp.Result, check.DeepEquals, expected.Result)

@@ -257,6 +257,7 @@ WantedBy=multi-user.target
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
@@ -362,6 +363,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesRewritesQuotaSlices(c *C) {
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
@@ -453,6 +455,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesDoesNotRewriteQuotaSlicesOnNoo
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
@@ -541,6 +544,7 @@ func (s *servicesTestSuite) TestRemoveQuotaGroup(c *C) {
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
@@ -611,6 +615,7 @@ apps:
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
@@ -778,6 +783,7 @@ WantedBy=multi-user.target
 	templ := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.

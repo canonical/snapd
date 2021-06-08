@@ -561,10 +561,11 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		return nil, fmt.Errorf("cannot remodel from core to bases yet")
 	}
 
-	// TODO: should we run a remodel only while no other change is
-	// running?  do we add a task upfront that waits for that to be
-	// true? Do we do this only for the more complicated cases
-	// (anything more than adding required-snaps really)?
+	// Do we do this only for the more complicated cases (anything
+	// more than adding required-snaps really)?
+	if err := snapstate.CheckChangeConflictRunExclusively(st, "remodel"); err != nil {
+		return nil, err
+	}
 
 	remodCtx, err := remodelCtx(st, current, new)
 	if err != nil {
@@ -574,13 +575,6 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	var tss []*state.TaskSet
 	switch remodelKind {
 	case ReregRemodel:
-		// nothing else can be in-flight
-		for _, chg := range st.Changes() {
-			if !chg.IsReady() {
-				return nil, &snapstate.ChangeConflictError{Message: "cannot start complete remodel, other changes are in progress"}
-			}
-		}
-
 		requestSerial := st.NewTask("request-serial", i18n.G("Request new device serial"))
 
 		prepare := st.NewTask("prepare-remodeling", i18n.G("Prepare remodeling"))

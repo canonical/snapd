@@ -120,7 +120,7 @@ func getModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 			modelJSON.Body = string(model.Body())
 		}
 
-		return SyncResponse(modelJSON, nil)
+		return SyncResponse(modelJSON)
 	}
 
 	return AssertResponse([]asserts.Assertion{model}, false)
@@ -160,7 +160,7 @@ func getSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
 			serialJSON.Body = string(serial.Body())
 		}
 
-		return SyncResponse(serialJSON, nil)
+		return SyncResponse(serialJSON)
 	}
 
 	return AssertResponse([]asserts.Assertion{serial}, false)

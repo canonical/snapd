@@ -61,7 +61,7 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 		return resp
 	}
 
-	return SyncResponse(buyResult, nil)
+	return SyncResponse(buyResult)
 }
 
 func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -71,7 +71,7 @@ func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 		return resp
 	}
 
-	return SyncResponse(true, nil)
+	return SyncResponse(true)
 }
 
 func convertBuyError(err error) Response {
