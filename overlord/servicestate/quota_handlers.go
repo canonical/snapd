@@ -211,7 +211,7 @@ func doRemoveQuota(args quotaControlArgs) error {
 	// make sure the group exists
 	grp, ok := allGrps[action.QuotaName]
 	if !ok {
-		return fmt.Errorf("group %q does not exist", action.QuotaName)
+		return fmt.Errorf("cannot remove non-existent quota group %q", action.QuotaName)
 	}
 
 	// make sure some of the options are not set, it's an internal error if
