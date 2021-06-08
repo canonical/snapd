@@ -105,7 +105,7 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 			Slots:   slots,
 		})
 	}
-	return SyncResponse(infoJSONs, nil)
+	return SyncResponse(infoJSONs)
 }
 
 func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -117,7 +117,7 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 		Plugs: connsjson.Plugs,
 		Slots: connsjson.Slots,
 	}
-	return SyncResponse(legacyconnsjson, nil)
+	return SyncResponse(legacyconnsjson)
 }
 
 // changeInterfaces controls the interfaces system.

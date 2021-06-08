@@ -107,5 +107,5 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		"stderr": string(stderr),
 	}
 
-	return SyncResponse(result, nil)
+	return SyncResponse(result)
 }

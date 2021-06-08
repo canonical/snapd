@@ -283,5 +283,5 @@ func getConnections(c *Command, r *http.Request, user *auth.UserState) Response 
 	sort.Sort(byCrefConnJSON(connsjson.Established))
 	sort.Sort(byCrefConnJSON(connsjson.Undesired))
 
-	return SyncResponse(connsjson, nil)
+	return SyncResponse(connsjson)
 }
