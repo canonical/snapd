@@ -965,14 +965,14 @@ func (s *autorefreshGatingSuite) TestCreateAutoRefreshGateHooks(c *C) {
 		// the order of hook tasks is not deterministic
 		if hs.Snap == "snap-a" {
 			c.Check(data, DeepEquals, map[string]interface{}{
-				"base": true,
-				"restart": true,
+				"base":            true,
+				"restart":         true,
 				"affecting-snaps": []interface{}{"snap-c", "snap-d"}})
 		} else {
 			c.Assert(hs.Snap, Equals, "snap-b")
 			c.Check(data, DeepEquals, map[string]interface{}{
-				"base": false,
-				"restart": false,
+				"base":            false,
+				"restart":         false,
 				"affecting-snaps": []interface{}{"snap-e", "snap-f"}})
 		}
 	}
