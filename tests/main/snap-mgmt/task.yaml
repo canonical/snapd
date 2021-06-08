@@ -8,7 +8,12 @@ systems: [-ubuntu-core-*]
 
 prepare: |
     # TODO: unify this with tests/main/postrm-purge/task.yaml
-    snap set core experimental.user-daemons=true
+
+    # note: no need to unset these since this spread test purges snapd totally
+    # and snapd won't be around to respond, much less remove any state since
+    # the state should be removed by the test
+    snap set system experimental.user-daemons=true
+    snap set system experimental.quota-groups=true
 
     # Install a number of snaps that contain various features that have
     # representation in the file system.
@@ -34,6 +39,9 @@ prepare: |
     if echo "$SPREAD_SYSTEM" | grep -vqF ubuntu-14.04; then
         snap install --edge test-snapd-dbus-service
         snap list | MATCH test-snapd-dbus-service
+
+        # create a quota with a service in it
+        snap set-quota group1 test-snapd-service --memory=100MB
     fi
 
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
@@ -59,6 +67,7 @@ prepare: |
         test "$(find /etc/systemd/user -name 'snap.*.socket' | wc -l)" -gt 0
         test "$(find /var/lib/snapd/dbus-1/services -name '*.service' | wc -l)" -gt 0
         test "$(find /var/lib/snapd/dbus-1/system-services -name '*.service' | wc -l)" -gt 0
+        test "$(find /etc/systemd/system -name 'snap.*.slice' | wc -l)" -gt 0
     fi
 
 execute: |
@@ -96,11 +105,14 @@ execute: |
     not test -f /var/lib/snapd/system-key
 
     echo "Preserved namespaces directory is not mounted"
-    not MATCH "/run/snapd/ns" < /proc/mounts
+    NOMATCH "/run/snapd/ns" < /proc/mounts
 
     systemctl daemon-reload
     echo "Snap *.service files are removed"
-    systemctl list-unit-files --type service | not MATCH '^snap.test-snapd-service.*\.service'
+    systemctl list-unit-files --type service | NOMATCH '^snap.test-snapd-service.*\.service'
+
+    echo "Snap quota group slice files are removed"
+    systemctl list-unit-files --type slice | NOMATCH '^snap.group.slice'
 
     echo "No dangling service symlinks are left behind"
     test -z "$(find /etc/systemd/system/multi-user.target.wants/ -name 'snap.test-snapd-service.*')"
