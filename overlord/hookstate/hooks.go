@@ -20,6 +20,7 @@ package hookstate
 import (
 	"fmt"
 	"regexp"
+	"sort"
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -71,16 +72,29 @@ func SetupPreRefreshHook(st *state.State, snapName string) *state.Task {
 	return task
 }
 
-func SetupGateAutoRefreshHook(st *state.State, snapName string, base, restart bool) *state.Task {
+type gateAutoRefreshAction int
+
+const (
+	ProceedWithRefresh gateAutoRefreshAction = iota
+	HoldRefresh
+)
+
+func SetupGateAutoRefreshHook(st *state.State, snapName string, base, restart bool, affectingSnaps map[string]bool) *state.Task {
 	hookSup := &HookSetup{
 		Snap:     snapName,
 		Hook:     "gate-auto-refresh",
 		Optional: true,
 	}
+	affecting := make([]string, 0, len(affectingSnaps))
+	for sn := range affectingSnaps {
+		affecting = append(affecting, sn)
+	}
+	sort.Strings(affecting)
 	summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), hookSup.Hook, hookSup.Snap)
 	hookCtx := map[string]interface{}{
-		"base":    base,
-		"restart": restart,
+		"base":            base,
+		"restart":         restart,
+		"affecting-snaps": affecting,
 	}
 	task := HookTask(st, summary, hookSup, hookCtx)
 	return task

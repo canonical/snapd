@@ -73,12 +73,6 @@ var refreshFromHookTests = []struct {
 	args: []string{"refresh", "--proceed", "--hold"},
 	err:  "cannot use --proceed and --hold together",
 }, {
-	args: []string{"refresh", "--proceed"},
-	err:  "not implemented yet",
-}, {
-	args: []string{"refresh", "--hold"},
-	err:  "not implemented yet",
-}, {
 	args:              []string{"refresh", "--pending"},
 	refreshCandidates: map[string]interface{}{"snap1": mockRefreshCandidate("snap1", "", "edge", "v1", snap.Revision{N: 3})},
 	stdout:            "pending: ready\nchannel: edge\nversion: v1\nrevision: 3\nbase: false\nrestart: false\n",
@@ -136,6 +130,80 @@ func (s *refreshSuite) TestRefreshFromHook(c *C) {
 		c.Check(string(stdout), Equals, test.stdout, comment)
 		c.Check(string(stderr), Equals, "", comment)
 	}
+}
+
+func (s *refreshSuite) TestRefreshHold(c *C) {
+	s.st.Lock()
+	task := s.st.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1), Hook: "gate-auto-refresh"}
+	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
+	c.Check(err, IsNil)
+
+	mockInstalledSnap(c, s.st, `name: foo
+version: 1
+`)
+
+	s.st.Unlock()
+
+	mockContext.Lock()
+	mockContext.Set("affecting-snaps", []string{"foo"})
+	mockContext.Unlock()
+
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--hold"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+
+	mockContext.Lock()
+	defer mockContext.Unlock()
+	action := mockContext.Cached("action")
+	c.Assert(action, NotNil)
+	c.Check(action, Equals, hookstate.HoldRefresh)
+
+	var gating map[string]map[string]interface{}
+	c.Assert(s.st.Get("snaps-hold", &gating), IsNil)
+	c.Check(gating["foo"]["snap1"], NotNil)
+}
+
+func (s *refreshSuite) TestRefreshProceed(c *C) {
+	s.st.Lock()
+	task := s.st.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1), Hook: "gate-auto-refresh"}
+	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
+	c.Check(err, IsNil)
+
+	mockInstalledSnap(c, s.st, `name: foo
+version: 1
+`)
+
+	// pretend snap foo is held initially
+	c.Assert(snapstate.HoldRefresh(s.st, "snap1", 0, "foo"), IsNil)
+	// sanity check
+	var gating map[string]map[string]interface{}
+	c.Assert(s.st.Get("snaps-hold", &gating), IsNil)
+	c.Check(gating["foo"]["snap1"], NotNil)
+
+	s.st.Unlock()
+
+	mockContext.Lock()
+	mockContext.Set("affecting-snaps", []string{"foo"})
+	mockContext.Unlock()
+
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+
+	mockContext.Lock()
+	defer mockContext.Unlock()
+	action := mockContext.Cached("action")
+	c.Assert(action, NotNil)
+	c.Check(action, Equals, hookstate.ProceedWithRefresh)
+
+	// and it is not held anymore
+	gating = nil
+	c.Assert(s.st.Get("snaps-hold", &gating), IsNil)
+	c.Check(gating["foo"]["snap1"], IsNil)
 }
 
 func (s *refreshSuite) TestRefreshFromUnsupportedHook(c *C) {

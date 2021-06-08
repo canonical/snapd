@@ -503,7 +503,7 @@ func createGateAutoRefreshHooks(st *state.State, affectedSnaps map[string]*affec
 	sort.Strings(names)
 	for _, snapName := range names {
 		affected := affectedSnaps[snapName]
-		hookTask := SetupGateAutoRefreshHook(st, snapName, affected.Base, affected.Restart)
+		hookTask := SetupGateAutoRefreshHook(st, snapName, affected.Base, affected.Restart, affected.AffectingSnaps)
 		// XXX: it should be fine to run the hooks in parallel
 		if prev != nil {
 			hookTask.WaitFor(prev)
