@@ -1472,7 +1472,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	s.settle(c)
 	s.state.Lock()
 
-	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot create a recovery system.*internal error: non-essential but "required" snap "bar" not present.`)
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot create a recovery system.*internal error: non-essential but required snap "bar" not present.`)
 	c.Assert(tskCreate.Status(), Equals, state.ErrorStatus)
 	c.Assert(tskFinalize.Status(), Equals, state.HoldStatus)
 	// a reboot is expected

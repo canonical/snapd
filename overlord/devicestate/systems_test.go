@@ -546,7 +546,7 @@ func (s *createSystemSuite) TestCreateSystemInfoAndAssertsChecks(c *C) {
 	// and try with with a non essential snap
 	dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
 		infoGetter, snapWriteObserver)
-	c.Assert(err, ErrorMatches, `internal error: non-essential but "required" snap "other-required" not present`)
+	c.Assert(err, ErrorMatches, `internal error: non-essential but required snap "other-required" not present`)
 	c.Check(dir, Equals, "")
 	c.Check(observerCalls, Equals, 0)
 	// the directory shouldn't be there, as we haven't written anything yet
@@ -641,7 +641,7 @@ func (s *createSystemSuite) TestCreateSystemGetInfoErr(c *C) {
 	failOn["other-required"] = true
 	dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
 		infoGetter, snapWriteObserver)
-	c.Assert(err, ErrorMatches, `cannot obtain non-essential but "required" snap information: mock failure for snap "other-required"`)
+	c.Assert(err, ErrorMatches, `cannot obtain non-essential but required snap information: mock failure for snap "other-required"`)
 	c.Check(dir, Equals, "")
 	c.Check(observerCalls, Equals, 0)
 	c.Check(osutil.IsDirectory(systemDir), Equals, false)
