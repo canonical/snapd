@@ -180,7 +180,7 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 				continue
 			}
 			// by the time this task runs, the file has already been
-			// downloaded
+			// downloaded and validated
 			snapFile, err := snapfile.Open(snapsup.MountFile())
 			if err != nil {
 				return nil, false, err

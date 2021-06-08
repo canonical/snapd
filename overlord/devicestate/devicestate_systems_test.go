@@ -1288,7 +1288,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	})
 	tss.WaitFor(tSnapsup1)
 	tss.WaitFor(tSnapsup2)
-	// add the dummy task to the change
+	// add the dummy tasks to the change
 	chg := s.state.NewChange("create-recovery-system", "create recovery system")
 	chg.AddTask(tSnapsup1)
 	chg.AddTask(tSnapsup2)
