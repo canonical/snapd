@@ -807,7 +807,7 @@ UnitFileState=enabled
 	c.Check(m.InstallDate, check.FitsTypeOf, time.Time{})
 	m.InstallDate = time.Time{}
 
-	expected := &daemon.Resp{
+	expected := &daemon.RespJSON{
 		Type:   daemon.ResponseTypeSync,
 		Status: 200,
 		Result: &client.Snap{
