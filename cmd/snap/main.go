@@ -173,7 +173,7 @@ func lintDesc(cmdName, optName, desc, origDesc string) {
 		r, _ := utf8.DecodeRuneInString(desc)
 		// note IsLower != !IsUpper for runes with no upper/lower.
 		if unicode.IsLower(r) && !strings.HasPrefix(desc, "login.ubuntu.com") && !strings.HasPrefix(desc, cmdName) {
-			noticef("description of %s's %q is lowercase: %q", cmdName, optName, desc)
+			noticef("description of %s's %q is lowercase in locale %q: %q", cmdName, optName, i18n.CurrentLocale(), desc)
 		}
 	}
 }

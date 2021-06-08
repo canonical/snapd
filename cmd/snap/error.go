@@ -222,6 +222,18 @@ If you understand and want to proceed repeat the command including --classic.
 		isError = false
 		usesSnapName = false
 		msg = i18n.G("snapd is about to reboot the system")
+		values, ok := err.Value.(map[string]interface{})
+		if ok {
+			op, ok := values["op"].(string)
+			if ok {
+				switch op {
+				case "halt":
+					msg = i18n.G("snapd is about to halt the system")
+				case "poweroff":
+					msg = i18n.G("snapd is about to power off the system")
+				}
+			}
+		}
 	case client.ErrorKindInsufficientDiskSpace:
 		// this error carries multiple snap names
 		usesSnapName = false

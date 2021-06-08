@@ -52,6 +52,8 @@ func (s *snapDownloadSuite) SetUpTest(c *check.C) {
 	s.snaps = nil
 
 	s.daemonWithStore(c, s)
+
+	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
 }
 
 var snapContent = "SNAP"
@@ -332,9 +334,9 @@ func (s *snapDownloadSuite) TestStreamOneSnap(c *check.C) {
 		rsp := s.req(c, req, nil)
 
 		if t.err != "" {
-			c.Check(rsp.(*daemon.Resp).Status, check.Equals, t.status, check.Commentf("unexpected result for %v", t.dataJSON))
-			result := rsp.(*daemon.Resp).Result
-			c.Check(result.(*daemon.ErrorResult).Message, check.Matches, t.err, check.Commentf("unexpected result for %v", t.dataJSON))
+			rspe := rsp.(*daemon.APIError)
+			c.Check(rspe.Status, check.Equals, t.status, check.Commentf("unexpected result for %v", t.dataJSON))
+			c.Check(rspe.Message, check.Matches, t.err, check.Commentf("unexpected result for %v", t.dataJSON))
 		} else {
 			c.Assert(rsp, check.FitsTypeOf, &daemon.SnapStream{}, check.Commentf("unexpected result for %v", t.dataJSON))
 			ss := rsp.(*daemon.SnapStream)

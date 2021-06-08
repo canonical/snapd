@@ -39,6 +39,12 @@ type snapctlSuite struct {
 	apiBaseSuite
 }
 
+func (s *snapctlSuite) SetUpTest(c *check.C) {
+	s.apiBaseSuite.SetUpTest(c)
+
+	s.expectWriteAccess(daemon.SnapAccess{})
+}
+
 func (s *snapctlSuite) TestSnapctlGetNoUID(c *check.C) {
 	s.daemon(c)
 	buf := bytes.NewBufferString(`{"context-id": "some-context", "args": ["get", "something"]}`)

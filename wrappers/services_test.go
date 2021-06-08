@@ -166,7 +166,7 @@ WantedBy=multi-user.target
 func (s *servicesTestSuite) TestEnsureSnapServicesAdds(c *C) {
 	// map unit -> new
 	seen := make(map[string]bool)
-	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
 		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
 	}
 
@@ -218,21 +218,16 @@ func (s *servicesTestSuite) TestEnsureSnapServicesWithQuotas(c *C) {
 	info := snaptest.MockSnap(c, packageHello, &snap.SideInfo{Revision: snap.R(12)})
 	svcFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.hello-snap.svc1.service")
 
-	grp, err := quota.NewGroup("foogroup", quantity.SizeGiB)
+	memLimit := quantity.SizeGiB
+	grp, err := quota.NewGroup("foogroup", memLimit)
 	c.Assert(err, IsNil)
 
 	m := map[*snap.Info]*wrappers.SnapServiceOptions{
 		info: {QuotaGroup: grp},
 	}
 
-	err = wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
-	c.Assert(err, IsNil)
-	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"daemon-reload"},
-	})
-
 	dir := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
-	c.Assert(svcFile, testutil.FileEquals, fmt.Sprintf(`[Unit]
+	svcContent := fmt.Sprintf(`[Unit]
 # Auto-generated, DO NOT EDIT
 Description=Service for snap application hello-snap.svc1
 Requires=%[1]s
@@ -257,7 +252,103 @@ WantedBy=multi-user.target
 `,
 		systemd.EscapeUnitNamePath(dir),
 		dirs.GlobalRootDir,
-	))
+	)
+
+	sliceTempl := `[Unit]
+Description=Slice for snap quota group %s
+Before=slices.target
+X-Snappy=yes
+
+[Slice]
+# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+MemoryMax=%[2]s
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]s
+`
+
+	sliceContent := fmt.Sprintf(sliceTempl, grp.Name, memLimit.String())
+
+	exp := []changesObservation{
+		{
+			snapName: "hello-snap",
+			unitType: "service",
+			name:     "svc1",
+			old:      "",
+			new:      svcContent,
+		},
+		{
+			grp:      grp,
+			unitType: "slice",
+			new:      sliceContent,
+			old:      "",
+			name:     "foogroup",
+		},
+	}
+	r, observe := expChangeObserver(c, exp)
+	defer r()
+
+	err = wrappers.EnsureSnapServices(m, nil, observe, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+
+	c.Assert(svcFile, testutil.FileEquals, svcContent)
+}
+
+type changesObservation struct {
+	snapName string
+	grp      *quota.Group
+	unitType string
+	name     string
+	old      string
+	new      string
+}
+
+func expChangeObserver(c *C, exp []changesObservation) (restore func(), obs wrappers.ObserveChangeCallback) {
+	changesObserved := []changesObservation{}
+	f := func(app *snap.AppInfo, grp *quota.Group, unitType, name, old, new string) {
+		snapName := ""
+		if app != nil {
+			snapName = app.Snap.SnapName()
+		}
+		changesObserved = append(changesObserved, changesObservation{
+			snapName: snapName,
+			grp:      grp,
+			unitType: unitType,
+			name:     name,
+			old:      old,
+			new:      new,
+		})
+	}
+
+	r := func() {
+		// sort the changesObserved by snapName, with all services being
+		// observed first, then all groups secondly
+		groupObservations := make([]changesObservation, 0, len(changesObserved))
+		svcObservations := make([]changesObservation, 0, len(changesObserved))
+
+		for _, chg := range changesObserved {
+			if chg.unitType == "slice" {
+				groupObservations = append(groupObservations, chg)
+			} else {
+				svcObservations = append(svcObservations, chg)
+			}
+		}
+		// sort svcObservations, note we do not need to sort groups, since
+		// quota groups are iterated over in a stable sorted order via
+		// QuotaGroupSet.AllQuotaGroups
+		sort.SliceStable(svcObservations, func(i, j int) bool {
+			return svcObservations[i].snapName < svcObservations[j].snapName
+		})
+		finalSortChangesObserved := make([]changesObservation, 0, len(changesObserved))
+		finalSortChangesObserved = append(finalSortChangesObserved, svcObservations...)
+		finalSortChangesObserved = append(finalSortChangesObserved, groupObservations...)
+		c.Assert(finalSortChangesObserved, DeepEquals, exp)
+	}
+
+	return r, f
 }
 
 func (s *servicesTestSuite) TestEnsureSnapServicesRewritesQuotaSlices(c *C) {
@@ -272,11 +363,14 @@ func (s *servicesTestSuite) TestEnsureSnapServicesRewritesQuotaSlices(c *C) {
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
-MemoryMax=%s
+MemoryMax=%[2]s
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]s
 `
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
 
@@ -311,7 +405,8 @@ WantedBy=multi-user.target
 	err := os.MkdirAll(filepath.Dir(sliceFile), 0755)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(sliceFile, []byte(fmt.Sprintf(sliceTempl, "foogroup", memLimit1.String())), 0644)
+	oldContent := fmt.Sprintf(sliceTempl, "foogroup", memLimit1.String())
+	err = ioutil.WriteFile(sliceFile, []byte(oldContent), 0644)
 	c.Assert(err, IsNil)
 
 	err = ioutil.WriteFile(svcFile, []byte(svcContent), 0644)
@@ -325,7 +420,20 @@ WantedBy=multi-user.target
 		info: {QuotaGroup: grp},
 	}
 
-	err = wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
+	newContent := fmt.Sprintf(sliceTempl, "foogroup", memLimit2.String())
+	exp := []changesObservation{
+		{
+			grp:      grp,
+			unitType: "slice",
+			new:      newContent,
+			old:      oldContent,
+			name:     "foogroup",
+		},
+	}
+	r, observe := expChangeObserver(c, exp)
+	defer r()
+
+	err = wrappers.EnsureSnapServices(m, nil, observe, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
 		{"daemon-reload"},
@@ -333,7 +441,8 @@ WantedBy=multi-user.target
 
 	c.Assert(svcFile, testutil.FileEquals, svcContent)
 
-	c.Assert(sliceFile, testutil.FileEquals, fmt.Sprintf(sliceTempl, "foogroup", memLimit2.String()))
+	c.Assert(sliceFile, testutil.FileEquals, newContent)
+
 }
 
 func (s *servicesTestSuite) TestEnsureSnapServicesDoesNotRewriteQuotaSlicesOnNoop(c *C) {
@@ -346,11 +455,14 @@ func (s *servicesTestSuite) TestEnsureSnapServicesDoesNotRewriteQuotaSlicesOnNoo
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
-MemoryMax=%s
+MemoryMax=%[2]s
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]s
 `
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
 
@@ -398,7 +510,11 @@ WantedBy=multi-user.target
 		info: {QuotaGroup: grp},
 	}
 
-	err = wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
+	observe := func(app *snap.AppInfo, grp *quota.Group, unitType, name, old, new string) {
+		c.Error("unexpected call to observe function")
+	}
+
+	err = wrappers.EnsureSnapServices(m, nil, observe, progress.Null)
 	c.Assert(err, IsNil)
 	// no daemon restart since the files didn't change
 	c.Check(s.sysdLog, HasLen, 0)
@@ -428,11 +544,14 @@ func (s *servicesTestSuite) TestRemoveQuotaGroup(c *C) {
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
 MemoryMax=1024
+# for compatibility with older versions of systemd
+MemoryLimit=1024
 `
 
 	err = os.MkdirAll(filepath.Dir(sliceFile), 0755)
@@ -493,11 +612,21 @@ apps:
 		info2: {QuotaGroup: subgrp},
 	}
 
-	err = wrappers.EnsureSnapServices(m, nil, nil, progress.Null)
-	c.Assert(err, IsNil)
-	c.Check(s.sysdLog, DeepEquals, [][]string{
-		{"daemon-reload"},
-	})
+	sliceTempl := `[Unit]
+Description=Slice for snap quota group %s
+Before=slices.target
+X-Snappy=yes
+
+[Slice]
+# Always enable memory accounting otherwise the MemoryMax setting does nothing.
+MemoryAccounting=true
+MemoryMax=%[2]s
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]s
+`
+
+	sliceContent := fmt.Sprintf(sliceTempl, "foogroup", memLimit.String())
+	subSliceContent := fmt.Sprintf(sliceTempl, "subgroup", memLimit.String())
 
 	svcTemplate := `[Unit]
 # Auto-generated, DO NOT EDIT
@@ -526,34 +655,67 @@ WantedBy=multi-user.target
 	dir1 := filepath.Join(dirs.SnapMountDir, "hello-snap", "12.mount")
 	dir2 := filepath.Join(dirs.SnapMountDir, "hello-other-snap", "12.mount")
 
-	c.Assert(svcFile1, testutil.FileEquals, fmt.Sprintf(svcTemplate,
+	helloSnapContent := fmt.Sprintf(svcTemplate,
 		"hello-snap",
 		systemd.EscapeUnitNamePath(dir1),
 		dirs.GlobalRootDir,
 		"snap.foogroup.slice",
-	))
+	)
 
-	c.Assert(svcFile2, testutil.FileEquals, fmt.Sprintf(svcTemplate,
+	helloOtherSnapContent := fmt.Sprintf(svcTemplate,
 		"hello-other-snap",
 		systemd.EscapeUnitNamePath(dir2),
 		dirs.GlobalRootDir,
 		"snap.foogroup-subgroup.slice",
-	))
+	)
+
+	exp := []changesObservation{
+		{
+			snapName: "hello-other-snap",
+			unitType: "service",
+			name:     "svc1",
+			old:      "",
+			new:      helloOtherSnapContent,
+		},
+		{
+			snapName: "hello-snap",
+			unitType: "service",
+			name:     "svc1",
+			old:      "",
+			new:      helloSnapContent,
+		},
+		{
+			grp:      grp,
+			unitType: "slice",
+			new:      sliceContent,
+			old:      "",
+			name:     "foogroup",
+		},
+		{
+			grp:      subgrp,
+			unitType: "slice",
+			new:      subSliceContent,
+			old:      "",
+			name:     "subgroup",
+		},
+	}
+	r, observe := expChangeObserver(c, exp)
+	defer r()
+
+	err = wrappers.EnsureSnapServices(m, nil, observe, progress.Null)
+	c.Assert(err, IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"daemon-reload"},
+	})
+
+	c.Assert(svcFile1, testutil.FileEquals, helloSnapContent)
+
+	c.Assert(svcFile2, testutil.FileEquals, helloOtherSnapContent)
 
 	// check that the slice units were also generated
 
-	templ := `[Unit]
-Description=Slice for snap quota group %s
-Before=slices.target
-
-[Slice]
-# Always enable memory accounting otherwise the MemoryMax setting does nothing.
-MemoryAccounting=true
-MemoryMax=%s
-`
-
-	c.Assert(sliceFile, testutil.FileEquals, fmt.Sprintf(templ, "foogroup", memLimit.String()))
-	c.Assert(subSliceFile, testutil.FileEquals, fmt.Sprintf(templ, "subgroup", memLimit.String()))
+	c.Assert(sliceFile, testutil.FileEquals, sliceContent)
+	c.Assert(subSliceFile, testutil.FileEquals, subSliceContent)
 }
 
 func (s *servicesTestSuite) TestEnsureSnapServicesWithSubGroupQuotaGroupsGeneratesParentGroups(c *C) {
@@ -621,11 +783,14 @@ WantedBy=multi-user.target
 	templ := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
-MemoryMax=%s
+MemoryMax=%[2]s
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]s
 `
 
 	c.Assert(sliceFile, testutil.FileEquals, fmt.Sprintf(templ, "foogroup", memLimit.String()))
@@ -661,7 +826,7 @@ func (s *servicesTestSuite) TestEnsureSnapServiceEnsureError(c *C) {
 func (s *servicesTestSuite) TestEnsureSnapServicesPreseedingHappy(c *C) {
 	// map unit -> new
 	seen := make(map[string]bool)
-	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
 		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
 	}
 
@@ -716,7 +881,7 @@ WantedBy=multi-user.target
 func (s *servicesTestSuite) TestEnsureSnapServicesRequireMountedSnapdSnapOptionsHappy(c *C) {
 	// map unit -> new
 	seen := make(map[string]bool)
-	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
 		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
 	}
 
@@ -859,7 +1024,7 @@ WantedBy=multi-user.target
 	}
 
 	seen := make(map[string][]string)
-	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
 		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = []string{old, new}
 	}
 
@@ -896,7 +1061,7 @@ WantedBy=multi-user.target
 func (s *servicesTestSuite) TestEnsureSnapServicesAddsNewSvc(c *C) {
 	// map unit -> new
 	seen := make(map[string]bool)
-	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
 		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
 	}
 
@@ -1024,7 +1189,7 @@ WantedBy=multi-user.target
 	}
 
 	cbCalled := 0
-	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
 		cbCalled++
 	}
 
@@ -1042,7 +1207,7 @@ WantedBy=multi-user.target
 func (s *servicesTestSuite) TestEnsureSnapServicesChanges(c *C) {
 	// map unit -> new
 	seen := make(map[string]bool)
-	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
 		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
 	}
 
@@ -1364,7 +1529,7 @@ WantedBy=multi-user.target
 func (s *servicesTestSuite) TestEnsureSnapServicesSubunits(c *C) {
 	// map unit -> new
 	seen := make(map[string]bool)
-	cb := func(app *snap.AppInfo, unitType, name string, old, new string) {
+	cb := func(app *snap.AppInfo, grp *quota.Group, unitType, name string, old, new string) {
 		seen[fmt.Sprintf("%s:%s:%s:%s", app.Snap.InstanceName(), app.Name, unitType, name)] = old == ""
 	}
 

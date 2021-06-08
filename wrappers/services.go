@@ -83,11 +83,14 @@ func generateGroupSliceFile(grp *quota.Group) ([]byte, error) {
 	template := `[Unit]
 Description=Slice for snap quota group %[1]s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
 MemoryMax=%[2]d
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]d
 `
 
 	fmt.Fprintf(&buf, template, grp.Name, grp.MemoryLimit)
@@ -457,7 +460,7 @@ type SnapServiceOptions struct {
 // ObserveChangeCallback can be invoked by EnsureSnapServices to observe
 // the previous content of a unit and the new on a change.
 // unitType can be "service", "socket", "timer". name is empty for a timer.
-type ObserveChangeCallback func(app *snap.AppInfo, unitType string, name, old, new string)
+type ObserveChangeCallback func(app *snap.AppInfo, grp *quota.Group, unitType string, name, old, new string)
 
 // EnsureSnapServicesOptions is the set of options applying to the
 // EnsureSnapServices operation. It does not include per-snap specific options
@@ -557,7 +560,7 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 				if old != nil {
 					oldContent = old.Content
 				}
-				observeChange(app, unitType, name, string(oldContent), string(content))
+				observeChange(app, nil, unitType, name, string(oldContent), string(content))
 			}
 			modifiedUnitsPreviousState[path] = old
 
@@ -644,16 +647,21 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 		}
 	}
 
-	handleSliceModification := func(path string, content []byte) error {
-		// TODO: call the observe callback function to notify that a slice was
-		// updated too?
-
+	handleSliceModification := func(grp *quota.Group, path string, content []byte) error {
 		old, modifiedFile, err := tryFileUpdate(path, content)
 		if err != nil {
 			return err
 		}
 
 		if modifiedFile {
+			if observeChange != nil {
+				var oldContent []byte
+				if old != nil {
+					oldContent = old.Content
+				}
+				observeChange(nil, grp, "slice", grp.Name, string(oldContent), string(content))
+			}
+
 			modifiedUnitsPreviousState[path] = old
 
 			// also mark that we need to reload the system instance of systemd
@@ -674,7 +682,7 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 
 		sliceFileName := grp.SliceFileName()
 		path := filepath.Join(dirs.SnapServicesDir, sliceFileName)
-		if err := handleSliceModification(path, content); err != nil {
+		if err := handleSliceModification(grp, path, content); err != nil {
 			return err
 		}
 	}

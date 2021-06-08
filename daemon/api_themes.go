@@ -42,10 +42,11 @@ import (
 
 var (
 	themesCmd = &Command{
-		Path:   "/v2/accessories/themes",
-		UserOK: true,
-		GET:    checkThemes,
-		POST:   installThemes,
+		Path:        "/v2/accessories/themes",
+		GET:         checkThemes,
+		POST:        installThemes,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{},
 	}
 )
 
@@ -185,7 +186,7 @@ func checkThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot get theme status: %s", err)
 	}
 
-	return SyncResponse(status, nil)
+	return SyncResponse(status)
 }
 
 type themeInstallReq struct {
@@ -247,5 +248,5 @@ func installThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 		ensureStateSoon(st)
 	}
 	chg.Set("api-data", map[string]interface{}{"snap-names": installed})
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+	return AsyncResponse(nil, chg.ID())
 }

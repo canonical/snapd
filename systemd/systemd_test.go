@@ -34,6 +34,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/sandbox/selinux"
@@ -1396,6 +1397,43 @@ func (s *SystemdTestSuite) TestUmountErr(c *C) {
 	})
 }
 
+func (s *SystemdTestSuite) TestCurrentMemoryUsageInactive(c *C) {
+	s.outs = [][]byte{
+		[]byte(`MemoryCurrent=[not set]`),
+	}
+	sysd := New(SystemMode, s.rep)
+	_, err := sysd.CurrentMemoryUsage("bar.service")
+	c.Assert(err, ErrorMatches, "memory usage unavailable")
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "MemoryCurrent", "bar.service"},
+	})
+}
+
+func (s *SystemdTestSuite) TestCurrentMemoryUsageInvalid(c *C) {
+	s.outs = [][]byte{
+		[]byte(`MemoryCurrent=blahhhhhhhhhhhh`),
+	}
+	sysd := New(SystemMode, s.rep)
+	_, err := sysd.CurrentMemoryUsage("bar.service")
+	c.Assert(err, ErrorMatches, `invalid property value from systemd for MemoryCurrent: cannot parse "blahhhhhhhhhhhh" as an integer`)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "MemoryCurrent", "bar.service"},
+	})
+}
+
+func (s *SystemdTestSuite) TestCurrentMemoryUsage(c *C) {
+	s.outs = [][]byte{
+		[]byte(`MemoryCurrent=1024`),
+	}
+	sysd := New(SystemMode, s.rep)
+	usage, err := sysd.CurrentMemoryUsage("bar.service")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "MemoryCurrent", "bar.service"},
+	})
+	c.Check(usage, Equals, quantity.SizeKiB)
+}
+
 func (s *SystemdTestSuite) TestInactiveEnterTimestampZero(c *C) {
 	s.outs = [][]byte{
 		[]byte(`InactiveEnterTimestamp=`),
@@ -1466,4 +1504,33 @@ with newlines`),
 		})
 		c.Check(stamp.IsZero(), Equals, true)
 	}
+}
+
+type systemdErrorSuite struct{}
+
+var _ = Suite(&systemdErrorSuite{})
+
+func (s *systemdErrorSuite) TestErrorStringNormalError(c *C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `echo "I fail"; exit 11`)
+	defer systemctl.Restore()
+
+	_, err := Version()
+	c.Check(err, ErrorMatches, `systemctl command \[--version\] failed with exit status 11: I fail\n`)
+}
+
+func (s *systemdErrorSuite) TestErrorStringNoOutput(c *C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `exit 22`)
+	defer systemctl.Restore()
+
+	_, err := Version()
+	c.Check(err, ErrorMatches, `systemctl command \[--version\] failed with exit status 22`)
+}
+
+func (s *systemdErrorSuite) TestErrorStringNoSystemctl(c *C) {
+	oldPath := os.Getenv("PATH")
+	os.Setenv("PATH", "/xxx")
+	defer func() { os.Setenv("PATH", oldPath) }()
+
+	_, err := Version()
+	c.Check(err, ErrorMatches, `systemctl command \[--version\] failed with: exec: "systemctl": executable file not found in \$PATH`)
 }

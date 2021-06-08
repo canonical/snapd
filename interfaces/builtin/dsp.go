@@ -50,8 +50,11 @@ const ambarellaDspConnectedPlugApparmor = `
 /dev/ucode rw,
 
 # The iav device node is the device node exposed for the specific IAV linux
-# device driver used on the ambarella device
+# device driver used with the CV2x / S6Lm cores on an ambarella device
 /dev/iav rw,
+
+# The cavalry device node is used for managing the CV2x vector processor (VP).
+/dev/cavalry rw,
 
 # another DSP device node
 /dev/lens rw,
@@ -62,6 +65,7 @@ const ambarellaDspConnectedPlugApparmor = `
 
 var ambarellaDspConnectedPlugUDev = []string{
 	`KERNEL=="iav"`,
+	`KERNEL=="cavalry`,
 	`KERNEL=="ucode"`,
 	`KERNEL=="lens"`,
 }

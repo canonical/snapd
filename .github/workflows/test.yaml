@@ -172,6 +172,7 @@ jobs:
               export SKIP_GOFMT=1
               echo "Formatting checks will be skipped due to the use of Go version ${{ matrix.gochannel }}"
           fi
+          sudo apt-get install -y python3-yamlordereddictloader
           ./run-checks --static
     - name: Build C
       if: steps.cached-results.outputs.already-ran != 'true'
@@ -229,10 +230,8 @@ jobs:
         - arch-linux-64
         - centos-7-64
         - centos-8-64
-        - debian-9-64
+        - debian-10-64
         - debian-sid-64
-        # TODO: drop Fedora 32 once it goes EOL on 25.05.2021
-        - fedora-32-64
         - fedora-33-64
         - fedora-34-64
         - opensuse-15.1-64

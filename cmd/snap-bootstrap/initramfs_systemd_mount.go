@@ -66,6 +66,9 @@ type systemdMountOptions struct {
 	// NoWait will not wait until the systemd unit is active and running, which
 	// is the default behavior.
 	NoWait bool
+	// NoSuid indicates that the partition should be mounted with nosuid set on
+	// it to prevent suid execution.
+	NoSuid bool
 }
 
 // doSystemdMount will mount "what" at "where" using systemd-mount(1) with
@@ -120,6 +123,10 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	// we need to do so.
 	if opts.NoWait {
 		args = append(args, "--no-block")
+	}
+
+	if opts.NoSuid {
+		args = append(args, "--options=nosuid")
 	}
 
 	// note that we do not currently parse any output from systemd-mount, but if

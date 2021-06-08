@@ -43,7 +43,7 @@ import (
 const defaultRefreshSchedule = "00:00~24:00/4"
 
 // cannot keep without refreshing for more than maxPostponement
-const maxPostponement = 60 * 24 * time.Hour
+const maxPostponement = 95 * 24 * time.Hour
 
 // cannot inhibit refreshes for more than maxInhibition
 const maxInhibition = 14 * 24 * time.Hour
@@ -62,23 +62,39 @@ var refreshRetryDelay = 20 * time.Minute
 // of auto-refresh.
 type refreshCandidate struct {
 	SnapSetup
+	Version string `json:"version,omitempty"`
 }
 
 func (rc *refreshCandidate) Type() snap.Type {
 	return rc.SnapSetup.Type
 }
 
-func (rc *refreshCandidate) Base() string {
+func (rc *refreshCandidate) SnapBase() string {
 	return rc.SnapSetup.Base
 }
 
-func (rc *refreshCandidate) MakeSnapSetup(*state.State, *SnapState) (*SnapSetup, error) {
-	return &rc.SnapSetup, nil
-}
-
-func (rc *refreshCandidate) Size() int64 {
+func (rc *refreshCandidate) DownloadSize() int64 {
 	return rc.DownloadInfo.Size
 }
+
+func (rc *refreshCandidate) InstanceName() string {
+	return rc.SnapSetup.InstanceName()
+}
+
+func (rc *refreshCandidate) Prereq(st *state.State) []string {
+	return rc.SnapSetup.Prereq
+}
+
+func (rc *refreshCandidate) SnapSetupForUpdate(st *state.State, params updateParamsFunc, userID int, globalFlags *Flags) (*SnapSetup, *SnapState, error) {
+	var snapst SnapState
+	if err := Get(st, rc.InstanceName(), &snapst); err != nil {
+		return nil, nil, err
+	}
+	return &rc.SnapSetup, &snapst, nil
+}
+
+// soundness check
+var _ readyUpdateInfo = (*refreshCandidate)(nil)
 
 // autoRefresh will ensure that snaps are refreshed automatically
 // according to the refresh schedule.
@@ -642,4 +658,12 @@ func inhibitRefresh(st *state.State, snapst *SnapState, info *snap.Info, checker
 	// Send the notification asynchronously to avoid holding the state lock.
 	asyncPendingRefreshNotification(context.TODO(), userclient.New(), refreshInfo)
 	return checkerErr
+}
+
+// for testing outside of snapstate
+func MockRefreshCandidate(snapSetup *SnapSetup, version string) interface{} {
+	return &refreshCandidate{
+		SnapSetup: *snapSetup,
+		Version:   version,
+	}
 }

@@ -36,10 +36,11 @@ import (
 )
 
 var debugCmd = &Command{
-	Path:   "/v2/debug",
-	UserOK: true,
-	GET:    getDebug,
-	POST:   postDebug,
+	Path:        "/v2/debug",
+	GET:         getDebug,
+	POST:        postDebug,
+	ReadAccess:  openAccess{},
+	WriteAccess: rootAccess{},
 }
 
 type debugAction struct {
@@ -47,6 +48,8 @@ type debugAction struct {
 	Message string `json:"message"`
 	Params  struct {
 		ChgID string `json:"chg-id"`
+
+		RecoverySystemLabel string `json:"recovery-system-label"`
 	} `json:"params"`
 }
 
@@ -62,7 +65,8 @@ func getBaseDeclaration(st *state.State) Response {
 	}
 	return SyncResponse(map[string]interface{}{
 		"base-declaration": string(asserts.Encode(bd)),
-	}, nil)
+	})
+
 }
 
 func checkConnectivity(st *state.State) Response {
@@ -82,7 +86,7 @@ func checkConnectivity(st *state.State) Response {
 	}
 	sort.Strings(status.Unreachable)
 
-	return SyncResponse(status, nil)
+	return SyncResponse(status)
 }
 
 type changeTimings struct {
@@ -237,7 +241,7 @@ func getChangeTimings(st *state.State, changeID, ensureTag, startupTag string, a
 		if err != nil {
 			return BadRequest(err.Error())
 		}
-		return SyncResponse(responseData, nil)
+		return SyncResponse(responseData)
 	}
 
 	if startupTag != "" {
@@ -245,7 +249,7 @@ func getChangeTimings(st *state.State, changeID, ensureTag, startupTag string, a
 		if err != nil {
 			return BadRequest(err.Error())
 		}
-		return SyncResponse(responseData, nil)
+		return SyncResponse(responseData)
 	}
 
 	// timings for single change ID
@@ -260,7 +264,19 @@ func getChangeTimings(st *state.State, changeID, ensureTag, startupTag string, a
 			ChangeTimings: changeTimings,
 		},
 	}
-	return SyncResponse(responseData, nil)
+	return SyncResponse(responseData)
+}
+
+func createRecovery(st *state.State, label string) Response {
+	if label == "" {
+		return BadRequest("cannot create a recovery system with no label")
+	}
+	chg, err := devicestate.CreateRecoverySystem(st, label)
+	if err != nil {
+		return InternalError("cannot create recovery system %q: %v", label, err)
+	}
+	ensureStateSoon(st)
+	return AsyncResponse(nil, chg.ID())
 }
 
 func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -281,7 +297,8 @@ func getDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		return SyncResponse(map[string]interface{}{
 			"model": string(asserts.Encode(model)),
-		}, nil)
+		})
+
 	case "change-timings":
 		chgID := query.Get("change-id")
 		ensureTag := query.Get("ensure")
@@ -309,26 +326,26 @@ func postDebug(c *Command, r *http.Request, user *auth.UserState) Response {
 	switch a.Action {
 	case "add-warning":
 		st.Warnf("%v", a.Message)
-		return SyncResponse(true, nil)
+		return SyncResponse(true)
 	case "unshow-warnings":
 		st.UnshowAllWarnings()
-		return SyncResponse(true, nil)
+		return SyncResponse(true)
 	case "ensure-state-soon":
 		ensureStateSoon(st)
-		return SyncResponse(true, nil)
-	case "get-base-declaration":
-		return getBaseDeclaration(st)
+		return SyncResponse(true)
 	case "can-manage-refreshes":
-		return SyncResponse(devicestate.CanManageRefreshes(st), nil)
-	case "connectivity":
-		return checkConnectivity(st)
+		return SyncResponse(devicestate.CanManageRefreshes(st))
 	case "prune":
 		opTime, err := c.d.overlord.DeviceManager().StartOfOperationTime()
 		if err != nil {
 			return BadRequest("cannot get start of operation time: %s", err)
 		}
 		st.Prune(opTime, 0, 0, 0)
-		return SyncResponse(true, nil)
+		return SyncResponse(true)
+	case "stacktraces":
+		return getStacktraces()
+	case "create-recovery-system":
+		return createRecovery(st, a.Params.RecoverySystemLabel)
 	default:
 		return BadRequest("unknown debug action: %v", a.Action)
 	}
