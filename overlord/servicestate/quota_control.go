@@ -247,14 +247,16 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, allGrps map[s
 		// drop disabled services from the startup ordering
 		startupOrderedMinusDisabled := make([]*snap.AppInfo, 0, len(startupOrdered)-len(disabledSvcs))
 
+		explicitServices := make([]string, 0, len(startupOrderedMinusDisabled))
 		for _, svc := range startupOrdered {
 			if !isDisabledSvc[svc.ServiceName()] {
 				startupOrderedMinusDisabled = append(startupOrderedMinusDisabled, svc)
+				explicitServices = append(explicitServices, svc.ServiceName())
 			}
 		}
 
 		st.Unlock()
-		err = wrappers.RestartServices(startupOrderedMinusDisabled, nil, nil, progress.Null, nullPerfTimings)
+		err = wrappers.RestartServices(startupOrderedMinusDisabled, explicitServices, nil, progress.Null, nullPerfTimings)
 		st.Lock()
 
 		if err != nil {
