@@ -55,7 +55,9 @@ purge() {
     mounts=$(echo "$units" | grep "^${SNAP_UNIT_PREFIX}[-.].*\\.mount" | cut -f1 -d ' ')
     # services from snaps
     services=$(echo "$units" | grep '^snap\..*\.service' | cut -f1 -d ' ')
-    for unit in $services $mounts; do
+    # slices from snaps
+    slices=$(echo "$units" | grep '^snap\..*\.slice' | cut -f1 -d ' ')
+    for unit in $services $mounts $slices; do
         # ensure its really a snap mount unit or systemd unit
         if ! grep -q 'What=/var/lib/snapd/snaps/' "/etc/systemd/system/$unit" && ! grep -q 'X-Snappy=yes' "/etc/systemd/system/$unit"; then
             echo "Skipping non-snapd systemd unit $unit"
