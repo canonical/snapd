@@ -3,6 +3,9 @@ version: 1.0
 summary: Classic snap with content slot 
 description: Classic snap with content slot 
 confinement: classic
+architectures:
+  - build-on: amd64
+    run-on: all
 
 slots:
     shared-content-slot:

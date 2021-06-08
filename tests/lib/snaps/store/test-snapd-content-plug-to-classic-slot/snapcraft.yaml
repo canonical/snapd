@@ -2,6 +2,9 @@ name: test-snapd-content-plug-to-classic-slot
 version: 1.0
 summary: Snap with content plug
 description: Snap with content plug
+architectures:
+  - build-on: amd64
+    run-on: all
 
 apps:
     content-plug:
