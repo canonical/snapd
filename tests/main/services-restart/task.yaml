@@ -60,3 +60,10 @@ execute: |
     test "$TIMESTAMP2_AFTER" -gt "$TIMESTAMP2_BEFORE"
     test "$TIMESTAMP3_AFTER" -eq "$TIMESTAMP3_BEFORE"
     test "$TIMESTAMP4_AFTER" -eq "$TIMESTAMP4_BEFORE"
+
+    # Now verify that services explicitly mentioned on the command line always
+    # get restarted, regardless of their current state
+    for id in 3 4; do
+        systemctl restart snap.test-snapd-service-restart.svc${id}.service
+        systemctl status snap.test-snapd-service-restart.svc${id}.service | MATCH "running"
+    done
