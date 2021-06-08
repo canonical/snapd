@@ -38,9 +38,9 @@ import (
 
 var (
 	findCmd = &Command{
-		Path:   "/v2/find",
-		UserOK: true,
-		GET:    searchStore,
+		Path:       "/v2/find",
+		GET:        searchStore,
+		ReadAccess: openAccess{},
 	}
 )
 
@@ -111,38 +111,35 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	case nil:
 		// pass
 	case store.ErrBadQuery:
-		return SyncResponse(&resp{
-			Type:   ResponseTypeError,
-			Result: &errorResult{Message: err.Error(), Kind: client.ErrorKindBadQuery},
-			Status: 400,
-		}, nil)
+		return BadQuery()
 	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
 		return Unauthorized(err.Error())
 	default:
+		// XXX should these return 503 actually?
 		if e, ok := err.(*url.Error); ok {
 			if neterr, ok := e.Err.(*net.OpError); ok {
 				if dnserr, ok := neterr.Err.(*net.DNSError); ok {
-					return SyncResponse(&resp{
-						Type:   ResponseTypeError,
-						Result: &errorResult{Message: dnserr.Error(), Kind: client.ErrorKindDNSFailure},
-						Status: 400,
-					}, nil)
+					return &apiError{
+						Status:  400,
+						Message: dnserr.Error(),
+						Kind:    client.ErrorKindDNSFailure,
+					}
 				}
 			}
 		}
 		if e, ok := err.(net.Error); ok && e.Timeout() {
-			return SyncResponse(&resp{
-				Type:   ResponseTypeError,
-				Result: &errorResult{Message: err.Error(), Kind: client.ErrorKindNetworkTimeout},
-				Status: 400,
-			}, nil)
+			return &apiError{
+				Status:  400,
+				Message: err.Error(),
+				Kind:    client.ErrorKindNetworkTimeout,
+			}
 		}
 		if e, ok := err.(*httputil.PersistentNetworkError); ok {
-			return SyncResponse(&resp{
-				Type:   ResponseTypeError,
-				Result: &errorResult{Message: e.Error(), Kind: client.ErrorKindDNSFailure},
-				Status: 400,
-			}, nil)
+			return &apiError{
+				Status:  400,
+				Message: e.Error(),
+				Kind:    client.ErrorKindDNSFailure,
+			}
 		}
 
 		return InternalError("%v", err)

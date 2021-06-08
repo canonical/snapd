@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -43,6 +44,11 @@ func (s *discardSnapSuite) SetUpTest(c *C) {
 	defer s.state.Unlock()
 	repo := interfaces.NewRepository()
 	ifacerepo.Replace(s.state, repo)
+	oldSnapStateEnsureSnapAbsentFromQuotaGroup := snapstate.EnsureSnapAbsentFromQuotaGroup
+	snapstate.EnsureSnapAbsentFromQuotaGroup = servicestate.EnsureSnapAbsentFromQuota
+	s.AddCleanup(func() {
+		snapstate.EnsureSnapAbsentFromQuotaGroup = oldSnapStateEnsureSnapAbsentFromQuotaGroup
+	})
 
 	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 }
@@ -79,6 +85,52 @@ func (s *discardSnapSuite) TestDoDiscardSnapSuccess(c *C) {
 
 	c.Check(snapst.Sequence, HasLen, 1)
 	c.Check(snapst.Current, Equals, snap.R(3))
+	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+func (s *discardSnapSuite) TestDoDiscardSnapInQuotaGroup(c *C) {
+	s.state.Lock()
+
+	old := snapstate.EnsureSnapAbsentFromQuotaGroup
+	defer func() {
+		snapstate.EnsureSnapAbsentFromQuotaGroup = old
+	}()
+
+	ensureSnapAbsentFromQuotaGroupCalls := 0
+	snapstate.EnsureSnapAbsentFromQuotaGroup = func(st *state.State, snap string) error {
+		ensureSnapAbsentFromQuotaGroupCalls++
+		c.Assert(snap, Equals, "foo")
+		return nil
+	}
+	defer func() { c.Assert(ensureSnapAbsentFromQuotaGroupCalls, Equals, 1) }()
+
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(3)},
+		},
+		Current:  snap.R(3),
+		SnapType: "app",
+	})
+	t := s.state.NewTask("discard-snap", "test")
+	t.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(33),
+		},
+	})
+	s.state.NewChange("dummy", "...").AddTask(t)
+
+	s.state.Unlock()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	var snapst snapstate.SnapState
+	err := snapstate.Get(s.state, "foo", &snapst)
+	c.Assert(err, Equals, state.ErrNoState)
+
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
 

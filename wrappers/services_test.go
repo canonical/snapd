@@ -261,7 +261,9 @@ Before=slices.target
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
-MemoryMax=%s
+MemoryMax=%[2]s
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]s
 `
 
 	sliceContent := fmt.Sprintf(sliceTempl, grp.Name, memLimit.String())
@@ -364,7 +366,9 @@ Before=slices.target
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
-MemoryMax=%s
+MemoryMax=%[2]s
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]s
 `
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
 
@@ -453,7 +457,9 @@ Before=slices.target
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
-MemoryMax=%s
+MemoryMax=%[2]s
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]s
 `
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
 
@@ -540,6 +546,8 @@ Before=slices.target
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
 MemoryMax=1024
+# for compatibility with older versions of systemd
+MemoryLimit=1024
 `
 
 	err = os.MkdirAll(filepath.Dir(sliceFile), 0755)
@@ -607,7 +615,9 @@ Before=slices.target
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
-MemoryMax=%s
+MemoryMax=%[2]s
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]s
 `
 
 	sliceContent := fmt.Sprintf(sliceTempl, "foogroup", memLimit.String())
@@ -772,7 +782,9 @@ Before=slices.target
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
-MemoryMax=%s
+MemoryMax=%[2]s
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]s
 `
 
 	c.Assert(sliceFile, testutil.FileEquals, fmt.Sprintf(templ, "foogroup", memLimit.String()))

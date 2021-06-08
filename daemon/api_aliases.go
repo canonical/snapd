@@ -33,10 +33,11 @@ import (
 
 var (
 	aliasesCmd = &Command{
-		Path:   "/v2/aliases",
-		UserOK: true,
-		GET:    getAliases,
-		POST:   changeAliases,
+		Path:        "/v2/aliases",
+		GET:         getAliases,
+		POST:        changeAliases,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{},
 	}
 )
 
@@ -116,7 +117,7 @@ func changeAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 	change := newChange(st, a.Action, summary, []*state.TaskSet{taskset}, []string{a.Snap})
 	st.EnsureBefore(0)
 
-	return AsyncResponse(nil, &Meta{Change: change.ID()})
+	return AsyncResponse(nil, change.ID())
 }
 
 type aliasStatus struct {

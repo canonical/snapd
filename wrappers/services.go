@@ -88,6 +88,8 @@ Before=slices.target
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
 MemoryMax=%[2]d
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]d
 `
 
 	fmt.Fprintf(&buf, template, grp.Name, grp.MemoryLimit)

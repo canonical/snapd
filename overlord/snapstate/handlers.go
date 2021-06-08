@@ -56,7 +56,11 @@ import (
 
 // SnapServiceOptions is a hook set by servicestate.
 var SnapServiceOptions = func(st *state.State, instanceName string, grps map[string]*quota.Group) (opts *wrappers.SnapServiceOptions, err error) {
-	panic("internal error: snapstate.SanpServiceOptions is unset")
+	panic("internal error: snapstate.SnapServiceOptions is unset")
+}
+
+var EnsureSnapAbsentFromQuotaGroup = func(st *state.State, snap string) error {
+	panic("internal error: snapstate.EnsureSnapAbsentFromQuotaGroup is unset")
 }
 
 var SecurityProfilesRemoveLate = func(snapName string, rev snap.Revision, typ snap.Type) error {
@@ -2267,6 +2271,12 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 
 		// XXX: also remove sequence files?
+
+		// remove the snap from any quota groups it may have been in, otherwise
+		// that quota group may get into an inconsistent state
+		if err := EnsureSnapAbsentFromQuotaGroup(st, snapsup.InstanceName()); err != nil {
+			return err
+		}
 	}
 	if err = config.DiscardRevisionConfig(st, snapsup.InstanceName(), snapsup.Revision()); err != nil {
 		return err
@@ -2966,6 +2976,38 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	}
 	t.SetStatus(state.DoneStatus)
 
+	return nil
+}
+
+func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snaps, err := snapsToRefresh(t)
+	if err != nil {
+		return err
+	}
+
+	if len(snaps) == 0 {
+		logger.Debugf("refresh gating: no snaps to refresh")
+		return nil
+	}
+
+	tss, err := autoRefreshPhase2(context.TODO(), st, snaps)
+	if err != nil {
+		return err
+	}
+
+	// update original auto-refresh change
+	chg := t.Change()
+	for _, ts := range tss {
+		ts.WaitFor(t)
+		chg.AddAll(ts)
+	}
+	t.SetStatus(state.DoneStatus)
+
+	st.EnsureBefore(0)
 	return nil
 }
 

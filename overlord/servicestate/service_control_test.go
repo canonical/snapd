@@ -126,7 +126,8 @@ func (s *serviceControlSuite) mockTestSnap(c *C) *snap.Info {
 	return info
 }
 
-func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, actionModifier string, expectedServices ...string) {
+func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, actionModifier string,
+	expectedServices []string, expectedExplicitServices []string) {
 	// sanity, ensures test checks below are hit
 	c.Assert(len(tasks) > 0, Equals, true)
 
@@ -218,6 +219,7 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, actionModifie
 			sort.Strings(obtainedServices)
 			sort.Strings(bySnap[sa.SnapName])
 			c.Assert(obtainedServices, DeepEquals, bySnap[sa.SnapName])
+			c.Assert(sa.ExplicitServices, DeepEquals, expectedExplicitServices)
 		} else {
 			c.Fatalf("unexpected task: %s", tasks[i].Kind())
 		}
@@ -234,9 +236,9 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, actionModifie
 	}
 }
 
-func makeControlChange(c *C, st *state.State, inst *servicestate.Instruction, info *snap.Info) *state.Change {
+func makeControlChange(c *C, st *state.State, inst *servicestate.Instruction, info *snap.Info, appNames []string) *state.Change {
 	apps := []*snap.AppInfo{}
-	for _, name := range inst.Names {
+	for _, name := range appNames {
 		c.Assert(info.Apps[name], NotNil)
 		apps = append(apps, info.Apps[name])
 	}
@@ -300,11 +302,11 @@ func (s *serviceControlSuite) TestControlStartInstruction(c *C) {
 
 	inst := &servicestate.Instruction{
 		Action: "start",
-		Names:  []string{"foo"},
 	}
 
-	chg := makeControlChange(c, st, inst, inf)
-	verifyControlTasks(c, chg.Tasks(), "start", "", "snap.test-snap.foo.service")
+	chg := makeControlChange(c, st, inst, inf, []string{"foo"})
+	verifyControlTasks(c, chg.Tasks(), "start", "",
+		[]string{"snap.test-snap.foo.service"}, nil)
 }
 
 func (s *serviceControlSuite) TestControlStartEnableMultipleInstruction(c *C) {
@@ -316,12 +318,12 @@ func (s *serviceControlSuite) TestControlStartEnableMultipleInstruction(c *C) {
 
 	inst := &servicestate.Instruction{
 		Action:       "start",
-		Names:        []string{"foo", "bar"},
 		StartOptions: client.StartOptions{Enable: true},
 	}
 
-	chg := makeControlChange(c, st, inst, inf)
-	verifyControlTasks(c, chg.Tasks(), "start", "enable", "snap.test-snap.foo.service", "snap.test-snap.bar.service")
+	chg := makeControlChange(c, st, inst, inf, []string{"foo", "bar"})
+	verifyControlTasks(c, chg.Tasks(), "start", "enable",
+		[]string{"snap.test-snap.foo.service", "snap.test-snap.bar.service"}, nil)
 }
 
 func (s *serviceControlSuite) TestControlStopInstruction(c *C) {
@@ -333,11 +335,11 @@ func (s *serviceControlSuite) TestControlStopInstruction(c *C) {
 
 	inst := &servicestate.Instruction{
 		Action: "stop",
-		Names:  []string{"foo"},
 	}
 
-	chg := makeControlChange(c, st, inst, inf)
-	verifyControlTasks(c, chg.Tasks(), "stop", "", "snap.test-snap.foo.service")
+	chg := makeControlChange(c, st, inst, inf, []string{"foo"})
+	verifyControlTasks(c, chg.Tasks(), "stop", "",
+		[]string{"snap.test-snap.foo.service"}, nil)
 }
 
 func (s *serviceControlSuite) TestControlStopDisableInstruction(c *C) {
@@ -349,12 +351,12 @@ func (s *serviceControlSuite) TestControlStopDisableInstruction(c *C) {
 
 	inst := &servicestate.Instruction{
 		Action:      "stop",
-		Names:       []string{"bar"},
 		StopOptions: client.StopOptions{Disable: true},
 	}
 
-	chg := makeControlChange(c, st, inst, inf)
-	verifyControlTasks(c, chg.Tasks(), "stop", "disable", "snap.test-snap.bar.service")
+	chg := makeControlChange(c, st, inst, inf, []string{"bar"})
+	verifyControlTasks(c, chg.Tasks(), "stop", "disable",
+		[]string{"snap.test-snap.bar.service"}, nil)
 }
 
 func (s *serviceControlSuite) TestControlRestartInstruction(c *C) {
@@ -366,11 +368,11 @@ func (s *serviceControlSuite) TestControlRestartInstruction(c *C) {
 
 	inst := &servicestate.Instruction{
 		Action: "restart",
-		Names:  []string{"bar"},
 	}
 
-	chg := makeControlChange(c, st, inst, inf)
-	verifyControlTasks(c, chg.Tasks(), "restart", "", "snap.test-snap.bar.service")
+	chg := makeControlChange(c, st, inst, inf, []string{"bar"})
+	verifyControlTasks(c, chg.Tasks(), "restart", "",
+		[]string{"snap.test-snap.bar.service"}, nil)
 }
 
 func (s *serviceControlSuite) TestControlRestartReloadMultipleInstruction(c *C) {
@@ -382,12 +384,13 @@ func (s *serviceControlSuite) TestControlRestartReloadMultipleInstruction(c *C) 
 
 	inst := &servicestate.Instruction{
 		Action:         "restart",
-		Names:          []string{"foo", "bar"},
 		RestartOptions: client.RestartOptions{Reload: true},
 	}
 
-	chg := makeControlChange(c, st, inst, inf)
-	verifyControlTasks(c, chg.Tasks(), "restart", "reload", "snap.test-snap.foo.service", "snap.test-snap.bar.service")
+	chg := makeControlChange(c, st, inst, inf, []string{"foo", "bar"})
+	verifyControlTasks(c, chg.Tasks(), "restart", "reload",
+		[]string{"snap.test-snap.foo.service", "snap.test-snap.bar.service"},
+		nil)
 }
 
 func (s *serviceControlSuite) TestControlUnknownInstruction(c *C) {
@@ -398,7 +401,6 @@ func (s *serviceControlSuite) TestControlUnknownInstruction(c *C) {
 	info := s.mockTestSnap(c)
 	inst := &servicestate.Instruction{
 		Action:         "boo",
-		Names:          []string{"foo"},
 		RestartOptions: client.RestartOptions{Reload: true},
 	}
 
@@ -415,12 +417,49 @@ func (s *serviceControlSuite) TestControlStopDisableMultipleInstruction(c *C) {
 
 	inst := &servicestate.Instruction{
 		Action:      "stop",
-		Names:       []string{"foo", "bar"},
 		StopOptions: client.StopOptions{Disable: true},
 	}
 
-	chg := makeControlChange(c, st, inst, inf)
-	verifyControlTasks(c, chg.Tasks(), "stop", "disable", "snap.test-snap.foo.service", "snap.test-snap.bar.service")
+	chg := makeControlChange(c, st, inst, inf, []string{"foo", "bar"})
+	verifyControlTasks(c, chg.Tasks(), "stop", "disable",
+		[]string{"snap.test-snap.foo.service", "snap.test-snap.bar.service"},
+		nil)
+}
+
+func (s *serviceControlSuite) TestWithExplicitServices(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	inf := s.mockTestSnap(c)
+
+	inst := &servicestate.Instruction{
+		Action: "start",
+		Names:  []string{"test-snap.foo", "test-snap.abc"},
+	}
+
+	chg := makeControlChange(c, st, inst, inf, []string{"abc", "foo", "bar"})
+	verifyControlTasks(c, chg.Tasks(), "start", "",
+		[]string{"snap.test-snap.abc.service", "snap.test-snap.foo.service", "snap.test-snap.bar.service"},
+		[]string{"snap.test-snap.abc.service", "snap.test-snap.foo.service"})
+}
+
+func (s *serviceControlSuite) TestWithExplicitServicesAndSnapName(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	inf := s.mockTestSnap(c)
+
+	inst := &servicestate.Instruction{
+		Action: "start",
+		Names:  []string{"test-snap.foo", "test-snap", "test-snap.bar"},
+	}
+
+	chg := makeControlChange(c, st, inst, inf, []string{"abc", "foo", "bar"})
+	verifyControlTasks(c, chg.Tasks(), "start", "",
+		[]string{"snap.test-snap.abc.service", "snap.test-snap.foo.service", "snap.test-snap.bar.service"},
+		[]string{"snap.test-snap.bar.service", "snap.test-snap.foo.service"})
 }
 
 func (s *serviceControlSuite) TestNoServiceCommandError(c *C) {

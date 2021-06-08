@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -39,6 +39,7 @@ import (
 	_ "github.com/snapcore/squashfuse"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/sandbox/selinux"
@@ -99,8 +100,8 @@ var systemctlCmd = func(args ...string) ([]byte, error) {
 	// output mode, see LP #1885597
 	bs, err := exec.Command("systemctl", args...).CombinedOutput()
 	if err != nil {
-		exitCode, _ := osutil.ExitCode(err)
-		return nil, &Error{cmd: args, exitCode: exitCode, msg: bs}
+		exitCode, runErr := osutil.ExitCode(err)
+		return nil, &Error{cmd: args, exitCode: exitCode, runErr: runErr, msg: bs}
 	}
 
 	return bs, nil
@@ -294,6 +295,9 @@ type Systemd interface {
 	Mount(what, where string, options ...string) error
 	// Umount requests a mount from what or at where to be unmounted.
 	Umount(whatOrWhere string) error
+	// CurrentMemoryUsage returns the current memory usage for the specified
+	// unit.
+	CurrentMemoryUsage(unit string) (quantity.Size, error)
 }
 
 // A Log is a single entry in the systemd journal.
@@ -621,6 +625,33 @@ func (s *systemd) getGlobalUserStatus(unitNames ...string) ([]*UnitStatus, error
 	return sts, nil
 }
 
+func (s *systemd) CurrentMemoryUsage(unit string) (quantity.Size, error) {
+	out, err := s.systemctl("show", "--property", "MemoryCurrent", unit)
+	if err != nil {
+		return 0, osutil.OutputErr(out, err)
+	}
+	// strip the MemoryCurrent= from the output
+	splitVal := strings.SplitN(strings.TrimSpace(string(out)), "=", 2)
+	if len(splitVal) != 2 {
+		return 0, fmt.Errorf("invalid property format from systemd for MemoryCurrent")
+	}
+
+	trimmedVal := strings.TrimSpace(splitVal[1])
+
+	// if the unit is inactive or doesn't exist, the memory usage can be
+	// reported as "[not set]"
+	if trimmedVal == "[not set]" {
+		return 0, fmt.Errorf("memory usage unavailable")
+	}
+
+	intVal, err := strconv.Atoi(trimmedVal)
+	if err != nil {
+		return 0, fmt.Errorf("invalid property value from systemd for MemoryCurrent: cannot parse %q as an integer", trimmedVal)
+	}
+
+	return quantity.Size(intVal), nil
+}
+
 func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 	if s.mode == GlobalUserMode {
 		return s.getGlobalUserStatus(unitNames...)
@@ -735,9 +766,9 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 	// services, the stderr output may be `inactive\n` for services that are
 	// inactive (or not found), or `failed\n` for services that are in a
 	// failed state; nevertheless make sure to check any non-0 exit code
-	sysdErr, ok := err.(*Error)
+	sysdErr, ok := err.(systemctlError)
 	if ok {
-		switch strings.TrimSpace(string(sysdErr.msg)) {
+		switch strings.TrimSpace(string(sysdErr.Msg())) {
 		case "inactive", "failed":
 			return false, nil
 		}
@@ -827,6 +858,7 @@ type Error struct {
 	cmd      []string
 	msg      []byte
 	exitCode int
+	runErr   error
 }
 
 func (e *Error) Msg() []byte {
@@ -838,7 +870,14 @@ func (e *Error) ExitCode() int {
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("%v failed with exit status %d: %s", e.cmd, e.exitCode, e.msg)
+	var msg string
+	if len(e.msg) > 0 {
+		msg = fmt.Sprintf(": %s", e.msg)
+	}
+	if e.runErr != nil {
+		return fmt.Sprintf("systemctl command %v failed with: %v%s", e.cmd, e.runErr, msg)
+	}
+	return fmt.Sprintf("systemctl command %v failed with exit status %d%s", e.cmd, e.exitCode, msg)
 }
 
 // Timeout is returned if the systemd action failed to reach the
