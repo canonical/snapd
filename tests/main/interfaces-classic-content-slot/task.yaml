@@ -25,7 +25,7 @@ execute: |
 
     echo "Check that the content interface has been auto-connected"
     snap connections "$PROVIDER_SNAP" |
-        MATCH "$CONSUMER_SNAP:shared-content-plug \+$PROVIDER_SNAP:shared-content-slot"
+        MATCH "$CONSUMER_SNAP:shared-content-plug +$PROVIDER_SNAP:shared-content-slot"
 
     echo "And fstab files are created"
     [ "$(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l)" -gt 0 ]
