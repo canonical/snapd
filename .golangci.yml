@@ -183,7 +183,7 @@ linters:
     # formatting is disabled until we move to Go 1.13
     # - gofmt
     - ineffassign
-    - goimports
+    - gci
     - testpackage
   # disable everything else
   disable-all: true
