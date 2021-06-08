@@ -70,16 +70,7 @@ type StructuredResponse interface {
 // XXX drop resp
 type resp = respJSON
 
-// TODO This is being done in a rush to get the proper external
-//      JSON representation in the API in time for the release.
-//      The right code style takes a bit more work and unifies
-//      these fields inside resp.
-// Increment the counter if you read this: 43
-type Meta struct {
-	Sources           []string `json:"sources,omitempty"`
-	SuggestedCurrency string   `json:"suggested-currency,omitempty"`
-}
-
+// respJSON represents our standard JSON response format.
 type respJSON struct {
 	Type ResponseType `json:"type"`
 	// Status is the HTTP status code.
@@ -90,7 +81,10 @@ type respJSON struct {
 	Result interface{} `json:"result"`
 	// Change is the change ID for an async response.
 	Change string `json:"change,omitempty"`
-	*Meta
+	// Sources is used in find responses.
+	Sources []string `json:"sources,omitempty"`
+	// XXX SuggestedCurrency is part of unsupported paid snap code.
+	SuggestedCurrency string `json:"suggested-currency,omitempty"`
 	// Maintenance...  are filled as needed by the serving pipeline.
 	WarningTimestamp *time.Time   `json:"warning-timestamp,omitempty"`
 	WarningCount     int          `json:"warning-count,omitempty"`
@@ -187,7 +181,7 @@ type errorResult struct {
 }
 
 // SyncResponse builds a "sync" response from the given result.
-func SyncResponse(result interface{}, meta *Meta) Response {
+func SyncResponse(result interface{}) Response {
 	if rsp, ok := result.(Response); ok {
 		return rsp
 	}
@@ -196,11 +190,10 @@ func SyncResponse(result interface{}, meta *Meta) Response {
 		return InternalError("internal error: %v", err)
 	}
 
-	return &resp{
+	return &respJSON{
 		Type:   ResponseTypeSync,
 		Status: 200,
 		Result: result,
-		Meta:   meta,
 	}
 }
 

@@ -78,7 +78,7 @@ func getAppsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("%v", err)
 	}
 
-	return SyncResponse(clientAppInfos, nil)
+	return SyncResponse(clientAppInfos)
 }
 
 type appInfoOptions struct {

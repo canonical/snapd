@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -960,13 +960,21 @@ func (s *deviceMgrRemodelSuite) TestReregRemodelClashAnyChange(c *C) {
 		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
 		"revision":       "1",
 	})
+	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
+		// we never reach the place where this gets called
+		c.Fatalf("unexpected call")
+		return nil
+	}
 
 	// simulate any other change
-	s.state.NewChange("chg", "other change")
+	chg := s.state.NewChange("chg", "other change")
+	chg.SetStatus(state.DoingStatus)
 
 	_, err := devicestate.Remodel(s.state, new)
-	c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
-		Message: "cannot start complete remodel, other changes are in progress",
+	c.Assert(err, NotNil)
+	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
+		ChangeKind: "chg",
+		Message:    `other changes in progress (conflicting change "chg"), change "remodel" not allowed until they are done`,
 	})
 }
 

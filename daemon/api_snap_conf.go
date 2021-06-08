@@ -82,13 +82,13 @@ func getSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
 			if len(keys) > 1 {
 				return BadRequest("keys contains zero-length string")
 			}
-			return SyncResponse(value, nil)
+			return SyncResponse(value)
 		}
 
 		currentConfValues[key] = value
 	}
 
-	return SyncResponse(currentConfValues, nil)
+	return SyncResponse(currentConfValues)
 }
 
 func setSnapConf(c *Command, r *http.Request, user *auth.UserState) Response {
