@@ -28,7 +28,7 @@ execute: |
         MATCH "$CONSUMER_SNAP:shared-content-plug +$PROVIDER_SNAP:shared-content-slot"
 
     echo "And fstab files are created"
-    [ "$(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l)" -gt 0 ]
+    [ "$(find /var/lib/snapd/mount -type f -name "snap.$CONSUMER_SNAP.fstab" | wc -l)" -gt 0 ]
 
     echo "And we can use the shared content"
     "$CONSUMER_SNAP".content-plug | MATCH "Some shared content"
@@ -40,10 +40,10 @@ execute: |
     snap disconnect "$CONSUMER_SNAP":shared-content-plug "$PROVIDER_SNAP":shared-content-slot
 
     echo "Then the fstab files are removed"
-    [ "$(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l)" -eq 0 ]
+    [ "$(find /var/lib/snapd/mount -type f -name "snap.$CONSUMER_SNAP.fstab" | wc -l)" -eq 0 ]
 
     echo "When the plug is reconnected"
     snap connect "$CONSUMER_SNAP":shared-content-plug "$PROVIDER_SNAP":shared-content-slot
 
     echo "Then the fstab files are recreated"
-    [ "$(find /var/lib/snapd/mount -type f -name "*.fstab" | wc -l)" -gt 0 ]
+    [ "$(find /var/lib/snapd/mount -type f -name "snap.$CONSUMER_SNAP.fstab" | wc -l)" -gt 0 ]
