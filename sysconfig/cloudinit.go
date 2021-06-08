@@ -112,12 +112,18 @@ func configureCloudInit(opts *Options) (err error) {
 
 	// next check if there is a gadget cloud.conf to install
 	if HasGadgetCloudConf(opts.GadgetDir) {
-		// then copy / install the gadget config and return without considering
-		// CloudInitSrcDir
-		// TODO:UC20: we may eventually want to consider both CloudInitSrcDir
-		// and the gadget cloud.conf so returning here may be wrong
+		// then copy / install the gadget config first
 		gadgetCloudConf := filepath.Join(opts.GadgetDir, "cloud.conf")
-		return installGadgetCloudInitCfg(gadgetCloudConf, WritableDefaultsDir(opts.TargetRootDir))
+		err := installGadgetCloudInitCfg(gadgetCloudConf, WritableDefaultsDir(opts.TargetRootDir))
+		if err != nil {
+			return err
+		}
+
+		// we don't return here to enable also copying any cloud-init config
+		// from ubuntu-seed in order for both to be used simultaneously for
+		// example on test devices where the gadget has a gadget.yaml, but for
+		// testing purposes you also want to provision another user with
+		// ubuntu-seed cloud-init config
 	}
 
 	// TODO:UC20: implement filtering of files from src when specified via a
