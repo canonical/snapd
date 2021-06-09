@@ -20,7 +20,11 @@
 package main
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/i18n"
 )
 
 type KeypairManager interface {
@@ -31,6 +35,14 @@ type KeypairManager interface {
 }
 
 func getKeypairManager() (KeypairManager, error) {
+	keymgrPath := os.Getenv("SNAPD_EXT_KEYMGR")
+	if keymgrPath != "" {
+		keypairMgr, err := asserts.NewExternalKeypairManager(keymgrPath)
+		if err != nil {
+			return nil, fmt.Errorf(i18n.G("cannot setup external keypair manager: %v"), err)
+		}
+		return keypairMgr, nil
+	}
 	keypairMgr := asserts.NewGPGKeypairManager()
 	return keypairMgr, nil
 }
