@@ -29,9 +29,6 @@ var (
 	UpdateSnapstateServices = updateSnapstateServices
 	PatchQuotas             = patchQuotas
 	CheckSystemdVersion     = checkSystemdVersion
-	DoCreateQuota           = doCreateQuota
-	DoRemoveQuota           = doRemoveQuota
-	DoUpdateQuota           = doUpdateQuota
 )
 
 func (m *ServiceManager) DoQuotaControl(t *state.Task, to *tomb.Tomb) error {

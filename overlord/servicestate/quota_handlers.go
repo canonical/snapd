@@ -100,11 +100,11 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 
 	switch qc.Action {
 	case "create":
-		err = doCreateQuota(st, qc, allGrps, meter, perfTimings)
+		err = createQuotaHandler(st, qc, allGrps, meter, perfTimings)
 	case "remove":
-		err = doRemoveQuota(st, qc, allGrps, meter, perfTimings)
+		err = removeQuotaHandler(st, qc, allGrps, meter, perfTimings)
 	case "update":
-		err = doUpdateQuota(st, qc, allGrps, meter, perfTimings)
+		err = updateQuotaHandler(st, qc, allGrps, meter, perfTimings)
 	default:
 		err = fmt.Errorf("unknown action %q requested", qc.Action)
 	}
@@ -118,7 +118,7 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func doCreateQuota(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
+func createQuotaHandler(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
 	// make sure the group does not exist yet
 	if _, ok := allGrps[action.QuotaName]; ok {
 		return fmt.Errorf("group %q already exists", action.QuotaName)
@@ -186,7 +186,7 @@ func createQuotaImpl(st *state.State, action QuotaControlAction, allGrps map[str
 	return grp, newAllGrps, nil
 }
 
-func doRemoveQuota(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
+func removeQuotaHandler(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
 	// make sure the group exists
 	grp, ok := allGrps[action.QuotaName]
 	if !ok {
@@ -262,7 +262,7 @@ func doRemoveQuota(st *state.State, action QuotaControlAction, allGrps map[strin
 	return ensureSnapServicesForGroup(st, grp, opts, meter, perfTimings)
 }
 
-func doUpdateQuota(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
+func updateQuotaHandler(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
 	// make sure the group exists
 	grp, ok := allGrps[action.QuotaName]
 	if !ok {
