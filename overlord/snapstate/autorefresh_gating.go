@@ -21,7 +21,10 @@ package snapstate
 
 import (
 	"fmt"
+	"os"
 	"sort"
+	"strings"
+	"time"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/mount"
@@ -32,6 +35,270 @@ import (
 )
 
 var gateAutoRefreshHookName = "gate-auto-refresh"
+
+// cumulative hold time for snaps other than self
+const maxOtherHoldDuration = time.Hour * 48
+
+var timeNow = func() time.Time {
+	return time.Now()
+}
+
+func lastRefreshed(st *state.State, snapName string) (time.Time, error) {
+	var snapst SnapState
+	if err := Get(st, snapName, &snapst); err != nil {
+		return time.Time{}, fmt.Errorf("internal error, cannot get snap %q: %v", snapName, err)
+	}
+	// try to get last refresh time from snapstate, but it may not be present
+	// for snaps installed before the introduction of last-refresh attribute.
+	if snapst.LastRefreshTime != nil {
+		return *snapst.LastRefreshTime, nil
+	}
+	snapInfo, err := snapst.CurrentInfo()
+	if err != nil {
+		return time.Time{}, err
+	}
+	// fall back to the modification time of .snap blob file as it's the best
+	// approximation of last refresh time.
+	fst, err := os.Stat(snapInfo.MountFile())
+	if err != nil {
+		return time.Time{}, err
+	}
+	return fst.ModTime(), nil
+}
+
+type holdState struct {
+	// FirstHeld keeps the time when the given snap was first held for refresh by a gating snap.
+	FirstHeld time.Time `json:"first-held"`
+	// HoldUntil stores the desired end time for holding.
+	HoldUntil time.Time `json:"hold-until"`
+}
+
+func refreshGating(st *state.State) (map[string]map[string]*holdState, error) {
+	// held snaps -> holding snap(s) -> first-held/hold-until time
+	var gating map[string]map[string]*holdState
+	err := st.Get("snaps-hold", &gating)
+	if err != nil && err != state.ErrNoState {
+		return nil, fmt.Errorf("internal error: cannot get snaps-hold: %v", err)
+	}
+	if err == state.ErrNoState {
+		return make(map[string]map[string]*holdState), nil
+	}
+	return gating, nil
+}
+
+// HoldDurationError contains the that error prevents requested hold, along with
+// hold time that's left (if any).
+type HoldDurationError struct {
+	Err          error
+	DurationLeft time.Duration
+}
+
+func (h *HoldDurationError) Error() string {
+	return h.Err.Error()
+}
+
+// HoldError contains the details of snaps that cannot to be held.
+type HoldError struct {
+	SnapsInError map[string]HoldDurationError
+}
+
+func (h *HoldError) Error() string {
+	l := []string{""}
+	for _, e := range h.SnapsInError {
+		l = append(l, e.Error())
+	}
+	return fmt.Sprintf("cannot hold some snaps:%s", strings.Join(l, "\n - "))
+}
+
+func maxAllowedPostponement(gatingSnap, affectedSnap string, maxPostponement time.Duration) time.Duration {
+	if affectedSnap == gatingSnap {
+		return maxPostponement
+	}
+	return maxOtherHoldDuration
+}
+
+// holdDurationLeft computes the maximum duration that's left for holding a refresh
+// given current time, last refresh time, time when snap was first held, maximum
+// duration allowed for the given snap and maximum overall postponement allowed by
+// snapd.
+func holdDurationLeft(now time.Time, lastRefresh, firstHeld time.Time, maxDuration, maxPostponement time.Duration) time.Duration {
+	d1 := firstHeld.Add(maxDuration).Sub(now)
+	d2 := lastRefresh.Add(maxPostponement).Sub(now)
+	if d1 < d2 {
+		return d1
+	}
+	return d2
+}
+
+// HoldRefresh marks affectingSnaps as held for refresh for up to holdTime.
+// HoldTime of zero denotes maximum allowed hold time.
+// Holding may fail for only some snaps in which case HoldError is returned and
+// it contains the details of failed ones.
+func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration, affectingSnaps ...string) error {
+	gating, err := refreshGating(st)
+	if err != nil {
+		return err
+	}
+	herr := &HoldError{
+		SnapsInError: make(map[string]HoldDurationError),
+	}
+	now := timeNow()
+	for _, heldSnap := range affectingSnaps {
+		hold, ok := gating[heldSnap][gatingSnap]
+		if !ok {
+			hold = &holdState{
+				FirstHeld: now,
+			}
+		}
+
+		lastRefreshTime, err := lastRefreshed(st, heldSnap)
+		if err != nil {
+			return err
+		}
+
+		mp := maxPostponement - maxPostponementBuffer
+		maxDur := maxAllowedPostponement(gatingSnap, heldSnap, mp)
+
+		// calculate max hold duration that's left considering previous hold
+		// requests of this snap and last refresh time.
+		left := holdDurationLeft(now, lastRefreshTime, hold.FirstHeld, maxDur, mp)
+		if left <= 0 {
+			herr.SnapsInError[heldSnap] = HoldDurationError{
+				Err: fmt.Errorf("snap %q cannot hold snap %q anymore, maximum refresh postponement exceeded", gatingSnap, heldSnap),
+			}
+			continue
+		}
+
+		dur := holdDuration
+		if dur == 0 {
+			// duration not specified, using a default one (maximum) or what's
+			// left of it.
+			dur = left
+		} else {
+			// explicit hold duration requested
+			if dur > maxDur {
+				herr.SnapsInError[heldSnap] = HoldDurationError{
+					Err:          fmt.Errorf("requested holding duration for snap %q of %s by snap %q exceeds maximum holding time", heldSnap, holdDuration, gatingSnap),
+					DurationLeft: left,
+				}
+				continue
+			}
+		}
+
+		newHold := now.Add(dur)
+		cutOff := lastRefreshTime.Add(maxPostponement - maxPostponementBuffer)
+
+		// consider last refresh time and adjust hold duration if needed so it's
+		// not exceeded.
+		if newHold.Before(cutOff) {
+			hold.HoldUntil = newHold
+		} else {
+			hold.HoldUntil = cutOff
+		}
+
+		// finally store/update gating hold data
+		if _, ok := gating[heldSnap]; !ok {
+			gating[heldSnap] = make(map[string]*holdState)
+		}
+		gating[heldSnap][gatingSnap] = hold
+	}
+
+	if len(herr.SnapsInError) != len(affectingSnaps) {
+		st.Set("snaps-hold", gating)
+	}
+	if len(herr.SnapsInError) > 0 {
+		return herr
+	}
+	return nil
+}
+
+// ProceedWithRefresh unblocks all snaps held by gatingSnap for refresh. This
+// should be called for --proceed on the gatingSnap.
+func ProceedWithRefresh(st *state.State, gatingSnap string) error {
+	gating, err := refreshGating(st)
+	if err != nil {
+		return err
+	}
+	if len(gating) == 0 {
+		return nil
+	}
+
+	var changed bool
+	for heldSnap, gatingSnaps := range gating {
+		if _, ok := gatingSnaps[gatingSnap]; ok {
+			delete(gatingSnaps, gatingSnap)
+			changed = true
+		}
+		if len(gatingSnaps) == 0 {
+			delete(gating, heldSnap)
+		}
+	}
+
+	if changed {
+		st.Set("snaps-hold", gating)
+	}
+	return nil
+}
+
+// resetGatingForRefreshed resets gating information by removing refreshedSnaps
+// (they are not held anymore). This should be called for all successfully
+// refreshed snaps.
+func resetGatingForRefreshed(st *state.State, refreshedSnaps ...string) error {
+	gating, err := refreshGating(st)
+	if err != nil {
+		return err
+	}
+	if len(gating) == 0 {
+		return nil
+	}
+
+	var changed bool
+	for _, snapName := range refreshedSnaps {
+		if _, ok := gating[snapName]; ok {
+			delete(gating, snapName)
+			changed = true
+		}
+	}
+
+	if changed {
+		st.Set("snaps-hold", gating)
+	}
+	return nil
+}
+
+// heldSnaps returns all snaps that are gated and shouldn't be refreshed.
+func heldSnaps(st *state.State) (map[string]bool, error) {
+	gating, err := refreshGating(st)
+	if err != nil {
+		return nil, err
+	}
+	if len(gating) == 0 {
+		return nil, nil
+	}
+
+	now := timeNow()
+
+	held := make(map[string]bool)
+Loop:
+	for heldSnap, holdingSnaps := range gating {
+		refreshed, err := lastRefreshed(st, heldSnap)
+		if err != nil {
+			return nil, err
+		}
+		// make sure we don't hold any snap for more than maxPostponement
+		if refreshed.Add(maxPostponement).Before(now) {
+			continue
+		}
+		for _, hold := range holdingSnaps {
+			if hold.HoldUntil.Before(now) {
+				continue
+			}
+			held[heldSnap] = true
+			continue Loop
+		}
+	}
+	return held, nil
+}
 
 type affectedSnapInfo struct {
 	Restart        bool

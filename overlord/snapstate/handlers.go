@@ -2032,11 +2032,11 @@ func (m *SnapManager) undoStopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 
 	st.Unlock()
 	err = m.backend.StartServices(startupOrdered, disabledServices, progress.Null, perfTimings)
+	st.Lock()
 	if err != nil {
 		return err
 	}
 
-	st.Lock()
 	return nil
 }
 

@@ -67,9 +67,6 @@ type StructuredResponse interface {
 	JSON() *respJSON
 }
 
-// XXX drop resp
-type resp = respJSON
-
 // respJSON represents our standard JSON response format.
 type respJSON struct {
 	Type ResponseType `json:"type"`
