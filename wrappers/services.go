@@ -494,6 +494,7 @@ type EnsureSnapServicesOptions struct {
 // invoked while processing the changes. Because of that it should not
 // produce immediate side-effects, as the changes are in effect only
 // if the function did not return an error.
+// This function is idempotent.
 func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSnapServicesOptions, observeChange ObserveChangeCallback, inter interacter) (err error) {
 	// note, sysd is not used when preseeding
 	sysd := systemd.New(systemd.SystemMode, inter)
@@ -833,8 +834,10 @@ func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error
 
 // RemoveQuotaGroup ensures that the slice file for a quota group is removed. It
 // assumes that the slice corresponding to the group is not in use anymore by
-// any services or sub-groups of the group when it is invoked.
-// group with sub-groups, one must remove all the sub-groups first.
+// any services or sub-groups of the group when it is invoked. To remove a group
+// with sub-groups, one must remove all the sub-groups first.
+// This function is idempotent, if the slice file doesn't exist no error is
+// returned.
 func RemoveQuotaGroup(grp *quota.Group, inter interacter) error {
 	// TODO: it only works on leaf sub-groups currently
 	if len(grp.SubGroups) != 0 {
