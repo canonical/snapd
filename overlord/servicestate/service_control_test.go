@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -85,7 +86,7 @@ func (s *serviceControlSuite) SetUpTest(c *C) {
 		// retrieved first. Services which are not running will be
 		// ignored. Therefore, mock this "show" operation by pretending that
 		// all requested services are active:
-		if out := systemd.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
 			return out, nil
 		}
 

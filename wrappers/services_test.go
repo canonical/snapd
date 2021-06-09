@@ -44,6 +44,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/usersession/agent"
@@ -3338,7 +3339,7 @@ apps:
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		s.sysdLog = append(s.sysdLog, cmd)
-		if out := systemd.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
 			return out, nil
 		}
 		return []byte("ActiveState=inactive\n"), nil
@@ -3403,13 +3404,13 @@ apps:
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		s.sysdLog = append(s.sysdLog, cmd)
-		states := map[string]systemd.ServiceState{
+		states := map[string]systemdtest.ServiceState{
 			srvFile1: {ActiveState: "active", UnitFileState: "enabled"},
 			srvFile2: {ActiveState: "inactive", UnitFileState: "enabled"},
 			srvFile3: {ActiveState: "active", UnitFileState: "disabled"},
 			srvFile4: {ActiveState: "inactive", UnitFileState: "disabled"},
 		}
-		if out := systemd.HandleMockAllUnitsActiveOutput(cmd, states); out != nil {
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, states); out != nil {
 			return out, nil
 		}
 		return []byte("ActiveState=inactive\n"), nil

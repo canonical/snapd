@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -175,7 +176,7 @@ func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
 	// CreateQuota is calling "systemctl.Restart", which needs to be mocked
 	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) (buf []byte, err error) {
 		s.systemctlArgs = append(s.systemctlArgs, cmd)
-		if out := systemd.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
 			return out, nil
 		}
 
