@@ -57,5 +57,5 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("%v", err)
 	}
 
-	return SyncResponse(sections, nil)
+	return SyncResponse(sections)
 }

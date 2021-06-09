@@ -24,6 +24,7 @@ import (
 	"net/http"
 	"sort"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/servicestate"
@@ -55,15 +56,6 @@ type postQuotaGroupData struct {
 	Snaps     []string `json:"snaps,omitempty"`
 }
 
-type quotaGroupResultJSON struct {
-	GroupName     string   `json:"group-name"`
-	MaxMemory     uint64   `json:"max-memory"`
-	CurrentMemory uint64   `json:"current-memory"`
-	Parent        string   `json:"parent,omitempty"`
-	Snaps         []string `json:"snaps,omitempty"`
-	SubGroups     []string `json:"subgroups,omitempty"`
-}
-
 var (
 	servicestateCreateQuota = servicestate.CreateQuota
 	servicestateUpdateQuota = servicestate.UpdateQuota
@@ -93,7 +85,7 @@ func getQuotaGroups(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 	sort.Strings(names)
 
-	results := make([]quotaGroupResultJSON, len(quotas))
+	results := make([]client.QuotaGroupResult, len(quotas))
 	for i, name := range names {
 		qt := quotas[name]
 
@@ -102,16 +94,16 @@ func getQuotaGroups(c *Command, r *http.Request, _ *auth.UserState) Response {
 			return InternalError(err.Error())
 		}
 
-		results[i] = quotaGroupResultJSON{
+		results[i] = client.QuotaGroupResult{
 			GroupName:     qt.Name,
 			Parent:        qt.ParentGroup,
-			SubGroups:     qt.SubGroups,
+			Subgroups:     qt.SubGroups,
 			Snaps:         qt.Snaps,
 			MaxMemory:     uint64(qt.MemoryLimit),
 			CurrentMemory: uint64(memoryUsage),
 		}
 	}
-	return SyncResponse(results, nil)
+	return SyncResponse(results)
 }
 
 // getQuotaGroupInfo returns details of a single quota Group.
@@ -139,15 +131,15 @@ func getQuotaGroupInfo(c *Command, r *http.Request, _ *auth.UserState) Response 
 		return InternalError(err.Error())
 	}
 
-	res := quotaGroupResultJSON{
+	res := client.QuotaGroupResult{
 		GroupName:     group.Name,
 		Parent:        group.ParentGroup,
 		Snaps:         group.Snaps,
-		SubGroups:     group.SubGroups,
+		Subgroups:     group.SubGroups,
 		MaxMemory:     uint64(group.MemoryLimit),
 		CurrentMemory: uint64(memoryUsage),
 	}
-	return SyncResponse(res, nil)
+	return SyncResponse(res)
 }
 
 // postQuotaGroup creates quota resource group or updates an existing group.
@@ -199,5 +191,5 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 	default:
 		return BadRequest("unknown quota action %q", data.Action)
 	}
-	return SyncResponse(nil, nil)
+	return SyncResponse(nil)
 }

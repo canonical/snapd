@@ -20,10 +20,10 @@
 package main_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
 
 	"gopkg.in/check.v1"
 
@@ -35,6 +35,23 @@ type quotaSuite struct {
 }
 
 var _ = check.Suite(&quotaSuite{})
+
+func makeFakeGetQuotaGroupNotFoundHandler(c *check.C, group string) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/quotas/"+group)
+		c.Check(r.Method, check.Equals, "GET")
+		w.WriteHeader(404)
+		fmt.Fprintln(w, `{
+			"result": {
+				"message": "not found"
+			},
+			"status": "Not Found",
+			"status-code": 404,
+			"type": "error"
+		}`)
+	}
+
+}
 
 func makeFakeGetQuotaGroupHandler(c *check.C, body string) func(w http.ResponseWriter, r *http.Request) {
 	var called bool
@@ -64,7 +81,35 @@ func makeFakeGetQuotaGroupsHandler(c *check.C, body string) func(w http.Response
 	}
 }
 
-func makeFakeQuotaPostHandler(c *check.C, action, body, groupName, parentName string, snaps []string, maxMemory int64) func(w http.ResponseWriter, r *http.Request) {
+func dispatchFakeHandlers(c *check.C, routes map[string]http.HandlerFunc) func(w http.ResponseWriter, r *http.Request) {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if router, ok := routes[r.URL.Path]; ok {
+			router(w, r)
+			return
+		}
+		c.Errorf("unexpected call to %s", r.URL.Path)
+	}
+}
+
+type fakeQuotaGroupPostHandlerOpts struct {
+	action        string
+	body          string
+	groupName     string
+	parentName    string
+	snaps         []string
+	maxMemory     int64
+	currentMemory int64
+}
+
+type quotasEnsureBody struct {
+	Action     string   `json:"action"`
+	GroupName  string   `json:"group-name,omitempty"`
+	ParentName string   `json:"parent,omitempty"`
+	Snaps      []string `json:"snaps,omitempty"`
+	MaxMemory  int64    `json:"max-memory,omitempty"`
+}
+
+func makeFakeQuotaPostHandler(c *check.C, opts fakeQuotaGroupPostHandlerOpts) func(w http.ResponseWriter, r *http.Request) {
 	var called bool
 	return func(w http.ResponseWriter, r *http.Request) {
 		if called {
@@ -77,34 +122,39 @@ func makeFakeQuotaPostHandler(c *check.C, action, body, groupName, parentName st
 		buf, err := ioutil.ReadAll(r.Body)
 		c.Assert(err, check.IsNil)
 
-		switch action {
+		switch opts.action {
 		case "remove":
-			c.Check(string(buf), check.Equals, fmt.Sprintf(`{"action":"remove","group-name":%q}`+"\n", groupName))
+			c.Check(string(buf), check.Equals, fmt.Sprintf(`{"action":"remove","group-name":%q}`+"\n", opts.groupName))
 		case "ensure":
-			var snapNames []string
-			for _, sn := range snaps {
-				snapNames = append(snapNames, fmt.Sprintf("%q", sn))
+			exp := quotasEnsureBody{
+				Action:     "ensure",
+				GroupName:  opts.groupName,
+				ParentName: opts.parentName,
+				Snaps:      opts.snaps,
+				MaxMemory:  opts.maxMemory,
 			}
-			snapsStr := strings.Join(snapNames, ",")
-			c.Check(string(buf), check.Equals, fmt.Sprintf(`{"action":"ensure","group-name":%q,"parent":%q,"snaps":[%s],"max-memory":%d}`+"\n", groupName, parentName, snapsStr, maxMemory))
+
+			postJSON := quotasEnsureBody{}
+			err := json.Unmarshal(buf, &postJSON)
+			c.Assert(err, check.IsNil)
+			c.Assert(postJSON, check.DeepEquals, exp)
 		default:
-			c.Fatalf("unexpected action %q", action)
+			c.Fatalf("unexpected action %q", opts.action)
 		}
 		w.WriteHeader(200)
-		fmt.Fprintln(w, body)
+		fmt.Fprintln(w, opts.body)
 	}
 }
 
-func (s *quotaSuite) TestQuotaInvalidArgs(c *check.C) {
+func (s *quotaSuite) TestSetQuotaInvalidArgs(c *check.C) {
 	for _, args := range []struct {
 		args []string
 		err  string
 	}{
-		{[]string{"quota"}, "the required argument `<group-name>` was not provided"},
-		{[]string{"quota", "--memory-max=99B"}, "the required argument `<group-name>` was not provided"},
-		{[]string{"quota", "--memory-max=99B", "--max-memory=88B", "foo"}, `cannot use --max-memory and --memory-max together`},
-		{[]string{"quota", "--memory-max=99", "foo"}, `cannot parse "99": need a number with a unit as input`},
-		{[]string{"quota", "--memory-max=888X", "foo"}, `cannot parse "888X\": try 'kB' or 'MB'`},
+		{[]string{"set-quota"}, "the required argument `<group-name>` was not provided"},
+		{[]string{"set-quota", "--memory=99B"}, "the required argument `<group-name>` was not provided"},
+		{[]string{"set-quota", "--memory=99", "foo"}, `cannot parse "99": need a number with a unit as input`},
+		{[]string{"set-quota", "--memory=888X", "foo"}, `cannot parse "888X\": try 'kB' or 'MB'`},
 		// remove-quota command
 		{[]string{"remove-quota"}, "the required argument `<group-name>` was not provided"},
 	} {
@@ -120,40 +170,214 @@ func (s *quotaSuite) TestGetQuotaGroup(c *check.C) {
 	restore := main.MockIsStdinTTY(true)
 	defer restore()
 
-	s.RedirectClientToTestServer(makeFakeGetQuotaGroupHandler(c, `{"type": "sync", "status-code": 200, "result": {"group-name":"foo","parent":"bar","subgroups":["subgrp1"],"snaps":["snap-a","snap-b"],"max-memory":1000}}`))
+	const json = `{
+		"type": "sync",
+		"status-code": 200,
+		"result": {
+			"group-name":"foo",
+			"parent":"bar",
+			"subgroups":["subgrp1"],
+			"snaps":["snap-a","snap-b"],
+			"max-memory":1000,
+			"current-memory":900
+		}
+	}`
+
+	s.RedirectClientToTestServer(makeFakeGetQuotaGroupHandler(c, json))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
-	c.Check(s.Stdout(), check.Equals, "name: foo\n"+
-		"parent: bar\n"+
-		"subgroups:\n"+
-		"  - subgrp1\n"+
-		"max-memory:  1000B\n"+
-		"snaps:\n"+
-		"  - snap-a\n"+
-		"  - snap-b\n")
+	c.Check(s.Stdout(), check.Equals, `
+name:    foo
+parent:  bar
+constraints:
+  memory:  1000B
+current:
+  memory:  900B
+subgroups:
+  - subgrp1
+snaps:
+  - snap-a
+  - snap-b
+`[1:])
 }
 
 func (s *quotaSuite) TestGetQuotaGroupSimple(c *check.C) {
 	restore := main.MockIsStdinTTY(true)
 	defer restore()
 
-	s.RedirectClientToTestServer(makeFakeGetQuotaGroupHandler(c, `{"type": "sync", "status-code": 200, "result": {"group-name":"foo","max-memory":1000}}`))
+	const jsonTemplate = `{
+		"type": "sync",
+		"status-code": 200,
+		"result": {
+			"group-name": "foo",
+			"max-memory": 1000,
+			"current-memory": %d
+		}
+	}`
+
+	s.RedirectClientToTestServer(makeFakeGetQuotaGroupHandler(c, fmt.Sprintf(jsonTemplate, 0)))
+
+	outputTemplate := `
+name:  foo
+constraints:
+  memory:  1000B
+current:
+  memory:  %dB
+`[1:]
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"})
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
-	c.Check(s.Stdout(), check.Equals, "name: foo\n"+
-		"max-memory:  1000B\n")
+	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(outputTemplate, 0))
+
+	s.stdout.Reset()
+	s.stderr.Reset()
+
+	s.RedirectClientToTestServer(makeFakeGetQuotaGroupHandler(c, fmt.Sprintf(jsonTemplate, 500)))
+
+	rest, err = main.Parser(main.Client()).ParseArgs([]string{"quota", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.HasLen, 0)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, fmt.Sprintf(outputTemplate, 500))
 }
 
-func (s *quotaSuite) TestCreateQuotaGroup(c *check.C) {
-	s.RedirectClientToTestServer(makeFakeQuotaPostHandler(c, "ensure", `{"type": "sync", "status-code": 200, "result": []}`, "foo", "bar", []string{"snap-a"}, 999))
+func (s *quotaSuite) TestSetQuotaGroupCreateNew(c *check.C) {
+	const postJSON = `{"type": "sync", "status-code": 200, "result": []}`
+	fakeHandlerOpts := fakeQuotaGroupPostHandlerOpts{
+		action:     "ensure",
+		body:       postJSON,
+		groupName:  "foo",
+		parentName: "bar",
+		snaps:      []string{"snap-a"},
+		maxMemory:  999,
+	}
 
-	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quota", "foo", "--max-memory=999B", "--parent=bar", "snap-a"})
+	routes := map[string]http.HandlerFunc{
+		"/v2/quotas": makeFakeQuotaPostHandler(
+			c,
+			fakeHandlerOpts,
+		),
+		// the foo quota group is not found since it doesn't exist yet
+		"/v2/quotas/foo": makeFakeGetQuotaGroupNotFoundHandler(c, "foo"),
+	}
+
+	s.RedirectClientToTestServer(dispatchFakeHandlers(c, routes))
+
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"set-quota", "foo", "--memory=999B", "--parent=bar", "snap-a"})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.HasLen, 0)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, "")
+}
+
+func (s *quotaSuite) TestSetQuotaGroupUpdateExistingUnhappy(c *check.C) {
+	const exists = true
+	s.testSetQuotaGroupUpdateExistingUnhappy(c, "no options set to change quota group", exists)
+}
+
+func (s *quotaSuite) TestSetQuotaGroupCreateNewUnhappy(c *check.C) {
+	const exists = false
+	s.testSetQuotaGroupUpdateExistingUnhappy(c, "cannot create quota group without memory limit", exists)
+}
+
+func (s *quotaSuite) TestSetQuotaGroupCreateNewUnhappyWithParent(c *check.C) {
+	const exists = false
+	s.testSetQuotaGroupUpdateExistingUnhappy(c, "cannot create quota group without memory limit", exists, "--parent=bar")
+}
+
+func (s *quotaSuite) TestSetQuotaGroupUpdateExistingUnhappyWithParent(c *check.C) {
+	const exists = true
+	s.testSetQuotaGroupUpdateExistingUnhappy(c, "cannot move a quota group to a new parent", exists, "--parent=bar")
+}
+
+func (s *quotaSuite) testSetQuotaGroupUpdateExistingUnhappy(c *check.C, errPattern string, exists bool, args ...string) {
+	if exists {
+		// existing group has 1000 memory limit
+		const getJson = `{
+			"type": "sync",
+			"status-code": 200,
+			"result": {
+				"group-name":"foo",
+				"max-memory": 1000,
+				"current-memory":500
+			}
+		}`
+
+		s.RedirectClientToTestServer(makeFakeGetQuotaGroupHandler(c, getJson))
+	} else {
+		s.RedirectClientToTestServer(makeFakeGetQuotaGroupNotFoundHandler(c, "foo"))
+	}
+
+	cmdArgs := append([]string{"set-quota", "foo"}, args...)
+	_, err := main.Parser(main.Client()).ParseArgs(cmdArgs)
+	c.Assert(err, check.ErrorMatches, errPattern)
+	c.Check(s.Stdout(), check.Equals, "")
+}
+
+func (s *quotaSuite) TestSetQuotaGroupUpdateExisting(c *check.C) {
+	const postJSON = `{"type": "sync", "status-code": 200, "result": []}`
+	fakeHandlerOpts := fakeQuotaGroupPostHandlerOpts{
+		action:    "ensure",
+		body:      postJSON,
+		groupName: "foo",
+		maxMemory: 2000,
+	}
+
+	const getJsonTemplate = `{
+		"type": "sync",
+		"status-code": 200,
+		"result": {
+			"group-name":"foo",
+			"max-memory": %d,
+			"current-memory":500
+		}
+	}`
+
+	routes := map[string]http.HandlerFunc{
+		"/v2/quotas": makeFakeQuotaPostHandler(
+			c,
+			fakeHandlerOpts,
+		),
+		"/v2/quotas/foo": makeFakeGetQuotaGroupHandler(c, fmt.Sprintf(getJsonTemplate, 1000)),
+	}
+
+	s.RedirectClientToTestServer(dispatchFakeHandlers(c, routes))
+
+	// increase the memory limit to 2000
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"set-quota", "foo", "--memory=2000B"})
+	c.Assert(err, check.IsNil)
+	c.Check(rest, check.HasLen, 0)
+	c.Check(s.Stderr(), check.Equals, "")
+	c.Check(s.Stdout(), check.Equals, "")
+
+	s.stdout.Reset()
+	s.stderr.Reset()
+
+	fakeHandlerOpts2 := fakeQuotaGroupPostHandlerOpts{
+		action:    "ensure",
+		body:      postJSON,
+		groupName: "foo",
+		snaps:     []string{"some-snap"},
+	}
+
+	routes = map[string]http.HandlerFunc{
+		"/v2/quotas": makeFakeQuotaPostHandler(
+			c,
+			fakeHandlerOpts2,
+		),
+		// the group was updated to have a 2000 memory limit now
+		"/v2/quotas/foo": makeFakeGetQuotaGroupHandler(c, fmt.Sprintf(getJsonTemplate, 2000)),
+	}
+
+	s.RedirectClientToTestServer(dispatchFakeHandlers(c, routes))
+
+	// add a snap to the group
+	rest, err = main.Parser(main.Client()).ParseArgs([]string{"set-quota", "foo", "some-snap"})
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
@@ -161,7 +385,13 @@ func (s *quotaSuite) TestCreateQuotaGroup(c *check.C) {
 }
 
 func (s *quotaSuite) TestRemoveQuotaGroup(c *check.C) {
-	s.RedirectClientToTestServer(makeFakeQuotaPostHandler(c, "remove", `{"type": "sync", "status-code": 200, "result": []}`, "foo", "", nil, 0))
+	const json = `{"type": "sync", "status-code": 200, "result": []}`
+	fakeHandlerOpts := fakeQuotaGroupPostHandlerOpts{
+		action:    "remove",
+		body:      json,
+		groupName: "foo",
+	}
+	s.RedirectClientToTestServer(makeFakeQuotaPostHandler(c, fakeHandlerOpts))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"remove-quota", "foo"})
 	c.Assert(err, check.IsNil)
@@ -178,26 +408,27 @@ func (s *quotaSuite) TestGetAllQuotaGroups(c *check.C) {
 		`{"type": "sync", "status-code": 200, "result": [
 			{"group-name":"aaa","subgroups":["ccc","ddd"],"parent":"zzz","max-memory":1000},
 			{"group-name":"ddd","parent":"aaa","max-memory":400},
-			{"group-name":"bbb","parent":"zzz","max-memory":1000},
+			{"group-name":"bbb","parent":"zzz","max-memory":1000,"current-memory":400},
 			{"group-name":"yyyyyyy","max-memory":1000},
 			{"group-name":"zzz","subgroups":["bbb","aaa"],"max-memory":5000},
 			{"group-name":"ccc","parent":"aaa","max-memory":400},
-			{"group-name":"xxx","max-memory":9900}
+			{"group-name":"xxx","max-memory":9900,"current-memory":9999}
 			]}`))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quotas"})
 	c.Assert(err, check.IsNil)
 	c.Check(rest, check.HasLen, 0)
 	c.Check(s.Stderr(), check.Equals, "")
-	c.Check(s.Stdout(), check.Equals,
-		"Quota    Parent  Max-Memory\n"+
-			"xxx               9.9kB\n"+
-			"yyyyyyy           1000B\n"+
-			"zzz               5000B\n"+
-			"aaa      zzz      1000B\n"+
-			"ccc      aaa       400B\n"+
-			"ddd      aaa       400B\n"+
-			"bbb      zzz      1000B\n")
+	c.Check(s.Stdout(), check.Equals, `
+Quota    Parent  Constraints   Current
+xxx              memory=9.9kB  memory=10.0kB
+yyyyyyy          memory=1000B  
+zzz              memory=5000B  
+aaa      zzz     memory=1000B  
+ccc      aaa     memory=400B   
+ddd      aaa     memory=400B   
+bbb      zzz     memory=1000B  memory=400B
+`[1:])
 }
 
 func (s *quotaSuite) TestGetAllQuotaGroupsInconsistencyError(c *check.C) {

@@ -97,6 +97,6 @@ func (s *errorsSuite) TestThroughSyncResponse(c *C) {
 		Message: "req is wrong",
 	}
 
-	rsp := daemon.SyncResponse(rspe, nil)
+	rsp := daemon.SyncResponse(rspe)
 	c.Check(rsp, Equals, rspe)
 }

@@ -45,7 +45,7 @@ var _ = check.Suite(&responseSuite{})
 func (s *responseSuite) TestRespSetsLocationIfAccepted(c *check.C) {
 	rec := httptest.NewRecorder()
 
-	rsp := &daemon.Resp{
+	rsp := &daemon.RespJSON{
 		Status: 202,
 		Result: map[string]interface{}{
 			"resource": "foo/bar",
@@ -60,7 +60,7 @@ func (s *responseSuite) TestRespSetsLocationIfAccepted(c *check.C) {
 func (s *responseSuite) TestRespSetsLocationIfCreated(c *check.C) {
 	rec := httptest.NewRecorder()
 
-	rsp := &daemon.Resp{
+	rsp := &daemon.RespJSON{
 		Status: 201,
 		Result: map[string]interface{}{
 			"resource": "foo/bar",
@@ -75,7 +75,7 @@ func (s *responseSuite) TestRespSetsLocationIfCreated(c *check.C) {
 func (s *responseSuite) TestRespDoesNotSetLocationIfOther(c *check.C) {
 	rec := httptest.NewRecorder()
 
-	rsp := &daemon.Resp{
+	rsp := &daemon.RespJSON{
 		Status: 418, // I'm a teapot
 		Result: map[string]interface{}{
 			"resource": "foo/bar",

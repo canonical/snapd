@@ -72,7 +72,7 @@ func (cs *clientSuite) TestGetQuotaGroup(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"status-code": 200,
-		"result": {"group-name":"foo", "parent":"bar", "subgroups":["foo-subgrp"], "snaps":["snap-a"], "max-memory":999}
+		"result": {"group-name":"foo", "parent":"bar", "subgroups":["foo-subgrp"], "snaps":["snap-a"], "max-memory":999, "current-memory":450}
 	}`
 
 	grp, err := cs.cli.GetQuotaGroup("foo")
@@ -80,11 +80,12 @@ func (cs *clientSuite) TestGetQuotaGroup(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/quotas/foo")
 	c.Check(grp, check.DeepEquals, &client.QuotaGroupResult{
-		GroupName: "foo",
-		Parent:    "bar",
-		Subgroups: []string{"foo-subgrp"},
-		MaxMemory: 999,
-		Snaps:     []string{"snap-a"},
+		GroupName:     "foo",
+		Parent:        "bar",
+		Subgroups:     []string{"foo-subgrp"},
+		MaxMemory:     999,
+		CurrentMemory: 450,
+		Snaps:         []string{"snap-a"},
 	})
 }
 

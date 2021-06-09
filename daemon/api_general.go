@@ -96,7 +96,7 @@ func init() {
 }
 
 func tbd(c *Command, r *http.Request, user *auth.UserState) Response {
-	return SyncResponse([]string{"TBD"}, nil)
+	return SyncResponse([]string{"TBD"})
 }
 
 func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -164,7 +164,7 @@ func sysInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		m["sandbox-features"] = features
 	}
 
-	return SyncResponse(m, nil)
+	return SyncResponse(m)
 }
 
 func formatRefreshTime(t time.Time) string {
@@ -209,7 +209,7 @@ func getChange(c *Command, r *http.Request, user *auth.UserState) Response {
 		return NotFound("cannot find change with id %q", chID)
 	}
 
-	return SyncResponse(change2changeInfo(chg), nil)
+	return SyncResponse(change2changeInfo(chg))
 }
 
 func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -268,7 +268,7 @@ func getChanges(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 		chgInfos = append(chgInfos, change2changeInfo(chg))
 	}
-	return SyncResponse(chgInfos, nil)
+	return SyncResponse(chgInfos)
 }
 
 func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -304,7 +304,7 @@ func abortChange(c *Command, r *http.Request, user *auth.UserState) Response {
 	// actually ask to proceed with the abort
 	ensureStateSoon(state)
 
-	return SyncResponse(change2changeInfo(chg), nil)
+	return SyncResponse(change2changeInfo(chg))
 }
 
 type changeInfo struct {
@@ -424,10 +424,10 @@ func getWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 	if len(ws) == 0 {
 		// no need to confuse the issue
-		return SyncResponse([]state.Warning{}, nil)
+		return SyncResponse([]state.Warning{})
 	}
 
-	return SyncResponse(ws, nil)
+	return SyncResponse(ws)
 }
 
 func ackWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
@@ -448,5 +448,5 @@ func ackWarnings(c *Command, r *http.Request, _ *auth.UserState) Response {
 	defer st.Unlock()
 	n := stateOkayWarnings(st, op.Timestamp)
 
-	return SyncResponse(n, nil)
+	return SyncResponse(n)
 }
