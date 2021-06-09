@@ -390,10 +390,12 @@ const (
 )
 
 // SystemMode returns the current mode of the system.
-// An expecation about the system should be passed in, if it's SysAny
-// and the system is pre-UC20 where there is no explicitly mode
-// "run" is returned, if it's SysHasModeenv on such systems it returns
-// simply "".
+// An expectation about the system controls the returned mode when
+// none is set explicitly, as it's the case on pre-UC20 systems. In
+// which case, with SysAny, the mode defaults to implicit "run", thus
+// covering pre-UC20 systems. With SysHasModeeenv, as there is always
+// an explicit mode in systems that use modeenv, no implicit default
+// is used and thus "" is returned for pre-UC20 systems.
 func (m *DeviceManager) SystemMode(sysExpect SysExpectation) string {
 	if m.sysMode == "" {
 		if sysExpect == SysHasModeenv {
