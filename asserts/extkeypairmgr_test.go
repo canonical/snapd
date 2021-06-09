@@ -71,6 +71,9 @@ case $1 in
   features)
     echo '{"signing":["RSA-PKCS"] , "public-keys":["DER"]}'
     ;;
+  key-names)
+    echo '{"key-names": ["default", "models"]}'
+    ;;
   get-public-key)
     if [ "$5" = missing ]; then
        echo not found
@@ -151,6 +154,26 @@ func (s *extKeypairMgrSuite) TestGetByNameNotFound(c *C) {
 
 	_, err = kmgr.GetByName("missing")
 	c.Check(err, ErrorMatches, `cannot find external key:.*missing.*`)
+}
+
+func (s *extKeypairMgrSuite) TestGet(c *C) {
+	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
+	c.Assert(err, IsNil)
+	s.pgm.ForgetCalls()
+
+	defaultID := asserts.RSAPublicKey(s.defaultPub).ID()
+	modelsID := asserts.RSAPublicKey(s.modelsPub).ID()
+
+	pk1, err := kmgr.Get(defaultID)
+	c.Assert(err, IsNil)
+	c.Check(pk1.PublicKey().ID(), Equals, defaultID)
+
+	pk2, err := kmgr.Get(modelsID)
+	c.Assert(err, IsNil)
+	c.Check(pk2.PublicKey().ID(), Equals, modelsID)
+
+	_, err = kmgr.Get("unknown-id")
+	c.Check(err, ErrorMatches, `cannot find external key with id "unknown-id"`)
 }
 
 func (s *extKeypairMgrSuite) TestSignFlow(c *C) {
