@@ -6,8 +6,8 @@ environment:
 
 prepare: |
   snap install core18
-  snap pack "$TESTSLIB/snaps/test-snapd-core-migration.base-core"
-  snap pack "$TESTSLIB/snaps/test-snapd-core-migration.base-core18"
+  snap pack test-snapd-core-migration.base-core
+  snap pack test-snapd-core-migration.base-core18
 
 execute: |
   case "$DIRECTION" in

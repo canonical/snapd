@@ -20,6 +20,7 @@
 package quota_test
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -27,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/snap/quota"
+	"github.com/snapcore/snapd/systemd"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -640,4 +642,121 @@ func (ts *quotaTestSuite) TestResolveCrossReferencesCircular(c *C) {
 	subgrp2.SubGroups = append(subgrp2.SubGroups, "mysub1")
 	err = quota.ResolveCrossReferences(all)
 	c.Assert(err, ErrorMatches, `.*reference necessary parent.*`)
+}
+
+type systemctlInactiveServiceError struct{}
+
+func (s systemctlInactiveServiceError) Msg() []byte   { return []byte("inactive") }
+func (s systemctlInactiveServiceError) ExitCode() int { return 0 }
+func (s systemctlInactiveServiceError) Error() string { return "inactive" }
+
+func (ts *quotaTestSuite) TestCurrentMemoryUsage(c *C) {
+	systemctlCalls := 0
+	r := systemd.MockSystemctl(func(args ...string) ([]byte, error) {
+		systemctlCalls++
+		switch systemctlCalls {
+
+		// inactive case, memory is 0
+		case 1:
+			// first time pretend the service is inactive
+			c.Assert(args, DeepEquals, []string{"is-active", "snap.group.slice"})
+			return []byte("inactive"), systemctlInactiveServiceError{}
+
+		// active but no tasks, but we still return the memory usage because it
+		// can be valid on some systems to have non-zero memory usage for a
+		// group without any tasks in it, such as on hirsute, arch, fedora 33+,
+		// and debian sid
+		case 2:
+			// now pretend it is active
+			c.Assert(args, DeepEquals, []string{"is-active", "snap.group.slice"})
+			return []byte("active"), nil
+		case 3:
+			// since it is active, we will query the tasks count too
+			c.Assert(args, DeepEquals, []string{"show", "--property", "TasksCurrent", "snap.group.slice"})
+			return []byte("TasksCurrent=0"), nil
+		case 4:
+			// and the memory count can be non-zero like
+			c.Assert(args, DeepEquals, []string{"show", "--property", "MemoryCurrent", "snap.group.slice"})
+			return []byte("MemoryCurrent=4096"), nil
+
+		// normal case, has tasks + memory usage
+		case 5:
+			// now pretend it is active again - third time is the charm
+			c.Assert(args, DeepEquals, []string{"is-active", "snap.group.slice"})
+			return []byte("active"), nil
+		case 6:
+			// since it is active, we will query the tasks count too
+			c.Assert(args, DeepEquals, []string{"show", "--property", "TasksCurrent", "snap.group.slice"})
+			return []byte("TasksCurrent=1"), nil
+		case 7:
+			// since it is active, we will query the current memory usage
+			c.Assert(args, DeepEquals, []string{"show", "--property", "MemoryCurrent", "snap.group.slice"})
+			return []byte("MemoryCurrent=1024"), nil
+
+		// bug case where 16 exb is erroneous
+		case 8:
+			// the cgroup is active, has no tasks and has 16 exb usage
+			c.Assert(args, DeepEquals, []string{"is-active", "snap.group.slice"})
+			return []byte("active"), nil
+		case 9:
+			// since it is active, we will query the tasks count too
+			c.Assert(args, DeepEquals, []string{"show", "--property", "TasksCurrent", "snap.group.slice"})
+			return []byte("TasksCurrent=0"), nil
+		case 10:
+			// since it is active, we will query the current memory usage,
+			// this time return an obviously wrong number
+			c.Assert(args, DeepEquals, []string{"show", "--property", "MemoryCurrent", "snap.group.slice"})
+			return []byte("MemoryCurrent=18446744073709551615"), nil
+
+		// not bug case where 16 exb is real usage
+		case 11:
+			// not the bug case, the cgroup is active, has tasks and has 16 exb
+			// usage but we treat it as normal and report 16 exb
+			c.Assert(args, DeepEquals, []string{"is-active", "snap.group.slice"})
+			return []byte("active"), nil
+		case 12:
+			// since it is active, we will query the tasks count too
+			c.Assert(args, DeepEquals, []string{"show", "--property", "TasksCurrent", "snap.group.slice"})
+			return []byte("TasksCurrent=1"), nil
+		case 13:
+			// since it is active, we will query the current memory usage
+			c.Assert(args, DeepEquals, []string{"show", "--property", "MemoryCurrent", "snap.group.slice"})
+			return []byte("MemoryCurrent=18446744073709551615"), nil
+		default:
+			c.Errorf("too many systemctl calls (%d) (current call is %+v)", systemctlCalls, args)
+			return []byte("broken test"), fmt.Errorf("broken test")
+		}
+	})
+	defer r()
+
+	grp1, err := quota.NewGroup("group", quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	// group initially is inactive, so it has no current memory usage
+	currentMem, err := grp1.CurrentMemoryUsage()
+	c.Assert(err, IsNil)
+	c.Assert(currentMem, Equals, quantity.Size(0))
+
+	// now with systemctl mocked as active but no tasks in the group, it still
+	// can have memory usage
+	currentMem, err = grp1.CurrentMemoryUsage()
+	c.Assert(err, IsNil)
+	c.Assert(currentMem, Equals, 4*quantity.SizeKiB)
+
+	// with tasks in the group and a normal memory value, we just report back
+	// the memory value
+	currentMem, err = grp1.CurrentMemoryUsage()
+	c.Assert(err, IsNil)
+	c.Assert(currentMem, Equals, quantity.SizeKiB)
+
+	// with no tasks and the special 16 exb value reported by systemd we get 0
+	currentMem, err = grp1.CurrentMemoryUsage()
+	c.Assert(err, IsNil)
+	c.Assert(currentMem, Equals, quantity.Size(0))
+
+	// but the special value with tasks in the group reports the huge value
+	currentMem, err = grp1.CurrentMemoryUsage()
+	c.Assert(err, IsNil)
+	const sixteenExb = quantity.Size(1<<64 - 1)
+	c.Assert(currentMem, Equals, sixteenExb)
 }

@@ -175,7 +175,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 	snapstate.EstimateSnapshotSize = func(st *state.State, instanceName string, users []string) (uint64, error) {
 		return 1, nil
 	}
-	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
 		return 0, nil
 	})
 	s.AddCleanup(restoreInstallSize)
@@ -5281,7 +5281,7 @@ func (s *snapmgrTestSuite) TestConflictMany(c *C) {
 	}
 }
 
-func (s *snapmgrTestSuite) TestConflictManyRemodeling(c *C) {
+func (s *snapmgrTestSuite) TestConflictRemodeling(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -5291,6 +5291,50 @@ func (s *snapmgrTestSuite) TestConflictManyRemodeling(c *C) {
 	err := snapstate.CheckChangeConflictMany(s.state, []string{"a-snap"}, "")
 	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
 	c.Check(err, ErrorMatches, `remodeling in progress, no other changes allowed until this is done`)
+
+	// a remodel conflicts with another remodel
+	err = snapstate.CheckChangeConflictRunExclusively(s.state, "remodel")
+	c.Check(err, ErrorMatches, `remodeling in progress, no other changes allowed until this is done`)
+
+	// we have a remodel change in state, a remodel change triggers are conflict
+	err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
+	c.Check(err, ErrorMatches, `remodeling in progress, no other changes allowed until this is done`)
+}
+
+func (s *snapmgrTestSuite) TestConflictCreateRecovery(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("create-recovery-system", "...")
+	c.Check(chg.IsReady(), Equals, false)
+	chg.SetStatus(state.DoingStatus)
+
+	err := snapstate.CheckChangeConflictMany(s.state, []string{"a-snap"}, "")
+	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	c.Check(err, ErrorMatches, `creating recovery system in progress, no other changes allowed until this is done`)
+
+	// remodeling conflicts with a change that creates a recovery system
+	err = snapstate.CheckChangeConflictRunExclusively(s.state, "remodel")
+	c.Check(err, ErrorMatches, `creating recovery system in progress, no other changes allowed until this is done`)
+
+	// so does another another create recovery system change
+	err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
+	c.Check(err, ErrorMatches, `creating recovery system in progress, no other changes allowed until this is done`)
+}
+
+func (s *snapmgrTestSuite) TestConflictExclusive(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("install-snap-a", "...")
+	chg.SetStatus(state.DoingStatus)
+
+	// a remodel conflicts with any other change
+	err := snapstate.CheckChangeConflictRunExclusively(s.state, "remodel")
+	c.Check(err, ErrorMatches, `other changes in progress \(conflicting change "install-snap-a"\), change "remodel" not allowed until they are done`)
+	// and so does the  remodel conflicts with any other change
+	err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
+	c.Check(err, ErrorMatches, `other changes in progress \(conflicting change "install-snap-a"\), change "create-recovery-system" not allowed until they are done`)
 }
 
 type contentStore struct {
@@ -6288,6 +6332,68 @@ func (s *snapmgrTestSuite) TestStopSnapServicesUndo(c *C) {
 	c.Check(disabled, DeepEquals, []string{"svc1"})
 }
 
+func (s *snapmgrTestSuite) TestStopSnapServicesErrInUndo(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := &snap.SideInfo{RealName: "hello-snap", SnapID: "hello-snap-id", Revision: snap.R(1)}
+	snaptest.MockSnap(c, servicesSnap, si)
+
+	snapstate.Set(s.state, "hello-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+
+	// using MockSnap, we want to read the bits on disk
+	snapstate.MockSnapReadInfo(snap.ReadInfo)
+
+	chg := s.state.NewChange("services..", "")
+	t := s.state.NewTask("stop-snap-services", "")
+	sup := &snapstate.SnapSetup{SideInfo: si}
+	t.Set("snap-setup", sup)
+	chg.AddTask(t)
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(t)
+	terr.JoinLane(t.Lanes()[0])
+	chg.AddTask(terr)
+
+	s.fakeBackend.maybeInjectErr = func(op *fakeOp) error {
+		if op.op == "start-snap-services" {
+			return fmt.Errorf("start-snap-services mock error")
+		}
+		return nil
+	}
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.IsReady(), Equals, true)
+	c.Assert(chg.Err(), ErrorMatches, `(?s)cannot perform the following tasks:.*- +\(start-snap-services mock error\).*`)
+	c.Check(chg.Status(), Equals, state.ErrorStatus)
+	c.Check(t.Status(), Equals, state.ErrorStatus)
+
+	expected := fakeOps{
+		{
+			op:   "stop-snap-services:",
+			path: filepath.Join(dirs.SnapMountDir, "hello-snap/1"),
+		},
+		{
+			op: "current-snap-service-states",
+		},
+		{
+			// failed after this op
+			op:       "start-snap-services",
+			services: []string{"svc1", "svc2"},
+			path:     filepath.Join(dirs.SnapMountDir, "hello-snap/1"),
+		},
+	}
+	c.Check(s.fakeBackend.ops, DeepEquals, expected)
+}
+
 func (s *snapmgrTestSuite) TestEnsureAutoRefreshesAreDelayed(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -6593,4 +6699,48 @@ func (s *snapmgrTestSuite) TestSnapdRefreshTasks(c *C) {
 
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Current, Equals, snap.R(11))
+}
+
+type installTestType struct {
+	t snap.Type
+}
+
+func (t *installTestType) InstanceName() string {
+	panic("not expected")
+}
+
+func (t *installTestType) Type() snap.Type {
+	return t.t
+}
+
+func (t *installTestType) SnapBase() string {
+	panic("not expected")
+}
+
+func (t *installTestType) DownloadSize() int64 {
+	panic("not expected")
+}
+
+func (t *installTestType) Prereq(st *state.State) []string {
+	panic("not expected")
+}
+
+func (s *snapmgrTestSuite) TestMinimalInstallInfoSortByType(c *C) {
+	snaps := []snapstate.MinimalInstallInfo{
+		&installTestType{snap.TypeApp},
+		&installTestType{snap.TypeBase},
+		&installTestType{snap.TypeApp},
+		&installTestType{snap.TypeSnapd},
+		&installTestType{snap.TypeKernel},
+		&installTestType{snap.TypeGadget},
+	}
+
+	sort.Sort(snapstate.ByType(snaps))
+	c.Check(snaps, DeepEquals, []snapstate.MinimalInstallInfo{
+		&installTestType{snap.TypeSnapd},
+		&installTestType{snap.TypeKernel},
+		&installTestType{snap.TypeBase},
+		&installTestType{snap.TypeGadget},
+		&installTestType{snap.TypeApp},
+		&installTestType{snap.TypeApp}})
 }

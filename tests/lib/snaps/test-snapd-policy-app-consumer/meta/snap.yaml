@@ -95,6 +95,9 @@ apps:
   desktop:
     command: bin/run
     plugs: [ desktop ]
+  desktop-launch:
+    command: bin/run
+    plugs: [ desktop-launch ]
   desktop-legacy:
     command: bin/run
     plugs: [ desktop-legacy ]

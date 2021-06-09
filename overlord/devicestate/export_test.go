@@ -114,7 +114,7 @@ func SetLastBecomeOperationalAttempt(m *DeviceManager, t time.Time) {
 }
 
 func SetSystemMode(m *DeviceManager, mode string) {
-	m.systemMode = mode
+	m.sysMode = mode
 }
 
 func SetTimeOnce(m *DeviceManager, name string, t time.Time) error {
@@ -233,6 +233,7 @@ var (
 	CreateSystemForModelFromValidatedSnaps = createSystemForModelFromValidatedSnaps
 	LogNewSystemSnapFile                   = logNewSystemSnapFile
 	PurgeNewSystemSnapFiles                = purgeNewSystemSnapFiles
+	CreateRecoverySystemTasks              = createRecoverySystemTasks
 )
 
 func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error) (restore func()) {

@@ -137,7 +137,7 @@ func remodelCtx(st *state.State, oldModel, newModel *asserts.Model) (remodelCont
 		// simple context for the simple case
 		groundCtx := groundDeviceContext{
 			model:      newModel,
-			systemMode: devMgr.SystemMode(),
+			systemMode: devMgr.SystemMode(SysAny),
 		}
 		remodCtx = &updateRemodelContext{baseRemodelContext{groundCtx, oldModel}}
 	case StoreSwitchRemodel:
@@ -287,7 +287,7 @@ func newNewStoreRemodelContext(st *state.State, devMgr *DeviceManager, newModel,
 	rc := &newStoreRemodelContext{}
 	groundCtx := groundDeviceContext{
 		model:      newModel,
-		systemMode: devMgr.SystemMode(),
+		systemMode: devMgr.SystemMode(SysAny),
 	}
 	rc.baseRemodelContext = baseRemodelContext{groundCtx, oldModel}
 	rc.st = st

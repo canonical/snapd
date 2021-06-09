@@ -37,12 +37,10 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/devicestate"
-	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
-	"github.com/snapcore/snapd/timings"
 )
 
 type createSystemSuite struct {
@@ -120,30 +118,9 @@ func (s *createSystemSuite) makeEssentialSnapInfos(c *C) map[string]*snap.Info {
 	return infos
 }
 
-func validateSeed(c *C, name string, trusted []asserts.Assertion, runModeSnapNames ...string) {
-	tm := &timings.Timings{}
-	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		Backstore: asserts.NewMemoryBackstore(),
-		Trusted:   trusted,
-	})
-	c.Assert(err, IsNil)
-	commitTo := func(b *asserts.Batch) error {
-		return b.CommitTo(db, nil)
-	}
-
-	sd, err := seed.Open(boot.InitramfsUbuntuSeedDir, name)
-	c.Assert(err, IsNil)
-
-	err = sd.LoadAssertions(db, commitTo)
-	c.Assert(err, IsNil)
-
-	err = sd.LoadMeta(tm)
-	c.Assert(err, IsNil)
-	// uc20 recovery systems use snapd
-	c.Check(sd.UsesSnapdSnap(), Equals, true)
-	// XXX: more extensive seed validation?
-
-	c.Check(sd.EssentialSnaps(), HasLen, 4)
+func validateCore20Seed(c *C, name string, trusted []asserts.Assertion, runModeSnapNames ...string) {
+	const usesSnapd = true
+	sd := seedtest.ValidateSeed(c, boot.InitramfsUbuntuSeedDir, name, usesSnapd, trusted)
 
 	snaps, err := sd.ModeSnaps(boot.ModeRun)
 	c.Assert(err, IsNil)
@@ -158,7 +135,6 @@ func validateSeed(c *C, name string, trusted []asserts.Assertion, runModeSnapNam
 	} else {
 		c.Check(seenSnaps, HasLen, 0)
 	}
-
 }
 
 func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
@@ -273,7 +249,7 @@ func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
 		"snapd_recovery_kernel":    "/snaps/pc-kernel_1.snap",
 	})
 	// load the seed
-	validateSeed(c, "1234", s.storeSigning.Trusted,
+	validateCore20Seed(c, "1234", s.storeSigning.Trusted,
 		"other-core18", "core18", "other-present", "other-required")
 }
 
@@ -361,7 +337,7 @@ func (s *createSystemSuite) TestCreateSystemFromUnassertedSnaps(c *C) {
 		}
 	}
 	// load the seed
-	validateSeed(c, "1234", s.storeSigning.Trusted, "other-unasserted")
+	validateCore20Seed(c, "1234", s.storeSigning.Trusted, "other-unasserted")
 	// we have unasserted snaps, so a warning should have been logged
 	c.Check(s.logbuf.String(), testutil.Contains, `system "1234" contains unasserted snaps "other-unasserted"`)
 }
@@ -444,7 +420,7 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 		"snapd_recovery_kernel":    "/snaps/pc-kernel_1.snap",
 	})
 	// load the seed
-	validateSeed(c, "1234", s.storeSigning.Trusted)
+	validateCore20Seed(c, "1234", s.storeSigning.Trusted)
 
 	// add an unasserted snap
 	infos["other-unasserted"] = s.makeSnap(c, "other-unasserted", snap.R(-1))
@@ -570,7 +546,7 @@ func (s *createSystemSuite) TestCreateSystemInfoAndAssertsChecks(c *C) {
 	// and try with with a non essential snap
 	dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
 		infoGetter, snapWriteObserver)
-	c.Assert(err, ErrorMatches, `internal error: non-essential but "required" snap "other-required" not present`)
+	c.Assert(err, ErrorMatches, `internal error: non-essential but required snap "other-required" not present`)
 	c.Check(dir, Equals, "")
 	c.Check(observerCalls, Equals, 0)
 	// the directory shouldn't be there, as we haven't written anything yet
@@ -665,7 +641,7 @@ func (s *createSystemSuite) TestCreateSystemGetInfoErr(c *C) {
 	failOn["other-required"] = true
 	dir, err = devicestate.CreateSystemForModelFromValidatedSnaps(model, "1234", s.db,
 		infoGetter, snapWriteObserver)
-	c.Assert(err, ErrorMatches, `cannot obtain non-essential but "required" snap information: mock failure for snap "other-required"`)
+	c.Assert(err, ErrorMatches, `cannot obtain non-essential but required snap information: mock failure for snap "other-required"`)
 	c.Check(dir, Equals, "")
 	c.Check(observerCalls, Equals, 0)
 	c.Check(osutil.IsDirectory(systemDir), Equals, false)
@@ -754,7 +730,7 @@ func (s *createSystemSuite) TestCreateSystemImplicitSnaps(c *C) {
 	})
 	c.Check(dir, Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"))
 	// validate the seed
-	validateSeed(c, "1234", s.ss.StoreSigning.Trusted)
+	validateCore20Seed(c, "1234", s.ss.StoreSigning.Trusted)
 }
 
 func (s *createSystemSuite) TestCreateSystemObserverErr(c *C) {
