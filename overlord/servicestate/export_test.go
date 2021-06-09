@@ -34,8 +34,6 @@ var (
 	DoUpdateQuota           = doUpdateQuota
 )
 
-type QuotaControlArgs = quotaControlArgs
-
 func (m *ServiceManager) DoQuotaControl(t *state.Task, to *tomb.Tomb) error {
 	return m.doQuotaControl(t, to)
 }

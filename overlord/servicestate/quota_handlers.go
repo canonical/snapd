@@ -98,21 +98,13 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	args := quotaControlArgs{
-		St:          st,
-		AllGrps:     allGrps,
-		Action:      &qc,
-		Meter:       meter,
-		PerfTimings: perfTimings,
-	}
-
 	switch qc.Action {
 	case "create":
-		err = doCreateQuota(args)
+		err = doCreateQuota(st, qc, allGrps, meter, perfTimings)
 	case "remove":
-		err = doRemoveQuota(args)
+		err = doRemoveQuota(st, qc, allGrps, meter, perfTimings)
 	case "update":
-		err = doUpdateQuota(args)
+		err = doUpdateQuota(st, qc, allGrps, meter, perfTimings)
 	default:
 		err = fmt.Errorf("unknown action %q requested", qc.Action)
 	}
@@ -126,24 +118,23 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func doCreateQuota(args quotaControlArgs) error {
-	st := args.St
-	action := args.Action
-	allGrps := args.AllGrps
-
+func doCreateQuota(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
 	// make sure the group does not exist yet
 	if _, ok := allGrps[action.QuotaName]; ok {
 		return fmt.Errorf("group %q already exists", action.QuotaName)
 	}
 
+	// make sure the memory limit is not zero
+	// TODO: this needs to be updated to 4K when PR snapcore/snapd#10346 lands
+	// and an equivalent check needs to be put back into CreateQuota() before
+	// the tasks are created
+	if action.MemoryLimit == 0 {
+		return fmt.Errorf("internal error, MemoryLimit option is mandatory for create action")
+	}
+
 	// make sure the specified snaps exist and aren't currently in another group
 	if err := validateSnapForAddingToGroup(st, action.AddSnaps, action.QuotaName, allGrps); err != nil {
 		return err
-	}
-
-	// make sure the memory limit is not zero
-	if action.MemoryLimit == 0 {
-		return fmt.Errorf("internal error, MemoryLimit option is mandatory for create action")
 	}
 
 	grp, allGrps, err := createQuotaImpl(st, action, allGrps)
@@ -155,10 +146,10 @@ func doCreateQuota(args quotaControlArgs) error {
 	opts := &ensureSnapServicesForGroupOptions{
 		allGrps: allGrps,
 	}
-	return ensureSnapServicesForGroup(st, grp, opts, args.Meter, args.PerfTimings)
+	return ensureSnapServicesForGroup(st, grp, opts, meter, perfTimings)
 }
 
-func createQuotaImpl(st *state.State, action *QuotaControlAction, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, error) {
+func createQuotaImpl(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, error) {
 	// make sure that the parent group exists if we are creating a sub-group
 	var grp *quota.Group
 	var err error
@@ -195,19 +186,7 @@ func createQuotaImpl(st *state.State, action *QuotaControlAction, allGrps map[st
 	return grp, newAllGrps, nil
 }
 
-type quotaControlArgs struct {
-	St          *state.State
-	AllGrps     map[string]*quota.Group
-	Action      *QuotaControlAction
-	Meter       progress.Meter
-	PerfTimings *timings.Timings
-}
-
-func doRemoveQuota(args quotaControlArgs) error {
-	st := args.St
-	action := args.Action
-	allGrps := args.AllGrps
-
+func doRemoveQuota(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
 	// make sure the group exists
 	grp, ok := allGrps[action.QuotaName]
 	if !ok {
@@ -217,15 +196,15 @@ func doRemoveQuota(args quotaControlArgs) error {
 	// make sure some of the options are not set, it's an internal error if
 	// anything other than the name and action are set for a removal
 	if action.ParentName != "" {
-		return fmt.Errorf("internal error, ParentName option does not make sense with remove action")
+		return fmt.Errorf("internal error, ParentName option cannot be used with remove action")
 	}
 
 	if len(action.AddSnaps) != 0 {
-		return fmt.Errorf("internal error, AddSnaps option does not make sense with remove action")
+		return fmt.Errorf("internal error, AddSnaps option cannot be used with remove action")
 	}
 
 	if action.MemoryLimit != 0 {
-		return fmt.Errorf("internal error, MemoryLimit option does not make sense with remove action")
+		return fmt.Errorf("internal error, MemoryLimit option cannot be used with remove action")
 	}
 
 	// XXX: remove this limitation eventually
@@ -280,14 +259,10 @@ func doRemoveQuota(args quotaControlArgs) error {
 	opts := &ensureSnapServicesForGroupOptions{
 		allGrps: allGrps,
 	}
-	return ensureSnapServicesForGroup(st, grp, opts, args.Meter, args.PerfTimings)
+	return ensureSnapServicesForGroup(st, grp, opts, meter, perfTimings)
 }
 
-func doUpdateQuota(args quotaControlArgs) error {
-	st := args.St
-	allGrps := args.AllGrps
-	action := args.Action
-
+func doUpdateQuota(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
 	// make sure the group exists
 	grp, ok := allGrps[action.QuotaName]
 	if !ok {
@@ -308,7 +283,7 @@ func doUpdateQuota(args quotaControlArgs) error {
 		return err
 	}
 
-	//  append the snaps list in the group
+	// append the snaps list in the group
 	grp.Snaps = append(grp.Snaps, action.AddSnaps...)
 
 	// if the memory limit is not zero then change it too
@@ -333,7 +308,7 @@ func doUpdateQuota(args quotaControlArgs) error {
 	opts := &ensureSnapServicesForGroupOptions{
 		allGrps: allGrps,
 	}
-	return ensureSnapServicesForGroup(st, grp, opts, args.Meter, args.PerfTimings)
+	return ensureSnapServicesForGroup(st, grp, opts, meter, perfTimings)
 }
 
 type ensureSnapServicesForGroupOptions struct {

@@ -28,10 +28,8 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/systemd"
-	"github.com/snapcore/snapd/timings"
 )
 
 var (
@@ -98,21 +96,15 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 
 	// TODO: switch to returning a taskset with the right handler instead of
 	// executing this directly
-	args := quotaControlArgs{
-		St:      st,
-		AllGrps: allGrps,
-		Action: &QuotaControlAction{
-			Action:      "create",
-			QuotaName:   name,
-			MemoryLimit: memoryLimit,
-			AddSnaps:    snaps,
-			ParentName:  parentName,
-		},
-		Meter:       progress.Null,
-		PerfTimings: &timings.Timings{},
+	qc := QuotaControlAction{
+		Action:      "create",
+		QuotaName:   name,
+		MemoryLimit: memoryLimit,
+		AddSnaps:    snaps,
+		ParentName:  parentName,
 	}
 
-	return doCreateQuota(args)
+	return doCreateQuota(st, qc, allGrps, nil, nil)
 }
 
 // RemoveQuota deletes the specific quota group. Any snaps currently in the
@@ -132,18 +124,12 @@ func RemoveQuota(st *state.State, name string) error {
 
 	// TODO: switch to returning a taskset with the right handler instead of
 	// executing this directly
-	args := quotaControlArgs{
-		St:      st,
-		AllGrps: allGrps,
-		Action: &QuotaControlAction{
-			Action:    "remove",
-			QuotaName: name,
-		},
-		Meter:       progress.Null,
-		PerfTimings: &timings.Timings{},
+	qc := QuotaControlAction{
+		Action:    "remove",
+		QuotaName: name,
 	}
 
-	return doRemoveQuota(args)
+	return doRemoveQuota(st, qc, allGrps, nil, nil)
 }
 
 // QuotaGroupUpdate reflects all of the modifications that can be performed on
@@ -175,20 +161,14 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) erro
 
 	// TODO: switch to returning a taskset with the right handler instead of
 	// executing this directly
-	args := quotaControlArgs{
-		St:      st,
-		AllGrps: allGrps,
-		Action: &QuotaControlAction{
-			Action:      "update",
-			QuotaName:   name,
-			MemoryLimit: updateOpts.NewMemoryLimit,
-			AddSnaps:    updateOpts.AddSnaps,
-		},
-		Meter:       progress.Null,
-		PerfTimings: &timings.Timings{},
+	qc := QuotaControlAction{
+		Action:      "update",
+		QuotaName:   name,
+		MemoryLimit: updateOpts.NewMemoryLimit,
+		AddSnaps:    updateOpts.AddSnaps,
 	}
 
-	return doUpdateQuota(args)
+	return doUpdateQuota(st, qc, allGrps, nil, nil)
 }
 
 // EnsureSnapAbsentFromQuota ensures that the specified snap is not present
