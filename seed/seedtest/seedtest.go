@@ -31,11 +31,13 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/timings"
 )
 
 // SeedSnaps helps creating snaps for a seed.
@@ -336,4 +338,36 @@ func (s *TestingSeed20) MakeSeed(c *C, label, brandID, modelID string, modelHead
 	c.Assert(err, IsNil)
 
 	return model
+}
+
+func ValidateSeed(c *C, root, label string, usesSnapd bool, trusted []asserts.Assertion) seed.Seed {
+	tm := &timings.Timings{}
+	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
+		Backstore: asserts.NewMemoryBackstore(),
+		Trusted:   trusted,
+	})
+	c.Assert(err, IsNil)
+	commitTo := func(b *asserts.Batch) error {
+		return b.CommitTo(db, nil)
+	}
+
+	sd, err := seed.Open(root, label)
+	c.Assert(err, IsNil)
+
+	err = sd.LoadAssertions(db, commitTo)
+	c.Assert(err, IsNil)
+
+	err = sd.LoadMeta(tm)
+	c.Assert(err, IsNil)
+
+	// core18/core20 use the snapd snap, old core does not
+	c.Check(sd.UsesSnapdSnap(), Equals, usesSnapd)
+	if usesSnapd {
+		// core*, kernel, gadget, snapd
+		c.Check(sd.EssentialSnaps(), HasLen, 4)
+	} else {
+		// core, kernel, gadget
+		c.Check(sd.EssentialSnaps(), HasLen, 3)
+	}
+	return sd
 }

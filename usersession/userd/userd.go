@@ -60,6 +60,7 @@ func (ud *Userd) Init() error {
 
 	ud.dbusIfaces = []dbusInterface{
 		&Launcher{ud.conn},
+		&PrivilegedDesktopLauncher{ud.conn},
 		&Settings{ud.conn},
 	}
 	for _, iface := range ud.dbusIfaces {

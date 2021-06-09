@@ -12,6 +12,7 @@ import debian.changelog
 def parse_arguments():
     parser = argparse.ArgumentParser(description="automatic changelog writer for snapd")
     parser.add_argument("version", type=str, help="new snapd version")
+    parser.add_argument("lpbug", type=str, help="new snapd major release LP bug")
     parser.add_argument(
         "changelog",
         type=argparse.FileType("r"),
@@ -40,27 +41,49 @@ other_distros = [
 ]
 
 
-def rewrite_version_number_file(file, pattern, version):
-    # simple sed implementation, read all the lines first, then write them out
-    # again, applying the given pattern to every line (the pattern is expected
-    # to only ever match one line)
-    with open(file, "r") as fh:
-        lines = fh.readlines()
-    with open(file, "w") as fh:
-        for line in lines:
-            fh.write(re.sub(pattern + ".+$", pattern + version, line))
+def rewrite_version_number_file(file_name, pattern, version, write):
+    """rewrite_version_number_file reads a packaging file with a version number
+    in it and updates the version number to the new one specified using the
+    regex pattern.
+    It returns the new file contents and optionally writes out the new contents
+    back to the file as well.
+    """
+
+    with open(file_name, "r") as fh:
+        file_contents = fh.read()
+
+    # replace the pattern (which should have one capturing group in it for the
+    # version specifier pattern) with the captured group + the new version such
+    # that we can keep any whitespace, etc in between the version specified and
+    # the version number
+    new_contents, n = re.subn(
+        pattern, r"\g<1>" + version, file_contents, flags=re.MULTILINE
+    )
+
+    # check that we only did one replacement in the file
+    if n > 1:
+        raise RuntimeError(
+            f"too many version patterns ({n}) matched in packaging file {file_name}"
+        )
+    elif n < 1:
+        raise RuntimeError(f"version pattern not matched in packaging file {file_name}")
+
+    if write is True:
+        with open(file_name, "w") as fh:
+            fh.write(new_contents)
+
+    return new_contents
 
 
 def update_fedora_changelog(opts, snapd_packaging_dir, new_changelog_entry, maintainer):
-    specFile = os.path.join(snapd_packaging_dir, "fedora", "snapd.spec")
+    spec_file = os.path.join(snapd_packaging_dir, "fedora", "snapd.spec")
+
     # rewrite the snapd.spec file with the right version
-    rewrite_version_number_file(
-        # meh this is terrible, to keep the right indentation level,
-        # prepend the number of spaces we currently have in the file to
-        # the version number
-        specFile,
-        "Version:",
-        f"        {opts.version}",
+    spec_file_content = rewrite_version_number_file(
+        spec_file,
+        r"^(Version:\s+).*$",
+        opts.version,
+        False,
     )
 
     # now we also need to add the changelog entry to the snapd.spec file
@@ -75,7 +98,7 @@ def update_fedora_changelog(opts, snapd_packaging_dir, new_changelog_entry, main
         # that we only have one single whitespace
         dedented_changelog_lines.append(line[3:] + "\n")
 
-    date = datetime.datetime.now().strftime("%a %d %b %Y")
+    date = datetime.datetime.now().strftime("%a %b %d %Y")
 
     date_and_maintainer_header = f"* {date} {maintainer[0]} <{maintainer[1]}>\n"
     changelog_header = f"- New upstream release {opts.version}\n"
@@ -84,41 +107,44 @@ def update_fedora_changelog(opts, snapd_packaging_dir, new_changelog_entry, main
         changelog_header,
     ] + dedented_changelog_lines
 
-    # now read all the existing lines of the snapd.spec file
-    with open(specFile, "r") as fh:
-        current_spec_lines = fh.readlines()
+    # find the start of the changelog section in the rewritten spec file bytes
+    changelog_section = "\n%changelog\n"
+    idx = spec_file_content.find(changelog_section)
+    if idx < 0:
+        raise RuntimeError(
+            "'%changelog' line in fedora spec file not found (was a comment or whitespace added to that line?)"
+        )
+    # rewrite the spec file using the replaced bits up to the changelog section,
+    # then insert our new changelog entry lines, then add the rest of the
+    # replaced bits of the spec file
+    with open(spec_file, "w") as fh:
+        # write the spec file up to and including the changelog section
+        fh.write(spec_file_content[: idx + len(changelog_section)])
+        # insert our new changelog entry
+        for ch_line in fedora_changelog_lines:
+            fh.write(ch_line)
+        fh.write("\n")
+        # write the rest of the original spec file
+        fh.write(spec_file_content[idx + len(changelog_section) :])
 
-    # re-write them all out to the file again, inserting our new
-    # changelog entryfiles when we get to that section
-    with open(specFile, "w") as fh:
-        for line in current_spec_lines:
-            fh.write(line)
-            # if this line was the start of the changelog section, then
-            # we need to insert our change log entry lines
-            if line.strip() == "%changelog":
-                # before continuing to write the rest of the file,
-                # insert our new changelog entry here
-                for ch_line in fedora_changelog_lines:
-                    fh.write(ch_line)
-                fh.write("\n")
 
-
-def update_opensuse_changlog(
+def update_opensuse_changelog(
     opts, snapd_packaging_dir, new_changelog_entry, maintainer
 ):
-    specFile = os.path.join(snapd_packaging_dir, "opensuse", "snapd.spec")
-    changesFile = os.path.join(snapd_packaging_dir, "opensuse", "snapd.changes")
+    spec_file = os.path.join(snapd_packaging_dir, "opensuse", "snapd.spec")
+    changes_file = os.path.join(snapd_packaging_dir, "opensuse", "snapd.changes")
+
     rewrite_version_number_file(
-        # meh this is terrible, to keep the right indentation level,
-        # prepend the number of spaces we currently have in the file to
-        # the version number
-        specFile,
-        "Version:",
-        "        " + opts.version,
+        spec_file,
+        r"^(Version:\s+).*$",
+        opts.version,
+        True,
     )
 
-    # also add a template changelog to the changes file
-    date = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S %z")
+    # add a template changelog to the changes file
+    date = datetime.datetime.now(tz=datetime.timezone.utc).strftime(
+        "%a %b %d %H:%M:%S %Z %Y"
+    )
 
     email = maintainer[1]
     templ = f"""-------------------------------------------------------------------
@@ -128,12 +154,32 @@ def update_opensuse_changlog(
 
 """
 
-    # first read the existing changelog lines
-    with open(changesFile, "r") as fh:
+    # read the existing changes file and then write the new changelog entry at
+    # the top and then write the rest of the file
+    with open(changes_file, "r") as fh:
         current = fh.read()
-    with open(changesFile, "w") as fh:
+    with open(changes_file, "w") as fh:
         fh.write(templ)
         fh.write(current)
+
+
+def write_github_release_entry(opts, new_changelog_entry):
+    with open(f"snapd-{opts.version}-github-release.md", "w") as fh:
+        # write the prefix header
+        fh.write(
+            f"""New snapd release {opts.version}
+
+See https://forum.snapcraft.io/t/the-snapd-roadmap/1973 for high-level overview.
+
+"""
+        )
+
+        # write the rest of the actual changelog
+        for line in new_changelog_entry.splitlines():
+            # strip the first 4 characters which are space characters so
+            # that there's no leading prefix
+            fh.write(line.lstrip())
+            fh.write("\n")
 
 
 def main(opts):
@@ -152,7 +198,7 @@ def main(opts):
             raise RuntimeError(
                 f"unexpected changelog line format in line {line_number}"
             )
-        if len(line) >= 72:
+        if len(line) > 72:
             raise RuntimeError(
                 f"line {line_number} too long, should wrap properly to next line"
             )
@@ -182,7 +228,7 @@ def main(opts):
         # add the new changelog entry with our standard header
         # the spacing here is manually adjusted, the top of the comment is always
         # the same
-        templ = "\n  * New upstream release, LP: #1926005\n" + new_changelog_entry
+        templ = f"\n  * New upstream release, LP: #{opts.lpbug}\n" + new_changelog_entry
         ch.add_change(templ)
 
         # write it out back to the changelog file
@@ -195,8 +241,9 @@ def main(opts):
             # for arch all we need to do is change the PKGBUILD "pkgver" key
             rewrite_version_number_file(
                 os.path.join(snapd_packaging_dir, "arch", "PKGBUILD"),
-                "pkgver=",
+                r"^(pkgver=).*$",
                 opts.version,
+                True,
             )
         elif distro == "fedora":
             update_fedora_changelog(
@@ -204,9 +251,11 @@ def main(opts):
             )
 
         elif distro == "opensuse":
-            update_opensuse_changlog(
+            update_opensuse_changelog(
                 opts, snapd_packaging_dir, new_changelog_entry, maintainer
             )
+
+    write_github_release_entry(opts, new_changelog_entry)
 
 
 if __name__ == "__main__":

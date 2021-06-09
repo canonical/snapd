@@ -42,7 +42,7 @@ type RevealKeyRequest struct {
 
 	SealedKey []byte           `json:"sealed-key,omitempty"`
 	Handle    *json.RawMessage `json:"handle,omitempty"`
-	// depracated for v1
+	// deprecated for v1
 	KeyName string `json:"key-name,omitempty"`
 
 	// TODO: add VolumeName,SourceDevicePath later

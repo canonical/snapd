@@ -31,6 +31,10 @@ import (
 
 type ManagerBackend managerBackend
 
+type MinimalInstallInfo = minimalInstallInfo
+type InstallSnapInfo = installSnapInfo
+type ByType = byType
+
 func SetSnapManagerBackend(s *SnapManager, b ManagerBackend) {
 	s.backend = b
 }
@@ -260,7 +264,7 @@ func MockCurrentSnaps(f func(st *state.State) ([]*store.CurrentSnap, error)) fun
 	}
 }
 
-func MockInstallSize(f func(st *state.State, snaps []*snap.Info, userID int) (uint64, error)) func() {
+func MockInstallSize(f func(st *state.State, snaps []minimalInstallInfo, userID int) (uint64, error)) func() {
 	old := installSize
 	installSize = f
 	return func() {
@@ -322,3 +326,11 @@ var (
 	CreateGateAutoRefreshHooks = createGateAutoRefreshHooks
 	AutoRefreshPhase1          = autoRefreshPhase1
 )
+
+func MockSnapsToRefresh(f func(gatingTask *state.Task) ([]*refreshCandidate, error)) (restore func()) {
+	old := snapsToRefresh
+	snapsToRefresh = f
+	return func() {
+		snapsToRefresh = old
+	}
+}

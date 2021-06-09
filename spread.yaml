@@ -95,7 +95,7 @@ backends:
                   image: ubuntu-16.04-64
                   workers: 6
             - ubuntu-core-20-64:
-                  image: ubuntu-2004-64-virt-enabled
+                  image: ubuntu-20.04-64
                   workers: 6
                   storage: 20G
             - ubuntu-secboot-20.04-64:
@@ -108,7 +108,6 @@ backends:
                   workers: 8
             - ubuntu-21.04-64:
                   workers: 8
-                  image: ubuntu-os-cloud-devel/ubuntu-2104
 
             - debian-9-64:
                   workers: 6
@@ -118,9 +117,6 @@ backends:
             - debian-sid-64:
                   workers: 6
 
-            # TODO: drop Fedora 32 once it goes EOL on 25.05.2021
-            - fedora-32-64:
-                  workers: 6
             - fedora-33-64:
                   workers: 6
             - fedora-34-64:
@@ -599,13 +595,15 @@ prepare: |
         yum install -y epel-release
     fi
 
-    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
-        # make sure unattended-upgrades does not get in the way
-        if systemctl is-enabled unattended-upgrades.service; then
-            systemctl stop unattended-upgrades.service
-            systemctl mask unattended-upgrades.service
-        fi
-    fi
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            # make sure unattended-upgrades does not get in the way
+            if systemctl is-enabled unattended-upgrades.service; then
+                systemctl stop unattended-upgrades.service
+                systemctl mask unattended-upgrades.service
+            fi
+            ;;
+    esac
 
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)

@@ -34,6 +34,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/sandbox/selinux"
@@ -982,6 +983,21 @@ func (s *SystemdTestSuite) TestIsActiveIsInactive(c *C) {
 	c.Check(s.argses, DeepEquals, [][]string{{"is-active", "foo"}})
 }
 
+func (s *SystemdTestSuite) TestIsActiveIsInactiveAlternativeMessage(c *C) {
+	sysErr := &Error{}
+	// on Centos 7, with systemd 219 we see "unknown" returned when querying the
+	// active state for a slice unit which does not exist, check that we handle
+	// this case properly as well
+	sysErr.SetExitCode(3)
+	sysErr.SetMsg([]byte("unknown\n"))
+	s.errors = []error{sysErr}
+
+	active, err := New(SystemMode, s.rep).IsActive("foo")
+	c.Assert(active, Equals, false)
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"is-active", "foo"}})
+}
+
 func (s *SystemdTestSuite) TestIsActiveIsFailed(c *C) {
 	sysErr := &Error{}
 	// seen in the wild to be reported for a 'failed' service
@@ -1396,6 +1412,78 @@ func (s *SystemdTestSuite) TestUmountErr(c *C) {
 	})
 }
 
+func (s *SystemdTestSuite) TestCurrentUsageFamilyReallyInvalid(c *C) {
+	s.outs = [][]byte{
+		[]byte(`gahstringsarehard`),
+		[]byte(`gahstringsarehard`),
+	}
+	sysd := New(SystemMode, s.rep)
+	_, err := sysd.CurrentMemoryUsage("bar.service")
+	c.Assert(err, ErrorMatches, `invalid property format from systemd for MemoryCurrent \(got gahstringsarehard\)`)
+	_, err = sysd.CurrentTasksCount("bar.service")
+	c.Assert(err, ErrorMatches, `invalid property format from systemd for TasksCurrent \(got gahstringsarehard\)`)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "MemoryCurrent", "bar.service"},
+		{"show", "--property", "TasksCurrent", "bar.service"},
+	})
+}
+
+func (s *SystemdTestSuite) TestCurrentUsageFamilyInactive(c *C) {
+	s.outs = [][]byte{
+		[]byte(`MemoryCurrent=[not set]`),
+		[]byte(`TasksCurrent=[not set]`),
+	}
+	sysd := New(SystemMode, s.rep)
+	_, err := sysd.CurrentMemoryUsage("bar.service")
+	c.Assert(err, ErrorMatches, "memory usage unavailable")
+	_, err = sysd.CurrentTasksCount("bar.service")
+	c.Assert(err, ErrorMatches, "tasks count unavailable")
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "MemoryCurrent", "bar.service"},
+		{"show", "--property", "TasksCurrent", "bar.service"},
+	})
+}
+
+func (s *SystemdTestSuite) TestCurrentUsageFamilyInvalid(c *C) {
+	s.outs = [][]byte{
+		[]byte(`MemoryCurrent=blahhhhhhhhhhhhhh`),
+		[]byte(`TasksCurrent=blahhhhhhhhhhhhhh`),
+	}
+	sysd := New(SystemMode, s.rep)
+	_, err := sysd.CurrentMemoryUsage("bar.service")
+	c.Assert(err, ErrorMatches, `invalid property value from systemd for MemoryCurrent: cannot parse "blahhhhhhhhhhhhhh" as an integer`)
+	_, err = sysd.CurrentTasksCount("bar.service")
+	c.Assert(err, ErrorMatches, `invalid property value from systemd for TasksCurrent: cannot parse "blahhhhhhhhhhhhhh" as an integer`)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "MemoryCurrent", "bar.service"},
+		{"show", "--property", "TasksCurrent", "bar.service"},
+	})
+}
+
+func (s *SystemdTestSuite) TestCurrentUsageFamilyHappy(c *C) {
+	s.outs = [][]byte{
+		[]byte(`MemoryCurrent=1024`),
+		[]byte(`MemoryCurrent=18446744073709551615`), // special value from systemd bug
+		[]byte(`TasksCurrent=10`),
+	}
+	sysd := New(SystemMode, s.rep)
+	memUsage, err := sysd.CurrentMemoryUsage("bar.service")
+	c.Assert(err, IsNil)
+	c.Assert(memUsage, Equals, quantity.SizeKiB)
+	memUsage, err = sysd.CurrentMemoryUsage("bar.service")
+	c.Assert(err, IsNil)
+	const sixteenExb = quantity.Size(1<<64 - 1)
+	c.Assert(memUsage, Equals, sixteenExb)
+	tasksUsage, err := sysd.CurrentTasksCount("bar.service")
+	c.Assert(tasksUsage, Equals, 10)
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "MemoryCurrent", "bar.service"},
+		{"show", "--property", "MemoryCurrent", "bar.service"},
+		{"show", "--property", "TasksCurrent", "bar.service"},
+	})
+}
+
 func (s *SystemdTestSuite) TestInactiveEnterTimestampZero(c *C) {
 	s.outs = [][]byte{
 		[]byte(`InactiveEnterTimestamp=`),
@@ -1454,16 +1542,59 @@ func (s *SystemdTestSuite) TestInactiveEnterTimestampMalformed(c *C) {
 		[]byte(``),
 		[]byte(`some random garbage
 with newlines`),
-		[]byte(`InactiveEnterTimestamp=0`), // 0 is valid for InactiveEnterTimestampMonotonic
 	}
 	sysd := New(SystemMode, s.rep)
 	for i := 0; i < len(s.outs); i++ {
 		s.argses = nil
 		stamp, err := sysd.InactiveEnterTimestamp("bar.service")
-		c.Assert(err, ErrorMatches, `(?s)internal error: systemctl (time )?output \(.*\) is malformed`)
+		c.Assert(err.Error(), testutil.Contains, `invalid property format from systemd for InactiveEnterTimestamp (got`)
 		c.Check(s.argses, DeepEquals, [][]string{
 			{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
 		})
 		c.Check(stamp.IsZero(), Equals, true)
 	}
+}
+
+func (s *SystemdTestSuite) TestInactiveEnterTimestampMalformedMore(c *C) {
+	s.outs = [][]byte{
+		[]byte(`InactiveEnterTimestamp=0`), // 0 is valid for InactiveEnterTimestampMonotonic
+	}
+	sysd := New(SystemMode, s.rep)
+
+	stamp, err := sysd.InactiveEnterTimestamp("bar.service")
+
+	c.Assert(err, ErrorMatches, `internal error: systemctl time output \(0\) is malformed`)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
+	})
+	c.Check(stamp.IsZero(), Equals, true)
+}
+
+type systemdErrorSuite struct{}
+
+var _ = Suite(&systemdErrorSuite{})
+
+func (s *systemdErrorSuite) TestErrorStringNormalError(c *C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `echo "I fail"; exit 11`)
+	defer systemctl.Restore()
+
+	_, err := Version()
+	c.Check(err, ErrorMatches, `systemctl command \[--version\] failed with exit status 11: I fail\n`)
+}
+
+func (s *systemdErrorSuite) TestErrorStringNoOutput(c *C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `exit 22`)
+	defer systemctl.Restore()
+
+	_, err := Version()
+	c.Check(err, ErrorMatches, `systemctl command \[--version\] failed with exit status 22`)
+}
+
+func (s *systemdErrorSuite) TestErrorStringNoSystemctl(c *C) {
+	oldPath := os.Getenv("PATH")
+	os.Setenv("PATH", "/xxx")
+	defer func() { os.Setenv("PATH", oldPath) }()
+
+	_, err := Version()
+	c.Check(err, ErrorMatches, `systemctl command \[--version\] failed with: exec: "systemctl": executable file not found in \$PATH`)
 }

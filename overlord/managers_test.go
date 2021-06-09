@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -439,6 +439,23 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	logbuf, restore := logger.MockLogger()
 	s.AddCleanup(restore)
 	s.logbuf = logbuf
+}
+
+func (s *baseMgrsSuite) makeSerialAssertionInState(c *C, st *state.State, brandID, model, serialN string) *asserts.Serial {
+	encDevKey, err := asserts.EncodePublicKey(deviceKey.PublicKey())
+	c.Assert(err, IsNil)
+	serial, err := s.brands.Signing(brandID).Sign(asserts.SerialType, map[string]interface{}{
+		"brand-id":            brandID,
+		"model":               model,
+		"serial":              serialN,
+		"device-key":          string(encDevKey),
+		"device-key-sha3-384": deviceKey.PublicKey().ID(),
+		"timestamp":           time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	err = assertstate.Add(st, serial)
+	c.Assert(err, IsNil)
+	return serial.(*asserts.Serial)
 }
 
 type mgrsSuite struct {
@@ -2202,6 +2219,7 @@ type: kernel`
 	}
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
+	c.Assert(s.o.DeviceManager().ReloadModeenv(), IsNil)
 
 	st := s.o.State()
 	st.Lock()
@@ -2369,6 +2387,7 @@ type: kernel`
 	}
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
+	c.Assert(s.o.DeviceManager().ReloadModeenv(), IsNil)
 
 	st := s.o.State()
 	st.Lock()
@@ -4031,7 +4050,11 @@ func validateInstallTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Mount snap "%s" (%s)`, name, revno))
 	i++
 	if flags&isGadget != 0 || flags&isKernel != 0 {
-		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update assets from gadget "%s" (%s)`, name, revno))
+		what := "gadget"
+		if flags&isKernel != 0 {
+			what = "kernel"
+		}
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update assets from %s "%s" (%s)`, what, name, revno))
 		i++
 	}
 	if flags&isGadget != 0 {
@@ -4076,7 +4099,11 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Make current revision for snap "%s" unavailable`, name))
 	i++
 	if flags&isGadget != 0 || flags&isKernel != 0 {
-		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update assets from gadget %q (%s)`, name, revno))
+		what := "gadget"
+		if flags&isKernel != 0 {
+			what = "kernel"
+		}
+		c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Update assets from %s %q (%s)`, what, name, revno))
 		i++
 	}
 	if flags&isGadget != 0 {
@@ -4154,6 +4181,7 @@ func (s *mgrsSuite) TestRemodelRequiredSnapsAdded(c *C) {
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
+	s.makeSerialAssertionInState(c, st, "my-brand", "my-model", "serialserialserial")
 
 	// create a new model
 	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
@@ -4253,6 +4281,7 @@ func (s *mgrsSuite) TestRemodelRequiredSnapsAddedUndo(c *C) {
 	})
 	err := assertstate.Add(st, curModel)
 	c.Assert(err, IsNil)
+	s.makeSerialAssertionInState(c, st, "my-brand", "my-model", "serialserialserial")
 
 	// create a new model
 	newModel := s.brands.Model("my-brand", "my-model", modelDefaults, map[string]interface{}{
@@ -4322,6 +4351,7 @@ type: base`
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
+	s.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// create a new model
 	newModel := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
@@ -4405,6 +4435,7 @@ version: 20.04`
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
+	ms.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// create a new model
 	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
@@ -4546,6 +4577,7 @@ version: 20.04`
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
+	ms.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// create a new model
 	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
@@ -4685,6 +4717,7 @@ version: 20.04`
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
+	ms.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// create a new model
 	newModel := ms.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
@@ -4781,6 +4814,7 @@ func (s *kernelSuite) SetUpTest(c *C) {
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
+	s.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// make a mock "pc-kernel" kernel
 	si := &snap.SideInfo{RealName: "pc-kernel", SnapID: fakeSnapID("pc-kernel"), Revision: snap.R(1)}
@@ -5239,6 +5273,7 @@ volumes:
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
+	s.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// create a new model
 	newModel := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
@@ -5371,6 +5406,7 @@ volumes:
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
+	s.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// create a new model
 	newModel := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
@@ -5497,6 +5533,7 @@ volumes:
 	})
 	err := assertstate.Add(st, model)
 	c.Assert(err, IsNil)
+	s.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
 
 	// create a new model
 	newModel := s.brands.Model("can0nical", "my-model", modelDefaults, map[string]interface{}{
@@ -6503,6 +6540,7 @@ func (s *mgrsSuite) testUC20RunUpdateManagedBootConfig(c *C, snapPath string, si
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
+	c.Assert(s.o.DeviceManager().ReloadModeenv(), IsNil)
 
 	st := s.o.State()
 	st.Lock()
@@ -6856,6 +6894,7 @@ func (s *mgrsSuite) testGadgetKernelCommandLine(c *C, gadgetPath string, gadgetS
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
+	c.Assert(s.o.DeviceManager().ReloadModeenv(), IsNil)
 
 	st := s.o.State()
 	st.Lock()

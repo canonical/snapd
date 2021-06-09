@@ -21,6 +21,7 @@ package snapstate
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/mount"
@@ -227,7 +228,14 @@ func usesMountBackend(iface interfaces.Interface) bool {
 func createGateAutoRefreshHooks(st *state.State, affectedSnaps map[string]*affectedSnapInfo) *state.TaskSet {
 	ts := state.NewTaskSet()
 	var prev *state.Task
-	for snapName, affected := range affectedSnaps {
+	// sort names for easy testing
+	names := make([]string, 0, len(affectedSnaps))
+	for snapName := range affectedSnaps {
+		names = append(names, snapName)
+	}
+	sort.Strings(names)
+	for _, snapName := range names {
+		affected := affectedSnaps[snapName]
 		hookTask := SetupGateAutoRefreshHook(st, snapName, affected.Base, affected.Restart)
 		// XXX: it should be fine to run the hooks in parallel
 		if prev != nil {
@@ -237,4 +245,20 @@ func createGateAutoRefreshHooks(st *state.State, affectedSnaps map[string]*affec
 		prev = hookTask
 	}
 	return ts
+}
+
+// snapsToRefresh returns all snaps that should proceed with refresh considering
+// hold behavior.
+var snapsToRefresh = func(gatingTask *state.Task) ([]*refreshCandidate, error) {
+	// TODO: consider holding (responses from gating hooks) here.
+	// Return all refresh candidates for now.
+	var snaps map[string]*refreshCandidate
+	if err := gatingTask.Get("snaps", &snaps); err != nil {
+		return nil, err
+	}
+	var candidates []*refreshCandidate
+	for _, s := range snaps {
+		candidates = append(candidates, s)
+	}
+	return candidates, nil
 }
