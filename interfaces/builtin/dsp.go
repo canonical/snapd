@@ -65,7 +65,7 @@ const ambarellaDspConnectedPlugApparmor = `
 
 var ambarellaDspConnectedPlugUDev = []string{
 	`KERNEL=="iav"`,
-	`KERNEL=="cavalry`,
+	`KERNEL=="cavalry"`,
 	`KERNEL=="ucode"`,
 	`KERNEL=="lens"`,
 }
