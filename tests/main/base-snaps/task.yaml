@@ -18,7 +18,7 @@ execute: |
     snap list | MATCH test-snapd-requires-base
 
     echo "Ensure the bare base works"
-    if [ "$(uname -m)" != "x86_64" ]; then
+    if not os.query is-pc-amd64; then
         echo "This test can only run on amd64 right now because snapcraft "
         echo "cannot current generate binaries without wrapper scripts."
         echo "Check: https://github.com/snapcore/snapcraft/pull/1420"
