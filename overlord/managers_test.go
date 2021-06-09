@@ -6215,7 +6215,7 @@ func (s *mgrsSuite) TestRemodelUC20WithRecoverySystem(c *C) {
 	})
 
 	// mock the modeenv file
-	m := boot.Modeenv{
+	m := &boot.Modeenv{
 		Mode:                      "run",
 		Base:                      "core20_3.snap",
 		CurrentKernels:            []string{"pc-kernel_2.snap"},
@@ -6249,6 +6249,11 @@ func (s *mgrsSuite) TestRemodelUC20WithRecoverySystem(c *C) {
 	c.Assert(kind, Equals, state.RestartSystemNow)
 
 	expectedLabel := time.Now().Format("20060102")
+
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(m.CurrentRecoverySystems, DeepEquals, []string{"1234", expectedLabel})
+	c.Check(m.GoodRecoverySystems, DeepEquals, []string{"1234"})
 
 	vars, err := bl.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
@@ -6320,6 +6325,11 @@ func (s *mgrsSuite) TestRemodelUC20WithRecoverySystem(c *C) {
 	const usesSnapd = true
 	sd := seedtest.ValidateSeed(c, boot.InitramfsUbuntuSeedDir, expectedLabel, usesSnapd, s.storeSigning.Trusted)
 	c.Assert(sd.Model(), DeepEquals, newModel)
+
+	m, err = boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(m.CurrentRecoverySystems, DeepEquals, []string{"1234", expectedLabel})
+	c.Check(m.GoodRecoverySystems, DeepEquals, []string{"1234", expectedLabel})
 }
 
 func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c *C) {
