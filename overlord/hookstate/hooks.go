@@ -72,13 +72,6 @@ func SetupPreRefreshHook(st *state.State, snapName string) *state.Task {
 	return task
 }
 
-type gateAutoRefreshAction int
-
-const (
-	ProceedWithRefresh gateAutoRefreshAction = iota
-	HoldRefresh
-)
-
 func SetupGateAutoRefreshHook(st *state.State, snapName string, base, restart bool, affectingSnaps map[string]bool) *state.Task {
 	hookSup := &HookSetup{
 		Snap:     snapName,

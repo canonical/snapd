@@ -36,6 +36,16 @@ import (
 
 var gateAutoRefreshHookName = "gate-auto-refresh"
 
+// gateAutoRefreshAction represents the action executed by
+// snapctl refresh --hold or --proceed and stored in the context of
+// gate-auto-refresh hook.
+type gateAutoRefreshAction int
+
+const (
+	GateAutoRefreshProceed gateAutoRefreshAction = iota
+	GateAutoRefreshHold
+)
+
 // cumulative hold time for snaps other than self
 const maxOtherHoldDuration = time.Hour * 48
 

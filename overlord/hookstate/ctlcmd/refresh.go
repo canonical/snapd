@@ -217,7 +217,7 @@ func (c *refreshCommand) hold() error {
 	st := ctx.State()
 
 	// cache the action so that hook handler can implement default behavior
-	ctx.Cache("action", hookstate.HoldRefresh)
+	ctx.Cache("action", snapstate.GateAutoRefreshHold)
 
 	var affecting []string
 	if err := ctx.Get("affecting-snaps", &affecting); err != nil {
@@ -227,12 +227,9 @@ func (c *refreshCommand) hold() error {
 	// no duration specified, use maximum allowed for this gating snap.
 	var holdDuration time.Duration
 	if err := snapstate.HoldRefresh(st, ctx.InstanceName(), holdDuration, affecting...); err != nil {
-		// XXX: should we do something else here if we cannot hold anymore?
+		// TODO: let a snap hold again once for 1h.
 		return err
 	}
-
-	// TODO: consider inhibit lock - release it, we're holding the refresh so it
-	// won't be attempted after conditional-auto-refresh task.
 
 	return nil
 }
@@ -244,14 +241,11 @@ func (c *refreshCommand) proceed() error {
 	st := ctx.State()
 
 	// cache the action so that hook handler can implement default behavior
-	ctx.Cache("action", hookstate.ProceedWithRefresh)
+	ctx.Cache("action", snapstate.GateAutoRefreshProceed)
 
 	if err := snapstate.ProceedWithRefresh(st, ctx.InstanceName()); err != nil {
 		return err
 	}
-
-	// TODO: consider inhibit lock - keep the lock, it's going to be released
-	// when the snap gets refreshed.
 
 	return nil
 }
