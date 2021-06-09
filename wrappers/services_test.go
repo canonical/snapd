@@ -257,6 +257,7 @@ WantedBy=multi-user.target
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
@@ -264,6 +265,10 @@ MemoryAccounting=true
 MemoryMax=%[2]s
 # for compatibility with older versions of systemd
 MemoryLimit=%[2]s
+
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
 `
 
 	sliceContent := fmt.Sprintf(sliceTempl, grp.Name, memLimit.String())
@@ -362,6 +367,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesRewritesQuotaSlices(c *C) {
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
@@ -369,6 +375,10 @@ MemoryAccounting=true
 MemoryMax=%[2]s
 # for compatibility with older versions of systemd
 MemoryLimit=%[2]s
+
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
 `
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
 
@@ -453,6 +463,7 @@ func (s *servicesTestSuite) TestEnsureSnapServicesDoesNotRewriteQuotaSlicesOnNoo
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
@@ -460,6 +471,10 @@ MemoryAccounting=true
 MemoryMax=%[2]s
 # for compatibility with older versions of systemd
 MemoryLimit=%[2]s
+
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
 `
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
 
@@ -541,6 +556,7 @@ func (s *servicesTestSuite) TestRemoveQuotaGroup(c *C) {
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
@@ -611,6 +627,7 @@ apps:
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
@@ -618,6 +635,10 @@ MemoryAccounting=true
 MemoryMax=%[2]s
 # for compatibility with older versions of systemd
 MemoryLimit=%[2]s
+
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
 `
 
 	sliceContent := fmt.Sprintf(sliceTempl, "foogroup", memLimit.String())
@@ -778,6 +799,7 @@ WantedBy=multi-user.target
 	templ := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
@@ -785,6 +807,10 @@ MemoryAccounting=true
 MemoryMax=%[2]s
 # for compatibility with older versions of systemd
 MemoryLimit=%[2]s
+
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
 `
 
 	c.Assert(sliceFile, testutil.FileEquals, fmt.Sprintf(templ, "foogroup", memLimit.String()))

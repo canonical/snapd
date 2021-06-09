@@ -183,7 +183,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		Macaroon:   user.Macaroon,
 		Discharges: user.Discharges,
 	}
-	return SyncResponse(result, nil)
+	return SyncResponse(result)
 }
 
 func logoutUser(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -199,7 +199,7 @@ func logoutUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError(err.Error())
 	}
 
-	return SyncResponse(nil, nil)
+	return SyncResponse(nil)
 }
 
 // this might need to become a function, if having user admin becomes a config option
@@ -270,7 +270,7 @@ func removeUser(c *Command, username string, opts postUserDeleteData) Response {
 			{ID: u.ID, Username: u.Username, Email: u.Email},
 		},
 	}
-	return SyncResponse(result, nil)
+	return SyncResponse(result)
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -304,7 +304,7 @@ func createUser(c *Command, createData postUserCreateData) Response {
 	if !createData.ForceManaged {
 		if len(users) > 0 && createData.Automatic {
 			// no users created but no error with the automatic flag
-			return SyncResponse([]userResponseData{}, nil)
+			return SyncResponse([]userResponseData{})
 		}
 		if len(users) > 0 {
 			return BadRequest("cannot create user: device already managed")
@@ -328,7 +328,7 @@ func createUser(c *Command, createData postUserCreateData) Response {
 		}
 		if !enabled {
 			// disabled, do nothing
-			return SyncResponse([]userResponseData{}, nil)
+			return SyncResponse([]userResponseData{})
 		}
 		// Automatic implies known/sudoers
 		createData.Known = true
@@ -393,9 +393,9 @@ func createUser(c *Command, createData postUserCreateData) Response {
 
 	if createData.singleUserResultCompat {
 		// return a single userResponseData in this case
-		return SyncResponse(&result, nil)
+		return SyncResponse(&result)
 	} else {
-		return SyncResponse([]userResponseData{result}, nil)
+		return SyncResponse([]userResponseData{result})
 	}
 }
 
@@ -460,7 +460,7 @@ func createAllKnownSystemUsers(st *state.State, modelAs *asserts.Model, serialAs
 		})
 	}
 
-	return SyncResponse(createdUsers, nil)
+	return SyncResponse(createdUsers)
 }
 
 func getUserDetailsFromAssertion(st *state.State, modelAs *asserts.Model, serialAs *asserts.Serial, email string) (string, *osutil.AddUserOptions, error) {
@@ -607,5 +607,5 @@ func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 			ID:       u.ID,
 		}
 	}
-	return SyncResponse(resp, nil)
+	return SyncResponse(resp)
 }
