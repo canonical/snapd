@@ -3434,6 +3434,23 @@ apps:
 		{"show", "--property=ActiveState", srvFile3},
 		{"start", srvFile3},
 	})
+
+	// Verify that explicitly mentioning a service causes it to restart
+	s.sysdLog = nil
+	c.Assert(wrappers.RestartServices(services, []string{srvFile2}, nil, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type",
+			srvFile1, srvFile2, srvFile3, srvFile4},
+		{"stop", srvFile1},
+		{"show", "--property=ActiveState", srvFile1},
+		{"start", srvFile1},
+		{"stop", srvFile2},
+		{"show", "--property=ActiveState", srvFile2},
+		{"start", srvFile2},
+		{"stop", srvFile3},
+		{"show", "--property=ActiveState", srvFile3},
+		{"start", srvFile3},
+	})
 }
 
 func (s *servicesTestSuite) TestStopAndDisableServices(c *C) {
