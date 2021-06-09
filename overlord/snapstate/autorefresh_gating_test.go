@@ -1285,7 +1285,7 @@ func fakeReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
 	return info, nil
 }
 
-func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
+func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, hold func(), expected []string) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -1332,6 +1332,9 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 		chg.AddAll(ts)
 	}
 
+	// simulate hold
+	hold()
+
 	s.state.Unlock()
 	defer s.se.Stop()
 	s.settle(c)
@@ -1340,6 +1343,10 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 	c.Check(chg.Err(), IsNil)
 
+	verifyPhasedAutorefreshTasks(c, chg.Tasks(), expected)
+}
+
+func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 	expected := []string{
 		"conditional-auto-refresh",
 		"run-hook [snap-a;gate-auto-refresh]",
@@ -1384,7 +1391,70 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 		"run-hook [snap-a;check-health]",
 		"check-rerefresh",
 	}
-	verifyPhasedAutorefreshTasks(c, chg.Tasks(), expected)
+
+	s.testAutoRefreshPhase2(c, func() {}, expected)
+}
+
+func (s *snapmgrTestSuite) TestAutoRefreshPhase2Held(c *C) {
+	logbuf, restoreLogger := logger.MockLogger()
+	defer restoreLogger()
+
+	expected := []string{
+		"conditional-auto-refresh",
+		"run-hook [snap-a;gate-auto-refresh]",
+		// snap-b hook is triggered because of base-snap-b refresh
+		"run-hook [snap-b;gate-auto-refresh]",
+		"prerequisites",
+		"download-snap",
+		"validate-snap",
+		"mount-snap",
+		"run-hook [snap-a;pre-refresh]",
+		"stop-snap-services",
+		"remove-aliases",
+		"unlink-current-snap",
+		"copy-snap-data",
+		"setup-profiles",
+		"link-snap",
+		"auto-connect",
+		"set-auto-aliases",
+		"setup-aliases",
+		"run-hook [snap-a;post-refresh]",
+		"start-snap-services",
+		"cleanup",
+		"run-hook [snap-a;configure]",
+		"run-hook [snap-a;check-health]",
+		"check-rerefresh",
+	}
+
+	s.testAutoRefreshPhase2(c, func() {
+		// pretend than snap-b calls snapctl --hold to hold refresh of base-snap-b
+		c.Assert(snapstate.HoldRefresh(s.state, "snap-b", 0, "base-snap-b"), IsNil)
+	}, expected)
+
+	c.Assert(logbuf.String(), testutil.Contains, `skipping refresh of snap "base-snap-b"`)
+}
+
+func (s *snapmgrTestSuite) TestAutoRefreshPhase2AllHeld(c *C) {
+	logbuf, restoreLogger := logger.MockLogger()
+	defer restoreLogger()
+
+	expected := []string{
+		"conditional-auto-refresh",
+		"run-hook [snap-a;gate-auto-refresh]",
+		// snap-b hook is triggered because of base-snap-b refresh
+		"run-hook [snap-b;gate-auto-refresh]",
+		"check-rerefresh",
+	}
+
+	s.testAutoRefreshPhase2(c, func() {
+		// pretend that snap-b calls snapctl --hold to hold refresh of base-snap-b
+		c.Assert(snapstate.HoldRefresh(s.state, "snap-b", 0, "base-snap-b"), IsNil)
+		// pretend that snap-a calls snapctl --hold to hold itself
+		c.Assert(snapstate.HoldRefresh(s.state, "snap-a", 0, "snap-a"), IsNil)
+	}, expected)
+
+	c.Assert(logbuf.String(), testutil.Contains, `skipping refresh of snap "base-snap-b"`)
+	c.Assert(logbuf.String(), testutil.Contains, `skipping refresh of snap "snap-a"`)
 }
 
 func (s *snapmgrTestSuite) testAutoRefreshPhase2DiskSpaceCheck(c *C, fail bool) {
