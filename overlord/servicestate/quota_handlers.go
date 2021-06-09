@@ -320,6 +320,14 @@ type ensureSnapServicesForGroupOptions struct {
 	extraSnaps []string
 }
 
+// ensureSnapServicesForGroup will handle updating changes to a given quota
+// group on disk, including re-generating systemd slice files, restarting snap
+// services that have moved into or out of quota groups, as well as starting
+// newly created quota groups and stopping and removing removed quota groups.
+// This function is idempotent, in that it can be called multiple times with
+// the same changes to be processed and nothing will be broken. This is mainly
+// a consequence of calling wrappers.EnsureSnapServices().
+// Currently, it only supports handling a single group change.
 func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, opts *ensureSnapServicesForGroupOptions, meter progress.Meter, perfTimings *timings.Timings) error {
 	if opts == nil {
 		return fmt.Errorf("internal error: unset group information for ensuring")
@@ -428,7 +436,7 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, opts *ensureS
 		return nil
 	}
 
-	// TODO: should this logic move to wrappers in wrappers.RestartGroups()?
+	// TODO: should this logic move to wrappers in wrappers.RemoveQuotaGroup()?
 	systemSysd := systemd.New(systemd.SystemMode, meter)
 
 	// now start the slices
