@@ -126,7 +126,8 @@ type ServiceState struct {
 // the output to be produced by the command so that the queried services will
 // appear having the ActiveState and UnitFileState according to the data
 // passed in the `states` map.
-func MockAllUnitsActiveOutput(cmd []string, states map[string]ServiceState) []byte {
+func HandleMockAllUnitsActiveOutput(cmd []string, states map[string]ServiceState) []byte {
+	osutil.MustBeTestBinary("mocking systemctl output can only be done from tests")
 	if cmd[0] != "show" ||
 		cmd[1] != "--property=Id,ActiveState,UnitFileState,Type" {
 		return nil

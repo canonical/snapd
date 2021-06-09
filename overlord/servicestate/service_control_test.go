@@ -85,7 +85,7 @@ func (s *serviceControlSuite) SetUpTest(c *C) {
 		// retrieved first. Services which are not running will be
 		// ignored. Therefore, mock this "show" operation by pretending that
 		// all requested services are active:
-		if out := systemd.MockAllUnitsActiveOutput(cmd, nil); out != nil {
+		if out := systemd.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
 			return out, nil
 		}
 

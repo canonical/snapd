@@ -175,7 +175,7 @@ func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
 	// CreateQuota is calling "systemctl.Restart", which needs to be mocked
 	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) (buf []byte, err error) {
 		s.systemctlArgs = append(s.systemctlArgs, cmd)
-		if out := systemd.MockAllUnitsActiveOutput(cmd, nil); out != nil {
+		if out := systemd.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
 			return out, nil
 		}
 

@@ -188,7 +188,7 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
 
 	r = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
-		if out := systemd.MockAllUnitsActiveOutput(cmd, nil); out != nil {
+		if out := systemd.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
 			return out, nil
 		}
 		return []byte("ActiveState=inactive\n"), nil

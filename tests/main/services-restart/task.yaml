@@ -22,10 +22,10 @@ execute: |
     systemctl disable snap.test-snapd-service-restart.svc3.service
 
     # At this point, we have:
-    # 1 disabled service that is running (svc1)
-    # 1 enabled service that is running (svc2)
-    # 1 disabled service that is stopped (svc3)
-    # 1 enabled service that is stopped (svc4)
+    # svc1 as disabled service that is running
+    # svc2 as enabled service that is running
+    # svc3 as disabled service that is stopped
+    # svc4 as enabled service that is stopped
 
     echo "Fetching execution timestamps before restart"
     function service_start_time {

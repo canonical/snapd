@@ -3338,7 +3338,7 @@ apps:
 
 	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
 		s.sysdLog = append(s.sysdLog, cmd)
-		if out := systemd.MockAllUnitsActiveOutput(cmd, nil); out != nil {
+		if out := systemd.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
 			return out, nil
 		}
 		return []byte("ActiveState=inactive\n"), nil
@@ -3409,7 +3409,7 @@ apps:
 			srvFile3: {ActiveState: "active", UnitFileState: "disabled"},
 			srvFile4: {ActiveState: "inactive", UnitFileState: "disabled"},
 		}
-		if out := systemd.MockAllUnitsActiveOutput(cmd, states); out != nil {
+		if out := systemd.HandleMockAllUnitsActiveOutput(cmd, states); out != nil {
 			return out, nil
 		}
 		return []byte("ActiveState=inactive\n"), nil
