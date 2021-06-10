@@ -33,8 +33,8 @@ execute: |
     # 'grep' is allowed explicitly in core rules and via glob rule in base
     # rules
     echo "Then 'grep --version' is allowed by core"
-    test-snapd-sh-core.sh -c 'grep --version' 2>&1 | not MATCH "Permission denied"
-    test-snapd-sh-core18.sh -c 'grep --version' 2>&1 | not MATCH "Permission denied"
+    test-snapd-sh-core.sh -c 'grep --version' 2>&1 | NOMATCH "Permission denied"
+    test-snapd-sh-core18.sh -c 'grep --version' 2>&1 | NOMATCH "Permission denied"
 
     echo "Then a common rule should succeed with either base"
     test-snapd-sh-core.sh -c 'grep root /etc/passwd' 2>&1 | MATCH "root:"
@@ -50,5 +50,5 @@ execute: |
     test-snapd-sh-core.sh -c 'ls -l /var' 2>&1 | MATCH "'/var': Permission denied"
     test-snapd-sh-core18.sh -c 'ls -l /var' 2>&1 | MATCH "'/var': Permission denied"
     if [ "$(uname -p)" = "x86_64" ]; then
-        test-snapd-sh-other18.sh -c 'ls -l /var' 2>&1 | not MATCH "Permission denied"
+        test-snapd-sh-other18.sh -c 'ls -l /var' 2>&1 | NOMATCH "Permission denied"
     fi
