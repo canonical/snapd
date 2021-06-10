@@ -65,6 +65,12 @@ type Modeenv struct {
 	BrandID   string `key:"model,secondary"`
 	Grade     string `key:"grade"`
 	SignKeyID string `key:"sign_key_id"`
+	// TryModel, TryBrandID, TryGrade, TrySignKeyID describe the properties
+	// of the candidate model.
+	TryModel     string `key:"try_model"`
+	TryBrandID   string `key:"try_model,secondary"`
+	TryGrade     string `key:"try_grade"`
+	TrySignKeyID string `key:"try_sign_key_id"`
 	// BootFlags is the set of boot flags. Whether this applies for the current
 	// or next boot is not indicated in the modeenv. When the modeenv is read in
 	// the initramfs these flags apply to the current boot and are copied into
@@ -180,6 +186,13 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	// expect the caller to validate the grade
 	unmarshalModeenvValueFromCfg(cfg, "grade", &m.Grade)
 	unmarshalModeenvValueFromCfg(cfg, "sign_key_id", &m.SignKeyID)
+	var tryBm modeenvModel
+	unmarshalModeenvValueFromCfg(cfg, "try_model", &tryBm)
+	m.TryBrandID = tryBm.brandID
+	m.TryModel = tryBm.model
+	unmarshalModeenvValueFromCfg(cfg, "try_grade", &m.TryGrade)
+	unmarshalModeenvValueFromCfg(cfg, "try_sign_key_id", &m.TrySignKeyID)
+
 	unmarshalModeenvValueFromCfg(cfg, "current_trusted_boot_assets", &m.CurrentTrustedBootAssets)
 	unmarshalModeenvValueFromCfg(cfg, "current_trusted_recovery_boot_assets", &m.CurrentTrustedRecoveryBootAssets)
 	unmarshalModeenvValueFromCfg(cfg, "current_kernel_command_lines", &m.CurrentKernelCommandLines)
@@ -277,8 +290,20 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 		}
 		marshalModeenvEntryTo(buf, "model", &modeenvModel{brandID: m.BrandID, model: m.Model})
 	}
+	// TODO: complain when grade or key are unset
 	marshalModeenvEntryTo(buf, "grade", m.Grade)
 	marshalModeenvEntryTo(buf, "sign_key_id", m.SignKeyID)
+	if m.TryModel != "" || m.TryBrandID != "" {
+		if m.Model == "" {
+			return fmt.Errorf("internal error: try model is unset")
+		}
+		if m.BrandID == "" {
+			return fmt.Errorf("internal error: try brand is unset")
+		}
+		marshalModeenvEntryTo(buf, "try_model", &modeenvModel{brandID: m.TryBrandID, model: m.TryModel})
+	}
+	marshalModeenvEntryTo(buf, "try_grade", m.TryGrade)
+	marshalModeenvEntryTo(buf, "try_sign_key_id", m.TrySignKeyID)
 	marshalModeenvEntryTo(buf, "current_trusted_boot_assets", m.CurrentTrustedBootAssets)
 	marshalModeenvEntryTo(buf, "current_trusted_recovery_boot_assets", m.CurrentTrustedRecoveryBootAssets)
 	marshalModeenvEntryTo(buf, "current_kernel_command_lines", m.CurrentKernelCommandLines)

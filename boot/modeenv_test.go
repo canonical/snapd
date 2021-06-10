@@ -67,6 +67,9 @@ func (s *modeenvSuite) TestKnownKnown(c *C) {
 		"model":           true,
 		"grade":           true,
 		"sign_key_id":     true,
+		"try_model":       true,
+		"try_grade":       true,
+		"try_sign_key_id": true,
 		// keep this comment to make old go fmt happy
 		"current_kernel_command_lines":         true,
 		"current_trusted_boot_assets":          true,
@@ -767,6 +770,9 @@ func (s *modeenvSuite) TestModeenvWithModelGradeSignKeyID(c *C) {
 model=canonical/ubuntu-core-20-amd64
 grade=dangerous
 sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
+try_model=developer1/testkeys-snapd-secured-core-20-amd64
+try_grade=secured
+try_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
 `)
 
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
@@ -775,12 +781,23 @@ sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
 	c.Check(modeenv.BrandID, Equals, "canonical")
 	c.Check(modeenv.Grade, Equals, "dangerous")
 	c.Check(modeenv.SignKeyID, Equals, "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn")
+	// candidate model
+	c.Check(modeenv.TryModel, Equals, "testkeys-snapd-secured-core-20-amd64")
+	c.Check(modeenv.TryBrandID, Equals, "developer1")
+	c.Check(modeenv.TryGrade, Equals, "secured")
+	c.Check(modeenv.TrySignKeyID, Equals, "EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu")
 
 	// change some model data now
 	modeenv.Model = "testkeys-snapd-signed-core-20-amd64"
 	modeenv.BrandID = "developer1"
 	modeenv.Grade = "signed"
 	modeenv.SignKeyID = "EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu"
+
+	modeenv.TryModel = "bar"
+	modeenv.TryBrandID = "foo"
+	modeenv.TryGrade = "dangerous"
+	modeenv.TrySignKeyID = "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn"
+
 	// and write it
 	c.Assert(modeenv.Write(), IsNil)
 
@@ -788,5 +805,8 @@ sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
 model=developer1/testkeys-snapd-signed-core-20-amd64
 grade=signed
 sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+try_model=foo/bar
+try_grade=dangerous
+try_sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
 `)
 }
