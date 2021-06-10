@@ -1504,6 +1504,45 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresRefreshInhibitedTime(c *C) {
 	c.Check(snapst.RefreshInhibitedTime.Equal(instant), Equals, true)
 }
 
+func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresLastRefreshTime(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	now, err := time.Parse(time.RFC3339, "2021-06-10T10:00:00Z")
+	c.Assert(err, IsNil)
+
+	si := &snap.SideInfo{RealName: "snap", Revision: snap.R(1)}
+	sup := &snapstate.SnapSetup{SideInfo: si}
+	snapstate.Set(s.state, "snap", &snapstate.SnapState{
+		Sequence:        []*snap.SideInfo{si},
+		Current:         si.Revision,
+		LastRefreshTime: &now,
+	})
+
+	task := s.state.NewTask("link-snap", "")
+	task.Set("snap-setup", sup)
+	chg := s.state.NewChange("test", "")
+	chg.AddTask(task)
+
+	terr := s.state.NewTask("error-trigger", "provoking total undo")
+	terr.WaitFor(task)
+	chg.AddTask(terr)
+
+	s.state.Unlock()
+	for i := 0; i < 6; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+	s.state.Lock()
+
+	c.Assert(chg.Err(), NotNil)
+	c.Check(task.Status(), Equals, state.UndoneStatus)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "snap", &snapst), IsNil)
+	c.Check(snapst.LastRefreshTime.Equal(now), Equals, true)
+}
+
 func (s *linkSnapSuite) TestUndoLinkSnapdFirstInstall(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
