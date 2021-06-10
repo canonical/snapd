@@ -265,7 +265,13 @@ func (t *Transaction) get(snapName, key string, result interface{}, opts *option
 			for i := 0; i < len(subkeys); i++ {
 				k := strings.Join(subkeys[:len(subkeys)-i], ".")
 				if hif, ok := km[k]; ok {
-					return hif(snapName, key, VirtualResult{result})
+					res, err := hif(snapName, key)
+					if err != nil {
+						return err
+					}
+					rv := reflect.ValueOf(result)
+					rv.Elem().Set(reflect.ValueOf(res))
+					return nil
 				}
 			}
 
@@ -420,8 +426,8 @@ func mergeConfigWithVirtual(instanceName string, config map[string]*json.RawMess
 		if virtualFn == nil {
 			continue
 		}
-		var res interface{}
-		if err := virtualFn(instanceName, key, VirtualResult{&res}); err != nil {
+		res, err := virtualFn(instanceName, key)
+		if err != nil {
 			return err
 		}
 		patch[key] = jsonRaw(res)
@@ -459,17 +465,7 @@ func (e *NoOptionError) Error() string {
 }
 
 // VirtualCfgFunc can be used for virtual "transaction.Get()" calls
-type VirtualCfgFunc func(snapName, key string, result VirtualResult) error
-
-// VirtualResult is used to store the result of a VirtualCfgFunc call
-type VirtualResult struct {
-	res interface{}
-}
-
-func (vcr *VirtualResult) Set(val interface{}) {
-	rv := reflect.ValueOf(vcr.res)
-	rv.Elem().Set(reflect.ValueOf(val))
-}
+type VirtualCfgFunc func(snapName, key string) (result interface{}, err error)
 
 // virtualMap contain "virtual" configuration keys like
 // e.g. "core.hostname".  The data is never stored in the state but

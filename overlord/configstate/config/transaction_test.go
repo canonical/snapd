@@ -617,13 +617,12 @@ func (s *transactionSuite) TestVirtualGetSimple(c *C) {
 	})
 
 	n := 0
-	config.RegisterVirtualConfig("some-snap", "key.virtual", func(snapName, key string, result config.VirtualResult) error {
+	config.RegisterVirtualConfig("some-snap", "key.virtual", func(snapName, key string) (interface{}, error) {
 		c.Check(snapName, Equals, "some-snap")
 		n++
 
 		s := fmt.Sprintf("%s:%s=virtual-value", snapName, key)
-		result.Set(s)
-		return nil
+		return s, nil
 	})
 
 	tr := config.NewTransaction(s.state)
@@ -653,9 +652,9 @@ func (s *transactionSuite) TestVirtualSetNotShadowHijacked(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	config.RegisterVirtualConfig("some-snap", "key.virtual", func(snapName, key string, result config.VirtualResult) error {
+	config.RegisterVirtualConfig("some-snap", "key.virtual", func(snapName, key string) (interface{}, error) {
 		c.Fatalf("unexpected cal to virtual config function")
-		return nil
+		return nil, nil
 	})
 
 	// cannot set "path" to virtual key to non-map type
@@ -675,13 +674,12 @@ func (s *transactionSuite) TestVirtualGetRootDocIsMerged(c *C) {
 	})
 
 	n := 0
-	config.RegisterVirtualConfig("some-snap", "key.virtual", func(snapName, key string, result config.VirtualResult) error {
+	config.RegisterVirtualConfig("some-snap", "key.virtual", func(snapName, key string) (interface{}, error) {
 		c.Check(snapName, Equals, "some-snap")
 		n++
 
 		s := fmt.Sprintf("%s:%s=virtual-value", snapName, key)
-		result.Set(s)
-		return nil
+		return s, nil
 	})
 
 	tr := config.NewTransaction(s.state)
@@ -709,9 +707,9 @@ func (s *transactionSuite) TestGetNoVirtualIsNotMerged(c *C) {
 		},
 	})
 
-	config.RegisterVirtualConfig("some-snap", "key.virtual", func(snapName, key string, result config.VirtualResult) error {
+	config.RegisterVirtualConfig("some-snap", "key.virtual", func(snapName, key string) (interface{}, error) {
 		c.Fatalf("virtual configuration should not get called")
-		return nil
+		return nil, nil
 	})
 
 	tr := config.NewTransaction(s.state)
