@@ -702,6 +702,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 	restricted := map[string]bool{
 		"block-devices":         true,
 		"classic-support":       true,
+		"dm-crypt":              true,
 		"docker-support":        true,
 		"greengrass-support":    true,
 		"gpio-control":          true,
@@ -935,6 +936,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"audio-playback":        true,
 		"classic-support":       true,
 		"core-support":          true,
+		"dm-crypt":              true,
 		"docker-support":        true,
 		"greengrass-support":    true,
 		"gpio-control":          true,
