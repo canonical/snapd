@@ -2386,6 +2386,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 		CurrentRecoverySystems:    []string{"system"},
 		GoodRecoverySystems:       []string{"system"},
 		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
+		Model:                     "my-model-uc20",
+		BrandID:                   "my-brand",
+		Grade:                     "dangerous",
+		SignKeyID:                 "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
 	}
 	r := setupUC20Bootenv(
 		c,
@@ -2891,6 +2895,48 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20SystemsPopulated(c *C) {
 	// good recovery systems has been populated
 	c.Check(m2.GoodRecoverySystems, DeepEquals, []string{"1234"})
 	c.Check(m2.CurrentRecoverySystems, DeepEquals, []string{"1234", "9999"})
+}
+
+func (s *bootenv20Suite) TestMarkBootSuccessful20ModelSignKeyIDPopulated(c *C) {
+	b := bootloadertest.Mock("mock", s.bootdir)
+	s.forceBootloader(b)
+
+	coreDev := boottest.MockUC20Device("", nil)
+	c.Assert(coreDev.HasModeenv(), Equals, true)
+
+	m := &boot.Modeenv{
+		Mode:           "run",
+		Base:           s.base1.Filename(),
+		CurrentKernels: []string{s.kern1.Filename()},
+		Model:          "my-model-uc20",
+		BrandID:        "my-brand",
+		Grade:          "dangerous",
+		// sign key ID is unset
+	}
+
+	r := setupUC20Bootenv(
+		c,
+		b,
+		&bootenv20Setup{
+			modeenv:    m,
+			kern:       s.kern1,
+			kernStatus: boot.DefaultStatus,
+		},
+	)
+	defer r()
+
+	// mark successful
+	err := boot.MarkBootSuccessful(coreDev)
+	c.Assert(err, IsNil)
+
+	// check the modeenv
+	m2, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	// model's sign key ID has been set
+	c.Check(m2.SignKeyID, Equals, "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij")
+	c.Check(m2.Model, Equals, "my-model-uc20")
+	c.Check(m2.BrandID, Equals, "my-brand")
+	c.Check(m2.Grade, Equals, "dangerous")
 }
 
 type recoveryBootenv20Suite struct {
