@@ -100,11 +100,11 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 
 	switch qc.Action {
 	case "create":
-		err = createQuotaHandler(st, qc, allGrps, meter, perfTimings)
+		err = createQuotaHandler(st, t, qc, allGrps, meter, perfTimings)
 	case "remove":
-		err = removeQuotaHandler(st, qc, allGrps, meter, perfTimings)
+		err = removeQuotaHandler(st, t, qc, allGrps, meter, perfTimings)
 	case "update":
-		err = updateQuotaHandler(st, qc, allGrps, meter, perfTimings)
+		err = updateQuotaHandler(st, t, qc, allGrps, meter, perfTimings)
 	default:
 		err = fmt.Errorf("unknown action %q requested", qc.Action)
 	}
@@ -113,12 +113,10 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	t.SetStatus(state.DoneStatus)
-
 	return nil
 }
 
-func createQuotaHandler(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
+func createQuotaHandler(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
 	// make sure the group does not exist yet
 	if _, ok := allGrps[action.QuotaName]; ok {
 		return fmt.Errorf("group %q already exists", action.QuotaName)
@@ -146,7 +144,7 @@ func createQuotaHandler(st *state.State, action QuotaControlAction, allGrps map[
 	opts := &ensureSnapServicesForGroupOptions{
 		allGrps: allGrps,
 	}
-	return ensureSnapServicesForGroup(st, grp, opts, meter, perfTimings)
+	return ensureSnapServicesForGroup(st, t, grp, opts, meter, perfTimings)
 }
 
 func createQuotaImpl(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, error) {
@@ -186,7 +184,7 @@ func createQuotaImpl(st *state.State, action QuotaControlAction, allGrps map[str
 	return grp, newAllGrps, nil
 }
 
-func removeQuotaHandler(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
+func removeQuotaHandler(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
 	// make sure the group exists
 	grp, ok := allGrps[action.QuotaName]
 	if !ok {
@@ -259,10 +257,10 @@ func removeQuotaHandler(st *state.State, action QuotaControlAction, allGrps map[
 	opts := &ensureSnapServicesForGroupOptions{
 		allGrps: allGrps,
 	}
-	return ensureSnapServicesForGroup(st, grp, opts, meter, perfTimings)
+	return ensureSnapServicesForGroup(st, t, grp, opts, meter, perfTimings)
 }
 
-func updateQuotaHandler(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
+func updateQuotaHandler(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
 	// make sure the group exists
 	grp, ok := allGrps[action.QuotaName]
 	if !ok {
@@ -308,7 +306,7 @@ func updateQuotaHandler(st *state.State, action QuotaControlAction, allGrps map[
 	opts := &ensureSnapServicesForGroupOptions{
 		allGrps: allGrps,
 	}
-	return ensureSnapServicesForGroup(st, grp, opts, meter, perfTimings)
+	return ensureSnapServicesForGroup(st, t, grp, opts, meter, perfTimings)
 }
 
 type ensureSnapServicesForGroupOptions struct {
@@ -328,7 +326,7 @@ type ensureSnapServicesForGroupOptions struct {
 // the same changes to be processed and nothing will be broken. This is mainly
 // a consequence of calling wrappers.EnsureSnapServices().
 // Currently, it only supports handling a single group change.
-func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, opts *ensureSnapServicesForGroupOptions, meter progress.Meter, perfTimings *timings.Timings) error {
+func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group, opts *ensureSnapServicesForGroupOptions, meter progress.Meter, perfTimings *timings.Timings) error {
 	if opts == nil {
 		return fmt.Errorf("internal error: unset group information for ensuring")
 	}
@@ -462,12 +460,21 @@ func ensureSnapServicesForGroup(st *state.State, grp *quota.Group, opts *ensureS
 		// TODO: this results in a second systemctl daemon-reload which is
 		// undesirable, we should figure out how to do this operation with a
 		// single daemon-reload
-		st.Unlock()
 		err := wrappers.RemoveQuotaGroup(grp, meter)
-		st.Lock()
 		if err != nil {
 			return err
 		}
+	}
+
+	// after we have made all the persistent modifications to disk and state,
+	// set the task as done, what remains for this task handler is just to
+	// restart services which will happen regardless if we get rebooted after
+	// unlocking the state - if we got rebooted before unlocking the state, none
+	// of the changes we made to state would be persisted and we would run
+	// through everything above here again, but the second time around
+	// EnsureSnapServices would end up doing nothing since it is idempotent.
+	if t != nil {
+		t.SetStatus(state.DoneStatus)
 	}
 
 	// now restart the services for each snap that was newly moved into a quota
