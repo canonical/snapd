@@ -10,8 +10,6 @@ prepare: |
     rm -rf /var/snap/test-snapd-classic-confinement
     rm -rf /var/snap/test-snapd-classic-confinement_foo
 
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
     snap pack "$TESTSLIB/snaps/test-snapd-classic-confinement/"
 
     case "$SPREAD_SYSTEM" in
@@ -19,6 +17,7 @@ prepare: |
             # although classic snaps do not work out of the box on fedora,
             # we still want to verify if the basics do work if the user
             # symlinks /snap to $SNAP_MOUNT_DIR themselves
+            SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
             ln -sf "$SNAP_MOUNT_DIR" /snap
             ;;
     esac

@@ -40,7 +40,7 @@ environment:
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
     REMOTE_STORE: '$(HOST: echo "${SPREAD_REMOTE_STORE:-production}")'
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
-    DELTA_REF: 2.49
+    DELTA_REF: 2.50
     DELTA_PREFIX: snapd-$DELTA_REF/
     REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'
     SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
@@ -95,7 +95,7 @@ backends:
                   image: ubuntu-16.04-64
                   workers: 6
             - ubuntu-core-20-64:
-                  image: ubuntu-2004-64-virt-enabled
+                  image: ubuntu-20.04-64
                   workers: 6
                   storage: 20G
             - ubuntu-secboot-20.04-64:
@@ -108,16 +108,18 @@ backends:
                   workers: 8
             - ubuntu-21.04-64:
                   workers: 8
-                  image: ubuntu-os-cloud-devel/ubuntu-2104
 
             - debian-9-64:
+                  workers: 6
+                  manual: true
+            - debian-10-64:
                   workers: 6
             - debian-sid-64:
                   workers: 6
 
-            - fedora-32-64:
-                  workers: 6
             - fedora-33-64:
+                  workers: 6
+            - fedora-34-64:
                   workers: 6
 
             - arch-linux-64:
@@ -162,7 +164,7 @@ backends:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
         location: snapd-spread/us-east1-b
-        plan: n1-standard-2
+        plan: n2-standard-2
         halt-timeout: 2h
         systems:
             - ubuntu-16.04-64:
@@ -593,13 +595,15 @@ prepare: |
         yum install -y epel-release
     fi
 
-    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
-        # make sure unattended-upgrades does not get in the way
-        if systemctl is-enabled unattended-upgrades.service; then
-            systemctl stop unattended-upgrades.service
-            systemctl mask unattended-upgrades.service
-        fi
-    fi
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            # make sure unattended-upgrades does not get in the way
+            if systemctl is-enabled unattended-upgrades.service; then
+                systemctl stop unattended-upgrades.service
+                systemctl mask unattended-upgrades.service
+            fi
+            ;;
+    esac
 
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)

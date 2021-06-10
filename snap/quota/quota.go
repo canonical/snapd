@@ -28,6 +28,7 @@ import (
 
 	// TODO: move this to snap/quantity? or similar
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -83,6 +84,56 @@ func NewGroup(name string, memLimit quantity.Size) (*Group, error) {
 	}
 
 	return grp, nil
+}
+
+// special value that systemd sometimes returns in buggy situations
+const sixteenExb = quantity.Size(1<<64 - 1)
+
+// CurrentMemoryUsage returns the current memory usage of the quota group. For
+// quota groups which do not yet have a backing systemd slice on the system (
+// i.e. quota groups without any snaps in them), the memory usage is reported as
+// 0.
+func (grp *Group) CurrentMemoryUsage() (quantity.Size, error) {
+	sysd := systemd.New(systemd.SystemMode, progress.Null)
+
+	// check if this group is actually active, it could not physically exist yet
+	// since it has no snaps in it
+	isActive, err := sysd.IsActive(grp.SliceFileName())
+	if err != nil {
+		return 0, err
+	}
+	if !isActive {
+		return 0, nil
+	}
+
+	// we also check how many tasks are in the group as this could indicate a
+	// bug we need to work around on older systems - specifically if there are
+	// no tasks in the cgroup, we could erroneously get the current memory usage
+	// from systemd back as 16 exbibytes (which is actually the max size of a
+	// 64-bit unsigned integer), and in this case we report the usage as 0
+	// instead.
+
+	// note that we specifically _don't_ treat 0 tasks in the group as implying
+	// that the usage is 0, since on some newer systems, a cgroup with 0 tasks
+	// but still active will have 4K memory usage always, so we only correct
+	// the memory usage when it is 16 exb and when there are no tasks in the
+	// group
+
+	numTasks, err := sysd.CurrentTasksCount(grp.SliceFileName())
+	if err != nil {
+		return 0, err
+	}
+
+	mem, err := sysd.CurrentMemoryUsage(grp.SliceFileName())
+	if err != nil {
+		return 0, err
+	}
+
+	if mem == sixteenExb && numTasks == 0 {
+		// this is the bug situation, return the memory as 0
+		mem = 0
+	}
+	return mem, nil
 }
 
 // SliceFileName returns the name of the slice file that should be used for this
@@ -169,6 +220,8 @@ func (grp *Group) validate() error {
 
 // NewSubGroup creates a new sub group under the current group.
 func (grp *Group) NewSubGroup(name string, memLimit quantity.Size) (*Group, error) {
+	// TODO: implement a maximum sub-group depth
+
 	subGrp := &Group{
 		Name:        name,
 		MemoryLimit: memLimit,
@@ -202,6 +255,7 @@ func ResolveCrossReferences(grps map[string]*Group) error {
 
 	// iterate over all groups, looking for sub-groups which need to be threaded
 	// together with their respective parent groups from the set
+
 	for name, grp := range grps {
 		if name != grp.Name {
 			return fmt.Errorf("group has name %q, but is referenced as %q", grp.Name, name)
@@ -225,6 +279,7 @@ func ResolveCrossReferences(grps map[string]*Group) error {
 			for _, parentChildName := range parent.SubGroups {
 				if parentChildName == grp.Name {
 					found = true
+					break
 				}
 			}
 			if !found {
@@ -234,6 +289,7 @@ func ResolveCrossReferences(grps map[string]*Group) error {
 
 		// now thread any child links from this group to any children
 		if len(grp.SubGroups) != 0 {
+			// re-build the internal sub group list
 			grp.subGroups = make([]*Group, len(grp.SubGroups))
 			for i, subName := range grp.SubGroups {
 				sub, ok := grps[subName]
@@ -257,18 +313,36 @@ func ResolveCrossReferences(grps map[string]*Group) error {
 
 // tree recursively returns all of the sub-groups of the group and the group
 // itself.
-func (grp *Group) tree() []*Group {
-	// TODO: should we be paranoid about circular references and
-	// recursion here?
-	treeList := grp.subGroups
+func (grp *Group) visitTree(visited map[*Group]bool) error {
+	// TODO: limit the depth of the tree we traverse
+
+	// be paranoid about cycles here and check that none of the sub-groups here
+	// has already been seen before recursing
 	for _, sub := range grp.subGroups {
-		treeList = append(treeList, sub.tree()...)
+		// check if this sub-group is actually the same group
+		if sub == grp {
+			return fmt.Errorf("internal error: circular reference found")
+		}
+
+		// check if we have already seen this sub-group
+		if visited[sub] {
+			return fmt.Errorf("internal error: circular reference found")
+		}
+
+		// add it to the map
+		visited[sub] = true
+	}
+
+	for _, sub := range grp.subGroups {
+		if err := sub.visitTree(visited); err != nil {
+			return err
+		}
 	}
 
 	// add this group too to get the full tree flattened
-	treeList = append(treeList, grp)
+	visited[grp] = true
 
-	return treeList
+	return nil
 }
 
 // QuotaGroupSet is a set of quota groups, it is used for tracking a set of
@@ -287,7 +361,7 @@ type QuotaGroupSet struct {
 // exist since this group may share some quota resources with the other
 // branches. There is no support for manipulating group trees while
 // accumulating to a QuotaGroupSet using this.
-func (s *QuotaGroupSet) AddAllNecessaryGroups(grp *Group) {
+func (s *QuotaGroupSet) AddAllNecessaryGroups(grp *Group) error {
 	if s.grps == nil {
 		s.grps = make(map[*Group]bool)
 	}
@@ -304,12 +378,22 @@ func (s *QuotaGroupSet) AddAllNecessaryGroups(grp *Group) {
 
 	if s.grps[prevParentGrp] {
 		// nothing to do
-		return
+		return nil
 	}
 
-	for _, g := range prevParentGrp.tree() {
+	// use a different map to prevent any accumulations to the quota group set
+	// that happen before a cycle is detected, we only want to add the groups
+	treeGroupMap := make(map[*Group]bool)
+	if err := prevParentGrp.visitTree(treeGroupMap); err != nil {
+		return err
+	}
+
+	// add all the groups in the tree to the quota group set
+	for g := range treeGroupMap {
 		s.grps[g] = true
 	}
+
+	return nil
 }
 
 // AllQuotaGroups returns a flattend list of all quota groups and necessary

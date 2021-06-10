@@ -13,14 +13,13 @@ environment:
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB"/snaps.sh
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-    snap pack "$TESTSLIB/snaps/$CLASSIC_SNAP/"
+    snap pack "$CLASSIC_SNAP"
 
     # although classic snaps do not work out of the box on Fedora and CentOS we
     # still want to verify if the basics do work if the user symlinks /snap to
     # $SNAP_MOUNT_DIR themselves
-    ln -sf $SNAP_MOUNT_DIR /snap
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    ln -sf "$SNAP_MOUNT_DIR" /snap
 
     getenforce > enforcing.mode
 

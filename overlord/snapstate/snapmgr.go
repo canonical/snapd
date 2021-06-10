@@ -62,8 +62,6 @@ type SnapManager struct {
 	refreshHints   *refreshHints
 	catalogRefresh *catalogRefresh
 
-	lastUbuntuCoreTransitionAttempt time.Time
-
 	preseed bool
 }
 
@@ -174,6 +172,9 @@ type SnapState struct {
 	// attempted but inhibited because the snap was busy. This value is
 	// reset on each successful refresh.
 	RefreshInhibitedTime *time.Time `json:"refresh-inhibited-time,omitempty"`
+
+	// LastRefreshTime records the time when the snap was last refreshed.
+	LastRefreshTime *time.Time `json:"last-refresh,omitempty"`
 }
 
 func (snapst *SnapState) SetTrackingChannel(s string) error {
@@ -436,6 +437,7 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddHandler("switch-snap-channel", m.doSwitchSnapChannel, nil)
 	runner.AddHandler("toggle-snap-flags", m.doToggleSnapFlags, nil)
 	runner.AddHandler("check-rerefresh", m.doCheckReRefresh, nil)
+	runner.AddHandler("conditional-auto-refresh", m.doConditionalAutoRefresh, nil)
 
 	// FIXME: drop the task entirely after a while
 	// (having this wart here avoids yet-another-patch)

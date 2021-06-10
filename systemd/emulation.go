@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 )
@@ -92,6 +93,14 @@ func (s *emulation) Status(units ...string) ([]*UnitStatus, error) {
 
 func (s *emulation) InactiveEnterTimestamp(unit string) (time.Time, error) {
 	return time.Time{}, errNotImplemented
+}
+
+func (s *emulation) CurrentMemoryUsage(unit string) (quantity.Size, error) {
+	return 0, errNotImplemented
+}
+
+func (s *emulation) CurrentTasksCount(unit string) (int, error) {
+	return 0, errNotImplemented
 }
 
 func (s *emulation) IsEnabled(service string) (bool, error) {

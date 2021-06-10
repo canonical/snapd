@@ -9,11 +9,11 @@ backends: [-autopkgtest]
 # TODO: enable for ubuntu-21+ once the lxd image is published
 systems: [ubuntu-16*, ubuntu-18*, ubuntu-20*, ubuntu-core-*]
 
-# lxd downloads can be quite slow
-kill-timeout: 25m
-
 # Start before anything else as it can take a really long time.
 priority: 1000
+
+# lxd downloads can be quite slow
+kill-timeout: 25m
 
 environment:
     REFRESH_APP_AWARENESS_OUTER/snapd_cgroup_just_inside: false

@@ -53,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snapdenv"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
@@ -70,7 +71,9 @@ var EarlyConfig func(st *state.State, preloadGadget func() (*gadget.Info, error)
 // DeviceManager is responsible for managing the device identity and device
 // policies.
 type DeviceManager struct {
-	systemMode string
+	// sysMode is the system mode from modeenv or "" on pre-UC20,
+	// use SystemMode instead
+	sysMode string
 	// saveAvailable keeps track whether /var/lib/snapd/save
 	// is available, i.e. exists and is mounted from ubuntu-save
 	// if the latter exists.
@@ -94,6 +97,8 @@ type DeviceManager struct {
 	ensureSeedInConfigRan bool
 
 	ensureInstalledRan bool
+
+	ensureTriedRecoverySystemRan bool
 
 	cloudInitAlreadyRestricted           bool
 	cloudInitErrorAttemptStart           *time.Time
@@ -124,7 +129,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		return nil, err
 	}
 	if modeEnv != nil {
-		m.systemMode = modeEnv.Mode
+		m.sysMode = modeEnv.Mode
 	}
 
 	s.Lock()
@@ -161,6 +166,10 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 	runner.AddHandler("update-managed-boot-config", m.doUpdateManagedBootConfig, nil)
 	// kernel command line updates from a gadget supplied file
 	runner.AddHandler("update-gadget-cmdline", m.doUpdateGadgetCommandLine, m.undoUpdateGadgetCommandLine)
+	// recovery systems
+	runner.AddHandler("create-recovery-system", m.doCreateRecoverySystem, m.undoCreateRecoverySystem)
+	runner.AddHandler("finalize-recovery-system", m.doFinalizeTriedRecoverySystem, m.undoFinalizeTriedRecoverySystem)
+	runner.AddCleanup("finalize-recovery-system", m.cleanupRecoverySystem)
 
 	runner.AddBlocked(gadgetUpdateBlocked)
 
@@ -190,11 +199,24 @@ func maybeReadModeenv() (*boot.Modeenv, error) {
 	return modeEnv, nil
 }
 
+// ReloadModeenv is only useful for integration testing
+func (m *DeviceManager) ReloadModeenv() error {
+	osutil.MustBeTestBinary("ReloadModeenv can only be called from tests")
+	modeEnv, err := maybeReadModeenv()
+	if err != nil {
+		return err
+	}
+	if modeEnv != nil {
+		m.sysMode = modeEnv.Mode
+	}
+	return nil
+}
+
 // StartUp implements StateStarterUp.Startup.
 func (m *DeviceManager) StartUp() error {
-	// system mode is explicitly set on UC20
 	// TODO:UC20: ubuntu-save needs to be mounted for recover too
-	if !release.OnClassic && m.systemMode == "run" {
+	if !release.OnClassic && m.SystemMode(SysHasModeenv) == "run" {
+		// UC20 and run mode => setup /var/lib/snapd/save
 		if err := m.maybeSetupUbuntuSave(); err != nil {
 			return fmt.Errorf("cannot set up ubuntu-save: %v", err)
 		}
@@ -358,18 +380,37 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	return nil
 }
 
-func (m *DeviceManager) SystemMode() string {
-	if m.systemMode == "" {
+type SysExpectation int
+
+const (
+	// SysAny indicates any system is appropriate.
+	SysAny SysExpectation = iota
+	// SysHasModeenv indicates only systems with modeenv are appropriate.
+	SysHasModeenv
+)
+
+// SystemMode returns the current mode of the system.
+// An expectation about the system controls the returned mode when
+// none is set explicitly, as it's the case on pre-UC20 systems. In
+// which case, with SysAny, the mode defaults to implicit "run", thus
+// covering pre-UC20 systems. With SysHasModeeenv, as there is always
+// an explicit mode in systems that use modeenv, no implicit default
+// is used and thus "" is returned for pre-UC20 systems.
+func (m *DeviceManager) SystemMode(sysExpect SysExpectation) string {
+	if m.sysMode == "" {
+		if sysExpect == SysHasModeenv {
+			return ""
+		}
 		return "run"
 	}
-	return m.systemMode
+	return m.sysMode
 }
 
 func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if m.SystemMode() != "run" {
+	if m.SystemMode(SysAny) != "run" {
 		// avoid doing registration in ephemeral mode
 		// note: this also stop auto-refreshes indirectly
 		return nil
@@ -659,7 +700,7 @@ func (m *DeviceManager) ensureSeeded() error {
 		}
 		if modeEnv != nil {
 			opts = &populateStateFromSeedOptions{
-				Mode:  m.systemMode,
+				Mode:  modeEnv.Mode,
 				Label: modeEnv.RecoverySystem,
 			}
 		}
@@ -689,6 +730,7 @@ func (m *DeviceManager) ensureSeeded() error {
 
 // ResetBootOk is only useful for integration testing
 func (m *DeviceManager) ResetBootOk() {
+	osutil.MustBeTestBinary("ResetBootOk can only be called from tests")
 	m.bootOkRan = false
 	m.bootRevisionsUpdated = false
 }
@@ -702,7 +744,7 @@ func (m *DeviceManager) ensureBootOk() error {
 	}
 
 	// boot-ok/update-boot-revision is only relevant in run-mode
-	if m.SystemMode() != "run" {
+	if m.SystemMode(SysAny) != "run" {
 		return nil
 	}
 
@@ -900,7 +942,7 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
-	if m.SystemMode() != "install" {
+	if m.SystemMode(SysHasModeenv) != "install" {
 		return nil
 	}
 
@@ -949,6 +991,7 @@ func (m *DeviceManager) ensureInstalled() error {
 
 	// add the install-device hook before ensure-next-boot-to-run-mode if it
 	// exists in the snap
+	var installDevice *state.Task
 	if hasInstallDeviceHook {
 		summary := i18n.G("Run install-device hook")
 		hooksup := &hookstate.HookSetup{
@@ -956,12 +999,17 @@ func (m *DeviceManager) ensureInstalled() error {
 			Snap: model.Gadget(),
 			Hook: "install-device",
 		}
-		installDevice := hookstate.HookTask(m.state, summary, hooksup, nil)
+		installDevice = hookstate.HookTask(m.state, summary, hooksup, nil)
 		addTask(installDevice)
 	}
 
 	restartSystem := m.state.NewTask("restart-system-to-run-mode", i18n.G("Ensure next boot to run mode"))
 	addTask(restartSystem)
+
+	if installDevice != nil {
+		// reference used by snapctl reboot
+		installDevice.Set("restart-task", restartSystem.ID())
+	}
 
 	chg := m.state.NewChange("install-system", i18n.G("Install the system"))
 	chg.AddAll(state.NewTaskSet(tasks...))
@@ -1048,6 +1096,73 @@ func (m *DeviceManager) ensureSeedInConfig() error {
 
 }
 
+func (m *DeviceManager) appendTriedRecoverySystem(label string) error {
+	// state is locked by the caller
+
+	var triedSystems []string
+	if err := m.state.Get("tried-systems", &triedSystems); err != nil && err != state.ErrNoState {
+		return err
+	}
+	if strutil.ListContains(triedSystems, label) {
+		// system already recorded as tried?
+		return nil
+	}
+	triedSystems = append(triedSystems, label)
+	m.state.Set("tried-systems", triedSystems)
+	return nil
+}
+
+func (m *DeviceManager) ensureTriedRecoverySystem() error {
+	if release.OnClassic {
+		return nil
+	}
+	// nothing to do if not UC20 and run mode
+	if m.SystemMode(SysHasModeenv) != "run" {
+		return nil
+	}
+	if m.ensureTriedRecoverySystemRan {
+		return nil
+	}
+
+	m.state.Lock()
+	defer m.state.Unlock()
+
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	outcome, label, err := boot.InspectTryRecoverySystemOutcome(deviceCtx)
+	if err != nil {
+		if !boot.IsInconsistentRecoverySystemState(err) {
+			return err
+		}
+		// boot variables state was inconsistent
+		logger.Noticef("tried recovery system outcome error: %v", err)
+	}
+	switch outcome {
+	case boot.TryRecoverySystemOutcomeSuccess:
+		logger.Noticef("tried recovery system %q was successful", label)
+		if err := m.appendTriedRecoverySystem(label); err != nil {
+			return err
+		}
+	case boot.TryRecoverySystemOutcomeFailure:
+		logger.Noticef("tried recovery system %q failed", label)
+	case boot.TryRecoverySystemOutcomeInconsistent:
+		logger.Noticef("inconsistent outcome of a tried recovery system")
+	case boot.TryRecoverySystemOutcomeNoneTried:
+		// no system was tried
+	}
+	if outcome != boot.TryRecoverySystemOutcomeNoneTried {
+		if err := boot.ClearTryRecoverySystem(deviceCtx, label); err != nil {
+			logger.Noticef("cannot clear tried recovery system status: %v", err)
+			return err
+		}
+	}
+
+	m.ensureTriedRecoverySystemRan = true
+	return nil
+}
+
 type ensureError struct {
 	errs []error
 }
@@ -1095,6 +1210,10 @@ func (m *DeviceManager) Ensure() error {
 		}
 
 		if err := m.ensureInstalled(); err != nil {
+			errs = append(errs, err)
+		}
+
+		if err := m.ensureTriedRecoverySystem(); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -1242,6 +1361,52 @@ func (m *DeviceManager) Serial() (*asserts.Serial, error) {
 	return findSerial(m.state, nil)
 }
 
+type SystemModeInfo struct {
+	Mode              string
+	HasModeenv        bool
+	Seeded            bool
+	BootFlags         []string
+	HostDataLocations []string
+}
+
+// SystemModeInfo returns details about the current system mode the device is in.
+func (m *DeviceManager) SystemModeInfo() (*SystemModeInfo, error) {
+	deviceCtx, err := DeviceCtx(m.state, nil, nil)
+	if err == state.ErrNoState {
+		return nil, fmt.Errorf("cannot report system mode information before device model is acknowledged")
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	var seeded bool
+	err = m.state.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+
+	mode := deviceCtx.SystemMode()
+	smi := SystemModeInfo{
+		Mode:       mode,
+		HasModeenv: deviceCtx.HasModeenv(),
+		Seeded:     seeded,
+	}
+	if smi.HasModeenv {
+		bootFlags, err := boot.BootFlags(deviceCtx)
+		if err != nil {
+			return nil, err
+		}
+		smi.BootFlags = bootFlags
+
+		hostDataLocs, err := boot.HostUbuntuDataForMode(mode)
+		if err != nil {
+			return nil, err
+		}
+		smi.HostDataLocations = hostDataLocs
+	}
+	return &smi, nil
+}
+
 type SystemAction struct {
 	Title string
 	Mode  string
@@ -1280,7 +1445,7 @@ var ErrNoSystems = errors.New("no systems seeds")
 // systems, ErrNoSystems when no systems seeds were found or other error.
 func (m *DeviceManager) Systems() ([]*System, error) {
 	// it's tough luck when we cannot determine the current system seed
-	systemMode := m.SystemMode()
+	systemMode := m.SystemMode(SysAny)
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
 
 	systemLabels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*"))
@@ -1336,7 +1501,7 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 
 	// no systemLabel means "current" so get the current system label
 	if systemLabel == "" {
-		systemMode := m.SystemMode()
+		systemMode := m.SystemMode(SysAny)
 		currentSys, err := currentSystemForMode(m.state, systemMode)
 		if err != nil {
 			return fmt.Errorf("cannot get current system: %v", err)
@@ -1380,7 +1545,7 @@ func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSyst
 		return err
 	}
 
-	systemMode := m.SystemMode()
+	systemMode := m.SystemMode(SysAny)
 	// ignore the error to be robust in scenarios that
 	// dont' stricly require currentSys to be carried through.
 	// make sure that currentSys == nil does not break

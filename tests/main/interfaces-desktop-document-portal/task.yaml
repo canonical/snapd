@@ -14,12 +14,10 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop
     snap disconnect test-snapd-desktop:desktop
 
-    tests.cleanup prepare
     tests.session -u test prepare
     tests.cleanup defer tests.session -u test restore
 
 restore: |
-    tests.cleanup restore
     rm -f /tmp/check-doc-portal.sh
 
 execute: |

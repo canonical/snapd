@@ -144,7 +144,7 @@ pivot_root,
 
 # Docker needs to be able to create and load the profile it applies to
 # containers ("docker-default")
-/sbin/apparmor_parser ixr,
+/{,usr/}sbin/apparmor_parser ixr,
 /etc/apparmor.d/cache/ r,            # apparmor 2.12 and below
 /etc/apparmor.d/cache/.features r,
 /etc/apparmor.d/{,cache/}docker* rw,

@@ -24,13 +24,16 @@ package devicestate
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sync"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -518,6 +521,14 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if _, err := findSerial(st, nil); err != nil {
+		if err == state.ErrNoState {
+			return nil, fmt.Errorf("cannot remodel without a serial")
+		}
+		return nil, err
+	}
+
 	if current.Series() != new.Series() {
 		return nil, fmt.Errorf("cannot remodel to different series yet")
 	}
@@ -550,10 +561,11 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		return nil, fmt.Errorf("cannot remodel from core to bases yet")
 	}
 
-	// TODO: should we run a remodel only while no other change is
-	// running?  do we add a task upfront that waits for that to be
-	// true? Do we do this only for the more complicated cases
-	// (anything more than adding required-snaps really)?
+	// Do we do this only for the more complicated cases (anything
+	// more than adding required-snaps really)?
+	if err := snapstate.CheckChangeConflictRunExclusively(st, "remodel"); err != nil {
+		return nil, err
+	}
 
 	remodCtx, err := remodelCtx(st, current, new)
 	if err != nil {
@@ -563,13 +575,6 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	var tss []*state.TaskSet
 	switch remodelKind {
 	case ReregRemodel:
-		// nothing else can be in-flight
-		for _, chg := range st.Changes() {
-			if !chg.IsReady() {
-				return nil, &snapstate.ChangeConflictError{Message: "cannot start complete remodel, other changes are in progress"}
-			}
-		}
-
 		requestSerial := st.NewTask("request-serial", i18n.G("Request new device serial"))
 
 		prepare := st.NewTask("prepare-remodeling", i18n.G("Prepare remodeling"))
@@ -636,4 +641,62 @@ func Remodeling(st *state.State) bool {
 		}
 	}
 	return false
+}
+
+type recoverySystemSetup struct {
+	// Label of the recovery system, selected when tasks are created
+	Label string `json:"label"`
+	// Directory inside the seed filesystem where the recovery system files
+	// are kept, typically /run/mnt/ubuntu-seed/systems/<label>, set when
+	// tasks are created
+	Directory string `json:"directory"`
+	// SnapSetupTasks is a list of task IDs that carry snap setup
+	// information, relevant only during remodel, set when tasks are created
+	SnapSetupTasks []string `json:"snap-setup-tasks"`
+}
+
+func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []string) (*state.TaskSet, error) {
+	// sanity check, the directory should not exist yet
+	// TODO: we should have a common helper to derive this path
+	systemDirectory := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label)
+	exists, _, err := osutil.DirExists(systemDirectory)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, fmt.Errorf("recovery system %q already exists", label)
+	}
+
+	create := st.NewTask("create-recovery-system", fmt.Sprintf("Create recovery system with label %q", label))
+	// the label we want
+	create.Set("recovery-system-setup", &recoverySystemSetup{
+		Label:     label,
+		Directory: systemDirectory,
+		// IDs of the tasks carrying snap-setup
+		SnapSetupTasks: snapSetupTasks,
+	})
+
+	finalize := st.NewTask("finalize-recovery-system", fmt.Sprintf("Finalize recovery system with label %q", label))
+	finalize.WaitFor(create)
+	// finalize needs to know the label too
+	finalize.Set("recovery-system-setup-task", create.ID())
+	return state.NewTaskSet(create, finalize), nil
+}
+
+func CreateRecoverySystem(st *state.State, label string) (*state.Change, error) {
+	var seeded bool
+	err := st.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if !seeded {
+		return nil, fmt.Errorf("cannot create new recovery systems until fully seeded")
+	}
+	chg := st.NewChange("create-recovery-system", fmt.Sprintf("Create new recovery system with label %q", label))
+	ts, err := createRecoverySystemTasks(st, label, nil)
+	if err != nil {
+		return nil, err
+	}
+	chg.AddAll(ts)
+	return chg, nil
 }

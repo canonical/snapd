@@ -2,11 +2,6 @@ summary: Check that try command works inside lxd container
 
 systems: [ubuntu-20.04-*, ubuntu-20.10-*]
 
-restore: |
-  lxd.lxc stop ubuntu --force || true
-  lxd.lxc delete ubuntu || true
-  snap remove --purge lxd
-
 prepare: |
   echo "Install lxd"
   snap install lxd
@@ -37,6 +32,11 @@ prepare: |
   DEB=$(basename "$GOHOME"/snapd_*.deb)
   lxd.lxc exec ubuntu -- apt install -y /root/"$DEB"
   lxd.lxc file push -r --quiet "$TESTSLIB"/snaps/test-snapd-tools "ubuntu/root/"
+
+restore: |
+  lxd.lxc stop ubuntu --force || true
+  lxd.lxc delete ubuntu || true
+  snap remove --purge lxd
 
 execute: |
   lxd.lxc exec ubuntu -- snap try /root/test-snapd-tools
