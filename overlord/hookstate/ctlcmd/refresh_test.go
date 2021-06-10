@@ -158,7 +158,7 @@ version: 1
 	defer mockContext.Unlock()
 	action := mockContext.Cached("action")
 	c.Assert(action, NotNil)
-	c.Check(action, Equals, hookstate.HoldRefresh)
+	c.Check(action, Equals, snapstate.GateAutoRefreshHold)
 
 	var gating map[string]map[string]interface{}
 	c.Assert(s.st.Get("snaps-hold", &gating), IsNil)
@@ -198,7 +198,7 @@ version: 1
 	defer mockContext.Unlock()
 	action := mockContext.Cached("action")
 	c.Assert(action, NotNil)
-	c.Check(action, Equals, hookstate.ProceedWithRefresh)
+	c.Check(action, Equals, snapstate.GateAutoRefreshProceed)
 
 	// and it is not held anymore
 	gating = nil
