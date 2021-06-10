@@ -1,5 +1,9 @@
 summary: Check that snap restarts affects only running services
 
+environment:
+    EXTRA_FLAGS/restart: ""
+    EXTRA_FLAGS/reload: "--reload"
+
 execute: |
     echo "Installing the service snap"
 
@@ -37,7 +41,7 @@ execute: |
     done
 
     echo "Restarting services via restart"
-    snap restart test-snapd-service-restart
+    snap restart $EXTRA_FLAGS test-snapd-service-restart
 
     echo "Check that services 1 and 2 are running"
     for id in 1 2; do
@@ -64,6 +68,6 @@ execute: |
     # Now verify that services explicitly mentioned on the command line always
     # get restarted, regardless of their current state
     for id in 3 4; do
-        systemctl restart snap.test-snapd-service-restart.svc${id}.service
+        snap restart $EXTRA_FLAGS test-snapd-service-restart.svc${id}
         systemctl status snap.test-snapd-service-restart.svc${id}.service | MATCH "running"
     done
