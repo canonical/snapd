@@ -100,11 +100,11 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 
 	switch qc.Action {
 	case "create":
-		err = createQuotaHandler(st, t, qc, allGrps, meter, perfTimings)
+		err = quotaCreate(st, t, qc, allGrps, meter, perfTimings)
 	case "remove":
-		err = removeQuotaHandler(st, t, qc, allGrps, meter, perfTimings)
+		err = quotaRemove(st, t, qc, allGrps, meter, perfTimings)
 	case "update":
-		err = updateQuotaHandler(st, t, qc, allGrps, meter, perfTimings)
+		err = quotaUpdate(st, t, qc, allGrps, meter, perfTimings)
 	default:
 		err = fmt.Errorf("unknown action %q requested", qc.Action)
 	}
@@ -116,7 +116,7 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 	return nil
 }
 
-func createQuotaHandler(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
+func quotaCreate(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
 	// make sure the group does not exist yet
 	if _, ok := allGrps[action.QuotaName]; ok {
 		return fmt.Errorf("group %q already exists", action.QuotaName)
@@ -135,7 +135,7 @@ func createQuotaHandler(st *state.State, t *state.Task, action QuotaControlActio
 		return err
 	}
 
-	grp, allGrps, err := createQuotaImpl(st, action, allGrps)
+	grp, allGrps, err := quotaCreateImpl(st, action, allGrps)
 	if err != nil {
 		return err
 	}
@@ -147,7 +147,7 @@ func createQuotaHandler(st *state.State, t *state.Task, action QuotaControlActio
 	return ensureSnapServicesForGroup(st, t, grp, opts, meter, perfTimings)
 }
 
-func createQuotaImpl(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, error) {
+func quotaCreateImpl(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, error) {
 	// make sure that the parent group exists if we are creating a sub-group
 	var grp *quota.Group
 	var err error
@@ -184,7 +184,7 @@ func createQuotaImpl(st *state.State, action QuotaControlAction, allGrps map[str
 	return grp, newAllGrps, nil
 }
 
-func removeQuotaHandler(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
+func quotaRemove(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
 	// make sure the group exists
 	grp, ok := allGrps[action.QuotaName]
 	if !ok {
@@ -260,7 +260,7 @@ func removeQuotaHandler(st *state.State, t *state.Task, action QuotaControlActio
 	return ensureSnapServicesForGroup(st, t, grp, opts, meter, perfTimings)
 }
 
-func updateQuotaHandler(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
+func quotaUpdate(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
 	// make sure the group exists
 	grp, ok := allGrps[action.QuotaName]
 	if !ok {

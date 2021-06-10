@@ -104,7 +104,7 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 		ParentName:  parentName,
 	}
 
-	return createQuotaHandler(st, nil, qc, allGrps, nil, nil)
+	return quotaCreate(st, nil, qc, allGrps, nil, nil)
 }
 
 // RemoveQuota deletes the specific quota group. Any snaps currently in the
@@ -129,7 +129,7 @@ func RemoveQuota(st *state.State, name string) error {
 		QuotaName: name,
 	}
 
-	return removeQuotaHandler(st, nil, qc, allGrps, nil, nil)
+	return quotaRemove(st, nil, qc, allGrps, nil, nil)
 }
 
 // QuotaGroupUpdate reflects all of the modifications that can be performed on
@@ -168,7 +168,7 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) erro
 		AddSnaps:    updateOpts.AddSnaps,
 	}
 
-	return updateQuotaHandler(st, nil, qc, allGrps, nil, nil)
+	return quotaUpdate(st, nil, qc, allGrps, nil, nil)
 }
 
 // EnsureSnapAbsentFromQuota ensures that the specified snap is not present
