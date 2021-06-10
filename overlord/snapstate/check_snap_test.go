@@ -1031,6 +1031,12 @@ var systemUsernamesTests = []struct {
 	sysIDs: "snap_daemon:\n    scope: shared",
 	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
 }, {
+	sysIDs: "snap_microk8s:\n    scope: shared",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
+}, {
+	sysIDs: "snap_microk8s:\n    scope: shared",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
+}, {
 	sysIDs: "snap_daemon:\n    scope: private",
 	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
 	error:  `snap "foo" requires unsupported user scope "private" for this version of snapd`,
@@ -1243,6 +1249,76 @@ system-usernames:
 			c.Check(mockUserAdd.Calls(), DeepEquals, [][]string{
 				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", falsePath, "--gid", "524288", "--no-user-group", "--uid", "524288", "--extrausers", "snapd-range-524288-root"},
 				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", falsePath, "--gid", "584788", "--no-user-group", "--uid", "584788", "--extrausers", "snap_daemon"},
+			})
+
+		}
+	}
+}
+
+func (s *checkSnapSuite) TestCheckSnapSystemUsernamesCallsSnapDocker(c *C) {
+	r := osutil.MockFindGid(func(groupname string) (uint64, error) {
+		if groupname == "snap_microk8s" || groupname == "snapd-range-524288-root" {
+			return 0, user.UnknownGroupError(groupname)
+		}
+		return 0, fmt.Errorf("unexpected call to FindGid for %s", groupname)
+	})
+	defer r()
+
+	r = osutil.MockFindUid(func(username string) (uint64, error) {
+		if username == "snap_microk8s" || username == "snapd-range-524288-root" {
+			return 0, user.UnknownUserError(username)
+		}
+		return 0, fmt.Errorf("unexpected call to FindUid for %s", username)
+	})
+	defer r()
+
+	falsePath := osutil.LookPathDefault("false", "/bin/false")
+	for _, classic := range []bool{false, true} {
+		restore := release.MockOnClassic(classic)
+		defer restore()
+
+		restore = seccomp_compiler.MockCompilerVersionInfo("dead 2.4.1 deadbeef bpf-actlog")
+		defer restore()
+
+		const yaml = `name: foo
+version: 1.0
+system-usernames:
+  snap_microk8s: shared`
+
+		info, err := snap.InfoFromSnapYaml([]byte(yaml))
+		c.Assert(err, IsNil)
+
+		var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
+			return info, emptyContainer(c), nil
+		}
+		restore = snapstate.MockOpenSnapFile(openSnapFile)
+		defer restore()
+
+		mockGroupAdd := testutil.MockCommand(c, "groupadd", "")
+		defer mockGroupAdd.Restore()
+
+		mockUserAdd := testutil.MockCommand(c, "useradd", "")
+		defer mockUserAdd.Restore()
+
+		err = snapstate.CheckSnap(s.st, "snap-path", "foo", nil, nil, snapstate.Flags{}, nil)
+		c.Assert(err, IsNil)
+		if classic {
+			c.Check(mockGroupAdd.Calls(), DeepEquals, [][]string{
+				{"groupadd", "--system", "--gid", "524288", "snapd-range-524288-root"},
+				{"groupadd", "--system", "--gid", "584789", "snap_microk8s"},
+			})
+			c.Check(mockUserAdd.Calls(), DeepEquals, [][]string{
+				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", falsePath, "--gid", "524288", "--no-user-group", "--uid", "524288", "snapd-range-524288-root"},
+				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", falsePath, "--gid", "584789", "--no-user-group", "--uid", "584789", "snap_microk8s"},
+			})
+		} else {
+			c.Check(mockGroupAdd.Calls(), DeepEquals, [][]string{
+				{"groupadd", "--system", "--gid", "524288", "--extrausers", "snapd-range-524288-root"},
+				{"groupadd", "--system", "--gid", "584789", "--extrausers", "snap_microk8s"},
+			})
+			c.Check(mockUserAdd.Calls(), DeepEquals, [][]string{
+				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", falsePath, "--gid", "524288", "--no-user-group", "--uid", "524288", "--extrausers", "snapd-range-524288-root"},
+				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", falsePath, "--gid", "584789", "--no-user-group", "--uid", "584789", "--extrausers", "snap_microk8s"},
 			})
 
 		}
