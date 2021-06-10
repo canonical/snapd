@@ -104,7 +104,7 @@ execute: |
 
         echo "Then the device is shown as assigned to the snap"
         udevadm info "$UDEVADM_PATH" | MATCH "E: TAGS=.*snap_test-snapd-sh_sh"
-        # CURRENT_TAGS just available on systemc 247+
+        # CURRENT_TAGS just available on systemd 247+
         if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -ge 247 ]; then
             udevadm info "$UDEVADM_PATH" | MATCH "E: CURRENT_TAGS=.*snap_test-snapd-sh_sh"
         fi
@@ -136,9 +136,12 @@ execute: |
         echo "Once the snap is removed, the current tags are automatically removed"
         snap remove test-snapd-sh
         udevadm info "$UDEVADM_PATH" | NOMATCH "E: CURRENT_TAGS=.*snap_test-snapd-sh_sh"
+        test ! -f /etc/udev/rules.d/70-snap.test-snapd-sh.rules
 
-        rm -f /etc/udev/rules.d/70-snap.test-snapd-sh.rules
-        REBOOT
+        # Reboot needed just on systemd 247+
+        if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -ge 247 ]; then
+            REBOOT
+        fi
     fi
 
     udevadm info "$UDEVADM_PATH" | NOMATCH "E: TAGS=.*snap_test-snapd-sh_sh"
