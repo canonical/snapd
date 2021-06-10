@@ -782,6 +782,66 @@ func (s *serviceControlSuite) TestRestartServices(c *C) {
 	})
 }
 
+func (s *serviceControlSuite) TestRestartWithExplicitServices(c *C) {
+	st := s.state
+	st.Lock()
+
+	s.mockTestSnap(c)
+
+	srvAbc := "snap.test-snap.abc.service"
+	srvFoo := "snap.test-snap.foo.service"
+	srvBar := "snap.test-snap.bar.service"
+
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) (buf []byte, err error) {
+		states := map[string]systemdtest.ServiceState{
+			srvAbc: {ActiveState: "inactive", UnitFileState: "enabled"},
+			srvFoo: {ActiveState: "inactive", UnitFileState: "enabled"},
+			srvBar: {ActiveState: "active", UnitFileState: "enabled"},
+		}
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, states); out != nil {
+			return out, nil
+		}
+
+		s.sysctlArgs = append(s.sysctlArgs, cmd)
+		if cmd[0] == "show" {
+			return []byte("ActiveState=inactive\n"), nil
+		}
+		return nil, nil
+	})
+	s.AddCleanup(systemctlRestorer)
+
+	chg := st.NewChange("service-control", "...")
+	t := st.NewTask("service-control", "...")
+	cmd := &servicestate.ServiceAction{
+		SnapName: "test-snap",
+		Action:   "restart",
+		Services: []string{"abc", "foo", "bar"},
+		// 'foo' will be restarted even if inactive
+		ExplicitServices: []string{srvFoo},
+	}
+	t.Set("service-action", cmd)
+	chg.AddTask(t)
+
+	st.Unlock()
+	defer s.se.Stop()
+	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	st.Lock()
+
+	c.Assert(t.Status(), Equals, state.DoneStatus)
+	// We expect to get foo and bar restarted: "bar" because it was already
+	// running and "foo" because it was explicitly mentioned (despite being
+	// inactive). "abc" was not running and not explicitly mentioned, so it
+	// shouldn't get restarted.
+	c.Check(s.sysctlArgs, DeepEquals, [][]string{
+		{"stop", srvFoo},
+		{"show", "--property=ActiveState", srvFoo},
+		{"start", srvFoo},
+		{"stop", srvBar},
+		{"show", "--property=ActiveState", srvBar},
+		{"start", srvBar},
+	})
+}
+
 func (s *serviceControlSuite) TestRestartAllServices(c *C) {
 	st := s.state
 	st.Lock()
