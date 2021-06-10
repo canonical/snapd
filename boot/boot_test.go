@@ -2386,10 +2386,11 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 		CurrentRecoverySystems:    []string{"system"},
 		GoodRecoverySystems:       []string{"system"},
 		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
-		Model:                     "my-model-uc20",
-		BrandID:                   "my-brand",
-		Grade:                     "dangerous",
-		SignKeyID:                 "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+		// leave this comment to keep old gofmt happy
+		Model:     "my-model-uc20",
+		BrandID:   "my-brand",
+		Grade:     "dangerous",
+		SignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
 	}
 	r := setupUC20Bootenv(
 		c,
