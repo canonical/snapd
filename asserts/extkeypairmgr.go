@@ -124,6 +124,14 @@ func (em *ExternalKeypairManager) findByName(name string) (PublicKey, *rsa.Publi
 	return pubKey, rsaPub, nil
 }
 
+func (em *ExternalKeypairManager) Export(keyName string) ([]byte, error) {
+	pubKey, _, err := em.findByName(keyName)
+	if err != nil {
+		return nil, err
+	}
+	return EncodePublicKey(pubKey)
+}
+
 func (em *ExternalKeypairManager) loadKey(name string) (*cachedExtKey, error) {
 	id, ok := em.nameToID[name]
 	if ok {

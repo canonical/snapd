@@ -233,3 +233,25 @@ func (s *extKeypairMgrSuite) TestSignFlow(c *C) {
 		{"keymgr", "sign", "-m", "RSA-PKCS", "-k", "default"},
 	})
 }
+
+func (s *extKeypairMgrSuite) TestExport(c *C) {
+	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
+	c.Assert(err, IsNil)
+
+	keys := []struct {
+		name string
+		pk   *rsa.PublicKey
+	}{
+		{name: "default", pk: s.defaultPub},
+		{name: "models", pk: s.modelsPub},
+	}
+
+	for _, tk := range keys {
+		exported, err := kmgr.Export(tk.name)
+		c.Assert(err, IsNil)
+
+		expected, err := asserts.EncodePublicKey(asserts.RSAPublicKey(tk.pk))
+		c.Assert(err, IsNil)
+		c.Check(exported, DeepEquals, expected)
+	}
+}
