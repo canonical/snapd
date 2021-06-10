@@ -68,6 +68,8 @@ var (
 	SealKeyModelParams              = sealKeyModelParams
 
 	BootVarsForTrustedCommandLineFromGadget = bootVarsForTrustedCommandLineFromGadget
+
+	WriteModelToUbuntuBoot = writeModelToUbuntuBoot
 )
 
 type BootAssetsMap = bootAssetsMap
