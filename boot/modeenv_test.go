@@ -66,6 +66,7 @@ func (s *modeenvSuite) TestKnownKnown(c *C) {
 		"current_kernels": true,
 		"model":           true,
 		"grade":           true,
+		"sign_key_id":     true,
 		// keep this comment to make old go fmt happy
 		"current_kernel_command_lines":         true,
 		"current_trusted_boot_assets":          true,
@@ -233,9 +234,10 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		BaseStatus:     "try",
 		CurrentKernels: []string{"k1", "k2"},
 
-		Model:   "model",
-		BrandID: "brand",
-		Grade:   "secured",
+		Model:     "model",
+		BrandID:   "brand",
+		Grade:     "secured",
+		SignKeyID: "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn",
 
 		BootFlags: []string{"foo", "factory"},
 
@@ -261,9 +263,10 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		BaseStatus:     "try",
 		CurrentKernels: []string{"k1", "k2"},
 
-		Model:   "model",
-		BrandID: "brand",
-		Grade:   "secured",
+		Model:     "model",
+		BrandID:   "brand",
+		Grade:     "secured",
+		SignKeyID: "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn",
 
 		BootFlags: []string{"foo", "factory"},
 
@@ -330,6 +333,12 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 
 	// change the list of good recovery systems
 	modeenv2.GoodRecoverySystems = append(modeenv2.GoodRecoverySystems, "999")
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
+	// restore it
+	modeenv2.GoodRecoverySystems = modeenv2.GoodRecoverySystems[:len(modeenv2.GoodRecoverySystems)-1]
+
+	// change the sign key ID
+	modeenv2.SignKeyID = "EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu"
 	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
 }
 
@@ -751,4 +760,33 @@ current_kernel_command_lines=["snapd_recovery_mode=run panic=-1 console=ttyS0,io
 		`snapd_recovery_mode=run panic=-1 console=ttyS0,io,9600n8`,
 		`snapd_recovery_mode=run candidate panic=-1 console=ttyS0,io,9600n8`,
 	})
+}
+
+func (s *modeenvSuite) TestModeenvWithModelGradeSignKeyID(c *C) {
+	s.makeMockModeenvFile(c, `mode=run
+model=canonical/ubuntu-core-20-amd64
+grade=dangerous
+sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
+`)
+
+	modeenv, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+	c.Check(modeenv.Model, Equals, "ubuntu-core-20-amd64")
+	c.Check(modeenv.BrandID, Equals, "canonical")
+	c.Check(modeenv.Grade, Equals, "dangerous")
+	c.Check(modeenv.SignKeyID, Equals, "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn")
+
+	// change some model data now
+	modeenv.Model = "testkeys-snapd-signed-core-20-amd64"
+	modeenv.BrandID = "developer1"
+	modeenv.Grade = "signed"
+	modeenv.SignKeyID = "EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu"
+	// and write it
+	c.Assert(modeenv.Write(), IsNil)
+
+	c.Assert(s.mockModeenvPath, testutil.FileEquals, `mode=run
+model=developer1/testkeys-snapd-signed-core-20-amd64
+grade=signed
+sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+`)
 }

@@ -59,9 +59,12 @@ type Modeenv struct {
 	TryBase             string   `key:"try_base"`
 	BaseStatus          string   `key:"base_status"`
 	CurrentKernels      []string `key:"current_kernels"`
-	Model               string   `key:"model"`
-	BrandID             string   `key:"model,secondary"`
-	Grade               string   `key:"grade"`
+	// Model, BrandID, Grade, SignKeyID describe the properties of current
+	// device model.
+	Model     string `key:"model"`
+	BrandID   string `key:"model,secondary"`
+	Grade     string `key:"grade"`
+	SignKeyID string `key:"sign_key_id"`
 	// BootFlags is the set of boot flags. Whether this applies for the current
 	// or next boot is not indicated in the modeenv. When the modeenv is read in
 	// the initramfs these flags apply to the current boot and are copied into
@@ -176,6 +179,7 @@ func ReadModeenv(rootdir string) (*Modeenv, error) {
 	m.Model = bm.model
 	// expect the caller to validate the grade
 	unmarshalModeenvValueFromCfg(cfg, "grade", &m.Grade)
+	unmarshalModeenvValueFromCfg(cfg, "sign_key_id", &m.SignKeyID)
 	unmarshalModeenvValueFromCfg(cfg, "current_trusted_boot_assets", &m.CurrentTrustedBootAssets)
 	unmarshalModeenvValueFromCfg(cfg, "current_trusted_recovery_boot_assets", &m.CurrentTrustedRecoveryBootAssets)
 	unmarshalModeenvValueFromCfg(cfg, "current_kernel_command_lines", &m.CurrentKernelCommandLines)
@@ -274,6 +278,7 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 		marshalModeenvEntryTo(buf, "model", &modeenvModel{brandID: m.BrandID, model: m.Model})
 	}
 	marshalModeenvEntryTo(buf, "grade", m.Grade)
+	marshalModeenvEntryTo(buf, "sign_key_id", m.SignKeyID)
 	marshalModeenvEntryTo(buf, "current_trusted_boot_assets", m.CurrentTrustedBootAssets)
 	marshalModeenvEntryTo(buf, "current_trusted_recovery_boot_assets", m.CurrentTrustedRecoveryBootAssets)
 	marshalModeenvEntryTo(buf, "current_kernel_command_lines", m.CurrentKernelCommandLines)
