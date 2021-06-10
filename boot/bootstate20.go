@@ -784,13 +784,11 @@ func (brs20 *bootState20Model) markSuccessful(update bootStateUpdate) (bootState
 
 	// sign key ID was not being populated in earlier versions of snapd, try
 	// to remedy that
-	if u20.writeModeenv.SignKeyID == "" {
-		newM, err := u20.writeModeenv.Copy()
+	if u20.modeenv.SignKeyID == "" {
 		if err != nil {
 			return nil, err
 		}
-		newM.SignKeyID = brs20.dev.Model().SignKeyID()
-		u20.writeModeenv = newM
+		u20.writeModeenv.SignKeyID = brs20.dev.Model().SignKeyID()
 	}
 	return u20, nil
 }
