@@ -116,9 +116,13 @@ func (em *ExternalKeypairManager) findByName(name string) (PublicKey, *rsa.Publi
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot find external key: %v", err)
 	}
-	rsaPub, err := x509.ParsePKCS1PublicKey(k)
+	pubk, err := x509.ParsePKIXPublicKey(k)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot decode external key %q: %v", name, err)
+	}
+	rsaPub, ok := pubk.(*rsa.PublicKey)
+	if !ok {
+		return nil, nil, fmt.Errorf("expected RSA public key, got instead: %T", pubk)
 	}
 	pubKey := RSAPublicKey(rsaPub)
 	return pubKey, rsaPub, nil

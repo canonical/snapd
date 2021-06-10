@@ -52,9 +52,13 @@ func (s *extKeypairMgrSuite) SetUpSuite(c *C) {
 	k2, err := rsa.GenerateKey(rand.Reader, 4096)
 	c.Assert(err, IsNil)
 
-	err = ioutil.WriteFile(filepath.Join(tmpdir, "default.pub"), x509.MarshalPKCS1PublicKey(&k1.PublicKey), 0644)
+	derPub1, err := x509.MarshalPKIXPublicKey(&k1.PublicKey)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(filepath.Join(tmpdir, "models.pub"), x509.MarshalPKCS1PublicKey(&k2.PublicKey), 0644)
+	err = ioutil.WriteFile(filepath.Join(tmpdir, "default.pub"), derPub1, 0644)
+	c.Assert(err, IsNil)
+	derPub2, err := x509.MarshalPKIXPublicKey(&k2.PublicKey)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(tmpdir, "models.pub"), derPub2, 0644)
 	c.Assert(err, IsNil)
 
 	err = ioutil.WriteFile(filepath.Join(tmpdir, "default.key"), x509.MarshalPKCS1PrivateKey(k1), 0600)
