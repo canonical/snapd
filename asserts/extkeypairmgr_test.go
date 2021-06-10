@@ -272,3 +272,30 @@ func (s *extKeypairMgrSuite) TestExport(c *C) {
 		c.Check(exported, DeepEquals, expected)
 	}
 }
+
+func (s *extKeypairMgrSuite) TestList(c *C) {
+	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
+	c.Assert(err, IsNil)
+
+	keys, err := kmgr.List()
+	c.Assert(err, IsNil)
+
+	defaultID := asserts.RSAPublicKey(s.defaultPub).ID()
+	modelsID := asserts.RSAPublicKey(s.modelsPub).ID()
+
+	c.Check(keys, DeepEquals, []asserts.ExternalKeyInfo{
+		{Name: "default", ID: defaultID},
+		{Name: "models", ID: modelsID},
+	})
+}
+
+func (s *extKeypairMgrSuite) TestListError(c *C) {
+	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
+	c.Assert(err, IsNil)
+
+	pgm := testutil.MockCommand(c, "keymgr", `exit 1`)
+	defer pgm.Restore()
+
+	_, err = kmgr.List()
+	c.Check(err, ErrorMatches, `cannot get all external keypair manager key names:.*exit status 1.*`)
+}

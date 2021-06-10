@@ -32,6 +32,7 @@ type KeypairManager interface {
 
 	GetByName(keyNname string) (asserts.PrivateKey, error)
 	Export(keyName string) ([]byte, error)
+	List() ([]asserts.ExternalKeyInfo, error)
 }
 
 func getKeypairManager() (KeypairManager, error) {
