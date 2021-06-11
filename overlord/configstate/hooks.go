@@ -40,6 +40,10 @@ type cachedTransaction struct{}
 // ContextTransaction retrieves the transaction cached within the context (and
 // creates one if it hasn't already been cached).
 func ContextTransaction(context *hookstate.Context) *config.Transaction {
+	return ContextTransactionWithOptions(context, nil)
+}
+
+func ContextTransactionWithOptions(context *hookstate.Context, opts *config.TransactionOptions) *config.Transaction {
 	// Check for one already cached
 	tr, ok := context.Cached(cachedTransaction{}).(*config.Transaction)
 	if ok {
@@ -47,7 +51,7 @@ func ContextTransaction(context *hookstate.Context) *config.Transaction {
 	}
 
 	// It wasn't already cached, so create and cache a new one
-	tr = config.NewTransaction(context.State())
+	tr = config.NewTransactionWithOptions(context.State(), opts)
 
 	context.OnDone(func() error {
 		tr.Commit()

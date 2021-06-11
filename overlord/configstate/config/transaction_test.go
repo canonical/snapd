@@ -714,11 +714,11 @@ func (s *transactionSuite) TestGetNoVirtualIsNotMerged(c *C) {
 		return nil, nil
 	})
 
-	tr := config.NewTransaction(s.state)
+	tr := config.NewTransactionWithOptions(s.state, &config.TransactionOptions{NoVirtual: true})
 
 	var res map[string]interface{}
 	// the root doc
-	err := tr.GetNoVirtual("some-snap", "", &res)
+	err := tr.Get("some-snap", "", &res)
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, map[string]interface{}{
 		"some-key":  "some-value",

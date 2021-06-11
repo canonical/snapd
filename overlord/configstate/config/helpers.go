@@ -290,7 +290,6 @@ type Conf interface {
 	Get(snapName, key string, result interface{}) error
 	GetMaybe(snapName, key string, result interface{}) error
 	GetPristine(snapName, key string, result interface{}) error
-	GetNoVirtual(snapName, key string, result interface{}) error
 	Set(snapName, key string, value interface{}) error
 	Changes() []string
 	State() *state.State
@@ -300,7 +299,6 @@ type Conf interface {
 type ConfGetter interface {
 	Get(snapName, key string, result interface{}) error
 	GetMaybe(snapName, key string, result interface{}) error
-	GetNoVirtual(snapName, key string, result interface{}) error
 }
 
 // Patch sets values in cfg for the provided snap's configuration

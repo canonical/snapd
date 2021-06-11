@@ -43,13 +43,23 @@ type Transaction struct {
 	state    *state.State
 	pristine map[string]map[string]*json.RawMessage // snap => key => value
 	changes  map[string]map[string]interface{}
+
+	opts *TransactionOptions
+}
+
+type TransactionOptions struct {
+	NoVirtual bool
 }
 
 // NewTransaction creates a new configuration transaction initialized with the given state.
 //
 // The provided state must be locked by the caller.
 func NewTransaction(st *state.State) *Transaction {
-	transaction := &Transaction{state: st}
+	return NewTransactionWithOptions(st, nil)
+}
+
+func NewTransactionWithOptions(st *state.State, opts *TransactionOptions) *Transaction {
+	transaction := &Transaction{state: st, opts: opts}
 	transaction.changes = make(map[string]map[string]interface{})
 
 	// Record the current state of the map containing the config of every snap
@@ -136,7 +146,7 @@ func (t *Transaction) Set(instanceName, key string, value interface{}) error {
 	// would go unperceived by the configuration patching below.
 	if len(subkeys) > 1 {
 		var result interface{}
-		err = getFromConfig(instanceName, subkeys, 0, t.pristine[instanceName], &result, nil)
+		err = getFromConfig(instanceName, subkeys, 0, t.pristine[instanceName], &result)
 		if err != nil && !IsNoOption(err) {
 			return err
 		}
@@ -188,7 +198,53 @@ func (t *Transaction) copyPristine(snapName string) map[string]*json.RawMessage 
 //
 // Transactions do not see updates from the current state or from other transactions.
 func (t *Transaction) Get(snapName, key string, result interface{}) error {
-	return t.get(snapName, key, result, nil)
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	subkeys, err := ParseKey(key)
+	if err != nil {
+		return err
+	}
+
+	// first check if this is a virtual configuration key
+	if t.opts == nil || !t.opts.NoVirtual {
+		virtualMu.Lock()
+		km, ok := virtualMap[snapName]
+		virtualMu.Unlock()
+		if ok && km != nil {
+			// check if this is a subkey of a virtualed key
+			for i := 0; i < len(subkeys); i++ {
+				k := strings.Join(subkeys[:len(subkeys)-i], ".")
+				if vf, ok := km[k]; ok {
+					res, err := vf(snapName, key)
+					if err != nil {
+						return err
+					}
+					rv := reflect.ValueOf(result)
+					rv.Elem().Set(reflect.ValueOf(res))
+					return nil
+				}
+			}
+
+		}
+	}
+
+	// commit changes onto a copy of pristine configuration, so that get has a complete view of the config.
+	config := t.copyPristine(snapName)
+	applyChanges(config, t.changes[snapName])
+
+	if t.opts == nil || !t.opts.NoVirtual {
+		mergedConfig, err := mergeConfigWithVirtual(snapName, jsonRaw(config))
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal(*mergedConfig, &config); err != nil {
+			return err
+		}
+	}
+
+	purgeNulls(config)
+	return getFromConfig(snapName, subkeys, 0, config, result)
 }
 
 // GetMaybe unmarshals into result the cached value of the provided snap's configuration key.
@@ -217,7 +273,7 @@ func (t *Transaction) GetPristine(snapName, key string, result interface{}) erro
 		return err
 	}
 
-	return getFromConfig(snapName, subkeys, 0, t.pristine[snapName], result, nil)
+	return getFromConfig(snapName, subkeys, 0, t.pristine[snapName], result)
 }
 
 // GetPristineMaybe unmarshals the cached pristine (before applying any
@@ -233,73 +289,7 @@ func (t *Transaction) GetPristineMaybe(instanceName, key string, result interfac
 	return nil
 }
 
-// GetNoVirtual gets the configuration but ignores any virtual configuration.
-func (t *Transaction) GetNoVirtual(snapName, key string, result interface{}) error {
-	return t.get(snapName, key, result, &options{ExcludeVirtual: true})
-}
-
-type options struct {
-	ExcludeVirtual bool
-}
-
-func (t *Transaction) get(snapName, key string, result interface{}, opts *options) error {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	if opts == nil {
-		opts = &options{}
-	}
-
-	subkeys, err := ParseKey(key)
-	if err != nil {
-		return err
-	}
-
-	// first check if this is a virtual configuration key
-	if !opts.ExcludeVirtual {
-		virtualMu.Lock()
-		km, ok := virtualMap[snapName]
-		virtualMu.Unlock()
-		if ok && km != nil {
-			// check if this is a subkey of a virtualed key
-			for i := 0; i < len(subkeys); i++ {
-				k := strings.Join(subkeys[:len(subkeys)-i], ".")
-				if vf, ok := km[k]; ok {
-					res, err := vf(snapName, key)
-					if err != nil {
-						return err
-					}
-					rv := reflect.ValueOf(result)
-					rv.Elem().Set(reflect.ValueOf(res))
-					return nil
-				}
-			}
-
-		}
-	}
-
-	// commit changes onto a copy of pristine configuration, so that get has a complete view of the config.
-	config := t.copyPristine(snapName)
-	applyChanges(config, t.changes[snapName])
-
-	if !opts.ExcludeVirtual {
-		mergedConfig, err := mergeConfigWithVirtual(snapName, jsonRaw(config))
-		if err != nil {
-			return err
-		}
-		if err := json.Unmarshal(*mergedConfig, &config); err != nil {
-			return err
-		}
-	}
-
-	purgeNulls(config)
-	return getFromConfig(snapName, subkeys, 0, config, result, opts)
-}
-
-func getFromConfig(instanceName string, subkeys []string, pos int, config map[string]*json.RawMessage, result interface{}, opts *options) error {
-	if opts == nil {
-		opts = &options{}
-	}
+func getFromConfig(instanceName string, subkeys []string, pos int, config map[string]*json.RawMessage, result interface{}) error {
 
 	// special case - get root document
 	if len(subkeys) == 0 {
@@ -338,7 +328,7 @@ func getFromConfig(instanceName string, subkeys []string, pos int, config map[st
 	if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &configm); err != nil {
 		return fmt.Errorf("snap %q option %q is not a map", instanceName, strings.Join(subkeys[:pos+1], "."))
 	}
-	return getFromConfig(instanceName, subkeys, pos+1, configm, result, opts)
+	return getFromConfig(instanceName, subkeys, pos+1, configm, result)
 }
 
 // Commit applies to the state the configuration changes made in the transaction
