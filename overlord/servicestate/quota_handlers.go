@@ -109,11 +109,7 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 		err = fmt.Errorf("unknown action %q requested", qc.Action)
 	}
 
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return err
 }
 
 func quotaCreate(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
