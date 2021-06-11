@@ -566,6 +566,33 @@ func (s *modeenvSuite) TestWriteFreshError(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: must use WriteTo with modeenv not read from disk`)
 }
 
+func (s *modeenvSuite) TestWriteIncompleteModelBrand(c *C) {
+	modeenv := &boot.Modeenv{
+		Mode:  "run",
+		Grade: "dangerous",
+	}
+
+	err := modeenv.WriteTo(s.tmpdir)
+	c.Assert(err, ErrorMatches, `internal error: model is unset`)
+
+	modeenv.Model = "bar"
+	err = modeenv.WriteTo(s.tmpdir)
+	c.Assert(err, ErrorMatches, `internal error: brand is unset`)
+
+	modeenv.BrandID = "foo"
+	modeenv.TryGrade = "dangerous"
+	err = modeenv.WriteTo(s.tmpdir)
+	c.Assert(err, ErrorMatches, `internal error: try model is unset`)
+
+	modeenv.TryModel = "bar"
+	err = modeenv.WriteTo(s.tmpdir)
+	c.Assert(err, ErrorMatches, `internal error: try brand is unset`)
+
+	modeenv.TryBrandID = "foo"
+	err = modeenv.WriteTo(s.tmpdir)
+	c.Assert(err, IsNil)
+}
+
 func (s *modeenvSuite) TestWriteToNonExistingFull(c *C) {
 	c.Assert(s.mockModeenvPath, testutil.FileAbsent)
 
