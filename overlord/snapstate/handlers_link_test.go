@@ -1508,15 +1508,24 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresLastRefreshTime(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	now, err := time.Parse(time.RFC3339, "2021-06-10T10:00:00Z")
+	lastRefresh, err := time.Parse(time.RFC3339, "2021-06-10T10:00:00Z")
 	c.Assert(err, IsNil)
+
+	var called int
+	restoreTimeNow := snapstate.MockTimeNow(func() time.Time {
+		now, err := time.Parse(time.RFC3339, "2021-07-20T10:00:00Z")
+		c.Assert(err, IsNil)
+		called++
+		return now
+	})
+	defer restoreTimeNow()
 
 	si := &snap.SideInfo{RealName: "snap", Revision: snap.R(1)}
 	sup := &snapstate.SnapSetup{SideInfo: si}
 	snapstate.Set(s.state, "snap", &snapstate.SnapState{
 		Sequence:        []*snap.SideInfo{si},
 		Current:         si.Revision,
-		LastRefreshTime: &now,
+		LastRefreshTime: &lastRefresh,
 	})
 
 	task := s.state.NewTask("link-snap", "")
@@ -1540,7 +1549,9 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresLastRefreshTime(c *C) {
 
 	var snapst snapstate.SnapState
 	c.Assert(snapstate.Get(s.state, "snap", &snapst), IsNil)
-	c.Check(snapst.LastRefreshTime.Equal(now), Equals, true)
+	// the original last-refresh-time has been restored.
+	c.Check(snapst.LastRefreshTime.Equal(lastRefresh), Equals, true)
+	c.Check(called, Equals, 1)
 }
 
 func (s *linkSnapSuite) TestUndoLinkSnapdFirstInstall(c *C) {
