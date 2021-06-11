@@ -28,6 +28,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -75,9 +76,9 @@ func (s *apiQuotaSuite) TestPostQuotaUnknownAction(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rsp := s.errorReq(c, req, nil)
-	c.Assert(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, `unknown quota action "foo"`)
+	rspe := s.errorReq(c, req, nil)
+	c.Assert(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Equals, `unknown quota action "foo"`)
 }
 
 func (s *apiQuotaSuite) TestPostQuotaInvalidGroupName(c *check.C) {
@@ -86,9 +87,9 @@ func (s *apiQuotaSuite) TestPostQuotaInvalidGroupName(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rsp := s.errorReq(c, req, nil)
-	c.Assert(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `invalid quota group name: .*`)
+	rspe := s.errorReq(c, req, nil)
+	c.Assert(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Matches, `invalid quota group name: .*`)
 }
 
 func (s *apiQuotaSuite) TestPostEnsureQuotaUnhappy(c *check.C) {
@@ -111,9 +112,9 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUnhappy(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `boom`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Matches, `boom`)
 }
 
 func (s *apiQuotaSuite) TestPostEnsureQuotaCreateHappy(c *check.C) {
@@ -221,9 +222,9 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaUnhappy(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `boom`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Matches, `boom`)
 }
 
 func (s *systemsSuite) TestPostQuotaRequiresRoot(c *check.C) {
@@ -279,9 +280,9 @@ func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 200)
-	c.Assert(rsp.Result, check.FitsTypeOf, []daemon.QuotaGroupResultJSON{})
-	res := rsp.Result.([]daemon.QuotaGroupResultJSON)
-	c.Check(res, check.DeepEquals, []daemon.QuotaGroupResultJSON{
+	c.Assert(rsp.Result, check.FitsTypeOf, []client.QuotaGroupResult{})
+	res := rsp.Result.([]client.QuotaGroupResult)
+	c.Check(res, check.DeepEquals, []client.QuotaGroupResult{
 		{
 			GroupName:     "bar",
 			Parent:        "foo",
@@ -296,7 +297,7 @@ func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
 		},
 		{
 			GroupName:     "foo",
-			SubGroups:     []string{"bar", "baz"},
+			Subgroups:     []string{"bar", "baz"},
 			MaxMemory:     9000,
 			CurrentMemory: 5000,
 		},
@@ -324,9 +325,9 @@ func (s *apiQuotaSuite) TestGetQuota(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 200)
-	c.Assert(rsp.Result, check.FitsTypeOf, daemon.QuotaGroupResultJSON{})
-	res := rsp.Result.(daemon.QuotaGroupResultJSON)
-	c.Check(res, check.DeepEquals, daemon.QuotaGroupResultJSON{
+	c.Assert(rsp.Result, check.FitsTypeOf, client.QuotaGroupResult{})
+	res := rsp.Result.(client.QuotaGroupResult)
+	c.Check(res, check.DeepEquals, client.QuotaGroupResult{
 		GroupName:     "bar",
 		Parent:        "foo",
 		MaxMemory:     1000,
@@ -342,15 +343,15 @@ func (s *apiQuotaSuite) TestGetQuotaInvalidName(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/quotas/000", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `invalid quota group name: .*`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Matches, `invalid quota group name: .*`)
 }
 
 func (s *apiQuotaSuite) TestGetQuotaNotFound(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/quotas/unknown", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 404)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `cannot find quota group "unknown"`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 404)
+	c.Check(rspe.Message, check.Matches, `cannot find quota group "unknown"`)
 }

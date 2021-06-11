@@ -1928,6 +1928,10 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 	// check conflicts
 	fromChange := ""
 	for _, up := range candidates {
+		if _, ok := hints[up.InstanceName()]; !ok {
+			// filtered out by refreshHintsFromCandidates
+			continue
+		}
 		snapst := snapstateByInstance[up.InstanceName()]
 		if err := checkChangeConflictIgnoringOneChange(st, up.InstanceName(), snapst, fromChange); err != nil {
 			logger.Noticef("cannot refresh snap %q: %v", up.InstanceName(), err)
@@ -1980,15 +1984,73 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 	// return all names as potentially getting updated even though some may be
 	// held.
 	names := make([]string, len(updates))
+	toUpdate := make(map[string]*refreshCandidate, len(updates))
 	for i, up := range updates {
 		names[i] = up.InstanceName()
+		toUpdate[up.InstanceName()] = hints[up.InstanceName()]
 	}
 	sort.Strings(names)
 
-	// TODO: store the list of snaps to update on the conditional-auto-refresh task
-	// (this may be a subset refresh-candidates due to conflicts).
+	// store the list of snaps to update on the conditional-auto-refresh task
+	// (this may be a subset of refresh-candidates due to conflicts).
+	ar.Set("snaps", toUpdate)
 
 	return names, tss, nil
+}
+
+// autoRefreshPhase2 creates tasks for refreshing snaps from updates.
+func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshCandidate) ([]*state.TaskSet, error) {
+	fromChange := ""
+	flags := &Flags{IsAutoRefresh: true}
+	userID := 0
+
+	deviceCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	toUpdate := make([]minimalInstallInfo, len(updates))
+	for i, up := range updates {
+		toUpdate[i] = up
+	}
+
+	tr := config.NewTransaction(st)
+	checkDiskSpaceRefresh, err := features.Flag(tr, features.CheckDiskSpaceRefresh)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
+	if checkDiskSpaceRefresh {
+		// check if there is enough disk space for requested snaps and their
+		// prerequisites.
+		totalSize, err := installSize(st, toUpdate, 0)
+		if err != nil {
+			return nil, err
+		}
+		requiredSpace := safetyMarginDiskSpace(totalSize)
+		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+			snaps := make([]string, len(updates))
+			for i, up := range updates {
+				snaps[i] = up.InstanceName()
+			}
+			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+				return nil, &InsufficientSpaceError{
+					Path:       path,
+					Snaps:      snaps,
+					ChangeKind: "refresh",
+				}
+			}
+			return nil, err
+		}
+	}
+
+	_, tasksets, err := doUpdate(ctx, st, nil, toUpdate, nil, userID, flags, deviceCtx, fromChange)
+	if err != nil {
+		return nil, err
+	}
+
+	tasksets = finalizeUpdate(st, tasksets, len(updates) > 0, nil, userID, flags)
+	return tasksets, nil
 }
 
 // LinkNewBaseOrKernel will create prepare/link-snap tasks for a remodel

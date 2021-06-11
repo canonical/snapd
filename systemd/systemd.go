@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -100,8 +100,8 @@ var systemctlCmd = func(args ...string) ([]byte, error) {
 	// output mode, see LP #1885597
 	bs, err := exec.Command("systemctl", args...).CombinedOutput()
 	if err != nil {
-		exitCode, _ := osutil.ExitCode(err)
-		return nil, &Error{cmd: args, exitCode: exitCode, msg: bs}
+		exitCode, runErr := osutil.ExitCode(err)
+		return nil, &Error{cmd: args, exitCode: exitCode, runErr: runErr, msg: bs}
 	}
 
 	return bs, nil
@@ -266,6 +266,10 @@ type Systemd interface {
 	// CurrentMemoryUsage returns the current memory usage for the specified
 	// unit.
 	CurrentMemoryUsage(unit string) (quantity.Size, error)
+	// CurrentTasksCount returns the number of tasks (processes, threads, kernel
+	// threads if enabled, etc) part of the unit, which can be a service or a
+	// slice.
+	CurrentTasksCount(unit string) (int, error)
 }
 
 // A Log is a single entry in the systemd journal.
@@ -593,31 +597,80 @@ func (s *systemd) getGlobalUserStatus(unitNames ...string) ([]*UnitStatus, error
 	return sts, nil
 }
 
-func (s *systemd) CurrentMemoryUsage(unit string) (quantity.Size, error) {
-	out, err := s.systemctl("show", "--property", "MemoryCurrent", unit)
+func (s *systemd) getPropertyStringValue(unit, key string) (string, error) {
+	// XXX: ignore stderr of systemctl command to avoid further infractions
+	//      around LP #1885597
+	out, err := s.systemctl("show", "--property", key, unit)
 	if err != nil {
-		return 0, osutil.OutputErr(out, err)
+		return "", osutil.OutputErr(out, err)
 	}
-	// strip the MemoryCurrent= from the output
-	splitVal := strings.SplitN(strings.TrimSpace(string(out)), "=", 2)
+	cleanVal := strings.TrimSpace(string(out))
+
+	// strip the TasksCurrent= from the output
+	splitVal := strings.SplitN(cleanVal, "=", 2)
 	if len(splitVal) != 2 {
-		return 0, fmt.Errorf("invalid property format from systemd for MemoryCurrent")
+		return "", fmt.Errorf("invalid property format from systemd for %s (got %s)", key, cleanVal)
 	}
 
-	trimmedVal := strings.TrimSpace(splitVal[1])
+	return strings.TrimSpace(splitVal[1]), nil
+}
+
+func (s *systemd) CurrentTasksCount(unit string) (int, error) {
+	tasksStr, err := s.getPropertyStringValue(unit, "TasksCurrent")
+	if err != nil {
+		return 0, err
+	}
+
+	// if the unit is inactive or doesn't exist, the tasks current can be
+	// reported as "[not set]"
+	if tasksStr == "[not set]" {
+		return 0, fmt.Errorf("tasks count unavailable")
+	}
+
+	intVal, err := strconv.Atoi(tasksStr)
+	if err != nil {
+		return 0, fmt.Errorf("invalid property value from systemd for TasksCurrent: cannot parse %q as an integer", tasksStr)
+	}
+
+	return intVal, nil
+}
+
+func (s *systemd) CurrentMemoryUsage(unit string) (quantity.Size, error) {
+	memStr, err := s.getPropertyStringValue(unit, "MemoryCurrent")
+	if err != nil {
+		return 0, err
+	}
 
 	// if the unit is inactive or doesn't exist, the memory usage can be
 	// reported as "[not set]"
-	if trimmedVal == "[not set]" {
+	if memStr == "[not set]" {
 		return 0, fmt.Errorf("memory usage unavailable")
 	}
 
-	intVal, err := strconv.Atoi(trimmedVal)
+	intVal, err := strconv.ParseUint(memStr, 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("invalid property value from systemd for MemoryCurrent: cannot parse %q as an integer", trimmedVal)
+		return 0, fmt.Errorf("invalid property value from systemd for MemoryCurrent: cannot parse %q as an integer", memStr)
 	}
 
 	return quantity.Size(intVal), nil
+}
+
+func (s *systemd) InactiveEnterTimestamp(unit string) (time.Time, error) {
+	timeStr, err := s.getPropertyStringValue(unit, "InactiveEnterTimestamp")
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	if timeStr == "" {
+		return time.Time{}, nil
+	}
+
+	// finally parse the time string
+	inactiveEnterTime, err := time.Parse("Mon 2006-01-02 15:04:05 MST", timeStr)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("internal error: systemctl time output (%s) is malformed", timeStr)
+	}
+	return inactiveEnterTime, nil
 }
 
 func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
@@ -669,35 +722,6 @@ func (s *systemd) Status(unitNames ...string) ([]*UnitStatus, error) {
 	return sts, nil
 }
 
-func (s *systemd) InactiveEnterTimestamp(unit string) (time.Time, error) {
-	// XXX: ignore stderr of systemctl command to avoid further infractions
-	//      around LP #1885597
-	out, err := s.systemctl("show", "--property", "InactiveEnterTimestamp", unit)
-	if err != nil {
-		return time.Time{}, osutil.OutputErr(out, err)
-	}
-	// the time returned by systemctl here will be formatted like so:
-	// InactiveEnterTimestamp=Fri 2021-04-16 15:32:21 UTC
-	// so we have to parse the time with a matching Go time format
-	splitVal := strings.SplitN(strings.TrimSpace(string(out)), "=", 2)
-	if len(splitVal) != 2 {
-		// then we don't have an equals sign in the output, so systemctl must be
-		// broken
-		return time.Time{}, fmt.Errorf("internal error: systemctl output (%s) is malformed", string(out))
-	}
-
-	if splitVal[1] == "" {
-		return time.Time{}, nil
-	}
-
-	// finally parse the time string
-	inactiveEnterTime, err := time.Parse("Mon 2006-01-02 15:04:05 MST", splitVal[1])
-	if err != nil {
-		return time.Time{}, fmt.Errorf("internal error: systemctl time output (%s) is malformed", splitVal[1])
-	}
-	return inactiveEnterTime, nil
-}
-
 func (s *systemd) IsEnabled(serviceName string) (bool, error) {
 	var err error
 	if s.rootDir != "" {
@@ -730,14 +754,15 @@ func (s *systemd) IsActive(serviceName string) (bool, error) {
 	if err == nil {
 		return true, nil
 	}
-	// "systemctl is-active <name>" returns exit code 3 for inactive
-	// services, the stderr output may be `inactive\n` for services that are
-	// inactive (or not found), or `failed\n` for services that are in a
-	// failed state; nevertheless make sure to check any non-0 exit code
+	// "systemctl is-active <name>" returns exit code 3 for inactive services,
+	// the stderr output may be `unknown\n` for services that were not found,
+	// `inactive\n` for services that are inactive (or not found for some
+	// systemd versions), or `failed\n` for services that are in a failed state;
+	// nevertheless make sure to check any non-0 exit code
 	sysdErr, ok := err.(systemctlError)
 	if ok {
 		switch strings.TrimSpace(string(sysdErr.Msg())) {
-		case "inactive", "failed":
+		case "inactive", "failed", "unknown":
 			return false, nil
 		}
 	}
@@ -826,6 +851,7 @@ type Error struct {
 	cmd      []string
 	msg      []byte
 	exitCode int
+	runErr   error
 }
 
 func (e *Error) Msg() []byte {
@@ -837,7 +863,14 @@ func (e *Error) ExitCode() int {
 }
 
 func (e *Error) Error() string {
-	return fmt.Sprintf("%v failed with exit status %d: %s", e.cmd, e.exitCode, e.msg)
+	var msg string
+	if len(e.msg) > 0 {
+		msg = fmt.Sprintf(": %s", e.msg)
+	}
+	if e.runErr != nil {
+		return fmt.Sprintf("systemctl command %v failed with: %v%s", e.cmd, e.runErr, msg)
+	}
+	return fmt.Sprintf("systemctl command %v failed with exit status %d%s", e.cmd, e.exitCode, msg)
 }
 
 // Timeout is returned if the systemd action failed to reach the

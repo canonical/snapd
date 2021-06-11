@@ -40,6 +40,20 @@ type ServiceAction struct {
 	Action         string   `json:"action"`
 	ActionModifier string   `json:"action-modifier,omitempty"`
 	Services       []string `json:"services,omitempty"`
+	// ExplicitServices is used when there are explicit services that should be
+	// restarted. This is used for the `snap restart snap-name.svc1` case,
+	// where we create a task with specific services to work on - in this case
+	// ExplicitServices ends up being the list of services that were explicitly
+	// mentioned by the user to be restarted, regardless of their state. This is
+	// needed because in the case that one does `snap restart snap-name`,
+	// Services gets populated with all services in the snap, which we now
+	// interpret to mean that only inactive services of that set are to be
+	// restarted, but there could be additional explicit services that need to
+	// be restarted at the same time in the case that someone does something
+	// like `snap restart snap-name snap-name.svc1`, we will restart all the
+	// inactive and not disabled services in snap-name, and also svc1 regardless
+	// of the state svc1 is in.
+	ExplicitServices []string `json:"explicit-services,omitempty"`
 }
 
 func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
