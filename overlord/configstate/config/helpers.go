@@ -290,7 +290,6 @@ type Conf interface {
 	Get(snapName, key string, result interface{}) error
 	GetMaybe(snapName, key string, result interface{}) error
 	GetPristine(snapName, key string, result interface{}) error
-	// XXX: should we instead add "Options" to Get()?
 	GetNoVirtual(snapName, key string, result interface{}) error
 	Set(snapName, key string, value interface{}) error
 	Changes() []string
