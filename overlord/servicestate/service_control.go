@@ -22,12 +22,12 @@ package servicestate
 import (
 	"fmt"
 
+	tomb "gopkg.in/tomb.v2"
+
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/wrappers"
-
-	tomb "gopkg.in/tomb.v2"
 )
 
 // ServiceAction encapsulates a single service-related action (such as starting,
