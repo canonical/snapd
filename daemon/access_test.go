@@ -38,12 +38,17 @@ type accessSuite struct{}
 
 var _ = Suite(&accessSuite{})
 
+var (
+	errForbidden    = daemon.Forbidden("access denied")
+	errUnauthorized = daemon.Unauthorized("access denied")
+)
+
 func (s *accessSuite) TestOpenAccess(c *C) {
 	var ac daemon.AccessChecker = daemon.OpenAccess{}
 
 	// openAccess denies access from snapd-snap.socket
 	ucred := &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapSocket}
-	c.Check(ac.CheckAccess(nil, ucred, nil).Status, Equals, 403)
+	c.Check(ac.CheckAccess(nil, ucred, nil), DeepEquals, errForbidden)
 
 	// Access allowed from snapd.socket
 	ucred.Socket = dirs.SnapdSocket
@@ -51,7 +56,7 @@ func (s *accessSuite) TestOpenAccess(c *C) {
 
 	// Access forbidden without peer credentials.  This will need
 	// to be revisited if the API is ever exposed over TCP.
-	c.Check(ac.CheckAccess(nil, nil, nil).Status, Equals, 403)
+	c.Check(ac.CheckAccess(nil, nil, nil), DeepEquals, errForbidden)
 }
 
 func (s *accessSuite) TestAuthenticatedAccess(c *C) {
@@ -69,22 +74,22 @@ func (s *accessSuite) TestAuthenticatedAccess(c *C) {
 
 	// authenticatedAccess denies access from snapd-snap.socket
 	ucred := &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapSocket}
-	c.Check(ac.CheckAccess(req, ucred, nil).Status, Equals, 403)
-	c.Check(ac.CheckAccess(req, ucred, user).Status, Equals, 403)
+	c.Check(ac.CheckAccess(req, ucred, nil), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(req, ucred, user), DeepEquals, errForbidden)
 
 	// the same for unknown sockets
 	ucred = &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: "unexpected.socket"}
-	c.Check(ac.CheckAccess(req, ucred, nil).Status, Equals, 403)
+	c.Check(ac.CheckAccess(req, ucred, nil), DeepEquals, errForbidden)
 
 	// With macaroon auth, a normal user is granted access
 	ucred = &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket}
 	c.Check(ac.CheckAccess(req, ucred, user), IsNil)
 
 	// Macaroon access requires peer credentials
-	c.Check(ac.CheckAccess(req, nil, user).Status, Equals, 403)
+	c.Check(ac.CheckAccess(req, nil, user), DeepEquals, errForbidden)
 
 	// Without macaroon auth, normal users are unauthorized
-	c.Check(ac.CheckAccess(req, ucred, nil).Status, Equals, 401)
+	c.Check(ac.CheckAccess(req, ucred, nil), DeepEquals, errUnauthorized)
 
 	// The root user is granted access without a macaroon
 	ucred = &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
@@ -107,8 +112,8 @@ func (s *accessSuite) TestAuthenticatedAccessPolkit(c *C) {
 		return daemon.Forbidden("access denied")
 	})
 	defer restore()
-	c.Check(ac.CheckAccess(req, nil, nil).Status, Equals, 403)
-	c.Check(ac.CheckAccess(req, nil, user).Status, Equals, 403)
+	c.Check(ac.CheckAccess(req, nil, nil), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(req, nil, user), DeepEquals, errForbidden)
 	c.Check(ac.CheckAccess(req, ucred, nil), IsNil)
 
 	// polkit is checked for regular users without macaroon auth
@@ -148,7 +153,7 @@ func (s *accessSuite) TestCheckPolkitActionImpl(c *C) {
 		return false, nil
 	})
 	defer restore()
-	c.Check(daemon.CheckPolkitActionImpl(req, ucred, "action-id").Status, Equals, 401)
+	c.Check(daemon.CheckPolkitActionImpl(req, ucred, "action-id"), DeepEquals, errUnauthorized)
 	c.Check(logbuf.String(), Equals, "")
 
 	// Cancelled if the user dismisses the auth check
@@ -157,8 +162,7 @@ func (s *accessSuite) TestCheckPolkitActionImpl(c *C) {
 	})
 	defer restore()
 	rspe := daemon.CheckPolkitActionImpl(req, ucred, "action-id")
-	c.Check(rspe.Status, Equals, 403)
-	c.Check(rspe.Kind, Equals, client.ErrorKindAuthCancelled)
+	c.Check(rspe, DeepEquals, daemon.AuthCancelled("cancelled"))
 	c.Check(logbuf.String(), Equals, "")
 
 	// The X-Allow-Interaction header can be set to tell polkitd
@@ -189,18 +193,18 @@ func (s *accessSuite) TestRootAccess(c *C) {
 	user := &auth.UserState{}
 
 	// rootAccess denies access without ucred
-	c.Check(ac.CheckAccess(nil, nil, nil).Status, Equals, 403)
-	c.Check(ac.CheckAccess(nil, nil, user).Status, Equals, 403)
+	c.Check(ac.CheckAccess(nil, nil, nil), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(nil, nil, user), DeepEquals, errForbidden)
 
 	// rootAccess denies access from snapd-snap.socket
 	ucred := &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapSocket}
-	c.Check(ac.CheckAccess(nil, ucred, nil).Status, Equals, 403)
-	c.Check(ac.CheckAccess(nil, ucred, user).Status, Equals, 403)
+	c.Check(ac.CheckAccess(nil, ucred, nil), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(nil, ucred, user), DeepEquals, errForbidden)
 
 	// Non-root users are forbidden, even with macaroon auth
 	ucred = &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket}
-	c.Check(ac.CheckAccess(nil, ucred, nil).Status, Equals, 403)
-	c.Check(ac.CheckAccess(nil, ucred, user).Status, Equals, 403)
+	c.Check(ac.CheckAccess(nil, ucred, nil), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(nil, ucred, user), DeepEquals, errForbidden)
 
 	// Root is granted access
 	ucred = &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapdSocket}
@@ -216,6 +220,6 @@ func (s *accessSuite) TestSnapAccess(c *C) {
 
 	// access is forbidden on the main socket or without peer creds
 	ucred.Socket = dirs.SnapdSocket
-	c.Check(ac.CheckAccess(nil, ucred, nil).Status, Equals, 403)
-	c.Check(ac.CheckAccess(nil, nil, nil).Status, Equals, 403)
+	c.Check(ac.CheckAccess(nil, ucred, nil), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(nil, nil, nil), DeepEquals, errForbidden)
 }
