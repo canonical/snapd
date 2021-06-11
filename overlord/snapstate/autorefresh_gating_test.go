@@ -580,9 +580,8 @@ func (s *autorefreshGatingSuite) TestPruneGatingHelper(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	now := "2021-05-10T10:00:00Z"
 	restore := snapstate.MockTimeNow(func() time.Time {
-		t, err := time.Parse(time.RFC3339, now)
+		t, err := time.Parse(time.RFC3339, "2021-05-10T10:00:00Z")
 		c.Assert(err, IsNil)
 		return t
 	})
@@ -615,14 +614,6 @@ func (s *autorefreshGatingSuite) TestPruneGatingHelper(c *C) {
 	held, err = snapstate.HeldSnaps(st)
 	c.Assert(err, IsNil)
 	c.Check(held, DeepEquals, map[string]bool{"snap-c": true})
-
-	// sanity, snap-c is in candidates but holding expired
-	c.Assert(candidates["snap-c"], NotNil)
-	now = "2021-09-10T10:00:00Z"
-	c.Assert(snapstate.PruneGating(st, candidates), IsNil)
-	held, err = snapstate.HeldSnaps(st)
-	c.Assert(err, IsNil)
-	c.Check(held, IsNil)
 }
 
 func (s *autorefreshGatingSuite) TestPruneGatingHelperNoGating(c *C) {
