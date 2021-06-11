@@ -264,8 +264,8 @@ func (t *Transaction) get(snapName, key string, result interface{}, opts *option
 			// check if this is a subkey of a virtualed key
 			for i := 0; i < len(subkeys); i++ {
 				k := strings.Join(subkeys[:len(subkeys)-i], ".")
-				if hif, ok := km[k]; ok {
-					res, err := hif(snapName, key)
+				if vf, ok := km[k]; ok {
+					res, err := vf(snapName, key)
 					if err != nil {
 						return err
 					}
@@ -282,6 +282,16 @@ func (t *Transaction) get(snapName, key string, result interface{}, opts *option
 	config := t.copyPristine(snapName)
 	applyChanges(config, t.changes[snapName])
 
+	if !opts.ExcludeVirtual {
+		mergedConfig, err := mergeConfigWithVirtual(snapName, jsonRaw(config))
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal(*mergedConfig, &config); err != nil {
+			return err
+		}
+	}
+
 	purgeNulls(config)
 	return getFromConfig(snapName, subkeys, 0, config, result, opts)
 }
@@ -293,12 +303,6 @@ func getFromConfig(instanceName string, subkeys []string, pos int, config map[st
 
 	// special case - get root document
 	if len(subkeys) == 0 {
-		// merge any virtual configuration
-		if !opts.ExcludeVirtual {
-			if err := mergeConfigWithVirtual(instanceName, config); err != nil {
-				return err
-			}
-		}
 		if len(config) == 0 {
 			return &NoOptionError{SnapName: instanceName}
 		}
@@ -412,12 +416,12 @@ func commitChange(pristine *json.RawMessage, change interface{}) *json.RawMessag
 	panic(fmt.Errorf("internal error: unexpected configuration type %T", change))
 }
 
-func mergeConfigWithVirtual(instanceName string, config map[string]*json.RawMessage) error {
+func mergeConfigWithVirtual(instanceName string, config *json.RawMessage) (*json.RawMessage, error) {
 	virtualMu.Lock()
 	km, ok := virtualMap[instanceName]
 	virtualMu.Unlock()
 	if !ok {
-		return nil
+		return config, nil
 	}
 
 	// create a "patch" from the virtual entries
@@ -428,7 +432,7 @@ func mergeConfigWithVirtual(instanceName string, config map[string]*json.RawMess
 		}
 		res, err := virtualFn(instanceName, key)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		patch[key] = jsonRaw(res)
 	}
@@ -437,12 +441,14 @@ func mergeConfigWithVirtual(instanceName string, config map[string]*json.RawMess
 	patchKeys := sortPatchKeysByDepth(patch)
 	for _, subkeys := range patchKeys {
 		raw := jsonRaw(patch[subkeys])
-		if _, err := PatchConfig(instanceName, strings.Split(subkeys, "."), 0, config, raw); err != nil {
-			return err
+		mergedConfig, err := PatchConfig(instanceName, strings.Split(subkeys, "."), 0, config, raw)
+		if err != nil {
+			return nil, err
 		}
+		config = jsonRaw(mergedConfig)
 	}
 
-	return nil
+	return config, nil
 }
 
 // IsNoOption returns whether the provided error is a *NoOptionError.

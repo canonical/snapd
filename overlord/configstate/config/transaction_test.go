@@ -632,20 +632,22 @@ func (s *transactionSuite) TestVirtualGetSimple(c *C) {
 	err := tr.Get("some-snap", "other-key", &res)
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, "other-value")
-	// the virtual config function was not called
-	c.Check(n, Equals, 0)
+	// the virtual config function is called so that we can merge the data
+	c.Check(n, Equals, 1)
 
 	// simple case: subkey is virtual
 	err = tr.Get("some-snap", "key.virtual", &res)
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, "some-snap:key.virtual=virtual-value")
-	c.Check(n, Equals, 1)
+	// virtual config function is called again
+	c.Check(n, Equals, 2)
 
 	// virtual deep nesting works too
 	err = tr.Get("some-snap", "key.virtual.subkey", &res)
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, "some-snap:key.virtual.subkey=virtual-value")
-	c.Check(n, Equals, 2)
+	// virtual config function is called yet again
+	c.Check(n, Equals, 3)
 }
 
 func (s *transactionSuite) TestVirtualSetNotShadowHijacked(c *C) {
@@ -722,4 +724,47 @@ func (s *transactionSuite) TestGetNoVirtualIsNotMerged(c *C) {
 		"some-key":  "some-value",
 		"other-key": "value",
 	})
+}
+
+func (s *transactionSuite) TestVirtualGetSubtreeMerged(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("config", map[string]map[string]interface{}{
+		"some-snap": {
+			"other-key": "other-value",
+			"real-and-virtual": map[string]interface{}{
+				"real": "real-value",
+			},
+		},
+	})
+
+	n := 0
+	config.RegisterVirtualConfig("some-snap", "real-and-virtual.virtual", func(snapName, key string) (interface{}, error) {
+		c.Check(snapName, Equals, "some-snap")
+		n++
+
+		s := fmt.Sprintf("%s:%s=virtual-value", snapName, key)
+		return s, nil
+	})
+
+	tr := config.NewTransaction(s.state)
+
+	var res string
+	// non-virtual keys work fine
+	err := tr.Get("some-snap", "other-key", &res)
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, "other-value")
+	// the virtual config function was called only once
+	c.Check(n, Equals, 1)
+
+	var res2 map[string]interface{}
+	err = tr.Get("some-snap", "real-and-virtual", &res2)
+	c.Assert(err, IsNil)
+	c.Check(res2, HasLen, 2)
+	// real
+	c.Check(res2["real"], Equals, "real-value")
+	// and virtual values are combined
+	c.Check(res2["virtual"], Equals, "some-snap:real-and-virtual.virtual=virtual-value")
+	// the virtual config function was called again
+	c.Check(n, Equals, 2)
 }
