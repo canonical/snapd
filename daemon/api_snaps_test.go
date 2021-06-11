@@ -425,9 +425,9 @@ func (s *snapsSuite) TestPostSnapsVerifyMultiSnapInstruction(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "application/json")
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, testutil.Contains, `cannot install "ubuntu-core", please use "core" instead`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, testutil.Contains, `cannot install "ubuntu-core", please use "core" instead`)
 }
 
 func (s *snapsSuite) TestPostSnapsUnsupportedMultiOp(c *check.C) {
@@ -438,9 +438,9 @@ func (s *snapsSuite) TestPostSnapsUnsupportedMultiOp(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "application/json")
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, testutil.Contains, `unsupported multi-snap operation "switch"`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, testutil.Contains, `unsupported multi-snap operation "switch"`)
 }
 
 func (s *snapsSuite) TestPostSnapsNoWeirdses(c *check.C) {
@@ -462,9 +462,9 @@ func (s *snapsSuite) TestPostSnapsNoWeirdses(c *check.C) {
 			c.Assert(err, check.IsNil)
 			req.Header.Set("Content-Type", "application/json")
 
-			rsp := s.errorReq(c, req, nil)
-			c.Check(rsp.Status, check.Equals, 400)
-			c.Check(rsp.Result.(*daemon.ErrorResult).Message, testutil.Contains, `unsupported option provided for multi-snap operation`)
+			rspe := s.errorReq(c, req, nil)
+			c.Check(rspe.Status, check.Equals, 400)
+			c.Check(rspe.Message, testutil.Contains, `unsupported option provided for multi-snap operation`)
 		}
 	}
 }
@@ -512,9 +512,9 @@ func (s *snapsSuite) TestPostSnapsOpInvalidCharset(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "application/json; charset=iso-8859-1")
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, testutil.Contains, "unknown charset in content type")
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, testutil.Contains, "unknown charset in content type")
 }
 
 func (s *snapsSuite) TestRefreshAll(c *check.C) {
@@ -937,9 +937,9 @@ func (s *snapsSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/snaps/gfoo", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 404)
-	c.Check(rsp.Result, check.NotNil)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 404)
+	c.Check(rspe.Message, check.Not(check.Equals), "")
 }
 
 func (s *snapsSuite) TestMapLocalFields(c *check.C) {
@@ -1076,9 +1076,9 @@ func (s *snapsSuite) TestPostSnapBadRequest(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result, check.NotNil)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Not(check.Equals), "")
 }
 
 func (s *snapsSuite) TestPostSnapBadAction(c *check.C) {
@@ -1088,9 +1088,9 @@ func (s *snapsSuite) TestPostSnapBadAction(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result, check.NotNil)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Not(check.Equals), "")
 }
 
 func (s *snapsSuite) TestPostSnapBadChannel(c *check.C) {
@@ -1100,9 +1100,9 @@ func (s *snapsSuite) TestPostSnapBadChannel(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result, check.NotNil)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Not(check.Equals), "")
 }
 
 func (s *snapsSuite) TestPostSnap(c *check.C) {
@@ -1177,9 +1177,9 @@ func (s *snapsSuite) TestPostSnapVerifySnapInstruction(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/snaps/ubuntu-core", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, testutil.Contains, `cannot install "ubuntu-core", please use "core" instead`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, testutil.Contains, `cannot install "ubuntu-core", please use "core" instead`)
 }
 
 func (s *snapsSuite) TestPostSnapCohortUnsupportedAction(c *check.C) {
@@ -1191,9 +1191,9 @@ func (s *snapsSuite) TestPostSnapCohortUnsupportedAction(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
 		c.Assert(err, check.IsNil)
 
-		rsp := s.errorReq(c, req, nil)
-		c.Check(rsp.Status, check.Equals, 400, check.Commentf("%q", action))
-		c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, expectedErr, check.Commentf("%q", action))
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rspe.Message, check.Equals, expectedErr, check.Commentf("%q", action))
 	}
 }
 
@@ -1206,9 +1206,9 @@ func (s *snapsSuite) TestPostSnapLeaveCohortUnsupportedAction(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
 		c.Assert(err, check.IsNil)
 
-		rsp := s.errorReq(c, req, nil)
-		c.Check(rsp.Status, check.Equals, 400, check.Commentf("%q", action))
-		c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, expectedErr, check.Commentf("%q", action))
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rspe.Message, check.Equals, expectedErr, check.Commentf("%q", action))
 	}
 }
 
@@ -1228,9 +1228,9 @@ func (s *snapsSuite) TestPostSnapCohortIncompat(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
 		c.Assert(err, check.IsNil, check.Commentf("%d (%s)", i, t.opts))
 
-		rsp := s.errorReq(c, req, nil)
-		c.Check(rsp.Status, check.Equals, 400, check.Commentf("%d (%s)", i, t.opts))
-		c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, t.errmsg, check.Commentf("%d (%s)", i, t.opts))
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400, check.Commentf("%d (%s)", i, t.opts))
+		c.Check(rspe.Message, check.Equals, t.errmsg, check.Commentf("%d (%s)", i, t.opts))
 	}
 }
 
@@ -1276,9 +1276,9 @@ func (s *snapsSuite) TestPostSnapEnableDisableSwitchRevision(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
 		c.Assert(err, check.IsNil)
 
-		rsp := s.errorReq(c, req, nil)
-		c.Check(rsp.Status, check.Equals, 400)
-		c.Check(rsp.Result.(*daemon.ErrorResult).Message, testutil.Contains, "takes no revision")
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400)
+		c.Check(rspe.Message, testutil.Contains, "takes no revision")
 	}
 }
 

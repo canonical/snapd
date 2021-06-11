@@ -309,9 +309,9 @@ func (s *systemsSuite) TestSystemActionRequestErrors(c *check.C) {
 		c.Logf("tc: %#v", tc)
 		req, err := http.NewRequest("POST", path.Join("/v2/systems", tc.label), strings.NewReader(tc.body))
 		c.Assert(err, check.IsNil)
-		rsp := s.errorReq(c, req, nil)
-		c.Check(rsp.Status, check.Equals, tc.status)
-		c.Check(rsp.ErrorResult().Message, check.Matches, tc.error)
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, tc.status)
+		c.Check(rspe.Message, check.Matches, tc.error)
 	}
 }
 
@@ -552,9 +552,9 @@ func (s *systemsSuite) TestSystemActionBrokenSeed(c *check.C) {
 	body := `{"action":"do","title":"reinstall","mode":"install"}`
 	req, err := http.NewRequest("POST", "/v2/systems/20191119", strings.NewReader(body))
 	c.Assert(err, check.IsNil)
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 500)
-	c.Check(rsp.ErrorResult().Message, check.Matches, `cannot load seed system: cannot load assertions: .*`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 500)
+	c.Check(rspe.Message, check.Matches, `cannot load seed system: cannot load assertions: .*`)
 }
 
 func (s *systemsSuite) TestSystemActionNonRoot(c *check.C) {
