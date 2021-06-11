@@ -1044,7 +1044,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(snapst.LastRefreshTime, NotNil)
-	c.Check(*snapst.LastRefreshTime, Equals, now)
+	c.Check(snapst.LastRefreshTime.Equal(now), Equals, true)
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
