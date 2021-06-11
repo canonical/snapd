@@ -688,14 +688,13 @@ func (s *generalSuite) TestStateChangeAbortIsReady(c *check.C) {
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/changes/"+ids[0], buf)
 	c.Assert(err, check.IsNil)
-	rsp := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil)
 	rec := httptest.NewRecorder()
-	rsp.ServeHTTP(rec, req)
+	rspe.ServeHTTP(rec, req)
 
 	// Verify
 	c.Check(rec.Code, check.Equals, 400)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result, check.NotNil)
+	c.Check(rspe.Status, check.Equals, 400)
 
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
