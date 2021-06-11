@@ -615,33 +615,35 @@ func (s *systemd) getPropertyStringValue(unit, key string) (string, error) {
 	return strings.TrimSpace(splitVal[1]), nil
 }
 
-func (s *systemd) getPropertyUintValue(unit, key string) (uint64, bool, error) {
+var errNotSet = errors.New("property value is not available")
+
+func (s *systemd) getPropertyUintValue(unit, key string) (uint64, error) {
 	valStr, err := s.getPropertyStringValue(unit, key)
 	if err != nil {
-		return 0, false, err
+		return 0, err
 	}
 
 	// if the unit is inactive or doesn't exist, the value can be reported as
 	// "[not set]"
 	if valStr == "[not set]" {
-		return 0, true, nil
+		return 0, errNotSet
 	}
 
 	intVal, err := strconv.ParseUint(valStr, 10, 64)
 	if err != nil {
-		return 0, false, fmt.Errorf("invalid property value from systemd for %s: cannot parse %q as an integer", key, valStr)
+		return 0, fmt.Errorf("invalid property value from systemd for %s: cannot parse %q as an integer", key, valStr)
 	}
 
-	return intVal, false, nil
+	return intVal, nil
 }
 
 func (s *systemd) CurrentTasksCount(unit string) (uint64, error) {
-	tasksCount, isNotSet, err := s.getPropertyUintValue(unit, "TasksCurrent")
-	if err != nil {
+	tasksCount, err := s.getPropertyUintValue(unit, "TasksCurrent")
+	if err != nil && err != errNotSet {
 		return 0, err
 	}
 
-	if isNotSet {
+	if err == errNotSet {
 		return 0, fmt.Errorf("tasks count unavailable")
 	}
 
@@ -649,12 +651,12 @@ func (s *systemd) CurrentTasksCount(unit string) (uint64, error) {
 }
 
 func (s *systemd) CurrentMemoryUsage(unit string) (quantity.Size, error) {
-	memBytes, isNotSet, err := s.getPropertyUintValue(unit, "MemoryCurrent")
-	if err != nil {
+	memBytes, err := s.getPropertyUintValue(unit, "MemoryCurrent")
+	if err != nil && err != errNotSet {
 		return 0, err
 	}
 
-	if isNotSet {
+	if err == errNotSet {
 		return 0, fmt.Errorf("memory usage unavailable")
 	}
 
