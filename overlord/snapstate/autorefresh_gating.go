@@ -251,6 +251,48 @@ func ProceedWithRefresh(st *state.State, gatingSnap string) error {
 	return nil
 }
 
+// pruneGating resets gating information by:
+// - removing affecting snaps whose held time expired.
+// - removing affecting snaps that are not in candidates (meaning there is no update for them anymore).
+func pruneGating(st *state.State, candidates map[string]*refreshCandidate) error {
+	gating, err := refreshGating(st)
+	if err != nil {
+		return err
+	}
+
+	if len(gating) == 0 {
+		return nil
+	}
+
+	now := timeNow()
+
+	var changed bool
+	for affectingSnap, gatingSnaps := range gating {
+		if candidates[affectingSnap] == nil {
+			// the snap doesn't have an update anymore, forget it
+			delete(gating, affectingSnap)
+			changed = true
+			continue
+		}
+
+		for gatingSnap, tm := range gatingSnaps {
+			if tm.HoldUntil.Before(now) {
+				delete(gatingSnaps, gatingSnap)
+				changed = true
+			}
+		}
+		// after deleting gating snaps we may end up with empty map under
+		// gating[affectingSnap], so remove it.
+		if len(gatingSnaps) == 0 {
+			delete(gating, affectingSnap)
+		}
+	}
+	if changed {
+		st.Set("snaps-hold", gating)
+	}
+	return nil
+}
+
 // resetGatingForRefreshed resets gating information by removing refreshedSnaps
 // (they are not held anymore). This should be called for all successfully
 // refreshed snaps.

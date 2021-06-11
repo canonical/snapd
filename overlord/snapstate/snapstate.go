@@ -1923,6 +1923,10 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 	}
 	st.Set("refresh-candidates", hints)
 
+	if err := pruneGating(st, hints); err != nil {
+		return nil, nil, err
+	}
+
 	var updates []*snap.Info
 
 	// check conflicts
