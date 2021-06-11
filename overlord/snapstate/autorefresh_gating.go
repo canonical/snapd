@@ -537,13 +537,21 @@ var snapsToRefresh = func(gatingTask *state.Task) ([]*refreshCandidate, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	var skipped []string
 	var candidates []*refreshCandidate
 	for _, s := range snaps {
 		if !held[s.InstanceName()] {
 			candidates = append(candidates, s)
 		} else {
-			logger.Noticef("skipping refresh of snap %q", s.InstanceName())
+			skipped = append(skipped, s.InstanceName())
 		}
 	}
+
+	if len(skipped) > 0 {
+		sort.Strings(skipped)
+		logger.Noticef("skipping refresh of held snaps: %s", strings.Join(skipped, ","))
+	}
+
 	return candidates, nil
 }

@@ -1431,7 +1431,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Held(c *C) {
 		c.Assert(snapstate.HoldRefresh(s.state, "snap-b", 0, "base-snap-b"), IsNil)
 	}, expected)
 
-	c.Assert(logbuf.String(), testutil.Contains, `skipping refresh of snap "base-snap-b"`)
+	c.Assert(logbuf.String(), testutil.Contains, `skipping refresh of held snaps: base-snap-b`)
 }
 
 func (s *snapmgrTestSuite) TestAutoRefreshPhase2AllHeld(c *C) {
@@ -1453,8 +1453,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2AllHeld(c *C) {
 		c.Assert(snapstate.HoldRefresh(s.state, "snap-a", 0, "snap-a"), IsNil)
 	}, expected)
 
-	c.Assert(logbuf.String(), testutil.Contains, `skipping refresh of snap "base-snap-b"`)
-	c.Assert(logbuf.String(), testutil.Contains, `skipping refresh of snap "snap-a"`)
+	c.Assert(logbuf.String(), testutil.Contains, `skipping refresh of held snaps: base-snap-b,snap-a`)
 }
 
 func (s *snapmgrTestSuite) testAutoRefreshPhase2DiskSpaceCheck(c *C, fail bool) {
