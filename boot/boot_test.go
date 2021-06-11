@@ -2387,10 +2387,10 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 		GoodRecoverySystems:       []string{"system"},
 		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
 		// leave this comment to keep old gofmt happy
-		Model:     "my-model-uc20",
-		BrandID:   "my-brand",
-		Grade:     "dangerous",
-		SignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
+		Model:          "my-model-uc20",
+		BrandID:        "my-brand",
+		Grade:          "dangerous",
+		ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
 	}
 	r := setupUC20Bootenv(
 		c,
@@ -2934,7 +2934,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20ModelSignKeyIDPopulated(c *C) {
 	m2, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	// model's sign key ID has been set
-	c.Check(m2.SignKeyID, Equals, "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij")
+	c.Check(m2.ModelSignKeyID, Equals, "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij")
 	c.Check(m2.Model, Equals, "my-model-uc20")
 	c.Check(m2.BrandID, Equals, "my-brand")
 	c.Check(m2.Grade, Equals, "dangerous")

@@ -60,16 +60,16 @@ func (s *modeenvSuite) TestKnownKnown(c *C) {
 		"good_recovery_systems":    true,
 		"boot_flags":               true,
 		// keep this comment to make old go fmt happy
-		"base":            true,
-		"try_base":        true,
-		"base_status":     true,
-		"current_kernels": true,
-		"model":           true,
-		"grade":           true,
-		"sign_key_id":     true,
-		"try_model":       true,
-		"try_grade":       true,
-		"try_sign_key_id": true,
+		"base":                  true,
+		"try_base":              true,
+		"base_status":           true,
+		"current_kernels":       true,
+		"model":                 true,
+		"grade":                 true,
+		"model_sign_key_id":     true,
+		"try_model":             true,
+		"try_grade":             true,
+		"try_model_sign_key_id": true,
 		// keep this comment to make old go fmt happy
 		"current_kernel_command_lines":         true,
 		"current_trusted_boot_assets":          true,
@@ -237,10 +237,10 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		BaseStatus:     "try",
 		CurrentKernels: []string{"k1", "k2"},
 
-		Model:     "model",
-		BrandID:   "brand",
-		Grade:     "secured",
-		SignKeyID: "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn",
+		Model:          "model",
+		BrandID:        "brand",
+		Grade:          "secured",
+		ModelSignKeyID: "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn",
 
 		BootFlags: []string{"foo", "factory"},
 
@@ -266,10 +266,10 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		BaseStatus:     "try",
 		CurrentKernels: []string{"k1", "k2"},
 
-		Model:     "model",
-		BrandID:   "brand",
-		Grade:     "secured",
-		SignKeyID: "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn",
+		Model:          "model",
+		BrandID:        "brand",
+		Grade:          "secured",
+		ModelSignKeyID: "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn",
 
 		BootFlags: []string{"foo", "factory"},
 
@@ -341,7 +341,7 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 	modeenv2.GoodRecoverySystems = modeenv2.GoodRecoverySystems[:len(modeenv2.GoodRecoverySystems)-1]
 
 	// change the sign key ID
-	modeenv2.SignKeyID = "EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu"
+	modeenv2.ModelSignKeyID = "EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu"
 	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
 }
 
@@ -769,10 +769,10 @@ func (s *modeenvSuite) TestModeenvWithModelGradeSignKeyID(c *C) {
 	s.makeMockModeenvFile(c, `mode=run
 model=canonical/ubuntu-core-20-amd64
 grade=dangerous
-sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
+model_sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
 try_model=developer1/testkeys-snapd-secured-core-20-amd64
 try_grade=secured
-try_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+try_model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
 `)
 
 	modeenv, err := boot.ReadModeenv(s.tmpdir)
@@ -780,23 +780,23 @@ try_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
 	c.Check(modeenv.Model, Equals, "ubuntu-core-20-amd64")
 	c.Check(modeenv.BrandID, Equals, "canonical")
 	c.Check(modeenv.Grade, Equals, "dangerous")
-	c.Check(modeenv.SignKeyID, Equals, "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn")
+	c.Check(modeenv.ModelSignKeyID, Equals, "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn")
 	// candidate model
 	c.Check(modeenv.TryModel, Equals, "testkeys-snapd-secured-core-20-amd64")
 	c.Check(modeenv.TryBrandID, Equals, "developer1")
 	c.Check(modeenv.TryGrade, Equals, "secured")
-	c.Check(modeenv.TrySignKeyID, Equals, "EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu")
+	c.Check(modeenv.TryModelSignKeyID, Equals, "EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu")
 
 	// change some model data now
 	modeenv.Model = "testkeys-snapd-signed-core-20-amd64"
 	modeenv.BrandID = "developer1"
 	modeenv.Grade = "signed"
-	modeenv.SignKeyID = "EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu"
+	modeenv.ModelSignKeyID = "EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu"
 
 	modeenv.TryModel = "bar"
 	modeenv.TryBrandID = "foo"
 	modeenv.TryGrade = "dangerous"
-	modeenv.TrySignKeyID = "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn"
+	modeenv.TryModelSignKeyID = "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn"
 
 	// and write it
 	c.Assert(modeenv.Write(), IsNil)
@@ -804,9 +804,9 @@ try_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
 	c.Assert(s.mockModeenvPath, testutil.FileEquals, `mode=run
 model=developer1/testkeys-snapd-signed-core-20-amd64
 grade=signed
-sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
 try_model=foo/bar
 try_grade=dangerous
-try_sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
+try_model_sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
 `)
 }
