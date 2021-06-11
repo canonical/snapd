@@ -3435,7 +3435,8 @@ apps:
 		{"start", srvFile3},
 	})
 
-	// Verify that explicitly mentioning a service causes it to restart
+	// Verify that explicitly mentioning a service causes it to restart,
+	// regardless of its state
 	s.sysdLog = nil
 	c.Assert(wrappers.RestartServices(services, []string{srvFile2}, nil, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{

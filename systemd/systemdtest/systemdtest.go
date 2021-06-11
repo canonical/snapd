@@ -30,6 +30,8 @@ type ServiceState struct {
 	UnitFileState string
 }
 
+// HandleMockAllUnitsActiveOutput returns the output for systemctl in the case
+// where units have the state as described by states.
 // If `cmd` is the command issued by systemd.Status(), this function returns
 // the output to be produced by the command so that the queried services will
 // appear having the ActiveState and UnitFileState according to the data

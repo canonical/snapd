@@ -1574,10 +1574,14 @@ type RestartServicesFlags struct {
 	Reload bool
 }
 
-// Restart or reload services; if reload flag is set then "systemctl reload-or-restart" is attempted.
-// The `explicitServices` list can be null to indicate the the action was
-// requested on the snap as a whole, otherwise it needs to contain the names of
-// the services which were explicitly requested to be restarted.
+// Restart or reload active services in `svcs`.
+// If reload flag is set then "systemctl reload-or-restart" is attempted.
+// The services mentioned in `explicitServices` should be a subset of the
+// services in svcs. The services included in explicitServices are always
+// restarted, regardless of their state. The services in the `svcs` argument
+// are only restarted if they are active, so if a service is meant to be
+// restarted no matter it's state, it should be included in the
+// explicitServices list.
 func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
 	flags *RestartServicesFlags, inter interacter, tm timings.Measurer) error {
 	sysd := systemd.New(systemd.SystemMode, inter)

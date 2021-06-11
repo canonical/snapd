@@ -782,9 +782,11 @@ func (s *serviceControlSuite) TestRestartServices(c *C) {
 	})
 }
 
-func (s *serviceControlSuite) TestRestartWithExplicitServices(c *C) {
+func (s *serviceControlSuite) testRestartWithExplicitServicesCommon(c *C,
+	explicitServices []string, expectedInvocations [][]string) {
 	st := s.state
 	st.Lock()
+	defer st.Unlock()
 
 	s.mockTestSnap(c)
 
@@ -816,30 +818,58 @@ func (s *serviceControlSuite) TestRestartWithExplicitServices(c *C) {
 		SnapName: "test-snap",
 		Action:   "restart",
 		Services: []string{"abc", "foo", "bar"},
-		// 'foo' will be restarted even if inactive
-		ExplicitServices: []string{srvFoo},
+		// these services will be restarted even if inactive
+		ExplicitServices: explicitServices,
 	}
 	t.Set("service-action", cmd)
 	chg.AddTask(t)
 
 	st.Unlock()
 	defer s.se.Stop()
-	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	err := s.o.Settle(5 * time.Second)
 	st.Lock()
+	c.Assert(err, IsNil)
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	// We expect to get foo and bar restarted: "bar" because it was already
 	// running and "foo" because it was explicitly mentioned (despite being
 	// inactive). "abc" was not running and not explicitly mentioned, so it
 	// shouldn't get restarted.
-	c.Check(s.sysctlArgs, DeepEquals, [][]string{
-		{"stop", srvFoo},
-		{"show", "--property=ActiveState", srvFoo},
-		{"start", srvFoo},
-		{"stop", srvBar},
-		{"show", "--property=ActiveState", srvBar},
-		{"start", srvBar},
-	})
+	c.Check(s.sysctlArgs, DeepEquals, expectedInvocations)
+}
+
+func (s *serviceControlSuite) TestRestartWithSomeExplicitServices(c *C) {
+	srvFoo := "snap.test-snap.foo.service"
+	srvBar := "snap.test-snap.bar.service"
+	s.testRestartWithExplicitServicesCommon(c,
+		[]string{srvFoo},
+		[][]string{
+			{"stop", srvFoo},
+			{"show", "--property=ActiveState", srvFoo},
+			{"start", srvFoo},
+			{"stop", srvBar},
+			{"show", "--property=ActiveState", srvBar},
+			{"start", srvBar},
+		})
+}
+
+func (s *serviceControlSuite) TestRestartWithAllExplicitServices(c *C) {
+	srvAbc := "snap.test-snap.abc.service"
+	srvFoo := "snap.test-snap.foo.service"
+	srvBar := "snap.test-snap.bar.service"
+	s.testRestartWithExplicitServicesCommon(c,
+		[]string{srvAbc, srvBar, srvFoo},
+		[][]string{
+			{"stop", srvFoo},
+			{"show", "--property=ActiveState", srvFoo},
+			{"start", srvFoo},
+			{"stop", srvBar},
+			{"show", "--property=ActiveState", srvBar},
+			{"start", srvBar},
+			{"stop", srvAbc},
+			{"show", "--property=ActiveState", srvAbc},
+			{"start", srvAbc},
+		})
 }
 
 func (s *serviceControlSuite) TestRestartAllServices(c *C) {
