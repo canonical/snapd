@@ -1504,6 +1504,99 @@ func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresRefreshInhibitedTime(c *C) {
 	c.Check(snapst.RefreshInhibitedTime.Equal(instant), Equals, true)
 }
 
+func (s *linkSnapSuite) TestLinkSnapSetsLastRefreshTime(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	now, err := time.Parse(time.RFC3339, "2021-07-20T10:00:00Z")
+	c.Assert(err, IsNil)
+	restoreTimeNow := snapstate.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restoreTimeNow()
+
+	si := &snap.SideInfo{RealName: "snap", Revision: snap.R(1)}
+	sup := &snapstate.SnapSetup{SideInfo: si}
+	snapstate.Set(s.state, "snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+		// LastRefreshTime not set initially (first install)
+	})
+
+	task := s.state.NewTask("link-snap", "")
+	task.Set("snap-setup", sup)
+	chg := s.state.NewChange("test", "")
+	chg.AddTask(task)
+
+	s.state.Unlock()
+
+	for i := 0; i < 10; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Tasks(), HasLen, 1)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "snap", &snapst), IsNil)
+	c.Assert(snapst.LastRefreshTime, NotNil)
+	c.Check(snapst.LastRefreshTime.Equal(now), Equals, true)
+
+	var oldTime *time.Time
+	c.Assert(task.Get("old-last-refresh-time", &oldTime), IsNil)
+	c.Check(oldTime, IsNil)
+}
+
+func (s *linkSnapSuite) TestLinkSnapUpdatesLastRefreshTime(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	now, err := time.Parse(time.RFC3339, "2021-07-20T10:00:00Z")
+	c.Assert(err, IsNil)
+	restoreTimeNow := snapstate.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restoreTimeNow()
+
+	lastRefresh, err := time.Parse(time.RFC3339, "2021-02-20T10:00:00Z")
+	c.Assert(err, IsNil)
+	si := &snap.SideInfo{RealName: "snap", Revision: snap.R(1)}
+	sup := &snapstate.SnapSetup{SideInfo: si}
+	snapstate.Set(s.state, "snap", &snapstate.SnapState{
+		Sequence:        []*snap.SideInfo{si},
+		Current:         si.Revision,
+		LastRefreshTime: &lastRefresh,
+	})
+
+	task := s.state.NewTask("link-snap", "")
+	task.Set("snap-setup", sup)
+	chg := s.state.NewChange("test", "")
+	chg.AddTask(task)
+
+	s.state.Unlock()
+
+	for i := 0; i < 10; i++ {
+		s.se.Ensure()
+		s.se.Wait()
+	}
+
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "snap", &snapst), IsNil)
+	c.Assert(snapst.LastRefreshTime, NotNil)
+	c.Check(snapst.LastRefreshTime.Equal(now), Equals, true)
+
+	var oldTime *time.Time
+	c.Assert(task.Get("old-last-refresh-time", &oldTime), IsNil)
+	c.Check(oldTime.Equal(lastRefresh), Equals, true)
+}
+
 func (s *linkSnapSuite) TestDoUndoLinkSnapRestoresLastRefreshTime(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
