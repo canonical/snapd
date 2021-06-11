@@ -31,5 +31,11 @@ func (t *Transaction) PristineConfig() map[string]map[string]*json.RawMessage {
 
 var (
 	SortPatchKeysByDepth = sortPatchKeysByDepth
-	ClearVirtualMap      = clearVirtualMap
 )
+
+func ClearVirtualMap() {
+	virtualMu.Lock()
+	defer virtualMu.Unlock()
+
+	virtualMap = nil
+}

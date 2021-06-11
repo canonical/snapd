@@ -493,10 +493,3 @@ func RegisterVirtualConfig(snapName, key string, hi VirtualCfgFunc) {
 	}
 	virtualMap[snapName][key] = hi
 }
-
-func clearVirtualMap() {
-	virtualMu.Lock()
-	defer virtualMu.Unlock()
-
-	virtualMap = nil
-}
