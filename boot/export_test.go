@@ -191,8 +191,13 @@ func SetBootFlagsInBootloader(flags []string, rootDir string) error {
 	return bl.SetBootVars(blVars)
 }
 
-func (b *bootChain) SetModelAssertion(model *asserts.Model) {
-	b.model = model
+func (b *bootChain) SetModelForSealingFromAssertion(model *asserts.Model) {
+	b.model = &modeenvModelForSealing{
+		brandID:        model.BrandID(),
+		model:          model.Model(),
+		modelSignKeyID: model.SignKeyID(),
+		grade:          model.Grade(),
+	}
 }
 
 func (b *bootChain) SetKernelBootFile(kbf bootloader.BootFile) {
@@ -217,7 +222,7 @@ func MockRunFDESetupHook(f fde.RunSetupHookFunc) (restore func()) {
 	return func() { RunFDESetupHook = oldRunFDESetupHook }
 }
 
-func MockResealKeyToModeenvUsingFDESetupHook(f func(string, *asserts.Model, *Modeenv, bool) error) (restore func()) {
+func MockResealKeyToModeenvUsingFDESetupHook(f func(string, *Modeenv, bool) error) (restore func()) {
 	old := resealKeyToModeenvUsingFDESetupHook
 	resealKeyToModeenvUsingFDESetupHook = f
 	return func() {

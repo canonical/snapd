@@ -32,8 +32,11 @@ import (
 
 	"github.com/mvo5/goconfigparser"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/secboot"
 )
 
 type bootAssetsMap map[string][]string
@@ -323,6 +326,54 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 		return err
 	}
 	return nil
+}
+
+// dummy to verify interface match
+var _ secboot.ModelForSealing = (*modeenvModelForSealing)(nil)
+
+// modeenvModelForSealing is a helper type that implements
+// github.com/snapcore/secboot.SnapModel interface.
+type modeenvModelForSealing struct {
+	brandID        string
+	model          string
+	grade          asserts.ModelGrade
+	modelSignKeyID string
+}
+
+func (m *modeenvModelForSealing) BrandID() string           { return m.brandID }
+func (m *modeenvModelForSealing) SignKeyID() string         { return m.modelSignKeyID }
+func (m *modeenvModelForSealing) Model() string             { return m.model }
+func (m *modeenvModelForSealing) Grade() asserts.ModelGrade { return m.grade }
+func (m *modeenvModelForSealing) Series() string            { return release.Series }
+
+// uniqueID returns a unique ID which can be used as a map index of the
+// underlying model.
+func (m *modeenvModelForSealing) uniqueID() string {
+	return fmt.Sprintf("%s/%s/%s/%s", m.brandID, m.model, m.grade, m.modelSignKeyID)
+}
+
+// ModelForSealing returns a wrapper implementing
+// github.com/snapcore/secboot.SnapModel interface which describes the current
+// model.
+func (m *Modeenv) ModelForSealing() *modeenvModelForSealing {
+	return &modeenvModelForSealing{
+		brandID:        m.BrandID,
+		model:          m.Model,
+		grade:          asserts.ModelGrade(m.Grade),
+		modelSignKeyID: m.ModelSignKeyID,
+	}
+}
+
+// TryModelForSealing returns a wrapper implementing
+// github.com/snapcore/secboot.SnapModel interface which describes the candidate
+// or try model.
+func (m *Modeenv) TryModelForSealing() *modeenvModelForSealing {
+	return &modeenvModelForSealing{
+		brandID:        m.TryBrandID,
+		model:          m.TryModel,
+		grade:          asserts.ModelGrade(m.TryGrade),
+		modelSignKeyID: m.TryModelSignKeyID,
+	}
 }
 
 type modeenvValueMarshaller interface {

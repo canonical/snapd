@@ -153,7 +153,7 @@ func (s *bootchainSuite) TestBootChainMarshalFull(c *C) {
 	}
 
 	uc20model := boottest.MakeMockUC20Model()
-	bc.SetModelAssertion(uc20model)
+	bc.SetModelForSealingFromAssertion(uc20model)
 	kernelBootFile := bootloader.NewBootFile("pc-kernel", "/foo", bootloader.RoleRecovery)
 	bc.SetKernelBootFile(kernelBootFile)
 
@@ -174,7 +174,7 @@ func (s *bootchainSuite) TestBootChainMarshalFull(c *C) {
 		KernelCmdlines: []string{`a=1`, `foo=bar baz=0x123`},
 	}
 	// those can't be set directly, but are copied as well
-	expectedPredictableBc.SetModelAssertion(uc20model)
+	expectedPredictableBc.SetModelForSealingFromAssertion(uc20model)
 	expectedPredictableBc.SetKernelBootFile(kernelBootFile)
 
 	predictableBc := boot.ToPredictableBootChain(bc)
@@ -197,7 +197,7 @@ func (s *bootchainSuite) TestBootChainMarshalFull(c *C) {
 		KernelRevision: "1234",
 		KernelCmdlines: []string{`foo=bar baz=0x123`, `a=1`},
 	}
-	expectedOriginal.SetModelAssertion(uc20model)
+	expectedOriginal.SetModelForSealingFromAssertion(uc20model)
 	expectedOriginal.SetKernelBootFile(kernelBootFile)
 	// original structure has not been modified
 	c.Check(bc, DeepEquals, expectedOriginal)
