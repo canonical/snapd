@@ -35,6 +35,7 @@ import (
 	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdtool"
+	"github.com/snapcore/snapd/strutil"
 )
 
 // featureSet contains the flag values that can be listed in assumes entries
@@ -175,9 +176,16 @@ var featureSet = map[string]bool{
 // https://systemd.io/UIDS-GIDS.html
 // https://docs.docker.com/engine/security/userns-remap/
 // https://github.com/lxc/lxd/blob/master/doc/userns-idmap.md
-var supportedSystemUsernames = map[string]uint32{
-	"snap_daemon":   584788,
-	"snap_microk8s": 584789,
+type systemUsername struct {
+	Id uint32
+	// List of snap IDs which are allowed to declare this user or nil if no
+	// such restriction exists
+	AllowedSnapIds []string
+}
+
+var supportedSystemUsernames = map[string]systemUsername{
+	"snap_daemon":   {Id: 584788},
+	"snap_microk8s": {Id: 584789, AllowedSnapIds: []string{"microk8s"}},
 }
 
 func checkAssumes(si *snap.Info) error {
@@ -614,8 +622,18 @@ var osutilEnsureUserGroup = osutil.EnsureUserGroup
 
 func validateSystemUsernames(si *snap.Info) error {
 	for _, user := range si.SystemUsernames {
-		if _, ok := supportedSystemUsernames[user.Name]; !ok {
+		systemUserName, ok := supportedSystemUsernames[user.Name]
+		if !ok {
 			return fmt.Errorf(`snap %q requires unsupported system username "%s"`, si.InstanceName(), user.Name)
+		}
+
+		if systemUserName.AllowedSnapIds != nil {
+			// Only certain snaps can use this user; let's check whether ours
+			// is one of these
+			if !strutil.ListContains(systemUserName.AllowedSnapIds, si.SnapName()) {
+				return fmt.Errorf(`snap %q is not allowed to use the system user %q`,
+					si.InstanceName(), user.Name)
+			}
 		}
 
 		switch user.Scope {
@@ -662,7 +680,7 @@ func checkAndCreateSystemUsernames(si *snap.Info) error {
 	// TODO: move user creation to a more appropriate place like "link-snap"
 	extrausers := !release.OnClassic
 	for _, user := range si.SystemUsernames {
-		id := supportedSystemUsernames[user.Name]
+		id := supportedSystemUsernames[user.Name].Id
 		switch user.Scope {
 		case "shared":
 			// Create the snapd-range-<base>-root user and group so
