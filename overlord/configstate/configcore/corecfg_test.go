@@ -45,8 +45,6 @@ type mockConf struct {
 	conf    map[string]interface{}
 	changes map[string]interface{}
 	err     error
-
-	getNoVirtual []string
 }
 
 func (cfg *mockConf) Get(snapName, key string, result interface{}) error {
@@ -96,11 +94,6 @@ func (cfg *mockConf) GetPristineMaybe(snapName, key string, result interface{}) 
 		return err
 	}
 	return nil
-}
-
-func (cfg *mockConf) GetNoVirtual(snapName, key string, result interface{}) error {
-	cfg.getNoVirtual = append(cfg.getNoVirtual, fmt.Sprintf("%s:%s", snapName, key))
-	return cfg.Get(snapName, key, result)
 }
 
 func (cfg *mockConf) Set(snapName, key string, v interface{}) error {
