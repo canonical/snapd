@@ -47,7 +47,7 @@ type bootChain struct {
 	KernelRevision string   `json:"kernel-revision"`
 	KernelCmdlines []string `json:"kernel-cmdlines"`
 
-	model          *asserts.Model
+	model          *modeenvModelForSealing
 	kernelBootFile bootloader.BootFile
 }
 
