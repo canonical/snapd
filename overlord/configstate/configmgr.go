@@ -49,7 +49,7 @@ func Init(st *state.State, hookManager *hookstate.HookManager) error {
 	// in tests works correctly.
 	hookManager.RegisterHijack("configure", "core", func(ctx *hookstate.Context) error {
 		ctx.Lock()
-		tr := ContextTransactionWithOptions(ctx, &config.TransactionOptions{NoVirtual: true})
+		tr := ContextTransaction(ctx)
 		ctx.Unlock()
 		return configcoreRun(tr)
 	})

@@ -699,33 +699,6 @@ func (s *transactionSuite) TestVirtualGetRootDocIsMerged(c *C) {
 	})
 }
 
-func (s *transactionSuite) TestGetNoVirtualIsNotMerged(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	s.state.Set("config", map[string]map[string]interface{}{
-		"some-snap": {
-			"some-key":  "some-value",
-			"other-key": "value",
-		},
-	})
-
-	config.RegisterVirtualConfig("some-snap", "key.virtual", func(snapName, key string) (interface{}, error) {
-		c.Fatalf("virtual configuration should not get called")
-		return nil, nil
-	})
-
-	tr := config.NewTransactionWithOptions(s.state, &config.TransactionOptions{NoVirtual: true})
-
-	var res map[string]interface{}
-	// the root doc
-	err := tr.Get("some-snap", "", &res)
-	c.Assert(err, IsNil)
-	c.Check(res, DeepEquals, map[string]interface{}{
-		"some-key":  "some-value",
-		"other-key": "value",
-	})
-}
-
 func (s *transactionSuite) TestVirtualGetSubtreeMerged(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

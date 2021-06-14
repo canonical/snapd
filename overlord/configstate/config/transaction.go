@@ -43,8 +43,6 @@ type Transaction struct {
 	state    *state.State
 	pristine map[string]map[string]*json.RawMessage // snap => key => value
 	changes  map[string]map[string]interface{}
-
-	opts *TransactionOptions
 }
 
 type TransactionOptions struct {
@@ -55,11 +53,7 @@ type TransactionOptions struct {
 //
 // The provided state must be locked by the caller.
 func NewTransaction(st *state.State) *Transaction {
-	return NewTransactionWithOptions(st, nil)
-}
-
-func NewTransactionWithOptions(st *state.State, opts *TransactionOptions) *Transaction {
-	transaction := &Transaction{state: st, opts: opts}
+	transaction := &Transaction{state: st}
 	transaction.changes = make(map[string]map[string]interface{})
 
 	// Record the current state of the map containing the config of every snap
@@ -207,41 +201,38 @@ func (t *Transaction) Get(snapName, key string, result interface{}) error {
 	}
 
 	// first check if this is a virtual configuration key
-	if t.opts == nil || !t.opts.NoVirtual {
-		virtualMu.Lock()
-		km, ok := virtualMap[snapName]
-		virtualMu.Unlock()
-		if ok && km != nil {
-			// check if this is a subkey of a virtualed key
-			for i := 0; i < len(subkeys); i++ {
-				k := strings.Join(subkeys[:len(subkeys)-i], ".")
-				if vf, ok := km[k]; ok {
-					res, err := vf(snapName, key)
-					if err != nil {
-						return err
-					}
-					rv := reflect.ValueOf(result)
-					rv.Elem().Set(reflect.ValueOf(res))
-					return nil
+	virtualMu.Lock()
+	km, ok := virtualMap[snapName]
+	virtualMu.Unlock()
+	if ok && km != nil {
+		// check if this is a subkey of a virtualed key
+		for i := 0; i < len(subkeys); i++ {
+			k := strings.Join(subkeys[:len(subkeys)-i], ".")
+			if vf, ok := km[k]; ok {
+				res, err := vf(snapName, key)
+				if err != nil {
+					return err
 				}
+				rv := reflect.ValueOf(result)
+				rv.Elem().Set(reflect.ValueOf(res))
+				return nil
 			}
 
 		}
 	}
 
-	// commit changes onto a copy of pristine configuration, so that get has a complete view of the config.
+	// merge virtual config and then commit changes onto a copy of pristine configuration, so that get has a complete view of the config.
 	config := t.copyPristine(snapName)
-	applyChanges(config, t.changes[snapName])
-
-	if t.opts == nil || !t.opts.NoVirtual {
-		mergedConfig, err := mergeConfigWithVirtual(snapName, jsonRaw(config))
-		if err != nil {
-			return err
-		}
-		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*mergedConfig), &config); err != nil {
-			return err
-		}
+	// 1. merge virtual
+	mergedConfig, err := mergeConfigWithVirtual(snapName, jsonRaw(config))
+	if err != nil {
+		return err
 	}
+	if err := jsonutil.DecodeWithNumber(bytes.NewReader(*mergedConfig), &config); err != nil {
+		return err
+	}
+	// 2. apply changes
+	applyChanges(config, t.changes[snapName])
 
 	purgeNulls(config)
 	return getFromConfig(snapName, subkeys, 0, config, result)
