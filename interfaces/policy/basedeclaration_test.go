@@ -616,7 +616,7 @@ var (
 		"mir":                     {"app"},
 		"modem-manager":           {"app", "core"},
 		"mpris":                   {"app"},
-		"netlink-protocol":        {"core", "gadget"},
+		"netlink-driver":          {"core", "gadget"},
 		"network-manager":         {"app", "core"},
 		"network-manager-observe": {"app", "core"},
 		"network-status":          {"core"},

@@ -278,9 +278,6 @@ apps:
   netlink-connector:
     command: bin/run
     plugs: [ netlink-connector ]
-  netlink-protocol:
-    command: bin/run
-    plugs: [ netlink-protocol ]
   network:
     command: bin/run
     plugs: [ network ]
