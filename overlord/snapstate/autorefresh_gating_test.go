@@ -28,6 +28,7 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
@@ -1285,10 +1286,21 @@ func fakeReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
 	return info, nil
 }
 
-func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, hold func(), expected []string) {
+func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, beforePhase1 func(), gateAutoRefreshHook func(snapName string), expected []string) {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
+
+	s.o.TaskRunner().AddHandler("run-hook", func(t *state.Task, tomb *tomb.Tomb) error {
+		var hsup hookstate.HookSetup
+		t.State().Lock()
+		defer t.State().Unlock()
+		c.Assert(t.Get("hook-setup", &hsup), IsNil)
+		if hsup.Hook == "gate-auto-refresh" && gateAutoRefreshHook != nil {
+			gateAutoRefreshHook(hsup.Snap)
+		}
+		return nil
+	}, nil)
 
 	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
 		c.Fatal("unexpected call to installSize")
@@ -1323,6 +1335,10 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, hold func(), expected []s
 	restore := snapstatetest.MockDeviceModel(DefaultModel())
 	defer restore()
 
+	if beforePhase1 != nil {
+		beforePhase1()
+	}
+
 	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st)
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-a"})
@@ -1331,9 +1347,6 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, hold func(), expected []s
 	for _, ts := range tss {
 		chg.AddAll(ts)
 	}
-
-	// simulate hold
-	hold()
 
 	s.state.Unlock()
 	defer s.se.Stop()
@@ -1392,7 +1405,16 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 		"check-rerefresh",
 	}
 
-	s.testAutoRefreshPhase2(c, func() {}, expected)
+	seenSnapsWithGateAutoRefreshHook := make(map[string]bool)
+
+	s.testAutoRefreshPhase2(c, nil, func(snapName string) {
+		seenSnapsWithGateAutoRefreshHook[snapName] = true
+	}, expected)
+
+	c.Check(seenSnapsWithGateAutoRefreshHook, DeepEquals, map[string]bool{
+		"snap-a": true,
+		"snap-b": true,
+	})
 }
 
 func (s *snapmgrTestSuite) TestAutoRefreshPhase2Held(c *C) {
@@ -1426,9 +1448,60 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Held(c *C) {
 		"check-rerefresh",
 	}
 
+	s.testAutoRefreshPhase2(c, nil, func(snapName string) {
+		if snapName == "snap-b" {
+			// pretend than snap-b calls snapctl --hold to hold refresh of base-snap-b
+			c.Assert(snapstate.HoldRefresh(s.state, "snap-b", 0, "base-snap-b"), IsNil)
+		}
+	}, expected)
+
+	c.Assert(logbuf.String(), testutil.Contains, `skipping refresh of held snaps: base-snap-b`)
+}
+
+func (s *snapmgrTestSuite) TestAutoRefreshPhase2Proceed(c *C) {
+	logbuf, restoreLogger := logger.MockLogger()
+	defer restoreLogger()
+
+	expected := []string{
+		"conditional-auto-refresh",
+		"run-hook [snap-a;gate-auto-refresh]",
+		// snap-b hook is triggered because of base-snap-b refresh
+		"run-hook [snap-b;gate-auto-refresh]",
+		"prerequisites",
+		"download-snap",
+		"validate-snap",
+		"mount-snap",
+		"run-hook [snap-a;pre-refresh]",
+		"stop-snap-services",
+		"remove-aliases",
+		"unlink-current-snap",
+		"copy-snap-data",
+		"setup-profiles",
+		"link-snap",
+		"auto-connect",
+		"set-auto-aliases",
+		"setup-aliases",
+		"run-hook [snap-a;post-refresh]",
+		"start-snap-services",
+		"cleanup",
+		"run-hook [snap-a;configure]",
+		"run-hook [snap-a;check-health]",
+		"check-rerefresh",
+	}
+
 	s.testAutoRefreshPhase2(c, func() {
-		// pretend than snap-b calls snapctl --hold to hold refresh of base-snap-b
+		// pretend that snap-a and base-snap-b are initially held
+		c.Assert(snapstate.HoldRefresh(s.state, "snap-a", 0, "snap-a"), IsNil)
 		c.Assert(snapstate.HoldRefresh(s.state, "snap-b", 0, "base-snap-b"), IsNil)
+	}, func(snapName string) {
+		if snapName == "snap-a" {
+			// pretend than snap-a calls snapctl --proceed
+			c.Assert(snapstate.ProceedWithRefresh(s.state, "snap-a"), IsNil)
+		}
+		// note, do nothing about snap-b which just keeps its hold state in
+		// the test, but if we were using real gate-auto-refresh hook
+		// handler, the default behavior for snap-b if it doesn't call --hold
+		// would be to proceed (hook handler would take care of that).
 	}, expected)
 
 	c.Assert(logbuf.String(), testutil.Contains, `skipping refresh of held snaps: base-snap-b`)
@@ -1446,11 +1519,17 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2AllHeld(c *C) {
 		"check-rerefresh",
 	}
 
-	s.testAutoRefreshPhase2(c, func() {
-		// pretend that snap-b calls snapctl --hold to hold refresh of base-snap-b
-		c.Assert(snapstate.HoldRefresh(s.state, "snap-b", 0, "base-snap-b"), IsNil)
-		// pretend that snap-a calls snapctl --hold to hold itself
-		c.Assert(snapstate.HoldRefresh(s.state, "snap-a", 0, "snap-a"), IsNil)
+	s.testAutoRefreshPhase2(c, nil, func(snapName string) {
+		switch snapName {
+		case "snap-b":
+			// pretend that snap-b calls snapctl --hold to hold refresh of base-snap-b
+			c.Assert(snapstate.HoldRefresh(s.state, "snap-b", 0, "base-snap-b"), IsNil)
+		case "snap-a":
+			// pretend that snap-a calls snapctl --hold to hold itself
+			c.Assert(snapstate.HoldRefresh(s.state, "snap-a", 0, "snap-a"), IsNil)
+		default:
+			c.Fatalf("unexpected snap %q", snapName)
+		}
 	}, expected)
 
 	c.Assert(logbuf.String(), testutil.Contains, `skipping refresh of held snaps: base-snap-b,snap-a`)
