@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2020 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -33,8 +33,6 @@ import (
 	"time"
 
 	"golang.org/x/crypto/sha3"
-
-	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -2408,15 +2406,15 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsLocalOnlyFailed(c *C)
 	c.Assert(err, IsNil)
 
 	// store key already present
-	c.Assert(assertstate.Add(st, s.storeSigning.StoreAccountKey("")), check.IsNil)
-	c.Assert(assertstate.Add(st, s.dev1Acct), check.IsNil)
-	c.Assert(assertstate.Add(st, s.dev1AcctKey), check.IsNil)
+	c.Assert(assertstate.Add(st, s.storeSigning.StoreAccountKey("")), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
 
 	// add to local database
 	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1")
-	c.Assert(assertstate.Add(st, vsetAs1), check.IsNil)
+	c.Assert(assertstate.Add(st, vsetAs1), IsNil)
 	vsetAs2 := s.validationSetAssert(c, "baz", "3", "1")
-	c.Assert(assertstate.Add(st, vsetAs2), check.IsNil)
+	c.Assert(assertstate.Add(st, vsetAs2), IsNil)
 
 	// vset2 present and updated in the store
 	vsetAs2_2 := s.validationSetAssert(c, "baz", "3", "2")
@@ -2479,14 +2477,14 @@ func (s *assertMgrSuite) TestValidationSetAssertionForMonitorLocalFallbackForPin
 
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
-	c.Assert(s.storeSigning.Add(storeAs), check.IsNil)
-	c.Assert(assertstate.Add(st, s.storeSigning.StoreAccountKey("")), check.IsNil)
-	c.Assert(assertstate.Add(st, s.dev1Acct), check.IsNil)
-	c.Assert(assertstate.Add(st, s.dev1AcctKey), check.IsNil)
+	c.Assert(s.storeSigning.Add(storeAs), IsNil)
+	c.Assert(assertstate.Add(st, s.storeSigning.StoreAccountKey("")), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
 
 	// add to local database
 	vsetAs := s.validationSetAssert(c, "bar", "1", "1")
-	c.Assert(assertstate.Add(st, vsetAs), check.IsNil)
+	c.Assert(assertstate.Add(st, vsetAs), IsNil)
 
 	opts := assertstate.ResolveOptions{AllowLocalFallback: true}
 	vs, local, err := assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 1, true, 0, &opts)
@@ -2503,18 +2501,18 @@ func (s *assertMgrSuite) TestValidationSetAssertionForMonitorPinnedRefreshedFrom
 
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
-	c.Assert(s.storeSigning.Add(storeAs), check.IsNil)
-	c.Assert(assertstate.Add(st, s.storeSigning.StoreAccountKey("")), check.IsNil)
-	c.Assert(assertstate.Add(st, s.dev1Acct), check.IsNil)
-	c.Assert(assertstate.Add(st, s.dev1AcctKey), check.IsNil)
+	c.Assert(s.storeSigning.Add(storeAs), IsNil)
+	c.Assert(assertstate.Add(st, s.storeSigning.StoreAccountKey("")), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
 
 	// add to local database
 	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1")
-	c.Assert(assertstate.Add(st, vsetAs1), check.IsNil)
+	c.Assert(assertstate.Add(st, vsetAs1), IsNil)
 
 	// newer revision available in the store
 	vsetAs2 := s.validationSetAssert(c, "bar", "1", "2")
-	c.Assert(s.storeSigning.Add(vsetAs2), check.IsNil)
+	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	vs, local, err := assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 1, true, 0, nil)
 	c.Assert(err, IsNil)
@@ -2531,18 +2529,18 @@ func (s *assertMgrSuite) TestValidationSetAssertionForMonitorUnpinnedRefreshedFr
 
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
-	c.Assert(s.storeSigning.Add(storeAs), check.IsNil)
-	c.Assert(assertstate.Add(st, s.storeSigning.StoreAccountKey("")), check.IsNil)
-	c.Assert(assertstate.Add(st, s.dev1Acct), check.IsNil)
-	c.Assert(assertstate.Add(st, s.dev1AcctKey), check.IsNil)
+	c.Assert(s.storeSigning.Add(storeAs), IsNil)
+	c.Assert(assertstate.Add(st, s.storeSigning.StoreAccountKey("")), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
 
 	// add to local database
 	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1")
-	c.Assert(assertstate.Add(st, vsetAs1), check.IsNil)
+	c.Assert(assertstate.Add(st, vsetAs1), IsNil)
 
 	// newer assertion available in the store
 	vsetAs2 := s.validationSetAssert(c, "bar", "3", "1")
-	c.Assert(s.storeSigning.Add(vsetAs2), check.IsNil)
+	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	vs, local, err := assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 0, false, 0, nil)
 	c.Assert(err, IsNil)
@@ -2559,8 +2557,8 @@ func (s *assertMgrSuite) TestValidationSetAssertionForMonitorUnpinnedNotFound(c 
 
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
-	c.Assert(s.storeSigning.Add(storeAs), check.IsNil)
+	c.Assert(s.storeSigning.Add(storeAs), IsNil)
 
 	_, _, err := assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 0, false, 0, nil)
-	c.Assert(err, check.ErrorMatches, fmt.Sprintf(`cannot fetch and resolve assertions:\n - validation-set/16/%s/bar: validation-set assertion not found.*`, s.dev1Acct.AccountID()))
+	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot fetch and resolve assertions:\n - validation-set/16/%s/bar: validation-set assertion not found.*`, s.dev1Acct.AccountID()))
 }
