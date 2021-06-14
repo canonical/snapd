@@ -1923,6 +1923,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 	}
 	st.Set("refresh-candidates", hints)
 
+	// prune affecting snaps that are not in refresh candidates from hold state.
 	if err := pruneGating(st, hints); err != nil {
 		return nil, nil, err
 	}
