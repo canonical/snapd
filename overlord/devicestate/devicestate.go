@@ -483,7 +483,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 			firstInstallInChain = installFirst
 		}
 		// download is always a first task of the 'download' phase
-		snapSetupTasks = append(snapSetupTasks, downloadLast.ID())
+		snapSetupTasks = append(snapSetupTasks, downloadStart.ID())
 	}
 	// Make sure the first install waits for the recovery system (only in
 	// UC20) which waits for the last download. With this our (simplified)
