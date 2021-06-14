@@ -641,13 +641,28 @@ func (s *transactionSuite) TestVirtualGetSimple(c *C) {
 	c.Check(res, Equals, "some-snap:key.virtual=virtual-value")
 	// virtual config function is called again
 	c.Check(n, Equals, 2)
+}
 
-	// virtual deep nesting works too
-	err = tr.Get("some-snap", "key.virtual.subkey", &res)
+func (s *transactionSuite) TestVirtualDeepNesting(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	config.RegisterVirtualConfig("some-snap", "key.virtual", func(snapName, key string) (interface{}, error) {
+		c.Check(snapName, Equals, "some-snap")
+		c.Check(key, Equals, "key.virtual")
+
+		m := make(map[string]string)
+		m["subkey"] = fmt.Sprintf("nested-value")
+		m["other-subkey"] = fmt.Sprintf("other-nested-value")
+
+		return m, nil
+	})
+
+	tr := config.NewTransaction(s.state)
+	var res string
+	err := tr.Get("some-snap", "key.virtual.subkey", &res)
 	c.Assert(err, IsNil)
-	c.Check(res, Equals, "some-snap:key.virtual.subkey=virtual-value")
-	// virtual config function is called yet again
-	c.Check(n, Equals, 3)
+	c.Check(res, Equals, "nested-value")
 }
 
 func (s *transactionSuite) TestVirtualSetNotShadowHijacked(c *C) {

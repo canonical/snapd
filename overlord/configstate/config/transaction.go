@@ -200,27 +200,6 @@ func (t *Transaction) Get(snapName, key string, result interface{}) error {
 		return err
 	}
 
-	// first check if this is a virtual configuration key
-	virtualMu.Lock()
-	km, ok := virtualMap[snapName]
-	virtualMu.Unlock()
-	if ok && km != nil {
-		// check if this is a subkey of a virtualed key
-		for i := 0; i < len(subkeys); i++ {
-			k := strings.Join(subkeys[:len(subkeys)-i], ".")
-			if vf, ok := km[k]; ok {
-				res, err := vf(snapName, key)
-				if err != nil {
-					return err
-				}
-				rv := reflect.ValueOf(result)
-				rv.Elem().Set(reflect.ValueOf(res))
-				return nil
-			}
-
-		}
-	}
-
 	// merge virtual config and then commit changes onto a copy of pristine configuration, so that get has a complete view of the config.
 	config := t.copyPristine(snapName)
 	// 1. merge virtual
