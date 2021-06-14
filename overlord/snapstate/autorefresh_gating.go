@@ -264,18 +264,11 @@ func pruneGating(st *state.State, candidates map[string]*refreshCandidate) error
 	}
 
 	var changed bool
-	for affectingSnap, gatingSnaps := range gating {
+	for affectingSnap := range gating {
 		if candidates[affectingSnap] == nil {
 			// the snap doesn't have an update anymore, forget it
 			delete(gating, affectingSnap)
 			changed = true
-			continue
-		}
-
-		// after deleting gating snaps we may end up with empty map under
-		// gating[affectingSnap], so remove it.
-		if len(gatingSnaps) == 0 {
-			delete(gating, affectingSnap)
 		}
 	}
 	if changed {
