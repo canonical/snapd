@@ -203,6 +203,8 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 		"content":         true,
 		"home":            true,
 		"lxd-support":     true,
+		// netlink-driver needs the family-name attributes to match
+		"netlink-driver": true,
 	}
 
 	for _, iface := range all {
