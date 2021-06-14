@@ -1,5 +1,6 @@
 summary: Test that UC20 can boot with gadget provided cloud.conf for all grades
 
+# TODO: enable similar test for UC18 and UC16 gadgets that use cloud.conf?
 systems: [ubuntu-20.04-64]
 
 environment:
