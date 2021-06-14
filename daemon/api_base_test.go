@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -629,13 +629,7 @@ func (s *apiBaseSuite) asyncReq(c *check.C, req *http.Request, u *auth.UserState
 	return rsp
 }
 
-func (s *apiBaseSuite) errorReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.RespJSON {
-	rsp := s.jsonReq(c, req, u)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError, check.Commentf("expected error resp: %#v", rsp))
-	return rsp
-}
-
-func (s *apiBaseSuite) apiErrorReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.APIError {
+func (s *apiBaseSuite) errorReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.APIError {
 	rsp := s.req(c, req, u)
 	rspe, ok := rsp.(*daemon.APIError)
 	c.Assert(ok, check.Equals, true, check.Commentf("expected apiError resp: %#v", rsp))

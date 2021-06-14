@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -26,6 +26,8 @@ import (
 
 	"github.com/snapcore/snapd/jsonutil/safejson"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -150,6 +152,26 @@ func infoFromStoreInfo(si *storeInfo) (*snap.Info, error) {
 	}
 
 	return info, nil
+}
+
+func minimalFromStoreInfo(si *storeInfo) (naming.SnapRef, *channel.Channel, error) {
+	if len(si.ChannelMap) == 0 {
+		// if a snap has no released revisions, it _could_ be returned
+		// (currently no, but spec is purposely ambiguous)
+		// we treat it as a 'not found' for now at least
+		return nil, nil, ErrSnapNotFound
+	}
+
+	snapRef := naming.NewSnapRef(si.Name, si.SnapID)
+	first := si.ChannelMap[0].Channel
+	ch := channel.Channel{
+		Architecture: first.Architecture,
+		Name:         first.Name,
+		Track:        first.Track,
+		Risk:         first.Risk,
+	}
+	ch = ch.Clean()
+	return snapRef, &ch, nil
 }
 
 // copy non-zero fields from src to dst

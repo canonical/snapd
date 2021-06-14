@@ -174,7 +174,7 @@ type SnapState struct {
 	RefreshInhibitedTime *time.Time `json:"refresh-inhibited-time,omitempty"`
 
 	// LastRefreshTime records the time when the snap was last refreshed.
-	LastRefreshTime *time.Time `json:"last-refresh,omitempty"`
+	LastRefreshTime *time.Time `json:"last-refresh-time,omitempty"`
 }
 
 func (snapst *SnapState) SetTrackingChannel(s string) error {

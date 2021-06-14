@@ -233,3 +233,27 @@ func (s *errorsSuite) TestErrToResponseInsufficentSpace(c *C) {
 		},
 	})
 }
+
+func (s *errorsSuite) TestAuthCancelled(c *C) {
+	c.Check(daemon.AuthCancelled("auth cancelled"), DeepEquals, &daemon.APIError{
+		Status:  403,
+		Message: "auth cancelled",
+		Kind:    client.ErrorKindAuthCancelled,
+	})
+}
+
+func (s *errorsSuite) TestUnathorized(c *C) {
+	c.Check(daemon.Unauthorized("denied"), DeepEquals, &daemon.APIError{
+		Status:  401,
+		Message: "denied",
+		Kind:    client.ErrorKindLoginRequired,
+	})
+}
+
+func (s *errorsSuite) TestForbidden(c *C) {
+	c.Check(daemon.Forbidden("denied"), DeepEquals, &daemon.APIError{
+		Status:  403,
+		Message: "denied",
+		Kind:    client.ErrorKindLoginRequired,
+	})
+}

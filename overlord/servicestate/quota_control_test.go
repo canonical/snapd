@@ -781,12 +781,15 @@ func (s *quotaControlSuite) TestEnsureSnapAbsentFromQuotaGroup(c *C) {
 		// CreateQuota for foo
 		systemctlCallsForCreateQuota("foo", "test-snap", "test-snap2"),
 
-		// RemoveSnapFromQuota with just test-snap restarted since it is no
-		// longer in the group
+		// EnsureSnapAbsentFromQuota with just test-snap restarted since it is
+		// no longer in the group
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
 		systemctlCallsForServiceRestart("test-snap"),
 
-		// RemoveSnapFromQuota with just test-snap2 restarted since it is no
+		// another identical call to EnsureSnapAbsentFromQuota does nothing
+		// since the function is idempotent
+
+		// EnsureSnapAbsentFromQuota with just test-snap2 restarted since it is no
 		// longer in the group
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
 		systemctlCallsForServiceRestart("test-snap2"),
@@ -831,6 +834,10 @@ func (s *quotaControlSuite) TestEnsureSnapAbsentFromQuotaGroup(c *C) {
 			Snaps:       []string{"test-snap2"},
 		},
 	})
+
+	// removing the same snap twice works as well but does nothing
+	err = servicestate.EnsureSnapAbsentFromQuota(s.state, "test-snap")
+	c.Assert(err, IsNil)
 
 	// now remove test-snap2 too
 	err = servicestate.EnsureSnapAbsentFromQuota(s.state, "test-snap2")
