@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
@@ -842,6 +843,13 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	r := snapstate.MockRevisionDate(nil)
 	defer r()
 
+	now, err := time.Parse(time.RFC3339, "2021-06-10T10:00:00Z")
+	c.Assert(err, IsNil)
+	restoreTimeNow := snapstate.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restoreTimeNow()
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1035,6 +1043,8 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	err = snapstate.Get(s.state, "services-snap", &snapst)
 	c.Assert(err, IsNil)
 
+	c.Assert(snapst.LastRefreshTime, NotNil)
+	c.Check(snapst.LastRefreshTime.Equal(now), Equals, true)
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
