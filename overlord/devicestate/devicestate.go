@@ -543,6 +543,9 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 
 var allowUC20RemodelTesting = false
 
+// AllowUC20RemodelTesting is a temporary helper to allow testing remodeling of
+// UC20 before the implementation is complete and the policy for this settled.
+// It will be removed once implemented is made available for general use.
 func AllowUC20RemodelTesting(allow bool) (restore func()) {
 	osutil.MustBeTestBinary("uc20 remodel testin only can be mocked in tests")
 	oldAllowUC20RemodelTesting := allowUC20RemodelTesting
