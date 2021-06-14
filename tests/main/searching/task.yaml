@@ -48,7 +48,7 @@ execute: |
 
     # TODO: discuss with the store how we can make this test stable, i.e.
     #       that section/snap changes do not break us
-    if [ "$(uname -m)" = "x86_64" ]; then
+    if os.query is-pc-amd64; then
         set +e
         snap find --section=photo-and-video vlc >vlc.log 2>&1
         retval=$?

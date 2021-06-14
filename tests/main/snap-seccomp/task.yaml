@@ -129,7 +129,7 @@ execute: |
     echo "Ensure the code still runs"
     test-snapd-sh.sh -c 'echo hello' | MATCH hello
 
-    if [ "$(uname -p)" = "x86_64" ]; then
+    if os.query is-pc-amd64; then
         echo "Ensure secondary arch works for amd64 with i386 binaries"
         snap install --edge test-snapd-hello-multi-arch
         test-snapd-hello-multi-arch.hello-i386

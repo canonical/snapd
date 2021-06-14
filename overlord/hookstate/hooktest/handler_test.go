@@ -23,9 +23,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
-
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 )
 
 func Test(t *testing.T) { TestingT(t) }

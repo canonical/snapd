@@ -24,7 +24,6 @@ import (
 	"sync"
 
 	"github.com/snapcore/snapd/logger"
-
 	"github.com/snapcore/snapd/overlord/state"
 )
 
