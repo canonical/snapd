@@ -1786,3 +1786,9 @@ func (h fdeSetupHandler) Done() error {
 func (h fdeSetupHandler) Error(err error) error {
 	return nil
 }
+
+// ResetToPostBootState is only useful for integration testing.
+func (m *DeviceManager) ResetToPostBootState() {
+	m.ResetBootOk()
+	m.ResetTriedRecoverySystemsRan()
+}

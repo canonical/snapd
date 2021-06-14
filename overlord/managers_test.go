@@ -6029,7 +6029,7 @@ func (s *mgrsSuite) TestRemodelUC20WithRecoverySystem(c *C) {
 	c.Assert(err, IsNil)
 
 	// reset, so that after-reboot handling of tried system is executed
-	s.o.DeviceManager().ResetTriedRecoverySystemsRan()
+	s.o.DeviceManager().ResetToPostBootState()
 	st.Unlock()
 	err = s.o.DeviceManager().Ensure()
 	st.Lock()

@@ -33,6 +33,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -1814,4 +1815,22 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 		tDownloadSnap2, tValidateSnap2, tInstallSnap2,
 		tCreateRecovery, tFinalizeRecovery,
 	})
+
+	// verify recovery system setup data on appropriate tasks
+	var systemSetupData map[string]interface{}
+	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
+	c.Assert(err, IsNil)
+	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
+		"label":            expectedLabel,
+		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
+		"snap-setup-tasks": []interface{}{tDownloadSnap1.ID(), tDownloadSnap2.ID()},
+	})
+	// cross references of to recovery system setup data
+	for _, tsk := range []*state.Task{tFinalizeRecovery, tSetModel} {
+		var otherTaskID string
+		// finalize-recovery-system points to create-recovery-system
+		err = tsk.Get("recovery-system-setup-task", &otherTaskID)
+		c.Assert(err, IsNil, Commentf("recovery system setup task ID missing in %s", tsk.Kind()))
+		c.Assert(otherTaskID, Equals, tCreateRecovery.ID())
+	}
 }

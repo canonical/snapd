@@ -483,7 +483,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 			firstInstallInChain = installFirst
 		}
 		// download is always a first task of the 'download' phase
-		snapSetupTasks = append(snapSetupTasks, downloadLast.ID())
+		snapSetupTasks = append(snapSetupTasks, downloadStart.ID())
 	}
 	// Make sure the first install waits for the recovery system (only in
 	// UC20) which waits for the last download. With this our (simplified)
@@ -504,9 +504,10 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	}
 
 	recoverySetupTaskID := ""
-	if current.Grade() != asserts.ModelGradeUnset && new.Grade() != asserts.ModelGradeUnset {
-		// right now it's only possible to remodel from a UC20 system to
-		// another UC20 system, when doing so create a recovery
+	if new.Grade() != asserts.ModelGradeUnset {
+		// create a recovery when remodeling to a UC20 system, actual
+		// policy for possible remodels has already been verified by the
+		// caller
 		label := timeNow().Format("20060102")
 		createRecoveryTasks, err := createRecoverySystemTasks(st, label, snapSetupTasks)
 		if err != nil {
@@ -543,6 +544,9 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 
 var allowUC20RemodelTesting = false
 
+// AllowUC20RemodelTesting is a temporary helper to allow testing remodeling of
+// UC20 before the implementation is complete and the policy for this settled.
+// It will be removed once implemented is made available for general use.
 func AllowUC20RemodelTesting(allow bool) (restore func()) {
 	osutil.MustBeTestBinary("uc20 remodel testin only can be mocked in tests")
 	oldAllowUC20RemodelTesting := allowUC20RemodelTesting
