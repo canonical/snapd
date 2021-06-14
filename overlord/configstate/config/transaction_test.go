@@ -741,3 +741,31 @@ func (s *transactionSuite) TestVirtualGetSubtreeMerged(c *C) {
 	// the virtual config function was called again
 	c.Check(n, Equals, 2)
 }
+
+func (s *transactionSuite) TestVirtualCommitValuesNotStored(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	config.RegisterVirtualConfig("some-snap", "key.virtual", func(snapName, key string) (interface{}, error) {
+		c.Errorf("virtual func should not get called in this test")
+		return nil, nil
+	})
+	tr := config.NewTransaction(s.state)
+
+	// set some values
+	c.Check(tr.Set("other-snap", "key", "value"), IsNil)
+	c.Check(tr.Set("some-snap", "key.virtual.sub", "won't-get-set"), IsNil)
+	c.Check(tr.Set("some-snap", "key.virtual.sub2.sub2sub", "also-won't-get-set"), IsNil)
+	c.Check(tr.Set("some-snap", "key.not-virtual", "value"), IsNil)
+	tr.Commit()
+
+	// and check what got stored in the state
+	var config map[string]map[string]interface{}
+	s.state.Get("config", &config)
+	c.Check(config["some-snap"]["key"], HasLen, 1)
+	c.Check(config["some-snap"]["key"], DeepEquals, map[string]interface{}{
+		"not-virtual": "value",
+	})
+	// other-snap is unrelated
+	c.Check(config["other-snap"]["key"], Equals, "value")
+}

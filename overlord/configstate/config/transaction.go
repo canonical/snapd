@@ -342,8 +342,12 @@ func (t *Transaction) Commit() {
 		panic(fmt.Errorf("internal error: cannot unmarshal configuration: %v", err))
 	}
 
-	// Iterate through the write cache and save each item.
+	// Iterate through the write cache and save each item but exclude virtual configuration
 	for instanceName, snapChanges := range t.changes {
+		for k, v := range snapChanges {
+			cleanVirtualConfig(instanceName, v, k, 0)
+		}
+
 		config := t.pristine[instanceName]
 		// due to LP #1917870 we might have a hook configure task in flight
 		// that tries to apply config over nil map, create it if nil.
@@ -430,6 +434,28 @@ func mergeConfigWithVirtual(instanceName string, config *json.RawMessage) (*json
 	}
 
 	return config, nil
+}
+
+func cleanVirtualConfig(instanceName string, config interface{}, subkeys string, depth int) {
+	virtualMu.Lock()
+	km, ok := virtualMap[instanceName]
+	virtualMu.Unlock()
+	if !ok {
+		return
+	}
+
+	switch config := config.(type) {
+	case map[string]interface{}:
+		for k, v := range config {
+			key := subkeys + "." + k
+			if _, ok := km[key]; ok {
+				delete(config, k)
+				return
+			}
+			// XXX: not tested
+			cleanVirtualConfig(instanceName, v, subkeys+"."+k, depth+1)
+		}
+	}
 }
 
 // IsNoOption returns whether the provided error is a *NoOptionError.
