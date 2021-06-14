@@ -29,7 +29,6 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -386,9 +385,9 @@ func (s *findSuite) TestFindRefreshNotOther(c *check.C) {
 		req, err := http.NewRequest("GET", "/v2/find?select=refresh&"+other+"=foo*", nil)
 		c.Assert(err, check.IsNil)
 
-		rsp := s.errorReq(c, req, nil)
-		c.Check(rsp.Status, check.Equals, 400)
-		c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, "cannot use '"+other+"' with 'select=refresh'")
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400)
+		c.Check(rspe.Message, check.Equals, "cannot use '"+other+"' with 'select=refresh'")
 	}
 }
 
@@ -405,11 +404,11 @@ func (s *findSuite) TestFindNotTogether(c *check.C) {
 			req, err := http.NewRequest("GET", fmt.Sprintf("/v2/find?%s=%s&%s=%s", ki, vi, kj, vj), nil)
 			c.Assert(err, check.IsNil)
 
-			rsp := s.errorReq(c, req, nil)
-			c.Check(rsp.Status, check.Equals, 400)
+			rspe := s.errorReq(c, req, nil)
+			c.Check(rspe.Status, check.Equals, 400)
 			exp1 := "cannot use '" + ki + "' and '" + kj + "' together"
 			exp2 := "cannot use '" + kj + "' and '" + ki + "' together"
-			c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, exp1+"|"+exp2)
+			c.Check(rspe.Message, check.Matches, exp1+"|"+exp2)
 		}
 	}
 }
@@ -421,10 +420,10 @@ func (s *findSuite) TestFindBadQueryReturnsCorrectErrorKind(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/find?q=return-bad-query-please", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, "bad query")
-	c.Check(rsp.Result.(*daemon.ErrorResult).Kind, check.Equals, client.ErrorKindBadQuery)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Matches, "bad query")
+	c.Check(rspe.Kind, check.Equals, client.ErrorKindBadQuery)
 }
 
 func (s *findSuite) TestFindNetworkErrorsReturnCorrectErrorKind(c *check.C) {
@@ -459,10 +458,10 @@ func (s *findSuite) TestFindNetworkErrorsReturnCorrectErrorKind(c *check.C) {
 	for _, t := range tests {
 		s.err = t.err
 
-		rsp := s.errorReq(c, req, nil)
-		c.Check(rsp.Status, check.Equals, 400)
-		c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, t.expected)
-		c.Check(rsp.Result.(*daemon.ErrorResult).Kind, check.Equals, t.kind)
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400)
+		c.Check(rspe.Message, check.Equals, t.expected)
+		c.Check(rspe.Kind, check.Equals, t.kind)
 	}
 }
 

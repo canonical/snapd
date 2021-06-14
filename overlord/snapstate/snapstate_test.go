@@ -44,6 +44,9 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/auth"
+
+	// So it registers Configure.
+	_ "github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
@@ -59,9 +62,6 @@ import (
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeutil"
-
-	// So it registers Configure.
-	_ "github.com/snapcore/snapd/overlord/configstate"
 )
 
 func TestSnapManager(t *testing.T) { TestingT(t) }
@@ -1498,6 +1498,8 @@ func (s *snapmgrTestSuite) TestRevertRunThrough(c *C) {
 	err = snapstate.Get(s.state, "some-snap", &snapst)
 	c.Assert(err, IsNil)
 
+	// last refresh time shouldn't be modified on revert.
+	c.Check(snapst.LastRefreshTime, IsNil)
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Current, Equals, snap.R(2))
 	c.Assert(snapst.Sequence, HasLen, 2)
