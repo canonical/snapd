@@ -238,7 +238,7 @@ func (t *Transaction) Get(snapName, key string, result interface{}) error {
 		if err != nil {
 			return err
 		}
-		if err := json.Unmarshal(*mergedConfig, &config); err != nil {
+		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*mergedConfig), &config); err != nil {
 			return err
 		}
 	}
