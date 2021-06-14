@@ -74,23 +74,33 @@ func (iface *netlinkDriverInterface) BeforePrepareSlot(slot *snap.SlotInfo) erro
 	}
 
 	// must also have a family-name, used for identifying plug <-> slot
-	name, ok := slot.Attrs["family-name"]
+	return validateFamilyNameAttr(slot, "slot")
+}
+
+func validateFamilyNameAttr(a interfaces.Attrer, side string) error {
+	name, ok := a.Lookup("family-name")
 	if !ok {
-		return fmt.Errorf("netlink-driver slot must have a family-name attribute")
+		return fmt.Errorf("netlink-driver %s must have a family-name attribute", side)
 	}
 
 	nameStr, ok := name.(string)
 	if !ok {
-		return fmt.Errorf("netlink-driver slot family-name attribute must be a string")
+		return fmt.Errorf("netlink-driver %s family-name attribute must be a string", side)
 	}
 
 	// ensure it matches the regex
 	if !familyNameRegexp.MatchString(nameStr) {
-		return fmt.Errorf("netlink-driver slot family-name %q is invalid", nameStr)
+		return fmt.Errorf("netlink-driver %s family-name %q is invalid", side, nameStr)
 	}
 
-	// Slot is good
+	// attribute is good
 	return nil
+
+}
+
+// BeforePreparePlug checks the plug definition is valid
+func (iface *netlinkDriverInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	return validateFamilyNameAttr(plug, "plug")
 }
 
 func (iface *netlinkDriverInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {

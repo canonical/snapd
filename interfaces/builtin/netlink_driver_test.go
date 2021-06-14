@@ -34,7 +34,9 @@ import (
 type NetlinkDriverInterfaceSuite struct {
 	testutil.BaseTest
 
-	iface                       interfaces.Interface
+	iface interfaces.Interface
+
+	// slots from gadget
 	gadgetNetlinkSlotInfo       *snap.SlotInfo
 	gadgetNetlinkSlot           *interfaces.ConnectedSlot
 	gadgetMissingNumberSlotInfo *snap.SlotInfo
@@ -47,12 +49,22 @@ type NetlinkDriverInterfaceSuite struct {
 	gadgetBadNameSlot           *interfaces.ConnectedSlot
 	gadgetBadNameStringSlotInfo *snap.SlotInfo
 	gadgetBadNameStringSlot     *interfaces.ConnectedSlot
-	appToGadgetPlugDriverInfo   *snap.PlugInfo
-	appToGadgetPlugDriver       *interfaces.ConnectedPlug
-	appToCorePlugDriverInfo     *snap.PlugInfo
-	appToCorePlugDriver         *interfaces.ConnectedPlug
-	osNetlinkSlotInfo           *snap.SlotInfo
-	osNetlinkSlot               *interfaces.ConnectedSlot
+
+	// slot from core
+	osNetlinkSlotInfo *snap.SlotInfo
+	osNetlinkSlot     *interfaces.ConnectedSlot
+
+	// plugs from app
+	appToGadgetPlugDriverInfo            *snap.PlugInfo
+	appToGadgetPlugDriver                *interfaces.ConnectedPlug
+	appToCorePlugDriverInfo              *snap.PlugInfo
+	appToCorePlugDriver                  *interfaces.ConnectedPlug
+	appMissingFamilyNamePlugDriverInfo   *snap.PlugInfo
+	appMissingFamilyNamePlugDriver       *interfaces.ConnectedPlug
+	appBadFamilyNamePlugDriverInfo       *snap.PlugInfo
+	appBadFamilyNamePlugDriver           *interfaces.ConnectedPlug
+	appBadFamilyNameStringPlugDriverInfo *snap.PlugInfo
+	appBadFamilyNameStringPlugDriver     *interfaces.ConnectedPlug
 }
 
 var _ = Suite(&NetlinkDriverInterfaceSuite{
@@ -125,6 +137,14 @@ plugs:
   plug-for-netlink-driver-foo:
     interface: netlink-driver
     family-name: foo-driver
+  missing-family-name:
+    interface: netlink-driver
+  invalid-family-name:
+    interface: netlink-driver
+    family-name: ---foo-----
+  invalid-family-name-string:
+    interface: netlink-driver
+    family-name: 1213123
 apps:
   netlink-test:
     command: bin/foo.sh
@@ -137,6 +157,15 @@ apps:
 
 	s.appToGadgetPlugDriverInfo = consumingSnapInfo.Plugs["plug-for-netlink-driver-foo"]
 	s.appToGadgetPlugDriver = interfaces.NewConnectedPlug(s.appToCorePlugDriverInfo, nil, nil)
+
+	s.appBadFamilyNamePlugDriverInfo = consumingSnapInfo.Plugs["invalid-family-name"]
+	s.appBadFamilyNamePlugDriver = interfaces.NewConnectedPlug(s.appBadFamilyNamePlugDriverInfo, nil, nil)
+
+	s.appBadFamilyNameStringPlugDriverInfo = consumingSnapInfo.Plugs["invalid-family-name-string"]
+	s.appBadFamilyNameStringPlugDriver = interfaces.NewConnectedPlug(s.appBadFamilyNameStringPlugDriverInfo, nil, nil)
+
+	s.appMissingFamilyNamePlugDriverInfo = consumingSnapInfo.Plugs["missing-family-name"]
+	s.appMissingFamilyNamePlugDriver = interfaces.NewConnectedPlug(s.appMissingFamilyNamePlugDriverInfo, nil, nil)
 }
 
 func (s *NetlinkDriverInterfaceSuite) TestStaticInfo(c *C) {
@@ -162,7 +191,7 @@ func (s *NetlinkDriverInterfaceSuite) TestInterfaces(c *C) {
 }
 
 func (s *NetlinkDriverInterfaceSuite) TestSanitizeSlotGadgetSnap(c *C) {
-	// netlink slot on gadget accepeted
+	// netlink slot on gadget accepted
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.gadgetNetlinkSlotInfo), IsNil)
 
 	// slots without number attribute are rejected
@@ -186,8 +215,25 @@ func (s *NetlinkDriverInterfaceSuite) TestSanitizeSlotGadgetSnap(c *C) {
 		`netlink-driver slot family-name "foo---------" is invalid`)
 }
 
+func (s *NetlinkDriverInterfaceSuite) TestSanitizePlugAppSnap(c *C) {
+	// netlink plug on app accepted
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.appToCorePlugDriverInfo), IsNil)
+
+	// plugs without family-name are rejected
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.appMissingFamilyNamePlugDriverInfo), ErrorMatches,
+		"netlink-driver plug must have a family-name attribute")
+
+	// slots with family-name attribute that isn't a string
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.appBadFamilyNameStringPlugDriverInfo), ErrorMatches,
+		`netlink-driver plug family-name attribute must be a string`)
+
+	// slots with bad family-name
+	c.Assert(interfaces.BeforePreparePlug(s.iface, s.appBadFamilyNamePlugDriverInfo), ErrorMatches,
+		`netlink-driver plug family-name "---foo-----" is invalid`)
+}
+
 func (s *NetlinkDriverInterfaceSuite) TestSanitizeSlotOsSnap(c *C) {
-	// netlink slot on OS accepeted
+	// netlink slot on OS accepted
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.osNetlinkSlotInfo), IsNil)
 }
 
