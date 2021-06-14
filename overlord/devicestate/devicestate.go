@@ -504,9 +504,10 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	}
 
 	recoverySetupTaskID := ""
-	if current.Grade() != asserts.ModelGradeUnset && new.Grade() != asserts.ModelGradeUnset {
-		// right now it's only possible to remodel from a UC20 system to
-		// another UC20 system, when doing so create a recovery
+	if new.Grade() != asserts.ModelGradeUnset {
+		// create a recovery when remodeling to a UC20 system, actual
+		// policy for possible remodels has already been verified by the
+		// caller
 		label := timeNow().Format("20060102")
 		createRecoveryTasks, err := createRecoverySystemTasks(st, label, snapSetupTasks)
 		if err != nil {
