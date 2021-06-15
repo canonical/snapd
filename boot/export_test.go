@@ -169,6 +169,8 @@ var (
 	SetImageBootFlags = setImageBootFlags
 	NextBootFlags     = nextBootFlags
 	SetNextBootFlags  = setNextBootFlags
+
+	ModelUniqueID = modelUniqueID
 )
 
 func SetBootFlagsInBootloader(flags []string, rootDir string) error {

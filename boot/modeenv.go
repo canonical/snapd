@@ -346,16 +346,16 @@ func (m *modelForSealing) Model() string             { return m.model }
 func (m *modelForSealing) Grade() asserts.ModelGrade { return m.grade }
 func (m *modelForSealing) Series() string            { return release.Series }
 
-// uniqueID returns a unique ID which can be used as a map index of the
-// underlying model.
-func (m *modelForSealing) uniqueID() string {
-	return fmt.Sprintf("%s/%s/%s/%s", m.brandID, m.model, m.grade, m.modelSignKeyID)
+// modelUniqueID returns a unique ID which can be used as a map index of the
+// provided model.
+func modelUniqueID(m secboot.ModelForSealing) string {
+	return fmt.Sprintf("%s/%s,%s,%s", m.BrandID(), m.Model(), m.Grade(), m.SignKeyID())
 }
 
 // ModelForSealing returns a wrapper implementing
 // github.com/snapcore/secboot.SnapModel interface which describes the current
 // model.
-func (m *Modeenv) ModelForSealing() *modelForSealing {
+func (m *Modeenv) ModelForSealing() secboot.ModelForSealing {
 	return &modelForSealing{
 		brandID:        m.BrandID,
 		model:          m.Model,
@@ -367,7 +367,7 @@ func (m *Modeenv) ModelForSealing() *modelForSealing {
 // TryModelForSealing returns a wrapper implementing
 // github.com/snapcore/secboot.SnapModel interface which describes the candidate
 // or try model.
-func (m *Modeenv) TryModelForSealing() *modelForSealing {
+func (m *Modeenv) TryModelForSealing() secboot.ModelForSealing {
 	return &modelForSealing{
 		brandID:        m.TryBrandID,
 		model:          m.TryModel,

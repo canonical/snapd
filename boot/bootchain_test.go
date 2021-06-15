@@ -1244,5 +1244,6 @@ func (s *bootchainSuite) TestModelForSealing(c *C) {
 	c.Check(modelForSealing.Grade(), Equals, asserts.ModelGrade("signed"))
 	c.Check(modelForSealing.SignKeyID(), Equals, "my-key-id")
 	c.Check(modelForSealing.Series(), Equals, "16")
+	c.Check(boot.ModelUniqueID(modelForSealing), Equals, "my-brand/my-model,signed,my-key-id")
 
 }
