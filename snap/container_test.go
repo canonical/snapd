@@ -29,7 +29,6 @@ import (
 
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
-
 	"github.com/snapcore/snapd/testutil"
 )
 

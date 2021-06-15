@@ -518,8 +518,8 @@ func resealFallbackObjectKeys(pbc predictableBootChains, authKeyFile string, rol
 // TODO:UC20: this needs to take more than one model to accommodate the remodel
 // scenario
 func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAssetsBootloader, modeenv *Modeenv) (chains []bootChain, err error) {
+	model := modeenv.ModelForSealing()
 	for _, system := range systems {
-		model := modeenv.ModelForSealing()
 		// get kernel and gadget information from seed
 		perf := timings.New(nil)
 		_, snaps, err := seedReadSystemEssential(dirs.SnapSeedDir, system, []snap.Type{snap.TypeKernel, snap.TypeGadget}, perf)

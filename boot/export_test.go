@@ -192,7 +192,7 @@ func SetBootFlagsInBootloader(flags []string, rootDir string) error {
 }
 
 func (b *bootChain) SetModelForSealingFromAssertion(model *asserts.Model) {
-	b.model = &modeenvModelForSealing{
+	b.model = &modeenvModelForSealingImpl{
 		brandID:        model.BrandID(),
 		model:          model.Model(),
 		modelSignKeyID: model.SignKeyID(),
