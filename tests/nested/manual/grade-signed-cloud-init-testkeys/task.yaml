@@ -13,7 +13,7 @@ environment:
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
 
   # don't use cloud-init to create the user, we manually use cloud-init via
-  # NESTED_PARAM_CD in the test setup
+  # --param-cdrom in the test setup
   NESTED_USE_CLOUD_INIT: false
 
   # sign all the snaps we build for the image with fakestore
