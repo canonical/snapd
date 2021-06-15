@@ -518,56 +518,69 @@ func resealFallbackObjectKeys(pbc predictableBootChains, authKeyFile string, rol
 // TODO:UC20: this needs to take more than one model to accommodate the remodel
 // scenario
 func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAssetsBootloader, modeenv *Modeenv) (chains []bootChain, err error) {
-	model := modeenv.ModelForSealing()
-	for _, system := range systems {
-		// get kernel and gadget information from seed
-		perf := timings.New(nil)
-		_, snaps, err := seedReadSystemEssential(dirs.SnapSeedDir, system, []snap.Type{snap.TypeKernel, snap.TypeGadget}, perf)
-		if err != nil {
-			return nil, fmt.Errorf("cannot read system %q seed: %v", system, err)
-		}
-		if len(snaps) != 2 {
-			return nil, fmt.Errorf("cannot obtain recovery system snaps")
-		}
-		seedKernel, seedGadget := snaps[0], snaps[1]
-		if snaps[0].EssentialType == snap.TypeGadget {
-			seedKernel, seedGadget = seedGadget, seedKernel
-		}
+	chainsForModel := func(model secboot.ModelForSealing) error {
+		for _, system := range systems {
+			// get kernel and gadget information from seed
+			perf := timings.New(nil)
+			_, snaps, err := seedReadSystemEssential(dirs.SnapSeedDir, system, []snap.Type{snap.TypeKernel, snap.TypeGadget}, perf)
+			if err != nil {
+				return fmt.Errorf("cannot read system %q seed: %v", system, err)
+			}
+			if len(snaps) != 2 {
+				return fmt.Errorf("cannot obtain recovery system snaps")
+			}
+			seedKernel, seedGadget := snaps[0], snaps[1]
+			if snaps[0].EssentialType == snap.TypeGadget {
+				seedKernel, seedGadget = seedGadget, seedKernel
+			}
 
-		// get the command line
-		cmdline, err := composeCommandLine(currentEdition, ModeRecover, system, seedGadget.Path)
-		if err != nil {
-			return nil, fmt.Errorf("cannot obtain recovery kernel command line: %v", err)
-		}
+			// get the command line
+			cmdline, err := composeCommandLine(currentEdition, ModeRecover, system, seedGadget.Path)
+			if err != nil {
+				return fmt.Errorf("cannot obtain recovery kernel command line: %v", err)
+			}
 
-		var kernelRev string
-		if seedKernel.SideInfo.Revision.Store() {
-			kernelRev = seedKernel.SideInfo.Revision.String()
-		}
+			var kernelRev string
+			if seedKernel.SideInfo.Revision.Store() {
+				kernelRev = seedKernel.SideInfo.Revision.String()
+			}
 
-		recoveryBootChain, err := trbl.RecoveryBootChain(seedKernel.Path)
-		if err != nil {
-			return nil, err
-		}
+			recoveryBootChain, err := trbl.RecoveryBootChain(seedKernel.Path)
+			if err != nil {
+				return err
+			}
 
-		// get asset chains
-		assetChain, kbf, err := buildBootAssets(recoveryBootChain, modeenv)
-		if err != nil {
-			return nil, err
-		}
+			// get asset chains
+			assetChain, kbf, err := buildBootAssets(recoveryBootChain, modeenv)
+			if err != nil {
+				return err
+			}
 
-		chains = append(chains, bootChain{
-			BrandID:        model.BrandID(),
-			Model:          model.Model(),
-			Grade:          model.Grade(),
-			ModelSignKeyID: model.SignKeyID(),
-			AssetChain:     assetChain,
-			Kernel:         seedKernel.SnapName(),
-			KernelRevision: kernelRev,
-			KernelCmdlines: []string{cmdline},
-			kernelBootFile: kbf,
-		})
+			chains = append(chains, bootChain{
+				BrandID:        model.BrandID(),
+				Model:          model.Model(),
+				Grade:          model.Grade(),
+				ModelSignKeyID: model.SignKeyID(),
+				AssetChain:     assetChain,
+				Kernel:         seedKernel.SnapName(),
+				KernelRevision: kernelRev,
+				KernelCmdlines: []string{cmdline},
+				kernelBootFile: kbf,
+			})
+		}
+		return nil
 	}
+
+	if err := chainsForModel(modeenv.ModelForSealing()); err != nil {
+		return nil, err
+	}
+
+	if modeenv.TryModel != "" {
+		if err := chainsForModel(modeenv.TryModelForSealing()); err != nil {
+			return nil, err
+		}
+	}
+
 	return chains, nil
 }
 
@@ -577,37 +590,49 @@ func runModeBootChains(rbl, bl bootloader.Bootloader, modeenv *Modeenv, cmdlines
 		return nil, fmt.Errorf("recovery bootloader doesn't support trusted assets")
 	}
 	chains := make([]bootChain, 0, len(modeenv.CurrentKernels))
-	model := modeenv.ModelForSealing()
-	for _, k := range modeenv.CurrentKernels {
-		info, err := snap.ParsePlaceInfoFromSnapFileName(k)
-		if err != nil {
-			return nil, err
-		}
-		runModeBootChain, err := tbl.BootChain(bl, info.MountFile())
-		if err != nil {
-			return nil, err
-		}
 
-		// get asset chains
-		assetChain, kbf, err := buildBootAssets(runModeBootChain, modeenv)
-		if err != nil {
+	chainsForModel := func(model secboot.ModelForSealing) error {
+		for _, k := range modeenv.CurrentKernels {
+			info, err := snap.ParsePlaceInfoFromSnapFileName(k)
+			if err != nil {
+				return err
+			}
+			runModeBootChain, err := tbl.BootChain(bl, info.MountFile())
+			if err != nil {
+				return err
+			}
+
+			// get asset chains
+			assetChain, kbf, err := buildBootAssets(runModeBootChain, modeenv)
+			if err != nil {
+				return err
+			}
+			var kernelRev string
+			if info.SnapRevision().Store() {
+				kernelRev = info.SnapRevision().String()
+			}
+			chains = append(chains, bootChain{
+				BrandID:        model.BrandID(),
+				Model:          model.Model(),
+				Grade:          model.Grade(),
+				ModelSignKeyID: model.SignKeyID(),
+				AssetChain:     assetChain,
+				Kernel:         info.SnapName(),
+				KernelRevision: kernelRev,
+				KernelCmdlines: cmdlines,
+				kernelBootFile: kbf,
+			})
+		}
+		return nil
+	}
+	if err := chainsForModel(modeenv.ModelForSealing()); err != nil {
+		return nil, err
+	}
+
+	if modeenv.TryModel != "" {
+		if err := chainsForModel(modeenv.TryModelForSealing()); err != nil {
 			return nil, err
 		}
-		var kernelRev string
-		if info.SnapRevision().Store() {
-			kernelRev = info.SnapRevision().String()
-		}
-		chains = append(chains, bootChain{
-			BrandID:        model.BrandID(),
-			Model:          model.Model(),
-			Grade:          model.Grade(),
-			ModelSignKeyID: model.SignKeyID(),
-			AssetChain:     assetChain,
-			Kernel:         info.SnapName(),
-			KernelRevision: kernelRev,
-			KernelCmdlines: cmdlines,
-			kernelBootFile: kbf,
-		})
 	}
 	return chains, nil
 }
