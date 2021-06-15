@@ -19,12 +19,6 @@ prepare: |
     echo "Given the test-snapd-event snap is installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-event
 
-restore: |
-    echo "Removing the snap and requesting kernel events"
-    snap remove test-snapd-event
-    udevadm settle
-    udevadm trigger
-
 execute: |
     if [ -z "$(find /dev/input/by-path -name '*-event-kbd')" ]; then
         if [ "$SPREAD_SYSTEM" = "ubuntu-16.04-64" ]; then
