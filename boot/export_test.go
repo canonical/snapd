@@ -169,6 +169,8 @@ var (
 	SetImageBootFlags = setImageBootFlags
 	NextBootFlags     = nextBootFlags
 	SetNextBootFlags  = setNextBootFlags
+
+	ModelUniqueID = modelUniqueID
 )
 
 func SetBootFlagsInBootloader(flags []string, rootDir string) error {
@@ -191,13 +193,8 @@ func SetBootFlagsInBootloader(flags []string, rootDir string) error {
 	return bl.SetBootVars(blVars)
 }
 
-func (b *bootChain) SetModelForSealingFromAssertion(model *asserts.Model) {
-	b.model = &modeenvModelForSealingImpl{
-		brandID:        model.BrandID(),
-		model:          model.Model(),
-		modelSignKeyID: model.SignKeyID(),
-		grade:          model.Grade(),
-	}
+func (b *bootChain) SecbootModelForSealing() secboot.ModelForSealing {
+	return b.modelForSealing()
 }
 
 func (b *bootChain) SetKernelBootFile(kbf bootloader.BootFile) {

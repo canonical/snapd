@@ -858,6 +858,8 @@ try_model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm
 	c.Check(modelForSealing.Grade(), Equals, asserts.ModelGrade("dangerous"))
 	c.Check(modelForSealing.SignKeyID(), Equals, "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn")
 	c.Check(modelForSealing.Series(), Equals, "16")
+	c.Check(boot.ModelUniqueID(modelForSealing), Equals,
+		"canonical/ubuntu-core-20-amd64,dangerous,9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn")
 
 	tryModelForSealing := modeenv.TryModelForSealing()
 	c.Check(tryModelForSealing.Model(), Equals, "testkeys-snapd-secured-core-20-amd64")
@@ -865,4 +867,6 @@ try_model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm
 	c.Check(tryModelForSealing.Grade(), Equals, asserts.ModelGrade("secured"))
 	c.Check(tryModelForSealing.SignKeyID(), Equals, "EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu")
 	c.Check(tryModelForSealing.Series(), Equals, "16")
+	c.Check(boot.ModelUniqueID(tryModelForSealing), Equals,
+		"developer1/testkeys-snapd-secured-core-20-amd64,secured,EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu")
 }

@@ -1265,36 +1265,40 @@ func (s *sealSuite) TestSealKeyModelParams(c *C) {
 
 	// old recovery
 	oldrc := boot.BootChain{
-		BrandID: oldmodel.BrandID(),
-		Model:   oldmodel.Model(),
+		BrandID:        oldmodel.BrandID(),
+		Model:          oldmodel.Model(),
+		Grade:          oldmodel.Grade(),
+		ModelSignKeyID: oldmodel.SignKeyID(),
 		AssetChain: []boot.BootAsset{
 			{Name: "shim", Role: bootloader.RoleRecovery, Hashes: []string{"shim-hash"}},
 			{Name: "loader", Role: bootloader.RoleRecovery, Hashes: []string{"loader-hash1"}},
 		},
 		KernelCmdlines: []string{"panic=1", "oldrc"},
 	}
-	oldrc.SetModelForSealingFromAssertion(oldmodel)
 	oldkbf := bootloader.BootFile{Snap: "pc-kernel_1.snap"}
 	oldrc.SetKernelBootFile(oldkbf)
 
 	// recovery
 	rc1 := boot.BootChain{
-		BrandID: model.BrandID(),
-		Model:   model.Model(),
+		BrandID:        model.BrandID(),
+		Model:          model.Model(),
+		Grade:          model.Grade(),
+		ModelSignKeyID: model.SignKeyID(),
 		AssetChain: []boot.BootAsset{
 			{Name: "shim", Role: bootloader.RoleRecovery, Hashes: []string{"shim-hash"}},
 			{Name: "loader", Role: bootloader.RoleRecovery, Hashes: []string{"loader-hash1"}},
 		},
 		KernelCmdlines: []string{"panic=1", "rc1"},
 	}
-	rc1.SetModelForSealingFromAssertion(model)
 	rc1kbf := bootloader.BootFile{Snap: "pc-kernel_10.snap"}
 	rc1.SetKernelBootFile(rc1kbf)
 
 	// run system
 	runc1 := boot.BootChain{
-		BrandID: model.BrandID(),
-		Model:   model.Model(),
+		BrandID:        model.BrandID(),
+		Model:          model.Model(),
+		Grade:          model.Grade(),
+		ModelSignKeyID: model.SignKeyID(),
 		AssetChain: []boot.BootAsset{
 			{Name: "shim", Role: bootloader.RoleRecovery, Hashes: []string{"shim-hash"}},
 			{Name: "loader", Role: bootloader.RoleRecovery, Hashes: []string{"loader-hash1"}},
@@ -1302,7 +1306,6 @@ func (s *sealSuite) TestSealKeyModelParams(c *C) {
 		},
 		KernelCmdlines: []string{"panic=1", "runc1"},
 	}
-	runc1.SetModelForSealingFromAssertion(model)
 	runc1kbf := bootloader.BootFile{Snap: "pc-kernel_50.snap"}
 	runc1.SetKernelBootFile(runc1kbf)
 
