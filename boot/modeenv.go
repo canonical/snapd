@@ -328,35 +328,50 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 	return nil
 }
 
+// modeenvModelForSealing is a helper type that implements
+// github.com/snapcore/secboot.SnapModel interface with additional methods used
+// internally in the boot package.
+type modeenvModelForSealing interface {
+	BrandID() string
+	SignKeyID() string
+	Model() string
+	Grade() asserts.ModelGrade
+	Series() string
+	uniqueID() string
+}
+
 // dummy to verify interface match
-var _ secboot.ModelForSealing = (*modeenvModelForSealing)(nil)
+var _ secboot.ModelForSealing = (modeenvModelForSealing)(nil)
 
 // modeenvModelForSealing is a helper type that implements
-// github.com/snapcore/secboot.SnapModel interface.
-type modeenvModelForSealing struct {
+// github.com/snapcore/secboot.SnapModel and modeenvModelForSealing interfaces.
+type modeenvModelForSealingImpl struct {
 	brandID        string
 	model          string
 	grade          asserts.ModelGrade
 	modelSignKeyID string
 }
 
-func (m *modeenvModelForSealing) BrandID() string           { return m.brandID }
-func (m *modeenvModelForSealing) SignKeyID() string         { return m.modelSignKeyID }
-func (m *modeenvModelForSealing) Model() string             { return m.model }
-func (m *modeenvModelForSealing) Grade() asserts.ModelGrade { return m.grade }
-func (m *modeenvModelForSealing) Series() string            { return release.Series }
+// dummy to verify interface match
+var _ secboot.ModelForSealing = (*modeenvModelForSealingImpl)(nil)
+
+func (m *modeenvModelForSealingImpl) BrandID() string           { return m.brandID }
+func (m *modeenvModelForSealingImpl) SignKeyID() string         { return m.modelSignKeyID }
+func (m *modeenvModelForSealingImpl) Model() string             { return m.model }
+func (m *modeenvModelForSealingImpl) Grade() asserts.ModelGrade { return m.grade }
+func (m *modeenvModelForSealingImpl) Series() string            { return release.Series }
 
 // uniqueID returns a unique ID which can be used as a map index of the
 // underlying model.
-func (m *modeenvModelForSealing) uniqueID() string {
+func (m *modeenvModelForSealingImpl) uniqueID() string {
 	return fmt.Sprintf("%s/%s/%s/%s", m.brandID, m.model, m.grade, m.modelSignKeyID)
 }
 
 // ModelForSealing returns a wrapper implementing
 // github.com/snapcore/secboot.SnapModel interface which describes the current
 // model.
-func (m *Modeenv) ModelForSealing() *modeenvModelForSealing {
-	return &modeenvModelForSealing{
+func (m *Modeenv) ModelForSealing() modeenvModelForSealing {
+	return &modeenvModelForSealingImpl{
 		brandID:        m.BrandID,
 		model:          m.Model,
 		grade:          asserts.ModelGrade(m.Grade),
@@ -367,8 +382,8 @@ func (m *Modeenv) ModelForSealing() *modeenvModelForSealing {
 // TryModelForSealing returns a wrapper implementing
 // github.com/snapcore/secboot.SnapModel interface which describes the candidate
 // or try model.
-func (m *Modeenv) TryModelForSealing() *modeenvModelForSealing {
-	return &modeenvModelForSealing{
+func (m *Modeenv) TryModelForSealing() modeenvModelForSealing {
+	return &modeenvModelForSealingImpl{
 		brandID:        m.TryBrandID,
 		model:          m.TryModel,
 		grade:          asserts.ModelGrade(m.TryGrade),
