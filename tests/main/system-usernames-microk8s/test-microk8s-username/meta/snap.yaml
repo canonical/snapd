@@ -1,0 +1,9 @@
+name: test-microk8s-username
+summary: Snap requesting the microk8s user, but not entitled to it
+version: 1.0
+system-usernames:
+  snap_microk8s: shared
+
+apps:
+  test-microk8s-username:
+    command: bin/sh
