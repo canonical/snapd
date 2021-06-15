@@ -131,7 +131,7 @@ func quotaCreate(st *state.State, t *state.Task, action QuotaControlAction, allG
 	// oom killer to be invoked when a new group is added as a sub-group to the
 	// larger group.
 	if action.MemoryLimit <= 4*quantity.SizeKiB {
-		return fmt.Errorf("memory limit for group %q is too small, 4KB is minimum size", action.QuotaName)
+		return fmt.Errorf("memory limit for group %q is too small: size must be larger than 4KB", action.QuotaName)
 	}
 
 	// make sure the specified snaps exist and aren't currently in another group
