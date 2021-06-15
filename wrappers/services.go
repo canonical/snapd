@@ -83,11 +83,18 @@ func generateGroupSliceFile(grp *quota.Group) ([]byte, error) {
 	template := `[Unit]
 Description=Slice for snap quota group %[1]s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
 MemoryMax=%[2]d
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]d
+
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
 `
 
 	fmt.Fprintf(&buf, template, grp.Name, grp.MemoryLimit)
@@ -491,6 +498,7 @@ type EnsureSnapServicesOptions struct {
 // invoked while processing the changes. Because of that it should not
 // produce immediate side-effects, as the changes are in effect only
 // if the function did not return an error.
+// This function is idempotent.
 func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSnapServicesOptions, observeChange ObserveChangeCallback, inter interacter) (err error) {
 	// note, sysd is not used when preseeding
 	sysd := systemd.New(systemd.SystemMode, inter)
@@ -830,8 +838,10 @@ func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error
 
 // RemoveQuotaGroup ensures that the slice file for a quota group is removed. It
 // assumes that the slice corresponding to the group is not in use anymore by
-// any services or sub-groups of the group when it is invoked.
-// group with sub-groups, one must remove all the sub-groups first.
+// any services or sub-groups of the group when it is invoked. To remove a group
+// with sub-groups, one must remove all the sub-groups first.
+// This function is idempotent, if the slice file doesn't exist no error is
+// returned.
 func RemoveQuotaGroup(grp *quota.Group, inter interacter) error {
 	// TODO: it only works on leaf sub-groups currently
 	if len(grp.SubGroups) != 0 {

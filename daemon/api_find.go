@@ -111,49 +111,46 @@ func searchStore(c *Command, r *http.Request, user *auth.UserState) Response {
 	case nil:
 		// pass
 	case store.ErrBadQuery:
-		return SyncResponse(&resp{
-			Type:   ResponseTypeError,
-			Result: &errorResult{Message: err.Error(), Kind: client.ErrorKindBadQuery},
-			Status: 400,
-		}, nil)
+		return BadQuery()
 	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
 		return Unauthorized(err.Error())
 	default:
+		// XXX should these return 503 actually?
 		if e, ok := err.(*url.Error); ok {
 			if neterr, ok := e.Err.(*net.OpError); ok {
 				if dnserr, ok := neterr.Err.(*net.DNSError); ok {
-					return SyncResponse(&resp{
-						Type:   ResponseTypeError,
-						Result: &errorResult{Message: dnserr.Error(), Kind: client.ErrorKindDNSFailure},
-						Status: 400,
-					}, nil)
+					return &apiError{
+						Status:  400,
+						Message: dnserr.Error(),
+						Kind:    client.ErrorKindDNSFailure,
+					}
 				}
 			}
 		}
 		if e, ok := err.(net.Error); ok && e.Timeout() {
-			return SyncResponse(&resp{
-				Type:   ResponseTypeError,
-				Result: &errorResult{Message: err.Error(), Kind: client.ErrorKindNetworkTimeout},
-				Status: 400,
-			}, nil)
+			return &apiError{
+				Status:  400,
+				Message: err.Error(),
+				Kind:    client.ErrorKindNetworkTimeout,
+			}
 		}
 		if e, ok := err.(*httputil.PersistentNetworkError); ok {
-			return SyncResponse(&resp{
-				Type:   ResponseTypeError,
-				Result: &errorResult{Message: e.Error(), Kind: client.ErrorKindDNSFailure},
-				Status: 400,
-			}, nil)
+			return &apiError{
+				Status:  400,
+				Message: e.Error(),
+				Kind:    client.ErrorKindDNSFailure,
+			}
 		}
 
 		return InternalError("%v", err)
 	}
 
-	meta := &Meta{
-		SuggestedCurrency: theStore.SuggestedCurrency(),
+	fresp := &findResponse{
 		Sources:           []string{"store"},
+		SuggestedCurrency: theStore.SuggestedCurrency(),
 	}
 
-	return sendStorePackages(route, meta, found)
+	return sendStorePackages(route, found, fresp)
 }
 
 func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Response {
@@ -178,18 +175,17 @@ func findOne(c *Command, r *http.Request, user *auth.UserState, name string) Res
 		return InternalError("%v", err)
 	}
 
-	meta := &Meta{
-		SuggestedCurrency: theStore.SuggestedCurrency(),
-		Sources:           []string{"store"},
-	}
-
 	results := make([]*json.RawMessage, 1)
 	data, err := json.Marshal(webify(mapRemote(snapInfo), r.URL.String()))
 	if err != nil {
 		return InternalError(err.Error())
 	}
 	results[0] = (*json.RawMessage)(&data)
-	return SyncResponse(results, meta)
+	return &findResponse{
+		Results:           results,
+		Sources:           []string{"store"},
+		SuggestedCurrency: theStore.SuggestedCurrency(),
+	}
 }
 
 func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -206,10 +202,10 @@ func storeUpdates(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot list updates: %v", err)
 	}
 
-	return sendStorePackages(route, nil, updates)
+	return sendStorePackages(route, updates, nil)
 }
 
-func sendStorePackages(route *mux.Route, meta *Meta, found []*snap.Info) Response {
+func sendStorePackages(route *mux.Route, found []*snap.Info, resp *findResponse) StructuredResponse {
 	results := make([]*json.RawMessage, 0, len(found))
 	for _, x := range found {
 		url, err := route.URL("name", x.InstanceName())
@@ -226,7 +222,13 @@ func sendStorePackages(route *mux.Route, meta *Meta, found []*snap.Info) Respons
 		results = append(results, &raw)
 	}
 
-	return SyncResponse(results, meta)
+	if resp == nil {
+		resp = &findResponse{}
+	}
+
+	resp.Results = results
+
+	return resp
 }
 
 func mapRemote(remoteSnap *snap.Info) *client.Snap {
@@ -242,4 +244,24 @@ func mapRemote(remoteSnap *snap.Info) *client.Snap {
 	}
 
 	return result
+}
+
+type findResponse struct {
+	Results           interface{}
+	Sources           []string
+	SuggestedCurrency string
+}
+
+func (r *findResponse) JSON() *respJSON {
+	return &respJSON{
+		Status:            200,
+		Type:              ResponseTypeSync,
+		Result:            r.Results,
+		Sources:           r.Sources,
+		SuggestedCurrency: r.SuggestedCurrency,
+	}
+}
+
+func (r *findResponse) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	r.JSON().ServeHTTP(w, req)
 }

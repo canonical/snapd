@@ -12,6 +12,7 @@ import debian.changelog
 def parse_arguments():
     parser = argparse.ArgumentParser(description="automatic changelog writer for snapd")
     parser.add_argument("version", type=str, help="new snapd version")
+    parser.add_argument("lpbug", type=str, help="new snapd major release LP bug")
     parser.add_argument(
         "changelog",
         type=argparse.FileType("r"),
@@ -97,7 +98,7 @@ def update_fedora_changelog(opts, snapd_packaging_dir, new_changelog_entry, main
         # that we only have one single whitespace
         dedented_changelog_lines.append(line[3:] + "\n")
 
-    date = datetime.datetime.now().strftime("%a %d %b %Y")
+    date = datetime.datetime.now().strftime("%a %b %d %Y")
 
     date_and_maintainer_header = f"* {date} {maintainer[0]} <{maintainer[1]}>\n"
     changelog_header = f"- New upstream release {opts.version}\n"
@@ -127,7 +128,7 @@ def update_fedora_changelog(opts, snapd_packaging_dir, new_changelog_entry, main
         fh.write(spec_file_content[idx + len(changelog_section) :])
 
 
-def update_opensuse_changlog(
+def update_opensuse_changelog(
     opts, snapd_packaging_dir, new_changelog_entry, maintainer
 ):
     spec_file = os.path.join(snapd_packaging_dir, "opensuse", "snapd.spec")
@@ -141,7 +142,9 @@ def update_opensuse_changlog(
     )
 
     # add a template changelog to the changes file
-    date = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S %z")
+    date = datetime.datetime.now(tz=datetime.timezone.utc).strftime(
+        "%a %b %d %H:%M:%S %Z %Y"
+    )
 
     email = maintainer[1]
     templ = f"""-------------------------------------------------------------------
@@ -160,6 +163,25 @@ def update_opensuse_changlog(
         fh.write(current)
 
 
+def write_github_release_entry(opts, new_changelog_entry):
+    with open(f"snapd-{opts.version}-github-release.md", "w") as fh:
+        # write the prefix header
+        fh.write(
+            f"""New snapd release {opts.version}
+
+See https://forum.snapcraft.io/t/the-snapd-roadmap/1973 for high-level overview.
+
+"""
+        )
+
+        # write the rest of the actual changelog
+        for line in new_changelog_entry.splitlines():
+            # strip the first 4 characters which are space characters so
+            # that there's no leading prefix
+            fh.write(line.lstrip())
+            fh.write("\n")
+
+
 def main(opts):
     this_script = os.path.realpath(__file__)
     snapd_root_git_dir = os.path.dirname(os.path.dirname(this_script))
@@ -176,7 +198,7 @@ def main(opts):
             raise RuntimeError(
                 f"unexpected changelog line format in line {line_number}"
             )
-        if len(line) >= 72:
+        if len(line) > 72:
             raise RuntimeError(
                 f"line {line_number} too long, should wrap properly to next line"
             )
@@ -206,7 +228,7 @@ def main(opts):
         # add the new changelog entry with our standard header
         # the spacing here is manually adjusted, the top of the comment is always
         # the same
-        templ = "\n  * New upstream release, LP: #1926005\n" + new_changelog_entry
+        templ = f"\n  * New upstream release, LP: #{opts.lpbug}\n" + new_changelog_entry
         ch.add_change(templ)
 
         # write it out back to the changelog file
@@ -229,9 +251,11 @@ def main(opts):
             )
 
         elif distro == "opensuse":
-            update_opensuse_changlog(
+            update_opensuse_changelog(
                 opts, snapd_packaging_dir, new_changelog_entry, maintainer
             )
+
+    write_github_release_entry(opts, new_changelog_entry)
 
 
 if __name__ == "__main__":

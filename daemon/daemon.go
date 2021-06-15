@@ -150,34 +150,28 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	switch access.CheckAccess(r, ucred, user) {
-	case accessOK:
-		// nothing
-	case accessUnauthorized:
-		Unauthorized("access denied").ServeHTTP(w, r)
-		return
-	case accessForbidden:
-		Forbidden("access denied").ServeHTTP(w, r)
-		return
-	case accessCancelled:
-		AuthCancelled("cancelled").ServeHTTP(w, r)
+	if rspe := access.CheckAccess(r, ucred, user); rspe != nil {
+		rspe.ServeHTTP(w, r)
 		return
 	}
 
 	rsp := rspf(c, r, user)
 
-	if rsp, ok := rsp.(*resp); ok {
-		_, rst := st.Restarting()
-		if rst != state.RestartUnset {
-			rsp.Maintenance = maintenanceForRestartType(rst)
-		}
+	if srsp, ok := rsp.(StructuredResponse); ok {
+		rjson := srsp.JSON()
 
-		if rsp.Type != ResponseTypeError {
+		_, rst := st.Restarting()
+		rjson.addMaintenanceFromRestartType(rst)
+
+		if rjson.Type != ResponseTypeError {
 			st.Lock()
 			count, stamp := st.WarningsSummary()
 			st.Unlock()
-			rsp.addWarningsToMeta(count, stamp)
+			rjson.addWarningCount(count, stamp)
 		}
+
+		// serve the updated serialisation
+		rsp = rjson
 	}
 
 	rsp.ServeHTTP(w, r)

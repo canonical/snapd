@@ -769,3 +769,30 @@ func (brs20 *bootState20RecoverySystem) markSuccessful(update bootStateUpdate) (
 func recoverySystemsBootState(dev Device) *bootState20RecoverySystem {
 	return &bootState20RecoverySystem{dev: dev}
 }
+
+// bootState20Model implements the successfulBootState interface for device
+// model related bookkeeping
+type bootState20Model struct {
+	dev Device
+}
+
+func (brs20 *bootState20Model) markSuccessful(update bootStateUpdate) (bootStateUpdate, error) {
+	u20, err := toBootStateUpdate20(update)
+	if err != nil {
+		return nil, err
+	}
+
+	// sign key ID was not being populated in earlier versions of snapd, try
+	// to remedy that
+	if u20.modeenv.ModelSignKeyID == "" {
+		if err != nil {
+			return nil, err
+		}
+		u20.writeModeenv.ModelSignKeyID = brs20.dev.Model().SignKeyID()
+	}
+	return u20, nil
+}
+
+func modelBootState(dev Device) *bootState20Model {
+	return &bootState20Model{dev: dev}
+}

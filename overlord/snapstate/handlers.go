@@ -1199,6 +1199,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		snapst.Required = true
 	}
 	oldRefreshInhibitedTime := snapst.RefreshInhibitedTime
+	oldLastRefreshTime := snapst.LastRefreshTime
 	// only set userID if unset or logged out in snapst and if we
 	// actually have an associated user
 	if snapsup.UserID > 0 {
@@ -1298,6 +1299,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 			return fmt.Errorf("cannot create snap cookie: %v", err)
 		}
 	}
+
 	// save for undoLinkSnap
 	t.Set("old-trymode", oldTryMode)
 	t.Set("old-devmode", oldDevMode)
@@ -1309,9 +1311,14 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	t.Set("old-candidate-index", oldCandidateIndex)
 	t.Set("old-refresh-inhibited-time", oldRefreshInhibitedTime)
 	t.Set("old-cohort-key", oldCohortKey)
+	t.Set("old-last-refresh-time", oldLastRefreshTime)
 
 	// Record the fact that the snap was refreshed successfully.
 	snapst.RefreshInhibitedTime = nil
+	if !snapsup.Revert {
+		now := timeNow()
+		snapst.LastRefreshTime = &now
+	}
 
 	if cand.SnapID != "" {
 		// write the auxiliary store info
@@ -1562,6 +1569,10 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err := t.Get("old-refresh-inhibited-time", &oldRefreshInhibitedTime); err != nil && err != state.ErrNoState {
 		return err
 	}
+	var oldLastRefreshTime *time.Time
+	if err := t.Get("old-last-refresh-time", &oldLastRefreshTime); err != nil && err != state.ErrNoState {
+		return err
+	}
 	var oldCohortKey string
 	if err := t.Get("old-cohort-key", &oldCohortKey); err != nil && err != state.ErrNoState {
 		return err
@@ -1609,6 +1620,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.JailMode = oldJailMode
 	snapst.Classic = oldClassic
 	snapst.RefreshInhibitedTime = oldRefreshInhibitedTime
+	snapst.LastRefreshTime = oldLastRefreshTime
 	snapst.CohortKey = oldCohortKey
 
 	newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, 0)
@@ -2979,9 +2991,35 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doAutoRefreshGate(t *state.Task, tomb *tomb.Tomb) error {
-	// TODO: autoRefreshPhase2 - create refresh tasks for snaps that are
-	// not held.
+func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snaps, err := snapsToRefresh(t)
+	if err != nil {
+		return err
+	}
+
+	if len(snaps) == 0 {
+		logger.Debugf("refresh gating: no snaps to refresh")
+		return nil
+	}
+
+	tss, err := autoRefreshPhase2(context.TODO(), st, snaps)
+	if err != nil {
+		return err
+	}
+
+	// update original auto-refresh change
+	chg := t.Change()
+	for _, ts := range tss {
+		ts.WaitFor(t)
+		chg.AddAll(ts)
+	}
+	t.SetStatus(state.DoneStatus)
+
+	st.EnsureBefore(0)
 	return nil
 }
 

@@ -87,6 +87,14 @@ func (cfg plainCoreConfig) Get(snapName, key string, result interface{}) error {
 	return nil
 }
 
+// GetPristine implements config.ConfGetter interface
+// for plainCoreConfig, there are no "pristine" values, so just return nothing
+// this has the effect that every setting will be viewed as "dirty" and needing
+// to be applied
+func (cfg plainCoreConfig) GetPristine(snapName, key string, result interface{}) error {
+	return nil
+}
+
 // GetMaybe implements config.ConfGetter interface.
 func (cfg plainCoreConfig) GetMaybe(instanceName, key string, result interface{}) error {
 	err := cfg.Get(instanceName, key, result)

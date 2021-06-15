@@ -141,6 +141,8 @@ If a test hangs, you can enable verbose mode:
 
 (or -check.v for less verbose output).
 
+Note, the yamlordereddictloader python package is needed to carry out the tests format check.
+
 There is more to read about the testing framework on the [website](https://labix.org/gocheck)
 
 ### Running spread tests

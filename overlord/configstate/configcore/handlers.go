@@ -85,6 +85,9 @@ func init() {
 	// system.disable-backlight-service
 	addFSOnlyHandler(validateBacklightServiceSettings, handleBacklightServiceConfiguration, coreOnly)
 
+	// swap.size
+	addFSOnlyHandler(validateSystemSwapConfiguration, handlesystemSwapConfiguration, coreOnly)
+
 	// system.kernel.printk.console-loglevel
 	addFSOnlyHandler(validateSysctlOptions, handleSysctlConfiguration, coreOnly)
 

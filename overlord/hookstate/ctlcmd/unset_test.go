@@ -22,14 +22,14 @@ package ctlcmd_test
 import (
 	"strings"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-
-	. "gopkg.in/check.v1"
 )
 
 type unsetSuite struct {

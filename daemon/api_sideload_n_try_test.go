@@ -238,8 +238,8 @@ func (s *sideloadSuite) TestSideloadSnapJailModeAndDevmode(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, "cannot use devmode and jailmode flags together")
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Message, check.Equals, "cannot use devmode and jailmode flags together")
 }
 
 func (s *sideloadSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
@@ -262,8 +262,8 @@ func (s *sideloadSuite) TestSideloadSnapJailModeInDevModeOS(c *check.C) {
 	restore := sandbox.MockForceDevMode(true)
 	defer restore()
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, "this system cannot honour the jailmode flag")
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Message, check.Equals, "this system cannot honour the jailmode flag")
 }
 
 func (s *sideloadSuite) TestLocalInstallSnapDeriveSideInfo(c *check.C) {
@@ -354,8 +354,8 @@ func (s *sideloadSuite) TestSideloadSnapNoSignaturesDangerOff(c *check.C) {
 	// this is the prefix used for tempfiles for sideloading
 	glob := filepath.Join(os.TempDir(), "snapd-sideload-pkg-*")
 	glbBefore, _ := filepath.Glob(glob)
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, `cannot find signatures with metadata for snap "x"`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Message, check.Equals, `cannot find signatures with metadata for snap "x"`)
 	glbAfter, _ := filepath.Glob(glob)
 	c.Check(len(glbBefore), check.Equals, len(glbAfter))
 }
@@ -379,8 +379,8 @@ func (s *sideloadSuite) TestSideloadSnapNotValidFormFile(c *check.C) {
 		req.Header.Set(k, v)
 	}
 
-	rsp := s.errorReq(c, req, nil)
-	c.Assert(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `cannot find "snap" file field in provided multipart/form-data payload`)
+	rspe := s.errorReq(c, req, nil)
+	c.Assert(rspe.Message, check.Matches, `cannot find "snap" file field in provided multipart/form-data payload`)
 }
 
 func (s *sideloadSuite) TestSideloadSnapChangeConflict(c *check.C) {
@@ -408,8 +408,8 @@ func (s *sideloadSuite) TestSideloadSnapChangeConflict(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Kind, check.Equals, client.ErrorKindSnapChangeConflict)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Kind, check.Equals, client.ErrorKindSnapChangeConflict)
 }
 
 func (s *sideloadSuite) TestSideloadSnapInstanceName(c *check.C) {
@@ -453,8 +453,8 @@ func (s *sideloadSuite) TestSideloadSnapInstanceNameMismatch(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "multipart/thing; boundary=--hello--")
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, `instance name "foo_instance" does not match snap name "bar"`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Message, check.Equals, `instance name "foo_instance" does not match snap name "bar"`)
 }
 
 func (s *sideloadSuite) TestInstallPathUnaliased(c *check.C) {
@@ -613,18 +613,16 @@ func (s *trySuite) TestTrySnapRelative(c *check.C) {
 	d := s.daemon(c)
 	st := d.Overlord().State()
 
-	rsp := daemon.TrySnap(st, "relative-path", snapstate.Flags{}).(*daemon.Resp)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, testutil.Contains, "need an absolute path")
+	rspe := daemon.TrySnap(st, "relative-path", snapstate.Flags{}).(*daemon.APIError)
+	c.Check(rspe.Message, testutil.Contains, "need an absolute path")
 }
 
 func (s *trySuite) TestTrySnapNotDir(c *check.C) {
 	d := s.daemon(c)
 	st := d.Overlord().State()
 
-	rsp := daemon.TrySnap(st, "/does/not/exist", snapstate.Flags{}).(*daemon.Resp)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, testutil.Contains, "not a snap directory")
+	rspe := daemon.TrySnap(st, "/does/not/exist", snapstate.Flags{}).(*daemon.APIError)
+	c.Check(rspe.Message, testutil.Contains, "not a snap directory")
 }
 
 func (s *trySuite) TestTryChangeConflict(c *check.C) {
@@ -642,7 +640,6 @@ func (s *trySuite) TestTryChangeConflict(c *check.C) {
 		return nil, &snapstate.ChangeConflictError{Snap: "foo"}
 	})()
 
-	rsp := daemon.TrySnap(st, tryDir, snapstate.Flags{}).(*daemon.Resp)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Kind, check.Equals, client.ErrorKindSnapChangeConflict)
+	rspe := daemon.TrySnap(st, tryDir, snapstate.Flags{}).(*daemon.APIError)
+	c.Check(rspe.Kind, check.Equals, client.ErrorKindSnapChangeConflict)
 }

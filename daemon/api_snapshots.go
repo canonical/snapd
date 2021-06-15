@@ -79,7 +79,7 @@ func listSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		return InternalError("%v", err)
 	}
-	return SyncResponse(sets, nil)
+	return SyncResponse(sets)
 }
 
 // A snapshotAction is used to request an operation on a snapshot
@@ -162,7 +162,7 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 	chg.Set("api-data", map[string]interface{}{"snap-names": affected})
 	ensureStateSoon(st)
 
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+	return AsyncResponse(nil, chg.ID())
 }
 
 // getSnapshotExport streams an archive containing an export of existing snapshots.
@@ -214,7 +214,7 @@ func doSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Respons
 	}
 
 	result := map[string]interface{}{"set-id": setID, "snaps": snapNames}
-	return SyncResponse(result, nil)
+	return SyncResponse(result)
 }
 
 func snapshotMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {

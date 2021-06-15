@@ -43,7 +43,10 @@ import (
 const defaultRefreshSchedule = "00:00~24:00/4"
 
 // cannot keep without refreshing for more than maxPostponement
-const maxPostponement = 60 * 24 * time.Hour
+const maxPostponement = 95 * 24 * time.Hour
+
+// buffer for maxPostponement when holding snaps with auto-refresh gating
+const maxPostponementBuffer = 5 * 24 * time.Hour
 
 // cannot inhibit refreshes for more than maxInhibition
 const maxInhibition = 14 * 24 * time.Hour
@@ -75,6 +78,10 @@ func (rc *refreshCandidate) SnapBase() string {
 
 func (rc *refreshCandidate) DownloadSize() int64 {
 	return rc.DownloadInfo.Size
+}
+
+func (rc *refreshCandidate) InstanceName() string {
+	return rc.SnapSetup.InstanceName()
 }
 
 func (rc *refreshCandidate) Prereq(st *state.State) []string {

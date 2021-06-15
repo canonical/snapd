@@ -24,8 +24,12 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
-	_ "crypto/sha256" // be explicit about supporting SHA256
-	_ "crypto/sha512" // be explicit about needing SHA512
+
+	// be explicit about supporting SHA256
+	_ "crypto/sha256"
+
+	// be explicit about needing SHA512
+	_ "crypto/sha512"
 	"encoding/base64"
 	"fmt"
 	"io"
