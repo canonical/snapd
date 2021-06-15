@@ -49,7 +49,10 @@ const netlinkDriverConnectedPlugApparmor = `
 # this allows all netlink protocol communication - further 
 # confinement for particular families/protocols is 
 # implemented via seccomp filtering
-network netlink raw,
+network netlink,
+
+# CAP_NET_ADMIN required per 'man 7 netlink'
+capability net_admin,
 `
 
 // regex for family-name must match:
@@ -116,7 +119,8 @@ func (iface *netlinkDriverInterface) SecCompConnectedPlug(spec *seccomp.Specific
 
 	spec.AddSnippet(fmt.Sprintf(`# Description: Can access the Linux kernel custom netlink protocol
 # for family %s
-socket AF_NETLINK - %d`, familyName, familyNum))
+socket AF_NETLINK - %d
+bind`, familyName, familyNum))
 	return nil
 }
 
