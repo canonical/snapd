@@ -193,9 +193,11 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadg
 	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
 	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileEquals, "gadget cloud config")
 
-	// and we also copied the ubuntu-seed files
-	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileEquals, "foo.cfg config")
-	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileEquals, "bar.cfg config")
+	// and we also copied the ubuntu-seed files with a new prefix such that they
+	// take precedence over the gadget file by being ordered lexically after the
+	// gadget file
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "90_foo.cfg"), testutil.FileEquals, "foo.cfg config")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "90_bar.cfg"), testutil.FileEquals, "bar.cfg config")
 }
 
 func (s *sysconfigSuite) TestCloudInitStatusUnhappy(c *C) {
