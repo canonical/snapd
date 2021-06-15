@@ -296,11 +296,11 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 	// TODO: complain when grade or key are unset
 	marshalModeenvEntryTo(buf, "grade", m.Grade)
 	marshalModeenvEntryTo(buf, "model_sign_key_id", m.ModelSignKeyID)
-	if m.TryModel != "" || m.TryBrandID != "" {
-		if m.Model == "" {
+	if m.TryModel != "" || m.TryGrade != "" {
+		if m.TryModel == "" {
 			return fmt.Errorf("internal error: try model is unset")
 		}
-		if m.BrandID == "" {
+		if m.TryBrandID == "" {
 			return fmt.Errorf("internal error: try brand is unset")
 		}
 		marshalModeenvEntryTo(buf, "try_model", &modeenvModel{brandID: m.TryBrandID, model: m.TryModel})

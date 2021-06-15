@@ -36,6 +36,16 @@ import (
 
 var gateAutoRefreshHookName = "gate-auto-refresh"
 
+// gateAutoRefreshAction represents the action executed by
+// snapctl refresh --hold or --proceed and stored in the context of
+// gate-auto-refresh hook.
+type gateAutoRefreshAction int
+
+const (
+	GateAutoRefreshProceed gateAutoRefreshAction = iota
+	GateAutoRefreshHold
+)
+
 // cumulative hold time for snaps other than self
 const maxOtherHoldDuration = time.Hour * 48
 
@@ -503,7 +513,7 @@ func createGateAutoRefreshHooks(st *state.State, affectedSnaps map[string]*affec
 	sort.Strings(names)
 	for _, snapName := range names {
 		affected := affectedSnaps[snapName]
-		hookTask := SetupGateAutoRefreshHook(st, snapName, affected.Base, affected.Restart)
+		hookTask := SetupGateAutoRefreshHook(st, snapName, affected.Base, affected.Restart, affected.AffectingSnaps)
 		// XXX: it should be fine to run the hooks in parallel
 		if prev != nil {
 			hookTask.WaitFor(prev)

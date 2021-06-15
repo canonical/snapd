@@ -28,9 +28,8 @@ import (
 
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/timeout"
-
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timeout"
 )
 
 // Hook up check.v1 into the "go test" runner

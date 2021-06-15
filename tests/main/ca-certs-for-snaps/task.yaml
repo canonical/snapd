@@ -17,7 +17,7 @@ restore: |
 execute: |
     # XXX: update when we get more systems that support custom ssl
     #      certificate usage
-    if [[ "$SPREAD_SYSTEM" = ubuntu-[0-9]* ]] || [[ "$SPREAD_SYSTEM" = debian-* ]]; then
+    if [[ "$SPREAD_SYSTEM" = ubuntu-[0-9]* ]] || os.query is-debian; then
         echo "Ensure the hosts /etc/ssl is visible for classic Ubuntu/Debian"
         test-snapd-sh.sh -c "test -e /etc/ssl/file-from-host"
     else
