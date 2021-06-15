@@ -79,7 +79,7 @@ execute: |
     nested_exec "sudo reboot" || true
     nested_wait_for_reboot "${boot_id}"
     echo "Check the test will race with snapd updating the modeenv, wait for the modenv to have a good state"
-    nested_retry_until_success 10 5 "grep -E \"current_kernel_command_lines=.*snapd_recovery_mode=run\" < /var/lib/snapd/modeenv"
+    nested_retry "--wait 5 -n 10 sh -c 'grep -qE \"current_kernel_command_lines=.*snapd_recovery_mode=run\" < /var/lib/snapd/modeenv'"
     nested_exec "cat /var/lib/snapd/modeenv" > modeenv.after-reboot
     echo "Check the kernel command line is restored"
     cmdline_modeenv_restored="$(grep current_kernel_command_lines= < modeenv.after-reboot  | sed -e 's/current_kernel_command_lines=//' | jq -r '.[0]')"

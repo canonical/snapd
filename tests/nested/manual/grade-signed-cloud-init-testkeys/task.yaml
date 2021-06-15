@@ -139,13 +139,10 @@ execute: |
   # for now we just don't get a serial assertion which is fine for the purposes
   # of this test
 
-  # TODO: is there a better thing we can wait for here instead? maybe the log
-  # message from snapd directly via journalctl ?
   echo "Waiting for snapd to react to cloud-init"
-  sleep 60
-
+  nested_retry "--wait 1 -n 60 sh -c 'cloud-init status | MATCH \"status: disabled\"'"
+  
   echo "Ensuring that cloud-init got disabled after running"
-  nested_exec "cloud-init status" | MATCH "status: disabled"
   nested_exec "test -f /etc/cloud/cloud-init.disabled"
   nested_exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
 

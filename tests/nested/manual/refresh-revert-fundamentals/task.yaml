@@ -89,13 +89,7 @@ execute: |
     echo "Check the change is completed"
     case "$SNAP" in
         pc-kernel|core20)
-            for _ in $(seq 10); do
-                if nested_exec "snap changes" | MATCH "$REFRESH_ID\s+Done\s+.*"; then
-                    break
-                fi
-                sleep 1
-            done
-            nested_exec "snap changes" | MATCH "$REFRESH_ID\s+Done\s+.*"
+            REFRESH_ID="$REFRESH_ID" nested_retry "--wait 1 -n 10 sh -c 'snap changes | grep -qE \"$REFRESH_ID\s+Done\s+.*\"'"
             ;;
     esac
 
@@ -123,12 +117,6 @@ execute: |
     echo "Check the change is completed"
     case "$SNAP" in
         pc-kernel|core20)
-            for _ in $(seq 10); do
-                if nested_exec "snap changes" | MATCH "$REVERT_ID\s+Done\s+.*"; then
-                    break
-                fi
-                sleep 1
-            done
-            nested_exec "snap changes" | MATCH "$REVERT_ID\s+Done\s+.*"
+            REVERT_ID="$REVERT_ID" nested_retry "--wait 1 -n 10 sh -c 'snap changes | MATCH \"$REVERT_ID\s+Done\s+.*\"'"
             ;;
     esac
