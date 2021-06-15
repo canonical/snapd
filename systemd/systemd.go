@@ -269,7 +269,7 @@ type Systemd interface {
 	// CurrentTasksCount returns the number of tasks (processes, threads, kernel
 	// threads if enabled, etc) part of the unit, which can be a service or a
 	// slice.
-	CurrentTasksCount(unit string) (int, error)
+	CurrentTasksCount(unit string) (uint64, error)
 }
 
 // A Log is a single entry in the systemd journal.
@@ -606,7 +606,7 @@ func (s *systemd) getPropertyStringValue(unit, key string) (string, error) {
 	}
 	cleanVal := strings.TrimSpace(string(out))
 
-	// strip the TasksCurrent= from the output
+	// strip the <property>= from the output
 	splitVal := strings.SplitN(cleanVal, "=", 2)
 	if len(splitVal) != 2 {
 		return "", fmt.Errorf("invalid property format from systemd for %s (got %s)", key, cleanVal)
@@ -615,44 +615,52 @@ func (s *systemd) getPropertyStringValue(unit, key string) (string, error) {
 	return strings.TrimSpace(splitVal[1]), nil
 }
 
-func (s *systemd) CurrentTasksCount(unit string) (int, error) {
-	tasksStr, err := s.getPropertyStringValue(unit, "TasksCurrent")
+var errNotSet = errors.New("property value is not available")
+
+func (s *systemd) getPropertyUintValue(unit, key string) (uint64, error) {
+	valStr, err := s.getPropertyStringValue(unit, key)
 	if err != nil {
 		return 0, err
 	}
 
-	// if the unit is inactive or doesn't exist, the tasks current can be
-	// reported as "[not set]"
-	if tasksStr == "[not set]" {
-		return 0, fmt.Errorf("tasks count unavailable")
+	// if the unit is inactive or doesn't exist, the value can be reported as
+	// "[not set]"
+	if valStr == "[not set]" {
+		return 0, errNotSet
 	}
 
-	intVal, err := strconv.Atoi(tasksStr)
+	intVal, err := strconv.ParseUint(valStr, 10, 64)
 	if err != nil {
-		return 0, fmt.Errorf("invalid property value from systemd for TasksCurrent: cannot parse %q as an integer", tasksStr)
+		return 0, fmt.Errorf("invalid property value from systemd for %s: cannot parse %q as an integer", key, valStr)
 	}
 
 	return intVal, nil
 }
 
-func (s *systemd) CurrentMemoryUsage(unit string) (quantity.Size, error) {
-	memStr, err := s.getPropertyStringValue(unit, "MemoryCurrent")
-	if err != nil {
+func (s *systemd) CurrentTasksCount(unit string) (uint64, error) {
+	tasksCount, err := s.getPropertyUintValue(unit, "TasksCurrent")
+	if err != nil && err != errNotSet {
 		return 0, err
 	}
 
-	// if the unit is inactive or doesn't exist, the memory usage can be
-	// reported as "[not set]"
-	if memStr == "[not set]" {
+	if err == errNotSet {
+		return 0, fmt.Errorf("tasks count unavailable")
+	}
+
+	return tasksCount, nil
+}
+
+func (s *systemd) CurrentMemoryUsage(unit string) (quantity.Size, error) {
+	memBytes, err := s.getPropertyUintValue(unit, "MemoryCurrent")
+	if err != nil && err != errNotSet {
+		return 0, err
+	}
+
+	if err == errNotSet {
 		return 0, fmt.Errorf("memory usage unavailable")
 	}
 
-	intVal, err := strconv.ParseUint(memStr, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("invalid property value from systemd for MemoryCurrent: cannot parse %q as an integer", memStr)
-	}
-
-	return quantity.Size(intVal), nil
+	return quantity.Size(memBytes), nil
 }
 
 func (s *systemd) InactiveEnterTimestamp(unit string) (time.Time, error) {
