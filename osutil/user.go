@@ -154,14 +154,16 @@ func EnsureUserGroup(name string, id uint32, extraUsers bool) error {
 		delCmdStr = append(delCmdStr, name)
 		cmd = exec.Command(delCmdStr[0], delCmdStr[1:]...)
 		if output2, err2 := cmd.CombinedOutput(); err2 != nil {
+			var groupdelErrStr string
 			if extraUsers && bytes.Contains(output2, []byte("unrecognized option")) {
 				// We have hit https://bugs.launchpad.net/bugs/1840375
-				return fmt.Errorf(`errors encountered ensuring user %s exists:
-- %s
-- groupdel does not support '--extrausers' option`, name, useraddErrStr)
+				groupdelErrStr = "groupdel does not support '--extrausers' option"
 			} else {
-				return fmt.Errorf("groupdel failed with: %s (after %s)", OutputErr(output2, err2), useraddErrStr)
+				groupdelErrStr = OutputErr(output2, err2).Error()
 			}
+			return fmt.Errorf(`errors encountered ensuring user %s exists:
+- %s
+- %s`, name, useraddErrStr, groupdelErrStr)
 		}
 		return fmt.Errorf(useraddErrStr)
 	}
