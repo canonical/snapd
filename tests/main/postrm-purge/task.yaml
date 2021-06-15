@@ -60,7 +60,7 @@ restore: |
     fi
 
 debug: |
-    systemctl --no-legend --full | grep -E 'snap\..*\.(service|timer|socket|slice)'
+    systemctl --no-legend --full | grep -E 'snap\..*\.(service|timer|socket|slice)' || true
 
 execute: |
     systemctl --no-legend --full | MATCH 'snap\..*\.(service|timer|socket|slice)'
