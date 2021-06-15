@@ -25,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
 	"testing"
 
 	"github.com/jessevdk/go-flags"

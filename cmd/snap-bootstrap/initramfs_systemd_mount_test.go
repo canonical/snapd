@@ -24,12 +24,12 @@ import (
 	"path/filepath"
 	"time"
 
+	. "gopkg.in/check.v1"
+
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
-
-	. "gopkg.in/check.v1"
 )
 
 type doSystemdMountSuite struct {

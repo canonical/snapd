@@ -35,14 +35,13 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 	. "gopkg.in/check.v1"
 
+	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
-
-	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
 // Hook up check.v1 into the "go test" runner
