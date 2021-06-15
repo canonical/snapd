@@ -26,8 +26,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
-	// TODO: eliminate this import and just use interfaces import directly
-	. "github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
@@ -62,7 +60,7 @@ func (s *CoreSuite) TestValidateDBusBusName(c *C) {
 		"a-a.b", "a-a.b-b.c-c", "a-a.b-b1", "a-a.b-b1.c-c2d-d",
 	}
 	for _, name := range validNames {
-		err := ValidateDBusBusName(name)
+		err := interfaces.ValidateDBusBusName(name)
 		c.Assert(err, IsNil)
 	}
 
@@ -87,12 +85,12 @@ func (s *CoreSuite) TestValidateDBusBusName(c *C) {
 		"a.b.",
 	}
 	for _, name := range invalidNames {
-		err := ValidateDBusBusName(name)
+		err := interfaces.ValidateDBusBusName(name)
 		c.Assert(err, ErrorMatches, `invalid DBus bus name: ".*"`)
 	}
 
 	// must not be empty
-	err := ValidateDBusBusName("")
+	err := interfaces.ValidateDBusBusName("")
 	c.Assert(err, ErrorMatches, `DBus bus name must be set`)
 
 	// must not exceed maximum length
@@ -103,48 +101,48 @@ func (s *CoreSuite) TestValidateDBusBusName(c *C) {
 	// make it look otherwise valid (a.bbbb...)
 	longName[0] = 'a'
 	longName[1] = '.'
-	err = ValidateDBusBusName(string(longName))
+	err = interfaces.ValidateDBusBusName(string(longName))
 	c.Assert(err, ErrorMatches, `DBus bus name is too long \(must be <= 255\)`)
 }
 
 // PlugRef.String works as expected
 func (s *CoreSuite) TestPlugRefString(c *C) {
-	ref := PlugRef{Snap: "snap", Name: "plug"}
+	ref := interfaces.PlugRef{Snap: "snap", Name: "plug"}
 	c.Check(ref.String(), Equals, "snap:plug")
-	refPtr := &PlugRef{Snap: "snap", Name: "plug"}
+	refPtr := &interfaces.PlugRef{Snap: "snap", Name: "plug"}
 	c.Check(refPtr.String(), Equals, "snap:plug")
 }
 
 // SlotRef.String works as expected
 func (s *CoreSuite) TestSlotRefString(c *C) {
-	ref := SlotRef{Snap: "snap", Name: "slot"}
+	ref := interfaces.SlotRef{Snap: "snap", Name: "slot"}
 	c.Check(ref.String(), Equals, "snap:slot")
-	refPtr := &SlotRef{Snap: "snap", Name: "slot"}
+	refPtr := &interfaces.SlotRef{Snap: "snap", Name: "slot"}
 	c.Check(refPtr.String(), Equals, "snap:slot")
 }
 
 // ConnRef.ID works as expected
 func (s *CoreSuite) TestConnRefID(c *C) {
-	conn := &ConnRef{
-		PlugRef: PlugRef{Snap: "consumer", Name: "plug"},
-		SlotRef: SlotRef{Snap: "producer", Name: "slot"},
+	conn := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
 	c.Check(conn.ID(), Equals, "consumer:plug producer:slot")
 }
 
 // ParseConnRef works as expected
 func (s *CoreSuite) TestParseConnRef(c *C) {
-	ref, err := ParseConnRef("consumer:plug producer:slot")
+	ref, err := interfaces.ParseConnRef("consumer:plug producer:slot")
 	c.Assert(err, IsNil)
-	c.Check(ref, DeepEquals, &ConnRef{
-		PlugRef: PlugRef{Snap: "consumer", Name: "plug"},
-		SlotRef: SlotRef{Snap: "producer", Name: "slot"},
+	c.Check(ref, DeepEquals, &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	})
-	_, err = ParseConnRef("garbage")
+	_, err = interfaces.ParseConnRef("garbage")
 	c.Assert(err, ErrorMatches, `malformed connection identifier: "garbage"`)
-	_, err = ParseConnRef("snap:plug:garbage snap:slot")
+	_, err = interfaces.ParseConnRef("snap:plug:garbage snap:slot")
 	c.Assert(err, ErrorMatches, `malformed connection identifier: ".*"`)
-	_, err = ParseConnRef("snap:plug snap:slot:garbage")
+	_, err = interfaces.ParseConnRef("snap:plug snap:slot:garbage")
 	c.Assert(err, ErrorMatches, `malformed connection identifier: ".*"`)
 }
 
@@ -249,14 +247,14 @@ plugs:
     interface: iface
 `, nil)
 	plug := info.Plugs["plug"]
-	c.Assert(BeforePreparePlug(&ifacetest.TestInterface{
+	c.Assert(interfaces.BeforePreparePlug(&ifacetest.TestInterface{
 		InterfaceName: "iface",
 	}, plug), IsNil)
-	c.Assert(BeforePreparePlug(&ifacetest.TestInterface{
+	c.Assert(interfaces.BeforePreparePlug(&ifacetest.TestInterface{
 		InterfaceName:             "iface",
 		BeforePreparePlugCallback: func(plug *snap.PlugInfo) error { return fmt.Errorf("broken") },
 	}, plug), ErrorMatches, "broken")
-	c.Assert(BeforePreparePlug(&ifacetest.TestInterface{
+	c.Assert(interfaces.BeforePreparePlug(&ifacetest.TestInterface{
 		InterfaceName: "other",
 	}, plug), ErrorMatches, `cannot sanitize plug "snap:plug" \(interface "iface"\) using interface "other"`)
 }
@@ -270,14 +268,14 @@ slots:
     interface: iface
 `, nil)
 	slot := info.Slots["slot"]
-	c.Assert(BeforePrepareSlot(&ifacetest.TestInterface{
+	c.Assert(interfaces.BeforePrepareSlot(&ifacetest.TestInterface{
 		InterfaceName: "iface",
 	}, slot), IsNil)
-	c.Assert(BeforePrepareSlot(&ifacetest.TestInterface{
+	c.Assert(interfaces.BeforePrepareSlot(&ifacetest.TestInterface{
 		InterfaceName:             "iface",
 		BeforePrepareSlotCallback: func(slot *snap.SlotInfo) error { return fmt.Errorf("broken") },
 	}, slot), ErrorMatches, "broken")
-	c.Assert(BeforePrepareSlot(&ifacetest.TestInterface{
+	c.Assert(interfaces.BeforePrepareSlot(&ifacetest.TestInterface{
 		InterfaceName: "other",
 	}, slot), ErrorMatches, `cannot sanitize slot "snap:slot" \(interface "iface"\) using interface "other"`)
 }

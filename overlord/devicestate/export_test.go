@@ -114,7 +114,7 @@ func SetLastBecomeOperationalAttempt(m *DeviceManager, t time.Time) {
 }
 
 func SetSystemMode(m *DeviceManager, mode string) {
-	m.systemMode = mode
+	m.sysMode = mode
 }
 
 func SetTimeOnce(m *DeviceManager, name string, t time.Time) error {

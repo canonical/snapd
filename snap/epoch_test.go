@@ -21,10 +21,11 @@ package snap_test
 
 import (
 	"encoding/json"
-	"github.com/snapcore/snapd/snap"
 
 	"gopkg.in/check.v1"
 	"gopkg.in/yaml.v2"
+
+	"github.com/snapcore/snapd/snap"
 )
 
 type epochSuite struct{}

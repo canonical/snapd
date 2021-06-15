@@ -189,14 +189,13 @@ func (s *snapDownloadSuite) TestDownloadSnapErrors(c *check.C) {
 
 		req, err := http.NewRequest("POST", "/v2/download", bytes.NewBuffer(data))
 		c.Assert(err, check.IsNil)
-		rsp := s.errorReq(c, req, nil)
+		rspe := s.errorReq(c, req, nil)
 
-		c.Assert(rsp.Status, check.Equals, scen.status)
+		c.Assert(rspe.Status, check.Equals, scen.status)
 		if scen.err == "" {
 			c.Errorf("error was expected")
 		}
-		result := rsp.Result
-		c.Check(result.(*daemon.ErrorResult).Message, check.Matches, scen.err)
+		c.Check(rspe.Message, check.Matches, scen.err)
 	}
 }
 
