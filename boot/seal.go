@@ -566,7 +566,6 @@ func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAsset
 			KernelRevision: kernelRev,
 			KernelCmdlines: []string{cmdline},
 			kernelBootFile: kbf,
-			model:          model,
 		})
 	}
 	return chains, nil
@@ -608,7 +607,6 @@ func runModeBootChains(rbl, bl bootloader.Bootloader, modeenv *Modeenv, cmdlines
 			KernelRevision: kernelRev,
 			KernelCmdlines: cmdlines,
 			kernelBootFile: kbf,
-			model:          model,
 		})
 	}
 	return chains, nil
@@ -654,7 +652,8 @@ func sealKeyModelParams(pbc predictableBootChains, roleToBlName map[bootloader.R
 	modelParams := make([]*secboot.SealKeyModelParams, 0, len(pbc))
 
 	for _, bc := range pbc {
-		modelID := bc.model.uniqueID()
+		modelForSealing := bc.modelForSealing()
+		modelID := modelForSealing.uniqueID()
 		loadChains, err := bootAssetsToLoadChains(bc.AssetChain, bc.kernelBootFile, roleToBlName)
 		if err != nil {
 			return nil, fmt.Errorf("cannot build load chains with current boot assets: %s", err)
@@ -667,7 +666,7 @@ func sealKeyModelParams(pbc predictableBootChains, roleToBlName map[bootloader.R
 			params.EFILoadChains = append(params.EFILoadChains, loadChains...)
 		} else {
 			param := &secboot.SealKeyModelParams{
-				Model:          bc.model,
+				Model:          modelForSealing,
 				KernelCmdlines: bc.KernelCmdlines,
 				EFILoadChains:  loadChains,
 			}
