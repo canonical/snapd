@@ -203,6 +203,8 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 		"content":         true,
 		"home":            true,
 		"lxd-support":     true,
+		// netlink-driver needs the family-name attributes to match
+		"netlink-driver": true,
 	}
 
 	for _, iface := range all {
@@ -615,6 +617,7 @@ var (
 		"mir":                     {"app"},
 		"modem-manager":           {"app", "core"},
 		"mpris":                   {"app"},
+		"netlink-driver":          {"core", "gadget"},
 		"network-manager":         {"app", "core"},
 		"network-manager-observe": {"app", "core"},
 		"network-status":          {"core"},
