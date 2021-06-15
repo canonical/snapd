@@ -246,7 +246,7 @@ func (s *NetlinkDriverInterfaceSuite) TestApparmorConnectedPlug(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.appToCorePlugDriver, s.gadgetNetlinkSlot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.client-snap.netlink-test"})
-	c.Assert(spec.SnippetForTag("snap.client-snap.netlink-test"), testutil.Contains, `network netlink raw,`)
+	c.Assert(spec.SnippetForTag("snap.client-snap.netlink-test"), testutil.Contains, `network netlink,`)
 }
 
 func (s *NetlinkDriverInterfaceSuite) TestSecCompConnectedPlug(c *C) {
