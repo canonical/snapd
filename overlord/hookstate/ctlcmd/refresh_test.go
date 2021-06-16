@@ -205,9 +205,10 @@ version: 1
 	c.Assert(s.st.Get("snaps-hold", &gating), IsNil)
 	c.Check(gating["foo"]["snap1"], NotNil)
 
+	mockContext.Cache("action", nil)
+
 	mockContext.Unlock()
 	defer mockContext.Lock()
-	mockContext.Cache("action", nil)
 
 	// refresh --pending --proceed is the same as just saying --proceed.
 	stdout, stderr, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
