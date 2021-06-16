@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018-2020 Canonical Ltd
+ * Copyright (C) 2018-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -194,18 +194,12 @@ func MockSnapstateRemoveMany(mock func(*state.State, []string) ([]string, []*sta
 }
 
 type (
-	Resp            = resp
 	RespJSON        = respJSON
 	FileResponse    = fileResponse
 	APIError        = apiError
 	ErrorResult     = errorResult
 	SnapInstruction = snapInstruction
 )
-
-// XXX this is not used very consistently
-func (rsp *resp) ErrorResult() *errorResult {
-	return rsp.Result.(*errorResult)
-}
 
 func (inst *snapInstruction) Dispatch() snapActionFunc {
 	return inst.dispatch()

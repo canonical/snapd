@@ -14,7 +14,7 @@ prepare: |
     fi
 
     echo "ensure the font is not already in the fontconfig cache before installing"
-    fc-cat /var/cache/fontconfig/* 2>/dev/null | not MATCH "$NAME"
+    fc-cat /var/cache/fontconfig/* 2>/dev/null | NOMATCH "$NAME"
     apt update -yqq
     apt install -y "$PKG"
     echo "ensure the font is now in the cache"

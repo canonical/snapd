@@ -33,14 +33,13 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
-	"github.com/snapcore/snapd/snap/quota"
 
-	// imported to ensure actual interfaces are defined,
-	// in production this is guaranteed by ifacestate
+	// imported to ensure actual interfaces are defined (in production this is guaranteed by ifacestate)
 	_ "github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
@@ -265,6 +264,10 @@ MemoryAccounting=true
 MemoryMax=%[2]s
 # for compatibility with older versions of systemd
 MemoryLimit=%[2]s
+
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
 `
 
 	sliceContent := fmt.Sprintf(sliceTempl, grp.Name, memLimit.String())
@@ -371,6 +374,10 @@ MemoryAccounting=true
 MemoryMax=%[2]s
 # for compatibility with older versions of systemd
 MemoryLimit=%[2]s
+
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
 `
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
 
@@ -463,6 +470,10 @@ MemoryAccounting=true
 MemoryMax=%[2]s
 # for compatibility with older versions of systemd
 MemoryLimit=%[2]s
+
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
 `
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
 
@@ -623,6 +634,10 @@ MemoryAccounting=true
 MemoryMax=%[2]s
 # for compatibility with older versions of systemd
 MemoryLimit=%[2]s
+
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
 `
 
 	sliceContent := fmt.Sprintf(sliceTempl, "foogroup", memLimit.String())
@@ -791,6 +806,10 @@ MemoryAccounting=true
 MemoryMax=%[2]s
 # for compatibility with older versions of systemd
 MemoryLimit=%[2]s
+
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
 `
 
 	c.Assert(sliceFile, testutil.FileEquals, fmt.Sprintf(templ, "foogroup", memLimit.String()))

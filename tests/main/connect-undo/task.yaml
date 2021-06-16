@@ -17,7 +17,7 @@ execute: |
 
     echo "Installing a revision with broken connect hook fails"
     snap install --dangerous test-connect_2_all.snap 2>&1 | MATCH 'failure of connect hook'
-    snap list | not MATCH test-connect
+    snap list | NOMATCH test-connect
 
     echo "Installing a revision with no hook"
     snap install --dangerous test-connect_1_all.snap

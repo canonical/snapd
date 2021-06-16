@@ -16,10 +16,10 @@ prepare: |
 execute: |
   touch foo
   # no immutable flag:
-  lsattr foo | not MATCH i
+  lsattr foo | NOMATCH i
   test "$(./toggle foo)" = "mutable -> immutable"
   # and now an immutable flag!:
   lsattr foo | MATCH i
   test "$(./toggle foo)" = "immutable -> mutable"
   # no immutable flag again:
-  lsattr foo | not MATCH i
+  lsattr foo | NOMATCH i

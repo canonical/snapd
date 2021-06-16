@@ -50,7 +50,7 @@ func DeviceCtx(st *state.State, task *state.Task, providedDeviceCtx snapstate.De
 	devMgr := deviceMgr(st)
 	return &modelDeviceContext{groundDeviceContext{
 		model:      modelAs,
-		systemMode: devMgr.SystemMode(),
+		systemMode: devMgr.SystemMode(SysAny),
 	}}, nil
 }
 

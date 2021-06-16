@@ -30,11 +30,9 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"golang.org/x/xerrors"
-
 	"github.com/jessevdk/go-flags"
-
 	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"

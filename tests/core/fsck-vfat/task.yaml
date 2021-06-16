@@ -56,10 +56,10 @@ execute: |
 
   echo "fsck.fat reports the file system as clean"
   fsck.vfat -v -a fat.img > fsck.vfat.cleaned.log
-  not MATCH '0x25: Dirty bit is set. Fs was not properly unmounted and some data may be corrupt.' < fsck.vfat.cleaned.log
+  NOMATCH '0x25: Dirty bit is set. Fs was not properly unmounted and some data may be corrupt.' < fsck.vfat.cleaned.log
 
   echo "Cleaned FAT mounts without warnings"
   mount fat.img /mnt
   tests.cleanup defer umount /mnt
-  dmesg -c | not MATCH "Volume was not properly unmounted. Some data may be corrupt. Please run fsck."
+  dmesg -c | NOMATCH "Volume was not properly unmounted. Some data may be corrupt. Please run fsck."
   tests.cleanup pop # unmount
