@@ -876,10 +876,6 @@ suites:
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m
-        debug: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_print_serial_log
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -914,10 +910,6 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
         manual: true
-        debug: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_print_serial_log
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -956,10 +948,6 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
         manual: true
-        debug: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_print_serial_log
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
