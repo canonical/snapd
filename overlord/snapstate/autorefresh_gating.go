@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -527,15 +528,30 @@ func createGateAutoRefreshHooks(st *state.State, affectedSnaps map[string]*affec
 // snapsToRefresh returns all snaps that should proceed with refresh considering
 // hold behavior.
 var snapsToRefresh = func(gatingTask *state.Task) ([]*refreshCandidate, error) {
-	// TODO: consider holding (responses from gating hooks) here.
-	// Return all refresh candidates for now.
 	var snaps map[string]*refreshCandidate
 	if err := gatingTask.Get("snaps", &snaps); err != nil {
 		return nil, err
 	}
+
+	held, err := heldSnaps(gatingTask.State())
+	if err != nil {
+		return nil, err
+	}
+
+	var skipped []string
 	var candidates []*refreshCandidate
 	for _, s := range snaps {
-		candidates = append(candidates, s)
+		if !held[s.InstanceName()] {
+			candidates = append(candidates, s)
+		} else {
+			skipped = append(skipped, s.InstanceName())
+		}
 	}
+
+	if len(skipped) > 0 {
+		sort.Strings(skipped)
+		logger.Noticef("skipping refresh of held snaps: %s", strings.Join(skipped, ","))
+	}
+
 	return candidates, nil
 }
