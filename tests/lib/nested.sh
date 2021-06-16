@@ -1222,7 +1222,7 @@ nested_exec_as() {
 }
 
 nested_retry() {
-    if ! nested_exec "ls ./retry" &>/dev/null; then
+    if ! nested_exec "test -e ./retry" &>/dev/null; then
         nested_copy "$TESTSTOOLS/retry"
         nested_exec "sed 's/any-python/python3/g' -i ./retry"
     fi
