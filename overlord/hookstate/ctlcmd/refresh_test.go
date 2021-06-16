@@ -204,6 +204,22 @@ version: 1
 	gating = nil
 	c.Assert(s.st.Get("snaps-hold", &gating), IsNil)
 	c.Check(gating["foo"]["snap1"], NotNil)
+
+	mockContext.Unlock()
+	defer mockContext.Lock()
+	mockContext.Cache("action", nil)
+
+	// refresh --pending --proceed is the same as just saying --proceed.
+	stdout, stderr, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+
+	mockContext.Lock()
+	defer mockContext.Unlock()
+	action = mockContext.Cached("action")
+	c.Assert(action, NotNil)
+	c.Check(action, Equals, snapstate.GateAutoRefreshProceed)
 }
 
 func (s *refreshSuite) TestRefreshFromUnsupportedHook(c *C) {
