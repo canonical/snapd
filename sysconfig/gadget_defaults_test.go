@@ -29,7 +29,6 @@ import (
 
 	// to set ApplyFilesystemOnlyDefaults hook
 	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
-
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snap/squashfs"
