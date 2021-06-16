@@ -159,8 +159,8 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunMode(c *C) {
 
 	// and did copy the cloud-init files
 	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
-	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileEquals, "foo.cfg config")
-	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileEquals, "bar.cfg config")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "90_foo.cfg"), testutil.FileEquals, "foo.cfg config")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "90_bar.cfg"), testutil.FileEquals, "bar.cfg config")
 }
 
 func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadgetCloudConf(c *C) {

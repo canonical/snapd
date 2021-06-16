@@ -109,8 +109,6 @@ func configureCloudInit(opts *Options) (err error) {
 		return DisableCloudInit(WritableDefaultsDir(opts.TargetRootDir))
 	}
 
-	targetFilesPrefix := ""
-
 	// next check if there is a gadget cloud.conf to install
 	if HasGadgetCloudConf(opts.GadgetDir) {
 		// then copy / install the gadget config first
@@ -126,9 +124,6 @@ func configureCloudInit(opts *Options) (err error) {
 		// testing purposes you also want to provision another user with
 		// ubuntu-seed cloud-init config
 
-		// set the prefix such that any ubuntu-seed config that ends up getting
-		// installed takes precedence over the gadget config
-		targetFilesPrefix = "90_"
 	}
 
 	// TODO:UC20: implement filtering of files from src when specified via a
@@ -138,7 +133,9 @@ func configureCloudInit(opts *Options) (err error) {
 	// files from
 
 	if opts.CloudInitSrcDir != "" {
-		return installCloudInitCfgDir(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir), targetFilesPrefix)
+		// set the prefix such that any ubuntu-seed config that ends up getting
+		// installed takes precedence over the gadget config
+		return installCloudInitCfgDir(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir), "90_")
 	}
 
 	// it's valid to allow cloud-init, but not set CloudInitSrcDir and not have
