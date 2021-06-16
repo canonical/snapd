@@ -589,7 +589,3 @@ fixed-width fonts, so it can be hard to tell.
 
 	return nil
 }
-
-func thisIsDeadcode() error {
-	return nil
-}
