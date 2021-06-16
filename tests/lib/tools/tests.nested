@@ -140,15 +140,19 @@ wait_for() {
     case "$1" in
         ssh)
             action=nested_wait_for_ssh
+            shift
             ;;
         no-ssh)
             action=nested_wait_for_no_ssh
+            shift
             ;;
         snap-command)
             action=nested_wait_for_snap_command
+            shift
             ;;
         reboot)
             action=nested_wait_for_reboot
+            shift
             ;;
         *)
             echo "tests.nested: unsupported parameter $1" >&2
@@ -156,7 +160,7 @@ wait_for() {
             ;;
     esac
 
-    "$action"
+    "$action" "$@"
 }
 
 start_vm() {
