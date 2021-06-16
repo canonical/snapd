@@ -28,10 +28,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/snapcore/snapd/client"
-
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/servicestate"
