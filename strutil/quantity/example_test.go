@@ -25,9 +25,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/snapcore/snapd/strutil/quantity"
-
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/strutil/quantity"
 )
 
 func Test(t *testing.T) { TestingT(t) }

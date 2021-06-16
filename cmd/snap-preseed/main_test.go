@@ -129,6 +129,33 @@ func (s *startPreseedSuite) TestChrootValidationUnhappy(c *C) {
 	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches, "cannot preseed without the following mountpoints:\n - .*/dev\n - .*/proc\n - .*/sys/kernel/security")
 }
 
+func (s *startPreseedSuite) TestRunPreseedMountUnhappy(c *C) {
+	tmpDir := c.MkDir()
+	dirs.SetRootDir(tmpDir)
+	defer mockChrootDirs(c, tmpDir, true)()
+
+	restoreOsGuid := main.MockOsGetuid(func() int { return 0 })
+	defer restoreOsGuid()
+
+	restoreSyscallChroot := main.MockSyscallChroot(func(path string) error { return nil })
+	defer restoreSyscallChroot()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", `echo "something went wrong"
+exit 32
+`)
+	defer mockMountCmd.Restore()
+
+	targetSnapdRoot := filepath.Join(tmpDir, "target-core-mounted-here")
+	restoreMountPath := main.MockSnapdMountPath(targetSnapdRoot)
+	defer restoreMountPath()
+
+	restoreSystemSnapFromSeed := main.MockSystemSnapFromSeed(func(string) (string, error) { return "/a/core.snap", nil })
+	defer restoreSystemSnapFromSeed()
+
+	parser := testParser(c)
+	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches, `cannot mount .+ at .+ in preseed mode: exit status 32\n'mount -t squashfs -o ro,x-gdu.hide,x-gvfs-hide /a/core.snap .*/target-core-mounted-here' failed with: something went wrong\n`)
+}
+
 func (s *startPreseedSuite) TestChrootValidationUnhappyNoApparmor(c *C) {
 	restore := main.MockOsGetuid(func() int { return 0 })
 	defer restore()

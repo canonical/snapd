@@ -97,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.51
+Version:        2.51.1
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -971,6 +971,18 @@ fi
 
 
 %changelog
+* Tue Jun 15 2021 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.51.1
+ - interfaces: add netlink-driver interface
+ - interfaces: builtin: add dm-crypt interface to support external
+   storage encryption
+ - interfaces/dsp: fix typo in udev rule
+ - overlord/snapstate: lock the mutex before returning from stop
+   snap services undo
+ - interfaces: opengl: change path for Xilinx zocl driver
+ - interfaces/dsp: add /dev/cavalry into dsp interface
+ - packaging/fedora/snapd.spec: correct date format in changelog
+
 * Thu May 27 2021 Ian Johnson <ian.johnson@canonical.com>
 - New upstream release 2.51
  - cmd/snap: stacktraces debug endpoint
