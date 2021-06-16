@@ -47,12 +47,8 @@ execute: |
     hotplug_add_dev1
 
     # sanity checks to make sure qemu setup is correct
-    for _ in $(seq 5); do
+    nested_retry "--wait 1 -n 5 sh -c 'udevadm info -e | grep -qE ID_MODEL=QEMU_USB_SERIAL'"
         if tests.nested exec "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
-            break
-        fi
-        sleep 1
-    done
 
     tests.nested exec "ls /dev/tty*" | MATCH "ttyUSB0"
 
@@ -65,13 +61,7 @@ execute: |
     hotplug_del_dev1
 
     # sanity check to make sure qemu event was triggered correctly
-    for _ in $(seq 5); do
-        if tests.nested exec "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
-            sleep 1
-        else
-            break
-        fi
-    done
+    tests.nested retry "--wait 1 -n 5 sh -c '! udevadm info -e | grep -qE ID_MODEL=QEMU_USB_SERIAL'"
     if tests.nested exec "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
         echo "USB serial should not be registered anymore, exiting..."
         exit 1

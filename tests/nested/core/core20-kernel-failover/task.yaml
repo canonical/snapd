@@ -29,16 +29,7 @@ execute: |
   tests.nested copy panicking-initramfs-kernel.snap
 
   echo "Wait for snapd to be available"
-  retry=120
-  wait=1
-  until tests.nested exec command -v snap; do
-      retry=$(( retry - 1 ))
-      if [ $retry -le 0 ]; then
-          echo "Timed out waiting for no snap command. Aborting!"
-          exit 1
-      fi
-      sleep "$wait"
-  done
+  tests.nested wait-for snap-command
 
   echo "Wait for snapd to be seeded"
   tests.nested exec sudo snap wait system seed.loaded

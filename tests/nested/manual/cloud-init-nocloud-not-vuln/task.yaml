@@ -102,14 +102,11 @@ execute: |
     echo "Waiting for cloud-init..."
     tests.nested exec "cloud-init status --wait"
 
-    # TODO: is there a better thing we can wait for here instead? maybe the log
-    # message from snapd directly via journalctl ?
     echo "Waiting for snapd to react to cloud-init"
-    sleep 60
+    nested_retry "--wait 1 -n 60 sh -c 'cloud-init status | MATCH \"status: disabled\"'"
 
     # ensure that snapd restricted cloud-init with the zzzz_snapd.cfg file
     echo "Ensuring that snapd restricted cloud-init"
-    tests.nested exec "cloud-init status" | MATCH "status: done"
     tests.nested exec "test ! -f /etc/cloud/cloud-init.disabled"
     tests.nested exec "test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
     tests.nested exec "cat /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg" | MATCH "manual_cache_clean: true"
