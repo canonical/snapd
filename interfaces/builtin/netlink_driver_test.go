@@ -177,6 +177,14 @@ func (s *NetlinkDriverInterfaceSuite) TestStaticInfo(c *C) {
 }
 
 func (s *NetlinkDriverInterfaceSuite) TestAutoConnect(c *C) {
+	// ensure the plug definitions in the YAML didn't change
+	c.Check(s.appToCorePlugDriverInfo.Attrs["family-name"], Equals, "seven-7-seven")
+	c.Check(s.osNetlinkSlotInfo.Attrs["family-name"], Equals, "seven-7-seven")
+
+	// ensure the plug definitions in the YAML didn't change
+	c.Check(s.appToGadgetPlugDriverInfo.Attrs["family-name"], Equals, "foo-driver")
+	c.Check(s.gadgetNetlinkSlotInfo.Attrs["family-name"], Equals, "foo-driver")
+
 	// with matching family-name attributes, it works
 	c.Check(s.iface.AutoConnect(s.appToCorePlugDriverInfo, s.osNetlinkSlotInfo), Equals, true)
 	c.Check(s.iface.AutoConnect(s.appToGadgetPlugDriverInfo, s.gadgetNetlinkSlotInfo), Equals, true)

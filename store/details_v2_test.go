@@ -21,9 +21,8 @@
 package store
 
 import (
-	"reflect"
-
 	"encoding/json"
+	"reflect"
 	"strings"
 
 	. "gopkg.in/check.v1"

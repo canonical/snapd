@@ -20,9 +20,8 @@
 package store
 
 import (
-	"io"
-
 	"context"
+	"io"
 	"net/http"
 	"net/url"
 	"time"

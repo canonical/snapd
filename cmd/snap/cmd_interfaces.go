@@ -22,10 +22,10 @@ package main
 import (
 	"fmt"
 
+	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
-
-	"github.com/jessevdk/go-flags"
 )
 
 type cmdInterfaces struct {
