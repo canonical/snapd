@@ -1210,6 +1210,10 @@ nested_destroy_vm() {
     rm -f "$CURRENT_IMAGE"
 }
 
+nested_exec() {
+    sshpass -p ubuntu ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost "$@"
+}
+
 nested_exec_as() {
     local USER="$1"
     local PASSWD="$2"
