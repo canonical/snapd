@@ -217,9 +217,15 @@ issues:
         - testpackage
 
     # an external dependency that was imported
-    - path: udev/netlink/.*_test.go
+    - path: udev/netlink/.*.go
       linters:
         - testpackage
+        - nakedret
+
+    - path: udev/crawler/.*.go
+      linters:
+        - testpackage
+        - nakedret
 
   # Independently from option `exclude` we use default exclude patterns,
   # it can be disabled by this option. To list all
