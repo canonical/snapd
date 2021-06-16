@@ -26,13 +26,14 @@ import (
 	"os"
 	"path/filepath"
 
+	"golang.org/x/xerrors"
+
 	"github.com/snapcore/snapd/bootloader/lkenv"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/snap"
-	"golang.org/x/xerrors"
 )
 
 const (

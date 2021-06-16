@@ -20,9 +20,8 @@
 package daemon
 
 import (
-	"fmt"
-
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
