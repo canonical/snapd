@@ -238,14 +238,11 @@ func (c *refreshCommand) proceed() error {
 	ctx := c.context()
 	ctx.Lock()
 	defer ctx.Unlock()
-	st := ctx.State()
 
-	// cache the action so that hook handler can implement default behavior
+	// cache the action, hook handler will trigger proceed logic; we cannot
+	// call snapstate.ProceedWithRefresh() immediately as this would reset
+	// holdState, allowing the snap to --hold with fresh duration limit.
 	ctx.Cache("action", snapstate.GateAutoRefreshProceed)
-
-	if err := snapstate.ProceedWithRefresh(st, ctx.InstanceName()); err != nil {
-		return err
-	}
 
 	return nil
 }
