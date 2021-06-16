@@ -30,7 +30,7 @@ nested_wait_for_ssh() {
     until nested_exec "true"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
-            echo "Timed out waiting for command '$*' to succeed. Aborting!"
+            echo "Timed out waiting for command 'true' to succeed. Aborting!"
             return 1
         fi
         sleep "$wait"
@@ -44,7 +44,7 @@ nested_wait_for_no_ssh() {
     while nested_exec "true"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
-            echo "Timed out waiting for command '$*' to fail. Aborting!"
+            echo "Timed out waiting for command 'true' to fail. Aborting!"
             return 1
         fi
         sleep "$wait"
