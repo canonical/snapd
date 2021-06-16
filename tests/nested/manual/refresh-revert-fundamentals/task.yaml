@@ -117,6 +117,6 @@ execute: |
     echo "Check the change is completed"
     case "$SNAP" in
         pc-kernel|core20)
-            REVERT_ID="$REVERT_ID" nested_retry "--wait 1 -n 10 sh -c 'snap changes | MATCH \"$REVERT_ID\s+Done\s+.*\"'"
+            REVERT_ID="$REVERT_ID" tests.nested retry "--wait 1 -n 10 sh -c 'snap changes | MATCH \"$REVERT_ID\s+Done\s+.*\"'"
             ;;
     esac

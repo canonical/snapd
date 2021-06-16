@@ -53,7 +53,7 @@ execute: |
     hotplug_add_dev1
 
     # sanity checks to make sure qemu setup is correct
-    nested_retry "--wait 1 -n 5 sh -c 'udevadm info -e | grep -qE ID_MODEL=QEMU_USB_SERIAL'"
+    tests.nested retry "--wait 1 -n 5 sh -c 'udevadm info -e | grep -qE ID_MODEL=QEMU_USB_SERIAL'"
 
     tests.nested exec "ls /dev/tty*" | MATCH "ttyUSB0"
 

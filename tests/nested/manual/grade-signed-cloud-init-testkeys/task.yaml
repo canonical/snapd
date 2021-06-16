@@ -140,7 +140,7 @@ execute: |
   # of this test
 
   echo "Waiting for snapd to react to cloud-init"
-  nested_retry "--wait 1 -n 60 sh -c 'cloud-init status | grep -qE \"status: disabled\"'"
+  tests.nested retry "--wait 1 -n 60 sh -c 'cloud-init status | grep -qE \"status: disabled\"'"
   
   echo "Ensuring that cloud-init got disabled after running"
   tests.nested exec "test -f /etc/cloud/cloud-init.disabled"

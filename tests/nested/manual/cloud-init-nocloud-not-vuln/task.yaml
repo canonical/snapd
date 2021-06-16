@@ -103,7 +103,7 @@ execute: |
     tests.nested exec "cloud-init status --wait"
 
     echo "Waiting for snapd to react to cloud-init"
-    nested_retry "--wait 1 -n 60 sh -c 'cloud-init status | MATCH \"status: disabled\"'"
+    tests.nested retry "--wait 1 -n 60 sh -c 'cloud-init status | MATCH \"status: disabled\"'"
 
     # ensure that snapd restricted cloud-init with the zzzz_snapd.cfg file
     echo "Ensuring that snapd restricted cloud-init"
