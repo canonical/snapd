@@ -891,10 +891,10 @@ suites:
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
         prepare-each: |
             tests.backup prepare
-            "$TESTSTOOLS"/nested-state prepare
+            tests.nested prepare
         restore-each: |
-            "$TESTSTOOLS"/nested-state remove-vm
-            "$TESTSTOOLS"/nested-state restore
+            tests.nested remove-vm
+            tests.nested restore
             tests.backup restore
         restore: |
             #shellcheck source=tests/lib/pkgdb.sh
@@ -928,16 +928,16 @@ suites:
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
-            "$TESTSTOOLS"/nested-state prepare
-            "$TESTSTOOLS"/nested-state build-image classic
+            tests.nested prepare
+            tests.nested build-image classic
         prepare-each: |
             tests.backup prepare
-            "$TESTSTOOLS"/nested-state create-vm classic
+            tests.nested create-vm classic
         restore-each: |
-            "$TESTSTOOLS"/nested-state remove-vm
+            tests.nested remove-vm
             tests.backup restore
         restore: |
-            "$TESTSTOOLS"/nested-state restore
+            tests.nested restore
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -970,16 +970,16 @@ suites:
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
-            "$TESTSTOOLS"/nested-state prepare
-            "$TESTSTOOLS"/nested-state build-image core
+            tests.nested prepare
+            tests.nested build-image core
         prepare-each: |
             tests.backup prepare
-            "$TESTSTOOLS"/nested-state create-vm core
+            tests.nested create-vm core
         restore-each: |
-            "$TESTSTOOLS"/nested-state remove-vm
+            tests.nested remove-vm
             tests.backup restore
         restore: |
-            "$TESTSTOOLS"/nested-state restore
+            tests.nested restore
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh

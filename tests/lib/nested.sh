@@ -24,15 +24,35 @@ NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS
 
 nested_wait_for_ssh() {
     # TODO:UC20: the retry count should be lowered to something more reasonable.
-    nested_retry_until_success 800 1 "true"
+    local retry=800
+    local wait=1
+
+    until nested_exec "true"; do
+        retry=$(( retry - 1 ))
+        if [ $retry -le 0 ]; then
+            echo "Timed out waiting for command '$*' to succeed. Aborting!"
+            return 1
+        fi
+        sleep "$wait"
+    done
 }
 
 nested_wait_for_no_ssh() {
-    nested_retry_while_success 200 1 "true"
+    local retry=200
+    local wait=1
+
+    while nested_exec "true"; do
+        retry=$(( retry - 1 ))
+        if [ $retry -le 0 ]; then
+            echo "Timed out waiting for command '$*' to fail. Aborting!"
+            return 1
+        fi
+        sleep "$wait"
+    done
 }
 
 nested_wait_for_snap_command() {
-    nested_retry_until_success 200 1 command -v snap
+    nested_retry "--wait 1 -n 200 sh -c 'command -v snap'"
 }
 
 nested_get_boot_id() {
@@ -70,36 +90,6 @@ nested_uc20_transition_to_system_mode() {
     if ! nested_exec "cat /proc/cmdline" | MATCH "snapd_recovery_mode=$mode"; then
         return 1
     fi
-}
-
-nested_retry_while_success() {
-    local retry="$1"
-    local wait="$2"
-    shift 2
-
-    while nested_exec "$@"; do
-        retry=$(( retry - 1 ))
-        if [ $retry -le 0 ]; then
-            echo "Timed out waiting for command '$*' to fail. Aborting!"
-            return 1
-        fi
-        sleep "$wait"
-    done
-}
-
-nested_retry_until_success() {
-    local retry="$1"
-    local wait="$2"
-    shift 2
-
-    until nested_exec "$@"; do
-        retry=$(( retry - 1 ))
-        if [ $retry -le 0 ]; then
-            echo "Timed out waiting for command '$*' to succeed. Aborting!"
-            return 1
-        fi
-        sleep "$wait"
-    done
 }
 
 nested_prepare_ssh() {
@@ -778,7 +768,8 @@ users:
   - name: user1
     sudo: "ALL=(ALL) NOPASSWD:ALL"
     lock_passwd: false
-    plain_text_passwd: "ubuntu"
+    # passwd is just "ubuntu"
+    passwd: "$6$rounds=4096$PCrfo.ggdf4ubP$REjyaoY2tUWH2vjFJjvLs3rDxVTszGR9P7mhH9sHb2MsELfc53uV/v15jDDOJU/9WInfjjTKJPlD5URhX5Mix0"
 EOF
 }
 
@@ -1219,15 +1210,19 @@ nested_destroy_vm() {
     rm -f "$CURRENT_IMAGE"
 }
 
-nested_exec() {
-    sshpass -p ubuntu ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no user1@localhost "$@"
-}
-
 nested_exec_as() {
     local USER="$1"
     local PASSWD="$2"
     shift 2
     sshpass -p "$PASSWD" ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$USER"@localhost "$@"
+}
+
+nested_retry() {
+    if ! nested_exec "test -e ./retry" &>/dev/null; then
+        nested_copy "$TESTSTOOLS/retry"
+        nested_exec "sed 's/any-python/python3/g' -i ./retry"
+    fi
+    nested_exec "./retry" "$@"
 }
 
 nested_copy() {

@@ -5,6 +5,11 @@ show_help() {
     echo "       restore"
     echo "       build-image IMAGE-TYPE"
     echo "       create-vm IMAGE-TYPE [--param-cdrom PARAM] [--param-mem PARAM]"
+    echo "       exec <CMD>"
+    echo "       exec <USER> <PWD> <CMD>"
+    echo "       retry <CMD>"
+    echo "       copy <FILEPATH>"
+    echo "       wait-for <EVENT>"
     echo "       start-vm"
     echo "       stop-vm"
     echo "       remove-vm"
@@ -17,6 +22,11 @@ show_help() {
     echo "  restore:     removes all the directories and data used by nested tests"
     echo "  build-image: creates an image using ubuntu image tool"
     echo "  create-vm:   creates new virtual machine and leave it running"
+    echo "  exec:        executes a command in the vm"
+    echo "  exec-as:     executes a command in the vm as the specified user"
+    echo "  retry:       retries a command in the vm"
+    echo "  copy:        copies a file to the vm"
+    echo "  wait-for:    waits for an specified event"
     echo "  start-vm:    starts a stopped vm"
     echo "  stop-vm:     shutdowns a running vm"
     echo "  remove-vm:   removes a vm"
@@ -24,6 +34,12 @@ show_help() {
     echo "IMAGE-TYPES:"
     echo "  core: work with a core image"
     echo "  classic: work with a classic image"
+    echo ""
+    echo "EVENT:"
+    echo "  ssh: it is possible ssh to the vm"
+    echo "  no-ssh: is not possible to ssh to the vm"
+    echo "  snap-command: snap command is available in the vm"
+    echo "  reboot: reboot is done in the vm"
     echo ""
 }
 
@@ -51,7 +67,7 @@ build_image() {
                 exit
                 ;;
             *)
-                echo "nested-state: expected either classic or core as argument" >&2
+                echo "tests.nested: expected either classic or core as argument" >&2
                 exit 1
                 ;;
         esac
@@ -74,7 +90,7 @@ create_vm() {
             action=nested_start_core_vm
             ;;
         *)
-            echo "nested-state: unsupported parameter $1" >&2
+            echo "tests.nested: unsupported parameter $1" >&2
             exit 1
             ;;
     esac
@@ -90,7 +106,7 @@ create_vm() {
                 shift 2
                 ;;
             *)
-                echo "nested-state: unsupported parameter $1" >&2
+                echo "tests.nested: unsupported parameter $1" >&2
                 exit 1
                 ;;
         esac
@@ -99,6 +115,49 @@ create_vm() {
     "$action"
 }
 
+exec() {
+    nested_exec "$@"
+}
+
+exec_as() {
+    nested_exec_as "$@"
+}
+
+retry() {
+    nested_retry "$@"
+}
+
+copy() {
+    nested_copy "$@"
+}
+
+wait_for() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 1
+    fi
+    local action=
+    case "$1" in
+        ssh)
+            action=nested_wait_for_ssh
+            ;;
+        no-ssh)
+            action=nested_wait_for_no_ssh
+            ;;
+        snap-command)
+            action=nested_wait_for_snap_command
+            ;;
+        reboot)
+            action=nested_wait_for_reboot
+            ;;
+        *)
+            echo "tests.nested: unsupported parameter $1" >&2
+            exit 1
+            ;;
+    esac
+
+    "$action"
+}
 
 start_vm() {
     nested_start
@@ -135,7 +194,7 @@ main() {
     done
 
     if [ -z "$(declare -f "$action")" ]; then
-        echo "nested-state: no such command: $subcommand"
+        echo "tests.nested: no such command: $subcommand"
         show_help
         exit 1
     fi

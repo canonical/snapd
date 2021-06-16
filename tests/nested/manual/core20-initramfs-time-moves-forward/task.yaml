@@ -25,15 +25,15 @@ prepare: |
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
 
-  "$TESTSTOOLS"/nested-state build-image core
-  "$TESTSTOOLS"/nested-state create-vm core
+  tests.nested build-image core
+  tests.nested create-vm core
 
 execute: |
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
 
   echo "Verify that the current time in the VM is newer than the model assertion sign time"
-  test "$(nested_exec date --utc '+%s')" -ge "$MODEL_ASSERTION_SIGN_TIME"
+  test "$(tests.nested exec date --utc '+%s')" -ge "$MODEL_ASSERTION_SIGN_TIME"
 
   echo "Verify that the timestamp from after snap-bootstrap ran is greater than the time from the model assertion"
-  test "$(nested_exec "cat /run/mnt/ubuntu-seed/install-after-snap-bootstrap-date")" -ge "$MODEL_ASSERTION_SIGN_TIME"
+  test "$(tests.nested exec "cat /run/mnt/ubuntu-seed/install-after-snap-bootstrap-date")" -ge "$MODEL_ASSERTION_SIGN_TIME"
