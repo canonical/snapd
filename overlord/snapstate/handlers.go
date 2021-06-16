@@ -1320,18 +1320,6 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		snapst.LastRefreshTime = &now
 	}
 
-	tr := config.NewTransaction(st)
-	gateAutoRefreshHook, err := features.Flag(tr, features.GateAutoRefreshHook)
-	if err != nil && !config.IsNoOption(err) {
-		return err
-	}
-	if gateAutoRefreshHook {
-		// If this snap was held, then remove it from snaps-hold.
-		if err := resetGatingForRefreshed(st, snapsup.InstanceName()); err != nil {
-			return err
-		}
-	}
-
 	if cand.SnapID != "" {
 		// write the auxiliary store info
 		aux := &auxStoreInfo{

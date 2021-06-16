@@ -1083,11 +1083,6 @@ func (s *snapmgrTestSuite) TestUpdateResetsHoldState(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// enable gate-auto-refresh-hook feature
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
-	tr.Commit()
-
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:          true,
 		Sequence:        []*snap.SideInfo{&si},
@@ -1103,6 +1098,11 @@ func (s *snapmgrTestSuite) TestUpdateResetsHoldState(c *C) {
 		SnapType: "app",
 	})
 
+	// enable gate-auto-refresh-hook feature
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
+	tr.Commit()
+
 	// pretend that the snap was held during last auto-refresh
 	c.Assert(snapstate.HoldRefresh(s.state, "gating-snap", 0, "some-snap", "other-snap"), IsNil)
 	// sanity check
@@ -1117,23 +1117,6 @@ func (s *snapmgrTestSuite) TestUpdateResetsHoldState(c *C) {
 	ts, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
 	chg.AddAll(ts)
-
-	s.state.Unlock()
-	defer s.se.Stop()
-	s.settle(c)
-	s.state.Lock()
-
-	c.Assert(chg.Status(), Equals, state.DoneStatus)
-
-	// verify snapstate
-	var snapst snapstate.SnapState
-	err = snapstate.Get(s.state, "some-snap", &snapst)
-	c.Assert(err, IsNil)
-
-	c.Assert(snapst.Active, Equals, true)
-	c.Assert(snapst.Sequence, HasLen, 2)
-	c.Assert(snapst.Sequence[0].Revision.N, Equals, 7)
-	c.Assert(snapst.Sequence[1].Revision.N, Equals, 11)
 
 	// and it is not held anymore (but other-snap still is)
 	held, err = snapstate.HeldSnaps(s.state)
