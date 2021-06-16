@@ -17,7 +17,7 @@ environment:
     CONSUMER_SNAP: test-snapd-content-plug-to-classic-slot
 
 prepare: |
-    # Classic confinement isn't working yet on Fedora, Arch linux and Centos
+    # Classic confinement needs to be enabled with a symlink on Fedora, Arch linux and Centos
     case "$SPREAD_SYSTEM" in
         fedora-*|arch-*|centos-*)
             # although classic snaps do not work out of the box on fedora,
