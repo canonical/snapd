@@ -31,7 +31,7 @@ execute: |
     snap aliases > aliases.out
     MATCH "aliases.cmd1 +alias1 +manual" < aliases.out
     MATCH "aliases.cmd2 +alias2 +manual" < aliases.out
-    not MATCH aliases_foo                  < aliases.out
+    NOMATCH aliases_foo                  < aliases.out
 
     echo "Disable one alias for aliases snap"
     snap unalias alias2|MATCH ".*- aliases.cmd2 as alias2.*"

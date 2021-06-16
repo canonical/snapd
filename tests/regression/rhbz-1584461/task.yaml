@@ -33,7 +33,7 @@ execute: |
     snap install test-snapd-sh
     test-snapd-sh.sh -c 'echo hello'
 
-    mount | not MATCH /etc/ssl-backup
+    mount | NOMATCH /etc/ssl-backup
 
     test-snapd-sh.sh -c 'find /etc/ssl/ -ls' | sort > in-snap
     # same thing is visible in and out
