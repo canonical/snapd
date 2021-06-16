@@ -123,7 +123,7 @@ exec_as() {
     nested_exec_as "$@"
 }
 
-retry() {
+retrier() {
     nested_retry "$@"
 }
 
@@ -184,6 +184,11 @@ main() {
             -h|--help)
                 show_help
                 exit 0
+                ;;
+            retry)
+                action=retrier
+                shift
+                break
                 ;;
             *)
                 action=$(echo "$subcommand" | tr '-' '_')
