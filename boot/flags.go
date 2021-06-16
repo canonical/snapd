@@ -143,7 +143,7 @@ func InitramfsActiveBootFlags(mode string) ([]string, error) {
 		return nil, nil
 
 	case ModeCloudImg:
-		// no boot flags are consumed / used on recover mode, so return nothing
+		// no boot flags are consumed / used on cloudimg mode, so return nothing
 		return nil, nil
 
 	case ModeRun:
