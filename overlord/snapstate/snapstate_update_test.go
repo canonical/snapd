@@ -1113,10 +1113,8 @@ func (s *snapmgrTestSuite) TestUpdateResetsHoldState(c *C) {
 		"other-snap": true,
 	})
 
-	chg := s.state.NewChange("refresh", "refresh a snap")
-	ts, err := snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	_, err = snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
-	chg.AddAll(ts)
 
 	// and it is not held anymore (but other-snap still is)
 	held, err = snapstate.HeldSnaps(s.state)
