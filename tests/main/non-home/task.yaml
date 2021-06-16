@@ -28,4 +28,4 @@ execute: |
     echo "Ensure we get a useful error message"
     MATCH "Sorry, home directories outside of /home" < stderr.log
     # ensure no (useless) "Read-only file system..." error is shown to the user
-    not MATCH "Read-only file system" < stderr.log
+    NOMATCH "Read-only file system" < stderr.log

@@ -1919,7 +1919,9 @@ func (m *SnapManager) undoStartSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	var stopReason snap.ServiceStopReason
 
 	// stop the services
+	st.Unlock()
 	err = m.backend.StopServices(svcs, stopReason, progress.Null, perfTimings)
+	st.Lock()
 	if err != nil {
 		return err
 	}
