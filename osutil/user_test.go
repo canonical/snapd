@@ -567,7 +567,7 @@ func (s *ensureUserSuite) TestEnsureUserGroupFailedUseraddCoreNoExtra(c *check.C
 	err := osutil.EnsureUserGroup("lakatos", 123456, true)
 	c.Assert(err, check.ErrorMatches, `errors encountered ensuring user lakatos exists:
 - useradd failed with: some error
-- groupdel does not support '--extrausers' option`)
+- groupdel: unrecognized option '--extrauser'`)
 
 	c.Check(mockGroupDel.Calls(), check.DeepEquals, [][]string{
 		{"groupdel", "--extrausers", "lakatos"},

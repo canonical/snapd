@@ -20,7 +20,6 @@
 package osutil
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -154,13 +153,7 @@ func EnsureUserGroup(name string, id uint32, extraUsers bool) error {
 		delCmdStr = append(delCmdStr, name)
 		cmd = exec.Command(delCmdStr[0], delCmdStr[1:]...)
 		if output2, err2 := cmd.CombinedOutput(); err2 != nil {
-			var groupdelErrStr string
-			if extraUsers && bytes.Contains(output2, []byte("unrecognized option")) {
-				// We have hit https://bugs.launchpad.net/bugs/1840375
-				groupdelErrStr = "groupdel does not support '--extrausers' option"
-			} else {
-				groupdelErrStr = OutputErr(output2, err2).Error()
-			}
+			groupdelErrStr := OutputErr(output2, err2)
 			return fmt.Errorf(`errors encountered ensuring user %s exists:
 - %s
 - %s`, name, useraddErrStr, groupdelErrStr)
