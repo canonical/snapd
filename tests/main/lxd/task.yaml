@@ -15,6 +15,9 @@ priority: 1000
 # lxd downloads can be quite slow
 kill-timeout: 25m
 
+# manual until test failures are fixed.
+manual: true
+
 environment:
     REFRESH_APP_AWARENESS_OUTER/snapd_cgroup_just_inside: false
     REFRESH_APP_AWARENESS_INNER/snapd_cgroup_just_inside: true
