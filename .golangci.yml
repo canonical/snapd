@@ -227,6 +227,81 @@ issues:
         - testpackage
         - nakedret
 
+    # test files that do live in corresponding xxx_test packages, they will
+    # need over time to be moved to *_internal_test.go or fixed
+    - path: arch/arch_test.go
+      linters:
+        - testpackage
+    - path: asserts/findwildcard_test.go
+      linters:
+        - testpackage
+    - path: cmd/snapctl/main_test.go
+      linters:
+        - testpackage
+    - path: cmd/snap-update-ns/sorting_test.go
+      linters:
+        - testpackage
+    - path: daemon/daemon_test.go
+      linters:
+        - testpackage
+    - path: daemon/ucrednet_test.go
+      linters:
+        - testpackage
+    - path: i18n/i18n_test.go
+      linters:
+        - testpackage
+    - path: i18n/xgettext-go/main_test.go
+      linters:
+        - testpackage
+    - path: interfaces/hotplug/deviceinfo_test.go
+      linters:
+        - testpackage
+    - path: interfaces/hotplug/proposed_slot_test.go
+      linters:
+        - testpackage
+    - path: interfaces/hotplug/udevadm_test.go
+      linters:
+        - testpackage
+    - path: overlord/hookstate/context_test.go
+      linters:
+        - testpackage
+    - path: overlord/hookstate/repository_test.go
+      linters:
+        - testpackage
+    - path: overlord/snapstate/cookies_test.go
+      linters:
+        - testpackage
+    - path: overlord/snapstate/progress_test.go
+      linters:
+        - testpackage
+    - path: polkit/pid_start_time_test.go
+      linters:
+        - testpackage
+    - path: snap/snapenv/snapenv_test.go
+      linters:
+        - testpackage
+    - path: snap/types_test.go
+      linters:
+        - testpackage
+    - path: store/details_v2_test.go
+      linters:
+        - testpackage
+    - path: store/stringlist_test.go
+      linters:
+        - testpackage
+    - path: strutil/shlex/shlex_test.go
+      linters:
+        - testpackage
+    - path: tests/lib/fakestore/store/store_test.go
+      linters:
+        - testpackage
+    - path: testutil/exec_test.go
+      linters:
+        - testpackage
+    - path: timeout/timeout_test.go
+      linters:
+        - testpackage
+
   # Independently from option `exclude` we use default exclude patterns,
   # it can be disabled by this option. To list all
   # excluded by default patterns execute `golangci-lint run --help`.
