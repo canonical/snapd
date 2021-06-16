@@ -323,6 +323,60 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 	c.Check(snapst, DeepEquals, &snapst2)
 }
 
+func (s *refreshHintsTestSuite) TestPruneRefreshCandidates(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	c.Assert(snapstate.PruneRefreshCandidates(st, "some-snap"), IsNil)
+
+	candidates := map[string]*snapstate.RefreshCandidate{
+		"snap-a": {
+			SnapSetup: snapstate.SnapSetup{
+				Type: "app",
+				SideInfo: &snap.SideInfo{
+					RealName: "snap-a",
+					Revision: snap.R(1),
+				},
+			},
+		},
+		"snap-b": {
+			SnapSetup: snapstate.SnapSetup{
+				Type: "app",
+				SideInfo: &snap.SideInfo{
+					RealName: "snap-b",
+					Revision: snap.R(1),
+				},
+			},
+		},
+		"snap-c": {
+			SnapSetup: snapstate.SnapSetup{
+				Type: "app",
+				SideInfo: &snap.SideInfo{
+					RealName: "snap-c",
+					Revision: snap.R(1),
+				},
+			},
+		},
+	}
+	st.Set("refresh-candidates", candidates)
+
+	c.Assert(snapstate.PruneRefreshCandidates(st, "snap-a"), IsNil)
+
+	var candidates2 map[string]*snapstate.RefreshCandidate
+	c.Assert(st.Get("refresh-candidates", &candidates2), IsNil)
+	c.Check(candidates2["snap-a"], IsNil)
+	c.Check(candidates2["snap-b"], NotNil)
+	c.Check(candidates2["snap-c"], NotNil)
+
+	var candidates3 map[string]*snapstate.RefreshCandidate
+	c.Assert(snapstate.PruneRefreshCandidates(st, "snap-b"), IsNil)
+	c.Assert(st.Get("refresh-candidates", &candidates3), IsNil)
+	c.Check(candidates3["snap-a"], IsNil)
+	c.Check(candidates3["snap-b"], IsNil)
+	c.Check(candidates3["snap-c"], NotNil)
+}
+
 func (s *refreshHintsTestSuite) TestRefreshHintsNotApplicableWrongArch(c *C) {
 	s.state.Lock()
 	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{

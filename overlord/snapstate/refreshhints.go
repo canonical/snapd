@@ -189,3 +189,24 @@ func refreshHintsFromCandidates(st *state.State, updates []*snap.Info, ignoreVal
 	}
 	return hints, nil
 }
+
+// pruneRefreshCandidates removes the given snaps from refresh-candidates map
+// in the state.
+func pruneRefreshCandidates(st *state.State, snaps ...string) error {
+	var candidates map[string]*refreshCandidate
+
+	err := st.Get("refresh-candidates", &candidates)
+	if err == state.ErrNoState {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	for _, snapName := range snaps {
+		delete(candidates, snapName)
+	}
+
+	st.Set("refresh-candidates", candidates)
+	return nil
+}

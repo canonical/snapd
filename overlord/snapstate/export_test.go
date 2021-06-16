@@ -328,6 +328,7 @@ var (
 	HoldDurationLeft           = holdDurationLeft
 	LastRefreshed              = lastRefreshed
 	HeldSnaps                  = heldSnaps
+	PruneRefreshCandidates     = pruneRefreshCandidates
 	ResetGatingForRefreshed    = resetGatingForRefreshed
 	CreateGateAutoRefreshHooks = createGateAutoRefreshHooks
 	AutoRefreshPhase1          = autoRefreshPhase1

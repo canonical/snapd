@@ -1385,6 +1385,11 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 		"check-rerefresh",
 	}
 	verifyPhasedAutorefreshTasks(c, chg.Tasks(), expected)
+
+	// all snaps refreshed, all removed from refresh-candidates.
+	var candidates map[string]*snapstate.RefreshCandidate
+	c.Assert(st.Get("refresh-candidates", &candidates), IsNil)
+	c.Assert(candidates, HasLen, 0)
 }
 
 func (s *snapmgrTestSuite) testAutoRefreshPhase2DiskSpaceCheck(c *C, fail bool) {
@@ -1669,6 +1674,13 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2GatedSnaps(c *C) {
 		"check-rerefresh",
 	}
 	verifyPhasedAutorefreshTasks(c, chg.Tasks(), expected)
+
+	// only snap-a remains in refresh-candidates because it was gated;
+	// base-snap-b got pruned (was refreshed).
+	var candidates map[string]*snapstate.RefreshCandidate
+	c.Assert(st.Get("refresh-candidates", &candidates), IsNil)
+	c.Assert(candidates, HasLen, 1)
+	c.Check(candidates["snap-a"], NotNil)
 }
 
 func verifyPhasedAutorefreshTasks(c *C, tasks []*state.Task, expected []string) {
