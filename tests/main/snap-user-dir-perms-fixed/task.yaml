@@ -15,7 +15,11 @@ prepare: |
   # Prepare for using sessions as the given user
   tests.session prepare -u "$USER"
 
+  "$TESTSTOOLS"/fs-state mock-dir "$HOMEDIR"
+
 restore: |
+  "$TESTSTOOLS"/fs-state restore-dir "$HOMEDIR"
+
   # Restore after using sessions as the given user
   tests.session restore -u "$USER"
 
