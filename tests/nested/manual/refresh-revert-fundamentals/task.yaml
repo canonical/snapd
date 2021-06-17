@@ -89,6 +89,8 @@ execute: |
     echo "Check the change is completed"
     case "$SNAP" in
         pc-kernel|core20)
+            #shellcheck disable=SC2098
+            #shellcheck disable=SC2097
             REFRESH_ID="$REFRESH_ID" tests.nested retry "--wait 1 -n 10 sh -c 'snap changes | grep -qE \"$REFRESH_ID\s+Done\s+.*\"'"
             ;;
     esac
@@ -117,6 +119,8 @@ execute: |
     echo "Check the change is completed"
     case "$SNAP" in
         pc-kernel|core20)
+            #shellcheck disable=SC2098
+            #shellcheck disable=SC2097
             REVERT_ID="$REVERT_ID" tests.nested retry "--wait 1 -n 10 sh -c 'snap changes | MATCH \"$REVERT_ID\s+Done\s+.*\"'"
             ;;
     esac
