@@ -196,10 +196,10 @@ func pruneRefreshCandidates(st *state.State, snaps ...string) error {
 	var candidates map[string]*refreshCandidate
 
 	err := st.Get("refresh-candidates", &candidates)
-	if err == state.ErrNoState {
-		return nil
-	}
 	if err != nil {
+		if err == state.ErrNoState {
+			return nil
+		}
 		return err
 	}
 
