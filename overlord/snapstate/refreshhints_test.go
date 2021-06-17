@@ -328,6 +328,7 @@ func (s *refreshHintsTestSuite) TestPruneRefreshCandidates(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	// check that calling PruneRefreshCandidates when there is nothing to do is fine.
 	c.Assert(snapstate.PruneRefreshCandidates(st, "some-snap"), IsNil)
 
 	candidates := map[string]*snapstate.RefreshCandidate{
@@ -365,16 +366,22 @@ func (s *refreshHintsTestSuite) TestPruneRefreshCandidates(c *C) {
 
 	var candidates2 map[string]*snapstate.RefreshCandidate
 	c.Assert(st.Get("refresh-candidates", &candidates2), IsNil)
-	c.Check(candidates2["snap-a"], IsNil)
-	c.Check(candidates2["snap-b"], NotNil)
-	c.Check(candidates2["snap-c"], NotNil)
+	_, ok := candidates2["snap-a"]
+	c.Check(ok, Equals, false)
+	_, ok = candidates2["snap-b"]
+	c.Check(ok, Equals, true)
+	_, ok = candidates2["snap-c"]
+	c.Check(ok, Equals, true)
 
 	var candidates3 map[string]*snapstate.RefreshCandidate
 	c.Assert(snapstate.PruneRefreshCandidates(st, "snap-b"), IsNil)
 	c.Assert(st.Get("refresh-candidates", &candidates3), IsNil)
-	c.Check(candidates3["snap-a"], IsNil)
-	c.Check(candidates3["snap-b"], IsNil)
-	c.Check(candidates3["snap-c"], NotNil)
+	_, ok = candidates3["snap-a"]
+	c.Check(ok, Equals, false)
+	_, ok = candidates3["snap-b"]
+	c.Check(ok, Equals, false)
+	_, ok = candidates3["snap-c"]
+	c.Check(ok, Equals, true)
 }
 
 func (s *refreshHintsTestSuite) TestRefreshHintsNotApplicableWrongArch(c *C) {
