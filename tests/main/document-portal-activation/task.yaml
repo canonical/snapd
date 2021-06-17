@@ -76,7 +76,7 @@ execute: |
 
     echo "No attempt is made to activate the document portal due to the previous failure"
     tests.session -u test exec test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current
-    not MATCH "GetMountPoint called" < doc-portal.log
+    NOMATCH "GetMountPoint called" < doc-portal.log
 
     echo "Remove the .portals-unavailable file to force a recheck"
     rm /run/user/12345/.portals-unavailable

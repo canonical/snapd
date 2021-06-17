@@ -115,6 +115,11 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 		return err
 	}
 
+	if new.Grade() != asserts.ModelGradeUnset {
+		// TODO: update ubuntu-boot/device/model
+		// TODO: reseal for both the old and current model
+	}
+
 	// and finish (this will set the new model)
 	return remodCtx.Finish()
 }
