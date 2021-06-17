@@ -211,7 +211,7 @@ version: 1
 	defer mockContext.Lock()
 
 	// refresh --pending --proceed is the same as just saying --proceed.
-	stdout, stderr, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
+	stdout, stderr, err = ctlcmd.Run(mockContext, []string{"refresh", "--pending", "--proceed"}, 0)
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
