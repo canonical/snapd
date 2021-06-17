@@ -31,11 +31,16 @@ import (
 )
 
 type cupsSuite struct {
-	iface            interfaces.Interface
-	plugInfo         *snap.PlugInfo
-	plug             *interfaces.ConnectedPlug
+	iface interfaces.Interface
+
+	plugInfo *snap.PlugInfo
+	plug     *interfaces.ConnectedPlug
+
 	providerSlotInfo *snap.SlotInfo
 	providerSlot     *interfaces.ConnectedSlot
+
+	providerLegacySlotInfo *snap.SlotInfo
+	providerLegacySlot     *interfaces.ConnectedSlot
 }
 
 var _ = Suite(&cupsSuite{iface: builtin.MustInterface("cups")})
@@ -49,14 +54,26 @@ apps:
 
 const cupsProviderYaml = `name: provider
 version: 0
+slots:
+  cups-socket:
+    interface: cups
+    cups-socket-dir: $SNAP_COMMON/foo-subdir
 apps:
  app:
-  slots: [cups]
+  slots: [cups-socket]
+`
+
+const cupsProviderLegacyYaml = `name: provider
+version: 0
+slots:
+  # no attribute
+  cups: {}
 `
 
 func (s *cupsSuite) SetUpTest(c *C) {
 	s.plug, s.plugInfo = MockConnectedPlug(c, cupsConsumerYaml, nil, "cups")
-	s.providerSlot, s.providerSlotInfo = MockConnectedSlot(c, cupsProviderYaml, nil, "cups")
+	s.providerSlot, s.providerSlotInfo = MockConnectedSlot(c, cupsProviderYaml, nil, "cups-socket")
+	s.providerLegacySlot, s.providerLegacySlotInfo = MockConnectedSlot(c, cupsProviderLegacyYaml, nil, "cups")
 }
 
 func (s *cupsSuite) TestName(c *C) {
@@ -65,6 +82,7 @@ func (s *cupsSuite) TestName(c *C) {
 
 func (s *cupsSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.providerSlotInfo), IsNil)
+	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.providerLegacySlotInfo), IsNil)
 }
 
 func (s *cupsSuite) TestSanitizePlug(c *C) {
@@ -74,7 +92,6 @@ func (s *cupsSuite) TestSanitizePlug(c *C) {
 func (s *cupsSuite) TestAppArmorSpec(c *C) {
 	for _, onClassic := range []bool{true, false} {
 		restore := release.MockOnClassic(onClassic)
-		defer restore()
 
 		// consumer to provider on core for ConnectedPlug
 		spec := &apparmor.Specification{}
@@ -82,7 +99,18 @@ func (s *cupsSuite) TestAppArmorSpec(c *C) {
 		c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 		c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow communicating with the cups server")
 		c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/cups-client>")
+		// the special mount rules are present
+		c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/var/snap/provider/common/foo-subdir/** mrwklix,")
 		restore()
+
+		// consumer to legacy provider
+		specLegacy := &apparmor.Specification{}
+		c.Assert(specLegacy.AddConnectedPlug(s.iface, s.plug, s.providerLegacySlot), IsNil)
+		c.Assert(specLegacy.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
+		c.Assert(specLegacy.SnippetForTag("snap.consumer.app"), testutil.Contains, "# Allow communicating with the cups server")
+		c.Assert(specLegacy.SnippetForTag("snap.consumer.app"), testutil.Contains, "#include <abstractions/cups-client>")
+		// no special mounting rules
+		c.Assert(specLegacy.SnippetForTag("snap.consumer.app"), Not(testutil.Contains), "/var/snap/provider/common/foo-subdir/** mrwklix,")
 	}
 }
 
