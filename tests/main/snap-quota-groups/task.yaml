@@ -129,9 +129,13 @@ execute: |
   # system is working we won't fail the test simply because systemd won the race
   retry --wait 1 -n 10 sh -c 'systemctl show --property=ExecMainStatus snap.go-example-webserver.webserver.service | MATCH "ExecMainStatus=(203|9)"'
 
-  echo "And after removing the quota group, services will not restart as they were inactive"
+  echo "And after removing the quota group, services will not automatically restart as they were inactive"
   snap remove-quota too-small
   snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+inactive"
+
+  echo "But they can still be started manually"
+  snap start go-example-webserver.webserver
+  retry --wait 1 -n 10 sh -c 'snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+active"'
 
   echo "Removing a snap ensures that the snap is not in the quota group anymore"
   snap set-quota group-three --memory=100MB go-example-webserver
