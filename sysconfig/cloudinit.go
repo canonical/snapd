@@ -113,8 +113,7 @@ func configureCloudInit(opts *Options) (err error) {
 	if HasGadgetCloudConf(opts.GadgetDir) {
 		// then copy / install the gadget config first
 		gadgetCloudConf := filepath.Join(opts.GadgetDir, "cloud.conf")
-		err := installGadgetCloudInitCfg(gadgetCloudConf, WritableDefaultsDir(opts.TargetRootDir))
-		if err != nil {
+		if err := installGadgetCloudInitCfg(gadgetCloudConf, WritableDefaultsDir(opts.TargetRootDir)); err != nil {
 			return err
 		}
 
