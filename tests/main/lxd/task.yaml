@@ -9,9 +9,6 @@ backends: [-autopkgtest]
 # TODO: enable for ubuntu-21+ once the lxd image is published
 systems: [ubuntu-16*, ubuntu-18*, ubuntu-20*, ubuntu-core-*]
 
-# manual until test failures are fixed.
-manual: true
-
 # Start before anything else as it can take a really long time.
 priority: 1000
 

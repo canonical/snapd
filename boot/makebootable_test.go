@@ -613,7 +613,7 @@ version: 5.0
 			c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 		}
 
-		c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
+		c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
 
 		return nil
 	})
@@ -940,7 +940,7 @@ version: 5.0
 			"snapd_recovery_mode=recover snapd_recovery_system=20191216 console=ttyS0 console=tty1 panic=-1",
 			"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 		})
-		c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
+		c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
 
 		return fmt.Errorf("seal error")
 	})
@@ -1087,7 +1087,7 @@ version: 5.0
 			c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 		}
 
-		c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
+		c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
 
 		return nil
 	})
