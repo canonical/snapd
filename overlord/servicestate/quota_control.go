@@ -65,8 +65,8 @@ func MockSystemdVersion(vers int) (restore func()) {
 
 func quotaGroupsAvailable(st *state.State) error {
 	// check if the systemd version is too old
-	if systemdVersion < 205 {
-		return fmt.Errorf("systemd version too old: snap quotas requires systemd 205 and newer (currently have %d)", systemdVersion)
+	if systemdVersion < 230 {
+		return fmt.Errorf("systemd version too old: snap quotas requires systemd 230 and newer (currently have %d)", systemdVersion)
 	}
 
 	tr := config.NewTransaction(st)
