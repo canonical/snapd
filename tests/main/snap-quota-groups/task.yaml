@@ -29,7 +29,7 @@ execute: |
   systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=active"
 
   echo "The service should also still be active"
-  snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+active"
+  retry -n 10 --wait 1 sh -c 'snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+active"'
 
   # systemd/kernel have three different locations for the cgroup pids depending
   # on version
@@ -97,7 +97,7 @@ execute: |
   echo "Removing the quota will stop the slice and the service will be restarted"
   snap remove-quota group-one
   systemctl show --property=MainPID snap.go-example-webserver.webserver.service | NOMATCH "MainPID=$SERVER_PID"
-  snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+active"
+  retry -n 10 --wait 1 sh -c 'snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+active"'
 
   echo "And the service is not in a slice anymore"
   systemctl show --property=ControlGroup snap.go-example-webserver.webserver.service | NOMATCH "/$sliceName/snap.go-example-webserver.webserver.service"
