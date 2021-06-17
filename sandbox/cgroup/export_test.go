@@ -44,14 +44,6 @@ func MockFsTypeForPath(mock func(string) (int64, error)) (restore func()) {
 	}
 }
 
-func MockFsRootPath(p string) (restore func()) {
-	old := rootPath
-	rootPath = p
-	return func() {
-		rootPath = old
-	}
-}
-
 func MockRandomUUID(uuid string) func() {
 	old := randomUUID
 	randomUUID = func() (string, error) {

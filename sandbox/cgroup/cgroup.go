@@ -29,6 +29,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -61,6 +62,9 @@ var (
 )
 
 func init() {
+	dirs.AddRootDirCallback(func(root string) {
+		rootPath = root
+	})
 	probeVersion, probeErr = probeCgroupVersion()
 	if probeErr == nil {
 		pickVersionSpecificImpl()
