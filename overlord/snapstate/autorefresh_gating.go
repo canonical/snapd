@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -35,6 +36,16 @@ import (
 )
 
 var gateAutoRefreshHookName = "gate-auto-refresh"
+
+// gateAutoRefreshAction represents the action executed by
+// snapctl refresh --hold or --proceed and stored in the context of
+// gate-auto-refresh hook.
+type gateAutoRefreshAction int
+
+const (
+	GateAutoRefreshProceed gateAutoRefreshAction = iota
+	GateAutoRefreshHold
+)
 
 // cumulative hold time for snaps other than self
 const maxOtherHoldDuration = time.Hour * 48
@@ -503,7 +514,7 @@ func createGateAutoRefreshHooks(st *state.State, affectedSnaps map[string]*affec
 	sort.Strings(names)
 	for _, snapName := range names {
 		affected := affectedSnaps[snapName]
-		hookTask := SetupGateAutoRefreshHook(st, snapName, affected.Base, affected.Restart)
+		hookTask := SetupGateAutoRefreshHook(st, snapName, affected.Base, affected.Restart, affected.AffectingSnaps)
 		// XXX: it should be fine to run the hooks in parallel
 		if prev != nil {
 			hookTask.WaitFor(prev)
@@ -517,15 +528,30 @@ func createGateAutoRefreshHooks(st *state.State, affectedSnaps map[string]*affec
 // snapsToRefresh returns all snaps that should proceed with refresh considering
 // hold behavior.
 var snapsToRefresh = func(gatingTask *state.Task) ([]*refreshCandidate, error) {
-	// TODO: consider holding (responses from gating hooks) here.
-	// Return all refresh candidates for now.
 	var snaps map[string]*refreshCandidate
 	if err := gatingTask.Get("snaps", &snaps); err != nil {
 		return nil, err
 	}
+
+	held, err := heldSnaps(gatingTask.State())
+	if err != nil {
+		return nil, err
+	}
+
+	var skipped []string
 	var candidates []*refreshCandidate
 	for _, s := range snaps {
-		candidates = append(candidates, s)
+		if !held[s.InstanceName()] {
+			candidates = append(candidates, s)
+		} else {
+			skipped = append(skipped, s.InstanceName())
+		}
 	}
+
+	if len(skipped) > 0 {
+		sort.Strings(skipped)
+		logger.Noticef("skipping refresh of held snaps: %s", strings.Join(skipped, ","))
+	}
+
 	return candidates, nil
 }

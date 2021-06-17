@@ -22,8 +22,9 @@ package osutil_test
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/osutil"
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 type outputErrSuite struct{}

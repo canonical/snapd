@@ -363,6 +363,7 @@ func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		BrandID:        model.BrandID(),
 		Model:          model.Model(),
 		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
 	}
 
 	// get the ubuntu-boot bootloader and extract the kernel there

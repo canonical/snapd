@@ -25,21 +25,17 @@ import (
 	"fmt"
 	"io"
 	"mime"
-	"net"
 	"net/http"
 	"path/filepath"
 	"strconv"
 	"time"
 
-	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -166,15 +162,6 @@ func (r *respJSON) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	hdr.Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	w.Write(bs)
-}
-
-type errorValue interface{}
-
-type errorResult struct {
-	Message string `json:"message"` // note no omitempty
-	// Kind is the error kind. See client/errors.go
-	Kind  client.ErrorKind `json:"kind,omitempty"`
-	Value errorValue       `json:"value,omitempty"`
 }
 
 // SyncResponse builds a "sync" response from the given result.
@@ -373,267 +360,5 @@ func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			break
 
 		}
-	}
-}
-
-// errorResponder is a callable that produces an error Response.
-// e.g., InternalError("something broke: %v", err), etc.
-type errorResponder func(string, ...interface{}) *apiError
-
-// makeErrorResponder builds an errorResponder from the given error status.
-func makeErrorResponder(status int) errorResponder {
-	return func(format string, v ...interface{}) *apiError {
-		var msg string
-		if len(v) == 0 {
-			msg = format
-		} else {
-			msg = fmt.Sprintf(format, v...)
-		}
-		var kind client.ErrorKind
-		if status == 401 || status == 403 {
-			kind = client.ErrorKindLoginRequired
-		}
-		return &apiError{
-			Status:  status,
-			Message: msg,
-			Kind:    kind,
-		}
-	}
-}
-
-// standard error responses
-var (
-	Unauthorized     = makeErrorResponder(401)
-	NotFound         = makeErrorResponder(404)
-	BadRequest       = makeErrorResponder(400)
-	MethodNotAllowed = makeErrorResponder(405)
-	InternalError    = makeErrorResponder(500)
-	NotImplemented   = makeErrorResponder(501)
-	Forbidden        = makeErrorResponder(403)
-	Conflict         = makeErrorResponder(409)
-)
-
-// BadQuery is an error responder used when a bad query was
-// provided to the store.
-func BadQuery() *apiError {
-	return &apiError{
-		Status:  400,
-		Message: "bad query",
-		Kind:    client.ErrorKindBadQuery,
-	}
-}
-
-// SnapNotFound is an error responder used when an operation is
-// requested on a snap that doesn't exist.
-func SnapNotFound(snapName string, err error) *apiError {
-	return &apiError{
-		Status:  404,
-		Message: err.Error(),
-		Kind:    client.ErrorKindSnapNotFound,
-		Value:   snapName,
-	}
-}
-
-// SnapRevisionNotAvailable is an error responder used when an
-// operation is requested for which no revivision can be found
-// in the given context (e.g. request an install from a stable
-// channel when this channel is empty).
-func SnapRevisionNotAvailable(snapName string, rnaErr *store.RevisionNotAvailableError) *apiError {
-	var value interface{} = snapName
-	kind := client.ErrorKindSnapRevisionNotAvailable
-	msg := rnaErr.Error()
-	if len(rnaErr.Releases) != 0 && rnaErr.Channel != "" {
-		thisArch := arch.DpkgArchitecture()
-		values := map[string]interface{}{
-			"snap-name":    snapName,
-			"action":       rnaErr.Action,
-			"channel":      rnaErr.Channel,
-			"architecture": thisArch,
-		}
-		archOK := false
-		releases := make([]map[string]interface{}, 0, len(rnaErr.Releases))
-		for _, c := range rnaErr.Releases {
-			if c.Architecture == thisArch {
-				archOK = true
-			}
-			releases = append(releases, map[string]interface{}{
-				"architecture": c.Architecture,
-				"channel":      c.Name,
-			})
-		}
-		// we return all available releases (arch x channel)
-		// as reported in the store error, but we hint with
-		// the error kind whether there was anything at all
-		// available for this architecture
-		if archOK {
-			kind = client.ErrorKindSnapChannelNotAvailable
-			msg = "no snap revision on specified channel"
-		} else {
-			kind = client.ErrorKindSnapArchitectureNotAvailable
-			msg = "no snap revision on specified architecture"
-		}
-		values["releases"] = releases
-		value = values
-	}
-	return &apiError{
-		Status:  404,
-		Message: msg,
-		Kind:    kind,
-		Value:   value,
-	}
-}
-
-// SnapChangeConflict is an error responder used when an operation is
-// conflicts with another change.
-func SnapChangeConflict(cce *snapstate.ChangeConflictError) *apiError {
-	value := map[string]interface{}{}
-	if cce.Snap != "" {
-		value["snap-name"] = cce.Snap
-	}
-	if cce.ChangeKind != "" {
-		value["change-kind"] = cce.ChangeKind
-	}
-
-	return &apiError{
-		Status:  409,
-		Message: cce.Error(),
-		Kind:    client.ErrorKindSnapChangeConflict,
-		Value:   value,
-	}
-}
-
-// InsufficientSpace is an error responder used when an operation cannot
-// be performed due to low disk space.
-func InsufficientSpace(dserr *snapstate.InsufficientSpaceError) *apiError {
-	value := map[string]interface{}{}
-	if len(dserr.Snaps) > 0 {
-		value["snap-names"] = dserr.Snaps
-	}
-	if dserr.ChangeKind != "" {
-		value["change-kind"] = dserr.ChangeKind
-	}
-	return &apiError{
-		Status:  507,
-		Message: dserr.Error(),
-		Kind:    client.ErrorKindInsufficientDiskSpace,
-		Value:   value,
-	}
-}
-
-// AppNotFound is an error responder used when an operation is
-// requested on a app that doesn't exist.
-func AppNotFound(format string, v ...interface{}) *apiError {
-	return &apiError{
-		Status:  404,
-		Message: fmt.Sprintf(format, v...),
-		Kind:    client.ErrorKindAppNotFound,
-	}
-}
-
-// AuthCancelled is an error responder used when a user cancelled
-// the auth process.
-func AuthCancelled(format string, v ...interface{}) *apiError {
-	return &apiError{
-		Status:  403,
-		Message: fmt.Sprintf(format, v...),
-		Kind:    client.ErrorKindAuthCancelled,
-	}
-}
-
-// InterfacesUnchanged is an error responder used when an operation
-// that would normally change interfaces finds it has nothing to do
-func InterfacesUnchanged(format string, v ...interface{}) *apiError {
-	return &apiError{
-		Status:  400,
-		Message: fmt.Sprintf(format, v...),
-		Kind:    client.ErrorKindInterfacesUnchanged,
-	}
-}
-
-func errToResponse(err error, snaps []string, fallback errorResponder, format string, v ...interface{}) *apiError {
-	var kind client.ErrorKind
-	var snapName string
-
-	switch err {
-	case store.ErrSnapNotFound:
-		switch len(snaps) {
-		case 1:
-			return SnapNotFound(snaps[0], err)
-		// store.ErrSnapNotFound should only be returned for individual
-		// snap queries; in all other cases something's wrong
-		case 0:
-			return InternalError("store.SnapNotFound with no snap given")
-		default:
-			return InternalError("store.SnapNotFound with %d snaps", len(snaps))
-		}
-	case store.ErrNoUpdateAvailable:
-		kind = client.ErrorKindSnapNoUpdateAvailable
-	case store.ErrLocalSnap:
-		kind = client.ErrorKindSnapLocal
-	default:
-		handled := true
-		switch err := err.(type) {
-		case *store.RevisionNotAvailableError:
-			// store.ErrRevisionNotAvailable should only be returned for
-			// individual snap queries; in all other cases something's wrong
-			switch len(snaps) {
-			case 1:
-				return SnapRevisionNotAvailable(snaps[0], err)
-			case 0:
-				return InternalError("store.RevisionNotAvailable with no snap given")
-			default:
-				return InternalError("store.RevisionNotAvailable with %d snaps", len(snaps))
-			}
-		case *snap.AlreadyInstalledError:
-			kind = client.ErrorKindSnapAlreadyInstalled
-			snapName = err.Snap
-		case *snap.NotInstalledError:
-			kind = client.ErrorKindSnapNotInstalled
-			snapName = err.Snap
-		case *snapstate.ChangeConflictError:
-			return SnapChangeConflict(err)
-		case *snapstate.SnapNeedsDevModeError:
-			kind = client.ErrorKindSnapNeedsDevMode
-			snapName = err.Snap
-		case *snapstate.SnapNeedsClassicError:
-			kind = client.ErrorKindSnapNeedsClassic
-			snapName = err.Snap
-		case *snapstate.SnapNeedsClassicSystemError:
-			kind = client.ErrorKindSnapNeedsClassicSystem
-			snapName = err.Snap
-		case *snapstate.SnapNotClassicError:
-			kind = client.ErrorKindSnapNotClassic
-			snapName = err.Snap
-		case *snapstate.InsufficientSpaceError:
-			return InsufficientSpace(err)
-		case net.Error:
-			if err.Timeout() {
-				kind = client.ErrorKindNetworkTimeout
-			} else {
-				handled = false
-			}
-		case *store.SnapActionError:
-			// we only handle a few specific cases
-			_, _, e := err.SingleOpError()
-			if e != nil {
-				// 👉😎👉
-				return errToResponse(e, snaps, fallback, format)
-			}
-			handled = false
-		default:
-			handled = false
-		}
-
-		if !handled {
-			v = append(v, err)
-			return fallback(format, v...)
-		}
-	}
-
-	return &apiError{
-		Status:  400,
-		Message: err.Error(),
-		Kind:    kind,
-		Value:   snapName,
 	}
 }

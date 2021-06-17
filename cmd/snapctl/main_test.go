@@ -30,9 +30,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/snapcore/snapd/client"
-
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/client"
 )
 
 func TestT(t *testing.T) { TestingT(t) }

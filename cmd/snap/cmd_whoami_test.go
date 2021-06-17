@@ -22,11 +22,10 @@ package main_test
 import (
 	"net/http"
 
-	"github.com/snapcore/snapd/osutil"
-
 	. "gopkg.in/check.v1"
 
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/osutil"
 )
 
 func (s *SnapSuite) TestWhoamiLoggedInUser(c *C) {

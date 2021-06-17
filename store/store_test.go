@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -51,6 +51,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
@@ -1805,6 +1806,128 @@ func (s *storeTestSuite) TestInfoOopses(c *C) {
 	}
 	_, err := sto.SnapInfo(s.ctx, spec, nil)
 	c.Assert(err, ErrorMatches, `cannot get details for snap "hello-world": got unexpected HTTP status code 5.. via GET to "http://\S+" \[OOPS-[[:xdigit:]]*\]`)
+}
+
+const mockExistsJSON = `{
+  "channel-map": [
+    {
+      "channel": {
+        "architecture": "amd64",
+        "name": "stable",
+        "released-at": "2019-04-17T17:40:12.922344+00:00",
+        "risk": "stable",
+        "track": "latest"
+      }
+    },
+    {
+      "channel": {
+        "architecture": "amd64",
+        "name": "candidate",
+        "released-at": "2017-05-17T21:17:00.205237+00:00",
+        "risk": "candidate",
+        "track": "latest"
+      }
+    },
+    {
+      "channel": {
+        "architecture": "amd64",
+        "name": "beta",
+        "released-at": "2017-05-17T21:17:00.205019+00:00",
+        "risk": "beta",
+        "track": "latest"
+      }
+    },
+    {
+      "channel": {
+        "architecture": "amd64",
+        "name": "edge",
+        "released-at": "2017-05-17T21:17:00.205167+00:00",
+        "risk": "edge",
+        "track": "latest"
+      }
+    }
+  ],
+  "default-track": null,
+  "name": "hello",
+  "snap": {},
+  "snap-id": "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6"
+}`
+
+func (s *storeTestSuite) TestExists(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", infoPathPattern)
+		c.Check(r.UserAgent(), Equals, userAgent)
+
+		// check device authorization is set, implicitly checking doRequest was used
+		c.Check(r.Header.Get("Snap-Device-Authorization"), Equals, `Macaroon root="device-macaroon"`)
+
+		// no store ID by default
+		storeID := r.Header.Get("Snap-Device-Store")
+		c.Check(storeID, Equals, "")
+
+		c.Check(r.URL.Path, Matches, ".*/hello")
+
+		query := r.URL.Query()
+		c.Check(query.Get("fields"), Equals, "channel-map")
+		c.Check(query.Get("architecture"), Equals, arch.DpkgArchitecture())
+
+		w.WriteHeader(200)
+		io.WriteString(w, mockExistsJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	// the actual test
+	spec := store.SnapSpec{
+		Name: "hello",
+	}
+	ref, ch, err := sto.SnapExists(s.ctx, spec, nil)
+	c.Assert(err, IsNil)
+	c.Check(ref.SnapName(), Equals, "hello")
+	c.Check(ref.ID(), Equals, "mVyGrEwiqSi5PugCwyH7WgpoQLemtTd6")
+	c.Check(ch, DeepEquals, &channel.Channel{
+		Architecture: "amd64",
+		Name:         "stable",
+		Risk:         "stable",
+	})
+}
+
+func (s *storeTestSuite) TestExistsNotFound(c *C) {
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", infoPathPattern)
+		c.Check(r.URL.Path, Matches, ".*/hello")
+
+		w.WriteHeader(404)
+		io.WriteString(w, MockNoDetailsJSON)
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	sto := store.New(&cfg, nil)
+
+	// the actual test
+	spec := store.SnapSpec{
+		Name: "hello",
+	}
+	ref, ch, err := sto.SnapExists(s.ctx, spec, nil)
+	c.Assert(err, Equals, store.ErrSnapNotFound)
+	c.Assert(ref, IsNil)
+	c.Assert(ch, IsNil)
 }
 
 /*
