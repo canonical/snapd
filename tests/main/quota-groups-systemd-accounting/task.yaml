@@ -8,6 +8,17 @@ details: |
   trigger the accounting bug, or that we properly don't attempt to use quota 
   groups on systems that are affected.
 
+# these systems do not support quota groups due to their old systemd versions,
+# we do have a check to do for these systems, but that is just to ensure that
+# we don't allow using quota groups, and that check is done in the snap-quota
+# spread instead
+systems:
+  - -ubuntu-14.04-*
+  - -centos-7-*
+  - -amazon-linux-2-*
+  - -ubuntu-16.04-*
+  - -ubuntu-core-16-*
+
 prepare: |
   snap install hello-world go-example-webserver remarshal jq
   snap set system experimental.quota-groups=true
