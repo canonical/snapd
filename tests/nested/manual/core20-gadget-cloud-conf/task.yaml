@@ -137,10 +137,13 @@ execute: |
   echo "And we can run things as the normal user"
   nested_exec_as normal-user ubuntu "sudo true"
 
-  # TODO: is there a better thing we can wait for here instead? maybe the log
-  # message from snapd directly via journalctl ?
   echo "Waiting for snapd to react to cloud-init"
-  sleep 60
+  for i in $(seq 60); do
+    if nested_exec "journalctl --no-pager -u snapd" | MATCH "Cloud-init reported"; then
+        break
+    fi
+    sleep 1
+  done
 
   echo "Ensuring that cloud-init got disabled after running"
   nested_exec "cloud-init status" | MATCH "status: disabled"
