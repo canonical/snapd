@@ -7,7 +7,7 @@ show_help() {
     echo "usage: journal-state start-new-log"
     echo "       journal-state check-log-started"
     echo "       journal-state get-last-cursor"
-    echo "       journal-state match-log [expression]"
+    echo "       journal-state match-log <EXPRESSION> [--attempts|-n PARAM] [--wait PARAM] [--unit|-u PARAM]"
     echo "       journal-state get-log"
     echo "       journal-state get-log-from-cursor"
 }
@@ -40,22 +40,50 @@ check_log_started(){
 }
 
 match_log(){
-    expression=$1
-    shift
-    for _ in $(seq 10); do
+    local wait=1
+    local attempts=10
+    local unit=""
+    local expression
+
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --wait)
+                wait=$2
+                shift 2
+                ;;
+            -n|--attempts)
+                attempts=$2
+                shift 2
+                ;;
+            -u|--unit)
+                unit=$2
+                shift 2
+                ;;
+            *)
+                expression=$1
+                shift
+                ;;
+        esac
+    done
+
+    for _ in $(seq "$attempts"); do
         # forcibly silence this particular bit because it produces GOBS of 
         # output and we really don't need to see all the output when we are 
         # checking the output for an expression, as if it is missing we want to 
         # check the journal once at the end of this loop, likely in the debug 
         # section
         set +x
-        log=$(get_log "$@")
+        local log params
+        if [ -z "$unit" ]; then
+            params="-u $unit"
+        fi
+        log=$(get_log "$params")
         if echo "$log" | grep -q -E "$expression"; then
             return 0
         fi
         set -x
         echo "Match for \"$expression\" failed, retrying"
-        sleep 1
+        sleep "$wait"
     done
     return 1
 }
