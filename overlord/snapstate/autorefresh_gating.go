@@ -251,8 +251,8 @@ func ProceedWithRefresh(st *state.State, gatingSnap string) error {
 }
 
 // resetGatingForRefreshed resets gating information by removing refreshedSnaps
-// (they are not held anymore). This should be called for all successfully
-// refreshed snaps.
+// (they are not held anymore). This should be called for snaps about to be
+// refreshed.
 func resetGatingForRefreshed(st *state.State, refreshedSnaps ...string) error {
 	gating, err := refreshGating(st)
 	if err != nil {
