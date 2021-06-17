@@ -23,9 +23,10 @@ import (
 	"fmt"
 	"time"
 
-	_ "golang.org/x/crypto/sha3" // expected for digests
-
 	"github.com/jessevdk/go-flags"
+
+	// expected for digests
+	_ "golang.org/x/crypto/sha3"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/i18n"

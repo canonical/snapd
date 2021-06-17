@@ -114,6 +114,9 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 # https://github.com/Xilinx/XRT/tree/master/src/runtime_src/core/edge/drm
 /sys/devices/platform/amba{,_pl@[0-9]*}/amba{,_pl@[0-9]*}:zyxclmm_drm/* r,
 
+# Imagination PowerVR driver
+/dev/pvr_sync rw,
+
 # OpenCL ICD files
 /etc/OpenCL/vendors/ r,
 /etc/OpenCL/vendors/** r,
@@ -160,6 +163,7 @@ var openglConnectedPlugUDev = []string{
 	`KERNEL=="nvmap"`,
 	`KERNEL=="tegra_dc_ctrl"`,
 	`KERNEL=="tegra_dc_[0-9]*"`,
+	`KERNEL=="pvr_sync"`,
 }
 
 func init() {

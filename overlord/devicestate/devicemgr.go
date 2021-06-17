@@ -71,7 +71,9 @@ var EarlyConfig func(st *state.State, preloadGadget func() (*gadget.Info, error)
 // DeviceManager is responsible for managing the device identity and device
 // policies.
 type DeviceManager struct {
-	systemMode string
+	// sysMode is the system mode from modeenv or "" on pre-UC20,
+	// use SystemMode instead
+	sysMode string
 	// saveAvailable keeps track whether /var/lib/snapd/save
 	// is available, i.e. exists and is mounted from ubuntu-save
 	// if the latter exists.
@@ -127,7 +129,7 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 		return nil, err
 	}
 	if modeEnv != nil {
-		m.systemMode = modeEnv.Mode
+		m.sysMode = modeEnv.Mode
 	}
 
 	s.Lock()
@@ -205,16 +207,16 @@ func (m *DeviceManager) ReloadModeenv() error {
 		return err
 	}
 	if modeEnv != nil {
-		m.systemMode = modeEnv.Mode
+		m.sysMode = modeEnv.Mode
 	}
 	return nil
 }
 
 // StartUp implements StateStarterUp.Startup.
 func (m *DeviceManager) StartUp() error {
-	// system mode is explicitly set on UC20
 	// TODO:UC20: ubuntu-save needs to be mounted for recover too
-	if !release.OnClassic && m.systemMode == "run" {
+	if !release.OnClassic && m.SystemMode(SysHasModeenv) == "run" {
+		// UC20 and run mode => setup /var/lib/snapd/save
 		if err := m.maybeSetupUbuntuSave(); err != nil {
 			return fmt.Errorf("cannot set up ubuntu-save: %v", err)
 		}
@@ -378,21 +380,37 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 	return nil
 }
 
-// SystemMode returns the current mode of the system. Note, that for pre-UC20
-// systems, the mode is not explicitly set and a default "run" mode is always
-// returned.
-func (m *DeviceManager) SystemMode() string {
-	if m.systemMode == "" {
+type SysExpectation int
+
+const (
+	// SysAny indicates any system is appropriate.
+	SysAny SysExpectation = iota
+	// SysHasModeenv indicates only systems with modeenv are appropriate.
+	SysHasModeenv
+)
+
+// SystemMode returns the current mode of the system.
+// An expectation about the system controls the returned mode when
+// none is set explicitly, as it's the case on pre-UC20 systems. In
+// which case, with SysAny, the mode defaults to implicit "run", thus
+// covering pre-UC20 systems. With SysHasModeeenv, as there is always
+// an explicit mode in systems that use modeenv, no implicit default
+// is used and thus "" is returned for pre-UC20 systems.
+func (m *DeviceManager) SystemMode(sysExpect SysExpectation) string {
+	if m.sysMode == "" {
+		if sysExpect == SysHasModeenv {
+			return ""
+		}
 		return "run"
 	}
-	return m.systemMode
+	return m.sysMode
 }
 
 func (m *DeviceManager) ensureOperational() error {
 	m.state.Lock()
 	defer m.state.Unlock()
 
-	if m.SystemMode() != "run" {
+	if m.SystemMode(SysAny) != "run" {
 		// avoid doing registration in ephemeral mode
 		// note: this also stop auto-refreshes indirectly
 		return nil
@@ -682,7 +700,7 @@ func (m *DeviceManager) ensureSeeded() error {
 		}
 		if modeEnv != nil {
 			opts = &populateStateFromSeedOptions{
-				Mode:  m.systemMode,
+				Mode:  modeEnv.Mode,
 				Label: modeEnv.RecoverySystem,
 			}
 		}
@@ -726,7 +744,7 @@ func (m *DeviceManager) ensureBootOk() error {
 	}
 
 	// boot-ok/update-boot-revision is only relevant in run-mode
-	if m.SystemMode() != "run" {
+	if m.SystemMode(SysAny) != "run" {
 		return nil
 	}
 
@@ -924,7 +942,7 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
-	if m.SystemMode() != "install" {
+	if m.SystemMode(SysHasModeenv) != "install" {
 		return nil
 	}
 
@@ -1094,13 +1112,18 @@ func (m *DeviceManager) appendTriedRecoverySystem(label string) error {
 	return nil
 }
 
+// ResetTriedRecoverySystemsRan is only useful for integration testing
+func (m *DeviceManager) ResetTriedRecoverySystemsRan() {
+	osutil.MustBeTestBinary("ResetTriedRecoverySystemsRan can only be called from tests")
+	m.ensureTriedRecoverySystemRan = false
+}
+
 func (m *DeviceManager) ensureTriedRecoverySystem() error {
 	if release.OnClassic {
 		return nil
 	}
-	// use direct check rather than though a getter, so that we know that
-	// the mode was explicitly set like it is on UC20 devices
-	if m.systemMode != "run" {
+	// nothing to do if not UC20 and run mode
+	if m.SystemMode(SysHasModeenv) != "run" {
 		return nil
 	}
 	if m.ensureTriedRecoverySystemRan {
@@ -1368,7 +1391,7 @@ func (m *DeviceManager) SystemModeInfo() (*SystemModeInfo, error) {
 		return nil, err
 	}
 
-	mode := m.SystemMode()
+	mode := deviceCtx.SystemMode()
 	smi := SystemModeInfo{
 		Mode:       mode,
 		HasModeenv: deviceCtx.HasModeenv(),
@@ -1428,7 +1451,7 @@ var ErrNoSystems = errors.New("no systems seeds")
 // systems, ErrNoSystems when no systems seeds were found or other error.
 func (m *DeviceManager) Systems() ([]*System, error) {
 	// it's tough luck when we cannot determine the current system seed
-	systemMode := m.SystemMode()
+	systemMode := m.SystemMode(SysAny)
 	currentSys, _ := currentSystemForMode(m.state, systemMode)
 
 	systemLabels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems", "*"))
@@ -1484,7 +1507,7 @@ func (m *DeviceManager) Reboot(systemLabel, mode string) error {
 
 	// no systemLabel means "current" so get the current system label
 	if systemLabel == "" {
-		systemMode := m.SystemMode()
+		systemMode := m.SystemMode(SysAny)
 		currentSys, err := currentSystemForMode(m.state, systemMode)
 		if err != nil {
 			return fmt.Errorf("cannot get current system: %v", err)
@@ -1528,7 +1551,7 @@ func (m *DeviceManager) switchToSystemAndMode(systemLabel, mode string, sameSyst
 		return err
 	}
 
-	systemMode := m.SystemMode()
+	systemMode := m.SystemMode(SysAny)
 	// ignore the error to be robust in scenarios that
 	// dont' stricly require currentSys to be carried through.
 	// make sure that currentSys == nil does not break
@@ -1762,4 +1785,10 @@ func (h fdeSetupHandler) Done() error {
 
 func (h fdeSetupHandler) Error(err error) error {
 	return nil
+}
+
+// ResetToPostBootState is only useful for integration testing.
+func (m *DeviceManager) ResetToPostBootState() {
+	m.ResetBootOk()
+	m.ResetTriedRecoverySystemsRan()
 }

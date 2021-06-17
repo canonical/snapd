@@ -83,7 +83,7 @@ execute: |
   nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains > boot-chains-before.json
   SEALED_KEY_MTIME_1="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
   RESEAL_COUNT_1="$(jq -r '.["reseal-count"]' < boot-chains-before.json )"
-  jq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-before.json | not MATCH ' bootassetstesting'
+  jq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-before.json | NOMATCH ' bootassetstesting'
   case "$VARIANT" in
     gadget-extra)
       jq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-before.json | MATCH 'snapd.debug=1 hello from test'
@@ -92,7 +92,7 @@ execute: |
       jq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-before.json | MATCH ' full hello from test'
       ;;
     no-gadget)
-      jq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-before.json | not MATCH 'hello from test'
+      jq -r '.["boot-chains"][]["kernel-cmdlines"][]' < boot-chains-before.json | NOMATCH 'hello from test'
       ;;
   esac
 
@@ -118,7 +118,7 @@ execute: |
     no-gadget)
       echo "check that new static command line element is present, but nothing comes from the gadget"
       MATCH bootassetstesting < system.cmdline
-      not MATCH 'hello from test' < system.cmdline
+      NOMATCH 'hello from test' < system.cmdline
       ;;
     gadget-extra)
       echo "check that new static command line element is present, extra bits from the gadget"
@@ -126,7 +126,7 @@ execute: |
       ;;
     gadget-full)
       echo "check that static command line element is not used, gadget provides the full set"
-      not MATCH bootassetstesting < system.cmdline
+      NOMATCH bootassetstesting < system.cmdline
       MATCH "snapd_recovery_mode=run snapd.debug=1 console=ttyS0 full hello from test" < system.cmdline
       ;;
   esac

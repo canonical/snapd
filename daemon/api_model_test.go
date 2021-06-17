@@ -63,9 +63,9 @@ func (s *modelSuite) TestPostRemodelUnhappy(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/model", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rsp := s.errorReq(c, req, nil)
-	c.Assert(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, "cannot decode new model assertion: .*")
+	rspe := s.errorReq(c, req, nil)
+	c.Assert(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Matches, "cannot decode new model assertion: .*")
 }
 
 func (s *modelSuite) TestPostRemodel(c *check.C) {
@@ -143,13 +143,11 @@ func (s *modelSuite) TestGetModelNoModelAssertion(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/model", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.errorReq(c, req, nil)
-	c.Assert(rsp.Status, check.Equals, 404)
-	c.Assert(rsp.Result, check.FitsTypeOf, &daemon.ErrorResult{})
-	errRes := rsp.Result.(*daemon.ErrorResult)
-	c.Assert(errRes.Kind, check.Equals, client.ErrorKindAssertionNotFound)
-	c.Assert(errRes.Value, check.Equals, "model")
-	c.Assert(errRes.Message, check.Equals, "no model assertion yet")
+	rspe := s.errorReq(c, req, nil)
+	c.Assert(rspe.Status, check.Equals, 404)
+	c.Assert(rspe.Kind, check.Equals, client.ErrorKindAssertionNotFound)
+	c.Assert(rspe.Value, check.Equals, "model")
+	c.Assert(rspe.Message, check.Equals, "no model assertion yet")
 }
 
 func (s *modelSuite) TestGetModelHasModelAssertion(c *check.C) {
@@ -242,13 +240,11 @@ func (s *modelSuite) TestGetModelNoSerialAssertion(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/model/serial", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.errorReq(c, req, nil)
-	c.Assert(rsp.Status, check.Equals, 404)
-	c.Assert(rsp.Result, check.FitsTypeOf, &daemon.ErrorResult{})
-	errRes := rsp.Result.(*daemon.ErrorResult)
-	c.Assert(errRes.Kind, check.Equals, client.ErrorKindAssertionNotFound)
-	c.Assert(errRes.Value, check.Equals, "serial")
-	c.Assert(errRes.Message, check.Equals, "no serial assertion yet")
+	rspe := s.errorReq(c, req, nil)
+	c.Assert(rspe.Status, check.Equals, 404)
+	c.Assert(rspe.Kind, check.Equals, client.ErrorKindAssertionNotFound)
+	c.Assert(rspe.Value, check.Equals, "serial")
+	c.Assert(rspe.Message, check.Equals, "no serial assertion yet")
 }
 
 func (s *modelSuite) TestGetModelHasSerialAssertion(c *check.C) {
