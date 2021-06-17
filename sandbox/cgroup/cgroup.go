@@ -62,6 +62,18 @@ var (
 
 func init() {
 	probeVersion, probeErr = probeCgroupVersion()
+	if probeErr == nil {
+		pickVersionSpecificImpl()
+	}
+}
+
+func pickVersionSpecificImpl() {
+	switch probeVersion {
+	case V1:
+		freezerV1Impl()
+	case V2:
+		freezerV2Impl()
+	}
 }
 
 var fsTypeForPath = fsTypeForPathImpl
@@ -206,6 +218,7 @@ func ProcGroup(pid int, matcher GroupMatcher) (string, error) {
 func MockVersion(mockVersion int, mockErr error) (restore func()) {
 	oldVersion, oldErr := probeVersion, probeErr
 	probeVersion, probeErr = mockVersion, mockErr
+	pickVersionSpecificImpl()
 	return func() {
 		probeVersion, probeErr = oldVersion, oldErr
 	}

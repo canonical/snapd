@@ -97,3 +97,5 @@ func MockDoCreateTransientScope(fn func(conn *dbus.Conn, unitName string, pid in
 		doCreateTransientScope = old
 	}
 }
+
+func FreezerCgroupV1Dir() string { return freezerCgroupV1Dir }
