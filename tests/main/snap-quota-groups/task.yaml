@@ -130,8 +130,14 @@ execute: |
   retry --wait 1 -n 10 sh -c 'systemctl show --property=ExecMainStatus snap.go-example-webserver.webserver.service | MATCH "ExecMainStatus=(203|9)"'
 
   echo "And after removing the quota group, services will not automatically restart as they were inactive"
+  function service_start_time {
+    systemctl show --property=ExecMainStartTimestampMonotonic "$1" | cut -d= -f2
+  }
+  TIMESTAMP_BEFORE=$(service_start_time snap.go-example-webserver.webserver.service)
   snap remove-quota too-small
   snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+inactive"
+  TIMESTAMP_AFTER=$(service_start_time snap.go-example-webserver.webserver.service)
+  test "$TIMESTAMP_AFTER" -eq "$TIMESTAMP_BEFORE"
 
   echo "But they can still be started manually"
   snap start go-example-webserver.webserver
