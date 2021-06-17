@@ -60,6 +60,7 @@ var (
 	FileInfoFile    = &fakeFileInfo{}
 	FileInfoDir     = &fakeFileInfo{mode: os.ModeDir}
 	FileInfoSymlink = &fakeFileInfo{mode: os.ModeSymlink}
+	FileInfoSocket  = &fakeFileInfo{mode: os.ModeSocket}
 )
 
 // Formatter for flags passed to open syscall.

@@ -251,6 +251,10 @@ func (e *MountEntry) XSnapdKind() string {
 	return val
 }
 
+func (e *MountEntry) AllowSocketFile() bool {
+	return e.OptBool("x-snapd.allow-socket-bind-mount")
+}
+
 // XSnapdDetach returns true if a mount entry should be detached rather than unmounted.
 //
 // Whenever we create a recursive bind mount we don't want to just unmount it
@@ -338,4 +342,8 @@ func XSnapdSymlink(oldname string) string {
 // XSnapdIgnoreMissing returns the string "x-snapd.ignore-missing".
 func XSnapdIgnoreMissing() string {
 	return "x-snapd.ignore-missing"
+}
+
+func XSnapdAllowSocketFile() string {
+	return "x-snapd.allow-socket-bind-mount"
 }

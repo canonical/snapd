@@ -158,7 +158,11 @@ func (c *Change) ensureTarget(as *Assumptions) ([]*Change, error) {
 			}
 		case "file":
 			if !fi.Mode().IsRegular() {
-				err = fmt.Errorf("cannot use %q as mount point: not a regular file", path)
+				// allow mounting a socket file if the entry specifically allows
+				// this
+				if !(fi.Mode()&os.ModeSocket == os.ModeSocket && c.Entry.AllowSocketFile()) {
+					err = fmt.Errorf("cannot use %q as mount point: not a regular file", path)
+				}
 			}
 		case "symlink":
 			if fi.Mode()&os.ModeSymlink == os.ModeSymlink {
@@ -202,7 +206,11 @@ func (c *Change) ensureSource(as *Assumptions) ([]*Change, error) {
 			}
 		case "file":
 			if !fi.Mode().IsRegular() {
-				err = fmt.Errorf("cannot use %q as bind-mount source: not a regular file", path)
+				// allow mounting a socket file if the entry specifically allows
+				// this
+				if !(fi.Mode()&os.ModeSocket == os.ModeSocket && c.Entry.AllowSocketFile()) {
+					err = fmt.Errorf("cannot use %q as bind-mount source: not a regular file", path)
+				}
 			}
 		}
 	} else if os.IsNotExist(err) {

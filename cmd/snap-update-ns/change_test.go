@@ -2219,6 +2219,48 @@ func (s *changeSuite) TestPerformFileBindMountWithSymlinkInMountSource(c *C) {
 	})
 }
 
+// Change.Perform wants to bind mount a file but there's a socket in source.
+func (s *changeSuite) TestPerformFileBindMountWithSocketInMountSourceNotPermitted(c *C) {
+	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoFile)
+	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoSocket)
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file"}}}
+	synth, err := chg.Perform(s.as)
+	c.Assert(err, ErrorMatches, `cannot use "/source" as bind-mount source: not a regular file`)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `lstat "/target"`, R: testutil.FileInfoFile},
+		{C: `lstat "/source"`, R: testutil.FileInfoSocket},
+	})
+}
+
+// Change.Perform wants to bind mount a file but there's a socket in source and
+// the mount entry permits the file being a socket.
+func (s *changeSuite) TestPerformFileBindMountWithSocketInMountSourcePermitted(c *C) {
+	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoFile)
+	s.sys.InsertOsLstatResult(`lstat "/source"`, testutil.FileInfoSocket)
+	s.sys.InsertFstatResult(`fstat 4 <ptr>`, syscall.Stat_t{})
+	s.sys.InsertFstatResult(`fstat 5 <ptr>`, syscall.Stat_t{})
+	chg := &update.Change{Action: update.Mount, Entry: osutil.MountEntry{Name: "/source", Dir: "/target", Options: []string{"bind", "x-snapd.kind=file", "x-snapd.allow-socket-bind-mount"}}}
+	synth, err := chg.Perform(s.as)
+	c.Assert(err, IsNil)
+	c.Assert(synth, HasLen, 0)
+	c.Assert(s.sys.RCalls(), testutil.SyscallsEqual, []testutil.CallResultError{
+		{C: `lstat "/target"`, R: testutil.FileInfoFile},
+		{C: `lstat "/source"`, R: testutil.FileInfoSocket},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "source" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 4},
+		{C: `fstat 4 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 3`},
+		{C: `open "/" O_NOFOLLOW|O_CLOEXEC|O_DIRECTORY|O_PATH 0`, R: 3},
+		{C: `openat 3 "target" O_NOFOLLOW|O_CLOEXEC|O_PATH 0`, R: 5},
+		{C: `fstat 5 <ptr>`, R: syscall.Stat_t{}},
+		{C: `close 3`},
+		{C: `mount "/proc/self/fd/4" "/proc/self/fd/5" "" MS_BIND ""`},
+		{C: `close 5`},
+		{C: `close 4`},
+	})
+}
+
 // Change.Perform wants to bind mount a file but there's a directory in source.
 func (s *changeSuite) TestPerformFileBindMountWithDirectoryInMountSource(c *C) {
 	s.sys.InsertOsLstatResult(`lstat "/target"`, testutil.FileInfoFile)
