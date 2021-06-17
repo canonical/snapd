@@ -20,8 +20,6 @@
 package builtin
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
@@ -79,7 +77,6 @@ func (iface *dspInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 
 	var flavor string
 	_ = slot.Attr("flavor", &flavor)
-	fmt.Println("slot flavor", flavor)
 	switch flavor {
 	// only supported flavor for now
 	case "ambarella":

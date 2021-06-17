@@ -1112,6 +1112,12 @@ func (m *DeviceManager) appendTriedRecoverySystem(label string) error {
 	return nil
 }
 
+// ResetTriedRecoverySystemsRan is only useful for integration testing
+func (m *DeviceManager) ResetTriedRecoverySystemsRan() {
+	osutil.MustBeTestBinary("ResetTriedRecoverySystemsRan can only be called from tests")
+	m.ensureTriedRecoverySystemRan = false
+}
+
 func (m *DeviceManager) ensureTriedRecoverySystem() error {
 	if release.OnClassic {
 		return nil
@@ -1779,4 +1785,10 @@ func (h fdeSetupHandler) Done() error {
 
 func (h fdeSetupHandler) Error(err error) error {
 	return nil
+}
+
+// ResetToPostBootState is only useful for integration testing.
+func (m *DeviceManager) ResetToPostBootState() {
+	m.ResetBootOk()
+	m.ResetTriedRecoverySystemsRan()
 }
