@@ -98,7 +98,7 @@ type freezerV2Suite struct{}
 
 var _ = Suite(&freezerV2Suite{})
 
-func (s *freezerV2Suite) TestFreezeSnapProcessesV2(c *C) {
+func (s *freezerV2Suite) TestFreezeSnapProcessesV2OtherGroups(c *C) {
 	defer cgroup.MockVersion(cgroup.V2, nil)()
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
@@ -114,6 +114,17 @@ func (s *freezerV2Suite) TestFreezeSnapProcessesV2(c *C) {
 	canary := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.canary.svc.service/cgroup.freeze")
 	// a subgroup of the group of a snap
 	canarySubgroup := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.svc.service/snap.foo.subgroup.scope/cgroup.freeze")
+
+	pid := os.Getpid()
+
+	// freezing needs to inspect our own cgroup, which will fail without
+	// proper mocking
+	err := cgroup.FreezeSnapProcesses("foo")
+	c.Check(err, ErrorMatches, fmt.Sprintf("open %s/proc/%v/cgroup: no such file or directory", dirs.GlobalRootDir, pid))
+
+	procPidCgroup := filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("proc/%v/cgroup", pid))
+	c.Assert(os.MkdirAll(filepath.Dir(procPidCgroup), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(procPidCgroup, []byte("0::/foo/bar"), 0755), IsNil)
 
 	// When the freezer cgroup filesystem doesn't exist we do nothing at all.
 	c.Assert(cgroup.FreezeSnapProcesses("foo"), IsNil)
@@ -155,7 +166,52 @@ func (s *freezerV2Suite) TestFreezeSnapProcessesV2(c *C) {
 	for _, p := range []string{g1, g2, g3, g4} {
 		c.Check(p, testutil.FileEquals, "1")
 	}
+}
 
+func (s *freezerV2Suite) TestFreezeSnapProcessesV2OwnGroup(c *C) {
+	defer cgroup.MockVersion(cgroup.V2, nil)()
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// our own cgroup
+	gOwn := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.app.own-own-own.scope/cgroup.freeze")
+	// app started by root
+	g1 := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.app.1234-1234-1234.scope/cgroup.freeze")
+	// service started by systemd
+	g2 := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.svc.service/cgroup.freeze")
+	// user applications
+	g3 := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/user.slice/user-1234.slice/user@1234.service/snap.foo.user-app.1234-1234-1234.scope/cgroup.freeze")
+	// user service
+	g4 := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/user.slice/user-1234.slice/user@1234.service/snap.foo.user-svc.service/cgroup.freeze")
+	canary := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.canary.svc.service/cgroup.freeze")
+	// a subgroup of the group of a snap
+
+	pid := os.Getpid()
+
+	// freezing needs to inspect our own cgroup, which will fail without
+	// proper mocking
+	err := cgroup.FreezeSnapProcesses("foo")
+	c.Check(err, ErrorMatches, fmt.Sprintf("open %s/proc/%v/cgroup: no such file or directory", dirs.GlobalRootDir, pid))
+
+	procPidCgroup := filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("proc/%v/cgroup", pid))
+	c.Assert(os.MkdirAll(filepath.Dir(procPidCgroup), 0755), IsNil)
+	// mock our own group
+	c.Assert(ioutil.WriteFile(procPidCgroup, []byte("0::/system.slice/snap.foo.app.own-own-own.scope"), 0755), IsNil)
+	// prepare the stage
+	for _, p := range []string{gOwn, g1, g2, g3, g4, canary} {
+		c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
+		c.Assert(ioutil.WriteFile(p, []byte("0"), 0644), IsNil)
+	}
+
+	c.Assert(cgroup.FreezeSnapProcesses("foo"), IsNil)
+	// our own group is not frozen
+	c.Assert(gOwn, testutil.FileEquals, "0")
+	// canaries have not been changed
+	c.Assert(canary, testutil.FileEquals, "0")
+	// other snap groups are frozen
+	for _, p := range []string{g1, g2, g3, g4} {
+		c.Check(p, testutil.FileEquals, "1")
+	}
 }
 
 func (s *freezerV2Suite) TestThawSnapProcessesV2(c *C) {

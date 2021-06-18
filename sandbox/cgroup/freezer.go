@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -137,7 +138,20 @@ func applyToSnap(snapName string, action func(groupName string) error) error {
 // given snap. Processes are frozen regardless of which particular snap
 // application they originate from.
 func freezeSnapProcessesImplV2(snapName string) error {
+	// in case of v2, the process calling this code, (eg. snap-update-ns)
+	// may already be part of the trackign cgroup for particular snap, care
+	// must be taken to not freeze ourselves
+	ownGroup, err := cgroupProcessPathInTrackingCgroup(os.Getpid())
+	if err != nil {
+		return err
+	}
+	ownGroupDir := filepath.Join(rootPath, cgroupMountPoint, ownGroup)
 	freezeOne := func(dir string) error {
+		if dir == ownGroupDir {
+			// let's not freeze ourselves
+			logger.Debugf("freeze, skipping own group %v", dir)
+			return nil
+		}
 		fname := filepath.Join(dir, "cgroup.freeze")
 		if err := ioutil.WriteFile(fname, []byte("1"), 0644); err != nil && os.IsNotExist(err) {
 			//  the group may be gone already
