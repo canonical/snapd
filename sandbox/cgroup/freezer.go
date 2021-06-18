@@ -113,13 +113,16 @@ func thawSnapProcessesImplV1(snapName string) error {
 	return nil
 }
 
-func applyToSnap(snapName string, action func(groupName string) error) error {
+func applyToSnap(snapName string, action func(groupName string) error, skipErrs bool) error {
 	canary := fmt.Sprintf("snap.%s.", snapName)
 	cgroupRoot := filepath.Join(rootPath, cgroupMountPoint)
 	if _, dir, _ := osutil.DirExists(cgroupRoot); !dir {
 		return nil
 	}
 	return filepath.Walk(filepath.Join(rootPath, cgroupMountPoint), func(name string, info os.FileInfo, err error) error {
+		if err != nil && !skipErrs {
+			return err
+		}
 		if !info.IsDir() {
 			return nil
 		}
@@ -127,7 +130,7 @@ func applyToSnap(snapName string, action func(groupName string) error) error {
 			return nil
 		}
 		// found a group
-		if err := action(name); err != nil {
+		if err := action(name); err != nil && !skipErrs {
 			return err
 		}
 		return filepath.SkipDir
@@ -165,34 +168,43 @@ func freezeSnapProcessesImplV2(snapName string) error {
 				return fmt.Errorf("cannot determine the freeze state of processes of snap %q, %v", snapName, err)
 			}
 			// If the cgroup is still freezing then wait a moment and try again.
-			if !bytes.Equal(bytes.TrimSpace(data), []byte("1")) {
-				time.Sleep(100 * time.Millisecond)
-				continue
+			if bytes.Equal(bytes.TrimSpace(data), []byte("1")) {
+				// we're done
+				return nil
 			}
+			// add a bit of delay
+			time.Sleep(100 * time.Millisecond)
 		}
-		return nil
+		return fmt.Errorf("cannot freeze processes of snap %q in group %v", snapName, filepath.Base(dir))
 	}
-	err := applyToSnap(snapName, freezeOne)
+	const skipFreezeErrs = false
+	err = applyToSnap(snapName, freezeOne, skipFreezeErrs)
 	if err == nil {
 		return nil
 	}
 	// thaw one by one?
-	ThawSnapProcesses(snapName) // ignore the error, this is best-effort.
+	const skipThawErrs = true
+	thawSnapProcessesV2(snapName, skipThawErrs) // ignore the error, this is best-effort.
 	return fmt.Errorf("cannot finish freezing processes of snap %q: %v", snapName, err)
 }
 
-func thawSnapProcessesImplV2(snapName string) error {
+func thawSnapProcessesV2(snapName string, skipErrs bool) error {
 	thawOne := func(dir string) error {
 		fname := filepath.Join(dir, "cgroup.freeze")
 		if err := ioutil.WriteFile(fname, []byte("0"), 0644); err != nil && os.IsNotExist(err) {
 			//  the group may be gone already
 			return nil
-		} else if err != nil {
+		} else if err != nil && !skipErrs {
 			return fmt.Errorf("cannot thaw processes of snap %q, %v", snapName, err)
 		}
 		return nil
 	}
-	return applyToSnap(snapName, thawOne)
+	return applyToSnap(snapName, thawOne, skipErrs)
+}
+
+func thawSnapProcessesImplV2(snapName string) error {
+	const skipErrs = false
+	return thawSnapProcessesV2(snapName, skipErrs)
 }
 
 // MockFreezing replaces the real implementation of freeze and thaw.

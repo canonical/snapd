@@ -275,3 +275,62 @@ func (s *freezerV2Suite) TestThawSnapProcessesV2(c *C) {
 		c.Check(p, testutil.FileEquals, "0")
 	}
 }
+
+func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrWalking(c *C) {
+	defer cgroup.MockVersion(cgroup.V2, nil)()
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// app started by root
+	g := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.app.1234-1234-1234.scope/cgroup.freeze")
+	gUnfreeze := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.svc.service/cgroup.freeze")
+
+	pid := os.Getpid()
+	procPidCgroup := filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("proc/%v/cgroup", pid))
+	c.Assert(os.MkdirAll(filepath.Dir(procPidCgroup), 0755), IsNil)
+	// mock our own group
+	c.Assert(ioutil.WriteFile(procPidCgroup, []byte("0::/system.slice/snap.foo.app.own-own-own.scope"), 0755), IsNil)
+	// prepare the stage
+	c.Assert(os.MkdirAll(filepath.Dir(g), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(g, []byte("0"), 0644), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(gUnfreeze), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(gUnfreeze, []byte("1"), 0644), IsNil)
+
+	c.Assert(os.Chmod(filepath.Dir(g), 0000), IsNil)
+	// make the cleanup happy
+	defer os.Chmod(filepath.Dir(g), 0755)
+
+	// freeze tries thawing on errors, so we'll observe both errors
+	err := cgroup.FreezeSnapProcesses("foo")
+	c.Check(err, ErrorMatches, `cannot finish freezing processes of snap "foo": open .*/sys/fs/cgroup/system.slice/snap.foo.app.1234.1234.1234.scope: permission denied`)
+	// other group was unfrozen
+	c.Check(gUnfreeze, testutil.FileEquals, "0")
+
+	c.Assert(ioutil.WriteFile(gUnfreeze, []byte("1"), 0644), IsNil)
+	// make file access fail
+	c.Assert(os.Chmod(filepath.Dir(g), 0755), IsNil)
+	c.Assert(os.Chmod(g, 0000), IsNil)
+	// other group was unfrozen
+	err = cgroup.FreezeSnapProcesses("foo")
+	c.Check(err, ErrorMatches, `cannot finish freezing processes of snap "foo": cannot freeze processes of snap "foo", open .*/sys/fs/cgroup/system.slice/snap.foo.app.1234.1234.1234.scope/cgroup.freeze: permission denied`)
+	// other group was unfrozen
+	c.Check(gUnfreeze, testutil.FileEquals, "0")
+
+	// thawing fails likewise
+	err = cgroup.ThawSnapProcesses("foo")
+	c.Check(err, ErrorMatches, `cannot thaw processes of snap "foo", open .*/sys/fs/cgroup/system.slice/snap.foo.app.1234.1234.1234.scope/cgroup.freeze: permission denied`)
+	// other group was unfrozen
+	c.Check(gUnfreeze, testutil.FileEquals, "0")
+
+	// make unfreezing fail
+	c.Assert(ioutil.WriteFile(gUnfreeze, []byte("1"), 0644), IsNil)
+	c.Assert(os.Chmod(filepath.Dir(gUnfreeze), 0000), IsNil)
+	defer os.Chmod(filepath.Dir(gUnfreeze), 0755)
+
+	err = cgroup.FreezeSnapProcesses("foo")
+	// but the unfreeze errors are ignored anyuway
+	c.Check(err, ErrorMatches, `cannot finish freezing processes of snap "foo": cannot freeze processes of snap "foo", open .*/sys/fs/cgroup/system.slice/snap.foo.app.1234.1234.1234.scope/cgroup.freeze: permission denied`)
+	// the other group is unmodified
+	os.Chmod(filepath.Dir(gUnfreeze), 0755)
+	c.Check(gUnfreeze, testutil.FileEquals, "1")
+}
