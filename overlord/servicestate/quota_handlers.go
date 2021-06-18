@@ -76,8 +76,6 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
-	meter := snapstate.NewTaskProgressAdapterUnlocked(t)
-
 	qcs := []QuotaControlAction{}
 	err := t.Get("quota-control-actions", &qcs)
 	if err != nil {
@@ -101,11 +99,11 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 
 	switch qc.Action {
 	case "create":
-		err = quotaCreate(st, t, qc, allGrps, meter, perfTimings)
+		err = quotaCreate(st, t, qc, allGrps, perfTimings)
 	case "remove":
-		err = quotaRemove(st, t, qc, allGrps, meter, perfTimings)
+		err = quotaRemove(st, t, qc, allGrps, perfTimings)
 	case "update":
-		err = quotaUpdate(st, t, qc, allGrps, meter, perfTimings)
+		err = quotaUpdate(st, t, qc, allGrps, perfTimings)
 	default:
 		err = fmt.Errorf("unknown action %q requested", qc.Action)
 	}
@@ -113,7 +111,7 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 	return err
 }
 
-func quotaCreate(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
+func quotaCreate(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, perfTimings *timings.Timings) error {
 	// make sure the group does not exist yet
 	if _, ok := allGrps[action.QuotaName]; ok {
 		return fmt.Errorf("group %q already exists", action.QuotaName)
@@ -159,10 +157,10 @@ func quotaCreate(st *state.State, t *state.Task, action QuotaControlAction, allG
 	opts := &ensureSnapServicesForGroupOptions{
 		allGrps: allGrps,
 	}
-	return ensureSnapServicesForGroup(st, t, grp, opts, meter, perfTimings)
+	return ensureSnapServicesForGroup(st, t, grp, opts, perfTimings)
 }
 
-func quotaRemove(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
+func quotaRemove(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, perfTimings *timings.Timings) error {
 	// make sure the group exists
 	grp, ok := allGrps[action.QuotaName]
 	if !ok {
@@ -235,10 +233,10 @@ func quotaRemove(st *state.State, t *state.Task, action QuotaControlAction, allG
 	opts := &ensureSnapServicesForGroupOptions{
 		allGrps: allGrps,
 	}
-	return ensureSnapServicesForGroup(st, t, grp, opts, meter, perfTimings)
+	return ensureSnapServicesForGroup(st, t, grp, opts, perfTimings)
 }
 
-func quotaUpdate(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
+func quotaUpdate(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, perfTimings *timings.Timings) error {
 	// make sure the group exists
 	grp, ok := allGrps[action.QuotaName]
 	if !ok {
@@ -284,7 +282,7 @@ func quotaUpdate(st *state.State, t *state.Task, action QuotaControlAction, allG
 	opts := &ensureSnapServicesForGroupOptions{
 		allGrps: allGrps,
 	}
-	return ensureSnapServicesForGroup(st, t, grp, opts, meter, perfTimings)
+	return ensureSnapServicesForGroup(st, t, grp, opts, perfTimings)
 }
 
 type ensureSnapServicesForGroupOptions struct {
@@ -304,22 +302,26 @@ type ensureSnapServicesForGroupOptions struct {
 // the same changes to be processed and nothing will be broken. This is mainly
 // a consequence of calling wrappers.EnsureSnapServices().
 // Currently, it only supports handling a single group change.
-func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group, opts *ensureSnapServicesForGroupOptions, meter progress.Meter, perfTimings *timings.Timings) error {
+func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group, opts *ensureSnapServicesForGroupOptions, perfTimings *timings.Timings) error {
 	if opts == nil {
 		return fmt.Errorf("internal error: unset group information for ensuring")
 	}
 
 	allGrps := opts.allGrps
 
-	if meter == nil {
-		meter = progress.Null
+	var meterLocked, meterUnlocked progress.Meter
+	if t == nil {
+		meterLocked = progress.Null
+		meterUnlocked = progress.Null
+	} else {
+		meterUnlocked = snapstate.NewTaskProgressAdapterUnlocked(t)
+		meterLocked = snapstate.NewTaskProgressAdapterLocked(t)
 	}
 
 	if perfTimings == nil {
 		perfTimings = &timings.Timings{}
 	}
 
-	// extraSnaps []string, meter progress.Meter, perfTimings *timings.Timings
 	// build the map of snap infos to options to provide to EnsureSnapServices
 	snapSvcMap := map[*snap.Info]*wrappers.SnapServiceOptions{}
 	for _, sn := range append(grp.Snaps, opts.extraSnaps...) {
@@ -404,7 +406,7 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 			// be okay?
 		}
 	}
-	if err := wrappers.EnsureSnapServices(snapSvcMap, ensureOpts, collectModifiedUnits, meter); err != nil {
+	if err := wrappers.EnsureSnapServices(snapSvcMap, ensureOpts, collectModifiedUnits, meterLocked); err != nil {
 		return err
 	}
 
@@ -413,7 +415,7 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 	}
 
 	// TODO: should this logic move to wrappers in wrappers.RemoveQuotaGroup()?
-	systemSysd := systemd.New(systemd.SystemMode, meter)
+	systemSysd := systemd.New(systemd.SystemMode, meterLocked)
 
 	// now start the slices
 	for _, grp := range grpsToStart {
@@ -438,7 +440,7 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 		// TODO: this results in a second systemctl daemon-reload which is
 		// undesirable, we should figure out how to do this operation with a
 		// single daemon-reload
-		err := wrappers.RemoveQuotaGroup(grp, meter)
+		err := wrappers.RemoveQuotaGroup(grp, meterLocked)
 		if err != nil {
 			return err
 		}
@@ -476,7 +478,7 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 		}
 
 		st.Unlock()
-		err = wrappers.RestartServices(startupOrdered, nil, nil, meter, perfTimings)
+		err = wrappers.RestartServices(startupOrdered, nil, nil, meterUnlocked, perfTimings)
 		st.Lock()
 
 		if err != nil {
