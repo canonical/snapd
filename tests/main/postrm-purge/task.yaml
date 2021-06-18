@@ -123,6 +123,4 @@ execute: |
         test "$(find /etc/systemd/user -name 'snap.*.timer' | wc -l)" -eq 0
         test "$(find /etc/systemd/user -name 'snap.*.socket' | wc -l)" -eq 0
     fi
-    if ! os.query is-trusty && ! os.query is-amazon-linux && ! os.query is-centos-7 && ! os.query is-xenial; then
-        test "$(find /etc/systemd -name 'snap.*.slice' | wc -l)" -eq 0
-    fi
+    test "$(find /etc/systemd -name 'snap.*.slice' | wc -l)" -eq 0
