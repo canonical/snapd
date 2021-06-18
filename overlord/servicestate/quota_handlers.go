@@ -488,18 +488,6 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 	})
 
 	for _, sn := range snaps {
-		st.Unlock()
-		disabledSvcs, err := wrappers.QueryDisabledServices(sn, meter)
-		st.Lock()
-		if err != nil {
-			return err
-		}
-
-		isDisabledSvc := make(map[string]bool, len(disabledSvcs))
-		for _, svc := range disabledSvcs {
-			isDisabledSvc[svc] = true
-		}
-
 		startupOrdered, err := snap.SortServices(appsToRestartBySnap[sn])
 		if err != nil {
 			return err
