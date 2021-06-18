@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -81,6 +82,14 @@ func (s *serviceControlSuite) SetUpTest(c *C) {
 
 	s.sysctlArgs = nil
 	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) (buf []byte, err error) {
+		// When calling the "snap restart" command, the initial status will be
+		// retrieved first. Services which are not running will be
+		// ignored. Therefore, mock this "show" operation by pretending that
+		// all requested services are active:
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
+			return out, nil
+		}
+
 		s.sysctlArgs = append(s.sysctlArgs, cmd)
 		if cmd[0] == "show" {
 			return []byte("ActiveState=inactive\n"), nil
@@ -795,6 +804,96 @@ func (s *serviceControlSuite) TestRestartServices(c *C) {
 		{"show", "--property=ActiveState", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.foo.service"},
 	})
+}
+
+func (s *serviceControlSuite) testRestartWithExplicitServicesCommon(c *C,
+	explicitServices []string, expectedInvocations [][]string) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	s.mockTestSnap(c)
+
+	srvAbc := "snap.test-snap.abc.service"
+	srvFoo := "snap.test-snap.foo.service"
+	srvBar := "snap.test-snap.bar.service"
+
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) (buf []byte, err error) {
+		states := map[string]systemdtest.ServiceState{
+			srvAbc: {ActiveState: "inactive", UnitFileState: "enabled"},
+			srvFoo: {ActiveState: "inactive", UnitFileState: "enabled"},
+			srvBar: {ActiveState: "active", UnitFileState: "enabled"},
+		}
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, states); out != nil {
+			return out, nil
+		}
+
+		s.sysctlArgs = append(s.sysctlArgs, cmd)
+		if cmd[0] == "show" {
+			return []byte("ActiveState=inactive\n"), nil
+		}
+		return nil, nil
+	})
+	s.AddCleanup(systemctlRestorer)
+
+	chg := st.NewChange("service-control", "...")
+	t := st.NewTask("service-control", "...")
+	cmd := &servicestate.ServiceAction{
+		SnapName: "test-snap",
+		Action:   "restart",
+		Services: []string{"abc", "foo", "bar"},
+		// these services will be restarted even if inactive
+		ExplicitServices: explicitServices,
+	}
+	t.Set("service-action", cmd)
+	chg.AddTask(t)
+
+	st.Unlock()
+	defer s.se.Stop()
+	err := s.o.Settle(5 * time.Second)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(t.Status(), Equals, state.DoneStatus)
+	// We expect to get foo and bar restarted: "bar" because it was already
+	// running and "foo" because it was explicitly mentioned (despite being
+	// inactive). "abc" was not running and not explicitly mentioned, so it
+	// shouldn't get restarted.
+	c.Check(s.sysctlArgs, DeepEquals, expectedInvocations)
+}
+
+func (s *serviceControlSuite) TestRestartWithSomeExplicitServices(c *C) {
+	srvFoo := "snap.test-snap.foo.service"
+	srvBar := "snap.test-snap.bar.service"
+	s.testRestartWithExplicitServicesCommon(c,
+		[]string{srvFoo},
+		[][]string{
+			{"stop", srvFoo},
+			{"show", "--property=ActiveState", srvFoo},
+			{"start", srvFoo},
+			{"stop", srvBar},
+			{"show", "--property=ActiveState", srvBar},
+			{"start", srvBar},
+		})
+}
+
+func (s *serviceControlSuite) TestRestartWithAllExplicitServices(c *C) {
+	srvAbc := "snap.test-snap.abc.service"
+	srvFoo := "snap.test-snap.foo.service"
+	srvBar := "snap.test-snap.bar.service"
+	s.testRestartWithExplicitServicesCommon(c,
+		[]string{srvAbc, srvBar, srvFoo},
+		[][]string{
+			{"stop", srvFoo},
+			{"show", "--property=ActiveState", srvFoo},
+			{"start", srvFoo},
+			{"stop", srvBar},
+			{"show", "--property=ActiveState", srvBar},
+			{"start", srvBar},
+			{"stop", srvAbc},
+			{"show", "--property=ActiveState", srvAbc},
+			{"start", srvAbc},
+		})
 }
 
 func (s *serviceControlSuite) TestRestartAllServices(c *C) {

@@ -200,10 +200,10 @@ version: 1
 	c.Assert(action, NotNil)
 	c.Check(action, Equals, snapstate.GateAutoRefreshProceed)
 
-	// and it is not held anymore
+	// and it is still held (for hook handler to execute actual proceed logic).
 	gating = nil
 	c.Assert(s.st.Get("snaps-hold", &gating), IsNil)
-	c.Check(gating["foo"]["snap1"], IsNil)
+	c.Check(gating["foo"]["snap1"], NotNil)
 }
 
 func (s *refreshSuite) TestRefreshFromUnsupportedHook(c *C) {

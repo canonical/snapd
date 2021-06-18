@@ -330,6 +330,7 @@ var (
 	HeldSnaps                  = heldSnaps
 	PruneRefreshCandidates     = pruneRefreshCandidates
 	ResetGatingForRefreshed    = resetGatingForRefreshed
+	PruneGating                = pruneGating
 	CreateGateAutoRefreshHooks = createGateAutoRefreshHooks
 	AutoRefreshPhase1          = autoRefreshPhase1
 )
