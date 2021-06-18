@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/servicestate/internal"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/systemd"
@@ -194,7 +195,7 @@ func EnsureSnapAbsentFromQuota(st *state.State, snap string) error {
 				grp.Snaps = grp.Snaps[:len(grp.Snaps)-1]
 
 				// update the quota group state
-				allGrps, err = patchQuotas(st, grp)
+				allGrps, err = internal.PatchQuotas(st, grp)
 				if err != nil {
 					return err
 				}
