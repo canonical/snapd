@@ -107,7 +107,17 @@ execute: |
 
   echo "Creating a quota with a very small memory limit results in the service being unable to start"
   snap set-quota too-small --memory=1KB go-example-webserver
-  # clear "oom-killer" message from dmesg or prepare-restore.sh will fail here.
+
+  # wait for systemd to finish trying to automatically restart it, we want 
+  # systemd to hit the start limit for this service, otherwise systemd 
+  # restarting the service will race with removing the quota directly below
+  # the unit will jump between SubState=running and SubState=auto-restart while
+  # trying to restart it in a loop, but after systemd has hit the limit it will
+  # give up and mark the unit as failed
+  retry --wait 1 -n 10 sh -c "systemctl show --property=SubState snap.go-example-webserver.webserver.service | MATCH 'SubState=failed'"
+
+  # clear "oom-killer" messages from dmesg or prepare-restore.sh will fail due
+  # to the oom-killer messages from go-example-webserver
   tests.cleanup defer dmesg -c
 
   echo "The systemd slice should be active"
@@ -129,8 +139,18 @@ execute: |
   # system is working we won't fail the test simply because systemd won the race
   retry --wait 1 -n 10 sh -c 'systemctl show --property=ExecMainStatus snap.go-example-webserver.webserver.service | MATCH "ExecMainStatus=(203|9)"'
 
-  echo "And after removing the quota group, the snap is restarted and active again"
+  echo "And after removing the quota group, services will not automatically restart as they were inactive"
+  function service_start_time {
+    systemctl show --property=ExecMainStartTimestampMonotonic "$1" | cut -d= -f2
+  }
+  TIMESTAMP_BEFORE=$(service_start_time snap.go-example-webserver.webserver.service)
   snap remove-quota too-small
+  snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+inactive"
+  TIMESTAMP_AFTER=$(service_start_time snap.go-example-webserver.webserver.service)
+  test "$TIMESTAMP_AFTER" -eq "$TIMESTAMP_BEFORE"
+
+  echo "But they can still be started manually"
+  snap start go-example-webserver.webserver
   retry --wait 1 -n 10 sh -c 'snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+active"'
 
   echo "Removing a snap ensures that the snap is not in the quota group anymore"
