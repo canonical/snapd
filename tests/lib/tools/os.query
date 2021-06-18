@@ -84,7 +84,7 @@ is_centos() {
 }
 
 is_centos_7() {
-    grep -qFx 'ID="centos"' /etc/os-release && grep -qFx 'VERSION_ID="7"'
+    grep -qFx 'ID="centos"' /etc/os-release && grep -qFx 'VERSION_ID="7"' /etc/os-release
 }
 
 is_arch_linux() {
