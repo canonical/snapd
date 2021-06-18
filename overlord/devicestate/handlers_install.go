@@ -52,12 +52,21 @@ var (
 func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *asserts.Model) {
 	ubuntuSeedCloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
 
+	// TODO:UC20: on grade signed, allow files from ubuntu-seed, but do
+	//            filtering on the resultant cloud config
+	shouldUseUbuntuSeed := model.Grade() == asserts.ModelDangerous && osutil.IsDirectory(ubuntuSeedCloudCfg)
+
 	switch {
 	// if the gadget has a cloud.conf file, always use that regardless of grade
 	case sysconfig.HasGadgetCloudConf(gadgetDir):
-		// this is implicitly handled by ConfigureTargetSystem when it configures
-		// cloud-init if none of the other options are set, so just break here
+		// this is implicitly handled by ConfigureTargetSystem when it
+		// configures cloud-init, so we just need to allow cloud-init for the
+		// gadget config to be used, but we also should check to see if
+		// ubuntu-seed config should be allowed as well
 		opts.AllowCloudInit = true
+		if shouldUseUbuntuSeed {
+			opts.CloudInitSrcDir = ubuntuSeedCloudCfg
+		}
 
 	// next thing is if are in secured grade and didn't have gadget config, we
 	// disable cloud-init always, clouds should have their own config via
@@ -65,12 +74,9 @@ func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *
 	case model.Grade() == asserts.ModelSecured:
 		opts.AllowCloudInit = false
 
-	// TODO:UC20: on grade signed, allow files from ubuntu-seed, but do
-	//            filtering on the resultant cloud config
-
 	// next if we are grade dangerous, then we also install cloud configuration
 	// from ubuntu-seed if it exists
-	case model.Grade() == asserts.ModelDangerous && osutil.IsDirectory(ubuntuSeedCloudCfg):
+	case shouldUseUbuntuSeed:
 		opts.AllowCloudInit = true
 		opts.CloudInitSrcDir = ubuntuSeedCloudCfg
 
