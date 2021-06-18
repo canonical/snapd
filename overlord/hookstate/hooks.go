@@ -23,9 +23,11 @@ import (
 	"sort"
 	"time"
 
+	"github.com/snapcore/snapd/cmd/snaplock"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -77,8 +79,9 @@ func SetupPreRefreshHook(st *state.State, snapName string) *state.Task {
 }
 
 type gateAutoRefreshHookHandler struct {
-	context *Context
+	context             *Context
 	refreshAppAwareness bool
+	inhibitHint         runinhibit.Hint
 }
 
 func (h *gateAutoRefreshHookHandler) Before() error {
@@ -96,14 +99,34 @@ func (h *gateAutoRefreshHookHandler) Before() error {
 	}
 
 	h.refreshAppAwareness = true
-	if err := runinhibit.LockWithHint(h.context.InstanceName(), runinhibit.HintInhibitedGateRefresh); err != nil {
+
+	snapName := h.context.InstanceName()
+
+	// obtain snap lock before manipulating runinhibit lock.
+	lock, err := snaplock.OpenLock(snapName)
+	if err != nil {
+		return err
+	}
+	if err := lock.Lock(); err != nil {
+		return err
+	}
+	defer lock.Unlock()
+
+	hint, err := runinhibit.IsLocked(snapName)
+	if err != nil {
+		return err
+	}
+	// remember the old hint
+	h.inhibitHint = hint
+
+	if err := runinhibit.LockWithHint(snapName, runinhibit.HintInhibitedGateRefresh); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (h *gateAutoRefreshHookHandler) Done() error {
+func (h *gateAutoRefreshHookHandler) Done() (err error) {
 	ctx := h.context
 	st := ctx.State()
 	ctx.Lock()
@@ -113,13 +136,36 @@ func (h *gateAutoRefreshHookHandler) Done() error {
 
 	var action snapstate.GateAutoRefreshAction
 	a := ctx.Cached("action")
-	if a == nil {
-		// action is unset if the gate-auto-refresh hook exits 0 without
-		// invoking --hold/--proceed; this means proceed (except for respecting
-		// refresh inhibit).
-		if err := snapstate.ProceedWithRefresh(st, snapName); err != nil {
+
+	// obtain snap lock before manipulating runinhibit lock.
+	var lock *osutil.FileLock
+	if h.refreshAppAwareness {
+		lock, err = snaplock.OpenLock(snapName)
+		if err != nil {
 			return err
 		}
+		if err := lock.Lock(); err != nil {
+			return err
+		}
+		defer lock.Unlock()
+	}
+
+	// default behavior if action is not set
+	if a == nil {
+		// action is not set if the gate-auto-refresh hook exits 0 without
+		// invoking --hold/--proceed; this means proceed (except for respecting
+		// refresh inhibit).
+		if h.refreshAppAwareness {
+			// it's inhibited, proceed but preserve inhibit lock.
+			if h.inhibitHint != runinhibit.HintNotInhibited {
+				// restore previous hint
+				if err := runinhibit.LockWithHint(snapName, h.inhibitHint); err != nil {
+					return fmt.Errorf("cannot set inhibit lock for snap %s: %v", snapName, err)
+				}
+				return snapstate.ProceedWithRefresh(st, snapName)
+			}
+		}
+		// not inhibited, handle as proceed below.
 		action = snapstate.GateAutoRefreshProceed
 	} else {
 		var ok bool
@@ -129,21 +175,27 @@ func (h *gateAutoRefreshHookHandler) Done() error {
 		}
 	}
 
-	if !h.refreshAppAwareness {
-		return nil
-	}
-
 	// action is set if snapctl refresh --hold/--proceed was called from the hook.
 	switch action {
 	case snapstate.GateAutoRefreshHold:
-		if err := runinhibit.Unlock(snapName); err != nil {
-			return fmt.Errorf("cannot release inhibit lock of snap %s: %v", snapName, err)
+		// for action=hold the ctlcmd calls HoldRefresh; only unlock runinhibit.
+		if h.refreshAppAwareness {
+			if err := runinhibit.Unlock(snapName); err != nil {
+				return fmt.Errorf("cannot release inhibit lock of snap %s: %v", snapName, err)
+			}
 		}
 	case snapstate.GateAutoRefreshProceed:
-		// we have HintInhibitedGateRefresh lock already when running the hook,
-		// change it to HintInhibitedForRefresh.
-		if err := runinhibit.LockWithHint(snapName, runinhibit.HintInhibitedForRefresh); err != nil {
-			return fmt.Errorf("cannot set inhibit lock for snap %s: %v", snapName, err)
+		// for action=proceed the ctlcmd doesn't call ProceedWithRefresh
+		// immediately, do it here.
+		if err := snapstate.ProceedWithRefresh(st, snapName); err != nil {
+			return err
+		}
+		if h.refreshAppAwareness {
+			// we have HintInhibitedGateRefresh lock already when running the hook,
+			// change it to HintInhibitedForRefresh.
+			if err := runinhibit.LockWithHint(snapName, runinhibit.HintInhibitedForRefresh); err != nil {
+				return fmt.Errorf("cannot set inhibit lock for snap %s: %v", snapName, err)
+			}
 		}
 	default:
 		return fmt.Errorf("internal error: unexpected action %v", action)
@@ -153,7 +205,7 @@ func (h *gateAutoRefreshHookHandler) Done() error {
 }
 
 // Error handles gate-auto-refresh hook failure; it assumes hold.
-func (h *gateAutoRefreshHookHandler) Error(hookErr error) error {
+func (h *gateAutoRefreshHookHandler) Error(hookErr error) (err error) {
 	ctx := h.context
 	st := h.context.State()
 	ctx.Lock()
@@ -161,8 +213,20 @@ func (h *gateAutoRefreshHookHandler) Error(hookErr error) error {
 
 	snapName := h.context.InstanceName()
 
+	var lock *osutil.FileLock
+
 	// the refresh is going to be held, release runinhibit lock.
 	if h.refreshAppAwareness {
+		// obtain snap lock before manipulating runinhibit lock.
+		lock, err = snaplock.OpenLock(snapName)
+		if err != nil {
+			return err
+		}
+		if err := lock.Lock(); err != nil {
+			return err
+		}
+		defer lock.Unlock()
+
 		if err := runinhibit.Unlock(snapName); err != nil {
 			return fmt.Errorf("cannot release inhibit lock of snap %s: %v", snapName, err)
 		}
