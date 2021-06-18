@@ -56,7 +56,9 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 		"group-name": "foo",
 		"parent":     "bar",
 		"snaps":      []interface{}{"snap-a", "snap-b"},
-		"max-memory": float64(1001),
+		"constraints": map[string]interface{}{
+			"memory": "1001",
+		},
 	})
 }
 
@@ -76,7 +78,14 @@ func (cs *clientSuite) TestGetQuotaGroup(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"status-code": 200,
-		"result": {"group-name":"foo", "parent":"bar", "subgroups":["foo-subgrp"], "snaps":["snap-a"], "max-memory":999, "current-memory":450}
+		"result": {
+			"group-name":"foo",
+			"parent":"bar",
+			"subgroups":["foo-subgrp"],
+			"snaps":["snap-a"],
+			"constraints": { "memory": "999" },
+			"current": { "memory": "450" }
+		}
 	}`
 
 	grp, err := cs.cli.GetQuotaGroup("foo")
@@ -84,12 +93,12 @@ func (cs *clientSuite) TestGetQuotaGroup(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/quotas/foo")
 	c.Check(grp, check.DeepEquals, &client.QuotaGroupResult{
-		GroupName:     "foo",
-		Parent:        "bar",
-		Subgroups:     []string{"foo-subgrp"},
-		MaxMemory:     999,
-		CurrentMemory: 450,
-		Snaps:         []string{"snap-a"},
+		GroupName:   "foo",
+		Parent:      "bar",
+		Subgroups:   []string{"foo-subgrp"},
+		Constraints: map[string]string{"memory": "999"},
+		Current:     map[string]string{"memory": "450"},
+		Snaps:       []string{"snap-a"},
 	})
 }
 

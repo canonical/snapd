@@ -22,11 +22,13 @@ package main
 import (
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -162,7 +164,7 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 		// orphan a sub-group to no longer have a parent, but currently it just
 		// means leave the group with whatever parent it has, or if it doesn't
 		// currently exist, create the group without a parent group
-		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, uint64(mem))
+		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, quantity.Size(mem))
 		if err != nil {
 			return err
 		}
@@ -220,10 +222,35 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 	if group.Parent != "" {
 		fmt.Fprintf(w, "parent:\t%s\n", group.Parent)
 	}
+
 	fmt.Fprintf(w, "constraints:\n")
-	fmt.Fprintf(w, "  memory:\t%s\n", strings.TrimSpace(fmtSize(int64(group.MaxMemory))))
+	for constraintKey, val := range group.Constraints {
+		if constraintKey == "memory" {
+			// parse the memory value into a quantity.Size and then format it
+			// with appropriate units
+			var err error
+			val, err = quantitySizeStrToUnitFormat(val, "memory constraint")
+			if err != nil {
+				return err
+			}
+		}
+		fmt.Fprintf(w, "  %s:\t%s\n", constraintKey, val)
+	}
+
 	fmt.Fprintf(w, "current:\n")
-	fmt.Fprintf(w, "  memory:\t%s\n", strings.TrimSpace(fmtSize(int64(group.CurrentMemory))))
+	for currentKey, val := range group.Current {
+		if currentKey == "memory" {
+			// parse the memory value into a quantity.Size and then format it
+			// with appropriate units
+			var err error
+			val, err = quantitySizeStrToUnitFormat(val, "memory current usage")
+			if err != nil {
+				return err
+			}
+		}
+		fmt.Fprintf(w, "  %s:\t%s\n", currentKey, val)
+	}
+
 	if len(group.Subgroups) > 0 {
 		fmt.Fprint(w, "subgroups:\n")
 		for _, name := range group.Subgroups {
@@ -238,6 +265,14 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 	}
 
 	return nil
+}
+
+func quantitySizeStrToUnitFormat(s string, errMsg string) (string, error) {
+	valSize, err := strconv.ParseUint(s, 10, 64)
+	if err != nil {
+		return "", fmt.Errorf("unable to parse %s (%q) as uint: %v", errMsg, s, err)
+	}
+	return strings.TrimSpace(fmtSize(int64(valSize))), nil
 }
 
 type cmdRemoveQuota struct {
@@ -281,17 +316,39 @@ func (x *cmdQuotas) Execute(args []string) (err error) {
 	w := tabWriter()
 	fmt.Fprintf(w, "Quota\tParent\tConstraints\tCurrent\n")
 	err = processQuotaGroupsTree(res, func(q *client.QuotaGroupResult) {
-		constraintMem := ""
-		if q.MaxMemory != 0 {
-			constraintMem = "memory=" + strings.TrimSpace(fmtSize(int64(q.MaxMemory)))
-		}
+		constraintVals := []string{}
+		for constraintKey, val := range q.Constraints {
+			if constraintKey == "memory" {
+				out, err := quantitySizeStrToUnitFormat(val, "memory constraint")
+				if err != nil {
+					fmt.Fprintln(Stderr, err)
+				}
+				val = out
+			}
 
-		currentMem := ""
-		if q.CurrentMemory != 0 {
-			currentMem = "memory=" + strings.TrimSpace(fmtSize(int64(q.CurrentMemory)))
+			constraintVals = append(constraintVals, fmt.Sprintf("%s=%s", constraintKey, val))
 		}
+		constraints := strings.Join(constraintVals, ",")
 
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", q.GroupName, q.Parent, constraintMem, currentMem)
+		currentVals := []string{}
+		for currentKey, val := range q.Current {
+			if currentKey == "memory" {
+				// skip reporting memory if it is exactly zero
+				if val == "" || val == "0" {
+					continue
+				}
+				out, err := quantitySizeStrToUnitFormat(val, "current memory usage")
+				if err != nil {
+					fmt.Fprintln(Stderr, err)
+				}
+				val = out
+			}
+
+			currentVals = append(currentVals, fmt.Sprintf("%s=%s", currentKey, val))
+		}
+		currents := strings.Join(currentVals, ",")
+
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", q.GroupName, q.Parent, constraints, currents)
 	})
 	if err != nil {
 		return err

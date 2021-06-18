@@ -112,11 +112,11 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUnhappy(c *check.C) {
 	defer r()
 
 	data, err := json.Marshal(daemon.PostQuotaGroupData{
-		Action:    "ensure",
-		GroupName: "booze",
-		Parent:    "foo",
-		Snaps:     []string{"bar"},
-		MaxMemory: 1000,
+		Action:      "ensure",
+		GroupName:   "booze",
+		Parent:      "foo",
+		Snaps:       []string{"bar"},
+		Constraints: map[string]string{"memory": "1000"},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -142,11 +142,11 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateHappy(c *check.C) {
 	defer r()
 
 	data, err := json.Marshal(daemon.PostQuotaGroupData{
-		Action:    "ensure",
-		GroupName: "booze",
-		Parent:    "foo",
-		Snaps:     []string{"some-snap"},
-		MaxMemory: 1000,
+		Action:      "ensure",
+		GroupName:   "booze",
+		Parent:      "foo",
+		Snaps:       []string{"some-snap"},
+		Constraints: map[string]string{"memory": "1000"},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -185,10 +185,10 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateHappy(c *check.C) {
 	defer r()
 
 	data, err := json.Marshal(daemon.PostQuotaGroupData{
-		Action:    "ensure",
-		GroupName: "ginger-ale",
-		Snaps:     []string{"some-snap"},
-		MaxMemory: 9000,
+		Action:      "ensure",
+		GroupName:   "ginger-ale",
+		Snaps:       []string{"some-snap"},
+		Constraints: map[string]string{"memory": "9000"},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -305,22 +305,22 @@ func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
 	res := rsp.Result.([]client.QuotaGroupResult)
 	c.Check(res, check.DeepEquals, []client.QuotaGroupResult{
 		{
-			GroupName:     "bar",
-			Parent:        "foo",
-			MaxMemory:     6000,
-			CurrentMemory: 500,
+			GroupName:   "bar",
+			Parent:      "foo",
+			Constraints: map[string]string{"memory": "6000"},
+			Current:     map[string]string{"memory": "500"},
 		},
 		{
-			GroupName:     "baz",
-			Parent:        "foo",
-			MaxMemory:     5000,
-			CurrentMemory: 1000,
+			GroupName:   "baz",
+			Parent:      "foo",
+			Constraints: map[string]string{"memory": "5000"},
+			Current:     map[string]string{"memory": "1000"},
 		},
 		{
-			GroupName:     "foo",
-			Subgroups:     []string{"bar", "baz"},
-			MaxMemory:     11000,
-			CurrentMemory: 5000,
+			GroupName:   "foo",
+			Subgroups:   []string{"bar", "baz"},
+			Constraints: map[string]string{"memory": "11000"},
+			Current:     map[string]string{"memory": "5000"},
 		},
 	})
 	c.Check(s.ensureSoonCalled, check.Equals, 0)
@@ -350,10 +350,10 @@ func (s *apiQuotaSuite) TestGetQuota(c *check.C) {
 	c.Assert(rsp.Result, check.FitsTypeOf, client.QuotaGroupResult{})
 	res := rsp.Result.(client.QuotaGroupResult)
 	c.Check(res, check.DeepEquals, client.QuotaGroupResult{
-		GroupName:     "bar",
-		Parent:        "foo",
-		MaxMemory:     6000,
-		CurrentMemory: 500,
+		GroupName:   "bar",
+		Parent:      "foo",
+		Constraints: map[string]string{"memory": "6000"},
+		Current:     map[string]string{"memory": "500"},
 	})
 
 	c.Check(s.ensureSoonCalled, check.Equals, 0)

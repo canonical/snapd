@@ -24,29 +24,30 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/snapcore/snapd/gadget/quantity"
 	"golang.org/x/xerrors"
 )
 
 type postQuotaData struct {
-	Action    string   `json:"action"`
-	GroupName string   `json:"group-name"`
-	Parent    string   `json:"parent,omitempty"`
-	Snaps     []string `json:"snaps,omitempty"`
-	MaxMemory uint64   `json:"max-memory,omitempty"`
+	Action      string            `json:"action"`
+	GroupName   string            `json:"group-name"`
+	Parent      string            `json:"parent,omitempty"`
+	Snaps       []string          `json:"snaps,omitempty"`
+	Constraints map[string]string `json:"constraints,omitempty"`
 }
 
 type QuotaGroupResult struct {
-	GroupName     string   `json:"group-name"`
-	Parent        string   `json:"parent,omitempty"`
-	Subgroups     []string `json:"subgroups,omitempty"`
-	Snaps         []string `json:"snaps,omitempty"`
-	MaxMemory     uint64   `json:"max-memory"`
-	CurrentMemory uint64   `json:"current-memory"`
+	GroupName   string            `json:"group-name"`
+	Parent      string            `json:"parent,omitempty"`
+	Subgroups   []string          `json:"subgroups,omitempty"`
+	Snaps       []string          `json:"snaps,omitempty"`
+	Constraints map[string]string `json:"constraints,omitempty"`
+	Current     map[string]string `json:"current,omitempty"`
 }
 
 // EnsureQuota creates a quota group or updates an existing group.
 // The list of snaps can be empty.
-func (client *Client) EnsureQuota(groupName string, parent string, snaps []string, maxMemory uint64) (changeID string, err error) {
+func (client *Client) EnsureQuota(groupName string, parent string, snaps []string, maxMemory quantity.Size) (changeID string, err error) {
 	if groupName == "" {
 		return "", xerrors.Errorf("cannot create or update quota group without a name")
 	}
@@ -57,7 +58,9 @@ func (client *Client) EnsureQuota(groupName string, parent string, snaps []strin
 		GroupName: groupName,
 		Parent:    parent,
 		Snaps:     snaps,
-		MaxMemory: maxMemory,
+		Constraints: map[string]string{
+			"memory": maxMemory.String(),
+		},
 	}
 
 	var body bytes.Buffer
