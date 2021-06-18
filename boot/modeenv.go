@@ -32,8 +32,11 @@ import (
 
 	"github.com/mvo5/goconfigparser"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/secboot"
 )
 
 type bootAssetsMap map[string][]string
@@ -323,6 +326,54 @@ func (m *Modeenv) WriteTo(rootdir string) error {
 		return err
 	}
 	return nil
+}
+
+// modelForSealing is a helper type that implements
+// github.com/snapcore/secboot.SnapModel interface.
+type modelForSealing struct {
+	brandID        string
+	model          string
+	grade          asserts.ModelGrade
+	modelSignKeyID string
+}
+
+// dummy to verify interface match
+var _ secboot.ModelForSealing = (*modelForSealing)(nil)
+
+func (m *modelForSealing) BrandID() string           { return m.brandID }
+func (m *modelForSealing) SignKeyID() string         { return m.modelSignKeyID }
+func (m *modelForSealing) Model() string             { return m.model }
+func (m *modelForSealing) Grade() asserts.ModelGrade { return m.grade }
+func (m *modelForSealing) Series() string            { return release.Series }
+
+// modelUniqueID returns a unique ID which can be used as a map index of the
+// provided model.
+func modelUniqueID(m secboot.ModelForSealing) string {
+	return fmt.Sprintf("%s/%s,%s,%s", m.BrandID(), m.Model(), m.Grade(), m.SignKeyID())
+}
+
+// ModelForSealing returns a wrapper implementing
+// github.com/snapcore/secboot.SnapModel interface which describes the current
+// model.
+func (m *Modeenv) ModelForSealing() secboot.ModelForSealing {
+	return &modelForSealing{
+		brandID:        m.BrandID,
+		model:          m.Model,
+		grade:          asserts.ModelGrade(m.Grade),
+		modelSignKeyID: m.ModelSignKeyID,
+	}
+}
+
+// TryModelForSealing returns a wrapper implementing
+// github.com/snapcore/secboot.SnapModel interface which describes the candidate
+// or try model.
+func (m *Modeenv) TryModelForSealing() secboot.ModelForSealing {
+	return &modelForSealing{
+		brandID:        m.TryBrandID,
+		model:          m.TryModel,
+		grade:          asserts.ModelGrade(m.TryGrade),
+		modelSignKeyID: m.TryModelSignKeyID,
+	}
 }
 
 type modeenvValueMarshaller interface {

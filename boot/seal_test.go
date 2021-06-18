@@ -108,6 +108,8 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		err = createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-boot"))
 		c.Assert(err, IsNil)
 
+		model := boottest.MakeMockUC20Model()
+
 		modeenv := &boot.Modeenv{
 			RecoverySystem: "20200825",
 			CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
@@ -124,6 +126,10 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			CurrentKernelCommandLines: boot.BootCommandLines{
 				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 			},
+			Model:          model.Model(),
+			BrandID:        model.BrandID(),
+			Grade:          string(model.Grade()),
+			ModelSignKeyID: model.SignKeyID(),
 		}
 
 		// mock asset cache
@@ -140,8 +146,6 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			myKey[i] = byte(i)
 			myKey2[i] = byte(128 + i)
 		}
-
-		model := boottest.MakeMockUC20Model()
 
 		// set a mock recovery kernel
 		readSystemEssentialCalls := 0
@@ -213,7 +217,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 			default:
 				c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 			}
-			c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
+			c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
 
 			return tc.sealErr
 		})
@@ -365,6 +369,8 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 		err = createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-boot"))
 		c.Assert(err, IsNil)
 
+		model := boottest.MakeMockUC20Model()
+
 		modeenv := &boot.Modeenv{
 			CurrentRecoverySystems: []string{"20200825"},
 			CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
@@ -381,6 +387,10 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 			CurrentKernelCommandLines: boot.BootCommandLines{
 				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 			},
+			Model:          model.Model(),
+			BrandID:        model.BrandID(),
+			Grade:          string(model.Grade()),
+			ModelSignKeyID: model.SignKeyID(),
 		}
 
 		if tc.reuseRunPbc {
@@ -401,8 +411,6 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 			"grubx64.efi-run-grub-hash-2",
 		})
 
-		model := boottest.MakeMockUC20Model()
-
 		// set a mock recovery kernel
 		readSystemEssentialCalls := 0
 		restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
@@ -420,7 +428,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 			c.Assert(params.ModelParams, HasLen, 1)
 
 			// shared parameters
-			c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
+			c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
 
 			// recovery parameters
 			shim := bootloader.NewBootFile("", filepath.Join(rootdir, "var/lib/snapd/boot-assets/grub/bootx64.efi-shim-hash-1"), bootloader.RoleRecovery)
@@ -680,6 +688,8 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 	err = createMockGrubCfg(filepath.Join(rootdir, "run/mnt/ubuntu-boot"))
 	c.Assert(err, IsNil)
 
+	model := boottest.MakeMockUC20Model()
+
 	modeenv := &boot.Modeenv{
 		// where 1234 is being tried
 		CurrentRecoverySystems: []string{"20200825", "1234"},
@@ -699,6 +709,10 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 		CurrentKernelCommandLines: boot.BootCommandLines{
 			"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 		},
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
 	}
 
 	// mock asset cache
@@ -707,8 +721,6 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 		"grubx64.efi-grub-hash",
 		"grubx64.efi-run-grub-hash",
 	})
-
-	model := boottest.MakeMockUC20Model()
 
 	// set a mock recovery kernel
 	readSystemEssentialCalls := 0
@@ -731,7 +743,7 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 		c.Assert(params.ModelParams, HasLen, 1)
 
 		// shared parameters
-		c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
+		c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
 		c.Logf("got:")
 		for _, ch := range params.ModelParams[0].EFILoadChains {
 			printChain(c, ch, "-")
@@ -949,6 +961,11 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 
 		// as if it is unset yet
 		CurrentKernelCommandLines: nil,
+
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
 	}
 
 	err = boot.WriteBootChains(nil, filepath.Join(dirs.SnapFDEDir, "boot-chains"), 9)
@@ -1183,9 +1200,14 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 
 		modeenv := &boot.Modeenv{
 			CurrentTrustedRecoveryBootAssets: tc.assetsMap,
+
+			BrandID:        model.BrandID(),
+			Model:          model.Model(),
+			ModelSignKeyID: model.SignKeyID(),
+			Grade:          string(model.Grade()),
 		}
 
-		bc, err := boot.RecoveryBootChainsForSystems(tc.recoverySystems, tbl, model, modeenv)
+		bc, err := boot.RecoveryBootChainsForSystems(tc.recoverySystems, tbl, modeenv)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
 			c.Assert(bc, HasLen, len(tc.recoverySystems))
@@ -1243,36 +1265,40 @@ func (s *sealSuite) TestSealKeyModelParams(c *C) {
 
 	// old recovery
 	oldrc := boot.BootChain{
-		BrandID: oldmodel.BrandID(),
-		Model:   oldmodel.Model(),
+		BrandID:        oldmodel.BrandID(),
+		Model:          oldmodel.Model(),
+		Grade:          oldmodel.Grade(),
+		ModelSignKeyID: oldmodel.SignKeyID(),
 		AssetChain: []boot.BootAsset{
 			{Name: "shim", Role: bootloader.RoleRecovery, Hashes: []string{"shim-hash"}},
 			{Name: "loader", Role: bootloader.RoleRecovery, Hashes: []string{"loader-hash1"}},
 		},
 		KernelCmdlines: []string{"panic=1", "oldrc"},
 	}
-	oldrc.SetModelAssertion(oldmodel)
 	oldkbf := bootloader.BootFile{Snap: "pc-kernel_1.snap"}
 	oldrc.SetKernelBootFile(oldkbf)
 
 	// recovery
 	rc1 := boot.BootChain{
-		BrandID: model.BrandID(),
-		Model:   model.Model(),
+		BrandID:        model.BrandID(),
+		Model:          model.Model(),
+		Grade:          model.Grade(),
+		ModelSignKeyID: model.SignKeyID(),
 		AssetChain: []boot.BootAsset{
 			{Name: "shim", Role: bootloader.RoleRecovery, Hashes: []string{"shim-hash"}},
 			{Name: "loader", Role: bootloader.RoleRecovery, Hashes: []string{"loader-hash1"}},
 		},
 		KernelCmdlines: []string{"panic=1", "rc1"},
 	}
-	rc1.SetModelAssertion(model)
 	rc1kbf := bootloader.BootFile{Snap: "pc-kernel_10.snap"}
 	rc1.SetKernelBootFile(rc1kbf)
 
 	// run system
 	runc1 := boot.BootChain{
-		BrandID: model.BrandID(),
-		Model:   model.Model(),
+		BrandID:        model.BrandID(),
+		Model:          model.Model(),
+		Grade:          model.Grade(),
+		ModelSignKeyID: model.SignKeyID(),
 		AssetChain: []boot.BootAsset{
 			{Name: "shim", Role: bootloader.RoleRecovery, Hashes: []string{"shim-hash"}},
 			{Name: "loader", Role: bootloader.RoleRecovery, Hashes: []string{"loader-hash1"}},
@@ -1280,7 +1306,6 @@ func (s *sealSuite) TestSealKeyModelParams(c *C) {
 		},
 		KernelCmdlines: []string{"panic=1", "runc1"},
 	}
-	runc1.SetModelAssertion(model)
 	runc1kbf := bootloader.BootFile{Snap: "pc-kernel_50.snap"}
 	runc1.SetKernelBootFile(runc1kbf)
 
@@ -1293,7 +1318,7 @@ func (s *sealSuite) TestSealKeyModelParams(c *C) {
 	params, err := boot.SealKeyModelParams(pbc, roleToBlName)
 	c.Assert(err, IsNil)
 	c.Check(params, HasLen, 2)
-	c.Check(params[0].Model, Equals, model)
+	c.Check(params[0].Model.Model(), Equals, model.Model())
 	// NB: merging of lists makes panic=1 appear once
 	c.Check(params[0].KernelCmdlines, DeepEquals, []string{"panic=1", "rc1", "runc1"})
 
@@ -1307,7 +1332,7 @@ func (s *sealSuite) TestSealKeyModelParams(c *C) {
 					secboot.NewLoadChain(runc1kbf)))),
 	})
 
-	c.Check(params[1].Model, Equals, oldmodel)
+	c.Check(params[1].Model.Model(), Equals, oldmodel.Model())
 	c.Check(params[1].KernelCmdlines, DeepEquals, []string{"oldrc", "panic=1"})
 	c.Check(params[1].EFILoadChains, DeepEquals, []*secboot.LoadChain{
 		secboot.NewLoadChain(shim,
@@ -1431,7 +1456,7 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 	defer restore()
 	keyToSave := make(map[string][]byte)
 	restore = boot.MockSecbootSealKeysWithFDESetupHook(func(runHook fde.RunSetupHookFunc, skrs []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error {
-		c.Check(params.Model, DeepEquals, model)
+		c.Check(params.Model.Model(), Equals, model.Model())
 		c.Check(params.AuxKeyFile, Equals, filepath.Join(boot.InstallHostFDESaveDir, "aux-key"))
 		for _, skr := range skrs {
 			out, err := runHook(&fde.SetupRequest{
@@ -1447,6 +1472,10 @@ func (s *sealSuite) TestSealToModeenvWithFdeHookHappy(c *C) {
 
 	modeenv := &boot.Modeenv{
 		RecoverySystem: "20200825",
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
 	}
 	key := secboot.EncryptionKey{1, 2, 3, 4}
 	saveKey := secboot.EncryptionKey{5, 6, 7, 8}
@@ -1508,7 +1537,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 	defer dirs.SetRootDir("")
 
 	resealKeyToModeenvUsingFDESetupHookCalled := 0
-	restore := boot.MockResealKeyToModeenvUsingFDESetupHook(func(string, *asserts.Model, *boot.Modeenv, bool) error {
+	restore := boot.MockResealKeyToModeenvUsingFDESetupHook(func(string, *boot.Modeenv, bool) error {
 		resealKeyToModeenvUsingFDESetupHookCalled++
 		return nil
 	})
@@ -1545,7 +1574,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySad(c *C) {
 	defer dirs.SetRootDir("")
 
 	resealKeyToModeenvUsingFDESetupHookCalled := 0
-	restore := boot.MockResealKeyToModeenvUsingFDESetupHook(func(string, *asserts.Model, *boot.Modeenv, bool) error {
+	restore := boot.MockResealKeyToModeenvUsingFDESetupHook(func(string, *boot.Modeenv, bool) error {
 		resealKeyToModeenvUsingFDESetupHookCalled++
 		return fmt.Errorf("fde setup hook failed")
 	})
