@@ -177,13 +177,16 @@ version: 1
 `)
 
 	// pretend snap foo is held initially
-	c.Assert(snapstate.HoldRefresh(s.st, "snap1", 0, "foo"), IsNil)
+	c.Check(snapstate.HoldRefresh(s.st, "snap1", 0, "foo"), IsNil)
+	s.st.Unlock()
+
 	// sanity check
 	var gating map[string]map[string]interface{}
-	c.Assert(s.st.Get("snaps-hold", &gating), IsNil)
-	c.Check(gating["foo"]["snap1"], NotNil)
-
+	s.st.Lock()
+	snapsHold := s.st.Get("snaps-hold", &gating)
 	s.st.Unlock()
+	c.Assert(snapsHold, IsNil)
+	c.Check(gating["foo"]["snap1"], NotNil)
 
 	mockContext.Lock()
 	mockContext.Set("affecting-snaps", []string{"foo"})
