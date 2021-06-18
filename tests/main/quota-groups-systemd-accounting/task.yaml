@@ -4,9 +4,9 @@ details: |
   Some older systemd's such as that of xenial, Amazon Linux 2, and Centos 7 
   suffer from an unfortunate bug wherein the accounting for memory and tasks 
   becomes broken and returns the maximum value for a 64-bit integer instead of
-  the real value. This test checks that either the system works and does not
-  trigger the accounting bug, or that we properly don't attempt to use quota 
-  groups on systems that are affected.
+  the real value. This test checks that supported systems work and does not
+  trigger the accounting bug. For systems that have the bug, we check that they
+  are not supported in the tests/main/snap-quota test.
 
 # these systems do not support quota groups due to their old systemd versions,
 # we do have a check to do for these systems, but that is just to ensure that
