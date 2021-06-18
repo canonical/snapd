@@ -106,7 +106,7 @@ execute: |
   systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=inactive"
 
   echo "Creating a quota with a very small memory limit results in the service being unable to start"
-  snap set-quota too-small --memory=1KB go-example-webserver
+  snap set-quota too-small --memory=4097B go-example-webserver
 
   # wait for systemd to finish trying to automatically restart it, we want 
   # systemd to hit the start limit for this service, otherwise systemd 
