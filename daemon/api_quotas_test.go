@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/quota"
 )
@@ -62,11 +63,11 @@ func (s *apiQuotaSuite) SetUpTest(c *check.C) {
 }
 
 func mockQuotas(st *state.State, c *check.C) {
-	err := servicestate.CreateQuota(st, "foo", "", nil, 11000)
+	err := servicestatetest.MockQuotaInState(st, "foo", "", nil, 11000)
 	c.Assert(err, check.IsNil)
-	err = servicestate.CreateQuota(st, "bar", "foo", nil, 6000)
+	err = servicestatetest.MockQuotaInState(st, "bar", "foo", nil, 6000)
 	c.Assert(err, check.IsNil)
-	err = servicestate.CreateQuota(st, "baz", "foo", nil, 5000)
+	err = servicestatetest.MockQuotaInState(st, "baz", "foo", nil, 5000)
 	c.Assert(err, check.IsNil)
 }
 
@@ -147,7 +148,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateHappy(c *check.C) {
 func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateHappy(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestate.CreateQuota(st, "ginger-ale", "", nil, 5000)
+	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, 5000)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
