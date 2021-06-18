@@ -42,17 +42,17 @@ func init() {
 	})
 }
 
-func freezerV1Impl() {
+func pickFreezerV1Impl() {
 	FreezeSnapProcesses = freezeSnapProcessesImplV1
 	ThawSnapProcesses = thawSnapProcessesImplV1
 }
 
-func freezerV2Impl() {
+func pickFreezerV2Impl() {
 	FreezeSnapProcesses = freezeSnapProcessesImplV2
 	ThawSnapProcesses = thawSnapProcessesImplV2
 }
 
-// FreezeSnapProcessesImpl suspends execution of all the processes belonging to
+// FreezeSnapProcesses suspends execution of all the processes belonging to
 // a given snap. Processes remain frozen until ThawSnapProcesses is called,
 // care must be taken not to freezer processes indefinitely.
 //
@@ -133,9 +133,9 @@ func applyToSnap(snapName string, action func(groupName string) error) error {
 	})
 }
 
-// freezeSnapProcessesImplV1 freezes all the processes originating from the given snap.
-// Processes are frozen regardless of which particular snap application they
-// originate from.
+// freezeSnapProcessesImplV2 freezes all the processes originating from the
+// given snap. Processes are frozen regardless of which particular snap
+// application they originate from.
 func freezeSnapProcessesImplV2(snapName string) error {
 	freezeOne := func(dir string) error {
 		fname := filepath.Join(dir, "cgroup.freeze")

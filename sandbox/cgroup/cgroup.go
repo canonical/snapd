@@ -74,9 +74,9 @@ func init() {
 func pickVersionSpecificImpl() {
 	switch probeVersion {
 	case V1:
-		freezerV1Impl()
+		pickFreezerV1Impl()
 	case V2:
-		freezerV2Impl()
+		pickFreezerV2Impl()
 	}
 }
 
