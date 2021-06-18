@@ -587,6 +587,18 @@ func createGateAutoRefreshHooks(st *state.State, affectedSnaps map[string]*affec
 	return ts
 }
 
+func conditionalAutoRefreshAffectedSnaps(t *state.Task) ([]string, error) {
+	var snaps map[string]*refreshCandidate
+	if err := t.Get("snaps", &snaps); err != nil {
+		return nil, fmt.Errorf("internal error: cannot get snaps to update for %s task %s", t.Kind(), t.ID())
+	}
+	names := make([]string, 0, len(snaps))
+	for sn := range snaps {
+		names = append(names, sn)
+	}
+	return names, nil
+}
+
 // snapsToRefresh returns all snaps that should proceed with refresh considering
 // hold behavior.
 var snapsToRefresh = func(gatingTask *state.Task) ([]*refreshCandidate, error) {
