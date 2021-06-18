@@ -273,29 +273,36 @@ func (s *quotaHandlersSuite) TestQuotaCreate(c *C) {
 	snapstate.Set(s.state, "test-snap", s.testSnapState)
 	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 
-	// now we can create the quota group
-	err = servicestate.QuotaCreate(st, nil, qc, allGrps(c, st), nil, nil)
-	c.Assert(err, IsNil)
-
-	// creating the same group again will fail
-	err = servicestate.QuotaCreate(st, nil, qc, allGrps(c, st), nil, nil)
-	c.Assert(err, ErrorMatches, `group "foo" already exists`)
-
-	// we can't add the same snap to a different group
 	qc2 := servicestate.QuotaControlAction{
 		Action:      "create",
-		QuotaName:   "foo2",
-		MemoryLimit: quantity.SizeGiB,
+		QuotaName:   "foo",
+		MemoryLimit: 4 * quantity.SizeKiB,
 		AddSnaps:    []string{"test-snap"},
 	}
 
+	// trying to create a quota with too low of a memory limit fails
 	err = servicestate.QuotaCreate(st, nil, qc2, allGrps(c, st), nil, nil)
-	c.Assert(err, ErrorMatches, `cannot add snap "test-snap" to group "foo2": snap already in quota group "foo"`)
+	c.Assert(err, ErrorMatches, `memory limit for group "foo" is too small: size must be larger than 4KB`)
+
+	// but with an adequately sized memory limit, and a snap that exists, we can
+	// create it
+	qc3 := servicestate.QuotaControlAction{
+		Action:      "create",
+		QuotaName:   "foo",
+		MemoryLimit: 4*quantity.SizeKiB + 1,
+		AddSnaps:    []string{"test-snap"},
+	}
+	err = servicestate.QuotaCreate(st, nil, qc3, allGrps(c, st), nil, nil)
+	c.Assert(err, IsNil)
+
+	// creating the same group again will fail
+	err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, 4*quantity.SizeKiB+1)
+	c.Assert(err, ErrorMatches, `group "foo" already exists`)
 
 	// check that the quota groups were created in the state
 	checkQuotaState(c, st, map[string]quotaGroupState{
 		"foo": {
-			MemoryLimit: quantity.SizeGiB,
+			MemoryLimit: 4*quantity.SizeKiB + 1,
 			Snaps:       []string{"test-snap"},
 		},
 	})

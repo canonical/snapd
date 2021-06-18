@@ -127,6 +127,14 @@ func quotaCreate(st *state.State, t *state.Task, action QuotaControlAction, allG
 		return fmt.Errorf("internal error, MemoryLimit option is mandatory for create action")
 	}
 
+	// make sure the memory limit is at least 4K, that is the minimum size
+	// to allow nesting, otherwise groups with less than 4K will trigger the
+	// oom killer to be invoked when a new group is added as a sub-group to the
+	// larger group.
+	if action.MemoryLimit <= 4*quantity.SizeKiB {
+		return fmt.Errorf("memory limit for group %q is too small: size must be larger than 4KB", action.QuotaName)
+	}
+
 	// make sure the specified snaps exist and aren't currently in another group
 	if err := validateSnapForAddingToGroup(st, action.AddSnaps, action.QuotaName, allGrps); err != nil {
 		return err
@@ -465,18 +473,6 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 	})
 
 	for _, sn := range snaps {
-		st.Unlock()
-		disabledSvcs, err := wrappers.QueryDisabledServices(sn, meter)
-		st.Lock()
-		if err != nil {
-			return err
-		}
-
-		isDisabledSvc := make(map[string]bool, len(disabledSvcs))
-		for _, svc := range disabledSvcs {
-			isDisabledSvc[svc] = true
-		}
-
 		startupOrdered, err := snap.SortServices(appsToRestartBySnap[sn])
 		if err != nil {
 			return err
