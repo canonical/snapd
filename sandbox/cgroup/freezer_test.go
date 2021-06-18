@@ -302,7 +302,9 @@ func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrWalking(c *C) {
 
 	// freeze tries thawing on errors, so we'll observe both errors
 	err := cgroup.FreezeSnapProcesses("foo")
-	c.Check(err, ErrorMatches, `cannot finish freezing processes of snap "foo": open .*/sys/fs/cgroup/system.slice/snap.foo.app.1234.1234.1234.scope: permission denied`)
+	// go 1.10+ slightly changed the order of calls in filepath.Walk(), make
+	// sure the error check matches both
+	c.Check(err, ErrorMatches, `cannot finish freezing processes of snap "foo":( cannot freeze processes of snap "foo",)? open .*/sys/fs/cgroup/system.slice/snap.foo.app.1234.1234.1234.scope(/cgroup.freeze)?: permission denied`)
 	// other group was unfrozen
 	c.Check(gUnfreeze, testutil.FileEquals, "0")
 
