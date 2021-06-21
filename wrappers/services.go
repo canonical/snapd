@@ -811,15 +811,16 @@ func StopServices(apps []*snap.AppInfo, flags *StopServicesFlags, reason snap.Se
 	return nil
 }
 
-// ServicesEnableState returns a map of service names from the given snap,
-// together with their enable/disable status.
-func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error) {
+// ServicesEnableState takes a map of application names -> application info
+// and returns a map of service names extracted from the given map, together
+// with their enable/disable status.
+func ServicesEnableState(appInfos map[string]*snap.AppInfo, inter interacter) (map[string]bool, error) {
 	sysd := systemd.New(systemd.SystemMode, inter)
 
-	// loop over all services in the snap, querying systemd for the current
-	// systemd state of the snaps
-	snapSvcsState := make(map[string]bool, len(s.Apps))
-	for name, app := range s.Apps {
+	// loop over all given services, querying systemd for their current
+	// enabled state
+	snapSvcsState := make(map[string]bool, len(appInfos))
+	for name, app := range appInfos {
 		if !app.IsService() {
 			continue
 		}
@@ -1630,11 +1631,12 @@ func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
 }
 
 // QueryDisabledServices returns a list of all currently disabled snap services
-// in the snap.
-func QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
+// among the given ones.
+func QueryDisabledServices(appInfos map[string]*snap.AppInfo,
+	pb progress.Meter) ([]string, error) {
 	// save the list of services that are in the disabled state before unlinking
 	// and thus removing the snap services
-	snapSvcStates, err := ServicesEnableState(info, pb)
+	snapSvcStates, err := ServicesEnableState(appInfos, pb)
 	if err != nil {
 		return nil, err
 	}

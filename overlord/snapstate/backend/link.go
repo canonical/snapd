@@ -305,11 +305,11 @@ func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress
 // ServicesEnableState returns the current enabled/disabled states of a snap's
 // services, primarily for committing before snap removal/disable/revert.
 func (b Backend) ServicesEnableState(info *snap.Info, meter progress.Meter) (map[string]bool, error) {
-	return wrappers.ServicesEnableState(info, meter)
+	return wrappers.ServicesEnableState(info.Apps, meter)
 }
 
 func (b Backend) QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error) {
-	return wrappers.QueryDisabledServices(info, pb)
+	return wrappers.QueryDisabledServices(info.Apps, pb)
 }
 
 func removeCurrentSymlinks(info snap.PlaceInfo) error {

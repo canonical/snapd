@@ -332,7 +332,7 @@ func restartServicesKilledInSnapdSnapRefresh(modified map[*snap.Info][]*snap.App
 	for sn, apps := range candidateAppsToRestartBySnap {
 		// TODO: should we try to start as many services as possible here before
 		// giving up given the severity of the bug?
-		disabledSvcs, err := wrappers.QueryDisabledServices(sn, progress.Null)
+		disabledSvcs, err := wrappers.QueryDisabledServices(sn.Apps, progress.Null)
 		if err != nil {
 			return err
 		}

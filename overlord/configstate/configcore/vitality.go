@@ -154,7 +154,7 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 
 		// XXX: copied from handlers.go:startSnapServices()
 
-		disabledSvcs, err := wrappers.QueryDisabledServices(info, progress.Null)
+		disabledSvcs, err := wrappers.QueryDisabledServices(info.Apps, progress.Null)
 		if err != nil {
 			return err
 		}
