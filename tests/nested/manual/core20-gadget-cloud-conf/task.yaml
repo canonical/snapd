@@ -1,5 +1,6 @@
-summary: Test that snapd with testkeys on UC20 can boot a model with grade signed.
+summary: Test that UC20 can boot with gadget provided cloud.conf for all grades
 
+# TODO: enable similar test for UC18 and UC16 gadgets that use cloud.conf?
 systems: [ubuntu-20.04-64]
 
 environment:
@@ -13,7 +14,7 @@ environment:
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
 
   # don't use cloud-init to create the user, we manually use cloud-init via
-  # --param-cdrom in the test setup
+  # the gadget to add a user
   NESTED_USE_CLOUD_INIT: false
 
   # sign all the snaps we build for the image with fakestore
@@ -23,8 +24,15 @@ environment:
   # TODO: commit the Go code used to create this assertion from the json file
   NESTED_CUSTOM_AUTO_IMPORT_ASSERTION: $TESTSLIB/assertions/developer1-auto-import.assert
 
-  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-20-signed.model
-  NESTED_IMAGE_ID: cloud-init-signed-testkeys
+  # three variants, for dangerous, signed, and secured grades
+  MODEL_GRADE/secured: secured
+  MODEL_GRADE/signed: signed
+
+  # TODO: enable after creating an associated auto-import assertion + model
+  # MODEL_GRADE/dangerous: dangerous
+
+  NESTED_CUSTOM_MODEL: $TESTSLIB/assertions/developer1-20-${MODEL_GRADE}.model
+  NESTED_IMAGE_ID: gadget-cloud-conf-testkeys-${MODEL_GRADE}
 
   # for the fake store
   NESTED_FAKESTORE_BLOB_DIR: $(pwd)/fake-store-blobdir
@@ -78,6 +86,9 @@ prepare: |
   sed defaults.yaml -e "s/@HOLD-TIME@/$(date --date='next week' +%Y-%m-%dT%H:%M:%S%:z)/" >> \
     pc-gadget/meta/gadget.yaml
 
+  # install the cloud.conf
+  cp cloud.conf pc-gadget/cloud.conf
+
   # TODO: enable this bit when things are ready to use a testkeys signed model
   # assertion
   # copy the prepare-device hook to use our fakedevicesvc
@@ -85,10 +96,7 @@ prepare: |
   # cp prepare-device pc-gadget/meta/hooks/
 
   nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-  snap pack pc-gadget/ extra-snaps/
-  rm -rf pc-gadget/
-
-  rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+  snap pack pc-gadget/ "$(nested_get_extra_snaps_path)"
 
   # TODO: enable this when ready, currently serial assertions requests don't 
   # work with the fakedevicesvc, needs a little bit of work somewhere
@@ -96,16 +104,10 @@ prepare: |
   # #shellcheck disable=SC2148
   #  systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
 
-  # first boot - legit NoCloud usage
-  nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/normal-user" seed.iso cidata user-data meta-data
-
-  # second boot - attacker drive
-  nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/attacker-user" seed2.iso cidata user-data meta-data
-
   "$TESTSTOOLS"/nested-state build-image core
   # first boot will use seed1 to create the normal-user in addition to the 
   # system-user assertion
-  "$TESTSTOOLS"/nested-state create-vm core --param-cdrom "-cdrom $(pwd)/seed.iso"
+  "$TESTSTOOLS"/nested-state create-vm core
 
 restore: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -135,10 +137,6 @@ execute: |
   echo "And we can run things as the normal user"
   nested_exec_as normal-user ubuntu "sudo true"
 
-  # TODO: check that we got a serial assertion via the fakedevicesvc
-  # for now we just don't get a serial assertion which is fine for the purposes
-  # of this test
-
   echo "Waiting for snapd to react to cloud-init"
   for i in $(seq 60); do
     if nested_exec "journalctl --no-pager -u snapd" | MATCH "Cloud-init reported"; then
@@ -150,24 +148,8 @@ execute: |
   echo "Ensuring that cloud-init got disabled after running"
   nested_exec "cloud-init status" | MATCH "status: disabled"
   nested_exec "test -f /etc/cloud/cloud-init.disabled"
+  nested_exec "test -f /etc/cloud/cloud.cfg.d/80_device_gadget.cfg"
   nested_exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
 
-  # gracefully shutdown so that we don't have file corruption
-  echo "Gracefully shutting down the nested VM to prepare a simulated attack"
-  boot_id="$(nested_get_boot_id)"
-  nested_shutdown
-
-  # replace the seed.iso with the new attacker iso
-  mv seed2.iso seed.iso
-
-  echo "Restarting nested VM with attacker cloud-init CD-ROM drive"
-  nested_force_start_vm
-  nested_wait_for_reboot "${boot_id}"
-
-  echo "The cloud-init attacker user was not created"
-  nested_exec "cat /var/lib/extrausers/passwd" | NOMATCH attacker-user
-
-  echo "cloud-init is still disabled"
-  nested_exec "cloud-init status" | MATCH "status: disabled"
-  nested_exec "test -f /etc/cloud/cloud-init.disabled"
-  nested_exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
+  # TODO: if we ever decide to leave NoCloud datasources enabled if the source
+  # is the gadget, check that here too
