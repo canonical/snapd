@@ -74,7 +74,9 @@ func computeExplicitServices(appInfos []*snap.AppInfo, names []string) map[strin
 func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instruction) (*state.TaskSet, error) {
 	servicesBySnap := make(map[string][]string, len(appInfos))
 	explicitServices := computeExplicitServices(appInfos, inst.Names)
+
 	sortedNames := make([]string, 0, len(appInfos))
+	appsMap := make(map[string]*snap.AppInfo, len(appInfos))
 
 	// group services by snap, we need to create one task for every affected snap
 	for _, app := range appInfos {
@@ -83,6 +85,8 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 			sortedNames = append(sortedNames, snapName)
 		}
 		servicesBySnap[snapName] = append(servicesBySnap[snapName], app.Name)
+		// also compute a map of app names -> app info
+		appsMap[app.Name] = app
 	}
 	sort.Strings(sortedNames)
 
@@ -97,12 +101,15 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 			return nil, err
 		}
 
+		mustComputeDisabledServices := false
 		cmd := &ServiceAction{SnapName: snapName}
 		switch {
 		case inst.Action == "start":
 			cmd.Action = "start"
 			if inst.Enable {
 				cmd.ActionModifier = "enable"
+			} else {
+				mustComputeDisabledServices = true
 			}
 		case inst.Action == "stop":
 			cmd.Action = "stop"
@@ -121,6 +128,17 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 
 		svcs := servicesBySnap[snapName]
 		sort.Strings(svcs)
+		if mustComputeDisabledServices {
+			snapAppsMap := make(map[string]*snap.AppInfo, len(svcs))
+			for _, serviceName := range svcs {
+				snapAppsMap[serviceName] = appsMap[serviceName]
+			}
+			disabledServices, err := wrappers.QueryDisabledServices(snapAppsMap, nil)
+			if err != nil {
+				return nil, err
+			}
+			cmd.DisabledServices = disabledServices
+		}
 		cmd.Services = svcs
 		explicitSvcs := explicitServices[snapName]
 		sort.Strings(explicitSvcs)
