@@ -4,23 +4,23 @@ details: |
   Functional test for snap quota group commands ensuring that they are 
   effective in practice.
 
+# these systems do not support quota groups due to their old systemd versions,
+# we do have a check to do for these systems, but that is just to ensure that
+# we don't allow using quota groups, and that check is done in the snap-quota
+# spread instead
+systems:
+  - -ubuntu-14.04-*
+  - -centos-7-*
+  - -amazon-linux-2-*
+  - -ubuntu-16.04-*
+  - -ubuntu-core-16-*
+
 prepare: |
-  if os.query is-trusty; then
-    exit 0
-  fi
   snap install go-example-webserver jq remarshal http hello-world
   snap set system experimental.quota-groups=true
   tests.cleanup defer snap unset system experimental.quota-groups
 
 execute: |
-  if os.query is-trusty; then
-    # just check that we can't do anything with quota groups on trusty, systemd
-    # there is 204, but we need at least 205 for slice units
-
-    snap set-quota foobar --memory=1MB 2>&1 | MATCH "systemd version too old: snap quotas requires systemd 205 and newer \(currently have 204\)"
-    exit 0
-  fi
-
   echo "Create a group with a snap in it"
   snap set-quota group-one --memory=100MB go-example-webserver
 
