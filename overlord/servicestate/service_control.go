@@ -54,6 +54,7 @@ type ServiceAction struct {
 	// inactive and not disabled services in snap-name, and also svc1 regardless
 	// of the state svc1 is in.
 	ExplicitServices []string `json:"explicit-services,omitempty"`
+	DisabledServices []string `json:"disabled-services,omitempty"`
 }
 
 func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
@@ -143,7 +144,11 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 			Enable: enable,
 		}
 		st.Unlock()
-		err = wrappers.StartServices(startupOrdered, nil, flags, meter, perfTimings)
+		disabledServices := []string(nil)
+		if !enable {
+			disabledServices = sc.DisabledServices
+		}
+		err = wrappers.StartServices(startupOrdered, disabledServices, flags, meter, perfTimings)
 		st.Lock()
 		if err != nil {
 			return err
