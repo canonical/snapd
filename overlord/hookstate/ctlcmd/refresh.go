@@ -102,7 +102,9 @@ func (c *refreshCommand) Execute(args []string) error {
 		return fmt.Errorf("cannot use --proceed and --hold together")
 	}
 
-	if c.Pending {
+	// --pending --proceed is a verbose way of saying --proceed, so only
+	// print pending if proceed wasn't requested.
+	if c.Pending && !c.Proceed {
 		if err := c.printPendingInfo(); err != nil {
 			return err
 		}
