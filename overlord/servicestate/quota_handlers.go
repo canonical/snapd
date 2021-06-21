@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/servicestate/internal"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
@@ -118,6 +119,16 @@ func quotaCreate(st *state.State, t *state.Task, action QuotaControlAction, allG
 		return fmt.Errorf("group %q already exists", action.QuotaName)
 	}
 
+	// make sure that the parent group exists if we are creating a sub-group
+	var parentGrp *quota.Group
+	if action.ParentName != "" {
+		var ok bool
+		parentGrp, ok = allGrps[action.ParentName]
+		if !ok {
+			return fmt.Errorf("cannot create group under non-existent parent group %q", action.ParentName)
+		}
+	}
+
 	// make sure the memory limit is not zero
 	// TODO: this needs to be updated to 4K when PR snapcore/snapd#10346 lands
 	// and an equivalent check needs to be put back into CreateQuota() before
@@ -139,7 +150,7 @@ func quotaCreate(st *state.State, t *state.Task, action QuotaControlAction, allG
 		return err
 	}
 
-	grp, allGrps, err := quotaCreateImpl(st, action, allGrps)
+	grp, allGrps, err := internal.CreateQuotaInState(st, action.QuotaName, parentGrp, action.AddSnaps, action.MemoryLimit, allGrps)
 	if err != nil {
 		return err
 	}
@@ -149,43 +160,6 @@ func quotaCreate(st *state.State, t *state.Task, action QuotaControlAction, allG
 		allGrps: allGrps,
 	}
 	return ensureSnapServicesForGroup(st, t, grp, opts, meter, perfTimings)
-}
-
-func quotaCreateImpl(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, error) {
-	// make sure that the parent group exists if we are creating a sub-group
-	var grp *quota.Group
-	var err error
-	updatedGrps := []*quota.Group{}
-	if action.ParentName != "" {
-		parentGrp, ok := allGrps[action.ParentName]
-		if !ok {
-			return nil, nil, fmt.Errorf("cannot create group under non-existent parent group %q", action.ParentName)
-		}
-
-		grp, err = parentGrp.NewSubGroup(action.QuotaName, action.MemoryLimit)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		updatedGrps = append(updatedGrps, parentGrp)
-	} else {
-		// make a new group
-		grp, err = quota.NewGroup(action.QuotaName, action.MemoryLimit)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-	updatedGrps = append(updatedGrps, grp)
-
-	// put the snaps in the group
-	grp.Snaps = action.AddSnaps
-	// update the modified groups in state
-	newAllGrps, err := patchQuotas(st, updatedGrps...)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return grp, newAllGrps, nil
 }
 
 func quotaRemove(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
@@ -301,7 +275,7 @@ func quotaUpdate(st *state.State, t *state.Task, action QuotaControlAction, allG
 	}
 
 	// update the quota group state
-	allGrps, err := patchQuotas(st, modifiedGrps...)
+	allGrps, err := internal.PatchQuotas(st, modifiedGrps...)
 	if err != nil {
 		return err
 	}

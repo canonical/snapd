@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,22 +17,16 @@
  *
  */
 
-package servicestate
+package servicestatetest
 
 import (
-	tomb "gopkg.in/tomb.v2"
-
+	"github.com/snapcore/snapd/overlord/servicestate/internal"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snap/quota"
 )
 
-var (
-	UpdateSnapstateServices = updateSnapstateServices
-	CheckSystemdVersion     = checkSystemdVersion
-	QuotaCreate             = quotaCreate
-	QuotaRemove             = quotaRemove
-	QuotaUpdate             = quotaUpdate
-)
-
-func (m *ServiceManager) DoQuotaControl(t *state.Task, to *tomb.Tomb) error {
-	return m.doQuotaControl(t, to)
+// PatchQuotas will update the state quota group map with the provided quota
+// groups. It exposes internal.PatchQuotas for use in tests.
+func PatchQuotas(st *state.State, grps ...*quota.Group) (map[string]*quota.Group, error) {
+	return internal.PatchQuotas(st, grps...)
 }
