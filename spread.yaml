@@ -32,10 +32,8 @@ environment:
     SUDO_UID: ""
     TRUST_TEST_KEYS: '$(HOST: echo "${SPREAD_TRUST_TEST_KEYS:-true}")'
     MANAGED_DEVICE: "false"
-    # TODO: since 2021.06.15 the tests/main/lxd test is failing, temporarily use
-    # a stable channel which seems to work, but switch back once the candidate
-    # channel is good again
-    LXD_SNAP_CHANNEL: "latest/stable"
+    # a global setting for LXD channel to use in the tests
+    LXD_SNAP_CHANNEL: "latest/candidate"
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
     KERNEL_CHANNEL: '$(HOST: echo "${SPREAD_KERNEL_CHANNEL:-edge}")'

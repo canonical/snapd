@@ -545,7 +545,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 		// the behavior with unasserted kernel is tested in
 		// boot_test.go specific tests
 		const expectReseal = false
-		err = boot.ResealKeyToModeenv(rootdir, model, modeenv, expectReseal)
+		err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal)
 		if !tc.sealedKeys || (tc.reuseRunPbc && tc.reuseRecoveryPbc) {
 			// did nothing
 			c.Assert(err, IsNil)
@@ -819,7 +819,7 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 	// the behavior with unasserted kernel is tested in
 	// boot_test.go specific tests
 	const expectReseal = false
-	err = boot.ResealKeyToModeenv(rootdir, model, modeenv, expectReseal)
+	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 2)
 
@@ -1027,7 +1027,7 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 	defer restore()
 
 	const expectReseal = false
-	err = boot.ResealKeyToModeenv(rootdir, model, modeenv, expectReseal)
+	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 2)
 
@@ -1557,13 +1557,16 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookCalled(c *C) {
 	err = ioutil.WriteFile(marker, []byte("fde-setup-hook"), 0644)
 	c.Assert(err, IsNil)
 
+	model := boottest.MakeMockUC20Model()
 	modeenv := &boot.Modeenv{
 		RecoverySystem: "20200825",
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
 	}
-
-	model := boottest.MakeMockUC20Model()
 	expectReseal := false
-	err = boot.ResealKeyToModeenv(rootdir, model, modeenv, expectReseal)
+	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal)
 	c.Assert(err, IsNil)
 	c.Check(resealKeyToModeenvUsingFDESetupHookCalled, Equals, 1)
 }
@@ -1586,13 +1589,16 @@ func (s *sealSuite) TestResealKeyToModeenvWithFdeHookVerySad(c *C) {
 	err = ioutil.WriteFile(marker, []byte("fde-setup-hook"), 0644)
 	c.Assert(err, IsNil)
 
+	model := boottest.MakeMockUC20Model()
 	modeenv := &boot.Modeenv{
 		RecoverySystem: "20200825",
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
 	}
-
-	model := boottest.MakeMockUC20Model()
 	expectReseal := false
-	err = boot.ResealKeyToModeenv(rootdir, model, modeenv, expectReseal)
+	err = boot.ResealKeyToModeenv(rootdir, modeenv, expectReseal)
 	c.Assert(err, ErrorMatches, "fde setup hook failed")
 	c.Check(resealKeyToModeenvUsingFDESetupHookCalled, Equals, 1)
 }

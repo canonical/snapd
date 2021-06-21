@@ -150,8 +150,8 @@ func systemctlCallsForServiceRestart(name string) []expectedSystemctl {
 	svc := "snap." + name + ".svc1.service"
 	return []expectedSystemctl{
 		{
-			expArgs: []string{"is-enabled", svc},
-			output:  "enabled",
+			expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type", svc},
+			output:  fmt.Sprintf("Id=%s\nActiveState=active\nUnitFileState=enabled\nType=simple\n", svc),
 		},
 		{expArgs: []string{"stop", svc}},
 		{
@@ -208,14 +208,14 @@ func (s *quotaControlSuite) TestCreateQuotaSystemdTooOld(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	r := s.mockSystemctlCalls(c, systemctlCallsVersion(204))
+	r := s.mockSystemctlCalls(c, systemctlCallsVersion(229))
 	defer r()
 
 	err := servicestate.CheckSystemdVersion()
 	c.Assert(err, IsNil)
 
 	err = servicestate.CreateQuota(s.state, "foo", "", nil, quantity.SizeGiB)
-	c.Assert(err, ErrorMatches, `systemd version too old: snap quotas requires systemd 205 and newer \(currently have 204\)`)
+	c.Assert(err, ErrorMatches, `systemd version too old: snap quotas requires systemd 230 and newer \(currently have 229\)`)
 }
 
 func (s *quotaControlSuite) TestRemoveQuotaPreseeding(c *C) {

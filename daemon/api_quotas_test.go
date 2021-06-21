@@ -62,11 +62,11 @@ func (s *apiQuotaSuite) SetUpTest(c *check.C) {
 }
 
 func mockQuotas(st *state.State, c *check.C) {
-	err := servicestate.CreateQuota(st, "foo", "", nil, 9000)
+	err := servicestate.CreateQuota(st, "foo", "", nil, 11000)
 	c.Assert(err, check.IsNil)
-	err = servicestate.CreateQuota(st, "bar", "foo", nil, 1000)
+	err = servicestate.CreateQuota(st, "bar", "foo", nil, 6000)
 	c.Assert(err, check.IsNil)
-	err = servicestate.CreateQuota(st, "baz", "foo", nil, 2000)
+	err = servicestate.CreateQuota(st, "baz", "foo", nil, 5000)
 	c.Assert(err, check.IsNil)
 }
 
@@ -147,7 +147,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateHappy(c *check.C) {
 func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateHappy(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestate.CreateQuota(st, "ginger-ale", "", nil, 1000)
+	err := servicestate.CreateQuota(st, "ginger-ale", "", nil, 5000)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -286,19 +286,19 @@ func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
 		{
 			GroupName:     "bar",
 			Parent:        "foo",
-			MaxMemory:     1000,
+			MaxMemory:     6000,
 			CurrentMemory: 500,
 		},
 		{
 			GroupName:     "baz",
 			Parent:        "foo",
-			MaxMemory:     2000,
+			MaxMemory:     5000,
 			CurrentMemory: 1000,
 		},
 		{
 			GroupName:     "foo",
 			Subgroups:     []string{"bar", "baz"},
-			MaxMemory:     9000,
+			MaxMemory:     11000,
 			CurrentMemory: 5000,
 		},
 	})
@@ -330,7 +330,7 @@ func (s *apiQuotaSuite) TestGetQuota(c *check.C) {
 	c.Check(res, check.DeepEquals, client.QuotaGroupResult{
 		GroupName:     "bar",
 		Parent:        "foo",
-		MaxMemory:     1000,
+		MaxMemory:     6000,
 		CurrentMemory: 500,
 	})
 }

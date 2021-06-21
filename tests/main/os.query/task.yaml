@@ -129,4 +129,7 @@ execute: |
         debian-sid-*)
             os.query is-debian-sid
             ;;
+        centos-7-*)
+            os.query is-centos-7
+            ;;
     esac

@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
@@ -312,7 +313,7 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 	grp.Snaps = []string{"foosnap"}
 
 	// add it into the state
-	newGrps, err := servicestate.PatchQuotas(st, grp)
+	newGrps, err := servicestatetest.PatchQuotas(st, grp)
 	c.Assert(err, IsNil)
 	c.Assert(newGrps, DeepEquals, map[string]*quota.Group{
 		"foogroup": grp,
@@ -331,7 +332,7 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 
 	// modify state to use an instance name instead now
 	grp.Snaps = []string{"foosnap_instance"}
-	newGrps, err = servicestate.PatchQuotas(st, grp)
+	newGrps, err = servicestatetest.PatchQuotas(st, grp)
 	c.Assert(err, IsNil)
 	c.Assert(newGrps, DeepEquals, map[string]*quota.Group{
 		"foogroup": grp,

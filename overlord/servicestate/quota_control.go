@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/servicestate/internal"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/systemd"
@@ -65,8 +66,8 @@ func MockSystemdVersion(vers int) (restore func()) {
 
 func quotaGroupsAvailable(st *state.State) error {
 	// check if the systemd version is too old
-	if systemdVersion < 205 {
-		return fmt.Errorf("systemd version too old: snap quotas requires systemd 205 and newer (currently have %d)", systemdVersion)
+	if systemdVersion < 230 {
+		return fmt.Errorf("systemd version too old: snap quotas requires systemd 230 and newer (currently have %d)", systemdVersion)
 	}
 
 	tr := config.NewTransaction(st)
@@ -194,7 +195,7 @@ func EnsureSnapAbsentFromQuota(st *state.State, snap string) error {
 				grp.Snaps = grp.Snaps[:len(grp.Snaps)-1]
 
 				// update the quota group state
-				allGrps, err = patchQuotas(st, grp)
+				allGrps, err = internal.PatchQuotas(st, grp)
 				if err != nil {
 					return err
 				}
