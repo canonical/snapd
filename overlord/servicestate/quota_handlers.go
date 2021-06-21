@@ -128,9 +128,6 @@ func quotaCreate(st *state.State, t *state.Task, action QuotaControlAction, allG
 	}
 
 	// make sure the memory limit is not zero
-	// TODO: this needs to be updated to 4K when PR snapcore/snapd#10346 lands
-	// and an equivalent check needs to be put back into CreateQuota() before
-	// the tasks are created
 	if action.MemoryLimit == 0 {
 		return fmt.Errorf("internal error, MemoryLimit option is mandatory for create action")
 	}
