@@ -119,9 +119,11 @@ func waitWhileInhibited(snapName string) error {
 	return textFlow(snapName, hint)
 }
 
-func waitInhibitUnlock(snapName string, errCh <-chan error) error {
+var isLocked = runinhibit.IsLocked
+
+var waitInhibitUnlock = func(snapName string, errCh <-chan error) error {
 	// Every second check if the inhibition file is still present.
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 loop:
 	for {
@@ -133,7 +135,7 @@ loop:
 			break loop
 		case <-ticker.C:
 			// A second has elapsed, let's check again.
-			hint, err := runinhibit.IsLocked(snapName)
+			hint, err := isLocked(snapName)
 			if err != nil {
 				return err
 			}
