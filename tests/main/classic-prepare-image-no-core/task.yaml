@@ -52,7 +52,6 @@ restore: |
     systemctl stop snapd.service snapd.socket fakedevicesvc
 
     rm -rf "$SEED_DIR"
-    systemctl start snapd.socket snapd.service
 
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
