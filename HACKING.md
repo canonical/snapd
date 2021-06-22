@@ -8,8 +8,8 @@ integration test framework for the integration/system level tests.
 
 ### Supported Go versions
 
-From snapd 2.38, snapd supports Go 1.9 and onwards. For earlier snapd 
-releases, snapd supports Go 1.6.
+From snapd 2.52, snapd supports Go 1.13 and onwards. From snapd 2.38
+to 2.52, snapd requires Go 1.9+. Versions before 2.38 support Go 1.6+.
 
 ### Setting up a GOPATH
 
