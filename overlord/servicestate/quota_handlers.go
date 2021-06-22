@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/servicestate/internal"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
@@ -75,8 +76,6 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 	perfTimings := state.TimingsForTask(t)
 	defer perfTimings.Save(st)
 
-	meter := snapstate.NewTaskProgressAdapterUnlocked(t)
-
 	qcs := []QuotaControlAction{}
 	err := t.Get("quota-control-actions", &qcs)
 	if err != nil {
@@ -100,11 +99,11 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 
 	switch qc.Action {
 	case "create":
-		err = quotaCreate(st, t, qc, allGrps, meter, perfTimings)
+		err = quotaCreate(st, t, qc, allGrps, perfTimings)
 	case "remove":
-		err = quotaRemove(st, t, qc, allGrps, meter, perfTimings)
+		err = quotaRemove(st, t, qc, allGrps, perfTimings)
 	case "update":
-		err = quotaUpdate(st, t, qc, allGrps, meter, perfTimings)
+		err = quotaUpdate(st, t, qc, allGrps, perfTimings)
 	default:
 		err = fmt.Errorf("unknown action %q requested", qc.Action)
 	}
@@ -112,18 +111,33 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 	return err
 }
 
-func quotaCreate(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
+func quotaCreate(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, perfTimings *timings.Timings) error {
 	// make sure the group does not exist yet
 	if _, ok := allGrps[action.QuotaName]; ok {
 		return fmt.Errorf("group %q already exists", action.QuotaName)
 	}
 
+	// make sure that the parent group exists if we are creating a sub-group
+	var parentGrp *quota.Group
+	if action.ParentName != "" {
+		var ok bool
+		parentGrp, ok = allGrps[action.ParentName]
+		if !ok {
+			return fmt.Errorf("cannot create group under non-existent parent group %q", action.ParentName)
+		}
+	}
+
 	// make sure the memory limit is not zero
-	// TODO: this needs to be updated to 4K when PR snapcore/snapd#10346 lands
-	// and an equivalent check needs to be put back into CreateQuota() before
-	// the tasks are created
 	if action.MemoryLimit == 0 {
 		return fmt.Errorf("internal error, MemoryLimit option is mandatory for create action")
+	}
+
+	// make sure the memory limit is at least 4K, that is the minimum size
+	// to allow nesting, otherwise groups with less than 4K will trigger the
+	// oom killer to be invoked when a new group is added as a sub-group to the
+	// larger group.
+	if action.MemoryLimit <= 4*quantity.SizeKiB {
+		return fmt.Errorf("memory limit for group %q is too small: size must be larger than 4KB", action.QuotaName)
 	}
 
 	// make sure the specified snaps exist and aren't currently in another group
@@ -131,7 +145,7 @@ func quotaCreate(st *state.State, t *state.Task, action QuotaControlAction, allG
 		return err
 	}
 
-	grp, allGrps, err := quotaCreateImpl(st, action, allGrps)
+	grp, allGrps, err := internal.CreateQuotaInState(st, action.QuotaName, parentGrp, action.AddSnaps, action.MemoryLimit, allGrps)
 	if err != nil {
 		return err
 	}
@@ -140,47 +154,10 @@ func quotaCreate(st *state.State, t *state.Task, action QuotaControlAction, allG
 	opts := &ensureSnapServicesForGroupOptions{
 		allGrps: allGrps,
 	}
-	return ensureSnapServicesForGroup(st, t, grp, opts, meter, perfTimings)
+	return ensureSnapServicesForGroup(st, t, grp, opts, perfTimings)
 }
 
-func quotaCreateImpl(st *state.State, action QuotaControlAction, allGrps map[string]*quota.Group) (*quota.Group, map[string]*quota.Group, error) {
-	// make sure that the parent group exists if we are creating a sub-group
-	var grp *quota.Group
-	var err error
-	updatedGrps := []*quota.Group{}
-	if action.ParentName != "" {
-		parentGrp, ok := allGrps[action.ParentName]
-		if !ok {
-			return nil, nil, fmt.Errorf("cannot create group under non-existent parent group %q", action.ParentName)
-		}
-
-		grp, err = parentGrp.NewSubGroup(action.QuotaName, action.MemoryLimit)
-		if err != nil {
-			return nil, nil, err
-		}
-
-		updatedGrps = append(updatedGrps, parentGrp)
-	} else {
-		// make a new group
-		grp, err = quota.NewGroup(action.QuotaName, action.MemoryLimit)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-	updatedGrps = append(updatedGrps, grp)
-
-	// put the snaps in the group
-	grp.Snaps = action.AddSnaps
-	// update the modified groups in state
-	newAllGrps, err := patchQuotas(st, updatedGrps...)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return grp, newAllGrps, nil
-}
-
-func quotaRemove(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
+func quotaRemove(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, perfTimings *timings.Timings) error {
 	// make sure the group exists
 	grp, ok := allGrps[action.QuotaName]
 	if !ok {
@@ -253,10 +230,10 @@ func quotaRemove(st *state.State, t *state.Task, action QuotaControlAction, allG
 	opts := &ensureSnapServicesForGroupOptions{
 		allGrps: allGrps,
 	}
-	return ensureSnapServicesForGroup(st, t, grp, opts, meter, perfTimings)
+	return ensureSnapServicesForGroup(st, t, grp, opts, perfTimings)
 }
 
-func quotaUpdate(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, meter progress.Meter, perfTimings *timings.Timings) error {
+func quotaUpdate(st *state.State, t *state.Task, action QuotaControlAction, allGrps map[string]*quota.Group, perfTimings *timings.Timings) error {
 	// make sure the group exists
 	grp, ok := allGrps[action.QuotaName]
 	if !ok {
@@ -293,7 +270,7 @@ func quotaUpdate(st *state.State, t *state.Task, action QuotaControlAction, allG
 	}
 
 	// update the quota group state
-	allGrps, err := patchQuotas(st, modifiedGrps...)
+	allGrps, err := internal.PatchQuotas(st, modifiedGrps...)
 	if err != nil {
 		return err
 	}
@@ -302,7 +279,7 @@ func quotaUpdate(st *state.State, t *state.Task, action QuotaControlAction, allG
 	opts := &ensureSnapServicesForGroupOptions{
 		allGrps: allGrps,
 	}
-	return ensureSnapServicesForGroup(st, t, grp, opts, meter, perfTimings)
+	return ensureSnapServicesForGroup(st, t, grp, opts, perfTimings)
 }
 
 type ensureSnapServicesForGroupOptions struct {
@@ -322,22 +299,26 @@ type ensureSnapServicesForGroupOptions struct {
 // the same changes to be processed and nothing will be broken. This is mainly
 // a consequence of calling wrappers.EnsureSnapServices().
 // Currently, it only supports handling a single group change.
-func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group, opts *ensureSnapServicesForGroupOptions, meter progress.Meter, perfTimings *timings.Timings) error {
+func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group, opts *ensureSnapServicesForGroupOptions, perfTimings *timings.Timings) error {
 	if opts == nil {
 		return fmt.Errorf("internal error: unset group information for ensuring")
 	}
 
 	allGrps := opts.allGrps
 
-	if meter == nil {
-		meter = progress.Null
+	var meterLocked, meterUnlocked progress.Meter
+	if t == nil {
+		meterLocked = progress.Null
+		meterUnlocked = progress.Null
+	} else {
+		meterUnlocked = snapstate.NewTaskProgressAdapterUnlocked(t)
+		meterLocked = snapstate.NewTaskProgressAdapterLocked(t)
 	}
 
 	if perfTimings == nil {
 		perfTimings = &timings.Timings{}
 	}
 
-	// extraSnaps []string, meter progress.Meter, perfTimings *timings.Timings
 	// build the map of snap infos to options to provide to EnsureSnapServices
 	snapSvcMap := map[*snap.Info]*wrappers.SnapServiceOptions{}
 	for _, sn := range append(grp.Snaps, opts.extraSnaps...) {
@@ -422,7 +403,7 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 			// be okay?
 		}
 	}
-	if err := wrappers.EnsureSnapServices(snapSvcMap, ensureOpts, collectModifiedUnits, meter); err != nil {
+	if err := wrappers.EnsureSnapServices(snapSvcMap, ensureOpts, collectModifiedUnits, meterLocked); err != nil {
 		return err
 	}
 
@@ -431,7 +412,7 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 	}
 
 	// TODO: should this logic move to wrappers in wrappers.RemoveQuotaGroup()?
-	systemSysd := systemd.New(systemd.SystemMode, meter)
+	systemSysd := systemd.New(systemd.SystemMode, meterLocked)
 
 	// now start the slices
 	for _, grp := range grpsToStart {
@@ -456,7 +437,7 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 		// TODO: this results in a second systemctl daemon-reload which is
 		// undesirable, we should figure out how to do this operation with a
 		// single daemon-reload
-		err := wrappers.RemoveQuotaGroup(grp, meter)
+		err := wrappers.RemoveQuotaGroup(grp, meterLocked)
 		if err != nil {
 			return err
 		}
@@ -488,34 +469,13 @@ func ensureSnapServicesForGroup(st *state.State, t *state.Task, grp *quota.Group
 	})
 
 	for _, sn := range snaps {
-		st.Unlock()
-		disabledSvcs, err := wrappers.QueryDisabledServices(sn, meter)
-		st.Lock()
-		if err != nil {
-			return err
-		}
-
-		isDisabledSvc := make(map[string]bool, len(disabledSvcs))
-		for _, svc := range disabledSvcs {
-			isDisabledSvc[svc] = true
-		}
-
 		startupOrdered, err := snap.SortServices(appsToRestartBySnap[sn])
 		if err != nil {
 			return err
 		}
 
-		// drop disabled services from the startup ordering
-		startupOrderedMinusDisabled := make([]*snap.AppInfo, 0, len(startupOrdered)-len(disabledSvcs))
-
-		for _, svc := range startupOrdered {
-			if !isDisabledSvc[svc.ServiceName()] {
-				startupOrderedMinusDisabled = append(startupOrderedMinusDisabled, svc)
-			}
-		}
-
 		st.Unlock()
-		err = wrappers.RestartServices(startupOrderedMinusDisabled, nil, meter, perfTimings)
+		err = wrappers.RestartServices(startupOrdered, nil, nil, meterUnlocked, perfTimings)
 		st.Lock()
 
 		if err != nil {

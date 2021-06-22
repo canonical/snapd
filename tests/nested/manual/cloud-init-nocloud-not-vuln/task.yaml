@@ -102,10 +102,13 @@ execute: |
     echo "Waiting for cloud-init..."
     nested_exec "cloud-init status --wait"
 
-    # TODO: is there a better thing we can wait for here instead? maybe the log
-    # message from snapd directly via journalctl ?
     echo "Waiting for snapd to react to cloud-init"
-    sleep 60
+    for i in $(seq 60); do
+        if nested_exec "journalctl --no-pager -u snapd" | MATCH "Cloud-init reported"; then
+            break
+        fi
+        sleep 1
+    done
 
     # ensure that snapd restricted cloud-init with the zzzz_snapd.cfg file
     echo "Ensuring that snapd restricted cloud-init"
