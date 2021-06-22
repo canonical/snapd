@@ -105,7 +105,14 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 		ParentName:  parentName,
 	}
 
-	return quotaCreate(st, nil, qc, allGrps, nil)
+	grp, allGrps, err := quotaCreate(st, qc, allGrps)
+	if err != nil {
+		return err
+	}
+	opts := &ensureSnapServicesForGroupOptions{
+		allGrps: allGrps,
+	}
+	return ensureSnapServicesForGroup(st, nil, grp, opts, nil)
 }
 
 // RemoveQuota deletes the specific quota group. Any snaps currently in the
@@ -130,7 +137,14 @@ func RemoveQuota(st *state.State, name string) error {
 		QuotaName: name,
 	}
 
-	return quotaRemove(st, nil, qc, allGrps, nil)
+	grp, allGrps, err := quotaRemove(st, qc, allGrps)
+	if err != nil {
+		return err
+	}
+	opts := &ensureSnapServicesForGroupOptions{
+		allGrps: allGrps,
+	}
+	return ensureSnapServicesForGroup(st, nil, grp, opts, nil)
 }
 
 // QuotaGroupUpdate reflects all of the modifications that can be performed on
@@ -169,7 +183,14 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) erro
 		AddSnaps:    updateOpts.AddSnaps,
 	}
 
-	return quotaUpdate(st, nil, qc, allGrps, nil)
+	grp, allGrps, err := quotaUpdate(st, qc, allGrps)
+	if err != nil {
+		return err
+	}
+	opts := &ensureSnapServicesForGroupOptions{
+		allGrps: allGrps,
+	}
+	return ensureSnapServicesForGroup(st, nil, grp, opts, nil)
 }
 
 // EnsureSnapAbsentFromQuota ensures that the specified snap is not present
