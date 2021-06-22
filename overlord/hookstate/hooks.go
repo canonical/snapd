@@ -81,7 +81,6 @@ func SetupPreRefreshHook(st *state.State, snapName string) *state.Task {
 type gateAutoRefreshHookHandler struct {
 	context             *Context
 	refreshAppAwareness bool
-	inhibitHint         runinhibit.Hint
 }
 
 func (h *gateAutoRefreshHookHandler) Before() error {
@@ -111,13 +110,6 @@ func (h *gateAutoRefreshHookHandler) Before() error {
 		return err
 	}
 	defer lock.Unlock()
-
-	hint, err := runinhibit.IsLocked(snapName)
-	if err != nil {
-		return err
-	}
-	// remember the old hint
-	h.inhibitHint = hint
 
 	if err := runinhibit.LockWithHint(snapName, runinhibit.HintInhibitedGateRefresh); err != nil {
 		return err
@@ -156,17 +148,11 @@ func (h *gateAutoRefreshHookHandler) Done() (err error) {
 		// invoking --hold/--proceed; this means proceed (except for respecting
 		// refresh inhibit).
 		if h.refreshAppAwareness {
-			// it's inhibited, proceed but preserve inhibit lock.
-			if h.inhibitHint != runinhibit.HintNotInhibited {
-				// restore previous hint
-				if err := runinhibit.LockWithHint(snapName, h.inhibitHint); err != nil {
-					return fmt.Errorf("cannot set inhibit lock for snap %s: %v", snapName, err)
-				}
-				return snapstate.ProceedWithRefresh(st, snapName)
+			if err := runinhibit.Unlock(snapName); err != nil {
+				return fmt.Errorf("cannot unlock inhibit lock for snap %s: %v", snapName, err)
 			}
 		}
-		// not inhibited, handle as proceed below.
-		action = snapstate.GateAutoRefreshProceed
+		return snapstate.ProceedWithRefresh(st, snapName)
 	} else {
 		var ok bool
 		action, ok = a.(snapstate.GateAutoRefreshAction)
@@ -181,7 +167,7 @@ func (h *gateAutoRefreshHookHandler) Done() (err error) {
 		// for action=hold the ctlcmd calls HoldRefresh; only unlock runinhibit.
 		if h.refreshAppAwareness {
 			if err := runinhibit.Unlock(snapName); err != nil {
-				return fmt.Errorf("cannot release inhibit lock of snap %s: %v", snapName, err)
+				return fmt.Errorf("cannot unlock inhibit lock of snap %s: %v", snapName, err)
 			}
 		}
 	case snapstate.GateAutoRefreshProceed:

@@ -180,6 +180,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookHoldUnlocksRuninhibit(
 	c.Assert(change.Err(), IsNil)
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
+	// runinhibit lock is released.
 	hint, err := runinhibit.IsLocked("snap-a")
 	c.Assert(err, IsNil)
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
@@ -187,7 +188,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookHoldUnlocksRuninhibit(
 
 // Test that if gate-auto-refresh hook does nothing, the hook handler
 // assumes --proceed.
-func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookDefaultInhibited(c *C) {
+func (s *gateAutoRefreshHookSuite) TestGateAutorefreshDefaultProceedUnlocksRuninhibit(c *C) {
 	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 		// sanity, refresh is inhibited for snap-a.
 		hint, err := runinhibit.IsLocked("snap-a")
@@ -216,9 +217,6 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookDefaultInhibited(c *C)
 	tr.Set("core", "experimental.refresh-app-awareness", true)
 	tr.Commit()
 
-	// pretend refresh of snap-a is inhibited
-	c.Assert(runinhibit.LockWithHint("snap-a", runinhibit.HintInhibitedForRefresh), IsNil)
-
 	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a", false, false, map[string]bool{"snap-a": true})
 	change := st.NewChange("kind", "summary")
 	change.AddTask(task)
@@ -232,15 +230,15 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookDefaultInhibited(c *C)
 
 	checkIsNotHeld(c, st, "snap-a")
 
-	// refresh for snap-a is still inhibited (old hint is restored).
+	// runinhibit lock is released.
 	hint, err := runinhibit.IsLocked("snap-a")
 	c.Assert(err, IsNil)
-	c.Check(hint, Equals, runinhibit.HintInhibitedForRefresh)
+	c.Check(hint, Equals, runinhibit.HintNotInhibited)
 }
 
 // Test that if gate-auto-refresh hook does nothing, the hook handler
 // assumes --proceed.
-func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookDefaultProceed(c *C) {
+func (s *gateAutoRefreshHookSuite) TestGateAutorefreshDefaultProceed(c *C) {
 	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 		// no runinhibit because the refresh-app-awareness feature is disabled.
 		hint, err := runinhibit.IsLocked("snap-a")
