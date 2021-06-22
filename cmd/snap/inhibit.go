@@ -77,30 +77,15 @@ func zenityFlow(snapName string, hint runinhibit.Hint) error {
 	// The way we invoke zenity --progress makes it wait forever.
 	// so it will typically be an external operation.
 	go func() {
-		zenityDied <- cmd.Wait()
+		zenityErr := cmd.Wait()
+		if zenityErr != nil {
+			zenityErr = fmt.Errorf("zenity error: %s\n", zenityErr)
+		}
+		zenityDied <- zenityErr
 	}()
 
-	// Every second check if the inhibition file is still present.
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-loop:
-	for {
-		select {
-		case err := <-zenityDied:
-			if err != nil {
-				fmt.Fprintf(Stderr, "zenity error: %s\n", err)
-			}
-			break loop
-		case <-ticker.C:
-			// A second has elapsed, let's check again.
-			hint, err := runinhibit.IsLocked(snapName)
-			if err != nil {
-				return err
-			}
-			if hint == runinhibit.HintNotInhibited {
-				break loop
-			}
-		}
+	if err := waitInhibitUnlock(snapName, zenityDied); err != nil {
+		return err
 	}
 
 	return nil
@@ -110,44 +95,11 @@ func textFlow(snapName string, hint runinhibit.Hint) error {
 	fmt.Fprintf(Stdout, "%s\n", inhibitMessage(snapName, hint))
 	fmt.Fprintf(Stdout, "%s\n", i18n.G("please wait..."))
 	// TODO: display a spinner or something like that
-	// Every second check if the inhibition file is still present.
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-loop:
-	for {
-		select {
-		case <-ticker.C:
-			// A second has elapsed, let's check again.
-			hint, err := runinhibit.IsLocked(snapName)
-			if err != nil {
-				return err
-			}
-			if hint == runinhibit.HintNotInhibited {
-				break loop
-			}
-		}
-	}
-	return nil
+	return waitInhibitUnlock(snapName, nil)
 }
 
 func headlessFlow(snapName string) error {
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-loop:
-	for {
-		select {
-		case <-ticker.C:
-			// A second has elapsed, let's check again.
-			hint, err := runinhibit.IsLocked(snapName)
-			if err != nil {
-				return err
-			}
-			if hint == runinhibit.HintNotInhibited {
-				break loop
-			}
-		}
-	}
-	return nil
+	return waitInhibitUnlock(snapName, nil)
 }
 
 func waitWhileInhibited(snapName string) error {
@@ -166,4 +118,30 @@ func waitWhileInhibited(snapName string) error {
 		return textFlow(snapName, hint)
 	}
 	return headlessFlow(snapName)
+}
+
+func waitInhibitUnlock(snapName string, errCh <-chan error) error {
+	// Every second check if the inhibition file is still present.
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+	loop:
+		for {
+			select {
+			case err := <-errCh:
+				if err != nil {
+					fmt.Fprintf(Stderr, "%s", err)
+				}
+				break loop
+			case <-ticker.C:
+				// A second has elapsed, let's check again.
+				hint, err := runinhibit.IsLocked(snapName)
+				if err != nil {
+					return err
+				}
+				if hint == runinhibit.HintNotInhibited {
+					break loop
+				}
+			}
+		}
+	return nil
 }
