@@ -174,8 +174,8 @@ override_dh_auto_build:
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
 
-	# this is the main go build
-	SNAPD_VANILLA_GO=$$(which go) PATH="$$(pwd)/packaging/build-tools/:$$PATH" dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
+	# this is the main go build, GOCACHE= has to be set on 18.04
+	SNAPD_VANILLA_GO=$$(which go) GOCACHE=/tmp/go-build PATH="$$(pwd)/packaging/build-tools/:$$PATH" dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
 
 	(cd _build/bin && GOPATH=$$(pwd)/.. GO111MODULE=off GOCACHE=/tmp/go-build go build $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap)
 	(cd _build/bin && GOPATH=$$(pwd)/.. GO111MODULE=off GOCACHE=/tmp/go-build go build $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap-bootstrap)
@@ -215,7 +215,8 @@ endif
 	(cd vendor/github.com/snapcore/squashfuse/src && mkdir -p autom4te.cache && ./autogen.sh --disable-demo && ./configure --disable-demo && make && mv squashfuse_ll snapfuse)
 
 override_dh_auto_test:
-	dh_auto_test -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
+	# GOCACHE= has to be set on 18.04
+	GOCACHE=/tmp/go-build dh_auto_test -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
 # a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-keys are included
