@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/progress"
 )
 
 func inhibitMessage(snapName string, hint runinhibit.Hint) string {
@@ -93,13 +94,11 @@ func zenityFlow(snapName string, hint runinhibit.Hint) error {
 
 func textFlow(snapName string, hint runinhibit.Hint) error {
 	fmt.Fprintf(Stdout, "%s\n", inhibitMessage(snapName, hint))
-	fmt.Fprintf(Stdout, "%s\n", i18n.G("please wait..."))
-	// TODO: display a spinner or something like that
-	return waitInhibitUnlock(snapName, nil)
-}
-
-func headlessFlow(snapName string) error {
-	return waitInhibitUnlock(snapName, nil)
+	pb := progress.MakeProgressBar()
+	pb.Spin(i18n.G("please wait..."))
+	err := waitInhibitUnlock(snapName, nil)
+	pb.Finished()
+	return err
 }
 
 func waitWhileInhibited(snapName string) error {
@@ -114,34 +113,32 @@ func waitWhileInhibited(snapName string) error {
 	if isGraphicalSession() && hasZenityExecutable() {
 		return zenityFlow(snapName, hint)
 	}
-	if isInteractiveConsole() {
-		return textFlow(snapName, hint)
-	}
-	return headlessFlow(snapName)
+	// terminal and headless
+	return textFlow(snapName, hint)
 }
 
 func waitInhibitUnlock(snapName string, errCh <-chan error) error {
 	// Every second check if the inhibition file is still present.
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
-	loop:
-		for {
-			select {
-			case err := <-errCh:
-				if err != nil {
-					fmt.Fprintf(Stderr, "%s", err)
-				}
+loop:
+	for {
+		select {
+		case err := <-errCh:
+			if err != nil {
+				fmt.Fprintf(Stderr, "%s", err)
+			}
+			break loop
+		case <-ticker.C:
+			// A second has elapsed, let's check again.
+			hint, err := runinhibit.IsLocked(snapName)
+			if err != nil {
+				return err
+			}
+			if hint == runinhibit.HintNotInhibited {
 				break loop
-			case <-ticker.C:
-				// A second has elapsed, let's check again.
-				hint, err := runinhibit.IsLocked(snapName)
-				if err != nil {
-					return err
-				}
-				if hint == runinhibit.HintNotInhibited {
-					break loop
-				}
 			}
 		}
+	}
 	return nil
 }
