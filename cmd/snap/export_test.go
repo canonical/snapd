@@ -411,3 +411,11 @@ func MockOsChmod(f func(string, os.FileMode) error) (restore func()) {
 		osChmod = old
 	}
 }
+
+func MockWaitInhibitUnlock(f func(snapName string, errCh <-chan error) error) (restore func()) {
+	old := waitInhibitUnlock
+	waitInhibitUnlock = f
+	return func() {
+		waitInhibitUnlock = old
+	}
+}
