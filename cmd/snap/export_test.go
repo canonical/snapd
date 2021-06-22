@@ -27,6 +27,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/image"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/selinux"
@@ -137,6 +138,8 @@ var (
 	MaybePrintSum               = (*infoWriter).maybePrintSum
 	MaybePrintCohortKey         = (*infoWriter).maybePrintCohortKey
 	MaybePrintHealth            = (*infoWriter).maybePrintHealth
+	WaitInhibitUnlock           = waitInhibitUnlock
+	IsLocked                    = isLocked
 )
 
 func MockPollTime(d time.Duration) (restore func()) {
@@ -417,5 +420,13 @@ func MockWaitInhibitUnlock(f func(snapName string, errCh <-chan error) error) (r
 	waitInhibitUnlock = f
 	return func() {
 		waitInhibitUnlock = old
+	}
+}
+
+func MockIsLocked(f func(snapName string) (runinhibit.Hint, error)) (restore func()) {
+	old := isLocked
+	isLocked = f
+	return func() {
+		isLocked = old
 	}
 }

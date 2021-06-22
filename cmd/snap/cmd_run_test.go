@@ -1661,3 +1661,35 @@ func (s *RunSuite) TestRunGdbserverNoGdbserver(c *check.C) {
 	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--gdbserver", "snapname.app"})
 	c.Assert(err, check.ErrorMatches, "please install gdbserver on your system")
 }
+
+func (s *RunSuite) TestWaitInhibitUnlock(c *check.C) {
+	var called int
+	restore := main.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+		called++
+		if called < 5 {
+			return runinhibit.HintInhibitedForRefresh, nil
+		}
+		return runinhibit.HintNotInhibited, nil
+	})
+	defer restore()
+
+	c.Assert(main.WaitInhibitUnlock("some-snap", nil), check.IsNil)
+	c.Check(called, check.Equals, 5)
+}
+
+func (s *RunSuite) TestWaitInhibitUnlockWithErrorChannel(c *check.C) {
+	errCh := make(chan error, 1)
+	var called int
+	restore := main.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+		called++
+		if called == 1 {
+			errCh <- fmt.Errorf("boom")
+		}
+		return runinhibit.HintInhibitedForRefresh, nil
+	})
+	defer restore()
+
+	c.Assert(main.WaitInhibitUnlock("some-snap", errCh), check.IsNil)
+	c.Check(called, check.Equals, 1)
+	c.Check(s.Stderr(), check.Equals, `boom`)
+}
