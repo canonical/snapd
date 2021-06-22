@@ -59,6 +59,8 @@ func zenityFlow(snapName string, hint runinhibit.Hint) error {
 	// TODO: while we are waiting ask snapd for progress updates and send those
 	// to zenity via stdin.
 	zenityDied := make(chan error, 1)
+
+	// TODO: use a dbus API to allow integration with native desktop environment.
 	cmd := exec.Command(
 		"zenity",
 		// [generic options]

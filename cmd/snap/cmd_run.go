@@ -210,16 +210,6 @@ func (x *cmdRun) Execute(args []string) error {
 	snapApp := args[0]
 	args = args[1:]
 
-	// If the snap is inhibited from being used then postpone running it until
-	// that condition passes. Inhibition UI can be dismissed by the user, in
-	// which case we don't run the application at all.
-	if features.RefreshAppAwareness.IsEnabled() {
-		snapName, _ := snap.SplitSnapApp(snapApp)
-		if err := waitWhileInhibited(snapName); err != nil {
-			return err
-		}
-	}
-
 	// Catch some invalid parameter combinations, provide helpful errors
 	optionsSet := 0
 	for _, param := range []string{x.HookName, x.Command, x.Timer} {
@@ -257,6 +247,16 @@ func (x *cmdRun) Execute(args []string) error {
 	}
 
 	return x.snapRunApp(snapApp, args)
+}
+
+func maybeWaitWhileInhibited(snapName string) error {
+	// If the snap is inhibited from being used then postpone running it until
+	// that condition passes. Inhibition UI can be dismissed by the user, in
+	// which case we don't run the application at all.
+	if features.RefreshAppAwareness.IsEnabled() {
+		return waitWhileInhibited(snapName)
+	}
+	return nil
 }
 
 // antialias changes snapApp and args if snapApp is actually an alias
@@ -475,10 +475,20 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 		return fmt.Errorf(i18n.G("cannot find app %q in %q"), appName, snapName)
 	}
 
+	if !app.IsService() {
+		if err := maybeWaitWhileInhibited(snapName); err != nil {
+			return err
+		}
+	}
+
 	return x.runSnapConfine(info, app.SecurityTag(), snapApp, "", args)
 }
 
 func (x *cmdRun) snapRunHook(snapName string) error {
+	if err := maybeWaitWhileInhibited(snapName); err != nil {
+		return err
+	}
+
 	revision, err := snap.ParseRevision(x.Revision)
 	if err != nil {
 		return err
