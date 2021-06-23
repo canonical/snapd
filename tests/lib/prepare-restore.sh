@@ -498,15 +498,15 @@ prepare_project() {
             if [[ "$SPREAD_SYSTEM" == debian-9-* ]]; then
                 best_golang="$(python3 ./tests/lib/best_golang.py)"
                 test -n "$best_golang"
-                sed -i -e "s/golang-1.10/$best_golang/" ./debian/control
+                sed -i -e "s/golang-1.13/$best_golang/" ./debian/control
             else
-                best_golang=golang-1.10
+                best_golang=golang-1.13
             fi
             gdebi --quiet --apt-line ./debian/control | quiet xargs -r eatmydata apt-get install -y
-            # The go 1.10 backport is not using alternatives or anything else so
+            # The go 1.13 backport is not using alternatives or anything else so
             # we need to get it on path somehow. This is not perfect but simple.
             if [ -z "$(command -v go)" ]; then
-                # the path filesystem path is: /usr/lib/go-1.10/bin
+                # the path filesystem path is: /usr/lib/go-1.13/bin
                 ln -s "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
             fi
             ;;
