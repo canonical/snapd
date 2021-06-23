@@ -27,7 +27,6 @@ import (
 
 var (
 	UpdateSnapstateServices = updateSnapstateServices
-	PatchQuotas             = patchQuotas
 	CheckSystemdVersion     = checkSystemdVersion
 	QuotaCreate             = quotaCreate
 	QuotaRemove             = quotaRemove

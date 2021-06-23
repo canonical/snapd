@@ -575,6 +575,77 @@ func (s *autorefreshGatingSuite) TestHoldAndProceedWithRefreshHelper(c *C) {
 	c.Check(held, IsNil)
 }
 
+func (s *autorefreshGatingSuite) TestPruneGatingHelper(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	restore := snapstate.MockTimeNow(func() time.Time {
+		t, err := time.Parse(time.RFC3339, "2021-05-10T10:00:00Z")
+		c.Assert(err, IsNil)
+		return t
+	})
+	defer restore()
+
+	mockInstalledSnap(c, st, snapAyaml, false)
+	mockInstalledSnap(c, st, snapByaml, false)
+	mockInstalledSnap(c, st, snapCyaml, false)
+	mockInstalledSnap(c, st, snapDyaml, false)
+
+	c.Assert(snapstate.HoldRefresh(st, "snap-a", 0, "snap-b", "snap-c"), IsNil)
+	c.Assert(snapstate.HoldRefresh(st, "snap-d", 0, "snap-d", "snap-c"), IsNil)
+	// sanity
+	held, err := snapstate.HeldSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(held, DeepEquals, map[string]bool{"snap-c": true, "snap-b": true, "snap-d": true})
+
+	candidates := map[string]*snapstate.RefreshCandidate{"snap-c": {}}
+
+	// only snap-c has a refresh candidate, snap-b and snap-d should be forgotten.
+	c.Assert(snapstate.PruneGating(st, candidates), IsNil)
+	var gating map[string]map[string]*snapstate.HoldState
+	c.Assert(st.Get("snaps-hold", &gating), IsNil)
+	c.Check(gating, DeepEquals, map[string]map[string]*snapstate.HoldState{
+		"snap-c": {
+			"snap-a": snapstate.MockHoldState("2021-05-10T10:00:00Z", "2021-05-12T10:00:00Z"),
+			"snap-d": snapstate.MockHoldState("2021-05-10T10:00:00Z", "2021-05-12T10:00:00Z"),
+		},
+	})
+	held, err = snapstate.HeldSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(held, DeepEquals, map[string]bool{"snap-c": true})
+}
+
+func (s *autorefreshGatingSuite) TestPruneGatingHelperNoGating(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	restore := snapstate.MockTimeNow(func() time.Time {
+		t, err := time.Parse(time.RFC3339, "2021-05-10T10:00:00Z")
+		c.Assert(err, IsNil)
+		return t
+	})
+	defer restore()
+
+	mockInstalledSnap(c, st, snapAyaml, false)
+
+	held, err := snapstate.HeldSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(held, HasLen, 0)
+
+	snapstate.MockTimeNow(func() time.Time {
+		c.Fatalf("not expected")
+		return time.Time{}
+	})
+
+	candidates := map[string]*snapstate.RefreshCandidate{"snap-a": {}}
+	c.Assert(snapstate.PruneGating(st, candidates), IsNil)
+	held, err = snapstate.HeldSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(held, HasLen, 0)
+}
+
 func (s *autorefreshGatingSuite) TestResetGatingForRefreshedHelper(c *C) {
 	st := s.state
 	st.Lock()
@@ -608,6 +679,46 @@ func (s *autorefreshGatingSuite) TestResetGatingForRefreshedHelper(c *C) {
 	held, err := snapstate.HeldSnaps(st)
 	c.Assert(err, IsNil)
 	c.Check(held, DeepEquals, map[string]bool{"snap-d": true})
+}
+
+func (s *autorefreshGatingSuite) TestPruneSnapsHold(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockInstalledSnap(c, st, snapAyaml, false)
+	mockInstalledSnap(c, st, snapByaml, false)
+	mockInstalledSnap(c, st, snapCyaml, false)
+	mockInstalledSnap(c, st, snapDyaml, false)
+
+	// snap-a is holding itself and 3 other snaps
+	c.Assert(snapstate.HoldRefresh(st, "snap-a", 0, "snap-a", "snap-b", "snap-c", "snap-d"), IsNil)
+	// in addition, snap-c is held by snap-d.
+	c.Assert(snapstate.HoldRefresh(st, "snap-d", 0, "snap-c"), IsNil)
+
+	// sanity check
+	held, err := snapstate.HeldSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(held, DeepEquals, map[string]bool{
+		"snap-a": true,
+		"snap-b": true,
+		"snap-c": true,
+		"snap-d": true,
+	})
+
+	c.Check(snapstate.PruneSnapsHold(st, "snap-a"), IsNil)
+
+	// after pruning snap-a, snap-c is still held.
+	held, err = snapstate.HeldSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(held, DeepEquals, map[string]bool{
+		"snap-c": true,
+	})
+	var gating map[string]map[string]*snapstate.HoldState
+	c.Assert(st.Get("snaps-hold", &gating), IsNil)
+	c.Assert(gating, HasLen, 1)
+	c.Check(gating["snap-c"], HasLen, 1)
+	c.Check(gating["snap-c"]["snap-d"], NotNil)
 }
 
 const useHook = true
@@ -1062,9 +1173,20 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 	mockInstalledSnap(c, s.state, snapByaml, useHook)
 	mockInstalledSnap(c, s.state, snapCyaml, noHook)
 	mockInstalledSnap(c, s.state, baseSnapByaml, noHook)
+	mockInstalledSnap(c, s.state, snapDyaml, noHook)
 
 	restore := snapstatetest.MockDeviceModel(DefaultModel())
 	defer restore()
+
+	// pretend some snaps are held
+	c.Assert(snapstate.HoldRefresh(st, "gating-snap", 0, "snap-a", "snap-d"), IsNil)
+	// sanity check
+	heldSnaps, err := snapstate.HeldSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(heldSnaps, DeepEquals, map[string]bool{
+		"snap-a": true,
+		"snap-d": true,
+	})
 
 	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st)
 	c.Assert(err, IsNil)
@@ -1141,6 +1263,15 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 	c.Check(candidates["snap-a"], NotNil)
 	c.Check(candidates["base-snap-b"], NotNil)
 	c.Check(candidates["snap-c"], NotNil)
+
+	// check that after autoRefreshPhase1 any held snaps that are not in refresh
+	// candidates got removed.
+	heldSnaps, err = snapstate.HeldSnaps(st)
+	c.Assert(err, IsNil)
+	// snap-d got removed from held snaps.
+	c.Check(heldSnaps, DeepEquals, map[string]bool{
+		"snap-a": true,
+	})
 }
 
 func (s *autorefreshGatingSuite) TestAutoRefreshPhase1ConflictsFilteredOut(c *C) {
@@ -1415,6 +1546,14 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 		"snap-a": true,
 		"snap-b": true,
 	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// all snaps refreshed, all removed from refresh-candidates.
+	var candidates map[string]*snapstate.RefreshCandidate
+	c.Assert(s.state.Get("refresh-candidates", &candidates), IsNil)
+	c.Assert(candidates, HasLen, 0)
 }
 
 func (s *snapmgrTestSuite) TestAutoRefreshPhase2Held(c *C) {
@@ -1817,6 +1956,13 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2GatedSnaps(c *C) {
 		"check-rerefresh",
 	}
 	verifyPhasedAutorefreshTasks(c, chg.Tasks(), expected)
+
+	// only snap-a remains in refresh-candidates because it was gated;
+	// base-snap-b got pruned (was refreshed).
+	var candidates map[string]*snapstate.RefreshCandidate
+	c.Assert(st.Get("refresh-candidates", &candidates), IsNil)
+	c.Assert(candidates, HasLen, 1)
+	c.Check(candidates["snap-a"], NotNil)
 }
 
 func verifyPhasedAutorefreshTasks(c *C, tasks []*state.Task, expected []string) {
