@@ -188,13 +188,24 @@ func (r *runCfgSuite) TestConfigureUnknownOption(c *C) {
 }
 
 type mockDev struct {
+	mode    string
 	classic bool
+	kernel  string
+	uc20    bool
 }
 
-func (d mockDev) RunMode() bool    { return true }
+func (d mockDev) RunMode() bool    { return d.mode == "" || d.mode == "run" }
 func (d mockDev) Classic() bool    { return d.classic }
-func (d mockDev) Kernel() string   { return "pc-kernel" }
-func (d mockDev) HasModeenv() bool { return false }
+func (d mockDev) HasModeenv() bool { return d.uc20 }
+func (d mockDev) Kernel() string {
+	if d.Classic() {
+		return ""
+	}
+	if d.kernel == "" {
+		return "pc-kernel"
+	}
+	return d.kernel
+}
 
 var (
 	coreDev    = mockDev{classic: false}
