@@ -79,7 +79,7 @@ static const char *cgroup_dir = "/sys/fs/cgroup";
 // Detect if we are running in cgroup v2 unified mode (as opposed to
 // hybrid or legacy) The algorithm is described in
 // https://systemd.io/CGROUP_DELEGATION/
-bool sc_cgroup_is_v2() {
+bool sc_cgroup_is_v2(void) {
     static bool did_warn = false;
     struct statfs buf;
 

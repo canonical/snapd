@@ -2252,6 +2252,13 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		return &state.Retry{After: 3 * time.Minute}
 	}
 	if len(snapst.Sequence) == 0 {
+		if err := pruneRefreshCandidates(st, snapsup.InstanceName()); err != nil {
+			return err
+		}
+		if err := pruneSnapsHold(st, snapsup.InstanceName()); err != nil {
+			return err
+		}
+
 		// Remove configuration associated with this snap.
 		err = config.DeleteSnapConfig(st, snapsup.InstanceName())
 		if err != nil {
