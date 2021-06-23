@@ -684,9 +684,10 @@ restore_suite_each() {
     if os.query is-focal || os.query is.fedora; then
         set +x
         pkill inotifywait
-        local created_files=$( sudo cat /tmp/fs.output | grep " CREATE " | awk '{ print $1$3 }' )
-        local created_dirs=$( sudo cat /tmp/fs.output | grep " CREATE,ISDIR " | awk '{ print $1$3 }' )
-        local missing=false
+        local created_files created_dirs missing
+        created_files=$( sudo cat /tmp/fs.output | grep " CREATE " | awk '{ print $1$3 }' )
+        created_dirs=$( sudo cat /tmp/fs.output | grep " CREATE,ISDIR " | awk '{ print $1$3 }' )
+        missing=false
 
         for file in $created_files; do
             if [ -f "$file" ]; then
