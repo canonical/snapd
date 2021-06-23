@@ -34,7 +34,6 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -80,9 +79,6 @@ PATH="/usr/bin"
 }
 
 func (s *proxySuite) TestConfigureProxyUnhappy(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	dirs.SetRootDir(c.MkDir())
 	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
@@ -94,9 +90,6 @@ func (s *proxySuite) TestConfigureProxyUnhappy(c *C) {
 }
 
 func (s *proxySuite) TestConfigureProxy(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	for _, proto := range []string{"http", "https", "ftp"} {
 		// populate with content
 		s.makeMockEtcEnvironment(c)
@@ -116,9 +109,6 @@ PATH="/usr/bin"
 }
 
 func (s *proxySuite) TestConfigureNoProxy(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	// populate with content
 	s.makeMockEtcEnvironment(c)
 	err := configcore.Run(coreDev, &mockConf{

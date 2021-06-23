@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -128,9 +127,6 @@ func (s *piCfgSuite) TestConfigurePiConfigNoChangeSet(c *C) {
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigIntegration(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
@@ -154,9 +150,6 @@ func (s *piCfgSuite) TestConfigurePiConfigIntegration(c *C) {
 }
 
 func (s *piCfgSuite) TestConfigurePiConfigRegression(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
@@ -169,14 +162,11 @@ func (s *piCfgSuite) TestConfigurePiConfigRegression(c *C) {
 }
 
 func (s *piCfgSuite) TestUpdateConfigUC20RunMode(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	// mock the device as uc20 run mode
 	mockCmdline := filepath.Join(dirs.GlobalRootDir, "cmdline")
 	err := ioutil.WriteFile(mockCmdline, []byte("snapd_recovery_mode=run"), 0644)
 	c.Assert(err, IsNil)
-	restore = osutil.MockProcCmdline(mockCmdline)
+	restore := osutil.MockProcCmdline(mockCmdline)
 	defer restore()
 
 	// write default config at both the uc18 style runtime location and uc20 run
@@ -213,14 +203,11 @@ func (s *piCfgSuite) TestUpdateConfigUC20RunMode(c *C) {
 }
 
 func (s *piCfgSuite) testUpdateConfigUC20NonRunMode(c *C, mode string) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	// mock the device as the specified uc20 mode
 	mockCmdline := filepath.Join(dirs.GlobalRootDir, "cmdline")
 	err := ioutil.WriteFile(mockCmdline, []byte("snapd_recovery_mode="+mode), 0644)
 	c.Assert(err, IsNil)
-	restore = osutil.MockProcCmdline(mockCmdline)
+	restore := osutil.MockProcCmdline(mockCmdline)
 	defer restore()
 
 	piCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "config.txt")

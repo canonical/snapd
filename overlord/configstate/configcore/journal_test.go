@@ -30,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -79,9 +78,6 @@ func (s *journalSuite) TestConfigurePersistentJournalInvalid(c *C) {
 }
 
 func (s *journalSuite) TestConfigurePersistentJournalOnCore(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{"journal.persistent": "true"},
@@ -100,9 +96,6 @@ func (s *journalSuite) TestConfigurePersistentJournalOnCore(c *C) {
 }
 
 func (s *journalSuite) TestConfigurePersistentJournalOldSystemd(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	s.systemdVersion = "235"
 
 	err := configcore.Run(coreDev, &mockConf{
@@ -122,9 +115,6 @@ func (s *journalSuite) TestConfigurePersistentJournalOldSystemd(c *C) {
 }
 
 func (s *journalSuite) TestConfigurePersistentJournalOnCoreNoopIfExists(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	// existing journal directory, not created by snapd (no marker file)
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"), 0755), IsNil)
 
@@ -146,9 +136,6 @@ func (s *journalSuite) TestConfigurePersistentJournalOnCoreNoopIfExists(c *C) {
 }
 
 func (s *journalSuite) TestDisablePersistentJournalNotManagedBySnapdError(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	// journal directory exists, but no marker file
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"), 0755), IsNil)
 
@@ -162,9 +149,6 @@ func (s *journalSuite) TestDisablePersistentJournalNotManagedBySnapdError(c *C) 
 }
 
 func (s *journalSuite) TestDisablePersistentJournalOnCore(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/var/log/journal"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/log/journal/.snapd-created"), nil, 0755), IsNil)
 
@@ -185,9 +169,6 @@ func (s *journalSuite) TestDisablePersistentJournalOnCore(c *C) {
 }
 
 func (s *journalSuite) TestFilesystemOnlyApply(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	conf := configcore.PlainCoreConfig(map[string]interface{}{
 		"journal.persistent": "true",
 	})

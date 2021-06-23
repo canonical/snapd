@@ -31,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -50,9 +49,6 @@ func (s *watchdogSuite) SetUpTest(c *C) {
 }
 
 func (s *watchdogSuite) TestConfigureWatchdog(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	for option, val := range map[string]string{"runtime-timeout": "10", "shutdown-timeout": "60"} {
 
 		err := configcore.Run(coreDev, &mockConf{
@@ -81,9 +77,6 @@ func (s *watchdogSuite) TestConfigureWatchdog(c *C) {
 }
 
 func (s *watchdogSuite) TestConfigureWatchdogUnits(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	times := []int{56, 432}
 	type timeUnit struct {
 		unit  string
@@ -106,9 +99,6 @@ func (s *watchdogSuite) TestConfigureWatchdogUnits(c *C) {
 }
 
 func (s *watchdogSuite) TestConfigureWatchdogAll(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	times := []int{10, 100}
 	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
@@ -132,9 +122,6 @@ func (s *watchdogSuite) TestConfigureWatchdogAllConfDirExistsAlready(c *C) {
 	err := os.MkdirAll(dirs.SnapSystemdConfDir, 0755)
 	c.Assert(err, IsNil)
 
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	times := []int{10, 100}
 	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
@@ -154,9 +141,6 @@ func (s *watchdogSuite) TestConfigureWatchdogAllConfDirExistsAlready(c *C) {
 }
 
 func (s *watchdogSuite) TestConfigureWatchdogBadFormat(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	type badValErr struct {
 		val string
 		err string
@@ -177,9 +161,6 @@ func (s *watchdogSuite) TestConfigureWatchdogBadFormat(c *C) {
 }
 
 func (s *watchdogSuite) TestConfigureWatchdogNoFileUpdate(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	err := os.MkdirAll(dirs.SnapSystemdConfDir, 0755)
 	c.Assert(err, IsNil)
 	times := []int{10, 100}
@@ -215,9 +196,6 @@ func (s *watchdogSuite) TestConfigureWatchdogNoFileUpdate(c *C) {
 }
 
 func (s *watchdogSuite) TestConfigureWatchdogRemovesIfEmpty(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	err := os.MkdirAll(dirs.SnapSystemdConfDir, 0755)
 	c.Assert(err, IsNil)
 	// add canary to ensure we don't touch other files
