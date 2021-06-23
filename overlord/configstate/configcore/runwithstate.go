@@ -72,7 +72,7 @@ func (h *withStateHandler) validate(cfg config.ConfGetter) error {
 	return nil
 }
 
-func (h *withStateHandler) handle(cfg config.ConfGetter, opts *fsOnlyContext) error {
+func (h *withStateHandler) handle(dev sysconfig.Device, cfg config.ConfGetter, opts *fsOnlyContext) error {
 	conf := cfg.(config.Conf)
 	if h.handleFunc != nil {
 		return h.handleFunc(conf, opts)
@@ -131,7 +131,7 @@ func applyHandlers(dev sysconfig.Device, cfg config.Conf, handlers []configHandl
 		if h.flags().coreOnlyConfig && dev.Classic() {
 			continue
 		}
-		if err := h.handle(cfg, nil); err != nil {
+		if err := h.handle(dev, cfg, nil); err != nil {
 			return err
 		}
 	}

@@ -28,7 +28,7 @@ import (
 
 type configHandler interface {
 	validate(config.ConfGetter) error
-	handle(config.ConfGetter, *fsOnlyContext) error
+	handle(sysconfig.Device, config.ConfGetter, *fsOnlyContext) error
 	needsState() bool
 	flags() flags
 }
@@ -51,7 +51,7 @@ type flags struct {
 
 type fsOnlyHandler struct {
 	validateFunc func(config.ConfGetter) error
-	handleFunc   func(config.ConfGetter, *fsOnlyContext) error
+	handleFunc   func(sysconfig.Device, config.ConfGetter, *fsOnlyContext) error
 	configFlags  flags
 }
 
@@ -103,7 +103,7 @@ func init() {
 // addFSOnlyHandler registers functions to validate and handle a subset of
 // system config options that do not require to manipulate state but only
 // the file system.
-func addFSOnlyHandler(validate func(config.ConfGetter) error, handle func(config.ConfGetter, *fsOnlyContext) error, flags *flags) {
+func addFSOnlyHandler(validate func(config.ConfGetter) error, handle func(sysconfig.Device, config.ConfGetter, *fsOnlyContext) error, flags *flags) {
 	if handle == nil {
 		panic("cannot have nil handle with fsOnlyHandler")
 	}
@@ -132,9 +132,9 @@ func (h *fsOnlyHandler) validate(cfg config.ConfGetter) error {
 	return nil
 }
 
-func (h *fsOnlyHandler) handle(cfg config.ConfGetter, opts *fsOnlyContext) error {
+func (h *fsOnlyHandler) handle(dev sysconfig.Device, cfg config.ConfGetter, opts *fsOnlyContext) error {
 	// handleFunc is guaranteed to be non-nil by addFSOnlyHandler
-	return h.handleFunc(cfg, opts)
+	return h.handleFunc(dev, cfg, opts)
 }
 
 // filesystemOnlyApply applies filesystem modifications under rootDir, according to the
@@ -168,7 +168,7 @@ func filesystemOnlyApply(dev sysconfig.Device, rootDir string, values map[string
 		if h.flags().coreOnlyConfig && dev.Classic() {
 			continue
 		}
-		if err := h.handle(cfg, ctx); err != nil {
+		if err := h.handle(dev, cfg, ctx); err != nil {
 			return err
 		}
 	}
