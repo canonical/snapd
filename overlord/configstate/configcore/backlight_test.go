@@ -27,7 +27,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
-	"github.com/snapcore/snapd/release"
 )
 
 type backlightSuite struct {
@@ -44,9 +43,6 @@ func (s *backlightSuite) SetUpTest(c *C) {
 }
 
 func (s *backlightSuite) TestConfigureBacklightServiceMaskIntegration(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	s.systemctlArgs = nil
 	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
@@ -61,9 +57,6 @@ func (s *backlightSuite) TestConfigureBacklightServiceMaskIntegration(c *C) {
 }
 
 func (s *backlightSuite) TestConfigureBacklightServiceUnmaskIntegration(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	s.systemctlArgs = nil
 	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,

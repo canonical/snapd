@@ -28,7 +28,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -53,9 +52,6 @@ func (s *powerbtnSuite) TestConfigurePowerButtonInvalid(c *C) {
 }
 
 func (s *powerbtnSuite) TestConfigurePowerIntegration(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	for _, action := range []string{"ignore", "poweroff", "reboot", "halt", "kexec", "suspend", "hibernate", "hybrid-sleep", "lock"} {
 
 		err := configcore.Run(coreDev, &mockConf{

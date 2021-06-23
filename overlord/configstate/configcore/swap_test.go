@@ -29,7 +29,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -55,9 +54,6 @@ func (s *swapCfgSuite) SetUpTest(c *C) {
 }
 
 func (s *swapCfgSuite) TestConfigureSwapSizeOnlyWhenChanged(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	// set it to 1M initially
 	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
@@ -99,9 +95,6 @@ SIZE=1
 }
 
 func (s *swapCfgSuite) TestConfigureSwapSize(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	// set it to 1M initially
 	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,

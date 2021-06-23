@@ -27,7 +27,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -61,9 +60,6 @@ func (s *timezoneSuite) TestConfigureTimezoneInvalid(c *C) {
 }
 
 func (s *timezoneSuite) TestConfigureTimezoneIntegration(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	mockedTimedatectl := testutil.MockCommand(c, "timedatectl", "")
 	defer mockedTimedatectl.Restore()
 

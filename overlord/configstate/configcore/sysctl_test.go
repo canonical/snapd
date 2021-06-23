@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -43,7 +42,6 @@ var _ = Suite(&sysctlSuite{})
 func (s *sysctlSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
-	s.AddCleanup(release.MockOnClassic(false))
 
 	s.mockSysctlConfPath = filepath.Join(dirs.GlobalRootDir, "/etc/sysctl.d/99-snapd.conf")
 	c.Assert(os.MkdirAll(filepath.Dir(s.mockSysctlConfPath), 0755), IsNil)
