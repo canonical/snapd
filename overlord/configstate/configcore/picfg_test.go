@@ -29,7 +29,6 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -162,19 +161,17 @@ func (s *piCfgSuite) TestConfigurePiConfigRegression(c *C) {
 }
 
 func (s *piCfgSuite) TestUpdateConfigUC20RunMode(c *C) {
-	// mock the device as uc20 run mode
-	mockCmdline := filepath.Join(dirs.GlobalRootDir, "cmdline")
-	err := ioutil.WriteFile(mockCmdline, []byte("snapd_recovery_mode=run"), 0644)
-	c.Assert(err, IsNil)
-	restore := osutil.MockProcCmdline(mockCmdline)
-	defer restore()
+	uc20DevRunMode := mockDev{
+		mode: "run",
+		uc20: true,
+	}
 
 	// write default config at both the uc18 style runtime location and uc20 run
 	// mode location to show that we only modify the uc20 one
 	piCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "config.txt")
 	uc18PiCfg := filepath.Join(dirs.GlobalRootDir, "/boot/uboot/config.txt")
 
-	err = os.MkdirAll(filepath.Dir(piCfg), 0755)
+	err := os.MkdirAll(filepath.Dir(piCfg), 0755)
 	c.Assert(err, IsNil)
 	err = os.MkdirAll(filepath.Dir(uc18PiCfg), 0755)
 	c.Assert(err, IsNil)
@@ -185,7 +182,7 @@ func (s *piCfgSuite) TestUpdateConfigUC20RunMode(c *C) {
 	c.Assert(err, IsNil)
 
 	// apply the config
-	err = configcore.Run(coreDev, &mockConf{
+	err = configcore.Run(uc20DevRunMode, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.gpu-mem-512": true,
@@ -203,23 +200,21 @@ func (s *piCfgSuite) TestUpdateConfigUC20RunMode(c *C) {
 }
 
 func (s *piCfgSuite) testUpdateConfigUC20NonRunMode(c *C, mode string) {
-	// mock the device as the specified uc20 mode
-	mockCmdline := filepath.Join(dirs.GlobalRootDir, "cmdline")
-	err := ioutil.WriteFile(mockCmdline, []byte("snapd_recovery_mode="+mode), 0644)
-	c.Assert(err, IsNil)
-	restore := osutil.MockProcCmdline(mockCmdline)
-	defer restore()
+	uc20DevMode := mockDev{
+		mode: mode,
+		uc20: true,
+	}
 
 	piCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "config.txt")
 
-	err = os.MkdirAll(filepath.Dir(piCfg), 0755)
+	err := os.MkdirAll(filepath.Dir(piCfg), 0755)
 	c.Assert(err, IsNil)
 
 	err = ioutil.WriteFile(piCfg, []byte(mockConfigTxt), 0644)
 	c.Assert(err, IsNil)
 
 	// apply the config
-	err = configcore.Run(coreDev, &mockConf{
+	err = configcore.Run(uc20DevMode, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.gpu-mem-512": true,
