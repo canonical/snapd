@@ -74,7 +74,7 @@ match_log(){
         # section
         set +x
         local log params
-        if [ -z "$unit" ]; then
+        if [ -n "$unit" ]; then
             params="-u $unit"
         fi
         log=$(get_log "$params")
