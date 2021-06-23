@@ -19,9 +19,6 @@ export DH_GOLANG_GO_GENERATE=1
 export PATH:=${PATH}:${CURDIR}
 # make sure that correct go version is found on xenial
 export PATH:=/usr/lib/go-1.13/bin:${PATH}
-# go-1.13 is using $HOME to store cache files but sbuild will prevent
-# writing to the default $HOME
-export HOME:=/tmp/snapd-build-home
 
 include /etc/os-release
 
