@@ -41,7 +41,7 @@ func inhibitMessage(snapName string, hint runinhibit.Hint) string {
 }
 
 func isGraphicalSession() bool {
-	return os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_SOCKET") != ""
+	return os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != ""
 }
 
 func isInteractiveConsole() bool {
