@@ -634,6 +634,11 @@ prepare_suite_each() {
         "$TESTSTOOLS"/cleanup-state pre-invariant
     fi
     tests.invariant check
+
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    if os.query is-focal || os.query is.fedora; then
+        inotifywait /root /var/lib/snapd /var/snap /home "$SNAP_MOUNT_DIR" -d -m -r -e CREATE -e DELETE --exclude "($PWD/task.yaml|$PWD/.*/.*.snap|$PROJECT_PATH/tests/lib/snaps/.*/.*.snap)" -o /tmp/fs.output
+    fi
 }
 
 restore_suite_each() {
@@ -675,6 +680,32 @@ restore_suite_each() {
         "$TESTSTOOLS"/cleanup-state pre-invariant
     fi
     tests.invariant check
+
+    if os.query is-focal || os.query is.fedora; then
+        set +x
+        pkill inotifywait
+        local created_files=$( sudo cat /tmp/fs.output | grep " CREATE " | awk '{ print $1$3 }' )
+        local created_dirs=$( sudo cat /tmp/fs.output | grep " CREATE,ISDIR " | awk '{ print $1$3 }' )
+        local missing=false
+
+        for file in $created_files; do
+            if [ -f "$file" ]; then
+                echo "File not deleted $file"
+                missing=true
+            fi
+        done
+
+        for file in $created_dirs; do
+            if [ -d "$file" ]; then
+                echo "Dir not deleted $file"
+                missing=true
+            fi
+        done
+        if [ "$missing" = true ]; then
+            exit 1
+        fi
+        set -x
+    fi
 }
 
 restore_suite() {

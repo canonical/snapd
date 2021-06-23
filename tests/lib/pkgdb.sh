@@ -591,6 +591,7 @@ pkg_dependencies_ubuntu_classic(){
         ubuntu-20.04-64)
             echo "
                 evolution-data-server
+                inotify-tools
                 gccgo-9
                 packagekit
                 qemu-utils
@@ -665,6 +666,7 @@ pkg_dependencies_fedora(){
         fwupd
         git
         golang
+        inotify-tools
         jq
         iptables-services
         man
