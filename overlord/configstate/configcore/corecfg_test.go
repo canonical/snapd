@@ -168,7 +168,7 @@ func (s *configcoreSuite) SetUpTest(c *C) {
 	s.AddCleanup(restore)
 }
 
-// runCfgSuite tests configcore.Run()
+// runCfgSuite tests configcore.Run
 type runCfgSuite struct {
 	configcoreSuite
 }
@@ -183,19 +183,22 @@ func (r *runCfgSuite) TestConfigureUnknownOption(c *C) {
 		},
 	}
 
-	err := configcore.Run(conf)
+	err := configcore.Run(coreDev, conf)
 	c.Check(err, ErrorMatches, `cannot set "core.unknown.option": unsupported system option`)
 }
 
-type mockDev struct{}
+type mockDev struct {
+	classic bool
+}
 
 func (d mockDev) RunMode() bool    { return true }
-func (d mockDev) Classic() bool    { return false }
+func (d mockDev) Classic() bool    { return d.classic }
 func (d mockDev) Kernel() string   { return "pc-kernel" }
 func (d mockDev) HasModeenv() bool { return false }
 
 var (
-	coreDev = mockDev{}
+	coreDev    = mockDev{classic: false}
+	classicDev = mockDev{classic: true}
 )
 
 // applyCfgSuite tests configcore.Apply()

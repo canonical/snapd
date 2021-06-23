@@ -84,7 +84,7 @@ func (s *proxySuite) TestConfigureProxyUnhappy(c *C) {
 	defer restore()
 
 	dirs.SetRootDir(c.MkDir())
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"proxy.http": "http://example.com",
@@ -101,7 +101,7 @@ func (s *proxySuite) TestConfigureProxy(c *C) {
 		// populate with content
 		s.makeMockEtcEnvironment(c)
 
-		err := configcore.Run(&mockConf{
+		err := configcore.Run(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				fmt.Sprintf("proxy.%s", proto): fmt.Sprintf("%s://example.com", proto),
@@ -121,7 +121,7 @@ func (s *proxySuite) TestConfigureNoProxy(c *C) {
 
 	// populate with content
 	s.makeMockEtcEnvironment(c)
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"proxy.no-proxy": "example.com,bar.com",
@@ -136,7 +136,7 @@ no_proxy=example.com,bar.com`)
 
 func (s *proxySuite) TestConfigureProxyStore(c *C) {
 	// set to ""
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"proxy.store": "",
@@ -152,7 +152,7 @@ func (s *proxySuite) TestConfigureProxyStore(c *C) {
 		},
 	}
 
-	err = configcore.Run(conf)
+	err = configcore.Run(classicDev, conf)
 	c.Check(err, ErrorMatches, `cannot set proxy.store to "foo" without a matching store assertion`)
 
 	operatorAcct := assertstest.NewAccount(s.storeSigning, "foo-operator", nil, "")
@@ -170,7 +170,7 @@ func (s *proxySuite) TestConfigureProxyStore(c *C) {
 		assertstatetest.AddMany(s.state, operatorAcct, stoAs)
 	}()
 
-	err = configcore.Run(conf)
+	err = configcore.Run(classicDev, conf)
 	c.Check(err, IsNil)
 }
 
@@ -196,6 +196,6 @@ func (s *proxySuite) TestConfigureProxyStoreNoURL(c *C) {
 		assertstatetest.AddMany(s.state, operatorAcct, stoAs)
 	}()
 
-	err = configcore.Run(conf)
+	err = configcore.Run(coreDev, conf)
 	c.Check(err, ErrorMatches, `cannot set proxy.store to "foo" with a matching store assertion with url unset`)
 }

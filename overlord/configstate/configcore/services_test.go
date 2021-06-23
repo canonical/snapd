@@ -70,7 +70,7 @@ func (s *servicesSuite) TestConfigureServiceInvalidValue(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"service.ssh.disable": "xxx",
@@ -123,7 +123,7 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 	} {
 		s.systemctlArgs = nil
 		s.serviceInstalled = service.installed
-		err := configcore.Run(&mockConf{
+		err := configcore.Run(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				fmt.Sprintf("service.%s.disable", service.cfgName): true,
@@ -200,7 +200,7 @@ func (s *servicesSuite) TestConfigureConsoleConfEnableNotAtRuntime(c *C) {
 	c.Assert(err, IsNil)
 
 	// now enable it
-	err = configcore.Run(&mockConf{
+	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"service.console-conf.disable": false,
@@ -217,7 +217,7 @@ func (s *servicesSuite) TestConfigureConsoleConfDisableNotAtRuntime(c *C) {
 	// "/var/lib/console-conf/complete" file
 
 	// now try to enable it
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"service.console-conf.disable": true,
@@ -233,7 +233,7 @@ func (s *servicesSuite) TestConfigureConsoleConfEnableAlreadyEnabledIsFine(c *C)
 	// Note that we have no
 	//        /var/lib/console-conf/complete
 	// file. So console-conf is already enabled
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"service.console-conf.disable": false,
@@ -253,7 +253,7 @@ func (s *servicesSuite) TestConfigureConsoleConfDisableAlreadyDisabledIsFine(c *
 	err = ioutil.WriteFile(canary, nil, 0644)
 	c.Assert(err, IsNil)
 
-	err = configcore.Run(&mockConf{
+	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"service.console-conf.disable": true,
@@ -272,7 +272,7 @@ func (s *servicesSuite) TestConfigureConsoleConfEnableDuringInstallMode(c *C) {
 	restore = osutil.MockProcCmdline(mockProcCmdline)
 	defer restore()
 
-	err = configcore.Run(&mockConf{
+	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"service.console-conf.disable": true,
@@ -303,7 +303,7 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 	} {
 		s.systemctlArgs = nil
 		s.serviceInstalled = service.installed
-		err := configcore.Run(&mockConf{
+		err := configcore.Run(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				fmt.Sprintf("service.%s.disable", service.cfgName): false,
@@ -343,7 +343,7 @@ func (s *servicesSuite) TestConfigureServiceUnsupportedService(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"service.snapd.disable": true,

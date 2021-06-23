@@ -200,7 +200,7 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 
-	devicestate.EarlyConfig = func(*state.State, func() (*gadget.Info, error)) error {
+	devicestate.EarlyConfig = func(*state.State, func() (sysconfig.Device, *gadget.Info, error)) error {
 		return nil
 	}
 	s.AddCleanup(func() { devicestate.EarlyConfig = nil })

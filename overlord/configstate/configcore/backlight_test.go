@@ -48,7 +48,7 @@ func (s *backlightSuite) TestConfigureBacklightServiceMaskIntegration(c *C) {
 	defer restore()
 
 	s.systemctlArgs = nil
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.disable-backlight-service": true,
@@ -65,7 +65,7 @@ func (s *backlightSuite) TestConfigureBacklightServiceUnmaskIntegration(c *C) {
 	defer restore()
 
 	s.systemctlArgs = nil
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.disable-backlight-service": false,

@@ -131,7 +131,7 @@ func (s *piCfgSuite) TestConfigurePiConfigIntegration(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.disable-overscan": 1,
@@ -142,7 +142,7 @@ func (s *piCfgSuite) TestConfigurePiConfigIntegration(c *C) {
 	expected := strings.Replace(mockConfigTxt, "#disable_overscan=1", "disable_overscan=1", -1)
 	s.checkMockConfig(c, expected)
 
-	err = configcore.Run(&mockConf{
+	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.disable-overscan": "",
@@ -157,7 +157,7 @@ func (s *piCfgSuite) TestConfigurePiConfigRegression(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.gpu-mem-512": true,
@@ -195,7 +195,7 @@ func (s *piCfgSuite) TestUpdateConfigUC20RunMode(c *C) {
 	c.Assert(err, IsNil)
 
 	// apply the config
-	err = configcore.Run(&mockConf{
+	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.gpu-mem-512": true,
@@ -232,7 +232,7 @@ func (s *piCfgSuite) testUpdateConfigUC20NonRunMode(c *C, mode string) {
 	c.Assert(err, IsNil)
 
 	// apply the config
-	err = configcore.Run(&mockConf{
+	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.gpu-mem-512": true,
