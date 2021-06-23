@@ -24,6 +24,7 @@ import (
 	"time"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -32,7 +33,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-	"gopkg.in/tomb.v2"
 )
 
 const snapaYaml = `name: snap-a
@@ -317,6 +317,99 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookError(c *C) {
 	checkIsHeld(c, st, "snap-b", "snap-a")
 
 	// no runinhibit because the refresh-app-awareness feature is disabled.
+	hint, err := runinhibit.IsLocked("snap-a")
+	c.Assert(err, IsNil)
+	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+}
+
+// Test that if gate-auto-refresh hook errors out, the hook handler
+// assumes --hold even if --proceed was requested.
+func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorAfterProceed(c *C) {
+	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+		// no runinhibit because the refresh-app-awareness feature is disabled.
+		hint, err := runinhibit.IsLocked("snap-a")
+		c.Assert(err, IsNil)
+		c.Check(hint, Equals, runinhibit.HintNotInhibited)
+
+		c.Check(ctx.HookName(), Equals, "gate-auto-refresh")
+		c.Check(ctx.InstanceName(), Equals, "snap-a")
+
+		// action is normally set via snapctl; pretend it is --proceed.
+		ctx.Lock()
+		defer ctx.Unlock()
+		action := snapstate.GateAutoRefreshProceed
+		ctx.Cache("action", action)
+
+		return []byte("fail"), fmt.Errorf("boom")
+	}
+	restore := hookstate.MockRunHook(hookInvoke)
+	defer restore()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a", false, false, map[string]bool{"snap-b": true})
+	change := st.NewChange("kind", "summary")
+	change.AddTask(task)
+
+	st.Unlock()
+	s.settle(c)
+	st.Lock()
+
+	c.Assert(change.Err(), ErrorMatches, `cannot perform the following tasks:\n- Run hook gate-auto-refresh of snap "snap-a" \(run hook "gate-auto-refresh": fail\)`)
+	c.Assert(change.Status(), Equals, state.ErrorStatus)
+
+	// and snap-b is now held.
+	checkIsHeld(c, st, "snap-b", "snap-a")
+
+	// no runinhibit because the refresh-app-awareness feature is disabled.
+	hint, err := runinhibit.IsLocked("snap-a")
+	c.Assert(err, IsNil)
+	c.Check(hint, Equals, runinhibit.HintNotInhibited)
+}
+
+// Test that if gate-auto-refresh hook errors out, the hook handler
+// assumes --hold.
+func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorRuninhibitUnlock(c *C) {
+	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
+		// no runinhibit because the refresh-app-awareness feature is disabled.
+		hint, err := runinhibit.IsLocked("snap-a")
+		c.Assert(err, IsNil)
+		c.Check(hint, Equals, runinhibit.HintInhibitedGateRefresh)
+
+		// this hook does nothing (action not set to proceed/hold).
+		c.Check(ctx.HookName(), Equals, "gate-auto-refresh")
+		c.Check(ctx.InstanceName(), Equals, "snap-a")
+		return []byte("fail"), fmt.Errorf("boom")
+	}
+	restore := hookstate.MockRunHook(hookInvoke)
+	defer restore()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// enable refresh-app-awareness
+	tr := config.NewTransaction(st)
+	tr.Set("core", "experimental.refresh-app-awareness", true)
+	tr.Commit()
+
+	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a", false, false, map[string]bool{"snap-b": true})
+	change := st.NewChange("kind", "summary")
+	change.AddTask(task)
+
+	st.Unlock()
+	s.settle(c)
+	st.Lock()
+
+	c.Assert(change.Err(), ErrorMatches, `cannot perform the following tasks:\n- Run hook gate-auto-refresh of snap "snap-a" \(run hook "gate-auto-refresh": fail\)`)
+	c.Assert(change.Status(), Equals, state.ErrorStatus)
+
+	// and snap-b is now held.
+	checkIsHeld(c, st, "snap-b", "snap-a")
+
+	// inhibit lock is unlocked
 	hint, err := runinhibit.IsLocked("snap-a")
 	c.Assert(err, IsNil)
 	c.Check(hint, Equals, runinhibit.HintNotInhibited)
