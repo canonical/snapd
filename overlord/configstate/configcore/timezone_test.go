@@ -93,7 +93,7 @@ func (s *timezoneSuite) TestFilesystemOnlyApply(c *C) {
 		"system.timezone": "Europe/Berlin",
 	})
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 
 	c.Check(filepath.Join(tmpDir, "/etc/writable/timezone"), testutil.FileEquals, "Europe/Berlin\n")
 	p, err := os.Readlink(filepath.Join(tmpDir, "/etc/writable/localtime"))

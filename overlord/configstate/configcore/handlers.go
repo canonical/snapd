@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -97,9 +97,7 @@ func init() {
 	// system.timezone
 	addFSOnlyHandler(validateTimezoneSettings, handleTimezoneConfiguration, coreOnly)
 
-	sysconfig.ApplyFilesystemOnlyDefaultsImpl = func(rootDir string, defaults map[string]interface{}, options *sysconfig.FilesystemOnlyApplyOptions) error {
-		return filesystemOnlyApply(rootDir, defaults, options)
-	}
+	sysconfig.ApplyFilesystemOnlyDefaultsImpl = filesystemOnlyApply
 }
 
 // addFSOnlyHandler registers functions to validate and handle a subset of
@@ -144,13 +142,9 @@ func (h *fsOnlyHandler) handle(cfg config.ConfGetter, opts *fsOnlyContext) error
 // early during boot, before all the configuration is applied as part of
 // normal execution of configure hook.
 // Exposed for use via sysconfig.ApplyFilesystemOnlyDefaults.
-func filesystemOnlyApply(rootDir string, values map[string]interface{}, opts *sysconfig.FilesystemOnlyApplyOptions) error {
+func filesystemOnlyApply(dev sysconfig.Device, rootDir string, values map[string]interface{}) error {
 	if rootDir == "" {
 		return fmt.Errorf("internal error: root directory for configcore.FilesystemOnlyApply() not set")
-	}
-
-	if opts == nil {
-		opts = &sysconfig.FilesystemOnlyApplyOptions{}
 	}
 
 	cfg := plainCoreConfig(values)
@@ -171,7 +165,7 @@ func filesystemOnlyApply(rootDir string, values map[string]interface{}, opts *sy
 		if h.needsState() {
 			continue
 		}
-		if h.flags().coreOnlyConfig && opts != nil && opts.Classic {
+		if h.flags().coreOnlyConfig && dev.Classic() {
 			continue
 		}
 		if err := h.handle(cfg, ctx); err != nil {

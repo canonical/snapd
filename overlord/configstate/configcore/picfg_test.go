@@ -264,7 +264,7 @@ func (s *piCfgSuite) TestFilesystemOnlyApply(c *C) {
 	piCfg := filepath.Join(tmpDir, "/boot/uboot/config.txt")
 	c.Assert(ioutil.WriteFile(piCfg, []byte(mockConfigTxt), 0644), IsNil)
 
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 
 	expected := strings.Replace(mockConfigTxt, "#gpu_mem_512=true", "gpu_mem_512=true", -1)
 	c.Check(piCfg, testutil.FileEquals, expected)

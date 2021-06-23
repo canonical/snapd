@@ -76,7 +76,8 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 
 	s.ConfigureTargetSystemOptsPassed = nil
 	s.ConfigureTargetSystemErr = nil
-	restore := devicestate.MockSysconfigConfigureTargetSystem(func(opts *sysconfig.Options) error {
+	restore := devicestate.MockSysconfigConfigureTargetSystem(func(mod *asserts.Model, opts *sysconfig.Options) error {
+		c.Check(mod, NotNil)
 		s.ConfigureTargetSystemOptsPassed = append(s.ConfigureTargetSystemOptsPassed, opts)
 		return s.ConfigureTargetSystemErr
 	})

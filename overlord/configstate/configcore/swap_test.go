@@ -190,7 +190,7 @@ func (s *swapCfgSuite) TestSwapSizeNumberFormats(c *C) {
 			"swap.size": t.sizeStr,
 		})
 
-		err := configcore.FilesystemOnlyApply(dirs.GlobalRootDir, conf, nil)
+		err := configcore.FilesystemOnlyApply(coreDev, dirs.GlobalRootDir, conf)
 		if t.err != "" {
 			c.Assert(err, ErrorMatches, t.err)
 		} else {
@@ -211,7 +211,7 @@ func (s *swapCfgSuite) TestSwapSizeFilesystemOnlyApply(c *C) {
 	err := os.MkdirAll(filepath.Dir(s.configSwapFile), 0755)
 	c.Assert(err, IsNil)
 
-	c.Assert(configcore.FilesystemOnlyApply(dirs.GlobalRootDir, conf, nil), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, dirs.GlobalRootDir, conf), IsNil)
 
 	c.Check(s.configSwapFile, testutil.FileEquals, `FILE=/var/tmp/swapfile.swp
 SIZE=1024
@@ -232,7 +232,7 @@ func (s *swapCfgSuite) TestSwapSizeFilesystemOnlyApplyExistingConfig(c *C) {
 SIZE=0`), 0644)
 	c.Assert(err, IsNil)
 
-	err = configcore.FilesystemOnlyApply(dirs.GlobalRootDir, conf, nil)
+	err = configcore.FilesystemOnlyApply(coreDev, dirs.GlobalRootDir, conf)
 	c.Assert(err, IsNil)
 
 	c.Check(s.configSwapFile, testutil.FileEquals, `FILE=/var/tmp/other-swapfile.swp

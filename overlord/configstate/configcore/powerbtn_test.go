@@ -78,7 +78,7 @@ func (s *powerbtnSuite) TestFilesystemOnlyApply(c *C) {
 		"system.power-key-action": "reboot",
 	})
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 
 	powerBtnCfg := filepath.Join(tmpDir, "/etc/systemd/logind.conf.d/00-snap-core.conf")
 	c.Check(powerBtnCfg, testutil.FileEquals, "[Login]\nHandlePowerKey=reboot\n")
