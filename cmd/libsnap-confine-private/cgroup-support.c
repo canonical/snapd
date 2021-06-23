@@ -99,7 +99,12 @@ bool sc_cgroup_is_v2() {
     return false;
 }
 
-static bool traverse_looking_for_prefix_in_dir(DIR *root, const char *prefix, const char *skip) {
+static const size_t max_traversal_depth = 20;
+
+static bool traverse_looking_for_prefix_in_dir(DIR *root, const char *prefix, const char *skip, size_t depth) {
+    if (depth > max_traversal_depth) {
+        die("cannot traverse cgroups hierarchy deeper than %zu levels", max_traversal_depth);
+    }
     while (true) {
         errno = 0;
         struct dirent *ent = readdir(root);
@@ -135,7 +140,7 @@ static bool traverse_looking_for_prefix_in_dir(DIR *root, const char *prefix, co
         if (entdir == NULL) {
             die("cannot fdopendir directory \"%s\"", ent->d_name);
         }
-        bool found = traverse_looking_for_prefix_in_dir(entdir, prefix, skip);
+        bool found = traverse_looking_for_prefix_in_dir(entdir, prefix, skip, depth + 1);
         if (found == true) {
             return true;
         }
@@ -181,7 +186,7 @@ bool sc_cgroup_v2_is_tracking_snap(const char *snap_instance) {
     // traverse the cgroup hierarchy tree looking for other groups that
     // correspond to the snap (i.e. their name matches the pattern), but skip
     // our own group in the process
-    return traverse_looking_for_prefix_in_dir(root, tracking_group_name, just_leaf);
+    return traverse_looking_for_prefix_in_dir(root, tracking_group_name, just_leaf, 1);
 }
 
 static const char *self_cgroup = "/proc/self/cgroup";

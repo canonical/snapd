@@ -173,6 +173,29 @@ static void test_sc_cgroupv2_is_tracking_bad_self_group(cgroupv2_is_tracking_fix
     g_test_trap_assert_stderr("cannot obtain own cgroup v2 group path\n");
 }
 
+static void test_sc_cgroupv2_is_tracking_bad_nesting(cgroupv2_is_tracking_fixture *fixture, gconstpointer user_data) {
+    GError *err = NULL;
+    g_file_set_contents(fixture->self_cgroup, "0::/foo/bar/baz/snap.foo.app.scope", -1, &err);
+    g_assert_no_error(err);
+
+    /* create a hierarchy so deep that it triggers the nesting error */
+    g_autofree char *prev_path = g_build_filename(fixture->root, NULL);
+    for (size_t i = 0; i < max_traversal_depth; i++) {
+        char *np = g_build_filename(prev_path, "nested", NULL);
+        int ret = g_mkdir_with_parents(np, 0755);
+        g_assert_cmpint(ret, ==, 0);
+        g_free(prev_path);
+        prev_path = np;
+    }
+
+    if (g_test_subprocess()) {
+        sc_cgroup_v2_is_tracking_snap("foo");
+    }
+    g_test_trap_subprocess(NULL, 0, 0);
+    g_test_trap_assert_failed();
+    g_test_trap_assert_stderr("cannot traverse cgroups hierarchy deeper than 20 levels\n");
+}
+
 static void test_sc_cgroupv2_is_tracking_dir_permissions(cgroupv2_is_tracking_fixture *fixture,
                                                          gconstpointer user_data) {
     if (geteuid() == 0) {
@@ -338,4 +361,6 @@ static void __attribute__((constructor)) init(void) {
     g_test_add("/cgroup/v2/is_tracking_bad_dir_permissions", cgroupv2_is_tracking_fixture, NULL,
                cgroupv2_is_tracking_set_up, test_sc_cgroupv2_is_tracking_dir_permissions,
                cgroupv2_is_tracking_tear_down);
+    g_test_add("/cgroup/v2/is_tracking_bad_nesting", cgroupv2_is_tracking_fixture, NULL, cgroupv2_is_tracking_set_up,
+               test_sc_cgroupv2_is_tracking_bad_nesting, cgroupv2_is_tracking_tear_down);
 }
