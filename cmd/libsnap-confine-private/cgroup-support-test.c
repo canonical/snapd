@@ -64,17 +64,13 @@ static void cgroupv2_is_tracking_tear_down(cgroupv2_is_tracking_fixture *fixture
     g_free(fixture->root);
 }
 
-static void test_sc_cgroupv2_is_tracking_happy(cgroupv2_is_tracking_fixture *fixture, gconstpointer user_data) {
-    GError *err = NULL;
-    g_file_set_contents(fixture->self_cgroup, "0::/foo/bar/baz/snap.foo.app.1234-1234.scope", -1, &err);
-    g_assert_no_error(err);
-
-    /* there exist 2 groups with processes from a given snap */
+static void _test_sc_cgroupv2_is_tracking_happy(cgroupv2_is_tracking_fixture *fixture) {
+    /* there exist 3 groups with processes from a given snap */
     const char *dirs[] = {
         "/foo/bar/baz/snap.foo.app.1234-1234.scope",
         "/foo/bar/snap.foo.app.1111-1111.scope",
         "/foo/bar/bad",
-        "/system.slice/some/app/other",
+        "/system.slice/snap.foo.bar.service",
         "/user/slice/other/app",
     };
 
@@ -88,6 +84,22 @@ static void test_sc_cgroupv2_is_tracking_happy(cgroupv2_is_tracking_fixture *fix
     g_assert_true(is_tracking);
 }
 
+static void test_sc_cgroupv2_is_tracking_happy_scope(cgroupv2_is_tracking_fixture *fixture, gconstpointer user_data) {
+    GError *err = NULL;
+    g_file_set_contents(fixture->self_cgroup, "0::/foo/bar/baz/snap.foo.app.1234-1234.scope", -1, &err);
+    g_assert_no_error(err);
+
+    _test_sc_cgroupv2_is_tracking_happy(fixture);
+}
+
+static void test_sc_cgroupv2_is_tracking_happy_service(cgroupv2_is_tracking_fixture *fixture, gconstpointer user_data) {
+    GError *err = NULL;
+    g_file_set_contents(fixture->self_cgroup, "0::/system.slice/snap.foo.svc.service", -1, &err);
+    g_assert_no_error(err);
+
+    _test_sc_cgroupv2_is_tracking_happy(fixture);
+}
+
 static void test_sc_cgroupv2_is_tracking_just_own_group(cgroupv2_is_tracking_fixture *fixture,
                                                         gconstpointer user_data) {
     GError *err = NULL;
@@ -99,6 +111,30 @@ static void test_sc_cgroupv2_is_tracking_just_own_group(cgroupv2_is_tracking_fix
         "/foo/bar/baz/snap.foo.app.1234-1234.scope",
         "/foo/bar/bad",
         "/system.slice/some/app/other",
+        "/user/slice/other/app",
+    };
+
+    for (size_t i = 0; i < sizeof dirs / sizeof dirs[0]; i++) {
+        g_autofree const char *np = g_build_filename(fixture->root, dirs[i], NULL);
+        int ret = g_mkdir_with_parents(np, 0755);
+        g_assert_cmpint(ret, ==, 0);
+    }
+
+    bool is_tracking = sc_cgroup_v2_is_tracking_snap("foo");
+    /* our own group is skipped */
+    g_assert_false(is_tracking);
+}
+
+static void test_sc_cgroupv2_is_tracking_other_snaps(cgroupv2_is_tracking_fixture *fixture, gconstpointer user_data) {
+    GError *err = NULL;
+    g_file_set_contents(fixture->self_cgroup, "0::/foo/bar/baz/snap.foo.app.1234-1234.scope", -1, &err);
+    g_assert_no_error(err);
+
+    /* our group is the only one for this snap */
+    const char *dirs[] = {
+        "/foo/bar/baz/snap.other.app.1234-1234.scope",
+        "/foo/bar/bad",
+        "/system.slice/some/app/snap.one-more.app.service",
         "/user/slice/other/app",
     };
 
@@ -192,13 +228,24 @@ static void cgroupv2_own_group_tear_down(cgroupv2_own_group_fixture *fixture, gc
     g_free(fixture->self_cgroup);
 }
 
-static void test_sc_cgroupv2_own_group_path_simple_happy(cgroupv2_own_group_fixture *fixture, gconstpointer user_data) {
+static void test_sc_cgroupv2_own_group_path_simple_happy_scope(cgroupv2_own_group_fixture *fixture,
+                                                               gconstpointer user_data) {
     GError *err = NULL;
     g_autofree const char *p = NULL;
     g_file_set_contents(fixture->self_cgroup, (char *)user_data, -1, &err);
     g_assert_no_error(err);
     p = sc_cgroup_v2_own_path_full();
-    g_assert_cmpstr(p, ==, "/foo/bar/baz.slice");
+    g_assert_cmpstr(p, ==, "/foo/bar/baz.slice/snap.foo.bar.1234-1234.scope");
+}
+
+static void test_sc_cgroupv2_own_group_path_simple_happy_service(cgroupv2_own_group_fixture *fixture,
+                                                                 gconstpointer user_data) {
+    GError *err = NULL;
+    g_autofree const char *p = NULL;
+    g_file_set_contents(fixture->self_cgroup, (char *)user_data, -1, &err);
+    g_assert_no_error(err);
+    p = sc_cgroup_v2_own_path_full();
+    g_assert_cmpstr(p, ==, "/system.slice/snap.foo.bar.service");
 }
 
 static void test_sc_cgroupv2_own_group_path_empty(cgroupv2_own_group_fixture *fixture, gconstpointer user_data) {
@@ -243,18 +290,25 @@ static void test_sc_cgroupv2_own_group_path_permission(cgroupv2_own_group_fixtur
 }
 
 static void __attribute__((constructor)) init(void) {
-    g_test_add("/cgroup/v2/own_path_full_newline", cgroupv2_own_group_fixture, "0::/foo/bar/baz.slice\n",
-               cgroupv2_own_group_set_up, test_sc_cgroupv2_own_group_path_simple_happy, cgroupv2_own_group_tear_down);
-    g_test_add("/cgroup/v2/own_path_full_no_newline", cgroupv2_own_group_fixture, "0::/foo/bar/baz.slice",
-               cgroupv2_own_group_set_up, test_sc_cgroupv2_own_group_path_simple_happy, cgroupv2_own_group_tear_down);
+    g_test_add("/cgroup/v2/own_path_full_newline", cgroupv2_own_group_fixture,
+               "0::/foo/bar/baz.slice/snap.foo.bar.1234-1234.scope\n", cgroupv2_own_group_set_up,
+               test_sc_cgroupv2_own_group_path_simple_happy_scope, cgroupv2_own_group_tear_down);
+    g_test_add("/cgroup/v2/own_path_full_no_newline", cgroupv2_own_group_fixture,
+               "0::/foo/bar/baz.slice/snap.foo.bar.1234-1234.scope", cgroupv2_own_group_set_up,
+               test_sc_cgroupv2_own_group_path_simple_happy_scope, cgroupv2_own_group_tear_down);
     g_test_add("/cgroup/v2/own_path_full_firstline", cgroupv2_own_group_fixture,
-               "0::/foo/bar/baz.slice\n"
+               "0::/foo/bar/baz.slice/snap.foo.bar.1234-1234.scope\n"
                "0::/bad\n",
-               cgroupv2_own_group_set_up, test_sc_cgroupv2_own_group_path_simple_happy, cgroupv2_own_group_tear_down);
+               cgroupv2_own_group_set_up, test_sc_cgroupv2_own_group_path_simple_happy_scope,
+               cgroupv2_own_group_tear_down);
     g_test_add("/cgroup/v2/own_path_full_ignore_non_unified", cgroupv2_own_group_fixture,
                "1::/ignored\n"
-               "0::/foo/bar/baz.slice\n",
-               cgroupv2_own_group_set_up, test_sc_cgroupv2_own_group_path_simple_happy, cgroupv2_own_group_tear_down);
+               "0::/foo/bar/baz.slice/snap.foo.bar.1234-1234.scope\n",
+               cgroupv2_own_group_set_up, test_sc_cgroupv2_own_group_path_simple_happy_scope,
+               cgroupv2_own_group_tear_down);
+    g_test_add("/cgroup/v2/own_path_full_service", cgroupv2_own_group_fixture,
+               "0::/system.slice/snap.foo.bar.service\n", cgroupv2_own_group_set_up,
+               test_sc_cgroupv2_own_group_path_simple_happy_service, cgroupv2_own_group_tear_down);
     g_test_add("/cgroup/v2/own_path_full_empty", cgroupv2_own_group_fixture, "", cgroupv2_own_group_set_up,
                test_sc_cgroupv2_own_group_path_empty, cgroupv2_own_group_tear_down);
     g_test_add("/cgroup/v2/own_path_full_not_found", cgroupv2_own_group_fixture,
@@ -269,10 +323,14 @@ static void __attribute__((constructor)) init(void) {
     g_test_add("/cgroup/v2/own_path_full_permission", cgroupv2_own_group_fixture, NULL, cgroupv2_own_group_set_up,
                test_sc_cgroupv2_own_group_path_permission, cgroupv2_own_group_tear_down);
 
-    g_test_add("/cgroup/v2/is_tracking_happy", cgroupv2_is_tracking_fixture, NULL, cgroupv2_is_tracking_set_up,
-               test_sc_cgroupv2_is_tracking_happy, cgroupv2_is_tracking_tear_down);
+    g_test_add("/cgroup/v2/is_tracking_happy_scope", cgroupv2_is_tracking_fixture, NULL, cgroupv2_is_tracking_set_up,
+               test_sc_cgroupv2_is_tracking_happy_scope, cgroupv2_is_tracking_tear_down);
+    g_test_add("/cgroup/v2/is_tracking_happy_service", cgroupv2_is_tracking_fixture, NULL, cgroupv2_is_tracking_set_up,
+               test_sc_cgroupv2_is_tracking_happy_service, cgroupv2_is_tracking_tear_down);
     g_test_add("/cgroup/v2/is_tracking_just_own", cgroupv2_is_tracking_fixture, NULL, cgroupv2_is_tracking_set_up,
                test_sc_cgroupv2_is_tracking_just_own_group, cgroupv2_is_tracking_tear_down);
+    g_test_add("/cgroup/v2/is_tracking_only_other_snaps", cgroupv2_is_tracking_fixture, NULL,
+               cgroupv2_is_tracking_set_up, test_sc_cgroupv2_is_tracking_other_snaps, cgroupv2_is_tracking_tear_down);
     g_test_add("/cgroup/v2/is_tracking_empty_groups", cgroupv2_is_tracking_fixture, NULL, cgroupv2_is_tracking_set_up,
                test_sc_cgroupv2_is_tracking_no_dirs, cgroupv2_is_tracking_tear_down);
     g_test_add("/cgroup/v2/is_tracking_bad_self_group", cgroupv2_is_tracking_fixture, NULL, cgroupv2_is_tracking_set_up,
