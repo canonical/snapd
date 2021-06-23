@@ -114,7 +114,7 @@ func (s *networkSuite) TestFilesystemOnlyApply(c *C) {
 
 	tmpDir := c.MkDir()
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/etc/sysctl.d/"), 0755), IsNil)
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 
 	networkSysctlPath := filepath.Join(tmpDir, "/etc/sysctl.d/10-snapd-network.conf")
 	c.Check(networkSysctlPath, testutil.FileEquals, "net.ipv6.conf.all.disable_ipv6=1\n")
@@ -129,5 +129,5 @@ func (s *networkSuite) TestFilesystemOnlyApplyValidationFails(c *C) {
 	})
 
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), ErrorMatches, `network.disable-ipv6 can only be set to 'true' or 'false'`)
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), ErrorMatches, `network.disable-ipv6 can only be set to 'true' or 'false'`)
 }

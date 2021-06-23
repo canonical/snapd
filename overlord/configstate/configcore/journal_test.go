@@ -192,7 +192,7 @@ func (s *journalSuite) TestFilesystemOnlyApply(c *C) {
 		"journal.persistent": "true",
 	})
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 	c.Check(s.systemctlArgs, HasLen, 0)
 
 	exists, _, err := osutil.DirExists(filepath.Join(tmpDir, "/var/log/journal"))

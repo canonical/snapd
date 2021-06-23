@@ -82,7 +82,7 @@ func (s *backlightSuite) TestFilesystemOnlyApply(c *C) {
 		"system.disable-backlight-service": "true",
 	})
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--root", tmpDir, "mask", "systemd-backlight@.service"},

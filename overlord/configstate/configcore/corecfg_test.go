@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2017 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -187,6 +187,17 @@ func (r *runCfgSuite) TestConfigureUnknownOption(c *C) {
 	c.Check(err, ErrorMatches, `cannot set "core.unknown.option": unsupported system option`)
 }
 
+type mockDev struct{}
+
+func (d mockDev) RunMode() bool    { return true }
+func (d mockDev) Classic() bool    { return false }
+func (d mockDev) Kernel() string   { return "pc-kernel" }
+func (d mockDev) HasModeenv() bool { return false }
+
+var (
+	coreDev = mockDev{}
+)
+
 // applyCfgSuite tests configcore.Apply()
 type applyCfgSuite struct {
 	tmpDir string
@@ -204,12 +215,12 @@ func (s *applyCfgSuite) TearDownTest(c *C) {
 }
 
 func (s *applyCfgSuite) TestEmptyRootDir(c *C) {
-	err := configcore.FilesystemOnlyApply("", nil, nil)
+	err := configcore.FilesystemOnlyApply(coreDev, "", nil)
 	c.Check(err, ErrorMatches, `internal error: root directory for configcore.FilesystemOnlyApply\(\) not set`)
 }
 
 func (s *applyCfgSuite) TestSmoke(c *C) {
-	c.Assert(configcore.FilesystemOnlyApply(s.tmpDir, map[string]interface{}{}, nil), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, s.tmpDir, map[string]interface{}{}), IsNil)
 }
 
 func (s *applyCfgSuite) TestPlainCoreConfigGetErrorIfNotCore(c *C) {

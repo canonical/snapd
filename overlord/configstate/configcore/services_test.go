@@ -167,7 +167,7 @@ func (s *servicesSuite) TestConfigureConsoleConfDisableFSOnly(c *C) {
 	})
 
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 
 	consoleConfDisabled := filepath.Join(tmpDir, "/var/lib/console-conf/complete")
 	c.Check(consoleConfDisabled, testutil.FileEquals, "console-conf has been disabled by the snapd system configuration\n")
@@ -182,7 +182,7 @@ func (s *servicesSuite) TestConfigureConsoleConfEnabledFSOnly(c *C) {
 	})
 
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 
 	consoleConfDisabled := filepath.Join(tmpDir, "/var/lib/console-conf/complete")
 	c.Check(consoleConfDisabled, testutil.FileAbsent)
@@ -364,7 +364,7 @@ func (s *servicesSuite) TestFilesystemOnlyApply(c *C) {
 		"service.ssh.disable":     "true",
 		"service.rsyslog.disable": "true",
 	})
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--root", tmpDir, "mask", "rsyslog.service"},
 	})
