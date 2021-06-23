@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/sysconfig"
 )
 
 // valid pi config keys
@@ -118,7 +119,7 @@ func piConfigFile(opts *fsOnlyContext) (string, error) {
 	return filepath.Join(rootDir, subdir, "config.txt"), nil
 }
 
-func handlePiConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
+func handlePiConfiguration(dev sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	configFile, err := piConfigFile(opts)
 	if err != nil && err != errPiConfigNotSupported {
 		return err
