@@ -635,9 +635,9 @@ prepare_suite_each() {
     fi
     tests.invariant check
 
-    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-    if os.query is-focal || os.query is.fedora; then
-        inotifywait /root /var/lib/snapd /var/snap /home "$SNAP_MOUNT_DIR" -d -m -r -e CREATE -e DELETE --exclude "($PWD/task.yaml|$PWD/.*/.*.snap|$PROJECT_PATH/tests/lib/snaps/.*/.*.snap)" -o /tmp/fs.output
+    if os.query is-classic; then
+        SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+        inotifywait -d -m -r -e CREATE -o /tmp/fs.output --exclude "($PWD/task.yaml|$PWD/.*/.*.snap|$PROJECT_PATH/tests/lib/snaps/.*/.*.snap)" /root /etc /var/lib/snapd /var/snap /home "$SNAP_MOUNT_DIR"
     fi
 }
 
@@ -681,10 +681,13 @@ restore_suite_each() {
     fi
     tests.invariant check
 
-    if os.query is-focal || os.query is.fedora; then
-        set +x
+    if os.query is-classic; then
         pkill inotifywait
+        set +x
         local created_files created_dirs missing
+        # the output file contains lines:
+        # /etc/ CREATE foo          # created file /etc/foo
+        # /etc/ CREATE,ISDIR foo    # created directory /etc/foo
         created_files=$( sudo cat /tmp/fs.output | grep " CREATE " | awk '{ print $1$3 }' )
         created_dirs=$( sudo cat /tmp/fs.output | grep " CREATE,ISDIR " | awk '{ print $1$3 }' )
         missing=false
