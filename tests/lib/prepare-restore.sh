@@ -637,7 +637,7 @@ prepare_suite_each() {
 
     if os.query is-classic; then
         SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-        inotifywait -d -m -r -e CREATE -o /tmp/fs.output --exclude "($PWD/task.yaml|$PWD/.*/.*.snap|$PROJECT_PATH/tests/lib/snaps/.*/.*.snap)" /root /etc /var/lib/snapd /var/snap /home "$SNAP_MOUNT_DIR"
+        inotifywait -d -m -r -e CREATE -o /tmp/fs.output --exclude "($PWD/task.yaml|$PWD/.*/.*.snap|$PROJECT_PATH/tests/lib/snaps/.*/.*.snap)" /root /var/lib/snapd /var/snap /home "$SNAP_MOUNT_DIR"
     fi
 }
 
@@ -708,6 +708,7 @@ restore_suite_each() {
         if [ "$missing" = true ]; then
             exit 1
         fi
+        rm -f /tmp/fs.output
         set -x
     fi
 }
