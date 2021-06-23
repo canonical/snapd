@@ -47,7 +47,7 @@ func (s *experimentalSuite) TestConfigureExperimentalSettingsInvalid(c *C) {
 			state:   s.state,
 			changes: map[string]interface{}{featureConf(feature): "foo"},
 		}
-		err := configcore.Run(conf)
+		err := configcore.Run(classicDev, conf)
 		c.Check(err, ErrorMatches, fmt.Sprintf(`%s can only be set to 'true' or 'false'`, featureConf(feature)))
 	}
 }
@@ -59,7 +59,7 @@ func (s *experimentalSuite) TestConfigureExperimentalSettingsHappy(c *C) {
 				state: s.state,
 				conf:  map[string]interface{}{featureConf(feature): t},
 			}
-			err := configcore.Run(conf)
+			err := configcore.Run(classicDev, conf)
 			c.Check(err, IsNil)
 		}
 	}
@@ -70,12 +70,12 @@ func (s *experimentalSuite) TestExportedFeatures(c *C) {
 		state: s.state,
 		conf:  map[string]interface{}{featureConf(features.PerUserMountNamespace): true},
 	}
-	err := configcore.Run(conf)
+	err := configcore.Run(classicDev, conf)
 	c.Assert(err, IsNil)
 	c.Check(features.PerUserMountNamespace.ControlFile(), testutil.FilePresent)
 
 	delete(conf.changes, "experimental.per-user-mount-namespace")
-	err = configcore.Run(conf)
+	err = configcore.Run(classicDev, conf)
 	c.Assert(err, IsNil)
 	c.Check(features.PerUserMountNamespace.ControlFile(), testutil.FilePresent)
 }
@@ -85,7 +85,7 @@ func (s *experimentalSuite) TestFilesystemOnlyApply(c *C) {
 		"experimental.refresh-app-awareness": "true",
 	})
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(classicDev, tmpDir, conf), IsNil)
 	c.Check(osutil.FileExists(filepath.Join(tmpDir, "/var/lib/snapd/features/refresh-app-awareness")), Equals, true)
 }
 
@@ -94,5 +94,5 @@ func (s *experimentalSuite) TestFilesystemOnlyApplyValidationFails(c *C) {
 		"experimental.refresh-app-awareness": 1,
 	})
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), ErrorMatches, `experimental.refresh-app-awareness can only be set to 'true' or 'false'`)
+	c.Assert(configcore.FilesystemOnlyApply(classicDev, tmpDir, conf), ErrorMatches, `experimental.refresh-app-awareness can only be set to 'true' or 'false'`)
 }

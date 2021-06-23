@@ -59,7 +59,7 @@ func (s *swapCfgSuite) TestConfigureSwapSizeOnlyWhenChanged(c *C) {
 	defer restore()
 
 	// set it to 1M initially
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"swap.size": "1048576",
@@ -80,7 +80,7 @@ SIZE=1
 	s.systemctlArgs = nil
 
 	// running it with the same changes as conf results in no calls to systemd
-	err = configcore.Run(&mockConf{
+	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"swap.size": "1048576",
@@ -103,7 +103,7 @@ func (s *swapCfgSuite) TestConfigureSwapSize(c *C) {
 	defer restore()
 
 	// set it to 1M initially
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"swap.size": "1048576",
@@ -124,7 +124,7 @@ SIZE=1
 	s.systemctlArgs = nil
 
 	// now change it to empty
-	err = configcore.Run(&mockConf{
+	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"swap.size": "1048576",
