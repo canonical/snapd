@@ -44,16 +44,12 @@ func isGraphicalSession() bool {
 	return os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != ""
 }
 
-func isInteractiveConsole() bool {
-	return isStdoutTTY
-}
-
 var hasZenityExecutable = func() bool {
 	return osutil.ExecutableExists("zenity")
 }
 
 func zenityFlow(snapName string, hint runinhibit.Hint) error {
-	zenityTitle := i18n.G("snap package cannot be used")
+	zenityTitle := i18n.G("Snap package cannot be used")
 
 	// Run zenity with a progress bar.
 	// TODO: while we are waiting ask snapd for progress updates and send those
@@ -69,7 +65,6 @@ func zenityFlow(snapName string, hint runinhibit.Hint) error {
 		"--progress",
 		"--text="+inhibitMessage(snapName, hint),
 		"--pulsate",
-		"--no-cancel",
 	)
 	if err := cmd.Start(); err != nil {
 		return err
