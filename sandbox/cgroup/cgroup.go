@@ -66,9 +66,8 @@ func init() {
 		rootPath = root
 	})
 	probeVersion, probeErr = probeCgroupVersion()
-	if probeErr == nil {
-		pickVersionSpecificImpl()
-	}
+	// handles error case gracefully
+	pickVersionSpecificImpl()
 }
 
 func pickVersionSpecificImpl() {

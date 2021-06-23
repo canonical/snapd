@@ -62,10 +62,20 @@ func pickFreezerV2Impl() {
 // in at most 3000ms. If this time is insufficient then the processes are
 // thawed and an error is returned.
 //
+// A correct implementation is picked depending on cgroup v1 or v2 use in the
+// system. When cgroup v1 is detected, the call will directly act on the device
+// cgroup created when a snap process was started, while with v2 the call will
+// act on all tracking cgroups of a snap.
+//
 // This operation can be mocked with MockFreezing
 var FreezeSnapProcesses = freezeSnapProcessesImplV1
 
 // ThawSnapProcesses resumes execution of all processes belonging to a given snap.
+//
+// A correct implementation is picked depending on cgroup v1 or v2 use in the
+// system. When cgroup v1 is detected, the call will directly act on the device
+// cgroup created when a snap process was started, while with v2 the call will
+// act on all tracking cgroups of a snap.
 //
 // This operation can be mocked with MockFreezing
 var ThawSnapProcesses = thawSnapProcessesImplV1
@@ -182,7 +192,8 @@ func freezeSnapProcessesImplV2(snapName string) error {
 	if err == nil {
 		return nil
 	}
-	// thaw one by one?
+	// we either got here because we hit a timeout freezing snap processes
+	// or some other error
 	const skipThawErrs = true
 	thawSnapProcessesV2(snapName, skipThawErrs) // ignore the error, this is best-effort.
 	return fmt.Errorf("cannot finish freezing processes of snap %q: %v", snapName, err)
