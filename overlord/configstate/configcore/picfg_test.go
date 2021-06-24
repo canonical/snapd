@@ -304,3 +304,27 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnWrongMode(c *C) {
 	// change was ignored
 	s.checkMockConfig(c, mockConfigTxt)
 }
+
+func (s *piCfgSuite) TestConfigurePiConfigSkippedOnIgnoreHeader(c *C) {
+	logbuf, r := logger.MockLogger()
+	defer r()
+
+	if _, isSet := os.LookupEnv("SNAPD_DEBUG"); !isSet {
+		os.Setenv("SNAPD_DEBUG", "1")
+		defer os.Unsetenv("SNAPD_DEBUG")
+	}
+
+	mockConfigWithIgnoreHeader := "# SNAPD IGNORE\n" + mockConfigTxt
+	s.mockConfig(c, mockConfigWithIgnoreHeader)
+	err := configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"pi-config.disable-overscan": 1,
+		},
+	})
+	c.Assert(err, IsNil)
+
+	c.Check(logbuf.String(), testutil.Contains, "DEBUG: ignoring pi-config settings: configuring not supported: ignore header found")
+	// change was ignored
+	s.checkMockConfig(c, mockConfigWithIgnoreHeader)
+}

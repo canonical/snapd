@@ -20,6 +20,7 @@
 package configcore
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -105,6 +106,20 @@ func (e *piConfigNotSupportedError) Error() string {
 	return fmt.Sprintf("configuring not supported: %s", e.reason)
 }
 
+var ignorePrefix = []byte("# SNAPD IGNORE\n")
+
+func piConfigFileIgnoreMarkerSet(configFile string) bool {
+	f, err := os.Open(configFile)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	buf := make([]byte, len(ignorePrefix))
+	f.Read(buf)
+	return bytes.HasPrefix(buf, ignorePrefix)
+}
+
 // Some of the pi devices (avnet) ship with measured boot enabled and
 // the config.txt is part of the measurements. We cannot modify the
 // configuration here or measurements are wrong.
@@ -136,7 +151,12 @@ func piConfigFile(dev sysconfig.Device, opts *fsOnlyContext) (string, error) {
 			return "", newPiConfigNotSupportedError("unsupported mode")
 		}
 	}
-	return filepath.Join(rootDir, subdir, "config.txt"), nil
+	configPath := filepath.Join(rootDir, subdir, "config.txt")
+	if piConfigFileIgnoreMarkerSet(configPath) {
+		return "", newPiConfigNotSupportedError("ignore header found")
+	}
+
+	return configPath, nil
 }
 
 func handlePiConfiguration(dev sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
