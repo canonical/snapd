@@ -645,6 +645,10 @@ prepare_suite_each() {
         # $PWD is excluded because the backup dir is automatically restored
         # .snap files created in tests/lib/snaps are excluded as they are not deleted to be reused
         inotifywait -d -m -r -e CREATE -o /tmp/fs.output --exclude "($PWD|$PROJECT_PATH/tests/lib/snaps/.*/.*.snap)" /root /var/lib/snapd /var/snap /home "$SNAP_MOUNT_DIR"
+        if ! pgrep inotifywait &>/dev/null; then
+            echo "inotifywait is not running, exiting..."
+            exit 1
+        fi
     fi
 }
 
@@ -689,8 +693,10 @@ restore_suite_each() {
     tests.invariant check
 
     if os.query is-classic; then
-        # Stop inotifywait
-        pkill inotifywait
+        # Stop inotifywait (it could be already stopped)
+        if pgrep inotifywait &>/dev/null; then
+            pkill inotifywait
+        fi
         set +x
         local created_files created_dirs missing
         # the output file contains lines:
