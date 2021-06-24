@@ -183,9 +183,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 type genericHook struct{}
 
-func (h genericHook) Before() error         { return nil }
-func (h genericHook) Done() error           { return nil }
-func (h genericHook) Error(err error) error { return nil }
+func (h genericHook) Before() error                 { return nil }
+func (h genericHook) Done() error                   { return nil }
+func (h genericHook) Error(err error) (bool, error) { return false, nil }
 
 func newBasicHookStateHandler(context *hookstate.Context) hookstate.Handler {
 	return genericHook{}
@@ -1783,8 +1783,8 @@ func (h fdeSetupHandler) Done() error {
 	return nil
 }
 
-func (h fdeSetupHandler) Error(err error) error {
-	return nil
+func (h fdeSetupHandler) Error(err error) (bool, error) {
+	return false, nil
 }
 
 // ResetToPostBootState is only useful for integration testing.
