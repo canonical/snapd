@@ -636,6 +636,10 @@ prepare_suite_each() {
     tests.invariant check
 
     if os.query is-classic; then
+        # In systems like arch-linux the inotifywait command fails when the output file does not exist
+        touch /tmp/fs.output
+
+        # Monitor files and directories creation
         SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
         inotifywait -d -m -r -e CREATE -o /tmp/fs.output --exclude "($PWD/task.yaml|$PWD/.*/.*.snap|$PROJECT_PATH/tests/lib/snaps/.*/.*.snap)" /root /var/lib/snapd /var/snap /home "$SNAP_MOUNT_DIR"
     fi
@@ -682,6 +686,7 @@ restore_suite_each() {
     tests.invariant check
 
     if os.query is-classic; then
+        # Stop inotifywait
         pkill inotifywait
         set +x
         local created_files created_dirs missing
@@ -692,6 +697,7 @@ restore_suite_each() {
         created_dirs=$( sudo cat /tmp/fs.output | grep " CREATE,ISDIR " | awk '{ print $1$3 }' )
         missing=false
 
+        # Print the files that were created but not deleted
         for file in $created_files; do
             if [ -f "$file" ]; then
                 echo "File not deleted $file"
@@ -699,12 +705,15 @@ restore_suite_each() {
             fi
         done
 
+        # Print the directories that were created but not deleted
         for file in $created_dirs; do
             if [ -d "$file" ]; then
                 echo "Dir not deleted $file"
                 missing=true
             fi
         done
+
+        # Exit in case there are files and dirs that were not properly cleaned
         if [ "$missing" = true ]; then
             exit 1
         fi
