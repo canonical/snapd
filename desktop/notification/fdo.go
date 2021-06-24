@@ -22,6 +22,7 @@ package notification
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/godbus/dbus"
 
@@ -35,9 +36,13 @@ const (
 )
 
 // Server holds a connection to a notification server interactions.
-type Server struct {
-	conn *dbus.Conn
-	obj  dbus.BusObject
+type fdoBackend struct {
+	conn            *dbus.Conn
+	obj             dbus.BusObject
+	serverToLocalID map[uint32]ID
+	localToServerID map[ID]uint32
+	lastRemove      time.Time
+	desktopID       string
 }
 
 // New returns new connection to a freedesktop.org message notification server.
@@ -46,15 +51,25 @@ type Server struct {
 // degradation of functionality, depending on the supported capabilities, so
 // that the notification messages are useful on a wide range of desktop
 // environments.
-func New(conn *dbus.Conn) *Server {
-	return &Server{
-		conn: conn,
-		obj:  conn.Object(dBusName, dBusObjectPath),
+var newFdoBackend = func(conn *dbus.Conn, desktopID string) NotificationManager {
+	return &fdoBackend{
+		conn:            conn,
+		obj:             conn.Object(dBusName, dBusObjectPath),
+		serverToLocalID: make(map[uint32]ID),
+		localToServerID: make(map[ID]uint32),
+		desktopID:       desktopID,
 	}
 }
 
+func (srv *fdoBackend) IdleDuration() time.Duration {
+	if len(srv.serverToLocalID) > 0 {
+		return 0
+	}
+	return timeNow().Sub(srv.lastRemove)
+}
+
 // ServerInformation returns the information about the notification server.
-func (srv *Server) ServerInformation() (name, vendor, version, specVersion string, err error) {
+func (srv *fdoBackend) ServerInformation() (name, vendor, version, specVersion string, err error) {
 	call := srv.obj.Call(dBusInterfaceName+".GetServerInformation", 0)
 	if err := call.Store(&name, &vendor, &version, &specVersion); err != nil {
 		return "", "", "", "", err
@@ -63,7 +78,7 @@ func (srv *Server) ServerInformation() (name, vendor, version, specVersion strin
 }
 
 // ServerCapabilities returns the list of notification capabilities provided by the session.
-func (srv *Server) ServerCapabilities() ([]ServerCapability, error) {
+func (srv *fdoBackend) ServerCapabilities() ([]ServerCapability, error) {
 	call := srv.obj.Call(dBusInterfaceName+".GetCapabilities", 0)
 	var caps []ServerCapability
 	if err := call.Store(&caps); err != nil {
@@ -73,19 +88,30 @@ func (srv *Server) ServerCapabilities() ([]ServerCapability, error) {
 }
 
 // SendNotification sends a new notification or updates an existing
-// notification. In both cases the ID of the notification, as assigned by the
-// server, is returned. The ID can be used to cancel a notification, update it
-// or react to invoked user actions.
-func (srv *Server) SendNotification(msg *Message) (ID, error) {
-	call := srv.obj.Call(dBusInterfaceName+".Notify", 0,
-		msg.AppName, msg.ReplacesID, msg.Icon, msg.Summary, msg.Body,
-		flattenActions(msg.Actions), mapHints(msg.Hints),
-		int32(msg.ExpireTimeout.Nanoseconds()/1e6))
-	var id ID
-	if err := call.Store(&id); err != nil {
-		return 0, err
+// notification. The id is a client-side id. fdoBackend remaps it internally
+// to a server-assigned id.
+func (srv *fdoBackend) SendNotification(id ID, msg *Message) error {
+	hints := mapHints(msg.Hints)
+	if _, ok := hints["urgency"]; !ok {
+		hints["urgency"] = dbus.MakeVariant(fdoPriority(msg.Priority))
 	}
-	return id, nil
+	if _, ok := hints["desktop-entry"]; !ok {
+		hints["desktop-entry"] = dbus.MakeVariant(srv.desktopID)
+	}
+
+	// serverSideId may be 0, but if it exists it is going to replace previous
+	// notification with same local id.
+	serverSideId := srv.localToServerID[id]
+	call := srv.obj.Call(dBusInterfaceName+".Notify", 0,
+		msg.AppName, serverSideId, msg.Icon, msg.Title, msg.Body,
+		flattenActions(msg.Actions), hints,
+		int32(msg.ExpireTimeout.Nanoseconds()/1e6))
+	if err := call.Store(&serverSideId); err != nil {
+		return err
+	}
+	srv.serverToLocalID[serverSideId] = id
+	srv.localToServerID[id] = serverSideId
+	return nil
 }
 
 func flattenActions(actions []Action) []string {
@@ -105,10 +131,32 @@ func mapHints(hints []Hint) map[string]dbus.Variant {
 	return result
 }
 
+func fdoPriority(priority Priority) uint8 {
+	switch priority {
+	case PriorityLow:
+		return 0
+	case PriorityNormal, PriorityHigh:
+		return 1
+	case PriorityUrgent:
+		return 2
+	default:
+		return 1 // default to normal
+	}
+}
+
 // CloseNotification closes a notification message with the given ID.
-func (srv *Server) CloseNotification(id ID) error {
-	call := srv.obj.Call(dBusInterfaceName+".CloseNotification", 0, id)
-	return call.Store()
+func (srv *fdoBackend) CloseNotification(id ID) error {
+	serverSideId, ok := srv.localToServerID[id]
+	if !ok {
+		return fmt.Errorf("unknown notification with id %q", id)
+	}
+	call := srv.obj.Call(dBusInterfaceName+".CloseNotification", 0, serverSideId)
+	if err := call.Store(); err != nil {
+		return err
+	}
+	delete(srv.localToServerID, id)
+	delete(srv.serverToLocalID, serverSideId)
+	return nil
 }
 
 // ObserveNotifications blocks and processes message notification signals.
@@ -116,7 +164,7 @@ func (srv *Server) CloseNotification(id ID) error {
 // The bus connection is configured to deliver signals from the notification
 // server. All received signals are dispatched to the provided observer. This
 // process continues until stopped by the context, or if an error occurs.
-func (srv *Server) ObserveNotifications(ctx context.Context, observer Observer) (err error) {
+func (srv *fdoBackend) ObserveNotifications(ctx context.Context, observer Observer) (err error) {
 	// TODO: upgrade godbus and use un-buffered channel.
 	ch := make(chan *dbus.Signal, 10)
 	defer close(ch)
@@ -147,28 +195,28 @@ func (srv *Server) ObserveNotifications(ctx context.Context, observer Observer) 
 		case <-ctx.Done():
 			return ctx.Err()
 		case sig := <-ch:
-			if err := processSignal(sig, observer); err != nil {
+			if err := srv.processSignal(sig, observer); err != nil {
 				return err
 			}
 		}
 	}
 }
 
-func processSignal(sig *dbus.Signal, observer Observer) error {
+func (srv *fdoBackend) processSignal(sig *dbus.Signal, observer Observer) error {
 	switch sig.Name {
 	case dBusInterfaceName + ".NotificationClosed":
-		if err := processNotificationClosed(sig, observer); err != nil {
+		if err := srv.processNotificationClosed(sig, observer); err != nil {
 			return fmt.Errorf("cannot process NotificationClosed signal: %v", err)
 		}
 	case dBusInterfaceName + ".ActionInvoked":
-		if err := processActionInvoked(sig, observer); err != nil {
+		if err := srv.processActionInvoked(sig, observer); err != nil {
 			return fmt.Errorf("cannot process ActionInvoked signal: %v", err)
 		}
 	}
 	return nil
 }
 
-func processNotificationClosed(sig *dbus.Signal, observer Observer) error {
+func (srv *fdoBackend) processNotificationClosed(sig *dbus.Signal, observer Observer) error {
 	if len(sig.Body) != 2 {
 		return fmt.Errorf("unexpected number of body elements: %d", len(sig.Body))
 	}
@@ -180,10 +228,17 @@ func processNotificationClosed(sig *dbus.Signal, observer Observer) error {
 	if !ok {
 		return fmt.Errorf("expected second body element to be uint32, got %T", sig.Body[1])
 	}
-	return observer.NotificationClosed(ID(id), CloseReason(reason))
+	srv.lastRemove = timeNow()
+	localID, ok := srv.serverToLocalID[id]
+	if !ok {
+		return fmt.Errorf("unknown notification with id %q", id)
+	}
+	delete(srv.localToServerID, localID)
+	delete(srv.serverToLocalID, id)
+	return observer.NotificationClosed(localID, CloseReason(reason))
 }
 
-func processActionInvoked(sig *dbus.Signal, observer Observer) error {
+func (srv *fdoBackend) processActionInvoked(sig *dbus.Signal, observer Observer) error {
 	if len(sig.Body) != 2 {
 		return fmt.Errorf("unexpected number of body elements: %d", len(sig.Body))
 	}
@@ -195,5 +250,5 @@ func processActionInvoked(sig *dbus.Signal, observer Observer) error {
 	if !ok {
 		return fmt.Errorf("expected second body element to be string, got %T", sig.Body[1])
 	}
-	return observer.ActionInvoked(ID(id), actionKey)
+	return observer.ActionInvoked(id, actionKey)
 }
