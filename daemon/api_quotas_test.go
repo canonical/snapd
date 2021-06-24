@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/quota"
 )
@@ -62,11 +63,11 @@ func (s *apiQuotaSuite) SetUpTest(c *check.C) {
 }
 
 func mockQuotas(st *state.State, c *check.C) {
-	err := servicestate.CreateQuota(st, "foo", "", nil, 11000)
+	err := servicestatetest.MockQuotaInState(st, "foo", "", nil, 11000)
 	c.Assert(err, check.IsNil)
-	err = servicestate.CreateQuota(st, "bar", "foo", nil, 6000)
+	err = servicestatetest.MockQuotaInState(st, "bar", "foo", nil, 6000)
 	c.Assert(err, check.IsNil)
-	err = servicestate.CreateQuota(st, "baz", "foo", nil, 5000)
+	err = servicestatetest.MockQuotaInState(st, "baz", "foo", nil, 5000)
 	c.Assert(err, check.IsNil)
 }
 
@@ -93,13 +94,14 @@ func (s *apiQuotaSuite) TestPostQuotaInvalidGroupName(c *check.C) {
 }
 
 func (s *apiQuotaSuite) TestPostEnsureQuotaUnhappy(c *check.C) {
-	daemon.MockServicestateCreateQuota(func(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) error {
+	r := daemon.MockServicestateCreateQuota(func(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) error {
 		c.Check(name, check.Equals, "booze")
 		c.Check(parentName, check.Equals, "foo")
 		c.Check(snaps, check.DeepEquals, []string{"bar"})
 		c.Check(memoryLimit, check.DeepEquals, quantity.Size(1000))
 		return fmt.Errorf("boom")
 	})
+	defer r()
 
 	data, err := json.Marshal(daemon.PostQuotaGroupData{
 		Action:    "ensure",
@@ -118,15 +120,16 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUnhappy(c *check.C) {
 }
 
 func (s *apiQuotaSuite) TestPostEnsureQuotaCreateHappy(c *check.C) {
-	var called int
-	daemon.MockServicestateCreateQuota(func(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) error {
-		called++
+	var createCalled int
+	r := daemon.MockServicestateCreateQuota(func(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) error {
+		createCalled++
 		c.Check(name, check.Equals, "booze")
 		c.Check(parentName, check.Equals, "foo")
 		c.Check(snaps, check.DeepEquals, []string{"some-snap"})
 		c.Check(memoryLimit, check.DeepEquals, quantity.Size(1000))
 		return nil
 	})
+	defer r()
 
 	data, err := json.Marshal(daemon.PostQuotaGroupData{
 		Action:    "ensure",
@@ -141,13 +144,13 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateHappy(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, check.Equals, 200)
-	c.Assert(called, check.Equals, 1)
+	c.Assert(createCalled, check.Equals, 1)
 }
 
 func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateHappy(c *check.C) {
 	st := s.d.Overlord().State()
 	st.Lock()
-	err := servicestate.CreateQuota(st, "ginger-ale", "", nil, 5000)
+	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, 5000)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
 
@@ -185,12 +188,13 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateHappy(c *check.C) {
 }
 
 func (s *apiQuotaSuite) TestPostRemoveQuotaHappy(c *check.C) {
-	var called int
-	daemon.MockServicestateRemoveQuota(func(st *state.State, name string) error {
-		called++
+	var removeCalled int
+	r := daemon.MockServicestateRemoveQuota(func(st *state.State, name string) error {
+		removeCalled++
 		c.Check(name, check.Equals, "booze")
 		return nil
 	})
+	defer r()
 
 	data, err := json.Marshal(daemon.PostQuotaGroupData{
 		Action:    "remove",
@@ -205,14 +209,15 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaHappy(c *check.C) {
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
 	c.Assert(rec.Code, check.Equals, 200)
-	c.Assert(called, check.Equals, 1)
+	c.Assert(removeCalled, check.Equals, 1)
 }
 
 func (s *apiQuotaSuite) TestPostRemoveQuotaUnhappy(c *check.C) {
-	daemon.MockServicestateRemoveQuota(func(st *state.State, name string) error {
+	r := daemon.MockServicestateRemoveQuota(func(st *state.State, name string) error {
 		c.Check(name, check.Equals, "booze")
 		return fmt.Errorf("boom")
 	})
+	defer r()
 
 	data, err := json.Marshal(daemon.PostQuotaGroupData{
 		Action:    "remove",
@@ -227,13 +232,12 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaUnhappy(c *check.C) {
 	c.Check(rspe.Message, check.Matches, `boom`)
 }
 
-func (s *systemsSuite) TestPostQuotaRequiresRoot(c *check.C) {
-	s.daemon(c)
-
-	daemon.MockServicestateRemoveQuota(func(st *state.State, name string) error {
+func (s *apiQuotaSuite) TestPostQuotaRequiresRoot(c *check.C) {
+	r := daemon.MockServicestateRemoveQuota(func(st *state.State, name string) error {
 		c.Fatalf("remove quota should not get called")
 		return nil
 	})
+	defer r()
 
 	data, err := json.Marshal(daemon.PostQuotaGroupData{
 		Action:    "remove",

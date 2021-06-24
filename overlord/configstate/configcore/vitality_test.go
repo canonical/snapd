@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
@@ -191,11 +192,8 @@ func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
 	tr.Commit()
 
 	// make a new quota group with this snap in it
-	err := servicestate.CreateQuota(s.state, "foogroup", "", []string{"test-snap"}, quantity.SizeMiB)
+	err := servicestatetest.MockQuotaInState(s.state, "foogroup", "", []string{"test-snap"}, quantity.SizeMiB)
 	c.Assert(err, IsNil)
-
-	// CreateQuota uses systemctl, but we don't care about that here
-	s.systemctlArgs = nil
 
 	s.state.Unlock()
 

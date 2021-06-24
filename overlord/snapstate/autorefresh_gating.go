@@ -303,6 +303,42 @@ func resetGatingForRefreshed(st *state.State, refreshedSnaps ...string) error {
 	return nil
 }
 
+// pruneSnapsHold removes the given snap from snaps-hold, whether it was an
+// affecting snap or gating snap. This should be called when a snap gets
+// removed.
+func pruneSnapsHold(st *state.State, snapName string) error {
+	gating, err := refreshGating(st)
+	if err != nil {
+		return err
+	}
+	if len(gating) == 0 {
+		return nil
+	}
+
+	var changed bool
+
+	if _, ok := gating[snapName]; ok {
+		delete(gating, snapName)
+		changed = true
+	}
+
+	for heldSnap, holdingSnaps := range gating {
+		if _, ok := holdingSnaps[snapName]; ok {
+			delete(holdingSnaps, snapName)
+			if len(holdingSnaps) == 0 {
+				delete(gating, heldSnap)
+			}
+			changed = true
+		}
+	}
+
+	if changed {
+		st.Set("snaps-hold", gating)
+	}
+
+	return nil
+}
+
 // heldSnaps returns all snaps that are gated and shouldn't be refreshed.
 func heldSnaps(st *state.State) (map[string]bool, error) {
 	gating, err := refreshGating(st)
