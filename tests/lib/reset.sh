@@ -65,7 +65,12 @@ reset_classic() {
         systemctl start snap.mount.service
     fi
 
-    rm -rf /root/.snap/gnupg /root/snap /home/test/snap
+    # Clean root home
+    rm -rf /root/.snap/gnupg /root/.bash_history /root/snap
+    # Clean test home
+    rm -rf /home/test/snap
+
+    rm -rf /snap
     rm -f /tmp/core* /tmp/ubuntu-core*
 
     if [ "$1" = "--reuse-core" ]; then
