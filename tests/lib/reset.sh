@@ -65,7 +65,7 @@ reset_classic() {
         systemctl start snap.mount.service
     fi
 
-    rm -rf /root/.snap/gnupg
+    rm -rf /root/.snap/gnupg /root/snap
     rm -f /tmp/core* /tmp/ubuntu-core*
 
     if [ "$1" = "--reuse-core" ]; then
