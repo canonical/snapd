@@ -72,7 +72,7 @@ type Handler interface {
 	// Error is called if the hook encounters an error while running.
 	// The returned bool flag indicates if the original hook error should be
 	// ignored by hook manager.
-	Error(hookErr error) (ignoreHookError bool, err error)
+	Error(hookErr error) (ignoreHookErr bool, err error)
 }
 
 // HandlerGenerator is the function signature required to register for hooks.
