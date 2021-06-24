@@ -728,13 +728,6 @@ func (m *DeviceManager) ensureSeeded() error {
 	return nil
 }
 
-// ResetBootOk is only useful for integration testing
-func (m *DeviceManager) ResetBootOk() {
-	osutil.MustBeTestBinary("ResetBootOk can only be called from tests")
-	m.bootOkRan = false
-	m.bootRevisionsUpdated = false
-}
-
 func (m *DeviceManager) ensureBootOk() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -1110,12 +1103,6 @@ func (m *DeviceManager) appendTriedRecoverySystem(label string) error {
 	triedSystems = append(triedSystems, label)
 	m.state.Set("tried-systems", triedSystems)
 	return nil
-}
-
-// ResetTriedRecoverySystemsRan is only useful for integration testing
-func (m *DeviceManager) ResetTriedRecoverySystemsRan() {
-	osutil.MustBeTestBinary("ResetTriedRecoverySystemsRan can only be called from tests")
-	m.ensureTriedRecoverySystemRan = false
 }
 
 func (m *DeviceManager) ensureTriedRecoverySystem() error {
@@ -1789,6 +1776,8 @@ func (h fdeSetupHandler) Error(err error) error {
 
 // ResetToPostBootState is only useful for integration testing.
 func (m *DeviceManager) ResetToPostBootState() {
-	m.ResetBootOk()
-	m.ResetTriedRecoverySystemsRan()
+	osutil.MustBeTestBinary("ResetToPostBootState can only be called from tests")
+	m.bootOkRan = false
+	m.bootRevisionsUpdated = false
+	m.ensureTriedRecoverySystemRan = false
 }
