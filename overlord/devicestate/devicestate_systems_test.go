@@ -1198,8 +1198,13 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 	})
 	modeenvAfterCreate, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Check(modeenvAfterCreate.CurrentRecoverySystems, DeepEquals, []string{"othersystem", "1234"})
-	c.Check(modeenvAfterCreate.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem", "1234"},
+		GoodRecoverySystems:    []string{"othersystem"},
+	})
 	// verify that new files are tracked correctly
 	expectedFilesLog := &bytes.Buffer{}
 	// new snap files are logged in this order
@@ -1234,8 +1239,13 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 
 	modeenvAfterFinalize, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Check(modeenvAfterFinalize.CurrentRecoverySystems, DeepEquals, []string{"othersystem", "1234"})
-	c.Check(modeenvAfterFinalize.GoodRecoverySystems, DeepEquals, []string{"othersystem", "1234"})
+	c.Check(modeenvAfterFinalize, testutil.JsonEquals, boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem", "1234"},
+		GoodRecoverySystems:    []string{"othersystem", "1234"},
+	})
 	// no more calls to the bootloader past creating the system
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"), testutil.FileAbsent)
@@ -1351,8 +1361,13 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	})
 	modeenvAfterCreate, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Check(modeenvAfterCreate.CurrentRecoverySystems, DeepEquals, []string{"othersystem", "1234"})
-	c.Check(modeenvAfterCreate.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem", "1234"},
+		GoodRecoverySystems:    []string{"othersystem"},
+	})
 	// verify that new files are tracked correctly
 	expectedFilesLog := &bytes.Buffer{}
 	// new snap files are logged in this order
@@ -1391,10 +1406,15 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 
 	modeenvAfterFinalize, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	// the system is kept in the current list
-	c.Check(modeenvAfterFinalize.CurrentRecoverySystems, DeepEquals, []string{"othersystem", "1234"})
-	// but not promoted to good systems yet
-	c.Check(modeenvAfterFinalize.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+	c.Check(modeenvAfterFinalize, testutil.JsonEquals, boot.Modeenv{
+		Mode:           "run",
+		Base:           "core20_3.snap",
+		CurrentKernels: []string{"pc-kernel_2.snap"},
+		// the system is kept in the current list
+		CurrentRecoverySystems: []string{"othersystem", "1234"},
+		// but not promoted to good systems yet
+		GoodRecoverySystems: []string{"othersystem"},
+	})
 	// no more calls to the bootloader past creating the system
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"), testutil.FileAbsent)
@@ -1543,8 +1563,13 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 	})
 	modeenvAfterCreate, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Check(modeenvAfterCreate.CurrentRecoverySystems, DeepEquals, []string{"othersystem", "1234undo"})
-	c.Check(modeenvAfterCreate.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem", "1234undo"},
+		GoodRecoverySystems:    []string{"othersystem"},
+	})
 
 	// these things happen on snapd startup
 	state.MockRestarting(s.state, state.RestartUnset)
@@ -1571,8 +1596,13 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 
 	modeenvAfterFinalize, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Check(modeenvAfterFinalize.CurrentRecoverySystems, DeepEquals, []string{"othersystem"})
-	c.Check(modeenvAfterFinalize.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+	c.Check(modeenvAfterFinalize, testutil.JsonEquals, boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem"},
+		GoodRecoverySystems:    []string{"othersystem"},
+	})
 	// no more calls to the bootloader
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
 	// system directory was removed
@@ -1622,8 +1652,13 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 	})
 	modeenvAfterCreate, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Check(modeenvAfterCreate.CurrentRecoverySystems, DeepEquals, []string{"othersystem", "1234"})
-	c.Check(modeenvAfterCreate.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem", "1234"},
+		GoodRecoverySystems:    []string{"othersystem"},
+	})
 
 	// these things happen on snapd startup
 	state.MockRestarting(s.state, state.RestartUnset)
@@ -1653,8 +1688,13 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 
 	modeenvAfterFinalize, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Check(modeenvAfterFinalize.CurrentRecoverySystems, DeepEquals, []string{"othersystem"})
-	c.Check(modeenvAfterFinalize.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+	c.Check(modeenvAfterFinalize, testutil.JsonEquals, boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem"},
+		GoodRecoverySystems:    []string{"othersystem"},
+	})
 	// no more calls to the bootloader
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
 	// seed directory was removed
@@ -1722,8 +1762,13 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemErrCl
 	})
 	modeenvAfterCreate, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Check(modeenvAfterCreate.CurrentRecoverySystems, DeepEquals, []string{"othersystem"})
-	c.Check(modeenvAfterCreate.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem"},
+		GoodRecoverySystems:    []string{"othersystem"},
+	})
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemReboot(c *C) {
@@ -1811,8 +1856,13 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemReboo
 	})
 	modeenvAfterCreate, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Check(modeenvAfterCreate.CurrentRecoverySystems, DeepEquals, []string{"othersystem"})
-	c.Check(modeenvAfterCreate.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem"},
+		GoodRecoverySystems:    []string{"othersystem"},
+	})
 	var triedSystems []string
 	s.state.Get("tried-systems", &triedSystems)
 	c.Check(triedSystems, HasLen, 0)
