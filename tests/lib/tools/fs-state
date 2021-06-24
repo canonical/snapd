@@ -12,8 +12,8 @@ _mock_dir() {
     if [ ! -d "$dir" ]; then
         echo "fs-state: created mock directory: $dir"
         mkdir -p "$dir"
-        touch "$dir.fake"
     fi
+    touch "$dir.fake"
 }
 
 mock_dir() {
@@ -45,8 +45,8 @@ _mock_file() {
     if [ ! -e "$file" ]; then
         echo "fs-state: creating file: $file"
         echo "The file is a mock file used by fs-state." > "$file"
-        echo "The .fake file is a marker file used by fs-state." > "$file.fake"
     fi
+    echo "The .fake file is a marker file used by fs-state." > "$file.fake"
 }
 
 mock_file() {
