@@ -73,7 +73,7 @@ func (h *MockHandler) Error(err error) (bool, error) {
 	h.Err = err
 	h.ErrorCalled = true
 	if h.ErrorError {
-		return h.IgnoreOriginalErr, fmt.Errorf("Error failed at user request")
+		return false, fmt.Errorf("Error failed at user request")
 	}
 	return h.IgnoreOriginalErr, nil
 }
