@@ -57,9 +57,10 @@ static void cgroupv2_is_tracking_tear_down(cgroupv2_is_tracking_fixture *fixture
     g_free(fixture->self_cgroup);
 
     sc_set_cgroup_root("/sys/fs/cgroup");
-    g_autofree char *cmd = g_strdup_printf("rm -rf %s", fixture->root);
+    char *cmd = g_strdup_printf("rm -rf %s", fixture->root);
     g_debug("cleanup command: %s", cmd);
     g_spawn_command_line_sync(cmd, NULL, NULL, NULL, &err);
+    g_free(cmd);
     g_assert_no_error(err);
     g_free(fixture->root);
 }
@@ -75,9 +76,10 @@ static void _test_sc_cgroupv2_is_tracking_happy(cgroupv2_is_tracking_fixture *fi
     };
 
     for (size_t i = 0; i < sizeof dirs / sizeof dirs[0]; i++) {
-        g_autofree const char *np = g_build_filename(fixture->root, dirs[i], NULL);
+        char *np = g_build_filename(fixture->root, dirs[i], NULL);
         int ret = g_mkdir_with_parents(np, 0755);
         g_assert_cmpint(ret, ==, 0);
+        g_free(np);
     }
 
     bool is_tracking = sc_cgroup_v2_is_tracking_snap("foo");
@@ -115,9 +117,10 @@ static void test_sc_cgroupv2_is_tracking_just_own_group(cgroupv2_is_tracking_fix
     };
 
     for (size_t i = 0; i < sizeof dirs / sizeof dirs[0]; i++) {
-        g_autofree const char *np = g_build_filename(fixture->root, dirs[i], NULL);
+        char *np = g_build_filename(fixture->root, dirs[i], NULL);
         int ret = g_mkdir_with_parents(np, 0755);
         g_assert_cmpint(ret, ==, 0);
+        g_free(np);
     }
 
     bool is_tracking = sc_cgroup_v2_is_tracking_snap("foo");
@@ -139,9 +142,10 @@ static void test_sc_cgroupv2_is_tracking_other_snaps(cgroupv2_is_tracking_fixtur
     };
 
     for (size_t i = 0; i < sizeof dirs / sizeof dirs[0]; i++) {
-        g_autofree const char *np = g_build_filename(fixture->root, dirs[i], NULL);
+        char *np = g_build_filename(fixture->root, dirs[i], NULL);
         int ret = g_mkdir_with_parents(np, 0755);
         g_assert_cmpint(ret, ==, 0);
+        g_free(np);
     }
 
     bool is_tracking = sc_cgroup_v2_is_tracking_snap("foo");
@@ -179,7 +183,7 @@ static void test_sc_cgroupv2_is_tracking_bad_nesting(cgroupv2_is_tracking_fixtur
     g_assert_no_error(err);
 
     /* create a hierarchy so deep that it triggers the nesting error */
-    g_autofree char *prev_path = g_build_filename(fixture->root, NULL);
+    char *prev_path = g_build_filename(fixture->root, NULL);
     for (size_t i = 0; i < max_traversal_depth; i++) {
         char *np = g_build_filename(prev_path, "nested", NULL);
         int ret = g_mkdir_with_parents(np, 0755);
@@ -187,6 +191,7 @@ static void test_sc_cgroupv2_is_tracking_bad_nesting(cgroupv2_is_tracking_fixtur
         g_free(prev_path);
         prev_path = np;
     }
+    g_free(prev_path);
 
     if (g_test_subprocess()) {
         sc_cgroup_v2_is_tracking_snap("foo");
@@ -216,9 +221,10 @@ static void test_sc_cgroupv2_is_tracking_dir_permissions(cgroupv2_is_tracking_fi
         if (g_str_has_suffix(dirs[i], "/badperm")) {
             mode = 0000;
         }
-        g_autofree const char *np = g_build_filename(fixture->root, dirs[i], NULL);
+        char *np = g_build_filename(fixture->root, dirs[i], NULL);
         int ret = g_mkdir_with_parents(np, mode);
         g_assert_cmpint(ret, ==, 0);
+        g_free(np);
     }
 
     /* dies when hitting an error traversing the hierarchy */
@@ -254,7 +260,7 @@ static void cgroupv2_own_group_tear_down(cgroupv2_own_group_fixture *fixture, gc
 static void test_sc_cgroupv2_own_group_path_simple_happy_scope(cgroupv2_own_group_fixture *fixture,
                                                                gconstpointer user_data) {
     GError *err = NULL;
-    g_autofree const char *p = NULL;
+    char *p SC_CLEANUP(sc_cleanup_string) = NULL;
     g_file_set_contents(fixture->self_cgroup, (char *)user_data, -1, &err);
     g_assert_no_error(err);
     p = sc_cgroup_v2_own_path_full();
@@ -264,7 +270,7 @@ static void test_sc_cgroupv2_own_group_path_simple_happy_scope(cgroupv2_own_grou
 static void test_sc_cgroupv2_own_group_path_simple_happy_service(cgroupv2_own_group_fixture *fixture,
                                                                  gconstpointer user_data) {
     GError *err = NULL;
-    g_autofree const char *p = NULL;
+    char *p SC_CLEANUP(sc_cleanup_string) = NULL;
     g_file_set_contents(fixture->self_cgroup, (char *)user_data, -1, &err);
     g_assert_no_error(err);
     p = sc_cgroup_v2_own_path_full();
@@ -273,7 +279,7 @@ static void test_sc_cgroupv2_own_group_path_simple_happy_service(cgroupv2_own_gr
 
 static void test_sc_cgroupv2_own_group_path_empty(cgroupv2_own_group_fixture *fixture, gconstpointer user_data) {
     GError *err = NULL;
-    g_autofree const char *p = NULL;
+    char *p SC_CLEANUP(sc_cleanup_string) = NULL;
     g_file_set_contents(fixture->self_cgroup, (char *)user_data, -1, &err);
     g_assert_no_error(err);
     p = sc_cgroup_v2_own_path_full();
@@ -282,7 +288,8 @@ static void test_sc_cgroupv2_own_group_path_empty(cgroupv2_own_group_fixture *fi
 
 static void _test_sc_cgroupv2_own_group_path_die_with_message(const char *msg) {
     if (g_test_subprocess()) {
-        g_autofree const char *p = NULL;
+        char *p SC_CLEANUP(sc_cleanup_string) = NULL;
+        // keep this separate so that p isn't unused
         p = sc_cgroup_v2_own_path_full();
     }
     g_test_trap_subprocess(NULL, 0, 0);
