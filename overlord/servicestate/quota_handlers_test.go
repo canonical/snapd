@@ -229,7 +229,7 @@ func (s *quotaHandlersSuite) TestQuotaCreatePreseeding(c *C) {
 		AddSnaps:    []string{"test-snap"},
 	}
 
-	err := servicestate.QuotaCreate(st, nil, qc, allGrps(c, st), nil, nil)
+	err := servicestate.QuotaCreate(st, nil, qc, allGrps(c, st), nil)
 	c.Assert(err, IsNil)
 
 	// check that the quota groups were created in the state
@@ -266,7 +266,7 @@ func (s *quotaHandlersSuite) TestQuotaCreate(c *C) {
 		AddSnaps:    []string{"test-snap"},
 	}
 
-	err := servicestate.QuotaCreate(st, nil, qc, allGrps(c, st), nil, nil)
+	err := servicestate.QuotaCreate(st, nil, qc, allGrps(c, st), nil)
 	c.Assert(err, ErrorMatches, `cannot use snap "test-snap" in group "foo": snap "test-snap" is not installed`)
 
 	// setup the snap so it exists
@@ -281,7 +281,7 @@ func (s *quotaHandlersSuite) TestQuotaCreate(c *C) {
 	}
 
 	// trying to create a quota with too low of a memory limit fails
-	err = servicestate.QuotaCreate(st, nil, qc2, allGrps(c, st), nil, nil)
+	err = servicestate.QuotaCreate(st, nil, qc2, allGrps(c, st), nil)
 	c.Assert(err, ErrorMatches, `memory limit for group "foo" is too small: size must be larger than 4KB`)
 
 	// but with an adequately sized memory limit, and a snap that exists, we can
@@ -292,7 +292,7 @@ func (s *quotaHandlersSuite) TestQuotaCreate(c *C) {
 		MemoryLimit: 4*quantity.SizeKiB + 1,
 		AddSnaps:    []string{"test-snap"},
 	}
-	err = servicestate.QuotaCreate(st, nil, qc3, allGrps(c, st), nil, nil)
+	err = servicestate.QuotaCreate(st, nil, qc3, allGrps(c, st), nil)
 	c.Assert(err, IsNil)
 
 	// creating the same group again will fail
@@ -338,7 +338,7 @@ func (s *quotaHandlersSuite) TestDoCreateSubGroupQuota(c *C) {
 		MemoryLimit: quantity.SizeGiB,
 	}
 
-	err := servicestate.QuotaCreate(st, nil, qc, allGrps(c, st), nil, nil)
+	err := servicestate.QuotaCreate(st, nil, qc, allGrps(c, st), nil)
 	c.Assert(err, IsNil)
 
 	// trying to create a quota group with a non-existent parent group fails
@@ -350,7 +350,7 @@ func (s *quotaHandlersSuite) TestDoCreateSubGroupQuota(c *C) {
 		AddSnaps:    []string{"test-snap"},
 	}
 
-	err = servicestate.QuotaCreate(st, nil, qc2, allGrps(c, st), nil, nil)
+	err = servicestate.QuotaCreate(st, nil, qc2, allGrps(c, st), nil)
 	c.Assert(err, ErrorMatches, `cannot create group under non-existent parent group "foo-non-real"`)
 
 	// trying to create a quota group with too big of a limit to fit inside the
@@ -363,7 +363,7 @@ func (s *quotaHandlersSuite) TestDoCreateSubGroupQuota(c *C) {
 		AddSnaps:    []string{"test-snap"},
 	}
 
-	err = servicestate.QuotaCreate(st, nil, qc3, allGrps(c, st), nil, nil)
+	err = servicestate.QuotaCreate(st, nil, qc3, allGrps(c, st), nil)
 	c.Assert(err, ErrorMatches, `sub-group memory limit of 2 GiB is too large to fit inside remaining quota space 1 GiB for parent group foo-group`)
 
 	// now we can create a sub-quota
@@ -375,7 +375,7 @@ func (s *quotaHandlersSuite) TestDoCreateSubGroupQuota(c *C) {
 		AddSnaps:    []string{"test-snap"},
 	}
 
-	err = servicestate.QuotaCreate(st, nil, qc4, allGrps(c, st), nil, nil)
+	err = servicestate.QuotaCreate(st, nil, qc4, allGrps(c, st), nil)
 	c.Assert(err, IsNil)
 
 	// check that the quota groups were created in the state
@@ -435,7 +435,7 @@ func (s *quotaHandlersSuite) TestQuotaRemove(c *C) {
 		QuotaName: "not-exists",
 	}
 
-	err := servicestate.QuotaRemove(st, nil, qc, allGrps(c, st), nil, nil)
+	err := servicestate.QuotaRemove(st, nil, qc, allGrps(c, st), nil)
 	c.Assert(err, ErrorMatches, `cannot remove non-existent quota group "not-exists"`)
 
 	qc2 := servicestate.QuotaControlAction{
@@ -445,7 +445,7 @@ func (s *quotaHandlersSuite) TestQuotaRemove(c *C) {
 		AddSnaps:    []string{"test-snap"},
 	}
 
-	err = servicestate.QuotaCreate(st, nil, qc2, allGrps(c, st), nil, nil)
+	err = servicestate.QuotaCreate(st, nil, qc2, allGrps(c, st), nil)
 	c.Assert(err, IsNil)
 
 	// create 2 quota sub-groups too
@@ -456,7 +456,7 @@ func (s *quotaHandlersSuite) TestQuotaRemove(c *C) {
 		ParentName:  "foo",
 	}
 
-	err = servicestate.QuotaCreate(st, nil, qc3, allGrps(c, st), nil, nil)
+	err = servicestate.QuotaCreate(st, nil, qc3, allGrps(c, st), nil)
 	c.Assert(err, IsNil)
 
 	qc4 := servicestate.QuotaControlAction{
@@ -466,7 +466,7 @@ func (s *quotaHandlersSuite) TestQuotaRemove(c *C) {
 		ParentName:  "foo",
 	}
 
-	err = servicestate.QuotaCreate(st, nil, qc4, allGrps(c, st), nil, nil)
+	err = servicestate.QuotaCreate(st, nil, qc4, allGrps(c, st), nil)
 	c.Assert(err, IsNil)
 
 	// check that the quota groups was created in the state
@@ -493,7 +493,7 @@ func (s *quotaHandlersSuite) TestQuotaRemove(c *C) {
 		QuotaName: "foo",
 	}
 
-	err = servicestate.QuotaRemove(st, nil, qc5, allGrps(c, st), nil, nil)
+	err = servicestate.QuotaRemove(st, nil, qc5, allGrps(c, st), nil)
 	c.Assert(err, ErrorMatches, "cannot remove quota group with sub-groups, remove the sub-groups first")
 
 	// but we can remove the sub-group successfully first
@@ -502,7 +502,7 @@ func (s *quotaHandlersSuite) TestQuotaRemove(c *C) {
 		QuotaName: "foo3",
 	}
 
-	err = servicestate.QuotaRemove(st, nil, qc6, allGrps(c, st), nil, nil)
+	err = servicestate.QuotaRemove(st, nil, qc6, allGrps(c, st), nil)
 	c.Assert(err, IsNil)
 
 	checkQuotaState(c, st, map[string]quotaGroupState{
@@ -523,7 +523,7 @@ func (s *quotaHandlersSuite) TestQuotaRemove(c *C) {
 		QuotaName: "foo2",
 	}
 
-	err = servicestate.QuotaRemove(st, nil, qc7, allGrps(c, st), nil, nil)
+	err = servicestate.QuotaRemove(st, nil, qc7, allGrps(c, st), nil)
 	c.Assert(err, IsNil)
 
 	checkQuotaState(c, st, map[string]quotaGroupState{
@@ -539,7 +539,7 @@ func (s *quotaHandlersSuite) TestQuotaRemove(c *C) {
 		QuotaName: "foo",
 	}
 
-	err = servicestate.QuotaRemove(st, nil, qc8, allGrps(c, st), nil, nil)
+	err = servicestate.QuotaRemove(st, nil, qc8, allGrps(c, st), nil)
 	c.Assert(err, IsNil)
 
 	checkQuotaState(c, st, nil)
@@ -559,7 +559,7 @@ func (s *quotaHandlersSuite) TestQuotaUpdateGroupNotExist(c *C) {
 		QuotaName: "non-existing",
 	}
 
-	err := servicestate.QuotaUpdate(st, nil, qc, allGrps(c, st), nil, nil)
+	err := servicestate.QuotaUpdate(st, nil, qc, allGrps(c, st), nil)
 	c.Check(err, ErrorMatches, `group "non-existing" does not exist`)
 }
 
@@ -604,7 +604,7 @@ func (s *quotaHandlersSuite) TestQuotaUpdateSubGroupTooBig(c *C) {
 		AddSnaps:    []string{"test-snap"},
 	}
 
-	err := servicestate.QuotaCreate(st, nil, qc, allGrps(c, st), nil, nil)
+	err := servicestate.QuotaCreate(st, nil, qc, allGrps(c, st), nil)
 	c.Assert(err, IsNil)
 
 	// ensure mem-limit is 1 GB
@@ -625,7 +625,7 @@ func (s *quotaHandlersSuite) TestQuotaUpdateSubGroupTooBig(c *C) {
 		ParentName:  "foo",
 	}
 
-	err = servicestate.QuotaCreate(st, nil, qc2, allGrps(c, st), nil, nil)
+	err = servicestate.QuotaCreate(st, nil, qc2, allGrps(c, st), nil)
 	c.Assert(err, IsNil)
 
 	expFooGroupState.SubGroups = []string{"foo2"}
@@ -649,7 +649,7 @@ func (s *quotaHandlersSuite) TestQuotaUpdateSubGroupTooBig(c *C) {
 		MemoryLimit: quantity.SizeGiB,
 	}
 
-	err = servicestate.QuotaUpdate(st, nil, qc3, allGrps(c, st), nil, nil)
+	err = servicestate.QuotaUpdate(st, nil, qc3, allGrps(c, st), nil)
 	c.Assert(err, IsNil)
 
 	expFoo2GroupState.MemoryLimit = quantity.SizeGiB
@@ -666,7 +666,7 @@ func (s *quotaHandlersSuite) TestQuotaUpdateSubGroupTooBig(c *C) {
 		MemoryLimit: 2 * quantity.SizeGiB,
 	}
 
-	err = servicestate.QuotaUpdate(st, nil, qc4, allGrps(c, st), nil, nil)
+	err = servicestate.QuotaUpdate(st, nil, qc4, allGrps(c, st), nil)
 	c.Assert(err, ErrorMatches, `cannot update quota "foo2": group "foo2" is invalid: sub-group memory limit of 2 GiB is too large to fit inside remaining quota space 1 GiB for parent group foo`)
 
 	// and make sure that the existing memory limit is still in place
@@ -715,7 +715,7 @@ func (s *quotaHandlersSuite) TestQuotaUpdateChangeMemLimit(c *C) {
 		AddSnaps:    []string{"test-snap"},
 	}
 
-	err := servicestate.QuotaCreate(st, nil, qc, allGrps(c, st), nil, nil)
+	err := servicestate.QuotaCreate(st, nil, qc, allGrps(c, st), nil)
 	c.Assert(err, IsNil)
 
 	// ensure mem-limit is 1 GB
@@ -732,7 +732,7 @@ func (s *quotaHandlersSuite) TestQuotaUpdateChangeMemLimit(c *C) {
 		QuotaName:   "foo",
 		MemoryLimit: 2 * quantity.SizeGiB,
 	}
-	err = servicestate.QuotaUpdate(st, nil, qc2, allGrps(c, st), nil, nil)
+	err = servicestate.QuotaUpdate(st, nil, qc2, allGrps(c, st), nil)
 	c.Assert(err, IsNil)
 
 	// and check that it got updated in the state
@@ -749,7 +749,7 @@ func (s *quotaHandlersSuite) TestQuotaUpdateChangeMemLimit(c *C) {
 		QuotaName:   "foo",
 		MemoryLimit: quantity.SizeGiB,
 	}
-	err = servicestate.QuotaUpdate(st, nil, qc3, allGrps(c, st), nil, nil)
+	err = servicestate.QuotaUpdate(st, nil, qc3, allGrps(c, st), nil)
 	c.Assert(err, ErrorMatches, "cannot decrease memory limit of existing quota-group, remove and re-create it to decrease the limit")
 }
 
@@ -791,7 +791,7 @@ func (s *quotaHandlersSuite) TestQuotaUpdateAddSnap(c *C) {
 		AddSnaps:    []string{"test-snap"},
 	}
 
-	err := servicestate.QuotaCreate(st, nil, qc, allGrps(c, st), nil, nil)
+	err := servicestate.QuotaCreate(st, nil, qc, allGrps(c, st), nil)
 	c.Assert(err, IsNil)
 
 	checkQuotaState(c, st, map[string]quotaGroupState{
@@ -807,7 +807,7 @@ func (s *quotaHandlersSuite) TestQuotaUpdateAddSnap(c *C) {
 		QuotaName: "foo",
 		AddSnaps:  []string{"test-snap2"},
 	}
-	err = servicestate.QuotaUpdate(st, nil, qc2, allGrps(c, st), nil, nil)
+	err = servicestate.QuotaUpdate(st, nil, qc2, allGrps(c, st), nil)
 	c.Assert(err, IsNil)
 
 	// and check that it got updated in the state
@@ -857,7 +857,7 @@ func (s *quotaHandlersSuite) TestQuotaUpdateAddSnapAlreadyInOtherGroup(c *C) {
 		AddSnaps:    []string{"test-snap"},
 	}
 
-	err := servicestate.QuotaCreate(st, nil, qc, allGrps(c, st), nil, nil)
+	err := servicestate.QuotaCreate(st, nil, qc, allGrps(c, st), nil)
 	c.Assert(err, IsNil)
 
 	checkQuotaState(c, st, map[string]quotaGroupState{
@@ -875,7 +875,7 @@ func (s *quotaHandlersSuite) TestQuotaUpdateAddSnapAlreadyInOtherGroup(c *C) {
 		AddSnaps:    []string{"test-snap2"},
 	}
 
-	err = servicestate.QuotaCreate(st, nil, qc2, allGrps(c, st), nil, nil)
+	err = servicestate.QuotaCreate(st, nil, qc2, allGrps(c, st), nil)
 	c.Assert(err, IsNil)
 
 	// verify state
@@ -897,7 +897,7 @@ func (s *quotaHandlersSuite) TestQuotaUpdateAddSnapAlreadyInOtherGroup(c *C) {
 		AddSnaps:  []string{"test-snap2"},
 	}
 
-	err = servicestate.QuotaUpdate(st, nil, qc3, allGrps(c, st), nil, nil)
+	err = servicestate.QuotaUpdate(st, nil, qc3, allGrps(c, st), nil)
 	c.Assert(err, ErrorMatches, `cannot add snap "test-snap2" to group "foo": snap already in quota group "foo2"`)
 
 	// nothing changed in the state

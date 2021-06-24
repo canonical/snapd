@@ -177,13 +177,16 @@ version: 1
 `)
 
 	// pretend snap foo is held initially
-	c.Assert(snapstate.HoldRefresh(s.st, "snap1", 0, "foo"), IsNil)
+	c.Check(snapstate.HoldRefresh(s.st, "snap1", 0, "foo"), IsNil)
+	s.st.Unlock()
+
 	// sanity check
 	var gating map[string]map[string]interface{}
-	c.Assert(s.st.Get("snaps-hold", &gating), IsNil)
-	c.Check(gating["foo"]["snap1"], NotNil)
-
+	s.st.Lock()
+	snapsHold := s.st.Get("snaps-hold", &gating)
 	s.st.Unlock()
+	c.Assert(snapsHold, IsNil)
+	c.Check(gating["foo"]["snap1"], NotNil)
 
 	mockContext.Lock()
 	mockContext.Set("affecting-snaps", []string{"foo"})
@@ -204,6 +207,23 @@ version: 1
 	gating = nil
 	c.Assert(s.st.Get("snaps-hold", &gating), IsNil)
 	c.Check(gating["foo"]["snap1"], NotNil)
+
+	mockContext.Cache("action", nil)
+
+	mockContext.Unlock()
+	defer mockContext.Lock()
+
+	// refresh --pending --proceed is the same as just saying --proceed.
+	stdout, stderr, err = ctlcmd.Run(mockContext, []string{"refresh", "--pending", "--proceed"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+
+	mockContext.Lock()
+	defer mockContext.Unlock()
+	action = mockContext.Cached("action")
+	c.Assert(action, NotNil)
+	c.Check(action, Equals, snapstate.GateAutoRefreshProceed)
 }
 
 func (s *refreshSuite) TestRefreshFromUnsupportedHook(c *C) {
