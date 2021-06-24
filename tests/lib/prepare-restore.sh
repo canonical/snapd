@@ -641,7 +641,10 @@ prepare_suite_each() {
 
         # Monitor files and directories creation
         SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-        inotifywait -d -m -r -e CREATE -o /tmp/fs.output --exclude "($PWD/task.yaml|$PWD/.*/.*.snap|$PROJECT_PATH/tests/lib/snaps/.*/.*.snap)" /root /var/lib/snapd /var/snap /home "$SNAP_MOUNT_DIR"
+
+        # $PWD is excluded because the backup dir is automatically restored
+        # .snap files created in tests/lib/snaps are excluded as they are not deleted to be reused
+        inotifywait -d -m -r -e CREATE -o /tmp/fs.output --exclude "($PWD|$PROJECT_PATH/tests/lib/snaps/.*/.*.snap)" /root /var/lib/snapd /var/snap /home "$SNAP_MOUNT_DIR"
     fi
 }
 
