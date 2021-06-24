@@ -659,10 +659,7 @@ func (m *DeviceManager) preloadGadget() (sysconfig.Device, *gadget.Info, error) 
 		return nil, nil, state.ErrNoState
 	}
 
-	dev := &modelDeviceContext{groundDeviceContext{
-		model:      model,
-		systemMode: m.SystemMode(SysAny),
-	}}
+	dev := newModelDeviceContext(m, model)
 	return dev, gi, nil
 }
 
