@@ -30,11 +30,12 @@ execute: |
     test -d existing-dir
     test -f existing-dir.fake
     test -d existing-dir.back
-    # The newly created mock directory is entirely empty.
-    not test -f existing-dir/unrelated
+    # The newly created mock directory is a copy from original directory
+    test -f existing-dir/unrelated
     # Restoring removes the mock directory and replaces it with the preserved
     # .back directory.
     "$TESTSTOOLS"/fs-state restore-dir existing-dir
+    rm -f existing-dir/unrelated
     test -d existing-dir
     test -f existing-dir/unrelated
     not test -f existing-dir.fake

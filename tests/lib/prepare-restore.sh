@@ -634,22 +634,6 @@ prepare_suite_each() {
         "$TESTSTOOLS"/cleanup-state pre-invariant
     fi
     tests.invariant check
-
-    if os.query is-classic; then
-        # In systems like arch-linux the inotifywait command fails when the output file does not exist
-        touch /tmp/fs.output
-
-        # Monitor files and directories creation
-        SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-
-        # $PWD is excluded because the backup dir is automatically restored
-        # .snap files created in tests/lib/snaps are excluded as they are not deleted to be reused
-        inotifywait -d -m -r -e CREATE -o /tmp/fs.output --exclude "($PWD|$PROJECT_PATH/tests/lib/snaps/.*/.*.snap)" /root /var/lib/snapd /var/snap /home "$SNAP_MOUNT_DIR"
-        if ! pgrep inotifywait &>/dev/null; then
-            echo "inotifywait is not running, exiting..."
-            exit 1
-        fi
-    fi
 }
 
 restore_suite_each() {
@@ -692,43 +676,7 @@ restore_suite_each() {
     fi
     tests.invariant check
 
-    if os.query is-classic; then
-        # Stop inotifywait (it could be already stopped)
-        if pgrep inotifywait &>/dev/null; then
-            pkill inotifywait
-        fi
-        set +x
-        local created_files created_dirs missing
-        # the output file contains lines:
-        # /etc/ CREATE foo          # created file /etc/foo
-        # /etc/ CREATE,ISDIR foo    # created directory /etc/foo
-        created_files=$( sudo cat /tmp/fs.output | grep " CREATE " | awk '{ print $1$3 }' )
-        created_dirs=$( sudo cat /tmp/fs.output | grep " CREATE,ISDIR " | awk '{ print $1$3 }' )
-        missing=false
-
-        # Print the files that were created but not deleted
-        for file in $created_files; do
-            if [ -f "$file" ]; then
-                echo "File not deleted $file"
-                missing=true
-            fi
-        done
-
-        # Print the directories that were created but not deleted
-        for file in $created_dirs; do
-            if [ -d "$file" ]; then
-                echo "Dir not deleted $file"
-                missing=true
-            fi
-        done
-
-        # Exit in case there are files and dirs that were not properly cleaned
-        if [ "$missing" = true ]; then
-            exit 1
-        fi
-        rm -f /tmp/fs.output
-        set -x
-    fi
+    "$TESTSTOOLS"/fs-state check-monitor    
 }
 
 restore_suite() {

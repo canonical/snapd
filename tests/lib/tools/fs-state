@@ -5,6 +5,9 @@ show_help() {
     echo "       fs-state restore-dir [dirname]"
     echo "       fs-state mock-file [filename]"
     echo "       fs-state restore-file [filename]"
+    echo "       fs-state start-monitor"
+    echo "       fs-state exclude-monitor [path]"
+    echo "       fs-state check-monitor"
 }
 
 _mock_dir() {
@@ -75,6 +78,66 @@ restore_file() {
     if [ -e "$file.back" ]; then
         mv "$file.back" "$file"
     fi
+}
+
+start_monitor() {
+    if [ -n "$(command -v inotifywait)" ]; then
+        # In systems like arch-linux the inotifywait command fails when the output file does not exist
+        touch /tmp/fs.output
+        touch /tmp/fs.exclude
+
+        # Monitor files and directories creation
+        SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+
+        # $PWD is excluded because the backup dir is automatically restored
+        # .snap files created in tests/lib/snaps are excluded as they are not deleted to be reused
+        inotifywait -d -m -r -e CREATE -o /tmp/fs.output --exclude "($PWD|$PROJECT_PATH/tests/lib/snaps/.*/.*.snap)" /root /var/lib/snapd /var/snap /home "$SNAP_MOUNT_DIR"
+        retry -n 10 -wait 1 sh -c 'pgrep inotifywait &>/dev/null'  
+    fi
+}
+
+check_monitor() {
+    if [ -n "$(command -v inotifywait)" ]; then
+        # Stop inotifywait (it could be already stopped)
+        if pgrep inotifywait &>/dev/null; then
+            pkill inotifywait
+        fi
+        set +x
+        local created_files created_dirs missing
+        # the output file contains lines:
+        # /etc/ CREATE foo          # created file /etc/foo
+        # /etc/ CREATE,ISDIR foo    # created directory /etc/foo
+        created_files=$( sudo cat /tmp/fs.output | grep " CREATE " | awk '{ print $1$3 }' )
+        created_dirs=$( sudo cat /tmp/fs.output | grep " CREATE,ISDIR " | awk '{ print $1$3 }' )
+        missing=false
+
+        # Print the files that were created but not deleted
+        for file in $created_files; do
+            if [ -f "$file" ] || not grep -qx "$file" /tmp/fs.exclude; then
+                echo "File not deleted $file"
+                missing=true
+            fi
+        done
+
+        # Print the directories that were created but not deleted
+        for fir in $created_dirs; do
+            if [ -d "$dir" ] || not grep -qx "$dir" /tmp/fs.exclude; then
+                echo "Dir not deleted $dir"
+                missing=true
+            fi
+        done
+
+        # Exit in case there are files and dirs that were not properly cleaned
+        if [ "$missing" = true ]; then
+            exit 1
+        fi
+        rm -f /tmp/fs.output /tmp/fs.exclude
+        set -x
+    fi
+}
+
+exclude_monitor() {
+    echo "$1" >> /tmp/fs.exclude
 }
 
 main() {
