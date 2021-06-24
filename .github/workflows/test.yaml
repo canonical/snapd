@@ -73,7 +73,7 @@ jobs:
       fail-fast: false      
       matrix:
         gochannel:
-          - 1.9
+          - 1.13
           - latest/stable
     steps:
     - name: Checkout code
