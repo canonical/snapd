@@ -264,8 +264,8 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 	s.o.AddManager(s.o.TaskRunner())
 
 	s.fakeStore = &fakeStore{
-		state: s.state,
-		db:    s.storeSigning,
+		state:                           s.state,
+		db:                              s.storeSigning,
 		maxDeclSupportedFormat:          asserts.SnapDeclarationType.MaxSupportedFormat(),
 		maxValidationSetSupportedFormat: asserts.ValidationSetType.MaxSupportedFormat(),
 	}
