@@ -174,7 +174,8 @@ func sealKeyToModeenvUsingSecboot(key, saveKey secboot.EncryptionKey, modeenv *M
 		return fmt.Errorf("internal error: cannot seal keys without a trusted assets bootloader")
 	}
 
-	recoveryBootChains, err := recoveryBootChainsForSystems([]string{modeenv.RecoverySystem}, tbl, modeenv)
+	includeTryModel := false
+	recoveryBootChains, err := recoveryBootChainsForSystems([]string{modeenv.RecoverySystem}, tbl, modeenv, includeTryModel)
 	if err != nil {
 		return fmt.Errorf("cannot compose recovery boot chains: %v", err)
 	}
@@ -369,8 +370,12 @@ func resealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, expectReseal bo
 	}
 
 	// the recovery boot chains for the run key are generated for all
-	// recovery systems, including those that are being tried
-	recoveryBootChainsForRunKey, err := recoveryBootChainsForSystems(modeenv.CurrentRecoverySystems, tbl, modeenv)
+	// recovery systems, including those that are being tried; since this is
+	// a run key, the boot chains are generated for both models to
+	// accommodate the dynamics of a remodel
+	includeTryModel := true
+	recoveryBootChainsForRunKey, err := recoveryBootChainsForSystems(modeenv.CurrentRecoverySystems, tbl,
+		modeenv, includeTryModel)
 	if err != nil {
 		return fmt.Errorf("cannot compose recovery boot chains for run key: %v", err)
 	}
@@ -385,7 +390,10 @@ func resealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, expectReseal bo
 		logger.Noticef("no good recovery systems for reseal, fallback to known current system %v",
 			testedRecoverySystems[0])
 	}
-	recoveryBootChains, err := recoveryBootChainsForSystems(testedRecoverySystems, tbl, modeenv)
+	// use the current model as the recovery keys are not expected to be
+	// used during a remodel
+	includeTryModel = false
+	recoveryBootChains, err := recoveryBootChainsForSystems(testedRecoverySystems, tbl, modeenv, includeTryModel)
 	if err != nil {
 		return fmt.Errorf("cannot compose recovery boot chains: %v", err)
 	}
@@ -402,6 +410,7 @@ func resealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, expectReseal bo
 	if err != nil {
 		return err
 	}
+	// TODO go over mode & try model
 	runModeBootChains, err := runModeBootChains(rbl, bl, modeenv, cmdlines)
 	if err != nil {
 		return fmt.Errorf("cannot compose run mode boot chains: %v", err)
@@ -517,17 +526,24 @@ func resealFallbackObjectKeys(pbc predictableBootChains, authKeyFile string, rol
 
 // TODO:UC20: this needs to take more than one model to accommodate the remodel
 // scenario
-func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAssetsBootloader, modeenv *Modeenv) (chains []bootChain, err error) {
-	chainsForModel := func(model secboot.ModelForSealing) error {
+func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAssetsBootloader, modeenv *Modeenv, includeTryModel bool) (chains []bootChain, err error) {
+
+	chainsForModel := func(model secboot.ModelForSealing, allowedModels []string) error {
 		for _, system := range systems {
 			// get kernel and gadget information from seed
 			perf := timings.New(nil)
-			_, snaps, err := seedReadSystemEssential(dirs.SnapSeedDir, system, []snap.Type{snap.TypeKernel, snap.TypeGadget}, perf)
+			seedSystemModel, snaps, err := seedReadSystemEssential(dirs.SnapSeedDir, system, []snap.Type{snap.TypeKernel, snap.TypeGadget}, perf)
 			if err != nil {
 				return fmt.Errorf("cannot read system %q seed: %v", system, err)
 			}
 			if len(snaps) != 2 {
 				return fmt.Errorf("cannot obtain recovery system snaps")
+			}
+			seedModelID := modelUniqueID(seedSystemModel)
+			if !strutil.ListContains(allowedModels, seedModelID) {
+				// could be an incompatible recovery system that
+				// is still currently tracked in modeenv
+				continue
 			}
 			seedKernel, seedGadget := snaps[0], snaps[1]
 			if snaps[0].EssentialType == snap.TypeGadget {
@@ -571,12 +587,21 @@ func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAsset
 		return nil
 	}
 
-	if err := chainsForModel(modeenv.ModelForSealing()); err != nil {
+	currentModel := modeenv.ModelForSealing()
+	var tryModel secboot.ModelForSealing
+	allowedModelIDs := []string{modelUniqueID(currentModel)}
+
+	if modeenv.TryModel != "" && includeTryModel {
+		tryModel = modeenv.TryModelForSealing()
+		allowedModelIDs = append(allowedModelIDs, modelUniqueID(tryModel))
+	}
+
+	if err := chainsForModel(modeenv.ModelForSealing(), allowedModelIDs); err != nil {
 		return nil, err
 	}
 
-	if modeenv.TryModel != "" {
-		if err := chainsForModel(modeenv.TryModelForSealing()); err != nil {
+	if tryModel != nil {
+		if err := chainsForModel(tryModel, allowedModelIDs); err != nil {
 			return nil, err
 		}
 	}

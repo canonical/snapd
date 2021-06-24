@@ -1077,13 +1077,14 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 
 func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 	for _, tc := range []struct {
-		desc                 string
-		assetsMap            boot.BootAssetsMap
-		recoverySystems      []string
-		undefinedKernel      bool
-		gadgetFilesForSystem map[string][][]string
-		expectedAssets       []boot.BootAsset
-		expectedKernelRevs   []int
+		desc                    string
+		assetsMap               boot.BootAssetsMap
+		recoverySystems         []string
+		undefinedKernel         bool
+		gadgetFilesForSystem    map[string][][]string
+		expectedAssets          []boot.BootAsset
+		expectedKernelRevs      []int
+		expectedBootChainsCount int
 		// in the order of boot chains
 		expectedCmdlines [][]string
 		err              string
@@ -1164,6 +1165,24 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 			},
 		},
 		{
+			desc:            "three systems, one with different model",
+			recoverySystems: []string{"20200825", "20200831", "off-model"},
+			assetsMap: boot.BootAssetsMap{
+				"grubx64.efi": []string{"grub-hash-1", "grub-hash-2"},
+				"bootx64.efi": []string{"shim-hash-1"},
+			},
+			expectedAssets: []boot.BootAsset{
+				{Role: bootloader.RoleRecovery, Name: "bootx64.efi", Hashes: []string{"shim-hash-1"}},
+				{Role: bootloader.RoleRecovery, Name: "grubx64.efi", Hashes: []string{"grub-hash-1", "grub-hash-2"}},
+			},
+			expectedKernelRevs: []int{1, 3},
+			expectedCmdlines: [][]string{
+				{"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1"},
+				{"snapd_recovery_mode=recover snapd_recovery_system=20200831 console=ttyS0 console=tty1 panic=-1"},
+			},
+			expectedBootChainsCount: 2,
+		},
+		{
 			desc:            "invalid recovery system label",
 			recoverySystems: []string{"0"},
 			err:             `cannot read system "0" seed: invalid system seed`,
@@ -1174,16 +1193,25 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 		dirs.SetRootDir(rootdir)
 		defer dirs.SetRootDir("")
 
+		model := boottest.MakeMockUC20Model()
+
 		// set recovery kernel
 		restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
-			if label != "20200825" && label != "20200831" {
+			systemModel := model
+			kernelRev := 1
+			switch label {
+			case "20200825":
+				// nothing special
+			case "20200831":
+				kernelRev = 3
+			case "off-model":
+				systemModel = boottest.MakeMockUC20Model(map[string]interface{}{
+					"model": "model-mismatch-uc20",
+				})
+			default:
 				return nil, nil, fmt.Errorf("invalid system seed")
 			}
-			kernelRev := 1
-			if label == "20200831" {
-				kernelRev = 3
-			}
-			return nil, []*seed.Snap{mockKernelSeedSnap(c, snap.R(kernelRev)), mockGadgetSeedSnap(c, tc.gadgetFilesForSystem[label])}, nil
+			return systemModel, []*seed.Snap{mockKernelSeedSnap(c, snap.R(kernelRev)), mockGadgetSeedSnap(c, tc.gadgetFilesForSystem[label])}, nil
 		})
 		defer restore()
 
@@ -1196,8 +1224,6 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 		tbl, ok := bl.(bootloader.TrustedAssetsBootloader)
 		c.Assert(ok, Equals, true)
 
-		model := boottest.MakeMockUC20Model()
-
 		modeenv := &boot.Modeenv{
 			CurrentTrustedRecoveryBootAssets: tc.assetsMap,
 
@@ -1207,10 +1233,16 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 			Grade:          string(model.Grade()),
 		}
 
-		bc, err := boot.RecoveryBootChainsForSystems(tc.recoverySystems, tbl, modeenv)
+		includeTryModel := false
+		bc, err := boot.RecoveryBootChainsForSystems(tc.recoverySystems, tbl, modeenv, includeTryModel)
 		if tc.err == "" {
 			c.Assert(err, IsNil)
-			c.Assert(bc, HasLen, len(tc.recoverySystems))
+			if tc.expectedBootChainsCount == 0 {
+				// usually there is a boot chain for each recovery system
+				c.Assert(bc, HasLen, len(tc.recoverySystems))
+			} else {
+				c.Assert(bc, HasLen, tc.expectedBootChainsCount)
+			}
 			c.Assert(tc.expectedCmdlines, HasLen, len(bc), Commentf("broken test, expected command lines must be of the same length as recovery systems and recovery boot chains"))
 			for i, chain := range bc {
 				c.Assert(chain.AssetChain, DeepEquals, tc.expectedAssets)
@@ -1628,7 +1660,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 	modeenv := &boot.Modeenv{
 		// recovery system set up like during a remodel, right before a
 		// set-device is called
-		CurrentRecoverySystems: []string{"20200825", "1234"},
+		CurrentRecoverySystems: []string{"20200825", "1234", "off-model"},
 		GoodRecoverySystems:    []string{"20200825", "1234"},
 
 		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
@@ -1669,11 +1701,20 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 		readSystemEssentialCalls++
 		kernelRev := 1
+		systemModel := model
 		if label == "1234" {
 			// recovery system for new model
 			kernelRev = 999
+			systemModel = tryModel
 		}
-		return model, []*seed.Snap{mockKernelSeedSnap(c, snap.R(kernelRev)), mockGadgetSeedSnap(c, nil)}, nil
+		if label == "off-model" {
+			// a model that matches neither current not try models
+			systemModel = boottest.MakeMockUC20Model(map[string]interface{}{
+				"model": "different-model-uc20",
+				"grade": "secured",
+			})
+		}
+		return systemModel, []*seed.Snap{mockKernelSeedSnap(c, snap.R(kernelRev)), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 
@@ -1690,18 +1731,17 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 		}
 
 		resealKeysCalls++
-		// 2 models, one current and one try model
-		c.Assert(params.ModelParams, HasLen, 2)
-
-		// shared parameters
-		c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
-		c.Assert(params.ModelParams[1].Model.Model(), Equals, "try-my-model-uc20")
 
 		switch resealKeysCalls {
 		case 1: // run key
 			c.Assert(params.KeyFiles, DeepEquals, []string{
 				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 			})
+			// 2 models, one current and one try model
+			c.Assert(params.ModelParams, HasLen, 2)
+			// shared parameters
+			c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
+			c.Assert(params.ModelParams[1].Model.Model(), Equals, "try-my-model-uc20")
 			for _, mp := range params.ModelParams {
 				c.Assert(mp.KernelCmdlines, DeepEquals, []string{
 					"snapd_recovery_mode=recover snapd_recovery_system=1234 console=ttyS0 console=tty1 panic=-1",
@@ -1716,13 +1756,16 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
 				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
 			})
+			// only the current model
+			c.Assert(params.ModelParams, HasLen, 1)
+			// shared parameters
+			c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
 			for _, mp := range params.ModelParams {
 				c.Assert(mp.KernelCmdlines, DeepEquals, []string{
-					"snapd_recovery_mode=recover snapd_recovery_system=1234 console=ttyS0 console=tty1 panic=-1",
 					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
 				})
 				// load chains
-				c.Assert(mp.EFILoadChains, HasLen, 2)
+				c.Assert(mp.EFILoadChains, HasLen, 1)
 			}
 		default:
 			c.Errorf("unexpected additional call to secboot.ResealKeys (call # %d)", resealKeysCalls)
@@ -1764,10 +1807,6 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 					secboot.NewLoadChain(shim,
 						secboot.NewLoadChain(grub,
 							secboot.NewLoadChain(kernelOldRecovery),
-						)),
-					secboot.NewLoadChain(shim,
-						secboot.NewLoadChain(grub,
-							secboot.NewLoadChain(kernelNewRecovery),
 						)),
 				})
 			}
@@ -1894,7 +1933,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(cnt, Equals, 1)
 	c.Check(recoveryPbc, DeepEquals, boot.PredictableBootChains{
-		// recovery systems booted by the current model
+		// recovery keys are sealed to current model only
 		boot.BootChain{
 			BrandID:        "my-brand",
 			Model:          "my-model-uc20",
@@ -1905,43 +1944,6 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 			KernelRevision: "1",
 			KernelCmdlines: []string{
 				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
-			},
-		},
-		boot.BootChain{
-			BrandID:        "my-brand",
-			Model:          "my-model-uc20",
-			Grade:          "dangerous",
-			ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-			AssetChain:     recoveryAssetChain,
-			Kernel:         "pc-kernel",
-			KernelRevision: "999",
-			KernelCmdlines: []string{
-				"snapd_recovery_mode=recover snapd_recovery_system=1234 console=ttyS0 console=tty1 panic=-1",
-			},
-		},
-		// recovery systems that can be booted by the try model
-		boot.BootChain{
-			BrandID:        "my-brand",
-			Model:          "try-my-model-uc20",
-			Grade:          "secured",
-			ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-			AssetChain:     recoveryAssetChain,
-			Kernel:         "pc-kernel",
-			KernelRevision: "1",
-			KernelCmdlines: []string{
-				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
-			},
-		},
-		boot.BootChain{
-			BrandID:        "my-brand",
-			Model:          "try-my-model-uc20",
-			Grade:          "secured",
-			ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-			AssetChain:     recoveryAssetChain,
-			Kernel:         "pc-kernel",
-			KernelRevision: "999",
-			KernelCmdlines: []string{
-				"snapd_recovery_mode=recover snapd_recovery_system=1234 console=ttyS0 console=tty1 panic=-1",
 			},
 		},
 	})
