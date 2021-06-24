@@ -6156,6 +6156,8 @@ func (s *mgrsSuite) TestRemodelUC20WithRecoverySystem(c *C) {
 	s.makeInstalledSnapInStateForRemodel(c, "core20", snap.R(3))
 	s.makeInstalledSnapInStateForRemodel(c, "snapd", snap.R(4))
 
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755), IsNil)
+
 	// a regular UC20 model assertion
 	uc20ModelDefaults := map[string]interface{}{
 		"architecture": "amd64",
@@ -6222,6 +6224,11 @@ func (s *mgrsSuite) TestRemodelUC20WithRecoverySystem(c *C) {
 		CurrentRecoverySystems:    []string{"1234"},
 		GoodRecoverySystems:       []string{"1234"},
 		CurrentKernelCommandLines: []string{"snapd_recovery_mode=run mocked static"},
+
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
 	}
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
@@ -6330,6 +6337,24 @@ func (s *mgrsSuite) TestRemodelUC20WithRecoverySystem(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(m.CurrentRecoverySystems, DeepEquals, []string{"1234", expectedLabel})
 	c.Check(m.GoodRecoverySystems, DeepEquals, []string{"1234", expectedLabel})
+	c.Check(m, testutil.JsonEquals, &boot.Modeenv{
+		Mode:                      "run",
+		Base:                      "core20_3.snap",
+		CurrentKernels:            []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems:    []string{"1234", expectedLabel},
+		GoodRecoverySystems:       []string{"1234", expectedLabel},
+		CurrentKernelCommandLines: []string{"snapd_recovery_mode=run mocked static"},
+
+		Model:          newModel.Model(),
+		BrandID:        newModel.BrandID(),
+		Grade:          string(newModel.Grade()),
+		ModelSignKeyID: newModel.SignKeyID(),
+	})
+
+	// new model has been written to ubuntu-boot/device/model
+	var modelBytes bytes.Buffer
+	c.Assert(asserts.NewEncoder(&modelBytes).Encode(newModel), IsNil)
+	c.Assert(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileEquals, modelBytes.String())
 }
 
 func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c *C) {
