@@ -92,10 +92,10 @@ func (em *ExternalKeypairManager) checkFeatures() error {
 		return err
 	}
 	if !strutil.ListContains(feats.Signing, "RSA-PKCS") {
-		return fmt.Errorf("external keypair manager %q unexpectedly does not support RSA-PKCS", em.keyMgrPath)
+		return fmt.Errorf("external keypair manager %q missing support for RSA-PKCS signing", em.keyMgrPath)
 	}
 	if !strutil.ListContains(feats.PublicKeys, "DER") {
-		return fmt.Errorf("external keypair manager %q unexpectedly does not support public key DER output format", em.keyMgrPath)
+		return fmt.Errorf("external keypair manager %q missing support for public key DER output format", em.keyMgrPath)
 	}
 	return nil
 }

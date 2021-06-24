@@ -70,7 +70,7 @@ func (s *extKeypairMgrSuite) SetUpSuite(c *C) {
 	s.modelsPub = &k2.PublicKey
 
 	s.pgm = testutil.MockCommand(c, "keymgr", fmt.Sprintf(`
-keydir=%s
+keydir=%q
 case $1 in
   features)
     echo '{"signing":["RSA-PKCS"] , "public-keys":["DER"]}'
@@ -117,8 +117,8 @@ echo "${EXT_KEYMGR_FAIL}"
 		err     string
 	}{
 		{"exit-1", `.*exit status 1.*`},
-		{`{"signing":["RSA-PKCS"]}`, `external keypair manager "keymgr" unexpectedly does not support public key DER output format`},
-		{"{}", `external keypair manager \"keymgr\" unexpectedly does not support RSA-PKCS`},
+		{`{"signing":["RSA-PKCS"]}`, `external keypair manager "keymgr" missing support for public key DER output format`},
+		{"{}", `external keypair manager \"keymgr\" missing support for RSA-PKCS signing`},
 		{"{", `cannot decode external keypair manager "keymgr" \[features\] output.*`},
 		{"", `cannot decode external keypair manager "keymgr" \[features\] output.*`},
 	}
