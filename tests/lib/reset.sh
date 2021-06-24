@@ -66,7 +66,7 @@ reset_classic() {
     fi
 
     # Clean root home
-    rm -rf /root/.snap/gnupg /root/.bash_history /root/snap
+    rm -rf /root/.snap/gnupg /root/.bash_history /root/snap /root/.local /root/.cache
     # Clean test home
     rm -rf /home/test/snap /home/test/.bash_history
 
