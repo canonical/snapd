@@ -71,7 +71,7 @@ void sc_cgroup_create_and_join(const char *parent, const char *name, pid_t pid) 
 static const char *cgroup_dir = "/sys/fs/cgroup";
 
 // from statfs(2)
-#ifndef CGRUOP2_SUPER_MAGIC
+#ifndef CGROUP2_SUPER_MAGIC
 #define CGROUP2_SUPER_MAGIC 0x63677270
 #endif
 
