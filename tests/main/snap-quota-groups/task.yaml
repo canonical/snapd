@@ -48,7 +48,7 @@ execute: |
       exit 1
   fi
 
-  cgroupProcsFile="$cgroupProcsFile" retry --wait 1 -n 100 sh -c 'test "$(wc -l < $cgroupProcsFile)" -eq 1'
+  retry --wait 1 -n 100 sh -x -c 'test $(wc -l < "$cgroupProcsFile") = 1'
   SERVER_PID=$(cat "$cgroupProcsFile")
 
   echo "And that process is the main PID for the example webserver"
