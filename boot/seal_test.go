@@ -1741,16 +1741,20 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 			c.Assert(params.ModelParams, HasLen, 2)
 			// shared parameters
 			c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
+			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
+				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+			})
+			// 2 load chains (bootloader + run kernel, bootloader + recovery kernel)
+			c.Assert(params.ModelParams[0].EFILoadChains, HasLen, 2)
+
 			c.Assert(params.ModelParams[1].Model.Model(), Equals, "try-my-model-uc20")
-			for _, mp := range params.ModelParams {
-				c.Assert(mp.KernelCmdlines, DeepEquals, []string{
-					"snapd_recovery_mode=recover snapd_recovery_system=1234 console=ttyS0 console=tty1 panic=-1",
-					"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
-					"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
-				})
-				// load chains
-				c.Assert(mp.EFILoadChains, HasLen, 3)
-			}
+			c.Assert(params.ModelParams[1].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=1234 console=ttyS0 console=tty1 panic=-1",
+				"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
+			})
+			// 2 load chains (bootloader + run kernel, bootloader + recovery kernel)
+			c.Assert(params.ModelParams[1].EFILoadChains, HasLen, 2)
 		case 2: // recovery keys
 			c.Assert(params.KeyFiles, DeepEquals, []string{
 				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
@@ -1783,33 +1787,43 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 
 		// verify the load chains, which  are identical for both models
 		switch resealKeysCalls {
-		case 1: // run load chain
-			for _, mp := range params.ModelParams {
-				c.Assert(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
-					secboot.NewLoadChain(shim,
-						secboot.NewLoadChain(grub,
-							secboot.NewLoadChain(kernelOldRecovery),
-						)),
-					secboot.NewLoadChain(shim,
-						secboot.NewLoadChain(grub,
-							secboot.NewLoadChain(kernelNewRecovery),
-						)),
-					secboot.NewLoadChain(shim,
-						secboot.NewLoadChain(grub,
-							secboot.NewLoadChain(runGrub,
-								secboot.NewLoadChain(runKernel)),
-						)),
-				})
-			}
-		case 2: // recovery load chains
-			for _, mp := range params.ModelParams {
-				c.Assert(mp.EFILoadChains, DeepEquals, []*secboot.LoadChain{
-					secboot.NewLoadChain(shim,
-						secboot.NewLoadChain(grub,
-							secboot.NewLoadChain(kernelOldRecovery),
-						)),
-				})
-			}
+		case 1: // run load chain for 2 models, current and a try model
+			c.Assert(params.ModelParams, HasLen, 2)
+			// each load chain has either the run kernel (shared for
+			// both), or the kernel of the respective recovery
+			// system
+			c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shim,
+					secboot.NewLoadChain(grub,
+						secboot.NewLoadChain(kernelOldRecovery),
+					)),
+				secboot.NewLoadChain(shim,
+					secboot.NewLoadChain(grub,
+						secboot.NewLoadChain(runGrub,
+							secboot.NewLoadChain(runKernel)),
+					)),
+			})
+			c.Assert(params.ModelParams[1].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shim,
+					secboot.NewLoadChain(grub,
+						secboot.NewLoadChain(kernelNewRecovery),
+					)),
+				secboot.NewLoadChain(shim,
+					secboot.NewLoadChain(grub,
+						secboot.NewLoadChain(runGrub,
+							secboot.NewLoadChain(runKernel)),
+					)),
+			})
+		case 2: // recovery load chains, only for the current model
+			c.Assert(params.ModelParams, HasLen, 1)
+			// load chain with a kernel from a recovery system that
+			// matches the current model only
+			c.Assert(params.ModelParams[0].EFILoadChains, DeepEquals, []*secboot.LoadChain{
+				secboot.NewLoadChain(shim,
+					secboot.NewLoadChain(grub,
+						secboot.NewLoadChain(kernelOldRecovery),
+					)),
+			})
 		}
 
 		return nil
@@ -1871,18 +1885,6 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 			Model:          "my-model-uc20",
 			Grade:          "dangerous",
 			ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-			AssetChain:     recoveryAssetChain,
-			Kernel:         "pc-kernel",
-			KernelRevision: "999",
-			KernelCmdlines: []string{
-				"snapd_recovery_mode=recover snapd_recovery_system=1234 console=ttyS0 console=tty1 panic=-1",
-			},
-		},
-		boot.BootChain{
-			BrandID:        "my-brand",
-			Model:          "my-model-uc20",
-			Grade:          "dangerous",
-			ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
 			AssetChain:     runAssetChain,
 			Kernel:         "pc-kernel",
 			KernelRevision: "500",
@@ -1891,18 +1893,6 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 			},
 		},
 		// the try model
-		boot.BootChain{
-			BrandID:        "my-brand",
-			Model:          "try-my-model-uc20",
-			Grade:          "secured",
-			ModelSignKeyID: "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij",
-			AssetChain:     recoveryAssetChain,
-			Kernel:         "pc-kernel",
-			KernelRevision: "1",
-			KernelCmdlines: []string{
-				"snapd_recovery_mode=recover snapd_recovery_system=20200825 console=ttyS0 console=tty1 panic=-1",
-			},
-		},
 		boot.BootChain{
 			BrandID:        "my-brand",
 			Model:          "try-my-model-uc20",

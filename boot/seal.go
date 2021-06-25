@@ -410,7 +410,6 @@ func resealKeyToModeenvSecboot(rootdir string, modeenv *Modeenv, expectReseal bo
 	if err != nil {
 		return err
 	}
-	// TODO go over mode & try model
 	runModeBootChains, err := runModeBootChains(rbl, bl, modeenv, cmdlines)
 	if err != nil {
 		return fmt.Errorf("cannot compose run mode boot chains: %v", err)
@@ -528,7 +527,8 @@ func resealFallbackObjectKeys(pbc predictableBootChains, authKeyFile string, rol
 // scenario
 func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAssetsBootloader, modeenv *Modeenv, includeTryModel bool) (chains []bootChain, err error) {
 
-	chainsForModel := func(model secboot.ModelForSealing, allowedModels []string) error {
+	chainsForModel := func(model secboot.ModelForSealing) error {
+		modelID := modelUniqueID(model)
 		for _, system := range systems {
 			// get kernel and gadget information from seed
 			perf := timings.New(nil)
@@ -540,7 +540,7 @@ func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAsset
 				return fmt.Errorf("cannot obtain recovery system snaps")
 			}
 			seedModelID := modelUniqueID(seedSystemModel)
-			if !strutil.ListContains(allowedModels, seedModelID) {
+			if seedModelID != modelID {
 				// could be an incompatible recovery system that
 				// is still currently tracked in modeenv
 				continue
@@ -587,21 +587,12 @@ func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAsset
 		return nil
 	}
 
-	currentModel := modeenv.ModelForSealing()
-	var tryModel secboot.ModelForSealing
-	allowedModelIDs := []string{modelUniqueID(currentModel)}
-
-	if modeenv.TryModel != "" && includeTryModel {
-		tryModel = modeenv.TryModelForSealing()
-		allowedModelIDs = append(allowedModelIDs, modelUniqueID(tryModel))
-	}
-
-	if err := chainsForModel(modeenv.ModelForSealing(), allowedModelIDs); err != nil {
+	if err := chainsForModel(modeenv.ModelForSealing()); err != nil {
 		return nil, err
 	}
 
-	if tryModel != nil {
-		if err := chainsForModel(tryModel, allowedModelIDs); err != nil {
+	if modeenv.TryModel != "" && includeTryModel {
+		if err := chainsForModel(modeenv.TryModelForSealing()); err != nil {
 			return nil, err
 		}
 	}
