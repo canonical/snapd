@@ -183,9 +183,9 @@ func Manager(s *state.State, hookManager *hookstate.HookManager, runner *state.T
 
 type genericHook struct{}
 
-func (h genericHook) Before() error         { return nil }
-func (h genericHook) Done() error           { return nil }
-func (h genericHook) Error(err error) error { return nil }
+func (h genericHook) Before() error                 { return nil }
+func (h genericHook) Done() error                   { return nil }
+func (h genericHook) Error(err error) (bool, error) { return false, nil }
 
 func newBasicHookStateHandler(context *hookstate.Context) hookstate.Handler {
 	return genericHook{}
@@ -728,13 +728,6 @@ func (m *DeviceManager) ensureSeeded() error {
 	return nil
 }
 
-// ResetBootOk is only useful for integration testing
-func (m *DeviceManager) ResetBootOk() {
-	osutil.MustBeTestBinary("ResetBootOk can only be called from tests")
-	m.bootOkRan = false
-	m.bootRevisionsUpdated = false
-}
-
 func (m *DeviceManager) ensureBootOk() error {
 	m.state.Lock()
 	defer m.state.Unlock()
@@ -1112,12 +1105,6 @@ func (m *DeviceManager) appendTriedRecoverySystem(label string) error {
 	return nil
 }
 
-// ResetTriedRecoverySystemsRan is only useful for integration testing
-func (m *DeviceManager) ResetTriedRecoverySystemsRan() {
-	osutil.MustBeTestBinary("ResetTriedRecoverySystemsRan can only be called from tests")
-	m.ensureTriedRecoverySystemRan = false
-}
-
 func (m *DeviceManager) ensureTriedRecoverySystem() error {
 	if release.OnClassic {
 		return nil
@@ -1229,6 +1216,14 @@ func (m *DeviceManager) Ensure() error {
 	}
 
 	return nil
+}
+
+// ResetToPostBootState is only useful for integration testing.
+func (m *DeviceManager) ResetToPostBootState() {
+	osutil.MustBeTestBinary("ResetToPostBootState can only be called from tests")
+	m.bootOkRan = false
+	m.bootRevisionsUpdated = false
+	m.ensureTriedRecoverySystemRan = false
 }
 
 var errNoSaveSupport = errors.New("no save directory before UC20")
@@ -1783,12 +1778,6 @@ func (h fdeSetupHandler) Done() error {
 	return nil
 }
 
-func (h fdeSetupHandler) Error(err error) error {
-	return nil
-}
-
-// ResetToPostBootState is only useful for integration testing.
-func (m *DeviceManager) ResetToPostBootState() {
-	m.ResetBootOk()
-	m.ResetTriedRecoverySystemsRan()
+func (h fdeSetupHandler) Error(err error) (bool, error) {
+	return false, nil
 }
