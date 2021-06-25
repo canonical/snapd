@@ -35,7 +35,6 @@ execute: |
     # Restoring removes the mock directory and replaces it with the preserved
     # .back directory.
     "$TESTSTOOLS"/fs-state restore-dir existing-dir
-    rm -f existing-dir/unrelated
     test -d existing-dir
     test -f existing-dir/unrelated
     not test -f existing-dir.fake
@@ -67,7 +66,7 @@ execute: |
     test -f existing-file
     test -f existing-file.fake
     test -f existing-file.back
-    not diff existing-file existing-file.back
+    diff existing-file existing-file.back
     # Restoring removes the mock file and replaces it with the preserved
     # .back file.
     "$TESTSTOOLS"/fs-state restore-file existing-file
