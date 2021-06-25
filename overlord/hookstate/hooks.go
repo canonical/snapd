@@ -104,8 +104,8 @@ func (h *snapHookHandler) Done() error {
 	return nil
 }
 
-func (h *snapHookHandler) Error(err error) error {
-	return nil
+func (h *snapHookHandler) Error(err error) (bool, error) {
+	return false, nil
 }
 
 func SetupRemoveHook(st *state.State, snapName string) *state.Task {

@@ -37,8 +37,8 @@ func (h *interfaceHookHandler) Done() error {
 	return nil
 }
 
-func (h *interfaceHookHandler) Error(err error) error {
-	return nil
+func (h *interfaceHookHandler) Error(err error) (bool, error) {
+	return false, nil
 }
 
 // setupHooks sets hooks of InterfaceManager up
