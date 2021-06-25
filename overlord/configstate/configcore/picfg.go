@@ -107,7 +107,7 @@ func (e *piConfigNotSupportedError) Error() string {
 	return fmt.Sprintf("configuring not supported: %s", e.reason)
 }
 
-var reIgnorePrefix = regexp.MustCompile(`(?i)^#\s+Snapd-Edit:\s+no.*`)
+var reIgnorePrefix = regexp.MustCompile(`(?i)^#\s+Snapd-Edit:\s+no\s*$`)
 
 func piConfigFileIgnoreMarkerSet(configFile string) bool {
 	f, err := os.Open(configFile)

@@ -320,13 +320,11 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnIgnoreHeader(c *C) {
 	}{
 		// ignored
 		{"# Snapd-Edit: no", true},
-		{"#    Snapd-Edit:     no", true},
+		{"#    Snapd-Edit:     no   ", true},
 		{"# snapd-edit: No", true},
 		{"# SNAPD-EDIT: NO", true},
-		{"# Snapd-Edit: no random strings foo bar", true},
-		{"# snapd-edit: No random strings bar", true},
-		{"# SNAPD-EDIT: NO random strings bob", true},
 		// not ignored
+		{"# Snapd-Edit: noAND THEN random words", false},
 		{"not first line \n# SNAPD-EDIT: NO", false},
 		{"# random things and then SNAPD-EDIT: NO", false},
 	}
