@@ -41,10 +41,10 @@ var gateAutoRefreshHookName = "gate-auto-refresh"
 // gateAutoRefreshAction represents the action executed by
 // snapctl refresh --hold or --proceed and stored in the context of
 // gate-auto-refresh hook.
-type gateAutoRefreshAction int
+type GateAutoRefreshAction int
 
 const (
-	GateAutoRefreshProceed gateAutoRefreshAction = iota
+	GateAutoRefreshProceed GateAutoRefreshAction = iota
 	GateAutoRefreshHold
 )
 
