@@ -95,17 +95,22 @@ func (t byLaneAndWaitTaskChain) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
 func (t byLaneAndWaitTaskChain) Less(i, j int) bool {
 	// cover the typical case (just one lane), and order by first lane
 	if t[i].Lanes()[0] == t[j].Lanes()[0] {
-		return waitChainSearch(t[i], t[j])
+		seen := make(map[string]bool)
+		return t.waitChainSearch(t[i], t[j], seen)
 	}
 	return t[i].Lanes()[0] < t[j].Lanes()[0]
 }
 
-func waitChainSearch(startT, searchT *state.Task) bool {
+func (t *byLaneAndWaitTaskChain) waitChainSearch(startT, searchT *state.Task, seen map[string]bool) bool {
+	if seen[startT.ID()] {
+		return false
+	}
+	seen[startT.ID()] = true
 	for _, cand := range startT.HaltTasks() {
 		if cand == searchT {
 			return true
 		}
-		if waitChainSearch(cand, searchT) {
+		if t.waitChainSearch(cand, searchT, seen) {
 			return true
 		}
 	}
