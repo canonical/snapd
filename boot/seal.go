@@ -540,6 +540,11 @@ func recoveryBootChainsForSystems(systems []string, trbl bootloader.TrustedAsset
 				return fmt.Errorf("cannot obtain recovery system snaps")
 			}
 			seedModelID := modelUniqueID(seedSystemModel)
+			// TODO: the generated unique ID contains the model's
+			// sign key ID, consider relaxing this to ignore the key
+			// ID when matching models, OTOH we would need to
+			// properly take into account key expiration and
+			// revocation
 			if seedModelID != modelID {
 				// could be an incompatible recovery system that
 				// is still currently tracked in modeenv
