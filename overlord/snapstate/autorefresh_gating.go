@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -585,6 +586,19 @@ func createGateAutoRefreshHooks(st *state.State, affectedSnaps map[string]*affec
 		prev = hookTask
 	}
 	return ts
+}
+
+func conditionalAutoRefreshAffectedSnaps(t *state.Task) ([]string, error) {
+	var snaps map[string]*json.RawMessage
+	if err := t.Get("snaps", &snaps); err != nil {
+		return nil, fmt.Errorf("internal error: cannot get snaps to update for %s task %s", t.Kind(), t.ID())
+	}
+	names := make([]string, 0, len(snaps))
+	for sn := range snaps {
+		// TODO: drop snaps once we know the outcome of gate-auto-refresh hooks.
+		names = append(names, sn)
+	}
+	return names, nil
 }
 
 // snapsToRefresh returns all snaps that should proceed with refresh considering
