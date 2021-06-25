@@ -21,6 +21,7 @@ package hookstate_test
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -33,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 const snapaYaml = `name: snap-a
@@ -310,8 +312,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookError(c *C) {
 	s.settle(c)
 	st.Lock()
 
-	c.Assert(change.Err(), ErrorMatches, `cannot perform the following tasks:\n- Run hook gate-auto-refresh of snap "snap-a" \(run hook "gate-auto-refresh": fail\)`)
-	c.Assert(change.Status(), Equals, state.ErrorStatus)
+	c.Assert(strings.Join(task.Log(), ""), testutil.Contains, "ignoring hook error: fail")
+	c.Assert(change.Status(), Equals, state.DoneStatus)
 
 	// and snap-b is now held.
 	checkIsHeld(c, st, "snap-b", "snap-a")
@@ -357,8 +359,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorAfterProceed(c *C
 	s.settle(c)
 	st.Lock()
 
-	c.Assert(change.Err(), ErrorMatches, `cannot perform the following tasks:\n- Run hook gate-auto-refresh of snap "snap-a" \(run hook "gate-auto-refresh": fail\)`)
-	c.Assert(change.Status(), Equals, state.ErrorStatus)
+	c.Assert(strings.Join(task.Log(), ""), testutil.Contains, "ignoring hook error: fail")
+	c.Assert(change.Status(), Equals, state.DoneStatus)
 
 	// and snap-b is now held.
 	checkIsHeld(c, st, "snap-b", "snap-a")
@@ -403,8 +405,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorRuninhibitUnlock(
 	s.settle(c)
 	st.Lock()
 
-	c.Assert(change.Err(), ErrorMatches, `cannot perform the following tasks:\n- Run hook gate-auto-refresh of snap "snap-a" \(run hook "gate-auto-refresh": fail\)`)
-	c.Assert(change.Status(), Equals, state.ErrorStatus)
+	c.Assert(strings.Join(task.Log(), ""), testutil.Contains, "ignoring hook error: fail")
+	c.Assert(change.Status(), Equals, state.DoneStatus)
 
 	// and snap-b is now held.
 	checkIsHeld(c, st, "snap-b", "snap-a")
@@ -451,11 +453,9 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorHoldErrorLogged(c
 	s.settle(c)
 	st.Lock()
 
-	c.Assert(change.Err(), ErrorMatches, `cannot perform the following tasks:
-- Run hook gate-auto-refresh of snap "snap-a" \(error: cannot hold some snaps:
- - snap "snap-a" cannot hold snap "snap-b" anymore, maximum refresh postponement exceeded \(while handling previous hook error\)\)
-- Run hook gate-auto-refresh of snap "snap-a" \(run hook \"gate-auto-refresh\": fail\)`)
-	c.Assert(change.Status(), Equals, state.ErrorStatus)
+	c.Assert(strings.Join(task.Log(), ""), Matches, `.*error: cannot hold some snaps:
+ - snap "snap-a" cannot hold snap "snap-b" anymore, maximum refresh postponement exceeded \(while handling previous hook error: fail\)`)
+	c.Assert(change.Status(), Equals, state.DoneStatus)
 
 	// and snap-b is not held (due to hold error).
 	var held map[string]map[string]interface{}

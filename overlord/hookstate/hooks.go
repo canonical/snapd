@@ -191,7 +191,7 @@ func (h *gateAutoRefreshHookHandler) Done() (err error) {
 }
 
 // Error handles gate-auto-refresh hook failure; it assumes hold.
-func (h *gateAutoRefreshHookHandler) Error(hookErr error) (err error) {
+func (h *gateAutoRefreshHookHandler) Error(hookErr error) (ignoreHookErr bool, err error) {
 	ctx := h.context
 	st := h.context.State()
 	ctx.Lock()
@@ -206,26 +206,28 @@ func (h *gateAutoRefreshHookHandler) Error(hookErr error) (err error) {
 		// obtain snap lock before manipulating runinhibit lock.
 		lock, err = snaplock.OpenLock(snapName)
 		if err != nil {
-			return err
+			return false, err
 		}
 		if err := lock.Lock(); err != nil {
-			return err
+			return false,  err
 		}
 		defer lock.Unlock()
 
 		if err := runinhibit.Unlock(snapName); err != nil {
-			return fmt.Errorf("cannot release inhibit lock of snap %s: %v", snapName, err)
+			return false, fmt.Errorf("cannot release inhibit lock of snap %s: %v", snapName, err)
 		}
 	}
 
 	if a := ctx.Cached("action"); a != nil {
 		action, ok := a.(snapstate.GateAutoRefreshAction)
 		if !ok {
-			return fmt.Errorf("internal error: unexpected action type %T", a)
+			return false, fmt.Errorf("internal error: unexpected action type %T", a)
 		}
 		// nothing to do if the hook already requested hold.
 		if action == snapstate.GateAutoRefreshHold {
-			return nil
+			ctx.Errorf("ignoring hook error: %v", hookErr)
+			// tell hook manager to ignore hook error.
+			return true, nil
 		}
 	}
 
@@ -234,25 +236,27 @@ func (h *gateAutoRefreshHookHandler) Error(hookErr error) (err error) {
 
 	var affecting []string
 	if err := ctx.Get("affecting-snaps", &affecting); err != nil {
-		return fmt.Errorf("internal error: cannot get affecting-snaps")
+		return false, fmt.Errorf("internal error: cannot get affecting-snaps")
 	}
 
 	// no duration specified, use maximum allowed for this gating snap.
 	var holdDuration time.Duration
 	if err := snapstate.HoldRefresh(st, snapName, holdDuration, affecting...); err != nil {
-		// note, previous hook error (hookErr) is going to be logged by hookmgr
-		// after this Error() handler, so only log the new error.
-		h.context.Errorf("error: %v (while handling previous hook error)", err)
+		// log the original hook error as we either ignore it or error out from
+		// this handler, in both cases hookErr won't be logged by hook manager.
+		h.context.Errorf("error: %v (while handling previous hook error: %v)", err, hookErr)
 		if _, ok := err.(*snapstate.HoldError); ok {
-			return nil
+			return true, nil
 		}
 		// anything other than HoldError becomes an error of the handler.
-		return err
+		return false, err
 	}
 
 	// TODO: consider assigning a special health state for the snap.
 
-	return nil
+	ctx.Errorf("ignoring hook error: %v", hookErr)
+	// tell hook manager to ignore hook error.
+	return true, nil
 }
 
 func NewGateAutoRefreshHookHandler(context *Context) *gateAutoRefreshHookHandler {
