@@ -1218,6 +1218,14 @@ func (m *DeviceManager) Ensure() error {
 	return nil
 }
 
+// ResetToPostBootState is only useful for integration testing.
+func (m *DeviceManager) ResetToPostBootState() {
+	osutil.MustBeTestBinary("ResetToPostBootState can only be called from tests")
+	m.bootOkRan = false
+	m.bootRevisionsUpdated = false
+	m.ensureTriedRecoverySystemRan = false
+}
+
 var errNoSaveSupport = errors.New("no save directory before UC20")
 
 // withSaveDir invokes a function making sure save dir is available.
@@ -1772,12 +1780,4 @@ func (h fdeSetupHandler) Done() error {
 
 func (h fdeSetupHandler) Error(err error) error {
 	return nil
-}
-
-// ResetToPostBootState is only useful for integration testing.
-func (m *DeviceManager) ResetToPostBootState() {
-	osutil.MustBeTestBinary("ResetToPostBootState can only be called from tests")
-	m.bootOkRan = false
-	m.bootRevisionsUpdated = false
-	m.ensureTriedRecoverySystemRan = false
 }
