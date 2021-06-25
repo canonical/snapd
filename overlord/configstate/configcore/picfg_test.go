@@ -314,17 +314,44 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnIgnoreHeader(c *C) {
 		defer os.Unsetenv("SNAPD_DEBUG")
 	}
 
-	mockConfigWithIgnoreHeader := "# SNAPD IGNORE\n" + mockConfigTxt
-	s.mockConfig(c, mockConfigWithIgnoreHeader)
-	err := configcore.Run(coreDev, &mockConf{
-		state: s.state,
-		conf: map[string]interface{}{
-			"pi-config.disable-overscan": 1,
-		},
-	})
-	c.Assert(err, IsNil)
+	tests := []struct {
+		header       string
+		shouldIgnore bool
+	}{
+		// ignored
+		{"# Snapd-Edit: no", true},
+		{"#    Snapd-Edit:     no", true},
+		{"# snapd-edit: No", true},
+		{"# SNAPD-EDIT: NO", true},
+		{"# Snapd-Edit: no random strings foo bar", true},
+		{"# snapd-edit: No random strings bar", true},
+		{"# SNAPD-EDIT: NO random strings bob", true},
+		// not ignored
+		{"not first line \n# SNAPD-EDIT: NO", false},
+		{"# random things and then SNAPD-EDIT: NO", false},
+	}
 
-	c.Check(logbuf.String(), testutil.Contains, "DEBUG: ignoring pi-config settings: configuring not supported: ignore header found")
-	// change was ignored
-	s.checkMockConfig(c, mockConfigWithIgnoreHeader)
+	for _, tc := range tests {
+		mockConfigWithHeader := tc.header + mockConfigTxt
+		s.mockConfig(c, mockConfigWithHeader)
+		err := configcore.Run(coreDev, &mockConf{
+			state: s.state,
+			conf: map[string]interface{}{
+				"pi-config.disable-overscan": 1,
+			},
+		})
+		c.Assert(err, IsNil)
+
+		if tc.shouldIgnore {
+			c.Check(logbuf.String(), testutil.Contains, "DEBUG: ignoring pi-config settings: configuring not supported: ignore header found")
+			// change was ignored
+			s.checkMockConfig(c, mockConfigWithHeader)
+		} else {
+			c.Check(logbuf.String(), HasLen, 0)
+			expected := strings.Replace(mockConfigWithHeader, "#disable_overscan=1", "disable_overscan=1", -1)
+			s.checkMockConfig(c, expected)
+		}
+
+		logbuf.Reset()
+	}
 }

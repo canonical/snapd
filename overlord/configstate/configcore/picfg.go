@@ -20,10 +20,11 @@
 package configcore
 
 import (
-	"bytes"
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/boot"
@@ -106,7 +107,7 @@ func (e *piConfigNotSupportedError) Error() string {
 	return fmt.Sprintf("configuring not supported: %s", e.reason)
 }
 
-var ignorePrefix = []byte("# SNAPD IGNORE\n")
+var reIgnorePrefix = regexp.MustCompile(`(?i)^#\s+Snapd-Edit:\s+no.*`)
 
 func piConfigFileIgnoreMarkerSet(configFile string) bool {
 	f, err := os.Open(configFile)
@@ -115,9 +116,14 @@ func piConfigFileIgnoreMarkerSet(configFile string) bool {
 	}
 	defer f.Close()
 
-	buf := make([]byte, len(ignorePrefix))
-	f.Read(buf)
-	return bytes.HasPrefix(buf, ignorePrefix)
+	scanner := bufio.NewScanner(f)
+	// read the first line
+	scanner.Scan()
+	if scanner.Err() != nil {
+		return false
+	}
+
+	return reIgnorePrefix.MatchString(scanner.Text())
 }
 
 // Some of the pi devices (avnet) ship with measured boot enabled and
