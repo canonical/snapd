@@ -209,7 +209,7 @@ func (h *gateAutoRefreshHookHandler) Error(hookErr error) (ignoreHookErr bool, e
 			return false, err
 		}
 		if err := lock.Lock(); err != nil {
-			return false,  err
+			return false, err
 		}
 		defer lock.Unlock()
 
