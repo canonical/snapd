@@ -71,14 +71,14 @@ void sc_cgroup_create_and_join(const char *parent, const char *name, pid_t pid) 
 static const char *cgroup_dir = "/sys/fs/cgroup";
 
 // from statfs(2)
-#ifndef CGRUOP2_SUPER_MAGIC
+#ifndef CGROUP2_SUPER_MAGIC
 #define CGROUP2_SUPER_MAGIC 0x63677270
 #endif
 
 // Detect if we are running in cgroup v2 unified mode (as opposed to
 // hybrid or legacy) The algorithm is described in
 // https://systemd.io/CGROUP_DELEGATION/
-bool sc_cgroup_is_v2() {
+bool sc_cgroup_is_v2(void) {
     static bool did_warn = false;
     struct statfs buf;
 

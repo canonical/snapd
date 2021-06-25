@@ -163,13 +163,13 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		}
 	case "restart":
 		st.Unlock()
-		err := wrappers.RestartServices(startupOrdered, nil, meter, perfTimings)
+		err := wrappers.RestartServices(startupOrdered, sc.ExplicitServices, nil, meter, perfTimings)
 		st.Lock()
 		return err
 	case "reload-or-restart":
 		flags := &wrappers.RestartServicesFlags{Reload: true}
 		st.Unlock()
-		err := wrappers.RestartServices(startupOrdered, flags, meter, perfTimings)
+		err := wrappers.RestartServices(startupOrdered, sc.ExplicitServices, flags, meter, perfTimings)
 		st.Lock()
 		return err
 	default:
