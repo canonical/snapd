@@ -118,7 +118,7 @@ func piConfigFile(dev sysconfig.Device, opts *fsOnlyContext) (string, error) {
 	subdir := "/boot/uboot"
 
 	if strutil.ListContains(piMeasuredBootKernels, dev.Kernel()) {
-		return "", newPiConfigNotSupportedError("kernel measures config.txt")
+		return "", newPiConfigNotSupportedError("boot measures config.txt")
 	}
 
 	if opts != nil {
@@ -133,7 +133,7 @@ func piConfigFile(dev sysconfig.Device, opts *fsOnlyContext) (string, error) {
 		} else {
 			// we don't support configuring pi-config in these modes as it is
 			// unclear what the right behavior is
-			return "", newPiConfigNotSupportedError("unsupported mode")
+			return "", newPiConfigNotSupportedError("unsupported system mode")
 		}
 	}
 	return filepath.Join(rootDir, subdir, "config.txt"), nil

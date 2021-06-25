@@ -272,7 +272,7 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnAvnetKernel(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	c.Check(logbuf.String(), testutil.Contains, "DEBUG: ignoring pi-config settings: configuring not supported: kernel measures config.txt")
+	c.Check(logbuf.String(), testutil.Contains, "DEBUG: ignoring pi-config settings: configuring not supported: boot measures config.txt")
 	// change was ignored
 	s.checkMockConfig(c, mockConfigTxt)
 }
@@ -286,13 +286,13 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnWrongMode(c *C) {
 		defer os.Unsetenv("SNAPD_DEBUG")
 	}
 
-	coreDevInstalling := mockDev{
+	uc20DevInstallMode := mockDev{
 		classic: false,
 		mode:    "install",
 		uc20:    true,
 	}
 
-	err := configcore.Run(coreDevInstalling, &mockConf{
+	err := configcore.Run(uc20DevInstallMode, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.disable-overscan": 1,
@@ -300,7 +300,7 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnWrongMode(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	c.Check(logbuf.String(), testutil.Contains, "DEBUG: ignoring pi-config settings: configuring not supported: unsupported mode")
+	c.Check(logbuf.String(), testutil.Contains, "DEBUG: ignoring pi-config settings: configuring not supported: unsupported system mode")
 	// change was ignored
 	s.checkMockConfig(c, mockConfigTxt)
 }
