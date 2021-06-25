@@ -68,24 +68,26 @@ type Device interface {
 	//Model() *asserts.Model
 }
 
-type deviceInfo struct {
+type configedDevice struct {
 	model *asserts.Model
 }
 
-func (di *deviceInfo) RunMode() bool {
+func (di *configedDevice) RunMode() bool {
+	// the functions in sysconfig are used to configure not yet
+	// running systems.
 	return false
 }
 
-func (di *deviceInfo) Classic() bool {
-	return di.model.Classic()
+func (d *configedDevice) Classic() bool {
+	return d.model.Classic()
 }
 
-func (di *deviceInfo) Kernel() string {
-	return di.model.Kernel()
+func (d *configedDevice) Kernel() string {
+	return d.model.Kernel()
 }
 
-func (di *deviceInfo) HasModeenv() bool {
-	return di.model.Grade() != asserts.ModelGradeUnset
+func (d *configedDevice) HasModeenv() bool {
+	return d.model.Grade() != asserts.ModelGradeUnset
 }
 
 // ApplyFilesystemOnlyDefaultsImpl is initialized by init() of configcore.
@@ -99,7 +101,7 @@ var ApplyFilesystemOnlyDefaultsImpl = func(dev Device, rootDir string, defaults 
 // early during boot, before all the configuration is applied as part of
 // normal execution of configure hook.
 func ApplyFilesystemOnlyDefaults(model *asserts.Model, rootDir string, defaults map[string]interface{}) error {
-	dev := &deviceInfo{model: model}
+	dev := &configedDevice{model: model}
 	return ApplyFilesystemOnlyDefaultsImpl(dev, rootDir, defaults)
 }
 
