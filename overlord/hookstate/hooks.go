@@ -246,6 +246,7 @@ func (h *gateAutoRefreshHookHandler) Error(hookErr error) (ignoreHookErr bool, e
 		// this handler, in both cases hookErr won't be logged by hook manager.
 		h.context.Errorf("error: %v (while handling previous hook error: %v)", err, hookErr)
 		if _, ok := err.(*snapstate.HoldError); ok {
+			// TODO: consider delaying for another hour.
 			return true, nil
 		}
 		// anything other than HoldError becomes an error of the handler.
