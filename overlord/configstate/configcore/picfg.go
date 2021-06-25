@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/sysconfig"
 )
 
 // valid pi config keys
@@ -95,21 +96,19 @@ var (
 	errPiConfigNotSupported = fmt.Errorf("configuring pi-config not supported in current mode")
 )
 
-func piConfigFile(opts *fsOnlyContext) (string, error) {
+func piConfigFile(dev sysconfig.Device, opts *fsOnlyContext) (string, error) {
 	rootDir := dirs.GlobalRootDir
 	subdir := "/boot/uboot"
 	if opts != nil {
 		rootDir = opts.RootDir
-	} else {
+	} else if dev.HasModeenv() {
 		// not a filesystem only apply, so we may be operating on a run system
 		// on UC20, in which case we shouldn't use the /boot/uboot/ option and
 		// instead should use /run/mnt/ubuntu-seed/
-		mode, _, _ := boot.ModeAndRecoverySystemFromKernelCommandLine()
-		switch mode {
-		case boot.ModeRun:
+		if dev.RunMode() {
 			rootDir = boot.InitramfsUbuntuSeedDir
 			subdir = ""
-		case boot.ModeInstall, boot.ModeRecover:
+		} else {
 			// we don't support configuring pi-config in these modes as it is
 			// unclear what the right behavior is
 			return "", errPiConfigNotSupported
@@ -118,8 +117,8 @@ func piConfigFile(opts *fsOnlyContext) (string, error) {
 	return filepath.Join(rootDir, subdir, "config.txt"), nil
 }
 
-func handlePiConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
-	configFile, err := piConfigFile(opts)
+func handlePiConfiguration(dev sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+	configFile, err := piConfigFile(dev, opts)
 	if err != nil && err != errPiConfigNotSupported {
 		return err
 	}
