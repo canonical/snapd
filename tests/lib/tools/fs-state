@@ -120,7 +120,7 @@ check_monitor() {
         done
 
         # Print the directories that were created but not deleted
-        for fir in $created_dirs; do
+        for dir in $created_dirs; do
             if [ -d "$dir" ] || not grep -qx "$dir" /tmp/fs.exclude; then
                 echo "Dir not deleted $dir"
                 missing=true
