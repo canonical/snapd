@@ -127,6 +127,22 @@ func (s *serviceControlSuite) mockTestSnap(c *C) *snap.Info {
 	return info
 }
 
+func verifyUnsortedInvocations(c *C, sysctlArgs [][]string, startIndex int,
+	action string, expectedArguments []string) {
+	/* We don't care about the order of the is-enabled invocations, as long as
+	 * they all happen before the first invocation of "start" */
+	arguments := []string{}
+	for _, params := range sysctlArgs[startIndex:] {
+		if params[0] == action {
+			arguments = append(arguments, params[1])
+		} else {
+			break
+		}
+	}
+	sort.Strings(arguments)
+	c.Check(arguments, DeepEquals, expectedArguments)
+}
+
 func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, actionModifier string,
 	expectedServices []string, expectedExplicitServices []string) {
 	// sanity, ensures test checks below are hit
@@ -612,10 +628,14 @@ func (s *serviceControlSuite) TestStartAllServices(c *C) {
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 
-	c.Check(s.sysctlArgs, DeepEquals, [][]string{
-		{"is-enabled", "snap.test-snap.abc.service"},
-		{"is-enabled", "snap.test-snap.foo.service"},
-		{"is-enabled", "snap.test-snap.bar.service"},
+	/* We don't care about the order of the is-enabled invocations, as long as
+	 * they all happen before the first invocation of "start" */
+	verifyUnsortedInvocations(c, s.sysctlArgs, 0, "is-enabled", []string{
+		"snap.test-snap.abc.service",
+		"snap.test-snap.bar.service",
+		"snap.test-snap.foo.service",
+	})
+	c.Check(s.sysctlArgs[3:], DeepEquals, [][]string{
 		{"start", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.bar.service"},
 		{"start", "snap.test-snap.abc.service"},
@@ -646,10 +666,12 @@ func (s *serviceControlSuite) TestStartListedServices(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
-	c.Check(s.sysctlArgs, DeepEquals, [][]string{
-		{"is-enabled", "snap.test-snap.abc.service"},
-		{"is-enabled", "snap.test-snap.foo.service"},
-		{"is-enabled", "snap.test-snap.bar.service"},
+	verifyUnsortedInvocations(c, s.sysctlArgs, 0, "is-enabled", []string{
+		"snap.test-snap.abc.service",
+		"snap.test-snap.bar.service",
+		"snap.test-snap.foo.service",
+	})
+	c.Check(s.sysctlArgs[3:], DeepEquals, [][]string{
 		{"start", "snap.test-snap.foo.service"},
 	})
 }
