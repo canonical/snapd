@@ -151,7 +151,8 @@ type systemUsername struct {
 }
 
 var SupportedSystemUsernames = map[string]systemUsername{
-	"snap_daemon":   {Id: 584788},
-	"snap_microk8s": {Id: 584789, AllowedSnapIds: []string{"microk8s"}},
+	"snap_daemon": {Id: 584788},
+	"snap_microk8s": {Id: 584789, AllowedSnapIds: []string{
+		"EaXqgt1lyCaxKaQCU349mlodBkDCXRcg", // microk8s
+	}},
 }
-

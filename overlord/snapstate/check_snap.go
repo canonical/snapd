@@ -491,10 +491,10 @@ func validateSystemUsernames(si *snap.Info) error {
 			return fmt.Errorf(`snap %q requires unsupported system username "%s"`, si.InstanceName(), user.Name)
 		}
 
-		if systemUserName.AllowedSnapIds != nil {
+		if systemUserName.AllowedSnapIds != nil && si.SnapID != "" {
 			// Only certain snaps can use this user; let's check whether ours
 			// is one of these
-			if !strutil.ListContains(systemUserName.AllowedSnapIds, si.SnapName()) {
+			if !strutil.ListContains(systemUserName.AllowedSnapIds, si.SnapID) {
 				return fmt.Errorf(`snap %q is not allowed to use the system user %q`,
 					si.InstanceName(), user.Name)
 			}
