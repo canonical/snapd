@@ -613,6 +613,9 @@ func (s *serviceControlSuite) TestStartAllServices(c *C) {
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
+		{"is-enabled", "snap.test-snap.abc.service"},
+		{"is-enabled", "snap.test-snap.foo.service"},
+		{"is-enabled", "snap.test-snap.bar.service"},
 		{"start", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.bar.service"},
 		{"start", "snap.test-snap.abc.service"},
@@ -644,6 +647,9 @@ func (s *serviceControlSuite) TestStartListedServices(c *C) {
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
+		{"is-enabled", "snap.test-snap.abc.service"},
+		{"is-enabled", "snap.test-snap.foo.service"},
+		{"is-enabled", "snap.test-snap.bar.service"},
 		{"start", "snap.test-snap.foo.service"},
 	})
 }

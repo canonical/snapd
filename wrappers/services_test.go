@@ -1935,7 +1935,7 @@ func (s *servicesTestSuite) TestServicesEnableState(c *C) {
 	`)
 	defer r.Restore()
 
-	states, err := wrappers.ServicesEnableState(info.Apps, progress.Null)
+	states, err := wrappers.ServicesEnableState(info, progress.Null)
 	c.Assert(err, IsNil)
 
 	c.Assert(states, DeepEquals, map[string]bool{
@@ -1990,7 +1990,7 @@ func (s *servicesTestSuite) TestServicesEnableStateFail(c *C) {
 	`)
 	defer r.Restore()
 
-	_, err := wrappers.ServicesEnableState(info.Apps, progress.Null)
+	_, err := wrappers.ServicesEnableState(info, progress.Null)
 	c.Assert(err, ErrorMatches, ".*is-enabled snap.hello-snap.svc1.service\\] failed with exit status 1: whoops\n.*")
 
 	c.Assert(r.Calls(), DeepEquals, [][]string{
