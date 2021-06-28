@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -2015,4 +2015,83 @@ func (s *ValidateSuite) TestAppInstallMode(c *C) {
 	// non-services cannot have a install-mode
 	err := ValidateApp(&AppInfo{Name: "foo", Daemon: "", InstallMode: "disable"})
 	c.Check(err, ErrorMatches, `"install-mode" cannot be used for "foo", only for services`)
+}
+
+func (s *ValidateSuite) TestValidateLinks(c *C) {
+	info, err := InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+
+links:
+ donations:
+   - https://donate.me
+ contact:
+   - me@toto.space
+   - https://toto.space
+   - me+support@toto.space
+   - mailto:me+support@toto.space
+ bug-url:
+   - https://github.com/webteam-space/toto.space/issues
+ website:
+   - https://toto.space
+ source-code:
+   - https://github.com/webteam-space/toto.space
+`))
+	c.Assert(err, IsNil)
+
+	// happy
+	err = Validate(info)
+	c.Assert(err, IsNil)
+
+	info, err = InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+links:
+  foo:
+   - ""
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `empty "foo" link`)
+
+	info, err = InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+links:
+  foo:
+   - ":"
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `invalid "foo" link ":"`)
+
+	info, err = InfoFromSnapYaml([]byte(`name: foo
+version: 1.0
+links:
+  foo: []
+`))
+	c.Assert(err, IsNil)
+
+	err = Validate(info)
+	c.Check(err, ErrorMatches, `"foo" links cannot be specified and empty`)
+}
+
+func (s *YamlSuite) TestValidateLinksKeys(c *C) {
+	invalid := []string{
+		"--",
+		"1-2",
+		"aa-",
+		"",
+	}
+
+	for _, k := range invalid {
+		links := map[string][]string{
+			k: {"link.website"},
+		}
+		err := ValidateLinks(links)
+		if k == "" {
+			c.Check(err, ErrorMatches, "links key cannot be empty")
+		} else {
+			c.Check(err, ErrorMatches, fmt.Sprintf(`links key is invalid: %s`, k))
+		}
+	}
 }

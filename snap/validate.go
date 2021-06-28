@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,7 @@ package snap
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -375,6 +376,11 @@ func Validate(info *Info) error {
 
 	// Ensure system usernames are valid
 	if err := ValidateSystemUsernames(info); err != nil {
+		return err
+	}
+
+	// Ensure links are valid
+	if err := ValidateLinks(info.Links()); err != nil {
 		return err
 	}
 
@@ -1118,4 +1124,30 @@ func ValidateBasesAndProviders(snapInfos []*Info) []error {
 		}
 	}
 	return errs
+}
+
+var isValidLinksKey = regexp.MustCompile("^[a-zA-Z](?:-?[a-zA-Z0-9])*$").MatchString
+
+// ValidateLinks checks that links entries have valid keys and values that can be parsed as URLs.
+func ValidateLinks(links map[string][]string) error {
+	for linksKey, linksValues := range links {
+		if linksKey == "" {
+			return fmt.Errorf("links key cannot be empty")
+		}
+		if !isValidLinksKey(linksKey) {
+			return fmt.Errorf("links key is invalid: %s", linksKey)
+		}
+		if len(linksValues) == 0 {
+			return fmt.Errorf("%q links cannot be specified and empty", linksKey)
+		}
+		for _, u := range linksValues {
+			if u == "" {
+				return fmt.Errorf("empty %q link", linksKey)
+			}
+			if _, err := url.Parse(u); err != nil {
+				return fmt.Errorf("invalid %q link %q", linksKey, u)
+			}
+		}
+	}
+	return nil
 }

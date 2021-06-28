@@ -100,16 +100,59 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 	c.Check(info.ID(), Equals, "snapidsnapidsnapidsnapidsnapidsn")
 }
 
-func (s *infoSuite) TestContact(c *C) {
-	// TODO: later there will be OriginalLinks in snap.Info as
-	// well from snap.yaml links
-	info := &snap.Info{}
+func (s *infoSuite) TestContactFromEdited(c *C) {
+	info := &snap.Info{
+		OriginalLinks: nil,
+	}
 
 	info.SideInfo = snap.SideInfo{
 		EditedContact: "econtact",
 	}
 
 	c.Check(info.Contact(), Equals, "econtact")
+}
+
+func (s *infoSuite) TestNoContact(c *C) {
+	info := &snap.Info{}
+
+	c.Check(info.Contact(), Equals, "")
+}
+
+func (s *infoSuite) TestContactFromLinks(c *C) {
+	info := &snap.Info{
+		OriginalLinks: map[string][]string{
+			"contact": {"ocontact1", "ocontact2"},
+		},
+	}
+
+	c.Check(info.Contact(), Equals, "ocontact1")
+}
+
+func (s *infoSuite) TestLinks(c *C) {
+	info := &snap.Info{
+		OriginalLinks: map[string][]string{
+			"contact": {"ocontact"},
+			"website": {"owebsite"},
+		},
+	}
+
+	info.SideInfo = snap.SideInfo{
+		EditedLinks: map[string][]string{
+			"contact": {"econtact"},
+			"website": {"ewebsite"},
+		},
+	}
+
+	c.Check(info.Links(), DeepEquals, map[string][]string{
+		"contact": {"econtact"},
+		"website": {"ewebsite"},
+	})
+
+	info.EditedLinks = nil
+	c.Check(info.Links(), DeepEquals, map[string][]string{
+		"contact": {"ocontact"},
+		"website": {"owebsite"},
+	})
 }
 
 func (s *infoSuite) TestAppInfoSecurityTag(c *C) {
