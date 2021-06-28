@@ -49,7 +49,7 @@ var hasZenityExecutable = func() bool {
 }
 
 func zenityFlow(snapName string, hint runinhibit.Hint) error {
-	zenityTitle := i18n.G("Snap package cannot be used")
+	zenityTitle := i18n.G("Snap package waiting for update")
 
 	// Run zenity with a progress bar.
 	// TODO: while we are waiting ask snapd for progress updates and send those
@@ -117,7 +117,7 @@ func waitWhileInhibited(snapName string) error {
 var isLocked = runinhibit.IsLocked
 
 var waitInhibitUnlock = func(snapName string, errCh <-chan error) error {
-	// Every second check if the inhibition file is still present.
+	// Every 0.5s check if the inhibition file is still present.
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 loop:
