@@ -63,6 +63,7 @@ match_log(){
             -b)
                 params="$params -b"
                 shift
+                ;;
             *)
                 expression=$1
                 shift
