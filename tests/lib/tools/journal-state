@@ -79,7 +79,11 @@ match_log(){
         # section
         set +x
         local log
-        log=$(get_log "$params")
+        if [ -z "$params" ]; then
+            log=$(get_log)
+        else
+            log=$(get_log "$params")
+        fi
         if echo "$log" | grep -q -E "$expression"; then
             return 0
         fi
