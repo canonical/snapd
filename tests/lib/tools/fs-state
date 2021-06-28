@@ -1,9 +1,9 @@
 #!/bin/bash
 
 show_help() {
-    echo "usage: fs-state mock-dir [dirname]"
+    echo "usage: fs-state mock-dir <--new> [dirname]"
     echo "       fs-state restore-dir [dirname]"
-    echo "       fs-state mock-file [filename]"
+    echo "       fs-state mock-file <--new> [filename]"
     echo "       fs-state restore-file [filename]"
     echo "       fs-state start-monitor"
     echo "       fs-state exclude-monitor [path]"
@@ -20,9 +20,27 @@ _mock_dir() {
 }
 
 mock_dir() {
-    local dir="$1"
+    local new=0
+    local dir
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --new)
+                new=1
+                shif
+                ;;
+            *)
+                dir=$1
+                shift
+                ;;
+        esac
+    done
+
     if [ -d "$dir" ]; then
-        cp -rf "$dir" "$dir.back"
+        if [ "$new" = 1 ]; then
+            mv "$dir" "$dir.back"
+        else
+            cp -rf "$dir" "$dir.back"
+        fi
     fi
     _mock_dir "$dir"
 }
@@ -53,10 +71,28 @@ _mock_file() {
 }
 
 mock_file() {
-    local file="$1"
+    local new=0
+    local file
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --new)
+                new=1
+                shift
+                ;;
+            *)
+                file=$1
+                shift
+                ;;
+        esac
+    done
+
     if [ -e "$file" ]; then
         echo "fs-state: backing up original file: $file"
-        cp -f "$file" "$file.back"
+        if [ "$new" = 1 ]; then
+            mv "$file" "$file.back"
+        else
+            cp -f "$file" "$file.back"
+        fi
     fi
     # ensure the parent dir is available
     if [ ! -d "$(dirname "$file")" ]; then
