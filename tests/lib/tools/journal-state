@@ -66,6 +66,11 @@ match_log(){
         esac
     done
 
+    local params=""
+    if [ -n "$unit" ]; then
+        params="-u $unit"
+    fi
+
     for _ in $(seq "$attempts"); do
         # forcibly silence this particular bit because it produces GOBS of 
         # output and we really don't need to see all the output when we are 
@@ -73,10 +78,7 @@ match_log(){
         # check the journal once at the end of this loop, likely in the debug 
         # section
         set +x
-        local log params
-        if [ -n "$unit" ]; then
-            params="-u $unit"
-        fi
+        local log
         log=$(get_log "$params")
         if echo "$log" | grep -q -E "$expression"; then
             return 0
