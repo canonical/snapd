@@ -80,9 +80,9 @@ match_log(){
         set +x
         local log
         if [ -z "$params" ]; then
-            log=$(get_log)
+            log="$(get_log)"
         else
-            log=$(get_log "$params")
+            log="$(get_log $params)"
         fi
         if echo "$log" | grep -q -E "$expression"; then
             return 0
