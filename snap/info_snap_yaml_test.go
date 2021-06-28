@@ -2095,7 +2095,7 @@ links:
  donations:
    - https://donate.me
  contact:
-   - me@toto.space
+   - mailto:me@toto.space
    - https://toto.space
  bug-url:
    - https://github.com/webteam-space/toto.space/issues
@@ -2108,12 +2108,12 @@ links:
 	c.Assert(err, IsNil)
 	c.Check(info.Links(), DeepEquals, map[string][]string{
 		"bug-url":     {"https://github.com/webteam-space/toto.space/issues"},
-		"contact":     {"me@toto.space", "https://toto.space"},
+		"contact":     {"mailto:me@toto.space", "https://toto.space"},
 		"donations":   {"https://donate.me"},
 		"source-code": {"https://github.com/webteam-space/toto.space"},
 		"website":     {"https://toto.space"},
 	})
-	c.Check(info.Contact(), Equals, "me@toto.space")
+	c.Check(info.Contact(), Equals, "mailto:me@toto.space")
 }
 
 func (s *YamlSuite) TestSnapYamlEmptyLinksKey(c *C) {
@@ -2122,7 +2122,6 @@ version: 1.0
 
 links:
  "":
-   - me@toto.space
    - htps://toto.space
 `)
 	_, err := snap.InfoFromSnapYaml(yLinks)

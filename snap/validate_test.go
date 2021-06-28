@@ -2025,9 +2025,8 @@ links:
  donations:
    - https://donate.me
  contact:
-   - me@toto.space
+   - mailto:me@toto.space
    - https://toto.space
-   - me+support@toto.space
    - mailto:me+support@toto.space
  bug-url:
    - https://github.com/webteam-space/toto.space/issues
