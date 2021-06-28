@@ -25,7 +25,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
-	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/sysconfig"
 )
 
 func init() {
@@ -72,7 +72,7 @@ func (h *withStateHandler) validate(cfg config.ConfGetter) error {
 	return nil
 }
 
-func (h *withStateHandler) handle(cfg config.ConfGetter, opts *fsOnlyContext) error {
+func (h *withStateHandler) handle(dev sysconfig.Device, cfg config.ConfGetter, opts *fsOnlyContext) error {
 	conf := cfg.(config.Conf)
 	if h.handleFunc != nil {
 		return h.handleFunc(conf, opts)
@@ -104,11 +104,11 @@ func addWithStateHandler(validate func(config.Conf) error, handle func(config.Co
 	handlers = append(handlers, h)
 }
 
-func Run(cfg config.Conf) error {
-	return applyHandlers(cfg, handlers)
+func Run(dev sysconfig.Device, cfg config.Conf) error {
+	return applyHandlers(dev, cfg, handlers)
 }
 
-func applyHandlers(cfg config.Conf, handlers []configHandler) error {
+func applyHandlers(dev sysconfig.Device, cfg config.Conf, handlers []configHandler) error {
 	// check if the changes
 	for _, k := range cfg.Changes() {
 		switch {
@@ -128,17 +128,17 @@ func applyHandlers(cfg config.Conf, handlers []configHandler) error {
 	}
 
 	for _, h := range handlers {
-		if h.flags().coreOnlyConfig && release.OnClassic {
+		if h.flags().coreOnlyConfig && dev.Classic() {
 			continue
 		}
-		if err := h.handle(cfg, nil); err != nil {
+		if err := h.handle(dev, cfg, nil); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func Early(cfg config.Conf, values map[string]interface{}) error {
+func Early(dev sysconfig.Device, cfg config.Conf, values map[string]interface{}) error {
 	early, relevant := applyFilters(func(f flags) filterFunc {
 		return f.earlyConfigFilter
 	}, values)
@@ -147,5 +147,5 @@ func Early(cfg config.Conf, values map[string]interface{}) error {
 		return err
 	}
 
-	return applyHandlers(cfg, relevant)
+	return applyHandlers(dev, cfg, relevant)
 }

@@ -27,11 +27,7 @@ import (
 
 var (
 	UpdateSnapstateServices = updateSnapstateServices
-	PatchQuotas             = patchQuotas
 	CheckSystemdVersion     = checkSystemdVersion
-	QuotaCreate             = quotaCreate
-	QuotaRemove             = quotaRemove
-	QuotaUpdate             = quotaUpdate
 )
 
 func (m *ServiceManager) DoQuotaControl(t *state.Task, to *tomb.Tomb) error {

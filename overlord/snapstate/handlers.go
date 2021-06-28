@@ -2252,6 +2252,13 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		return &state.Retry{After: 3 * time.Minute}
 	}
 	if len(snapst.Sequence) == 0 {
+		if err := pruneRefreshCandidates(st, snapsup.InstanceName()); err != nil {
+			return err
+		}
+		if err := pruneSnapsHold(st, snapsup.InstanceName()); err != nil {
+			return err
+		}
+
 		// Remove configuration associated with this snap.
 		err = config.DeleteSnapConfig(st, snapsup.InstanceName())
 		if err != nil {
@@ -2968,6 +2975,10 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		return nil
 	}
 
+	if err := pruneRefreshCandidates(st, snaps...); err != nil {
+		return err
+	}
+
 	var re reRefreshSetup
 	if err := t.Get("rerefresh-setup", &re); err != nil {
 		return err
@@ -3008,7 +3019,7 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 		return nil
 	}
 
-	tss, err := autoRefreshPhase2(context.TODO(), st, snaps)
+	tss, err := autoRefreshPhase2(context.TODO(), st, snaps, t.Change().ID())
 	if err != nil {
 		return err
 	}

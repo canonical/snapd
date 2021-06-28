@@ -24,6 +24,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/osutil"
 
@@ -41,6 +43,18 @@ volumes:
   pc:
     bootloader: grub
 `
+
+var fakeModel = assertstest.FakeAssertion(map[string]interface{}{
+	"type":         "model",
+	"authority-id": "my-brand",
+	"series":       "16",
+	"brand-id":     "my-brand",
+	"model":        "my-model",
+	"architecture": "amd64",
+	"base":         "core18",
+	"gadget":       "pc",
+	"kernel":       "pc-kernel",
+}).(*asserts.Model)
 
 func (s *sysconfigSuite) TestGadgetDefaults(c *C) {
 	const gadgetDefaultsYaml = `
@@ -75,7 +89,7 @@ defaults:
 	exists, _, _ := osutil.DirExists(journalPath)
 	c.Check(exists, Equals, false)
 
-	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(fakeModel, &sysconfig.Options{
 		TargetRootDir: boot.InstallHostWritableDir,
 		GadgetDir:     snapInfo.MountDir(),
 	})
@@ -105,7 +119,7 @@ defaults:
 		{"meta/gadget.yaml", gadgetYaml + gadgetDefaultsYaml},
 	})
 
-	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(fakeModel, &sysconfig.Options{
 		TargetRootDir: boot.InstallHostWritableDir,
 		GadgetDir:     snapInfo.MountDir(),
 	})
@@ -142,7 +156,7 @@ defaults:
 	exists, _, _ := osutil.DirExists(journalPath)
 	c.Check(exists, Equals, false)
 
-	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(fakeModel, &sysconfig.Options{
 		TargetRootDir: boot.InstallHostWritableDir,
 		GadgetSnap:    snapContainer,
 	})
