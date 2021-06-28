@@ -23,7 +23,6 @@ package main
 // golang creates threads at will and setns(..., CLONE_NEWNS) fails if any
 // threads apart from the main thread exist.
 
-// #cgo CFLAGS: -I${SRCDIR}
 /*
 
 #include <stdlib.h>
