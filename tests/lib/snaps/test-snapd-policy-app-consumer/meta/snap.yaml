@@ -260,6 +260,9 @@ apps:
   modem-manager:
     command: bin/run
     plugs: [ modem-manager ]
+  mount-control:
+    command: bin/run
+    plugs: [ mount-control ]
   mount-observe:
     command: bin/run
     plugs: [ mount-observe ]
