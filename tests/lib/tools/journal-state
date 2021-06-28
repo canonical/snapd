@@ -82,6 +82,7 @@ match_log(){
         if [ -z "$params" ]; then
             log="$(get_log)"
         else
+            #shellcheck disable=SC2086
             log="$(get_log $params)"
         fi
         if echo "$log" | grep -q -E "$expression"; then
