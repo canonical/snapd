@@ -7,7 +7,7 @@ show_help() {
     echo "usage: journal-state start-new-log"
     echo "       journal-state check-log-started"
     echo "       journal-state get-last-cursor"
-    echo "       journal-state match-log <EXPRESSION> [--attempts|-n PARAM] [--wait PARAM] [--unit|-u PARAM]"
+    echo "       journal-state match-log <EXPRESSION> [--attempts|-n PARAM] [--wait PARAM] [--unit|-u PARAM] [-b]"
     echo "       journal-state get-log"
     echo "       journal-state get-log-from-cursor"
 }
@@ -43,6 +43,7 @@ match_log(){
     local wait=1
     local attempts=10
     local unit=""
+    local params=""
     local expression
 
     while [ $# -gt 0 ]; do
@@ -56,20 +57,18 @@ match_log(){
                 shift 2
                 ;;
             -u|--unit)
-                unit=$2
+                params="$params -u $2"
                 shift 2
                 ;;
+            -b)
+                params="$params -b"
+                shift
             *)
                 expression=$1
                 shift
                 ;;
         esac
     done
-
-    local params=""
-    if [ -n "$unit" ]; then
-        params="-u $unit"
-    fi
 
     for _ in $(seq "$attempts"); do
         # forcibly silence this particular bit because it produces GOBS of 
