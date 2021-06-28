@@ -620,3 +620,45 @@ func validateSnapForAddingToGroup(st *state.State, snaps []string, group string,
 
 	return nil
 }
+
+func quotaControlAffectedSnaps(t *state.Task) (snaps []string, err error) {
+	qcs := []QuotaControlAction{}
+	if err := t.Get("quota-control-actions", &qcs); err != nil {
+		return nil, fmt.Errorf("internal error: cannot get quota-control-action: %v", err)
+	}
+
+	// if state-updated was already set we can use it
+	var updated quotaStateUpdated
+	if err := t.Get("state-updated", &updated); err != state.ErrNoState {
+		if err != nil {
+			return nil, err
+		}
+		// TODO: consider boot-id as well?
+		for snapName := range updated.AppsToRestartBySnap {
+			snaps = append(snaps, snapName)
+		}
+		// all set
+		return snaps, nil
+	}
+
+	st := t.State()
+	for _, qc := range qcs {
+		switch qc.Action {
+		case "remove":
+			// the snaps affected by a remove are implicitly
+			// the ones currently in the quota group
+			grp, err := GetQuota(st, qc.QuotaName)
+			if err != nil && err != ErrQuotaNotFound {
+				return nil, err
+			}
+			if err == nil {
+				snaps = append(snaps, grp.Snaps...)
+			}
+		default:
+			// create and update affects only the snaps
+			// explicitly mentioned
+			snaps = append(snaps, qc.AddSnaps...)
+		}
+	}
+	return snaps, nil
+}

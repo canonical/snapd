@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate/internal"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/systemd"
@@ -90,7 +91,10 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 		return nil, err
 	}
 
-	// TODO: conflict checking for other changes with this quota group
+	// TODO: check quota conflict
+	if err := snapstate.CheckChangeConflictMany(st, snaps, ""); err != nil {
+		return nil, err
+	}
 
 	allGrps, err := AllQuotas(st)
 	if err != nil {
@@ -148,8 +152,6 @@ func RemoveQuota(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("removing quota groups not supported while preseeding")
 	}
 
-	// TODO: conflict checking for other changes with this quota group
-
 	allGrps, err := AllQuotas(st)
 	if err != nil {
 		return nil, err
@@ -164,6 +166,11 @@ func RemoveQuota(st *state.State, name string) (*state.TaskSet, error) {
 	// XXX: remove this limitation eventually
 	if len(grp.SubGroups) != 0 {
 		return nil, fmt.Errorf("cannot remove quota group with sub-groups, remove the sub-groups first")
+	}
+
+	// TODO: check quota conflict
+	if err := snapstate.CheckChangeConflictMany(st, grp.Snaps, ""); err != nil {
+		return nil, err
 	}
 
 	qc := QuotaControlAction{
@@ -203,7 +210,10 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) (*st
 		return nil, err
 	}
 
-	// TODO: conflict checking for other changes with this quota group
+	// TODO: check quota conflict
+	if err := snapstate.CheckChangeConflictMany(st, updateOpts.AddSnaps, ""); err != nil {
+		return nil, err
+	}
 
 	allGrps, err := AllQuotas(st)
 	if err != nil {
