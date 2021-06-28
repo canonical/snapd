@@ -53,7 +53,7 @@ restore: |
 execute: |
     echo "Try to install a snap which is not entitled to use the microk8s user"
     OUT=$(snap install "test-microk8s-username" 2>&1 || true)
-    echo $OUT | MATCH 'snap "test-microk8s-username" is not allowed to use the system user "snap_microk8s"'
+    echo "$OUT" | MATCH 'snap "test-microk8s-username" is not allowed to use the system user "snap_microk8s"'
 
     # Make sure neither snap_microk8s user nor group are created
     not getent passwd snap_microk8s
