@@ -66,7 +66,7 @@ var (
 
 // EarlyConfig is a hook set by configstate that can process early configuration
 // during managers' startup.
-var EarlyConfig func(st *state.State, preloadGadget func() (*gadget.Info, error)) error
+var EarlyConfig func(st *state.State, preloadGadget func() (sysconfig.Device, *gadget.Info, error)) error
 
 // DeviceManager is responsible for managing the device identity and device
 // policies.
@@ -210,6 +210,32 @@ func (m *DeviceManager) ReloadModeenv() error {
 		m.sysMode = modeEnv.Mode
 	}
 	return nil
+}
+
+type SysExpectation int
+
+const (
+	// SysAny indicates any system is appropriate.
+	SysAny SysExpectation = iota
+	// SysHasModeenv indicates only systems with modeenv are appropriate.
+	SysHasModeenv
+)
+
+// SystemMode returns the current mode of the system.
+// An expectation about the system controls the returned mode when
+// none is set explicitly, as it's the case on pre-UC20 systems. In
+// which case, with SysAny, the mode defaults to implicit "run", thus
+// covering pre-UC20 systems. With SysHasModeeenv, as there is always
+// an explicit mode in systems that use modeenv, no implicit default
+// is used and thus "" is returned for pre-UC20 systems.
+func (m *DeviceManager) SystemMode(sysExpect SysExpectation) string {
+	if m.sysMode == "" {
+		if sysExpect == SysHasModeenv {
+			return ""
+		}
+		return "run"
+	}
+	return m.sysMode
 }
 
 // StartUp implements StateStarterUp.Startup.
@@ -378,32 +404,6 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 		return err
 	}
 	return nil
-}
-
-type SysExpectation int
-
-const (
-	// SysAny indicates any system is appropriate.
-	SysAny SysExpectation = iota
-	// SysHasModeenv indicates only systems with modeenv are appropriate.
-	SysHasModeenv
-)
-
-// SystemMode returns the current mode of the system.
-// An expectation about the system controls the returned mode when
-// none is set explicitly, as it's the case on pre-UC20 systems. In
-// which case, with SysAny, the mode defaults to implicit "run", thus
-// covering pre-UC20 systems. With SysHasModeeenv, as there is always
-// an explicit mode in systems that use modeenv, no implicit default
-// is used and thus "" is returned for pre-UC20 systems.
-func (m *DeviceManager) SystemMode(sysExpect SysExpectation) string {
-	if m.sysMode == "" {
-		if sysExpect == SysHasModeenv {
-			return ""
-		}
-		return "run"
-	}
-	return m.sysMode
 }
 
 func (m *DeviceManager) ensureOperational() error {
@@ -590,11 +590,11 @@ func (m *DeviceManager) seedStart() (*timings.Timings, error) {
 	return perfTimings, nil
 }
 
-func (m *DeviceManager) preloadGadget() (*gadget.Info, error) {
+func (m *DeviceManager) preloadGadget() (sysconfig.Device, *gadget.Info, error) {
 	var sysLabel string
 	modeEnv, err := maybeReadModeenv()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if modeEnv != nil {
 		sysLabel = modeEnv.RecoverySystem
@@ -604,7 +604,7 @@ func (m *DeviceManager) preloadGadget() (*gadget.Info, error) {
 	// under --ensure=seed
 	tm, err := m.seedStart()
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// cached for first ensureSeeded
 	m.seedTimings = tm
@@ -630,12 +630,12 @@ func (m *DeviceManager) preloadGadget() (*gadget.Info, error) {
 		if err != seed.ErrNoAssertions {
 			logger.Debugf("early import assertions from seed failed: %v", err)
 		}
-		return nil, state.ErrNoState
+		return nil, nil, state.ErrNoState
 	}
 	model := deviceSeed.Model()
 	if model.Gadget() == "" {
 		// no gadget
-		return nil, state.ErrNoState
+		return nil, nil, state.ErrNoState
 	}
 	var gi *gadget.Info
 	timings.Run(tm, "preload-verified-gadget-metadata", "preload verified gadget metadata from seed", func(nested timings.Measurer) {
@@ -656,9 +656,11 @@ func (m *DeviceManager) preloadGadget() (*gadget.Info, error) {
 	})
 	if err != nil {
 		logger.Noticef("preload verified gadget metadata from seed failed: %v", err)
-		return nil, state.ErrNoState
+		return nil, nil, state.ErrNoState
 	}
-	return gi, nil
+
+	dev := newModelDeviceContext(m, model)
+	return dev, gi, nil
 }
 
 var populateStateFromSeed = populateStateFromSeedImpl

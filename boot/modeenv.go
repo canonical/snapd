@@ -376,6 +376,27 @@ func (m *Modeenv) TryModelForSealing() secboot.ModelForSealing {
 	}
 }
 
+func (m *Modeenv) useThisModel(model *asserts.Model) {
+	m.Model = model.Model()
+	m.BrandID = model.BrandID()
+	m.Grade = string(model.Grade())
+	m.ModelSignKeyID = model.SignKeyID()
+}
+
+func (m *Modeenv) useThisTryModel(model *asserts.Model) {
+	m.TryModel = model.Model()
+	m.TryBrandID = model.BrandID()
+	m.TryGrade = string(model.Grade())
+	m.TryModelSignKeyID = model.SignKeyID()
+}
+
+func (m *Modeenv) clearTryModel() {
+	m.TryModel = ""
+	m.TryBrandID = ""
+	m.TryGrade = ""
+	m.TryModelSignKeyID = ""
+}
+
 type modeenvValueMarshaller interface {
 	MarshalModeenvValue() (string, error)
 }

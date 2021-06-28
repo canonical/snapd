@@ -50,6 +50,8 @@ type Hint string
 const (
 	// HintNotInhibited is used when "snap run" is not inhibited.
 	HintNotInhibited Hint = ""
+	// HintInhibitedGateRefresh represents inhibition of a "snap run" while gate-auto-refresh hook is run.
+	HintInhibitedGateRefresh Hint = "gate-refresh"
 	// HintInhibitedForRefresh represents inhibition of a "snap run" while a refresh change is being performed.
 	HintInhibitedForRefresh Hint = "refresh"
 )

@@ -252,7 +252,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	opts := &sysconfig.Options{TargetRootDir: boot.InstallHostWritableDir, GadgetDir: gadgetDir}
 	// configure cloud init
 	setSysconfigCloudOptions(opts, gadgetDir, model)
-	if err := sysconfigConfigureTargetSystem(opts); err != nil {
+	if err := sysconfigConfigureTargetSystem(model, opts); err != nil {
 		return err
 	}
 

@@ -1858,6 +1858,84 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Conflict(c *C) {
 	verifyPhasedAutorefreshTasks(c, chg.Tasks(), expected)
 }
 
+func (s *snapmgrTestSuite) TestAutoRefreshPhase2ConflictOtherSnapOp(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	snapstate.ReplaceStore(s.state, &autoRefreshGatingStore{
+		fakeStore: s.fakeStore,
+		refreshedSnaps: []*snap.Info{{
+			Architectures: []string{"all"},
+			SnapType:      snap.TypeApp,
+			SideInfo: snap.SideInfo{
+				RealName: "snap-a",
+				Revision: snap.R(8),
+			},
+		}}})
+
+	mockInstalledSnap(c, s.state, snapAyaml, useHook)
+
+	snapstate.MockSnapReadInfo(fakeReadInfo)
+
+	restore := snapstatetest.MockDeviceModel(DefaultModel())
+	defer restore()
+
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st)
+	c.Assert(err, IsNil)
+	c.Check(names, DeepEquals, []string{"snap-a"})
+
+	chg := s.state.NewChange("fake-auto-refresh", "...")
+	for _, ts := range tss {
+		chg.AddAll(ts)
+	}
+
+	s.state.Unlock()
+	// run first task
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+
+	_, err = snapstate.Remove(s.state, "snap-a", snap.R(8), nil)
+	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
+		ChangeKind: "fake-auto-refresh",
+		Snap:       "snap-a",
+	})
+
+	_, err = snapstate.Update(s.state, "snap-a", nil, 0, snapstate.Flags{})
+	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
+		ChangeKind: "fake-auto-refresh",
+		Snap:       "snap-a",
+	})
+
+	expected := []string{
+		"conditional-auto-refresh",
+		"run-hook [snap-a;gate-auto-refresh]",
+		"prerequisites",
+		"download-snap",
+		"validate-snap",
+		"mount-snap",
+		"run-hook [snap-a;pre-refresh]",
+		"stop-snap-services",
+		"remove-aliases",
+		"unlink-current-snap",
+		"copy-snap-data",
+		"setup-profiles",
+		"link-snap",
+		"auto-connect",
+		"set-auto-aliases",
+		"setup-aliases",
+		"run-hook [snap-a;post-refresh]",
+		"start-snap-services",
+		"cleanup",
+		"run-hook [snap-a;configure]",
+		"run-hook [snap-a;check-health]",
+		"check-rerefresh",
+	}
+	verifyPhasedAutorefreshTasks(c, chg.Tasks(), expected)
+}
+
 func (s *snapmgrTestSuite) TestAutoRefreshPhase2GatedSnaps(c *C) {
 	st := s.state
 	st.Lock()
@@ -1975,6 +2053,6 @@ func verifyPhasedAutorefreshTasks(c *C, tasks []*state.Task, expected []string) 
 		} else {
 			got = t.Kind()
 		}
-		c.Assert(got, Equals, expected[i])
+		c.Assert(got, Equals, expected[i], Commentf("#%d", i))
 	}
 }
