@@ -1344,7 +1344,7 @@ func (s *storeTestSuite) TestInfo(c *C) {
 		},
 	})
 	c.Check(result.MustBuy, Equals, true)
-	c.Check(result.Contact, Equals, "mailto:snappy-devel@lists.ubuntu.com")
+	c.Check(result.Contact(), Equals, "mailto:snappy-devel@lists.ubuntu.com")
 	c.Check(result.Base, Equals, "bogus-base")
 	c.Check(result.Epoch.String(), Equals, "0")
 	c.Check(sto.SuggestedCurrency(), Equals, "GBP")
@@ -2561,7 +2561,7 @@ func (s *storeTestSuite) testFind(c *C, apiV1 bool) {
 		},
 	})
 	c.Check(snp.MustBuy, Equals, true)
-	c.Check(snp.Contact, Equals, "mailto:snappy-devel@lists.ubuntu.com")
+	c.Check(snp.Contact(), Equals, "mailto:snappy-devel@lists.ubuntu.com")
 	c.Check(snp.Base, Equals, "bare-base")
 
 	// Make sure the epoch (currently not sent by the store) defaults to "0"

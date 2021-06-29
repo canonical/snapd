@@ -67,6 +67,11 @@
     /sys/fs/cgroup/freezer/ r,
     /sys/fs/cgroup/freezer/snap.*/ w,
     /sys/fs/cgroup/freezer/snap.*/cgroup.procs rw,
+    /sys/fs/cgroup/ r,
+    /sys/fs/cgroup/** r,
+
+    # cgroup: reading own cgroup
+    @{PROC}/@{pid}/cgroup r,
 
     # querying udev
     /etc/udev/udev.conf r,

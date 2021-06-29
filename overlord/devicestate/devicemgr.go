@@ -212,6 +212,32 @@ func (m *DeviceManager) ReloadModeenv() error {
 	return nil
 }
 
+type SysExpectation int
+
+const (
+	// SysAny indicates any system is appropriate.
+	SysAny SysExpectation = iota
+	// SysHasModeenv indicates only systems with modeenv are appropriate.
+	SysHasModeenv
+)
+
+// SystemMode returns the current mode of the system.
+// An expectation about the system controls the returned mode when
+// none is set explicitly, as it's the case on pre-UC20 systems. In
+// which case, with SysAny, the mode defaults to implicit "run", thus
+// covering pre-UC20 systems. With SysHasModeeenv, as there is always
+// an explicit mode in systems that use modeenv, no implicit default
+// is used and thus "" is returned for pre-UC20 systems.
+func (m *DeviceManager) SystemMode(sysExpect SysExpectation) string {
+	if m.sysMode == "" {
+		if sysExpect == SysHasModeenv {
+			return ""
+		}
+		return "run"
+	}
+	return m.sysMode
+}
+
 // StartUp implements StateStarterUp.Startup.
 func (m *DeviceManager) StartUp() error {
 	// TODO:UC20: ubuntu-save needs to be mounted for recover too
@@ -378,32 +404,6 @@ func setClassicFallbackModel(st *state.State, device *auth.DeviceState) error {
 		return err
 	}
 	return nil
-}
-
-type SysExpectation int
-
-const (
-	// SysAny indicates any system is appropriate.
-	SysAny SysExpectation = iota
-	// SysHasModeenv indicates only systems with modeenv are appropriate.
-	SysHasModeenv
-)
-
-// SystemMode returns the current mode of the system.
-// An expectation about the system controls the returned mode when
-// none is set explicitly, as it's the case on pre-UC20 systems. In
-// which case, with SysAny, the mode defaults to implicit "run", thus
-// covering pre-UC20 systems. With SysHasModeeenv, as there is always
-// an explicit mode in systems that use modeenv, no implicit default
-// is used and thus "" is returned for pre-UC20 systems.
-func (m *DeviceManager) SystemMode(sysExpect SysExpectation) string {
-	if m.sysMode == "" {
-		if sysExpect == SysHasModeenv {
-			return ""
-		}
-		return "run"
-	}
-	return m.sysMode
 }
 
 func (m *DeviceManager) ensureOperational() error {
