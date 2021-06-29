@@ -114,14 +114,14 @@ func SetLastBecomeOperationalAttempt(m *DeviceManager, t time.Time) {
 }
 
 func SetSystemMode(m *DeviceManager, mode string) {
-	m.systemMode = mode
+	m.sysMode = mode
 }
 
 func SetTimeOnce(m *DeviceManager, name string, t time.Time) error {
 	return m.setTimeOnce(name, t)
 }
 
-func PreloadGadget(m *DeviceManager) (*gadget.Info, error) {
+func PreloadGadget(m *DeviceManager) (sysconfig.Device, *gadget.Info, error) {
 	return m.preloadGadget()
 }
 
@@ -283,7 +283,7 @@ func MockHttputilNewHTTPClient(f func(opts *httputil.ClientOptions) *http.Client
 	}
 }
 
-func MockSysconfigConfigureTargetSystem(f func(opts *sysconfig.Options) error) (restore func()) {
+func MockSysconfigConfigureTargetSystem(f func(mod *asserts.Model, opts *sysconfig.Options) error) (restore func()) {
 	old := sysconfigConfigureTargetSystem
 	sysconfigConfigureTargetSystem = f
 	return func() {
