@@ -42,7 +42,6 @@ check_log_started(){
 match_log(){
     local wait=1
     local attempts=10
-    local unit=""
     local params=""
     local expression
 
