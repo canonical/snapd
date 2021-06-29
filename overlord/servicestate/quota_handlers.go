@@ -129,10 +129,15 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 			return err
 		}
 
-		// after we have made all the persistent modifications
-		// to disk and state, remember that so to avoid
-		// failing redoing the non-idempotent parts of the
-		// task if snapd gets restarted before the end of the task.
+		// All persistent modifications to disk are made and the
+		// modifications to state will be committed by the
+		// unlocking in restartSnapServices. If snapd gets
+		// restarted before the end of this task, all the
+		// modifications would be redone, and those
+		// non-idempotent parts of the task would fail.
+		// For this reason we record together with the changes
+		// in state the fact that the changes were made,
+		// to avoid repeating them.
 		// What remains for this task handler is just to
 		// restart services which will happen regardless if we
 		// get rebooted after unlocking the state - if we got
@@ -142,7 +147,7 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 		// the second time around EnsureSnapServices would end
 		// up doing nothing since it is idempotent.  So in the
 		// rare case that snapd gets restarted but is not a
-		// reboot also remember which service do need
+		// reboot also record which services do need
 		// restarting. There is a small chance that services
 		// will be restarted again but is preferable to the
 		// quota not applying to them.
@@ -171,17 +176,17 @@ func rememberQuotaStateUpdated(t *state.Task, appsToRestartBySnap map[*snap.Info
 	if err != nil {
 		return err
 	}
-	forUpdated := make(map[string][]string, len(appsToRestartBySnap))
+	appNamesBySnapName := make(map[string][]string, len(appsToRestartBySnap))
 	for info, apps := range appsToRestartBySnap {
 		appNames := make([]string, len(apps))
 		for i, app := range apps {
 			appNames[i] = app.Name
 		}
-		forUpdated[info.InstanceName()] = appNames
+		appNamesBySnapName[info.InstanceName()] = appNames
 	}
 	t.Set("state-updated", quotaStateUpdated{
 		BootID:              bootID,
-		AppsToRestartBySnap: forUpdated,
+		AppsToRestartBySnap: appNamesBySnapName,
 	})
 	return nil
 }
@@ -206,11 +211,12 @@ func quotaStateAlreadyUpdated(t *state.Task) (ok bool, appsToRestartBySnap map[*
 
 	appsToRestartBySnap = make(map[*snap.Info][]*snap.AppInfo, len(updated.AppsToRestartBySnap))
 	st := t.State()
-	// best effor, ignore missing things
+	// best effort, ignore missing snaps and apps
 	for instanceName, appNames := range updated.AppsToRestartBySnap {
 		info, err := snapstate.CurrentInfo(st, instanceName)
 		if err != nil {
 			if _, ok := err.(*snap.NotInstalledError); ok {
+				t.Logf("snap %q missing over restart", instanceName)
 				continue
 			}
 			return false, nil, err
