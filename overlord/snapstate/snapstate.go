@@ -2015,8 +2015,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 }
 
 // autoRefreshPhase2 creates tasks for refreshing snaps from updates.
-func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshCandidate) ([]*state.TaskSet, error) {
-	fromChange := ""
+func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshCandidate, fromChange string) ([]*state.TaskSet, error) {
 	flags := &Flags{IsAutoRefresh: true}
 	userID := 0
 

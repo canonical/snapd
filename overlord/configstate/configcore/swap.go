@@ -32,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -75,7 +76,7 @@ func parseAndValidateSwapSize(szString string) (quantity.Size, error) {
 	return sz, nil
 }
 
-func handlesystemSwapConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
+func handlesystemSwapConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	var pristineSwapSize, newSwapSize string
 	if err := tr.GetPristine("core", "swap.size", &pristineSwapSize); err != nil && !config.IsNoOption(err) {
 		return err
