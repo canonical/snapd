@@ -1,7 +1,7 @@
 summary: ensure only approved snaps can use the microk8s system user
 
 environment:
-  BLOB_DIR: $(pwd)/fake-store-blobdir
+  STORE_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -25,21 +25,24 @@ prepare: |
 
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
-    setup_fake_store "$BLOB_DIR"
+    setup_fake_store "$STORE_DIR"
+
+    cp "$TESTSLIB"/assertions/developer1.account "$STORE_DIR/asserts"
+    cp "$TESTSLIB"/assertions/developer1.account-key "$STORE_DIR/asserts"
+
+    snap ack "$TESTSLIB/assertions/developer1.account"
+    snap ack "$TESTSLIB/assertions/developer1.account-key"
 
     # Create a snap which is not entitled to use the microk8s user
 
     snap_path=$("$TESTSTOOLS"/snaps-state pack-local test-microk8s-username)
-    make_snap_installable "$BLOB_DIR" "${snap_path}"
+    make_snap_installable "$STORE_DIR" "${snap_path}"
 
     # Then create a snap which is entitled to use the microk8s user
 
     snap_path=$("$TESTSTOOLS"/snaps-state pack-local microk8s)
     MICROK8S_SNAP_ID="EaXqgt1lyCaxKaQCU349mlodBkDCXRcg"
-    make_snap_installable_with_id "$BLOB_DIR" "${snap_path}" "$MICROK8S_SNAP_ID"
-
-    snap ack "$TESTSLIB/assertions/developer1.account"
-    snap ack "$TESTSLIB/assertions/developer1.account-key"
+    make_snap_installable_with_id "$STORE_DIR" "${snap_path}" "$MICROK8S_SNAP_ID"
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -48,7 +51,7 @@ restore: |
     fi
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
-    teardown_fake_store "$BLOB_DIR"
+    teardown_fake_store "$STORE_DIR"
 
 execute: |
     echo "Try to install a snap which is not entitled to use the microk8s user"
@@ -60,7 +63,7 @@ execute: |
     not getent group snap_microk8s
 
     echo "Now install the microk8s snap"
-    snap install "microk8s" 2>&1 | MATCH 'microk8s 1.0 installed'
+    snap install "microk8s" 2>&1 | MATCH 'microk8s 1.0.* installed'
 
     # Make sure both snap_microk8s user and group are created
     getent passwd snap_microk8s
