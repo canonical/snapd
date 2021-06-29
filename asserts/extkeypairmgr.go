@@ -75,8 +75,7 @@ func (em *ExternalKeypairManager) keyMgr(op string, args []string, in []byte, ou
 	case *[]byte:
 		*o = outBuf.Bytes()
 	default:
-		err := json.Unmarshal(outBuf.Bytes(), out)
-		if err != nil {
+		if err := json.Unmarshal(outBuf.Bytes(), out); err != nil {
 			return fmt.Errorf("cannot decode external keypair manager %q %v output: %v", em.keyMgrPath, args, err)
 		}
 	}
@@ -218,6 +217,9 @@ func (em *ExternalKeypairManager) Get(keyID string) (PrivateKey, error) {
 	return em.privateKey(cachedKey), nil
 }
 
+// see https://datatracker.ietf.org/doc/html/rfc2313 and more recently
+// and more precisely about SHA-512:
+// https://datatracker.ietf.org/doc/html/rfc3447#section-9.2 Notes 1.
 var digestInfoSHA512Prefix = []byte{0x30, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40}
 
 func (em *ExternalKeypairManager) signWith(keyName string, digest []byte) (signature []byte, err error) {

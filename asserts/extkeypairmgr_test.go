@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -123,6 +124,7 @@ echo "${EXT_KEYMGR_FAIL}"
 		{"", `cannot decode external keypair manager "keymgr" \[features\] output.*`},
 	}
 
+	defer os.Unsetenv("EXT_KEYMGR_FAIL")
 	for _, t := range tests {
 		os.Setenv("EXT_KEYMGR_FAIL", t.outcome)
 
@@ -187,6 +189,11 @@ func (s *extKeypairMgrSuite) TestGet(c *C) {
 }
 
 func (s *extKeypairMgrSuite) TestSignFlow(c *C) {
+	// the signing uses openssl
+	_, err := exec.LookPath("openssl")
+	if err != nil {
+		c.Skip("cannot locate openssl on this system to test signing")
+	}
 	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
 	c.Assert(err, IsNil)
 	s.pgm.ForgetCalls()
