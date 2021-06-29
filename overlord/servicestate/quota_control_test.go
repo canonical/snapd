@@ -666,7 +666,7 @@ func (s *quotaControlSuite) TestRemoveQuotaSnapOpConflict(c *C) {
 	chg1 := s.state.NewChange("quota-control", "...")
 	chg1.AddAll(ts)
 
-	ts, err = snapstate.Disable(st, "test-snap")
+	_, err = snapstate.Disable(st, "test-snap")
 	c.Assert(err, ErrorMatches, `snap "test-snap" has "quota-control" change in progress`)
 }
 
@@ -705,6 +705,6 @@ func (s *quotaControlSuite) TestRemoveQuotaLateSnapOpConflict(c *C) {
 		},
 	})
 
-	ts, err = snapstate.Disable(st, "test-snap")
+	_, err = snapstate.Disable(st, "test-snap")
 	c.Assert(err, ErrorMatches, `snap "test-snap" has "quota-control" change in progress`)
 }

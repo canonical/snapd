@@ -333,7 +333,7 @@ func quotaRemove(st *state.State, action QuotaControlAction, allGrps map[string]
 	// make sure that the group set is consistent before saving it - we may need
 	// to delete old links from this group's parent to the child
 	if err := quota.ResolveCrossReferences(allGrps); err != nil {
-		return nil, nil, fmt.Errorf("cannot remove quota %q: %v", action.QuotaName, err)
+		return nil, nil, fmt.Errorf("cannot remove quota group %q: %v", action.QuotaName, err)
 	}
 
 	// now set it in state
