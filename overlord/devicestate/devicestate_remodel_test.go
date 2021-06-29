@@ -139,8 +139,6 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappy(c *C) {
 		Serial: "orig-serial",
 	})
 
-	restore := devicestate.AllowUC20RemodelTesting(false)
-	defer restore()
 	// ensure all error cases are checked
 	for _, t := range []struct {
 		new    map[string]interface{}
@@ -148,22 +146,6 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappy(c *C) {
 	}{
 		{map[string]interface{}{"architecture": "pdp-7"}, "cannot remodel to different architectures yet"},
 		{map[string]interface{}{"base": "core18"}, "cannot remodel from core to bases yet"},
-		{map[string]interface{}{"base": "core20", "kernel": nil, "gadget": nil, "snaps": mockCore20ModelSnaps}, "cannot remodel to Ubuntu Core 20 models yet"},
-	} {
-		mergeMockModelHeaders(cur, t.new)
-		new := s.brands.Model(t.new["brand"].(string), t.new["model"].(string), t.new)
-		chg, err := devicestate.Remodel(s.state, new)
-		c.Check(chg, IsNil)
-		c.Check(err, ErrorMatches, t.errStr)
-	}
-
-	restore = devicestate.AllowUC20RemodelTesting(true)
-	defer restore()
-
-	for _, t := range []struct {
-		new    map[string]interface{}
-		errStr string
-	}{
 		// pre-UC20 to UC20
 		{map[string]interface{}{"base": "core20", "kernel": nil, "gadget": nil, "snaps": mockCore20ModelSnaps}, "cannot remodel from grade unset to grade signed"},
 	} {
@@ -173,16 +155,12 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappy(c *C) {
 		c.Check(chg, IsNil)
 		c.Check(err, ErrorMatches, t.errStr)
 	}
-
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelCheckGrade(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
-
-	restore := devicestate.AllowUC20RemodelTesting(true)
-	defer restore()
 
 	// set a model assertion
 	cur := mockCore20ModelHeaders
@@ -1680,9 +1658,6 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 	restore = devicestate.MockTimeNow(func() time.Time { return now })
 	defer restore()
 
-	restore = devicestate.AllowUC20RemodelTesting(true)
-	defer restore()
-
 	// set a model assertion
 	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
@@ -1846,15 +1821,12 @@ type remodelUC20LabelConflictsTestCase struct {
 }
 
 func (s *deviceMgrRemodelSuite) testRemodelUC20LabelConflicts(c *C, tc remodelUC20LabelConflictsTestCase) {
-	restore := devicestate.AllowUC20RemodelTesting(true)
-	defer restore()
-
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("unexpected call")
 	})
 	defer restore()
@@ -2081,9 +2053,6 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 	defer restore()
 
 	buf, restore := logger.MockLogger()
-	defer restore()
-
-	restore = devicestate.AllowUC20RemodelTesting(true)
 	defer restore()
 
 	m := boot.Modeenv{
@@ -2316,9 +2285,6 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 	})
 	defer restore()
 	restore = release.MockOnClassic(false)
-	defer restore()
-
-	restore = devicestate.AllowUC20RemodelTesting(true)
 	defer restore()
 
 	m := boot.Modeenv{

@@ -6144,8 +6144,6 @@ func (s *mgrsSuite) makeInstalledSnapInStateForRemodel(c *C, name string, rev sn
 func (s *mgrsSuite) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) {
 	restore := release.MockOnClassic(false)
 	defer restore()
-	restore = devicestate.AllowUC20RemodelTesting(true)
-	defer restore()
 
 	// mock directories that need to be tweaked by the test
 	c.Assert(os.MkdirAll(boot.InitramfsUbuntuSeedDir, 0755), IsNil)
