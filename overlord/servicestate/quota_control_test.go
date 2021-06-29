@@ -708,3 +708,145 @@ func (s *quotaControlSuite) TestRemoveQuotaLateSnapOpConflict(c *C) {
 	_, err = snapstate.Disable(st, "test-snap")
 	c.Assert(err, ErrorMatches, `snap "test-snap" has "quota-control" change in progress`)
 }
+
+func (s *quotaControlSuite) TestUpdateQuotaUpdateQuotaConflict(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		systemctlCallsForCreateQuota("foo", "test-snap"),
+	))
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+	// and test-snap2
+	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
+	snapst2 := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si2},
+		Current:  si2.Revision,
+		Active:   true,
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "test-snap2", snapst2)
+	snaptest.MockSnapCurrent(c, testYaml2, si2)
+
+	// create a quota group
+	defer s.se.Stop()
+	s.createQuota(c, "foo", quantity.SizeGiB, "test-snap")
+
+	ts, err := servicestate.UpdateQuota(st, "foo", servicestate.QuotaGroupUpdate{AddSnaps: []string{"test-snap2"}})
+	c.Assert(err, IsNil)
+	chg1 := s.state.NewChange("quota-control", "...")
+	chg1.AddAll(ts)
+
+	_, err = servicestate.UpdateQuota(st, "foo", servicestate.QuotaGroupUpdate{NewMemoryLimit: 2 * quantity.SizeGiB})
+	c.Assert(err, ErrorMatches, `quota group "foo" has "quota-control" change in progress`)
+}
+
+func (s *quotaControlSuite) TestUpdateQuotaRemoveQuotaConflict(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		systemctlCallsForCreateQuota("foo", "test-snap"),
+	))
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+	// and test-snap2
+	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
+	snapst2 := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si2},
+		Current:  si2.Revision,
+		Active:   true,
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "test-snap2", snapst2)
+	snaptest.MockSnapCurrent(c, testYaml2, si2)
+
+	// create a quota group
+	defer s.se.Stop()
+	s.createQuota(c, "foo", quantity.SizeGiB, "test-snap")
+
+	ts, err := servicestate.UpdateQuota(st, "foo", servicestate.QuotaGroupUpdate{AddSnaps: []string{"test-snap2"}})
+	c.Assert(err, IsNil)
+	chg1 := s.state.NewChange("quota-control", "...")
+	chg1.AddAll(ts)
+
+	_, err = servicestate.RemoveQuota(st, "foo")
+	c.Assert(err, ErrorMatches, `quota group "foo" has "quota-control" change in progress`)
+}
+
+func (s *quotaControlSuite) TestRemoveQuotaUpdateQuotaConflict(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		systemctlCallsForCreateQuota("foo", "test-snap"),
+	))
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+	// and test-snap2
+	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
+	snapst2 := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si2},
+		Current:  si2.Revision,
+		Active:   true,
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "test-snap2", snapst2)
+	snaptest.MockSnapCurrent(c, testYaml2, si2)
+
+	// create a quota group
+	defer s.se.Stop()
+	s.createQuota(c, "foo", quantity.SizeGiB, "test-snap")
+
+	ts, err := servicestate.RemoveQuota(st, "foo")
+	c.Assert(err, IsNil)
+	chg1 := s.state.NewChange("quota-control", "...")
+	chg1.AddAll(ts)
+
+	_, err = servicestate.UpdateQuota(st, "foo", servicestate.QuotaGroupUpdate{AddSnaps: []string{"test-snap2"}})
+	c.Assert(err, ErrorMatches, `quota group "foo" has "quota-control" change in progress`)
+}
+
+func (s *quotaControlSuite) TestCreateQuotaCreateQuotaConflict(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+	// and test-snap2
+	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
+	snapst2 := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si2},
+		Current:  si2.Revision,
+		Active:   true,
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "test-snap2", snapst2)
+	snaptest.MockSnapCurrent(c, testYaml2, si2)
+
+	ts, err := servicestate.CreateQuota(st, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	c.Assert(err, IsNil)
+	chg1 := s.state.NewChange("quota-control", "...")
+	chg1.AddAll(ts)
+
+	_, err = servicestate.CreateQuota(st, "foo", "", []string{"test-snap2"}, 2*quantity.SizeGiB)
+	c.Assert(err, ErrorMatches, `quota group "foo" has "quota-control" change in progress`)
+}
