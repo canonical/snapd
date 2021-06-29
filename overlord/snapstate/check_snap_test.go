@@ -1018,7 +1018,7 @@ func (s *checkSnapSuite) TestCheckSnapdHappy(c *C) {
 
 // Note, invalid usernames checked in snap/info_snap_yaml.go
 var systemUsernamesTests = []struct {
-	snapName    string
+	snapID      string
 	sysIDs      string
 	classic     bool
 	noRangeUser bool
@@ -1034,15 +1034,15 @@ var systemUsernamesTests = []struct {
 }, {
 	sysIDs: "snap_microk8s: shared",
 	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
+	snapID: "some-uninteresting-snap-id",
 	error:  `snap "foo" is not allowed to use the system user "snap_microk8s"`,
 }, {
-	snapName: "microk8s",
-	sysIDs:   "snap_microk8s: shared",
-	scVer:    "dead 2.4.1 deadbeef bpf-actlog",
+	snapID: "EaXqgt1lyCaxKaQCU349mlodBkDCXRcg", // microk8s
+	sysIDs: "snap_microk8s: shared",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
 }, {
 	sysIDs: "snap_microk8s:\n    scope: shared",
 	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
-	error:  `snap "foo" is not allowed to use the system user "snap_microk8s"`,
 }, {
 	sysIDs: "snap_daemon:\n    scope: private",
 	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
@@ -1170,21 +1170,18 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 		}
 		defer restore()
 
-		snapName := test.snapName
-		if snapName == "" {
-			snapName = "foo"
-		}
-		yaml := fmt.Sprintf("name: %s\nsystem-usernames:\n  %s\n", snapName, test.sysIDs)
+		yaml := fmt.Sprintf("name: foo\nsystem-usernames:\n  %s\n", test.sysIDs)
 
 		info, err := snap.InfoFromSnapYaml([]byte(yaml))
 		c.Assert(err, IsNil)
+		info.SnapID = test.snapID
 
 		var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 			return info, emptyContainer(c), nil
 		}
 		restore = snapstate.MockOpenSnapFile(openSnapFile)
 		defer restore()
-		err = snapstate.CheckSnap(s.st, "snap-path", snapName, nil, nil, snapstate.Flags{}, nil)
+		err = snapstate.CheckSnap(s.st, "snap-path", "foo", nil, nil, snapstate.Flags{}, nil)
 		if test.error != "" {
 			c.Check(err, ErrorMatches, test.error)
 			c.Check(osutilEnsureUserGroupCalls, Equals, 0)
