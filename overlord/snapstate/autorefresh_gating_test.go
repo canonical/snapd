@@ -1136,8 +1136,15 @@ func (s *autorefreshGatingSuite) TestAutorefreshPhase1FeatureFlag(c *C) {
 	_, tss, err = snapstate.AutoRefresh(context.TODO(), st)
 	c.Check(err, IsNil)
 	c.Assert(tss, HasLen, 2)
-	// TODO: verify conditional-auto-refresh task data
-	c.Check(tss[0].Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
+	task := tss[0].Tasks()[0]
+	c.Check(task.Kind(), Equals, "conditional-auto-refresh")
+	var toUpdate map[string]*snapstate.RefreshCandidate
+	c.Assert(task.Get("snaps", &toUpdate), IsNil)
+	seenSnaps := make(map[string]bool)
+	for up := range toUpdate {
+		seenSnaps[up] = true
+	}
+	c.Check(seenSnaps, DeepEquals, map[string]bool{"snap-a": true})
 	c.Check(tss[1].Tasks()[0].Kind(), Equals, "run-hook")
 }
 
@@ -1241,16 +1248,39 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 
 	c.Assert(tss[1].Tasks(), HasLen, 2)
 
+	var snapAhookData, snapBhookData map[string]interface{}
+
 	// check hooks for affected snaps
 	seenSnaps := make(map[string]bool)
 	var hs hookstate.HookSetup
-	c.Assert(tss[1].Tasks()[0].Get("hook-setup", &hs), IsNil)
+	task := tss[1].Tasks()[0]
+	c.Assert(task.Get("hook-setup", &hs), IsNil)
 	c.Check(hs.Hook, Equals, "gate-auto-refresh")
 	seenSnaps[hs.Snap] = true
+	switch hs.Snap {
+	case "snap-a":
+		task.Get("hook-context", &snapAhookData)
+	case "snap-b":
+		task.Get("hook-context", &snapBhookData)
+	default:
+		c.Fatalf("unexpected snap %q", hs.Snap)
+	}
 
-	c.Assert(tss[1].Tasks()[1].Get("hook-setup", &hs), IsNil)
+	task = tss[1].Tasks()[1]
+	c.Assert(task.Get("hook-setup", &hs), IsNil)
 	c.Check(hs.Hook, Equals, "gate-auto-refresh")
 	seenSnaps[hs.Snap] = true
+	switch hs.Snap {
+		case "snap-a":
+			task.Get("hook-context", &snapAhookData)
+		case "snap-b":
+			task.Get("hook-context", &snapBhookData)
+		default:
+			c.Fatalf("unexpected snap %q", hs.Snap)
+	}
+
+	c.Check(snapAhookData["affecting-snaps"], DeepEquals, []interface{}{"snap-a"})
+	c.Check(snapBhookData["affecting-snaps"], DeepEquals, []interface{}{"base-snap-b"})
 
 	// hook for snap-a because it gets refreshed, for snap-b because its base
 	// gets refreshed. snap-c is refreshed but doesn't have the hook.
