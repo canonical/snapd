@@ -56,9 +56,9 @@ execute: |
 
     # this change is not immediately done and needs a retry
     #shellcheck disable=SC2140
-    REFRESH_ID="$REFRESH_ID" nested_retry "--wait 1 -n 10 sh -c 'snap changes | grep -qE \".* Done .* Refresh snaps.*"snapd"\"'"
+    nested_retry "--wait 1 -n 10 --env REFRESH_ID="$REFRESH_ID" sh -c \'snap changes \| grep -qE \".* Done .* Refresh snaps.*"snapd"\"\'
     #shellcheck disable=SC2140
-    REFRESH_ID="$REFRESH_ID" nested_retry "--wait 1 -n 10 sh -c 'snap changes | grep -qE \".* Done .* Refresh snaps.*"core18"\"'"
+    nested_retry --wait 1 -n 10 --env REFRESH_ID="$REFRESH_ID" sh -c \'snap changes \| grep -qE \".* Done .* Refresh snaps.*"core18"\"\'
   fi
 
   echo "Now refresh snapd with current tree"
