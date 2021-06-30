@@ -198,7 +198,7 @@ static void test_sc_cgroupv2_is_tracking_bad_nesting(cgroupv2_is_tracking_fixtur
     }
     g_test_trap_subprocess(NULL, 0, 0);
     g_test_trap_assert_failed();
-    g_test_trap_assert_stderr("cannot traverse cgroups hierarchy deeper than 20 levels\n");
+    g_test_trap_assert_stderr("cannot traverse cgroups hierarchy deeper than 32 levels\n");
 }
 
 static void test_sc_cgroupv2_is_tracking_dir_permissions(cgroupv2_is_tracking_fixture *fixture,

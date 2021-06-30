@@ -595,7 +595,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(info.SnapID, Equals, "foodidididididididididididididid")
 	c.Assert(info.Revision, Equals, snap.R(128))
-	c.Assert(info.Contact, Equals, "mailto:some.guy@example.com")
+	c.Assert(info.Contact(), Equals, "mailto:some.guy@example.com")
 	pubAcct, err := assertstate.Publisher(st, info.SnapID)
 	c.Assert(err, IsNil)
 	c.Check(pubAcct.AccountID(), Equals, "developerid")
