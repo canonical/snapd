@@ -20,11 +20,11 @@
 package builtin_test
 
 import (
-	. "gopkg.in/check.v1"
-
 	"io/ioutil"
 	"os"
 	"path/filepath"
+
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"

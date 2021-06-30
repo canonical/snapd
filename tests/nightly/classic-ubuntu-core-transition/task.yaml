@@ -1,14 +1,14 @@
 summary: Ensure that the ubuntu-core -> core transition works
 
+# autopkgtest run only a subset of tests that deals with the integration
+# with the distro
+backends: [-autopkgtest]
+
 # we never test on core because the transition can only happen on "classic" we
 # disable on ppc64el because the downloads are very slow there Fedora, openSUSE,
 # Arch, CentOS are disabled at the moment as there is something fishy going on
 # and the snapd service gets terminated during the process.
 systems: [-ubuntu-core-*, -ubuntu-*-ppc64el, -fedora-*, -opensuse-*, -ubuntu-*-i386, -arch-*, -amazon-*, -centos-*, -debian-sid-*]
-
-# autopkgtest run only a subset of tests that deals with the integration
-# with the distro
-backends: [-autopkgtest]
 
 warn-timeout: 1m
 kill-timeout: 5m
@@ -76,33 +76,11 @@ execute: |
 
     echo "Ensure transition is triggered"
     # wait for steady state or ensure-state-soon will be pointless
-    ok=0
-    for i in $(seq 40); do
-        if ! snap changes|grep -q ".*.Doing.*" ; then
-            ok=1
-            break
-        fi
-        sleep .5
-    done
-    if [ $ok -ne 1 ] ; then
-        echo "Did not reach steady state"
-        exit 1
-    fi
+    retry -n 40 --wait .5 sh -c 'snap changes | NOMATCH ".*.Doing.*"'
     snap debug ensure-state-soon
 
-    # wait for transition
-    ok=0
-    for i in $(seq 240); do
-        if snap changes|grep -q ".*Done.*Transition ubuntu-core to core" ; then
-            ok=1
-            break
-        fi
-        sleep 1
-    done
-    if [ $ok -ne 1 ] ; then
-        echo "Transition did not start or finish"
-        exit 1
-    fi
+    echo "Wait for transition from ubuntu-core to core"
+    retry -n 240 --wait 1 sh -c 'snap changes | MATCH ".*Done.*Transition ubuntu-core to core"'
 
     if snap list|grep ubuntu-core; then
         echo "ubuntu-core still installed, transition failed"

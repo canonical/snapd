@@ -20,6 +20,8 @@
 package gadget
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -35,8 +37,10 @@ import (
 	"github.com/snapcore/snapd/gadget/edition"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/metautil"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -912,11 +916,11 @@ func IsCompatible(current, new *Info) error {
 	// layout both volumes partially, without going deep into the layout of
 	// structure content, we only want to make sure that structures are
 	// comapatible
-	pCurrent, err := LayoutVolumePartially(currentVol, defaultConstraints)
+	pCurrent, err := LayoutVolumePartially(currentVol, DefaultConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the current volume: %v", err)
 	}
-	pNew, err := LayoutVolumePartially(newVol, defaultConstraints)
+	pNew, err := LayoutVolumePartially(newVol, DefaultConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the new volume: %v", err)
 	}
@@ -992,4 +996,107 @@ func SystemDefaults(gadgetDefaults map[string]map[string]interface{}) map[string
 		}
 	}
 	return nil
+}
+
+// See https://www.kernel.org/doc/html/latest/admin-guide/kernel-parameters.html
+var disallowedKernelArguments = []string{
+	"root", "nfsroot",
+	"init",
+}
+
+// isKernelArgumentAllowed checks whether the kernel command line argument is
+// allowed. Prohibits all arguments listed explicitly in
+// disallowedKernelArguments list and those prefixed with snapd, with exception
+// of snapd.debug. All other arguments are allowed.
+func isKernelArgumentAllowed(arg string) bool {
+	if strings.HasPrefix(arg, "snapd") && arg != "snapd.debug" {
+		return false
+	}
+	if strutil.ListContains(disallowedKernelArguments, arg) {
+		return false
+	}
+	return true
+}
+
+var ErrNoKernelCommandline = errors.New("no kernel command line in the gadget")
+
+// KernelCommandLineFromGadget returns the desired kernel command line provided by the
+// gadget. The full flag indicates whether the gadget provides a full command
+// line or just the extra parameters that will be appended to the static ones.
+// An ErrNoKernelCommandline is returned when thea gadget does not set any
+// kernel command line.
+func KernelCommandLineFromGadget(gadgetDirOrSnapPath string) (cmdline string, full bool, err error) {
+	sf, err := snapfile.Open(gadgetDirOrSnapPath)
+	if err != nil {
+		return "", false, fmt.Errorf("cannot open gadget snap: %v", err)
+	}
+	contentExtra, err := sf.ReadFile("cmdline.extra")
+	if err != nil && !os.IsNotExist(err) {
+		return "", false, err
+	}
+	contentFull, err := sf.ReadFile("cmdline.full")
+	if err != nil && !os.IsNotExist(err) {
+		return "", false, err
+	}
+	content := contentExtra
+	whichFile := "cmdline.extra"
+	switch {
+	case contentExtra != nil && contentFull != nil:
+		return "", false, fmt.Errorf("cannot support both extra and full kernel command lines")
+	case contentExtra == nil && contentFull == nil:
+		return "", false, ErrNoKernelCommandline
+	case contentFull != nil:
+		content = contentFull
+		whichFile = "cmdline.full"
+		full = true
+	}
+	parsed, err := parseCommandLineFromGadget(content, whichFile)
+	if err != nil {
+		return "", full, fmt.Errorf("invalid kernel command line in %v: %v", whichFile, err)
+	}
+	return parsed, full, nil
+}
+
+// parseCommandLineFromGadget parses the command line file and returns a
+// reassembled kernel command line as a single string. The file can be multi
+// line, where only lines stating with # are treated as comments, eg.
+//
+// foo
+// # this is a comment
+//
+// According to https://elixir.bootlin.com/linux/latest/source/Documentation/admin-guide/kernel-parameters.txt
+// the # character can appear as part of a valid kernel command line argument,
+// specifically in the following argument:
+//   memmap=nn[KMG]#ss[KMG]
+//   memmap=100M@2G,100M#3G,1G!1024G
+// Thus a lone # or a token starting with # are treated as errors.
+func parseCommandLineFromGadget(content []byte, whichFile string) (string, error) {
+	s := bufio.NewScanner(bytes.NewBuffer(content))
+	filtered := &bytes.Buffer{}
+	for s.Scan() {
+		line := s.Text()
+		if len(line) > 0 && line[0] == '#' {
+			// comment
+			continue
+		}
+		filtered.WriteRune(' ')
+		filtered.WriteString(line)
+	}
+	if err := s.Err(); err != nil {
+		return "", err
+	}
+	kargs, err := osutil.KernelCommandLineSplit(filtered.String())
+	if err != nil {
+		return "", err
+	}
+	for _, argValue := range kargs {
+		if strings.HasPrefix(argValue, "#") {
+			return "", fmt.Errorf("unexpected or invalid use of # in argument %q", argValue)
+		}
+		split := strings.SplitN(argValue, "=", 2)
+		if !isKernelArgumentAllowed(split[0]) {
+			return "", fmt.Errorf("disallowed kernel argument %q", argValue)
+		}
+	}
+	return strings.Join(kargs, " "), nil
 }

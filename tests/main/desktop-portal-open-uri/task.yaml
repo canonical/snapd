@@ -1,5 +1,6 @@
 summary: the desktop portal allows confined apps to open URIs
-description: |
+
+details: |
     The xdg-desktop-portal "Open URI" interface provides a way for
     confined applications to open URIs using the host system's
     preferred browser.
@@ -43,6 +44,14 @@ restore: |
     rm -f ~test/.local/share/applications/test-browser.desktop
     rm -f "$BROWSER_HISTORY"
 
+debug: |
+    #shellcheck source=tests/lib/desktop-portal.sh
+    . "$TESTSLIB"/desktop-portal.sh
+
+    ls -la "/run/user/$(id -u test)" || true
+    #shellcheck disable=SC2009
+    ps -ef | grep xdg || true
+
 execute: |
     echo "Install the portals test client"
     snap install --edge test-snapd-portal-client
@@ -53,11 +62,3 @@ execute: |
     echo "The test-browser process was invoked with the URL"
     retry -n 4 --wait 0.5 test -e "$BROWSER_HISTORY"
     MATCH http://www.example.org < "$BROWSER_HISTORY"
-
-debug: |
-    #shellcheck source=tests/lib/desktop-portal.sh
-    . "$TESTSLIB"/desktop-portal.sh
-
-    ls -la "/run/user/$(id -u test)" || true
-    #shellcheck disable=SC2009
-    ps -ef | grep xdg || true

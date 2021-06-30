@@ -24,14 +24,132 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/strutil"
 )
+
+func dropFromRecoverySystemsList(systemsList []string, systemLabel string) (newList []string, found bool) {
+	for idx, sys := range systemsList {
+		if sys == systemLabel {
+			return append(systemsList[:idx], systemsList[idx+1:]...), true
+		}
+	}
+	return systemsList, false
+}
+
+// ClearTryRecoverySystem removes a given candidate recovery system from the
+// modeenv state file, reseals and clears related bootloader variables. An empty
+// system label can be passed when the boot variables state is inconsistent.
+func ClearTryRecoverySystem(dev Device, systemLabel string) error {
+	if !dev.HasModeenv() {
+		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
+	}
+
+	m, err := loadModeenv()
+	if err != nil {
+		return err
+	}
+	opts := &bootloader.Options{
+		// setup the recovery bootloader
+		Role: bootloader.RoleRecovery,
+	}
+	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
+	if err != nil {
+		return err
+	}
+
+	// we may be repeating the cleanup, in which case the system was already
+	// removed from the modeenv and we don't need to rewrite the modeenv
+	if updated, found := dropFromRecoverySystemsList(m.CurrentRecoverySystems, systemLabel); found {
+		m.CurrentRecoverySystems = updated
+		if err := m.Write(); err != nil {
+			return err
+		}
+	}
+	// clear both variables, no matter the values they hold
+	vars := map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	}
+	// try to clear regardless of reseal failing
+	blErr := bl.SetBootVars(vars)
+
+	// but we still want to reseal, in case the cleanup did not reach this
+	// point before
+	const expectReseal = true
+	resealErr := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal)
+
+	if resealErr != nil {
+		return resealErr
+	}
+	return blErr
+}
+
+// SetTryRecoverySystem sets up the boot environment for trying out a recovery
+// system with given label and adds the new system to the list of current
+// recovery systems in the modeenv. Once done, the caller should request
+// switching to the given recovery system.
+func SetTryRecoverySystem(dev Device, systemLabel string) (err error) {
+	if !dev.HasModeenv() {
+		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
+	}
+
+	m, err := loadModeenv()
+	if err != nil {
+		return err
+	}
+	opts := &bootloader.Options{
+		// setup the recovery bootloader
+		Role: bootloader.RoleRecovery,
+	}
+	// TODO:UC20: seed may need to be switched to RW
+	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
+	if err != nil {
+		return err
+	}
+
+	// we could have rebooted before resealing the keys
+	if !strutil.ListContains(m.CurrentRecoverySystems, systemLabel) {
+		m.CurrentRecoverySystems = append(m.CurrentRecoverySystems, systemLabel)
+
+		if err := m.Write(); err != nil {
+			return err
+		}
+	}
+
+	defer func() {
+		if err == nil {
+			return
+		}
+		if cleanupErr := ClearTryRecoverySystem(dev, systemLabel); cleanupErr != nil {
+			err = fmt.Errorf("%v (cleanup failed: %v)", err, cleanupErr)
+		}
+	}()
+
+	// even when we unexpectedly reboot after updating the bootenv here, we
+	// should not boot into the tried system, as the caller must explicitly
+	// request that by other means
+	vars := map[string]string{
+		"try_recovery_system":    systemLabel,
+		"recovery_system_status": "try",
+	}
+	if err := bl.SetBootVars(vars); err != nil {
+		return err
+	}
+
+	// until the keys are resealed, even if we unexpectedly boot into the
+	// tried system, data will still be inaccessible and the system will be
+	// considered as nonoperational
+	const expectReseal = true
+	return resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal)
+}
 
 type errInconsistentRecoverySystemState struct {
 	why string
 }
 
 func (e *errInconsistentRecoverySystemState) Error() string { return e.why }
-func IsInconsystemRecoverySystemState(err error) bool {
+func IsInconsistentRecoverySystemState(err error) bool {
 	_, ok := err.(*errInconsistentRecoverySystemState)
 	return ok
 }
@@ -105,6 +223,9 @@ const (
 	// recovery system state was incorrect and corresponding boot variables
 	// need to be cleared
 	TryRecoverySystemOutcomeInconsistent
+	// TryRecoverySystemOutcomeNoneTried indicates a state in which no
+	// recovery system has been tried
+	TryRecoverySystemOutcomeNoneTried
 )
 
 // EnsureNextBootToRunModeWithTryRecoverySystemOutcome, typically called while
@@ -158,4 +279,144 @@ func observeSuccessfulSystems(model *asserts.Model, m *Modeenv) (*Modeenv, error
 		return newM, nil
 	}
 	return m, nil
+}
+
+// InspectTryRecoverySystemOutcome obtains a tried recovery system status. When
+// no recovery system has been tried, the outcome will be
+// TryRecoverySystemOutcomeNoneTried. The caller is responsible for clearing the
+// bootenv once the status bas been properly acted on.
+func InspectTryRecoverySystemOutcome(dev Device) (outcome TryRecoverySystemOutcome, label string, err error) {
+	opts := &bootloader.Options{
+		// setup the recovery bootloader
+		Role: bootloader.RoleRecovery,
+	}
+	// TODO:UC20: seed may need to be switched to RW
+	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
+	if err != nil {
+		return TryRecoverySystemOutcomeFailure, "", err
+	}
+
+	vars, err := bl.GetBootVars("try_recovery_system", "recovery_system_status")
+	if err != nil {
+		return TryRecoverySystemOutcomeFailure, "", err
+	}
+	status := vars["recovery_system_status"]
+	trySystem := vars["try_recovery_system"]
+
+	outcome = TryRecoverySystemOutcomeFailure
+	switch {
+	case status == "" && trySystem == "":
+		// simplest case, not trying a system
+		return TryRecoverySystemOutcomeNoneTried, "", nil
+	case status != "try" && status != "tried":
+		// system label is set, but the status is unexpected status
+		return TryRecoverySystemOutcomeInconsistent, "", &errInconsistentRecoverySystemState{
+			why: fmt.Sprintf("unexpected recovery system status %q", status),
+		}
+	case trySystem == "":
+		// no system set, but we have status
+		return TryRecoverySystemOutcomeInconsistent, "", &errInconsistentRecoverySystemState{
+			why: fmt.Sprintf("try recovery system is unset but status is %q", status),
+		}
+	case status == "tried":
+		// check that try_recovery_system ended up in the modeenv's
+		// CurrentRecoverySystems
+		m, err := ReadModeenv("")
+		if err != nil {
+			return TryRecoverySystemOutcomeFailure, trySystem, err
+		}
+
+		found := false
+		for _, sys := range m.CurrentRecoverySystems {
+			if sys == trySystem {
+				found = true
+			}
+		}
+		if !found {
+			return TryRecoverySystemOutcomeFailure, trySystem, &errInconsistentRecoverySystemState{
+				why: fmt.Sprintf("recovery system %q was tried, but is not present in the modeenv CurrentRecoverySystems", trySystem),
+			}
+		}
+
+		outcome = TryRecoverySystemOutcomeSuccess
+	}
+
+	return outcome, trySystem, nil
+}
+
+// PromoteTriedRecoverySystem promotes the provided recovery system to be
+// recognized as a good one, and ensures that the system is present in the list
+// of good recovery systems and current recovery systems in modeenv. The
+// provided list of tried systems should contain the system in question. If the
+// system uses encryption, the keys will updated state. If resealing fails, an
+// attempt to restore the previous state is made
+func PromoteTriedRecoverySystem(dev Device, systemLabel string, triedSystems []string) (err error) {
+	if !dev.HasModeenv() {
+		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
+	}
+
+	if !strutil.ListContains(triedSystems, systemLabel) {
+		// system is not among the tried systems
+		return fmt.Errorf("system has not been successfully tried")
+	}
+
+	m, err := loadModeenv()
+	if err != nil {
+		return err
+	}
+	rewriteModeenv := false
+	if !strutil.ListContains(m.CurrentRecoverySystems, systemLabel) {
+		m.CurrentRecoverySystems = append(m.CurrentRecoverySystems, systemLabel)
+		rewriteModeenv = true
+	}
+	if !strutil.ListContains(m.GoodRecoverySystems, systemLabel) {
+		m.GoodRecoverySystems = append(m.GoodRecoverySystems, systemLabel)
+		rewriteModeenv = true
+	}
+	if rewriteModeenv {
+		if err := m.Write(); err != nil {
+			return err
+		}
+	}
+
+	const expectReseal = true
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal); err != nil {
+		if cleanupErr := DropRecoverySystem(dev, systemLabel); cleanupErr != nil {
+			err = fmt.Errorf("%v (cleanup failed: %v)", err, cleanupErr)
+		}
+		return err
+	}
+	return nil
+}
+
+// DropRecoverySystem drops a provided system from the list of good and current
+// recovery systems, updates the modeenv and reseals the keys a needed. Note,
+// this call *DOES NOT* clear the boot environment variables.
+func DropRecoverySystem(dev Device, systemLabel string) error {
+	if !dev.HasModeenv() {
+		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
+	}
+
+	m, err := loadModeenv()
+	if err != nil {
+		return err
+	}
+
+	rewriteModeenv := false
+	if updatedGood, found := dropFromRecoverySystemsList(m.GoodRecoverySystems, systemLabel); found {
+		m.GoodRecoverySystems = updatedGood
+		rewriteModeenv = true
+	}
+	if updatedCurrent, found := dropFromRecoverySystemsList(m.CurrentRecoverySystems, systemLabel); found {
+		m.CurrentRecoverySystems = updatedCurrent
+		rewriteModeenv = true
+	}
+	if rewriteModeenv {
+		if err := m.Write(); err != nil {
+			return err
+		}
+	}
+
+	const expectReseal = true
+	return resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal)
 }

@@ -28,7 +28,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	. "github.com/snapcore/snapd/snap"
-
 	"github.com/snapcore/snapd/testutil"
 )
 

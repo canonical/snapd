@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -30,7 +30,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
@@ -43,8 +42,9 @@ import (
 )
 
 var (
-	bootMakeBootable = boot.MakeBootable
-	installRun       = install.Run
+	bootMakeRunnable            = boot.MakeRunnableSystem
+	bootEnsureNextBootToRunMode = boot.EnsureNextBootToRunMode
+	installRun                  = install.Run
 
 	sysconfigConfigureTargetSystem = sysconfig.ConfigureTargetSystem
 )
@@ -52,12 +52,21 @@ var (
 func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *asserts.Model) {
 	ubuntuSeedCloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
 
+	// TODO:UC20: on grade signed, allow files from ubuntu-seed, but do
+	//            filtering on the resultant cloud config
+	shouldUseUbuntuSeed := model.Grade() == asserts.ModelDangerous && osutil.IsDirectory(ubuntuSeedCloudCfg)
+
 	switch {
 	// if the gadget has a cloud.conf file, always use that regardless of grade
 	case sysconfig.HasGadgetCloudConf(gadgetDir):
-		// this is implicitly handled by ConfigureTargetSystem when it configures
-		// cloud-init if none of the other options are set, so just break here
+		// this is implicitly handled by ConfigureTargetSystem when it
+		// configures cloud-init, so we just need to allow cloud-init for the
+		// gadget config to be used, but we also should check to see if
+		// ubuntu-seed config should be allowed as well
 		opts.AllowCloudInit = true
+		if shouldUseUbuntuSeed {
+			opts.CloudInitSrcDir = ubuntuSeedCloudCfg
+		}
 
 	// next thing is if are in secured grade and didn't have gadget config, we
 	// disable cloud-init always, clouds should have their own config via
@@ -65,12 +74,9 @@ func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *
 	case model.Grade() == asserts.ModelSecured:
 		opts.AllowCloudInit = false
 
-	// TODO:UC20: on grade signed, allow files from ubuntu-seed, but do
-	//            filtering on the resultant cloud config
-
 	// next if we are grade dangerous, then we also install cloud configuration
 	// from ubuntu-seed if it exists
-	case model.Grade() == asserts.ModelDangerous && osutil.IsDirectory(ubuntuSeedCloudCfg):
+	case shouldUseUbuntuSeed:
 		opts.AllowCloudInit = true
 		opts.CloudInitSrcDir = ubuntuSeedCloudCfg
 
@@ -176,7 +182,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
-	if err := gadget.ValidateContent(ginfo, gadgetDir); err != nil {
+	if err := gadget.ValidateContent(ginfo, gadgetDir, kernelDir); err != nil {
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
 
@@ -246,12 +252,12 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	opts := &sysconfig.Options{TargetRootDir: boot.InstallHostWritableDir, GadgetDir: gadgetDir}
 	// configure cloud init
 	setSysconfigCloudOptions(opts, gadgetDir, model)
-	if err := sysconfigConfigureTargetSystem(opts); err != nil {
+	if err := sysconfigConfigureTargetSystem(model, opts); err != nil {
 		return err
 	}
 
 	// make it bootable
-	logger.Noticef("make system bootable")
+	logger.Noticef("make system runnable")
 	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
@@ -265,19 +271,9 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		RecoverySystemDir: recoverySystemDir,
 		UnpackedGadgetDir: gadgetDir,
 	}
-	rootdir := dirs.GlobalRootDir
-	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith, trustedInstallObserver); err != nil {
-		return fmt.Errorf("cannot make run system bootable: %v", err)
+	if err := bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver); err != nil {
+		return fmt.Errorf("cannot make system runnable: %v", err)
 	}
-
-	// store install-mode log into ubuntu-data partition
-	if err := writeLogs(boot.InstallHostWritableDir); err != nil {
-		logger.Noticef("cannot write installation log: %v", err)
-	}
-
-	// request a restart as the last action after a successful install
-	logger.Noticef("request system restart")
-	st.RequestRestart(state.RestartSystemNow)
 
 	return nil
 }
@@ -343,7 +339,7 @@ func saveKeys(keysForRoles map[string]*install.EncryptionKeySet) error {
 	return nil
 }
 
-var secbootCheckKeySealingSupported = secboot.CheckKeySealingSupported
+var secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
 
 // checkEncryption verifies whether encryption should be used based on the
 // model grade and the availability of a TPM device or a fde-setup hook
@@ -381,7 +377,7 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	// Note that having a fde-setup hook will disable the build-in
 	// secboot encryption
 	if !hasFDESetupHook {
-		checkEncryptionErr = secbootCheckKeySealingSupported()
+		checkEncryptionErr = secbootCheckTPMKeySealingSupported()
 	}
 
 	// check if encryption is required
@@ -405,4 +401,67 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 
 	// encrypt
 	return true, nil
+}
+
+// RebootOptions can be attached to restart-system-to-run-mode tasks to control
+// their restart behavior.
+type RebootOptions struct {
+	Op string `json:"op,omitempty"`
+}
+
+const (
+	RebootHaltOp     = "halt"
+	RebootPoweroffOp = "poweroff"
+)
+
+func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+
+	modeEnv, err := maybeReadModeenv()
+	if err != nil {
+		return err
+	}
+
+	if modeEnv == nil {
+		return fmt.Errorf("missing modeenv, cannot proceed")
+	}
+
+	// store install-mode log into ubuntu-data partition
+	if err := writeLogs(boot.InstallHostWritableDir); err != nil {
+		logger.Noticef("cannot write installation log: %v", err)
+	}
+
+	// ensure the next boot goes into run mode
+	if err := bootEnsureNextBootToRunMode(modeEnv.RecoverySystem); err != nil {
+		return err
+	}
+
+	var rebootOpts RebootOptions
+	err = t.Get("reboot", &rebootOpts)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	// request by default a restart as the last action after a
+	// successful install or what install-device requested via
+	// snapctl reboot
+	rst := state.RestartSystemNow
+	what := "restart"
+	switch rebootOpts.Op {
+	case RebootHaltOp:
+		what = "halt"
+		rst = state.RestartSystemHaltNow
+	case RebootPoweroffOp:
+		what = "poweroff"
+		rst = state.RestartSystemPoweroffNow
+	}
+	logger.Noticef("request immediate system %s", what)
+	st.RequestRestart(rst)
+
+	return nil
 }

@@ -23,16 +23,15 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/store"
 )
 
 var (
 	sectionsCmd = &Command{
-		Path:   "/v2/sections",
-		UserOK: true,
-		GET:    getSections,
+		Path:       "/v2/sections",
+		GET:        getSections,
+		ReadAccess: openAccess{},
 	}
 )
 
@@ -43,7 +42,7 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot find route for snaps")
 	}
 
-	theStore := getStore(c)
+	theStore := storeFrom(c.d)
 
 	// TODO: use a per-request context
 	sections, err := theStore.Sections(context.TODO(), user)
@@ -51,16 +50,12 @@ func getSections(c *Command, r *http.Request, user *auth.UserState) Response {
 	case nil:
 		// pass
 	case store.ErrBadQuery:
-		return SyncResponse(&resp{
-			Type:   ResponseTypeError,
-			Result: &errorResult{Message: err.Error(), Kind: client.ErrorKindBadQuery},
-			Status: 400,
-		}, nil)
+		return BadQuery()
 	case store.ErrUnauthenticated, store.ErrInvalidCredentials:
 		return Unauthorized("%v", err)
 	default:
 		return InternalError("%v", err)
 	}
 
-	return SyncResponse(sections, nil)
+	return SyncResponse(sections)
 }

@@ -46,12 +46,13 @@ execute: |
     #shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 
-    # the VM here will not ever had used cloud-init so snapd should disable 
+    echo "The VM here will not ever had used cloud-init so snapd should disable"
     # cloud-init when it is installed
 
-    # wait for done seeding
+    echo "Wait for done seeding"
     nested_exec "sudo snap wait system seed.loaded"
 
+    echo "Prepare snapd snapto install with the fix"
     # if we are not building from current, then we need to prep the snapd snap
     # to install with the fix, this simulates/verifies that devices in the field
     # without the fix will actually be fixed after they refresh
@@ -94,10 +95,13 @@ execute: |
     echo "Waiting for cloud-init..."
     nested_exec "cloud-init status --wait"
 
-    # TODO: is there a better thing we can wait for here instead? maybe the log
-    # message from snapd directly via journalctl ?
     echo "Waiting for snapd to react to cloud-init"
-    sleep 60
+    for i in $(seq 60); do
+        if nested_exec "journalctl --no-pager -u snapd" | MATCH "Cloud-init reported"; then
+            break
+        fi
+        sleep 1
+    done
 
     # ensure that snapd disabled cloud-init with the cloud-init.disabled file
     echo "Ensuring that snapd restricted cloud-init"
@@ -105,15 +109,14 @@ execute: |
     nested_exec "test -f /etc/cloud/cloud-init.disabled"
     nested_exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
 
-    # save snapd logs before continuing as the logs are not persistent
+    echo "Save snapd logs before continuing as the logs are not persistent"
     nested_exec "sudo journalctl -e --no-pager -u snapd" > snapd-before-reboot.logs
 
-    # gracefully shutdown so that we don't have file corruption
     echo "Gracefully shutting down the nested VM to prepare a simulated attack"
     boot_id="$(nested_get_boot_id)"
     "$TESTSTOOLS"/nested-state stop-vm
 
-    # replace the empty seed.iso with the new attacker iso
+    echo "Replace the empty seed.iso with the new attacker iso"
     mv seed2.iso seed.iso
 
     echo "Restarting nested VM with attacker cloud-init CD-ROM drive"

@@ -13,7 +13,7 @@ environment:
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
 
   # don't use cloud-init to create the user, we manually use cloud-init via
-  # NESTED_PARAM_CD in the test setup
+  # --param-cdrom in the test setup
   NESTED_USE_CLOUD_INIT: false
 
   # sign all the snaps we build for the image with fakestore
@@ -54,7 +54,7 @@ prepare: |
   setup_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
   teardown_staging_store
 
-  echo Expose the needed assertions through the fakestore
+  echo "Expose the needed assertions through the fakestore"
   cp "$TESTSLIB"/assertions/developer1.account "$NESTED_FAKESTORE_BLOB_DIR/asserts"
   cp "$TESTSLIB"/assertions/developer1.account-key "$NESTED_FAKESTORE_BLOB_DIR/asserts"
 
@@ -139,10 +139,13 @@ execute: |
   # for now we just don't get a serial assertion which is fine for the purposes
   # of this test
 
-  # TODO: is there a better thing we can wait for here instead? maybe the log
-  # message from snapd directly via journalctl ?
   echo "Waiting for snapd to react to cloud-init"
-  sleep 60
+  for i in $(seq 60); do
+    if nested_exec "journalctl --no-pager -u snapd" | MATCH "Cloud-init reported"; then
+        break
+    fi
+    sleep 1
+  done
 
   echo "Ensuring that cloud-init got disabled after running"
   nested_exec "cloud-init status" | MATCH "status: disabled"

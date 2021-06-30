@@ -43,7 +43,7 @@ static sc_mountinfo_entry *find_root_mountinfo(sc_mountinfo * mounts)
 	return root;
 }
 
-int ensure_root_fs_shared(const char *normal_dir)
+static int ensure_root_fs_shared(const char *normal_dir)
 {
 	// Load /proc/self/mountinfo so that we can inspect the root filesystem.
 	sc_mountinfo *mounts SC_CLEANUP(sc_cleanup_mountinfo) = NULL;
@@ -161,7 +161,7 @@ static bool is_snap_try_snap_unit(const char *units_dir,
 	return stat(what, &st) == 0 && (st.st_mode & S_IFMT) == S_IFDIR;
 }
 
-int ensure_fusesquashfs_inside_container(const char *normal_dir)
+static int ensure_fusesquashfs_inside_container(const char *normal_dir)
 {
 	// check if we are running inside a container, systemd
 	// provides this file all the way back to trusty if run in a
@@ -226,7 +226,7 @@ int ensure_fusesquashfs_inside_container(const char *normal_dir)
 			return 2;
 		}
 		fprintf(f,
-			"[Mount]\nType=%s\nOptions=nodev,ro,x-gdu.hide,allow_other\nLazyUnmount=yes\n",
+			"[Mount]\nType=%s\nOptions=nodev,ro,x-gdu.hide,x-gvfs-hide,allow_other\nLazyUnmount=yes\n",
 			fstype);
 	}
 

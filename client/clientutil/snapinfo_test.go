@@ -72,7 +72,7 @@ func (*cmdSuite) TestClientSnapFromSnapInfo(c *C) {
 			EditedSummary:     "the-summary",
 			EditedDescription: "the-description",
 			Channel:           "latest/stable",
-			Contact:           "https://thingy.com",
+			EditedContact:     "https://thingy.com",
 			Private:           true,
 		},
 		Channels: map[string]*snap.ChannelSnapInfo{},

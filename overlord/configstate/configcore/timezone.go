@@ -28,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/sysconfig"
 )
 
 func init() {
@@ -52,7 +53,7 @@ func validateTimezoneSettings(tr config.ConfGetter) error {
 	return nil
 }
 
-func handleTimezoneConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleTimezoneConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	// TODO: convert to "virtual" configuration nodes once we have support
 	// for this. The current code is not ideal because if one calls
 	// `snap get system system.hostname` the answer can be ""

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018-2020 Canonical Ltd
+ * Copyright (C) 2018-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -32,6 +32,10 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+func APICommands() []*Command {
+	return api
+}
+
 func NewAndAddRoutes() (*Daemon, error) {
 	d, err := New()
 	if err != nil {
@@ -59,7 +63,9 @@ func (d *Daemon) RequestedRestart() state.RestartType {
 	return d.requestedRestart
 }
 
-func MockUcrednetGet(mock func(remoteAddr string) (pid int32, uid uint32, socket string, err error)) (restore func()) {
+type Ucrednet = ucrednet
+
+func MockUcrednetGet(mock func(remoteAddr string) (ucred *Ucrednet, err error)) (restore func()) {
 	oldUcrednetGet := ucrednetGet
 	ucrednetGet = mock
 	return func() {
@@ -188,7 +194,9 @@ func MockSnapstateRemoveMany(mock func(*state.State, []string) ([]string, []*sta
 }
 
 type (
-	Resp            = resp
+	RespJSON        = respJSON
+	FileResponse    = fileResponse
+	APIError        = apiError
 	ErrorResult     = errorResult
 	SnapInstruction = snapInstruction
 )
@@ -208,3 +216,15 @@ func (inst *snapInstruction) SetUserID(userID int) {
 func (inst *snapInstruction) ModeFlags() (snapstate.Flags, error) {
 	return inst.modeFlags()
 }
+
+func (inst *snapInstruction) ErrToResponse(err error) *APIError {
+	return inst.errToResponse(err)
+}
+
+var (
+	UserFromRequest = userFromRequest
+	IsTrue          = isTrue
+
+	MakeErrorResponder = makeErrorResponder
+	ErrToResponse      = errToResponse
+)

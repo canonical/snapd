@@ -64,7 +64,7 @@ func (s *seed16) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 	if db == nil {
 		// a db was not provided, create an internal temporary one
 		var err error
-		db, commitTo, err = newMemAssertionsDB()
+		db, commitTo, err = newMemAssertionsDB(nil)
 		if err != nil {
 			return err
 		}
@@ -158,7 +158,8 @@ func (s *seed16) addSnap(sn *internal.Snap16, pinnedTrack string, cache map[stri
 			}
 			sideInfo = *si
 			sideInfo.Private = sn.Private
-			sideInfo.Contact = sn.Contact
+			// TODO: consider whether to use this if we have links?
+			sideInfo.EditedContact = sn.Contact
 		}
 
 		seedSnap.SideInfo = &sideInfo

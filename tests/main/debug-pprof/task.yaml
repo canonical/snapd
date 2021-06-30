@@ -4,9 +4,6 @@ summary: Verify pprof endpoints are accessible to the tooling
 # ubuntu-14.04: curl does not have --unix-socket option
 systems: [-ubuntu-core-*, -ubuntu-14.04-*]
 
-restore: |
-    rm -f reported-cmdline real-cmdline unauthorized heap
-
 execute: |
     # endpoints are accessible only for the root user
     su -c 'curl -s --unix-socket /run/snapd.socket http://localhost/v2/debug/pprof/cmdline' test > unauthorized

@@ -1,5 +1,6 @@
 summary: Check that preseeding of current ubuntu cloud image works.
-description: |
+
+details: |
   This test checks that preseeding of Ubuntu cloud images with snap-preseed
   command works, up to the point where the image is ready to be booted.
   The test assumes cloud image with a core and lxd snaps in its seeds/.
@@ -48,7 +49,7 @@ execute: |
   SNAPD_DEBUG=1 /usr/lib/snapd/snap-preseed "$IMAGE_MOUNTPOINT"
 
   # sanity, core snap mounted by snap-preseed got unmounted
-  mount | not MATCH "snap-preseed"
+  mount | NOMATCH "snap-preseed"
 
   snap debug state "$IMAGE_MOUNTPOINT"/var/lib/snapd/state.json --change=1 > tasks.log
 

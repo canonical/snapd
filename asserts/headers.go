@@ -274,7 +274,7 @@ func appendEntry(buf *bytes.Buffer, intro string, v interface{}, baseIndent int)
 	case string:
 		buf.WriteByte('\n')
 		buf.WriteString(intro)
-		if strings.IndexRune(x, '\n') != -1 {
+		if strings.ContainsRune(x, '\n') {
 			// multiline value => quote by 4-space indenting
 			buf.WriteByte('\n')
 			pfx := nestingPrefix(baseIndent, multilinePrefix)

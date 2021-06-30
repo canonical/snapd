@@ -1,8 +1,5 @@
 summary: Ensure that the firewall-control interface works.
 
-# ubuntu-14.04: systemd-run not supported
-systems: [-fedora-*, -opensuse-*, -arch-*, -ubuntu-14.04*]
-
 details: |
     The firewall-control interface allows a snap to configure the firewall.
 
@@ -15,6 +12,9 @@ details: |
     localhost to a given IP can be added by the snap, ensuring that a generic client can
     access a generic service listening on localhost through the IP set up in the firewall
     rule.
+
+# ubuntu-14.04: systemd-run not supported
+systems: [-fedora-*, -opensuse-*, -arch-*, -ubuntu-14.04*]
 
 environment:
     PORT: 8081

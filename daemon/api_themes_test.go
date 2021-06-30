@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"net/http/httptest"
 
 	. "gopkg.in/check.v1"
@@ -34,6 +35,8 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -43,7 +46,6 @@ type themesSuite struct {
 	apiBaseSuite
 
 	available map[string]*snap.Info
-	err       error
 }
 
 func (s *themesSuite) SetUpTest(c *C) {
@@ -53,12 +55,16 @@ func (s *themesSuite) SetUpTest(c *C) {
 	s.err = store.ErrSnapNotFound
 }
 
-func (s *themesSuite) SnapInfo(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (*snap.Info, error) {
+func (s *themesSuite) SnapExists(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (naming.SnapRef, *channel.Channel, error) {
 	s.pokeStateLock()
 	if info := s.available[spec.Name]; info != nil {
-		return info, nil
+		ch, err := channel.Parse(info.Channel, "")
+		if err != nil {
+			panic(fmt.Sprintf("bad Info Channel: %v", err))
+		}
+		return info, &ch, nil
 	}
-	return nil, s.err
+	return nil, nil, s.err
 }
 
 func (s *themesSuite) daemon(c *C) *daemon.Daemon {
@@ -293,7 +299,7 @@ slots:
 	}
 
 	ctx := context.Background()
-	status, candidateSnaps, err := daemon.ThemeStatusAndCandidateSnaps(ctx, daemon.ThemesCmd, nil, []string{"Foo-gtk", "Bar-gtk", "Baz-gtk"}, []string{"Foo-icons", "Bar-icons", "Baz-icons"}, []string{"Foo-sounds", "Bar-sounds", "Baz-sounds"})
+	status, candidateSnaps, err := daemon.ThemeStatusAndCandidateSnaps(ctx, s.d, nil, []string{"Foo-gtk", "Bar-gtk", "Baz-gtk"}, []string{"Foo-icons", "Bar-icons", "Baz-icons"}, []string{"Foo-sounds", "Bar-sounds", "Baz-sounds"})
 	c.Check(err, IsNil)
 	c.Check(status.GtkThemes, DeepEquals, map[string]daemon.ThemeStatus{
 		"Foo-gtk": daemon.ThemeInstalled,
@@ -341,8 +347,7 @@ func (s *themesSuite) TestThemesCmdGet(c *C) {
 	}
 
 	req := httptest.NewRequest("GET", "/v2/accessories/themes?gtk-theme=Foo-gtk&gtk-theme=Bar&icon-theme=Foo-icons&sound-theme=Foo-sounds", nil)
-	rsp, ok := s.req(c, req, nil).(*daemon.Resp)
-	c.Assert(ok, Equals, true)
+	rsp := s.syncReq(c, req, nil)
 
 	c.Check(rsp.Type, Equals, daemon.ResponseTypeSync)
 	c.Check(rsp.Status, Equals, 200)
@@ -412,10 +417,7 @@ func (s *themesSuite) TestThemesCmdPost(c *C) {
 
 	buf := bytes.NewBufferString(`{"gtk-themes":["Foo-gtk"],"icon-themes":["Foo-icons"],"sound-themes":["Foo-sounds"]}`)
 	req := httptest.NewRequest("POST", "/v2/accessories/themes", buf)
-	rsp, ok := s.req(c, req, nil).(*daemon.Resp)
-	c.Assert(ok, Equals, true)
-
-	c.Check(rsp.Type, Equals, daemon.ResponseTypeAsync)
+	rsp := s.asyncReq(c, req, nil)
 	c.Check(rsp.Status, Equals, 202)
 
 	st := s.d.Overlord().State()

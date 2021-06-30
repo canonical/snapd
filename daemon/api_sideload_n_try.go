@@ -26,7 +26,6 @@ import (
 	"mime/multipart"
 	"os"
 	"path/filepath"
-	"strconv"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/snapasserts"
@@ -201,20 +200,7 @@ out:
 	// but this is good enough
 	changeTriggered = true
 
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
-}
-
-func isTrue(form *multipart.Form, key string) bool {
-	value := form.Value[key]
-	if len(value) == 0 {
-		return false
-	}
-	b, err := strconv.ParseBool(value[0])
-	if err != nil {
-		return false
-	}
-
-	return b
+	return AsyncResponse(nil, chg.ID())
 }
 
 func trySnap(st *state.State, trydir string, flags snapstate.Flags) Response {
@@ -231,14 +217,11 @@ func trySnap(st *state.State, trydir string, flags snapstate.Flags) Response {
 	// the developer asked us to do this with a trusted snap dir
 	info, err := unsafeReadSnapInfo(trydir)
 	if _, ok := err.(snap.NotSnapError); ok {
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    client.ErrorKindNotSnap,
-			},
-			Status: 400,
-		}, nil)
+		return &apiError{
+			Status:  400,
+			Message: err.Error(),
+			Kind:    client.ErrorKindNotSnap,
+		}
 	}
 	if err != nil {
 		return BadRequest("cannot read snap info for %s: %s", trydir, err)
@@ -255,7 +238,7 @@ func trySnap(st *state.State, trydir string, flags snapstate.Flags) Response {
 
 	ensureStateSoon(st)
 
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+	return AsyncResponse(nil, chg.ID())
 }
 
 var unsafeReadSnapInfo = unsafeReadSnapInfoImpl

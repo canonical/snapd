@@ -102,7 +102,7 @@ missing_interface_spread_test() {
     for iface in $(go run ./tests/lib/list-interfaces.go) ; do
         search="plugs: \\[ $iface \\]"
         case "$iface" in
-            bool-file|gpio|hidraw|i2c|iio|serial-port|spi)
+            bool-file|gpio|pwm|dsp|netlink-driver|hidraw|i2c|iio|serial-port|spi)
                 # skip gadget provided interfaces for now
                 continue
                 ;;
@@ -267,6 +267,11 @@ if [ "$STATIC" = 1 ]; then
     fi
 
     # FIXME: re-add staticcheck with a matching version for the used go-version
+
+    if [ -z "${SKIP_TESTS_FORMAT_CHECK-}" ] || [ "$SKIP_TESTS_FORMAT_CHECK" = 0 ]; then
+        echo "Checking tests formatting"
+        ./tests/utils/check-test-format ./tests
+    fi
 fi
 
 if [ "$UNIT" = 1 ]; then

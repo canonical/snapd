@@ -29,16 +29,17 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/ifacestate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
 var (
 	interfacesCmd = &Command{
-		Path:     "/v2/interfaces",
-		UserOK:   true,
-		PolkitOK: "io.snapcraft.snapd.manage-interfaces",
-		GET:      interfacesConnectionsMultiplexer,
-		POST:     changeInterfaces,
+		Path:        "/v2/interfaces",
+		GET:         interfacesConnectionsMultiplexer,
+		POST:        changeInterfaces,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{Polkit: polkitActionManageInterfaces},
 	}
 )
 
@@ -104,7 +105,7 @@ func getInterfaces(c *Command, r *http.Request, user *auth.UserState) Response {
 			Slots:   slots,
 		})
 	}
-	return SyncResponse(infoJSONs, nil)
+	return SyncResponse(infoJSONs)
 }
 
 func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -116,7 +117,7 @@ func getLegacyConnections(c *Command, r *http.Request, user *auth.UserState) Res
 		Plugs: connsjson.Plugs,
 		Slots: connsjson.Slots,
 	}
-	return SyncResponse(legacyconnsjson, nil)
+	return SyncResponse(legacyconnsjson)
 }
 
 // changeInterfaces controls the interfaces system.
@@ -150,11 +151,33 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	st.Lock()
 	defer st.Unlock()
 
+	checkInstalled := func(snapName string) error {
+		// empty snap name is fine, ResolveConnect/ResolveDisconnect handles it.
+		if snapName == "" {
+			return nil
+		}
+		var snapst snapstate.SnapState
+		err := snapstate.Get(st, snapName, &snapst)
+		if (err == nil && !snapst.IsInstalled()) || err == state.ErrNoState {
+			return fmt.Errorf("snap %q is not installed", snapName)
+		}
+		if err == nil {
+			return nil
+		}
+		return fmt.Errorf("internal error: cannot get state of snap %q: %v", snapName, err)
+	}
+
 	for i := range a.Plugs {
 		a.Plugs[i].Snap = ifacestate.RemapSnapFromRequest(a.Plugs[i].Snap)
+		if err := checkInstalled(a.Plugs[i].Snap); err != nil {
+			return errToResponse(err, nil, BadRequest, "%v")
+		}
 	}
 	for i := range a.Slots {
 		a.Slots[i].Snap = ifacestate.RemapSnapFromRequest(a.Slots[i].Snap)
+		if err := checkInstalled(a.Slots[i].Snap); err != nil {
+			return errToResponse(err, nil, BadRequest, "%v")
+		}
 	}
 
 	switch a.Action {
@@ -170,7 +193,7 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 			if _, ok := err.(*ifacestate.ErrAlreadyConnected); ok {
 				change := newChange(st, a.Action+"-snap", summary, nil, affected)
 				change.SetStatus(state.DoneStatus)
-				return AsyncResponse(nil, &Meta{Change: change.ID()})
+				return AsyncResponse(nil, change.ID())
 			}
 			tasksets = append(tasksets, ts)
 		}
@@ -214,7 +237,7 @@ func changeInterfaces(c *Command, r *http.Request, user *auth.UserState) Respons
 	change := newChange(st, a.Action+"-snap", summary, tasksets, affected)
 	st.EnsureBefore(0)
 
-	return AsyncResponse(nil, &Meta{Change: change.ID()})
+	return AsyncResponse(nil, change.ID())
 }
 
 func snapNamesFromConns(conns []*interfaces.ConnRef) []string {

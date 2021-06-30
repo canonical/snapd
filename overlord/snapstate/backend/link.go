@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/wrappers"
 )
@@ -40,13 +41,16 @@ type LinkContext struct {
 	// installed
 	FirstInstall bool
 
-	// VitalityRank is used to hint how much the services should be
-	// protected from the OOM killer
-	VitalityRank int
+	// ServiceOptions is used to configure services.
+	ServiceOptions *wrappers.SnapServiceOptions
 
 	// RunInhibitHint is used only in Unlink snap, and can be used to
 	// establish run inhibition lock for refresh operations.
 	RunInhibitHint runinhibit.Hint
+
+	// RequireMountedSnapdSnap indicates that the apps and services
+	// generated when linking need to use tooling from the snapd snap mount.
+	RequireMountedSnapdSnap bool
 }
 
 func updateCurrentSymlinks(info *snap.Info) (e error) {
@@ -188,11 +192,20 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapBinaries)
 
+	vitalityRank := 0
+	var quotaGrp *quota.Group
+	if linkCtx.ServiceOptions != nil {
+		vitalityRank = linkCtx.ServiceOptions.VitalityRank
+		quotaGrp = linkCtx.ServiceOptions.QuotaGroup
+	}
 	// add the daemons from the snap.yaml
 	opts := &wrappers.AddSnapServicesOptions{
-		Preseeding:   b.preseed,
-		VitalityRank: linkCtx.VitalityRank,
+		VitalityRank:            vitalityRank,
+		Preseeding:              b.preseed,
+		RequireMountedSnapdSnap: linkCtx.RequireMountedSnapdSnap,
+		QuotaGroup:              quotaGrp,
 	}
+	// TODO: switch to EnsureSnapServices
 	if err = wrappers.AddSnapServices(s, opts, progress.Null); err != nil {
 		return err
 	}

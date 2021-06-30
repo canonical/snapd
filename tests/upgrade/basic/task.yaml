@@ -10,7 +10,6 @@ restore: |
         exit 0
     fi
     rm -f /var/tmp/myevil.txt
-    rm -f ./do-classic ./prevsnapdver.out
 
     # An older version of snapd might have been missing proper context
     # transitions for fontconfig cache locations, attempt to restore the context
@@ -128,13 +127,11 @@ execute: |
     snapdver=$(snap --version|grep "snapd ")
     [ "$snapdver" != "$(cat prevsnapdver)" ]
 
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*)
             # All mount units should have been patched on upgrade
-            unit_prefix="$(systemd-escape -p ${SNAP_MOUNT_DIR})"
+            SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+            unit_prefix="$(systemd-escape -p "${SNAP_MOUNT_DIR}")"
             for unit in /etc/systemd/system/"$unit_prefix"-*.mount; do
                 MATCH 'Options=.*context=system_u:object_r:snappy_snap_t:s0' "$unit"
             done

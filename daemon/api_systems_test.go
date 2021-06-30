@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2020-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -54,6 +54,12 @@ var _ = check.Suite(&systemsSuite{})
 
 type systemsSuite struct {
 	apiBaseSuite
+}
+
+func (s *systemsSuite) SetUpTest(c *check.C) {
+	s.apiBaseSuite.SetUpTest(c)
+
+	s.expectRootAccess()
 }
 
 func (s *systemsSuite) mockSystemSeeds(c *check.C) (restore func()) {
@@ -137,12 +143,14 @@ func (s *systemsSuite) TestSystemsGetSome(c *check.C) {
 	}})
 	st.Unlock()
 
+	s.expectAuthenticatedAccess()
+
 	restore := s.mockSystemSeeds(c)
 	defer restore()
 
 	req, err := http.NewRequest("GET", "/v2/systems", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 
 	c.Assert(rsp.Status, check.Equals, 200)
 	sys := rsp.Result.(*daemon.SystemsResponse)
@@ -204,10 +212,12 @@ func (s *systemsSuite) TestSystemsGetNone(c *check.C) {
 	c.Assert(err, check.IsNil)
 	d.Overlord().AddManager(mgr)
 
+	s.expectAuthenticatedAccess()
+
 	// no system seeds
 	req, err := http.NewRequest("GET", "/v2/systems", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 
 	c.Assert(rsp.Status, check.Equals, 200)
 	sys := rsp.Result.(*daemon.SystemsResponse)
@@ -299,10 +309,9 @@ func (s *systemsSuite) TestSystemActionRequestErrors(c *check.C) {
 		c.Logf("tc: %#v", tc)
 		req, err := http.NewRequest("POST", path.Join("/v2/systems", tc.label), strings.NewReader(tc.body))
 		c.Assert(err, check.IsNil)
-		rsp := s.req(c, req, nil).(*daemon.Resp)
-		c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError)
-		c.Check(rsp.Status, check.Equals, tc.status)
-		c.Check(rsp.ErrorResult().Message, check.Matches, tc.error)
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, tc.status)
+		c.Check(rspe.Message, check.Matches, tc.error)
 	}
 }
 
@@ -325,7 +334,7 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		"snaps": []interface{}{
 			map[string]interface{}{
 				"name":            "pc-kernel",
-				"id":              snaptest.AssertedSnapID("oc-kernel"),
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
 				"type":            "kernel",
 				"default-channel": "20",
 			},
@@ -454,7 +463,7 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/systems/20191119", buf)
 		c.Assert(err, check.IsNil, check.Commentf(tc.comment))
 		// as root
-		req.RemoteAddr = "pid=100;uid=0;socket=;"
+		s.asRootAuth(req)
 		rec := httptest.NewRecorder()
 		s.serveHTTP(c, rec, req)
 		if tc.expUnsupported {
@@ -488,6 +497,9 @@ func (s *systemsSuite) TestSystemActionRequestWithSeeded(c *check.C) {
 				expResp["maintenance"] = map[string]interface{}{
 					"kind":    "system-restart",
 					"message": "system is restarting",
+					"value": map[string]interface{}{
+						"op": "reboot",
+					},
 				}
 
 				// daemon is not started, only check whether reboot was scheduled as expected
@@ -540,9 +552,9 @@ func (s *systemsSuite) TestSystemActionBrokenSeed(c *check.C) {
 	body := `{"action":"do","title":"reinstall","mode":"install"}`
 	req, err := http.NewRequest("POST", "/v2/systems/20191119", strings.NewReader(body))
 	c.Assert(err, check.IsNil)
-	rsp := s.req(c, req, nil).(*daemon.Resp)
-	c.Check(rsp.Status, check.Equals, 500)
-	c.Check(rsp.ErrorResult().Message, check.Matches, `cannot load seed system: cannot load assertions: .*`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 500)
+	c.Check(rspe.Message, check.Matches, `cannot load seed system: cannot load assertions: .*`)
 }
 
 func (s *systemsSuite) TestSystemActionNonRoot(c *check.C) {
@@ -559,11 +571,11 @@ func (s *systemsSuite) TestSystemActionNonRoot(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/systems/20191119", strings.NewReader(body))
 	c.Assert(err, check.IsNil)
 	// non root
-	req.RemoteAddr = "pid=100;uid=1234;socket=;"
+	s.asUserAuth(c, req)
 
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
-	c.Assert(rec.Code, check.Equals, 401)
+	c.Assert(rec.Code, check.Equals, 403)
 
 	var rspBody map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &rspBody)
@@ -573,8 +585,8 @@ func (s *systemsSuite) TestSystemActionNonRoot(c *check.C) {
 			"message": "access denied",
 			"kind":    "login-required",
 		},
-		"status":      "Unauthorized",
-		"status-code": 401.0,
+		"status":      "Forbidden",
+		"status-code": 403.0,
 		"type":        "error",
 	})
 }
@@ -592,11 +604,12 @@ func (s *systemsSuite) TestSystemRebootNeedsRoot(c *check.C) {
 	url := "/v2/systems"
 	req, err := http.NewRequest("POST", url, strings.NewReader(body))
 	c.Assert(err, check.IsNil)
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	// non root
+	s.asUserAuth(c, req)
 
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
-	c.Check(rec.Code, check.Equals, 401)
+	c.Check(rec.Code, check.Equals, 403)
 }
 
 func (s *systemsSuite) TestSystemRebootHappy(c *check.C) {
@@ -629,7 +642,7 @@ func (s *systemsSuite) TestSystemRebootHappy(c *check.C) {
 		}
 		req, err := http.NewRequest("POST", url, strings.NewReader(body))
 		c.Assert(err, check.IsNil)
-		req.RemoteAddr = "pid=100;uid=0;socket=;"
+		s.asRootAuth(req)
 
 		rec := httptest.NewRecorder()
 		s.serveHTTP(c, rec, req)
@@ -657,11 +670,11 @@ func (s *systemsSuite) TestSystemRebootUnhappy(c *check.C) {
 		})
 		defer restore()
 
-		body := fmt.Sprintf(`{"action":"reboot"}`)
+		body := `{"action":"reboot"}`
 		url := "/v2/systems"
 		req, err := http.NewRequest("POST", url, strings.NewReader(body))
 		c.Assert(err, check.IsNil)
-		req.RemoteAddr = "pid=100;uid=0;socket=;"
+		s.asRootAuth(req)
 
 		rec := httptest.NewRecorder()
 		s.serveHTTP(c, rec, req)

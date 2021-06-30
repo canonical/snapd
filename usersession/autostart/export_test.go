@@ -19,22 +19,10 @@
 
 package autostart
 
-import (
-	"os/user"
-)
-
 var (
 	LoadAutostartDesktopFile = loadAutostartDesktopFile
 	AutostartCmd             = autostartCmd
 )
-
-func MockUserCurrent(f func() (*user.User, error)) func() {
-	origUserCurrent := userCurrent
-	userCurrent = f
-	return func() {
-		userCurrent = origUserCurrent
-	}
-}
 
 func MockCurrentDesktop(current string) func() {
 	old := currentDesktop

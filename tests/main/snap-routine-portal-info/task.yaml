@@ -2,7 +2,6 @@ summary: The portal-info command provides information about a confined process
 
 systems:
     - -ubuntu-14.04-*
-    - -fedora-32-*  # TODO: add support for cgroupv2 based tracking
     - -fedora-33-*
     - -amazon-linux-*
     - -centos-7-*
@@ -12,7 +11,6 @@ prepare: |
     tests.session -u test prepare
 
 restore: |
-    rm -f output.txt
     tests.session -u test exec systemctl --user stop test-snapd-desktop-sleep.service
     tests.session -u test restore
 

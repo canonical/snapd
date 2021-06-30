@@ -57,6 +57,7 @@ endif
 new_format = \
 	 libsnap-confine-private/cgroup-support.c \
 	 libsnap-confine-private/cgroup-support.h \
+	 libsnap-confine-private/cgroup-support-test.c \
 	 libsnap-confine-private/infofile-test.c \
 	 libsnap-confine-private/infofile.c \
 	 libsnap-confine-private/infofile.h \
@@ -97,7 +98,8 @@ hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-up
 
 # for the hack target also:
 snap-update-ns/snap-update-ns: snap-update-ns/*.go snap-update-ns/*.[ch]
-	cd snap-update-ns && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -v
+	cd snap-update-ns && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build \
+		-ldflags='-extldflags=-static -linkmode=external' -v
 snap-seccomp/snap-seccomp: snap-seccomp/*.go
 	cd snap-seccomp && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -v
 
@@ -154,6 +156,7 @@ libsnap_confine_private_debug_a_CFLAGS = $(CHECK_CFLAGS) -DSNAP_CONFINE_DEBUG_BU
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += libsnap-confine-private/unit-tests
 libsnap_confine_private_unit_tests_SOURCES = \
+	libsnap-confine-private/cgroup-support-test.c \
 	libsnap-confine-private/classic-test.c \
 	libsnap-confine-private/cleanup-funcs-test.c \
 	libsnap-confine-private/error-test.c \
@@ -174,6 +177,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests.c \
 	libsnap-confine-private/unit-tests.h \
 	libsnap-confine-private/utils-test.c
+
 libsnap_confine_private_unit_tests_CFLAGS = $(CHECK_CFLAGS) $(GLIB_CFLAGS)
 libsnap_confine_private_unit_tests_LDADD = $(GLIB_LIBS)
 libsnap_confine_private_unit_tests_CFLAGS += -D_ENABLE_FAULT_INJECTION

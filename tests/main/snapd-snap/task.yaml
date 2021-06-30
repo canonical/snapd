@@ -1,29 +1,143 @@
 summary: Ensure snapd builds as a snap
 
-# This is what the snapcraft builder on launchpad uses.
-systems: [ubuntu-16.04-64]
+# TODO: we don't need to build the snapd snap in this test on as many systems
+# when we have a way to dynamically download the snapd snap that was built for a
+# particular PR from github actions, in which case we can just download that and
+# install it here to test the things that we need to test about the snapd snap
+
+# effectively we can only build the snap using LXD + snapcraft on ubuntu systems
+# due to various bugs with other distros and snapcraft and/or LXD
+systems:
+    # snapcraft is a classic snap, can't run on ubuntu-core
+    - -ubuntu-core*
+    # LXD doesn't work properly on amazon linux, fedora 31, opensuse, or debian
+    # 9 to build the snap, it complains about fuse.snapfuse getting EPERM when
+    # snaps are installed inside the LXD container that snapcraft creates
+    - -amazon-linux*
+    - -debian-*
+    - -fedora-*
+    - -opensuse-*
+    # additionally on fedora 32 and 33, and arch linux which are all cgroupsv2
+    # now, LXD does not work either, with the service failing to start up at all
+    # when we install LXD
+    - -arch-*
+    # snapcraft does not support running on centos 7 due to errors with the
+    # locale, see https://bugs.launchpad.net/snapcraft/+bug/1922140
+    # a separate error occurs on centos 8, see https://bugs.launchpad.net/snapcraft/+bug/1922981
+    - -centos-*
 
 # Start early as it takes a long time.
 priority: 100
 
+environment:
+    # the destructive build mode runs only on xenial, but we also run lxd on
+    # xenial to make sure it builds there too
+    SNAPCRAFT_BUILD_ENVIRONMENT/destructive: host
+    SNAPCRAFT_BUILD_ENVIRONMENT/lxd: lxd
+
 prepare: |
+    # only run the destructive mode variant on xenial
+    if ! os.query is-xenial && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
+        echo "Skipping destructive mode build on non-xenial"
+        exit 0
+    fi
+
+    if os.query is-fedora || os.query is-arch-linux || os.query is-centos; then
+        # in order to install classic snaps, we need to setup the /snap 
+        # symlink on these distros
+        SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+        ln -sf "$SNAP_MOUNT_DIR" /snap
+        tests.cleanup defer rm -f /snap
+    fi
+
     echo "Install snapcraft from candidate"
     snap install snapcraft --candidate --classic
+    tests.cleanup defer snap remove --purge snapcraft
 
-restore: |
-    cd "$PROJECT_PATH"
-    echo "Cleanup build artifacts"
-    not command -v snapcraft >/dev/null || snapcraft clean --destructive-mode
-    echo "Cleanup the installed snapcraft"
-    snap remove snapcraft
-    echo "Cleanup the build snapd snap"
-    rm -f snapd_spread-test.snap
+    if [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "lxd" ]; then
+        echo "Remove any installed debs (some images carry them) to ensure we test the snap"
+        # apt -v to test if apt is usable
+        if command -v apt && apt -v; then
+            # meh trusty's apt doesn't support -y, so use apt-get
+            apt-get autoremove -y lxd
+            if ! os.query is-debian-sid; then
+                # no lxd-client on debian sid
+                apt-get autoremove -y lxd-client
+            fi
+        fi
+
+        # load the fuse kernel module before installing lxd
+        modprobe fuse
+
+        echo "Install lxd"
+        snap install lxd --channel="$LXD_SNAP_CHANNEL"
+        tests.cleanup defer snap remove --purge lxd
+
+        echo "Setup the lxd snap"
+        snap set lxd waitready.timeout=240
+        lxd waitready
+        lxd init --auto
+
+        echo "Setting up proxy for lxc"
+        if [ -n "${http_proxy:-}" ]; then
+            lxd.lxc config set core.proxy_http "$http_proxy"
+        fi
+        if [ -n "${https_proxy:-}" ]; then
+            lxd.lxc config set core.proxy_https "$http_proxy"
+        fi
+
+        echo "Switch the core snap back due to spread system prepare shenanigans"
+        # When we run spread, we will repack the core snap that is installed on
+        # the system to match the binaries that we built on this system so that
+        # we keep executing the stuff from the branch, even if re-exec is 
+        # enabled unconditionally for all spread tests. This presents a problem
+        # for snapcraft, which downloads the current snap file from snapd 
+        # directly using the /v2/snaps/{name}/file endpoint, which will just 
+        # send over the modified file without indicating at all that the current
+        # file is modified from the installed revision (indeed snapd reports to
+        # snapcraft that it is running the specific edge revision from the 
+        # store, and not x1 as it would in devmode for example which snapcraft
+        # correctly handles).
+        # As such, we need to switch the modified core snap on the system back 
+        # with the original core snap on the system that is unmodified and will
+        # match the expected assertions that snapcraft calculates
+
+        # the easy way is to trick snapd is to just mount back the original file
+        # on top of the repacked one, then snapd will just serve the correct
+        # file over HTTP to snapcraft when it asks for it
+
+        CORE_SNAP_REV=$(snap list core | grep -v Name | awk '{print $3}')
+        CORE_SNAP="/var/lib/snapd/snaps/core_${CORE_SNAP_REV}.snap"
+        ORIG_CORE_SNAP=${CORE_SNAP}.orig
+        
+        mount --bind "$ORIG_CORE_SNAP" "$CORE_SNAP"
+        tests.cleanup defer umount "$CORE_SNAP"
+    fi
 
 execute: |
+    # only run the destructive mode variant on xenial
+    if ! os.query is-xenial && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
+        echo "Skipping destructive mode build on non-xenial"
+        exit 0
+    fi
+
     # shellcheck disable=SC2164
-    cd "$PROJECT_PATH"
-    echo "Build the snap natively (with --destructive-mode)"
-    snapcraft snap --destructive-mode --output=snapd_spread-test.snap
+    pushd "$PROJECT_PATH"
+    echo "Build the snap"
+    snap run snapcraft snap --output=snapd_spread-test.snap
+    popd
+
+    mv "$PROJECT_PATH/snapd_spread-test.snap" "$PWD/snapd_spread-test.snap"
+
+    # meh it doesn't work well to use quotas and "&&" in the arguments to sh -c
+    # with defer, so just put what we want to run in a script and execute that
+    cat >> snapcraft-cleanup.sh <<EOF
+    #!/bin/sh
+    cd $PROJECT_PATH
+    snap run snapcraft clean
+    EOF
+    chmod +x snapcraft-cleanup.sh
+    tests.cleanup defer sh -c "$PWD/snapcraft-cleanup.sh"
 
     echo "Ensure we have the fc-cache binaries"
     unsquashfs -ll snapd_spread-test.snap | MATCH bin/fc-cache-v6

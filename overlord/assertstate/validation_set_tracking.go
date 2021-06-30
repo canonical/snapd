@@ -46,6 +46,12 @@ type ValidationSetTracking struct {
 
 	// Current is the current sequence point.
 	Current int `json:"current,omitempty"`
+
+	// LocalOnly indicates that the assertion was only available locally at the
+	// time it was applied for monitor mode. This tells bulk refresh logic not
+	// to error out on such assertion if it's not in the store.
+	// This flag makes sense only in monitor mode and if pinned.
+	LocalOnly bool `json:"local-only,omitempty"`
 }
 
 // ValidationSetKey formats the given account id and name into a validation set key.
@@ -87,7 +93,6 @@ func DeleteValidationSet(st *state.State, accountID, name string) {
 	}
 	delete(vsmap, ValidationSetKey(accountID, name))
 	st.Set("validation-sets", vsmap)
-	return
 }
 
 // GetValidationSet retrieves the ValidationSetTracking for the given account and name.

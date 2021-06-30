@@ -34,16 +34,17 @@ import (
 var (
 	// TODO: allow to post assertions for UserOK? they are verified anyway
 	assertsCmd = &Command{
-		Path:   "/v2/assertions",
-		UserOK: true,
-		GET:    getAssertTypeNames,
-		POST:   doAssert,
+		Path:        "/v2/assertions",
+		GET:         getAssertTypeNames,
+		POST:        doAssert,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{},
 	}
 
 	assertsFindManyCmd = &Command{
-		Path:   "/v2/assertions/{assertType}",
-		UserOK: true,
-		GET:    assertsFindMany,
+		Path:       "/v2/assertions/{assertType}",
+		GET:        assertsFindMany,
+		ReadAccess: openAccess{},
 	}
 )
 
@@ -94,7 +95,8 @@ func parseHeadersFormatOptionsFromURL(q url.Values) (*daemonAssertOptions, error
 func getAssertTypeNames(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(map[string][]string{
 		"types": asserts.TypeNames(),
-	}, nil)
+	})
+
 }
 
 func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -113,11 +115,8 @@ func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
 	}); err != nil {
 		return BadRequest("assert failed: %v", err)
 	}
-	// TODO: what more info do we want to return on success?
-	return &resp{
-		Type:   ResponseTypeSync,
-		Status: 200,
-	}
+
+	return SyncResponse(nil)
 }
 
 func assertsFindOneRemote(c *Command, at *asserts.AssertionType, headers map[string]string, user *auth.UserState) ([]asserts.Assertion, error) {
@@ -125,7 +124,7 @@ func assertsFindOneRemote(c *Command, at *asserts.AssertionType, headers map[str
 	if err != nil {
 		return nil, fmt.Errorf("cannot query remote assertion: %v", err)
 	}
-	sto := getStore(c)
+	sto := storeFrom(c.d)
 	as, err := sto.Assertion(at, primaryKeys, user)
 	if err != nil {
 		return nil, err
@@ -175,7 +174,7 @@ func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response
 				assertsJSON[i].Body = string(assertions[i].Body())
 			}
 		}
-		return SyncResponse(assertsJSON, nil)
+		return SyncResponse(assertsJSON)
 	}
 
 	return AssertResponse(assertions, true)

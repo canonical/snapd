@@ -77,7 +77,7 @@ func (s *seed20) LoadAssertions(db asserts.RODatabase, commitTo func(*asserts.Ba
 	if db == nil {
 		// a db was not provided, create an internal temporary one
 		var err error
-		db, commitTo, err = newMemAssertionsDB()
+		db, commitTo, err = newMemAssertionsDB(nil)
 		if err != nil {
 			return err
 		}
@@ -350,7 +350,8 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, optSnap *internal.Snap20, ch
 	auxInfo := s.auxInfos[sideInfo.SnapID]
 	if auxInfo != nil {
 		sideInfo.Private = auxInfo.Private
-		sideInfo.Contact = auxInfo.Contact
+		// TODO: consider whether to use this if we have links
+		sideInfo.EditedContact = auxInfo.Contact
 	}
 
 	seedSnap = &Snap{

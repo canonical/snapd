@@ -34,12 +34,12 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/sandbox/selinux"
-	"github.com/snapcore/snapd/testutil"
-
 	. "github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type testreporter struct {
@@ -205,6 +205,11 @@ Type=potato
 Id=baz.service
 ActiveState=inactive
 UnitFileState=disabled
+
+Type=
+Id=missing.service
+ActiveState=inactive
+UnitFileState=
 `[1:]),
 		[]byte(`
 Id=some.timer
@@ -217,37 +222,48 @@ UnitFileState=disabled
 `[1:]),
 	}
 	s.errors = []error{nil}
-	out, err := New(SystemMode, s.rep).Status("foo.service", "bar.service", "baz.service", "some.timer", "other.socket")
+	out, err := New(SystemMode, s.rep).Status("foo.service", "bar.service", "baz.service", "missing.service", "some.timer", "other.socket")
 	c.Assert(err, IsNil)
 	c.Check(out, DeepEquals, []*UnitStatus{
 		{
-			Daemon:   "simple",
-			UnitName: "foo.service",
-			Active:   true,
-			Enabled:  true,
+			Daemon:    "simple",
+			UnitName:  "foo.service",
+			Active:    true,
+			Enabled:   true,
+			Installed: true,
 		}, {
-			Daemon:   "simple",
-			UnitName: "bar.service",
-			Active:   true,
-			Enabled:  true,
+			Daemon:    "simple",
+			UnitName:  "bar.service",
+			Active:    true,
+			Enabled:   true,
+			Installed: true,
 		}, {
-			Daemon:   "potato",
-			UnitName: "baz.service",
-			Active:   false,
-			Enabled:  false,
+			Daemon:    "potato",
+			UnitName:  "baz.service",
+			Active:    false,
+			Enabled:   false,
+			Installed: true,
 		}, {
-			UnitName: "some.timer",
-			Active:   true,
-			Enabled:  true,
+			Daemon:    "",
+			UnitName:  "missing.service",
+			Active:    false,
+			Enabled:   false,
+			Installed: false,
 		}, {
-			UnitName: "other.socket",
-			Active:   true,
-			Enabled:  false,
+			UnitName:  "some.timer",
+			Active:    true,
+			Enabled:   true,
+			Installed: true,
+		}, {
+			UnitName:  "other.socket",
+			Active:    true,
+			Enabled:   false,
+			Installed: true,
 		},
 	})
 	c.Check(s.rep.msgs, IsNil)
 	c.Assert(s.argses, DeepEquals, [][]string{
-		{"show", "--property=Id,ActiveState,UnitFileState,Type", "foo.service", "bar.service", "baz.service"},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type", "foo.service", "bar.service", "baz.service", "missing.service"},
 		{"show", "--property=Id,ActiveState,UnitFileState", "some.timer", "other.socket"},
 	})
 }
@@ -745,12 +761,13 @@ func (s *SystemdTestSuite) TestAddMountUnit(c *C) {
 [Unit]
 Description=Mount unit for foo, revision 42
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
 Where=/snap/snapname/123
 Type=squashfs
-Options=nodev,ro,x-gdu.hide
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 LazyUnmount=yes
 
 [Install]
@@ -778,12 +795,13 @@ func (s *SystemdTestSuite) TestAddMountUnitForDirs(c *C) {
 [Unit]
 Description=Mount unit for foodir, revision x1
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
 Where=/snap/snapname/x1
 Type=none
-Options=nodev,ro,x-gdu.hide,bind
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide,bind
 LazyUnmount=yes
 
 [Install]
@@ -819,12 +837,13 @@ func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 [Unit]
 Description=Mount unit for foo, revision 42
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
 Where=/snap/snapname/123
 Type=squashfs
-Options=nodev,context=system_u:object_r:snappy_snap_t:s0,ro,x-gdu.hide
+Options=nodev,context=system_u:object_r:snappy_snap_t:s0,ro,x-gdu.hide,x-gvfs-hide
 LazyUnmount=yes
 
 [Install]
@@ -862,12 +881,13 @@ exit 0
 [Unit]
 Description=Mount unit for foo, revision x1
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
 Where=/snap/snapname/123
 Type=fuse.squashfuse
-Options=nodev,ro,x-gdu.hide,allow_other
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide,allow_other
 LazyUnmount=yes
 
 [Install]
@@ -901,12 +921,13 @@ exit 0
 [Unit]
 Description=Mount unit for foo, revision x1
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
 Where=/snap/snapname/123
 Type=squashfs
-Options=nodev,ro,x-gdu.hide
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 LazyUnmount=yes
 
 [Install]
@@ -953,6 +974,21 @@ func (s *SystemdTestSuite) TestIsActiveIsInactive(c *C) {
 	// services, however we should check any non-0 exit status
 	sysErr.SetExitCode(1)
 	sysErr.SetMsg([]byte("inactive\n"))
+	s.errors = []error{sysErr}
+
+	active, err := New(SystemMode, s.rep).IsActive("foo")
+	c.Assert(active, Equals, false)
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"is-active", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestIsActiveIsInactiveAlternativeMessage(c *C) {
+	sysErr := &Error{}
+	// on Centos 7, with systemd 219 we see "unknown" returned when querying the
+	// active state for a slice unit which does not exist, check that we handle
+	// this case properly as well
+	sysErr.SetExitCode(3)
+	sysErr.SetMsg([]byte("unknown\n"))
 	s.errors = []error{sysErr}
 
 	active, err := New(SystemMode, s.rep).IsActive("foo")
@@ -1141,6 +1177,7 @@ const unitTemplate = `
 [Unit]
 Description=Mount unit for foo, revision 42
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=%s
@@ -1172,10 +1209,10 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnit(c *C) {
 	// systemd was not called
 	c.Check(s.argses, HasLen, 0)
 	// mount was called
-	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", mockSnapPath, "/snap/snapname/123", "-o", "nodev,ro,x-gdu.hide"})
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", mockSnapPath, "/snap/snapname/123", "-o", "nodev,ro,x-gdu.hide,x-gvfs-hide"})
 	// unit was enabled with a symlink
 	c.Check(osutil.IsSymlink(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants", mountUnitName)), Equals, true)
-	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide"))
+	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide,x-gvfs-hide"))
 }
 
 func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
@@ -1195,7 +1232,7 @@ func (s *SystemdTestSuite) TestPreseedModeAddMountUnitWithFuse(c *C) {
 	defer os.Remove(mountUnitName)
 
 	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "fuse.squashfuse", mockSnapPath, "/snap/snapname/123", "-o", "nodev,a,b,c"})
-	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide"))
+	c.Check(filepath.Join(dirs.SnapServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(unitTemplate[1:], mockSnapPath, "squashfs", "nodev,ro,x-gdu.hide,x-gvfs-hide"))
 }
 
 func (s *SystemdTestSuite) TestPreseedModeMountError(c *C) {
@@ -1372,4 +1409,191 @@ func (s *SystemdTestSuite) TestUmountErr(c *C) {
 	c.Check(cmd.Calls(), DeepEquals, [][]string{
 		{"systemd-mount", "--umount", "bar"},
 	})
+}
+
+func (s *SystemdTestSuite) TestCurrentUsageFamilyReallyInvalid(c *C) {
+	s.outs = [][]byte{
+		[]byte(`gahstringsarehard`),
+		[]byte(`gahstringsarehard`),
+	}
+	sysd := New(SystemMode, s.rep)
+	_, err := sysd.CurrentMemoryUsage("bar.service")
+	c.Assert(err, ErrorMatches, `invalid property format from systemd for MemoryCurrent \(got gahstringsarehard\)`)
+	_, err = sysd.CurrentTasksCount("bar.service")
+	c.Assert(err, ErrorMatches, `invalid property format from systemd for TasksCurrent \(got gahstringsarehard\)`)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "MemoryCurrent", "bar.service"},
+		{"show", "--property", "TasksCurrent", "bar.service"},
+	})
+}
+
+func (s *SystemdTestSuite) TestCurrentUsageFamilyInactive(c *C) {
+	s.outs = [][]byte{
+		[]byte(`MemoryCurrent=[not set]`),
+		[]byte(`TasksCurrent=[not set]`),
+	}
+	sysd := New(SystemMode, s.rep)
+	_, err := sysd.CurrentMemoryUsage("bar.service")
+	c.Assert(err, ErrorMatches, "memory usage unavailable")
+	_, err = sysd.CurrentTasksCount("bar.service")
+	c.Assert(err, ErrorMatches, "tasks count unavailable")
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "MemoryCurrent", "bar.service"},
+		{"show", "--property", "TasksCurrent", "bar.service"},
+	})
+}
+
+func (s *SystemdTestSuite) TestCurrentUsageFamilyInvalid(c *C) {
+	s.outs = [][]byte{
+		[]byte(`MemoryCurrent=blahhhhhhhhhhhhhh`),
+		[]byte(`TasksCurrent=blahhhhhhhhhhhhhh`),
+	}
+	sysd := New(SystemMode, s.rep)
+	_, err := sysd.CurrentMemoryUsage("bar.service")
+	c.Assert(err, ErrorMatches, `invalid property value from systemd for MemoryCurrent: cannot parse "blahhhhhhhhhhhhhh" as an integer`)
+	_, err = sysd.CurrentTasksCount("bar.service")
+	c.Assert(err, ErrorMatches, `invalid property value from systemd for TasksCurrent: cannot parse "blahhhhhhhhhhhhhh" as an integer`)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "MemoryCurrent", "bar.service"},
+		{"show", "--property", "TasksCurrent", "bar.service"},
+	})
+}
+
+func (s *SystemdTestSuite) TestCurrentUsageFamilyHappy(c *C) {
+	s.outs = [][]byte{
+		[]byte(`MemoryCurrent=1024`),
+		[]byte(`MemoryCurrent=18446744073709551615`), // special value from systemd bug
+		[]byte(`TasksCurrent=10`),
+	}
+	sysd := New(SystemMode, s.rep)
+	memUsage, err := sysd.CurrentMemoryUsage("bar.service")
+	c.Assert(err, IsNil)
+	c.Assert(memUsage, Equals, quantity.SizeKiB)
+	memUsage, err = sysd.CurrentMemoryUsage("bar.service")
+	c.Assert(err, IsNil)
+	const sixteenExb = quantity.Size(1<<64 - 1)
+	c.Assert(memUsage, Equals, sixteenExb)
+	tasksUsage, err := sysd.CurrentTasksCount("bar.service")
+	c.Assert(tasksUsage, Equals, uint64(10))
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "MemoryCurrent", "bar.service"},
+		{"show", "--property", "MemoryCurrent", "bar.service"},
+		{"show", "--property", "TasksCurrent", "bar.service"},
+	})
+}
+
+func (s *SystemdTestSuite) TestInactiveEnterTimestampZero(c *C) {
+	s.outs = [][]byte{
+		[]byte(`InactiveEnterTimestamp=`),
+	}
+	sysd := New(SystemMode, s.rep)
+	stamp, err := sysd.InactiveEnterTimestamp("bar.service")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
+	})
+	c.Check(stamp.IsZero(), Equals, true)
+}
+
+func (s *SystemdTestSuite) TestInactiveEnterTimestampValidWhitespace(c *C) {
+	s.outs = [][]byte{
+		[]byte(`InactiveEnterTimestamp=Fri 2021-04-16 15:32:21 UTC
+`),
+	}
+
+	stamp, err := New(SystemMode, s.rep).InactiveEnterTimestamp("bar.service")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
+	})
+	c.Check(stamp.Equal(time.Date(2021, time.April, 16, 15, 32, 21, 0, time.UTC)), Equals, true)
+}
+
+func (s *SystemdTestSuite) TestInactiveEnterTimestampValid(c *C) {
+	s.outs = [][]byte{
+		[]byte(`InactiveEnterTimestamp=Fri 2021-04-16 15:32:21 UTC`),
+	}
+
+	stamp, err := New(SystemMode, s.rep).InactiveEnterTimestamp("bar.service")
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
+	})
+	c.Check(stamp.Equal(time.Date(2021, time.April, 16, 15, 32, 21, 0, time.UTC)), Equals, true)
+}
+
+func (s *SystemdTestSuite) TestInactiveEnterTimestampFailure(c *C) {
+	s.outs = [][]byte{
+		[]byte(`mocked failure`),
+	}
+	s.errors = []error{
+		fmt.Errorf("mocked failure"),
+	}
+	stamp, err := New(SystemMode, s.rep).InactiveEnterTimestamp("bar.service")
+	c.Assert(err, ErrorMatches, "mocked failure")
+	c.Check(stamp.IsZero(), Equals, true)
+}
+
+func (s *SystemdTestSuite) TestInactiveEnterTimestampMalformed(c *C) {
+	s.outs = [][]byte{
+		[]byte(`InactiveEnterTimestamp`),
+		[]byte(``),
+		[]byte(`some random garbage
+with newlines`),
+	}
+	sysd := New(SystemMode, s.rep)
+	for i := 0; i < len(s.outs); i++ {
+		s.argses = nil
+		stamp, err := sysd.InactiveEnterTimestamp("bar.service")
+		c.Assert(err.Error(), testutil.Contains, `invalid property format from systemd for InactiveEnterTimestamp (got`)
+		c.Check(s.argses, DeepEquals, [][]string{
+			{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
+		})
+		c.Check(stamp.IsZero(), Equals, true)
+	}
+}
+
+func (s *SystemdTestSuite) TestInactiveEnterTimestampMalformedMore(c *C) {
+	s.outs = [][]byte{
+		[]byte(`InactiveEnterTimestamp=0`), // 0 is valid for InactiveEnterTimestampMonotonic
+	}
+	sysd := New(SystemMode, s.rep)
+
+	stamp, err := sysd.InactiveEnterTimestamp("bar.service")
+
+	c.Assert(err, ErrorMatches, `internal error: systemctl time output \(0\) is malformed`)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
+	})
+	c.Check(stamp.IsZero(), Equals, true)
+}
+
+type systemdErrorSuite struct{}
+
+var _ = Suite(&systemdErrorSuite{})
+
+func (s *systemdErrorSuite) TestErrorStringNormalError(c *C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `echo "I fail"; exit 11`)
+	defer systemctl.Restore()
+
+	_, err := Version()
+	c.Check(err, ErrorMatches, `systemctl command \[--version\] failed with exit status 11: I fail\n`)
+}
+
+func (s *systemdErrorSuite) TestErrorStringNoOutput(c *C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `exit 22`)
+	defer systemctl.Restore()
+
+	_, err := Version()
+	c.Check(err, ErrorMatches, `systemctl command \[--version\] failed with exit status 22`)
+}
+
+func (s *systemdErrorSuite) TestErrorStringNoSystemctl(c *C) {
+	oldPath := os.Getenv("PATH")
+	os.Setenv("PATH", "/xxx")
+	defer func() { os.Setenv("PATH", oldPath) }()
+
+	_, err := Version()
+	c.Check(err, ErrorMatches, `systemctl command \[--version\] failed with: exec: "systemctl": executable file not found in \$PATH`)
 }

@@ -1,6 +1,6 @@
 summary: Check that preseeded ubuntu cloud image boots.
 
-description: |
+details: |
   This test checks that preseeding of Ubuntu cloud images with snap-preseed
   command works, and the resulting image boots and finalizes seeding.
   The test assumes cloud image with a core and lxd snaps in its seeds/.
@@ -122,7 +122,7 @@ execute: |
   nested_exec "snap debug seeding" | MATCH "seed-completion:\s+[0-9]+\.[0-9]+s"
 
   echo "Checking that lxd snap is operational"
-  nested_exec "snap list" | not MATCH "broken"
+  nested_exec "snap list" | NOMATCH "broken"
   nested_exec "snap services" | MATCH "lxd.activate +enabled +inactive"
   nested_exec "snap services" | MATCH "lxd.daemon +enabled +inactive +socket-activated"
   nested_exec "sudo lxd init --auto"

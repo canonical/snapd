@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
@@ -58,6 +59,8 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	st.Lock()
 	defer st.Unlock()
 
+	// TODO: Reimplement most of this as a servicestate.UpdateVitalityRank
+
 	oldVitalityMap := map[string]int{}
 	newVitalityMap := map[string]int{}
 	// assign "0" (delete) rank to all old entries
@@ -70,10 +73,17 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		newVitalityMap[instanceName] = i + 1
 	}
 
+	// use a single cache of the quota groups for calculating the quota groups
+	// that services should be in
+	grps, err := servicestate.AllQuotas(st)
+	if err != nil {
+		return err
+	}
+
 	for instanceName, rank := range newVitalityMap {
 		var snapst snapstate.SnapState
 		err := snapstate.Get(st, instanceName, &snapst)
-		// not installed, vitality-score will applied when the snap
+		// not installed, vitality-score will be applied when the snap
 		// gets installed
 		if err == state.ErrNoState {
 			continue
@@ -81,7 +91,7 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		if err != nil {
 			return err
 		}
-		// not active, vitality-score will applied when the snap
+		// not active, vitality-score will be applied when the snap
 		// becomes active
 		if !snapst.Active {
 			continue
@@ -96,25 +106,60 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 			continue
 		}
 
-		// TODO: this should become some kind of Ensure*
-		// method in wrappers
+		// rank changed, rewrite/restart services
+
+		// first get the device context to decide if we need to set
+		// RequireMountedSnapdSnap
+		// TODO: use sysconfig.Device instead
+		deviceCtx, err := snapstate.DeviceCtx(st, nil, nil)
+		if err != nil {
+			return err
+		}
+
+		ensureOpts := &wrappers.EnsureSnapServicesOptions{}
+
+		// we need the snapd snap mounted whenever in order for services to
+		// start for all services on UC18+
+		if !deviceCtx.Classic() && deviceCtx.Model().Base() != "" {
+			ensureOpts.RequireMountedSnapdSnap = true
+		}
+
+		// get the options for this snap service
+		snapSvcOpts, err := servicestate.SnapServiceOptions(st, instanceName, grps)
+		if err != nil {
+			return err
+		}
+
+		m := map[*snap.Info]*wrappers.SnapServiceOptions{
+			info: snapSvcOpts,
+		}
+
+		// overwrite the VitalityRank we got from SnapServiceOptions to use the
+		// rank we calculated as part of this transaction
+		m[info].VitalityRank = rank
+
+		// ensure that the snap services are re-written with these units
+		if err := wrappers.EnsureSnapServices(m, ensureOpts, nil, progress.Null); err != nil {
+			return err
+		}
+
+		// and then restart the services
+
+		// TODO: this doesn't actually restart the services, meaning that the
+		// OOMScoreAdjust vitality-hint ranking doesn't take effect until the
+		// service is restarted by a refresh or a reboot, etc.
+		// TODO: this option also doesn't work with services that use
+		// Delegate=true, i.e. docker, greengrass, kubernetes, so we should do
+		// something about that combination because currently we jus silently
+		// apply the setting which never does anything
+
+		// XXX: copied from handlers.go:startSnapServices()
+
 		disabledSvcs, err := wrappers.QueryDisabledServices(info, progress.Null)
 		if err != nil {
 			return err
 		}
 
-		// rank changed, rewrite/restart services
-		for _, app := range info.Apps {
-			if !app.IsService() {
-				continue
-			}
-
-			opts := &wrappers.AddSnapServicesOptions{VitalityRank: rank}
-			if err := wrappers.AddSnapServices(info, opts, progress.Null); err != nil {
-				return err
-			}
-		}
-		// XXX: copied from handlers.go:startSnapServices()
 		svcs := info.Services()
 		startupOrdered, err := snap.SortServices(svcs)
 		if err != nil {

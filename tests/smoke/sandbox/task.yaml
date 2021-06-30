@@ -8,7 +8,7 @@ restore: |
 
 execute: |
     if [ "$(snap debug confinement)" != "strict" ]; then
-        if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
+        if os.query is-ubuntu; then
             echo "all ubuntu systems must have strict confinement"
             exit 1
         fi
@@ -74,7 +74,7 @@ execute: |
     echo "But in the sandbox we get a EPERM"
     test-snapd-sandbox.with-home-plug -c "python3 $(pwd)/sec.py 22082007" | MATCH EPERM
 
-    if [ "$(uname -p)" = "x86_64" ]; then
+    if os.query is-pc-amd64; then
         echo "Ensure secondary arch works for amd64 with i386 binaries"
         snap install --edge test-snapd-hello-multi-arch
         # this will fail if the seccomp seconardy arch handling is broken

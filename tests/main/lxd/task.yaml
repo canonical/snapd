@@ -1,19 +1,19 @@
 summary: Ensure that lxd works
 
+# autopkgtest run only a subset of tests that deals with the integration
+# with the distro
+backends: [-autopkgtest]
+
 # Only run this on ubuntu 16+, lxd will not work on !ubuntu systems
 # currently nor on ubuntu 14.04
 # TODO: enable for ubuntu-21+ once the lxd image is published
 systems: [ubuntu-16*, ubuntu-18*, ubuntu-20*, ubuntu-core-*]
 
-# autopkgtest run only a subset of tests that deals with the integration
-# with the distro
-backends: [-autopkgtest]
+# Start before anything else as it can take a really long time.
+priority: 1000
 
 # lxd downloads can be quite slow
 kill-timeout: 25m
-
-# Start before anything else as it can take a really long time.
-priority: 1000
 
 environment:
     REFRESH_APP_AWARENESS_OUTER/snapd_cgroup_just_inside: false
@@ -92,12 +92,12 @@ execute: |
     VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
     lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-ubuntu
     lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-nesting-ubuntu -c security.nesting=true
-    if [ "$(uname -m)" = x86_64 ] && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
+    if os.query is-pc-amd64 && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
         echo "LXD spawned 32bit userspace container on a 64bit host, WAT?"
         snap info lxd
         exit 1
     fi
-    if [ "$(uname -m)" = x86_64 ] && lxd.lxc info my-nesting-ubuntu | grep "Architecture: i686"; then
+    if os.query is-pc-amd64 && lxd.lxc info my-nesting-ubuntu | grep "Architecture: i686"; then
         echo "LXD spawned 32bit userspace container on a 64bit host, WAT?"
         snap info lxd
         exit 1

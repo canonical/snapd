@@ -26,6 +26,8 @@ import (
 	"path/filepath"
 	"time"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -42,8 +44,6 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
-
-	. "gopkg.in/check.v1"
 )
 
 type hotplugSuite struct {
@@ -274,19 +274,10 @@ func (s *hotplugSuite) TearDownTest(c *C) {
 	s.mockSnapCmd.Restore()
 }
 
-func testPlugSlotRefs(c *C, t *state.Task, plugSnap, plugName, slotSnap, slotName string) {
-	var plugRef interfaces.PlugRef
-	var slotRef interfaces.SlotRef
-	c.Assert(t.Get("plug", &plugRef), IsNil)
-	c.Assert(t.Get("slot", &slotRef), IsNil)
-	c.Assert(plugRef, DeepEquals, interfaces.PlugRef{Snap: plugSnap, Name: plugName})
-	c.Assert(slotRef, DeepEquals, interfaces.SlotRef{Snap: slotSnap, Name: slotName})
-}
-
 func testHotplugTaskAttrs(c *C, t *state.Task, ifaceName, hotplugKey string) {
 	iface, key, err := ifacestate.GetHotplugAttrs(t)
 	c.Assert(err, IsNil)
-	c.Assert(key, Equals, hotplugKey)
+	c.Assert(key, Equals, snap.HotplugKey(hotplugKey))
 	c.Assert(iface, Equals, ifaceName)
 }
 
@@ -1127,18 +1118,12 @@ func (s *hotplugSuite) TestUpdateDeviceTasks(c *C) {
 
 	task1 := tss.Tasks()[0]
 	c.Assert(task1.Kind(), Equals, "hotplug-disconnect")
-
-	iface, key, err := ifacestate.GetHotplugAttrs(task1)
-	c.Assert(err, IsNil)
-	c.Assert(iface, Equals, "interface")
-	c.Assert(key, DeepEquals, snap.HotplugKey("key"))
+	testHotplugTaskAttrs(c, task1, "interface", "key")
 
 	task2 := tss.Tasks()[1]
 	c.Assert(task2.Kind(), Equals, "hotplug-update-slot")
-	iface, key, err = ifacestate.GetHotplugAttrs(task2)
-	c.Assert(err, IsNil)
-	c.Assert(iface, Equals, "interface")
-	c.Assert(key, DeepEquals, snap.HotplugKey("key"))
+	testHotplugTaskAttrs(c, task2, "interface", "key")
+
 	var attrs map[string]interface{}
 	c.Assert(task2.Get("slot-attrs", &attrs), IsNil)
 	c.Assert(attrs, DeepEquals, map[string]interface{}{"attr": "value"})
@@ -1159,18 +1144,11 @@ func (s *hotplugSuite) TestRemoveDeviceTasks(c *C) {
 
 	task1 := tss.Tasks()[0]
 	c.Assert(task1.Kind(), Equals, "hotplug-disconnect")
-
-	iface, key, err := ifacestate.GetHotplugAttrs(task1)
-	c.Assert(err, IsNil)
-	c.Assert(iface, Equals, "interface")
-	c.Assert(key, DeepEquals, snap.HotplugKey("key"))
+	testHotplugTaskAttrs(c, task1, "interface", "key")
 
 	task2 := tss.Tasks()[1]
 	c.Assert(task2.Kind(), Equals, "hotplug-remove-slot")
-	iface, key, err = ifacestate.GetHotplugAttrs(task2)
-	c.Assert(err, IsNil)
-	c.Assert(iface, Equals, "interface")
-	c.Assert(key, DeepEquals, snap.HotplugKey("key"))
+	testHotplugTaskAttrs(c, task2, "interface", "key")
 
 	wt := task2.WaitTasks()
 	c.Assert(wt, HasLen, 1)

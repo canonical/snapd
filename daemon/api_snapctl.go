@@ -33,9 +33,9 @@ import (
 
 var (
 	snapctlCmd = &Command{
-		Path:   "/v2/snapctl",
-		SnapOK: true,
-		POST:   runSnapctl,
+		Path:        "/v2/snapctl",
+		POST:        runSnapctl,
+		WriteAccess: snapAccess{},
 	}
 )
 
@@ -52,7 +52,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("snapctl cannot run without args")
 	}
 
-	_, uid, _, err := ucrednetGet(r.RemoteAddr)
+	ucred, err := ucrednetGet(r.RemoteAddr)
 	if err != nil {
 		return Forbidden("cannot get remote user: %s", err)
 	}
@@ -69,7 +69,7 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		context.Unlock()
 	}
 
-	stdout, stderr, err := ctlcmdRun(context, snapctlPostData.Args, uid)
+	stdout, stderr, err := ctlcmdRun(context, snapctlPostData.Args, ucred.Uid)
 	if err != nil {
 		if e, ok := err.(*ctlcmd.UnsuccessfulError); ok {
 			result := map[string]interface{}{
@@ -77,14 +77,11 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 				"stderr":    string(stderr),
 				"exit-code": e.ExitCode,
 			}
-			return &resp{
-				Type: ResponseTypeError,
-				Result: &errorResult{
-					Message: e.Error(),
-					Kind:    client.ErrorKindUnsuccessful,
-					Value:   result,
-				},
-				Status: 200,
+			return &apiError{
+				Status:  200,
+				Message: e.Error(),
+				Kind:    client.ErrorKindUnsuccessful,
+				Value:   result,
 			}
 		}
 		if e, ok := err.(*ctlcmd.ForbiddenCommandError); ok {
@@ -110,5 +107,5 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		"stderr": string(stderr),
 	}
 
-	return SyncResponse(result, nil)
+	return SyncResponse(result)
 }

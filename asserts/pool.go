@@ -27,7 +27,7 @@ import (
 )
 
 // A Grouping identifies opaquely a grouping of assertions.
-// Pool uses it to label the interesection between a set of groups.
+// Pool uses it to label the intersection between a set of groups.
 type Grouping string
 
 // A pool helps holding and tracking a set of assertions and their
@@ -443,13 +443,13 @@ func (p *Pool) addUnresolved(unresolved *AtRevision, gnum uint16) error {
 	return nil
 }
 
-func (p *Pool) addUnresolvedSeq(unresolved *AtSequence, gnum uint16) {
+func (p *Pool) addUnresolvedSeq(unresolved *AtSequence, gnum uint16) error {
 	uniq := unresolved.Unique()
 	u := &unresolvedSeqRec{
 		at: unresolved,
 	}
 	p.unresolvedSequences[uniq] = u
-	p.groupings.AddTo(&u.grouping, gnum)
+	return p.groupings.AddTo(&u.grouping, gnum)
 }
 
 // ToResolve returns all the currently unresolved assertions in the
@@ -624,21 +624,12 @@ func (p *Pool) Add(a Assertion, grouping Grouping) (ok bool, err error) {
 func (p *Pool) addToGrouping(a Assertion, grouping Grouping, deserializeGrouping func(string) (*internal.Grouping, error)) (ok bool, err error) {
 	var uniq string
 	ref := a.Ref()
-	// deal with sequence key
-	if !ref.Type.SequenceForming() {
-		uniq = ref.Unique()
-	} else {
-		atseq := AtSequence{
-			Type:        ref.Type,
-			SequenceKey: ref.PrimaryKey[:len(ref.PrimaryKey)-1],
-		}
-		uniq = atseq.Unique()
-	}
 	var u unresolvedAssertRecord
 	var extrag *internal.Grouping
 	var unresolved map[string]unresolvedAssertRecord
 
 	if !ref.Type.SequenceForming() {
+		uniq = ref.Unique()
 		if u = p.unresolved[uniq]; u != nil {
 			unresolved = p.unresolved
 		} else if u = p.prerequisites[uniq]; u != nil {
@@ -665,6 +656,11 @@ func (p *Pool) addToGrouping(a Assertion, grouping Grouping, deserializeGrouping
 			u = rec
 		}
 	} else {
+		atseq := AtSequence{
+			Type:        ref.Type,
+			SequenceKey: ref.PrimaryKey[:len(ref.PrimaryKey)-1],
+		}
+		uniq = atseq.Unique()
 		if u = p.unresolvedSequences[uniq]; u != nil {
 			unresolved = p.unresolvedSequences
 		} else {
@@ -914,7 +910,6 @@ func (p *Pool) AddToUpdate(toUpdate *Ref, group string) error {
 // at their current ones. If toUpdate is pinned, then it will be resolved
 // to the highest revision with same sequence point (toUpdate.Sequence).
 func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
-	// TODO: use Fetcher.Fetch(), similar to AddToUpdate.
 	if err := p.phase(poolPhaseAddUnresolved); err != nil {
 		return err
 	}
@@ -930,8 +925,26 @@ func (p *Pool) AddSequenceToUpdate(toUpdate *AtSequence, group string) error {
 	}
 
 	u := *toUpdate
-	// sequence forming assertions are never predefined, so no check for it.
-	p.addUnresolvedSeq(&u, gnum)
+	retrieve := func(ref *Ref) (Assertion, error) {
+		return ref.Resolve(p.groundDB.Find)
+	}
+	add := func(a Assertion) error {
+		if !a.Type().SequenceForming() {
+			return p.addUnresolved(a.At(), gnum)
+		}
+		// sequence forming assertions are never predefined, so no check for it.
+		// final add corresponding to toUpdate itself.
+		u.Revision = a.Revision()
+		return p.addUnresolvedSeq(&u, gnum)
+	}
+	f := NewFetcher(p.groundDB, retrieve, add)
+	ref := &Ref{
+		Type:       toUpdate.Type,
+		PrimaryKey: append(u.SequenceKey, fmt.Sprintf("%d", u.Sequence)),
+	}
+	if err := f.Fetch(ref); err != nil {
+		return err
+	}
 	return nil
 }
 

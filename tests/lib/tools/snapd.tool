@@ -47,9 +47,8 @@ main() {
 		esac
 	done
 
-	# shellcheck source=tests/lib/dirs.sh
-	. "$TESTSLIB/dirs.sh"
-	exec "$LIBEXECDIR/snapd/$tool" "$@"
+	LIBEXEC_DIR="$(os.paths libexec-dir)"
+	exec "$LIBEXEC_DIR/snapd/$tool" "$@"
 }
 
 main "$@"

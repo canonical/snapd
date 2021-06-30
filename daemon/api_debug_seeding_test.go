@@ -44,7 +44,7 @@ func (s *seedingDebugSuite) getSeedingDebug(c *C) interface{} {
 	req, err := http.NewRequest("GET", "/v2/debug?aspect=seeding", nil)
 	c.Assert(err, IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Type, Equals, daemon.ResponseTypeSync)
 	return rsp.Result
 }

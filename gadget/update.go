@@ -22,8 +22,10 @@ package gadget
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -33,7 +35,7 @@ var (
 
 var (
 	// default positioning constraints that match ubuntu-image
-	defaultConstraints = LayoutConstraints{
+	DefaultConstraints = LayoutConstraints{
 		NonMBRStartOffset: 1 * quantity.OffsetMiB,
 	}
 )
@@ -50,9 +52,19 @@ type GadgetData struct {
 	KernelRootDir string
 }
 
-// UpdatePolicyFunc is a callback that evaluates the provided pair of structures
-// and returns true when the pair should be part of an update.
-type UpdatePolicyFunc func(from, to *LaidOutStructure) bool
+// UpdatePolicyFunc is a callback that evaluates the provided pair of
+// (potentially not yet resolved) structures and returns true when the
+// pair should be part of an update. It may also return a filter
+// function for the resolved content when not all of the content
+// should be applied as part of the update (e.g. when updating assets
+// from the kernel snap).
+type UpdatePolicyFunc func(from, to *LaidOutStructure) (bool, ResolvedContentFilterFunc)
+
+// ResolvedContentFilterFunc is a callback that evaluates the given
+// ResolvedContent and returns true if it should be applied as part of
+// an update. This is relevant for e.g. asset updates that come from
+// the kernel snap.
+type ResolvedContentFilterFunc func(*ResolvedContent) bool
 
 // ContentChange carries paths to files containing the content data being
 // modified by the operation.
@@ -124,6 +136,28 @@ type ContentUpdateObserver interface {
 // Data that would be modified during the update is first backed up inside the
 // rollback directory. Should the apply step fail, the modified data is
 // recovered.
+//
+//
+// The rules for gadget/kernel updates with "$kernel:refs":
+//
+// 1. When installing a kernel with assets that have "update: true"
+//    there *must* be a matching entry in gadget.yaml. If not we risk
+//    bricking the system because the kernel tells us that it *needs*
+//    this file to boot but without gadget.yaml we would not put it
+//    anywhere.
+// 2. When installing a gadget with "$kernel:ref" content it is okay
+//    if this content cannot get resolved as long as there is no
+//    "edition" jump. This means adding new "$kernel:ref" without
+//    "edition" updates is always possible.
+//
+// To add a new "$kernel:ref" to gadget/kernel:
+// a. Update gadget and gadget.yaml and add "$kernel:ref" but do not
+//    update edition (if edition update is needed, use epoch)
+// b. Update kernel and kernel.yaml with new assets.
+// c. snapd will refresh gadget (see rule 2) but refuse to take the
+//    new kernel (rule 1)
+// d. After step (c) is completed the kernel refresh will now also
+//    work (no more violation of rule 1)
 func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePolicyFunc, observer ContentUpdateObserver) error {
 	// TODO: support multi-volume gadgets. But for now we simply
 	//       do not do any gadget updates on those. We cannot error
@@ -145,13 +179,15 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 
 	// layout old partially, without going deep into the layout of structure
 	// content
-	pOld, err := LayoutVolumePartially(oldVol, defaultConstraints)
+	pOld, err := LayoutVolumePartially(oldVol, DefaultConstraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the old volume: %v", err)
 	}
 
-	// layout new
-	pNew, err := LayoutVolume(new.RootDir, new.KernelRootDir, newVol, defaultConstraints)
+	// Layout new volume, delay resolving of filesystem content
+	constraints := DefaultConstraints
+	constraints.SkipResolveContent = true
+	pNew, err := LayoutVolume(new.RootDir, new.KernelRootDir, newVol, constraints)
 	if err != nil {
 		return fmt.Errorf("cannot lay out the new volume: %v", err)
 	}
@@ -163,8 +199,18 @@ func Update(old, new GadgetData, rollbackDirPath string, updatePolicy UpdatePoli
 	if updatePolicy == nil {
 		updatePolicy = defaultPolicy
 	}
+
+	// ensure all required kernel assets are found in the gadget
+	kernelInfo, err := kernel.ReadInfo(new.KernelRootDir)
+	if err != nil {
+		return err
+	}
+	if err := gadgetVolumeConsumesOneKernelUpdateAsset(pNew.Volume, kernelInfo); err != nil {
+		return err
+	}
+
 	// now we know which structure is which, find which ones need an update
-	updates, err := resolveUpdate(pOld, pNew, updatePolicy)
+	updates, err := resolveUpdate(pOld, pNew, updatePolicy, new.RootDir, new.KernelRootDir, kernelInfo)
 	if err != nil {
 		return err
 	}
@@ -298,30 +344,66 @@ type updatePair struct {
 	to   *LaidOutStructure
 }
 
-func defaultPolicy(from, to *LaidOutStructure) bool {
-	return to.Update.Edition > from.Update.Edition
+func defaultPolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilterFunc) {
+	return to.Update.Edition > from.Update.Edition, nil
 }
 
 // RemodelUpdatePolicy implements the update policy of a remodel scenario. The
 // policy selects all non-MBR structures for the update.
-func RemodelUpdatePolicy(from, _ *LaidOutStructure) bool {
+func RemodelUpdatePolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilterFunc) {
 	if from.Role == schemaMBR {
-		return false
+		return false, nil
 	}
-	return true
+	return true, nil
 }
 
-func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy UpdatePolicyFunc) (updates []updatePair, err error) {
+// KernelUpdatePolicy implements the update policy for kernel asset updates.
+//
+// This is called when there is a kernel->kernel refresh for kernels that
+// contain bootloader assets. In this case all bootloader assets that are
+// marked as "update: true" in the kernel.yaml need updating.
+//
+// But any non-kernel assets need to be ignored, they will be handled by
+// the regular gadget->gadget update mechanism and policy.
+func KernelUpdatePolicy(from, to *LaidOutStructure) (bool, ResolvedContentFilterFunc) {
+	// The policy function has to work on unresolved content, the
+	// returned filter will make sure that after resolving only the
+	// relevant $kernel:refs are updated.
+	for _, ct := range to.Content {
+		if strings.HasPrefix(ct.UnresolvedSource, "$kernel:") {
+			return true, func(rn *ResolvedContent) bool {
+				return rn.KernelUpdate
+			}
+		}
+	}
+
+	return false, nil
+}
+
+func resolveUpdate(oldVol *PartiallyLaidOutVolume, newVol *LaidOutVolume, policy UpdatePolicyFunc, newGadgetRootDir, newKernelRootDir string, kernelInfo *kernel.Info) (updates []updatePair, err error) {
 	if len(oldVol.LaidOutStructure) != len(newVol.LaidOutStructure) {
 		return nil, errors.New("internal error: the number of structures in new and old volume definitions is different")
 	}
 	for j, oldStruct := range oldVol.LaidOutStructure {
 		newStruct := newVol.LaidOutStructure[j]
-		// update only when new edition is higher than the old one; boot
-		// assets are assumed to be backwards compatible, once deployed
-		// are not rolled back or replaced unless a higher edition is
-		// available
-		if policy(&oldStruct, &newStruct) {
+		// update only when the policy says so; boot assets
+		// are assumed to be backwards compatible, once
+		// deployed they are not rolled back or replaced unless
+		// told by the new policy
+		if update, filter := policy(&oldStruct, &newStruct); update {
+			// Ensure content is resolved and filtered. Filtering
+			// is required for e.g. KernelUpdatePolicy, see above.
+			resolvedContent, err := resolveVolumeContent(newGadgetRootDir, newKernelRootDir, kernelInfo, &newStruct, filter)
+			if err != nil {
+				return nil, err
+			}
+			// Nothing to do after filtering
+			if filter != nil && len(resolvedContent) == 0 && len(newStruct.LaidOutContent) == 0 {
+				continue
+			}
+			newVol.LaidOutStructure[j].ResolvedContent = resolvedContent
+
+			// and add to updates
 			updates = append(updates, updatePair{
 				from: &oldVol.LaidOutStructure[j],
 				to:   &newVol.LaidOutStructure[j],

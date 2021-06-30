@@ -23,15 +23,20 @@ import (
 	"fmt"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/cmdstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 type Instruction struct {
@@ -44,9 +49,31 @@ type Instruction struct {
 
 type ServiceActionConflictError struct{ error }
 
+func computeExplicitServices(appInfos []*snap.AppInfo, names []string) map[string][]string {
+	explicitServices := make(map[string][]string, len(appInfos))
+	requested := make(map[string]bool, len(names))
+	for _, name := range names {
+		// Name might also be a snap name (or other strings the user wrote on
+		// the command line), but the loop below ensures that this function
+		// considers only application names.
+		requested[name] = true
+	}
+
+	for _, app := range appInfos {
+		snapName := app.Snap.InstanceName()
+		appName := app.String()
+		if requested[appName] {
+			explicitServices[snapName] = append(explicitServices[snapName], app.ServiceName())
+		}
+	}
+
+	return explicitServices
+}
+
 // serviceControlTs creates "service-control" task for every snap derived from appInfos.
 func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instruction) (*state.TaskSet, error) {
 	servicesBySnap := make(map[string][]string, len(appInfos))
+	explicitServices := computeExplicitServices(appInfos, inst.Names)
 	sortedNames := make([]string, 0, len(appInfos))
 
 	// group services by snap, we need to create one task for every affected snap
@@ -95,6 +122,9 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 		svcs := servicesBySnap[snapName]
 		sort.Strings(svcs)
 		cmd.Services = svcs
+		explicitSvcs := explicitServices[snapName]
+		sort.Strings(explicitSvcs)
+		cmd.ExplicitServices = explicitSvcs
 
 		summary := fmt.Sprintf("Run service command %q for services %q of snap %q", cmd.Action, svcs, cmd.SnapName)
 		task := st.NewTask("service-control", summary)
@@ -309,4 +339,46 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 	}
 
 	return nil
+}
+
+// SnapServiceOptions computes the options to configure services for
+// the given snap. This function might not check for the existence
+// of instanceName. It also takes as argument a map of all quota groups as an
+// optimization, the map if non-nil is used in place of checking state for
+// whether or not the specified snap is in a quota group or not. If nil, state
+// is consulted directly instead.
+func SnapServiceOptions(st *state.State, instanceName string, quotaGroups map[string]*quota.Group) (opts *wrappers.SnapServiceOptions, err error) {
+	// if quotaGroups was not provided to us, then go get that
+	if quotaGroups == nil {
+		allGrps, err := AllQuotas(st)
+		if err != nil && err != state.ErrNoState {
+			return nil, err
+		}
+		quotaGroups = allGrps
+	}
+
+	opts = &wrappers.SnapServiceOptions{}
+
+	tr := config.NewTransaction(st)
+	var vitalityStr string
+	err = tr.GetMaybe("core", "resilience.vitality-hint", &vitalityStr)
+	if err != nil {
+		return nil, err
+	}
+	for i, s := range strings.Split(vitalityStr, ",") {
+		if s == instanceName {
+			opts.VitalityRank = i + 1
+			break
+		}
+	}
+
+	// also check for quota group for this instance name
+	for _, grp := range quotaGroups {
+		if strutil.ListContains(grp.Snaps, instanceName) {
+			opts.QuotaGroup = grp
+			break
+		}
+	}
+
+	return opts, nil
 }

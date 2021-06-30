@@ -83,7 +83,6 @@ func purgeNulls(config interface{}) interface{} {
 }
 
 func PatchConfig(snapName string, subkeys []string, pos int, config interface{}, value *json.RawMessage) (interface{}, error) {
-
 	switch config := config.(type) {
 	case nil:
 		// Missing update map. Create and nest final value under it.
@@ -101,11 +100,25 @@ func PatchConfig(snapName string, subkeys []string, pos int, config interface{},
 		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*config), &configm); err != nil {
 			return nil, fmt.Errorf("snap %q option %q is not a map", snapName, strings.Join(subkeys[:pos], "."))
 		}
-		_, err := PatchConfig(snapName, subkeys, pos, configm, value)
+		// preserve the invariant that if PatchConfig is
+		// passed a map[string]interface{} it is not nil.
+		// If the value was set to null in the same
+		// transaction use (interface{})(nil) which is handled
+		// by the first case here.
+		// (see LP: #1920773)
+		var cfg interface{}
+		if configm != nil {
+			cfg = configm
+		}
+		result, err := PatchConfig(snapName, subkeys, pos, cfg, value)
 		if err != nil {
 			return nil, err
 		}
-		return jsonRaw(configm), nil
+
+		// PatchConfig may have recreated higher level element that was previously set to null in same
+		// transaction; returning the result for PatchConfig rather than just configm ensures we do
+		// support cases where a previously unset path is set back.
+		return jsonRaw(result), nil
 
 	case map[string]interface{}:
 		// Update map to apply against pristine on commit.
@@ -145,7 +158,8 @@ func GetSnapConfig(st *state.State, snapName string) (*json.RawMessage, error) {
 func SetSnapConfig(st *state.State, snapName string, snapcfg *json.RawMessage) error {
 	var config map[string]*json.RawMessage
 	err := st.Get("config", &config)
-	isNil := snapcfg == nil || len(*snapcfg) == 0
+	// empty nil snapcfg should be an empty message, but deal with "null" as well.
+	isNil := snapcfg == nil || len(*snapcfg) == 0 || bytes.Compare(*snapcfg, []byte("null")) == 0
 	if err == state.ErrNoState {
 		if isNil {
 			// bail out early
@@ -285,6 +299,7 @@ type Conf interface {
 type ConfGetter interface {
 	Get(snapName, key string, result interface{}) error
 	GetMaybe(snapName, key string, result interface{}) error
+	GetPristine(snapName, key string, result interface{}) error
 }
 
 // Patch sets values in cfg for the provided snap's configuration

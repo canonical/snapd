@@ -1,5 +1,7 @@
 summary: Ensure snapd builds correctly in sbuild
 
+systems: [debian-sid-*]
+
 # takes a while
 priority: 500
 
@@ -13,23 +15,6 @@ environment:
     # Only build arch:all
     BUILD_MODE/all: all
     ARCH/all: amd64
-
-systems: [debian-sid-*]
-
-execute: |
-    echo "Create a sid sbuild env"
-    eatmydata sbuild-createchroot --include=eatmydata,ccache,gnupg --arch="$ARCH" sid /srv/chroot/"sid-$ARCH-sbuild" http://deb.debian.org/debian
-
-    echo "Allow test user to run sbuild"
-    sbuild-adduser test
-
-    BUILD_PARAM="--verbose"
-    if [ "$BUILD_MODE" == "all" ]; then
-        BUILD_PARAM="$BUILD_PARAM --arch-all --no-arch-any"
-    fi
-
-    echo "Build mode: $BUILD_MODE"
-    su -c "sbuild $BUILD_PARAM --arch=$ARCH -d sid --run-autopkgtest $SPREAD_PATH/../*.dsc" test
 
 restore: |
     rm --recursive --one-file-system /srv/chroot/"sid-$ARCH-sbuild"
@@ -49,3 +34,18 @@ debug: |
     In particular note that the source code exists twice in the build tree,
     and only the specific copy is being used.
     EOM
+
+execute: |
+    echo "Create a sid sbuild env"
+    eatmydata sbuild-createchroot --include=eatmydata,ccache,gnupg --arch="$ARCH" sid /srv/chroot/"sid-$ARCH-sbuild" http://deb.debian.org/debian
+
+    echo "Allow test user to run sbuild"
+    sbuild-adduser test
+
+    BUILD_PARAM="--verbose"
+    if [ "$BUILD_MODE" == "all" ]; then
+        BUILD_PARAM="$BUILD_PARAM --arch-all --no-arch-any"
+    fi
+
+    echo "Build mode: $BUILD_MODE"
+    su -c "sbuild $BUILD_PARAM --arch=$ARCH -d sid --run-autopkgtest $SPREAD_PATH/../*.dsc" test

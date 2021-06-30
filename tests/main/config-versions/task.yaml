@@ -1,10 +1,10 @@
 summary: Check that snap configuration is maintained on per-revision basis.
 
-systems: [-ubuntu-core-*]
-
 details: |
     This test ensures that snap configuration is mainted per snap revision
     and is restored on revert.
+
+systems: [-ubuntu-core-*]
 
 execute: |
     verify_config_value() {
