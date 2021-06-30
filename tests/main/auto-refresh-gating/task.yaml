@@ -1,0 +1,153 @@
+summary: Check that auto-refresh with gate-auto-refresh hooks works.
+
+details: |
+  Test auto-refresh with gate-auto-refresh hook support enabled
+  (experimental.gate-auto-refresh-hook feature) and verify the hook can control
+  automatic refreshes. The test uses two test snaps, one of them
+  being a content provider of the other. There are a few versions of these
+  snaps in the store (in stable/beta/edge channels) for this test.
+
+environment:
+  SNAP_NAME: test-snapd-refresh-control
+  CONTENT_SNAP_NAME: test-snapd-refresh-control-provider
+  CONTROL_FILE: /var/snap/test-snapd-refresh-control/common/control
+
+prepare: |
+  snap install --devmode jq
+  snap set system experimental.gate-auto-refresh-hook=true
+
+debug: |
+  jq -r '.data["snaps-hold"]' < /var/lib/snapd/state.json || true
+
+execute: |
+  force_autorefresh() {
+    echo "And force auto-refresh to happen"
+    jq ".data[\"last-refresh\"] = \"2007-08-22T09:30:44.449455783+01:00\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
+  }
+
+  LAST_REFRESH_CHANGE_ID="0"
+
+  wait_for_autorefresh() {
+    local EXPECTED_SNAP="$1"
+    echo "wait for auto-refresh to happen"
+    for _ in $(seq 300); do
+      # get just the last auto-refresh change and exclude previous auto-refresh (if any) by its change id.
+      if CHANGES=$(snap changes | grep "Done.*Auto-refresh snap \"$EXPECTED_SNAP\"" | tail -1 | grep -v "^$LAST_REFRESH_CHANGE_ID"); then
+        LAST_REFRESH_CHANGE_ID=$(echo "$CHANGES" | awk '{print $1'})
+        break
+      fi
+      echo "Ensure refresh"
+      snap debug ensure-state-soon
+      sleep 1
+    done
+  }
+
+  force_channel_change() {
+    local SNAP="$1"
+    local CHANNEL="$2"
+    echo "Modify snap $SNAP to track the $CHANNEL channel"
+    jq ".data.snaps[\"$SNAP\"].channel = \"$CHANNEL\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
+  }
+
+  echo "Install test snaps"
+  snap install "$SNAP_NAME"
+  snap install "$CONTENT_SNAP_NAME"
+
+  snap connect test-snapd-refresh-control:content test-snapd-refresh-control-provider:content
+
+  # sanity check
+  snap list | MATCH "$SNAP_NAME +1\.0\.0"
+  snap list | MATCH "$CONTENT_SNAP_NAME +1\.0\.0"
+
+  snap set core refresh.schedule="0:00-23:59"
+
+  force_channel_change "$CONTENT_SNAP_NAME" beta
+
+  # force auto-refresh a few times, we expect the gate-auto-refresh
+  # hook of test-snapd-refresh-control to be executed because of the refresh
+  # of content provider snap. The refresh is expected to be held every time.
+  for attempt in $(seq 1 3); do
+    systemctl stop snapd.{service,socket}
+
+    # Request the snap to hold the refresh (itself and its content provider).
+    echo "--hold" > "$CONTROL_FILE"
+
+    force_autorefresh
+    systemctl start snapd.{service,socket}
+    wait_for_autorefresh "$CONTENT_SNAP_NAME"
+
+    snap change --last=auto-refresh | MATCH "Run auto-refresh for ready snaps"
+    snap change --last=auto-refresh | MATCH "Run hook gate-auto-refresh of snap \"$SNAP_NAME\""
+
+    echo "Check that the --pending information indicates restart due to the content slot"
+    MATCH "restart: +true" < /var/snap/"$SNAP_NAME"/common/debug.log
+    MATCH "base: +false" < /var/snap/"$SNAP_NAME"/common/debug.log
+    MATCH "channel: +latest/stable" < /var/snap/"$SNAP_NAME"/common/debug.log
+    # test-snapd-refresh-control doesn't have update, so pending/version are not
+    # available.
+    MATCH "pending: none" < /var/snap/"$SNAP_NAME"/common/debug.log
+    NOMATCH "version:" < /var/snap/"$SNAP_NAME"/common/debug.log
+
+    echo "Ensure our content snap was held and is still at version 1"
+    snap list | MATCH "$CONTENT_SNAP_NAME +1\.0\.0"
+    # sanity check for the gating snap.
+    snap list | MATCH "$SNAP_NAME +1\.0\.0"
+  done
+
+  systemctl stop snapd.{service,socket}
+
+  # force auto-refresh again but this time we expect content provider snap to be
+  # refreshed because the gating hook of test-snapd-refresh-control calls --proceed.
+  echo "--proceed" > "$CONTROL_FILE"
+
+  force_autorefresh
+  systemctl start snapd.{service,socket}
+  wait_for_autorefresh "$CONTENT_SNAP_NAME"
+
+  snap change --last=auto-refresh | MATCH "Run auto-refresh for ready snaps"
+  snap change --last=auto-refresh | MATCH "Run hook gate-auto-refresh of snap \"$SNAP_NAME\""
+
+  echo "Check that the --pending information indicates test-snapd-refresh-control is affected by the content snap"
+  MATCH "restart: +true" < /var/snap/"$SNAP_NAME"/common/debug.log
+
+  echo "Ensure our content snap was refreshed"
+  snap list | MATCH "$CONTENT_SNAP_NAME +2\.0\.0"
+  # sanity check for the gating snap.
+  snap list | MATCH "$SNAP_NAME +1\.0\.0"
+
+  systemctl stop snapd.{service,socket}
+
+  # test the scenario where the test-snapd-refresh-control refresh is attempted
+  # and it holds itself.
+  echo "--hold" > "$CONTROL_FILE"
+  force_channel_change "$SNAP_NAME" beta
+  force_autorefresh
+
+  systemctl start snapd.{service,socket}
+  wait_for_autorefresh "$SNAP_NAME"
+
+  echo "Check that the --pending information contains test-snapd-refresh-control refresh info"
+  MATCH "pending: +ready" < /var/snap/"$SNAP_NAME"/common/debug.log
+  MATCH "channel: +beta" < /var/snap/"$SNAP_NAME"/common/debug.log
+  MATCH "version: +2\.0" < /var/snap/"$SNAP_NAME"/common/debug.log
+  MATCH "base: +false" < /var/snap/"$SNAP_NAME"/common/debug.log
+  MATCH "restart: +false" < /var/snap/"$SNAP_NAME"/common/debug.log
+
+  echo "Ensure our snap was held"
+  snap list | MATCH "$SNAP_NAME +1\.0\.0"
+
+  systemctl stop snapd.{service,socket}
+
+  # test the scenario where the test-snapd-refresh-control refresh proceeds.
+  echo "--proceed" > "$CONTROL_FILE"
+  force_autorefresh
+
+  systemctl start snapd.{service,socket}
+  wait_for_autorefresh "$SNAP_NAME"
+
+  echo "Ensure our snap was updated"
+  snap list | MATCH "$SNAP_NAME +2\.0\.0"
+
+  # TODO: edge channel, proceed via default behavior. error behavior (hold).

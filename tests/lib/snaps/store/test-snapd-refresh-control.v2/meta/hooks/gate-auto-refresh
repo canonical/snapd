@@ -1,0 +1,10 @@
+#!/bin/sh
+
+CONTROL_FILE="$SNAP_COMMON"/control
+
+snapctl refresh --pending > "$SNAP_COMMON"/debug.log
+
+if [ -f "$CONTROL_FILE" ]; then
+    COMMAND=$(cat "$CONTROL_FILE")
+    snapctl refresh "$COMMAND" 2>&1 >> "$SNAP_COMMON"/debug.log
+fi
