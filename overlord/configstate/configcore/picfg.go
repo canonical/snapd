@@ -123,7 +123,7 @@ func piConfigFileIgnoreMarkerSet(configFile string) bool {
 		return false
 	}
 
-	return reIgnorePrefix.MatchString(scanner.Text())
+	return reIgnorePrefix.Match(scanner.Bytes())
 }
 
 // Some of the pi devices (avnet) ship with measured boot enabled and
