@@ -168,7 +168,7 @@ func piConfigFile(dev sysconfig.Device, opts *fsOnlyContext) (string, error) {
 func handlePiConfiguration(dev sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	configFile, err := piConfigFile(dev, opts)
 	if _, ok := err.(*piConfigNotSupportedError); ok {
-		logger.Debugf("ignoring pi-config settings: %v", err)
+		logger.Noticef("ignoring pi-config settings: %v", err)
 		return nil
 	}
 	if err != nil {
