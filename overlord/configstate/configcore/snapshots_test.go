@@ -32,7 +32,7 @@ type snapshotsSuite struct {
 var _ = Suite(&snapshotsSuite{})
 
 func (s *snapshotsSuite) TestConfigureAutomaticSnapshotsExpirationHappy(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"snapshots.automatic.retention": "40h",
@@ -42,7 +42,7 @@ func (s *snapshotsSuite) TestConfigureAutomaticSnapshotsExpirationHappy(c *C) {
 }
 
 func (s *snapshotsSuite) TestConfigureAutomaticSnapshotsExpirationTooLow(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"snapshots.automatic.retention": "10m",
@@ -52,7 +52,7 @@ func (s *snapshotsSuite) TestConfigureAutomaticSnapshotsExpirationTooLow(c *C) {
 }
 
 func (s *snapshotsSuite) TestConfigureAutomaticSnapshotsDisable(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"snapshots.automatic.retention": "no",
@@ -62,7 +62,7 @@ func (s *snapshotsSuite) TestConfigureAutomaticSnapshotsDisable(c *C) {
 }
 
 func (s *refreshSuite) TestConfigureAutomaticSnapshotsExpirationInvalid(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"snapshots.automatic.retention": "invalid",

@@ -42,6 +42,14 @@ Add `$GOPATH/bin` to your `PATH`, so you can run the go programs you install:
 your `$GOPATH` is more complex than a single entry you'll need to adjust the
 above).
 
+Note that if you are using go 1.16 or newer you need to disable the
+go modules feature. Use:
+
+    export GO111MODULE=off
+
+for this.
+
+
 ### Getting the snapd sources
 
 The easiest way to get the source for `snapd` is to use the `go get` command.

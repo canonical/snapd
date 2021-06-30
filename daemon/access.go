@@ -65,7 +65,7 @@ func checkPolkitActionImpl(r *http.Request, ucred *ucrednet, action string) *api
 // accessUnknown, which indicates the decision should be delegated to
 // the next access checker.
 type accessChecker interface {
-	CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError
+	CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError
 }
 
 // requireSnapdSocket ensures the request was received via snapd.socket.
@@ -85,7 +85,7 @@ func requireSnapdSocket(ucred *ucrednet) *apiError {
 // have peer credentials and were not received on snapd-snap.socket
 type openAccess struct{}
 
-func (ac openAccess) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac openAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 	return requireSnapdSocket(ucred)
 }
 
@@ -99,7 +99,7 @@ type authenticatedAccess struct {
 	Polkit string
 }
 
-func (ac authenticatedAccess) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac authenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 	if rspe := requireSnapdSocket(ucred); rspe != nil {
 		return rspe
 	}
@@ -126,7 +126,7 @@ func (ac authenticatedAccess) CheckAccess(r *http.Request, ucred *ucrednet, user
 // were not received on snapd-snap.socket
 type rootAccess struct{}
 
-func (ac rootAccess) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac rootAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 	if rspe := requireSnapdSocket(ucred); rspe != nil {
 		return rspe
 	}
@@ -140,7 +140,7 @@ func (ac rootAccess) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.Us
 // snapAccess allows requests from the snapd-snap.socket
 type snapAccess struct{}
 
-func (ac snapAccess) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+func (ac snapAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 	if ucred == nil {
 		return Forbidden("access denied")
 	}

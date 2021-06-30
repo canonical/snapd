@@ -145,8 +145,8 @@ func (h *healthHandler) Done() error {
 	return h.appendHealth(&health)
 }
 
-func (h *healthHandler) Error(err error) error {
-	return h.appendHealth(&HealthState{
+func (h *healthHandler) Error(err error) (bool, error) {
+	return false, h.appendHealth(&HealthState{
 		Revision:  h.context.SnapRevision(),
 		Timestamp: time.Now(),
 		Status:    UnknownStatus,

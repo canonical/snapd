@@ -26,12 +26,14 @@ import (
 	"io/ioutil"
 	"path/filepath"
 	"reflect"
+	"time"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -133,6 +135,8 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappy(c *C) {
 		Serial: "orig-serial",
 	})
 
+	restore := devicestate.AllowUC20RemodelTesting(false)
+	defer restore()
 	// ensure all error cases are checked
 	for _, t := range []struct {
 		new    map[string]interface{}
@@ -148,12 +152,33 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappy(c *C) {
 		c.Check(chg, IsNil)
 		c.Check(err, ErrorMatches, t.errStr)
 	}
+
+	restore = devicestate.AllowUC20RemodelTesting(true)
+	defer restore()
+
+	for _, t := range []struct {
+		new    map[string]interface{}
+		errStr string
+	}{
+		// pre-UC20 to UC20
+		{map[string]interface{}{"base": "core20", "kernel": nil, "gadget": nil, "snaps": mockCore20ModelSnaps}, "cannot remodel from grade unset to grade signed"},
+	} {
+		mergeMockModelHeaders(cur, t.new)
+		new := s.brands.Model(t.new["brand"].(string), t.new["model"].(string), t.new)
+		chg, err := devicestate.Remodel(s.state, new)
+		c.Check(chg, IsNil)
+		c.Check(err, ErrorMatches, t.errStr)
+	}
+
 }
 
-func (s *deviceMgrRemodelSuite) TestRemodelNoUC20RemodelYet(c *C) {
+func (s *deviceMgrRemodelSuite) TestRemodelCheckGrade(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.state.Set("seeded", true)
+
+	restore := devicestate.AllowUC20RemodelTesting(true)
+	defer restore()
 
 	// set a model assertion
 	cur := mockCore20ModelHeaders
@@ -171,16 +196,17 @@ func (s *deviceMgrRemodelSuite) TestRemodelNoUC20RemodelYet(c *C) {
 	})
 
 	// ensure all error cases are checked
-	for _, t := range []struct {
+	for idx, t := range []struct {
 		new    map[string]interface{}
 		errStr string
 	}{
 		// uc20 model
-		{map[string]interface{}{"grade": "signed"}, "cannot remodel Ubuntu Core 20 models yet"},
-		{map[string]interface{}{"base": "core22"}, "cannot remodel Ubuntu Core 20 models yet"},
+		{map[string]interface{}{"grade": "signed"}, "cannot remodel from grade dangerous to grade signed"},
+		{map[string]interface{}{"grade": "secured"}, "cannot remodel from grade dangerous to grade secured"},
 		// non-uc20 model
-		{map[string]interface{}{"snaps": nil, "grade": nil, "base": "core", "gadget": "pc", "kernel": "pc-kernel"}, "cannot remodel Ubuntu Core 20 models yet"},
+		{map[string]interface{}{"snaps": nil, "grade": nil, "base": "core", "gadget": "pc", "kernel": "pc-kernel"}, "cannot remodel from grade dangerous to grade unset"},
 	} {
+		c.Logf("tc: %v", idx)
 		mergeMockModelHeaders(cur, t.new)
 		new := s.brands.Model(t.new["brand"].(string), t.new["model"].(string), t.new)
 		chg, err := devicestate.Remodel(s.state, new)
@@ -1622,4 +1648,189 @@ func (s *deviceMgrSuite) TestRemodelSwitchBase(c *C) {
 	c.Assert(tss, HasLen, 2)
 	// API was hit
 	c.Assert(snapstateInstallWithDeviceContextCalled, Equals, 1)
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		c.Check(flags.Required, Equals, true)
+		c.Check(deviceCtx, NotNil)
+		c.Check(deviceCtx.ForRemodeling(), Equals, true)
+
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
+		tInstall.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
+		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	now := time.Now()
+	restore = devicestate.MockTimeNow(func() time.Time { return now })
+	defer restore()
+
+	restore = devicestate.AllowUC20RemodelTesting(true)
+	defer restore()
+
+	// set a model assertion
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "serial")
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "serial",
+	})
+
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"revision":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":     "new-required-snap-1",
+				"id":       snaptest.AssertedSnapID("new-required-snap-1"),
+				"presence": "required",
+			},
+			map[string]interface{}{
+				"name":     "new-required-snap-2",
+				"id":       snaptest.AssertedSnapID("new-required-snap-2"),
+				"presence": "required",
+			},
+		},
+	})
+	chg, err := devicestate.Remodel(s.state, new)
+	c.Assert(err, IsNil)
+	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
+
+	tl := chg.Tasks()
+	// 2 snaps (3 tasks for each) + recovery system (2 tasks) + set-model
+	c.Assert(tl, HasLen, 2*3+2+1)
+
+	deviceCtx, err := devicestate.DeviceCtx(s.state, tl[0], nil)
+	c.Assert(err, IsNil)
+	// deviceCtx is actually a remodelContext here
+	remodCtx, ok := deviceCtx.(devicestate.RemodelContext)
+	c.Assert(ok, Equals, true)
+	c.Check(remodCtx.ForRemodeling(), Equals, true)
+	c.Check(remodCtx.Kind(), Equals, devicestate.UpdateRemodel)
+	c.Check(remodCtx.Model(), DeepEquals, new)
+	c.Check(remodCtx.Store(), IsNil)
+
+	// check the tasks
+	tDownloadSnap1 := tl[0]
+	tValidateSnap1 := tl[1]
+	tInstallSnap1 := tl[2]
+	tDownloadSnap2 := tl[3]
+	tValidateSnap2 := tl[4]
+	tInstallSnap2 := tl[5]
+	tCreateRecovery := tl[6]
+	tFinalizeRecovery := tl[7]
+	tSetModel := tl[8]
+
+	// check the tasks
+	c.Assert(tDownloadSnap1.Kind(), Equals, "fake-download")
+	c.Assert(tDownloadSnap1.Summary(), Equals, "Download new-required-snap-1")
+	c.Assert(tDownloadSnap1.WaitTasks(), HasLen, 0)
+	c.Assert(tValidateSnap1.Kind(), Equals, "validate-snap")
+	c.Assert(tValidateSnap1.Summary(), Equals, "Validate new-required-snap-1")
+	expectedLabel := now.Format("20060102")
+	c.Assert(tCreateRecovery.Kind(), Equals, "create-recovery-system")
+	c.Assert(tCreateRecovery.Summary(), Equals, fmt.Sprintf("Create recovery system with label %q", expectedLabel))
+	c.Assert(tFinalizeRecovery.Kind(), Equals, "finalize-recovery-system")
+	c.Assert(tFinalizeRecovery.Summary(), Equals, fmt.Sprintf("Finalize recovery system with label %q", expectedLabel))
+	// check the ordering, download/validate everything first, then install
+
+	// snap2 downloads wait for the downloads of snap1
+	c.Assert(tDownloadSnap1.WaitTasks(), HasLen, 0)
+	c.Assert(tValidateSnap1.WaitTasks(), DeepEquals, []*state.Task{
+		tDownloadSnap1,
+	})
+	c.Assert(tInstallSnap1.WaitTasks(), DeepEquals, []*state.Task{
+		tValidateSnap1,
+		tValidateSnap2,
+		// wait for recovery system to be created
+		tCreateRecovery,
+		// and then finalized
+		tFinalizeRecovery,
+	})
+	c.Assert(tInstallSnap2.WaitTasks(), DeepEquals, []*state.Task{
+		tValidateSnap2,
+		// previous install chain
+		tInstallSnap1,
+	})
+	c.Assert(tCreateRecovery.WaitTasks(), DeepEquals, []*state.Task{
+		// last snap of the download chain
+		tValidateSnap2,
+	})
+	c.Assert(tFinalizeRecovery.WaitTasks(), DeepEquals, []*state.Task{
+		// recovery system being created
+		tCreateRecovery,
+		// last snap of the download chain (added later)
+		tValidateSnap2,
+	})
+
+	c.Assert(tSetModel.Kind(), Equals, "set-model")
+	c.Assert(tSetModel.Summary(), Equals, "Set new model assertion")
+	// setModel waits for everything in the change
+	c.Assert(tSetModel.WaitTasks(), DeepEquals, []*state.Task{
+		tDownloadSnap1, tValidateSnap1, tInstallSnap1,
+		tDownloadSnap2, tValidateSnap2, tInstallSnap2,
+		tCreateRecovery, tFinalizeRecovery,
+	})
+
+	// verify recovery system setup data on appropriate tasks
+	var systemSetupData map[string]interface{}
+	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
+	c.Assert(err, IsNil)
+	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
+		"label":            expectedLabel,
+		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
+		"snap-setup-tasks": []interface{}{tDownloadSnap1.ID(), tDownloadSnap2.ID()},
+	})
+	// cross references of to recovery system setup data
+	for _, tsk := range []*state.Task{tFinalizeRecovery, tSetModel} {
+		var otherTaskID string
+		// finalize-recovery-system points to create-recovery-system
+		err = tsk.Get("recovery-system-setup-task", &otherTaskID)
+		c.Assert(err, IsNil, Commentf("recovery system setup task ID missing in %s", tsk.Kind()))
+		c.Assert(otherTaskID, Equals, tCreateRecovery.ID())
+	}
 }

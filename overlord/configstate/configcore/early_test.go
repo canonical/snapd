@@ -39,7 +39,7 @@ func (s *earlySuite) TestEarly(c *C) {
 		"services.ssh.disable":            true,
 	}
 	tr := &mockConf{state: s.state}
-	err := configcore.Early(tr, patch)
+	err := configcore.Early(coreDev, tr, patch)
 	c.Assert(err, IsNil)
 
 	// only early options as described by flags earlyConfigFilters

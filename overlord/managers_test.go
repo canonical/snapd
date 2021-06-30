@@ -67,16 +67,19 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/seed/seedtest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/wrappers"
 )
@@ -188,6 +191,9 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 	os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755)
 
 	r = systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
+			return out, nil
+		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	s.AddCleanup(r)
@@ -692,7 +698,7 @@ apps:
 	tr.Commit()
 
 	// put the snap in a quota group
-	err := servicestate.CreateQuota(st, "quota-grp", "", []string{"foo"}, quantity.SizeMiB)
+	err := servicestatetest.MockQuotaInState(st, "quota-grp", "", []string{"foo"}, quantity.SizeMiB)
 	c.Assert(err, IsNil)
 
 	ts, err := snapstate.Remove(st, "foo", snap.R(0), &snapstate.RemoveFlags{Purge: true})
@@ -784,9 +790,19 @@ func (s *baseMgrsSuite) makeStoreTestSnapWithFiles(c *C, snapYaml string, revno 
 	snapDigest, size, err := asserts.SnapFileSHA3_384(snapPath)
 	c.Assert(err, IsNil)
 
+	s.makeStoreSnapRevision(c, info.SnapName(), revno, snapDigest, size)
+
+	return snapPath, snapDigest
+}
+
+func (s *baseMgrsSuite) makeStoreTestSnap(c *C, snapYaml string, revno string) (path, digest string) {
+	return s.makeStoreTestSnapWithFiles(c, snapYaml, revno, nil)
+}
+
+func (s *baseMgrsSuite) makeStoreSnapRevision(c *C, name, revno, digest string, size uint64) asserts.Assertion {
 	headers := map[string]interface{}{
-		"snap-id":       fakeSnapID(info.SnapName()),
-		"snap-sha3-384": snapDigest,
+		"snap-id":       fakeSnapID(name),
+		"snap-sha3-384": digest,
 		"snap-size":     fmt.Sprintf("%d", size),
 		"snap-revision": revno,
 		"developer-id":  "devdevdev",
@@ -796,12 +812,7 @@ func (s *baseMgrsSuite) makeStoreTestSnapWithFiles(c *C, snapYaml string, revno 
 	c.Assert(err, IsNil)
 	err = s.storeSigning.Add(snapRev)
 	c.Assert(err, IsNil)
-
-	return snapPath, snapDigest
-}
-
-func (s *baseMgrsSuite) makeStoreTestSnap(c *C, snapYaml string, revno string) (path, digest string) {
-	return s.makeStoreTestSnapWithFiles(c, snapYaml, revno, nil)
+	return snapRev
 }
 
 func (s *baseMgrsSuite) pathFor(name, revno string) string {
@@ -1941,7 +1952,7 @@ func (s *baseMgrsSuite) mockSuccessfulReboot(c *C, be rebootEnv, which []snap.Ty
 	state.MockRestarting(st, state.RestartUnset)
 	err := be.SetTryingDuringReboot(which)
 	c.Assert(err, IsNil)
-	s.o.DeviceManager().ResetBootOk()
+	s.o.DeviceManager().ResetToPostBootState()
 	st.Unlock()
 	defer st.Lock()
 	err = s.o.DeviceManager().Ensure()
@@ -1956,7 +1967,7 @@ func (s *baseMgrsSuite) mockRollbackAcrossReboot(c *C, be rebootEnv, which []sna
 	state.MockRestarting(st, state.RestartUnset)
 	err := be.SetRollbackAcrossReboot(which)
 	c.Assert(err, IsNil)
-	s.o.DeviceManager().ResetBootOk()
+	s.o.DeviceManager().ResetToPostBootState()
 	st.Unlock()
 	s.o.Settle(settleTimeout)
 	st.Lock()
@@ -4135,6 +4146,15 @@ func validateRefreshTasks(c *C, tasks []*state.Task, name, revno string, flags i
 	return i
 }
 
+func validateRecoverySystemTasks(c *C, tasks []*state.Task, label string) int {
+	var i int
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Create recovery system with label %q`, label))
+	i++
+	c.Assert(tasks[i].Summary(), Equals, fmt.Sprintf(`Finalize recovery system with label %q`, label))
+	i++
+	return i
+}
+
 // byReadyTime sorts a list of tasks by their "ready" time
 type byReadyTime []*state.Task
 
@@ -5804,6 +5824,265 @@ func (s *mgrsSuite) TestRemodelReregistration(c *C) {
 	c.Check(device.SessionMacaroon, Equals, "other-store-session")
 }
 
+const pcGadgetSnapYaml = `
+version: 1.0
+name: pc
+type: gadget
+base: core20
+`
+
+const pcKernelSnapYaml = `
+version: 1.0
+name: pc-kernel
+type: kernel
+`
+
+const core20SnapYaml = `
+version: 1.0
+name: core20
+type: base
+`
+
+const snapdSnapYaml = `
+version: 1.0
+name: snapd
+type: snapd
+`
+
+var (
+	pcGadgetFiles = [][]string{
+		{"meta/gadget.yaml", pcGadgetYaml},
+	}
+	snapYamlsForRemodel = map[string]string{
+		"pc":        pcGadgetSnapYaml,
+		"pc-kernel": pcKernelSnapYaml,
+		"core20":    core20SnapYaml,
+		"snapd":     snapdSnapYaml,
+	}
+	snapFilesForRemodel = map[string][][]string{
+		"pc": pcGadgetFiles,
+	}
+)
+
+func (s *mgrsSuite) makeInstalledSnapInStateForRemodel(c *C, name string, rev snap.Revision) {
+	si := &snap.SideInfo{
+		RealName: name,
+		SnapID:   fakeSnapID(name),
+		Revision: rev,
+	}
+	snapInfo := snaptest.MakeSnapFileAndDir(c, snapYamlsForRemodel[name],
+		snapFilesForRemodel[name], si)
+	snapstate.Set(s.o.State(), name, &snapstate.SnapState{
+		SnapType: string(snapInfo.Type()),
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  si.Revision,
+	})
+	sha3_384, size, err := asserts.SnapFileSHA3_384(snapInfo.MountFile())
+	c.Assert(err, IsNil)
+
+	snapRev := s.makeStoreSnapRevision(c, name, rev.String(), sha3_384, size)
+	err = assertstate.Add(s.o.State(), snapRev)
+	c.Assert(err, IsNil)
+}
+
+func (s *mgrsSuite) TestRemodelUC20WithRecoverySystem(c *C) {
+	bl := bootloadertest.Mock("mock", c.MkDir()).WithRecoveryAwareTrustedAssets()
+	bl.StaticCommandLine = "mocked static"
+	bootloader.Force(bl)
+	defer bootloader.Force(nil)
+	restore := release.MockOnClassic(false)
+	defer restore()
+	restore = devicestate.AllowUC20RemodelTesting(true)
+	defer restore()
+
+	for _, name := range []string{"foo", "bar"} {
+		s.prereqSnapAssertions(c, map[string]interface{}{
+			"snap-name": name,
+		})
+		snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 1.0, base: core20}", name), "1")
+		s.serveSnap(snapPath, "1")
+	}
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	err := assertstate.Add(st, s.devAcct)
+	c.Assert(err, IsNil)
+	s.makeInstalledSnapInStateForRemodel(c, "pc", snap.R(1))
+	s.makeInstalledSnapInStateForRemodel(c, "pc-kernel", snap.R(2))
+	s.makeInstalledSnapInStateForRemodel(c, "core20", snap.R(3))
+	s.makeInstalledSnapInStateForRemodel(c, "snapd", snap.R(4))
+
+	// a regular UC20 model assertion
+	uc20ModelDefaults := map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              fakeSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              fakeSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			}},
+	}
+
+	model := s.brands.Model("can0nical", "my-model", uc20ModelDefaults)
+
+	// setup model assertion
+	devicestatetest.SetDevice(st, &auth.DeviceState{
+		Brand:  "can0nical",
+		Model:  "my-model",
+		Serial: "serialserialserial",
+	})
+	err = assertstate.Add(st, model)
+	c.Assert(err, IsNil)
+	s.makeSerialAssertionInState(c, st, "can0nical", "my-model", "serialserialserial")
+
+	// create a new model
+	newModel := s.brands.Model("can0nical", "my-model", uc20ModelDefaults, map[string]interface{}{
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              fakeSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              fakeSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":     "foo",
+				"presence": "required",
+			},
+			map[string]interface{}{
+				"name":     "bar",
+				"presence": "required",
+			}},
+		"revision": "1",
+	})
+
+	// mock the modeenv file
+	m := boot.Modeenv{
+		Mode:                      "run",
+		Base:                      "core20_3.snap",
+		CurrentKernels:            []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems:    []string{"1234"},
+		GoodRecoverySystems:       []string{"1234"},
+		CurrentKernelCommandLines: []string{"snapd_recovery_mode=run mocked static"},
+	}
+	err = m.WriteTo("")
+	c.Assert(err, IsNil)
+	c.Assert(s.o.DeviceManager().ReloadModeenv(), IsNil)
+
+	err = bl.SetBootVars(map[string]string{
+		"snap_kernel": "pc-kernel_2.snap",
+	})
+	c.Assert(err, IsNil)
+
+	chg, err := devicestate.Remodel(st, newModel)
+	c.Assert(err, IsNil)
+
+	c.Check(devicestate.Remodeling(st), Equals, true)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil, Commentf(s.logbuf.String()))
+
+	c.Check(chg.Status(), Equals, state.DoingStatus, Commentf("remodel change failed: %v", chg.Err()))
+	c.Check(devicestate.Remodeling(st), Equals, true)
+	restarting, kind := st.Restarting()
+	c.Check(restarting, Equals, true)
+	c.Assert(kind, Equals, state.RestartSystemNow)
+
+	expectedLabel := time.Now().Format("20060102")
+
+	vars, err := bl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Assert(vars, DeepEquals, map[string]string{
+		"try_recovery_system":    expectedLabel,
+		"recovery_system_status": "try",
+	})
+
+	// the new required-snap "foo" is not installed yet
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "foo", &snapst)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	// simulate successful reboot to recovery and back
+	state.MockRestarting(st, state.RestartUnset)
+	// this would be done by snap-bootstrap in initramfs
+	err = bl.SetBootVars(map[string]string{
+		"try_recovery_system":    expectedLabel,
+		"recovery_system_status": "tried",
+	})
+	c.Assert(err, IsNil)
+
+	// reset, so that after-reboot handling of tried system is executed
+	s.o.DeviceManager().ResetToPostBootState()
+	st.Unlock()
+	err = s.o.DeviceManager().Ensure()
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	st.Unlock()
+	err = s.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(chg.Status(), Equals, state.DoneStatus, Commentf("remodel change failed: %v", chg.Err()))
+	// boot variables are cleared
+	vars, err = bl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Assert(vars, DeepEquals, map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+
+	for _, name := range []string{"core20", "pc-kernel", "pc", "snapd", "foo", "bar"} {
+		var snapst snapstate.SnapState
+		err = snapstate.Get(st, name, &snapst)
+		c.Assert(err, IsNil)
+	}
+
+	// ensure sorting is correct
+	tasks := chg.Tasks()
+	sort.Sort(byReadyTime(tasks))
+
+	var i int
+	// first all downloads/checks in sequential order
+	for _, name := range []string{"foo", "bar"} {
+		i += validateDownloadCheckTasks(c, tasks[i:], name, "1", "stable")
+	}
+	// then create recovery
+	i += validateRecoverySystemTasks(c, tasks[i:], expectedLabel)
+	// then all installs in sequential order
+	for _, name := range []string{"foo", "bar"} {
+		i += validateInstallTasks(c, tasks[i:], name, "1", 0)
+	}
+	// ensure that we only have the tasks we checked (plus the one
+	// extra "set-model" task)
+	c.Assert(tasks, HasLen, i+1)
+
+	const usesSnapd = true
+	seedtest.ValidateSeed(c, boot.InitramfsUbuntuSeedDir, expectedLabel, usesSnapd, s.storeSigning.Trusted)
+}
+
 func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c *C) {
 	hookMgr := s.o.HookManager()
 	c.Assert(hookMgr, NotNil)
@@ -6974,7 +7253,7 @@ func (s *mgrsSuite) testGadgetKernelCommandLine(c *C, gadgetPath string, gadgetS
 		// reset bootstate, so that after-reboot command line is
 		// asserted
 		st.Unlock()
-		s.o.DeviceManager().ResetBootOk()
+		s.o.DeviceManager().ResetToPostBootState()
 		err = s.o.DeviceManager().Ensure()
 		st.Lock()
 		c.Assert(err, IsNil)

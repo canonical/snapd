@@ -768,8 +768,7 @@ users:
   - name: user1
     sudo: "ALL=(ALL) NOPASSWD:ALL"
     lock_passwd: false
-    # passwd is just "ubuntu"
-    passwd: "$6$rounds=4096$PCrfo.ggdf4ubP$REjyaoY2tUWH2vjFJjvLs3rDxVTszGR9P7mhH9sHb2MsELfc53uV/v15jDDOJU/9WInfjjTKJPlD5URhX5Mix0"
+    plain_text_passwd: "ubuntu"
 EOF
 }
 

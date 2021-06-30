@@ -21,15 +21,14 @@ package sanity
 
 import (
 	"bytes"
+	"compress/gzip"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
-
-	"compress/gzip"
-	"encoding/base64"
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
