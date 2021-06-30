@@ -111,6 +111,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 	// system is encrypted
 	s.stampSealedKeys(c, s.rootdir)
 
+	model := s.uc20dev.Model()
+
 	modeenv := &boot.Modeenv{
 		Mode: "run",
 		// keep this comment to make old gofmt happy
@@ -123,6 +125,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 			"asset": []string{"asset-hash-1"},
 		},
 		CurrentKernels: []string{"pc-kernel_500.snap"},
+
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 
@@ -131,7 +138,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 		// the mock bootloader can only mock a single recovery boot
 		// chain, so pretend both seeds use the same kernel, but keep track of the labels
 		readSeedSeenLabels = append(readSeedSeenLabels, label)
-		return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
+		return model, []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
 	})
 	defer restore()
 
@@ -199,6 +206,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 			"asset": []string{"asset-hash-1"},
 		},
 		CurrentKernels: []string{"pc-kernel_500.snap"},
+
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
 	}), Equals, true)
 }
 
@@ -299,6 +311,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 	// system is encrypted
 	s.stampSealedKeys(c, s.rootdir)
 
+	model := s.uc20dev.Model()
+
 	modeenv := &boot.Modeenv{
 		Mode: "run",
 		// keep this comment to make old gofmt happy
@@ -310,6 +324,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
+
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 
@@ -323,7 +342,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 			// called for the first system
 			c.Assert(label, Equals, "20200825")
 			c.Check(mtbl.SetBootVarsCalls, Equals, 1)
-			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
+			return model, []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
 		case 2:
 			// called for the 'try' system
 			c.Assert(label, Equals, "1234")
@@ -346,7 +365,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorBeforeReseal(c *C) 
 			c.Assert(label, Equals, "20200825")
 			// boot variables already updated
 			c.Check(mtbl.SetBootVarsCalls, Equals, 2)
-			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
+			return model, []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
 		default:
 			return nil, nil, fmt.Errorf("unexpected call %v", readSeedCalls)
 		}
@@ -396,6 +415,8 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 	// system is encrypted
 	s.stampSealedKeys(c, s.rootdir)
 
+	model := s.uc20dev.Model()
+
 	modeenv := &boot.Modeenv{
 		Mode: "run",
 		// keep this comment to make old gofmt happy
@@ -407,6 +428,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
+
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 
@@ -420,7 +446,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 			// called for the first system
 			c.Assert(label, Equals, "20200825")
 			c.Check(mtbl.SetBootVarsCalls, Equals, 1)
-			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
+			return model, []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
 		case 2:
 			// called for the 'try' system
 			c.Assert(label, Equals, "1234")
@@ -432,7 +458,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 			})
 			c.Check(mtbl.SetBootVarsCalls, Equals, 1)
 			// still good
-			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
+			return model, []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
 		case 3:
 			// recovery boot chains for a good recovery system
 			c.Check(mtbl.SetBootVarsCalls, Equals, 1)
@@ -448,7 +474,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupOnErrorAfterReseal(c *C) {
 			if readSeedCalls >= 4 {
 				c.Check(mtbl.SetBootVarsCalls, Equals, 2)
 			}
-			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
+			return model, []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
 		default:
 			return nil, nil, fmt.Errorf("unexpected call %v", readSeedCalls)
 		}
@@ -747,6 +773,8 @@ func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTr
 	// system is encrypted
 	s.stampSealedKeys(c, s.rootdir)
 
+	model := s.uc20dev.Model()
+
 	modeenv := &boot.Modeenv{
 		Mode: "run",
 		// keep this comment to make old gofmt happy
@@ -760,6 +788,11 @@ func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTr
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
+
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
 	}
 	if systemLabel != "" {
 		modeenv.CurrentRecoverySystems = append(modeenv.CurrentRecoverySystems, systemLabel)
@@ -771,7 +804,7 @@ func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTr
 		// the mock bootloader can only mock a single recovery boot
 		// chain, so pretend both seeds use the same kernel, but keep track of the labels
 		readSeedSeenLabels = append(readSeedSeenLabels, label)
-		return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
+		return model, []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
 	})
 	defer restore()
 
@@ -958,6 +991,8 @@ func (s *systemsSuite) TestClearRecoverySystemReboot(c *C) {
 	// system is encrypted
 	s.stampSealedKeys(c, s.rootdir)
 
+	model := s.uc20dev.Model()
+
 	modeenv := &boot.Modeenv{
 		Mode: "run",
 		// keep this comment to make old gofmt happy
@@ -970,6 +1005,11 @@ func (s *systemsSuite) TestClearRecoverySystemReboot(c *C) {
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
+
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 
@@ -978,7 +1018,7 @@ func (s *systemsSuite) TestClearRecoverySystemReboot(c *C) {
 		// the mock bootloader can only mock a single recovery boot
 		// chain, so pretend both seeds use the same kernel, but keep track of the labels
 		readSeedSeenLabels = append(readSeedSeenLabels, label)
-		return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
+		return model, []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
 	})
 	defer restore()
 
@@ -1085,6 +1125,8 @@ func (s *systemsSuite) testPromoteTriedRecoverySystem(c *C, systemLabel string, 
 	// system is encrypted
 	s.stampSealedKeys(c, s.rootdir)
 
+	model := s.uc20dev.Model()
+
 	modeenv := &boot.Modeenv{
 		Mode: "run",
 		// keep this comment to make old gofmt happy
@@ -1098,6 +1140,11 @@ func (s *systemsSuite) testPromoteTriedRecoverySystem(c *C, systemLabel string, 
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
+
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
 	}
 	if tc.systemLabelAddToCurrent {
 		modeenv.CurrentRecoverySystems = append(modeenv.CurrentRecoverySystems, systemLabel)
@@ -1113,7 +1160,7 @@ func (s *systemsSuite) testPromoteTriedRecoverySystem(c *C, systemLabel string, 
 		// the mock bootloader can only mock a single recovery boot
 		// chain, so pretend both seeds use the same kernel, but keep track of the labels
 		readSeedSeenLabels = append(readSeedSeenLabels, label)
-		return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
+		return model, []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
 	})
 	defer restore()
 
@@ -1343,6 +1390,8 @@ func (s *systemsSuite) testDropRecoverySystem(c *C, systemLabel string, tc recov
 	// system is encrypted
 	s.stampSealedKeys(c, s.rootdir)
 
+	model := s.uc20dev.Model()
+
 	modeenv := &boot.Modeenv{
 		Mode: "run",
 		// keep this comment to make old gofmt happy
@@ -1356,6 +1405,11 @@ func (s *systemsSuite) testDropRecoverySystem(c *C, systemLabel string, tc recov
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
+
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
 	}
 	if tc.systemLabelAddToCurrent {
 		modeenv.CurrentRecoverySystems = append(modeenv.CurrentRecoverySystems, systemLabel)
@@ -1371,7 +1425,7 @@ func (s *systemsSuite) testDropRecoverySystem(c *C, systemLabel string, tc recov
 		// the mock bootloader can only mock a single recovery boot
 		// chain, so pretend both seeds use the same kernel, but keep track of the labels
 		readSeedSeenLabels = append(readSeedSeenLabels, label)
-		return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
+		return model, []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
 	})
 	defer restore()
 

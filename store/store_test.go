@@ -1344,7 +1344,7 @@ func (s *storeTestSuite) TestInfo(c *C) {
 		},
 	})
 	c.Check(result.MustBuy, Equals, true)
-	c.Check(result.Contact, Equals, "mailto:snappy-devel@lists.ubuntu.com")
+	c.Check(result.Contact(), Equals, "mailto:snappy-devel@lists.ubuntu.com")
 	c.Check(result.Base, Equals, "bogus-base")
 	c.Check(result.Epoch.String(), Equals, "0")
 	c.Check(sto.SuggestedCurrency(), Equals, "GBP")
@@ -2284,6 +2284,30 @@ func (s *storeTestSuite) TestSectionsQueryCustomStore(c *C) {
 	c.Check(sections, DeepEquals, []string{"featured", "database"})
 }
 
+func (s *storeTestSuite) TestSectionsQueryErrors(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", sectionsPath)
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, "")
+
+		w.WriteHeader(500)
+		io.WriteString(w, "very unhappy")
+		n++
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	serverURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: serverURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	_, err := sto.Sections(s.ctx, s.user)
+	c.Assert(err, ErrorMatches, `cannot retrieve sections: got unexpected HTTP status code 500 via GET to.*`)
+}
+
 const mockNamesJSON = `
 {
   "_embedded": {
@@ -2537,7 +2561,7 @@ func (s *storeTestSuite) testFind(c *C, apiV1 bool) {
 		},
 	})
 	c.Check(snp.MustBuy, Equals, true)
-	c.Check(snp.Contact, Equals, "mailto:snappy-devel@lists.ubuntu.com")
+	c.Check(snp.Contact(), Equals, "mailto:snappy-devel@lists.ubuntu.com")
 	c.Check(snp.Base, Equals, "bare-base")
 
 	// Make sure the epoch (currently not sent by the store) defaults to "0"

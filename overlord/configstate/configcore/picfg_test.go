@@ -257,11 +257,6 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnAvnetKernel(c *C) {
 	logbuf, r := logger.MockLogger()
 	defer r()
 
-	if _, isSet := os.LookupEnv("SNAPD_DEBUG"); !isSet {
-		os.Setenv("SNAPD_DEBUG", "1")
-		defer os.Unsetenv("SNAPD_DEBUG")
-	}
-
 	avnetDev := mockDev{classic: false, kernel: "avnet-avt-iiotg20-kernel"}
 
 	err := configcore.Run(avnetDev, &mockConf{
@@ -281,18 +276,13 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnWrongMode(c *C) {
 	logbuf, r := logger.MockLogger()
 	defer r()
 
-	if _, isSet := os.LookupEnv("SNAPD_DEBUG"); !isSet {
-		os.Setenv("SNAPD_DEBUG", "1")
-		defer os.Unsetenv("SNAPD_DEBUG")
-	}
-
-	coreDevInstalling := mockDev{
+	uc20DevInstallMode := mockDev{
 		classic: false,
 		mode:    "install",
 		uc20:    true,
 	}
 
-	err := configcore.Run(coreDevInstalling, &mockConf{
+	err := configcore.Run(uc20DevInstallMode, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"pi-config.disable-overscan": 1,
@@ -308,11 +298,6 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnWrongMode(c *C) {
 func (s *piCfgSuite) TestConfigurePiConfigSkippedOnIgnoreHeader(c *C) {
 	logbuf, r := logger.MockLogger()
 	defer r()
-
-	if _, isSet := os.LookupEnv("SNAPD_DEBUG"); !isSet {
-		os.Setenv("SNAPD_DEBUG", "1")
-		defer os.Unsetenv("SNAPD_DEBUG")
-	}
 
 	tests := []struct {
 		header       string

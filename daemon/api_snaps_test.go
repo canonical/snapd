@@ -970,7 +970,7 @@ func (s *snapsSuite) TestMapLocalFields(c *check.C) {
 			EditedSummary:     "a summary",
 			EditedDescription: "the\nlong\ndescription",
 			Channel:           "bleeding/edge",
-			Contact:           "alice@example.com",
+			EditedContact:     "alice@example.com",
 			Revision:          snap.R(7),
 			Private:           true,
 		},
