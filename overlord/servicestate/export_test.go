@@ -26,13 +26,21 @@ import (
 )
 
 var (
-	UpdateSnapstateServices = updateSnapstateServices
-	CheckSystemdVersion     = checkSystemdVersion
-	QuotaCreate             = quotaCreate
-	QuotaRemove             = quotaRemove
-	QuotaUpdate             = quotaUpdate
+	UpdateSnapstateServices  = updateSnapstateServices
+	CheckSystemdVersion      = checkSystemdVersion
+	QuotaStateAlreadyUpdated = quotaStateAlreadyUpdated
 )
 
 func (m *ServiceManager) DoQuotaControl(t *state.Task, to *tomb.Tomb) error {
 	return m.doQuotaControl(t, to)
+}
+
+func MockOsutilBootID(mockID string) (restore func()) {
+	old := osutilBootID
+	osutilBootID = func() (string, error) {
+		return mockID, nil
+	}
+	return func() {
+		osutilBootID = old
+	}
 }
