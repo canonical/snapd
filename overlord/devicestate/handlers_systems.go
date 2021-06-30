@@ -204,7 +204,18 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 		return logNewSystemSnapFile(filepath.Join(recoverySystemDir, "snapd-new-file-log"), where)
 	}
 
-	db := assertstate.DB(st)
+	var db asserts.RODatabase
+	if isRemodel {
+		// during remodel, the model assertion is not yet present in the
+		// database, hence we need to use a temporary one to which the
+		// assertion has been explicitly added
+		db, err = assertstate.TemporaryDBWithModel(st, model)
+		if err != nil {
+			return fmt.Errorf("cannot create a temporary database with model: %v", err)
+		}
+	} else {
+		db = assertstate.DB(st)
+	}
 	defer func() {
 		if err == nil {
 			return

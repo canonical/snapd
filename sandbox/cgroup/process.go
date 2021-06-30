@@ -37,7 +37,7 @@ func snapNameFromPidUsingTrackingCgroup(pid int) (string, error) {
 	return "", fmt.Errorf("cannot find snap security tag")
 }
 
-func snapNameFromPidUsingFreezerCgroup(pid int) (string, error) {
+func snapNameFromPidUsingFreezerV1Cgroup(pid int) (string, error) {
 	// This logic only makes sense with cgroup v1.
 	if IsUnified() {
 		return "", fmt.Errorf("not supported")
@@ -64,5 +64,5 @@ func SnapNameFromPid(pid int) (string, error) {
 	if snapName, err := snapNameFromPidUsingTrackingCgroup(pid); err == nil {
 		return snapName, nil
 	}
-	return snapNameFromPidUsingFreezerCgroup(pid)
+	return snapNameFromPidUsingFreezerV1Cgroup(pid)
 }
