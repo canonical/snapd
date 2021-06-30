@@ -19,6 +19,13 @@
 
 package snap
 
+type systemUsername struct {
+	Id uint32
+	// List of snap IDs which are allowed to declare this user or nil if no
+	// such restriction exists
+	AllowedSnapIds []string
+}
+
 // SupportedSystemUsernames for now contains the hardcoded list of system
 // users (and implied system group of same name) that snaps may specify. This
 // will eventually be moved out of here into the store.
@@ -143,13 +150,6 @@ package snap
 // https://systemd.io/UIDS-GIDS.html
 // https://docs.docker.com/engine/security/userns-remap/
 // https://github.com/lxc/lxd/blob/master/doc/userns-idmap.md
-type systemUsername struct {
-	Id uint32
-	// List of snap IDs which are allowed to declare this user or nil if no
-	// such restriction exists
-	AllowedSnapIds []string
-}
-
 var SupportedSystemUsernames = map[string]systemUsername{
 	"snap_daemon": {Id: 584788},
 	"snap_microk8s": {Id: 584789, AllowedSnapIds: []string{

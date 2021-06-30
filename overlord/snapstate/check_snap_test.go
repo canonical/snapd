@@ -1041,6 +1041,7 @@ var systemUsernamesTests = []struct {
 	sysIDs: "snap_microk8s: shared",
 	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
 }, {
+	// missing snap ID, therefore installation allowed
 	sysIDs: "snap_microk8s:\n    scope: shared",
 	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
 }, {
