@@ -1447,7 +1447,7 @@ func fakeReadInfo(name string, si *snap.SideInfo) (*snap.Info, error) {
 	return info, nil
 }
 
-func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, beforePhase1 func(), gateAutoRefreshHook func(snapName string), expected []string) {
+func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, beforePhase1 func(), gateAutoRefreshHook func(snapName string), expected []string) *state.Change {
 	st := s.state
 	st.Lock()
 	defer st.Unlock()
@@ -1518,6 +1518,8 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, beforePhase1 func(), gate
 	c.Check(chg.Err(), IsNil)
 
 	verifyPhasedAutorefreshTasks(c, chg.Tasks(), expected)
+
+	return chg
 }
 
 func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
@@ -1568,7 +1570,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 
 	seenSnapsWithGateAutoRefreshHook := make(map[string]bool)
 
-	s.testAutoRefreshPhase2(c, nil, func(snapName string) {
+	chg := s.testAutoRefreshPhase2(c, nil, func(snapName string) {
 		seenSnapsWithGateAutoRefreshHook[snapName] = true
 	}, expected)
 
@@ -1579,6 +1581,9 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	tasks := chg.Tasks()
+	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Consider re-refresh of "base-snap-b", "snap-a"`)
 
 	// all snaps refreshed, all removed from refresh-candidates.
 	var candidates map[string]*snapstate.RefreshCandidate
@@ -1617,14 +1622,20 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Held(c *C) {
 		"check-rerefresh",
 	}
 
-	s.testAutoRefreshPhase2(c, nil, func(snapName string) {
+	chg := s.testAutoRefreshPhase2(c, nil, func(snapName string) {
 		if snapName == "snap-b" {
 			// pretend than snap-b calls snapctl --hold to hold refresh of base-snap-b
 			c.Assert(snapstate.HoldRefresh(s.state, "snap-b", 0, "base-snap-b"), IsNil)
 		}
 	}, expected)
 
+	s.state.Lock()
+	defer s.state.Unlock()
+
 	c.Assert(logbuf.String(), testutil.Contains, `skipping refresh of held snaps: base-snap-b`)
+	tasks := chg.Tasks()
+	// no re-refresh for base-snap-b because it was held.
+	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Consider re-refresh of "snap-a"`)
 }
 
 func (s *snapmgrTestSuite) TestAutoRefreshPhase2Proceed(c *C) {
@@ -1685,7 +1696,6 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2AllHeld(c *C) {
 		"run-hook [snap-a;gate-auto-refresh]",
 		// snap-b hook is triggered because of base-snap-b refresh
 		"run-hook [snap-b;gate-auto-refresh]",
-		"check-rerefresh",
 	}
 
 	s.testAutoRefreshPhase2(c, nil, func(snapName string) {
@@ -1860,6 +1870,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Conflict(c *C) {
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 	c.Check(chg.Err(), IsNil)
 
+	// no refresh of snap-a because of the conflict.
 	expected := []string{
 		"conditional-auto-refresh",
 		"run-hook [snap-a;gate-auto-refresh]",
@@ -1939,29 +1950,11 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2ConflictOtherSnapOp(c *C) {
 		Snap:       "snap-a",
 	})
 
+	// only 2 tasks because we don't run settle() so conditional-auto-refresh
+	// doesn't run and no new tasks get created.
 	expected := []string{
 		"conditional-auto-refresh",
 		"run-hook [snap-a;gate-auto-refresh]",
-		"prerequisites",
-		"download-snap",
-		"validate-snap",
-		"mount-snap",
-		"run-hook [snap-a;pre-refresh]",
-		"stop-snap-services",
-		"remove-aliases",
-		"unlink-current-snap",
-		"copy-snap-data",
-		"setup-profiles",
-		"link-snap",
-		"auto-connect",
-		"set-auto-aliases",
-		"setup-aliases",
-		"run-hook [snap-a;post-refresh]",
-		"start-snap-services",
-		"cleanup",
-		"run-hook [snap-a;configure]",
-		"run-hook [snap-a;check-health]",
-		"check-rerefresh",
 	}
 	verifyPhasedAutorefreshTasks(c, chg.Tasks(), expected)
 }
@@ -2063,7 +2056,10 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2GatedSnaps(c *C) {
 		"run-hook [base-snap-b;check-health]",
 		"check-rerefresh",
 	}
-	verifyPhasedAutorefreshTasks(c, chg.Tasks(), expected)
+	tasks := chg.Tasks()
+	verifyPhasedAutorefreshTasks(c, tasks, expected)
+	// no re-refresh for base-snap-b because it was held.
+	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Consider re-refresh of "base-snap-b"`)
 
 	// only snap-a remains in refresh-candidates because it was gated;
 	// base-snap-b got pruned (was refreshed).
@@ -2074,6 +2070,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2GatedSnaps(c *C) {
 }
 
 func verifyPhasedAutorefreshTasks(c *C, tasks []*state.Task, expected []string) {
+	c.Assert(len(tasks), Equals, len(expected))
 	for i, t := range tasks {
 		var got string
 		if t.Kind() == "run-hook" {
