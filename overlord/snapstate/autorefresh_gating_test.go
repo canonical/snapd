@@ -1271,12 +1271,12 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 	c.Check(hs.Hook, Equals, "gate-auto-refresh")
 	seenSnaps[hs.Snap] = true
 	switch hs.Snap {
-		case "snap-a":
-			task.Get("hook-context", &snapAhookData)
-		case "snap-b":
-			task.Get("hook-context", &snapBhookData)
-		default:
-			c.Fatalf("unexpected snap %q", hs.Snap)
+	case "snap-a":
+		task.Get("hook-context", &snapAhookData)
+	case "snap-b":
+		task.Get("hook-context", &snapBhookData)
+	default:
+		c.Fatalf("unexpected snap %q", hs.Snap)
 	}
 
 	c.Check(snapAhookData["affecting-snaps"], DeepEquals, []interface{}{"snap-a"})
