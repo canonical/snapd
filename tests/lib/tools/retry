@@ -78,7 +78,8 @@ attempt. On failure the exit code from the final attempt is returned.
 def get_env(env):
     # type: (List[str]) -> dict[str,str]
     new_env = os.environ.copy()
-    for key, val in [s.split("=",maxsplit=1) for s in env]:
+    maxsplit=1  # no keyword support for str.split() in py2
+    for key, val in [s.split("=", maxsplit) for s in env]:
         new_env[key] = val
     return new_env
 
