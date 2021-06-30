@@ -209,10 +209,11 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 		// during remodel, the model assertion is not yet present in the
 		// database, hence we need to use a temporary one to which the
 		// assertion has been explicitly added
-		db, err = assertstate.TemporaryDBWithModel(st, model)
-		if err != nil {
+		tempDB := assertstate.TemporaryDB(st)
+		if err := tempDB.Add(model); err != nil {
 			return fmt.Errorf("cannot create a temporary database with model: %v", err)
 		}
+		db = tempDB
 	} else {
 		db = assertstate.DB(st)
 	}

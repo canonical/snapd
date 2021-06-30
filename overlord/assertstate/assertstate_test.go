@@ -2564,7 +2564,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForMonitorUnpinnedNotFound(c 
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot fetch and resolve assertions:\n - validation-set/16/%s/bar: validation-set assertion not found.*`, s.dev1Acct.AccountID()))
 }
 
-func (s *assertMgrSuite) TestTemporaryDBForRemodel(c *C) {
+func (s *assertMgrSuite) TestTemporaryDB(c *C) {
 	st := s.state
 
 	st.Lock()
@@ -2611,18 +2611,27 @@ func (s *assertMgrSuite) TestTemporaryDBForRemodel(c *C) {
 	_, err = assertstate.DB(st).Find(asserts.ModelType, hdrs)
 	c.Assert(err, NotNil)
 	c.Assert(asserts.IsNotFound(err), Equals, true)
-	// but will be found in a temporary one for remodel
-	tempDB, err := assertstate.TemporaryDBWithModel(st, model)
+	// let's get a temporary DB
+	tempDB := assertstate.TemporaryDB(st)
+	c.Assert(tempDB, NotNil)
+	// and add the model to it
+	err = tempDB.Add(model)
 	c.Assert(err, IsNil)
 	fromTemp, err := tempDB.Find(asserts.ModelType, hdrs)
 	c.Assert(err, IsNil)
 	c.Assert(fromTemp.(*asserts.Model), DeepEquals, model)
+	// the model is only in the temp database
+	_, err = assertstate.DB(st).Find(asserts.ModelType, hdrs)
+	c.Assert(err, NotNil)
+	c.Assert(asserts.IsNotFound(err), Equals, true)
 
 	// let's add it to the DB now
 	err = assertstate.Add(st, model)
 	c.Assert(err, IsNil)
 	// such that we can lookup the revision 2 in a temporary DB
-	tempDB, err = assertstate.TemporaryDBWithModel(st, modelRev2)
+	tempDB = assertstate.TemporaryDB(st)
+	c.Assert(tempDB, NotNil)
+	err = tempDB.Add(modelRev2)
 	c.Assert(err, IsNil)
 	fromTemp, err = tempDB.Find(asserts.ModelType, hdrs)
 	c.Assert(err, IsNil)

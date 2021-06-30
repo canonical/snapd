@@ -479,15 +479,9 @@ func ValidationSetAssertionForMonitor(st *state.State, accountID, name string, s
 	return as, false, err
 }
 
-// TemporaryDBWithModel returns a temporary database stacked on top of the
-// assertions database, with the provided model added to it. This is useful
-// during remodel, when the new model is not added to the main database until
-// the very last stage of the process.
-func TemporaryDBWithModel(st *state.State, model *asserts.Model) (asserts.RODatabase, error) {
+// TemporaryDB returns a temporary database stacked on top of the assertions
+// database. Writing to it will not affect the assertions database.
+func TemporaryDB(st *state.State) *asserts.Database {
 	db := cachedDB(st)
-	temp := db.WithStackedBackstore(asserts.NewMemoryBackstore())
-	if err := temp.Add(model); err != nil {
-		return nil, err
-	}
-	return temp, nil
+	return db.WithStackedBackstore(asserts.NewMemoryBackstore())
 }
