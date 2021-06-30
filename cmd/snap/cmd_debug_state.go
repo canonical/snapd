@@ -93,24 +93,27 @@ type byLaneAndWaitTaskChain []*state.Task
 func (t byLaneAndWaitTaskChain) Len() int      { return len(t) }
 func (t byLaneAndWaitTaskChain) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
 func (t byLaneAndWaitTaskChain) Less(i, j int) bool {
+	if t[i].ID() == t[j].ID() {
+		return false
+	}
 	// cover the typical case (just one lane), and order by first lane
 	if t[i].Lanes()[0] == t[j].Lanes()[0] {
-		seen := make(map[string]bool)
-		return t.waitChainSearch(t[i], t[j], seen)
+		seenTasks := make(map[string]bool)
+		return t.waitChainSearch(t[i], t[j], seenTasks)
 	}
 	return t[i].Lanes()[0] < t[j].Lanes()[0]
 }
 
-func (t *byLaneAndWaitTaskChain) waitChainSearch(startT, searchT *state.Task, seen map[string]bool) bool {
-	if seen[startT.ID()] {
+func (t *byLaneAndWaitTaskChain) waitChainSearch(startT, searchT *state.Task, seenTasks map[string]bool) bool {
+	if seenTasks[startT.ID()] {
 		return false
 	}
-	seen[startT.ID()] = true
+	seenTasks[startT.ID()] = true
 	for _, cand := range startT.HaltTasks() {
 		if cand == searchT {
 			return true
 		}
-		if t.waitChainSearch(cand, searchT, seen) {
+		if t.waitChainSearch(cand, searchT, seenTasks) {
 			return true
 		}
 	}
