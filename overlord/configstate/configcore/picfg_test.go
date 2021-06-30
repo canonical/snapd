@@ -29,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -250,4 +251,62 @@ func (s *piCfgSuite) TestFilesystemOnlyApply(c *C) {
 
 	expected := strings.Replace(mockConfigTxt, "#gpu_mem_512=true", "gpu_mem_512=true", -1)
 	c.Check(piCfg, testutil.FileEquals, expected)
+}
+
+func (s *piCfgSuite) TestConfigurePiConfigSkippedOnAvnetKernel(c *C) {
+	logbuf, r := logger.MockLogger()
+	defer r()
+
+	oldSnapdDebugEnv, isSet := os.LookupEnv("SNAPD_DEBUG")
+	os.Setenv("SNAPD_DEBUG", "1")
+	if !isSet {
+		defer os.Unsetenv("SNAPD_DEBUG")
+	} else {
+		defer os.Setenv("SNAPD_DEBUG", oldSnapdDebugEnv)
+	}
+
+	avnetDev := mockDev{classic: false, kernel: "avnet-avt-iiotg20-kernel"}
+
+	err := configcore.Run(avnetDev, &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"pi-config.disable-overscan": 1,
+		},
+	})
+	c.Assert(err, IsNil)
+
+	c.Check(logbuf.String(), testutil.Contains, "DEBUG: ignoring pi-config settings: configuring not supported: boot measures config.txt")
+	// change was ignored
+	s.checkMockConfig(c, mockConfigTxt)
+}
+
+func (s *piCfgSuite) TestConfigurePiConfigSkippedOnWrongMode(c *C) {
+	logbuf, r := logger.MockLogger()
+	defer r()
+
+	oldSnapdDebugEnv, isSet := os.LookupEnv("SNAPD_DEBUG")
+	os.Setenv("SNAPD_DEBUG", "1")
+	if !isSet {
+		defer os.Unsetenv("SNAPD_DEBUG")
+	} else {
+		defer os.Setenv("SNAPD_DEBUG", oldSnapdDebugEnv)
+	}
+
+	uc20DevInstallMode := mockDev{
+		classic: false,
+		mode:    "install",
+		uc20:    true,
+	}
+
+	err := configcore.Run(uc20DevInstallMode, &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"pi-config.disable-overscan": 1,
+		},
+	})
+	c.Assert(err, IsNil)
+
+	c.Check(logbuf.String(), testutil.Contains, "DEBUG: ignoring pi-config settings: configuring not supported: unsupported system mode")
+	// change was ignored
+	s.checkMockConfig(c, mockConfigTxt)
 }
