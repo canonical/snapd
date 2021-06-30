@@ -139,6 +139,13 @@ func (s *validateSuite) TestActionElement(c *C) {
 </action>`)
 	c.Check(err, IsNil)
 
+	// Empty versions of those elements are not allowed
+	_, err = validateAction(`<action id="foo">
+  <description>desc</description><message>msg</message>
+  <vendor/>
+</action>`)
+	c.Check(err, ErrorMatches, `<vendor> element has no character data`)
+
 	// Duplicates of those elements are not allowed
 	_, err = validateAction(`<action id="foo">
   <description>desc</description><message>msg</message>
@@ -333,6 +340,10 @@ func (s *validateSuite) TestAnnotateElement(c *C) {
 	c.Check(err, IsNil)
 	sort.Strings(actionIDs)
 	c.Check(actionIDs, DeepEquals, []string{"action_id", "id1", "id2", "id3"})
+
+	// Annotation elements must not be empty
+	_, err = validateAnnotation(`<annotate key="org.freedesktop.policykit.imply"/>`)
+	c.Check(err, ErrorMatches, `<annotate> elements must contain character data`)
 
 	// Multiple <annotate> elements are accepted
 	actionIDs, err = validateAnnotation(`
