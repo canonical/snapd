@@ -104,7 +104,7 @@ func newPiConfigNotSupportedError(msg string) *piConfigNotSupportedError {
 }
 
 func (e *piConfigNotSupportedError) Error() string {
-	return fmt.Sprintf("configuring not supported: %s", e.reason)
+	return fmt.Sprintf("configuration cannot be applied: %s", e.reason)
 }
 
 var reIgnorePrefix = regexp.MustCompile(`(?i)^#\s+Snapd-Edit:\s+no\s*$`)

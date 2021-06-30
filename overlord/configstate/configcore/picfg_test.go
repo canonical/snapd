@@ -272,7 +272,7 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnAvnetKernel(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	c.Check(logbuf.String(), testutil.Contains, "DEBUG: ignoring pi-config settings: configuring not supported: kernel measures config.txt")
+	c.Check(logbuf.String(), testutil.Contains, "DEBUG: ignoring pi-config settings: configuration cannot be applied: kernel measures config.txt")
 	// change was ignored
 	s.checkMockConfig(c, mockConfigTxt)
 }
@@ -300,7 +300,7 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnWrongMode(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	c.Check(logbuf.String(), testutil.Contains, "DEBUG: ignoring pi-config settings: configuring not supported: unsupported mode")
+	c.Check(logbuf.String(), testutil.Contains, "DEBUG: ignoring pi-config settings: configuration cannot be applied: unsupported mode")
 	// change was ignored
 	s.checkMockConfig(c, mockConfigTxt)
 }
@@ -341,7 +341,7 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnIgnoreHeader(c *C) {
 		c.Assert(err, IsNil)
 
 		if tc.shouldIgnore {
-			c.Check(logbuf.String(), testutil.Contains, "DEBUG: ignoring pi-config settings: configuring not supported: ignore header found")
+			c.Check(logbuf.String(), testutil.Contains, "DEBUG: ignoring pi-config settings: configuration cannot be applied: ignore header found")
 			// change was ignored
 			s.checkMockConfig(c, mockConfigWithHeader)
 		} else {
