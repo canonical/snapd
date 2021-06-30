@@ -58,14 +58,24 @@ func ClearTryRecoverySystem(dev Device, systemLabel string) error {
 		return err
 	}
 
+	modified := false
 	// we may be repeating the cleanup, in which case the system was already
 	// removed from the modeenv and we don't need to rewrite the modeenv
 	if updated, found := dropFromRecoverySystemsList(m.CurrentRecoverySystems, systemLabel); found {
 		m.CurrentRecoverySystems = updated
+		modified = true
+	}
+	if m.TryModel != "" {
+		// recovery system is tried with a matching models
+		m.clearTryModel()
+		modified = true
+	}
+	if modified {
 		if err := m.Write(); err != nil {
 			return err
 		}
 	}
+
 	// clear both variables, no matter the values they hold
 	vars := map[string]string{
 		"try_recovery_system":    "",
@@ -94,6 +104,8 @@ func SetTryRecoverySystem(dev Device, systemLabel string) (err error) {
 		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
 	}
 
+	model := dev.Model()
+
 	m, err := loadModeenv()
 	if err != nil {
 		return err
@@ -108,10 +120,19 @@ func SetTryRecoverySystem(dev Device, systemLabel string) (err error) {
 		return err
 	}
 
+	modified := false
 	// we could have rebooted before resealing the keys
 	if !strutil.ListContains(m.CurrentRecoverySystems, systemLabel) {
 		m.CurrentRecoverySystems = append(m.CurrentRecoverySystems, systemLabel)
+		modified = true
 
+	}
+	if modelUniqueID(model) != modelUniqueID(m.ModelForSealing()) {
+		// recovery system is tried with a matching model
+		m.useThisTryModel(model)
+		modified = true
+	}
+	if modified {
 		if err := m.Write(); err != nil {
 			return err
 		}
