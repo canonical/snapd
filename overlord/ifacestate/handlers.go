@@ -977,21 +977,21 @@ func inSameChangeWaitChain(startT, searchT *state.Task) bool {
 	if startT.Change() != searchT.Change() {
 		return false
 	}
-	seen := make(map[string]bool)
+	seenTasks := make(map[string]bool)
 	// Do a recursive check if its in the same change
-	return waitChainSearch(startT, searchT, seen)
+	return waitChainSearch(startT, searchT, seenTasks)
 }
 
-func waitChainSearch(startT, searchT *state.Task, seen map[string]bool) bool {
-	if seen[startT.ID()] {
+func waitChainSearch(startT, searchT *state.Task, seenTasks map[string]bool) bool {
+	if seenTasks[startT.ID()] {
 		return false
 	}
-	seen[startT.ID()] = true
+	seenTasks[startT.ID()] = true
 	for _, cand := range startT.HaltTasks() {
 		if cand == searchT {
 			return true
 		}
-		if waitChainSearch(cand, searchT, seen) {
+		if waitChainSearch(cand, searchT, seenTasks) {
 			return true
 		}
 	}
