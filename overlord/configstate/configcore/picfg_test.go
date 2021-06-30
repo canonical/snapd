@@ -257,9 +257,12 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnAvnetKernel(c *C) {
 	logbuf, r := logger.MockLogger()
 	defer r()
 
-	if _, isSet := os.LookupEnv("SNAPD_DEBUG"); !isSet {
-		os.Setenv("SNAPD_DEBUG", "1")
+	oldSnapdDebugEnv, isSet := os.LookupEnv("SNAPD_DEBUG")
+	os.Setenv("SNAPD_DEBUG", "1")
+	if !isSet {
 		defer os.Unsetenv("SNAPD_DEBUG")
+	} else {
+		defer os.Setenv("SNAPD_DEBUG", oldSnapdDebugEnv)
 	}
 
 	avnetDev := mockDev{classic: false, kernel: "avnet-avt-iiotg20-kernel"}
@@ -281,9 +284,12 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnWrongMode(c *C) {
 	logbuf, r := logger.MockLogger()
 	defer r()
 
-	if _, isSet := os.LookupEnv("SNAPD_DEBUG"); !isSet {
-		os.Setenv("SNAPD_DEBUG", "1")
+	oldSnapdDebugEnv, isSet := os.LookupEnv("SNAPD_DEBUG")
+	os.Setenv("SNAPD_DEBUG", "1")
+	if !isSet {
 		defer os.Unsetenv("SNAPD_DEBUG")
+	} else {
+		defer os.Setenv("SNAPD_DEBUG", oldSnapdDebugEnv)
 	}
 
 	uc20DevInstallMode := mockDev{
