@@ -34,7 +34,7 @@ execute: |
     for _ in $(seq 300); do
       # get just the last auto-refresh change and exclude previous auto-refresh (if any) by its change id.
       if CHANGES=$(snap changes | grep "Done.*Auto-refresh snap \"$EXPECTED_SNAP\"" | tail -1 | grep -v "^$LAST_REFRESH_CHANGE_ID"); then
-        LAST_REFRESH_CHANGE_ID=$(echo "$CHANGES" | awk '{print $1'})
+        LAST_REFRESH_CHANGE_ID=$(echo "$CHANGES" | awk '{print $1}')
         break
       fi
       echo "Ensure refresh"
@@ -68,7 +68,7 @@ execute: |
   # force auto-refresh a few times, we expect the gate-auto-refresh
   # hook of test-snapd-refresh-control to be executed because of the refresh
   # of content provider snap. The refresh is expected to be held every time.
-  for attempt in $(seq 1 3); do
+  for _ in $(seq 1 3); do
     systemctl stop snapd.{service,socket}
 
     # Request the snap to hold the refresh (itself and its content provider).
