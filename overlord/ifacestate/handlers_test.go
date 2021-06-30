@@ -70,6 +70,8 @@ func (s *handlersSuite) TestInSameChangeWaitChainWithCycles(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
+	// cycles like this are unexpected in practice but are easier to test than
+	// the exponential paths situation that e.g. seed changes present.
 	startT := st.NewTask("start", "...start")
 	task1 := st.NewTask("task1", "...")
 	task1.WaitFor(startT)
