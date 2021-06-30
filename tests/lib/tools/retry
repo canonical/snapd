@@ -18,6 +18,11 @@ MYPY = False
 if MYPY:
     from typing import List, Text
 
+def envpair(s):
+    # type: (str) -> str
+    if not "=" in s:
+        raise argparse.ArgumentTypeError("environment variables expected format is 'KEY=VAL' got '{}'".format(s))
+    return s
 
 def _make_parser():
     # type: () -> argparse.ArgumentParser
@@ -44,7 +49,7 @@ attempt. On failure the exit code from the final attempt is returned.
     )
     parser.add_argument(
         "--env",
-        type=str,
+        type=envpair,
         metavar='KEY=VAL',
         action='append',
         default=[],
@@ -71,18 +76,11 @@ attempt. On failure the exit code from the final attempt is returned.
 
 
 def get_env(env):
-    # type: List[str] -> dict[str,str]
+    # type: (List[str]) -> dict[str,str]
     new_env = os.environ.copy()
-    for keyval in env:
-        keyval_list = keyval.split('=')
-        if len(keyval_list) != 2:
-            print(
-                "retry: environment variables expected format is 'KEY=VAL', error processing '{}'".format(keyval)
-                )
-            raise SystemExit(1)
-
-        new_env[keyval_list[0]] = keyval_list[1]
-
+    maxsplit=1  # no keyword support for str.split() in py2
+    for key, val in [s.split("=", maxsplit) for s in env]:
+        new_env[key] = val
     return new_env
 
 

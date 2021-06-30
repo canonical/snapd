@@ -18,4 +18,4 @@ execute: |
     #shellcheck disable=SC2016
     retry --env key1=1 --env key2=2 sh -c 'echo $key1$key2' | grep "12"
     #shellcheck disable=SC2016
-    retry --env key1=1 --env key2,2 sh -c 'echo $key1$key2' 2>&1 | grep -F "retry: environment variables expected format is 'KEY=VAL', error processing 'key2,2'"
+    retry --env key1=1 --env key2,2 sh -c 'echo $key1$key2' 2>&1 | grep -F "retry: error: argument --env: environment variables expected format is 'KEY=VAL' got 'key2,2'"
