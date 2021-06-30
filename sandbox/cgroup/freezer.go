@@ -63,9 +63,9 @@ func pickFreezerV2Impl() {
 // thawed and an error is returned.
 //
 // A correct implementation is picked depending on cgroup v1 or v2 use in the
-// system. When cgroup v1 is detected, the call will directly act on the device
-// cgroup created when a snap process was started, while with v2 the call will
-// act on all tracking cgroups of a snap.
+// system. When cgroup v1 is detected, the call will directly act on the freezer
+// group created when a snap process was started, while with v2 the call will
+// act on all tracking groups of a snap.
 //
 // This operation can be mocked with MockFreezing
 var FreezeSnapProcesses = freezeSnapProcessesImplV1
@@ -73,9 +73,9 @@ var FreezeSnapProcesses = freezeSnapProcessesImplV1
 // ThawSnapProcesses resumes execution of all processes belonging to a given snap.
 //
 // A correct implementation is picked depending on cgroup v1 or v2 use in the
-// system. When cgroup v1 is detected, the call will directly act on the device
-// cgroup created when a snap process was started, while with v2 the call will
-// act on all tracking cgroups of a snap.
+// system. When cgroup v1 is detected, the call will directly act on the freezer
+// group created when a snap process was started, while with v2 the call will
+// act on all tracking groups of a snap.
 //
 // This operation can be mocked with MockFreezing
 var ThawSnapProcesses = thawSnapProcessesImplV1
