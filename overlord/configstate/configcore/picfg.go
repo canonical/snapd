@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
@@ -92,13 +93,34 @@ func updatePiConfig(path string, config map[string]string) error {
 	return nil
 }
 
-var (
-	errPiConfigNotSupported = fmt.Errorf("configuring pi-config not supported in current mode")
-)
+type piConfigNotSupportedError struct {
+	reason string
+}
+
+func newPiConfigNotSupportedError(msg string) *piConfigNotSupportedError {
+	return &piConfigNotSupportedError{msg}
+}
+
+func (e *piConfigNotSupportedError) Error() string {
+	return fmt.Sprintf("configuring not supported: %s", e.reason)
+}
+
+// Some of the pi devices (avnet) ship with measured boot enabled and
+// the config.txt is part of the measurements. We cannot modify the
+// configuration here or measurements are wrong.
+var piMeasuredBootKernels = []string{
+	// see https://bugs.launchpad.net/denver/+bug/1928613
+	"avnet-avt-iiotg20-kernel",
+}
 
 func piConfigFile(dev sysconfig.Device, opts *fsOnlyContext) (string, error) {
 	rootDir := dirs.GlobalRootDir
 	subdir := "/boot/uboot"
+
+	if strutil.ListContains(piMeasuredBootKernels, dev.Kernel()) {
+		return "", newPiConfigNotSupportedError("boot measures config.txt")
+	}
+
 	if opts != nil {
 		rootDir = opts.RootDir
 	} else if dev.HasModeenv() {
@@ -111,7 +133,7 @@ func piConfigFile(dev sysconfig.Device, opts *fsOnlyContext) (string, error) {
 		} else {
 			// we don't support configuring pi-config in these modes as it is
 			// unclear what the right behavior is
-			return "", errPiConfigNotSupported
+			return "", newPiConfigNotSupportedError("unsupported system mode")
 		}
 	}
 	return filepath.Join(rootDir, subdir, "config.txt"), nil
@@ -119,12 +141,12 @@ func piConfigFile(dev sysconfig.Device, opts *fsOnlyContext) (string, error) {
 
 func handlePiConfiguration(dev sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	configFile, err := piConfigFile(dev, opts)
-	if err != nil && err != errPiConfigNotSupported {
-		return err
-	}
-	if err == errPiConfigNotSupported {
-		logger.Debugf("ignoring pi-config settings mode where pi-config changes are unsupported")
+	if _, ok := err.(*piConfigNotSupportedError); ok {
+		logger.Debugf("ignoring pi-config settings: %v", err)
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 	if osutil.FileExists(configFile) {
 		// snapctl can actually give us the whole dict in
