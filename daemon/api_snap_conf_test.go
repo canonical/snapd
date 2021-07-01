@@ -22,12 +22,16 @@ package daemon_test
 import (
 	"bytes"
 	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -184,9 +188,11 @@ func (s *snapConfSuite) TestSetConfCoreSystemAlias(c *check.C) {
 name: core
 version: 1
 `)
-	// Mock the hook runner
-	hookRunner := testutil.MockCommand(c, "snap", "")
-	defer hookRunner.Restore()
+
+	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
+	c.Assert(err, check.IsNil)
+	err = ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/etc/environment"), nil, 0644)
+	c.Assert(err, check.IsNil)
 
 	d.Overlord().Loop()
 	defer d.Overlord().Stop()
@@ -217,8 +223,6 @@ version: 1
 
 	st.Lock()
 	err = chg.Err()
-	c.Assert(err, check.IsNil)
-
 	tr := config.NewTransaction(st)
 	st.Unlock()
 	c.Assert(err, check.IsNil)
@@ -226,7 +230,6 @@ version: 1
 	var value string
 	tr.Get("core", "proxy.ftp", &value)
 	c.Assert(value, check.Equals, "value")
-
 }
 
 func (s *snapConfSuite) TestSetConfNumber(c *check.C) {

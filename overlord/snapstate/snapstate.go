@@ -212,6 +212,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if err != nil && !config.IsNoOption(err) {
 		return nil, err
 	}
+	experimentalGateAutoRefreshHook, err := features.Flag(tr, features.GateAutoRefreshHook)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
 
 	if snapsup.InstanceName() == "system" {
 		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
@@ -260,6 +264,13 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			// softCheckNothingRunningForRefresh, this block must be located
 			// after the conflict check done above.
 			if err := softCheckNothingRunningForRefresh(st, snapst, info); err != nil {
+				return nil, err
+			}
+		}
+
+		if experimentalGateAutoRefreshHook {
+			// If this snap was held, then remove it from snaps-hold.
+			if err := resetGatingForRefreshed(st, snapsup.InstanceName()); err != nil {
 				return nil, err
 			}
 		}
@@ -1923,6 +1934,11 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 	}
 	st.Set("refresh-candidates", hints)
 
+	// prune affecting snaps that are not in refresh candidates from hold state.
+	if err := pruneGating(st, hints); err != nil {
+		return nil, nil, err
+	}
+
 	var updates []*snap.Info
 
 	// check conflicts
@@ -1999,8 +2015,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 }
 
 // autoRefreshPhase2 creates tasks for refreshing snaps from updates.
-func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshCandidate) ([]*state.TaskSet, error) {
-	fromChange := ""
+func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshCandidate, fromChange string) ([]*state.TaskSet, error) {
 	flags := &Flags{IsAutoRefresh: true}
 	userID := 0
 

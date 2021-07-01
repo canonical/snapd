@@ -158,7 +158,8 @@ func (s *seed16) addSnap(sn *internal.Snap16, pinnedTrack string, cache map[stri
 			}
 			sideInfo = *si
 			sideInfo.Private = sn.Private
-			sideInfo.Contact = sn.Contact
+			// TODO: consider whether to use this if we have links?
+			sideInfo.EditedContact = sn.Contact
 		}
 
 		seedSnap.SideInfo = &sideInfo

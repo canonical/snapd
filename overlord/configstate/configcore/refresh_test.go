@@ -34,7 +34,7 @@ type refreshSuite struct {
 var _ = Suite(&refreshSuite{})
 
 func (s *refreshSuite) TestConfigureRefreshTimerHappy(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"refresh.timer": "8:00~12:00/2",
@@ -44,7 +44,7 @@ func (s *refreshSuite) TestConfigureRefreshTimerHappy(c *C) {
 }
 
 func (s *refreshSuite) TestConfigureRefreshTimerRejected(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"refresh.timer": "invalid",
@@ -65,7 +65,7 @@ func (s *refreshSuite) TestConfigureRefreshTimerManagedIgnored(c *C) {
 		s.state.Lock()
 		s.state.OkayWarnings(time.Now())
 		s.state.Unlock()
-		err := configcore.Run(cfg)
+		err := configcore.Run(classicDev, cfg)
 		c.Assert(err, IsNil)
 
 		s.state.Lock()
@@ -86,7 +86,7 @@ func (s *refreshSuite) TestConfigureRefreshTimerManagedChangeError(c *C) {
 				opt: "managed",
 			},
 		}
-		err := configcore.Run(cfg)
+		err := configcore.Run(classicDev, cfg)
 		c.Assert(err, ErrorMatches, `cannot set schedule to managed`)
 		// old value still present
 		c.Check(cfg.conf[opt], Equals, "fri")
@@ -94,7 +94,7 @@ func (s *refreshSuite) TestConfigureRefreshTimerManagedChangeError(c *C) {
 }
 
 func (s *refreshSuite) TestConfigureLegacyRefreshScheduleHappy(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"refresh.schedule": "8:00-12:00",
@@ -104,7 +104,7 @@ func (s *refreshSuite) TestConfigureLegacyRefreshScheduleHappy(c *C) {
 }
 
 func (s *refreshSuite) TestConfigureLegacyRefreshScheduleRejected(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"refresh.schedule": "invalid",
@@ -113,7 +113,7 @@ func (s *refreshSuite) TestConfigureLegacyRefreshScheduleRejected(c *C) {
 	c.Assert(err, ErrorMatches, `cannot parse "invalid": not a valid interval`)
 
 	// check that refresh.schedule is verified against legacy parser
-	err = configcore.Run(&mockConf{
+	err = configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"refresh.schedule": "8:00~12:00/2",
@@ -123,7 +123,7 @@ func (s *refreshSuite) TestConfigureLegacyRefreshScheduleRejected(c *C) {
 }
 
 func (s *refreshSuite) TestConfigureRefreshHoldHappy(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"refresh.hold": "2018-08-18T15:00:00Z",
@@ -133,7 +133,7 @@ func (s *refreshSuite) TestConfigureRefreshHoldHappy(c *C) {
 }
 
 func (s *refreshSuite) TestConfigureRefreshHoldInvalid(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"refresh.hold": "invalid",
@@ -143,7 +143,7 @@ func (s *refreshSuite) TestConfigureRefreshHoldInvalid(c *C) {
 }
 
 func (s *refreshSuite) TestConfigureRefreshHoldOnMeteredInvalid(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"refresh.metered": "invalid",
@@ -153,7 +153,7 @@ func (s *refreshSuite) TestConfigureRefreshHoldOnMeteredInvalid(c *C) {
 }
 
 func (s *refreshSuite) TestConfigureRefreshHoldOnMeteredHappy(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"refresh.metered": "hold",
@@ -161,7 +161,7 @@ func (s *refreshSuite) TestConfigureRefreshHoldOnMeteredHappy(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	err = configcore.Run(&mockConf{
+	err = configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"refresh.metered": "",
@@ -171,7 +171,7 @@ func (s *refreshSuite) TestConfigureRefreshHoldOnMeteredHappy(c *C) {
 }
 
 func (s *refreshSuite) TestConfigureRefreshRetainHappy(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"refresh.retain": "4",
@@ -181,7 +181,7 @@ func (s *refreshSuite) TestConfigureRefreshRetainHappy(c *C) {
 }
 
 func (s *refreshSuite) TestConfigureRefreshRetainUnderRange(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"refresh.retain": "1",
@@ -191,7 +191,7 @@ func (s *refreshSuite) TestConfigureRefreshRetainUnderRange(c *C) {
 }
 
 func (s *refreshSuite) TestConfigureRefreshRetainOverRange(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"refresh.retain": "100",
@@ -201,7 +201,7 @@ func (s *refreshSuite) TestConfigureRefreshRetainOverRange(c *C) {
 }
 
 func (s *refreshSuite) TestConfigureRefreshRetainInvalid(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"refresh.retain": "invalid",

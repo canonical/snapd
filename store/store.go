@@ -1373,7 +1373,7 @@ func (s *Store) Sections(ctx context.Context, user *auth.UserState) ([]string, e
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, respToError(resp, "sections")
+		return nil, respToError(resp, "retrieve sections")
 	}
 
 	if ct := resp.Header.Get("Content-Type"); ct != halJsonContentType {

@@ -479,7 +479,7 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		if resp.ContentLength == 0 {
 			logger.Noticef("Unexpected Content-Length: 0 for %s", downloadURL)
 		} else {
-			logger.Noticef("Download size for %s: %d", downloadURL, resp.ContentLength)
+			logger.Debugf("Download size for %s: %d", downloadURL, resp.ContentLength)
 		}
 		pbar.Start(name, dlSize)
 		mw := io.MultiWriter(w, h, pbar, tc)
