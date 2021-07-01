@@ -34,7 +34,8 @@ execute: |
     for _ in $(seq 300); do
       # get just the last auto-refresh change and exclude previous auto-refresh (if any) by its change id.
       if CHANGES=$(snap changes | grep "Done.*Auto-refresh snap \"$EXPECTED_SNAP\"" | tail -1); then
-        local CHANGE_ID=$(echo "$CHANGES" | awk '{print $1}')
+        local CHANGE_ID
+        CHANGE_ID=$(echo "$CHANGES" | awk '{print $1}')
         if [ "$CHANGE_ID" -gt "$LAST_REFRESH_CHANGE_ID" ]; then
           LAST_REFRESH_CHANGE_ID="$CHANGE_ID"
           break
