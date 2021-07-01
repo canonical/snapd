@@ -159,7 +159,7 @@ func piConfigFile(dev sysconfig.Device, opts *fsOnlyContext) (string, error) {
 	}
 	configPath := filepath.Join(rootDir, subdir, "config.txt")
 	if piConfigFileIgnoreMarkerSet(configPath) {
-		return "", newPiConfigNotSupportedError("ignore header found")
+		return "", newPiConfigNotSupportedError("no-editing header found")
 	}
 
 	return configPath, nil

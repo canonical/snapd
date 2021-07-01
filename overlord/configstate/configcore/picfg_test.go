@@ -326,7 +326,7 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnIgnoreHeader(c *C) {
 		c.Assert(err, IsNil)
 
 		if tc.shouldIgnore {
-			c.Check(logbuf.String(), testutil.Contains, "ignoring pi-config settings: configuration cannot be applied: ignore header found")
+			c.Check(logbuf.String(), testutil.Contains, "ignoring pi-config settings: configuration cannot be applied: no-editing header found")
 			// change was ignored
 			s.checkMockConfig(c, mockConfigWithHeader)
 		} else {
