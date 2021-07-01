@@ -277,6 +277,9 @@ func (s *freezerV2Suite) TestThawSnapProcessesV2(c *C) {
 }
 
 func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrWalking(c *C) {
+	if os.Getuid() == 0 {
+		c.Skip("the test cannot be run by the root user")
+	}
 	defer cgroup.MockVersion(cgroup.V2, nil)()
 	dirs.SetRootDir(c.MkDir())
 	defer dirs.SetRootDir("")
@@ -335,4 +338,34 @@ func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrWalking(c *C) {
 	// the other group is unmodified
 	os.Chmod(filepath.Dir(gUnfreeze), 0755)
 	c.Check(gUnfreeze, testutil.FileEquals, "1")
+}
+
+func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrNotFound(c *C) {
+	defer cgroup.MockVersion(cgroup.V2, nil)()
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	// app started by root
+	g1 := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.app.1234-1234-1234.scope/cgroup.freeze")
+	g2 := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.svc.service/cgroup.freeze")
+
+	pid := os.Getpid()
+	procPidCgroup := filepath.Join(dirs.GlobalRootDir, fmt.Sprintf("proc/%v/cgroup", pid))
+	c.Assert(os.MkdirAll(filepath.Dir(procPidCgroup), 0755), IsNil)
+	// mock our own group
+	c.Assert(ioutil.WriteFile(procPidCgroup, []byte("0::/system.slice/snap.foo.app.own-own-own.scope"), 0755), IsNil)
+	// prepare the directories, but not the files, those should trigger ENOENT
+	c.Assert(os.MkdirAll(filepath.Dir(g1), 0755), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(g2), 0755), IsNil)
+
+	err := cgroup.FreezeSnapProcesses("foo")
+	c.Assert(err, IsNil)
+
+	c.Check(g1, testutil.FileAbsent)
+	c.Check(g2, testutil.FileAbsent)
+
+	err = cgroup.ThawSnapProcesses("foo")
+	c.Assert(err, IsNil)
+	c.Check(g1, testutil.FileAbsent)
+	c.Check(g2, testutil.FileAbsent)
 }

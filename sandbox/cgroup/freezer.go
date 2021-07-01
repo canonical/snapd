@@ -123,14 +123,19 @@ func thawSnapProcessesImplV1(snapName string) error {
 	return nil
 }
 
-func applyToSnap(snapName string, action func(groupName string) error, skipErrs bool) error {
+func applyToSnap(snapName string, action func(groupName string) error, skipError func(err error) bool) error {
 	canary := fmt.Sprintf("snap.%s.", snapName)
 	cgroupRoot := filepath.Join(rootPath, cgroupMountPoint)
 	if _, dir, _ := osutil.DirExists(cgroupRoot); !dir {
 		return nil
 	}
 	return filepath.Walk(filepath.Join(rootPath, cgroupMountPoint), func(name string, info os.FileInfo, err error) error {
-		if err != nil && !skipErrs {
+		if err != nil {
+			if skipError != nil && skipError(err) {
+				// we don't know whether it's a file or
+				// directory, so just return nil instead
+				return nil
+			}
 			return err
 		}
 		if !info.IsDir() {
@@ -140,11 +145,27 @@ func applyToSnap(snapName string, action func(groupName string) error, skipErrs 
 			return nil
 		}
 		// found a group
-		if err := action(name); err != nil && !skipErrs {
+		if err := action(name); err != nil && (skipError == nil || !skipError(err)) {
 			return err
 		}
 		return filepath.SkipDir
 	})
+}
+
+// writeFile can be used as a drop-in replacement for ioutil.WriteFile, but does
+// not create a file when does not exist
+func writeFile(where string, data []byte, mode os.FileMode) error {
+	f, err := os.OpenFile(where, os.O_WRONLY|os.O_TRUNC, mode)
+	if err != nil {
+		return err
+	}
+	_, errW := f.Write(data)
+	errC := f.Close()
+	// pick the right error
+	if errC != nil && errW == nil {
+		return errC
+	}
+	return errW
 }
 
 // freezeSnapProcessesImplV2 freezes all the processes originating from the
@@ -166,15 +187,20 @@ func freezeSnapProcessesImplV2(snapName string) error {
 			return nil
 		}
 		fname := filepath.Join(dir, "cgroup.freeze")
-		if err := ioutil.WriteFile(fname, []byte("1"), 0644); err != nil && os.IsNotExist(err) {
-			//  the group may be gone already
-			return nil
-		} else if err != nil {
+		if err := writeFile(fname, []byte("1"), 0644); err != nil {
+			if os.IsNotExist(err) {
+				//  the group may be gone already
+				return nil
+			}
 			return fmt.Errorf("cannot freeze processes of snap %q, %v", snapName, err)
 		}
 		for i := 0; i < 30; i++ {
 			data, err := ioutil.ReadFile(fname)
 			if err != nil {
+				if os.IsNotExist(err) {
+					// group may be gone
+					return nil
+				}
 				return fmt.Errorf("cannot determine the freeze state of processes of snap %q, %v", snapName, err)
 			}
 			// If the cgroup is still freezing then wait a moment and try again.
@@ -187,35 +213,37 @@ func freezeSnapProcessesImplV2(snapName string) error {
 		}
 		return fmt.Errorf("cannot freeze processes of snap %q in group %v", snapName, filepath.Base(dir))
 	}
-	const skipFreezeErrs = false
-	err = applyToSnap(snapName, freezeOne, skipFreezeErrs)
+	// freeze skipping ENOENT errors
+	err = applyToSnap(snapName, freezeOne, os.IsNotExist)
 	if err == nil {
 		return nil
 	}
 	// we either got here because we hit a timeout freezing snap processes
 	// or some other error
-	const skipThawErrs = true
-	thawSnapProcessesV2(snapName, skipThawErrs) // ignore the error, this is best-effort.
+
+	// ignore errors when thawing processes, this is best-effort.
+	alwaysSkipError := func(_ error) bool { return true }
+	thawSnapProcessesV2(snapName, alwaysSkipError)
 	return fmt.Errorf("cannot finish freezing processes of snap %q: %v", snapName, err)
 }
 
-func thawSnapProcessesV2(snapName string, skipErrs bool) error {
+func thawSnapProcessesV2(snapName string, skipError func(error) bool) error {
 	thawOne := func(dir string) error {
 		fname := filepath.Join(dir, "cgroup.freeze")
-		if err := ioutil.WriteFile(fname, []byte("0"), 0644); err != nil && os.IsNotExist(err) {
+		if err := writeFile(fname, []byte("0"), 0644); err != nil && os.IsNotExist(err) {
 			//  the group may be gone already
 			return nil
-		} else if err != nil && !skipErrs {
+		} else if err != nil && (skipError == nil || !skipError(err)) {
 			return fmt.Errorf("cannot thaw processes of snap %q, %v", snapName, err)
 		}
 		return nil
 	}
-	return applyToSnap(snapName, thawOne, skipErrs)
+	return applyToSnap(snapName, thawOne, skipError)
 }
 
 func thawSnapProcessesImplV2(snapName string) error {
-	const skipErrs = false
-	return thawSnapProcessesV2(snapName, skipErrs)
+	// thaw skipping ENOENT errors
+	return thawSnapProcessesV2(snapName, os.IsNotExist)
 }
 
 // MockFreezing replaces the real implementation of freeze and thaw.
