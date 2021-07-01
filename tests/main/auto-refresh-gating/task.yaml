@@ -164,4 +164,18 @@ execute: |
   echo "Ensure our snap was updated"
   snap list | MATCH "$SNAP_NAME +2\.0\.0"
 
-  # TODO: edge channel, proceed via default behavior. error behavior (hold).
+  systemctl stop snapd.{service,socket}
+
+  echo "Checking that error from the hook means hold"
+  echo "--unknown-flag-to-force-snapctl-error" > "$CONTROL_FILE"
+  force_channel_change "$CONTENT_SNAP_NAME" edge
+  force_autorefresh
+
+  systemctl start snapd.{service,socket}
+  wait_for_autorefresh "$CONTENT_SNAP_NAME"
+
+  echo "Ensure our content snap was held"
+  snap list | MATCH "$CONTENT_SNAP_NAME +2\.0\.0"
+
+  snap change --last=auto-refresh | MATCH "ignoring hook error:"
+  snap change --last=auto-refresh | MATCH "error running snapctl: unknown flag .unknown-flag-to-force-snapctl-error"
