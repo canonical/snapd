@@ -38,9 +38,8 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/sandbox/selinux"
-	"github.com/snapcore/snapd/testutil"
-
 	. "github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type testreporter struct {
@@ -1475,7 +1474,7 @@ func (s *SystemdTestSuite) TestCurrentUsageFamilyHappy(c *C) {
 	const sixteenExb = quantity.Size(1<<64 - 1)
 	c.Assert(memUsage, Equals, sixteenExb)
 	tasksUsage, err := sysd.CurrentTasksCount("bar.service")
-	c.Assert(tasksUsage, Equals, 10)
+	c.Assert(tasksUsage, Equals, uint64(10))
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"show", "--property", "MemoryCurrent", "bar.service"},

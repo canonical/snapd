@@ -4,23 +4,23 @@ details: |
   Functional test for snap quota group commands ensuring that they are 
   effective in practice.
 
+# these systems do not support quota groups due to their old systemd versions,
+# we do have a check to do for these systems, but that is just to ensure that
+# we don't allow using quota groups, and that check is done in the snap-quota
+# spread instead
+systems:
+  - -ubuntu-14.04-*
+  - -centos-7-*
+  - -amazon-linux-2-*
+  - -ubuntu-16.04-*
+  - -ubuntu-core-16-*
+
 prepare: |
-  if os.query is-trusty; then
-    exit 0
-  fi
   snap install go-example-webserver jq remarshal http hello-world
   snap set system experimental.quota-groups=true
   tests.cleanup defer snap unset system experimental.quota-groups
 
 execute: |
-  if os.query is-trusty; then
-    # just check that we can't do anything with quota groups on trusty, systemd
-    # there is 204, but we need at least 205 for slice units
-
-    snap set-quota foobar --memory=1MB 2>&1 | MATCH "systemd version too old: snap quotas requires systemd 205 and newer \(currently have 204\)"
-    exit 0
-  fi
-
   echo "Create a group with a snap in it"
   snap set-quota group-one --memory=100MB go-example-webserver
 
@@ -107,8 +107,18 @@ execute: |
   systemctl show --property=ActiveState "$sliceName" | MATCH "ActiveState=inactive"
 
   echo "Creating a quota with a very small memory limit results in the service being unable to start"
-  snap set-quota too-small --memory=1KB go-example-webserver
-  # clear "oom-killer" message from dmesg or prepare-restore.sh will fail here.
+  snap set-quota too-small --memory=4097B go-example-webserver
+
+  # wait for systemd to finish trying to automatically restart it, we want 
+  # systemd to hit the start limit for this service, otherwise systemd 
+  # restarting the service will race with removing the quota directly below
+  # the unit will jump between SubState=running and SubState=auto-restart while
+  # trying to restart it in a loop, but after systemd has hit the limit it will
+  # give up and mark the unit as failed
+  retry --wait 1 -n 10 sh -c "systemctl show --property=SubState snap.go-example-webserver.webserver.service | MATCH 'SubState=failed'"
+
+  # clear "oom-killer" messages from dmesg or prepare-restore.sh will fail due
+  # to the oom-killer messages from go-example-webserver
   tests.cleanup defer dmesg -c
 
   echo "The systemd slice should be active"
@@ -130,8 +140,18 @@ execute: |
   # system is working we won't fail the test simply because systemd won the race
   retry --wait 1 -n 10 sh -c 'systemctl show --property=ExecMainStatus snap.go-example-webserver.webserver.service | MATCH "ExecMainStatus=(203|9)"'
 
-  echo "And after removing the quota group, the snap is restarted and active again"
+  echo "And after removing the quota group, services will not automatically restart as they were inactive"
+  function service_start_time {
+    systemctl show --property=ExecMainStartTimestampMonotonic "$1" | cut -d= -f2
+  }
+  TIMESTAMP_BEFORE=$(service_start_time snap.go-example-webserver.webserver.service)
   snap remove-quota too-small
+  snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+inactive"
+  TIMESTAMP_AFTER=$(service_start_time snap.go-example-webserver.webserver.service)
+  test "$TIMESTAMP_AFTER" -eq "$TIMESTAMP_BEFORE"
+
+  echo "But they can still be started manually"
+  snap start go-example-webserver.webserver
   retry --wait 1 -n 10 sh -c 'snap services go-example-webserver.webserver | MATCH "go-example-webserver.webserver\s+enabled\s+active"'
 
   echo "Removing a snap ensures that the snap is not in the quota group anymore"

@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/sysconfig"
 )
 
 func init() {
@@ -39,7 +40,7 @@ func validateNetworkSettings(tr config.ConfGetter) error {
 	return validateBoolFlag(tr, "network.disable-ipv6")
 }
 
-func handleNetworkConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleNetworkConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	root := dirs.GlobalRootDir
 	if opts != nil {
 		root = opts.RootDir

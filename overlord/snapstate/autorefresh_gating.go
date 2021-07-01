@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -28,6 +29,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/mount"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -39,10 +41,10 @@ var gateAutoRefreshHookName = "gate-auto-refresh"
 // gateAutoRefreshAction represents the action executed by
 // snapctl refresh --hold or --proceed and stored in the context of
 // gate-auto-refresh hook.
-type gateAutoRefreshAction int
+type GateAutoRefreshAction int
 
 const (
-	GateAutoRefreshProceed gateAutoRefreshAction = iota
+	GateAutoRefreshProceed GateAutoRefreshAction = iota
 	GateAutoRefreshHold
 )
 
@@ -250,9 +252,35 @@ func ProceedWithRefresh(st *state.State, gatingSnap string) error {
 	return nil
 }
 
+// pruneGating removes affecting snaps that are not in candidates (meaning
+// there is no update for them anymore).
+func pruneGating(st *state.State, candidates map[string]*refreshCandidate) error {
+	gating, err := refreshGating(st)
+	if err != nil {
+		return err
+	}
+
+	if len(gating) == 0 {
+		return nil
+	}
+
+	var changed bool
+	for affectingSnap := range gating {
+		if candidates[affectingSnap] == nil {
+			// the snap doesn't have an update anymore, forget it
+			delete(gating, affectingSnap)
+			changed = true
+		}
+	}
+	if changed {
+		st.Set("snaps-hold", gating)
+	}
+	return nil
+}
+
 // resetGatingForRefreshed resets gating information by removing refreshedSnaps
-// (they are not held anymore). This should be called for all successfully
-// refreshed snaps.
+// (they are not held anymore). This should be called for snaps about to be
+// refreshed.
 func resetGatingForRefreshed(st *state.State, refreshedSnaps ...string) error {
 	gating, err := refreshGating(st)
 	if err != nil {
@@ -273,6 +301,42 @@ func resetGatingForRefreshed(st *state.State, refreshedSnaps ...string) error {
 	if changed {
 		st.Set("snaps-hold", gating)
 	}
+	return nil
+}
+
+// pruneSnapsHold removes the given snap from snaps-hold, whether it was an
+// affecting snap or gating snap. This should be called when a snap gets
+// removed.
+func pruneSnapsHold(st *state.State, snapName string) error {
+	gating, err := refreshGating(st)
+	if err != nil {
+		return err
+	}
+	if len(gating) == 0 {
+		return nil
+	}
+
+	var changed bool
+
+	if _, ok := gating[snapName]; ok {
+		delete(gating, snapName)
+		changed = true
+	}
+
+	for heldSnap, holdingSnaps := range gating {
+		if _, ok := holdingSnaps[snapName]; ok {
+			delete(holdingSnaps, snapName)
+			if len(holdingSnaps) == 0 {
+				delete(gating, heldSnap)
+			}
+			changed = true
+		}
+	}
+
+	if changed {
+		st.Set("snaps-hold", gating)
+	}
+
 	return nil
 }
 
@@ -524,18 +588,46 @@ func createGateAutoRefreshHooks(st *state.State, affectedSnaps map[string]*affec
 	return ts
 }
 
+func conditionalAutoRefreshAffectedSnaps(t *state.Task) ([]string, error) {
+	var snaps map[string]*json.RawMessage
+	if err := t.Get("snaps", &snaps); err != nil {
+		return nil, fmt.Errorf("internal error: cannot get snaps to update for %s task %s", t.Kind(), t.ID())
+	}
+	names := make([]string, 0, len(snaps))
+	for sn := range snaps {
+		// TODO: drop snaps once we know the outcome of gate-auto-refresh hooks.
+		names = append(names, sn)
+	}
+	return names, nil
+}
+
 // snapsToRefresh returns all snaps that should proceed with refresh considering
 // hold behavior.
 var snapsToRefresh = func(gatingTask *state.Task) ([]*refreshCandidate, error) {
-	// TODO: consider holding (responses from gating hooks) here.
-	// Return all refresh candidates for now.
 	var snaps map[string]*refreshCandidate
 	if err := gatingTask.Get("snaps", &snaps); err != nil {
 		return nil, err
 	}
+
+	held, err := heldSnaps(gatingTask.State())
+	if err != nil {
+		return nil, err
+	}
+
+	var skipped []string
 	var candidates []*refreshCandidate
 	for _, s := range snaps {
-		candidates = append(candidates, s)
+		if !held[s.InstanceName()] {
+			candidates = append(candidates, s)
+		} else {
+			skipped = append(skipped, s.InstanceName())
+		}
 	}
+
+	if len(skipped) > 0 {
+		sort.Strings(skipped)
+		logger.Noticef("skipping refresh of held snaps: %s", strings.Join(skipped, ","))
+	}
+
 	return candidates, nil
 }

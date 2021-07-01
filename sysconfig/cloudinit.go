@@ -63,9 +63,8 @@ func DisableCloudInit(rootDir string) error {
 }
 
 // installCloudInitCfgDir installs glob cfg files from the source directory to
-// the cloud config dir. For installing single files from anywhere with any
-// name, use installUnifiedCloudInitCfg
-func installCloudInitCfgDir(src, targetdir string) error {
+// the cloud config dir.
+func installCloudInitCfgDir(src, targetdir, prefix string) error {
 	// TODO:UC20: enforce patterns on the glob files and their suffix ranges
 	ccl, err := filepath.Glob(filepath.Join(src, "*.cfg"))
 	if err != nil {
@@ -81,7 +80,7 @@ func installCloudInitCfgDir(src, targetdir string) error {
 	}
 
 	for _, cc := range ccl {
-		if err := osutil.CopyFile(cc, filepath.Join(ubuntuDataCloudCfgDir, filepath.Base(cc)), 0); err != nil {
+		if err := osutil.CopyFile(cc, filepath.Join(ubuntuDataCloudCfgDir, prefix+filepath.Base(cc)), 0); err != nil {
 			return err
 		}
 	}
@@ -112,12 +111,18 @@ func configureCloudInit(opts *Options) (err error) {
 
 	// next check if there is a gadget cloud.conf to install
 	if HasGadgetCloudConf(opts.GadgetDir) {
-		// then copy / install the gadget config and return without considering
-		// CloudInitSrcDir
-		// TODO:UC20: we may eventually want to consider both CloudInitSrcDir
-		// and the gadget cloud.conf so returning here may be wrong
+		// then copy / install the gadget config first
 		gadgetCloudConf := filepath.Join(opts.GadgetDir, "cloud.conf")
-		return installGadgetCloudInitCfg(gadgetCloudConf, WritableDefaultsDir(opts.TargetRootDir))
+		if err := installGadgetCloudInitCfg(gadgetCloudConf, WritableDefaultsDir(opts.TargetRootDir)); err != nil {
+			return err
+		}
+
+		// we don't return here to enable also copying any cloud-init config
+		// from ubuntu-seed in order for both to be used simultaneously for
+		// example on test devices where the gadget has a gadget.yaml, but for
+		// testing purposes you also want to provision another user with
+		// ubuntu-seed cloud-init config
+
 	}
 
 	// TODO:UC20: implement filtering of files from src when specified via a
@@ -127,7 +132,9 @@ func configureCloudInit(opts *Options) (err error) {
 	// files from
 
 	if opts.CloudInitSrcDir != "" {
-		return installCloudInitCfgDir(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir))
+		// set the prefix such that any ubuntu-seed config that ends up getting
+		// installed takes precedence over the gadget config
+		return installCloudInitCfgDir(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir), "90_")
 	}
 
 	// it's valid to allow cloud-init, but not set CloudInitSrcDir and not have
