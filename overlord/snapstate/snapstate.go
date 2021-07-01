@@ -287,6 +287,19 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	// check if we already have the revision locally (alters tasks)
 	revisionIsLocal := snapst.LastIndex(targetRevision) >= 0
 
+	// We will not need the temporary snap if we have a local revision.
+	// This can happen when e.g. side-loading a local revision again.
+	// The SnapPath is only needed in the "mount-snap" handler and
+	// that is skipped for local revisions.
+	//
+	// XXX: should this be closer to where we skip generating the mount
+	//      task?
+	if revisionIsLocal && snapsup.Flags.RemoveSnapPath {
+		if err := os.Remove(snapsup.SnapPath); err != nil {
+			return nil, err
+		}
+	}
+
 	prereq := st.NewTask("prerequisites", fmt.Sprintf(i18n.G("Ensure prerequisites for %q are available"), snapsup.InstanceName()))
 	prereq.Set("snap-setup", snapsup)
 
