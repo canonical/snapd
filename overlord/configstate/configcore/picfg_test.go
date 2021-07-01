@@ -257,14 +257,6 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnAvnetKernel(c *C) {
 	logbuf, r := logger.MockLogger()
 	defer r()
 
-	oldSnapdDebugEnv, isSet := os.LookupEnv("SNAPD_DEBUG")
-	os.Setenv("SNAPD_DEBUG", "1")
-	if !isSet {
-		defer os.Unsetenv("SNAPD_DEBUG")
-	} else {
-		defer os.Setenv("SNAPD_DEBUG", oldSnapdDebugEnv)
-	}
-
 	avnetDev := mockDev{classic: false, kernel: "avnet-avt-iiotg20-kernel"}
 
 	err := configcore.Run(avnetDev, &mockConf{
@@ -275,7 +267,7 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnAvnetKernel(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	c.Check(logbuf.String(), testutil.Contains, "DEBUG: ignoring pi-config settings: configuring not supported: boot measures config.txt")
+	c.Check(logbuf.String(), testutil.Contains, "ignoring pi-config settings: configuration cannot be applied: boot measures config.txt")
 	// change was ignored
 	s.checkMockConfig(c, mockConfigTxt)
 }
@@ -283,14 +275,6 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnAvnetKernel(c *C) {
 func (s *piCfgSuite) TestConfigurePiConfigSkippedOnWrongMode(c *C) {
 	logbuf, r := logger.MockLogger()
 	defer r()
-
-	oldSnapdDebugEnv, isSet := os.LookupEnv("SNAPD_DEBUG")
-	os.Setenv("SNAPD_DEBUG", "1")
-	if !isSet {
-		defer os.Unsetenv("SNAPD_DEBUG")
-	} else {
-		defer os.Setenv("SNAPD_DEBUG", oldSnapdDebugEnv)
-	}
 
 	uc20DevInstallMode := mockDev{
 		classic: false,
@@ -306,7 +290,51 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnWrongMode(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	c.Check(logbuf.String(), testutil.Contains, "DEBUG: ignoring pi-config settings: configuring not supported: unsupported system mode")
+	c.Check(logbuf.String(), testutil.Contains, "ignoring pi-config settings: configuration cannot be applied: unsupported system mode")
 	// change was ignored
 	s.checkMockConfig(c, mockConfigTxt)
+}
+
+func (s *piCfgSuite) TestConfigurePiConfigSkippedOnIgnoreHeader(c *C) {
+	logbuf, r := logger.MockLogger()
+	defer r()
+
+	tests := []struct {
+		header       string
+		shouldIgnore bool
+	}{
+		// ignored
+		{"# Snapd-Edit: no", true},
+		{"#    Snapd-Edit:     no   ", true},
+		{"# snapd-edit: No", true},
+		{"# SNAPD-EDIT: NO", true},
+		// not ignored
+		{"# Snapd-Edit: noAND THEN random words", false},
+		{"not first line \n# SNAPD-EDIT: NO", false},
+		{"# random things and then SNAPD-EDIT: NO", false},
+	}
+
+	for _, tc := range tests {
+		mockConfigWithHeader := tc.header + mockConfigTxt
+		s.mockConfig(c, mockConfigWithHeader)
+		err := configcore.Run(coreDev, &mockConf{
+			state: s.state,
+			conf: map[string]interface{}{
+				"pi-config.disable-overscan": 1,
+			},
+		})
+		c.Assert(err, IsNil)
+
+		if tc.shouldIgnore {
+			c.Check(logbuf.String(), testutil.Contains, "ignoring pi-config settings: configuration cannot be applied: no-editing header found")
+			// change was ignored
+			s.checkMockConfig(c, mockConfigWithHeader)
+		} else {
+			c.Check(logbuf.String(), HasLen, 0)
+			expected := strings.Replace(mockConfigWithHeader, "#disable_overscan=1", "disable_overscan=1", -1)
+			s.checkMockConfig(c, expected)
+		}
+
+		logbuf.Reset()
+	}
 }
