@@ -1978,8 +1978,13 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 		if err != nil {
 			return nil, nil, err
 		}
-		if affectedSnaps[up.InstanceName()] == nil && inf.Hooks[gateAutoRefreshHookName] != nil {
-			affectedSnaps[up.InstanceName()] = &affectedSnapInfo{}
+		if inf.Hooks[gateAutoRefreshHookName] != nil {
+			if affectedSnaps[up.InstanceName()] == nil {
+				affectedSnaps[up.InstanceName()] = &affectedSnapInfo{
+					AffectingSnaps: make(map[string]bool),
+				}
+			}
+			affectedSnaps[up.InstanceName()].AffectingSnaps[up.InstanceName()] = true
 		}
 	}
 
