@@ -20,9 +20,11 @@
 package configcore
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/boot"
@@ -102,7 +104,26 @@ func newPiConfigNotSupportedError(msg string) *piConfigNotSupportedError {
 }
 
 func (e *piConfigNotSupportedError) Error() string {
-	return fmt.Sprintf("configuring not supported: %s", e.reason)
+	return fmt.Sprintf("configuration cannot be applied: %s", e.reason)
+}
+
+var reIgnorePrefix = regexp.MustCompile(`(?i)^#\s+Snapd-Edit:\s+no\s*$`)
+
+func piConfigFileIgnoreMarkerSet(configFile string) bool {
+	f, err := os.Open(configFile)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	// read the first line
+	scanner.Scan()
+	if scanner.Err() != nil {
+		return false
+	}
+
+	return reIgnorePrefix.Match(scanner.Bytes())
 }
 
 // Some of the pi devices (avnet) ship with measured boot enabled and
@@ -136,13 +157,18 @@ func piConfigFile(dev sysconfig.Device, opts *fsOnlyContext) (string, error) {
 			return "", newPiConfigNotSupportedError("unsupported system mode")
 		}
 	}
-	return filepath.Join(rootDir, subdir, "config.txt"), nil
+	configPath := filepath.Join(rootDir, subdir, "config.txt")
+	if piConfigFileIgnoreMarkerSet(configPath) {
+		return "", newPiConfigNotSupportedError("no-editing header found")
+	}
+
+	return configPath, nil
 }
 
 func handlePiConfiguration(dev sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	configFile, err := piConfigFile(dev, opts)
 	if _, ok := err.(*piConfigNotSupportedError); ok {
-		logger.Debugf("ignoring pi-config settings: %v", err)
+		logger.Noticef("ignoring pi-config settings: %v", err)
 		return nil
 	}
 	if err != nil {
