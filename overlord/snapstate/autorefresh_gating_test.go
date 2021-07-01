@@ -1583,7 +1583,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 	defer s.state.Unlock()
 
 	tasks := chg.Tasks()
-	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Consider re-refresh of "base-snap-b", "snap-a"`)
+	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Handling re-refresh of "base-snap-b", "snap-a" as needed`)
 
 	// all snaps refreshed, all removed from refresh-candidates.
 	var candidates map[string]*snapstate.RefreshCandidate
@@ -1635,7 +1635,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Held(c *C) {
 	c.Assert(logbuf.String(), testutil.Contains, `skipping refresh of held snaps: base-snap-b`)
 	tasks := chg.Tasks()
 	// no re-refresh for base-snap-b because it was held.
-	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Consider re-refresh of "snap-a"`)
+	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Handling re-refresh of "snap-a" as needed`)
 }
 
 func (s *snapmgrTestSuite) TestAutoRefreshPhase2Proceed(c *C) {
@@ -2059,7 +2059,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2GatedSnaps(c *C) {
 	tasks := chg.Tasks()
 	verifyPhasedAutorefreshTasks(c, tasks, expected)
 	// no re-refresh for snap-a because it was held.
-	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Consider re-refresh of "base-snap-b"`)
+	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Handling re-refresh of "base-snap-b" as needed`)
 
 	// only snap-a remains in refresh-candidates because it was held;
 	// base-snap-b got pruned (was refreshed).
