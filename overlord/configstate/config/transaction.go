@@ -45,10 +45,6 @@ type Transaction struct {
 	changes  map[string]map[string]interface{}
 }
 
-type TransactionOptions struct {
-	NoVirtual bool
-}
-
 // NewTransaction creates a new configuration transaction initialized with the given state.
 //
 // The provided state must be locked by the caller.
@@ -260,7 +256,6 @@ func (t *Transaction) GetPristineMaybe(instanceName, key string, result interfac
 }
 
 func getFromConfig(instanceName string, subkeys []string, pos int, config map[string]*json.RawMessage, result interface{}) error {
-
 	// special case - get root document
 	if len(subkeys) == 0 {
 		if len(config) == 0 {
@@ -273,7 +268,6 @@ func getFromConfig(instanceName string, subkeys []string, pos int, config map[st
 		}
 		return nil
 	}
-
 	raw, ok := config[subkeys[pos]]
 	if !ok {
 		return &NoOptionError{SnapName: instanceName, Key: strings.Join(subkeys[:pos+1], ".")}
