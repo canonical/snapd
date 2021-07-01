@@ -464,6 +464,31 @@ func (s *baseMgrsSuite) makeSerialAssertionInState(c *C, st *state.State, brandI
 	return serial.(*asserts.Serial)
 }
 
+// XXX: We have some very similar code in hookstate/ctlcmd/is_connected_test.go
+//      should this be moved to overlord/snapstate/snapstatetest as a common
+//      helper
+func (ms *baseMgrsSuite) mockInstalledSnapWithFiles(c *C, snapYaml string, files [][]string) *snap.Info {
+	return ms.mockInstalledSnapWithRevAndFiles(c, snapYaml, snap.R(1), files)
+}
+
+func (ms *baseMgrsSuite) mockInstalledSnapWithRevAndFiles(c *C, snapYaml string, rev snap.Revision, files [][]string) *snap.Info {
+	st := ms.o.State()
+
+	info := snaptest.MockSnapWithFiles(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)}, files)
+	si := &snap.SideInfo{
+		RealName: info.SnapName(),
+		SnapID:   fakeSnapID(info.SnapName()),
+		Revision: info.Revision,
+	}
+	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  info.Revision,
+		SnapType: string(info.Type()),
+	})
+	return info
+}
+
 type mgrsSuite struct {
 	baseMgrsSuite
 }
@@ -4799,6 +4824,219 @@ version: 20.04`
 	})
 }
 
+func (ms *mgrsSuite) TestRefreshSimpleSameRev(c *C) {
+	// the "some-snap" in rev1
+	snapYaml := "name: some-snap\nversion: 1.0"
+	revStr := "1"
+	// is available in the store
+	snapPath, _ := ms.makeStoreTestSnap(c, snapYaml, revStr)
+	ms.serveSnap(snapPath, revStr)
+
+	mockServer := ms.mockStore(c)
+	ms.AddCleanup(mockServer.Close)
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// and some-snap:rev1 is also installed
+	info := ms.mockInstalledSnapWithRevAndFiles(c, snapYaml, snap.R(revStr), nil)
+
+	// now refresh from rev1 to rev1
+	revOpts := &snapstate.RevisionOptions{Revision: snap.R(revStr)}
+	ts, err := snapstate.Update(st, "some-snap", revOpts, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("refresh", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Check(chg.Err(), IsNil)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+
+	// the snap file is in the right place
+	c.Check(info.MountFile(), testutil.FilePresent)
+
+	// rev1 is installed
+	var snapst snapstate.SnapState
+	snapstate.Get(st, "some-snap", &snapst)
+	info, err = snapst.CurrentInfo()
+	c.Assert(err, IsNil)
+	c.Assert(info.Revision, Equals, snap.R(1))
+}
+
+func (ms *mgrsSuite) TestRefreshSimplePrevRev(c *C) {
+	// the "some-snap" in rev1
+	snapYaml := "name: some-snap\nversion: 1.0"
+	revStr := "1"
+	// is available in the store
+	snapPath, _ := ms.makeStoreTestSnap(c, snapYaml, revStr)
+	ms.serveSnap(snapPath, revStr)
+
+	mockServer := ms.mockStore(c)
+	ms.AddCleanup(mockServer.Close)
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// and some-snap at both rev1, rev2 are installed
+	info := snaptest.MockSnapWithFiles(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)}, nil)
+	snaptest.MockSnapWithFiles(c, snapYaml, &snap.SideInfo{Revision: snap.R(2)}, nil)
+	si1 := &snap.SideInfo{
+		RealName: info.SnapName(),
+		SnapID:   fakeSnapID(info.SnapName()),
+		Revision: snap.R(1),
+	}
+	si2 := &snap.SideInfo{
+		RealName: info.SnapName(),
+		SnapID:   fakeSnapID(info.SnapName()),
+		Revision: snap.R(2),
+	}
+	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si1, si2},
+		Current:  snap.R(2),
+		SnapType: string(info.Type()),
+	})
+
+	// now refresh from rev2 to the local rev1
+	revOpts := &snapstate.RevisionOptions{Revision: snap.R(revStr)}
+	ts, err := snapstate.Update(st, "some-snap", revOpts, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("refresh", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Check(chg.Err(), IsNil)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+
+	// the snap file is in the right place
+	c.Check(info.MountFile(), testutil.FilePresent)
+
+	var snapst snapstate.SnapState
+	snapstate.Get(st, "some-snap", &snapst)
+	info, err = snapst.CurrentInfo()
+	c.Assert(err, IsNil)
+	c.Assert(info.Revision, Equals, snap.R(1))
+}
+
+func (ms *mgrsSuite) TestRefreshSimpleSameRevFromLocalFile(c *C) {
+	// the "some-snap" in rev1
+	snapYaml := "name: some-snap\nversion: 1.0"
+	revStr := "1"
+
+	// pretend we got a temp snap file from e.g. the snapd daemon
+	tmpSnapFile := makeTestSnap(c, snapYaml)
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// and some-snap:rev1 is also installed
+	info := ms.mockInstalledSnapWithRevAndFiles(c, snapYaml, snap.R(revStr), nil)
+
+	// now refresh from rev1 to rev1
+	flags := snapstate.Flags{RemoveSnapPath: true}
+	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "some-snap", Revision: snap.R(revStr)}, tmpSnapFile, "", "", flags)
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("refresh", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Check(chg.Err(), IsNil)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+
+	// the temp file got cleaned up
+	snapsup, err := snapstate.TaskSnapSetup(chg.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Flags.RemoveSnapPath, Equals, true)
+	c.Check(snapsup.SnapPath, testutil.FileAbsent)
+
+	// the snap file is in the right place
+	c.Check(info.MountFile(), testutil.FilePresent)
+
+	var snapst snapstate.SnapState
+	snapstate.Get(st, "some-snap", &snapst)
+	info, err = snapst.CurrentInfo()
+	c.Assert(err, IsNil)
+	c.Assert(info.Revision, Equals, snap.R(1))
+}
+
+func (ms *mgrsSuite) TestRefreshSimpleRevertToLocalFromLocalFile(c *C) {
+	// the "some-snap" in rev1
+	snapYaml := "name: some-snap\nversion: 1.0"
+	revStr := "1"
+
+	// pretend we got a temp snap file from e.g. the snapd daemon
+	tmpSnapFile := makeTestSnap(c, snapYaml)
+
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// and some-snap at both rev1, rev2 are installed
+	info := snaptest.MockSnapWithFiles(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)}, nil)
+	snaptest.MockSnapWithFiles(c, snapYaml, &snap.SideInfo{Revision: snap.R(2)}, nil)
+	si1 := &snap.SideInfo{
+		RealName: info.SnapName(),
+		SnapID:   fakeSnapID(info.SnapName()),
+		Revision: snap.R(1),
+	}
+	si2 := &snap.SideInfo{
+		RealName: info.SnapName(),
+		SnapID:   fakeSnapID(info.SnapName()),
+		Revision: snap.R(2),
+	}
+	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si1, si2},
+		Current:  snap.R(2),
+		SnapType: string(info.Type()),
+	})
+
+	// now refresh from rev2 to rev1
+	flags := snapstate.Flags{RemoveSnapPath: true}
+	ts, _, err := snapstate.InstallPath(st, &snap.SideInfo{RealName: "some-snap", Revision: snap.R(revStr)}, tmpSnapFile, "", "", flags)
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("refresh", "...")
+	chg.AddAll(ts)
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Check(chg.Err(), IsNil)
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+
+	// the temp file got cleaned up
+	snapsup, err := snapstate.TaskSnapSetup(chg.Tasks()[0])
+	c.Assert(err, IsNil)
+	c.Check(snapsup.Flags.RemoveSnapPath, Equals, true)
+	c.Check(snapsup.SnapPath, testutil.FileAbsent)
+
+	// the snap file is in the right place
+	c.Check(info.MountFile(), testutil.FilePresent)
+
+	var snapst snapstate.SnapState
+	snapstate.Get(st, "some-snap", &snapst)
+	info, err = snapst.CurrentInfo()
+	c.Assert(err, IsNil)
+	c.Assert(info.Revision, Equals, snap.R(1))
+}
+
 type kernelSuite struct {
 	baseMgrsSuite
 
@@ -7519,26 +7757,6 @@ func tsWithoutReRefresh(c *C, ts *state.TaskSet) *state.TaskSet {
 	c.Assert(ts.Tasks()[refreshIdx].Kind(), Equals, "check-rerefresh")
 	ts = state.NewTaskSet(ts.Tasks()[:refreshIdx-1]...)
 	return ts
-}
-
-// XXX: We have some very similar code in hookstate/ctlcmd/is_connected_test.go
-//      should this be moved to overlord/snapstate/snapstatetest as a common
-//      helper
-func (ms *gadgetUpdatesSuite) mockInstalledSnapWithFiles(c *C, snapYaml string, files [][]string) {
-	st := ms.o.State()
-
-	info := snaptest.MockSnapWithFiles(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)}, files)
-	si := &snap.SideInfo{
-		RealName: info.SnapName(),
-		SnapID:   fakeSnapID(info.SnapName()),
-		Revision: info.Revision,
-	}
-	snapstate.Set(st, info.InstanceName(), &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{si},
-		Current:  info.Revision,
-		SnapType: string(info.Type()),
-	})
 }
 
 // mockSnapUpgradeWithFiles will put a "rev 2" of the given snapYaml/files
