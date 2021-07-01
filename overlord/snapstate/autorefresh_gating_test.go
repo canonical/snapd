@@ -2058,10 +2058,10 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2GatedSnaps(c *C) {
 	}
 	tasks := chg.Tasks()
 	verifyPhasedAutorefreshTasks(c, tasks, expected)
-	// no re-refresh for base-snap-b because it was held.
+	// no re-refresh for snap-a because it was held.
 	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Consider re-refresh of "base-snap-b"`)
 
-	// only snap-a remains in refresh-candidates because it was gated;
+	// only snap-a remains in refresh-candidates because it was held;
 	// base-snap-b got pruned (was refreshed).
 	var candidates map[string]*snapstate.RefreshCandidate
 	c.Assert(st.Get("refresh-candidates", &candidates), IsNil)
