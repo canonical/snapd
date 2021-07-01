@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -231,6 +232,32 @@ func (s *quotaControlSuite) TestCreateQuotaSystemdTooOld(c *C) {
 
 	_, err = servicestate.CreateQuota(s.state, "foo", "", nil, quantity.SizeGiB)
 	c.Assert(err, ErrorMatches, `systemd version too old: snap quotas requires systemd 230 and newer \(currently have 229\)`)
+}
+
+func (s *quotaControlSuite) TestCreateQuotaPrecond(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	err := servicestatetest.MockQuotaInState(st, "foo", "", nil, 2*quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	tests := []struct {
+		name  string
+		mem   quantity.Size
+		snaps []string
+		err   string
+	}{
+		{"foo", 16 * quantity.SizeKiB, nil, `group "foo" already exists`},
+		{"new", 0, nil, `cannot create quota group with no memory limit set`},
+		{"new", quantity.SizeKiB, nil, `memory limit for group "new" is too small: size must be larger than 4KB`},
+		{"new", 16 * quantity.SizeKiB, []string{"baz"}, `cannot use snap "baz" in group "new": snap "baz" is not installed`},
+	}
+
+	for _, t := range tests {
+		_, err := servicestate.CreateQuota(st, t.name, "", t.snaps, t.mem)
+		c.Check(err, ErrorMatches, t.err)
+	}
 }
 
 func (s *quotaControlSuite) TestRemoveQuotaPreseeding(c *C) {
@@ -486,4 +513,57 @@ func (s *quotaControlSuite) TestEnsureSnapAbsentFromQuotaGroup(c *C) {
 	// is not in any quota group
 	err = servicestate.EnsureSnapAbsentFromQuota(s.state, "test-snap33333")
 	c.Assert(err, IsNil)
+}
+
+func (s *quotaControlSuite) TestUpdateQuotaGroupNotEnabled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.quota-groups", false)
+	tr.Commit()
+
+	opts := servicestate.QuotaGroupUpdate{}
+	_, err := servicestate.UpdateQuota(s.state, "foo", opts)
+	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.quota-groups' to true`)
+}
+
+func (s *quotaControlSuite) TestUpdateQuotaPrecond(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	err := servicestatetest.MockQuotaInState(st, "foo", "", nil, 2*quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	tests := []struct {
+		name string
+		opts servicestate.QuotaGroupUpdate
+		err  string
+	}{
+		{"what", servicestate.QuotaGroupUpdate{}, `group "what" does not exist`},
+		{"foo", servicestate.QuotaGroupUpdate{NewMemoryLimit: quantity.SizeGiB}, `cannot decrease memory limit of existing quota-group, remove and re-create it to decrease the limit`},
+		{"foo", servicestate.QuotaGroupUpdate{AddSnaps: []string{"baz"}}, `cannot use snap "baz" in group "foo": snap "baz" is not installed`},
+	}
+
+	for _, t := range tests {
+		_, err := servicestate.UpdateQuota(st, t.name, t.opts)
+		c.Check(err, ErrorMatches, t.err)
+	}
+}
+
+func (s *quotaControlSuite) TestRemoveQuotaPrecond(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	err := servicestatetest.MockQuotaInState(st, "foo", "", nil, 2*quantity.SizeGiB)
+	c.Assert(err, IsNil)
+	err = servicestatetest.MockQuotaInState(st, "bar", "foo", nil, quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	_, err = servicestate.RemoveQuota(st, "what")
+	c.Check(err, ErrorMatches, `cannot remove non-existent quota group "what"`)
+
+	_, err = servicestate.RemoveQuota(st, "foo")
+	c.Check(err, ErrorMatches, `cannot remove quota group "foo" with sub-groups, remove the sub-groups first`)
 }

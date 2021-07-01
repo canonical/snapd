@@ -618,10 +618,6 @@ func (s *quotaHandlersSuite) TestQuotaCreate(c *C) {
 	err = s.callDoQuotaControl(&qc3)
 	c.Assert(err, IsNil)
 
-	// creating the same group again will fail
-	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, 4*quantity.SizeKiB+1)
-	c.Assert(err, ErrorMatches, `group "foo" already exists`)
-
 	// check that the quota groups were created in the state
 	checkQuotaState(c, st, map[string]quotaGroupState{
 		"foo": {
@@ -997,18 +993,6 @@ func (s *quotaHandlersSuite) TestQuotaUpdateSubGroupTooBig(c *C) {
 		"foo":  expFooGroupState,
 		"foo2": expFoo2GroupState,
 	})
-}
-
-func (s *quotaHandlersSuite) TestUpdateQuotaGroupNotEnabled(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.quota-groups", false)
-	tr.Commit()
-
-	opts := servicestate.QuotaGroupUpdate{}
-	_, err := servicestate.UpdateQuota(s.state, "foo", opts)
-	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.quota-groups' to true`)
 }
 
 func (s *quotaHandlersSuite) TestQuotaUpdateChangeMemLimit(c *C) {

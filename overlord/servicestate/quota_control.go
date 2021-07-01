@@ -163,7 +163,7 @@ func RemoveQuota(st *state.State, name string) (*state.TaskSet, error) {
 
 	// XXX: remove this limitation eventually
 	if len(grp.SubGroups) != 0 {
-		return nil, fmt.Errorf("cannot remove quota group with sub-groups, remove the sub-groups first")
+		return nil, fmt.Errorf("cannot remove quota group %q with sub-groups, remove the sub-groups first", name)
 	}
 
 	qc := QuotaControlAction{
