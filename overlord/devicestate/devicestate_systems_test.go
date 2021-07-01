@@ -130,6 +130,11 @@ func (s *deviceMgrSystemsBaseSuite) SetUpTest(c *C) {
 	modeenv := boot.Modeenv{
 		Mode:           "run",
 		RecoverySystem: "",
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
 	}
 	err := modeenv.WriteTo("")
 	s.state.Set("seeded", true)
@@ -1158,6 +1163,11 @@ func (s *deviceMgrSystemsCreateSuite) mockStandardSnapsModeenvAndBootloaderState
 		CurrentKernels:         []string{"pc-kernel_2.snap"},
 		CurrentRecoverySystems: []string{"othersystem"},
 		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
 	}
 	err = modeenv.WriteTo("")
 	c.Assert(err, IsNil)
@@ -1204,6 +1214,13 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 		CurrentKernels:         []string{"pc-kernel_2.snap"},
 		CurrentRecoverySystems: []string{"othersystem", "1234"},
 		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
+		// try model is unset as its measured properties are identical
+		// to current
 	})
 	// verify that new files are tracked correctly
 	expectedFilesLog := &bytes.Buffer{}
@@ -1245,6 +1262,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 		CurrentKernels:         []string{"pc-kernel_2.snap"},
 		CurrentRecoverySystems: []string{"othersystem", "1234"},
 		GoodRecoverySystems:    []string{"othersystem", "1234"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
 	})
 	// no more calls to the bootloader past creating the system
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
@@ -1367,6 +1389,12 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 		CurrentKernels:         []string{"pc-kernel_2.snap"},
 		CurrentRecoverySystems: []string{"othersystem", "1234"},
 		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
+		// try model is unset as its measured properties are identical
 	})
 	// verify that new files are tracked correctly
 	expectedFilesLog := &bytes.Buffer{}
@@ -1414,6 +1442,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 		CurrentRecoverySystems: []string{"othersystem", "1234"},
 		// but not promoted to good systems yet
 		GoodRecoverySystems: []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
 	})
 	// no more calls to the bootloader past creating the system
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
@@ -1569,6 +1602,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 		CurrentKernels:         []string{"pc-kernel_2.snap"},
 		CurrentRecoverySystems: []string{"othersystem", "1234undo"},
 		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
 	})
 
 	// these things happen on snapd startup
@@ -1602,6 +1640,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 		CurrentKernels:         []string{"pc-kernel_2.snap"},
 		CurrentRecoverySystems: []string{"othersystem"},
 		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
 	})
 	// no more calls to the bootloader
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
@@ -1658,6 +1701,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 		CurrentKernels:         []string{"pc-kernel_2.snap"},
 		CurrentRecoverySystems: []string{"othersystem", "1234"},
 		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
 	})
 
 	// these things happen on snapd startup
@@ -1694,6 +1742,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 		CurrentKernels:         []string{"pc-kernel_2.snap"},
 		CurrentRecoverySystems: []string{"othersystem"},
 		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
 	})
 	// no more calls to the bootloader
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
@@ -1768,6 +1821,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemErrCl
 		CurrentKernels:         []string{"pc-kernel_2.snap"},
 		CurrentRecoverySystems: []string{"othersystem"},
 		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
 	})
 }
 
@@ -1862,6 +1920,11 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemReboo
 		CurrentKernels:         []string{"pc-kernel_2.snap"},
 		CurrentRecoverySystems: []string{"othersystem"},
 		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
 	})
 	var triedSystems []string
 	s.state.Get("tried-systems", &triedSystems)
