@@ -267,7 +267,7 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnAvnetKernel(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	c.Check(logbuf.String(), testutil.Contains, "ignoring pi-config settings: configuration cannot be applied: kernel measures config.txt")
+	c.Check(logbuf.String(), testutil.Contains, "ignoring pi-config settings: configuration cannot be applied: boot measures config.txt")
 	// change was ignored
 	s.checkMockConfig(c, mockConfigTxt)
 }
@@ -290,7 +290,7 @@ func (s *piCfgSuite) TestConfigurePiConfigSkippedOnWrongMode(c *C) {
 	})
 	c.Assert(err, IsNil)
 
-	c.Check(logbuf.String(), testutil.Contains, "ignoring pi-config settings: configuration cannot be applied: unsupported mode")
+	c.Check(logbuf.String(), testutil.Contains, "ignoring pi-config settings: configuration cannot be applied: unsupported system mode")
 	// change was ignored
 	s.checkMockConfig(c, mockConfigTxt)
 }
