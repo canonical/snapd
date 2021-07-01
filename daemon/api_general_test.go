@@ -64,7 +64,7 @@ func (s *generalSuite) TestRoot(c *check.C) {
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
 
 	expected := []interface{}{"TBD"}
-	var rsp daemon.Resp
+	var rsp daemon.RespJSON
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Result, check.DeepEquals, expected)
@@ -133,7 +133,7 @@ func (s *generalSuite) TestSysInfo(c *check.C) {
 		"virtualization":   "magic",
 		"system-mode":      "run",
 	}
-	var rsp daemon.Resp
+	var rsp daemon.RespJSON
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
@@ -214,7 +214,7 @@ func (s *generalSuite) TestSysInfoLegacyRefresh(c *check.C) {
 		"virtualization": "kvm",
 		"system-mode":    "run",
 	}
-	var rsp daemon.Resp
+	var rsp daemon.RespJSON
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
@@ -292,7 +292,7 @@ func (s *generalSuite) testSysInfoSystemMode(c *check.C, mode string) {
 		"architecture": arch.DpkgArchitecture(),
 		"system-mode":  mode,
 	}
-	var rsp daemon.Resp
+	var rsp daemon.RespJSON
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
@@ -377,8 +377,10 @@ func (s *generalSuite) TestStateChangesDefaultToInProgress(c *check.C) {
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Assert(rsp.Result, check.HasLen, 1)
 
-	res, err := rsp.MarshalJSON()
-	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	rsp.ServeHTTP(rec, nil)
+	c.Assert(rec.Code, check.Equals, 200)
+	res := rec.Body.Bytes()
 
 	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["2016-04-21T01:02:03Z INFO l11","2016-04-21T01:02:03Z INFO l12"],"progress":{"label":"","done":0,"total":1},"spawn-time":"2016-04-21T01:02:03Z"}.*`)
 }
@@ -403,8 +405,10 @@ func (s *generalSuite) TestStateChangesInProgress(c *check.C) {
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Assert(rsp.Result, check.HasLen, 1)
 
-	res, err := rsp.MarshalJSON()
-	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	rsp.ServeHTTP(rec, nil)
+	c.Assert(rec.Code, check.Equals, 200)
+	res := rec.Body.Bytes()
 
 	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["2016-04-21T01:02:03Z INFO l11","2016-04-21T01:02:03Z INFO l12"],"progress":{"label":"","done":0,"total":1},"spawn-time":"2016-04-21T01:02:03Z"}.*],"ready":false,"spawn-time":"2016-04-21T01:02:03Z"}.*`)
 }
@@ -429,8 +433,10 @@ func (s *generalSuite) TestStateChangesAll(c *check.C) {
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Assert(rsp.Result, check.HasLen, 2)
 
-	res, err := rsp.MarshalJSON()
-	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	rsp.ServeHTTP(rec, nil)
+	c.Assert(rec.Code, check.Equals, 200)
+	res := rec.Body.Bytes()
 
 	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"install","summary":"install...","status":"Do","tasks":\[{"id":"\w+","kind":"download","summary":"1...","status":"Do","log":\["2016-04-21T01:02:03Z INFO l11","2016-04-21T01:02:03Z INFO l12"],"progress":{"label":"","done":0,"total":1},"spawn-time":"2016-04-21T01:02:03Z"}.*],"ready":false,"spawn-time":"2016-04-21T01:02:03Z"}.*`)
 	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"id":"\w+","kind":"unlink","summary":"1...","status":"Error","log":\["2016-04-21T01:02:03Z ERROR rm failed"],"progress":{"label":"","done":1,"total":1},"spawn-time":"2016-04-21T01:02:03Z","ready-time":"2016-04-21T01:02:03Z"}.*],"ready":true,"err":"[^"]+".*`)
@@ -456,8 +462,10 @@ func (s *generalSuite) TestStateChangesReady(c *check.C) {
 	c.Check(rsp.Status, check.Equals, 200)
 	c.Assert(rsp.Result, check.HasLen, 1)
 
-	res, err := rsp.MarshalJSON()
-	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	rsp.ServeHTTP(rec, nil)
+	c.Assert(rec.Code, check.Equals, 200)
+	res := rec.Body.Bytes()
 
 	c.Check(string(res), check.Matches, `.*{"id":"\w+","kind":"remove","summary":"remove..","status":"Error","tasks":\[{"id":"\w+","kind":"unlink","summary":"1...","status":"Error","log":\["2016-04-21T01:02:03Z ERROR rm failed"],"progress":{"label":"","done":1,"total":1},"spawn-time":"2016-04-21T01:02:03Z","ready-time":"2016-04-21T01:02:03Z"}.*],"ready":true,"err":"[^"]+".*`)
 }
@@ -486,8 +494,9 @@ func (s *generalSuite) TestStateChangesForSnapName(c *check.C) {
 	c.Assert(res, check.HasLen, 1)
 	c.Check(res[0].Kind, check.Equals, `install`)
 
-	_, err = rsp.MarshalJSON()
-	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	rsp.ServeHTTP(rec, nil)
+	c.Assert(rec.Code, check.Equals, 200)
 }
 
 func (s *generalSuite) TestStateChangesForSnapNameWithApp(c *check.C) {
@@ -520,8 +529,9 @@ func (s *generalSuite) TestStateChangesForSnapNameWithApp(c *check.C) {
 	c.Assert(res, check.HasLen, 1)
 	c.Check(res[0].Kind, check.Equals, `service-control`)
 
-	_, err = rsp.MarshalJSON()
-	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	rsp.ServeHTTP(rec, nil)
+	c.Assert(rec.Code, check.Equals, 200)
 }
 
 func (s *generalSuite) TestStateChange(c *check.C) {
@@ -584,6 +594,10 @@ func (s *generalSuite) TestStateChange(c *check.C) {
 	})
 }
 
+func (s *generalSuite) expectManageAccess() {
+	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
+}
+
 func (s *generalSuite) TestStateChangeAbort(c *check.C) {
 	restore := state.MockTime(time.Date(2016, 04, 21, 1, 2, 3, 0, time.UTC))
 	defer restore()
@@ -600,6 +614,8 @@ func (s *generalSuite) TestStateChangeAbort(c *check.C) {
 	st.Lock()
 	ids := setupChanges(st)
 	st.Unlock()
+
+	s.expectManageAccess()
 
 	buf := bytes.NewBufferString(`{"action": "abort"}`)
 
@@ -665,19 +681,20 @@ func (s *generalSuite) TestStateChangeAbortIsReady(c *check.C) {
 	st.Change(ids[0]).SetStatus(state.DoneStatus)
 	st.Unlock()
 
+	s.expectManageAccess()
+
 	buf := bytes.NewBufferString(`{"action": "abort"}`)
 
 	// Execute
 	req, err := http.NewRequest("POST", "/v2/changes/"+ids[0], buf)
 	c.Assert(err, check.IsNil)
-	rsp := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil)
 	rec := httptest.NewRecorder()
-	rsp.ServeHTTP(rec, req)
+	rspe.ServeHTTP(rec, req)
 
 	// Verify
 	c.Check(rec.Code, check.Equals, 400)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result, check.NotNil)
+	c.Check(rspe.Status, check.Equals, 400)
 
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
@@ -689,6 +706,8 @@ func (s *generalSuite) TestStateChangeAbortIsReady(c *check.C) {
 
 func (s *generalSuite) testWarnings(c *check.C, all bool, body io.Reader) (calls string, result interface{}) {
 	s.daemon(c)
+
+	s.expectManageAccess()
 
 	okayWarns := func(*state.State, time.Time) int { calls += "ok"; return 0 }
 	allWarns := func(*state.State) []*state.Warning { calls += "all"; return nil }

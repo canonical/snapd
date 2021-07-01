@@ -76,7 +76,8 @@ func (s *deviceMgrInstallModeSuite) SetUpTest(c *C) {
 
 	s.ConfigureTargetSystemOptsPassed = nil
 	s.ConfigureTargetSystemErr = nil
-	restore := devicestate.MockSysconfigConfigureTargetSystem(func(opts *sysconfig.Options) error {
+	restore := devicestate.MockSysconfigConfigureTargetSystem(func(mod *asserts.Model, opts *sysconfig.Options) error {
+		c.Check(mod, NotNil)
 		s.ConfigureTargetSystemOptsPassed = append(s.ConfigureTargetSystemOptsPassed, opts)
 		return s.ConfigureTargetSystemErr
 	})
@@ -972,6 +973,66 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitInDangerous(
 		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
 		c.Assert(err, IsNil)
 	}
+
+	s.mockInstallModeChange(c, "dangerous", "")
+
+	// and did tell sysconfig about the cloud-init files
+	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+		{
+			AllowCloudInit:  true,
+			CloudInitSrcDir: filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d"),
+			TargetRootDir:   boot.InstallHostWritableDir,
+			GadgetDir:       filepath.Join(dirs.SnapMountDir, "pc/1/"),
+		},
+	})
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitGadgetOnlyInSigned(c *C) {
+	// pretend we have a cloud-init config on the seed partition
+	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
+	err := os.MkdirAll(cloudCfg, 0755)
+	c.Assert(err, IsNil)
+	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
+		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	// we also have gadget cloud init too
+	gadgetDir := filepath.Join(dirs.SnapMountDir, "pc/1/")
+	err = os.MkdirAll(gadgetDir, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644)
+	c.Assert(err, IsNil)
+
+	s.mockInstallModeChange(c, "signed", "")
+
+	// we didn't tell sysconfig about the ubuntu-seed cloud-init files, just
+	// the gadget ones
+	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
+		{
+			AllowCloudInit: true,
+			TargetRootDir:  boot.InstallHostWritableDir,
+			GadgetDir:      filepath.Join(dirs.SnapMountDir, "pc/1/"),
+		},
+	})
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitBothGadgetAndUbuntuSeedInDangerous(c *C) {
+	// pretend we have a cloud-init config on the seed partition
+	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
+	err := os.MkdirAll(cloudCfg, 0755)
+	c.Assert(err, IsNil)
+	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
+		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
+		c.Assert(err, IsNil)
+	}
+
+	// we also have gadget cloud init too
+	gadgetDir := filepath.Join(dirs.SnapMountDir, "pc/1/")
+	err = os.MkdirAll(gadgetDir, 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(gadgetDir, "cloud.conf"), nil, 0644)
+	c.Assert(err, IsNil)
 
 	s.mockInstallModeChange(c, "dangerous", "")
 

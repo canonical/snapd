@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/timings"
@@ -142,7 +143,7 @@ func (m *ServiceManager) ensureSnapServicesUpdated() (err error) {
 
 	rewrittenServices := make(map[*snap.Info][]*snap.AppInfo)
 	serviceKillingMightHaveOccurred := false
-	observeChange := func(app *snap.AppInfo, unitType, name string, old, new string) {
+	observeChange := func(app *snap.AppInfo, _ *quota.Group, unitType, name string, old, new string) {
 		if unitType == "service" {
 			rewrittenServices[app.Snap] = append(rewrittenServices[app.Snap], app)
 			if !serviceKillingMightHaveOccurred {
@@ -193,6 +194,7 @@ func delayedCrossMgrInit() {
 	// hook into conflict checks mechanisms
 	snapstate.AddAffectedSnapsByAttr("service-action", serviceControlAffectedSnaps)
 	snapstate.SnapServiceOptions = SnapServiceOptions
+	snapstate.EnsureSnapAbsentFromQuotaGroup = EnsureSnapAbsentFromQuota
 }
 
 func serviceControlAffectedSnaps(t *state.Task) ([]string, error) {

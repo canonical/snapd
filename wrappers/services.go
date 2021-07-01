@@ -83,11 +83,18 @@ func generateGroupSliceFile(grp *quota.Group) ([]byte, error) {
 	template := `[Unit]
 Description=Slice for snap quota group %[1]s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
 MemoryMax=%[2]d
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]d
+
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
 `
 
 	fmt.Fprintf(&buf, template, grp.Name, grp.MemoryLimit)
@@ -457,7 +464,7 @@ type SnapServiceOptions struct {
 // ObserveChangeCallback can be invoked by EnsureSnapServices to observe
 // the previous content of a unit and the new on a change.
 // unitType can be "service", "socket", "timer". name is empty for a timer.
-type ObserveChangeCallback func(app *snap.AppInfo, unitType string, name, old, new string)
+type ObserveChangeCallback func(app *snap.AppInfo, grp *quota.Group, unitType string, name, old, new string)
 
 // EnsureSnapServicesOptions is the set of options applying to the
 // EnsureSnapServices operation. It does not include per-snap specific options
@@ -491,6 +498,7 @@ type EnsureSnapServicesOptions struct {
 // invoked while processing the changes. Because of that it should not
 // produce immediate side-effects, as the changes are in effect only
 // if the function did not return an error.
+// This function is idempotent.
 func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSnapServicesOptions, observeChange ObserveChangeCallback, inter interacter) (err error) {
 	// note, sysd is not used when preseeding
 	sysd := systemd.New(systemd.SystemMode, inter)
@@ -557,7 +565,7 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 				if old != nil {
 					oldContent = old.Content
 				}
-				observeChange(app, unitType, name, string(oldContent), string(content))
+				observeChange(app, nil, unitType, name, string(oldContent), string(content))
 			}
 			modifiedUnitsPreviousState[path] = old
 
@@ -644,16 +652,21 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 		}
 	}
 
-	handleSliceModification := func(path string, content []byte) error {
-		// TODO: call the observe callback function to notify that a slice was
-		// updated too?
-
+	handleSliceModification := func(grp *quota.Group, path string, content []byte) error {
 		old, modifiedFile, err := tryFileUpdate(path, content)
 		if err != nil {
 			return err
 		}
 
 		if modifiedFile {
+			if observeChange != nil {
+				var oldContent []byte
+				if old != nil {
+					oldContent = old.Content
+				}
+				observeChange(nil, grp, "slice", grp.Name, string(oldContent), string(content))
+			}
+
 			modifiedUnitsPreviousState[path] = old
 
 			// also mark that we need to reload the system instance of systemd
@@ -674,7 +687,7 @@ func EnsureSnapServices(snaps map[*snap.Info]*SnapServiceOptions, opts *EnsureSn
 
 		sliceFileName := grp.SliceFileName()
 		path := filepath.Join(dirs.SnapServicesDir, sliceFileName)
-		if err := handleSliceModification(path, content); err != nil {
+		if err := handleSliceModification(grp, path, content); err != nil {
 			return err
 		}
 	}
@@ -825,8 +838,10 @@ func ServicesEnableState(s *snap.Info, inter interacter) (map[string]bool, error
 
 // RemoveQuotaGroup ensures that the slice file for a quota group is removed. It
 // assumes that the slice corresponding to the group is not in use anymore by
-// any services or sub-groups of the group when it is invoked.
-// group with sub-groups, one must remove all the sub-groups first.
+// any services or sub-groups of the group when it is invoked. To remove a group
+// with sub-groups, one must remove all the sub-groups first.
+// This function is idempotent, if the slice file doesn't exist no error is
+// returned.
 func RemoveQuotaGroup(grp *quota.Group, inter interacter) error {
 	// TODO: it only works on leaf sub-groups currently
 	if len(grp.SubGroups) != 0 {
@@ -1562,23 +1577,48 @@ type RestartServicesFlags struct {
 	Reload bool
 }
 
-// Restart or reload services; if reload flag is set then "systemctl reload-or-restart" is attempted.
-func RestartServices(svcs []*snap.AppInfo, flags *RestartServicesFlags, inter interacter, tm timings.Measurer) error {
+// Restart or reload active services in `svcs`.
+// If reload flag is set then "systemctl reload-or-restart" is attempted.
+// The services mentioned in `explicitServices` should be a subset of the
+// services in svcs. The services included in explicitServices are always
+// restarted, regardless of their state. The services in the `svcs` argument
+// are only restarted if they are active, so if a service is meant to be
+// restarted no matter it's state, it should be included in the
+// explicitServices list.
+func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
+	flags *RestartServicesFlags, inter interacter, tm timings.Measurer) error {
 	sysd := systemd.New(systemd.SystemMode, inter)
 
+	unitNames := make([]string, 0, len(svcs))
 	for _, srv := range svcs {
 		// they're *supposed* to be all services, but checking doesn't hurt
 		if !srv.IsService() {
 			continue
 		}
+		unitNames = append(unitNames, srv.ServiceName())
+	}
+
+	unitStatuses, err := sysd.Status(unitNames...)
+	if err != nil {
+		return err
+	}
+
+	for _, unit := range unitStatuses {
+		// If the unit was explicitly mentioned in the command line, restart it
+		// even if it is disabled; otherwise, we only restart units which are
+		// currently running. Reference:
+		// https://forum.snapcraft.io/t/command-line-interface-to-manipulate-services/262/47
+		if !unit.Active && !strutil.ListContains(explicitServices, unit.UnitName) {
+			continue
+		}
 
 		var err error
-		timings.Run(tm, "restart-service", fmt.Sprintf("restart service %q", srv), func(nested timings.Measurer) {
+		timings.Run(tm, "restart-service", fmt.Sprintf("restart service %s", unit.UnitName), func(nested timings.Measurer) {
 			if flags != nil && flags.Reload {
-				err = sysd.ReloadOrRestart(srv.ServiceName())
+				err = sysd.ReloadOrRestart(unit.UnitName)
 			} else {
 				// note: stop followed by start, not just 'restart'
-				err = sysd.Restart(srv.ServiceName(), 5*time.Second)
+				err = sysd.Restart(unit.UnitName, 5*time.Second)
 			}
 		})
 		if err != nil {

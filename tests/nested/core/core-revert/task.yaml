@@ -68,4 +68,4 @@ execute: |
 
 
     nested_exec "sudo snap refresh"
-    nested_exec "sudo cat /var/log/syslog" | not MATCH "hsearch_r failed for.* No such process"
+    nested_exec "sudo cat /var/log/syslog" | NOMATCH "hsearch_r failed for.* No such process"

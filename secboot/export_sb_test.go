@@ -194,3 +194,11 @@ func MockFDEHasRevealKey(f func() bool) (restore func()) {
 		fdeHasRevealKey = old
 	}
 }
+
+func MockSbDeactivateVolume(f func(volumeName string) error) (restore func()) {
+	old := sbDeactivateVolume
+	sbDeactivateVolume = f
+	return func() {
+		sbDeactivateVolume = old
+	}
+}

@@ -238,7 +238,7 @@ type SideInfo struct {
 	SnapID            string   `yaml:"snap-id" json:"snap-id"`
 	Revision          Revision `yaml:"revision" json:"revision"`
 	Channel           string   `yaml:"channel,omitempty" json:"channel,omitempty"`
-	Contact           string   `yaml:"contact,omitempty" json:"contact,omitempty"`
+	EditedContact     string   `yaml:"contact,omitempty" json:"contact,omitempty"`
 	EditedTitle       string   `yaml:"title,omitempty" json:"title,omitempty"`
 	EditedSummary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
 	EditedDescription string   `yaml:"description,omitempty" json:"description,omitempty"`
@@ -431,6 +431,12 @@ func (s *Info) Description() string {
 		return s.EditedDescription
 	}
 	return s.OriginalDescription
+}
+
+// Contact returns the blessed contact information for the snap.
+func (s *Info) Contact() string {
+	// TODO: consider links later
+	return s.EditedContact
 }
 
 // Type returns the type of the snap, including additional snap ID check

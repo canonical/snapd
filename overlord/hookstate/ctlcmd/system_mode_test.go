@@ -22,6 +22,8 @@ package ctlcmd_test
 import (
 	"fmt"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
@@ -30,8 +32,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
-
-	. "gopkg.in/check.v1"
 )
 
 type systemModeSuite struct {
@@ -102,23 +102,25 @@ func (s *systemModeSuite) TestSystemMode(c *C) {
 		},
 	}
 
-	for _, test := range tests {
-		smi = &test.smi
-		smiErr = test.smiErr
+	for _, uid := range []uint32{0 /* root */, 1000 /* regular */} {
+		for _, test := range tests {
+			smi = &test.smi
+			smiErr = test.smiErr
 
-		stdout, stderr, err := ctlcmd.Run(mockContext, []string{"system-mode"}, 0)
-		comment := Commentf("%v", test)
-		if test.exitCode > 0 {
-			c.Check(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: test.exitCode}, comment)
-		} else {
-			if test.err == "" {
-				c.Check(err, IsNil, comment)
+			stdout, stderr, err := ctlcmd.Run(mockContext, []string{"system-mode"}, uid)
+			comment := Commentf("%v", test)
+			if test.exitCode > 0 {
+				c.Check(err, DeepEquals, &ctlcmd.UnsuccessfulError{ExitCode: test.exitCode}, comment)
 			} else {
-				c.Check(err, ErrorMatches, test.err, comment)
+				if test.err == "" {
+					c.Check(err, IsNil, comment)
+				} else {
+					c.Check(err, ErrorMatches, test.err, comment)
+				}
 			}
-		}
 
-		c.Check(string(stdout), Equals, test.stdout, comment)
-		c.Check(string(stderr), Equals, "", comment)
+			c.Check(string(stdout), Equals, test.stdout, comment)
+			c.Check(string(stderr), Equals, "", comment)
+		}
 	}
 }

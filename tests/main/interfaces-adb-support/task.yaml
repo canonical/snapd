@@ -15,8 +15,8 @@ execute: |
     # some systems have the network manager installed and such systems will get
     # additional rules.
     if [ "$(find /etc/udev/rules.d -name '70-snap.*.rules' | wc -l)" -gt 0 ]; then
-        not MATCH adb-support /etc/udev/rules.d/70-snap.*.rules
-        not MATCH 'MODE="0666"' /etc/udev/rules.d/70-snap.*.rules
+        NOMATCH adb-support /etc/udev/rules.d/70-snap.*.rules
+        NOMATCH 'MODE="0666"' /etc/udev/rules.d/70-snap.*.rules
     fi
 
     snap connect test-snapd-adb-support:adb-support

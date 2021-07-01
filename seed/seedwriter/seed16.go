@@ -246,7 +246,8 @@ func (tr *tree16) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 			File:    filepath.Base(sn.Path),
 			DevMode: info.NeedsDevMode(),
 			Classic: info.NeedsClassic(),
-			Contact: info.Contact,
+			// TODO: set this only if the snap has no links?
+			Contact: info.Contact(),
 			// no assertions for this snap were put in the seed
 			Unasserted: unasserted,
 		}

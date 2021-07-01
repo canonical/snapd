@@ -28,6 +28,7 @@ import (
 
 	// TODO: move this to snap/quantity? or similar
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/systemd"
 )
@@ -83,6 +84,31 @@ func NewGroup(name string, memLimit quantity.Size) (*Group, error) {
 	}
 
 	return grp, nil
+}
+
+// CurrentMemoryUsage returns the current memory usage of the quota group. For
+// quota groups which do not yet have a backing systemd slice on the system (
+// i.e. quota groups without any snaps in them), the memory usage is reported as
+// 0.
+func (grp *Group) CurrentMemoryUsage() (quantity.Size, error) {
+	sysd := systemd.New(systemd.SystemMode, progress.Null)
+
+	// check if this group is actually active, it could not physically exist yet
+	// since it has no snaps in it
+	isActive, err := sysd.IsActive(grp.SliceFileName())
+	if err != nil {
+		return 0, err
+	}
+	if !isActive {
+		return 0, nil
+	}
+
+	mem, err := sysd.CurrentMemoryUsage(grp.SliceFileName())
+	if err != nil {
+		return 0, err
+	}
+
+	return mem, nil
 }
 
 // SliceFileName returns the name of the slice file that should be used for this

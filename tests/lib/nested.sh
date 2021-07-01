@@ -778,8 +778,7 @@ users:
   - name: user1
     sudo: "ALL=(ALL) NOPASSWD:ALL"
     lock_passwd: false
-    # passwd is just "ubuntu"
-    passwd: "$6$rounds=4096$PCrfo.ggdf4ubP$REjyaoY2tUWH2vjFJjvLs3rDxVTszGR9P7mhH9sHb2MsELfc53uV/v15jDDOJU/9WInfjjTKJPlD5URhX5Mix0"
+    plain_text_passwd: "ubuntu"
 EOF
 }
 
@@ -961,10 +960,10 @@ nested_start_core_vm_unit() {
         fi
 
         if nested_is_tpm_enabled; then
-            if snap list swtpm-mvo; then
+            if snap list swtpm-mvo >/dev/null; then
                 # reset the tpm state
                 rm /var/snap/swtpm-mvo/current/tpm2-00.permall
-                snap restart swtpm-mvo
+                snap restart swtpm-mvo > /dev/null
             else
                 snap install swtpm-mvo --beta
             fi
@@ -1005,14 +1004,19 @@ nested_start_core_vm_unit() {
     # wait for the nested-vm service to appear active
     wait_for_service "$NESTED_VM"
 
-    # Wait until ssh is ready
-    nested_wait_for_ssh
-    # Wait for the snap command to be available
-    nested_wait_for_snap_command
-    # Wait for snap seeding to be done
-    nested_exec "sudo snap wait system seed.loaded"
-    # Wait for cloud init to be done
-    nested_exec "cloud-init status --wait"
+    local EXPECT_SHUTDOWN
+    EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}
+
+    if [ "$EXPECT_SHUTDOWN" != "1" ]; then
+        # Wait until ssh is ready
+        nested_wait_for_ssh
+        # Wait for the snap command to be available
+        nested_wait_for_snap_command
+        # Wait for snap seeding to be done
+        nested_exec "sudo snap wait system seed.loaded"
+        # Wait for cloud init to be done
+        nested_exec "cloud-init status --wait"
+    fi
 }
 
 nested_get_current_image_name() {
@@ -1184,7 +1188,8 @@ nested_start_classic_vm() {
     # save logs from previous runs
     nested_save_serial_log
 
-    # Systemd unit is created, it is important to respect the qemu parameters order
+    # Systemd unit is created, it is important to respect the qemu parameters 
+    # order
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
         ${PARAM_SMP} \
         ${PARAM_CPU} \

@@ -27,11 +27,10 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/dirs"
-
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/sysdb"
+	"github.com/snapcore/snapd/dirs"
 )
 
 func TestSysDB(t *testing.T) { TestingT(t) }

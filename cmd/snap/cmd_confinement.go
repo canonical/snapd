@@ -20,11 +20,11 @@
 package main
 
 import (
-	"github.com/snapcore/snapd/i18n"
-
 	"fmt"
 
 	"github.com/jessevdk/go-flags"
+
+	"github.com/snapcore/snapd/i18n"
 )
 
 var shortConfinementHelp = i18n.G("Print the confinement mode the system operates in")
