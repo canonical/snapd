@@ -98,6 +98,51 @@ var stateJSON = []byte(`
 }
 `)
 
+var stateCyclesJSON = []byte(`
+{
+	"last-task-id": 14,
+	"last-change-id": 2,
+
+	"data": {
+		"snaps": {},
+		"seeded": true
+	},
+	"changes": {
+		"1": {
+			"id": "1",
+			"kind": "install-snap",
+			"summary": "install a snap",
+			"status": 0,
+			"task-ids": ["11","12","13"]
+		}
+	},
+	"tasks": {
+		"11": {
+			"id": "11",
+			"change": "1",
+			"kind": "foo",
+			"summary": "Foo task",
+			"status": 4,
+			"halt-tasks": ["13"]
+		},
+		"12": {
+			"id": "12",
+			"change": "1",
+			"kind": "bar",
+			"summary": "Bar task",
+			"halt-tasks": ["13"]
+		},
+		"13": {
+			"id": "13",
+			"change": "1",
+			"kind": "bar",
+			"summary": "Bar task",
+			"halt-tasks": ["11","12"]
+		}
+	}
+}
+`)
+
 func (s *SnapSuite) TestDebugChanges(c *C) {
 	dir := c.MkDir()
 	stateFile := filepath.Join(dir, "test-state.json")
@@ -199,6 +244,22 @@ func (s *SnapSuite) TestDebugTasks(c *C) {
 		"Lanes  ID   Status  Spawn                 Ready                 Kind             Summary\n"+
 			"0      11   Done    0001-01-01T00:00:00Z  0001-01-01T00:00:00Z  download-snap    Download snap a from channel edge\n"+
 			"0      12   Do      0001-01-01T00:00:00Z  0001-01-01T00:00:00Z  some-other-task  \n")
+	c.Check(s.Stderr(), Equals, "")
+}
+
+func (s *SnapSuite) TestDebugTasksWithCycles(c *C) {
+	dir := c.MkDir()
+	stateFile := filepath.Join(dir, "test-state.json")
+	c.Assert(ioutil.WriteFile(stateFile, stateCyclesJSON, 0644), IsNil)
+
+	rest, err := main.Parser(main.Client()).ParseArgs([]string{"debug", "state", "--abs-time", "--change=1", stateFile})
+	c.Assert(err, IsNil)
+	c.Assert(rest, DeepEquals, []string{})
+	c.Check(s.Stdout(), Matches,
+		"Lanes  ID   Status  Spawn                 Ready                 Kind  Summary\n"+
+			"0      13   Do      0001-01-01T00:00:00Z  0001-01-01T00:00:00Z  bar   Bar task\n"+
+			"0      12   Do      0001-01-01T00:00:00Z  0001-01-01T00:00:00Z  bar   Bar task\n"+
+			"0      11   Done    0001-01-01T00:00:00Z  0001-01-01T00:00:00Z  foo   Foo task\n")
 	c.Check(s.Stderr(), Equals, "")
 }
 

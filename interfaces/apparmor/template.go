@@ -936,6 +936,9 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   # Allow reading /proc/version. For release.go WSL detection.
   @{PROC}/version r,
 
+  # Allow reading own cgroups
+  @{PROC}/@{pid}/cgroup r,
+
   # Allow reading somaxconn, required in newer distro releases
   @{PROC}/sys/net/core/somaxconn r,
   # but silence noisy denial of inet/inet6
@@ -981,7 +984,15 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   capability dac_override,
 
   # Allow freezing and thawing the per-snap cgroup freezers
+  # v1 hierarchy where we know the group name of all processes of
+  # a given snap upfront
   /sys/fs/cgroup/freezer/snap.###SNAP_INSTANCE_NAME###/freezer.state rw,
+  # v2 hierarchy, where we need to walk the tree to looking for the tracking
+  # groups and act on each one
+  /sys/fs/cgroup/ r,
+  /sys/fs/cgroup/** r,
+  /sys/fs/cgroup/**/snap.###SNAP_INSTANCE_NAME###.*.scope/cgroup.freeze rw,
+  /sys/fs/cgroup/**/snap.###SNAP_INSTANCE_NAME###.*.service/cgroup.freeze rw,
 
   # Allow the content interface to bind fonts from the host filesystem
   mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /snap/###SNAP_INSTANCE_NAME###/*/**,
