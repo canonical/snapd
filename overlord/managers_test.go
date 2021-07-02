@@ -6080,7 +6080,8 @@ func (s *mgrsSuite) TestRemodelUC20WithRecoverySystem(c *C) {
 	c.Assert(tasks, HasLen, i+1)
 
 	const usesSnapd = true
-	seedtest.ValidateSeed(c, boot.InitramfsUbuntuSeedDir, expectedLabel, usesSnapd, s.storeSigning.Trusted)
+	sd := seedtest.ValidateSeed(c, boot.InitramfsUbuntuSeedDir, expectedLabel, usesSnapd, s.storeSigning.Trusted)
+	c.Assert(sd.Model(), DeepEquals, newModel)
 }
 
 func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c *C) {

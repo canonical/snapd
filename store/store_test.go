@@ -2284,6 +2284,30 @@ func (s *storeTestSuite) TestSectionsQueryCustomStore(c *C) {
 	c.Check(sections, DeepEquals, []string{"featured", "database"})
 }
 
+func (s *storeTestSuite) TestSectionsQueryErrors(c *C) {
+	n := 0
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assertRequest(c, r, "GET", sectionsPath)
+		c.Check(r.Header.Get("X-Device-Authorization"), Equals, "")
+
+		w.WriteHeader(500)
+		io.WriteString(w, "very unhappy")
+		n++
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	serverURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: serverURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	_, err := sto.Sections(s.ctx, s.user)
+	c.Assert(err, ErrorMatches, `cannot retrieve sections: got unexpected HTTP status code 500 via GET to.*`)
+}
+
 const mockNamesJSON = `
 {
   "_embedded": {

@@ -128,5 +128,5 @@ func (cs *clientSuite) TestRemoveQuotaGroupError(c *check.C) {
 	cs.status = 500
 	cs.rsp = `{"type": "error"}`
 	_, err := cs.cli.RemoveQuotaGroup("foo")
-	c.Check(err, check.ErrorMatches, `server error: "Internal Server Error"`)
+	c.Check(err, check.ErrorMatches, `cannot remove quota group: server error: "Internal Server Error"`)
 }
