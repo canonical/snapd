@@ -1,0 +1,73 @@
+summary: Test for the mount-control interface
+
+environment:
+    MOUNT_SRC: /var/tmp/test-snapd-mount-control
+    SNAP_COMMON: /var/snap/test-snapd-mount-control/common
+
+prepare: |
+    mkdir -p "$MOUNT_SRC/dir1"
+    echo "Something" > "$MOUNT_SRC/file1"
+
+restore: |
+    rm -rf "$MOUNT_SRC"
+
+execute: |
+    SNAP_NAME="test-snapd-mount-control"
+    MOUNT_DEST="$SNAP_COMMON/target"
+
+    if [ "$SPREAD_REBOOT" = 0 ]; then
+        # first pass: install the snap and try basic mount operations
+        echo "Installing the test snap"
+
+        "$TESTSTOOLS"/snaps-state install-local "${SNAP_NAME}" --devmode
+
+        echo "Connecting the mount-control interface"
+        snap connect "${SNAP_NAME}":mntctl
+
+        echo "Verify that the snap can perform a mount"
+        mkdir -p "$MOUNT_DEST"
+        "${SNAP_NAME}".mntctl -o bind,rw "$MOUNT_SRC" "$MOUNT_DEST"
+
+        echo "Verify that the mount has been performed"
+        "${SNAP_NAME}".cmd grep "$MOUNT_DEST" /proc/self/mountinfo
+
+        echo "Ensure that the mounted files are visible"
+        "${SNAP_NAME}".cmd test -e "$MOUNT_DEST/file1"
+
+        echo "Unmount via the system command umount(8)"
+        "${SNAP_NAME}".cmd umount "$MOUNT_DEST"
+        "${SNAP_NAME}".cmd grep "$MOUNT_DEST" /proc/self/mountinfo && exit 1
+        "${SNAP_NAME}".cmd test "!" -e "$MOUNT_DEST/file1"
+
+        echo "Now create the same mount using snapctl"
+        "${SNAP_NAME}".cmd snapctl mount -o bind,rw "$MOUNT_SRC" "$MOUNT_DEST"
+
+        echo "Verify the mount"
+        "${SNAP_NAME}".cmd grep "$MOUNT_DEST" /proc/self/mountinfo
+        "${SNAP_NAME}".cmd test -e "$MOUNT_DEST/file1"
+
+        echo "Unmount via snapctl"
+        "${SNAP_NAME}".cmd snapctl umount "$MOUNT_DEST"
+
+        echo "Create a persistent mount"
+        "${SNAP_NAME}".cmd snapctl mount --persistent -o bind,rw "$MOUNT_SRC" "$MOUNT_DEST"
+
+        echo "Verify that the persistent mount is also immediately available"
+        "${SNAP_NAME}".cmd grep "$MOUNT_DEST" /proc/self/mountinfo
+        "${SNAP_NAME}".cmd test -e "$MOUNT_DEST/file1"
+
+        REBOOT
+    else
+        # after reboot
+
+        echo "Verify that the persistent mount is still active"
+        "${SNAP_NAME}".cmd grep "$MOUNT_DEST" /proc/self/mountinfo
+        "${SNAP_NAME}".cmd test -e "$MOUNT_DEST/file1"
+
+        echo "Remove the persistent mount"
+        "${SNAP_NAME}".cmd snapctl umount "$MOUNT_DEST"
+
+        echo "Verify that the mount is gone"
+        "${SNAP_NAME}".cmd grep "$MOUNT_DEST" /proc/self/mountinfo && exit 1
+        "${SNAP_NAME}".cmd test "!" -e "$MOUNT_DEST/file1"
+    fi
