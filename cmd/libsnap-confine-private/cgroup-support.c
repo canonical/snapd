@@ -99,7 +99,7 @@ bool sc_cgroup_is_v2(void) {
     return false;
 }
 
-static const size_t max_traversal_depth = 20;
+static const size_t max_traversal_depth = 32;
 
 static bool traverse_looking_for_prefix_in_dir(DIR *root, const char *prefix, const char *skip, size_t depth) {
     if (depth > max_traversal_depth) {

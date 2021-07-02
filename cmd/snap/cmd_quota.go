@@ -95,7 +95,7 @@ func init() {
 }
 
 type cmdSetQuota struct {
-	clientMixin
+	waitMixin
 
 	MemoryMax  string `long:"memory" optional:"true"`
 	Parent     string `long:"parent" optional:"true"`
@@ -119,6 +119,8 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 	if _, err = x.client.GetQuotaGroup(x.Positional.GroupName); err == nil {
 		groupExists = true
 	}
+
+	var chgID string
 
 	switch {
 	case maxMemory == "" && x.Parent == "" && len(x.Positional.Snaps) == 0:
@@ -160,8 +162,10 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 		// orphan a sub-group to no longer have a parent, but currently it just
 		// means leave the group with whatever parent it has, or if it doesn't
 		// currently exist, create the group without a parent group
-		return x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, uint64(mem))
-
+		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, uint64(mem))
+		if err != nil {
+			return err
+		}
 	case len(x.Positional.Snaps) != 0:
 		// there are snaps specified for this group but no memory limit, so the
 		// group must already exist and we must be adding the specified snaps to
@@ -172,12 +176,23 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 		// currently support that, so currently all snaps specified here are
 		// just added to the group
 
-		return x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, 0)
-
+		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, 0)
+		if err != nil {
+			return err
+		}
 	default:
 		// should be logically impossible to reach here
 		panic("impossible set of options")
 	}
+
+	if _, err := x.wait(chgID); err != nil {
+		if err == noWait {
+			return nil
+		}
+		return err
+	}
+
+	return nil
 }
 
 type cmdQuota struct {
@@ -226,14 +241,27 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 }
 
 type cmdRemoveQuota struct {
-	clientMixin
+	waitMixin
+
 	Positional struct {
 		GroupName string `positional-arg-name:"<group-name>" required:"true"`
 	} `positional-args:"yes"`
 }
 
 func (x *cmdRemoveQuota) Execute(args []string) (err error) {
-	return x.client.RemoveQuotaGroup(x.Positional.GroupName)
+	chgID, err := x.client.RemoveQuotaGroup(x.Positional.GroupName)
+	if err != nil {
+		return err
+	}
+
+	if _, err := x.wait(chgID); err != nil {
+		if err == noWait {
+			return nil
+		}
+		return err
+	}
+
+	return nil
 }
 
 type cmdQuotas struct {
