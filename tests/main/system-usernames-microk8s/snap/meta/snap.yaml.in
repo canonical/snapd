@@ -1,4 +1,4 @@
-name: microk8s
+name: SNAPNAME
 summary: Snap requesting the microk8s user
 version: 1.0
 system-usernames:
