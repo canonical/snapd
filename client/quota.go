@@ -99,7 +99,13 @@ func (client *Client) RemoveQuotaGroup(groupName string) (changeID string, err e
 	if err := json.NewEncoder(&body).Encode(data); err != nil {
 		return "", err
 	}
-	return client.doAsync("POST", "/v2/quotas", nil, nil, &body)
+	chgID, err := client.doAsync("POST", "/v2/quotas", nil, nil, &body)
+	if err != nil {
+		fmt := "cannot remove quota group: %w"
+		return "", xerrors.Errorf(fmt, err)
+	}
+
+	return chgID, nil
 }
 
 func (client *Client) Quotas() ([]*QuotaGroupResult, error) {
