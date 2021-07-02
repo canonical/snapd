@@ -129,7 +129,7 @@ func SetTryRecoverySystem(dev Device, systemLabel string) (err error) {
 	}
 	if modelUniqueID(model) != modelUniqueID(m.ModelForSealing()) {
 		// recovery system is tried with a matching model
-		m.useThisTryModel(model)
+		m.setTryModel(model)
 		modified = true
 	}
 	if modified {
