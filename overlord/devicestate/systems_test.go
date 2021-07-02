@@ -118,7 +118,7 @@ func (s *createSystemSuite) makeEssentialSnapInfos(c *C) map[string]*snap.Info {
 	return infos
 }
 
-func validateCore20Seed(c *C, name string, trusted []asserts.Assertion, runModeSnapNames ...string) {
+func validateCore20Seed(c *C, name string, expectedModel *asserts.Model, trusted []asserts.Assertion, runModeSnapNames ...string) {
 	const usesSnapd = true
 	sd := seedtest.ValidateSeed(c, boot.InitramfsUbuntuSeedDir, name, usesSnapd, trusted)
 
@@ -135,6 +135,8 @@ func validateCore20Seed(c *C, name string, trusted []asserts.Assertion, runModeS
 	} else {
 		c.Check(seenSnaps, HasLen, 0)
 	}
+
+	c.Assert(sd.Model(), DeepEquals, expectedModel)
 }
 
 func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
@@ -249,7 +251,7 @@ func (s *createSystemSuite) TestCreateSystemFromAssertedSnaps(c *C) {
 		"snapd_recovery_kernel":    "/snaps/pc-kernel_1.snap",
 	})
 	// load the seed
-	validateCore20Seed(c, "1234", s.storeSigning.Trusted,
+	validateCore20Seed(c, "1234", model, s.storeSigning.Trusted,
 		"other-core18", "core18", "other-present", "other-required")
 }
 
@@ -337,7 +339,7 @@ func (s *createSystemSuite) TestCreateSystemFromUnassertedSnaps(c *C) {
 		}
 	}
 	// load the seed
-	validateCore20Seed(c, "1234", s.storeSigning.Trusted, "other-unasserted")
+	validateCore20Seed(c, "1234", model, s.storeSigning.Trusted, "other-unasserted")
 	// we have unasserted snaps, so a warning should have been logged
 	c.Check(s.logbuf.String(), testutil.Contains, `system "1234" contains unasserted snaps "other-unasserted"`)
 }
@@ -420,7 +422,7 @@ func (s *createSystemSuite) TestCreateSystemWithSomeSnapsAlreadyExisting(c *C) {
 		"snapd_recovery_kernel":    "/snaps/pc-kernel_1.snap",
 	})
 	// load the seed
-	validateCore20Seed(c, "1234", s.storeSigning.Trusted)
+	validateCore20Seed(c, "1234", model, s.storeSigning.Trusted)
 
 	// add an unasserted snap
 	infos["other-unasserted"] = s.makeSnap(c, "other-unasserted", snap.R(-1))
@@ -730,7 +732,7 @@ func (s *createSystemSuite) TestCreateSystemImplicitSnaps(c *C) {
 	})
 	c.Check(dir, Equals, filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"))
 	// validate the seed
-	validateCore20Seed(c, "1234", s.ss.StoreSigning.Trusted)
+	validateCore20Seed(c, "1234", model, s.ss.StoreSigning.Trusted)
 }
 
 func (s *createSystemSuite) TestCreateSystemObserverErr(c *C) {

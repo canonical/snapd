@@ -141,8 +141,27 @@ func makeFakeQuotaPostHandler(c *check.C, opts fakeQuotaGroupPostHandlerOpts) fu
 		default:
 			c.Fatalf("unexpected action %q", opts.action)
 		}
-		w.WriteHeader(200)
+		w.WriteHeader(202)
 		fmt.Fprintln(w, opts.body)
+	}
+}
+
+func makeChangesHandler(c *check.C) func(w http.ResponseWriter, r *http.Request) {
+	n := 0
+	return func(w http.ResponseWriter, r *http.Request) {
+		n++
+		switch n {
+		case 1:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}}`)
+		case 2:
+			c.Check(r.Method, check.Equals, "GET")
+			c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
+			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done"}}`)
+		default:
+			c.Fatalf("expected to get 2 requests, now on %d", n+1)
+		}
 	}
 }
 
@@ -247,7 +266,7 @@ current:
 }
 
 func (s *quotaSuite) TestSetQuotaGroupCreateNew(c *check.C) {
-	const postJSON = `{"type": "sync", "status-code": 200, "result": []}`
+	const postJSON = `{"type": "async", "status-code": 202,"change":"42", "result": []}`
 	fakeHandlerOpts := fakeQuotaGroupPostHandlerOpts{
 		action:     "ensure",
 		body:       postJSON,
@@ -264,6 +283,8 @@ func (s *quotaSuite) TestSetQuotaGroupCreateNew(c *check.C) {
 		),
 		// the foo quota group is not found since it doesn't exist yet
 		"/v2/quotas/foo": makeFakeGetQuotaGroupNotFoundHandler(c, "foo"),
+
+		"/v2/changes/42": makeChangesHandler(c),
 	}
 
 	s.RedirectClientToTestServer(dispatchFakeHandlers(c, routes))
@@ -320,7 +341,7 @@ func (s *quotaSuite) testSetQuotaGroupUpdateExistingUnhappy(c *check.C, errPatte
 }
 
 func (s *quotaSuite) TestSetQuotaGroupUpdateExisting(c *check.C) {
-	const postJSON = `{"type": "sync", "status-code": 200, "result": []}`
+	const postJSON = `{"type": "async", "status-code": 202,"change":"42", "result": []}`
 	fakeHandlerOpts := fakeQuotaGroupPostHandlerOpts{
 		action:    "ensure",
 		body:      postJSON,
@@ -344,6 +365,7 @@ func (s *quotaSuite) TestSetQuotaGroupUpdateExisting(c *check.C) {
 			fakeHandlerOpts,
 		),
 		"/v2/quotas/foo": makeFakeGetQuotaGroupHandler(c, fmt.Sprintf(getJsonTemplate, 1000)),
+		"/v2/changes/42": makeChangesHandler(c),
 	}
 
 	s.RedirectClientToTestServer(dispatchFakeHandlers(c, routes))
@@ -372,6 +394,8 @@ func (s *quotaSuite) TestSetQuotaGroupUpdateExisting(c *check.C) {
 		),
 		// the group was updated to have a 2000 memory limit now
 		"/v2/quotas/foo": makeFakeGetQuotaGroupHandler(c, fmt.Sprintf(getJsonTemplate, 2000)),
+
+		"/v2/changes/42": makeChangesHandler(c),
 	}
 
 	s.RedirectClientToTestServer(dispatchFakeHandlers(c, routes))
@@ -385,13 +409,20 @@ func (s *quotaSuite) TestSetQuotaGroupUpdateExisting(c *check.C) {
 }
 
 func (s *quotaSuite) TestRemoveQuotaGroup(c *check.C) {
-	const json = `{"type": "sync", "status-code": 200, "result": []}`
+	const json = `{"type": "async", "status-code": 202,"change": "42"}`
 	fakeHandlerOpts := fakeQuotaGroupPostHandlerOpts{
 		action:    "remove",
 		body:      json,
 		groupName: "foo",
 	}
-	s.RedirectClientToTestServer(makeFakeQuotaPostHandler(c, fakeHandlerOpts))
+
+	routes := map[string]http.HandlerFunc{
+		"/v2/quotas": makeFakeQuotaPostHandler(c, fakeHandlerOpts),
+
+		"/v2/changes/42": makeChangesHandler(c),
+	}
+
+	s.RedirectClientToTestServer(dispatchFakeHandlers(c, routes))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"remove-quota", "foo"})
 	c.Assert(err, check.IsNil)

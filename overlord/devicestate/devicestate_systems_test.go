@@ -61,6 +61,7 @@ type deviceMgrSystemsBaseSuite struct {
 	logbuf            *bytes.Buffer
 	mockedSystemSeeds []mockedSystemSeed
 	ss                *seedtest.SeedSnaps
+	model             *asserts.Model
 }
 
 type deviceMgrSystemsSuite struct {
@@ -83,7 +84,7 @@ func (s *deviceMgrSystemsBaseSuite) SetUpTest(c *C) {
 		Brands:       s.brands,
 	}
 
-	s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
 		"architecture": "amd64",
 		// UC20
 		"grade": "dangerous",
@@ -1188,7 +1189,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 
-	validateCore20Seed(c, "1234", s.storeSigning.Trusted)
+	validateCore20Seed(c, "1234", s.model, s.storeSigning.Trusted)
 	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
 	c.Check(m, DeepEquals, map[string]string{
@@ -1341,7 +1342,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemod
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 
-	validateCore20Seed(c, "1234", s.storeSigning.Trusted)
+	validateCore20Seed(c, "1234", newModel, s.storeSigning.Trusted, "foo", "bar")
 	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
 	c.Check(m, DeepEquals, map[string]string{
@@ -1533,7 +1534,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/some-snap_1.snap"),
 	})
 	// do more extensive validation
-	validateCore20Seed(c, "1234undo", s.storeSigning.Trusted)
+	validateCore20Seed(c, "1234undo", s.model, s.storeSigning.Trusted)
 	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
 	c.Check(m, DeepEquals, map[string]string{
@@ -1612,7 +1613,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 
-	validateCore20Seed(c, "1234", s.storeSigning.Trusted)
+	validateCore20Seed(c, "1234", s.model, s.storeSigning.Trusted)
 	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
 	c.Check(m, DeepEquals, map[string]string{
