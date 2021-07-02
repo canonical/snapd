@@ -376,14 +376,14 @@ func (m *Modeenv) TryModelForSealing() secboot.ModelForSealing {
 	}
 }
 
-func (m *Modeenv) useThisModel(model *asserts.Model) {
+func (m *Modeenv) setModel(model *asserts.Model) {
 	m.Model = model.Model()
 	m.BrandID = model.BrandID()
 	m.Grade = string(model.Grade())
 	m.ModelSignKeyID = model.SignKeyID()
 }
 
-func (m *Modeenv) useThisTryModel(model *asserts.Model) {
+func (m *Modeenv) setTryModel(model *asserts.Model) {
 	m.TryModel = model.Model()
 	m.TryBrandID = model.BrandID()
 	m.TryGrade = string(model.Grade())
