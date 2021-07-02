@@ -46,20 +46,18 @@ func DeviceChange(from Device, to Device) error {
 
 	newModel := to.Model()
 	oldModel := from.Model()
-	// modeenv fields and the file are changed atomically, it's enough to
-	// check just this field
 	modified := false
-	if m.TryModel != newModel.Model() {
+	if modelUniqueID(m.TryModelForSealing()) != modelUniqueID(newModel) {
 		// we either haven't been here yet, or a reboot occurred after
 		// try model was cleared and modeenv was rewritten
-		m.useThisTryModel(newModel)
+		m.setTryModel(newModel)
 		modified = true
 	}
-	if m.Model != oldModel.Model() {
+	if modelUniqueID(m.ModelForSealing()) != modelUniqueID(oldModel) {
 		// a modeenv with new model was already written, restore
 		// the 'expected' original state, the model file on disk
 		// will match one of the models
-		m.useThisModel(oldModel)
+		m.setModel(oldModel)
 		modified = true
 	}
 	if modified {
@@ -94,7 +92,7 @@ func DeviceChange(from Device, to Device) error {
 	}
 
 	// now we can update the model to the new one
-	m.useThisModel(newModel)
+	m.setModel(newModel)
 	// and clear the try model
 	m.clearTryModel()
 
@@ -119,8 +117,8 @@ func DeviceChange(from Device, to Device) error {
 		// first restore the modeenv in case we reboot, such that if the
 		// post reboot code reseals, it will allow both models (in case
 		// even more reboots occur)
-		m.useThisModel(from.Model())
-		m.useThisTryModel(newModel)
+		m.setModel(from.Model())
+		m.setTryModel(newModel)
 		if mErr := m.Write(); mErr != nil {
 			return fmt.Errorf("%v (writing modeenv failed: %v)", err, mErr)
 		}
@@ -143,7 +141,9 @@ func DeviceChange(from Device, to Device) error {
 	return nil
 }
 
-func writeModelToUbuntuBoot(model *asserts.Model) error {
+var writeModelToUbuntuBoot = writeModelToUbuntuBootImpl
+
+func writeModelToUbuntuBootImpl(model *asserts.Model) error {
 	modelPath := filepath.Join(InitramfsUbuntuBootDir, "device/model")
 	f, err := osutil.NewAtomicFile(modelPath, 0644, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
