@@ -143,7 +143,9 @@ func DeviceChange(from Device, to Device) error {
 	return nil
 }
 
-func writeModelToUbuntuBoot(model *asserts.Model) error {
+var writeModelToUbuntuBoot = writeModelToUbuntuBootImpl
+
+func writeModelToUbuntuBootImpl(model *asserts.Model) error {
 	modelPath := filepath.Join(InitramfsUbuntuBootDir, "device/model")
 	f, err := osutil.NewAtomicFile(modelPath, 0644, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
