@@ -46,16 +46,14 @@ func DeviceChange(from Device, to Device) error {
 
 	newModel := to.Model()
 	oldModel := from.Model()
-	// modeenv fields and the file are changed atomically, it's enough to
-	// check just this field
 	modified := false
-	if m.TryModel != newModel.Model() {
+	if modelUniqueID(m.TryModelForSealing()) != modelUniqueID(newModel) {
 		// we either haven't been here yet, or a reboot occurred after
 		// try model was cleared and modeenv was rewritten
 		m.setTryModel(newModel)
 		modified = true
 	}
-	if m.Model != oldModel.Model() {
+	if modelUniqueID(m.ModelForSealing()) != modelUniqueID(oldModel) {
 		// a modeenv with new model was already written, restore
 		// the 'expected' original state, the model file on disk
 		// will match one of the models
