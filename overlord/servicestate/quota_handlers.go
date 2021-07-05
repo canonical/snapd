@@ -216,7 +216,7 @@ func quotaStateAlreadyUpdated(t *state.Task) (ok bool, appsToRestartBySnap map[*
 		info, err := snapstate.CurrentInfo(st, instanceName)
 		if err != nil {
 			if _, ok := err.(*snap.NotInstalledError); ok {
-				t.Logf("snap %q missing over restart", instanceName)
+				t.Logf("after snapd restart, snap %q went missing", instanceName)
 				continue
 			}
 			return false, nil, err
