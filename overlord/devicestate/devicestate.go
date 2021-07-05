@@ -25,6 +25,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"sync"
 
 	"github.com/snapcore/snapd/asserts"
@@ -508,10 +509,28 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		// create a recovery when remodeling to a UC20 system, actual
 		// policy for possible remodels has already been verified by the
 		// caller
-		label := timeNow().Format("20060102")
-		createRecoveryTasks, err := createRecoverySystemTasks(st, label, snapSetupTasks)
-		if err != nil {
-			return nil, err
+		labelBase := timeNow().Format("20060102")
+		labelSuffix := ""
+		var createRecoveryTasks *state.TaskSet
+		// the label is based on date, but if multiple remodels are done
+		// on the same day, we may end up with conflicting labels
+		const maxLabelTries = 5
+		for try := 0; try < maxLabelTries; try++ {
+			label := fmt.Sprintf("%s%s", labelBase, labelSuffix)
+			var err error
+			createRecoveryTasks, err = createRecoverySystemTasks(st, label, snapSetupTasks)
+			if err == nil {
+				// got a valid label and corresponding task set
+				break
+			}
+			if !isSystemAlreadyExists(err) {
+				return nil, err
+			}
+			if try+1 >= maxLabelTries {
+				return nil, fmt.Errorf("recovery system %q already exists (alternative label possibilities exhausted)", labelBase)
+			}
+			// try another label
+			labelSuffix = strconv.Itoa(try)
 		}
 		if lastDownloadInChain != nil {
 			// wait for all snaps that need to be downloaded
@@ -722,6 +741,19 @@ type recoverySystemSetup struct {
 	SnapSetupTasks []string `json:"snap-setup-tasks"`
 }
 
+type errSystemAlreadyExists struct {
+	label string
+}
+
+func (e *errSystemAlreadyExists) Error() string {
+	return fmt.Sprintf("recovery system %q already exists", e.label)
+}
+
+func isSystemAlreadyExists(err error) bool {
+	_, ok := err.(*errSystemAlreadyExists)
+	return ok
+}
+
 func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []string) (*state.TaskSet, error) {
 	// sanity check, the directory should not exist yet
 	// TODO: we should have a common helper to derive this path
@@ -731,7 +763,7 @@ func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []s
 		return nil, err
 	}
 	if exists {
-		return nil, fmt.Errorf("recovery system %q already exists", label)
+		return nil, &errSystemAlreadyExists{label: label}
 	}
 
 	create := st.NewTask("create-recovery-system", fmt.Sprintf("Create recovery system with label %q", label))
