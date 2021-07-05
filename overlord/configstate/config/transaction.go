@@ -404,6 +404,10 @@ func commitChange(pristine *json.RawMessage, change interface{}) *json.RawMessag
 	panic(fmt.Errorf("internal error: unexpected configuration type %T", change))
 }
 
+// mergeConfigWithVirtual takes the given configuration and merges it
+// with the virtual configuration values by calling the registered
+// virtual configuration function of the given snap. The merged config
+// is returned.
 func mergeConfigWithVirtual(instanceName string, config *json.RawMessage) (*json.RawMessage, error) {
 	virtualMu.Lock()
 	km, ok := virtualMap[instanceName]
