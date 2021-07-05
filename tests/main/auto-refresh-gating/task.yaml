@@ -30,22 +30,20 @@ execute: |
   wait_for_autorefresh() {
     local EXPECTED_SNAP="$1"
     local LAST_CHANGE_ID="$2"
-    local CHANGE_ID="$LAST_CHANGE_ID"
-    echo "wait for auto-refresh to happen"
-    for _ in $(seq 300); do
+    local CHANGE_ID="$2"
+    for _ in $(seq 200); do
       # get just the last auto-refresh change and exclude previous auto-refresh (if any) by its change id.
-      if CHANGES=$(snap changes | grep "Done.*Auto-refresh snap \"$EXPECTED_SNAP\"" | tail -1); then
+      if CHANGES=$(snap changes | tail -2 | grep "Done.*Auto-refresh snap \"$EXPECTED_SNAP\""); then
         CHANGE_ID=$(echo "$CHANGES" | awk '{print $1}')
         if [ "$CHANGE_ID" -gt "$LAST_CHANGE_ID" ]; then
           break
         fi
       fi
-      echo "Ensure refresh"
       snap debug ensure-state-soon
       sleep 1
     done
-    if [ "$LAST_CHANGE_ID" = "$CHANGE_ID" ]; then
-      echo "Expected a new auto-refresh change for $EXPECTED_SNAP with id greater than $LAST_CHANGE_IDD, but it didn't happen"
+    if [ "$LAST_CHANGE_ID" -eq "$CHANGE_ID" ]; then
+      echo "Expected a new auto-refresh change for $EXPECTED_SNAP with id greater than $LAST_CHANGE_ID, but it didn't happen"
       exit 1
     fi
     echo "$CHANGE_ID"
@@ -59,7 +57,7 @@ execute: |
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
   }
 
-  LAST_REFRESH_CHANGE_ID="0"
+  LAST_REFRESH_CHANGE_ID=1
 
   echo "Install test snaps"
   snap install "$SNAP_NAME"
