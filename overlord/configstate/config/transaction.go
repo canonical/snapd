@@ -135,7 +135,7 @@ func shadowsVirtualConfig(instanceName string, subkeys []string, value interface
 		for virtualKey := range km {
 			virtualSubKeys, err := ParseKey(virtualKey)
 			if err != nil {
-				fmt.Errorf("internal error: invalid virtual configuration: %v", err)
+				return fmt.Errorf("internal error: invalid virtual configuration: %v", err)
 			}
 			if len(virtualSubKeys) > len(subkeys) && keysHaveCommonPrefix(virtualSubKeys, subkeys) {
 				return fmt.Errorf("cannot set %q for %q to non-map value because %q is a virtual configuration", strings.Join(subkeys, "."), instanceName, virtualKey)
@@ -444,7 +444,7 @@ func mergeConfigWithVirtual(instanceName string, config *json.RawMessage) (*json
 }
 
 // clearVirtualConfig iterates over a given config and removes any values
-// that come from virtual configuration. This is used before commiting a
+// that come from virtual configuration. This is used before committing a
 // config to disk.
 func clearVirtualConfig(instanceName string, config interface{}, subkeys string, depth int) {
 	virtualMu.Lock()
