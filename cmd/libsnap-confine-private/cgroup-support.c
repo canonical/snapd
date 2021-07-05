@@ -219,13 +219,12 @@ char *sc_cgroup_v2_own_path_full(void) {
         char *line SC_CLEANUP(sc_cleanup_string) = NULL;
         size_t linesz = 0;
         ssize_t sz = getline(&line, &linesz, in);
-        if (sz == -1) {
-            if (feof(in)) {
-                break;
-            }
-            if (ferror(in)) {
-                die("cannot read line from %s", self_cgroup);
-            }
+        if (sz < 0 && errno != 0) {
+            die("cannot read line from %s", self_cgroup);
+        }
+        if (sz < 0) {
+            // end of file
+            break;
         }
         if (!sc_startswith(line, "0::")) {
             continue;
