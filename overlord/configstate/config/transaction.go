@@ -104,6 +104,49 @@ func (t *Transaction) Changes() []string {
 	return out
 }
 
+// shadowsVirtualConfig checks that the given subkeys/value does not
+// "block" the path to a virtual config with a non-map type. E.g. if
+// "network.netplan" is virtual it must be impossible to set
+// "network=false" or getting the document under "network" would be
+// wrong.
+func shadowsVirtualConfig(instanceName string, subkeys []string, value interface{}) error {
+	// maps never block the path
+	if v := reflect.ValueOf(value); v.Kind() == reflect.Map {
+		return nil
+	}
+
+	// helper to compare if two subkeys slices have a common prefix
+	keysHaveCommonPrefix := func(s, prefix []string) bool {
+		if len(prefix) > len(s) {
+			return false
+		}
+		for i := range prefix {
+			if prefix[i] != s[i] {
+				return false
+			}
+		}
+		return true
+	}
+
+	virtualMu.Lock()
+	km, ok := virtualMap[instanceName]
+	virtualMu.Unlock()
+	if ok {
+		for virtualKey := range km {
+			virtualSubKeys, err := ParseKey(virtualKey)
+			if err != nil {
+				fmt.Errorf("internal error: invalid virtual configuration: %v", err)
+			}
+			if len(virtualSubKeys) > len(subkeys) && keysHaveCommonPrefix(virtualSubKeys, subkeys) {
+				return fmt.Errorf("cannot set %q for %q to non-map value because %q is a virtual configuration", strings.Join(subkeys, "."), instanceName, virtualKey)
+			}
+			//}
+		}
+	}
+
+	return nil
+}
+
 // Set sets the provided snap's configuration key to the given value.
 // The provided key may be formed as a dotted key path through nested maps.
 // For example, the "a.b.c" key describes the {a: {b: {c: value}}} map.
@@ -141,22 +184,9 @@ func (t *Transaction) Set(instanceName, key string, value interface{}) error {
 			return err
 		}
 	}
-
-	// Check that we not "block" the path to a virtual config with
-	// a non-map type. E.g. if "network.netplan" is virtual it must
-	// be impossible to set "network=false" or getting the document
-	// under "network" would be wrong.
-	if v := reflect.ValueOf(value); v.Kind() != reflect.Map {
-		virtualMu.Lock()
-		km, ok := virtualMap[instanceName]
-		virtualMu.Unlock()
-		if ok {
-			for virtualKey := range km {
-				if len(key) < len(virtualKey) && strings.HasPrefix(virtualKey, key) {
-					return fmt.Errorf("cannot set %q for %q to non-map value because %q is a virtual configuration", key, instanceName, virtualKey)
-				}
-			}
-		}
+	// check that we do not "block" a path to virtual config with non-maps
+	if err := shadowsVirtualConfig(instanceName, subkeys, value); err != nil {
+		return err
 	}
 
 	// config here is never nil and PatchConfig always operates

@@ -665,19 +665,44 @@ func (s *transactionSuite) TestVirtualDeepNesting(c *C) {
 	c.Check(res, Equals, "nested-value")
 }
 
-func (s *transactionSuite) TestVirtualSetNotShadowHijacked(c *C) {
+func (s *transactionSuite) TestVirtualSetShadowsVirtual(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	config.RegisterVirtualConfig("some-snap", "key.virtual", func(snapName, key string) (interface{}, error) {
+	config.RegisterVirtualConfig("some-snap", "key.nested.virtual", func(snapName, key string) (interface{}, error) {
 		c.Fatalf("unexpected cal to virtual config function")
 		return nil, nil
 	})
 
-	// cannot set "path" to virtual key to non-map type
-	tr := config.NewTransaction(s.state)
-	err := tr.Set("some-snap", "key", "value")
-	c.Assert(err, ErrorMatches, `cannot set "key" for "some-snap" to non-map value because "key.virtual" is a virtual configuration`)
+	tests := []struct {
+		snap, key, value string
+		isOk             bool
+	}{
+		// "key" must be a map because "key.virtual" must exist
+		{"some-snap", "key", "non-map-value", false},
+		{"some-snap", "key.nested", "non-map-value", false},
+
+		// setting virtual values directly is fine
+		{"some-snap", "key.nested.virtual", "some-value", true},
+		// setting a sub-value of "key" is fine
+		{"some-snap", "key.subkey", "some-value", true},
+		// setting a sub-value of "key.nested" is fine
+		{"some-snap", "key.nested.subkey", "some-value", true},
+		{"some-snap", "key.nested.virtua", "some-value", true},
+
+		// other snaps without virtual config are not affected
+		{"other-snap", "key", "non-map-value", true},
+	}
+
+	for _, tc := range tests {
+		tr := config.NewTransaction(s.state)
+		err := tr.Set(tc.snap, tc.key, tc.value)
+		if tc.isOk {
+			c.Check(err, IsNil, Commentf("%v", tc))
+		} else {
+			c.Check(err, ErrorMatches, fmt.Sprintf(`cannot set %q for "some-snap" to non-map value because "key.nested.virtual" is a virtual configuration`, tc.key), Commentf("%v", tc))
+		}
+	}
 }
 
 func (s *transactionSuite) TestVirtualGetRootDocIsMerged(c *C) {
