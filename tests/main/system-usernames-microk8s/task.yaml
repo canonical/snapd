@@ -1,11 +1,13 @@
 summary: ensure only approved snaps can use the microk8s system user
 
+# - not running on 14.04 as we have no real systemd here
+# - also exclude debian 10 because of old libseccomp (the system-usernames test
+#   is already checking which distributions have the needed support, so there's
+#   no need to replicate that code here)
+systems: [-ubuntu-14.04-*, -debian-10-*]
+
 environment:
     STORE_DIR: $(pwd)/fake-store-blobdir
-    # List of expected snap install failures due to libseccomp/golang-seccomp
-    # being too old. This should only reduce with time since new systems should
-    # have newer libseccomp and golang-seccomp
-    EXFAIL: "centos-7-64 debian-10-64 ubuntu-14"
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
