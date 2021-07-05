@@ -80,7 +80,7 @@ func (m *ServiceManager) doQuotaControl(t *state.Task, _ *tomb.Tomb) error {
 	qcs := []QuotaControlAction{}
 	err := t.Get("quota-control-actions", &qcs)
 	if err != nil {
-		return fmt.Errorf("internal error: cannot get quota-control-action: %v", err)
+		return fmt.Errorf("internal error: cannot get quota-control-actions: %v", err)
 	}
 
 	// TODO: support more than one action
@@ -624,7 +624,7 @@ func validateSnapForAddingToGroup(st *state.State, snaps []string, group string,
 func quotaControlAffectedSnaps(t *state.Task) (snaps []string, err error) {
 	qcs := []QuotaControlAction{}
 	if err := t.Get("quota-control-actions", &qcs); err != nil {
-		return nil, fmt.Errorf("internal error: cannot get quota-control-action: %v", err)
+		return nil, fmt.Errorf("internal error: cannot get quota-control-actions: %v", err)
 	}
 
 	// if state-updated was already set we can use it
@@ -657,6 +657,9 @@ func quotaControlAffectedSnaps(t *state.Task) (snaps []string, err error) {
 		default:
 			// create and update affects only the snaps
 			// explicitly mentioned
+			// TODO: this will cease to be true
+			// if we support reparenting or orphaning
+			// of quota groups
 			snaps = append(snaps, qc.AddSnaps...)
 		}
 	}
