@@ -224,7 +224,7 @@ func (s *quotaHandlersSuite) TestQuotaStateAlreadyUpdatedBehavior(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(appsToRestart, HasLen, 1)
 
-	// snap gone missing
+	// snap went missing
 	snapstate.Set(s.state, "test-snap", nil)
 	updated, appsToRestart, err = servicestate.QuotaStateAlreadyUpdated(t)
 	c.Assert(err, IsNil)
