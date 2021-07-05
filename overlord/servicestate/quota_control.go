@@ -369,7 +369,7 @@ func affectedQuotas(task *state.Task) ([]string, error) {
 
 	qcs := []QuotaControlAction{}
 	if err := task.Get("quota-control-actions", &qcs); err != nil {
-		return nil, fmt.Errorf("internal error: cannot get quota-control-action: %v", err)
+		return nil, fmt.Errorf("internal error: cannot get quota-control-actions: %v", err)
 	}
 	quotas := make([]string, 0, len(qcs))
 	for _, qc := range qcs {
