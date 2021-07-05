@@ -24,8 +24,10 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -1833,4 +1835,105 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 		c.Assert(err, IsNil, Commentf("recovery system setup task ID missing in %s", tsk.Kind()))
 		c.Assert(otherTaskID, Equals, tCreateRecovery.ID())
 	}
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelUC20LabelConflicts(c *C) {
+	restore := devicestate.AllowUC20RemodelTesting(true)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		return nil, fmt.Errorf("unexpected call")
+	})
+	defer restore()
+
+	now := time.Now()
+	restore = devicestate.MockTimeNow(func() time.Time { return now })
+	defer restore()
+
+	// set a model assertion
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "serial")
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "serial",
+	})
+
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"revision":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+
+	labelBase := now.Format("20060102")
+	labelSuffix := ""
+	for i := 0; i < 5; i++ {
+		// create conflicting labels
+		err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", labelBase+labelSuffix), 0755)
+		c.Assert(err, IsNil)
+		labelSuffix = strconv.Itoa(i)
+	}
+
+	chg, err := devicestate.Remodel(s.state, new)
+	c.Assert(err, ErrorMatches,
+		fmt.Sprintf(`recovery system %q already exists \(alternative label possibilities exhausted\)`, labelBase))
+	c.Assert(chg, IsNil)
+
+	c.Assert(os.Remove(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", labelBase+"3")), IsNil)
+	chg, err = devicestate.Remodel(s.state, new)
+	c.Assert(err, IsNil)
+	c.Assert(chg, NotNil)
+
+	var tCreateRecovery *state.Task
+	for _, tsk := range chg.Tasks() {
+		if tsk.Kind() == "create-recovery-system" {
+			tCreateRecovery = tsk
+			break
+		}
+	}
+	happyLabel := labelBase + "3"
+	c.Assert(tCreateRecovery, NotNil)
+	c.Assert(tCreateRecovery.Summary(), Equals, fmt.Sprintf("Create recovery system with label %q", happyLabel))
+	var systemSetupData map[string]interface{}
+	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
+	c.Assert(err, IsNil)
+	c.Assert(systemSetupData["label"], Equals, happyLabel)
 }
