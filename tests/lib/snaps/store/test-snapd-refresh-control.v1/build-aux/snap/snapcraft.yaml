@@ -8,6 +8,13 @@ description: |
 grade: stable
 confinement: strict
 base: core18
+architectures:
+  - build-on: amd64
+    run-on: all
+
+parts:
+  test-snapd-refresh-control:
+    plugin: nil
 
 plugs:
   content:
