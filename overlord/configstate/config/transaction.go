@@ -291,13 +291,13 @@ func getFromConfig(instanceName string, subkeys []string, pos int, config map[st
 		if len(config) == 0 {
 			return &NoOptionError{SnapName: instanceName}
 		}
-
 		raw := jsonRaw(config)
 		if err := jsonutil.DecodeWithNumber(bytes.NewReader(*raw), &result); err != nil {
 			return fmt.Errorf("internal error: cannot unmarshal snap %q root document: %s", instanceName, err)
 		}
 		return nil
 	}
+
 	raw, ok := config[subkeys[pos]]
 	if !ok {
 		return &NoOptionError{SnapName: instanceName, Key: strings.Join(subkeys[:pos+1], ".")}
