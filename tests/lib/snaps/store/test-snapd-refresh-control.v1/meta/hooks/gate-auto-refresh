@@ -6,5 +6,5 @@ snapctl refresh --pending > "$SNAP_COMMON"/debug.log
 
 if [ -f "$CONTROL_FILE" ]; then
     COMMAND=$(cat "$CONTROL_FILE")
-    snapctl refresh "$COMMAND" >> "$SNAP_COMMON"/debug.log 2>&1
+    snapctl refresh "$COMMAND" > "$SNAP_COMMON"/debug.log 2>&1
 fi
