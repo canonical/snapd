@@ -1274,6 +1274,7 @@ EOF
     fi
 
     if ! nested_exec "grep -qE PATH=.*/home/user1 /etc/environment"; then
+        # shellcheck disable=SC2016
         nested_exec 'echo "PATH=/home/user1:$PATH" | sudo tee -a /etc/environment'
     fi
 }
