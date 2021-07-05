@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate/internal"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/systemd"
@@ -90,8 +91,6 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 		return nil, err
 	}
 
-	// TODO: conflict checking for other changes with this quota group
-
 	allGrps, err := AllQuotas(st)
 	if err != nil {
 		return nil, err
@@ -116,6 +115,13 @@ func CreateQuota(st *state.State, name string, parentName string, snaps []string
 
 	// make sure the specified snaps exist and aren't currently in another group
 	if err := validateSnapForAddingToGroup(st, snaps, name, allGrps); err != nil {
+		return nil, err
+	}
+
+	if err := CheckQuotaChangeConflictMany(st, []string{name}); err != nil {
+		return nil, err
+	}
+	if err := snapstate.CheckChangeConflictMany(st, snaps, ""); err != nil {
 		return nil, err
 	}
 
@@ -148,8 +154,6 @@ func RemoveQuota(st *state.State, name string) (*state.TaskSet, error) {
 		return nil, fmt.Errorf("removing quota groups not supported while preseeding")
 	}
 
-	// TODO: conflict checking for other changes with this quota group
-
 	allGrps, err := AllQuotas(st)
 	if err != nil {
 		return nil, err
@@ -164,6 +168,13 @@ func RemoveQuota(st *state.State, name string) (*state.TaskSet, error) {
 	// XXX: remove this limitation eventually
 	if len(grp.SubGroups) != 0 {
 		return nil, fmt.Errorf("cannot remove quota group %q with sub-groups, remove the sub-groups first", name)
+	}
+
+	if err := CheckQuotaChangeConflictMany(st, []string{name}); err != nil {
+		return nil, err
+	}
+	if err := snapstate.CheckChangeConflictMany(st, grp.Snaps, ""); err != nil {
+		return nil, err
 	}
 
 	qc := QuotaControlAction{
@@ -203,8 +214,6 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) (*st
 		return nil, err
 	}
 
-	// TODO: conflict checking for other changes with this quota group
-
 	allGrps, err := AllQuotas(st)
 	if err != nil {
 		return nil, err
@@ -229,6 +238,13 @@ func UpdateQuota(st *state.State, name string, updateOpts QuotaGroupUpdate) (*st
 	// now ensure that all of the snaps mentioned in AddSnaps exist as snaps and
 	// that they aren't already in an existing quota group
 	if err := validateSnapForAddingToGroup(st, updateOpts.AddSnaps, name, allGrps); err != nil {
+		return nil, err
+	}
+
+	if err := CheckQuotaChangeConflictMany(st, []string{name}); err != nil {
+		return nil, err
+	}
+	if err := snapstate.CheckChangeConflictMany(st, updateOpts.AddSnaps, ""); err != nil {
 		return nil, err
 	}
 
@@ -295,4 +311,69 @@ func EnsureSnapAbsentFromQuota(st *state.State, snap string) error {
 
 	// the snap wasn't in any group, nothing to do
 	return nil
+}
+
+// QuotaChangeConflictError represents an error because of quota group conflicts between changes.
+type QuotaChangeConflictError struct {
+	Quota      string
+	ChangeKind string
+	// a Message is optional, otherwise one is composed from the other information
+	Message string
+}
+
+func (e *QuotaChangeConflictError) Error() string {
+	if e.Message != "" {
+		return e.Message
+	}
+	if e.ChangeKind != "" {
+		return fmt.Sprintf("quota group %q has %q change in progress", e.Quota, e.ChangeKind)
+	}
+	return fmt.Sprintf("quota group %q has changes in progress", e.Quota)
+}
+
+// CheckQuotaChangeConflictMany ensures that for the given quota groups no other
+// changes that alters them (like create, update, remove) are in
+// progress. If a conflict is detected an error is returned.
+func CheckQuotaChangeConflictMany(st *state.State, quotaNames []string) error {
+	quotaMap := make(map[string]bool, len(quotaNames))
+	for _, k := range quotaNames {
+		quotaMap[k] = true
+	}
+
+	for _, task := range st.Tasks() {
+		chg := task.Change()
+		if chg == nil || chg.IsReady() {
+			continue
+		}
+
+		quotas, err := affectedQuotas(task)
+		if err != nil {
+			return err
+		}
+
+		for _, quota := range quotas {
+			if quotaMap[quota] {
+				return &QuotaChangeConflictError{Quota: quota, ChangeKind: chg.Kind()}
+			}
+		}
+	}
+
+	return nil
+}
+
+func affectedQuotas(task *state.Task) ([]string, error) {
+	// so far only quota-control is relevant
+	if task.Kind() != "quota-control" {
+		return nil, nil
+	}
+
+	qcs := []QuotaControlAction{}
+	if err := task.Get("quota-control-actions", &qcs); err != nil {
+		return nil, fmt.Errorf("internal error: cannot get quota-control-action: %v", err)
+	}
+	quotas := make([]string, 0, len(qcs))
+	for _, qc := range qcs {
+		quotas = append(quotas, qc.QuotaName)
+	}
+	return quotas, nil
 }
