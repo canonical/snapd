@@ -348,7 +348,7 @@ func (t *Transaction) Commit() {
 	// Iterate through the write cache and save each item but exclude virtual configuration
 	for instanceName, snapChanges := range t.changes {
 		for k, v := range snapChanges {
-			cleanVirtualConfig(instanceName, v, k, 0)
+			clearVirtualConfig(instanceName, v, k, 0)
 		}
 
 		config := t.pristine[instanceName]
@@ -439,7 +439,10 @@ func mergeConfigWithVirtual(instanceName string, config *json.RawMessage) (*json
 	return config, nil
 }
 
-func cleanVirtualConfig(instanceName string, config interface{}, subkeys string, depth int) {
+// clearVirtualConfig iterates over a given config and removes any values
+// that come from virtual configuration. This is used before commiting a
+// config to disk.
+func clearVirtualConfig(instanceName string, config interface{}, subkeys string, depth int) {
 	virtualMu.Lock()
 	km, ok := virtualMap[instanceName]
 	virtualMu.Unlock()
@@ -455,8 +458,7 @@ func cleanVirtualConfig(instanceName string, config interface{}, subkeys string,
 				delete(config, k)
 				return
 			}
-			// XXX: not tested
-			cleanVirtualConfig(instanceName, v, subkeys+"."+k, depth+1)
+			clearVirtualConfig(instanceName, v, subkeys+"."+k, depth+1)
 		}
 	}
 }
