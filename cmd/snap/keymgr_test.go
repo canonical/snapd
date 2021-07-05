@@ -57,3 +57,16 @@ exit 1
 	c.Check(keypairMgr, check.FitsTypeOf, &asserts.ExternalKeypairManager{})
 	c.Check(pgm.Calls(), check.HasLen, 1)
 }
+
+func (keymgrSuite) TestExternalKeypairManagerError(c *check.C) {
+	os.Setenv("SNAPD_EXT_KEYMGR", "keymgr")
+	defer os.Unsetenv("SNAPD_EXT_KEYMGR")
+
+	pgm := testutil.MockCommand(c, "keymgr", `
+exit 1
+`)
+	defer pgm.Restore()
+
+	_, err := snap.GetKeypairManager()
+	c.Check(err, check.ErrorMatches, `cannot setup external keypair manager: external keypair manager "keymgr" \[features\] failed: exit status 1.*`)
+}
