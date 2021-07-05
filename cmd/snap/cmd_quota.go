@@ -22,7 +22,6 @@ package main
 import (
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/jessevdk/go-flags"
@@ -267,12 +266,13 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 	return nil
 }
 
-func quantitySizeStrToUnitFormat(s string, errMsg string) (string, error) {
-	valSize, err := strconv.ParseUint(s, 10, 64)
-	if err != nil {
-		return "", fmt.Errorf("unable to parse %s (%q) as uint: %v", errMsg, s, err)
+func quantitySizeStrToUnitFormat(val interface{}, errMsg string) (string, error) {
+	size, ok := val.(quantity.Size)
+	if !ok {
+		return "", fmt.Errorf("unable to parse %s as size: got %T", errMsg, val)
 	}
-	return strings.TrimSpace(fmtSize(int64(valSize))), nil
+
+	return strings.TrimSpace(fmtSize(int64(size))), nil
 }
 
 type cmdRemoveQuota struct {
@@ -334,7 +334,7 @@ func (x *cmdQuotas) Execute(args []string) (err error) {
 		for currentKey, val := range q.Current {
 			if currentKey == "memory" {
 				// skip reporting memory if it is exactly zero
-				if val == "" || val == "0" {
+				if val == quantity.Size(0) {
 					continue
 				}
 				out, err := quantitySizeStrToUnitFormat(val, "current memory usage")

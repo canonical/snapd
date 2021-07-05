@@ -23,15 +23,16 @@ import (
 	"encoding/json"
 	"net/http"
 	"sort"
-	"strconv"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/jsonutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/quota"
+	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -51,11 +52,13 @@ var (
 
 type postQuotaGroupData struct {
 	// Action can be "ensure" or "remove"
-	Action      string            `json:"action"`
-	GroupName   string            `json:"group-name"`
-	Parent      string            `json:"parent,omitempty"`
-	Snaps       []string          `json:"snaps,omitempty"`
-	Constraints map[string]string `json:"constraints,omitempty"`
+	Action    string   `json:"action"`
+	GroupName string   `json:"group-name"`
+	Parent    string   `json:"parent,omitempty"`
+	Snaps     []string `json:"snaps,omitempty"`
+	// Constraints is a map of resource type to constraint, currently accepted
+	// resource types is just "memory"
+	Constraints map[string]interface{} `json:"constraints,omitempty"`
 }
 
 var (
@@ -101,11 +104,11 @@ func getQuotaGroups(c *Command, r *http.Request, _ *auth.UserState) Response {
 			Parent:    group.ParentGroup,
 			Subgroups: group.SubGroups,
 			Snaps:     group.Snaps,
-			Constraints: map[string]string{
-				"memory": group.MemoryLimit.String(),
+			Constraints: map[string]interface{}{
+				"memory": group.MemoryLimit,
 			},
-			Current: map[string]string{
-				"memory": memoryUsage.String(),
+			Current: map[string]interface{}{
+				"memory": memoryUsage,
 			},
 		}
 	}
@@ -142,11 +145,11 @@ func getQuotaGroupInfo(c *Command, r *http.Request, _ *auth.UserState) Response 
 		Parent:    group.ParentGroup,
 		Snaps:     group.Snaps,
 		Subgroups: group.SubGroups,
-		Constraints: map[string]string{
-			"memory": group.MemoryLimit.String(),
+		Constraints: map[string]interface{}{
+			"memory": group.MemoryLimit,
 		},
-		Current: map[string]string{
-			"memory": memoryUsage.String(),
+		Current: map[string]interface{}{
+			"memory": memoryUsage,
 		},
 	}
 	return SyncResponse(res)
@@ -156,8 +159,7 @@ func getQuotaGroupInfo(c *Command, r *http.Request, _ *auth.UserState) Response 
 func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 	var data postQuotaGroupData
 
-	decoder := json.NewDecoder(r.Body)
-	if err := decoder.Decode(&data); err != nil {
+	if err := jsonutil.DecodeWithNumber(r.Body, &data); err != nil {
 		return BadRequest("cannot decode quota action from request body: %v", err)
 	}
 
@@ -174,12 +176,36 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 	var ts *state.TaskSet
 
 	var memSize uint64
-	if memStr, ok := data.Constraints["memory"]; ok {
-		var err error
-		memSize, err = strconv.ParseUint(memStr, 10, 64)
-		if err != nil {
-			return BadRequest(err.Error())
+
+	var unknownResourceTypes []string
+	for resourceType := range data.Constraints {
+		switch resourceType {
+		case "memory":
+		default:
+			unknownResourceTypes = append(unknownResourceTypes, resourceType)
 		}
+	}
+
+	if len(unknownResourceTypes) != 0 {
+		pluralization := ""
+		if len(unknownResourceTypes) > 1 {
+			pluralization = "s"
+		}
+		return BadRequest("unknown resource type constraint%s in request: %s", pluralization, strutil.Quoted(unknownResourceTypes))
+	}
+
+	if memVal, ok := data.Constraints["memory"]; ok {
+		memJsonNumber, ok := memVal.(json.Number)
+		if !ok {
+			return BadRequest("cannot decode quota action memory constraint as number (got %T)", memVal)
+		}
+
+		memInt64, err := memJsonNumber.Int64()
+		if err != nil {
+			return BadRequest("cannot decode quota action memory constrain as uint: %v", err)
+		}
+
+		memSize = uint64(memInt64)
 	}
 
 	switch data.Action {

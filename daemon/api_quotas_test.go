@@ -116,7 +116,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUnhappy(c *check.C) {
 		GroupName:   "booze",
 		Parent:      "foo",
 		Snaps:       []string{"bar"},
-		Constraints: map[string]string{"memory": "1000"},
+		Constraints: map[string]interface{}{"memory": 1000},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -146,7 +146,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateHappy(c *check.C) {
 		GroupName:   "booze",
 		Parent:      "foo",
 		Snaps:       []string{"some-snap"},
-		Constraints: map[string]string{"memory": "1000"},
+		Constraints: map[string]interface{}{"memory": 1000},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -188,7 +188,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateHappy(c *check.C) {
 		Action:      "ensure",
 		GroupName:   "ginger-ale",
 		Snaps:       []string{"some-snap"},
-		Constraints: map[string]string{"memory": "9000"},
+		Constraints: map[string]interface{}{"memory": 9000},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -307,20 +307,20 @@ func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
 		{
 			GroupName:   "bar",
 			Parent:      "foo",
-			Constraints: map[string]string{"memory": "6000"},
-			Current:     map[string]string{"memory": "500"},
+			Constraints: map[string]interface{}{"memory": quantity.Size(6000)},
+			Current:     map[string]interface{}{"memory": quantity.Size(500)},
 		},
 		{
 			GroupName:   "baz",
 			Parent:      "foo",
-			Constraints: map[string]string{"memory": "5000"},
-			Current:     map[string]string{"memory": "1000"},
+			Constraints: map[string]interface{}{"memory": quantity.Size(5000)},
+			Current:     map[string]interface{}{"memory": quantity.Size(1000)},
 		},
 		{
 			GroupName:   "foo",
 			Subgroups:   []string{"bar", "baz"},
-			Constraints: map[string]string{"memory": "11000"},
-			Current:     map[string]string{"memory": "5000"},
+			Constraints: map[string]interface{}{"memory": quantity.Size(11000)},
+			Current:     map[string]interface{}{"memory": quantity.Size(5000)},
 		},
 	})
 	c.Check(s.ensureSoonCalled, check.Equals, 0)
@@ -352,8 +352,8 @@ func (s *apiQuotaSuite) TestGetQuota(c *check.C) {
 	c.Check(res, check.DeepEquals, client.QuotaGroupResult{
 		GroupName:   "bar",
 		Parent:      "foo",
-		Constraints: map[string]string{"memory": "6000"},
-		Current:     map[string]string{"memory": "500"},
+		Constraints: map[string]interface{}{"memory": quantity.Size(6000)},
+		Current:     map[string]interface{}{"memory": quantity.Size(500)},
 	})
 
 	c.Check(s.ensureSoonCalled, check.Equals, 0)

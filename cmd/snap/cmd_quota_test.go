@@ -101,11 +101,11 @@ type fakeQuotaGroupPostHandlerOpts struct {
 }
 
 type quotasEnsureBody struct {
-	Action      string            `json:"action"`
-	GroupName   string            `json:"group-name,omitempty"`
-	ParentName  string            `json:"parent,omitempty"`
-	Snaps       []string          `json:"snaps,omitempty"`
-	Constraints map[string]string `json:"constraints,omitempty"`
+	Action      string                 `json:"action"`
+	GroupName   string                 `json:"group-name,omitempty"`
+	ParentName  string                 `json:"parent,omitempty"`
+	Snaps       []string               `json:"snaps,omitempty"`
+	Constraints map[string]interface{} `json:"constraints,omitempty"`
 }
 
 func makeFakeQuotaPostHandler(c *check.C, opts fakeQuotaGroupPostHandlerOpts) func(w http.ResponseWriter, r *http.Request) {
@@ -126,11 +126,17 @@ func makeFakeQuotaPostHandler(c *check.C, opts fakeQuotaGroupPostHandlerOpts) fu
 			c.Check(string(buf), check.Equals, fmt.Sprintf(`{"action":"remove","group-name":%q}`+"\n", opts.groupName))
 		case "ensure":
 			exp := quotasEnsureBody{
-				Action:      "ensure",
-				GroupName:   opts.groupName,
-				ParentName:  opts.parentName,
-				Snaps:       opts.snaps,
-				Constraints: map[string]string{"memory": fmt.Sprintf("%d", opts.maxMemory)},
+				Action:     "ensure",
+				GroupName:  opts.groupName,
+				ParentName: opts.parentName,
+				Snaps:      opts.snaps,
+				Constraints: map[string]interface{}{
+					// meh, this number really is an int, but json encoding
+					// turns it into a float if we don't manually parse it as
+					// a json.Number, the easy workaround is to instead compare
+					// the floats which for tests should be accurate enough
+					"memory": float64(opts.maxMemory),
+				},
 			}
 
 			postJSON := quotasEnsureBody{}
@@ -196,8 +202,8 @@ func (s *quotaSuite) TestGetQuotaGroup(c *check.C) {
 			"parent":"bar",
 			"subgroups":["subgrp1"],
 			"snaps":["snap-a","snap-b"],
-			"constraints": { "memory": "1000" },
-			"current": { "memory": "900" }
+			"constraints": { "memory": 1000 },
+			"current": { "memory": 900 }
 		}
 	}`
 
@@ -231,8 +237,8 @@ func (s *quotaSuite) TestGetQuotaGroupSimple(c *check.C) {
 		"status-code": 200,
 		"result": {
 			"group-name": "foo",
-			"constraints": {"memory": "1000"},
-			"current": {"memory": "%d"}
+			"constraints": {"memory": 1000},
+			"current": {"memory": %d}
 		}
 	}`
 
@@ -323,8 +329,12 @@ func (s *quotaSuite) testSetQuotaGroupUpdateExistingUnhappy(c *check.C, errPatte
 			"status-code": 200,
 			"result": {
 				"group-name":"foo",
-				"max-memory": 1000,
-				"current-memory":500
+				"current": {
+					"memory": 500
+				},
+				"constraints": {
+					"memory": 1000
+				}
 			}
 		}`
 
@@ -353,8 +363,8 @@ func (s *quotaSuite) TestSetQuotaGroupUpdateExisting(c *check.C) {
 		"status-code": 200,
 		"result": {
 			"group-name":"foo",
-			"constraints": { "memory": "%d" },
-			"current": { "memory": "500" }
+			"constraints": { "memory": %d },
+			"current": { "memory": 500 }
 		}
 	}`
 
@@ -436,14 +446,14 @@ func (s *quotaSuite) TestGetAllQuotaGroups(c *check.C) {
 
 	s.RedirectClientToTestServer(makeFakeGetQuotaGroupsHandler(c,
 		`{"type": "sync", "status-code": 200, "result": [
-			{"group-name":"aaa","subgroups":["ccc","ddd","fff"],"parent":"zzz","constraints":{"memory":"1000"}},
-			{"group-name":"ddd","parent":"aaa","constraints":{"memory":"400"}},
-			{"group-name":"bbb","parent":"zzz","constraints":{"memory":"1000"},"current":{"memory":"400"}},
-			{"group-name":"yyyyyyy","constraints":{"memory":"1000"}},
-			{"group-name":"zzz","subgroups":["bbb","aaa"],"constraints":{"memory":"5000"}},
-			{"group-name":"ccc","parent":"aaa","constraints":{"memory":"400"}},
-			{"group-name":"fff","parent":"aaa","constraints":{"memory":"1000"},"current":{"memory":"0"}},
-			{"group-name":"xxx","constraints":{"memory":"9900"},"current":{"memory":"10000"}}
+			{"group-name":"aaa","subgroups":["ccc","ddd","fff"],"parent":"zzz","constraints":{"memory":1000}},
+			{"group-name":"ddd","parent":"aaa","constraints":{"memory":400}},
+			{"group-name":"bbb","parent":"zzz","constraints":{"memory":1000},"current":{"memory":400}},
+			{"group-name":"yyyyyyy","constraints":{"memory":1000}},
+			{"group-name":"zzz","subgroups":["bbb","aaa"],"constraints":{"memory":5000}},
+			{"group-name":"ccc","parent":"aaa","constraints":{"memory":400}},
+			{"group-name":"fff","parent":"aaa","constraints":{"memory":1000},"current":{"memory":0}},
+			{"group-name":"xxx","constraints":{"memory":9900},"current":{"memory":10000}}
 			]}`))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quotas"})

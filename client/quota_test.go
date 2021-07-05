@@ -26,6 +26,7 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/gadget/quantity"
 )
 
 func (cs *clientSuite) TestCreateQuotaGroupInvalidName(c *check.C) {
@@ -57,7 +58,10 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 		"parent":     "bar",
 		"snaps":      []interface{}{"snap-a", "snap-b"},
 		"constraints": map[string]interface{}{
-			"memory": "1001",
+			// meh this is exactly '1001' in the JSON request, but unless we
+			// parse it as a json.Number into an int64, it will show up typed as
+			// a float64, so this is easier to check in the test
+			"memory": 1001.0,
 		},
 	})
 }
@@ -83,8 +87,8 @@ func (cs *clientSuite) TestGetQuotaGroup(c *check.C) {
 			"parent":"bar",
 			"subgroups":["foo-subgrp"],
 			"snaps":["snap-a"],
-			"constraints": { "memory": "999" },
-			"current": { "memory": "450" }
+			"constraints": { "memory": 999 },
+			"current": { "memory": 450 }
 		}
 	}`
 
@@ -96,8 +100,8 @@ func (cs *clientSuite) TestGetQuotaGroup(c *check.C) {
 		GroupName:   "foo",
 		Parent:      "bar",
 		Subgroups:   []string{"foo-subgrp"},
-		Constraints: map[string]string{"memory": "999"},
-		Current:     map[string]string{"memory": "450"},
+		Constraints: map[string]interface{}{"memory": quantity.Size(999)},
+		Current:     map[string]interface{}{"memory": quantity.Size(450)},
 		Snaps:       []string{"snap-a"},
 	})
 }
