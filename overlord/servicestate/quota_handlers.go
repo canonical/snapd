@@ -216,7 +216,7 @@ func quotaStateAlreadyUpdated(t *state.Task) (ok bool, appsToRestartBySnap map[*
 		info, err := snapstate.CurrentInfo(st, instanceName)
 		if err != nil {
 			if _, ok := err.(*snap.NotInstalledError); ok {
-				t.Logf("snap %q missing over restart", instanceName)
+				t.Logf("after snapd restart, snap %q went missing", instanceName)
 				continue
 			}
 			return false, nil, err
@@ -333,7 +333,7 @@ func quotaRemove(st *state.State, action QuotaControlAction, allGrps map[string]
 	// make sure that the group set is consistent before saving it - we may need
 	// to delete old links from this group's parent to the child
 	if err := quota.ResolveCrossReferences(allGrps); err != nil {
-		return nil, nil, fmt.Errorf("cannot remove quota %q: %v", action.QuotaName, err)
+		return nil, nil, fmt.Errorf("cannot remove quota group %q: %v", action.QuotaName, err)
 	}
 
 	// now set it in state
@@ -619,4 +619,46 @@ func validateSnapForAddingToGroup(st *state.State, snaps []string, group string,
 	}
 
 	return nil
+}
+
+func quotaControlAffectedSnaps(t *state.Task) (snaps []string, err error) {
+	qcs := []QuotaControlAction{}
+	if err := t.Get("quota-control-actions", &qcs); err != nil {
+		return nil, fmt.Errorf("internal error: cannot get quota-control-action: %v", err)
+	}
+
+	// if state-updated was already set we can use it
+	var updated quotaStateUpdated
+	if err := t.Get("state-updated", &updated); err != state.ErrNoState {
+		if err != nil {
+			return nil, err
+		}
+		// TODO: consider boot-id as well?
+		for snapName := range updated.AppsToRestartBySnap {
+			snaps = append(snaps, snapName)
+		}
+		// all set
+		return snaps, nil
+	}
+
+	st := t.State()
+	for _, qc := range qcs {
+		switch qc.Action {
+		case "remove":
+			// the snaps affected by a remove are implicitly
+			// the ones currently in the quota group
+			grp, err := GetQuota(st, qc.QuotaName)
+			if err != nil && err != ErrQuotaNotFound {
+				return nil, err
+			}
+			if err == nil {
+				snaps = append(snaps, grp.Snaps...)
+			}
+		default:
+			// create and update affects only the snaps
+			// explicitly mentioned
+			snaps = append(snaps, qc.AddSnaps...)
+		}
+	}
+	return snaps, nil
 }

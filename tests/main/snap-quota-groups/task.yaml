@@ -48,7 +48,8 @@ execute: |
       exit 1
   fi
 
-  retry --wait 1 -n 100 sh -c "test $(wc -l < "$cgroupProcsFile") = 1"
+  #shellcheck disable=SC2016
+  retry --wait 1 -n 100 --env cgroupProcsFile="$cgroupProcsFile" sh -x -c 'test "$(wc -l < $cgroupProcsFile)" = 1'
   SERVER_PID=$(cat "$cgroupProcsFile")
 
   echo "And that process is the main PID for the example webserver"

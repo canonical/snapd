@@ -34,8 +34,8 @@ import (
 var shortQuotaHelp = i18n.G("Show quota group for a set of snaps")
 var longQuotaHelp = i18n.G(`
 The quota command shows information about a quota group, including the set of 
-snaps and sub-groups that are in a group, as well as the resource constraints 
-and current usage of the resource constraints.
+snaps and any sub-groups it contains, as well as its resource constraints and 
+the current usage of those constrained resources.
 `)
 
 var shortQuotasHelp = i18n.G("Show quota groups")
@@ -57,26 +57,27 @@ var longSetQuotaHelp = i18n.G(`
 The set-quota command updates or creates a quota group with the specified set of
 snaps.
 
-A quota group sets resource limits (currently maximum memory only) on the set of
-snaps that belong to it. Snaps can be at most in one quota group. Quota groups
-can be nested.
+A quota group sets resource limits on the set of snaps it contains. Only maximum
+memory is currently supported. Snaps can be at most in one quota group but quota
+groups can be nested. Nested quota groups are subject to the restriction that 
+the total sum of maximum memory in sub-groups cannot exceed that of the parent
+group the nested groups are part of.
 
-All snaps provided are appended to the group; to remove a snap from a
-quota group the entire group must be removed with remove-quota and recreated 
+All provided snaps are appended to the group; to remove a snap from a
+quota group, the entire group must be removed with remove-quota and recreated 
 without the quota group. To remove a sub-group from the quota group, the 
 sub-group must be removed directly with the remove-quota command.
 
-The memory limit for a quota group can be increased, but cannot be decreased. To
+The memory limit for a quota group can be increased but not decreased. To
 decrease the memory limit for a quota group, the entire group must be removed
-with the remove-quota command and recreated with the lower limit. Increasing the
+with the remove-quota command and recreated with a lower limit. Increasing the
 memory limit for a quota group does not restart any services associated with 
 snaps in the quota group.
 
 Adding new snaps to a quota group will result in all non-disabled services in 
 that snap being restarted.
 
-One cannot modify the parent of an existing sub-quota group, nor can an existing
-sub-quota group be moved from one parent to another.
+An existing sub group cannot be moved from one parent to another.
 `)
 
 func init() {
@@ -95,7 +96,7 @@ func init() {
 }
 
 type cmdSetQuota struct {
-	clientMixin
+	waitMixin
 
 	MemoryMax  string `long:"memory" optional:"true"`
 	Parent     string `long:"parent" optional:"true"`
@@ -119,6 +120,8 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 	if _, err = x.client.GetQuotaGroup(x.Positional.GroupName); err == nil {
 		groupExists = true
 	}
+
+	var chgID string
 
 	switch {
 	case maxMemory == "" && x.Parent == "" && len(x.Positional.Snaps) == 0:
@@ -160,8 +163,10 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 		// orphan a sub-group to no longer have a parent, but currently it just
 		// means leave the group with whatever parent it has, or if it doesn't
 		// currently exist, create the group without a parent group
-		return x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, uint64(mem))
-
+		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, uint64(mem))
+		if err != nil {
+			return err
+		}
 	case len(x.Positional.Snaps) != 0:
 		// there are snaps specified for this group but no memory limit, so the
 		// group must already exist and we must be adding the specified snaps to
@@ -172,12 +177,23 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 		// currently support that, so currently all snaps specified here are
 		// just added to the group
 
-		return x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, 0)
-
+		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, 0)
+		if err != nil {
+			return err
+		}
 	default:
 		// should be logically impossible to reach here
 		panic("impossible set of options")
 	}
+
+	if _, err := x.wait(chgID); err != nil {
+		if err == noWait {
+			return nil
+		}
+		return err
+	}
+
+	return nil
 }
 
 type cmdQuota struct {
@@ -226,14 +242,27 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 }
 
 type cmdRemoveQuota struct {
-	clientMixin
+	waitMixin
+
 	Positional struct {
 		GroupName string `positional-arg-name:"<group-name>" required:"true"`
 	} `positional-args:"yes"`
 }
 
 func (x *cmdRemoveQuota) Execute(args []string) (err error) {
-	return x.client.RemoveQuotaGroup(x.Positional.GroupName)
+	chgID, err := x.client.RemoveQuotaGroup(x.Positional.GroupName)
+	if err != nil {
+		return err
+	}
+
+	if _, err := x.wait(chgID); err != nil {
+		if err == noWait {
+			return nil
+		}
+		return err
+	}
+
+	return nil
 }
 
 type cmdQuotas struct {
