@@ -494,8 +494,18 @@ func (s *modelSuite) TestDeviceChangeRebootBeforeNewModel(c *C) {
 	// system is encrypted
 	s.stampSealedKeys(c, s.rootdir)
 
+	// mangle the modeenv to observe the right model content restored for
+	// resealing
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	m.Model = "foo"
+	m.TryModel = "bar"
+	m.TryBrandID = "baz"
+	err = m.Write()
+	c.Assert(err, IsNil)
+
 	// set up the old model file
-	err := boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model())
+	err = boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model())
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-model-uc20\n")
@@ -554,7 +564,7 @@ func (s *modelSuite) TestDeviceChangeRebootBeforeNewModel(c *C) {
 		// what's in modeenv?
 		switch resealKeysCalls {
 		case 1, 2, 3:
-			// keys are first resealed for both models
+			// keys are first resealed for both models, which are restored to the modeenv
 			c.Assert(currForSealing, Equals, "canonical/my-model-uc20,dangerous,"+s.keyID)
 			c.Assert(tryForSealing, Equals, "canonical/my-new-model-uc20,secured,"+s.keyID)
 			// boot/device/model is still the old file
@@ -588,7 +598,7 @@ func (s *modelSuite) TestDeviceChangeRebootBeforeNewModel(c *C) {
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
 		"model: my-model-uc20\n")
 
-	m, err := boot.ReadModeenv("")
+	m, err = boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 	tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
