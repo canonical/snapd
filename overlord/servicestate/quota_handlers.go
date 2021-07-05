@@ -657,6 +657,9 @@ func quotaControlAffectedSnaps(t *state.Task) (snaps []string, err error) {
 		default:
 			// create and update affects only the snaps
 			// explicitly mentioned
+			// TODO: this will cease to be true
+			// if we support reparenting or orphaning
+			// of quota groups
 			snaps = append(snaps, qc.AddSnaps...)
 		}
 	}

@@ -373,6 +373,8 @@ func affectedQuotas(task *state.Task) ([]string, error) {
 	}
 	quotas := make([]string, 0, len(qcs))
 	for _, qc := range qcs {
+		// TODO: the affected quotas will expand beyond this
+		// if we support reparenting or orphaning
 		quotas = append(quotas, qc.QuotaName)
 	}
 	return quotas, nil
