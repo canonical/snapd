@@ -1,7 +1,11 @@
 summary: ensure only approved snaps can use the microk8s system user
 
 environment:
-  STORE_DIR: $(pwd)/fake-store-blobdir
+    STORE_DIR: $(pwd)/fake-store-blobdir
+    # List of expected snap install failures due to libseccomp/golang-seccomp
+    # being too old. This should only reduce with time since new systems should
+    # have newer libseccomp and golang-seccomp
+    EXFAIL: "centos-7-64 debian-10-64 ubuntu-14"
 
 prepare: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -47,9 +51,9 @@ prepare: |
     make_snap_installable_with_id "$STORE_DIR" "${snap_path}" "$MICROK8S_SNAP_ID"
 
 restore: |
-    userdel -f snap_microk8s || true
+    userdel -f snap_microk8s || userdel -f --extrausers snap_microk8s || true
     not getent passwd snap_microk8s
-    groupdel snap_microk8s || true
+    groupdel snap_microk8s || groupdel --extrausers snap_microk8s || true
     not getent group snap_microk8s
 
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
