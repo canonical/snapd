@@ -44,7 +44,7 @@ execute: |
     fi
 
     echo "Wait for device initialisation to be done"
-    nested_retry --wait 5 -n 10 sh -c \'snap changes \| grep -qE \"Done.*Initialize device\"\'
+    nested_exec "retry --wait 5 -n 10 sh -c 'snap changes | MATCH \"Done.*Initialize device\"'"
 
     echo "Check that the serial backed up to save is as expected"
     nested_exec 'cat /var/lib/snapd/save/device/asserts-v0/serial/'"$(nested_model_authority)"'/pc/*/active' >serial.saved

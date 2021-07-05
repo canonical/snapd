@@ -52,7 +52,7 @@ nested_wait_for_no_ssh() {
 }
 
 nested_wait_for_snap_command() {
-    nested_retry "--wait 1 -n 200 sh -c 'command -v snap'"
+    nested_exec "retry --wait 1 -n 200 sh -c 'command -v snap'"
 }
 
 nested_get_boot_id() {
@@ -1000,6 +1000,8 @@ nested_start_core_vm_unit() {
     if [ "$EXPECT_SHUTDOWN" != "1" ]; then
         # Wait until ssh is ready
         nested_wait_for_ssh
+        # Copy tools to be used on tests
+        nested_prepare_tools
         # Wait for the snap command to be available
         nested_wait_for_snap_command
         # Wait for snap seeding to be done
@@ -1199,6 +1201,9 @@ nested_start_classic_vm() {
         ${PARAM_CD} "
 
     nested_wait_for_ssh
+
+    # Copy tools to be used on tests
+    nested_prepare_tools
 }
 
 nested_destroy_vm() {
@@ -1220,12 +1225,57 @@ nested_exec_as() {
     sshpass -p "$PASSWD" ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$USER"@localhost "$@"
 }
 
-nested_retry() {
-    if ! nested_exec "test -e ./retry" &>/dev/null; then
+nested_prepare_tools() {
+    if ! nested_exec "test -e retry" &>/dev/null; then
         nested_copy "$TESTSTOOLS/retry"
         nested_exec "sed 's/any-python/python3/g' -i ./retry"
     fi
-    nested_exec "./retry" "$@"
+
+    if ! nested_exec "test -e not" &>/dev/null; then
+        nested_copy "$TESTSTOOLS/not"
+    fi
+
+    if ! nested_exec "test -e MATCH" &>/dev/null; then
+        cat >> MATCH << 'EOF'
+#!/bin/bash
+set +xu
+stdin=$(cat)
+if ! echo "$stdin" | grep -q -E "$@"; then
+    res=$?
+    echo -e "grep error: pattern not found, got:\n$stdin" >&2
+    if [ "$res" != 1 ]; then
+        echo "unexpected grep exit status: $res"
+    fi
+    exit 1
+fi
+EOF
+        chmod +x MATCH
+        nested_copy "MATCH"
+        rm -f MATCH
+    fi
+
+    if ! nested_exec "test -e NOMATCH" &>/dev/null; then
+        cat >> NOMATCH << 'EOF'
+#!/bin/bash
+set +xu
+stdin=$(cat)
+if echo "$stdin" | grep -q -E "$@"; then
+    res=$?
+    echo -e "grep error: pattern found, got:\n$stdin" >&2
+    if [ "$res" != 1 ]; then
+        echo "unexpected grep exit status: $res"
+    fi
+    exit 1
+fi
+EOF
+        chmod +x NOMATCH
+        nested_copy "NOMATCH"
+        rm -f NOMATCH
+    fi
+
+    if ! nested_exec "grep -qE PATH=.*/home/user1 /etc/environment"; then
+        nested_exec 'echo "PATH=/home/user1:$PATH" | sudo tee -a /etc/environment'
+    fi
 }
 
 nested_copy() {
