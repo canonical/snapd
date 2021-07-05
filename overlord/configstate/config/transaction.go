@@ -129,18 +129,16 @@ func shadowsVirtualConfig(instanceName string, subkeys []string, value interface
 	}
 
 	virtualMu.Lock()
-	km, ok := virtualMap[instanceName]
+	km := virtualMap[instanceName]
 	virtualMu.Unlock()
-	if ok {
-		for virtualKey := range km {
-			virtualSubKeys, err := ParseKey(virtualKey)
-			if err != nil {
-				return fmt.Errorf("internal error: invalid virtual configuration: %v", err)
-			}
-			if len(virtualSubKeys) > len(subkeys) && keysHaveCommonPrefix(virtualSubKeys, subkeys) {
-				return fmt.Errorf("cannot set %q for %q to non-map value because %q is a virtual configuration", strings.Join(subkeys, "."), instanceName, virtualKey)
-			}
-			//}
+
+	for virtualKey := range km {
+		virtualSubKeys, err := ParseKey(virtualKey)
+		if err != nil {
+			return fmt.Errorf("internal error: invalid virtual configuration: %v", err)
+		}
+		if len(virtualSubKeys) > len(subkeys) && keysHaveCommonPrefix(virtualSubKeys, subkeys) {
+			return fmt.Errorf("cannot set %q for %q to non-map value because %q is a virtual configuration", strings.Join(subkeys, "."), instanceName, virtualKey)
 		}
 	}
 
