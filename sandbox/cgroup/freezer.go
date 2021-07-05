@@ -124,6 +124,12 @@ func thawSnapProcessesImplV1(snapName string) error {
 }
 
 func applyToSnap(snapName string, action func(groupName string) error, skipError func(err error) bool) error {
+	if action == nil {
+		return fmt.Errorf("internal error: action is nil")
+	}
+	if skipError == nil {
+		return fmt.Errorf("internal error: skip error is nil")
+	}
 	canary := fmt.Sprintf("snap.%s.", snapName)
 	cgroupRoot := filepath.Join(rootPath, cgroupMountPoint)
 	if _, dir, _ := osutil.DirExists(cgroupRoot); !dir {
@@ -131,7 +137,7 @@ func applyToSnap(snapName string, action func(groupName string) error, skipError
 	}
 	return filepath.Walk(filepath.Join(rootPath, cgroupMountPoint), func(name string, info os.FileInfo, err error) error {
 		if err != nil {
-			if skipError != nil && skipError(err) {
+			if skipError(err) {
 				// we don't know whether it's a file or
 				// directory, so just return nil instead
 				return nil
@@ -145,16 +151,16 @@ func applyToSnap(snapName string, action func(groupName string) error, skipError
 			return nil
 		}
 		// found a group
-		if err := action(name); err != nil && (skipError == nil || !skipError(err)) {
+		if err := action(name); err != nil && !skipError(err) {
 			return err
 		}
 		return filepath.SkipDir
 	})
 }
 
-// writeFile can be used as a drop-in replacement for ioutil.WriteFile, but does
-// not create a file when does not exist
-func writeFile(where string, data []byte, mode os.FileMode) error {
+// writeExistingFile can be used as a drop-in replacement for ioutil.WriteFile,
+// but does not create a file when it does not exist
+func writeExistingFile(where string, data []byte, mode os.FileMode) error {
 	f, err := os.OpenFile(where, os.O_WRONLY|os.O_TRUNC, mode)
 	if err != nil {
 		return err
@@ -162,10 +168,10 @@ func writeFile(where string, data []byte, mode os.FileMode) error {
 	_, errW := f.Write(data)
 	errC := f.Close()
 	// pick the right error
-	if errC != nil && errW == nil {
-		return errC
+	if errW != nil {
+		return errW
 	}
-	return errW
+	return errC
 }
 
 // freezeSnapProcessesImplV2 freezes all the processes originating from the
@@ -187,7 +193,7 @@ func freezeSnapProcessesImplV2(snapName string) error {
 			return nil
 		}
 		fname := filepath.Join(dir, "cgroup.freeze")
-		if err := writeFile(fname, []byte("1"), 0644); err != nil {
+		if err := writeExistingFile(fname, []byte("1"), 0644); err != nil {
 			if os.IsNotExist(err) {
 				//  the group may be gone already
 				return nil
@@ -213,7 +219,7 @@ func freezeSnapProcessesImplV2(snapName string) error {
 		}
 		return fmt.Errorf("cannot freeze processes of snap %q in group %v", snapName, filepath.Base(dir))
 	}
-	// freeze skipping ENOENT errors
+	// freeze, skipping ENOENT errors
 	err = applyToSnap(snapName, freezeOne, os.IsNotExist)
 	if err == nil {
 		return nil
@@ -228,12 +234,15 @@ func freezeSnapProcessesImplV2(snapName string) error {
 }
 
 func thawSnapProcessesV2(snapName string, skipError func(error) bool) error {
+	if skipError == nil {
+		return fmt.Errorf("internal error: skip error is nil")
+	}
 	thawOne := func(dir string) error {
 		fname := filepath.Join(dir, "cgroup.freeze")
-		if err := writeFile(fname, []byte("0"), 0644); err != nil && os.IsNotExist(err) {
+		if err := writeExistingFile(fname, []byte("0"), 0644); err != nil && os.IsNotExist(err) {
 			//  the group may be gone already
 			return nil
-		} else if err != nil && (skipError == nil || !skipError(err)) {
+		} else if err != nil && !skipError(err) {
 			return fmt.Errorf("cannot thaw processes of snap %q, %v", snapName, err)
 		}
 		return nil

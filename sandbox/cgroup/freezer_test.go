@@ -24,6 +24,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	. "gopkg.in/check.v1"
 
@@ -368,4 +370,63 @@ func (s *freezerV2Suite) TestFreezeThawSnapProcessesV2ErrNotFound(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(g1, testutil.FileAbsent)
 	c.Check(g2, testutil.FileAbsent)
+}
+
+func (s *freezerV2Suite) TestApplyToSnapCallbacks(c *C) {
+	defer cgroup.MockVersion(cgroup.V2, nil)()
+	dirs.SetRootDir(c.MkDir())
+	defer dirs.SetRootDir("")
+
+	c.Check(cgroup.ApplyToSnap("foo", nil, nil), ErrorMatches, "internal error: action is nil")
+	nop := func(_ string) error { return nil }
+	c.Check(cgroup.ApplyToSnap("foo", nop, nil), ErrorMatches, "internal error: skip error is nil")
+
+	g := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.app.1234-1234-1234.scope/cgroup.freeze")
+	gErr := filepath.Join(dirs.GlobalRootDir, "/sys/fs/cgroup/system.slice/snap.foo.app.fail.scope/cgroup.freeze")
+
+	for _, p := range []string{g, gErr} {
+		c.Assert(os.MkdirAll(filepath.Dir(p), 0755), IsNil)
+		// groups aren't frozen
+		c.Assert(ioutil.WriteFile(p, []byte("0"), 0644), IsNil)
+	}
+
+	var visited []string
+	err := cgroup.ApplyToSnap("foo",
+		func(p string) error {
+			visited = append(visited, p)
+			return nil
+		},
+		func(err error) bool {
+			return true
+		})
+	c.Assert(err, IsNil)
+	sort.Strings(visited)
+	c.Check(visited, DeepEquals, []string{filepath.Dir(g), filepath.Dir(gErr)})
+
+	visited = nil
+	skip := true
+	var errors []string
+	maybeFail := func(p string) error {
+		visited = append(visited, p)
+		if strings.HasSuffix(p, "fail.scope") {
+			return fmt.Errorf("do not skip")
+		}
+		return nil
+	}
+	maybeSkip := func(err error) bool {
+		errors = append(errors, err.Error())
+		return skip
+	}
+	err = cgroup.ApplyToSnap("foo", maybeFail, maybeSkip)
+	c.Assert(err, IsNil)
+	c.Check(visited, DeepEquals, []string{filepath.Dir(g), filepath.Dir(gErr)})
+	c.Check(errors, DeepEquals, []string{"do not skip"})
+
+	skip = false
+	visited = nil
+	errors = nil
+	err = cgroup.ApplyToSnap("foo", maybeFail, maybeSkip)
+	c.Assert(err, ErrorMatches, "do not skip")
+	c.Check(visited, DeepEquals, []string{filepath.Dir(g), filepath.Dir(gErr)})
+	c.Check(errors, DeepEquals, []string{"do not skip"})
 }
