@@ -99,19 +99,13 @@ func ClearTryRecoverySystem(dev Device, systemLabel string) error {
 // SetTryRecoverySystem sets up the boot environment for trying out a recovery
 // system with given label in the context of the provided device. The call adds
 // the new system to the list of current recovery systems in the modeenv, and
-// optionally sets a try model, if the device mode is different from the current
-// one, which typically can happen during a remodel. Once done, the caller
-// should request switching to the given recovery system.
+// optionally sets a try model, if the device model is different from the
+// current one, which typically can happen during a remodel. Once done, the
+// caller should request switching to the given recovery system.
 func SetTryRecoverySystem(dev Device, systemLabel string) (err error) {
 	if !dev.HasModeenv() {
 		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
 	}
-
-	// either the current device context, in which case the model will match
-	// the current model in the modeenv, or a remodel device context
-	// carrying a new model, for which we may need to set the try model in
-	// the modeenv
-	model := dev.Model()
 
 	m, err := loadModeenv()
 	if err != nil {
@@ -134,6 +128,11 @@ func SetTryRecoverySystem(dev Device, systemLabel string) (err error) {
 		modified = true
 
 	}
+	// we either have the current device context, in which case the model
+	// will match the current model in the modeenv, or a remodel device
+	// context carrying a new model, for which we may need to set the try
+	// model in the modeenv
+	model := dev.Model()
 	if modelUniqueID(model) != modelUniqueID(m.ModelForSealing()) {
 		// recovery system is tried with a matching model
 		m.setTryModel(model)
