@@ -192,9 +192,11 @@ func (s keyName) Complete(match string) []flags.Completion {
 	if err != nil {
 		return nil
 	}
-	res := make([]flags.Completion, len(keys))
-	for i, k := range keys {
-		res[i].Item = k.Name
+	var res []flags.Completion
+	for _, k := range keys {
+		if strings.HasPrefix(k.Name, match) {
+			res = append(res, flags.Completion{Item: k.Name})
+		}
 	}
 	return res
 }
