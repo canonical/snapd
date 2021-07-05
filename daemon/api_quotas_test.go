@@ -125,7 +125,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUnhappy(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, check.Equals, 400)
-	c.Check(rspe.Message, check.Matches, `boom`)
+	c.Check(rspe.Message, check.Matches, `cannot create quota group: boom`)
 	c.Assert(s.ensureSoonCalled, check.Equals, 0)
 }
 
@@ -198,6 +198,10 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateQuotaConflicts(c *check.C) {
 	rspe := s.errorReq(c, req, nil)
 	c.Assert(rspe.Status, check.Equals, 409)
 	c.Check(rspe.Message, check.Equals, `quota group "booze" has "quota-control" change in progress`)
+	c.Check(rspe.Value, check.DeepEquals, map[string]interface{}{
+		"change-kind": "quota-control",
+		"quota-name":  "booze",
+	})
 
 	req, err = http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
@@ -205,6 +209,10 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateQuotaConflicts(c *check.C) {
 	rspe = s.errorReq(c, req, nil)
 	c.Assert(rspe.Status, check.Equals, 409)
 	c.Check(rspe.Message, check.Equals, `snap "some-snap" has "disable" change in progress`)
+	c.Check(rspe.Value, check.DeepEquals, map[string]interface{}{
+		"change-kind": "disable",
+		"snap-name":   "some-snap",
+	})
 
 	c.Assert(createCalled, check.Equals, 2)
 }
@@ -301,6 +309,10 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateConflicts(c *check.C) {
 	rspe := s.errorReq(c, req, nil)
 	c.Assert(rspe.Status, check.Equals, 409)
 	c.Check(rspe.Message, check.Equals, `quota group "ginger-ale" has "quota-control" change in progress`)
+	c.Check(rspe.Value, check.DeepEquals, map[string]interface{}{
+		"change-kind": "quota-control",
+		"quota-name":  "ginger-ale",
+	})
 
 	req, err = http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
@@ -308,6 +320,10 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateConflicts(c *check.C) {
 	rspe = s.errorReq(c, req, nil)
 	c.Assert(rspe.Status, check.Equals, 409)
 	c.Check(rspe.Message, check.Equals, `snap "some-snap" has "disable" change in progress`)
+	c.Check(rspe.Value, check.DeepEquals, map[string]interface{}{
+		"change-kind": "disable",
+		"snap-name":   "some-snap",
+	})
 
 	c.Assert(updateCalled, check.Equals, 2)
 }
@@ -377,6 +393,10 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaConflict(c *check.C) {
 	rspe := s.errorReq(c, req, nil)
 	c.Assert(rspe.Status, check.Equals, 409)
 	c.Check(rspe.Message, check.Equals, `quota group "booze" has "quota-control" change in progress`)
+	c.Check(rspe.Value, check.DeepEquals, map[string]interface{}{
+		"change-kind": "quota-control",
+		"quota-name":  "booze",
+	})
 
 	req, err = http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
@@ -384,6 +404,10 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaConflict(c *check.C) {
 	rspe = s.errorReq(c, req, nil)
 	c.Assert(rspe.Status, check.Equals, 409)
 	c.Check(rspe.Message, check.Equals, `snap "some-snap" has "disable" change in progress`)
+	c.Check(rspe.Value, check.DeepEquals, map[string]interface{}{
+		"change-kind": "disable",
+		"snap-name":   "some-snap",
+	})
 
 	c.Assert(removeCalled, check.Equals, 2)
 }
@@ -405,7 +429,7 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaUnhappy(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, check.Equals, 400)
-	c.Check(rspe.Message, check.Matches, `boom`)
+	c.Check(rspe.Message, check.Matches, `cannot remove quota group: boom`)
 	c.Check(s.ensureSoonCalled, check.Equals, 0)
 }
 

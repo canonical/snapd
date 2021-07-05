@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/servicestate"
-	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/quota"
@@ -177,15 +176,7 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 			// then we need to create the quota
 			ts, err = servicestateCreateQuota(st, data.GroupName, data.Parent, data.Snaps, quantity.Size(data.MaxMemory))
 			if err != nil {
-				// check for conflict errors
-				switch err.(type) {
-				case *snapstate.ChangeConflictError:
-					return Conflict(err.Error())
-				case *servicestate.QuotaChangeConflictError:
-					return Conflict(err.Error())
-				}
-				// other error
-				return BadRequest(err.Error())
+				return errToResponse(err, nil, BadRequest, "cannot create quota group: %v")
 			}
 			chgSummary = "Create quota group"
 		} else if err == nil {
@@ -196,15 +187,7 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 			}
 			ts, err = servicestateUpdateQuota(st, data.GroupName, updateOpts)
 			if err != nil {
-				// check for conflict errors
-				switch err.(type) {
-				case *snapstate.ChangeConflictError:
-					return Conflict(err.Error())
-				case *servicestate.QuotaChangeConflictError:
-					return Conflict(err.Error())
-				}
-				// other error
-				return BadRequest(err.Error())
+				return errToResponse(err, nil, BadRequest, "cannot update quota group: %v")
 			}
 			chgSummary = "Update quota group"
 		}
@@ -213,15 +196,7 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 		var err error
 		ts, err = servicestateRemoveQuota(st, data.GroupName)
 		if err != nil {
-			// check for conflict errors
-			switch err.(type) {
-			case *snapstate.ChangeConflictError:
-				return Conflict(err.Error())
-			case *servicestate.QuotaChangeConflictError:
-				return Conflict(err.Error())
-			}
-			// other error
-			return BadRequest(err.Error())
+			return errToResponse(err, nil, BadRequest, "cannot remove quota group: %v")
 		}
 		chgSummary = "Remove quota group"
 	default:
