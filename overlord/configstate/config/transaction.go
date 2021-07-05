@@ -489,14 +489,22 @@ func (e *NoOptionError) Error() string {
 // VirtualCfgFunc can be used for virtual "transaction.Get()" calls
 type VirtualCfgFunc func(snapName, key string) (result interface{}, err error)
 
-// virtualMap contain "virtual" configuration keys like
-// e.g. "core.hostname".  The data is never stored in the state but
-// instead directly get/set.
+// virtualMap contain hook functions for "virtual" configuration. The
+// first level of the map is the snapName and then the virtual keys in
+// doted notation e.g. "network.netplan".  Any data under a virtual
+// configuration option is never stored directly in the state.
 var (
 	virtualMap map[string]map[string]VirtualCfgFunc
 	virtualMu  sync.Mutex
 )
 
+// RegisterVirtualConfig allows to register a function that is called
+// when the configuration for the given config key for a given
+// snapname is requested.
+//
+// This is useful for e.g. the system.hostname configuration where the
+// authoritative value is coming from the kernel and can be change
+// outside of snapd.
 func RegisterVirtualConfig(snapName, key string, hi VirtualCfgFunc) {
 	virtualMu.Lock()
 	defer virtualMu.Unlock()
