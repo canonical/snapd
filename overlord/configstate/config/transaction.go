@@ -489,7 +489,7 @@ type VirtualCfgFunc func(snapName, key string) (result interface{}, err error)
 
 // virtualMap contain hook functions for "virtual" configuration. The
 // first level of the map is the snapName and then the virtual keys in
-// doted notation e.g. "network.netplan".  Any data under a virtual
+// dotted notation e.g. "network.netplan".  Any data under a virtual
 // configuration option is never stored directly in the state.
 var (
 	virtualMap map[string]map[string]VirtualCfgFunc
@@ -501,9 +501,9 @@ var (
 // snapname is requested.
 //
 // This is useful for e.g. the system.hostname configuration where the
-// authoritative value is coming from the kernel and can be change
+// authoritative value is coming from the kernel and can be changed
 // outside of snapd.
-func RegisterVirtualConfig(snapName, key string, hi VirtualCfgFunc) {
+func RegisterVirtualConfig(snapName, key string, vf VirtualCfgFunc) {
 	virtualMu.Lock()
 	defer virtualMu.Unlock()
 
@@ -513,5 +513,5 @@ func RegisterVirtualConfig(snapName, key string, hi VirtualCfgFunc) {
 	if _, ok := virtualMap[snapName]; !ok {
 		virtualMap[snapName] = make(map[string]VirtualCfgFunc)
 	}
-	virtualMap[snapName][key] = hi
+	virtualMap[snapName][key] = vf
 }
