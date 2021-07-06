@@ -5,7 +5,7 @@ details: |
   (experimental.gate-auto-refresh-hook feature) and verify the hook can control
   automatic refreshes. The test uses two test snaps, one of them
   being a content provider of the other. There are a few versions of these
-  snaps in the store (in stable/beta/edge channels) for this test.
+  snaps in the store (in stable/b eta/edge channels) for this test.
 
 environment:
   SNAP_NAME: test-snapd-refresh-control
@@ -66,6 +66,7 @@ execute: |
   snap install "$SNAP_NAME"
   snap install "$CONTENT_SNAP_NAME"
 
+  echo "Connecting the two test snaps with content interface"
   snap connect "$SNAP_NAME:content" "$CONTENT_SNAP_NAME:content"
 
   # sanity check
@@ -73,6 +74,8 @@ execute: |
   snap list | MATCH "$CONTENT_SNAP_NAME +1\.0\.0"
 
   snap set core refresh.schedule="0:00-23:59"
+
+  # scenario #1
 
   force_channel_change "$CONTENT_SNAP_NAME" beta
 
@@ -83,6 +86,8 @@ execute: |
     systemctl stop snapd.{service,socket}
 
     # Request the snap to hold the refresh (itself and its content provider).
+    # Writing into this file affects the command performed by the gate-auto-refresh hook
+    # in tests/lib/snaps/store/test-snapd-refresh-control.v*/meta/hooks/gate-auto-refresh.
     echo "--hold" > "$CONTROL_FILE"
 
     echo "Trigger auto-refresh of test-snapd-refresh-control-provider but hold it via test-snapd-refresh-control's hook"
@@ -110,8 +115,11 @@ execute: |
 
   systemctl stop snapd.{service,socket}
 
+  # scenario #2
+
   # force auto-refresh again but this time we expect content provider snap to be
   # refreshed because the gating hook of test-snapd-refresh-control calls --proceed.
+  echo "Trigger auto-refresh of test-snapd-refresh-control-provider but unblock it via test-snapd-refresh-control's hook"
   echo "--proceed" > "$CONTROL_FILE"
 
   force_autorefresh
@@ -130,6 +138,8 @@ execute: |
   snap list | MATCH "$SNAP_NAME +1\.0\.0"
 
   systemctl stop snapd.{service,socket}
+
+  # scenario #3
 
   # test the scenario where the test-snapd-refresh-control refresh is attempted
   # and it holds itself.
@@ -153,6 +163,8 @@ execute: |
 
   systemctl stop snapd.{service,socket}
 
+  # scenario #4
+
   # test the scenario where the test-snapd-refresh-control refresh proceeds.
   echo "Trigger auto-refresh of test-snapd-refresh-control and proceed from its hook"
   echo "--proceed" > "$CONTROL_FILE"
@@ -166,16 +178,34 @@ execute: |
 
   systemctl stop snapd.{service,socket}
 
+  # scenario #5
+
   echo "Checking that error from the hook means hold"
   echo "--unknown-flag-to-force-snapctl-error" > "$CONTROL_FILE"
   force_channel_change "$CONTENT_SNAP_NAME" edge
   force_autorefresh
 
   systemctl start snapd.{service,socket}
-  wait_for_autorefresh "$CONTENT_SNAP_NAME"
+  LAST_REFRESH_CHANGE_ID=$(wait_for_autorefresh "$CONTENT_SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
 
   echo "Ensure our content snap was held"
   snap list | MATCH "$CONTENT_SNAP_NAME +2\.0\.0"
 
   snap change --last=auto-refresh | MATCH "ignoring hook error:"
-  snap change --last=auto-refresh | MATCH "error running snapctl: unknown flag .unknown-flag-to-force-snapctl-error"
+  snap change --last=auto-refresh | MATCH "ERROR ignoring hook error:"
+  MATCH "error running snapctl: unknown flag .unknown-flag-to-force-snapctl-error'" < "$DEBUG_LOG_FILE"
+
+  systemctl stop snapd.{service,socket}
+
+  # scenario #6
+
+  echo "Checking that if the hook does nothing (neither --proceed nor --hold), the refresh proceeds"
+  rm -f "$CONTROL_FILE"
+  force_channel_change "$CONTENT_SNAP_NAME" edge
+  force_autorefresh
+
+  systemctl start snapd.{service,socket}
+  LAST_REFRESH_CHANGE_ID=$(wait_for_autorefresh "$CONTENT_SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
+
+  echo "Ensure our content snap was updated"
+  snap list | MATCH "$CONTENT_SNAP_NAME +3\.0\.0"
