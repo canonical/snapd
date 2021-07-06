@@ -70,6 +70,7 @@ restore: |
   for rev in $(snap list snapd --all | grep disabled | awk '{print $3}'); do
     snap remove snapd --revision="$rev"
   done
+
 execute: |
   # check if snapd 2.49.2 is the current latest/stable release as it simplifies
   # some of the logic below
