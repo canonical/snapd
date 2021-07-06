@@ -109,7 +109,14 @@ static bool traverse_looking_for_prefix_in_dir(DIR *root, const char *prefix, co
         errno = 0;
         struct dirent *ent = readdir(root);
         if (ent == NULL) {
+            // is this an error?
             if (errno != 0) {
+                if (errno == ENOENT) {
+                    // the processes may exit and the group entries may go away at
+                    // any time
+                    // the entries may go away at any time
+                    break;
+                }
                 die("cannot read directory entry");
             }
             break;
@@ -133,11 +140,17 @@ static bool traverse_looking_for_prefix_in_dir(DIR *root, const char *prefix, co
         // entfd is consumed by fdopendir() and freed with closedir()
         int entfd = openat(dirfd(root), ent->d_name, O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
         if (entfd == -1) {
+            if (errno == ENOENT) {
+                // the processes may exit and the group entries may go away at
+                // any time
+                return false;
+            }
             die("cannot open directory entry \"%s\"", ent->d_name);
         }
         // takes ownership of the file descriptor
         DIR *entdir SC_CLEANUP(sc_cleanup_closedir) = fdopendir(entfd);
         if (entdir == NULL) {
+            // we have the fd, so ENOENT isn't possible here
             die("cannot fdopendir directory \"%s\"", ent->d_name);
         }
         bool found = traverse_looking_for_prefix_in_dir(entdir, prefix, skip, depth + 1);
@@ -181,6 +194,9 @@ bool sc_cgroup_v2_is_tracking_snap(const char *snap_instance) {
     debug("opening cgroup root dir at %s", cgroup_dir);
     DIR *root SC_CLEANUP(sc_cleanup_closedir) = opendir(cgroup_dir);
     if (root == NULL) {
+        if (errno == ENOENT) {
+            return false;
+        }
         die("cannot open cgroup root dir");
     }
     // traverse the cgroup hierarchy tree looking for other groups that
@@ -203,13 +219,12 @@ char *sc_cgroup_v2_own_path_full(void) {
         char *line SC_CLEANUP(sc_cleanup_string) = NULL;
         size_t linesz = 0;
         ssize_t sz = getline(&line, &linesz, in);
-        if (sz == -1) {
-            if (feof(in)) {
-                break;
-            }
-            if (ferror(in)) {
-                die("cannot read line from %s", self_cgroup);
-            }
+        if (sz < 0 && errno != 0) {
+            die("cannot read line from %s", self_cgroup);
+        }
+        if (sz < 0) {
+            // end of file
+            break;
         }
         if (!sc_startswith(line, "0::")) {
             continue;
