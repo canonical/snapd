@@ -114,6 +114,10 @@ func shadowsVirtualConfig(instanceName string, subkeys []string, value interface
 	if v := reflect.ValueOf(value); v.Kind() == reflect.Map {
 		return nil
 	}
+	// be paranoid: this should never happen but if it does we need to know
+	if _, ok := value.(*json.RawMessage); ok {
+		return fmt.Errorf("internal error: shadowsVirtualConfig called with *json.RawMessage for snap %q wth key %q: %q please report as a bug", instanceName, subkeys, value)
+	}
 
 	// helper to compare if two subkeys slices have a common prefix
 	keysHaveCommonPrefix := func(s, prefix []string) bool {
