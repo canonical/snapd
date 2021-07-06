@@ -234,9 +234,18 @@ type TestingSeed20 struct {
 	SeedDir string
 }
 
+// MakeSeed creates the seed with given label and generates model assertions
 func (s *TestingSeed20) MakeSeed(c *C, label, brandID, modelID string, modelHeaders map[string]interface{}, optSnaps []*seedwriter.OptionsSnap) *asserts.Model {
 	model := s.Brands.Model(brandID, modelID, modelHeaders)
 
+	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys(brandID)...)
+
+	s.MakeSeedWithModel(c, label, model, optSnaps)
+	return model
+}
+
+// MakeSeedWithModel creates the seed with given label for a given model
+func (s *TestingSeed20) MakeSeedWithModel(c *C, label string, model *asserts.Model, optSnaps []*seedwriter.OptionsSnap) {
 	db, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   s.StoreSigning.Trusted,
@@ -260,7 +269,6 @@ func (s *TestingSeed20) MakeSeed(c *C, label, brandID, modelID string, modelHead
 		}
 		return asserts.NewFetcher(db, retrieve, save2)
 	}
-	assertstest.AddMany(s.StoreSigning, s.Brands.AccountsAndKeys(brandID)...)
 
 	opts := seedwriter.Options{
 		SeedDir: s.SeedDir,
@@ -336,8 +344,6 @@ func (s *TestingSeed20) MakeSeed(c *C, label, brandID, modelID string, modelHead
 
 	err = w.WriteMeta()
 	c.Assert(err, IsNil)
-
-	return model
 }
 
 func ValidateSeed(c *C, root, label string, usesSnapd bool, trusted []asserts.Assertion) seed.Seed {
