@@ -127,14 +127,14 @@ execute: |
     tests.cleanup pop
 
     REBOOT
-  elif [ "$SPREAD_REBOOT" = "1" ]; then
-    # we rebooted after installing the new snapd as expected, make sure that the
-    # service is active and that the snap change finishes successfully 
-
-    snap watch --last=install
-    snap changes snapd | NOMATCH Error 
-    snap changes snapd | NOMATCH Undone
-    snap changes snapd | NOMATCH Hold
-
-    snap services | MATCH 'test-snapd-svc-flip-flop\.svc1\s+enabled\s+active.*'
   fi
+
+  # we rebooted after installing the new snapd as expected, make sure that the
+  # service is active and that the snap change finishes successfully 
+
+  snap watch --last=install
+  snap changes snapd | NOMATCH Error 
+  snap changes snapd | NOMATCH Undone
+  snap changes snapd | NOMATCH Hold
+
+  snap services | MATCH 'test-snapd-svc-flip-flop\.svc1\s+enabled\s+active.*'
