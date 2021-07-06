@@ -647,15 +647,16 @@ func (s *transactionSuite) TestVirtualGetSimple(c *C) {
 	err = tr.Get("some-snap", "other-key", &res)
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, "other-value")
-	// the virtual config function is called so that we can merge the data
-	c.Check(n, Equals, 1)
+	// no virtual helper was called because the requested key was not
+	// part of the virtual configuration
+	c.Check(n, Equals, 0)
 
 	// simple case: subkey is virtual
 	err = tr.Get("some-snap", "key.virtual", &res)
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, "key.virtual=virtual-value")
-	// virtual config function is called again
-	c.Check(n, Equals, 2)
+	// the virtual config function was called now
+	c.Check(n, Equals, 1)
 }
 
 func (s *transactionSuite) TestVirtualDeepNesting(c *C) {
@@ -782,8 +783,9 @@ func (s *transactionSuite) TestVirtualGetSubtreeMerged(c *C) {
 	err = tr.Get("some-snap", "other-key", &res)
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, "other-value")
-	// the virtual config function was called only once
-	c.Check(n, Equals, 1)
+	// no virtual helper was called because the requested key was not
+	// part of the virtual configuration
+	c.Check(n, Equals, 0)
 
 	var res2 map[string]interface{}
 	err = tr.Get("some-snap", "real-and-virtual", &res2)
@@ -793,8 +795,8 @@ func (s *transactionSuite) TestVirtualGetSubtreeMerged(c *C) {
 	c.Check(res2["real"], Equals, "real-value")
 	// and virtual values are combined
 	c.Check(res2["virtual"], Equals, "real-and-virtual.virtual=virtual-value")
-	// the virtual config function was called again
-	c.Check(n, Equals, 2)
+	// the virtual config function was called
+	c.Check(n, Equals, 1)
 }
 
 func (s *transactionSuite) TestVirtualCommitValuesNotStored(c *C) {

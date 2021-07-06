@@ -230,7 +230,7 @@ func (t *Transaction) Get(snapName, key string, result interface{}) error {
 
 	// merge virtual config and then commit changes onto a copy of pristine configuration, so that get has a complete view of the config.
 	config := t.copyPristine(snapName)
-	if err := mergeConfigWithVirtual(snapName, &config); err != nil {
+	if err := mergeConfigWithVirtual(snapName, key, &config); err != nil {
 		return err
 	}
 	applyChanges(config, t.changes[snapName])
@@ -400,11 +400,34 @@ func commitChange(pristine *json.RawMessage, change interface{}) *json.RawMessag
 	panic(fmt.Errorf("internal error: unexpected configuration type %T", change))
 }
 
+// partOfVirtualConfiguration() return true if the requested key
+// is part of a virtual configuration. E.g.:
+// "true" for requestedKey: "a.virtual.b" when virtualKey is "a.virtual".
+func partOfVirtualConfiguration(virtualKey, requestedKey string) (bool, error) {
+	virtualSubkeys, err := ParseKey(virtualKey)
+	if err != nil {
+		return false, err
+	}
+	requestedSubkeys, err := ParseKey(requestedKey)
+	if err != nil {
+		return false, err
+	}
+	for i := range requestedSubkeys {
+		if i >= len(virtualSubkeys) {
+			return true, nil
+		}
+		if virtualSubkeys[i] != requestedSubkeys[i] {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
 // mergeConfigWithVirtual takes the given configuration and merges it
 // with the virtual configuration values by calling the registered
 // virtual configuration function of the given snap. The merged config
 // is returned.
-func mergeConfigWithVirtual(instanceName string, origConfig *map[string]*json.RawMessage) error {
+func mergeConfigWithVirtual(instanceName, requestedKey string, origConfig *map[string]*json.RawMessage) error {
 	virtualMu.Lock()
 	km, ok := virtualMap[instanceName]
 	virtualMu.Unlock()
@@ -414,15 +437,25 @@ func mergeConfigWithVirtual(instanceName string, origConfig *map[string]*json.Ra
 
 	// create a "patch" from the virtual entries
 	patch := make(map[string]interface{})
-	for key, virtualFn := range km {
+	for virtualKey, virtualFn := range km {
 		if virtualFn == nil {
 			continue
 		}
-		res, err := virtualFn(key)
+		// check if the requested key is part of the virtual
+		// configuration
+		partOf, err := partOfVirtualConfiguration(virtualKey, requestedKey)
 		if err != nil {
 			return err
 		}
-		patch[key] = jsonRaw(res)
+		if !partOf {
+			continue
+		}
+
+		res, err := virtualFn(virtualKey)
+		if err != nil {
+			return err
+		}
+		patch[virtualKey] = jsonRaw(res)
 	}
 	if len(patch) == 0 {
 		return nil
