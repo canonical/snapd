@@ -46,8 +46,8 @@ prepare: |
     rm pc-gadget/cmdline.full
     snap pack pc-gadget --filename=pc-gadget-cmdline-none.snap
 
-    "$TESTSTOOLS"/nested-state build-image core
-    "$TESTSTOOLS"/nested-state create-vm core
+    tests.nested build-image core
+    tests.nested create-vm core
 
     for f in pc-gadget-cmdline-extra-updated.snap pc-gadget-cmdline-full.snap pc-gadget-cmdline-none.snap; do
         nested_copy "$f"

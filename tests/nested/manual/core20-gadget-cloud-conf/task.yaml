@@ -104,10 +104,10 @@ prepare: |
   # #shellcheck disable=SC2148
   #  systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
 
-  "$TESTSTOOLS"/nested-state build-image core
+  tests.nested build-image core
   # first boot will use seed1 to create the normal-user in addition to the 
   # system-user assertion
-  "$TESTSTOOLS"/nested-state create-vm core
+  tests.nested create-vm core
 
 restore: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
