@@ -173,13 +173,13 @@ execute: |
   # where an empty cgroup has exactly 0, but on newer systems there is some 
   # minimum amount of accounting memory for an empty cgroup, so it shows up as 
   # 4K
-  if [ "$snapdSaysMemUsage" != 0 ] && [ "$snapdSaysMemUsage" != 4096 ] ; then
+  if [ "$snapdSaysMemUsage" != null ] && [ "$snapdSaysMemUsage" != 0 ] && [ "$snapdSaysMemUsage" != 4096 ] ; then
     echo "unexpected memory usage for empty quota group group-five, snapd says: $snapdSaysMemUsage"
     exit 1
   fi
 
   snapdSaysMemUsage="$(sudo snap run http --body GET snapd:///v2/quotas/group-four | jq -r '.result.current.memory')"
-  if [ "$snapdSaysMemUsage" != 0 ] && [ "$snapdSaysMemUsage" != 4096 ] ; then
+  if [ "$snapdSaysMemUsage" != null ] && [ "$snapdSaysMemUsage" != 0 ] && [ "$snapdSaysMemUsage" != 4096 ] ; then
     echo "unexpected memory usage for empty quota group group-four, snapd says: $snapdSaysMemUsage"
     exit 1
   fi
