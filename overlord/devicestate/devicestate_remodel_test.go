@@ -27,7 +27,6 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
-	"strconv"
 	"time"
 
 	. "gopkg.in/check.v1"
@@ -1837,7 +1836,13 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 	}
 }
 
-func (s *deviceMgrRemodelSuite) TestRemodelUC20LabelConflicts(c *C) {
+type remodelUC20LabelConflictsTestCase struct {
+	now              time.Time
+	breakPermissions bool
+	expectedErr      string
+}
+
+func (s *deviceMgrRemodelSuite) testRemodelUC20LabelConflicts(c *C, tc remodelUC20LabelConflictsTestCase) {
 	restore := devicestate.AllowUC20RemodelTesting(true)
 	defer restore()
 
@@ -1851,8 +1856,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20LabelConflicts(c *C) {
 	})
 	defer restore()
 
-	now := time.Now()
-	restore = devicestate.MockTimeNow(func() time.Time { return now })
+	restore = devicestate.MockTimeNow(func() time.Time { return tc.now })
 	defer restore()
 
 	// set a model assertion
@@ -1903,37 +1907,71 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20LabelConflicts(c *C) {
 		},
 	})
 
-	labelBase := now.Format("20060102")
-	labelSuffix := ""
+	labelBase := tc.now.Format("20060102")
+	// create a conflict with base label
+	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", labelBase), 0755)
+	c.Assert(err, IsNil)
 	for i := 0; i < 5; i++ {
-		// create conflicting labels
-		err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", labelBase+labelSuffix), 0755)
+		// create conflicting labels with numerical suffices
+		l := fmt.Sprintf("%s-%d", labelBase, i)
+		err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", l), 0755)
 		c.Assert(err, IsNil)
-		labelSuffix = strconv.Itoa(i)
+	}
+	// and some confusing labels
+	for _, suffix := range []string{"--", "-abc", "-abc-1", "foo", "-"} {
+		err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", labelBase+suffix), 0755)
+		c.Assert(err, IsNil)
+	}
+	// and a label that will force a max number
+	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", labelBase+"-990"), 0755)
+	c.Assert(err, IsNil)
+
+	if tc.breakPermissions {
+		systemsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems")
+		c.Assert(os.Chmod(systemsDir, 0000), IsNil)
+		defer os.Chmod(systemsDir, 0755)
 	}
 
 	chg, err := devicestate.Remodel(s.state, new)
-	c.Assert(err, ErrorMatches,
-		fmt.Sprintf(`recovery system %q already exists \(alternative label possibilities exhausted\)`, labelBase))
-	c.Assert(chg, IsNil)
+	if tc.expectedErr == "" {
+		c.Assert(err, IsNil)
+		c.Assert(chg, NotNil)
 
-	c.Assert(os.Remove(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", labelBase+"3")), IsNil)
-	chg, err = devicestate.Remodel(s.state, new)
-	c.Assert(err, IsNil)
-	c.Assert(chg, NotNil)
-
-	var tCreateRecovery *state.Task
-	for _, tsk := range chg.Tasks() {
-		if tsk.Kind() == "create-recovery-system" {
-			tCreateRecovery = tsk
-			break
+		var tCreateRecovery *state.Task
+		for _, tsk := range chg.Tasks() {
+			if tsk.Kind() == "create-recovery-system" {
+				tCreateRecovery = tsk
+				break
+			}
 		}
+		happyLabel := labelBase + "-991"
+		c.Assert(tCreateRecovery, NotNil)
+		c.Assert(tCreateRecovery.Summary(), Equals, fmt.Sprintf("Create recovery system with label %q", happyLabel))
+		var systemSetupData map[string]interface{}
+		err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
+		c.Assert(err, IsNil)
+		c.Assert(systemSetupData["label"], Equals, happyLabel)
+	} else {
+		c.Assert(err, ErrorMatches, tc.expectedErr)
+		c.Assert(chg, IsNil)
 	}
-	happyLabel := labelBase + "3"
-	c.Assert(tCreateRecovery, NotNil)
-	c.Assert(tCreateRecovery.Summary(), Equals, fmt.Sprintf("Create recovery system with label %q", happyLabel))
-	var systemSetupData map[string]interface{}
-	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
-	c.Assert(err, IsNil)
-	c.Assert(systemSetupData["label"], Equals, happyLabel)
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelUC20LabelConflictsHappy(c *C) {
+	now := time.Now()
+	s.testRemodelUC20LabelConflicts(c, remodelUC20LabelConflictsTestCase{now: now})
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelUC20LabelConflictsError(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be executed by the root user")
+	}
+	now := time.Now()
+	nowLabel := now.Format("20060102")
+	s.testRemodelUC20LabelConflicts(c, remodelUC20LabelConflictsTestCase{
+		now: now,
+
+		breakPermissions: true,
+		expectedErr:      fmt.Sprintf(`cannot select non-conflicting label for recovery system "%[1]s": stat .*/run/mnt/ubuntu-seed/systems/%[1]s: permission denied`, nowLabel),
+	})
 }
