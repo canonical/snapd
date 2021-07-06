@@ -34,6 +34,8 @@ var (
 	ErrDBusSpawnChildExited = errDBusSpawnChildExited
 
 	SecurityTagFromCgroupPath = securityTagFromCgroupPath
+
+	ApplyToSnap = applyToSnap
 )
 
 func MockFsTypeForPath(mock func(string) (int64, error)) (restore func()) {
