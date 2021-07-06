@@ -432,12 +432,18 @@ func mergeConfigWithVirtual(instanceName string, origConfig *map[string]*json.Ra
 	config := jsonRaw(*origConfig)
 	patchKeys := sortPatchKeysByDepth(patch)
 	for _, subkeys := range patchKeys {
-		raw := jsonRaw(patch[subkeys])
+		// patch[key] above got assigned jsonRaw() so this cast is ok
+		raw := patch[subkeys].(*json.RawMessage)
 		mergedConfig, err := PatchConfig(instanceName, strings.Split(subkeys, "."), 0, config, raw)
 		if err != nil {
 			return err
 		}
-		config = jsonRaw(mergedConfig)
+		// PatchConfig got *json.RawMessage as input and
+		// returns the same type so this cast is ok (but be defensive)
+		config, ok = mergedConfig.(*json.RawMessage)
+		if !ok {
+			return fmt.Errorf("internal error: PatchConfig in mergeConfigWithVirtual did not return a *json.RawMessage please report this as a bug")
+		}
 	}
 
 	// convert back to the original config
