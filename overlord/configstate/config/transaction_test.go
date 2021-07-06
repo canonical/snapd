@@ -607,6 +607,21 @@ func (s *transactionSuite) TestPristineGet(c *C) {
 	c.Assert(res2, Equals, "other-value")
 }
 
+func (s *transactionSuite) TestVirtualGetError(c *C) {
+
+	tests := []string{
+		"/", "..", "ä#!",
+		"a..b",
+	}
+
+	for _, tc := range tests {
+		err := config.RegisterVirtualConfig("some-snap", tc, func(key string) (interface{}, error) {
+			return nil, nil
+		})
+		c.Assert(err, ErrorMatches, "cannot register virtual config: invalid option name:.*")
+	}
+}
+
 func (s *transactionSuite) TestVirtualGetSimple(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -617,18 +632,19 @@ func (s *transactionSuite) TestVirtualGetSimple(c *C) {
 	})
 
 	n := 0
-	config.RegisterVirtualConfig("some-snap", "key.virtual", func(key string) (interface{}, error) {
+	err := config.RegisterVirtualConfig("some-snap", "key.virtual", func(key string) (interface{}, error) {
 		n++
 
 		s := fmt.Sprintf("%s=virtual-value", key)
 		return s, nil
 	})
+	c.Assert(err, IsNil)
 
 	tr := config.NewTransaction(s.state)
 
 	var res string
 	// non-virtual keys work fine
-	err := tr.Get("some-snap", "other-key", &res)
+	err = tr.Get("some-snap", "other-key", &res)
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, "other-value")
 	// the virtual config function is called so that we can merge the data
@@ -667,10 +683,11 @@ func (s *transactionSuite) TestVirtualSetShadowsVirtual(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	config.RegisterVirtualConfig("some-snap", "key.nested.virtual", func(key string) (interface{}, error) {
+	err := config.RegisterVirtualConfig("some-snap", "key.nested.virtual", func(key string) (interface{}, error) {
 		c.Fatalf("unexpected cal to virtual config function")
 		return nil, nil
 	})
+	c.Assert(err, IsNil)
 
 	tests := []struct {
 		snap, key, value string
@@ -714,18 +731,19 @@ func (s *transactionSuite) TestVirtualGetRootDocIsMerged(c *C) {
 	})
 
 	n := 0
-	config.RegisterVirtualConfig("some-snap", "key.virtual", func(key string) (interface{}, error) {
+	err := config.RegisterVirtualConfig("some-snap", "key.virtual", func(key string) (interface{}, error) {
 		n++
 
 		s := fmt.Sprintf("%s=virtual-value", key)
 		return s, nil
 	})
+	c.Assert(err, IsNil)
 
 	tr := config.NewTransaction(s.state)
 
 	var res map[string]interface{}
 	// the root doc
-	err := tr.Get("some-snap", "", &res)
+	err = tr.Get("some-snap", "", &res)
 	c.Assert(err, IsNil)
 	c.Check(res, DeepEquals, map[string]interface{}{
 		"some-key":  "some-value",
@@ -749,18 +767,19 @@ func (s *transactionSuite) TestVirtualGetSubtreeMerged(c *C) {
 	})
 
 	n := 0
-	config.RegisterVirtualConfig("some-snap", "real-and-virtual.virtual", func(key string) (interface{}, error) {
+	err := config.RegisterVirtualConfig("some-snap", "real-and-virtual.virtual", func(key string) (interface{}, error) {
 		n++
 
 		s := fmt.Sprintf("%s=virtual-value", key)
 		return s, nil
 	})
+	c.Assert(err, IsNil)
 
 	tr := config.NewTransaction(s.state)
 
 	var res string
 	// non-virtual keys work fine
-	err := tr.Get("some-snap", "other-key", &res)
+	err = tr.Get("some-snap", "other-key", &res)
 	c.Assert(err, IsNil)
 	c.Check(res, Equals, "other-value")
 	// the virtual config function was called only once
@@ -782,10 +801,12 @@ func (s *transactionSuite) TestVirtualCommitValuesNotStored(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	config.RegisterVirtualConfig("some-snap", "key.nested.virtual", func(key string) (interface{}, error) {
+	err := config.RegisterVirtualConfig("some-snap", "key.nested.virtual", func(key string) (interface{}, error) {
 		c.Errorf("virtual func should not get called in this test")
 		return nil, nil
 	})
+	c.Assert(err, IsNil)
+
 	tr := config.NewTransaction(s.state)
 
 	// set some values

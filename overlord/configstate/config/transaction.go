@@ -516,9 +516,13 @@ var (
 // This is useful for e.g. the system.hostname configuration where the
 // authoritative value is coming from the kernel and can be changed
 // outside of snapd.
-func RegisterVirtualConfig(snapName, key string, vf VirtualCfgFunc) {
+func RegisterVirtualConfig(snapName, key string, vf VirtualCfgFunc) error {
 	virtualMu.Lock()
 	defer virtualMu.Unlock()
+
+	if _, err := ParseKey(key); err != nil {
+		return fmt.Errorf("cannot register virtual config: %v", err)
+	}
 
 	if virtualMap == nil {
 		virtualMap = make(map[string]map[string]VirtualCfgFunc)
@@ -527,4 +531,5 @@ func RegisterVirtualConfig(snapName, key string, vf VirtualCfgFunc) {
 		virtualMap[snapName] = make(map[string]VirtualCfgFunc)
 	}
 	virtualMap[snapName][key] = vf
+	return nil
 }
