@@ -118,10 +118,7 @@ execute: |
     MATCH Wants=usr-lib-snapd.mount < /etc/systemd/system/snap.test-snapd-svc-flip-flop.svc1.service
 
     # and the service should not be running anymore
-    if [ "$(systemctl is-active snap.test-snapd-svc-flip-flop.svc.service)" != "inactive" ]; then
-      echo "the service is still active somehow, test probably broken"
-      exit 1
-    fi
+    not systemctl is-active snap.test-snapd-svc-flip-flop.svc.service
 
     # restore shutdown so that spread can reboot the host
     tests.cleanup pop
