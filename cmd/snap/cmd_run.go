@@ -485,10 +485,6 @@ func (x *cmdRun) snapRunApp(snapApp string, args []string) error {
 }
 
 func (x *cmdRun) snapRunHook(snapName string) error {
-	if err := maybeWaitWhileInhibited(snapName); err != nil {
-		return err
-	}
-
 	revision, err := snap.ParseRevision(x.Revision)
 	if err != nil {
 		return err
