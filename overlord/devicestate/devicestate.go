@@ -510,27 +510,13 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		// policy for possible remodels has already been verified by the
 		// caller
 		labelBase := timeNow().Format("20060102")
-		labelSuffix := ""
-		var createRecoveryTasks *state.TaskSet
-		// the label is based on date, but if multiple remodels are done
-		// on the same day, we may end up with conflicting labels
-		const maxLabelTries = 5
-		for try := 0; try < maxLabelTries; try++ {
-			label := fmt.Sprintf("%s%s", labelBase, labelSuffix)
-			var err error
-			createRecoveryTasks, err = createRecoverySystemTasks(st, label, snapSetupTasks)
-			if err == nil {
-				// got a valid label and corresponding task set
-				break
-			}
-			if !isSystemAlreadyExists(err) {
-				return nil, err
-			}
-			if try+1 >= maxLabelTries {
-				return nil, fmt.Errorf("recovery system %q already exists (alternative label possibilities exhausted)", labelBase)
-			}
-			// try another label
-			labelSuffix = strconv.Itoa(try)
+		label, err := pickRecoverySystemLabel(labelBase)
+		if err != nil {
+			return nil, fmt.Errorf("cannot select non-conflicting label for recovery system %q: %v", labelBase, err)
+		}
+		createRecoveryTasks, err := createRecoverySystemTasks(st, label, snapSetupTasks)
+		if err != nil {
+			return nil, err
 		}
 		if lastDownloadInChain != nil {
 			// wait for all snaps that need to be downloaded
@@ -741,29 +727,44 @@ type recoverySystemSetup struct {
 	SnapSetupTasks []string `json:"snap-setup-tasks"`
 }
 
-type errSystemAlreadyExists struct {
-	label string
-}
-
-func (e *errSystemAlreadyExists) Error() string {
-	return fmt.Sprintf("recovery system %q already exists", e.label)
-}
-
-func isSystemAlreadyExists(err error) bool {
-	_, ok := err.(*errSystemAlreadyExists)
-	return ok
+func pickRecoverySystemLabel(labelBase string) (string, error) {
+	systemDirectory := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", labelBase)
+	exists, _, err := osutil.DirExists(systemDirectory)
+	if err != nil {
+		return "", err
+	}
+	if !exists {
+		return labelBase, nil
+	}
+	// pick alternative, which is named like <label>-<number>
+	present, err := filepath.Glob(systemDirectory + "-*")
+	if err != nil {
+		return "", err
+	}
+	maxExistingNumber := 0
+	for _, existingDir := range present {
+		suffix := existingDir[len(systemDirectory)+1:]
+		num, err := strconv.Atoi(suffix)
+		if err != nil {
+			// non numerical suffix?
+			continue
+		}
+		if num > maxExistingNumber {
+			maxExistingNumber = num
+		}
+	}
+	return fmt.Sprintf("%s-%d", labelBase, maxExistingNumber+1), nil
 }
 
 func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []string) (*state.TaskSet, error) {
 	// sanity check, the directory should not exist yet
-	// TODO: we should have a common helper to derive this path
 	systemDirectory := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label)
 	exists, _, err := osutil.DirExists(systemDirectory)
 	if err != nil {
 		return nil, err
 	}
 	if exists {
-		return nil, &errSystemAlreadyExists{label: label}
+		return nil, fmt.Errorf("recovery system %q already exists", label)
 	}
 
 	create := st.NewTask("create-recovery-system", fmt.Sprintf("Create recovery system with label %q", label))
