@@ -35,17 +35,18 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
 
 var (
 	themesCmd = &Command{
-		Path:   "/v2/accessories/themes",
-		UserOK: true,
-		GET:    checkThemes,
-		POST:   installThemes,
+		Path:        "/v2/accessories/themes",
+		GET:         checkThemes,
+		POST:        installThemes,
+		ReadAccess:  openAccess{},
+		WriteAccess: authenticatedAccess{},
 	}
 )
 
@@ -134,16 +135,17 @@ func collectThemeStatusForPrefix(ctx context.Context, theStore snapstate.StoreSe
 		}
 		status[theme] = themeUnavailable
 		for _, name := range themePackageCandidates(prefix, theme) {
-			var info *snap.Info
+			var ch *channel.Channel
 			var err error
-			if info, err = theStore.SnapInfo(ctx, store.SnapSpec{Name: name}, user); err == store.ErrSnapNotFound {
+			if _, ch, err = theStore.SnapExists(ctx, store.SnapSpec{Name: name}, user); err == store.ErrSnapNotFound {
 				continue
 			} else if err != nil {
 				return err
 			}
 			// Only mark the theme as available if it has
-			// been published to the stable channel.
-			if info.Channel == "stable" {
+			// been published to a stable channel
+			// (latest or default track).
+			if ch.Risk == "stable" {
 				status[theme] = themeAvailable
 				candidateSnaps[name] = true
 				break
@@ -185,7 +187,7 @@ func checkThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError("cannot get theme status: %s", err)
 	}
 
-	return SyncResponse(status, nil)
+	return SyncResponse(status)
 }
 
 type themeInstallReq struct {
@@ -247,5 +249,5 @@ func installThemes(c *Command, r *http.Request, user *auth.UserState) Response {
 		ensureStateSoon(st)
 	}
 	chg.Set("api-data", map[string]interface{}{"snap-names": installed})
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+	return AsyncResponse(nil, chg.ID())
 }

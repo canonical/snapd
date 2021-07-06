@@ -33,6 +33,11 @@ reset_classic() {
             exit 1
             ;;
     esac
+
+    # purge may have removed udev rules, retrigger device events
+    udevadm trigger
+    udevadm settle
+
     # purge has removed units, reload the state now
     systemctl daemon-reload
 
@@ -88,7 +93,7 @@ reset_classic() {
 
         EXTRA_NC_ARGS="-q 1"
         case "$SPREAD_SYSTEM" in
-            fedora-34*)
+            fedora-34-*|debian-10-*)
                 # Param -q is not available on fedora 34
                 EXTRA_NC_ARGS="-w 1"
                 ;;
@@ -155,6 +160,10 @@ reset_all_snap() {
             fi
         done
     fi
+
+    # purge may have removed udev rules, retrigger device events
+    udevadm trigger
+    udevadm settle
 
     # ensure we have the same state as initially
     systemctl stop snapd.service snapd.socket

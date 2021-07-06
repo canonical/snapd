@@ -42,6 +42,14 @@ Add `$GOPATH/bin` to your `PATH`, so you can run the go programs you install:
 your `$GOPATH` is more complex than a single entry you'll need to adjust the
 above).
 
+Note that if you are using go 1.16 or newer you need to disable the
+go modules feature. Use:
+
+    export GO111MODULE=off
+
+for this.
+
+
 ### Getting the snapd sources
 
 The easiest way to get the source for `snapd` is to use the `go get` command.
@@ -140,6 +148,8 @@ If a test hangs, you can enable verbose mode:
     go test -v -check.vv
 
 (or -check.v for less verbose output).
+
+Note, the yamlordereddictloader python package is needed to carry out the tests format check.
 
 There is more to read about the testing framework on the [website](https://labix.org/gocheck)
 

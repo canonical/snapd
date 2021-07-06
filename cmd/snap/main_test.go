@@ -35,14 +35,13 @@ import (
 	"golang.org/x/crypto/ssh/terminal"
 	. "gopkg.in/check.v1"
 
+	snap "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
-
-	snap "github.com/snapcore/snapd/cmd/snap"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -342,9 +341,15 @@ func (s *SnapSuite) TestLintDesc(c *C) {
 	c.Check(log.String(), HasLen, 0)
 	log.Reset()
 
-	// LintDesc complains about lowercase description.
+	// LintDesc complains about lowercase description and mentions the locale
+	// that the system is currently in.
+	prevValue := os.Getenv("LC_MESSAGES")
+	os.Setenv("LC_MESSAGES", "en_US")
+	defer func() {
+		os.Setenv("LC_MESSAGES", prevValue)
+	}()
 	snap.LintDesc("command", "<option>", "description", "")
-	c.Check(log.String(), testutil.Contains, `description of command's "<option>" is lowercase: "description"`)
+	c.Check(log.String(), testutil.Contains, `description of command's "<option>" is lowercase in locale "en_US": "description"`)
 	log.Reset()
 
 	// LintDesc does not complain about lowercase description starting with login.ubuntu.com

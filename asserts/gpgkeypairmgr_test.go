@@ -28,9 +28,8 @@ import (
 	"os"
 	"time"
 
-	. "gopkg.in/check.v1"
-
 	"golang.org/x/crypto/openpgp/packet"
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"

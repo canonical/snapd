@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/snap/quota"
 )
 
@@ -55,7 +56,7 @@ func (s *servicestateQuotasSuite) TestQuotas(c *C) {
 		Name:        "foogroup",
 		MemoryLimit: quantity.SizeGiB,
 	}
-	newGrps, err := servicestate.PatchQuotas(st, grp)
+	newGrps, err := servicestatetest.PatchQuotas(st, grp)
 	c.Assert(err, IsNil)
 	c.Assert(newGrps, DeepEquals, map[string]*quota.Group{
 		"foogroup": grp,
@@ -75,22 +76,17 @@ func (s *servicestateQuotasSuite) TestQuotas(c *C) {
 		MemoryLimit: quantity.SizeGiB,
 		ParentGroup: "foogroup",
 	}
-	_, err = servicestate.PatchQuotas(st, grp2)
+	_, err = servicestatetest.PatchQuotas(st, grp2)
 	c.Assert(err, ErrorMatches, `cannot update quota "group-2": group "foogroup" does not reference necessary child group "group-2"`)
 
 	// we also can't add a sub-group to the parent without adding the sub-group
 	// itself
 	grp.SubGroups = append(grp.SubGroups, "group-2")
-	_, err = servicestate.PatchQuotas(st, grp)
+	_, err = servicestatetest.PatchQuotas(st, grp)
 	c.Assert(err, ErrorMatches, `cannot update quota "foogroup": missing group "group-2" referenced as the sub-group of group "foogroup"`)
 
-	// foogroup didn't get updated in the state to mention the sub-group
-	foogrp, err := servicestate.GetQuota(st, "foogroup")
-	c.Assert(err, IsNil)
-	c.Assert(foogrp.SubGroups, HasLen, 0)
-
 	// but if we update them both at the same time we succeed
-	newGrps, err = servicestate.PatchQuotas(st, grp, grp2)
+	newGrps, err = servicestatetest.PatchQuotas(st, grp, grp2)
 	c.Assert(err, IsNil)
 	c.Assert(newGrps, DeepEquals, map[string]*quota.Group{
 		"foogroup": grp,
@@ -116,19 +112,4 @@ func (s *servicestateQuotasSuite) TestQuotas(c *C) {
 
 	_, err = servicestate.GetQuota(st, "unknown")
 	c.Assert(err, Equals, servicestate.ErrQuotaNotFound)
-
-	// adding multiple quotas that are invalid produces a nice error message
-	otherGrp := &quota.Group{
-		Name: "other-group",
-		// invalid memory limit
-	}
-
-	otherGrp2 := &quota.Group{
-		Name: "other-group2",
-		// invalid memory limit
-	}
-
-	_, err = servicestate.PatchQuotas(st, otherGrp2, otherGrp)
-	// either group can get checked first
-	c.Assert(err, ErrorMatches, `cannot update quotas "other-group", "other-group2": group "other-group2?" is invalid: group memory limit must be non-zero`)
 }

@@ -175,7 +175,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 	if err != nil {
 		return err
 	}
-	resume, err := w.Seek(0, os.SEEK_END)
+	resume, err := w.Seek(0, io.SeekEnd)
 	if err != nil {
 		return err
 	}
@@ -234,7 +234,7 @@ func (s *Store) Download(ctx context.Context, name string, targetPath string, do
 		if err != nil {
 			return err
 		}
-		_, err = w.Seek(0, os.SEEK_SET)
+		_, err = w.Seek(0, io.SeekStart)
 		if err != nil {
 			return err
 		}
@@ -333,7 +333,7 @@ func (w *TransferSpeedMonitoringWriter) reset() {
 func (w *TransferSpeedMonitoringWriter) checkSpeed(min float64) bool {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	d := time.Now().Sub(w.start)
+	d := time.Since(w.start)
 	// should never happen since checkSpeed is done after measureTimeWindow
 	if d.Seconds() == 0 {
 		return true
@@ -420,7 +420,7 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		if resume > 0 {
 			reqOptions.ExtraHeaders["Range"] = fmt.Sprintf("bytes=%d-", resume)
 			// seed the sha3 with the already local file
-			if _, err := w.Seek(0, os.SEEK_SET); err != nil {
+			if _, err := w.Seek(0, io.SeekStart); err != nil {
 				return err
 			}
 			n, err := io.Copy(h, w)
@@ -433,13 +433,13 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		}
 
 		if cancelled(downloadCtx) {
-			return fmt.Errorf("The download has been cancelled: %s", downloadCtx.Err())
+			return fmt.Errorf("the download has been cancelled: %s", downloadCtx.Err())
 		}
 		var resp *http.Response
 		cli := s.newHTTPClient(nil)
 		resp, finalErr = s.doRequest(downloadCtx, cli, reqOptions, user)
 		if cancelled(downloadCtx) {
-			return fmt.Errorf("The download has been cancelled: %s", downloadCtx.Err())
+			return fmt.Errorf("the download has been cancelled: %s", downloadCtx.Err())
 		}
 		if finalErr != nil {
 			if httputil.ShouldRetryAttempt(attempt, finalErr) {
@@ -449,7 +449,7 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		}
 		if resume > 0 && resp.StatusCode != 206 {
 			logger.Debugf("server does not support resume")
-			if _, err := w.Seek(0, os.SEEK_SET); err != nil {
+			if _, err := w.Seek(0, io.SeekStart); err != nil {
 				return err
 			}
 			h = crypto.SHA3_384.New()
@@ -460,13 +460,14 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 			continue
 		}
 
+		// XXX: we're inside retry loop, so this will be closed only on return.
 		defer resp.Body.Close()
 
 		switch resp.StatusCode {
 		case 200, 206: // OK, Partial Content
 		case 402: // Payment Required
 
-			return fmt.Errorf("please buy %s before installing it.", name)
+			return fmt.Errorf("please buy %s before installing it", name)
 		default:
 			return &DownloadError{Code: resp.StatusCode, URL: resp.Request.URL}
 		}
@@ -475,6 +476,11 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 			pbar = progress.Null
 		}
 		dlSize = float64(resp.ContentLength)
+		if resp.ContentLength == 0 {
+			logger.Noticef("Unexpected Content-Length: 0 for %s", downloadURL)
+		} else {
+			logger.Debugf("Download size for %s: %d", downloadURL, resp.ContentLength)
+		}
 		pbar.Start(name, dlSize)
 		mw := io.MultiWriter(w, h, pbar, tc)
 		var limiter io.Reader
@@ -495,14 +501,14 @@ func downloadImpl(ctx context.Context, name, sha3_384, downloadURL string, user 
 		if cancelled(downloadCtx) {
 			// cancelled for other reason that download timeout (which would
 			// be caught by tc.Err() above).
-			return fmt.Errorf("The download has been cancelled: %s", downloadCtx.Err())
+			return fmt.Errorf("the download has been cancelled: %s", downloadCtx.Err())
 		}
 
 		if finalErr != nil {
 			if httputil.ShouldRetryAttempt(attempt, finalErr) {
 				// error while downloading should resume
 				var seekerr error
-				resume, seekerr = w.Seek(0, os.SEEK_END)
+				resume, seekerr = w.Seek(0, io.SeekEnd)
 				if seekerr == nil {
 					continue
 				}
@@ -546,7 +552,7 @@ func (s *Store) DownloadStream(ctx context.Context, name string, downloadInfo *s
 		if resume == 0 {
 			return file, 200, nil
 		}
-		_, err = file.Seek(resume, os.SEEK_SET)
+		_, err = file.Seek(resume, io.SeekStart)
 		if err != nil {
 			return nil, 0, err
 		}

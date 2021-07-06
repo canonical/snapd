@@ -725,3 +725,10 @@ exit 1
 	list := install.CreatedDuringInstall(pv, dl)
 	c.Assert(list, DeepEquals, []string{"/dev/node2", "/dev/node3", "/dev/node4"})
 }
+
+func (s *partitionTestSuite) TestCreationSupported(c *C) {
+	winBasic := "EBD0A0A2-B9E5-4433-87C0-68B6B72699C7"
+
+	c.Check(install.CreationSupported(winBasic), Equals, true)
+	c.Check(install.CreationSupported("invalid-partion-uuid"), Equals, false)
+}

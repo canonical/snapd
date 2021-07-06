@@ -99,91 +99,12 @@ type Command struct {
 	GET  ResponseFunc
 	PUT  ResponseFunc
 	POST ResponseFunc
-	// can guest GET?
-	GuestOK bool
-	// can non-admin GET?
-	UserOK bool
-	// is this path accessible on the snapd-snap socket?
-	SnapOK bool
-	// this path is only accessible to root
-	RootOnly bool
 
-	// can polkit grant access? set to polkit action ID if so
-	PolkitOK string
+	// Access control.
+	ReadAccess  accessChecker
+	WriteAccess accessChecker
 
 	d *Daemon
-}
-
-// canAccess checks the following properties:
-//
-// - if the user is `root` everything is allowed
-// - if a user is logged in (via `snap login`) and the command doesn't have RootOnly, everything is allowed
-// - POST/PUT all require `root`, or just `snap login` if not RootOnly
-//
-// Otherwise for GET requests the following parameters are honored:
-// - GuestOK: anyone can access GET
-// - UserOK: any uid on the local system can access GET
-// - RootOnly: only root can access this
-// - SnapOK: a snap can access this via `snapctl`
-func (c *Command) canAccess(r *http.Request, user *auth.UserState) accessResult {
-	if c.RootOnly && (c.UserOK || c.GuestOK || c.SnapOK) {
-		// programming error
-		logger.Panicf("Command can't have RootOnly together with any *OK flag")
-	}
-
-	if user != nil && !c.RootOnly {
-		// Authenticated users do anything not requiring explicit root.
-		return accessOK
-	}
-
-	ucred, err := ucrednetGet(r.RemoteAddr)
-	if err != nil && err != errNoID {
-		logger.Noticef("unexpected error when attempting to get UID: %s", err)
-		return accessForbidden
-	}
-	// isUser means we have a UID for the request
-	isUser := ucred != nil
-	isSnap := (ucred != nil && ucred.Socket == dirs.SnapSocket)
-
-	// ensure that snaps can only access SnapOK things
-	if isSnap {
-		if c.SnapOK {
-			return accessOK
-		}
-		return accessUnauthorized
-	}
-
-	// the !RootOnly check is redundant, but belt-and-suspenders
-	if r.Method == "GET" && !c.RootOnly {
-		// Guest and user access restricted to GET requests
-		if c.GuestOK {
-			return accessOK
-		}
-
-		if isUser && c.UserOK {
-			return accessOK
-		}
-	}
-
-	// Remaining admin checks rely on identifying peer uid
-	if !isUser {
-		return accessUnauthorized
-	}
-
-	if ucred.Uid == 0 {
-		// Superuser does anything.
-		return accessOK
-	}
-
-	if c.RootOnly {
-		return accessUnauthorized
-	}
-
-	if c.PolkitOK != "" {
-		return checkPolkitAction(r, ucred, c.PolkitOK)
-	}
-
-	return accessUnauthorized
 }
 
 func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -199,17 +120,10 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	switch c.canAccess(r, user) {
-	case accessOK:
-		// nothing
-	case accessUnauthorized:
-		Unauthorized("access denied").ServeHTTP(w, r)
-		return
-	case accessForbidden:
-		Forbidden("forbidden").ServeHTTP(w, r)
-		return
-	case accessCancelled:
-		AuthCancelled("cancelled").ServeHTTP(w, r)
+	ucred, err := ucrednetGet(r.RemoteAddr)
+	if err != nil && err != errNoID {
+		logger.Noticef("unexpected error when attempting to get UID: %s", err)
+		InternalError(err.Error()).ServeHTTP(w, r)
 		return
 	}
 
@@ -217,33 +131,47 @@ func (c *Command) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r = r.WithContext(ctx)
 
 	var rspf ResponseFunc
-	var rsp = MethodNotAllowed("method %q not allowed", r.Method)
+	var access accessChecker
 
 	switch r.Method {
 	case "GET":
 		rspf = c.GET
+		access = c.ReadAccess
 	case "PUT":
 		rspf = c.PUT
+		access = c.WriteAccess
 	case "POST":
 		rspf = c.POST
+		access = c.WriteAccess
 	}
 
-	if rspf != nil {
-		rsp = rspf(c, r, user)
+	if rspf == nil {
+		MethodNotAllowed("method %q not allowed", r.Method).ServeHTTP(w, r)
+		return
 	}
 
-	if rsp, ok := rsp.(*resp); ok {
+	if rspe := access.CheckAccess(c.d, r, ucred, user); rspe != nil {
+		rspe.ServeHTTP(w, r)
+		return
+	}
+
+	rsp := rspf(c, r, user)
+
+	if srsp, ok := rsp.(StructuredResponse); ok {
+		rjson := srsp.JSON()
+
 		_, rst := st.Restarting()
-		if rst != state.RestartUnset {
-			rsp.Maintenance = maintenanceForRestartType(rst)
-		}
+		rjson.addMaintenanceFromRestartType(rst)
 
-		if rsp.Type != ResponseTypeError {
+		if rjson.Type != ResponseTypeError {
 			st.Lock()
 			count, stamp := st.WarningsSummary()
 			st.Unlock()
-			rsp.addWarningsToMeta(count, stamp)
+			rjson.addWarningCount(count, stamp)
 		}
+
+		// serve the updated serialisation
+		rsp = rjson
 	}
 
 	rsp.ServeHTTP(w, r)

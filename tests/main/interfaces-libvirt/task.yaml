@@ -1,7 +1,5 @@
 summary: Ensure that the libvirt interface works.
 
-systems: [ubuntu-16.04-64]
-
 details: |
     The libvirt interface allows a snap to access the libvirtd socket in order to manage
     libvirt domains and other resources.
@@ -13,6 +11,8 @@ details: |
     A snap declaring a plug on this interface must be able to create and destroy a domain.
     The test uses a snap that carries a unikernel built to be run on top of qemu, boot and
     respond to ping. Once the domain is created, the test checks connectivity to the unikernel.
+
+systems: [ubuntu-16.04-64]
 
 prepare: |
     # Given test user is added to the libvirtd group
@@ -56,7 +56,7 @@ execute: |
 
     echo "And the snap is able to destroy the unikernel domain"
     su -l -c "test-snapd-libvirt-consumer.machine-down" test
-    virsh list | not MATCH ping-unikernel
+    virsh list | NOMATCH ping-unikernel
 
     echo "When the plug is disconnected"
     snap disconnect test-snapd-libvirt-consumer:libvirt

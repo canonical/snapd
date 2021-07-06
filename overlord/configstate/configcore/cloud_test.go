@@ -166,7 +166,7 @@ func (s *cloudSuite) TestHandleCloud(c *C) {
 		tr := &mockConf{
 			state: s.state,
 		}
-		err := configcore.Run(tr)
+		err := configcore.Run(classicDev, tr)
 		c.Assert(err, IsNil)
 
 		var cloudInfo auth.CloudInfo
@@ -200,7 +200,7 @@ func (s *cloudSuite) TestHandleCloudAlreadySeeded(c *C) {
 	tr := &mockConf{
 		state: s.state,
 	}
-	err = configcore.Run(tr)
+	err = configcore.Run(classicDev, tr)
 	c.Assert(err, IsNil)
 
 	var cloudInfo auth.CloudInfo

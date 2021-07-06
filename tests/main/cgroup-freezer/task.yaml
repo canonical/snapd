@@ -4,9 +4,9 @@ details: |
     This test creates a snap process that suspends itself and ensures that it
     placed into the appropriate hierarchy under the freezer cgroup.
 
-# fedora-32, fedora-33, fedora-34, debian-sid, arch, opensuse TW use cgroupv2, which does
+# fedora-33, fedora-34, debian-sid, arch, opensuse TW use cgroupv2, which does
 # not support a separate freezer controller
-systems: [ -fedora-32-*, -fedora-33-*, -fedora-34-*, -debian-sid-*, -arch-*, -opensuse-tumbleweed-*]
+systems: [ -fedora-33-*, -fedora-34-*, -debian-sid-*, -arch-*, -opensuse-tumbleweed-*]
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
@@ -45,8 +45,8 @@ execute: |
     echo "When the process terminates the control group is updated and the task no longer registers there."
     kill "$pid1"
     wait "$pid1" || true  # wait returns the exit code and we kill the process
-    not MATCH "$pid1" < /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks
+    NOMATCH "$pid1" < /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks
 
     kill "$pid2"
     wait "$pid2" || true  # same as above
-    not MATCH "$pid2" < /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks
+    NOMATCH "$pid2" < /sys/fs/cgroup/freezer/snap.test-snapd-sh/tasks

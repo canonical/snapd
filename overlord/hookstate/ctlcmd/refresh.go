@@ -21,6 +21,7 @@ package ctlcmd
 
 import (
 	"fmt"
+	"time"
 
 	"gopkg.in/yaml.v2"
 
@@ -101,17 +102,19 @@ func (c *refreshCommand) Execute(args []string) error {
 		return fmt.Errorf("cannot use --proceed and --hold together")
 	}
 
-	if c.Pending {
+	// --pending --proceed is a verbose way of saying --proceed, so only
+	// print pending if proceed wasn't requested.
+	if c.Pending && !c.Proceed {
 		if err := c.printPendingInfo(); err != nil {
 			return err
 		}
 	}
 
-	if c.Proceed {
-		return fmt.Errorf("not implemented yet")
-	}
-	if c.Hold {
-		return fmt.Errorf("not implemented yet")
+	switch {
+	case c.Proceed:
+		return c.proceed()
+	case c.Hold:
+		return c.hold()
 	}
 
 	return nil
@@ -155,10 +158,25 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 		return nil, err
 	}
 
-	// TODO: pending
+	var snapst snapstate.SnapState
+	if err := snapstate.Get(st, context.InstanceName(), &snapst); err != nil {
+		return nil, fmt.Errorf("internal error: cannot get snap state for %q: %v", context.InstanceName(), err)
+	}
+
+	var pending string
+	switch {
+	case snapst.RefreshInhibitedTime != nil:
+		pending = "inhibited"
+	case candidates[context.InstanceName()] != nil:
+		pending = "ready"
+	default:
+		pending = "none"
+	}
+
 	up := updateDetails{
 		Base:    base,
 		Restart: restart,
+		Pending: pending,
 	}
 
 	// try to find revision/version/channel info from refresh-candidates; it
@@ -173,10 +191,6 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 	}
 
 	// refresh-hint not present, look up channel info in snapstate
-	var snapst snapstate.SnapState
-	if err := snapstate.Get(st, context.InstanceName(), &snapst); err != nil {
-		return nil, fmt.Errorf("internal error: cannot get snap state for %q: %v", context.InstanceName(), err)
-	}
 	up.Channel = snapst.TrackingChannel
 	return &up, nil
 }
@@ -195,5 +209,42 @@ func (c *refreshCommand) printPendingInfo() error {
 		return err
 	}
 	c.printf("%s", string(out))
+	return nil
+}
+
+func (c *refreshCommand) hold() error {
+	ctx := c.context()
+	ctx.Lock()
+	defer ctx.Unlock()
+	st := ctx.State()
+
+	// cache the action so that hook handler can implement default behavior
+	ctx.Cache("action", snapstate.GateAutoRefreshHold)
+
+	var affecting []string
+	if err := ctx.Get("affecting-snaps", &affecting); err != nil {
+		return fmt.Errorf("internal error: cannot get affecting-snaps")
+	}
+
+	// no duration specified, use maximum allowed for this gating snap.
+	var holdDuration time.Duration
+	if err := snapstate.HoldRefresh(st, ctx.InstanceName(), holdDuration, affecting...); err != nil {
+		// TODO: let a snap hold again once for 1h.
+		return err
+	}
+
+	return nil
+}
+
+func (c *refreshCommand) proceed() error {
+	ctx := c.context()
+	ctx.Lock()
+	defer ctx.Unlock()
+
+	// cache the action, hook handler will trigger proceed logic; we cannot
+	// call snapstate.ProceedWithRefresh() immediately as this would reset
+	// holdState, allowing the snap to --hold with fresh duration limit.
+	ctx.Cache("action", snapstate.GateAutoRefreshProceed)
+
 	return nil
 }

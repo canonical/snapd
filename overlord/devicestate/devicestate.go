@@ -24,13 +24,16 @@ package devicestate
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sync"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -430,6 +433,10 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	//       our remodel change our carefully constructed wait chain
 	//       breaks down.
 
+	// Keep track of downloads tasks carrying snap-setup which is needed for
+	// recovery system tasks
+	var snapSetupTasks []string
+
 	// Ensure all download/check tasks are run *before* the install
 	// tasks. During a remodel the network may not be available so
 	// we need to ensure we have everything local.
@@ -475,12 +482,48 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		if firstInstallInChain == nil {
 			firstInstallInChain = installFirst
 		}
+		// download is always a first task of the 'download' phase
+		snapSetupTasks = append(snapSetupTasks, downloadStart.ID())
 	}
-	// Make sure the first install waits for the last download. With this
-	// our (simplified) wait chain looks like:
-	// download1 <- verify1 <- download2 <- verify2 <- download3 <- verify3 <- install1 <- install2 <- install3
+	// Make sure the first install waits for the recovery system (only in
+	// UC20) which waits for the last download. With this our (simplified)
+	// wait chain looks like this:
+	//
+	// download1
+	//   ^- verify1
+	//        ^- download2
+	//             ^- verify2
+	//                  ^- download3
+	//                       ^- verify3
+	//                            ^- recovery (UC20)
+	//                                 ^- install1
+	//                                      ^- install2
+	//                                           ^- install3
 	if firstInstallInChain != nil && lastDownloadInChain != nil {
 		firstInstallInChain.WaitFor(lastDownloadInChain)
+	}
+
+	recoverySetupTaskID := ""
+	if new.Grade() != asserts.ModelGradeUnset {
+		// create a recovery when remodeling to a UC20 system, actual
+		// policy for possible remodels has already been verified by the
+		// caller
+		label := timeNow().Format("20060102")
+		createRecoveryTasks, err := createRecoverySystemTasks(st, label, snapSetupTasks)
+		if err != nil {
+			return nil, err
+		}
+		if lastDownloadInChain != nil {
+			// wait for all snaps that need to be downloaded
+			createRecoveryTasks.WaitFor(lastDownloadInChain)
+		}
+		if firstInstallInChain != nil {
+			// when any snap installations need to happen, they
+			// should also wait for recovery system to be created
+			firstInstallInChain.WaitAll(createRecoveryTasks)
+		}
+		tss = append(tss, createRecoveryTasks)
+		recoverySetupTaskID = createRecoveryTasks.Tasks()[0].ID()
 	}
 
 	// Set the new model assertion - this *must* be the last thing done
@@ -489,9 +532,29 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	for _, tsPrev := range tss {
 		setModel.WaitAll(tsPrev)
 	}
+	if recoverySetupTaskID != "" {
+		// set model needs to access information about the recovery
+		// system
+		setModel.Set("recovery-system-setup-task", recoverySetupTaskID)
+	}
 	tss = append(tss, state.NewTaskSet(setModel))
 
 	return tss, nil
+}
+
+var allowUC20RemodelTesting = false
+
+// AllowUC20RemodelTesting is a temporary helper to allow testing remodeling of
+// UC20 before the implementation is complete and the policy for this settled.
+// It will be removed once remodel is fully implemented and made available for
+// general use.
+func AllowUC20RemodelTesting(allow bool) (restore func()) {
+	osutil.MustBeTestBinary("uc20 remodel testing only can be mocked in tests")
+	oldAllowUC20RemodelTesting := allowUC20RemodelTesting
+	allowUC20RemodelTesting = allow
+	return func() {
+		allowUC20RemodelTesting = oldAllowUC20RemodelTesting
+	}
 }
 
 // Remodel takes a new model assertion and generates a change that
@@ -518,17 +581,32 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if _, err := findSerial(st, nil); err != nil {
+		if err == state.ErrNoState {
+			return nil, fmt.Errorf("cannot remodel without a serial")
+		}
+		return nil, err
+	}
+
 	if current.Series() != new.Series() {
 		return nil, fmt.Errorf("cannot remodel to different series yet")
 	}
 
 	// TODO:UC20: support remodel, also ensure we never remodel to a lower
 	// grade
-	if current.Grade() != asserts.ModelGradeUnset {
-		return nil, fmt.Errorf("cannot remodel Ubuntu Core 20 models yet")
-	}
-	if new.Grade() != asserts.ModelGradeUnset {
-		return nil, fmt.Errorf("cannot remodel to Ubuntu Core 20 models yet")
+	if !allowUC20RemodelTesting {
+		if current.Grade() != asserts.ModelGradeUnset {
+			return nil, fmt.Errorf("cannot remodel Ubuntu Core 20 models yet")
+		}
+		if new.Grade() != asserts.ModelGradeUnset {
+			return nil, fmt.Errorf("cannot remodel to Ubuntu Core 20 models yet")
+		}
+	} else {
+		// also disallows remodel from non-UC20 (grade unset) to UC20
+		if current.Grade() != new.Grade() {
+			return nil, fmt.Errorf("cannot remodel from grade %v to grade %v", current.Grade(), new.Grade())
+		}
 	}
 
 	// TODO: we need dedicated assertion language to permit for
@@ -550,10 +628,11 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		return nil, fmt.Errorf("cannot remodel from core to bases yet")
 	}
 
-	// TODO: should we run a remodel only while no other change is
-	// running?  do we add a task upfront that waits for that to be
-	// true? Do we do this only for the more complicated cases
-	// (anything more than adding required-snaps really)?
+	// Do we do this only for the more complicated cases (anything
+	// more than adding required-snaps really)?
+	if err := snapstate.CheckChangeConflictRunExclusively(st, "remodel"); err != nil {
+		return nil, err
+	}
 
 	remodCtx, err := remodelCtx(st, current, new)
 	if err != nil {
@@ -563,13 +642,6 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	var tss []*state.TaskSet
 	switch remodelKind {
 	case ReregRemodel:
-		// nothing else can be in-flight
-		for _, chg := range st.Changes() {
-			if !chg.IsReady() {
-				return nil, &snapstate.ChangeConflictError{Message: "cannot start complete remodel, other changes are in progress"}
-			}
-		}
-
 		requestSerial := st.NewTask("request-serial", i18n.G("Request new device serial"))
 
 		prepare := st.NewTask("prepare-remodeling", i18n.G("Prepare remodeling"))
@@ -636,4 +708,62 @@ func Remodeling(st *state.State) bool {
 		}
 	}
 	return false
+}
+
+type recoverySystemSetup struct {
+	// Label of the recovery system, selected when tasks are created
+	Label string `json:"label"`
+	// Directory inside the seed filesystem where the recovery system files
+	// are kept, typically /run/mnt/ubuntu-seed/systems/<label>, set when
+	// tasks are created
+	Directory string `json:"directory"`
+	// SnapSetupTasks is a list of task IDs that carry snap setup
+	// information, relevant only during remodel, set when tasks are created
+	SnapSetupTasks []string `json:"snap-setup-tasks"`
+}
+
+func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []string) (*state.TaskSet, error) {
+	// sanity check, the directory should not exist yet
+	// TODO: we should have a common helper to derive this path
+	systemDirectory := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label)
+	exists, _, err := osutil.DirExists(systemDirectory)
+	if err != nil {
+		return nil, err
+	}
+	if exists {
+		return nil, fmt.Errorf("recovery system %q already exists", label)
+	}
+
+	create := st.NewTask("create-recovery-system", fmt.Sprintf("Create recovery system with label %q", label))
+	// the label we want
+	create.Set("recovery-system-setup", &recoverySystemSetup{
+		Label:     label,
+		Directory: systemDirectory,
+		// IDs of the tasks carrying snap-setup
+		SnapSetupTasks: snapSetupTasks,
+	})
+
+	finalize := st.NewTask("finalize-recovery-system", fmt.Sprintf("Finalize recovery system with label %q", label))
+	finalize.WaitFor(create)
+	// finalize needs to know the label too
+	finalize.Set("recovery-system-setup-task", create.ID())
+	return state.NewTaskSet(create, finalize), nil
+}
+
+func CreateRecoverySystem(st *state.State, label string) (*state.Change, error) {
+	var seeded bool
+	err := st.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+	if !seeded {
+		return nil, fmt.Errorf("cannot create new recovery systems until fully seeded")
+	}
+	chg := st.NewChange("create-recovery-system", fmt.Sprintf("Create new recovery system with label %q", label))
+	ts, err := createRecoverySystemTasks(st, label, nil)
+	if err != nil {
+		return nil, err
+	}
+	chg.AddAll(ts)
+	return chg, nil
 }

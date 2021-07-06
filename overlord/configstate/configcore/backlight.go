@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -45,7 +46,7 @@ func (l *backlightSysdLogger) Notify(status string) {
 // systemd-backlight service has no installation config. It's started when needed via udev.
 // So, systemctl enable/disable/start/stop are invalid commands. After masking/unmasking
 // the service, rebooting is required for making new setting work
-func handleBacklightServiceConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleBacklightServiceConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	var sysd systemd.Systemd
 	const serviceName = "systemd-backlight@.service"
 	if opts != nil {
