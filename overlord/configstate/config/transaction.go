@@ -230,15 +230,9 @@ func (t *Transaction) Get(snapName, key string, result interface{}) error {
 
 	// merge virtual config and then commit changes onto a copy of pristine configuration, so that get has a complete view of the config.
 	config := t.copyPristine(snapName)
-	// 1. merge virtual
-	mergedConfig, err := mergeConfigWithVirtual(snapName, jsonRaw(config))
-	if err != nil {
+	if err := mergeConfigWithVirtual(snapName, &config); err != nil {
 		return err
 	}
-	if err := jsonutil.DecodeWithNumber(bytes.NewReader(*mergedConfig), &config); err != nil {
-		return err
-	}
-	// 2. apply changes
 	applyChanges(config, t.changes[snapName])
 
 	purgeNulls(config)
@@ -410,12 +404,12 @@ func commitChange(pristine *json.RawMessage, change interface{}) *json.RawMessag
 // with the virtual configuration values by calling the registered
 // virtual configuration function of the given snap. The merged config
 // is returned.
-func mergeConfigWithVirtual(instanceName string, config *json.RawMessage) (*json.RawMessage, error) {
+func mergeConfigWithVirtual(instanceName string, origConfig *map[string]*json.RawMessage) error {
 	virtualMu.Lock()
 	km, ok := virtualMap[instanceName]
 	virtualMu.Unlock()
 	if !ok {
-		return config, nil
+		return nil
 	}
 
 	// create a "patch" from the virtual entries
@@ -426,23 +420,32 @@ func mergeConfigWithVirtual(instanceName string, config *json.RawMessage) (*json
 		}
 		res, err := virtualFn(key)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		patch[key] = jsonRaw(res)
 	}
+	if len(patch) == 0 {
+		return nil
+	}
 
-	// and apply that on top of the config
+	// create a "working copy" of the config and apply the patches on top
+	config := jsonRaw(*origConfig)
 	patchKeys := sortPatchKeysByDepth(patch)
 	for _, subkeys := range patchKeys {
 		raw := jsonRaw(patch[subkeys])
 		mergedConfig, err := PatchConfig(instanceName, strings.Split(subkeys, "."), 0, config, raw)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		config = jsonRaw(mergedConfig)
 	}
 
-	return config, nil
+	// convert back to the original config
+	if err := jsonutil.DecodeWithNumber(bytes.NewReader(*config), origConfig); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // clearVirtualConfig iterates over a given config and removes any values
