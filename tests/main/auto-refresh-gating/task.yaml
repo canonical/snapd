@@ -32,7 +32,10 @@ execute: |
     local LAST_CHANGE_ID="$2"
     local CHANGE_ID="$2"
     for _ in $(seq 200); do
-      # get just the last auto-refresh change and exclude previous auto-refresh (if any) by its change id.
+      # get last 2 lines of snap changes (the last one is always empty), match
+      # auto-refresh change of the expected snap; only proceed if the
+      # change has greater change id than the previously matched auto-refresh
+      # (this way we can match consecutive auto-refreshes for same snap).
       if CHANGES=$(snap changes | tail -2 | grep "Done.*Auto-refresh snap \"$EXPECTED_SNAP\""); then
         CHANGE_ID=$(echo "$CHANGES" | awk '{print $1}')
         if [ "$CHANGE_ID" -gt "$LAST_CHANGE_ID" ]; then
@@ -63,7 +66,7 @@ execute: |
   snap install "$SNAP_NAME"
   snap install "$CONTENT_SNAP_NAME"
 
-  snap connect test-snapd-refresh-control:content test-snapd-refresh-control-provider:content
+  snap connect "$SNAP_NAME:content" "$CONTENT_SNAP_NAME:content"
 
   # sanity check
   snap list | MATCH "$SNAP_NAME +1\.0\.0"
