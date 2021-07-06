@@ -617,11 +617,10 @@ func (s *transactionSuite) TestVirtualGetSimple(c *C) {
 	})
 
 	n := 0
-	config.RegisterVirtualConfig("some-snap", "key.virtual", func(snapName, key string) (interface{}, error) {
-		c.Check(snapName, Equals, "some-snap")
+	config.RegisterVirtualConfig("some-snap", "key.virtual", func(key string) (interface{}, error) {
 		n++
 
-		s := fmt.Sprintf("%s:%s=virtual-value", snapName, key)
+		s := fmt.Sprintf("%s=virtual-value", key)
 		return s, nil
 	})
 
@@ -638,7 +637,7 @@ func (s *transactionSuite) TestVirtualGetSimple(c *C) {
 	// simple case: subkey is virtual
 	err = tr.Get("some-snap", "key.virtual", &res)
 	c.Assert(err, IsNil)
-	c.Check(res, Equals, "some-snap:key.virtual=virtual-value")
+	c.Check(res, Equals, "key.virtual=virtual-value")
 	// virtual config function is called again
 	c.Check(n, Equals, 2)
 }
@@ -647,8 +646,7 @@ func (s *transactionSuite) TestVirtualDeepNesting(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	config.RegisterVirtualConfig("some-snap", "key.virtual", func(snapName, key string) (interface{}, error) {
-		c.Check(snapName, Equals, "some-snap")
+	config.RegisterVirtualConfig("some-snap", "key.virtual", func(key string) (interface{}, error) {
 		c.Check(key, Equals, "key.virtual")
 
 		m := make(map[string]string)
@@ -669,7 +667,7 @@ func (s *transactionSuite) TestVirtualSetShadowsVirtual(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	config.RegisterVirtualConfig("some-snap", "key.nested.virtual", func(snapName, key string) (interface{}, error) {
+	config.RegisterVirtualConfig("some-snap", "key.nested.virtual", func(key string) (interface{}, error) {
 		c.Fatalf("unexpected cal to virtual config function")
 		return nil, nil
 	})
@@ -716,11 +714,10 @@ func (s *transactionSuite) TestVirtualGetRootDocIsMerged(c *C) {
 	})
 
 	n := 0
-	config.RegisterVirtualConfig("some-snap", "key.virtual", func(snapName, key string) (interface{}, error) {
-		c.Check(snapName, Equals, "some-snap")
+	config.RegisterVirtualConfig("some-snap", "key.virtual", func(key string) (interface{}, error) {
 		n++
 
-		s := fmt.Sprintf("%s:%s=virtual-value", snapName, key)
+		s := fmt.Sprintf("%s=virtual-value", key)
 		return s, nil
 	})
 
@@ -734,7 +731,7 @@ func (s *transactionSuite) TestVirtualGetRootDocIsMerged(c *C) {
 		"some-key":  "some-value",
 		"other-key": "value",
 		"key": map[string]interface{}{
-			"virtual": "some-snap:key.virtual=virtual-value",
+			"virtual": "key.virtual=virtual-value",
 		},
 	})
 }
@@ -752,11 +749,10 @@ func (s *transactionSuite) TestVirtualGetSubtreeMerged(c *C) {
 	})
 
 	n := 0
-	config.RegisterVirtualConfig("some-snap", "real-and-virtual.virtual", func(snapName, key string) (interface{}, error) {
-		c.Check(snapName, Equals, "some-snap")
+	config.RegisterVirtualConfig("some-snap", "real-and-virtual.virtual", func(key string) (interface{}, error) {
 		n++
 
-		s := fmt.Sprintf("%s:%s=virtual-value", snapName, key)
+		s := fmt.Sprintf("%s=virtual-value", key)
 		return s, nil
 	})
 
@@ -777,7 +773,7 @@ func (s *transactionSuite) TestVirtualGetSubtreeMerged(c *C) {
 	// real
 	c.Check(res2["real"], Equals, "real-value")
 	// and virtual values are combined
-	c.Check(res2["virtual"], Equals, "some-snap:real-and-virtual.virtual=virtual-value")
+	c.Check(res2["virtual"], Equals, "real-and-virtual.virtual=virtual-value")
 	// the virtual config function was called again
 	c.Check(n, Equals, 2)
 }
@@ -786,7 +782,7 @@ func (s *transactionSuite) TestVirtualCommitValuesNotStored(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	config.RegisterVirtualConfig("some-snap", "key.nested.virtual", func(snapName, key string) (interface{}, error) {
+	config.RegisterVirtualConfig("some-snap", "key.nested.virtual", func(key string) (interface{}, error) {
 		c.Errorf("virtual func should not get called in this test")
 		return nil, nil
 	})

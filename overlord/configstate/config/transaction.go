@@ -424,7 +424,7 @@ func mergeConfigWithVirtual(instanceName string, config *json.RawMessage) (*json
 		if virtualFn == nil {
 			continue
 		}
-		res, err := virtualFn(instanceName, key)
+		res, err := virtualFn(key)
 		if err != nil {
 			return nil, err
 		}
@@ -489,7 +489,7 @@ func (e *NoOptionError) Error() string {
 }
 
 // VirtualCfgFunc can be used for virtual "transaction.Get()" calls
-type VirtualCfgFunc func(snapName, key string) (result interface{}, err error)
+type VirtualCfgFunc func(key string) (result interface{}, err error)
 
 // virtualMap contain hook functions for "virtual" configuration. The
 // first level of the map is the snapName and then the virtual keys in
