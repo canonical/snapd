@@ -223,32 +223,25 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 	}
 
 	fmt.Fprintf(w, "constraints:\n")
-	for constraintKey, val := range group.Constraints {
-		if constraintKey == "memory" {
-			// parse the memory value into a quantity.Size and then format it
-			// with appropriate units
-			var err error
-			val, err = quantitySizeStrToUnitFormat(val, "memory constraint")
-			if err != nil {
-				return err
-			}
-		}
-		fmt.Fprintf(w, "  %s:\t%s\n", constraintKey, val)
+
+	// Constraints should always be non-nil, since a quota group always needs to
+	// have a memory limit
+	if group.Constraints == nil {
+		return fmt.Errorf("internal error: constraints is missing from daemon response")
 	}
+	val := strings.TrimSpace(fmtSize(int64(group.Constraints.Memory)))
+	fmt.Fprintf(w, "  memory:\t%s\n", val)
 
 	fmt.Fprintf(w, "current:\n")
-	for currentKey, val := range group.Current {
-		if currentKey == "memory" {
-			// parse the memory value into a quantity.Size and then format it
-			// with appropriate units
-			var err error
-			val, err = quantitySizeStrToUnitFormat(val, "memory current usage")
-			if err != nil {
-				return err
-			}
-		}
-		fmt.Fprintf(w, "  %s:\t%s\n", currentKey, val)
+	if group.Current == nil {
+		// current however may be missing if there is no memory usage
+		val = "0B"
+	} else {
+		// use the value from the response
+		val = strings.TrimSpace(fmtSize(int64(group.Current.Memory)))
 	}
+
+	fmt.Fprintf(w, "  memory:\t%s\n", val)
 
 	if len(group.Subgroups) > 0 {
 		fmt.Fprint(w, "subgroups:\n")
@@ -264,15 +257,6 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 	}
 
 	return nil
-}
-
-func quantitySizeStrToUnitFormat(val interface{}, errMsg string) (string, error) {
-	size, ok := val.(quantity.Size)
-	if !ok {
-		return "", fmt.Errorf("unable to parse %s as size: got %T", errMsg, val)
-	}
-
-	return strings.TrimSpace(fmtSize(int64(size))), nil
 }
 
 type cmdRemoveQuota struct {
@@ -315,40 +299,19 @@ func (x *cmdQuotas) Execute(args []string) (err error) {
 
 	w := tabWriter()
 	fmt.Fprintf(w, "Quota\tParent\tConstraints\tCurrent\n")
-	err = processQuotaGroupsTree(res, func(q *client.QuotaGroupResult) {
-		constraintVals := []string{}
-		for constraintKey, val := range q.Constraints {
-			if constraintKey == "memory" {
-				out, err := quantitySizeStrToUnitFormat(val, "memory constraint")
-				if err != nil {
-					fmt.Fprintln(Stderr, err)
-				}
-				val = out
-			}
-
-			constraintVals = append(constraintVals, fmt.Sprintf("%s=%s", constraintKey, val))
+	err = processQuotaGroupsTree(res, func(q *client.QuotaGroupResult) error {
+		if q.Constraints == nil {
+			return fmt.Errorf("internal error: constraints is missing from daemon response")
 		}
-		constraints := strings.Join(constraintVals, ",")
 
-		currentVals := []string{}
-		for currentKey, val := range q.Current {
-			if currentKey == "memory" {
-				// skip reporting memory if it is exactly zero
-				if val == quantity.Size(0) {
-					continue
-				}
-				out, err := quantitySizeStrToUnitFormat(val, "current memory usage")
-				if err != nil {
-					fmt.Fprintln(Stderr, err)
-				}
-				val = out
-			}
-
-			currentVals = append(currentVals, fmt.Sprintf("%s=%s", currentKey, val))
+		constraintVal := "memory=" + strings.TrimSpace(fmtSize(int64(q.Constraints.Memory)))
+		currentVal := ""
+		if q.Current != nil && q.Current.Memory != 0 {
+			currentVal = "memory=" + strings.TrimSpace(fmtSize(int64(q.Current.Memory)))
 		}
-		currents := strings.Join(currentVals, ",")
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", q.GroupName, q.Parent, constraintVal, currentVal)
 
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", q.GroupName, q.Parent, constraints, currents)
+		return nil
 	})
 	if err != nil {
 		return err
@@ -370,7 +333,7 @@ func (q byQuotaName) Less(i, j int) bool { return q[i].res.GroupName < q[j].res.
 
 // processQuotaGroupsTree recreates the hierarchy of quotas and then visits it
 // recursively following the hierarchy first, then naming order.
-func processQuotaGroupsTree(quotas []*client.QuotaGroupResult, handleGroup func(q *client.QuotaGroupResult)) error {
+func processQuotaGroupsTree(quotas []*client.QuotaGroupResult, handleGroup func(q *client.QuotaGroupResult) error) error {
 	var roots []*quotaGroup
 	groupLookup := make(map[string]*quotaGroup, len(quotas))
 
@@ -397,16 +360,19 @@ func processQuotaGroupsTree(quotas []*client.QuotaGroupResult, handleGroup func(
 		}
 	}
 
-	var processGroups func(groups []*quotaGroup)
-	processGroups = func(groups []*quotaGroup) {
+	var processGroups func(groups []*quotaGroup) error
+	processGroups = func(groups []*quotaGroup) error {
 		for _, g := range groups {
-			handleGroup(g.res)
+			if err := handleGroup(g.res); err != nil {
+				return err
+			}
 			if len(g.subGroups) > 0 {
-				processGroups(g.subGroups)
+				if err := processGroups(g.subGroups); err != nil {
+					return err
+				}
 			}
 		}
+		return nil
 	}
-	processGroups(roots)
-
-	return nil
+	return processGroups(roots)
 }

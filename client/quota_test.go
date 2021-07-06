@@ -100,8 +100,8 @@ func (cs *clientSuite) TestGetQuotaGroup(c *check.C) {
 		GroupName:   "foo",
 		Parent:      "bar",
 		Subgroups:   []string{"foo-subgrp"},
-		Constraints: map[string]interface{}{"memory": quantity.Size(999)},
-		Current:     map[string]interface{}{"memory": quantity.Size(450)},
+		Constraints: &client.QuotaValues{Memory: quantity.Size(999)},
+		Current:     &client.QuotaValues{Memory: quantity.Size(450)},
 		Snaps:       []string{"snap-a"},
 	})
 }

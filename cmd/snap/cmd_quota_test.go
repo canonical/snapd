@@ -126,17 +126,18 @@ func makeFakeQuotaPostHandler(c *check.C, opts fakeQuotaGroupPostHandlerOpts) fu
 			c.Check(string(buf), check.Equals, fmt.Sprintf(`{"action":"remove","group-name":%q}`+"\n", opts.groupName))
 		case "ensure":
 			exp := quotasEnsureBody{
-				Action:     "ensure",
-				GroupName:  opts.groupName,
-				ParentName: opts.parentName,
-				Snaps:      opts.snaps,
-				Constraints: map[string]interface{}{
-					// meh, this number really is an int, but json encoding
-					// turns it into a float if we don't manually parse it as
-					// a json.Number, the easy workaround is to instead compare
-					// the floats which for tests should be accurate enough
-					"memory": float64(opts.maxMemory),
-				},
+				Action:      "ensure",
+				GroupName:   opts.groupName,
+				ParentName:  opts.parentName,
+				Snaps:       opts.snaps,
+				Constraints: map[string]interface{}{},
+			}
+			if opts.maxMemory != 0 {
+				// meh, this number really is an int, but json encoding
+				// turns it into a float if we don't manually parse it as
+				// a json.Number, the easy workaround is to instead compare
+				// the floats which for tests should be accurate enough
+				exp.Constraints["memory"] = float64(opts.maxMemory)
 			}
 
 			postJSON := quotasEnsureBody{}

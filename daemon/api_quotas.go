@@ -104,11 +104,11 @@ func getQuotaGroups(c *Command, r *http.Request, _ *auth.UserState) Response {
 			Parent:    group.ParentGroup,
 			Subgroups: group.SubGroups,
 			Snaps:     group.Snaps,
-			Constraints: map[string]interface{}{
-				"memory": group.MemoryLimit,
+			Constraints: &client.QuotaValues{
+				Memory: group.MemoryLimit,
 			},
-			Current: map[string]interface{}{
-				"memory": memoryUsage,
+			Current: &client.QuotaValues{
+				Memory: memoryUsage,
 			},
 		}
 	}
@@ -145,11 +145,11 @@ func getQuotaGroupInfo(c *Command, r *http.Request, _ *auth.UserState) Response 
 		Parent:    group.ParentGroup,
 		Snaps:     group.Snaps,
 		Subgroups: group.SubGroups,
-		Constraints: map[string]interface{}{
-			"memory": group.MemoryLimit,
+		Constraints: &client.QuotaValues{
+			Memory: group.MemoryLimit,
 		},
-		Current: map[string]interface{}{
-			"memory": memoryUsage,
+		Current: &client.QuotaValues{
+			Memory: memoryUsage,
 		},
 	}
 	return SyncResponse(res)

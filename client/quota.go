@@ -29,20 +29,24 @@ import (
 )
 
 type postQuotaData struct {
-	Action      string                 `json:"action"`
-	GroupName   string                 `json:"group-name"`
-	Parent      string                 `json:"parent,omitempty"`
-	Snaps       []string               `json:"snaps,omitempty"`
-	Constraints map[string]interface{} `json:"constraints,omitempty"`
+	Action      string       `json:"action"`
+	GroupName   string       `json:"group-name"`
+	Parent      string       `json:"parent,omitempty"`
+	Snaps       []string     `json:"snaps,omitempty"`
+	Constraints *QuotaValues `json:"constraints,omitempty"`
 }
 
 type QuotaGroupResult struct {
-	GroupName   string                 `json:"group-name"`
-	Parent      string                 `json:"parent,omitempty"`
-	Subgroups   []string               `json:"subgroups,omitempty"`
-	Snaps       []string               `json:"snaps,omitempty"`
-	Constraints map[string]interface{} `json:"constraints,omitempty"`
-	Current     map[string]interface{} `json:"current,omitempty"`
+	GroupName   string       `json:"group-name"`
+	Parent      string       `json:"parent,omitempty"`
+	Subgroups   []string     `json:"subgroups,omitempty"`
+	Snaps       []string     `json:"snaps,omitempty"`
+	Constraints *QuotaValues `json:"constraints,omitempty"`
+	Current     *QuotaValues `json:"current,omitempty"`
+}
+
+type QuotaValues struct {
+	Memory quantity.Size `json:"memory,omitempty"`
 }
 
 // EnsureQuota creates a quota group or updates an existing group.
@@ -58,8 +62,8 @@ func (client *Client) EnsureQuota(groupName string, parent string, snaps []strin
 		GroupName: groupName,
 		Parent:    parent,
 		Snaps:     snaps,
-		Constraints: map[string]interface{}{
-			"memory": maxMemory,
+		Constraints: &QuotaValues{
+			Memory: maxMemory,
 		},
 	}
 
@@ -87,32 +91,7 @@ func (client *Client) GetQuotaGroup(groupName string) (*QuotaGroupResult, error)
 		return nil, err
 	}
 
-	// some of the resource types are integer numbers, we need to decode them
-	// from json.Number
-	fixJSONIntMemoryValues(res.Constraints, "memory constraint")
-	fixJSONIntMemoryValues(res.Current, "memory current usage")
-
 	return res, nil
-}
-
-func fixJSONIntMemoryValues(m map[string]interface{}, errStr string) error {
-	for key, val := range m {
-		if key == "memory" {
-			// need to decode memory
-			memJsonNumber, ok := val.(json.Number)
-			if !ok {
-				return fmt.Errorf("cannot decode %s: expected to be json number (got %T)", errStr, val)
-			}
-
-			memInt64, err := memJsonNumber.Int64()
-			if err != nil {
-				return fmt.Errorf("cannot decode %s: %v", errStr, err)
-			}
-
-			m["memory"] = quantity.Size(memInt64)
-		}
-	}
-	return nil
 }
 
 func (client *Client) RemoveQuotaGroup(groupName string) (changeID string, err error) {
@@ -141,11 +120,6 @@ func (client *Client) Quotas() ([]*QuotaGroupResult, error) {
 	var res []*QuotaGroupResult
 	if _, err := client.doSync("GET", "/v2/quotas", nil, nil, nil, &res); err != nil {
 		return nil, err
-	}
-
-	for _, indivRes := range res {
-		fixJSONIntMemoryValues(indivRes.Constraints, "memory constraint")
-		fixJSONIntMemoryValues(indivRes.Current, "memory current usage")
 	}
 
 	return res, nil
