@@ -82,8 +82,8 @@ EOF
 }
 EOF
 
-    new_snap_declaration "$dir" "$snap_path" --snap-decl-json=/tmp/snap-decl.json
-    new_snap_revision "$dir" "$snap_path" --snap-rev-json=/tmp/snap-rev.json
+    fakestore new-snap-declaration --dir "$dir" --snap-decl-json=/tmp/snap-decl.json "$snap_path"
+    fakestore new-snap-revision --dir "$dir" --snap-rev-json=/tmp/snap-rev.json "$snap_path"
 
     rm -rf /tmp/snap-decl.json
     rm -rf /tmp/snap-rev.json
