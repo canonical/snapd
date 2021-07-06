@@ -21,6 +21,9 @@ restore: |
     fi
 
 execute: |
+    echo "SKIP (2021-07-06) because the store is unable to give us deltas"
+    exit 0
+
     echo "When the snap is refreshed"
     snap refresh --beta "$SNAP_NAME"
     echo "Then deltas are successfully applied"
