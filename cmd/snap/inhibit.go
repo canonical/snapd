@@ -82,7 +82,7 @@ func zenityFlow(snapName string, hint runinhibit.Hint) error {
 		zenityDied <- zenityErr
 	}()
 
-	if err := waitInhibitUnlock(snapName, zenityDied); err != nil {
+	if err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited, zenityDied); err != nil {
 		return err
 	}
 
@@ -93,7 +93,7 @@ func textFlow(snapName string, hint runinhibit.Hint) error {
 	fmt.Fprintf(Stdout, "%s\n", inhibitMessage(snapName, hint))
 	pb := progress.MakeProgressBar()
 	pb.Spin(i18n.G("please wait..."))
-	err := waitInhibitUnlock(snapName, nil)
+	err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited, nil)
 	pb.Finished()
 	return err
 }
@@ -107,6 +107,15 @@ func waitWhileInhibited(snapName string) error {
 		return nil
 	}
 
+	// wait for HintInhibitedForRefresh set by gate-auto-refresh hook handler
+	// when it has finished; the hook starts with HintInhibitedGateRefresh lock
+	// and then either unlocks it or changes to HintInhibitedForRefresh (see
+	// gateAutoRefreshHookHandler in hooks.go).
+	// waitInhibitUnlock will return also on HintNotInhibited.
+	if err := waitInhibitUnlock(snapName, runinhibit.HintInhibitedForRefresh, nil); err != nil {
+		return err
+	}
+
 	if isGraphicalSession() && hasZenityExecutable() {
 		return zenityFlow(snapName, hint)
 	}
@@ -116,7 +125,7 @@ func waitWhileInhibited(snapName string) error {
 
 var isLocked = runinhibit.IsLocked
 
-var waitInhibitUnlock = func(snapName string, errCh <-chan error) error {
+var waitInhibitUnlock = func(snapName string, waitFor runinhibit.Hint, errCh <-chan error) error {
 	// Every 0.5s check if the inhibition file is still present.
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
@@ -134,7 +143,7 @@ loop:
 			if err != nil {
 				return err
 			}
-			if hint == runinhibit.HintNotInhibited {
+			if hint == runinhibit.HintNotInhibited || hint == waitFor {
 				break loop
 			}
 		}
