@@ -1,0 +1,23 @@
+name: test-snapd-refresh-control
+version: 1.0.0
+summary: Test snap for gate-auto-refresh-hook feature.
+description: |
+  Test snap for refresh control (gate-auto-refresh-hook) feature. The behavior
+  of the gate-auto-refresh hook of this snap can be driven by a control file
+  in /var/snap/test-snapd-refresh-control/common/control
+grade: stable
+confinement: strict
+base: core18
+architectures:
+  - build-on: amd64
+    run-on: all
+
+parts:
+  test-snapd-refresh-control:
+    plugin: nil
+
+plugs:
+  content:
+    interface: content
+    content: test-content
+    target: $SNAP/content

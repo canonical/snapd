@@ -239,6 +239,7 @@ jobs:
         - opensuse-tumbleweed-64
         - ubuntu-14.04-64
         - ubuntu-16.04-64
+        - ubuntu-18.04-32
         - ubuntu-18.04-64
         - ubuntu-20.04-64
         - ubuntu-20.10-64

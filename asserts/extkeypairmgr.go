@@ -34,6 +34,11 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+type ExternalKeyInfo struct {
+	Name string
+	ID   string
+}
+
 // ExternalKeypairManager is key pair manager implemented via an external program interface.
 // TODO: points to interface docs
 type ExternalKeypairManager struct {
@@ -189,24 +194,24 @@ func (em *ExternalKeypairManager) Put(privKey PrivateKey) error {
 	return fmt.Errorf("cannot import private key into external keypair manager")
 }
 
-func (em *ExternalKeypairManager) loadAllKeys() error {
+func (em *ExternalKeypairManager) loadAllKeys() ([]string, error) {
 	names, err := em.keyNames()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	for _, name := range names {
 		if _, err := em.loadKey(name); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	return nil
+	return names, nil
 }
 
 func (em *ExternalKeypairManager) Get(keyID string) (PrivateKey, error) {
 	cachedKey, ok := em.cache[keyID]
 	if !ok {
 		// try to load all keys
-		if err := em.loadAllKeys(); err != nil {
+		if _, err := em.loadAllKeys(); err != nil {
 			return nil, err
 		}
 		cachedKey, ok = em.cache[keyID]
@@ -215,6 +220,19 @@ func (em *ExternalKeypairManager) Get(keyID string) (PrivateKey, error) {
 		}
 	}
 	return em.privateKey(cachedKey), nil
+}
+
+func (em *ExternalKeypairManager) List() ([]ExternalKeyInfo, error) {
+	names, err := em.loadAllKeys()
+	if err != nil {
+		return nil, err
+	}
+	res := make([]ExternalKeyInfo, len(names))
+	for i, name := range names {
+		res[i].Name = name
+		res[i].ID = em.cache[em.nameToID[name]].pubKey.ID()
+	}
+	return res, nil
 }
 
 // see https://datatracker.ietf.org/doc/html/rfc2313 and more recently

@@ -927,6 +927,10 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
 
   # golang runtime variables
   /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
+  # glibc 2.27+ may poke this file to find out the number of CPUs
+  # available in the system when creating a new arena for malloc, see
+  # Golang issue 25628
+  /sys/devices/system/cpu/online r,
 
   # Allow reading the command line (snap-update-ns uses it in pre-Go bootstrap code).
   @{PROC}/@{pid}/cmdline r,
