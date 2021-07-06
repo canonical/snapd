@@ -135,7 +135,7 @@ new_repair(){
     local script_path="$2"
     shift 2
 
-    p=$(fakestore new-repair --dir "$dir" "$@" "${script_path}")
+    fakestore new-repair --dir "$dir" "$@" "${script_path}" > /dev/null
 }
 
 setup_fake_store(){
