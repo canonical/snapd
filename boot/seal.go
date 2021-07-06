@@ -71,6 +71,16 @@ const (
 	sealingMethodFDESetupHook = sealingMethod("fde-setup-hook")
 )
 
+// MockSecbootResealKeys is only useful in testing
+func MockSecbootResealKeys(f func(params *secboot.ResealKeysParams) error) (restore func()) {
+	osutil.MustBeTestBinary("secbootResealKeys only can be mocked in tests")
+	old := secbootResealKeys
+	secbootResealKeys = f
+	return func() {
+		secbootResealKeys = old
+	}
+}
+
 func bootChainsFileUnder(rootdir string) string {
 	return filepath.Join(dirs.SnapFDEDirUnder(rootdir), "boot-chains")
 }
