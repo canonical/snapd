@@ -5,7 +5,7 @@ details: |
   (experimental.gate-auto-refresh-hook feature) and verify the hook can control
   automatic refreshes. The test uses two test snaps, one of them
   being a content provider of the other. There are a few versions of these
-  snaps in the store (in stable/b eta/edge channels) for this test.
+  snaps in the store (in stable/beta/edge channels) for this test.
 
 environment:
   SNAP_NAME: test-snapd-refresh-control
