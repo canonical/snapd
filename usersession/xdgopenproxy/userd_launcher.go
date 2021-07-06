@@ -34,7 +34,7 @@ const (
 // userdLauncher is a launcher that forwards the requests to `snap userd` DBus API
 type userdLauncher struct{}
 
-func (s *userdLauncher) OpenFile(bus *dbus.Conn, filename string) error {
+func (s *userdLauncher) OpenFile(bus *dbus.Conn, filename string, options LauncherModifiers) error {
 	fd, err := syscall.Open(filename, syscall.O_RDONLY, 0)
 	if err != nil {
 		return err
@@ -45,7 +45,7 @@ func (s *userdLauncher) OpenFile(bus *dbus.Conn, filename string) error {
 	return launcher.Call(userdLauncherIface+".OpenFile", 0, "", dbus.UnixFD(fd)).Store()
 }
 
-func (s *userdLauncher) OpenURI(bus *dbus.Conn, path string) error {
+func (s *userdLauncher) OpenURI(bus *dbus.Conn, path string, options LauncherModifiers) error {
 	launcher := bus.Object(userdLauncherBusName, userdLauncherObjectPath)
 	return launcher.Call("io.snapcraft.Launcher.OpenURL", 0, path).Store()
 }

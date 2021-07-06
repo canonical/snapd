@@ -29,6 +29,8 @@ import (
 	"github.com/snapcore/snapd/usersession/xdgopenproxy"
 )
 
+type launcherModifiers = xdgopenproxy.LauncherModifiers
+
 var clientConfig = client.Config{
 	// snapctl should not try to read $HOME/.snap/auth.json, this will
 	// result in apparmor denials and configure task failures
@@ -48,8 +50,25 @@ func main() {
 			os.Exit(1)
 		}
 	}
+
 	if len(os.Args) == 3 && os.Args[1] == "user-open" {
-		if err := xdgopenproxy.Run(os.Args[2]); err != nil {
+		if err := xdgopenproxy.Run(os.Args[2], launcherModifiers{}); err != nil {
+			fmt.Fprintf(os.Stderr, "user-open error: %v\n", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+	// There's no present need to use full argument parsing but maybe there will be in the future
+	// Hence impersonate a proper --argument on the offchance more might be needed later.
+	if len(os.Args) == 4 && os.Args[1] == "user-open" {
+		var path string
+		if os.Args[2] != "--ask" {
+			path = os.Args[2]
+		} else {
+			path = os.Args[3]
+		}
+
+		if err := xdgopenproxy.Run(path, launcherModifiers{Ask: true}); err != nil {
 			fmt.Fprintf(os.Stderr, "user-open error: %v\n", err)
 			os.Exit(1)
 		}

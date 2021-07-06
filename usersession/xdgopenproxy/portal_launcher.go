@@ -21,6 +21,7 @@ package xdgopenproxy
 
 import (
 	"fmt"
+	"os"
 	"syscall"
 	"time"
 
@@ -31,7 +32,12 @@ const (
 	desktopPortalBusName      = "org.freedesktop.portal.Desktop"
 	desktopPortalObjectPath   = "/org/freedesktop/portal/desktop"
 	desktopPortalOpenURIIface = "org.freedesktop.portal.OpenURI"
+
 	desktopPortalRequestIface = "org.freedesktop.portal.Request"
+
+	documentsPortalBusName        = "org.freedesktop.portal.Documents"
+	documentsPortalObjectPath     = "/org/freedesktop/portal/documents"
+	documentsPortalDocumentsIface = "org.freedesktop.portal.Documents"
 )
 
 // portalLauncher is a launcher that forwards the requests to xdg-desktop-portal DBus API
@@ -67,15 +73,45 @@ func (p *portalLauncher) desktopPortal(bus *dbus.Conn) (dbus.BusObject, error) {
 	return bus.Object(desktopPortalBusName, desktopPortalObjectPath), nil
 }
 
+// documentsPortal gets a reference to the xdg-documents-portal D-Bus service
+func (p *portalLauncher) documentsPortal(bus *dbus.Conn) (dbus.BusObject, error) {
+	// We call StartServiceByName since old versions of
+	// xdg-desktop-portal do not include the AssumedAppArmorLabel
+	// key in their service activation file.
+	var startResult uint32
+	err := bus.BusObject().Call("org.freedesktop.DBus.StartServiceByName", 0, documentsPortalBusName, uint32(0)).Store(&startResult)
+	if dbusErr, ok := err.(dbus.Error); ok {
+		// If it is not possible to activate the service
+		// (i.e. there is no .service file or the systemd unit
+		// has been masked), assume it is already
+		// running. Subsequent method calls will fail if this
+		// assumption is false.
+		if dbusErr.Name == "org.freedesktop.DBus.Error.ServiceUnknown" || dbusErr.Name == "org.freedesktop.systemd1.Masked" {
+			err = nil
+			startResult = 2 // DBUS_START_REPLY_ALREADY_RUNNING
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	switch startResult {
+	case 1: // DBUS_START_REPLY_SUCCESS
+	case 2: // DBUS_START_REPLY_ALREADY_RUNNING
+	default:
+		return nil, fmt.Errorf("unexpected response from StartServiceByName (code %v)", startResult)
+	}
+	return bus.Object(documentsPortalBusName, documentsPortalObjectPath), nil
+}
+
 // portalResponseSuccess is a numeric value indicating a success carrying out
 // the request, returned by the `response` member of
 // org.freedesktop.portal.Request.Response signal
 const portalResponseSuccess = 0
 
 // timeout for asking the user to make a choice, same value as in usersession/userd/launcher.go
-var defaultPortalRequestTimeout = 5 * time.Minute
+var defaultDesktopPortalRequestTimeout = 5 * time.Minute
 
-func (p *portalLauncher) portalCall(bus *dbus.Conn, call func() (dbus.ObjectPath, error)) error {
+func (p *portalLauncher) desktopPortalCall(bus *dbus.Conn, call func() (dbus.ObjectPath, error)) error {
 	// see https://flatpak.github.io/xdg-desktop-portal/portal-docs.html for
 	// details of the interaction, in short:
 	// 1. caller issues a request to the desktop portal
@@ -107,7 +143,7 @@ func (p *portalLauncher) portalCall(bus *dbus.Conn, call func() (dbus.ObjectPath
 	}
 	request := bus.Object(desktopPortalBusName, requestPath)
 
-	timeout := time.NewTimer(defaultPortalRequestTimeout)
+	timeout := time.NewTimer(defaultDesktopPortalRequestTimeout)
 	defer timeout.Stop()
 	for {
 		select {
@@ -133,36 +169,91 @@ func (p *portalLauncher) portalCall(bus *dbus.Conn, call func() (dbus.ObjectPath
 	}
 }
 
-func (p *portalLauncher) OpenFile(bus *dbus.Conn, filename string) error {
-	portal, err := p.desktopPortal(bus)
+func (p *portalLauncher) OpenFile(bus *dbus.Conn, filename string, options LauncherModifiers) error {
+
+	var attemptWritable bool
+	var fd int
+
+	pathStat, err := os.Stat(filename)
+	if err != nil {
+		return &responseError{msg: err.Error()}
+	}
+
+	// Trying to make paths writable is not valid, but doesn't fail here, so explicitly avoid bothering.
+	// Otherwise try open a file with RDRW and if that fails, try again with RDONLY.
+	if pathStat.IsDir() {
+		fd, err = syscall.Open(filename, syscall.O_RDONLY, 0)
+		if err != nil {
+			return &responseError{msg: err.Error()}
+		}
+	} else {
+		attemptWritable = true
+		fd, err = syscall.Open(filename, syscall.O_RDWR, 0)
+		if err != nil {
+			fd, err = syscall.Open(filename, syscall.O_RDONLY, 0)
+			if err != nil {
+				return &responseError{msg: err.Error()}
+			}
+			attemptWritable = false
+		}
+	}
+	defer syscall.Close(fd)
+
+	portal, err := p.documentsPortal(bus)
 	if err != nil {
 		return err
 	}
 
-	fd, err := syscall.Open(filename, syscall.O_RDONLY, 0)
-	if err != nil {
-		return &responseError{msg: err.Error()}
+	// Try add the file to the documents portal, allowing OpenURI to mediate sandbox permissions if needed.
+	// Failure here is not a critical error, the application opened by OpenURI might not need mediation.
+	if attemptWritable {
+		var docID interface{}
+		err = portal.Call(documentsPortalDocumentsIface+".Add", 0, dbus.UnixFD(fd), false, false).Store(&docID)
+		if err != nil {
+			attemptWritable = false
+		}
 	}
-	defer syscall.Close(fd)
 
-	return p.portalCall(bus, func() (dbus.ObjectPath, error) {
+	portal, err = p.desktopPortal(bus)
+	if err != nil {
+		return err
+	}
+
+	return p.desktopPortalCall(bus, func() (dbus.ObjectPath, error) {
 		var (
 			parent  string
-			options map[string]dbus.Variant
 			request dbus.ObjectPath
 		)
-		err := portal.Call(desktopPortalOpenURIIface+".OpenFile", 0, parent, dbus.UnixFD(fd), options).Store(&request)
+
+		// The first call might fail if the file isn't actually writable by the host
+		// e.g, loading files in $SNAP due to the read only squashfs nature.
+		// Try with write enabled first and retry in the event of an error.
+		optionalFlags := make(map[string]dbus.Variant)
+		if options.Ask {
+			optionalFlags["ask"] = dbus.MakeVariant(true)
+		}
+		if attemptWritable {
+			optionalFlags["writable"] = dbus.MakeVariant(true)
+		}
+
+		err := portal.Call(desktopPortalOpenURIIface+".OpenFile", 0, parent, dbus.UnixFD(fd), optionalFlags).Store(&request)
+		// Only bother again if writable was set in the first place
+		if err != nil && attemptWritable {
+			optionalFlags["writable"] = dbus.MakeVariant(false)
+			err = portal.Call(desktopPortalOpenURIIface+".OpenFile", 0, parent, dbus.UnixFD(fd), optionalFlags).Store(&request)
+		}
+
 		return request, err
 	})
 }
 
-func (p *portalLauncher) OpenURI(bus *dbus.Conn, uri string) error {
+func (p *portalLauncher) OpenURI(bus *dbus.Conn, uri string, options LauncherModifiers) error {
 	portal, err := p.desktopPortal(bus)
 	if err != nil {
 		return err
 	}
 
-	return p.portalCall(bus, func() (dbus.ObjectPath, error) {
+	return p.desktopPortalCall(bus, func() (dbus.ObjectPath, error) {
 		var (
 			parent  string
 			options map[string]dbus.Variant

@@ -73,11 +73,12 @@ func (s *userdSuite) SetUpTest(c *C) {
 
 func (s *userdSuite) TestOpenFile(c *C) {
 	launcher := &xdgopenproxy.UserdLauncher{}
+	var options launcherModifiers
 
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(ioutil.WriteFile(path, []byte("hello world"), 0644), IsNil)
 
-	err := launcher.OpenFile(s.SessionBus, path)
+	err := launcher.OpenFile(s.SessionBus, path, options)
 	c.Check(err, IsNil)
 	c.Check(s.calls, DeepEquals, []string{
 		"OpenFile",
@@ -88,11 +89,12 @@ func (s *userdSuite) TestOpenFileError(c *C) {
 	s.openError = dbus.MakeFailedError(fmt.Errorf("failure"))
 
 	launcher := &xdgopenproxy.UserdLauncher{}
+	var options launcherModifiers
 
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(ioutil.WriteFile(path, []byte("hello world"), 0644), IsNil)
 
-	err := launcher.OpenFile(s.SessionBus, path)
+	err := launcher.OpenFile(s.SessionBus, path, options)
 	c.Check(err, FitsTypeOf, dbus.Error{})
 	c.Check(err, ErrorMatches, "failure")
 	c.Check(s.calls, DeepEquals, []string{
@@ -102,9 +104,10 @@ func (s *userdSuite) TestOpenFileError(c *C) {
 
 func (s *userdSuite) TestOpenDir(c *C) {
 	launcher := &xdgopenproxy.UserdLauncher{}
+	var options launcherModifiers
 
 	dir := c.MkDir()
-	err := launcher.OpenFile(s.SessionBus, dir)
+	err := launcher.OpenFile(s.SessionBus, dir, options)
 	c.Check(err, IsNil)
 	c.Check(s.calls, DeepEquals, []string{
 		"OpenFile",
@@ -113,29 +116,32 @@ func (s *userdSuite) TestOpenDir(c *C) {
 
 func (s *userdSuite) TestOpenMissingFile(c *C) {
 	launcher := &xdgopenproxy.UserdLauncher{}
+	var options launcherModifiers
 
 	path := filepath.Join(c.MkDir(), "no-such-file.txt")
-	err := launcher.OpenFile(s.SessionBus, path)
+	err := launcher.OpenFile(s.SessionBus, path, options)
 	c.Check(err, ErrorMatches, "no such file or directory")
 	c.Check(s.calls, HasLen, 0)
 }
 
 func (s *userdSuite) TestOpenUnreadableFile(c *C) {
 	launcher := &xdgopenproxy.UserdLauncher{}
+	var options launcherModifiers
 
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(ioutil.WriteFile(path, []byte("hello world"), 0644), IsNil)
 	c.Assert(os.Chmod(path, 0), IsNil)
 
-	err := launcher.OpenFile(s.SessionBus, path)
+	err := launcher.OpenFile(s.SessionBus, path, options)
 	c.Check(err, ErrorMatches, "permission denied")
 	c.Check(s.calls, HasLen, 0)
 }
 
 func (s *userdSuite) TestOpenURI(c *C) {
 	launcher := &xdgopenproxy.UserdLauncher{}
+	var options launcherModifiers
 
-	err := launcher.OpenURI(s.SessionBus, "http://example.com")
+	err := launcher.OpenURI(s.SessionBus, "http://example.com", options)
 	c.Check(err, IsNil)
 	c.Check(s.calls, DeepEquals, []string{
 		"OpenURI http://example.com",
@@ -146,7 +152,8 @@ func (s *userdSuite) TestOpenURIError(c *C) {
 	s.openError = dbus.MakeFailedError(fmt.Errorf("failure"))
 
 	launcher := &xdgopenproxy.UserdLauncher{}
-	err := launcher.OpenURI(s.SessionBus, "http://example.com")
+	var options launcherModifiers
+	err := launcher.OpenURI(s.SessionBus, "http://example.com", options)
 	c.Check(err, FitsTypeOf, dbus.Error{})
 	c.Check(err, ErrorMatches, "failure")
 	c.Check(s.calls, DeepEquals, []string{

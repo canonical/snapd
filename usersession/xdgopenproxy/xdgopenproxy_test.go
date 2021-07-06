@@ -33,11 +33,14 @@ func Test(t *testing.T) { TestingT(t) }
 
 type xdgOpenSuite struct{}
 
+type launcherModifiers = xdgopenproxy.LauncherModifiers
+
 var _ = Suite(&xdgOpenSuite{})
 
 func (s *xdgOpenSuite) TestOpenURL(c *C) {
 	launcher := &fakeLauncher{}
-	c.Check(xdgopenproxy.LaunchWithOne(nil, launcher, "http://example.org"), IsNil)
+	var options launcherModifiers
+	c.Check(xdgopenproxy.LaunchWithOne(nil, launcher, "http://example.org", options), IsNil)
 	c.Check(launcher.calls, DeepEquals, []string{
 		"OpenURI http://example.org",
 	})
@@ -45,7 +48,8 @@ func (s *xdgOpenSuite) TestOpenURL(c *C) {
 
 func (s *xdgOpenSuite) TestOpenFile(c *C) {
 	launcher := &fakeLauncher{}
-	c.Check(xdgopenproxy.LaunchWithOne(nil, launcher, "/path/test.txt"), IsNil)
+	var options launcherModifiers
+	c.Check(xdgopenproxy.LaunchWithOne(nil, launcher, "/path/test.txt", options), IsNil)
 	c.Check(launcher.calls, DeepEquals, []string{
 		"OpenFile /path/test.txt",
 	})
@@ -53,7 +57,8 @@ func (s *xdgOpenSuite) TestOpenFile(c *C) {
 
 func (s *xdgOpenSuite) TestOpenFileURL(c *C) {
 	launcher := &fakeLauncher{}
-	c.Check(xdgopenproxy.LaunchWithOne(nil, launcher, "file:///path/test.txt"), IsNil)
+	var options launcherModifiers
+	c.Check(xdgopenproxy.LaunchWithOne(nil, launcher, "file:///path/test.txt", options), IsNil)
 	c.Check(launcher.calls, DeepEquals, []string{
 		"OpenFile /path/test.txt",
 	})
@@ -64,8 +69,9 @@ func (s *xdgOpenSuite) TestStopOnFirstSuccess(c *C) {
 	l2 := &fakeLauncher{err: nil}
 	l3 := &fakeLauncher{err: nil}
 	launchers := []xdgopenproxy.DesktopLauncher{l1, l2, l3}
+	var options launcherModifiers
 
-	err := xdgopenproxy.Launch(nil, launchers, "http://example.org")
+	err := xdgopenproxy.Launch(nil, launchers, "http://example.org", options)
 	c.Check(err, IsNil)
 	c.Check(l1.calls, DeepEquals, []string{
 		"OpenURI http://example.org",
@@ -81,8 +87,9 @@ func (s *xdgOpenSuite) TestStopOnResponseError(c *C) {
 	l2 := &fakeLauncher{err: xdgopenproxy.MakeResponseError("hello")}
 	l3 := &fakeLauncher{err: nil}
 	launchers := []xdgopenproxy.DesktopLauncher{l1, l2, l3}
+	var options launcherModifiers
 
-	err := xdgopenproxy.Launch(nil, launchers, "http://example.org")
+	err := xdgopenproxy.Launch(nil, launchers, "http://example.org", options)
 	c.Check(err, Equals, l2.err)
 	c.Check(l3.calls, HasLen, 0)
 }
@@ -92,12 +99,12 @@ type fakeLauncher struct {
 	calls []string
 }
 
-func (l *fakeLauncher) OpenFile(bus *dbus.Conn, path string) error {
+func (l *fakeLauncher) OpenFile(bus *dbus.Conn, path string, options launcherModifiers) error {
 	l.calls = append(l.calls, "OpenFile "+path)
 	return l.err
 }
 
-func (l *fakeLauncher) OpenURI(bus *dbus.Conn, uri string) error {
+func (l *fakeLauncher) OpenURI(bus *dbus.Conn, uri string, options launcherModifiers) error {
 	l.calls = append(l.calls, "OpenURI "+uri)
 	return l.err
 }

@@ -84,11 +84,12 @@ func (s *portalSuite) SetUpTest(c *C) {
 
 func (s *portalSuite) TestOpenFile(c *C) {
 	launcher := &xdgopenproxy.PortalLauncher{}
+	var options launcherModifiers
 
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(ioutil.WriteFile(path, []byte("hello world"), 0644), IsNil)
 
-	err := launcher.OpenFile(s.SessionBus, path)
+	err := launcher.OpenFile(s.SessionBus, path, options)
 	c.Check(err, IsNil)
 	c.Check(s.calls, DeepEquals, []string{
 		"OpenFile",
@@ -99,11 +100,12 @@ func (s *portalSuite) TestOpenFileCallError(c *C) {
 	s.openError = dbus.MakeFailedError(fmt.Errorf("failure"))
 
 	launcher := &xdgopenproxy.PortalLauncher{}
+	var options launcherModifiers
 
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(ioutil.WriteFile(path, []byte("hello world"), 0644), IsNil)
 
-	err := launcher.OpenFile(s.SessionBus, path)
+	err := launcher.OpenFile(s.SessionBus, path, options)
 	c.Check(err, FitsTypeOf, dbus.Error{})
 	c.Check(err, ErrorMatches, "failure")
 	c.Check(s.calls, DeepEquals, []string{
@@ -115,11 +117,12 @@ func (s *portalSuite) TestOpenFileResponseError(c *C) {
 	s.openResponse = 2
 
 	launcher := &xdgopenproxy.PortalLauncher{}
+	var options launcherModifiers
 
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(ioutil.WriteFile(path, []byte("hello world"), 0644), IsNil)
 
-	err := launcher.OpenFile(s.SessionBus, path)
+	err := launcher.OpenFile(s.SessionBus, path, options)
 	c.Check(err, FitsTypeOf, (*xdgopenproxy.ResponseError)(nil))
 	c.Check(err, ErrorMatches, `request declined by the user \(code 2\)`)
 	c.Check(s.calls, DeepEquals, []string{
@@ -133,11 +136,12 @@ func (s *portalSuite) TestOpenFileTimeout(c *C) {
 	defer restore()
 
 	launcher := &xdgopenproxy.PortalLauncher{}
+	var options launcherModifiers
 
 	file := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(ioutil.WriteFile(file, []byte("hello world"), 0644), IsNil)
-
-	err := launcher.OpenFile(s.SessionBus, file)
+	
+	err := launcher.OpenFile(s.SessionBus, file, options)
 	c.Check(err, FitsTypeOf, (*xdgopenproxy.ResponseError)(nil))
 	c.Check(err, ErrorMatches, "timeout waiting for user response")
 	c.Check(s.calls, DeepEquals, []string{
@@ -148,9 +152,10 @@ func (s *portalSuite) TestOpenFileTimeout(c *C) {
 
 func (s *portalSuite) TestOpenDir(c *C) {
 	launcher := &xdgopenproxy.PortalLauncher{}
+	var options launcherModifiers
 
 	dir := c.MkDir()
-	err := launcher.OpenFile(s.SessionBus, dir)
+	err := launcher.OpenFile(s.SessionBus, dir, options)
 	c.Check(err, IsNil)
 	c.Check(s.calls, DeepEquals, []string{
 		"OpenFile",
@@ -159,29 +164,32 @@ func (s *portalSuite) TestOpenDir(c *C) {
 
 func (s *portalSuite) TestOpenMissingFile(c *C) {
 	launcher := &xdgopenproxy.PortalLauncher{}
+	var options launcherModifiers
 
 	path := filepath.Join(c.MkDir(), "no-such-file.txt")
-	err := launcher.OpenFile(s.SessionBus, path)
-	c.Check(err, ErrorMatches, "no such file or directory")
+	err := launcher.OpenFile(s.SessionBus, path, options)
+	c.Check(err, ErrorMatches, "*. no such file or directory")
 	c.Check(s.calls, HasLen, 0)
 }
 
 func (s *portalSuite) TestOpenUnreadableFile(c *C) {
 	launcher := &xdgopenproxy.PortalLauncher{}
+	var options launcherModifiers
 
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(ioutil.WriteFile(path, []byte("hello world"), 0644), IsNil)
 	c.Assert(os.Chmod(path, 0), IsNil)
 
-	err := launcher.OpenFile(s.SessionBus, path)
+	err := launcher.OpenFile(s.SessionBus, path, options)
 	c.Check(err, ErrorMatches, "permission denied")
 	c.Check(s.calls, HasLen, 0)
 }
 
 func (s *portalSuite) TestOpenURI(c *C) {
 	launcher := &xdgopenproxy.PortalLauncher{}
+	var options launcherModifiers
 
-	err := launcher.OpenURI(s.SessionBus, "http://example.com")
+	err := launcher.OpenURI(s.SessionBus, "http://example.com", options)
 	c.Check(err, IsNil)
 	c.Check(s.calls, DeepEquals, []string{
 		"OpenURI http://example.com",
@@ -192,7 +200,8 @@ func (s *portalSuite) TestOpenURICallError(c *C) {
 	s.openError = dbus.MakeFailedError(fmt.Errorf("failure"))
 
 	launcher := &xdgopenproxy.PortalLauncher{}
-	err := launcher.OpenURI(s.SessionBus, "http://example.com")
+	var options launcherModifiers
+	err := launcher.OpenURI(s.SessionBus, "http://example.com", options)
 	c.Check(err, FitsTypeOf, dbus.Error{})
 	c.Check(err, ErrorMatches, "failure")
 	c.Check(s.calls, DeepEquals, []string{
@@ -204,7 +213,8 @@ func (s *portalSuite) TestOpenURIResponseError(c *C) {
 	s.openResponse = 2
 
 	launcher := &xdgopenproxy.PortalLauncher{}
-	err := launcher.OpenURI(s.SessionBus, "http://example.com")
+	var options launcherModifiers
+	err := launcher.OpenURI(s.SessionBus, "http://example.com", options)
 	c.Check(err, FitsTypeOf, (*xdgopenproxy.ResponseError)(nil))
 	c.Check(err, ErrorMatches, `request declined by the user \(code 2\)`)
 	c.Check(s.calls, DeepEquals, []string{
@@ -218,7 +228,8 @@ func (s *portalSuite) TestOpenURITimeout(c *C) {
 	defer restore()
 
 	launcher := &xdgopenproxy.PortalLauncher{}
-	err := launcher.OpenURI(s.SessionBus, "http://example.com")
+	var options launcherModifiers
+	err := launcher.OpenURI(s.SessionBus, "http://example.com", options)
 	c.Check(err, FitsTypeOf, (*xdgopenproxy.ResponseError)(nil))
 	c.Check(err, ErrorMatches, "timeout waiting for user response")
 	c.Check(s.calls, DeepEquals, []string{

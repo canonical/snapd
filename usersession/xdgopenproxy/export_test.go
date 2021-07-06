@@ -52,9 +52,9 @@ func MakeResponseError(msg string) error {
 }
 
 func MockPortalTimeout(t time.Duration) (restore func()) {
-	old := defaultPortalRequestTimeout
-	defaultPortalRequestTimeout = t
+	old := defaultDesktopPortalRequestTimeout
+	defaultDesktopPortalRequestTimeout = t
 	return func() {
-		defaultPortalRequestTimeout = old
+		defaultDesktopPortalRequestTimeout = old
 	}
 }

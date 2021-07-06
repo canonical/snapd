@@ -38,9 +38,13 @@ func (u *responseError) Is(err error) bool {
 	return ok
 }
 
+type LauncherModifiers struct {
+	Ask bool
+}
+
 type desktopLauncher interface {
-	OpenFile(bus *dbus.Conn, path string) error
-	OpenURI(bus *dbus.Conn, url string) error
+	OpenFile(bus *dbus.Conn, path string, options LauncherModifiers) error
+	OpenURI(bus *dbus.Conn, url string, options LauncherModifiers) error
 }
 
 var availableLaunchers = []desktopLauncher{
@@ -49,31 +53,31 @@ var availableLaunchers = []desktopLauncher{
 }
 
 // Run attempts to open given file or URL using one of available launchers
-func Run(urlOrFile string) error {
+func Run(urlOrFile string, options LauncherModifiers) error {
 	bus, err := dbus.SessionBus()
 	if err != nil {
 		return err
 	}
 	defer bus.Close()
 
-	return launch(bus, availableLaunchers, urlOrFile)
+	return launch(bus, availableLaunchers, urlOrFile, options)
 }
 
-func launchWithOne(bus *dbus.Conn, l desktopLauncher, urlOrFile string) error {
+func launchWithOne(bus *dbus.Conn, l desktopLauncher, urlOrFile string, options LauncherModifiers) error {
 	if u, err := url.Parse(urlOrFile); err == nil {
 		if u.Scheme == "file" {
-			return l.OpenFile(bus, u.Path)
+			return l.OpenFile(bus, u.Path, options)
 		} else if u.Scheme != "" {
-			return l.OpenURI(bus, urlOrFile)
+			return l.OpenURI(bus, urlOrFile, options)
 		}
 	}
-	return l.OpenFile(bus, urlOrFile)
+	return l.OpenFile(bus, urlOrFile, options)
 }
 
-func launch(bus *dbus.Conn, launchers []desktopLauncher, urlOrFile string) error {
+func launch(bus *dbus.Conn, launchers []desktopLauncher, urlOrFile string, options LauncherModifiers) error {
 	var err error
 	for _, l := range launchers {
-		err = launchWithOne(bus, l, urlOrFile)
+		err = launchWithOne(bus, l, urlOrFile, options)
 		if err == nil {
 			break
 		}
