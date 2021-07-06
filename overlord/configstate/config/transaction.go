@@ -137,7 +137,7 @@ func shadowsVirtualConfig(instanceName string, subkeys []string, value interface
 		if err != nil {
 			return fmt.Errorf("internal error: invalid virtual configuration: %v", err)
 		}
-		if len(virtualSubKeys) > len(subkeys) && keysHaveCommonPrefix(virtualSubKeys, subkeys) {
+		if len(virtualSubKeys) != len(subkeys) && keysHaveCommonPrefix(virtualSubKeys, subkeys) {
 			return fmt.Errorf("cannot set %q for %q to non-map value because %q is a virtual configuration", strings.Join(subkeys, "."), instanceName, virtualKey)
 		}
 	}
