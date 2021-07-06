@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/quota"
 )
@@ -159,6 +160,10 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 	st.Lock()
 	defer st.Unlock()
 
+	chgSummary := ""
+
+	var ts *state.TaskSet
+
 	switch data.Action {
 	case "ensure":
 		// check if the quota group exists first, if it does then we need to
@@ -169,27 +174,37 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 		}
 		if err == servicestate.ErrQuotaNotFound {
 			// then we need to create the quota
-			if err := servicestateCreateQuota(st, data.GroupName, data.Parent, data.Snaps, quantity.Size(data.MaxMemory)); err != nil {
+			ts, err = servicestateCreateQuota(st, data.GroupName, data.Parent, data.Snaps, quantity.Size(data.MaxMemory))
+			if err != nil {
 				// XXX: dedicated error type?
 				return BadRequest(err.Error())
 			}
+			chgSummary = "Create quota group"
 		} else if err == nil {
 			// the quota group already exists, update it
 			updateOpts := servicestate.QuotaGroupUpdate{
 				AddSnaps:       data.Snaps,
 				NewMemoryLimit: quantity.Size(data.MaxMemory),
 			}
-			if err := servicestateUpdateQuota(st, data.GroupName, updateOpts); err != nil {
+			ts, err = servicestateUpdateQuota(st, data.GroupName, updateOpts)
+			if err != nil {
 				return BadRequest(err.Error())
 			}
+			chgSummary = "Update quota group"
 		}
 
 	case "remove":
-		if err := servicestateRemoveQuota(st, data.GroupName); err != nil {
+		var err error
+		ts, err = servicestateRemoveQuota(st, data.GroupName)
+		if err != nil {
 			return BadRequest(err.Error())
 		}
+		chgSummary = "Remove quota group"
 	default:
 		return BadRequest("unknown quota action %q", data.Action)
 	}
-	return SyncResponse(nil)
+
+	chg := newChange(st, "quota-control", chgSummary, []*state.TaskSet{ts}, data.Snaps)
+	ensureStateSoon(st)
+	return AsyncResponse(nil, chg.ID())
 }
