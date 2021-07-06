@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 )
 
@@ -214,15 +215,155 @@ func (s *systemsSuite) TestSetTryRecoverySystemEncrypted(c *C) {
 	}), Equals, true)
 }
 
-func (s *systemsSuite) TestSetTryRecoverySystemSimple(c *C) {
-	mtbl := bootloadertest.Mock("trusted", s.bootdir).WithTrustedAssets()
+func (s *systemsSuite) TestSetTryRecoverySystemRemodelEncrypted(c *C) {
+	mockAssetsCache(c, s.rootdir, "trusted", []string{
+		"asset-asset-hash-1",
+	})
+
+	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
 	bootloader.Force(mtbl)
 	defer bootloader.Force(nil)
+
+	// system is encrypted
+	s.stampSealedKeys(c, s.rootdir)
+
+	model := s.uc20dev.Model()
+	newModel := boottest.MakeMockUC20Model(map[string]interface{}{
+		"model": "my-new-model",
+	})
 
 	modeenv := &boot.Modeenv{
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825"},
+		GoodRecoverySystems:    []string{"20200825"},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": []string{"asset-hash-1"},
+		},
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": []string{"asset-hash-1"},
+		},
+		CurrentKernels: []string{"pc-kernel_500.snap"},
+
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
+	}
+	c.Assert(modeenv.WriteTo(""), IsNil)
+
+	var readSeedSeenLabels []string
+	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
+		// the mock bootloader can only mock a single recovery boot
+		// chain, so pretend both seeds use the same kernel, but keep track of the labels
+		readSeedSeenLabels = append(readSeedSeenLabels, label)
+		systemModel := model
+		if label == "1234" {
+			systemModel = newModel
+		}
+		return systemModel, []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
+	})
+	defer restore()
+
+	resealCalls := 0
+	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		resealCalls++
+		// bootloader variables have already been modified
+		c.Check(mtbl.SetBootVarsCalls, Equals, 1)
+		c.Assert(params, NotNil)
+		switch resealCalls {
+		case 1:
+			c.Assert(params.ModelParams, HasLen, 2)
+			c.Check(params.KeyFiles, DeepEquals, []string{
+				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
+			})
+			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
+				"snapd_recovery_mode=run static cmdline",
+			})
+			c.Assert(params.ModelParams[1].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=1234 static cmdline",
+				"snapd_recovery_mode=run static cmdline",
+			})
+			return nil
+		case 2:
+			c.Assert(params.ModelParams, HasLen, 1)
+			c.Check(params.KeyFiles, DeepEquals, []string{
+				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+			})
+			c.Assert(params.ModelParams[0].KernelCmdlines, DeepEquals, []string{
+				"snapd_recovery_mode=recover snapd_recovery_system=20200825 static cmdline",
+			})
+			return nil
+		default:
+			c.Errorf("unexpected call to secboot.ResealKeys with count %v", resealCalls)
+			return fmt.Errorf("unexpected call")
+		}
+	})
+	defer restore()
+
+	// a remodel will pass the new device
+	newUC20Device := boottest.MockUC20Device("run", newModel)
+	err := boot.SetTryRecoverySystem(newUC20Device, "1234")
+	c.Assert(err, IsNil)
+
+	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		"try_recovery_system":    "1234",
+		"recovery_system_status": "try",
+	})
+	// run and recovery keys
+	c.Check(resealCalls, Equals, 2)
+	c.Check(readSeedSeenLabels, DeepEquals, []string{
+		"20200825", "1234", // current recovery systems for run key and current model from modeenv
+		"20200825", "1234", // current recovery systems for run key and try model from modeenv
+		"20200825", // good recovery systems for recovery keys
+	})
+
+	modeenvRead, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(modeenvRead, testutil.JsonEquals, boot.Modeenv{
+		Mode: "run",
+		// keep this comment to make old gofmt happy
+		CurrentRecoverySystems: []string{"20200825", "1234"},
+		GoodRecoverySystems:    []string{"20200825"},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": []string{"asset-hash-1"},
+		},
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": []string{"asset-hash-1"},
+		},
+		CurrentKernels: []string{"pc-kernel_500.snap"},
+
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
+
+		TryModel:          newModel.Model(),
+		TryBrandID:        newModel.BrandID(),
+		TryGrade:          string(newModel.Grade()),
+		TryModelSignKeyID: newModel.SignKeyID(),
+	})
+}
+
+func (s *systemsSuite) TestSetTryRecoverySystemSimple(c *C) {
+	mtbl := bootloadertest.Mock("trusted", s.bootdir).WithTrustedAssets()
+	bootloader.Force(mtbl)
+	defer bootloader.Force(nil)
+
+	model := s.uc20dev.Model()
+	modeenv := &boot.Modeenv{
+		Mode: "run",
+		// keep this comment to make old gofmt happy
+		CurrentRecoverySystems: []string{"20200825"},
+
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 
@@ -243,11 +384,16 @@ func (s *systemsSuite) TestSetTryRecoverySystemSimple(c *C) {
 
 	modeenvRead, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Check(modeenvRead.DeepEqual(&boot.Modeenv{
+	c.Check(modeenvRead, testutil.JsonEquals, boot.Modeenv{
 		Mode: "run",
 		// keep this comment to make old gofmt happy
 		CurrentRecoverySystems: []string{"20200825", "1234"},
-	}), Equals, true)
+
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
+	})
 }
 
 func (s *systemsSuite) TestSetTryRecoverySystemSetBootVarsErr(c *C) {
@@ -532,6 +678,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 	// system is encrypted
 	s.stampSealedKeys(c, s.rootdir)
 
+	model := s.uc20dev.Model()
 	modeenv := &boot.Modeenv{
 		Mode: "run",
 		// keep this comment to make old gofmt happy
@@ -543,6 +690,11 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"asset": []string{"asset-hash-1"},
 		},
+
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 
@@ -550,6 +702,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 		readSeedCalls++
 		// this is the reseal cleanup path
+		c.Logf("call %v label %v", readSeedCalls, label)
 		switch readSeedCalls {
 		case 1:
 			// called for the first system
@@ -569,7 +722,7 @@ func (s *systemsSuite) TestSetTryRecoverySystemCleanupError(c *C) {
 			fallthrough
 		case 5:
 			// (cleanup) recovery boot chains for recovery keys
-			c.Assert(label, Equals, "20200825")
+			c.Check(label, Equals, "20200825")
 			return s.uc20dev.Model(), []*seed.Snap{s.seedKernelSnap, s.seedGadgetSnap}, nil
 		default:
 			return nil, nil, fmt.Errorf("unexpected call %v", readSeedCalls)
@@ -762,7 +915,14 @@ func (s *systemsSuite) TestInspectRecoverySystemOutcomeInconsistentUnexpectedLab
 	c.Check(vars, DeepEquals, badVars)
 }
 
-func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTrustedAssetsBootloader, systemLabel string, resealErr error, expectedErr string) {
+type clearRecoverySystemTestCase struct {
+	systemLabel string
+	tryModel    *asserts.Model
+	resealErr   error
+	expectedErr string
+}
+
+func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTrustedAssetsBootloader, tc clearRecoverySystemTestCase) {
 	mockAssetsCache(c, s.rootdir, "trusted", []string{
 		"asset-asset-hash-1",
 	})
@@ -794,8 +954,14 @@ func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTr
 		Grade:          string(model.Grade()),
 		ModelSignKeyID: model.SignKeyID(),
 	}
-	if systemLabel != "" {
-		modeenv.CurrentRecoverySystems = append(modeenv.CurrentRecoverySystems, systemLabel)
+	if tc.systemLabel != "" {
+		modeenv.CurrentRecoverySystems = append(modeenv.CurrentRecoverySystems, tc.systemLabel)
+	}
+	if tc.tryModel != nil {
+		modeenv.TryModel = tc.tryModel.Model()
+		modeenv.TryBrandID = tc.tryModel.BrandID()
+		modeenv.TryGrade = string(tc.tryModel.Grade())
+		modeenv.TryModelSignKeyID = tc.tryModel.SignKeyID()
 	}
 	c.Assert(modeenv.WriteTo(""), IsNil)
 
@@ -818,7 +984,7 @@ func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTr
 			c.Check(params.KeyFiles, DeepEquals, []string{
 				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
 			})
-			return resealErr
+			return tc.resealErr
 		case 2:
 			c.Check(params.KeyFiles, DeepEquals, []string{
 				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
@@ -835,16 +1001,16 @@ func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTr
 	})
 	defer restore()
 
-	err := boot.ClearTryRecoverySystem(s.uc20dev, systemLabel)
-	if expectedErr == "" {
+	err := boot.ClearTryRecoverySystem(s.uc20dev, tc.systemLabel)
+	if tc.expectedErr == "" {
 		c.Assert(err, IsNil)
 	} else {
-		c.Assert(err, ErrorMatches, expectedErr)
+		c.Assert(err, ErrorMatches, tc.expectedErr)
 	}
 
 	// only one seed system accessed
 	c.Check(readSeedSeenLabels, DeepEquals, []string{"20200825", "20200825"})
-	if resealErr == nil {
+	if tc.resealErr == nil {
 		// called twice, for run and recovery keys
 		c.Check(resealCalls, Equals, 2)
 	} else {
@@ -855,8 +1021,25 @@ func (s *systemsSuite) testClearRecoverySystem(c *C, mtbl *bootloadertest.MockTr
 	modeenvRead, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
 	// modeenv systems list has one entry only
-	c.Check(modeenvRead.CurrentRecoverySystems, DeepEquals, []string{
-		"20200825",
+	c.Check(modeenvRead, testutil.JsonEquals, boot.Modeenv{
+		Mode: "run",
+		// keep this comment to make old gofmt happy
+		CurrentRecoverySystems: []string{"20200825"},
+		GoodRecoverySystems:    []string{"20200825"},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": []string{"asset-hash-1"},
+		},
+
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": []string{"asset-hash-1"},
+		},
+
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
+
+		// try model if set, has been cleared
 	})
 }
 
@@ -869,7 +1052,7 @@ func (s *systemsSuite) TestClearRecoverySystemHappy(c *C) {
 	err := mtbl.SetBootVars(setVars)
 	c.Assert(err, IsNil)
 
-	s.testClearRecoverySystem(c, mtbl, "1234", nil, "")
+	s.testClearRecoverySystem(c, mtbl, clearRecoverySystemTestCase{systemLabel: "1234"})
 	// bootloader variables have been cleared
 	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
@@ -888,7 +1071,7 @@ func (s *systemsSuite) TestClearRecoverySystemTriedHappy(c *C) {
 	err := mtbl.SetBootVars(setVars)
 	c.Assert(err, IsNil)
 
-	s.testClearRecoverySystem(c, mtbl, "1234", nil, "")
+	s.testClearRecoverySystem(c, mtbl, clearRecoverySystemTestCase{systemLabel: "1234"})
 	// bootloader variables have been cleared
 	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
@@ -907,7 +1090,7 @@ func (s *systemsSuite) TestClearRecoverySystemInconsistentStateHappy(c *C) {
 	err := mtbl.SetBootVars(setVars)
 	c.Assert(err, IsNil)
 
-	s.testClearRecoverySystem(c, mtbl, "1234", nil, "")
+	s.testClearRecoverySystem(c, mtbl, clearRecoverySystemTestCase{systemLabel: "1234"})
 	// bootloader variables have been cleared
 	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
@@ -929,7 +1112,31 @@ func (s *systemsSuite) TestClearRecoverySystemInconsistentNoLabelHappy(c *C) {
 	// clear without passing the system label, just clears the relevant boot
 	// variables
 	const noLabel = ""
-	s.testClearRecoverySystem(c, mtbl, noLabel, nil, "")
+	s.testClearRecoverySystem(c, mtbl, clearRecoverySystemTestCase{systemLabel: noLabel})
+	// bootloader variables have been cleared
+	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+}
+
+func (s *systemsSuite) TestClearRecoverySystemRemodelHappy(c *C) {
+	setVars := map[string]string{
+		"recovery_system_status": "try",
+		"try_recovery_system":    "1234",
+	}
+	mtbl := s.mockTrustedBootloaderWithAssetAndChains(c, s.runKernelBf, s.recoveryKernelBf)
+	err := mtbl.SetBootVars(setVars)
+	c.Assert(err, IsNil)
+
+	s.testClearRecoverySystem(c, mtbl, clearRecoverySystemTestCase{
+		systemLabel: "1234",
+		tryModel: boottest.MakeMockUC20Model(map[string]interface{}{
+			"tryModelodel": "my-new-model",
+		}),
+	})
 	// bootloader variables have been cleared
 	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
@@ -948,7 +1155,11 @@ func (s *systemsSuite) TestClearRecoverySystemResealFails(c *C) {
 	err := mtbl.SetBootVars(setVars)
 	c.Assert(err, IsNil)
 
-	s.testClearRecoverySystem(c, mtbl, "1234", fmt.Errorf("reseal fails"), "cannot reseal the encryption key: reseal fails")
+	s.testClearRecoverySystem(c, mtbl, clearRecoverySystemTestCase{
+		systemLabel: "1234",
+		resealErr:   fmt.Errorf("reseal fails"),
+		expectedErr: "cannot reseal the encryption key: reseal fails",
+	})
 	// bootloader variables have been cleared
 	vars, err := mtbl.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
@@ -969,7 +1180,10 @@ func (s *systemsSuite) TestClearRecoverySystemSetBootVarsFails(c *C) {
 	c.Assert(err, IsNil)
 	mtbl.SetErr = fmt.Errorf("set boot vars fails")
 
-	s.testClearRecoverySystem(c, mtbl, "1234", nil, "set boot vars fails")
+	s.testClearRecoverySystem(c, mtbl, clearRecoverySystemTestCase{
+		systemLabel: "1234",
+		expectedErr: "set boot vars fails",
+	})
 }
 
 func (s *systemsSuite) TestClearRecoverySystemReboot(c *C) {
