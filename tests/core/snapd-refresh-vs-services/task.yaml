@@ -177,7 +177,7 @@ execute: |
   systemctl show -p MainPID snap.test-snapd-simple-service.test-snapd-simple-service > new-main.pid
 
   if [ "$(cat new-main.pid)" != "$(cat old-main.pid)" ]; then
-    echo "The service without Requires= was restarted, test is broken"
+    echo "The service without Requires= was restarted; test is broken"
     exit 1
   fi
 
@@ -196,7 +196,7 @@ execute: |
     fi
   else
     if [ "$(cat new-main.pid)" != "$(cat old-main.pid)" ]; then
-      echo "The service with Wants= was unexpectedly killed test is broken"
+      echo "The service with Wants= was unexpectedly killed; test is broken"
       exit 1
     fi
   fi

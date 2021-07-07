@@ -95,7 +95,6 @@ execute: |
 
     # save the original systemctl command since we essentially need to mock it
     cp /bin/systemctl /tmp/orig-systemctl
-    chmod +x /tmp/orig-systemctl
 
     mount -o bind "$TESTSLIB/mock-shutdown" /bin/systemctl
     tests.cleanup defer umount /bin/systemctl
