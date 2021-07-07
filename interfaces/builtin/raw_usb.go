@@ -51,6 +51,14 @@ const rawusbConnectedPlugAppArmor = `
 /run/udev/data/b180:*    r, # various USB block devices
 /run/udev/data/c18[089]:* r, # various USB character devices: USB serial converters, etc.
 /run/udev/data/+usb:* r,
+
+# Allow binding/unbind of usb driver from usb devices
+/sys/bus/usb/drivers/usb/bind rw,
+/sys/bus/usb/drivers/usb/unbind rw,
+
+# Allow USB/IP operations
+/sys/bus/usb/drivers/usbip-host/* rw,
+/sys/devices/pci**/usb[0-9]**/usbip_sockfd rw,
 `
 
 const rawusbConnectedPlugSecComp = `
