@@ -253,6 +253,8 @@ type Systemd interface {
 	LogReader(services []string, n int, follow bool) (io.ReadCloser, error)
 	// AddMountUnitFile adds/enables/starts a mount unit.
 	AddMountUnitFile(name, revision, what, where, fstype string) (string, error)
+	// AddMountUnitFileFull adds/enables/starts a mount unit with options.
+	AddMountUnitFileFull(name, revision, what, where, fstype string, options []string) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
 	RemoveMountUnitFile(baseDir string) error
 	// Mask the given service.
@@ -1101,15 +1103,20 @@ func hostFsTypeAndMountOptions(fstype string) (hostFsType string, options []stri
 }
 
 func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
-	daemonReloadLock.Lock()
-	defer daemonReloadLock.Unlock()
-
 	hostFsType, options := hostFsTypeAndMountOptions(fstype)
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
 		hostFsType = "none"
 	}
-	mountUnitName, err := writeMountUnitFile(snapName, revision, what, where, hostFsType, options)
+	return s.AddMountUnitFileFull(snapName, revision, what, where, hostFsType, options)
+}
+
+func (s *systemd) AddMountUnitFileFull(snapName, revision, what, where,
+	fstype string, options []string) (string, error) {
+	daemonReloadLock.Lock()
+	defer daemonReloadLock.Unlock()
+
+	mountUnitName, err := writeMountUnitFile(snapName, revision, what, where, fstype, options)
 	if err != nil {
 		return "", err
 	}

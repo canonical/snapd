@@ -150,6 +150,11 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 	return mountUnitName, nil
 }
 
+func (s *emulation) AddMountUnitFileFull(snapName, revision, what, where,
+	fstype string, options []string) (string, error) {
+	return "", errNotImplemented
+}
+
 func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 	unit := MountUnitPath(dirs.StripRootDir(mountedDir))
 	if !osutil.FileExists(unit) {
