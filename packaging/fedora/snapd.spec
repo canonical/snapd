@@ -950,7 +950,7 @@ fi
  - o/ifacestate: do not visit same halt tasks in waitChainSearch to
    avoid cycles
  - corecfg: allow using `# snapd-edit: no` header to disable pi-
-   config# snapd-edit: no
+   config
  - configcore: ignore system.pi-config.* setting on measured kernels
  - many: pass device/model info to configcore via sysconfig.Device
    interface
