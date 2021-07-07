@@ -90,6 +90,9 @@ nested_uc20_transition_to_system_mode() {
     if ! nested_exec "cat /proc/cmdline" | MATCH "snapd_recovery_mode=$mode"; then
         return 1
     fi
+
+    # Copy tools to be used on tests
+    nested_prepare_tools
 }
 
 nested_prepare_ssh() {
@@ -1085,6 +1088,7 @@ nested_start() {
     nested_force_start_vm
     wait_for_service "$NESTED_VM" active
     nested_wait_for_ssh
+    nested_prepare_tools
 }
 
 nested_create_classic_vm() {
