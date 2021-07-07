@@ -1,0 +1,167 @@
+summary: Check that auto-refresh with gate-auto-refresh hooks works.
+
+details: |
+  Test auto-refresh with gate-auto-refresh hook support enabled
+  (experimental.gate-auto-refresh-hook feature) and verify the hook can control
+  automatic refreshes. The test uses two test snaps, one of them
+  being a content provider of the other. There are a few versions of these
+  snaps in the store (in stable/beta/edge channels) for this test.
+
+environment:
+  SNAP_NAME: test-snapd-refresh-control
+  CONTENT_SNAP_NAME: test-snapd-refresh-control-provider
+  CONTROL_FILE: /var/snap/test-snapd-refresh-control/common/control
+  DEBUG_LOG_FILE: /var/snap/test-snapd-refresh-control/common/debug.log
+
+prepare: |
+  snap install --devmode jq
+  snap set system experimental.gate-auto-refresh-hook=true
+
+debug: |
+  jq -r '.data["snaps-hold"]' < /var/lib/snapd/state.json || true
+
+execute: |
+  force_autorefresh() {
+    echo "And force auto-refresh to happen"
+    jq ".data[\"last-refresh\"] = \"2007-08-22T09:30:44.449455783+01:00\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
+  }
+
+  wait_for_autorefresh() {
+    local EXPECTED_SNAP="$1"
+    local LAST_CHANGE_ID="$2"
+    local CHANGE_ID="$2"
+    for _ in $(seq 200); do
+      # get last 2 lines of snap changes (the last one is always empty), match
+      # auto-refresh change of the expected snap; only proceed if the
+      # change has greater change id than the previously matched auto-refresh
+      # (this way we can match consecutive auto-refreshes for same snap).
+      if CHANGES=$(snap changes | tail -2 | grep "Done.*Auto-refresh snap \"$EXPECTED_SNAP\""); then
+        CHANGE_ID=$(echo "$CHANGES" | awk '{print $1}')
+        if [ "$CHANGE_ID" -gt "$LAST_CHANGE_ID" ]; then
+          break
+        fi
+      fi
+      snap debug ensure-state-soon
+      sleep 1
+    done
+    if [ "$LAST_CHANGE_ID" -eq "$CHANGE_ID" ]; then
+      echo "Expected a new auto-refresh change for $EXPECTED_SNAP with id greater than $LAST_CHANGE_ID, but it didn't happen"
+      exit 1
+    fi
+    echo "$CHANGE_ID"
+  }
+
+  force_channel_change() {
+    local SNAP="$1"
+    local CHANNEL="$2"
+    echo "Modify snap $SNAP to track the $CHANNEL channel"
+    jq ".data.snaps[\"$SNAP\"].channel = \"$CHANNEL\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
+    mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
+  }
+
+  LAST_REFRESH_CHANGE_ID=1
+
+  echo "Install test snaps"
+  snap install "$SNAP_NAME"
+  snap install "$CONTENT_SNAP_NAME"
+
+  snap connect "$SNAP_NAME:content" "$CONTENT_SNAP_NAME:content"
+
+  # sanity check
+  snap list | MATCH "$SNAP_NAME +1\.0\.0"
+  snap list | MATCH "$CONTENT_SNAP_NAME +1\.0\.0"
+
+  snap set core refresh.schedule="0:00-23:59"
+
+  force_channel_change "$CONTENT_SNAP_NAME" beta
+
+  # force auto-refresh a few times, we expect the gate-auto-refresh
+  # hook of test-snapd-refresh-control to be executed because of the refresh
+  # of content provider snap. The refresh is expected to be held every time.
+  for _ in $(seq 1 3); do
+    systemctl stop snapd.{service,socket}
+
+    # Request the snap to hold the refresh (itself and its content provider).
+    echo "--hold" > "$CONTROL_FILE"
+
+    echo "Trigger auto-refresh of test-snapd-refresh-control-provider but hold it via test-snapd-refresh-control's hook"
+    force_autorefresh
+    systemctl start snapd.{service,socket}
+    LAST_REFRESH_CHANGE_ID=$(wait_for_autorefresh "$CONTENT_SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
+
+    snap change --last=auto-refresh | MATCH "Run auto-refresh for ready snaps"
+    snap change --last=auto-refresh | MATCH "Run hook gate-auto-refresh of snap \"$SNAP_NAME\""
+
+    echo "Check that the --pending information indicates restart due to the content slot"
+    MATCH "restart: +true" < "$DEBUG_LOG_FILE"
+    MATCH "base: +false" < "$DEBUG_LOG_FILE"
+    MATCH "channel: +latest/stable" < "$DEBUG_LOG_FILE"
+    # test-snapd-refresh-control doesn't have update, so pending/version are not
+    # available.
+    MATCH "pending: none" < "$DEBUG_LOG_FILE"
+    NOMATCH "version:" < "$DEBUG_LOG_FILE"
+
+    echo "Ensure our content snap was held and is still at version 1"
+    snap list | MATCH "$CONTENT_SNAP_NAME +1\.0\.0"
+    # sanity check for the gating snap.
+    snap list | MATCH "$SNAP_NAME +1\.0\.0"
+  done
+
+  systemctl stop snapd.{service,socket}
+
+  # force auto-refresh again but this time we expect content provider snap to be
+  # refreshed because the gating hook of test-snapd-refresh-control calls --proceed.
+  echo "--proceed" > "$CONTROL_FILE"
+
+  force_autorefresh
+  systemctl start snapd.{service,socket}
+  LAST_REFRESH_CHANGE_ID=$(wait_for_autorefresh "$CONTENT_SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
+
+  snap change --last=auto-refresh | MATCH "Run auto-refresh for ready snaps"
+  snap change --last=auto-refresh | MATCH "Run hook gate-auto-refresh of snap \"$SNAP_NAME\""
+
+  echo "Check that the --pending information indicates test-snapd-refresh-control is affected by the content snap"
+  MATCH "restart: +true" < "$DEBUG_LOG_FILE"
+
+  echo "Ensure our content snap was refreshed"
+  snap list | MATCH "$CONTENT_SNAP_NAME +2\.0\.0"
+  # sanity check for the gating snap.
+  snap list | MATCH "$SNAP_NAME +1\.0\.0"
+
+  systemctl stop snapd.{service,socket}
+
+  # test the scenario where the test-snapd-refresh-control refresh is attempted
+  # and it holds itself.
+  echo "Trigger auto-refresh of test-snapd-refresh-control and hold it from its hook"
+  echo "--hold" > "$CONTROL_FILE"
+  force_channel_change "$SNAP_NAME" beta
+  force_autorefresh
+
+  systemctl start snapd.{service,socket}
+  LAST_REFRESH_CHANGE_ID=$(wait_for_autorefresh "$SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
+
+  echo "Check that the --pending information contains test-snapd-refresh-control refresh info"
+  MATCH "pending: +ready" < "$DEBUG_LOG_FILE"
+  MATCH "channel: +beta" < "$DEBUG_LOG_FILE"
+  MATCH "version: +2\.0" < "$DEBUG_LOG_FILE"
+  MATCH "base: +false" < "$DEBUG_LOG_FILE"
+  MATCH "restart: +false" < "$DEBUG_LOG_FILE"
+
+  echo "Ensure our snap was held"
+  snap list | MATCH "$SNAP_NAME +1\.0\.0"
+
+  systemctl stop snapd.{service,socket}
+
+  # test the scenario where the test-snapd-refresh-control refresh proceeds.
+  echo "Trigger auto-refresh of test-snapd-refresh-control and proceed from its hook"
+  echo "--proceed" > "$CONTROL_FILE"
+  force_autorefresh
+
+  systemctl start snapd.{service,socket}
+  LAST_REFRESH_CHANGE_ID=$(wait_for_autorefresh "$SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
+
+  echo "Ensure our snap was updated"
+  snap list | MATCH "$SNAP_NAME +2\.0\.0"
+
+  # TODO: edge channel, proceed via default behavior. error behavior (hold).
