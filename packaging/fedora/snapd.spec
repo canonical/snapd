@@ -948,7 +948,7 @@ fi
  - interface: allows reading sd cards internal info from block-
    devices interface
  - o/ifacestate: do not visit same halt tasks in waitChainSearch to
-   avoid cycles
+   avoid slow convergence (or unlikely cycles)
  - corecfg: allow using `# snapd-edit: no` header to disable pi-
    config
  - configcore: ignore system.pi-config.* setting on measured kernels
