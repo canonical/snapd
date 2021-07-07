@@ -1240,21 +1240,23 @@ nested_prepare_tools() {
     fi
 
     if ! nested_exec "test -e MATCH" &>/dev/null; then
-        echo '#!/bin/bash' > MATCH
-        type MATCH | tail -n +2 >> MATCH
-        echo 'MATCH "$@"' >> MATCH
-        chmod +x MATCH
-        nested_copy "MATCH"
-        rm -f MATCH
+        echo '#!/bin/bash' > MATCH_FILE
+        type MATCH | tail -n +2 >> MATCH_FILE
+        echo 'MATCH "$@"' >> MATCH_FILE
+        chmod +x MATCH_FILE
+        nested_copy "MATCH_FILE"
+        nested_exec "mv MATCH_FILE MATCH"
+        rm -f MATCH_FILE
     fi
 
     if ! nested_exec "test -e NOMATCH" &>/dev/null; then
-        echo '#!/bin/bash' > NOMATCH
-        type NOMATCH | tail -n +2 >> NOMATCH
-        echo 'NOMATCH "$@"' >> NOMATCH
-        chmod +x NOMATCH
-        nested_copy "NOMATCH"
-        rm -f NOMATCH
+        echo '#!/bin/bash' > NOMATCH_FILE
+        type NOMATCH | tail -n +2 >> NOMATCH_FILE
+        echo 'NOMATCH "$@"' >> NOMATCH_FILE
+        chmod +x NOMATCH_FILE
+        nested_copy "NOMATCH_FILE"
+        nested_exec "mv NOMATCH_FILE NOMATCH"
+        rm -f NOMATCH_FILE
     fi
 
     if ! nested_exec "grep -qE PATH=.*/home/user1 /etc/environment"; then
