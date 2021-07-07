@@ -510,7 +510,7 @@ func (s *modelSuite) TestDeviceChangeRebootBeforeNewModel(c *C) {
 		tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 		// timeline & calls:
 		// 1 - pre reboot, run & recovery keys, try model set
-		// 2 - re reboot, recovery keys, try model set, triggers 'reboot'
+		// 2 - pre reboot, recovery keys, try model set, unexpected reboot is triggered
 		// (reboot)
 		// no call for run key, boot chains haven't changes since call 1
 		// 3 - recovery key, try model set
@@ -635,7 +635,8 @@ func (s *modelSuite) TestDeviceChangeRebootAfterNewModelFileWrite(c *C) {
 		tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 		// timeline & calls:
 		// 1, 2 - pre reboot, run & recovery keys, try model set
-		// 3 - run key, after model file has been modified, triggers reboot, try model cleared
+		// 3 - run key, after model file has been modified, try model cleared, unexpected
+		//     reboot is triggered
 		// (reboot)
 		// no reseal - boot chains are identical to what was in calls 1 & 2 which were successful
 		// 4, 5 - post reboot, run & recovery keys, after rewriting model file, try model cleared
@@ -758,7 +759,8 @@ func (s *modelSuite) TestDeviceChangeRebootPostSameModel(c *C) {
 		// timeline & calls:
 		// 1, 2 - pre reboot, run & recovery keys, try model set
 		// 3 - run key, after model file has been modified, try model cleared
-		// 4 - recovery key, model file has been modified, triggers reboot, try model cleared
+		// 4 - recovery key, model file has been modified, try model cleared, unexpected
+		//     reboot is triggered
 		// (reboot)
 		// 5, 6 - run & recovery, try model set, new model also restored
 		//        as 'old' model, params are grouped by model
@@ -1129,7 +1131,8 @@ func (s *modelSuite) TestDeviceChangeRebootRestoreModelKeyChangeMockedWriteModel
 		// timeline & calls:
 		// 1, 2 - pre reboot, run & recovery keys, try model set
 		// 3 - run key, after model file has been modified, try model cleared
-		// 4 - recovery key, model file has been modified, triggers reboot, try model cleared
+		// 4 - recovery key, model file has been modified, try model cleared,
+		//     unexpected reboot is triggered
 		// (reboot)
 		// 5 - run with old model & key (since we resealed run key in
 		//     call 3, and recovery has not changed), old model restored in modeenv
