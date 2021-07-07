@@ -20,7 +20,6 @@
 package daemon
 
 import (
-	"encoding/json"
 	"net/http"
 	"sort"
 
@@ -32,7 +31,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snap/quota"
-	"github.com/snapcore/snapd/strutil"
 )
 
 var (
@@ -52,13 +50,11 @@ var (
 
 type postQuotaGroupData struct {
 	// Action can be "ensure" or "remove"
-	Action    string   `json:"action"`
-	GroupName string   `json:"group-name"`
-	Parent    string   `json:"parent,omitempty"`
-	Snaps     []string `json:"snaps,omitempty"`
-	// Constraints is a map of resource type to constraint, currently accepted
-	// resource types is just "memory"
-	Constraints map[string]interface{} `json:"constraints,omitempty"`
+	Action      string             `json:"action"`
+	GroupName   string             `json:"group-name"`
+	Parent      string             `json:"parent,omitempty"`
+	Snaps       []string           `json:"snaps,omitempty"`
+	Constraints client.QuotaValues `json:"constraints,omitempty"`
 }
 
 var (
@@ -175,39 +171,6 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	var ts *state.TaskSet
 
-	var memSize uint64
-
-	var unknownResourceTypes []string
-	for resourceType := range data.Constraints {
-		switch resourceType {
-		case "memory":
-		default:
-			unknownResourceTypes = append(unknownResourceTypes, resourceType)
-		}
-	}
-
-	if len(unknownResourceTypes) != 0 {
-		pluralization := ""
-		if len(unknownResourceTypes) > 1 {
-			pluralization = "s"
-		}
-		return BadRequest("unknown resource type constraint%s in request: %s", pluralization, strutil.Quoted(unknownResourceTypes))
-	}
-
-	if memVal, ok := data.Constraints["memory"]; ok {
-		memJsonNumber, ok := memVal.(json.Number)
-		if !ok {
-			return BadRequest("cannot decode quota action memory constraint as number (got %T)", memVal)
-		}
-
-		memInt64, err := memJsonNumber.Int64()
-		if err != nil {
-			return BadRequest("cannot decode quota action memory constrain as uint: %v", err)
-		}
-
-		memSize = uint64(memInt64)
-	}
-
 	switch data.Action {
 	case "ensure":
 		// check if the quota group exists first, if it does then we need to
@@ -218,7 +181,7 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 		}
 		if err == servicestate.ErrQuotaNotFound {
 			// then we need to create the quota
-			ts, err = servicestateCreateQuota(st, data.GroupName, data.Parent, data.Snaps, quantity.Size(memSize))
+			ts, err = servicestateCreateQuota(st, data.GroupName, data.Parent, data.Snaps, data.Constraints.Memory)
 			if err != nil {
 				// XXX: dedicated error type?
 				return BadRequest(err.Error())
@@ -228,7 +191,7 @@ func postQuotaGroup(c *Command, r *http.Request, _ *auth.UserState) Response {
 			// the quota group already exists, update it
 			updateOpts := servicestate.QuotaGroupUpdate{
 				AddSnaps:       data.Snaps,
-				NewMemoryLimit: quantity.Size(memSize),
+				NewMemoryLimit: data.Constraints.Memory,
 			}
 			ts, err = servicestateUpdateQuota(st, data.GroupName, updateOpts)
 			if err != nil {

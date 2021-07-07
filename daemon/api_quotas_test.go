@@ -116,7 +116,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUnhappy(c *check.C) {
 		GroupName:   "booze",
 		Parent:      "foo",
 		Snaps:       []string{"bar"},
-		Constraints: map[string]interface{}{"memory": 1000},
+		Constraints: client.QuotaValues{Memory: quantity.Size(1000)},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -146,7 +146,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateHappy(c *check.C) {
 		GroupName:   "booze",
 		Parent:      "foo",
 		Snaps:       []string{"some-snap"},
-		Constraints: map[string]interface{}{"memory": 1000},
+		Constraints: client.QuotaValues{Memory: quantity.Size(1000)},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -188,7 +188,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateHappy(c *check.C) {
 		Action:      "ensure",
 		GroupName:   "ginger-ale",
 		Snaps:       []string{"some-snap"},
-		Constraints: map[string]interface{}{"memory": 9000},
+		Constraints: client.QuotaValues{Memory: quantity.Size(9000)},
 	})
 	c.Assert(err, check.IsNil)
 
