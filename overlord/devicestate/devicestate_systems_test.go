@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
@@ -60,6 +61,7 @@ type deviceMgrSystemsBaseSuite struct {
 	logbuf            *bytes.Buffer
 	mockedSystemSeeds []mockedSystemSeed
 	ss                *seedtest.SeedSnaps
+	model             *asserts.Model
 }
 
 type deviceMgrSystemsSuite struct {
@@ -82,7 +84,7 @@ func (s *deviceMgrSystemsBaseSuite) SetUpTest(c *C) {
 		Brands:       s.brands,
 	}
 
-	s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
+	s.model = s.makeModelAssertionInState(c, "canonical", "pc-20", map[string]interface{}{
 		"architecture": "amd64",
 		// UC20
 		"grade": "dangerous",
@@ -128,6 +130,11 @@ func (s *deviceMgrSystemsBaseSuite) SetUpTest(c *C) {
 	modeenv := boot.Modeenv{
 		Mode:           "run",
 		RecoverySystem: "",
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
 	}
 	err := modeenv.WriteTo("")
 	s.state.Set("seeded", true)
@@ -137,6 +144,9 @@ func (s *deviceMgrSystemsBaseSuite) SetUpTest(c *C) {
 	logbuf, restore := logger.MockLogger()
 	s.logbuf = logbuf
 	s.AddCleanup(restore)
+
+	nopHandler := func(task *state.Task, _ *tomb.Tomb) error { return nil }
+	s.o.TaskRunner().AddHandler("fake-download", nopHandler, nil)
 }
 
 func (s *deviceMgrSystemsSuite) SetUpTest(c *C) {
@@ -1153,6 +1163,11 @@ func (s *deviceMgrSystemsCreateSuite) mockStandardSnapsModeenvAndBootloaderState
 		CurrentKernels:         []string{"pc-kernel_2.snap"},
 		CurrentRecoverySystems: []string{"othersystem"},
 		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
 	}
 	err = modeenv.WriteTo("")
 	c.Assert(err, IsNil)
@@ -1184,7 +1199,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 
-	validateCore20Seed(c, "1234", s.storeSigning.Trusted)
+	validateCore20Seed(c, "1234", s.model, s.storeSigning.Trusted)
 	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
 	c.Check(m, DeepEquals, map[string]string{
@@ -1193,8 +1208,20 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 	})
 	modeenvAfterCreate, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Check(modeenvAfterCreate.CurrentRecoverySystems, DeepEquals, []string{"othersystem", "1234"})
-	c.Check(modeenvAfterCreate.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem", "1234"},
+		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
+		// try model is unset as its measured properties are identical
+		// to current
+	})
 	// verify that new files are tracked correctly
 	expectedFilesLog := &bytes.Buffer{}
 	// new snap files are logged in this order
@@ -1229,11 +1256,291 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemHappy
 
 	modeenvAfterFinalize, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Check(modeenvAfterFinalize.CurrentRecoverySystems, DeepEquals, []string{"othersystem", "1234"})
-	c.Check(modeenvAfterFinalize.GoodRecoverySystems, DeepEquals, []string{"othersystem", "1234"})
+	c.Check(modeenvAfterFinalize, testutil.JsonEquals, boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem", "1234"},
+		GoodRecoverySystems:    []string{"othersystem", "1234"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
+	})
 	// no more calls to the bootloader past creating the system
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
 	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"), testutil.FileAbsent)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemodelDownloadingSnapsHappy(c *C) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	fooSnap := snaptest.MakeTestSnapWithFiles(c, "name: foo\nversion: 1.0\nbase: core20", nil)
+	barSnap := snaptest.MakeTestSnapWithFiles(c, "name: bar\nversion: 1.0\nbase: core20", nil)
+	s.state.Lock()
+	// fake downloads are a nop
+	tSnapsup1 := s.state.NewTask("fake-download", "dummy task carrying snap setup")
+	tSnapsup2 := s.state.NewTask("fake-download", "dummy task carrying snap setup")
+	// both snaps are asserted
+	snapsupFoo := snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "foo", SnapID: s.ss.AssertedSnapID("foo"), Revision: snap.R(99)},
+		SnapPath: fooSnap,
+	}
+	s.setupSnapDeclForNameAndID(c, "foo", s.ss.AssertedSnapID("foo"), "canonical")
+	s.setupSnapRevisionForFileAndID(c, fooSnap, s.ss.AssertedSnapID("foo"), "canonical", snap.R(99))
+	snapsupBar := snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "bar", SnapID: s.ss.AssertedSnapID("bar"), Revision: snap.R(100)},
+		SnapPath: barSnap,
+	}
+	s.setupSnapDeclForNameAndID(c, "bar", s.ss.AssertedSnapID("bar"), "canonical")
+	s.setupSnapRevisionForFileAndID(c, barSnap, s.ss.AssertedSnapID("bar"), "canonical", snap.R(100))
+	// when download completes, the files will be at /var/lib/snapd/snap
+	c.Assert(os.MkdirAll(filepath.Dir(snapsupFoo.MountFile()), 0755), IsNil)
+	c.Assert(os.Rename(fooSnap, snapsupFoo.MountFile()), IsNil)
+	c.Assert(os.MkdirAll(filepath.Dir(snapsupBar.MountFile()), 0755), IsNil)
+	c.Assert(os.Rename(barSnap, snapsupBar.MountFile()), IsNil)
+	tSnapsup1.Set("snap-setup", snapsupFoo)
+	tSnapsup2.Set("snap-setup", snapsupBar)
+
+	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234", []string{tSnapsup1.ID(), tSnapsup2.ID()})
+	c.Assert(err, IsNil)
+	tsks := tss.Tasks()
+	c.Check(tsks, HasLen, 2)
+	tskCreate := tsks[0]
+	tskFinalize := tsks[1]
+	c.Assert(tskCreate.Summary(), Matches, `Create recovery system with label "1234"`)
+	c.Check(tskFinalize.Summary(), Matches, `Finalize recovery system with label "1234"`)
+	var systemSetupData map[string]interface{}
+	err = tskCreate.Get("recovery-system-setup", &systemSetupData)
+	c.Assert(err, IsNil)
+	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
+		"label":            "1234",
+		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234"),
+		"snap-setup-tasks": []interface{}{tSnapsup1.ID(), tSnapsup2.ID()},
+	})
+	tss.WaitFor(tSnapsup1)
+	tss.WaitFor(tSnapsup2)
+	// add the dummy tasks to the change
+	chg := s.state.NewChange("create-recovery-system", "create recovery system")
+	chg.AddTask(tSnapsup1)
+	chg.AddTask(tSnapsup2)
+	chg.AddAll(tss)
+
+	// downloads are only accepted if the tasks are executed as part of
+	// remodel, so procure a new model
+	newModel := s.brands.Model("canonical", "pc-20", map[string]interface{}{
+		"architecture": "amd64",
+		// UC20
+		"grade": "dangerous",
+		"base":  "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.ss.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.ss.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":     "foo",
+				"id":       s.ss.AssertedSnapID("foo"),
+				"presence": "required",
+			},
+			map[string]interface{}{
+				"name":     "bar",
+				"presence": "required",
+			},
+		},
+		"revision": "2",
+	})
+	chg.Set("new-model", string(asserts.Encode(newModel)))
+
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoingStatus)
+	// a reboot is expected
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+
+	validateCore20Seed(c, "1234", newModel, s.storeSigning.Trusted, "foo", "bar")
+	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"try_recovery_system":    "1234",
+		"recovery_system_status": "try",
+	})
+	modeenvAfterCreate, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem", "1234"},
+		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
+		// try model is unset as its measured properties are identical
+	})
+	// verify that new files are tracked correctly
+	expectedFilesLog := &bytes.Buffer{}
+	// new snap files are logged in this order
+	for _, fname := range []string{
+		"snapd_4.snap", "pc-kernel_2.snap", "core20_3.snap", "pc_1.snap",
+		"foo_99.snap", "bar_100.snap",
+	} {
+		fmt.Fprintln(expectedFilesLog, filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps", fname))
+	}
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"),
+		testutil.FileEquals, expectedFilesLog.String())
+
+	// these things happen on snapd startup
+	state.MockRestarting(s.state, state.RestartUnset)
+	s.state.Set("tried-systems", []string{"1234"})
+	s.bootloader.SetBootVars(map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+	s.bootloader.SetBootVarsCalls = 0
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Check(chg.IsReady(), Equals, true)
+	c.Assert(tskCreate.Status(), Equals, state.DoneStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.DoneStatus)
+
+	// this would be part of a remodel so some state is cleaned up only at the end of remodel change
+	var triedSystemsAfterFinalize []string
+	err = s.state.Get("tried-systems", &triedSystemsAfterFinalize)
+	c.Assert(err, IsNil)
+	c.Check(triedSystemsAfterFinalize, DeepEquals, []string{"1234"})
+
+	modeenvAfterFinalize, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	c.Check(modeenvAfterFinalize, testutil.JsonEquals, boot.Modeenv{
+		Mode:           "run",
+		Base:           "core20_3.snap",
+		CurrentKernels: []string{"pc-kernel_2.snap"},
+		// the system is kept in the current list
+		CurrentRecoverySystems: []string{"othersystem", "1234"},
+		// but not promoted to good systems yet
+		GoodRecoverySystems: []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
+	})
+	// no more calls to the bootloader past creating the system
+	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", "1234", "snapd-new-file-log"), testutil.FileAbsent)
+}
+
+func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemRemodelDownloadingMissingSnap(c *C) {
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	fooSnap := snaptest.MakeTestSnapWithFiles(c, "name: foo\nversion: 1.0\nbase: core20", nil)
+	s.state.Lock()
+	defer s.state.Unlock()
+	// fake downloads are a nop
+	tSnapsup1 := s.state.NewTask("fake-download", "dummy task carrying snap setup")
+	// both snaps are asserted
+	snapsupFoo := snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{RealName: "foo", SnapID: s.ss.AssertedSnapID("foo"), Revision: snap.R(99)},
+		SnapPath: fooSnap,
+	}
+	tSnapsup1.Set("snap-setup", snapsupFoo)
+
+	tss, err := devicestate.CreateRecoverySystemTasks(s.state, "1234missingdownload", []string{tSnapsup1.ID()})
+	c.Assert(err, IsNil)
+	tsks := tss.Tasks()
+	c.Check(tsks, HasLen, 2)
+	tskCreate := tsks[0]
+	tskFinalize := tsks[1]
+	c.Assert(tskCreate.Summary(), Matches, `Create recovery system with label "1234missingdownload"`)
+	c.Check(tskFinalize.Summary(), Matches, `Finalize recovery system with label "1234missingdownload"`)
+	var systemSetupData map[string]interface{}
+	err = tskCreate.Get("recovery-system-setup", &systemSetupData)
+	c.Assert(err, IsNil)
+	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
+		"label":            "1234missingdownload",
+		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234missingdownload"),
+		"snap-setup-tasks": []interface{}{tSnapsup1.ID()},
+	})
+	tss.WaitFor(tSnapsup1)
+	// add the dummy task to the change
+	chg := s.state.NewChange("create-recovery-system", "create recovery system")
+	chg.AddTask(tSnapsup1)
+	chg.AddAll(tss)
+
+	// downloads are only accepted if the tasks are executed as part of
+	// remodel, so procure a new model
+	newModel := s.brands.Model("canonical", "pc-20", map[string]interface{}{
+		"architecture": "amd64",
+		// UC20
+		"grade": "dangerous",
+		"base":  "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.ss.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.ss.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			// we have a download task for snap foo, but not for bar
+			map[string]interface{}{
+				"name":     "bar",
+				"presence": "required",
+			},
+		},
+		"revision": "2",
+	})
+	chg.Set("new-model", string(asserts.Encode(newModel)))
+
+	s.mockStandardSnapsModeenvAndBootloaderState(c)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot create a recovery system.*internal error: non-essential but required snap "bar" not present.`)
+	c.Assert(tskCreate.Status(), Equals, state.ErrorStatus)
+	c.Assert(tskFinalize.Status(), Equals, state.HoldStatus)
+	// a reboot is expected
+	c.Check(s.restartRequests, HasLen, 0)
+	// single bootloader call to clear any recovery system variables
+	c.Check(s.bootloader.SetBootVarsCalls, Equals, 1)
+	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
+	c.Assert(err, IsNil)
+	c.Check(m, DeepEquals, map[string]string{
+		"try_recovery_system":    "",
+		"recovery_system_status": "",
+	})
+	// system directory was removed
+	c.Check(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems/1234missingdownload"), testutil.FileAbsent)
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(c *C) {
@@ -1280,7 +1587,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 		filepath.Join(boot.InitramfsUbuntuSeedDir, "snaps/some-snap_1.snap"),
 	})
 	// do more extensive validation
-	validateCore20Seed(c, "1234undo", s.storeSigning.Trusted)
+	validateCore20Seed(c, "1234undo", s.model, s.storeSigning.Trusted)
 	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
 	c.Check(m, DeepEquals, map[string]string{
@@ -1289,8 +1596,18 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 	})
 	modeenvAfterCreate, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Check(modeenvAfterCreate.CurrentRecoverySystems, DeepEquals, []string{"othersystem", "1234undo"})
-	c.Check(modeenvAfterCreate.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem", "1234undo"},
+		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
+	})
 
 	// these things happen on snapd startup
 	state.MockRestarting(s.state, state.RestartUnset)
@@ -1317,8 +1634,18 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemUndo(
 
 	modeenvAfterFinalize, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Check(modeenvAfterFinalize.CurrentRecoverySystems, DeepEquals, []string{"othersystem"})
-	c.Check(modeenvAfterFinalize.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+	c.Check(modeenvAfterFinalize, testutil.JsonEquals, boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem"},
+		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
+	})
 	// no more calls to the bootloader
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
 	// system directory was removed
@@ -1359,7 +1686,7 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 	// a reboot is expected
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 
-	validateCore20Seed(c, "1234", s.storeSigning.Trusted)
+	validateCore20Seed(c, "1234", s.model, s.storeSigning.Trusted)
 	m, err := s.bootloader.GetBootVars("try_recovery_system", "recovery_system_status")
 	c.Assert(err, IsNil)
 	c.Check(m, DeepEquals, map[string]string{
@@ -1368,8 +1695,18 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 	})
 	modeenvAfterCreate, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Check(modeenvAfterCreate.CurrentRecoverySystems, DeepEquals, []string{"othersystem", "1234"})
-	c.Check(modeenvAfterCreate.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem", "1234"},
+		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
+	})
 
 	// these things happen on snapd startup
 	state.MockRestarting(s.state, state.RestartUnset)
@@ -1399,8 +1736,18 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemFinal
 
 	modeenvAfterFinalize, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Check(modeenvAfterFinalize.CurrentRecoverySystems, DeepEquals, []string{"othersystem"})
-	c.Check(modeenvAfterFinalize.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+	c.Check(modeenvAfterFinalize, testutil.JsonEquals, boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem"},
+		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
+	})
 	// no more calls to the bootloader
 	c.Check(s.bootloader.SetBootVarsCalls, Equals, 0)
 	// seed directory was removed
@@ -1468,8 +1815,18 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemErrCl
 	})
 	modeenvAfterCreate, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Check(modeenvAfterCreate.CurrentRecoverySystems, DeepEquals, []string{"othersystem"})
-	c.Check(modeenvAfterCreate.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem"},
+		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
+	})
 }
 
 func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemReboot(c *C) {
@@ -1557,8 +1914,18 @@ func (s *deviceMgrSystemsCreateSuite) TestDeviceManagerCreateRecoverySystemReboo
 	})
 	modeenvAfterCreate, err := boot.ReadModeenv("")
 	c.Assert(err, IsNil)
-	c.Check(modeenvAfterCreate.CurrentRecoverySystems, DeepEquals, []string{"othersystem"})
-	c.Check(modeenvAfterCreate.GoodRecoverySystems, DeepEquals, []string{"othersystem"})
+	c.Check(modeenvAfterCreate, testutil.JsonEquals, boot.Modeenv{
+		Mode:                   "run",
+		Base:                   "core20_3.snap",
+		CurrentKernels:         []string{"pc-kernel_2.snap"},
+		CurrentRecoverySystems: []string{"othersystem"},
+		GoodRecoverySystems:    []string{"othersystem"},
+
+		Model:          s.model.Model(),
+		BrandID:        s.model.BrandID(),
+		Grade:          string(s.model.Grade()),
+		ModelSignKeyID: s.model.SignKeyID(),
+	})
 	var triedSystems []string
 	s.state.Get("tried-systems", &triedSystems)
 	c.Check(triedSystems, HasLen, 0)

@@ -237,7 +237,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		if !essential {
 			kind = "non-essential"
 			if nonEssentialPresence != "" {
-				kind = fmt.Sprintf("non-essential but %q", nonEssentialPresence)
+				kind = fmt.Sprintf("non-essential but %v", nonEssentialPresence)
 			}
 		}
 		info, present, err := getInfo(name)

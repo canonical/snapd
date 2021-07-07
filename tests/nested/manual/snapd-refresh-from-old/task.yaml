@@ -24,8 +24,8 @@ prepare: |
   wget -P extra-snaps "$SNAPD_SNAP_URL" "$CORE18_SNAP_URL"
 
   # create core image with old snapd & core18
-  "$TESTSTOOLS"/nested-state build-image core
-  "$TESTSTOOLS"/nested-state create-vm core
+  tests.nested build-image core
+  tests.nested create-vm core
 
   # for refresh in later step of the test
   "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd

@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -85,7 +86,7 @@ func updateWatchdogConfig(config map[string]uint, opts *fsOnlyContext) error {
 	return nil
 }
 
-func handleWatchdogConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleWatchdogConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	config := map[string]uint{}
 
 	for _, key := range []string{"runtime-timeout", "shutdown-timeout"} {

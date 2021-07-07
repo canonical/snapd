@@ -212,6 +212,10 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 	if err != nil && !config.IsNoOption(err) {
 		return nil, err
 	}
+	experimentalGateAutoRefreshHook, err := features.Flag(tr, features.GateAutoRefreshHook)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
 
 	if snapsup.InstanceName() == "system" {
 		return nil, fmt.Errorf("cannot install reserved snap name 'system'")
@@ -260,6 +264,13 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 			// softCheckNothingRunningForRefresh, this block must be located
 			// after the conflict check done above.
 			if err := softCheckNothingRunningForRefresh(st, snapst, info); err != nil {
+				return nil, err
+			}
+		}
+
+		if experimentalGateAutoRefreshHook {
+			// If this snap was held, then remove it from snaps-hold.
+			if err := resetGatingForRefreshed(st, snapsup.InstanceName()); err != nil {
 				return nil, err
 			}
 		}
@@ -552,7 +563,7 @@ var CheckHealthHook = func(st *state.State, snapName string, rev snap.Revision) 
 	panic("internal error: snapstate.CheckHealthHook is unset")
 }
 
-var SetupGateAutoRefreshHook = func(st *state.State, snapName string, base, restart bool) *state.Task {
+var SetupGateAutoRefreshHook = func(st *state.State, snapName string, base, restart bool, affectingSnaps map[string]bool) *state.Task {
 	panic("internal error: snapstate.SetupAutoRefreshGatingHook is unset")
 }
 
@@ -1360,7 +1371,8 @@ func finalizeUpdate(st *state.State, tasksets []*state.TaskSet, hasUpdates bool,
 		// re-refresh will check the lanes to decide what to
 		// _actually_ re-refresh, but it'll be a subset of updated
 		// (and equal to updated if nothing goes wrong)
-		rerefresh := st.NewTask("check-rerefresh", fmt.Sprintf("Consider re-refresh of %s", strutil.Quoted(updated)))
+		sort.Strings(updated)
+		rerefresh := st.NewTask("check-rerefresh", fmt.Sprintf("Handling re-refresh of %s as needed", strutil.Quoted(updated)))
 		rerefresh.Set("rerefresh-setup", reRefreshSetup{
 			UserID: userID,
 			Flags:  globalFlags,
@@ -1923,11 +1935,20 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 	}
 	st.Set("refresh-candidates", hints)
 
+	// prune affecting snaps that are not in refresh candidates from hold state.
+	if err := pruneGating(st, hints); err != nil {
+		return nil, nil, err
+	}
+
 	var updates []*snap.Info
 
 	// check conflicts
 	fromChange := ""
 	for _, up := range candidates {
+		if _, ok := hints[up.InstanceName()]; !ok {
+			// filtered out by refreshHintsFromCandidates
+			continue
+		}
 		snapst := snapstateByInstance[up.InstanceName()]
 		if err := checkChangeConflictIgnoringOneChange(st, up.InstanceName(), snapst, fromChange); err != nil {
 			logger.Noticef("cannot refresh snap %q: %v", up.InstanceName(), err)
@@ -1958,8 +1979,13 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 		if err != nil {
 			return nil, nil, err
 		}
-		if affectedSnaps[up.InstanceName()] == nil && inf.Hooks[gateAutoRefreshHookName] != nil {
-			affectedSnaps[up.InstanceName()] = &affectedSnapInfo{}
+		if inf.Hooks[gateAutoRefreshHookName] != nil {
+			if affectedSnaps[up.InstanceName()] == nil {
+				affectedSnaps[up.InstanceName()] = &affectedSnapInfo{
+					AffectingSnaps: make(map[string]bool),
+				}
+			}
+			affectedSnaps[up.InstanceName()].AffectingSnaps[up.InstanceName()] = true
 		}
 	}
 
@@ -1980,15 +2006,72 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 	// return all names as potentially getting updated even though some may be
 	// held.
 	names := make([]string, len(updates))
+	toUpdate := make(map[string]*refreshCandidate, len(updates))
 	for i, up := range updates {
 		names[i] = up.InstanceName()
+		toUpdate[up.InstanceName()] = hints[up.InstanceName()]
 	}
 	sort.Strings(names)
 
-	// TODO: store the list of snaps to update on the conditional-auto-refresh task
-	// (this may be a subset refresh-candidates due to conflicts).
+	// store the list of snaps to update on the conditional-auto-refresh task
+	// (this may be a subset of refresh-candidates due to conflicts).
+	ar.Set("snaps", toUpdate)
 
 	return names, tss, nil
+}
+
+// autoRefreshPhase2 creates tasks for refreshing snaps from updates.
+func autoRefreshPhase2(ctx context.Context, st *state.State, updates []*refreshCandidate, fromChange string) ([]*state.TaskSet, error) {
+	flags := &Flags{IsAutoRefresh: true}
+	userID := 0
+
+	deviceCtx, err := DeviceCtx(st, nil, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	toUpdate := make([]minimalInstallInfo, len(updates))
+	for i, up := range updates {
+		toUpdate[i] = up
+	}
+
+	tr := config.NewTransaction(st)
+	checkDiskSpaceRefresh, err := features.Flag(tr, features.CheckDiskSpaceRefresh)
+	if err != nil && !config.IsNoOption(err) {
+		return nil, err
+	}
+	if checkDiskSpaceRefresh {
+		// check if there is enough disk space for requested snaps and their
+		// prerequisites.
+		totalSize, err := installSize(st, toUpdate, 0)
+		if err != nil {
+			return nil, err
+		}
+		requiredSpace := safetyMarginDiskSpace(totalSize)
+		path := dirs.SnapdStateDir(dirs.GlobalRootDir)
+		if err := osutilCheckFreeSpace(path, requiredSpace); err != nil {
+			snaps := make([]string, len(updates))
+			for i, up := range updates {
+				snaps[i] = up.InstanceName()
+			}
+			if _, ok := err.(*osutil.NotEnoughDiskSpaceError); ok {
+				return nil, &InsufficientSpaceError{
+					Path:       path,
+					Snaps:      snaps,
+					ChangeKind: "refresh",
+				}
+			}
+			return nil, err
+		}
+	}
+
+	updated, tasksets, err := doUpdate(ctx, st, nil, toUpdate, nil, userID, flags, deviceCtx, fromChange)
+	if err != nil {
+		return nil, err
+	}
+
+	tasksets = finalizeUpdate(st, tasksets, len(updates) > 0, updated, userID, flags)
+	return tasksets, nil
 }
 
 // LinkNewBaseOrKernel will create prepare/link-snap tasks for a remodel

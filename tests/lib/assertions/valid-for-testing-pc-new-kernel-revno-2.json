@@ -1,0 +1,13 @@
+{
+    "type": "model",
+    "authority-id": "FpA2tgNE8bUrUKSOhE6SOpsMdlcEJkDL",
+    "series": "16",
+    "brand-id": "FpA2tgNE8bUrUKSOhE6SOpsMdlcEJkDL",
+    "model": "my-model",
+    "architecture": "amd64",
+    "gadget": "pc",
+    "kernel": "test-snapd-pc-kernel",
+    "serial-authority": ["generic"],
+    "timestamp": "2021-06-01T12:18:12+00:00",
+    "revision": "2"
+}

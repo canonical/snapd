@@ -20,9 +20,8 @@
 package ui_test
 
 import (
-	"time"
-
 	"testing"
+	"time"
 
 	. "gopkg.in/check.v1"
 

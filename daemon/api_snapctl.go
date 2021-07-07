@@ -77,14 +77,11 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 				"stderr":    string(stderr),
 				"exit-code": e.ExitCode,
 			}
-			return &resp{
-				Type: ResponseTypeError,
-				Result: &errorResult{
-					Message: e.Error(),
-					Kind:    client.ErrorKindUnsuccessful,
-					Value:   result,
-				},
-				Status: 200,
+			return &apiError{
+				Status:  200,
+				Message: e.Error(),
+				Kind:    client.ErrorKindUnsuccessful,
+				Value:   result,
 			}
 		}
 		if e, ok := err.(*ctlcmd.ForbiddenCommandError); ok {
@@ -110,5 +107,5 @@ func runSnapctl(c *Command, r *http.Request, user *auth.UserState) Response {
 		"stderr": string(stderr),
 	}
 
-	return SyncResponse(result, nil)
+	return SyncResponse(result)
 }

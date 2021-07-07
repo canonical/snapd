@@ -60,7 +60,7 @@ execute: |
     MATCH "snap install --edge test-snapd-just-edge" < stderr.out
 
     echo "Install a snap not available for the given architecture"
-    if [ "$(uname -m)" = "x86_64" ]; then
+    if os.query is-pc-amd64; then
         if snap install pi2-kernel 2>stderr.out; then
             echo "Installing pi2-kernel should fail on amd64 systems but did not"
             exit 1

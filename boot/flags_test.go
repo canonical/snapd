@@ -25,13 +25,14 @@ import (
 	"os"
 	"path/filepath"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/testutil"
-	. "gopkg.in/check.v1"
 )
 
 type bootFlagsSuite struct {

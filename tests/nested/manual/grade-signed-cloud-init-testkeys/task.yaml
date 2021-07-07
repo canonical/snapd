@@ -13,7 +13,7 @@ environment:
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
 
   # don't use cloud-init to create the user, we manually use cloud-init via
-  # NESTED_PARAM_CD in the test setup
+  # --param-cdrom in the test setup
   NESTED_USE_CLOUD_INIT: false
 
   # sign all the snaps we build for the image with fakestore
@@ -102,10 +102,10 @@ prepare: |
   # second boot - attacker drive
   nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/attacker-user" seed2.iso cidata user-data meta-data
 
-  "$TESTSTOOLS"/nested-state build-image core
+  tests.nested build-image core
   # first boot will use seed1 to create the normal-user in addition to the 
   # system-user assertion
-  "$TESTSTOOLS"/nested-state create-vm core --param-cdrom "-cdrom $(pwd)/seed.iso"
+  tests.nested create-vm core --param-cdrom "-cdrom $(pwd)/seed.iso"
 
 restore: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -139,10 +139,13 @@ execute: |
   # for now we just don't get a serial assertion which is fine for the purposes
   # of this test
 
-  # TODO: is there a better thing we can wait for here instead? maybe the log
-  # message from snapd directly via journalctl ?
   echo "Waiting for snapd to react to cloud-init"
-  sleep 60
+  for i in $(seq 60); do
+    if nested_exec "journalctl --no-pager -u snapd" | MATCH "Cloud-init reported"; then
+        break
+    fi
+    sleep 1
+  done
 
   echo "Ensuring that cloud-init got disabled after running"
   nested_exec "cloud-init status" | MATCH "status: disabled"

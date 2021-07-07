@@ -27,11 +27,10 @@ import (
 )
 
 type (
-	PostQuotaGroupData   = postQuotaGroupData
-	QuotaGroupResultJSON = quotaGroupResultJSON
+	PostQuotaGroupData = postQuotaGroupData
 )
 
-func MockServicestateCreateQuota(f func(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) error) func() {
+func MockServicestateCreateQuota(f func(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) (*state.TaskSet, error)) func() {
 	old := servicestateCreateQuota
 	servicestateCreateQuota = f
 	return func() {
@@ -39,7 +38,7 @@ func MockServicestateCreateQuota(f func(st *state.State, name string, parentName
 	}
 }
 
-func MockServicestateUpdateQuota(f func(st *state.State, name string, opts servicestate.QuotaGroupUpdate) error) func() {
+func MockServicestateUpdateQuota(f func(st *state.State, name string, opts servicestate.QuotaGroupUpdate) (*state.TaskSet, error)) func() {
 	old := servicestateUpdateQuota
 	servicestateUpdateQuota = f
 	return func() {
@@ -47,7 +46,7 @@ func MockServicestateUpdateQuota(f func(st *state.State, name string, opts servi
 	}
 }
 
-func MockServicestateRemoveQuota(f func(st *state.State, name string) error) func() {
+func MockServicestateRemoveQuota(f func(st *state.State, name string) (*state.TaskSet, error)) func() {
 	old := servicestateRemoveQuota
 	servicestateRemoveQuota = f
 	return func() {

@@ -436,6 +436,33 @@ func (s *hookManagerSuite) TestHookTaskHandleIgnoreErrorWorks(c *C) {
 	checkTaskLogContains(c, s.task, ".*ignoring failure in hook.*")
 }
 
+func (s *hookManagerSuite) TestHookTaskHandlesHookErrorAndIgnoresIt(c *C) {
+	// tell the mock handler to return 'true' from its Error() handler,
+	// indicating to the hookmgr to ignore the original hook error.
+	s.mockHandler.IgnoreOriginalErr = true
+
+	// Simulate hook error
+	cmd := testutil.MockCommand(
+		c, "snap", ">&2 echo 'hook failed at user request'; exit 1")
+	defer cmd.Restore()
+
+	s.se.Ensure()
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	c.Check(s.mockHandler.BeforeCalled, Equals, true)
+	c.Check(s.mockHandler.DoneCalled, Equals, false)
+	c.Check(s.mockHandler.ErrorCalled, Equals, true)
+
+	c.Check(s.task.Kind(), Equals, "run-hook")
+	c.Check(s.task.Status(), Equals, state.DoneStatus)
+	c.Check(s.change.Status(), Equals, state.DoneStatus)
+
+	c.Check(s.manager.NumRunningHooks(), Equals, 0)
+}
+
 func (s *hookManagerSuite) TestHookTaskEnforcesTimeout(c *C) {
 	var hooksup hookstate.HookSetup
 
@@ -1016,8 +1043,8 @@ func (h *MockConcurrentHandler) Done() error {
 	return nil
 }
 
-func (h *MockConcurrentHandler) Error(err error) error {
-	return nil
+func (h *MockConcurrentHandler) Error(err error) (bool, error) {
+	return false, nil
 }
 
 func NewMockConcurrentHandler(onDone func()) *MockConcurrentHandler {

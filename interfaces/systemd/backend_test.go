@@ -30,7 +30,6 @@ import (
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/systemd"
 	"github.com/snapcore/snapd/snap"
-
 	sysd "github.com/snapcore/snapd/systemd"
 )
 
