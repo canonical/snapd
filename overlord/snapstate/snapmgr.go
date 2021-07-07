@@ -468,6 +468,8 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	// control serialisation
 	runner.AddBlocked(m.blockedTask)
 
+	AddAffectedSnapsByKind("conditional-auto-refresh", conditionalAutoRefreshAffectedSnaps)
+
 	return m, nil
 }
 

@@ -1952,7 +1952,7 @@ func (s *baseMgrsSuite) mockSuccessfulReboot(c *C, be rebootEnv, which []snap.Ty
 	state.MockRestarting(st, state.RestartUnset)
 	err := be.SetTryingDuringReboot(which)
 	c.Assert(err, IsNil)
-	s.o.DeviceManager().ResetBootOk()
+	s.o.DeviceManager().ResetToPostBootState()
 	st.Unlock()
 	defer st.Lock()
 	err = s.o.DeviceManager().Ensure()
@@ -1967,7 +1967,7 @@ func (s *baseMgrsSuite) mockRollbackAcrossReboot(c *C, be rebootEnv, which []sna
 	state.MockRestarting(st, state.RestartUnset)
 	err := be.SetRollbackAcrossReboot(which)
 	c.Assert(err, IsNil)
-	s.o.DeviceManager().ResetBootOk()
+	s.o.DeviceManager().ResetToPostBootState()
 	st.Unlock()
 	s.o.Settle(settleTimeout)
 	st.Lock()
@@ -6080,7 +6080,8 @@ func (s *mgrsSuite) TestRemodelUC20WithRecoverySystem(c *C) {
 	c.Assert(tasks, HasLen, i+1)
 
 	const usesSnapd = true
-	seedtest.ValidateSeed(c, boot.InitramfsUbuntuSeedDir, expectedLabel, usesSnapd, s.storeSigning.Trusted)
+	sd := seedtest.ValidateSeed(c, boot.InitramfsUbuntuSeedDir, expectedLabel, usesSnapd, s.storeSigning.Trusted)
+	c.Assert(sd.Model(), DeepEquals, newModel)
 }
 
 func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c *C) {
@@ -7253,7 +7254,7 @@ func (s *mgrsSuite) testGadgetKernelCommandLine(c *C, gadgetPath string, gadgetS
 		// reset bootstate, so that after-reboot command line is
 		// asserted
 		st.Unlock()
-		s.o.DeviceManager().ResetBootOk()
+		s.o.DeviceManager().ResetToPostBootState()
 		err = s.o.DeviceManager().Ensure()
 		st.Lock()
 		c.Assert(err, IsNil)

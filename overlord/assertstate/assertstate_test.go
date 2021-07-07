@@ -266,6 +266,7 @@ func (s *assertMgrSuite) SetUpTest(c *C) {
 	s.fakeStore = &fakeStore{
 		state: s.state,
 		db:    s.storeSigning,
+		// leave this comment to keep old gofmt happy
 		maxDeclSupportedFormat:          asserts.SnapDeclarationType.MaxSupportedFormat(),
 		maxValidationSetSupportedFormat: asserts.ValidationSetType.MaxSupportedFormat(),
 	}
@@ -2561,4 +2562,82 @@ func (s *assertMgrSuite) TestValidationSetAssertionForMonitorUnpinnedNotFound(c 
 
 	_, _, err := assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 0, false, 0, nil)
 	c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot fetch and resolve assertions:\n - validation-set/16/%s/bar: validation-set assertion not found.*`, s.dev1Acct.AccountID()))
+}
+
+func (s *assertMgrSuite) TestTemporaryDB(c *C) {
+	st := s.state
+
+	st.Lock()
+	defer st.Unlock()
+
+	err := assertstate.Add(st, s.storeSigning.StoreAccountKey(""))
+	c.Assert(err, IsNil)
+
+	a, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"type":         "model",
+		"series":       "16",
+		"authority-id": s.storeSigning.AuthorityID,
+		"brand-id":     s.storeSigning.AuthorityID,
+		"model":        "my-model",
+		"architecture": "amd64",
+		"gadget":       "gadget",
+		"kernel":       "krnl",
+		"timestamp":    time.Now().Format(time.RFC3339),
+	}, nil, "")
+	c.Assert(err, IsNil)
+	model := a.(*asserts.Model)
+
+	aRev2, err := s.storeSigning.Sign(asserts.ModelType, map[string]interface{}{
+		"type":         "model",
+		"series":       "16",
+		"authority-id": s.storeSigning.AuthorityID,
+		"brand-id":     s.storeSigning.AuthorityID,
+		"model":        "my-model",
+		"architecture": "amd64",
+		"gadget":       "gadget",
+		"kernel":       "krnl",
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"revision":     "2",
+	}, nil, "")
+	c.Assert(err, IsNil)
+	modelRev2 := aRev2.(*asserts.Model)
+
+	hdrs := map[string]string{
+		"series":   "16",
+		"model":    "my-model",
+		"brand-id": s.storeSigning.AuthorityID,
+	}
+	// model isn't found in the main DB
+	_, err = assertstate.DB(st).Find(asserts.ModelType, hdrs)
+	c.Assert(err, NotNil)
+	c.Assert(asserts.IsNotFound(err), Equals, true)
+	// let's get a temporary DB
+	tempDB := assertstate.TemporaryDB(st)
+	c.Assert(tempDB, NotNil)
+	// and add the model to it
+	err = tempDB.Add(model)
+	c.Assert(err, IsNil)
+	fromTemp, err := tempDB.Find(asserts.ModelType, hdrs)
+	c.Assert(err, IsNil)
+	c.Assert(fromTemp.(*asserts.Model), DeepEquals, model)
+	// the model is only in the temp database
+	_, err = assertstate.DB(st).Find(asserts.ModelType, hdrs)
+	c.Assert(err, NotNil)
+	c.Assert(asserts.IsNotFound(err), Equals, true)
+
+	// let's add it to the DB now
+	err = assertstate.Add(st, model)
+	c.Assert(err, IsNil)
+	// such that we can lookup the revision 2 in a temporary DB
+	tempDB = assertstate.TemporaryDB(st)
+	c.Assert(tempDB, NotNil)
+	err = tempDB.Add(modelRev2)
+	c.Assert(err, IsNil)
+	fromTemp, err = tempDB.Find(asserts.ModelType, hdrs)
+	c.Assert(err, IsNil)
+	c.Assert(fromTemp.(*asserts.Model), DeepEquals, modelRev2)
+	// but the main DB still returns the old model
+	fromDB, err := assertstate.DB(st).Find(asserts.ModelType, hdrs)
+	c.Assert(err, IsNil)
+	c.Assert(fromDB.(*asserts.Model), DeepEquals, model)
 }

@@ -265,7 +265,7 @@ func infoFromStoreSnap(d *storeSnap) (*snap.Info, error) {
 	info.EditedSummary = d.Summary.Clean()
 	info.EditedDescription = d.Description.Clean()
 	info.Private = d.Private
-	info.Contact = d.Contact
+	info.EditedContact = d.Contact
 	info.Architectures = d.Architectures
 	info.SnapType = d.Type
 	info.Version = d.Version
