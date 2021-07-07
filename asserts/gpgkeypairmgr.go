@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -364,4 +364,19 @@ func (gkm *GPGKeypairManager) Delete(name string) error {
 		return err
 	}
 	return nil
+}
+
+func (gkm *GPGKeypairManager) List() (res []ExternalKeyInfo, err error) {
+	collect := func(privk PrivateKey, fpr string, uid string) error {
+		key := ExternalKeyInfo{
+			Name: uid,
+			ID:   privk.PublicKey().ID(),
+		}
+		res = append(res, key)
+		return nil
+	}
+	if err := gkm.Walk(collect); err != nil {
+		return nil, err
+	}
+	return res, nil
 }
