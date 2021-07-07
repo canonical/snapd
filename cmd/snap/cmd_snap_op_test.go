@@ -229,6 +229,12 @@ func (s *SnapOpSuite) TestInstallIgnoreRunning(c *check.C) {
 func (s *SnapOpSuite) TestInstallNoPATH(c *check.C) {
 	// PATH restored by test tear down
 	os.Setenv("PATH", "/bin:/usr/bin:/sbin:/usr/sbin")
+	// SUDO_UID env must be unset in this test
+	if sudoUidEnv, isSet := os.LookupEnv("SUDO_UID"); isSet {
+		os.Unsetenv("SUDO_UID")
+		defer os.Setenv("SUDO_UID", sudoUidEnv)
+	}
+
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{

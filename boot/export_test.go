@@ -116,14 +116,6 @@ func MockSecbootSealKeysWithFDESetupHook(f func(runHook fde.RunSetupHookFunc, ke
 	}
 }
 
-func MockSecbootResealKeys(f func(params *secboot.ResealKeysParams) error) (restore func()) {
-	old := secbootResealKeys
-	secbootResealKeys = f
-	return func() {
-		secbootResealKeys = old
-	}
-}
-
 func MockSeedReadSystemEssential(f func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error)) (restore func()) {
 	old := seedReadSystemEssential
 	seedReadSystemEssential = f

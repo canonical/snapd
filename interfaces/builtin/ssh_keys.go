@@ -29,6 +29,10 @@ const sshKeysBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
+// TODO: some distributions, namely openSUSE Tumbleweed with ssh 8.4p1, have
+// started moving the vendor ssh configuration to other locations not included,
+// eg. /usr/etc/ssh. The new location isn't made available inside the snap mount
+// namespace either.
 const sshKeysConnectedPlugAppArmor = `
 # Description: Can read ssh user configuration as well as public and private
 # keys.

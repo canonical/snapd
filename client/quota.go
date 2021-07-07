@@ -46,9 +46,9 @@ type QuotaGroupResult struct {
 
 // EnsureQuota creates a quota group or updates an existing group.
 // The list of snaps can be empty.
-func (client *Client) EnsureQuota(groupName string, parent string, snaps []string, maxMemory uint64) error {
+func (client *Client) EnsureQuota(groupName string, parent string, snaps []string, maxMemory uint64) (changeID string, err error) {
 	if groupName == "" {
-		return xerrors.Errorf("cannot create or update quota group without a name")
+		return "", xerrors.Errorf("cannot create or update quota group without a name")
 	}
 	// TODO: use naming.ValidateQuotaGroup()
 
@@ -62,13 +62,15 @@ func (client *Client) EnsureQuota(groupName string, parent string, snaps []strin
 
 	var body bytes.Buffer
 	if err := json.NewEncoder(&body).Encode(data); err != nil {
-		return err
+		return "", err
 	}
-	if _, err := client.doSync("POST", "/v2/quotas", nil, nil, &body, nil); err != nil {
+	chgID, err := client.doAsync("POST", "/v2/quotas", nil, nil, &body)
+
+	if err != nil {
 		fmt := "cannot create or update quota group: %w"
-		return xerrors.Errorf(fmt, err)
+		return "", xerrors.Errorf(fmt, err)
 	}
-	return nil
+	return chgID, nil
 }
 
 func (client *Client) GetQuotaGroup(groupName string) (*QuotaGroupResult, error) {
@@ -84,9 +86,9 @@ func (client *Client) GetQuotaGroup(groupName string) (*QuotaGroupResult, error)
 	return res, nil
 }
 
-func (client *Client) RemoveQuotaGroup(groupName string) error {
+func (client *Client) RemoveQuotaGroup(groupName string) (changeID string, err error) {
 	if groupName == "" {
-		return xerrors.Errorf("cannot remove quota group without a name")
+		return "", xerrors.Errorf("cannot remove quota group without a name")
 	}
 	data := &postQuotaData{
 		Action:    "remove",
@@ -95,12 +97,15 @@ func (client *Client) RemoveQuotaGroup(groupName string) error {
 
 	var body bytes.Buffer
 	if err := json.NewEncoder(&body).Encode(data); err != nil {
-		return err
+		return "", err
 	}
-	if _, err := client.doSync("POST", "/v2/quotas", nil, nil, &body, nil); err != nil {
-		return err
+	chgID, err := client.doAsync("POST", "/v2/quotas", nil, nil, &body)
+	if err != nil {
+		fmt := "cannot remove quota group: %w"
+		return "", xerrors.Errorf(fmt, err)
 	}
-	return nil
+
+	return chgID, nil
 }
 
 func (client *Client) Quotas() ([]*QuotaGroupResult, error) {

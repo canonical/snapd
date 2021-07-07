@@ -27,7 +27,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -50,7 +49,7 @@ func (s *timezoneSuite) TestConfigureTimezoneInvalid(c *C) {
 	}
 
 	for _, tz := range invalidTimezones {
-		err := configcore.Run(&mockConf{
+		err := configcore.Run(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				"system.timezone": tz,
@@ -61,9 +60,6 @@ func (s *timezoneSuite) TestConfigureTimezoneInvalid(c *C) {
 }
 
 func (s *timezoneSuite) TestConfigureTimezoneIntegration(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	mockedTimedatectl := testutil.MockCommand(c, "timedatectl", "")
 	defer mockedTimedatectl.Restore()
 
@@ -74,7 +70,7 @@ func (s *timezoneSuite) TestConfigureTimezoneIntegration(c *C) {
 	}
 
 	for _, tz := range validTimezones {
-		err := configcore.Run(&mockConf{
+		err := configcore.Run(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				"system.timezone": tz,
@@ -93,7 +89,7 @@ func (s *timezoneSuite) TestFilesystemOnlyApply(c *C) {
 		"system.timezone": "Europe/Berlin",
 	})
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 
 	c.Check(filepath.Join(tmpDir, "/etc/writable/timezone"), testutil.FileEquals, "Europe/Berlin\n")
 	p, err := os.Readlink(filepath.Join(tmpDir, "/etc/writable/localtime"))

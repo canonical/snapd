@@ -57,7 +57,7 @@ execute: |
         if [ "$retval" -eq 0 ]; then
           MATCH vlc < vlc.log
         else
-          MATCH 'error: cannot get snap sections: cannot sections: got unexpected HTTP status code 403 via GET to "https://api.snapcraft.io/api/v1/snaps/sections"' < vlc.log
+          MATCH 'error: cannot get snap sections: cannot retrieve sections: got unexpected HTTP status code 403 via GET to "https://api.snapcraft.io/api/v1/snaps/sections"' < vlc.log
         fi
     else
         # actual output:

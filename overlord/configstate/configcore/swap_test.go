@@ -29,7 +29,6 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -55,11 +54,8 @@ func (s *swapCfgSuite) SetUpTest(c *C) {
 }
 
 func (s *swapCfgSuite) TestConfigureSwapSizeOnlyWhenChanged(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	// set it to 1M initially
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"swap.size": "1048576",
@@ -80,7 +76,7 @@ SIZE=1
 	s.systemctlArgs = nil
 
 	// running it with the same changes as conf results in no calls to systemd
-	err = configcore.Run(&mockConf{
+	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"swap.size": "1048576",
@@ -99,11 +95,8 @@ SIZE=1
 }
 
 func (s *swapCfgSuite) TestConfigureSwapSize(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	// set it to 1M initially
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"swap.size": "1048576",
@@ -124,7 +117,7 @@ SIZE=1
 	s.systemctlArgs = nil
 
 	// now change it to empty
-	err = configcore.Run(&mockConf{
+	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"swap.size": "1048576",
@@ -190,7 +183,7 @@ func (s *swapCfgSuite) TestSwapSizeNumberFormats(c *C) {
 			"swap.size": t.sizeStr,
 		})
 
-		err := configcore.FilesystemOnlyApply(dirs.GlobalRootDir, conf, nil)
+		err := configcore.FilesystemOnlyApply(coreDev, dirs.GlobalRootDir, conf)
 		if t.err != "" {
 			c.Assert(err, ErrorMatches, t.err)
 		} else {
@@ -211,7 +204,7 @@ func (s *swapCfgSuite) TestSwapSizeFilesystemOnlyApply(c *C) {
 	err := os.MkdirAll(filepath.Dir(s.configSwapFile), 0755)
 	c.Assert(err, IsNil)
 
-	c.Assert(configcore.FilesystemOnlyApply(dirs.GlobalRootDir, conf, nil), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, dirs.GlobalRootDir, conf), IsNil)
 
 	c.Check(s.configSwapFile, testutil.FileEquals, `FILE=/var/tmp/swapfile.swp
 SIZE=1024
@@ -232,7 +225,7 @@ func (s *swapCfgSuite) TestSwapSizeFilesystemOnlyApplyExistingConfig(c *C) {
 SIZE=0`), 0644)
 	c.Assert(err, IsNil)
 
-	err = configcore.FilesystemOnlyApply(dirs.GlobalRootDir, conf, nil)
+	err = configcore.FilesystemOnlyApply(coreDev, dirs.GlobalRootDir, conf)
 	c.Assert(err, IsNil)
 
 	c.Check(s.configSwapFile, testutil.FileEquals, `FILE=/var/tmp/other-swapfile.swp

@@ -3019,7 +3019,7 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 		return nil
 	}
 
-	tss, err := autoRefreshPhase2(context.TODO(), st, snaps)
+	tss, err := autoRefreshPhase2(context.TODO(), st, snaps, t.Change().ID())
 	if err != nil {
 		return err
 	}

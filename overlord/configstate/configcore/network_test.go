@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -43,7 +42,6 @@ var _ = Suite(&networkSuite{})
 
 func (s *networkSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
-	s.AddCleanup(release.MockOnClassic(false))
 
 	s.mockSysctl = testutil.MockCommand(c, "sysctl", "")
 	s.AddCleanup(s.mockSysctl.Restore)
@@ -54,7 +52,7 @@ func (s *networkSuite) SetUpTest(c *C) {
 
 func (s *networkSuite) TestConfigureNetworkIntegrationIPv6(c *C) {
 	// disable ipv6
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"network.disable-ipv6": true,
@@ -69,7 +67,7 @@ func (s *networkSuite) TestConfigureNetworkIntegrationIPv6(c *C) {
 	s.mockSysctl.ForgetCalls()
 
 	// enable it again
-	err = configcore.Run(&mockConf{
+	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"network.disable-ipv6": false,
@@ -84,7 +82,7 @@ func (s *networkSuite) TestConfigureNetworkIntegrationIPv6(c *C) {
 	s.mockSysctl.ForgetCalls()
 
 	// enable it yet again, this does not trigger another syscall
-	err = configcore.Run(&mockConf{
+	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"network.disable-ipv6": false,
@@ -95,7 +93,7 @@ func (s *networkSuite) TestConfigureNetworkIntegrationIPv6(c *C) {
 }
 
 func (s *networkSuite) TestConfigureNetworkIntegrationNoSetting(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{},
 	})
@@ -114,7 +112,7 @@ func (s *networkSuite) TestFilesystemOnlyApply(c *C) {
 
 	tmpDir := c.MkDir()
 	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/etc/sysctl.d/"), 0755), IsNil)
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 
 	networkSysctlPath := filepath.Join(tmpDir, "/etc/sysctl.d/10-snapd-network.conf")
 	c.Check(networkSysctlPath, testutil.FileEquals, "net.ipv6.conf.all.disable_ipv6=1\n")
@@ -129,5 +127,5 @@ func (s *networkSuite) TestFilesystemOnlyApplyValidationFails(c *C) {
 	})
 
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), ErrorMatches, `network.disable-ipv6 can only be set to 'true' or 'false'`)
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), ErrorMatches, `network.disable-ipv6 can only be set to 'true' or 'false'`)
 }
