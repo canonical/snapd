@@ -32,8 +32,8 @@ prepare: |
 
     rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
-    "$TESTSTOOLS"/nested-state build-image core
-    "$TESTSTOOLS"/nested-state create-vm core
+    tests.nested build-image core
+    tests.nested create-vm core
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
