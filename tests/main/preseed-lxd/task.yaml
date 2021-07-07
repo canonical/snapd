@@ -5,9 +5,9 @@ details: |
   command works in lxc container and that the resulting image can be run
   in a container and seeding finishes successfully.
 
-# this test works only on 18.04 because it requires lxd from deb (lxd snap
+# this test works only on 18.04-64 because it requires lxd from deb (lxd snap
 # as it wouldn't allow mount) and tries to replicate launchpad builder setup.
-systems: [ubuntu-18.04-*]
+systems: [ubuntu-18.04-64]
 
 environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg

@@ -23,11 +23,11 @@ prepare: |
     # build the attacker cloud-init NoCloud cdrom drive
     nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/attacker-user" seed2.iso cidata user-data meta-data
 
-    "$TESTSTOOLS"/nested-state build-image core 
+    tests.nested build-image core 
 
     # first boot will use seed1 which is empty, but the same file name will be 
     # replace while the VM is shutdown to use the second attacker iso
-    "$TESTSTOOLS"/nested-state create-vm core --param-cdrom "-cdrom $(pwd)/seed.iso"
+    tests.nested create-vm core --param-cdrom "-cdrom $(pwd)/seed.iso"
 
 debug: |
     if [ -f snapd-before-reboot.logs ]; then
@@ -95,10 +95,13 @@ execute: |
     echo "Waiting for cloud-init..."
     nested_exec "cloud-init status --wait"
 
-    # TODO: is there a better thing we can wait for here instead? maybe the log
-    # message from snapd directly via journalctl ?
     echo "Waiting for snapd to react to cloud-init"
-    sleep 60
+    for i in $(seq 60); do
+        if nested_exec "journalctl --no-pager -u snapd" | MATCH "Cloud-init reported"; then
+            break
+        fi
+        sleep 1
+    done
 
     # ensure that snapd disabled cloud-init with the cloud-init.disabled file
     echo "Ensuring that snapd restricted cloud-init"
@@ -111,13 +114,13 @@ execute: |
 
     echo "Gracefully shutting down the nested VM to prepare a simulated attack"
     boot_id="$(nested_get_boot_id)"
-    "$TESTSTOOLS"/nested-state stop-vm
+    tests.nested stop-vm
 
     echo "Replace the empty seed.iso with the new attacker iso"
     mv seed2.iso seed.iso
 
     echo "Restarting nested VM with attacker cloud-init CD-ROM drive"
-    "$TESTSTOOLS"/nested-state start-vm
+    tests.nested start-vm
     nested_wait_for_reboot "${boot_id}"
 
     # cloud-init should not actually run, since it was disabled, but in case the

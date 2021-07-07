@@ -233,6 +233,7 @@ var (
 	CreateSystemForModelFromValidatedSnaps = createSystemForModelFromValidatedSnaps
 	LogNewSystemSnapFile                   = logNewSystemSnapFile
 	PurgeNewSystemSnapFiles                = purgeNewSystemSnapFiles
+	CreateRecoverySystemTasks              = createRecoverySystemTasks
 )
 
 func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error) (restore func()) {

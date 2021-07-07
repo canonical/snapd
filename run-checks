@@ -267,6 +267,11 @@ if [ "$STATIC" = 1 ]; then
     fi
 
     # FIXME: re-add staticcheck with a matching version for the used go-version
+
+    if [ -z "${SKIP_TESTS_FORMAT_CHECK-}" ] || [ "$SKIP_TESTS_FORMAT_CHECK" = 0 ]; then
+        echo "Checking tests formatting"
+        ./tests/utils/check-test-format ./tests
+    fi
 fi
 
 if [ "$UNIT" = 1 ]; then

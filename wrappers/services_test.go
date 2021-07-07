@@ -33,17 +33,17 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
-	"github.com/snapcore/snapd/snap/quota"
 
-	// imported to ensure actual interfaces are defined,
-	// in production this is guaranteed by ifacestate
+	// imported to ensure actual interfaces are defined (in production this is guaranteed by ifacestate)
 	_ "github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/usersession/agent"
@@ -257,11 +257,18 @@ WantedBy=multi-user.target
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
-MemoryMax=%s
+MemoryMax=%[2]s
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]s
+
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
 `
 
 	sliceContent := fmt.Sprintf(sliceTempl, grp.Name, memLimit.String())
@@ -360,11 +367,18 @@ func (s *servicesTestSuite) TestEnsureSnapServicesRewritesQuotaSlices(c *C) {
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
-MemoryMax=%s
+MemoryMax=%[2]s
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]s
+
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
 `
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
 
@@ -449,11 +463,18 @@ func (s *servicesTestSuite) TestEnsureSnapServicesDoesNotRewriteQuotaSlicesOnNoo
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
-MemoryMax=%s
+MemoryMax=%[2]s
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]s
+
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
 `
 	sliceFile := filepath.Join(s.tempdir, "/etc/systemd/system/snap.foogroup.slice")
 
@@ -535,11 +556,14 @@ func (s *servicesTestSuite) TestRemoveQuotaGroup(c *C) {
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
 MemoryMax=1024
+# for compatibility with older versions of systemd
+MemoryLimit=1024
 `
 
 	err = os.MkdirAll(filepath.Dir(sliceFile), 0755)
@@ -603,11 +627,18 @@ apps:
 	sliceTempl := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
-MemoryMax=%s
+MemoryMax=%[2]s
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]s
+
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
 `
 
 	sliceContent := fmt.Sprintf(sliceTempl, "foogroup", memLimit.String())
@@ -768,11 +799,18 @@ WantedBy=multi-user.target
 	templ := `[Unit]
 Description=Slice for snap quota group %s
 Before=slices.target
+X-Snappy=yes
 
 [Slice]
 # Always enable memory accounting otherwise the MemoryMax setting does nothing.
 MemoryAccounting=true
-MemoryMax=%s
+MemoryMax=%[2]s
+# for compatibility with older versions of systemd
+MemoryLimit=%[2]s
+
+# Always enable task accounting in order to be able to count the processes/
+# threads, etc for a slice
+TasksAccounting=true
 `
 
 	c.Assert(sliceFile, testutil.FileEquals, fmt.Sprintf(templ, "foogroup", memLimit.String()))
@@ -3298,32 +3336,120 @@ apps:
 	info := snaptest.MockSnap(c, surviveYaml, &snap.SideInfo{Revision: snap.R(1)})
 	srvFile := "snap.test-snap.foo.service"
 
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
+			return out, nil
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
 	err := wrappers.AddSnapServices(info, nil, progress.Null)
 	c.Assert(err, IsNil)
 
 	s.sysdLog = nil
 	flags := &wrappers.RestartServicesFlags{Reload: true}
-	c.Assert(wrappers.RestartServices(info.Services(), flags, progress.Null, s.perfTimings), IsNil)
+	c.Assert(wrappers.RestartServices(info.Services(), nil, flags, progress.Null, s.perfTimings), IsNil)
 	c.Assert(err, IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type", srvFile},
 		{"reload-or-restart", srvFile},
 	})
 
 	s.sysdLog = nil
 	flags.Reload = false
-	c.Assert(wrappers.RestartServices(info.Services(), flags, progress.Null, s.perfTimings), IsNil)
+	c.Assert(wrappers.RestartServices(info.Services(), nil, flags, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type", srvFile},
 		{"stop", srvFile},
 		{"show", "--property=ActiveState", srvFile},
 		{"start", srvFile},
 	})
 
 	s.sysdLog = nil
-	c.Assert(wrappers.RestartServices(info.Services(), nil, progress.Null, s.perfTimings), IsNil)
+	c.Assert(wrappers.RestartServices(info.Services(), nil, nil, progress.Null, s.perfTimings), IsNil)
 	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type", srvFile},
 		{"stop", srvFile},
 		{"show", "--property=ActiveState", srvFile},
 		{"start", srvFile},
+	})
+}
+
+func (s *servicesTestSuite) TestRestartInDifferentStates(c *C) {
+	const manyServicesYaml = `name: test-snap
+version: 1.0
+apps:
+  svc1:
+    command: bin/foo
+    daemon: simple
+  svc2:
+    command: bin/foo
+    daemon: simple
+  svc3:
+    command: bin/foo
+    daemon: simple
+  svc4:
+    command: bin/foo
+    daemon: simple
+`
+	srvFile1 := "snap.test-snap.svc1.service"
+	srvFile2 := "snap.test-snap.svc2.service"
+	srvFile3 := "snap.test-snap.svc3.service"
+	srvFile4 := "snap.test-snap.svc4.service"
+
+	info := snaptest.MockSnap(c, manyServicesYaml, &snap.SideInfo{Revision: snap.R(1)})
+
+	r := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		s.sysdLog = append(s.sysdLog, cmd)
+		states := map[string]systemdtest.ServiceState{
+			srvFile1: {ActiveState: "active", UnitFileState: "enabled"},
+			srvFile2: {ActiveState: "inactive", UnitFileState: "enabled"},
+			srvFile3: {ActiveState: "active", UnitFileState: "disabled"},
+			srvFile4: {ActiveState: "inactive", UnitFileState: "disabled"},
+		}
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, states); out != nil {
+			return out, nil
+		}
+		return []byte("ActiveState=inactive\n"), nil
+	})
+	defer r()
+
+	err := wrappers.AddSnapServices(info, nil, progress.Null)
+	c.Assert(err, IsNil)
+
+	s.sysdLog = nil
+	services := info.Services()
+	sort.Sort(snap.AppInfoBySnapApp(services))
+	c.Assert(wrappers.RestartServices(services, nil, nil, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type",
+			srvFile1, srvFile2, srvFile3, srvFile4},
+		{"stop", srvFile1},
+		{"show", "--property=ActiveState", srvFile1},
+		{"start", srvFile1},
+		{"stop", srvFile3},
+		{"show", "--property=ActiveState", srvFile3},
+		{"start", srvFile3},
+	})
+
+	// Verify that explicitly mentioning a service causes it to restart,
+	// regardless of its state
+	s.sysdLog = nil
+	c.Assert(wrappers.RestartServices(services, []string{srvFile2}, nil, progress.Null, s.perfTimings), IsNil)
+	c.Check(s.sysdLog, DeepEquals, [][]string{
+		{"show", "--property=Id,ActiveState,UnitFileState,Type",
+			srvFile1, srvFile2, srvFile3, srvFile4},
+		{"stop", srvFile1},
+		{"show", "--property=ActiveState", srvFile1},
+		{"start", srvFile1},
+		{"stop", srvFile2},
+		{"show", "--property=ActiveState", srvFile2},
+		{"start", srvFile2},
+		{"stop", srvFile3},
+		{"show", "--property=ActiveState", srvFile3},
+		{"start", srvFile3},
 	})
 }
 

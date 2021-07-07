@@ -37,9 +37,10 @@ func dropFromRecoverySystemsList(systemsList []string, systemLabel string) (newL
 	return systemsList, false
 }
 
-// ClearTryRecoverySystem removes a given candidate recovery system from the
-// modeenv state file, reseals and clears related bootloader variables. An empty
-// system label can be passed when the boot variables state is inconsistent.
+// ClearTryRecoverySystem removes a given candidate recovery system and clears
+// the try model in the modeenv state file, then reseals and clears related
+// bootloader variables. An empty system label can be passed when the boot
+// variables state is inconsistent.
 func ClearTryRecoverySystem(dev Device, systemLabel string) error {
 	if !dev.HasModeenv() {
 		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
@@ -58,14 +59,24 @@ func ClearTryRecoverySystem(dev Device, systemLabel string) error {
 		return err
 	}
 
+	modified := false
 	// we may be repeating the cleanup, in which case the system was already
 	// removed from the modeenv and we don't need to rewrite the modeenv
 	if updated, found := dropFromRecoverySystemsList(m.CurrentRecoverySystems, systemLabel); found {
 		m.CurrentRecoverySystems = updated
+		modified = true
+	}
+	if m.TryModel != "" {
+		// recovery system is tried with a matching models
+		m.clearTryModel()
+		modified = true
+	}
+	if modified {
 		if err := m.Write(); err != nil {
 			return err
 		}
 	}
+
 	// clear both variables, no matter the values they hold
 	vars := map[string]string{
 		"try_recovery_system":    "",
@@ -77,7 +88,7 @@ func ClearTryRecoverySystem(dev Device, systemLabel string) error {
 	// but we still want to reseal, in case the cleanup did not reach this
 	// point before
 	const expectReseal = true
-	resealErr := resealKeyToModeenv(dirs.GlobalRootDir, dev.Model(), m, expectReseal)
+	resealErr := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal)
 
 	if resealErr != nil {
 		return resealErr
@@ -86,9 +97,11 @@ func ClearTryRecoverySystem(dev Device, systemLabel string) error {
 }
 
 // SetTryRecoverySystem sets up the boot environment for trying out a recovery
-// system with given label and adds the new system to the list of current
-// recovery systems in the modeenv. Once done, the caller should request
-// switching to the given recovery system.
+// system with given label in the context of the provided device. The call adds
+// the new system to the list of current recovery systems in the modeenv, and
+// optionally sets a try model, if the device model is different from the
+// current one, which typically can happen during a remodel. Once done, the
+// caller should request switching to the given recovery system.
 func SetTryRecoverySystem(dev Device, systemLabel string) (err error) {
 	if !dev.HasModeenv() {
 		return fmt.Errorf("internal error: recovery systems can only be used on UC20")
@@ -108,10 +121,24 @@ func SetTryRecoverySystem(dev Device, systemLabel string) (err error) {
 		return err
 	}
 
+	modified := false
 	// we could have rebooted before resealing the keys
 	if !strutil.ListContains(m.CurrentRecoverySystems, systemLabel) {
 		m.CurrentRecoverySystems = append(m.CurrentRecoverySystems, systemLabel)
+		modified = true
 
+	}
+	// we either have the current device context, in which case the model
+	// will match the current model in the modeenv, or a remodel device
+	// context carrying a new model, for which we may need to set the try
+	// model in the modeenv
+	model := dev.Model()
+	if modelUniqueID(model) != modelUniqueID(m.ModelForSealing()) {
+		// recovery system is tried with a matching model
+		m.setTryModel(model)
+		modified = true
+	}
+	if modified {
 		if err := m.Write(); err != nil {
 			return err
 		}
@@ -141,7 +168,7 @@ func SetTryRecoverySystem(dev Device, systemLabel string) (err error) {
 	// tried system, data will still be inaccessible and the system will be
 	// considered as nonoperational
 	const expectReseal = true
-	return resealKeyToModeenv(dirs.GlobalRootDir, dev.Model(), m, expectReseal)
+	return resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal)
 }
 
 type errInconsistentRecoverySystemState struct {
@@ -380,7 +407,7 @@ func PromoteTriedRecoverySystem(dev Device, systemLabel string, triedSystems []s
 	}
 
 	const expectReseal = true
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, dev.Model(), m, expectReseal); err != nil {
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal); err != nil {
 		if cleanupErr := DropRecoverySystem(dev, systemLabel); cleanupErr != nil {
 			err = fmt.Errorf("%v (cleanup failed: %v)", err, cleanupErr)
 		}
@@ -418,5 +445,5 @@ func DropRecoverySystem(dev Device, systemLabel string) error {
 	}
 
 	const expectReseal = true
-	return resealKeyToModeenv(dirs.GlobalRootDir, dev.Model(), m, expectReseal)
+	return resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal)
 }

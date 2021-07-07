@@ -236,6 +236,7 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	s.AddCleanup(s.restoreCloudInitStatusRestore)
 
 	s.AddCleanup(func() { s.ancillary = nil })
+	s.AddCleanup(func() { s.newFakeStore = nil })
 }
 
 func (s *deviceMgrBaseSuite) newStore(devBE storecontext.DeviceBackend) snapstate.StoreService {
@@ -285,11 +286,11 @@ func (s *deviceMgrBaseSuite) setupBrands(c *C) {
 	assertstatetest.AddMany(s.state, otherAcct)
 }
 
-func (s *deviceMgrBaseSuite) setupSnapDecl(c *C, info *snap.Info, publisherID string) {
+func (s *deviceMgrBaseSuite) setupSnapDeclForNameAndID(c *C, name, snapID, publisherID string) {
 	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
-		"snap-name":    info.SnapName(),
-		"snap-id":      info.SnapID,
+		"snap-name":    name,
+		"snap-id":      snapID,
 		"publisher-id": publisherID,
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
@@ -297,20 +298,28 @@ func (s *deviceMgrBaseSuite) setupSnapDecl(c *C, info *snap.Info, publisherID st
 	assertstatetest.AddMany(s.state, snapDecl)
 }
 
-func (s *deviceMgrBaseSuite) setupSnapRevision(c *C, info *snap.Info, publisherID string, revision snap.Revision) {
-	sha3_384, size, err := asserts.SnapFileSHA3_384(info.MountFile())
+func (s *deviceMgrBaseSuite) setupSnapDecl(c *C, info *snap.Info, publisherID string) {
+	s.setupSnapDeclForNameAndID(c, info.SnapName(), info.SnapID, publisherID)
+}
+
+func (s *deviceMgrBaseSuite) setupSnapRevisionForFileAndID(c *C, file, snapID, publisherID string, revision snap.Revision) {
+	sha3_384, size, err := asserts.SnapFileSHA3_384(file)
 	c.Assert(err, IsNil)
 
 	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
 		"snap-sha3-384": sha3_384,
 		"snap-size":     fmt.Sprintf("%d", size),
-		"snap-id":       info.SnapID,
+		"snap-id":       snapID,
 		"developer-id":  publisherID,
 		"snap-revision": revision.String(),
 		"timestamp":     time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
 	assertstatetest.AddMany(s.state, snapRev)
+}
+
+func (s *deviceMgrBaseSuite) setupSnapRevision(c *C, info *snap.Info, publisherID string, revision snap.Revision) {
+	s.setupSnapRevisionForFileAndID(c, info.MountFile(), info.SnapID, publisherID, revision)
 }
 
 func makeSerialAssertionInState(c *C, brands *assertstest.SigningAccounts, st *state.State, brandID, model, serialN string) *asserts.Serial {

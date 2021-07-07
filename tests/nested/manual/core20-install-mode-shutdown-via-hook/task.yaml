@@ -1,5 +1,9 @@
 summary: Verify snapctl poweroff install-device hook usage
 
+details: |
+    This test checks support for shutting down the device at the end of install
+    mode via the install-device hook
+
 systems: [ubuntu-20.04-64]
 
 environment:
@@ -7,10 +11,6 @@ environment:
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
     NESTED_ENABLE_TPM: true
     NESTED_ENABLE_SECURE_BOOT: true
-
-details: |
-    This test checks support for shutting down the device at the end of install
-    mode via the install-device hook
 
 prepare: |
     #shellcheck source=tests/lib/nested.sh
@@ -36,7 +36,7 @@ prepare: |
     cp install-device pc-gadget/meta/hooks/install-device
     snap pack pc-gadget/ extra-snaps/
 
-    "$TESTSTOOLS"/nested-state build-image core
+    tests.nested build-image core
 
 restore: |
     # Cleanup restore is needed in this case because nested tests are not
@@ -81,7 +81,7 @@ execute: |
     MATCH "ubuntu-data" < partitions.txt
 
     echo "Now starting the VM again will proceed to run mode appropriately"
-    "$TESTSTOOLS"/nested-state start-vm
+    tests.nested start-vm
 
     # setup SSH since that was not done with the previous stage, as the device
     # shut down while still in install mode, we need to manually do this stage

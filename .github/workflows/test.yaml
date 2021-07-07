@@ -82,7 +82,11 @@ jobs:
         # NOTE: checkout the code in a fixed location, even for forks, as this
         # is relevant for go's import system.
         path: ./src/github.com/snapcore/snapd
-
+    # Fetch base ref, needed for golangci-lint
+    - name: Fetching base ref ${{ github.base_ref }}
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd
+        git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
     - name: Cache Debian dependencies
       id: cache-deb-downloads
       uses: actions/cache@v1
@@ -138,6 +142,26 @@ jobs:
         key: go-govendor-{{ hashFiles('**/vendor.json') }}
     - name: Get Go dependencies
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ${{ github.workspace }}/bin/govendor sync
+
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v2
+      if: ${{ matrix.gochannel == 'latest/stable' }}
+      with:
+        # version of golangci-lint to use in form of v1.2 or v1.2.3 or `latest`
+        # to use the latest version
+        version: v1.40.0
+        working-directory: ./src/github.com/snapcore/snapd
+        # show only new issues
+        # use empty path prefix to make annotations work
+        # TODO: start failing once the config is tuned properly
+        args: --new-from-rev=${{ github.base_ref }} --path-prefix= --issues-exit-code=0
+        # skip all additional steps
+        skip-go-installation: true
+        skip-pkg-cache: true
+        skip-build-cache: true
+        # XXX: does no work with working-directory
+        # only-new-issues: true
+
     - name: Run static checks
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
@@ -148,6 +172,7 @@ jobs:
               export SKIP_GOFMT=1
               echo "Formatting checks will be skipped due to the use of Go version ${{ matrix.gochannel }}"
           fi
+          sudo apt-get install -y python3-yamlordereddictloader
           ./run-checks --static
     - name: Build C
       if: steps.cached-results.outputs.already-ran != 'true'
@@ -207,16 +232,14 @@ jobs:
         - centos-8-64
         - debian-10-64
         - debian-sid-64
-        # TODO: drop Fedora 32 once it goes EOL on 25.05.2021
-        - fedora-32-64
         - fedora-33-64
         - fedora-34-64
         - opensuse-15.1-64
         - opensuse-15.2-64
         - opensuse-tumbleweed-64
         - ubuntu-14.04-64
-        - ubuntu-16.04-32
         - ubuntu-16.04-64
+        - ubuntu-18.04-32
         - ubuntu-18.04-64
         - ubuntu-20.04-64
         - ubuntu-20.10-64

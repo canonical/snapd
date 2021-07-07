@@ -33,10 +33,13 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -171,16 +174,26 @@ func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
 		SnapType: "app",
 	})
 
+	// CreateQuota is calling "systemctl.Restart", which needs to be mocked
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) (buf []byte, err error) {
+		s.systemctlArgs = append(s.systemctlArgs, cmd)
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
+			return out, nil
+		}
+
+		if cmd[0] == "show" {
+			return []byte("ActiveState=inactive\n"), nil
+		}
+		return nil, nil
+	})
+	s.AddCleanup(systemctlRestorer)
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.quota-groups", true)
 	tr.Commit()
 
 	// make a new quota group with this snap in it
-	err := servicestate.CreateQuota(s.state, "foogroup", "", []string{"test-snap"}, quantity.SizeMiB)
+	err := servicestatetest.MockQuotaInState(s.state, "foogroup", "", []string{"test-snap"}, quantity.SizeMiB)
 	c.Assert(err, IsNil)
-
-	// CreateQuota uses systemctl, but we don't care about that here
-	s.systemctlArgs = nil
 
 	s.state.Unlock()
 

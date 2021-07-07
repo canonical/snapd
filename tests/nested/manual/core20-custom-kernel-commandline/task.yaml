@@ -1,5 +1,8 @@
 summary: Verify custom kernel command line handling in UC20
 
+details: |
+    This test checks support for customized kernel command line arguments in UC20
+
 systems: [ubuntu-20.04-64]
 
 environment:
@@ -7,13 +10,6 @@ environment:
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
     NESTED_ENABLE_TPM: true
     NESTED_ENABLE_SECURE_BOOT: true
-
-details: |
-    This test checks support for customized kernel command line arguments in UC20
-
-debug: |
-    cat system.cmdline.run || true
-    cat system.cmdline.recover || true
 
 prepare: |
     #shellcheck source=tests/lib/nested.sh
@@ -50,12 +46,16 @@ prepare: |
     rm pc-gadget/cmdline.full
     snap pack pc-gadget --filename=pc-gadget-cmdline-none.snap
 
-    "$TESTSTOOLS"/nested-state build-image core
-    "$TESTSTOOLS"/nested-state create-vm core
+    tests.nested build-image core
+    tests.nested create-vm core
 
     for f in pc-gadget-cmdline-extra-updated.snap pc-gadget-cmdline-full.snap pc-gadget-cmdline-none.snap; do
         nested_copy "$f"
     done
+
+debug: |
+    cat system.cmdline.run || true
+    cat system.cmdline.recover || true
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
@@ -90,7 +90,7 @@ execute: |
     nested_wait_for_reboot "${boot_id}"
     boot_id="$(nested_get_boot_id)"
     echo "Verify that custom command line elements are not present"
-    nested_exec 'sudo cat /proc/cmdline' | not MATCH 'hello from test'
+    nested_exec 'sudo cat /proc/cmdline' | NOMATCH 'hello from test'
     # wait for previous change to finish before proceeding
     nested_exec sudo snap watch "$REMOTE_CHG_ID"
 

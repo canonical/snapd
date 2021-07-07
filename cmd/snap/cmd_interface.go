@@ -26,10 +26,10 @@ import (
 	"sort"
 	"text/tabwriter"
 
+	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
-
-	"github.com/jessevdk/go-flags"
 )
 
 type cmdInterface struct {

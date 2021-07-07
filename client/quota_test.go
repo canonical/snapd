@@ -29,17 +29,21 @@ import (
 )
 
 func (cs *clientSuite) TestCreateQuotaGroupInvalidName(c *check.C) {
-	err := cs.cli.EnsureQuota("", "", nil, 0)
+	_, err := cs.cli.EnsureQuota("", "", nil, 0)
 	c.Check(err, check.ErrorMatches, `cannot create or update quota group without a name`)
 }
 
 func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{
-		"type": "sync",
-		"status-code": 200
+		"type": "async",
+		"status-code": 202,
+		"change": "42"
 	}`
 
-	c.Assert(cs.cli.EnsureQuota("foo", "bar", []string{"snap-a", "snap-b"}, 1001), check.IsNil)
+	chgID, err := cs.cli.EnsureQuota("foo", "bar", []string{"snap-a", "snap-b"}, 1001)
+	c.Assert(err, check.IsNil)
+	c.Assert(chgID, check.Equals, "42")
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/quotas")
 	body, err := ioutil.ReadAll(cs.req.Body)
@@ -59,7 +63,7 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 func (cs *clientSuite) TestEnsureQuotaGroupError(c *check.C) {
 	cs.status = 500
 	cs.rsp = `{"type": "error"}`
-	err := cs.cli.EnsureQuota("foo", "bar", []string{"snap-a"}, 1)
+	_, err := cs.cli.EnsureQuota("foo", "bar", []string{"snap-a"}, 1)
 	c.Check(err, check.ErrorMatches, `cannot create or update quota group: server error: "Internal Server Error"`)
 }
 
@@ -72,7 +76,7 @@ func (cs *clientSuite) TestGetQuotaGroup(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"status-code": 200,
-		"result": {"group-name":"foo", "parent":"bar", "subgroups":["foo-subgrp"], "snaps":["snap-a"], "max-memory":999}
+		"result": {"group-name":"foo", "parent":"bar", "subgroups":["foo-subgrp"], "snaps":["snap-a"], "max-memory":999, "current-memory":450}
 	}`
 
 	grp, err := cs.cli.GetQuotaGroup("foo")
@@ -80,11 +84,12 @@ func (cs *clientSuite) TestGetQuotaGroup(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/quotas/foo")
 	c.Check(grp, check.DeepEquals, &client.QuotaGroupResult{
-		GroupName: "foo",
-		Parent:    "bar",
-		Subgroups: []string{"foo-subgrp"},
-		MaxMemory: 999,
-		Snaps:     []string{"snap-a"},
+		GroupName:     "foo",
+		Parent:        "bar",
+		Subgroups:     []string{"foo-subgrp"},
+		MaxMemory:     999,
+		CurrentMemory: 450,
+		Snaps:         []string{"snap-a"},
 	})
 }
 
@@ -96,13 +101,16 @@ func (cs *clientSuite) TestGetQuotaGroupError(c *check.C) {
 }
 
 func (cs *clientSuite) TestRemoveQuotaGroup(c *check.C) {
+	cs.status = 202
 	cs.rsp = `{
-		"type": "sync",
-		"status-code": 200
+		"type": "async",
+		"status-code": 202,
+		"change": "42"
 	}`
 
-	err := cs.cli.RemoveQuotaGroup("foo")
+	chgID, err := cs.cli.RemoveQuotaGroup("foo")
 	c.Assert(err, check.IsNil)
+	c.Assert(chgID, check.Equals, "42")
 	c.Check(cs.req.Method, check.Equals, "POST")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/quotas")
 	body, err := ioutil.ReadAll(cs.req.Body)
@@ -119,6 +127,6 @@ func (cs *clientSuite) TestRemoveQuotaGroup(c *check.C) {
 func (cs *clientSuite) TestRemoveQuotaGroupError(c *check.C) {
 	cs.status = 500
 	cs.rsp = `{"type": "error"}`
-	err := cs.cli.RemoveQuotaGroup("foo")
-	c.Check(err, check.ErrorMatches, `server error: "Internal Server Error"`)
+	_, err := cs.cli.RemoveQuotaGroup("foo")
+	c.Check(err, check.ErrorMatches, `cannot remove quota group: server error: "Internal Server Error"`)
 }
