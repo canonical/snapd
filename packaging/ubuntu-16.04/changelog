@@ -1,3 +1,22 @@
+snapd (2.51.2) xenial; urgency=medium
+
+  * New upstream release, LP: #1929842
+    - snapstate: remove temporary snap file for local revisions early
+    - interface: allows reading sd cards internal info from block-
+      devices interface
+    - o/ifacestate: do not visit same halt tasks in waitChainSearch to
+      avoid cycles
+    - corecfg: allow using `# snapd-edit: no` header to disable pi-
+      config# snapd-edit: no
+    - configcore: ignore system.pi-config.* setting on measured kernels
+    - many: pass device/model info to configcore via sysconfig.Device
+      interface
+    - o/configstate/configcore: support snap set system swap.size=...
+    - store: make the log with download size a debug one
+    - interfaces/opengl: add support for Imagination PowerVR
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 07 Jul 2021 15:35:46 +0200
+
 snapd (2.51.1) xenial; urgency=medium
 
   * New upstream release, LP: #1929842
