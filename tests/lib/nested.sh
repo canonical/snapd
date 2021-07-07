@@ -1240,10 +1240,8 @@ nested_prepare_tools() {
     fi
 
     if ! nested_exec "test -e MATCH" &>/dev/null; then
-        local MATCH_FUNC
-        MATCH_FUNC="$(type MATCH | tail -n +2)"
         echo '#!/bin/bash' > MATCH
-        echo "$MATCH_FUNC" >> MATCH
+        type MATCH | tail -n +2 >> MATCH
         echo 'MATCH "$@"' >> MATCH
         chmod +x MATCH
         nested_copy "MATCH"
@@ -1251,10 +1249,8 @@ nested_prepare_tools() {
     fi
 
     if ! nested_exec "test -e NOMATCH" &>/dev/null; then
-        local NOMATCH_FUNC
-        NOMATCH_FUNC="$(type NOMATCH | tail -n +2)"
         echo '#!/bin/bash' > NOMATCH
-        echo "$NOMATCH_FUNC" >> NOMATCH
+        type NOMATCH | tail -n +2 >> NOMATCH
         echo 'NOMATCH "$@"' >> NOMATCH
         chmod +x NOMATCH
         nested_copy "NOMATCH"
