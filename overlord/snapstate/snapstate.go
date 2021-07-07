@@ -325,7 +325,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = mount
 	} else {
 		if snapsup.Flags.RemoveSnapPath {
-			// If the revisin is local, we will not need the
+			// If the revision is local, we will not need the
 			// temporary snap.  This can happen when
 			// e.g. side-loading a local revision again.  The
 			// SnapPath is only needed in the "mount-snap" handler
