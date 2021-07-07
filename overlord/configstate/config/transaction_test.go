@@ -664,6 +664,8 @@ func (s *transactionSuite) TestVirtualDeepNesting(c *C) {
 	defer s.state.Unlock()
 
 	config.RegisterVirtualConfig("some-snap", "key.virtual", func(key string) (interface{}, error) {
+		// XXX: Note that we get "key.virtual" here (top of
+		// the hirarchy) and not just "key.virtual.subkey")
 		c.Check(key, Equals, "key.virtual")
 
 		m := make(map[string]string)

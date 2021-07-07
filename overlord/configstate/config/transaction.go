@@ -451,6 +451,8 @@ func mergeConfigWithVirtual(instanceName, requestedKey string, origConfig *map[s
 			continue
 		}
 
+		// XXX: Note that we call the virtualFn with the "top" of the
+		// virtual hirarchy here
 		res, err := virtualFn(virtualKey)
 		if err != nil {
 			return err
