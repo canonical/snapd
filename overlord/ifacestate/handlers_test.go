@@ -64,3 +64,25 @@ func (s *handlersSuite) TestInSameChangeWaitChainDifferentChanges(c *C) {
 	t2.WaitFor(t1)
 	c.Check(ifacestate.InSameChangeWaitChain(t1, t2), Equals, false)
 }
+
+func (s *handlersSuite) TestInSameChangeWaitChainWithCycles(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	// cycles like this are unexpected in practice but are easier to test than
+	// the exponential paths situation that e.g. seed changes present.
+	startT := st.NewTask("start", "...start")
+	task1 := st.NewTask("task1", "...")
+	task1.WaitFor(startT)
+	task2 := st.NewTask("task2", "...")
+	task2.WaitFor(task1)
+	task3 := st.NewTask("task3", "...")
+	task3.WaitFor(task2)
+
+	startT.WaitFor(task2)
+	startT.WaitFor(task3)
+
+	unrelated := st.NewTask("unrelated", "...")
+	c.Check(ifacestate.InSameChangeWaitChain(startT, unrelated), Equals, false)
+}

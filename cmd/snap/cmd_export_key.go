@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -66,9 +66,12 @@ func (x *cmdExportKey) Execute(args []string) error {
 		keyName = "default"
 	}
 
-	manager := asserts.NewGPGKeypairManager()
+	keypairMgr, err := getKeypairManager()
+	if err != nil {
+		return err
+	}
 	if x.Account != "" {
-		privKey, err := manager.GetByName(keyName)
+		privKey, err := keypairMgr.GetByName(keyName)
 		if err != nil {
 			return err
 		}
@@ -90,7 +93,7 @@ func (x *cmdExportKey) Execute(args []string) error {
 		}
 		fmt.Fprint(Stdout, string(asserts.Encode(assertion)))
 	} else {
-		encoded, err := manager.Export(keyName)
+		encoded, err := keypairMgr.Export(keyName)
 		if err != nil {
 			return err
 		}

@@ -81,10 +81,10 @@ backends:
         systems:
             - ubuntu-14.04-64:
                   workers: 6
-            - ubuntu-16.04-32:
-                  workers: 6
             - ubuntu-16.04-64:
                   workers: 8
+            - ubuntu-18.04-32:
+                  workers: 6
             - ubuntu-18.04-64:
                   workers: 8
             - ubuntu-20.04-64:
@@ -436,10 +436,9 @@ debug-each: |
         if nested_is_nested_system; then
             echo '# nested VM status'
             systemctl status nested-vm || true
-            journalctl --no-pager -u nested-vm || true
             nested_print_serial_log
-                # add another echo in case the serial log is missing a newline
-                echo
+            # add another echo in case the serial log is missing a newline
+            echo
 
             nested_exec sudo journalctl --no-pager -u snapd || true
         fi
@@ -877,10 +876,6 @@ suites:
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m
-        debug: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_print_serial_log
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -915,10 +910,6 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
         manual: true
-        debug: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_print_serial_log
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -957,10 +948,6 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
         manual: true
-        debug: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_print_serial_log
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh

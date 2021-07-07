@@ -478,3 +478,10 @@ func ValidationSetAssertionForMonitor(st *state.State, accountID, name string, s
 	}
 	return as, false, err
 }
+
+// TemporaryDB returns a temporary database stacked on top of the assertions
+// database. Writing to it will not affect the assertions database.
+func TemporaryDB(st *state.State) *asserts.Database {
+	db := cachedDB(st)
+	return db.WithStackedBackstore(asserts.NewMemoryBackstore())
+}

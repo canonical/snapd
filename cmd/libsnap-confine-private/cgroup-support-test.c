@@ -236,6 +236,19 @@ static void test_sc_cgroupv2_is_tracking_dir_permissions(cgroupv2_is_tracking_fi
     g_test_trap_assert_stderr("cannot open directory entry \"badperm\": Permission denied\n");
 }
 
+static void test_sc_cgroupv2_is_tracking_no_cgroup_root(cgroupv2_is_tracking_fixture *fixture,
+                                                        gconstpointer user_data) {
+    GError *err = NULL;
+    g_file_set_contents(fixture->self_cgroup, "0::/foo/bar/baz/snap.foo.app.1234-1234.scope", -1, &err);
+    g_assert_no_error(err);
+
+    sc_set_cgroup_root("/does/not/exist");
+
+    // does not die when cgroup root is not present
+    bool is_tracking = sc_cgroup_v2_is_tracking_snap("foo");
+    g_assert_false(is_tracking);
+}
+
 static void sc_set_self_cgroup_path(const char *mock) { self_cgroup = mock; }
 
 typedef struct _cgroupv2_own_group_fixture {
@@ -370,4 +383,6 @@ static void __attribute__((constructor)) init(void) {
                cgroupv2_is_tracking_tear_down);
     g_test_add("/cgroup/v2/is_tracking_bad_nesting", cgroupv2_is_tracking_fixture, NULL, cgroupv2_is_tracking_set_up,
                test_sc_cgroupv2_is_tracking_bad_nesting, cgroupv2_is_tracking_tear_down);
+    g_test_add("/cgroup/v2/is_tracking_no_cgroup_root", cgroupv2_is_tracking_fixture, NULL, cgroupv2_is_tracking_set_up,
+               test_sc_cgroupv2_is_tracking_no_cgroup_root, cgroupv2_is_tracking_tear_down);
 }
