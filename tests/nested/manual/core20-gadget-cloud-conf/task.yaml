@@ -138,12 +138,7 @@ execute: |
   nested_exec_as normal-user ubuntu "sudo true"
 
   echo "Waiting for snapd to react to cloud-init"
-  for i in $(seq 60); do
-    if nested_exec "journalctl --no-pager -u snapd" | MATCH "Cloud-init reported"; then
-        break
-    fi
-    sleep 1
-  done
+  nested_exec "retry --wait 1 -n 60 sh -c 'journalctl --no-pager -u snapd | MATCH \"Cloud-init reported\"'"
 
   echo "Ensuring that cloud-init got disabled after running"
   nested_exec "cloud-init status" | MATCH "status: disabled"

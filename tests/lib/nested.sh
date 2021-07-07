@@ -1240,38 +1240,22 @@ nested_prepare_tools() {
     fi
 
     if ! nested_exec "test -e MATCH" &>/dev/null; then
-        cat >> MATCH << 'EOF'
-#!/bin/bash
-set +xu
-stdin=$(cat)
-if ! echo "$stdin" | grep -q -E "$@"; then
-    res=$?
-    echo -e "grep error: pattern not found, got:\n$stdin" >&2
-    if [ "$res" != 1 ]; then
-        echo "unexpected grep exit status: $res"
-    fi
-    exit 1
-fi
-EOF
+        local MATCH_FUNC
+        MATCH_FUNC="$(type MATCH | tail -n +2)"
+        echo '#!/bin/bash' > MATCH
+        echo "$MATCH_FUNC" >> MATCH
+        echo 'MATCH "$@"' >> MATCH
         chmod +x MATCH
         nested_copy "MATCH"
         rm -f MATCH
     fi
 
     if ! nested_exec "test -e NOMATCH" &>/dev/null; then
-        cat >> NOMATCH << 'EOF'
-#!/bin/bash
-set +xu
-stdin=$(cat)
-if echo "$stdin" | grep -q -E "$@"; then
-    res=$?
-    echo -e "grep error: pattern found, got:\n$stdin" >&2
-    if [ "$res" != 1 ]; then
-        echo "unexpected grep exit status: $res"
-    fi
-    exit 1
-fi
-EOF
+        local NOMATCH_FUNC
+        NOMATCH_FUNC="$(type NOMATCH | tail -n +2)"
+        echo '#!/bin/bash' > NOMATCH
+        echo "$NOMATCH_FUNC" >> NOMATCH
+        echo 'NOMATCH "$@"' >> NOMATCH
         chmod +x NOMATCH
         nested_copy "NOMATCH"
         rm -f NOMATCH

@@ -103,12 +103,7 @@ execute: |
     nested_exec "cloud-init status --wait"
 
     echo "Waiting for snapd to react to cloud-init"
-    for i in $(seq 60); do
-        if nested_exec "journalctl --no-pager -u snapd" | MATCH "Cloud-init reported"; then
-            break
-        fi
-        sleep 1
-    done
+    nested_exec "retry --wait 1 -n 60 sh -c 'journalctl --no-pager -u snapd | MATCH \"Cloud-init reported\"'"
 
     # ensure that snapd restricted cloud-init with the zzzz_snapd.cfg file
     echo "Ensuring that snapd restricted cloud-init"
