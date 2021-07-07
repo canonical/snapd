@@ -1240,6 +1240,7 @@ nested_prepare_tools() {
     fi
 
     if ! nested_exec "test -e MATCH" &>/dev/null; then
+        . "$TESTSLIB"/spread-funcs.sh
         echo '#!/bin/bash' > MATCH_FILE
         type MATCH | tail -n +2 >> MATCH_FILE
         echo 'MATCH "$@"' >> MATCH_FILE
@@ -1250,6 +1251,7 @@ nested_prepare_tools() {
     fi
 
     if ! nested_exec "test -e NOMATCH" &>/dev/null; then
+        . "$TESTSLIB"/spread-funcs.sh
         echo '#!/bin/bash' > NOMATCH_FILE
         type NOMATCH | tail -n +2 >> NOMATCH_FILE
         echo 'NOMATCH "$@"' >> NOMATCH_FILE
