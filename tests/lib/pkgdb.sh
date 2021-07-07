@@ -550,7 +550,7 @@ pkg_dependencies_ubuntu_classic(){
         ubuntu-14.04-*)
                 pkg_linux_image_extra
             ;;
-        ubuntu-16.04-32)
+        ubuntu-16.04-32|ubuntu-18.04-32)
             echo "
                 dbus-user-session
                 gccgo-6
