@@ -551,17 +551,6 @@ pkg_dependencies_ubuntu_classic(){
         ubuntu-14.04-*)
                 pkg_linux_image_extra
             ;;
-        ubuntu-16.04-32)
-            echo "
-                dbus-user-session
-                gccgo-6
-                evolution-data-server
-                fwupd
-                gnome-online-accounts
-                packagekit
-                "
-                pkg_linux_image_extra
-            ;;
         ubuntu-16.04-64)
             echo "
                 dbus-user-session
@@ -575,6 +564,17 @@ pkg_dependencies_ubuntu_classic(){
                 qemu
                 x11-utils
                 xvfb
+                "
+                pkg_linux_image_extra
+            ;;
+        ubuntu-18.04-32)
+            echo "
+                dbus-user-session
+                gccgo-6
+                evolution-data-server
+                fwupd
+                gnome-online-accounts
+                packagekit
                 "
                 pkg_linux_image_extra
             ;;
