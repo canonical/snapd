@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -327,4 +327,14 @@ Preferences: SHA512
 		parameters := gpgKeypairMgr.ParametersForGenerate(test.passphrase, "test-key")
 		c.Check(parameters, Equals, baseParameters+test.extraParameters)
 	}
+}
+
+func (gkms *gpgKeypairMgrSuite) TestList(c *C) {
+	gpgKeypairMgr := gkms.keypairMgr.(*asserts.GPGKeypairManager)
+
+	keys, err := gpgKeypairMgr.List()
+	c.Assert(err, IsNil)
+	c.Check(keys, HasLen, 1)
+	c.Check(keys[0].ID, Equals, assertstest.DevKeyID)
+	c.Check(keys[0].Name, Not(Equals), "")
 }
