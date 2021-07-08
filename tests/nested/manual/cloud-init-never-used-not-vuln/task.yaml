@@ -101,6 +101,7 @@ execute: |
     
     # ensure that snapd disabled cloud-init with the cloud-init.disabled file
     echo "Ensuring that snapd restricted cloud-init"
+    nested_exec "cloud-init status" | MATCH "status: disabled"
     nested_exec "test -f /etc/cloud/cloud-init.disabled"
     nested_exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
 
