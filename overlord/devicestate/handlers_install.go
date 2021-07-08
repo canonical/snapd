@@ -208,7 +208,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	func() {
 		st.Unlock()
 		defer st.Lock()
-		installedSystem, err = installRun(model, gadgetDir, kernelDir, "", bopts, installObserver)
+		installedSystem, err = installRun(model, gadgetDir, kernelDir, "", bopts, installObserver, perfTimings)
 	}()
 	if err != nil {
 		return fmt.Errorf("cannot install system: %v", err)

@@ -292,7 +292,7 @@ func MockSysconfigConfigureTargetSystem(f func(mod *asserts.Model, opts *sysconf
 	}
 }
 
-func MockInstallRun(f func(model gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, observer gadget.ContentObserver) (*install.InstalledSystemSideData, error)) (restore func()) {
+func MockInstallRun(f func(model gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, observer gadget.ContentObserver, perfTimings *timings.Timings) (*install.InstalledSystemSideData, error)) (restore func()) {
 	old := installRun
 	installRun = f
 	return func() {
