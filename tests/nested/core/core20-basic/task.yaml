@@ -56,3 +56,7 @@ execute: |
 
     echo "Transparently verify that the format is gzip"
     nested_exec "zcat /var/log/install-mode.log.gz" | MATCH 'installing a new system'
+
+    echo "Check that we go the timings after the transition to run mode"
+    nested_exec "test -e /var/log/install-timings.txt.gz"
+    nested_exec "zcat /var/log/install-timings.txt.gz"
