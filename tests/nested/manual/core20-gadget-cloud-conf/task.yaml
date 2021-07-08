@@ -138,9 +138,10 @@ execute: |
   nested_exec_as normal-user ubuntu "sudo true"
 
   echo "Waiting for snapd to react to cloud-init"
-  nested_exec "retry --wait 1 -n 60 sh -c 'cloud-init status | MATCH \"status: disabled\"'
+  nested_exec "retry --wait 1 -n 60 sh -c 'journalctl --no-pager -u snapd | MATCH \"Cloud-init reported\"'"
 
   echo "Ensuring that cloud-init got disabled after running"
+  nested_exec "cloud-init status" | MATCH "status: disabled"
   nested_exec "test -f /etc/cloud/cloud-init.disabled"
   nested_exec "test -f /etc/cloud/cloud.cfg.d/80_device_gadget.cfg"
   nested_exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
