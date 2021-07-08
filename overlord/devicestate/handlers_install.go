@@ -130,7 +130,7 @@ func writeLogs(rootdir string) error {
 	return nil
 }
 
-func writeTimings(rootdir string, chgIDs []string, seedChg string) error {
+func writeTimings(rootdir string, chgIDs []string) error {
 	logPath := filepath.Join(rootdir, "var/log/install-timings.txt.gz")
 	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
 		return err
@@ -154,13 +154,13 @@ func writeTimings(rootdir string, chgIDs []string, seedChg string) error {
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("cannot collect timings output: %v", err)
 	}
-	// then the seed change
-	cmd = exec.Command("snap", "debug", "timings", "--ensure=seed", seedChg)
+	// then the seeding
+	cmd = exec.Command("snap", "debug", "timings", "--ensure=seed")
 	cmd.Stdout = gz
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("cannot collect timings output: %v", err)
 	}
-	// then the remaining changes
+	// then the changes
 	for _, chgID := range chgIDs {
 		cmd = exec.Command("snap", "debug", "timings", chgID)
 		cmd.Stdout = gz
@@ -496,16 +496,11 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 
 	// will be used by the defer writeTimings() above
 	var chgIDs []string
-	var seedChg string
 	for _, chg := range st.Changes() {
-		if chg.Kind() == "seed" {
-			seedChg = chg.ID()
-		} else {
-			chgIDs = append(chgIDs, chg.ID())
-		}
+		chgIDs = append(chgIDs, chg.ID())
 	}
 	st.Unlock()
-	err = writeTimings(boot.InstallHostWritableDir, chgIDs, seedChg)
+	err = writeTimings(boot.InstallHostWritableDir, chgIDs)
 	st.Lock()
 	if err != nil {
 		logger.Noticef("cannot write timings: %v", err)

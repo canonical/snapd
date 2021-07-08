@@ -1530,14 +1530,16 @@ echo "mock output of: $(basename "$0") $*"
 	content, err := ioutil.ReadAll(gz)
 	c.Assert(err, IsNil)
 	c.Check(string(content), Equals, `mock output of: snap changes
-mock output of: snap debug timings --ensure=seed 1
+mock output of: snap debug timings --ensure=seed
+mock output of: snap debug timings 1
 mock output of: snap debug timings 2
 `)
 
 	// and the right commands are run
 	c.Check(mockedSnapCmd.Calls(), DeepEquals, [][]string{
 		{"snap", "changes"},
-		{"snap", "debug", "timings", "--ensure=seed", "1"},
+		{"snap", "debug", "timings", "--ensure=seed"},
+		{"snap", "debug", "timings", "1"},
 		{"snap", "debug", "timings", "2"},
 	})
 }
