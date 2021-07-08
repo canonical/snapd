@@ -21,6 +21,7 @@ package devicestate_test
 
 import (
 	"bytes"
+	"compress/gzip"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -1490,7 +1491,9 @@ func (s *deviceMgrInstallModeSuite) TestInstallHappyLogfiles(c *C) {
 	})
 	defer restore()
 
-	mockedSnapCmd := testutil.MockCommand(c, "snap", "")
+	mockedSnapCmd := testutil.MockCommand(c, "snap", `
+echo "mock output of: $(basename "$0") $*"
+`)
 	defer mockedSnapCmd.Restore()
 
 	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
@@ -1516,7 +1519,20 @@ func (s *deviceMgrInstallModeSuite) TestInstallHappyLogfiles(c *C) {
 
 	// logs are created
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/log/install-mode.log.gz"), testutil.FilePresent)
-	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/log/install-timings.txt.gz"), testutil.FilePresent)
+	timingsPath := filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/log/install-timings.txt.gz")
+	c.Check(timingsPath, testutil.FilePresent)
+
+	f, err := os.Open(timingsPath)
+	c.Assert(err, IsNil)
+	defer f.Close()
+	gz, err := gzip.NewReader(f)
+	c.Assert(err, IsNil)
+	content, err := ioutil.ReadAll(gz)
+	c.Assert(err, IsNil)
+	c.Check(string(content), Equals, `mock output of: snap changes
+mock output of: snap debug timings --ensure=seed 1
+mock output of: snap debug timings 2
+`)
 
 	// and the right commands are run
 	c.Check(mockedSnapCmd.Calls(), DeepEquals, [][]string{

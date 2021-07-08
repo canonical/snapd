@@ -172,6 +172,7 @@ func writeTimings(rootdir string, chgIDs []string, seedChg string) error {
 	if err := gz.Flush(); err != nil {
 		return fmt.Errorf("cannot flush timings output: %v", err)
 	}
+
 	return nil
 }
 
