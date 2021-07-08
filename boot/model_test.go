@@ -171,7 +171,6 @@ func (s *modelSuite) SetUpTest(c *C) {
 }
 
 func (s *modelSuite) TestWriteModelToUbuntuBoot(c *C) {
-
 	err := boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model())
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
@@ -1092,36 +1091,24 @@ func (s *modelSuite) TestDeviceChangeRebootRestoreModelKeyChangeMockedWriteModel
 
 	oldKeyID := "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij"
 	newKeyID := "ZZZ_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij"
-	// model can be mocked freely as we will not encode it
-	oldUC20dev := boottest.MockUC20Device("", boottest.MakeMockUC20Model(map[string]interface{}{
+	// model can be mocked freely as we will not encode it as we mocked a
+	// function that writes out the model too
+	s.oldUc20dev = boottest.MockUC20Device("", boottest.MakeMockUC20Model(map[string]interface{}{
 		"model":             "my-model-uc20",
 		"brand-id":          "my-brand",
 		"grade":             "dangerous",
 		"sign-key-sha3-384": oldKeyID,
 	}))
 
-	newUC20dev := boottest.MockUC20Device("", boottest.MakeMockUC20Model(map[string]interface{}{
+	s.newUc20dev = boottest.MockUC20Device("", boottest.MakeMockUC20Model(map[string]interface{}{
 		"model":             "my-model-uc20",
 		"brand-id":          "my-brand",
 		"grade":             "dangerous",
 		"sign-key-sha3-384": newKeyID,
 	}))
 
-	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
-		s.readSystemEssentialCalls++
-		kernelRev := 1
-		systemModel := oldUC20dev.Model()
-		if label == "1234" {
-			// recovery system for new model
-			kernelRev = 999
-			systemModel = newUC20dev.Model()
-		}
-		return systemModel, []*seed.Snap{mockKernelSeedSnap(c, snap.R(kernelRev)), mockGadgetSeedSnap(c, nil)}, nil
-	})
-	defer restore()
-
 	resealKeysCalls := 0
-	restore = boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
 		resealKeysCalls++
 		c.Logf("reseal key call: %v", resealKeysCalls)
 		m, err := boot.ReadModeenv("")
@@ -1223,12 +1210,12 @@ func (s *modelSuite) TestDeviceChangeRebootRestoreModelKeyChangeMockedWriteModel
 	defer restore()
 
 	// as if called by device manager in task handler
-	c.Assert(func() { boot.DeviceChange(oldUC20dev, newUC20dev) }, PanicMatches,
+	c.Assert(func() { boot.DeviceChange(s.oldUc20dev, s.newUc20dev) }, PanicMatches,
 		`mock reboot before second complete reseal`)
 	c.Assert(resealKeysCalls, Equals, 4)
 	c.Assert(writeModelToBootCalls, Equals, 1)
 
-	err := boot.DeviceChange(oldUC20dev, newUC20dev)
+	err := boot.DeviceChange(s.oldUc20dev, s.newUc20dev)
 	c.Assert(err, IsNil)
 	c.Assert(resealKeysCalls, Equals, 7)
 	c.Assert(writeModelToBootCalls, Equals, 2)
