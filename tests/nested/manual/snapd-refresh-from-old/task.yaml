@@ -49,10 +49,7 @@ execute: |
     nested_exec "sudo snap refresh" || true
 
     nested_wait_for_reboot "$INITIAL_BOOT_ID"
-    if nested_exec "snap list snapd" | MATCH "snapd.*5760"; then
-      echo "unexpected snapd rev 5760"
-      exit 1
-    fi
+    nested_exec "retry --wait 2 -n 10 sh -c 'snap list snapd | NOMATCH \"snapd.*5760\"'"
 
     # this change is not immediately done and needs a retry
     #shellcheck disable=SC2140
