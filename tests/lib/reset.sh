@@ -75,7 +75,7 @@ reset_classic() {
     # Clean test home
     rm -rf /home/test/snap /home/test/.{bash_history,local,cache,config}
 
-    rm -rf /snap
+    rm -rf /snap/*
     rm -f /tmp/core* /tmp/ubuntu-core*
 
     if [ "$1" = "--reuse-core" ]; then
