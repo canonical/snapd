@@ -143,7 +143,7 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		flags := &wrappers.StartServicesFlags{
 			Enable: enable,
 		}
-		disabledServices := []string(nil)
+		disabledServices := []string{}
 		if !enable {
 			snapDisabledServices, err := wrappers.QueryDisabledServices(info, nil)
 			if err != nil {

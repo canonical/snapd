@@ -2,8 +2,8 @@ summary: Check that "snap start <snap>" affects only enabled services
 
 environment:
     EXTRA_FLAGS/start: ""
-    EXPECTED_STATUS: "inactive"
-    STATUS_MSG: "not running"
+    EXPECTED_STATUS/start: "inactive"
+    STATUS_MSG/start: "not running"
     EXTRA_FLAGS/enable: "--enable"
     EXPECTED_STATUS/enable: "running"
     STATUS_MSG/enable: "running"
@@ -25,8 +25,8 @@ execute: |
     done
 
     echo "Disabling services 3 and 4"
-    systemctl disable snap.test-snapd-service-restart.svc3.service
-    systemctl disable snap.test-snapd-service-restart.svc4.service
+    snap stop --disable test-snapd-service-restart.svc3
+    snap stop --disable test-snapd-service-restart.svc4
 
     echo "Starting services"
     snap start $EXTRA_FLAGS test-snapd-service-restart
