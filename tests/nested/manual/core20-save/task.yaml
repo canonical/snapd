@@ -28,9 +28,9 @@ environment:
 
 prepare: |
     # NESTED_ENABLE_TPM and NESTED_UBUNTU_SAVE are used by build-image
-    "$TESTSTOOLS"/nested-state build-image core
+    tests.nested build-image core
     # NESTED_ENABLE_TPM is used by create-vm
-    "$TESTSTOOLS"/nested-state create-vm core
+    tests.nested create-vm core
 
 debug: |
     env | sort | grep NESTED_ || true

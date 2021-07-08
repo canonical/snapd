@@ -171,7 +171,6 @@ func (s *modelSuite) SetUpTest(c *C) {
 }
 
 func (s *modelSuite) TestWriteModelToUbuntuBoot(c *C) {
-
 	err := boot.WriteModelToUbuntuBoot(s.oldUc20dev.Model())
 	c.Assert(err, IsNil)
 	c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains,
@@ -510,7 +509,7 @@ func (s *modelSuite) TestDeviceChangeRebootBeforeNewModel(c *C) {
 		tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 		// timeline & calls:
 		// 1 - pre reboot, run & recovery keys, try model set
-		// 2 - re reboot, recovery keys, try model set, triggers 'reboot'
+		// 2 - pre reboot, recovery keys, try model set, unexpected reboot is triggered
 		// (reboot)
 		// no call for run key, boot chains haven't changes since call 1
 		// 3 - recovery key, try model set
@@ -554,7 +553,7 @@ func (s *modelSuite) TestDeviceChangeRebootBeforeNewModel(c *C) {
 		// what's in modeenv?
 		switch resealKeysCalls {
 		case 1, 2, 3:
-			// keys are first resealed for both models
+			// keys are first resealed for both models, which are restored to the modeenv
 			c.Assert(currForSealing, Equals, "canonical/my-model-uc20,dangerous,"+s.keyID)
 			c.Assert(tryForSealing, Equals, "canonical/my-new-model-uc20,secured,"+s.keyID)
 			// boot/device/model is still the old file
@@ -635,7 +634,8 @@ func (s *modelSuite) TestDeviceChangeRebootAfterNewModelFileWrite(c *C) {
 		tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 		// timeline & calls:
 		// 1, 2 - pre reboot, run & recovery keys, try model set
-		// 3 - run key, after model file has been modified, triggers reboot, try model cleared
+		// 3 - run key, after model file has been modified, try model cleared, unexpected
+		//     reboot is triggered
 		// (reboot)
 		// no reseal - boot chains are identical to what was in calls 1 & 2 which were successful
 		// 4, 5 - post reboot, run & recovery keys, after rewriting model file, try model cleared
@@ -758,11 +758,12 @@ func (s *modelSuite) TestDeviceChangeRebootPostSameModel(c *C) {
 		// timeline & calls:
 		// 1, 2 - pre reboot, run & recovery keys, try model set
 		// 3 - run key, after model file has been modified, try model cleared
-		// 4 - recovery key, model file has been modified, triggers reboot, try model cleared
+		// 4 - recovery key, model file has been modified, try model cleared, unexpected
+		//     reboot is triggered
 		// (reboot)
 		// 5, 6 - run & recovery, try model set, new model also restored
 		//        as 'old' model, params are grouped by model
-		// 7 - run only (recovery boot chains have no changed since)
+		// 7 - run only (recovery boot chains have not changed since)
 
 		// which keys?
 		switch resealKeysCalls {
@@ -859,6 +860,7 @@ func (s *modelSuite) TestDeviceChangeRebootPostSameModel(c *C) {
 
 type unhappyMockedWriteModelToBootTestCase struct {
 	breakModeenvAfterFirstWrite bool
+	modelRestoreFail            bool
 	expectedErr                 string
 }
 
@@ -913,9 +915,10 @@ func (s *modelSuite) testDeviceChangeUnhappyMockedWriteModelToBoot(c *C, tc unha
 
 	restore = boot.MockWriteModelToUbuntuBoot(func(model *asserts.Model) error {
 		writeModelToBootCalls++
+		c.Assert(model, NotNil)
 		switch writeModelToBootCalls {
 		case 1:
-			c.Assert(model, NotNil)
+			// a call to write the new model
 			c.Check(model.Model(), Equals, "my-new-model-uc20")
 			// only 2 calls to reseal until now
 			c.Check(resealKeysCalls, Equals, 2)
@@ -924,8 +927,13 @@ func (s *modelSuite) testDeviceChangeUnhappyMockedWriteModelToBoot(c *C, tc unha
 				return nil
 			}
 		case 2:
+			// a call to restore the old model
+			c.Check(model.Model(), Equals, "my-model-uc20")
 			if !tc.breakModeenvAfterFirstWrite {
 				c.Errorf("unexpected additional call to writeModelToBoot (call # %d)", writeModelToBootCalls)
+			}
+			if !tc.modelRestoreFail {
+				return nil
 			}
 		default:
 			c.Errorf("unexpected additional call to writeModelToBoot (call # %d)", writeModelToBootCalls)
@@ -964,7 +972,9 @@ func (s *modelSuite) TestDeviceChangeUnhappyMockedWriteModelToBootBeforeModelSwa
 	})
 }
 
-func (s *modelSuite) TestDeviceChangeUnhappyMockedWriteModelToBootAfterModelSwap(c *C) {
+func (s *modelSuite) TestDeviceChangeUnhappyMockedWriteModelToBootAfterModelSwapFailingRestore(c *C) {
+	// writing modeenv after placing new model file on disk fails, and so
+	// does restoring of the old model
 	if os.Getuid() == 0 {
 		// the test is manipulating file permissions, which doesn't
 		// affect root
@@ -972,8 +982,25 @@ func (s *modelSuite) TestDeviceChangeUnhappyMockedWriteModelToBootAfterModelSwap
 	}
 	s.testDeviceChangeUnhappyMockedWriteModelToBoot(c, unhappyMockedWriteModelToBootTestCase{
 		breakModeenvAfterFirstWrite: true,
+		modelRestoreFail:            true,
 
 		expectedErr: `open .*/var/lib/snapd/modeenv\..*: permission denied \(restoring model failed: mocked fail in write model to boot\)`,
+	})
+}
+
+func (s *modelSuite) TestDeviceChangeUnhappyMockedWriteModelToBootAfterModelSwapHappyRestore(c *C) {
+	// writing modeenv after placing new model file on disk fails, but
+	// restore is successful
+	if os.Getuid() == 0 {
+		// the test is manipulating file permissions, which doesn't
+		// affect root
+		c.Skip("test cannot be executed by root")
+	}
+	s.testDeviceChangeUnhappyMockedWriteModelToBoot(c, unhappyMockedWriteModelToBootTestCase{
+		breakModeenvAfterFirstWrite: true,
+		modelRestoreFail:            false,
+
+		expectedErr: `open .*/var/lib/snapd/modeenv\..*: permission denied$`,
 	})
 }
 
@@ -1054,6 +1081,150 @@ func (s *modelSuite) TestDeviceChangeUnhappyFailReseaWithSwappedModelMockedWrite
 	currForSealing := boot.ModelUniqueID(m.ModelForSealing())
 	tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
 	c.Assert(currForSealing, Equals, "canonical/my-model-uc20,dangerous,"+s.keyID)
+	// try model has been cleared
+	c.Assert(tryForSealing, Equals, "/,,")
+}
+
+func (s *modelSuite) TestDeviceChangeRebootRestoreModelKeyChangeMockedWriteModel(c *C) {
+	// system is encrypted
+	s.stampSealedKeys(c, s.rootdir)
+
+	oldKeyID := "Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij"
+	newKeyID := "ZZZ_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij"
+	// model can be mocked freely as we will not encode it as we mocked a
+	// function that writes out the model too
+	s.oldUc20dev = boottest.MockUC20Device("", boottest.MakeMockUC20Model(map[string]interface{}{
+		"model":             "my-model-uc20",
+		"brand-id":          "my-brand",
+		"grade":             "dangerous",
+		"sign-key-sha3-384": oldKeyID,
+	}))
+
+	s.newUc20dev = boottest.MockUC20Device("", boottest.MakeMockUC20Model(map[string]interface{}{
+		"model":             "my-model-uc20",
+		"brand-id":          "my-brand",
+		"grade":             "dangerous",
+		"sign-key-sha3-384": newKeyID,
+	}))
+
+	resealKeysCalls := 0
+	restore := boot.MockSecbootResealKeys(func(params *secboot.ResealKeysParams) error {
+		resealKeysCalls++
+		c.Logf("reseal key call: %v", resealKeysCalls)
+		m, err := boot.ReadModeenv("")
+		c.Assert(err, IsNil)
+		currForSealing := boot.ModelUniqueID(m.ModelForSealing())
+		tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
+		// timeline & calls:
+		// 1, 2 - pre reboot, run & recovery keys, try model set
+		// 3 - run key, after model file has been modified, try model cleared
+		// 4 - recovery key, model file has been modified, try model cleared,
+		//     unexpected reboot is triggered
+		// (reboot)
+		// 5 - run with old model & key (since we resealed run key in
+		//     call 3, and recovery has not changed), old model restored in modeenv
+		// 6 - run with new model and key, old current has been dropped
+		// 7 - recovery with new model only
+
+		// which keys?
+		switch resealKeysCalls {
+		case 1, 3, 5, 6:
+			// run key
+			c.Assert(params.KeyFiles, DeepEquals, []string{
+				filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key"),
+			})
+		case 2, 4, 7:
+			// recovery keys
+			c.Assert(params.KeyFiles, DeepEquals, []string{
+				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-data.recovery.sealed-key"),
+				filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key"),
+			})
+		default:
+			c.Errorf("unexpected additional call to secboot.ResealKeys (call # %d)", resealKeysCalls)
+		}
+		// what's in params?
+		switch resealKeysCalls {
+		case 1, 5:
+			c.Assert(params.ModelParams, HasLen, 2)
+			c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
+			c.Assert(params.ModelParams[0].Model.SignKeyID(), Equals, oldKeyID)
+			c.Assert(params.ModelParams[1].Model.Model(), Equals, "my-model-uc20")
+			c.Assert(params.ModelParams[1].Model.SignKeyID(), Equals, newKeyID)
+		case 2:
+			// recovery key resealed for current model only
+			c.Assert(params.ModelParams, HasLen, 1)
+			c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
+			c.Assert(params.ModelParams[0].Model.SignKeyID(), Equals, oldKeyID)
+		case 3, 4, 6, 7:
+			// try model has become current
+			c.Assert(params.ModelParams, HasLen, 1)
+			c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
+			c.Assert(params.ModelParams[0].Model.SignKeyID(), Equals, newKeyID)
+		}
+		// what's in modeenv?
+		switch resealKeysCalls {
+		case 1, 2, 5:
+			// keys are first resealed for both models
+			c.Assert(currForSealing, Equals, "my-brand/my-model-uc20,dangerous,"+oldKeyID)
+			c.Assert(tryForSealing, Equals, "my-brand/my-model-uc20,dangerous,"+newKeyID)
+		case 3, 4, 6, 7:
+			// and finally just for the new model
+			c.Assert(currForSealing, Equals, "my-brand/my-model-uc20,dangerous,"+newKeyID)
+			c.Assert(tryForSealing, Equals, "/,,")
+		}
+
+		if resealKeysCalls == 4 {
+			panic(fmt.Sprintf("mock reboot before second complete reseal"))
+		}
+		return nil
+	})
+	defer restore()
+
+	writeModelToBootCalls := 0
+	restore = boot.MockWriteModelToUbuntuBoot(func(model *asserts.Model) error {
+		writeModelToBootCalls++
+		c.Logf("write model to boot call: %v", writeModelToBootCalls)
+		switch writeModelToBootCalls {
+		case 1:
+			c.Assert(model, NotNil)
+			c.Check(model.Model(), Equals, "my-model-uc20")
+			// only 2 calls to reseal until now
+			c.Check(resealKeysCalls, Equals, 2)
+		case 2:
+			// handling of reseal with new model restores the old one on the disk
+			c.Check(model.Model(), Equals, "my-model-uc20")
+			m, err := boot.ReadModeenv("")
+			c.Assert(err, IsNil)
+			// and both models are present in the modeenv
+			currForSealing := boot.ModelUniqueID(m.ModelForSealing())
+			tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
+			// keys are first resealed for both models
+			c.Assert(currForSealing, Equals, "my-brand/my-model-uc20,dangerous,"+oldKeyID)
+			c.Assert(tryForSealing, Equals, "my-brand/my-model-uc20,dangerous,"+newKeyID)
+
+		default:
+			c.Errorf("unexpected additional call to writeModelToBoot (call # %d)", writeModelToBootCalls)
+		}
+		return nil
+	})
+	defer restore()
+
+	// as if called by device manager in task handler
+	c.Assert(func() { boot.DeviceChange(s.oldUc20dev, s.newUc20dev) }, PanicMatches,
+		`mock reboot before second complete reseal`)
+	c.Assert(resealKeysCalls, Equals, 4)
+	c.Assert(writeModelToBootCalls, Equals, 1)
+
+	err := boot.DeviceChange(s.oldUc20dev, s.newUc20dev)
+	c.Assert(err, IsNil)
+	c.Assert(resealKeysCalls, Equals, 7)
+	c.Assert(writeModelToBootCalls, Equals, 2)
+
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	currForSealing := boot.ModelUniqueID(m.ModelForSealing())
+	tryForSealing := boot.ModelUniqueID(m.TryModelForSealing())
+	c.Assert(currForSealing, Equals, "my-brand/my-model-uc20,dangerous,"+newKeyID)
 	// try model has been cleared
 	c.Assert(tryForSealing, Equals, "/,,")
 }

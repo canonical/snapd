@@ -21,7 +21,7 @@ details: |
 
 # Only enable the test on systems we know portals to function on.
 # Expand as needed.
-systems: [ubuntu-18.04-*, ubuntu-2*]
+systems: [ubuntu-18.04-64, ubuntu-2*]
 
 prepare: |
     #shellcheck source=tests/lib/desktop-portal.sh
