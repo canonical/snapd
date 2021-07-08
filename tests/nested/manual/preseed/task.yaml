@@ -25,7 +25,7 @@ prepare: |
   dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
   # create a VM and mount a cloud image
-  "$TESTSTOOLS"/nested-state build-image classic
+  tests.nested build-image classic
   mkdir -p "$IMAGE_MOUNTPOINT"
   IMAGE_NAME=$(nested_get_image_name classic)
   mount_ubuntu_image "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$IMAGE_MOUNTPOINT"
@@ -40,6 +40,13 @@ prepare: |
   repack_snapd_deb_into_snapd_snap "$PWD"
   mv snapd-from-deb.snap snapd.snap
   inject_snap_into_seed "$IMAGE_MOUNTPOINT" snapd
+
+  # test-postgres-system-usernames injected below uses core18 base, while the
+  # cloud image seed may already be shipping with core20 only
+  if [ "$(find "$IMAGE_MOUNTPOINT/var/lib/snapd/seed/snaps" -name 'core18*.snap' | wc -l)" = 0 ]; then
+      snap download --edge --basename=core18 core18
+      inject_snap_into_seed "$IMAGE_MOUNTPOINT" core18
+  fi
 
   # inject a snap that uses system-usernames into the seed to confirm that works
   # as expected
@@ -82,7 +89,7 @@ execute: |
   . "$TESTSLIB/preseed.sh"
   umount_ubuntu_image "$IMAGE_MOUNTPOINT"
 
-  "$TESTSTOOLS"/nested-state create-vm classic
+  tests.nested create-vm classic
 
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"

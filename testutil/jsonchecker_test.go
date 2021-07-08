@@ -64,7 +64,7 @@ func (*jsonCheckerSuite) TestFilePresent(c *check.C) {
 				// this is transparent to the checker
 				hidden: true,
 			},
-			// this is transparent to the chekcker
+			// this is transparent to the checker
 			hidden: true,
 		})
 	testCheck(c, JsonEquals, true, "",
