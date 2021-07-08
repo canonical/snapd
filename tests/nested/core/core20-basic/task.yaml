@@ -59,4 +59,8 @@ execute: |
 
     echo "Check that we go the timings after the transition to run mode"
     nested_exec "test -e /var/log/install-timings.txt.gz"
-    nested_exec "zcat /var/log/install-timings.txt.gz"
+    nested_exec "zcat /var/log/install-timings.txt.gz" > install-timings.txt
+    MATCH "Install the system"        < install-timings.txt
+    MATCH "^seed"                     < install-timings.txt
+    MATCH "Mark system seeded"        < install-timings.txt
+    MATCH "Setup system for run mode" < install-timings.txt
