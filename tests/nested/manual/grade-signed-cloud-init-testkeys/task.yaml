@@ -140,12 +140,7 @@ execute: |
   # of this test
 
   echo "Waiting for snapd to react to cloud-init"
-  for i in $(seq 60); do
-    if nested_exec "journalctl --no-pager -u snapd" | MATCH "Cloud-init reported"; then
-        break
-    fi
-    sleep 1
-  done
+  nested_exec "retry --wait 1 -n 60 sh -c 'cloud-init status | MATCH \"status: disabled\"'
   
   echo "Ensuring that cloud-init got disabled after running"
   nested_exec "test -f /etc/cloud/cloud-init.disabled"

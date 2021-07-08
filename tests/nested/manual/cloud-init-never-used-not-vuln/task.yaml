@@ -96,7 +96,7 @@ execute: |
     nested_exec "cloud-init status --wait"
 
     echo "Waiting for snapd to react to cloud-init"
-    nested_exec "retry --wait 1 -n 60 sh -c 'journalctl --no-pager -u snapd | MATCH \"Cloud-init reported\"'"
+    nested_exec "retry --wait 1 -n 60 sh -c 'cloud-init status | MATCH \"status: disabled\"'
     
     # ensure that snapd disabled cloud-init with the cloud-init.disabled file
     echo "Ensuring that snapd restricted cloud-init"
