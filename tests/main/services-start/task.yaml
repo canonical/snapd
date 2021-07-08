@@ -46,11 +46,11 @@ execute: |
     #
     #   snap start $EXTRA_FLAGS test-snapd-service-restart
     #
-    # command issued before. To make the following step meaningful in that
-    # scenario as well, we now explicitly stop these two services.
-    echo "Stop services 3 and 4"
+    # command issued before. To make the next steps meaningful in that scenario
+    # as well, we now explicitly stop one of these two services (to maximixe
+    # the number of tested code paths).
+    echo "Stop service 3"
     snap stop test-snapd-service-restart.svc3
-    snap stop test-snapd-service-restart.svc4
 
     # Now verify that services explicitly mentioned on the command line always
     # get started, regardless of their current state
