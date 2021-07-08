@@ -2025,7 +2025,7 @@ links:
  donations:
    - https://donate.me
  contact:
-   - mailto:me@toto.space
+   - me@toto.space
    - https://toto.space
    - mailto:me+support@toto.space
  bug-url:
@@ -2084,7 +2084,7 @@ func (s *YamlSuite) TestValidateLinksKeys(c *C) {
 
 	for _, k := range invalid {
 		links := map[string][]string{
-			k: {"link.website"},
+			k: {"link"},
 		}
 		err := ValidateLinks(links)
 		if k == "" {
@@ -2092,5 +2092,25 @@ func (s *YamlSuite) TestValidateLinksKeys(c *C) {
 		} else {
 			c.Check(err, ErrorMatches, fmt.Sprintf(`links key is invalid: %s`, k))
 		}
+	}
+}
+
+func (s *YamlSuite) TestValidateLinksValues(c *C) {
+	invalid := []struct {
+		link string
+		err  string
+	}{
+		{"foo:bar", `"contact" link must have one of http|https schemes or it must be an email address: "foo:bar"`},
+		{"a", `invalid "contact" email address "a"`},
+		{":", `invalid "contact" link ":"`},
+		{"", `empty "contact" link`},
+	}
+
+	for _, l := range invalid {
+		links := map[string][]string{
+			"contact": {l.link},
+		}
+		err := ValidateLinks(links)
+		c.Check(err, ErrorMatches, l.err)
 	}
 }

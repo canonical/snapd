@@ -1127,9 +1127,9 @@ func ValidateBasesAndProviders(snapInfos []*Info) []error {
 }
 
 var isValidLinksKey = regexp.MustCompile("^[a-zA-Z](?:-?[a-zA-Z0-9])*$").MatchString
-var validLinkSchemes = []string{"http", "https", "mailto"}
+var validLinkSchemes = []string{"http", "https"}
 
-// ValidateLinks checks that links entries have valid keys and values that can be parsed as URLs.
+// ValidateLinks checks that links entries have valid keys and values that can be parsed as URLs or are email addresses possibly prefixed with mailto:.
 func ValidateLinks(links map[string][]string) error {
 	for linksKey, linksValues := range links {
 		if linksKey == "" {
@@ -1149,8 +1149,13 @@ func ValidateLinks(links map[string][]string) error {
 			if err != nil {
 				return fmt.Errorf("invalid %q link %q", linksKey, link)
 			}
-			if !strutil.ListContains(validLinkSchemes, u.Scheme) {
-				return fmt.Errorf("%q link sheme must be one of mailto|http|https: %q", linksKey, link)
+			if u.Scheme == "" || u.Scheme == "mailto" {
+				// minimal check
+				if !strings.Contains(link, "@") {
+					return fmt.Errorf("invalid %q email address %q", linksKey, link)
+				}
+			} else if !strutil.ListContains(validLinkSchemes, u.Scheme) {
+				return fmt.Errorf("%q link must have one of http|https schemes or it must be an email address: %q", linksKey, link)
 			}
 		}
 	}
