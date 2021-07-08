@@ -69,7 +69,7 @@ func (cs *clientSuite) TestEnsureQuotaGroupError(c *check.C) {
 	cs.status = 500
 	cs.rsp = `{"type": "error"}`
 	_, err := cs.cli.EnsureQuota("foo", "bar", []string{"snap-a"}, 1)
-	c.Check(err, check.ErrorMatches, `cannot create or update quota group: server error: "Internal Server Error"`)
+	c.Check(err, check.ErrorMatches, `server error: "Internal Server Error"`)
 }
 
 func (cs *clientSuite) TestGetQuotaGroupInvalidName(c *check.C) {

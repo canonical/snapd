@@ -74,8 +74,7 @@ func (client *Client) EnsureQuota(groupName string, parent string, snaps []strin
 	chgID, err := client.doAsync("POST", "/v2/quotas", nil, nil, &body)
 
 	if err != nil {
-		fmt := "cannot create or update quota group: %w"
-		return "", xerrors.Errorf(fmt, err)
+		return "", err
 	}
 	return chgID, nil
 }

@@ -97,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.51.1
+Version:        2.51.2
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -971,6 +971,22 @@ fi
 
 
 %changelog
+* Wed Jul 07 2021 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.51.2
+ - snapstate: remove temporary snap file for local revisions early
+ - interface: allows reading sd cards internal info from block-
+   devices interface
+ - o/ifacestate: do not visit same halt tasks in waitChainSearch to
+   avoid slow convergence (or unlikely cycles)
+ - corecfg: allow using `# snapd-edit: no` header to disable pi-
+   config
+ - configcore: ignore system.pi-config.* setting on measured kernels
+ - many: pass device/model info to configcore via sysconfig.Device
+   interface
+ - o/configstate/configcore: support snap set system swap.size=...
+ - store: make the log with download size a debug one
+ - interfaces/opengl: add support for Imagination PowerVR
+
 * Tue Jun 15 2021 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.51.1
  - interfaces: add netlink-driver interface
