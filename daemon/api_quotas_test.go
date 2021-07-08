@@ -185,11 +185,11 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateQuotaConflicts(c *check.C) {
 	defer r()
 
 	data, err := json.Marshal(daemon.PostQuotaGroupData{
-		Action:    "ensure",
-		GroupName: "booze",
-		Parent:    "foo",
-		Snaps:     []string{"some-snap"},
-		MaxMemory: 1000,
+		Action:      "ensure",
+		GroupName:   "booze",
+		Parent:      "foo",
+		Snaps:       []string{"some-snap"},
+		Constraints: client.QuotaValues{Memory: 1000},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -297,10 +297,10 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateConflicts(c *check.C) {
 	defer r()
 
 	data, err := json.Marshal(daemon.PostQuotaGroupData{
-		Action:    "ensure",
-		GroupName: "ginger-ale",
-		Snaps:     []string{"some-snap"},
-		MaxMemory: 9000,
+		Action:      "ensure",
+		GroupName:   "ginger-ale",
+		Snaps:       []string{"some-snap"},
+		Constraints: client.QuotaValues{Memory: 9000},
 	})
 	c.Assert(err, check.IsNil)
 
