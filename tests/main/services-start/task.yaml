@@ -11,9 +11,9 @@ environment:
 execute: |
     echo "Installing the service snap"
 
-    # we are using systemd-notify indicate the service is active, this is
-    # currently not allowed by daemon-notify interface, so we may as well just
-    # install in devmode
+    # we are using systemd-notify to indicate that the service is active, this
+    # is currently not allowed by daemon-notify interface, so we may as well
+    # just install in devmode
     "$TESTSTOOLS"/snaps-state install-local test-snapd-service-restart --devmode
 
     echo "Stop all services"
@@ -41,8 +41,20 @@ execute: |
         systemctl status snap.test-snapd-service-restart.svc${id}.service | MATCH "$EXPECTED_STATUS"
     done
 
+    # When running the test with the --enable option in EXTRA_FLAGS, services 3
+    # and 4 would have been enabled by the
+    #
+    #   snap start $EXTRA_FLAGS test-snapd-service-restart
+    #
+    # command issued before. To make the following step meaningful in that
+    # scenario as well, we now explicitly stop these two services.
+    echo "Stop services 3 and 4"
+    snap stop test-snapd-service-restart.svc3
+    snap stop test-snapd-service-restart.svc4
+
     # Now verify that services explicitly mentioned on the command line always
     # get started, regardless of their current state
+    echo "Starting services 3 and 4 explicitly"
     for id in 3 4; do
         snap start $EXTRA_FLAGS test-snapd-service-restart.svc${id}
         systemctl status snap.test-snapd-service-restart.svc${id}.service | MATCH "running"
