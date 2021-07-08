@@ -20,6 +20,7 @@
 package client_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"io/ioutil"
 
@@ -27,6 +28,7 @@ import (
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/jsonutil"
 )
 
 func (cs *clientSuite) TestCreateQuotaGroupInvalidName(c *check.C) {
@@ -50,7 +52,7 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 	body, err := ioutil.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 	var req map[string]interface{}
-	err = json.Unmarshal(body, &req)
+	err = jsonutil.DecodeWithNumber(bytes.NewReader(body), &req)
 	c.Assert(err, check.IsNil)
 	c.Assert(req, check.DeepEquals, map[string]interface{}{
 		"action":     "ensure",
@@ -58,10 +60,7 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 		"parent":     "bar",
 		"snaps":      []interface{}{"snap-a", "snap-b"},
 		"constraints": map[string]interface{}{
-			// meh this is exactly '1001' in the JSON request, but unless we
-			// parse it as a json.Number into an int64, it will show up typed as
-			// a float64, so this is easier to check in the test
-			"memory": 1001.0,
+			"memory": json.Number("1001"),
 		},
 	})
 }

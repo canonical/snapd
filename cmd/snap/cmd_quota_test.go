@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -28,6 +29,7 @@ import (
 	"gopkg.in/check.v1"
 
 	main "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/jsonutil"
 )
 
 type quotaSuite struct {
@@ -133,15 +135,11 @@ func makeFakeQuotaPostHandler(c *check.C, opts fakeQuotaGroupPostHandlerOpts) fu
 				Constraints: map[string]interface{}{},
 			}
 			if opts.maxMemory != 0 {
-				// meh, this number really is an int, but json encoding
-				// turns it into a float if we don't manually parse it as
-				// a json.Number, the easy workaround is to instead compare
-				// the floats which for tests should be accurate enough
-				exp.Constraints["memory"] = float64(opts.maxMemory)
+				exp.Constraints["memory"] = json.Number(fmt.Sprintf("%d", opts.maxMemory))
 			}
 
 			postJSON := quotasEnsureBody{}
-			err := json.Unmarshal(buf, &postJSON)
+			err := jsonutil.DecodeWithNumber(bytes.NewReader(buf), &postJSON)
 			c.Assert(err, check.IsNil)
 			c.Assert(postJSON, check.DeepEquals, exp)
 		default:
