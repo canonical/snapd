@@ -91,9 +91,6 @@ func takePassGenKey(keyGen takingPassKeyGen, keyName string) error {
 	if string(passphrase) != string(confirmPassphrase) {
 		return errors.New(i18n.G("passphrases do not match"))
 	}
-	if err != nil {
-		return err
-	}
 
 	return keyGen.Generate(string(passphrase), keyName)
 }
