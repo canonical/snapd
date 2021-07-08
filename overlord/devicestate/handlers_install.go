@@ -154,12 +154,14 @@ func writeTimings(rootdir string, chgIDs []string) error {
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("cannot collect timings output: %v", err)
 	}
+	fmt.Fprintf(gz, "\n")
 	// then the seeding
 	cmd = exec.Command("snap", "debug", "timings", "--ensure=seed")
 	cmd.Stdout = gz
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("cannot collect timings output: %v", err)
 	}
+	fmt.Fprintf(gz, "\n")
 	// then the changes
 	for _, chgID := range chgIDs {
 		cmd = exec.Command("snap", "debug", "timings", chgID)
@@ -167,6 +169,7 @@ func writeTimings(rootdir string, chgIDs []string) error {
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("cannot collect timings output: %v", err)
 		}
+		fmt.Fprintf(gz, "\n")
 	}
 
 	if err := gz.Flush(); err != nil {
