@@ -130,7 +130,7 @@ func writeLogs(rootdir string) error {
 	return nil
 }
 
-func writeTimings(rootdir string, st *state.State) error {
+func writeTimings(rootdir string, chgIDs []string, seedChg string) error {
 	logPath := filepath.Join(rootdir, "var/log/install-timings.txt.gz")
 	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
 		return err
@@ -145,21 +145,33 @@ func writeTimings(rootdir string, st *state.State) error {
 	gz := gzip.NewWriter(f)
 	defer gz.Close()
 
-	// collect "timings" for tasks of given change
-	for _, chg := range st.Changes() {
-		// XXX: ugly, ugly, but using the internal timings requires
-		//      some refactor as a lot of the required bits are not
-		//      exported right now
-		cmd := exec.Command("snap", "debug-timings", chg.ID())
+	// XXX: ugly, ugly, but using the internal timings requires
+	//      some refactor as a lot of the required bits are not
+	//      exported right now
+	// first all changes
+	cmd := exec.Command("snap", "changes")
+	cmd.Stdout = gz
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("cannot collect timings output: %v", err)
+	}
+	// then the seed change
+	cmd = exec.Command("snap", "debug", "timings", "--ensure=seed", seedChg)
+	cmd.Stdout = gz
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("cannot collect timings output: %v", err)
+	}
+	// then the remaining changes
+	for _, chgID := range chgIDs {
+		cmd = exec.Command("snap", "debug", "timings", chgID)
 		cmd.Stdout = gz
 		if err := cmd.Run(); err != nil {
 			return fmt.Errorf("cannot collect timings output: %v", err)
 		}
-		if err := gz.Flush(); err != nil {
-			return fmt.Errorf("cannot flush timings output: %v", err)
-		}
 	}
 
+	if err := gz.Flush(); err != nil {
+		return fmt.Errorf("cannot flush timings output: %v", err)
+	}
 	return nil
 }
 
@@ -449,6 +461,16 @@ const (
 )
 
 func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) error {
+	// Note that this has to be the first defer so that it runs *after*
+	// the state is unlocked
+	var chgIDs []string
+	var seedChg string
+	defer func() {
+		if err := writeTimings(boot.InstallHostWritableDir, chgIDs, seedChg); err != nil {
+			logger.Noticef("cannot write timings: %v", err)
+		}
+	}()
+
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -469,8 +491,13 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	if err := writeLogs(boot.InstallHostWritableDir); err != nil {
 		logger.Noticef("cannot write installation log: %v", err)
 	}
-	if err := writeTimings(boot.InstallHostWritableDir, st); err != nil {
-		logger.Noticef("cannot write timing log: %v", err)
+	// will be used by the defer writeTimings() above
+	for _, chg := range st.Changes() {
+		if chg.Kind() == "seed" {
+			seedChg = chg.ID()
+		} else {
+			chgIDs = append(chgIDs, chg.ID())
+		}
 	}
 
 	// ensure the next boot goes into run mode

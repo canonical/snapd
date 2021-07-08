@@ -1490,11 +1490,17 @@ func (s *deviceMgrInstallModeSuite) TestInstallHappyLogfiles(c *C) {
 	})
 	defer restore()
 
+	mockedSnapCmd := testutil.MockCommand(c, "snap", "")
+	defer mockedSnapCmd.Restore()
+
 	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
 		[]byte("mode=install\n"), 0644)
 	c.Assert(err, IsNil)
 
 	s.state.Lock()
+	// pretend we are seeding
+	chg := s.state.NewChange("seed", "just for testing")
+	chg.AddTask(s.state.NewTask("test-task", "the change needs a task"))
 	s.makeMockInstalledPcGadget(c, "dangerous", "", "")
 	devicestate.SetSystemMode(s.mgr, "install")
 	s.state.Unlock()
@@ -1508,7 +1514,14 @@ func (s *deviceMgrInstallModeSuite) TestInstallHappyLogfiles(c *C) {
 	c.Check(installSystem.Err(), IsNil)
 	c.Check(s.restartRequests, HasLen, 1)
 
-	// logs are created correctly
+	// logs are created
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/log/install-mode.log.gz"), testutil.FilePresent)
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/log/install-timings.txt.gz"), testutil.FilePresent)
+
+	// and the right commands are run
+	c.Check(mockedSnapCmd.Calls(), DeepEquals, [][]string{
+		{"snap", "changes"},
+		{"snap", "debug", "timings", "--ensure=seed", "1"},
+		{"snap", "debug", "timings", "2"},
+	})
 }
