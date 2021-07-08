@@ -106,7 +106,9 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 		}
 	}
 
+	sp := perfTimings.StartSpan("create-partitions", "Create partitions")
 	created, err := createMissingPartitions(diskLayout, lv)
+	sp.Stop()
 	if err != nil {
 		return nil, fmt.Errorf("cannot create the partitions: %v", err)
 	}
@@ -139,7 +141,9 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 		logger.Noticef("created new partition %v for structure %v (size %v) %s",
 			part.Node, part, part.Size.IECString(), roleFmt)
 		if options.Encrypt && roleNeedsEncryption(part.Role) {
+			sp = perfTimings.StartSpan("make-key-set", fmt.Sprintf("Create encryption key set for %s", part.Node))
 			keys, err := makeKeySet()
+			sp.Stop()
 			if err != nil {
 				return nil, err
 			}
@@ -167,11 +171,17 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 		// matches what is on the disk, but sometimes there may not be a sector
 		// size specified in the gadget.yaml, but we will always have the sector
 		// size from the physical disk device
-		if err := makeFilesystem(&part, diskLayout.SectorSize); err != nil {
+		sp = perfTimings.StartSpan("make-filesystem", fmt.Sprintf("Create filesystem for %s", part.Node))
+		err = makeFilesystem(&part, diskLayout.SectorSize)
+		sp.Stop()
+		if err != nil {
 			return nil, fmt.Errorf("cannot make filesystem for partition %s: %v", part.Role, err)
 		}
 
-		if err := writeContent(&part, gadgetRoot, observer); err != nil {
+		sp = perfTimings.StartSpan("write-content", fmt.Sprintf("Write content for %s", part.Node))
+		err = writeContent(&part, gadgetRoot, observer)
+		sp.Stop()
+		if err != nil {
 			return nil, err
 		}
 
