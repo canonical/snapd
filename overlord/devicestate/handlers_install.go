@@ -489,7 +489,7 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 		return err
 	}
 
-	// will be used by the defer writeTimings() above
+	// write timing information, the lock must be unset for this
 	var chgIDs []string
 	for _, chg := range st.Changes() {
 		chgIDs = append(chgIDs, chg.ID())
