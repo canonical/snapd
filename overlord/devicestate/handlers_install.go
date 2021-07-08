@@ -461,16 +461,6 @@ const (
 )
 
 func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) error {
-	// Note that this has to be the first defer so that it runs *after*
-	// the state is unlocked
-	var chgIDs []string
-	var seedChg string
-	defer func() {
-		if err := writeTimings(boot.InstallHostWritableDir, chgIDs, seedChg); err != nil {
-			logger.Noticef("cannot write timings: %v", err)
-		}
-	}()
-
 	st := t.State()
 	st.Lock()
 	defer st.Unlock()
@@ -491,14 +481,6 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	if err := writeLogs(boot.InstallHostWritableDir); err != nil {
 		logger.Noticef("cannot write installation log: %v", err)
 	}
-	// will be used by the defer writeTimings() above
-	for _, chg := range st.Changes() {
-		if chg.Kind() == "seed" {
-			seedChg = chg.ID()
-		} else {
-			chgIDs = append(chgIDs, chg.ID())
-		}
-	}
 
 	// ensure the next boot goes into run mode
 	if err := bootEnsureNextBootToRunMode(modeEnv.RecoverySystem); err != nil {
@@ -509,6 +491,23 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	err = t.Get("reboot", &rebootOpts)
 	if err != nil && err != state.ErrNoState {
 		return err
+	}
+
+	// will be used by the defer writeTimings() above
+	var chgIDs []string
+	var seedChg string
+	for _, chg := range st.Changes() {
+		if chg.Kind() == "seed" {
+			seedChg = chg.ID()
+		} else {
+			chgIDs = append(chgIDs, chg.ID())
+		}
+	}
+	st.Unlock()
+	err = writeTimings(boot.InstallHostWritableDir, chgIDs, seedChg)
+	st.Lock()
+	if err != nil {
+		logger.Noticef("cannot write timings: %v", err)
 	}
 
 	// request by default a restart as the last action after a
