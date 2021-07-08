@@ -687,14 +687,15 @@ func (s *transactionSuite) TestVirtualSetShadowsVirtual(c *C) {
 	defer s.state.Unlock()
 
 	err := config.RegisterVirtualConfig("some-snap", "key.nested.virtual", func(key string) (interface{}, error) {
-		c.Fatalf("unexpected cal to virtual config function")
+		c.Fatalf("unexpected call to virtual config function")
 		return nil, nil
 	})
 	c.Assert(err, IsNil)
 
 	tests := []struct {
-		snap, key, value string
-		isOk             bool
+		snap, key string
+		value     interface{}
+		isOk      bool
 	}{
 		// "key" must be a map because "key.virtual" must exist
 		{"some-snap", "key", "non-map-value", false},
@@ -706,7 +707,13 @@ func (s *transactionSuite) TestVirtualSetShadowsVirtual(c *C) {
 		{"some-snap", "key.subkey", "some-value", true},
 		// setting a sub-value of "key.nested" is fine
 		{"some-snap", "key.nested.subkey", "some-value", true},
-		{"some-snap", "key.nested.virtua", "some-value", true},
+		// setting the virtual value itself is fine (of course)
+		{"some-snap", "key.nested.virtual", "some-value", true},
+
+		// but setting nested to some map value is fine
+		{"some-snap", "key.nested", map[string]interface{}{}, true},
+		{"some-snap", "key.nested", map[string]interface{}{"foo": 1}, true},
+		{"some-snap", "key.nested", map[string]interface{}{"virtual": 1}, true},
 
 		// other snaps without virtual config are not affected
 		{"other-snap", "key", "non-map-value", true},
