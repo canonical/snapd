@@ -478,11 +478,6 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 		return fmt.Errorf("missing modeenv, cannot proceed")
 	}
 
-	// store install-mode log into ubuntu-data partition
-	if err := writeLogs(boot.InstallHostWritableDir); err != nil {
-		logger.Noticef("cannot write installation log: %v", err)
-	}
-
 	// ensure the next boot goes into run mode
 	if err := bootEnsureNextBootToRunMode(modeEnv.RecoverySystem); err != nil {
 		return err
@@ -504,6 +499,10 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	st.Lock()
 	if err != nil {
 		logger.Noticef("cannot write timings: %v", err)
+	}
+	// store install-mode log into ubuntu-data partition
+	if err := writeLogs(boot.InstallHostWritableDir); err != nil {
+		logger.Noticef("cannot write installation log: %v", err)
 	}
 
 	// request by default a restart as the last action after a
