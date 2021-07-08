@@ -356,15 +356,60 @@ func RefreshValidationSetAssertions(s *state.State, userID int) error {
 		return nil
 	}
 
-	if err := bulkRefreshValidationSetAsserts(s, vsets, userID, deviceCtx); err != nil {
-		return err
+	monitorModeSets := make(map[string]*ValidationSetTracking)
+	enforceModeSets := make(map[string]*ValidationSetTracking)
+	for vk, vset := range vsets {
+		if vset.Mode == Monitor {
+			monitorModeSets[vk] = vset
+		} else {
+			enforceModeSets[vk] = vset
+		}
+	}
+
+	monitorModeRefreshErr := bulkRefreshValidationSetAsserts(s, monitorModeSets, nil, userID, deviceCtx)
+
+	checkForConflicts := func(db *asserts.Database, bs asserts.Backstore) error {
+		vsets := snapasserts.NewValidationSets()
+		tmpDb := db.WithStackedBackstore(bs)
+		for _, vs := range enforceModeSets {
+			headers := map[string]string{
+				"series":     release.Series,
+				"account-id": vs.AccountID,
+				"name":       vs.Name,
+			}
+			var err error
+			var as asserts.Assertion
+			if vs.PinnedAt > 0 {
+				headers["sequence"] = fmt.Sprintf("%d", vs.PinnedAt)
+				as, err = tmpDb.Find(asserts.ValidationSetType, headers)
+			} else {
+				as, err = tmpDb.FindSequence(asserts.ValidationSetType, headers, -1, asserts.ValidationSetType.MaxSupportedFormat())
+			}
+			if err != nil {
+				return fmt.Errorf("internal error: cannot find validation set assertion: %v", err)
+			}
+
+			vsass, ok := as.(*asserts.ValidationSet)
+			if !ok {
+				return fmt.Errorf("internal error: unexpected assertion type %s for %s", vsass.Type().Name, ValidationSetKey(vs.AccountID, vs.Name))
+			}
+			if err := vsets.Add(vsass); err != nil {
+				return fmt.Errorf("internal error: cannot check validation sets conflicts: %v", err)
+			}
+		}
+		return vsets.Conflict()
+	}
+
+	enforceModeRefreshErr := bulkRefreshValidationSetAsserts(s, enforceModeSets, checkForConflicts, userID, deviceCtx)
+
+	// if both monitor mode and enforce mode sets failed to refresh, there is nothing to do.
+	if enforceModeRefreshErr != nil && monitorModeRefreshErr != nil {
+		return enforceModeRefreshErr
 	}
 
 	// update validation set tracking state
 	for _, vs := range vsets {
-		// TODO: for enforce mode check that the validation-sets don't conflict
-		// and are usable before moving Current.
-		if vs.Mode == Monitor && vs.PinnedAt == 0 {
+		if vs.PinnedAt == 0 && ((vs.Mode == Monitor && monitorModeRefreshErr == nil) || (vs.Mode == Enforce && enforceModeRefreshErr == nil)) {
 			headers := map[string]string{
 				"series":     release.Series,
 				"account-id": vs.AccountID,
@@ -382,7 +427,10 @@ func RefreshValidationSetAssertions(s *state.State, userID int) error {
 		}
 	}
 
-	return nil
+	if enforceModeRefreshErr != nil {
+		return enforceModeRefreshErr
+	}
+	return monitorModeRefreshErr
 }
 
 // ResolveOptions carries extra options for ValidationSetAssertionForMonitor.
@@ -455,7 +503,7 @@ func ValidationSetAssertionForMonitor(st *state.State, accountID, name string, s
 		}
 	}
 
-	if err := resolvePoolNoFallback(st, pool, userID, deviceCtx); err != nil {
+	if err := resolvePoolNoFallback(st, pool, nil, userID, deviceCtx); err != nil {
 		rerr, ok := err.(*resolvePoolError)
 		if ok && as != nil && opts.AllowLocalFallback {
 			if e := rerr.errors[atSeq.Unique()]; asserts.IsNotFound(e) {

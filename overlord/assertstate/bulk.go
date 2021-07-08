@@ -50,7 +50,7 @@ func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstat
 
 	var mergedRPErr *resolvePoolError
 	tryResolvePool := func() error {
-		err := resolvePool(s, pool, userID, deviceCtx)
+		err := resolvePool(s, pool, nil, userID, deviceCtx)
 		if rpe, ok := err.(*resolvePoolError); ok {
 			if mergedRPErr == nil {
 				mergedRPErr = rpe
@@ -139,7 +139,7 @@ func bulkRefreshSnapDeclarations(s *state.State, snapStates map[string]*snapstat
 	return nil
 }
 
-func bulkRefreshValidationSetAsserts(s *state.State, vsets map[string]*ValidationSetTracking, userID int, deviceCtx snapstate.DeviceContext) error {
+func bulkRefreshValidationSetAsserts(s *state.State, vsets map[string]*ValidationSetTracking, beforeCommitChecker func(*asserts.Database, asserts.Backstore) error, userID int, deviceCtx snapstate.DeviceContext) error {
 	db := cachedDB(s)
 	pool := asserts.NewPool(db, maxGroups)
 
@@ -174,7 +174,7 @@ func bulkRefreshValidationSetAsserts(s *state.State, vsets map[string]*Validatio
 		}
 	}
 
-	err := resolvePoolNoFallback(s, pool, userID, deviceCtx)
+	err := resolvePoolNoFallback(s, pool, beforeCommitChecker, userID, deviceCtx)
 	if err == nil {
 		return nil
 	}
@@ -237,7 +237,7 @@ func (rpe *resolvePoolError) Error() string {
 	return strings.Join(s, "\n")
 }
 
-func resolvePool(s *state.State, pool *asserts.Pool, userID int, deviceCtx snapstate.DeviceContext) error {
+func resolvePool(s *state.State, pool *asserts.Pool, checkBeforeCommit func(*asserts.Database, asserts.Backstore) error, userID int, deviceCtx snapstate.DeviceContext) error {
 	user, err := userFromUserID(s, userID)
 	if err != nil {
 		return err
@@ -293,6 +293,11 @@ func resolvePool(s *state.State, pool *asserts.Pool, userID int, deviceCtx snaps
 		}
 	}
 
+	if checkBeforeCommit != nil {
+		if err := checkBeforeCommit(db, pool.Backstore()); err != nil {
+			return err
+		}
+	}
 	pool.CommitTo(db)
 
 	errors := pool.Errors()
@@ -303,8 +308,8 @@ func resolvePool(s *state.State, pool *asserts.Pool, userID int, deviceCtx snaps
 	return nil
 }
 
-func resolvePoolNoFallback(s *state.State, pool *asserts.Pool, userID int, deviceCtx snapstate.DeviceContext) error {
-	err := resolvePool(s, pool, userID, deviceCtx)
+func resolvePoolNoFallback(s *state.State, pool *asserts.Pool, checkBeforeCommit func(*asserts.Database, asserts.Backstore) error, userID int, deviceCtx snapstate.DeviceContext) error {
+	err := resolvePool(s, pool, checkBeforeCommit, userID, deviceCtx)
 	if err != nil {
 		// no fallback, report inner error.
 		if ferr, ok := err.(*bulkAssertionFallbackError); ok {
