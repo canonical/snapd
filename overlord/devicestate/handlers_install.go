@@ -162,6 +162,7 @@ func writeTimings(st *state.State, rootdir string) error {
 	//      some refactor as a lot of the required bits are not
 	//      exported right now
 	// first all changes
+	fmt.Fprintf(gz, "---- Output of: snap changes\n")
 	cmd := exec.Command("snap", "changes")
 	cmd.Stdout = gz
 	if err := cmd.Run(); err != nil {
@@ -169,6 +170,7 @@ func writeTimings(st *state.State, rootdir string) error {
 	}
 	fmt.Fprintf(gz, "\n")
 	// then the seeding
+	fmt.Fprintf(gz, "---- Output of snap debug timings --ensure=seed\n")
 	cmd = exec.Command("snap", "debug", "timings", "--ensure=seed")
 	cmd.Stdout = gz
 	if err := cmd.Run(); err != nil {
@@ -177,6 +179,7 @@ func writeTimings(st *state.State, rootdir string) error {
 	fmt.Fprintf(gz, "\n")
 	// then the changes
 	for _, chgID := range chgIDs {
+		fmt.Fprintf(gz, "---- Output of snap debug timings %s\n", chgID)
 		cmd = exec.Command("snap", "debug", "timings", chgID)
 		cmd.Stdout = gz
 		if err := cmd.Run(); err != nil {

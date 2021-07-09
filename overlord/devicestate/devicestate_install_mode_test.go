@@ -1529,10 +1529,13 @@ echo "mock output of: $(basename "$0") $*"
 	c.Assert(err, IsNil)
 	content, err := ioutil.ReadAll(gz)
 	c.Assert(err, IsNil)
-	c.Check(string(content), Equals, `mock output of: snap changes
+	c.Check(string(content), Equals, `---- Output of: snap changes
+mock output of: snap changes
 
+---- Output of snap debug timings --ensure=seed
 mock output of: snap debug timings --ensure=seed
 
+---- Output of snap debug timings 2
 mock output of: snap debug timings 2
 
 `)
