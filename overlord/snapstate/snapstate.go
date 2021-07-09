@@ -1917,14 +1917,14 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskS
 	}
 
 	// TODO: rename to autoRefreshTasks when old auto refresh logic gets removed.
-	return autoRefreshPhase1(ctx, st, nil)
+	return autoRefreshPhase1(ctx, st, "")
 }
 
 // autoRefreshPhase1 creates gate-auto-refresh hooks and conditional-auto-refresh
-// task that initiates actual refresh. snapsToUpdate is optional and limits auto-refresh
-// to the given snaps only; it defaults to all snaps if nil.
+// task that initiates actual refresh. forGatingSnap is optional and limits auto-refresh
+// to the snaps affecting the given snap only; it defaults to all snaps if nil.
 // The state needs to be locked by the caller.
-func autoRefreshPhase1(ctx context.Context, st *state.State, snapsToUpdate []string) ([]string, []*state.TaskSet, error) {
+func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap string) ([]string, []*state.TaskSet, error) {
 	user, err := userFromUserID(st, 0)
 	if err != nil {
 		return nil, nil, err
@@ -1962,14 +1962,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, snapsToUpdate []str
 			// filtered out by refreshHintsFromCandidates
 			continue
 		}
-		if snapsToUpdate != nil {
-			// explicit list of snaps to refresh was requested and this snap
-			// isn't on it.
-			if !strutil.ListContains(snapsToUpdate, up.InstanceName()) {
-				logger.Noticef("skipping refresh of %q", up.InstanceName())
-				continue
-			}
-		}
+
 		snapst := snapstateByInstance[up.InstanceName()]
 		if err := checkChangeConflictIgnoringOneChange(st, up.InstanceName(), snapst, fromChange); err != nil {
 			logger.Noticef("cannot refresh snap %q: %v", up.InstanceName(), err)
@@ -2010,6 +2003,36 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, snapsToUpdate []str
 		}
 	}
 
+	// if specific gating snap was given, drop other affected snaps unless
+	// they are affected by same updates as forGatingSnap.
+	if forGatingSnap != "" {
+		if _, ok := affectedSnaps[forGatingSnap]; !ok {
+			// this can happen if after refreshing candidates the snap is no
+			// longer affected by new candidates.
+			return nil, nil, nil
+		}
+		// filter out unrelated affectedSnaps
+		for gatingSnap, affectedInfo := range affectedSnaps {
+			if gatingSnap == forGatingSnap {
+				continue
+			}
+			var found bool
+			for affectingSnap := range affectedInfo.AffectingSnaps {
+				// does this gating affectingSnap also affect forGatingSnap?
+				// if so, we will keep it around, meaning we will run its
+				// gate-auto-refresh hook because it may potentially hold updates
+				// even if forGatingSnap's hook says "proceed".
+				if _, ok := affectedSnaps[forGatingSnap].AffectingSnaps[affectingSnap]; ok {
+					found = true
+					break
+				}
+			}
+			if !found {
+				delete(affectedSnaps, gatingSnap)
+			}
+		}
+	}
+
 	var hooks *state.TaskSet
 	if len(affectedSnaps) > 0 {
 		hooks = createGateAutoRefreshHooks(st, affectedSnaps)
@@ -2026,10 +2049,20 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, snapsToUpdate []str
 
 	// return all names as potentially getting updated even though some may be
 	// held.
-	names := make([]string, len(updates))
+	var names []string
 	toUpdate := make(map[string]*refreshCandidate, len(updates))
-	for i, up := range updates {
-		names[i] = up.InstanceName()
+	for _, up := range updates {
+		// if specific gating snap was requested, filter out updates.
+		if forGatingSnap != "" {
+			affecting, ok := affectedSnaps[forGatingSnap]
+			if !ok {
+				continue
+			}
+			if _, ok := affecting.AffectingSnaps[up.InstanceName()]; !ok {
+				continue
+			}
+		}
+		names = append(names, up.InstanceName())
 		toUpdate[up.InstanceName()] = hints[up.InstanceName()]
 	}
 	sort.Strings(names)

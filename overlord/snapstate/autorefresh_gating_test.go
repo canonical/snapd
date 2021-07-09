@@ -1195,7 +1195,7 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 		"snap-d": true,
 	})
 
-	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, nil)
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-a", "snap-c"})
 	c.Assert(tss, HasLen, 2)
@@ -1344,7 +1344,7 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1ConflictsFilteredOut(c *C)
 	logbuf, restoreLogger := logger.MockLogger()
 	defer restoreLogger()
 
-	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, nil)
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"snap-a"})
 	c.Assert(tss, HasLen, 2)
@@ -1413,7 +1413,7 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1NoHooks(c *C) {
 	restore := snapstatetest.MockDeviceModel(DefaultModel())
 	defer restore()
 
-	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, nil)
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-c"})
 	c.Assert(tss, HasLen, 1)
@@ -1500,7 +1500,7 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, beforePhase1 func(), gate
 		beforePhase1()
 	}
 
-	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, nil)
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-a"})
 
@@ -1774,7 +1774,7 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2DiskSpaceCheck(c *C, fail bool) 
 
 	snapstate.MockSnapReadInfo(fakeReadInfo)
 
-	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, nil)
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-a"})
 
@@ -1842,7 +1842,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Conflict(c *C) {
 	restore := snapstatetest.MockDeviceModel(DefaultModel())
 	defer restore()
 
-	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, nil)
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-a"})
 
@@ -1922,7 +1922,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2ConflictOtherSnapOp(c *C) {
 	restore := snapstatetest.MockDeviceModel(DefaultModel())
 	defer restore()
 
-	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, nil)
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"snap-a"})
 
@@ -2014,7 +2014,7 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2GatedSnaps(c *C) {
 	restoreModel := snapstatetest.MockDeviceModel(DefaultModel())
 	defer restoreModel()
 
-	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, nil)
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-a"})
 

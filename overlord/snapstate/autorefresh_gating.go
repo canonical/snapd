@@ -650,20 +650,20 @@ func AutoRefreshForGatingSnap(st *state.State, gatingSnap string) error {
 		return err
 	}
 
-	var toUpdate []string
-	for heldSnap, holdingSnaps := range gating {
+	var hasHeld bool
+	for _, holdingSnaps := range gating {
 		if _, ok := holdingSnaps[gatingSnap]; ok {
-			toUpdate = append(toUpdate, heldSnap)
+			hasHeld = true
+			break
 		}
 	}
-
-	if len(toUpdate) == 0 {
+	if !hasHeld {
 		return fmt.Errorf("no snaps are held by snap %q", gatingSnap)
 	}
 
 	// NOTE: this will unlock and re-lock state for network ops
 	// XXX: should we refresh assertions (just call AutoRefresh()?)
-	updated, tasksets, err := autoRefreshPhase1(auth.EnsureContextTODO(), st, toUpdate)
+	updated, tasksets, err := autoRefreshPhase1(auth.EnsureContextTODO(), st, gatingSnap)
 	if err != nil {
 		return err
 	}
