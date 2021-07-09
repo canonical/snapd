@@ -1,25 +1,22 @@
 summary: Check that try command works
 
 # s390x does not have /dev/kmsg
-systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -ubuntu-*-s390x, -centos-*]
+# ubuntu-14.04: systemd-run not supported
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*, -ubuntu-*-s390x, -centos-*, -ubuntu-14.04*]
 
 environment:
     PORT: 8081
-    SERVICE_FILE: "./service.sh"
     READABLE_FILE: "/var/snap/test-snapd-tools/x1/file.txt"
     SERVICE_NAME: "test-service"
 
 prepare: |
     # shellcheck source=tests/lib/network.sh
     . "$TESTSLIB"/network.sh
-    make_network_service "$SERVICE_NAME" "$SERVICE_FILE" "$PORT"
+    make_network_service "$SERVICE_NAME" "$PORT"
 
 restore: |
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
-    #shellcheck disable=SC2153
-    systemd_stop_and_destroy_unit "$SERVICE_NAME"
-    rm -f "$SERVICE_FILE" "$READABLE_FILE"
+    systemctl stop "$SERVICE_NAME"
+    rm -f "$READABLE_FILE"
 
 execute: |
     echo "Given a buildable snap in a known directory"

@@ -130,7 +130,7 @@ func (s *bootenv20Suite) checkBootStateAfterUnexpectedRebootAndCleanup(
 ) {
 	if panicFunc != "" {
 		// setup a panic during the given bootloader function
-		restoreBootloaderPanic := s.bootloader.SetRunKernelImagePanic(panicFunc)
+		restoreBootloaderPanic := s.bootloader.SetMockToPanic(panicFunc)
 
 		// run the boot function that will now panic
 		c.Assert(
@@ -192,7 +192,7 @@ func (s *bootenv20Suite) checkBootStateAfterUnexpectedRebootAndCleanup(
 }
 
 func (s *bootenv20Suite) TestHappyMarkBootSuccessful20KernelUpgradeUnexpectedReboots(c *C) {
-	coreDev := boottest.MockUC20Device("some-snap")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	tt := []struct {
@@ -256,7 +256,7 @@ func (s *bootenv20Suite) TestHappyMarkBootSuccessful20KernelUpgradeUnexpectedReb
 }
 
 func (s *bootenv20Suite) TestHappySetNextBoot20KernelUpgradeUnexpectedReboots(c *C) {
-	coreDev := boottest.MockUC20Device("pc-kernel")
+	coreDev := boottest.MockUC20Device("", nil)
 	c.Assert(coreDev.HasModeenv(), Equals, true)
 
 	tt := []struct {

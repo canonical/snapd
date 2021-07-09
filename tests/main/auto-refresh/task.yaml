@@ -16,21 +16,15 @@ restore: |
     fi
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
-
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB/systems.sh"
-
     echo "Auto refresh information is shown"
     output=$(snap refresh --time)
     for expected in ^schedule: ^last: ^next:; do
         echo "$output" | MATCH "$expected"
     done
 
-    if is_core_system; then
+    if os.query is-core; then
         # no holding
-        echo "$output" | not MATCH "^hold:"
+        echo "$output" | NOMATCH "^hold:"
     else
         # holding
         echo "$output" | MATCH "^hold:"
@@ -70,4 +64,4 @@ execute: |
     jq ".data[\"last-refresh\"]" /var/lib/snapd/state.json | MATCH "$(date +%Y)"
 
     echo "No refresh hold at this point"
-    snap refresh --time | not MATCH "^hold:"
+    snap refresh --time | NOMATCH "^hold:"

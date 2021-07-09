@@ -7,8 +7,6 @@ prepare: |
         echo "This test needs test keys to be trusted"
         exit
     fi
-    # shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB/systems.sh"
 
     echo "Install dmsetup"
     snap install --devmode --edge dmsetup
@@ -19,14 +17,14 @@ prepare: |
             echo " testrootorg-store.account-key is already added"
             exit 1
     fi
+
     echo "Create a ramdisk with the testrootorg-store.account-key assertion"
     #shellcheck source=tests/lib/ramdisk.sh
     . "$TESTSLIB/ramdisk.sh"
     setup_ramdisk
-
     # We use different filesystems to cover both: fat and ext. fat is the most
     # common fs used and we also use ext3 because fat is not available on ubuntu core 18
-    if is_core18_system; then
+    if os.query is-core18; then
         mkfs.ext3 /dev/ram0
     else
         mkfs.vfat /dev/ram0
@@ -35,6 +33,7 @@ prepare: |
     cp "$TESTSLIB"/assertions/testrootorg-store.account-key /mnt/auto-import.assert
     sync
     umount /mnt
+
     echo "Create new block device to trigger auto-import mount"
     # wait for all udev events to be handled, sometimes we are getting an error:
     #

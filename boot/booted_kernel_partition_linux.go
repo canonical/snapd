@@ -47,6 +47,9 @@ func FindPartitionUUIDForBootedKernelDisk() (string, error) {
 		return "", err
 	}
 
+	// TODO:UC20: use the kernel command line parameter from the little kernel
+	//            bootloader if we have a littlekernel bootloader
+
 	// TODO:UC20: add more fallbacks here, even on amd64, when we don't have efi
 	//            i.e. on bios?
 	return "", fmt.Errorf("could not find partition uuid for booted kernel: %v", err)

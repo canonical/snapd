@@ -17,9 +17,7 @@ details: |
 
 prepare: |
     echo "Given the test-snapd-event snap is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-event
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-event
 
 execute: |
     if [ -z "$(find /dev/input/by-path -name '*-event-kbd')" ]; then
@@ -84,8 +82,14 @@ execute: |
         echo "Expected permission error calling evtest with disconnected plug"
         exit 1
     fi
-    # AppArmor is 'Permission denied' which is expected with default policy
-    MATCH "Permission denied" < call.error
+
+    if os.query is-hirsute; then
+        # Cgroups is 'Operation not permitted' which is expected with default policy
+        MATCH "Operation not permitted" < call.error
+    else
+        # AppArmor is 'Permission denied' which is expected with default policy
+        MATCH "Permission denied" < call.error
+    fi
 
     echo "When the device-buttons plug is connected"
     snap connect test-snapd-event:device-buttons

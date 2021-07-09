@@ -72,6 +72,7 @@ var (
 	LongSnapDescription     = longSnapDescription
 	SnapUsage               = snapUsage
 	SnapHelpCategoriesIntro = snapHelpCategoriesIntro
+	SnapHelpAllIntro        = snapHelpAllIntro
 	SnapHelpAllFooter       = snapHelpAllFooter
 	SnapHelpFooter          = snapHelpFooter
 	HelpCategories          = helpCategories
@@ -90,6 +91,9 @@ var (
 	PrintInstallHint = printInstallHint
 
 	IsStopping = isStopping
+
+	GetKeypairManager = getKeypairManager
+	GenerateKey       = generateKey
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
@@ -381,5 +385,29 @@ func MockDownloadDirect(f func(snapName string, revision snap.Revision, dlOpts i
 	downloadDirect = f
 	return func() {
 		downloadDirect = old
+	}
+}
+
+func MockSnapdAPIInterval(t time.Duration) (restore func()) {
+	old := snapdAPIInterval
+	snapdAPIInterval = t
+	return func() {
+		snapdAPIInterval = old
+	}
+}
+
+func MockSnapdWaitForFullSystemReboot(t time.Duration) (restore func()) {
+	old := snapdWaitForFullSystemReboot
+	snapdWaitForFullSystemReboot = t
+	return func() {
+		snapdWaitForFullSystemReboot = old
+	}
+}
+
+func MockOsChmod(f func(string, os.FileMode) error) (restore func()) {
+	old := osChmod
+	osChmod = f
+	return func() {
+		osChmod = old
 	}
 }

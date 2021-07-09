@@ -56,18 +56,20 @@ func (s *trackingSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 }
 
-// CreateTransientScopeForTracking is a no-op when refresh app awareness is off
+// CreateTransientScopeForTracking always attempts to track, even when refresh app awareness flag is off.
 func (s *trackingSuite) TestCreateTransientScopeForTrackingFeatureDisabled(c *C) {
 	noDBus := func() (*dbus.Conn, error) {
-		c.Error("test sequence violated")
-		return nil, fmt.Errorf("dbus should not have been used")
+		return nil, fmt.Errorf("dbus not available")
 	}
 	restore := dbusutil.MockConnections(noDBus, noDBus)
 	defer restore()
 
+	// The feature is disabled but we still track applications. The feature
+	// flag is now only observed in side snapd snap manager, while considering
+	// snap refreshes.
 	c.Assert(features.RefreshAppAwareness.IsEnabled(), Equals, false)
 	err := cgroup.CreateTransientScopeForTracking("snap.pkg.app", nil)
-	c.Check(err, IsNil)
+	c.Assert(err, ErrorMatches, "cannot track application process")
 }
 
 // CreateTransientScopeForTracking does stuff when refresh app awareness is on
@@ -390,6 +392,66 @@ func (s *trackingSuite) TestCreateTransientScopeForRootOnSystemBus(c *C) {
 	// Create a transient scope and see it succeed.
 	err = cgroup.CreateTransientScopeForTracking("snap.pkg.app", &cgroup.TrackingOptions{AllowSessionBus: false})
 	c.Assert(err, IsNil)
+}
+
+func (s *trackingSuite) TestCreateTransientScopeHappyWithRetriedCheck(c *C) {
+	enableFeatures(c, features.RefreshAppAwareness)
+
+	logBuf, restore := logger.MockLogger()
+	defer restore()
+	os.Setenv("SNAPD_DEBUG", "true")
+	defer os.Unsetenv("SNAPD_DEBUG")
+	restore = cgroup.MockOsGetuid(12345)
+	defer restore()
+	restore = cgroup.MockOsGetpid(312123)
+	defer restore()
+	uuid := "cc98cd01-6a25-46bd-b71b-82069b71b770"
+	restore = cgroup.MockRandomUUID(uuid)
+	defer restore()
+	sessionBus, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
+		switch n {
+		case 0:
+			return []*dbus.Message{checkAndRespondToStartTransientUnit(c, msg, "snap.pkg.app."+uuid+".scope", 312123)}, nil
+		}
+		return nil, fmt.Errorf("unexpected message #%d: %s", n, msg)
+	})
+
+	c.Assert(err, IsNil)
+	restore = dbusutil.MockOnlySessionBusAvailable(sessionBus)
+	defer restore()
+	restore = cgroup.MockDoCreateTransientScope(func(conn *dbus.Conn, unitName string, pid int) error {
+		c.Assert(conn, Equals, sessionBus)
+		c.Assert(unitName, Equals, "snap.pkg.app."+uuid+".scope")
+		return nil
+	})
+	defer restore()
+
+	pathInTrackingCgroupCallsToSuccess := 5
+	pathInTrackingCgroupCalls := 0
+	restore = cgroup.MockCgroupProcessPathInTrackingCgroup(func(pid int) (string, error) {
+		pathInTrackingCgroupCalls++
+		if pathInTrackingCgroupCalls < pathInTrackingCgroupCallsToSuccess {
+			return "vte-spawn-1234-1234-1234.scope", nil
+		}
+		return "snap.pkg.app." + uuid + ".scope", nil
+	})
+	defer restore()
+
+	// creating transient scope succeeds even if check is retried
+	err = cgroup.CreateTransientScopeForTracking("snap.pkg.app", nil)
+	c.Assert(err, IsNil)
+	c.Check(pathInTrackingCgroupCalls, Equals, 5)
+	c.Check(logBuf.String(), Not(testutil.Contains), "systemd could not associate process 312123 with transient scope")
+
+	// try again, but exhaust the limit if attempts which should be set to 100
+	pathInTrackingCgroupCalls = 0
+	pathInTrackingCgroupCallsToSuccess = 99999
+	logBuf.Reset()
+	err = cgroup.CreateTransientScopeForTracking("snap.pkg.app", nil)
+	c.Assert(err, ErrorMatches, "cannot track application process")
+	c.Check(pathInTrackingCgroupCalls, Equals, 100)
+	c.Check(logBuf.String(), testutil.Contains, "systemd could not associate process 312123 with transient scope")
+
 }
 
 func checkAndRespondToStartTransientUnit(c *C, msg *dbus.Message, scopeName string, pid int) *dbus.Message {

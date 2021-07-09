@@ -41,7 +41,7 @@ const mediaHubBaseDeclarationSlots = `
 `
 
 const mediaHubPermanentSlotAppArmor = `
-# Description: Allow operating as the the media-hub service.
+# Description: Allow operating as the media-hub service.
 
 # DBus accesses
 #include <abstractions/dbus-session-strict>

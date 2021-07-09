@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -100,11 +100,22 @@ func (s *grubTestSuite) makeFakeGrubEnv(c *C) {
 }
 
 func (s *grubTestSuite) TestNewGrub(c *C) {
-	s.makeFakeGrubEnv(c)
-
+	// no files means bl is not present, but we can still create the bl object
+	c.Assert(os.RemoveAll(s.rootdir), IsNil)
 	g := bootloader.NewGrub(s.rootdir, nil)
 	c.Assert(g, NotNil)
 	c.Assert(g.Name(), Equals, "grub")
+
+	present, err := g.Present()
+	c.Assert(err, IsNil)
+	c.Assert(present, Equals, false)
+
+	// now with files present, the bl is present
+	bootloader.MockGrubFiles(c, s.rootdir)
+	s.makeFakeGrubEnv(c)
+	present, err = g.Present()
+	c.Assert(err, IsNil)
+	c.Assert(present, Equals, true)
 }
 
 func (s *grubTestSuite) TestGetBootloaderWithGrub(c *C) {
@@ -239,14 +250,14 @@ func (s *grubTestSuite) makeFakeGrubEFINativeEnv(c *C, content []byte) {
 func (s *grubTestSuite) TestNewGrubWithOptionRecovery(c *C) {
 	s.makeFakeGrubEFINativeEnv(c, nil)
 
-	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
 	c.Assert(g, NotNil)
 	c.Assert(g.Name(), Equals, "grub")
 }
 
 func (s *grubTestSuite) TestNewGrubWithOptionRecoveryBootEnv(c *C) {
 	s.makeFakeGrubEFINativeEnv(c, nil)
-	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
 
 	// check that setting vars goes to the right place
 	c.Check(filepath.Join(s.grubEFINativeDir(), "grubenv"), testutil.FileAbsent)
@@ -270,14 +281,14 @@ func (s *grubTestSuite) TestNewGrubWithOptionRecoveryNoEnv(c *C) {
 	s.makeFakeGrubEnv(c)
 
 	// we can't create a recovery grub with that
-	g, err := bootloader.Find(s.rootdir, &bootloader.Options{Recovery: true})
+	g, err := bootloader.Find(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
 	c.Assert(g, IsNil)
 	c.Assert(err, Equals, bootloader.ErrBootloader)
 }
 
 func (s *grubTestSuite) TestGrubSetRecoverySystemEnv(c *C) {
 	s.makeFakeGrubEFINativeEnv(c, nil)
-	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
 
 	// check that we can set a recovery system specific bootenv
 	bvars := map[string]string{
@@ -299,7 +310,7 @@ func (s *grubTestSuite) TestGrubSetRecoverySystemEnv(c *C) {
 
 func (s *grubTestSuite) TestGetRecoverySystemEnv(c *C) {
 	s.makeFakeGrubEFINativeEnv(c, nil)
-	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Recovery: true})
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
 
 	err := os.MkdirAll(filepath.Join(s.rootdir, "/systems/20191209"), 0755)
 	c.Assert(err, IsNil)
@@ -471,6 +482,10 @@ func (s *grubTestSuite) TestGrubExtractedRunKernelImageEnableTryKernel(c *C) {
 }
 
 func (s *grubTestSuite) TestGrubExtractedRunKernelImageDisableTryKernel(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be run by the root user")
+	}
+
 	s.makeFakeGrubEnv(c)
 	g := bootloader.NewGrub(s.rootdir, nil)
 	eg, ok := g.(bootloader.ExtractedRunKernelImageBootloader)
@@ -506,7 +521,7 @@ func (s *grubTestSuite) TestGrubExtractedRunKernelImageDisableTryKernel(c *C) {
 func (s *grubTestSuite) TestKernelExtractionRunImageKernel(c *C) {
 	s.makeFakeGrubEnv(c)
 
-	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{ExtractedRunKernelImage: true})
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRunMode})
 	c.Assert(g, NotNil)
 
 	files := [][]string{
@@ -548,7 +563,7 @@ func (s *grubTestSuite) TestKernelExtractionRunImageKernelNoSlashBoot(c *C) {
 	// layout, same as Recovery, without the /boot mount
 	s.makeFakeGrubEFINativeEnv(c, nil)
 
-	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{ExtractedRunKernelImage: true, NoSlashBoot: true})
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRunMode, NoSlashBoot: true})
 	c.Assert(g, NotNil)
 
 	files := [][]string{
@@ -597,42 +612,6 @@ func (s *grubTestSuite) TestKernelExtractionRunImageKernelNoSlashBoot(c *C) {
 	c.Check(exists, Equals, false)
 }
 
-func (s *grubTestSuite) TestIsCurrentlyManaged(c *C) {
-	// native EFI/ubuntu setup, as we're using NoSlashBoot
-	s.makeFakeGrubEFINativeEnv(c, []byte(`this is
-some random boot config`))
-
-	opts := &bootloader.Options{NoSlashBoot: true}
-	g := bootloader.NewGrub(s.rootdir, opts)
-	c.Assert(g, NotNil)
-	mg, ok := g.(bootloader.ManagedAssetsBootloader)
-	c.Assert(ok, Equals, true)
-
-	// native EFI/ubuntu setup, as we're using NoSlashBoot
-	s.makeFakeGrubEFINativeEnv(c, []byte(`this is
-some random boot config`))
-
-	is, err := mg.IsCurrentlyManaged()
-	c.Assert(err, IsNil)
-	c.Assert(is, Equals, false)
-
-	// try with real snap managed config
-	s.makeFakeGrubEFINativeEnv(c, []byte(`# Snapd-Boot-Config-Edition: 5
-managed by snapd`))
-
-	is, err = mg.IsCurrentlyManaged()
-	c.Assert(err, IsNil)
-	c.Assert(is, Equals, true)
-
-	// break boot config
-	err = os.Chmod(s.grubEFINativeDir(), 0000)
-	defer os.Chmod(s.grubEFINativeDir(), 0755)
-	c.Assert(err, IsNil)
-	is, err = mg.IsCurrentlyManaged()
-	c.Assert(err, ErrorMatches, "cannot load existing config asset: .*/grub.cfg: permission denied")
-	c.Assert(is, Equals, false)
-}
-
 func (s *grubTestSuite) TestListManagedAssets(c *C) {
 	s.makeFakeGrubEFINativeEnv(c, []byte(`this is
 some random boot config`))
@@ -641,23 +620,23 @@ some random boot config`))
 	g := bootloader.NewGrub(s.rootdir, opts)
 	c.Assert(g, NotNil)
 
-	mg, ok := g.(bootloader.ManagedAssetsBootloader)
+	tg, ok := g.(bootloader.TrustedAssetsBootloader)
 	c.Assert(ok, Equals, true)
 
-	c.Check(mg.ManagedAssets(), DeepEquals, []string{
+	c.Check(tg.ManagedAssets(), DeepEquals, []string{
 		"EFI/ubuntu/grub.cfg",
 	})
 
-	opts = &bootloader.Options{Recovery: true}
-	mg = bootloader.NewGrub(s.rootdir, opts).(bootloader.ManagedAssetsBootloader)
-	c.Check(mg.ManagedAssets(), DeepEquals, []string{
+	opts = &bootloader.Options{Role: bootloader.RoleRecovery}
+	tg = bootloader.NewGrub(s.rootdir, opts).(bootloader.TrustedAssetsBootloader)
+	c.Check(tg.ManagedAssets(), DeepEquals, []string{
 		"EFI/ubuntu/grub.cfg",
 	})
 
 	// as it called for the root fs rather than a mount point of a partition
 	// with boot assets
-	mg = bootloader.NewGrub(s.rootdir, nil).(bootloader.ManagedAssetsBootloader)
-	c.Check(mg.ManagedAssets(), DeepEquals, []string{
+	tg = bootloader.NewGrub(s.rootdir, nil).(bootloader.TrustedAssetsBootloader)
+	c.Check(tg.ManagedAssets(), DeepEquals, []string{
 		"boot/grub/grub.cfg",
 	})
 }
@@ -666,7 +645,7 @@ func (s *grubTestSuite) TestRecoveryUpdateBootConfigNoEdition(c *C) {
 	// native EFI/ubuntu setup
 	s.makeFakeGrubEFINativeEnv(c, []byte("recovery boot script"))
 
-	opts := &bootloader.Options{Recovery: true}
+	opts := &bootloader.Options{Role: bootloader.RoleRecovery}
 	g := bootloader.NewGrub(s.rootdir, opts)
 	c.Assert(g, NotNil)
 
@@ -675,12 +654,12 @@ this is mocked grub-recovery.conf
 `))
 	defer restore()
 
-	eg, ok := g.(bootloader.ManagedAssetsBootloader)
+	tg, ok := g.(bootloader.TrustedAssetsBootloader)
 	c.Assert(ok, Equals, true)
 	// install the recovery boot script
-	err := eg.UpdateBootConfig(opts)
+	updated, err := tg.UpdateBootConfig()
 	c.Assert(err, IsNil)
-
+	c.Assert(updated, Equals, false)
 	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, `recovery boot script`)
 }
 
@@ -689,7 +668,7 @@ func (s *grubTestSuite) TestRecoveryUpdateBootConfigUpdates(c *C) {
 	s.makeFakeGrubEFINativeEnv(c, []byte(`# Snapd-Boot-Config-Edition: 1
 recovery boot script`))
 
-	opts := &bootloader.Options{Recovery: true}
+	opts := &bootloader.Options{Role: bootloader.RoleRecovery}
 	g := bootloader.NewGrub(s.rootdir, opts)
 	c.Assert(g, NotNil)
 
@@ -701,11 +680,12 @@ this is mocked grub-recovery.conf
 this is mocked grub.conf
 `))
 	defer restore()
-	eg, ok := g.(bootloader.ManagedAssetsBootloader)
+	tg, ok := g.(bootloader.TrustedAssetsBootloader)
 	c.Assert(ok, Equals, true)
 	// install the recovery boot script
-	err := eg.UpdateBootConfig(opts)
+	updated, err := tg.UpdateBootConfig()
 	c.Assert(err, IsNil)
+	c.Assert(updated, Equals, true)
 	// the recovery boot asset was picked
 	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, `# Snapd-Boot-Config-Edition: 3
 this is mocked grub-recovery.conf
@@ -723,10 +703,11 @@ func (s *grubTestSuite) testBootUpdateBootConfigUpdates(c *C, oldConfig, newConf
 	restore := assets.MockInternal("grub.cfg", []byte(newConfig))
 	defer restore()
 
-	eg, ok := g.(bootloader.ManagedAssetsBootloader)
+	tg, ok := g.(bootloader.TrustedAssetsBootloader)
 	c.Assert(ok, Equals, true)
-	err := eg.UpdateBootConfig(opts)
+	updated, err := tg.UpdateBootConfig()
 	c.Assert(err, IsNil)
+	c.Assert(updated, Equals, update)
 	if update {
 		c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, newConfig)
 	} else {
@@ -781,6 +762,10 @@ this is updated grub.cfg
 }
 
 func (s *grubTestSuite) TestBootUpdateBootConfigTrivialErr(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be run by the root user")
+	}
+
 	oldConfig := `# Snapd-Boot-Config-Edition: 2
 boot script
 `
@@ -796,15 +781,16 @@ this is updated grub.cfg
 	opts := &bootloader.Options{NoSlashBoot: true}
 	g := bootloader.NewGrub(s.rootdir, opts)
 	c.Assert(g, NotNil)
-	eg, ok := g.(bootloader.ManagedAssetsBootloader)
+	tg, ok := g.(bootloader.TrustedAssetsBootloader)
 	c.Assert(ok, Equals, true)
 
 	err := os.Chmod(s.grubEFINativeDir(), 0000)
 	c.Assert(err, IsNil)
 	defer os.Chmod(s.grubEFINativeDir(), 0755)
 
-	err = eg.UpdateBootConfig(opts)
+	updated, err := tg.UpdateBootConfig()
 	c.Assert(err, ErrorMatches, "cannot load existing config asset: .*/EFI/ubuntu/grub.cfg: permission denied")
+	c.Assert(updated, Equals, false)
 	err = os.Chmod(s.grubEFINativeDir(), 0555)
 	c.Assert(err, IsNil)
 
@@ -813,8 +799,9 @@ this is updated grub.cfg
 	// writing out new config fails
 	err = os.Chmod(s.grubEFINativeDir(), 0111)
 	c.Assert(err, IsNil)
-	err = eg.UpdateBootConfig(opts)
+	updated, err = tg.UpdateBootConfig()
 	c.Assert(err, ErrorMatches, `open .*/EFI/ubuntu/grub.cfg\..+: permission denied`)
+	c.Assert(updated, Equals, false)
 	c.Assert(filepath.Join(s.grubEFINativeDir(), "grub.cfg"), testutil.FileEquals, oldConfig)
 }
 
@@ -849,16 +836,23 @@ func (s *grubTestSuite) TestCommandLineNotManaged(c *C) {
 	defer restore()
 
 	opts := &bootloader.Options{NoSlashBoot: true}
-	mg := bootloader.NewGrub(s.rootdir, opts).(bootloader.ManagedAssetsBootloader)
+	mg := bootloader.NewGrub(s.rootdir, opts).(bootloader.TrustedAssetsBootloader)
 
-	args, err := mg.CommandLine("snapd_recovery_mode=run", "", "extra")
+	args, err := mg.CommandLine(bootloader.CommandLineComponents{
+		ModeArg:   "snapd_recovery_mode=run",
+		ExtraArgs: "extra",
+	})
 	c.Assert(err, IsNil)
 	c.Check(args, Equals, "snapd_recovery_mode=run static=1 extra")
 
-	optsRecovery := &bootloader.Options{NoSlashBoot: true, Recovery: true}
-	mgr := bootloader.NewGrub(s.rootdir, optsRecovery).(bootloader.ManagedAssetsBootloader)
+	optsRecovery := &bootloader.Options{NoSlashBoot: true, Role: bootloader.RoleRecovery}
+	mgr := bootloader.NewGrub(s.rootdir, optsRecovery).(bootloader.TrustedAssetsBootloader)
 
-	args, err = mgr.CommandLine("snapd_recovery_mode=recover", "snapd_recovery_system=1234", "extra")
+	args, err = mgr.CommandLine(bootloader.CommandLineComponents{
+		ModeArg:   "snapd_recovery_mode=recover",
+		SystemArg: "snapd_recovery_system=1234",
+		ExtraArgs: "extra",
+	})
 	c.Assert(err, IsNil)
 	c.Check(args, Equals, "snapd_recovery_mode=recover snapd_recovery_system=1234 static=1 recovery extra")
 }
@@ -886,23 +880,32 @@ boot script
 	optsNoSlashBoot := &bootloader.Options{NoSlashBoot: true}
 	g := bootloader.NewGrub(s.rootdir, optsNoSlashBoot)
 	c.Assert(g, NotNil)
-	mg, ok := g.(bootloader.ManagedAssetsBootloader)
+	tg, ok := g.(bootloader.TrustedAssetsBootloader)
 	c.Assert(ok, Equals, true)
 
 	extraArgs := `extra_arg=1  extra_foo=-1   panic=3 baz="more  spaces"`
-	args, err := mg.CommandLine("snapd_recovery_mode=run", "", extraArgs)
+	args, err := tg.CommandLine(bootloader.CommandLineComponents{
+		ModeArg:   "snapd_recovery_mode=run",
+		ExtraArgs: extraArgs,
+	})
 	c.Assert(err, IsNil)
 	c.Check(args, Equals, `snapd_recovery_mode=run arg1 foo=123 panic=-1 arg2="with spaces " extra_arg=1 extra_foo=-1 panic=3 baz="more  spaces"`)
 
 	// empty mode/system do not produce confusing results
-	args, err = mg.CommandLine("", "", extraArgs)
+	args, err = tg.CommandLine(bootloader.CommandLineComponents{
+		ExtraArgs: extraArgs,
+	})
 	c.Assert(err, IsNil)
 	c.Check(args, Equals, `arg1 foo=123 panic=-1 arg2="with spaces " extra_arg=1 extra_foo=-1 panic=3 baz="more  spaces"`)
 
 	// now check the recovery bootloader
-	optsRecovery := &bootloader.Options{NoSlashBoot: true, Recovery: true}
-	mrg := bootloader.NewGrub(s.rootdir, optsRecovery).(bootloader.ManagedAssetsBootloader)
-	args, err = mrg.CommandLine("snapd_recovery_mode=recover", "snapd_recovery_system=20200202", extraArgs)
+	optsRecovery := &bootloader.Options{NoSlashBoot: true, Role: bootloader.RoleRecovery}
+	mrg := bootloader.NewGrub(s.rootdir, optsRecovery).(bootloader.TrustedAssetsBootloader)
+	args, err = mrg.CommandLine(bootloader.CommandLineComponents{
+		ModeArg:   "snapd_recovery_mode=recover",
+		SystemArg: "snapd_recovery_system=20200202",
+		ExtraArgs: extraArgs,
+	})
 	c.Assert(err, IsNil)
 	// static command line from recovery asset
 	c.Check(args, Equals, `snapd_recovery_mode=recover snapd_recovery_system=20200202 recovery config panic=-1 extra_arg=1 extra_foo=-1 panic=3 baz="more  spaces"`)
@@ -912,12 +915,31 @@ boot script
 boot script
 `
 	s.makeFakeGrubEFINativeEnv(c, []byte(grubCfg3))
-	mg = bootloader.NewGrub(s.rootdir, optsNoSlashBoot).(bootloader.ManagedAssetsBootloader)
+	tg = bootloader.NewGrub(s.rootdir, optsNoSlashBoot).(bootloader.TrustedAssetsBootloader)
 	c.Assert(g, NotNil)
 	extraArgs = `extra_arg=1`
-	args, err = mg.CommandLine("snapd_recovery_mode=run", "", extraArgs)
+	args, err = tg.CommandLine(bootloader.CommandLineComponents{
+		ModeArg:   "snapd_recovery_mode=run",
+		ExtraArgs: extraArgs,
+	})
 	c.Assert(err, IsNil)
 	c.Check(args, Equals, `snapd_recovery_mode=run edition=3 static args extra_arg=1`)
+
+	// full args set overrides static arguments
+	args, err = tg.CommandLine(bootloader.CommandLineComponents{
+		ModeArg:  "snapd_recovery_mode=run",
+		FullArgs: "full for run mode",
+	})
+	c.Assert(err, IsNil)
+	c.Check(args, Equals, `snapd_recovery_mode=run full for run mode`)
+	args, err = mrg.CommandLine(bootloader.CommandLineComponents{
+		ModeArg:   "snapd_recovery_mode=recover",
+		SystemArg: "snapd_recovery_system=20200202",
+		FullArgs:  "full for recover mode",
+	})
+	c.Assert(err, IsNil)
+	c.Check(args, Equals, `snapd_recovery_mode=recover snapd_recovery_system=20200202 full for recover mode`)
+
 }
 
 func (s *grubTestSuite) TestCandidateCommandLineMocked(c *C) {
@@ -949,14 +971,21 @@ boot script
 	defer restore()
 
 	optsNoSlashBoot := &bootloader.Options{NoSlashBoot: true}
-	mg := bootloader.NewGrub(s.rootdir, optsNoSlashBoot).(bootloader.ManagedAssetsBootloader)
-	optsRecovery := &bootloader.Options{NoSlashBoot: true, Recovery: true}
-	recoverymg := bootloader.NewGrub(s.rootdir, optsRecovery).(bootloader.ManagedAssetsBootloader)
+	mg := bootloader.NewGrub(s.rootdir, optsNoSlashBoot).(bootloader.TrustedAssetsBootloader)
+	optsRecovery := &bootloader.Options{NoSlashBoot: true, Role: bootloader.RoleRecovery}
+	recoverymg := bootloader.NewGrub(s.rootdir, optsRecovery).(bootloader.TrustedAssetsBootloader)
 
-	args, err := mg.CandidateCommandLine("snapd_recovery_mode=run", "", "extra=1")
+	args, err := mg.CandidateCommandLine(bootloader.CommandLineComponents{
+		ModeArg:   "snapd_recovery_mode=run",
+		ExtraArgs: "extra=1",
+	})
 	c.Assert(err, IsNil)
 	c.Check(args, Equals, `snapd_recovery_mode=run edition=1 extra=1`)
-	args, err = recoverymg.CandidateCommandLine("snapd_recovery_mode=recover", "snapd_recovery_system=20200202", "extra=1")
+	args, err = recoverymg.CandidateCommandLine(bootloader.CommandLineComponents{
+		ModeArg:   "snapd_recovery_mode=recover",
+		SystemArg: "snapd_recovery_system=20200202",
+		ExtraArgs: "extra=1",
+	})
 	c.Assert(err, IsNil)
 	c.Check(args, Equals, `snapd_recovery_mode=recover snapd_recovery_system=20200202 recovery edition=1 extra=1`)
 
@@ -965,10 +994,17 @@ boot script
 	restore = assets.MockInternal("grub-recovery.cfg", edition3)
 	defer restore()
 
-	args, err = mg.CandidateCommandLine("snapd_recovery_mode=run", "", "extra=1")
+	args, err = mg.CandidateCommandLine(bootloader.CommandLineComponents{
+		ModeArg:   "snapd_recovery_mode=run",
+		ExtraArgs: "extra=1",
+	})
 	c.Assert(err, IsNil)
 	c.Check(args, Equals, `snapd_recovery_mode=run edition=3 extra=1`)
-	args, err = recoverymg.CandidateCommandLine("snapd_recovery_mode=recover", "snapd_recovery_system=20200202", "extra=1")
+	args, err = recoverymg.CandidateCommandLine(bootloader.CommandLineComponents{
+		ModeArg:   "snapd_recovery_mode=recover",
+		SystemArg: "snapd_recovery_system=20200202",
+		ExtraArgs: "extra=1",
+	})
 	c.Assert(err, IsNil)
 	c.Check(args, Equals, `snapd_recovery_mode=recover snapd_recovery_system=20200202 recovery edition=3 extra=1`)
 
@@ -976,13 +1012,29 @@ boot script
 	restore = assets.MockInternal("grub-recovery.cfg", edition4)
 	defer restore()
 	// boot bootloader unchanged
-	args, err = mg.CandidateCommandLine("snapd_recovery_mode=run", "", "extra=1")
+	args, err = mg.CandidateCommandLine(bootloader.CommandLineComponents{
+		ModeArg:   "snapd_recovery_mode=run",
+		ExtraArgs: "extra=1",
+	})
 	c.Assert(err, IsNil)
 	c.Check(args, Equals, `snapd_recovery_mode=run edition=3 extra=1`)
 	// recovery uses a new edition
-	args, err = recoverymg.CandidateCommandLine("snapd_recovery_mode=recover", "snapd_recovery_system=20200202", "extra=1")
+	args, err = recoverymg.CandidateCommandLine(bootloader.CommandLineComponents{
+		ModeArg:   "snapd_recovery_mode=recover",
+		SystemArg: "snapd_recovery_system=20200202",
+		ExtraArgs: "extra=1",
+	})
 	c.Assert(err, IsNil)
 	c.Check(args, Equals, `snapd_recovery_mode=recover snapd_recovery_system=20200202 recovery edition=4up extra=1`)
+
+	// the static snippet is ignored when using full arg set
+	args, err = recoverymg.CandidateCommandLine(bootloader.CommandLineComponents{
+		ModeArg:   "snapd_recovery_mode=recover",
+		SystemArg: "snapd_recovery_system=20200202",
+		FullArgs:  "full args set",
+	})
+	c.Assert(err, IsNil)
+	c.Check(args, Equals, `snapd_recovery_mode=recover snapd_recovery_system=20200202 full args set`)
 }
 
 func (s *grubTestSuite) TestCommandLineReal(c *C) {
@@ -995,24 +1047,97 @@ boot script
 	opts := &bootloader.Options{NoSlashBoot: true}
 	g := bootloader.NewGrub(s.rootdir, opts)
 	c.Assert(g, NotNil)
-	mg, ok := g.(bootloader.ManagedAssetsBootloader)
+	tg, ok := g.(bootloader.TrustedAssetsBootloader)
 	c.Assert(ok, Equals, true)
 
 	extraArgs := "foo bar baz=1"
-	args, err := mg.CommandLine("snapd_recovery_mode=run", "", extraArgs)
+	args, err := tg.CommandLine(bootloader.CommandLineComponents{
+		ModeArg:   "snapd_recovery_mode=run",
+		ExtraArgs: extraArgs,
+	})
 	c.Assert(err, IsNil)
 	c.Check(args, Equals, `snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1 foo bar baz=1`)
+	// with full args the static part is not used
+	args, err = tg.CommandLine(bootloader.CommandLineComponents{
+		ModeArg:  "snapd_recovery_mode=run",
+		FullArgs: "full for run mode",
+	})
+	c.Assert(err, IsNil)
+	c.Check(args, Equals, `snapd_recovery_mode=run full for run mode`)
 
 	// now check the recovery bootloader
-	opts = &bootloader.Options{NoSlashBoot: true, Recovery: true}
-	mrg := bootloader.NewGrub(s.rootdir, opts).(bootloader.ManagedAssetsBootloader)
-	args, err = mrg.CommandLine("snapd_recovery_mode=recover", "snapd_recovery_system=20200202", extraArgs)
+	opts = &bootloader.Options{NoSlashBoot: true, Role: bootloader.RoleRecovery}
+	mrg := bootloader.NewGrub(s.rootdir, opts).(bootloader.TrustedAssetsBootloader)
+	args, err = mrg.CommandLine(bootloader.CommandLineComponents{
+		ModeArg:   "snapd_recovery_mode=recover",
+		SystemArg: "snapd_recovery_system=20200202",
+		ExtraArgs: extraArgs,
+	})
 	c.Assert(err, IsNil)
 	// static command line from recovery asset
 	c.Check(args, Equals, `snapd_recovery_mode=recover snapd_recovery_system=20200202 console=ttyS0 console=tty1 panic=-1 foo bar baz=1`)
+	// similarly, when passed full args, the static part is not used
+	args, err = mrg.CommandLine(bootloader.CommandLineComponents{
+		ModeArg:   "snapd_recovery_mode=recover",
+		SystemArg: "snapd_recovery_system=20200202",
+		FullArgs:  "full for recover mode",
+	})
+	c.Assert(err, IsNil)
+	c.Check(args, Equals, `snapd_recovery_mode=recover snapd_recovery_system=20200202 full for recover mode`)
 }
 
-func (s *grubTestSuite) TestTrustedAssetsNative(c *C) {
+func (s *grubTestSuite) TestCommandLineComponentsValidate(c *C) {
+	grubCfg := `# Snapd-Boot-Config-Edition: 1
+boot script
+`
+	// native EFI/ubuntu setup
+	s.makeFakeGrubEFINativeEnv(c, []byte(grubCfg))
+
+	opts := &bootloader.Options{NoSlashBoot: true}
+	g := bootloader.NewGrub(s.rootdir, opts)
+	c.Assert(g, NotNil)
+	tg, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	args, err := tg.CommandLine(bootloader.CommandLineComponents{
+		ModeArg:   "snapd_recovery_mode=run",
+		ExtraArgs: "extra is set",
+		FullArgs:  "full is set",
+	})
+	c.Assert(err, ErrorMatches, "cannot use both full and extra components of command line")
+	c.Check(args, Equals, "")
+	// invalid for the candidate command line too
+	args, err = tg.CandidateCommandLine(bootloader.CommandLineComponents{
+		ModeArg:   "snapd_recovery_mode=run",
+		ExtraArgs: "extra is set",
+		FullArgs:  "full is set",
+	})
+	c.Assert(err, ErrorMatches, "cannot use both full and extra components of command line")
+	c.Check(args, Equals, "")
+
+	// now check the recovery bootloader
+	opts = &bootloader.Options{NoSlashBoot: true, Role: bootloader.RoleRecovery}
+	mrg := bootloader.NewGrub(s.rootdir, opts).(bootloader.TrustedAssetsBootloader)
+	args, err = mrg.CommandLine(bootloader.CommandLineComponents{
+		ModeArg:   "snapd_recovery_mode=recover",
+		SystemArg: "snapd_recovery_system=20200202",
+		ExtraArgs: "extra is set",
+		FullArgs:  "full is set",
+	})
+	c.Assert(err, ErrorMatches, "cannot use both full and extra components of command line")
+	c.Check(args, Equals, "")
+	// candidate recovery command line is checks validity of the components too
+	args, err = mrg.CandidateCommandLine(bootloader.CommandLineComponents{
+		ModeArg:   "snapd_recovery_mode=recover",
+		SystemArg: "snapd_recovery_system=20200202",
+		ExtraArgs: "extra is set",
+		FullArgs:  "full is set",
+	})
+	c.Assert(err, ErrorMatches, "cannot use both full and extra components of command line")
+	c.Check(args, Equals, "")
+}
+
+func (s *grubTestSuite) TestTrustedAssetsNativePartitionLayout(c *C) {
 	// native EFI/ubuntu setup
 	s.makeFakeGrubEFINativeEnv(c, []byte("grub.cfg"))
 	opts := &bootloader.Options{NoSlashBoot: true}
@@ -1029,7 +1154,7 @@ func (s *grubTestSuite) TestTrustedAssetsNative(c *C) {
 	})
 
 	// recovery bootloader
-	recoveryOpts := &bootloader.Options{NoSlashBoot: true, Recovery: true}
+	recoveryOpts := &bootloader.Options{NoSlashBoot: true, Role: bootloader.RoleRecovery}
 	tarb := bootloader.NewGrub(s.rootdir, recoveryOpts).(bootloader.TrustedAssetsBootloader)
 	c.Assert(tarb, NotNil)
 
@@ -1049,6 +1174,61 @@ func (s *grubTestSuite) TestTrustedAssetsRoot(c *C) {
 	c.Assert(ok, Equals, true)
 
 	ta, err := tab.TrustedAssets()
-	c.Assert(err, ErrorMatches, "internal error: trusted assets called without native hierarchy")
+	c.Assert(err, ErrorMatches, "internal error: trusted assets called without native host-partition layout")
 	c.Check(ta, IsNil)
+}
+
+func (s *grubTestSuite) TestRecoveryBootChains(c *C) {
+	s.makeFakeGrubEFINativeEnv(c, nil)
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	chain, err := tab.RecoveryBootChain("kernel.snap")
+	c.Assert(err, IsNil)
+	c.Assert(chain, DeepEquals, []bootloader.BootFile{
+		{Path: "EFI/boot/bootx64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubx64.efi", Role: bootloader.RoleRecovery},
+		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRecovery},
+	})
+}
+
+func (s *grubTestSuite) TestRecoveryBootChainsNotRecoveryBootloader(c *C) {
+	s.makeFakeGrubEnv(c)
+	g := bootloader.NewGrub(s.rootdir, nil)
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	_, err := tab.RecoveryBootChain("kernel.snap")
+	c.Assert(err, ErrorMatches, "not a recovery bootloader")
+}
+
+func (s *grubTestSuite) TestBootChains(c *C) {
+	s.makeFakeGrubEFINativeEnv(c, nil)
+	g := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRecovery})
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	g2 := bootloader.NewGrub(s.rootdir, &bootloader.Options{Role: bootloader.RoleRunMode})
+
+	chain, err := tab.BootChain(g2, "kernel.snap")
+	c.Assert(err, IsNil)
+	c.Assert(chain, DeepEquals, []bootloader.BootFile{
+		{Path: "EFI/boot/bootx64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubx64.efi", Role: bootloader.RoleRecovery},
+		{Path: "EFI/boot/grubx64.efi", Role: bootloader.RoleRunMode},
+		{Snap: "kernel.snap", Path: "kernel.efi", Role: bootloader.RoleRunMode},
+	})
+}
+
+func (s *grubTestSuite) TestBootChainsNotRecoveryBootloader(c *C) {
+	s.makeFakeGrubEnv(c)
+	g := bootloader.NewGrub(s.rootdir, nil)
+	tab, ok := g.(bootloader.TrustedAssetsBootloader)
+	c.Assert(ok, Equals, true)
+
+	g2 := bootloader.NewGrub(s.rootdir, &bootloader.Options{NoSlashBoot: true, Role: bootloader.RoleRunMode})
+
+	_, err := tab.BootChain(g2, "kernel.snap")
+	c.Assert(err, ErrorMatches, "not a recovery bootloader")
 }

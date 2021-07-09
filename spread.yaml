@@ -3,6 +3,9 @@ project: snapd
 environment:
     GOHOME: /home/gopath
     GOPATH: $GOHOME
+    # TODO: some distros started shipping Go 1.16 which defaults to having
+    # modules enabled, drop this when snapd starts supporting Go modules
+    GO111MODULE: "off"
     REUSE_PROJECT: '$(HOST: echo "$REUSE_PROJECT")'
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
     # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
@@ -29,6 +32,7 @@ environment:
     SUDO_UID: ""
     TRUST_TEST_KEYS: '$(HOST: echo "${SPREAD_TRUST_TEST_KEYS:-true}")'
     MANAGED_DEVICE: "false"
+    # a global setting for LXD channel to use in the tests
     LXD_SNAP_CHANNEL: "latest/candidate"
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
@@ -37,8 +41,9 @@ environment:
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
     REMOTE_STORE: '$(HOST: echo "${SPREAD_REMOTE_STORE:-production}")'
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
-    DELTA_REF: 2.44
+    DELTA_REF: 2.50
     DELTA_PREFIX: snapd-$DELTA_REF/
+    REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'
     SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
     HTTP_PROXY: '$(HOST: echo "$SPREAD_HTTP_PROXY")'
     HTTPS_PROXY: '$(HOST: echo "$SPREAD_HTTPS_PROXY")'
@@ -52,20 +57,34 @@ environment:
     SKIP_REMOVE_SNAPS: '$(HOST: echo "${SPREAD_SKIP_REMOVE_SNAPS:-}") test-snapd-rsync test-snapd-rsync-core18 test-snapd-rsync-core20'
     # Use the installed snapd and reset the systems without removing snapd
     REUSE_SNAPD: '$(HOST: echo "${SPREAD_REUSE_SNAPD:-0}")'
-    PROFILE_SNAPS: '$(HOST: echo "${SPREAD_PROFILE_SNAPS:-0}")'
+
+    # Directory where the nested images and test assets are stored
+    NESTED_WORK_DIR: '$(HOST: echo "${NESTED_WORK_DIR:-/tmp/work-dir}")'
+    # Channel used to create the nested vm
+    NESTED_CORE_CHANNEL: '$(HOST: echo "${NESTED_CORE_CHANNEL:-edge}")'
+    # Use cloud init to make initial system configuration instead of user assertion
+    NESTED_CORE_REFRESH_CHANNEL: '$(HOST: echo "${NESTED_CORE_REFRESH_CHANNEL:-edge}")'
+    # Use cloud init to make initial system configuration instead of user assertion
+    NESTED_USE_CLOUD_INIT: '$(HOST: echo "${NESTED_USE_CLOUD_INIT:-true}")'
+    # Build and use snapd from current branch
+    NESTED_BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${NESTED_BUILD_SNAPD_FROM_CURRENT:-true}")'
+    # Download and use an custom image from this url
+    NESTED_CUSTOM_IMAGE_URL: '$(HOST: echo "${NESTED_CUSTOM_IMAGE_URL:-}")'
+    # Configure nested images to be reused on the following tests
+    NESTED_CONFIGURE_IMAGES: '$(HOST: echo "${NESTED_CONFIGURE_IMAGES:-false}")'
 
 backends:
     google:
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: computeengine/us-east1-b
+        location: snapd-spread/us-east1-b
         halt-timeout: 2h
         systems:
             - ubuntu-14.04-64:
                   workers: 6
-            - ubuntu-16.04-32:
-                  workers: 6
             - ubuntu-16.04-64:
                   workers: 8
+            - ubuntu-18.04-32:
+                  workers: 6
             - ubuntu-18.04-64:
                   workers: 8
             - ubuntu-20.04-64:
@@ -77,7 +96,7 @@ backends:
                   image: ubuntu-16.04-64
                   workers: 6
             - ubuntu-core-20-64:
-                  image: ubuntu-2004-64-virt-enabled
+                  image: ubuntu-20.04-64
                   workers: 6
                   storage: 20G
             - ubuntu-secboot-20.04-64:
@@ -86,18 +105,22 @@ backends:
                   secure-boot: true
                   # XXX: old name, remove once new spread is deployed
                   secureboot: true
+            - ubuntu-20.10-64:
+                  workers: 8
+            - ubuntu-21.04-64:
+                  workers: 8
 
             - debian-9-64:
+                  workers: 6
+                  manual: true
+            - debian-10-64:
                   workers: 6
             - debian-sid-64:
                   workers: 6
 
-            - fedora-30-64:
+            - fedora-33-64:
                   workers: 6
-                  manual: true
-            - fedora-31-64:
-                  workers: 6
-            - fedora-32-64:
+            - fedora-34-64:
                   workers: 6
 
             - arch-linux-64:
@@ -117,18 +140,16 @@ backends:
                   workers: 6
             - opensuse-tumbleweed-64:
                   workers: 6
+                  manual: true
             - centos-8-64:
-                  workers: 4
+                  workers: 6
                   storage: preserve-size
                   image: centos-8-64
-            - ubuntu-20.10-64:
-                  workers: 6
-                  image: ubuntu-os-cloud-devel/ubuntu-2010
 
     google-sru:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: computeengine/us-east1-b
+        location: snapd-spread/us-east1-b
         halt-timeout: 2h
         systems:
             - ubuntu-16.04-64:
@@ -136,25 +157,31 @@ backends:
             - ubuntu-18.04-64:
                   workers: 6
             - ubuntu-20.04-64:
+                  workers: 6
+            - ubuntu-20.10-64:
                   workers: 6
 
     google-nested:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: computeengine/us-east1-b
-        plan: n1-standard-2
+        location: snapd-spread/us-east1-b
+        plan: n2-standard-2
         halt-timeout: 2h
         systems:
             - ubuntu-16.04-64:
                   image: ubuntu-1604-64-virt-enabled
                   storage: 20G
-                  workers: 2
+                  workers: 3
             - ubuntu-18.04-64:
                   image: ubuntu-1804-64-virt-enabled
                   storage: 20G
-                  workers: 2
+                  workers: 3
             - ubuntu-20.04-64:
                   image: ubuntu-2004-64-virt-enabled
+                  storage: 20G
+                  workers: 7
+            - ubuntu-20.10-64:
+                  image: ubuntu-2010-64-virt-enabled
                   storage: 20G
                   workers: 6
 
@@ -173,8 +200,6 @@ backends:
                   password: ubuntu
 
     qemu:
-        # TODO:UC20: uc20 needs 2G or grub will not loopback the kernel snap
-        memory: 2G
         systems:
             - ubuntu-14.04-32:
                   username: ubuntu
@@ -211,6 +236,12 @@ backends:
                   username: ubuntu
                   password: ubuntu
             - ubuntu-20.04-32:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-20.10-64:
+                  username: ubuntu
+                  password: ubuntu
+            - ubuntu-21.04-64:
                   username: ubuntu
                   password: ubuntu
             - debian-sid-64:
@@ -402,15 +433,14 @@ debug-each: |
         echo '# Go information'
         go version || true
 
-        if is_nested_system; then
+        if nested_is_nested_system; then
             echo '# nested VM status'
             systemctl status nested-vm || true
-            journalctl -e --no-pager -u nested-vm || true
+            nested_print_serial_log
+            # add another echo in case the serial log is missing a newline
+            echo
 
-            if [ -f "${WORK_DIR}/serial.log" ]; then
-                echo '# nested VM serial boot log'
-                cat "${WORK_DIR}/serial.log"
-            fi
+            nested_exec sudo journalctl --no-pager -u snapd || true
         fi
 
         echo '# journal messages for snapd'
@@ -428,10 +458,14 @@ debug-each: |
                 ) | grep -v snappy_home_t || true
                 find /var/snap -printf '%Z\t%H/%P\n' | grep -v snappy_var_t || true
                 ;;
+            opensuse-*)
+                echo '# apparmor denials logged by auditd'
+                ausearch -m AVC | grep DENIED || true
+                ;;
             *)
-               echo '# apparmor denials '
-               dmesg --ctime | grep DENIED || true
-               ;;
+                echo '# apparmor denials '
+                dmesg --ctime | grep DENIED || true
+                ;;
         esac
         echo '# seccomp denials (kills) '
         dmesg --ctime | grep type=1326 || true
@@ -445,7 +479,7 @@ debug-each: |
         # use ascii output to prevent travis from messing up the encoding
         findmnt --ascii -o+PROPAGATION || true
         echo "# processes"
-        ps aux
+        ps axl
         echo "# /var/lib/snapd"
         find /var/lib/snapd/ -not -path '/var/lib/snapd/snap/*' -ls || true
     fi
@@ -465,9 +499,20 @@ repack: |
     elif ! git show-ref "$DELTA_REF" > /dev/null; then
         cat <&3 >&4
     else
-        trap "rm -f delta-ref.tar current.delta" EXIT
+        tmpdir="$(mktemp -d)"
+        #shellcheck disable=SC2064
+        trap "rm -rf delta-ref.tar current.delta repacked-current.tar $tmpdir" EXIT
+        if [ "$REPACK_KEEP_VENDOR" = "n" ]; then
+            tar -C "$tmpdir" -xvf - <&3
+            find "$tmpdir/$DELTA_PREFIX/vendor/" ! -wholename "$tmpdir/$DELTA_PREFIX/vendor/" \
+                ! -wholename "$tmpdir/$DELTA_PREFIX/vendor/vendor.json" \
+                -delete
+            tar -C "$tmpdir" -c "$DELTA_PREFIX" --sort=name > repacked-current.tar
+        else
+            cat <&3 > repacked-current.tar
+        fi
         git archive -o delta-ref.tar --format=tar --prefix="$DELTA_PREFIX" "$DELTA_REF"
-        xdelta3 -S none -s delta-ref.tar <&3 > current.delta
+        xdelta3 -S none -s delta-ref.tar repacked-current.tar > current.delta
         tar c current.delta >&4
     fi
 
@@ -496,6 +541,7 @@ prepare: |
         restorecon -v /etc/gai.conf
     fi
 
+    # Note that os.query or any other tool cannot be used here before the current.delta file is unpacked
     if [[ "$SPREAD_SYSTEM" == fedora-* ]]; then
         # The Fedora archive mirror seems to be unreliable.
         # Switch to the main archive by commenting out metalink and uncommenting
@@ -510,9 +556,11 @@ prepare: |
         # enable audit daemon
         systemctl enable --now auditd.service
     fi
+
     if [[ "$SPREAD_SYSTEM" == opensuse-* ]]; then
         # refresh metadatadata
-        zypper ref
+        # Auto import gpg keys needed for could repository added to support google backend
+        zypper --gpg-auto-import-keys ref
         # We seem to be hitting a flaky openSUSE mirror from time to time,
         # increase the number of download attempts libzypp will try to
         # workaround that.
@@ -520,6 +568,9 @@ prepare: |
     # added by spread tests
     download.max_silent_tries = 20
     EOF
+
+        # Make sure docs are installed with the packages
+        sed 's/rpm.install.excludedocs = yes/rpm.install.excludedocs = no/g' -i /etc/zypp/zypp.conf
     fi
 
     if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
@@ -544,6 +595,16 @@ prepare: |
         yum install -y epel-release
     fi
 
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            # make sure unattended-upgrades does not get in the way
+            if systemctl is-enabled unattended-upgrades.service; then
+                systemctl stop unattended-upgrades.service
+                systemctl mask unattended-upgrades.service
+            fi
+            ;;
+    esac
+
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
     if [ -f current.delta ]; then
@@ -566,15 +627,15 @@ prepare: |
                 zypper -q install -y xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
                 ;;
             arch-*)
-                # NOTE: we ought to do pacman -Syu, but this may update the
-                # kernel which we will not detect at this stage and fail to
-                # reboot; actual distro upgrade is done later in prepare
-                pacman -Sy --noconfirm xdelta3 curl &> "$tf" || (cat "$tf"; exit 1)
+                # there may be a libc upgrade which only -Syu handles;
+                # ignore linux kernel as we would fail to detect it and handle
+                # reboot; actual distro upgrade is done later in prepare.
+                pacman -Syu --noconfirm xdelta3 curl --ignore linux &> "$tf" || (cat "$tf"; exit 1)
                 ;;
         esac
         rm -f "$tf"
         curl -sS -o - "https://codeload.github.com/snapcore/snapd/tar.gz/$DELTA_REF" | gunzip > delta-ref.tar
-        xdelta3 -q -d -s delta-ref.tar current.delta | tar x --strip-components=1
+        xdelta3 -q -c -d -s delta-ref.tar current.delta | tar x --strip-components=1
         rm -f delta-ref.tar current.delta
     elif [ -d "$DELTA_PREFIX" ]; then
         find "$DELTA_PREFIX" -mindepth 1 -maxdepth 1 -exec mv {} . \;
@@ -590,21 +651,10 @@ prepare: |
     # context.
     type MATCH | tail -n +2 > "$TESTSLIB"/spread-funcs.sh
     unset MATCH
+    type NOMATCH | tail -n +2 >> "$TESTSLIB"/spread-funcs.sh
+    unset NOMATCH
     type REBOOT | tail -n +2 >> "$TESTSLIB"/spread-funcs.sh
     unset REBOOT
-
-    if [ -e /etc/profile.d/go.sh ]; then
-        # Up until recently openSUSE golang packaging injected environment
-        # variables into the global shell profile. This caused issues across
-        # updates and was, in fact, entirely useless. As such, if we are
-        # working against an older image that still has that file, we can
-        # remove it and unset certain variables to avoid the problem.
-        unset GOBIN
-        unset GOARCH
-        unset GOROOT
-        unset GOOS
-        rm -f /etc/profile.d/go.sh
-    fi
 
     # NOTE: At this stage the source tree is available and no more special
     # considerations apply.
@@ -814,220 +864,113 @@ suites:
             - ubuntu-16.04-64
             - ubuntu-18.04-64
             - ubuntu-20.04-64
+            - ubuntu-20.10-64
         environment:
             NESTED_TYPE: "classic"
-            # Channel used to create the nested vm
-            CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-stable}")'
-            # Channel used to refresh when testing refresh and revert
-            CORE_REFRESH_CHANNEL: '$(HOST: echo "${SPREAD_CORE_REFRESH_CHANNEL:-edge}")'
-            # Channel used to update the core/snapd snaps on some tests
-            NEW_CORE_CHANNEL: '$(HOST: echo "${SPREAD_NEW_CORE_CHANNEL:-edge}")'
-            # Use cloud init to make initial system configuration instead of user assertion
-            USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
             # Enable kvm in the qemu command line
-            ENABLE_KVM: '$(HOST: echo "${SPREAD_ENABLE_KVM:-true}")'
+            NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-true}")'
             # Enable tpm in the nested vm in case it is supported
-            ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-false}")'
+            NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-}")'
             # Enable secure boot in the nested vm in case it is supported
-            ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
-            # Build and use snapd from current branch
-            BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
-            # Download and use an custom image from this url
-            CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
-            # Directory where the images and test assets are stored
-            WORK_DIR: '/tmp/work-dir'
+            NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
         manual: true
-        kill-timeout: 40m
-        debug: |
-            if [ -f "${WORK_DIR}/serial.log" ]; then
-                cat "${WORK_DIR}/serial.log"
-            fi
+        warn-timeout: 10m
+        kill-timeout: 60m
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
             snap install ubuntu-image --classic
 
-            # TODO: replace with distro package once 2.45 is in stable
+            # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
-
+        prepare-each: |
+            tests.backup prepare
+            tests.nested prepare
+        restore-each: |
+            tests.nested remove-vm
+            tests.nested restore
+            tests.backup restore
         restore: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            cleanup_nested_env
-
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
 
     tests/nested/classic/:
         summary: Tests for nested images
         backends: [google-nested, qemu-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20*]
         environment:
             NESTED_TYPE: "classic"
             # Channel used to create the nested vm
-            CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-stable}")'
-            # Channel used to refresh when testing refresh and revert
-            CORE_REFRESH_CHANNEL: '$(HOST: echo "${SPREAD_CORE_REFRESH_CHANNEL:-edge}")'
-            # Channel used to update the core/snapd snaps on some tests
-            NEW_CORE_CHANNEL: '$(HOST: echo "${SPREAD_NEW_CORE_CHANNEL:-edge}")'
-            # Use cloud init to make initial system configuration instead of user assertion
-            USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
-            # Enable kvm in the qemu command line
-            ENABLE_KVM: '$(HOST: echo "${SPREAD_ENABLE_KVM:-true}")'
+            NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-true}")'
             # Enable tpm in the nested vm in case it is supported
-            ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-false}")'
+            NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-false}")'
             # Enable secure boot in the nested vm in case it is supported
-            ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
-            # Build and use snapd from current branch
-            BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
-            # Download and use an custom image from this url
-            CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
-            # Directory where the images and test assets are stored
-            WORK_DIR: '/tmp/work-dir'
+            NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
         manual: true
-        debug: |
-            if [ -f "${WORK_DIR}/serial.log" ]; then
-                cat "${WORK_DIR}/serial.log"
-            fi
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
             snap install ubuntu-image --classic
 
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            create_nested_classic_vm
+            # Install the snapd built
+            dpkg -i "$SPREAD_PATH"/../snapd_*.deb
+
+            tests.nested prepare
+            tests.nested build-image classic
         prepare-each: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            start_nested_classic_vm
+            tests.backup prepare
+            tests.nested create-vm classic
         restore-each: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            destroy_nested_vm
+            tests.nested remove-vm
+            tests.backup restore
         restore: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            cleanup_nested_env
+            tests.nested restore
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
 
     tests/nested/core/:
         summary: Tests for nested images
         backends: [google-nested, qemu-nested]
-        systems: [ubuntu-16.04-64, ubuntu-18.04-64]
+        systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
         environment:
             NESTED_TYPE: "core"
-            # Channel used to create the nested vm
-            CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-stable}")'
-            # Channel used to refresh when testing refresh and revert
-            CORE_REFRESH_CHANNEL: '$(HOST: echo "${SPREAD_CORE_REFRESH_CHANNEL:-edge}")'
-            # Channel used to update the core/snapd snaps on some tests
-            NEW_CORE_CHANNEL: '$(HOST: echo "${SPREAD_NEW_CORE_CHANNEL:-edge}")'
-            # Use cloud init to make initial system configuration instead of user assertion
-            USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
             # Enable kvm in the qemu command line
-            ENABLE_KVM: '$(HOST: echo "${SPREAD_ENABLE_KVM:-true}")'
+            NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-}")'
             # Enable tpm in the nested vm in case it is supported
-            ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-false}")'
+            NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-}")'
             # Enable secure boot in the nested vm in case it is supported
-            ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-false}")'
-            # Build and use snapd from current branch
-            BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-false}")'
-            # Download and use an custom image from this url
-            CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
-            # Directory where the images and test assets are stored
-            WORK_DIR: '/tmp/work-dir'
+            NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
         manual: true
-        debug: |
-            if [ -f "${WORK_DIR}/serial.log" ]; then
-                cat "${WORK_DIR}/serial.log"
-            fi
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
             distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
+            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx xz-utils
             snap install ubuntu-image --classic
 
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            create_nested_core_vm
-        prepare-each: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            start_nested_core_vm
-        restore-each: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            destroy_nested_vm
-        restore: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            cleanup_nested_env
-
-            #shellcheck source=tests/lib/pkgdb.sh
-            . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
-
-    tests/nested/core20/:
-        summary: Tests for nested uc20 images
-        backends: [google-nested, qemu-nested]
-        systems: [ubuntu-20.04-64]
-        environment:
-            NESTED_TYPE: "core"
-            # Channel used to create the nested vm
-            CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
-            # Use cloud init to make initial system configuration instead of user assertion
-            USE_CLOUD_INIT: '$(HOST: echo "${SPREAD_USE_CLOUD_INIT:-true}")'
-            # Enable kvm in the qemu command line
-            ENABLE_KVM: '$(HOST: echo "${SPREAD_ENABLE_KVM:-false}")'
-            # Enable secure boot in the nested vm in case it is supported
-            ENABLE_TPM: '$(HOST: echo "${SPREAD_ENABLE_TPM:-true}")'
-            # Enable secure boot in the nested vm in case it is supported
-            ENABLE_SECURE_BOOT: '$(HOST: echo "${SPREAD_ENABLE_SECURE_BOOT:-true}")'
-            # Build and use snapd from current branch
-            BUILD_SNAPD_FROM_CURRENT: '$(HOST: echo "${SPREAD_BUILD_SNAPD_FROM_CURRENT:-true}")'
-            # Download and use an custom image from this url
-            CUSTOM_IMAGE_URL: '$(HOST: echo "${SPREAD_CUSTOM_IMAGE_URL:-}")'
-            # Directory where the images and test assets are stored
-            WORK_DIR: '/tmp/work-dir'
-        manual: true
-        debug: |
-            if [ -f "${WORK_DIR}/serial.log" ]; then
-                cat "${WORK_DIR}/serial.log"
-            fi
-        kill-timeout: 40m
-        prepare: |
-            #shellcheck source=tests/lib/pkgdb.sh
-            . "$TESTSLIB"/pkgdb.sh
-            distro_update_package_db
-            distro_install_package snapd qemu qemu-utils genisoimage sshpass qemu-kvm cloud-image-utils ovmf kpartx
-            snap install ubuntu-image --classic
-
-            # TODO: replace with distro package once 2.45 is in stable
+            # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
-            snap install core --beta
 
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            create_nested_core_vm
-            start_nested_core_vm
+            tests.nested prepare
+            tests.nested build-image core
+        prepare-each: |
+            tests.backup prepare
+            tests.nested create-vm core
+        restore-each: |
+            tests.nested remove-vm
+            tests.backup restore
         restore: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            destroy_nested_vm
-            cleanup_nested_env
+            tests.nested restore
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
-            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils
+            distro_purge_package qemu genisoimage sshpass qemu-kvm cloud-image-utils xz-utils
 
 # vim:ts=4:sw=4:et

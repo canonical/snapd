@@ -7,12 +7,12 @@ prepare: |
 
     snap set system experimental.parallel-instances=true
 
-execute: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
+restore: |
+    snap set system experimental.parallel-instances=null
 
-    install_local test-snapd-sh
-    install_local_as test-snapd-sh test-snapd-sh_foo
+execute: |
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local-as test-snapd-sh test-snapd-sh_foo
 
     su -l -c '! test -d ~/snap/test-snapd-sh' test
     su -l -c '! test -d ~/snap/test-snapd-sh_foo' test
@@ -80,6 +80,3 @@ execute: |
 
     su -l -c "test-snapd-sh_foo.sh -c 'cat \$SNAP_USER_COMMON/canary'" test | MATCH canary-instance-common
     su -l -c "test-snapd-sh_foo.sh -c 'cat \$SNAP_USER_DATA/canary'" test | MATCH canary-instance-snap
-
-restore: |
-    snap set system experimental.parallel-instances=null

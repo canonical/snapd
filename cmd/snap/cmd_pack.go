@@ -24,19 +24,20 @@ import (
 	"path/filepath"
 
 	"github.com/jessevdk/go-flags"
+	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/pack"
 
 	// for SanitizePlugsSlots
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/pack"
 )
 
 type packCmd struct {
 	CheckSkeleton bool   `long:"check-skeleton"`
 	Filename      string `long:"filename"`
-	Compression   string `long:"compression" hidden:"yes"`
+	Compression   string `long:"compression"`
 	Positional    struct {
 		SnapDir   string `positional-arg-name:"<snap-dir>"`
 		TargetDir string `positional-arg-name:"<target-dir>"`
@@ -74,7 +75,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"filename": i18n.G("Output to this filename"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"compression": i18n.G("Compression to use (e.g. xz)"),
+			"compression": i18n.G("Compression to use (e.g. xz or lzo)"),
 		}, nil)
 	cmd.extra = func(cmd *flags.Command) {
 		// TRANSLATORS: this describes the default filename for a snap, e.g. core_16-2.35.2_amd64.snap
@@ -114,7 +115,7 @@ func (x *packCmd) Execute([]string) error {
 	if err != nil {
 		// TRANSLATORS: the %q is the snap-dir (the first positional
 		// argument to the command); the %v is an error
-		return fmt.Errorf(i18n.G("cannot pack %q: %v"), x.Positional.SnapDir, err)
+		return xerrors.Errorf(i18n.G("cannot pack %q: %w"), x.Positional.SnapDir, err)
 
 	}
 	// TRANSLATORS: %s is the path to the built snap file

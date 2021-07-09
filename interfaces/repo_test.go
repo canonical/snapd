@@ -1549,28 +1549,6 @@ apps:
         slots: [iface]
 `
 
-const testConsumerInvalidSlotNameYaml = `
-name: consumer
-version: 0
-slots:
- ttyS5:
-  interface: iface
-apps:
-    app:
-        slots: [iface]
-`
-
-const testConsumerInvalidPlugNameYaml = `
-name: consumer
-version: 0
-plugs:
- ttyS3:
-  interface: iface
-apps:
-    app:
-        plugs: [iface]
-`
-
 func (s *AddRemoveSuite) addSnap(c *C, yaml string) (*snap.Info, error) {
 	snapInfo := snaptest.MockInfo(c, yaml, nil)
 	return snapInfo, s.repo.AddSnap(snapInfo)
@@ -2085,13 +2063,13 @@ func (s *RepositorySuite) TestConnection(c *C) {
 
 	connRef := NewConnRef(s.plug, s.slot)
 
-	conn, err := s.testRepo.Connection(connRef)
+	_, err := s.testRepo.Connection(connRef)
 	c.Assert(err, ErrorMatches, `no connection from consumer:plug to producer:slot`)
 
 	_, err = s.testRepo.Connect(connRef, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
-	conn, err = s.testRepo.Connection(connRef)
+	conn, err := s.testRepo.Connection(connRef)
 	c.Assert(err, IsNil)
 	c.Assert(conn.Plug.Name(), Equals, "plug")
 	c.Assert(conn.Slot.Name(), Equals, "slot")

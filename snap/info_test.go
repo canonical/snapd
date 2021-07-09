@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -98,6 +98,18 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 	c.Check(info.Revision, Equals, snap.R(1))
 	c.Check(info.SnapID, Equals, "snapidsnapidsnapidsnapidsnapidsn")
 	c.Check(info.ID(), Equals, "snapidsnapidsnapidsnapidsnapidsn")
+}
+
+func (s *infoSuite) TestContact(c *C) {
+	// TODO: later there will be OriginalLinks in snap.Info as
+	// well from snap.yaml links
+	info := &snap.Info{}
+
+	info.SideInfo = snap.SideInfo{
+		EditedContact: "econtact",
+	}
+
+	c.Check(info.Contact(), Equals, "econtact")
 }
 
 func (s *infoSuite) TestAppInfoSecurityTag(c *C) {
@@ -1682,6 +1694,28 @@ func (s *infoSuite) TestSortApps(c *C) {
 		apps   []*snap.AppInfo
 		sorted []string
 	}{{
+		apps: []*snap.AppInfo{
+			{Name: "bar", Before: []string{"baz"}},
+			{Name: "foo"},
+		},
+		sorted: []string{"bar", "foo"},
+	}, {
+		apps: []*snap.AppInfo{
+			{Name: "bar", Before: []string{"foo"}},
+			{Name: "foo", Before: []string{"baz"}},
+		},
+		sorted: []string{"bar", "foo"},
+	}, {
+		apps: []*snap.AppInfo{
+			{Name: "bar", Before: []string{"foo"}},
+		},
+		sorted: []string{"bar"},
+	}, {
+		apps: []*snap.AppInfo{
+			{Name: "bar", After: []string{"foo"}},
+		},
+		sorted: []string{"bar"},
+	}, {
 		apps: []*snap.AppInfo{
 			{Name: "bar", Before: []string{"baz"}},
 			{Name: "baz", After: []string{"bar", "foo"}},

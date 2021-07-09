@@ -20,11 +20,15 @@
 package udev_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/interfaces/udev"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 )
@@ -93,7 +97,7 @@ func (s *specSuite) TestAddSnippte(c *C) {
 	c.Assert(s.spec.Snippets(), DeepEquals, []string{"foo"})
 }
 
-func (s *specSuite) TestTagDevice(c *C) {
+func (s *specSuite) testTagDevice(c *C, helperDir string) {
 	// TagDevice acts in the scope of the plug/slot (as appropriate) and
 	// affects all of the apps and hooks related to the given plug or slot
 	// (with the exception that slots cannot have hooks).
@@ -120,13 +124,31 @@ func (s *specSuite) TestTagDevice(c *C) {
 kernel="voodoo", TAG+="snap_snap1_foo"`,
 		`# iface-2
 kernel="hoodoo", TAG+="snap_snap1_foo"`,
-		`TAG=="snap_snap1_foo", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_snap1_foo $devpath $major:$minor"`,
+		fmt.Sprintf(`TAG=="snap_snap1_foo", RUN+="%s/snap-device-helper $env{ACTION} snap_snap1_foo $devpath $major:$minor"`, helperDir),
 		`# iface-1
 kernel="voodoo", TAG+="snap_snap1_hook_configure"`,
 		`# iface-2
 kernel="hoodoo", TAG+="snap_snap1_hook_configure"`,
-		`TAG=="snap_snap1_hook_configure", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_snap1_hook_configure $devpath $major:$minor"`,
+		fmt.Sprintf(`TAG=="snap_snap1_hook_configure", RUN+="%[1]s/snap-device-helper $env{ACTION} snap_snap1_hook_configure $devpath $major:$minor"`, helperDir),
 	})
+}
+
+func (s *specSuite) TestTagDevice(c *C) {
+	defer func() { dirs.SetRootDir("") }()
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+	dirs.SetRootDir("")
+	s.testTagDevice(c, "/usr/lib/snapd")
+}
+
+func (s *specSuite) TestTagDeviceAltLibexecdir(c *C) {
+	defer func() { dirs.SetRootDir("") }()
+	restore := release.MockReleaseInfo(&release.OS{ID: "fedora"})
+	defer restore()
+	dirs.SetRootDir("")
+	// sanity
+	c.Check(dirs.DistroLibExecDir, Equals, "/usr/libexec/snapd")
+	s.testTagDevice(c, "/usr/libexec/snapd")
 }
 
 // The spec.Specification can be used through the interfaces.Specification interface

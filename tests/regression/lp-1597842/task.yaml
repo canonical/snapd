@@ -10,20 +10,18 @@ systems: [-ubuntu-core-*, -fedora-*, -arch-*]
 
 prepare: |
     echo "Having installed the test snap"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
     # NOTE: devmode is required because there's no interface for reading /usr/src/.canary
-    install_local_devmode test-snapd-tools
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-tools --devmode
     echo "Having prepared a canary file in /usr/src/.canary"
     mv /usr/src /usr/src.orig || true
     mkdir -p /usr/src
     echo canary > /usr/src/.canary
 
-execute: |
-    echo "The canary file in /usr/src can be read"
-    [ "$(test-snapd-tools.cmd cat /usr/src/.canary)" = "canary" ]
-
 restore: |
     rm -f /usr/src/.canary
     rm -f -d /usr/src
     mv /usr/src.orig /usr/src || true
+
+execute: |
+    echo "The canary file in /usr/src can be read"
+    [ "$(test-snapd-tools.cmd cat /usr/src/.canary)" = "canary" ]

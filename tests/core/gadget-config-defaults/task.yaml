@@ -24,10 +24,8 @@ prepare: |
     . "$TESTSLIB"/core-config.sh
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
 
-    if [ "$SERVICE" = "rsyslog" ] && is_core18_system; then
+    if [ "$SERVICE" = "rsyslog" ] && os.query is-core18; then
         echo "The service to test does not exist in the core18 system, skipping..."
         touch "${SERVICE}.skip"
         exit
@@ -49,7 +47,7 @@ prepare: |
         # test-snapd-with-configure
         TEST_SNAP_ID=jHxWQxtGqu7tHwiq7F8Ojk5qazcEeslT
 
-        if is_core18_system; then
+        if os.query is-core18; then
             # test-snapd-with-configure-core18
             TEST_SNAP_ID=jHxWQxtGqu7tHwiq7F8Ojk5qazcEeslT
         fi
@@ -57,7 +55,7 @@ prepare: |
         # test-snapd-with-configure
         TEST_SNAP_ID=aLcJorEJZgJNUGL2GMb3WR9SoVyHUNAd
 
-        if is_core18_system; then
+        if os.query is-core18; then
             # test-snapd-with-configure-core18
             TEST_SNAP_ID=BzMG26hwO2ccNBzV5BxK4DZgulJ2AXsa
         fi
@@ -100,8 +98,6 @@ restore: |
     . "$TESTSLIB"/core-config.sh
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
 
     SUFFIX="$(get_test_snap_suffix)"
 
@@ -156,8 +152,6 @@ execute: |
     fi
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
 
     SUFFIX="$(get_test_snap_suffix)"
 

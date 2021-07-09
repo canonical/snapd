@@ -18,11 +18,14 @@ restore: |
     tests.session -u test restore
     snap unset system experimental.user-daemons
 
+debug: |
+    tests.session dump
+    tests.session -u test exec systemctl --user status snapd.session-agent.service || true
+    tests.session -u test exec journalctl --user || true
+
 execute: |
     echo "When the service snap is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-user-service-sockets
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service-sockets
 
     echo "And the user mode systemd instance is started"
     tests.session -u test prepare
@@ -37,8 +40,3 @@ execute: |
     USER_RUNTIME_DIR="/run/user/$(id -u test)"
     [ -S "$USER_RUNTIME_DIR"/snap.test-snapd-user-service-sockets/run.sock ]
     nc -w 30 -U "$USER_RUNTIME_DIR"/snap.test-snapd-user-service-sockets/run.sock | MATCH "Connected to runtime"
-
-debug: |
-    tests.session dump
-    tests.session -u test exec systemctl --user status snapd.session-agent.service || true
-    tests.session -u test exec journalctl --user || true

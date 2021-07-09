@@ -25,7 +25,8 @@ import (
 	"fmt"
 	"time"
 
-	_ "golang.org/x/crypto/sha3" // expected for digests
+	// expected for digests
+	_ "golang.org/x/crypto/sha3"
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"

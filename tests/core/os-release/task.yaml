@@ -4,17 +4,17 @@ debug: |
     cat /etc/lsb-release
 
 execute: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
-    if is_core16_system; then
+    echo "Check the DISTRIB_RELEASE is correct in /etc/lsb-release file" 
+    if os.query is-core16; then
         MATCH "DISTRIB_RELEASE=16" < /etc/lsb-release
-    elif is_core18_system; then
+    elif os.query is-core18; then
         MATCH "DISTRIB_RELEASE=18" < /etc/lsb-release
-    elif is_core20_system; then
+    elif os.query is-core20; then
         MATCH "DISTRIB_RELEASE=20" < /etc/lsb-release
     else
         echo "Unknown Ubuntu Core system!"
         exit 1
     fi
+
+    echo "Check the ID is correct in /etc/os-release file" 
     MATCH "ID=ubuntu-core" < /etc/os-release

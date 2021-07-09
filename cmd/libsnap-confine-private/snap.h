@@ -47,6 +47,12 @@ enum {
  * the snap name, separator '_' and the instance key, enforced locally by
  * snapd. */
 #define SNAP_INSTANCE_LEN (SNAP_NAME_LEN + 1 + SNAP_INSTANCE_KEY_LEN)
+/* SNAP_SECURITY_TAG_MAX_LEN is the maximum length of a security tag string
+ * (not buffer). This is an upper limit. In practice the security tag name is
+ * bound by SNAP_NAME_LEN, SNAP_INSTANCE_KEY_LEN, maximum length of an
+ * application name as well as a constant overhead of "snap", the optional
+ * "hook" and the "." characters connecting the components. */
+#define SNAP_SECURITY_TAG_MAX_LEN 256
 
 /**
  * Validate the given snap name.
@@ -95,7 +101,7 @@ void sc_instance_name_validate(const char *instance_name,
  *  - <hookname must start with a lowercase letter, then may
  *   contain lowercase letters and '-'
  **/
-bool verify_security_tag(const char *security_tag, const char *snap_name);
+bool sc_security_tag_validate(const char *security_tag, const char *snap_name);
 
 bool sc_is_hook_security_tag(const char *security_tag);
 

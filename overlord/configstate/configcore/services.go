@@ -26,8 +26,11 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -35,6 +38,7 @@ var services = []struct{ configName, systemdName string }{
 	{"ssh", "ssh.service"},
 	{"rsyslog", "rsyslog.service"},
 	{"console-conf", "console-conf@*"},
+	{"systemd-resolved", "systemd-resolved.service"},
 }
 
 func init() {
@@ -87,69 +91,52 @@ func switchDisableSSHService(sysd systemd.Systemd, serviceName string, disabled 
 	return nil
 }
 
-// switchDisableConsoleConfService handles the special case of disabling/enabling
-// console-conf on core devices.
+// switchDisableConsoleConfService handles the special case of
+// disabling/enabling console-conf on core devices.
 //
-// The command sequence that works to start/stop console-conf after setting
-// the marker file in /var/lib/console-conf/complete is:
-//
-//     systemctl restart 'getty@*' --all
-//     systemctl restart 'serial-getty@*' --all
-//     systemctl restart 'serial-console-conf@*' --all
-//     systemctl restart 'console-conf@*' --all
-//
-// This restarts all active getty and console-conf instances, even
-// ones that were started on-demand (eg. on tty2)
+// Note that this option can only be changed via gadget defaults.
+// It is not possible to tune this at runtime
 func switchDisableConsoleConfService(sysd systemd.Systemd, serviceName string, disabled bool, opts *fsOnlyContext) error {
-	rootDir := dirs.GlobalRootDir
-	if opts != nil {
-		rootDir = opts.RootDir
+	consoleConfDisabled := "/var/lib/console-conf/complete"
+
+	// at runtime we can not change this setting
+	if opts == nil {
+
+		// Special case: during install mode the
+		// gadget-defaults will also be set as part of the
+		// system install change. However during install mode
+		// console-conf has no "complete" file, it just never runs
+		// in install mode. So we need to detect this and do nothing
+		// or the install mode will fail.
+		// XXX: instead of this hack we should look at the config
+		//      defaults and compare with the setting and exit if
+		//      they are the same but that requires some more changes.
+		// TODO: leverage sysconfig.Device instead
+		mode, _, _ := boot.ModeAndRecoverySystemFromKernelCommandLine()
+		if mode == boot.ModeInstall {
+			return nil
+		}
+
+		hasDisabledFile := osutil.FileExists(filepath.Join(dirs.GlobalRootDir, consoleConfDisabled))
+		if disabled != hasDisabledFile {
+			return fmt.Errorf("cannot toggle console-conf at runtime, but only initially via gadget defaults")
+		}
+		return nil
 	}
-	if err := os.MkdirAll(filepath.Join(rootDir, "/var/lib/console-conf"), 0755); err != nil {
+
+	if !disabled {
+		return nil
+	}
+
+	// disable console-conf at the gadget-defaults time
+	consoleConfDisabled = filepath.Join(opts.RootDir, consoleConfDisabled)
+	if err := os.MkdirAll(filepath.Dir(consoleConfDisabled), 0755); err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(consoleConfDisabled, []byte("console-conf has been disabled by the snapd system configuration\n"), 0644); err != nil {
 		return err
 	}
 
-	consoleConfCanary := filepath.Join(rootDir, "/var/lib/console-conf/complete")
-
-	restartServicesOnTTYs := func() error {
-		// getty@ and console-conf@ are template services, that only
-		// exist when an instance is active, typically in a UC20 image
-		// only getty@tty1 is defined as a side effect of being 'wanted'
-		// by the getty.target;
-		// restarting all console-conf@* units ensures on-demand units
-		// started on other ttys are affected too
-		if err := sysd.RestartAll("getty@*"); err != nil {
-			return err
-		}
-		if err := sysd.RestartAll("serial-getty@*"); err != nil {
-			return err
-		}
-		if err := sysd.RestartAll("serial-console-conf@*"); err != nil {
-			return err
-		}
-		return sysd.RestartAll("console-conf@*")
-	}
-
-	if disabled {
-		if err := ioutil.WriteFile(consoleConfCanary, []byte("console-conf has been disabled by snapd system configuration\n"), 0644); err != nil {
-			return err
-		}
-		if opts == nil {
-			return restartServicesOnTTYs()
-		}
-	} else {
-		err := os.Remove(consoleConfCanary)
-		if err != nil {
-			if !os.IsNotExist(err) {
-				return err
-			}
-			// no need to restart the services
-			return nil
-		}
-		if opts == nil {
-			return restartServicesOnTTYs()
-		}
-	}
 	return nil
 }
 
@@ -160,7 +147,7 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 	if opts != nil {
 		sysd = systemd.NewEmulationMode(opts.RootDir)
 	} else {
-		sysd = systemd.New(dirs.GlobalRootDir, systemd.SystemMode, &sysdLogger{})
+		sysd = systemd.New(systemd.SystemMode, &sysdLogger{})
 	}
 
 	// some services are special
@@ -169,6 +156,21 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 		return switchDisableSSHService(sysd, serviceName, disabled, opts)
 	case "console-conf@*":
 		return switchDisableConsoleConfService(sysd, serviceName, disabled, opts)
+	}
+
+	if opts == nil {
+		// ignore the service if not installed
+		status, err := sysd.Status(serviceName)
+		if err != nil {
+			return err
+		}
+		if len(status) != 1 {
+			return fmt.Errorf("internal error: expected status of service %s, got %v", serviceName, status)
+		}
+		if !status[0].Installed {
+			// ignore
+			return nil
+		}
 	}
 
 	if disabled {
@@ -200,7 +202,7 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 }
 
 // services that can be disabled
-func handleServiceDisableConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleServiceDisableConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	for _, service := range services {
 		optionName := fmt.Sprintf("service.%s.disable", service.configName)
 		outputStr, err := coreCfg(tr, optionName)

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/release"
@@ -56,6 +57,8 @@ var (
 	SnapRunNsDir              string
 	SnapRunLockDir            string
 	SnapBootstrapRunDir       string
+
+	SnapdMaintenanceFile string
 
 	SnapdStoreSSLCertsDir string
 
@@ -99,6 +102,9 @@ var (
 
 	SnapModeenvFile   string
 	SnapBootAssetsDir string
+	SnapFDEDir        string
+	SnapSaveDir       string
+	SnapDeviceSaveDir string
 
 	CloudMetaDataFile     string
 	CloudInstanceDataFile string
@@ -254,6 +260,28 @@ func SnapBootAssetsDirUnder(rootdir string) string {
 	return filepath.Join(rootdir, snappyDir, "boot-assets")
 }
 
+// SnapDeviceDirUnder returns the path to device directory under rootdir.
+func SnapDeviceDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "device")
+}
+
+// SnapFDEDirUnder returns the path to full disk encryption state directory
+// under rootdir.
+func SnapFDEDirUnder(rootdir string) string {
+	return filepath.Join(SnapDeviceDirUnder(rootdir), "fde")
+}
+
+// SnapSaveDirUnder returns the path to device save directory under rootdir.
+func SnapSaveDirUnder(rootdir string) string {
+	return filepath.Join(rootdir, snappyDir, "save")
+}
+
+// SnapFDEDirUnderSave returns the path to full disk encryption state directory
+// inside the given save tree dir.
+func SnapFDEDirUnderSave(savedir string) string {
+	return filepath.Join(savedir, "device/fde")
+}
+
 // AddRootDirCallback registers a callback for whenever the global root
 // directory (set by SetRootDir) is changed to enable updates to variables in
 // other packages that depend on its location.
@@ -274,6 +302,7 @@ func SetRootDir(rootdir string) {
 		"arch",
 		"archlinux",
 		"fedora",
+		"gentoo",
 		"manjaro",
 		"manjaro-arm",
 	}
@@ -295,6 +324,7 @@ func SetRootDir(rootdir string) {
 	SnapSeccompDir = filepath.Join(SnapSeccompBase, "bpf")
 	SnapMountPolicyDir = filepath.Join(rootdir, snappyDir, "mount")
 	SnapMetaDir = filepath.Join(rootdir, snappyDir, "meta")
+	SnapdMaintenanceFile = filepath.Join(rootdir, snappyDir, "maintenance.json")
 	SnapBlobDir = SnapBlobDirUnder(rootdir)
 	// ${snappyDir}/desktop is added to $XDG_DATA_DIRS.
 	// Subdirectories are interpreted according to the relevant
@@ -328,10 +358,13 @@ func SetRootDir(rootdir string) {
 	SnapAuxStoreInfoDir = filepath.Join(SnapCacheDir, "aux")
 
 	SnapSeedDir = SnapSeedDirUnder(rootdir)
-	SnapDeviceDir = filepath.Join(rootdir, snappyDir, "device")
+	SnapDeviceDir = SnapDeviceDirUnder(rootdir)
 
 	SnapModeenvFile = SnapModeenvFileUnder(rootdir)
 	SnapBootAssetsDir = SnapBootAssetsDirUnder(rootdir)
+	SnapFDEDir = SnapFDEDirUnder(rootdir)
+	SnapSaveDir = SnapSaveDirUnder(rootdir)
+	SnapDeviceSaveDir = filepath.Join(SnapSaveDir, "device")
 
 	SnapRepairDir = filepath.Join(rootdir, snappyDir, "repair")
 	SnapRepairStateFile = filepath.Join(SnapRepairDir, "repair.json")
@@ -362,9 +395,28 @@ func SetRootDir(rootdir string) {
 	LocaleDir = filepath.Join(rootdir, "/usr/share/locale")
 	ClassicDir = filepath.Join(rootdir, "/writable/classic")
 
-	if release.DistroLike("fedora") {
-		// rhel, centos, fedora and derivatives
-		// both rhel and centos list "fedora" in ID_LIKE
+	opensuseTWWithLibexec := func() bool {
+		// XXX: this is pretty naive if openSUSE ever starts going back
+		// and forth about the change
+		if !release.DistroLike("opensuse-tumbleweed") {
+			return false
+		}
+		v, err := strconv.Atoi(release.ReleaseInfo.VersionID)
+		if err != nil {
+			// nothing we can do here
+			return false
+		}
+		// first seen on snapshot "20200826"
+		if v < 20200826 {
+			return false
+		}
+		return true
+	}
+
+	if release.DistroLike("fedora") || opensuseTWWithLibexec() {
+		// RHEL, CentOS, Fedora and derivatives, some more recent
+		// snapshots of openSUSE Tumbleweed;
+		// both RHEL and CentOS list "fedora" in ID_LIKE
 		DistroLibExecDir = filepath.Join(rootdir, "/usr/libexec/snapd")
 	} else {
 		DistroLibExecDir = filepath.Join(rootdir, "/usr/lib/snapd")

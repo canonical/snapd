@@ -22,7 +22,10 @@ package builtin
 import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/seccomp"
+	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 )
 
 const greengrassSupportSummary = `allows operating as the Greengrass service`
@@ -42,8 +45,8 @@ const greengrassSupportBaseDeclarationSlots = `
 `
 
 const greengrassSupportConnectedPlugAppArmorCore = `
-# these accesses are necessary for Ubuntu Core 16, likely due to the version 
-# of apparmor or the kernel which doesn't resolve the upper layer of an 
+# these accesses are necessary for Ubuntu Core 16, likely due to the version
+# of apparmor or the kernel which doesn't resolve the upper layer of an
 # overlayfs mount correctly
 # the accesses show up as runc trying to read from
 # /system-data/var/snap/greengrass/x1/ggc-writable/packages/1.7.0/var/worker/overlays/$UUID/upper/
@@ -51,7 +54,18 @@ const greengrassSupportConnectedPlugAppArmorCore = `
 /system-data/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/{,**} rw,
 `
 
-const greengrassSupportConnectedPlugAppArmor = `
+const greengrassSupportProcessModeConnectedPlugAppArmor = `
+# Description: can manage greengrass 'things' and their sandboxes. This policy
+# is meant currently only to enable Greengrass to run _only_ process-mode or
+# "no container" lambdas.
+# needed by older versions of cloneBinary.ensureSelfCloned() to avoid
+# CVE-2019-5736
+/ ix,
+# newer versions of runC have this denial instead of "/ ix" above
+/bin/runc rix,
+`
+
+const greengrassSupportFullContainerConnectedPlugAppArmor = `
 # Description: can manage greengrass 'things' and their sandboxes. This
 # policy is intentionally not restrictive and is here to help guard against
 # programming errors and not for security confinement. The greengrassd
@@ -103,7 +117,7 @@ capability dac_override,  # for various overlayfs accesses
 
 # cgroup accesses
 # greengrassd extensively uses cgroups to confine it's containers (AKA lambdas)
-# and needs to read what cgroups are available; we allow reading any cgroup, 
+# and needs to read what cgroups are available; we allow reading any cgroup,
 # but limit writes below
 # also note that currently greengrass is not implemented in such a way that it
 # can stack it's cgroups inside the cgroup that snapd would normally enforce
@@ -129,10 +143,10 @@ owner /old_rootfs/sys/fs/cgroup/cpu,cpuacct/system.slice/snap.@{SNAP_NAME}.green
 # specific rule for cpuset files
 owner /old_rootfs/sys/fs/cgroup/cpuset/{,system.slice/}cpuset.{cpus,mems} rw,
 
-# the wrapper scripts need to use mount/umount and pivot_root from the 
+# the wrapper scripts need to use mount/umount and pivot_root from the
 # core snap
-/bin/{,u}mount ixr,
-/sbin/pivot_root ixr,
+/{,usr/}bin/{,u}mount ixr,
+/{,usr/}sbin/pivot_root ixr,
 
 # allow pivot_root'ing into the rootfs prepared for the greengrass daemon
 # parallel-installs: SNAP_{DATA,COMMON} are remapped, need to use SNAP_NAME, for
@@ -173,9 +187,9 @@ mount options=ro /dev/loop[0-9]* -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME
 # completeness allow SNAP_INSTANCE_NAME too
 mount options=(rw, bind) /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** ,
 mount options=(rw, rbind) /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/** ,
-# also allow mounting new files anywhere underneath the rootfs of the target 
+# also allow mounting new files anywhere underneath the rootfs of the target
 # overlayfs directory, which is the rootfs of the container
-# this is for allowing local resource access which first makes a mount at 
+# this is for allowing local resource access which first makes a mount at
 # the target destination and then a bind mount from the source to the destination
 # the source destination mount will be allowed under the above rule
 mount -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/**,
@@ -222,7 +236,7 @@ mount options=(rw, bind) /dev/urandom -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE
 mount options=(rw, bind) /run/ -> /run/,
 
 # mounts for resolv.conf inside the container
-# we have to manually do this otherwise the go DNS resolver fails to work, because it isn't configured to 
+# we have to manually do this otherwise the go DNS resolver fails to work, because it isn't configured to
 # use the system DNS server and attempts to do DNS resolution itself, manually inspecting /etc/resolv.conf
 mount options=(ro, bind) /run/systemd/resolve/stub-resolv.conf -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/etc/resolv.conf,
 mount options=(ro, bind) /run/resolvconf/resolv.conf -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/rootfs/etc/resolv.conf,
@@ -231,7 +245,7 @@ mount options=(ro, remount, bind) -> /var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAM
 # pivot_root for the container initialization into the rootfs
 # note that the actual syscall is pivotroot(".",".")
 # so the oldroot is the same as the new root
-pivot_root 
+pivot_root
 	oldroot=/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/
 	/var/snap/{@{SNAP_NAME},@{SNAP_INSTANCE_NAME}}/*/ggc-writable/packages/*/rootfs/merged/,
 
@@ -267,12 +281,12 @@ capability mknod,
 # and /run is explicitly disallowed for use by layouts
 # also note that technically this access is post-pivot_root, but during the setup
 # for the mount ns that the snap performs (not snapd), /var/run is bind mounted
-# from outside the pivot_root to inside the pivot_root, so this will always 
+# from outside the pivot_root to inside the pivot_root, so this will always
 # access the same files inside or outside the pivot_root
 owner /{var/,}run/greengrassd.pid rw,
 
-# all of the rest of the accesses are made by child containers and as such are 
-# "post-pivot_root", meaning that they aren't accessing these files on the 
+# all of the rest of the accesses are made by child containers and as such are
+# "post-pivot_root", meaning that they aren't accessing these files on the
 # host root filesystem, but rather somewhere inside $SNAP_DATA/rootfs/
 # Note: eventually greengrass will gain the ability to specify child profiles
 # for it's containers and include these rules in that profile so they won't
@@ -372,21 +386,75 @@ sethostname
 # by greengrassd.
 keyctl
 
-# special character device creation is necessary for creating the overlayfs 
+# special character device creation is necessary for creating the overlayfs
 # mounts
 # Unfortunately this grants device ownership to the snap.
 mknod - |S_IFCHR -
 mknodat - - |S_IFCHR -
 `
 
-func (iface *greengrassSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if release.OnClassic {
-		spec.AddSnippet(greengrassSupportConnectedPlugAppArmor)
-	} else {
-		spec.AddSnippet(greengrassSupportConnectedPlugAppArmor + greengrassSupportConnectedPlugAppArmorCore)
+func (iface *greengrassSupportInterface) ServicePermanentPlug(plug *snap.PlugInfo) []string {
+	var flavor string
+	_ = plug.Attr("flavor", &flavor)
+
+	// only no-container flavor does not get Delegate=true, all other flavors
+	// (including no flavor, which is the same as legacy-container flavor)
+	// are usable to manage control groups of processes/containers, and thus
+	// need Delegate=true
+	if flavor == "no-container" {
+		return nil
 	}
-	// greengrass needs to use ptrace
-	spec.SetUsesPtraceTrace()
+
+	return []string{"Delegate=true"}
+}
+
+func (iface *greengrassSupportInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// check the flavor
+	var flavor string
+	_ = plug.Attr("flavor", &flavor)
+	switch flavor {
+	case "", "legacy-container":
+		// default, legacy version of the interface
+		if release.OnClassic {
+			spec.AddSnippet(greengrassSupportFullContainerConnectedPlugAppArmor)
+		} else {
+			spec.AddSnippet(greengrassSupportFullContainerConnectedPlugAppArmor + greengrassSupportConnectedPlugAppArmorCore)
+		}
+		// greengrass needs to use ptrace for controlling it's containers
+		spec.SetUsesPtraceTrace()
+	case "no-container":
+		// this is the no-container version, it does not use as much privilege
+		// as the default "legacy-container" flavor
+		spec.AddSnippet(greengrassSupportProcessModeConnectedPlugAppArmor)
+	}
+
+	return nil
+}
+
+func (iface *greengrassSupportInterface) SecCompConnectedPlug(spec *seccomp.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	// check the flavor
+	var flavor string
+	_ = plug.Attr("flavor", &flavor)
+	switch flavor {
+	case "", "legacy-container":
+		spec.AddSnippet(greengrassSupportConnectedPlugSeccomp)
+	case "no-container":
+		// no-container has no additional seccomp available to it
+	}
+
+	return nil
+}
+
+func (iface *greengrassSupportInterface) UDevConnectedPlug(spec *udev.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
+	var flavor string
+	_ = plug.Attr("flavor", &flavor)
+	switch flavor {
+	case "", "legacy-container":
+		// default containerization controls the device cgroup
+		spec.SetControlsDeviceCgroup()
+	case "no-container":
+		// no-container does not control the device cgroup
+	}
 
 	return nil
 }
@@ -396,7 +464,6 @@ type greengrassSupportInterface struct {
 }
 
 func init() {
-	// declare the greengrass-support interface as needing ptrace(trace)
 	registerIface(&greengrassSupportInterface{commonInterface{
 		name:                 "greengrass-support",
 		summary:              greengrassSupportSummary,
@@ -404,7 +471,5 @@ func init() {
 		implicitOnClassic:    true,
 		baseDeclarationSlots: greengrassSupportBaseDeclarationSlots,
 		baseDeclarationPlugs: greengrassSupportBaseDeclarationPlugs,
-		connectedPlugSecComp: greengrassSupportConnectedPlugSeccomp,
-		controlsDeviceCgroup: true,
 	}})
 }

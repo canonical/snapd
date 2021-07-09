@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -110,8 +111,8 @@ var mockOnDiskStructureSystemSeed = gadget.OnDiskStructure{
 			Filesystem: "vfat",
 			Content: []gadget.VolumeContent{
 				{
-					Source: "grubx64.efi",
-					Target: "EFI/boot/grubx64.efi",
+					UnresolvedSource: "grubx64.efi",
+					Target:           "EFI/boot/grubx64.efi",
 				},
 			},
 		},
@@ -172,22 +173,28 @@ const gadgetContent = `volumes:
         size: 1200M
 `
 
+type mockContentChange struct {
+	path   string
+	change *gadget.ContentChange
+}
+
 type mockWriteObserver struct {
-	content        map[string][][]string
+	content        map[string][]*mockContentChange
 	observeErr     error
 	expectedStruct *gadget.LaidOutStructure
 	c              *C
 }
 
 func (m *mockWriteObserver) Observe(op gadget.ContentOperation, sourceStruct *gadget.LaidOutStructure,
-	targetRootDir, sourcePath, relativeTargetPath string) (bool, error) {
+	targetRootDir, relativeTargetPath string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {
 	if m.content == nil {
-		m.content = make(map[string][][]string)
+		m.content = make(map[string][]*mockContentChange)
 	}
-	m.content[targetRootDir] = append(m.content[targetRootDir], []string{sourcePath, relativeTargetPath})
+	m.content[targetRootDir] = append(m.content[targetRootDir],
+		&mockContentChange{path: relativeTargetPath, change: data})
 	m.c.Assert(sourceStruct, NotNil)
 	m.c.Check(sourceStruct, DeepEquals, m.expectedStruct)
-	return true, m.observeErr
+	return gadget.ChangeApply, m.observeErr
 }
 
 func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
@@ -231,12 +238,13 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 
 		// copy existing mock
 		m := mockOnDiskStructureSystemSeed
-		m.LaidOutContent = []gadget.LaidOutContent{
+		m.ResolvedContent = []gadget.ResolvedContent{
 			{
 				VolumeContent: &gadget.VolumeContent{
-					Source: "grubx64.efi",
-					Target: "EFI/boot/grubx64.efi",
+					UnresolvedSource: "grubx64.efi",
+					Target:           "EFI/boot/grubx64.efi",
 				},
+				ResolvedSource: filepath.Join(s.gadgetRoot, "grubx64.efi"),
 			},
 		}
 		obs := &mockWriteObserver{
@@ -256,9 +264,12 @@ func (s *contentTestSuite) TestWriteFilesystemContent(c *C) {
 			content, err := ioutil.ReadFile(filepath.Join(mockMountpoint, "2", "EFI/boot/grubx64.efi"))
 			c.Assert(err, IsNil)
 			c.Check(string(content), Equals, "grubx64.efi content")
-			c.Assert(obs.content, DeepEquals, map[string][][]string{
+			c.Assert(obs.content, DeepEquals, map[string][]*mockContentChange{
 				filepath.Join(mockMountpoint, "2"): {
-					{filepath.Join(s.gadgetRoot, "grubx64.efi"), "EFI/boot/grubx64.efi"},
+					{
+						path:   "EFI/boot/grubx64.efi",
+						change: &gadget.ContentChange{After: filepath.Join(s.gadgetRoot, "grubx64.efi")},
+					},
 				},
 			})
 		}
@@ -279,7 +290,7 @@ func (s *contentTestSuite) TestWriteRawContent(c *C) {
 				Image: "pc-core.img",
 			},
 			StartOffset: 2,
-			Size:        gadget.Size(len("pc-core.img content")),
+			Size:        quantity.Size(len("pc-core.img content")),
 		},
 	}
 

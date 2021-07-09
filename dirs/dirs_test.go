@@ -189,3 +189,20 @@ func (s *DirsTestSuite) TestAddRootDirCallback(c *C) {
 	c.Assert(someVar, Equals, filepath.Join("/hello", "my", "path"))
 	c.Assert(someDerivedVar, Equals, filepath.Join("/hello", "var", "snap", "other", "mnt"))
 }
+
+func (s *DirsTestSuite) TestLibexecdirOpenSUSETW(c *C) {
+	restore := release.MockReleaseInfo(&release.OS{ID: "opensuse-tumbleweed", VersionID: "20200820"})
+	defer restore()
+	dirs.SetRootDir("/")
+	c.Check(dirs.DistroLibExecDir, Equals, "/usr/lib/snapd")
+
+	restore = release.MockReleaseInfo(&release.OS{ID: "opensuse-tumbleweed", VersionID: "20200826"})
+	defer restore()
+	dirs.SetRootDir("/")
+	c.Check(dirs.DistroLibExecDir, Equals, "/usr/libexec/snapd")
+
+	restore = release.MockReleaseInfo(&release.OS{ID: "opensuse-tumbleweed", VersionID: "20200901"})
+	defer restore()
+	dirs.SetRootDir("/")
+	c.Check(dirs.DistroLibExecDir, Equals, "/usr/libexec/snapd")
+}

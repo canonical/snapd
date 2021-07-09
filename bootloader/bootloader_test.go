@@ -21,6 +21,7 @@ package bootloader_test
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -31,6 +32,7 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/assets"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -55,6 +57,8 @@ func (s *baseBootenvTestSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 	s.rootdir = c.MkDir()
+	dirs.SetRootDir(s.rootdir)
+	s.AddCleanup(func() { dirs.SetRootDir("") })
 }
 
 type bootenvTestSuite struct {
@@ -110,10 +114,10 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromGadget(c *C) {
 			name:       "uboot boot.scr",
 			gadgetFile: "uboot.conf",
 			sysFile:    "/uboot/ubuntu/boot.sel",
-			opts:       &bootloader.Options{NoSlashBoot: true},
+			opts:       &bootloader.Options{Role: bootloader.RoleRecovery},
 		},
 		{name: "androidboot", gadgetFile: "androidboot.conf", sysFile: "/boot/androidboot/androidboot.env"},
-		{name: "lk", gadgetFile: "lk.conf", sysFile: "/boot/lk/snapbootsel.bin"},
+		{name: "lk", gadgetFile: "lk.conf", sysFile: "/boot/lk/snapbootsel.bin", opts: &bootloader.Options{PrepareImageTime: true}},
 	} {
 		mockGadgetDir := c.MkDir()
 		rootDir := c.MkDir()
@@ -128,10 +132,10 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromGadget(c *C) {
 
 func (s *bootenvTestSuite) TestInstallBootloaderConfigFromAssets(c *C) {
 	recoveryOpts := &bootloader.Options{
-		Recovery: true,
+		Role: bootloader.RoleRecovery,
 	}
 	systemBootOpts := &bootloader.Options{
-		ExtractedRunKernelImage: true,
+		Role: bootloader.RoleRunMode,
 	}
 	defaultRecoveryGrubAsset := assets.Internal("grub-recovery.cfg")
 	c.Assert(defaultRecoveryGrubAsset, NotNil)
@@ -231,6 +235,46 @@ func (s *bootenvTestSuite) TestInstallBootloaderConfigFromAssets(c *C) {
 	}
 }
 
+func (s *bootenvTestSuite) TestBootloaderFindPresentNonNilError(c *C) {
+	rootdir := c.MkDir()
+	// add a mock bootloader to the list of bootloaders that Find() uses
+	mockBl := bootloadertest.Mock("mock", rootdir)
+	restore := bootloader.MockAddBootloaderToFind(func(dir string, opts *bootloader.Options) bootloader.Bootloader {
+		c.Assert(dir, Equals, rootdir)
+		return mockBl
+	})
+	defer restore()
+
+	// make us find our bootloader
+	mockBl.MockedPresent = true
+
+	bl, err := bootloader.Find(rootdir, nil)
+	c.Assert(err, IsNil)
+	c.Assert(bl, NotNil)
+	c.Assert(bl.Name(), Equals, "mock")
+	c.Assert(bl, DeepEquals, mockBl)
+
+	// now make finding our bootloader a fatal error, this time we will get the
+	// error back
+	mockBl.PresentErr = fmt.Errorf("boom")
+	_, err = bootloader.Find(rootdir, nil)
+	c.Assert(err, ErrorMatches, "bootloader \"mock\" found but not usable: boom")
+}
+
+func (s *bootenvTestSuite) TestBootloaderFindBadOptions(c *C) {
+	_, err := bootloader.Find("", &bootloader.Options{
+		PrepareImageTime: true,
+		Role:             bootloader.RoleRunMode,
+	})
+	c.Assert(err, ErrorMatches, "internal error: cannot use run mode bootloader at prepare-image time")
+
+	_, err = bootloader.Find("", &bootloader.Options{
+		NoSlashBoot: true,
+		Role:        bootloader.RoleSole,
+	})
+	c.Assert(err, ErrorMatches, "internal error: bootloader.RoleSole doesn't expect NoSlashBoot set")
+}
+
 func (s *bootenvTestSuite) TestBootloaderFind(c *C) {
 	for _, tc := range []struct {
 		name    string
@@ -240,18 +284,25 @@ func (s *bootenvTestSuite) TestBootloaderFind(c *C) {
 	}{
 		{name: "grub", sysFile: "/boot/grub/grub.cfg", expName: "grub"},
 		{
-			// native hierarchy
+			// native run partition layout
 			name: "grub", sysFile: "/EFI/ubuntu/grub.cfg",
-			opts:    &bootloader.Options{NoSlashBoot: true},
+			opts:    &bootloader.Options{Role: bootloader.RoleRunMode, NoSlashBoot: true},
 			expName: "grub",
 		},
+		{
+			// recovery layout
+			name: "grub", sysFile: "/EFI/ubuntu/grub.cfg",
+			opts:    &bootloader.Options{Role: bootloader.RoleRecovery},
+			expName: "grub",
+		},
+
 		// traditional uboot.env - the uboot.env file needs to be non-empty
 		{name: "uboot.env", sysFile: "/boot/uboot/uboot.env", expName: "uboot"},
-		// boot.sel variant
+		// boot.sel uboot variant
 		{
 			name:    "uboot boot.scr",
 			sysFile: "/uboot/ubuntu/boot.sel",
-			opts:    &bootloader.Options{NoSlashBoot: true},
+			opts:    &bootloader.Options{Role: bootloader.RoleRunMode, NoSlashBoot: true},
 			expName: "uboot",
 		},
 		{name: "androidboot", sysFile: "/boot/androidboot/androidboot.env", expName: "androidboot"},
@@ -283,7 +334,8 @@ func (s *bootenvTestSuite) TestBootloaderForGadget(c *C) {
 		expName    string
 	}{
 		{name: "grub", gadgetFile: "grub.conf", expName: "grub"},
-		{name: "grub", gadgetFile: "grub.conf", opts: &bootloader.Options{NoSlashBoot: true}, expName: "grub"},
+		{name: "grub", gadgetFile: "grub.conf", opts: &bootloader.Options{Role: bootloader.RoleRunMode, NoSlashBoot: true}, expName: "grub"},
+		{name: "grub", gadgetFile: "grub.conf", opts: &bootloader.Options{Role: bootloader.RoleRecovery}, expName: "grub"},
 		{name: "uboot", gadgetFile: "uboot.conf", expName: "uboot"},
 		{name: "androidboot", gadgetFile: "androidboot.conf", expName: "androidboot"},
 		{name: "lk", gadgetFile: "lk.conf", expName: "lk"},
@@ -300,4 +352,11 @@ func (s *bootenvTestSuite) TestBootloaderForGadget(c *C) {
 		c.Assert(bl, NotNil)
 		c.Check(bl.Name(), Equals, tc.expName)
 	}
+}
+
+func (s *bootenvTestSuite) TestBootFileWithPath(c *C) {
+	a := bootloader.NewBootFile("", "some/path", bootloader.RoleRunMode)
+	b := a.WithPath("other/path")
+	c.Assert(a.Path, Equals, "some/path")
+	c.Assert(b.Path, Equals, "other/path")
 }

@@ -20,8 +20,12 @@
 package client_test
 
 import (
+	"crypto/sha256"
 	"io/ioutil"
+	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -141,19 +145,22 @@ func (cs *clientSuite) TestClientRestoreSnapshots(c *check.C) {
 
 func (cs *clientSuite) TestClientExportSnapshot(c *check.C) {
 	type tableT struct {
-		content string
-		status  int
+		content     string
+		contentType string
+		status      int
 	}
 
 	table := []tableT{
-		{"Hello World!", 200},
-		{"", 400},
+		{"dummy-export", client.SnapshotExportMediaType, 200},
+		{"dummy-export", "application/x-tar", 400},
+		{"", "", 400},
 	}
 
 	for i, t := range table {
 		comm := check.Commentf("%d: %q", i, t.content)
 
 		cs.contentLength = int64(len(t.content))
+		cs.header = http.Header{"Content-Type": []string{t.contentType}}
 		cs.rsp = t.content
 		cs.status = t.status
 
@@ -161,11 +168,11 @@ func (cs *clientSuite) TestClientExportSnapshot(c *check.C) {
 		if t.status == 200 {
 			c.Assert(err, check.IsNil, comm)
 			c.Assert(cs.countingCloser.closeCalled, check.Equals, 0)
+			c.Assert(size, check.Equals, int64(len(t.content)), comm)
 		} else {
 			c.Assert(err.Error(), check.Equals, "unexpected status code: ")
 			c.Assert(cs.countingCloser.closeCalled, check.Equals, 1)
 		}
-		c.Assert(size, check.Equals, int64(len(t.content)), comm)
 
 		if t.status == 200 {
 			buf, err := ioutil.ReadAll(r)
@@ -173,4 +180,120 @@ func (cs *clientSuite) TestClientExportSnapshot(c *check.C) {
 			c.Assert(string(buf), check.Equals, t.content)
 		}
 	}
+}
+
+func (cs *clientSuite) TestClientSnapshotImport(c *check.C) {
+	type tableT struct {
+		rsp    string
+		status int
+		setID  uint64
+		error  string
+	}
+	table := []tableT{
+		{`{"type": "sync", "result": {"set-id": 42, "snaps": ["baz", "bar", "foo"]}}`, 200, 42, ""},
+		{`{"type": "error"}`, 400, 0, "server error: \"Bad Request\""},
+	}
+
+	for i, t := range table {
+		comm := check.Commentf("%d: %s", i, t.rsp)
+
+		cs.rsp = t.rsp
+		cs.status = t.status
+
+		fakeSnapshotData := "fake"
+		r := strings.NewReader(fakeSnapshotData)
+		importSet, err := cs.cli.SnapshotImport(r, int64(len(fakeSnapshotData)))
+		if t.error != "" {
+			c.Assert(err, check.NotNil, comm)
+			c.Check(err.Error(), check.Equals, t.error, comm)
+			continue
+		}
+		c.Assert(err, check.IsNil, comm)
+		c.Assert(cs.req.Header.Get("Content-Type"), check.Equals, client.SnapshotExportMediaType)
+		c.Assert(cs.req.Header.Get("Content-Length"), check.Equals, strconv.Itoa(len(fakeSnapshotData)))
+		c.Check(importSet.ID, check.Equals, t.setID, comm)
+		c.Check(importSet.Snaps, check.DeepEquals, []string{"baz", "bar", "foo"}, comm)
+		d, err := ioutil.ReadAll(cs.req.Body)
+		c.Assert(err, check.IsNil)
+		c.Check(string(d), check.Equals, fakeSnapshotData)
+	}
+}
+
+func (cs *clientSuite) TestClientSnapshotContentHash(c *check.C) {
+	now := time.Now()
+	revno := snap.R(1)
+	sums := map[string]string{"user/foo.tgz": "some long hash"}
+
+	sh1 := &client.Snapshot{SetID: 1, Time: now, Snap: "asnap", Revision: revno, SHA3_384: sums}
+	// sh1, sh1_1 are the same except time
+	sh1_1 := &client.Snapshot{SetID: 1, Time: now.Add(10), Snap: "asnap", Revision: revno, SHA3_384: sums}
+	// sh1, sh2 are the same except setID
+	sh2 := &client.Snapshot{SetID: 2, Time: now, Snap: "asnap", Revision: revno, SHA3_384: sums}
+
+	h1, err := sh1.ContentHash()
+	c.Assert(err, check.IsNil)
+	// content hash uses sha256 internally
+	c.Check(h1, check.HasLen, sha256.Size)
+
+	// same except time means same hash
+	h1_1, err := sh1_1.ContentHash()
+	c.Assert(err, check.IsNil)
+	c.Check(h1, check.DeepEquals, h1_1)
+
+	// same except set means same hash
+	h2, err := sh2.ContentHash()
+	c.Assert(err, check.IsNil)
+	c.Check(h1, check.DeepEquals, h2)
+
+	// sh3 is actually different
+	sh3 := &client.Snapshot{SetID: 1, Time: now, Snap: "other-snap", Revision: revno, SHA3_384: sums}
+	h3, err := sh3.ContentHash()
+	c.Assert(err, check.IsNil)
+	c.Check(h1, check.Not(check.DeepEquals), h3)
+
+	// identical to sh1 except for sha3_384 sums
+	sums4 := map[string]string{"user/foo.tgz": "some other hash"}
+	sh4 := &client.Snapshot{SetID: 1, Time: now, Snap: "asnap", Revision: revno, SHA3_384: sums4}
+	// same except sha3_384 means different hash
+	h4, err := sh4.ContentHash()
+	c.Assert(err, check.IsNil)
+	c.Check(h4, check.Not(check.DeepEquals), h1)
+}
+
+func (cs *clientSuite) TestClientSnapshotSetContentHash(c *check.C) {
+	sums := map[string]string{"user/foo.tgz": "some long hash"}
+	ss1 := client.SnapshotSet{Snapshots: []*client.Snapshot{
+		{SetID: 1, Snap: "snap2", Size: 2, SHA3_384: sums},
+		{SetID: 1, Snap: "snap1", Size: 1, SHA3_384: sums},
+		{SetID: 1, Snap: "snap3", Size: 3, SHA3_384: sums},
+	}}
+	// ss2 is the same ss1 but in a different order with different setID
+	// (but that does not matter for the content hash)
+	ss2 := client.SnapshotSet{Snapshots: []*client.Snapshot{
+		{SetID: 2, Snap: "snap3", Size: 3, SHA3_384: sums},
+		{SetID: 2, Snap: "snap2", Size: 2, SHA3_384: sums},
+		{SetID: 2, Snap: "snap1", Size: 1, SHA3_384: sums},
+	}}
+
+	h1, err := ss1.ContentHash()
+	c.Assert(err, check.IsNil)
+	// content hash uses sha256 internally
+	c.Check(h1, check.HasLen, sha256.Size)
+
+	// h1 and h2 have the same hash
+	h2, err := ss2.ContentHash()
+	c.Assert(err, check.IsNil)
+	c.Check(h2, check.DeepEquals, h1)
+
+	// ss3 is different because the size of snap3 is different
+	ss3 := client.SnapshotSet{Snapshots: []*client.Snapshot{
+		{SetID: 1, Snap: "snap2", Size: 2},
+		{SetID: 1, Snap: "snap3", Size: 666666666},
+		{SetID: 1, Snap: "snap1", Size: 1},
+	}}
+	// h1 and h3 are different
+	h3, err := ss3.ContentHash()
+	c.Assert(err, check.IsNil)
+	c.Check(h3, check.Not(check.DeepEquals), h1)
+
 }

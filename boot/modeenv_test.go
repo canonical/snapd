@@ -31,6 +31,7 @@ import (
 	"github.com/mvo5/goconfigparser"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/testutil"
@@ -49,6 +50,32 @@ var _ = Suite(&modeenvSuite{})
 func (s *modeenvSuite) SetUpTest(c *C) {
 	s.tmpdir = c.MkDir()
 	s.mockModeenvPath = filepath.Join(s.tmpdir, dirs.SnapModeenvFile)
+}
+
+func (s *modeenvSuite) TestKnownKnown(c *C) {
+	// double check keys as found with reflect
+	c.Check(boot.ModeenvKnownKeys, DeepEquals, map[string]bool{
+		"mode":                     true,
+		"recovery_system":          true,
+		"current_recovery_systems": true,
+		"good_recovery_systems":    true,
+		"boot_flags":               true,
+		// keep this comment to make old go fmt happy
+		"base":                  true,
+		"try_base":              true,
+		"base_status":           true,
+		"current_kernels":       true,
+		"model":                 true,
+		"grade":                 true,
+		"model_sign_key_id":     true,
+		"try_model":             true,
+		"try_grade":             true,
+		"try_model_sign_key_id": true,
+		// keep this comment to make old go fmt happy
+		"current_kernel_command_lines":         true,
+		"current_trusted_boot_assets":          true,
+		"current_trusted_recovery_boot_assets": true,
+	})
 }
 
 func (s *modeenvSuite) TestReadEmptyErrors(c *C) {
@@ -115,6 +142,7 @@ base=core20_123.snap
 try_base=core20_124.snap
 base_status=try
 current_trusted_boot_assets={"thing1":["hash1","hash2"],"thing2":["hash3"]}
+current_kernel_command_lines=["foo", "bar"]
 `)
 
 	diskModeenv, err := boot.ReadModeenv(s.tmpdir)
@@ -128,6 +156,9 @@ current_trusted_boot_assets={"thing1":["hash1","hash2"],"thing2":["hash3"]}
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"thing1": {"hash1", "hash2"},
 			"thing2": {"hash3"},
+		},
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			"foo", "bar",
 		},
 	}
 
@@ -200,19 +231,28 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		Mode:                   "recovery",
 		RecoverySystem:         "20191126",
 		CurrentRecoverySystems: []string{"1", "2"},
+		GoodRecoverySystems:    []string{"3"},
 
 		Base:           "core20_123.snap",
 		TryBase:        "core20_124.snap",
 		BaseStatus:     "try",
 		CurrentKernels: []string{"k1", "k2"},
 
-		Model:   "model",
-		BrandID: "brand",
-		Grade:   "secured",
+		Model:          "model",
+		BrandID:        "brand",
+		Grade:          "secured",
+		ModelSignKeyID: "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn",
+
+		BootFlags: []string{"foo", "factory"},
 
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"thing1": {"hash1", "hash2"},
 			"thing2": {"hash3"},
+		},
+
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			"foo",
+			"foo bar",
 		},
 	}
 
@@ -220,19 +260,28 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 		Mode:                   "recovery",
 		RecoverySystem:         "20191126",
 		CurrentRecoverySystems: []string{"1", "2"},
+		GoodRecoverySystems:    []string{"3"},
 
 		Base:           "core20_123.snap",
 		TryBase:        "core20_124.snap",
 		BaseStatus:     "try",
 		CurrentKernels: []string{"k1", "k2"},
 
-		Model:   "model",
-		BrandID: "brand",
-		Grade:   "secured",
+		Model:          "model",
+		BrandID:        "brand",
+		Grade:          "secured",
+		ModelSignKeyID: "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn",
+
+		BootFlags: []string{"foo", "factory"},
 
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
 			"thing1": {"hash1", "hash2"},
 			"thing2": {"hash3"},
+		},
+
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			"foo",
+			"foo bar",
 		},
 	}
 
@@ -257,6 +306,44 @@ func (s *modeenvSuite) TestDeepEquals(c *C) {
 	modeenv2.CurrentKernels = nil
 	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
 	c.Assert(modeenv2.DeepEqual(modeenv1), Equals, false)
+
+	// make it identical again
+	modeenv2.CurrentKernels = []string{"k1", "k2"}
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, true)
+	// change kernel command lines
+	modeenv2.CurrentKernelCommandLines = boot.BootCommandLines{
+		// reversed order
+		"foo bar",
+		"foo",
+	}
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
+	// clear kernel command lines list
+	modeenv2.CurrentKernelCommandLines = nil
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
+
+	// make it identical again
+	modeenv2.CurrentKernelCommandLines = boot.BootCommandLines{
+		"foo",
+		"foo bar",
+	}
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, true)
+
+	// change the list of current recovery systems
+	modeenv2.CurrentRecoverySystems = append(modeenv2.CurrentRecoverySystems, "1234")
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
+	// make it identical again
+	modeenv2.CurrentRecoverySystems = []string{"1", "2"}
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, true)
+
+	// change the list of good recovery systems
+	modeenv2.GoodRecoverySystems = append(modeenv2.GoodRecoverySystems, "999")
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
+	// restore it
+	modeenv2.GoodRecoverySystems = modeenv2.GoodRecoverySystems[:len(modeenv2.GoodRecoverySystems)-1]
+
+	// change the sign key ID
+	modeenv2.ModelSignKeyID = "EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu"
+	c.Assert(modeenv1.DeepEqual(modeenv2), Equals, false)
 }
 
 func (s *modeenvSuite) TestReadModeWithRecoverySystem(c *C) {
@@ -268,6 +355,62 @@ recovery_system=20191126
 	c.Assert(err, IsNil)
 	c.Check(modeenv.Mode, Equals, "recovery")
 	c.Check(modeenv.RecoverySystem, Equals, "20191126")
+}
+
+func (s *modeenvSuite) TestReadModeenvWithUnknownKeysKeepsWrites(c *C) {
+	s.makeMockModeenvFile(c, `first_unknown=thing
+mode=recovery
+recovery_system=20191126
+unknown_key=some unknown value
+a_key=other
+`)
+
+	modeenv, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+	c.Check(modeenv.Mode, Equals, "recovery")
+	c.Check(modeenv.RecoverySystem, Equals, "20191126")
+
+	c.Assert(modeenv.Write(), IsNil)
+
+	c.Assert(s.mockModeenvPath, testutil.FileEquals, `mode=recovery
+recovery_system=20191126
+a_key=other
+first_unknown=thing
+unknown_key=some unknown value
+`)
+}
+
+func (s *modeenvSuite) TestReadModeenvWithUnknownKeysDeepEqualsSameWithoutUnknownKeys(c *C) {
+	s.makeMockModeenvFile(c, `first_unknown=thing
+mode=recovery
+recovery_system=20191126
+try_base=core20_124.snap
+base_status=try
+unknown_key=some unknown value
+current_trusted_boot_assets={"grubx64.efi":["hash1","hash2"]}
+current_trusted_recovery_boot_assets={"bootx64.efi":["shimhash1","shimhash2"],"grubx64.efi":["recovery-hash1"]}
+a_key=other
+`)
+
+	modeenvWithExtraKeys, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+	c.Check(modeenvWithExtraKeys.Mode, Equals, "recovery")
+	c.Check(modeenvWithExtraKeys.RecoverySystem, Equals, "20191126")
+
+	// should be the same as one that with just those keys in memory
+	c.Assert(modeenvWithExtraKeys.DeepEqual(&boot.Modeenv{
+		Mode:           "recovery",
+		RecoverySystem: "20191126",
+		TryBase:        "core20_124.snap",
+		BaseStatus:     boot.TryStatus,
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"grubx64.efi": []string{"hash1", "hash2"},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"bootx64.efi": []string{"shimhash1", "shimhash2"},
+			"grubx64.efi": []string{"recovery-hash1"},
+		},
+	}), Equals, true)
 }
 
 func (s *modeenvSuite) TestReadModeWithBase(c *C) {
@@ -424,6 +567,33 @@ func (s *modeenvSuite) TestWriteFreshError(c *C) {
 	c.Assert(err, ErrorMatches, `internal error: must use WriteTo with modeenv not read from disk`)
 }
 
+func (s *modeenvSuite) TestWriteIncompleteModelBrand(c *C) {
+	modeenv := &boot.Modeenv{
+		Mode:  "run",
+		Grade: "dangerous",
+	}
+
+	err := modeenv.WriteTo(s.tmpdir)
+	c.Assert(err, ErrorMatches, `internal error: model is unset`)
+
+	modeenv.Model = "bar"
+	err = modeenv.WriteTo(s.tmpdir)
+	c.Assert(err, ErrorMatches, `internal error: brand is unset`)
+
+	modeenv.BrandID = "foo"
+	modeenv.TryGrade = "dangerous"
+	err = modeenv.WriteTo(s.tmpdir)
+	c.Assert(err, ErrorMatches, `internal error: try model is unset`)
+
+	modeenv.TryModel = "bar"
+	err = modeenv.WriteTo(s.tmpdir)
+	c.Assert(err, ErrorMatches, `internal error: try brand is unset`)
+
+	modeenv.TryBrandID = "foo"
+	err = modeenv.WriteTo(s.tmpdir)
+	c.Assert(err, IsNil)
+}
+
 func (s *modeenvSuite) TestWriteToNonExistingFull(c *C) {
 	c.Assert(s.mockModeenvPath, testutil.FileAbsent)
 
@@ -468,15 +638,18 @@ func (s *modeenvSuite) TestReadRecoverySystems(c *C) {
 
 	for _, t := range tt {
 		c.Logf("tc: %q", t.systemsString)
-		s.makeMockModeenvFile(c, `mode=recovery
+		s.makeMockModeenvFile(c, fmt.Sprintf(`mode=recovery
 recovery_system=20191126
-current_recovery_systems=`+t.systemsString+"\n")
+current_recovery_systems=%[1]s
+good_recovery_systems=%[1]s
+`, t.systemsString))
 
 		modeenv, err := boot.ReadModeenv(s.tmpdir)
 		c.Assert(err, IsNil)
 		c.Check(modeenv.Mode, Equals, "recovery")
 		c.Check(modeenv.RecoverySystem, Equals, "20191126")
 		c.Check(modeenv.CurrentRecoverySystems, DeepEquals, t.expectedSystems)
+		c.Check(modeenv.GoodRecoverySystems, DeepEquals, t.expectedSystems)
 	}
 }
 
@@ -591,4 +764,109 @@ current_trusted_recovery_boot_assets={"bootx64.efi":["shimhash1","shimhash2"],"g
 		"grubx64.efi": []string{"recovery-hash1"},
 		"bootx64.efi": []string{"shimhash1", "shimhash2"},
 	})
+}
+
+func (s *modeenvSuite) TestMarshalKernelCommandLines(c *C) {
+	c.Assert(s.mockModeenvPath, testutil.FileAbsent)
+
+	modeenv := &boot.Modeenv{
+		Mode:           "run",
+		RecoverySystem: "20191128",
+		CurrentKernelCommandLines: boot.BootCommandLines{
+			`snapd_recovery_mode=run panic=-1 console=ttyS0,io,9600n8`,
+			`snapd_recovery_mode=run candidate panic=-1 console=ttyS0,io,9600n8`,
+		},
+	}
+	err := modeenv.WriteTo(s.tmpdir)
+	c.Assert(err, IsNil)
+
+	c.Assert(s.mockModeenvPath, testutil.FileEquals, `mode=run
+recovery_system=20191128
+current_kernel_command_lines=["snapd_recovery_mode=run panic=-1 console=ttyS0,io,9600n8","snapd_recovery_mode=run candidate panic=-1 console=ttyS0,io,9600n8"]
+`)
+
+	modeenvRead, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+	c.Assert(modeenvRead.CurrentKernelCommandLines, DeepEquals, boot.BootCommandLines{
+		`snapd_recovery_mode=run panic=-1 console=ttyS0,io,9600n8`,
+		`snapd_recovery_mode=run candidate panic=-1 console=ttyS0,io,9600n8`,
+	})
+}
+
+func (s *modeenvSuite) TestModeenvWithModelGradeSignKeyID(c *C) {
+	s.makeMockModeenvFile(c, `mode=run
+model=canonical/ubuntu-core-20-amd64
+grade=dangerous
+model_sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
+try_model=developer1/testkeys-snapd-secured-core-20-amd64
+try_grade=secured
+try_model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+`)
+
+	modeenv, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+	c.Check(modeenv.Model, Equals, "ubuntu-core-20-amd64")
+	c.Check(modeenv.BrandID, Equals, "canonical")
+	c.Check(modeenv.Grade, Equals, "dangerous")
+	c.Check(modeenv.ModelSignKeyID, Equals, "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn")
+	// candidate model
+	c.Check(modeenv.TryModel, Equals, "testkeys-snapd-secured-core-20-amd64")
+	c.Check(modeenv.TryBrandID, Equals, "developer1")
+	c.Check(modeenv.TryGrade, Equals, "secured")
+	c.Check(modeenv.TryModelSignKeyID, Equals, "EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu")
+
+	// change some model data now
+	modeenv.Model = "testkeys-snapd-signed-core-20-amd64"
+	modeenv.BrandID = "developer1"
+	modeenv.Grade = "signed"
+	modeenv.ModelSignKeyID = "EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu"
+
+	modeenv.TryModel = "bar"
+	modeenv.TryBrandID = "foo"
+	modeenv.TryGrade = "dangerous"
+	modeenv.TryModelSignKeyID = "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn"
+
+	// and write it
+	c.Assert(modeenv.Write(), IsNil)
+
+	c.Assert(s.mockModeenvPath, testutil.FileEquals, `mode=run
+model=developer1/testkeys-snapd-signed-core-20-amd64
+grade=signed
+model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+try_model=foo/bar
+try_grade=dangerous
+try_model_sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
+`)
+}
+
+func (s *modeenvSuite) TestModelForSealing(c *C) {
+	s.makeMockModeenvFile(c, `mode=run
+model=canonical/ubuntu-core-20-amd64
+grade=dangerous
+model_sign_key_id=9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn
+try_model=developer1/testkeys-snapd-secured-core-20-amd64
+try_grade=secured
+try_model_sign_key_id=EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu
+`)
+
+	modeenv, err := boot.ReadModeenv(s.tmpdir)
+	c.Assert(err, IsNil)
+
+	modelForSealing := modeenv.ModelForSealing()
+	c.Check(modelForSealing.Model(), Equals, "ubuntu-core-20-amd64")
+	c.Check(modelForSealing.BrandID(), Equals, "canonical")
+	c.Check(modelForSealing.Grade(), Equals, asserts.ModelGrade("dangerous"))
+	c.Check(modelForSealing.SignKeyID(), Equals, "9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn")
+	c.Check(modelForSealing.Series(), Equals, "16")
+	c.Check(boot.ModelUniqueID(modelForSealing), Equals,
+		"canonical/ubuntu-core-20-amd64,dangerous,9tydnLa6MTJ-jaQTFUXEwHl1yRx7ZS4K5cyFDhYDcPzhS7uyEkDxdUjg9g08BtNn")
+
+	tryModelForSealing := modeenv.TryModelForSealing()
+	c.Check(tryModelForSealing.Model(), Equals, "testkeys-snapd-secured-core-20-amd64")
+	c.Check(tryModelForSealing.BrandID(), Equals, "developer1")
+	c.Check(tryModelForSealing.Grade(), Equals, asserts.ModelGrade("secured"))
+	c.Check(tryModelForSealing.SignKeyID(), Equals, "EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu")
+	c.Check(tryModelForSealing.Series(), Equals, "16")
+	c.Check(boot.ModelUniqueID(tryModelForSealing), Equals,
+		"developer1/testkeys-snapd-secured-core-20-amd64,secured,EAD4DbLxK_kn0gzNCXOs3kd6DeMU3f-L6BEsSEuJGBqCORR0gXkdDxMbOm11mRFu")
 }

@@ -1,14 +1,12 @@
 summary: system key is not written if security setup fails
+
 details: |
     When snapd is started up and the system key needs regeneration errors from
     establishing the new security profiles should not stop snapd from running
     but should prevent snapd from writing the system key.
+
 prepare: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local network-consumer
+    "$TESTSTOOLS"/snaps-state install-local network-consumer
 
     version_info="$(sed -n '2 s/# //p' < /var/lib/snapd/seccomp/bpf/snap.network-consumer.network-consumer.src)"
     test -n "$version_info"
@@ -22,7 +20,10 @@ prepare: |
     EOF
     chmod +x bad-snap-seccomp
 
-    mount --bind "$PWD/bad-snap-seccomp" "$LIBEXECDIR/snapd/snap-seccomp"
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    LIBEXEC_DIR="$(os.paths libexec-dir)"
+
+    mount --bind "$PWD/bad-snap-seccomp" "$LIBEXEC_DIR/snapd/snap-seccomp"
     test -d "$SNAP_MOUNT_DIR/core" && mount --bind "$PWD/bad-snap-seccomp" "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snap-seccomp"
     test -d "$SNAP_MOUNT_DIR/snapd" && mount --bind "$PWD/bad-snap-seccomp" "$SNAP_MOUNT_DIR/snapd/current/usr/lib/snapd/snap-seccomp"
     mv /var/lib/snapd/system-key /var/lib/snapd/system-key.orig
@@ -30,13 +31,13 @@ prepare: |
     echo '{}' > /var/lib/snapd/system-key
 
 restore: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-    umount "$LIBEXECDIR/snapd/snap-seccomp" || true
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    LIBEXEC_DIR="$(os.paths libexec-dir)"
+
+    umount "$LIBEXEC_DIR/snapd/snap-seccomp" || true
     test -d "$SNAP_MOUNT_DIR/core" && ( umount "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snap-seccomp" || true )
     test -d "$SNAP_MOUNT_DIR/snapd" && ( umount "$SNAP_MOUNT_DIR/snapd/current/usr/lib/snapd/snap-seccomp" || true )
     mv /var/lib/snapd/system-key.orig /var/lib/snapd/system-key || true
-    rm -f bad-snap-seccomp
 
     # XXX: When this test is sequenced immediately before a test in the main
     # suite something in this test or in the suite prepare/restore logic is

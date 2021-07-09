@@ -475,6 +475,14 @@ func verifyContentAccessibleForBuild(sourceDir string) error {
 	return errPaths.asErr()
 }
 
+type MksquashfsError struct {
+	msg string
+}
+
+func (m MksquashfsError) Error() string {
+	return m.msg
+}
+
 type BuildOpts struct {
 	SnapType     string
 	Compression  string
@@ -527,7 +535,7 @@ func (s *Snap) Build(sourceDir string, opts *BuildOpts) error {
 	return osutil.ChDir(sourceDir, func() error {
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("mksquashfs call failed: %s", osutil.OutputErr(output, err))
+			return MksquashfsError{fmt.Sprintf("mksquashfs call failed: %s", osutil.OutputErr(output, err))}
 		}
 
 		return nil

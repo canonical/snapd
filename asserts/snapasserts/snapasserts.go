@@ -17,7 +17,7 @@
  *
  */
 
-// Package snapasserts offers helpers to handle snap assertions and their checking for installation.
+// Package snapasserts offers helpers to handle snap related assertions and their checking for installation.
 package snapasserts
 
 import (

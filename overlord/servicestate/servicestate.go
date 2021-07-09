@@ -22,16 +22,21 @@ package servicestate
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/cmdstate"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 type Instruction struct {
@@ -44,37 +49,133 @@ type Instruction struct {
 
 type ServiceActionConflictError struct{ error }
 
+func computeExplicitServices(appInfos []*snap.AppInfo, names []string) map[string][]string {
+	explicitServices := make(map[string][]string, len(appInfos))
+	requested := make(map[string]bool, len(names))
+	for _, name := range names {
+		// Name might also be a snap name (or other strings the user wrote on
+		// the command line), but the loop below ensures that this function
+		// considers only application names.
+		requested[name] = true
+	}
+
+	for _, app := range appInfos {
+		snapName := app.Snap.InstanceName()
+		appName := app.String()
+		if requested[appName] {
+			explicitServices[snapName] = append(explicitServices[snapName], app.ServiceName())
+		}
+	}
+
+	return explicitServices
+}
+
+// serviceControlTs creates "service-control" task for every snap derived from appInfos.
+func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instruction) (*state.TaskSet, error) {
+	servicesBySnap := make(map[string][]string, len(appInfos))
+	explicitServices := computeExplicitServices(appInfos, inst.Names)
+	sortedNames := make([]string, 0, len(appInfos))
+
+	// group services by snap, we need to create one task for every affected snap
+	for _, app := range appInfos {
+		snapName := app.Snap.InstanceName()
+		if _, ok := servicesBySnap[snapName]; !ok {
+			sortedNames = append(sortedNames, snapName)
+		}
+		servicesBySnap[snapName] = append(servicesBySnap[snapName], app.Name)
+	}
+	sort.Strings(sortedNames)
+
+	ts := state.NewTaskSet()
+	var prev *state.Task
+	for _, snapName := range sortedNames {
+		var snapst snapstate.SnapState
+		if err := snapstate.Get(st, snapName, &snapst); err != nil {
+			if err == state.ErrNoState {
+				return nil, fmt.Errorf("snap not found: %s", snapName)
+			}
+			return nil, err
+		}
+
+		cmd := &ServiceAction{SnapName: snapName}
+		switch {
+		case inst.Action == "start":
+			cmd.Action = "start"
+			if inst.Enable {
+				cmd.ActionModifier = "enable"
+			}
+		case inst.Action == "stop":
+			cmd.Action = "stop"
+			if inst.Disable {
+				cmd.ActionModifier = "disable"
+			}
+		case inst.Action == "restart":
+			if inst.Reload {
+				cmd.Action = "reload-or-restart"
+			} else {
+				cmd.Action = "restart"
+			}
+		default:
+			return nil, fmt.Errorf("unknown action %q", inst.Action)
+		}
+
+		svcs := servicesBySnap[snapName]
+		sort.Strings(svcs)
+		cmd.Services = svcs
+		explicitSvcs := explicitServices[snapName]
+		sort.Strings(explicitSvcs)
+		cmd.ExplicitServices = explicitSvcs
+
+		summary := fmt.Sprintf("Run service command %q for services %q of snap %q", cmd.Action, svcs, cmd.SnapName)
+		task := st.NewTask("service-control", summary)
+		task.Set("service-action", cmd)
+		if prev != nil {
+			task.WaitFor(prev)
+		}
+		prev = task
+		ts.AddTask(task)
+	}
+	return ts, nil
+}
+
+// Flags carries extra flags for Control
+type Flags struct {
+	// CreateExecCommandTasks tells Control method to create exec-command tasks
+	// (alongside service-control tasks) for compatibility with old snapd.
+	CreateExecCommandTasks bool
+}
+
 // Control creates a taskset for starting/stopping/restarting services via systemctl.
 // The appInfos and inst define the services and the command to execute.
 // Context is used to determine change conflicts - we will not conflict with
 // tasks from same change as that of context's.
-func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, context *hookstate.Context) ([]*state.TaskSet, error) {
+func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, flags *Flags, context *hookstate.Context) ([]*state.TaskSet, error) {
 	var tts []*state.TaskSet
-
 	var ctlcmds []string
-	switch {
-	case inst.Action == "start":
-		if inst.Enable {
-			ctlcmds = []string{"enable"}
-		}
-		ctlcmds = append(ctlcmds, "start")
-	case inst.Action == "stop":
-		if inst.Disable {
-			ctlcmds = []string{"disable"}
-		}
-		ctlcmds = append(ctlcmds, "stop")
-	case inst.Action == "restart":
-		if inst.Reload {
-			ctlcmds = []string{"reload-or-restart"}
-		} else {
-			ctlcmds = []string{"restart"}
-		}
-	default:
-		return nil, fmt.Errorf("unknown action %q", inst.Action)
-	}
 
-	st.Lock()
-	defer st.Unlock()
+	// create exec-command tasks for compatibility with old snapd
+	if flags != nil && flags.CreateExecCommandTasks {
+		switch {
+		case inst.Action == "start":
+			if inst.Enable {
+				ctlcmds = []string{"enable"}
+			}
+			ctlcmds = append(ctlcmds, "start")
+		case inst.Action == "stop":
+			if inst.Disable {
+				ctlcmds = []string{"disable"}
+			}
+			ctlcmds = append(ctlcmds, "stop")
+		case inst.Action == "restart":
+			if inst.Reload {
+				ctlcmds = []string{"reload-or-restart"}
+			} else {
+				ctlcmds = []string{"restart"}
+			}
+		default:
+			return nil, fmt.Errorf("unknown action %q", inst.Action)
+		}
+	}
 
 	svcs := make([]string, 0, len(appInfos))
 	snapNames := make([]string, 0, len(appInfos))
@@ -91,14 +192,9 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, conte
 	}
 
 	var ignoreChangeID string
-	if context != nil && !context.IsEphemeral() {
-		if task, ok := context.Task(); ok {
-			if chg := task.Change(); chg != nil {
-				ignoreChangeID = chg.ID()
-			}
-		}
+	if context != nil {
+		ignoreChangeID = context.ChangeID()
 	}
-
 	if err := snapstate.CheckChangeConflictMany(st, snapNames, ignoreChangeID); err != nil {
 		return nil, &ServiceActionConflictError{err}
 	}
@@ -112,8 +208,22 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, conte
 		// reuse the snapd/systemd and snapd/wrapper packages
 		// to control the timeout in a single place.
 		ts := cmdstate.ExecWithTimeout(st, desc, argv, 61*time.Second)
+
+		// set ignore flag on the tasks, new snapd uses service-control tasks.
+		ignore := true
+		for _, t := range ts.Tasks() {
+			t.Set("ignore", ignore)
+		}
 		tts = append(tts, ts)
 	}
+
+	// XXX: serviceControlTs could be merged with above logic at the cost of
+	// slightly more complicated logic.
+	ts, err := serviceControlTs(st, appInfos, inst)
+	if err != nil {
+		return nil, err
+	}
+	tts = append(tts, ts)
 
 	// make a taskset wait for its predecessor
 	for i := 1; i < len(tts); i++ {
@@ -125,7 +235,8 @@ func Control(st *state.State, appInfos []*snap.AppInfo, inst *Instruction, conte
 
 // StatusDecorator supports decorating client.AppInfos with service status.
 type StatusDecorator struct {
-	sysd systemd.Systemd
+	sysd           systemd.Systemd
+	globalUserSysd systemd.Systemd
 }
 
 // NewStatusDecorator returns a new StatusDecorator.
@@ -133,7 +244,8 @@ func NewStatusDecorator(rep interface {
 	Notify(string)
 }) *StatusDecorator {
 	return &StatusDecorator{
-		sysd: systemd.New(dirs.GlobalRootDir, systemd.SystemMode, rep),
+		sysd:           systemd.New(systemd.SystemMode, rep),
+		globalUserSysd: systemd.New(systemd.GlobalUserMode, rep),
 	}
 }
 
@@ -147,6 +259,15 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 	if !snapApp.Snap.IsActive() || !snapApp.IsService() {
 		// nothing to do
 		return nil
+	}
+	var sysd systemd.Systemd
+	switch snapApp.DaemonScope {
+	case snap.SystemDaemon:
+		sysd = sd.sysd
+	case snap.UserDaemon:
+		sysd = sd.globalUserSysd
+	default:
+		return fmt.Errorf("internal error: unknown daemon-scope %q", snapApp.DaemonScope)
 	}
 
 	// collect all services for a single call to systemctl
@@ -170,7 +291,7 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 
 	// sysd.Status() makes sure that we get only the units we asked
 	// for and raises an error otherwise
-	sts, err := sd.sysd.Status(serviceNames...)
+	sts, err := sysd.Status(serviceNames...)
 	if err != nil {
 		return fmt.Errorf("cannot get status of services of app %q: %v", appInfo.Name, err)
 	}
@@ -198,6 +319,66 @@ func (sd *StatusDecorator) DecorateWithStatus(appInfo *client.AppInfo, snapApp *
 			})
 		}
 	}
+	// Decorate with D-Bus names that activate this service
+	for _, slot := range snapApp.ActivatesOn {
+		var busName string
+		if err := slot.Attr("name", &busName); err != nil {
+			return fmt.Errorf("cannot get D-Bus bus name of slot %q: %v", slot.Name, err)
+		}
+		// D-Bus activators do not correspond to systemd
+		// units, so don't have the concept of being disabled
+		// or deactivated.  As the service activation file is
+		// created when the snap is installed, report as
+		// enabled/active.
+		appInfo.Activators = append(appInfo.Activators, client.AppActivator{
+			Name:    busName,
+			Enabled: true,
+			Active:  true,
+			Type:    "dbus",
+		})
+	}
 
 	return nil
+}
+
+// SnapServiceOptions computes the options to configure services for
+// the given snap. This function might not check for the existence
+// of instanceName. It also takes as argument a map of all quota groups as an
+// optimization, the map if non-nil is used in place of checking state for
+// whether or not the specified snap is in a quota group or not. If nil, state
+// is consulted directly instead.
+func SnapServiceOptions(st *state.State, instanceName string, quotaGroups map[string]*quota.Group) (opts *wrappers.SnapServiceOptions, err error) {
+	// if quotaGroups was not provided to us, then go get that
+	if quotaGroups == nil {
+		allGrps, err := AllQuotas(st)
+		if err != nil && err != state.ErrNoState {
+			return nil, err
+		}
+		quotaGroups = allGrps
+	}
+
+	opts = &wrappers.SnapServiceOptions{}
+
+	tr := config.NewTransaction(st)
+	var vitalityStr string
+	err = tr.GetMaybe("core", "resilience.vitality-hint", &vitalityStr)
+	if err != nil {
+		return nil, err
+	}
+	for i, s := range strings.Split(vitalityStr, ",") {
+		if s == instanceName {
+			opts.VitalityRank = i + 1
+			break
+		}
+	}
+
+	// also check for quota group for this instance name
+	for _, grp := range quotaGroups {
+		if strutil.ListContains(grp.Snaps, instanceName) {
+			opts.QuotaGroup = grp
+			break
+		}
+	}
+
+	return opts, nil
 }

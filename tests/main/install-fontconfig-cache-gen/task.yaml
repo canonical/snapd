@@ -4,13 +4,8 @@ summary: Check that install works
 # to install so that actual caches get generated
 systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
 
-debug: |
-    ls -lah /var/cache/fontconfig/
-    dpkg-reconfigure fontconfig
-    ls -lah /var/cache/fontconfig/
-
 prepare: |
-    if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
+    if os.query is-xenial; then
         PKG=fonts-kiloji
         NAME=kiloji
     else
@@ -19,14 +14,14 @@ prepare: |
     fi
 
     echo "ensure the font is not already in the fontconfig cache before installing"
-    fc-cat /var/cache/fontconfig/* 2>/dev/null | not MATCH "$NAME"
+    fc-cat /var/cache/fontconfig/* 2>/dev/null | NOMATCH "$NAME"
     apt update -yqq
     apt install -y "$PKG"
     echo "ensure the font is now in the cache"
     fc-cat /var/cache/fontconfig/* 2>/dev/null | MATCH "$NAME"
 
 restore: |
-    if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
+    if os.query is-xenial; then
         PKG=fonts-kiloji
     else
         PKG=fonts-noto-color-emoji
@@ -34,8 +29,13 @@ restore: |
 
     apt autoremove -y "$PKG" || true
 
+debug: |
+    ls -lah /var/cache/fontconfig/
+    dpkg-reconfigure fontconfig
+    ls -lah /var/cache/fontconfig/
+
 execute: |
-    if [ "$SPREAD_SYSTEM" = ubuntu-16.04-64 ]; then
+    if os.query is-xenial; then
         NAME=kiloji
     else
         NAME=NotoColorE

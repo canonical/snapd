@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2019 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -41,7 +41,7 @@ func MockTrusted(mockTrusted []asserts.Assertion) (restore func()) {
 	}
 }
 
-func newMemAssertionsDB() (db asserts.RODatabase, commitTo func(*asserts.Batch) error, err error) {
+func newMemAssertionsDB(commitObserve func(verified asserts.Assertion)) (db *asserts.Database, commitTo func(*asserts.Batch) error, err error) {
 	memDB, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
 		Backstore: asserts.NewMemoryBackstore(),
 		Trusted:   trusted,
@@ -51,7 +51,7 @@ func newMemAssertionsDB() (db asserts.RODatabase, commitTo func(*asserts.Batch) 
 	}
 
 	commitTo = func(b *asserts.Batch) error {
-		return b.CommitTo(memDB, nil)
+		return b.CommitToAndObserve(memDB, commitObserve, nil)
 	}
 
 	return memDB, commitTo, nil
@@ -142,12 +142,8 @@ func essentialSnapTypesToModelFilter(essentialTypes []snap.Type) func(modSnap *a
 }
 
 func findBrand(seed Seed, db asserts.RODatabase) (*asserts.Account, error) {
-	model, err := seed.Model()
-	if err != nil {
-		return nil, err
-	}
 	a, err := db.Find(asserts.AccountType, map[string]string{
-		"account-id": model.BrandID(),
+		"account-id": seed.Model().BrandID(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("internal error: %v", err)

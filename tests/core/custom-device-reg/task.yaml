@@ -13,10 +13,6 @@ prepare: |
     fi
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
 
     systemctl stop snapd.service snapd.socket
     clean_snapd_lib
@@ -38,7 +34,7 @@ prepare: |
     prepare_testrootorg_store
 
     # start fake device svc
-    systemd_create_and_start_unit fakedevicesvc "$(command -v fakedevicesvc) localhost:11029"
+    systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
 
     # kick first boot again
     systemctl start snapd.service snapd.socket
@@ -53,11 +49,8 @@ restore: |
     fi
     #shellcheck source=tests/lib/core-config.sh
     . "$TESTSLIB"/core-config.sh
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB"/systemd.sh
 
-    systemctl stop snapd.service snapd.socket
-    systemd_stop_and_destroy_unit fakedevicesvc
+    systemctl stop snapd.service snapd.socket fakedevicesvc
     clean_snapd_lib
 
     # Restore pc snap configuration
@@ -82,11 +75,14 @@ execute: |
         exit
     fi
 
+    #shellcheck source=tests/lib/core-config.sh
+    . "$TESTSLIB"/core-config.sh
+
     echo "We have a model assertion"
     snap model --verbose|MATCH "model:\s* my-model"
 
     echo "Wait for device initialisation to be done"
-    while ! snap changes | grep -q "Done.*Initialize device"; do sleep 1; done
+    wait_for_device_initialized_change
 
     echo "Check we have a serial"
     snap model --serial --assertion|MATCH "authority-id: developer1"

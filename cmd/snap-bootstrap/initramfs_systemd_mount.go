@@ -25,6 +25,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -66,6 +67,11 @@ type systemdMountOptions struct {
 	// NoWait will not wait until the systemd unit is active and running, which
 	// is the default behavior.
 	NoWait bool
+	// NoSuid indicates that the partition should be mounted with nosuid set on
+	// it to prevent suid execution.
+	NoSuid bool
+	// Bind indicates a bind mount
+	Bind bool
 }
 
 // doSystemdMount will mount "what" at "where" using systemd-mount(1) with
@@ -120,6 +126,17 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 	// we need to do so.
 	if opts.NoWait {
 		args = append(args, "--no-block")
+	}
+
+	var options []string
+	if opts.NoSuid {
+		options = append(options, "nosuid")
+	}
+	if opts.Bind {
+		options = append(options, "bind")
+	}
+	if len(options) > 0 {
+		args = append(args, "--options=" + strings.Join(options, ","))
 	}
 
 	// note that we do not currently parse any output from systemd-mount, but if

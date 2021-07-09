@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"syscall"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -41,6 +42,9 @@ var snapdServiceStopTimeout = time.Duration(timeout.DefaultTimeout)
 
 // catches units that run /usr/bin/snap (with args), or things in /usr/lib/snapd/
 var execStartRe = regexp.MustCompile(`(?m)^ExecStart=(/usr/bin/snap\s+.*|/usr/lib/snapd/.*)$`)
+
+// snapdToolingMountUnit is the name of the mount unit that makes the
+const SnapdToolingMountUnit = "usr-lib-snapd.mount"
 
 func snapdSkipStart(content []byte) bool {
 	return bytes.Contains(content, []byte("X-Snapd-Snap: do-not-start"))
@@ -61,8 +65,12 @@ func snapdUnitSkipStart(unitPath string) (skip bool, err error) {
 }
 
 func writeSnapdToolingMountUnit(sysd systemd.Systemd, prefix string) error {
+
+	// TODO: the following comment is wrong, we don't need RequiredBy=snapd here?
+
 	// Not using AddMountUnitFile() because we need
 	// "RequiredBy=snapd.service"
+
 	content := []byte(fmt.Sprintf(`[Unit]
 Description=Make the snapd snap tooling available for the system
 Before=snapd.service
@@ -76,8 +84,7 @@ Options=bind
 [Install]
 WantedBy=snapd.service
 `, prefix))
-	unit := "usr-lib-snapd.mount"
-	fullPath := filepath.Join(dirs.SnapServicesDir, unit)
+	fullPath := filepath.Join(dirs.SnapServicesDir, SnapdToolingMountUnit)
 
 	err := osutil.EnsureFileState(fullPath,
 		&osutil.MemoryFileState{
@@ -94,11 +101,14 @@ WantedBy=snapd.service
 	if err := sysd.DaemonReload(); err != nil {
 		return err
 	}
-	if err := sysd.Enable(unit); err != nil {
+	if err := sysd.Enable(SnapdToolingMountUnit); err != nil {
 		return err
 	}
 
-	if err := sysd.Restart(unit, 5*time.Second); err != nil {
+	// meh this is killing snap services that use Requires=<this-unit> because
+	// it doesn't use verbatim systemctl restart, it instead does it with
+	// a systemctl stop and then a systemctl start, which triggers LP #1924805
+	if err := sysd.Restart(SnapdToolingMountUnit, 5*time.Second); err != nil {
 		return err
 	}
 
@@ -137,7 +147,7 @@ func AddSnapdSnapServices(s *snap.Info, inter interacter) error {
 		return nil
 	}
 
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	sysd := systemd.New(systemd.SystemMode, inter)
 
 	if err := writeSnapdToolingMountUnit(sysd, s.MountDir()); err != nil {
 		return err
@@ -289,6 +299,10 @@ func AddSnapdSnapServices(s *snap.Info, inter interacter) error {
 		return err
 	}
 
+	if err := writeSnapdDbusActivationOnCore(s); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -383,7 +397,7 @@ func writeSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
 		return err
 	}
 
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
+	sysd := systemd.New(systemd.GlobalUserMode, inter)
 
 	serviceUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/lib/systemd/user/*.service"))
 	if err != nil {
@@ -451,7 +465,7 @@ func writeSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
 // deployed in the filesystem as part of snapd snap installation. This should
 // only be executed as part of a controlled undo path.
 func undoSnapdUserServicesOnCore(s *snap.Info, inter interacter) error {
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
+	sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.GlobalUserMode, inter)
 
 	// list user service and socket units present in the snapd snap
 	serviceUnits, err := filepath.Glob(filepath.Join(s.MountDir(), "usr/lib/systemd/user/*.service"))
@@ -516,15 +530,40 @@ func DeriveSnapdDBusConfig(s *snap.Info) (sessionContent, systemContent map[stri
 	return sessionContent, systemContent, nil
 }
 
+func isReadOnlyFsError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if e, ok := err.(*os.PathError); ok {
+		err = e.Err
+	}
+	if e, ok := err.(syscall.Errno); ok {
+		return e == syscall.EROFS
+	}
+	return false
+}
+
+var ensureDirState = osutil.EnsureDirState
+
 func writeSnapdDbusConfigOnCore(s *snap.Info) error {
 	sessionContent, systemContent, err := DeriveSnapdDBusConfig(s)
 	if err != nil {
 		return err
 	}
 
-	_, _, err = osutil.EnsureDirState(dirs.SnapDBusSessionPolicyDir, "snapd.*.conf", sessionContent)
+	_, _, err = ensureDirState(dirs.SnapDBusSessionPolicyDir, "snapd.*.conf", sessionContent)
 	if err != nil {
-		return err
+		if isReadOnlyFsError(err) {
+			// If /etc/dbus-1/session.d is read-only (which may be the case on very old core18), then
+			// err is os.PathError with syscall.Errno underneath. Hitting this prevents snapd refresh,
+			// so log the error but carry on. This fixes LP: 1899664.
+			// XXX: ideally we should regenerate session files elsewhere if we fail here (otherwise
+			// this will only happen on future snapd refresh), but realistically this
+			// is not relevant on core18 devices.
+			logger.Noticef("%s appears to be read-only, could not write snapd dbus config files", dirs.SnapDBusSessionPolicyDir)
+		} else {
+			return err
+		}
 	}
 
 	_, _, err = osutil.EnsureDirState(dirs.SnapDBusSystemPolicyDir, "snapd.*.conf", systemContent)
@@ -544,6 +583,33 @@ func undoSnapdDbusConfigOnCore(s *snap.Info) error {
 	return err
 }
 
+var dbusSessionServices = []string{
+	"io.snapcraft.Launcher.service",
+	"io.snapcraft.Settings.service",
+	"io.snapcraft.SessionAgent.service",
+}
+
+func writeSnapdDbusActivationOnCore(s *snap.Info) error {
+	if err := os.MkdirAll(dirs.SnapDBusSessionServicesDir, 0755); err != nil {
+		return err
+	}
+
+	content := make(map[string]osutil.FileState, len(dbusSessionServices)+1)
+	for _, service := range dbusSessionServices {
+		content[service] = &osutil.FileReference{
+			Path: filepath.Join(s.MountDir(), "usr/share/dbus-1/services", service),
+		}
+	}
+
+	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapDBusSessionServicesDir, dbusSessionServices, content)
+	return err
+}
+
+func undoSnapdDbusActivationOnCore(s *snap.Info) error {
+	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapDBusSessionServicesDir, dbusSessionServices, nil)
+	return err
+}
+
 // RemoveSnapdSnapServicesOnCore removes the snapd services generated by a prior
 // call to AddSnapdSnapServices. The core snap is used as the reference for
 // restoring the system state, making this undo helper suitable for use when
@@ -558,8 +624,11 @@ func RemoveSnapdSnapServicesOnCore(s *snap.Info, inter interacter) error {
 		return nil
 	}
 
-	sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, inter)
+	sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, inter)
 
+	if err := undoSnapdDbusActivationOnCore(s); err != nil {
+		return err
+	}
 	if err := undoSnapdDbusConfigOnCore(s); err != nil {
 		return err
 	}

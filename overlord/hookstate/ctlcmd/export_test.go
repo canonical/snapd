@@ -22,18 +22,30 @@ package ctlcmd
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
 
+const (
+	NotASnapCode    = notASnapCode
+	ClassicSnapCode = classicSnapCode
+)
+
 var AttributesTask = attributesTask
 
-func MockServicestateControlFunc(f func(*state.State, []*snap.AppInfo, *servicestate.Instruction, *hookstate.Context) ([]*state.TaskSet, error)) (restore func()) {
+func MockServicestateControlFunc(f func(*state.State, []*snap.AppInfo, *servicestate.Instruction, *servicestate.Flags, *hookstate.Context) ([]*state.TaskSet, error)) (restore func()) {
 	old := servicestateControl
 	servicestateControl = f
 	return func() { servicestateControl = old }
+}
+
+func MockDevicestateSystemModeInfoFromState(f func(*state.State) (*devicestate.SystemModeInfo, error)) (restore func()) {
+	old := devicestateSystemModeInfoFromState
+	devicestateSystemModeInfoFromState = f
+	return func() { devicestateSystemModeInfoFromState = old }
 }
 
 func AddMockCommand(name string) *MockCommand {
@@ -87,4 +99,12 @@ func (c *MockCommand) Execute(args []string) error {
 	}
 
 	return nil
+}
+
+func MockCgroupSnapNameFromPid(f func(int) (string, error)) (restore func()) {
+	old := cgroupSnapNameFromPid
+	cgroupSnapNameFromPid = f
+	return func() {
+		cgroupSnapNameFromPid = old
+	}
 }

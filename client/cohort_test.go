@@ -25,7 +25,6 @@ import (
 	"io/ioutil"
 
 	"golang.org/x/xerrors"
-
 	"gopkg.in/check.v1"
 )
 

@@ -54,6 +54,7 @@ const blockDevicesConnectedPlugAppArmor = `
 /sys/block/ r,
 /sys/devices/**/block/** r,
 /sys/dev/block/ r,
+/sys/devices/platform/soc/**/mmc_host/** r,
 # Allow reading major and minor numbers for block special files of NVMe namespaces.
 /sys/devices/**/nvme/**/dev r,
 

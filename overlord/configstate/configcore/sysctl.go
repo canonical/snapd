@@ -22,12 +22,14 @@ package configcore
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strconv"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -61,7 +63,7 @@ func validateSysctlOptions(tr config.ConfGetter) error {
 	return nil
 }
 
-func handleSysctlConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleSysctlConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	root := dirs.GlobalRootDir
 	if opts != nil {
 		root = opts.RootDir
@@ -91,8 +93,14 @@ func handleSysctlConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error 
 		}
 	}
 
-	// write the new config
 	dir := filepath.Join(root, sysctlConfsDir)
+	if opts != nil {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return err
+		}
+	}
+
+	// write the new config
 	glob := snapdSysctlConf
 	changed, removed, err := osutil.EnsureDirState(dir, glob, dirContent)
 	if err != nil {

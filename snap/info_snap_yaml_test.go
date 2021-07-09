@@ -28,9 +28,8 @@ import (
 
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
-	"github.com/snapcore/snapd/timeout"
-
 	"github.com/snapcore/snapd/testutil"
+	"github.com/snapcore/snapd/timeout"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -1627,8 +1626,8 @@ apps:
        socket-mode: asdfasdf
 `)
 	_, err := snap.InfoFromSnapYaml(y)
-	c.Check(err.Error(), Equals, "cannot parse snap.yaml: yaml: unmarshal errors:\n"+
-		"  line 9: cannot unmarshal !!str `asdfasdf` into os.FileMode")
+	c.Check(err.Error(), Matches, "cannot parse snap.yaml: yaml: unmarshal errors:\n"+
+		"  line 9: cannot unmarshal !!str `asdfasdf` into (os|fs).FileMode")
 }
 
 func (s *YamlSuite) TestDaemonInvalidDaemonScope(c *C) {

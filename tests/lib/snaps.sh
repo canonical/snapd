@@ -1,56 +1,5 @@
 #!/bin/bash
 
-make_snap() {
-    local SNAP_NAME="$1"
-    local SNAP_DIR="$TESTSLIB/snaps/${SNAP_NAME}"
-    if [ $# -gt 1 ]; then
-        SNAP_DIR="$2"
-    fi
-    local SNAP_FILE="${SNAP_DIR}/${SNAP_NAME}_1.0_all.snap"
-    # assigned in a separate step to avoid hiding a failure
-    if [ ! -f "$SNAP_FILE" ]; then
-        snap pack "$SNAP_DIR" "$SNAP_DIR" >/dev/null || return 1
-    fi
-    # echo the snap name
-    if [ -f "$SNAP_FILE" ]; then
-        echo "$SNAP_FILE"
-    else
-        find "$SNAP_DIR" -name '*.snap' | head -n1
-    fi
-}
-
-install_local() {
-    local SNAP_NAME="$1"
-    local SNAP_DIR="$TESTSLIB/snaps/${SNAP_NAME}"
-    shift
-
-    if [ -d "$SNAP_NAME" ]; then
-        SNAP_DIR="$PWD/$SNAP_NAME"
-    fi
-    SNAP_FILE=$(make_snap "$SNAP_NAME" "$SNAP_DIR")
-
-    snap install --dangerous "$@" "$SNAP_FILE"
-}
-
-install_local_as() {
-    local snap="$1"
-    local name="$2"
-    shift 2
-    install_local "$snap" --name "$name" "$@"
-}
-
-install_local_devmode() {
-    install_local "$1" --devmode
-}
-
-install_local_classic() {
-    install_local "$1" --classic
-}
-
-install_local_jailmode() {
-    install_local "$1" --jailmode
-}
-
 # mksnap_fast creates a snap using a faster compress algorithm (gzip)
 # than the regular snaps (which are lzma)
 mksnap_fast() {
@@ -97,6 +46,9 @@ repack_snapd_deb_into_snapd_snap() {
 
     # repack into the target dir specified
     snap pack --filename=snapd-from-deb.snap  snapd-unpacked "$1"
+
+    # cleanup
+    rm -rf snapd-unpacked
 }
 
 # repack_snapd_deb_into_core_snap will re-pack a core snap using the assets 
@@ -112,6 +64,9 @@ repack_snapd_deb_into_core_snap() {
 
     # repack into the target dir specified
     snap pack --filename=core-from-snapd-deb.snap  core-unpacked "$1"
+
+    # cleanup
+    rm -rf core-unpacked
 }
 
 # repack_installed_core_snap_into_snapd_snap will re-pack the core snap as the snapd snap,

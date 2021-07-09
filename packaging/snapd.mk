@@ -52,6 +52,10 @@ endif
 # The list of go binaries we are expected to build.
 go_binaries = snap snapctl snap-seccomp snap-update-ns snap-exec snapd
 
+# The snapd package does not support Go modules. Since Go 1.16 those are on by
+# default, so make sure to disable them.
+export GO111MODULE = off
+
 # NOTE: This *depends* on building out of tree. Some of the built binaries
 # conflict with directory names in the tree.
 .PHONY: all
@@ -65,7 +69,9 @@ snap snap-seccomp:
 # nearly-arbitrary mount namespace that does not contain anything we can depend
 # on (no standard library, for example).
 snap-update-ns snap-exec snapctl:
-	go build -buildmode=default -ldflags '-extldflags "-static"' $(import_path)/cmd/$@
+	# Explicit request to use an external linker, otherwise extldflags may not be
+	# used
+	go build -buildmode=default -ldflags '-linkmode external -extldflags "-static"' $(import_path)/cmd/$@
 
 # Snapd can be built with test keys. This is only used by the internal test
 # suite to add test assertions. Do not enable this in distribution packages.

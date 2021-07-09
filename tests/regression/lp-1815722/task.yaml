@@ -1,11 +1,10 @@
 summary: regression test for https://bugs.launchpad.net/snapd/+bug/1815722
-execute: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
 
-    install_local snap-hooks-bad-install || true
+restore: |
+    snapd.tool exec snap-discard-ns snap-hooks-bad-install
+
+execute: |
+    "$TESTSTOOLS"/snaps-state install-local snap-hooks-bad-install || true
 
     test ! -e /var/lib/snapd/ns/snap-hooks-bad-install.mnt
     test ! -e /var/lib/snapd/ns/snap.snap-hooks-bad-install.fstab
-restore: |
-    snapd.tool exec snap-discard-ns snap-hooks-bad-install

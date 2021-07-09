@@ -11,7 +11,7 @@ pkgdesc="Service and tools for management of snap packages."
 depends=('squashfs-tools' 'libseccomp' 'libsystemd' 'apparmor')
 optdepends=('bash-completion: bash completion support'
             'xdg-desktop-portal: desktop integration')
-pkgver=2.46
+pkgver=2.51.2
 pkgrel=1
 arch=('x86_64' 'i686' 'armv7h' 'aarch64')
 url="https://github.com/snapcore/snapd"
@@ -77,8 +77,8 @@ build() {
   # because argument expansion with quoting in bash is hard, and -ldflags=-extldflags='-foo'
   # is not exactly the same as -ldflags "-extldflags '-foo'" use the array trick
   # to pass exactly what we want
-  flags=(-buildmode=pie -ldflags "-s -extldflags '$LDFLAGS'")
-  staticflags=(-buildmode=pie -ldflags "-s -linkmode external -extldflags '$LDFLAGS -static'")
+  flags=(-buildmode=pie -ldflags "-s -linkmode external -extldflags '$LDFLAGS'" -trimpath)
+  staticflags=(-buildmode=pie -ldflags "-s -linkmode external -extldflags '$LDFLAGS -static'" -trimpath)
   # Build/install snap and snapd
   go build "${flags[@]}" -o "$srcdir/go/bin/snap" $GOFLAGS_SNAP "${_gourl}/cmd/snap"
   go build "${flags[@]}" -o "$srcdir/go/bin/snapd" $GOFLAGS "${_gourl}/cmd/snapd"
@@ -132,6 +132,9 @@ check() {
 package() {
   cd "$pkgname"
   export GOPATH="$srcdir/go"
+  # snapd does not use modules, setting GO111MODULE=on in the environment breaks
+  # the build
+  unset GO111MODULE
 
   # Install bash completion
   install -Dm644 data/completion/bash/snap \
@@ -204,6 +207,7 @@ package() {
   # Remove snappy core specific units
   rm -fv "$pkgdir/usr/lib/systemd/system/snapd.system-shutdown.service"
   rm -fv "$pkgdir/usr/lib/systemd/system/snapd.autoimport.service"
+  rm -fv "$pkgdir/usr/lib/systemd/system/snapd.recovery-chooser-trigger.service"
   rm -fv "$pkgdir"/usr/lib/systemd/system/snapd.snap-repair.*
   rm -fv "$pkgdir"/usr/lib/systemd/system/snapd.core-fixup.*
   # and scripts

@@ -5,14 +5,14 @@ systems: [ubuntu-16.04-64]
 prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-    fetch_spread
+    nested_fetch_spread
 
 execute: |
     cd "$SPREAD_PATH"
 
     set +x
     export SPREAD_EXTERNAL_ADDRESS=localhost:8022
-    "$WORK_DIR/spread" -v external:ubuntu-core-16-64:tests/main/ubuntu-core-reboot \
+    "$NESTED_WORK_DIR/spread" -v external:ubuntu-core-16-64:tests/main/ubuntu-core-reboot \
                             external:ubuntu-core-16-64:tests/main/install-store \
                             external:ubuntu-core-16-64:tests/main/interfaces-system-observe \
-                            external:ubuntu-core-16-64:tests/main/op-remove-retry | while read -r line; do echo "> $line"; done
+                            external:ubuntu-core-16-64:tests/main/op-remove-retry

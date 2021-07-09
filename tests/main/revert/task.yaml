@@ -1,16 +1,16 @@
 summary: Check that revert works.
 
+# ubuntu-14.04: systemd-run not supported
+systems: [-ubuntu-14.04*]
+
 environment:
     STORE_TYPE/fake: fake
     STORE_TYPE/remote: ${REMOTE_STORE}
     BLOB_DIR: $(pwd)/fake-store-blobdir
 
 prepare: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     if [ "$STORE_TYPE" = "fake" ]; then
-        if is_core_system; then
+        if os.query is-core; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -34,11 +34,8 @@ prepare: |
     fi
 
 restore: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     if [ "$STORE_TYPE" = "fake" ]; then
-        if is_core_system; then
+        if os.query is-core; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -51,11 +48,8 @@ restore: |
     fi
 
 execute: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     if [ "$STORE_TYPE" = "fake" ]; then
-        if is_core_system; then
+        if os.query is-core; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -69,9 +63,6 @@ execute: |
         echo "Reverting without snap name should fail"
         exit 1
     fi
-
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
 
     echo "When a refresh is made"
     snap refresh --edge test-snapd-tools
@@ -89,7 +80,8 @@ execute: |
     snap list | MATCH -- 'test-snapd-tools +[0-9]+\.[0-9]+ '
 
     echo "And the data directories are present"
-    find $SNAP_MOUNT_DIR/test-snapd-tools -maxdepth 1 | MATCH current
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    find "$SNAP_MOUNT_DIR/test-snapd-tools" -maxdepth 1 | MATCH current
     find /var/snap/test-snapd-tools -maxdepth 1 | MATCH current
 
     echo "And the snap runs confined"

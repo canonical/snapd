@@ -27,8 +27,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/snapcore/snapd/asserts"
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/asserts"
 )
 
 var (
@@ -39,6 +40,8 @@ type repairSuite struct {
 	modelsLine string
 	ts         time.Time
 	tsLine     string
+	basesLine  string
+	modesLine  string
 
 	repairStr string
 }
@@ -76,6 +79,8 @@ var repairExample = fmt.Sprintf("type: repair\n"+
 	"  - 16\n"+
 	"MODELSLINE"+
 	"TSLINE"+
+	"BASESLINE"+
+	"MODESLINE"+
 	"body-length: %v\n"+
 	"sign-key-sha3-384: Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij"+
 	"\n\n"+
@@ -86,9 +91,13 @@ func (s *repairSuite) SetUpTest(c *C) {
 	s.modelsLine = "models:\n  - acme/frobinator\n"
 	s.ts = time.Now().Truncate(time.Second).UTC()
 	s.tsLine = "timestamp: " + s.ts.Format(time.RFC3339) + "\n"
+	s.basesLine = "bases:\n  - core20\n"
+	s.modesLine = "modes:\n  - run\n"
 
 	s.repairStr = strings.Replace(repairExample, "MODELSLINE", s.modelsLine, 1)
 	s.repairStr = strings.Replace(s.repairStr, "TSLINE", s.tsLine, 1)
+	s.repairStr = strings.Replace(s.repairStr, "BASESLINE", s.basesLine, 1)
+	s.repairStr = strings.Replace(s.repairStr, "MODESLINE", s.modesLine, 1)
 }
 
 func (s *repairSuite) TestDecodeOK(c *C) {
@@ -104,6 +113,8 @@ func (s *repairSuite) TestDecodeOK(c *C) {
 	c.Check(repair.Sequence(), Equals, 42)
 	c.Check(repair.Summary(), Equals, "example repair")
 	c.Check(repair.Series(), DeepEquals, []string{"16"})
+	c.Check(repair.Bases(), DeepEquals, []string{"core20"})
+	c.Check(repair.Modes(), DeepEquals, []string{"run"})
 	c.Check(repair.Architectures(), DeepEquals, []string{"amd64", "arm64"})
 	c.Check(repair.Models(), DeepEquals, []string{"acme/frobinator"})
 	c.Check(string(repair.Body()), Equals, script)
@@ -126,6 +137,8 @@ func (s *repairSuite) TestDisabled(c *C) {
 	for _, test := range disabledTests {
 		repairStr := strings.Replace(repairExample, "MODELSLINE", fmt.Sprintf("disabled: %s\n", test.disabled), 1)
 		repairStr = strings.Replace(repairStr, "TSLINE", s.tsLine, 1)
+		repairStr = strings.Replace(repairStr, "BASESLINE", "", 1)
+		repairStr = strings.Replace(repairStr, "MODESLINE", "", 1)
 
 		a, err := asserts.Decode([]byte(repairStr))
 		if test.expectedErr != "" {
@@ -134,6 +147,175 @@ func (s *repairSuite) TestDisabled(c *C) {
 			c.Assert(err, IsNil)
 			repair := a.(*asserts.Repair)
 			c.Check(repair.Disabled(), Equals, test.dis)
+		}
+	}
+}
+
+func (s *repairSuite) TestDecodeModesAndBases(c *C) {
+	tt := []struct {
+		comment  string
+		bases    []string
+		modes    []string
+		expbases []string
+		expmodes []string
+		err      string
+	}{
+		// happy uc20+ cases
+		{
+			comment:  "core20 base with run mode",
+			bases:    []string{"core20"},
+			modes:    []string{"run"},
+			expbases: []string{"core20"},
+			expmodes: []string{"run"},
+		},
+		{
+			comment:  "core20 base with recover mode",
+			bases:    []string{"core20"},
+			modes:    []string{"recover"},
+			expbases: []string{"core20"},
+			expmodes: []string{"recover"},
+		},
+		{
+			comment:  "core20 base with recover and run modes",
+			bases:    []string{"core20"},
+			modes:    []string{"recover", "run"},
+			expbases: []string{"core20"},
+			expmodes: []string{"recover", "run"},
+		},
+		{
+			comment:  "core22 base with run mode",
+			bases:    []string{"core22"},
+			modes:    []string{"run"},
+			expbases: []string{"core22"},
+			expmodes: []string{"run"},
+		},
+		{
+			comment:  "core20 and core22 bases with run mode",
+			bases:    []string{"core20", "core22"},
+			modes:    []string{"run"},
+			expbases: []string{"core20", "core22"},
+			expmodes: []string{"run"},
+		},
+		{
+			comment:  "core20 and core22 bases with run and recover modes",
+			bases:    []string{"core20", "core22"},
+			modes:    []string{"run", "recover"},
+			expbases: []string{"core20", "core22"},
+			expmodes: []string{"run", "recover"},
+		},
+		{
+			comment:  "all bases with run mode (effectively all uc20 bases)",
+			modes:    []string{"run"},
+			expmodes: []string{"run"},
+		},
+		{
+			comment:  "all bases with recover mode (effectively all uc20 bases)",
+			modes:    []string{"recover"},
+			expmodes: []string{"recover"},
+		},
+		{
+			comment:  "core20 base with empty modes",
+			bases:    []string{"core20"},
+			expbases: []string{"core20"},
+		},
+		{
+			comment:  "core22 base with empty modes",
+			bases:    []string{"core22"},
+			expbases: []string{"core22"},
+		},
+
+		// unhappy uc20 cases
+		{
+			comment: "core20 base with single invalid mode",
+			bases:   []string{"core20"},
+			modes:   []string{"not-a-real-uc20-mode"},
+			err:     `assertion repair: header \"modes\" contains an invalid element: \"not-a-real-uc20-mode\" \(valid values are run and recover\)`,
+		},
+		{
+			comment: "core20 base with invalid modes",
+			bases:   []string{"core20"},
+			modes:   []string{"run", "not-a-real-uc20-mode"},
+			err:     `assertion repair: header \"modes\" contains an invalid element: \"not-a-real-uc20-mode\" \(valid values are run and recover\)`,
+		},
+		{
+			comment: "core20 base with install mode",
+			bases:   []string{"core20"},
+			modes:   []string{"install"},
+			err:     `assertion repair: header \"modes\" contains an invalid element: \"install\" \(valid values are run and recover\)`,
+		},
+
+		// happy uc18/uc16 cases
+		{
+			comment:  "core18 base with empty modes",
+			bases:    []string{"core18"},
+			expbases: []string{"core18"},
+		},
+		{
+			comment:  "core base with empty modes",
+			bases:    []string{"core"},
+			expbases: []string{"core"},
+		},
+
+		// unhappy uc18/uc16 cases
+		{
+			comment: "core18 base with non-empty modes",
+			bases:   []string{"core18"},
+			modes:   []string{"run"},
+			err:     "assertion repair: in the presence of a non-empty \"modes\" header, \"bases\" must only contain base snaps supporting recovery modes",
+		},
+		{
+			comment: "core base with non-empty modes",
+			bases:   []string{"core"},
+			modes:   []string{"run"},
+			err:     "assertion repair: in the presence of a non-empty \"modes\" header, \"bases\" must only contain base snaps supporting recovery modes",
+		},
+		{
+			comment: "core16 base with non-empty modes",
+			bases:   []string{"core16"},
+			modes:   []string{"run"},
+			err:     "assertion repair: in the presence of a non-empty \"modes\" header, \"bases\" must only contain base snaps supporting recovery modes",
+		},
+
+		// unhappy non-core specific cases
+		{
+			comment: "invalid snap name as base",
+			bases:   []string{"foo....bar"},
+			err:     "assertion repair: invalid snap name \"foo....bar\" in \"bases\"",
+		},
+	}
+
+	for _, t := range tt {
+		comment := Commentf(t.comment)
+		repairStr := strings.Replace(repairExample, "MODELSLINE", s.modelsLine, 1)
+		repairStr = strings.Replace(repairStr, "TSLINE", s.tsLine, 1)
+
+		var basesStr, modesStr string
+		if len(t.bases) != 0 {
+			basesStr = "bases:\n"
+			for _, b := range t.bases {
+				basesStr += "  - " + b + "\n"
+			}
+		}
+		if len(t.modes) != 0 {
+			modesStr = "modes:\n"
+			for _, m := range t.modes {
+				modesStr += "  - " + m + "\n"
+			}
+		}
+
+		repairStr = strings.Replace(repairStr, "BASESLINE", basesStr, 1)
+		repairStr = strings.Replace(repairStr, "MODESLINE", modesStr, 1)
+
+		assert, err := asserts.Decode([]byte(repairStr))
+		if t.err != "" {
+			c.Assert(err, ErrorMatches, t.err, comment)
+		} else {
+			c.Assert(err, IsNil, comment)
+			repair, ok := assert.(*asserts.Repair)
+			c.Assert(ok, Equals, true, comment)
+
+			c.Assert(repair.Bases(), DeepEquals, t.expbases, comment)
+			c.Assert(repair.Modes(), DeepEquals, t.expmodes, comment)
 		}
 	}
 }
@@ -166,7 +348,7 @@ func (s *repairSuite) TestDecodeInvalid(c *C) {
 }
 
 // FIXME: move to a different layer later
-func (s *repairSuite) TestRepairCanEmbeddScripts(c *C) {
+func (s *repairSuite) TestRepairCanEmbedScripts(c *C) {
 	a, err := asserts.Decode([]byte(s.repairStr))
 	c.Assert(err, IsNil)
 	c.Check(a.Type(), Equals, asserts.RepairType)

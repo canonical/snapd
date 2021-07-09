@@ -12,16 +12,10 @@ details: |
     is also shown when the plug is connected.
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     echo "Given a snap declaring a plug on the mount-observe interface is installed"
-    install_local mount-observe-consumer
+    "$TESTSTOOLS"/snaps-state install-local mount-observe-consumer
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     echo "The interface is not connected by default"
     snap interfaces -i mount-observe | MATCH -- '- +mount-observe-consumer:mount-observe'
 
@@ -29,6 +23,7 @@ execute: |
     snap connect mount-observe-consumer:mount-observe
 
     echo "Then the mount info is reachable"
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     expected="$SNAP_MOUNT_DIR/mount-observe-consumer"
     su -l -c "mount-observe-consumer" test | grep -Pq "$expected"
 
@@ -36,9 +31,7 @@ execute: |
     snap connect mount-observe-consumer:mount-observe
 
     echo "And a new mount is created"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     echo "Then the new mount info is reachable"
     expected="$SNAP_MOUNT_DIR/test-snapd-sh"

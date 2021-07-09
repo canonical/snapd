@@ -4,9 +4,7 @@ details: |
     The personal-files interface allows access specific personal files or directories.
 
 prepare: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     # Fist layer of dirs and files
     "$TESTSTOOLS"/fs-state mock-file /root/.testfile1

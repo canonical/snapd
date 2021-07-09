@@ -1,9 +1,6 @@
 summary: Check that snapd failure handling works
 
 prepare: |
-    # shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB/systems.sh"
-
     # shellcheck source=tests/lib/snaps.sh
     . "$TESTSLIB/snaps.sh"
 
@@ -11,7 +8,7 @@ prepare: |
     # test because it by default uses the core snap
     # there is a different test for the transition between the core snap and the
     # snapd snap
-    if is_core16_system; then
+    if os.query is-core16; then
         # rebuild the core snap into the snapd snap and install it
         repack_installed_core_snap_into_snapd_snap
         snap install --dangerous snapd-from-core.snap
@@ -20,29 +17,8 @@ prepare: |
     snap list snapd
     ls -l /snap/snapd/
 
-debug: |
-    # shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB/systems.sh"
-
-    # dump failure data
-    journalctl -u snapd.failure.service
-    journalctl -u snapd.socket || true
-    if is_core16_system; then
-        # might be useful to know what's up with the core snap too on uc16
-        ls -l /snap/core/
-    fi
-    ls -l /snap/snapd/
-
-    cat /etc/systemd/system/snapd.service
-    cat /etc/systemd/system/usr-lib-snapd.mount
-    /snap/snapd/x1/usr/bin/snap debug state /var/lib/snapd/state.json || true
-    /snap/snapd/x1/usr/bin/snap debug state --change="$(/snap/snapd/x1/usr/bin/snap debug state /var/lib/snapd/state.json|tail -n1|awk '{print $1}')" /var/lib/snapd/state.json || true
-
 restore: |
-    # shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB/systems.sh"
-
-    if is_core16_system; then
+    if os.query is-core16; then
         echo "ensuring we reverted fully to core snap system"
         not test -d /snap/snapd
         # cleanup the snapd-from-core snap we built
@@ -55,10 +31,22 @@ restore: |
         rm -f /etc/dbus-1/system.d/snapd.system-services.conf
     fi
 
-execute: |
-    # shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB/systems.sh"
+debug: |
+    # dump failure data
+    journalctl -u snapd.failure.service
+    journalctl -u snapd.socket || true
+    if os.query is-core16; then
+        # might be useful to know what's up with the core snap too on uc16
+        ls -l /snap/core/
+    fi
+    ls -l /snap/snapd/
 
+    cat /etc/systemd/system/snapd.service
+    cat /etc/systemd/system/usr-lib-snapd.mount
+    /snap/snapd/x1/usr/bin/snap debug state /var/lib/snapd/state.json || true
+    /snap/snapd/x1/usr/bin/snap debug state --change="$(/snap/snapd/x1/usr/bin/snap debug state /var/lib/snapd/state.json|tail -n1|awk '{print $1}')" /var/lib/snapd/state.json || true
+
+execute: |
     if [ "$SPREAD_REBOOT" = 0 ]; then
         echo "Testing failover handling of the snapd snap"
 
@@ -141,7 +129,7 @@ execute: |
         # do that restoration here
         # TODO: move this to restore section when spread is fixed
         # see https://github.com/snapcore/spread/pull/85
-        if is_core16_system; then
+        if os.query is-core16; then
             echo "Manually uninstall the snapd snap on UC16"
             systemctl stop snapd.service snapd.socket snapd.autoimport.service snapd.snap-repair.service snapd.snap-repair.timer
             umount "/snap/snapd/$(readlink /snap/snapd/current)"
@@ -163,7 +151,7 @@ execute: |
     else # "$SPREAD_REBOOT" != 0
         # technically this check is unnecessary because we only reboot during
         # the test's execution on uc16, but just be extra safe
-        if is_core16_system; then
+        if os.query is-core16; then
             # now remove the snapd snap since we booted with the core snap
             snap list
             # this only succeeds because we reverted back to having the core 

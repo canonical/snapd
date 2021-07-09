@@ -1,7 +1,5 @@
 summary: Ensure that the network-control interface works.
 
-systems: [-fedora-*, -opensuse-*]
-
 details: |
     The network-control interface allows a snap to configure networking.
 
@@ -13,33 +11,28 @@ details: |
     and ask for its status, the test sets up a network service, gets information about it (read
     capability) and creates an arp entry (write capability).
 
+# ubuntu-14.04: systemd-run not supported
+systems: [-fedora-*, -opensuse-*, -ubuntu-14.04*]
+
 environment:
     PORT: 8081
-    SERVICE_FILE: "./service.sh"
     SERVICE_NAME: "test-service"
     ARP_ENTRY_ADDR: "30.30.30.30"
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB/systemd.sh"
     echo "Given a snap declaring a plug on the network-control interface is installed"
-    install_local network-control-consumer
+    "$TESTSTOOLS"/snaps-state install-local network-control-consumer
 
     echo "And a network service is up"
     # shellcheck source=tests/lib/network.sh
     . "$TESTSLIB"/network.sh
-    make_network_service "$SERVICE_NAME" "$SERVICE_FILE" "$PORT"
+    make_network_service "$SERVICE_NAME" "$PORT"
 
 restore: |
-    #shellcheck source=tests/lib/systemd.sh
-    . "$TESTSLIB/systemd.sh"
     #shellcheck source=tests/lib/network.sh
     . "$TESTSLIB/network.sh"
 
-    #shellcheck disable=SC2153
-    systemd_stop_and_destroy_unit "$SERVICE_NAME"
+    systemctl stop "$SERVICE_NAME"
     arp -d "$ARP_ENTRY_ADDR" -i "$(get_default_iface)" || true
 
     ip netns delete test-ns || true
@@ -110,7 +103,7 @@ execute: |
     network-control-consumer.cmd ip link set veth1 netns test-ns
 
     ip link list | MATCH "veth0"
-    ip link list | not MATCH "veth1"
+    ip link list | NOMATCH "veth1"
 
     echo "And a command can be executed in the context of the namespace"
     network-control-consumer.cmd ip netns exec test-ns ip link list | MATCH "veth1"

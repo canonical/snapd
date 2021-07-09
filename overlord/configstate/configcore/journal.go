@@ -28,6 +28,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -42,7 +43,7 @@ func validateJournalSettings(tr config.ConfGetter) error {
 	return validateBoolFlag(tr, "journal.persistent")
 }
 
-func handleJournalConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleJournalConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	output, err := coreCfg(tr, "journal.persistent")
 	if err != nil {
 		return nil
@@ -110,7 +111,7 @@ func handleJournalConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error
 		// upstream bug: https://bugs.freedesktop.org/show_bug.cgi?id=84923,
 		// therefore only tell journald to reload if it's new enough.
 		if ver >= 236 {
-			sysd := systemd.New(dirs.GlobalRootDir, systemd.SystemMode, nil)
+			sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, nil)
 			if err := sysd.Kill("systemd-journald", "USR1", ""); err != nil {
 				return err
 			}

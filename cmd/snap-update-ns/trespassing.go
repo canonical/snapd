@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -42,6 +43,16 @@ type Assumptions struct {
 	// major:minor number is packed into one uint64 as in syscall.Stat_t.Dev
 	// field.
 	verifiedDevices map[uint64]bool
+
+	// modeHints overrides implicit 0755 mode of directories created while
+	// ensuring source and target paths exist.
+	modeHints []ModeHint
+}
+
+// ModeHint provides mode for directories created to satisfy mount changes.
+type ModeHint struct {
+	PathGlob string
+	Mode     os.FileMode
 }
 
 // AddUnrestrictedPaths adds a list of directories where writing is allowed
@@ -50,6 +61,36 @@ type Assumptions struct {
 // such as /tmp, $SNAP_DATA and $SNAP.
 func (as *Assumptions) AddUnrestrictedPaths(paths ...string) {
 	as.unrestrictedPaths = append(as.unrestrictedPaths, paths...)
+}
+
+// AddModeHint adds a path glob and mode used when creating path elements.
+func (as *Assumptions) AddModeHint(pathGlob string, mode os.FileMode) {
+	as.modeHints = append(as.modeHints, ModeHint{PathGlob: pathGlob, Mode: mode})
+}
+
+// ModeForPath returns the mode for creating a directory at a given path.
+//
+// The default mode is 0755 but AddModeHint calls can influence the mode at a
+// specific path. When matching path elements, "*" does not match the directory
+// separator. In effect it can only be used as a wildcard for a specific
+// directory name. This constraint makes hints easier to model in practice.
+//
+// When multiple hints match the given path, ModeForPath panics.
+func (as *Assumptions) ModeForPath(path string) os.FileMode {
+	mode := os.FileMode(0755)
+	var foundHint *ModeHint
+	for _, hint := range as.modeHints {
+		if ok, _ := filepath.Match(hint.PathGlob, path); ok {
+			if foundHint == nil {
+				mode = hint.Mode
+				foundHint = &hint
+			} else {
+				panic(fmt.Errorf("cannot find unique mode for path %q: %q and %q both provide hints",
+					path, foundHint.PathGlob, foundHint.PathGlob))
+			}
+		}
+	}
+	return mode
 }
 
 // isRestricted checks whether a path falls under restricted writing scheme.

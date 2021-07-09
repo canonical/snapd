@@ -6,11 +6,8 @@ details: |
     The test-snapd-netlink-connector snap creates a netlink socket and binds it. 
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     # Install a snap declaring a plug on netlink-connector
-    install_local test-snapd-netlink-connector
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-netlink-connector
 
 execute: |
     echo "The interface is not connected by default"

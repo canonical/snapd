@@ -30,11 +30,11 @@ func (client *Client) SetDoer(d doer) {
 	client.doer = d
 }
 
-type DoFlags = doFlags
+type DoOptions = doOptions
 
 // Do does do.
-func (client *Client) Do(method, path string, query url.Values, body io.Reader, v interface{}, flags DoFlags) (statusCode int, err error) {
-	return client.do(method, path, query, nil, body, v, flags)
+func (client *Client) Do(method, path string, query url.Values, body io.Reader, v interface{}, opts *DoOptions) (statusCode int, err error) {
+	return client.do(method, path, query, nil, body, v, opts)
 }
 
 // expose parseError for testing
@@ -53,3 +53,11 @@ func UnmarshalSnapshotAction(body io.Reader) (act snapshotAction, err error) {
 }
 
 type DownloadAction = downloadAction
+
+func MockStdinReadLimit(new int64) (restore func()) {
+	oldStdinReadLimit := stdinReadLimit
+	stdinReadLimit = new
+	return func() {
+		stdinReadLimit = oldStdinReadLimit
+	}
+}

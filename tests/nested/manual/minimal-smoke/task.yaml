@@ -2,17 +2,17 @@ summary: execute smoke tests in a nested Ubuntu Core VM that meets the minimal r
 
 systems: [ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-20.04-64]
 
+environment:
+    NESTED_ENABLE_SECURE_BOOT/secboot_disabled: false
+    NESTED_ENABLE_TPM/secboot_disabled: false
+    NESTED_ENABLE_SECURE_BOOT/secboot_enabled: true
+    NESTED_ENABLE_TPM/secboot_enabled: true
+
 prepare: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-    fetch_spread
-    create_nested_core_vm
-
-restore: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    destroy_nested_vm
-    cleanup_nested_env
+    nested_fetch_spread
+    tests.nested build-image core
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
@@ -20,25 +20,28 @@ execute: |
 
     # see https://docs.ubuntu.com/core/en/#advantages-for-iot for minimum
     # requirements
-    if is_core_20_nested_system ; then
-        # TODO:UC20: due to https://bugs.launchpad.net/snapd/+bug/1878541 once fixed
-        # it should be 256 as well
-        MINIMAL_MEM=1536
+    MINIMAL_MEM=256
+
+    if nested_is_core_20_system ; then
+        # TODO:UC20: this should written down in the official docs
+        if nested_is_secure_boot_enabled; then
+            MINIMAL_MEM=512
+        else
+            MINIMAL_MEM=384
+        fi
         NESTED_SPREAD_SYSTEM=ubuntu-core-20-64
-    elif is_core_18_nested_system; then
+    elif nested_is_core_18_system; then
         NESTED_SPREAD_SYSTEM=ubuntu-core-18-64
-        MINIMAL_MEM=256
-    elif is_core_16_nested_system; then
+    elif nested_is_core_16_system; then
         NESTED_SPREAD_SYSTEM=ubuntu-core-16-64
-        MINIMAL_MEM=256
     else
         echo "unsupported nested system"
         exit 1
     fi
 
-    PARAM_MEM="-m $MINIMAL_MEM" start_nested_core_vm
+    tests.nested create-vm core --param-mem "-m $MINIMAL_MEM"
 
+    echo "Run spread smoke tests using mem: $MINIMAL_MEM"
     set +x
     export SPREAD_EXTERNAL_ADDRESS=localhost:8022
-    "$WORK_DIR/spread" -v "external:$NESTED_SPREAD_SYSTEM:tests/smoke/..." | \
-        while read -r line; do echo "> $line"; done
+    "$NESTED_WORK_DIR/spread" -v "external:$NESTED_SPREAD_SYSTEM:tests/smoke/..."

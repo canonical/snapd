@@ -28,7 +28,9 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -153,6 +155,7 @@ func (s *snapTestSuite) TestMockInvalidInfo(c *C) {
 
 func (s *snapTestSuite) TestRenameSlot(c *C) {
 	snapInfo := snaptest.MockInfo(c, `name: core
+type: os
 version: 0
 slots:
   old:
@@ -241,4 +244,22 @@ version: 1.0`
 	readGadgetYaml, err := cont.ReadFile("meta/gadget.yaml")
 	c.Assert(err, IsNil)
 	c.Check(readGadgetYaml, DeepEquals, []byte(gadgetYaml))
+}
+
+func (s *snapTestSuite) TestMakeSnapFileAndDir(c *C) {
+	files := [][]string{
+		{"canary", "canary"},
+		{"foo", "foo"},
+	}
+	info := snaptest.MakeSnapFileAndDir(c, sampleYaml, files, &snap.SideInfo{
+		Revision: snap.R(3),
+	})
+	c.Check(filepath.Join(info.MountDir(), "canary"), testutil.FileEquals, "canary")
+	c.Assert(info.MountFile(), testutil.FilePresent)
+	c.Check(squashfs.FileHasSquashfsHeader(info.MountFile()), Equals, true)
+	f, err := snapfile.Open(info.MountFile())
+	c.Assert(err, IsNil)
+	can, err := f.ReadFile("canary")
+	c.Assert(err, IsNil)
+	c.Check(can, DeepEquals, []byte("canary"))
 }

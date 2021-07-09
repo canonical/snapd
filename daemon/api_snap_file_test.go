@@ -27,32 +27,21 @@ import (
 
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
 )
 
 var _ = check.Suite(&snapFileSuite{})
 
-type snapFileSuite struct{}
-
-func (s *snapFileSuite) SetUpTest(c *check.C) {
-	dirs.SetRootDir(c.MkDir())
+type snapFileSuite struct {
+	apiBaseSuite
 }
 
 func (s *snapFileSuite) TestGetFile(c *check.C) {
-	defer daemon.MockMuxVars(func(*http.Request) map[string]string {
-		return map[string]string{"name": "foo"}
-	})()
-
-	c.Check(daemon.SnapFileCmd.Path, check.Equals, "/v2/snaps/{name}/file")
-
-	o := overlord.Mock()
-	daemon.NewWithOverlord(o)
-	st := o.State()
+	d := s.daemonWithOverlordMock(c)
+	st := d.Overlord().State()
 
 	type scenario struct {
-		status                   int
 		exists, active, try, wat bool
 		err                      string
 	}
@@ -87,14 +76,13 @@ func (s *snapFileSuite) TestGetFile(c *check.C) {
 			st.Unlock()
 		}
 
-		rsp := daemon.GetSnapFile(daemon.SnapFileCmd, req, nil)
+		rsp := s.req(c, req, nil)
 		if scen.err == "" {
 			c.Check(string(rsp.(daemon.FileResponse)), check.Equals, filepath.Join(dirs.SnapBlobDir, "foo_x1.snap"), check.Commentf("%d", i))
 		} else {
-			c.Assert(rsp, check.FitsTypeOf, &daemon.Resp{}, check.Commentf("%d", i))
-			result := rsp.(*daemon.Resp).Result
-			c.Assert(result, check.FitsTypeOf, &daemon.ErrorResult{}, check.Commentf("%d", i))
-			c.Check(result.(*daemon.ErrorResult).Message, check.Matches, scen.err, check.Commentf("%d", i))
+			rspe, ok := rsp.(*daemon.APIError)
+			c.Assert(ok, check.Equals, true, check.Commentf("%d", i))
+			c.Check(rspe.Message, check.Matches, scen.err, check.Commentf("%d", i))
 		}
 	}
 }

@@ -20,6 +20,7 @@
 package builtin_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -218,4 +219,84 @@ func (s *DesktopInterfaceSuite) TestStaticInfo(c *C) {
 
 func (s *DesktopInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
+}
+
+func (s *DesktopInterfaceSuite) TestDisableMountHostFontCache(c *C) {
+	const mockSnapYaml = `name: desktop-snap
+version: 1.0
+plugs:
+  desktop:
+    mount-host-font-cache: false
+`
+	plug, plugInfo := MockConnectedPlug(c, mockSnapYaml, nil, "desktop")
+	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), IsNil)
+
+	// The fontconfig cache is not mounted.
+	tmpdir := c.MkDir()
+	dirs.SetRootDir(tmpdir)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/share/fonts"), 0777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/usr/local/share/fonts"), 0777), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0777), IsNil)
+	restore := release.MockOnClassic(true)
+	defer restore()
+	// mock a distribution where the fontconfig cache would always be
+	// mounted
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+
+	spec := &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, plug, s.coreSlot), IsNil)
+	var mounts []string
+	for _, ent := range spec.MountEntries() {
+		mounts = append(mounts, ent.Dir)
+	}
+	c.Check(mounts, Not(testutil.Contains), "/var/cache/fontconfig")
+}
+
+func (s *DesktopInterfaceSuite) TestMountFontCacheTrue(c *C) {
+	const mockSnapYaml = `name: desktop-snap
+version: 1.0
+plugs:
+  desktop:
+    mount-font-cache: true
+`
+	plug, plugInfo := MockConnectedPlug(c, mockSnapYaml, nil, "desktop")
+	c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), IsNil)
+
+	tmpdir := c.MkDir()
+	dirs.SetRootDir(tmpdir)
+	c.Assert(os.MkdirAll(filepath.Join(tmpdir, "/var/cache/fontconfig"), 0777), IsNil)
+	restore := release.MockOnClassic(true)
+	defer restore()
+	// mock a distribution where the fontconfig cache would always be
+	// mounted
+	restore = release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	defer restore()
+
+	spec := &mount.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, plug, s.coreSlot), IsNil)
+	var mounts []string
+	for _, ent := range spec.MountEntries() {
+		mounts = append(mounts, ent.Dir)
+	}
+	c.Check(mounts, testutil.Contains, "/var/cache/fontconfig")
+}
+
+func (s *DesktopInterfaceSuite) TestMountHostFontCacheNotBool(c *C) {
+	const mockSnapYamlTemplate = `name: desktop-snap
+version: 1.0
+plugs:
+  desktop:
+    mount-host-font-cache: %s
+`
+	for _, value := range []string{
+		`"hello world"`,
+		`""`,
+		"42",
+		"[1,2,3,4]",
+		`{"foo":"bar"}`,
+	} {
+		_, plugInfo := MockConnectedPlug(c, fmt.Sprintf(mockSnapYamlTemplate, value), nil, "desktop")
+		c.Check(interfaces.BeforePreparePlug(s.iface, plugInfo), ErrorMatches, "desktop plug requires bool with 'mount-host-font-cache'", Commentf(value))
+	}
 }

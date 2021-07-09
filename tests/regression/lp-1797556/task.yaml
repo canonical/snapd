@@ -1,19 +1,21 @@
 summary: snaps cannot write to ~/bin
+
 details: |
     On some distributions the ~/bin directory is in the default PATH for the
     user. To avoid hijacking commands and allow sandbox escape, writing to this
     directory is denied.
+
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     su -l -c 'mkdir -p /home/test/bin/' test
     su -l -c 'mkdir -p /home/test/snap/test-snapd-sh/common/' test
     su -l -c 'touch /home/test/snap/test-snapd-sh/common/evil-2' test
     sysctl -w kernel.printk_ratelimit=0
+
 restore: |
     su -l -c 'rmdir /home/test/bin/ || true' test
     sysctl -w kernel.printk_ratelimit=5
+
 execute: |
     test -d /home/test/bin
     test ! -e /home/test/bin/evil-1

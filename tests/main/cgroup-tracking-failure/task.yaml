@@ -1,4 +1,5 @@
 summary: cases where tracking applications and hooks with cgroups does not work
+
 details: |
     Cgroup-based application process tracking is implemented using the systemd
     DBus API org.freedesktop.systemd1.Manager.StartTransientUnit. While exactly
@@ -6,6 +7,7 @@ details: |
     overcome only starting with systemd version 238, which can forward a
     request from systemd --user to systemd pid one, to perform some cgroup
     transitions that the kernel normally does not allow.
+
 systems:
     - ubuntu-14.04-*
     - ubuntu-16.04-*  # tracking works correctly, caveats apply
@@ -14,19 +16,26 @@ systems:
     - ubuntu-core-16-*
     - ubuntu-core-18-*
     - ubuntu-core-20-*  # tracking works correctly, for completeness
+
 prepare: |
-    tests.cleanup prepare
     # This feature depends on the release-app-awareness feature
     snap set core experimental.refresh-app-awareness=true
     tests.cleanup defer snap unset core experimental.refresh-app-awareness
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     tests.cleanup defer snap remove --purge test-snapd-sh
+
 restore: |
-    tests.cleanup restore
-    rm -f scenario.txt debug.txt cgroup.txt ps.txt run.txt
     systemctl --user stop dbus.service || true
+
+debug: |
+    set +e  # any of the files below may not exist and this causes the command to be indicated as failure
+    test -e scenario.txt && cat scenario.txt
+    test -e run.txt && cat run.txt
+    test -e debug.txt && head -n 10 debug.txt
+    test -e cgroup.txt && cat cgroup.txt
+    test -e ps.txt && cat ps.txt
+    set -e
+
 execute: |
     ## Scenario 1: user is root.
     # Note that the images we are working with have the dbus-session-bus
@@ -185,12 +194,3 @@ execute: |
             MATCH '1:name=systemd:/user.slice/user-12345.slice/user@12345.service/snap.test-snapd-sh.sh.[0-9a-f-]+.scope' <cgroup.txt
             ;;
     esac
-
-debug: |
-    set +e  # any of the files below may not exist and this causes the command to be indicated as failure
-    test -e scenario.txt && cat scenario.txt
-    test -e run.txt && cat run.txt
-    test -e debug.txt && head -n 10 debug.txt
-    test -e cgroup.txt && cat cgroup.txt
-    test -e ps.txt && cat ps.txt
-    set -e

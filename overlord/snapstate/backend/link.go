@@ -25,9 +25,11 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/wrappers"
 )
@@ -38,13 +40,17 @@ type LinkContext struct {
 	// FirstInstall indicates whether this is the first time given snap is
 	// installed
 	FirstInstall bool
-	// PrevDisabledServices is a list snap services that were manually
-	// disable in the previous revisions of this snap
-	PrevDisabledServices []string
 
-	// VitalityRank is used to hint how much the services should be
-	// protected from the OOM killer
-	VitalityRank int
+	// ServiceOptions is used to configure services.
+	ServiceOptions *wrappers.SnapServiceOptions
+
+	// RunInhibitHint is used only in Unlink snap, and can be used to
+	// establish run inhibition lock for refresh operations.
+	RunInhibitHint runinhibit.Hint
+
+	// RequireMountedSnapdSnap indicates that the apps and services
+	// generated when linking need to use tooling from the snapd snap mount.
+	RequireMountedSnapdSnap bool
 }
 
 func updateCurrentSymlinks(info *snap.Info) (e error) {
@@ -147,11 +153,17 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx LinkContext,
 		})
 	}
 
+	// Stop inhibiting application startup by removing the inhibitor file.
+	if err := runinhibit.Unlock(info.InstanceName()); err != nil {
+		return false, err
+	}
+
 	return reboot, nil
 }
 
-func (b Backend) StartServices(apps []*snap.AppInfo, meter progress.Meter, tm timings.Measurer) error {
-	return wrappers.StartServices(apps, nil, nil, meter, tm)
+func (b Backend) StartServices(apps []*snap.AppInfo, disabledSvcs []string, meter progress.Meter, tm timings.Measurer) error {
+	flags := &wrappers.StartServicesFlags{Enable: true}
+	return wrappers.StartServices(apps, disabledSvcs, flags, meter, tm)
 }
 
 func (b Backend) StopServices(apps []*snap.AppInfo, reason snap.ServiceStopReason, meter progress.Meter, tm timings.Measurer) error {
@@ -169,10 +181,9 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 		}
 	}()
 
-	disabledSvcs := linkCtx.PrevDisabledServices
 	if s.Type() == snap.TypeSnapd {
 		// snapd services are handled separately
-		return generateSnapdWrappers(s)
+		return GenerateSnapdWrappers(s)
 	}
 
 	// add the CLI apps from the snap.yaml
@@ -181,17 +192,32 @@ func (b Backend) generateWrappers(s *snap.Info, linkCtx LinkContext) error {
 	}
 	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapBinaries)
 
+	vitalityRank := 0
+	var quotaGrp *quota.Group
+	if linkCtx.ServiceOptions != nil {
+		vitalityRank = linkCtx.ServiceOptions.VitalityRank
+		quotaGrp = linkCtx.ServiceOptions.QuotaGroup
+	}
 	// add the daemons from the snap.yaml
 	opts := &wrappers.AddSnapServicesOptions{
-		Preseeding:   b.preseed,
-		VitalityRank: linkCtx.VitalityRank,
+		VitalityRank:            vitalityRank,
+		Preseeding:              b.preseed,
+		RequireMountedSnapdSnap: linkCtx.RequireMountedSnapdSnap,
+		QuotaGroup:              quotaGrp,
 	}
-	if err = wrappers.AddSnapServices(s, disabledSvcs, opts, progress.Null); err != nil {
+	// TODO: switch to EnsureSnapServices
+	if err = wrappers.AddSnapServices(s, opts, progress.Null); err != nil {
 		return err
 	}
 	cleanupFuncs = append(cleanupFuncs, func(s *snap.Info) error {
 		return wrappers.RemoveSnapServices(s, progress.Null)
 	})
+
+	// add D-Bus service activation files
+	if err = wrappers.AddSnapDBusActivationFiles(s); err != nil {
+		return err
+	}
+	cleanupFuncs = append(cleanupFuncs, wrappers.RemoveSnapDBusActivationFiles)
 
 	// add the desktop files
 	if err = wrappers.AddSnapDesktopFiles(s); err != nil {
@@ -218,25 +244,30 @@ func removeGeneratedWrappers(s *snap.Info, firstInstallUndo bool, meter progress
 		logger.Noticef("Cannot remove binaries for %q: %v", s.InstanceName(), err1)
 	}
 
-	err2 := wrappers.RemoveSnapServices(s, meter)
+	err2 := wrappers.RemoveSnapDBusActivationFiles(s)
 	if err2 != nil {
-		logger.Noticef("Cannot remove services for %q: %v", s.InstanceName(), err2)
+		logger.Noticef("Cannot remove D-Bus activation for %q: %v", s.InstanceName(), err2)
 	}
 
-	err3 := wrappers.RemoveSnapDesktopFiles(s)
+	err3 := wrappers.RemoveSnapServices(s, meter)
 	if err3 != nil {
-		logger.Noticef("Cannot remove desktop files for %q: %v", s.InstanceName(), err3)
+		logger.Noticef("Cannot remove services for %q: %v", s.InstanceName(), err3)
 	}
 
-	err4 := wrappers.RemoveSnapIcons(s)
+	err4 := wrappers.RemoveSnapDesktopFiles(s)
 	if err4 != nil {
-		logger.Noticef("Cannot remove desktop icons for %q: %v", s.InstanceName(), err4)
+		logger.Noticef("Cannot remove desktop files for %q: %v", s.InstanceName(), err4)
 	}
 
-	return firstErr(err1, err2, err3, err4)
+	err5 := wrappers.RemoveSnapIcons(s)
+	if err5 != nil {
+		logger.Noticef("Cannot remove desktop icons for %q: %v", s.InstanceName(), err5)
+	}
+
+	return firstErr(err1, err2, err3, err4, err5)
 }
 
-func generateSnapdWrappers(s *snap.Info) error {
+func GenerateSnapdWrappers(s *snap.Info) error {
 	// snapd services are handled separately via an explicit helper
 	return wrappers.AddSnapdSnapServices(s, progress.Null)
 }
@@ -255,6 +286,12 @@ func removeGeneratedSnapdWrappers(s *snap.Info, firstInstall bool, meter progres
 // symlinks. The firstInstallUndo is true when undoing the first installation of
 // the snap.
 func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress.Meter) error {
+	var err0 error
+	if hint := linkCtx.RunInhibitHint; hint != runinhibit.HintNotInhibited {
+		// inhibit startup of new programs
+		err0 = runinhibit.LockWithHint(info.InstanceName(), hint)
+	}
+
 	// remove generated services, binaries etc
 	err1 := removeGeneratedWrappers(info, linkCtx.FirstInstall, meter)
 
@@ -262,7 +299,7 @@ func (b Backend) UnlinkSnap(info *snap.Info, linkCtx LinkContext, meter progress
 	err2 := removeCurrentSymlinks(info)
 
 	// FIXME: aggregate errors instead
-	return firstErr(err1, err2)
+	return firstErr(err0, err1, err2)
 }
 
 // ServicesEnableState returns the current enabled/disabled states of a snap's

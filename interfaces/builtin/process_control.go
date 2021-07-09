@@ -58,6 +58,7 @@ const processControlConnectedPlugSecComp = `
 nice
 setpriority
 sched_setaffinity
+sched_setattr
 sched_setparam
 sched_setscheduler
 `

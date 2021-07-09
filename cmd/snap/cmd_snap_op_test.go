@@ -51,7 +51,7 @@ type snapOpTestServer struct {
 	channel         string
 	trackingChannel string
 	confinement     string
-	rebooting       bool
+	restart         string
 	snap            string
 }
 
@@ -71,10 +71,10 @@ func (t *snapOpTestServer) handle(w http.ResponseWriter, r *http.Request) {
 	case 1:
 		t.c.Check(r.Method, check.Equals, "GET")
 		t.c.Check(r.URL.Path, check.Equals, "/v2/changes/42")
-		if !t.rebooting {
+		if t.restart == "" {
 			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}}`)
 		} else {
-			fmt.Fprintln(w, `{"type": "sync", "result": {"status": "Doing"}, "maintenance": {"kind": "system-restart", "message": "system is restarting"}}}`)
+			fmt.Fprintln(w, fmt.Sprintf(`{"type": "sync", "result": {"status": "Doing"}, "maintenance": {"kind": "system-restart", "message": "system is %sing", "value": {"op": %q}}}}`, t.restart, t.restart))
 		}
 	case 2:
 		t.c.Check(r.Method, check.Equals, "GET")
@@ -101,7 +101,7 @@ type SnapOpSuite struct {
 func (s *SnapOpSuite) SetUpTest(c *check.C) {
 	s.BaseSnapSuite.SetUpTest(c)
 
-	restoreClientRetry := client.MockDoTimings(time.Millisecond, 100*time.Millisecond)
+	restoreClientRetry := client.MockDoTimings(time.Millisecond, time.Second)
 	restorePollTime := snap.MockPollTime(time.Millisecond)
 	s.restoreAll = func() {
 		restoreClientRetry()
@@ -207,9 +207,34 @@ func (s *SnapOpSuite) TestInstall(c *check.C) {
 	c.Check(s.srv.n, check.Equals, s.srv.total)
 }
 
+func (s *SnapOpSuite) TestInstallIgnoreRunning(c *check.C) {
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action":         "install",
+			"ignore-running": true,
+		})
+	}
+
+	s.RedirectClientToTestServer(s.srv.handle)
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "--ignore-running", "foo"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Matches, `(?sm).*foo 1.0 from Bar installed`)
+	c.Check(s.Stderr(), check.Equals, "")
+	// ensure that the fake server api was actually hit
+	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
 func (s *SnapOpSuite) TestInstallNoPATH(c *check.C) {
 	// PATH restored by test tear down
 	os.Setenv("PATH", "/bin:/usr/bin:/sbin:/usr/sbin")
+	// SUDO_UID env must be unset in this test
+	if sudoUidEnv, isSet := os.LookupEnv("SUDO_UID"); isSet {
+		os.Unsetenv("SUDO_UID")
+		defer os.Setenv("SUDO_UID", sudoUidEnv)
+	}
+
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
@@ -1303,7 +1328,7 @@ func (s *SnapOpSuite) TestRefreshOneRebooting(c *check.C) {
 			"action": "refresh",
 		})
 	}
-	s.srv.rebooting = true
+	s.srv.restart = "reboot"
 
 	restore := mockArgs("snap", "refresh", "core")
 	defer restore()
@@ -1311,7 +1336,44 @@ func (s *SnapOpSuite) TestRefreshOneRebooting(c *check.C) {
 	err := snap.RunMain()
 	c.Check(err, check.IsNil)
 	c.Check(s.Stderr(), check.Equals, "snapd is about to reboot the system\n")
+}
 
+func (s *SnapOpSuite) TestRefreshOneHalting(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/core")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action": "refresh",
+		})
+	}
+	s.srv.restart = "halt"
+
+	restore := mockArgs("snap", "refresh", "core")
+	defer restore()
+
+	err := snap.RunMain()
+	c.Check(err, check.IsNil)
+	c.Check(s.Stderr(), check.Equals, "snapd is about to halt the system\n")
+}
+
+func (s *SnapOpSuite) TestRefreshOnePoweringOff(c *check.C) {
+	s.RedirectClientToTestServer(s.srv.handle)
+	s.srv.checker = func(r *http.Request) {
+		c.Check(r.Method, check.Equals, "POST")
+		c.Check(r.URL.Path, check.Equals, "/v2/snaps/core")
+		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
+			"action": "refresh",
+		})
+	}
+	s.srv.restart = "poweroff"
+
+	restore := mockArgs("snap", "refresh", "core")
+	defer restore()
+
+	err := snap.RunMain()
+	c.Check(err, check.IsNil)
+	c.Check(s.Stderr(), check.Equals, "snapd is about to power off the system\n")
 }
 
 func (s *SnapOpSuite) TestRefreshOneChanDeprecated(c *check.C) {
@@ -1640,6 +1702,69 @@ func (s *SnapOpSuite) TestRemoveWithPurge(c *check.C) {
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
 	c.Check(s.srv.n, check.Equals, s.srv.total)
+}
+
+func (s *SnapOpSuite) TestRemoveInsufficientDiskSpace(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{
+			"type": "error",
+			"result": {
+				"message": "disk space error",
+				"kind": "insufficient-disk-space",
+				"value": {
+					"snap-names": ["foo", "bar"],
+					"change-kind": "remove"
+				},
+				"status-code": 507
+				}}`)
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"remove", "foo"})
+	c.Check(err, check.ErrorMatches, `(?sm)cannot remove "foo", "bar" due to low disk space for automatic snapshot,.*use --purge to avoid creating a snapshot`)
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestInstallInsufficientDiskSpace(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{
+			"type": "error",
+			"result": {
+				"message": "disk space error",
+				"kind": "insufficient-disk-space",
+				"value": {
+					"snap-names": ["foo"],
+					"change-kind": "install"
+				},
+				"status-code": 507
+				}}`)
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"install", "foo"})
+	c.Check(err, check.ErrorMatches, `cannot install "foo" due to low disk space`)
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapOpSuite) TestRefreshInsufficientDiskSpace(c *check.C) {
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintln(w, `{
+			"type": "error",
+			"result": {
+				"message": "disk space error",
+				"kind": "insufficient-disk-space",
+				"value": {
+					"snap-names": ["foo"],
+					"change-kind": "refresh"
+				},
+				"status-code": 507
+				}}`)
+	})
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "foo"})
+	c.Check(err, check.ErrorMatches, `cannot refresh "foo" due to low disk space`)
+	c.Check(s.Stdout(), check.Equals, "")
+	c.Check(s.Stderr(), check.Equals, "")
 }
 
 func (s *SnapOpSuite) TestRemoveRevision(c *check.C) {

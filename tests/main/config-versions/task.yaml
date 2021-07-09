@@ -1,10 +1,10 @@
 summary: Check that snap configuration is maintained on per-revision basis.
 
-systems: [-ubuntu-core-*]
-
 details: |
     This test ensures that snap configuration is mainted per snap revision
     and is restored on revert.
+
+systems: [-ubuntu-core-*]
 
 execute: |
     verify_config_value() {
@@ -16,11 +16,8 @@ execute: |
       fi
     }
 
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     echo "Install test snap"
-    install_local config-versions
+    "$TESTSTOOLS"/snaps-state install-local config-versions
 
     # sanity
     snap get config-versions configure-marker | MATCH "executed-for-v1"
@@ -29,7 +26,7 @@ execute: |
     snap set config-versions value=100
 
     echo "Install a new version of the test snap"
-    install_local config-versions-v2
+    "$TESTSTOOLS"/snaps-state install-local config-versions-v2
 
     # sanity
     snap get config-versions configure-marker | MATCH "executed-for-v2"

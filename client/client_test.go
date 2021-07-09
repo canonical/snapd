@@ -20,6 +20,7 @@
 package client_test
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -123,7 +124,7 @@ func (cs *clientSuite) TestNewPanics(c *C) {
 
 func (cs *clientSuite) TestClientDoReportsErrors(c *C) {
 	cs.err = errors.New("ouchie")
-	_, err := cs.cli.Do("GET", "/", nil, nil, nil, client.DoFlags{})
+	_, err := cs.cli.Do("GET", "/", nil, nil, nil, nil)
 	c.Check(err, ErrorMatches, "cannot communicate with server: ouchie")
 	if cs.doCalls < 2 {
 		c.Fatalf("do did not retry")
@@ -134,7 +135,7 @@ func (cs *clientSuite) TestClientWorks(c *C) {
 	var v []int
 	cs.rsp = `[1,2]`
 	reqBody := ioutil.NopCloser(strings.NewReader(""))
-	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, client.DoFlags{})
+	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, nil)
 	c.Check(err, IsNil)
 	c.Check(statusCode, Equals, 200)
 	c.Check(v, DeepEquals, []int{1, 2})
@@ -145,12 +146,91 @@ func (cs *clientSuite) TestClientWorks(c *C) {
 	c.Check(cs.req.URL.Path, Equals, "/this")
 }
 
+func makeMaintenanceFile(c *C, b []byte) {
+	c.Assert(os.MkdirAll(filepath.Dir(dirs.SnapdMaintenanceFile), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(dirs.SnapdMaintenanceFile, b, 0644), IsNil)
+}
+
+func (cs *clientSuite) TestClientSetMaintenanceForMaintenanceJSON(c *C) {
+	// write a maintenance.json that says snapd is down for a restart
+	maintErr := &client.Error{
+		Kind:    client.ErrorKindSystemRestart,
+		Message: "system is restarting",
+	}
+	b, err := json.Marshal(maintErr)
+	c.Assert(err, IsNil)
+	makeMaintenanceFile(c, b)
+
+	// now after a Do(), we will have maintenance set to what we wrote
+	// originally
+	_, err = cs.cli.Do("GET", "/this", nil, nil, nil, nil)
+	c.Check(err, IsNil)
+
+	returnedErr := cs.cli.Maintenance()
+	c.Assert(returnedErr, DeepEquals, maintErr)
+}
+
+func (cs *clientSuite) TestClientIgnoresGarbageMaintenanceJSON(c *C) {
+	// write a garbage maintenance.json that can't be unmarshalled
+	makeMaintenanceFile(c, []byte("blah blah blah not json"))
+
+	// after a Do(), no maintenance set and also no error returned from Do()
+	_, err := cs.cli.Do("GET", "/this", nil, nil, nil, nil)
+	c.Check(err, IsNil)
+
+	returnedErr := cs.cli.Maintenance()
+	c.Assert(returnedErr, IsNil)
+}
+
+func (cs *clientSuite) TestClientDoNoTimeoutIgnoresRetry(c *C) {
+	var v []int
+	cs.rsp = `[1,2]`
+	cs.err = fmt.Errorf("borken")
+	reqBody := ioutil.NopCloser(strings.NewReader(""))
+	doOpts := &client.DoOptions{
+		// Timeout is unset, thus 0, and thus we ignore the retry and only run
+		// once even though there is an error
+		Retry: time.Duration(time.Second),
+	}
+	_, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, doOpts)
+	c.Check(err, ErrorMatches, "cannot communicate with server: borken")
+	c.Assert(cs.doCalls, Equals, 1)
+}
+
+func (cs *clientSuite) TestClientDoRetryValidation(c *C) {
+	var v []int
+	cs.rsp = `[1,2]`
+	reqBody := ioutil.NopCloser(strings.NewReader(""))
+	doOpts := &client.DoOptions{
+		Retry:   time.Duration(-1),
+		Timeout: time.Duration(time.Minute),
+	}
+	_, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, doOpts)
+	c.Check(err, ErrorMatches, "internal error: retry setting.*invalid")
+	c.Assert(cs.req, IsNil)
+}
+
+func (cs *clientSuite) TestClientDoRetryWorks(c *C) {
+	reqBody := ioutil.NopCloser(strings.NewReader(""))
+	cs.err = fmt.Errorf("borken")
+	doOpts := &client.DoOptions{
+		Retry:   time.Duration(time.Millisecond),
+		Timeout: time.Duration(time.Second),
+	}
+	_, err := cs.cli.Do("GET", "/this", nil, reqBody, nil, doOpts)
+	c.Check(err, ErrorMatches, "cannot communicate with server: borken")
+	// best effort checking given that execution could be slow
+	// on some machines
+	c.Assert(cs.doCalls > 100, Equals, true, Commentf("got only %v calls", cs.doCalls))
+	c.Assert(cs.doCalls < 1100, Equals, true, Commentf("got %v calls", cs.doCalls))
+}
+
 func (cs *clientSuite) TestClientUnderstandsStatusCode(c *C) {
 	var v []int
 	cs.status = 202
 	cs.rsp = `[1,2]`
 	reqBody := ioutil.NopCloser(strings.NewReader(""))
-	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, client.DoFlags{})
+	statusCode, err := cs.cli.Do("GET", "/this", nil, reqBody, &v, nil)
 	c.Check(err, IsNil)
 	c.Check(statusCode, Equals, 202)
 	c.Check(v, DeepEquals, []int{1, 2})
@@ -166,7 +246,7 @@ func (cs *clientSuite) TestClientDefaultsToNoAuthorization(c *C) {
 	defer os.Unsetenv(client.TestAuthFileEnvKey)
 
 	var v string
-	_, _ = cs.cli.Do("GET", "/this", nil, nil, &v, client.DoFlags{})
+	_, _ = cs.cli.Do("GET", "/this", nil, nil, &v, nil)
 	c.Assert(cs.req, NotNil)
 	authorization := cs.req.Header.Get("Authorization")
 	c.Check(authorization, Equals, "")
@@ -184,7 +264,7 @@ func (cs *clientSuite) TestClientSetsAuthorization(c *C) {
 	c.Assert(err, IsNil)
 
 	var v string
-	_, _ = cs.cli.Do("GET", "/this", nil, nil, &v, client.DoFlags{})
+	_, _ = cs.cli.Do("GET", "/this", nil, nil, &v, nil)
 	authorization := cs.req.Header.Get("Authorization")
 	c.Check(authorization, Equals, `Macaroon root="macaroon", discharge="discharge"`)
 }
@@ -203,7 +283,7 @@ func (cs *clientSuite) TestClientHonorsDisableAuth(c *C) {
 	var v string
 	cli := client.New(&client.Config{DisableAuth: true})
 	cli.SetDoer(cs)
-	_, _ = cli.Do("GET", "/this", nil, nil, &v, client.DoFlags{})
+	_, _ = cli.Do("GET", "/this", nil, nil, &v, nil)
 	authorization := cs.req.Header.Get("Authorization")
 	c.Check(authorization, Equals, "")
 }
@@ -212,13 +292,13 @@ func (cs *clientSuite) TestClientHonorsInteractive(c *C) {
 	var v string
 	cli := client.New(&client.Config{Interactive: false})
 	cli.SetDoer(cs)
-	_, _ = cli.Do("GET", "/this", nil, nil, &v, client.DoFlags{})
+	_, _ = cli.Do("GET", "/this", nil, nil, &v, nil)
 	interactive := cs.req.Header.Get(client.AllowInteractionHeader)
 	c.Check(interactive, Equals, "")
 
 	cli = client.New(&client.Config{Interactive: true})
 	cli.SetDoer(cs)
-	_, _ = cli.Do("GET", "/this", nil, nil, &v, client.DoFlags{})
+	_, _ = cli.Do("GET", "/this", nil, nil, &v, nil)
 	interactive = cs.req.Header.Get(client.AllowInteractionHeader)
 	c.Check(interactive, Equals, "true")
 }
@@ -355,7 +435,7 @@ func (cs *clientSuite) TestSnapClientIntegration(c *C) {
 		Args:      []string{"bar", "--baz"},
 	}
 
-	stdout, stderr, err := cli.RunSnapctl(options)
+	stdout, stderr, err := cli.RunSnapctl(options, nil)
 	c.Check(err, IsNil)
 	c.Check(string(stdout), Equals, "test stdout")
 	c.Check(string(stderr), Equals, "test stderr")
@@ -484,7 +564,7 @@ func (cs *clientSuite) TestUserAgent(c *C) {
 	cli.SetDoer(cs)
 
 	var v string
-	_, _ = cli.Do("GET", "/", nil, nil, &v, client.DoFlags{})
+	_, _ = cli.Do("GET", "/", nil, nil, &v, nil)
 	c.Assert(cs.req, NotNil)
 	c.Check(cs.req.Header.Get("User-Agent"), Equals, "some-agent/9.87")
 }
@@ -543,9 +623,21 @@ func (cs *integrationSuite) TestClientTimeoutLP1837804(c *C) {
 	defer func() { testServer.Close() }()
 
 	cli := client.New(&client.Config{BaseURL: testServer.URL})
-	_, err := cli.Do("GET", "/", nil, nil, nil, client.DoFlags{})
+	_, err := cli.Do("GET", "/", nil, nil, nil, nil)
 	c.Assert(err, ErrorMatches, `.* timeout exceeded while waiting for response`)
 
-	_, err = cli.Do("POST", "/", nil, nil, nil, client.DoFlags{})
+	_, err = cli.Do("POST", "/", nil, nil, nil, nil)
 	c.Assert(err, ErrorMatches, `.* timeout exceeded while waiting for response`)
+}
+
+func (cs *clientSuite) TestClientSystemRecoveryKeys(c *C) {
+	cs.rsp = `{"type":"sync", "result":{"recovery-key":"42"}}`
+
+	var key client.SystemRecoveryKeysResponse
+	err := cs.cli.SystemRecoveryKeys(&key)
+	c.Assert(err, IsNil)
+	c.Check(cs.reqs, HasLen, 1)
+	c.Check(cs.reqs[0].Method, Equals, "GET")
+	c.Check(cs.reqs[0].URL.Path, Equals, "/v2/system-recovery-keys")
+	c.Check(key.RecoveryKey, Equals, "42")
 }

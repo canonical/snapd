@@ -27,12 +27,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/testutil"
-
-	. "gopkg.in/check.v1"
 )
 
 type AtomicWriteTestSuite struct{}
@@ -330,17 +330,19 @@ func (ts *AtomicSymlinkTestSuite) TestAtomicSymlink(c *C) {
 	c.Assert(err, ErrorMatches, `symlink target /.*/nested/bar\..*~: no such file or directory`)
 	checkLeftoverFiles(nestedBarSymlink, nil)
 
-	// create a dir without write permission
-	err = os.MkdirAll(nested, 0644)
-	c.Assert(err, IsNil)
+	if os.Geteuid() != 0 {
+		// create a dir without write permission
+		err = os.MkdirAll(nested, 0644)
+		c.Assert(err, IsNil)
 
-	// no permission to write in dir
-	err = osutil.AtomicSymlink("target", nestedBarSymlink)
-	c.Assert(err, ErrorMatches, `symlink target /.*/nested/bar\..*~: permission denied`)
-	checkLeftoverFiles(nestedBarSymlink, nil)
+		// no permission to write in dir
+		err = osutil.AtomicSymlink("target", nestedBarSymlink)
+		c.Assert(err, ErrorMatches, `symlink target /.*/nested/bar\..*~: permission denied`)
+		checkLeftoverFiles(nestedBarSymlink, nil)
 
-	err = os.Chmod(nested, 0755)
-	c.Assert(err, IsNil)
+		err = os.Chmod(nested, 0755)
+		c.Assert(err, IsNil)
+	}
 
 	err = osutil.AtomicSymlink("target", nestedBarSymlink)
 	c.Assert(err, IsNil)
@@ -419,16 +421,18 @@ func (ts *AtomicRenameTestSuite) TestAtomicRename(c *C) {
 		c.Assert(err, ErrorMatches, "rename /.*/bar /.*/nested/bar: no such file or directory")
 	}
 
-	// create a dir without write permission
-	err = os.MkdirAll(nested, 0644)
-	c.Assert(err, IsNil)
+	if os.Geteuid() != 0 {
+		// create a dir without write permission
+		err = os.MkdirAll(nested, 0644)
+		c.Assert(err, IsNil)
 
-	// no permission to write in dir
-	err = osutil.AtomicRename(filepath.Join(d, "bar"), filepath.Join(nested, "bar"))
-	c.Assert(err, ErrorMatches, "rename /.*/bar /.*/nested/bar: permission denied")
+		// no permission to write in dir
+		err = osutil.AtomicRename(filepath.Join(d, "bar"), filepath.Join(nested, "bar"))
+		c.Assert(err, ErrorMatches, "rename /.*/bar /.*/nested/bar: permission denied")
 
-	err = os.Chmod(nested, 0755)
-	c.Assert(err, IsNil)
+		err = os.Chmod(nested, 0755)
+		c.Assert(err, IsNil)
+	}
 
 	// all good now
 	err = osutil.AtomicRename(filepath.Join(d, "bar"), filepath.Join(nested, "bar"))

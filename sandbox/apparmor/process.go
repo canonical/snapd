@@ -25,10 +25,18 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 func labelFromPid(pid int) (string, error) {
-	procFile := filepath.Join(rootPath, fmt.Sprintf("proc/%v/attr/current", pid))
+	// first check new kernel path, /proc/<pid>/attr/apparmor/current, falling
+	// back to the old path if that doesn't exist
+	procFile := filepath.Join(rootPath, fmt.Sprintf("proc/%v/attr/apparmor/current", pid))
+	if !osutil.FileExists(procFile) {
+		// fallback
+		procFile = filepath.Join(rootPath, fmt.Sprintf("proc/%v/attr/current", pid))
+	}
 	contents, err := ioutil.ReadFile(procFile)
 	if os.IsNotExist(err) {
 		return "unconfined", nil
@@ -45,7 +53,7 @@ func labelFromPid(pid int) (string, error) {
 	return label, nil
 }
 
-func decodeLabel(label string) (snap, app, hook string, err error) {
+func DecodeLabel(label string) (snap, app, hook string, err error) {
 	parts := strings.Split(label, ".")
 	if parts[0] != "snap" {
 		return "", "", "", fmt.Errorf("security label %q does not belong to a snap", label)
@@ -64,5 +72,5 @@ func SnapAppFromPid(pid int) (snap, app, hook string, err error) {
 	if err != nil {
 		return "", "", "", err
 	}
-	return decodeLabel(label)
+	return DecodeLabel(label)
 }

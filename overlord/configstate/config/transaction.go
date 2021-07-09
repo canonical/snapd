@@ -115,8 +115,8 @@ func (t *Transaction) Set(instanceName, key string, value interface{}) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	config, ok := t.changes[instanceName]
-	if !ok {
+	config := t.changes[instanceName]
+	if config == nil {
 		config = make(map[string]interface{})
 	}
 
@@ -140,6 +140,10 @@ func (t *Transaction) Set(instanceName, key string, value interface{}) error {
 			return err
 		}
 	}
+
+	// config here is never nil and PatchConfig always operates
+	// directly on and returns config if it's a
+	// map[string]interface{}
 	_, err = PatchConfig(instanceName, subkeys, 0, config, &raw)
 	if err != nil {
 		return err
@@ -286,8 +290,10 @@ func (t *Transaction) Commit() {
 
 	// Iterate through the write cache and save each item.
 	for instanceName, snapChanges := range t.changes {
-		config, ok := t.pristine[instanceName]
-		if !ok {
+		config := t.pristine[instanceName]
+		// due to LP #1917870 we might have a hook configure task in flight
+		// that tries to apply config over nil map, create it if nil.
+		if config == nil {
 			config = make(map[string]*json.RawMessage)
 		}
 		applyChanges(config, snapChanges)

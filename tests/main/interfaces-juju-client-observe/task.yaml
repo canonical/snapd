@@ -7,9 +7,7 @@ details: |
 systems: [-ubuntu-core-*]
 
 prepare: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     "$TESTSTOOLS"/fs-state mock-dir "$HOME"/.local/share/juju
     "$TESTSTOOLS"/fs-state mock-file "$HOME"/.local/share/juju/juju.conf

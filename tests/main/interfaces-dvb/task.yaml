@@ -4,9 +4,7 @@ details: |
     The dvb interface allows access to all DVB (Digital Video Broadcasting) devices and APIs.
 
 prepare: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     "$TESTSTOOLS"/fs-state mock-dir /dev/dvb/adapter9
     "$TESTSTOOLS"/fs-state mock-file /dev/dvb/adapter9/video9

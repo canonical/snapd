@@ -38,6 +38,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/mvo5/goconfigparser"
 	"gopkg.in/retry.v1"
 
 	"github.com/snapcore/snapd/arch"
@@ -49,6 +50,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -167,6 +169,13 @@ func (r *Repair) Run() error {
 	}
 	if !havePath {
 		env = append(env, "PATH=/usr/sbin:/usr/bin:/sbin:/bin:"+repairToolsDir)
+	}
+
+	// TODO:UC20 what other details about recover mode should be included in the
+	// env for the repair assertion to read about? probably somethings related
+	// to degraded.json
+	if r.run.state.Device.Mode != "" {
+		env = append(env, fmt.Sprintf("SNAP_SYSTEM_MODE=%s", r.run.state.Device.Mode))
 	}
 
 	workdir := filepath.Join(rundir, "work")
@@ -304,9 +313,9 @@ var (
 		},
 	))
 
-	peekRetryStrategy = retry.LimitCount(5, retry.LimitTime(44*time.Second,
+	peekRetryStrategy = retry.LimitCount(6, retry.LimitTime(44*time.Second,
 		retry.Exponential{
-			Initial: 300 * time.Millisecond,
+			Initial: 500 * time.Millisecond,
 			Factor:  2.5,
 		},
 	))
@@ -346,6 +355,8 @@ func (run *Runner) Fetch(brandID string, repairID int, revision int) (*asserts.R
 	}, func(resp *http.Response) error {
 		if resp.StatusCode == 200 {
 			logger.Debugf("fetching repair %s-%d", brandID, repairID)
+
+			// TODO: use something like TransferSpeedMonitoringWriter to avoid stalling here
 			// decode assertions
 			dec := asserts.NewDecoderWithTypeMaxBodySize(resp.Body, map[*asserts.AssertionType]int{
 				asserts.RepairType: maxRepairScriptSize,
@@ -438,6 +449,8 @@ func (run *Runner) Peek(brandID string, repairID int) (headers map[string]interf
 	var rsp peekResp
 
 	resp, err := httputil.RetryRequest(u.String(), func() (*http.Response, error) {
+		// TODO: setup a overall request timeout using contexts
+		// can be many minutes but not unlimited like now
 		req, err := http.NewRequest("GET", u.String(), nil)
 		if err != nil {
 			return nil, err
@@ -488,6 +501,8 @@ func (run *Runner) Peek(brandID string, repairID int) (headers map[string]interf
 type deviceInfo struct {
 	Brand string `json:"brand"`
 	Model string `json:"model"`
+	Base  string `json:"base"`
+	Mode  string `json:"mode"`
 }
 
 // RepairStatus represents the possible statuses of a repair.
@@ -575,11 +590,9 @@ func (run *Runner) initState() error {
 	os.Remove(dirs.SnapRepairStateFile)
 	run.state = state{}
 	// initialize time lower bound with image built time/seed.yaml time
-	info, err := os.Stat(filepath.Join(dirs.SnapSeedDir, "seed.yaml"))
-	if err != nil {
+	if err := run.findTimeLowerBound(); err != nil {
 		return err
 	}
-	run.moveTimeLowerBound(info.ModTime())
 	// initialize device info
 	if err := run.initDeviceInfo(); err != nil {
 		return err
@@ -647,7 +660,7 @@ func verifySignatures(a asserts.Assertion, workBS asserts.Backstore, trusted ass
 				return err
 			}
 		}
-		if err := asserts.CheckSignature(a, key.(*asserts.AccountKey), nil, time.Time{}); err != nil {
+		if err := asserts.CheckSignature(a, key.(*asserts.AccountKey), nil, time.Time{}, time.Time{}); err != nil {
 			return err
 		}
 		a = key
@@ -655,16 +668,87 @@ func verifySignatures(a asserts.Assertion, workBS asserts.Backstore, trusted ass
 	return nil
 }
 
-func (run *Runner) initDeviceInfo() error {
-	const errPrefix = "cannot set device information: "
+func (run *Runner) findTimeLowerBound() error {
+	timeLowerBoundSources := []string{
+		// uc16
+		filepath.Join(dirs.SnapSeedDir, "seed.yaml"),
+		// uc20+
+		dirs.SnapModeenvFile,
+	}
+	// add all model files from uc20 seeds
+	allModels, err := filepath.Glob(filepath.Join(dirs.SnapSeedDir, "systems/*/model"))
+	if err != nil {
+		return err
+	}
+	timeLowerBoundSources = append(timeLowerBoundSources, allModels...)
 
+	// use all files as potential time inputs
+	for _, p := range timeLowerBoundSources {
+		info, err := os.Stat(p)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		run.moveTimeLowerBound(info.ModTime())
+	}
+	return nil
+}
+
+func findBrandAndModel() (*deviceInfo, error) {
+	if osutil.FileExists(dirs.SnapModeenvFile) {
+		return findDevInfo20()
+	}
+	return findDevInfo16()
+}
+
+func findDevInfo20() (*deviceInfo, error) {
+	cfg := goconfigparser.New()
+	cfg.AllowNoSectionHeader = true
+	if err := cfg.ReadFile(dirs.SnapModeenvFile); err != nil {
+		return nil, err
+	}
+	brandAndModel, err := cfg.Get("", "model")
+	if err != nil {
+		return nil, err
+	}
+	l := strings.SplitN(brandAndModel, "/", 2)
+	if len(l) != 2 {
+		return nil, fmt.Errorf("cannot find brand/model in modeenv model string %q", brandAndModel)
+	}
+
+	mode, err := cfg.Get("", "mode")
+	if err != nil {
+		return nil, err
+	}
+
+	baseName, err := cfg.Get("", "base")
+	if err != nil {
+		return nil, err
+	}
+
+	baseSn, err := snap.ParsePlaceInfoFromSnapFileName(baseName)
+	if err != nil {
+		return nil, err
+	}
+
+	return &deviceInfo{
+		Brand: l[0],
+		Model: l[1],
+		Base:  baseSn.SnapName(),
+		Mode:  mode,
+	}, nil
+}
+
+func findDevInfo16() (*deviceInfo, error) {
 	workBS := asserts.NewMemoryBackstore()
 	assertSeedDir := filepath.Join(dirs.SnapSeedDir, "assertions")
 	dc, err := ioutil.ReadDir(assertSeedDir)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	var model *asserts.Model
+	var modelAs *asserts.Model
 	for _, fi := range dc {
 		fn := filepath.Join(assertSeedDir, fi.Name())
 		f, err := os.Open(fn)
@@ -681,37 +765,59 @@ func (run *Runner) initDeviceInfo() error {
 			}
 			switch a.Type() {
 			case asserts.ModelType:
-				if model != nil {
-					return fmt.Errorf(errPrefix + "multiple models in seed assertions")
+				if modelAs != nil {
+					return nil, fmt.Errorf("multiple models in seed assertions")
 				}
-				model = a.(*asserts.Model)
+				modelAs = a.(*asserts.Model)
 			case asserts.AccountType, asserts.AccountKeyType:
 				workBS.Put(a.Type(), a)
 			}
 		}
 	}
-	if model == nil {
-		return fmt.Errorf(errPrefix + "no model assertion in seed data")
+	if modelAs == nil {
+		return nil, fmt.Errorf("no model assertion in seed data")
 	}
 	trustedBS := trustedBackstore(sysdb.Trusted())
-	if err := verifySignatures(model, workBS, trustedBS); err != nil {
-		return fmt.Errorf(errPrefix+"%v", err)
+	if err := verifySignatures(modelAs, workBS, trustedBS); err != nil {
+		return nil, err
 	}
-	acctPK := []string{model.BrandID()}
+	acctPK := []string{modelAs.BrandID()}
 	acctMaxSupFormat := asserts.AccountType.MaxSupportedFormat()
 	acct, err := trustedBS.Get(asserts.AccountType, acctPK, acctMaxSupFormat)
 	if err != nil {
 		var err error
 		acct, err = workBS.Get(asserts.AccountType, acctPK, acctMaxSupFormat)
 		if err != nil {
-			return fmt.Errorf(errPrefix + "no brand account assertion in seed data")
+			return nil, fmt.Errorf("no brand account assertion in seed data")
 		}
 	}
 	if err := verifySignatures(acct, workBS, trustedBS); err != nil {
-		return fmt.Errorf(errPrefix+"%v", err)
+		return nil, err
 	}
-	run.state.Device.Brand = model.BrandID()
-	run.state.Device.Model = model.Model()
+
+	// get the base snap as well, on uc16 it won't be specified in the model
+	// assertion and instead will be empty, so in this case we replace it with
+	// "core"
+	base := modelAs.Base()
+	if modelAs.Base() == "" {
+		base = "core"
+	}
+
+	return &deviceInfo{
+		Brand: modelAs.BrandID(),
+		Model: modelAs.Model(),
+		Base:  base,
+		// Mode is unset on uc16/uc18
+	}, nil
+}
+
+func (run *Runner) initDeviceInfo() error {
+	dev, err := findBrandAndModel()
+	if err != nil {
+		return fmt.Errorf("cannot set device information: %v", err)
+	}
+	run.state.Device = *dev
+
 	return nil
 }
 
@@ -804,6 +910,49 @@ func (run *Runner) Applicable(headers map[string]interface{}) bool {
 			return false
 		}
 	}
+
+	// also filter by base snaps and modes
+	bases, err := stringList(headers, "bases")
+	if err != nil {
+		return false
+	}
+
+	if len(bases) != 0 && !strutil.ListContains(bases, run.state.Device.Base) {
+		return false
+	}
+
+	modes, err := stringList(headers, "modes")
+	if err != nil {
+		return false
+	}
+
+	// modes is slightly more nuanced, if the modes setting in the assertion
+	// header is unset, then it means it runs on all uc16/uc18 devices, but only
+	// during run mode on uc20 devices
+	if run.state.Device.Mode == "" {
+		// uc16 / uc18 device, the assertion is only applicable to us if modes
+		// is unset
+		if len(modes) != 0 {
+			return false
+		}
+		// else modes is unset and still applies to us
+	} else {
+		// uc20 device
+		switch {
+		case len(modes) == 0 && run.state.Device.Mode != "run":
+			// if modes is unset, then it is only applicable if we are
+			// in run mode
+			return false
+		case len(modes) != 0 && !strutil.ListContains(modes, run.state.Device.Mode):
+			// modes was specified and our current mode is not in the header, so
+			// not applicable to us
+			return false
+		}
+		// other cases are either that we are in run mode and modes is unset (in
+		// which case it is applicable) or modes is set to something with our
+		// current mode in the list (also in which case it is applicable)
+	}
+
 	return true
 }
 
@@ -924,7 +1073,8 @@ func (run *Runner) makeReady(brandID string, sequenceNext int) (repair *asserts.
 	return repair, nil
 }
 
-// Next returns the next repair for the brand id sequence to run/retry or ErrRepairNotFound if there is none atm. It updates the state as required.
+// Next returns the next repair for the brand id sequence to run/retry or
+// ErrRepairNotFound if there is none atm. It updates the state as required.
 func (run *Runner) Next(brandID string) (*Repair, error) {
 	sequenceNext := run.sequenceNext[brandID]
 	if sequenceNext == 0 {

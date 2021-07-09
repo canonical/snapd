@@ -8,20 +8,13 @@ systems:
     - -ubuntu-14.04-*  # not supported as desktop OS, systemd too old for tests.session
     - -ubuntu-core-*  # test exercises regular xdg-settings, not the custom one in ubuntu-core
 
-restore: |
-    tests.session -u test restore
-    umount -f /usr/bin/xdg-settings || true
-    umount -f /usr/bin/zenity || true
-    rm -f stderr.log
-
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-xdg-settings
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-xdg-settings
 
     tests.session -u test prepare
 
     # wait for session to be ready
+    # TODO: change this to busctl, it's much easier to use.
     tests.session -u test exec env "PATH=$PATH" retry -n 5 --wait 0.5 dbus-send \
             --session                                         \
             --dest=io.snapcraft.Settings                      \
@@ -40,6 +33,11 @@ prepare: |
     chmod +x /tmp/xdg-settings
     touch /usr/bin/xdg-settings
     mount --bind /tmp/xdg-settings /usr/bin/xdg-settings
+
+restore: |
+    tests.session -u test restore
+    umount -f /usr/bin/xdg-settings || true
+    umount -f /usr/bin/zenity || true
 
 execute: |
     #shellcheck source=tests/lib/systems.sh
@@ -76,37 +74,21 @@ execute: |
         test ! -e /tmp/xdg-settings-output
     }
 
-
-    # we are expecting the test to fail on a cgroup v2 system
-    if is_cgroupv2 ; then
-        ensure_error_no_xdg_settings_output "set" "default-web-browser" "smoke-test-cgroupv2.desktop" 2> stderr.log
-        MATCH 'WARNING: cgroup v2 is not fully supported yet, proceeding with partial confinement' < stderr.log
-        MATCH 'cannot find snap for connection: not supported' < stderr.log
-        # don't run further tests
-        exit 0
-    fi
-
-
     # ensure zenity answers "yes"
     touch /usr/bin/zenity
     mount --bind /bin/true /usr/bin/zenity
 
-
     # Test valid actions
     ensure_xdg_settings_output "set" "default-web-browser" "browser.desktop"
-
     ensure_xdg_settings_output "set" "default-url-scheme-handler" "irc" "browser.desktop"
-
 
     # Test unknown action
     ensure_error_no_xdg_settings_output "unknown" 2> stderr.log
     MATCH 'unknown action unknown' < stderr.log
 
-
     # Ensure settings whitelist works
     ensure_error_no_xdg_settings_output "set" "random-settting" "something" 2> stderr.log
     MATCH 'invalid setting "random-settting"' < stderr.log
-
 
     # Ensure settings value validation works
     ensure_error_no_xdg_settings_output "set" "default-web-browser" "inälid" 2> stderr.log

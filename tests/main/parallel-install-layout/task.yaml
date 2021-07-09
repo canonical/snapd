@@ -1,4 +1,5 @@
 summary: Ensure that snap layouts work with parallel installed snaps
+
 details: |
     This test installs a test snap that uses layout declarations. The snap is
     installed under its regular name as well as a parallel instance. The test
@@ -10,14 +11,11 @@ prepare: |
     snap set system experimental.parallel-instances=true
 
 execute: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     echo "Install the regular snap"
-    install_local test-snapd-layout
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-layout
 
     echo "Sideload the parallel installed snap"
-    install_local_as test-snapd-layout test-snapd-layout_foo
+    "$TESTSTOOLS"/snaps-state install-local-as test-snapd-layout test-snapd-layout_foo
 
     for name in test-snapd-layout test-snapd-layout_foo; do
         # workaround trespassing bug

@@ -11,6 +11,9 @@ apps:
   adb-support:
     command: bin/run
     plugs: [ adb-support ]
+  allegro-vcu:
+    command: bin/run
+    plugs: [ allegro-vcu ]
   alsa:
     command: bin/run
     plugs: [ alsa ]
@@ -74,6 +77,9 @@ apps:
   cpu-control:
     command: bin/run
     plugs: [ cpu-control ]
+  cups:
+    command: bin/run
+    plugs: [ cups ]
   cups-control:
     command: bin/run
     plugs: [ cups-control ]
@@ -89,6 +95,9 @@ apps:
   desktop:
     command: bin/run
     plugs: [ desktop ]
+  desktop-launch:
+    command: bin/run
+    plugs: [ desktop-launch ]
   desktop-legacy:
     command: bin/run
     plugs: [ desktop-legacy ]
@@ -98,12 +107,18 @@ apps:
   display-control:
     command: bin/run
     plugs: [ display-control ]
+  dm-crypt:
+    command: bin/run
+    plugs: [ dm-crypt ]
   docker:
     command: bin/run
     plugs: [ docker ]
   docker-support:
     command: bin/run
     plugs: [ docker-support ]
+  fpga:
+    command: bin/run
+    plugs: [ fpga ]
   system-files:
     command: bin/run
     plugs: [ system-files ]
@@ -233,6 +248,9 @@ apps:
   maliit:
     command: bin/run
     plugs: [ maliit ]
+  media-control:
+    command: bin/run
+    plugs: [ media-control ]
   media-hub:
     command: bin/run
     plugs: [ media-hub ]
@@ -326,9 +344,15 @@ apps:
   process-control:
     command: bin/run
     plugs: [ process-control ]
+  ptp:
+    command: bin/run
+    plugs: [ ptp ]
   pulseaudio:
     command: bin/run
     plugs: [ pulseaudio ]
+  raw-input:
+    command: bin/run
+    plugs: [ raw-input ]
   raw-usb:
     command: bin/run
     plugs: [ raw-usb ]
@@ -377,6 +401,9 @@ apps:
   dummy:
     command: bin/run
     plugs: [ dummy ]
+  tee:
+    command: bin/run
+    plugs: [ tee ]
   thumbnailer-service:
     command: bin/run
     plugs: [ thumbnailer-service ]

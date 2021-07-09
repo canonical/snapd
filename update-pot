@@ -1,7 +1,7 @@
 #!/bin/sh
 # -*- Mode: sh; indent-tabs-mode: t -*-
 
-set -e
+set -eu
 
 # In LP#1758684 we got reports that the pot file generation
 # is broken. To get to the bottom of this add checks here
@@ -12,8 +12,9 @@ check_canaries() {
     c1="Alternative command to run"
     c2="Name of the key to use, otherwise use the default key"
     c3="too many arguments for command"
+    c4="%d days ago, at 15:04 MST"
 
-    for canary in "$c1" "$c2" "$c3"; do
+    for canary in "$c1" "$c2" "$c3" "$c4"; do
 	if ! grep -q "$canary" "$OUTPUT"; then
 	    echo "canary '$canary' not found, pot extraction broken"
 	    ls -lh "$OUTPUT"
@@ -25,41 +26,57 @@ check_canaries() {
 HERE="$(readlink -f "$(dirname "$0")")"
 
 OUTPUT="$HERE/po/snappy.pot"
-if [ -n "$1" ]; then
+if [ -n "${1:-}" ]; then
 	OUTPUT="$1"
 fi
 
 # ensure we have our xgettext-go
 go install github.com/snapcore/snapd/i18n/xgettext-go
 
+tmpdir="$(mktemp -d)"
+trap 'rm -rf "$tmpdir"' EXIT
+
 # exclude vendor and _build subdir
-I18N_FILES="$(mktemp -d)/i18n.files"
-find "$HERE" -type d \( -name "vendor" -o -name "_build" \) -prune -o -name "*.go" -type f -print > "$I18N_FILES"
-# shellcheck disable=SC2064
-trap "rm -rf $(dirname "$I18N_FILES")" EXIT
+find "$HERE" -type d \( -name "vendor" -o -name "_build" -o -name ".git" \) -prune -o -name "*.go" -type f -printf "%P\n" > "$tmpdir/go.files"
 
 "${GOPATH%%:*}/bin/xgettext-go" \
-    -f "$I18N_FILES" \
+    -f "$tmpdir/go.files" \
+    -D "$HERE" \
     -o "$OUTPUT" \
     --add-comments-tag=TRANSLATORS: \
-    --no-location \
     --sort-output \
     --package-name=snappy\
     --msgid-bugs-address=snappy-devel@lists.ubuntu.com \
     --keyword=i18n.G \
-    --keyword-plural=i18n.DG
+    --keyword-plural=i18n.NG
 
 # check canary
 check_canaries
 
 sed -i 's/charset=CHARSET/charset=UTF-8/' "$OUTPUT"
 
+find "$HERE" -path "$HERE/data/desktop/*.desktop.in" -type f -printf "%P\n" > "$tmpdir/desktop.files"
+# we need the || true because Ubuntu 14.04's xgettext does not support
+# extracting from desktop files.
+xgettext \
+    -f "$tmpdir/desktop.files" \
+    -D "$HERE" \
+    -o "$OUTPUT" \
+    --language=Desktop \
+    --sort-output \
+    --package-name=snappy \
+    --msgid-bugs-address=snappy-devel@lists.ubuntu.com \
+    --join-existing || true
+
+find "$HERE" -path "$HERE/data/polkit/*.policy" -type f -printf "%P\n" > "$tmpdir/polkit.files"
 # we need the || true because of
 # https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=891347
-xgettext "$HERE"/data/polkit/*.policy \
+xgettext \
+    -f "$tmpdir/polkit.files" \
+    -D "$HERE" \
     -o "$OUTPUT" \
     --its="$HERE/po/its/polkit.its" \
-    --no-location \
+    --sort-output \
     --package-name=snappy \
     --msgid-bugs-address=snappy-devel@lists.ubuntu.com \
     --join-existing || true
