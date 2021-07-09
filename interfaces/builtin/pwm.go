@@ -118,14 +118,14 @@ func (iface *pwmInterface) SystemdConnectedSlot(spec *systemd.Specification, plu
 		return err
 	}
 
-	serviceName := interfaces.InterfaceServiceName(slot.Snap().InstanceName(), fmt.Sprintf("pwmchip%d-pwm%d", chipNum, channel))
+	serviceAffix := fmt.Sprintf("pwmchip%d-pwm%d", chipNum, channel)
 	service := &systemd.Service{
 		Type:            "oneshot",
 		RemainAfterExit: true,
 		ExecStart:       fmt.Sprintf("/bin/sh -c 'test -e /sys/class/pwm/pwmchip%[1]d/pwm%[2]d || echo %[2]d > /sys/class/pwm/pwmchip%[1]d/export'", chipNum, channel),
 		ExecStop:        fmt.Sprintf("/bin/sh -c 'test ! -e /sys/class/pwm/pwmchip%[1]d/pwm%[2]d || echo %[2]d > /sys/class/pwm/pwmchip%[1]d/unexport'", chipNum, channel),
 	}
-	return spec.AddService(serviceName, service)
+	return spec.AddService(serviceAffix, service)
 }
 
 func (iface *pwmInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {

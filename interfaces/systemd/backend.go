@@ -36,6 +36,10 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
+func serviceName(snapName, distinctServiceAffix string) string {
+	return snap.ScopedSecurityTag(snapName, "interface", distinctServiceAffix) + ".service"
+}
+
 // Backend is responsible for maintaining apparmor profiles for ubuntu-core-launcher.
 type Backend struct {
 	preseed bool
@@ -72,7 +76,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for systemd services %q: %s", dir, err)
 	}
-	glob := interfaces.InterfaceServiceName(snapName, "*")
+	glob := serviceName(snapName, "*")
 
 	var systemd sysd.Systemd
 	if b.preseed {
@@ -122,7 +126,7 @@ func (b *Backend) Remove(snapName string) error {
 		systemd = sysd.New(sysd.SystemMode, &dummyReporter{})
 	}
 	// Remove all the files matching snap glob
-	glob := interfaces.InterfaceServiceName(snapName, "*")
+	glob := serviceName(snapName, "*")
 	_, removed, errEnsure := osutil.EnsureDirState(dirs.SnapServicesDir, glob, nil)
 	for _, service := range removed {
 		if err := systemd.Disable(service); err != nil {
@@ -161,8 +165,9 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]osutil.F
 		return nil
 	}
 	content := make(map[string]osutil.FileState)
-	for name, service := range services {
-		content[name] = &osutil.MemoryFileState{
+	for affix, service := range services {
+		filename := serviceName(snapInfo.InstanceName(), affix)
+		content[filename] = &osutil.MemoryFileState{
 			Content: []byte(service.String()),
 			Mode:    0644,
 		}

@@ -26,35 +26,45 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+type addedService struct {
+	iface string
+	svc   *Service
+}
+
 // Specification assists in collecting custom systemd services associated with an interface.
 //
 // Unlike the Backend itself (which is stateless and non-persistent) this type
-// holds internal state that is used by the mount backend during the interface
+// holds internal state that is used by the systemd backend during the interface
 // setup process.
 type Specification struct {
-	services map[string]*Service
+	services map[string]*addedService
 }
 
 // AddService adds a new systemd service unit.
-func (spec *Specification) AddService(name string, s *Service) error {
-	if old, ok := spec.services[name]; ok && old != nil && s != nil && *old != *s {
-		return fmt.Errorf("interface requires conflicting system needs: service %q used to be defined as %#v, now re-defined as %#v", name, *old, *s)
+// distinctServiceAffix is used to name the service and needs to be unique.
+// Different interfaces should use different affixes and different
+// plugs/slots should also use distinct ones.
+func (spec *Specification) AddService(distinctServiceAffix string, s *Service) error {
+	if old, ok := spec.services[distinctServiceAffix]; ok && old != nil && s != nil && *old.svc != *s {
+		return fmt.Errorf("internal error: interface has conflicting system needs: service for %q used to be defined as %#v, now re-defined as %#v", distinctServiceAffix, *old.svc, *s)
 	}
 	if spec.services == nil {
-		spec.services = make(map[string]*Service)
+		spec.services = make(map[string]*addedService)
 	}
-	spec.services[name] = s
+	spec.services[distinctServiceAffix] = &addedService{
+		svc: s,
+	}
 	return nil
 }
 
-// Services returns a deep copy of all the added services.
+// Services returns a deep copy of all the added service keyed by their service affix.
 func (spec *Specification) Services() map[string]*Service {
 	if spec.services == nil {
 		return nil
 	}
 	result := make(map[string]*Service, len(spec.services))
 	for k, v := range spec.services {
-		svc := *v
+		svc := *v.svc
 		result[k] = &svc
 	}
 	return result

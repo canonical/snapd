@@ -111,14 +111,14 @@ func (iface *gpioInterface) SystemdConnectedSlot(spec *systemd.Specification, pl
 		return err
 	}
 
-	serviceName := interfaces.InterfaceServiceName(slot.Snap().InstanceName(), fmt.Sprintf("gpio-%d", gpioNum))
+	serviceAffix := fmt.Sprintf("gpio-%d", gpioNum)
 	service := &systemd.Service{
 		Type:            "oneshot",
 		RemainAfterExit: true,
 		ExecStart:       fmt.Sprintf("/bin/sh -c 'test -e /sys/class/gpio/gpio%d || echo %d > /sys/class/gpio/export'", gpioNum, gpioNum),
 		ExecStop:        fmt.Sprintf("/bin/sh -c 'test ! -e /sys/class/gpio/gpio%d || echo %d > /sys/class/gpio/unexport'", gpioNum, gpioNum),
 	}
-	return spec.AddService(serviceName, service)
+	return spec.AddService(serviceAffix, service)
 }
 
 func (iface *gpioInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {

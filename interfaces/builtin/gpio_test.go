@@ -138,7 +138,7 @@ func (s *GpioInterfaceSuite) TestSystemdConnectedSlot(c *C) {
 	err := spec.AddConnectedSlot(s.iface, s.gadgetPlug, s.gadgetGpioSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Services(), DeepEquals, map[string]*systemd.Service{
-		"snap.my-device.interface.gpio-100.service": {
+		"gpio-100": {
 			Type:            "oneshot",
 			RemainAfterExit: true,
 			ExecStart:       `/bin/sh -c 'test -e /sys/class/gpio/gpio100 || echo 100 > /sys/class/gpio/export'`,
