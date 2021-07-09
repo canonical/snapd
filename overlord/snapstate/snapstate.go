@@ -1917,19 +1917,21 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskS
 	}
 
 	// TODO: rename to autoRefreshTasks when old auto refresh logic gets removed.
-	return autoRefreshPhase1(ctx, st)
+	return autoRefreshPhase1(ctx, st, nil)
 }
 
 // autoRefreshPhase1 creates gate-auto-refresh hooks and conditional-auto-refresh
-// task that initiates actual refresh.
+// task that initiates actual refresh. snapsToUpdate is optional and limits auto-refresh
+// to the given snaps only; it defaults to all snaps if nil.
 // The state needs to be locked by the caller.
-func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state.TaskSet, error) {
+func autoRefreshPhase1(ctx context.Context, st *state.State, snapsToUpdate []string) ([]string, []*state.TaskSet, error) {
 	user, err := userFromUserID(st, 0)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	refreshOpts := &store.RefreshOptions{IsAutoRefresh: true}
+	// XXX: should we skip refreshCandidates if toUpdate isn't empty (meaning we're handling proceed from a snap)?
 	candidates, snapstateByInstance, ignoreValidationByInstanceName, err := refreshCandidates(ctx, st, nil, user, refreshOpts)
 	if err != nil {
 		// XXX: should we reset "refresh-candidates" to nil in state for some types
@@ -1959,6 +1961,14 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 		if _, ok := hints[up.InstanceName()]; !ok {
 			// filtered out by refreshHintsFromCandidates
 			continue
+		}
+		if snapsToUpdate != nil {
+			// explicit list of snaps to refresh was requested and this snap
+			// isn't on it.
+			if !strutil.ListContains(snapsToUpdate, up.InstanceName()) {
+				logger.Noticef("skipping refresh of %q", up.InstanceName())
+				continue
+			}
 		}
 		snapst := snapstateByInstance[up.InstanceName()]
 		if err := checkChangeConflictIgnoringOneChange(st, up.InstanceName(), snapst, fromChange); err != nil {

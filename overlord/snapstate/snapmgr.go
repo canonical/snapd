@@ -100,6 +100,16 @@ type SnapSetup struct {
 	InstanceKey string `json:"instance-key,omitempty"`
 }
 
+type snapMgrKey struct{}
+
+func snapMgr(st *state.State) *SnapManager {
+	mgr := st.Cached(snapMgrKey{})
+	if mgr == nil {
+		panic("internal error: snap manager is not yet associated with state")
+	}
+	return mgr.(*SnapManager)
+}
+
 func (snapsup *SnapSetup) InstanceName() string {
 	return snap.InstanceName(snapsup.SnapName(), snapsup.InstanceKey)
 }
@@ -469,6 +479,10 @@ func Manager(st *state.State, runner *state.TaskRunner) (*SnapManager, error) {
 	runner.AddBlocked(m.blockedTask)
 
 	AddAffectedSnapsByKind("conditional-auto-refresh", conditionalAutoRefreshAffectedSnaps)
+
+	st.Lock()
+	st.Cache(snapMgrKey{}, m)
+	st.Unlock()
 
 	return m, nil
 }
