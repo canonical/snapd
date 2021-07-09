@@ -130,7 +130,7 @@ func writeLogs(rootdir string) error {
 	return nil
 }
 
-func writeTimings(rootdir string, chgIDs []string) error {
+func writeTimings(st *state.State, rootdir string) error {
 	logPath := filepath.Join(rootdir, "var/log/install-timings.txt.gz")
 	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
 		return err
@@ -144,6 +144,19 @@ func writeTimings(rootdir string, chgIDs []string) error {
 
 	gz := gzip.NewWriter(f)
 	defer gz.Close()
+
+	var chgIDs []string
+	for _, chg := range st.Changes() {
+		if chg.Kind() == "seed" {
+			// this is captured via "--ensure=seed" below
+			continue
+		}
+		chgIDs = append(chgIDs, chg.ID())
+	}
+
+	// state must be unlocked for "snap changes/debug timings" to work
+	st.Unlock()
+	defer st.Lock()
 
 	// XXX: ugly, ugly, but using the internal timings requires
 	//      some refactor as a lot of the required bits are not
@@ -492,15 +505,8 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 		return err
 	}
 
-	// write timing information, the lock must be unset for this
-	var chgIDs []string
-	for _, chg := range st.Changes() {
-		chgIDs = append(chgIDs, chg.ID())
-	}
-	st.Unlock()
-	err = writeTimings(boot.InstallHostWritableDir, chgIDs)
-	st.Lock()
-	if err != nil {
+	// write timing information
+	if err := writeTimings(st, boot.InstallHostWritableDir); err != nil {
 		logger.Noticef("cannot write timings: %v", err)
 	}
 	// store install-mode log into ubuntu-data partition
