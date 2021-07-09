@@ -277,7 +277,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		RecoverySystemDir: recoverySystemDir,
 		UnpackedGadgetDir: gadgetDir,
 	}
-	timings.Run(perfTimings, "boot-make-runnable", "Make target system runable", func(nestedm timings.Measurer) {
+	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(nestedm timings.Measurer) {
 		err = bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver)
 	})
 	if err != nil {
