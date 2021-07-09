@@ -1931,7 +1931,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 	}
 
 	refreshOpts := &store.RefreshOptions{IsAutoRefresh: true}
-	// XXX: should we skip refreshCandidates if toUpdate isn't empty (meaning we're handling proceed from a snap)?
+	// XXX: should we skip refreshCandidates if forGatingSnap isn't empty (meaning we're handling proceed from a snap)?
 	candidates, snapstateByInstance, ignoreValidationByInstanceName, err := refreshCandidates(ctx, st, nil, user, refreshOpts)
 	if err != nil {
 		// XXX: should we reset "refresh-candidates" to nil in state for some types
@@ -2018,7 +2018,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 			}
 			var found bool
 			for affectingSnap := range affectedInfo.AffectingSnaps {
-				// does this gating affectingSnap also affect forGatingSnap?
+				// does this affectingSnap also affect forGatingSnap?
 				// if so, we will keep it around, meaning we will run its
 				// gate-auto-refresh hook because it may potentially hold updates
 				// even if forGatingSnap's hook says "proceed".

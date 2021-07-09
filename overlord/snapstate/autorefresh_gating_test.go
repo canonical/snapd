@@ -2121,7 +2121,7 @@ func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnap(c *C) {
 	c.Assert(snapstate.HoldRefresh(st, "snap-b", 0, "base-snap-b"), IsNil)
 	c.Assert(snapstate.HoldRefresh(st, "snap-a", 0, "snap-a"), IsNil)
 
-	lastRefreshTime := time.Now().Add(-99*time.Hour)
+	lastRefreshTime := time.Now().Add(-99 * time.Hour)
 	st.Set("last-refresh", lastRefreshTime)
 
 	// pretend that snap-b triggers auto-refresh (by calling snapctl refresh --proceed)

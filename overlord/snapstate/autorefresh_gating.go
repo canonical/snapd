@@ -633,7 +633,6 @@ var snapsToRefresh = func(gatingTask *state.Task) ([]*refreshCandidate, error) {
 	return candidates, nil
 }
 
-
 // AutoRefreshForGatingSnap triggers an auto-refresh change for all
 // snaps held by the given gating snap. This should only be called if the
 // gate-auto-refresh-hook feature is enabled.
