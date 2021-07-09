@@ -400,17 +400,18 @@ func commitChange(pristine *json.RawMessage, change interface{}) *json.RawMessag
 	panic(fmt.Errorf("internal error: unexpected configuration type %T", change))
 }
 
-// partOfVirtualConfiguration() return true if the requested key
-// is part of a virtual configuration. E.g.:
-// "true" for requestedKey: "a.virtual.b" when virtualKey is "a.virtual".
-func partOfVirtualConfiguration(virtualKey, requestedKey string) (bool, error) {
-	virtualSubkeys, err := ParseKey(virtualKey)
-	if err != nil {
-		return false, err
-	}
+// overlapsWith() return true if the requested key overlaps with the
+// given virtual key. E.g.
+// true: for requested key "a" and virtual key "a.virtual"
+// false for requested key "z" and virtual key "a.virtual"
+func overlapsWith(requestedKey, virtualKey string) (bool, error) {
 	requestedSubkeys, err := ParseKey(requestedKey)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("cannot check overlap for requested key: %v", err)
+	}
+	virtualSubkeys, err := ParseKey(virtualKey)
+	if err != nil {
+		return false, fmt.Errorf("cannot check overlap for virtual key: %v", err)
 	}
 	for i := range requestedSubkeys {
 		if i >= len(virtualSubkeys) {
@@ -443,7 +444,7 @@ func mergeConfigWithVirtual(instanceName, requestedKey string, origConfig *map[s
 		}
 		// check if the requested key is part of the virtual
 		// configuration
-		partOf, err := partOfVirtualConfiguration(virtualKey, requestedKey)
+		partOf, err := overlapsWith(requestedKey, virtualKey)
 		if err != nil {
 			return err
 		}
@@ -481,6 +482,8 @@ func mergeConfigWithVirtual(instanceName, requestedKey string, origConfig *map[s
 		}
 	}
 
+	// XXX: unmarshaling on top of something leaves values in place
+	// (no problem here because we only add virtual things)
 	// convert back to the original config
 	if err := jsonutil.DecodeWithNumber(bytes.NewReader(*config), origConfig); err != nil {
 		return err

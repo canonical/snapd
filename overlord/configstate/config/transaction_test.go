@@ -847,3 +847,34 @@ func (s *transactionSuite) TestVirtualCommitValuesNotStored(c *C) {
 	// other-snap is unrelated
 	c.Check(config["other-snap"]["key"], Equals, "value")
 }
+
+func (s *transactionSuite) TestOverlapsWithErr(c *C) {
+	_, err := config.OverlapsWith("invalid#", "valid")
+	c.Check(err, ErrorMatches, `cannot check overlap for requested key: invalid option name: "invalid#"`)
+
+	_, err = config.OverlapsWith("valid", "invalid#")
+	c.Check(err, ErrorMatches, `cannot check overlap for virtual key: invalid option name: "invalid#"`)
+}
+
+func (s *transactionSuite) TestOverlapsWith(c *C) {
+	tests := []struct {
+		requestedKey, virtualKey string
+		overlap                  bool
+	}{
+		{"a", "a", true},
+		{"a", "a.virtual", true},
+		{"a.virtual.subkey", "a.virtual", true},
+
+		{"a.other", "a.virtual", false},
+		{"z", "a", false},
+		{"z", "a.virtual", false},
+		{"z.nested", "a.virtual", false},
+		{"z.nested.other", "a.virtual", false},
+	}
+
+	for _, tc := range tests {
+		overlap, err := config.OverlapsWith(tc.requestedKey, tc.virtualKey)
+		c.Assert(err, IsNil)
+		c.Check(overlap, Equals, tc.overlap, Commentf("%v", tc))
+	}
+}
