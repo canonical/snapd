@@ -817,6 +817,10 @@ func (s *transactionSuite) TestVirtualCommitValuesNotStored(c *C) {
 		return nil, nil
 	})
 	c.Assert(err, IsNil)
+	err = config.RegisterVirtualConfig("some-snap", "simple-virtual", func(key string) (interface{}, error) {
+		c.Errorf("virtual func should not get called in this test")
+		return nil, nil
+	})
 
 	tr := config.NewTransaction(s.state)
 
@@ -826,6 +830,8 @@ func (s *transactionSuite) TestVirtualCommitValuesNotStored(c *C) {
 	c.Check(tr.Set("some-snap", "key.nested.virtual.sub2.sub2sub", "also-won't-get-set"), IsNil)
 	c.Check(tr.Set("some-snap", "key.not-virtual", "value"), IsNil)
 	c.Check(tr.Set("some-snap", "key.nested.not-virtual", "value"), IsNil)
+	// top level virtual with no nesting
+	c.Check(tr.Set("some-snap", "simple-virtual", "will-not-get-set"), IsNil)
 	tr.Commit()
 
 	// and check what got stored in the state
