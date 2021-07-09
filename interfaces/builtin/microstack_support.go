@@ -75,8 +75,7 @@ const microStackSupportConnectedPlugAppArmor = `
 /sys/kernel/security/apparmor/.replace w,
 
 # Used by libvirt to work with IOMMU.
-/sys/kernel/iommu_groups/ r,
-/sys/kernel/iommu_groups/** r,
+/sys/kernel/iommu_groups/{,**} r,
 /sys/bus/pci/devices/**/iommu_group/** r,
 
 # Used by libvirt's QEMU driver state initialization code path.
@@ -110,6 +109,8 @@ const microStackSupportConnectedPlugAppArmor = `
 @{PROC}/@{pids}/sched r,
 
 @{PROC}/*/status r,
+
+@{PROC}/sys/fs/nr_open r,
 
 # Libvirt needs access to the PCI config space in order to be able to reset devices.
 /sys/devices/pci*/**/config rw,
@@ -161,8 +162,8 @@ owner /{dev,run}/shm/spice.* rw,
 /sys/block/sd{,[a-h]}[a-z]/device/delete rw,
 /sys/block/sdi[a-v]/device/delete rw,
 
+# Used by open-iscsi to avoid being killed by the OOM killer.
 owner @{PROC}/@{pid}/oom_score_adj rw,
-/proc/sys/fs/nr_open r,
 
 
 # Allow running utility processes under the specialized AppArmor profiles.
@@ -241,5 +242,6 @@ func init() {
 		connectedPlugSecComp:     microStackSupportConnectedPlugSecComp,
 		connectedPlugUDev:        microStackConnectedPlugUDev,
 		connectedPlugKModModules: microStackSupportConnectedPlugKmod,
+		serviceSnippets:          []string{`Delegate=true`},
 	}})
 }
