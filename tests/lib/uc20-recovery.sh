@@ -17,7 +17,6 @@ transition_to_recover_mode(){
 
     # save the original systemctl command since we essentially need to mock it
     cp /bin/systemctl /tmp/orig-systemctl
-    chmod +x /tmp/orig-systemctl
 
     # redirect shutdown command to our mock to observe calls and avoid racing
     # with spread
