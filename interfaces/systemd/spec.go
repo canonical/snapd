@@ -37,6 +37,7 @@ type addedService struct {
 // holds internal state that is used by the systemd backend during the interface
 // setup process.
 type Specification struct {
+	curIface string
 	services map[string]*addedService
 }
 
@@ -46,13 +47,18 @@ type Specification struct {
 // plugs/slots should also use distinct ones.
 func (spec *Specification) AddService(distinctServiceAffix string, s *Service) error {
 	if old, ok := spec.services[distinctServiceAffix]; ok && old != nil && s != nil && *old.svc != *s {
-		return fmt.Errorf("internal error: interface has conflicting system needs: service for %q used to be defined as %#v, now re-defined as %#v", distinctServiceAffix, *old.svc, *s)
+		if old.iface == spec.curIface {
+			return fmt.Errorf("internal error: interface %q has incosistent system needs: service for %q used to be defined as %#v, now re-defined as %#v", spec.curIface, distinctServiceAffix, *old.svc, *s)
+		} else {
+			return fmt.Errorf("internal error: interface %q and %q have conflicting system needs: service for %q used to be defined as %#v by %q, now re-defined as %#v", spec.curIface, old.iface, distinctServiceAffix, *old.svc, old.iface, *s)
+		}
 	}
 	if spec.services == nil {
 		spec.services = make(map[string]*addedService)
 	}
 	spec.services[distinctServiceAffix] = &addedService{
-		svc: s,
+		svc:   s,
+		iface: spec.curIface,
 	}
 	return nil
 }
@@ -75,9 +81,12 @@ func (spec *Specification) Services() map[string]*Service {
 // AddConnectedPlug records systemd-specific side-effects of having a connected plug.
 func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	type definer interface {
+		interfaces.Interface
 		SystemdConnectedPlug(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
+		spec.curIface = iface.Name()
+		defer func() { spec.curIface = "" }()
 		return iface.SystemdConnectedPlug(spec, plug, slot)
 	}
 	return nil
@@ -86,9 +95,12 @@ func (spec *Specification) AddConnectedPlug(iface interfaces.Interface, plug *in
 // AddConnectedSlot records systemd-specific side-effects of having a connected slot.
 func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	type definer interface {
+		interfaces.Interface
 		SystemdConnectedSlot(spec *Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error
 	}
 	if iface, ok := iface.(definer); ok {
+		spec.curIface = iface.Name()
+		defer func() { spec.curIface = "" }()
 		return iface.SystemdConnectedSlot(spec, plug, slot)
 	}
 	return nil
@@ -97,9 +109,12 @@ func (spec *Specification) AddConnectedSlot(iface interfaces.Interface, plug *in
 // AddPermanentPlug records systemd-specific side-effects of having a plug.
 func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *snap.PlugInfo) error {
 	type definer interface {
+		interfaces.Interface
 		SystemdPermanentPlug(spec *Specification, plug *snap.PlugInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
+		spec.curIface = iface.Name()
+		defer func() { spec.curIface = "" }()
 		return iface.SystemdPermanentPlug(spec, plug)
 	}
 	return nil
@@ -108,9 +123,12 @@ func (spec *Specification) AddPermanentPlug(iface interfaces.Interface, plug *sn
 // AddPermanentSlot records systemd-specific side-effects of having a slot.
 func (spec *Specification) AddPermanentSlot(iface interfaces.Interface, slot *snap.SlotInfo) error {
 	type definer interface {
+		interfaces.Interface
 		SystemdPermanentSlot(spec *Specification, slot *snap.SlotInfo) error
 	}
 	if iface, ok := iface.(definer); ok {
+		spec.curIface = iface.Name()
+		defer func() { spec.curIface = "" }()
 		return iface.SystemdPermanentSlot(spec, slot)
 	}
 	return nil

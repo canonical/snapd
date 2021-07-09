@@ -50,14 +50,64 @@ func (s *specSuite) TestAddService(c *C) {
 	})
 }
 
-func (s *specSuite) TestClashing(c *C) {
+func (s *specSuite) TestClashingSameIface(c *C) {
+	info1 := snaptest.MockInfo(c, `name: snap1
+version: 0
+plugs:
+    plug1:
+        interface: test
+`, nil)
+
+	iface := &ifacetest.TestInterface{
+		InterfaceName: "test",
+	}
 	svc1 := &systemd.Service{ExecStart: "one"}
 	svc2 := &systemd.Service{ExecStart: "two"}
+
+	iface.SystemdPermanentPlugCallback = func(spec *systemd.Specification, plug *snap.PlugInfo) error {
+		if err := spec.AddService("foo", svc1); err != nil {
+			return err
+		}
+		return spec.AddService("foo", svc2)
+	}
+
 	spec := systemd.Specification{}
-	err := spec.AddService("foo", svc1)
+	err := spec.AddPermanentPlug(iface, info1.Plugs["plug1"])
+	c.Assert(err, ErrorMatches, `internal error: interface "test" has incosistent system needs: service for "foo" used to be defined as .*, now re-defined as .*`)
+}
+
+func (s *specSuite) TestClashingTwoIfaces(c *C) {
+	info1 := snaptest.MockInfo(c, `name: snap1
+version: 0
+plugs:
+    plug1:
+        interface: test1
+    plug2:
+        interface: test2
+`, nil)
+
+	iface1 := &ifacetest.TestInterface{
+		InterfaceName: "test1",
+	}
+	iface2 := &ifacetest.TestInterface{
+		InterfaceName: "test2",
+	}
+	svc1 := &systemd.Service{ExecStart: "one"}
+	svc2 := &systemd.Service{ExecStart: "two"}
+
+	iface1.SystemdPermanentPlugCallback = func(spec *systemd.Specification, plug *snap.PlugInfo) error {
+		return spec.AddService("foo", svc1)
+	}
+
+	iface2.SystemdPermanentPlugCallback = func(spec *systemd.Specification, plug *snap.PlugInfo) error {
+		return spec.AddService("foo", svc2)
+	}
+
+	spec := systemd.Specification{}
+	err := spec.AddPermanentPlug(iface1, info1.Plugs["plug1"])
 	c.Assert(err, IsNil)
-	err = spec.AddService("foo", svc2)
-	c.Assert(err, ErrorMatches, `internal error: interface has conflicting system needs: service for "foo" used to be defined as .*, now re-defined as .*`)
+	err = spec.AddPermanentPlug(iface2, info1.Plugs["plug2"])
+	c.Assert(err, ErrorMatches, `internal error: interface "test2" and "test1" have conflicting system needs: service for "foo" used to be defined as .* by "test1", now re-defined as .*`)
 }
 
 func (s *specSuite) TestDifferentObjectsNotClashing(c *C) {
