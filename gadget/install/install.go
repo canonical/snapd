@@ -60,6 +60,8 @@ func roleOrLabelOrNode(part gadget.OnDiskStructure) string {
 		return part.Label
 	case part.Node != "":
 		return part.Node
+	case part.Name != "":
+		return part.Name
 	default:
 		return "unknown"
 	}
