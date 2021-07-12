@@ -62,10 +62,10 @@ execute: |
     . "$TESTSLIB/nested.sh"
 
     echo "Verify that no fde keys are generated"
-    nested_exec "test ! -d /var/lib/snapd/device/fde"
+    tests.nested exec "test ! -d /var/lib/snapd/device/fde"
 
     # TODO: once we have a install-mode log (PR#9545) we could grep
     #       "installing system unencrypted because of ..."
 
     echo "Check that data is mounted from a regular device, not a mapper"
-    nested_exec "mount" | MATCH "/dev/[svh]da[45] on /run/mnt/data"
+    tests.nested exec "mount" | MATCH "/dev/[svh]da[45] on /run/mnt/data"
