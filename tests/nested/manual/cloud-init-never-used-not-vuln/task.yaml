@@ -97,7 +97,7 @@ execute: |
 
     echo "Waiting for snapd to react to cloud-init"
     # It is needed || true because in ubuntu-core-16 there is not any cloud-init message in the journal log
-    tests.nested exec "retry --wait 1 -n 60 sh -c 'sudo journalctl --no-pager -u snapd | MATCH \"cloud-init reported\"'" || true
+    tests.nested exec "retry --wait 1 -n 60 sh -c 'sudo journalctl --no-pager -u snapd | MATCH \"cloud-init reported\"'"
     
     # ensure that snapd disabled cloud-init with the cloud-init.disabled file
     echo "Ensuring that snapd restricted cloud-init"
