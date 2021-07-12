@@ -7,10 +7,14 @@ systems: [ubuntu-18.04-64, ubuntu-16.04-64]
 environment:
     # this test ensures that existing images without the fix are no longer
     # vulnerable after refreshing to a version of snapd with the fix
-    NESTED_BUILD_FROM_CURRENT/refresh: false
-    NESTED_BUILD_FROM_CURRENT/firstboot: true
+    NESTED_BUILD_SNAPD_FROM_CURRENT/refresh: false
+    NESTED_BUILD_SNAPD_FROM_CURRENT/firstboot: true
     NESTED_USE_CLOUD_INIT: false
-    NESTED_IMAGE_ID: cloud-init-never-$NESTED_BUILD_FROM_CURRENT
+    NESTED_IMAGE_ID: cloud-init-never-$NESTED_BUILD_SNAPD_FROM_CURRENT
+
+    # this test is only running on nested systems, so only amd64 for now
+    SNAPD_2_45_SNAPD_SNAP: https://storage.googleapis.com/snapd-spread-tests/snaps/snapd_2.45_7777.snap
+    SNAPD_2_45_CORE_SNAP: https://storage.googleapis.com/snapd-spread-tests/snaps/core_2.45_9289.snap
 
 prepare: |
     #shellcheck source=tests/lib/nested.sh
@@ -22,6 +26,27 @@ prepare: |
 
     # build the attacker cloud-init NoCloud cdrom drive
     nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/attacker-user" seed2.iso cidata user-data meta-data
+
+    # if we are not building from current, then we need to seed the specific,
+    # old version of snapd that was vulnerable into the image to start there,
+    # otherwise we will start from stable or edge which already has the fix and
+    # thus this test would no longer be testing that old vulnerable devices 
+    # become safe after refreshing to the fix
+    if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "false" ]; then
+        snap install http --devmode # devmode so it can save to any dir
+
+        mkdir -p "$(nested_get_extra_snaps_path)"
+
+        if os.query is-xenial; then
+            # uc16 uses core snap
+            http --quiet --download --output core_2.45.snap GET "$SNAPD_2_45_CORE_SNAP"
+            cp core_2.45.snap "$(nested_get_extra_snaps_path)"
+        else 
+            # uc18 uses snapd snap
+            http --quiet --download --output snapd_2.45.snap GET "$SNAPD_2_45_SNAPD_SNAP"
+            cp snapd_2.45.snap "$(nested_get_extra_snaps_path)"
+        fi
+    fi
 
     tests.nested build-image core 
 
@@ -56,8 +81,8 @@ execute: |
     # if we are not building from current, then we need to prep the snapd snap
     # to install with the fix, this simulates/verifies that devices in the field
     # without the fix will actually be fixed after they refresh
-    if [ "$NESTED_BUILD_FROM_CURRENT" = "false" ]; then
-        if nested_is_core_16_system; then
+    if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "false" ]; then
+        if os.query is-xenial; then
             # build the core snap for this run
             repack_snapd_deb_into_core_snap "$PWD"
             tests.nested copy "$PWD/core-from-snapd-deb.snap"
@@ -96,12 +121,19 @@ execute: |
     tests.nested exec "cloud-init status --wait"
 
     echo "Waiting for snapd to react to cloud-init"
+    seen=0
     for i in $(seq 60); do
-        if tests.nested exec "journalctl --no-pager -u snapd" | MATCH "Cloud-init reported"; then
+        if tests.nested exec "sudo journalctl --no-pager -u snapd" | MATCH "cloud-init reported"; then
+            seen=1
             break
         fi
         sleep 1
     done
+
+    if [ "$seen" = "0" ]; then
+        echo "snapd did not restrict cloud-init, test failed"
+        exit 1
+    fi
 
     # ensure that snapd disabled cloud-init with the cloud-init.disabled file
     echo "Ensuring that snapd restricted cloud-init"
