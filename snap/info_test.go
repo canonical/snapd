@@ -106,10 +106,10 @@ func (s *infoSuite) TestContactFromEdited(c *C) {
 	}
 
 	info.SideInfo = snap.SideInfo{
-		EditedContact: "econtact",
+		EditedContact: "mailto:econtact",
 	}
 
-	c.Check(info.Contact(), Equals, "econtact")
+	c.Check(info.Contact(), Equals, "mailto:econtact")
 }
 
 func (s *infoSuite) TestNoContact(c *C) {
@@ -125,7 +125,27 @@ func (s *infoSuite) TestContactFromLinks(c *C) {
 		},
 	}
 
-	c.Check(info.Contact(), Equals, "ocontact1")
+	c.Check(info.Contact(), Equals, "mailto:ocontact1")
+}
+
+func (s *infoSuite) TestContactFromLinksMailtoAlready(c *C) {
+	info := &snap.Info{
+		OriginalLinks: map[string][]string{
+			"contact": {"mailto:ocontact1", "ocontact2"},
+		},
+	}
+
+	c.Check(info.Contact(), Equals, "mailto:ocontact1")
+}
+
+func (s *infoSuite) TestContactFromLinksNotEmail(c *C) {
+	info := &snap.Info{
+		OriginalLinks: map[string][]string{
+			"contact": {"https://ocontact1", "ocontact2"},
+		},
+	}
+
+	c.Check(info.Contact(), Equals, "https://ocontact1")
 }
 
 func (s *infoSuite) TestLinks(c *C) {

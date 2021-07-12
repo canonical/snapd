@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -447,14 +448,25 @@ func (s *Info) Links() map[string][]string {
 
 // Contact returns the blessed contact information for the snap.
 func (s *Info) Contact() string {
+	var contact string
 	if s.EditedContact != "" {
-		return s.EditedContact
+		contact = s.EditedContact
+	} else {
+		contacts := s.Links()["contact"]
+		if len(contacts) > 0 {
+			contact = contacts[0]
+		}
 	}
-	contacts := s.Links()["contact"]
-	if len(contacts) > 0 {
-		return contacts[0]
+	if contact != "" {
+		u, err := url.Parse(contact)
+		if err != nil {
+			return ""
+		}
+		if u.Scheme == "" {
+			contact = "mailto:" + contact
+		}
 	}
-	return ""
+	return contact
 }
 
 // Type returns the type of the snap, including additional snap ID check
