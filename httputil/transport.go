@@ -25,6 +25,7 @@ import (
 )
 
 var origDefaultTransport *http.Transport = http.DefaultTransport.(*http.Transport)
+var responseHeaderTimeout = 10 * time.Second
 
 // newDefaultTransport makes a fresh modifiable instance of Transport
 // with the same parameters as http.DefaultTransport.
@@ -37,5 +38,6 @@ func newDefaultTransport() *http.Transport {
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
+		ResponseHeaderTimeout: responseHeaderTimeout,
 	}
 }
