@@ -68,6 +68,8 @@ var (
 	SealKeyModelParams              = sealKeyModelParams
 
 	BootVarsForTrustedCommandLineFromGadget = bootVarsForTrustedCommandLineFromGadget
+
+	WriteModelToUbuntuBoot = writeModelToUbuntuBoot
 )
 
 type BootAssetsMap = bootAssetsMap
@@ -224,5 +226,13 @@ func MockAdditionalBootFlags(bootFlags []string) (restore func()) {
 	understoodBootFlags = append(understoodBootFlags, bootFlags...)
 	return func() {
 		understoodBootFlags = old
+	}
+}
+
+func MockWriteModelToUbuntuBoot(mock func(*asserts.Model) error) (restore func()) {
+	old := writeModelToUbuntuBoot
+	writeModelToUbuntuBoot = mock
+	return func() {
+		writeModelToUbuntuBoot = old
 	}
 }
