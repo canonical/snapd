@@ -255,7 +255,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	opts := &sysconfig.Options{TargetRootDir: boot.InstallHostWritableDir, GadgetDir: gadgetDir}
 	// configure cloud init
 	setSysconfigCloudOptions(opts, gadgetDir, model)
-	timings.Run(perfTimings, "sysconfig-configure-target-system", "Configure target system", func(nestedm timings.Measurer) {
+	timings.Run(perfTimings, "sysconfig-configure-target-system", "Configure target system", func(timings.Measurer) {
 		err = sysconfigConfigureTargetSystem(model, opts)
 	})
 	if err != nil {
@@ -277,7 +277,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		RecoverySystemDir: recoverySystemDir,
 		UnpackedGadgetDir: gadgetDir,
 	}
-	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(nestedm timings.Measurer) {
+	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
 		err = bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver)
 	})
 	if err != nil {
