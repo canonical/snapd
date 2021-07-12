@@ -209,10 +209,10 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	var installedSystem *install.InstalledSystemSideData
 	// run the create partition code
 	logger.Noticef("create and deploy partitions")
-	timings.Run(perfTimings, "install-run", "Install the run system", func(timings.Measurer) {
+	timings.Run(perfTimings, "install-run", "Install the run system", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		installedSystem, err = installRun(model, gadgetDir, kernelDir, "", bopts, installObserver, perfTimings)
+		installedSystem, err = installRun(model, gadgetDir, kernelDir, "", bopts, installObserver, tm)
 	})
 	if err != nil {
 		return fmt.Errorf("cannot install system: %v", err)
