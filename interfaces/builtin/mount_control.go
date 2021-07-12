@@ -27,6 +27,7 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
+	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -179,6 +180,10 @@ func validateWhatAttr(what string) error {
 		return fmt.Errorf(`mount-control "what" attribute must be an absolute path`)
 	}
 
+	if _, err := utils.NewPathPattern(what); err != nil {
+		return fmt.Errorf(`mount-control "what" attribute error: %v`, err)
+	}
+
 	// TODO add more checks?
 	return nil
 }
@@ -186,6 +191,10 @@ func validateWhatAttr(what string) error {
 func validateWhereAttr(where string) error {
 	if !whereRegexp.MatchString(where) {
 		return fmt.Errorf(`mount-control "where" attribute is invalid`)
+	}
+
+	if _, err := utils.NewPathPattern(where); err != nil {
+		return fmt.Errorf(`mount-control "where" attribute error: %v`, err)
 	}
 
 	// TODO add more checks?
