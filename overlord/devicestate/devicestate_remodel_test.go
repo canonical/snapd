@@ -24,6 +24,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"path/filepath"
 	"reflect"
 	"time"
@@ -1833,4 +1834,144 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 		c.Assert(err, IsNil, Commentf("recovery system setup task ID missing in %s", tsk.Kind()))
 		c.Assert(otherTaskID, Equals, tCreateRecovery.ID())
 	}
+}
+
+type remodelUC20LabelConflictsTestCase struct {
+	now              time.Time
+	breakPermissions bool
+	expectedErr      string
+}
+
+func (s *deviceMgrRemodelSuite) testRemodelUC20LabelConflicts(c *C, tc remodelUC20LabelConflictsTestCase) {
+	restore := devicestate.AllowUC20RemodelTesting(true)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		return nil, fmt.Errorf("unexpected call")
+	})
+	defer restore()
+
+	restore = devicestate.MockTimeNow(func() time.Time { return tc.now })
+	defer restore()
+
+	// set a model assertion
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "serial")
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "serial",
+	})
+
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"revision":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+
+	labelBase := tc.now.Format("20060102")
+	// create a conflict with base label
+	err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", labelBase), 0755)
+	c.Assert(err, IsNil)
+	for i := 0; i < 5; i++ {
+		// create conflicting labels with numerical suffices
+		l := fmt.Sprintf("%s-%d", labelBase, i)
+		err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", l), 0755)
+		c.Assert(err, IsNil)
+	}
+	// and some confusing labels
+	for _, suffix := range []string{"--", "-abc", "-abc-1", "foo", "-"} {
+		err := os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", labelBase+suffix), 0755)
+		c.Assert(err, IsNil)
+	}
+	// and a label that will force a max number
+	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", labelBase+"-990"), 0755)
+	c.Assert(err, IsNil)
+
+	if tc.breakPermissions {
+		systemsDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems")
+		c.Assert(os.Chmod(systemsDir, 0000), IsNil)
+		defer os.Chmod(systemsDir, 0755)
+	}
+
+	chg, err := devicestate.Remodel(s.state, new)
+	if tc.expectedErr == "" {
+		c.Assert(err, IsNil)
+		c.Assert(chg, NotNil)
+
+		var tCreateRecovery *state.Task
+		for _, tsk := range chg.Tasks() {
+			if tsk.Kind() == "create-recovery-system" {
+				tCreateRecovery = tsk
+				break
+			}
+		}
+		happyLabel := labelBase + "-991"
+		c.Assert(tCreateRecovery, NotNil)
+		c.Assert(tCreateRecovery.Summary(), Equals, fmt.Sprintf("Create recovery system with label %q", happyLabel))
+		var systemSetupData map[string]interface{}
+		err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
+		c.Assert(err, IsNil)
+		c.Assert(systemSetupData["label"], Equals, happyLabel)
+	} else {
+		c.Assert(err, ErrorMatches, tc.expectedErr)
+		c.Assert(chg, IsNil)
+	}
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelUC20LabelConflictsHappy(c *C) {
+	now := time.Now()
+	s.testRemodelUC20LabelConflicts(c, remodelUC20LabelConflictsTestCase{now: now})
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelUC20LabelConflictsError(c *C) {
+	if os.Geteuid() == 0 {
+		c.Skip("the test cannot be executed by the root user")
+	}
+	now := time.Now()
+	nowLabel := now.Format("20060102")
+	s.testRemodelUC20LabelConflicts(c, remodelUC20LabelConflictsTestCase{
+		now: now,
+
+		breakPermissions: true,
+		expectedErr:      fmt.Sprintf(`cannot select non-conflicting label for recovery system "%[1]s": stat .*/run/mnt/ubuntu-seed/systems/%[1]s: permission denied`, nowLabel),
+	})
 }

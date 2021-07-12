@@ -299,3 +299,22 @@ func (s *extKeypairMgrSuite) TestListError(c *C) {
 	_, err = kmgr.List()
 	c.Check(err, ErrorMatches, `cannot get all external keypair manager key names:.*exit status 1.*`)
 }
+
+func (s *extKeypairMgrSuite) TestDeleteUnsupported(c *C) {
+	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
+	c.Assert(err, IsNil)
+
+	err = kmgr.Delete("key")
+	c.Check(err, ErrorMatches, `no support to delete external keypair manager keys`)
+	c.Check(err, FitsTypeOf, &asserts.ExternalUnsupportedOpError{})
+
+}
+
+func (s *extKeypairMgrSuite) TestGenerateUnsupported(c *C) {
+	kmgr, err := asserts.NewExternalKeypairManager("keymgr")
+	c.Assert(err, IsNil)
+
+	err = kmgr.Generate("key")
+	c.Check(err, ErrorMatches, `no support to mediate generating an external keypair manager key`)
+	c.Check(err, FitsTypeOf, &asserts.ExternalUnsupportedOpError{})
+}

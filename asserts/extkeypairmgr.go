@@ -190,8 +190,26 @@ func (em *ExternalKeypairManager) GetByName(keyName string) (PrivateKey, error) 
 	return em.privateKey(cachedKey), nil
 }
 
+// ExternalUnsupportedOpError represents the error situation of operations
+// that are not supported/mediated via ExternalKeypairManager.
+type ExternalUnsupportedOpError struct {
+	msg string
+}
+
+func (euoe *ExternalUnsupportedOpError) Error() string {
+	return euoe.msg
+}
+
 func (em *ExternalKeypairManager) Put(privKey PrivateKey) error {
-	return fmt.Errorf("cannot import private key into external keypair manager")
+	return &ExternalUnsupportedOpError{"cannot import private key into external keypair manager"}
+}
+
+func (em *ExternalKeypairManager) Delete(keyName string) error {
+	return &ExternalUnsupportedOpError{"no support to delete external keypair manager keys"}
+}
+
+func (em *ExternalKeypairManager) Generate(keyName string) error {
+	return &ExternalUnsupportedOpError{"no support to mediate generating an external keypair manager key"}
 }
 
 func (em *ExternalKeypairManager) loadAllKeys() ([]string, error) {
