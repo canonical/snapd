@@ -819,6 +819,7 @@ func (s *transactionSuite) TestVirtualCommitValuesNotStored(c *C) {
 		c.Errorf("virtual func should not get called in this test")
 		return nil, nil
 	})
+	c.Assert(err, IsNil)
 
 	tr := config.NewTransaction(s.state)
 
