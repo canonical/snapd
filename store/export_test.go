@@ -40,7 +40,6 @@ var (
 	ApiURL        = apiURL
 	Download      = download
 
-	UseDeltas  = useDeltas
 	ApplyDelta = applyDelta
 
 	AuthLocation      = authLocation
@@ -146,7 +145,7 @@ func MockDoDownloadReq(f func(ctx context.Context, storeURL *url.URL, cdnHeader 
 	}
 }
 
-func MockApplyDelta(f func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error) (restore func()) {
+func MockApplyDelta(f func(s *Store, name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error) (restore func()) {
 	origApplyDelta := applyDelta
 	applyDelta = f
 	return func() {
@@ -196,6 +195,14 @@ func (sto *Store) SessionUnlock() {
 
 func (sto *Store) FindFields() []string {
 	return sto.findFields
+}
+
+func (sto *Store) UseDeltas() bool {
+	return sto.useDeltas()
+}
+
+func (sto *Store) Xdelta3Cmd() string {
+	return sto.xdelta3CmdLocation
 }
 
 func (cfg *Config) SetBaseURL(u *url.URL) error {

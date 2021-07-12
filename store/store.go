@@ -158,6 +158,12 @@ type Store struct {
 	proxyConnectHeader http.Header
 
 	userAgent string
+
+	xdeltaCheckLock sync.Mutex
+	// whether we should use deltas or not
+	shouldUseDeltas *bool
+	// which xdelta3 we picked when we checked the deltas
+	xdelta3CmdLocation string
 }
 
 var ErrTooManyRequests = errors.New("too many requests")
