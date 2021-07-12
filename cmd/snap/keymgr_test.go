@@ -39,18 +39,26 @@ func (keymgrSuite) TestGPGKeypairManager(c *check.C) {
 	c.Check(keypairMgr, check.FitsTypeOf, &asserts.GPGKeypairManager{})
 }
 
-func (keymgrSuite) TestExternalKeypairManager(c *check.C) {
+func mockNopExtKeyMgr(c *check.C) (pgm *testutil.MockCmd, restore func()) {
 	os.Setenv("SNAPD_EXT_KEYMGR", "keymgr")
-	defer os.Unsetenv("SNAPD_EXT_KEYMGR")
-
-	pgm := testutil.MockCommand(c, "keymgr", `
+	pgm = testutil.MockCommand(c, "keymgr", `
 if [ "$1" == "features" ]; then
   echo '{"signing":["RSA-PKCS"] , "public-keys":["DER"]}'
   exit 0
 fi
 exit 1
 `)
-	defer pgm.Restore()
+	r := func() {
+		pgm.Restore()
+		os.Unsetenv("SNAPD_EXT_KEYMGR")
+	}
+
+	return pgm, r
+}
+
+func (keymgrSuite) TestExternalKeypairManager(c *check.C) {
+	pgm, restore := mockNopExtKeyMgr(c)
+	defer restore()
 
 	keypairMgr, err := snap.GetKeypairManager()
 	c.Check(err, check.IsNil)
@@ -69,4 +77,15 @@ exit 1
 
 	_, err := snap.GetKeypairManager()
 	c.Check(err, check.ErrorMatches, `cannot setup external keypair manager: external keypair manager "keymgr" \[features\] failed: exit status 1.*`)
+}
+
+func (keymgrSuite) TestExternalKeypairManagerGenerateKey(c *check.C) {
+	_, restore := mockNopExtKeyMgr(c)
+	defer restore()
+
+	keypairMgr, err := snap.GetKeypairManager()
+	c.Check(err, check.IsNil)
+
+	err = snap.GenerateKey(keypairMgr, "key")
+	c.Check(err, check.ErrorMatches, `cannot generate external keypair manager key via snap command, use the appropriate external procedure to create a 4096-bit RSA key under the name/label "key"`)
 }

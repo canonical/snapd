@@ -20,6 +20,7 @@
 package main_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -28,6 +29,7 @@ import (
 	"gopkg.in/check.v1"
 
 	main "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/jsonutil"
 )
 
 type quotaSuite struct {
@@ -92,21 +94,20 @@ func dispatchFakeHandlers(c *check.C, routes map[string]http.HandlerFunc) func(w
 }
 
 type fakeQuotaGroupPostHandlerOpts struct {
-	action        string
-	body          string
-	groupName     string
-	parentName    string
-	snaps         []string
-	maxMemory     int64
-	currentMemory int64
+	action     string
+	body       string
+	groupName  string
+	parentName string
+	snaps      []string
+	maxMemory  int64
 }
 
 type quotasEnsureBody struct {
-	Action     string   `json:"action"`
-	GroupName  string   `json:"group-name,omitempty"`
-	ParentName string   `json:"parent,omitempty"`
-	Snaps      []string `json:"snaps,omitempty"`
-	MaxMemory  int64    `json:"max-memory,omitempty"`
+	Action      string                 `json:"action"`
+	GroupName   string                 `json:"group-name,omitempty"`
+	ParentName  string                 `json:"parent,omitempty"`
+	Snaps       []string               `json:"snaps,omitempty"`
+	Constraints map[string]interface{} `json:"constraints,omitempty"`
 }
 
 func makeFakeQuotaPostHandler(c *check.C, opts fakeQuotaGroupPostHandlerOpts) func(w http.ResponseWriter, r *http.Request) {
@@ -127,15 +128,18 @@ func makeFakeQuotaPostHandler(c *check.C, opts fakeQuotaGroupPostHandlerOpts) fu
 			c.Check(string(buf), check.Equals, fmt.Sprintf(`{"action":"remove","group-name":%q}`+"\n", opts.groupName))
 		case "ensure":
 			exp := quotasEnsureBody{
-				Action:     "ensure",
-				GroupName:  opts.groupName,
-				ParentName: opts.parentName,
-				Snaps:      opts.snaps,
-				MaxMemory:  opts.maxMemory,
+				Action:      "ensure",
+				GroupName:   opts.groupName,
+				ParentName:  opts.parentName,
+				Snaps:       opts.snaps,
+				Constraints: map[string]interface{}{},
+			}
+			if opts.maxMemory != 0 {
+				exp.Constraints["memory"] = json.Number(fmt.Sprintf("%d", opts.maxMemory))
 			}
 
 			postJSON := quotasEnsureBody{}
-			err := json.Unmarshal(buf, &postJSON)
+			err := jsonutil.DecodeWithNumber(bytes.NewReader(buf), &postJSON)
 			c.Assert(err, check.IsNil)
 			c.Assert(postJSON, check.DeepEquals, exp)
 		default:
@@ -197,8 +201,8 @@ func (s *quotaSuite) TestGetQuotaGroup(c *check.C) {
 			"parent":"bar",
 			"subgroups":["subgrp1"],
 			"snaps":["snap-a","snap-b"],
-			"max-memory":1000,
-			"current-memory":900
+			"constraints": { "memory": 1000 },
+			"current": { "memory": 900 }
 		}
 	}`
 
@@ -232,8 +236,8 @@ func (s *quotaSuite) TestGetQuotaGroupSimple(c *check.C) {
 		"status-code": 200,
 		"result": {
 			"group-name": "foo",
-			"max-memory": 1000,
-			"current-memory": %d
+			"constraints": {"memory": 1000},
+			"current": {"memory": %d}
 		}
 	}`
 
@@ -324,8 +328,12 @@ func (s *quotaSuite) testSetQuotaGroupUpdateExistingUnhappy(c *check.C, errPatte
 			"status-code": 200,
 			"result": {
 				"group-name":"foo",
-				"max-memory": 1000,
-				"current-memory":500
+				"current": {
+					"memory": 500
+				},
+				"constraints": {
+					"memory": 1000
+				}
 			}
 		}`
 
@@ -354,8 +362,8 @@ func (s *quotaSuite) TestSetQuotaGroupUpdateExisting(c *check.C) {
 		"status-code": 200,
 		"result": {
 			"group-name":"foo",
-			"max-memory": %d,
-			"current-memory":500
+			"constraints": { "memory": %d },
+			"current": { "memory": 500 }
 		}
 	}`
 
@@ -437,13 +445,14 @@ func (s *quotaSuite) TestGetAllQuotaGroups(c *check.C) {
 
 	s.RedirectClientToTestServer(makeFakeGetQuotaGroupsHandler(c,
 		`{"type": "sync", "status-code": 200, "result": [
-			{"group-name":"aaa","subgroups":["ccc","ddd"],"parent":"zzz","max-memory":1000},
-			{"group-name":"ddd","parent":"aaa","max-memory":400},
-			{"group-name":"bbb","parent":"zzz","max-memory":1000,"current-memory":400},
-			{"group-name":"yyyyyyy","max-memory":1000},
-			{"group-name":"zzz","subgroups":["bbb","aaa"],"max-memory":5000},
-			{"group-name":"ccc","parent":"aaa","max-memory":400},
-			{"group-name":"xxx","max-memory":9900,"current-memory":9999}
+			{"group-name":"aaa","subgroups":["ccc","ddd","fff"],"parent":"zzz","constraints":{"memory":1000}},
+			{"group-name":"ddd","parent":"aaa","constraints":{"memory":400}},
+			{"group-name":"bbb","parent":"zzz","constraints":{"memory":1000},"current":{"memory":400}},
+			{"group-name":"yyyyyyy","constraints":{"memory":1000}},
+			{"group-name":"zzz","subgroups":["bbb","aaa"],"constraints":{"memory":5000}},
+			{"group-name":"ccc","parent":"aaa","constraints":{"memory":400}},
+			{"group-name":"fff","parent":"aaa","constraints":{"memory":1000},"current":{"memory":0}},
+			{"group-name":"xxx","constraints":{"memory":9900},"current":{"memory":10000}}
 			]}`))
 
 	rest, err := main.Parser(main.Client()).ParseArgs([]string{"quotas"})
@@ -458,6 +467,7 @@ zzz              memory=5000B
 aaa      zzz     memory=1000B  
 ccc      aaa     memory=400B   
 ddd      aaa     memory=400B   
+fff      aaa     memory=1000B  
 bbb      zzz     memory=1000B  memory=400B
 `[1:])
 }
