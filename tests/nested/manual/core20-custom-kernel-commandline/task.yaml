@@ -50,7 +50,7 @@ prepare: |
     tests.nested create-vm core
 
     for f in pc-gadget-cmdline-extra-updated.snap pc-gadget-cmdline-full.snap pc-gadget-cmdline-none.snap; do
-        nested_copy "$f"
+        tests.nested copy "$f"
     done
 
 debug: |
@@ -79,7 +79,7 @@ execute: |
     REMOTE_CHG_ID=$(tests.nested exec 'sudo snap install --dangerous --no-wait ./pc-gadget-cmdline-extra-updated.snap')
 
     echo "Wait for reboot"
-    nested_wait_for_reboot "${boot_id}"
+    tests.nested wait-for reboot "${boot_id}"
     boot_id="$(nested_get_boot_id)"
     tests.nested exec 'sudo cat /proc/cmdline' | MATCH 'snapd_recovery_mode=run .* updated hello from test'
     # wait for previous change to finish before proceeding
@@ -87,7 +87,7 @@ execute: |
 
     echo "Update to gadget with no command line"
     REMOTE_CHG_ID=$(tests.nested exec 'sudo snap install --dangerous --no-wait ./pc-gadget-cmdline-none.snap')
-    nested_wait_for_reboot "${boot_id}"
+    tests.nested wait-for reboot "${boot_id}"
     boot_id="$(nested_get_boot_id)"
     echo "Verify that custom command line elements are not present"
     tests.nested exec 'sudo cat /proc/cmdline' | NOMATCH 'hello from test'
@@ -96,7 +96,7 @@ execute: |
 
     echo "Update to gadget with full command line"
     REMOTE_CHG_ID=$(tests.nested exec 'sudo snap install --dangerous --no-wait ./pc-gadget-cmdline-full.snap')
-    nested_wait_for_reboot "${boot_id}"
+    tests.nested wait-for reboot "${boot_id}"
     boot_id="$(nested_get_boot_id)"
     tests.nested exec 'sudo cat /proc/cmdline' | MATCH 'snapd_recovery_mode=run snapd.debug=1 console=ttyS0 full hello from test'
     # wait for previous change to finish before proceeding
@@ -104,7 +104,7 @@ execute: |
 
     echo "Transition to recover mode to verify kernel command line"
     tests.nested exec 'sudo snap reboot --recover'
-    nested_wait_for_reboot "${boot_id}"
+    tests.nested wait-for reboot "${boot_id}"
 
     echo "Check the vm is in recover mode"
     tests.nested exec 'sudo cat /proc/cmdline' > system.cmdline.recover
