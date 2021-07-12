@@ -143,4 +143,4 @@ execute: |
     fi
 
     udevadm info "$UDEVADM_PATH" | NOMATCH "E: TAGS=.*snap_test-snapd-sh_sh"
-    NOMATCH "c 4:68 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list
+    test ! -f /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list
