@@ -138,10 +138,9 @@ execute: |
         udevadm info "$UDEVADM_PATH" | NOMATCH "E: CURRENT_TAGS=.*snap_test-snapd-sh_sh"
         test ! -f /etc/udev/rules.d/70-snap.test-snapd-sh.rules
 
-        # Reboot needed just on systemd 247+
-        if [ "$(systemctl --version | awk '/systemd [0-9]+/ { print $2 }')" -ge 247 ]; then
-            REBOOT
-        fi
+        # Reboot needed to cleanup properly cgroup devices
+        REBOOT
     fi
 
     udevadm info "$UDEVADM_PATH" | NOMATCH "E: TAGS=.*snap_test-snapd-sh_sh"
+    NOMATCH "c 4:68 rwm" < /sys/fs/cgroup/devices/snap.test-snapd-sh.sh/devices.list
