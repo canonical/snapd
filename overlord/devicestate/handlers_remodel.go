@@ -20,12 +20,14 @@ package devicestate
 
 import (
 	"fmt"
+	"time"
 
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -138,12 +140,34 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 		return err
 	}
 
-	// TODO: consider reverting the model if reseal fails?
+	// XXX: beyond this point, we cannot do anything about errors such that
+	// the system will be returned to a sane state, at best try to log some
+	// errors
+
+	logEverywhere := func(format string, args ...interface{}) {
+		t.Logf(format, args)
+		logger.Noticef(format, args)
+	}
 	if new.Grade() != asserts.ModelGradeUnset {
 		if err := boot.DeviceChange(remodCtx.GroundContext(), remodCtx); err != nil {
-			return err
+			logEverywhere("cannot change device: %v", err)
+		}
+
+		// TODO: defer restore device?
+		if err := m.recordSeededSystem(st, &seededSystem{
+			System:    recoverySetup.Label,
+			Model:     new.Model(),
+			BrandID:   new.BrandID(),
+			Revision:  new.Revision(),
+			Timestamp: new.Timestamp(),
+			SeedTime:  time.Now(),
+		}); err != nil {
+			logEverywhere("cannot record a new seeded system: %v", err)
 		}
 	}
+
+	t.SetStatus(state.DoneStatus)
+
 	return nil
 }
 
