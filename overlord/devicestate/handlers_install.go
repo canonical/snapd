@@ -179,9 +179,10 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	validationConstraints := gadget.ValidationConstraints{
 		EncryptedData: useEncryption,
 	}
-	sp := perfTimings.StartSpan("read-info-and-validate", "Read and validate gagdet info")
-	ginfo, err := gadget.ReadInfoAndValidate(gadgetDir, model, &validationConstraints)
-	sp.Stop()
+	var ginfo *gadget.Info
+	timings.Run(perfTimings, "read-info-and-validate", "Read and validate gagdet info", func(timings.Measurer) {
+		ginfo, err = gadget.ReadInfoAndValidate(gadgetDir, model, &validationConstraints)
+	})
 	if err != nil {
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
