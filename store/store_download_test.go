@@ -1043,7 +1043,7 @@ func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterUnhappy(c *C) {
 }
 
 func (s *storeDownloadSuite) TestDownloadTimeoutOnHeaders(c *C) {
-	restore := httputil.MockResponseHeaderTimeout(time.Second)
+	restore := httputil.MockResponseHeaderTimeout(250 * time.Millisecond)
 	defer restore()
 
 	var mockServer *httptest.Server
