@@ -8,6 +8,8 @@ show_help() {
     echo "       start-vm"
     echo "       stop-vm"
     echo "       remove-vm"
+    echo "       exec <CMD>"
+    echo "       exec <USER> <PWD> <CMD>"
     echo ""
     echo "Available options:"
     echo "  -h --help   show this help message."
@@ -20,6 +22,8 @@ show_help() {
     echo "  start-vm:    starts a stopped vm"
     echo "  stop-vm:     shutdowns a running vm"
     echo "  remove-vm:   removes a vm"
+    echo "  exec:        executes a command in the vm"
+    echo "  exec-as:     executes a command in the vm as the specified user"
     echo ""
     echo "IMAGE-TYPES:"
     echo "  core: work with a core image"
@@ -110,6 +114,14 @@ stop_vm() {
 
 remove_vm() {
     nested_destroy_vm
+}
+
+exec() {
+    nested_exec "$@"
+}
+
+exec_as() {
+    nested_exec_as "$@"
 }
 
 main() {
