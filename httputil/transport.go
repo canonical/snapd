@@ -25,10 +25,11 @@ import (
 )
 
 var origDefaultTransport *http.Transport = http.DefaultTransport.(*http.Transport)
-var responseHeaderTimeout = 10 * time.Second
+var responseHeaderTimeout = 15 * time.Second
 
 // newDefaultTransport makes a fresh modifiable instance of Transport
-// with the same parameters as http.DefaultTransport.
+// with the same parameters as http.DefaultTransport but we also set
+// ResponseHeaderTimeout which is not set by default.
 func newDefaultTransport() *http.Transport {
 	// based on https://github.com/golang/go/blob/release-branch.go1.7/src/net/http/transport.go#L38
 	return &http.Transport{
