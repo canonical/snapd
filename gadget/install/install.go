@@ -52,14 +52,12 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 	return "", fmt.Errorf("cannot find role %s in gadget", role)
 }
 
-func roleOrLabelOrNode(part gadget.OnDiskStructure) string {
+func roleOrLabelOrName(part gadget.OnDiskStructure) string {
 	switch {
 	case part.Role != "":
 		return part.Role
 	case part.Label != "":
 		return part.Label
-	case part.Node != "":
-		return part.Node
 	case part.Name != "":
 		return part.Name
 	default:
@@ -158,7 +156,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 			part.Node, part, part.Size.IECString(), roleFmt)
 		if options.Encrypt && roleNeedsEncryption(part.Role) {
 			var keys *EncryptionKeySet
-			timings.Run(perfTimings, fmt.Sprintf("make-key-set[%s]", roleOrLabelOrNode(part)), fmt.Sprintf("Create encryption key set for %s", roleOrLabelOrNode(part)), func(timings.Measurer) {
+			timings.Run(perfTimings, fmt.Sprintf("make-key-set[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption key set for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
 				keys, err = makeKeySet()
 			})
 			if err != nil {
@@ -166,14 +164,14 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 			}
 			logger.Noticef("encrypting partition device %v", part.Node)
 			var dataPart *encryptedDevice
-			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device[%s]", roleOrLabelOrNode(part)), fmt.Sprintf("Create encryption device for %s", roleOrLabelOrNode(part)), func(timings.Measurer) {
+			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption device for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
 				dataPart, err = newEncryptedDevice(&part, keys.Key, part.Label)
 			})
 			if err != nil {
 				return nil, err
 			}
 
-			timings.Run(perfTimings, fmt.Sprintf("add-recovery-key[%s]", roleOrLabelOrNode(part)), fmt.Sprintf("Adding recovery key for %s", roleOrLabelOrNode(part)), func(timings.Measurer) {
+			timings.Run(perfTimings, fmt.Sprintf("add-recovery-key[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Adding recovery key for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
 				err = dataPart.AddRecoveryKey(keys.Key, keys.RecoveryKey)
 			})
 			if err != nil {
@@ -194,14 +192,14 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 		// matches what is on the disk, but sometimes there may not be a sector
 		// size specified in the gadget.yaml, but we will always have the sector
 		// size from the physical disk device
-		timings.Run(perfTimings, fmt.Sprintf("make-filesystem[%s]", roleOrLabelOrNode(part)), fmt.Sprintf("Create filesystem for %s", roleOrLabelOrNode(part)), func(timings.Measurer) {
+		timings.Run(perfTimings, fmt.Sprintf("make-filesystem[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create filesystem for %s", part.Node), func(timings.Measurer) {
 			err = makeFilesystem(&part, diskLayout.SectorSize)
 		})
 		if err != nil {
-			return nil, fmt.Errorf("cannot make filesystem for partition %s: %v", roleOrLabelOrNode(part), err)
+			return nil, fmt.Errorf("cannot make filesystem for partition %s: %v", roleOrLabelOrName(part), err)
 		}
 
-		timings.Run(perfTimings, fmt.Sprintf("write-content[%s]", roleOrLabelOrNode(part)), fmt.Sprintf("Write content for %s", roleOrLabelOrNode(part)), func(timings.Measurer) {
+		timings.Run(perfTimings, fmt.Sprintf("write-content[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Write content for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
 			err = writeContent(&part, gadgetRoot, observer)
 		})
 		if err != nil {
