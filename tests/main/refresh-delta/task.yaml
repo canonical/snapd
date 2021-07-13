@@ -19,5 +19,10 @@ execute: |
     echo "When the snap is refreshed"
     snap refresh --beta "$SNAP_NAME"
 
+    # Skip execution on amazon linux and centos-7 because xdelta3 on those
+    # systems is old and does not support the compression used by the store
+    if os.query is-amazon-linux || os.query is-centos-7; then
+        exit
+    fi
     echo "Then deltas are successfully applied"
     "$TESTSTOOLS"/journal-state match-log "Successfully applied delta"
