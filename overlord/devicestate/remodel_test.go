@@ -20,12 +20,20 @@
 package devicestate_test
 
 import (
+	"bytes"
+	"fmt"
+	"io/ioutil"
+	"os"
+	"path/filepath"
 	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
 	"github.com/snapcore/snapd/overlord/assertstate"
@@ -37,10 +45,14 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/testutil"
 )
 
-type remodelLogicSuite struct {
+type remodelLogicBaseSuite struct {
+	testutil.BaseTest
+
 	state *state.State
 	mgr   *devicestate.DeviceManager
 
@@ -51,10 +63,17 @@ type remodelLogicSuite struct {
 	dummyStore    snapstate.StoreService
 }
 
+type remodelLogicSuite struct {
+	remodelLogicBaseSuite
+}
+
 var _ = Suite(&remodelLogicSuite{})
 
-func (s *remodelLogicSuite) SetUpTest(c *C) {
+func (s *remodelLogicBaseSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
 	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
 
 	o := overlord.Mock()
 	s.state = o.State()
@@ -89,10 +108,6 @@ func (s *remodelLogicSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 	s.mgr, err = devicestate.Manager(s.state, hookMgr, o.TaskRunner(), newStore)
 	c.Assert(err, IsNil)
-}
-
-func (s *remodelLogicSuite) TearDownTest(c *C) {
-	dirs.SetRootDir("")
 }
 
 var modelDefaults = map[string]interface{}{
@@ -793,7 +808,6 @@ func (s *remodelLogicSuite) TestReregRemodelContextInit(c *C) {
 	})
 
 	c.Check(remodCtx.Model(), DeepEquals, newModel)
-
 	// caching
 	t := s.state.NewTask("remodel-task-1", "...")
 	chg.AddTask(t)
@@ -930,4 +944,373 @@ func (s *remodelLogicSuite) TestReregRemodelContextNewSerial(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(serial.Model(), Equals, "other-model")
 	c.Check(serial.Serial(), Equals, "serialserialserial2")
+}
+
+type uc20RemodelLogicSuite struct {
+	remodelLogicBaseSuite
+
+	oldModel    *asserts.Model
+	bootloader  *bootloadertest.MockRecoveryAwareTrustedAssetsBootloader
+	oldSeededTs time.Time
+}
+
+var _ = Suite(&uc20RemodelLogicSuite{})
+
+func (s *uc20RemodelLogicSuite) SetUpTest(c *C) {
+	s.remodelLogicBaseSuite.SetUpTest(c)
+
+	s.oldModel = s.brands.Model("my-brand", "my-model", uc20ModelDefaults)
+	var buf bytes.Buffer
+	c.Assert(asserts.NewEncoder(&buf).Encode(s.oldModel), IsNil)
+	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755), IsNil)
+	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"),
+		buf.Bytes(), 0755),
+		IsNil)
+	s.bootloader = bootloadertest.Mock("trusted", c.MkDir()).WithRecoveryAwareTrustedAssets()
+	bootloader.Force(s.bootloader)
+	s.AddCleanup(func() { bootloader.Force(nil) })
+
+	m := boot.Modeenv{
+		Mode: "run",
+
+		CurrentRecoverySystems: []string{"0000"},
+		GoodRecoverySystems:    []string{"0000"},
+
+		Model:          s.oldModel.Model(),
+		Grade:          string(s.oldModel.Grade()),
+		BrandID:        s.oldModel.BrandID(),
+		ModelSignKeyID: s.oldModel.SignKeyID(),
+	}
+	err := m.WriteTo("")
+	c.Assert(err, IsNil)
+
+	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, expectReseal bool) error {
+		return fmt.Errorf("needs to be mocked")
+	})
+	s.AddCleanup(restore)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	sys := devicestate.SeededSystem{
+		System: "0000",
+
+		Model:     "my-model",
+		BrandID:   "my-brand",
+		Revision:  0,
+		Timestamp: s.oldModel.Timestamp(),
+
+		SeedTime: time.Now(),
+	}
+	err = devicestate.RecordSeededSystem(s.mgr, s.state, &sys)
+	c.Assert(err, IsNil)
+	s.oldSeededTs = sys.SeedTime
+}
+
+var uc20ModelDefaults = map[string]interface{}{
+	"architecture": "amd64",
+	"base":         "core20",
+	"grade":        "dangerous",
+	"snaps": []interface{}{
+		map[string]interface{}{
+			"name":            "pc-kernel",
+			"id":              snaptest.AssertedSnapID("pc-kernel"),
+			"type":            "kernel",
+			"default-channel": "20",
+		},
+		map[string]interface{}{
+			"name":            "pc",
+			"id":              snaptest.AssertedSnapID("pc"),
+			"type":            "gadget",
+			"default-channel": "20",
+		}},
+}
+
+func (s *uc20RemodelLogicSuite) TestReregRemodelContextUC20(c *C) {
+	newModel := s.brands.Model("my-brand", "other-model", uc20ModelDefaults)
+
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	// the system has already been promoted
+	m.CurrentRecoverySystems = append(m.CurrentRecoverySystems, "1234")
+	m.GoodRecoverySystems = append(m.GoodRecoverySystems, "1234")
+	c.Assert(m.Write(), IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	assertstatetest.AddMany(s.state, s.oldModel)
+
+	// we have a device state and serial
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "my-brand",
+		Model:  "my-model",
+		Serial: "serialserialserial1",
+	})
+
+	makeSerialAssertionInState(c, s.brands, s.state, "my-brand", "my-model", "serialserialserial1")
+
+	serial, err := s.mgr.Serial()
+	c.Assert(err, IsNil)
+	c.Check(serial.Serial(), Equals, "serialserialserial1")
+
+	remodCtx, err := devicestate.RemodelCtx(s.state, s.oldModel, newModel)
+	c.Assert(err, IsNil)
+
+	devBE := devicestate.RemodelDeviceBackend(remodCtx)
+
+	chg := s.state.NewChange("remodel", "...")
+
+	remodCtx.Init(chg)
+
+	// sanity check
+	device1, err := devBE.Device()
+	c.Assert(err, IsNil)
+	c.Check(device1, DeepEquals, &auth.DeviceState{
+		Brand: "my-brand",
+		Model: "other-model",
+	})
+
+	newSerial := makeSerialAssertionInState(c, s.brands, s.state, "my-brand", "other-model", "serialserialserial2")
+
+	// finish registration
+	regCtx := remodCtx.(devicestate.RegistrationContext)
+	err = regCtx.FinishRegistration(newSerial)
+	c.Assert(err, IsNil)
+
+	resealKeysCalls := 0
+	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, expectReseal bool) error {
+		resealKeysCalls++
+		c.Check(m.CurrentRecoverySystems, DeepEquals, []string{"0000", "1234"})
+		c.Check(m.GoodRecoverySystems, DeepEquals, []string{"0000", "1234"})
+		switch resealKeysCalls {
+		case 1:
+			// intermediate step, new and old models
+			c.Check(m.ModelForSealing().Model(), Equals, "my-model")
+			c.Check(m.TryModelForSealing().Model(), Equals, "other-model")
+			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains, "model: my-model\n")
+		case 2:
+			// new model
+			c.Check(m.ModelForSealing().Model(), Equals, "other-model")
+			c.Check(m.TryModelForSealing().Model(), Equals, "")
+			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains, "model: other-model\n")
+		default:
+			c.Fatalf("unexpected call #%v to reseal key to modeenv", resealKeysCalls)
+		}
+		// this is running as part of post finish step, so the state has
+		// already been updated
+		serial, err = s.mgr.Serial()
+		c.Assert(err, IsNil)
+		c.Check(serial.Model(), Equals, "other-model")
+		c.Check(serial.Serial(), Equals, "serialserialserial2")
+		return nil
+	})
+	s.AddCleanup(restore)
+
+	// finish fails because we haven't set the seed system label yet
+	err = remodCtx.Finish()
+	c.Assert(err, ErrorMatches, "internal error: recovery system label is unset during remodel finish")
+	c.Check(resealKeysCalls, Equals, 0)
+
+	// set the label internally
+	devicestate.RemodelSetRecoverySystemLabel(remodCtx, "1234")
+	err = remodCtx.Finish()
+	c.Assert(err, IsNil)
+	c.Check(resealKeysCalls, Equals, 2)
+
+	var seededSystemsFromState []map[string]interface{}
+	err = s.state.Get("seeded-systems", &seededSystemsFromState)
+	c.Assert(err, IsNil)
+	c.Assert(seededSystemsFromState, HasLen, 2)
+	c.Assert(seededSystemsFromState[1], DeepEquals, map[string]interface{}{
+		"system":    "0000",
+		"model":     "my-model",
+		"brand-id":  "my-brand",
+		"revision":  float64(0),
+		"timestamp": s.oldModel.Timestamp().Format(time.RFC3339Nano),
+		"seed-time": s.oldSeededTs.Format(time.RFC3339Nano),
+	})
+	// new system is prepended, since timestamps are involved clear ones that weren't mocked
+	c.Assert(seededSystemsFromState[0]["seed-time"], FitsTypeOf, "")
+	newSeedTs, err := time.Parse(time.RFC3339Nano, seededSystemsFromState[0]["seed-time"].(string))
+	c.Assert(err, IsNil)
+	seededSystemsFromState[0]["seed-time"] = ""
+	c.Assert(seededSystemsFromState[0], DeepEquals, map[string]interface{}{
+		"system":    "1234",
+		"model":     "other-model",
+		"brand-id":  "my-brand",
+		"revision":  float64(0),
+		"timestamp": newModel.Timestamp().Format(time.RFC3339Nano),
+		"seed-time": "",
+	})
+	c.Assert(newSeedTs.After(s.oldSeededTs), Equals, true)
+}
+
+func (s *uc20RemodelLogicSuite) TestUpdateRemodelContext(c *C) {
+	modelDefaults := make(map[string]interface{}, len(uc20ModelDefaults))
+	for k, v := range uc20ModelDefaults {
+		modelDefaults[k] = v
+	}
+	// simple model update with bumped revision
+	modelDefaults["revision"] = "2"
+	newModel := s.brands.Model("my-brand", "my-model", modelDefaults)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	// the system has already been promoted
+	m.CurrentRecoverySystems = append(m.CurrentRecoverySystems, "1234")
+	m.GoodRecoverySystems = append(m.GoodRecoverySystems, "1234")
+	c.Assert(m.Write(), IsNil)
+
+	remodCtx, err := devicestate.RemodelCtx(s.state, s.oldModel, newModel)
+	c.Assert(err, IsNil)
+
+	c.Check(remodCtx.ForRemodeling(), Equals, true)
+	c.Check(remodCtx.Kind(), Equals, devicestate.UpdateRemodel)
+	groundCtx := remodCtx.GroundContext()
+	c.Check(groundCtx.ForRemodeling(), Equals, false)
+	c.Check(groundCtx.Model().Revision(), Equals, 0)
+	c.Check(groundCtx.Store, PanicMatches, `retrieved ground context is not intended to drive store operations`)
+
+	chg := s.state.NewChange("remodel", "...")
+
+	remodCtx.Init(chg)
+
+	var encNewModel string
+	c.Assert(chg.Get("new-model", &encNewModel), IsNil)
+
+	resealKeysCalls := 0
+	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, expectReseal bool) error {
+		resealKeysCalls++
+		c.Check(m.CurrentRecoverySystems, DeepEquals, []string{"0000", "1234"})
+		c.Check(m.GoodRecoverySystems, DeepEquals, []string{"0000", "1234"})
+		switch resealKeysCalls {
+		case 1:
+			// intermediate step, new and old models
+			c.Check(m.ModelForSealing().Model(), Equals, "my-model")
+			c.Check(m.TryModelForSealing().Model(), Equals, "my-model")
+			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains, "model: my-model\n")
+			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), Not(testutil.FileContains), "revision:")
+		case 2:
+			// new model
+			c.Check(m.ModelForSealing().Model(), Equals, "my-model")
+			c.Check(m.TryModelForSealing().Model(), Equals, "")
+			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains, "model: my-model\n")
+			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains, "revision: 2\n")
+		default:
+			c.Fatalf("unexpected call #%v to reseal key to modeenv", resealKeysCalls)
+		}
+		return nil
+	})
+	s.AddCleanup(restore)
+
+	// finish fails because we haven't set the seed system label yet
+	err = remodCtx.Finish()
+	c.Assert(err, ErrorMatches, "internal error: recovery system label is unset during remodel finish")
+	c.Check(resealKeysCalls, Equals, 0)
+
+	// set the label internally
+	devicestate.RemodelSetRecoverySystemLabel(remodCtx, "1234")
+	err = remodCtx.Finish()
+	c.Assert(err, IsNil)
+	c.Check(resealKeysCalls, Equals, 2)
+
+	var seededSystemsFromState []map[string]interface{}
+	err = s.state.Get("seeded-systems", &seededSystemsFromState)
+	c.Assert(err, IsNil)
+	c.Assert(seededSystemsFromState, HasLen, 2)
+	c.Assert(seededSystemsFromState[1], DeepEquals, map[string]interface{}{
+		"system":    "0000",
+		"model":     "my-model",
+		"brand-id":  "my-brand",
+		"revision":  float64(0),
+		"timestamp": s.oldModel.Timestamp().Format(time.RFC3339Nano),
+		"seed-time": s.oldSeededTs.Format(time.RFC3339Nano),
+	})
+	// new system is prepended, since timestamps are involved clear ones that weren't mocked
+	c.Assert(seededSystemsFromState[0]["seed-time"], FitsTypeOf, "")
+	newSeedTs, err := time.Parse(time.RFC3339Nano, seededSystemsFromState[0]["seed-time"].(string))
+	c.Assert(err, IsNil)
+	seededSystemsFromState[0]["seed-time"] = ""
+	c.Assert(seededSystemsFromState[0], DeepEquals, map[string]interface{}{
+		"system":    "1234",
+		"model":     "my-model",
+		"brand-id":  "my-brand",
+		"revision":  float64(2),
+		"timestamp": newModel.Timestamp().Format(time.RFC3339Nano),
+		"seed-time": "",
+	})
+	c.Assert(newSeedTs.After(s.oldSeededTs), Equals, true)
+}
+
+func (s *uc20RemodelLogicSuite) TestSimpleRemodelErr(c *C) {
+	modelDefaults := make(map[string]interface{}, len(uc20ModelDefaults))
+	for k, v := range uc20ModelDefaults {
+		modelDefaults[k] = v
+	}
+	// simple model update with bumped revision
+	modelDefaults["revision"] = "2"
+	newModel := s.brands.Model("my-brand", "my-model", modelDefaults)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	// the system has already been promoted
+	m.CurrentRecoverySystems = append(m.CurrentRecoverySystems, "1234")
+	m.GoodRecoverySystems = append(m.GoodRecoverySystems, "1234")
+	c.Assert(m.Write(), IsNil)
+
+	remodCtx, err := devicestate.RemodelCtx(s.state, s.oldModel, newModel)
+	c.Assert(err, IsNil)
+
+	c.Check(remodCtx.ForRemodeling(), Equals, true)
+	c.Check(remodCtx.Kind(), Equals, devicestate.UpdateRemodel)
+	chg := s.state.NewChange("remodel", "...")
+	remodCtx.Init(chg)
+
+	var encNewModel string
+	c.Assert(chg.Get("new-model", &encNewModel), IsNil)
+
+	resealKeysCalls := 0
+	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, expectReseal bool) error {
+		resealKeysCalls++
+		c.Check(m.CurrentRecoverySystems, DeepEquals, []string{"0000", "1234"})
+		c.Check(m.GoodRecoverySystems, DeepEquals, []string{"0000", "1234"})
+		switch resealKeysCalls {
+		case 1:
+			// intermediate step, new and old models
+			c.Check(m.ModelForSealing().Model(), Equals, "my-model")
+			c.Check(m.TryModelForSealing().Model(), Equals, "my-model")
+			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains, "model: my-model\n")
+			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), Not(testutil.FileContains), "revision:")
+			return fmt.Errorf("mock reseal failure")
+		default:
+			c.Fatalf("unexpected call #%v to reseal key to modeenv", resealKeysCalls)
+		}
+		return nil
+	})
+	s.AddCleanup(restore)
+
+	// set the label internally
+	devicestate.RemodelSetRecoverySystemLabel(remodCtx, "1234")
+	err = remodCtx.Finish()
+	c.Assert(err, ErrorMatches, "cannot switch device: mock reseal failure")
+	c.Check(resealKeysCalls, Equals, 1)
+
+	// the error occurred before seeded systems was updated
+	var seededSystemsFromState []map[string]interface{}
+	err = s.state.Get("seeded-systems", &seededSystemsFromState)
+	c.Assert(err, IsNil)
+	c.Assert(seededSystemsFromState, DeepEquals, []map[string]interface{}{{
+		"system":    "0000",
+		"model":     "my-model",
+		"brand-id":  "my-brand",
+		"revision":  float64(0),
+		"timestamp": s.oldModel.Timestamp().Format(time.RFC3339Nano),
+		"seed-time": s.oldSeededTs.Format(time.RFC3339Nano),
+	}})
 }
