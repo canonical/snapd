@@ -629,7 +629,7 @@ var (
 		"pulseaudio":              {"app", "core"},
 		"pwm":                     {"core", "gadget"},
 		"raw-volume":              {"core", "gadget"},
-		"sd-control":              {"app", "core"},
+		"sd-control":              {"core"},
 		"serial-port":             {"core", "gadget"},
 		"spi":                     {"core", "gadget"},
 		"storage-framework-service": {"app"},
