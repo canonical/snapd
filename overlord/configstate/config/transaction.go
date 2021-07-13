@@ -109,27 +109,14 @@ func (t *Transaction) Changes() []string {
 // "network.netplan" is virtual it must be impossible to set
 // "network=false" or getting the document under "network" would be
 // wrong.
-func shadowsVirtualConfig(instanceName string, subkeys []string, value interface{}) error {
+func shadowsVirtualConfig(instanceName string, key string, value interface{}) error {
 	// maps never block the path
 	if v := reflect.ValueOf(value); v.Kind() == reflect.Map {
 		return nil
 	}
 	// be paranoid: this should never happen but if it does we need to know
 	if _, ok := value.(*json.RawMessage); ok {
-		return fmt.Errorf("internal error: shadowsVirtualConfig called with *json.RawMessage for snap %q wth key %q: %q please report as a bug", instanceName, subkeys, value)
-	}
-
-	// helper to compare if two subkeys slices have a common prefix
-	keysHaveCommonPrefix := func(s, prefix []string) bool {
-		if len(prefix) > len(s) {
-			return false
-		}
-		for i := range prefix {
-			if prefix[i] != s[i] {
-				return false
-			}
-		}
-		return true
+		return fmt.Errorf("internal error: shadowsVirtualConfig called with *json.RawMessage for snap %q wth key %q: %q please report as a bug", instanceName, key, value)
 	}
 
 	virtualMu.Lock()
@@ -137,12 +124,8 @@ func shadowsVirtualConfig(instanceName string, subkeys []string, value interface
 	virtualMu.Unlock()
 
 	for virtualKey := range km {
-		virtualSubKeys, err := ParseKey(virtualKey)
-		if err != nil {
-			return fmt.Errorf("internal error: invalid virtual configuration: %v", err)
-		}
-		if len(virtualSubKeys) != len(subkeys) && keysHaveCommonPrefix(virtualSubKeys, subkeys) {
-			return fmt.Errorf("cannot set %q for %q to non-map value because %q is a virtual configuration", strings.Join(subkeys, "."), instanceName, virtualKey)
+		if strings.HasPrefix(virtualKey, key+".") {
+			return fmt.Errorf("cannot set %q for %q to non-map value because %q is a virtual configuration", key, instanceName, virtualKey)
 		}
 	}
 
@@ -187,7 +170,7 @@ func (t *Transaction) Set(instanceName, key string, value interface{}) error {
 		}
 	}
 	// check that we do not "block" a path to virtual config with non-maps
-	if err := shadowsVirtualConfig(instanceName, subkeys, value); err != nil {
+	if err := shadowsVirtualConfig(instanceName, key, value); err != nil {
 		return err
 	}
 
