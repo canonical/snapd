@@ -55,7 +55,6 @@ execute: |
     tests.nested exec "test -e /var/log/install-mode.log.gz"
 
     echo "Transparently verify that the format is gzip"
-
     tests.nested exec "zcat /var/log/install-mode.log.gz" | MATCH 'installing a new system'
 
     echo "Check that we go the timings after the transition to run mode"
