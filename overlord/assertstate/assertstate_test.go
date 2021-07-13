@@ -2656,7 +2656,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeConflict
 	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "foo")
 	c.Check(a.Revision(), Equals, 1)
 
-	// new assertion wasn't commited to the database.
+	// new assertion wasn't committed to the database.
 	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),
