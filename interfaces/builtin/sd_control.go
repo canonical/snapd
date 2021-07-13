@@ -32,7 +32,6 @@ const sdControlBaseDeclarationSlots = `
     allow-installation:
       slot-snap-type:
         - core
-        - app
     deny-auto-connection: true
 `
 
