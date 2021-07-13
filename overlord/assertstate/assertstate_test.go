@@ -2605,6 +2605,9 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeConflict
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
 	err := s.storeSigning.Add(storeAs)
@@ -2640,8 +2643,8 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeConflict
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
-	err = assertstate.RefreshValidationSetAssertions(s.state, 0)
-	c.Assert(err, ErrorMatches, `cannot refresh validation set assertions: validation sets are in conflict:\n- cannot constrain snap "foo" as both invalid .* and required at revision 1.*`)
+	c.Assert(assertstate.RefreshValidationSetAssertions(s.state, 0), IsNil)
+	c.Assert(logbuf.String(), Matches, `.*cannot refresh validation set assertions in enforce mode: validation sets are in conflict:\n- cannot constrain snap "foo" as both invalid .* and required at revision 1.*\n`)
 
 	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
@@ -2653,6 +2656,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeConflict
 	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "foo")
 	c.Check(a.Revision(), Equals, 1)
 
+	// new assertion wasn't commited to the database.
 	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
 		"account-id": s.dev1Acct.AccountID(),

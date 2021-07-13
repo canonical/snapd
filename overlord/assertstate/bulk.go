@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -177,6 +178,10 @@ func bulkRefreshValidationSetAsserts(s *state.State, vsets map[string]*Validatio
 	err := resolvePoolNoFallback(s, pool, beforeCommitChecker, userID, deviceCtx)
 	if err == nil {
 		return nil
+	}
+
+	if _, ok := err.(*snapasserts.ValidationSetsConflictError); ok {
+		return err
 	}
 
 	if rerr, ok := err.(*resolvePoolError); ok {

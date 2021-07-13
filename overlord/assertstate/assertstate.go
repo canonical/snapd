@@ -366,7 +366,35 @@ func RefreshValidationSetAssertions(s *state.State, userID int) error {
 		}
 	}
 
-	monitorModeRefreshErr := bulkRefreshValidationSetAsserts(s, monitorModeSets, nil, userID, deviceCtx)
+	updateTracking := func(sets map[string]*ValidationSetTracking) error {
+		// update validation set tracking state
+		for _, vs := range sets {
+			if vs.PinnedAt == 0 {
+				headers := map[string]string{
+					"series":     release.Series,
+					"account-id": vs.AccountID,
+					"name":       vs.Name,
+				}
+				db := DB(s)
+				as, err := db.FindSequence(asserts.ValidationSetType, headers, -1, asserts.ValidationSetType.MaxSupportedFormat())
+				if err != nil {
+					return fmt.Errorf("internal error: cannot find assertion %v when refreshing validation-set assertions", headers)
+				}
+				if vs.Current != as.Sequence() {
+					vs.Current = as.Sequence()
+					UpdateValidationSet(s, vs)
+				}
+			}
+		}
+		return nil
+	}
+
+	if err := bulkRefreshValidationSetAsserts(s, monitorModeSets, nil, userID, deviceCtx); err != nil {
+		return err
+	}
+	if err := updateTracking(monitorModeSets); err != nil {
+		return err
+	}
 
 	checkForConflicts := func(db *asserts.Database, bs asserts.Backstore) error {
 		vsets := snapasserts.NewValidationSets()
@@ -400,37 +428,18 @@ func RefreshValidationSetAssertions(s *state.State, userID int) error {
 		return vsets.Conflict()
 	}
 
-	enforceModeRefreshErr := bulkRefreshValidationSetAsserts(s, enforceModeSets, checkForConflicts, userID, deviceCtx)
-
-	// if both monitor mode and enforce mode sets failed to refresh, there is nothing to do.
-	if enforceModeRefreshErr != nil && monitorModeRefreshErr != nil {
-		return enforceModeRefreshErr
-	}
-
-	// update validation set tracking state
-	for _, vs := range vsets {
-		if vs.PinnedAt == 0 && ((vs.Mode == Monitor && monitorModeRefreshErr == nil) || (vs.Mode == Enforce && enforceModeRefreshErr == nil)) {
-			headers := map[string]string{
-				"series":     release.Series,
-				"account-id": vs.AccountID,
-				"name":       vs.Name,
-			}
-			db := DB(s)
-			as, err := db.FindSequence(asserts.ValidationSetType, headers, -1, asserts.ValidationSetType.MaxSupportedFormat())
-			if err != nil {
-				return fmt.Errorf("internal error: cannot find assertion %v when refreshing validation-set assertions", headers)
-			}
-			if vs.Current != as.Sequence() {
-				vs.Current = as.Sequence()
-				UpdateValidationSet(s, vs)
-			}
+	if err := bulkRefreshValidationSetAsserts(s, enforceModeSets, checkForConflicts, userID, deviceCtx); err != nil {
+		if _, ok := err.(*snapasserts.ValidationSetsConflictError); ok {
+			logger.Noticef("cannot refresh validation set assertions in enforce mode: %v", err)
+			return nil
 		}
+		return err
+	}
+	if err := updateTracking(enforceModeSets); err != nil {
+		return err
 	}
 
-	if enforceModeRefreshErr != nil {
-		return enforceModeRefreshErr
-	}
-	return monitorModeRefreshErr
+	return nil
 }
 
 // ResolveOptions carries extra options for ValidationSetAssertionForMonitor.
