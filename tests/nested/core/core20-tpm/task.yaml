@@ -77,7 +77,7 @@ execute: |
 
     boot_id="$( nested_get_boot_id )"
     tests.nested exec "sudo reboot" || true
-    nested_wait_for_reboot "${boot_id}"
+    tests.nested wait-for reboot "${boot_id}"
     echo "Check the test will race with snapd updating the modeenv, wait for the modenv to have a good state"
     nested_retry_until_success 10 5 "grep -E \"current_kernel_command_lines=.*snapd_recovery_mode=run\" < /var/lib/snapd/modeenv"
     tests.nested exec "cat /var/lib/snapd/modeenv" > modeenv.after-reboot

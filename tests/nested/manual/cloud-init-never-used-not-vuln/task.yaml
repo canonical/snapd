@@ -60,19 +60,19 @@ execute: |
         if nested_is_core_16_system; then
             # build the core snap for this run
             repack_snapd_deb_into_core_snap "$PWD"
-            nested_copy "$PWD/core-from-snapd-deb.snap"
+            tests.nested copy "$PWD/core-from-snapd-deb.snap"
 
             # install the core snap
             tests.nested exec "sudo snap install core-from-snapd-deb.snap --dangerous"
 
             # now we wait for the reboot for the new core snap
             nested_wait_for_no_ssh
-            nested_wait_for_ssh
+            tests.nested wait-for ssh
             
         else
             # build the snapd snap for this run
             repack_snapd_deb_into_snapd_snap "$PWD"
-            nested_copy "$PWD/snapd-from-deb.snap"
+            tests.nested copy "$PWD/snapd-from-deb.snap"
 
             # install the snapd snap
             tests.nested exec "sudo snap install snapd-from-deb.snap --dangerous"
@@ -121,7 +121,7 @@ execute: |
 
     echo "Restarting nested VM with attacker cloud-init CD-ROM drive"
     tests.nested start-vm
-    nested_wait_for_reboot "${boot_id}"
+    tests.nested wait-for reboot "${boot_id}"
 
     # cloud-init should not actually run, since it was disabled, but in case the
     # test fails, for a better error, we will wait for cloud-init to report that
