@@ -254,7 +254,7 @@ type Systemd interface {
 	// AddMountUnitFile adds/enables/starts a mount unit.
 	AddMountUnitFile(name, revision, what, where, fstype string) (string, error)
 	// AddMountUnitFileFull adds/enables/starts a mount unit with options.
-	AddMountUnitFileFull(name, revision, what, where, fstype string, options []string) (string, error)
+	AddMountUnitFileFull(lifetime UnitLifetime, name, revision, what, where, fstype string, options []string) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
 	RemoveMountUnitFile(baseDir string) error
 	// Mask the given service.
@@ -1040,10 +1040,45 @@ func (l Log) PID() string {
 	return "-"
 }
 
+type UnitLifetime int
+
+const (
+	PersistentUnit UnitLifetime = iota
+	TransientUnit
+)
+
 // MountUnitPath returns the path of a {,auto}mount unit
 func MountUnitPath(baseDir string) string {
 	escapedPath := EscapeUnitNamePath(baseDir)
 	return filepath.Join(dirs.SnapServicesDir, escapedPath+".mount")
+}
+
+// MountUnitPathWithLifetime returns the path of a transient {,auto}mount unit
+// created in the systemd directory suitable for the given unit lifetime
+func MountUnitPathWithLifetime(lifetime UnitLifetime, baseDir string) string {
+	escapedPath := EscapeUnitNamePath(baseDir)
+	var servicesPath string
+	switch lifetime {
+	case PersistentUnit:
+		servicesPath = dirs.SnapServicesDir
+	case TransientUnit:
+		servicesPath = dirs.SnapRuntimeServicesDir
+	default:
+		panic("unknown systemd unit lifetime")
+	}
+	return filepath.Join(servicesPath, escapedPath+".mount")
+}
+
+// ExistingMountUnitPath finds the location of an existing mount unit
+func ExistingMountUnitPath(baseDir string) string {
+	lifetimes := []UnitLifetime{PersistentUnit, TransientUnit}
+	for _, lifetime := range lifetimes {
+		unit := MountUnitPathWithLifetime(lifetime, baseDir)
+		if osutil.FileExists(unit) {
+			return unit
+		}
+	}
+	return ""
 }
 
 var squashfsFsType = squashfs.FsType
@@ -1066,9 +1101,9 @@ LazyUnmount=yes
 WantedBy=multi-user.target
 `
 
-func writeMountUnitFile(snapName, revision, what, where, fstype string, options []string) (mountUnitName string, err error) {
+func writeMountUnitFile(lifetime UnitLifetime, snapName, revision, what, where, fstype string, options []string) (mountUnitName string, err error) {
 	content := fmt.Sprintf(mountUnitTemplate, snapName, revision, what, where, fstype, strings.Join(options, ","))
-	mu := MountUnitPath(where)
+	mu := MountUnitPathWithLifetime(lifetime, where)
 	mountUnitName, err = filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(content), 0644, 0)
 	if err != nil {
 		return "", err
@@ -1108,15 +1143,15 @@ func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype strin
 		options = append(options, "bind")
 		hostFsType = "none"
 	}
-	return s.AddMountUnitFileFull(snapName, revision, what, where, hostFsType, options)
+	return s.AddMountUnitFileFull(PersistentUnit, snapName, revision, what, where, hostFsType, options)
 }
 
-func (s *systemd) AddMountUnitFileFull(snapName, revision, what, where,
+func (s *systemd) AddMountUnitFileFull(lifetime UnitLifetime, snapName, revision, what, where,
 	fstype string, options []string) (string, error) {
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
-	mountUnitName, err := writeMountUnitFile(snapName, revision, what, where, fstype, options)
+	mountUnitName, err := writeMountUnitFile(lifetime, snapName, revision, what, where, fstype, options)
 	if err != nil {
 		return "", err
 	}
@@ -1141,8 +1176,8 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
-	unit := MountUnitPath(dirs.StripRootDir(mountedDir))
-	if !osutil.FileExists(unit) {
+	unit := ExistingMountUnitPath(dirs.StripRootDir(mountedDir))
+	if unit == "" {
 		return nil
 	}
 

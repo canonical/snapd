@@ -88,12 +88,13 @@ var (
 	SnapCommandsDB      string
 	SnapAuxStoreInfoDir string
 
-	SnapBinariesDir     string
-	SnapServicesDir     string
-	SnapUserServicesDir string
-	SnapSystemdConfDir  string
-	SnapDesktopFilesDir string
-	SnapDesktopIconsDir string
+	SnapBinariesDir        string
+	SnapServicesDir        string
+	SnapRuntimeServicesDir string
+	SnapUserServicesDir    string
+	SnapSystemdConfDir     string
+	SnapDesktopFilesDir    string
+	SnapDesktopIconsDir    string
 
 	SnapDBusSessionPolicyDir   string
 	SnapDBusSystemPolicyDir    string
@@ -376,6 +377,7 @@ func SetRootDir(rootdir string) {
 
 	SnapBinariesDir = filepath.Join(SnapMountDir, "bin")
 	SnapServicesDir = filepath.Join(rootdir, "/etc/systemd/system")
+	SnapRuntimeServicesDir = filepath.Join(rootdir, "/run/systemd/system")
 	SnapUserServicesDir = filepath.Join(rootdir, "/etc/systemd/user")
 	SnapSystemdConfDir = SnapSystemdConfDirUnder(rootdir)
 

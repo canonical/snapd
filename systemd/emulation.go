@@ -125,7 +125,7 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 	// This means that when preseeding in a lxd container, the snap will be
 	// mounted with fuse, but mount unit will use squashfs.
 	mountUnitOptions := append(fsMountOptions(fstype), squashfs.StandardOptions()...)
-	mountUnitName, err := writeMountUnitFile(snapName, revision, what, where, fstype, mountUnitOptions)
+	mountUnitName, err := writeMountUnitFile(PersistentUnit, snapName, revision, what, where, fstype, mountUnitOptions)
 	if err != nil {
 		return "", err
 	}
@@ -150,7 +150,7 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 	return mountUnitName, nil
 }
 
-func (s *emulation) AddMountUnitFileFull(snapName, revision, what, where,
+func (s *emulation) AddMountUnitFileFull(lifetime UnitLifetime, snapName, revision, what, where,
 	fstype string, options []string) (string, error) {
 	return "", errNotImplemented
 }
