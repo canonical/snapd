@@ -205,6 +205,10 @@ func RemodelDeviceBackend(remodCtx remodelContext) storecontext.DeviceBackend {
 	}).deviceBackend()
 }
 
+func RecordSeededSystem(m *DeviceManager, st *state.State, sys *seededSystem) error {
+	return m.recordSeededSystem(st, sys)
+}
+
 var (
 	LoadDeviceSeed               = loadDeviceSeed
 	UnloadDeviceSeed             = unloadDeviceSeed
