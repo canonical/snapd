@@ -15,6 +15,8 @@ prepare: |
     tests.session kill-leaked
 
 restore: |
+    # Remove the snap before the tests.session is restored to make sure the socket is properly freed
+    snap remove test-snapd-user-service-sockets --purge
     tests.session -u test restore
     snap unset system experimental.user-daemons
 
