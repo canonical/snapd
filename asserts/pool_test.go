@@ -1716,3 +1716,25 @@ func (s *poolSuite) TestPoolReuseWithClearGroupsAndUnchanged(c *C) {
 	})
 	c.Check(toResolveSeq, HasLen, 0)
 }
+
+func (s *poolSuite) TestBackstore(c *C) {
+	assertstest.AddMany(s.db, s.hub.StoreAccountKey(""), s.dev1Acct)
+	pool := asserts.NewPool(s.db, 64)
+
+	c.Assert(pool.AddUnresolved(s.rev1_1111.At(), "for_one"), IsNil)
+	res, _, err := pool.ToResolve()
+	c.Assert(err, IsNil)
+	c.Assert(res, HasLen, 1)
+
+	// resolve (but do not commit)
+	ok, err := pool.Add(s.rev1_3333, asserts.MakePoolGrouping(0))
+	c.Assert(err, IsNil)
+	c.Assert(ok, Equals, true)
+
+	// the assertion should be available via pool's backstore
+	bs := pool.Backstore()
+	c.Assert(bs, NotNil)
+	a, err := bs.Get(s.rev1_3333.Type(), s.rev1_3333.At().PrimaryKey, s.rev1_3333.Type().MaxSupportedFormat())
+	c.Assert(err, IsNil)
+	c.Assert(a, NotNil)
+}
