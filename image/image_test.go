@@ -140,32 +140,37 @@ func (s *imageSuite) SnapAction(_ context.Context, _ []*store.CurrentSnap, actio
 		return nil, nil, fmt.Errorf("unexpected assertion query")
 	}
 
-	if len(actions) != 1 {
-		return nil, nil, fmt.Errorf("expected 1 action, got %d", len(actions))
-	}
+	sars := make([]store.SnapActionResult, 0, len(actions))
+	for _, a := range actions {
+		if a.Action != "download" {
+			return nil, nil, fmt.Errorf("unexpected action %q", a.Action)
+		}
 
-	if actions[0].Action != "download" {
-		return nil, nil, fmt.Errorf("unexpected action %q", actions[0].Action)
-	}
+		if _, instanceKey := snap.SplitInstanceName(a.InstanceName); instanceKey != "" {
+			return nil, nil, fmt.Errorf("unexpected instance key in %q", a.InstanceName)
+		}
+		// record
+		s.storeActions = append(s.storeActions, a)
 
-	if _, instanceKey := snap.SplitInstanceName(actions[0].InstanceName); instanceKey != "" {
-		return nil, nil, fmt.Errorf("unexpected instance key in %q", actions[0].InstanceName)
-	}
-	// record
-	s.storeActions = append(s.storeActions, actions[0])
-
-	if info := s.AssertedSnapInfo(actions[0].InstanceName); info != nil {
+		info := s.AssertedSnapInfo(a.InstanceName)
+		if info == nil {
+			return nil, nil, fmt.Errorf("no %q in the fake store", a.InstanceName)
+		}
 		info1 := *info
-		channel := actions[0].Channel
+		channel := a.Channel
 		redirectChannel := ""
-		if strings.HasPrefix(actions[0].InstanceName, "default-track-") {
+		if strings.HasPrefix(a.InstanceName, "default-track-") {
 			channel = "default-track/stable"
 			redirectChannel = channel
 		}
 		info1.Channel = channel
-		return []store.SnapActionResult{{Info: &info1, RedirectChannel: redirectChannel}}, nil, nil
+		sars = append(sars, store.SnapActionResult{
+			Info:            &info1,
+			RedirectChannel: redirectChannel,
+		})
 	}
-	return nil, nil, fmt.Errorf("no %q in the fake store", actions[0].InstanceName)
+
+	return sars, nil, nil
 }
 
 func (s *imageSuite) Download(ctx context.Context, name, targetFn string, downloadInfo *snap.DownloadInfo, pbar progress.Meter, user *auth.UserState, dlOpts *store.DownloadOptions) error {
@@ -728,16 +733,19 @@ func (s *imageSuite) TestSetupSeed(c *C) {
 		Action:       "download",
 		InstanceName: "core",
 		Channel:      stableChannel,
+		Flags:        store.SnapActionIgnoreValidation,
 	})
 	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc-kernel",
 		Channel:      stableChannel,
+		Flags:        store.SnapActionIgnoreValidation,
 	})
 	c.Check(s.storeActions[2], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc",
 		Channel:      stableChannel,
+		Flags:        store.SnapActionIgnoreValidation,
 	})
 
 	// content was resolved and written for ubuntu-image
@@ -867,24 +875,28 @@ func (s *imageSuite) TestSetupSeedWithWideCohort(c *C) {
 		InstanceName: "core",
 		Channel:      stableChannel,
 		CohortKey:    "wide-cohort-key",
+		Flags:        store.SnapActionIgnoreValidation,
 	})
 	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc-kernel",
 		Channel:      stableChannel,
 		CohortKey:    "wide-cohort-key",
+		Flags:        store.SnapActionIgnoreValidation,
 	})
 	c.Check(s.storeActions[2], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc",
 		Channel:      stableChannel,
 		CohortKey:    "wide-cohort-key",
+		Flags:        store.SnapActionIgnoreValidation,
 	})
 	c.Check(s.storeActions[3], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "required-snap1",
 		Channel:      stableChannel,
 		CohortKey:    "wide-cohort-key",
+		Flags:        store.SnapActionIgnoreValidation,
 	})
 }
 
@@ -1079,21 +1091,25 @@ func (s *imageSuite) TestSetupSeedWithBase(c *C) {
 		Action:       "download",
 		InstanceName: "snapd",
 		Channel:      stableChannel,
+		Flags:        store.SnapActionIgnoreValidation,
 	})
 	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc-kernel",
 		Channel:      stableChannel,
+		Flags:        store.SnapActionIgnoreValidation,
 	})
 	c.Check(s.storeActions[2], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "core18",
 		Channel:      stableChannel,
+		Flags:        store.SnapActionIgnoreValidation,
 	})
 	c.Check(s.storeActions[3], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc18",
 		Channel:      stableChannel,
+		Flags:        store.SnapActionIgnoreValidation,
 	})
 }
 
@@ -1853,16 +1869,19 @@ func (s *imageSuite) TestSetupSeedWithKernelAndGadgetTrack(c *C) {
 		Action:       "download",
 		InstanceName: "core",
 		Channel:      "stable",
+		Flags:        store.SnapActionIgnoreValidation,
 	})
 	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc-kernel",
 		Channel:      "18/stable",
+		Flags:        store.SnapActionIgnoreValidation,
 	})
 	c.Check(s.storeActions[2], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc",
 		Channel:      "18/stable",
+		Flags:        store.SnapActionIgnoreValidation,
 	})
 }
 
@@ -2845,26 +2864,31 @@ func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
 		Action:       "download",
 		InstanceName: "snapd",
 		Channel:      stableChannel,
+		Flags:        store.SnapActionIgnoreValidation,
 	})
 	c.Check(s.storeActions[1], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc-kernel",
 		Channel:      "20",
+		Flags:        store.SnapActionIgnoreValidation,
 	})
 	c.Check(s.storeActions[2], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "core20",
 		Channel:      stableChannel,
+		Flags:        store.SnapActionIgnoreValidation,
 	})
 	c.Check(s.storeActions[3], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "pc",
 		Channel:      "20",
+		Flags:        store.SnapActionIgnoreValidation,
 	})
 	c.Check(s.storeActions[4], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "required20",
 		Channel:      stableChannel,
+		Flags:        store.SnapActionIgnoreValidation,
 	})
 }
 

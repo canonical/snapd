@@ -369,32 +369,44 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			return err
 		}
 
-		for _, sn := range toDownload {
+		fmt.Fprintf(Stdout, "Fetching snaps\n")
+
+		byName := make(map[string]*seedwriter.SeedSnap, len(toDownload))
+		beforeDownload := func(info *snap.Info) (string, error) {
+			sn := byName[info.SnapName()]
+			if sn == nil {
+				return "", fmt.Errorf("internal error: downloading unexpected snap %q", info.SnapName())
+			}
 			fmt.Fprintf(Stdout, "Fetching %s\n", sn.SnapName())
+			if err := w.SetInfo(sn, info); err != nil {
+				return "", err
+			}
+			return sn.Path, nil
+		}
+		snapToDownloadOptions := make([]SnapDownloadOptions, len(toDownload))
+		for i, sn := range toDownload {
+			byName[sn.SnapName()] = sn
+			snapToDownloadOptions[i].Snap = sn
+			snapToDownloadOptions[i].Channel = sn.Channel
+			snapToDownloadOptions[i].CohortKey = opts.WideCohortKey
+		}
+		downloadedSnaps, err := tsto.DownloadMany(snapToDownloadOptions, DownloadManyOptions{
+			BeforeDownloadFunc: beforeDownload,
+		})
+		if err != nil {
+			return err
+		}
 
-			targetPathFunc := func(info *snap.Info) (string, error) {
-				if err := w.SetInfo(sn, info); err != nil {
-					return "", err
-				}
-				return sn.Path, nil
-			}
+		for _, sn := range toDownload {
+			dlsn := downloadedSnaps[sn.SnapName()]
 
-			dlOpts := DownloadOptions{
-				TargetPathFunc: targetPathFunc,
-				Channel:        sn.Channel,
-				CohortKey:      opts.WideCohortKey,
-			}
-			fn, info, redirectChannel, err := tsto.DownloadSnap(sn.SnapName(), dlOpts) // TODO|XXX make this take the SnapRef really
-			if err != nil {
-				return err
-			}
-			if err := w.SetRedirectChannel(sn, redirectChannel); err != nil {
+			if err := w.SetRedirectChannel(sn, dlsn.RedirectChannel); err != nil {
 				return err
 			}
 
 			// fetch snap assertions
 			prev := len(f.Refs())
-			if _, err = FetchAndCheckSnapAssertions(fn, info, f, db); err != nil {
+			if _, err = FetchAndCheckSnapAssertions(dlsn.Path, dlsn.Info, f, db); err != nil {
 				return err
 			}
 			aRefs := f.Refs()[prev:]
