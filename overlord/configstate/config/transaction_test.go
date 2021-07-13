@@ -810,12 +810,17 @@ func (s *transactionSuite) TestVirtualCommitValuesNotStored(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	err := config.RegisterVirtualConfig("some-snap", "key.nested.virtual", func(key string) (interface{}, error) {
+	err := config.RegisterVirtualConfig("some-snap", "simple-virtual", func(key string) (interface{}, error) {
 		c.Errorf("virtual func should not get called in this test")
 		return nil, nil
 	})
 	c.Assert(err, IsNil)
-	err = config.RegisterVirtualConfig("some-snap", "simple-virtual", func(key string) (interface{}, error) {
+	err = config.RegisterVirtualConfig("some-snap", "key.virtual", func(key string) (interface{}, error) {
+		c.Errorf("virtual func should not get called in this test")
+		return nil, nil
+	})
+	c.Assert(err, IsNil)
+	err = config.RegisterVirtualConfig("some-snap", "key.nested.virtual", func(key string) (interface{}, error) {
 		c.Errorf("virtual func should not get called in this test")
 		return nil, nil
 	})
@@ -823,24 +828,32 @@ func (s *transactionSuite) TestVirtualCommitValuesNotStored(c *C) {
 
 	tr := config.NewTransaction(s.state)
 
-	// set some values
+	// unrelated snap
 	c.Check(tr.Set("other-snap", "key", "value"), IsNil)
+
+	// top level virtual config with simple value
+	c.Check(tr.Set("some-snap", "simple-virtual", "will-not-get-set"), IsNil)
+	// top level virtual config with map
+	c.Check(tr.Set("some-snap", "key.virtual.a", "1"), IsNil)
+	c.Check(tr.Set("some-snap", "key.virtual.b", "2"), IsNil)
+	// nested virtual config
 	c.Check(tr.Set("some-snap", "key.nested.virtual.sub", "won't-get-set"), IsNil)
 	c.Check(tr.Set("some-snap", "key.nested.virtual.sub2.sub2sub", "also-won't-get-set"), IsNil)
+	// real configuration
 	c.Check(tr.Set("some-snap", "key.not-virtual", "value"), IsNil)
 	c.Check(tr.Set("some-snap", "key.nested.not-virtual", "value"), IsNil)
-	// top level virtual with no nesting
-	c.Check(tr.Set("some-snap", "simple-virtual", "will-not-get-set"), IsNil)
 	tr.Commit()
 
 	// and check what got stored in the state
 	var config map[string]map[string]interface{}
 	s.state.Get("config", &config)
-	c.Check(config["some-snap"]["key"], HasLen, 2)
-	c.Check(config["some-snap"]["key"], DeepEquals, map[string]interface{}{
-		"not-virtual": "value",
-		"nested": map[string]interface{}{
+	c.Check(config["some-snap"], HasLen, 1)
+	c.Check(config["some-snap"], DeepEquals, map[string]interface{}{
+		"key": map[string]interface{}{
 			"not-virtual": "value",
+			"nested": map[string]interface{}{
+				"not-virtual": "value",
+			},
 		},
 	})
 	// other-snap is unrelated

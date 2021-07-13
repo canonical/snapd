@@ -343,9 +343,7 @@ func (t *Transaction) Commit() {
 
 	// Iterate through the write cache and save each item but exclude virtual configuration
 	for instanceName, snapChanges := range t.changes {
-		for k, v := range snapChanges {
-			clearVirtualConfig(instanceName, v, k, 0)
-		}
+		clearVirtualConfig(instanceName, snapChanges)
 
 		config := t.pristine[instanceName]
 		// due to LP #1917870 we might have a hook configure task in flight
@@ -500,23 +498,26 @@ func mergeConfigWithVirtual(instanceName, requestedKey string, origConfig *map[s
 // clearVirtualConfig iterates over a given config and removes any values
 // that come from virtual configuration. This is used before committing a
 // config to disk.
-func clearVirtualConfig(instanceName string, config interface{}, subkeys string, depth int) {
+func clearVirtualConfig(instanceName string, snapChanges map[string]interface{}) {
 	virtualMu.Lock()
-	km, ok := virtualMap[instanceName]
+	km := virtualMap[instanceName]
 	virtualMu.Unlock()
-	if !ok {
-		return
-	}
 
-	switch config := config.(type) {
-	case map[string]interface{}:
-		for k, v := range config {
-			key := subkeys + "." + k
-			if _, ok := km[key]; ok {
-				delete(config, k)
-				return
-			}
-			clearVirtualConfig(instanceName, v, subkeys+"."+k, depth+1)
+	clearVirtualConfigRecursive(km, snapChanges, "")
+}
+
+func clearVirtualConfigRecursive(km map[string]VirtualCfgFunc, config map[string]interface{}, keyprefix string) {
+	if len(keyprefix) > 0 {
+		keyprefix += "."
+	}
+	for key, value := range config {
+		// any top-level virtual keys are removed
+		if _, ok := km[keyprefix+key]; ok {
+			delete(config, key)
+		}
+		// and nested configs are inspected
+		if m, ok := value.(map[string]interface{}); ok {
+			clearVirtualConfigRecursive(km, m, keyprefix+key)
 		}
 	}
 }
