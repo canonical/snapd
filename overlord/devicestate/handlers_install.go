@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/sysconfig"
+	"github.com/snapcore/snapd/timings"
 )
 
 var (
@@ -244,7 +245,10 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	validationConstraints := gadget.ValidationConstraints{
 		EncryptedData: useEncryption,
 	}
-	ginfo, err := gadget.ReadInfoAndValidate(gadgetDir, model, &validationConstraints)
+	var ginfo *gadget.Info
+	timings.Run(perfTimings, "read-info-and-validate", "Read and validate gagdet info", func(timings.Measurer) {
+		ginfo, err = gadget.ReadInfoAndValidate(gadgetDir, model, &validationConstraints)
+	})
 	if err != nil {
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
@@ -271,11 +275,11 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	var installedSystem *install.InstalledSystemSideData
 	// run the create partition code
 	logger.Noticef("create and deploy partitions")
-	func() {
+	timings.Run(perfTimings, "install-run", "Install the run system", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		installedSystem, err = installRun(model, gadgetDir, kernelDir, "", bopts, installObserver)
-	}()
+		installedSystem, err = installRun(model, gadgetDir, kernelDir, "", bopts, installObserver, tm)
+	})
 	if err != nil {
 		return fmt.Errorf("cannot install system: %v", err)
 	}
@@ -318,7 +322,10 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	opts := &sysconfig.Options{TargetRootDir: boot.InstallHostWritableDir, GadgetDir: gadgetDir}
 	// configure cloud init
 	setSysconfigCloudOptions(opts, gadgetDir, model)
-	if err := sysconfigConfigureTargetSystem(model, opts); err != nil {
+	timings.Run(perfTimings, "sysconfig-configure-target-system", "Configure target system", func(timings.Measurer) {
+		err = sysconfigConfigureTargetSystem(model, opts)
+	})
+	if err != nil {
 		return err
 	}
 
@@ -337,7 +344,10 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		RecoverySystemDir: recoverySystemDir,
 		UnpackedGadgetDir: gadgetDir,
 	}
-	if err := bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver); err != nil {
+	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
+		err = bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver)
+	})
+	if err != nil {
 		return fmt.Errorf("cannot make system runnable: %v", err)
 	}
 
