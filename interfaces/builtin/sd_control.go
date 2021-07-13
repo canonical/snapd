@@ -27,12 +27,18 @@ import (
 
 const sdControlSummary = `allows controlling SD cards on certain boards`
 
-const sdBaseDeclarationSlots = `
+const sdControlBaseDeclarationSlots = `
   sd-control:
     allow-installation:
       slot-snap-type:
         - core
         - app
+    deny-auto-connection: true
+`
+
+const sdControlBaseBaseDeclarationPlugs = `
+  sd-control:
+    allow-installation: false
     deny-auto-connection: true
 `
 
@@ -85,6 +91,9 @@ func init() {
 	registerIface(&sdControlInterface{commonInterface{
 		name:                 "sd-control",
 		summary:              sdControlSummary,
-		baseDeclarationSlots: sdBaseDeclarationSlots,
+		baseDeclarationSlots: sdControlBaseDeclarationSlots,
+		baseDeclarationPlugs: sdControlBaseBaseDeclarationPlugs,
+		implicitOnCore:       true,
+		implicitOnClassic:    true,
 	}})
 }
