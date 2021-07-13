@@ -30,8 +30,8 @@ func (t *Transaction) PristineConfig() map[string]map[string]*json.RawMessage {
 }
 
 var (
-	SortPatchKeysByDepth = sortPatchKeysByDepth
-	OverlapsWith         = overlapsWith
+	SortPatchKeysByDepth      = sortPatchKeysByDepth
+	OverlapsWithVirtualConfig = overlapsWithVirtualConfig
 )
 
 func ClearVirtualMap() {

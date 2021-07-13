@@ -398,11 +398,11 @@ func commitChange(pristine *json.RawMessage, change interface{}) *json.RawMessag
 	panic(fmt.Errorf("internal error: unexpected configuration type %T", change))
 }
 
-// overlapsWith() return true if the requested key overlaps with the
-// given virtual key. E.g.
+// overlapsWithVirtualConfig() return true if the requested key overlaps with
+// the given virtual key. E.g.
 // true: for requested key "a" and virtual key "a.virtual"
 // false for requested key "z" and virtual key "a.virtual"
-func overlapsWith(requestedKey, virtualKey string) (bool, error) {
+func overlapsWithVirtualConfig(requestedKey, virtualKey string) (bool, error) {
 	requestedSubkeys, err := ParseKey(requestedKey)
 	if err != nil {
 		return false, fmt.Errorf("cannot check overlap for requested key: %v", err)
@@ -442,7 +442,7 @@ func mergeConfigWithVirtual(instanceName, requestedKey string, origConfig *map[s
 		}
 		// check if the requested key is part of the virtual
 		// configuration
-		partOf, err := overlapsWith(requestedKey, virtualKey)
+		partOf, err := overlapsWithVirtualConfig(requestedKey, virtualKey)
 		if err != nil {
 			return err
 		}
