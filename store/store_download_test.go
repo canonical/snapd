@@ -1053,7 +1053,7 @@ func (s *storeDownloadSuite) TestDownloadTimeoutOnHeaders(c *C) {
 		// block the handler, do not send response headers.
 		select {
 		case <-quit:
-		case <-time.After(5 * time.Second):
+		case <-time.After(30 * time.Second):
 			// we expect to hit ResponseHeaderTimeout first
 			c.Fatalf("unexpected")
 		}
