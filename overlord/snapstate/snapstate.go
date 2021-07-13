@@ -1971,6 +1971,20 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 		}
 	}
 
+	if forGatingSnap != "" {
+		var gatingSnapHasUpdate bool
+		for _, up := range updates {
+			if up.InstanceName() == forGatingSnap {
+				gatingSnapHasUpdate = true
+				break
+			}
+		}
+		if !gatingSnapHasUpdate {
+			// XXX: should this error out instead?
+			return nil, nil, nil
+		}
+	}
+
 	if len(updates) == 0 {
 		return nil, nil, nil
 	}
@@ -2006,23 +2020,18 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 	// if specific gating snap was given, drop other affected snaps unless
 	// they are affected by same updates as forGatingSnap.
 	if forGatingSnap != "" {
-		if _, ok := affectedSnaps[forGatingSnap]; !ok {
-			// this can happen if after refreshing candidates the snap is no
-			// longer affected by new candidates.
-			return nil, nil, nil
-		}
-		// filter out unrelated affectedSnaps
+		snapsAffectingGatingSnap := affectedSnaps[forGatingSnap].AffectingSnaps
+
+		// check if there is an intersection between affecting snaps of this
+		// forGatingSnap and other gating snaps. If so, we need to run
+		// their gate-auto-refresh hooks as well.
 		for gatingSnap, affectedInfo := range affectedSnaps {
 			if gatingSnap == forGatingSnap {
 				continue
 			}
 			var found bool
 			for affectingSnap := range affectedInfo.AffectingSnaps {
-				// does this affectingSnap also affect forGatingSnap?
-				// if so, we will keep it around, meaning we will run its
-				// gate-auto-refresh hook because it may potentially hold updates
-				// even if forGatingSnap's hook says "proceed".
-				if _, ok := affectedSnaps[forGatingSnap].AffectingSnaps[affectingSnap]; ok {
+				if snapsAffectingGatingSnap[affectingSnap] {
 					found = true
 					break
 				}

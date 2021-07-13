@@ -2099,6 +2099,14 @@ func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnap(c *C) {
 		},
 	}, {
 		Architectures: []string{"all"},
+		SnapType:      snap.TypeApp,
+		Base:          "base-snap-b",
+		SideInfo: snap.SideInfo{
+			RealName: "snap-b",
+			Revision: snap.R(2),
+		},
+	}, {
+		Architectures: []string{"all"},
 		SnapType:      snap.TypeBase,
 		SideInfo: snap.SideInfo{
 			RealName: "base-snap-b",
@@ -2131,14 +2139,14 @@ func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnap(c *C) {
 	c.Assert(changes, HasLen, 1)
 	chg := changes[0]
 	c.Assert(chg.Kind(), Equals, "auto-refresh")
-	c.Check(chg.Summary(), Equals, `Auto-refresh snap "base-snap-b"`)
+	c.Check(chg.Summary(), Equals, `Auto-refresh snaps "base-snap-b", "snap-b"`)
 	var snapNames []string
 	var apiData map[string]interface{}
 	c.Assert(chg.Get("snap-names", &snapNames), IsNil)
-	c.Check(snapNames, DeepEquals, []string{"base-snap-b"})
+	c.Check(snapNames, DeepEquals, []string{"base-snap-b", "snap-b"})
 	c.Assert(chg.Get("api-data", &apiData), IsNil)
 	c.Check(apiData, DeepEquals, map[string]interface{}{
-		"snap-names": []interface{}{"base-snap-b"},
+		"snap-names": []interface{}{"base-snap-b", "snap-b"},
 	})
 
 	tasks := chg.Tasks()
@@ -2159,6 +2167,21 @@ func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnap(c *C) {
 				DownloadInfo: &snap.DownloadInfo{},
 			},
 		},
+		"snap-b": {
+			SnapSetup: snapstate.SnapSetup{
+				Type:      "app",
+				Base:      "base-snap-b",
+				PlugsOnly: true,
+				Flags: snapstate.Flags{
+					IsAutoRefresh: true,
+				},
+				SideInfo: &snap.SideInfo{
+					RealName: "snap-b",
+					Revision: snap.R(2),
+				},
+				DownloadInfo: &snap.DownloadInfo{},
+			},
+		},
 	})
 
 	// the gate-auto-refresh hook task for snap-b is present
@@ -2174,7 +2197,7 @@ func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnap(c *C) {
 	c.Check(data, DeepEquals, map[string]interface{}{
 		"base":            true,
 		"restart":         false,
-		"affecting-snaps": []interface{}{"base-snap-b"},
+		"affecting-snaps": []interface{}{"base-snap-b", "snap-b"},
 	})
 
 	// last-refresh wasn't modified
