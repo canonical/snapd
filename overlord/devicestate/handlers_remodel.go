@@ -20,7 +20,6 @@ package devicestate
 
 import (
 	"fmt"
-	"time"
 
 	"gopkg.in/tomb.v2"
 
@@ -133,37 +132,18 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 		if err := boot.PromoteTriedRecoverySystem(remodCtx, recoverySetup.Label, triedSystems); err != nil {
 			return err
 		}
+		remodCtx.setRecoverySystemLabel(recoverySetup.Label)
 	}
-
-	// and finish (this will set the new model)
-	if err := remodCtx.Finish(); err != nil {
-		return err
-	}
-
-	// XXX: beyond this point, we cannot do anything about errors such that
-	// the system will be returned to a sane state, at best try to log some
-	// errors
 
 	logEverywhere := func(format string, args ...interface{}) {
 		t.Logf(format, args)
 		logger.Noticef(format, args)
 	}
-	if new.Grade() != asserts.ModelGradeUnset {
-		if err := boot.DeviceChange(remodCtx.GroundContext(), remodCtx); err != nil {
-			logEverywhere("cannot change device: %v", err)
-		}
 
-		// TODO: defer restore device?
-		if err := m.recordSeededSystem(st, &seededSystem{
-			System:    recoverySetup.Label,
-			Model:     new.Model(),
-			BrandID:   new.BrandID(),
-			Revision:  new.Revision(),
-			Timestamp: new.Timestamp(),
-			SeedTime:  time.Now(),
-		}); err != nil {
-			logEverywhere("cannot record a new seeded system: %v", err)
-		}
+	// and finish (this will set the new model), note that changes done in
+	// here are not recoverable even if an error occurs
+	if err := remodCtx.Finish(); err != nil {
+		logEverywhere("cannot complete remodel: %v", err)
 	}
 
 	t.SetStatus(state.DoneStatus)
