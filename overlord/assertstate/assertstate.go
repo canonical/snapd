@@ -430,7 +430,7 @@ func RefreshValidationSetAssertions(s *state.State, userID int) error {
 
 	if err := bulkRefreshValidationSetAsserts(s, enforceModeSets, checkForConflicts, userID, deviceCtx); err != nil {
 		if _, ok := err.(*snapasserts.ValidationSetsConflictError); ok {
-			logger.Noticef("cannot refresh validation set assertions in enforce mode: %v", err)
+			logger.Noticef("cannot refresh to conflicting validation set assertions: %v", err)
 			return nil
 		}
 		return err

@@ -2644,7 +2644,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeConflict
 	assertstate.UpdateValidationSet(s.state, &tr)
 
 	c.Assert(assertstate.RefreshValidationSetAssertions(s.state, 0), IsNil)
-	c.Assert(logbuf.String(), Matches, `.*cannot refresh validation set assertions in enforce mode: validation sets are in conflict:\n- cannot constrain snap "foo" as both invalid .* and required at revision 1.*\n`)
+	c.Assert(logbuf.String(), Matches, `.*cannot refresh to conflicting validation set assertions: validation sets are in conflict:\n- cannot constrain snap "foo" as both invalid .* and required at revision 1.*\n`)
 
 	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
