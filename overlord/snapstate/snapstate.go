@@ -2017,10 +2017,13 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 		}
 	}
 
+	// only used if forGatingSnap != ""
+	var snapsAffectingGatingSnap map[string]bool
+
 	// if specific gating snap was given, drop other affected snaps unless
 	// they are affected by same updates as forGatingSnap.
 	if forGatingSnap != "" {
-		snapsAffectingGatingSnap := affectedSnaps[forGatingSnap].AffectingSnaps
+		snapsAffectingGatingSnap = affectedSnaps[forGatingSnap].AffectingSnaps
 
 		// check if there is an intersection between affecting snaps of this
 		// forGatingSnap and other gating snaps. If so, we need to run
@@ -2062,12 +2065,8 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 	toUpdate := make(map[string]*refreshCandidate, len(updates))
 	for _, up := range updates {
 		// if specific gating snap was requested, filter out updates.
-		if forGatingSnap != "" {
-			affecting, ok := affectedSnaps[forGatingSnap]
-			if !ok {
-				continue
-			}
-			if _, ok := affecting.AffectingSnaps[up.InstanceName()]; !ok {
+		if forGatingSnap != "" && forGatingSnap != up.InstanceName() {
+			if !snapsAffectingGatingSnap[up.InstanceName()] {
 				continue
 			}
 		}
