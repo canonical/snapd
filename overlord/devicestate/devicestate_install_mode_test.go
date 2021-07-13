@@ -21,6 +21,7 @@ package devicestate_test
 
 import (
 	"bytes"
+	"compress/gzip"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -1480,4 +1481,70 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedErrorsLogsHook(c *C
 	_, err := devicestate.DeviceManagerCheckEncryption(s.mgr, s.state, deviceCtx)
 	c.Check(err, IsNil)
 	c.Check(logbuf.String(), Matches, "(?s).*: not encrypting device storage as querying kernel fde-setup hook did not succeed:.*\n")
+}
+
+func (s *deviceMgrInstallModeSuite) TestInstallHappyLogfiles(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	restore = devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
+		return nil, nil
+	})
+	defer restore()
+
+	mockedSnapCmd := testutil.MockCommand(c, "snap", `
+echo "mock output of: $(basename "$0") $*"
+`)
+	defer mockedSnapCmd.Restore()
+
+	err := ioutil.WriteFile(filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd/modeenv"),
+		[]byte("mode=install\n"), 0644)
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	// pretend we are seeding
+	chg := s.state.NewChange("seed", "just for testing")
+	chg.AddTask(s.state.NewTask("test-task", "the change needs a task"))
+	s.makeMockInstalledPcGadget(c, "dangerous", "", "")
+	devicestate.SetSystemMode(s.mgr, "install")
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	installSystem := s.findInstallSystem()
+	c.Check(installSystem.Err(), IsNil)
+	c.Check(s.restartRequests, HasLen, 1)
+
+	// logs are created
+	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/log/install-mode.log.gz"), testutil.FilePresent)
+	timingsPath := filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-data/system-data/var/log/install-timings.txt.gz")
+	c.Check(timingsPath, testutil.FilePresent)
+
+	f, err := os.Open(timingsPath)
+	c.Assert(err, IsNil)
+	defer f.Close()
+	gz, err := gzip.NewReader(f)
+	c.Assert(err, IsNil)
+	content, err := ioutil.ReadAll(gz)
+	c.Assert(err, IsNil)
+	c.Check(string(content), Equals, `---- Output of: snap changes
+mock output of: snap changes
+
+---- Output of snap debug timings --ensure=seed
+mock output of: snap debug timings --ensure=seed
+
+---- Output of snap debug timings 2
+mock output of: snap debug timings 2
+
+`)
+
+	// and the right commands are run
+	c.Check(mockedSnapCmd.Calls(), DeepEquals, [][]string{
+		{"snap", "changes"},
+		{"snap", "debug", "timings", "--ensure=seed"},
+		{"snap", "debug", "timings", "2"},
+	})
 }

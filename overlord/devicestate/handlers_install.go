@@ -127,6 +127,72 @@ func writeLogs(rootdir string) error {
 	if err := gz.Flush(); err != nil {
 		return fmt.Errorf("cannot flush compressed log output: %v", err)
 	}
+
+	return nil
+}
+
+func writeTimings(st *state.State, rootdir string) error {
+	logPath := filepath.Join(rootdir, "var/log/install-timings.txt.gz")
+	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+		return err
+	}
+
+	f, err := os.Create(logPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	gz := gzip.NewWriter(f)
+	defer gz.Close()
+
+	var chgIDs []string
+	for _, chg := range st.Changes() {
+		if chg.Kind() == "seed" {
+			// this is captured via "--ensure=seed" below
+			continue
+		}
+		chgIDs = append(chgIDs, chg.ID())
+	}
+
+	// state must be unlocked for "snap changes/debug timings" to work
+	st.Unlock()
+	defer st.Lock()
+
+	// XXX: ugly, ugly, but using the internal timings requires
+	//      some refactor as a lot of the required bits are not
+	//      exported right now
+	// first all changes
+	fmt.Fprintf(gz, "---- Output of: snap changes\n")
+	cmd := exec.Command("snap", "changes")
+	cmd.Stdout = gz
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("cannot collect timings output: %v", err)
+	}
+	fmt.Fprintf(gz, "\n")
+	// then the seeding
+	fmt.Fprintf(gz, "---- Output of snap debug timings --ensure=seed\n")
+	cmd = exec.Command("snap", "debug", "timings", "--ensure=seed")
+	cmd.Stdout = gz
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("cannot collect timings output: %v", err)
+	}
+	fmt.Fprintf(gz, "\n")
+	// then the changes
+	for _, chgID := range chgIDs {
+		fmt.Fprintf(gz, "---- Output of snap debug timings %s\n", chgID)
+		cmd = exec.Command("snap", "debug", "timings", chgID)
+		cmd.Stdout = gz
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("cannot collect timings output: %v", err)
+		}
+		fmt.Fprintf(gz, "\n")
+	}
+
+	if err := gz.Flush(); err != nil {
+		return fmt.Errorf("cannot flush timings output: %v", err)
+	}
+
 	return nil
 }
 
@@ -441,11 +507,6 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 		return fmt.Errorf("missing modeenv, cannot proceed")
 	}
 
-	// store install-mode log into ubuntu-data partition
-	if err := writeLogs(boot.InstallHostWritableDir); err != nil {
-		logger.Noticef("cannot write installation log: %v", err)
-	}
-
 	// ensure the next boot goes into run mode
 	if err := bootEnsureNextBootToRunMode(modeEnv.RecoverySystem); err != nil {
 		return err
@@ -455,6 +516,15 @@ func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) er
 	err = t.Get("reboot", &rebootOpts)
 	if err != nil && err != state.ErrNoState {
 		return err
+	}
+
+	// write timing information
+	if err := writeTimings(st, boot.InstallHostWritableDir); err != nil {
+		logger.Noticef("cannot write timings: %v", err)
+	}
+	// store install-mode log into ubuntu-data partition
+	if err := writeLogs(boot.InstallHostWritableDir); err != nil {
+		logger.Noticef("cannot write installation log: %v", err)
 	}
 
 	// request by default a restart as the last action after a
