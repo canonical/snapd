@@ -401,8 +401,6 @@ func (s *downloadSuite) TestUseDeltas(c *C) {
 	dirs.SnapMountDir = c.MkDir()
 	exeInCorePath := filepath.Join(dirs.SnapMountDir, "/core/current/usr/bin/xdelta3")
 	interpInCorePath := filepath.Join(dirs.SnapMountDir, "/core/current/lib64/ld-linux-x86-64.so.2")
-	os.MkdirAll(filepath.Dir(interpInCorePath), 0755)
-	os.MkdirAll(filepath.Dir(exeInCorePath), 0755)
 
 	scenarios := []struct {
 		env       string
@@ -470,6 +468,12 @@ func (s *downloadSuite) TestUseDeltas(c *C) {
 				c.Assert(name, Equals, "/usr/bin/xdelta3")
 				c.Assert(args, DeepEquals, []string{"config"})
 
+				// use realistic arguments like what we actually get from
+				// snapdtool.CommandFromSystemSnap(), namely the interpreter and
+				// a library path which is derived from ld.so - this is
+				// artificial and we could use any mocked arguments here, but
+				// this more closely matches reality to return something like
+				// this.
 				interpArgs := append([]string{"--library-path", "/some/dir/from/etc/ld.so", exeInCorePath}, args...)
 				return exec.Command(coreInterpCmd.Exe(), interpArgs...), nil
 			})
@@ -485,12 +489,22 @@ func (s *downloadSuite) TestUseDeltas(c *C) {
 			// file each iteration.
 			cleanups = append(cleanups, func() {
 				coreInterpCmd.ForgetCalls()
+				// note this is currently not needed, since Restore() just
+				// resets $PATH, but for an absolute path the $PATH doesn't get
+				// modified to begin with in MockCommand, but keep it here just
+				// to be safe in case something does ever change
+				coreInterpCmd.Restore()
+
 			})
 		}
 
 		if scenario.exeInHost {
 			// just mock the xdelta3 command directly
 			hostXdelta3Cmd = testutil.MockCommand(c, "xdelta3", "")
+
+			// note we don't add a Restore() to cleanups, it is called directly
+			// below after the first UseDeltas() but before the second
+			// UseDeltas() in order to properly test the caching behavior
 		}
 
 		// if there is not meant to be xdelta3 on the host or in core, then set
@@ -565,6 +579,13 @@ func (s *downloadSuite) TestUseDeltas(c *C) {
 				expArgs := []string{hostXdelta3Cmd.Exe(), "foo", "bar"}
 				c.Check(sto.Xdelta3Cmd("foo", "bar").Args, DeepEquals, expArgs, comment)
 			}
+		} else {
+			// sanity check that the test case makes sense, if we didn't want
+			// deltas, the scenario should have either disabled via an env var,
+			// or had both exes missing
+			c.Assert((scenario.env == "0") ||
+				(!scenario.exeInCore && !scenario.exeInHost),
+				Equals, true)
 		}
 
 		// cleanup for the next iteration
