@@ -1231,7 +1231,10 @@ nested_exec_as() {
 
 nested_prepare_tools() {
     TOOLS_PATH=/writable/test-tools
-    nested_exec "mkdir -p $TOOLS_PATH"
+    if ! nested_exec "test -d $TOOLS_PATH" &>/dev/null; then
+        nested_exec "sudo mkdir -p $TOOLS_PATH"
+        nested_exec "sudo chown user1:user1 $TOOLS_PATH"
+    fi
 
     if ! nested_exec "test -e $TOOLS_PATH/retry" &>/dev/null; then
         nested_copy "$TESTSTOOLS/retry"
@@ -1267,7 +1270,7 @@ nested_prepare_tools() {
 
     if ! nested_exec "grep -qE PATH=.*$TOOLS_PATH /etc/environment"; then
         # shellcheck disable=SC2016
-        nested_exec 'echo "PATH=$TOOLS_PATH:$PATH" | sudo tee -a /etc/environment'
+        nested_exec "echo \"PATH=$TOOLS_PATH:$PATH\" | sudo tee -a /etc/environment"
     fi
 }
 
