@@ -44,9 +44,9 @@ execute: |
     snap pack pc-gadget/
 
     echo "Install newly created gadget (which will trigger a reboot)"
-    nested_copy ./pc_*.snap
+    tests.nested copy ./pc_*.snap
     REMOTE_CHG_ID=$(tests.nested exec sudo snap install --dangerous ./pc_*.snap --no-wait)
-    nested_wait_for_reboot "${boot_id}"
+    tests.nested wait-for reboot "${boot_id}"
     tests.nested exec sudo snap watch "${REMOTE_CHG_ID}"
 
     echo "Check that the gadget asset was changed"

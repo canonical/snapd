@@ -37,7 +37,7 @@ execute: |
     tests.nested exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_CHANNEL}"
     tests.nested exec "sudo snap refresh --${NESTED_CORE_REFRESH_CHANNEL} core" || true
 
-    if ! nested_wait_for_ssh; then
+    if ! tests.nested wait-for ssh; then
         echo "ssh not stablished, exiting..."
         exit 1
     fi
@@ -54,7 +54,7 @@ execute: |
     echo "Revert the core snap"
     tests.nested exec "sudo snap revert core" || true
 
-    if ! nested_wait_for_ssh; then
+    if ! tests.nested wait-for ssh; then
         echo "ssh not stablished, exiting..."
         exit 1
     fi

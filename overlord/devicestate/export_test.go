@@ -205,6 +205,14 @@ func RemodelDeviceBackend(remodCtx remodelContext) storecontext.DeviceBackend {
 	}).deviceBackend()
 }
 
+func RemodelSetRecoverySystemLabel(remodCtx remodelContext, label string) {
+	remodCtx.setRecoverySystemLabel(label)
+}
+
+func RecordSeededSystem(m *DeviceManager, st *state.State, sys *seededSystem) error {
+	return m.recordSeededSystem(st, sys)
+}
+
 var (
 	LoadDeviceSeed               = loadDeviceSeed
 	UnloadDeviceSeed             = unloadDeviceSeed
@@ -292,7 +300,7 @@ func MockSysconfigConfigureTargetSystem(f func(mod *asserts.Model, opts *sysconf
 	}
 }
 
-func MockInstallRun(f func(model gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, observer gadget.ContentObserver) (*install.InstalledSystemSideData, error)) (restore func()) {
+func MockInstallRun(f func(model gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*install.InstalledSystemSideData, error)) (restore func()) {
 	old := installRun
 	installRun = f
 	return func() {

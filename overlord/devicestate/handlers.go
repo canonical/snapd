@@ -109,10 +109,24 @@ type seededSystem struct {
 	SeedTime time.Time `json:"seed-time"`
 }
 
+func (s *seededSystem) sameAs(other *seededSystem) bool {
+	// in theory the system labels are unique, however be extra paranoid and
+	// check all model related fields too
+	return s.System == other.System &&
+		s.Model == other.Model &&
+		s.BrandID == other.BrandID &&
+		s.Revision == other.Revision
+}
+
 func (m *DeviceManager) recordSeededSystem(st *state.State, whatSeeded *seededSystem) error {
 	var seeded []seededSystem
 	if err := st.Get("seeded-systems", &seeded); err != nil && err != state.ErrNoState {
 		return err
+	}
+	for _, sys := range seeded {
+		if sys.sameAs(whatSeeded) {
+			return nil
+		}
 	}
 	seeded = append([]seededSystem{*whatSeeded}, seeded...)
 	st.Set("seeded-systems", seeded)

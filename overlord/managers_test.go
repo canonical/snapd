@@ -6381,7 +6381,8 @@ func (s *mgrsSuite) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) {
 	c.Check(restarting, Equals, true)
 	c.Assert(kind, Equals, state.RestartSystemNow)
 
-	expectedLabel := time.Now().Format("20060102")
+	now := time.Now()
+	expectedLabel := now.Format("20060102")
 
 	m, err = boot.ReadModeenv("")
 	c.Assert(err, IsNil)
@@ -6511,6 +6512,30 @@ func (s *mgrsSuite) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) {
 	} else {
 		c.Assert(secbootResealCalls, Equals, 0)
 	}
+
+	var seededSystems []map[string]interface{}
+	err = st.Get("seeded-systems", &seededSystems)
+	c.Assert(err, IsNil)
+	c.Assert(seededSystems, HasLen, 1)
+	// since we can't mock the seed timestamp, make sure it's within a
+	// reasonable range, and then clear it
+	c.Assert(seededSystems[0]["seed-time"], FitsTypeOf, "")
+	ts, err := time.Parse(time.RFC3339Nano, seededSystems[0]["seed-time"].(string))
+	c.Assert(err, IsNil)
+	// should be more than enough for the test to finish
+	c.Check(ts.Before(now.Add(10*time.Minute)), Equals, true, Commentf("seed-time is too late: %v", ts))
+	seededSystems[0]["seed-time"] = ""
+	c.Check(seededSystems, DeepEquals, []map[string]interface{}{
+		{
+			"system":    expectedLabel,
+			"model":     newModel.Model(),
+			"brand-id":  newModel.BrandID(),
+			"revision":  float64(newModel.Revision()),
+			"timestamp": newModel.Timestamp().Format(time.RFC3339Nano),
+			// cleared earlier
+			"seed-time": "",
+		},
+	})
 }
 
 func (s *mgrsSuite) TestRemodelUC20WithRecoverySystemEncrypted(c *C) {

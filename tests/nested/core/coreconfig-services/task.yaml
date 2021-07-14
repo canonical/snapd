@@ -13,7 +13,7 @@ execute: |
 
   current_boot_id=$(nested_get_boot_id)
   tests.nested exec "sudo reboot" || true
-  nested_wait_for_reboot "$current_boot_id"
+  tests.nested wait-for reboot "$current_boot_id"
 
   echo "Enabling systemd-resolved service back"
   tests.nested exec "systemctl status systemd-resolved.service" | MATCH "Active: +inactive"

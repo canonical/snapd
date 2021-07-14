@@ -38,6 +38,7 @@ import (
 	"gopkg.in/retry.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/httputil"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
@@ -1039,4 +1040,37 @@ func (s *storeDownloadSuite) TestTransferSpeedMonitoringWriterUnhappy(c *C) {
 	terr, _ := store.IsTransferSpeedError(w.Err())
 	c.Assert(terr, Equals, true)
 	c.Check(w.Err(), ErrorMatches, "download too slow: .* bytes/sec")
+}
+
+func (s *storeDownloadSuite) TestDownloadTimeoutOnHeaders(c *C) {
+	restore := httputil.MockResponseHeaderTimeout(250 * time.Millisecond)
+	defer restore()
+
+	var mockServer *httptest.Server
+
+	quit := make(chan bool)
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// block the handler, do not send response headers.
+		select {
+		case <-quit:
+		case <-time.After(30 * time.Second):
+			// we expect to hit ResponseHeaderTimeout first
+			c.Fatalf("unexpected")
+		}
+		mockServer.CloseClientConnections()
+	}))
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	snap := &snap.Info{}
+	snap.RealName = "foo"
+	snap.AnonDownloadURL = mockServer.URL
+	snap.DownloadURL = "AUTH-URL"
+	snap.Sha3_384 = "1234"
+	snap.Size = 50000
+
+	targetFn := filepath.Join(c.MkDir(), "foo_1.0_all.snap")
+	err := s.store.Download(s.ctx, "foo", targetFn, &snap.DownloadInfo, nil, nil, nil)
+	close(quit)
+	c.Assert(err, ErrorMatches, `.*net/http: timeout awaiting response headers`)
 }

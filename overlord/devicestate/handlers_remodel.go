@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -131,19 +132,22 @@ func (m *DeviceManager) doSetModel(t *state.Task, _ *tomb.Tomb) (err error) {
 		if err := boot.PromoteTriedRecoverySystem(remodCtx, recoverySetup.Label, triedSystems); err != nil {
 			return err
 		}
+		remodCtx.setRecoverySystemLabel(recoverySetup.Label)
 	}
 
-	// and finish (this will set the new model)
+	logEverywhere := func(format string, args ...interface{}) {
+		t.Logf(format, args)
+		logger.Noticef(format, args)
+	}
+
+	// and finish (this will set the new model), note that changes done in
+	// here are not recoverable even if an error occurs
 	if err := remodCtx.Finish(); err != nil {
-		return err
+		logEverywhere("cannot complete remodel: %v", err)
 	}
 
-	// TODO: consider reverting the model if reseal fails?
-	if new.Grade() != asserts.ModelGradeUnset {
-		if err := boot.DeviceChange(remodCtx.GroundContext(), remodCtx); err != nil {
-			return err
-		}
-	}
+	t.SetStatus(state.DoneStatus)
+
 	return nil
 }
 

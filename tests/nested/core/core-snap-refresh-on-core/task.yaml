@@ -47,8 +47,8 @@ execute: |
 
     echo "Revert core"
     tests.nested exec "sudo snap revert core" || true
-    nested_nested_wait_for_no_ssh
-    nested_nested_wait_for_ssh
+    tests.nested wait-for no-ssh
+    nested_tests.nested wait-for ssh
 
     echo "After revert, check initial core is installed"
     test "$(get_nested_core_revision_installed)" = "${INITIAL_REV}"
