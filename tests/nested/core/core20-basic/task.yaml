@@ -64,3 +64,4 @@ execute: |
     MATCH "^seed"                     < install-timings.txt
     MATCH "Mark system seeded"        < install-timings.txt
     MATCH "Setup system for run mode" < install-timings.txt
+    MATCH "ensure=installed"          < install-timings.txt

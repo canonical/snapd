@@ -148,8 +148,9 @@ func writeTimings(st *state.State, rootdir string) error {
 
 	var chgIDs []string
 	for _, chg := range st.Changes() {
-		if chg.Kind() == "seed" {
-			// this is captured via "--ensure=seed" below
+		if chg.Kind() == "seed" || chg.Kind() == "install-system" {
+			// this is captured via "--ensure=seed" and
+			// "--ensure=install-system" below
 			continue
 		}
 		chgIDs = append(chgIDs, chg.ID())
@@ -178,7 +179,14 @@ func writeTimings(st *state.State, rootdir string) error {
 		return fmt.Errorf("cannot collect timings output: %v", err)
 	}
 	fmt.Fprintf(gz, "\n")
-	// then the changes
+	// then the install
+	fmt.Fprintf(gz, "---- Output of snap debug timings --ensure=install-system\n")
+	cmd = exec.Command("snap", "debug", "timings", "--ensure=install-system")
+	cmd.Stdout = gz
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("cannot collect timings output: %v", err)
+	}
+	// then the other changes (if there are any)
 	for _, chgID := range chgIDs {
 		fmt.Fprintf(gz, "---- Output of snap debug timings %s\n", chgID)
 		cmd = exec.Command("snap", "debug", "timings", chgID)
