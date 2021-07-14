@@ -2136,7 +2136,8 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelHappy(c *C) {
 func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelErr(c *C) {
 	s.testUC20RemodelSetModel(c, uc20RemodelSetModelTestCase{
 		resealErr: []error{
-			nil,                             // promote tried recovery system
+			nil, // promote tried recovery system
+			// keep this comment so that gofmt does not complain
 			fmt.Errorf("mock reseal error"), // device change pre model write
 		},
 		taskLogMatch: `.* cannot complete remodel: \[cannot switch device: mock reseal error\]`,
