@@ -35,7 +35,7 @@ const sdControlBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-const sdControlBaseBaseDeclarationPlugs = `
+const sdControlBaseDeclarationPlugs = `
   sd-control:
     allow-installation: false
     deny-auto-connection: true
@@ -91,7 +91,7 @@ func init() {
 		name:                 "sd-control",
 		summary:              sdControlSummary,
 		baseDeclarationSlots: sdControlBaseDeclarationSlots,
-		baseDeclarationPlugs: sdControlBaseBaseDeclarationPlugs,
+		baseDeclarationPlugs: sdControlBaseDeclarationPlugs,
 		implicitOnCore:       true,
 		implicitOnClassic:    true,
 	}})
