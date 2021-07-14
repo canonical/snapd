@@ -1270,7 +1270,7 @@ nested_prepare_tools() {
 
     if ! nested_exec "grep -qE PATH=.*$TOOLS_PATH /etc/environment"; then
         # shellcheck disable=SC2016
-        nested_exec "echo \"PATH=$TOOLS_PATH:$PATH\" | sudo tee -a /etc/environment"
+        nested_exec "echo \"PATH=$TOOLS_PATH:'$PATH'\" | sudo tee -a /etc/environment"
     fi
 }
 

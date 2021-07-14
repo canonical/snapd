@@ -41,7 +41,7 @@ prepare: |
             # uc16 uses core snap
             http --quiet --download --output core_2.45.snap GET "$SNAPD_2_45_CORE_SNAP"
             # The core snap is unpacked and repacked to prevent it is auto-refreshed when
-            # it is installed with --dangerous  as it has a different hash
+            # it is installed with --dangerous as it has a different hash
             unsquashfs -d core-snap core_2.45.snap
             snap pack core-snap/ "$(nested_get_extra_snaps_path)"
         else 
@@ -125,7 +125,7 @@ execute: |
 
     echo "Waiting for snapd to react to cloud-init"
     # It is needed || true because in ubuntu-core-16 there is not any cloud-init message in the journal log
-    tests.nested exec "retry --wait 1 -n 60 sh -c 'sudo journalctl --no-pager -u snapd | MATCH \"cloud-init reported\"'"
+    retry --wait 1 -n 60 sh -c 'tests.nested exec sudo journalctl --no-pager -u snapd | MATCH "cloud-init reported"'
     
     # ensure that snapd disabled cloud-init with the cloud-init.disabled file
     echo "Ensuring that snapd restricted cloud-init"
