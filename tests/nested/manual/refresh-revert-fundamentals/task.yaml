@@ -91,7 +91,7 @@ execute: |
         pc-kernel|core20)
             #shellcheck disable=SC2098
             #shellcheck disable=SC2097
-            retry --wait 1 -n 10 --env REVERT_ID=\"$REVERT_ID\" sh -c "tests.nested exec snap changes | MATCH \"$REVERT_ID\s+Done\s+.*\""
+            retry --wait 1 -n 10 --env REVERT_ID="$REVERT_ID" sh -c "tests.nested exec snap changes | MATCH \"$REVERT_ID\s+Done\s+.*\""
             ;;
     esac
 
