@@ -158,6 +158,12 @@ base: base-snap-b
 version: 1
 `
 
+const snapBByaml = `name: snap-bb
+type: app
+base: base-snap-b
+version: 1
+`
+
 const kernelYaml = `name: kernel
 type: kernel
 version: 1
@@ -2204,6 +2210,136 @@ func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnap(c *C) {
 	var lr time.Time
 	st.Get("last-refresh", &lr)
 	c.Check(lr.Equal(lastRefreshTime), Equals, true)
+}
+
+func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnapMoreAffectedSnaps(c *C) {
+	s.store.refreshedSnaps = []*snap.Info{{
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeApp,
+		SideInfo: snap.SideInfo{
+			RealName: "snap-a",
+			Revision: snap.R(8),
+		},
+	}, {
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeBase,
+		SideInfo: snap.SideInfo{
+			RealName: "base-snap-b",
+			Revision: snap.R(3),
+		},
+	}, {
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeApp,
+		Base:          "base-snap-b",
+		SideInfo: snap.SideInfo{
+			RealName: "snap-b",
+			Revision: snap.R(2),
+		},
+	}}
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockInstalledSnap(c, s.state, snapAyaml, useHook)
+	mockInstalledSnap(c, s.state, snapByaml, useHook)
+	mockInstalledSnap(c, s.state, snapBByaml, useHook)
+	mockInstalledSnap(c, s.state, baseSnapByaml, noHook)
+
+	restore := snapstatetest.MockDeviceModel(DefaultModel())
+	defer restore()
+
+	// pretend snap-b holds base-snap-b.
+	c.Assert(snapstate.HoldRefresh(st, "snap-b", 0, "base-snap-b"), IsNil)
+
+	// pretend that snap-b triggers auto-refresh (by calling snapctl refresh --proceed)
+	c.Assert(snapstate.AutoRefreshForGatingSnap(st, "snap-b"), IsNil)
+
+	changes := st.Changes()
+	c.Assert(changes, HasLen, 1)
+	chg := changes[0]
+	c.Assert(chg.Kind(), Equals, "auto-refresh")
+	c.Check(chg.Summary(), Equals, `Auto-refresh snaps "base-snap-b", "snap-b"`)
+	var snapNames []string
+	var apiData map[string]interface{}
+	c.Assert(chg.Get("snap-names", &snapNames), IsNil)
+	c.Check(snapNames, DeepEquals, []string{"base-snap-b", "snap-b"})
+	c.Assert(chg.Get("api-data", &apiData), IsNil)
+	c.Check(apiData, DeepEquals, map[string]interface{}{
+		"snap-names": []interface{}{"base-snap-b", "snap-b"},
+	})
+
+	tasks := chg.Tasks()
+	c.Assert(tasks, HasLen, 3)
+	conditionalRefreshTask := tasks[0]
+	checkGatingTask(c, conditionalRefreshTask, map[string]*snapstate.RefreshCandidate{
+		"base-snap-b": {
+			SnapSetup: snapstate.SnapSetup{
+				Type:      "base",
+				PlugsOnly: true,
+				Flags: snapstate.Flags{
+					IsAutoRefresh: true,
+				},
+				SideInfo: &snap.SideInfo{
+					RealName: "base-snap-b",
+					Revision: snap.R(3),
+				},
+				DownloadInfo: &snap.DownloadInfo{},
+			},
+		},
+		"snap-b": {
+			SnapSetup: snapstate.SnapSetup{
+				Type:      "app",
+				Base:      "base-snap-b",
+				PlugsOnly: true,
+				Flags: snapstate.Flags{
+					IsAutoRefresh: true,
+				},
+				SideInfo: &snap.SideInfo{
+					RealName: "snap-b",
+					Revision: snap.R(2),
+				},
+				DownloadInfo: &snap.DownloadInfo{},
+			},
+		},
+	})
+
+	seenSnaps := make(map[string]bool)
+
+	// check that the gate-auto-refresh hooks are run.
+	// snap-bb's hook is triggered because it is affected by base-snap-b refresh
+	// (and intersects with affecting snap of snap-b). Note, snap-a is not here
+	// because it is not affected by snaps affecting snap-b.
+	for i := 1; i <= 2; i++ {
+		c.Assert(tasks[i].Kind(), Equals, "run-hook")
+		var hs hookstate.HookSetup
+		c.Assert(tasks[i].Get("hook-setup", &hs), IsNil)
+		c.Check(hs.Hook, Equals, "gate-auto-refresh")
+		c.Check(hs.Optional, Equals, true)
+		seenSnaps[hs.Snap] = true
+		var data interface{}
+		c.Assert(tasks[i].Get("hook-context", &data), IsNil)
+		switch hs.Snap {
+		case "snap-b":
+			c.Check(data, DeepEquals, map[string]interface{}{
+				"base":            true,
+				"restart":         false,
+				"affecting-snaps": []interface{}{"base-snap-b", "snap-b"},
+			})
+		case "snap-bb":
+			c.Check(data, DeepEquals, map[string]interface{}{
+				"base":            true,
+				"restart":         false,
+				"affecting-snaps": []interface{}{"base-snap-b"},
+			})
+		default:
+			c.Fatalf("unexpected snap %q", hs.Snap)
+		}
+	}
+	c.Check(seenSnaps, DeepEquals, map[string]bool{
+		"snap-b":  true,
+		"snap-bb": true,
+	})
 }
 
 func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnapNoCandidatesAnymore(c *C) {

@@ -1980,7 +1980,6 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 			}
 		}
 		if !gatingSnapHasUpdate {
-			// XXX: should this error out instead?
 			return nil, nil, nil
 		}
 	}
@@ -2061,7 +2060,7 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 
 	// return all names as potentially getting updated even though some may be
 	// held.
-	var names []string
+	names := make([]string, 0, len(updates))
 	toUpdate := make(map[string]*refreshCandidate, len(updates))
 	for _, up := range updates {
 		// if specific gating snap was requested, filter out updates.
