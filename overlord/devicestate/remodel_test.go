@@ -1244,3 +1244,73 @@ func (s *uc20RemodelLogicSuite) TestUpdateRemodelContext(c *C) {
 	})
 	c.Assert(newSeedTs.After(s.oldSeededTs), Equals, true)
 }
+
+func (s *uc20RemodelLogicSuite) TestSimpleRemodelErr(c *C) {
+	modelDefaults := make(map[string]interface{}, len(uc20ModelDefaults))
+	for k, v := range uc20ModelDefaults {
+		modelDefaults[k] = v
+	}
+	// simple model update with bumped revision
+	modelDefaults["revision"] = "2"
+	newModel := s.brands.Model("my-brand", "my-model", modelDefaults)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	m, err := boot.ReadModeenv("")
+	c.Assert(err, IsNil)
+	// the system has already been promoted
+	m.CurrentRecoverySystems = append(m.CurrentRecoverySystems, "1234")
+	m.GoodRecoverySystems = append(m.GoodRecoverySystems, "1234")
+	c.Assert(m.Write(), IsNil)
+
+	remodCtx, err := devicestate.RemodelCtx(s.state, s.oldModel, newModel)
+	c.Assert(err, IsNil)
+
+	c.Check(remodCtx.ForRemodeling(), Equals, true)
+	c.Check(remodCtx.Kind(), Equals, devicestate.UpdateRemodel)
+	chg := s.state.NewChange("remodel", "...")
+	remodCtx.Init(chg)
+
+	var encNewModel string
+	c.Assert(chg.Get("new-model", &encNewModel), IsNil)
+
+	resealKeysCalls := 0
+	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, expectReseal bool) error {
+		resealKeysCalls++
+		c.Check(m.CurrentRecoverySystems, DeepEquals, []string{"0000", "1234"})
+		c.Check(m.GoodRecoverySystems, DeepEquals, []string{"0000", "1234"})
+		switch resealKeysCalls {
+		case 1:
+			// intermediate step, new and old models
+			c.Check(m.ModelForSealing().Model(), Equals, "my-model")
+			c.Check(m.TryModelForSealing().Model(), Equals, "my-model")
+			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), testutil.FileContains, "model: my-model\n")
+			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"), Not(testutil.FileContains), "revision:")
+			return fmt.Errorf("mock reseal failure")
+		default:
+			c.Fatalf("unexpected call #%v to reseal key to modeenv", resealKeysCalls)
+		}
+		return nil
+	})
+	s.AddCleanup(restore)
+
+	// set the label internally
+	devicestate.RemodelSetRecoverySystemLabel(remodCtx, "1234")
+	err = remodCtx.Finish()
+	c.Assert(err, ErrorMatches, "cannot switch device: mock reseal failure")
+	c.Check(resealKeysCalls, Equals, 1)
+
+	// the error occurred before seeded systems was updated
+	var seededSystemsFromState []map[string]interface{}
+	err = s.state.Get("seeded-systems", &seededSystemsFromState)
+	c.Assert(err, IsNil)
+	c.Assert(seededSystemsFromState, DeepEquals, []map[string]interface{}{{
+		"system":    "0000",
+		"model":     "my-model",
+		"brand-id":  "my-brand",
+		"revision":  float64(0),
+		"timestamp": s.oldModel.Timestamp().Format(time.RFC3339Nano),
+		"seed-time": s.oldSeededTs.Format(time.RFC3339Nano),
+	}})
+}
