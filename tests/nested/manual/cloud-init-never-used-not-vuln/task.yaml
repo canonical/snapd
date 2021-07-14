@@ -37,7 +37,7 @@ debug: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
     echo "logs from current nested VM boot snapd"
-    nested_exec "sudo journalctl -e --no-pager -u snapd" || true
+    tests.nested exec "sudo journalctl -e --no-pager -u snapd" || true
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
@@ -50,7 +50,7 @@ execute: |
     # cloud-init when it is installed
 
     echo "Wait for done seeding"
-    nested_exec "sudo snap wait system seed.loaded"
+    tests.nested exec "sudo snap wait system seed.loaded"
 
     echo "Prepare snapd snapto install with the fix"
     # if we are not building from current, then we need to prep the snapd snap
@@ -60,22 +60,22 @@ execute: |
         if nested_is_core_16_system; then
             # build the core snap for this run
             repack_snapd_deb_into_core_snap "$PWD"
-            nested_copy "$PWD/core-from-snapd-deb.snap"
+            tests.nested copy "$PWD/core-from-snapd-deb.snap"
 
             # install the core snap
-            nested_exec "sudo snap install core-from-snapd-deb.snap --dangerous"
+            tests.nested exec "sudo snap install core-from-snapd-deb.snap --dangerous"
 
             # now we wait for the reboot for the new core snap
             nested_wait_for_no_ssh
-            nested_wait_for_ssh
+            tests.nested wait-for ssh
             
         else
             # build the snapd snap for this run
             repack_snapd_deb_into_snapd_snap "$PWD"
-            nested_copy "$PWD/snapd-from-deb.snap"
+            tests.nested copy "$PWD/snapd-from-deb.snap"
 
             # install the snapd snap
-            nested_exec "sudo snap install snapd-from-deb.snap --dangerous"
+            tests.nested exec "sudo snap install snapd-from-deb.snap --dangerous"
         fi
     fi
 
@@ -93,11 +93,11 @@ execute: |
     # not have been triggered. 
 
     echo "Waiting for cloud-init..."
-    nested_exec "cloud-init status --wait"
+    tests.nested exec "cloud-init status --wait"
 
     echo "Waiting for snapd to react to cloud-init"
     for i in $(seq 60); do
-        if nested_exec "journalctl --no-pager -u snapd" | MATCH "Cloud-init reported"; then
+        if tests.nested exec "journalctl --no-pager -u snapd" | MATCH "Cloud-init reported"; then
             break
         fi
         sleep 1
@@ -105,12 +105,12 @@ execute: |
 
     # ensure that snapd disabled cloud-init with the cloud-init.disabled file
     echo "Ensuring that snapd restricted cloud-init"
-    nested_exec "cloud-init status" | MATCH "status: disabled"
-    nested_exec "test -f /etc/cloud/cloud-init.disabled"
-    nested_exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
+    tests.nested exec "cloud-init status" | MATCH "status: disabled"
+    tests.nested exec "test -f /etc/cloud/cloud-init.disabled"
+    tests.nested exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
 
     echo "Save snapd logs before continuing as the logs are not persistent"
-    nested_exec "sudo journalctl -e --no-pager -u snapd" > snapd-before-reboot.logs
+    tests.nested exec "sudo journalctl -e --no-pager -u snapd" > snapd-before-reboot.logs
 
     echo "Gracefully shutting down the nested VM to prepare a simulated attack"
     boot_id="$(nested_get_boot_id)"
@@ -121,21 +121,21 @@ execute: |
 
     echo "Restarting nested VM with attacker cloud-init CD-ROM drive"
     tests.nested start-vm
-    nested_wait_for_reboot "${boot_id}"
+    tests.nested wait-for reboot "${boot_id}"
 
     # cloud-init should not actually run, since it was disabled, but in case the
     # test fails, for a better error, we will wait for cloud-init to report that
     # it is "done" or at least steady before ensuring that the attacker-user was
     # not created.
     echo "Waiting for cloud-init..."
-    nested_exec "cloud-init status --wait"
+    tests.nested exec "cloud-init status --wait"
 
     # the attacker-user should not have been created
     echo "The cloud-init user was not created"
-    nested_exec "cat /var/lib/extrausers/passwd" | NOMATCH attacker-user
+    tests.nested exec "cat /var/lib/extrausers/passwd" | NOMATCH attacker-user
 
     # cloud-init should still be disabled
     echo "cloud-init is still disabled"
-    nested_exec "cloud-init status" | MATCH "status: disabled"
-    nested_exec "test -f /etc/cloud/cloud-init.disabled"
-    nested_exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
+    tests.nested exec "cloud-init status" | MATCH "status: disabled"
+    tests.nested exec "test -f /etc/cloud/cloud-init.disabled"
+    tests.nested exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"

@@ -85,6 +85,6 @@ execute: |
         # The -p option can be used to know the PID of the started program.
         # This is different from the pid of tests.session as there's a session
         # manager overlooking the termination of PAM stack (internally we use runuser).
-        tests.session -u "$USER" -p /tmp/outer.pid exec "$(command -v any-python)" -c 'from __future__ import print_function; import os; print(os.getpid())' >/tmp/inner.pid
+        tests.session -u "$USER" -p /tmp/outer.pid exec python3 -c 'import os; print(os.getpid())' >/tmp/inner.pid
         test "$(cat /tmp/outer.pid)" = "$(cat /tmp/inner.pid)"
     done

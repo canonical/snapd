@@ -440,7 +440,7 @@ debug-each: |
             # add another echo in case the serial log is missing a newline
             echo
 
-            nested_exec sudo journalctl --no-pager -u snapd || true
+            tests.nested exec "sudo journalctl --no-pager -u snapd" || true
         fi
 
         echo '# journal messages for snapd'
