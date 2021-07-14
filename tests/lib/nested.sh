@@ -1230,40 +1230,44 @@ nested_exec_as() {
 }
 
 nested_prepare_tools() {
-    if ! nested_exec "test -e retry" &>/dev/null; then
+    TOOLS_PATH=/writable/test-tools
+    nested_exec "mkdir -p $TOOLS_PATH"
+
+    if ! nested_exec "test -e $TOOLS_PATH/retry" &>/dev/null; then
         nested_copy "$TESTSTOOLS/retry"
-        nested_exec "sed 's/any-python/python3/g' -i ./retry"
+        nested_exec "mv retry $TOOLS_PATH/retry"
     fi
 
-    if ! nested_exec "test -e not" &>/dev/null; then
+    if ! nested_exec "test -e $TOOLS_PATH/not" &>/dev/null; then
         nested_copy "$TESTSTOOLS/not"
+        nested_exec "mv not $TOOLS_PATH/not"
     fi
 
-    if ! nested_exec "test -e MATCH" &>/dev/null; then
+    if ! nested_exec "test -e $TOOLS_PATH/MATCH" &>/dev/null; then
         . "$TESTSLIB"/spread-funcs.sh
         echo '#!/bin/bash' > MATCH_FILE
         type MATCH | tail -n +2 >> MATCH_FILE
         echo 'MATCH "$@"' >> MATCH_FILE
         chmod +x MATCH_FILE
         nested_copy "MATCH_FILE"
-        nested_exec "mv MATCH_FILE MATCH"
+        nested_exec "mv MATCH_FILE $TOOLS_PATH/MATCH"
         rm -f MATCH_FILE
     fi
 
-    if ! nested_exec "test -e NOMATCH" &>/dev/null; then
+    if ! nested_exec "test -e $TOOLS_PATH/NOMATCH" &>/dev/null; then
         . "$TESTSLIB"/spread-funcs.sh
         echo '#!/bin/bash' > NOMATCH_FILE
         type NOMATCH | tail -n +2 >> NOMATCH_FILE
         echo 'NOMATCH "$@"' >> NOMATCH_FILE
         chmod +x NOMATCH_FILE
         nested_copy "NOMATCH_FILE"
-        nested_exec "mv NOMATCH_FILE NOMATCH"
+        nested_exec "mv NOMATCH_FILE $TOOLS_PATH/NOMATCH"
         rm -f NOMATCH_FILE
     fi
 
-    if ! nested_exec "grep -qE PATH=.*/home/user1 /etc/environment"; then
+    if ! nested_exec "grep -qE PATH=.*$TOOLS_PATH /etc/environment"; then
         # shellcheck disable=SC2016
-        nested_exec 'echo "PATH=/home/user1:$PATH" | sudo tee -a /etc/environment'
+        nested_exec 'echo "PATH=$TOOLS_PATH:$PATH" | sudo tee -a /etc/environment'
     fi
 }
 
