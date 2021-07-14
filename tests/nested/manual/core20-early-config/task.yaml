@@ -75,13 +75,13 @@ execute: |
     boot_id="$(nested_get_boot_id)"
     # shellcheck disable=SC2016
     tests.nested exec 'sudo snap reboot --recover'
-    nested_wait_for_reboot "${boot_id}"
+    tests.nested wait-for reboot "${boot_id}"
 
     echo "Check the vm is in recover mode"
     tests.nested exec 'sudo cat /proc/cmdline' | MATCH snapd_recovery_mode=recover
 
     echo "Wait for the snap command to be available since recover mode needs to seed itself"
-    nested_wait_for_snap_command
+    tests.nested wait-for snap-command
 
     echo "Wait for snap seeding to be done"
     tests.nested exec "sudo snap wait system seed.loaded"

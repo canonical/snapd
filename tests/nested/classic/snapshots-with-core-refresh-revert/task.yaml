@@ -9,7 +9,7 @@ prepare: |
     tests.nested exec 'echo "127.0.1.1 $HOSTNAME" | sudo tee /etc/hosts'
 
     echo "Install snapd and snaps on nested vm"
-    nested_copy "${GOHOME}"/snapd_*.deb
+    tests.nested copy "${GOHOME}"/snapd_*.deb
     tests.nested exec "sudo apt update"
     tests.nested exec "sudo apt install -y ./snapd_*.deb"
     tests.nested exec "sudo snap install test-snapd-sh"

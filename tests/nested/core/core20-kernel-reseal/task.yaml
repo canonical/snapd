@@ -26,7 +26,7 @@ prepare: |
   snap pack pc-kernel
   rm -rf pc-kernel
   mv pc-kernel_*.snap new-pc-kernel.snap
-  nested_copy new-pc-kernel.snap
+  tests.nested copy new-pc-kernel.snap
 
 execute: |
   # shellcheck source=tests/lib/nested.sh
@@ -38,7 +38,7 @@ execute: |
   echo "Install new (unasserted) kernel and wait for reboot/change finishing"
   boot_id="$( nested_get_boot_id )"
   REMOTE_CHG_ID=$(tests.nested exec sudo snap install --dangerous new-pc-kernel.snap --no-wait)
-  nested_wait_for_reboot "${boot_id}"
+  tests.nested wait-for reboot "${boot_id}"
   tests.nested exec sudo snap watch "${REMOTE_CHG_ID}"
 
   echo "Check that we are using the right kernel"
