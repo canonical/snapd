@@ -93,6 +93,11 @@ execute: |
     if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "false" ]; then
         echo "Refreshing to a version of snapd with the fix"
         if os.query is-xenial; then
+            echo "Hold the core refresh to prevent the auto-refresh"
+            when="$(date --iso-8601=seconds -d 'tomorrow 8:05 UTC')"
+            when_nice="$(date -d "$when" +'tomorrow at %H:%M %Z')"
+            tests.nested exec "sudo snap set core refresh.hold=\"$when"\"
+
             # build the core snap for this run
             repack_snapd_deb_into_core_snap "$PWD"
             tests.nested copy "$PWD/core-from-snapd-deb.snap"
