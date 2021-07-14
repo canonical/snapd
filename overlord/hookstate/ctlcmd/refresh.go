@@ -25,11 +25,15 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/snap"
 )
+
+var autoRefreshForGatingSnap = snapstate.AutoRefreshForGatingSnap
 
 type refreshCommand struct {
 	baseCommand
@@ -89,12 +93,8 @@ func (c *refreshCommand) Execute(args []string) error {
 	if context == nil {
 		return fmt.Errorf("cannot run without a context")
 	}
-	if context.IsEphemeral() {
-		// TODO: handle this
-		return fmt.Errorf("cannot run outside of gate-auto-refresh hook")
-	}
 
-	if context.HookName() != "gate-auto-refresh" {
+	if !context.IsEphemeral() && context.HookName() != "gate-auto-refresh" {
 		return fmt.Errorf("can only be used from gate-auto-refresh hook")
 	}
 
@@ -214,6 +214,9 @@ func (c *refreshCommand) printPendingInfo() error {
 
 func (c *refreshCommand) hold() error {
 	ctx := c.context()
+	if ctx.IsEphemeral() {
+		return fmt.Errorf("cannot hold outside of gate-auto-refresh hook")
+	}
 	ctx.Lock()
 	defer ctx.Unlock()
 	st := ctx.State()
@@ -240,6 +243,24 @@ func (c *refreshCommand) proceed() error {
 	ctx := c.context()
 	ctx.Lock()
 	defer ctx.Unlock()
+
+	// running outside of hook
+	if ctx.IsEphemeral() {
+		st := ctx.State()
+		// we need to check if GateAutoRefreshHook feature is enabled when
+		// running by the snap (we don't need to do this when running from the
+		// hook because in that case hook task won't be created if not enabled).
+		tr := config.NewTransaction(st)
+		gateAutoRefreshHook, err := features.Flag(tr, features.GateAutoRefreshHook)
+		if err != nil && !config.IsNoOption(err) {
+			return err
+		}
+		if !gateAutoRefreshHook {
+			return fmt.Errorf("cannot proceed without experimental.gate-auto-refresh feature enabled")
+		}
+
+		return autoRefreshForGatingSnap(st, ctx.InstanceName())
+	}
 
 	// cache the action, hook handler will trigger proceed logic; we cannot
 	// call snapstate.ProceedWithRefresh() immediately as this would reset
