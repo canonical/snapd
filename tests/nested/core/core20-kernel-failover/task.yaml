@@ -26,10 +26,10 @@ execute: |
   . "$TESTSLIB/nested.sh"
 
   echo "Copy the broken initramfs kernel snap to the UC20 VM"
-  nested_copy panicking-initramfs-kernel.snap
+  tests.nested copy panicking-initramfs-kernel.snap
 
   echo "Wait for snapd to be available"
-  nested_wait_for_snap_command
+  tests.nested wait-for snap-command
 
   echo "Wait for snapd to be seeded"
   tests.nested exec sudo snap wait system seed.loaded
@@ -48,7 +48,7 @@ execute: |
   REMOTE_CHG_ID=$(tests.nested exec sudo snap install --dangerous panicking-initramfs-kernel.snap --no-wait)
 
   # wait for a reboot
-  nested_wait_for_reboot "${boot_id}"
+  tests.nested wait-for reboot "${boot_id}"
 
   # Wait for the change to finish - note it will exit with non-zero since the 
   # change will fail, so don't let that kill the test here

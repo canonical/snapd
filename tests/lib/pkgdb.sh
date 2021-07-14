@@ -496,6 +496,7 @@ distro_get_package_extension() {
 
 pkg_dependencies_ubuntu_generic(){
     echo "
+        python3
         autoconf
         automake
         autotools-dev
@@ -656,6 +657,7 @@ pkg_dependencies_ubuntu_core(){
 
 pkg_dependencies_fedora(){
     echo "
+        python3
         clang
         curl
         dbus-x11
@@ -688,6 +690,7 @@ pkg_dependencies_fedora(){
 
 pkg_dependencies_amazon(){
     echo "
+        python3
         curl
         dbus-x11
         expect
@@ -715,6 +718,7 @@ pkg_dependencies_amazon(){
 
 pkg_dependencies_opensuse(){
     echo "
+        python3
         apparmor-profiles
         audit
         bash-completion

@@ -75,10 +75,11 @@ execute: |
     recoverySystem=$(nested_exec "sudo snap recovery | grep -v Notes | grep -Po '^[0-9]+'")
     nested_uc20_transition_to_system_mode "$recoverySystem" recover
     tests.nested exec 'sudo snap reboot --recover'
+    tests.nested wait-for reboot "${boot_id}"
     tests.nested exec 'sudo cat /proc/cmdline' | MATCH snapd_recovery_mode=recover
 
     echo "Wait for the snap command to be available since recover mode needs to seed itself"
-    nested_wait_for_snap_command
+    tests.nested wait-for snap-command
 
     echo "Wait for snap seeding to be done"
     tests.nested exec "sudo snap wait system seed.loaded"

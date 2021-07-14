@@ -7,7 +7,7 @@ prepare: |
     . "$TESTSLIB/nested.sh"
 
     snap pack "$TESTSLIB"/snaps/serial-port-hotplug
-    nested_copy serial-port-hotplug_1.0_all.snap
+    tests.nested copy serial-port-hotplug_1.0_all.snap
 
     if nested_is_core_18_system; then
         tests.nested exec "sudo snap install --devmode jq-core18"
