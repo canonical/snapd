@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"time"
 
@@ -38,7 +39,6 @@ import (
 	"gopkg.in/retry.v1"
 
 	"github.com/snapcore/snapd/dirs"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
@@ -441,7 +441,9 @@ func (s *downloadSuite) TestUseDeltas(c *C) {
 	}
 
 	for _, scenario := range scenarios {
-		var hostCmd, coreCmd *testutil.MockCmd
+		var hostXdelta3Cmd, coreInterpCmd *testutil.MockCmd
+
+		var cleanups []func()
 
 		comment := Commentf("%#v", scenario)
 
@@ -451,26 +453,44 @@ func (s *downloadSuite) TestUseDeltas(c *C) {
 
 		// setup binaries for the scenario
 		if scenario.exeInCore {
-			// we need both the xdelta3 command for determining the interpreter
+			// We need both the xdelta3 command for determining the interpreter
 			// as well as the actual interpreter for executing the basic
-			// "xdelta3 config" command
-			// for the interpreter, since that's how we execute xdelta3, mock
-			// that as a command, but for the xdelta3 command we need the
-			// PT_INTERP symbol set for the binary for elf handling to work,
-			// which won't be the case on a basic shell script
+			// "xdelta3 config" command.
+			// For the interpreter, since that's how we execute xdelta3, mock
+			// that as a command, but we don't need to mock the xdelta3 command
+			// in the core snap since that doesn't get executed by our fake
+			// interpreter. Mocking the interpreter and executing that as a
+			// MockCommand has the advantage that it avoids the specific ELF
+			// handling that is per-arch, etc. of the real CommandFromSystemSnap
+			// implementation.
 
-			// TODO: what if the unit tests are run on a system where /bin/true
-			// does not have a PT_INTERP which equals lib64/ld-linux-x86-64.so.2
-			// i.e. lp builders ?
+			coreInterpCmd = testutil.MockCommand(c, interpInCorePath, "")
 
-			coreCmd = testutil.MockCommand(c, interpInCorePath, "")
+			r := store.MockSnapdtoolCommandFromSystemSnap(func(name string, args ...string) (*exec.Cmd, error) {
+				c.Assert(name, Equals, "/usr/bin/xdelta3")
+				c.Assert(args, DeepEquals, []string{"config"})
 
-			err := osutil.CopyFile("/bin/true", exeInCorePath, 0)
-			c.Assert(err, IsNil)
+				interpArgs := append([]string{"--library-path", "/some/dir/from/etc/ld.so", exeInCorePath}, args...)
+				return exec.Command(coreInterpCmd.Exe(), interpArgs...), nil
+			})
+			cleanups = append(cleanups, r)
+
+			// Forget the calls to the interpreter at the end of the test - this
+			// deletes the log which otherwise would  continue to persist for
+			// each iteration leading to incorrect checks for the calls to the
+			// absolute binary that we mocked here, as the log file will be the
+			// same for each iteration.
+			// For the inverse reason, we don't need to forget calls for the
+			// hostXdelta3Cmd mock command, it gets a new dir with a new log
+			// file each iteration.
+			cleanups = append(cleanups, func() {
+				coreInterpCmd.ForgetCalls()
+			})
 		}
 
 		if scenario.exeInHost {
-			hostCmd = testutil.MockCommand(c, "xdelta3", "")
+			// just mock the xdelta3 command directly
+			hostXdelta3Cmd = testutil.MockCommand(c, "xdelta3", "")
 		}
 
 		// if there is not meant to be xdelta3 on the host or in core, then set
@@ -478,8 +498,16 @@ func (s *downloadSuite) TestUseDeltas(c *C) {
 		// running these tests
 		if !scenario.exeInHost && !scenario.exeInCore {
 			os.Setenv("PATH", "")
+
+			// also reset PATH at the end, otherwise an empty PATH leads
+			// testutil.MockCommand fails in future iterations that mock a
+			// command
+			cleanups = append(cleanups, func() {
+				os.Setenv("PATH", origPath)
+			})
 		}
 
+		// run the check for delta usage, we call it twice
 		sto := &store.Store{}
 		c.Check(sto.UseDeltas(), Equals, scenario.wantDelta, comment)
 
@@ -488,54 +516,60 @@ func (s *downloadSuite) TestUseDeltas(c *C) {
 		if scenario.exeInCore {
 			err := os.Remove(interpInCorePath)
 			c.Assert(err, IsNil)
-			err = os.Remove(exeInCorePath)
-			c.Assert(err, IsNil)
 		}
 
 		if scenario.exeInHost {
-			hostCmd.Restore()
+			hostXdelta3Cmd.Restore()
 		}
 
-		if scenario.wantDelta {
-			// also now that we have deleted the mock interpreter and unset the
-			// search path, we should still get the same result as above when
-			// we call UseDeltas() since it was cached, if it wasn't cached then
-			// this would fail
-			c.Check(sto.UseDeltas(), Equals, scenario.wantDelta, comment)
+		// also now that we have deleted the mock interpreter and unset the
+		// search path, we should still get the same result as above when
+		// we call UseDeltas() since it was cached, if it wasn't cached then
+		// this would fail
+		c.Check(sto.UseDeltas(), Equals, scenario.wantDelta, comment)
 
+		if scenario.wantDelta {
 			// if we should have been able to use deltas, make sure we picked
-			// the expected one, if both were true we should have picked the one
-			// from core instead of the one from the host first
+			// the expected one, - if both were true we should have picked the
+			// one from core instead of the one from the host first
 			if scenario.exeInCore {
-				c.Check(sto.Xdelta3Cmd(), Equals, exeInCorePath, comment)
-				c.Check(coreCmd.Calls(), DeepEquals, [][]string{
-					{"ld-linux-x86-64.so.2", "--library-path"},
-					{exeInCorePath, "config"},
+				// check that during trying to check whether to use deltas or
+				// not, we called the interpreter with the xdelta3 config
+				// command too
+				c.Check(coreInterpCmd.Calls(), DeepEquals, [][]string{
+					{"ld-linux-x86-64.so.2", "--library-path", "/some/dir/from/etc/ld.so", exeInCorePath, "config"},
 				}, comment)
+
+				// also check that now after caching the xdelta3 command, it
+				// returns the expected format
+				expArgs := []string{
+					interpInCorePath,
+					"--library-path",
+					"/some/dir/from/etc/ld.so",
+					exeInCorePath,
+					"foo",
+					"bar",
+				}
+				// check that the Xdelta3Cmd function we cached uses the
+				// interpreter that was returned from CommandFromSystemSnap
+				c.Check(sto.Xdelta3Cmd("foo", "bar").Args, DeepEquals, expArgs, comment)
 
 			} else if scenario.exeInHost {
-				c.Check(sto.Xdelta3Cmd(), Equals, hostCmd.Exe(), comment)
-				c.Check(hostCmd.Calls(), DeepEquals, [][]string{
+				// similar checks for the host case, except in the host case we
+				// just called xdelta3 directly
+				c.Check(hostXdelta3Cmd.Calls(), DeepEquals, [][]string{
 					{"xdelta3", "config"},
 				}, comment)
+
+				// and args are passed to the command cached too
+				expArgs := []string{hostXdelta3Cmd.Exe(), "foo", "bar"}
+				c.Check(sto.Xdelta3Cmd("foo", "bar").Args, DeepEquals, expArgs, comment)
 			}
 		}
 
-		// forget the calls - this deletes the log which otherwise would
-		// continue to persist for each iteration leading to incorrect checks
-		// for the calls to the absolute binary that we mocked here, as the log
-		// file will be the same for each iteration
-		// for the inverse reason, we don't need to forget calls for the hostCmd
-		// mock command, it gets a new dir with a new log file each iteration
-		if scenario.exeInCore {
-			coreCmd.ForgetCalls()
-		}
-
-		// also reset PATH if we set it as empty
-		if !scenario.exeInHost && !scenario.exeInCore {
-			// then we need to unset PATH, since otherwise the test may find
-			// xdelta3 from the host
-			os.Setenv("PATH", origPath)
+		// cleanup for the next iteration
+		for _, r := range cleanups {
+			r()
 		}
 	}
 }

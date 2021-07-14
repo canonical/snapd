@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os/exec"
 	"time"
 
 	"github.com/juju/ratelimit"
@@ -60,6 +61,14 @@ var (
 
 	Cancelled = cancelled
 )
+
+func MockSnapdtoolCommandFromSystemSnap(f func(name string, args ...string) (*exec.Cmd, error)) (restore func()) {
+	old := commandFromSystemSnap
+	commandFromSystemSnap = f
+	return func() {
+		commandFromSystemSnap = old
+	}
+}
 
 // MockDefaultRetryStrategy mocks the retry strategy used by several store requests
 func MockDefaultRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
@@ -201,8 +210,8 @@ func (sto *Store) UseDeltas() bool {
 	return sto.useDeltas()
 }
 
-func (sto *Store) Xdelta3Cmd() string {
-	return sto.xdelta3CmdLocation
+func (sto *Store) Xdelta3Cmd(args ...string) *exec.Cmd {
+	return sto.xdelta3CmdFunc(args...)
 }
 
 func (cfg *Config) SetBaseURL(u *url.URL) error {

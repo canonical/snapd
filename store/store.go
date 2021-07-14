@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
 	"strconv"
 	"strings"
@@ -163,7 +164,7 @@ type Store struct {
 	// whether we should use deltas or not
 	shouldUseDeltas *bool
 	// which xdelta3 we picked when we checked the deltas
-	xdelta3CmdLocation string
+	xdelta3CmdFunc func(args ...string) *exec.Cmd
 }
 
 var ErrTooManyRequests = errors.New("too many requests")

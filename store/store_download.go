@@ -50,6 +50,8 @@ import (
 	"github.com/snapcore/snapd/snapdtool"
 )
 
+var commandFromSystemSnap = snapdtool.CommandFromSystemSnap
+
 var downloadRetryStrategy = retry.LimitCount(7, retry.LimitTime(90*time.Second,
 	retry.Exponential{
 		Initial: 500 * time.Millisecond,
@@ -105,14 +107,28 @@ func (s *Store) useDeltas() (use bool) {
 	// xdelta3 as a format for deltas
 
 	// check if the xdelta3 config command works from the system snap
-	cmd, err := snapdtool.CommandFromSystemSnap("/usr/bin/xdelta3", "config")
+	cmd, err := commandFromSystemSnap("/usr/bin/xdelta3", "config")
 	if err == nil {
 		// we have a xdelta3 from the system snap, make sure it works
 		if runErr := cmd.Run(); runErr == nil {
-			// success using the system snap provided one
-			// note that the first three arguments to the return value from
-			// CommandFromSystemSnap are the interpreter for that system snap
-			s.xdelta3CmdLocation = cmd.Args[3]
+			// success using the system snap provided one, setup the callback to
+			// use the cmd we got from CommandFromSystemSnap, but with a small
+			// tweak - this cmd to run xdelta3 from the system snap will likely
+			// have other arguments and a different main exe usually, so
+			// use it exactly as we got it from CommandFromSystemSnap,
+			// but drop the last arg which we know is "config"
+			exe := cmd.Path
+			args := cmd.Args[:len(cmd.Args)-1]
+			env := cmd.Env
+			dir := cmd.Dir
+			s.xdelta3CmdFunc = func(xDelta3args ...string) *exec.Cmd {
+				return &exec.Cmd{
+					Path: exe,
+					Args: append(args, xDelta3args...),
+					Env:  env,
+					Dir:  dir,
+				}
+			}
 			return true
 		} else {
 			logger.Noticef("unable to use system snap provided xdelta3, running config command failed: %v", runErr)
@@ -135,7 +151,9 @@ func (s *Store) useDeltas() (use bool) {
 	}
 
 	// the xdelta3 in the env worked, so use that one
-	s.xdelta3CmdLocation = loc
+	s.xdelta3CmdFunc = func(args ...string) *exec.Cmd {
+		return exec.Command(loc, args...)
+	}
 	return true
 }
 
@@ -700,7 +718,7 @@ func (s *Store) applyDeltaImpl(name string, deltaPath string, deltaInfo *snap.De
 	}
 
 	// run the xdelta3 command, cleaning up if we fail and logging about it
-	if runErr := exec.Command(s.xdelta3CmdLocation, xdelta3Args...).Run(); runErr != nil {
+	if runErr := s.xdelta3CmdFunc(xdelta3Args...).Run(); runErr != nil {
 		logger.Noticef("encountered error applying delta: %v", runErr)
 		if err := os.Remove(partialTargetPath); err != nil {
 			logger.Noticef("error cleaning up partial delta target %q: %s", partialTargetPath, err)
