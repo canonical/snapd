@@ -40,7 +40,10 @@ prepare: |
         if os.query is-xenial; then
             # uc16 uses core snap
             http --quiet --download --output core_2.45.snap GET "$SNAPD_2_45_CORE_SNAP"
-            cp core_2.45.snap "$(nested_get_extra_snaps_path)"
+            # The core snap is unpacked and repacked to prevent it is auto-refreshed when
+            # it is installed with --dangerous  as it has a different hash
+            unsquashfs -d core-snap core_2.45.snap
+            snap pack core-snap/ "$(nested_get_extra_snaps_path)"
         else 
             # uc18 uses snapd snap
             http --quiet --download --output snapd_2.45.snap GET "$SNAPD_2_45_SNAPD_SNAP"
@@ -83,11 +86,6 @@ execute: |
     # without the fix will actually be fixed after they refresh
     if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "false" ]; then
         if os.query is-xenial; then
-            echo "Hold the core refresh to prevent the auto-refresh"
-            when="$(date --iso-8601=seconds -d 'tomorrow 8:05 UTC')"
-            when_nice="$(date -d "$when" +'tomorrow at %H:%M %Z')"
-            tests.nested exec "sudo snap set core refresh.hold=\"$when"\"
-
             # build the core snap for this run
             repack_snapd_deb_into_core_snap "$PWD"
             tests.nested copy "$PWD/core-from-snapd-deb.snap"
