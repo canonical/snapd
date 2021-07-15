@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -142,8 +143,24 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		flags := &wrappers.StartServicesFlags{
 			Enable: enable,
 		}
+		disabledServices := []string{}
+		if !enable {
+			snapDisabledServices, err := wrappers.QueryDisabledServices(info, nil)
+			if err != nil {
+				return err
+			}
+			// compute the list of disabled services, but if a service was
+			// mentioned explicitly, then this should overrule the disabled
+			// status
+			for _, serviceName := range snapDisabledServices {
+				if strutil.ListContains(sc.ExplicitServices, serviceName) {
+					continue
+				}
+				disabledServices = append(disabledServices, serviceName)
+			}
+		}
 		st.Unlock()
-		err = wrappers.StartServices(startupOrdered, nil, flags, meter, perfTimings)
+		err = wrappers.StartServices(startupOrdered, disabledServices, flags, meter, perfTimings)
 		st.Lock()
 		if err != nil {
 			return err
