@@ -97,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.51.2
+Version:        2.51.3
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -971,6 +971,11 @@ fi
 
 
 %changelog
+* Wed Jul 14 2021 Ian Johnson <ian.johnson@canonical.com>
+- New upstream release 2.51.3
+ - interfaces/builtin: add sd-control interface
+ - store: set ResponseHeaderTimeout on the default transport
+
 * Wed Jul 07 2021 Michael Vogt <michael.vogt@ubuntu.com>
 - New upstream release 2.51.2
  - snapstate: remove temporary snap file for local revisions early
