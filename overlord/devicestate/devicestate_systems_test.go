@@ -305,7 +305,7 @@ func (s *deviceMgrSystemsSuite) TestListSeedSystemsNoCurrent(c *C) {
 	}})
 }
 
-func (s *deviceMgrSystemsSuite) TestListSeedSystemsCurrent(c *C) {
+func (s *deviceMgrSystemsSuite) TestListSeedSystemsCurrentSingleSeeded(c *C) {
 	s.state.Lock()
 	s.state.Set("seeded-systems", []devicestate.SeededSystem{
 		{
@@ -338,6 +338,49 @@ func (s *deviceMgrSystemsSuite) TestListSeedSystemsCurrent(c *C) {
 		Model:   s.mockedSystemSeeds[2].model,
 		Brand:   s.mockedSystemSeeds[2].brand,
 		Actions: defaultSystemActions,
+	}})
+}
+
+func (s *deviceMgrSystemsSuite) TestListSeedSystemsCurrentManySeeded(c *C) {
+	// during a remodel, a new seeded system is prepended to the list
+	s.state.Lock()
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{
+		{
+			System:  s.mockedSystemSeeds[2].label,
+			Model:   s.mockedSystemSeeds[2].model.Model(),
+			BrandID: s.mockedSystemSeeds[2].brand.AccountID(),
+		},
+		{
+			System:  s.mockedSystemSeeds[1].label,
+			Model:   s.mockedSystemSeeds[1].model.Model(),
+			BrandID: s.mockedSystemSeeds[1].brand.AccountID(),
+		},
+	})
+	s.state.Unlock()
+
+	systems, err := s.mgr.Systems()
+	c.Assert(err, IsNil)
+	c.Assert(systems, HasLen, 3)
+	c.Check(systems, DeepEquals, []*devicestate.System{{
+		Current: false,
+		Label:   s.mockedSystemSeeds[0].label,
+		Model:   s.mockedSystemSeeds[0].model,
+		Brand:   s.mockedSystemSeeds[0].brand,
+		Actions: defaultSystemActions,
+	}, {
+		// this seed was used to install the system in the past
+		Current: false,
+		Label:   s.mockedSystemSeeds[1].label,
+		Model:   s.mockedSystemSeeds[1].model,
+		Brand:   s.mockedSystemSeeds[1].brand,
+		Actions: defaultSystemActions,
+	}, {
+		// this seed was seeded most recently
+		Current: true,
+		Label:   s.mockedSystemSeeds[2].label,
+		Model:   s.mockedSystemSeeds[2].model,
+		Brand:   s.mockedSystemSeeds[2].brand,
+		Actions: currentSystemActions,
 	}})
 }
 

@@ -128,6 +128,10 @@ func (m *DeviceManager) recordSeededSystem(st *state.State, whatSeeded *seededSy
 			return nil
 		}
 	}
+	// contrary to the usual approach of appending new entries to the list
+	// like we do with modeenv, the recently seeded system is added at the
+	// front, as it is not considered candidate like for the other entries,
+	// but rather it describes the currently existing
 	seeded = append([]seededSystem{*whatSeeded}, seeded...)
 	st.Set("seeded-systems", seeded)
 	return nil
