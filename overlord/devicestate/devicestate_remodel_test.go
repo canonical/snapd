@@ -2115,6 +2115,8 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 		c.Assert(seededSystems, HasLen, 2)
 		c.Check(seededSystems[0].SeedTime.After(new.Timestamp()), Equals, true)
 		seededSystems[0].SeedTime = time.Time{}
+		c.Check(seededSystems[1].SeedTime.Equal(oldSeededTs), Equals, true)
+		seededSystems[1].SeedTime = time.Time{}
 		c.Check(seededSystems, DeepEquals, []devicestate.SeededSystem{
 			{
 				System:    expectedLabel,
@@ -2129,7 +2131,6 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 				BrandID:   model.BrandID(),
 				Timestamp: model.Timestamp(),
 				Revision:  model.Revision(),
-				SeedTime:  oldSeededTs,
 			},
 		})
 	} else {
@@ -2137,6 +2138,9 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 		c.Check(strings.Join(setModelTask.Log(), "\n"), Matches, tc.taskLogMatch)
 		c.Check(buf.String(), Matches, tc.logMatch)
 
+		c.Assert(seededSystems, HasLen, 1)
+		c.Check(seededSystems[0].SeedTime.Equal(oldSeededTs), Equals, true)
+		seededSystems[0].SeedTime = time.Time{}
 		c.Check(seededSystems, DeepEquals, []devicestate.SeededSystem{
 			{
 				System:    "0000",
@@ -2144,7 +2148,6 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 				BrandID:   model.BrandID(),
 				Timestamp: model.Timestamp(),
 				Revision:  model.Revision(),
-				SeedTime:  oldSeededTs,
 			},
 		})
 	}
@@ -2419,10 +2422,14 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 	var seededSystems []devicestate.SeededSystem
 	c.Assert(s.state.Get("seeded-systems", &seededSystems), IsNil)
 	c.Assert(seededSystems, HasLen, 2)
-	// time.Now() was not mocked, so we need to be smarted about checking seed time
+	// time.Now() was not mocked, so we need to be smarted about checking
+	// seed time, also verify timestamps separately to avoid timezone
+	// problems
 	newSeededTs := seededSystems[0].SeedTime
 	c.Check(newSeededTs.After(new.Timestamp()), Equals, true)
 	seededSystems[0].SeedTime = time.Time{}
+	c.Check(seededSystems[1].SeedTime.Equal(oldSeededTs), Equals, true)
+	seededSystems[1].SeedTime = time.Time{}
 	expectedSeededSystems := []devicestate.SeededSystem{
 		{
 			System:    expectedLabel,
@@ -2437,7 +2444,6 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 			BrandID:   model.BrandID(),
 			Timestamp: model.Timestamp(),
 			Revision:  model.Revision(),
-			SeedTime:  oldSeededTs,
 		},
 	}
 	c.Check(seededSystems, DeepEquals, expectedSeededSystems)
@@ -2455,6 +2461,12 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 	c.Check(setModelTask.Status(), Equals, state.DoneStatus)
 
 	c.Assert(s.state.Get("seeded-systems", &seededSystems), IsNil)
+	c.Assert(seededSystems, HasLen, 2)
+	// seed time should be unchanged
+	c.Check(seededSystems[0].SeedTime.Equal(newSeededTs), Equals, true)
+	seededSystems[0].SeedTime = time.Time{}
+	c.Check(seededSystems[1].SeedTime.Equal(oldSeededTs), Equals, true)
+	seededSystems[1].SeedTime = time.Time{}
 	c.Check(seededSystems, DeepEquals, []devicestate.SeededSystem{
 		{
 			System:    expectedLabel,
@@ -2462,8 +2474,6 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 			BrandID:   new.BrandID(),
 			Revision:  new.Revision(),
 			Timestamp: new.Timestamp(),
-			// seed time should be unchanged
-			SeedTime: newSeededTs,
 		},
 		{
 			System:    "0000",
@@ -2471,7 +2481,6 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 			BrandID:   model.BrandID(),
 			Timestamp: model.Timestamp(),
 			Revision:  model.Revision(),
-			SeedTime:  oldSeededTs,
 		},
 	})
 }
