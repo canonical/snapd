@@ -78,6 +78,7 @@ execute: |
     # cloud-init when it is installed
 
     echo "Wait for done seeding"
+    tests.nested wait-for snap-command
     tests.nested exec "sudo snap wait system seed.loaded"
 
     echo "Prepare snapd snapto install with the fix"

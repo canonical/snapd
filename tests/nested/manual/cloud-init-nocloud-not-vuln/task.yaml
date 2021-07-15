@@ -88,6 +88,7 @@ execute: |
     tests.nested exec "cat /var/lib/extrausers/passwd" | MATCH normal-user
 
     # wait for snap seeding to be done
+    tests.nested wait-for snap-command
     tests.nested exec "sudo snap wait system seed.loaded"
 
     # if we are not building from current, then we need to prep the snapd snap
