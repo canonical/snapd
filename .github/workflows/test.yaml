@@ -308,17 +308,17 @@ jobs:
           fi
 
           # Run spread tests
-          if [ -z "$FAILED_TESTS" ]; then
-              TESTS_NUMBER=$(spread -list google:${{ matrix.system }}:tests/... | wc -l)
-              echo "TESTS_NUMBER=$TESTS_NUMBER" >> $GITHUB_ENV
-              spread -abend google:${{ matrix.system }}:tests/... | tee spread.log
-          else
+          if [ -n "$FAILED_TESTS" ] && [[ ${{github.event.pull_request.labels.*.name}} =~ " Run failed " ]]; then
               # We make sure that failed tests just include single tests because
               # otherwise there were aborted tests and in that scenario the $FAILED_TESTS_FILE
               # should be empty (just is rexecuted when there are no aborted tests)
               TESTS_NUMBER=$(echo "$FAILED_TESTS" | wc -w)
               echo "TESTS_NUMBER=$TESTS_NUMBER" >> $GITHUB_ENV
               spread -abend "$FAILED_TESTS" | tee spread.log
+          else
+              TESTS_NUMBER=$(spread -list google:${{ matrix.system }}:tests/... | wc -l)
+              echo "TESTS_NUMBER=$TESTS_NUMBER" >> $GITHUB_ENV
+              spread -abend google:${{ matrix.system }}:tests/... | tee spread.log
           fi
           exit "${PIPESTATUS[0]}"
 
