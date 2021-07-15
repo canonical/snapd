@@ -74,10 +74,6 @@ execute: |
     echo "Transition to recover mode and check it again"
     recoverySystem=$(nested_exec "sudo snap recovery | grep -v Notes | grep -Po '^[0-9]+'")
     nested_uc20_transition_to_system_mode "$recoverySystem" recover
-    tests.nested exec 'sudo snap reboot --recover'
-
-    echo "Check the vm is in recover mode"
-    tests.nested exec 'sudo cat /proc/cmdline' | MATCH snapd_recovery_mode=recover
 
     echo "Wait for the snap command to be available since recover mode needs to seed itself"
     tests.nested wait-for snap-command
