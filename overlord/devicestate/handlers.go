@@ -170,9 +170,7 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	}
 	if whatSeeded != nil && deviceCtx.RunMode() {
 		// record what seeded in the state only when in run mode
-
 		whatSeeded.SeedTime = now
-		// TODO:UC20 what about remodels?
 		if err := m.recordSeededSystem(st, whatSeeded); err != nil {
 			return fmt.Errorf("cannot record the seeded system: %v", err)
 		}
