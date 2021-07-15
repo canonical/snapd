@@ -49,10 +49,14 @@ func (s *validateSuite) TestRootElement(c *C) {
 
 	// Wrong root element
 	_, err = validateString("<xyz/>")
+	c.Check(err, ErrorMatches, `expected element type <policyconfig> but have <xyz>`)
+
+	// Wrong namespace for root element
+	_, err = validateString(`<policyconfig xmlns="http://example.org/ns"/>`)
 	c.Check(err, ErrorMatches, `root element must be <policyconfig>`)
 
 	// Invalid XML
-	_, err = validateString("<xyz>incomplete")
+	_, err = validateString("<policyconfig>incomplete")
 	c.Check(err, ErrorMatches, `XML syntax error on line .*`)
 }
 

@@ -33,7 +33,7 @@ type Element struct {
 }
 
 type policyConfig struct {
-	XMLName xml.Name
+	XMLName xml.Name `xml:"policyconfig"`
 	Element
 
 	Vendor    []Element `xml:"vendor"`
