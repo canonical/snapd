@@ -53,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type deviceMgrRemodelSuite struct {
@@ -2032,6 +2033,17 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 		Serial: "serial",
 	})
 
+	oldSeededTs := time.Now().AddDate(0, 0, -1)
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{
+		{
+			System:    "0000",
+			Model:     model.Model(),
+			BrandID:   model.BrandID(),
+			Timestamp: model.Timestamp(),
+			SeedTime:  oldSeededTs,
+		},
+	})
+
 	// the target model
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
@@ -2077,6 +2089,9 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 	m := boot.Modeenv{
 		Mode: "run",
 
+		GoodRecoverySystems:    []string{"0000"},
+		CurrentRecoverySystems: []string{"0000"},
+
 		Model:          model.Model(),
 		BrandID:        model.BrandID(),
 		Grade:          string(model.Grade()),
@@ -2084,16 +2099,18 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
+	expectedLabel := time.Now().Format("20060102")
+	s.state.Set("tried-systems", []string{expectedLabel})
+
 	resealKeyCalls := 0
 	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, expectReseal bool) error {
 		resealKeyCalls++
 		c.Assert(len(tc.resealErr) >= resealKeyCalls, Equals, true)
+		c.Check(modeenv.GoodRecoverySystems, DeepEquals, []string{"0000", expectedLabel})
+		c.Check(modeenv.CurrentRecoverySystems, DeepEquals, []string{"0000", expectedLabel})
 		return tc.resealErr[resealKeyCalls-1]
 	})
 	defer restore()
-
-	expectedLabel := time.Now().Format("20060102")
-	s.state.Set("tried-systems", []string{expectedLabel})
 
 	chg, err := devicestate.Remodel(s.state, new)
 	c.Assert(err, IsNil)
@@ -2114,12 +2131,53 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 	c.Check(resealKeyCalls, Equals, len(tc.resealErr))
 	// even if errors occur during reseal, set-model is a point of no return
 	c.Check(setModelTask.Status(), Equals, state.DoneStatus)
-	// however, error is still logged, both to the task and the logger
-	if tc.resealErr == nil {
-		c.Check(setModelTask.Log(), Equals, "")
+	var seededSystems []devicestate.SeededSystem
+	c.Assert(s.state.Get("seeded-systems", &seededSystems), IsNil)
+	hasError := false
+	for _, err := range tc.resealErr {
+		if err != nil {
+			hasError = true
+			break
+		}
+	}
+	if !hasError {
+		c.Check(setModelTask.Log(), HasLen, 0)
+
+		c.Assert(seededSystems, HasLen, 2)
+		c.Check(seededSystems[0].SeedTime.After(new.Timestamp()), Equals, true)
+		seededSystems[0].SeedTime = time.Time{}
+		c.Check(seededSystems, DeepEquals, []devicestate.SeededSystem{
+			{
+				System:    expectedLabel,
+				Model:     new.Model(),
+				BrandID:   new.BrandID(),
+				Revision:  new.Revision(),
+				Timestamp: new.Timestamp(),
+			},
+			{
+				System:    "0000",
+				Model:     model.Model(),
+				BrandID:   model.BrandID(),
+				Timestamp: model.Timestamp(),
+				Revision:  model.Revision(),
+				SeedTime:  oldSeededTs,
+			},
+		})
 	} else {
+		// however, error is still logged, both to the task and the logger
 		c.Check(strings.Join(setModelTask.Log(), "\n"), Matches, tc.taskLogMatch)
 		c.Check(buf.String(), Matches, tc.logMatch)
+
+		c.Check(seededSystems, DeepEquals, []devicestate.SeededSystem{
+			{
+				System:    "0000",
+				Model:     model.Model(),
+				BrandID:   model.BrandID(),
+				Timestamp: model.Timestamp(),
+				Revision:  model.Revision(),
+				SeedTime:  oldSeededTs,
+			},
+		})
 	}
 }
 
@@ -2142,5 +2200,312 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelErr(c *C) {
 		},
 		taskLogMatch: `.* cannot complete remodel: \[cannot switch device: mock reseal error\]`,
 		logMatch:     `(?s).* cannot complete remodel: \[cannot switch device: mock reseal error\].`,
+	})
+}
+
+func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
+	// check that set-model does the right thing even if it is restarted after a
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	devicestate.SetBootOkRan(s.mgr, true)
+
+	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
+		return &freshSessionStore{}
+	}
+
+	nopHandler := func(task *state.Task, _ *tomb.Tomb) error {
+		return nil
+	}
+	// mock out tasks that are too annoying to provide the proper mocking for
+	s.o.TaskRunner().AddHandler("fake-download", nopHandler, nil)
+	s.o.TaskRunner().AddHandler("validate-snap", nopHandler, nil)
+	s.o.TaskRunner().AddHandler("fake-install", nopHandler, nil)
+	s.o.TaskRunner().AddHandler("check-snap", nopHandler, nil)
+	s.o.TaskRunner().AddHandler("request-serial", nopHandler, nil)
+	// create recovery system requests are boot, which is not done here
+	s.o.TaskRunner().AddHandler("create-recovery-system", nopHandler, nil)
+	s.o.TaskRunner().AddHandler("finalize-recovery-system", nopHandler, nil)
+
+	// set a model assertion we remodel from
+	model := s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+	writeDeviceModelToUbuntuBoot(c, model)
+	// the gadget needs to be ocked
+	info := snaptest.MakeSnapFileAndDir(c, "name: pc\nversion: 1\ntype: gadget\n", nil, &snap.SideInfo{
+		SnapID:   snaptest.AssertedSnapID("pc"),
+		Revision: snap.R(1),
+		RealName: "pc",
+	})
+	snapstate.Set(s.state, info.InstanceName(), &snapstate.SnapState{
+		SnapType: string(info.Type()),
+		Active:   true,
+		Sequence: []*snap.SideInfo{&info.SideInfo},
+		Current:  info.Revision,
+	})
+
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "serial")
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "serial",
+	})
+	oldSeededTs := time.Now().AddDate(0, 0, -1)
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{
+		{
+			System:    "0000",
+			Model:     model.Model(),
+			BrandID:   model.BrandID(),
+			Timestamp: model.Timestamp(),
+			SeedTime:  oldSeededTs,
+		},
+	})
+
+	// the target model, since it's a new model altogether a reregistration
+	// will be triggered
+	new := s.brands.Model("canonical", "pc-new-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"revision":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+
+	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tInstall := s.state.NewTask("fake-install", fmt.Sprintf("Install %s", name))
+		tInstall.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tInstall)
+		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		return ts, nil
+	})
+	defer restore()
+	restore = release.MockOnClassic(false)
+	defer restore()
+
+	restore = devicestate.AllowUC20RemodelTesting(true)
+	defer restore()
+
+	m := boot.Modeenv{
+		Mode: "run",
+
+		GoodRecoverySystems:    []string{"0000"},
+		CurrentRecoverySystems: []string{"0000"},
+
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		ModelSignKeyID: model.SignKeyID(),
+	}
+	c.Assert(m.WriteTo(""), IsNil)
+
+	expectedLabel := time.Now().Format("20060102")
+	s.state.Set("tried-systems", []string{expectedLabel})
+
+	resealKeyCalls := 0
+	restore = boot.MockResealKeyToModeenv(func(rootdir string, modeenv *boot.Modeenv, expectReseal bool) error {
+		resealKeyCalls++
+		// calls:
+		// 1 - promote recovery system
+		// 2 - reseal with both models
+		// 3 - reseal with new model as current
+		// (mocked reboot)
+		// 4 - promote recovery system
+		// 5 - reseal with new model as current and try; before reboot
+		//     set-model changed the model in the state, the new model
+		//     replaced the old one, and thus the remodel context
+		//     carries the new model in ground context
+		// 6 - reseal with new model as current
+		c.Check(modeenv.GoodRecoverySystems, DeepEquals, []string{"0000", expectedLabel})
+		c.Check(modeenv.CurrentRecoverySystems, DeepEquals, []string{"0000", expectedLabel})
+		switch resealKeyCalls {
+		case 2:
+			c.Check(modeenv.Model, Equals, model.Model())
+			c.Check(modeenv.TryModel, Equals, new.Model())
+			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"),
+				testutil.FileContains, fmt.Sprintf("model: %s\n", model.Model()))
+			// old model's revision is 0
+			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"),
+				Not(testutil.FileContains), "revision:")
+		case 3:
+			c.Check(modeenv.Model, Equals, new.Model())
+			c.Check(modeenv.TryModel, Equals, "")
+			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"),
+				testutil.FileContains, fmt.Sprintf("model: %s\n", new.Model()))
+			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"),
+				testutil.FileContains, fmt.Sprintf("revision: %v\n", new.Revision()))
+		case 5:
+			c.Check(modeenv.Model, Equals, model.Model())
+			c.Check(modeenv.TryModel, Equals, new.Model())
+			// we are in an after reboot scenario, the file contains
+			// the new model
+			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"),
+				testutil.FileContains, fmt.Sprintf("model: %s\n", new.Model()))
+			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"),
+				testutil.FileContains, fmt.Sprintf("revision: %v\n", new.Revision()))
+		case 6:
+			c.Check(modeenv.Model, Equals, new.Model())
+			c.Check(modeenv.TryModel, Equals, "")
+			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"),
+				testutil.FileContains, fmt.Sprintf("model: %s\n", new.Model()))
+			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"),
+				testutil.FileContains, fmt.Sprintf("revision: %v\n", new.Revision()))
+		}
+		return nil
+	})
+	defer restore()
+
+	chg, err := devicestate.Remodel(s.state, new)
+	c.Assert(err, IsNil)
+
+	// since we cannot panic in random place in code that runs under
+	// taskrunner, we reset the task status and retry the change again, but
+	// we cannot do that once a change has become ready, thus inject a task
+	// that will request a reboot, thus stopping execution before the change
+	// is ready
+	fakeRebootCalls := 0
+	fakeRebootCallsReady := false
+	s.o.TaskRunner().AddHandler("fake-reboot", func(task *state.Task, _ *tomb.Tomb) error {
+		fakeRebootCalls++
+		if fakeRebootCalls == 1 {
+			st := task.State()
+			st.Lock()
+			defer st.Unlock()
+			st.RequestRestart(state.RestartSystemNow)
+		}
+		if fakeRebootCallsReady {
+			return nil
+		}
+		return &state.Retry{}
+	}, nil)
+	fakeRebootTask := s.state.NewTask("fake-reboot", "fake reboot injected by tests")
+	chg.AddTask(fakeRebootTask)
+	var setModelTask *state.Task
+	for _, tsk := range chg.Tasks() {
+		if tsk.Kind() == "set-model" {
+			c.Fatalf("set-model present too early")
+		}
+		// make fake-reboot run after all tasks
+		if tsk.Kind() != "fake-reboot" {
+			fakeRebootTask.WaitFor(tsk)
+		}
+	}
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	// set model was injected by prepare-remodeling
+	for _, tsk := range chg.Tasks() {
+		if tsk.Kind() == "set-model" {
+			setModelTask = tsk
+			break
+		}
+	}
+	c.Check(chg.IsReady(), Equals, false)
+	c.Check(chg.Err(), IsNil)
+	// injected by fake restart
+	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
+	// 3 calls: promote tried system, old & new model, just the new model
+	c.Check(resealKeyCalls, Equals, 3)
+	// even if errors occur during reseal, set-model is done
+	c.Check(setModelTask.Status(), Equals, state.DoneStatus)
+
+	// reset the set-model state back to do, simulating a task restart after a reboot
+	setModelTask.SetStatus(state.DoStatus)
+
+	// the seeded systems has already been populated
+	var seededSystems []devicestate.SeededSystem
+	c.Assert(s.state.Get("seeded-systems", &seededSystems), IsNil)
+	c.Assert(seededSystems, HasLen, 2)
+	// time.Now() was not mocked, so we need to be smarted about checking seed time
+	newSeededTs := seededSystems[0].SeedTime
+	c.Check(newSeededTs.After(new.Timestamp()), Equals, true)
+	seededSystems[0].SeedTime = time.Time{}
+	expectedSeededSystems := []devicestate.SeededSystem{
+		{
+			System:    expectedLabel,
+			Model:     new.Model(),
+			BrandID:   new.BrandID(),
+			Revision:  new.Revision(),
+			Timestamp: new.Timestamp(),
+		},
+		{
+			System:    "0000",
+			Model:     model.Model(),
+			BrandID:   model.BrandID(),
+			Timestamp: model.Timestamp(),
+			Revision:  model.Revision(),
+			SeedTime:  oldSeededTs,
+		},
+	}
+	c.Check(seededSystems, DeepEquals, expectedSeededSystems)
+
+	fakeRebootCallsReady = true
+	// now redo the task again
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	c.Check(chg.IsReady(), Equals, true)
+	c.Check(chg.Err(), IsNil)
+	c.Check(resealKeyCalls, Equals, 6)
+	c.Check(setModelTask.Status(), Equals, state.DoneStatus)
+
+	c.Assert(s.state.Get("seeded-systems", &seededSystems), IsNil)
+	c.Check(seededSystems, DeepEquals, []devicestate.SeededSystem{
+		{
+			System:    expectedLabel,
+			Model:     new.Model(),
+			BrandID:   new.BrandID(),
+			Revision:  new.Revision(),
+			Timestamp: new.Timestamp(),
+			// seed time should be unchanged
+			SeedTime: newSeededTs,
+		},
+		{
+			System:    "0000",
+			Model:     model.Model(),
+			BrandID:   model.BrandID(),
+			Timestamp: model.Timestamp(),
+			Revision:  model.Revision(),
+			SeedTime:  oldSeededTs,
+		},
 	})
 }

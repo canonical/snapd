@@ -956,16 +956,20 @@ type uc20RemodelLogicSuite struct {
 
 var _ = Suite(&uc20RemodelLogicSuite{})
 
-func (s *uc20RemodelLogicSuite) SetUpTest(c *C) {
-	s.remodelLogicBaseSuite.SetUpTest(c)
-
-	s.oldModel = s.brands.Model("my-brand", "my-model", uc20ModelDefaults)
+func writeDeviceModelToUbuntuBoot(c *C, model *asserts.Model) {
 	var buf bytes.Buffer
-	c.Assert(asserts.NewEncoder(&buf).Encode(s.oldModel), IsNil)
+	c.Assert(asserts.NewEncoder(&buf).Encode(model), IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755), IsNil)
 	c.Assert(ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"),
 		buf.Bytes(), 0755),
 		IsNil)
+}
+
+func (s *uc20RemodelLogicSuite) SetUpTest(c *C) {
+	s.remodelLogicBaseSuite.SetUpTest(c)
+
+	s.oldModel = s.brands.Model("my-brand", "my-model", uc20ModelDefaults)
+	writeDeviceModelToUbuntuBoot(c, s.oldModel)
 	s.bootloader = bootloadertest.Mock("trusted", c.MkDir()).WithRecoveryAwareTrustedAssets()
 	bootloader.Force(s.bootloader)
 	s.AddCleanup(func() { bootloader.Force(nil) })
@@ -985,7 +989,7 @@ func (s *uc20RemodelLogicSuite) SetUpTest(c *C) {
 	c.Assert(err, IsNil)
 
 	restore := boot.MockResealKeyToModeenv(func(_ string, m *boot.Modeenv, expectReseal bool) error {
-		return fmt.Errorf("needs to be mocked")
+		return fmt.Errorf("not expected to be called")
 	})
 	s.AddCleanup(restore)
 
