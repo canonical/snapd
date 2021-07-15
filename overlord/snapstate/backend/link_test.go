@@ -45,6 +45,7 @@ import (
 	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timings"
 	"github.com/snapcore/snapd/wrappers"
@@ -65,6 +66,9 @@ func (s *linkSuiteCommon) SetUpTest(c *C) {
 
 	s.perfTimings = timings.New(nil)
 	restore := systemd.MockSystemctl(func(cmd ...string) ([]byte, error) {
+		if out, ok := systemdtest.HandleMockListMountUnitsOutput(cmd, nil); ok {
+			return out, nil
+		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	s.AddCleanup(restore)

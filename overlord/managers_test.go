@@ -198,6 +198,9 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
 			return out, nil
 		}
+		if out, ok := systemdtest.HandleMockListMountUnitsOutput(cmd, nil); ok {
+			return out, nil
+		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	s.AddCleanup(r)

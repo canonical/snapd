@@ -1655,3 +1655,17 @@ func QueryDisabledServices(info *snap.Info, pb progress.Meter) ([]string, error)
 
 	return disabledSnapSvcs, nil
 }
+
+func RemoveMountUnitFiles(s *snap.Info, inter interacter) error {
+	sysd := systemd.New(systemd.SystemMode, inter)
+	mountPoints, err := sysd.ListMountUnits(s.InstanceName(), s.SnapRevision().String())
+	if err != nil {
+		return err
+	}
+	for _, mountPoint := range mountPoints {
+		if err := sysd.RemoveMountUnitFile(mountPoint); err != nil {
+			return err
+		}
+	}
+	return nil
+}
