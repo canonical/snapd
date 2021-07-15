@@ -217,6 +217,7 @@ func remodelCtxFromTask(t *state.Task) (remodelContext, error) {
 }
 
 type baseRemodelContext struct {
+	// groundDeviceContext will carry the new device model
 	groundDeviceContext
 	oldModel *asserts.Model
 
@@ -258,7 +259,7 @@ func (rc *baseRemodelContext) setRecoverySystemLabel(label string) {
 	rc.recoverySystemLabel = label
 }
 
-func (rc *baseRemodelContext) postFinish() error {
+func (rc *baseRemodelContext) maybeUpdateBoot() error {
 	if rc.model.Grade() == asserts.ModelGradeUnset {
 		// nothing special for non-UC20 systems
 		return nil
@@ -312,8 +313,8 @@ func (rc *updateRemodelContext) Store() snapstate.StoreService {
 
 func (rc *updateRemodelContext) Finish() error {
 	// nothing special to do as part of the finish action, so just run the
-	// post-finish step
-	return rc.postFinish()
+	// update boot step
+	return rc.maybeUpdateBoot()
 }
 
 // newStoreRemodelContext: remodel needing a new store session
@@ -411,7 +412,7 @@ func (rc *newStoreRemodelContext) Finish() error {
 	if err := rc.deviceMgr.setDevice(remodelDevice); err != nil {
 		return err
 	}
-	return rc.postFinish()
+	return rc.maybeUpdateBoot()
 }
 
 func (rc *newStoreRemodelContext) deviceBackend() storecontext.DeviceBackend {
