@@ -185,6 +185,10 @@ func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 	return nil
 }
 
+func (s *emulation) ListMountUnits(snapName, revision string) ([]string, error) {
+	return nil, errNotImplemented
+}
+
 func (s *emulation) Mask(service string) error {
 	_, err := systemctlCmd("--root", s.rootDir, "mask", service)
 	return err

@@ -257,6 +257,9 @@ type Systemd interface {
 	AddMountUnitFileFull(lifetime UnitLifetime, name, revision, what, where, fstype string, options []string) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
 	RemoveMountUnitFile(baseDir string) error
+	// ListMountUnits gets the list of targets of the mount units created by
+	// the given snap
+	ListMountUnits(snapName, revision string) ([]string, error)
 	// Mask the given service.
 	Mask(service string) error
 	// Unmask the given service.
@@ -1211,6 +1214,58 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	}
 
 	return nil
+}
+
+func (s *systemd) ListMountUnits(snapName, revision string) ([]string, error) {
+	out, err := s.systemctl("show", "--property=Description,Where", "*.mount")
+	if err != nil {
+		return nil, err
+	}
+
+	var mountPoints []string
+	if bytes.TrimSpace(out) == nil {
+		return mountPoints, nil
+	}
+	// Results are separated by a blank line, so we can split them like this:
+	units := bytes.Split(out, []byte("\n\n"))
+	for _, unitOutput := range units {
+		var where, description string
+		lines := bytes.Split(bytes.Trim(unitOutput, "\n"), []byte("\n"))
+		for _, line := range lines {
+			splitVal := strings.SplitN(string(line), "=", 2)
+			if len(splitVal) != 2 {
+				return nil, fmt.Errorf("Cannot parse systemctl output: %q", line)
+			}
+			switch splitVal[0] {
+			case "Description":
+				description = splitVal[1]
+			case "Where":
+				where = splitVal[1]
+			default:
+				return nil, fmt.Errorf("Unexpected property %q", splitVal[0])
+			}
+		}
+
+		ourDescription := fmt.Sprintf("Mount unit for %s, revision ", snapName)
+		if !strings.HasPrefix(description, ourDescription) {
+			continue
+		}
+
+		if revision != "" {
+			unitRevision := description[len(ourDescription):]
+			if unitRevision != revision {
+				continue
+			}
+		}
+
+		// Is this an error, or are there valid cases when this might happen?
+		if where == "" {
+			continue
+		}
+
+		mountPoints = append(mountPoints, where)
+	}
+	return mountPoints, nil
 }
 
 func (s *systemd) ReloadOrRestart(serviceName string) error {
