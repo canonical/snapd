@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/naming"
 )
 
 type validationSetsSuite struct{}
@@ -651,4 +652,174 @@ func (s *validationSetsSuite) TestSortByRevision(c *C) {
 
 	sort.Sort(snapasserts.ByRevision(revs))
 	c.Assert(revs, DeepEquals, []snap.Revision{snap.R(-1), snap.R(4), snap.R(5), snap.R(10)})
+}
+
+func (s *validationSetsSuite) TestCheckPresenceRequired(c *C) {
+	valset1 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "my-snap",
+				"id":       "mysnapididididididididididididid",
+				"presence": "required",
+				"revision": "7",
+			},
+			map[string]interface{}{
+				"name":     "other-snap",
+				"id":       "123456ididididididididididididid",
+				"presence": "optional",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	valset2 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl2",
+		"sequence":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "my-snap",
+				"id":       "mysnapididididididididididididid",
+				"presence": "required",
+				"revision": "7",
+			},
+			map[string]interface{}{
+				"name":     "other-snap",
+				"id":       "123456ididididididididididididid",
+				"presence": "invalid",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	// my-snap required but no specific revision set.
+	valset3 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl3",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "my-snap",
+				"id":       "mysnapididididididididididididid",
+				"presence": "required",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	valsets := snapasserts.NewValidationSets()
+
+	// no validation sets
+	vsKeys, _ := valsets.CheckPresenceRequired(naming.Snap("my-snap"))
+	c.Check(vsKeys, HasLen, 0)
+
+	c.Assert(valsets.Add(valset1), IsNil)
+	c.Assert(valsets.Add(valset2), IsNil)
+	c.Assert(valsets.Add(valset3), IsNil)
+
+	// sanity
+	c.Assert(valsets.Conflict(), IsNil)
+
+	vsKeys, rev := valsets.CheckPresenceRequired(naming.Snap("my-snap"))
+	c.Check(rev, DeepEquals, snap.Revision{N: 7})
+	c.Check(vsKeys, DeepEquals, []string{"account-id/my-snap-ctl", "account-id/my-snap-ctl2", "account-id/my-snap-ctl3"})
+
+	vsKeys, rev = valsets.CheckPresenceRequired(naming.NewSnapRef("my-snap", "mysnapididididididididididididid"))
+	c.Check(rev, DeepEquals, snap.Revision{N: 7})
+	c.Check(vsKeys, DeepEquals, []string{"account-id/my-snap-ctl", "account-id/my-snap-ctl2", "account-id/my-snap-ctl3"})
+
+	// other-snap is not required
+	vsKeys, rev = valsets.CheckPresenceRequired(naming.Snap("other-snap"))
+	c.Check(rev, DeepEquals, snap.Revision{N: 0})
+	c.Check(vsKeys, HasLen, 0)
+
+	// unknown snap is not required
+	vsKeys, rev = valsets.CheckPresenceRequired(naming.NewSnapRef("unknown-snap", "00000000idididididididididididid"))
+	c.Check(rev, DeepEquals, snap.Revision{N: 0})
+	c.Check(vsKeys, HasLen, 0)
+
+	// just one set, required but no revision specified
+	valsets = snapasserts.NewValidationSets()
+	c.Assert(valsets.Add(valset3), IsNil)
+	vsKeys, rev = valsets.CheckPresenceRequired(naming.Snap("my-snap"))
+	c.Check(rev, DeepEquals, snap.Revision{N: 0})
+	c.Check(vsKeys, DeepEquals, []string{"account-id/my-snap-ctl3"})
+}
+
+func (s *validationSetsSuite) TestIsPresenceInvalid(c *C) {
+	valset1 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl",
+		"sequence":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "my-snap",
+				"id":       "mysnapididididididididididididid",
+				"presence": "invalid",
+			},
+			map[string]interface{}{
+				"name":     "other-snap",
+				"id":       "123456ididididididididididididid",
+				"presence": "optional",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	valset2 := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "validation-set",
+		"authority-id": "account-id",
+		"series":       "16",
+		"account-id":   "account-id",
+		"name":         "my-snap-ctl2",
+		"sequence":     "2",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":     "my-snap",
+				"id":       "mysnapididididididididididididid",
+				"presence": "invalid",
+			},
+		},
+	}).(*asserts.ValidationSet)
+
+	valsets := snapasserts.NewValidationSets()
+
+	// no validation sets
+	vsKeys := valsets.CheckPresenceInvalid(naming.Snap("my-snap"))
+	c.Check(vsKeys, HasLen, 0)
+
+	c.Assert(valsets.Add(valset1), IsNil)
+	c.Assert(valsets.Add(valset2), IsNil)
+
+	// sanity
+	c.Assert(valsets.Conflict(), IsNil)
+
+	// invalid in two sets
+	vsKeys = valsets.CheckPresenceInvalid(naming.Snap("my-snap"))
+	c.Check(vsKeys, DeepEquals, []string{"account-id/my-snap-ctl", "account-id/my-snap-ctl2"})
+
+	vsKeys = valsets.CheckPresenceInvalid(naming.NewSnapRef("my-snap", "mysnapididididididididididididid"))
+	c.Check(vsKeys, DeepEquals, []string{"account-id/my-snap-ctl", "account-id/my-snap-ctl2"})
+
+	// other-snap isn't invalid
+	vsKeys = valsets.CheckPresenceInvalid(naming.Snap("other-snap"))
+	c.Check(vsKeys, HasLen, 0)
+
+	vsKeys = valsets.CheckPresenceInvalid(naming.NewSnapRef("other-snap", "123456ididididididididididididid"))
+	c.Check(vsKeys, HasLen, 0)
+
+	// unknown snap isn't invalid
+	vsKeys = valsets.CheckPresenceInvalid(naming.NewSnapRef("unknown-snap", "00000000idididididididididididid"))
+	c.Check(vsKeys, HasLen, 0)
 }

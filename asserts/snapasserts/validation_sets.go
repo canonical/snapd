@@ -449,3 +449,68 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 	}
 	return nil
 }
+
+func (v *ValidationSets) constraintsForSnap(snapRef naming.SnapRef) *snapContraints {
+	if snapRef.ID() != "" {
+		return v.snaps[snapRef.ID()]
+	}
+	// snapID not available, find by snap name
+	for _, cstrs := range v.snaps {
+		if cstrs.name == snapRef.SnapName() {
+			return cstrs
+		}
+	}
+	return nil
+}
+
+// CheckPresenceRequired returns the list of all validation sets that declare
+// presence of the given snap as required and the required revision (or
+// snap.R(0) if no specific revision is required).
+// The method assumes that validation sets are not in conflict.
+func (v *ValidationSets) CheckPresenceRequired(snapRef naming.SnapRef) ([]string, snap.Revision) {
+	cstrs := v.constraintsForSnap(snapRef)
+	if cstrs == nil || cstrs.presence != asserts.PresenceRequired {
+		return nil, unspecifiedRevision
+	}
+
+	snapRev := unspecifiedRevision
+	var keys []string
+	for rev, revCstr := range cstrs.revisions {
+		for _, rc := range revCstr {
+			keys = append(keys, rc.validationSetKey)
+			// there may be constraints without revision; only set snapRev if
+			// it wasn't already determined. Note that if revisions are set,
+			// then they are the same, otherwise validation sets would be in
+			// conflict.
+			// This is an equivalent of 'if rev != unspecifiedRevision`.
+			if snapRev == unspecifiedRevision {
+				snapRev = rev
+			}
+		}
+	}
+
+	sort.Strings(keys)
+	return keys, snapRev
+}
+
+// CheckPresenceInvalid returns the list of all validation sets that declare
+// presence of the given snap as invalid.
+// The method assumes that validation sets are not in conflict.
+func (v *ValidationSets) CheckPresenceInvalid(snapRef naming.SnapRef) []string {
+	cstrs := v.constraintsForSnap(snapRef)
+	if cstrs == nil || cstrs.presence != asserts.PresenceInvalid {
+		return nil
+	}
+
+	var keys []string
+	for _, revCstr := range cstrs.revisions {
+		for _, rc := range revCstr {
+			if rc.Presence == asserts.PresenceInvalid {
+				keys = append(keys, rc.validationSetKey)
+			}
+		}
+	}
+
+	sort.Strings(keys)
+	return keys
+}
