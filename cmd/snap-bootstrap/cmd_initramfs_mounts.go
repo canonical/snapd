@@ -37,14 +37,14 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+
+	// to set sysconfig.ApplyFilesystemOnlyDefaultsImpl
+	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
-
-	// to set sysconfig.ApplyFilesystemOnlyDefaultsImpl
-	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
 )
 
 func init() {
@@ -1337,7 +1337,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asser
 		TargetRootDir:  boot.InitramfsWritableDir,
 		GadgetSnap:     gadgetSnap,
 	}
-	if err := sysconfig.ConfigureTargetSystem(configOpts); err != nil {
+	if err := sysconfig.ConfigureTargetSystem(model, configOpts); err != nil {
 		return nil, nil, err
 	}
 

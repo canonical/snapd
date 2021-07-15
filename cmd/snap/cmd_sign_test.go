@@ -26,7 +26,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
-
 	snap "github.com/snapcore/snapd/cmd/snap"
 )
 

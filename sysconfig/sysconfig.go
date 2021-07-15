@@ -22,6 +22,7 @@ package sysconfig
 import (
 	"path/filepath"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/snap"
 )
@@ -53,15 +54,44 @@ type Options struct {
 	GadgetSnap snap.Container
 }
 
-// FilesystemOnlyApplyOptions is the set of options for
-// ApplyFilesystemOnlyDefaults.
-type FilesystemOnlyApplyOptions struct {
-	// Classic is true when the system in rootdir is a classic system
-	Classic bool
+// Device carries information about the device model and mode that is
+// relevant to sysconfig.
+type Device interface {
+	RunMode() bool
+	Classic() bool
+
+	Kernel() string
+	//Base() string
+
+	HasModeenv() bool
+
+	//Model() *asserts.Model
+}
+
+type configedDevice struct {
+	model *asserts.Model
+}
+
+func (di *configedDevice) RunMode() bool {
+	// the functions in sysconfig are used to configure not yet
+	// running systems.
+	return false
+}
+
+func (d *configedDevice) Classic() bool {
+	return d.model.Classic()
+}
+
+func (d *configedDevice) Kernel() string {
+	return d.model.Kernel()
+}
+
+func (d *configedDevice) HasModeenv() bool {
+	return d.model.Grade() != asserts.ModelGradeUnset
 }
 
 // ApplyFilesystemOnlyDefaultsImpl is initialized by init() of configcore.
-var ApplyFilesystemOnlyDefaultsImpl = func(rootDir string, defaults map[string]interface{}, options *FilesystemOnlyApplyOptions) error {
+var ApplyFilesystemOnlyDefaultsImpl = func(dev Device, rootDir string, defaults map[string]interface{}) error {
 	panic("ApplyFilesystemOnlyDefaultsImpl is unset, import overlord/configstate/configcore")
 }
 
@@ -70,8 +100,9 @@ var ApplyFilesystemOnlyDefaultsImpl = func(rootDir string, defaults map[string]i
 // This is a subset of core config options that is important
 // early during boot, before all the configuration is applied as part of
 // normal execution of configure hook.
-func ApplyFilesystemOnlyDefaults(rootDir string, defaults map[string]interface{}, options *FilesystemOnlyApplyOptions) error {
-	return ApplyFilesystemOnlyDefaultsImpl(rootDir, defaults, options)
+func ApplyFilesystemOnlyDefaults(model *asserts.Model, rootDir string, defaults map[string]interface{}) error {
+	dev := &configedDevice{model: model}
+	return ApplyFilesystemOnlyDefaultsImpl(dev, rootDir, defaults)
 }
 
 // ConfigureTargetSystem configures the ubuntu-data partition with
@@ -79,7 +110,7 @@ func ApplyFilesystemOnlyDefaults(rootDir string, defaults map[string]interface{}
 // cloud-init from the gadget).
 // It is okay to use both from install mode for run mode, as well as from the
 // initramfs for recover mode.
-func ConfigureTargetSystem(opts *Options) error {
+func ConfigureTargetSystem(model *asserts.Model, opts *Options) error {
 	if err := configureCloudInit(opts); err != nil {
 		return err
 	}
@@ -103,9 +134,7 @@ func ConfigureTargetSystem(opts *Options) error {
 	if gadgetInfo != nil {
 		defaults := gadget.SystemDefaults(gadgetInfo.Defaults)
 		if len(defaults) > 0 {
-			// options are nil which implies core system
-			var options *FilesystemOnlyApplyOptions
-			if err := ApplyFilesystemOnlyDefaults(WritableDefaultsDir(opts.TargetRootDir), defaults, options); err != nil {
+			if err := ApplyFilesystemOnlyDefaults(model, WritableDefaultsDir(opts.TargetRootDir), defaults); err != nil {
 				return err
 			}
 		}

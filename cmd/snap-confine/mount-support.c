@@ -160,7 +160,7 @@ static void setup_private_pts(void)
 	// copied from /etc/default/devpts
 	sc_do_mount("devpts", "/dev/pts", "devpts", MS_MGC_VAL,
 		    "newinstance,ptmxmode=0666,mode=0620,gid=5");
-	sc_do_mount("/dev/pts/ptmx", "/dev/ptmx", "none", MS_BIND, 0);
+	sc_do_mount("/dev/pts/ptmx", "/dev/ptmx", "none", MS_BIND, NULL);
 }
 
 struct sc_mount {
@@ -758,7 +758,7 @@ void sc_ensure_shared_snap_mount(void)
 		// removed once we have a measurement and feedback mechanism that lets
 		// us decide based on measurable data.
 		sc_do_mount(SNAP_MOUNT_DIR, SNAP_MOUNT_DIR, "none",
-			    MS_BIND | MS_REC, 0);
+			    MS_BIND | MS_REC, NULL);
 		sc_do_mount("none", SNAP_MOUNT_DIR, NULL, MS_SHARED | MS_REC,
 			    NULL);
 	}
@@ -804,7 +804,7 @@ void sc_ensure_snap_dir_shared_mounts(void)
 			 * since snaps are already mounted, and it's not needed for
 			 * /var/snap.
 			 */
-			sc_do_mount(dir, dir, "none", MS_BIND | MS_REC, 0);
+			sc_do_mount(dir, dir, "none", MS_BIND | MS_REC, NULL);
 			sc_do_mount("none", dir, NULL, MS_REC | MS_SHARED,
 				    NULL);
 		}
@@ -827,10 +827,10 @@ void sc_setup_parallel_instance_classic_mounts(const char *snap_name,
 	sc_must_snprintf(src, sizeof src, "%s/%s", SNAP_MOUNT_DIR,
 			 snap_instance_name);
 	sc_must_snprintf(dst, sizeof dst, "%s/%s", SNAP_MOUNT_DIR, snap_name);
-	sc_do_mount(src, dst, "none", MS_BIND | MS_REC, 0);
+	sc_do_mount(src, dst, "none", MS_BIND | MS_REC, NULL);
 
 	/* Mount /var/snap/<snap>_<key> on /var/snap/<snap> */
 	sc_must_snprintf(src, sizeof src, "/var/snap/%s", snap_instance_name);
 	sc_must_snprintf(dst, sizeof dst, "/var/snap/%s", snap_name);
-	sc_do_mount(src, dst, "none", MS_BIND | MS_REC, 0);
+	sc_do_mount(src, dst, "none", MS_BIND | MS_REC, NULL);
 }

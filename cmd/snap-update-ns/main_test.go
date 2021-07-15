@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -51,8 +52,9 @@ func (s *mainSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 	s.as = &update.Assumptions{}
 	buf, restore := logger.MockLogger()
-	s.BaseTest.AddCleanup(restore)
+	s.AddCleanup(restore)
 	s.log = buf
+	s.AddCleanup(cgroup.MockVersion(cgroup.V1, nil))
 }
 
 func (s *mainSuite) TestExecuteMountProfileUpdate(c *C) {

@@ -27,7 +27,6 @@ import (
 
 type (
 	AccessChecker = accessChecker
-	AccessResult  = accessResult
 
 	OpenAccess          = openAccess
 	AuthenticatedAccess = authenticatedAccess
@@ -35,16 +34,9 @@ type (
 	SnapAccess          = snapAccess
 )
 
-const (
-	AccessOK           = accessOK
-	AccessUnauthorized = accessUnauthorized
-	AccessForbidden    = accessForbidden
-	AccessCancelled    = accessCancelled
-)
-
 var CheckPolkitActionImpl = checkPolkitActionImpl
 
-func MockCheckPolkitAction(new func(r *http.Request, ucred *Ucrednet, action string) AccessResult) (restore func()) {
+func MockCheckPolkitAction(new func(r *http.Request, ucred *Ucrednet, action string) *APIError) (restore func()) {
 	old := checkPolkitAction
 	checkPolkitAction = new
 	return func() {

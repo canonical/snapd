@@ -549,7 +549,7 @@ nested_create_core_vm() {
                     repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
 
                     if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        make_snap_installable_with_id "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core18.snap" "CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6"
+                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core18.snap" "CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6"
                     fi
 
                 elif nested_is_core_20_system; then
@@ -573,7 +573,7 @@ nested_create_core_vm() {
 
                     # sign the pc-kernel snap with fakestore if requested
                     if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        make_snap_installable_with_id "$NESTED_FAKESTORE_BLOB_DIR" "$KERNEL_SNAP" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
+                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$KERNEL_SNAP" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
                     fi
 
                     # Prepare the pc gadget snap (unless provided by extra-snaps)
@@ -624,7 +624,7 @@ EOF
                     fi
                     # sign the pc gadget snap with fakestore if requested
                     if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        make_snap_installable_with_id "$NESTED_FAKESTORE_BLOB_DIR" "$GADGET_SNAP" "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
+                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$GADGET_SNAP" "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
                     fi
 
                     # repack the snapd snap
@@ -634,7 +634,7 @@ EOF
 
                     # sign the snapd snap with fakestore if requested
                     if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        make_snap_installable_with_id "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/snapd-from-deb.snap" "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
+                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/snapd-from-deb.snap" "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
                     fi
 
                     # which channel?
@@ -644,7 +644,7 @@ EOF
 
                     # sign the snapd snap with fakestore if requested
                     if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        make_snap_installable_with_id "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core20.snap" "DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q"
+                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core20.snap" "DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q"
                     fi
 
                 else
@@ -778,8 +778,7 @@ users:
   - name: user1
     sudo: "ALL=(ALL) NOPASSWD:ALL"
     lock_passwd: false
-    # passwd is just "ubuntu"
-    passwd: "$6$rounds=4096$PCrfo.ggdf4ubP$REjyaoY2tUWH2vjFJjvLs3rDxVTszGR9P7mhH9sHb2MsELfc53uV/v15jDDOJU/9WInfjjTKJPlD5URhX5Mix0"
+    plain_text_passwd: "ubuntu"
 EOF
 }
 

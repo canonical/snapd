@@ -62,3 +62,14 @@ func (s *SnapKeysSuite) TestDeleteKey(c *C) {
 	c.Check(obtainedResponse, DeepEquals, expectedResponse)
 	c.Check(s.Stderr(), Equals, "")
 }
+
+func (s *SnapKeysSuite) TestDeleteKeyExternalUnsupported(c *C) {
+	_, restore := mockNopExtKeyMgr(c)
+	defer restore()
+
+	_, err := snap.Parser(snap.Client()).ParseArgs([]string{"delete-key", "key"})
+	c.Assert(err, NotNil)
+	c.Check(err.Error(), Equals, "cannot delete external keypair manager key via snap command, use the appropriate external procedure")
+	c.Check(s.Stdout(), Equals, "")
+	c.Check(s.Stderr(), Equals, "")
+}

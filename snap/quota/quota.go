@@ -103,7 +103,12 @@ func (grp *Group) CurrentMemoryUsage() (quantity.Size, error) {
 		return 0, nil
 	}
 
-	return sysd.CurrentMemoryUsage(grp.SliceFileName())
+	mem, err := sysd.CurrentMemoryUsage(grp.SliceFileName())
+	if err != nil {
+		return 0, err
+	}
+
+	return mem, nil
 }
 
 // SliceFileName returns the name of the slice file that should be used for this
