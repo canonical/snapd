@@ -1010,7 +1010,7 @@ nested_start_core_vm_unit() {
         # Wait for snap seeding to be done
         nested_exec "sudo snap wait system seed.loaded"
         # Wait for cloud init to be done
-        nested_exec "cloud-init status --wait"
+        nested_exec "retry --wait 1 -n 5 sh -c 'cloud-init status --wait'"
     fi
 }
 
