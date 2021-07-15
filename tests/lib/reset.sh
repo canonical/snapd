@@ -201,9 +201,9 @@ reset_all_snap() {
 # snapd 2.49.2 installed
 #
 
-for snListLine in $(snap list --all | grep disabled); do
-    name="$(echo "$snListLine" | awk '{print $1}')"
-    rev="$(echo "$snListLine" | awk '{print $3}')"
+snap list --all | grep disabled | while read -r line ; do
+    name=$(echo "$line" | awk '{print $1}')
+    rev=$(echo "$line" | awk '{print $3}')
     snap remove "$name" --revision="$rev"
 done
 
