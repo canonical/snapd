@@ -27,9 +27,9 @@ import (
 )
 
 type Element struct {
-	CharData      string     `xml:",chardata"`
-	ExtraAttrs    []xml.Attr `xml:",any,attr"`
-	ExtraChildren []xml.Name `xml:",any"`
+	CharData        string     `xml:",chardata"`
+	UnknownAttrs    []xml.Attr `xml:",any,attr"`
+	UnknownChildren []xml.Name `xml:",any"`
 }
 
 type policyConfig struct {
@@ -103,10 +103,7 @@ func validateConfig(config policyConfig) ([]string, error) {
 		return nil, fmt.Errorf("root element must be <policyconfig>")
 	}
 
-	if err := validateNoExtraElements(config.Element, "<policyconfig>"); err != nil {
-		return nil, err
-	}
-	if err := validateNoCharData(config.Element, "<policyconfig>"); err != nil {
+	if err := validateElement(config.Element, "<policyconfig>", 0); err != nil {
 		return nil, err
 	}
 
@@ -134,18 +131,20 @@ func validateConfig(config policyConfig) ([]string, error) {
 	return actionIDs, nil
 }
 
-func validateNoExtraElements(element Element, name string) error {
-	if len(element.ExtraAttrs) != 0 {
+type validateFlags int
+
+const (
+	allowCharData validateFlags = 1 << 1
+)
+
+func validateElement(element Element, name string, flags validateFlags) error {
+	if len(element.UnknownAttrs) != 0 {
 		return fmt.Errorf("%s element contains unexpected attributes", name)
 	}
-	if len(element.ExtraChildren) != 0 {
+	if len(element.UnknownChildren) != 0 {
 		return fmt.Errorf("%s element contains unexpected children", name)
 	}
-	return nil
-}
-
-func validateNoCharData(element Element, name string) error {
-	if len(strings.TrimSpace(element.CharData)) != 0 {
+	if flags&allowCharData == 0 && len(strings.TrimSpace(element.CharData)) != 0 {
 		return fmt.Errorf("%s element contains unexpected character data", name)
 	}
 	return nil
@@ -156,7 +155,7 @@ func validateOptionalProperty(prop []Element, name, parent string) error {
 	case 0:
 		// nothing
 	case 1:
-		if err := validateNoExtraElements(prop[0], name); err != nil {
+		if err := validateElement(prop[0], name, allowCharData); err != nil {
 			return err
 		}
 		if len(strings.TrimSpace(prop[0].CharData)) == 0 {
@@ -169,10 +168,7 @@ func validateOptionalProperty(prop []Element, name, parent string) error {
 }
 
 func validateAction(action action, seenIDs map[string]struct{}) error {
-	if err := validateNoExtraElements(action.Element, "<action>"); err != nil {
-		return err
-	}
-	if err := validateNoCharData(action.Element, "<action>"); err != nil {
+	if err := validateElement(action.Element, "<action>", 0); err != nil {
 		return err
 	}
 
@@ -196,7 +192,7 @@ func validateAction(action action, seenIDs map[string]struct{}) error {
 		return fmt.Errorf("<action> element missing <description> child")
 	}
 	for _, d := range action.Description {
-		if err := validateNoExtraElements(d.Element, "<description>"); err != nil {
+		if err := validateElement(d.Element, "<description>", allowCharData); err != nil {
 			return err
 		}
 	}
@@ -206,7 +202,7 @@ func validateAction(action action, seenIDs map[string]struct{}) error {
 		return fmt.Errorf("<action> element missing <message> child")
 	}
 	for _, m := range action.Message {
-		if err := validateNoExtraElements(m.Element, "<message>"); err != nil {
+		if err := validateElement(m.Element, "<message>", allowCharData); err != nil {
 			return err
 		}
 	}
@@ -218,7 +214,7 @@ func validateAction(action action, seenIDs map[string]struct{}) error {
 
 	// Check annotations
 	for _, annotation := range action.Annotate {
-		if err := validateNoExtraElements(annotation.Element, "<annotate>"); err != nil {
+		if err := validateElement(annotation.Element, "<annotate>", allowCharData); err != nil {
 			return err
 		}
 		if len(annotation.Key) == 0 {
@@ -256,10 +252,7 @@ func validateActionDefaults(defaults []defaults) error {
 	}
 
 	d := defaults[0]
-	if err := validateNoExtraElements(d.Element, "<defaults>"); err != nil {
-		return err
-	}
-	if err := validateNoCharData(d.Element, "<defaults>"); err != nil {
+	if err := validateElement(d.Element, "<defaults>", 0); err != nil {
 		return err
 	}
 	if err := validateDefaultAuth(d.AllowAny, "<allow_any>"); err != nil {
@@ -280,7 +273,7 @@ func validateDefaultAuth(auth []Element, name string) error {
 	case 0:
 		// nothing
 	case 1:
-		if err := validateNoExtraElements(auth[0], name); err != nil {
+		if err := validateElement(auth[0], name, allowCharData); err != nil {
 			return err
 		}
 		value := strings.TrimSpace(auth[0].CharData)
