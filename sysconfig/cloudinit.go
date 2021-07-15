@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"regexp"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -62,9 +63,28 @@ func DisableCloudInit(rootDir string) error {
 	return nil
 }
 
+type cloudInitConfigInstallOptions struct {
+	// Prefix is the prefix to add to files when installing them.
+	Prefix string
+	// Filter is whether to filter the config files when installing them.
+	Filter bool
+	// AllowedDatasources is the set of datasources to allow config that is
+	// specific to a datasource in when filtering. An empty list and setting
+	// Filter to false is equivalent to allowing any datasource to be installed,
+	// while an empty list and setting Filter to true means that no config that
+	// is specific to a datasource should be installed, but config that is not
+	// specific to a datasource (such as networking config) is allowed to be
+	// installed.
+	AllowedDatasources []string
+}
+
 // installCloudInitCfgDir installs glob cfg files from the source directory to
 // the cloud config dir.
-func installCloudInitCfgDir(src, targetdir, prefix string) error {
+func installCloudInitCfgDir(src, targetdir string, opts *cloudInitConfigInstallOptions) error {
+	if opts == nil {
+		opts = &cloudInitConfigInstallOptions{}
+	}
+
 	// TODO:UC20: enforce patterns on the glob files and their suffix ranges
 	ccl, err := filepath.Glob(filepath.Join(src, "*.cfg"))
 	if err != nil {
@@ -74,13 +94,16 @@ func installCloudInitCfgDir(src, targetdir, prefix string) error {
 		return nil
 	}
 
+	// TODO: handle opts.Filter and opts.AllowedDatasources when installing
+	// config
+
 	ubuntuDataCloudCfgDir := filepath.Join(ubuntuDataCloudDir(targetdir), "cloud.cfg.d/")
 	if err := os.MkdirAll(ubuntuDataCloudCfgDir, 0755); err != nil {
 		return fmt.Errorf("cannot make cloud config dir: %v", err)
 	}
 
 	for _, cc := range ccl {
-		if err := osutil.CopyFile(cc, filepath.Join(ubuntuDataCloudCfgDir, prefix+filepath.Base(cc)), 0); err != nil {
+		if err := osutil.CopyFile(cc, filepath.Join(ubuntuDataCloudCfgDir, opts.Prefix+filepath.Base(cc)), 0); err != nil {
 			return err
 		}
 	}
@@ -88,7 +111,10 @@ func installCloudInitCfgDir(src, targetdir, prefix string) error {
 }
 
 // installGadgetCloudInitCfg installs a single cloud-init config file from the
-// gadget snap to the /etc/cloud config dir as "80_device_gadget.cfg".
+// gadget snap to the /etc/cloud config dir as "80_device_gadget.cfg". It also
+// parses and returns what datasources are detected to be in use for the gadget
+// cloud-config.
+// TODO: return the detected datasources in use from the gadget config, if any.
 func installGadgetCloudInitCfg(src, targetdir string) error {
 	ubuntuDataCloudCfgDir := filepath.Join(ubuntuDataCloudDir(targetdir), "cloud.cfg.d/")
 	if err := os.MkdirAll(ubuntuDataCloudCfgDir, 0755); err != nil {
@@ -96,10 +122,13 @@ func installGadgetCloudInitCfg(src, targetdir string) error {
 	}
 
 	configFile := filepath.Join(ubuntuDataCloudCfgDir, "80_device_gadget.cfg")
-	return osutil.CopyFile(src, configFile, 0)
+	if err := osutil.CopyFile(src, configFile, 0); err != nil {
+		return err
+	}
+	return nil
 }
 
-func configureCloudInit(opts *Options) (err error) {
+func configureCloudInit(model *asserts.Model, opts *Options) (err error) {
 	if opts.TargetRootDir == "" {
 		return fmt.Errorf("unable to configure cloud-init, missing target dir")
 	}
@@ -109,10 +138,24 @@ func configureCloudInit(opts *Options) (err error) {
 		return DisableCloudInit(WritableDefaultsDir(opts.TargetRootDir))
 	}
 
-	// next check if there is a gadget cloud.conf to install
+	// otherwise cloud-init is allowed to run, we need to decide where to
+	// permit configuration to come from, if opts.CloudInitSrcDir is non-empty
+	// there is at least a cloud-config dir on ubuntu-seed we could install
+	// config from
+
+	// check if we should filter cloud-init config on ubuntu-seed, we do this
+	// for grade signed only (we don't allow any config for grade secued, and we
+	// allow any config on grade dangerous)
+
+	grade := model.Grade()
+
+	// we always allow gadget cloud config, so install that first
 	if HasGadgetCloudConf(opts.GadgetDir) {
 		// then copy / install the gadget config first
 		gadgetCloudConf := filepath.Join(opts.GadgetDir, "cloud.conf")
+
+		// TODO: this should also return what datasources the gadget allows from
+		// it's cloud-init config
 		if err := installGadgetCloudInitCfg(gadgetCloudConf, WritableDefaultsDir(opts.TargetRootDir)); err != nil {
 			return err
 		}
@@ -122,19 +165,33 @@ func configureCloudInit(opts *Options) (err error) {
 		// example on test devices where the gadget has a gadget.yaml, but for
 		// testing purposes you also want to provision another user with
 		// ubuntu-seed cloud-init config
-
 	}
 
-	// TODO:UC20: implement filtering of files from src when specified via a
-	//            specific Options for i.e. signed grade and MAAS, etc.
-
-	// finally check if there is a cloud-init src dir we should copy config
-	// files from
-
-	if opts.CloudInitSrcDir != "" {
+	installOpts := &cloudInitConfigInstallOptions{
 		// set the prefix such that any ubuntu-seed config that ends up getting
 		// installed takes precedence over the gadget config
-		return installCloudInitCfgDir(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir), "90_")
+		Prefix: "90_",
+	}
+
+	switch grade {
+	case asserts.ModelSecured:
+		// for secured we are done, we only allow gadget cloud-config on secured
+		return nil
+	case asserts.ModelSigned:
+		// TODO: for grade signed, we will install ubuntu-seed config but filter
+		// it and ensure that the ubuntu-seed config matches the config from the
+		// gadget if that exists
+		// for now though, just return
+		return nil
+	case asserts.ModelDangerous:
+		// for grade dangerous we just install all the config from ubuntu-seed
+		installOpts.Filter = false
+	default:
+		return fmt.Errorf("internal error: unknown model assertion grade %s", grade)
+	}
+
+	if opts.CloudInitSrcDir != "" {
+		return installCloudInitCfgDir(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir), installOpts)
 	}
 
 	// it's valid to allow cloud-init, but not set CloudInitSrcDir and not have

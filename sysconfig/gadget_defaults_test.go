@@ -56,6 +56,33 @@ var fakeModel = assertstest.FakeAssertion(map[string]interface{}{
 	"kernel":       "pc-kernel",
 }).(*asserts.Model)
 
+func fake20Model(grade string) *asserts.Model {
+	return assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        grade,
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "kernel",
+				"id":              "kerneldididididididididididididi",
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              "gadgetididididididididididididid",
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	}).(*asserts.Model)
+}
+
 func (s *sysconfigSuite) TestGadgetDefaults(c *C) {
 	const gadgetDefaultsYaml = `
 defaults:

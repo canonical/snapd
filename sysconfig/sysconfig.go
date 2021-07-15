@@ -111,7 +111,7 @@ func ApplyFilesystemOnlyDefaults(model *asserts.Model, rootDir string, defaults 
 // It is okay to use both from install mode for run mode, as well as from the
 // initramfs for recover mode.
 func ConfigureTargetSystem(model *asserts.Model, opts *Options) error {
-	if err := configureCloudInit(opts); err != nil {
+	if err := configureCloudInit(model, opts); err != nil {
 		return err
 	}
 
