@@ -98,7 +98,7 @@ prepare: |
 
   # start fake device svc
   #shellcheck disable=SC2148
-  systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
+  systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
 
   tests.nested build-image core
   # first boot will use seed1 to create the normal-user in addition to the 

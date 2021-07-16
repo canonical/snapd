@@ -94,7 +94,7 @@ prepare: |
 
   # start fake device svc
   #shellcheck disable=SC2148
-  systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
+  systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
 
   tests.nested build-image core
   tests.nested create-vm core

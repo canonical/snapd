@@ -89,7 +89,7 @@ prepare: |
   rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
   #shellcheck disable=SC2148
-  systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
+  systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
 
   # first boot - legit NoCloud usage
   nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/normal-user" seed.iso cidata user-data meta-data
