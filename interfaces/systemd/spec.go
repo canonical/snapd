@@ -45,6 +45,7 @@ type Specification struct {
 // distinctServiceSuffix is used to name the service and needs to be unique.
 // Different interfaces should use different suffixes and different
 // plugs/slots should also use distinct ones.
+// Uniqueness across snaps is taken care implicitly elsewhere.
 func (spec *Specification) AddService(distinctServiceSuffix string, s *Service) error {
 	if old, ok := spec.services[distinctServiceSuffix]; ok && old != nil && s != nil && *old.svc != *s {
 		if old.iface == spec.curIface {
