@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -111,14 +111,14 @@ func (iface *gpioInterface) SystemdConnectedSlot(spec *systemd.Specification, pl
 		return err
 	}
 
-	serviceAffix := fmt.Sprintf("gpio-%d", gpioNum)
+	serviceSuffix := fmt.Sprintf("gpio-%d", gpioNum)
 	service := &systemd.Service{
 		Type:            "oneshot",
 		RemainAfterExit: true,
 		ExecStart:       fmt.Sprintf("/bin/sh -c 'test -e /sys/class/gpio/gpio%d || echo %d > /sys/class/gpio/export'", gpioNum, gpioNum),
 		ExecStop:        fmt.Sprintf("/bin/sh -c 'test ! -e /sys/class/gpio/gpio%d || echo %d > /sys/class/gpio/unexport'", gpioNum, gpioNum),
 	}
-	return spec.AddService(serviceAffix, service)
+	return spec.AddService(serviceSuffix, service)
 }
 
 func (iface *gpioInterface) AutoConnect(*snap.PlugInfo, *snap.SlotInfo) bool {

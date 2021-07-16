@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -36,8 +36,8 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-func serviceName(snapName, distinctServiceAffix string) string {
-	return snap.ScopedSecurityTag(snapName, "interface", distinctServiceAffix) + ".service"
+func serviceName(snapName, distinctServiceSuffix string) string {
+	return snap.ScopedSecurityTag(snapName, "interface", distinctServiceSuffix) + ".service"
 }
 
 // Backend is responsible for maintaining apparmor profiles for ubuntu-core-launcher.
@@ -165,8 +165,8 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]osutil.F
 		return nil
 	}
 	content := make(map[string]osutil.FileState)
-	for affix, service := range services {
-		filename := serviceName(snapInfo.InstanceName(), affix)
+	for suffix, service := range services {
+		filename := serviceName(snapInfo.InstanceName(), suffix)
 		content[filename] = &osutil.MemoryFileState{
 			Content: []byte(service.String()),
 			Mode:    0644,

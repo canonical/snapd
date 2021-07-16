@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -42,28 +42,28 @@ type Specification struct {
 }
 
 // AddService adds a new systemd service unit.
-// distinctServiceAffix is used to name the service and needs to be unique.
-// Different interfaces should use different affixes and different
+// distinctServiceSuffix is used to name the service and needs to be unique.
+// Different interfaces should use different suffixes and different
 // plugs/slots should also use distinct ones.
-func (spec *Specification) AddService(distinctServiceAffix string, s *Service) error {
-	if old, ok := spec.services[distinctServiceAffix]; ok && old != nil && s != nil && *old.svc != *s {
+func (spec *Specification) AddService(distinctServiceSuffix string, s *Service) error {
+	if old, ok := spec.services[distinctServiceSuffix]; ok && old != nil && s != nil && *old.svc != *s {
 		if old.iface == spec.curIface {
-			return fmt.Errorf("internal error: interface %q has incosistent system needs: service for %q used to be defined as %#v, now re-defined as %#v", spec.curIface, distinctServiceAffix, *old.svc, *s)
+			return fmt.Errorf("internal error: interface %q has incosistent system needs: service for %q used to be defined as %#v, now re-defined as %#v", spec.curIface, distinctServiceSuffix, *old.svc, *s)
 		} else {
-			return fmt.Errorf("internal error: interface %q and %q have conflicting system needs: service for %q used to be defined as %#v by %q, now re-defined as %#v", spec.curIface, old.iface, distinctServiceAffix, *old.svc, old.iface, *s)
+			return fmt.Errorf("internal error: interface %q and %q have conflicting system needs: service for %q used to be defined as %#v by %q, now re-defined as %#v", spec.curIface, old.iface, distinctServiceSuffix, *old.svc, old.iface, *s)
 		}
 	}
 	if spec.services == nil {
 		spec.services = make(map[string]*addedService)
 	}
-	spec.services[distinctServiceAffix] = &addedService{
+	spec.services[distinctServiceSuffix] = &addedService{
 		svc:   s,
 		iface: spec.curIface,
 	}
 	return nil
 }
 
-// Services returns a deep copy of all the added services keyed by their service affix.
+// Services returns a deep copy of all the added services keyed by their service suffix.
 func (spec *Specification) Services() map[string]*Service {
 	if spec.services == nil {
 		return nil
