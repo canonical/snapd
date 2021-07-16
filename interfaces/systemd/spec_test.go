@@ -73,7 +73,7 @@ plugs:
 
 	spec := systemd.Specification{}
 	err := spec.AddPermanentPlug(iface, info1.Plugs["plug1"])
-	c.Assert(err, ErrorMatches, `internal error: interface "test" has incosistent system needs: service for "foo" used to be defined as .*, now re-defined as .*`)
+	c.Assert(err, ErrorMatches, `internal error: interface "test" has inconsistent system needs: service for "foo" used to be defined as .*, now re-defined as .*`)
 }
 
 func (s *specSuite) TestClashingTwoIfaces(c *C) {
