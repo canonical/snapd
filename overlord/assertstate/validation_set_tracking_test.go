@@ -249,7 +249,7 @@ func (s *validationSetTrackingSuite) TestEnforcedValidationSets(c *C) {
 	valsets, err := assertstate.EnforcedValidationSets(s.st)
 	c.Assert(err, IsNil)
 
-	// foo and bar are in conflict, use this is an indirect way of checking
+	// foo and bar are in conflict, use this as an indirect way of checking
 	// that both were added to valsets.
 	err = valsets.Conflict()
 	c.Check(err, ErrorMatches, `validation sets are in conflict:\n- cannot constrain snap "snap-b" as both invalid \(.*/bar\) and required at any revision \(.*/foo\)`)
