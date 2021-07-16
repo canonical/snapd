@@ -719,7 +719,8 @@ func (s *validationSetsSuite) TestCheckPresenceRequired(c *C) {
 	valsets := snapasserts.NewValidationSets()
 
 	// no validation sets
-	vsKeys, _ := valsets.CheckPresenceRequired(naming.Snap("my-snap"))
+	vsKeys, _, err := valsets.CheckPresenceRequired(naming.Snap("my-snap"))
+	c.Assert(err, IsNil)
 	c.Check(vsKeys, HasLen, 0)
 
 	c.Assert(valsets.Add(valset1), IsNil)
@@ -729,28 +730,33 @@ func (s *validationSetsSuite) TestCheckPresenceRequired(c *C) {
 	// sanity
 	c.Assert(valsets.Conflict(), IsNil)
 
-	vsKeys, rev := valsets.CheckPresenceRequired(naming.Snap("my-snap"))
+	vsKeys, rev, err := valsets.CheckPresenceRequired(naming.Snap("my-snap"))
+	c.Assert(err, IsNil)
 	c.Check(rev, DeepEquals, snap.Revision{N: 7})
 	c.Check(vsKeys, DeepEquals, []string{"account-id/my-snap-ctl", "account-id/my-snap-ctl2", "account-id/my-snap-ctl3"})
 
-	vsKeys, rev = valsets.CheckPresenceRequired(naming.NewSnapRef("my-snap", "mysnapididididididididididididid"))
+	vsKeys, rev, err = valsets.CheckPresenceRequired(naming.NewSnapRef("my-snap", "mysnapididididididididididididid"))
+	c.Assert(err, IsNil)
 	c.Check(rev, DeepEquals, snap.Revision{N: 7})
 	c.Check(vsKeys, DeepEquals, []string{"account-id/my-snap-ctl", "account-id/my-snap-ctl2", "account-id/my-snap-ctl3"})
 
 	// other-snap is not required
-	vsKeys, rev = valsets.CheckPresenceRequired(naming.Snap("other-snap"))
+	vsKeys, rev, err = valsets.CheckPresenceRequired(naming.Snap("other-snap"))
+	c.Assert(err, ErrorMatches, `presence of snap "other-snap" is invalid`)
 	c.Check(rev, DeepEquals, snap.Revision{N: 0})
 	c.Check(vsKeys, HasLen, 0)
 
 	// unknown snap is not required
-	vsKeys, rev = valsets.CheckPresenceRequired(naming.NewSnapRef("unknown-snap", "00000000idididididididididididid"))
+	vsKeys, rev, err = valsets.CheckPresenceRequired(naming.NewSnapRef("unknown-snap", "00000000idididididididididididid"))
+	c.Assert(err, IsNil)
 	c.Check(rev, DeepEquals, snap.Revision{N: 0})
 	c.Check(vsKeys, HasLen, 0)
 
 	// just one set, required but no revision specified
 	valsets = snapasserts.NewValidationSets()
 	c.Assert(valsets.Add(valset3), IsNil)
-	vsKeys, rev = valsets.CheckPresenceRequired(naming.Snap("my-snap"))
+	vsKeys, rev, err = valsets.CheckPresenceRequired(naming.Snap("my-snap"))
+	c.Assert(err, IsNil)
 	c.Check(rev, DeepEquals, snap.Revision{N: 0})
 	c.Check(vsKeys, DeepEquals, []string{"account-id/my-snap-ctl3"})
 }
@@ -796,7 +802,8 @@ func (s *validationSetsSuite) TestIsPresenceInvalid(c *C) {
 	valsets := snapasserts.NewValidationSets()
 
 	// no validation sets
-	vsKeys := valsets.CheckPresenceInvalid(naming.Snap("my-snap"))
+	vsKeys, err := valsets.CheckPresenceInvalid(naming.Snap("my-snap"))
+	c.Assert(err, IsNil)
 	c.Check(vsKeys, HasLen, 0)
 
 	c.Assert(valsets.Add(valset1), IsNil)
@@ -806,20 +813,25 @@ func (s *validationSetsSuite) TestIsPresenceInvalid(c *C) {
 	c.Assert(valsets.Conflict(), IsNil)
 
 	// invalid in two sets
-	vsKeys = valsets.CheckPresenceInvalid(naming.Snap("my-snap"))
+	vsKeys, err = valsets.CheckPresenceInvalid(naming.Snap("my-snap"))
+	c.Assert(err, IsNil)
 	c.Check(vsKeys, DeepEquals, []string{"account-id/my-snap-ctl", "account-id/my-snap-ctl2"})
 
-	vsKeys = valsets.CheckPresenceInvalid(naming.NewSnapRef("my-snap", "mysnapididididididididididididid"))
+	vsKeys, err = valsets.CheckPresenceInvalid(naming.NewSnapRef("my-snap", "mysnapididididididididididididid"))
+	c.Assert(err, IsNil)
 	c.Check(vsKeys, DeepEquals, []string{"account-id/my-snap-ctl", "account-id/my-snap-ctl2"})
 
 	// other-snap isn't invalid
-	vsKeys = valsets.CheckPresenceInvalid(naming.Snap("other-snap"))
+	vsKeys, err = valsets.CheckPresenceInvalid(naming.Snap("other-snap"))
+	c.Assert(err, ErrorMatches, `presence of snap "other-snap" is optional`)
 	c.Check(vsKeys, HasLen, 0)
 
-	vsKeys = valsets.CheckPresenceInvalid(naming.NewSnapRef("other-snap", "123456ididididididididididididid"))
+	vsKeys, err = valsets.CheckPresenceInvalid(naming.NewSnapRef("other-snap", "123456ididididididididididididid"))
+	c.Assert(err, ErrorMatches, `presence of snap "other-snap" is optional`)
 	c.Check(vsKeys, HasLen, 0)
 
 	// unknown snap isn't invalid
-	vsKeys = valsets.CheckPresenceInvalid(naming.NewSnapRef("unknown-snap", "00000000idididididididididididid"))
+	vsKeys, err = valsets.CheckPresenceInvalid(naming.NewSnapRef("unknown-snap", "00000000idididididididididididid"))
+	c.Assert(err, IsNil)
 	c.Check(vsKeys, HasLen, 0)
 }

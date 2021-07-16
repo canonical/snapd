@@ -467,10 +467,16 @@ func (v *ValidationSets) constraintsForSnap(snapRef naming.SnapRef) *snapContrai
 // presence of the given snap as required and the required revision (or
 // snap.R(0) if no specific revision is required).
 // The method assumes that validation sets are not in conflict.
-func (v *ValidationSets) CheckPresenceRequired(snapRef naming.SnapRef) ([]string, snap.Revision) {
+func (v *ValidationSets) CheckPresenceRequired(snapRef naming.SnapRef) ([]string, snap.Revision, error) {
 	cstrs := v.constraintsForSnap(snapRef)
-	if cstrs == nil || cstrs.presence != asserts.PresenceRequired {
-		return nil, unspecifiedRevision
+	if cstrs == nil {
+		return nil, unspecifiedRevision, nil
+	}
+	if cstrs.presence == asserts.PresenceInvalid {
+		return nil, unspecifiedRevision, fmt.Errorf("presence of snap %q is %s", snapRef.SnapName(), cstrs.presence)
+	}
+	if cstrs.presence != asserts.PresenceRequired {
+		return nil, unspecifiedRevision, nil
 	}
 
 	snapRev := unspecifiedRevision
@@ -490,18 +496,20 @@ func (v *ValidationSets) CheckPresenceRequired(snapRef naming.SnapRef) ([]string
 	}
 
 	sort.Strings(keys)
-	return keys, snapRev
+	return keys, snapRev, nil
 }
 
 // CheckPresenceInvalid returns the list of all validation sets that declare
 // presence of the given snap as invalid.
 // The method assumes that validation sets are not in conflict.
-func (v *ValidationSets) CheckPresenceInvalid(snapRef naming.SnapRef) []string {
+func (v *ValidationSets) CheckPresenceInvalid(snapRef naming.SnapRef) ([]string, error) {
 	cstrs := v.constraintsForSnap(snapRef)
-	if cstrs == nil || cstrs.presence != asserts.PresenceInvalid {
-		return nil
+	if cstrs == nil {
+		return nil, nil
 	}
-
+	if cstrs.presence != asserts.PresenceInvalid {
+		return nil, fmt.Errorf("presence of snap %q is %s", snapRef.SnapName(), cstrs.presence)
+	}
 	var keys []string
 	for _, revCstr := range cstrs.revisions {
 		for _, rc := range revCstr {
@@ -512,5 +520,5 @@ func (v *ValidationSets) CheckPresenceInvalid(snapRef naming.SnapRef) []string {
 	}
 
 	sort.Strings(keys)
-	return keys
+	return keys, nil
 }
