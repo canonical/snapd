@@ -82,6 +82,7 @@ snaps:
   -
     name: app-snap
     default-channel: foo
+    presence: optional
     modes:
       - recover
       - run
@@ -458,26 +459,25 @@ base:            core20
 timestamp:       2018-09-11T22:00:00Z
 snaps:
   - name:             pc
+    id:               UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
     type:             gadget
     default-channel:  20/edge
-    id:               UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
   - name:             pc-kernel
+    id:               pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
     type:             kernel
     default-channel:  20/edge
-    id:               pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
   - name:             app-snap
     default-channel:  foo
-    modes:
-      - recover
-      - run
+    presence:         optional
+    modes:            [recover, run]
   - name:             core20
+    id:               DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q
     type:             base
     default-channel:  latest/stable
-    id:               DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q
   - name:             snapd
+    id:               PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
     type:             snapd
     default-channel:  latest/stable
-    id:               PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
 `[1:])
 	c.Check(s.Stderr(), check.Equals, "")
 }

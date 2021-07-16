@@ -331,20 +331,14 @@ func (x *cmdModel) Execute(args []string) error {
 					}
 					// iterate over all keys in the map in a stable, visually
 					// appealing ordering
-					// first do snap name, which will always be present
-					name, ok := snMap["name"]
-					if !ok {
-						// TODO: more specific error ?
-						return invalidTypeErr
-					}
-					nameStr, ok := name.(string)
-					if !ok {
-						return invalidTypeErr
-					}
-					fmt.Fprintf(w, "  - name:\t%s\n", nameStr)
+					// first do snap name, which will always be present since we
+					// parsed a valid assertion
+					name := snMap["name"].(string)
+					fmt.Fprintf(w, "  - name:\t%s\n", name)
 
-					// the rest of these may be absent,
-					for _, snKey := range []string{"type", "default-channel", "id"} {
+					// the rest of these may be absent, but they are all still
+					// simple strings
+					for _, snKey := range []string{"id", "type", "default-channel", "presence"} {
 						snValue, ok := snMap[snKey]
 						if !ok {
 							continue
@@ -370,14 +364,17 @@ func (x *cmdModel) Execute(args []string) error {
 					if len(modesSlice) == 0 {
 						continue
 					}
-					fmt.Fprintf(w, "    modes:\n")
+
+					modeStrSlice := make([]string, 0, len(modesSlice))
 					for _, mode := range modesSlice {
 						modeStr, ok := mode.(string)
 						if !ok {
 							return invalidTypeErr
 						}
-						fmt.Fprintf(w, "      - %s\n", modeStr)
+						modeStrSlice = append(modeStrSlice, modeStr)
 					}
+					modesSliceYamlStr := "[" + strings.Join(modeStrSlice, ", ") + "]"
+					fmt.Fprintf(w, "    modes:\t%s\n", modesSliceYamlStr)
 				}
 
 			// long base64 key we can rewrap safely
