@@ -2207,7 +2207,10 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelErr(c *C) {
 }
 
 func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
-	// check that set-model does the right thing even if it is restarted after a
+	// check that set-model does the right thing even if it is restarted
+	// after an unexpected reboot; this gets complicated as we cannot
+	// panic() at a random place in the task runner, so we set up the state
+	// such that the set-model task completes once and is re-run again
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -2399,24 +2402,27 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 	// since we cannot panic in random place in code that runs under
 	// taskrunner, we reset the task status and retry the change again, but
 	// we cannot do that once a change has become ready, thus inject a task
-	// that will request a reboot, thus stopping execution before the change
-	// is ready
+	// that will request a reboot and keep retrying, thus stopping execution
+	// and keeping the change in a not ready state
 	fakeRebootCalls := 0
 	fakeRebootCallsReady := false
-	s.o.TaskRunner().AddHandler("fake-reboot", func(task *state.Task, _ *tomb.Tomb) error {
+	s.o.TaskRunner().AddHandler("fake-reboot-and-stall", func(task *state.Task, _ *tomb.Tomb) error {
 		fakeRebootCalls++
 		if fakeRebootCalls == 1 {
 			st := task.State()
 			st.Lock()
 			defer st.Unlock()
+			// not strictly needed, but underlines there's a reboot
+			// happening
 			st.RequestRestart(state.RestartSystemNow)
 		}
 		if fakeRebootCallsReady {
 			return nil
 		}
+		// we're not ready, so that the change does not complete yet
 		return &state.Retry{}
 	}, nil)
-	fakeRebootTask := s.state.NewTask("fake-reboot", "fake reboot injected by tests")
+	fakeRebootTask := s.state.NewTask("fake-reboot-and-stall", "fake reboot and stalling injected by tests")
 	chg.AddTask(fakeRebootTask)
 	var setModelTask *state.Task
 	for _, tsk := range chg.Tasks() {
@@ -2424,7 +2430,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 			c.Fatalf("set-model present too early")
 		}
 		// make fake-reboot run after all tasks
-		if tsk.Kind() != "fake-reboot" {
+		if tsk.Kind() != "fake-reboot-and-stall" {
 			fakeRebootTask.WaitFor(tsk)
 		}
 	}
