@@ -63,12 +63,6 @@ type remodelLogicBaseSuite struct {
 	dummyStore    snapstate.StoreService
 }
 
-type remodelLogicSuite struct {
-	remodelLogicBaseSuite
-}
-
-var _ = Suite(&remodelLogicSuite{})
-
 func (s *remodelLogicBaseSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
@@ -109,6 +103,12 @@ func (s *remodelLogicBaseSuite) SetUpTest(c *C) {
 	s.mgr, err = devicestate.Manager(s.state, hookMgr, o.TaskRunner(), newStore)
 	c.Assert(err, IsNil)
 }
+
+type remodelLogicSuite struct {
+	remodelLogicBaseSuite
+}
+
+var _ = Suite(&remodelLogicSuite{})
 
 var modelDefaults = map[string]interface{}{
 	"architecture":   "amd64",
@@ -1059,6 +1059,8 @@ func (s *uc20RemodelLogicSuite) TestReregRemodelContextUC20(c *C) {
 
 	remodCtx, err := devicestate.RemodelCtx(s.state, s.oldModel, newModel)
 	c.Assert(err, IsNil)
+	c.Check(remodCtx.ForRemodeling(), Equals, true)
+	c.Check(remodCtx.Kind(), Equals, devicestate.ReregRemodel)
 
 	devBE := devicestate.RemodelDeviceBackend(remodCtx)
 
@@ -1170,7 +1172,6 @@ func (s *uc20RemodelLogicSuite) TestUpdateRemodelContext(c *C) {
 
 	remodCtx, err := devicestate.RemodelCtx(s.state, s.oldModel, newModel)
 	c.Assert(err, IsNil)
-
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
 	c.Check(remodCtx.Kind(), Equals, devicestate.UpdateRemodel)
 	groundCtx := remodCtx.GroundContext()
@@ -1270,9 +1271,9 @@ func (s *uc20RemodelLogicSuite) TestSimpleRemodelErr(c *C) {
 
 	remodCtx, err := devicestate.RemodelCtx(s.state, s.oldModel, newModel)
 	c.Assert(err, IsNil)
-
 	c.Check(remodCtx.ForRemodeling(), Equals, true)
 	c.Check(remodCtx.Kind(), Equals, devicestate.UpdateRemodel)
+
 	chg := s.state.NewChange("remodel", "...")
 	remodCtx.Init(chg)
 

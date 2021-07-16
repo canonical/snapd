@@ -259,7 +259,9 @@ func (rc *baseRemodelContext) setRecoverySystemLabel(label string) {
 	rc.recoverySystemLabel = label
 }
 
-func (rc *baseRemodelContext) maybeUpdateBoot() error {
+// updateRunModeSystem updates the device context used during boot and makes a
+// record of the new seeded system.
+func (rc *baseRemodelContext) updateRunModeSystem() error {
 	if rc.model.Grade() == asserts.ModelGradeUnset {
 		// nothing special for non-UC20 systems
 		return nil
@@ -314,7 +316,7 @@ func (rc *updateRemodelContext) Store() snapstate.StoreService {
 func (rc *updateRemodelContext) Finish() error {
 	// nothing special to do as part of the finish action, so just run the
 	// update boot step
-	return rc.maybeUpdateBoot()
+	return rc.updateRunModeSystem()
 }
 
 // newStoreRemodelContext: remodel needing a new store session
@@ -412,7 +414,7 @@ func (rc *newStoreRemodelContext) Finish() error {
 	if err := rc.deviceMgr.setDevice(remodelDevice); err != nil {
 		return err
 	}
-	return rc.maybeUpdateBoot()
+	return rc.updateRunModeSystem()
 }
 
 func (rc *newStoreRemodelContext) deviceBackend() storecontext.DeviceBackend {
