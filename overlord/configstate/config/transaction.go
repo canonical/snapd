@@ -497,6 +497,9 @@ func clearVirtualConfigRecursive(km map[string]VirtualCfgFunc, config map[string
 		// any top-level virtual keys are removed
 		if _, ok := km[keyprefix+key]; ok {
 			delete(config, key)
+			// we can skip looking for nested config if we
+			// removed the top-level
+			continue
 		}
 		// and nested configs are inspected
 		if m, ok := value.(map[string]interface{}); ok {
