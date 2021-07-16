@@ -71,7 +71,8 @@ model assertion.
 		"store",
 		"system-user-authority",
 		"timestamp",
-		"required-snaps",
+		"required-snaps", // for uc16 and uc18 models
+		"snaps",          // for uc20 models
 		"device-key-sha3-384",
 		"device-key",
 	}
@@ -232,6 +233,11 @@ func (x *cmdModel) Execute(args []string) error {
 		fmt.Fprintf(w, "grade%s\t%s\n", separator, grade)
 	}
 
+	storageSafety := modelAssertion.HeaderString("storage-safety")
+	if storageSafety != "" {
+		fmt.Fprintf(w, "storage-safety%s\t%s\n", separator, storageSafety)
+	}
+
 	// serial is same for all variants
 	fmt.Fprintf(w, "serial%s\t%s\n", separator, serial)
 
@@ -303,6 +309,75 @@ func (x *cmdModel) Execute(args []string) error {
 				case termWidth <= 86 && termWidth > 66:
 					fmt.Fprintln(w, "device-key-sha3-384: |")
 					wrapLine(w, []rune(headerString), "  ", termWidth)
+				}
+			case "snaps":
+				// also flush the writer before continuing so the previous keys
+				// don't try to align with this key
+				w.Flush()
+				snapsHeader, ok := headerValue.([]interface{})
+				if !ok {
+					return invalidTypeErr
+				}
+				if len(snapsHeader) == 0 {
+					// unexpected why this is an empty list, but just ignore for
+					// now
+					continue
+				}
+				fmt.Fprintf(w, "snaps:\n")
+				for _, sn := range snapsHeader {
+					snMap, ok := sn.(map[string]interface{})
+					if !ok {
+						return invalidTypeErr
+					}
+					// iterate over all keys in the map in a stable, visually
+					// appealing ordering
+					// first do snap name, which will always be present
+					name, ok := snMap["name"]
+					if !ok {
+						// TODO: more specific error ?
+						return invalidTypeErr
+					}
+					nameStr, ok := name.(string)
+					if !ok {
+						return invalidTypeErr
+					}
+					fmt.Fprintf(w, "  - name:\t%s\n", nameStr)
+
+					// the rest of these may be absent,
+					for _, snKey := range []string{"type", "default-channel", "id"} {
+						snValue, ok := snMap[snKey]
+						if !ok {
+							continue
+						}
+						snStrValue, ok := snValue.(string)
+						if !ok {
+							return invalidTypeErr
+						}
+						if snStrValue != "" {
+							fmt.Fprintf(w, "    %s:\t%s\n", snKey, snStrValue)
+						}
+					}
+
+					// finally handle "modes" which is a list
+					modes, ok := snMap["modes"]
+					if !ok {
+						continue
+					}
+					modesSlice, ok := modes.([]interface{})
+					if !ok {
+						return invalidTypeErr
+					}
+					if len(modesSlice) == 0 {
+						continue
+					}
+					fmt.Fprintf(w, "    modes:\n")
+					for _, mode := range modesSlice {
+						modeStr, ok := mode.(string)
+						if !ok {
+							return invalidTypeErr
+						}
+						fmt.Fprintf(w, "      - %s\n", modeStr)
+					}
 				}
 
 			// long base64 key we can rewrap safely
