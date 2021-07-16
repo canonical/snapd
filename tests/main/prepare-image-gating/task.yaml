@@ -1,0 +1,20 @@
+summary: Check that prepare-image works for grub-systems
+
+backends: [-autopkgtest]
+
+systems: [-ubuntu-core-*, -fedora-*, -opensuse-*, -arch-*]
+
+environment:
+    ROOT: "$PWD/root"
+    SEED: "$PWD/root/system-seed"
+
+execute: |
+    echo Running prepare-image
+    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image $TESTSLIB/assertions/gating-20-amd64.model $ROOT" test
+
+    GATED_REV=2
+
+    echo Verifying the result
+    ls -lR "$SEED"
+    test -f "${SEED}/snaps/test-snapd-gated_${GATED_REV}.snap"
+
