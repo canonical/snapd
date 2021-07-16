@@ -63,7 +63,7 @@ func (spec *Specification) AddService(distinctServiceAffix string, s *Service) e
 	return nil
 }
 
-// Services returns a deep copy of all the added service keyed by their service affix.
+// Services returns a deep copy of all the added services keyed by their service affix.
 func (spec *Specification) Services() map[string]*Service {
 	if spec.services == nil {
 		return nil
