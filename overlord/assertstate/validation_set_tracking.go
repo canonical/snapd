@@ -23,7 +23,10 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/release"
 )
 
 // ValidationSetMode reflects the mode of respective validation set, which is
@@ -129,4 +132,43 @@ func ValidationSets(st *state.State) (map[string]*ValidationSetTracking, error) 
 		return nil, err
 	}
 	return vsmap, nil
+}
+
+// EnforcedValidationSets returns ValidationSets object with all currently tracked
+// validation sets in enforcing mode.
+func EnforcedValidationSets(st *state.State) (*snapasserts.ValidationSets, error) {
+	valsets, err := ValidationSets(st)
+	if err != nil {
+		return nil, err
+	}
+
+	db := DB(st)
+	sets := snapasserts.NewValidationSets()
+
+	for _, vs := range valsets {
+		if vs.Mode != Enforce {
+			continue
+		}
+
+		sequence := vs.Current
+		if vs.PinnedAt > 0 {
+			sequence = vs.PinnedAt
+		}
+		headers := map[string]string{
+			"series":     release.Series,
+			"account-id": vs.AccountID,
+			"name":       vs.Name,
+			"sequence":   fmt.Sprintf("%d", sequence),
+		}
+
+		as, err := db.Find(asserts.ValidationSetType, headers)
+		if err != nil {
+			return nil, err
+		}
+
+		vsetAssert := as.(*asserts.ValidationSet)
+		sets.Add(vsetAssert)
+	}
+
+	return sets, err
 }
