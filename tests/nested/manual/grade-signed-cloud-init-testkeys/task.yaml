@@ -1,4 +1,4 @@
-summary: Test that snapd with testkeys on UC20 can boot a model with grade signed.
+summary: Test that UC20 with testkeys can boot a grade signed model with cloud-init.
 
 systems: [ubuntu-20.04-64]
 
