@@ -89,20 +89,16 @@ prepare: |
   # install the cloud.conf
   cp cloud.conf pc-gadget/cloud.conf
 
-  # TODO: enable this bit when things are ready to use a testkeys signed model
-  # assertion
   # copy the prepare-device hook to use our fakedevicesvc
-  # mkdir -p pc-gadget/meta/hooks/
-  # cp prepare-device pc-gadget/meta/hooks/
+  mkdir -p pc-gadget/meta/hooks/
+  cp prepare-device pc-gadget/meta/hooks/
 
   nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
   snap pack pc-gadget/ "$(nested_get_extra_snaps_path)"
 
-  # TODO: enable this when ready, currently serial assertions requests don't 
-  # work with the fakedevicesvc, needs a little bit of work somewhere
   # start fake device svc
-  # #shellcheck disable=SC2148
-  #  systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
+  #shellcheck disable=SC2148
+  systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
 
   tests.nested build-image core
   # first boot will use seed1 to create the normal-user in addition to the 

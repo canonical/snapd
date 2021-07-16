@@ -78,11 +78,9 @@ prepare: |
   sed defaults.yaml -e "s/@HOLD-TIME@/$(date --date='next week' +%Y-%m-%dT%H:%M:%S%:z)/" >> \
     pc-gadget/meta/gadget.yaml
 
-  # TODO: enable this bit when things are ready to use a testkeys signed model
-  # assertion
   # copy the prepare-device hook to use our fakedevicesvc
-  # mkdir -p pc-gadget/meta/hooks/
-  # cp prepare-device pc-gadget/meta/hooks/
+  mkdir -p pc-gadget/meta/hooks/
+  cp prepare-device pc-gadget/meta/hooks/
 
   nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
   snap pack pc-gadget/ extra-snaps/
@@ -90,11 +88,8 @@ prepare: |
 
   rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
-  # TODO: enable this when ready, currently serial assertions requests don't 
-  # work with the fakedevicesvc, needs a little bit of work somewhere
-  # start fake device svc
-  # #shellcheck disable=SC2148
-  #  systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
+  #shellcheck disable=SC2148
+  systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
 
   # first boot - legit NoCloud usage
   nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/normal-user" seed.iso cidata user-data meta-data
@@ -134,10 +129,6 @@ execute: |
 
   echo "And we can run things as the normal user"
   tests.nested exec_as normal-user ubuntu "sudo true"
-
-  # TODO: check that we got a serial assertion via the fakedevicesvc
-  # for now we just don't get a serial assertion which is fine for the purposes
-  # of this test
 
   echo "Waiting for snapd to react to cloud-init"
   seen=0
