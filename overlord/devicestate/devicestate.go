@@ -547,21 +547,6 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	return tss, nil
 }
 
-var allowUC20RemodelTesting = false
-
-// AllowUC20RemodelTesting is a temporary helper to allow testing remodeling of
-// UC20 before the implementation is complete and the policy for this settled.
-// It will be removed once remodel is fully implemented and made available for
-// general use.
-func AllowUC20RemodelTesting(allow bool) (restore func()) {
-	osutil.MustBeTestBinary("uc20 remodel testing only can be mocked in tests")
-	oldAllowUC20RemodelTesting := allowUC20RemodelTesting
-	allowUC20RemodelTesting = allow
-	return func() {
-		allowUC20RemodelTesting = oldAllowUC20RemodelTesting
-	}
-}
-
 // Remodel takes a new model assertion and generates a change that
 // takes the device from the old to the new model or an error if the
 // transition is not possible.
@@ -598,20 +583,12 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		return nil, fmt.Errorf("cannot remodel to different series yet")
 	}
 
-	// TODO:UC20: support remodel, also ensure we never remodel to a lower
+	// TODO:UC20: ensure we never remodel to a lower
 	// grade
-	if !allowUC20RemodelTesting {
-		if current.Grade() != asserts.ModelGradeUnset {
-			return nil, fmt.Errorf("cannot remodel Ubuntu Core 20 models yet")
-		}
-		if new.Grade() != asserts.ModelGradeUnset {
-			return nil, fmt.Errorf("cannot remodel to Ubuntu Core 20 models yet")
-		}
-	} else {
-		// also disallows remodel from non-UC20 (grade unset) to UC20
-		if current.Grade() != new.Grade() {
-			return nil, fmt.Errorf("cannot remodel from grade %v to grade %v", current.Grade(), new.Grade())
-		}
+
+	// also disallows remodel from non-UC20 (grade unset) to UC20
+	if current.Grade() != new.Grade() {
+		return nil, fmt.Errorf("cannot remodel from grade %v to grade %v", current.Grade(), new.Grade())
 	}
 
 	// TODO: we need dedicated assertion language to permit for
