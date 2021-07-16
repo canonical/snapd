@@ -172,72 +172,50 @@ static void sc_udev_allow_dev_net_tun(int devices_allow_fd)
  * tags corresponding to snap applications. Here we interrogate udev and allow
  * access to all assigned devices.
  **/
-static void sc_udev_allow_assigned(int devices_allow_fd, struct udev *udev,
-				   struct udev_list_entry *assigned)
+static void sc_udev_allow_assigned_device(int devices_allow_fd,
+					  struct udev_device *device)
 {
-	for (struct udev_list_entry * entry = assigned; entry != NULL;
-	     entry = udev_list_entry_get_next(entry)) {
-		const char *path = udev_list_entry_get_name(entry);
-		if (path == NULL) {
-			die("udev_list_entry_get_name failed");
-		}
-		struct udev_device *device =
-		    udev_device_new_from_syspath(udev, path);
-		/** This is a non-fatal error as devices can disappear asynchronously
-		 * and on slow devices we may indeed observe a device that no longer
-		 * exists.
-		 *
-		 * Similar debug + continue pattern repeats in all the udev calls in
-		 * this function. Related to LP: #1881209 */
-		if (device == NULL) {
-			debug("cannot find device from syspath %s", path);
-			continue;
-		}
-		dev_t devnum = udev_device_get_devnum(device);
-		unsigned int major = major(devnum);
-		unsigned int minor = minor(devnum);
-		/* The manual page of udev_device_get_devnum says:
-		 * > On success, udev_device_get_devnum() returns the device type of
-		 * > the passed device. On failure, a device type with minor and major
-		 * > number set to 0 is returned. */
-		if (major == 0 && minor == 0) {
-			debug("cannot get major/minor numbers for syspath %s",
-			      path);
-			continue;
-		}
-		/* devnode is bound to the lifetime of the device and we cannot release
-		 * it separately. */
-		const char *devnode = udev_device_get_devnode(device);
-		if (devnode == NULL) {
-			debug("cannot find /dev node from udev device");
-			continue;
-		}
-		debug("inspecting type of device: %s", devnode);
-		struct stat file_info;
-		if (stat(devnode, &file_info) < 0) {
-			debug("cannot stat %s", devnode);
-			continue;
-		}
-		switch (file_info.st_mode & S_IFMT) {
-		case S_IFBLK:
-			dprintf(devices_allow_fd, "b %u:%u rwm\n", major,
-				minor);
-			break;
-		case S_IFCHR:
-			dprintf(devices_allow_fd, "c %u:%u rwm\n", major,
-				minor);
-			break;
-		default:
-			/* Not a device, ignore it. */
-			break;
-		}
-		udev_device_unref(device);
+	const char *path = udev_device_get_syspath(device);
+	dev_t devnum = udev_device_get_devnum(device);
+	unsigned int major = major(devnum);
+	unsigned int minor = minor(devnum);
+	/* The manual page of udev_device_get_devnum says:
+	 * > On success, udev_device_get_devnum() returns the device type of
+	 * > the passed device. On failure, a device type with minor and major
+	 * > number set to 0 is returned. */
+	if (major == 0 && minor == 0) {
+		debug("cannot get major/minor numbers for syspath %s", path);
+		return;
+	}
+	/* devnode is bound to the lifetime of the device and we cannot release
+	 * it separately. */
+	const char *devnode = udev_device_get_devnode(device);
+	if (devnode == NULL) {
+		debug("cannot find /dev node from udev device");
+		return;
+	}
+	debug("inspecting type of device: %s", devnode);
+	struct stat file_info;
+	if (stat(devnode, &file_info) < 0) {
+		debug("cannot stat %s", devnode);
+		return;
+	}
+	switch (file_info.st_mode & S_IFMT) {
+	case S_IFBLK:
+		dprintf(devices_allow_fd, "b %u:%u rwm\n", major, minor);
+		break;
+	case S_IFCHR:
+		dprintf(devices_allow_fd, "c %u:%u rwm\n", major, minor);
+		break;
+	default:
+		/* Not a device, ignore it. */
+		break;
 	}
 }
 
-static void sc_udev_setup_acls(int devices_allow_fd, int devices_deny_fd,
-			       struct udev *udev,
-			       struct udev_list_entry *assigned)
+static void sc_udev_setup_acls_common(int devices_allow_fd, int devices_deny_fd,
+				      struct udev *udev,
+				      struct udev_list_entry *assigned)
 {
 	/* Deny device access by default.
 	 *
@@ -253,7 +231,6 @@ static void sc_udev_setup_acls(int devices_allow_fd, int devices_deny_fd,
 	sc_udev_allow_nvidia(devices_allow_fd);
 	sc_udev_allow_uhid(devices_allow_fd);
 	sc_udev_allow_dev_net_tun(devices_allow_fd);
-	sc_udev_allow_assigned(devices_allow_fd, udev, assigned);
 }
 
 static char *sc_security_to_udev_tag(const char *security_tag)
@@ -443,9 +420,30 @@ void sc_setup_device_cgroup(const char *security_tag)
 		return;
 	}
 	/* Setup the device group access control list */
-	sc_udev_setup_acls(fds.devices_allow_fd, fds.devices_deny_fd,
-			   udev, assigned);
+	sc_udev_setup_acls_common(fds.devices_allow_fd, fds.devices_deny_fd,
+				  udev, assigned);
+	for (struct udev_list_entry * entry = assigned; entry != NULL;
+	     entry = udev_list_entry_get_next(entry)) {
+		const char *path = udev_list_entry_get_name(entry);
+		if (path == NULL) {
+			die("udev_list_entry_get_name failed");
+		}
+		struct udev_device *device =
+		    udev_device_new_from_syspath(udev, path);
+		/** This is a non-fatal error as devices can disappear asynchronously
+		 * and on slow devices we may indeed observe a device that no longer
+		 * exists.
+		 *
+		 * Similar debug + continue pattern repeats in all the udev calls in
+		 * this function. Related to LP: #1881209 */
+		if (device == NULL) {
+			debug("cannot find device from syspath %s", path);
+			continue;
+		}
 
+		sc_udev_allow_assigned_device(fds.devices_allow_fd, device);
+		udev_device_unref(device);
+	}
 	/* Move ourselves to the device cgroup */
 	sc_dprintf(fds.cgroup_procs_fd, "%i\n", getpid());
 	debug("associated snap application process %i with device cgroup %s",
