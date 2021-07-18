@@ -173,6 +173,9 @@ dbus (receive, send)
 
 # Allow to determine whether a tty device is a serial port or not.
 @{PROC}/tty/drivers r,
+
+# allow communicating with mbim-proxy server
+unix (connect, receive, send) type=stream peer=(addr="@{mbim,qmi}-proxy"),
 `
 
 const modemManagerConnectedPlugAppArmorClassic = `
@@ -199,6 +202,9 @@ dbus (send)
     path=/org/freedesktop/ModemManager1{,/**}
     interface=org.freedesktop.DBus.Properties
     member="Get{,All}",
+
+# allow communicating with mbim-proxy server
+unix (connect, receive, send) type=stream peer=(addr="@{mbim,qmi}-proxy"),
 `
 
 const modemManagerPermanentSlotSecComp = `
