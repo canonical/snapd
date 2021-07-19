@@ -742,7 +742,11 @@ func (s *validationSetsSuite) TestCheckPresenceRequired(c *C) {
 
 	// other-snap is not required
 	vsKeys, rev, err = valsets.CheckPresenceRequired(naming.Snap("other-snap"))
-	c.Assert(err, ErrorMatches, `presence of snap "other-snap" is invalid`)
+	c.Assert(err, ErrorMatches, `unexpected presence "invalid" for snap "other-snap"`)
+	pr, ok := err.(*snapasserts.PresenceConstraintError)
+	c.Assert(ok, Equals, true)
+	c.Check(pr.SnapName, Equals, "other-snap")
+	c.Check(pr.Presence, Equals, asserts.PresenceInvalid)
 	c.Check(rev, DeepEquals, snap.Revision{N: 0})
 	c.Check(vsKeys, HasLen, 0)
 
@@ -823,11 +827,15 @@ func (s *validationSetsSuite) TestIsPresenceInvalid(c *C) {
 
 	// other-snap isn't invalid
 	vsKeys, err = valsets.CheckPresenceInvalid(naming.Snap("other-snap"))
-	c.Assert(err, ErrorMatches, `presence of snap "other-snap" is optional`)
+	c.Assert(err, ErrorMatches, `unexpected presence "optional" for snap "other-snap"`)
+	pr, ok := err.(*snapasserts.PresenceConstraintError)
+	c.Assert(ok, Equals, true)
+	c.Check(pr.SnapName, Equals, "other-snap")
+	c.Check(pr.Presence, Equals, asserts.PresenceOptional)
 	c.Check(vsKeys, HasLen, 0)
 
 	vsKeys, err = valsets.CheckPresenceInvalid(naming.NewSnapRef("other-snap", "123456ididididididididididididid"))
-	c.Assert(err, ErrorMatches, `presence of snap "other-snap" is optional`)
+	c.Assert(err, ErrorMatches, `unexpected presence "optional" for snap "other-snap"`)
 	c.Check(vsKeys, HasLen, 0)
 
 	// unknown snap isn't invalid

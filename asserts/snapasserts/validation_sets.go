@@ -450,6 +450,15 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 	return nil
 }
 
+type PresenceConstraintError struct{
+	SnapName string
+	Presence asserts.Presence
+}
+
+func (e *PresenceConstraintError) Error() string {
+	return fmt.Sprintf("unexpected presence %q for snap %q", e.Presence, e.SnapName)
+}
+
 func (v *ValidationSets) constraintsForSnap(snapRef naming.SnapRef) *snapContraints {
 	if snapRef.ID() != "" {
 		return v.snaps[snapRef.ID()]
@@ -465,7 +474,8 @@ func (v *ValidationSets) constraintsForSnap(snapRef naming.SnapRef) *snapContrai
 
 // CheckPresenceRequired returns the list of all validation sets that declare
 // presence of the given snap as required and the required revision (or
-// snap.R(0) if no specific revision is required).
+// snap.R(0) if no specific revision is required). PresenceConstraintError is
+// returned if presence of the snap is "invalid".
 // The method assumes that validation sets are not in conflict.
 func (v *ValidationSets) CheckPresenceRequired(snapRef naming.SnapRef) ([]string, snap.Revision, error) {
 	cstrs := v.constraintsForSnap(snapRef)
@@ -473,7 +483,7 @@ func (v *ValidationSets) CheckPresenceRequired(snapRef naming.SnapRef) ([]string
 		return nil, unspecifiedRevision, nil
 	}
 	if cstrs.presence == asserts.PresenceInvalid {
-		return nil, unspecifiedRevision, fmt.Errorf("presence of snap %q is %s", snapRef.SnapName(), cstrs.presence)
+		return nil, unspecifiedRevision, &PresenceConstraintError{snapRef.SnapName(), cstrs.presence}
 	}
 	if cstrs.presence != asserts.PresenceRequired {
 		return nil, unspecifiedRevision, nil
@@ -500,7 +510,8 @@ func (v *ValidationSets) CheckPresenceRequired(snapRef naming.SnapRef) ([]string
 }
 
 // CheckPresenceInvalid returns the list of all validation sets that declare
-// presence of the given snap as invalid.
+// presence of the given snap as invalid. PresenceConstraintError is returned if
+// presence of the snap is "optional" or "required".
 // The method assumes that validation sets are not in conflict.
 func (v *ValidationSets) CheckPresenceInvalid(snapRef naming.SnapRef) ([]string, error) {
 	cstrs := v.constraintsForSnap(snapRef)
@@ -508,7 +519,7 @@ func (v *ValidationSets) CheckPresenceInvalid(snapRef naming.SnapRef) ([]string,
 		return nil, nil
 	}
 	if cstrs.presence != asserts.PresenceInvalid {
-		return nil, fmt.Errorf("presence of snap %q is %s", snapRef.SnapName(), cstrs.presence)
+		return nil, &PresenceConstraintError{snapRef.SnapName(), cstrs.presence}
 	}
 	var keys []string
 	for _, revCstr := range cstrs.revisions {
