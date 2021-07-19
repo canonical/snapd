@@ -114,6 +114,9 @@ restore: |
   . "$TESTSLIB"/store.sh
   teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
 
+debug: |
+  systemctl status fakedevicesvc || true
+
 execute: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
       echo "This test needs test keys to be trusted"
