@@ -135,7 +135,7 @@ func ValidationSets(st *state.State) (map[string]*ValidationSetTracking, error) 
 }
 
 // EnforcedValidationSets returns ValidationSets object with all currently tracked
-// validation sets in enforcing mode.
+// validation sets that are in enforcing mode.
 func EnforcedValidationSets(st *state.State) (*snapasserts.ValidationSets, error) {
 	valsets, err := ValidationSets(st)
 	if err != nil {

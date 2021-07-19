@@ -35,6 +35,9 @@ import (
 
 var currentSnaps = currentSnapsImpl
 
+// EnforcedValidationSets allows to hook getting of validation sets in enforce
+// mode into installation/refresh/removal of snaps. It gets hooked from
+// assertstate.
 var EnforcedValidationSets func(st *state.State) (*snapasserts.ValidationSets, error)
 
 func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int, error) {

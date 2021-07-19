@@ -251,6 +251,7 @@ func (s *validationSetTrackingSuite) TestEnforcedValidationSets(c *C) {
 
 	// foo and bar are in conflict, use this as an indirect way of checking
 	// that both were added to valsets.
+	// XXX: switch to CheckPresenceInvalid / CheckPresenceRequired once available.
 	err = valsets.Conflict()
 	c.Check(err, ErrorMatches, `validation sets are in conflict:\n- cannot constrain snap "snap-b" as both invalid \(.*/bar\) and required at any revision \(.*/foo\)`)
 }
