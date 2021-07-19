@@ -21,6 +21,7 @@ package boot
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
@@ -446,4 +447,39 @@ func DropRecoverySystem(dev Device, systemLabel string) error {
 
 	const expectReseal = true
 	return resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal)
+}
+
+// AddRecoveryCapableSystem records a given system as one that we can recover
+// from.
+func AddRecoveryCapableSystem(systemLabel string) error {
+	opts := &bootloader.Options{
+		// setup the recovery bootloader
+		Role: bootloader.RoleRecovery,
+	}
+	// TODO:UC20: seed may need to be switched to RW
+	bl, err := bootloader.Find(InitramfsUbuntuSeedDir, opts)
+	if err != nil {
+		return err
+	}
+	rbl, ok := bl.(bootloader.RecoveryAwareBootloader)
+	if !ok {
+		return nil
+	}
+	vars, err := rbl.GetBootVars("snapd_recovery_capable_systems")
+	if err != nil {
+		return err
+	}
+	var systems []string
+	if vars["snapd_recovery_capable_systems"] != "" {
+		systems = strings.Split(vars["snapd_recovery_capable_systems"], ",")
+		if strutil.ListContains(systems, systemLabel) {
+			// already recorded, nothing to do
+			return nil
+		}
+	}
+	systems = append(systems, systemLabel)
+	systemsForEnv := strings.Join(systems, ",")
+	return rbl.SetBootVars(map[string]string{
+		"snapd_recovery_capable_systems": systemsForEnv,
+	})
 }
