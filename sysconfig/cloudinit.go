@@ -144,7 +144,7 @@ func configureCloudInit(model *asserts.Model, opts *Options) (err error) {
 	// config from
 
 	// check if we should filter cloud-init config on ubuntu-seed, we do this
-	// for grade signed only (we don't allow any config for grade secued, and we
+	// for grade signed only (we don't allow any config for grade secured, and we
 	// allow any config on grade dangerous)
 
 	grade := model.Grade()
