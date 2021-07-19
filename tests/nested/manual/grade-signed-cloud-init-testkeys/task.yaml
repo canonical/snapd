@@ -108,7 +108,7 @@ restore: |
   fi
 
   # stop fake device svc
-  # systemctl stop fakedevicesvc
+  systemctl stop fakedevicesvc
 
   #shellcheck source=tests/lib/store.sh
   . "$TESTSLIB"/store.sh
