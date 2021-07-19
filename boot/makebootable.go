@@ -463,5 +463,10 @@ func MakeRunnableSystem(model *asserts.Model, bootWith *BootableSet, sealer *Tru
 		}
 	}
 
+	// so far so good, we managed to install the system, so it can be used
+	// for recovery as well
+	if err := AddRecoveryCapableSystem(recoverySystemLabel); err != nil {
+		return fmt.Errorf("cannot record %q as a recovery capable system: %v", recoverySystemLabel, err)
+	}
 	return nil
 }
