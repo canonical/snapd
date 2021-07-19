@@ -294,6 +294,10 @@ func snapInstall(inst *snapInstruction, st *state.State) (string, []*state.TaskS
 		return "", nil, err
 	}
 
+	if inst.IgnoreValidation {
+		flags.IgnoreValidation = true
+	}
+
 	var ckey string
 	if inst.CohortKey == "" {
 		logger.Noticef("Installing snap %q revision %s", inst.Snaps[0], inst.Revision)
