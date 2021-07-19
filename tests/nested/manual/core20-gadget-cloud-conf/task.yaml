@@ -97,7 +97,6 @@ prepare: |
   snap pack pc-gadget/ "$(nested_get_extra_snaps_path)"
 
   # start fake device svc
-  #shellcheck disable=SC2148
   systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
 
   tests.nested build-image core
