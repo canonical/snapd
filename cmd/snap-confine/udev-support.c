@@ -480,11 +480,6 @@ static void sc_cleanup_cgroup_fds(sc_cgroup_fds * fds)
 void sc_setup_device_cgroup(const char *security_tag)
 {
 	debug("setting up device cgroup");
-	if (sc_cgroup_is_v2()) {
-		/* TODO: add support for v2 mode. This is coming but needs several more
-		 * rounds of iteration. */
-		return;
-	}
 
 	/* Derive the udev tag from the snap security tag.
 	 *
