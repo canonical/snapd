@@ -953,6 +953,10 @@ func genServiceNames(snap *snap.Info, appNames []string) []string {
 	return names
 }
 
+func GenServiceNames(snap *snap.Info, appNames []string) []string {
+	return genServiceNames(snap, appNames)
+}
+
 // TODO: this should not accept AddSnapServicesOptions, it should use some other
 // subset of options, specifically it should not accept Preseeding as an option
 // here

@@ -149,6 +149,8 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 			if err != nil {
 				return err
 			}
+
+			snapDisabledServices = wrappers.GenServiceNames(info, snapDisabledServices)
 			// compute the list of disabled services, but if a service was
 			// mentioned explicitly, then this should overrule the disabled
 			// status
