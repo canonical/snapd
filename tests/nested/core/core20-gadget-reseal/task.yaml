@@ -5,19 +5,19 @@ systems: [ubuntu-20.04-64]
 execute: |
     # shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-    SEALED_KEY_MTIME_1="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
-    RESEAL_COUNT_1="$(nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
+    SEALED_KEY_MTIME_1="$(tests.nested exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+    RESEAL_COUNT_1="$(tests.nested exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
     
     echo "Install new (unasserted) gadget without changes and wait for change without reboot"
     boot_id="$( nested_get_boot_id )"
-    REMOTE_CHG_ID=$(nested_exec sudo snap install --dangerous /var/lib/snapd/snaps/pc_*.snap --no-wait)
+    REMOTE_CHG_ID=$(tests.nested exec sudo snap install --dangerous /var/lib/snapd/snaps/pc_*.snap --no-wait)
     # no reboot here, no gadget changes
-    nested_exec sudo snap watch "${REMOTE_CHG_ID}"
+    tests.nested exec sudo snap watch "${REMOTE_CHG_ID}"
   
     echo "Check nothing in the gadget has changed so no reseal was needed"
-    SEALED_KEY_MTIME_2="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+    SEALED_KEY_MTIME_2="$(tests.nested exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
     test "$SEALED_KEY_MTIME_2" -eq "$SEALED_KEY_MTIME_1"
-    RESEAL_COUNT_2="$(nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
+    RESEAL_COUNT_2="$(tests.nested exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
     test "$RESEAL_COUNT_2" = "$RESEAL_COUNT_1"
 
     echo "Create modified boot assets"
@@ -44,16 +44,16 @@ execute: |
     snap pack pc-gadget/
 
     echo "Install newly created gadget (which will trigger a reboot)"
-    nested_copy ./pc_*.snap
-    REMOTE_CHG_ID=$(nested_exec sudo snap install --dangerous ./pc_*.snap --no-wait)
-    nested_wait_for_reboot "${boot_id}"
-    nested_exec sudo snap watch "${REMOTE_CHG_ID}"
+    tests.nested copy ./pc_*.snap
+    REMOTE_CHG_ID=$(tests.nested exec sudo snap install --dangerous ./pc_*.snap --no-wait)
+    tests.nested wait-for reboot "${boot_id}"
+    tests.nested exec sudo snap watch "${REMOTE_CHG_ID}"
 
     echo "Check that the gadget asset was changed"
-    nested_exec sudo grep -q -a "This program cannot be run in XXX mode" /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
+    tests.nested exec sudo grep -q -a "This program cannot be run in XXX mode" /run/mnt/ubuntu-boot/EFI/boot/grubx64.efi
 
     echo "The gadget has changed, we should see resealing"
-    SEALED_KEY_MTIME_3="$(nested_exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
+    SEALED_KEY_MTIME_3="$(tests.nested exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
     test "$SEALED_KEY_MTIME_3" -gt "$SEALED_KEY_MTIME_2"
-    RESEAL_COUNT_3="$(nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
+    RESEAL_COUNT_3="$(tests.nested exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
     test "$RESEAL_COUNT_3" -gt "1"

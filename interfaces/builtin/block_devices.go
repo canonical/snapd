@@ -53,6 +53,7 @@ const blockDevicesConnectedPlugAppArmor = `
 /run/udev/data/b[0-9]*:[0-9]* r,
 /sys/block/ r,
 /sys/devices/**/block/** r,
+/sys/devices/platform/soc/**/mmc_host/** r,
 
 # Access to raw devices, not individual partitions
 /dev/hd[a-t] rw,                                          # IDE, MFM, RLL

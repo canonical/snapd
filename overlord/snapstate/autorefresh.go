@@ -322,7 +322,7 @@ func (m *autoRefresh) Ensure() error {
 		logger.Debugf("Next refresh scheduled for %s.", m.nextRefresh.Format(time.RFC3339))
 	}
 
-	held, holdTime, err := m.isRefreshHeld(refreshSchedule)
+	held, holdTime, err := m.isRefreshHeld()
 	if err != nil {
 		return err
 	}
@@ -376,7 +376,7 @@ func (m *autoRefresh) Ensure() error {
 
 // isRefreshHeld returns whether an auto-refresh is currently held back or not,
 // as indicated by m.EffectiveRefreshHold().
-func (m *autoRefresh) isRefreshHeld(refreshSchedule []*timeutil.Schedule) (bool, time.Time, error) {
+func (m *autoRefresh) isRefreshHeld() (bool, time.Time, error) {
 	now := time.Now()
 	// should we hold back refreshes?
 	holdTime, err := m.EffectiveRefreshHold()
@@ -492,7 +492,7 @@ func (m *autoRefresh) launchAutoRefresh(refreshSchedule []*timeutil.Schedule) er
 
 	// re-check if the refresh is held because it could have been re-held and
 	// pushed back, in which case we need to abort the auto-refresh and wait
-	held, _, holdErr := m.isRefreshHeld(refreshSchedule)
+	held, _, holdErr := m.isRefreshHeld()
 	if holdErr != nil {
 		return holdErr
 	}
