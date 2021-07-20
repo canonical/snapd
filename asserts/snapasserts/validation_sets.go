@@ -450,7 +450,7 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 	return nil
 }
 
-type PresenceConstraintError struct{
+type PresenceConstraintError struct {
 	SnapName string
 	Presence asserts.Presence
 }
