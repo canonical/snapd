@@ -130,27 +130,22 @@ execute: |
   . "$TESTSLIB/nested.sh"
 
   echo "The initial cloud-init user was created"
-  nested_exec "cat /var/lib/extrausers/passwd" | MATCH normal-user
+  tests.nested exec "cat /var/lib/extrausers/passwd" | MATCH normal-user
 
   echo "And we can run things as the normal user"
-  nested_exec_as normal-user ubuntu "sudo true"
+  tests.nested exec_as normal-user ubuntu "sudo true"
 
   # TODO: check that we got a serial assertion via the fakedevicesvc
   # for now we just don't get a serial assertion which is fine for the purposes
   # of this test
 
   echo "Waiting for snapd to react to cloud-init"
-  for i in $(seq 60); do
-    if nested_exec "journalctl --no-pager -u snapd" | MATCH "Cloud-init reported"; then
-        break
-    fi
-    sleep 1
-  done
+  retry --wait 1 -n 60 sh -c 'tests.nested exec sudo journalctl --no-pager -u snapd | MATCH "cloud-init reported"'
 
   echo "Ensuring that cloud-init got disabled after running"
-  nested_exec "cloud-init status" | MATCH "status: disabled"
-  nested_exec "test -f /etc/cloud/cloud-init.disabled"
-  nested_exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
+  tests.nested exec "cloud-init status" | MATCH "status: disabled"
+  tests.nested exec "test -f /etc/cloud/cloud-init.disabled"
+  tests.nested exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
 
   # gracefully shutdown so that we don't have file corruption
   echo "Gracefully shutting down the nested VM to prepare a simulated attack"
@@ -162,12 +157,12 @@ execute: |
 
   echo "Restarting nested VM with attacker cloud-init CD-ROM drive"
   nested_force_start_vm
-  nested_wait_for_reboot "${boot_id}"
+  tests.nested wait-for reboot "${boot_id}"
 
   echo "The cloud-init attacker user was not created"
-  nested_exec "cat /var/lib/extrausers/passwd" | NOMATCH attacker-user
+  tests.nested exec "cat /var/lib/extrausers/passwd" | NOMATCH attacker-user
 
   echo "cloud-init is still disabled"
-  nested_exec "cloud-init status" | MATCH "status: disabled"
-  nested_exec "test -f /etc/cloud/cloud-init.disabled"
-  nested_exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
+  tests.nested exec "cloud-init status" | MATCH "status: disabled"
+  tests.nested exec "test -f /etc/cloud/cloud-init.disabled"
+  tests.nested exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
