@@ -942,7 +942,7 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	return nil
 }
 
-func genServiceNames(snap *snap.Info, appNames []string) []string {
+func GenServiceNames(snap *snap.Info, appNames []string) []string {
 	names := make([]string, 0, len(appNames))
 
 	for _, name := range appNames {
@@ -951,10 +951,6 @@ func genServiceNames(snap *snap.Info, appNames []string) []string {
 		}
 	}
 	return names
-}
-
-func GenServiceNames(snap *snap.Info, appNames []string) []string {
-	return genServiceNames(snap, appNames)
 }
 
 // TODO: this should not accept AddSnapServicesOptions, it should use some other
@@ -1158,8 +1154,8 @@ WantedBy={{.ServicesTarget}}
 		OOMAdjustScore: oomAdjustScore,
 		BusName:        busName,
 
-		Before: genServiceNames(appInfo.Snap, appInfo.Before),
-		After:  genServiceNames(appInfo.Snap, appInfo.After),
+		Before: GenServiceNames(appInfo.Snap, appInfo.Before),
+		After:  GenServiceNames(appInfo.Snap, appInfo.After),
 
 		// systemd runs as PID 1 so %h will not work.
 		Home: "/root",
