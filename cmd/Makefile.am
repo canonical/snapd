@@ -270,7 +270,7 @@ snap_confine_snap_confine_STATIC =
 # all external libraries, this way it can be reused in
 # snap_confine_snap_confine_debug_LDADD withouth applying any text
 # transformations
-snap_confine_snap_confine_extra_libs = $(LIBUDEV_LIBS)
+snap_confine_snap_confine_extra_libs = $(LIBUDEV_LIBS) -ldl
 
 if STATIC_LIBCAP
 snap_confine_snap_confine_STATIC += -lcap
