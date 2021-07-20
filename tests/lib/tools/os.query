@@ -55,6 +55,10 @@ is_hirsute() {
     grep -qFx 'UBUNTU_CODENAME=hirsute' /etc/os-release
 }
 
+is_impish() {
+    grep -qFx 'UBUNTU_CODENAME=impish' /etc/os-release
+}
+
 is_ubuntu() {
     grep -qFx 'ID=ubuntu' /etc/os-release || grep -qFx 'ID=ubuntu-core' /etc/os-release
 }

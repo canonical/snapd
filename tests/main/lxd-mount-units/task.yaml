@@ -5,8 +5,8 @@ details: |
     are correct for snapfuse.
 
 # only 20.04+, we want lxd images that come with snaps preinstalled.
-# TODO: enable for ubuntu-21+ once the lxd image is published
-systems: [ubuntu-2*]
+# TODO: enable for ubuntu-21.10+ once the lxd image is published
+systems: [ubuntu-20*, ubuntu-21.04*]
 
 restore: |
     lxd.lxc stop ubuntu --force || true

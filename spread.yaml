@@ -109,6 +109,9 @@ backends:
                   workers: 8
             - ubuntu-21.04-64:
                   workers: 8
+            - ubuntu-21.10-64:
+                  image: ubuntu-os-cloud-devel/ubuntu-2110
+                  workers: 8
 
             - debian-9-64:
                   workers: 6

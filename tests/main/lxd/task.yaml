@@ -6,8 +6,8 @@ backends: [-autopkgtest]
 
 # Only run this on ubuntu 16+, lxd will not work on !ubuntu systems
 # currently nor on ubuntu 14.04
-# TODO: enable for ubuntu-21+ once the lxd image is published
-systems: [ubuntu-16*, ubuntu-18*, ubuntu-20*, ubuntu-core-*]
+# TODO: enable for ubuntu-21.10+ once the lxd image is published
+systems: [ubuntu-16*, ubuntu-18*, ubuntu-20*, ubuntu-21.04-*, ubuntu-core-*]
 
 # Start before anything else as it can take a really long time.
 priority: 1000
