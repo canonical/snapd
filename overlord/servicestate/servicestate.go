@@ -51,6 +51,7 @@ type ServiceActionConflictError struct{ error }
 
 func computeExplicitServices(appInfos []*snap.AppInfo, names []string) map[string][]string {
 	explicitServices := make(map[string][]string, len(appInfos))
+	// requested maps "snapname.appname" to app name.
 	requested := make(map[string]bool, len(names))
 	for _, name := range names {
 		// Name might also be a snap name (or other strings the user wrote on
@@ -61,9 +62,9 @@ func computeExplicitServices(appInfos []*snap.AppInfo, names []string) map[strin
 
 	for _, app := range appInfos {
 		snapName := app.Snap.InstanceName()
-		appName := app.String()
-		if requested[appName] {
-			explicitServices[snapName] = append(explicitServices[snapName], app.ServiceName())
+		// app.String() gives "snapname.appname"
+		if requested[app.String()] {
+			explicitServices[snapName] = append(explicitServices[snapName], app.Name)
 		}
 	}
 
@@ -73,6 +74,8 @@ func computeExplicitServices(appInfos []*snap.AppInfo, names []string) map[strin
 // serviceControlTs creates "service-control" task for every snap derived from appInfos.
 func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instruction) (*state.TaskSet, error) {
 	servicesBySnap := make(map[string][]string, len(appInfos))
+	// note, this may be called with service names of different snaps
+	// XXX: this doesn't support service names from snapctl (i.e. without snap prefix).
 	explicitServices := computeExplicitServices(appInfos, inst.Names)
 	sortedNames := make([]string, 0, len(appInfos))
 
