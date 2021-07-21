@@ -942,6 +942,9 @@ func RemoveSnapServices(s *snap.Info, inter interacter) error {
 	return nil
 }
 
+// GenServiceNames converts the given appNames to full systemd service names.
+// It should only be called for actual services (doesn't check if app is a
+// service).
 func GenServiceNames(snap *snap.Info, appNames []string) []string {
 	names := make([]string, 0, len(appNames))
 

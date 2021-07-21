@@ -94,6 +94,8 @@ func (s *serviceControlSuite) SetUpTest(c *C) {
 		if cmd[0] == "show" {
 			return []byte("ActiveState=inactive\n"), nil
 		}
+
+		// beware, this doesn't mock "is-enabled", successfull reply means enabled.
 		return nil, nil
 	})
 	s.AddCleanup(systemctlRestorer)
@@ -668,6 +670,81 @@ func (s *serviceControlSuite) TestStartListedServices(c *C) {
 		"snap.test-snap.bar.service",
 		"snap.test-snap.foo.service",
 	})
+	c.Check(s.sysctlArgs[3:], DeepEquals, [][]string{
+		{"start", "snap.test-snap.foo.service"},
+	})
+}
+
+// systemctlServiceDisabledError implements systemd.systemctlError interface.
+type systemctlServiceDisabledError struct{}
+
+func (e *systemctlServiceDisabledError) Msg() []byte {
+	return []byte("disabled")
+}
+
+func (e *systemctlServiceDisabledError) ExitCode() int {
+	return 1
+}
+
+func (e *systemctlServiceDisabledError) Error() string {
+	return "disabled"
+}
+
+func (s *serviceControlSuite) TestStartListedServicesWithSomeDisabled(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	srvAbc := "snap.test-snap.abc.service"
+	srvFoo := "snap.test-snap.foo.service"
+	srvBar := "snap.test-snap.bar.service"
+
+	s.mockTestSnap(c)
+
+	// for extra check that we hit disabled logic below.
+	var disabled int
+
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) (buf []byte, err error) {
+		s.sysctlArgs = append(s.sysctlArgs, cmd)
+		if cmd[0] == "is-enabled" {
+			if cmd[1] == srvAbc {
+				// enabled
+				return nil, nil
+			}
+			if cmd[1] == srvBar || cmd[1] == srvFoo {
+				disabled++
+				// systemctlServiceDisabledError triggers the systemd.IsEnabled()
+				// logic for disabled services.
+				return nil, &systemctlServiceDisabledError{}
+			}
+		}
+		return nil, nil
+	})
+	s.AddCleanup(systemctlRestorer)
+
+	chg := st.NewChange("service-control", "...")
+	t := st.NewTask("service-control", "...")
+	cmd := &servicestate.ServiceAction{
+		SnapName: "test-snap",
+		Action:   "start",
+		Services: []string{"foo"},
+	}
+	t.Set("service-action", cmd)
+	chg.AddTask(t)
+
+	st.Unlock()
+	defer s.se.Stop()
+	err := s.o.Settle(5 * time.Second)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(t.Status(), Equals, state.DoneStatus)
+	verifyUnsortedInvocations(c, s.sysctlArgs[:3], "is-enabled", []string{
+		"snap.test-snap.abc.service",
+		"snap.test-snap.bar.service",
+		"snap.test-snap.foo.service",
+	})
+	c.Check(disabled, Equals, 2)
 	c.Check(s.sysctlArgs[3:], DeepEquals, [][]string{
 		{"start", "snap.test-snap.foo.service"},
 	})

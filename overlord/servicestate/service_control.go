@@ -150,7 +150,10 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 				return err
 			}
 
+			// QueryDisabledServices returns snap's service (app) names, we need to
+			// convert them to systemd unit names for proper matching below.
 			snapDisabledServices = wrappers.GenServiceNames(info, snapDisabledServices)
+
 			// compute the list of disabled services, but if a service was
 			// mentioned explicitly, then this should overrule the disabled
 			// status
