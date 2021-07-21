@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,7 +25,6 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/i18n"
 )
 
@@ -86,21 +85,21 @@ func (x *cmdKeys) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	keys := []Key{}
-
-	manager := asserts.NewGPGKeypairManager()
-	collect := func(privk asserts.PrivateKey, fpr string, uid string) error {
-		key := Key{
-			Name:     uid,
-			Sha3_384: privk.PublicKey().ID(),
-		}
-		keys = append(keys, key)
-		return nil
-	}
-	err := manager.Walk(collect)
+	keypairMgr, err := getKeypairManager()
 	if err != nil {
 		return err
 	}
+
+	kinfos, err := keypairMgr.List()
+	if err != nil {
+		return err
+	}
+	keys := make([]Key, len(kinfos))
+	for i, kinfo := range kinfos {
+		keys[i].Name = kinfo.Name
+		keys[i].Sha3_384 = kinfo.ID
+	}
+
 	if x.JSON {
 		return outputJSON(keys)
 	}

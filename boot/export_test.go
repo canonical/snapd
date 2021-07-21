@@ -68,6 +68,8 @@ var (
 	SealKeyModelParams              = sealKeyModelParams
 
 	BootVarsForTrustedCommandLineFromGadget = bootVarsForTrustedCommandLineFromGadget
+
+	WriteModelToUbuntuBoot = writeModelToUbuntuBoot
 )
 
 type BootAssetsMap = bootAssetsMap
@@ -113,14 +115,6 @@ func MockSecbootSealKeysWithFDESetupHook(f func(runHook fde.RunSetupHookFunc, ke
 	secbootSealKeysWithFDESetupHook = f
 	return func() {
 		secbootSealKeysWithFDESetupHook = old
-	}
-}
-
-func MockSecbootResealKeys(f func(params *secboot.ResealKeysParams) error) (restore func()) {
-	old := secbootResealKeys
-	secbootResealKeys = f
-	return func() {
-		secbootResealKeys = old
 	}
 }
 
@@ -232,5 +226,13 @@ func MockAdditionalBootFlags(bootFlags []string) (restore func()) {
 	understoodBootFlags = append(understoodBootFlags, bootFlags...)
 	return func() {
 		understoodBootFlags = old
+	}
+}
+
+func MockWriteModelToUbuntuBoot(mock func(*asserts.Model) error) (restore func()) {
+	old := writeModelToUbuntuBoot
+	writeModelToUbuntuBoot = mock
+	return func() {
+		writeModelToUbuntuBoot = old
 	}
 }
