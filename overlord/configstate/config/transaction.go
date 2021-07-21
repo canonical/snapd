@@ -116,7 +116,7 @@ func shadowsVirtualConfig(instanceName string, key string, value interface{}) er
 	}
 	// be paranoid: this should never happen but if it does we need to know
 	if _, ok := value.(*json.RawMessage); ok {
-		return fmt.Errorf("internal error: shadowsVirtualConfig called with *json.RawMessage for snap %q wth key %q: %q please report as a bug", instanceName, key, value)
+		return fmt.Errorf("internal error: shadowsVirtualConfig called with *json.RawMessage for snap %q with key %q: %q please report as a bug", instanceName, key, value)
 	}
 
 	virtualMu.Lock()
