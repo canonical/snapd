@@ -112,6 +112,8 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	// ExplicitServices are snap app names; obtain names of systemd units
+	// expected by wrappers.
 	var explicitServicesSystemdUnits []string
 	for _, name := range sc.ExplicitServices {
 		if app := info.Apps[name]; app != nil {
