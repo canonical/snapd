@@ -592,6 +592,7 @@ pkg_dependencies_ubuntu_classic(){
         ubuntu-20.04-64)
             echo "
                 evolution-data-server
+                fwupd
                 gccgo-9
                 packagekit
                 qemu-utils
@@ -600,12 +601,14 @@ pkg_dependencies_ubuntu_classic(){
             ;;
         ubuntu-20.10-64)
             echo "
+                fwupd
                 qemu-utils
                 "
             ;;
-        ubuntu-21.04-64)
+        ubuntu-21.04-64|ubuntu-21.10-64)
             echo "
                 dbus-user-session
+                fwupd
                 golang
                 qemu-utils
                 "
