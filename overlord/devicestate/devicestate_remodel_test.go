@@ -1312,6 +1312,13 @@ volumes:
 	s.testCheckGadgetRemodelCompatibleWithYaml(c, compatibleTestMockOkGadget, mockBadGadgetYaml, errMatch)
 }
 
+func (s *deviceMgrRemodelSuite) mockTasksNopHandler(kinds ...string) {
+	nopHandler := func(task *state.Task, _ *tomb.Tomb) error { return nil }
+	for _, kind := range kinds {
+		s.o.TaskRunner().AddHandler(kind, nopHandler, nil)
+	}
+}
+
 func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsUpdate(c *C) {
 	var currentGadgetYaml = `
 volumes:
@@ -1355,12 +1362,7 @@ volumes:
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	nopHandler := func(task *state.Task, _ *tomb.Tomb) error {
-		return nil
-	}
-	s.o.TaskRunner().AddHandler("fake-download", nopHandler, nil)
-	s.o.TaskRunner().AddHandler("validate-snap", nopHandler, nil)
-	s.o.TaskRunner().AddHandler("set-model", nopHandler, nil)
+	s.mockTasksNopHandler("fake-download", "validate-snap", "set-model")
 
 	// set a model assertion we remodel from
 	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
@@ -1511,12 +1513,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelGadgetAssetsParanoidCheck(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
-	nopHandler := func(task *state.Task, _ *tomb.Tomb) error {
-		return nil
-	}
-	s.o.TaskRunner().AddHandler("fake-download", nopHandler, nil)
-	s.o.TaskRunner().AddHandler("validate-snap", nopHandler, nil)
-	s.o.TaskRunner().AddHandler("set-model", nopHandler, nil)
+	s.mockTasksNopHandler("fake-download", "validate-snap", "set-model")
 
 	// set a model assertion we remodel from
 	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
@@ -1996,15 +1993,9 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 
 	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755), IsNil)
 
-	nopHandler := func(task *state.Task, _ *tomb.Tomb) error {
-		return nil
-	}
-	s.o.TaskRunner().AddHandler("fake-download", nopHandler, nil)
-	s.o.TaskRunner().AddHandler("validate-snap", nopHandler, nil)
-	s.o.TaskRunner().AddHandler("fake-install", nopHandler, nil)
-	// create recovery system requests are boot, which is not done here
-	s.o.TaskRunner().AddHandler("create-recovery-system", nopHandler, nil)
-	s.o.TaskRunner().AddHandler("finalize-recovery-system", nopHandler, nil)
+	s.mockTasksNopHandler("fake-download", "validate-snap", "fake-install",
+		// create recovery system requests are boot, which is not done here
+		"create-recovery-system", "finalize-recovery-system")
 
 	// set a model assertion we remodel from
 	model := s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
@@ -2099,7 +2090,10 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
-	expectedLabel := time.Now().Format("20060102")
+	now := time.Now()
+	expectedLabel := now.Format("20060102")
+	restore = devicestate.MockTimeNow(func() time.Time { return now })
+	defer restore()
 	s.state.Set("tried-systems", []string{expectedLabel})
 
 	resealKeyCalls := 0
@@ -2144,7 +2138,9 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 		c.Check(setModelTask.Log(), HasLen, 0)
 
 		c.Assert(seededSystems, HasLen, 2)
-		c.Check(seededSystems[0].SeedTime.After(new.Timestamp()), Equals, true)
+		// the system was seeded after our mocked 'now' or at the same
+		// time if clock resolution is very low, but not before it
+		c.Check(seededSystems[0].SeedTime.Before(now), Equals, false)
 		seededSystems[0].SeedTime = time.Time{}
 		c.Check(seededSystems[1].SeedTime.Equal(oldSeededTs), Equals, true)
 		seededSystems[1].SeedTime = time.Time{}
@@ -2223,18 +2219,11 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 		return &freshSessionStore{}
 	}
 
-	nopHandler := func(task *state.Task, _ *tomb.Tomb) error {
-		return nil
-	}
-	// mock out tasks that are too annoying to provide the proper mocking for
-	s.o.TaskRunner().AddHandler("fake-download", nopHandler, nil)
-	s.o.TaskRunner().AddHandler("validate-snap", nopHandler, nil)
-	s.o.TaskRunner().AddHandler("fake-install", nopHandler, nil)
-	s.o.TaskRunner().AddHandler("check-snap", nopHandler, nil)
-	s.o.TaskRunner().AddHandler("request-serial", nopHandler, nil)
-	// create recovery system requests are boot, which is not done here
-	s.o.TaskRunner().AddHandler("create-recovery-system", nopHandler, nil)
-	s.o.TaskRunner().AddHandler("finalize-recovery-system", nopHandler, nil)
+	s.mockTasksNopHandler("fake-download", "validate-snap", "fake-install",
+		"check-snap", "request-serial",
+		// create recovery system requests are boot, which is not done
+		// here
+		"create-recovery-system", "finalize-recovery-system")
 
 	// set a model assertion we remodel from
 	model := s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
@@ -2257,7 +2246,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 		},
 	})
 	writeDeviceModelToUbuntuBoot(c, model)
-	// the gadget needs to be ocked
+	// the gadget needs to be mocked
 	info := snaptest.MakeSnapFileAndDir(c, "name: pc\nversion: 1\ntype: gadget\n", nil, &snap.SideInfo{
 		SnapID:   snaptest.AssertedSnapID("pc"),
 		Revision: snap.R(1),
@@ -2340,7 +2329,10 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 	}
 	c.Assert(m.WriteTo(""), IsNil)
 
-	expectedLabel := time.Now().Format("20060102")
+	now := time.Now()
+	restore = devicestate.MockTimeNow(func() time.Time { return now })
+	defer restore()
+	expectedLabel := now.Format("20060102")
 	s.state.Set("tried-systems", []string{expectedLabel})
 
 	resealKeyCalls := 0
@@ -2391,6 +2383,9 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 				testutil.FileContains, fmt.Sprintf("model: %s\n", new.Model()))
 			c.Check(filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"),
 				testutil.FileContains, fmt.Sprintf("revision: %v\n", new.Revision()))
+		}
+		if resealKeyCalls > 6 {
+			c.Fatalf("unexpected #%v call to reseal key to modeenv", resealKeyCalls)
 		}
 		return nil
 	})
@@ -2462,11 +2457,12 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 	var seededSystems []devicestate.SeededSystem
 	c.Assert(s.state.Get("seeded-systems", &seededSystems), IsNil)
 	c.Assert(seededSystems, HasLen, 2)
-	// time.Now() was not mocked, so we need to be smarted about checking
-	// seed time, also verify timestamps separately to avoid timezone
-	// problems
+	// we need to be smart about checking seed time, also verify
+	// timestamps separately to avoid timezone problems
 	newSeededTs := seededSystems[0].SeedTime
-	c.Check(newSeededTs.After(new.Timestamp()), Equals, true)
+	// the system was seeded after our mocked 'now' or at the same
+	// time if clock resolution is very low, but not before it
+	c.Check(newSeededTs.Before(now), Equals, false)
 	seededSystems[0].SeedTime = time.Time{}
 	c.Check(seededSystems[1].SeedTime.Equal(oldSeededTs), Equals, true)
 	seededSystems[1].SeedTime = time.Time{}

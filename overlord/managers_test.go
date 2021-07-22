@@ -6131,7 +6131,6 @@ func (s *mgrsSuite) makeInstalledSnapInStateForRemodel(c *C, name string, rev sn
 		Sequence: []*snap.SideInfo{si},
 		Current:  si.Revision,
 	})
-	c.Logf("snap file: %v", snapInfo.MountFile())
 	sha3_384, size, err := asserts.SnapFileSHA3_384(snapInfo.MountFile())
 	c.Assert(err, IsNil)
 
