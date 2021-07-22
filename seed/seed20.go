@@ -350,7 +350,8 @@ func (s *seed20) lookupSnap(snapRef naming.SnapRef, optSnap *internal.Snap20, ch
 	auxInfo := s.auxInfos[sideInfo.SnapID]
 	if auxInfo != nil {
 		sideInfo.Private = auxInfo.Private
-		sideInfo.Contact = auxInfo.Contact
+		// TODO: consider whether to use this if we have links
+		sideInfo.EditedContact = auxInfo.Contact
 	}
 
 	seedSnap = &Snap{

@@ -20,6 +20,8 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/asserts"
@@ -56,6 +58,13 @@ func (x *cmdDeleteKey) Execute(args []string) error {
 		return ErrExtraArgs
 	}
 
-	manager := asserts.NewGPGKeypairManager()
-	return manager.Delete(string(x.Positional.KeyName))
+	keypairMgr, err := getKeypairManager()
+	if err != nil {
+		return err
+	}
+	err = keypairMgr.Delete(string(x.Positional.KeyName))
+	if _, ok := err.(*asserts.ExternalUnsupportedOpError); ok {
+		return fmt.Errorf(i18n.G("cannot delete external keypair manager key via snap command, use the appropriate external procedure"))
+	}
+	return err
 }

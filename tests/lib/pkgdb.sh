@@ -496,6 +496,7 @@ distro_get_package_extension() {
 
 pkg_dependencies_ubuntu_generic(){
     echo "
+        python3
         autoconf
         automake
         autotools-dev
@@ -550,17 +551,6 @@ pkg_dependencies_ubuntu_classic(){
         ubuntu-14.04-*)
                 pkg_linux_image_extra
             ;;
-        ubuntu-16.04-32)
-            echo "
-                dbus-user-session
-                gccgo-6
-                evolution-data-server
-                fwupd
-                gnome-online-accounts
-                packagekit
-                "
-                pkg_linux_image_extra
-            ;;
         ubuntu-16.04-64)
             echo "
                 dbus-user-session
@@ -574,6 +564,17 @@ pkg_dependencies_ubuntu_classic(){
                 qemu
                 x11-utils
                 xvfb
+                "
+                pkg_linux_image_extra
+            ;;
+        ubuntu-18.04-32)
+            echo "
+                dbus-user-session
+                gccgo-6
+                evolution-data-server
+                fwupd
+                gnome-online-accounts
+                packagekit
                 "
                 pkg_linux_image_extra
             ;;
@@ -656,6 +657,7 @@ pkg_dependencies_ubuntu_core(){
 
 pkg_dependencies_fedora(){
     echo "
+        python3
         clang
         curl
         dbus-x11
@@ -688,6 +690,7 @@ pkg_dependencies_fedora(){
 
 pkg_dependencies_amazon(){
     echo "
+        python3
         curl
         dbus-x11
         expect
@@ -715,6 +718,7 @@ pkg_dependencies_amazon(){
 
 pkg_dependencies_opensuse(){
     echo "
+        python3
         apparmor-profiles
         audit
         bash-completion

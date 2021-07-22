@@ -203,6 +203,8 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 		"content":         true,
 		"home":            true,
 		"lxd-support":     true,
+		// netlink-driver needs the family-name attributes to match
+		"netlink-driver": true,
 	}
 
 	for _, iface := range all {
@@ -616,6 +618,7 @@ var (
 		"mir":                     {"app"},
 		"modem-manager":           {"app", "core"},
 		"mpris":                   {"app"},
+		"netlink-driver":          {"core", "gadget"},
 		"network-manager":         {"app", "core"},
 		"network-manager-observe": {"app", "core"},
 		"network-status":          {"core"},
@@ -626,6 +629,7 @@ var (
 		"pulseaudio":              {"app", "core"},
 		"pwm":                     {"core", "gadget"},
 		"raw-volume":              {"core", "gadget"},
+		"sd-control":              {"core"},
 		"serial-port":             {"core", "gadget"},
 		"spi":                     {"core", "gadget"},
 		"storage-framework-service": {"app"},
@@ -704,6 +708,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"block-devices":         true,
 		"classic-support":       true,
 		"desktop-launch":        true,
+		"dm-crypt":              true,
 		"docker-support":        true,
 		"greengrass-support":    true,
 		"gpio-control":          true,
@@ -713,6 +718,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"multipass-support":     true,
 		"packagekit-control":    true,
 		"personal-files":        true,
+		"sd-control":            true,
 		"snapd-control":         true,
 		"system-files":          true,
 		"tee":                   true,
@@ -938,6 +944,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"classic-support":       true,
 		"core-support":          true,
 		"desktop-launch":        true,
+		"dm-crypt":              true,
 		"docker-support":        true,
 		"greengrass-support":    true,
 		"gpio-control":          true,
@@ -947,6 +954,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"multipass-support":     true,
 		"packagekit-control":    true,
 		"personal-files":        true,
+		"sd-control":            true,
 		"snapd-control":         true,
 		"system-files":          true,
 		"tee":                   true,

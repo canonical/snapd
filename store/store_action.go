@@ -56,6 +56,8 @@ type CurrentSnap struct {
 	Block            []snap.Revision
 	Epoch            snap.Epoch
 	CohortKey        string
+	// ValidationSets is an optional array of validation sets primary keys.
+	ValidationSets [][]string
 }
 
 type AssertionQuery interface {
@@ -75,6 +77,8 @@ type currentSnapV2JSON struct {
 	RefreshedDate    *time.Time `json:"refreshed-date,omitempty"`
 	IgnoreValidation bool       `json:"ignore-validation,omitempty"`
 	CohortKey        string     `json:"cohort-key,omitempty"`
+	// ValidationSets is an optional array of validation sets primary keys.
+	ValidationSets [][]string `json:"validation-sets,omitempty"`
 }
 
 type SnapActionFlags int
@@ -93,6 +97,9 @@ type SnapAction struct {
 	CohortKey    string
 	Flags        SnapActionFlags
 	Epoch        snap.Epoch
+	// ValidationSets is an optional array of validation sets primary keys
+	// (relevant only for install action).
+	ValidationSets [][]string
 }
 
 func isValidAction(action string) bool {
@@ -123,8 +130,9 @@ type snapActionJSON struct {
 	// nil epoch is not an empty interface{}, you'll get the null in the json.
 	Epoch interface{} `json:"epoch,omitempty"`
 	// For assertions
-	Key        string        `json:"key,omitempty"`
-	Assertions []interface{} `json:"assertions,omitempty"`
+	Key            string        `json:"key,omitempty"`
+	Assertions     []interface{} `json:"assertions,omitempty"`
+	ValidationSets [][]string    `json:"validation-sets,omitempty"`
 }
 
 type assertAtJSON struct {
@@ -162,7 +170,7 @@ type snapActionResult struct {
 	Result string `json:"result"`
 	// For snap
 	InstanceKey      string    `json:"instance-key"`
-	SnapID           string    `json:"snap-id,omitempy"`
+	SnapID           string    `json:"snap-id,omitempty"`
 	Name             string    `json:"name,omitempty"`
 	Snap             storeSnap `json:"snap"`
 	EffectiveChannel string    `json:"effective-channel,omitempty"`
@@ -328,6 +336,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			RefreshedDate:    refreshedDate,
 			Epoch:            curSnap.Epoch,
 			CohortKey:        curSnap.CohortKey,
+			ValidationSets:   curSnap.ValidationSets,
 		}
 	}
 
@@ -376,6 +385,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 			installNum++
 			instanceKey = fmt.Sprintf("install-%d", installNum)
 			installs[instanceKey] = a
+			aJSON.ValidationSets = a.ValidationSets
 		} else if a.Action == "download" {
 			downloadNum++
 			instanceKey = fmt.Sprintf("download-%d", downloadNum)
@@ -513,7 +523,7 @@ func (s *Store) snapAction(ctx context.Context, currentSnaps []*CurrentSnap, act
 		reqOptions.addHeader("Snap-Refresh-Reason", "scheduled")
 	}
 
-	if useDeltas() {
+	if s.useDeltas() {
 		logger.Debugf("Deltas enabled. Adding header Snap-Accept-Delta-Format: %v", s.deltaFormat)
 		reqOptions.addHeader("Snap-Accept-Delta-Format", s.deltaFormat)
 	}

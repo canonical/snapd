@@ -80,15 +80,11 @@ func validationSetNotFound(accountID, name string, sequence int) Response {
 	if sequence != 0 {
 		v["sequence"] = sequence
 	}
-	res := &errorResult{
+	return &apiError{
+		Status:  404,
 		Message: "validation set not found",
 		Kind:    client.ErrorKindValidationSetNotFound,
 		Value:   v,
-	}
-	return &resp{
-		Type:   ResponseTypeError,
-		Result: res,
-		Status: 404,
 	}
 }
 
@@ -139,7 +135,7 @@ func listValidationSets(c *Command, r *http.Request, _ *auth.UserState) Response
 		}
 	}
 
-	return SyncResponse(results, nil)
+	return SyncResponse(results)
 }
 
 var checkInstalledSnaps = func(vsets *snapasserts.ValidationSets, snaps []*snapasserts.InstalledSnap) error {
@@ -237,7 +233,7 @@ func getValidationSet(c *Command, r *http.Request, user *auth.UserState) Respons
 		Sequence:  tr.Current,
 		Valid:     validErr == nil,
 	}
-	return SyncResponse(res, nil)
+	return SyncResponse(res)
 }
 
 type validationSetApplyRequest struct {
@@ -319,7 +315,7 @@ func updateValidationSet(st *state.State, accountID, name string, reqMode string
 	tr.LocalOnly = local
 
 	assertstate.UpdateValidationSet(st, &tr)
-	return SyncResponse(nil, nil)
+	return SyncResponse(nil)
 }
 
 // forgetValidationSet forgets the validation set.
@@ -335,7 +331,7 @@ func forgetValidationSet(st *state.State, accountID, name string, sequence int) 
 		return InternalError("accessing validation sets failed: %v", err)
 	}
 	assertstate.DeleteValidationSet(st, accountID, name)
-	return SyncResponse(nil, nil)
+	return SyncResponse(nil)
 }
 
 func validationSetForAssert(st *state.State, accountID, name string, sequence int) (*snapasserts.ValidationSets, error) {
@@ -398,7 +394,7 @@ func validateAgainstStore(st *state.State, accountID, name string, sequence int,
 		// for the client?
 		Valid: validErr == nil,
 	}
-	return SyncResponse(res, nil)
+	return SyncResponse(res)
 }
 
 func getSingleSeqFormingAssertion(st *state.State, accountID, name string, sequence int, user *auth.UserState) (asserts.Assertion, error) {

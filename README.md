@@ -48,8 +48,8 @@ We're friendly! We have a community forum at
 [https://forum.snapcraft.io](https://forum.snapcraft.io) where we discuss
 feature plans, development news, issues, updates and troubleshooting. You can
 chat in realtime with the snapd team and our wider community on the
-[#snappy](https://webchat.freenode.net/?channels=snappy) IRC channel on
-[freenode](https://freenode.net/).
+[#snappy](https://web.libera.chat?channel=#snappy) IRC channel on
+[libera chat](https://libera.chat/).
 
 For news and updates, follow us on [Twitter](https://twitter.com/snapcraftio)
 and on [Facebook](https://www.facebook.com/snapcraftio).

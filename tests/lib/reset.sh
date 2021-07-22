@@ -33,6 +33,11 @@ reset_classic() {
             exit 1
             ;;
     esac
+
+    # purge may have removed udev rules, retrigger device events
+    udevadm trigger
+    udevadm settle
+
     # purge has removed units, reload the state now
     systemctl daemon-reload
 
@@ -156,6 +161,10 @@ reset_all_snap() {
         done
     fi
 
+    # purge may have removed udev rules, retrigger device events
+    udevadm trigger
+    udevadm settle
+
     # ensure we have the same state as initially
     systemctl stop snapd.service snapd.socket
     restore_snapd_state
@@ -172,6 +181,30 @@ reset_all_snap() {
     fi
 
 }
+
+# Before resetting all snapd state, specifically remove all disabled snaps that
+# are not from the store, since otherwise their revision number will remain
+# mounted at /snap/<name>/x<rev>/ and if we execute multiple tests that use this
+# same snap, the previous mount unit for x2 for example will stay around if we
+# simply revert to x1 and then delete state.json, since x2 is still mounted if
+# we then again install that snap again twice (i.e. to get to x2), the mount 
+# unit will still be active and thus the previous iteration of this snap at 
+# revision x2 will be used as this new revision's files for x2. This is 
+# particularly damaging for the snapd snap when we are installing different 
+# versions such as in the snapd-refresh-vs-services (and the -reboots variant) 
+# test, since the bug manifests as us trying to refresh to a particular revision
+# of snapd, but that revision is still mounted from the previous iteration of
+# the test and thus gets the wrong version, as displayed in this output:
+#
+# + snap install --dangerous snapd_2.49.1.snap
+# 2021-04-23T20:11:20Z INFO Waiting for automatic snapd restart...
+# snapd 2.49.2 installed
+#
+
+snap list --all | grep disabled | while read -r name _ revision _ ; do
+    snap remove "$name" --revision="$revision"
+done
+
 
 # When the variable REUSE_SNAPD is set to 1, we don't remove and purge snapd.
 # In that case we just cleanup the environment by removing installed snaps as

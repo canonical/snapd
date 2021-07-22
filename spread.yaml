@@ -32,6 +32,7 @@ environment:
     SUDO_UID: ""
     TRUST_TEST_KEYS: '$(HOST: echo "${SPREAD_TRUST_TEST_KEYS:-true}")'
     MANAGED_DEVICE: "false"
+    # a global setting for LXD channel to use in the tests
     LXD_SNAP_CHANNEL: "latest/candidate"
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
@@ -80,10 +81,10 @@ backends:
         systems:
             - ubuntu-14.04-64:
                   workers: 6
-            - ubuntu-16.04-32:
-                  workers: 6
             - ubuntu-16.04-64:
                   workers: 8
+            - ubuntu-18.04-32:
+                  workers: 6
             - ubuntu-18.04-64:
                   workers: 8
             - ubuntu-20.04-64:
@@ -95,7 +96,7 @@ backends:
                   image: ubuntu-16.04-64
                   workers: 6
             - ubuntu-core-20-64:
-                  image: ubuntu-2004-64-virt-enabled
+                  image: ubuntu-20.04-64
                   workers: 6
                   storage: 20G
             - ubuntu-secboot-20.04-64:
@@ -108,7 +109,6 @@ backends:
                   workers: 8
             - ubuntu-21.04-64:
                   workers: 8
-                  image: ubuntu-os-cloud-devel/ubuntu-2104
 
             - debian-9-64:
                   workers: 6
@@ -436,12 +436,11 @@ debug-each: |
         if nested_is_nested_system; then
             echo '# nested VM status'
             systemctl status nested-vm || true
-            journalctl --no-pager -u nested-vm || true
             nested_print_serial_log
-                # add another echo in case the serial log is missing a newline
-                echo
+            # add another echo in case the serial log is missing a newline
+            echo
 
-            nested_exec sudo journalctl --no-pager -u snapd || true
+            tests.nested exec "sudo journalctl --no-pager -u snapd" || true
         fi
 
         echo '# journal messages for snapd'
@@ -877,10 +876,6 @@ suites:
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m
-        debug: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_print_serial_log
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -892,10 +887,10 @@ suites:
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
         prepare-each: |
             tests.backup prepare
-            "$TESTSTOOLS"/nested-state prepare
+            tests.nested prepare
         restore-each: |
-            "$TESTSTOOLS"/nested-state remove-vm
-            "$TESTSTOOLS"/nested-state restore
+            tests.nested remove-vm
+            tests.nested restore
             tests.backup restore
         restore: |
             #shellcheck source=tests/lib/pkgdb.sh
@@ -915,10 +910,6 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
         manual: true
-        debug: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_print_serial_log
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -929,16 +920,16 @@ suites:
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
-            "$TESTSTOOLS"/nested-state prepare
-            "$TESTSTOOLS"/nested-state build-image classic
+            tests.nested prepare
+            tests.nested build-image classic
         prepare-each: |
             tests.backup prepare
-            "$TESTSTOOLS"/nested-state create-vm classic
+            tests.nested create-vm classic
         restore-each: |
-            "$TESTSTOOLS"/nested-state remove-vm
+            tests.nested remove-vm
             tests.backup restore
         restore: |
-            "$TESTSTOOLS"/nested-state restore
+            tests.nested restore
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -957,10 +948,6 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
         manual: true
-        debug: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_print_serial_log
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -971,16 +958,16 @@ suites:
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
-            "$TESTSTOOLS"/nested-state prepare
-            "$TESTSTOOLS"/nested-state build-image core
+            tests.nested prepare
+            tests.nested build-image core
         prepare-each: |
             tests.backup prepare
-            "$TESTSTOOLS"/nested-state create-vm core
+            tests.nested create-vm core
         restore-each: |
-            "$TESTSTOOLS"/nested-state remove-vm
+            tests.nested remove-vm
             tests.backup restore
         restore: |
-            "$TESTSTOOLS"/nested-state restore
+            tests.nested restore
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh

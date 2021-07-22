@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,7 +28,7 @@ import (
 
 type configHandler interface {
 	validate(config.ConfGetter) error
-	handle(config.ConfGetter, *fsOnlyContext) error
+	handle(sysconfig.Device, config.ConfGetter, *fsOnlyContext) error
 	needsState() bool
 	flags() flags
 }
@@ -51,7 +51,7 @@ type flags struct {
 
 type fsOnlyHandler struct {
 	validateFunc func(config.ConfGetter) error
-	handleFunc   func(config.ConfGetter, *fsOnlyContext) error
+	handleFunc   func(sysconfig.Device, config.ConfGetter, *fsOnlyContext) error
 	configFlags  flags
 }
 
@@ -85,6 +85,9 @@ func init() {
 	// system.disable-backlight-service
 	addFSOnlyHandler(validateBacklightServiceSettings, handleBacklightServiceConfiguration, coreOnly)
 
+	// swap.size
+	addFSOnlyHandler(validateSystemSwapConfiguration, handlesystemSwapConfiguration, coreOnly)
+
 	// system.kernel.printk.console-loglevel
 	addFSOnlyHandler(validateSysctlOptions, handleSysctlConfiguration, coreOnly)
 
@@ -94,15 +97,13 @@ func init() {
 	// system.timezone
 	addFSOnlyHandler(validateTimezoneSettings, handleTimezoneConfiguration, coreOnly)
 
-	sysconfig.ApplyFilesystemOnlyDefaultsImpl = func(rootDir string, defaults map[string]interface{}, options *sysconfig.FilesystemOnlyApplyOptions) error {
-		return filesystemOnlyApply(rootDir, defaults, options)
-	}
+	sysconfig.ApplyFilesystemOnlyDefaultsImpl = filesystemOnlyApply
 }
 
 // addFSOnlyHandler registers functions to validate and handle a subset of
 // system config options that do not require to manipulate state but only
 // the file system.
-func addFSOnlyHandler(validate func(config.ConfGetter) error, handle func(config.ConfGetter, *fsOnlyContext) error, flags *flags) {
+func addFSOnlyHandler(validate func(config.ConfGetter) error, handle func(sysconfig.Device, config.ConfGetter, *fsOnlyContext) error, flags *flags) {
 	if handle == nil {
 		panic("cannot have nil handle with fsOnlyHandler")
 	}
@@ -131,9 +132,9 @@ func (h *fsOnlyHandler) validate(cfg config.ConfGetter) error {
 	return nil
 }
 
-func (h *fsOnlyHandler) handle(cfg config.ConfGetter, opts *fsOnlyContext) error {
+func (h *fsOnlyHandler) handle(dev sysconfig.Device, cfg config.ConfGetter, opts *fsOnlyContext) error {
 	// handleFunc is guaranteed to be non-nil by addFSOnlyHandler
-	return h.handleFunc(cfg, opts)
+	return h.handleFunc(dev, cfg, opts)
 }
 
 // filesystemOnlyApply applies filesystem modifications under rootDir, according to the
@@ -141,13 +142,9 @@ func (h *fsOnlyHandler) handle(cfg config.ConfGetter, opts *fsOnlyContext) error
 // early during boot, before all the configuration is applied as part of
 // normal execution of configure hook.
 // Exposed for use via sysconfig.ApplyFilesystemOnlyDefaults.
-func filesystemOnlyApply(rootDir string, values map[string]interface{}, opts *sysconfig.FilesystemOnlyApplyOptions) error {
+func filesystemOnlyApply(dev sysconfig.Device, rootDir string, values map[string]interface{}) error {
 	if rootDir == "" {
 		return fmt.Errorf("internal error: root directory for configcore.FilesystemOnlyApply() not set")
-	}
-
-	if opts == nil {
-		opts = &sysconfig.FilesystemOnlyApplyOptions{}
 	}
 
 	cfg := plainCoreConfig(values)
@@ -168,10 +165,10 @@ func filesystemOnlyApply(rootDir string, values map[string]interface{}, opts *sy
 		if h.needsState() {
 			continue
 		}
-		if h.flags().coreOnlyConfig && opts != nil && opts.Classic {
+		if h.flags().coreOnlyConfig && dev.Classic() {
 			continue
 		}
-		if err := h.handle(cfg, ctx); err != nil {
+		if err := h.handle(dev, cfg, ctx); err != nil {
 			return err
 		}
 	}
