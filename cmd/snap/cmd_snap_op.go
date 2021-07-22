@@ -1112,7 +1112,7 @@ func init() {
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"cohort": i18n.G("Install the snap in the given cohort"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			"ignore-validation": i18n.G("Ignore validation by other snaps blocking the refresh"),
+			"ignore-validation": i18n.G("Ignore validation by other snaps blocking the installation"),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"ignore-running": i18n.G("Ignore running hooks or applications blocking the installation"),
 		}), nil)
