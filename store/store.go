@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
 	"strconv"
 	"strings"
@@ -158,6 +159,12 @@ type Store struct {
 	proxyConnectHeader http.Header
 
 	userAgent string
+
+	xdeltaCheckLock sync.Mutex
+	// whether we should use deltas or not
+	shouldUseDeltas *bool
+	// which xdelta3 we picked when we checked the deltas
+	xdelta3CmdFunc func(args ...string) *exec.Cmd
 }
 
 var ErrTooManyRequests = errors.New("too many requests")
@@ -1373,7 +1380,7 @@ func (s *Store) Sections(ctx context.Context, user *auth.UserState) ([]string, e
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, respToError(resp, "sections")
+		return nil, respToError(resp, "retrieve sections")
 	}
 
 	if ct := resp.Header.Get("Content-Type"); ct != halJsonContentType {

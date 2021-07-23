@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -722,11 +722,34 @@ func (s *validateGadgetTestSuite) TestValidateEncryptionSupportErr(c *C) {
 	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
 		EncryptedData: true,
 	})
-	c.Assert(err, ErrorMatches, `gadget does not support encrypted data: volume "vol1" has no structure with system-save role`)
+	c.Assert(err, ErrorMatches, `gadget does not support encrypted data: required partition with system-save role is missing`)
 }
 
 func (s *validateGadgetTestSuite) TestValidateEncryptionSupportHappy(c *C) {
 	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlContentWithSave))
+	mod := &modelCharateristics{systemSeed: true}
+	ginfo, err := gadget.ReadInfo(s.dir, mod)
+	c.Assert(err, IsNil)
+	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
+		EncryptedData: true,
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *validateGadgetTestSuite) TestValidateEncryptionSupportNoUC20(c *C) {
+	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(gadgetYamlPC))
+
+	mod := &modelCharateristics{systemSeed: false}
+	ginfo, err := gadget.ReadInfo(s.dir, mod)
+	c.Assert(err, IsNil)
+	err = gadget.Validate(ginfo, mod, &gadget.ValidationConstraints{
+		EncryptedData: true,
+	})
+	c.Assert(err, ErrorMatches, `internal error: cannot support encrypted data without requiring system-seed`)
+}
+
+func (s *validateGadgetTestSuite) TestValidateEncryptionSupportMultiVolumeHappy(c *C) {
+	makeSizedFile(c, filepath.Join(s.dir, "meta/gadget.yaml"), 0, []byte(mockMultiVolumeUC20GadgetYaml))
 	mod := &modelCharateristics{systemSeed: true}
 	ginfo, err := gadget.ReadInfo(s.dir, mod)
 	c.Assert(err, IsNil)

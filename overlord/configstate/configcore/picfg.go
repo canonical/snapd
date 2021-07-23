@@ -20,9 +20,11 @@
 package configcore
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/snapcore/snapd/boot"
@@ -30,6 +32,8 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/sysconfig"
 )
 
 // valid pi config keys
@@ -91,41 +95,84 @@ func updatePiConfig(path string, config map[string]string) error {
 	return nil
 }
 
-var (
-	errPiConfigNotSupported = fmt.Errorf("configuring pi-config not supported in current mode")
-)
+type piConfigNotSupportedError struct {
+	reason string
+}
 
-func piConfigFile(opts *fsOnlyContext) (string, error) {
+func newPiConfigNotSupportedError(msg string) *piConfigNotSupportedError {
+	return &piConfigNotSupportedError{msg}
+}
+
+func (e *piConfigNotSupportedError) Error() string {
+	return fmt.Sprintf("configuration cannot be applied: %s", e.reason)
+}
+
+var reIgnorePrefix = regexp.MustCompile(`(?i)^#\s+Snapd-Edit:\s+no\s*$`)
+
+func piConfigFileIgnoreMarkerSet(configFile string) bool {
+	f, err := os.Open(configFile)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	// read the first line
+	scanner.Scan()
+	if scanner.Err() != nil {
+		return false
+	}
+
+	return reIgnorePrefix.Match(scanner.Bytes())
+}
+
+// Some of the pi devices (avnet) ship with measured boot enabled and
+// the config.txt is part of the measurements. We cannot modify the
+// configuration here or measurements are wrong.
+var piMeasuredBootKernels = []string{
+	// see https://bugs.launchpad.net/denver/+bug/1928613
+	"avnet-avt-iiotg20-kernel",
+}
+
+func piConfigFile(dev sysconfig.Device, opts *fsOnlyContext) (string, error) {
 	rootDir := dirs.GlobalRootDir
 	subdir := "/boot/uboot"
+
+	if strutil.ListContains(piMeasuredBootKernels, dev.Kernel()) {
+		return "", newPiConfigNotSupportedError("boot measures config.txt")
+	}
+
 	if opts != nil {
 		rootDir = opts.RootDir
-	} else {
+	} else if dev.HasModeenv() {
 		// not a filesystem only apply, so we may be operating on a run system
 		// on UC20, in which case we shouldn't use the /boot/uboot/ option and
 		// instead should use /run/mnt/ubuntu-seed/
-		mode, _, _ := boot.ModeAndRecoverySystemFromKernelCommandLine()
-		switch mode {
-		case boot.ModeRun:
+		if dev.RunMode() {
 			rootDir = boot.InitramfsUbuntuSeedDir
 			subdir = ""
-		case boot.ModeInstall, boot.ModeRecover:
+		} else {
 			// we don't support configuring pi-config in these modes as it is
 			// unclear what the right behavior is
-			return "", errPiConfigNotSupported
+			return "", newPiConfigNotSupportedError("unsupported system mode")
 		}
 	}
-	return filepath.Join(rootDir, subdir, "config.txt"), nil
+	configPath := filepath.Join(rootDir, subdir, "config.txt")
+	if piConfigFileIgnoreMarkerSet(configPath) {
+		return "", newPiConfigNotSupportedError("no-editing header found")
+	}
+
+	return configPath, nil
 }
 
-func handlePiConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
-	configFile, err := piConfigFile(opts)
-	if err != nil && err != errPiConfigNotSupported {
-		return err
-	}
-	if err == errPiConfigNotSupported {
-		logger.Debugf("ignoring pi-config settings mode where pi-config changes are unsupported")
+func handlePiConfiguration(dev sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
+	configFile, err := piConfigFile(dev, opts)
+	if _, ok := err.(*piConfigNotSupportedError); ok {
+		logger.Noticef("ignoring pi-config settings: %v", err)
 		return nil
+	}
+	if err != nil {
+		return err
 	}
 	if osutil.FileExists(configFile) {
 		// snapctl can actually give us the whole dict in

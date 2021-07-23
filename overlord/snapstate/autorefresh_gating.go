@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"sort"
@@ -40,10 +41,10 @@ var gateAutoRefreshHookName = "gate-auto-refresh"
 // gateAutoRefreshAction represents the action executed by
 // snapctl refresh --hold or --proceed and stored in the context of
 // gate-auto-refresh hook.
-type gateAutoRefreshAction int
+type GateAutoRefreshAction int
 
 const (
-	GateAutoRefreshProceed gateAutoRefreshAction = iota
+	GateAutoRefreshProceed GateAutoRefreshAction = iota
 	GateAutoRefreshHold
 )
 
@@ -303,6 +304,42 @@ func resetGatingForRefreshed(st *state.State, refreshedSnaps ...string) error {
 	return nil
 }
 
+// pruneSnapsHold removes the given snap from snaps-hold, whether it was an
+// affecting snap or gating snap. This should be called when a snap gets
+// removed.
+func pruneSnapsHold(st *state.State, snapName string) error {
+	gating, err := refreshGating(st)
+	if err != nil {
+		return err
+	}
+	if len(gating) == 0 {
+		return nil
+	}
+
+	var changed bool
+
+	if _, ok := gating[snapName]; ok {
+		delete(gating, snapName)
+		changed = true
+	}
+
+	for heldSnap, holdingSnaps := range gating {
+		if _, ok := holdingSnaps[snapName]; ok {
+			delete(holdingSnaps, snapName)
+			if len(holdingSnaps) == 0 {
+				delete(gating, heldSnap)
+			}
+			changed = true
+		}
+	}
+
+	if changed {
+		st.Set("snaps-hold", gating)
+	}
+
+	return nil
+}
+
 // heldSnaps returns all snaps that are gated and shouldn't be refreshed.
 func heldSnaps(st *state.State) (map[string]bool, error) {
 	gating, err := refreshGating(st)
@@ -549,6 +586,19 @@ func createGateAutoRefreshHooks(st *state.State, affectedSnaps map[string]*affec
 		prev = hookTask
 	}
 	return ts
+}
+
+func conditionalAutoRefreshAffectedSnaps(t *state.Task) ([]string, error) {
+	var snaps map[string]*json.RawMessage
+	if err := t.Get("snaps", &snaps); err != nil {
+		return nil, fmt.Errorf("internal error: cannot get snaps to update for %s task %s", t.Kind(), t.ID())
+	}
+	names := make([]string, 0, len(snaps))
+	for sn := range snaps {
+		// TODO: drop snaps once we know the outcome of gate-auto-refresh hooks.
+		names = append(names, sn)
+	}
+	return names, nil
 }
 
 // snapsToRefresh returns all snaps that should proceed with refresh considering

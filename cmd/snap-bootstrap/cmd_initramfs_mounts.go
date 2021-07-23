@@ -1337,7 +1337,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asser
 		TargetRootDir:  boot.InitramfsWritableDir,
 		GadgetSnap:     gadgetSnap,
 	}
-	if err := sysconfig.ConfigureTargetSystem(configOpts); err != nil {
+	if err := sysconfig.ConfigureTargetSystem(model, configOpts); err != nil {
 		return nil, nil, err
 	}
 

@@ -585,7 +585,7 @@ func (s *seed20Suite) TestLoadMetaCore20(c *C) {
 	s.makeSnap(c, "pc=20", "")
 	s.makeSnap(c, "required20", "developerid")
 
-	s.AssertedSnapInfo("required20").Contact = "author@example.com"
+	s.AssertedSnapInfo("required20").EditedContact = "author@example.com"
 
 	sysLabel := "20191018"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
@@ -1186,7 +1186,7 @@ func (s *seed20Suite) TestLoadMetaCore20ChannelOverride(c *C) {
 	s.makeSnap(c, "pc=20", "")
 	s.makeSnap(c, "required20", "developerid")
 
-	s.AssertedSnapInfo("required20").Contact = "author@example.com"
+	s.AssertedSnapInfo("required20").EditedContact = "author@example.com"
 
 	sysLabel := "20191018"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
@@ -1281,7 +1281,7 @@ func (s *seed20Suite) TestLoadMetaCore20ChannelOverrideSnapd(c *C) {
 	s.makeSnap(c, "pc=20", "")
 	s.makeSnap(c, "required20", "developerid")
 
-	s.AssertedSnapInfo("required20").Contact = "author@example.com"
+	s.AssertedSnapInfo("required20").EditedContact = "author@example.com"
 
 	sysLabel := "20191121"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
