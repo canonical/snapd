@@ -1180,7 +1180,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithEncryptionValidatesGadgetErr(
 
 	installSystem := s.findInstallSystem()
 	c.Check(installSystem.Err(), ErrorMatches, `(?ms)cannot perform the following tasks:
-- Setup system for run mode \(cannot use gadget: gadget does not support encrypted data: volume "pc" has no structure with system-save role\)`)
+- Setup system for run mode \(cannot use gadget: gadget does not support encrypted data: required partition with system-save role is missing\)`)
 	// no restart request on failure
 	c.Check(s.restartRequests, HasLen, 0)
 }
