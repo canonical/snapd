@@ -74,8 +74,6 @@ func computeExplicitServices(appInfos []*snap.AppInfo, names []string) map[strin
 // serviceControlTs creates "service-control" task for every snap derived from appInfos.
 func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instruction) (*state.TaskSet, error) {
 	servicesBySnap := make(map[string][]string, len(appInfos))
-	// note, this may be called with service names of different snaps
-	// XXX: this doesn't support service names from snapctl (i.e. without snap prefix).
 	explicitServices := computeExplicitServices(appInfos, inst.Names)
 	sortedNames := make([]string, 0, len(appInfos))
 
