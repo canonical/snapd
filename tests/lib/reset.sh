@@ -12,6 +12,10 @@ reset_classic() {
     systemctl daemon-reload
     systemd_stop_units snapd.service snapd.socket
 
+    # none of the purge steps stop the user services, we need to do it
+    # explicitly, at least for the root user
+    systemctl --user stop snapd.session-agent.socket || true
+
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
