@@ -8,6 +8,14 @@ restore: |
     snap remove ---purge lxd
     "$TESTSTOOLS"/lxd-state undo-mount-changes
 
+    # Remove manually the snap.lxd.workaround.service systemd unit. This unit is needed to
+    # avoid systemd wiping lxd cgroups when snapd disables all lxd units during refresh
+    # TODO: remove this when lxd removes automatically the service
+    if systemctl is-active snap.lxd.workaround.service; then
+        systemctl stop snap.lxd.workaround.service
+        systemctl disable snap.lxd.workaround.service
+    fi
+
 execute: |
     echo "Ensure we use the snap"
     apt autoremove -y lxd
