@@ -43,7 +43,6 @@ restore: |
   # TODO: remove this when lxd removes automatically the service
   if systemctl is-active snap.lxd.workaround.service; then
     systemctl stop snap.lxd.workaround.service
-    systemctl disable snap.lxd.workaround.service
   fi
   
 execute: |
