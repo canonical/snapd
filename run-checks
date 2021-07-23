@@ -24,8 +24,8 @@ if [ "$(uname -m)" = "s390x" ]; then
     fi
 fi
 
-export GOPATH="${GOPATH:-$(realpath "$(dirname "$0")"/../../../../)}"
-export PATH="$PATH:${GOPATH%%:*}/bin"
+# export GOPATH="${GOPATH:-$(realpath "$(dirname "$0")"/../../../../)}"
+# export PATH="$PATH:${GOPATH%%:*}/bin"
 
 short=
 
@@ -197,21 +197,28 @@ if [ "$STATIC" = 1 ]; then
             xargs -0 file -N |
             awk -F": " '$2~/shell.script/{print $1}' |
             xargs shellcheck -x
-        regexp='GOPATH(?!%%:\*)(?!:)[^= ]*/'
-        if  grep -qPr                   --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"; then
-            echo "Using GOPATH as if it were a single entry and not a list:"
-            grep -PHrn -C1 --color=auto --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"
-            echo "Use GOHOME, or {GOPATH%%:*}, instead."
-            exit 1
-        fi
-        unset regexp
+        # check for incorrect usages of GOPATH - do we really need this anymore
+        # as we use go modules ?
+        # regexp='GOPATH(?!%%:\*)(?!:)[^= ]*/'
+        # if  grep -qPr                   --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"; then
+        #     echo "Using GOPATH as if it were a single entry and not a list:"
+        #     grep -PHrn -C1 --color=auto --exclude HACKING.md --exclude 'Makefile.*' --exclude-dir .git --exclude-dir vendor "$regexp"
+        #     echo "Use GOHOME, or {GOPATH%%:*}, instead."
+        #     exit 1
+        # fi
+        # unset regexp
+
         # also run spread-shellcheck
         ./spread-shellcheck spread.yaml tests
     fi
 
     echo "Checking spelling errors"
     if ! command -v misspell >/dev/null; then
-        go get -u github.com/client9/misspell/cmd/misspell
+        # if go 1.16 is being used we can use @latest to "just install it"
+        # without modifying go.mod, but since we don't have that everywhere
+        # yet use this hack workaround
+        # see https://github.com/golang/go/issues/40276
+        dir=$PWD; cd /tmp && GO11MODULES=off go get -u github.com/client9/misspell/cmd/misspell && cd "$dir"
     fi
     # FIXME: auter is only misspelled in the changelog so we should fix there
     # PROCES is used in the seccomp tests (PRIO_PROCES{,S,SS})
@@ -223,7 +230,7 @@ if [ "$STATIC" = 1 ]; then
     if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.12; then
         echo "Checking for ineffective assignments"
         if ! command -v ineffassign >/dev/null; then
-            go get -u github.com/gordonklaus/ineffassign
+            dir=$PWD; cd /tmp && GO11MODULES=off go get -u github.com/gordonklaus/ineffassign && cd "$dir"
         fi
         # ineffassign knows about ignoring vendor/ \o/
         ineffassign ./...
@@ -231,7 +238,7 @@ if [ "$STATIC" = 1 ]; then
 
     echo "Checking for naked returns"
     if ! command -v nakedret >/dev/null; then
-        go get -u github.com/alexkohler/nakedret
+        dir=$PWD; cd /tmp && GO11MODULES=off go get -u github.com/alexkohler/nakedret && cd "$dir"
     fi
     got=$(go list ./... | grep -v '/osutil/udev/' | grep -v '/vendor/' | xargs nakedret 2>&1)
     if [ -n "$got" ]; then

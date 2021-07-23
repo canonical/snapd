@@ -54,14 +54,12 @@ jobs:
   unit-tests:
     runs-on: ubuntu-20.04
     env:
-      GOPATH: ${{ github.workspace }}
-      GO111MODULE: off
+      GOBIN: "${{ github.workspace }}/gobin"
       # Set PATH to ignore the load of magic binaries from /usr/local/bin And
       # to use the go snap automatically. Note that we install go from the
       # snap in a step below. Without this we get the GitHub-controlled latest
       # version of go.
-      PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games
-      GOROOT: ""
+      PATH: "/snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/gobin"
       # XXX: compat env for "check-pr-title.py" in "run-checks", can go
       #      once we switch away from that. Note that we cannot currently
       #      use a github action check (like deepakputhraya/action-pr-title)
@@ -81,11 +79,12 @@ jobs:
       with:
         # NOTE: checkout the code in a fixed location, even for forks, as this
         # is relevant for go's import system.
-        path: ./src/github.com/snapcore/snapd
+        path: ./proj
+
     # Fetch base ref, needed for golangci-lint
     - name: Fetching base ref ${{ github.base_ref }}
       run: |
-        cd ${{ github.workspace }}/src/github.com/snapcore/snapd
+        mkdir -p ${{ github.workspace }}/proj && cd ${{ github.workspace }}/proj
         git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
     - name: Cache Debian dependencies
       id: cache-deb-downloads
@@ -100,7 +99,7 @@ jobs:
       if: steps.cache-deb-downloads.outputs.cache-hit != 'true'
       run: |
           sudo apt clean
-          sudo apt build-dep -d -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+          sudo apt build-dep -d -y ${{ github.workspace }}/proj
 
     - name: Cache snapd test results
       id: cache-snapd-test-results
@@ -121,7 +120,7 @@ jobs:
     - name: Install Debian dependencies
       if: steps.cached-results.outputs.cached-resulsts != 'true'
       run: |
-          sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+          sudo apt build-dep -y ${{ github.workspace }}/proj
     # golang latest ensures things work on the edge
     - name: Install the go snap
       if: steps.cached-results.outputs.already-ran != 'true'
@@ -132,17 +131,9 @@ jobs:
       run: |
           sudo apt-get remove --purge shellcheck
           sudo snap install shellcheck
-    - name: Install govendor
-      run: go get -u github.com/kardianos/govendor
-    - name: Cache Go dependencies
-      id: cache-go-govendor
-      uses: actions/cache@v1
-      with:
-        path: ${{ github.workspace }}/.cache/govendor
-        key: go-govendor-{{ hashFiles('**/vendor.json') }}
-    - name: Get Go dependencies
-      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ${{ github.workspace }}/bin/govendor sync
-
+    # - name: TODO install specific crpyto/ssh/terminal version cause the tool says so
+    #   run: |
+    #       go get golang.org/x/crypto/ssh/terminal@v0.0.0-20201221181555-eec23a3978ad
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v2
       if: ${{ matrix.gochannel == 'latest/stable' }}
@@ -150,7 +141,7 @@ jobs:
         # version of golangci-lint to use in form of v1.2 or v1.2.3 or `latest`
         # to use the latest version
         version: v1.40.0
-        working-directory: ./src/github.com/snapcore/snapd
+        working-directory: ${{ github.workspace }}/proj
         # show only new issues
         # use empty path prefix to make annotations work
         # TODO: start failing once the config is tuned properly
@@ -165,7 +156,7 @@ jobs:
     - name: Run static checks
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
-          cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+          cd ${{ github.workspace }}/proj || exit 1
           # run gofmt checks only with Go 1.13
           if ! echo "${{ matrix.gochannel }}" | grep -E '1\.13' ; then
               # and skip with other versions
@@ -177,36 +168,37 @@ jobs:
     - name: Build C
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
-          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/
+          cd ${{ github.workspace }}/proj/cmd/
           ./autogen.sh
           make -j2
     - name: Build Go
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
-          go build github.com/snapcore/snapd/...
+          cd ${{ github.workspace }}/proj || exit 1
+          go build ./...
     - name: Test C
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
-          cd ${{ github.workspace }}/src/github.com/snapcore/snapd/cmd/ && make check
+          cd ${{ github.workspace }}/proj/cmd/ && make check
     - name: Test Go
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
-        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        cd ${{ github.workspace }}/proj || exit 1
         ./run-checks --unit
     - name: Test Go (withbootassetstesting)
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
-        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        cd ${{ github.workspace }}/proj || exit 1
         SKIP_COVERAGE=1 SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=withbootassetstesting ./run-checks --unit
     - name: Test Go (nosecboot)
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
-        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        cd ${{ github.workspace }}/proj || exit 1
         echo "Dropping github.com/snapcore/secboot"
         # use govendor remove so that a subsequent govendor sync does not
         # install secboot again
-        ${{ github.workspace }}/bin/govendor remove github.com/snapcore/secboot
-        ${{ github.workspace }}/bin/govendor remove +unused
+        # ${{ github.workspace }}/bin/govendor remove github.com/snapcore/secboot
+        # ${{ github.workspace }}/bin/govendor remove +unused
         # we don't need coverage anymore
         SKIP_COVERAGE=1 SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
     - name: Cache successful run
