@@ -1,3 +1,4 @@
+
 #!/bin/bash -x
 
 # shellcheck source=tests/lib/state.sh
@@ -86,6 +87,9 @@ reset_classic() {
 
         # force all profiles to be re-generated
         rm -f /var/lib/snapd/system-key
+
+        # force snapd-session-agent.socket fto be re-generated
+        rm -f /run/user/0/snapd-session-agent.socket
     fi
 
     if [ "$1" != "--keep-stopped" ]; then
