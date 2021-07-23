@@ -1,4 +1,3 @@
-
 #!/bin/bash -x
 
 # shellcheck source=tests/lib/state.sh
