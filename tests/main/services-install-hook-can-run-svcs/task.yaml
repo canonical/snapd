@@ -1,8 +1,8 @@
 summary: Check that install hooks in snaps can start services
 
 environment:
-  FLAGS/enable: --enable
-  FLAGS/none: ""
+  FLAGS/enableflag: --enable
+  FLAGS/noflag: ""
 
 execute: |
   # setup the install hook with the right flags
