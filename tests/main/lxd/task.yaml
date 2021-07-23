@@ -58,14 +58,6 @@ restore: |
     # invariant checker.
     systemctl --user stop dbus.service || true
 
-    # Remove manually the snap.lxd.workaround.service systemd unit. This unit is needed to
-    # avoid systemd wiping lxd cgroups when snapd disables all lxd units during refresh
-    # TODO: remove this when lxd removes automatically the service
-    if systemctl is-active snap.lxd.workaround.service; then
-        systemctl stop snap.lxd.workaround.service
-        systemctl disable snap.lxd.workaround.service
-    fi
-
 debug: |
     # debug output from lxd
     "$TESTSTOOLS"/journal-state get-log -u snap.lxd.daemon.service
