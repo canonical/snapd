@@ -637,6 +637,13 @@ prepare_suite_each() {
 }
 
 restore_suite_each() {
+    if [ -e /etc/systemd/system/snap.lxd.workaround.service ]; then
+        echo 'unexpected service'
+        systemctl status snap.lxd.workaround.service || true
+        systemctl cat snap.lxd.workaround.service || true
+        exit 1
+    fi
+
     local variant="$1"
 
     rm -f "$RUNTIME_STATE_PATH/audit-stamp"
