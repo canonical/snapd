@@ -410,7 +410,7 @@ class LogReader:
             task = parts[4]
             extra = None
         else:
-            print('Detail type not recognized: {}'.format(info_type))
+            print('log-parser: detail type not recognized: {}'.format(info_type))
 
         detail = self._get_detail()
         return Info(info_type, verb, task, extra, date, time, detail, line)
@@ -465,7 +465,7 @@ def _make_parser():
     # type: () -> argparse.ArgumentParser
     parser = argparse.ArgumentParser(
         description="""
-Analyze the spread log and generates a file with a standarized output. Il also
+Parse the spread log and generates a file with a standarized output. Il also
 allows to filter the output by type and define the number of lines to show
 for the error/debug/warning output.
 """
@@ -530,7 +530,7 @@ def main():
 
     reader = LogReader(args.logpath, args.format, args.cut, args.store_setup)
     if not reader.check_log_exists():
-        print("Log not found")
+        print("log-parser: log not found")
         sys.exit(1)
 
     reader.read_spread_log()
