@@ -1,6 +1,15 @@
 summary: Check that install hooks in snaps can start services
 
+environment:
+  FLAGS/enableflag: --enable
+  FLAGS/noflag: ""
+
 execute: |
+  # setup the install hook with the right flags
+  sed ./test-snapd-install-hook-runs-svc/meta/hooks/install.in -e s/%%FLAGS%%/$FLAGS/ > ./test-snapd-install-hook-runs-svc/meta/hooks/install
+
+  chmod +x ./test-snapd-install-hook-runs-svc/meta/hooks/install
+
   echo "Verify that the snap installs"
   "$TESTSTOOLS"/snaps-state install-local test-snapd-install-hook-runs-svc
 
