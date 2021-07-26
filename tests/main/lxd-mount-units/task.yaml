@@ -13,6 +13,13 @@ restore: |
     lxd.lxc delete ubuntu || true
     snap remove --purge lxd
 
+    # Remove manually the snap.lxd.workaround.service systemd unit. This unit is needed to
+    # avoid systemd wiping lxd cgroups when snapd disables all lxd units during refresh
+    # TODO: remove this when lxd removes automatically the service
+    if systemctl is-active snap.lxd.workaround.service; then
+        systemctl stop snap.lxd.workaround.service
+    fi
+
 execute: |
     echo "Install lxd"
     snap install lxd
