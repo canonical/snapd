@@ -373,7 +373,7 @@ class LogReader:
         initial_iter = self.iter
         while self.iter < len(self.lines):
             line = self._next_line()
-            if self._match_task(line) or self._match_info(line) or
+            if self._match_task(line) or self._match_info(line) or \
             self._match_operation(line) or self._match_result(line):
                 break
         if not self.iter == len(self.lines):
