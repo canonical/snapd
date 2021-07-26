@@ -73,7 +73,7 @@ jobs:
       fail-fast: false      
       matrix:
         gochannel:
-          - 1.9
+          - 1.13
           - latest/stable
     steps:
     - name: Checkout code
@@ -242,8 +242,8 @@ jobs:
         - ubuntu-18.04-32
         - ubuntu-18.04-64
         - ubuntu-20.04-64
-        - ubuntu-20.10-64
         - ubuntu-21.04-64
+        - ubuntu-21.10-64
         - ubuntu-core-16-64
         - ubuntu-core-18-64
         - ubuntu-core-20-64
@@ -303,7 +303,7 @@ jobs:
         - ubuntu-16.04-64
         - ubuntu-18.04-64
         - ubuntu-20.04-64
-        - ubuntu-20.10-64
+        - ubuntu-21.04-64
     steps:
     - name: Checkout code
       uses: actions/checkout@v2

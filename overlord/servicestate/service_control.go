@@ -27,7 +27,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/wrappers"
 )
 
@@ -35,7 +34,8 @@ import (
 // stopping or restarting) run against services of a given snap. The action is
 // run for services listed in services attribute, or for all services of the
 // snap if services list is empty.
-// The names of services are app names (as defined in snap yaml).
+// The names of services and explicit-services are app names (as defined in snap
+// yaml).
 type ServiceAction struct {
 	SnapName       string   `json:"snap-name"`
 	Action         string   `json:"action"`
@@ -112,6 +112,15 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	// ExplicitServices are snap app names; obtain names of systemd units
+	// expected by wrappers.
+	var explicitServicesSystemdUnits []string
+	for _, name := range sc.ExplicitServices {
+		if app := info.Apps[name]; app != nil {
+			explicitServicesSystemdUnits = append(explicitServicesSystemdUnits, app.ServiceName())
+		}
+	}
+
 	// Note - state must be unlocked when calling wrappers below.
 	switch sc.Action {
 	case "stop":
@@ -143,24 +152,8 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		flags := &wrappers.StartServicesFlags{
 			Enable: enable,
 		}
-		disabledServices := []string{}
-		if !enable {
-			snapDisabledServices, err := wrappers.QueryDisabledServices(info, nil)
-			if err != nil {
-				return err
-			}
-			// compute the list of disabled services, but if a service was
-			// mentioned explicitly, then this should overrule the disabled
-			// status
-			for _, serviceName := range snapDisabledServices {
-				if strutil.ListContains(sc.ExplicitServices, serviceName) {
-					continue
-				}
-				disabledServices = append(disabledServices, serviceName)
-			}
-		}
 		st.Unlock()
-		err = wrappers.StartServices(startupOrdered, disabledServices, flags, meter, perfTimings)
+		err = wrappers.StartServices(startupOrdered, nil, flags, meter, perfTimings)
 		st.Lock()
 		if err != nil {
 			return err
@@ -180,13 +173,13 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		}
 	case "restart":
 		st.Unlock()
-		err := wrappers.RestartServices(startupOrdered, sc.ExplicitServices, nil, meter, perfTimings)
+		err := wrappers.RestartServices(startupOrdered, explicitServicesSystemdUnits, nil, meter, perfTimings)
 		st.Lock()
 		return err
 	case "reload-or-restart":
 		flags := &wrappers.RestartServicesFlags{Reload: true}
 		st.Unlock()
-		err := wrappers.RestartServices(startupOrdered, sc.ExplicitServices, flags, meter, perfTimings)
+		err := wrappers.RestartServices(startupOrdered, explicitServicesSystemdUnits, flags, meter, perfTimings)
 		st.Lock()
 		return err
 	default:
