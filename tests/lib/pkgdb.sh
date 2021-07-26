@@ -599,12 +599,6 @@ pkg_dependencies_ubuntu_classic(){
                 shellcheck
                 "
             ;;
-        ubuntu-20.10-64)
-            echo "
-                fwupd
-                qemu-utils
-                "
-            ;;
         ubuntu-21.04-64|ubuntu-21.10-64)
             echo "
                 dbus-user-session
