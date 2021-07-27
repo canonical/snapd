@@ -31,7 +31,7 @@ import (
 )
 
 // https://www.kernel.org/doc/Documentation/pwm.txt
-const pwmSummary = `allows access to specifc PWM channel`
+const pwmSummary = `allows access to specific PWM channel`
 
 const pwmBaseDeclarationSlots = `
   pwm:
