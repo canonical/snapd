@@ -3,9 +3,6 @@ project: snapd
 environment:
     GOHOME: /home/gopath
     GOPATH: $GOHOME
-    # TODO: some distros started shipping Go 1.16 which defaults to having
-    # modules enabled, drop this when snapd starts supporting Go modules
-    GO111MODULE: "off"
     REUSE_PROJECT: '$(HOST: echo "$REUSE_PROJECT")'
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
     # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
@@ -501,9 +498,9 @@ repack: |
         trap "rm -rf delta-ref.tar current.delta repacked-current.tar $tmpdir" EXIT
         if [ "$REPACK_KEEP_VENDOR" = "n" ]; then
             tar -C "$tmpdir" -xvf - <&3
-            find "$tmpdir/$DELTA_PREFIX/vendor/" ! -wholename "$tmpdir/$DELTA_PREFIX/vendor/" \
-                ! -wholename "$tmpdir/$DELTA_PREFIX/vendor/vendor.json" \
-                -delete
+            # find "$tmpdir/$DELTA_PREFIX/vendor/" ! -wholename "$tmpdir/$DELTA_PREFIX/vendor/" \
+            #     ! -wholename "$tmpdir/$DELTA_PREFIX/vendor/vendor.json" \
+            #     -delete
             tar -C "$tmpdir" -c "$DELTA_PREFIX" --sort=name > repacked-current.tar
         else
             cat <&3 > repacked-current.tar

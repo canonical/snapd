@@ -58,8 +58,6 @@ build() {
       GOFLAGS="$GOFLAGS -tags withtestkeys"
       GOFLAGS_SNAP="-tags nomanagers,withtestkeys"
   fi
-  # snapd does not support modules yet, explicitly disable Go modules
-  export GO111MODULE=off
 
   export CGO_ENABLED="1"
   export CGO_CFLAGS="${CFLAGS}"
@@ -72,7 +70,7 @@ build() {
   # Use get-deps.sh provided by upstream to fetch go dependencies using the
   # godeps tool and dependencies.tsv (maintained upstream).
   cd "$srcdir/go/src/${_gourl}"
-  XDG_CONFIG_HOME="$srcdir" ./get-deps.sh
+  # XDG_CONFIG_HOME="$srcdir" ./get-deps.sh
 
   # because argument expansion with quoting in bash is hard, and -ldflags=-extldflags='-foo'
   # is not exactly the same as -ldflags "-extldflags '-foo'" use the array trick
@@ -132,9 +130,6 @@ check() {
 package() {
   cd "$pkgname"
   export GOPATH="$srcdir/go"
-  # snapd does not use modules, setting GO111MODULE=on in the environment breaks
-  # the build
-  unset GO111MODULE
 
   # Install bash completion
   install -Dm644 data/completion/bash/snap \

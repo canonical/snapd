@@ -123,12 +123,10 @@ override_dh_installdeb:
 override_dh_clean:
 ifneq (,$(TEST_GITHUB_AUTOPKGTEST))
 	# this will be set by the GITHUB webhook to trigger a autopkgtest
-	# we only need to run "govendor sync" here and then its ready
 	(export GOPATH="/tmp/go"; \
 	  mkdir -p /tmp/go/src/github.com/snapcore/; \
           cp -ar . /tmp/go/src/github.com/snapcore/snapd; \
-	  go get -u github.com/kardianos/govendor; \
-	  (cd /tmp/go/src/github.com/snapcore/snapd ; /tmp/go/bin/govendor sync); \
+	  (cd /tmp/go/src/github.com/snapcore/snapd ; go mod vendor); \
 	  cp -ar /tmp/go/src/github.com/snapcore/snapd/vendor/ .; \
         )
 endif

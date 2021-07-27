@@ -520,19 +520,13 @@ prepare_project() {
     esac
 
     # update vendoring
-    if [ -z "$(command -v govendor)" ]; then
-        rm -rf "${GOPATH%%:*}/src/github.com/kardianos/govendor"
-        go get -u github.com/kardianos/govendor
-    fi
-    # Retry govendor sync to minimize the number of connection errors during the sync
+    # Retry go mod vendor to minimize the number of connection errors during the sync
     for _ in $(seq 10); do
-        if quiet govendor sync; then
+        if quiet go mod vendor; then
             break
         fi
         sleep 1
     done
-    # govendor runs as root and will leave strange permissions
-    chown test.test -R "$SPREAD_PATH"
 
     if [ -z "$SNAPD_PUBLISHED_VERSION" ]; then
         case "$SPREAD_SYSTEM" in
