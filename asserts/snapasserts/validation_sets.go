@@ -450,6 +450,8 @@ func (v *ValidationSets) CheckInstalledSnaps(snaps []*InstalledSnap) error {
 	return nil
 }
 
+// PresenceConstraintError describes an error where presence of the given snap
+// has unexpected value, e.g. it's "invalid" while checking for "required".
 type PresenceConstraintError struct {
 	SnapName string
 	Presence asserts.Presence
