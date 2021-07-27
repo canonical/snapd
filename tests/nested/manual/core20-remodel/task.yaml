@@ -104,6 +104,8 @@ execute: |
     nested_wait_for_reboot "${boot_id}"
     # Verify we are in recover mode with the expected system label
     tests.nested exec 'sudo cat /proc/cmdline' | MATCH "snapd_recovery_mode=recover snapd_recovery_system=${label_base}-2 "
+    # we are in recover mode, so tools need to be set up again
+    nested_prepare_tools
 
     boot_id="$( nested_get_boot_id )"
     echo "And back to run mode"
