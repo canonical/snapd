@@ -4,8 +4,8 @@ show_help() {
     echo "usage: get-failed <PARSED-LOG>"
     echo "       get-successful <PARSED-LOG>"
     echo "       get-aborted <PARSED-LOG>"
+    echo "       get-total <PARSED-LOG>"
     echo "       list-failed <PARSED-LOG>"
-    echo "       check-total <PARSED-LOG> <TESTS-NUMBER>"
     echo "       check-rexecution <PARSED-LOG>"
     echo ""
     echo "Get general information about the current system"
@@ -14,39 +14,39 @@ show_help() {
 get_successful() {
     local log="$1"
     TESTS_SUCCESSFUL=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Successful") | .number ) // 0 ' "$log" | awk '{s+=$1} END {print s}')
-    test "$TESTS_SUCCESSFUL" -gt 0
+    # shellcheck disable=SC2086
+    test $TESTS_SUCCESSFUL -gt 0
     echo "$TESTS_SUCCESSFUL"
 }
 
 get_failed() {
     local log="$1"
     TESTS_FAILED=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Failed") | .number ) // 0 ' "$log" | awk '{s+=$1} END {print s}')
-    test "$TESTS_FAILED" -gt 0
+    # shellcheck disable=SC2086
+    test $TESTS_FAILED -gt 0
     echo "$TESTS_FAILED"
 }
 
 get_aborted() {
     local log="$1"
     TESTS_ABORTED=$(jq -r '.[] | select( .type == "result") | ( select( .result_type == "Aborted") | .number ) // 0 ' "$log" | awk '{s+=$1} END {print s}')
-    test "$TESTS_ABORTED" -gt 0
+    # shellcheck disable=SC2086
+    test $TESTS_ABORTED -gt 0
     echo "$TESTS_ABORTED"
+}
+
+get_total(){
+    local log="$1"
+
+    TESTS_SUCCESSFUL=$(get_successful "$log")
+    TESTS_FAILED=$(get_failed "$log")
+    TESTS_ABORTED=$(get_aborted "$log")
+    echo "$((TESTS_SUCCESSFUL+TESTS_FAILED+TESTS_ABORTED))"
 }
 
 list_failed(){
     local log="$1"
     jq -r '.[] | select( .type == "result") | select( .result_type == "Failed") | .detail.lines[]' "$log" | cut -d '-' -f2- | xargs
-}
-
-check_total(){
-    local total="$1"
-    local log="$2"
-
-    TESTS_SUCCESSFUL=$(get_successful "$log")
-    TESTS_FAILED=$(get_failed "$log")
-    TESTS_ABORTED=$(get_aborted "$log")
-    TOTAL_COUNTED=$((TESTS_SUCCESSFUL+TESTS_FAILED+TESTS_ABORTED))
-
-    test "$total" -eq "$TOTAL_COUNTED"
 }
 
 check_rexecution() {
@@ -55,7 +55,7 @@ check_rexecution() {
     TESTS_ABORTED=$(get_aborted "$log")
 
     # Aborted cannot be used to determine if we need to re-run all because it could be a aborted suite with
-    test "$TESTS_FAILED" -ne 0 && test "$TESTS_ABORTED" -eq 0
+    test "$TESTS_FAILED" != 0 && test "$TESTS_ABORTED" = 0
 }
 
 

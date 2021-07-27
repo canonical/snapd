@@ -1,0 +1,49 @@
+summary: integration tests for str-tool
+
+systems: [ubuntu-18.04-64, ubuntu-20.04-64]
+
+execute: |
+    # Check help
+    "$TESTSTOOLS"/log-analyzer | MATCH "usage: get-failed <PARSED-LOG>"
+    "$TESTSTOOLS"/log-analyzer -h | MATCH "usage: get-failed <PARSED-LOG>"
+    "$TESTSTOOLS"/log-analyzer --help | MATCH "usage: get-failed <PARSED-LOG>"
+
+    # Check parsed log including just failed tests
+    test "$("$TESTSTOOLS"/log-analyzer get-failed spread-results-with-failed.json)" = 1
+    test "$("$TESTSTOOLS"/log-analyzer get-aborted spread-results-with-failed.json)" = 0
+    test "$("$TESTSTOOLS"/log-analyzer get-successful spread-results-with-failed.json)" = 434
+    test "$("$TESTSTOOLS"/log-analyzer get-total spread-results-with-failed.json)" = 435
+    "$TESTSTOOLS"/log-analyzer list-failed spread-results-with-failed.json | MATCH "tests.pkgs"
+
+    # Execution can be done when there are not aborted tests and there are failed tests
+    "$TESTSTOOLS"/log-analyzer check-rexecution spread-results-with-failed.json
+
+    # Check parsed log with all successful tests
+    test "$("$TESTSTOOLS"/log-analyzer get-failed spread-results-all-successful.json)" = 0
+    test "$("$TESTSTOOLS"/log-analyzer get-aborted spread-results-all-successful.json)" = 0
+    test "$("$TESTSTOOLS"/log-analyzer get-successful spread-results-all-successful.json)" = 434
+    test "$("$TESTSTOOLS"/log-analyzer get-total spread-results-all-successful.json)" = 434
+    test -z "$("$TESTSTOOLS"/log-analyzer list-failed spread-results-all-successful.json)"
+
+    # Execution cannot be done when there are not failed tests
+    not "$TESTSTOOLS"/log-analyzer check-rexecution spread-results-all-successful.json
+
+    # Check parsed log including just aborted tests
+    test "$("$TESTSTOOLS"/log-analyzer get-failed spread-results-all-aborted.json)" = 0
+    test "$("$TESTSTOOLS"/log-analyzer get-aborted spread-results-all-aborted.json)" = 0
+    test "$("$TESTSTOOLS"/log-analyzer get-successful spread-results-all-aborted.json)" = 0
+    test "$("$TESTSTOOLS"/log-analyzer get-total spread-results-all-aborted.json)" = 0
+    test -z "$("$TESTSTOOLS"/log-analyzer list-failed spread-results-all-aborted.json)"
+
+    # Execution cannot be done when there are aborted tests
+    not "$TESTSTOOLS"/log-analyzer check-rexecution spread-results-all-aborted.json
+
+    # Check parsed log including failed and aborted tests
+    test "$("$TESTSTOOLS"/log-analyzer get-failed spread-results-with-failed-and-aborted.json)" = 6
+    test "$("$TESTSTOOLS"/log-analyzer get-aborted spread-results-with-failed-and-aborted.json)" = 24 
+    test "$("$TESTSTOOLS"/log-analyzer get-successful spread-results-with-failed-and-aborted.json)" = 400
+    test "$("$TESTSTOOLS"/log-analyzer get-total spread-results-with-failed-and-aborted.json)" = 430
+    "$TESTSTOOLS"/log-analyzer list-failed spread-results-with-failed-and-aborted.json | MATCH "install-sideload"
+
+    # Execution cannot be done when there are aborted tests
+    not "$TESTSTOOLS"/log-analyzer check-rexecution spread-results-with-failed-and-aborted.json
