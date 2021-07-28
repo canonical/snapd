@@ -61,6 +61,8 @@ check-unit-tests:
 endif
 
 new_format = \
+	 libsnap-confine-private/bpf-support.c \
+	 libsnap-confine-private/bpf-support.h \
 	 libsnap-confine-private/cgroup-support.c \
 	 libsnap-confine-private/cgroup-support.h \
 	 libsnap-confine-private/cgroup-support-test.c \
@@ -125,6 +127,8 @@ noinst_LIBRARIES += libsnap-confine-private.a
 libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/apparmor-support.c \
 	libsnap-confine-private/apparmor-support.h \
+	libsnap-confine-private/bpf-support.c \
+	libsnap-confine-private/bpf-support.h \
 	libsnap-confine-private/cgroup-freezer-support.c \
 	libsnap-confine-private/cgroup-freezer-support.h \
 	libsnap-confine-private/cgroup-support.c \
