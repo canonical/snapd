@@ -71,6 +71,8 @@ new_format = \
 	 snap-confine/snap-confine-invocation-test.c \
 	 snap-confine/snap-confine-invocation.c \
 	 snap-confine/snap-confine-invocation.h \
+	 snap-confine/device-cgroup-support.c \
+	 snap-confine/device-cgroup-support.h \
 	 snap-discard-ns/snap-discard-ns.c \
 	 snap-gdb-shim/snap-gdb-shim.c \
 	 snap-gdb-shim/snap-gdbserver-shim.c
@@ -257,7 +259,9 @@ snap_confine_snap_confine_SOURCES = \
 	snap-confine/udev-support.c \
 	snap-confine/udev-support.h \
 	snap-confine/user-support.c \
-	snap-confine/user-support.h
+	snap-confine/user-support.h \
+	snap-confine/device-cgroup-support.c \
+	snap-confine/device-cgroup-support.h
 
 snap_confine_snap_confine_CFLAGS = $(CHECK_CFLAGS) $(AM_CFLAGS) -DLIBEXECDIR=\"$(libexecdir)\" -DNATIVE_LIBDIR=\"$(libdir)\"
 snap_confine_snap_confine_LDFLAGS = $(AM_LDFLAGS)
