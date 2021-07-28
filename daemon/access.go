@@ -206,9 +206,39 @@ func requireThemeApiAccessImpl(d *Daemon, ucred *ucrednet) *apiError {
 }
 
 // themesOpenAccess behaves like openAccess, but allows requests from
-// snapd-snap.socket for snaps that plug snapd-theme-control.
+// snapd-snap.socket for snaps that plug snapd-themes-control.
 type themesOpenAccess struct{}
 
 func (ac themesOpenAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 	return requireThemeApiAccess(d, ucred)
+}
+
+// themesAuthenticatedAccess behaves like authenticatedAccess, but
+// allows requests from snapd-snap.socket for snaps that plug
+// snapd-themes-control.
+type themesAuthenticatedAccess struct {
+	Polkit string
+}
+
+func (ac themesAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	if rspe := requireThemeApiAccess(d, ucred); rspe != nil {
+		return rspe
+	}
+
+	if user != nil {
+		return nil
+	}
+
+	if ucred.Uid == 0 {
+		return nil
+	}
+
+	// We check polkit last because it may result in the user
+	// being prompted for authorisation. This should be avoided if
+	// access is otherwise granted.
+	if ac.Polkit != "" {
+		return checkPolkitAction(r, ucred, ac.Polkit)
+	}
+
+	return Unauthorized("access denied")
 }

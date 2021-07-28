@@ -308,3 +308,81 @@ func (s *accessSuite) TestThemesOpenAccess(c *C) {
 	defer restore()
 	c.Check(ac.CheckAccess(s.d, nil, ucred, nil), DeepEquals, errForbidden)
 }
+
+func (s *accessSuite) TestThemesAuthenticatedAccess(c *C) {
+	restore := daemon.MockCheckPolkitAction(func(r *http.Request, ucred *daemon.Ucrednet, action string) *daemon.APIError {
+		// Polkit is not consulted if no action is specified
+		c.Fail()
+		return errForbidden
+	})
+	defer restore()
+
+	var ac daemon.AccessChecker = daemon.ThemesAuthenticatedAccess{}
+
+	req := httptest.NewRequest("GET", "/", nil)
+	user := &auth.UserState{}
+	s.daemon(c)
+
+	// themesAuthenticatedAccess denies access if requireThemesApiAccess fails
+	ucred := &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapSocket}
+	restore = daemon.MockRequireThemeApiAccess(func(d *daemon.Daemon, u *daemon.Ucrednet) *daemon.APIError {
+		c.Check(d, Equals, s.d)
+		c.Check(u, Equals, ucred)
+		return errForbidden
+	})
+	defer restore()
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errForbidden)
+	c.Check(ac.CheckAccess(s.d, req, ucred, user), DeepEquals, errForbidden)
+
+	// If requireThemeApiAccess succeeds, root is granted access
+	restore = daemon.MockRequireThemeApiAccess(func(d *daemon.Daemon, u *daemon.Ucrednet) *daemon.APIError {
+		return nil
+	})
+	defer restore()
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil), IsNil)
+
+	// Macaroon auth will grant a normal user access too
+	ucred = &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapSocket}
+	c.Check(ac.CheckAccess(s.d, req, ucred, user), IsNil)
+
+	// Without macaroon auth, normal users are unauthorized
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil), DeepEquals, errUnauthorized)
+}
+
+func (s *accessSuite) TestThemesAuthenticatedAccessPolkit(c *C) {
+	var ac daemon.AccessChecker = daemon.ThemesAuthenticatedAccess{Polkit: "action-id"}
+
+	req := httptest.NewRequest("GET", "/", nil)
+	user := &auth.UserState{}
+	ucred := &daemon.Ucrednet{Uid: 0, Pid: 100, Socket: dirs.SnapSocket}
+
+	s.daemon(c)
+	restore := daemon.MockRequireThemeApiAccess(func(d *daemon.Daemon, u *daemon.Ucrednet) *daemon.APIError {
+		c.Check(d, Equals, s.d)
+		c.Check(u, Equals, ucred)
+		return nil
+	})
+	defer restore()
+
+	// polkit is not checked if any of:
+	//   * user is root
+	//   * regular users with macaroon auth
+	restore = daemon.MockCheckPolkitAction(func(r *http.Request, ucred *daemon.Ucrednet, action string) *daemon.APIError {
+		c.Fail()
+		return errForbidden
+	})
+	defer restore()
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil), IsNil)
+	ucred = &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapdSocket}
+	c.Check(ac.CheckAccess(s.d, req, ucred, user), IsNil)
+
+	// polkit is checked for regular users without macaroon auth
+	restore = daemon.MockCheckPolkitAction(func(r *http.Request, u *daemon.Ucrednet, action string) *daemon.APIError {
+		c.Check(r, Equals, req)
+		c.Check(u, Equals, ucred)
+		c.Check(action, Equals, "action-id")
+		return nil
+	})
+	defer restore()
+	c.Check(ac.CheckAccess(s.d, req, ucred, nil), IsNil)
+}

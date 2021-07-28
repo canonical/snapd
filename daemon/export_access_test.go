@@ -28,11 +28,12 @@ import (
 type (
 	AccessChecker = accessChecker
 
-	OpenAccess          = openAccess
-	AuthenticatedAccess = authenticatedAccess
-	RootAccess          = rootAccess
-	SnapAccess          = snapAccess
-	ThemesOpenAccess    = themesOpenAccess
+	OpenAccess                = openAccess
+	AuthenticatedAccess       = authenticatedAccess
+	RootAccess                = rootAccess
+	SnapAccess                = snapAccess
+	ThemesOpenAccess          = themesOpenAccess
+	ThemesAuthenticatedAccess = themesAuthenticatedAccess
 )
 
 var CheckPolkitActionImpl = checkPolkitActionImpl
