@@ -155,7 +155,12 @@ func (ac snapAccess) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, us
 	return Forbidden("access denied")
 }
 
-func requireThemeApiAccess(d *Daemon, ucred *ucrednet) *apiError {
+var (
+	cgroupSnapNameFromPid = cgroup.SnapNameFromPid
+	requireThemeApiAccess = requireThemeApiAccessImpl
+)
+
+func requireThemeApiAccessImpl(d *Daemon, ucred *ucrednet) *apiError {
 	if ucred == nil {
 		return Forbidden("access denied")
 	}
@@ -173,7 +178,7 @@ func requireThemeApiAccess(d *Daemon, ucred *ucrednet) *apiError {
 
 	// Access on snapd-snap.socket requires a connected
 	// snapd-themes-control plug.
-	snapName, err := cgroup.SnapNameFromPid(int(ucred.Pid))
+	snapName, err := cgroupSnapNameFromPid(int(ucred.Pid))
 	if err != nil {
 		return Forbidden("could not determine snap name for pid: %s", err)
 	}
@@ -186,7 +191,7 @@ func requireThemeApiAccess(d *Daemon, ucred *ucrednet) *apiError {
 		return Forbidden("internal error: cannot get connections: %s", err)
 	}
 	for refStr, connState := range conns {
-		if connState.Undesired || connState.HotplugGone || connState.Interface != "snapd-theme-control" {
+		if connState.Undesired || connState.HotplugGone || connState.Interface != "snapd-themes-control" {
 			continue
 		}
 		connRef, err := interfaces.ParseConnRef(refStr)

@@ -20,6 +20,7 @@
 package daemon_test
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 
@@ -34,7 +35,9 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type accessSuite struct{}
+type accessSuite struct {
+	apiBaseSuite
+}
 
 var _ = Suite(&accessSuite{})
 
@@ -222,4 +225,86 @@ func (s *accessSuite) TestSnapAccess(c *C) {
 	ucred.Socket = dirs.SnapdSocket
 	c.Check(ac.CheckAccess(nil, nil, ucred, nil), DeepEquals, errForbidden)
 	c.Check(ac.CheckAccess(nil, nil, nil, nil), DeepEquals, errForbidden)
+}
+
+func (s *accessSuite) TestRequireThemeApiAccessImpl(c *C) {
+	d := s.daemon(c)
+	s.mockSnap(c, `
+name: core
+type: os
+version: 1
+slots:
+  snapd-themes-control:
+`)
+	s.mockSnap(c, `
+name: some-snap
+version: 1
+plugs:
+  snapd-themes-control:
+`)
+
+	restore := daemon.MockCgroupSnapNameFromPid(func(pid int) (string, error) {
+		if pid == 42 {
+			return "some-snap", nil
+		}
+		return "", fmt.Errorf("not a snap")
+	})
+	defer restore()
+
+	var ac daemon.AccessChecker = daemon.ThemesOpenAccess{}
+
+	// Access with no ucred data is forbidden
+	c.Check(ac.CheckAccess(d, nil, nil, nil), DeepEquals, errForbidden)
+
+	// Access from snapd.socket is allowed
+	ucred := &daemon.Ucrednet{Uid: 1000, Pid: 1001, Socket: dirs.SnapdSocket}
+	c.Check(ac.CheckAccess(d, nil, ucred, nil), IsNil)
+
+	// Access from unknown sockets is forbidden
+	ucred = &daemon.Ucrednet{Uid: 1000, Pid: 1001, Socket: "unknown.socket"}
+	c.Check(ac.CheckAccess(d, nil, ucred, nil), DeepEquals, errForbidden)
+
+	// Access from snapd-snap.socket is rejected by default
+	ucred = &daemon.Ucrednet{Uid: 1000, Pid: 42, Socket: dirs.SnapSocket}
+	c.Check(ac.CheckAccess(d, nil, ucred, nil), DeepEquals, errForbidden)
+
+	// Now connect the marker interface
+	st := d.Overlord().State()
+	st.Lock()
+	st.Set("conns", map[string]interface{}{
+		"some-snap:snapd-themes-control core:snapd-themes-control": map[string]interface{}{
+			"interface": "snapd-themes-control",
+		},
+	})
+	st.Unlock()
+
+	// Access is allowed now that the snap has the plug connected
+	c.Check(ac.CheckAccess(s.d, nil, ucred, nil), IsNil)
+
+	// Access from pids that cannot be mapped to a snap on
+	// snapd-snap.socket are rejected
+	ucred = &daemon.Ucrednet{Uid: 1000, Pid: 1001, Socket: dirs.SnapSocket}
+	c.Check(ac.CheckAccess(d, nil, ucred, nil), DeepEquals, daemon.Forbidden("could not determine snap name for pid: not a snap"))
+}
+
+func (s *accessSuite) TestThemesOpenAccess(c *C) {
+	var ac daemon.AccessChecker = daemon.ThemesOpenAccess{}
+
+	s.daemon(c)
+	// themesOpenAccess allows access if requireThemeApiAccess() succeeds
+	ucred := &daemon.Ucrednet{Uid: 42, Pid: 100, Socket: dirs.SnapSocket}
+	restore := daemon.MockRequireThemeApiAccess(func(d *daemon.Daemon, u *daemon.Ucrednet) *daemon.APIError {
+		c.Check(d, Equals, s.d)
+		c.Check(u, Equals, ucred)
+		return nil
+	})
+	defer restore()
+	c.Check(ac.CheckAccess(s.d, nil, ucred, nil), IsNil)
+
+	// Access is forbidden if requireThemeApiAccess() fails
+	restore = daemon.MockRequireThemeApiAccess(func(d *daemon.Daemon, u *daemon.Ucrednet) *daemon.APIError {
+		return errForbidden
+	})
+	defer restore()
+	c.Check(ac.CheckAccess(s.d, nil, ucred, nil), DeepEquals, errForbidden)
 }

@@ -32,6 +32,7 @@ type (
 	AuthenticatedAccess = authenticatedAccess
 	RootAccess          = rootAccess
 	SnapAccess          = snapAccess
+	ThemesOpenAccess    = themesOpenAccess
 )
 
 var CheckPolkitActionImpl = checkPolkitActionImpl
@@ -49,5 +50,23 @@ func MockPolkitCheckAuthorization(new func(pid int32, uid uint32, actionId strin
 	polkitCheckAuthorization = new
 	return func() {
 		polkitCheckAuthorization = old
+	}
+}
+
+func MockCgroupSnapNameFromPid(new func(pid int) (string, error)) (restore func()) {
+	old := cgroupSnapNameFromPid
+	cgroupSnapNameFromPid = new
+	return func() {
+		cgroupSnapNameFromPid = old
+	}
+}
+
+var RequireThemeApiAccessImpl = requireThemeApiAccessImpl
+
+func MockRequireThemeApiAccess(new func(d *Daemon, ucred *ucrednet) *apiError) (restore func()) {
+	old := requireThemeApiAccess
+	requireThemeApiAccess = new
+	return func() {
+		requireThemeApiAccess = old
 	}
 }
