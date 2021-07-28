@@ -156,6 +156,8 @@ func currentSeededSystem(st *state.State) (*seededSystem, error) {
 		// unexpected
 		return nil, state.ErrNoState
 	}
+	// seeded systems are prepended to the list, so the most recently seeded
+	// one comes first
 	return &whatseeded[0], nil
 }
 

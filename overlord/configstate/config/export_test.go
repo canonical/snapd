@@ -29,4 +29,14 @@ func (t *Transaction) PristineConfig() map[string]map[string]*json.RawMessage {
 	return t.pristine
 }
 
-var SortPatchKeysByDepth = sortPatchKeysByDepth
+var (
+	SortPatchKeysByDepth      = sortPatchKeysByDepth
+	OverlapsWithVirtualConfig = overlapsWithVirtualConfig
+)
+
+func ClearVirtualMap() {
+	virtualMu.Lock()
+	defer virtualMu.Unlock()
+
+	virtualMap = nil
+}
