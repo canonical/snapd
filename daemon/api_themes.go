@@ -45,8 +45,8 @@ var (
 		Path:        "/v2/accessories/themes",
 		GET:         checkThemes,
 		POST:        installThemes,
-		ReadAccess:  openAccess{},
-		WriteAccess: authenticatedAccess{},
+		ReadAccess:  themesOpenAccess{},
+		WriteAccess: themesAuthenticatedAccess{Polkit: polkitActionManage},
 	}
 )
 
