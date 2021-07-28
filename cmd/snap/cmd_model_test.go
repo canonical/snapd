@@ -66,7 +66,8 @@ brand-id: testrootorg
 model: test-snapd-core-20-amd64
 architecture: amd64
 base: core20
-grade: secured
+storage-safety: prefer-encrypted
+grade: dangerous
 snaps:
   -
     default-channel: 20/edge
@@ -78,6 +79,13 @@ snaps:
     id: pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
     name: pc-kernel
     type: kernel
+  -
+    name: app-snap
+    default-channel: foo
+    presence: optional
+    modes:
+      - recover
+      - run
   -
     default-channel: latest/stable
     id: DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q
@@ -354,10 +362,11 @@ serial  serialserial
 			modelF:  simpleHappyResponder(happyUC20ModelAssertionResponse),
 			serialF: simpleHappyResponder(happySerialUC20AssertionResponse),
 			outText: `
-brand   MeMeMe (meuser*)
-model   test-snapd-core-20-amd64
-grade   secured
-serial  7777
+brand           MeMeMe (meuser*)
+model           test-snapd-core-20-amd64
+grade           dangerous
+storage-safety  prefer-encrypted
+serial          7777
 `[1:],
 		},
 		{
@@ -424,6 +433,51 @@ timestamp:       2017-07-27T00:00:00Z
 required-snaps:  
   - core
   - hello-world
+`[1:])
+	c.Check(s.Stderr(), check.Equals, "")
+}
+
+func (s *SnapSuite) TestModelVerboseUC20(c *check.C) {
+	s.RedirectClientToTestServer(
+		makeHappyTestServerHandler(
+			c,
+			simpleHappyResponder(happyUC20ModelAssertionResponse),
+			simpleHappyResponder(happySerialAssertionResponse),
+			simpleAssertionAccountResponder(happyAccountAssertionResponse),
+		))
+	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"model", "--verbose", "--abs-time"})
+	c.Assert(err, check.IsNil)
+	c.Assert(rest, check.DeepEquals, []string{})
+	c.Check(s.Stdout(), check.Equals, `
+brand-id:        testrootorg
+model:           test-snapd-core-20-amd64
+grade:           dangerous
+storage-safety:  prefer-encrypted
+serial:          serialserial
+architecture:    amd64
+base:            core20
+timestamp:       2018-09-11T22:00:00Z
+snaps:
+  - name:             pc
+    id:               UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH
+    type:             gadget
+    default-channel:  20/edge
+  - name:             pc-kernel
+    id:               pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza
+    type:             kernel
+    default-channel:  20/edge
+  - name:             app-snap
+    default-channel:  foo
+    presence:         optional
+    modes:            [recover, run]
+  - name:             core20
+    id:               DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q
+    type:             base
+    default-channel:  latest/stable
+  - name:             snapd
+    id:               PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4
+    type:             snapd
+    default-channel:  latest/stable
 `[1:])
 	c.Check(s.Stderr(), check.Equals, "")
 }
