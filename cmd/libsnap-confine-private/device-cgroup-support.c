@@ -22,11 +22,11 @@
 #include <string.h>
 #include <sys/stat.h>
 
-#include "../libsnap-confine-private/cgroup-support.h"
-#include "../libsnap-confine-private/cleanup-funcs.h"
-#include "../libsnap-confine-private/snap.h"
-#include "../libsnap-confine-private/string-utils.h"
-#include "../libsnap-confine-private/utils.h"
+#include "cgroup-support.h"
+#include "cleanup-funcs.h"
+#include "snap.h"
+#include "string-utils.h"
+#include "utils.h"
 
 #include "device-cgroup-support.h"
 

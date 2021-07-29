@@ -58,6 +58,8 @@ new_format = \
 	 libsnap-confine-private/cgroup-support.c \
 	 libsnap-confine-private/cgroup-support.h \
 	 libsnap-confine-private/cgroup-support-test.c \
+	 libsnap-confine-private/device-cgroup-support.c \
+	 libsnap-confine-private/device-cgroup-support.h \
 	 libsnap-confine-private/infofile-test.c \
 	 libsnap-confine-private/infofile.c \
 	 libsnap-confine-private/infofile.h \
@@ -71,8 +73,6 @@ new_format = \
 	 snap-confine/snap-confine-invocation-test.c \
 	 snap-confine/snap-confine-invocation.c \
 	 snap-confine/snap-confine-invocation.h \
-	 snap-confine/device-cgroup-support.c \
-	 snap-confine/device-cgroup-support.h \
 	 snap-discard-ns/snap-discard-ns.c \
 	 snap-gdb-shim/snap-gdb-shim.c \
 	 snap-gdb-shim/snap-gdbserver-shim.c
@@ -118,6 +118,8 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/cgroup-freezer-support.h \
 	libsnap-confine-private/cgroup-support.c \
 	libsnap-confine-private/cgroup-support.h \
+	libsnap-confine-private/device-cgroup-support.c \
+	libsnap-confine-private/device-cgroup-support.h \
 	libsnap-confine-private/classic.c \
 	libsnap-confine-private/classic.h \
 	libsnap-confine-private/cleanup-funcs.c \
@@ -259,9 +261,7 @@ snap_confine_snap_confine_SOURCES = \
 	snap-confine/udev-support.c \
 	snap-confine/udev-support.h \
 	snap-confine/user-support.c \
-	snap-confine/user-support.h \
-	snap-confine/device-cgroup-support.c \
-	snap-confine/device-cgroup-support.h
+	snap-confine/user-support.h
 
 snap_confine_snap_confine_CFLAGS = $(CHECK_CFLAGS) $(AM_CFLAGS) -DLIBEXECDIR=\"$(libexecdir)\" -DNATIVE_LIBDIR=\"$(libdir)\"
 snap_confine_snap_confine_LDFLAGS = $(AM_LDFLAGS)

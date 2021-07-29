@@ -28,14 +28,13 @@
 #include <limits.h>
 #include <stdint.h>
 
-#include "device-cgroup-support.h"
-
 #include <libudev.h>
 
+#include "../libsnap-confine-private/cgroup-support.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/device-cgroup-support.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/string-utils.h"
-#include "../libsnap-confine-private/cgroup-support.h"
 #include "../libsnap-confine-private/utils.h"
 #include "udev-support.h"
 
