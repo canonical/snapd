@@ -17,6 +17,7 @@
 
 #include "bpf-support.h"
 
+#include <errno.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <string.h>
@@ -124,7 +125,12 @@ int bpf_map_get_next_key(int map_fd, const void *key, void *next_key) {
     return sys_bpf(BPF_MAP_GET_NEXT_KEY, &attr, sizeof(attr));
 }
 
-__attribute__((unused)) int bpf_map_delete_batch(int map_fd, const void *keys, size_t cnt) {
+int bpf_map_delete_batch(int map_fd, const void *keys, size_t cnt) {
+#if 0
+/*
+ * XXX: batch operations don't seem to work with 5.13.10, getting -EINVAL
+ * XXX: also batch operations are supported by recent kernels only
+ */
     debug("batch delete in map %d keys cnt %zu", map_fd, cnt);
     union bpf_attr attr;
     memset(&attr, 0, sizeof(attr));
@@ -136,6 +142,9 @@ __attribute__((unused)) int bpf_map_delete_batch(int map_fd, const void *keys, s
     int ret = sys_bpf(BPF_MAP_DELETE_BATCH, &attr, sizeof(attr));
     debug("returned count %d", attr.batch.count);
     return ret;
+#endif
+    errno = ENOSYS;
+    return -1;
 }
 
 __attribute__((unused)) int bpf_map_delete_elem(int map_fd, const void *key) {
