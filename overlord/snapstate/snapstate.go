@@ -1964,7 +1964,11 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 		if err := checkChangeConflictIgnoringOneChange(st, up.InstanceName(), snapst, fromChange); err != nil {
 			logger.Noticef("cannot refresh snap %q: %v", up.InstanceName(), err)
 		} else {
-			updates = append(updates, up)
+			info, err := snapst.CurrentInfo()
+			if err != nil {
+				return nil, nil, fmt.Errorf("internal error: cannot get current info: %v", err)
+			}
+			updates = append(updates, info)
 		}
 	}
 
@@ -1980,24 +1984,6 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 	affectedSnaps, err := affectedByRefresh(st, updates)
 	if err != nil {
 		return nil, nil, err
-	}
-
-	// affectedByRefresh only considers snaps affected by updates, add
-	// updates themselves as long as they have gate-auto-refresh hooks.
-	for _, up := range updates {
-		snapst := snapstateByInstance[up.InstanceName()]
-		inf, err := snapst.CurrentInfo()
-		if err != nil {
-			return nil, nil, err
-		}
-		if inf.Hooks[gateAutoRefreshHookName] != nil {
-			if affectedSnaps[up.InstanceName()] == nil {
-				affectedSnaps[up.InstanceName()] = &affectedSnapInfo{
-					AffectingSnaps: make(map[string]bool),
-				}
-			}
-			affectedSnaps[up.InstanceName()].AffectingSnaps[up.InstanceName()] = true
-		}
 	}
 
 	var hooks *state.TaskSet

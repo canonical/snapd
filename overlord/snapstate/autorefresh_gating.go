@@ -374,13 +374,13 @@ Loop:
 	return held, nil
 }
 
-type affectedSnapInfo struct {
+type AffectedSnapInfo struct {
 	Restart        bool
 	Base           bool
 	AffectingSnaps map[string]bool
 }
 
-func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affectedSnapInfo, error) {
+func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*AffectedSnapInfo, error) {
 	all, err := All(st)
 	if err != nil {
 		return nil, err
@@ -425,11 +425,11 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 		byBase[base] = append(byBase[base], inf.InstanceName())
 	}
 
-	affected := make(map[string]*affectedSnapInfo)
+	affected := make(map[string]*AffectedSnapInfo)
 
 	addAffected := func(snapName, affectedBy string, restart bool, base bool) {
 		if affected[snapName] == nil {
-			affected[snapName] = &affectedSnapInfo{
+			affected[snapName] = &AffectedSnapInfo{
 				AffectingSnaps: map[string]bool{},
 			}
 		}
@@ -444,6 +444,11 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 	}
 
 	for _, up := range updates {
+		// the snap affects itself (as long as it's in all list i.e. has the hook)
+		if snapSt := all[up.InstanceName()]; snapSt != nil {
+			addAffected(up.InstanceName(), up.InstanceName(), false, false)
+		}
+
 		// on core system, affected by update of boot base
 		if bootBase != "" && up.InstanceName() == bootBase {
 			for _, snapSt := range all {
@@ -566,7 +571,7 @@ func usesMountBackend(iface interfaces.Interface) bool {
 // createGateAutoRefreshHooks creates gate-auto-refresh hooks for all affectedSnaps.
 // The hooks will have their context data set from affectedSnapInfo flags (base, restart).
 // Hook tasks will be chained to run sequentially.
-func createGateAutoRefreshHooks(st *state.State, affectedSnaps map[string]*affectedSnapInfo) *state.TaskSet {
+func createGateAutoRefreshHooks(st *state.State, affectedSnaps map[string]*AffectedSnapInfo) *state.TaskSet {
 	ts := state.NewTaskSet()
 	var prev *state.Task
 	// sort names for easy testing
