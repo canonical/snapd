@@ -371,7 +371,7 @@ apps:
   snapd-control:
     command: bin/run
     plugs: [ snapd-control ]
-  snapd-themes--control:
+  snapd-themes-control:
     command: bin/run
     plugs: [ snapd-themes-control ]
   service-watchdog:
