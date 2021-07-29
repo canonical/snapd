@@ -58,6 +58,8 @@ new_format = \
 	 libsnap-confine-private/cgroup-support.c \
 	 libsnap-confine-private/cgroup-support.h \
 	 libsnap-confine-private/cgroup-support-test.c \
+	 libsnap-confine-private/device-cgroup-support.c \
+	 libsnap-confine-private/device-cgroup-support.h \
 	 libsnap-confine-private/infofile-test.c \
 	 libsnap-confine-private/infofile.c \
 	 libsnap-confine-private/infofile.h \
@@ -116,6 +118,8 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/cgroup-freezer-support.h \
 	libsnap-confine-private/cgroup-support.c \
 	libsnap-confine-private/cgroup-support.h \
+	libsnap-confine-private/device-cgroup-support.c \
+	libsnap-confine-private/device-cgroup-support.h \
 	libsnap-confine-private/classic.c \
 	libsnap-confine-private/classic.h \
 	libsnap-confine-private/cleanup-funcs.c \
