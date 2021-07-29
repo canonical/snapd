@@ -9,12 +9,8 @@ prepare: |
     echo "Install a helper snap with default confinement"
     snap install test-snapd-setpriority
 
-    echo "Enable installing the snapd snap, this happens automatically"
-    snap set core experimental.snapd-snap=true
-    # give the state time to create the change and then start watching
-    # it
-    retry -n 30 snap watch --last=transition-to-snapd-snap
-    snap list snapd
+    echo "Install the snapd snap from edge"
+    snap install snapd --edge
 
     # TODO: the above doesn't actually install the snapd snap from this
     # branch though... we could repack the snapd deb into the snapd snap
