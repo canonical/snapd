@@ -82,13 +82,21 @@ static void _sc_cgroup_v1_init(sc_device_cgroup *self) {
 
 static void _sc_cgroup_v1_close(sc_device_cgroup *self) { sc_cleanup_cgroup_fds(&self->v1.fds); }
 
-static void _sc_cgroup_v1_allow(sc_device_cgroup *self, int kind, int major, int minor) {
+static void _sc_cgroup_v1_action(int fd, int kind, int major, int minor) {
     if ((uint32_t)minor != SC_DEVICE_MINOR_ANY) {
-        sc_dprintf(self->v1.fds.devices_allow_fd, "%c %u:%u rwm\n", (kind == S_IFCHR) ? 'c' : 'b', major, minor);
+        sc_dprintf(fd, "%c %u:%u rwm\n", (kind == S_IFCHR) ? 'c' : 'b', major, minor);
     } else {
-        /* use a mask to allow all minor devices for that major */
-        sc_dprintf(self->v1.fds.devices_allow_fd, "%c %u:* rwm\n", (kind == S_IFCHR) ? 'c' : 'b', major);
+        /* use a mask to allow/deny all minor devices for that major */
+        sc_dprintf(fd, "%c %u:* rwm\n", (kind == S_IFCHR) ? 'c' : 'b', major);
     }
+}
+
+static void _sc_cgroup_v1_allow(sc_device_cgroup *self, int kind, int major, int minor) {
+    _sc_cgroup_v1_action(self->v1.fds.devices_allow_fd, kind, major, minor);
+}
+
+static void _sc_cgroup_v1_deny(sc_device_cgroup *self, int kind, int major, int minor) {
+    _sc_cgroup_v1_action(self->v1.fds.devices_deny_fd, kind, major, minor);
 }
 
 static void _sc_cgroup_v1_attach_pid(sc_device_cgroup *self, pid_t pid) {
@@ -132,6 +140,16 @@ int sc_device_cgroup_allow(sc_device_cgroup *self, int kind, int major, int mino
     }
     if (!self->is_v2) {
         _sc_cgroup_v1_allow(self, kind, major, minor);
+    }
+    return 0;
+}
+
+int sc_device_cgroup_deny(sc_device_cgroup *self, int kind, int major, int minor) {
+    if (kind != S_IFCHR && kind != S_IFBLK) {
+        die("unsupported device kind 0x%04x", kind);
+    }
+    if (!self->is_v2) {
+        _sc_cgroup_v1_deny(self, kind, major, minor);
     }
     return 0;
 }

@@ -48,6 +48,13 @@ static const uint32_t SC_DEVICE_MINOR_ANY = UINT32_MAX;
 int sc_device_cgroup_allow(sc_device_cgroup* self, int kind, int major, int minor);
 
 /**
+ * sc_device_cgroup_deny sets up the cgroup to deny access to a given device or
+ * a set of devices if SC_MINOR_ANY is passed as the minor number. The kind must
+ * be one of S_IFCHR, S_IFBLK.
+ */
+int sc_device_cgroup_deny(sc_device_cgroup* self, int kind, int major, int minor);
+
+/**
  * sc_device_cgroup_attach_pid attaches given process ID to the associated
  * cgroup.
  */
