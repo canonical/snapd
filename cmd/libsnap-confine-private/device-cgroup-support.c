@@ -324,10 +324,16 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         }
         debug("found %zu existing entries in devices map", existing_count);
         if (existing_count > 0) {
-            /* XXX: this returns EINVAL */
-            /* if (bpf_map_delete_batch(devmap_fd, existing_keys, existing_count) < 0) { */
-            /*      die("cannot dump all elements from devices map"); */
-            /* } */
+#if 0
+            /* XXX: we should be doing a batch delete of elements, however:
+             * - on Arch with 5.13 kernel I'm getting EINVAL
+             * - the linux/bpf.h header present during build on 16.04 does not
+             *     support batch operations
+             */
+            if (bpf_map_delete_batch(devmap_fd, existing_keys, existing_count) < 0) {
+                 die("cannot dump all elements from devices map");
+            }
+#endif
             for (size_t i = 0; i < existing_count; i++) {
                 sc_cgroup_v2_device_key key = existing_keys[i];
                 debug("delete key for %c %d:%d", key.type, key.major, key.minor);
@@ -441,7 +447,7 @@ sc_device_cgroup *sc_device_cgroup_new(const char *security_tag, int flags) {
     if (ret < 0) {
         sc_device_cgroup_close(self);
         return NULL;
-	}
+    }
     return self;
 }
 
