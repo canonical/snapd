@@ -588,6 +588,10 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 
 	// also disallows remodel from non-UC20 (grade unset) to UC20
 	if current.Grade() != new.Grade() {
+		if current.Grade() == asserts.ModelGradeUnset && new.Grade() != asserts.ModelGradeUnset {
+			// a case of pre-UC20 -> UC20 remodel
+			return nil, fmt.Errorf("cannot remodel to Ubuntu Core 20 models yet")
+		}
 		return nil, fmt.Errorf("cannot remodel from grade %v to grade %v", current.Grade(), new.Grade())
 	}
 

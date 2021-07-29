@@ -147,7 +147,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelUnhappy(c *C) {
 		{map[string]interface{}{"architecture": "pdp-7"}, "cannot remodel to different architectures yet"},
 		{map[string]interface{}{"base": "core18"}, "cannot remodel from core to bases yet"},
 		// pre-UC20 to UC20
-		{map[string]interface{}{"base": "core20", "kernel": nil, "gadget": nil, "snaps": mockCore20ModelSnaps}, "cannot remodel from grade unset to grade signed"},
+		{map[string]interface{}{"base": "core20", "kernel": nil, "gadget": nil, "snaps": mockCore20ModelSnaps}, "cannot remodel to Ubuntu Core 20 models yet"},
 	} {
 		mergeMockModelHeaders(cur, t.new)
 		new := s.brands.Model(t.new["brand"].(string), t.new["model"].(string), t.new)
