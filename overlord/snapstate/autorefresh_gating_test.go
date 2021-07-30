@@ -1324,6 +1324,90 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 	})
 }
 
+// this test demonstrates that affectedByRefresh uses current snap info (not
+// snap infos of store updates) by simulating a different base for the updated
+// snap from the store.
+func (s *autorefreshGatingSuite) TestAffectedByRefreshUsesCurrentSnapInfo(c *C) {
+	s.store.refreshedSnaps = []*snap.Info{{
+		Architectures: []string{"all"},
+		SnapType:      snap.TypeBase,
+		SideInfo: snap.SideInfo{
+			RealName: "base-snap-b",
+			Revision: snap.R(3),
+		},
+	}, {
+		Architectures: []string{"all"},
+		Base:          "new-base",
+		SnapType:      snap.TypeApp,
+		SideInfo: snap.SideInfo{
+			RealName: "snap-b",
+			Revision: snap.R(5),
+		},
+	}}
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockInstalledSnap(c, s.state, snapByaml, useHook)
+	mockInstalledSnap(c, s.state, baseSnapByaml, noHook)
+
+	restore := snapstatetest.MockDeviceModel(DefaultModel())
+	defer restore()
+
+	names, tss, err := snapstate.AutoRefreshPhase1(context.TODO(), st)
+	c.Assert(err, IsNil)
+	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-b"})
+	c.Assert(tss, HasLen, 2)
+
+	c.Assert(tss[0].Tasks(), HasLen, 1)
+	checkGatingTask(c, tss[0].Tasks()[0], map[string]*snapstate.RefreshCandidate{
+		"snap-b": {
+			SnapSetup: snapstate.SnapSetup{
+				Type:      "app",
+				Base:      "new-base",
+				PlugsOnly: true,
+				Flags: snapstate.Flags{
+					IsAutoRefresh: true,
+				},
+				SideInfo: &snap.SideInfo{
+					RealName: "snap-b",
+					Revision: snap.R(5),
+				},
+				DownloadInfo: &snap.DownloadInfo{},
+			},
+		},
+		"base-snap-b": {
+			SnapSetup: snapstate.SnapSetup{
+				Type:      "base",
+				PlugsOnly: true,
+				Flags: snapstate.Flags{
+					IsAutoRefresh: true,
+				},
+				SideInfo: &snap.SideInfo{
+					RealName: "base-snap-b",
+					Revision: snap.R(3),
+				},
+				DownloadInfo: &snap.DownloadInfo{},
+			},
+		},
+	})
+
+	c.Assert(tss[1].Tasks(), HasLen, 1)
+	var hs hookstate.HookSetup
+	task := tss[1].Tasks()[0]
+	c.Assert(task.Get("hook-setup", &hs), IsNil)
+	c.Check(hs.Hook, Equals, "gate-auto-refresh")
+	c.Check(hs.Snap, Equals, "snap-b")
+
+	// check that refresh-candidates in the state were updated
+	var candidates map[string]*snapstate.RefreshCandidate
+	c.Assert(st.Get("refresh-candidates", &candidates), IsNil)
+	c.Assert(candidates, HasLen, 2)
+	c.Check(candidates["snap-b"], NotNil)
+	c.Check(candidates["base-snap-b"], NotNil)
+}
+
 func (s *autorefreshGatingSuite) TestAutoRefreshPhase1ConflictsFilteredOut(c *C) {
 	s.store.refreshedSnaps = []*snap.Info{{
 		Architectures: []string{"all"},
