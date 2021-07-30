@@ -599,6 +599,19 @@ func ValidationSetAssertionForEnforce(st *state.State, accountID, name string, s
 
 	vs, err = getSpecificSequenceOrLatest(db, headers)
 
+	checkForConflicts := func() error {
+		if err := valsets.Add(vs); err != nil {
+			return fmt.Errorf("internal error: cannot check validation sets conflicts: %v", err)
+		}
+		if err := valsets.Conflict(); err != nil {
+			return err
+		}
+		if err := valsets.CheckInstalledSnaps(snaps); err != nil {
+			return err
+		}
+		return nil
+	}
+
 	// found locally
 	if err == nil {
 		// check if we were tracking it already; if not, that
@@ -610,7 +623,7 @@ func ValidationSetAssertionForEnforce(st *state.State, accountID, name string, s
 		if trerr != nil && trerr != state.ErrNoState {
 			return nil, trerr
 		}
-		// not tracked, the assertion.
+		// not tracked, update the assertion
 		if trerr == state.ErrNoState {
 			// update with pool
 			atSeq.Sequence = vs.Sequence()
@@ -620,14 +633,8 @@ func ValidationSetAssertionForEnforce(st *state.State, accountID, name string, s
 			}
 		} else {
 			// was already tracked, add to validation sets and check
-			if err := valsets.Add(vs); err != nil {
+			if err := checkForConflicts(); err != nil {
 				return nil, err
-			}
-			if err := valsets.Conflict(); err != nil {
-				return nil, fmt.Errorf("cannot enforce validation set: %v", err)
-			}
-			if err := valsets.CheckInstalledSnaps(snaps); err != nil {
-				return nil, fmt.Errorf("cannot enforce validation set: %v", err)
 			}
 			return vs, nil
 		}
@@ -642,20 +649,14 @@ func ValidationSetAssertionForEnforce(st *state.State, accountID, name string, s
 		}
 	}
 
-	checkForConflicts := func(db *asserts.Database, bs asserts.Backstore) error {
+	checkBeforeCommit := func(db *asserts.Database, bs asserts.Backstore) error {
 		tmpDb := db.WithStackedBackstore(bs)
 		// get the resolved validation set assert, add to validation sets and check
 		vs, err = getSpecificSequenceOrLatest(tmpDb, headers)
 		if err != nil {
 			return fmt.Errorf("internal error: cannot find validation set assertion: %v", err)
 		}
-		if err := valsets.Add(vs); err != nil {
-			return fmt.Errorf("internal error: cannot check validation sets conflicts: %v", err)
-		}
-		if err := valsets.Conflict(); err != nil {
-			return err
-		}
-		if err := valsets.CheckInstalledSnaps(snaps); err != nil {
+		if err := checkForConflicts(); err != nil {
 			return err
 		}
 		// all fine, will be committed (along with its prerequisites if any) on
@@ -663,7 +664,7 @@ func ValidationSetAssertionForEnforce(st *state.State, accountID, name string, s
 		return nil
 	}
 
-	if err := resolvePoolNoFallback(st, pool, checkForConflicts, userID, deviceCtx); err != nil {
+	if err := resolvePoolNoFallback(st, pool, checkBeforeCommit, userID, deviceCtx); err != nil {
 		return nil, err
 	}
 
