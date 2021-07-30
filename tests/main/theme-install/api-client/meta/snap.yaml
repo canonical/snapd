@@ -1,6 +1,6 @@
 name: api-client
 version: 1
-base: core20
+base: core18
 apps:
   api-client:
     command: bin/api-client.py
