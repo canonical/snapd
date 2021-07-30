@@ -57,7 +57,7 @@ nested_wait_for_snap_command() {
     local retry=200
     local wait=1
 
-    while not nested_exec "command -v snap"; do
+    while ! nested_exec "command -v snap"; do
         retry=$(( retry - 1 ))
         if [ $retry -le 0 ]; then
             echo "Timed out waiting for command 'command -v snap' to success. Aborting!"
@@ -1019,10 +1019,10 @@ nested_start_core_vm_unit() {
         nested_wait_for_snap_command
         # Wait for snap seeding to be done
         nested_exec "sudo snap wait system seed.loaded"
-        # Wait for cloud init to be done
-        nested_exec "retry --wait 1 -n 5 sh -c 'cloud-init status --wait'"
         # Copy tools to be used on tests
         nested_prepare_tools
+        # Wait for cloud init to be done
+        nested_exec "retry --wait 1 -n 5 sh -c 'cloud-init status --wait'"
     fi
 }
 
