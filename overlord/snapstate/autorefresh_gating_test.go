@@ -747,7 +747,7 @@ func (s *autorefreshGatingSuite) TestAffectedByBase(c *C) {
 
 	c.Assert(s.repo.AddSnap(snapB), IsNil)
 
-	updates := []*snap.Info{baseSnapA}
+	updates := []string{baseSnapA.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
 	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
@@ -774,7 +774,7 @@ func (s *autorefreshGatingSuite) TestAffectedByCore(c *C) {
 	c.Assert(s.repo.AddSnap(snapB), IsNil)
 	c.Assert(s.repo.AddSnap(snapC), IsNil)
 
-	updates := []*snap.Info{core}
+	updates := []string{core.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
 	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
@@ -797,7 +797,7 @@ func (s *autorefreshGatingSuite) TestAffectedByKernel(c *C) {
 	mockInstalledSnap(c, s.state, snapCyaml, useHook)
 	mockInstalledSnap(c, s.state, snapByaml, noHook)
 
-	updates := []*snap.Info{kernel}
+	updates := []string{kernel.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
 	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
@@ -818,7 +818,7 @@ func (s *autorefreshGatingSuite) TestAffectedBySelf(c *C) {
 	defer st.Unlock()
 
 	snapC := mockInstalledSnap(c, s.state, snapCyaml, useHook)
-	updates := []*snap.Info{snapC}
+	updates := []string{snapC.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
 	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
@@ -840,7 +840,7 @@ func (s *autorefreshGatingSuite) TestAffectedByGadget(c *C) {
 	mockInstalledSnap(c, s.state, snapCyaml, useHook)
 	mockInstalledSnap(c, s.state, snapByaml, noHook)
 
-	updates := []*snap.Info{kernel}
+	updates := []string{kernel.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
 	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
@@ -872,7 +872,7 @@ func (s *autorefreshGatingSuite) TestAffectedBySlot(c *C) {
 	_, err := s.repo.Connect(cref, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
-	updates := []*snap.Info{snapD}
+	updates := []string{snapD.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
 	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
@@ -904,7 +904,7 @@ func (s *autorefreshGatingSuite) TestNotAffectedByCoreOrSnapdSlot(c *C) {
 	_, err := s.repo.Connect(cref, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
-	updates := []*snap.Info{core}
+	updates := []string{core.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
 	c.Check(affected, HasLen, 0)
@@ -932,7 +932,7 @@ func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackend(c *C) {
 	c.Assert(err, IsNil)
 
 	// snapE has a plug using mount backend and is refreshed, this affects slot of snap-d.
-	updates := []*snap.Info{snapE}
+	updates := []string{snapE.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
 	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
@@ -965,7 +965,7 @@ func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackendSnapdSlot(c *
 	c.Assert(err, IsNil)
 
 	// snapE has a plug using mount backend, refreshing snapd affects snapE.
-	updates := []*snap.Info{snapdSnap}
+	updates := []string{snapdSnap.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
 	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
@@ -995,7 +995,7 @@ func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackendCoreSlot(c *C
 	c.Assert(err, IsNil)
 
 	// snapG has a plug using mount backend, refreshing core affects snapE.
-	updates := []*snap.Info{coreSnap}
+	updates := []string{coreSnap.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
 	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
@@ -1023,7 +1023,7 @@ func (s *autorefreshGatingSuite) TestAffectedByBootBase(c *C) {
 	mockInstalledSnap(c, s.state, snapEyaml, useHook)
 	core18 := mockInstalledSnap(c, s.state, core18Yaml, noHook)
 
-	updates := []*snap.Info{core18}
+	updates := []string{core18.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
 	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
