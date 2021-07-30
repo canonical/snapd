@@ -167,6 +167,8 @@ static void test_sdh_action(sdh_test_fixture *fixture, gconstpointer test_data) 
     g_assert_nonnull(mocks.new_tag);
     g_assert_nonnull(td->app);
     g_assert_cmpstr(mocks.new_tag, ==, td->app);
+    g_assert_cmpint(mocks.new_flags, !=, 0);
+    g_assert_cmpint(mocks.new_flags, ==, SC_DEVICE_CGROUP_FROM_EXISTING);
 
     g_debug("reset");
     mocks_reset();
@@ -196,6 +198,8 @@ static void test_sdh_action(sdh_test_fixture *fixture, gconstpointer test_data) 
     g_assert_nonnull(mocks.new_tag);
     g_assert_nonnull(td->app);
     g_assert_cmpstr(mocks.new_tag, ==, td->app);
+    g_assert_cmpint(mocks.new_flags, !=, 0);
+    g_assert_cmpint(mocks.new_flags, ==, SC_DEVICE_CGROUP_FROM_EXISTING);
 }
 
 static void test_sdh_action_nvme(sdh_test_fixture *fixture, gconstpointer test_data) {
@@ -273,6 +277,8 @@ static void test_sdh_action_nvme(sdh_test_fixture *fixture, gconstpointer test_d
         g_assert_cmpint(mocks.device_major, ==, tcs[i].expected_maj);
         g_assert_cmpint(mocks.device_minor, ==, tcs[i].expected_min);
         g_assert_cmpint(mocks.device_type, ==, tcs[i].expected_type);
+        g_assert_cmpint(mocks.new_flags, !=, 0);
+        g_assert_cmpint(mocks.new_flags, ==, SC_DEVICE_CGROUP_FROM_EXISTING);
     }
 }
 
