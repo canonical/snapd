@@ -27,7 +27,7 @@ typedef struct sc_device_cgroup sc_device_cgroup;
 enum {
     /* when creating a device cgroup wrapped, do not set up a new cgroup but
      * rather use an existing one */
-    SC_DEVICE_CGROUP_FROM_EXISTING,
+    SC_DEVICE_CGROUP_FROM_EXISTING = 1,
 };
 
 /**
