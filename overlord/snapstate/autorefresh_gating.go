@@ -380,6 +380,22 @@ type AffectedSnapInfo struct {
 	AffectingSnaps map[string]bool
 }
 
+// AffectedByRefreshCandidates returns information about all snaps affected by
+// current refresh-candidates in the state.
+func AffectedByRefreshCandidates(st *state.State) (map[string]*AffectedSnapInfo, error) {
+	var candidates map[string]*refreshCandidate
+	if err := st.Get("refresh-candidates", &candidates); err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+
+	snaps := make([]string, 0, len(candidates))
+	for cand := range candidates {
+		snaps = append(snaps, cand)
+	}
+	affected, err := affectedByRefresh(st, snaps)
+	return affected, err
+}
+
 func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedSnapInfo, error) {
 	allSnaps, err := All(st)
 	if err != nil {
