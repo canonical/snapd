@@ -137,11 +137,6 @@ struct sdh_test_data {
 static void test_sdh_action(sdh_test_fixture *fixture, gconstpointer test_data) {
     struct sdh_test_data *td = (struct sdh_test_data *)test_data;
 
-    gchar *app_dir = g_build_filename(fixture->sysroot, td->app, NULL);
-
-    g_assert(g_mkdir_with_parents(app_dir, 0755) == 0);
-    g_free(app_dir);
-
     struct sdh_invocation inv_block = {
         .action = td->action,
         .tagname = td->mangled_appname,
@@ -201,6 +196,84 @@ static void test_sdh_action(sdh_test_fixture *fixture, gconstpointer test_data) 
     g_assert_nonnull(mocks.new_tag);
     g_assert_nonnull(td->app);
     g_assert_cmpstr(mocks.new_tag, ==, td->app);
+}
+
+static void test_sdh_action_nvme(sdh_test_fixture *fixture, gconstpointer test_data) {
+	/* hierarchy from an actual system with a nvme disk */
+    mkdir_in_sysroot(fixture, "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0/nvme0n1");
+    mkdir_in_sysroot(fixture, "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0/nvme0n1p1");
+    mkdir_in_sysroot(fixture, "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0/ng0n1");
+    mkdir_in_sysroot(fixture, "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0/hwmon0");
+    symlink_in_sysroot(fixture, "/sys//devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0/nvme0n1/subsystem",
+                       "../../../../../../../class/block");
+    symlink_in_sysroot(fixture, "/sys//devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0/nvme0n1p1/subsystem",
+                       "../../../../../../../class/block");
+    symlink_in_sysroot(fixture, "/sys//devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0/subsystem",
+                       "../../../../../../class/nvme");
+    symlink_in_sysroot(fixture, "/sys//devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0/ng0n1/subsystem",
+                       "../../../../../../class/nvme-generic");
+    symlink_in_sysroot(fixture, "/sys//devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0/hwmon0/subsystem",
+                       "../../../../../../class/hwmon");
+
+    struct {
+        const char *dev;
+        const char *majmin;
+        int expected_maj;
+        int expected_min;
+        int expected_type;
+    } tcs[] = {
+        {
+            .dev = "/devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0/nvme0n1",
+            .majmin = "259:0",
+            .expected_maj = 259,
+            .expected_min = 0,
+            .expected_type = S_IFBLK,
+        },
+        {
+            .dev = "/devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0/nvme0n1p1",
+            .majmin = "259:1",
+            .expected_maj = 259,
+            .expected_min = 1,
+            .expected_type = S_IFBLK,
+        },
+        {
+            .dev = "/devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0",
+            .majmin = "242:0",
+            .expected_maj = 242,
+            .expected_min = 0,
+            .expected_type = S_IFCHR,
+        },
+        {
+            .dev = "/devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0/hwmon0",
+            .majmin = "241:0",
+            .expected_maj = 241,
+            .expected_min = 0,
+            .expected_type = S_IFCHR,
+        },
+    };
+
+    int bogus = 0;
+
+    for (size_t i = 0; i < sizeof(tcs) / sizeof(tcs[0]); i++) {
+        mocks_reset();
+        /* make cgroup_device_new return a non-NULL */
+        mocks.new_ret = &bogus;
+
+        struct sdh_invocation inv_block = {
+            .action = "add",
+            .tagname = "snap_foo_bar",
+            .devpath = tcs[i].dev,
+            .majmin = tcs[i].majmin,
+        };
+        int ret = snap_device_helper_run(&inv_block);
+        g_assert_cmpint(ret, ==, 0);
+        g_assert_cmpint(mocks.cgorup_new_calls, ==, 1);
+        g_assert_cmpint(mocks.cgroup_allow_calls, ==, 1);
+        g_assert_cmpint(mocks.cgroup_deny_calls, ==, 0);
+        g_assert_cmpint(mocks.device_major, ==, tcs[i].expected_maj);
+        g_assert_cmpint(mocks.device_minor, ==, tcs[i].expected_min);
+        g_assert_cmpint(mocks.device_type, ==, tcs[i].expected_type);
+    }
 }
 
 static void run_sdh_die(const char *action, const char *tagname, const char *devpath, const char *majmin,
@@ -335,4 +408,6 @@ static void __attribute__((constructor)) init(void) {
     _test_add("/snap-device-helper/hook/parallel/add", &instance_add_hook_data, test_sdh_action);
     _test_add("/snap-device-helper/hook-name-hook/parallel/add", &instance_add_instance_name_is_hook_data,
               test_sdh_action);
+
+    _test_add("/snap-device-helper/nvme", NULL, test_sdh_action_nvme);
 }
