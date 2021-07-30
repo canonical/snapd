@@ -137,11 +137,6 @@ struct sdh_test_data {
 static void test_sdh_action(sdh_test_fixture *fixture, gconstpointer test_data) {
     struct sdh_test_data *td = (struct sdh_test_data *)test_data;
 
-    gchar *app_dir = g_build_filename(fixture->sysroot, td->app, NULL);
-
-    g_assert(g_mkdir_with_parents(app_dir, 0755) == 0);
-    g_free(app_dir);
-
     struct sdh_invocation inv_block = {
         .action = td->action,
         .tagname = td->mangled_appname,
