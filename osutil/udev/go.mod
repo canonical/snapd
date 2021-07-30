@@ -1,4 +1,4 @@
-module github.com/pilebones/go-udev
+module github.com/snapcore/snapd/osutil/udev
 
 go 1.15
 

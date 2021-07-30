@@ -125,8 +125,6 @@ missing_interface_spread_test() {
 
 
 if [ "$STATIC" = 1 ]; then
-    ./get-deps.sh
-
     # Run static tests.
     echo Checking docs
     ./mdlint.py ./*.md docs/*.md
@@ -275,8 +273,6 @@ if [ "$STATIC" = 1 ]; then
 fi
 
 if [ "$UNIT" = 1 ]; then
-    ./get-deps.sh
-
     echo "Show go version"
     command -v go
     go version

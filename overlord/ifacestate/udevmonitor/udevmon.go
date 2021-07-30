@@ -25,9 +25,9 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/pilebones/go-udev/netlink"
 	"github.com/snapcore/snapd/interfaces/hotplug"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil/udev/netlink"
 )
 
 type Interface interface {

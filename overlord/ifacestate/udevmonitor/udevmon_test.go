@@ -25,8 +25,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/pilebones/go-udev/netlink"
 	"github.com/snapcore/snapd/interfaces/hotplug"
-	"github.com/snapcore/snapd/osutil/udev/netlink"
 	"github.com/snapcore/snapd/overlord/ifacestate/udevmonitor"
 	"github.com/snapcore/snapd/testutil"
 )
