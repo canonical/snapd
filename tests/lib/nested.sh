@@ -52,7 +52,7 @@ nested_wait_for_no_ssh() {
 }
 
 nested_wait_for_snap_command() {
-    # In this function cannot be used the remote retry command because it could
+    # In this function the remote retry command cannot be used because it could
     # be executed before the tool is deployed.
     local retry=200
     local wait=1
