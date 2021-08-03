@@ -81,6 +81,7 @@ func (s *TeeInterfaceSuite) TestAppArmorSpec(c *C) {
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/tee[0-9]*")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "/dev/qseecom")
 }
 
 func (s *TeeInterfaceSuite) TestUDevSpec(c *C) {
@@ -91,6 +92,8 @@ func (s *TeeInterfaceSuite) TestUDevSpec(c *C) {
 KERNEL=="tee[0-9]*", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# tee
 KERNEL=="teepriv[0-9]*", TAG+="snap_consumer_app"`)
+	c.Assert(spec.Snippets(), testutil.Contains, `# tee
+KERNEL=="qseecom", TAG+="snap_consumer_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains,
 		fmt.Sprintf(`TAG=="snap_consumer_app", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
