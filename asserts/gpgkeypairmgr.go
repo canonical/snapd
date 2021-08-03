@@ -257,7 +257,15 @@ func (gkm *GPGKeypairManager) Get(keyID string) (PrivateKey, error) {
 }
 
 func (gkm *GPGKeypairManager) sign(fingerprint string, content []byte) (*packet.Signature, error) {
-	out, err := gkm.gpg(content, "--personal-digest-preferences", "SHA512", "--default-key", "0x"+fingerprint, "--detach-sign")
+	var args []string 
+	passphrase := os.Getenv("PASSPHRASE")
+	if passphrase != "" {
+		args = []string{"--personal-digest-preferences", "SHA512", "--default-key", "0x"+fingerprint, "--pinentry-mode=loopback", "--passphrase", passphrase, "--detach-sign"}
+	} else {
+		args = []string{"--personal-digest-preferences", "SHA512", "--default-key", "0x"+fingerprint, "--detach-sign"}
+	}
+	
+	out, err := gkm.gpg(content, args...)
 	if err != nil {
 		return nil, fmt.Errorf("cannot sign using GPG: %v", err)
 	}
