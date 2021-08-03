@@ -380,6 +380,9 @@ apps:
   can-bus:
     command: bin/run
     plugs: [ can-bus ]
+  sd-control:
+    command: bin/run
+    plugs: [ sd-control ]
   ssh-keys:
     command: bin/run
     plugs: [ ssh-keys ]
@@ -488,3 +491,6 @@ plugs:
     write: [$HOME/dir1]
   dummy:
     interface: dummy
+  sd-control:
+    interface: sd-control
+    flavor: dual-sd

@@ -1,3 +1,11 @@
+snapd (2.51.3-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1929842
+    - interfaces/builtin: add sd-control interface
+    - store: set ResponseHeaderTimeout on the default transport
+
+ -- Ian Johnson <ian.johnson@canonical.com>  Wed, 14 Jul 2021 15:26:54 -0500
+
 snapd (2.51.2-1) unstable; urgency=medium
 
   * New upstream release, LP: #1929842
