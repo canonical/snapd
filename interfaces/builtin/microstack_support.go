@@ -62,7 +62,16 @@ const microStackSupportConnectedPlugAppArmor = `
 
 # Allow creating dm-* devices, /dev/<vg-name> directories, /dev/mapper directory and symlinks under it.
 # Allow issuing ioctls to the Device Mapper for LVM tools via /dev/mapper/control.
-/dev/** rw,
+/dev/mapper/control rw,
+# Besides symlinks for LVs prefixed with a VG name this is also needed for DM devices created with
+# dm-crypt and other DM modules.
+/dev/mapper/{,**} rw,
+# Allow device mapper devices to be accessed.
+/dev/dm-* rw,
+/dev/microstack-*/{,**} rw,
+# Allow bcache devices to be accessed since DM devices may be set up on top of those.
+/dev/bcache[0-9]{,[0-9],[0-9][0-9]} rw,                   # bcache (up to 1000 devices)
+
 # Allow access to loop devices and loop-control to be able to associate a file with a loop device
 # for the purpose of using a file-backed LVM setup.
 /dev/loop-control rw,
