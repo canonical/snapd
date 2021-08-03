@@ -132,6 +132,9 @@ execute: |
   echo "And we can run things as the normal user"
   tests.nested exec_as normal-user ubuntu "sudo true"
 
+  echo "And we got a serial assertion from the fakestore"
+  tests.nested exec "sudo snap model --verbose --serial" | MATCH "serial:\s+7777"
+
   echo "Waiting for snapd to react to cloud-init"
   retry --wait 1 -n 60 sh -c 'tests.nested exec sudo journalctl --no-pager -u snapd | MATCH "cloud-init reported"'
 
