@@ -136,19 +136,7 @@ execute: |
   tests.nested exec_as normal-user ubuntu "sudo true"
 
   echo "Waiting for snapd to react to cloud-init"
-  seen=0
-  for i in $(seq 60); do
-      if tests.nested exec "sudo journalctl --no-pager -u snapd" | MATCH "cloud-init reported"; then
-          seen=1
-          break
-      fi
-      sleep 1
-  done
-
-  if [ "$seen" = "0" ]; then
-      echo "snapd did not restrict cloud-init, test failed"
-      exit 1
-  fi
+  retry --wait 1 -n 60 sh -c 'tests.nested exec sudo journalctl --no-pager -u snapd | MATCH "cloud-init reported"'
 
   echo "Ensuring that cloud-init got disabled after running"
   tests.nested exec "cloud-init status" | MATCH "status: disabled"

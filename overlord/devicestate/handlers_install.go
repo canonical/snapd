@@ -53,38 +53,28 @@ var (
 func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *asserts.Model) {
 	ubuntuSeedCloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
 
-	// TODO:UC20: on grade signed, allow files from ubuntu-seed, but do
-	//            filtering on the resultant cloud config
-	shouldUseUbuntuSeed := model.Grade() == asserts.ModelDangerous && osutil.IsDirectory(ubuntuSeedCloudCfg)
+	grade := model.Grade()
+
+	// we always set the cloud-init src directory if it exists, it is
+	// automatically ignored by sysconfig in the case it shouldn't be used
+	if osutil.IsDirectory(ubuntuSeedCloudCfg) {
+		opts.CloudInitSrcDir = ubuntuSeedCloudCfg
+	}
 
 	switch {
 	// if the gadget has a cloud.conf file, always use that regardless of grade
 	case sysconfig.HasGadgetCloudConf(gadgetDir):
-		// this is implicitly handled by ConfigureTargetSystem when it
-		// configures cloud-init, so we just need to allow cloud-init for the
-		// gadget config to be used, but we also should check to see if
-		// ubuntu-seed config should be allowed as well
 		opts.AllowCloudInit = true
-		if shouldUseUbuntuSeed {
-			opts.CloudInitSrcDir = ubuntuSeedCloudCfg
-		}
 
 	// next thing is if are in secured grade and didn't have gadget config, we
 	// disable cloud-init always, clouds should have their own config via
 	// gadgets for grade secured
-	case model.Grade() == asserts.ModelSecured:
+	case grade == asserts.ModelSecured:
 		opts.AllowCloudInit = false
 
-	// next if we are grade dangerous, then we also install cloud configuration
-	// from ubuntu-seed if it exists
-	case shouldUseUbuntuSeed:
-		opts.AllowCloudInit = true
-		opts.CloudInitSrcDir = ubuntuSeedCloudCfg
-
-	// note that if none of the conditions were true, it means we are on grade
-	// dangerous or signed, and cloud-init is still allowed to run without
-	// additional configuration on first-boot, so that NoCloud CIDATA can be
-	// provided for example
+	// all other cases we allow cloud-init to run, either through config that is
+	// available at runtime via a CI-DATA USB drive, or via config on
+	// ubuntu-seed if that is allowed by the model grade, etc.
 	default:
 		opts.AllowCloudInit = true
 	}

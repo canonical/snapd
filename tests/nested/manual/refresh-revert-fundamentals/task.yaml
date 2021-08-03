@@ -89,13 +89,9 @@ execute: |
     echo "Check the change is completed"
     case "$SNAP" in
         pc-kernel|core20)
-            for _ in $(seq 10); do
-                if tests.nested exec "snap changes" | MATCH "$REFRESH_ID\s+Done\s+.*"; then
-                    break
-                fi
-                sleep 1
-            done
-            tests.nested exec "snap changes" | MATCH "$REFRESH_ID\s+Done\s+.*"
+            #shellcheck disable=SC2098
+            #shellcheck disable=SC2097
+            retry --wait 1 -n 10 --env REVERT_ID="$REVERT_ID" sh -c "tests.nested exec snap changes | MATCH \"$REVERT_ID\s+Done\s+.*\""
             ;;
     esac
 
@@ -123,12 +119,6 @@ execute: |
     echo "Check the change is completed"
     case "$SNAP" in
         pc-kernel|core20)
-            for _ in $(seq 10); do
-                if tests.nested exec "snap changes" | MATCH "$REVERT_ID\s+Done\s+.*"; then
-                    break
-                fi
-                sleep 1
-            done
-            tests.nested exec "snap changes" | MATCH "$REVERT_ID\s+Done\s+.*"
+            tests.nested exec "retry --wait 1 -n 10 --env REVERT_ID=\"$REVERT_ID\" sh -c \'snap changes | MATCH \"$REVERT_ID\s+Done\s+.*\"\'"
             ;;
     esac

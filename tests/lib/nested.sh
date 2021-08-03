@@ -24,15 +24,35 @@ NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS
 
 nested_wait_for_ssh() {
     # TODO:UC20: the retry count should be lowered to something more reasonable.
-    nested_retry_until_success 800 1 "true"
+    local retry=800
+    local wait=1
+
+    until nested_exec "true"; do
+        retry=$(( retry - 1 ))
+        if [ $retry -le 0 ]; then
+            echo "Timed out waiting for command 'true' to succeed. Aborting!"
+            return 1
+        fi
+        sleep "$wait"
+    done
 }
 
 nested_wait_for_no_ssh() {
-    nested_retry_while_success 200 1 "true"
+    local retry=200
+    local wait=1
+
+    while nested_exec "true"; do
+        retry=$(( retry - 1 ))
+        if [ $retry -le 0 ]; then
+            echo "Timed out waiting for command 'true' to fail. Aborting!"
+            return 1
+        fi
+        sleep "$wait"
+    done
 }
 
 nested_wait_for_snap_command() {
-    nested_retry_until_success 200 1 command -v snap
+    nested_exec "retry --wait 1 -n 200 sh -c 'command -v snap'"
 }
 
 nested_get_boot_id() {
@@ -70,36 +90,9 @@ nested_uc20_transition_to_system_mode() {
     if ! nested_exec "cat /proc/cmdline" | MATCH "snapd_recovery_mode=$mode"; then
         return 1
     fi
-}
 
-nested_retry_while_success() {
-    local retry="$1"
-    local wait="$2"
-    shift 2
-
-    while nested_exec "$@"; do
-        retry=$(( retry - 1 ))
-        if [ $retry -le 0 ]; then
-            echo "Timed out waiting for command '$*' to fail. Aborting!"
-            return 1
-        fi
-        sleep "$wait"
-    done
-}
-
-nested_retry_until_success() {
-    local retry="$1"
-    local wait="$2"
-    shift 2
-
-    until nested_exec "$@"; do
-        retry=$(( retry - 1 ))
-        if [ $retry -le 0 ]; then
-            echo "Timed out waiting for command '$*' to succeed. Aborting!"
-            return 1
-        fi
-        sleep "$wait"
-    done
+    # Copy tools to be used on tests
+    nested_prepare_tools
 }
 
 nested_prepare_ssh() {
@@ -234,11 +227,11 @@ nested_get_google_image_url_for_vm() {
         ubuntu-20.04-64)
             echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
             ;;
-        ubuntu-20.10-64*)
-            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/groovy-server-cloudimg-amd64.img"
-            ;;
         ubuntu-21.04-64*)
             echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/hirsute-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-21.10-64*)
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/impish-server-cloudimg-amd64.img"
             ;;
         *)
             echo "unsupported system"
@@ -259,11 +252,11 @@ nested_get_ubuntu_image_url_for_vm() {
         ubuntu-20.04-64*)
             echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img"
             ;;
-        ubuntu-20.10-64*)
-            echo "https://cloud-images.ubuntu.com/groovy/current/groovy-server-cloudimg-amd64.img"
-            ;;
         ubuntu-21.04-64*)
             echo "https://cloud-images.ubuntu.com/hirsute/current/hirsute-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-21.10-64*)
+            echo "https://cloud-images.ubuntu.com/impish/current/impish-server-cloudimg-amd64.img"
             ;;
         *)
             echo "unsupported system"
@@ -1010,12 +1003,14 @@ nested_start_core_vm_unit() {
     if [ "$EXPECT_SHUTDOWN" != "1" ]; then
         # Wait until ssh is ready
         nested_wait_for_ssh
+        # Copy tools to be used on tests
+        nested_prepare_tools
         # Wait for the snap command to be available
         nested_wait_for_snap_command
         # Wait for snap seeding to be done
         nested_exec "sudo snap wait system seed.loaded"
         # Wait for cloud init to be done
-        nested_exec "cloud-init status --wait"
+        nested_exec "retry --wait 1 -n 5 sh -c 'cloud-init status --wait'"
     fi
 }
 
@@ -1093,6 +1088,7 @@ nested_start() {
     nested_force_start_vm
     wait_for_service "$NESTED_VM" active
     nested_wait_for_ssh
+    nested_prepare_tools
 }
 
 nested_create_classic_vm() {
@@ -1209,6 +1205,9 @@ nested_start_classic_vm() {
         ${PARAM_CD} "
 
     nested_wait_for_ssh
+
+    # Copy tools to be used on tests
+    nested_prepare_tools
 }
 
 nested_destroy_vm() {
@@ -1228,6 +1227,52 @@ nested_exec_as() {
     local PASSWD="$2"
     shift 2
     sshpass -p "$PASSWD" ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$USER"@localhost "$@"
+}
+
+nested_prepare_tools() {
+    TOOLS_PATH=/writable/test-tools
+    if ! nested_exec "test -d $TOOLS_PATH" &>/dev/null; then
+        nested_exec "sudo mkdir -p $TOOLS_PATH"
+        nested_exec "sudo chown user1:user1 $TOOLS_PATH"
+    fi
+
+    if ! nested_exec "test -e $TOOLS_PATH/retry" &>/dev/null; then
+        nested_copy "$TESTSTOOLS/retry"
+        nested_exec "mv retry $TOOLS_PATH/retry"
+    fi
+
+    if ! nested_exec "test -e $TOOLS_PATH/not" &>/dev/null; then
+        nested_copy "$TESTSTOOLS/not"
+        nested_exec "mv not $TOOLS_PATH/not"
+    fi
+
+    if ! nested_exec "test -e $TOOLS_PATH/MATCH" &>/dev/null; then
+        . "$TESTSLIB"/spread-funcs.sh
+        echo '#!/bin/bash' > MATCH_FILE
+        type MATCH | tail -n +2 >> MATCH_FILE
+        echo 'MATCH "$@"' >> MATCH_FILE
+        chmod +x MATCH_FILE
+        nested_copy "MATCH_FILE"
+        nested_exec "mv MATCH_FILE $TOOLS_PATH/MATCH"
+        rm -f MATCH_FILE
+    fi
+
+    if ! nested_exec "test -e $TOOLS_PATH/NOMATCH" &>/dev/null; then
+        . "$TESTSLIB"/spread-funcs.sh
+        echo '#!/bin/bash' > NOMATCH_FILE
+        type NOMATCH | tail -n +2 >> NOMATCH_FILE
+        echo 'NOMATCH "$@"' >> NOMATCH_FILE
+        chmod +x NOMATCH_FILE
+        nested_copy "NOMATCH_FILE"
+        nested_exec "mv NOMATCH_FILE $TOOLS_PATH/NOMATCH"
+        rm -f NOMATCH_FILE
+    fi
+
+    if ! nested_exec "grep -qE PATH=.*$TOOLS_PATH /etc/environment"; then
+        # shellcheck disable=SC2016
+        REMOTE_PATH="$(nested_exec 'echo $PATH')"
+        nested_exec "echo PATH=$TOOLS_PATH:$REMOTE_PATH | sudo tee -a /etc/environment"
+    fi
 }
 
 nested_copy() {

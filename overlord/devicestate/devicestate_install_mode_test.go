@@ -989,7 +989,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitInDangerous(
 	})
 }
 
-func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitGadgetOnlyInSigned(c *C) {
+func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitGadgetAndSeedConfigSigned(c *C) {
 	// pretend we have a cloud-init config on the seed partition
 	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
 	err := os.MkdirAll(cloudCfg, 0755)
@@ -1008,18 +1008,18 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitGadgetOnlyIn
 
 	s.mockInstallModeChange(c, "signed", "")
 
-	// we didn't tell sysconfig about the ubuntu-seed cloud-init files, just
-	// the gadget ones
+	// sysconfig is told about both configs
 	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
-			AllowCloudInit: true,
-			TargetRootDir:  boot.InstallHostWritableDir,
-			GadgetDir:      filepath.Join(dirs.SnapMountDir, "pc/1/"),
+			AllowCloudInit:  true,
+			TargetRootDir:   boot.InstallHostWritableDir,
+			GadgetDir:       filepath.Join(dirs.SnapMountDir, "pc/1/"),
+			CloudInitSrcDir: cloudCfg,
 		},
 	})
 }
 
-func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitBothGadgetAndUbuntuSeedInDangerous(c *C) {
+func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitBothGadgetAndUbuntuSeedDangerous(c *C) {
 	// pretend we have a cloud-init config on the seed partition
 	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
 	err := os.MkdirAll(cloudCfg, 0755)
@@ -1050,19 +1050,11 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSupportsCloudInitBothGadgetAn
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeSignedNoUbuntuSeedCloudInit(c *C) {
-	// pretend we have a cloud-init config on the seed partition
-	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
-	err := os.MkdirAll(cloudCfg, 0755)
-	c.Assert(err, IsNil)
-	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
-		err = ioutil.WriteFile(filepath.Join(cloudCfg, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
-		c.Assert(err, IsNil)
-	}
-
+	// pretend we have no cloud-init config anywhere
 	s.mockInstallModeChange(c, "signed", "")
 
-	// and did NOT tell sysconfig about the cloud-init file, but also did not
-	// explicitly disable cloud init
+	// we didn't pass any cloud-init src dir but still left cloud-init enabled
+	// if for example a CI-DATA USB drive was provided at runtime
 	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
 			AllowCloudInit: true,
@@ -1095,7 +1087,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSecuredGadgetCloudConfCloudIn
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeSecuredNoUbuntuSeedCloudInit(c *C) {
-	// pretend we have a cloud-init config on the seed partition
+	// pretend we have a cloud-init config on the seed partition with some files
 	cloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
 	err := os.MkdirAll(cloudCfg, 0755)
 	c.Assert(err, IsNil)
@@ -1109,13 +1101,15 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeSecuredNoUbuntuSeedCloudInit(
 	})
 	c.Assert(err, IsNil)
 
-	// and did NOT tell sysconfig about the cloud-init files, instead it was
-	// disabled because only gadget cloud-init is allowed
+	// we did tell sysconfig about the ubuntu-seed cloud config dir because it
+	// exists, but it is up to sysconfig to use the model to determine to ignore
+	// the files
 	c.Assert(s.ConfigureTargetSystemOptsPassed, DeepEquals, []*sysconfig.Options{
 		{
-			AllowCloudInit: false,
-			TargetRootDir:  boot.InstallHostWritableDir,
-			GadgetDir:      filepath.Join(dirs.SnapMountDir, "pc/1/"),
+			AllowCloudInit:  false,
+			TargetRootDir:   boot.InstallHostWritableDir,
+			GadgetDir:       filepath.Join(dirs.SnapMountDir, "pc/1/"),
+			CloudInitSrcDir: cloudCfg,
 		},
 	})
 }
@@ -1180,7 +1174,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallWithEncryptionValidatesGadgetErr(
 
 	installSystem := s.findInstallSystem()
 	c.Check(installSystem.Err(), ErrorMatches, `(?ms)cannot perform the following tasks:
-- Setup system for run mode \(cannot use gadget: gadget does not support encrypted data: volume "pc" has no structure with system-save role\)`)
+- Setup system for run mode \(cannot use gadget: gadget does not support encrypted data: required partition with system-save role is missing\)`)
 	// no restart request on failure
 	c.Check(s.restartRequests, HasLen, 0)
 }

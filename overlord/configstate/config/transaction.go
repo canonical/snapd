@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"sort"
 	"strings"
 	"sync"
@@ -103,6 +104,34 @@ func (t *Transaction) Changes() []string {
 	return out
 }
 
+// shadowsVirtualConfig checks that the given subkeys/value does not
+// "block" the path to a virtual config with a non-map type. E.g. if
+// "network.netplan" is virtual it must be impossible to set
+// "network=false" or getting the document under "network" would be
+// wrong.
+func shadowsVirtualConfig(instanceName string, key string, value interface{}) error {
+	// maps never block the path
+	if v := reflect.ValueOf(value); v.Kind() == reflect.Map {
+		return nil
+	}
+	// be paranoid: this should never happen but if it does we need to know
+	if _, ok := value.(*json.RawMessage); ok {
+		return fmt.Errorf("internal error: shadowsVirtualConfig called with *json.RawMessage for snap %q with key %q: %q please report as a bug", instanceName, key, value)
+	}
+
+	virtualMu.Lock()
+	km := virtualMap[instanceName]
+	virtualMu.Unlock()
+
+	for virtualKey := range km {
+		if strings.HasPrefix(virtualKey, key+".") {
+			return fmt.Errorf("cannot set %q for %q to non-map value because %q is a virtual configuration", key, instanceName, virtualKey)
+		}
+	}
+
+	return nil
+}
+
 // Set sets the provided snap's configuration key to the given value.
 // The provided key may be formed as a dotted key path through nested maps.
 // For example, the "a.b.c" key describes the {a: {b: {c: value}}} map.
@@ -139,6 +168,10 @@ func (t *Transaction) Set(instanceName, key string, value interface{}) error {
 		if err != nil && !IsNoOption(err) {
 			return err
 		}
+	}
+	// check that we do not "block" a path to virtual config with non-maps
+	if err := shadowsVirtualConfig(instanceName, key, value); err != nil {
+		return err
 	}
 
 	// config here is never nil and PatchConfig always operates
@@ -178,8 +211,11 @@ func (t *Transaction) Get(snapName, key string, result interface{}) error {
 		return err
 	}
 
-	// commit changes onto a copy of pristine configuration, so that get has a complete view of the config.
+	// merge virtual config and then commit changes onto a copy of pristine configuration, so that get has a complete view of the config.
 	config := t.copyPristine(snapName)
+	if err := mergeConfigWithVirtual(snapName, key, &config); err != nil {
+		return err
+	}
 	applyChanges(config, t.changes[snapName])
 
 	purgeNulls(config)
@@ -288,8 +324,10 @@ func (t *Transaction) Commit() {
 		panic(fmt.Errorf("internal error: cannot unmarshal configuration: %v", err))
 	}
 
-	// Iterate through the write cache and save each item.
+	// Iterate through the write cache and save each item but exclude virtual configuration
 	for instanceName, snapChanges := range t.changes {
+		clearVirtualConfig(instanceName, snapChanges)
+
 		config := t.pristine[instanceName]
 		// due to LP #1917870 we might have a hook configure task in flight
 		// that tries to apply config over nil map, create it if nil.
@@ -343,6 +381,133 @@ func commitChange(pristine *json.RawMessage, change interface{}) *json.RawMessag
 	panic(fmt.Errorf("internal error: unexpected configuration type %T", change))
 }
 
+// overlapsWithVirtualConfig() return true if the requested key overlaps with
+// the given virtual key. E.g.
+// true: for requested key "a" and virtual key "a.virtual"
+// false for requested key "z" and virtual key "a.virtual"
+func overlapsWithVirtualConfig(requestedKey, virtualKey string) (bool, error) {
+	requestedSubkeys, err := ParseKey(requestedKey)
+	if err != nil {
+		return false, fmt.Errorf("cannot check overlap for requested key: %v", err)
+	}
+	virtualSubkeys, err := ParseKey(virtualKey)
+	if err != nil {
+		return false, fmt.Errorf("cannot check overlap for virtual key: %v", err)
+	}
+	for i := range requestedSubkeys {
+		if i >= len(virtualSubkeys) {
+			return true, nil
+		}
+		if virtualSubkeys[i] != requestedSubkeys[i] {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+// mergeConfigWithVirtual takes the given configuration and merges it
+// with the virtual configuration values by calling the registered
+// virtual configuration function of the given snap. The merged config
+// is returned.
+func mergeConfigWithVirtual(instanceName, requestedKey string, origConfig *map[string]*json.RawMessage) error {
+	virtualMu.Lock()
+	km, ok := virtualMap[instanceName]
+	virtualMu.Unlock()
+	if !ok {
+		return nil
+	}
+
+	// create a "patch" from the virtual entries
+	patch := make(map[string]interface{})
+	for virtualKey, virtualFn := range km {
+		if virtualFn == nil {
+			continue
+		}
+		// check if the requested key is part of the virtual
+		// configuration
+		partOf, err := overlapsWithVirtualConfig(requestedKey, virtualKey)
+		if err != nil {
+			return err
+		}
+		if !partOf {
+			continue
+		}
+
+		// Pass the right key to the virtualFn(), this can
+		// either be a subtree of the virtual-tree or the
+		// other virtualKey itself.
+		k := requestedKey
+		if len(requestedKey) < len(virtualKey) {
+			k = virtualKey
+		}
+		res, err := virtualFn(k)
+		if err != nil {
+			return err
+		}
+		patch[virtualKey] = jsonRaw(res)
+	}
+	if len(patch) == 0 {
+		return nil
+	}
+
+	// create a "working copy" of the config and apply the patches on top
+	config := jsonRaw(*origConfig)
+	patchKeys := sortPatchKeysByDepth(patch)
+	for _, subkeys := range patchKeys {
+		// patch[key] above got assigned jsonRaw() so this cast is ok
+		raw := patch[subkeys].(*json.RawMessage)
+		mergedConfig, err := PatchConfig(instanceName, strings.Split(subkeys, "."), 0, config, raw)
+		if err != nil {
+			return err
+		}
+		// PatchConfig got *json.RawMessage as input and
+		// returns the same type so this cast is ok (but be defensive)
+		config, ok = mergedConfig.(*json.RawMessage)
+		if !ok {
+			return fmt.Errorf("internal error: PatchConfig in mergeConfigWithVirtual did not return a *json.RawMessage please report this as a bug")
+		}
+	}
+
+	// XXX: unmarshaling on top of something leaves values in place
+	// (no problem here because we only add virtual things)
+	// convert back to the original config
+	if err := jsonutil.DecodeWithNumber(bytes.NewReader(*config), origConfig); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// clearVirtualConfig iterates over a given config and removes any values
+// that come from virtual configuration. This is used before committing a
+// config to disk.
+func clearVirtualConfig(instanceName string, snapChanges map[string]interface{}) {
+	virtualMu.Lock()
+	km := virtualMap[instanceName]
+	virtualMu.Unlock()
+
+	clearVirtualConfigRecursive(km, snapChanges, "")
+}
+
+func clearVirtualConfigRecursive(km map[string]VirtualCfgFunc, config map[string]interface{}, keyprefix string) {
+	if len(keyprefix) > 0 {
+		keyprefix += "."
+	}
+	for key, value := range config {
+		// any top-level virtual keys are removed
+		if _, ok := km[keyprefix+key]; ok {
+			delete(config, key)
+			// we can skip looking for nested config if we
+			// removed the top-level
+			continue
+		}
+		// and nested configs are inspected
+		if m, ok := value.(map[string]interface{}); ok {
+			clearVirtualConfigRecursive(km, m, keyprefix+key)
+		}
+	}
+}
+
 // IsNoOption returns whether the provided error is a *NoOptionError.
 func IsNoOption(err error) bool {
 	_, ok := err.(*NoOptionError)
@@ -360,4 +525,41 @@ func (e *NoOptionError) Error() string {
 		return fmt.Sprintf("snap %q has no configuration", e.SnapName)
 	}
 	return fmt.Sprintf("snap %q has no %q configuration option", e.SnapName, e.Key)
+}
+
+// VirtualCfgFunc can be used for virtual "transaction.Get()" calls
+type VirtualCfgFunc func(key string) (result interface{}, err error)
+
+// virtualMap contain hook functions for "virtual" configuration. The
+// first level of the map is the snapName and then the virtual keys in
+// dotted notation e.g. "network.netplan".  Any data under a virtual
+// configuration option is never stored directly in the state.
+var (
+	virtualMap map[string]map[string]VirtualCfgFunc
+	virtualMu  sync.Mutex
+)
+
+// RegisterVirtualConfig allows to register a function that is called
+// when the configuration for the given config key for a given
+// snapname is requested.
+//
+// This is useful for e.g. the system.hostname configuration where the
+// authoritative value is coming from the kernel and can be changed
+// outside of snapd.
+func RegisterVirtualConfig(snapName, key string, vf VirtualCfgFunc) error {
+	virtualMu.Lock()
+	defer virtualMu.Unlock()
+
+	if _, err := ParseKey(key); err != nil {
+		return fmt.Errorf("cannot register virtual config: %v", err)
+	}
+
+	if virtualMap == nil {
+		virtualMap = make(map[string]map[string]VirtualCfgFunc)
+	}
+	if _, ok := virtualMap[snapName]; !ok {
+		virtualMap[snapName] = make(map[string]VirtualCfgFunc)
+	}
+	virtualMap[snapName][key] = vf
+	return nil
 }
