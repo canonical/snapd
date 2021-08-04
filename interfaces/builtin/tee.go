@@ -41,11 +41,15 @@ const teeConnectedPlugAppArmor = `
 
 /dev/tee[0-9]* rw,
 /dev/teepriv[0-9]* rw,
+
+# Qualcomm equivalent qseecom (Qualcomm Secure Execution Environment Communicator)
+/dev/qseecom rw,
 `
 
 var teeConnectedPlugUDev = []string{
 	`KERNEL=="tee[0-9]*"`,
 	`KERNEL=="teepriv[0-9]*"`,
+	`KERNEL=="qseecom"`,
 }
 
 func init() {
