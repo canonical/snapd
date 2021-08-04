@@ -144,17 +144,20 @@ func cloudDatasourcesInUse(configFile string) (*cloudDatasourcesInUseResult, err
 
 	// we can also have datasources mentioned in the datasource list config
 	if cfg.DatasourceList != nil {
-		for _, ds := range *cfg.DatasourceList {
-			sourcesMentionedInCfg[strings.ToUpper(ds)] = true
-		}
-
-		for _, ds := range *cfg.DatasourceList {
-			res.ExplicitlyAllowed = append(res.ExplicitlyAllowed, strings.ToUpper(ds))
-		}
-		sort.Strings(res.ExplicitlyAllowed)
-
 		if len(*cfg.DatasourceList) == 0 {
 			res.ExplicitlyNoneAllowed = true
+		} else {
+			explicitlyAllowed := map[string]bool{}
+			for _, ds := range *cfg.DatasourceList {
+				dsName := strings.ToUpper(ds)
+				sourcesMentionedInCfg[dsName] = true
+				explicitlyAllowed[dsName] = true
+			}
+			res.ExplicitlyAllowed = make([]string, 0, len(explicitlyAllowed))
+			for ds := range explicitlyAllowed {
+				res.ExplicitlyAllowed = append(res.ExplicitlyAllowed, ds)
+			}
+			sort.Strings(res.ExplicitlyAllowed)
 		}
 	}
 

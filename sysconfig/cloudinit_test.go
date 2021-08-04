@@ -722,6 +722,30 @@ func (s *sysconfigSuite) TestCloudDatasourcesInUse(c *C) {
 			comment: "explicitly allowed via datasource_list in random case",
 		},
 		{
+			configFileContent: `datasource_list: [maas, maas]`,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyAllowed: []string{"MAAS"},
+				Mentioned:         []string{"MAAS"},
+			},
+			comment: "duplicated datasource in datasource_list",
+		},
+		{
+			configFileContent: `datasource_list: [maas, MAAS]`,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyAllowed: []string{"MAAS"},
+				Mentioned:         []string{"MAAS"},
+			},
+			comment: "duplicated datasource in datasource_list with different cases",
+		},
+		{
+			configFileContent: `datasource_list: [maas, GCE]`,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyAllowed: []string{"GCE", "MAAS"},
+				Mentioned:         []string{"GCE", "MAAS"},
+			},
+			comment: "multiple datasources in datasource list",
+		},
+		{
 			configFileContent: maasGadgetCloudInitImplictYAML,
 			expRes: &sysconfig.CloudDatasourcesInUseResult{
 				Mentioned: []string{"MAAS"},
