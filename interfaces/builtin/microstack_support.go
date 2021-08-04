@@ -237,7 +237,21 @@ type microStackInterface struct {
 	commonInterface
 }
 
-var microStackSupportConnectedPlugKmod = []string{`vhost`, `vhost-net`, `vhost-scsi`, `vhost-vsock`, `pci-stub`, `vfio`, `nbd`, `dm-mod`, `dm-thin-pool`, `dm-snapshot`, `iscsi-tcp`, `target-core-mod`}
+var microStackSupportConnectedPlugKmod = []string{
+	`vhost`,           // Core vhost module.
+	`vhost-net`,       // Used to offload virtio interface data plane into the kernel module.
+	`vhost-scsi`,      // Used to offload virtio-scsi device data plane into the kernel module.
+	`vhost-vsock`,     // virtio-vsock device support.
+	`pci-stub`,        // May be used for binding a PCI device driver to a stub driver.
+	`vfio`,            // The core VFIO driver for secure device assignment https://www.kernel.org/doc/html/latest/driver-api/vfio.html
+	`vfio-pci`,        // PCI-specific VFIO functionality.
+	`nbd`,             // The Network Block Device driver used by Nova (e.g. for block live migration).
+	`dm-mod`,          // Device mapper.
+	`dm-thin-pool`,    // DM thin pools used by the LVM driver in Cinder.
+	`dm-snapshot`,     // DM snapshots used by the LVM driver in Cinder.
+	`iscsi-tcp`,       // A module providing iscsi initiator functionality used by Nova via os-brick.
+	`target-core-mod`, // A module providing ConfigFS infrastructure utilized in LIO (which is used by Cinder for iSCSI targets).
+}
 
 func init() {
 	registerIface(&microStackInterface{commonInterface{

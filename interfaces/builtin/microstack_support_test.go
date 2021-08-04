@@ -89,6 +89,8 @@ func (s *microStackSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.microstack.app"})
 	c.Assert(apparmorSpec.SnippetForTag("snap.microstack.app"), testutil.Contains, "/dev/vhost-net rw,\n")
+	c.Assert(apparmorSpec.SnippetForTag("snap.microstack.app"), testutil.Contains, "/dev/microstack-*/{,**} rw,\n")
+	c.Assert(apparmorSpec.SnippetForTag("snap.microstack.app"), testutil.Contains, "unmount /run/netns/ovnmeta-*,\n")
 
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
