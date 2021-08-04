@@ -1425,6 +1425,12 @@ func (s *autorefreshGatingSuite) TestAffectedByRefreshUsesCurrentSnapInfo(c *C) 
 	c.Assert(task.Get("hook-setup", &hs), IsNil)
 	c.Check(hs.Hook, Equals, "gate-auto-refresh")
 	c.Check(hs.Snap, Equals, "snap-b")
+	var data interface{}
+	c.Assert(task.Get("hook-context", &data), IsNil)
+	c.Check(data, DeepEquals, map[string]interface{}{
+		"base":            true,
+		"restart":         false,
+		"affecting-snaps": []interface{}{"base-snap-b", "snap-b"}})
 
 	// check that refresh-candidates in the state were updated
 	var candidates map[string]*snapstate.RefreshCandidate

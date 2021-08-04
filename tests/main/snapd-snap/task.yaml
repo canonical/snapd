@@ -50,8 +50,8 @@ prepare: |
         tests.cleanup defer rm -f /snap
     fi
 
-    echo "Install snapcraft from candidate"
-    snap install snapcraft --candidate --classic
+    echo "Install snapcraft from 4.x/candidate"
+    snap install snapcraft --channel=4.x/candidate --classic
     tests.cleanup defer snap remove --purge snapcraft
 
     if [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "lxd" ]; then
