@@ -119,7 +119,7 @@ jobs:
               echo "::set-output name=already-ran::true"
           fi
     - name: Install Debian dependencies
-      if: steps.cached-results.outputs.cached-resulsts != 'true'
+      if: steps.cached-results.outputs.cached-results != 'true'
       run: |
           sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
     # golang latest ensures things work on the edge
