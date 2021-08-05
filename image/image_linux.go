@@ -333,11 +333,19 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
+	if opts.Customizations.Validation == "" && !opts.Classic {
+		fmt.Fprintf(Stderr, "WARNING: proceeding to download snaps ignoring validations, this default will change in the future. For now use --validation=enforce for validations to be taken into account, pass instead --validation=ignore to preserve current behavior going forward")
+	}
+	if opts.Customizations.Validation == "" {
+		opts.Customizations.Validation = "ignore"
+	}
+
 	localSnaps, err := w.LocalSnaps()
 	if err != nil {
 		return err
 	}
 
+	var curSnaps []*CurrentSnap
 	for _, sn := range localSnaps {
 		si, aRefs, err := seedwriter.DeriveSideInfo(sn.Path, f, db)
 		if err != nil && !asserts.IsNotFound(err) {
@@ -357,6 +365,15 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			return err
 		}
 		sn.ARefs = aRefs
+
+		if info.ID() != "" {
+			curSnaps = append(curSnaps, &CurrentSnap{
+				SnapName: info.SnapName(),
+				SnapID:   info.ID(),
+				Revision: info.Revision,
+				Epoch:    info.Epoch,
+			})
+		}
 	}
 
 	if err := w.InfoDerived(); err != nil {
@@ -390,8 +407,9 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			snapToDownloadOptions[i].Channel = sn.Channel
 			snapToDownloadOptions[i].CohortKey = opts.WideCohortKey
 		}
-		downloadedSnaps, err := tsto.DownloadMany(snapToDownloadOptions, DownloadManyOptions{
+		downloadedSnaps, err := tsto.DownloadMany(snapToDownloadOptions, curSnaps, DownloadManyOptions{
 			BeforeDownloadFunc: beforeDownload,
+			EnforceValidation:  opts.Customizations.Validation == "enforce",
 		})
 		if err != nil {
 			return err
@@ -411,6 +429,14 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			}
 			aRefs := f.Refs()[prev:]
 			sn.ARefs = aRefs
+
+			curSnaps = append(curSnaps, &CurrentSnap{
+				SnapName: sn.SnapName(),
+				SnapID:   sn.ID(),
+				Revision: sn.Info.Revision,
+				Epoch:    sn.Info.Epoch,
+				Channel:  sn.Channel,
+			})
 		}
 
 		complete, err := w.Downloaded()

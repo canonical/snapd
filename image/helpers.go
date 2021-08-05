@@ -366,15 +366,45 @@ type SnapDownloadOptions struct {
 	CohortKey string
 }
 
+type CurrentSnap struct {
+	SnapName string
+	SnapID   string
+	Revision snap.Revision
+	Channel  string
+	Epoch    snap.Epoch
+}
+
 type DownloadManyOptions struct {
 	BeforeDownloadFunc func(*snap.Info) (targetPath string, err error)
+	EnforceValidation  bool
 }
 
 // DownloadMany downloads the specified snaps.
-func (tsto *ToolingStore) DownloadMany(toDownload []SnapDownloadOptions, opts DownloadManyOptions) (downloadedSnaps map[string]*DownloadedSnap, err error) {
+func (tsto *ToolingStore) DownloadMany(toDownload []SnapDownloadOptions, curSnaps []*CurrentSnap, opts DownloadManyOptions) (downloadedSnaps map[string]*DownloadedSnap, err error) {
 	downloadedSnaps = make(map[string]*DownloadedSnap, len(toDownload))
 	if opts.BeforeDownloadFunc == nil {
 		return nil, fmt.Errorf("internal error: DownloadManyOptions.BeforeDownloadFunc must be set")
+	}
+
+	actionFlag := store.SnapActionIgnoreValidation
+	if opts.EnforceValidation {
+		actionFlag = store.SnapActionEnforceValidation
+	}
+
+	current := make([]*store.CurrentSnap, 0, len(curSnaps))
+	for _, csnap := range curSnaps {
+		ch := "stable"
+		if csnap.Channel != "" {
+			ch = csnap.Channel
+		}
+		current = append(current, &store.CurrentSnap{
+			InstanceName:     csnap.SnapName,
+			SnapID:           csnap.SnapID,
+			Revision:         csnap.Revision,
+			TrackingChannel:  ch,
+			Epoch:            csnap.Epoch,
+			IgnoreValidation: !opts.EnforceValidation,
+		})
 	}
 
 	actions := make([]*store.SnapAction, 0, len(toDownload))
@@ -384,12 +414,11 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapDownloadOptions, opts Do
 			InstanceName: sn.Snap.SnapName(), // XXX consider using snap-id first
 			Channel:      sn.Channel,
 			CohortKey:    sn.CohortKey,
-			// XXX preserve current behavior for now with this
-			Flags: store.SnapActionIgnoreValidation,
+			Flags:        actionFlag,
 		})
 	}
 
-	sars, _, err := tsto.sto.SnapAction(context.TODO(), nil, actions, nil, tsto.user, nil)
+	sars, _, err := tsto.sto.SnapAction(context.TODO(), current, actions, nil, tsto.user, nil)
 	if err != nil {
 		// err will be 'cannot download snap "foo": <reasons>'
 		return nil, err

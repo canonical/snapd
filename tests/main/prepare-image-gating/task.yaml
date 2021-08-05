@@ -10,7 +10,14 @@ environment:
 
 execute: |
     echo Running prepare-image
-    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image $TESTSLIB/assertions/gating-20-amd64.model $ROOT" test
+    # TODO: variant were we pass in the gating snap via --snap *.snap
+    cat >custom.json <<EOF
+    {
+      "validation": "enforce"
+    }
+    EOF
+
+    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --customize custom.json $TESTSLIB/assertions/gating-20-amd64.model $ROOT" test
 
     GATED_REV=2
 
