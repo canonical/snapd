@@ -52,7 +52,7 @@ func (s *hostnameSuite) TestConfigureHostnameInvalid(c *C) {
 	}
 
 	for _, name := range invalidHostnames {
-		err := configcore.Run(&mockConf{
+		err := configcore.Run(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				"system.hostname": name,
@@ -69,21 +69,52 @@ func (s *hostnameSuite) TestConfigureHostnameIntegration(c *C) {
 	mockedHostnamectl := testutil.MockCommand(c, "hostnamectl", "")
 	defer mockedHostnamectl.Restore()
 
+	mockedHostname := testutil.MockCommand(c, "hostname", "echo bar")
+	defer mockedHostname.Restore()
+
 	validHostnames := []string{"foo", strings.Repeat("x", 63)}
 
 	for _, hostname := range validHostnames {
-		err := configcore.Run(&mockConf{
+		err := configcore.Run(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				"system.hostname": hostname,
 			},
 		})
 		c.Assert(err, IsNil)
+		c.Check(mockedHostname.Calls(), DeepEquals, [][]string{
+			{"hostname"},
+		})
 		c.Check(mockedHostnamectl.Calls(), DeepEquals, [][]string{
 			{"hostnamectl", "set-hostname", hostname},
 		})
 		mockedHostnamectl.ForgetCalls()
+		mockedHostname.ForgetCalls()
 	}
+}
+
+func (s *hostnameSuite) TestConfigureHostnameIntegrationSameHostname(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	mockedHostnamectl := testutil.MockCommand(c, "hostnamectl", "")
+	defer mockedHostnamectl.Restore()
+
+	// pretent current hostname is "foo"
+	mockedHostname := testutil.MockCommand(c, "hostname", "echo foo")
+	defer mockedHostname.Restore()
+	// and set new hostname to "foo"
+	err := configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"system.hostname": "foo",
+		},
+	})
+	c.Assert(err, IsNil)
+	c.Check(mockedHostname.Calls(), DeepEquals, [][]string{
+		{"hostname"},
+	})
+	c.Check(mockedHostnamectl.Calls(), HasLen, 0)
 }
 
 func (s *hostnameSuite) TestFilesystemOnlyApply(c *C) {
@@ -91,7 +122,7 @@ func (s *hostnameSuite) TestFilesystemOnlyApply(c *C) {
 		"system.hostname": "bar",
 	})
 	tmpDir := c.MkDir()
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 
 	c.Check(filepath.Join(tmpDir, "/etc/writable/hostname"), testutil.FileEquals, "bar\n")
 }

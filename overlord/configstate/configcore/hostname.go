@@ -25,15 +25,17 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/sysconfig"
 )
 
 func init() {
 	// add supported configuration of this module
 	supportedConfigurations["core.system.hostname"] = true
-	config.RegisterVirtualConfig("core", "system.hostname", getHostnameFromSystemVC)
+	config.RegisterVirtualConfig("core", "system.hostname", getHostnameFromSystemHelper)
 }
 
 // We are conservative here and follow hostname(7). The hostnamectl
@@ -56,7 +58,7 @@ func validateHostnameSettings(tr config.ConfGetter) error {
 	return nil
 }
 
-func handleHostnameConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleHostnameConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	hostname, err := coreCfg(tr, "system.hostname")
 	if err != nil {
 		return nil
@@ -101,9 +103,9 @@ func getHostnameFromSystemHelper(key string) (interface{}, error) {
 }
 
 func getHostnameFromSystem() (string, error) {
-	output, err := subprocess.Command("hostname").CombinedOutput()
+	output, err := exec.Command("hostname").CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("cannot get hostname: %v", osutil.OutputErr(output, err))
+		return "", fmt.Errorf("cannot get hostname: %v", osutil.OutputErr(output, err))
 	}
 	return strings.TrimSpace(string(output)), nil
 }
