@@ -28,12 +28,6 @@ restore: |
         systemctl enable rsyslog.service
         systemctl start rsyslog.service
     fi
-    if [ -e current-timezone ]; then
-        timedatectl set-timezone "$(cat current-timezone)"
-    fi
-    if [ -e current-hostname ]; then
-        hostnamectl set-hostname "$(cat current-hostname)"
-    fi
     rm -f /etc/systemd/login.conf.d/00-snap-core.conf
 
 execute: |
@@ -126,12 +120,27 @@ execute: |
     sysctl -n kernel.printk|MATCH "^4\s+"
 
     echo "setting the timezone works"
-    cat /etc/timezone > current-timezone
+    tests.cleanup defer timedatectl set-timezone "$(cat /etc/timezone)"
     snap set system system.timezone=Europe/Malta
-    MATCH "Europe/Malta" /etc/timezone
+    MATCH "Europe/Malta" < /etc/timezone
     test "$(readlink -f /etc/localtime)" = "/usr/share/zoneinfo/Europe/Malta"
 
+    echo "and timezone setting shows up in the document"
+    snap get system -d | MATCH "Europe/Malta"
+    echo "but the timezone is not stored in the config state"
+    python3 -c 'import json,sys; j=json.loads(sys.stdin.read()); print(j["data"]["config"]);' < /var/lib/snapd/state.json | NOMATCH Europe/Malta
+
+    echo "and setting it again in snapd also works"
+    snap set system system.timezone=Europe/Berlin
+    MATCH "Europe/Berlin" < /etc/timezone
+    test "$(readlink -f /etc/localtime)" = "/usr/share/zoneinfo/Europe/Berlin"
+    
+    echo "and setting the timezone outside of snapd is reflected by snap get"
+    timedatectl set-timezone "America/Denver"
+    snap get system system.timezone | MATCH "America/Denver"
+    snap get system -d | MATCH "America/Denver"
+
     echo "setting the hostname works"
-    hostname > current-hostname
+    tests.cleanup defer hostnamectl set-hostname "$(hostname)"
     snap set system system.hostname=foo
     hostname | MATCH foo
