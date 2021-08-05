@@ -33,6 +33,7 @@ import (
 func init() {
 	// add supported configuration of this module
 	supportedConfigurations["core.system.hostname"] = true
+	config.RegisterVirtualConfig("core", "system.hostname", getHostnameFromSystemVC)
 }
 
 // We are conservative here and follow hostname(7). The hostnamectl
@@ -56,13 +57,6 @@ func validateHostnameSettings(tr config.ConfGetter) error {
 }
 
 func handleHostnameConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
-	// TODO: convert to "virtual" configuration nodes once we have support
-	// for this. The current code is not ideal because if one calls
-	// `snap get system system.hostname` the answer can be ""
-	// when not set via snap set.
-	//
-	// It will also override any hostname on the next `snap set` run
-	// that was written not using `snap set system system.hostname`.
 	hostname, err := coreCfg(tr, "system.hostname")
 	if err != nil {
 		return nil
@@ -73,6 +67,13 @@ func handleHostnameConfiguration(tr config.ConfGetter, opts *fsOnlyContext) erro
 	}
 	// runtime system
 	if opts == nil {
+		currentHostname, err := getHostnameFromSystem()
+		if err != nil {
+			return err
+		}
+		if hostname == currentHostname {
+			return nil
+		}
 		output, err := exec.Command("hostnamectl", "set-hostname", hostname).CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("cannot set hostname: %v", osutil.OutputErr(output, err))
@@ -92,4 +93,17 @@ func handleHostnameConfiguration(tr config.ConfGetter, opts *fsOnlyContext) erro
 	}
 
 	return nil
+}
+
+func getHostnameFromSystemHelper(key string) (interface{}, error) {
+	// XXX: should we error for subkeys here?
+	return getHostnameFromSystem()
+}
+
+func getHostnameFromSystem() (string, error) {
+	output, err := subprocess.Command("hostname").CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("cannot get hostname: %v", osutil.OutputErr(output, err))
+	}
+	return strings.TrimSpace(string(output)), nil
 }
