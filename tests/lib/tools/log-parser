@@ -2,7 +2,7 @@
 
 """
 This tool reads a spread log and creates a file with all the data
-The output file includes the more importan information extracted
+The output file includes the more important information extracted
 from the log to be analyzed
 """
 
@@ -162,13 +162,16 @@ class Detail:
     def _get_lines(self):
         if self.lines_limit < 0 or self.lines_limit > len(self.lines):
             return self.lines
-        return self.lines[-1*self.lines_limit-1:]
+
+        # Use self.lines_limit-1 because the last line is a '.' and we don't
+        # want to count it as a line in the log details
+        return self.lines[-self.lines_limit-1:]
 
     def __repr__(self):
         return ''.join(self._get_lines())
 
     def __dict__(self):
-        return {'lines': self.lines[-1*self.lines_limit-1:]}
+        return {'lines': self.lines[-self.lines_limit-1:]}
 
 
 class Operation:
@@ -465,7 +468,7 @@ def _make_parser():
     # type: () -> argparse.ArgumentParser
     parser = argparse.ArgumentParser(
         description="""
-Parse the spread log and generates a file with a standarized output. Il also
+Parse the spread log and generates a file with a standarized output. It also
 allows to filter the output by type and define the number of lines to show
 for the error/debug/warning output.
 """
