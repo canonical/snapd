@@ -49,21 +49,12 @@ execute: |
     tests.nested exec "sudo snap refresh" || true
 
     tests.nested wait-for reboot "$INITIAL_BOOT_ID"
-    if tests.nested exec "snap list snapd" | MATCH "snapd.*5760"; then
-      echo "unexpected snapd rev 5760"
-      exit 1
-    fi
+    tests.nested exec "retry --wait 2 -n 10 sh -c 'snap list snapd | NOMATCH \"snapd.*5760\"'"
 
     # this change is not immediately done and needs a retry
-    for _ in $(seq 1 10); do
-      if tests.nested exec "snap changes" | MATCH ".* Done .* Refresh snaps.*\"snapd\""; then
-        break
-      fi
-      sleep 1
-    done
-
-    tests.nested exec "snap changes" | MATCH ".* Done .* Refresh snaps.*\"snapd\""
-    tests.nested exec "snap changes" | MATCH ".* Done .* Refresh snaps.*\"core18\""
+    #shellcheck disable=SC2140
+    #shellcheck disable=SC2140
+    tests.nested exec "retry --wait 1 -n 10 sh -c 'snap changes | MATCH \".* Done .* Refresh snaps.*"core18"\"'"
   fi
 
   echo "Now refresh snapd with current tree"

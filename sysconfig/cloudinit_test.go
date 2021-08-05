@@ -99,7 +99,7 @@ func (s *sysconfigSuite) TestEphemeralModeInitramfsCloudInitDisables(c *C) {
 }
 
 func (s *sysconfigSuite) TestInstallModeCloudInitDisablesByDefaultRunMode(c *C) {
-	err := sysconfig.ConfigureTargetSystem(nil, &sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
 		TargetRootDir: boot.InstallHostWritableDir,
 	})
 	c.Assert(err, IsNil)
@@ -112,7 +112,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitDisallowedIgnoresOtherOptions(c
 	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
 	gadgetDir := s.makeGadgetCloudConfFile(c)
 
-	err := sysconfig.ConfigureTargetSystem(nil, &sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
 		AllowCloudInit:  false,
 		CloudInitSrcDir: cloudCfgSrcDir,
 		GadgetDir:       gadgetDir,
@@ -132,8 +132,8 @@ func (s *sysconfigSuite) TestInstallModeCloudInitDisallowedIgnoresOtherOptions(c
 	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileAbsent)
 }
 
-func (s *sysconfigSuite) TestInstallModeCloudInitAllowedDoesNotDisable(c *C) {
-	err := sysconfig.ConfigureTargetSystem(nil, &sysconfig.Options{
+func (s *sysconfigSuite) TestInstallModeCloudInitAllowedGradeSignedDoesNotDisable(c *C) {
+	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
 		AllowCloudInit: true,
 		TargetRootDir:  boot.InstallHostWritableDir,
 	})
@@ -143,6 +143,64 @@ func (s *sysconfigSuite) TestInstallModeCloudInitAllowedDoesNotDisable(c *C) {
 	c.Check(ubuntuDataCloudDisabled, testutil.FileAbsent)
 }
 
+func (s *sysconfigSuite) TestInstallModeCloudInitAllowedGradeSignedDoesNotInstallUbuntuSeedConfig(c *C) {
+	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
+
+	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
+		AllowCloudInit:  true,
+		TargetRootDir:   boot.InstallHostWritableDir,
+		CloudInitSrcDir: cloudCfgSrcDir,
+	})
+	c.Assert(err, IsNil)
+
+	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileAbsent)
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileAbsent)
+}
+
+func (s *sysconfigSuite) TestInstallModeCloudInitAllowedGradeDangerousDoesNotDisable(c *C) {
+	err := sysconfig.ConfigureTargetSystem(fake20Model("dangerous"), &sysconfig.Options{
+		AllowCloudInit: true,
+		TargetRootDir:  boot.InstallHostWritableDir,
+	})
+	c.Assert(err, IsNil)
+
+	ubuntuDataCloudDisabled := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	c.Check(ubuntuDataCloudDisabled, testutil.FileAbsent)
+}
+
+func (s *sysconfigSuite) TestInstallModeCloudInitDisallowedGradeSecuredDoesDisable(c *C) {
+	err := sysconfig.ConfigureTargetSystem(fake20Model("secured"), &sysconfig.Options{
+		AllowCloudInit: false,
+		TargetRootDir:  boot.InstallHostWritableDir,
+	})
+	c.Assert(err, IsNil)
+
+	ubuntuDataCloudDisabled := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	c.Check(ubuntuDataCloudDisabled, testutil.FilePresent)
+}
+
+func (s *sysconfigSuite) TestInstallModeCloudInitAllowedGradeSecuredIgnoresSrcButDoesNotDisable(c *C) {
+	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
+
+	err := sysconfig.ConfigureTargetSystem(fake20Model("secured"), &sysconfig.Options{
+		AllowCloudInit:  true,
+		CloudInitSrcDir: cloudCfgSrcDir,
+		TargetRootDir:   boot.InstallHostWritableDir,
+	})
+	c.Assert(err, IsNil)
+
+	// the disable file is not present
+	ubuntuDataCloudDisabled := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	c.Check(ubuntuDataCloudDisabled, testutil.FileAbsent)
+
+	// but we did not copy the config files from ubuntu-seed, even though they
+	// are there and cloud-init is not disabled
+	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileAbsent)
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileAbsent)
+}
+
 // this test is the same as the logic from install mode devicestate, where we
 // want to install cloud-init configuration not onto the running, ephemeral
 // writable, but rather the host writable partition that will be used upon
@@ -150,7 +208,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitAllowedDoesNotDisable(c *C) {
 func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunMode(c *C) {
 	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
 
-	err := sysconfig.ConfigureTargetSystem(nil, &sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(fake20Model("dangerous"), &sysconfig.Options{
 		AllowCloudInit:  true,
 		CloudInitSrcDir: cloudCfgSrcDir,
 		TargetRootDir:   boot.InstallHostWritableDir,
@@ -165,7 +223,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunMode(c *C) {
 
 func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadgetCloudConf(c *C) {
 	gadgetDir := s.makeGadgetCloudConfFile(c)
-	err := sysconfig.ConfigureTargetSystem(nil, &sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(fake20Model("secured"), &sysconfig.Options{
 		AllowCloudInit: true,
 		GadgetDir:      gadgetDir,
 		TargetRootDir:  boot.InstallHostWritableDir,
@@ -181,7 +239,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadg
 	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
 	gadgetDir := s.makeGadgetCloudConfFile(c)
 
-	err := sysconfig.ConfigureTargetSystem(nil, &sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(fake20Model("dangerous"), &sysconfig.Options{
 		AllowCloudInit:  true,
 		CloudInitSrcDir: cloudCfgSrcDir,
 		GadgetDir:       gadgetDir,

@@ -1,7 +1,7 @@
 #!/bin/sh -e
 
 # start running
-snapctl start --enable "$SNAP_NAME.svc"
+snapctl start %%FLAGS%% "$SNAP_NAME.svc"
 
 # wait a bit, the service is only creating a file, so we don't need to bother
 # ourselves with waiting too long

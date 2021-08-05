@@ -778,11 +778,18 @@ func (s *storeDownloadSuite) TestApplyDelta(c *C) {
 			c.Assert(err, IsNil)
 		}
 
-		err = store.ApplyDelta(name, deltaPath, &testCase.deltaInfo, targetSnapPath, "")
+		// make a fresh store object to circumvent the caching of xdelta3 info
+		// between test cases
+		sto := &store.Store{}
+		err = store.ApplyDelta(sto, name, deltaPath, &testCase.deltaInfo, targetSnapPath, "")
 
 		if testCase.error == "" {
 			c.Assert(err, IsNil)
 			c.Assert(s.mockXDelta.Calls(), DeepEquals, [][]string{
+				// since we don't cache xdelta3 in this test, we always check if
+				// xdelta3 config is successful before using xdelta3 (and at
+				// that point cache xdelta3 and don't call config again)
+				{"xdelta3", "config"},
 				{"xdelta3", "-d", "-s", currentSnapPath, deltaPath, targetSnapPath + ".partial"},
 			})
 			c.Assert(osutil.FileExists(targetSnapPath+".partial"), Equals, false)

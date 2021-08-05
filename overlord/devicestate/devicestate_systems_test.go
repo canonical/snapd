@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
@@ -304,7 +305,7 @@ func (s *deviceMgrSystemsSuite) TestListSeedSystemsNoCurrent(c *C) {
 	}})
 }
 
-func (s *deviceMgrSystemsSuite) TestListSeedSystemsCurrent(c *C) {
+func (s *deviceMgrSystemsSuite) TestListSeedSystemsCurrentSingleSeeded(c *C) {
 	s.state.Lock()
 	s.state.Set("seeded-systems", []devicestate.SeededSystem{
 		{
@@ -337,6 +338,49 @@ func (s *deviceMgrSystemsSuite) TestListSeedSystemsCurrent(c *C) {
 		Model:   s.mockedSystemSeeds[2].model,
 		Brand:   s.mockedSystemSeeds[2].brand,
 		Actions: defaultSystemActions,
+	}})
+}
+
+func (s *deviceMgrSystemsSuite) TestListSeedSystemsCurrentManySeeded(c *C) {
+	// during a remodel, a new seeded system is prepended to the list
+	s.state.Lock()
+	s.state.Set("seeded-systems", []devicestate.SeededSystem{
+		{
+			System:  s.mockedSystemSeeds[2].label,
+			Model:   s.mockedSystemSeeds[2].model.Model(),
+			BrandID: s.mockedSystemSeeds[2].brand.AccountID(),
+		},
+		{
+			System:  s.mockedSystemSeeds[1].label,
+			Model:   s.mockedSystemSeeds[1].model.Model(),
+			BrandID: s.mockedSystemSeeds[1].brand.AccountID(),
+		},
+	})
+	s.state.Unlock()
+
+	systems, err := s.mgr.Systems()
+	c.Assert(err, IsNil)
+	c.Assert(systems, HasLen, 3)
+	c.Check(systems, DeepEquals, []*devicestate.System{{
+		Current: false,
+		Label:   s.mockedSystemSeeds[0].label,
+		Model:   s.mockedSystemSeeds[0].model,
+		Brand:   s.mockedSystemSeeds[0].brand,
+		Actions: defaultSystemActions,
+	}, {
+		// this seed was used to install the system in the past
+		Current: false,
+		Label:   s.mockedSystemSeeds[1].label,
+		Model:   s.mockedSystemSeeds[1].model,
+		Brand:   s.mockedSystemSeeds[1].brand,
+		Actions: defaultSystemActions,
+	}, {
+		// this seed was seeded most recently
+		Current: true,
+		Label:   s.mockedSystemSeeds[2].label,
+		Model:   s.mockedSystemSeeds[2].model,
+		Brand:   s.mockedSystemSeeds[2].brand,
+		Actions: currentSystemActions,
 	}})
 }
 
@@ -1051,6 +1095,135 @@ func (s *deviceMgrSystemsSuite) TestDeviceManagerEnsureTriedSystemManyLabels(c *
 	c.Assert(triedSystems, DeepEquals, []string{"0000", "1111", "1234"})
 
 	c.Check(s.logbuf.String(), testutil.Contains, `tried recovery system "1234" was successful`)
+}
+
+func (s *deviceMgrSystemsSuite) TestRecordSeededSystem(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	now := time.Now()
+	modelTs := now.AddDate(-1, 0, 0)
+
+	sys := devicestate.SeededSystem{
+		System: "1234",
+
+		Model:     "my-model",
+		BrandID:   "my-brand",
+		Revision:  1,
+		Timestamp: modelTs,
+
+		SeedTime: now,
+	}
+	err := devicestate.RecordSeededSystem(s.mgr, s.state, &sys)
+	c.Assert(err, IsNil)
+
+	expectedSeededOneSys := []map[string]interface{}{
+		{
+			"system":    "1234",
+			"model":     "my-model",
+			"brand-id":  "my-brand",
+			"revision":  float64(1),
+			"timestamp": modelTs.Format(time.RFC3339Nano),
+			"seed-time": now.Format(time.RFC3339Nano),
+		},
+	}
+	var seededSystemsFromState []map[string]interface{}
+	err = s.state.Get("seeded-systems", &seededSystemsFromState)
+	c.Assert(err, IsNil)
+	c.Assert(seededSystemsFromState, DeepEquals, expectedSeededOneSys)
+	// adding the system again does nothing
+	err = devicestate.RecordSeededSystem(s.mgr, s.state, &sys)
+	c.Assert(err, IsNil)
+	err = s.state.Get("seeded-systems", &seededSystemsFromState)
+	c.Assert(err, IsNil)
+	c.Assert(seededSystemsFromState, DeepEquals, expectedSeededOneSys)
+	// adding the system again, even with changed seed time, still does nothing
+	sysWithNewSeedTime := sys
+	sysWithNewSeedTime.SeedTime = now.Add(time.Hour)
+	err = devicestate.RecordSeededSystem(s.mgr, s.state, &sysWithNewSeedTime)
+	c.Assert(err, IsNil)
+	err = s.state.Get("seeded-systems", &seededSystemsFromState)
+	c.Assert(err, IsNil)
+	c.Assert(seededSystemsFromState, DeepEquals, expectedSeededOneSys)
+
+	rev3Ts := modelTs.AddDate(0, 1, 0)
+	// most common case, a new revision and timestamp
+	sysRev3 := sys
+	sysRev3.Revision = 3
+	sysRev3.Timestamp = rev3Ts
+
+	err = devicestate.RecordSeededSystem(s.mgr, s.state, &sysRev3)
+	c.Assert(err, IsNil)
+	err = s.state.Get("seeded-systems", &seededSystemsFromState)
+	c.Assert(err, IsNil)
+	expectedWithNewRev := []map[string]interface{}{
+		{
+			// new entry is added at the beginning
+			"system":    "1234",
+			"model":     "my-model",
+			"brand-id":  "my-brand",
+			"revision":  float64(3),
+			"timestamp": rev3Ts.Format(time.RFC3339Nano),
+			"seed-time": now.Format(time.RFC3339Nano),
+		}, {
+			"system":    "1234",
+			"model":     "my-model",
+			"brand-id":  "my-brand",
+			"revision":  float64(1),
+			"timestamp": modelTs.Format(time.RFC3339Nano),
+			"seed-time": now.Format(time.RFC3339Nano),
+		},
+	}
+	c.Assert(seededSystemsFromState, DeepEquals, expectedWithNewRev)
+	// trying to add again does nothing
+	err = devicestate.RecordSeededSystem(s.mgr, s.state, &sysRev3)
+	c.Assert(err, IsNil)
+	err = s.state.Get("seeded-systems", &seededSystemsFromState)
+	c.Assert(err, IsNil)
+	c.Assert(seededSystemsFromState, DeepEquals, expectedWithNewRev)
+
+	modelNewTs := modelTs
+	// and a case of new model
+	sysNew := devicestate.SeededSystem{
+		System: "9999",
+
+		Model:     "my-new-model",
+		BrandID:   "my-new-brand",
+		Revision:  1,
+		Timestamp: modelNewTs,
+
+		SeedTime: now,
+	}
+	err = devicestate.RecordSeededSystem(s.mgr, s.state, &sysNew)
+	c.Assert(err, IsNil)
+	err = s.state.Get("seeded-systems", &seededSystemsFromState)
+	c.Assert(err, IsNil)
+	expectedWithNewModel := []map[string]interface{}{
+		{
+			// and another one got added at the beginning
+			"system":    "9999",
+			"model":     "my-new-model",
+			"brand-id":  "my-new-brand",
+			"revision":  float64(1),
+			"timestamp": modelNewTs.Format(time.RFC3339Nano),
+			"seed-time": now.Format(time.RFC3339Nano),
+		}, {
+			"system":    "1234",
+			"model":     "my-model",
+			"brand-id":  "my-brand",
+			"revision":  float64(3),
+			"timestamp": rev3Ts.Format(time.RFC3339Nano),
+			"seed-time": now.Format(time.RFC3339Nano),
+		}, {
+			"system":    "1234",
+			"model":     "my-model",
+			"brand-id":  "my-brand",
+			"revision":  float64(1),
+			"timestamp": modelTs.Format(time.RFC3339Nano),
+			"seed-time": now.Format(time.RFC3339Nano),
+		},
+	}
+	c.Assert(seededSystemsFromState, DeepEquals, expectedWithNewModel)
 }
 
 type deviceMgrSystemsCreateSuite struct {

@@ -294,6 +294,12 @@ func (sk skipper) Has(path string) bool {
 	return false
 }
 
+// pre-4.5 unsquashfs writes a funny header like:
+//     "Parallel unsquashfs: Using 1 processor"
+//     "1 inodes (1 blocks) to write"
+//     ""   <-- empty line
+var maybeHeaderRegex = regexp.MustCompile(`^(Parallel unsquashfs: Using .* processor.*|[0-9]+ inodes .* to write)$`)
+
 // Walk (part of snap.Container) is like filepath.Walk, without the ordering guarantee.
 func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
 	relative = filepath.Clean(relative)
@@ -321,16 +327,21 @@ func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
 	defer cmd.Process.Kill()
 
 	scanner := bufio.NewScanner(stdout)
-	// skip the header
-	for scanner.Scan() {
-		if len(scanner.Bytes()) == 0 {
-			break
-		}
-	}
-
 	skipper := make(skipper)
+	seenHeader := false
 	for scanner.Scan() {
-		st, err := fromRaw(scanner.Bytes())
+		raw := scanner.Bytes()
+		if !seenHeader {
+			// try to match the header written by older (pre-4.5)
+			// squashfs tools
+			if len(scanner.Bytes()) == 0 ||
+				maybeHeaderRegex.Match(raw) {
+				continue
+			} else {
+				seenHeader = true
+			}
+		}
+		st, err := fromRaw(raw)
 		if err != nil {
 			err = walkFn(relative, nil, err)
 			if err != nil {
