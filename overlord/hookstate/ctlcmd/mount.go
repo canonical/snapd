@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate"
@@ -133,12 +134,21 @@ func (m *mountCommand) checkConnections(context *hookstate.Context) error {
 		return fmt.Errorf("internal error: cannot get snap info: %s", err)
 	}
 
-	for _, connState := range conns {
+	for connId, connState := range conns {
 		if connState.Interface != "mount-control" {
 			continue
 		}
 
 		if connState.Undesired || connState.HotplugGone {
+			continue
+		}
+
+		connRef, err := interfaces.ParseConnRef(connId)
+		if err != nil {
+			return err
+		}
+
+		if connRef.PlugRef.Snap != snapName {
 			continue
 		}
 
