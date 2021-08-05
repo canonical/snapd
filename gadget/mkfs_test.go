@@ -17,7 +17,7 @@
  *
  */
 
-package internal_test
+package gadget
 
 import (
 	"bytes"
@@ -28,7 +28,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/gadget/internal"
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/testutil"
 )
 
