@@ -81,7 +81,7 @@ func handleTimezoneConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts 
 	if timezone == currentTimezone {
 		return nil
 	}
-	
+
 	// runtime system
 	if opts == nil {
 		output, err := exec.Command("timedatectl", "set-timezone", timezone).CombinedOutput()
@@ -115,7 +115,10 @@ func getTimezoneFromSystemVC(key string) (interface{}, error) {
 
 func getTimezoneFromSystem() (string, error) {
 	// We cannot use "timedatectl show" here because it is only
-	// available on UC20
+	// available on UC20.
+	//
+	// Note that this code only runs on UbuntuCore systems which all
+	// have /etc/writable/localtime
 	link, err := os.Readlink(filepath.Join(dirs.GlobalRootDir, "/etc/writable/localtime"))
 	// see localtime(5)
 	// "If /etc/localtime is missing, the default "UTC" timezone is used."
