@@ -383,7 +383,9 @@ type AffectedSnapInfo struct {
 // AffectedByRefreshCandidates returns information about all snaps affected by
 // current refresh-candidates in the state.
 func AffectedByRefreshCandidates(st *state.State) (map[string]*AffectedSnapInfo, error) {
-	var candidates map[string]*refreshCandidate
+	// we care only about the keys so this can use
+	// *json.RawMessage instead of refreshCandidates
+	var candidates map[string]*json.RawMessage
 	if err := st.Get("refresh-candidates", &candidates); err != nil && err != state.ErrNoState {
 		return nil, err
 	}
