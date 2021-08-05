@@ -44,7 +44,7 @@ func init() {
 func makeFilesystem(ds *gadget.OnDiskStructure, sectorSize quantity.Size) error {
 	if ds.HasFilesystem() {
 		logger.Debugf("create %s filesystem on %s with label %q", ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label)
-		if err := internal.Mkfs(ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label, ds.Size, sectorSize); err != nil {
+		if err := gadget.Mkfs(ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label, ds.Size, sectorSize); err != nil {
 			return err
 		}
 		if err := udevTrigger(ds.Node); err != nil {
