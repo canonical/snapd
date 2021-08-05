@@ -42,14 +42,14 @@ type cmdWhoAmI struct {
 	clientMixin
 
 	// XXX: rename to --{resync,overwrite,rewrite} or similar?
-	RefreshKeys bool `long:"refresh-keys"`
+	RefreshSSHKeys bool `long:"refresh-ssh-keys"`
 }
 
 func init() {
 	addCommand("whoami", shortWhoAmIHelp, longWhoAmIHelp, func() flags.Commander { return &cmdWhoAmI{} }, nil, nil)
 }
 
-func refreshKeys(email string) error {
+func refreshSSHKeys(email string) error {
 	if release.OnClassic {
 		return fmt.Errorf("cannot refresh keys: not supported on classic")
 	}
@@ -72,11 +72,7 @@ func refreshKeys(email string) error {
 	if err != nil {
 		return fmt.Errorf("cannot refresh keys for %q: %s", email, err)
 	}
-	sshDir := filepath.Join(homeDir, ".ssh")
-	if err := os.MkdirAll(sshDir, 0700); err != nil {
-		return fmt.Errorf("cannot refresh %s: %s", sshDir, err)
-	}
-	authKeys := filepath.Join(sshDir, "authorized_keys")
+	authKeys := filepath.Join(homeDir, ".ssh/authorized_keys")
 	authKeysContent := strings.Join(userInfo.SSHKeys, "\n")
 	if err := osutil.AtomicWriteFile(authKeys, []byte(authKeysContent), 0600, 0); err != nil {
 		return err
@@ -94,8 +90,8 @@ func (cmd cmdWhoAmI) Execute(args []string) error {
 	if err != nil {
 		return err
 	}
-	if cmd.RefreshKeys {
-		return refreshKeys(email)
+	if cmd.RefreshSSHKeys {
+		return refreshSSHKeys(email)
 	}
 
 	if email == "" {
