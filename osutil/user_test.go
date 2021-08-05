@@ -191,7 +191,7 @@ func (s *createUserSuite) TestAddUserPasswordForceChangeUnhappy(c *check.C) {
 	c.Assert(err, check.ErrorMatches, `cannot force password change when no password is provided`)
 }
 
-func (s *createUserSuite) TestRealUser(c *check.C) {
+func (s *createUserSuite) TestUserMaybeSudoUser(c *check.C) {
 	oldUser := os.Getenv("SUDO_USER")
 	defer func() { os.Setenv("SUDO_USER", oldUser) }()
 
@@ -217,7 +217,7 @@ func (s *createUserSuite) TestRealUser(c *check.C) {
 		defer restore()
 
 		os.Setenv("SUDO_USER", t.SudoUsername)
-		cur, err := osutil.RealUser()
+		cur, err := osutil.UserMaybeSudoUser()
 		c.Assert(err, check.IsNil)
 		c.Check(cur.Username, check.Equals, t.CurrentUsername)
 	}
@@ -551,11 +551,25 @@ func (s *ensureUserSuite) TestEnsureUserGroupFailedUseraddCore(c *check.C) {
 	err := osutil.EnsureUserGroup("lakatos", 123456, true)
 	c.Assert(err, check.ErrorMatches, "useradd failed with: some error")
 
-	// TODO: LP: #1840375
-	/*
-		c.Check(s.mockGroupDel.Calls(), check.DeepEquals, [][]string{
-			{"groupdel", "--extrausers", "lakatos"},
-		})
-	*/
-	c.Check(s.mockGroupDel.Calls(), check.DeepEquals, [][]string(nil))
+	c.Check(s.mockGroupDel.Calls(), check.DeepEquals, [][]string{
+		{"groupdel", "--extrausers", "lakatos"},
+	})
+}
+
+func (s *ensureUserSuite) TestEnsureUserGroupFailedUseraddCoreNoExtra(c *check.C) {
+	mockUserAdd := testutil.MockCommand(c, "useradd", "echo some error; exit 1")
+	defer mockUserAdd.Restore()
+
+	mockGroupDel := testutil.MockCommand(c, "groupdel",
+		`echo "groupdel: unrecognized option '--extrauser'" > /dev/stderr; exit 1`)
+	defer mockGroupDel.Restore()
+
+	err := osutil.EnsureUserGroup("lakatos", 123456, true)
+	c.Assert(err, check.ErrorMatches, `errors encountered ensuring user lakatos exists:
+- useradd failed with: some error
+- groupdel: unrecognized option '--extrauser'`)
+
+	c.Check(mockGroupDel.Calls(), check.DeepEquals, [][]string{
+		{"groupdel", "--extrausers", "lakatos"},
+	})
 }

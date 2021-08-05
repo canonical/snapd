@@ -20,6 +20,7 @@
 package snapstate
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -33,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/randutil"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/timings"
 )
@@ -73,6 +75,19 @@ func (r *catalogRefresh) Ensure() error {
 		return nil
 	}
 
+	// similar to the not yet seeded case, on uc20 install mode it doesn't make
+	// sense to refresh the catalog for an ephemeral system
+	deviceCtx, err := DeviceCtx(r.state, nil, nil)
+	if err != nil {
+		// if we are seeded we should have a device context
+		return err
+	}
+
+	if deviceCtx.SystemMode() == "install" {
+		// skip the refresh
+		return nil
+	}
+
 	now := time.Now()
 	delay := catalogRefreshDelayBase
 	if r.nextCatalogRefresh.IsZero() {
@@ -106,6 +121,9 @@ func (r *catalogRefresh) Ensure() error {
 	case store.ErrTooManyRequests:
 		logger.Debugf("Catalog refresh postponed.")
 		err = nil
+	case errSkipCatalogRefreshWhenTesting:
+		logger.Debugf("Catalog refresh skipped when testing is enabled")
+		err = nil
 	default:
 		logger.Debugf("Catalog refresh failed: %v.", err)
 	}
@@ -114,7 +132,15 @@ func (r *catalogRefresh) Ensure() error {
 
 var newCmdDB = advisor.Create
 
+var errSkipCatalogRefreshWhenTesting = errors.New("skipping when testing is enabled")
+
 func refreshCatalogs(st *state.State, theStore StoreService) error {
+	if snapdenv.Testing() && !osutil.GetenvBool("SNAPD_CATALOG_REFRESH") {
+		// with snapd testing enabled, SNAPD_CATALOG_REFRESH is gating
+		// the catalog refresh
+		return errSkipCatalogRefreshWhenTesting
+	}
+
 	st.Unlock()
 	defer st.Lock()
 

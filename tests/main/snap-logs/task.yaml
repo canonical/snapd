@@ -5,9 +5,7 @@ details: |
     for all supported systems.
 
 prepare: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
 
 execute: |
     echo "check the logs are displayed by service-name and service-name.app"
@@ -20,15 +18,13 @@ execute: |
     snap logs -n=all test-snapd-service | MATCH "running"
     
     echo "check -f option works"
-    snap logs -f test-snapd-service > service.log &    
+    # XXX: journalctl -f -u .. drops some lines of service output when
+    # asked for multiple units, therefore query for specific service instead
+    # of test-snapd-service (which would expand to all services).
+    snap logs -f test-snapd-service.test-snapd-service > service.log &
     snap stop test-snapd-service
-    for _ in $(seq 10); do
-        if MATCH "stop service" < service.log; then
-            break
-        fi
-        sleep 1
-    done
-    MATCH "stop service" < service.log
+
+    retry -n 10 --wait 1 sh -c 'MATCH "stop service" < service.log'
 
     echo "stop the logs command"
     kill $!

@@ -22,6 +22,7 @@ package main_test
 import (
 	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -85,7 +86,7 @@ func (s *RunSuite) SetUpTest(c *check.C) {
 	s.AddCleanup(snaprun.MockUserCurrent(func() (*user.User, error) {
 		return &user.User{Uid: u.Uid, HomeDir: s.fakeHome}, nil
 	}))
-	s.AddCleanup(snaprun.MockCreateTransientScopeForTracking(func(string) error {
+	s.AddCleanup(snaprun.MockCreateTransientScopeForTracking(func(string, *cgroup.TrackingOptions) error {
 		return nil
 	}))
 }
@@ -1296,8 +1297,10 @@ func (s *RunSuite) TestSnapRunTrackingApps(c *check.C) {
 	defer restore()
 
 	created := false
-	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string) error {
+	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string, opts *cgroup.TrackingOptions) error {
 		c.Assert(securityTag, check.Equals, "snap.snapname.app")
+		c.Assert(opts, check.NotNil)
+		c.Assert(opts.AllowSessionBus, check.Equals, true)
 		created = true
 		return nil
 	})
@@ -1350,8 +1353,10 @@ func (s *RunSuite) TestSnapRunTrackingHooks(c *check.C) {
 	defer restore()
 
 	created := false
-	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string) error {
+	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string, opts *cgroup.TrackingOptions) error {
 		c.Assert(securityTag, check.Equals, "snap.snapname.hook.configure")
+		c.Assert(opts, check.NotNil)
+		c.Assert(opts.AllowSessionBus, check.Equals, false)
 		created = true
 		return nil
 	})
@@ -1403,7 +1408,7 @@ func (s *RunSuite) TestSnapRunTrackingServices(c *check.C) {
 	})
 	defer restore()
 
-	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string) error {
+	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string, opts *cgroup.TrackingOptions) error {
 		panic("services rely on systemd tracking, should not have created a transient scope")
 	})
 	defer restore()
@@ -1458,8 +1463,10 @@ func (s *RunSuite) TestSnapRunTrackingFailure(c *check.C) {
 	defer restore()
 
 	created := false
-	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string) error {
+	restore = snaprun.MockCreateTransientScopeForTracking(func(securityTag string, opts *cgroup.TrackingOptions) error {
 		c.Assert(securityTag, check.Equals, "snap.snapname.app")
+		c.Assert(opts, check.NotNil)
+		c.Assert(opts.AllowSessionBus, check.Equals, true)
 		created = true
 		// Pretend that the tracking system was unable to track this application.
 		return cgroup.ErrCannotTrackProcess
@@ -1504,4 +1511,75 @@ func (s *RunSuite) TestSnapRunTrackingFailure(c *check.C) {
 
 	// Ensure that the debug message is printed.
 	c.Assert(logbuf.String(), testutil.Contains, "snapd cannot track the started application\n")
+}
+
+var mockKernelYaml = []byte(`name: pc-kernel
+type: kernel
+version: 1.0
+hooks:
+ fde-setup:
+`)
+
+func (s *RunSuite) TestSnapRunHookKernelImplicitBase(c *check.C) {
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+
+	nModel := 0
+	s.RedirectClientToTestServer(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/model":
+			switch nModel {
+			case 0:
+				c.Check(r.Method, check.Equals, "GET")
+				c.Check(r.URL.RawQuery, check.Equals, "")
+				fmt.Fprintln(w, happyUC20ModelAssertionResponse)
+			default:
+				c.Fatalf("expected to get 1 request for /v2/model, now on %d", nModel+1)
+			}
+			nModel++
+		}
+	})
+
+	// mock installed kernel
+	snaptest.MockSnapCurrent(c, string(mockKernelYaml), &snap.SideInfo{
+		Revision: snap.R(42),
+	})
+
+	// redirect exec
+	execArg0 := ""
+	execArgs := []string{}
+	execEnv := []string{}
+	restorer := snaprun.MockSyscallExec(func(arg0 string, args []string, envv []string) error {
+		execArg0 = arg0
+		execArgs = args
+		execEnv = envv
+		return nil
+	})
+	defer restorer()
+
+	// Run a hook from the active revision
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--hook=fde-setup", "--", "pc-kernel"})
+	c.Assert(err, check.IsNil)
+	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
+	c.Check(execArgs, check.DeepEquals, []string{
+		filepath.Join(dirs.DistroLibExecDir, "snap-confine"),
+		"--base", "core20",
+		"snap.pc-kernel.hook.fde-setup",
+		filepath.Join(dirs.CoreLibExecDir, "snap-exec"),
+		"--hook=fde-setup", "pc-kernel"})
+	c.Check(execEnv, testutil.Contains, "SNAP_REVISION=42")
+	c.Check(nModel, check.Equals, 1)
+}
+
+func (s *RunSuite) TestRunGdbserverNoGdbserver(c *check.C) {
+	oldPath := os.Getenv("PATH")
+	os.Setenv("PATH", "/no-path:/really-not")
+	defer os.Setenv("PATH", oldPath)
+
+	defer mockSnapConfine(dirs.DistroLibExecDir)()
+	snaptest.MockSnapCurrent(c, string(mockYaml), &snap.SideInfo{
+		Revision: snap.R("x2"),
+	})
+
+	_, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--gdbserver", "snapname.app"})
+	c.Assert(err, check.ErrorMatches, "please install gdbserver on your system")
 }

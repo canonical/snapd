@@ -2,11 +2,8 @@ summary: |
   Check that `snapctl stop --disable` actually stops services on post-refresh
 
 execute: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     echo "Installing snap first time starts services"
-    install_local test-snapd-svcs-disable-refresh-hook
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-svcs-disable-refresh-hook
 
     echo "Services are running after install hook"
     for service in simple forking; do
@@ -15,7 +12,7 @@ execute: |
     done
 
     echo "Refreshing the snap triggers post-refresh hook which disables the services"
-    install_local test-snapd-svcs-disable-refresh-hook
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-svcs-disable-refresh-hook
 
     echo "Services are now disabled"
     for service in simple forking; do

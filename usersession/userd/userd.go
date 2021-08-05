@@ -26,12 +26,13 @@ import (
 	"github.com/godbus/dbus/introspect"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/logger"
 )
 
 type dbusInterface interface {
-	Name() string
-	BasePath() dbus.ObjectPath
+	Interface() string
+	ObjectPath() dbus.ObjectPath
 	IntrospectionData() string
 }
 
@@ -41,34 +42,25 @@ type Userd struct {
 	dbusIfaces []dbusInterface
 }
 
-func dbusSessionBus() (*dbus.Conn, error) {
-	// use a private connection to the session bus, this way we can manage
-	// its lifetime without worrying of breaking other code
-	conn, err := dbus.SessionBusPrivate()
-	if err != nil {
-		return nil, err
-	}
-	if err := conn.Auth(nil); err != nil {
-		conn.Close()
-		return nil, err
-	}
-	if err := conn.Hello(); err != nil {
-		conn.Close()
-		return nil, err
-	}
-	return conn, nil
+// userdBusNames contains the list of bus names userd will acquire on
+// the session bus.  It is unnecessary (and undesirable) to add more
+// names here when adding new interfaces to the daemon.
+var userdBusNames = []string{
+	"io.snapcraft.Launcher",
+	"io.snapcraft.Settings",
 }
 
 func (ud *Userd) Init() error {
 	var err error
 
-	ud.conn, err = dbusSessionBus()
+	ud.conn, err = dbusutil.SessionBusPrivate()
 	if err != nil {
 		return err
 	}
 
 	ud.dbusIfaces = []dbusInterface{
 		&Launcher{ud.conn},
+		&PrivilegedDesktopLauncher{ud.conn},
 		&Settings{ud.conn},
 	}
 	for _, iface := range ud.dbusIfaces {
@@ -77,18 +69,21 @@ func (ud *Userd) Init() error {
 		// at the object level and the actual well-known object name
 		// becoming available on the bus
 		xml := "<node>" + iface.IntrospectionData() + introspect.IntrospectDataString + "</node>"
-		ud.conn.Export(iface, iface.BasePath(), iface.Name())
-		ud.conn.Export(introspect.Introspectable(xml), iface.BasePath(), "org.freedesktop.DBus.Introspectable")
+		ud.conn.Export(iface, iface.ObjectPath(), iface.Interface())
+		ud.conn.Export(introspect.Introspectable(xml), iface.ObjectPath(), "org.freedesktop.DBus.Introspectable")
 
+	}
+
+	for _, name := range userdBusNames {
 		// beyond this point the name is available and all handlers must
 		// have been set up
-		reply, err := ud.conn.RequestName(iface.Name(), dbus.NameFlagDoNotQueue)
+		reply, err := ud.conn.RequestName(name, dbus.NameFlagDoNotQueue)
 		if err != nil {
 			return err
 		}
 
 		if reply != dbus.RequestNameReplyPrimaryOwner {
-			return fmt.Errorf("cannot obtain bus name '%s'", iface.Name())
+			return fmt.Errorf("cannot obtain bus name '%s'", name)
 		}
 	}
 	return nil

@@ -1,13 +1,19 @@
 summary: Check that cohorts work
 
 prepare: |
-    snap install yq
-    snap connect yq:home
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
+debug: |
+    cat coh.yml || true
 
 execute: |
     echo "Test we can create chorts:"
     snap create-cohort test-snapd-tools > coh.yml
-    COHORT=$( yq r coh.yml cohorts.test-snapd-tools.cohort-key )
+    # the YAML looks like this:
+    # cohorts:
+    #   test-snapd-tools:
+    #     cohort-key: <key>
+    COHORT=$(test-snapd-sh.cmd python3 -c 'import sys, yaml; print(yaml.safe_load(sys.stdin)["cohorts"]["test-snapd-tools"]["cohort-key"])' < coh.yml)
     test -n "$COHORT"
 
     echo "Test we can install from there:"
@@ -24,4 +30,4 @@ execute: |
     snap info test-snapd-tools | MATCH ^installed:.*in-cohort
 
     snap switch --leave-cohort test-snapd-tools
-    snap info test-snapd-tools | grep installed: | not MATCH in-cohort
+    snap info test-snapd-tools | grep installed: | NOMATCH in-cohort

@@ -9,6 +9,9 @@ details: |
     a given snap with an updatable version (version string like 2.0+fake1) in the
     edge channel.
 
+# ubuntu-14.04: systemd-run not supported
+systems: [-ubuntu-core-*, -ubuntu-14.04*]
+
 environment:
     SNAP_NAME/parallel_strict_fake,parallel_strict_remote: test-snapd-tools_instance
     SNAP_NAME/strict_fake,strict_remote: test-snapd-tools
@@ -19,11 +22,8 @@ environment:
     STORE_TYPE/parallel_strict_remote,strict_remote,classic_remote: ${REMOTE_STORE}
 
 prepare: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     if [ "$STORE_TYPE" = "fake" ]; then
-        if is_core_system; then
+        if os.query is-core; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -61,11 +61,8 @@ prepare: |
     fi
 
 restore: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     if [ "$STORE_TYPE" = "fake" ]; then
-        if is_core_system; then
+        if os.query is-core; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -82,11 +79,8 @@ restore: |
     fi
 
 execute: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     if [ "$STORE_TYPE" = "fake" ]; then
-        if is_core_system; then
+        if os.query is-core; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -110,8 +104,42 @@ execute: |
     #
     # echo "================================="
 
+    # Set refresh app awareness even on core systems, where we do not have
+    # inotify tools, so that we exercise that code path, even if it is not
+    # measured in the test.
+    snap set system experimental.refresh-app-awareness=true
+    tests.cleanup defer snap unset system experimental.refresh-app-awareness
+
+    #shellcheck source=tests/lib/pkgdb.sh
+    if os.query is-classic && not os.query is-trusty && not os.query is-amazon-linux; then
+      . "$TESTSLIB/pkgdb.sh"
+      distro_install_package inotify-tools
+      # XXX: probably a bug in defer, this fails without ' ' quotes around the rest.
+      # shellcheck disable=SC2016
+      tests.cleanup defer 'bash -c ". $TESTSLIB/pkgdb.sh; distro_purge_package inotify-tools"'
+      systemd-run \
+        --unit test-snapd-watch-inhibit.service \
+        -- \
+        "$(command -v inotifywait)" \
+        --monitor \
+        --recursive \
+        --outfile /tmp/inhibit.events \
+        /var/lib/snapd/inhibit
+      tests.cleanup defer systemctl stop test-snapd-watch-inhibit.service
+    fi
+
     echo "When the snap is refreshed"
-    snap refresh --channel=edge "$SNAP_NAME"
+    snap refresh --ignore-running --channel=edge "$SNAP_NAME"
+
+    if [ -f /tmp/inhibit.events ]; then
+      echo "During the refresh process, the inhibition lock was established and released"
+      MATCH "/var/lib/snapd/inhibit/ OPEN $SNAP_NAME.lock" /tmp/inhibit.events
+      MATCH "/var/lib/snapd/inhibit/ MODIFY $SNAP_NAME.lock" /tmp/inhibit.events
+      MATCH "/var/lib/snapd/inhibit/ CLOSE_WRITE,CLOSE $SNAP_NAME.lock" /tmp/inhibit.events
+      tests.cleanup pop  # stop the inotifywait unit
+      tests.cleanup pop  # remove inotify-tools
+    fi
+    tests.cleanup pop  # unset refresh-app-awareness
 
     echo "Then the new version is listed"
     expected="$SNAP_NAME +$SNAP_VERSION_PATTERN"
@@ -124,9 +152,7 @@ execute: |
     echo "classic snaps "
 
     echo "When multiple snaps have no update we have a good message"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local basic
+    "$TESTSTOOLS"/snaps-state install-local basic
     snap refresh "$SNAP_NAME" basic 2>&1 | MATCH "All snaps up to date."
 
     echo "When moving to stable"

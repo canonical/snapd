@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,6 +25,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/interfaces/kmod"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/release"
@@ -47,6 +48,8 @@ type DockerSupportInterfaceSuite struct {
 	privContainersPlug       *interfaces.ConnectedPlug
 	noPrivContainersPlugInfo *snap.PlugInfo
 	noPrivContainersPlug     *interfaces.ConnectedPlug
+	malformedPlugInfo        *snap.PlugInfo
+	malformedPlug            *interfaces.ConnectedPlug
 }
 
 const coreDockerSlotYaml = `name: core
@@ -65,6 +68,19 @@ apps:
   plugs: 
    - docker-support
    - network-control
+`
+
+const dockerSupportPrivilegedContainersMalformedMockPlugSnapInfoYaml = `name: docker
+version: 1.0
+plugs:
+ privileged:
+  interface: docker-support
+  privileged-containers: foobar
+apps:
+ app:
+  command: foo
+  plugs:
+  - privileged
 `
 
 const dockerSupportPrivilegedContainersFalseMockPlugSnapInfoYaml = `name: docker
@@ -104,6 +120,7 @@ func (s *DockerSupportInterfaceSuite) SetUpTest(c *C) {
 	s.networkCtrlSlot, s.networkCtrlSlotInfo = MockConnectedSlot(c, coreDockerSlotYaml, nil, "network-control")
 	s.privContainersPlug, s.privContainersPlugInfo = MockConnectedPlug(c, dockerSupportPrivilegedContainersTrueMockPlugSnapInfoYaml, nil, "privileged")
 	s.noPrivContainersPlug, s.noPrivContainersPlugInfo = MockConnectedPlug(c, dockerSupportPrivilegedContainersFalseMockPlugSnapInfoYaml, nil, "privileged")
+	s.malformedPlug, s.malformedPlugInfo = MockConnectedPlug(c, dockerSupportPrivilegedContainersMalformedMockPlugSnapInfoYaml, nil, "privileged")
 }
 
 func (s *DockerSupportInterfaceSuite) TestName(c *C) {
@@ -186,6 +203,14 @@ func (s *DockerSupportInterfaceSuite) TestSecCompSpec(c *C) {
 	c.Check(spec.SnippetForTag("snap.docker.app"), testutil.Contains, "# Calls the Docker daemon itself requires\n")
 }
 
+func (s *DockerSupportInterfaceSuite) TestKModSpec(c *C) {
+	spec := &kmod.Specification{}
+	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
+	c.Assert(spec.Modules(), DeepEquals, map[string]bool{
+		"overlay": true,
+	})
+}
+
 func (s *DockerSupportInterfaceSuite) TestPermanentSlotAppArmorSessionNative(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -233,4 +258,16 @@ func (s *DockerSupportInterfaceSuite) TestUdevTaggingDisablingRemoveFirst(c *C) 
 	// add network-control and ensure the spec is still nil
 	c.Assert(spec.AddConnectedPlug(builtin.MustInterface("network-control"), s.networkCtrlPlug, s.networkCtrlSlot), IsNil)
 	c.Assert(spec.Snippets(), HasLen, 0)
+}
+
+func (s *DockerSupportInterfaceSuite) TestServicePermanentPlugSnippets(c *C) {
+	snips, err := interfaces.PermanentPlugServiceSnippets(s.iface, s.plugInfo)
+	c.Assert(err, IsNil)
+	c.Check(snips, DeepEquals, []string{"Delegate=true"})
+
+	// check that a malformed plug with bad attribute returns non-nil error
+	// from PermanentPlugServiceSnippets, thereby ensuring that function
+	// sanitizes plugs
+	_, err = interfaces.PermanentPlugServiceSnippets(s.iface, s.malformedPlugInfo)
+	c.Assert(err, ErrorMatches, "docker-support plug requires bool with 'privileged-containers'")
 }

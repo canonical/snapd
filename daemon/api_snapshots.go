@@ -23,24 +23,43 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/strutil"
 )
 
 var snapshotCmd = &Command{
 	// TODO: also support /v2/snapshots/<id>
-	Path:     "/v2/snapshots",
-	UserOK:   true,
-	PolkitOK: "io.snapcraft.snapd.manage",
-	GET:      listSnapshots,
-	POST:     changeSnapshots,
+	Path:        "/v2/snapshots",
+	GET:         listSnapshots,
+	POST:        changeSnapshots,
+	ReadAccess:  openAccess{},
+	WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 }
+
+var snapshotExportCmd = &Command{
+	Path:       "/v2/snapshots/{id}/export",
+	GET:        getSnapshotExport,
+	ReadAccess: authenticatedAccess{},
+}
+
+var (
+	snapshotList    = snapshotstate.List
+	snapshotCheck   = snapshotstate.Check
+	snapshotForget  = snapshotstate.Forget
+	snapshotRestore = snapshotstate.Restore
+	snapshotSave    = snapshotstate.Save
+	snapshotExport  = snapshotstate.Export
+	snapshotImport  = snapshotstate.Import
+)
 
 func listSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
 	query := r.URL.Query()
@@ -53,11 +72,14 @@ func listSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	}
 
-	sets, err := snapshotList(context.TODO(), setID, strutil.CommaSeparatedList(r.URL.Query().Get("snaps")))
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+	sets, err := snapshotList(context.TODO(), st, setID, strutil.CommaSeparatedList(r.URL.Query().Get("snaps")))
 	if err != nil {
 		return InternalError("%v", err)
 	}
-	return SyncResponse(sets, nil)
+	return SyncResponse(sets)
 }
 
 // A snapshotAction is used to request an operation on a snapshot
@@ -83,6 +105,11 @@ func (action snapshotAction) String() string {
 }
 
 func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response {
+	contentType := r.Header.Get("Content-Type")
+	if contentType == client.SnapshotExportMediaType {
+		return doSnapshotImport(c, r, user)
+	}
+
 	var action snapshotAction
 	decoder := json.NewDecoder(r.Body)
 	if err := decoder.Decode(&action); err != nil {
@@ -135,5 +162,79 @@ func changeSnapshots(c *Command, r *http.Request, user *auth.UserState) Response
 	chg.Set("api-data", map[string]interface{}{"snap-names": affected})
 	ensureStateSoon(st)
 
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+	return AsyncResponse(nil, chg.ID())
+}
+
+// getSnapshotExport streams an archive containing an export of existing snapshots.
+//
+// The snapshots are re-packaged into a single uncompressed tar archive and
+// internally contain multiple zip files.
+func getSnapshotExport(c *Command, r *http.Request, user *auth.UserState) Response {
+	st := c.d.overlord.State()
+	st.Lock()
+	defer st.Unlock()
+
+	vars := muxVars(r)
+	sid := vars["id"]
+	setID, err := strconv.ParseUint(sid, 10, 64)
+	if err != nil {
+		return BadRequest("'id' must be a positive base 10 number; got %q", sid)
+	}
+
+	export, err := snapshotExport(context.TODO(), st, setID)
+	if err != nil {
+		return BadRequest("cannot export %v: %v", setID, err)
+	}
+	// init (size calculation) can be slow so drop the lock
+	st.Unlock()
+	err = export.Init()
+	st.Lock()
+	if err != nil {
+		return BadRequest("cannot calculate size of exported snapshot %v: %v", setID, err)
+	}
+
+	return &snapshotExportResponse{SnapshotExport: export, setID: setID, st: st}
+}
+
+func doSnapshotImport(c *Command, r *http.Request, user *auth.UserState) Response {
+	defer r.Body.Close()
+
+	expectedSize, err := strconv.ParseInt(r.Header.Get("Content-Length"), 10, 64)
+	if err != nil {
+		return BadRequest("cannot parse Content-Length: %v", err)
+	}
+	// ensure we don't read more than we expect
+	limitedBodyReader := io.LimitReader(r.Body, expectedSize)
+
+	// XXX: check that we have enough space to import the compressed snapshots
+	st := c.d.overlord.State()
+	setID, snapNames, err := snapshotImport(context.TODO(), st, limitedBodyReader)
+	if err != nil {
+		return BadRequest(err.Error())
+	}
+
+	result := map[string]interface{}{"set-id": setID, "snaps": snapNames}
+	return SyncResponse(result)
+}
+
+func snapshotMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
+	setID, snapshotted, ts, err := snapshotSave(st, inst.Snaps, inst.Users)
+	if err != nil {
+		return nil, err
+	}
+
+	var msg string
+	if len(inst.Snaps) == 0 {
+		msg = i18n.G("Snapshot all snaps")
+	} else {
+		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+		msg = fmt.Sprintf(i18n.G("Snapshot snaps %s"), strutil.Quoted(inst.Snaps))
+	}
+
+	return &snapInstructionResult{
+		Summary:  msg,
+		Affected: snapshotted,
+		Tasksets: []*state.TaskSet{ts},
+		Result:   map[string]interface{}{"set-id": setID},
+	}, nil
 }

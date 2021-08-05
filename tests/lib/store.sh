@@ -37,11 +37,80 @@ init_fake_refreshes(){
 }
 
 make_snap_installable(){
+    ACK=true
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            (--noack) ACK=false; shift;;
+            (*) break;;
+        esac
+    done
+
     local dir="$1"
     local snap_path="$2"
 
-    new_snap_declaration "$dir" "$snap_path"
-    new_snap_revision "$dir" "$snap_path"
+    p_decl=$(new_snap_declaration "$dir" "$snap_path")
+    p_rev=$(new_snap_revision "$dir" "$snap_path")
+    if [ $ACK = true ]; then
+        snap ack "$p_decl"
+        snap ack "$p_rev"
+    fi
+}
+
+make_snap_installable_with_id(){
+    ACK=true
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            (--noack) ACK=false; shift;;
+            (*) break;;
+        esac
+    done
+
+    local dir="$1"
+    local snap_path="$2"
+    local snap_id="$3"
+
+    if ! command -v yaml2json; then
+        snap install remarshal
+    fi
+    if ! command -v jq; then
+        #shellcheck source=tests/lib/core-config.sh
+        . "$TESTSLIB"/core-config.sh
+
+        SUFFIX="$(get_test_snap_suffix)"
+        snap install "jq$SUFFIX"
+    fi
+
+    # unsquash the snap to get it's name
+    unsquashfs -d /tmp/snap-squashfs "$snap_path" meta/snap.yaml
+    snap_name=$(yaml2json < /tmp/snap-squashfs/meta/snap.yaml | jq -r .name)
+    rm -rf /tmp/snap-squashfs
+
+
+    cat >> /tmp/snap-decl.json << EOF
+{
+    "type": "snap-declaration",
+    "snap-id": "${snap_id}",
+    "publisher-id": "developer1",
+    "snap-name": "${snap_name}"
+}
+EOF
+
+    cat >> /tmp/snap-rev.json << EOF
+{
+    "type": "snap-revision",
+    "snap-id": "${snap_id}"
+}
+EOF
+
+    p_decl=$(new_snap_declaration "$dir" "$snap_path" --snap-decl-json=/tmp/snap-decl.json)
+    p_rev=$(new_snap_revision "$dir" "$snap_path" --snap-rev-json=/tmp/snap-rev.json)
+    if [ $ACK = true ]; then
+        snap ack "$p_decl"
+        snap ack "$p_rev"
+    fi
+
+    rm -rf /tmp/snap-decl.json
+    rm -rf /tmp/snap-rev.json
 }
 
 new_snap_declaration(){
@@ -50,8 +119,7 @@ new_snap_declaration(){
     shift 2
 
     cp -a "$snap_path" "$dir"
-    p=$(fakestore new-snap-declaration --dir "$dir" "$@" "${snap_path}" )
-    snap ack "$p"
+    fakestore new-snap-declaration --dir "$dir" "$@" "${snap_path}"
 }
 
 new_snap_revision(){
@@ -59,10 +127,16 @@ new_snap_revision(){
     local snap_path="$2"
     shift 2
 
-    p=$(fakestore new-snap-revision --dir "$dir" "$@" "${snap_path}")
-    snap ack "$p"
+    fakestore new-snap-revision --dir "$dir" "$@" "${snap_path}"
 }
 
+new_repair(){
+    local dir="$1"
+    local script_path="$2"
+    shift 2
+
+    fakestore new-repair --dir "$dir" "$@" "${script_path}" > /dev/null
+}
 
 setup_fake_store(){
     # before switching make sure we have a session macaroon
@@ -80,7 +154,7 @@ setup_fake_store(){
 
     echo "Create fakestore at the given port"
     PORT="11028"
-    systemd_create_and_start_unit fakestore "$(command -v fakestore) run --dir $top_dir --addr localhost:$PORT --https-proxy=${https_proxy} --http-proxy=${http_proxy} --assert-fallback" "SNAPD_DEBUG=1 SNAPD_DEBUG_HTTP=7 SNAPPY_TESTING=1 SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE"
+    systemd-run --unit fakestore --setenv SNAPD_DEBUG=1 --setenv SNAPD_DEBUG_HTTP=7 --setenv SNAPPY_TESTING=1 --setenv SNAPPY_USE_STAGING_STORE="$SNAPPY_USE_STAGING_STORE" fakestore run --dir "$top_dir" --addr "localhost:$PORT" --https-proxy="${https_proxy}" --http-proxy="${http_proxy}" --assert-fallback
 
     echo "And snapd is configured to use the controlled store"
     _configure_store_backends "SNAPPY_FORCE_API_URL=http://localhost:$PORT" "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE"
@@ -101,7 +175,10 @@ setup_fake_store(){
 
 teardown_fake_store(){
     local top_dir=$1
-    systemd_stop_and_destroy_unit fakestore
+    systemctl stop fakestore || true
+    # when a unit fails, systemd may keep its status, resetting it allows to
+    # start the unit again with a clean slate
+    systemctl reset-failed fakestore || true
 
     if [ "$REMOTE_STORE" = "staging" ]; then
         setup_staging_store

@@ -1,17 +1,10 @@
-#!/bin/bash
+#!/bin/bash -x
 
-set -e -x
-
-# shellcheck source=tests/lib/dirs.sh
-. "$TESTSLIB/dirs.sh"
 # shellcheck source=tests/lib/state.sh
 . "$TESTSLIB/state.sh"
-
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB/systemd.sh"
 
-#shellcheck source=tests/lib/systems.sh
-. "$TESTSLIB"/systems.sh
 
 reset_classic() {
     # Reload all service units as in some situations the unit might
@@ -19,6 +12,11 @@ reset_classic() {
     systemctl daemon-reload
     systemd_stop_units snapd.service snapd.socket
 
+    # none of the purge steps stop the user services, we need to do it
+    # explicitly, at least for the root user
+    systemctl --user stop snapd.session-agent.socket || true
+
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             sh -x "${SPREAD_PATH}/debian/snapd.prerm" remove
@@ -39,6 +37,11 @@ reset_classic() {
             exit 1
             ;;
     esac
+
+    # purge may have removed udev rules, retrigger device events
+    udevadm trigger
+    udevadm settle
+
     # purge has removed units, reload the state now
     systemctl daemon-reload
 
@@ -67,7 +70,7 @@ reset_classic() {
         systemctl reset-failed "$unit" || true
     done
 
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+    if os.query is-trusty; then
         systemctl start snap.mount.service
     fi
 
@@ -87,20 +90,27 @@ reset_classic() {
 
         # force all profiles to be re-generated
         rm -f /var/lib/snapd/system-key
+
+        # force snapd-session-agent.socket fto be re-generated
+        rm -f /run/user/0/snapd-session-agent.socket
     fi
 
     if [ "$1" != "--keep-stopped" ]; then
         systemctl start snapd.socket
 
-        # wait for snapd listening
         EXTRA_NC_ARGS="-q 1"
         case "$SPREAD_SYSTEM" in
+            fedora-34-*|debian-10-*)
+                # Param -q is not available on fedora 34
+                EXTRA_NC_ARGS="-w 1"
+                ;;
             fedora-*|amazon-*|centos-*)
                 EXTRA_NC_ARGS=""
                 ;;
         esac
-        # shellcheck disable=SC2086
-        while ! printf 'GET / HTTP/1.0\r\n\r\n' | nc -U $EXTRA_NC_ARGS /run/snapd.socket; do sleep 0.5; done
+
+        # wait for snapd listening
+        retry -n 120 --wait 0.5 sh -c "printf 'GET / HTTP/1.0\r\n\r\n' | nc -U $EXTRA_NC_ARGS /run/snapd.socket"
     fi
 }
 
@@ -114,7 +124,7 @@ reset_all_snap() {
 
     # shellcheck source=tests/lib/names.sh
     . "$TESTSLIB/names.sh"
-
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     remove_bases=""
     # remove all app snaps first
     for snap in "$SNAP_MOUNT_DIR"/*; do
@@ -158,6 +168,10 @@ reset_all_snap() {
         done
     fi
 
+    # purge may have removed udev rules, retrigger device events
+    udevadm trigger
+    udevadm settle
+
     # ensure we have the same state as initially
     systemctl stop snapd.service snapd.socket
     restore_snapd_state
@@ -175,10 +189,34 @@ reset_all_snap() {
 
 }
 
+# Before resetting all snapd state, specifically remove all disabled snaps that
+# are not from the store, since otherwise their revision number will remain
+# mounted at /snap/<name>/x<rev>/ and if we execute multiple tests that use this
+# same snap, the previous mount unit for x2 for example will stay around if we
+# simply revert to x1 and then delete state.json, since x2 is still mounted if
+# we then again install that snap again twice (i.e. to get to x2), the mount 
+# unit will still be active and thus the previous iteration of this snap at 
+# revision x2 will be used as this new revision's files for x2. This is 
+# particularly damaging for the snapd snap when we are installing different 
+# versions such as in the snapd-refresh-vs-services (and the -reboots variant) 
+# test, since the bug manifests as us trying to refresh to a particular revision
+# of snapd, but that revision is still mounted from the previous iteration of
+# the test and thus gets the wrong version, as displayed in this output:
+#
+# + snap install --dangerous snapd_2.49.1.snap
+# 2021-04-23T20:11:20Z INFO Waiting for automatic snapd restart...
+# snapd 2.49.2 installed
+#
+
+snap list --all | grep disabled | while read -r name _ revision _ ; do
+    snap remove "$name" --revision="$revision"
+done
+
+
 # When the variable REUSE_SNAPD is set to 1, we don't remove and purge snapd.
 # In that case we just cleanup the environment by removing installed snaps as
 # it is done for core systems.
-if is_core_system || [ "$REUSE_SNAPD" = 1 ]; then
+if os.query is-core || [ "$REUSE_SNAPD" = 1 ]; then
     reset_all_snap "$@"
 else
     reset_classic "$@"
@@ -193,10 +231,4 @@ if [ -d /run/snapd/ns ]; then
         rm -f "$mnt"
     done
     find /run/snapd/ns/ \( -name '*.fstab' -o -name '*.user-fstab' -o -name '*.info' \) -delete
-fi
-
-if [ "$REMOTE_STORE" = staging ] && [ "$1" = "--store" ]; then
-    # shellcheck source=tests/lib/store.sh
-    . "$TESTSLIB"/store.sh
-    teardown_staging_store
 fi

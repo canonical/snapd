@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,16 +29,14 @@ import (
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/strutil"
 )
 
 // sanity - grub implements the required interfaces
 var (
 	_ Bootloader                        = (*grub)(nil)
-	_ installableBootloader             = (*grub)(nil)
 	_ RecoveryAwareBootloader           = (*grub)(nil)
 	_ ExtractedRunKernelImageBootloader = (*grub)(nil)
-	_ ManagedAssetsBootloader           = (*grub)(nil)
+	_ TrustedAssetsBootloader           = (*grub)(nil)
 )
 
 type grub struct {
@@ -48,22 +46,25 @@ type grub struct {
 
 	uefiRunKernelExtraction bool
 	recovery                bool
+	nativePartitionLayout   bool
 }
 
 // newGrub create a new Grub bootloader object
-func newGrub(rootdir string, opts *Options) RecoveryAwareBootloader {
+func newGrub(rootdir string, opts *Options) Bootloader {
 	g := &grub{rootdir: rootdir}
-	if opts != nil && (opts.Recovery || opts.NoSlashBoot) {
+	if opts != nil {
+		// Set the flag to extract the run kernel, only
+		// for UC20 run mode.
+		// Both UC16/18 and the recovery mode of UC20 load
+		// the kernel directly from snaps.
+		g.uefiRunKernelExtraction = opts.Role == RoleRunMode
+		g.recovery = opts.Role == RoleRecovery
+		g.nativePartitionLayout = opts.NoSlashBoot || g.recovery
+	}
+	if g.nativePartitionLayout {
 		g.basedir = "EFI/ubuntu"
 	} else {
 		g.basedir = "boot/grub"
-	}
-	if !osutil.FileExists(g.ConfigFile()) {
-		return nil
-	}
-	if opts != nil {
-		g.uefiRunKernelExtraction = opts.ExtractedRunKernelImage
-		g.recovery = opts.Recovery
 	}
 
 	return g
@@ -73,10 +74,6 @@ func (g *grub) Name() string {
 	return "grub"
 }
 
-func (g *grub) setRootDir(rootdir string) {
-	g.rootdir = rootdir
-}
-
 func (g *grub) dir() string {
 	if g.rootdir == "" {
 		panic("internal error: unset rootdir")
@@ -84,34 +81,24 @@ func (g *grub) dir() string {
 	return filepath.Join(g.rootdir, g.basedir)
 }
 
-func (g *grub) installManagedRecoveryBootConfig(gadgetDir string) (bool, error) {
-	gadgetGrubCfg := filepath.Join(gadgetDir, g.Name()+".conf")
-	if !osutil.FileExists(gadgetGrubCfg) {
-		// gadget does not use grub bootloader
-		return false, nil
-	}
+func (g *grub) installManagedRecoveryBootConfig(gadgetDir string) error {
 	assetName := g.Name() + "-recovery.cfg"
 	systemFile := filepath.Join(g.rootdir, "/EFI/ubuntu/grub.cfg")
 	return genericSetBootConfigFromAsset(systemFile, assetName)
 }
 
-func (g *grub) installManagedBootConfig(gadgetDir string) (bool, error) {
-	gadgetGrubCfg := filepath.Join(gadgetDir, g.Name()+".conf")
-	if !osutil.FileExists(gadgetGrubCfg) {
-		// gadget does not use grub bootloader
-		return false, nil
-	}
+func (g *grub) installManagedBootConfig(gadgetDir string) error {
 	assetName := g.Name() + ".cfg"
 	systemFile := filepath.Join(g.rootdir, "/EFI/ubuntu/grub.cfg")
 	return genericSetBootConfigFromAsset(systemFile, assetName)
 }
 
-func (g *grub) InstallBootConfig(gadgetDir string, opts *Options) (bool, error) {
-	if opts != nil && opts.Recovery {
+func (g *grub) InstallBootConfig(gadgetDir string, opts *Options) error {
+	if opts != nil && opts.Role == RoleRecovery {
 		// install managed config for the recovery partition
 		return g.installManagedRecoveryBootConfig(gadgetDir)
 	}
-	if opts != nil && opts.ExtractedRunKernelImage {
+	if opts != nil && opts.Role == RoleRunMode {
 		// install managed boot config that can handle kernel.efi
 		return g.installManagedBootConfig(gadgetDir)
 	}
@@ -151,8 +138,8 @@ func (g *grub) GetRecoverySystemEnv(recoverySystemDir string, key string) (strin
 	return genv.Get(key), nil
 }
 
-func (g *grub) ConfigFile() string {
-	return filepath.Join(g.dir(), "grub.cfg")
+func (g *grub) Present() (bool, error) {
+	return osutil.FileExists(filepath.Join(g.dir(), "grub.cfg")), nil
 }
 
 func (g *grub) envFile() string {
@@ -351,46 +338,46 @@ func (g *grub) TryKernel() (snap.PlaceInfo, error) {
 // UpdateBootConfig updates the grub boot config only if it is already managed
 // and has a lower edition.
 //
-// Implements ManagedAssetsBootloader for the grub bootloader.
-func (g *grub) UpdateBootConfig(opts *Options) error {
+// Implements TrustedAssetsBootloader for the grub bootloader.
+func (g *grub) UpdateBootConfig() (bool, error) {
+	// XXX: do we need to take opts here?
 	bootScriptName := "grub.cfg"
 	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
-	if opts != nil && opts.Recovery {
+	if g.recovery {
 		// use the recovery asset when asked to do so
 		bootScriptName = "grub-recovery.cfg"
 	}
 	return genericUpdateBootConfigFromAssets(currentBootConfig, bootScriptName)
 }
 
-// IsCurrentlyManaged returns true when the boot config is managed by snapd.
-//
-// Implements ManagedBootloader for the grub bootloader.
-func (g *grub) IsCurrentlyManaged() (bool, error) {
-	currentBootScript := filepath.Join(g.dir(), "grub.cfg")
-	_, err := editionFromDiskConfigAsset(currentBootScript)
-	if err != nil && err != errNoEdition {
-		return false, err
-	}
-	return err != errNoEdition, nil
-}
-
 // ManagedAssets returns a list relative paths to boot assets inside the root
 // directory of the filesystem.
 //
-// Implements ManagedAssetsBootloader for the grub bootloader.
+// Implements TrustedAssetsBootloader for the grub bootloader.
 func (g *grub) ManagedAssets() []string {
 	return []string{
 		filepath.Join(g.basedir, "grub.cfg"),
 	}
 }
 
-func (g *grub) commandLineForEdition(edition uint, modeArg, systemArg, extraArgs string) (string, error) {
+func (g *grub) commandLineForEdition(edition uint, pieces CommandLineComponents) (string, error) {
 	assetName := "grub.cfg"
 	if g.recovery {
 		assetName = "grub-recovery.cfg"
 	}
-	staticCmdline := staticCommandLineForGrubAssetEdition(assetName, edition)
-	args, err := strutil.KernelCommandLineSplit(staticCmdline + " " + extraArgs)
+
+	if err := pieces.Validate(); err != nil {
+		return "", err
+	}
+
+	var nonSnapdCmdline string
+	if pieces.FullArgs == "" {
+		staticCmdline := staticCommandLineForGrubAssetEdition(assetName, edition)
+		nonSnapdCmdline = staticCmdline + " " + pieces.ExtraArgs
+	} else {
+		nonSnapdCmdline = pieces.FullArgs
+	}
+	args, err := osutil.KernelCommandLineSplit(nonSnapdCmdline)
 	if err != nil {
 		return "", fmt.Errorf("cannot use badly formatted kernel command line: %v", err)
 	}
@@ -399,44 +386,45 @@ func (g *grub) commandLineForEdition(edition uint, modeArg, systemArg, extraArgs
 	// arguments are separated by a single space, the space after last is
 	// replaced with terminating NULL
 	snapdArgs := make([]string, 0, 2)
-	if modeArg != "" {
-		snapdArgs = append(snapdArgs, modeArg)
+	if pieces.ModeArg != "" {
+		snapdArgs = append(snapdArgs, pieces.ModeArg)
 	}
-	if systemArg != "" {
-		snapdArgs = append(snapdArgs, systemArg)
+	if pieces.SystemArg != "" {
+		snapdArgs = append(snapdArgs, pieces.SystemArg)
 	}
 	return strings.Join(append(snapdArgs, args...), " "), nil
 }
 
 // CommandLine returns the kernel command line composed of mode and
-// system arguments, built-in bootloader specific static arguments
-// corresponding to the on-disk boot asset edition, followed by any
-// extra arguments. The command line may be different when using a
-// recovery bootloader.
+// system arguments, followed by either a built-in bootloader specific
+// static arguments corresponding to the on-disk boot asset edition, and
+// any extra arguments or a separate set of arguments provided in the
+// components. The command line may be different when using a recovery
+// bootloader.
 //
-// Implements ManagedAssetsBootloader for the grub bootloader.
-func (g *grub) CommandLine(modeArg, systemArg, extraArgs string) (string, error) {
+// Implements TrustedAssetsBootloader for the grub bootloader.
+func (g *grub) CommandLine(pieces CommandLineComponents) (string, error) {
 	currentBootConfig := filepath.Join(g.dir(), "grub.cfg")
 	edition, err := editionFromDiskConfigAsset(currentBootConfig)
 	if err != nil {
 		if err != errNoEdition {
 			return "", fmt.Errorf("cannot obtain edition number of current boot config: %v", err)
 		}
-		// we were called using the ManagedAssetsBootloader interface
+		// we were called using the TrustedAssetsBootloader interface
 		// meaning the caller expects to us to use the managed assets,
 		// since one on disk is not managed, use the initial edition of
 		// the internal boot asset which is compatible with grub.cfg
 		// used before we started writing out the files ourselves
 		edition = 1
 	}
-	return g.commandLineForEdition(edition, modeArg, systemArg, extraArgs)
+	return g.commandLineForEdition(edition, pieces)
 }
 
 // CandidateCommandLine is similar to CommandLine, but uses the current
 // edition of managed built-in boot assets as reference.
 //
-// Implements ManagedAssetsBootloader for the grub bootloader.
-func (g *grub) CandidateCommandLine(modeArg, systemArg, extraArgs string) (string, error) {
+// Implements TrustedAssetsBootloader for the grub bootloader.
+func (g *grub) CandidateCommandLine(pieces CommandLineComponents) (string, error) {
 	assetName := "grub.cfg"
 	if g.recovery {
 		assetName = "grub-recovery.cfg"
@@ -445,7 +433,7 @@ func (g *grub) CandidateCommandLine(modeArg, systemArg, extraArgs string) (strin
 	if err != nil {
 		return "", err
 	}
-	return g.commandLineForEdition(edition, modeArg, systemArg, extraArgs)
+	return g.commandLineForEdition(edition, pieces)
 }
 
 // staticCommandLineForGrubAssetEdition fetches a static command line for given
@@ -456,4 +444,74 @@ func staticCommandLineForGrubAssetEdition(asset string, edition uint) string {
 		return ""
 	}
 	return string(cmdline)
+}
+
+var (
+	grubRecoveryModeTrustedAssets = []string{
+		// recovery mode shim EFI binary
+		"EFI/boot/bootx64.efi",
+		// recovery mode grub EFI binary
+		"EFI/boot/grubx64.efi",
+	}
+
+	grubRunModeTrustedAssets = []string{
+		// run mode grub EFI binary
+		"EFI/boot/grubx64.efi",
+	}
+)
+
+// TrustedAssets returns the list of relative paths to assets inside
+// the bootloader's rootdir that are measured in the boot process in the
+// order of loading during the boot.
+func (g *grub) TrustedAssets() ([]string, error) {
+	if !g.nativePartitionLayout {
+		return nil, fmt.Errorf("internal error: trusted assets called without native host-partition layout")
+	}
+	if g.recovery {
+		return grubRecoveryModeTrustedAssets, nil
+	}
+	return grubRunModeTrustedAssets, nil
+}
+
+// RecoveryBootChain returns the load chain for recovery modes.
+// It should be called on a RoleRecovery bootloader.
+func (g *grub) RecoveryBootChain(kernelPath string) ([]BootFile, error) {
+	if !g.recovery {
+		return nil, fmt.Errorf("not a recovery bootloader")
+	}
+
+	// add trusted assets to the recovery chain
+	chain := make([]BootFile, 0, len(grubRecoveryModeTrustedAssets)+1)
+	for _, ta := range grubRecoveryModeTrustedAssets {
+		chain = append(chain, NewBootFile("", ta, RoleRecovery))
+	}
+	// add recovery kernel to the recovery chain
+	chain = append(chain, NewBootFile(kernelPath, "kernel.efi", RoleRecovery))
+
+	return chain, nil
+}
+
+// BootChain returns the load chain for run mode.
+// It should be called on a RoleRecovery bootloader passing the
+// RoleRunMode bootloader.
+func (g *grub) BootChain(runBl Bootloader, kernelPath string) ([]BootFile, error) {
+	if !g.recovery {
+		return nil, fmt.Errorf("not a recovery bootloader")
+	}
+	if runBl.Name() != "grub" {
+		return nil, fmt.Errorf("run mode bootloader must be grub")
+	}
+
+	// add trusted assets to the recovery chain
+	chain := make([]BootFile, 0, len(grubRecoveryModeTrustedAssets)+len(grubRunModeTrustedAssets)+1)
+	for _, ta := range grubRecoveryModeTrustedAssets {
+		chain = append(chain, NewBootFile("", ta, RoleRecovery))
+	}
+	for _, ta := range grubRunModeTrustedAssets {
+		chain = append(chain, NewBootFile("", ta, RoleRunMode))
+	}
+	// add kernel to the boot chain
+	chain = append(chain, NewBootFile(kernelPath, "kernel.efi", RoleRunMode))
+
+	return chain, nil
 }

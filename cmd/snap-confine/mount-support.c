@@ -33,7 +33,6 @@
 #include <sys/stat.h>
 #include <sys/syscall.h>
 #include <sys/types.h>
-#include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -161,7 +160,7 @@ static void setup_private_pts(void)
 	// copied from /etc/default/devpts
 	sc_do_mount("devpts", "/dev/pts", "devpts", MS_MGC_VAL,
 		    "newinstance,ptmxmode=0666,mode=0620,gid=5");
-	sc_do_mount("/dev/pts/ptmx", "/dev/ptmx", "none", MS_BIND, 0);
+	sc_do_mount("/dev/pts/ptmx", "/dev/ptmx", "none", MS_BIND, NULL);
 }
 
 struct sc_mount {
@@ -322,12 +321,33 @@ static void sc_bootstrap_mount_namespace(const struct sc_mount_config *config)
 		// Fixes the following bugs:
 		//  - https://bugs.launchpad.net/snap-confine/+bug/1580018
 		//  - https://bugzilla.opensuse.org/show_bug.cgi?id=1028568
-		const char *dirs_from_core[] =
-		    { "/etc/alternatives", "/etc/ssl", "/etc/nsswitch.conf",
+		const char *dirs_from_core[] = {
+			"/etc/alternatives", "/etc/nsswitch.conf",
+			// Some specific and privileged interfaces (e.g docker-support) give
+			// access to apparmor_parser from the base snap which at a minimum
+			// needs to use matching configuration from the base snap instead
+			// of from the users host system.
+			"/etc/apparmor", "/etc/apparmor.d",
+			// Use ssl certs from the base by default unless
+			// using Debian/Ubuntu classic (see below)
+			"/etc/ssl",
 			NULL
 		};
+
 		for (const char **dirs = dirs_from_core; *dirs != NULL; dirs++) {
 			const char *dir = *dirs;
+
+			// Special case for ubuntu/debian based
+			// classic distros that use the core* snap:
+			// here we use the host /etc/ssl
+			// to support custom ca-cert setups
+			if (sc_streq(dir, "/etc/ssl") &&
+			    config->distro == SC_DISTRO_CLASSIC &&
+			    sc_is_debian_like() &&
+			    sc_startswith(config->base_snap_name, "core")) {
+				continue;
+			}
+
 			if (access(dir, F_OK) != 0) {
 				continue;
 			}
@@ -738,7 +758,7 @@ void sc_ensure_shared_snap_mount(void)
 		// removed once we have a measurement and feedback mechanism that lets
 		// us decide based on measurable data.
 		sc_do_mount(SNAP_MOUNT_DIR, SNAP_MOUNT_DIR, "none",
-			    MS_BIND | MS_REC, 0);
+			    MS_BIND | MS_REC, NULL);
 		sc_do_mount("none", SNAP_MOUNT_DIR, NULL, MS_SHARED | MS_REC,
 			    NULL);
 	}
@@ -784,7 +804,7 @@ void sc_ensure_snap_dir_shared_mounts(void)
 			 * since snaps are already mounted, and it's not needed for
 			 * /var/snap.
 			 */
-			sc_do_mount(dir, dir, "none", MS_BIND | MS_REC, 0);
+			sc_do_mount(dir, dir, "none", MS_BIND | MS_REC, NULL);
 			sc_do_mount("none", dir, NULL, MS_REC | MS_SHARED,
 				    NULL);
 		}
@@ -807,10 +827,10 @@ void sc_setup_parallel_instance_classic_mounts(const char *snap_name,
 	sc_must_snprintf(src, sizeof src, "%s/%s", SNAP_MOUNT_DIR,
 			 snap_instance_name);
 	sc_must_snprintf(dst, sizeof dst, "%s/%s", SNAP_MOUNT_DIR, snap_name);
-	sc_do_mount(src, dst, "none", MS_BIND | MS_REC, 0);
+	sc_do_mount(src, dst, "none", MS_BIND | MS_REC, NULL);
 
 	/* Mount /var/snap/<snap>_<key> on /var/snap/<snap> */
 	sc_must_snprintf(src, sizeof src, "/var/snap/%s", snap_instance_name);
 	sc_must_snprintf(dst, sizeof dst, "/var/snap/%s", snap_name);
-	sc_do_mount(src, dst, "none", MS_BIND | MS_REC, 0);
+	sc_do_mount(src, dst, "none", MS_BIND | MS_REC, NULL);
 }

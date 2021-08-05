@@ -28,30 +28,45 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
 
 type servicesSuite struct {
 	configcoreSuite
+	serviceInstalled bool
 }
 
 var _ = Suite(&servicesSuite{})
 
 func (s *servicesSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
+	s.systemctlOutput = func(args ...string) []byte {
+		var output []byte
+		if args[0] == "show" {
+			if args[1] == "--property=ActiveState" {
+				output = []byte("ActiveState=inactive")
+			} else {
+				if s.serviceInstalled {
+					output = []byte(fmt.Sprintf("Id=%s\nType=daemon\nActiveState=inactive\nUnitFileState=enabled\n", args[2]))
+				} else {
+					output = []byte(fmt.Sprintf("Id=%s\nType=\nActiveState=inactive\nUnitFileState=\n", args[2]))
+				}
+			}
+		}
+		return output
+	}
+
 	c.Assert(os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "etc"), 0755), IsNil)
+	s.serviceInstalled = true
 	s.systemctlArgs = nil
 	s.BaseTest.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 }
 
 func (s *servicesSuite) TestConfigureServiceInvalidValue(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"service.ssh.disable": "xxx",
@@ -64,8 +79,9 @@ func (s *servicesSuite) TestConfigureServiceNotDisabled(c *C) {
 	err := configcore.SwitchDisableService("sshd.service", false, nil)
 	c.Assert(err, IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"--root", dirs.GlobalRootDir, "unmask", "sshd.service"},
-		{"--root", dirs.GlobalRootDir, "enable", "sshd.service"},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type", "sshd.service"},
+		{"unmask", "sshd.service"},
+		{"enable", "sshd.service"},
 		{"start", "sshd.service"},
 	})
 }
@@ -74,31 +90,33 @@ func (s *servicesSuite) TestConfigureServiceDisabled(c *C) {
 	err := configcore.SwitchDisableService("sshd.service", true, nil)
 	c.Assert(err, IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"--root", dirs.GlobalRootDir, "disable", "sshd.service"},
-		{"--root", dirs.GlobalRootDir, "mask", "sshd.service"},
+		{"show", "--property=Id,ActiveState,UnitFileState,Type", "sshd.service"},
+		{"disable", "sshd.service"},
+		{"mask", "sshd.service"},
 		{"stop", "sshd.service"},
 		{"show", "--property=ActiveState", "sshd.service"},
 	})
 }
 
 func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/ssh"), 0755)
 	c.Assert(err, IsNil)
 
 	for _, service := range []struct {
 		cfgName     string
 		systemdName string
+		installed   bool
 	}{
-		{"ssh", "ssh.service"},
-		{"rsyslog", "rsyslog.service"},
-		{"console-conf", "getty@*"},
+		{"ssh", "ssh.service", true},  // no installed check for ssh
+		{"ssh", "ssh.service", false}, // no installed check for ssh
+		{"rsyslog", "rsyslog.service", true},
+		{"rsyslog", "rsyslog.service", false},
+		{"systemd-resolved", "systemd-resolved.service", true},
+		{"systemd-resolved", "systemd-resolved.service", false},
 	} {
 		s.systemctlArgs = nil
-
-		err := configcore.Run(&mockConf{
+		s.serviceInstalled = service.installed
+		err := configcore.Run(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				fmt.Sprintf("service.%s.disable", service.cfgName): true,
@@ -115,31 +133,49 @@ func (s *servicesSuite) TestConfigureServiceDisabledIntegration(c *C) {
 				{"stop", srv},
 				{"show", "--property=ActiveState", srv},
 			})
-		case "console-conf":
-			consoleConfCanary := filepath.Join(dirs.GlobalRootDir, "/var/lib/console-conf/complete")
-			_, err := os.Stat(consoleConfCanary)
-			c.Assert(err, IsNil)
-			c.Check(s.systemctlArgs, DeepEquals, [][]string{
-				{"restart", srv, "--all"},
-				{"restart", "serial-getty@*", "--all"},
-				{"restart", "serial-console-conf@*", "--all"},
-				{"restart", "console-conf@*", "--all"},
-			})
 		default:
-			c.Check(s.systemctlArgs, DeepEquals, [][]string{
-				{"--root", dirs.GlobalRootDir, "disable", srv},
-				{"--root", dirs.GlobalRootDir, "mask", srv},
-				{"stop", srv},
-				{"show", "--property=ActiveState", srv},
-			})
+			if service.installed {
+				c.Check(s.systemctlArgs, DeepEquals, [][]string{
+					{"show", "--property=Id,ActiveState,UnitFileState,Type", srv},
+					{"disable", srv},
+					{"mask", srv},
+					{"stop", srv},
+					{"show", "--property=ActiveState", srv},
+				})
+			} else {
+				c.Check(s.systemctlArgs, DeepEquals, [][]string{
+					{"show", "--property=Id,ActiveState,UnitFileState,Type", srv},
+				})
+			}
 		}
 	}
 }
 
-func (s *servicesSuite) TestConfigureConsoleConfEnableIntegration(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
+func (s *servicesSuite) TestConfigureConsoleConfDisableFSOnly(c *C) {
+	conf := configcore.PlainCoreConfig(map[string]interface{}{
+		"service.console-conf.disable": true,
+	})
 
+	tmpDir := c.MkDir()
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
+
+	consoleConfDisabled := filepath.Join(tmpDir, "/var/lib/console-conf/complete")
+	c.Check(consoleConfDisabled, testutil.FileEquals, "console-conf has been disabled by the snapd system configuration\n")
+}
+
+func (s *servicesSuite) TestConfigureConsoleConfEnabledFSOnly(c *C) {
+	conf := configcore.PlainCoreConfig(map[string]interface{}{
+		"service.console-conf.disable": false,
+	})
+
+	tmpDir := c.MkDir()
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
+
+	consoleConfDisabled := filepath.Join(tmpDir, "/var/lib/console-conf/complete")
+	c.Check(consoleConfDisabled, testutil.FileAbsent)
+}
+
+func (s *servicesSuite) TestConfigureConsoleConfEnableNotAtRuntime(c *C) {
 	// pretend that console-conf is disabled
 	canary := filepath.Join(dirs.GlobalRootDir, "/var/lib/console-conf/complete")
 	err := os.MkdirAll(filepath.Dir(canary), 0755)
@@ -148,58 +184,95 @@ func (s *servicesSuite) TestConfigureConsoleConfEnableIntegration(c *C) {
 	c.Assert(err, IsNil)
 
 	// now enable it
-	err = configcore.Run(&mockConf{
+	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"service.console-conf.disable": false,
 		},
 	})
-	c.Assert(err, IsNil)
-	// ensure it got fully enabled
-	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"restart", "getty@*", "--all"},
-		{"restart", "serial-getty@*", "--all"},
-		{"restart", "serial-console-conf@*", "--all"},
-		{"restart", "console-conf@*", "--all"},
-	})
-	// and that the canary file is no longer there
-	c.Assert(canary, testutil.FileAbsent)
+	c.Assert(err, ErrorMatches, "cannot toggle console-conf at runtime, but only initially via gadget defaults")
 }
 
-func (s *servicesSuite) TestConfigureConsoleConfEnableAlreadyEnabled(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
+func (s *servicesSuite) TestConfigureConsoleConfDisableNotAtRuntime(c *C) {
+	// console-conf is not disabled, i.e. there is no
+	// "/var/lib/console-conf/complete" file
 
+	// now try to enable it
+	err := configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"service.console-conf.disable": true,
+		},
+	})
+	c.Assert(err, ErrorMatches, "cannot toggle console-conf at runtime, but only initially via gadget defaults")
+}
+
+func (s *servicesSuite) TestConfigureConsoleConfEnableAlreadyEnabledIsFine(c *C) {
 	// Note that we have no
 	//        /var/lib/console-conf/complete
 	// file. So console-conf is already enabled
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"service.console-conf.disable": false,
 		},
 	})
 	c.Assert(err, IsNil)
-	// because it was not enabled before no need to restart anything
-	c.Check(s.systemctlArgs, HasLen, 0)
+}
+
+func (s *servicesSuite) TestConfigureConsoleConfDisableAlreadyDisabledIsFine(c *C) {
+	// pretend that console-conf is disabled
+	canary := filepath.Join(dirs.GlobalRootDir, "/var/lib/console-conf/complete")
+	err := os.MkdirAll(filepath.Dir(canary), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(canary, nil, 0644)
+	c.Assert(err, IsNil)
+
+	err = configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"service.console-conf.disable": true,
+		},
+	})
+	c.Assert(err, IsNil)
+}
+
+func (s *servicesSuite) TestConfigureConsoleConfEnableDuringInstallMode(c *C) {
+	mockProcCmdline := filepath.Join(c.MkDir(), "cmdline")
+	err := ioutil.WriteFile(mockProcCmdline, []byte("snapd_recovery_mode=install snapd_recovery_system=20201212\n"), 0644)
+	c.Assert(err, IsNil)
+	restore := osutil.MockProcCmdline(mockProcCmdline)
+	defer restore()
+
+	err = configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		conf: map[string]interface{}{
+			"service.console-conf.disable": true,
+		},
+	})
+	// no error because we are in install mode
+	c.Assert(err, IsNil)
 }
 
 func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/ssh"), 0755)
 	c.Assert(err, IsNil)
 
 	for _, service := range []struct {
 		cfgName     string
 		systemdName string
+		installed   bool
 	}{
-		{"ssh", "ssh.service"},
-		{"rsyslog", "rsyslog.service"},
+		{"ssh", "ssh.service", true},  // no installed check for ssh
+		{"ssh", "ssh.service", false}, // no installed check for ssh
+		{"rsyslog", "rsyslog.service", true},
+		{"rsyslog", "rsyslog.service", false},
+		{"systemd-resolved", "systemd-resolved.service", true},
+		{"systemd-resolved", "systemd-resolved.service", false},
 	} {
 		s.systemctlArgs = nil
-		err := configcore.Run(&mockConf{
+		s.serviceInstalled = service.installed
+		err := configcore.Run(coreDev, &mockConf{
 			state: s.state,
 			conf: map[string]interface{}{
 				fmt.Sprintf("service.%s.disable", service.cfgName): false,
@@ -211,28 +284,32 @@ func (s *servicesSuite) TestConfigureServiceEnableIntegration(c *C) {
 		switch service.cfgName {
 		case "ssh":
 			c.Check(s.systemctlArgs, DeepEquals, [][]string{
-				{"--root", dirs.GlobalRootDir, "unmask", "sshd.service"},
-				{"--root", dirs.GlobalRootDir, "unmask", "ssh.service"},
+				{"unmask", "sshd.service"},
+				{"unmask", "ssh.service"},
 				{"start", srv},
 			})
 			sshCanary := filepath.Join(dirs.GlobalRootDir, "/etc/ssh/sshd_not_to_be_run")
 			_, err := os.Stat(sshCanary)
 			c.Assert(err, ErrorMatches, ".* no such file or directory")
 		default:
-			c.Check(s.systemctlArgs, DeepEquals, [][]string{
-				{"--root", dirs.GlobalRootDir, "unmask", srv},
-				{"--root", dirs.GlobalRootDir, "enable", srv},
-				{"start", srv},
-			})
+			if service.installed {
+				c.Check(s.systemctlArgs, DeepEquals, [][]string{
+					{"show", "--property=Id,ActiveState,UnitFileState,Type", srv},
+					{"unmask", srv},
+					{"enable", srv},
+					{"start", srv},
+				})
+			} else {
+				c.Check(s.systemctlArgs, DeepEquals, [][]string{
+					{"show", "--property=Id,ActiveState,UnitFileState,Type", srv},
+				})
+			}
 		}
 	}
 }
 
 func (s *servicesSuite) TestConfigureServiceUnsupportedService(c *C) {
-	restore := release.MockOnClassic(false)
-	defer restore()
-
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"service.snapd.disable": true,
@@ -253,7 +330,7 @@ func (s *servicesSuite) TestFilesystemOnlyApply(c *C) {
 		"service.ssh.disable":     "true",
 		"service.rsyslog.disable": "true",
 	})
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
 		{"--root", tmpDir, "mask", "rsyslog.service"},
 	})

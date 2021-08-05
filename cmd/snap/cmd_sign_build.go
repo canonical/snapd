@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,9 +23,10 @@ import (
 	"fmt"
 	"time"
 
-	_ "golang.org/x/crypto/sha3" // expected for digests
-
 	"github.com/jessevdk/go-flags"
+
+	// expected for digests
+	_ "golang.org/x/crypto/sha3"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/i18n"
@@ -83,8 +84,11 @@ func (x *cmdSignBuild) Execute(args []string) error {
 		return err
 	}
 
-	gkm := asserts.NewGPGKeypairManager()
-	privKey, err := gkm.GetByName(string(x.KeyName))
+	keypairMgr, err := getKeypairManager()
+	if err != nil {
+		return err
+	}
+	privKey, err := keypairMgr.GetByName(string(x.KeyName))
 	if err != nil {
 		// TRANSLATORS: %q is the key name, %v the error message
 		return fmt.Errorf(i18n.G("cannot use %q key: %v"), x.KeyName, err)
@@ -104,7 +108,7 @@ func (x *cmdSignBuild) Execute(args []string) error {
 	}
 
 	adb, err := asserts.OpenDatabase(&asserts.DatabaseConfig{
-		KeypairManager: gkm,
+		KeypairManager: keypairMgr,
 	})
 	if err != nil {
 		return fmt.Errorf(i18n.G("cannot open the assertions database: %v"), err)

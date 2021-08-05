@@ -48,6 +48,25 @@ func ValidateName(name string) error {
 	return naming.ValidateSnap(name)
 }
 
+// ValidateDesktopPrefix checks if a string can be used as a desktop file
+// prefix. A desktop prefix should be of the form 'snapname' or
+// 'snapname+instance'.
+func ValidateDesktopPrefix(prefix string) bool {
+	tokens := strings.Split(prefix, "+")
+	if len(tokens) == 0 || len(tokens) > 2 {
+		return false
+	}
+	if err := ValidateName(tokens[0]); err != nil {
+		return false
+	}
+	if len(tokens) == 2 {
+		if err := ValidateInstanceName(tokens[1]); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
 // ValidatePlugName checks if a string can be used as a slot name.
 //
 // Slot names and plug names within one snap must have unique names.
@@ -764,11 +783,21 @@ func ValidateApp(app *AppInfo) error {
 	default:
 		return fmt.Errorf(`"refresh-mode" field contains invalid value %q`, app.RefreshMode)
 	}
+	// validate install-mode
+	switch app.InstallMode {
+	case "", "enable", "disable":
+		// valid
+	default:
+		return fmt.Errorf(`"install-mode" field contains invalid value %q`, app.InstallMode)
+	}
 	if app.StopMode != "" && app.Daemon == "" {
 		return fmt.Errorf(`"stop-mode" cannot be used for %q, only for services`, app.Name)
 	}
 	if app.RefreshMode != "" && app.Daemon == "" {
 		return fmt.Errorf(`"refresh-mode" cannot be used for %q, only for services`, app.Name)
+	}
+	if app.InstallMode != "" && app.Daemon == "" {
+		return fmt.Errorf(`"install-mode" cannot be used for %q, only for services`, app.Name)
 	}
 
 	return validateAppTimer(app)

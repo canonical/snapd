@@ -1,6 +1,7 @@
 summary: Check that undo for snap refresh works
 
-systems: [-ubuntu-core-*]
+# ubuntu-14.04: systemd-run not supported
+systems: [-ubuntu-core-*, -ubuntu-14.04*]
 
 environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir
@@ -65,7 +66,7 @@ execute: |
     snap list | MATCH -E "${GOOD_SNAP}.*?fake1"
 
     echo "But the bad snap did not get updated"
-    snap list | MATCH -E "${BAD_SNAP}"| not MATCH "fake"
+    snap list | MATCH -E "${BAD_SNAP}"| NOMATCH "fake"
 
     #shellcheck source=tests/lib/changes.sh
     . "$TESTSLIB"/changes.sh

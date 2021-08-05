@@ -24,6 +24,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -32,16 +33,23 @@ func Test(t *testing.T) {
 	TestingT(t)
 }
 
-type uDevSuite struct{}
+type uDevSuite struct {
+	backend *udev.Backend
+}
 
 var _ = Suite(&uDevSuite{})
 
 // Tests for ReloadRules()
 
+func (s *uDevSuite) SetUpTest(c *C) {
+	s.backend = &udev.Backend{}
+	c.Assert(s.backend.Initialize(nil), IsNil)
+}
+
 func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdm(c *C) {
 	cmd := testutil.MockCommand(c, "udevadm", "")
 	defer cmd.Restore()
-	err := udev.ReloadRules(nil)
+	err := s.backend.ReloadRules(nil)
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "control", "--reload-rules"},
@@ -61,7 +69,7 @@ if [ "$1" = "control" ]; then
 fi
 	`)
 	defer cmd.Restore()
-	err := udev.ReloadRules(nil)
+	err := s.backend.ReloadRules(nil)
 	c.Assert(err.Error(), Equals, ""+
 		"cannot reload udev rules: exit status 1\n"+
 		"udev output:\n"+
@@ -79,7 +87,7 @@ if [ "$1" = "trigger" ]; then
 fi
 	`)
 	defer cmd.Restore()
-	err := udev.ReloadRules(nil)
+	err := s.backend.ReloadRules(nil)
 	c.Assert(err.Error(), Equals, ""+
 		"cannot run udev triggers: exit status 2\n"+
 		"udev output:\n"+
@@ -93,7 +101,7 @@ fi
 func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdmWithSubsystem(c *C) {
 	cmd := testutil.MockCommand(c, "udevadm", "")
 	defer cmd.Restore()
-	err := udev.ReloadRules([]string{"input"})
+	err := s.backend.ReloadRules([]string{"input"})
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "control", "--reload-rules"},
@@ -111,7 +119,7 @@ if [ "$2" = "--subsystem-match=input" ]; then
 fi
 	`)
 	defer cmd.Restore()
-	err := udev.ReloadRules([]string{"input"})
+	err := s.backend.ReloadRules([]string{"input"})
 	c.Assert(err.Error(), Equals, ""+
 		"cannot run udev triggers for input subsystem: exit status 2\n"+
 		"udev output:\n"+
@@ -126,7 +134,7 @@ fi
 func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdmWithJoystick(c *C) {
 	cmd := testutil.MockCommand(c, "udevadm", "")
 	defer cmd.Restore()
-	err := udev.ReloadRules([]string{"input/joystick"})
+	err := s.backend.ReloadRules([]string{"input/joystick"})
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "control", "--reload-rules"},
@@ -144,7 +152,7 @@ if [ "$2" = "--property-match=ID_INPUT_JOYSTICK=1" ]; then
 fi
 	`)
 	defer cmd.Restore()
-	err := udev.ReloadRules([]string{"input/joystick"})
+	err := s.backend.ReloadRules([]string{"input/joystick"})
 	c.Assert(err.Error(), Equals, ""+
 		"cannot run udev triggers for joysticks: exit status 2\n"+
 		"udev output:\n"+
@@ -159,7 +167,7 @@ fi
 func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdmWithTwoSubsystems(c *C) {
 	cmd := testutil.MockCommand(c, "udevadm", "")
 	defer cmd.Restore()
-	err := udev.ReloadRules([]string{"input", "tty"})
+	err := s.backend.ReloadRules([]string{"input", "tty"})
 	c.Assert(err, IsNil)
 	c.Assert(cmd.Calls(), DeepEquals, [][]string{
 		{"udevadm", "control", "--reload-rules"},
@@ -168,4 +176,17 @@ func (s *uDevSuite) TestReloadUDevRulesRunsUDevAdmWithTwoSubsystems(c *C) {
 		{"udevadm", "trigger", "--subsystem-match=tty"},
 		{"udevadm", "settle", "--timeout=10"},
 	})
+}
+
+func (s *uDevSuite) TestNoReloadWhenPreseeding(c *C) {
+	cmd := testutil.MockCommand(c, "udevadm", "")
+	defer cmd.Restore()
+
+	b := udev.Backend{}
+	opts := &interfaces.SecurityBackendOptions{
+		Preseed: true,
+	}
+	c.Assert(b.Initialize(opts), IsNil)
+	c.Assert(b.ReloadRules(nil), IsNil)
+	c.Assert(cmd.Calls(), HasLen, 0)
 }

@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/internal"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -237,11 +238,13 @@ func (s *Snap) withUnpackedFile(filePath string, f func(p string) error) error {
 	return f(filepath.Join(unpackDir, filePath))
 }
 
-// RandomAccessFile returns an implementation to read at any given location
-// for a single file inside the squashfs snap.
+// RandomAccessFile returns an implementation to read at any given
+// location for a single file inside the squashfs snap plus
+// information about the file size.
 func (s *Snap) RandomAccessFile(filePath string) (interface {
 	io.ReaderAt
 	io.Closer
+	Size() int64
 }, error) {
 	var f *os.File
 	err := s.withUnpackedFile(filePath, func(p string) (err error) {
@@ -251,7 +254,7 @@ func (s *Snap) RandomAccessFile(filePath string) (interface {
 	if err != nil {
 		return nil, err
 	}
-	return f, nil
+	return internal.NewSizedFile(f)
 }
 
 // ReadFile returns the content of a single file inside a squashfs snap.
@@ -291,6 +294,12 @@ func (sk skipper) Has(path string) bool {
 	return false
 }
 
+// pre-4.5 unsquashfs writes a funny header like:
+//     "Parallel unsquashfs: Using 1 processor"
+//     "1 inodes (1 blocks) to write"
+//     ""   <-- empty line
+var maybeHeaderRegex = regexp.MustCompile(`^(Parallel unsquashfs: Using .* processor.*|[0-9]+ inodes .* to write)$`)
+
 // Walk (part of snap.Container) is like filepath.Walk, without the ordering guarantee.
 func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
 	relative = filepath.Clean(relative)
@@ -318,16 +327,21 @@ func (s *Snap) Walk(relative string, walkFn filepath.WalkFunc) error {
 	defer cmd.Process.Kill()
 
 	scanner := bufio.NewScanner(stdout)
-	// skip the header
-	for scanner.Scan() {
-		if len(scanner.Bytes()) == 0 {
-			break
-		}
-	}
-
 	skipper := make(skipper)
+	seenHeader := false
 	for scanner.Scan() {
-		st, err := fromRaw(scanner.Bytes())
+		raw := scanner.Bytes()
+		if !seenHeader {
+			// try to match the header written by older (pre-4.5)
+			// squashfs tools
+			if len(scanner.Bytes()) == 0 ||
+				maybeHeaderRegex.Match(raw) {
+				continue
+			} else {
+				seenHeader = true
+			}
+		}
+		st, err := fromRaw(raw)
 		if err != nil {
 			err = walkFn(relative, nil, err)
 			if err != nil {
@@ -472,6 +486,14 @@ func verifyContentAccessibleForBuild(sourceDir string) error {
 	return errPaths.asErr()
 }
 
+type MksquashfsError struct {
+	msg string
+}
+
+func (m MksquashfsError) Error() string {
+	return m.msg
+}
+
 type BuildOpts struct {
 	SnapType     string
 	Compression  string
@@ -524,7 +546,7 @@ func (s *Snap) Build(sourceDir string, opts *BuildOpts) error {
 	return osutil.ChDir(sourceDir, func() error {
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("mksquashfs call failed: %s", osutil.OutputErr(output, err))
+			return MksquashfsError{fmt.Sprintf("mksquashfs call failed: %s", osutil.OutputErr(output, err))}
 		}
 
 		return nil

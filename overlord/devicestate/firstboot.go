@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2019 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -112,15 +112,10 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return nil, fmt.Errorf("cannot populate state: already seeded")
 	}
 
-	deviceSeed, err := seed.Open(dirs.SnapSeedDir, sysLabel)
-	if err != nil {
-		return nil, err
-	}
-
-	var model *asserts.Model
+	var deviceSeed seed.Seed
 	// ack all initial assertions
-	timings.Run(tm, "import-assertions", "import assertions from seed", func(nested timings.Measurer) {
-		model, err = importAssertionsFromSeed(st, deviceSeed)
+	timings.Run(tm, "import-assertions[finish]", "finish importing assertions from seed", func(nested timings.Measurer) {
+		deviceSeed, err = importAssertionsFromSeed(st, sysLabel)
 	})
 	if err != nil && err != errNothingToDo {
 		return nil, err
@@ -130,7 +125,9 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return trivialSeeding(st), nil
 	}
 
-	err = deviceSeed.LoadMeta(tm)
+	timings.Run(tm, "load-verified-snap-metadata", "load verified snap metadata from seed", func(nested timings.Measurer) {
+		err = deviceSeed.LoadMeta(nested)
+	})
 	if release.OnClassic && err == seed.ErrNoMeta {
 		if preseed {
 			return nil, fmt.Errorf("no snaps to preseed")
@@ -142,11 +139,16 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return nil, err
 	}
 
+	model := deviceSeed.Model()
+
 	essentialSeedSnaps := deviceSeed.EssentialSnaps()
 	seedSnaps, err := deviceSeed.ModeSnaps(mode)
 	if err != nil {
 		return nil, err
 	}
+
+	// optimistically forget the deviceSeed here
+	unloadDeviceSeed(st)
 
 	tsAll := []*state.TaskSet{}
 	configTss := []*state.TaskSet{}
@@ -170,6 +172,10 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		if beginTask != nil {
 			// hooks must wait for mark-preseeded
 			hooksTask.WaitFor(preseedDoneTask)
+			if n := len(all); n > 0 {
+				// the first hook of the snap waits for all tasks of previous snap
+				hooksTask.WaitAll(all[n-1])
+			}
 			if lastBeforeHooksTask != nil {
 				beginTask.WaitFor(lastBeforeHooksTask)
 			}
@@ -219,7 +225,16 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	}
 
 	for _, seedSnap := range essentialSeedSnaps {
-		ts, info, err := installSeedSnap(st, seedSnap, snapstate.Flags{SkipConfigure: true})
+		flags := snapstate.Flags{
+			SkipConfigure: true,
+			// for dangerous models, allow all devmode snaps
+			// XXX: eventually we may need to allow specific snaps to be devmode for
+			// non-dangerous models, we can do that here since that information will
+			// probably be in the model assertion which we have here
+			ApplySnapDevMode: model.Grade() == asserts.ModelDangerous,
+		}
+
+		ts, info, err := installSeedSnap(st, seedSnap, flags)
 		if err != nil {
 			return nil, err
 		}
@@ -249,7 +264,14 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	infoToTs = make(map[*snap.Info]*state.TaskSet, len(seedSnaps))
 
 	for _, seedSnap := range seedSnaps {
-		var flags snapstate.Flags
+		flags := snapstate.Flags{
+			// for dangerous models, allow all devmode snaps
+			// XXX: eventually we may need to allow specific snaps to be devmode for
+			// non-dangerous models, we can do that here since that information will
+			// probably be in the model assertion which we have here
+			ApplySnapDevMode: model.Grade() == asserts.ModelDangerous,
+		}
+
 		ts, info, err := installSeedSnap(st, seedSnap, flags)
 		if err != nil {
 			return nil, err
@@ -273,6 +295,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 		return nil, fmt.Errorf("cannot proceed, no snaps to seed")
 	}
 
+	// ts is the taskset of the last snap
 	ts := tsAll[len(tsAll)-1]
 	endTs := state.NewTaskSet()
 
@@ -290,6 +313,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	}
 	markSeeded.Set("seed-system", whatSeeds)
 
+	// mark-seeded waits for the taskset of last snap
 	markSeeded.WaitAll(ts)
 	endTs.AddTask(markSeeded)
 	tsAll = append(tsAll, endTs)
@@ -297,7 +321,7 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 	return tsAll, nil
 }
 
-func importAssertionsFromSeed(st *state.State, deviceSeed seed.Seed) (*asserts.Model, error) {
+func importAssertionsFromSeed(st *state.State, sysLabel string) (seed.Seed, error) {
 	// TODO: use some kind of context fo Device/SetDevice?
 	device, err := internal.Device(st)
 	if err != nil {
@@ -306,11 +330,7 @@ func importAssertionsFromSeed(st *state.State, deviceSeed seed.Seed) (*asserts.M
 
 	// collect and
 	// set device,model from the model assertion
-	commitTo := func(batch *asserts.Batch) error {
-		return assertstate.AddBatch(st, batch, nil)
-	}
-
-	err = deviceSeed.LoadAssertions(assertstate.DB(st), commitTo)
+	deviceSeed, err := loadDeviceSeed(st, sysLabel)
 	if err == seed.ErrNoAssertions && release.OnClassic {
 		// on classic seeding is optional
 		// set the fallback model
@@ -323,11 +343,7 @@ func importAssertionsFromSeed(st *state.State, deviceSeed seed.Seed) (*asserts.M
 	if err != nil {
 		return nil, err
 	}
-
-	modelAssertion, err := deviceSeed.Model()
-	if err != nil {
-		return nil, err
-	}
+	modelAssertion := deviceSeed.Model()
 
 	classicModel := modelAssertion.Classic()
 	if release.OnClassic != classicModel {
@@ -345,5 +361,60 @@ func importAssertionsFromSeed(st *state.State, deviceSeed seed.Seed) (*asserts.M
 		return nil, err
 	}
 
-	return modelAssertion, nil
+	return deviceSeed, nil
+}
+
+// loadDeviceSeed loads and caches the device seed based on sysLabel,
+// it is meant to be used before and during seeding.
+// It is an error to call it with different sysLabel values once one
+// seed has been loaded and cached.
+func loadDeviceSeed(st *state.State, sysLabel string) (deviceSeed seed.Seed, err error) {
+	cached := st.Cached(loadedDeviceSeedKey{})
+	if cached != nil {
+		loaded := cached.(*loadedDeviceSeed)
+		if loaded.sysLabel != sysLabel {
+			return nil, fmt.Errorf("internal error: requested inconsistent device seed: %s (was %s)", sysLabel, loaded.sysLabel)
+		}
+		return loaded.seed, loaded.err
+	}
+
+	// cache the outcome, both success and errors
+	defer func() {
+		st.Cache(loadedDeviceSeedKey{}, &loadedDeviceSeed{
+			sysLabel: sysLabel,
+			seed:     deviceSeed,
+			err:      err,
+		})
+	}()
+
+	deviceSeed, err = seed.Open(dirs.SnapSeedDir, sysLabel)
+	if err != nil {
+		return nil, err
+	}
+
+	// collect and
+	// set device,model from the model assertion
+	commitTo := func(batch *asserts.Batch) error {
+		return assertstate.AddBatch(st, batch, nil)
+	}
+
+	if err := deviceSeed.LoadAssertions(assertstate.DB(st), commitTo); err != nil {
+		return nil, err
+	}
+
+	return deviceSeed, nil
+}
+
+// unloadDeviceSeed forgets the cached outcomes of loadDeviceSeed.
+// Its main reason is to avoid using memory past the point where the deviceSeed
+// isn't needed anymore.
+func unloadDeviceSeed(st *state.State) {
+	st.Cache(loadedDeviceSeedKey{}, nil)
+}
+
+type loadedDeviceSeedKey struct{}
+type loadedDeviceSeed struct {
+	sysLabel string
+	seed     seed.Seed
+	err      error
 }

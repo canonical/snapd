@@ -29,6 +29,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -61,7 +62,21 @@ var (
 )
 
 func init() {
+	dirs.AddRootDirCallback(func(root string) {
+		rootPath = root
+	})
 	probeVersion, probeErr = probeCgroupVersion()
+	// handles error case gracefully
+	pickVersionSpecificImpl()
+}
+
+func pickVersionSpecificImpl() {
+	switch probeVersion {
+	case V1:
+		pickFreezerV1Impl()
+	case V2:
+		pickFreezerV2Impl()
+	}
 }
 
 var fsTypeForPath = fsTypeForPathImpl
@@ -80,12 +95,6 @@ func fsTypeForPathImpl(path string) (int64, error) {
 // process id.
 func ProcPidPath(pid int) string {
 	return filepath.Join(rootPath, fmt.Sprintf("proc/%v/cgroup", pid))
-}
-
-// ControllerPathV1 returns the path to given controller assuming cgroup v1
-// hierarchy
-func ControllerPathV1(controller string) string {
-	return filepath.Join(rootPath, cgroupMountPoint, controller)
 }
 
 func probeCgroupVersion() (version int, err error) {
@@ -212,6 +221,7 @@ func ProcGroup(pid int, matcher GroupMatcher) (string, error) {
 func MockVersion(mockVersion int, mockErr error) (restore func()) {
 	oldVersion, oldErr := probeVersion, probeErr
 	probeVersion, probeErr = mockVersion, mockErr
+	pickVersionSpecificImpl()
 	return func() {
 		probeVersion, probeErr = oldVersion, oldErr
 	}
@@ -248,8 +258,19 @@ func ProcessPathInTrackingCgroup(pid int) (string, error) {
 	// Cgroup entries we're looking for look like this:
 	// 1:name=systemd:/user.slice/user-1000.slice/user@1000.service/tmux.slice/tmux@default.service
 	// 0::/user.slice/user-1000.slice/user@1000.service/tmux.slice/tmux@default.service
+
+	// It seems cgroupv2 can be "dangling" after being mounted and unmounted.
+	// It will forever stay present in the kernel but will not be present in
+	// the file-system. As such, allow v2 to register only if it is really
+	// mounted on the system.
+	var allowV2 bool
+	if ver, err := Version(); err != nil {
+		return "", err
+	} else if ver == V2 {
+		allowV2 = true
+	}
 	entry, err := scanProcCgroupFile(fname, func(e *procInfoEntry) bool {
-		if e.CgroupID == 0 {
+		if e.CgroupID == 0 && allowV2 {
 			return true
 		}
 		if len(e.Controllers) == 1 && e.Controllers[0] == "name=systemd" {

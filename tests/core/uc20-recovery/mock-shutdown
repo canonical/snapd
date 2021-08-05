@@ -1,5 +1,0 @@
-#!/bin/sh -e
-
-echo "$*" >> /tmp/mock-shutdown.calls
-
-exit 0

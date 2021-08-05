@@ -22,12 +22,12 @@ package daemon
 import (
 	"context"
 	"encoding/json"
-	"net/http"
+	"io"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/snapshotstate"
 	"github.com/snapcore/snapd/overlord/state"
 )
 
@@ -39,11 +39,19 @@ func MockSnapshotSave(newSave func(*state.State, []string, []string) (uint64, []
 	}
 }
 
-func MockSnapshotList(newList func(context.Context, uint64, []string) ([]client.SnapshotSet, error)) (restore func()) {
+func MockSnapshotList(newList func(context.Context, *state.State, uint64, []string) ([]client.SnapshotSet, error)) (restore func()) {
 	oldList := snapshotList
 	snapshotList = newList
 	return func() {
 		snapshotList = oldList
+	}
+}
+
+func MockSnapshotExport(newExport func(context.Context, *state.State, uint64) (*snapshotstate.SnapshotExport, error)) (restore func()) {
+	oldExport := snapshotExport
+	snapshotExport = newExport
+	return func() {
+		snapshotExport = oldExport
 	}
 }
 
@@ -71,6 +79,14 @@ func MockSnapshotForget(newForget func(*state.State, uint64, []string) ([]string
 	}
 }
 
+func MockSnapshotImport(newImport func(context.Context, *state.State, io.Reader) (uint64, []string, error)) (restore func()) {
+	oldImport := snapshotImport
+	snapshotImport = newImport
+	return func() {
+		snapshotImport = oldImport
+	}
+}
+
 func MustUnmarshalSnapInstruction(c *check.C, jinst string) *snapInstruction {
 	var inst snapInstruction
 	if err := json.Unmarshal([]byte(jinst), &inst); err != nil {
@@ -87,19 +103,4 @@ func MustUnmarshalSnapshotAction(c *check.C, jact string) *snapshotAction {
 	return &act
 }
 
-func (rsp *resp) ErrorResult() *errorResult {
-	return rsp.Result.(*errorResult)
-}
-
-func ListSnapshots(c *Command, r *http.Request, user *auth.UserState) *resp {
-	return listSnapshots(c, r, user).(*resp)
-}
-
-func ChangeSnapshots(c *Command, r *http.Request, user *auth.UserState) *resp {
-	return changeSnapshots(c, r, user).(*resp)
-}
-
-var (
-	SnapshotMany = snapshotMany
-	SnapshotCmd  = snapshotCmd
-)
+type SnapshotExportResponse = snapshotExportResponse

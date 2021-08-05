@@ -235,7 +235,38 @@ func (cs *clientSuite) TestClientOpInstallPath(c *check.C) {
 	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"action\"\r\n\r\ninstall\r\n.*")
 
 	c.Check(cs.req.Method, check.Equals, "POST")
-	c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps"))
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/snaps")
+	c.Assert(cs.req.Header.Get("Content-Type"), check.Matches, "multipart/form-data; boundary=.*")
+	_, ok := cs.req.Context().Deadline()
+	c.Assert(ok, check.Equals, false)
+	c.Check(id, check.Equals, "66b3")
+}
+
+func (cs *clientSuite) TestClientOpInstallPathIgnoreRunning(c *check.C) {
+	cs.status = 202
+	cs.rsp = `{
+		"change": "66b3",
+		"status-code": 202,
+		"type": "async"
+	}`
+	bodyData := []byte("snap-data")
+
+	snap := filepath.Join(c.MkDir(), "foo.snap")
+	err := ioutil.WriteFile(snap, bodyData, 0644)
+	c.Assert(err, check.IsNil)
+
+	id, err := cs.cli.InstallPath(snap, "", &client.SnapOptions{IgnoreRunning: true})
+	c.Assert(err, check.IsNil)
+
+	body, err := ioutil.ReadAll(cs.req.Body)
+	c.Assert(err, check.IsNil)
+
+	c.Assert(string(body), check.Matches, "(?s).*\r\nsnap-data\r\n.*")
+	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"action\"\r\n\r\ninstall\r\n.*")
+	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"ignore-running\"\r\n\r\ntrue\r\n.*")
+
+	c.Check(cs.req.Method, check.Equals, "POST")
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/snaps")
 	c.Assert(cs.req.Header.Get("Content-Type"), check.Matches, "multipart/form-data; boundary=.*")
 	_, ok := cs.req.Context().Deadline()
 	c.Assert(ok, check.Equals, false)
@@ -266,7 +297,7 @@ func (cs *clientSuite) TestClientOpInstallPathInstance(c *check.C) {
 	c.Assert(string(body), check.Matches, "(?s).*Content-Disposition: form-data; name=\"name\"\r\n\r\nfoo_bar\r\n.*")
 
 	c.Check(cs.req.Method, check.Equals, "POST")
-	c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps"))
+	c.Check(cs.req.URL.Path, check.Equals, "/v2/snaps")
 	c.Assert(cs.req.Header.Get("Content-Type"), check.Matches, "multipart/form-data; boundary=.*")
 	c.Check(id, check.Equals, "66b3")
 }
@@ -405,7 +436,7 @@ func (cs *clientSuite) TestClientOpTryMode(c *check.C) {
 		c.Check(len(formData), check.Equals, expectedLength)
 
 		c.Check(cs.req.Method, check.Equals, "POST", comment)
-		c.Check(cs.req.URL.Path, check.Equals, fmt.Sprintf("/v2/snaps"), comment)
+		c.Check(cs.req.URL.Path, check.Equals, "/v2/snaps", comment)
 		c.Assert(cs.req.Header.Get("Content-Type"), check.Matches, "multipart/form-data; boundary=.*", comment)
 		c.Check(id, check.Equals, "66b3", comment)
 	}

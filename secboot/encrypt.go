@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -21,6 +21,8 @@ package secboot
 
 import (
 	"crypto/rand"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -29,27 +31,48 @@ import (
 
 const (
 	// The encryption key size is set so it has the same entropy as the derived
-	// key. The recovery key is shorter and goes through KDF iterations.
-	encryptionKeySize = 64
-	recoveryKeySize   = 16
+	// key.
+	encryptionKeySize = 32
+
+	// XXX: needs to be in sync with
+	//      github.com/snapcore/secboot/crypto.go:"type RecoveryKey"
+	// Size of the recovery key.
+	recoveryKeySize = 16
+
+	// The auxiliary key is used to bind keys to models
+	auxKeySize = 32
 )
 
-type EncryptionKey [encryptionKeySize]byte
+// used in tests
+var randRead = rand.Read
+
+// EncryptionKey is the key used to encrypt the data partition.
+type EncryptionKey []byte
 
 func NewEncryptionKey() (EncryptionKey, error) {
-	var key EncryptionKey
+	key := make(EncryptionKey, encryptionKeySize)
 	// rand.Read() is protected against short reads
-	_, err := rand.Read(key[:])
+	_, err := randRead(key[:])
 	// On return, n == len(b) if and only if err == nil
 	return key, err
 }
 
+// Save writes the key in the location specified by filename.
+func (key EncryptionKey) Save(filename string) error {
+	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+		return err
+	}
+	return osutil.AtomicWriteFile(filename, key[:], 0600, 0)
+}
+
+// RecoveryKey is a key used to unlock the encrypted partition when
+// the encryption key can't be used, for example when unseal fails.
 type RecoveryKey [recoveryKeySize]byte
 
 func NewRecoveryKey() (RecoveryKey, error) {
 	var key RecoveryKey
 	// rand.Read() is protected against short reads
-	_, err := rand.Read(key[:])
+	_, err := randRead(key[:])
 	// On return, n == len(b) if and only if err == nil
 	return key, err
 }
@@ -60,4 +83,36 @@ func (key RecoveryKey) Save(filename string) error {
 		return err
 	}
 	return osutil.AtomicWriteFile(filename, key[:], 0600, 0)
+}
+
+func RecoveryKeyFromFile(recoveryKeyFile string) (*RecoveryKey, error) {
+	f, err := os.Open(recoveryKeyFile)
+	if err != nil {
+		return nil, fmt.Errorf("cannot open recovery key: %v", err)
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil {
+		return nil, fmt.Errorf("cannot stat recovery key: %v", err)
+	}
+	if st.Size() != int64(len(RecoveryKey{})) {
+		return nil, fmt.Errorf("cannot read recovery key: unexpected size %v for the recovery key file %s", st.Size(), recoveryKeyFile)
+	}
+
+	var rkey RecoveryKey
+	if _, err := io.ReadFull(f, rkey[:]); err != nil {
+		return nil, fmt.Errorf("cannot read recovery key: %v", err)
+	}
+	return &rkey, nil
+}
+
+// AuxKey is the key to bind models to keys.
+type AuxKey [auxKeySize]byte
+
+func NewAuxKey() (AuxKey, error) {
+	var key AuxKey
+	// rand.Read() is protected against short reads
+	_, err := randRead(key[:])
+	// On return, n == len(b) if and only if err == nil
+	return key, err
 }

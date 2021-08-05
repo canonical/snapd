@@ -5,9 +5,7 @@ details: |
     contained unknown interfaces in either plugs or slots.
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local_devmode test-snapd-unknown-interfaces
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-unknown-interfaces --devmode
 
 execute: |
     echo "Snapd did not die on us"
@@ -15,5 +13,5 @@ execute: |
     echo "The snap was installed and can be used"
     test-snapd-unknown-interfaces -c true
     echo "The bogus plugs and slots are not added"
-    snap interfaces | not MATCH bogus-plug
-    snap interfaces | not MATCH bogus-slot
+    snap interfaces | NOMATCH bogus-plug
+    snap interfaces | NOMATCH bogus-slot

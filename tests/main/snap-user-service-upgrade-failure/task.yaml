@@ -26,10 +26,15 @@ prepare: |
 restore: |
     tests.session -u test restore
     snap unset system experimental.user-daemons
+
     if [ -f agent-was-enabled ]; then
         systemctl --user --global disable snapd.session-agent.socket
-        rm agent-was-enabled
     fi
+
+debug: |
+    tests.session dump
+    tests.session -u test exec systemctl --user status snapd.session-agent.service || true
+    tests.session -u test exec journalctl --user || true
 
 execute: |
     function systemctl_user() {
@@ -37,9 +42,7 @@ execute: |
     }
 
     echo "Install the a snap with user services while a user session is active"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-user-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service
     snap info test-snapd-user-service | MATCH '^installed:.* 1\.0 .*$'
 
     echo "We can see the service running"
@@ -47,7 +50,7 @@ execute: |
     systemctl_user show -p MainPID snap.test-snapd-user-service.test-snapd-user-service > old-main.pid
 
     echo "When it is re-installed"
-    if install_local test-snapd-user-service-v2-bad; then
+    if "$TESTSTOOLS"/snaps-state install-local test-snapd-user-service-v2-bad; then
       echo "test-snapd-user-service v2 should not install cleanly, test broken"
       exit 1
     fi
@@ -60,7 +63,3 @@ execute: |
     systemctl_user show -p MainPID snap.test-snapd-user-service.test-snapd-user-service > new-main.pid
     test "$(cat new-main.pid)" != "$(cat old-main.pid)"
 
-debug: |
-    tests.session dump
-    tests.session -u test exec systemctl --user status snapd.session-agent.service || true
-    tests.session -u test exec journalctl --user || true

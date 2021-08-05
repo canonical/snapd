@@ -1,21 +1,19 @@
 summary: Checks for parallel installation of sideloaded snaps containing desktop applications
 
+restore: |
+    snap set system experimental.parallel-instances=null
+
 execute: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     echo "Sideload the regular snap"
-    install_local basic-desktop
-
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
+    "$TESTSTOOLS"/snaps-state install-local basic-desktop
 
     snap set system experimental.parallel-instances=true
 
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     for instance in foo longname; do
         echo "Sideload same snap as different instance named basic-desktop+$instance"
         expected="^basic-desktop_$instance 1.0 installed\$"
-        install_local_as basic-desktop "basic-desktop_$instance" | MATCH "$expected"
+        "$TESTSTOOLS"/snaps-state install-local-as basic-desktop "basic-desktop_$instance" | MATCH "$expected"
 
         diff -u <(head -n5 "/var/lib/snapd/desktop/applications/basic-desktop+${instance}_echo.desktop") - <<-EOF
     [Desktop Entry]
@@ -40,6 +38,3 @@ execute: |
 
     snap remove --purge basic-desktop
     test -f /var/lib/snapd/desktop/applications/basic-desktop+longname_echo.desktop
-
-restore: |
-    snap set system experimental.parallel-instances=null

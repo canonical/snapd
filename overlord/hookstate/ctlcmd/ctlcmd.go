@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,10 +25,11 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/hookstate"
-
-	"github.com/jessevdk/go-flags"
+	"github.com/snapcore/snapd/strutil"
 )
 
 type baseCommand struct {
@@ -122,6 +123,10 @@ func (f *ForbiddenCommand) Execute(args []string) error {
 	return &ForbiddenCommandError{Message: fmt.Sprintf("cannot use %q with uid %d, try with sudo", f.Name, f.Uid)}
 }
 
+// nonRootAllowed lists the commands that can be performed even when snapctl
+// is invoked not by root.
+var nonRootAllowed = []string{"get", "services", "set-health", "is-connected", "system-mode"}
+
 // Run runs the requested command.
 func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr []byte, err error) {
 	parser := flags.NewNamedParser("snapctl", flags.PassDoubleDash|flags.HelpFlag)
@@ -133,7 +138,7 @@ func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr 
 		var data interface{}
 		// commands listed here will be allowed for regular users
 		// note: commands still need valid context and snaps can only access own config.
-		if uid == 0 || name == "get" || name == "services" || name == "set-health" || name == "is-connected" {
+		if uid == 0 || strutil.ListContains(nonRootAllowed, name) {
 			cmd := cmdInfo.generator()
 			cmd.setStdout(&stdoutBuffer)
 			cmd.setStderr(&stderrBuffer)

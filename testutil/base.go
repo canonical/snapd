@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,15 +31,19 @@ type BaseTest struct {
 
 // SetUpTest prepares the cleanup
 func (s *BaseTest) SetUpTest(c *check.C) {
-	s.cleanupHandlers = nil
+	if len(s.cleanupHandlers) != 0 {
+		panic("BaseTest cleanup handlers were not consumed before a new test start, missing BaseTest.TearDownTest call?")
+	}
 }
 
 // TearDownTest cleans up the channel.ini files in case they were changed by
 // the test.
 // It also runs the cleanup handlers
 func (s *BaseTest) TearDownTest(c *check.C) {
-	// run cleanup handlers and clear the slice
-	for _, f := range s.cleanupHandlers {
+	// run cleanup handlers in reverse order and clear the slice
+	n := len(s.cleanupHandlers)
+	for i := range s.cleanupHandlers {
+		f := s.cleanupHandlers[n-1-i]
 		f()
 	}
 	s.cleanupHandlers = nil

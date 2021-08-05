@@ -31,6 +31,7 @@ import (
 
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/osutil/sys"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/usersession/userd/ui"
 )
@@ -122,13 +123,13 @@ type Launcher struct {
 	conn *dbus.Conn
 }
 
-// Name returns the name of the interface this object implements
-func (s *Launcher) Name() string {
+// Interface returns the name of the interface this object implements
+func (s *Launcher) Interface() string {
 	return "io.snapcraft.Launcher"
 }
 
-// BasePath returns the base path of the object
-func (s *Launcher) BasePath() dbus.ObjectPath {
+// ObjectPath returns the path that the object is exported as
+func (s *Launcher) ObjectPath() dbus.ObjectPath {
 	return "/io/snapcraft/Launcher"
 }
 
@@ -145,10 +146,21 @@ func makeAccessDeniedError(err error) *dbus.Error {
 	}
 }
 
+func checkOnClassic() *dbus.Error {
+	if !release.OnClassic {
+		return makeAccessDeniedError(fmt.Errorf("not supported on Ubuntu Core"))
+	}
+	return nil
+}
+
 // OpenURL implements the 'OpenURL' method of the 'io.snapcraft.Launcher'
 // DBus interface. Before the provided url is passed to xdg-open the scheme is
 // validated against a list of allowed schemes. All other schemes are denied.
 func (s *Launcher) OpenURL(addr string, sender dbus.Sender) *dbus.Error {
+	if err := checkOnClassic(); err != nil {
+		return err
+	}
+
 	u, err := url.Parse(addr)
 	if err != nil {
 		return &dbus.ErrMsgInvalidArg
@@ -214,6 +226,10 @@ func (s *Launcher) OpenFile(parentWindow string, clientFd dbus.UnixFD, sender db
 	// godbus transfers ownership of this file descriptor to us
 	fd := int(clientFd)
 	defer syscall.Close(fd)
+
+	if err := checkOnClassic(); err != nil {
+		return err
+	}
 
 	filename, err := fdToFilename(fd)
 	if err != nil {

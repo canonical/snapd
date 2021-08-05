@@ -1,9 +1,9 @@
 summary: Check that own services can be controlled by snapctl
 
-kill-timeout: 5m
-
 # takes >1.5min to run
 backends: [-autopkgtest]
+
+kill-timeout: 5m
 
 environment:
     SERVICEOPTIONFILE: /var/snap/test-snapd-service/current/service-option
@@ -26,11 +26,8 @@ execute: |
         done
     }
 
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     echo "When the service snap is installed"
-    install_local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
 
     echo "We can see it running"
     _wait_for_service "test-snapd-service.test-snapd-service" " active"
@@ -53,10 +50,22 @@ execute: |
     echo "It's stopped"
     _wait_for_service "test-snapd-service.test-snapd-service" " inactive"
 
+    echo "And then attempt restart"
+    snap set test-snapd-service service-option-source=foo command=restart
+
+    echo "It's still not running, since restart ignores stopped units"
+    _wait_for_service "test-snapd-service.test-snapd-service" " inactive"
+
+    echo "So we start it again"
+    snap set test-snapd-service command=start
+
+    echo "It's running"
+    _wait_for_service "test-snapd-service.test-snapd-service" " active"
+
     echo "And then restart"
     snap set test-snapd-service service-option-source=foo command=restart
 
-    echo "It's running"
+    echo "It's still running"
     _wait_for_service "test-snapd-service.test-snapd-service" " active"
 
     echo "And restart command was executed as part of configure hook change"
@@ -67,7 +76,7 @@ execute: |
 
     echo "Reinstalling the snap with configure hook calling snapctl restart works"
     snap set test-snapd-service command=restart
-    install_local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
     # shellcheck disable=SC2119
     if "$TESTSTOOLS"/journal-state get-log | MATCH "error running snapctl"; then
         echo "snapctl should not report errors"

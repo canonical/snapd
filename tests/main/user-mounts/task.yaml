@@ -15,9 +15,7 @@ systems:
     - -ubuntu-14.04-*  # no tests.session
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-desktop
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop
     snap disconnect test-snapd-desktop:desktop
 
     tests.session -u test prepare

@@ -20,12 +20,15 @@
 package builtin
 
 import (
+	"fmt"
+
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -63,6 +66,7 @@ owner @{HOME}/.local/share/fonts/{,**} r,
 # subset of gnome abstraction
 /etc/gtk-3.0/settings.ini r,
 owner @{HOME}/.config/gtk-3.0/settings.ini r,
+owner @{HOME}/.config/gtk-3.0/*.css r,
 # Note: this leaks directory names that wouldn't otherwise be known to the snap
 owner @{HOME}/.config/gtk-3.0/bookmarks r,
 
@@ -108,6 +112,22 @@ dbus (receive)
     path=/org/freedesktop/Notifications
     interface=org.freedesktop.Notifications
     member={ActionInvoked,NotificationClosed,NotificationReplied}
+    peer=(label=unconfined),
+
+# KDE Plasma's Inhibited property indicating "do not disturb" mode
+# https://invent.kde.org/plasma/plasma-workspace/-/blob/master/libnotificationmanager/dbus/org.freedesktop.Notifications.xml#L42
+dbus (send)
+    bus=session
+    path=/org/freedesktop/Notifications
+    interface=org.freedesktop.DBus.Properties
+    member="Get{,All}"
+    peer=(label=unconfined),
+
+dbus (receive)
+    bus=session
+    path=/org/freedesktop/Notifications
+    interface=org.freedesktop.DBus.Properties
+    member=PropertiesChanged
     peer=(label=unconfined),
 
 # DesktopAppInfo Launched
@@ -158,7 +178,18 @@ dbus (receive)
 
 # Allow use of snapd's internal 'xdg-open'
 /usr/bin/xdg-open ixr,
-/usr/share/applications/{,*} r,
+# While /usr/share/applications comes from the base runtime of the snap, it
+# has some things that snaps actually need, so allow access to those and deny
+# access to the others
+/usr/share/applications/ r,
+/usr/share/applications/mimeapps.list r,
+/usr/share/applications/xdg-open.desktop r,
+# silence noisy denials from desktop files in core* snaps that aren't usable by
+# snaps
+deny /usr/share/applications/python*.desktop r,
+deny /usr/share/applications/vim.desktop r,
+deny /usr/share/applications/snap-handle-link.desktop r,  # core16
+
 dbus (send)
     bus=session
     path=/
@@ -253,18 +284,54 @@ deny /var/lib/snapd/desktop/icons/{,**/} r,
 # we have better XDG_DATA_DIRS handling, silence these noisy denials.
 # https://github.com/snapcrafters/discord/issues/23#issuecomment-637607843
 deny @{HOME}/.local/share/flatpak/exports/share/** r,
+
+# Allow access to the IBus portal (IBUS_USE_PORTAL=1)
+dbus (send)
+      bus=session
+      path=/org/freedesktop/IBus
+      interface=org.freedesktop.IBus.Portal
+      member=CreateInputContext
+      peer=(name=org.freedesktop.portal.IBus),
+
+dbus (send, receive)
+      bus=session
+      path=/org/freedesktop/IBus/InputContext_[0-9]*
+      interface=org.freedesktop.IBus.InputContext
+      peer=(label=unconfined),
 `
 
 type desktopInterface struct {
 	commonInterface
 }
 
-func (iface *desktopInterface) fontconfigDirs() []string {
+func (iface *desktopInterface) shouldMountHostFontCache(attribs interfaces.Attrer) (bool, error) {
+	value, ok := attribs.Lookup("mount-host-font-cache")
+	if !ok {
+		// If the attribute is not present, we mount the font cache
+		return true, nil
+	}
+	shouldMount, ok := value.(bool)
+	if !ok {
+		return false, fmt.Errorf("desktop plug requires bool with 'mount-host-font-cache'")
+	}
+	return shouldMount, nil
+}
+
+func (iface *desktopInterface) fontconfigDirs(plug *interfaces.ConnectedPlug) ([]string, error) {
 	fontDirs := []string{
 		dirs.SystemFontsDir,
 		dirs.SystemLocalFontsDir,
 	}
-	return append(fontDirs, dirs.SystemFontconfigCacheDirs...)
+
+	shouldMountHostFontCache, err := iface.shouldMountHostFontCache(plug)
+	if err != nil {
+		return nil, err
+	}
+	if shouldMountHostFontCache {
+		fontDirs = append(fontDirs, dirs.SystemFontconfigCacheDirs...)
+	}
+
+	return fontDirs, nil
 }
 
 func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
@@ -282,7 +349,11 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 	}
 
 	// Allow mounting fonts
-	for _, dir := range iface.fontconfigDirs() {
+	fontDirs, err := iface.fontconfigDirs(plug)
+	if err != nil {
+		return err
+	}
+	for _, dir := range fontDirs {
 		source := "/var/lib/snapd/hostfs" + dir
 		target := dirs.StripRootDir(dir)
 		emit("  # Read-only access to %s\n", target)
@@ -307,7 +378,11 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 		return nil
 	}
 
-	for _, dir := range iface.fontconfigDirs() {
+	fontDirs, err := iface.fontconfigDirs(plug)
+	if err != nil {
+		return err
+	}
+	for _, dir := range fontDirs {
 		if !osutil.IsDirectory(dir) {
 			continue
 		}
@@ -336,6 +411,11 @@ func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plu
 	}
 
 	return nil
+}
+
+func (iface *desktopInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	_, err := iface.shouldMountHostFontCache(plug)
+	return err
 }
 
 func init() {

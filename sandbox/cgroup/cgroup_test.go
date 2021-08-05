@@ -27,6 +27,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -44,7 +45,8 @@ func (s *cgroupSuite) SetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
 	s.rootDir = c.MkDir()
-	s.AddCleanup(cgroup.MockFsRootPath(s.rootDir))
+	dirs.SetRootDir(s.rootDir)
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
 }
 
 func (s *cgroupSuite) TestIsUnified(c *C) {
@@ -124,11 +126,6 @@ func (s *cgroupSuite) TestVersion(c *C) {
 func (s *cgroupSuite) TestProcPidPath(c *C) {
 	c.Assert(cgroup.ProcPidPath(1), Equals, filepath.Join(s.rootDir, "/proc/1/cgroup"))
 	c.Assert(cgroup.ProcPidPath(1234), Equals, filepath.Join(s.rootDir, "/proc/1234/cgroup"))
-}
-
-func (s *cgroupSuite) TestControllerPathV1(c *C) {
-	c.Assert(cgroup.ControllerPathV1("freezer"), Equals, filepath.Join(s.rootDir, "/sys/fs/cgroup/freezer"))
-	c.Assert(cgroup.ControllerPathV1("memory"), Equals, filepath.Join(s.rootDir, "/sys/fs/cgroup/memory"))
 }
 
 var mockCgroup = []byte(`
@@ -251,7 +248,10 @@ func (s *cgroupSuite) TestProcessPathInTrackingCgroup(c *C) {
 `
 
 	d := c.MkDir()
-	restore := cgroup.MockFsRootPath(d)
+	defer dirs.SetRootDir(dirs.GlobalRootDir)
+	dirs.SetRootDir(d)
+
+	restore := cgroup.MockVersion(cgroup.V2, nil)
 	defer restore()
 
 	f := filepath.Join(d, "proc", "1234", "cgroup")
@@ -276,5 +276,26 @@ func (s *cgroupSuite) TestProcessPathInTrackingCgroup(c *C) {
 			c.Assert(path, Equals, scenario.path)
 		}
 	}
+}
 
+func (s *cgroupSuite) TestProcessPathInTrackingCgroupV2SpecialCase(c *C) {
+	const text = `0::/
+1:name=systemd:/user.slice/user-0.slice/session-1.scope
+`
+	d := c.MkDir()
+	defer dirs.SetRootDir(dirs.GlobalRootDir)
+	dirs.SetRootDir(d)
+
+	restore := cgroup.MockVersion(cgroup.V1, nil)
+	defer restore()
+
+	f := filepath.Join(d, "proc", "1234", "cgroup")
+	c.Assert(os.MkdirAll(filepath.Dir(f), 0755), IsNil)
+
+	c.Assert(ioutil.WriteFile(f, []byte(text), 0644), IsNil)
+	path, err := cgroup.ProcessPathInTrackingCgroup(1234)
+	c.Assert(err, IsNil)
+	// Because v2 is not really mounted, we ignore the entry 0::/
+	// and return the v1 version instead.
+	c.Assert(path, Equals, "/user.slice/user-0.slice/session-1.scope")
 }

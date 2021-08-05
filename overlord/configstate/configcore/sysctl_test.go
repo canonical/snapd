@@ -28,7 +28,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
-	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -43,7 +42,6 @@ var _ = Suite(&sysctlSuite{})
 func (s *sysctlSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
-	s.AddCleanup(release.MockOnClassic(false))
 
 	s.mockSysctlConfPath = filepath.Join(dirs.GlobalRootDir, "/etc/sysctl.d/99-snapd.conf")
 	c.Assert(os.MkdirAll(filepath.Dir(s.mockSysctlConfPath), 0755), IsNil)
@@ -55,7 +53,7 @@ func (s *sysctlSuite) TearDownTest(c *C) {
 }
 
 func (s *sysctlSuite) TestConfigureSysctlIntegration(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.kernel.printk.console-loglevel": "2",
@@ -69,7 +67,7 @@ func (s *sysctlSuite) TestConfigureSysctlIntegration(c *C) {
 	s.systemdSysctlArgs = nil
 
 	// Unset console-loglevel and restore default vaule
-	err = configcore.Run(&mockConf{
+	err = configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.kernel.printk.console-loglevel": "",
@@ -83,7 +81,7 @@ func (s *sysctlSuite) TestConfigureSysctlIntegration(c *C) {
 }
 
 func (s *sysctlSuite) TestConfigureLoglevelUnderRange(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.kernel.printk.console-loglevel": "-1",
@@ -94,7 +92,7 @@ func (s *sysctlSuite) TestConfigureLoglevelUnderRange(c *C) {
 }
 
 func (s *sysctlSuite) TestConfigureLoglevelOverRange(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.kernel.printk.console-loglevel": "8",
@@ -105,7 +103,7 @@ func (s *sysctlSuite) TestConfigureLoglevelOverRange(c *C) {
 }
 
 func (s *sysctlSuite) TestConfigureLevelRejected(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"system.kernel.printk.console-loglevel": "invalid",
@@ -116,7 +114,7 @@ func (s *sysctlSuite) TestConfigureLevelRejected(c *C) {
 }
 
 func (s *sysctlSuite) TestConfigureSysctlIntegrationNoSetting(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{},
 	})
@@ -130,8 +128,7 @@ func (s *sysctlSuite) TestFilesystemOnlyApply(c *C) {
 	})
 
 	tmpDir := c.MkDir()
-	c.Assert(os.MkdirAll(filepath.Join(tmpDir, "/etc/sysctl.d/"), 0755), IsNil)
-	c.Assert(configcore.FilesystemOnlyApply(tmpDir, conf, nil), IsNil)
+	c.Assert(configcore.FilesystemOnlyApply(coreDev, tmpDir, conf), IsNil)
 
 	networkSysctlPath := filepath.Join(tmpDir, "/etc/sysctl.d/99-snapd.conf")
 	c.Check(networkSysctlPath, testutil.FileEquals, "kernel.printk = 4 4 1 7\n")

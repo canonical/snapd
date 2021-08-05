@@ -9,14 +9,6 @@ environment:
     # need to disable go modules support for this test
     GO111MODULE: off
 
-debug: |
-    cat /proc/partitions
-
-restore: |
-    if [ -f loop.txt ]; then
-        losetup -d "$(cat loop.txt)"
-    fi
-
 prepare: |
     echo "Create a fake block device image that looks like an image from u-i"
     truncate --size=20GB fake.img
@@ -45,6 +37,24 @@ prepare: |
     snap download --channel=20/edge pc
     unsquashfs -d gadget-dir pc_*.snap
 
+restore: |
+    for label in ubuntu-seed ubuntu-save ubuntu-data ubuntu-boot; do
+        if mountpoint "/run/mnt/$label"; then
+            umount "/run/mnt/$label"
+        fi
+        if mountpoint "./$label"; then
+            umount "./$label"
+        fi
+    done
+    if [ -f loop.txt ]; then
+        LOOP="$(cat loop.txt)"
+        losetup -d "$LOOP"
+        losetup -l | NOMATCH "$LOOP"
+    fi
+
+debug: |
+    cat /proc/partitions
+
 execute: |
     LOOP="$(cat loop.txt)"
 
@@ -53,27 +63,49 @@ execute: |
 
     echo "Run the snap-bootstrap tool in auto-detect mode"
     go get ../../lib/uc20-create-partitions
-    uc20-create-partitions ./gadget-dir
+    # TODO:UC20: make kernel-dir non-empty once we have a gadget that has a
+    #            "$kernel:" style ref in the meta/gadget.yaml
+    kerneldir=""
+    uc20-create-partitions ./gadget-dir "$kerneldir"
 
     echo "And check that the partitions are created"
     sfdisk -l "$LOOP" | MATCH '750M Linux filesystem'
     sfdisk -l "$LOOP" | MATCH '16\.7G Linux filesystem'
     file -s "${LOOP}p3" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-boot"'
-    file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
+    file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-save"'
+    file -s "${LOOP}p5" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
 
-    echo "Check if attribute bits were set for new partitions"
-    sfdisk -d "$LOOP" | not MATCH "${LOOP}p1.*attrs=\"GUID:59\""
-    sfdisk -d "$LOOP" | not MATCH "${LOOP}p2.*attrs=\"GUID:59\""
-    sfdisk -d "$LOOP" | MATCH "${LOOP}p3.*attrs=\"GUID:59\""
-    sfdisk -d "$LOOP" | MATCH "${LOOP}p4.*attrs=\"GUID:59\""
+    echo "Create canary files on the ubuntu-{seed,boot,data} partitions"
+    mkdir ./ubuntu-seed ./ubuntu-boot ./ubuntu-save ./ubuntu-data
+    mount "${LOOP}p2" ./ubuntu-seed
+    mount "${LOOP}p3" ./ubuntu-boot
+    mount "${LOOP}p4" ./ubuntu-save
+    mount "${LOOP}p5" ./ubuntu-data
+    for label in ubuntu-seed ubuntu-boot ubuntu-save ubuntu-data; do
+        echo "$label" > ./"$label"/canary.txt
+        umount ./"$label"
+    done
 
     # re-create partitions on a new install attempt
     echo "Run the snap-bootstrap again"
-    uc20-create-partitions ./gadget-dir
+    uc20-create-partitions ./gadget-dir "$kerneldir"
 
     echo "And check that the partitions are there"
     sfdisk -l "$LOOP" | MATCH '750M Linux filesystem'
     sfdisk -l "$LOOP" | MATCH '16\.7G Linux filesystem'
-    sfdisk -l "$LOOP" | not MATCH "${LOOP}p[56789]"
+    sfdisk -l "$LOOP" | NOMATCH "${LOOP}p[6789]"
     file -s "${LOOP}p3" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-boot"'
-    file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
+    file -s "${LOOP}p4" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-save"'
+    file -s "${LOOP}p5" | MATCH 'ext4 filesystem data,.* volume name "ubuntu-data"'
+
+    echo "Mount partitions again"
+    mount "${LOOP}p2" ./ubuntu-seed
+    mount "${LOOP}p3" ./ubuntu-boot
+    mount "${LOOP}p4" ./ubuntu-save
+    mount "${LOOP}p5" ./ubuntu-data
+    echo "The ubuntu-seed partition is still there untouched"
+    test -e ./ubuntu-seed/canary.txt
+    echo "But ubuntu-{boot,save,data} got re-created"
+    not test -e ./ubuntu-boot/canary.txt
+    not test -e ./ubuntu-save/canary.txt
+    not test -e ./ubuntu-data/canary.txt

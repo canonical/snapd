@@ -353,11 +353,16 @@ libs_manage_lib_files(snappy_t)
 fs_getattr_xattr_fs(snappy_t)
 # probing cgroup version, /sys/fs/cgroup is a tmpfs for v1 or cgroup for v2
 fs_getattr_tmpfs(snappy_t)
+fs_list_tmpfs(snappy_t)
 fs_getattr_cgroup(snappy_t)
 # snapd checks whether <snap>.mnt exists before running the mount namespace
 # helper tool
 # fs_getattr_nsfs_files() is not available in selinux devel on CentOS 7.x
 getattr_files_pattern(snappy_t, nsfs_t, nsfs_t)
+
+# lxd snap has nsfs under common directory, this works around denials triggered
+# by snapshot size estimation.
+allow snappy_t unconfined_service_t:file getattr;
 
 # snapd attempts to read /run/cloud-init/instance-data.json
 sysnet_read_config(snappy_t)
@@ -407,6 +412,11 @@ ifndef(`distro_rhel7',`
   ')
 ')
 
+# Snapd tries to kill hooks that run for over 10 minutes. Allow killing
+# processes both in "snap run" and in "post-snap-confine" phases.
+allow snappy_t snappy_cli_t:process { getpgid sigkill };
+allow snappy_t unconfined_service_t:process { getpgid sigkill };
+
 ########################################
 #
 # snap-update-ns, snap-dicsard-ns local policy
@@ -444,6 +454,13 @@ admin_pattern(snappy_mount_t, snappy_tmp_t)
 # up with user_tmp_t allow acting on it
 allow snappy_mount_t user_tmp_t:dir { mounton rmdir };
 userdom_delete_user_tmp_files(snappy_mount_t)
+# when managing some interfaces, a mount from the host /tmp may need to be set
+# up and files or directories may need to be created or removed (eg. x11
+# interface), in most distros the /tmp is on tmpfs and thus fs_manage_tmpfs_*
+# will provide the right policy, but we still need to allow those operations
+# when the host's /tmp is not a tmpfs
+files_manage_generic_tmp_dirs(snappy_mount_t)
+files_manage_generic_tmp_files(snappy_mount_t)
 
 # Allow snap-{update,discard}-ns to manage mounts
 gen_require(`
@@ -575,6 +592,8 @@ dev_getattr_sysfs_fs(snappy_confine_t)
 fs_getattr_cgroup(snappy_confine_t)
 fs_getattr_hugetlbfs(snappy_confine_t)
 fs_getattr_tmpfs(snappy_confine_t)
+# some locations that snap-confine unmounts, eg. /dev, are actually tmpfs
+fs_unmount_tmpfs(snappy_confine_t)
 fs_getattr_xattr_fs(snappy_confine_t)
 fs_manage_cgroup_dirs(snappy_confine_t)
 fs_write_cgroup_files(snappy_confine_t)
@@ -696,6 +715,10 @@ allow snappy_cli_t snappy_snap_t:lnk_file { read_lnk_file_perms };
 allow snappy_cli_t snappy_var_lib_t:dir { list_dir_perms };
 allow snappy_cli_t snappy_var_lib_t:file { read_file_perms };
 allow snappy_cli_t snappy_var_lib_t:lnk_file { read_lnk_file_perms };
+
+# allow talking to system and session bus for app tracking
+dbus_system_bus_client(snappy_cli_t);
+dbus_chat_system_bus(snappy_cli_t);
 
 # allow reading passwd
 auth_read_passwd(snappy_cli_t)
@@ -821,3 +844,10 @@ gen_require(`
 # system dbus may look info /var/lib/snapd/dbus-1
 snappy_search_lib(system_dbusd_t)
 snappy_read_lib(system_dbusd_t)
+optional_policy(`
+  gen_require(`
+    # watch permission is defined only in recent versions of refpolicy
+    class dir { watch };
+  ')
+  allow system_dbusd_t  snappy_var_lib_t:dir watch;
+')

@@ -72,12 +72,12 @@ var changePerform func(*Change, *Assumptions) ([]*Change, error)
 //
 // The returned path is the location where a mimic should be constructed.
 func mimicRequired(err error) (needsMimic bool, path string) {
-	switch err.(type) {
+	switch err := err.(type) {
 	case *ReadOnlyFsError:
-		rofsErr := err.(*ReadOnlyFsError)
+		rofsErr := err
 		return true, rofsErr.Path
 	case *TrespassingError:
-		tErr := err.(*TrespassingError)
+		tErr := err
 		return true, tErr.ViolatedPath
 	}
 	return false, ""
@@ -95,10 +95,10 @@ func (c *Change) createPath(path string, pokeHoles bool, as *Assumptions) ([]*Ch
 
 	// In case we need to create something, some constants.
 	const (
-		mode = 0755
-		uid  = 0
-		gid  = 0
+		uid = 0
+		gid = 0
 	)
+	mode := as.ModeForPath(path)
 
 	// If the element doesn't exist we can attempt to create it.  We will
 	// create the parent directory and then the final element relative to it.
@@ -649,6 +649,20 @@ func neededChangesNew(currentProfile, desiredProfile *osutil.MountProfile) []*Ch
 			// Recursive bind mounts and non-mimic tmpfs mounts need to be
 			// detached because they can contain other mount points that can
 			// otherwise propagate in a self-conflicting way.
+			if !entry.XSnapdDetach() {
+				entry.Options = append(entry.Options, osutil.XSnapdDetach())
+			}
+		case entry.OptBool("bind") && entry.XSnapdKind() == "file":
+			// Bind mounted files are detached. If a bind mounted file open or
+			// mapped into a process as a library, then attempting to unmount
+			// it will result in EBUSY.
+			//
+			// This can happen when a snap has a service, for example one using
+			// a library mounted via a bind mount and an absent content
+			// connection. Subsequent connection of the content connection will
+			// trigger re-population of the mount namespace, which will start
+			// by tearing down the existing file bind-mount. To prevent this,
+			// detach the mount instead.
 			if !entry.XSnapdDetach() {
 				entry.Options = append(entry.Options, osutil.XSnapdDetach())
 			}

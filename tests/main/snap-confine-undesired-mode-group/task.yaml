@@ -1,4 +1,5 @@
 summary: the snap-{run,confine,exec} chain does not create files with undesired properties.
+
 prepare: |
     # Install a snap with opengl and joystick plugs.
     # This gives us all of the usual snap-confine configuration, along with all
@@ -7,6 +8,10 @@ prepare: |
     snap install --dangerous ./test-snapd-app_1.0_all.snap
     snap connect test-snapd-app:opengl
     snap connect test-snapd-app:joystick
+
+restore: |
+    rm -rf /tmp/snap.test-snapd-app
+
 execute: |
     # Run the snap as a non-root user.
     su test -c 'snap run test-snapd-app.sh -c /bin/true'
@@ -18,14 +23,17 @@ execute: |
     # the group of the calling user and did not manage that properly.
     for dname in /run/snapd /sys/fs/cgroup /tmp/snap.*; do
         # Filter out cgroups that are expected to be owned by the test user.
-        find "$dname" -user test ! -path '*/user@12345.service*' ! -path '*/user-12345.slice*' >> wrong-user.txt
-        find "$dname" -group test ! -path '*/user@12345.service*' ! -path '*/user-12345.slice*' >> wrong-group.txt
+        # Since we are a looking at sysfs, which is modified asynchronously,
+        # ignore errors of the kind where readdir and stat race with a
+        # concurrent mutator.
+        find "$dname" -ignore_readdir_race -user test ! -path '*/user@12345.service*' ! -path '*/user-12345.slice*' >> wrong-user.txt
+        find "$dname" -ignore_readdir_race -group test ! -path '*/user@12345.service*' ! -path '*/user-12345.slice*' >> wrong-group.txt
         # Filter out the following elements:
         # - sockets, we don't create any and there are some that are 777
         # - symbolic links, those are always 777
         # - the file cgroup.event_control which is ugo+w for some reason
         # - the per-snap tmp directory as it is meant to be world-writable
-        find "$dname" ! -type s ! -type l ! -name cgroup.event_control ! -path '/tmp/snap.*/tmp' -perm /o+w >> world-writable.txt
+        find "$dname" -ignore_readdir_race ! -type s ! -type l ! -name cgroup.event_control ! -path '/tmp/snap.*/tmp' -perm /o+w >> world-writable.txt
     done
 
     # The test fails if any such file is detected
@@ -46,8 +54,3 @@ execute: |
         ret=1
     fi
     exit "$ret"
-restore: |
-    snap remove test-snapd-app
-    rm -f test-snapd-app_1.0_all.snap
-    rm -f wrong-*.txt
-    rm -rf /tmp/snap.test-snapd-app

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2019-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -224,8 +224,7 @@ func (s *seed20Suite) TestLoadAssertionsModelTempDBHappy(c *C) {
 	err = seed20.LoadAssertions(nil, nil)
 	c.Assert(err, IsNil)
 
-	model, err := seed20.Model()
-	c.Assert(err, IsNil)
+	model := seed20.Model()
 	c.Check(model.Model(), Equals, "my-model")
 	c.Check(model.Base(), Equals, "core20")
 
@@ -586,7 +585,7 @@ func (s *seed20Suite) TestLoadMetaCore20(c *C) {
 	s.makeSnap(c, "pc=20", "")
 	s.makeSnap(c, "required20", "developerid")
 
-	s.AssertedSnapInfo("required20").Contact = "author@example.com"
+	s.AssertedSnapInfo("required20").EditedContact = "author@example.com"
 
 	sysLabel := "20191018"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
@@ -700,6 +699,9 @@ Hiding:
 }
 
 func (s *seed20Suite) TestLoadEssentialMetaCore20(c *C) {
+	r := seed.MockTrusted(s.StoreSigning.Trusted)
+	defer r()
+
 	s.makeSnap(c, "snapd", "")
 	s.makeSnap(c, "core20", "")
 	s.makeSnap(c, "pc-kernel=20", "")
@@ -801,28 +803,283 @@ func (s *seed20Suite) TestLoadEssentialMetaCore20(c *C) {
 		seed20, err := seed.Open(s.SeedDir, sysLabel)
 		c.Assert(err, IsNil)
 
-		essSeed20, ok := seed20.(seed.EssentialMetaLoaderSeed)
-		c.Assert(ok, Equals, true)
-
-		err = essSeed20.LoadAssertions(s.db, s.commitTo)
+		err = seed20.LoadAssertions(nil, nil)
 		c.Assert(err, IsNil)
 
-		err = essSeed20.LoadEssentialMeta(t.onlyTypes, s.perfTimings)
+		err = seed20.LoadEssentialMeta(t.onlyTypes, s.perfTimings)
 		c.Assert(err, IsNil)
 
-		c.Check(essSeed20.UsesSnapdSnap(), Equals, true)
+		c.Check(seed20.UsesSnapdSnap(), Equals, true)
 
-		essSnaps := essSeed20.EssentialSnaps()
+		essSnaps := seed20.EssentialSnaps()
 		c.Check(essSnaps, HasLen, len(t.expected))
 
 		c.Check(essSnaps, DeepEquals, t.expected)
 
-		runSnaps, err := essSeed20.ModeSnaps("run")
+		runSnaps, err := seed20.ModeSnaps("run")
 		c.Assert(err, IsNil)
 		c.Check(runSnaps, HasLen, 0)
 
 		unhide()
+
+		// test short-cut helper as well
+		mod, essSnaps, err := seed.ReadSystemEssential(s.SeedDir, sysLabel, t.onlyTypes, s.perfTimings)
+		c.Assert(err, IsNil)
+		c.Check(mod.BrandID(), Equals, "my-brand")
+		c.Check(mod.Model(), Equals, "my-model")
+		c.Check(essSnaps, HasLen, len(t.expected))
+		c.Check(essSnaps, DeepEquals, t.expected)
 	}
+}
+
+func (s *seed20Suite) TestReadSystemEssentialAndBetterEarliestTime(c *C) {
+	r := seed.MockTrusted(s.StoreSigning.Trusted)
+	defer r()
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "core18", "")
+	t0 := time.Now().UTC().Truncate(time.Second)
+	s.SetSnapAssertionNow(t0.Add(2 * time.Second))
+	s.makeSnap(c, "required18", "developerid")
+	s.SetSnapAssertionNow(time.Time{})
+
+	snapdSnap := &seed.Snap{
+		Path:          s.expectedPath("snapd"),
+		SideInfo:      &s.AssertedSnapInfo("snapd").SideInfo,
+		EssentialType: snap.TypeSnapd,
+		Essential:     true,
+		Required:      true,
+		Channel:       "latest/stable",
+	}
+	pcKernelSnap := &seed.Snap{
+		Path:          s.expectedPath("pc-kernel"),
+		SideInfo:      &s.AssertedSnapInfo("pc-kernel").SideInfo,
+		EssentialType: snap.TypeKernel,
+		Essential:     true,
+		Required:      true,
+		Channel:       "20",
+	}
+	core20Snap := &seed.Snap{Path: s.expectedPath("core20"),
+		SideInfo:      &s.AssertedSnapInfo("core20").SideInfo,
+		EssentialType: snap.TypeBase,
+		Essential:     true,
+		Required:      true,
+		Channel:       "latest/stable",
+	}
+	pcSnap := &seed.Snap{
+		Path:          s.expectedPath("pc"),
+		SideInfo:      &s.AssertedSnapInfo("pc").SideInfo,
+		EssentialType: snap.TypeGadget,
+		Essential:     true,
+		Required:      true,
+		Channel:       "20",
+	}
+
+	tests := []struct {
+		onlyTypes []snap.Type
+		expected  []*seed.Snap
+	}{
+		{[]snap.Type{snap.TypeSnapd}, []*seed.Snap{snapdSnap}},
+		{[]snap.Type{snap.TypeKernel}, []*seed.Snap{pcKernelSnap}},
+		{[]snap.Type{snap.TypeBase}, []*seed.Snap{core20Snap}},
+		{[]snap.Type{snap.TypeGadget}, []*seed.Snap{pcSnap}},
+		{[]snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase}, []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap}},
+		// the order in essentialTypes is not relevant
+		{[]snap.Type{snap.TypeGadget, snap.TypeKernel}, []*seed.Snap{pcKernelSnap, pcSnap}},
+		// degenerate case
+		{[]snap.Type{}, []*seed.Snap(nil)},
+	}
+
+	baseLabel := "20210315"
+
+	testReadSystemEssentialAndBetterEarliestTime := func(sysLabel string, earliestTime, modelTime, improvedTime time.Time) {
+		s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+			"display-name": "my model",
+			"timestamp":    modelTime.Format(time.RFC3339),
+			"architecture": "amd64",
+			"base":         "core20",
+			"snaps": []interface{}{
+				map[string]interface{}{
+					"name":            "pc-kernel",
+					"id":              s.AssertedSnapID("pc-kernel"),
+					"type":            "kernel",
+					"default-channel": "20",
+				},
+				map[string]interface{}{
+					"name":            "pc",
+					"id":              s.AssertedSnapID("pc"),
+					"type":            "gadget",
+					"default-channel": "20",
+				},
+				map[string]interface{}{
+					"name": "core18",
+					"id":   s.AssertedSnapID("core18"),
+					"type": "base",
+				},
+				map[string]interface{}{
+					"name": "required18",
+					"id":   s.AssertedSnapID("required18"),
+				}},
+		}, nil)
+
+		for _, t := range tests {
+			// test short-cut helper as well
+			mod, essSnaps, betterTime, err := seed.ReadSystemEssentialAndBetterEarliestTime(s.SeedDir, sysLabel, t.onlyTypes, earliestTime, s.perfTimings)
+			c.Assert(err, IsNil)
+			c.Check(mod.BrandID(), Equals, "my-brand")
+			c.Check(mod.Model(), Equals, "my-model")
+			c.Check(mod.Timestamp().Equal(modelTime), Equals, true)
+			c.Check(essSnaps, HasLen, len(t.expected))
+			c.Check(essSnaps, DeepEquals, t.expected)
+			c.Check(betterTime.Equal(improvedTime), Equals, true, Commentf("%v expected: %v", betterTime, improvedTime))
+		}
+	}
+
+	revsTime := s.AssertedSnapRevision("required18").Timestamp()
+	t2 := revsTime.Add(1 * time.Second)
+
+	timeCombos := []struct {
+		earliestTime, modelTime, improvedTime time.Time
+	}{
+		{time.Time{}, t0, revsTime},
+		{t2.AddDate(-1, 0, 0), t0, revsTime},
+		{t2.AddDate(-1, 0, 0), t2, t2},
+		{t2.AddDate(0, 1, 0), t2, t2.AddDate(0, 1, 0)},
+	}
+
+	for i, c := range timeCombos {
+		label := fmt.Sprintf("%s%d", baseLabel, i)
+		testReadSystemEssentialAndBetterEarliestTime(label, c.earliestTime, c.modelTime, c.improvedTime)
+	}
+}
+
+func (s *seed20Suite) TestLoadEssentialAndMetaCore20(c *C) {
+	r := seed.MockTrusted(s.StoreSigning.Trusted)
+	defer r()
+
+	s.makeSnap(c, "snapd", "")
+	s.makeSnap(c, "core20", "")
+	s.makeSnap(c, "pc-kernel=20", "")
+	s.makeSnap(c, "pc=20", "")
+	s.makeSnap(c, "core18", "")
+	s.makeSnap(c, "required18", "developerid")
+
+	sysLabel := "20191018"
+	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
+		"display-name": "my model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              s.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              s.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name": "core18",
+				"id":   s.AssertedSnapID("core18"),
+				"type": "base",
+			},
+			map[string]interface{}{
+				"name": "required18",
+				"id":   s.AssertedSnapID("required18"),
+			}},
+	}, nil)
+
+	snapdSnap := &seed.Snap{
+		Path:          s.expectedPath("snapd"),
+		SideInfo:      &s.AssertedSnapInfo("snapd").SideInfo,
+		EssentialType: snap.TypeSnapd,
+		Essential:     true,
+		Required:      true,
+		Channel:       "latest/stable",
+	}
+	pcKernelSnap := &seed.Snap{
+		Path:          s.expectedPath("pc-kernel"),
+		SideInfo:      &s.AssertedSnapInfo("pc-kernel").SideInfo,
+		EssentialType: snap.TypeKernel,
+		Essential:     true,
+		Required:      true,
+		Channel:       "20",
+	}
+	core20Snap := &seed.Snap{Path: s.expectedPath("core20"),
+		SideInfo:      &s.AssertedSnapInfo("core20").SideInfo,
+		EssentialType: snap.TypeBase,
+		Essential:     true,
+		Required:      true,
+		Channel:       "latest/stable",
+	}
+	pcSnap := &seed.Snap{
+		Path:          s.expectedPath("pc"),
+		SideInfo:      &s.AssertedSnapInfo("pc").SideInfo,
+		EssentialType: snap.TypeGadget,
+		Essential:     true,
+		Required:      true,
+		Channel:       "20",
+	}
+
+	seed20, err := seed.Open(s.SeedDir, sysLabel)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadAssertions(nil, nil)
+	c.Assert(err, IsNil)
+
+	err = seed20.LoadEssentialMeta([]snap.Type{snap.TypeGadget}, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(seed20.UsesSnapdSnap(), Equals, true)
+
+	essSnaps := seed20.EssentialSnaps()
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{pcSnap})
+
+	err = seed20.LoadEssentialMeta([]snap.Type{snap.TypeSnapd, snap.TypeKernel, snap.TypeBase, snap.TypeGadget}, s.perfTimings)
+	c.Assert(err, IsNil)
+
+	essSnaps = seed20.EssentialSnaps()
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap, pcSnap})
+
+	runSnaps, err := seed20.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 0)
+
+	// caching in place
+	hideSnaps(c, []*seed.Snap{snapdSnap, core20Snap, pcKernelSnap}, nil)
+
+	err = seed20.LoadMeta(s.perfTimings)
+	c.Assert(err, IsNil)
+
+	c.Check(seed20.UsesSnapdSnap(), Equals, true)
+
+	essSnaps = seed20.EssentialSnaps()
+	c.Check(essSnaps, DeepEquals, []*seed.Snap{snapdSnap, pcKernelSnap, core20Snap, pcSnap})
+
+	runSnaps, err = seed20.ModeSnaps("run")
+	c.Assert(err, IsNil)
+	c.Check(runSnaps, HasLen, 2)
+	c.Check(runSnaps, DeepEquals, []*seed.Snap{
+		{
+			Path:     s.expectedPath("core18"),
+			SideInfo: &s.AssertedSnapInfo("core18").SideInfo,
+			Required: true,
+			Channel:  "latest/stable",
+		}, {
+			Path:     s.expectedPath("required18"),
+			SideInfo: &s.AssertedSnapInfo("required18").SideInfo,
+			Required: true,
+			Channel:  "latest/stable",
+		},
+	})
+
 }
 
 func (s *seed20Suite) makeLocalSnap(c *C, yamlKey string) (fname string) {
@@ -929,7 +1186,7 @@ func (s *seed20Suite) TestLoadMetaCore20ChannelOverride(c *C) {
 	s.makeSnap(c, "pc=20", "")
 	s.makeSnap(c, "required20", "developerid")
 
-	s.AssertedSnapInfo("required20").Contact = "author@example.com"
+	s.AssertedSnapInfo("required20").EditedContact = "author@example.com"
 
 	sysLabel := "20191018"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{
@@ -1024,7 +1281,7 @@ func (s *seed20Suite) TestLoadMetaCore20ChannelOverrideSnapd(c *C) {
 	s.makeSnap(c, "pc=20", "")
 	s.makeSnap(c, "required20", "developerid")
 
-	s.AssertedSnapInfo("required20").Contact = "author@example.com"
+	s.AssertedSnapInfo("required20").EditedContact = "author@example.com"
 
 	sysLabel := "20191121"
 	s.MakeSeed(c, sysLabel, "my-brand", "my-model", map[string]interface{}{

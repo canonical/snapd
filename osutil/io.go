@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2015 Canonical Ltd
+ * Copyright (C) 2014-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,7 @@ package osutil
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -144,12 +145,7 @@ var chown = sys.Chown
 
 const NoChown = sys.FlagID
 
-// Commit the modification; make it permanent.
-//
-// If Commit succeeds, the writer is closed and further attempts to
-// write will fail. If Commit fails, the writer _might_ be closed;
-// Cancel() needs to be called to clean up.
-func (aw *AtomicFile) Commit() error {
+func (aw *AtomicFile) commit() error {
 	if aw.uid != NoChown || aw.gid != NoChown {
 		if err := chown(aw.File, aw.uid, aw.gid); err != nil {
 			return err
@@ -185,6 +181,31 @@ func (aw *AtomicFile) Commit() error {
 	}
 
 	return nil
+}
+
+// Commit the modification; make it permanent.
+//
+// If Commit succeeds, the writer is closed and further attempts to
+// write will fail. If Commit fails, the writer _might_ be closed;
+// Cancel() needs to be called to clean up.
+func (aw *AtomicFile) Commit() error {
+	return aw.commit()
+}
+
+// CommitAs commits the file under a new target name, following the same rules
+// as Commit. The new target name must be located in the same directory as the
+// original filename provided when creating AtomicFile.
+//
+// The call is useful when the target name is not known until the end (eg. it
+// may depend on data being written to the file), in which case one can create
+// AtomicFile using a temporary name and later override the actual name by
+// calling CommitAs.
+func (aw *AtomicFile) CommitAs(filename string) error {
+	if dir := filepath.Dir(filename); dir != filepath.Dir(aw.target) {
+		return fmt.Errorf("cannot commit as %q to a different directory %q", filepath.Base(filename), dir)
+	}
+	aw.target = filename
+	return aw.commit()
 }
 
 // The AtomicWrite* family of functions work like ioutil.WriteFile(), but the

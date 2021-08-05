@@ -28,7 +28,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	. "github.com/snapcore/snapd/snap"
-
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -1966,4 +1965,54 @@ version: 1.0`
 	infos := []*Info{info}
 	errors := ValidateBasesAndProviders(infos)
 	c.Assert(errors, IsNil)
+}
+
+func (s *validateSuite) TestValidateDesktopPrefix(c *C) {
+	// these are extensively tested elsewhere, so just try some common ones
+	for i, tc := range []struct {
+		prefix string
+		exp    bool
+	}{
+		{"good", true},
+		{"also-good", true},
+		{"also-good+instance", true},
+		{"", false},
+		{"+", false},
+		{"@", false},
+		{"+good", false},
+		{"good+", false},
+		{"good+@", false},
+		{"old-style_instance", false},
+		{"bad+bad+bad", false},
+	} {
+		c.Logf("tc #%v", i)
+		res := ValidateDesktopPrefix(tc.prefix)
+		c.Check(res, Equals, tc.exp)
+	}
+}
+
+func (s *ValidateSuite) TestAppInstallMode(c *C) {
+	// check services
+	for _, t := range []struct {
+		installMode string
+		ok          bool
+	}{
+		// good
+		{"", true},
+		{"disable", true},
+		{"enable", true},
+		// bad
+		{"invalid-thing", false},
+	} {
+		err := ValidateApp(&AppInfo{Name: "foo", Daemon: "simple", DaemonScope: SystemDaemon, InstallMode: t.installMode})
+		if t.ok {
+			c.Check(err, IsNil)
+		} else {
+			c.Check(err, ErrorMatches, fmt.Sprintf(`"install-mode" field contains invalid value %q`, t.installMode))
+		}
+	}
+
+	// non-services cannot have a install-mode
+	err := ValidateApp(&AppInfo{Name: "foo", Daemon: "", InstallMode: "disable"})
+	c.Check(err, ErrorMatches, `"install-mode" cannot be used for "foo", only for services`)
 }

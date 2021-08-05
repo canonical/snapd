@@ -20,9 +20,12 @@
 package sysconfig
 
 import (
+	"fmt"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/snap"
 )
 
 // See https://github.com/snapcore/core20/pull/46
@@ -40,17 +43,56 @@ type Options struct {
 	// boot.InstallHostWritableDir
 	TargetRootDir string
 
+	// AllowCloudInit is whether to allow cloud-init to run or not in the
+	// TargetRootDir.
+	AllowCloudInit bool
+
 	// GadgetDir is the path of the mounted gadget snap.
 	GadgetDir string
+
+	// GadgetSnap is a snap.Container of the gadget snap. This is used in
+	// priority over GadgetDir if set.
+	GadgetSnap snap.Container
 }
 
-type FilesystemOnlyApplyOptions struct {
-	// Classic is true when the system in rootdir is a classic system
-	Classic bool
+// Device carries information about the device model and mode that is
+// relevant to sysconfig.
+type Device interface {
+	RunMode() bool
+	Classic() bool
+
+	Kernel() string
+	//Base() string
+
+	HasModeenv() bool
+
+	//Model() *asserts.Model
+}
+
+type configedDevice struct {
+	model *asserts.Model
+}
+
+func (di *configedDevice) RunMode() bool {
+	// the functions in sysconfig are used to configure not yet
+	// running systems.
+	return false
+}
+
+func (d *configedDevice) Classic() bool {
+	return d.model.Classic()
+}
+
+func (d *configedDevice) Kernel() string {
+	return d.model.Kernel()
+}
+
+func (d *configedDevice) HasModeenv() bool {
+	return d.model.Grade() != asserts.ModelGradeUnset
 }
 
 // ApplyFilesystemOnlyDefaultsImpl is initialized by init() of configcore.
-var ApplyFilesystemOnlyDefaultsImpl = func(rootDir string, defaults map[string]interface{}, options *FilesystemOnlyApplyOptions) error {
+var ApplyFilesystemOnlyDefaultsImpl = func(dev Device, rootDir string, defaults map[string]interface{}) error {
 	panic("ApplyFilesystemOnlyDefaultsImpl is unset, import overlord/configstate/configcore")
 }
 
@@ -59,27 +101,47 @@ var ApplyFilesystemOnlyDefaultsImpl = func(rootDir string, defaults map[string]i
 // This is a subset of core config options that is important
 // early during boot, before all the configuration is applied as part of
 // normal execution of configure hook.
-func ApplyFilesystemOnlyDefaults(rootDir string, defaults map[string]interface{}, options *FilesystemOnlyApplyOptions) error {
-	return ApplyFilesystemOnlyDefaultsImpl(rootDir, defaults, options)
+func ApplyFilesystemOnlyDefaults(model *asserts.Model, rootDir string, defaults map[string]interface{}) error {
+	dev := &configedDevice{model: model}
+	return ApplyFilesystemOnlyDefaultsImpl(dev, rootDir, defaults)
 }
 
-// ConfigureRunSystem configures the ubuntu-data partition with any
-// configuration needed from e.g. the gadget or for cloud-init.
-func ConfigureRunSystem(opts *Options) error {
-	if err := configureCloudInit(opts); err != nil {
+// ConfigureTargetSystem configures the ubuntu-data partition with
+// any configuration needed from e.g. the gadget or for cloud-init (and also for
+// cloud-init from the gadget).
+// It is okay to use both from install mode for run mode, as well as from the
+// initramfs for recover mode.
+// It is only meant to be used with models that have a grade (i.e. UC20+).
+func ConfigureTargetSystem(model *asserts.Model, opts *Options) error {
+	// check that we have a uc20 model
+	if model.Grade() == asserts.ModelGradeUnset {
+		return fmt.Errorf("internal error: ConfigureTargetSystem can only be used with a model with a grade")
+	}
+
+	if err := configureCloudInit(model, opts); err != nil {
 		return err
 	}
 
-	if opts.GadgetDir != "" {
-		ginf, err := gadget.ReadInfo(opts.GadgetDir, nil)
-		if err != nil {
-			return err
-		}
-		defaults := gadget.SystemDefaults(ginf.Defaults)
+	var gadgetInfo *gadget.Info
+	var err error
+	switch {
+	case opts.GadgetSnap != nil:
+		// we do not perform consistency validation here because
+		// such unlikely problems are better surfaced in different
+		// and less surprising contexts like the seeding itself
+		gadgetInfo, err = gadget.ReadInfoFromSnapFileNoValidate(opts.GadgetSnap, nil)
+	case opts.GadgetDir != "":
+		gadgetInfo, err = gadget.ReadInfo(opts.GadgetDir, nil)
+	}
+
+	if err != nil {
+		return err
+	}
+
+	if gadgetInfo != nil {
+		defaults := gadget.SystemDefaults(gadgetInfo.Defaults)
 		if len(defaults) > 0 {
-			// options are nil which implies core system
-			var options *FilesystemOnlyApplyOptions
-			if err := ApplyFilesystemOnlyDefaults(WritableDefaultsDir(opts.TargetRootDir), defaults, options); err != nil {
+			if err := ApplyFilesystemOnlyDefaults(model, WritableDefaultsDir(opts.TargetRootDir), defaults); err != nil {
 				return err
 			}
 		}

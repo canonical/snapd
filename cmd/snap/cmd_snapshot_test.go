@@ -21,13 +21,17 @@ package main_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/client"
+	main "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/strutil/quantity"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -64,6 +68,12 @@ var snapshotsTests = []getCmdArgs{{
 }, {
 	args:   "check-snapshot 4 snap1 snap2",
 	stdout: "Snapshot #4 of snaps \"snap1\", \"snap2\" verified successfully.\n",
+}, {
+	args:  "export-snapshot x snapshot-export.snapshot",
+	error: `invalid argument for snapshot set id: expected a non-negative integer argument \(see 'snap help saved'\)`,
+}, {
+	args:  "export-snapshot 1",
+	error: "the required argument `<filename>` was not provided",
 }}
 
 func (s *SnapSuite) TestSnapSnaphotsTest(c *C) {
@@ -86,7 +96,21 @@ func (s *SnapSuite) TestSnapSnaphotsTest(c *C) {
 			c.Check(s.Stderr(), testutil.EqualsWrapped, test.stderr)
 			c.Check(s.Stdout(), testutil.MatchesWrapped, test.stdout)
 		}
+		c.Check("snapshot-export.snapshot", testutil.FileAbsent)
+		c.Check("snapshot-export.snapshot.part", testutil.FileAbsent)
 	}
+}
+
+func (s *SnapSuite) TestSnapshotExportHappy(c *C) {
+	s.mockSnapshotsServer(c)
+
+	exportedSnapshotPath := filepath.Join(c.MkDir(), "export-snapshot.snapshot")
+	_, err := main.Parser(main.Client()).ParseArgs([]string{"export-snapshot", "1", exportedSnapshotPath})
+	c.Check(err, IsNil)
+	c.Check(s.Stderr(), testutil.EqualsWrapped, "")
+	c.Check(s.Stdout(), testutil.MatchesWrapped, `Exported snapshot #1 into ".*/export-snapshot.snapshot"`)
+	c.Check(exportedSnapshotPath, testutil.FileEquals, "Hello World!")
+	c.Check(exportedSnapshotPath+".part", testutil.FileAbsent)
 }
 
 func (s *SnapSuite) mockSnapshotsServer(c *C) {
@@ -101,14 +125,45 @@ func (s *SnapSuite) mockSnapshotsServer(c *C) {
 					return
 				}
 				fmt.Fprintf(w, `{"type":"sync","status-code":200,"status":"OK","result":[{"id":1,"snapshots":[{"set":1,"time":%q,"snap":"htop","revision":"1168","snap-id":"Z","epoch":{"read":[0],"write":[0]},"summary":"","version":"2","sha3-384":{"archive.tgz":""},"size":1}]}]}`, snapshotTime)
-			} else {
-				w.WriteHeader(202)
-				fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "9"}`)
+			}
+			if r.Method == "POST" {
+				if r.Header.Get("Content-Type") == client.SnapshotExportMediaType {
+					fmt.Fprintln(w, `{"type": "sync", "result": {"set-id": 42, "snaps": ["htop"]}}`)
+				} else {
+
+					w.WriteHeader(202)
+					fmt.Fprintln(w, `{"type":"async", "status-code": 202, "change": "9"}`)
+				}
 			}
 		case "/v2/changes/9":
 			fmt.Fprintln(w, `{"type": "sync", "result": {"ready": true, "status": "Done", "data": {}}}`)
+		case "/v2/snapshots/1/export":
+			w.Header().Set("Content-Type", client.SnapshotExportMediaType)
+			fmt.Fprint(w, "Hello World!")
 		default:
 			c.Errorf("unexpected path %q", r.URL.Path)
 		}
 	})
+}
+
+func (s *SnapSuite) TestSnapshotImportHappy(c *C) {
+	// mockSnapshotServer will return set-id 42 and three snaps for all
+	// import calls
+	s.mockSnapshotsServer(c)
+
+	// time may be crossing DST change, so the age value should not be
+	// hardcoded, otherwise we'll see failures for 2 montsh during the year
+	expectedAge := time.Since(time.Now().AddDate(0, -1, 0))
+	ageStr := quantity.FormatDuration(expectedAge.Seconds())
+
+	exportedSnapshotPath := filepath.Join(c.MkDir(), "mocked-snapshot.snapshot")
+	ioutil.WriteFile(exportedSnapshotPath, []byte("this is really snapshot zip file data"), 0644)
+
+	_, err := main.Parser(main.Client()).ParseArgs([]string{"import-snapshot", exportedSnapshotPath})
+	c.Check(err, IsNil)
+	c.Check(s.Stderr(), testutil.EqualsWrapped, "")
+	c.Check(s.Stdout(), testutil.MatchesWrapped, fmt.Sprintf(`Imported snapshot as #42
+Set  Snap  Age    Version  Rev   Size    Notes
+1    htop  %-6s 2        1168      1B  -
+`, ageStr))
 }

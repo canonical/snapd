@@ -24,6 +24,7 @@ import (
 	"net/http"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -31,23 +32,17 @@ import (
 
 var (
 	serialModelCmd = &Command{
-		Path:   "/v2/model/serial",
-		GET:    getSerial,
-		UserOK: true,
+		Path:       "/v2/model/serial",
+		GET:        getSerial,
+		ReadAccess: openAccess{},
 	}
 	modelCmd = &Command{
-		Path:   "/v2/model",
-		POST:   postModel,
-		GET:    getModel,
-		UserOK: true,
+		Path:        "/v2/model",
+		POST:        postModel,
+		GET:         getModel,
+		ReadAccess:  openAccess{},
+		WriteAccess: rootAccess{},
 	}
-)
-
-type assertType int
-
-const (
-	serialType assertType = iota
-	modelType
 )
 
 var devicestateRemodel = devicestate.Remodel
@@ -56,7 +51,7 @@ type postModelData struct {
 	NewModel string `json:"new-model"`
 }
 
-type modelAssertJSONResponse struct {
+type modelAssertJSON struct {
 	Headers map[string]interface{} `json:"headers,omitempty"`
 	Body    string                 `json:"body,omitempty"`
 }
@@ -87,7 +82,7 @@ func postModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 	ensureStateSoon(st)
 
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+	return AsyncResponse(nil, chg.ID())
 
 }
 
@@ -106,16 +101,11 @@ func getModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	model, err := devmgr.Model()
 	if err == state.ErrNoState {
-		res := &errorResult{
+		return &apiError{
+			Status:  404,
 			Message: "no model assertion yet",
-			Kind:    errorKindAssertionNotFound,
+			Kind:    client.ErrorKindAssertionNotFound,
 			Value:   "model",
-		}
-
-		return &resp{
-			Type:   ResponseTypeError,
-			Result: res,
-			Status: 404,
 		}
 	}
 	if err != nil {
@@ -123,17 +113,17 @@ func getModel(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	if opts.jsonResult {
-		modelJSON := modelAssertJSONResponse{}
+		modelJSON := modelAssertJSON{}
 
 		modelJSON.Headers = model.Headers()
 		if !opts.headersOnly {
 			modelJSON.Body = string(model.Body())
 		}
 
-		return SyncResponse(modelJSON, nil)
+		return SyncResponse(modelJSON)
 	}
 
-	return AssertResponse([]asserts.Assertion{model}, true)
+	return AssertResponse([]asserts.Assertion{model}, false)
 }
 
 // getSerial gets the current serial assertion using the DeviceManager
@@ -151,16 +141,11 @@ func getSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
 
 	serial, err := devmgr.Serial()
 	if err == state.ErrNoState {
-		res := &errorResult{
+		return &apiError{
+			Status:  404,
 			Message: "no serial assertion yet",
-			Kind:    errorKindAssertionNotFound,
+			Kind:    client.ErrorKindAssertionNotFound,
 			Value:   "serial",
-		}
-
-		return &resp{
-			Type:   ResponseTypeError,
-			Result: res,
-			Status: 404,
 		}
 	}
 	if err != nil {
@@ -168,15 +153,15 @@ func getSerial(c *Command, r *http.Request, _ *auth.UserState) Response {
 	}
 
 	if opts.jsonResult {
-		serialJSON := modelAssertJSONResponse{}
+		serialJSON := modelAssertJSON{}
 
 		serialJSON.Headers = serial.Headers()
 		if !opts.headersOnly {
 			serialJSON.Body = string(serial.Body())
 		}
 
-		return SyncResponse(serialJSON, nil)
+		return SyncResponse(serialJSON)
 	}
 
-	return AssertResponse([]asserts.Assertion{serial}, true)
+	return AssertResponse([]asserts.Assertion{serial}, false)
 }

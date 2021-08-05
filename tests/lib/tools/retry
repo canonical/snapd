@@ -1,8 +1,9 @@
-#!/usr/bin/env any-python
+#!/usr/bin/env python3
 from __future__ import print_function, absolute_import, unicode_literals
 
 import argparse
 import itertools
+import os
 import subprocess
 import sys
 import time
@@ -17,6 +18,11 @@ MYPY = False
 if MYPY:
     from typing import List, Text
 
+def envpair(s):
+    # type: (str) -> str
+    if not "=" in s:
+        raise argparse.ArgumentTypeError("environment variables expected format is 'KEY=VAL' got '{}'".format(s))
+    return s
 
 def _make_parser():
     # type: () -> argparse.ArgumentParser
@@ -42,6 +48,14 @@ attempt. On failure the exit code from the final attempt is returned.
         help="grace period between attempts (default %(default)ss)",
     )
     parser.add_argument(
+        "--env",
+        type=envpair,
+        metavar='KEY=VAL',
+        action='append',
+        default=[],
+        help="environment variable to use with format KEY=VALUE (no default)",
+    )
+    parser.add_argument(
         "--maxmins",
         metavar="MINUTES",
         type=float,
@@ -61,8 +75,17 @@ attempt. On failure the exit code from the final attempt is returned.
     return parser
 
 
-def run_cmd(cmd, n, wait, maxmins, verbose):
-    # type: (List[Text], int, float, float, bool) -> int
+def get_env(env):
+    # type: (List[str]) -> dict[str,str]
+    new_env = os.environ.copy()
+    maxsplit=1  # no keyword support for str.split() in py2
+    for key, val in [s.split("=", maxsplit) for s in env]:
+        new_env[key] = val
+    return new_env
+
+
+def run_cmd(cmd, n, wait, maxmins, verbose, env):
+    # type: (List[Text], int, float, float, bool, List[str]) -> int
     if maxmins != 0:
         attempts = itertools.count(1)
         t0 = time.time()
@@ -74,8 +97,9 @@ def run_cmd(cmd, n, wait, maxmins, verbose):
         of_attempts_suffix = " of {}".format(n)
     retcode = 0
     i = 0
+    new_env = get_env(env)
     for i in attempts:
-        retcode = subprocess.call(cmd)
+        retcode = subprocess.call(cmd, env=new_env)
         if retcode == 0:
             return 0
         if verbose:
@@ -117,7 +141,7 @@ def main():
         parser.exit(0)
     # Return the last exit code as the exit code of this process.
     try:
-        retcode = run_cmd(ns.cmd, ns.attempts, ns.wait, ns.maxmins, ns.verbose)
+        retcode = run_cmd(ns.cmd, ns.attempts, ns.wait, ns.maxmins, ns.verbose, ns.env)
     except OSError as exc:
         if ns.verbose:
             print(

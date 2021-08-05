@@ -1,27 +1,5 @@
 summary: Ensure that the calendar-service interface works
 
-# Only test on classic systems.  Don't test on Ubuntu 14.04, which
-# does not ship a new enough evolution-data-server. Don't test on AMZN2.
-#
-# FIXME: disable opensuse-tumbleweed until
-# https://github.com/snapcore/snapd/pull/7230 is landed
-# ubuntu-19.10+: test-snapd-eds is incompatible with eds version shipped with the distro
-# arch-linux: test-snapd-eds is incompatible with eds version shipped with the distro
-# fedora-31: test-snapd-eds is incompatible with eds version shipped with the distro
-# fedora-32: test-snapd-eds is incompatible with eds version shipped with the distro
-systems:
-    - -amazon-*  # no need to run this on amazon
-    - -arch-linux-*  # test-snapd-eds is incompatible with eds version shipped with the distro
-    - -centos-*
-    - -debian-sid-*
-    - -fedora-31-*  # test-snapd-eds is incompatible with eds version shipped with the distro
-    - -fedora-32-*  # test-snapd-eds is incompatible with eds version shipped with the distro
-    - -opensuse-tumbleweed-*  # test-snapd-eds is incompatible with eds version shipped with the distro
-    - -ubuntu-14.04-*  # no tests.session support, eds is too old
-    - -ubuntu-19.10-*  # test-snapd-eds is incompatible with eds shipped with the distro
-    - -ubuntu-2*
-    - -ubuntu-core-*  # EDS is unsupported on core systems
-
 # fails in the autopkgtest env with:
 # [Wed Aug 15 16:34:12 2018] audit: type=1400
 # audit(1534350852.923:58499): apparmor="DENIED" operation="connect"
@@ -30,6 +8,27 @@ systems:
 # receive connect" denied_mask="send connect" addr=none
 # peer_addr="@/tmp/dbus-5FUilMiW8U" peer="unconfined"
 backends: [-autopkgtest]
+
+# Only test on classic systems.  Don't test on Ubuntu 14.04, which
+# does not ship a new enough evolution-data-server. Don't test on AMZN2.
+#
+# FIXME: disable opensuse-tumbleweed until
+# https://github.com/snapcore/snapd/pull/7230 is landed
+# ubuntu-20.04+: test-snapd-eds is incompatible with eds version shipped with the distro
+# arch-linux: test-snapd-eds is incompatible with eds version shipped with the distro
+# fedora-33,34: test-snapd-eds is incompatible with eds version shipped with the distro
+systems:
+    - -amazon-*  # no need to run this on amazon
+    - -arch-linux-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -centos-*
+    - -debian-sid-*
+    - -fedora-33-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -fedora-34-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -opensuse-15.2-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -opensuse-tumbleweed-*  # test-snapd-eds is incompatible with eds version shipped with the distro
+    - -ubuntu-14.04-*  # no tests.session support, eds is too old
+    - -ubuntu-2*  # test-snapd-eds is incompatible with eds shipped with the distro
+    - -ubuntu-core-*  # EDS is unsupported on core systems
 
 prepare: |
     tests.session -u test prepare

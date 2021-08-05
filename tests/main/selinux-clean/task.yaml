@@ -1,6 +1,6 @@
 summary: Check that basic snap management does not raise any SELinux denials
 
-description: |
+details: |
     On systems where SELinux is supported, make sure that starting snapd and
     performing basic install/remove tasks does not cause SELinux denials. Even
     though we do not support SELinux for enforcing confinement of snaps, we do
@@ -8,6 +8,7 @@ description: |
     management tasks on snaps.
 
 systems: [fedora-*, centos-*]
+
 prepare: |
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB"/pkgdb.sh
@@ -29,7 +30,6 @@ prepare: |
 
 restore: |
     setenforce "$(cat enforcing.mode)"
-    rm -f stamp enforcing.mode
 
     tests.session -u test restore
     # Stop dbus activated by test-snapd-desktop snap.
@@ -39,10 +39,7 @@ execute: |
     systemctl restart snapd.socket
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
 
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
-    install_local test-snapd-desktop
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop
     test-snapd-desktop.sh -c echo 'hello world'
     tests.session -u test exec test-snapd-desktop.sh -c 'echo hello world'
     tests.session -u test exec test-snapd-desktop.sh -c 'mkdir /home/test/foo'
@@ -65,20 +62,20 @@ execute: |
     # XXX ausearch exits with 1 when there are denials
     ausearch --checkpoint stamp --start checkpoint -m AVC > avc-after 2>&1 || true
     grep -v -E 'avc:  denied  { (setattr|read) } .* name=linger .* scontext=system_u:system_r:init_t:s0 tcontext=unconfined_u:object_r:systemd_logind_var_lib_t:s0' < avc-after | \
-        not MATCH 'type=AVC'
+        NOMATCH 'type=AVC'
 
     # another revision triggers copy of snap data
-    install_local test-snapd-desktop
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
     # removal triggers cleanups
     snap remove test-snapd-desktop
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
 
-    install_local test-snapd-appstream-metadata
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-appstream-metadata
     snap connect test-snapd-appstream-metadata:appstream-metadata
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
 
-    install_local test-snapd-service
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-service
     snap stop test-snapd-service
     snap start test-snapd-service
     # TODO: enable once there is a workaround for denials caused by journalctl
@@ -86,13 +83,13 @@ execute: |
     snap remove test-snapd-service
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
 
-    install_local test-snapd-layout
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-layout
     test-snapd-layout.sh -c 'ls /'
     su test -c "test-snapd-layout.sh -c 'ls /'"
     snap remove test-snapd-layout
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
 
-    install_local socket-activation
+    "$TESTSTOOLS"/snaps-state install-local socket-activation
     [ -S /var/snap/socket-activation/common/socket ]
     snap remove socket-activation
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
@@ -101,7 +98,7 @@ execute: |
     # is bind mounted into the mount namespace of a snap, thus the SELinux
     # contexts from the host appear inside, and the policy needs to allow
     # proper transitions with these labels
-    install_local test-snapd-snapctl-core18
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-snapctl-core18
     snap restart test-snapd-snapctl-core18
     snap remove test-snapd-snapctl-core18
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'

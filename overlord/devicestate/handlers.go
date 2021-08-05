@@ -29,8 +29,6 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/progress"
-	"github.com/snapcore/snapd/wrappers"
 )
 
 func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
@@ -93,18 +91,6 @@ func (m *DeviceManager) doMarkPreseeded(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	// enable all services generated as part of preseeding, but not enabled
-	// XXX: this should go away once the problem of install & services is fixed.
-	for _, snapSt := range snaps {
-		info, err := snapSt.CurrentInfo()
-		if err != nil {
-			return err
-		}
-		if err := wrappers.EnableSnapServices(info, progress.Null); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
@@ -123,11 +109,29 @@ type seededSystem struct {
 	SeedTime time.Time `json:"seed-time"`
 }
 
+func (s *seededSystem) sameAs(other *seededSystem) bool {
+	// in theory the system labels are unique, however be extra paranoid and
+	// check all model related fields too
+	return s.System == other.System &&
+		s.Model == other.Model &&
+		s.BrandID == other.BrandID &&
+		s.Revision == other.Revision
+}
+
 func (m *DeviceManager) recordSeededSystem(st *state.State, whatSeeded *seededSystem) error {
 	var seeded []seededSystem
 	if err := st.Get("seeded-systems", &seeded); err != nil && err != state.ErrNoState {
 		return err
 	}
+	for _, sys := range seeded {
+		if sys.sameAs(whatSeeded) {
+			return nil
+		}
+	}
+	// contrary to the usual approach of appending new entries to the list
+	// like we do with modeenv, the recently seeded system is added at the
+	// front, as it is not considered candidate like for the other entries,
+	// but rather it describes the currently existing
 	seeded = append([]seededSystem{*whatSeeded}, seeded...)
 	st.Set("seeded-systems", seeded)
 	return nil
@@ -170,9 +174,7 @@ func (m *DeviceManager) doMarkSeeded(t *state.Task, _ *tomb.Tomb) error {
 	}
 	if whatSeeded != nil && deviceCtx.RunMode() {
 		// record what seeded in the state only when in run mode
-
 		whatSeeded.SeedTime = now
-		// TODO:UC20 what about remodels?
 		if err := m.recordSeededSystem(st, whatSeeded); err != nil {
 			return fmt.Errorf("cannot record the seeded system: %v", err)
 		}

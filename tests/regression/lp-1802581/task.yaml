@@ -1,6 +1,6 @@
 summary: Regression test for LP 1802581
 
-description: |
+details: |
     When using the snapd GPIO interface the slot side needs to export the GPIO
     pint so that a file appears under /sys/class/gpio/gpioNNN. That file is a
     symbolic link to a special, platform specific device path. The symbolic
@@ -32,7 +32,7 @@ prepare: |
     # shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
     echo "Create/enable fake gpio"
-    systemd_create_and_start_persistent_unit fake-gpio "$TESTSLIB/fakegpio/fake-gpio.py"  '[Unit]\nBefore=snap.core.interface.gpio-100.service\n[Service]\nType=notify'
+    systemd_create_and_start_unit fake-gpio "$TESTSLIB/fakegpio/fake-gpio.py"  '[Unit]\nBefore=snap.core.interface.gpio-100.service\n[Service]\nType=notify'
 
 restore: |
     # Core image that were created using spread will have a fake "gpio-pin".
@@ -45,7 +45,7 @@ restore: |
 
     # shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
-    system_stop_and_remove_persistent_unit fake-gpio
+    systemd_stop_and_remove_unit fake-gpio
     # for good measure, fake-gpio.py does this umount already on exit
     umount /sys/class/gpio || true
 
@@ -62,9 +62,7 @@ execute: |
     fi
 
     echo "Install a snap that uses the gpio consumer"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local gpio-consumer
+    "$TESTSTOOLS"/snaps-state install-local gpio-consumer
 
     echo "And connect the gpio pin"
     snap connect gpio-consumer:gpio :gpio-pin

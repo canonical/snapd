@@ -25,8 +25,10 @@ import (
 	"sort"
 	"text/tabwriter"
 
-	"github.com/snapcore/snapd/cmd"
+	"github.com/snapcore/snapd/client/clientutil"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -71,7 +73,9 @@ func (c *servicesCommand) Execute([]string) error {
 	}
 	sort.Sort(byApp(svcInfos))
 
-	services, err := cmd.ClientAppInfosFromSnapAppInfos(svcInfos)
+	sd := servicestate.NewStatusDecorator(progress.Null)
+
+	services, err := clientutil.ClientAppInfosFromSnapAppInfos(svcInfos, sd)
 	if err != nil || len(services) == 0 {
 		return err
 	}
@@ -87,10 +91,12 @@ func (c *servicesCommand) Execute([]string) error {
 			startup = i18n.G("enabled")
 		}
 		current := i18n.G("inactive")
-		if svc.Active {
+		if svc.DaemonScope == snap.UserDaemon {
+			current = "-"
+		} else if svc.Active {
 			current = i18n.G("active")
 		}
-		fmt.Fprintf(w, "%s.%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current, cmd.ClientAppInfoNotes(&svc))
+		fmt.Fprintf(w, "%s.%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current, clientutil.ClientAppInfoNotes(&svc))
 	}
 
 	return nil

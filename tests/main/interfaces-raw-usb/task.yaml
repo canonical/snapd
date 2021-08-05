@@ -4,9 +4,7 @@ details: |
     The raw-usb interface allows detection and grants access to all connected USB devices.
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
 execute: |
     echo "The interface is not connected by default"

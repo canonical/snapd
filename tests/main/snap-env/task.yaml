@@ -2,19 +2,15 @@ summary: inspect all the set environment variables prefixed with SNAP_ and XDG_
 
 environment:
     NAME/regular: test-snapd-tools
-    INSTANCE_KEY/regular:
+    INSTANCE_KEY/regular: ""
     NAME/parallel: test-snapd-tools_foo
     INSTANCE_KEY/parallel: foo
 
 prepare: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     if [[ "$SPREAD_VARIANT" == "parallel" ]]; then
         snap set system experimental.parallel-instances=true
     fi
-    # shellcheck disable=SC2153
-    install_local_as test-snapd-tools "$NAME"
+    "$TESTSTOOLS"/snaps-state install-local-as test-snapd-tools "$NAME"
 
 restore: |
     if [[ "$SPREAD_VARIANT" == "parallel" ]]; then
@@ -55,7 +51,8 @@ execute: |
     MATCH "^SNAP_INSTANCE_NAME=$NAME$"                                    < snap-vars.txt
     # parallel-installs: empty if none is set
     MATCH "^SNAP_INSTANCE_KEY=$INSTANCE_KEY$"                             < snap-vars.txt
-    test "$(wc -l < snap-vars.txt)" -eq 14
+    MATCH "^SNAP_REAL_HOME=/root$"                                        < snap-vars.txt
+    test "$(wc -l < snap-vars.txt)" -eq 15
 
     echo "Enure that XDG environment variables are what we expect"
     # parallel-installs: xdg directory is instance specific

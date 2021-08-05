@@ -25,6 +25,8 @@ import (
 
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
@@ -99,19 +101,39 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	isRemodel := remodelCtx.ForRemodeling()
 	groundDeviceCtx := remodelCtx.GroundContext()
 
-	// be extra paranoid when checking we are installing the right gadget
-	expectedGadgetSnap := groundDeviceCtx.Model().Gadget()
+	model := groundDeviceCtx.Model()
 	if isRemodel {
-		expectedGadgetSnap = remodelCtx.Model().Gadget()
+		model = remodelCtx.Model()
 	}
-	if snapsup.InstanceName() != expectedGadgetSnap {
-		return fmt.Errorf("cannot apply gadget assets update from non-model gadget snap %q, expected %q snap",
-			snapsup.InstanceName(), expectedGadgetSnap)
-	}
+	// be extra paranoid when checking we are installing the right gadget
+	var updateData *gadget.GadgetData
+	switch snapsup.Type {
+	case snap.TypeGadget:
+		expectedGadgetSnap := model.Gadget()
+		if snapsup.InstanceName() != expectedGadgetSnap {
+			return fmt.Errorf("cannot apply gadget assets update from non-model gadget snap %q, expected %q snap",
+				snapsup.InstanceName(), expectedGadgetSnap)
+		}
 
-	updateData, err := pendingGadgetInfo(snapsup, remodelCtx)
-	if err != nil {
-		return err
+		updateData, err = pendingGadgetInfo(snapsup, remodelCtx)
+		if err != nil {
+			return err
+		}
+	case snap.TypeKernel:
+		expectedKernelSnap := model.Kernel()
+		if snapsup.InstanceName() != expectedKernelSnap {
+			return fmt.Errorf("cannot apply kernel assets update from non-model kernel snap %q, expected %q snap",
+				snapsup.InstanceName(), expectedKernelSnap)
+		}
+
+		// now calculate the "update" data, it's the same gadget but
+		// argumented from a different kernel
+		updateData, err = currentGadgetInfo(t.State(), groundDeviceCtx)
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("internal errror: doUpdateGadgetAssets called with snap type %v", snapsup.Type)
 	}
 
 	currentData, err := currentGadgetInfo(t.State(), groundDeviceCtx)
@@ -123,6 +145,24 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 		return nil
 	}
 
+	// add kernel directories
+	currentKernelInfo, err := snapstate.CurrentInfo(st, groundDeviceCtx.Model().Kernel())
+	// XXX: switch to the normal `if err != nil { return err }` pattern
+	// here once all tests are updated and have a kernel
+	if err == nil {
+		currentData.KernelRootDir = currentKernelInfo.MountDir()
+		updateData.KernelRootDir = currentKernelInfo.MountDir()
+	}
+	// if this is a gadget update triggered by an updated kernel we
+	// need to ensure "updateData.KernelRootDir" points to the new kernel
+	if snapsup.Type == snap.TypeKernel {
+		updateKernelInfo, err := snap.ReadInfo(snapsup.InstanceName(), snapsup.SideInfo)
+		if err != nil {
+			return fmt.Errorf("cannot read candidate kernel snap details: %v", err)
+		}
+		updateData.KernelRootDir = updateKernelInfo.MountDir()
+	}
+
 	snapRollbackDir, err := makeRollbackDir(fmt.Sprintf("%v_%v", snapsup.InstanceName(), snapsup.SideInfo.Revision))
 	if err != nil {
 		return fmt.Errorf("cannot prepare update rollback directory: %v", err)
@@ -130,15 +170,28 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 
 	var updatePolicy gadget.UpdatePolicyFunc = nil
 
-	if isRemodel {
+	// Even with a remodel a kernel refresh only updates the kernel assets
+	if snapsup.Type == snap.TypeKernel {
+		updatePolicy = gadget.KernelUpdatePolicy
+	} else if isRemodel {
 		// use the remodel policy which triggers an update of all
 		// structures
 		updatePolicy = gadget.RemodelUpdatePolicy
 	}
 
-	st.Unlock()
-	err = gadgetUpdate(*currentData, *updateData, snapRollbackDir, updatePolicy)
-	st.Lock()
+	var updateObserver gadget.ContentUpdateObserver
+	observeTrustedBootAssets, err := boot.TrustedAssetsUpdateObserverForModel(model, updateData.RootDir)
+	if err != nil && err != boot.ErrObserverNotApplicable {
+		return fmt.Errorf("cannot setup asset update observer: %v", err)
+	}
+	if err == nil {
+		updateObserver = observeTrustedBootAssets
+	}
+	// do not release the state lock, the update observer may attempt to
+	// modify modeenv inside, which implicitly is guarded by the state lock;
+	// on top of that we do not expect the update to be moving large amounts
+	// of data
+	err = gadgetUpdate(*currentData, *updateData, snapRollbackDir, updatePolicy, updateObserver)
 	if err != nil {
 		if err == gadget.ErrNoUpdate {
 			// no update needed
@@ -158,5 +211,116 @@ func (m *DeviceManager) doUpdateGadgetAssets(t *state.Task, _ *tomb.Tomb) error 
 	// core20, have fallback code as well there
 	st.RequestRestart(state.RestartSystem)
 
+	return nil
+}
+
+func (m *DeviceManager) updateGadgetCommandLine(t *state.Task, st *state.State, isUndo bool) (updated bool, err error) {
+	snapsup, err := snapstate.TaskSnapSetup(t)
+	if err != nil {
+		return false, err
+	}
+	devCtx, err := DeviceCtx(st, t, nil)
+	if err != nil {
+		return false, err
+	}
+	if devCtx.Model().Grade() == asserts.ModelGradeUnset {
+		// pre UC20 system, do nothing
+		return false, nil
+	}
+	var gadgetData *gadget.GadgetData
+	if !isUndo {
+		// when updating, command line comes from the new gadget
+		gadgetData, err = pendingGadgetInfo(snapsup, devCtx)
+	} else {
+		// but when undoing, we use the current gadget which should have
+		// been restored
+		currentGadgetData, err := currentGadgetInfo(st, devCtx)
+		if err != nil {
+			return false, err
+		}
+		gadgetData = currentGadgetData
+	}
+	updated, err = boot.UpdateCommandLineForGadgetComponent(devCtx, gadgetData.RootDir)
+	if err != nil {
+		return false, fmt.Errorf("cannot update kernel command line from gadget: %v", err)
+	}
+	return updated, nil
+}
+
+func (m *DeviceManager) doUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) error {
+	if release.OnClassic {
+		return fmt.Errorf("internal error: cannot run update gadget kernel command line task on a classic system")
+	}
+
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var seeded bool
+	err := st.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if !seeded {
+		// do nothing during first boot & seeding
+		return nil
+	}
+
+	const isUndo = false
+	updated, err := m.updateGadgetCommandLine(t, st, isUndo)
+	if err != nil {
+		return err
+	}
+	if !updated {
+		logger.Debugf("no kernel command line update from gadget")
+		return nil
+	}
+	t.Logf("Updated kernel command line")
+
+	t.SetStatus(state.DoneStatus)
+
+	// TODO: consider optimization to avoid double reboot when the gadget
+	// snap carries an update to the gadget assets and a change in the
+	// kernel command line
+
+	// kernel command line was updated, request a reboot to make it effective
+	st.RequestRestart(state.RestartSystem)
+	return nil
+}
+
+func (m *DeviceManager) undoUpdateGadgetCommandLine(t *state.Task, _ *tomb.Tomb) error {
+	if release.OnClassic {
+		return fmt.Errorf("internal error: cannot run update gadget kernel command line task on a classic system")
+	}
+
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	var seeded bool
+	err := st.Get("seeded", &seeded)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+	if !seeded {
+		// do nothing during first boot & seeding
+		return nil
+	}
+
+	const isUndo = true
+	updated, err := m.updateGadgetCommandLine(t, st, isUndo)
+	if err != nil {
+		return err
+	}
+	if !updated {
+		logger.Debugf("no kernel command line update to undo")
+		return nil
+	}
+	t.Logf("Reverted kernel command line change")
+
+	t.SetStatus(state.UndoneStatus)
+
+	// kernel command line was updated, request a reboot to make it effective
+	st.RequestRestart(state.RestartSystem)
 	return nil
 }

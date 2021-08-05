@@ -1,5 +1,6 @@
 summary: Check that the document portal is activated when needed
-description: |
+
+details: |
     In order for xdg-document-portal to securely share files with a
     confined applications, it must be started prior to setting up the
     user mount namespace.  This is due to the daemon providing a FUSE
@@ -24,10 +25,8 @@ systems:
     - -ubuntu-core-*
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-desktop
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     rm -f /usr/share/dbus-1/services/fake-document-portal.service
     tests.session -u test prepare
 
@@ -39,8 +38,6 @@ prepare: |
 
 restore: |
     rm -f /usr/share/dbus-1/services/fake-document-portal.service
-    rm -f doc-portal.log
-    rm -f report-error.txt
     tests.session -u test restore
 
 execute: |
@@ -79,7 +76,7 @@ execute: |
 
     echo "No attempt is made to activate the document portal due to the previous failure"
     tests.session -u test exec test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current
-    not MATCH "GetMountPoint called" < doc-portal.log
+    NOMATCH "GetMountPoint called" < doc-portal.log
 
     echo "Remove the .portals-unavailable file to force a recheck"
     rm /run/user/12345/.portals-unavailable

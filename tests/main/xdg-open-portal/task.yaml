@@ -13,7 +13,6 @@ systems:
   # be problematic.  OpenSUSE 15.2 will hopefully be fine.
   - opensuse-tumbleweed-*
   - ubuntu-18.04-*
-  - ubuntu-19.10-*
   - ubuntu-2*
 
 environment:
@@ -26,10 +25,7 @@ prepare: |
     setup_portals
     tests.session -u test prepare
 
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
-    install_local test-snapd-desktop
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop
 
     # Configure fake web browser
     tests.session -u test exec mkdir -p ~test/.local/share/applications
@@ -76,6 +72,9 @@ restore: |
     rm -f "$EDITOR_HISTORY"
     rm -f "$BROWSER_HISTORY"
 
+debug: |
+    ls -la /run/user/12345/ || true
+
 execute: |
     #shellcheck source=tests/lib/desktop-portal.sh
     . "$TESTSLIB"/desktop-portal.sh
@@ -97,6 +96,3 @@ execute: |
     tests.session -u test exec test-snapd-desktop.cmd xdg-open /home/test/snap/test-snapd-desktop/common/test.txt
     retry -n 4 --wait 0.5 test -e "$EDITOR_HISTORY"
     MATCH /home/test/snap/test-snapd-desktop/common/test.txt < "$EDITOR_HISTORY"
-
-debug: |
-    ls -la /run/user/12345/ || true

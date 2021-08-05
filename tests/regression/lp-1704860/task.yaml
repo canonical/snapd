@@ -1,7 +1,5 @@
 summary: Work-in-progress on reproducing lp:1704860
 
-systems: [ubuntu-16.04-64]
-
 details: |
     In this bug, an app belonging go a snap using classic confinement confuses
     the re-execution system in a way that causes distribution version of
@@ -18,10 +16,10 @@ details: |
     (instead they rely on snap run to run the right tool in the first place)
     this is safe to do.
 
+systems: [ubuntu-16.04-64]
+
 execute: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local_classic test-snapd-classic-confinement
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-classic-confinement --classic
     # We don't want to see SNAP_DID_REEXEC being set.
     if snap run --shell test-snapd-classic-confinement ./snap-env-query.sh | grep 'SNAP_DID_REEXEC='; then
         echo "SNAP_DID_REEXEC environment is set - it should *not* be set ever"

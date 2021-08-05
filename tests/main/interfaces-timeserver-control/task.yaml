@@ -5,8 +5,6 @@ details: |
     can access timeserver information and update it.
 
 prepare: |
-    tests.cleanup prepare
-
     # This test requires busctl but on 14.04 we don't have one.
     # Let's pick the one from the core snap in such case.
     if [ -z "$(command -v busctl 2>/dev/null)" ]; then
@@ -25,10 +23,6 @@ prepare: |
             apt-get remove -y ntp
             tests.cleanup defer apt-get install -y ntp
             ;;
-        ubuntu-19.10-*)
-            apt-get remove -y chrony
-            tests.cleanup defer apt-get install -y chrony
-            ;;
         *)
             case "$(busctl get-property org.freedesktop.timedate1 /org/freedesktop/timedate1 org.freedesktop.timedate1 NTP)" in
                 "b true")
@@ -46,13 +40,8 @@ prepare: |
     esac
 
     # Install a snap declaring a plug on timeserver-control
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-timedate-control-consumer
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-timedate-control-consumer
     tests.cleanup defer snap remove --purge test-snapd-timedate-control-consumer
-
-restore: |
-    tests.cleanup restore
 
 execute: |
     # If we cannot use network time protocol then the test is meaningless.

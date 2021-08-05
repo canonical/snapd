@@ -8,9 +8,7 @@ environment:
 
 prepare: |
     echo "Given a basic snap is installed"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     echo "And another basic snap is installed"
     mkdir -p "$SNAP_INSTALL_DIR"
@@ -23,13 +21,13 @@ restore: |
     rm -rf "$SNAP_INSTALL_DIR" /tmp/foo /tmp/snap.not-test-snapd-sh /tmp/snap.test-snapd-sh/
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
 
     echo "When a temporary file is created by one snap"
-    expect -d -f tmp-create.exp
+    expect -d -f tmp-create.exp "$SNAP_MOUNT_DIR"
 
-    if [ -e "$LIBEXECDIR/snapd/snap-discard-ns" ]; then
+    LIBEXEC_DIR="$(os.paths libexec-dir)"
+    if [ -e "$LIBEXEC_DIR/snapd/snap-discard-ns" ]; then
         echo "Then that file is accessible from other calls of commands from the same snap"
         if ! test-snapd-sh.sh -c 'stat /tmp/foo' 2>same-stat.error; then
             echo "Expected the file to be present"

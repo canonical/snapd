@@ -17,6 +17,8 @@ export DH_GOLANG_EXCLUDES=tests
 export DH_GOLANG_GO_GENERATE=1
 
 export PATH:=${PATH}:${CURDIR}
+# GOCACHE is needed by go-1.13
+export GOCACHE:=/tmp/go-build
 
 include /etc/os-release
 
@@ -147,22 +149,22 @@ override_dh_auto_build:
 
 	# exclude certain parts that won't be used by debian
 	find _build/src/$(DH_GOPKG)/cmd/snap-bootstrap -name "*.go" | xargs rm -f
-	find _build/src/$(DH_GOPKG)/gadget/install -name "*.go" | grep -vE '(install_dummy\.go|options\.go)'| xargs rm -f
+	find _build/src/$(DH_GOPKG)/gadget/install -name "*.go" | grep -vE '(params\.go|install_dummy\.go)'| xargs rm -f
 	# XXX: once dh-golang understands go build tags this would not be needed
-	find _build/src/$(DH_GOPKG)/secboot/ -name "*.go" | grep -Ev '(secboot_dummy\.go|secboot\.go)' | xargs rm -f
+	find _build/src/$(DH_GOPKG)/secboot/ -name "*.go" | grep -Ev '(encrypt\.go|secboot_dummy\.go|secboot\.go|encrypt_dummy\.go)' | xargs rm -f
 	# and build
 	dh_auto_build -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
 
-	(cd _build/bin && GOPATH=$$(pwd)/.. GOCACHE=/tmp/go-build go build $(BUILDFLAGS) $(GCCGOFLAGS) -tags "$(SNAP_TAGS)" $(DH_GOPKG)/cmd/snap)
+	(cd _build/bin && GOPATH=$$(pwd)/.. go build $(BUILDFLAGS) $(GCCGOFLAGS) -tags "$(SNAP_TAGS)" $(DH_GOPKG)/cmd/snap)
 
 	# (static linking on powerpc with cgo is broken)
 ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
 	# Generate static snap-exec, snapctl and snap-update-ns - it somehow includes CGO so
 	# we must force a static build here. We need a static snap-{exec,update-ns}
 	# inside the core snap because not all bases will have a libc
-	(cd _build/bin && GOPATH=$$(pwd)/.. GOCACHE=/tmp/go-build CGO_ENABLED=0 go build $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snap-exec)
-	(cd _build/bin && GOPATH=$$(pwd)/.. GOCACHE=/tmp/go-build CGO_ENABLED=0 go build $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snapctl)
-	(cd _build/bin && GOPATH=$$(pwd)/.. GOCACHE=/tmp/go-build go build --ldflags '-extldflags "-static"' $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snap-update-ns)
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snap-exec)
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snapctl)
+	(cd _build/bin && GOPATH=$$(pwd)/.. go build --ldflags '-extldflags "-static"' $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snap-update-ns)
 
 	# ensure we generated a static build
 	$(shell	if ldd _build/bin/snap-exec; then false "need static build"; fi)
@@ -222,6 +224,11 @@ override_dh_install-indep:
 	rm -f ${CURDIR}/debian/tmp/usr/bin/snappy
 	# chrorder generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
+	# bootloader assets generator
+	rm -f ${CURDIR}/debian/tmp/usr/bin/genasset
+	# docs generator
+	rm -f ${CURDIR}/debian/tmp/usr/bin/docs
+
 	dh_install
 
 override_dh_install-arch:
@@ -240,6 +247,8 @@ override_dh_install-arch:
 	rm -f ${CURDIR}/debian/tmp/usr/bin/chrorder
 	# bootloader assets generator
 	rm -f ${CURDIR}/debian/tmp/usr/bin/genasset
+	# docs generator
+	rm -f ${CURDIR}/debian/tmp/usr/bin/docs
 
 	# Install snapd's systemd units / upstart jobs, done
 	# here instead of debian/snapd.install because the

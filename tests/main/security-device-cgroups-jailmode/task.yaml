@@ -23,9 +23,7 @@ prepare: |
     fi
 
     echo "Given a snap declaring a plug on framebuffer is installed in jailmode"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local_jailmode test-devmode-cgroup
+    "$TESTSTOOLS"/snaps-state install-local test-devmode-cgroup --jailmode
 
 restore: |
     if [ -e /dev/fb0.spread ]; then
@@ -40,7 +38,7 @@ execute: |
     snap connect test-devmode-cgroup:framebuffer
 
     echo "the jailmode snap can access the framebuffer"
-    test-devmode-cgroup.read-dev fb0 2>&1 | not MATCH '(Permission denied|Operation not permitted)'
+    test-devmode-cgroup.read-dev fb0 2>&1 | NOMATCH '(Permission denied|Operation not permitted)'
 
     echo "the jailmode snap cannot access other devices"
     test-devmode-cgroup.read-dev test1 2>&1 | MATCH '(Permission denied|Operation not permitted)'

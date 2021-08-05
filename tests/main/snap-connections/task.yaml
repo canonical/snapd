@@ -4,16 +4,7 @@ prepare: |
     snap pack test-snap.v1
     snap pack test-snap.v2
 
-restore: |
-    rm -f ./*.snap
-    snap remove test-snap || true
-    snap remove network-consumer || true
-    snap remove test-snapd-daemon-notify || true
-
 execute: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     snap connections > all.out 2>&1
     initial_connections="$(wc -l < all.out)"
 
@@ -36,7 +27,7 @@ execute: |
     snap connections test-snapd-content-slot | MATCH "$expected"
 
     # :network is connected by default
-    install_local network-consumer
+    "$TESTSTOOLS"/snaps-state install-local network-consumer
     expected='network +network-consumer:network +:network +-'
     snap connections network-consumer | MATCH "$expected"
     # disconect it manually
@@ -45,7 +36,7 @@ execute: |
     snap connections network-consumer 2>&1 | MATCH "$expected"
 
     # try with an interface which is not connected by default
-    install_local test-snapd-daemon-notify
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-daemon-notify
     expected='daemon-notify +test-snapd-daemon-notify:daemon-notify +- +-'
     snap connections test-snapd-daemon-notify | MATCH "$expected"
 
@@ -61,8 +52,8 @@ execute: |
     # show connected only
     snap connections > connected.out
     MATCH 'content\[mylib\] +test-snapd-content-plug:shared-content-plug +test-snapd-content-slot:shared-content-slot +-' < connected.out
-    not MATCH 'network-consumer' < connected.out
-    not MATCH 'test-snapd-daemon-notify' < connected.out
+    NOMATCH 'network-consumer' < connected.out
+    NOMATCH 'test-snapd-daemon-notify' < connected.out
 
     # show all
     snap connections --all > all.out
@@ -90,7 +81,7 @@ execute: |
 
     # simulate refresh to a new revision that doesn't have log-observe plug
     snap install --dangerous test-snap_2_all.snap
-    snap connections test-snap | not MATCH "log-observe"
+    snap connections test-snap | NOMATCH "log-observe"
 
     echo "But after revert it is reported again"
     snap revert test-snap

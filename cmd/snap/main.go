@@ -31,8 +31,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/jessevdk/go-flags"
-
 	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
@@ -41,6 +41,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
 )
@@ -170,7 +171,7 @@ func lintDesc(cmdName, optName, desc, origDesc string) {
 		r, _ := utf8.DecodeRuneInString(desc)
 		// note IsLower != !IsUpper for runes with no upper/lower.
 		if unicode.IsLower(r) && !strings.HasPrefix(desc, "login.ubuntu.com") && !strings.HasPrefix(desc, cmdName) {
-			noticef("description of %s's %q is lowercase: %q", cmdName, optName, desc)
+			noticef("description of %s's %q is lowercase in locale %q: %q", cmdName, optName, i18n.CurrentLocale(), desc)
 		}
 	}
 }
@@ -350,7 +351,6 @@ func Parser(cli *client.Client) *flags.Parser {
 	})
 	// Add the debug command
 	debugCommand, err := parser.AddCommand("debug", shortDebugHelp, longDebugHelp, &cmdDebug{})
-	debugCommand.Hidden = true
 	if err != nil {
 		logger.Panicf("cannot add command %q: %v", "debug", err)
 	}
@@ -424,6 +424,28 @@ func resolveApp(snapApp string) (string, error) {
 	return snapApp, nil
 }
 
+// exitCodeFromError takes an error and returns specific exit codes
+// for some errors. Otherwise the generic exit code 1 is returned.
+func exitCodeFromError(err error) int {
+	var mksquashfsError squashfs.MksquashfsError
+	var cmdlineFlagsError *flags.Error
+	var unknownCmdError unknownCommandError
+
+	switch {
+	case err == nil:
+		return 0
+	case client.IsRetryable(err):
+		return 10
+	case xerrors.As(err, &mksquashfsError):
+		return 20
+	case xerrors.As(err, &cmdlineFlagsError) || xerrors.As(err, &unknownCmdError):
+		// EX_USAGE, see sysexit.h
+		return 64
+	default:
+		return 1
+	}
+}
+
 func main() {
 	snapdtool.ExecInSnapdOrCoreSnap()
 
@@ -481,10 +503,7 @@ func main() {
 	// no magic /o\
 	if err := run(); err != nil {
 		fmt.Fprintf(Stderr, errorPrefix, err)
-		if client.IsRetryable(err) {
-			os.Exit(10)
-		}
-		os.Exit(1)
+		os.Exit(exitCodeFromError(err))
 	}
 }
 
@@ -509,6 +528,14 @@ var wrongDashes = string([]rune{
 	0x2e3b, // three-em dash
 })
 
+type unknownCommandError struct {
+	msg string
+}
+
+func (e unknownCommandError) Error() string {
+	return e.msg
+}
+
 func run() error {
 	cli := mkClient()
 	parser := Parser(cli)
@@ -532,7 +559,7 @@ func run() error {
 					}
 				}
 				// TRANSLATORS: %q is the command the user entered; %s is 'snap help' or 'snap help <cmd>'
-				return fmt.Errorf(i18n.G("unknown command %q, see '%s'."), sub, sug)
+				return unknownCommandError{fmt.Sprintf(i18n.G("unknown command %q, see '%s'."), sub, sug)}
 			}
 		}
 

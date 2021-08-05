@@ -19,23 +19,23 @@
 package cgroup
 
 import (
-	"time"
-
 	"github.com/godbus/dbus"
 )
 
 var (
-	Cgroup2SuperMagic  = cgroup2SuperMagic
-	ProbeCgroupVersion = probeCgroupVersion
-	ParsePid           = parsePid
-
+	Cgroup2SuperMagic       = cgroup2SuperMagic
+	ProbeCgroupVersion      = probeCgroupVersion
+	ParsePid                = parsePid
 	DoCreateTransientScope  = doCreateTransientScope
 	SessionOrMaybeSystemBus = sessionOrMaybeSystemBus
+
 	ErrDBusUnknownMethod    = errDBusUnknownMethod
 	ErrDBusNameHasNoOwner   = errDBusNameHasNoOwner
 	ErrDBusSpawnChildExited = errDBusSpawnChildExited
 
 	SecurityTagFromCgroupPath = securityTagFromCgroupPath
+
+	ApplyToSnap = applyToSnap
 )
 
 func MockFsTypeForPath(mock func(string) (int64, error)) (restore func()) {
@@ -43,14 +43,6 @@ func MockFsTypeForPath(mock func(string) (int64, error)) (restore func()) {
 	fsTypeForPath = mock
 	return func() {
 		fsTypeForPath = old
-	}
-}
-
-func MockFsRootPath(p string) (restore func()) {
-	old := rootPath
-	rootPath = p
-	return func() {
-		rootPath = old
 	}
 }
 
@@ -100,10 +92,4 @@ func MockDoCreateTransientScope(fn func(conn *dbus.Conn, unitName string, pid in
 	}
 }
 
-func MockTimeSleep(fn func(time.Duration)) (restore func()) {
-	old := timeSleep
-	timeSleep = fn
-	return func() {
-		timeSleep = old
-	}
-}
+func FreezerCgroupV1Dir() string { return freezerCgroupV1Dir }

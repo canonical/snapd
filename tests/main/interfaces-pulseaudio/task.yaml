@@ -2,14 +2,12 @@ summary: Ensure that the pulseaudio interface works
 
 # Only classic Ubuntu has the pulseaudio mediation patches. Ubuntu 14.04 is unsupported on the desktop.
 # TODO: extend tests.session and run this test on 14.04 as well.
-systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-19.10-*, ubuntu-2*]
+systems: [ubuntu-16.04-*, ubuntu-18.04-*, ubuntu-2*]
 
 environment:
     PLAY_FILE: "/snap/test-snapd-pulseaudio/current/usr/share/sounds/alsa/Noise.wav"
 
 prepare: |
-    tests.cleanup prepare
-
     # Install pulseaudio.
     apt-get update
     apt-get install -y pulseaudio pulseaudio-utils
@@ -95,9 +93,6 @@ debug: |
     ps -u test
     echo "Pulseaudio log"
     tests.session -u test exec journalctl --user -u pulseaudio.service || true
-
-restore: |
-    tests.cleanup restore
 
 execute: |
     echo "The unconfined user can play audio"

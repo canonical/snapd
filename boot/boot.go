@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/snap"
 )
@@ -89,6 +90,8 @@ type Device interface {
 	Base() string
 
 	HasModeenv() bool
+
+	Model() *asserts.Model
 }
 
 // Participant figures out what the BootParticipant is for the given
@@ -113,9 +116,12 @@ func Participant(s snap.PlaceInfo, t snap.Type, dev Device) BootParticipant {
 // bootloaderOptionsForDeviceKernel returns a set of bootloader options that
 // enable correct kernel extraction and removal for given device
 func bootloaderOptionsForDeviceKernel(dev Device) *bootloader.Options {
+	if !dev.HasModeenv() {
+		return nil
+	}
+	// find the run-mode bootloader with its kernel support for UC20
 	return &bootloader.Options{
-		// unified extractable kernel if in uc20 mode
-		ExtractedRunKernelImage: dev.HasModeenv(),
+		Role: bootloader.RoleRunMode,
 	}
 }
 
@@ -171,7 +177,7 @@ type bootState interface {
 	// the status of the trying snap.
 	// Note that the error could be only specific to the try snap, in which case
 	// curSnap may still be non-nil and valid. Callers concerned with robustness
-	// should always inspect a non-nil error with IsTrySnapError, and use
+	// should always inspect a non-nil error with isTrySnapError, and use
 	// curSnap instead if the error is only for the trySnap or tryingStatus.
 	revisions() (curSnap, trySnap snap.PlaceInfo, tryingStatus string, err error)
 
@@ -187,6 +193,14 @@ type bootState interface {
 	markSuccessful(bootStateUpdate) (bootStateUpdate, error)
 }
 
+// successfulBootState exposes the state of resources requiring bookkeeping on a
+// successful boot.
+type successfulBootState interface {
+	// markSuccessful lazily implements marking the boot
+	// successful for the given type of resource.
+	markSuccessful(bootStateUpdate) (bootStateUpdate, error)
+}
+
 // bootStateFor finds the right bootState implementation of the given
 // snap type and Device, if applicable.
 func bootStateFor(typ snap.Type, dev Device) (s bootState, err error) {
@@ -199,9 +213,9 @@ func bootStateFor(typ snap.Type, dev Device) (s bootState, err error) {
 	}
 	switch typ {
 	case snap.TypeOS, snap.TypeBase:
-		return newBootState(snap.TypeBase), nil
+		return newBootState(snap.TypeBase, dev), nil
 	case snap.TypeKernel:
-		return newBootState(snap.TypeKernel), nil
+		return newBootState(snap.TypeKernel, dev), nil
 	default:
 		return nil, fmt.Errorf("internal error: no boot state handling for snap type %q", typ)
 	}
@@ -325,6 +339,21 @@ func MarkBootSuccessful(dev Device) error {
 		}
 	}
 
+	if dev.HasModeenv() {
+		for _, bs := range []successfulBootState{
+			trustedAssetsBootState(dev),
+			trustedCommandLineBootState(dev),
+			recoverySystemsBootState(dev),
+			modelBootState(dev),
+		} {
+			var err error
+			u, err = bs.markSuccessful(u)
+			if err != nil {
+				return fmt.Errorf(errPrefix, err)
+			}
+		}
+	}
+
 	if u != nil {
 		if err := u.commit(); err != nil {
 			return fmt.Errorf(errPrefix, err)
@@ -353,7 +382,7 @@ func SetRecoveryBootSystemAndMode(dev Device, systemLabel, mode string) error {
 
 	opts := &bootloader.Options{
 		// setup the recovery bootloader
-		Recovery: true,
+		Role: bootloader.RoleRecovery,
 	}
 	// TODO:UC20: should the recovery partition stay around as RW during run
 	// mode all the time?
@@ -367,4 +396,85 @@ func SetRecoveryBootSystemAndMode(dev Device, systemLabel, mode string) error {
 		"snapd_recovery_mode":   mode,
 	}
 	return bl.SetBootVars(m)
+}
+
+// UpdateManagedBootConfigs updates managed boot config assets if those are
+// present for the ubuntu-boot bootloader. Returns true when an update was
+// carried out.
+func UpdateManagedBootConfigs(dev Device, gadgetSnapOrDir string) (updated bool, err error) {
+	if !dev.HasModeenv() {
+		// only UC20 devices use managed boot config
+		return false, nil
+	}
+	if !dev.RunMode() {
+		return false, fmt.Errorf("internal error: boot config can only be updated in run mode")
+	}
+	return updateManagedBootConfigForBootloader(dev, ModeRun, gadgetSnapOrDir)
+}
+
+func updateManagedBootConfigForBootloader(dev Device, mode, gadgetSnapOrDir string) (updated bool, err error) {
+	if mode != ModeRun {
+		return false, fmt.Errorf("internal error: updating boot config of recovery bootloader is not supported yet")
+	}
+
+	opts := &bootloader.Options{
+		Role:        bootloader.RoleRunMode,
+		NoSlashBoot: true,
+	}
+	tbl, err := getBootloaderManagingItsAssets(InitramfsUbuntuBootDir, opts)
+	if err != nil {
+		if err == errBootConfigNotManaged {
+			// we're not managing this bootloader's boot config
+			return false, nil
+		}
+		return false, err
+	}
+	// boot config update can lead to a change of kernel command line
+	_, err = observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonSnapd, gadgetSnapOrDir)
+	if err != nil {
+		return false, err
+	}
+	return tbl.UpdateBootConfig()
+}
+
+// UpdateCommandLineForGadgetComponent handles the update of a gadget that
+// contributes to the kernel command line of the run system. Returns true when a
+// change in command line has been observed and a reboot is needed. The reboot,
+// if needed, should be requested at the the earliest possible occasion.
+func UpdateCommandLineForGadgetComponent(dev Device, gadgetSnapOrDir string) (needsReboot bool, err error) {
+	if !dev.HasModeenv() {
+		// only UC20 devices are supported
+		return false, fmt.Errorf("internal error: command line component cannot be updated on non UC20 devices")
+	}
+	opts := &bootloader.Options{
+		Role: bootloader.RoleRunMode,
+	}
+	// TODO: add support for bootloaders that that do not have any managed
+	// assets
+	tbl, err := getBootloaderManagingItsAssets("", opts)
+	if err != nil {
+		if err == errBootConfigNotManaged {
+			// we're not managing this bootloader's boot config
+			return false, nil
+		}
+		return false, err
+	}
+	// gadget update can lead to a change of kernel command line
+	cmdlineChange, err := observeCommandLineUpdate(dev.Model(), commandLineUpdateReasonGadget, gadgetSnapOrDir)
+	if err != nil {
+		return false, err
+	}
+	if !cmdlineChange {
+		return false, nil
+	}
+	// update the bootloader environment, maybe clearing the relevant
+	// variables
+	cmdlineVars, err := bootVarsForTrustedCommandLineFromGadget(gadgetSnapOrDir)
+	if err != nil {
+		return false, fmt.Errorf("cannot prepare bootloader variables for kernel command line: %v", err)
+	}
+	if err := tbl.SetBootVars(cmdlineVars); err != nil {
+		return false, fmt.Errorf("cannot set run system kernel command line arguments: %v", err)
+	}
+	return cmdlineChange, nil
 }

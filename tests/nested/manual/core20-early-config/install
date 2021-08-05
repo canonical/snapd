@@ -8,3 +8,6 @@ echo "rsyslog symlink: $RSYSLOG" > "$SNAP_COMMON"/debug.txt || true
 
 BACKLIGHT=$(readlink /etc/systemd/system/systemd-backlight@.service)
 echo "backlight symlink: $BACKLIGHT" >> "$SNAP_COMMON"/debug.txt || true
+
+LOCALTIME=$(readlink /etc/writable/localtime)
+echo "localtime symlink: $LOCALTIME"  >> "$SNAP_COMMON"/debug.txt  2>&1 || true

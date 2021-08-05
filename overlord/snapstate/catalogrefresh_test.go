@@ -34,7 +34,9 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
 	"github.com/snapcore/snapd/testutil"
@@ -77,6 +79,8 @@ type catalogRefreshTestSuite struct {
 
 	store  *catalogStore
 	tmpdir string
+
+	testutil.BaseTest
 }
 
 var _ = Suite(&catalogRefreshTestSuite{})
@@ -92,11 +96,11 @@ func (s *catalogRefreshTestSuite) SetUpTest(c *C) {
 	// mark system as seeded
 	s.state.Set("seeded", true)
 
-	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
-}
+	// setup a simple deviceCtx since we check that for install mode
+	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 
-func (s *catalogRefreshTestSuite) TearDownTest(c *C) {
-	snapstate.CanAutoRefresh = nil
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+	s.AddCleanup(func() { snapstate.CanAutoRefresh = nil })
 }
 
 func (s *catalogRefreshTestSuite) TestCatalogRefresh(c *C) {
@@ -221,4 +225,73 @@ func (s *catalogRefreshTestSuite) TestCatalogRefreshUnSeeded(c *C) {
 	c.Check(osutil.FileExists(dirs.SnapSectionsFile), Equals, false)
 	c.Check(osutil.FileExists(dirs.SnapNamesFile), Equals, false)
 	c.Check(osutil.FileExists(dirs.SnapCommandsDB), Equals, false)
+}
+
+func (s *catalogRefreshTestSuite) TestCatalogRefreshUC20InstallMode(c *C) {
+	// mark system as being in install mode
+	trivialInstallDevice := &snapstatetest.TrivialDeviceContext{
+		DeviceModel: DefaultModel(),
+		SysMode:     "install",
+	}
+
+	r := snapstatetest.MockDeviceContext(trivialInstallDevice)
+	defer r()
+
+	cr7 := snapstate.NewCatalogRefresh(s.state)
+	// next is initially zero
+	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
+
+	err := cr7.Ensure()
+	c.Assert(err, IsNil)
+
+	// next should be still zero as we skipped refresh on unseeded system
+	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
+	// nothing got created
+	c.Check(osutil.FileExists(dirs.SnapSectionsFile), Equals, false)
+	c.Check(osutil.FileExists(dirs.SnapNamesFile), Equals, false)
+	c.Check(osutil.FileExists(dirs.SnapCommandsDB), Equals, false)
+}
+
+func (s *catalogRefreshTestSuite) TestCatalogRefreshSkipWhenTesting(c *C) {
+	restore := snapdenv.MockTesting(true)
+	defer restore()
+	// catalog refresh disabled
+	os.Setenv("SNAPD_CATALOG_REFRESH", "0")
+	defer os.Unsetenv("SNAPD_CATALOG_REFRESH")
+
+	// start with no catalog
+	c.Check(dirs.SnapSectionsFile, testutil.FileAbsent)
+	c.Check(dirs.SnapNamesFile, testutil.FileAbsent)
+	c.Check(dirs.SnapCommandsDB, testutil.FileAbsent)
+
+	cr7 := snapstate.NewCatalogRefresh(s.state)
+	// next is initially zero
+	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
+
+	err := cr7.Ensure()
+	c.Check(err, IsNil)
+
+	c.Check(s.store.ops, HasLen, 0)
+
+	c.Check(dirs.SnapSectionsFile, testutil.FileAbsent)
+	c.Check(dirs.SnapNamesFile, testutil.FileAbsent)
+	c.Check(dirs.SnapCommandsDB, testutil.FileAbsent)
+
+	// allow the refresh now
+	os.Setenv("SNAPD_CATALOG_REFRESH", "1")
+
+	// and reset the next refresh time
+	snapstate.MockCatalogRefreshNextRefresh(cr7, time.Time{})
+	// sanity
+	c.Check(snapstate.NextCatalogRefresh(cr7).IsZero(), Equals, true)
+
+	err = cr7.Ensure()
+	c.Check(err, IsNil)
+
+	// refresh happened
+	c.Check(s.store.ops, DeepEquals, []string{"sections", "write-catalog"})
+
+	c.Check(dirs.SnapSectionsFile, testutil.FilePresent)
+	c.Check(dirs.SnapNamesFile, testutil.FilePresent)
+	c.Check(dirs.SnapCommandsDB, testutil.FilePresent)
 }

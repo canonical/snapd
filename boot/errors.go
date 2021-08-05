@@ -19,7 +19,10 @@
 
 package boot
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // trySnapError is an error that only applies to the try snaps where multiple
 // snaps are returned, this is mainly and primarily used in revisions().
@@ -42,3 +45,5 @@ func isTrySnapError(err error) bool {
 	}
 	return false
 }
+
+var errTrySnapFallback = errors.New("fallback to original snap")

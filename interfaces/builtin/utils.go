@@ -26,6 +26,7 @@ import (
 	"regexp"
 	"sort"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
@@ -124,4 +125,59 @@ func verifySlotPathAttribute(slotRef *interfaces.SlotRef, attrs interfaces.Attre
 		return "", fmt.Errorf(invalidErrFmt, slotRef)
 	}
 	return cleanPath, nil
+}
+
+// aareExclusivePatterns takes a string and generates deny alternations. Eg,
+// aareExclusivePatterns("foo") returns:
+// []string{
+//   "[^f]*",
+//   "f[^o]*",
+//   "fo[^o]*",
+// }
+func aareExclusivePatterns(orig string) []string {
+	// This function currently is only intended to be used with desktop
+	// prefixes as calculated by info.DesktopPrefix (the snap name and
+	// instance name, if present). To avoid having to worry about aare
+	// special characters, etc, perform ValidateDesktopPrefix() and return
+	// an empty list if invalid. If this function is modified for other
+	// input, aare/quoting/etc will have to be considered.
+	if !snap.ValidateDesktopPrefix(orig) {
+		return nil
+	}
+
+	s := make([]string, len(orig))
+
+	prefix := ""
+	for i, letter := range orig {
+		prefix = orig[:i]
+		s[i] = fmt.Sprintf("%s[^%c]*", prefix, letter)
+	}
+	return s
+}
+
+// getDesktopFileRules(<snap instance name>) generates snippet rules for
+// allowing access to the specified snap's desktop files in
+// dirs.SnapDesktopFilesDir, but explicitly denies access to all other snaps'
+// desktop files since xdg libraries may try to read all the desktop files
+// in the dir, causing excessive noise. (LP: #1868051)
+func getDesktopFileRules(snapInstanceName string) []string {
+	baseDir := dirs.SnapDesktopFilesDir
+
+	rules := []string{
+		"# Support applications which use the unity messaging menu, xdg-mime, etc",
+		"# This leaks the names of snaps with desktop files",
+		fmt.Sprintf("%s/ r,", baseDir),
+		"# Allowing reading only our desktop files (required by (at least) the unity",
+		"# messaging menu).",
+		"# parallel-installs: this leaks read access to desktop files owned by keyed",
+		"# instances of @{SNAP_NAME} to @{SNAP_NAME} snap",
+		fmt.Sprintf("%s/@{SNAP_INSTANCE_DESKTOP}_*.desktop r,", baseDir),
+		"# Explicitly deny access to other snap's desktop files",
+		fmt.Sprintf("deny %s/@{SNAP_INSTANCE_DESKTOP}[^_.]*.desktop r,", baseDir),
+	}
+	for _, t := range aareExclusivePatterns(snapInstanceName) {
+		rules = append(rules, fmt.Sprintf("deny %s/%s r,", baseDir, t))
+	}
+
+	return rules
 }

@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 )
@@ -88,6 +89,18 @@ func (s *emulation) RestartAll(service string) error {
 
 func (s *emulation) Status(units ...string) ([]*UnitStatus, error) {
 	return nil, errNotImplemented
+}
+
+func (s *emulation) InactiveEnterTimestamp(unit string) (time.Time, error) {
+	return time.Time{}, errNotImplemented
+}
+
+func (s *emulation) CurrentMemoryUsage(unit string) (quantity.Size, error) {
+	return 0, errNotImplemented
+}
+
+func (s *emulation) CurrentTasksCount(unit string) (uint64, error) {
+	return 0, errNotImplemented
 }
 
 func (s *emulation) IsEnabled(service string) (bool, error) {
@@ -175,4 +188,12 @@ func (s *emulation) Mask(service string) error {
 func (s *emulation) Unmask(service string) error {
 	_, err := systemctlCmd("--root", s.rootDir, "unmask", service)
 	return err
+}
+
+func (s *emulation) Mount(what, where string, options ...string) error {
+	return errNotImplemented
+}
+
+func (s *emulation) Umount(whatOrWhere string) error {
+	return errNotImplemented
 }

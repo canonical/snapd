@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/httputil"
+	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
@@ -80,8 +81,24 @@ func MockTimeNow(f func() time.Time) (restore func()) {
 	}
 }
 
-func KeypairManager(m *DeviceManager) asserts.KeypairManager {
-	return m.keypairMgr
+func KeypairManager(m *DeviceManager) (keypairMgr asserts.KeypairManager) {
+	// XXX expose the with... method at some point
+	err := m.withKeypairMgr(func(km asserts.KeypairManager) error {
+		keypairMgr = km
+		return nil
+	})
+	if err != nil {
+		panic(err)
+	}
+	return keypairMgr
+}
+
+func SaveAvailable(m *DeviceManager) bool {
+	return m.saveAvailable
+}
+
+func SetSaveAvailable(m *DeviceManager, avail bool) {
+	m.saveAvailable = avail
 }
 
 func EnsureOperationalShouldBackoff(m *DeviceManager, now time.Time) bool {
@@ -97,11 +114,15 @@ func SetLastBecomeOperationalAttempt(m *DeviceManager, t time.Time) {
 }
 
 func SetSystemMode(m *DeviceManager, mode string) {
-	m.systemMode = mode
+	m.sysMode = mode
 }
 
 func SetTimeOnce(m *DeviceManager, name string, t time.Time) error {
 	return m.setTimeOnce(name, t)
+}
+
+func PreloadGadget(m *DeviceManager) (sysconfig.Device, *gadget.Info, error) {
+	return m.preloadGadget()
 }
 
 func MockRepeatRequestSerial(label string) (restore func()) {
@@ -156,6 +177,14 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
 }
 
+func SetInstalledRan(m *DeviceManager, b bool) {
+	m.ensureInstalledRan = b
+}
+
+func SetTriedSystemsRan(m *DeviceManager, b bool) {
+	m.ensureTriedRecoverySystemRan = b
+}
+
 func StartTime() time.Time {
 	return startTime
 }
@@ -176,7 +205,17 @@ func RemodelDeviceBackend(remodCtx remodelContext) storecontext.DeviceBackend {
 	}).deviceBackend()
 }
 
+func RemodelSetRecoverySystemLabel(remodCtx remodelContext, label string) {
+	remodCtx.setRecoverySystemLabel(label)
+}
+
+func RecordSeededSystem(m *DeviceManager, st *state.State, sys *seededSystem) error {
+	return m.recordSeededSystem(st, sys)
+}
+
 var (
+	LoadDeviceSeed               = loadDeviceSeed
+	UnloadDeviceSeed             = unloadDeviceSeed
 	ImportAssertionsFromSeed     = importAssertionsFromSeed
 	CheckGadgetOrKernel          = checkGadgetOrKernel
 	CheckGadgetValid             = checkGadgetValid
@@ -198,9 +237,14 @@ var (
 	PendingGadgetInfo   = pendingGadgetInfo
 
 	CriticalTaskEdges = criticalTaskEdges
+
+	CreateSystemForModelFromValidatedSnaps = createSystemForModelFromValidatedSnaps
+	LogNewSystemSnapFile                   = logNewSystemSnapFile
+	PurgeNewSystemSnapFiles                = purgeNewSystemSnapFiles
+	CreateRecoverySystemTasks              = createRecoverySystemTasks
 )
 
-func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc) error) (restore func()) {
+func MockGadgetUpdate(mock func(current, update gadget.GadgetData, path string, policy gadget.UpdatePolicyFunc, observer gadget.ContentUpdateObserver) error) (restore func()) {
 	old := gadgetUpdate
 	gadgetUpdate = mock
 	return func() {
@@ -216,19 +260,27 @@ func MockGadgetIsCompatible(mock func(current, update *gadget.Info) error) (rest
 	}
 }
 
-func MockBootMakeBootable(f func(model *asserts.Model, rootdir string, bootWith *boot.BootableSet) error) (restore func()) {
-	old := bootMakeBootable
-	bootMakeBootable = f
+func MockBootMakeSystemRunnable(f func(model *asserts.Model, bootWith *boot.BootableSet, seal *boot.TrustedAssetsInstallObserver) error) (restore func()) {
+	old := bootMakeRunnable
+	bootMakeRunnable = f
 	return func() {
-		bootMakeBootable = old
+		bootMakeRunnable = old
 	}
 }
 
-func MockSecbootCheckKeySealingSupported(f func() error) (restore func()) {
-	old := secbootCheckKeySealingSupported
-	secbootCheckKeySealingSupported = f
+func MockBootEnsureNextBootToRunMode(f func(systemLabel string) error) (restore func()) {
+	old := bootEnsureNextBootToRunMode
+	bootEnsureNextBootToRunMode = f
 	return func() {
-		secbootCheckKeySealingSupported = old
+		bootEnsureNextBootToRunMode = old
+	}
+}
+
+func MockSecbootCheckTPMKeySealingSupported(f func() error) (restore func()) {
+	old := secbootCheckTPMKeySealingSupported
+	secbootCheckTPMKeySealingSupported = f
+	return func() {
+		secbootCheckTPMKeySealingSupported = old
 	}
 }
 
@@ -240,15 +292,15 @@ func MockHttputilNewHTTPClient(f func(opts *httputil.ClientOptions) *http.Client
 	}
 }
 
-func MockSysconfigConfigureRunSystem(f func(opts *sysconfig.Options) error) (restore func()) {
-	old := sysconfigConfigureRunSystem
-	sysconfigConfigureRunSystem = f
+func MockSysconfigConfigureTargetSystem(f func(mod *asserts.Model, opts *sysconfig.Options) error) (restore func()) {
+	old := sysconfigConfigureTargetSystem
+	sysconfigConfigureTargetSystem = f
 	return func() {
-		sysconfigConfigureRunSystem = old
+		sysconfigConfigureTargetSystem = old
 	}
 }
 
-func MockInstallRun(f func(gadgetRoot, device string, options install.Options) error) (restore func()) {
+func MockInstallRun(f func(model gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*install.InstalledSystemSideData, error)) (restore func()) {
 	old := installRun
 	installRun = f
 	return func() {
@@ -270,4 +322,20 @@ func MockRestrictCloudInit(f func(sysconfig.CloudInitState, *sysconfig.CloudInit
 	return func() {
 		restrictCloudInit = old
 	}
+}
+
+func DeviceManagerHasFDESetupHook(mgr *DeviceManager) (bool, error) {
+	return mgr.hasFDESetupHook()
+}
+
+func DeviceManagerRunFDESetupHook(mgr *DeviceManager, req *fde.SetupRequest) ([]byte, error) {
+	return mgr.runFDESetupHook(req)
+}
+
+func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx snapstate.DeviceContext) (bool, error) {
+	return mgr.checkEncryption(st, deviceCtx)
+}
+
+func DeviceManagerCheckFDEFeatures(mgr *DeviceManager, st *state.State) error {
+	return mgr.checkFDEFeatures(st)
 }

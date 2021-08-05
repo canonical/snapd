@@ -24,12 +24,12 @@ import (
 	"path/filepath"
 	"time"
 
+	. "gopkg.in/check.v1"
+
 	main "github.com/snapcore/snapd/cmd/snap-bootstrap"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
-
-	. "gopkg.in/check.v1"
 )
 
 type doSystemdMountSuite struct {
@@ -130,6 +130,37 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			expErr:  "cannot mount \"what\" at \"where\": impossible to fsck a tmpfs",
 			comment: "invalid tmpfs + fsck",
 		},
+		{
+			what:  "tmpfs",
+			where: "/run/mnt/data",
+			opts: &main.SystemdMountOptions{
+				NoSuid: true,
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{true},
+			comment:          "happy nosuid",
+		},
+		{
+			what:  "tmpfs",
+			where: "/run/mnt/data",
+			opts: &main.SystemdMountOptions{
+				Bind: true,
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{true},
+			comment:          "happy bind",
+		},
+		{
+			what:  "tmpfs",
+			where: "/run/mnt/data",
+			opts: &main.SystemdMountOptions{
+				NoSuid: true,
+				Bind: true,
+			},
+			timeNowTimes:     []time.Time{testStart, testStart},
+			isMountedReturns: []bool{true},
+			comment:          "happy nosuid+bind",
+		},
 	}
 
 	for _, t := range tt {
@@ -193,15 +224,25 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			args := []string{
 				"systemd-mount", t.what, t.where, "--no-pager", "--no-ask-password",
 			}
-			if opts.NoWait {
-				args = append(args, "--no-block")
-			}
 			if opts.Tmpfs {
 				args = append(args, "--type=tmpfs")
 			}
 			if opts.NeedsFsck {
 				args = append(args, "--fsck=yes")
+			} else {
+				args = append(args, "--fsck=no")
 			}
+			if opts.NoWait {
+				args = append(args, "--no-block")
+			}
+			if opts.Bind && opts.NoSuid {
+				args = append(args, "--options=nosuid,bind")
+			} else if opts.NoSuid {
+				args = append(args, "--options=nosuid")
+			} else if opts.Bind {
+				args = append(args, "--options=bind")
+			}
+
 			c.Assert(cmd.Calls(), DeepEquals, [][]string{args})
 
 			// check that the overrides are present if opts.Ephemeral is false,

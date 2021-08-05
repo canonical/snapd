@@ -20,39 +20,15 @@
 package gadget
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strconv"
 	"strings"
 
-	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/strutil"
 )
-
-const (
-	ubuntuBootLabel = "ubuntu-boot"
-	ubuntuSeedLabel = "ubuntu-seed"
-	ubuntuDataLabel = "ubuntu-data"
-
-	sectorSize Size = 512
-
-	createdPartitionAttr = "59"
-)
-
-var createdPartitionGUID = []string{
-	"0FC63DAF-8483-4772-8E79-3D69D8477DE4", // Linux filesystem data
-	"0657FD6D-A4AB-43C4-84E5-0933C84B4F4F", // Linux swap partition
-}
-
-// creationSupported returns whether we support and expect to create partitions
-// of the given type, it also means we are ready to remove them for re-installation
-// or retried installation if they are appropriately marked with createdPartitionAttr.
-func creationSupported(ptype string) bool {
-	return strutil.ListContains(createdPartitionGUID, strings.ToUpper(ptype))
-}
 
 // sfdiskDeviceDump represents the sfdisk --dump JSON output format.
 type sfdiskDeviceDump struct {
@@ -83,38 +59,6 @@ type sfdiskPartition struct {
 	Name  string `json:"name"`
 }
 
-func isCreatedDuringInstall(p *sfdiskPartition, fs *lsblkBlockDevice, sfdiskLabel string) bool {
-	switch sfdiskLabel {
-	case "gpt":
-		// the created partitions use specific GPT GUID types and set a
-		// specific bit in partition attributes
-		if !creationSupported(p.Type) {
-			return false
-		}
-		for _, a := range strings.Fields(p.Attrs) {
-			if !strings.HasPrefix(a, "GUID:") {
-				continue
-			}
-			attrs := strings.Split(a[5:], ",")
-			if strutil.ListContains(attrs, createdPartitionAttr) {
-				return true
-			}
-		}
-	case "dos":
-		// we have no similar type/bit attribute setting for MBR, on top
-		// of that MBR does not support partition names, fall back to
-		// reasonable assumption that only partitions carrying
-		// ubuntu-boot and ubuntu-data labels are created during
-		// install, everything else was part of factory image
-
-		// TODO:UC20 consider using gadget layout information to build a
-		// mapping of partition start offset to label/name
-		createdDuringInstall := []string{ubuntuBootLabel, ubuntuDataLabel}
-		return strutil.ListContains(createdDuringInstall, fs.Label)
-	}
-	return false
-}
-
 // TODO: consider looking into merging LaidOutVolume/Structure OnDiskVolume/Structure
 
 // OnDiskStructure represents a gadget structure laid on a block device.
@@ -123,9 +67,11 @@ type OnDiskStructure struct {
 
 	// Node identifies the device node of the block device.
 	Node string
-	// CreatedDuringInstall is true when the structure has properties indicating
-	// it was created based on the gadget description during installation.
-	CreatedDuringInstall bool
+
+	// Size of the on disk structure, which is at least equal to the
+	// LaidOutStructure.Size but may be bigger if the partition was
+	// expanded.
+	Size quantity.Size
 }
 
 // OnDiskVolume holds information about the disk device including its partitioning
@@ -136,16 +82,15 @@ type OnDiskVolume struct {
 	Device    string
 	Schema    string
 	// size in bytes
-	Size Size
+	Size quantity.Size
 	// sector size in bytes
-	SectorSize     Size
-	partitionTable *sfdiskPartitionTable
+	SectorSize quantity.Size
 }
 
 // OnDiskVolumeFromDevice obtains the partitioning and filesystem information from
 // the block device.
 func OnDiskVolumeFromDevice(device string) (*OnDiskVolume, error) {
-	output, err := exec.Command("sfdisk", "--json", "-d", device).Output()
+	output, err := exec.Command("sfdisk", "--json", device).Output()
 	if err != nil {
 		return nil, osutil.OutputErr(output, err)
 	}
@@ -181,19 +126,44 @@ func fromSfdiskPartitionType(st string, sfdiskLabel string) (string, error) {
 	}
 }
 
-func blockDeviceSizeInSectors(devpath string) (Size, error) {
-	// the size is reported in 512-byte sectors
-	// XXX: consider using /sys/block/<dev>/size directly
-	out, err := exec.Command("blockdev", "--getsz", devpath).CombinedOutput()
+func blockdevSizeCmd(cmd, devpath string) (quantity.Size, error) {
+	out, err := exec.Command("blockdev", cmd, devpath).CombinedOutput()
 	if err != nil {
 		return 0, osutil.OutputErr(out, err)
 	}
 	nospace := strings.TrimSpace(string(out))
 	sz, err := strconv.Atoi(nospace)
 	if err != nil {
-		return 0, fmt.Errorf("cannot parse device size %q: %v", nospace, err)
+		return 0, fmt.Errorf("cannot parse blockdev %s result size %q: %v", cmd, nospace, err)
 	}
-	return Size(sz), nil
+	return quantity.Size(sz), nil
+}
+
+func blockDeviceSizeInSectors(devpath string) (quantity.Size, error) {
+	// the size is always reported in 512-byte sectors, even if the device does
+	// not have a physical sector size of 512
+	// XXX: consider using /sys/block/<dev>/size directly
+	return blockdevSizeCmd("--getsz", devpath)
+}
+
+func blockDeviceSectorSize(devpath string) (quantity.Size, error) {
+	// the size is reported in raw bytes
+	sz, err := blockdevSizeCmd("--getss", devpath)
+	if err != nil {
+		return 0, err
+	}
+
+	// ensure that the sector size is a multiple of 512, since we rely on that
+	// when we calculate the size in sectors, as blockdev --getsz always returns
+	// the size in 512-byte sectors
+	if sz%512 != 0 {
+		return 0, fmt.Errorf("cannot calculate structure size: sector size (%s) is not a multiple of 512", sz.String())
+	}
+	if sz == 0 {
+		// extra paranoia
+		return 0, fmt.Errorf("internal error: sector size returned as 0")
+	}
+	return sz, nil
 }
 
 // onDiskVolumeFromPartitionTable takes an sfdisk dump partition table and returns
@@ -205,6 +175,11 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 
 	structure := make([]VolumeStructure, len(ptable.Partitions))
 	ds := make([]OnDiskStructure, len(ptable.Partitions))
+
+	sectorSize, err := blockDeviceSectorSize(ptable.Device)
+	if err != nil {
+		return nil, err
+	}
 
 	for i, p := range ptable.Partitions {
 		info, err := filesystemInfo(p.Node)
@@ -226,7 +201,7 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 
 		structure[i] = VolumeStructure{
 			Name:       p.Name,
-			Size:       Size(p.Size) * sectorSize,
+			Size:       quantity.Size(p.Size) * sectorSize,
 			Label:      bd.Label,
 			Type:       vsType,
 			Filesystem: bd.FSType,
@@ -235,18 +210,17 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 		ds[i] = OnDiskStructure{
 			LaidOutStructure: LaidOutStructure{
 				VolumeStructure: &structure[i],
-				StartOffset:     Size(p.Start) * sectorSize,
+				StartOffset:     quantity.Offset(p.Start) * quantity.Offset(sectorSize),
 				Index:           i + 1,
 			},
-			Node:                 p.Node,
-			CreatedDuringInstall: isCreatedDuringInstall(&p, &bd, ptable.Label),
+			Node: p.Node,
 		}
 	}
 
-	var numSectors Size
+	var numSectors quantity.Size
 	if ptable.LastLBA != 0 {
 		// sfdisk reports the last usable LBA for GPT disks only
-		numSectors = Size(ptable.LastLBA + 1)
+		numSectors = quantity.Size(ptable.LastLBA + 1)
 	} else {
 		// sfdisk does not report any information about the size of a
 		// MBR partitioned disk, find out the size of the device by
@@ -255,116 +229,32 @@ func onDiskVolumeFromPartitionTable(ptable sfdiskPartitionTable) (*OnDiskVolume,
 		if err != nil {
 			return nil, fmt.Errorf("cannot obtain the size of device %q: %v", ptable.Device, err)
 		}
-		numSectors = sz
+
+		// since blockdev always reports the size in 512-byte sectors, if for
+		// some reason we are on a disk that does not 512-byte sectors, we will
+		// get confused, so in this case, multiply the number of 512-byte
+		// sectors by 512, then divide by the actual sector size to get the
+		// number of sectors
+
+		// this will never have a divisor, since we verified that sector size is
+		// a multiple of 512 above
+		numSectors = sz * 512 / sectorSize
 	}
 
 	dl := &OnDiskVolume{
-		Structure:      ds,
-		ID:             ptable.ID,
-		Device:         ptable.Device,
-		Schema:         ptable.Label,
-		Size:           numSectors * sectorSize,
-		SectorSize:     sectorSize,
-		partitionTable: &ptable,
+		Structure:  ds,
+		ID:         ptable.ID,
+		Device:     ptable.Device,
+		Schema:     ptable.Label,
+		Size:       numSectors * sectorSize,
+		SectorSize: sectorSize,
 	}
 
 	return dl, nil
 }
 
-func deviceName(name string, index int) string {
-	if len(name) > 0 {
-		last := name[len(name)-1]
-		if last >= '0' && last <= '9' {
-			return fmt.Sprintf("%sp%d", name, index)
-		}
-	}
-	return fmt.Sprintf("%s%d", name, index)
-}
-
-// BuildPartitionList builds a list of partitions based on the current
-// device contents and gadget structure list, in sfdisk dump format, and
-// returns a partitioning description suitable for sfdisk input and a
-// list of the partitions to be created.
-func BuildPartitionList(dl *OnDiskVolume, pv *LaidOutVolume) (sfdiskInput *bytes.Buffer, toBeCreated []OnDiskStructure) {
-	ptable := dl.partitionTable
-
-	// Keep track what partitions we already have on disk
-	seen := map[uint64]bool{}
-	for _, p := range ptable.Partitions {
-		seen[p.Start] = true
-	}
-
-	// Check if the last partition has a system-data role
-	canExpandData := false
-	if n := len(pv.LaidOutStructure); n > 0 {
-		last := pv.LaidOutStructure[n-1]
-		if last.VolumeStructure.Role == SystemData {
-			canExpandData = true
-		}
-	}
-
-	// The partition index
-	pIndex := 0
-
-	// Write new partition data in named-fields format
-	buf := &bytes.Buffer{}
-	for _, p := range pv.LaidOutStructure {
-		if !p.IsPartition() {
-			continue
-		}
-
-		pIndex++
-		s := p.VolumeStructure
-
-		// Skip partitions that are already in the volume
-		start := p.StartOffset / sectorSize
-		if seen[uint64(start)] {
-			continue
-		}
-
-		// Only allow the creation of partitions with known GUIDs
-		// TODO:UC20: also provide a mechanism for MBR (RPi)
-		ptype := partitionType(ptable.Label, p.Type)
-		if ptable.Label == "gpt" && !creationSupported(ptype) {
-			logger.Noticef("cannot create partition with unsupported type %s", ptype)
-			continue
-		}
-
-		// Check if the data partition should be expanded
-		size := s.Size
-		if s.Role == SystemData && canExpandData && p.StartOffset+s.Size < dl.Size {
-			size = dl.Size - p.StartOffset
-		}
-
-		// Can we use the index here? Get the largest existing partition number and
-		// build from there could be safer if the disk partitions are not consecutive
-		// (can this actually happen in our images?)
-		node := deviceName(ptable.Device, pIndex)
-		fmt.Fprintf(buf, "%s : start=%12d, size=%12d, type=%s, name=%q, attrs=\"GUID:%s\"\n", node,
-			p.StartOffset/sectorSize, size/sectorSize, ptype, s.Name, createdPartitionAttr)
-
-		// Set expected labels based on role
-		switch s.Role {
-		case SystemBoot:
-			s.Label = ubuntuBootLabel
-		case SystemSeed:
-			s.Label = ubuntuSeedLabel
-		case SystemData:
-			s.Label = ubuntuDataLabel
-		}
-
-		toBeCreated = append(toBeCreated, OnDiskStructure{
-			LaidOutStructure:     p,
-			Node:                 node,
-			CreatedDuringInstall: true,
-		})
-	}
-
-	return buf, toBeCreated
-}
-
 // UpdatePartitionList re-reads the partitioning data from the device and
-// updates the partition list in the specified volume.
+// updates the volume structures in the specified volume.
 func UpdatePartitionList(dl *OnDiskVolume) error {
 	layout, err := OnDiskVolumeFromDevice(dl.Device)
 	if err != nil {
@@ -375,35 +265,7 @@ func UpdatePartitionList(dl *OnDiskVolume) error {
 	}
 
 	dl.Structure = layout.Structure
-	dl.partitionTable = layout.partitionTable
-
 	return nil
-}
-
-// CreatedDuringInstall returns a list of partitions created during the
-// install process.
-func CreatedDuringInstall(layout *OnDiskVolume) (created []string) {
-	created = make([]string, 0, len(layout.Structure))
-	for _, s := range layout.Structure {
-		if s.CreatedDuringInstall {
-			created = append(created, s.Node)
-		}
-	}
-	return created
-}
-
-func partitionType(label, ptype string) string {
-	t := strings.Split(ptype, ",")
-	if len(t) < 1 {
-		return ""
-	}
-	if len(t) == 1 {
-		return t[0]
-	}
-	if label == "gpt" {
-		return t[1]
-	}
-	return t[0]
 }
 
 // lsblkFilesystemInfo represents the lsblk --fs JSON output format.

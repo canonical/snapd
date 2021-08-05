@@ -1,10 +1,9 @@
 summary: Ensure that classic confinement works
 
+systems: [ubuntu-core-*, fedora-*]
+
 environment:
     CLASSIC_SNAP: test-snapd-classic-confinement
-
-# TODO: enable for other systems too?
-systems: [ubuntu-core-1*, fedora-*]
 
 prepare: |
     #shellcheck source=tests/lib/snaps.sh
@@ -25,13 +24,13 @@ execute: |
 
     echo "Check that the classic snap is not installable even with --classic"
     EXPECTED_TEXT="snap \"$CLASSIC_SNAP\" requires classic confinement which is only available on classic systems"
-    if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
+    if os.query is-fedora; then
         EXPECTED_TEXT="classic confinement requires snaps under /snap or symlink from /snap to /var/lib/snapd/snap"
     fi
     "$TESTSTOOLS"/to-one-line "$( snap install --dangerous --classic "${CLASSIC_SNAP}_1.0_all.snap" 2>&1 )" | MATCH "$EXPECTED_TEXT"
 
     echo "Not from the store either"
-    if [[ "$SPREAD_SYSTEM" = fedora-* ]]; then
+    if os.query is-fedora; then
         EXPECTED_TEXT="cannot install \"$CLASSIC_SNAP\": classic confinement requires snaps under /snap or symlink from /snap to /var/lib/snapd/snap"
     fi
     "$TESTSTOOLS"/to-one-line "$( snap install --classic "$CLASSIC_SNAP" 2>&1 )" | MATCH "$EXPECTED_TEXT"

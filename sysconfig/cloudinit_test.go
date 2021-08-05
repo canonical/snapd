@@ -53,6 +53,40 @@ func (s *sysconfigSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 }
 
+func (s *sysconfigSuite) makeCloudCfgSrcDirFiles(c *C) string {
+	cloudCfgSrcDir := c.MkDir()
+	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
+		err := ioutil.WriteFile(filepath.Join(cloudCfgSrcDir, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
+		c.Assert(err, IsNil)
+	}
+	return cloudCfgSrcDir
+}
+
+func (s *sysconfigSuite) makeGadgetCloudConfFile(c *C) string {
+	gadgetDir := c.MkDir()
+	gadgetCloudConf := filepath.Join(gadgetDir, "cloud.conf")
+	err := ioutil.WriteFile(gadgetCloudConf, []byte("gadget cloud config"), 0644)
+	c.Assert(err, IsNil)
+
+	return gadgetDir
+}
+
+func (s *sysconfigSuite) TestHasGadgetCloudConf(c *C) {
+	// no cloud.conf is false
+	c.Assert(sysconfig.HasGadgetCloudConf("non-existent-dir-place"), Equals, false)
+
+	// the dir is not enough
+	gadgetDir := c.MkDir()
+	c.Assert(sysconfig.HasGadgetCloudConf(gadgetDir), Equals, false)
+
+	// creating one now is true
+	gadgetCloudConf := filepath.Join(gadgetDir, "cloud.conf")
+	err := ioutil.WriteFile(gadgetCloudConf, []byte("gadget cloud config"), 0644)
+	c.Assert(err, IsNil)
+
+	c.Assert(sysconfig.HasGadgetCloudConf(gadgetDir), Equals, true)
+}
+
 // this test is for initramfs calls that disable cloud-init for the ephemeral
 // writable partition that is used while running during install or recover mode
 func (s *sysconfigSuite) TestEphemeralModeInitramfsCloudInitDisables(c *C) {
@@ -65,7 +99,7 @@ func (s *sysconfigSuite) TestEphemeralModeInitramfsCloudInitDisables(c *C) {
 }
 
 func (s *sysconfigSuite) TestInstallModeCloudInitDisablesByDefaultRunMode(c *C) {
-	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
 		TargetRootDir: boot.InstallHostWritableDir,
 	})
 	c.Assert(err, IsNil)
@@ -74,18 +108,108 @@ func (s *sysconfigSuite) TestInstallModeCloudInitDisablesByDefaultRunMode(c *C) 
 	c.Check(ubuntuDataCloudDisabled, testutil.FilePresent)
 }
 
+func (s *sysconfigSuite) TestInstallModeCloudInitDisallowedIgnoresOtherOptions(c *C) {
+	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
+	gadgetDir := s.makeGadgetCloudConfFile(c)
+
+	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
+		AllowCloudInit:  false,
+		CloudInitSrcDir: cloudCfgSrcDir,
+		GadgetDir:       gadgetDir,
+		TargetRootDir:   boot.InstallHostWritableDir,
+	})
+	c.Assert(err, IsNil)
+
+	ubuntuDataCloudDisabled := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	c.Check(ubuntuDataCloudDisabled, testutil.FilePresent)
+
+	// did not copy ubuntu-seed src files
+	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileAbsent)
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileAbsent)
+
+	// also did not copy gadget cloud.conf
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileAbsent)
+}
+
+func (s *sysconfigSuite) TestInstallModeCloudInitAllowedGradeSignedDoesNotDisable(c *C) {
+	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
+		AllowCloudInit: true,
+		TargetRootDir:  boot.InstallHostWritableDir,
+	})
+	c.Assert(err, IsNil)
+
+	ubuntuDataCloudDisabled := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	c.Check(ubuntuDataCloudDisabled, testutil.FileAbsent)
+}
+
+func (s *sysconfigSuite) TestInstallModeCloudInitAllowedGradeSignedDoesNotInstallUbuntuSeedConfig(c *C) {
+	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
+
+	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
+		AllowCloudInit:  true,
+		TargetRootDir:   boot.InstallHostWritableDir,
+		CloudInitSrcDir: cloudCfgSrcDir,
+	})
+	c.Assert(err, IsNil)
+
+	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileAbsent)
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileAbsent)
+}
+
+func (s *sysconfigSuite) TestInstallModeCloudInitAllowedGradeDangerousDoesNotDisable(c *C) {
+	err := sysconfig.ConfigureTargetSystem(fake20Model("dangerous"), &sysconfig.Options{
+		AllowCloudInit: true,
+		TargetRootDir:  boot.InstallHostWritableDir,
+	})
+	c.Assert(err, IsNil)
+
+	ubuntuDataCloudDisabled := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	c.Check(ubuntuDataCloudDisabled, testutil.FileAbsent)
+}
+
+func (s *sysconfigSuite) TestInstallModeCloudInitDisallowedGradeSecuredDoesDisable(c *C) {
+	err := sysconfig.ConfigureTargetSystem(fake20Model("secured"), &sysconfig.Options{
+		AllowCloudInit: false,
+		TargetRootDir:  boot.InstallHostWritableDir,
+	})
+	c.Assert(err, IsNil)
+
+	ubuntuDataCloudDisabled := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	c.Check(ubuntuDataCloudDisabled, testutil.FilePresent)
+}
+
+func (s *sysconfigSuite) TestInstallModeCloudInitAllowedGradeSecuredIgnoresSrcButDoesNotDisable(c *C) {
+	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
+
+	err := sysconfig.ConfigureTargetSystem(fake20Model("secured"), &sysconfig.Options{
+		AllowCloudInit:  true,
+		CloudInitSrcDir: cloudCfgSrcDir,
+		TargetRootDir:   boot.InstallHostWritableDir,
+	})
+	c.Assert(err, IsNil)
+
+	// the disable file is not present
+	ubuntuDataCloudDisabled := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	c.Check(ubuntuDataCloudDisabled, testutil.FileAbsent)
+
+	// but we did not copy the config files from ubuntu-seed, even though they
+	// are there and cloud-init is not disabled
+	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileAbsent)
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileAbsent)
+}
+
 // this test is the same as the logic from install mode devicestate, where we
 // want to install cloud-init configuration not onto the running, ephemeral
 // writable, but rather the host writable partition that will be used upon
 // reboot into run mode
 func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunMode(c *C) {
-	cloudCfgSrcDir := c.MkDir()
-	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
-		err := ioutil.WriteFile(filepath.Join(cloudCfgSrcDir, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
-		c.Assert(err, IsNil)
-	}
+	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
 
-	err := sysconfig.ConfigureRunSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(fake20Model("dangerous"), &sysconfig.Options{
+		AllowCloudInit:  true,
 		CloudInitSrcDir: cloudCfgSrcDir,
 		TargetRootDir:   boot.InstallHostWritableDir,
 	})
@@ -93,8 +217,45 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunMode(c *C) {
 
 	// and did copy the cloud-init files
 	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
-	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileEquals, "foo.cfg config")
-	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileEquals, "bar.cfg config")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "90_foo.cfg"), testutil.FileEquals, "foo.cfg config")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "90_bar.cfg"), testutil.FileEquals, "bar.cfg config")
+}
+
+func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadgetCloudConf(c *C) {
+	gadgetDir := s.makeGadgetCloudConfFile(c)
+	err := sysconfig.ConfigureTargetSystem(fake20Model("secured"), &sysconfig.Options{
+		AllowCloudInit: true,
+		GadgetDir:      gadgetDir,
+		TargetRootDir:  boot.InstallHostWritableDir,
+	})
+	c.Assert(err, IsNil)
+
+	// and did copy the gadget cloud-init file
+	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileEquals, "gadget cloud config")
+}
+
+func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadgetCloudConfAlsoInstallsUbuntuSeedConfig(c *C) {
+	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
+	gadgetDir := s.makeGadgetCloudConfFile(c)
+
+	err := sysconfig.ConfigureTargetSystem(fake20Model("dangerous"), &sysconfig.Options{
+		AllowCloudInit:  true,
+		CloudInitSrcDir: cloudCfgSrcDir,
+		GadgetDir:       gadgetDir,
+		TargetRootDir:   boot.InstallHostWritableDir,
+	})
+	c.Assert(err, IsNil)
+
+	// we did copy the gadget cloud-init file
+	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileEquals, "gadget cloud config")
+
+	// and we also copied the ubuntu-seed files with a new prefix such that they
+	// take precedence over the gadget file by being ordered lexically after the
+	// gadget file
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "90_foo.cfg"), testutil.FileEquals, "foo.cfg config")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "90_bar.cfg"), testutil.FileEquals, "bar.cfg config")
 }
 
 func (s *sysconfigSuite) TestCloudInitStatusUnhappy(c *C) {
@@ -217,6 +378,19 @@ fi
 	}
 }
 
+func (s *sysconfigSuite) TestCloudInitNotFoundStatus(c *C) {
+	emptyDir := c.MkDir()
+	oldPath := os.Getenv("PATH")
+	defer func() {
+		c.Assert(os.Setenv("PATH", oldPath), IsNil)
+	}()
+	os.Setenv("PATH", emptyDir)
+
+	status, err := sysconfig.CloudInitStatus()
+	c.Assert(err, IsNil)
+	c.Check(status, Equals, sysconfig.CloudInitNotFound)
+}
+
 var gceCloudInitStatusJSON = `{
 	"v1": {
 	 "datasource": "DataSourceGCE",
@@ -242,6 +416,18 @@ var multipassNoCloudCloudInitStatusJSON = `{
  }
 }`
 
+var localNoneCloudInitStatusJSON = `{
+ "v1": {
+  "datasource": "DataSourceNone",
+  "init": {
+   "errors": [],
+   "finished": 1591788514.4656117,
+   "start": 1591788514.2607572
+  },
+  "stage": null
+ }
+}`
+
 var lxdNoCloudCloudInitStatusJSON = `{
  "v1": {
   "datasource": "DataSourceNoCloud [seed=/var/lib/cloud/seed/nocloud-net][dsmode=net]",
@@ -257,7 +443,9 @@ var lxdNoCloudCloudInitStatusJSON = `{
 var restrictNoCloudYaml = `datasource_list: [NoCloud]
 datasource:
   NoCloud:
-    fs_label: null`
+    fs_label: null
+manual_cache_clean: true
+`
 
 func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 	tt := []struct {
@@ -322,12 +510,13 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 			expDisableFile: true,
 		},
 		{
-			comment:                "gce done",
-			state:                  sysconfig.CloudInitDone,
-			cloudInitStatusJSON:    gceCloudInitStatusJSON,
-			expDatasource:          "GCE",
-			expAction:              "restrict",
-			expRestrictYamlWritten: "datasource_list: [GCE]",
+			comment:             "gce done",
+			state:               sysconfig.CloudInitDone,
+			cloudInitStatusJSON: gceCloudInitStatusJSON,
+			expDatasource:       "GCE",
+			expAction:           "restrict",
+			expRestrictYamlWritten: `datasource_list: [GCE]
+`,
 		},
 		{
 			comment:                "nocloud done",
@@ -337,6 +526,29 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 			expAction:              "restrict",
 			expRestrictYamlWritten: restrictNoCloudYaml,
 		},
+		{
+			comment:             "nocloud uc20 done",
+			state:               sysconfig.CloudInitDone,
+			cloudInitStatusJSON: multipassNoCloudCloudInitStatusJSON,
+			sysconfOpts: &sysconfig.CloudInitRestrictOptions{
+				DisableAfterLocalDatasourcesRun: true,
+			},
+			expDatasource:  "NoCloud",
+			expAction:      "disable",
+			expDisableFile: true,
+		},
+		{
+			comment:             "none uc20 done",
+			state:               sysconfig.CloudInitDone,
+			cloudInitStatusJSON: localNoneCloudInitStatusJSON,
+			sysconfOpts: &sysconfig.CloudInitRestrictOptions{
+				DisableAfterLocalDatasourcesRun: true,
+			},
+			expDatasource:  "None",
+			expAction:      "disable",
+			expDisableFile: true,
+		},
+
 		// the two cases for lxd and multipass are effectively the same, but as
 		// the largest known users of cloud-init w/ UC, we leave them as
 		// separate test cases for their different cloud-init status.json
@@ -357,9 +569,38 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 			expAction:              "restrict",
 			expRestrictYamlWritten: restrictNoCloudYaml,
 		},
+		{
+			comment:             "nocloud uc20 multipass done",
+			state:               sysconfig.CloudInitDone,
+			cloudInitStatusJSON: multipassNoCloudCloudInitStatusJSON,
+			sysconfOpts: &sysconfig.CloudInitRestrictOptions{
+				DisableAfterLocalDatasourcesRun: true,
+			},
+			expDatasource:  "NoCloud",
+			expAction:      "disable",
+			expDisableFile: true,
+		},
+		{
+			comment:             "nocloud uc20 seed lxd done",
+			state:               sysconfig.CloudInitDone,
+			cloudInitStatusJSON: lxdNoCloudCloudInitStatusJSON,
+			sysconfOpts: &sysconfig.CloudInitRestrictOptions{
+				DisableAfterLocalDatasourcesRun: true,
+			},
+			expDatasource:  "NoCloud",
+			expAction:      "disable",
+			expDisableFile: true,
+		},
+		{
+			comment:        "no cloud-init in $PATH",
+			state:          sysconfig.CloudInitNotFound,
+			expAction:      "disable",
+			expDisableFile: true,
+		},
 	}
 
 	for _, t := range tt {
+		comment := Commentf("%s", t.comment)
 		// setup status.json
 		old := dirs.GlobalRootDir
 		dirs.SetRootDir(c.MkDir())
@@ -367,30 +608,30 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 		statusJSONFile := filepath.Join(dirs.GlobalRootDir, "/run/cloud-init/status.json")
 		if t.cloudInitStatusJSON != "" {
 			err := os.MkdirAll(filepath.Dir(statusJSONFile), 0755)
-			c.Assert(err, IsNil, Commentf(t.comment))
+			c.Assert(err, IsNil, comment)
 			err = ioutil.WriteFile(statusJSONFile, []byte(t.cloudInitStatusJSON), 0644)
-			c.Assert(err, IsNil, Commentf(t.comment))
+			c.Assert(err, IsNil, comment)
 		}
 
 		// if we expect snapd to write a yaml config file for cloud-init, ensure
 		// the dir exists before hand
 		if t.expRestrictYamlWritten != "" {
 			err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/cloud/cloud.cfg.d"), 0755)
-			c.Assert(err, IsNil, Commentf(t.comment))
+			c.Assert(err, IsNil, comment)
 		}
 
 		res, err := sysconfig.RestrictCloudInit(t.state, t.sysconfOpts)
 		if t.expError == "" {
-			c.Assert(err, IsNil, Commentf(t.comment))
-			c.Assert(res.Datasource, Equals, t.expDatasource, Commentf(t.comment))
-			c.Assert(res.Action, Equals, t.expAction, Commentf(t.comment))
+			c.Assert(err, IsNil, comment)
+			c.Assert(res.DataSource, Equals, t.expDatasource, comment)
+			c.Assert(res.Action, Equals, t.expAction, comment)
 			if t.expRestrictYamlWritten != "" {
 				// check the snapd restrict yaml file that should have been written
 				c.Assert(
 					filepath.Join(dirs.GlobalRootDir, "/etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"),
 					testutil.FileEquals,
 					t.expRestrictYamlWritten,
-					Commentf(t.comment),
+					comment,
 				)
 			}
 
@@ -406,11 +647,11 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 			c.Assert(
 				filepath.Join(dirs.GlobalRootDir, "/etc/cloud/cloud-init.disabled"),
 				fileCheck,
-				Commentf(t.comment),
+				comment,
 			)
 
 		} else {
-			c.Assert(err, ErrorMatches, t.expError, Commentf(t.comment))
+			c.Assert(err, ErrorMatches, t.expError, comment)
 		}
 	}
 }

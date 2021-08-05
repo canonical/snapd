@@ -1,6 +1,6 @@
 summary: Ensure that the process-control interface works.
 
-summary: |
+details: |
     The process-control interface allows a snap to control other processes via signals
     and nice.
 
@@ -13,11 +13,8 @@ summary: |
     extended later.
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     echo "Given a snap declaring a plug on the process-control interface is installed"
-    install_local process-control-consumer
+    "$TESTSTOOLS"/snaps-state install-local process-control-consumer
 
 execute: |
     echo "The interface is disconnected by default"

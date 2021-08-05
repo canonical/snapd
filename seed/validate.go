@@ -23,7 +23,6 @@ import (
 	"bytes"
 	"fmt"
 	"path/filepath"
-	"regexp"
 	"sort"
 
 	"github.com/snapcore/snapd/snap"
@@ -99,9 +98,7 @@ func ValidateFromYaml(seedYamlFile string) error {
 	tm := timings.New(nil)
 	if err := seed.LoadMeta(tm); err != nil {
 		if missingErr, ok := err.(*essentialSnapMissingError); ok {
-			// Model always succeed after LoadAssertions
-			mod, _ := seed.Model()
-			if mod.Classic() && missingErr.SnapName == "core" {
+			if seed.Model().Classic() && missingErr.SnapName == "core" {
 				err = fmt.Errorf("essential snap core or snapd must be part of the seed")
 			}
 		}
@@ -136,18 +133,5 @@ func ValidateFromYaml(seedYamlFile string) error {
 		return ve
 	}
 
-	return nil
-}
-
-// TODO:UC20: move these to internal, use also in seedwriter
-
-var validSeedSystemLabel = regexp.MustCompile("^[a-zA-Z0-9](?:-?[a-zA-Z0-9])+$")
-
-// validateSeedSystemLabel checks whether the string is a valid UC20 seed system
-// label.
-func validateUC20SeedSystemLabel(label string) error {
-	if !validSeedSystemLabel.MatchString(label) {
-		return fmt.Errorf("invalid seed system label: %q", label)
-	}
 	return nil
 }

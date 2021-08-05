@@ -28,11 +28,11 @@ import (
 	"testing"
 	"time"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
-
-	. "gopkg.in/check.v1"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -81,6 +81,8 @@ func (s *SnapdirTestSuite) TestRandomAccessFile(c *C) {
 	r, err := sn.RandomAccessFile("foo")
 	c.Assert(err, IsNil)
 	defer r.Close()
+
+	c.Assert(r.Size(), Equals, int64(5))
 
 	b := make([]byte, 2)
 	n, err := r.ReadAt(b, 2)

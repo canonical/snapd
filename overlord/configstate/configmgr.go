@@ -20,19 +20,19 @@
 package configstate
 
 import (
-	"fmt"
 	"regexp"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/sysconfig"
 )
 
 var configcoreRun = configcore.Run
-var configcoreExportExperimentalFlags = configcore.ExportExperimentalFlags
 
-func MockConfigcoreRun(f func(config.Conf) error) (restore func()) {
+func MockConfigcoreRun(f func(sysconfig.Device, config.Conf) error) (restore func()) {
 	origConfigcoreRun := configcoreRun
 	configcoreRun = f
 	return func() {
@@ -40,15 +40,9 @@ func MockConfigcoreRun(f func(config.Conf) error) (restore func()) {
 	}
 }
 
-func MockConfigcoreExportExperimentalFlags(mock func(tr config.ConfGetter) error) (restore func()) {
-	old := configcoreExportExperimentalFlags
-	configcoreExportExperimentalFlags = mock
-	return func() {
-		configcoreExportExperimentalFlags = old
-	}
-}
-
 func Init(st *state.State, hookManager *hookstate.HookManager) error {
+	delayedCrossMgrInit()
+
 	// Most configuration is handled via the "configure" hook of the
 	// snaps. However some configuration is internally handled
 	hookManager.Register(regexp.MustCompile("^configure$"), newConfigureHandler)
@@ -56,17 +50,21 @@ func Init(st *state.State, hookManager *hookstate.HookManager) error {
 	// Note that we use the func() indirection so that mocking configcoreRun
 	// in tests works correctly.
 	hookManager.RegisterHijack("configure", "core", func(ctx *hookstate.Context) error {
-		ctx.Lock()
-		tr := ContextTransaction(ctx)
-		ctx.Unlock()
-		return configcoreRun(tr)
+		dev, tr, err := func() (sysconfig.Device, config.Conf, error) {
+			ctx.Lock()
+			defer ctx.Unlock()
+			task, _ := ctx.Task()
+			dev, err := snapstate.DeviceCtx(ctx.State(), task, nil)
+			if err != nil {
+				return nil, nil, err
+			}
+			return dev, ContextTransaction(ctx), nil
+		}()
+		if err != nil {
+			return err
+		}
+		return configcoreRun(dev, tr)
 	})
 
-	st.Lock()
-	defer st.Unlock()
-	tr := config.NewTransaction(st)
-	if err := configcoreExportExperimentalFlags(tr); err != nil {
-		return fmt.Errorf("cannot export experimental config flags: %v", err)
-	}
 	return nil
 }

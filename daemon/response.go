@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2015-2018 Canonical Ltd
+ * Copyright (C) 2015-2020 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,19 +25,17 @@ import (
 	"fmt"
 	"io"
 	"mime"
-	"net"
 	"net/http"
 	"path/filepath"
 	"strconv"
 	"time"
 
-	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapshotstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -53,76 +51,97 @@ const (
 	ResponseTypeError ResponseType = "error"
 )
 
-// Response knows how to serve itself, and how to find itself
+// Response knows how to serve itself.
 type Response interface {
 	ServeHTTP(w http.ResponseWriter, r *http.Request)
 }
 
-type resp struct {
-	Status int          `json:"status-code"`
-	Type   ResponseType `json:"type"`
-	Result interface{}  `json:"result,omitempty"`
-	*Meta
-	Maintenance *errorResult `json:"maintenance,omitempty"`
+// A StructuredResponse serializes itself to our standard JSON response format.
+type StructuredResponse interface {
+	Response
+
+	JSON() *respJSON
 }
 
-func (r *resp) transmitMaintenance(kind errorKind, message string) {
-	r.Maintenance = &errorResult{
-		Kind:    kind,
-		Message: message,
+// respJSON represents our standard JSON response format.
+type respJSON struct {
+	Type ResponseType `json:"type"`
+	// Status is the HTTP status code.
+	Status int `json:"status-code"`
+	// StatusText is filled by the serving pipeline.
+	StatusText string `json:"status"`
+	// Result is a free-form optional result object.
+	Result interface{} `json:"result"`
+	// Change is the change ID for an async response.
+	Change string `json:"change,omitempty"`
+	// Sources is used in find responses.
+	Sources []string `json:"sources,omitempty"`
+	// XXX SuggestedCurrency is part of unsupported paid snap code.
+	SuggestedCurrency string `json:"suggested-currency,omitempty"`
+	// Maintenance...  are filled as needed by the serving pipeline.
+	WarningTimestamp *time.Time   `json:"warning-timestamp,omitempty"`
+	WarningCount     int          `json:"warning-count,omitempty"`
+	Maintenance      *errorResult `json:"maintenance,omitempty"`
+}
+
+func (r *respJSON) JSON() *respJSON {
+	return r
+}
+
+func maintenanceForRestartType(rst state.RestartType) *errorResult {
+	e := &errorResult{}
+	switch rst {
+	case state.RestartSystem, state.RestartSystemNow:
+		e.Kind = client.ErrorKindSystemRestart
+		e.Message = systemRestartMsg
+		e.Value = map[string]interface{}{
+			"op": "reboot",
+		}
+	case state.RestartSystemHaltNow:
+		e.Kind = client.ErrorKindSystemRestart
+		e.Message = systemHaltMsg
+		e.Value = map[string]interface{}{
+			"op": "halt",
+		}
+	case state.RestartSystemPoweroffNow:
+		e.Kind = client.ErrorKindSystemRestart
+		e.Message = systemPoweroffMsg
+		e.Value = map[string]interface{}{
+			"op": "poweroff",
+		}
+	case state.RestartDaemon:
+		e.Kind = client.ErrorKindDaemonRestart
+		e.Message = daemonRestartMsg
+	case state.RestartSocket:
+		e.Kind = client.ErrorKindDaemonRestart
+		e.Message = socketRestartMsg
+	case state.RestartUnset:
+		// shouldn't happen, maintenance for unset type should just be nil
+		panic("internal error: cannot marshal maintenance for RestartUnset")
 	}
+	return e
 }
 
-func (r *resp) addWarningsToMeta(count int, stamp time.Time) {
-	if r.Meta != nil && r.Meta.WarningCount != 0 {
+func (r *respJSON) addMaintenanceFromRestartType(rst state.RestartType) {
+	if rst == state.RestartUnset {
+		// nothing to do
 		return
 	}
+	r.Maintenance = maintenanceForRestartType(rst)
+}
+
+func (r *respJSON) addWarningCount(count int, stamp time.Time) {
 	if count == 0 {
 		return
 	}
-	if r.Meta == nil {
-		r.Meta = &Meta{}
-	}
-	r.Meta.WarningCount = count
-	r.Meta.WarningTimestamp = &stamp
+	r.WarningCount = count
+	r.WarningTimestamp = &stamp
 }
 
-// TODO This is being done in a rush to get the proper external
-//      JSON representation in the API in time for the release.
-//      The right code style takes a bit more work and unifies
-//      these fields inside resp.
-// Increment the counter if you read this: 42
-type Meta struct {
-	Sources           []string   `json:"sources,omitempty"`
-	SuggestedCurrency string     `json:"suggested-currency,omitempty"`
-	Change            string     `json:"change,omitempty"`
-	WarningTimestamp  *time.Time `json:"warning-timestamp,omitempty"`
-	WarningCount      int        `json:"warning-count,omitempty"`
-}
-
-type respJSON struct {
-	Type       ResponseType `json:"type"`
-	Status     int          `json:"status-code"`
-	StatusText string       `json:"status"`
-	Result     interface{}  `json:"result"`
-	*Meta
-	Maintenance *errorResult `json:"maintenance,omitempty"`
-}
-
-func (r *resp) MarshalJSON() ([]byte, error) {
-	return json.Marshal(respJSON{
-		Type:        r.Type,
-		Status:      r.Status,
-		StatusText:  http.StatusText(r.Status),
-		Result:      r.Result,
-		Meta:        r.Meta,
-		Maintenance: r.Maintenance,
-	})
-}
-
-func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
+func (r *respJSON) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	status := r.Status
-	bs, err := r.MarshalJSON()
+	r.StatusText = http.StatusText(r.Status)
+	bs, err := json.Marshal(r)
 	if err != nil {
 		logger.Noticef("cannot marshal %#v to JSON: %v", *r, err)
 		bs = nil
@@ -145,108 +164,30 @@ func (r *resp) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 	w.Write(bs)
 }
 
-type errorKind string
-
-const (
-	errorKindTwoFactorRequired = errorKind("two-factor-required")
-	errorKindTwoFactorFailed   = errorKind("two-factor-failed")
-	errorKindLoginRequired     = errorKind("login-required")
-	errorKindInvalidAuthData   = errorKind("invalid-auth-data")
-	errorKindAuthCancelled     = errorKind("auth-cancelled")
-	errorKindTermsNotAccepted  = errorKind("terms-not-accepted")
-	errorKindNoPaymentMethods  = errorKind("no-payment-methods")
-	errorKindPaymentDeclined   = errorKind("payment-declined")
-	errorKindPasswordPolicy    = errorKind("password-policy")
-
-	errorKindSnapAlreadyInstalled  = errorKind("snap-already-installed")
-	errorKindSnapNotInstalled      = errorKind("snap-not-installed")
-	errorKindSnapNotFound          = errorKind("snap-not-found")
-	errorKindAppNotFound           = errorKind("app-not-found")
-	errorKindSnapLocal             = errorKind("snap-local")
-	errorKindSnapNoUpdateAvailable = errorKind("snap-no-update-available")
-
-	errorKindSnapRevisionNotAvailable     = errorKind("snap-revision-not-available")
-	errorKindSnapChannelNotAvailable      = errorKind("snap-channel-not-available")
-	errorKindSnapArchitectureNotAvailable = errorKind("snap-architecture-not-available")
-
-	errorKindSnapChangeConflict = errorKind("snap-change-conflict")
-
-	errorKindNotSnap = errorKind("snap-not-a-snap")
-
-	errorKindSnapNeedsDevMode       = errorKind("snap-needs-devmode")
-	errorKindSnapNeedsClassic       = errorKind("snap-needs-classic")
-	errorKindSnapNeedsClassicSystem = errorKind("snap-needs-classic-system")
-	errorKindSnapNotClassic         = errorKind("snap-not-classic")
-
-	errorKindBadQuery = errorKind("bad-query")
-
-	errorKindNetworkTimeout      = errorKind("network-timeout")
-	errorKindDNSFailure          = errorKind("dns-failure")
-	errorKindInterfacesUnchanged = errorKind("interfaces-unchanged")
-
-	errorKindConfigNoSuchOption = errorKind("option-not-found")
-
-	errorKindDaemonRestart = errorKind("daemon-restart")
-	errorKindSystemRestart = errorKind("system-restart")
-
-	errorKindAssertionNotFound = errorKind("assertion-not-found")
-
-	errorKindUnsuccessful = errorKind("unsuccessful")
-)
-
-type errorValue interface{}
-
-type errorResult struct {
-	Message string     `json:"message"` // note no omitempty
-	Kind    errorKind  `json:"kind,omitempty"`
-	Value   errorValue `json:"value,omitempty"`
-}
-
 // SyncResponse builds a "sync" response from the given result.
-func SyncResponse(result interface{}, meta *Meta) Response {
-	if err, ok := result.(error); ok {
-		return InternalError("internal error: %v", err)
-	}
-
+func SyncResponse(result interface{}) Response {
 	if rsp, ok := result.(Response); ok {
 		return rsp
 	}
 
-	return &resp{
+	if err, ok := result.(error); ok {
+		return InternalError("internal error: %v", err)
+	}
+
+	return &respJSON{
 		Type:   ResponseTypeSync,
 		Status: 200,
 		Result: result,
-		Meta:   meta,
 	}
 }
 
-// AsyncResponse builds an "async" response from the given *Task
-func AsyncResponse(result map[string]interface{}, meta *Meta) Response {
-	return &resp{
+// AsyncResponse builds an "async" response for a created change
+func AsyncResponse(result map[string]interface{}, change string) Response {
+	return &respJSON{
 		Type:   ResponseTypeAsync,
 		Status: 202,
 		Result: result,
-		Meta:   meta,
-	}
-}
-
-// makeErrorResponder builds an errorResponder from the given error status.
-func makeErrorResponder(status int) errorResponder {
-	return func(format string, v ...interface{}) Response {
-		res := &errorResult{}
-		if len(v) == 0 {
-			res.Message = format
-		} else {
-			res.Message = fmt.Sprintf(format, v...)
-		}
-		if status == 401 {
-			res.Kind = errorKindLoginRequired
-		}
-		return &resp{
-			Type:   ResponseTypeError,
-			Result: res,
-			Status: status,
-		}
+		Change: change,
 	}
 }
 
@@ -296,6 +237,26 @@ func (s *snapStream) ServeHTTP(w http.ResponseWriter, _ *http.Request) {
 		logger.Noticef("cannot copy snap %s (%#v) to the stream: bytes copied=%d, expected=%d", s.SnapName, s.Info, bytesCopied, s.Info.Size)
 		http.Error(w, io.EOF.Error(), 502)
 	}
+}
+
+// A snapshotExportResponse 's ServeHTTP method serves a specific snapshot ID
+type snapshotExportResponse struct {
+	*snapshotstate.SnapshotExport
+	setID uint64
+	st    *state.State
+}
+
+// ServeHTTP from the Response interface
+func (s snapshotExportResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	w.Header().Add("Content-Length", strconv.FormatInt(s.Size(), 10))
+	w.Header().Add("Content-Type", client.SnapshotExportMediaType)
+	if err := s.StreamTo(w); err != nil {
+		logger.Debugf("cannot export snapshot: %v", err)
+	}
+	s.Close()
+	s.st.Lock()
+	defer s.st.Unlock()
+	snapshotstate.UnsetSnapshotOpInProgress(s.st, s.setID)
 }
 
 // A fileResponse 's ServeHTTP method serves the file
@@ -400,235 +361,4 @@ func (ar assertResponse) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 		}
 	}
-}
-
-// errorResponder is a callable that produces an error Response.
-// e.g., InternalError("something broke: %v", err), etc.
-type errorResponder func(string, ...interface{}) Response
-
-// standard error responses
-var (
-	Unauthorized     = makeErrorResponder(401)
-	NotFound         = makeErrorResponder(404)
-	BadRequest       = makeErrorResponder(400)
-	MethodNotAllowed = makeErrorResponder(405)
-	InternalError    = makeErrorResponder(500)
-	NotImplemented   = makeErrorResponder(501)
-	Forbidden        = makeErrorResponder(403)
-	Conflict         = makeErrorResponder(409)
-)
-
-// SnapNotFound is an error responder used when an operation is
-// requested on a snap that doesn't exist.
-func SnapNotFound(snapName string, err error) Response {
-	return &resp{
-		Type: ResponseTypeError,
-		Result: &errorResult{
-			Message: err.Error(),
-			Kind:    errorKindSnapNotFound,
-			Value:   snapName,
-		},
-		Status: 404,
-	}
-}
-
-// SnapRevisionNotAvailable is an error responder used when an
-// operation is requested for which no revivision can be found
-// in the given context (e.g. request an install from a stable
-// channel when this channel is empty).
-func SnapRevisionNotAvailable(snapName string, rnaErr *store.RevisionNotAvailableError) Response {
-	var value interface{} = snapName
-	kind := errorKindSnapRevisionNotAvailable
-	msg := rnaErr.Error()
-	if len(rnaErr.Releases) != 0 && rnaErr.Channel != "" {
-		thisArch := arch.DpkgArchitecture()
-		values := map[string]interface{}{
-			"snap-name":    snapName,
-			"action":       rnaErr.Action,
-			"channel":      rnaErr.Channel,
-			"architecture": thisArch,
-		}
-		archOK := false
-		releases := make([]map[string]interface{}, 0, len(rnaErr.Releases))
-		for _, c := range rnaErr.Releases {
-			if c.Architecture == thisArch {
-				archOK = true
-			}
-			releases = append(releases, map[string]interface{}{
-				"architecture": c.Architecture,
-				"channel":      c.Name,
-			})
-		}
-		// we return all available releases (arch x channel)
-		// as reported in the store error, but we hint with
-		// the error kind whether there was anything at all
-		// available for this architecture
-		if archOK {
-			kind = errorKindSnapChannelNotAvailable
-			msg = "no snap revision on specified channel"
-		} else {
-			kind = errorKindSnapArchitectureNotAvailable
-			msg = "no snap revision on specified architecture"
-		}
-		values["releases"] = releases
-		value = values
-	}
-	return &resp{
-		Type: ResponseTypeError,
-		Result: &errorResult{
-			Message: msg,
-			Kind:    kind,
-			Value:   value,
-		},
-		Status: 404,
-	}
-}
-
-// SnapChangeConflict is an error responder used when an operation is
-// conflicts with another change.
-func SnapChangeConflict(cce *snapstate.ChangeConflictError) Response {
-	value := map[string]interface{}{}
-	if cce.Snap != "" {
-		value["snap-name"] = cce.Snap
-	}
-	if cce.ChangeKind != "" {
-		value["change-kind"] = cce.ChangeKind
-	}
-
-	return &resp{
-		Type: ResponseTypeError,
-		Result: &errorResult{
-			Message: cce.Error(),
-			Kind:    errorKindSnapChangeConflict,
-			Value:   value,
-		},
-		Status: 409,
-	}
-}
-
-// AppNotFound is an error responder used when an operation is
-// requested on a app that doesn't exist.
-func AppNotFound(format string, v ...interface{}) Response {
-	res := &errorResult{
-		Message: fmt.Sprintf(format, v...),
-		Kind:    errorKindAppNotFound,
-	}
-	return &resp{
-		Type:   ResponseTypeError,
-		Result: res,
-		Status: 404,
-	}
-}
-
-// AuthCancelled is an error responder used when a user cancelled
-// the auth process.
-func AuthCancelled(format string, v ...interface{}) Response {
-	res := &errorResult{
-		Message: fmt.Sprintf(format, v...),
-		Kind:    errorKindAuthCancelled,
-	}
-	return &resp{
-		Type:   ResponseTypeError,
-		Result: res,
-		Status: 403,
-	}
-}
-
-// InterfacesUnchanged is an error responder used when an operation
-// that would normally change interfaces finds it has nothing to do
-func InterfacesUnchanged(format string, v ...interface{}) Response {
-	res := &errorResult{
-		Message: fmt.Sprintf(format, v...),
-		Kind:    errorKindInterfacesUnchanged,
-	}
-	return &resp{
-		Type:   ResponseTypeError,
-		Result: res,
-		Status: 400,
-	}
-}
-
-func errToResponse(err error, snaps []string, fallback func(format string, v ...interface{}) Response, format string, v ...interface{}) Response {
-	var kind errorKind
-	var snapName string
-
-	switch err {
-	case store.ErrSnapNotFound:
-		switch len(snaps) {
-		case 1:
-			return SnapNotFound(snaps[0], err)
-		// store.ErrSnapNotFound should only be returned for individual
-		// snap queries; in all other cases something's wrong
-		case 0:
-			return InternalError("store.SnapNotFound with no snap given")
-		default:
-			return InternalError("store.SnapNotFound with %d snaps", len(snaps))
-		}
-	case store.ErrNoUpdateAvailable:
-		kind = errorKindSnapNoUpdateAvailable
-	case store.ErrLocalSnap:
-		kind = errorKindSnapLocal
-	default:
-		handled := true
-		switch err := err.(type) {
-		case *store.RevisionNotAvailableError:
-			// store.ErrRevisionNotAvailable should only be returned for
-			// individual snap queries; in all other cases something's wrong
-			switch len(snaps) {
-			case 1:
-				return SnapRevisionNotAvailable(snaps[0], err)
-			case 0:
-				return InternalError("store.RevisionNotAvailable with no snap given")
-			default:
-				return InternalError("store.RevisionNotAvailable with %d snaps", len(snaps))
-			}
-		case *snap.AlreadyInstalledError:
-			kind = errorKindSnapAlreadyInstalled
-			snapName = err.Snap
-		case *snap.NotInstalledError:
-			kind = errorKindSnapNotInstalled
-			snapName = err.Snap
-		case *snapstate.ChangeConflictError:
-			return SnapChangeConflict(err)
-		case *snapstate.SnapNeedsDevModeError:
-			kind = errorKindSnapNeedsDevMode
-			snapName = err.Snap
-		case *snapstate.SnapNeedsClassicError:
-			kind = errorKindSnapNeedsClassic
-			snapName = err.Snap
-		case *snapstate.SnapNeedsClassicSystemError:
-			kind = errorKindSnapNeedsClassicSystem
-			snapName = err.Snap
-		case *snapstate.SnapNotClassicError:
-			kind = errorKindSnapNotClassic
-			snapName = err.Snap
-		case net.Error:
-			if err.Timeout() {
-				kind = errorKindNetworkTimeout
-			} else {
-				handled = false
-			}
-		case *store.SnapActionError:
-			// we only handle a few specific cases
-			_, _, e := err.SingleOpError()
-			if e != nil {
-				// 👉😎👉
-				return errToResponse(e, snaps, fallback, format)
-			}
-			handled = false
-		default:
-			handled = false
-		}
-
-		if !handled {
-			v = append(v, err)
-			return fallback(format, v...)
-		}
-	}
-
-	return SyncResponse(&resp{
-		Type:   ResponseTypeError,
-		Result: &errorResult{Message: err.Error(), Kind: kind, Value: snapName},
-		Status: 400,
-	}, nil)
 }

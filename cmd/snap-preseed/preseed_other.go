@@ -30,7 +30,7 @@ func checkChroot(preseedChroot string) error {
 	return preseedNotAvailableError
 }
 
-func prepareChroot(preseedChroot string) (func(), error) {
+func prepareChroot(preseedChroot string) (*targetSnapdInfo, func(), error) {
 	return nil, preseedNotAvailableError
 }
 

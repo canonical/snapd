@@ -27,10 +27,18 @@ func GetLogger() Logger {
 }
 
 func GetLoggerFlags() int {
-	log, ok := GetLogger().(Log)
+	log, ok := GetLogger().(*Log)
 	if !ok {
 		return -1
 	}
 
 	return log.log.Flags()
+}
+
+func ProcCmdlineMustMock(new bool) (restore func()) {
+	old := procCmdlineUseDefaultMockInTests
+	procCmdlineUseDefaultMockInTests = new
+	return func() {
+		procCmdlineUseDefaultMockInTests = old
+	}
 }

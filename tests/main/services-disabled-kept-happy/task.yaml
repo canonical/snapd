@@ -85,9 +85,6 @@ prepare: |
     disabled-svcs-kept3/meta/snap.yaml.in > disabled-svcs-kept3/meta/snap.yaml
   snap pack ./disabled-svcs-kept3
 
-restore: |
-  rm -rf disabled-svcs-kept*
-
 execute: |
   # shellcheck source=tests/lib/disabled-svcs.sh
   . "$TESTSLIB/disabled-svcs.sh"
@@ -115,7 +112,7 @@ execute: |
   snap stop --disable disabled-svcs-kept.svc
 
   echo "Check that it was actually disabled"
-  retry -n 10 --wait 1 snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"
+  retry -n 10 --wait 1 sh -c 'snap services disabled-svcs-kept | MATCH "disabled-svcs-kept\\.svc\\s+disabled\\s+inactive"'
 
   echo "Check that state.json still doesn't contain last-active-disabled-services"
   check_state_json_no_disabled_svcs

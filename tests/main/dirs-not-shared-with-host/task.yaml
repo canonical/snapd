@@ -7,24 +7,22 @@ details: |
   are actually, bind-mounted from the core snap for a more
   consistent behaviour across various distributions.
 
-environment:
-    DIRECTORY/ssl: /etc/ssl
-
 # This test only applies to classic systems
-systems: [-ubuntu-core-*]
+# fedora, centos, amazon: do not have /etc/apparmor.d
+systems: [-ubuntu-core-*, -fedora-*, -centos-*, -amazon-linux-*]
+
+environment:
+    DIRECTORY/apparmord: /etc/apparmor.d
 
 prepare: |
     echo "Having installed the test snap"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
     echo "We can check the inode number of $DIRECTORY"
     host_inode=$(stat -c '%i' "$DIRECTORY")
-    if [ -e $SNAP_MOUNT_DIR/core/current ]; then
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    if [ -e "$SNAP_MOUNT_DIR/core/current" ]; then
         core_inode=$(stat -c '%i' "$SNAP_MOUNT_DIR/core/current/$DIRECTORY")
     else
         core_inode=$(stat -c '%i' "$SNAP_MOUNT_DIR/ubuntu-core/current/$DIRECTORY")

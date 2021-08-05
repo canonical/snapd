@@ -22,14 +22,10 @@ restore: |
         snap set system experimental.parallel-instances=null
     fi
 
-restore: |
     rm -f "$REMOVE_HOOK_FILE"
 
 execute: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    # shellcheck disable=SC2153
-    install_local_as snap-hooks "$NAME"
+    "$TESTSTOOLS"/snaps-state install-local-as snap-hooks "$NAME"
 
     echo "Verify configuration value with snap get"
     snap get "$NAME" installed | MATCH 1
@@ -49,7 +45,7 @@ execute: |
 
     echo "Verify that install hook is run only once"
     snap set "$NAME" installed=2
-    install_local_as snap-hooks "$NAME"
+    "$TESTSTOOLS"/snaps-state install-local-as snap-hooks "$NAME"
     snap get "$NAME" installed | MATCH 2
 
     echo "Verify that pre-refresh hook was executed"
@@ -78,7 +74,7 @@ execute: |
 
     echo "Installing a snap with hooks again"
     rm -f "$REMOVE_HOOK_FILE" > /dev/null 2>&1
-    install_local_as snap-hooks "$NAME"
+    "$TESTSTOOLS"/snaps-state install-local-as snap-hooks "$NAME"
     snap connect "$NAME:home"
 
     echo "Forcing remove script to fail"
@@ -91,7 +87,7 @@ execute: |
     fi
 
     echo "Installing a snap with broken install hook aborts the installation"
-    if install_local snap-hook-broken; then
+    if "$TESTSTOOLS"/snaps-state install-local snap-hook-broken; then
         echo "Expected installation to fail"
         exit 1
     fi

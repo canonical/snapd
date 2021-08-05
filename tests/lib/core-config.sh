@@ -1,8 +1,5 @@
 #!/bin/bash
 
-#shellcheck source=tests/lib/systems.sh
-. "$TESTSLIB"/systems.sh
-
 clean_snapd_lib() {
     rm -rf /var/lib/snapd/assertions/*
     rm -rf /var/lib/snapd/device
@@ -81,9 +78,9 @@ restore_pc_snap(){
 
 get_test_model(){
     local MODEL_NAME=$1
-    if is_core18_system; then
+    if os.query is-core18; then
         echo "${MODEL_NAME}-18.model"
-    elif is_core20_system; then
+    elif os.query is-core20; then
         echo "${MODEL_NAME}-20.model"
     else
         echo "${MODEL_NAME}.model"
@@ -91,13 +88,17 @@ get_test_model(){
 }
 
 get_test_snap_suffix(){
-    if is_core18_system; then
+    if os.query is-core18; then
         echo "-core18"
-    elif is_core20_system; then
+    elif os.query is-core20; then
         echo "-core20"
     fi
 }
 
 wait_for_first_boot_change(){
-    while ! snap changes | grep -q "Done.*Initialize system state"; do sleep 1; done
+    retry -n 200 --wait 1 sh -c 'snap changes | MATCH "Done.*Initialize system state"'
+}
+
+wait_for_device_initialized_change(){
+    retry -n 200 --wait 1 sh -c 'snap changes | MATCH "Done.*Initialize device"'
 }

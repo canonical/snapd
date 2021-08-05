@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/kernel"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
@@ -125,10 +126,23 @@ func loadAndValidate(sourceDir string) (*snap.Info, error) {
 	}
 
 	if info.SnapType == snap.TypeGadget {
-		if err := gadget.Validate(sourceDir, nil); err != nil {
+		// TODO:UC20: optionally pass model
+		// TODO:UC20: pass validation constraints which indicate intent
+		//            to have data encrypted
+		ginfo, err := gadget.ReadInfoAndValidate(sourceDir, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+		if err := gadget.ValidateContent(ginfo, sourceDir, ""); err != nil {
 			return nil, err
 		}
 	}
+	if info.SnapType == snap.TypeKernel {
+		if err := kernel.Validate(sourceDir); err != nil {
+			return nil, err
+		}
+	}
+
 	return info, nil
 }
 

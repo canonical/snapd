@@ -103,15 +103,15 @@ network packet,
 /etc/machine-id r,
 
 # Needed to use resolvconf from core
-/sbin/resolvconf ixr,
+/{,usr/}sbin/resolvconf ixr,
 /run/resolvconf/{,**} rk,
 /run/resolvconf/** w,
 /etc/resolvconf/{,**} r,
-/lib/resolvconf/* ix,
+/{,usr/}lib/resolvconf/* ix,
 # NM peeks into ifupdown configuration
 /run/network/ifstate* r,
 # Required by resolvconf
-/bin/run-parts ixr,
+/{,usr/}bin/run-parts ixr,
 /etc/resolvconf/update.d/* ix,
 
 #include <abstractions/nameservice>
@@ -184,6 +184,13 @@ dbus (receive, send)
     bus=system
     path=/org/freedesktop/NetworkManager{,/**}
     interface=org.freedesktop.DBus.*
+    peer=(label=unconfined),
+
+# Allow ObjectManager methods from and signals to unconfined clients.
+dbus (receive, send)
+    bus=system
+    path=/org/freedesktop
+    interface=org.freedesktop.DBus.ObjectManager
     peer=(label=unconfined),
 
 # Allow access to hostname system service

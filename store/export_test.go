@@ -20,11 +20,12 @@
 package store
 
 import (
-	"io"
-
 	"context"
+	"io"
 	"net/http"
 	"net/url"
+	"os/exec"
+	"time"
 
 	"github.com/juju/ratelimit"
 	"gopkg.in/retry.v1"
@@ -40,7 +41,6 @@ var (
 	ApiURL        = apiURL
 	Download      = download
 
-	UseDeltas  = useDeltas
 	ApplyDelta = applyDelta
 
 	AuthLocation      = authLocation
@@ -58,7 +58,17 @@ var (
 
 	JsonContentType  = jsonContentType
 	SnapActionFields = snapActionFields
+
+	Cancelled = cancelled
 )
+
+func MockSnapdtoolCommandFromSystemSnap(f func(name string, args ...string) (*exec.Cmd, error)) (restore func()) {
+	old := commandFromSystemSnap
+	commandFromSystemSnap = f
+	return func() {
+		commandFromSystemSnap = old
+	}
+}
 
 // MockDefaultRetryStrategy mocks the retry strategy used by several store requests
 func MockDefaultRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
@@ -83,6 +93,29 @@ func MockConnCheckStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
 	t.AddCleanup(func() {
 		connCheckStrategy = originalConnCheckStrategy
 	})
+}
+
+func MockDownloadSpeedParams(measureWindow time.Duration, minSpeed float64) (restore func()) {
+	oldSpeedMeasureWindow := downloadSpeedMeasureWindow
+	oldSpeedMin := downloadSpeedMin
+	downloadSpeedMeasureWindow = measureWindow
+	downloadSpeedMin = minSpeed
+	return func() {
+		downloadSpeedMeasureWindow = oldSpeedMeasureWindow
+		downloadSpeedMin = oldSpeedMin
+	}
+}
+
+func IsTransferSpeedError(err error) (ok bool, speed float64) {
+	de, ok := err.(*transferSpeedError)
+	if !ok {
+		return false, 0
+	}
+	return true, de.Speed
+}
+
+func (w *TransferSpeedMonitoringWriter) MeasuredWindowsCount() int {
+	return w.measuredWindows
 }
 
 func (cm *CacheManager) CacheDir() string {
@@ -121,7 +154,7 @@ func MockDoDownloadReq(f func(ctx context.Context, storeURL *url.URL, cdnHeader 
 	}
 }
 
-func MockApplyDelta(f func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error) (restore func()) {
+func MockApplyDelta(f func(s *Store, name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error) (restore func()) {
 	origApplyDelta := applyDelta
 	applyDelta = f
 	return func() {
@@ -171,6 +204,14 @@ func (sto *Store) SessionUnlock() {
 
 func (sto *Store) FindFields() []string {
 	return sto.findFields
+}
+
+func (sto *Store) UseDeltas() bool {
+	return sto.useDeltas()
+}
+
+func (sto *Store) Xdelta3Cmd(args ...string) *exec.Cmd {
+	return sto.xdelta3CmdFunc(args...)
 }
 
 func (cfg *Config) SetBaseURL(u *url.URL) error {

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,15 +29,15 @@ import (
 	"syscall"
 	"time"
 
-	// to set sysconfig.ApplyFilesystemOnlyDefaults hook
-	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
-
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
+
+	// to set sysconfig.ApplyFilesystemOnlyDefaults hook
+	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
@@ -51,6 +51,43 @@ var (
 	Stdout io.Writer = os.Stdout
 	Stderr io.Writer = os.Stderr
 )
+
+func (custo *Customizations) validate(model *asserts.Model) error {
+	core20 := model.Grade() != asserts.ModelGradeUnset
+	var unsupported []string
+	unsupportedConsoleConfDisable := func() {
+		if custo.ConsoleConf == "disabled" {
+			unsupported = append(unsupported, "console-conf disable")
+		}
+	}
+	unsupportedBootFlags := func() {
+		if len(custo.BootFlags) != 0 {
+			unsupported = append(unsupported, fmt.Sprintf("boot flags (%s)", strings.Join(custo.BootFlags, " ")))
+		}
+	}
+
+	kind := "UC16/18"
+	switch {
+	case core20:
+		kind = "UC20"
+		// TODO:UC20: consider supporting these with grade dangerous?
+		unsupportedConsoleConfDisable()
+		if custo.CloudInitUserData != "" {
+			unsupported = append(unsupported, "cloud-init user-data")
+		}
+	case model.Classic():
+		kind = "classic"
+		unsupportedConsoleConfDisable()
+		unsupportedBootFlags()
+	default:
+		// UC16/18
+		unsupportedBootFlags()
+	}
+	if len(unsupported) != 0 {
+		return fmt.Errorf("cannot support with %s model requested customizations: %s", kind, strings.Join(unsupported, ", "))
+	}
+	return nil
+}
 
 // classicHasSnaps returns whether the model or options specify any snaps for the classic case
 func classicHasSnaps(model *asserts.Model, opts *Options) bool {
@@ -90,6 +127,10 @@ func Prepare(opts *Options) error {
 		return fmt.Errorf("model with series %q != %q unsupported", model.Series(), release.Series)
 	}
 
+	if err := opts.Customizations.validate(model); err != nil {
+		return err
+	}
+
 	return setupSeed(tsto, model, opts)
 }
 
@@ -123,7 +164,7 @@ func decodeModelAssertion(opts *Options) (*asserts.Model, error) {
 	return modela, nil
 }
 
-func unpackGadget(gadgetFname, gadgetUnpackDir string) error {
+func unpackSnap(gadgetFname, gadgetUnpackDir string) error {
 	// FIXME: jumping through layers here, we need to make
 	//        unpack part of the container interface (again)
 	snap := squashfs.New(gadgetFname)
@@ -142,6 +183,39 @@ func installCloudConfig(rootDir, gadgetDir string) error {
 	}
 	dst := filepath.Join(cloudDir, "cloud.cfg")
 	return osutil.CopyFile(cloudConfig, dst, osutil.CopyFlagOverwrite)
+}
+
+func customizeImage(rootDir, defaultsDir string, custo *Customizations) error {
+	// customize with cloud-init user-data
+	if custo.CloudInitUserData != "" {
+		// See
+		// https://cloudinit.readthedocs.io/en/latest/topics/dir_layout.html
+		// https://cloudinit.readthedocs.io/en/latest/topics/datasources/nocloud.html
+		varCloudDir := filepath.Join(rootDir, "/var/lib/cloud/seed/nocloud-net")
+		if err := os.MkdirAll(varCloudDir, 0755); err != nil {
+			return err
+		}
+		if err := ioutil.WriteFile(filepath.Join(varCloudDir, "meta-data"), []byte("instance-id: nocloud-static\n"), 0644); err != nil {
+			return err
+		}
+		dst := filepath.Join(varCloudDir, "user-data")
+		if err := osutil.CopyFile(custo.CloudInitUserData, dst, osutil.CopyFlagOverwrite); err != nil {
+			return err
+		}
+	}
+
+	if custo.ConsoleConf == "disabled" {
+		// TODO: maybe share code with configcore somehow
+		consoleConfDisabled := filepath.Join(defaultsDir, "/var/lib/console-conf/complete")
+		if err := os.MkdirAll(filepath.Dir(consoleConfDisabled), 0755); err != nil {
+			return err
+		}
+		if err := ioutil.WriteFile(consoleConfDisabled, []byte("console-conf has been disabled by image customization\n"), 0644); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 var trusted = sysdb.Trusted()
@@ -173,7 +247,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			// Classic, PrepareDir is the root dir itself
 			rootDir = opts.PrepareDir
 		} else {
-			// Core 16/18,  writing for the writeable partion
+			// Core 16/18,  writing for the writeable partition
 			rootDir = filepath.Join(opts.PrepareDir, "image")
 			bootRootDir = rootDir
 		}
@@ -239,12 +313,15 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
-	var gadgetUnpackDir string
+	var gadgetUnpackDir, kernelUnpackDir string
 	// create directory for later unpacking the gadget in
 	if !opts.Classic {
 		gadgetUnpackDir = filepath.Join(opts.PrepareDir, "gadget")
-		if err := os.MkdirAll(gadgetUnpackDir, 0755); err != nil {
-			return fmt.Errorf("cannot create gadget unpack dir %q: %s", gadgetUnpackDir, err)
+		kernelUnpackDir = filepath.Join(opts.PrepareDir, "kernel")
+		for _, unpackDir := range []string{gadgetUnpackDir, kernelUnpackDir} {
+			if err := os.MkdirAll(unpackDir, 0755); err != nil {
+				return fmt.Errorf("cannot create unpack dir %q: %s", unpackDir, err)
+			}
 		}
 	}
 
@@ -396,6 +473,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	// find the snap.Info/path for kernel/os/base so
 	// that boot.MakeBootable can DTRT
 	gadgetFname := ""
+	kernelFname := ""
 	for _, sn := range bootSnaps {
 		switch sn.Info.Type() {
 		case snap.TypeGadget:
@@ -406,15 +484,33 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		case snap.TypeKernel:
 			bootWith.Kernel = sn.Info
 			bootWith.KernelPath = sn.Path
+			kernelFname = sn.Path
 		}
 	}
 
 	// unpacking the gadget for core models
-	if err := unpackGadget(gadgetFname, gadgetUnpackDir); err != nil {
+	if err := unpackSnap(gadgetFname, gadgetUnpackDir); err != nil {
+		return err
+	}
+	if err := unpackSnap(kernelFname, kernelUnpackDir); err != nil {
 		return err
 	}
 
-	if err := boot.MakeBootable(model, bootRootDir, bootWith); err != nil {
+	if err := boot.MakeBootableImage(model, bootRootDir, bootWith, opts.Customizations.BootFlags); err != nil {
+		return err
+	}
+
+	gadgetInfo, err := gadget.ReadInfoAndValidate(gadgetUnpackDir, model, nil)
+	if err != nil {
+		return err
+	}
+	// validate content against the kernel as well
+	if err := gadget.ValidateContent(gadgetInfo, gadgetUnpackDir, kernelUnpackDir); err != nil {
+		return err
+	}
+
+	// write resolved content to structure root
+	if err := writeResolvedContent(opts.PrepareDir, gadgetInfo, gadgetUnpackDir, kernelUnpackDir); err != nil {
 		return err
 	}
 
@@ -425,20 +521,16 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			return err
 		}
 
-		gadgetInfo, err := gadget.ReadInfo(gadgetUnpackDir, model)
-		if err != nil {
-			return err
-		}
-
 		defaultsDir := sysconfig.WritableDefaultsDir(rootDir)
 		defaults := gadget.SystemDefaults(gadgetInfo.Defaults)
 		if len(defaults) > 0 {
 			if err := os.MkdirAll(sysconfig.WritableDefaultsDir(rootDir, "/etc"), 0755); err != nil {
 				return err
 			}
-			applyOpts := &sysconfig.FilesystemOnlyApplyOptions{Classic: opts.Classic}
-			return sysconfig.ApplyFilesystemOnlyDefaults(defaultsDir, defaults, applyOpts)
+			return sysconfig.ApplyFilesystemOnlyDefaults(model, defaultsDir, defaults)
 		}
+
+		customizeImage(rootDir, defaultsDir, &opts.Customizations)
 	}
 
 	return nil

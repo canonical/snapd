@@ -60,7 +60,8 @@ func isSessionBusLikelyPresent() bool {
 //  to use the session bus, we expect session bus daemon to have been started and
 // managed by the corresponding user session manager.
 //
-// This function is mockable by either MockConnections or MockSessionBus.
+// This function is mockable by either MockConnections or
+// MockOnlySessionBusAvailable.
 var SessionBus = func() (*dbus.Conn, error) {
 	if isSessionBusLikelyPresent() {
 		return dbus.SessionBus()
@@ -70,7 +71,8 @@ var SessionBus = func() (*dbus.Conn, error) {
 
 // SystemBus is like dbus.SystemBus and is provided for completeness.
 //
-// This function is mockable by either MockConnections or MockSystemBus.
+// This function is mockable by either MockConnections or
+// MockOnlySystemBusAvailable.
 var SystemBus = func() (*dbus.Conn, error) {
 	return dbus.SystemBus()
 }
@@ -107,4 +109,25 @@ func MockOnlySessionBusAvailable(conn *dbus.Conn) (restore func()) {
 	}
 	sessionBus := func() (*dbus.Conn, error) { return conn, nil }
 	return MockConnections(systemBus, sessionBus)
+}
+
+// SessionBusPrivate opens a connection to the D-Bus session bus
+// independent of the default shared connection.
+func SessionBusPrivate() (*dbus.Conn, error) {
+	if !isSessionBusLikelyPresent() {
+		return nil, fmt.Errorf("cannot find session bus")
+	}
+	conn, err := dbus.SessionBusPrivate()
+	if err != nil {
+		return nil, err
+	}
+	if err := conn.Auth(nil); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	if err := conn.Hello(); err != nil {
+		conn.Close()
+		return nil, err
+	}
+	return conn, nil
 }

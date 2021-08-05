@@ -41,7 +41,9 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/timeutil"
+	userclient "github.com/snapcore/snapd/usersession/client"
 )
 
 type autoRefreshStore struct {
@@ -50,9 +52,19 @@ type autoRefreshStore struct {
 	ops []string
 
 	err error
+
+	snapActionOpsFunc func()
 }
 
 func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
+	// this is a bit of a hack to simulate race conditions where while the store
+	// has unlocked the global state lock something else could come in and
+	// change the auto-refresh hold
+	if r.snapActionOpsFunc != nil {
+		r.snapActionOpsFunc()
+		return nil, nil, r.err
+	}
+
 	if assertQuery != nil {
 		panic("no assertion query support")
 	}
@@ -71,26 +83,30 @@ func (r *autoRefreshStore) SnapAction(ctx context.Context, currentSnaps []*store
 			panic("expected refresh actions")
 		}
 	}
+
 	r.ops = append(r.ops, "list-refresh")
+
 	return nil, nil, r.err
 }
 
 type autoRefreshTestSuite struct {
+	testutil.BaseTest
 	state *state.State
 
 	store *autoRefreshStore
-
-	restore func()
 }
 
 var _ = Suite(&autoRefreshTestSuite{})
 
 func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("") })
 
 	s.state = state.New(nil)
 
 	s.store = &autoRefreshStore{}
+
+	s.AddCleanup(func() { s.store.snapActionOpsFunc = nil })
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -107,22 +123,17 @@ func (s *autoRefreshTestSuite) SetUpTest(c *C) {
 	})
 
 	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+	s.AddCleanup(func() { snapstate.CanAutoRefresh = nil })
 	snapstate.AutoAliases = func(*state.State, *snap.Info) (map[string]string, error) {
 		return nil, nil
 	}
+	s.AddCleanup(func() { snapstate.AutoAliases = nil })
 	snapstate.IsOnMeteredConnection = func() (bool, error) { return false, nil }
 
 	s.state.Set("seeded", true)
 	s.state.Set("seed-time", time.Now())
 	s.state.Set("refresh-privacy-key", "privacy-key")
-	s.restore = snapstatetest.MockDeviceModel(DefaultModel())
-}
-
-func (s *autoRefreshTestSuite) TearDownTest(c *C) {
-	snapstate.CanAutoRefresh = nil
-	snapstate.AutoAliases = nil
-	s.restore()
-	dirs.SetRootDir("")
+	s.AddCleanup(snapstatetest.MockDeviceModel(DefaultModel()))
 }
 
 func (s *autoRefreshTestSuite) TestLastRefresh(c *C) {
@@ -342,7 +353,7 @@ func (s *autoRefreshTestSuite) TestRefreshPersistentError(c *C) {
 	s.state.Set("last-refresh", initialLastRefresh)
 	s.state.Unlock()
 
-	s.store.err = &httputil.PerstistentNetworkError{Err: fmt.Errorf("error")}
+	s.store.err = &httputil.PersistentNetworkError{Err: fmt.Errorf("error")}
 	af := snapstate.NewAutoRefresh(s.state)
 	err := af.Ensure()
 	c.Check(err, ErrorMatches, "persistent network error: error")
@@ -439,6 +450,84 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpired(c *C) {
 	c.Assert(config.IsNoOption(err), Equals, true)
 }
 
+func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpiredButResetWhileLockUnlocked(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	t0 := time.Now()
+	twelveHoursAgo := t0.Add(-12 * time.Hour)
+	fiveMinutesAgo := t0.Add(-5 * time.Minute)
+	oneHourInFuture := t0.Add(time.Hour)
+	s.state.Set("last-refresh", twelveHoursAgo)
+
+	holdTime := fiveMinutesAgo
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.hold", holdTime)
+	tr.Commit()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	sent := false
+	ch := make(chan struct{})
+	// make the store snap action function trigger a background go routine to
+	// change the held-time underneath the auto-refresh
+	go func() {
+		// wait to be triggered by the snap action ops func
+		<-ch
+		s.state.Lock()
+		defer s.state.Unlock()
+
+		// now change the refresh.hold time to be an hour in the future
+		tr := config.NewTransaction(s.state)
+		tr.Set("core", "refresh.hold", oneHourInFuture)
+		tr.Commit()
+
+		// trigger the snap action ops func to proceed
+		ch <- struct{}{}
+	}()
+
+	s.store.snapActionOpsFunc = func() {
+		// only need to send once, this will be invoked multiple times for
+		// multiple snaps
+		if !sent {
+			ch <- struct{}{}
+			sent = true
+			// wait for a response to ensure that we block waiting for the new
+			// refresh time to be committed in time for us to read it after
+			// returning in this go routine
+			<-ch
+		}
+	}
+
+	af := snapstate.NewAutoRefresh(s.state)
+	s.state.Unlock()
+	err := af.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+
+	var lastRefresh time.Time
+	s.state.Get("last-refresh", &lastRefresh)
+	c.Check(lastRefresh.Year(), Equals, time.Now().Year())
+
+	// hold was reset mid-way to a new value one hour into the future
+	tr = config.NewTransaction(s.state)
+	var t1 time.Time
+	err = tr.Get("core", "refresh.hold", &t1)
+	c.Assert(err, IsNil)
+
+	// when traversing json through the core config transaction, there will be
+	// different wall/monotonic clock times, we remove this ambiguity by
+	// formatting as rfc3339 which will strip this negligible difference in time
+	c.Assert(t1.Format(time.RFC3339), Equals, oneHourInFuture.Format(time.RFC3339))
+
+	// we shouldn't have had a message about "all snaps are up to date", we
+	// should have a message about being aborted mid way
+
+	c.Assert(logbuf.String(), testutil.Contains, "Auto-refresh was delayed mid-way through launching, aborting to try again later")
+	c.Assert(logbuf.String(), Not(testutil.Contains), "auto-refresh: all snaps are up-to-date")
+}
+
 func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpiredReschedule(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -478,6 +567,98 @@ func (s *autoRefreshTestSuite) TestLastRefreshRefreshHoldExpiredReschedule(c *C)
 	c.Check(nextRefresh1.Before(nextRefresh), Equals, false)
 }
 
+func (s *autoRefreshTestSuite) TestEnsureRefreshHoldAtLeastZeroTimes(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// setup hold-time as time.Time{} and next-refresh as now to simulate real
+	// console-conf-start situations
+	t0 := time.Now()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.hold", time.Time{})
+	tr.Commit()
+
+	af := snapstate.NewAutoRefresh(s.state)
+	snapstate.MockNextRefresh(af, t0)
+
+	err := af.EnsureRefreshHoldAtLeast(time.Hour)
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	err = af.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+
+	// refresh did not happen
+	c.Check(s.store.ops, HasLen, 0)
+
+	// hold is now more than an hour later than when the test started
+	tr = config.NewTransaction(s.state)
+	var t1 time.Time
+	err = tr.Get("core", "refresh.hold", &t1)
+	c.Assert(err, IsNil)
+
+	// use After() == false here in case somehow the t0 + 1hr is exactly t1,
+	// Before() and After() are false for the same time instants
+	c.Assert(t0.Add(time.Hour).After(t1), Equals, false)
+}
+
+func (s *autoRefreshTestSuite) TestEnsureRefreshHoldAtLeast(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// setup last-refresh as happening a long time ago, and refresh-hold as
+	// having been expired
+	t0 := time.Now()
+	s.state.Set("last-refresh", t0.Add(-12*time.Hour))
+
+	holdTime := t0.Add(-1 * time.Minute)
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "refresh.hold", holdTime)
+
+	tr.Commit()
+
+	af := snapstate.NewAutoRefresh(s.state)
+	snapstate.MockNextRefresh(af, holdTime.Add(-2*time.Minute))
+
+	err := af.EnsureRefreshHoldAtLeast(time.Hour)
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+	err = af.Ensure()
+	s.state.Lock()
+	c.Check(err, IsNil)
+
+	// refresh did not happen
+	c.Check(s.store.ops, HasLen, 0)
+
+	// hold is now more than an hour later than when the test started
+	tr = config.NewTransaction(s.state)
+	var t1 time.Time
+	err = tr.Get("core", "refresh.hold", &t1)
+	c.Assert(err, IsNil)
+
+	// use After() == false here in case somehow the t0 + 1hr is exactly t1,
+	// Before() and After() are false for the same time instants
+	c.Assert(t0.Add(time.Hour).After(t1), Equals, false)
+
+	// setting it to a shorter time will not change it
+	err = af.EnsureRefreshHoldAtLeast(30 * time.Minute)
+	c.Assert(err, IsNil)
+
+	// time is still equal to t1
+	tr = config.NewTransaction(s.state)
+	var t2 time.Time
+	err = tr.Get("core", "refresh.hold", &t2)
+	c.Assert(err, IsNil)
+
+	// when traversing json through the core config transaction, there will be
+	// different wall/monotonic clock times, we remove this ambiguity by
+	// formatting as rfc3339 which will strip this negligible difference in time
+	c.Assert(t1.Format(time.RFC3339), Equals, t2.Format(time.RFC3339))
+}
+
 func (s *autoRefreshTestSuite) TestEffectiveRefreshHold(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -496,19 +677,19 @@ func (s *autoRefreshTestSuite) TestEffectiveRefreshHold(c *C) {
 	tr.Set("core", "refresh.hold", holdTime)
 	tr.Commit()
 
-	seedTime := holdTime.Add(-70 * 24 * time.Hour)
+	seedTime := holdTime.Add(-100 * 24 * time.Hour)
 	s.state.Set("seed-time", seedTime)
 
 	t1, err := af.EffectiveRefreshHold()
 	c.Assert(err, IsNil)
-	c.Check(t1.Equal(seedTime.Add(60*24*time.Hour)), Equals, true)
+	c.Check(t1.Equal(seedTime.Add(95*24*time.Hour)), Equals, true)
 
-	lastRefresh := holdTime.Add(-65 * 24 * time.Hour)
+	lastRefresh := holdTime.Add(-99 * 24 * time.Hour)
 	s.state.Set("last-refresh", lastRefresh)
 
 	t1, err = af.EffectiveRefreshHold()
 	c.Assert(err, IsNil)
-	c.Check(t1.Equal(lastRefresh.Add(60*24*time.Hour)), Equals, true)
+	c.Check(t1.Equal(lastRefresh.Add(95*24*time.Hour)), Equals, true)
 
 	s.state.Set("last-refresh", holdTime.Add(-6*time.Hour))
 	t1, err = af.EffectiveRefreshHold()
@@ -676,9 +857,9 @@ func (s *autoRefreshTestSuite) TestRefreshOnMeteredConnIsMetered(c *C) {
 
 	c.Check(af.NextRefresh(), DeepEquals, time.Time{})
 
-	// last refresh over 60 days ago, new one is launched regardless of
+	// last refresh over 96 days ago, new one is launched regardless of
 	// connection being metered
-	s.state.Set("last-refresh", time.Now().Add(-61*24*time.Hour))
+	s.state.Set("last-refresh", time.Now().Add(-96*24*time.Hour))
 	s.state.Unlock()
 	err = af.Ensure()
 	s.state.Lock()
@@ -710,9 +891,17 @@ func (s *autoRefreshTestSuite) TestRefreshOnMeteredConnNotMetered(c *C) {
 	c.Check(s.store.ops, DeepEquals, []string{"list-refresh"})
 }
 
-func (s *autoRefreshTestSuite) TestInhibitRefreshWithinInhibitWindow(c *C) {
+func (s *autoRefreshTestSuite) TestInitialInhibitRefreshWithinInhibitWindow(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	notificationCount := 0
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+		notificationCount++
+		c.Check(refreshInfo.InstanceName, Equals, "pkg")
+		c.Check(refreshInfo.TimeRemaining, Equals, time.Hour*14*24)
+	})
+	defer restore()
 
 	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
 	info := &snap.Info{SideInfo: *si}
@@ -721,18 +910,55 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshWithinInhibitWindow(c *C) {
 		Current:  si.Revision,
 	}
 	err := snapstate.InhibitRefresh(s.state, snapst, info, func(si *snap.Info) error {
-		return &snapstate.BusySnapError{SnapName: "pkg"}
+		return &snapstate.BusySnapError{SnapInfo: si}
 	})
 	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks`)
-
-	pending, _ := s.state.PendingWarnings()
-	c.Assert(pending, HasLen, 1)
-	c.Check(pending[0].String(), Equals, `snap "pkg" is currently in use. Its refresh will be postponed for up to 7 days to wait for the snap to no longer be in use.`)
+	c.Check(notificationCount, Equals, 1)
 }
 
-func (s *autoRefreshTestSuite) TestInhibitRefreshWarnsAndRefreshesWhenOverdue(c *C) {
+func (s *autoRefreshTestSuite) TestSubsequentInhibitRefreshWithinInhibitWindow(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	notificationCount := 0
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+		notificationCount++
+		c.Check(refreshInfo.InstanceName, Equals, "pkg")
+		// XXX: This test measures real time, with second granularity.
+		// It takes non-zero (hence the subtracted second) to execute the test.
+		c.Check(refreshInfo.TimeRemaining, Equals, time.Hour*14*24/2-time.Second)
+	})
+	defer restore()
+
+	instant := time.Now()
+	pastInstant := instant.Add(-snapstate.MaxInhibition / 2) // In the middle of the allowed window
+
+	si := &snap.SideInfo{RealName: "pkg", Revision: snap.R(1)}
+	info := &snap.Info{SideInfo: *si}
+	snapst := &snapstate.SnapState{
+		Sequence:             []*snap.SideInfo{si},
+		Current:              si.Revision,
+		RefreshInhibitedTime: &pastInstant,
+	}
+
+	err := snapstate.InhibitRefresh(s.state, snapst, info, func(si *snap.Info) error {
+		return &snapstate.BusySnapError{SnapInfo: si}
+	})
+	c.Assert(err, ErrorMatches, `snap "pkg" has running apps or hooks`)
+	c.Check(notificationCount, Equals, 1)
+}
+
+func (s *autoRefreshTestSuite) TestInhibitRefreshRefreshesWhenOverdue(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	notificationCount := 0
+	restore := snapstate.MockAsyncPendingRefreshNotification(func(ctx context.Context, client *userclient.Client, refreshInfo *userclient.PendingSnapRefreshInfo) {
+		notificationCount++
+		c.Check(refreshInfo.InstanceName, Equals, "pkg")
+		c.Check(refreshInfo.TimeRemaining, Equals, time.Duration(0))
+	})
+	defer restore()
 
 	instant := time.Now()
 	pastInstant := instant.Add(-snapstate.MaxInhibition * 2)
@@ -745,11 +971,8 @@ func (s *autoRefreshTestSuite) TestInhibitRefreshWarnsAndRefreshesWhenOverdue(c 
 		RefreshInhibitedTime: &pastInstant,
 	}
 	err := snapstate.InhibitRefresh(s.state, snapst, info, func(si *snap.Info) error {
-		return &snapstate.BusySnapError{SnapName: "pkg"}
+		return &snapstate.BusySnapError{SnapInfo: si}
 	})
 	c.Assert(err, IsNil)
-
-	pending, _ := s.state.PendingWarnings()
-	c.Assert(pending, HasLen, 1)
-	c.Check(pending[0].String(), Equals, `snap "pkg" has been running for the maximum allowable 7 days since its refresh was postponed. It will now be refreshed.`)
+	c.Check(notificationCount, Equals, 1)
 }

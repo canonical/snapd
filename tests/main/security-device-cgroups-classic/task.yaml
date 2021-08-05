@@ -18,9 +18,7 @@ prepare: |
     fi
 
     echo "Given a snap declaring a plug on framebuffer is installed in classic"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local_classic test-classic-cgroup
+    "$TESTSTOOLS"/snaps-state install-local test-classic-cgroup --classic
 
 restore: |
     if [ -e /dev/fb0.spread ]; then
@@ -28,12 +26,10 @@ restore: |
     fi
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     # classic snaps don't use 'plugs', so just test the accesses after install
     echo "the classic snap can access the framebuffer"
-    "$SNAP_MOUNT_DIR"/bin/test-classic-cgroup.read-fb 2>&1 | not MATCH '(Permission denied|Operation not permitted)'
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    "$SNAP_MOUNT_DIR"/bin/test-classic-cgroup.read-fb 2>&1 | NOMATCH '(Permission denied|Operation not permitted)'
 
     echo "the classic snap can access other devices"
-    test "$($SNAP_MOUNT_DIR/bin/test-classic-cgroup.read-kmsg)"
+    test "$("$SNAP_MOUNT_DIR"/bin/test-classic-cgroup.read-kmsg)"

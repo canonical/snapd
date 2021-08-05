@@ -1,11 +1,5 @@
 #!/bin/sh -eu
 
-if [ -n "${TRAVIS_BUILD_NUMBER:-}" ]; then
-    echo travis_fold:start:env
-    printenv | sort
-    echo travis_fold:end:env
-fi
-
 export LANG=C.UTF-8
 export LANGUAGE=en
 
@@ -16,9 +10,9 @@ else
 fi
 COVERMODE=${COVERMODE:-atomic}
 
-if [ -z "${TRAVIS_BUILD_ID:-}" ] && [ -z "${GITHUB_WORKFLOW:-}" ]; then
-    # when *not* running inside travis/gh, ensure we use go-1.10 by default
-    export PATH=/usr/lib/go-1.10/bin:${PATH}
+if [ -z "${GITHUB_WORKFLOW:-}" ]; then
+    # when *not* running inside github, ensure we use go-1.13 by default
+    export PATH=/usr/lib/go-1.13/bin:${PATH}
 fi
 
 # add workaround for https://github.com/golang/go/issues/24449
@@ -37,7 +31,6 @@ short=
 
 STATIC=
 UNIT=
-SPREAD=
 
 case "${1:-all}" in
     all)
@@ -53,18 +46,6 @@ case "${1:-all}" in
     --short-unit)
         UNIT=1
         short=1
-        ;;
-    --spread)
-        SPREAD=full
-        ;;
-    --spread-ubuntu)
-        SPREAD=ubuntu-only
-        ;;
-    --spread-no-ubuntu)
-        SPREAD=no-ubuntu
-        ;;
-    --spread-unstable)
-        SPREAD=unstable
         ;;
     *)
         echo "Wrong flag ${1}. To run a single suite use --static, --unit, --spread."
@@ -121,7 +102,7 @@ missing_interface_spread_test() {
     for iface in $(go run ./tests/lib/list-interfaces.go) ; do
         search="plugs: \\[ $iface \\]"
         case "$iface" in
-            bool-file|gpio|hidraw|i2c|iio|serial-port|spi)
+            bool-file|gpio|pwm|dsp|netlink-driver|hidraw|i2c|iio|serial-port|spi)
                 # skip gadget provided interfaces for now
                 continue
                 ;;
@@ -170,6 +151,7 @@ if [ "$STATIC" = 1 ]; then
         done
         if [ -n "$fmt" ]; then
             echo "Formatting wrong in following files:"
+            # shellcheck disable=SC2001
             echo "$fmt" | sed -e 's/\\n/\n/g'
             exit 1
         fi
@@ -225,25 +207,29 @@ if [ "$STATIC" = 1 ]; then
             exit 1
         fi
         unset regexp
+        # also run spread-shellcheck
+        ./spread-shellcheck spread.yaml tests
     fi
 
     echo "Checking spelling errors"
     if ! command -v misspell >/dev/null; then
         go get -u github.com/client9/misspell/cmd/misspell
     fi
-    for file in *; do
-        if [ "$file" = "vendor" ] || [ "$file" = "po" ]; then
-            continue
-        fi
-        misspell -error -i auther,PROCES,PROCESSS,proces,processs,exportfs "$file"
-    done
+    # FIXME: auter is only misspelled in the changelog so we should fix there
+    # PROCES is used in the seccomp tests (PRIO_PROCES{,S,SS})
+    # exportfs is used in the nfs-support test
+    MISSPELL_IGNORE="auther,PROCES,PROCESSS,proces,processs,exportfs"
+    git ls-files -z -- . ':!:./po' ':!:./vendor' |
+        xargs -0 misspell -error -i "$MISSPELL_IGNORE"
 
-    echo "Checking for ineffective assignments"
-    if ! command -v ineffassign >/dev/null; then
-        go get -u github.com/gordonklaus/ineffassign
+    if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.12; then
+        echo "Checking for ineffective assignments"
+        if ! command -v ineffassign >/dev/null; then
+            go get -u github.com/gordonklaus/ineffassign
+        fi
+        # ineffassign knows about ignoring vendor/ \o/
+        ineffassign ./...
     fi
-    # ineffassign knows about ignoring vendor/ \o/
-    ineffassign .
 
     echo "Checking for naked returns"
     if ! command -v nakedret >/dev/null; then
@@ -281,6 +267,11 @@ if [ "$STATIC" = 1 ]; then
     fi
 
     # FIXME: re-add staticcheck with a matching version for the used go-version
+
+    if [ -z "${SKIP_TESTS_FORMAT_CHECK-}" ] || [ "$SKIP_TESTS_FORMAT_CHECK" = 0 ]; then
+        echo "Checking tests formatting"
+        ./tests/utils/check-test-format ./tests
+    fi
 fi
 
 if [ "$UNIT" = 1 ]; then
@@ -290,33 +281,46 @@ if [ "$UNIT" = 1 ]; then
     command -v go
     go version
 
+    tags=
+    if [ -n "${GO_BUILD_TAGS-}" ]; then
+        echo "Using build tags: $GO_BUILD_TAGS"
+        tags="-tags $GO_BUILD_TAGS"
+    fi
+
     echo Building
-    go build -v github.com/snapcore/snapd/...
+    # shellcheck disable=SC2086
+    go build -v $tags github.com/snapcore/snapd/...
 
     # tests
     echo Running tests from "$PWD"
     if [ "$short" = 1 ]; then
-            # shellcheck disable=SC2046
-            GOTRACEBACK=1 $goctest -short -timeout 5m $(go list ./... | grep -v '/vendor/' )
+            # shellcheck disable=SC2046,SC2086
+            GOTRACEBACK=1 $goctest $tags -short -timeout 5m $(go list ./... | grep -v '/vendor/' )
     else
-        # Prepare the coverage output profile.
-        rm -rf .coverage
-        mkdir .coverage
-        echo "mode: $COVERMODE" > .coverage/coverage.out
+        coverage=""
+        if [ -z "${SKIP_COVERAGE-}" ]; then
+            coverage="-coverprofile=.coverage/coverage.out -covermode=$COVERMODE"
+            # Prepare the coverage output profile.
+            rm -rf .coverage
+            mkdir .coverage
+            echo "mode: $COVERMODE" > .coverage/coverage.out
+        else
+            echo "Skipping test coverage"
+        fi
 
-        if dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.10; then
-            # shellcheck disable=SC2046
-            GOTRACEBACK=1 $goctest -timeout 5m -coverprofile=.coverage/coverage.out -covermode="$COVERMODE" $(go list ./... | grep -v '/vendor/' )
+        if command -v dpkg >/dev/null && dpkg --compare-versions "$(go version | awk '$3 ~ /^go[0-9]/ {print substr($3, 3)}')" ge 1.10; then
+            # shellcheck disable=SC2046,SC2086
+            GOTRACEBACK=1 $goctest $tags -timeout 5m $coverage $(go list ./... | grep -v '/vendor/' )
         else
             for pkg in $(go list ./... | grep -v '/vendor/' ); do
-                GOTRACEBACK=1 go test -timeout 5m -i "$pkg"
-                GOTRACEBACK=1 $goctest -timeout 5m -coverprofile=.coverage/profile.out -covermode="$COVERMODE" "$pkg"
-                append_coverage .coverage/profile.out
+                # shellcheck disable=SC2086
+                GOTRACEBACK=1 go test $tags -timeout 5m -i "$pkg"
+                if [ -z "${SKIP_COVERAGE-}" ]; then
+                    # shellcheck disable=SC2086
+                    GOTRACEBACK=1 $goctest $tags -timeout 5m $coverage "$pkg"
+                    append_coverage .coverage/profile.out
+                fi
             done
-        fi
-        # upload to codecov.io if on travis
-        if [ "${TRAVIS_BUILD_NUMBER:-}" ]; then
-            curl -s https://codecov.io/bash | bash /dev/stdin -f .coverage/coverage.out
         fi
     fi
 
@@ -325,62 +329,6 @@ if [ "$UNIT" = 1 ]; then
     command -v python3 && python3 ./tests/lib/tools/mountinfo.query --run-unit-tests
     command -v python2 && python2 ./tests/lib/tools/version-compare --run-unit-tests
     command -v python3 && python3 ./tests/lib/tools/version-compare --run-unit-tests
-fi
-
-if [ -n "$SPREAD" ]; then
-    if [ -n "${TRAVIS_PULL_REQUEST:-}" ] && [ "${TRAVIS_PULL_REQUEST:-}" != "false" ]; then
-        echo "Checking whether PR author requested to skip spread"
-        if ./check-pr-has-label.py "$TRAVIS_PULL_REQUEST" "LABEL_SKIP_SPREAD_JOB"; then
-            echo "Skipping spread job on request"
-            exit 0
-        fi
-    fi
-
-    TMP_SPREAD="$(mktemp -d)"
-    addtrap "rm -rf \"$TMP_SPREAD\""
-
-    export PATH=$TMP_SPREAD:$PATH
-    ( cd "$TMP_SPREAD" && curl -s -O https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz && tar xzvf spread-amd64.tar.gz )
-
-    case "$SPREAD" in
-        full)
-            spread "google:"
-            ;;
-        ubuntu-only)
-            spread "google:[u]...:tests/..."
-            ;;
-        no-ubuntu)
-            spread "google:[^u]...:tests/..."
-            ;;
-        unstable)
-            # check if we have any systems first
-            if spread -list "google-unstable:" 2>&1 | grep -q -E 'nothing matches'; then
-                echo "No unstable systems to run the tests on"
-            else
-                spread "google-unstable:"
-            fi
-            ;;
-        *)
-            echo "Spread parameter $SPREAD not supported"
-            exit 1
-    esac
-
-    if ./check-pr-has-label.py "$TRAVIS_PULL_REQUEST" "LABEL_RUN_SPREAD_NESTED"; then
-        case "$SPREAD" in
-            full)
-                spread "google-nested:tests/nested/"
-            ;;
-            ubuntu-only)
-                spread "google-nested:[u]...:tests/nested/"
-            ;;
-            *)
-                echo "Spread parameter $SPREAD not supported"
-                exit 1
-        esac
-    fi
-
-    # cleanup the debian-ubuntu-14.04
-    rm -rf debian-ubuntu-14.04
 fi
 
 UNCLEAN="$(git status -s|grep '^??')" || true
@@ -392,5 +340,15 @@ There are files left in the git tree after the tests:
 
 $UNCLEAN
 EOF
+    exit 1
+fi
+
+if [ -n "${SKIP_DIRTY_CHECK-}" ]; then
+    exit 0
+fi
+
+if git describe --always --dirty | grep -q dirty; then
+    echo "Build tree is dirty"
+    git diff
     exit 1
 fi

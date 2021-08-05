@@ -203,6 +203,8 @@ func (s *baseDeclSuite) TestAutoConnectPlugSlot(c *C) {
 		"content":         true,
 		"home":            true,
 		"lxd-support":     true,
+		// netlink-driver needs the family-name attributes to match
+		"netlink-driver": true,
 	}
 
 	for _, iface := range all {
@@ -580,51 +582,56 @@ plugs:
 // ATM a nil entry means even stricter rules that would need be tested
 // separately and whose implementation is in flux for now
 var (
-	unconstrained = []string{"core", "kernel", "gadget", "app"}
-
 	slotInstallation = map[string][]string{
 		// other
-		"adb-support":             {"core"},
-		"audio-playback":          {"app", "core"},
-		"audio-record":            {"app", "core"},
-		"autopilot-introspection": {"core"},
-		"avahi-control":           {"app", "core"},
-		"avahi-observe":           {"app", "core"},
-		"bluez":                   {"app", "core"},
-		"bool-file":               {"core", "gadget"},
-		"browser-support":         {"core"},
-		"content":                 {"app", "gadget"},
-		"core-support":            {"core"},
-		"dbus":                    {"app"},
-		"docker-support":          {"core"},
-		"dummy":                   {"app"},
-		"fwupd":                   {"app", "core"},
-		"gpio":                    {"core", "gadget"},
-		"gpio-control":            {"core"},
-		"greengrass-support":      {"core"},
-		"hidraw":                  {"core", "gadget"},
-		"i2c":                     {"core", "gadget"},
-		"iio":                     {"core", "gadget"},
-		"kubernetes-support":      {"core"},
-		"location-control":        {"app"},
-		"location-observe":        {"app"},
-		"lxd-support":             {"core"},
-		"maliit":                  {"app"},
-		"media-hub":               {"app", "core"},
-		"mir":                     {"app"},
-		"modem-manager":           {"app", "core"},
-		"mpris":                   {"app"},
-		"network-manager":         {"app", "core"},
-		"network-manager-observe": {"app", "core"},
-		"network-status":          {"core"},
-		"ofono":                   {"app", "core"},
-		"online-accounts-service": {"app"},
-		"power-control":           {"core"},
-		"ppp":                     {"core"},
-		"pulseaudio":              {"app", "core"},
-		"raw-volume":              {"core", "gadget"},
-		"serial-port":             {"core", "gadget"},
-		"spi":                     {"core", "gadget"},
+		"adb-support":               {"core"},
+		"audio-playback":            {"app", "core"},
+		"audio-record":              {"app", "core"},
+		"autopilot-introspection":   {"core"},
+		"avahi-control":             {"app", "core"},
+		"avahi-observe":             {"app", "core"},
+		"bluez":                     {"app", "core"},
+		"bool-file":                 {"core", "gadget"},
+		"browser-support":           {"core"},
+		"content":                   {"app", "gadget"},
+		"core-support":              {"core"},
+		"cups":                      {"app"},
+		"cups-control":              {"app", "core"},
+		"dbus":                      {"app"},
+		"docker-support":            {"core"},
+		"desktop-launch":            {"core"},
+		"dsp":                       {"core", "gadget"},
+		"dummy":                     {"app"},
+		"fwupd":                     {"app", "core"},
+		"gpio":                      {"core", "gadget"},
+		"gpio-control":              {"core"},
+		"greengrass-support":        {"core"},
+		"hidraw":                    {"core", "gadget"},
+		"i2c":                       {"core", "gadget"},
+		"iio":                       {"core", "gadget"},
+		"kubernetes-support":        {"core"},
+		"location-control":          {"app"},
+		"location-observe":          {"app"},
+		"lxd-support":               {"core"},
+		"maliit":                    {"app"},
+		"media-hub":                 {"app", "core"},
+		"mir":                       {"app"},
+		"modem-manager":             {"app", "core"},
+		"mpris":                     {"app"},
+		"netlink-driver":            {"core", "gadget"},
+		"network-manager":           {"app", "core"},
+		"network-manager-observe":   {"app", "core"},
+		"network-status":            {"core"},
+		"ofono":                     {"app", "core"},
+		"online-accounts-service":   {"app"},
+		"power-control":             {"core"},
+		"ppp":                       {"core"},
+		"pulseaudio":                {"app", "core"},
+		"pwm":                       {"core", "gadget"},
+		"raw-volume":                {"core", "gadget"},
+		"sd-control":                {"core"},
+		"serial-port":               {"core", "gadget"},
+		"spi":                       {"core", "gadget"},
 		"storage-framework-service": {"app"},
 		"thumbnailer-service":       {"app"},
 		"ubuntu-download-manager":   {"app"},
@@ -700,6 +707,8 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 	restricted := map[string]bool{
 		"block-devices":         true,
 		"classic-support":       true,
+		"desktop-launch":        true,
+		"dm-crypt":              true,
 		"docker-support":        true,
 		"greengrass-support":    true,
 		"gpio-control":          true,
@@ -709,8 +718,10 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"multipass-support":     true,
 		"packagekit-control":    true,
 		"personal-files":        true,
+		"sd-control":            true,
 		"snapd-control":         true,
 		"system-files":          true,
+		"tee":                   true,
 		"uinput":                true,
 		"unity8":                true,
 	}
@@ -751,14 +762,15 @@ func (s *baseDeclSuite) TestConnection(c *C) {
 	// connecting with these interfaces needs to be allowed on
 	// case-by-case basis
 	noconnect := map[string]bool{
-		"content":          true,
-		"docker":           true,
-		"fwupd":            true,
-		"location-control": true,
-		"location-observe": true,
-		"lxd":              true,
-		"maliit":           true,
-		"mir":              true,
+		"content":                   true,
+		"cups":                      true,
+		"docker":                    true,
+		"fwupd":                     true,
+		"location-control":          true,
+		"location-observe":          true,
+		"lxd":                       true,
+		"maliit":                    true,
+		"mir":                       true,
 		"online-accounts-service":   true,
 		"raw-volume":                true,
 		"storage-framework-service": true,
@@ -823,6 +835,103 @@ func (s *baseDeclSuite) TestConnectionOnClassic(c *C) {
 	}
 }
 
+func (s *baseDeclSuite) TestConnectionImplicitOnClassicOrAppSnap(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	all := builtin.Interfaces()
+
+	// These interfaces represent when the interface might be implicit on
+	// classic or when the interface is provided via an app snap. As such,
+	// they all share the following:
+	//
+	// - implicitOnCore: false
+	// - implicitOnClassis: true
+	// - base declaration uses:
+	//     allow-installation:
+	//       slot-snap-type:
+	//         - app
+	//         - core
+	//     deny-connection:
+	//       on-classic: false
+	//     deny-auto-connection: true|false|unspecified
+	//
+	// connecting with these interfaces needs to be allowed on
+	// case-by-case basis when not on classic
+	ifaces := map[string]bool{
+		"audio-playback":  true,
+		"audio-record":    true,
+		"cups-control":    true,
+		"modem-manager":   true,
+		"network-manager": true,
+		"ofono":           true,
+		"pulseaudio":      true,
+		"upower-observe":  true,
+	}
+
+	for _, iface := range all {
+		if !ifaces[iface.Name()] {
+			continue
+		}
+		comm := Commentf(iface.Name())
+
+		// verify the interface is setup as expected wrt
+		// implicitOnCore, implicitOnClassic, no plugs and has
+		// expected slots (ignoring AutoConnection)
+		si := interfaces.StaticInfoOf(iface)
+		c.Assert(si.ImplicitOnCore, Equals, false)
+		c.Assert(si.ImplicitOnClassic, Equals, true)
+
+		c.Assert(s.baseDecl.PlugRule(iface.Name()), IsNil)
+
+		sr := s.baseDecl.SlotRule(iface.Name())
+		c.Assert(sr, Not(IsNil))
+		c.Assert(sr.AllowInstallation, HasLen, 1)
+		c.Check(sr.AllowInstallation[0].SlotSnapTypes, DeepEquals, []string{"app", "core"}, comm)
+		c.Assert(sr.DenyConnection, HasLen, 1)
+		c.Check(sr.DenyConnection[0].OnClassic, DeepEquals, &asserts.OnClassicConstraint{Classic: false}, comm)
+
+		for _, onClassic := range []bool{true, false} {
+			release.OnClassic = onClassic
+
+			for _, implicit := range []bool{true, false} {
+				// When implicitOnCore is false, there is
+				// nothing to test on Core
+				if implicit && !onClassic {
+					continue
+				}
+
+				snapType := "app"
+				if implicit {
+					snapType = "os"
+				}
+				slotYaml := fmt.Sprintf(`name: slot-snap
+version: 0
+type: %s
+slots:
+  %s:
+`, snapType, iface.Name())
+
+				// XXX: eventually 'onClassic && !implicit' but
+				// the current declaration allows connection on
+				// Core when 'type: app'. See:
+				// https://github.com/snapcore/snapd/pull/8920/files#r471678529
+				expected := onClassic
+
+				// check base declaration
+				cand := s.connectCand(c, iface.Name(), slotYaml, "")
+				err := cand.Check()
+
+				if expected {
+					c.Check(err, IsNil, comm)
+				} else {
+					c.Check(err, NotNil, comm)
+				}
+			}
+		}
+	}
+}
+
 func (s *baseDeclSuite) TestSanity(c *C) {
 	all := builtin.Interfaces()
 
@@ -834,6 +943,8 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"audio-playback":        true,
 		"classic-support":       true,
 		"core-support":          true,
+		"desktop-launch":        true,
+		"dm-crypt":              true,
 		"docker-support":        true,
 		"greengrass-support":    true,
 		"gpio-control":          true,
@@ -843,8 +954,10 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"multipass-support":     true,
 		"packagekit-control":    true,
 		"personal-files":        true,
+		"sd-control":            true,
 		"snapd-control":         true,
 		"system-files":          true,
+		"tee":                   true,
 		"udisks2":               true,
 		"uinput":                true,
 		"unity8":                true,
@@ -1099,4 +1212,22 @@ plugs:
 	arity, err = cand.CheckAutoConnect()
 	c.Check(err, IsNil)
 	c.Check(arity.SlotsPerPlugAny(), Equals, false)
+}
+
+func (s *baseDeclSuite) TestAutoConnectionDesktopLaunchOverride(c *C) {
+	cand := s.connectCand(c, "desktop-launch", "", "")
+	_, err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"desktop-launch\"")
+
+	plugsSlots := `
+plugs:
+  desktop-launch:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "some-snap-with-desktop-launch-id", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	_, err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
 }

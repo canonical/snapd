@@ -1,12 +1,10 @@
 summary: Check snap listings
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     snap set system experimental.parallel-instances=true
-    install_local_as test-snapd-sh test-snapd-sh_foo
+    "$TESTSTOOLS"/snaps-state install-local-as test-snapd-sh test-snapd-sh_foo
 
 restore: |
     snap set system experimental.parallel-instances=null
@@ -20,7 +18,7 @@ execute: |
     # Expressions for version and revision
     NUMERIC_VERSION="[0-9]+(\.[0-9]+)*"
     CORE_GIT_VERSION="[0-9]{2}-[0-9.]+(~[a-z0-9]+)?(\\+git[0-9]+\\.[0-9a-f]+)?"
-    SNAPD_GIT_VERSION="+[0-9.]+(~[a-z0-9]+)?(\\+git[0-9]+\\.[0-9a-z]+)?"
+    SNAPD_GIT_VERSION="+[0-9.]+(~[a-z0-9]+)?(\\+git[0-9]+\\.[0-9a-z]+)?(-dirty)?"
     FINAL_VERSION="[0-9]{2}-[0-9.]+(~[a-z0-9]+)?(\\+[0-9]+\\.[0-9a-f]+)?"
     SIDELOAD_REV="x[0-9]+"
     NUMBER_REV="[0-9]+"
@@ -52,11 +50,11 @@ execute: |
         VERSION=$FINAL_VERSION
         TRACKING="(latest/)?stable"
 
-    elif [ "$SPREAD_BACKEND" = "external" ] && [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+    elif [ "$SPREAD_BACKEND" = "external" ] && os.query is-core16; then
         echo "On the external device the core snap tested could be in any track"
         TRACKING="(latest/)?(edge|beta|candidate|stable)"
 
-    elif [ "$SPREAD_BACKEND" = "external" ] && { [[ "$SPREAD_SYSTEM" == ubuntu-core-18-* ]] || [[ "$SPREAD_SYSTEM" == ubuntu-core-20-* ]]; }; then
+    elif [ "$SPREAD_BACKEND" = "external" ] && { os.query is-core18 || os.query is-core20; }; then
         echo "On the external device the snapd snap tested could be in any track"
         NAME=snapd
         VERSION=$SNAPD_GIT_VERSION
@@ -75,9 +73,7 @@ execute: |
     snap list | MATCH "^test-snapd-sh_foo +$NUMERIC_VERSION +$SIDELOAD_REV +- +- +- *$"
 
     echo "Install test-snapd-sh again"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    install_local test-snapd-sh
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     echo "And run snap list --all"
     output=$(snap list --all | grep 'test-snapd-sh ')

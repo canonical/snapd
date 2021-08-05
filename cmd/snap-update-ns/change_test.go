@@ -23,7 +23,6 @@ import (
 	"errors"
 	"io/ioutil"
 	"os"
-	"strings"
 	"syscall"
 
 	. "gopkg.in/check.v1"
@@ -134,11 +133,18 @@ func (s *changeSuite) TestNeededChangesNoChangeOld(c *C) {
 func (s *changeSuite) TestNeededChangesNoChangeNew(c *C) {
 	s.enableRobustMountNamespaceUpdates(c)
 
-	current := &osutil.MountProfile{Entries: []osutil.MountEntry{{Dir: "/common/stuff"}}}
+	current := &osutil.MountProfile{
+		Entries: []osutil.MountEntry{
+			{Dir: "/common/stuff"},
+			{Dir: "/common/file", Options: []string{"bind", "x-snapd.kind=file"}},
+		},
+	}
 	desired := &osutil.MountProfile{Entries: []osutil.MountEntry{{Dir: "/common/stuff"}}}
 	changes := update.NeededChanges(current, desired)
 	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: osutil.MountEntry{Dir: "/common/stuff"}, Action: update.Unmount},
+		// File bind mounts are detached.
+		{Entry: osutil.MountEntry{Dir: "/common/file", Options: []string{"bind", "x-snapd.kind=file", "x-snapd.detach"}}, Action: update.Unmount},
 		{Entry: osutil.MountEntry{Dir: "/common/stuff"}, Action: update.Mount},
 	})
 }
@@ -740,14 +746,6 @@ func (s *changeSuite) TestNeededChangesParallelInstancesInsideMountNew(c *C) {
 		{Entry: osutil.MountEntry{Dir: "/snap/foo", Name: "/snap/foo_bar", Options: []string{osutil.XSnapdOriginOvername()}}, Action: update.Mount},
 		{Entry: osutil.MountEntry{Dir: "/foo/bar/baz"}, Action: update.Mount},
 	})
-}
-
-func mustReadProfile(profileStr string) *osutil.MountProfile {
-	profile, err := osutil.ReadMountProfile(strings.NewReader(profileStr))
-	if err != nil {
-		panic(err)
-	}
-	return profile
 }
 
 func (s *changeSuite) TestRuntimeUsingSymlinksOld(c *C) {

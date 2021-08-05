@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -30,6 +30,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path"
 	"strconv"
 	"strings"
@@ -48,6 +49,8 @@ import (
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -69,7 +72,7 @@ const (
 // Timeout value
 var defaultRetryStrategy = retry.LimitCount(6, retry.LimitTime(38*time.Second,
 	retry.Exponential{
-		Initial: 350 * time.Millisecond,
+		Initial: 500 * time.Millisecond,
 		Factor:  2.5,
 	},
 ))
@@ -156,22 +159,49 @@ type Store struct {
 	proxyConnectHeader http.Header
 
 	userAgent string
+
+	xdeltaCheckLock sync.Mutex
+	// whether we should use deltas or not
+	shouldUseDeltas *bool
+	// which xdelta3 we picked when we checked the deltas
+	xdelta3CmdFunc func(args ...string) *exec.Cmd
 }
 
 var ErrTooManyRequests = errors.New("too many requests")
 
-func respToError(resp *http.Response, msg string) error {
+// UnexpectedHTTPStatusError represents an error where the store
+// returned an unexpected HTTP status code, i.e. a status code that
+// doesn't represent success nor an expected error condition with
+// known handling (e.g. a 404 when instead presence is always
+// expected).
+type UnexpectedHTTPStatusError struct {
+	OpSummary  string
+	StatusCode int
+	Method     string
+	URL        *url.URL
+	OopsID     string
+}
+
+func (e *UnexpectedHTTPStatusError) Error() string {
+	tpl := "cannot %s: got unexpected HTTP status code %d via %s to %q"
+	if e.OopsID != "" {
+		tpl += " [%s]"
+		return fmt.Sprintf(tpl, e.OpSummary, e.StatusCode, e.Method, e.URL, e.OopsID)
+	}
+	return fmt.Sprintf(tpl, e.OpSummary, e.StatusCode, e.Method, e.URL)
+}
+
+func respToError(resp *http.Response, opSummary string) error {
 	if resp.StatusCode == 429 {
 		return ErrTooManyRequests
 	}
-
-	tpl := "cannot %s: got unexpected HTTP status code %d via %s to %q"
-	if oops := resp.Header.Get("X-Oops-Id"); oops != "" {
-		tpl += " [%s]"
-		return fmt.Errorf(tpl, msg, resp.StatusCode, resp.Request.Method, resp.Request.URL, oops)
+	return &UnexpectedHTTPStatusError{
+		OpSummary:  opSummary,
+		StatusCode: resp.StatusCode,
+		Method:     resp.Request.Method,
+		URL:        resp.Request.URL,
+		OopsID:     resp.Header.Get("X-Oops-Id"),
 	}
-
-	return fmt.Errorf(tpl, msg, resp.StatusCode, resp.Request.Method, resp.Request.URL)
 }
 
 // endpointURL clones a base URL and updates it with optional path and query.
@@ -395,7 +425,7 @@ const (
 	deviceNonceEndpPath   = "api/v1/snaps/auth/nonces"
 	deviceSessionEndpPath = "api/v1/snaps/auth/sessions"
 
-	assertionsPath = "api/v1/snaps/assertions"
+	assertionsPath = "v2/assertions"
 )
 
 func (s *Store) newHTTPClient(opts *httputil.ClientOptions) *http.Client {
@@ -1055,35 +1085,14 @@ type SnapSpec struct {
 
 // SnapInfo returns the snap.Info for the store-hosted snap matching the given spec, or an error.
 func (s *Store) SnapInfo(ctx context.Context, snapSpec SnapSpec, user *auth.UserState) (*snap.Info, error) {
-	query := url.Values{}
-	query.Set("fields", strings.Join(s.infoFields, ","))
-	query.Set("architecture", s.architecture)
+	fields := strings.Join(s.infoFields, ",")
 
-	u := s.endpointURL(path.Join(snapInfoEndpPath, snapSpec.Name), query)
-	reqOptions := &requestOptions{
-		Method:   "GET",
-		URL:      u,
-		APILevel: apiV2Endps,
-	}
-
-	var remote storeInfo
-	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &remote, nil)
+	si, resp, err := s.snapInfo(ctx, snapSpec.Name, fields, user)
 	if err != nil {
 		return nil, err
 	}
 
-	// check statusCode
-	switch resp.StatusCode {
-	case 200:
-		// OK
-	case 404:
-		return nil, ErrSnapNotFound
-	default:
-		msg := fmt.Sprintf("get details for snap %q", snapSpec.Name)
-		return nil, respToError(resp, msg)
-	}
-
-	info, err := infoFromStoreInfo(&remote)
+	info, err := infoFromStoreInfo(si)
 	if err != nil {
 		return nil, err
 	}
@@ -1096,6 +1105,51 @@ func (s *Store) SnapInfo(ctx context.Context, snapSpec SnapSpec, user *auth.User
 	s.extractSuggestedCurrency(resp)
 
 	return info, nil
+}
+
+func (s *Store) snapInfo(ctx context.Context, snapName string, fields string, user *auth.UserState) (*storeInfo, *http.Response, error) {
+	query := url.Values{}
+	query.Set("fields", fields)
+	query.Set("architecture", s.architecture)
+
+	u := s.endpointURL(path.Join(snapInfoEndpPath, snapName), query)
+	reqOptions := &requestOptions{
+		Method:   "GET",
+		URL:      u,
+		APILevel: apiV2Endps,
+	}
+
+	var remote storeInfo
+	resp, err := s.retryRequestDecodeJSON(ctx, reqOptions, user, &remote, nil)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// check statusCode
+	switch resp.StatusCode {
+	case 200:
+		// OK
+	case 404:
+		return nil, nil, ErrSnapNotFound
+	default:
+		msg := fmt.Sprintf("get details for snap %q", snapName)
+		return nil, nil, respToError(resp, msg)
+	}
+
+	return &remote, resp, err
+}
+
+// SnapInfo checks whether the store-hosted snap matching the given spec exists and returns a reference with it name and snap-id and default channel, or an error.
+func (s *Store) SnapExists(ctx context.Context, snapSpec SnapSpec, user *auth.UserState) (naming.SnapRef, *channel.Channel, error) {
+	// request the minimal amount information
+	fields := "channel-map"
+
+	si, _, err := s.snapInfo(ctx, snapSpec.Name, fields, user)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return minimalFromStoreInfo(si)
 }
 
 // A Search is what you do in order to Find something
@@ -1326,7 +1380,7 @@ func (s *Store) Sections(ctx context.Context, user *auth.UserState) ([]string, e
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, respToError(resp, "sections")
+		return nil, respToError(resp, "retrieve sections")
 	}
 
 	if ct := resp.Header.Get("Content-Type"); ct != halJsonContentType {

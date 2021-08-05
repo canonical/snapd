@@ -9,6 +9,9 @@ details: |
     a given snap with an updatable version (version string like 2.0+fake1) in the
     edge channel.
 
+# ubuntu-14.04: systemd-run not supported
+systems: [-ubuntu-14.04*]
+
 environment:
     SNAP_NAME: test-snapd-tools
     SNAP_VERSION_PATTERN: \d+\.\d+\+fake1
@@ -17,11 +20,8 @@ environment:
     STORE_TYPE/remote: ${REMOTE_STORE}
 
 prepare: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     if [ "$STORE_TYPE" = "fake" ]; then
-        if is_core_system; then
+        if os.query is-core; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -45,11 +45,8 @@ prepare: |
     fi
 
 restore: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     if [ "$STORE_TYPE" = "fake" ]; then
-        if is_core_system; then
+        if os.query is-core; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -62,11 +59,8 @@ restore: |
     fi
 
 execute: |
-    #shellcheck source=tests/lib/systems.sh
-    . "$TESTSLIB"/systems.sh
-
     if [ "$STORE_TYPE" = "fake" ]; then
-        if is_core_system; then
+        if os.query is-core; then
             exit
         fi
         if [ "$TRUST_TEST_KEYS" = "false" ]; then

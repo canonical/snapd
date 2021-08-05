@@ -29,10 +29,12 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -42,29 +44,30 @@ import (
 
 var (
 	loginCmd = &Command{
-		Path:     "/v2/login",
-		POST:     loginUser,
-		PolkitOK: "io.snapcraft.snapd.login",
+		Path:        "/v2/login",
+		POST:        loginUser,
+		WriteAccess: authenticatedAccess{Polkit: polkitActionLogin},
 	}
 
 	logoutCmd = &Command{
-		Path:     "/v2/logout",
-		POST:     logoutUser,
-		PolkitOK: "io.snapcraft.snapd.login",
+		Path:        "/v2/logout",
+		POST:        logoutUser,
+		WriteAccess: authenticatedAccess{Polkit: polkitActionLogin},
 	}
 
 	// backwards compat; to-be-deprecated
 	createUserCmd = &Command{
-		Path:     "/v2/create-user",
-		POST:     postCreateUser,
-		RootOnly: true,
+		Path:        "/v2/create-user",
+		POST:        postCreateUser,
+		WriteAccess: rootAccess{},
 	}
 
 	usersCmd = &Command{
-		Path:     "/v2/users",
-		GET:      getUsers,
-		POST:     postUsers,
-		RootOnly: true,
+		Path:        "/v2/users",
+		GET:         getUsers,
+		POST:        postUsers,
+		ReadAccess:  rootAccess{},
+		WriteAccess: rootAccess{},
 	}
 )
 
@@ -111,62 +114,47 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	// the "username" needs to look a lot like an email address
 	if !isEmailish(loginData.Email) {
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: "please use a valid email address.",
-				Kind:    errorKindInvalidAuthData,
-				Value:   map[string][]string{"email": {"invalid"}},
-			},
-			Status: 400,
-		}, nil)
+		return &apiError{
+			Status:  400,
+			Message: "please use a valid email address.",
+			Kind:    client.ErrorKindInvalidAuthData,
+			Value:   map[string][]string{"email": {"invalid"}},
+		}
 	}
 
 	overlord := c.d.overlord
 	st := overlord.State()
-	theStore := getStore(c)
+	theStore := storeFrom(c.d)
 	macaroon, discharge, err := theStore.LoginUser(loginData.Email, loginData.Password, loginData.Otp)
 	switch err {
 	case store.ErrAuthenticationNeeds2fa:
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Kind:    errorKindTwoFactorRequired,
-				Message: err.Error(),
-			},
-			Status: 401,
-		}, nil)
+		return &apiError{
+			Status:  401,
+			Message: err.Error(),
+			Kind:    client.ErrorKindTwoFactorRequired,
+		}
 	case store.Err2faFailed:
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Kind:    errorKindTwoFactorFailed,
-				Message: err.Error(),
-			},
-			Status: 401,
-		}, nil)
+		return &apiError{
+			Status:  401,
+			Message: err.Error(),
+			Kind:    client.ErrorKindTwoFactorFailed,
+		}
 	default:
 		switch err := err.(type) {
 		case store.InvalidAuthDataError:
-			return SyncResponse(&resp{
-				Type: ResponseTypeError,
-				Result: &errorResult{
-					Message: err.Error(),
-					Kind:    errorKindInvalidAuthData,
-					Value:   err,
-				},
-				Status: 400,
-			}, nil)
+			return &apiError{
+				Status:  400,
+				Message: err.Error(),
+				Kind:    client.ErrorKindInvalidAuthData,
+				Value:   err,
+			}
 		case store.PasswordPolicyError:
-			return SyncResponse(&resp{
-				Type: ResponseTypeError,
-				Result: &errorResult{
-					Message: err.Error(),
-					Kind:    errorKindPasswordPolicy,
-					Value:   err,
-				},
-				Status: 401,
-			}, nil)
+			return &apiError{
+				Status:  401,
+				Message: err.Error(),
+				Kind:    client.ErrorKindPasswordPolicy,
+				Value:   err,
+			}
 		}
 		return Unauthorized(err.Error())
 	case nil:
@@ -195,7 +183,7 @@ func loginUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		Macaroon:   user.Macaroon,
 		Discharges: user.Discharges,
 	}
-	return SyncResponse(result, nil)
+	return SyncResponse(result)
 }
 
 func logoutUser(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -211,7 +199,7 @@ func logoutUser(c *Command, r *http.Request, user *auth.UserState) Response {
 		return InternalError(err.Error())
 	}
 
-	return SyncResponse(nil, nil)
+	return SyncResponse(nil)
 }
 
 // this might need to become a function, if having user admin becomes a config option
@@ -282,7 +270,7 @@ func removeUser(c *Command, username string, opts postUserDeleteData) Response {
 			{ID: u.ID, Username: u.Username, Email: u.Email},
 		},
 	}
-	return SyncResponse(result, nil)
+	return SyncResponse(result)
 }
 
 func postCreateUser(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -314,12 +302,37 @@ func createUser(c *Command, createData postUserCreateData) Response {
 	}
 
 	if !createData.ForceManaged {
+		if len(users) > 0 && createData.Automatic {
+			// no users created but no error with the automatic flag
+			return SyncResponse([]userResponseData{})
+		}
 		if len(users) > 0 {
 			return BadRequest("cannot create user: device already managed")
 		}
 		if release.OnClassic {
 			return BadRequest("cannot create user: device is a classic system")
 		}
+	}
+	if createData.Automatic {
+		var enabled bool
+		st.Lock()
+		tr := config.NewTransaction(st)
+		err := tr.Get("core", "users.create.automatic", &enabled)
+		st.Unlock()
+		if err != nil {
+			if !config.IsNoOption(err) {
+				return InternalError("%v", err)
+			}
+			// defaults to enabled
+			enabled = true
+		}
+		if !enabled {
+			// disabled, do nothing
+			return SyncResponse([]userResponseData{})
+		}
+		// Automatic implies known/sudoers
+		createData.Known = true
+		createData.Sudoer = true
 	}
 
 	var model *asserts.Model
@@ -355,7 +368,7 @@ func createUser(c *Command, createData postUserCreateData) Response {
 	if createKnown {
 		username, opts, err = getUserDetailsFromAssertion(st, model, serial, createData.Email)
 	} else {
-		username, opts, err = getUserDetailsFromStore(getStore(c), createData.Email)
+		username, opts, err = getUserDetailsFromStore(storeFrom(c.d), createData.Email)
 	}
 	if err != nil {
 		return BadRequest("%s", err)
@@ -380,9 +393,9 @@ func createUser(c *Command, createData postUserCreateData) Response {
 
 	if createData.singleUserResultCompat {
 		// return a single userResponseData in this case
-		return SyncResponse(&result, nil)
+		return SyncResponse(&result)
 	} else {
-		return SyncResponse([]userResponseData{result}, nil)
+		return SyncResponse([]userResponseData{result})
 	}
 }
 
@@ -447,7 +460,7 @@ func createAllKnownSystemUsers(st *state.State, modelAs *asserts.Model, serialAs
 		})
 	}
 
-	return SyncResponse(createdUsers, nil)
+	return SyncResponse(createdUsers)
 }
 
 func getUserDetailsFromAssertion(st *state.State, modelAs *asserts.Model, serialAs *asserts.Serial, email string) (string, *osutil.AddUserOptions, error) {
@@ -520,6 +533,7 @@ type postUserCreateData struct {
 	Sudoer       bool   `json:"sudoer"`
 	Known        bool   `json:"known"`
 	ForceManaged bool   `json:"force-managed"`
+	Automatic    bool   `json:"automatic"`
 
 	// singleUserResultCompat indicates whether to preserve
 	// backwards compatibility, which results in more clunky
@@ -593,5 +607,5 @@ func getUsers(c *Command, r *http.Request, user *auth.UserState) Response {
 			ID:       u.ID,
 		}
 	}
-	return SyncResponse(resp, nil)
+	return SyncResponse(resp)
 }

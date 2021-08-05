@@ -35,6 +35,7 @@ func templateVariables(info *snap.Info, securityTag string, cmdName string) stri
 	fmt.Fprintf(&buf, "@{SNAP_NAME}=\"%s\"\n", info.SnapName())
 	fmt.Fprintf(&buf, "# This is a snap name with instance key\n")
 	fmt.Fprintf(&buf, "@{SNAP_INSTANCE_NAME}=\"%s\"\n", info.InstanceName())
+	fmt.Fprintf(&buf, "@{SNAP_INSTANCE_DESKTOP}=\"%s\"\n", info.DesktopPrefix())
 	fmt.Fprintf(&buf, "@{SNAP_COMMAND_NAME}=\"%s\"\n", cmdName)
 	fmt.Fprintf(&buf, "@{SNAP_REVISION}=\"%s\"\n", info.Revision)
 	fmt.Fprintf(&buf, "@{PROFILE_DBUS}=\"%s\"\n",

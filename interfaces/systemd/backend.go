@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016-2017 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -36,11 +36,20 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
+func serviceName(snapName, distinctServiceSuffix string) string {
+	return snap.ScopedSecurityTag(snapName, "interface", distinctServiceSuffix) + ".service"
+}
+
 // Backend is responsible for maintaining apparmor profiles for ubuntu-core-launcher.
-type Backend struct{}
+type Backend struct {
+	preseed bool
+}
 
 // Initialize does nothing.
-func (b *Backend) Initialize(*interfaces.SecurityBackendOptions) error {
+func (b *Backend) Initialize(opts *interfaces.SecurityBackendOptions) error {
+	if opts != nil && opts.Preseed {
+		b.preseed = true
+	}
 	return nil
 }
 
@@ -67,18 +76,24 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("cannot create directory for systemd services %q: %s", dir, err)
 	}
-	glob := interfaces.InterfaceServiceName(snapName, "*")
+	glob := serviceName(snapName, "*")
 
-	systemd := sysd.New(dirs.GlobalRootDir, sysd.SystemMode, &dummyReporter{})
+	var systemd sysd.Systemd
+	if b.preseed {
+		systemd = sysd.NewEmulationMode(dirs.GlobalRootDir)
+	} else {
+		systemd = sysd.New(sysd.SystemMode, &dummyReporter{})
+	}
+
 	// We need to be carefully here and stop all removed service units before
 	// we remove their files as otherwise systemd is not able to disable/stop
 	// them anymore.
-	if err := disableRemovedServices(systemd, dir, glob, content); err != nil {
+	if err := b.disableRemovedServices(systemd, dir, glob, content); err != nil {
 		logger.Noticef("cannot stop removed services: %s", err)
 	}
 	changed, removed, errEnsure := osutil.EnsureDirState(dir, glob, content)
 	// Reload systemd whenever something is added or removed
-	if len(changed) > 0 || len(removed) > 0 {
+	if !b.preseed && (len(changed) > 0 || len(removed) > 0) {
 		err := systemd.DaemonReload()
 		if err != nil {
 			logger.Noticef("cannot reload systemd state: %s", err)
@@ -89,10 +104,12 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 		if err := systemd.Enable(service); err != nil {
 			logger.Noticef("cannot enable service %q: %s", service, err)
 		}
-		// If we have a new service here which isn't started yet the restart
-		// operation will start it.
-		if err := systemd.Restart(service, 10*time.Second); err != nil {
-			logger.Noticef("cannot restart service %q: %s", service, err)
+		if !b.preseed {
+			// If we have a new service here which isn't started yet the restart
+			// operation will start it.
+			if err := systemd.Restart(service, 10*time.Second); err != nil {
+				logger.Noticef("cannot restart service %q: %s", service, err)
+			}
 		}
 	}
 	return errEnsure
@@ -100,20 +117,29 @@ func (b *Backend) Setup(snapInfo *snap.Info, confinement interfaces.ConfinementO
 
 // Remove disables, stops and removes systemd services of a given snap.
 func (b *Backend) Remove(snapName string) error {
-	systemd := sysd.New(dirs.GlobalRootDir, sysd.SystemMode, &dummyReporter{})
+	var systemd sysd.Systemd
+	if b.preseed {
+		// removing while preseeding is not a viable scenario, but implemented
+		// for completness.
+		systemd = sysd.NewEmulationMode(dirs.GlobalRootDir)
+	} else {
+		systemd = sysd.New(sysd.SystemMode, &dummyReporter{})
+	}
 	// Remove all the files matching snap glob
-	glob := interfaces.InterfaceServiceName(snapName, "*")
+	glob := serviceName(snapName, "*")
 	_, removed, errEnsure := osutil.EnsureDirState(dirs.SnapServicesDir, glob, nil)
 	for _, service := range removed {
 		if err := systemd.Disable(service); err != nil {
 			logger.Noticef("cannot disable service %q: %s", service, err)
 		}
-		if err := systemd.Stop(service, 5*time.Second); err != nil {
-			logger.Noticef("cannot stop service %q: %s", service, err)
+		if !b.preseed {
+			if err := systemd.Stop(service, 5*time.Second); err != nil {
+				logger.Noticef("cannot stop service %q: %s", service, err)
+			}
 		}
 	}
 	// Reload systemd whenever something is removed
-	if len(removed) > 0 {
+	if !b.preseed && len(removed) > 0 {
 		err := systemd.DaemonReload()
 		if err != nil {
 			logger.Noticef("cannot reload systemd state: %s", err)
@@ -139,8 +165,9 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]osutil.F
 		return nil
 	}
 	content := make(map[string]osutil.FileState)
-	for name, service := range services {
-		content[name] = &osutil.MemoryFileState{
+	for suffix, service := range services {
+		filename := serviceName(snapInfo.InstanceName(), suffix)
+		content[filename] = &osutil.MemoryFileState{
 			Content: []byte(service.String()),
 			Mode:    0644,
 		}
@@ -148,7 +175,7 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]osutil.F
 	return content
 }
 
-func disableRemovedServices(systemd sysd.Systemd, dir, glob string, content map[string]osutil.FileState) error {
+func (b *Backend) disableRemovedServices(systemd sysd.Systemd, dir, glob string, content map[string]osutil.FileState) error {
 	paths, err := filepath.Glob(filepath.Join(dir, glob))
 	if err != nil {
 		return err
@@ -159,8 +186,10 @@ func disableRemovedServices(systemd sysd.Systemd, dir, glob string, content map[
 			if err := systemd.Disable(service); err != nil {
 				logger.Noticef("cannot disable service %q: %s", service, err)
 			}
-			if err := systemd.Stop(service, 5*time.Second); err != nil {
-				logger.Noticef("cannot stop service %q: %s", service, err)
+			if !b.preseed {
+				if err := systemd.Stop(service, 5*time.Second); err != nil {
+					logger.Noticef("cannot stop service %q: %s", service, err)
+				}
 			}
 		}
 	}

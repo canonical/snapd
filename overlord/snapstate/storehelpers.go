@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
@@ -31,6 +32,13 @@ import (
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 )
+
+var currentSnaps = currentSnapsImpl
+
+// EnforcedValidationSets allows to hook getting of validation sets in enforce
+// mode into installation/refresh/removal of snaps. It gets hooked from
+// assertstate.
+var EnforcedValidationSets func(st *state.State) (*snapasserts.ValidationSets, error)
 
 func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int, error) {
 	userID := snapst.UserID
@@ -80,6 +88,117 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 		return nil, fmt.Errorf("internal error: request salt is unset")
 	}
 	return &opts, nil
+}
+
+// installSize returns total download size of snaps and their prerequisites
+// (bases and default content providers), querying the store as neccessarry,
+// potentially more than once. It assumes the initial list of snaps already has
+// download infos set.
+// The state must be locked by the caller.
+var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int) (uint64, error) {
+	curSnaps, err := currentSnaps(st)
+	if err != nil {
+		return 0, err
+	}
+
+	user, err := userFromUserID(st, userID)
+	if err != nil {
+		return 0, err
+	}
+
+	accountedSnaps := map[string]bool{}
+	for _, snap := range curSnaps {
+		accountedSnaps[snap.InstanceName] = true
+	}
+
+	var prereqs []string
+
+	resolveBaseAndContentProviders := func(inst minimalInstallInfo) {
+		if inst.Type() != snap.TypeApp {
+			return
+		}
+		if inst.SnapBase() != "none" {
+			base := defaultCoreSnapName
+			if inst.SnapBase() != "" {
+				base = inst.SnapBase()
+			}
+			if !accountedSnaps[base] {
+				prereqs = append(prereqs, base)
+				accountedSnaps[base] = true
+			}
+		}
+		for _, snapName := range inst.Prereq(st) {
+			if !accountedSnaps[snapName] {
+				prereqs = append(prereqs, snapName)
+				accountedSnaps[snapName] = true
+			}
+		}
+	}
+
+	snapSizes := map[string]uint64{}
+	for _, inst := range snaps {
+		if inst.DownloadSize() == 0 {
+			return 0, fmt.Errorf("internal error: download info missing for %q", inst.InstanceName())
+		}
+		snapSizes[inst.InstanceName()] = uint64(inst.DownloadSize())
+		resolveBaseAndContentProviders(inst)
+	}
+
+	opts, err := refreshOptions(st, nil)
+	if err != nil {
+		return 0, err
+	}
+
+	theStore := Store(st, nil)
+	channel := defaultPrereqSnapsChannel()
+
+	// this can potentially be executed multiple times if we (recursively)
+	// find new prerequisites or bases.
+	for len(prereqs) > 0 {
+		actions := []*store.SnapAction{}
+		for _, prereq := range prereqs {
+			action := &store.SnapAction{
+				Action:       "install",
+				InstanceName: prereq,
+				Channel:      channel,
+			}
+			actions = append(actions, action)
+		}
+
+		// calls to the store should be done without holding the state lock
+		st.Unlock()
+		results, _, err := theStore.SnapAction(context.TODO(), curSnaps, actions, nil, user, opts)
+		st.Lock()
+		if err != nil {
+			return 0, err
+		}
+		prereqs = []string{}
+		for _, res := range results {
+			snapSizes[res.InstanceName()] = uint64(res.Size)
+			// results may have new base or content providers
+			resolveBaseAndContentProviders(installSnapInfo{res.Info})
+		}
+	}
+
+	// state is locked at this point
+
+	// since we unlock state above when querying store, other changes may affect
+	// same snaps, therefore obtain current snaps again and only compute total
+	// size of snaps that would actually need to be installed.
+	curSnaps, err = currentSnaps(st)
+	if err != nil {
+		return 0, err
+	}
+	for _, snap := range curSnaps {
+		delete(snapSizes, snap.InstanceName)
+	}
+
+	var total uint64
+	for _, sz := range snapSizes {
+		total += sz
+	}
+
+	return total, nil
 }
 
 func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, deviceCtx DeviceContext) (store.SnapActionResult, error) {
@@ -262,7 +381,7 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 	return sar.Info, err
 }
 
-func currentSnaps(st *state.State) ([]*store.CurrentSnap, error) {
+func currentSnapsImpl(st *state.State) ([]*store.CurrentSnap, error) {
 	snapStates, err := All(st)
 	if err != nil {
 		return nil, err

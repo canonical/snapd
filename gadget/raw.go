@@ -28,6 +28,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -104,7 +105,7 @@ type rawStructureUpdater struct {
 	deviceLookup deviceLookupFunc
 }
 
-type deviceLookupFunc func(ps *LaidOutStructure) (device string, offs Size, err error)
+type deviceLookupFunc func(ps *LaidOutStructure) (device string, offs quantity.Offset, err error)
 
 // newRawStructureUpdater returns an updater for the given raw (bare) structure.
 // Update data will be loaded from the provided gadget content directory.

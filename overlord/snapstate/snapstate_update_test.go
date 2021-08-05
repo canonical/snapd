@@ -26,13 +26,18 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
+
+	// So it registers Configure.
+	_ "github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -43,9 +48,6 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
-
-	// So it registers Configure.
-	_ "github.com/snapcore/snapd/overlord/configstate"
 )
 
 func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.State) {
@@ -70,7 +72,9 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 		)
 	}
 	if opts&updatesGadget != 0 {
-		expected = append(expected, "update-gadget-assets")
+		expected = append(expected,
+			"update-gadget-assets",
+			"update-gadget-cmdline")
 	}
 	expected = append(expected,
 		"copy-snap-data",
@@ -779,6 +783,7 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 		SnapPath: filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap"),
 		DownloadInfo: &snap.DownloadInfo{
 			DownloadURL: "https://some-server.com/some/path.snap",
+			Size:        5,
 		},
 		SideInfo:  snapsup.SideInfo,
 		Type:      snap.TypeApp,
@@ -837,6 +842,13 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	// look at disk
 	r := snapstate.MockRevisionDate(nil)
 	defer r()
+
+	now, err := time.Parse(time.RFC3339, "2021-06-10T10:00:00Z")
+	c.Assert(err, IsNil)
+	restoreTimeNow := snapstate.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restoreTimeNow()
 
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -1031,6 +1043,8 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	err = snapstate.Get(s.state, "services-snap", &snapst)
 	c.Assert(err, IsNil)
 
+	c.Assert(snapst.LastRefreshTime, NotNil)
+	c.Check(snapst.LastRefreshTime.Equal(now), Equals, true)
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
@@ -1049,6 +1063,65 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 
 	// we end up with the auxiliary store info
 	c.Check(snapstate.AuxStoreInfoFilename("services-snap-id"), testutil.FilePresent)
+}
+
+func (s *snapmgrTestSuite) TestUpdateResetsHoldState(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+		SnapID:   "some-snap-id",
+	}
+	snaptest.MockSnap(c, `name: some-snap`, &si)
+
+	si2 := snap.SideInfo{
+		RealName: "other-snap",
+		Revision: snap.R(7),
+		SnapID:   "other-snap-id",
+	}
+	snaptest.MockSnap(c, `name: other-snap`, &si2)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        []*snap.SideInfo{&si},
+		Current:         si.Revision,
+		SnapType:        "app",
+		TrackingChannel: "latest/stable",
+	})
+
+	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si2},
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+
+	// enable gate-auto-refresh-hook feature
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
+	tr.Commit()
+
+	// pretend that the snap was held during last auto-refresh
+	c.Assert(snapstate.HoldRefresh(s.state, "gating-snap", 0, "some-snap", "other-snap"), IsNil)
+	// sanity check
+	held, err := snapstate.HeldSnaps(s.state)
+	c.Assert(err, IsNil)
+	c.Check(held, DeepEquals, map[string]bool{
+		"some-snap":  true,
+		"other-snap": true,
+	})
+
+	_, err = snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	// and it is not held anymore (but other-snap still is)
+	held, err = snapstate.HeldSnaps(s.state)
+	c.Assert(err, IsNil)
+	c.Check(held, DeepEquals, map[string]bool{
+		"other-snap": true,
+	})
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
@@ -2380,9 +2453,6 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 			name: "some-snap",
 		},
 		{
-			op: "current-snap-service-states",
-		},
-		{
 			op:   "unlink-snap",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/11"),
 		},
@@ -3455,6 +3525,92 @@ func (s *snapmgrTestSuite) TestAllUpdateBlockedRevision(c *C) {
 	})
 }
 
+func (s *snapmgrTestSuite) TestUpdateManyPartialFailureCheckRerefreshDone(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.CanAutoRefresh = func(*state.State) (bool, error) { return true, nil }
+	makeTestRefreshConfig(s.state)
+
+	var someSnapValidation bool
+
+	// override validate-snap handler set by AddForeignTaskHandlers.
+	s.o.TaskRunner().AddHandler("validate-snap", func(t *state.Task, _ *tomb.Tomb) error {
+		t.State().Lock()
+		defer t.State().Unlock()
+		snapsup, err := snapstate.TaskSnapSetup(t)
+		c.Assert(err, IsNil)
+		if snapsup.SnapName() == "some-snap" {
+			someSnapValidation = true
+			return fmt.Errorf("boom")
+		}
+		return nil
+	}, nil)
+
+	snapstate.Set(s.state, "some-other-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-other-snap", SnapID: "some-other-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	validateRefreshes := func(st *state.State, refreshes []*snap.Info, ignoreValidation map[string]bool, userID int, deviceCtx snapstate.DeviceContext) ([]*snap.Info, error) {
+		c.Check(refreshes, HasLen, 2)
+		c.Check(ignoreValidation, HasLen, 0)
+		return refreshes, nil
+	}
+	// hook it up
+	snapstate.ValidateRefreshes = validateRefreshes
+
+	s.state.Unlock()
+	s.snapmgr.Ensure()
+	s.state.Lock()
+
+	c.Assert(s.state.Changes(), HasLen, 1)
+	chg := s.state.Changes()[0]
+	c.Check(chg.Kind(), Equals, "auto-refresh")
+	c.Check(chg.IsReady(), Equals, false)
+	s.verifyRefreshLast(c)
+
+	checkIsAutoRefresh(c, chg.Tasks(), true)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// not updated
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.Revision{N: 1})
+
+	// updated
+	c.Assert(snapstate.Get(s.state, "some-other-snap", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.Revision{N: 11})
+
+	c.Assert(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Fetch and check assertions for snap \"some-snap\" \\(11\\) \\(boom\\)")
+	c.Assert(chg.IsReady(), Equals, true)
+
+	// check-rerefresh is last
+	tasks := chg.Tasks()
+	checkRerefresh := tasks[len(tasks)-1]
+	c.Check(checkRerefresh.Kind(), Equals, "check-rerefresh")
+	c.Check(checkRerefresh.Status(), Equals, state.DoneStatus)
+
+	// sanity
+	c.Check(someSnapValidation, Equals, true)
+}
+
 var orthogonalAutoAliasesScenarios = []struct {
 	aliasesBefore map[string][]string
 	names         []string
@@ -4327,6 +4483,106 @@ func (s *snapmgrTestSuite) TestUpdateMany(c *C) {
 	checkIsAutoRefresh(c, ts.Tasks(), false)
 }
 
+func (s *snapmgrTestSuite) TestUpdateManyFailureDoesntUndoSnapdRefresh(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	r := snapstatetest.MockDeviceModel(ModelWithBase("core18"))
+	defer r()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:         snap.R(1),
+		SnapType:        "app",
+		TrackingChannel: "channel-for-base/stable",
+	})
+
+	snapstate.Set(s.state, "core18", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "core18", SnapID: "core18-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "base",
+	})
+
+	snapstate.Set(s.state, "some-base", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-base", SnapID: "some-base-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "base",
+	})
+
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	updates, tts, err := snapstate.UpdateMany(context.Background(), s.state, []string{"some-snap", "some-base", "snapd"}, 0, nil)
+	c.Assert(err, IsNil)
+	c.Assert(tts, HasLen, 4)
+	c.Assert(updates, HasLen, 3)
+
+	chg := s.state.NewChange("refresh", "...")
+	for _, ts := range tts {
+		chg.AddAll(ts)
+	}
+
+	// refresh of some-snap fails on link-snap
+	s.fakeBackend.linkSnapFailTrigger = filepath.Join(dirs.SnapMountDir, "/some-snap/11")
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Check(chg.Err(), ErrorMatches, ".*cannot perform the following tasks:\n- Make snap \"some-snap\" \\(11\\) available to the system.*")
+	c.Check(chg.IsReady(), Equals, true)
+
+	var snapst snapstate.SnapState
+
+	// failed snap remains at the old revision, snapd and some-base are refreshed.
+	c.Assert(snapstate.Get(s.state, "some-snap", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.Revision{N: 1})
+
+	c.Assert(snapstate.Get(s.state, "snapd", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.Revision{N: 11})
+
+	c.Assert(snapstate.Get(s.state, "some-base", &snapst), IsNil)
+	c.Check(snapst.Current, Equals, snap.Revision{N: 11})
+
+	var undoneDownloads, doneDownloads int
+	for _, ts := range tts {
+		for _, t := range ts.Tasks() {
+			if t.Kind() == "download-snap" {
+				sup, err := snapstate.TaskSnapSetup(t)
+				c.Assert(err, IsNil)
+				switch sup.SnapName() {
+				case "some-snap":
+					undoneDownloads++
+					c.Check(t.Status(), Equals, state.UndoneStatus)
+				case "snapd", "some-base":
+					doneDownloads++
+					c.Check(t.Status(), Equals, state.DoneStatus)
+				default:
+					c.Errorf("unexpected snap %s", sup.SnapName())
+				}
+			}
+		}
+	}
+	c.Assert(undoneDownloads, Equals, 1)
+	c.Assert(doneDownloads, Equals, 2)
+}
+
 func (s *snapmgrTestSuite) TestUpdateManyDevModeConfinementFiltering(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -4805,6 +5061,104 @@ func (s *snapmgrTestSuite) TestUpdateManyValidateRefreshesUnhappy(c *C) {
 
 }
 
+func (s *snapmgrTestSuite) testUpdateManyDiskSpaceCheck(c *C, featureFlag, failDiskCheck, failInstallSize bool) error {
+	var diskCheckCalled, installSizeCalled bool
+	restore := snapstate.MockOsutilCheckFreeSpace(func(path string, sz uint64) error {
+		diskCheckCalled = true
+		c.Check(path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
+		c.Check(sz, Equals, snapstate.SafetyMarginDiskSpace(123))
+		if failDiskCheck {
+			return &osutil.NotEnoughDiskSpaceError{}
+		}
+		return nil
+	})
+	defer restore()
+
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
+		installSizeCalled = true
+		if failInstallSize {
+			return 0, fmt.Errorf("boom")
+		}
+		c.Assert(snaps, HasLen, 2)
+		c.Check(snaps[0].InstanceName(), Equals, "snapd")
+		c.Check(snaps[1].InstanceName(), Equals, "some-snap")
+		return 123, nil
+	})
+	defer restoreInstallSize()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.check-disk-space-refresh", featureFlag)
+	tr.Commit()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	snapstate.Set(s.state, "snapd", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "snapd", SnapID: "snapd-snap-id", Revision: snap.R(1)},
+		},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	updates, _, err := snapstate.UpdateMany(context.Background(), s.state, nil, 0, nil)
+	if featureFlag {
+		c.Check(installSizeCalled, Equals, true)
+		if failInstallSize {
+			c.Check(diskCheckCalled, Equals, false)
+		} else {
+			c.Check(diskCheckCalled, Equals, true)
+			if failDiskCheck {
+				c.Check(updates, HasLen, 0)
+			} else {
+				c.Check(updates, HasLen, 2)
+			}
+		}
+	} else {
+		c.Check(installSizeCalled, Equals, false)
+		c.Check(diskCheckCalled, Equals, false)
+	}
+
+	return err
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyDiskSpaceCheckError(c *C) {
+	featureFlag := true
+	failDiskCheck := true
+	failInstallSize := false
+	err := s.testUpdateManyDiskSpaceCheck(c, featureFlag, failDiskCheck, failInstallSize)
+	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
+	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "refresh" change for the following snaps: snapd, some-snap`)
+	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
+	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"snapd", "some-snap"})
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyDiskSpaceSkippedIfFeatureDisabled(c *C) {
+	featureFlag := false
+	failDiskCheck := true
+	failInstallSize := false
+	err := s.testUpdateManyDiskSpaceCheck(c, featureFlag, failDiskCheck, failInstallSize)
+	c.Assert(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestUpdateManyDiskSpaceFailInstallSize(c *C) {
+	featureFlag := true
+	failDiskCheck := false
+	failInstallSize := true
+	err := s.testUpdateManyDiskSpaceCheck(c, featureFlag, failDiskCheck, failInstallSize)
+	c.Assert(err, ErrorMatches, "boom")
+}
+
 func (s *snapmgrTestSuite) TestUnlinkCurrentSnapLastActiveDisabledServicesSet(c *C) {
 	si := snap.SideInfo{
 		RealName: "services-snap",
@@ -5028,16 +5382,14 @@ func (s *snapmgrTestSuite) TestStopSnapServicesSavesSnapSetupLastActiveDisabledS
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
 
-	// get the snap setup from the task from state
-	endT := s.state.Task(t1.ID())
-	finalsnapsup := &snapstate.SnapSetup{}
-	endT.Get("snap-setup", finalsnapsup)
+	// get the snap state
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "services-snap", &snapst), IsNil)
 
 	// make sure that the disabled services in this snap's state is what we
 	// provided
-	sort.Strings(finalsnapsup.LastActiveDisabledServices)
-	c.Assert(finalsnapsup.LastActiveDisabledServices, DeepEquals, []string{"svc1", "svc2"})
-
+	sort.Strings(snapst.LastActiveDisabledServices)
+	c.Assert(snapst.LastActiveDisabledServices, DeepEquals, []string{"svc1", "svc2"})
 }
 
 func (s *snapmgrTestSuite) TestStopSnapServicesFirstSavesSnapSetupLastActiveDisabledServices(c *C) {
@@ -5045,7 +5397,7 @@ func (s *snapmgrTestSuite) TestStopSnapServicesFirstSavesSnapSetupLastActiveDisa
 	defer s.state.Unlock()
 
 	prevCurrentlyDisabled := s.fakeBackend.servicesCurrentlyDisabled
-	s.fakeBackend.servicesCurrentlyDisabled = []string{"svc1", "svc2"}
+	s.fakeBackend.servicesCurrentlyDisabled = []string{"svc1"}
 
 	// reset the services to what they were before after the test is done
 	defer func() {
@@ -5058,6 +5410,8 @@ func (s *snapmgrTestSuite) TestStopSnapServicesFirstSavesSnapSetupLastActiveDisa
 		},
 		Current: snap.R(11),
 		Active:  true,
+		// leave this line to keep gofmt 1.10 happy
+		LastActiveDisabledServices: []string{"svc2"},
 	})
 
 	snapsup := &snapstate.SnapSetup{
@@ -5082,15 +5436,14 @@ func (s *snapmgrTestSuite) TestStopSnapServicesFirstSavesSnapSetupLastActiveDisa
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
 
-	// get the snap setup from the task from state
-	endT := s.state.Task(t.ID())
-	finalsnapsup := &snapstate.SnapSetup{}
-	endT.Get("snap-setup", finalsnapsup)
+	// get the snap state
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(s.state, "services-snap", &snapst), IsNil)
 
 	// make sure that the disabled services in this snap's state is what we
 	// provided
-	sort.Strings(finalsnapsup.LastActiveDisabledServices)
-	c.Assert(finalsnapsup.LastActiveDisabledServices, DeepEquals, []string{"svc1", "svc2"})
+	sort.Strings(snapst.LastActiveDisabledServices)
+	c.Assert(snapst.LastActiveDisabledServices, DeepEquals, []string{"svc1", "svc2"})
 }
 
 func (s *snapmgrTestSuite) TestRefreshDoesntRestoreRevisionConfig(c *C) {
@@ -5333,4 +5686,90 @@ func (s *snapmgrTestSuite) TestEmptyUpdateWithChannelChangeAndAutoAlias(c *C) {
 
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
+}
+
+func (s *snapmgrTestSuite) testUpdateDiskSpaceCheck(c *C, featureFlag, failInstallSize, failDiskCheck bool) error {
+	restore := snapstate.MockOsutilCheckFreeSpace(func(path string, sz uint64) error {
+		c.Check(sz, Equals, snapstate.SafetyMarginDiskSpace(123))
+		if failDiskCheck {
+			return &osutil.NotEnoughDiskSpaceError{}
+		}
+		return nil
+	})
+	defer restore()
+
+	var installSizeCalled bool
+
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
+		installSizeCalled = true
+		if failInstallSize {
+			return 0, fmt.Errorf("boom")
+		}
+		c.Assert(snaps, HasLen, 1)
+		c.Check(snaps[0].InstanceName(), Equals, "some-snap")
+		return 123, nil
+	})
+	defer restoreInstallSize()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.check-disk-space-refresh", featureFlag)
+	tr.Commit()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(4)},
+		},
+		Current:  snap.R(4),
+		SnapType: "app",
+	})
+
+	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
+	_, err := snapstate.Update(s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
+
+	if featureFlag {
+		c.Check(installSizeCalled, Equals, true)
+	} else {
+		c.Check(installSizeCalled, Equals, false)
+	}
+
+	return err
+}
+
+func (s *snapmgrTestSuite) TestUpdateDiskSpaceError(c *C) {
+	featureFlag := true
+	failInstallSize := false
+	failDiskCheck := true
+	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
+	diskSpaceErr := err.(*snapstate.InsufficientSpaceError)
+	c.Assert(diskSpaceErr, ErrorMatches, `insufficient space in .* to perform "refresh" change for the following snaps: some-snap`)
+	c.Check(diskSpaceErr.Path, Equals, filepath.Join(dirs.GlobalRootDir, "/var/lib/snapd"))
+	c.Check(diskSpaceErr.Snaps, DeepEquals, []string{"some-snap"})
+}
+
+func (s *snapmgrTestSuite) TestUpdateDiskCheckSkippedIfDisabled(c *C) {
+	featureFlag := false
+	failInstallSize := false
+	failDiskCheck := true
+	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
+	c.Check(err, IsNil)
+}
+
+func (s *snapmgrTestSuite) TestUpdateDiskCheckInstallSizeError(c *C) {
+	featureFlag := true
+	failInstallSize := true
+	failDiskCheck := false
+	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
+	c.Check(err, ErrorMatches, "boom")
+}
+
+func (s *snapmgrTestSuite) TestUpdateDiskCheckHappy(c *C) {
+	featureFlag := true
+	failInstallSize := false
+	failDiskCheck := false
+	err := s.testUpdateDiskSpaceCheck(c, featureFlag, failInstallSize, failDiskCheck)
+	c.Check(err, IsNil)
 }

@@ -107,6 +107,7 @@ func (ovs *overlordSuite) TestNew(c *C) {
 	c.Check(o.StateEngine(), NotNil)
 	c.Check(o.TaskRunner(), NotNil)
 	c.Check(o.SnapManager(), NotNil)
+	c.Check(o.ServiceManager(), NotNil)
 	c.Check(o.AssertManager(), NotNil)
 	c.Check(o.InterfaceManager(), NotNil)
 	c.Check(o.HookManager(), NotNil)
@@ -223,7 +224,7 @@ func (ovs *overlordSuite) TestNewWithPatches(c *C) {
 	}
 	patch.Mock(1, 1, map[int][]patch.PatchFunc{1: {p, sp}})
 
-	fakeState := []byte(fmt.Sprintf(`{"data":{"patch-level":0, "patch-sublevel":0}}`))
+	fakeState := []byte(`{"data":{"patch-level":0, "patch-sublevel":0}}`)
 	err := ioutil.WriteFile(dirs.SnapStateFile, fakeState, 0600)
 	c.Assert(err, IsNil)
 
@@ -797,6 +798,7 @@ func (ovs *overlordSuite) TestEnsureLoopNoPruneWhenPreseed(c *C) {
 
 	o, err := overlord.New(nil)
 	c.Assert(err, IsNil)
+	markSeeded(o)
 
 	// avoid immediate transition to Done due to unknown kind
 	o.TaskRunner().AddHandler("bar", func(t *state.Task, _ *tomb.Tomb) error {

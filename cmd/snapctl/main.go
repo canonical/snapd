@@ -21,6 +21,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/snapcore/snapd/client"
@@ -55,8 +56,13 @@ func main() {
 		os.Exit(0)
 	}
 
+	var stdin io.Reader
+	if len(os.Args) > 1 && client.InternalSnapctlCmdNeedsStdin(os.Args[1]) {
+		stdin = os.Stdin
+	}
+
 	// no internal command, route via snapd
-	stdout, stderr, err := run()
+	stdout, stderr, err := run(stdin)
 	if err != nil {
 		if e, ok := err.(*client.Error); ok {
 			switch e.Kind {
@@ -87,7 +93,7 @@ func main() {
 	}
 }
 
-func run() (stdout, stderr []byte, err error) {
+func run(stdin io.Reader) (stdout, stderr []byte, err error) {
 	cli := client.New(&clientConfig)
 
 	cookie := os.Getenv("SNAP_COOKIE")
@@ -98,5 +104,5 @@ func run() (stdout, stderr []byte, err error) {
 	return cli.RunSnapctl(&client.SnapCtlOptions{
 		ContextID: cookie,
 		Args:      os.Args[1:],
-	})
+	}, stdin)
 }

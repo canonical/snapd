@@ -1,19 +1,12 @@
 summary: Check that timezone interface works
 
-# TODO:UC20: enable once the systemd fix:
-#  https://launchpad.net/ubuntu/+source/systemd/244-3ubuntu2 lands
-systems: [-ubuntu-core-20-*]
-
 details: |
     This test makes sure that a snap using the timezone-control interface
     can access timezone information and update it.
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     # Install a snap declaring a plug on timezone-control
-    install_local test-snapd-timedate-control-consumer
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-timedate-control-consumer
 
 restore: |
     # Restore the initial timezone
@@ -42,11 +35,11 @@ execute: |
 
     # Set the timezone1 as timezone and check the status
     test-snapd-timedate-control-consumer.timedatectl-timezone set-timezone "$timezone1"
-    [ "$(test-snapd-timedate-control-consumer.timedatectl-timezone status | grep -oP 'Time zone: \K(.*)(?= \()')" = "$timezone1" ]
+    test "$(test-snapd-timedate-control-consumer.timedatectl-timezone status | grep -oP 'Time zone: \K(.*)(?= \()')" = "$timezone1"
 
     # Set the timezone2 as timezone and check the status
     test-snapd-timedate-control-consumer.timedatectl-timezone set-timezone "$timezone2"
-    [ "$(test-snapd-timedate-control-consumer.timedatectl-timezone status | grep -oP 'Time zone: \K(.*)(?= \()')" = "$timezone2" ]
+    test "$(test-snapd-timedate-control-consumer.timedatectl-timezone status | grep -oP 'Time zone: \K(.*)(?= \()')" = "$timezone2"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
