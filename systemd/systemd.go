@@ -204,6 +204,13 @@ func MockJournalctl(f func(svcs []string, n int, follow bool) (io.ReadCloser, er
 	}
 }
 
+type MountUnitOptions struct {
+	// Whether the unit is transient or persistent across reboots
+	Lifetime                                UnitLifetime
+	SnapName, Revision, What, Where, Fstype string
+	Options                                 []string
+}
+
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
 type Systemd interface {
 	// DaemonReload reloads systemd's configuration.
@@ -254,12 +261,12 @@ type Systemd interface {
 	// AddMountUnitFile adds/enables/starts a mount unit.
 	AddMountUnitFile(name, revision, what, where, fstype string) (string, error)
 	// AddMountUnitFileFull adds/enables/starts a mount unit with options.
-	AddMountUnitFileFull(lifetime UnitLifetime, name, revision, what, where, fstype string, options []string) (string, error)
+	AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
 	RemoveMountUnitFile(baseDir string) error
 	// ListMountUnits gets the list of targets of the mount units created by
 	// the given snap
-	ListMountUnits(snapName, revision string) ([]string, error)
+	ListMountUnits(snapName string) ([]string, error)
 	// Mask the given service.
 	Mask(service string) error
 	// Unmask the given service.
@@ -1089,7 +1096,7 @@ var squashfsFsType = squashfs.FsType
 // XXX: After=zfs-mount.service is a workaround for LP: #1922293 (a problem
 // with order of mounting most likely related to zfs-linux and/or systemd).
 var mountUnitTemplate = `[Unit]
-Description=Mount unit for %s, revision %s
+Description=Mount unit for %s
 Before=snapd.service
 After=zfs-mount.service
 
@@ -1104,9 +1111,14 @@ LazyUnmount=yes
 WantedBy=multi-user.target
 `
 
-func writeMountUnitFile(lifetime UnitLifetime, snapName, revision, what, where, fstype string, options []string) (mountUnitName string, err error) {
-	content := fmt.Sprintf(mountUnitTemplate, snapName, revision, what, where, fstype, strings.Join(options, ","))
-	mu := MountUnitPathWithLifetime(lifetime, where)
+func writeMountUnitFile(u *MountUnitOptions) (mountUnitName string, err error) {
+	snapDesc := u.SnapName
+	if u.Revision != "" {
+		snapDesc += fmt.Sprintf(", revision %s", u.Revision)
+	}
+	content := fmt.Sprintf(mountUnitTemplate, snapDesc,
+		u.What, u.Where, u.Fstype, strings.Join(u.Options, ","))
+	mu := MountUnitPathWithLifetime(u.Lifetime, u.Where)
 	mountUnitName, err = filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(content), 0644, 0)
 	if err != nil {
 		return "", err
@@ -1146,15 +1158,22 @@ func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype strin
 		options = append(options, "bind")
 		hostFsType = "none"
 	}
-	return s.AddMountUnitFileFull(PersistentUnit, snapName, revision, what, where, hostFsType, options)
+	return s.AddMountUnitFileWithOptions(&MountUnitOptions{
+		Lifetime: PersistentUnit,
+		SnapName: snapName,
+		Revision: revision,
+		What:     what,
+		Where:    where,
+		Fstype:   hostFsType,
+		Options:  options,
+	})
 }
 
-func (s *systemd) AddMountUnitFileFull(lifetime UnitLifetime, snapName, revision, what, where,
-	fstype string, options []string) (string, error) {
+func (s *systemd) AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
 	daemonReloadLock.Lock()
 	defer daemonReloadLock.Unlock()
 
-	mountUnitName, err := writeMountUnitFile(lifetime, snapName, revision, what, where, fstype, options)
+	mountUnitName, err := writeMountUnitFile(unitOptions)
 	if err != nil {
 		return "", err
 	}
@@ -1216,7 +1235,7 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	return nil
 }
 
-func (s *systemd) ListMountUnits(snapName, revision string) ([]string, error) {
+func (s *systemd) ListMountUnits(snapName string) ([]string, error) {
 	out, err := s.systemctl("show", "--property=Description,Where", "*.mount")
 	if err != nil {
 		return nil, err
@@ -1246,16 +1265,9 @@ func (s *systemd) ListMountUnits(snapName, revision string) ([]string, error) {
 			}
 		}
 
-		ourDescription := fmt.Sprintf("Mount unit for %s, revision ", snapName)
+		ourDescription := fmt.Sprintf("Mount unit for %s", snapName)
 		if !strings.HasPrefix(description, ourDescription) {
 			continue
-		}
-
-		if revision != "" {
-			unitRevision := description[len(ourDescription):]
-			if unitRevision != revision {
-				continue
-			}
 		}
 
 		// Is this an error, or are there valid cases when this might happen?

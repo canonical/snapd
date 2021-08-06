@@ -173,8 +173,15 @@ func (m *mountCommand) createMountUnit(sysd systemd.Systemd) (string, error) {
 	if m.Persistent {
 		lifetime = systemd.PersistentUnit
 	}
-	return sysd.AddMountUnitFileFull(lifetime, snapName, revision,
-		m.Positional.What, m.Positional.Where, m.Type, m.optionsList)
+	return sysd.AddMountUnitFileWithOptions(&systemd.MountUnitOptions{
+		Lifetime: lifetime,
+		SnapName: snapName,
+		Revision: revision,
+		What:     m.Positional.What,
+		Where:    m.Positional.Where,
+		Fstype:   m.Type,
+		Options:  m.optionsList,
+	})
 }
 
 func (m *mountCommand) Execute([]string) error {
