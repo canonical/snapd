@@ -192,7 +192,7 @@ func (s *emulation) RemoveMountUnitFile(mountedDir string) error {
 	return nil
 }
 
-func (s *emulation) ListMountUnits(snapName string) ([]string, error) {
+func (s *emulation) ListMountUnits(snapName, creator string) ([]string, error) {
 	return nil, errNotImplemented
 }
 

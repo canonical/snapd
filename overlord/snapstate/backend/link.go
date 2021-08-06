@@ -264,7 +264,7 @@ func removeGeneratedWrappers(s *snap.Info, firstInstallUndo bool, meter progress
 		logger.Noticef("Cannot remove desktop icons for %q: %v", s.InstanceName(), err5)
 	}
 
-	err6 := wrappers.RemoveMountUnitFiles(s, meter)
+	err6 := wrappers.RemoveMountUnitFiles(s, "", meter)
 	if err6 != nil {
 		logger.Noticef("Cannot remove mount units for %q: %v", s.InstanceName(), err6)
 	}

@@ -181,6 +181,7 @@ func (m *mountCommand) createMountUnit(sysd systemd.Systemd) (string, error) {
 		Where:    m.Positional.Where,
 		Fstype:   m.Type,
 		Options:  m.optionsList,
+		Creator:  "mount-control",
 	})
 }
 

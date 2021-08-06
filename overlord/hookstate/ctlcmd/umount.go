@@ -57,7 +57,7 @@ func (m *umountCommand) Execute([]string) error {
 
 	// Get the list of all our mount units, to find the matching one
 	sysd := systemd.New(systemd.SystemMode, nil)
-	mountPoints, err := sysd.ListMountUnits(snapName)
+	mountPoints, err := sysd.ListMountUnits(snapName, "mount-control")
 	if err != nil {
 		return fmt.Errorf("Cannot retrieve list of mount units: %v", err)
 	}

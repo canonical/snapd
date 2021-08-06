@@ -209,6 +209,7 @@ type MountUnitOptions struct {
 	Lifetime                                UnitLifetime
 	SnapName, Revision, What, Where, Fstype string
 	Options                                 []string
+	Creator                                 string
 }
 
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
@@ -265,8 +266,8 @@ type Systemd interface {
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
 	RemoveMountUnitFile(baseDir string) error
 	// ListMountUnits gets the list of targets of the mount units created by
-	// the given snap
-	ListMountUnits(snapName string) ([]string, error)
+	// the `creator` module for the given snap
+	ListMountUnits(snapName, creator string) ([]string, error)
 	// Mask the given service.
 	Mask(service string) error
 	// Unmask the given service.
@@ -1111,6 +1112,10 @@ LazyUnmount=yes
 WantedBy=multi-user.target
 `
 
+const (
+	snappyCreatorModule = "X-SnappyCreatorModule"
+)
+
 func writeMountUnitFile(u *MountUnitOptions) (mountUnitName string, err error) {
 	snapDesc := u.SnapName
 	if u.Revision != "" {
@@ -1118,6 +1123,9 @@ func writeMountUnitFile(u *MountUnitOptions) (mountUnitName string, err error) {
 	}
 	content := fmt.Sprintf(mountUnitTemplate, snapDesc,
 		u.What, u.Where, u.Fstype, strings.Join(u.Options, ","))
+	if u.Creator != "" {
+		content += fmt.Sprintf("%s=%s\n", snappyCreatorModule, u.Creator)
+	}
 	mu := MountUnitPathWithLifetime(u.Lifetime, u.Where)
 	mountUnitName, err = filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(content), 0644, 0)
 	if err != nil {
@@ -1235,8 +1243,29 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	return nil
 }
 
-func (s *systemd) ListMountUnits(snapName string) ([]string, error) {
-	out, err := s.systemctl("show", "--property=Description,Where", "*.mount")
+func extractCreatorModule(systemdUnitPath string) (string, error) {
+	f, err := os.Open(systemdUnitPath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	var creatorModule string
+	s := bufio.NewScanner(f)
+	prefix := snappyCreatorModule + "="
+	for s.Scan() {
+		line := s.Text()
+		fmt.Printf("Read line %q\n", line)
+		if strings.HasPrefix(line, prefix) {
+			creatorModule = line[len(prefix):]
+			break
+		}
+	}
+	return creatorModule, nil
+}
+
+func (s *systemd) ListMountUnits(snapName, creator string) ([]string, error) {
+	out, err := s.systemctl("show", "--property=Description,Where,FragmentPath", "*.mount")
 	if err != nil {
 		return nil, err
 	}
@@ -1248,7 +1277,7 @@ func (s *systemd) ListMountUnits(snapName string) ([]string, error) {
 	// Results are separated by a blank line, so we can split them like this:
 	units := bytes.Split(out, []byte("\n\n"))
 	for _, unitOutput := range units {
-		var where, description string
+		var where, description, fragmentPath string
 		lines := bytes.Split(bytes.Trim(unitOutput, "\n"), []byte("\n"))
 		for _, line := range lines {
 			splitVal := strings.SplitN(string(line), "=", 2)
@@ -1260,6 +1289,8 @@ func (s *systemd) ListMountUnits(snapName string) ([]string, error) {
 				description = splitVal[1]
 			case "Where":
 				where = splitVal[1]
+			case "FragmentPath":
+				fragmentPath = splitVal[1]
 			default:
 				return nil, fmt.Errorf("Unexpected property %q", splitVal[0])
 			}
@@ -1267,6 +1298,19 @@ func (s *systemd) ListMountUnits(snapName string) ([]string, error) {
 
 		ourDescription := fmt.Sprintf("Mount unit for %s", snapName)
 		if !strings.HasPrefix(description, ourDescription) {
+			continue
+		}
+
+		// only return units programmatically created by some snapd backend:
+		// the mount unit used to mount the snap's squashfs is generally
+		// uninteresting
+		creatorModule, err := extractCreatorModule(fragmentPath)
+		if err != nil || creatorModule == "" {
+			continue
+		}
+
+		// If a `creator` was given, we must return only units created by it
+		if creator != "" && creatorModule != creator {
 			continue
 		}
 
