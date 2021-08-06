@@ -125,8 +125,8 @@ execute: |
   . "$TESTSLIB/nested.sh"
 
   echo "Check we have the right model from snap model"
-  nested_exec "sudo snap model --verbose" | MATCH "model:\s+testkeys-snapd-${MODEL_GRADE}-core-20-amd64"
-  nested_exec "sudo snap model --verbose" | MATCH "grade:\s+${MODEL_GRADE}"
+  tests.nested exec "sudo snap model --verbose" | MATCH "model:\s+testkeys-snapd-${MODEL_GRADE}-core-20-amd64"
+  tests.nested exec "sudo snap model --verbose" | MATCH "grade:\s+${MODEL_GRADE}"
 
   # TODO: check that we got a serial assertion via the fakedevicesvc
   # for now we just don't get a serial assertion which is fine for the purposes

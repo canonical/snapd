@@ -93,6 +93,7 @@ var (
 	IsStopping = isStopping
 
 	GetKeypairManager = getKeypairManager
+	GenerateKey       = generateKey
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {

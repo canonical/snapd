@@ -83,7 +83,7 @@ execute: |
         exit 1
     fi
 
-    if os.query is-hirsute; then
+    if os.query is-hirsute || os.query is-impish; then
         # Cgroups is 'Operation not permitted' which is expected with default policy
         MATCH "Operation not permitted" < call.error
     else
