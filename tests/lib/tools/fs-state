@@ -144,21 +144,35 @@ check_monitor() {
         # /etc/ CREATE foo          # created file /etc/foo
         # /etc/ CREATE,ISDIR foo    # created directory /etc/foo
         created_files=$( sudo cat /tmp/fs.output | grep " CREATE " | awk '{ print $1$3 }' )
+        deleted_files=$( sudo cat /tmp/fs.output | grep " DELETE " | awk '{ print $1$3 }' )
         created_dirs=$( sudo cat /tmp/fs.output | grep " CREATE,ISDIR " | awk '{ print $1$3 }' )
+        deleted_dirs=$( sudo cat /tmp/fs.output | grep " DELETE,ISDIR " | awk '{ print $1$3 }' )
         missing=false
 
-        # Print the files that were created but not deleted
+        # Print the files that were created more/less than deleted
         for file in $created_files; do
-            if [ -f "$file" ] || not grep -qx "$file" /tmp/fs.exclude; then
-                echo "File not deleted $file"
+            count_created=$(echo "$created_files" | tr " " "\n" | grep -c "$file")
+            count_deleted=$(echo "$deleted_files" | tr " " "\n" | grep -c "$file")
+            if [ "$count_created" -gt "$count_deleted" ]; then
+                echo "File $file created more times than deleted"
+                missing=true
+            fi
+            if [ "$count_created" -lt "$count_deleted" ]; then
+                echo "File $file deleted more times than created"
                 missing=true
             fi
         done
 
-        # Print the directories that were created but not deleted
+        # Print the directories that were created more/less than deleted
         for dir in $created_dirs; do
-            if [ -d "$dir" ] || not grep -qx "$dir" /tmp/fs.exclude; then
-                echo "Dir not deleted $dir"
+            count_created=$(echo "$created_dirs" | tr " " "\n" | grep -c "$dir")
+            count_deleted=$(echo "$deleted_dirs" | tr " " "\n" | grep -c "$dir")
+            if [ "$count_created" -gt "$count_deleted" ]; then
+                echo "Dir $dir created more times than deleted"
+                missing=true
+            fi
+            if [ "$count_created" -lt "$count_deleted" ]; then
+                echo "Dir $dir deleted more times than created"
                 missing=true
             fi
         done
