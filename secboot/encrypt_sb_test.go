@@ -85,11 +85,12 @@ func (s *encryptSuite) TestAddRecoveryKey(c *C) {
 		myRecoveryKey := secboot.RecoveryKey{15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}
 
 		calls := 0
-		restore := secboot.MockSbAddRecoveryKeyToLUKS2Container(func(devicePath string, key []byte, recoveryKey sb.RecoveryKey) error {
+		restore := secboot.MockSbAddRecoveryKeyToLUKS2Container(func(devicePath string, key []byte, recoveryKey sb.RecoveryKey, opts *sb.KDFOptions) error {
 			calls++
 			c.Assert(devicePath, Equals, "/dev/node")
 			c.Assert(recoveryKey[:], DeepEquals, myRecoveryKey[:])
 			c.Assert(key, DeepEquals, []byte(myKey))
+			c.Assert(opts, IsNil)
 			return tc.addErr
 		})
 		defer restore()
