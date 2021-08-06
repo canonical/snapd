@@ -350,7 +350,7 @@ var (
 	contactableSnapSeed = &seed.InternalSnap16{
 		Name:    "contactable-snap",
 		Channel: "stable",
-		Contact: "author@example.com",
+		Contact: "mailto:author@example.com",
 	}
 )
 
@@ -978,7 +978,7 @@ func (s *seed16Suite) TestLoadMetaCore18StoreInfo(c *C) {
 	privateSnapSideInfo := s.AssertedSnapInfo("private-snap").SideInfo
 	privateSnapSideInfo.Private = true
 	contactableSnapSideInfo := s.AssertedSnapInfo("contactable-snap").SideInfo
-	contactableSnapSideInfo.EditedContact = "author@example.com"
+	contactableSnapSideInfo.EditedContact = "mailto:author@example.com"
 
 	// these are not sorted by type, firstboot will do that
 	c.Check(runSnaps, DeepEquals, []*seed.Snap{
