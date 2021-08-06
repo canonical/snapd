@@ -1373,6 +1373,52 @@ func (s *imageSuite) TestSetupSeedWithBaseLegacySnap(c *C) {
 	c.Check(m["snap_core"], Equals, "core18_18.snap")
 
 	c.Check(s.stderr.String(), Equals, "WARNING: model has base \"core18\" but some snaps (\"required-snap1\") require \"core\" as base as well, for compatibility it was added implicitly, adding \"core\" explicitly is recommended\n")
+
+	// current snap info sent
+	c.Check(s.curSnaps, HasLen, 2)
+	c.Check(s.curSnaps[0], HasLen, 0)
+	c.Check(s.curSnaps[1], DeepEquals, []*store.CurrentSnap{
+		{
+			InstanceName:     "snapd",
+			SnapID:           s.AssertedSnapID("snapd"),
+			Revision:         snap.R(18),
+			TrackingChannel:  "stable",
+			Epoch:            snap.E("0"),
+			IgnoreValidation: true,
+		},
+		{
+			InstanceName:     "pc-kernel",
+			SnapID:           s.AssertedSnapID("pc-kernel"),
+			Revision:         snap.R(2),
+			TrackingChannel:  "stable",
+			Epoch:            snap.E("0"),
+			IgnoreValidation: true,
+		},
+		{
+			InstanceName:     "core18",
+			SnapID:           s.AssertedSnapID("core18"),
+			Revision:         snap.R(18),
+			TrackingChannel:  "stable",
+			Epoch:            snap.E("0"),
+			IgnoreValidation: true,
+		},
+		{
+			InstanceName:     "pc18",
+			SnapID:           s.AssertedSnapID("pc18"),
+			Revision:         snap.R(4),
+			TrackingChannel:  "stable",
+			Epoch:            snap.E("0"),
+			IgnoreValidation: true,
+		},
+		{
+			InstanceName:     "required-snap1",
+			SnapID:           s.AssertedSnapID("required-snap1"),
+			Revision:         snap.R(3),
+			TrackingChannel:  "stable",
+			Epoch:            snap.E("0"),
+			IgnoreValidation: true,
+		},
+	})
 }
 
 func (s *imageSuite) TestSetupSeedWithBaseDefaultTrackSnap(c *C) {

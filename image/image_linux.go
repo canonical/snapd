@@ -431,8 +431,8 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			sn.ARefs = aRefs
 
 			curSnaps = append(curSnaps, &CurrentSnap{
-				SnapName: sn.SnapName(),
-				SnapID:   sn.ID(),
+				SnapName: sn.Info.SnapName(),
+				SnapID:   sn.Info.ID(),
 				Revision: sn.Info.Revision,
 				Epoch:    sn.Info.Epoch,
 				Channel:  sn.Channel,
