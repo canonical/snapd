@@ -696,7 +696,16 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	var snapType snap.Type
 	var installRecord *backend.InstallRecord
 	timings.Run(perfTimings, "setup-snap", fmt.Sprintf("setup snap %q", snapsup.InstanceName()), func(timings.Measurer) {
-		snapType, installRecord, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, deviceCtx, pb)
+		st.Lock()
+		isSeedChange := t.Change().Kind() == "seed"
+		st.Unlock()
+		setupOpts := &backend.SetupSnapOpts{
+			// Skip kernel extraction when seeding, the
+			// kernel was already extracted during image
+			// build or partition create time.
+			SkipKernelExtraction: isSeedChange,
+		}
+		snapType, installRecord, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, deviceCtx, setupOpts, pb)
 	})
 	if err != nil {
 		cleanup()
