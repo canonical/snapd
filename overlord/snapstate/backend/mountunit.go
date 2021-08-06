@@ -21,9 +21,11 @@ package backend
 
 import (
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/wrappers"
 )
 
 func addMountUnit(s *snap.Info, preseed bool, meter progress.Meter) error {
@@ -43,4 +45,11 @@ func addMountUnit(s *snap.Info, preseed bool, meter progress.Meter) error {
 func removeMountUnit(mountDir string, meter progress.Meter) error {
 	sysd := systemd.New(systemd.SystemMode, meter)
 	return sysd.RemoveMountUnitFile(mountDir)
+}
+
+func (b Backend) RemoveSnapMountUnits(s snap.PlaceInfo, meter progress.Meter) error {
+	if err := wrappers.RemoveMountUnitFiles(s, "", meter); err != nil {
+		logger.Noticef("Cannot remove mount units for %q: %v", s.InstanceName(), err)
+	}
+	return nil
 }

@@ -1074,6 +1074,14 @@ func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bo
 	return f.maybeErrForLastOp()
 }
 
+func (f *fakeSnappyBackend) RemoveSnapMountUnits(s snap.PlaceInfo, meter progress.Meter) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "remove-snap-mount-units",
+		name: s.InstanceName(),
+	})
+	return f.maybeErrForLastOp()
+}
+
 func (f *fakeSnappyBackend) RemoveSnapDir(s snap.PlaceInfo, otherInstances bool) error {
 	f.ops = append(f.ops, fakeOp{
 		op:             "remove-snap-dir",

@@ -293,6 +293,10 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			stype: "app",
 		},
 		{
+			op:   "remove-snap-mount-units",
+			name: "some-snap",
+		},
+		{
 			op:   "discard-namespace",
 			name: "some-snap",
 		},
@@ -434,6 +438,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 			op:    "remove-snap-files",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
 			stype: "app",
+		},
+		{
+			op:   "remove-snap-mount-units",
+			name: "some-snap_instance",
 		},
 		{
 			op:   "discard-namespace",
@@ -584,6 +592,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c 
 			stype: "app",
 		},
 		{
+			op:   "remove-snap-mount-units",
+			name: "some-snap_instance",
+		},
+		{
 			op:   "discard-namespace",
 			name: "some-snap_instance",
 		},
@@ -681,6 +693,10 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			stype: "app",
 		},
 		{
+			op:   "remove-snap-mount-units",
+			name: "some-snap",
+		},
+		{
 			op:   "remove-snap-data",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/5"),
 		},
@@ -688,6 +704,10 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			op:    "remove-snap-files",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap/5"),
 			stype: "app",
+		},
+		{
+			op:   "remove-snap-mount-units",
+			name: "some-snap",
 		},
 		{
 			op:   "remove-snap-data",
@@ -706,6 +726,10 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			op:    "remove-snap-files",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 			stype: "app",
+		},
+		{
+			op:   "remove-snap-mount-units",
+			name: "some-snap",
 		},
 		{
 			op:   "discard-namespace",
@@ -819,7 +843,7 @@ func (s *snapmgrTestSuite) TestRemoveOneRevisionRunThrough(c *C) {
 	s.settle(c)
 	s.state.Lock()
 
-	c.Check(len(s.fakeBackend.ops), Equals, 2)
+	c.Check(len(s.fakeBackend.ops), Equals, 3)
 	expected := fakeOps{
 		{
 			op:   "remove-snap-data",
@@ -829,6 +853,10 @@ func (s *snapmgrTestSuite) TestRemoveOneRevisionRunThrough(c *C) {
 			op:    "remove-snap-files",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap/3"),
 			stype: "app",
+		},
+		{
+			op:   "remove-snap-mount-units",
+			name: "some-snap",
 		},
 	}
 	// start with an easier-to-read error if this fails:
@@ -888,7 +916,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	s.settle(c)
 	s.state.Lock()
 
-	c.Check(len(s.fakeBackend.ops), Equals, 8)
+	c.Check(len(s.fakeBackend.ops), Equals, 9)
 	expected := fakeOps{
 		{
 			op:    "auto-disconnect:Doing",
@@ -912,6 +940,10 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 			op:    "remove-snap-files",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap/2"),
 			stype: "app",
+		},
+		{
+			op:   "remove-snap-mount-units",
+			name: "some-snap",
 		},
 		{
 			op:   "discard-namespace",
@@ -1481,6 +1513,10 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoRestoresCurrent(c *C) {
 			stype: "app",
 		},
 		{
+			op:   "remove-snap-mount-units",
+			name: "some-snap",
+		},
+		{
 			op:    "remove-profiles:Undoing",
 			name:  "some-snap",
 			revno: snap.R(1),
@@ -1562,6 +1598,10 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoLeavesInactiveSnapAfterDataIsLost(c
 			op:    "remove-snap-files",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap/2"),
 			stype: "app",
+		},
+		{
+			op:   "remove-snap-mount-units",
+			name: "some-snap",
 		},
 		{
 			op:   "remove-snap-data",

@@ -2251,6 +2251,10 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		t.Errorf("cannot remove snap file %q, will retry in 3 mins: %s", snapsup.InstanceName(), err)
 		return &state.Retry{After: 3 * time.Minute}
 	}
+	if err = m.backend.RemoveSnapMountUnits(snapsup.placeInfo(), nil); err != nil {
+		return err
+	}
+
 	if len(snapst.Sequence) == 0 {
 		if err := pruneRefreshCandidates(st, snapsup.InstanceName()); err != nil {
 			return err
