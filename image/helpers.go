@@ -385,6 +385,10 @@ type DownloadManyOptions struct {
 // if enforcing validations (ops.EnforceValidation set to true) to
 // have cross-gating work.
 func (tsto *ToolingStore) DownloadMany(toDownload []SnapDownloadOptions, curSnaps []*CurrentSnap, opts DownloadManyOptions) (downloadedSnaps map[string]*DownloadedSnap, err error) {
+	if len(toDownload) == 0 {
+		// nothing to do
+		return nil, nil
+	}
 	downloadedSnaps = make(map[string]*DownloadedSnap, len(toDownload))
 	if opts.BeforeDownloadFunc == nil {
 		return nil, fmt.Errorf("internal error: DownloadManyOptions.BeforeDownloadFunc must be set")

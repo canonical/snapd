@@ -882,7 +882,7 @@ func (s *imageSuite) TestSetupSeedWithWideCohort(c *C) {
 	c.Assert(err, IsNil)
 
 	// check the downloads
-	c.Check(s.storeActionsBunchSizes, DeepEquals, []int{4, 0})
+	c.Check(s.storeActionsBunchSizes, DeepEquals, []int{4})
 	c.Check(s.storeActions[0], DeepEquals, &store.SnapAction{
 		Action:       "download",
 		InstanceName: "core",
