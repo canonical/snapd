@@ -323,6 +323,17 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		mount := st.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mount snap %q%s"), snapsup.InstanceName(), revisionStr))
 		addTask(mount)
 		prev = mount
+	} else {
+		if snapsup.Flags.RemoveSnapPath {
+			// If the revision is local, we will not need the
+			// temporary snap.  This can happen when
+			// e.g. side-loading a local revision again.  The
+			// SnapPath is only needed in the "mount-snap" handler
+			// and that is skipped for local revisions.
+			if err := os.Remove(snapsup.SnapPath); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	// run refresh hooks when updating existing snap, otherwise run install hook further down.
@@ -1940,7 +1951,8 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 		return nil, nil, err
 	}
 
-	var updates []*snap.Info
+	toUpdate := make(map[string]*refreshCandidate, len(hints))
+	updates := make([]string, 0, len(hints))
 
 	// check conflicts
 	fromChange := ""
@@ -1953,7 +1965,8 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 		if err := checkChangeConflictIgnoringOneChange(st, up.InstanceName(), snapst, fromChange); err != nil {
 			logger.Noticef("cannot refresh snap %q: %v", up.InstanceName(), err)
 		} else {
-			updates = append(updates, up)
+			updates = append(updates, up.InstanceName())
+			toUpdate[up.InstanceName()] = hints[up.InstanceName()]
 		}
 	}
 
@@ -1971,24 +1984,6 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 		return nil, nil, err
 	}
 
-	// affectedByRefresh only considers snaps affected by updates, add
-	// updates themselves as long as they have gate-auto-refresh hooks.
-	for _, up := range updates {
-		snapst := snapstateByInstance[up.InstanceName()]
-		inf, err := snapst.CurrentInfo()
-		if err != nil {
-			return nil, nil, err
-		}
-		if inf.Hooks[gateAutoRefreshHookName] != nil {
-			if affectedSnaps[up.InstanceName()] == nil {
-				affectedSnaps[up.InstanceName()] = &affectedSnapInfo{
-					AffectingSnaps: make(map[string]bool),
-				}
-			}
-			affectedSnaps[up.InstanceName()].AffectingSnaps[up.InstanceName()] = true
-		}
-	}
-
 	var hooks *state.TaskSet
 	if len(affectedSnaps) > 0 {
 		hooks = createGateAutoRefreshHooks(st, affectedSnaps)
@@ -2003,21 +1998,14 @@ func autoRefreshPhase1(ctx context.Context, st *state.State) ([]string, []*state
 		tss = append(tss, hooks)
 	}
 
-	// return all names as potentially getting updated even though some may be
-	// held.
-	names := make([]string, len(updates))
-	toUpdate := make(map[string]*refreshCandidate, len(updates))
-	for i, up := range updates {
-		names[i] = up.InstanceName()
-		toUpdate[up.InstanceName()] = hints[up.InstanceName()]
-	}
-	sort.Strings(names)
-
 	// store the list of snaps to update on the conditional-auto-refresh task
 	// (this may be a subset of refresh-candidates due to conflicts).
 	ar.Set("snaps", toUpdate)
 
-	return names, tss, nil
+	// return all names as potentially getting updated even though some may be
+	// held.
+	sort.Strings(updates)
+	return updates, tss, nil
 }
 
 // autoRefreshPhase2 creates tasks for refreshing snaps from updates.

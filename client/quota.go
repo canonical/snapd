@@ -24,29 +24,34 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/snapcore/snapd/gadget/quantity"
 	"golang.org/x/xerrors"
 )
 
 type postQuotaData struct {
-	Action    string   `json:"action"`
-	GroupName string   `json:"group-name"`
-	Parent    string   `json:"parent,omitempty"`
-	Snaps     []string `json:"snaps,omitempty"`
-	MaxMemory uint64   `json:"max-memory,omitempty"`
+	Action      string       `json:"action"`
+	GroupName   string       `json:"group-name"`
+	Parent      string       `json:"parent,omitempty"`
+	Snaps       []string     `json:"snaps,omitempty"`
+	Constraints *QuotaValues `json:"constraints,omitempty"`
 }
 
 type QuotaGroupResult struct {
-	GroupName     string   `json:"group-name"`
-	Parent        string   `json:"parent,omitempty"`
-	Subgroups     []string `json:"subgroups,omitempty"`
-	Snaps         []string `json:"snaps,omitempty"`
-	MaxMemory     uint64   `json:"max-memory"`
-	CurrentMemory uint64   `json:"current-memory"`
+	GroupName   string       `json:"group-name"`
+	Parent      string       `json:"parent,omitempty"`
+	Subgroups   []string     `json:"subgroups,omitempty"`
+	Snaps       []string     `json:"snaps,omitempty"`
+	Constraints *QuotaValues `json:"constraints,omitempty"`
+	Current     *QuotaValues `json:"current,omitempty"`
+}
+
+type QuotaValues struct {
+	Memory quantity.Size `json:"memory,omitempty"`
 }
 
 // EnsureQuota creates a quota group or updates an existing group.
 // The list of snaps can be empty.
-func (client *Client) EnsureQuota(groupName string, parent string, snaps []string, maxMemory uint64) (changeID string, err error) {
+func (client *Client) EnsureQuota(groupName string, parent string, snaps []string, maxMemory quantity.Size) (changeID string, err error) {
 	if groupName == "" {
 		return "", xerrors.Errorf("cannot create or update quota group without a name")
 	}
@@ -57,7 +62,9 @@ func (client *Client) EnsureQuota(groupName string, parent string, snaps []strin
 		GroupName: groupName,
 		Parent:    parent,
 		Snaps:     snaps,
-		MaxMemory: maxMemory,
+		Constraints: &QuotaValues{
+			Memory: maxMemory,
+		},
 	}
 
 	var body bytes.Buffer
@@ -67,8 +74,7 @@ func (client *Client) EnsureQuota(groupName string, parent string, snaps []strin
 	chgID, err := client.doAsync("POST", "/v2/quotas", nil, nil, &body)
 
 	if err != nil {
-		fmt := "cannot create or update quota group: %w"
-		return "", xerrors.Errorf(fmt, err)
+		return "", err
 	}
 	return chgID, nil
 }
@@ -83,6 +89,7 @@ func (client *Client) GetQuotaGroup(groupName string) (*QuotaGroupResult, error)
 	if _, err := client.doSync("GET", path, nil, nil, nil, &res); err != nil {
 		return nil, err
 	}
+
 	return res, nil
 }
 
@@ -113,5 +120,6 @@ func (client *Client) Quotas() ([]*QuotaGroupResult, error) {
 	if _, err := client.doSync("GET", "/v2/quotas", nil, nil, nil, &res); err != nil {
 		return nil, err
 	}
+
 	return res, nil
 }

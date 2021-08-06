@@ -5,6 +5,9 @@
 # that would show up in the mock-shutdown.calls and confuse the test
 if [ "$1" = "-r" ]; then
     echo "$*" >> /tmp/mock-shutdown.calls
+    exit 0
+else
+    # not the shutdown command so we need to execute the original systemctl
+    # which needs to have been copied over to this location
+    exec /tmp/orig-systemctl "$@"
 fi
-
-exit 0

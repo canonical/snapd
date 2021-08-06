@@ -34,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap/quota"
 )
@@ -112,11 +113,11 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUnhappy(c *check.C) {
 	defer r()
 
 	data, err := json.Marshal(daemon.PostQuotaGroupData{
-		Action:    "ensure",
-		GroupName: "booze",
-		Parent:    "foo",
-		Snaps:     []string{"bar"},
-		MaxMemory: 1000,
+		Action:      "ensure",
+		GroupName:   "booze",
+		Parent:      "foo",
+		Snaps:       []string{"bar"},
+		Constraints: client.QuotaValues{Memory: quantity.Size(1000)},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -124,7 +125,7 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUnhappy(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, check.Equals, 400)
-	c.Check(rspe.Message, check.Matches, `boom`)
+	c.Check(rspe.Message, check.Matches, `cannot create quota group: boom`)
 	c.Assert(s.ensureSoonCalled, check.Equals, 0)
 }
 
@@ -142,11 +143,11 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateHappy(c *check.C) {
 	defer r()
 
 	data, err := json.Marshal(daemon.PostQuotaGroupData{
-		Action:    "ensure",
-		GroupName: "booze",
-		Parent:    "foo",
-		Snaps:     []string{"some-snap"},
-		MaxMemory: 1000,
+		Action:      "ensure",
+		GroupName:   "booze",
+		Parent:      "foo",
+		Snaps:       []string{"some-snap"},
+		Constraints: client.QuotaValues{Memory: quantity.Size(1000)},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -156,6 +157,64 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaCreateHappy(c *check.C) {
 	c.Assert(rsp.Status, check.Equals, 202)
 	c.Assert(createCalled, check.Equals, 1)
 	c.Assert(s.ensureSoonCalled, check.Equals, 1)
+}
+
+func (s *apiQuotaSuite) TestPostEnsureQuotaCreateQuotaConflicts(c *check.C) {
+	var createCalled int
+	r := daemon.MockServicestateCreateQuota(func(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) (*state.TaskSet, error) {
+		c.Check(name, check.Equals, "booze")
+		c.Check(parentName, check.Equals, "foo")
+		c.Check(snaps, check.DeepEquals, []string{"some-snap"})
+		c.Check(memoryLimit, check.DeepEquals, quantity.Size(1000))
+
+		createCalled++
+		switch createCalled {
+		case 1:
+			// return a quota conflict as if we were trying to create this quota in
+			// another task
+			return nil, &servicestate.QuotaChangeConflictError{Quota: "booze", ChangeKind: "quota-control"}
+		case 2:
+			// return a snap conflict as if we were trying to disable the
+			// some-snap in the quota group to be created
+			return nil, &snapstate.ChangeConflictError{Snap: "some-snap", ChangeKind: "disable"}
+		default:
+			c.Errorf("test broken")
+			return nil, fmt.Errorf("test broken")
+		}
+	})
+	defer r()
+
+	data, err := json.Marshal(daemon.PostQuotaGroupData{
+		Action:      "ensure",
+		GroupName:   "booze",
+		Parent:      "foo",
+		Snaps:       []string{"some-snap"},
+		Constraints: client.QuotaValues{Memory: 1000},
+	})
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	c.Assert(err, check.IsNil)
+	rspe := s.errorReq(c, req, nil)
+	c.Assert(rspe.Status, check.Equals, 409)
+	c.Check(rspe.Message, check.Equals, `quota group "booze" has "quota-control" change in progress`)
+	c.Check(rspe.Value, check.DeepEquals, map[string]interface{}{
+		"change-kind": "quota-control",
+		"quota-name":  "booze",
+	})
+
+	req, err = http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	c.Assert(err, check.IsNil)
+
+	rspe = s.errorReq(c, req, nil)
+	c.Assert(rspe.Status, check.Equals, 409)
+	c.Check(rspe.Message, check.Equals, `snap "some-snap" has "disable" change in progress`)
+	c.Check(rspe.Value, check.DeepEquals, map[string]interface{}{
+		"change-kind": "disable",
+		"snap-name":   "some-snap",
+	})
+
+	c.Assert(createCalled, check.Equals, 2)
 }
 
 func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateHappy(c *check.C) {
@@ -185,10 +244,10 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateHappy(c *check.C) {
 	defer r()
 
 	data, err := json.Marshal(daemon.PostQuotaGroupData{
-		Action:    "ensure",
-		GroupName: "ginger-ale",
-		Snaps:     []string{"some-snap"},
-		MaxMemory: 9000,
+		Action:      "ensure",
+		GroupName:   "ginger-ale",
+		Snaps:       []string{"some-snap"},
+		Constraints: client.QuotaValues{Memory: quantity.Size(9000)},
 	})
 	c.Assert(err, check.IsNil)
 
@@ -198,6 +257,75 @@ func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateHappy(c *check.C) {
 	c.Assert(rsp.Status, check.Equals, 202)
 	c.Assert(updateCalled, check.Equals, 1)
 	c.Assert(s.ensureSoonCalled, check.Equals, 1)
+}
+
+func (s *apiQuotaSuite) TestPostEnsureQuotaUpdateConflicts(c *check.C) {
+	st := s.d.Overlord().State()
+	st.Lock()
+	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", nil, 5000)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	r := daemon.MockServicestateCreateQuota(func(st *state.State, name string, parentName string, snaps []string, memoryLimit quantity.Size) (*state.TaskSet, error) {
+		c.Errorf("should not have called create quota")
+		return nil, fmt.Errorf("broken test")
+	})
+	defer r()
+
+	updateCalled := 0
+	r = daemon.MockServicestateUpdateQuota(func(st *state.State, name string, opts servicestate.QuotaGroupUpdate) (*state.TaskSet, error) {
+		updateCalled++
+		c.Assert(name, check.Equals, "ginger-ale")
+		c.Assert(opts, check.DeepEquals, servicestate.QuotaGroupUpdate{
+			AddSnaps:       []string{"some-snap"},
+			NewMemoryLimit: 9000,
+		})
+		switch updateCalled {
+		case 1:
+			// return a quota conflict as if we were trying to update this quota
+			// in another task
+			return nil, &servicestate.QuotaChangeConflictError{Quota: "ginger-ale", ChangeKind: "quota-control"}
+		case 2:
+			// return a snap conflict as if we were trying to disable the
+			// some-snap in the quota group to be added to the group
+			return nil, &snapstate.ChangeConflictError{Snap: "some-snap", ChangeKind: "disable"}
+		default:
+			c.Errorf("test broken")
+			return nil, fmt.Errorf("test broken")
+		}
+	})
+	defer r()
+
+	data, err := json.Marshal(daemon.PostQuotaGroupData{
+		Action:      "ensure",
+		GroupName:   "ginger-ale",
+		Snaps:       []string{"some-snap"},
+		Constraints: client.QuotaValues{Memory: 9000},
+	})
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	c.Assert(err, check.IsNil)
+	rspe := s.errorReq(c, req, nil)
+	c.Assert(rspe.Status, check.Equals, 409)
+	c.Check(rspe.Message, check.Equals, `quota group "ginger-ale" has "quota-control" change in progress`)
+	c.Check(rspe.Value, check.DeepEquals, map[string]interface{}{
+		"change-kind": "quota-control",
+		"quota-name":  "ginger-ale",
+	})
+
+	req, err = http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	c.Assert(err, check.IsNil)
+
+	rspe = s.errorReq(c, req, nil)
+	c.Assert(rspe.Status, check.Equals, 409)
+	c.Check(rspe.Message, check.Equals, `snap "some-snap" has "disable" change in progress`)
+	c.Check(rspe.Value, check.DeepEquals, map[string]interface{}{
+		"change-kind": "disable",
+		"snap-name":   "some-snap",
+	})
+
+	c.Assert(updateCalled, check.Equals, 2)
 }
 
 func (s *apiQuotaSuite) TestPostRemoveQuotaHappy(c *check.C) {
@@ -227,6 +355,63 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaHappy(c *check.C) {
 	c.Assert(s.ensureSoonCalled, check.Equals, 1)
 }
 
+func (s *apiQuotaSuite) TestPostRemoveQuotaConflict(c *check.C) {
+	st := s.d.Overlord().State()
+	st.Lock()
+	err := servicestatetest.MockQuotaInState(st, "ginger-ale", "", []string{"some-snap"}, 5000)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	var removeCalled int
+	r := daemon.MockServicestateRemoveQuota(func(st *state.State, name string) (*state.TaskSet, error) {
+		removeCalled++
+		c.Check(name, check.Equals, "booze")
+		switch removeCalled {
+		case 1:
+			// return a quota conflict as if we were trying to update this quota
+			// in another task
+			return nil, &servicestate.QuotaChangeConflictError{Quota: "booze", ChangeKind: "quota-control"}
+		case 2:
+			// return a snap conflict as if we were trying to disable the
+			// some-snap in the quota group to be added to the group
+			return nil, &snapstate.ChangeConflictError{Snap: "some-snap", ChangeKind: "disable"}
+		default:
+			c.Errorf("test broken")
+			return nil, fmt.Errorf("test broken")
+		}
+	})
+	defer r()
+
+	data, err := json.Marshal(daemon.PostQuotaGroupData{
+		Action:    "remove",
+		GroupName: "booze",
+	})
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	c.Assert(err, check.IsNil)
+	rspe := s.errorReq(c, req, nil)
+	c.Assert(rspe.Status, check.Equals, 409)
+	c.Check(rspe.Message, check.Equals, `quota group "booze" has "quota-control" change in progress`)
+	c.Check(rspe.Value, check.DeepEquals, map[string]interface{}{
+		"change-kind": "quota-control",
+		"quota-name":  "booze",
+	})
+
+	req, err = http.NewRequest("POST", "/v2/quotas", bytes.NewBuffer(data))
+	c.Assert(err, check.IsNil)
+
+	rspe = s.errorReq(c, req, nil)
+	c.Assert(rspe.Status, check.Equals, 409)
+	c.Check(rspe.Message, check.Equals, `snap "some-snap" has "disable" change in progress`)
+	c.Check(rspe.Value, check.DeepEquals, map[string]interface{}{
+		"change-kind": "disable",
+		"snap-name":   "some-snap",
+	})
+
+	c.Assert(removeCalled, check.Equals, 2)
+}
+
 func (s *apiQuotaSuite) TestPostRemoveQuotaUnhappy(c *check.C) {
 	r := daemon.MockServicestateRemoveQuota(func(st *state.State, name string) (*state.TaskSet, error) {
 		c.Check(name, check.Equals, "booze")
@@ -244,7 +429,7 @@ func (s *apiQuotaSuite) TestPostRemoveQuotaUnhappy(c *check.C) {
 	c.Assert(err, check.IsNil)
 	rspe := s.errorReq(c, req, nil)
 	c.Check(rspe.Status, check.Equals, 400)
-	c.Check(rspe.Message, check.Matches, `boom`)
+	c.Check(rspe.Message, check.Matches, `cannot remove quota group: boom`)
 	c.Check(s.ensureSoonCalled, check.Equals, 0)
 }
 
@@ -305,22 +490,22 @@ func (s *apiQuotaSuite) TestListQuotas(c *check.C) {
 	res := rsp.Result.([]client.QuotaGroupResult)
 	c.Check(res, check.DeepEquals, []client.QuotaGroupResult{
 		{
-			GroupName:     "bar",
-			Parent:        "foo",
-			MaxMemory:     6000,
-			CurrentMemory: 500,
+			GroupName:   "bar",
+			Parent:      "foo",
+			Constraints: &client.QuotaValues{Memory: quantity.Size(6000)},
+			Current:     &client.QuotaValues{Memory: quantity.Size(500)},
 		},
 		{
-			GroupName:     "baz",
-			Parent:        "foo",
-			MaxMemory:     5000,
-			CurrentMemory: 1000,
+			GroupName:   "baz",
+			Parent:      "foo",
+			Constraints: &client.QuotaValues{Memory: quantity.Size(5000)},
+			Current:     &client.QuotaValues{Memory: quantity.Size(1000)},
 		},
 		{
-			GroupName:     "foo",
-			Subgroups:     []string{"bar", "baz"},
-			MaxMemory:     11000,
-			CurrentMemory: 5000,
+			GroupName:   "foo",
+			Subgroups:   []string{"bar", "baz"},
+			Constraints: &client.QuotaValues{Memory: quantity.Size(11000)},
+			Current:     &client.QuotaValues{Memory: quantity.Size(5000)},
 		},
 	})
 	c.Check(s.ensureSoonCalled, check.Equals, 0)
@@ -350,10 +535,10 @@ func (s *apiQuotaSuite) TestGetQuota(c *check.C) {
 	c.Assert(rsp.Result, check.FitsTypeOf, client.QuotaGroupResult{})
 	res := rsp.Result.(client.QuotaGroupResult)
 	c.Check(res, check.DeepEquals, client.QuotaGroupResult{
-		GroupName:     "bar",
-		Parent:        "foo",
-		MaxMemory:     6000,
-		CurrentMemory: 500,
+		GroupName:   "bar",
+		Parent:      "foo",
+		Constraints: &client.QuotaValues{Memory: quantity.Size(6000)},
+		Current:     &client.QuotaValues{Memory: quantity.Size(500)},
 	})
 
 	c.Check(s.ensureSoonCalled, check.Equals, 0)

@@ -43,47 +43,42 @@ execute: |
         # sanity - check that defaults were applied; note this doesn't guarantee
         # that defaults were applied early - that is checked further down.
         echo "Sanity check of the gadget defaults"
-        nested_exec "sudo snap get system service.rsyslog.disable" | MATCH "true"
-        nested_exec "sudo snap get system watchdog.runtime-timeout" | MATCH "13m"
-        nested_exec "sudo snap get system system.power-key-action" | MATCH "ignore"
-        nested_exec "sudo snap get system system.disable-backlight-service" | MATCH "true"
+        tests.nested exec "sudo snap get system service.rsyslog.disable" | MATCH "true"
+        tests.nested exec "sudo snap get system watchdog.runtime-timeout" | MATCH "13m"
+        tests.nested exec "sudo snap get system system.power-key-action" | MATCH "ignore"
+        tests.nested exec "sudo snap get system system.disable-backlight-service" | MATCH "true"
 
-        nested_exec "test -L /etc/systemd/system/rsyslog.service"
-        nested_exec "cat /etc/systemd/logind.conf.d/00-snap-core.conf" | MATCH "HandlePowerKey=ignore"
-        nested_exec "cat /etc/systemd/system.conf.d/10-snapd-watchdog.conf" | MATCH "RuntimeWatchdogSec=780"
-        nested_exec "test -L /etc/systemd/system/systemd-backlight@.service"
+        tests.nested exec "test -L /etc/systemd/system/rsyslog.service"
+        tests.nested exec "cat /etc/systemd/logind.conf.d/00-snap-core.conf" | MATCH "HandlePowerKey=ignore"
+        tests.nested exec "cat /etc/systemd/system.conf.d/10-snapd-watchdog.conf" | MATCH "RuntimeWatchdogSec=780"
+        tests.nested exec "test -L /etc/systemd/system/systemd-backlight@.service"
 
         echo "Test that defaults were applied early."
         # early config is witnessed by install hook of the pc gadget. Note we can
         # only check rsyslog/backlight symlinks as other core settings cannot be
         # inspected from install hook of the gadget.
-        nested_exec "cat /var/snap/pc/common/debug.txt" | MATCH "rsyslog symlink: /dev/null"
-        nested_exec "cat /var/snap/pc/common/debug.txt" | MATCH "backlight symlink: /dev/null"
+        tests.nested exec "cat /var/snap/pc/common/debug.txt" | MATCH "rsyslog symlink: /dev/null"
+        tests.nested exec "cat /var/snap/pc/common/debug.txt" | MATCH "backlight symlink: /dev/null"
 
         # timezone is set
-        nested_exec "cat /etc/timezone" | MATCH "Europe/Malta"
-        nested_exec "readlink -f /etc/localtime" | MATCH "Europe/Malta"
-        nested_exec "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"
+        tests.nested exec "cat /etc/timezone" | MATCH "Europe/Malta"
+        tests.nested exec "readlink -f /etc/localtime" | MATCH "Europe/Malta"
+        tests.nested exec "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"
 
         # check console-conf disabled
-        nested_exec "cat /var/lib/console-conf/complete" | MATCH "console-conf has been disabled by the snapd system configuration"
+        tests.nested exec "cat /var/lib/console-conf/complete" | MATCH "console-conf has been disabled by the snapd system configuration"
     }
 
     check_core20_early_config
 
     echo "Transition to recover mode and check it again"
-    boot_id="$(nested_get_boot_id)"
-    # shellcheck disable=SC2016
-    nested_exec 'sudo snap reboot --recover'
-    nested_wait_for_reboot "${boot_id}"
-
-    echo "Check the vm is in recover mode"
-    nested_exec 'sudo cat /proc/cmdline' | MATCH snapd_recovery_mode=recover
+    recoverySystem=$(nested_exec "sudo snap recovery | grep -v Notes | grep -Po '^[0-9]+'")
+    nested_uc20_transition_to_system_mode "$recoverySystem" recover
 
     echo "Wait for the snap command to be available since recover mode needs to seed itself"
-    nested_wait_for_snap_command
+    tests.nested wait-for snap-command
 
     echo "Wait for snap seeding to be done"
-    nested_exec "sudo snap wait system seed.loaded"
+    tests.nested exec "sudo snap wait system seed.loaded"
 
     check_core20_early_config

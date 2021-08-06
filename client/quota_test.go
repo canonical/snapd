@@ -20,12 +20,15 @@
 package client_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"io/ioutil"
 
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/jsonutil"
 )
 
 func (cs *clientSuite) TestCreateQuotaGroupInvalidName(c *check.C) {
@@ -49,14 +52,16 @@ func (cs *clientSuite) TestEnsureQuotaGroup(c *check.C) {
 	body, err := ioutil.ReadAll(cs.req.Body)
 	c.Assert(err, check.IsNil)
 	var req map[string]interface{}
-	err = json.Unmarshal(body, &req)
+	err = jsonutil.DecodeWithNumber(bytes.NewReader(body), &req)
 	c.Assert(err, check.IsNil)
 	c.Assert(req, check.DeepEquals, map[string]interface{}{
 		"action":     "ensure",
 		"group-name": "foo",
 		"parent":     "bar",
 		"snaps":      []interface{}{"snap-a", "snap-b"},
-		"max-memory": float64(1001),
+		"constraints": map[string]interface{}{
+			"memory": json.Number("1001"),
+		},
 	})
 }
 
@@ -64,7 +69,7 @@ func (cs *clientSuite) TestEnsureQuotaGroupError(c *check.C) {
 	cs.status = 500
 	cs.rsp = `{"type": "error"}`
 	_, err := cs.cli.EnsureQuota("foo", "bar", []string{"snap-a"}, 1)
-	c.Check(err, check.ErrorMatches, `cannot create or update quota group: server error: "Internal Server Error"`)
+	c.Check(err, check.ErrorMatches, `server error: "Internal Server Error"`)
 }
 
 func (cs *clientSuite) TestGetQuotaGroupInvalidName(c *check.C) {
@@ -76,7 +81,14 @@ func (cs *clientSuite) TestGetQuotaGroup(c *check.C) {
 	cs.rsp = `{
 		"type": "sync",
 		"status-code": 200,
-		"result": {"group-name":"foo", "parent":"bar", "subgroups":["foo-subgrp"], "snaps":["snap-a"], "max-memory":999, "current-memory":450}
+		"result": {
+			"group-name":"foo",
+			"parent":"bar",
+			"subgroups":["foo-subgrp"],
+			"snaps":["snap-a"],
+			"constraints": { "memory": 999 },
+			"current": { "memory": 450 }
+		}
 	}`
 
 	grp, err := cs.cli.GetQuotaGroup("foo")
@@ -84,12 +96,12 @@ func (cs *clientSuite) TestGetQuotaGroup(c *check.C) {
 	c.Check(cs.req.Method, check.Equals, "GET")
 	c.Check(cs.req.URL.Path, check.Equals, "/v2/quotas/foo")
 	c.Check(grp, check.DeepEquals, &client.QuotaGroupResult{
-		GroupName:     "foo",
-		Parent:        "bar",
-		Subgroups:     []string{"foo-subgrp"},
-		MaxMemory:     999,
-		CurrentMemory: 450,
-		Snaps:         []string{"snap-a"},
+		GroupName:   "foo",
+		Parent:      "bar",
+		Subgroups:   []string{"foo-subgrp"},
+		Constraints: &client.QuotaValues{Memory: quantity.Size(999)},
+		Current:     &client.QuotaValues{Memory: quantity.Size(450)},
+		Snaps:       []string{"snap-a"},
 	})
 }
 
