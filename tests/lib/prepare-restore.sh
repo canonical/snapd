@@ -683,7 +683,7 @@ restore_suite_each() {
     fi
     tests.invariant check
 
-    "$TESTSTOOLS"/fs-state check-monitor    
+    "$TESTSTOOLS"/fs-state check-monitor
 }
 
 restore_suite() {
