@@ -380,6 +380,10 @@ type DownloadManyOptions struct {
 }
 
 // DownloadMany downloads the specified snaps.
+// curSnaps are meant to represent already downloaded snaps that will
+// be installed in conjunction if the snaps to download, this is needed
+// if enforcing validations (ops.EnforceValidation set to true) to
+// have cross-gating work.
 func (tsto *ToolingStore) DownloadMany(toDownload []SnapDownloadOptions, curSnaps []*CurrentSnap, opts DownloadManyOptions) (downloadedSnaps map[string]*DownloadedSnap, err error) {
 	downloadedSnaps = make(map[string]*DownloadedSnap, len(toDownload))
 	if opts.BeforeDownloadFunc == nil {
