@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -43,31 +43,8 @@ type ValidationConstraints struct {
 // consistency rules for role usage, labels etc as implied by the
 // model and extra constraints that might be known only at runtime.
 func Validate(info *Info, model Model, extra *ValidationConstraints) error {
-	if err := ruleValidateVolumes(info.Volumes, model); err != nil {
+	if err := ruleValidateVolumes(info.Volumes, model, extra); err != nil {
 		return err
-	}
-	if extra != nil {
-		if extra.EncryptedData {
-			if err := validateEncryptionSupport(info); err != nil {
-				return fmt.Errorf("gadget does not support encrypted data: %v", err)
-			}
-		}
-	}
-	return nil
-}
-
-func validateEncryptionSupport(info *Info) error {
-	for name, vol := range info.Volumes {
-		var haveSave bool
-		for _, s := range vol.Structure {
-			if s.Role == SystemSave {
-				haveSave = true
-			}
-		}
-		if !haveSave {
-			return fmt.Errorf("volume %q has no structure with system-save role", name)
-		}
-		// TODO:UC20: shall we make sure that size of ubuntu-save is reasonable?
 	}
 	return nil
 }
@@ -77,7 +54,7 @@ type roleInstance struct {
 	s       *VolumeStructure
 }
 
-func ruleValidateVolumes(vols map[string]*Volume, model Model) error {
+func ruleValidateVolumes(vols map[string]*Volume, model Model, extra *ValidationConstraints) error {
 	roles := map[string]*roleInstance{
 		SystemSeed: nil,
 		SystemBoot: nil,
@@ -123,6 +100,18 @@ func ruleValidateVolumes(vols map[string]*Volume, model Model) error {
 
 	if err := ensureRolesConsistency(roles, expectedSeed); err != nil {
 		return err
+	}
+
+	if extra != nil {
+		if extra.EncryptedData {
+			if !expectedSeed {
+				return fmt.Errorf("internal error: cannot support encrypted data without requiring system-seed")
+			}
+			if roles[SystemSave] == nil {
+				return fmt.Errorf("gadget does not support encrypted data: required partition with system-save role is missing")
+				// TODO:UC20: shall we make sure that size of ubuntu-save is reasonable?
+			}
+		}
 	}
 
 	return nil

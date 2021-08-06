@@ -50,7 +50,7 @@ prepare: |
     tests.nested create-vm core
 
     for f in pc-gadget-cmdline-extra-updated.snap pc-gadget-cmdline-full.snap pc-gadget-cmdline-none.snap; do
-        nested_copy "$f"
+        tests.nested copy "$f"
     done
 
 debug: |
@@ -65,49 +65,49 @@ execute: |
 
     echo "Make sure the system is encrypted"
     # in which case the boot chains must exist
-    nested_exec sudo cat /var/lib/snapd/device/fde/boot-chains
+    tests.nested exec sudo cat /var/lib/snapd/device/fde/boot-chains
 
     # system is in run mode
     echo "Make sure the system is in run mode"
-    nested_exec 'sudo cat /proc/cmdline' > system.cmdline.run
+    tests.nested exec 'sudo cat /proc/cmdline' > system.cmdline.run
     MATCH snapd_recovery_mode=run < system.cmdline.run
 
     echo "Verify kernel command line in run mode"
     MATCH 'snapd_recovery_mode=run .* hello from test$' < system.cmdline.run
 
     echo "Perform an update of the gadget"
-    REMOTE_CHG_ID=$(nested_exec 'sudo snap install --dangerous --no-wait ./pc-gadget-cmdline-extra-updated.snap')
+    REMOTE_CHG_ID=$(tests.nested exec 'sudo snap install --dangerous --no-wait ./pc-gadget-cmdline-extra-updated.snap')
 
     echo "Wait for reboot"
-    nested_wait_for_reboot "${boot_id}"
+    tests.nested wait-for reboot "${boot_id}"
     boot_id="$(nested_get_boot_id)"
-    nested_exec 'sudo cat /proc/cmdline' | MATCH 'snapd_recovery_mode=run .* updated hello from test'
+    tests.nested exec 'sudo cat /proc/cmdline' | MATCH 'snapd_recovery_mode=run .* updated hello from test'
     # wait for previous change to finish before proceeding
-    nested_exec sudo snap watch "$REMOTE_CHG_ID"
+    tests.nested exec sudo snap watch "$REMOTE_CHG_ID"
 
     echo "Update to gadget with no command line"
-    REMOTE_CHG_ID=$(nested_exec 'sudo snap install --dangerous --no-wait ./pc-gadget-cmdline-none.snap')
-    nested_wait_for_reboot "${boot_id}"
+    REMOTE_CHG_ID=$(tests.nested exec 'sudo snap install --dangerous --no-wait ./pc-gadget-cmdline-none.snap')
+    tests.nested wait-for reboot "${boot_id}"
     boot_id="$(nested_get_boot_id)"
     echo "Verify that custom command line elements are not present"
-    nested_exec 'sudo cat /proc/cmdline' | NOMATCH 'hello from test'
+    tests.nested exec 'sudo cat /proc/cmdline' | NOMATCH 'hello from test'
     # wait for previous change to finish before proceeding
-    nested_exec sudo snap watch "$REMOTE_CHG_ID"
+    tests.nested exec sudo snap watch "$REMOTE_CHG_ID"
 
     echo "Update to gadget with full command line"
-    REMOTE_CHG_ID=$(nested_exec 'sudo snap install --dangerous --no-wait ./pc-gadget-cmdline-full.snap')
-    nested_wait_for_reboot "${boot_id}"
+    REMOTE_CHG_ID=$(tests.nested exec 'sudo snap install --dangerous --no-wait ./pc-gadget-cmdline-full.snap')
+    tests.nested wait-for reboot "${boot_id}"
     boot_id="$(nested_get_boot_id)"
-    nested_exec 'sudo cat /proc/cmdline' | MATCH 'snapd_recovery_mode=run snapd.debug=1 console=ttyS0 full hello from test'
+    tests.nested exec 'sudo cat /proc/cmdline' | MATCH 'snapd_recovery_mode=run snapd.debug=1 console=ttyS0 full hello from test'
     # wait for previous change to finish before proceeding
-    nested_exec sudo snap watch "$REMOTE_CHG_ID"
+    tests.nested exec sudo snap watch "$REMOTE_CHG_ID"
 
     echo "Transition to recover mode to verify kernel command line"
-    nested_exec 'sudo snap reboot --recover'
-    nested_wait_for_reboot "${boot_id}"
+    tests.nested exec 'sudo snap reboot --recover'
+    tests.nested wait-for reboot "${boot_id}"
 
     echo "Check the vm is in recover mode"
-    nested_exec 'sudo cat /proc/cmdline' > system.cmdline.recover
+    tests.nested exec 'sudo cat /proc/cmdline' > system.cmdline.recover
     MATCH snapd_recovery_mode=recover < system.cmdline.recover
 
     MATCH 'snapd_recovery_mode=recover snapd_recovery_system=.* .* hello from test$' < system.cmdline.recover

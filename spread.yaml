@@ -103,11 +103,10 @@ backends:
                   image: ubuntu-20.04-64
                   workers: 1
                   secure-boot: true
-                  # XXX: old name, remove once new spread is deployed
-                  secureboot: true
-            - ubuntu-20.10-64:
-                  workers: 8
             - ubuntu-21.04-64:
+                  workers: 8
+            - ubuntu-21.10-64:
+                  image: ubuntu-os-cloud-devel/ubuntu-2110
                   workers: 8
 
             - debian-9-64:
@@ -158,8 +157,6 @@ backends:
                   workers: 6
             - ubuntu-20.04-64:
                   workers: 6
-            - ubuntu-20.10-64:
-                  workers: 6
 
     google-nested:
         type: google
@@ -180,10 +177,10 @@ backends:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
                   workers: 7
-            - ubuntu-20.10-64:
-                  image: ubuntu-2010-64-virt-enabled
+            - ubuntu-21.04-64:
+                  image: ubuntu-2104-64-virt-enabled
                   storage: 20G
-                  workers: 6
+                  workers: 3
 
     qemu-nested:
         memory: 4G
@@ -440,7 +437,7 @@ debug-each: |
             # add another echo in case the serial log is missing a newline
             echo
 
-            nested_exec sudo journalctl --no-pager -u snapd || true
+            tests.nested exec "sudo journalctl --no-pager -u snapd" || true
         fi
 
         echo '# journal messages for snapd'

@@ -73,7 +73,7 @@ jobs:
       fail-fast: false      
       matrix:
         gochannel:
-          - 1.9
+          - 1.13
           - latest/stable
     steps:
     - name: Checkout code
@@ -119,7 +119,7 @@ jobs:
               echo "::set-output name=already-ran::true"
           fi
     - name: Install Debian dependencies
-      if: steps.cached-results.outputs.cached-resulsts != 'true'
+      if: steps.cached-results.outputs.cached-results != 'true'
       run: |
           sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
     # golang latest ensures things work on the edge
@@ -166,8 +166,8 @@ jobs:
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-          # run gofmt checks only with Go 1.9 and 1.10
-          if ! echo "${{ matrix.gochannel }}" | grep -E '1\.(9|10)' ; then
+          # run gofmt checks only with Go 1.13
+          if ! echo "${{ matrix.gochannel }}" | grep -E '1\.13' ; then
               # and skip with other versions
               export SKIP_GOFMT=1
               echo "Formatting checks will be skipped due to the use of Go version ${{ matrix.gochannel }}"
@@ -242,8 +242,8 @@ jobs:
         - ubuntu-18.04-32
         - ubuntu-18.04-64
         - ubuntu-20.04-64
-        - ubuntu-20.10-64
         - ubuntu-21.04-64
+        - ubuntu-21.10-64
         - ubuntu-core-16-64
         - ubuntu-core-18-64
         - ubuntu-core-20-64
@@ -303,7 +303,7 @@ jobs:
         - ubuntu-16.04-64
         - ubuntu-18.04-64
         - ubuntu-20.04-64
-        - ubuntu-20.10-64
+        - ubuntu-21.04-64
     steps:
     - name: Checkout code
       uses: actions/checkout@v2

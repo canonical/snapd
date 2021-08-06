@@ -132,24 +132,19 @@ execute: |
   . "$TESTSLIB/nested.sh"
 
   echo "The initial cloud-init user was created"
-  nested_exec "cat /var/lib/extrausers/passwd" | MATCH normal-user
+  tests.nested exec "cat /var/lib/extrausers/passwd" | MATCH normal-user
 
   echo "And we can run things as the normal user"
-  nested_exec_as normal-user ubuntu "sudo true"
+  tests.nested exec_as normal-user ubuntu "sudo true"
 
   echo "Waiting for snapd to react to cloud-init"
-  for i in $(seq 60); do
-    if nested_exec "journalctl --no-pager -u snapd" | MATCH "Cloud-init reported"; then
-        break
-    fi
-    sleep 1
-  done
+  retry --wait 1 -n 60 sh -c 'tests.nested exec sudo journalctl --no-pager -u snapd | MATCH "cloud-init reported"'
 
   echo "Ensuring that cloud-init got disabled after running"
-  nested_exec "cloud-init status" | MATCH "status: disabled"
-  nested_exec "test -f /etc/cloud/cloud-init.disabled"
-  nested_exec "test -f /etc/cloud/cloud.cfg.d/80_device_gadget.cfg"
-  nested_exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
+  tests.nested exec "cloud-init status" | MATCH "status: disabled"
+  tests.nested exec "test -f /etc/cloud/cloud-init.disabled"
+  tests.nested exec "test -f /etc/cloud/cloud.cfg.d/80_device_gadget.cfg"
+  tests.nested exec "! test -f /etc/cloud/cloud.cfg.d/zzzz_snapd.cfg"
 
   # TODO: if we ever decide to leave NoCloud datasources enabled if the source
   # is the gadget, check that here too

@@ -374,17 +374,36 @@ Loop:
 	return held, nil
 }
 
-type affectedSnapInfo struct {
+type AffectedSnapInfo struct {
 	Restart        bool
 	Base           bool
 	AffectingSnaps map[string]bool
 }
 
-func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affectedSnapInfo, error) {
-	all, err := All(st)
+// AffectedByRefreshCandidates returns information about all snaps affected by
+// current refresh-candidates in the state.
+func AffectedByRefreshCandidates(st *state.State) (map[string]*AffectedSnapInfo, error) {
+	// we care only about the keys so this can use
+	// *json.RawMessage instead of refreshCandidates
+	var candidates map[string]*json.RawMessage
+	if err := st.Get("refresh-candidates", &candidates); err != nil && err != state.ErrNoState {
+		return nil, err
+	}
+
+	snaps := make([]string, 0, len(candidates))
+	for cand := range candidates {
+		snaps = append(snaps, cand)
+	}
+	affected, err := affectedByRefresh(st, snaps)
+	return affected, err
+}
+
+func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedSnapInfo, error) {
+	allSnaps, err := All(st)
 	if err != nil {
 		return nil, err
 	}
+	snapsWithHook := make(map[string]*SnapState)
 
 	var bootBase string
 	if !release.OnClassic {
@@ -400,9 +419,9 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 	}
 
 	byBase := make(map[string][]string)
-	for name, snapSt := range all {
+	for name, snapSt := range allSnaps {
 		if !snapSt.Active {
-			delete(all, name)
+			delete(allSnaps, name)
 			continue
 		}
 		inf, err := snapSt.CurrentInfo()
@@ -411,9 +430,9 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 		}
 		// optimization: do not consider snaps that don't have gate-auto-refresh hook.
 		if inf.Hooks[gateAutoRefreshHookName] == nil {
-			delete(all, name)
 			continue
 		}
+		snapsWithHook[name] = snapSt
 
 		base := inf.Base
 		if base == "none" {
@@ -422,14 +441,14 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 		if inf.Base == "" {
 			base = "core"
 		}
-		byBase[base] = append(byBase[base], inf.InstanceName())
+		byBase[base] = append(byBase[base], snapSt.InstanceName())
 	}
 
-	affected := make(map[string]*affectedSnapInfo)
+	affected := make(map[string]*AffectedSnapInfo)
 
 	addAffected := func(snapName, affectedBy string, restart bool, base bool) {
 		if affected[snapName] == nil {
-			affected[snapName] = &affectedSnapInfo{
+			affected[snapName] = &AffectedSnapInfo{
 				AffectingSnaps: map[string]bool{},
 			}
 		}
@@ -443,10 +462,26 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 		affectedInfo.AffectingSnaps[affectedBy] = true
 	}
 
-	for _, up := range updates {
+	for _, snapName := range updates {
+		snapSt := allSnaps[snapName]
+		if snapSt == nil {
+			// this could happen if an update for inactive snap was requested (those
+			// are filtered out above).
+			return nil, fmt.Errorf("internal error: no state for snap %q", snapName)
+		}
+		up, err := snapSt.CurrentInfo()
+		if err != nil {
+			return nil, err
+		}
+
+		// the snap affects itself (as long as it has the hook)
+		if snapSt := snapsWithHook[up.InstanceName()]; snapSt != nil {
+			addAffected(up.InstanceName(), up.InstanceName(), false, false)
+		}
+
 		// on core system, affected by update of boot base
 		if bootBase != "" && up.InstanceName() == bootBase {
-			for _, snapSt := range all {
+			for _, snapSt := range snapsWithHook {
 				addAffected(snapSt.InstanceName(), up.InstanceName(), true, false)
 			}
 		}
@@ -454,7 +489,7 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 		// snaps that can trigger reboot
 		// XXX: gadget refresh doesn't always require reboot, refine this
 		if up.Type() == snap.TypeKernel || up.Type() == snap.TypeGadget {
-			for _, snapSt := range all {
+			for _, snapSt := range snapsWithHook {
 				addAffected(snapSt.InstanceName(), up.InstanceName(), true, false)
 			}
 			continue
@@ -479,7 +514,7 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 				}
 				for _, cref := range conns {
 					// affected only if it wasn't optimized out above
-					if all[cref.PlugRef.Snap] != nil {
+					if snapsWithHook[cref.PlugRef.Snap] != nil {
 						addAffected(cref.PlugRef.Snap, up.InstanceName(), true, false)
 					}
 				}
@@ -503,7 +538,7 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 					return nil, err
 				}
 				for _, cref := range conns {
-					if all[cref.PlugRef.Snap] != nil {
+					if snapsWithHook[cref.PlugRef.Snap] != nil {
 						addAffected(cref.PlugRef.Snap, up.InstanceName(), true, false)
 					}
 				}
@@ -522,7 +557,7 @@ func affectedByRefresh(st *state.State, updates []*snap.Info) (map[string]*affec
 				return nil, err
 			}
 			for _, cref := range conns {
-				if all[cref.SlotRef.Snap] != nil {
+				if snapsWithHook[cref.SlotRef.Snap] != nil {
 					addAffected(cref.SlotRef.Snap, up.InstanceName(), true, false)
 				}
 			}
@@ -566,7 +601,7 @@ func usesMountBackend(iface interfaces.Interface) bool {
 // createGateAutoRefreshHooks creates gate-auto-refresh hooks for all affectedSnaps.
 // The hooks will have their context data set from affectedSnapInfo flags (base, restart).
 // Hook tasks will be chained to run sequentially.
-func createGateAutoRefreshHooks(st *state.State, affectedSnaps map[string]*affectedSnapInfo) *state.TaskSet {
+func createGateAutoRefreshHooks(st *state.State, affectedSnaps map[string]*AffectedSnapInfo) *state.TaskSet {
 	ts := state.NewTaskSet()
 	var prev *state.Task
 	// sort names for easy testing
