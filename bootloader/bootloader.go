@@ -352,8 +352,17 @@ func ForceError(err error) {
 	forcedError = err
 }
 
-func extractKernelAssetsToBootDir(dstDir string, snapf snap.Container, assets []string) error {
-	// now do the kernel specific bits
+// extractKernelAssetsToBootDir will extract the given assets into the
+// given assetsDir. If the target directory already exists it will do
+// nothing.
+func extractKernelAssetsToBootDir(assetsDir string, snapf snap.Container, assets []string) error {
+	// Final dir already in place: nothing more to do.
+	if st, err := os.Stat(assetsDir); err == nil && st.IsDir() {
+		return nil
+	}
+
+	// unpack kernel assets into tmpdir
+	dstDir := assetsDir + ".unpacking"
 	if err := os.MkdirAll(dstDir, 0755); err != nil {
 		return err
 	}
@@ -371,17 +380,22 @@ func extractKernelAssetsToBootDir(dstDir string, snapf snap.Container, assets []
 			return err
 		}
 	}
-	return nil
-}
 
-func removeKernelAssetsFromBootDir(bootDir string, s snap.PlaceInfo) error {
-	// remove the kernel blob
-	blobName := s.Filename()
-	dstDir := filepath.Join(bootDir, blobName)
-	if err := os.RemoveAll(dstDir); err != nil {
+	// and move into place
+	if err := os.Rename(dstDir, assetsDir); err != nil {
 		return err
 	}
+	return dir.Sync()
+}
 
+// removeKernelAssetsFromBootDir will remove the kernel assets a
+func removeKernelAssetsFromBootDir(assertsDir string) error {
+	// remove the kernel dir and unpack dir
+	for _, p := range []string{assertsDir, assertsDir + ".unpacking"} {
+		if err := os.RemoveAll(p); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 

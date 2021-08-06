@@ -201,5 +201,5 @@ func (u *uboot) ExtractRecoveryKernelAssets(recoverySystemDir string, s snap.Pla
 }
 
 func (u *uboot) RemoveKernelAssets(s snap.PlaceInfo) error {
-	return removeKernelAssetsFromBootDir(u.dir(), s)
+	return removeKernelAssetsFromBootDir(filepath.Join(u.dir(), s.Filename()))
 }

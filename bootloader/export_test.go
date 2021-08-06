@@ -223,4 +223,6 @@ var (
 	EditionFromConfigAsset               = editionFromConfigAsset
 	ConfigAssetFrom                      = configAssetFrom
 	StaticCommandLineForGrubAssetEdition = staticCommandLineForGrubAssetEdition
+	ExtractKernelAssetsToBootDir         = extractKernelAssetsToBootDir
+	RemoveKernelAssetsFromBootDir        = removeKernelAssetsFromBootDir
 )

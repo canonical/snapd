@@ -205,7 +205,7 @@ func (g *grub) ExtractKernelAssets(s snap.PlaceInfo, snapf snap.Container) error
 }
 
 func (g *grub) RemoveKernelAssets(s snap.PlaceInfo) error {
-	return removeKernelAssetsFromBootDir(g.dir(), s)
+	return removeKernelAssetsFromBootDir(filepath.Join(g.dir(), s.Filename()))
 }
 
 // ExtractedRunKernelImageBootloader helper methods

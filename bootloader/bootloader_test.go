@@ -34,6 +34,8 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -359,4 +361,48 @@ func (s *bootenvTestSuite) TestBootFileWithPath(c *C) {
 	b := a.WithPath("other/path")
 	c.Assert(a.Path, Equals, "some/path")
 	c.Assert(b.Path, Equals, "other/path")
+}
+
+func (s *bootenvTestSuite) TestBootloaderExtractKernelAssetsToBootDir(c *C) {
+	files := [][]string{
+		{"kernel.efi", "I'm a kernel"},
+		{"another-kernel-file", "another kernel file"},
+	}
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snapfile.Open(fn)
+	c.Assert(err, IsNil)
+
+	// unpacks to non-existing dir
+	assetsDir := filepath.Join(c.MkDir(), "kernel-snap_1")
+	err = bootloader.ExtractKernelAssetsToBootDir(assetsDir, snapf, []string{"kernel.efi"})
+	c.Assert(err, IsNil)
+	c.Check(filepath.Join(assetsDir, "kernel.efi"), testutil.FilePresent)
+
+	// will not override existing dir
+	existingDir := c.MkDir()
+	err = bootloader.ExtractKernelAssetsToBootDir(existingDir, snapf, []string{"kernel.efi"})
+	c.Assert(err, IsNil)
+	c.Check(filepath.Join(existingDir, "kernel.efi"), testutil.FileAbsent)
+}
+
+func (s *bootenvTestSuite) TestBootloaderRemoveKernelAssetsFromBootDir(c *C) {
+	tmpDir := c.MkDir()
+	kernelAssetsDir := filepath.Join(tmpDir, "kernel-snap_1")
+	err := os.MkdirAll(kernelAssetsDir, 0755)
+	c.Assert(err, IsNil)
+
+	// removing works
+	err = bootloader.RemoveKernelAssetsFromBootDir(kernelAssetsDir)
+	c.Assert(err, IsNil)
+	c.Check(kernelAssetsDir, testutil.FileAbsent)
+
+	// again with a .unpacking dir
+	err = os.MkdirAll(kernelAssetsDir, 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(kernelAssetsDir+".unpacking", 0755)
+	c.Assert(err, IsNil)
+	err = bootloader.RemoveKernelAssetsFromBootDir(kernelAssetsDir)
+	c.Assert(err, IsNil)
+	c.Check(kernelAssetsDir, testutil.FileAbsent)
+	c.Check(kernelAssetsDir+".unpacking", testutil.FileAbsent)
 }
