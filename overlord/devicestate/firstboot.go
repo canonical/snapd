@@ -243,6 +243,15 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 			// wait for the previous configTss
 			configTss = chainTs(configTss, configTs)
 		}
+		// XXX: put this into "snapstate.Flags" instead?
+		if info.Type() == snap.TypeKernel {
+			for _, t := range ts.Tasks() {
+				if t.Kind() == "mount-snap" {
+					t.Set("skip-kernel-extract", true)
+				}
+			}
+		}
+
 		infos = append(infos, info)
 		infoToTs[info] = ts
 	}
