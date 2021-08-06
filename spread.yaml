@@ -107,6 +107,7 @@ backends:
                   workers: 8
             - ubuntu-21.10-64:
                   image: ubuntu-os-cloud-devel/ubuntu-2110
+                  storage: 12G
                   workers: 8
 
             - debian-9-64:
