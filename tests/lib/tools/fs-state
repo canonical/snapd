@@ -143,10 +143,10 @@ check_monitor() {
         # the output file contains lines:
         # /etc/ CREATE foo          # created file /etc/foo
         # /etc/ CREATE,ISDIR foo    # created directory /etc/foo
-        created_files=$( cat /tmp/fs.output | grep " CREATE " | awk '{ print $1$3 }' )
-        deleted_files=$( cat /tmp/fs.output | grep " DELETE " | awk '{ print $1$3 }' )
-        created_dirs=$( cat /tmp/fs.output | grep " CREATE,ISDIR " | awk '{ print $1$3 }' )
-        deleted_dirs=$( cat /tmp/fs.output | grep " DELETE,ISDIR " | awk '{ print $1$3 }' )
+        created_files=$(grep " CREATE " /tmp/fs.output | awk '{ print $1$3 }')
+        deleted_files=$(grep " DELETE " /tmp/fs.output | awk '{ print $1$3 }')
+        created_dirs=$(grep " CREATE,ISDIR " /tmp/fs.output | awk '{ print $1$3 }')
+        deleted_dirs=$(grep " DELETE,ISDIR " /tmp/fs.output | awk '{ print $1$3 }')
         missing=false
 
         # Print the files that were created more/less than deleted
