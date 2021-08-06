@@ -53,6 +53,10 @@ func (s *encryptSuite) TestFormatEncryptedDevice(c *C) {
 			c.Assert(opts, DeepEquals, &sb.InitializeLUKS2ContainerOptions{
 				MetadataKiBSize:     2048,
 				KeyslotsAreaKiBSize: 2560,
+				KDFOptions: &sb.KDFOptions{
+					MemoryKiB: 32768, TargetDuration: 0,
+					ForceIterations: 4, Parallel: 0,
+				},
 			})
 			return tc.initErr
 		})
