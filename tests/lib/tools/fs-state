@@ -128,7 +128,7 @@ start_monitor() {
         # $PWD is excluded because the backup dir is automatically restored
         # .snap files created in tests/lib/snaps are excluded as they are not deleted to be reused
         inotifywait -d -m -r -e CREATE -e DELETE -o /tmp/fs.output --exclude "($PWD|$PROJECT_PATH/tests/lib/snaps/.*/.*.snap)" /root /etc /var/lib/snapd /var/snap /home "$SNAP_MOUNT_DIR"
-        retry -n 10 -wait 1 sh -c 'pgrep inotifywait &>/dev/null'  
+        retry -n 10 --wait 1 sh -c 'pgrep inotifywait &>/dev/null'
     fi
 }
 
