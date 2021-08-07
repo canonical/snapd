@@ -151,6 +151,10 @@ check_monitor() {
 
         # Print the files that were created more/less than deleted
         for file in $created_files; do
+            #  Skip backup files
+            if [[ "$file" = *~ ]]; then
+                continue
+            fi
             count_created=$(echo "$created_files" | tr " " "\n" | grep -c "$file")
             count_deleted=$(echo "$deleted_files" | tr " " "\n" | grep -c "$file")
             if [ "$count_created" -gt "$count_deleted" ]; then
