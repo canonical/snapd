@@ -189,7 +189,8 @@ int snap_device_helper_run(struct sdh_invocation *inv) {
     /* the format is <major>:<minor> */
     char *major SC_CLEANUP(sc_cleanup_string) = sc_strdup(majmin);
     char *sep = strchr(major, ':');
-    if (sep == NULL || (size_t)(sep - major) == (strlen(majmin) - 1)) {
+    // sep is always \0 terminate so this checks if the part after ":" is empty
+    if (sep == NULL || sep[1] == '\0') {
         /* not found, or a last character */
         die("malformed major:minor string: %s", major);
     }
