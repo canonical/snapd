@@ -146,10 +146,10 @@ int snap_device_helper_run(struct sdh_invocation *inv) {
 
     bool allow = false;
 
-    if (sc_streq(udev_tagname, "") || !sc_startswith(udev_tagname, "snap_")) {
+    if (!sc_startswith(udev_tagname, "snap_")) {
         die("malformed appname \"%s\"", udev_tagname);
     }
-    if (sc_streq(majmin, "") || strlen(majmin) < 3) {
+    if (strlen(majmin) < 3) {
         die("no or malformed major/minor \"%s\"", majmin);
     }
     if (strlen(devpath) <= strlen("/devices/")) {
