@@ -36,8 +36,8 @@ import (
 func init() {
 	// add supported configuration of this module
 	supportedConfigurations["core.system.timezone"] = true
-	// and register it as a virtual config
-	config.RegisterVirtualConfig("core", "system.timezone", getTimezoneFromSystemVC)
+	// and register it as a external config
+	config.RegisterExternalConfig("core", "system.timezone", getTimezoneFromSystemVC)
 }
 
 var validTimezone = regexp.MustCompile(`^[a-zA-Z0-9+_-]+(/[a-zA-Z0-9+_-]+)?(/[a-zA-Z0-9+_-]+)?$`).MatchString
@@ -58,7 +58,7 @@ func validateTimezoneSettings(tr config.ConfGetter) error {
 }
 
 func handleTimezoneConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
-	// TODO: convert to "virtual" configuration nodes once we have support
+	// TODO: convert to "external" configuration nodes once we have support
 	// for this. The current code is not ideal because if one calls
 	// `snap get system system.hostname` the answer can be ""
 	// when not set via snap set.
