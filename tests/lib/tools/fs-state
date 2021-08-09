@@ -122,9 +122,6 @@ start_monitor() {
         touch /tmp/fs.output
         touch /tmp/fs.exclude
 
-        # Monitor files and directories creation
-        SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-
         # $PWD is excluded because the backup dir is automatically restored
         # .snap files created in tests/lib/snaps are excluded as they are not deleted to be reused
         # /var/lib/snapd and /var/snap are excluded as those are restored automatically in state.sh
