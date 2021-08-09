@@ -690,12 +690,8 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	}
 
-	setupOpts := &backend.SetupSnapOpts{}
-	st.Lock()
-	err = t.Get("skip-kernel-extract", &setupOpts.SkipKernelExtraction)
-	st.Unlock()
-	if err != nil && err != state.ErrNoState {
-		return err
+	setupOpts := &backend.SetupSnapOpts{
+		SkipKernelExtraction: snapsup.SkipKernelExtraction,
 	}
 	pb := NewTaskProgressAdapterUnlocked(t)
 	// TODO Use snapsup.Revision() to obtain the right info to mount
