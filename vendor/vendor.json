@@ -124,10 +124,12 @@
 			"revisionTime": "2017-09-28T14:21:59Z"
 		},
 		{
-			"checksumSHA1": "uZ8BMhEjx/S92zmTxgHHPQ2OdGI=",
+			"checksumSHA1": "y23HtP/cMIz+v5xqAI3vlDTC0E0=",
 			"path": "github.com/snapcore/secboot",
-			"revision": "4c814e19258b95e671599097451fb98915d2b737",
-			"revisionTime": "2021-04-27T10:08:53Z"
+			"revision": "c9f2139ee92b282b7ae0f58d38958a9e2c0fc871",
+			"revisionTime": "2021-08-05T18:45:55Z",
+			"version": "snapshot-4c814e1",
+			"versionExact": "snapshot-4c814e1"
 		},
 		{
 			"checksumSHA1": "c7jHLQSWFWbymTcFWZMQH0C5Wik=",

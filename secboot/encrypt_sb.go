@@ -41,6 +41,14 @@ func FormatEncryptedDevice(key EncryptionKey, label, node string) error {
 		// enough room
 		MetadataKiBSize:     metadataKiBSize,
 		KeyslotsAreaKiBSize: keyslotsAreaKiBSize,
+
+		// Use fixed parameters for the KDF to avoid the
+		// benchmark. This is okay because we have a high
+		// entropy key and the KDF does not gain us much.
+		KDFOptions: &sb.KDFOptions{
+			MemoryKiB:       32 * 1024,
+			ForceIterations: 4,
+		},
 	}
 	return sbInitializeLUKS2Container(node, label, key[:], opts)
 }
@@ -49,7 +57,7 @@ func FormatEncryptedDevice(key EncryptionKey, label, node string) error {
 // volume created with FormatEncryptedDevice on the block device given by node.
 // The existing key to the encrypted volume is provided in the key argument.
 func AddRecoveryKey(key EncryptionKey, rkey RecoveryKey, node string) error {
-	return sbAddRecoveryKeyToLUKS2Container(node, key[:], sb.RecoveryKey(rkey))
+	return sbAddRecoveryKeyToLUKS2Container(node, key[:], sb.RecoveryKey(rkey), nil)
 }
 
 func (k RecoveryKey) String() string {
