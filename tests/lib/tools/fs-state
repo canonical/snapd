@@ -159,11 +159,11 @@ check_monitor() {
             count_created=$(echo "$created_files" | tr " " "\n" | grep -c "$file")
             count_deleted=$(echo "$deleted_files" | tr " " "\n" | grep -c "$file")
             if [ "$count_created" -gt "$count_deleted" ]; then
-                echo "File $file created more times than deleted"
+                echo "File $file created ($count_created) more times than deleted ($count_deleted)"
                 missing=true
             fi
             if [ "$count_created" -lt "$count_deleted" ]; then
-                echo "File $file deleted more times than created"
+                echo "File $file deleted ($count_deleted) more times than created ($count_created)"
                 missing=true
             fi
         done
@@ -177,11 +177,11 @@ check_monitor() {
             count_created=$(echo "$created_dirs" | tr " " "\n" | grep -c "$dir")
             count_deleted=$(echo "$deleted_dirs" | tr " " "\n" | grep -c "$dir")
             if [ "$count_created" -gt "$count_deleted" ]; then
-                echo "Dir $dir created more times than deleted"
+                echo "Dir $dir created ($count_created) more times than deleted ($count_deleted)"
                 missing=true
             fi
             if [ "$count_created" -lt "$count_deleted" ]; then
-                echo "Dir $dir deleted more times than created"
+                echo "Dir $dir deleted ($count_deleted) more times than created ($count_created)"
                 missing=true
             fi
         done
