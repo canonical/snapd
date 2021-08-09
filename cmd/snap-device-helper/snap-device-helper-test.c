@@ -313,9 +313,40 @@ static void test_sdh_err_nodevpath(sdh_test_fixture *fixture, gconstpointer test
     run_sdh_die("add", "snap_foo_bar", "", "8:4", "no or malformed devpath \"\"\n");
 }
 
-static void test_sdh_err_nodevmajorminor(sdh_test_fixture *fixture, gconstpointer test_data) {
+static void test_sdh_err_wrongdevmajorminor1(sdh_test_fixture *fixture, gconstpointer test_data) {
     // missing device major:minor numbers
     run_sdh_die("add", "snap_foo_bar", "/devices/foo/block/sda/sda4", "", "no or malformed major/minor \"\"\n");
+}
+
+static void test_sdh_err_wrongdevmajorminor2(sdh_test_fixture *fixture, gconstpointer test_data) {
+    // too short major:minor numbers
+    run_sdh_die("add", "snap_foo_bar", "/devices/foo/block/sda/sda4", "8", "no or malformed major/minor \"8\"\n");
+}
+
+static void test_sdh_err_wrongdevmajorminor_late1(sdh_test_fixture *fixture, gconstpointer test_data) {
+    // mock enough to the major:minor extraction in the code
+    mkdir_in_sysroot(fixture, "/sys/devices/foo/block/sda/sda4");
+    symlink_in_sysroot(fixture, "/sys/devices/foo/block/sda/sda4/subsystem", "../../../../../class/block");
+
+    // ensure mocked sc_device_cgroup_new() returns non-NULL
+    int bogus = 0;
+    mocks.new_ret = &bogus;
+
+    // missing ":"
+    run_sdh_die("add", "snap_foo_bar", "/devices/foo/block/sda/sda4", "100", "malformed major:minor string: 100\n");
+}
+
+static void test_sdh_err_wrongdevmajorminor_late2(sdh_test_fixture *fixture, gconstpointer test_data) {
+    // mock enough to the major:minor extraction in the code
+    mkdir_in_sysroot(fixture, "/sys/devices/foo/block/sda/sda4");
+    symlink_in_sysroot(fixture, "/sys/devices/foo/block/sda/sda4/subsystem", "../../../../../class/block");
+
+    // ensure mocked sc_device_cgroup_new() returns non-NULL
+    int bogus = 0;
+    mocks.new_ret = &bogus;
+
+    // missing part after ":"
+    run_sdh_die("add", "snap_foo_bar", "/devices/foo/block/sda/sda4", "88:", "malformed major:minor string: 88:\n");
 }
 
 static void test_sdh_err_badaction(sdh_test_fixture *fixture, gconstpointer test_data) {
@@ -395,7 +426,10 @@ static void __attribute__((constructor)) init(void) {
     _test_add("/snap-device-helper/err/no-appname", NULL, test_sdh_err_noappname);
     _test_add("/snap-device-helper/err/bad-appname", NULL, test_sdh_err_badappname);
     _test_add("/snap-device-helper/err/no-devpath", NULL, test_sdh_err_nodevpath);
-    _test_add("/snap-device-helper/err/no-devmajorminor", NULL, test_sdh_err_nodevmajorminor);
+    _test_add("/snap-device-helper/err/wrong-devmajorminor1", NULL, test_sdh_err_wrongdevmajorminor1);
+    _test_add("/snap-device-helper/err/wrong-devmajorminor2", NULL, test_sdh_err_wrongdevmajorminor2);
+    _test_add("/snap-device-helper/err/wrong-devmajorminor_late1", NULL, test_sdh_err_wrongdevmajorminor_late1);
+    _test_add("/snap-device-helper/err/wrong-devmajorminor_late2", NULL, test_sdh_err_wrongdevmajorminor_late2);
     _test_add("/snap-device-helper/err/bad-action", NULL, test_sdh_err_badaction);
     _test_add("/snap-device-helper/err/no-symlink", NULL, test_sdh_err_nosymlink);
     _test_add("/snap-device-helper/err/funtag1", NULL, test_sdh_err_funtag1);
