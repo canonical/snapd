@@ -51,7 +51,7 @@ func handleNetworkConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *
 
 	output, err := coreCfg(tr, "network.disable-ipv6")
 	if err != nil {
-		return nil
+		return err
 	}
 
 	var sysctl string

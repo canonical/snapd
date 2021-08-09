@@ -67,7 +67,7 @@ func handleTimezoneConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts 
 	// that was written not using `snap set system system.hostname`.
 	timezone, err := coreCfg(tr, "system.timezone")
 	if err != nil {
-		return nil
+		return err
 	}
 	// nothing to do
 	if timezone == "" {
