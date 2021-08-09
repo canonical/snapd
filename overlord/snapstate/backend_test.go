@@ -69,6 +69,7 @@ type fakeOp struct {
 
 	otherInstances         bool
 	unlinkFirstInstallUndo bool
+	skipKernelExtraction   bool
 
 	services         []string
 	disabledServices []string
@@ -749,7 +750,7 @@ apps:
     before: [svc2]
 `
 
-func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, dev boot.Device, p progress.Meter) (snap.Type, *backend.InstallRecord, error) {
+func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, dev boot.Device, opts *backend.SetupSnapOptions, p progress.Meter) (snap.Type, *backend.InstallRecord, error) {
 	p.Notify("setup-snap")
 	revno := snap.R(0)
 	if si != nil {
@@ -760,6 +761,8 @@ func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *sna
 		name:  instanceName,
 		path:  snapFilePath,
 		revno: revno,
+
+		skipKernelExtraction: opts != nil && opts.SkipKernelExtraction,
 	})
 	snapType := snap.TypeApp
 	switch si.RealName {
