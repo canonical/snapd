@@ -690,7 +690,7 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	}
 
-	setupOpts := &backend.SetupSnapOpts{
+	setupOpts := &backend.SetupSnapOptions{
 		SkipKernelExtraction: snapsup.SkipKernelExtraction,
 	}
 	pb := NewTaskProgressAdapterUnlocked(t)

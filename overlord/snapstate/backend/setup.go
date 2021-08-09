@@ -39,14 +39,14 @@ type InstallRecord struct {
 	TargetSnapExisted bool `json:"target-snap-existed,omitempty"`
 }
 
-type SetupSnapOpts struct {
+type SetupSnapOptions struct {
 	SkipKernelExtraction bool
 }
 
 // SetupSnap does prepare and mount the snap for further processing.
-func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.SideInfo, dev boot.Device, setupOpts *SetupSnapOpts, meter progress.Meter) (snapType snap.Type, installRecord *InstallRecord, err error) {
+func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.SideInfo, dev boot.Device, setupOpts *SetupSnapOptions, meter progress.Meter) (snapType snap.Type, installRecord *InstallRecord, err error) {
 	if setupOpts == nil {
-		setupOpts = &SetupSnapOpts{}
+		setupOpts = &SetupSnapOptions{}
 	}
 
 	// This assumes that the snap was already verified or --dangerous was used.

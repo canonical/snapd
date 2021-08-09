@@ -763,7 +763,7 @@ apps:
     before: [svc2]
 `
 
-func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, dev boot.Device, opts *backend.SetupSnapOpts, p progress.Meter) (snap.Type, *backend.InstallRecord, error) {
+func (f *fakeSnappyBackend) SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, dev boot.Device, opts *backend.SetupSnapOptions, p progress.Meter) (snap.Type, *backend.InstallRecord, error) {
 	p.Notify("setup-snap")
 	revno := snap.R(0)
 	if si != nil {
