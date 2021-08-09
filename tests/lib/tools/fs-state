@@ -127,7 +127,7 @@ start_monitor() {
 
         # $PWD is excluded because the backup dir is automatically restored
         # .snap files created in tests/lib/snaps are excluded as they are not deleted to be reused
-        inotifywait -d -m -r -e CREATE -e DELETE -o /tmp/fs.output --exclude "($PWD|$PROJECT_PATH/tests/lib/snaps/.*/.*.snap)" /root /etc /var/lib/snapd /var/snap /home "$SNAP_MOUNT_DIR"
+        inotifywait -d -m -r -e CREATE -e DELETE -o /tmp/fs.output --exclude "($PWD|$PROJECT_PATH/tests/lib/snaps/.*/.*.snap)" /root /etc /var/lib/snapd/* /var/snap /home "$SNAP_MOUNT_DIR"
         retry -n 10 --wait 1 sh -c 'pgrep inotifywait &>/dev/null'
     fi
 }
@@ -151,8 +151,8 @@ check_monitor() {
 
         # Print the files that were created more/less than deleted
         for file in $created_files; do
-            #  Skip backup files
-            if [[ "$file" = *~ ]]; then
+            #  Skip backup and excluded files
+            if [[ "$file" = *~ ]] || grep -E "^$file$" /tmp/fs.exclude; then
                 continue
             fi
             count_created=$(echo "$created_files" | tr " " "\n" | grep -c "$file")
@@ -169,6 +169,10 @@ check_monitor() {
 
         # Print the directories that were created more/less than deleted
         for dir in $created_dirs; do
+            #  Skip excluded dirs
+            if grep -E "^$dir$" /tmp/fs.exclude; then
+                continue
+            fi
             count_created=$(echo "$created_dirs" | tr " " "\n" | grep -c "$dir")
             count_deleted=$(echo "$deleted_dirs" | tr " " "\n" | grep -c "$dir")
             if [ "$count_created" -gt "$count_deleted" ]; then
@@ -191,7 +195,10 @@ check_monitor() {
 }
 
 exclude_monitor() {
-    echo "$1" >> /tmp/fs.exclude
+    while [ $# -gt 0 ]; do
+        echo "$1" >> /tmp/fs.exclude
+        shift
+    done
 }
 
 main() {

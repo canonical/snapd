@@ -9,7 +9,6 @@ details: |
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
     "$TESTSTOOLS"/fs-state mock-dir /var/lib/snapd/hostfs
-    "$TESTSTOOLS"/fs-state exclude-monitor /var/lib/snapd/hostfs
     rm -rf /var/lib/snapd/hostfs
 
 restore: |
