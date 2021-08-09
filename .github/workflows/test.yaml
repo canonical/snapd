@@ -37,6 +37,8 @@ jobs:
     - name: Build snapd snap
       if: steps.cached-results.outputs.already-ran != 'true'
       uses: snapcore/action-build@v1
+      with:
+        snapcraft-channel: 4.x/candidate
     - name: Cache built artifact
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
