@@ -365,6 +365,9 @@ apps:
   polkit:
     command: bin/run
     plugs: [ polkit ]
+  polkit-agent:
+    command: bin/run
+    plugs: [ polkit-agent ]
   posix-mq:
     command: bin/run
     plugs: [ posix-mq ]
