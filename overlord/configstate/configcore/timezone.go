@@ -58,13 +58,6 @@ func validateTimezoneSettings(tr config.ConfGetter) error {
 }
 
 func handleTimezoneConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
-	// TODO: convert to "external" configuration nodes once we have support
-	// for this. The current code is not ideal because if one calls
-	// `snap get system system.hostname` the answer can be ""
-	// when not set via snap set.
-	//
-	// It will also override any hostname on the next `snap set` run
-	// that was written not using `snap set system system.hostname`.
 	timezone, err := coreCfg(tr, "system.timezone")
 	if err != nil {
 		return nil
