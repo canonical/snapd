@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/utils"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
+	"github.com/snapcore/snapd/systemd"
 )
 
 const mountControlSummary = `allows creating transient and persistent mounts`
@@ -233,6 +234,18 @@ func validateMountInfo(mountInfo *MountInfo) error {
 }
 
 func (iface *mountControlInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	// We are not really sure what is the exact minimum systemd version that
+	// we support, but we know for sure that 204 (used in Trusty) does not
+	// work.
+	if systemdVersion, err := systemd.Version(); err != nil || systemdVersion <= 204 {
+		if err != nil {
+			return err
+		} else {
+			return fmt.Errorf("systemd version %d is too old for mount-control interface",
+				systemdVersion)
+		}
+	}
+
 	if err := enumerateMounts(plug, validateMountInfo); err != nil {
 		return err
 	}

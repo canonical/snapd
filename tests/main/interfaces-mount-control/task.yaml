@@ -20,6 +20,10 @@ execute: |
         echo "Installing the test snap"
 
         "$TESTSTOOLS"/snaps-state install-local "${SNAP_NAME}" --devmode
+        if os.query is-trusty; then
+            snap warnings | tr -d '\n' | sed -e 's/\s\+/ /g' | MATCH "systemd version 204 is too old"
+            exit 0
+        fi
 
         echo "Connecting the mount-control interface"
         snap connect "${SNAP_NAME}":mntctl
