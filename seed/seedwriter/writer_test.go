@@ -899,7 +899,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snaps, HasLen, 6)
 
-	s.AssertedSnapInfo("cont-producer").EditedContact = "author@cont-producer.net"
+	s.AssertedSnapInfo("cont-producer").EditedContact = "mailto:author@cont-producer.net"
 	for _, sn := range snaps {
 		s.fillDownloadedSnap(c, w, sn)
 	}
@@ -1636,7 +1636,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 6)
 
-	s.AssertedSnapInfo("cont-producer").EditedContact = "author@cont-producer.net"
+	s.AssertedSnapInfo("cont-producer").EditedContact = "mailto:author@cont-producer.net"
 	for _, sn := range snaps {
 		s.fillDownloadedSnap(c, w, sn)
 	}
@@ -1779,7 +1779,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 6)
 
-	s.AssertedSnapInfo("cont-producer").EditedContact = "author@cont-producer.net"
+	s.AssertedSnapInfo("cont-producer").EditedContact = "mailto:author@cont-producer.net"
 	for _, sn := range snaps {
 		s.fillDownloadedSnap(c, w, sn)
 	}
@@ -1935,7 +1935,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snaps, HasLen, 7)
 
-	s.AssertedSnapInfo("cont-producer").EditedContact = "author@cont-producer.net"
+	s.AssertedSnapInfo("cont-producer").EditedContact = "mailto:author@cont-producer.net"
 	s.AssertedSnapInfo("cont-consumer").Private = true
 	for _, sn := range snaps {
 		// check the used channel at this level because in the
@@ -2057,7 +2057,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 			"private": true,
 		},
 		s.AssertedSnapID("cont-producer"): {
-			"contact": "author@cont-producer.net",
+			"contact": "mailto:author@cont-producer.net",
 		},
 	})
 
