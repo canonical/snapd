@@ -1243,6 +1243,17 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	return nil
 }
 
+func workaroundSystemdQuoting(fragmentPath, where string) string {
+	// We know that the directory components of the fragment path do not need
+	// quoting and are therefore reliable. As for the file name, we workaround
+	// the wrong quoting of older systemd version by re-encoding the "Where"
+	// ourselves.
+	dir := filepath.Dir(fragmentPath)
+	baseName := EscapeUnitNamePath(where)
+	unitType := filepath.Ext(fragmentPath)
+	return filepath.Join(dir, baseName+unitType)
+}
+
 func extractCreatorModule(systemdUnitPath string) (string, error) {
 	f, err := os.Open(systemdUnitPath)
 	if err != nil {
@@ -1255,7 +1266,6 @@ func extractCreatorModule(systemdUnitPath string) (string, error) {
 	prefix := snappyCreatorModule + "="
 	for s.Scan() {
 		line := s.Text()
-		fmt.Printf("Read line %q\n", line)
 		if strings.HasPrefix(line, prefix) {
 			creatorModule = line[len(prefix):]
 			break
@@ -1301,9 +1311,15 @@ func (s *systemd) ListMountUnits(snapName, creator string) ([]string, error) {
 			continue
 		}
 
+		// Under Ubuntu 16.04, systemd improperly quotes the FragmentPath, so
+		// we must do some extra work here to get the correct path. This code
+		// can be removed once we stop supporting old distros
+		fragmentPath = workaroundSystemdQuoting(fragmentPath, where)
+
 		// only return units programmatically created by some snapd backend:
 		// the mount unit used to mount the snap's squashfs is generally
 		// uninteresting
+
 		creatorModule, err := extractCreatorModule(fragmentPath)
 		if err != nil || creatorModule == "" {
 			continue
