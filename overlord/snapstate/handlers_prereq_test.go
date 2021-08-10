@@ -27,12 +27,14 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type prereqSuite struct {
@@ -96,6 +98,53 @@ func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {
 	defer s.state.Unlock()
 	c.Assert(s.fakeBackend.ops, HasLen, 0)
 	c.Check(t.Status(), Equals, state.DoneStatus)
+}
+
+func (s *prereqSuite) TestDoPrereqDependenciesWaitForPrereqInstall(c *C) {
+	s.state.Lock()
+
+	preReq := s.state.NewTask("prerequisites", "test")
+	preReq.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(1),
+		},
+		Base:   "none",
+		Prereq: []string{"dep"},
+	})
+
+	afterPrereq := s.state.NewTask("after-prerequisites", "test")
+	afterPrereq.WaitFor(preReq)
+
+	chg := s.state.NewChange("change", "test")
+	chg.AddTask(preReq)
+	chg.AddTask(afterPrereq)
+
+	s.state.Unlock()
+	err := s.se.Ensure()
+	c.Assert(err, IsNil)
+	s.se.Wait()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(preReq.Status(), Equals, state.DoneStatus)
+
+	// find last task in the prerequisite's installation
+	var depEnd *state.Task
+	for _, t := range chg.Tasks() {
+		if t.Kind() == "run-hook" {
+			setup := &hookstate.HookSetup{}
+			c.Assert(t.Get("hook-setup", setup), IsNil)
+
+			if setup.Snap == "dep" && setup.Hook == "check-health" {
+				depEnd = t
+				break
+			}
+		}
+	}
+
+	// check that the "prerequisite" task's dependencies wait for the tasks scheduled by "prerequisite" to be installed
+	c.Check(depEnd.HaltTasks(), testutil.Contains, afterPrereq)
 }
 
 func (s *prereqSuite) TestDoPrereqWithBaseNone(c *C) {
