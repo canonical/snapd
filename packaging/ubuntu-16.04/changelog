@@ -1,3 +1,17 @@
+snapd (2.51.4) xenial; urgency=medium
+
+  * New upstream release, LP: #1929842
+    - {device,snap}state: skip kernel extraction in seeding
+    - vendor: move to snapshot-4c814e1 branch and set fixed KDF options
+    - tests/interfaces/tee: fix HasLen check for udev snippets
+    - interfaces/tee: add support for Qualcomm qseecom device node
+    - gadget: check for system-save with multi volumes if encrypting
+      correctly
+    - gadget: drive-by: drop unnecessary/supported passthrough in test
+      gadget.yaml
+
+ -- Ian Johnson <ian.johnson@canonical.com>  Mon, 09 Aug 2021 18:56:18 -0500
+
 snapd (2.51.3) xenial; urgency=medium
 
   * New upstream release, LP: #1929842
