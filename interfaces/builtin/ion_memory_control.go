@@ -38,6 +38,7 @@ const ionMemoryControlBaseDeclarationPlugs = `
 const ionMemoryControlConnectedPlugAppArmor = `
 # Description: for those who need to talk to the Android ION memory allocator
 # /dev/ion
+# https://lwn.net/Articles/480055/
 
 /dev/ion rw,
 `
