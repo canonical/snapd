@@ -84,7 +84,11 @@ type mountControlInterface struct {
 }
 
 // TODO: review the regexp
-var whereRegexp = regexp.MustCompile(`^(/media|\$SNAP|\$SNAP_COMMON|\$SNAP_DATA)/`)
+// We prohibit expressions containing a comma, as that is used by AppArmor to
+// separate rules; otherwise, one could specify a path like
+//   $SNAP/foo, /** rw
+// and get read-write access to the whole filesystem.
+var whereRegexp = regexp.MustCompile(`^(/media|\$SNAP|\$SNAP_COMMON|\$SNAP_DATA)/[^,]*$`)
 
 type MountInfo struct {
 	what       string
