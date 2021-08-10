@@ -60,6 +60,10 @@ type Flags struct {
 	// kernel extraction should be skipped. This is useful during seeding.
 	SkipKernelExtraction bool `json:"skip-kernel-extraction,omitempty"`
 
+	// SkipOnDiskSnapValidation skips validating the snap if it exists
+	// on disk already in SetupSnap. XXX: explain better
+	SkipOnDiskSnapValidation bool `json:"skip-on-disk-snap-validation,omitempty"`
+
 	// Unaliased is set to request that no automatic aliases are created
 	// installing the snap.
 	Unaliased bool `json:"unaliased,omitempty"`

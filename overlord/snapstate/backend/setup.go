@@ -40,7 +40,8 @@ type InstallRecord struct {
 }
 
 type SetupSnapOptions struct {
-	SkipKernelExtraction bool
+	SkipKernelExtraction     bool
+	SkipOnDiskSnapValidation bool
 }
 
 // SetupSnap does prepare and mount the snap for further processing.
@@ -84,7 +85,9 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 	}
 
 	// in uc20 run mode, all snaps must be on the same device
-	opts := &snap.InstallOptions{}
+	opts := &snap.InstallOptions{
+		SkipOnDiskSnapValidation: setupOpts.SkipOnDiskSnapValidation,
+	}
 	if dev.HasModeenv() && dev.RunMode() {
 		opts.MustNotCrossDevices = true
 	}

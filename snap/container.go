@@ -69,6 +69,9 @@ type InstallOptions struct {
 	// an installation on ubuntu-data that does not depend or reference
 	// ubuntu-seed at all.
 	MustNotCrossDevices bool
+
+	// Do not validate existing snaps
+	SkipOnDiskSnapValidation bool
 }
 
 var (

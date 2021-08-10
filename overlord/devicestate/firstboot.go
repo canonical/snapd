@@ -230,6 +230,8 @@ func populateStateFromSeedImpl(st *state.State, opts *populateStateFromSeedOptio
 			// The kernel is already there either from ubuntu-image or from "install"
 			// mode so skip extract.
 			SkipKernelExtraction: true,
+			// Skip verifying snap if it exists already
+			SkipOnDiskSnapValidation: true,
 			// for dangerous models, allow all devmode snaps
 			// XXX: eventually we may need to allow specific snaps to be devmode for
 			// non-dangerous models, we can do that here since that information will

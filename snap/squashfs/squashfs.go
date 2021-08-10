@@ -92,6 +92,9 @@ var snapdtoolCommandFromSystemSnap = snapdtool.CommandFromSystemSnap
 
 // Install installs a squashfs snap file through an appropriate method.
 func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (bool, error) {
+	if opts == nil {
+		opts = &snap.InstallOptions{}
+	}
 
 	// ensure mount-point and blob target dir.
 	for _, dir := range []string{mountDir, filepath.Dir(targetPath)} {
@@ -108,6 +111,11 @@ func (s *Snap) Install(targetPath, mountDir string, opts *snap.InstallOptions) (
 		if err := s.Unpack("*", mountDir); err != nil {
 			return false, err
 		}
+	}
+
+	if opts.SkipOnDiskSnapValidation && osutil.FileExists(targetPath) {
+		didNothing := true
+		return didNothing, nil
 	}
 
 	// nothing to do, happens on e.g. first-boot when we already
