@@ -30,8 +30,8 @@ const qrtrBaseDeclarationSlots = `
 `
 
 const qrtrConnectedPlugAppArmor = `
-# Description: Can use qipcrtr networking
-network qipcrtr,
+# Description: Can use qipcrtr networking with sock_dgram only
+network qipcrtr dgram,
 
 # CAP_NET_ADMIN required for port number smaller QRTR_MIN_EPH_SOCKET per 'https://elixir.bootlin.com/linux/latest/source/net/qrtr/qrtr.c'
 capability net_admin,
