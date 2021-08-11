@@ -34,6 +34,8 @@ import (
 
 type hostnameSuite struct {
 	configcoreSuite
+
+	mockedHostnamectl *testutil.MockCmd
 }
 
 var _ = Suite(&hostnameSuite{})
@@ -43,6 +45,9 @@ func (s *hostnameSuite) SetUpTest(c *C) {
 
 	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
 	c.Assert(err, IsNil)
+
+	s.mockedHostnamectl = testutil.MockCommand(c, "hostnamectl", "")
+	s.AddCleanup(s.mockedHostnamectl.Restore)
 }
 
 func (s *hostnameSuite) TestConfigureHostnameInvalid(c *C) {
@@ -61,14 +66,13 @@ func (s *hostnameSuite) TestConfigureHostnameInvalid(c *C) {
 		})
 		c.Assert(err, ErrorMatches, `cannot set hostname.*`)
 	}
+
+	c.Check(s.mockedHostnamectl.Calls(), HasLen, 0)
 }
 
 func (s *hostnameSuite) TestConfigureHostnameIntegration(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
-
-	mockedHostnamectl := testutil.MockCommand(c, "hostnamectl", "")
-	defer mockedHostnamectl.Restore()
 
 	mockedHostname := testutil.MockCommand(c, "hostname", "echo bar")
 	defer mockedHostname.Restore()
@@ -94,10 +98,10 @@ func (s *hostnameSuite) TestConfigureHostnameIntegration(c *C) {
 		c.Check(mockedHostname.Calls(), DeepEquals, [][]string{
 			{"hostname"},
 		})
-		c.Check(mockedHostnamectl.Calls(), DeepEquals, [][]string{
+		c.Check(s.mockedHostnamectl.Calls(), DeepEquals, [][]string{
 			{"hostnamectl", "set-hostname", hostname},
 		})
-		mockedHostnamectl.ForgetCalls()
+		s.mockedHostnamectl.ForgetCalls()
 		mockedHostname.ForgetCalls()
 	}
 }
@@ -105,9 +109,6 @@ func (s *hostnameSuite) TestConfigureHostnameIntegration(c *C) {
 func (s *hostnameSuite) TestConfigureHostnameIntegrationSameHostname(c *C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
-
-	mockedHostnamectl := testutil.MockCommand(c, "hostnamectl", "")
-	defer mockedHostnamectl.Restore()
 
 	// pretent current hostname is "foo"
 	mockedHostname := testutil.MockCommand(c, "hostname", "echo foo")
@@ -123,7 +124,7 @@ func (s *hostnameSuite) TestConfigureHostnameIntegrationSameHostname(c *C) {
 	c.Check(mockedHostname.Calls(), DeepEquals, [][]string{
 		{"hostname"},
 	})
-	c.Check(mockedHostnamectl.Calls(), HasLen, 0)
+	c.Check(s.mockedHostnamectl.Calls(), HasLen, 0)
 }
 
 func (s *hostnameSuite) TestFilesystemOnlyApply(c *C) {
