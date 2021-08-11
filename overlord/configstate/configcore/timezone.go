@@ -67,23 +67,23 @@ func handleTimezoneConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts 
 	// that was written not using `snap set system system.hostname`.
 	timezone, err := coreCfg(tr, "system.timezone")
 	if err != nil {
-		return nil
+		return err
 	}
 	// nothing to do
 	if timezone == "" {
 		return nil
 	}
-	// see if anything has changed
-	currentTimezone, err := getTimezoneFromSystem()
-	if err != nil {
-		return err
-	}
-	if timezone == currentTimezone {
-		return nil
-	}
-
 	// runtime system
 	if opts == nil {
+		// see if anything has changed
+		currentTimezone, err := getTimezoneFromSystem()
+		if err != nil {
+			return err
+		}
+		if timezone == currentTimezone {
+			return nil
+		}
+
 		output, err := exec.Command("timedatectl", "set-timezone", timezone).CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("cannot set timezone: %v", osutil.OutputErr(output, err))
