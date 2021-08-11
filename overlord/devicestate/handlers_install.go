@@ -341,6 +341,45 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("cannot make system runnable: %v", err)
 	}
 
+	// TODO: FIXME: this should go away after we have time to design a proper
+	//              solution
+	// TODO: only run on specific models?
+
+	// on some specific devices, we need to create these directories in
+	// _writable_defaults in order to allow the install-device hook to install
+	// some files there, this eventually will go away when we introduce a proper
+	// mechanism not using system-files to install files onto the root
+	// filesystem from the install-device hook
+	if err := fixupWritableDefaultDirs(boot.InstallHostWritableDir); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func fixupWritableDefaultDirs(systemDataDir string) error {
+	// the _writable_default directory is used to put files in place on
+	// ubuntu-data from install mode, so we abuse it here for a specific device
+	// to let that device install files with system-files and the install-device
+	// hook
+
+	// eventually this will be a proper, supported, designed mechanism instead
+	// of just this hack, but this hack is just creating the directories, since
+	// the system-files interface only allows creating the file, not creating
+	// the directories leading up to that file, and since the file is deeply
+	// nested we would effectively have to give all permission to the device
+	// to create any file on ubuntu-data which we don't want to do, so we keep
+	// this restriction to let the device create one specific file, and then
+	// we behind the scenes just create the directories for the device
+
+	for _, subDirToCreate := range []string{"/etc/udev/rules.d", "/etc/modprobe.d", "/etc/modules-load.d/"} {
+		dirToCreate := sysconfig.WritableDefaultsDir(systemDataDir, subDirToCreate)
+
+		if err := os.MkdirAll(dirToCreate, 0755); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
