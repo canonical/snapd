@@ -89,9 +89,9 @@ func init() {
 }
 
 func (c *refreshCommand) Execute(args []string) error {
-	context := c.context()
-	if context == nil {
-		return fmt.Errorf("cannot run without a context")
+	context, err := c.ensureContext()
+	if err != nil {
+		return err
 	}
 
 	if !context.IsEphemeral() && context.HookName() != "gate-auto-refresh" {

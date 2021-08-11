@@ -115,10 +115,9 @@ func (c *healthCommand) Execute([]string) error {
 		}
 	}
 
-	ctx := c.context()
-	if ctx == nil {
-		// reuses the i18n'ed error message from service ctl
-		return fmt.Errorf(i18n.G("cannot %s without a context"), "set-health")
+	ctx, err := c.ensureContext()
+	if err != nil {
+		return err
 	}
 	ctx.Lock()
 	defer ctx.Unlock()
