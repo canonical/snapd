@@ -130,21 +130,21 @@ func (s *prereqSuite) TestDoPrereqDependenciesWaitForPrereqInstall(c *C) {
 	c.Check(preReq.Status(), Equals, state.DoneStatus)
 
 	// find last task in the prerequisite's installation
-	var depEnd *state.Task
+	var prereqLastTask *state.Task
 	for _, t := range chg.Tasks() {
 		if t.Kind() == "run-hook" {
 			setup := &hookstate.HookSetup{}
 			c.Assert(t.Get("hook-setup", setup), IsNil)
 
 			if setup.Snap == "dep" && setup.Hook == "check-health" {
-				depEnd = t
+				prereqLastTask = t
 				break
 			}
 		}
 	}
 
 	// check that the "prerequisite" task's dependencies wait for the tasks scheduled by "prerequisite" to be installed
-	c.Check(depEnd.HaltTasks(), testutil.Contains, afterPrereq)
+	c.Check(afterPrereq.WaitTasks(), testutil.Contains, prereqLastTask)
 }
 
 func (s *prereqSuite) TestDoPrereqWithBaseNone(c *C) {
