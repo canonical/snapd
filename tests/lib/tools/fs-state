@@ -140,6 +140,7 @@ check_monitor() {
     fi
     
     rm -f /tmp/fs-diff
+    # shellcheck disable=SC2045
     for f in $(ls /tmp/fs-initial); do
         diff /tmp/fs-initial/"$f" /tmp/fs-final/"$f" >> /tmp/fs-diff
     done
