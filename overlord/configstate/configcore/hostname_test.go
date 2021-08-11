@@ -48,6 +48,7 @@ func (s *hostnameSuite) SetUpTest(c *C) {
 func (s *hostnameSuite) TestConfigureHostnameInvalid(c *C) {
 	invalidHostnames := []string{
 		"-no-start-with-dash", "no-upper-A", "no-ä", "no/slash",
+		"ALL-CAPS-IS-NEVER-OKAY", "no-SHOUTING-allowed",
 		strings.Repeat("x", 64),
 	}
 
@@ -72,7 +73,15 @@ func (s *hostnameSuite) TestConfigureHostnameIntegration(c *C) {
 	mockedHostname := testutil.MockCommand(c, "hostname", "echo bar")
 	defer mockedHostname.Restore()
 
-	validHostnames := []string{"foo", strings.Repeat("x", 63)}
+	validHostnames := []string{
+		"foo",
+		strings.Repeat("x", 63),
+		"foo-bar",
+		"foo-------bar",
+		"foo99",
+		"99foo",
+		"can-end-with-a-dash-",
+	}
 
 	for _, hostname := range validHostnames {
 		err := configcore.Run(coreDev, &mockConf{
