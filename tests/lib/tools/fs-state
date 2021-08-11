@@ -6,7 +6,6 @@ show_help() {
     echo "       fs-state mock-file <--new> [filename]"
     echo "       fs-state restore-file [filename]"
     echo "       fs-state start-monitor"
-    echo "       fs-state exclude-monitor [path]"
     echo "       fs-state check-monitor"
 }
 
@@ -116,90 +115,40 @@ restore_file() {
     fi
 }
 
-start_monitor() {
-    if [ -n "$(command -v inotifywait)" ]; then
-        # In systems like arch-linux the inotifywait command fails when the output file does not exist
-        touch /tmp/fs.output
-        touch /tmp/fs.exclude
+save_current_tree(){
+    dir=$1
 
-        # $PWD is excluded because the backup dir is automatically restored
-        # .snap files created in tests/lib/snaps are excluded as they are not deleted to be reused
-        # /var/lib/snapd and /var/snap are excluded as those are restored automatically in state.sh
-        EXCLUDE="($PWD|$PROJECT_PATH/tests/lib/snaps/.*/.*.snap|/var/lib/snapd|/var/snap)"
-        INCLUDE="/root /etc /home /boot"
-        # shellcheck disable=SC2086
-        inotifywait -d -m -r -e CREATE -e DELETE -o /tmp/fs.output --exclude "$EXCLUDE" $INCLUDE
-        retry -n 10 --wait 1 sh -c 'pgrep inotifywait &>/dev/null'
+    rm -rf "$dir"
+    mkdir "$dir"
+    # .snap files created in tests/lib/snaps are excluded as they are not deleted to be reused
+    # /var/lib/snapd and /var/snap are excluded as those are restored automatically in state.sh
+    tree -f /etc -I "*~" > "$dir"/etc
+    tree -f /boot -I "*~" > "$dir"/boot
+    tree -f /home -I "*~|$PROJECT_PATH/tests/lib/snaps/*/*.snap" > "$dir"/home
+    tree -f /root -I "*~" > "$dir"/root
+}
+
+start_monitor() {
+    if [ -n "$(command -v tree)" ]; then
+        save_current_tree /tmp/fs-initial
     fi
 }
 
 check_monitor() {
-    if [ -n "$(command -v inotifywait)" ]; then
-        # Stop inotifywait (it could be already stopped)
-        if pgrep inotifywait &>/dev/null; then
-            pkill inotifywait
-        fi
-        set +x
-        local created_files created_dirs missing
-        # the output file contains lines:
-        # /etc/ CREATE foo          # created file /etc/foo
-        # /etc/ CREATE,ISDIR foo    # created directory /etc/foo
-        created_files=$(grep " CREATE " /tmp/fs.output | awk '{ print $1$3 }')
-        deleted_files=$(grep " DELETE " /tmp/fs.output | awk '{ print $1$3 }')
-        created_dirs=$(grep " CREATE,ISDIR " /tmp/fs.output | awk '{ print $1$3 }')
-        deleted_dirs=$(grep " DELETE,ISDIR " /tmp/fs.output | awk '{ print $1$3 }')
-        missing=false
-
-        # Print the files that were created more/less than deleted
-        for file in $created_files; do
-            #  Skip backup and excluded files
-            if [[ "$file" = *~ ]] || grep -E "^$file$" /tmp/fs.exclude; then
-                continue
-            fi
-            count_created=$(echo "$created_files" | tr " " "\n" | grep -c "^$file$")
-            count_deleted=$(echo "$deleted_files" | tr " " "\n" | grep -c "^$file$")
-            if [ "$count_created" -gt "$count_deleted" ]; then
-                echo "File $file created ($count_created) more times than deleted ($count_deleted)"
-                missing=true
-            fi
-            if [ "$count_created" -lt "$count_deleted" ]; then
-                echo "File $file deleted ($count_deleted) more times than created ($count_created)"
-                missing=true
-            fi
-        done
-
-        # Print the directories that were created more/less than deleted
-        for dir in $created_dirs; do
-            #  Skip excluded dirs
-            if grep -E "^$dir$" /tmp/fs.exclude; then
-                continue
-            fi
-            count_created=$(echo "$created_dirs" | tr " " "\n" | grep -c "^$dir$")
-            count_deleted=$(echo "$deleted_dirs" | tr " " "\n" | grep -c "^$dir$")
-            if [ "$count_created" -gt "$count_deleted" ]; then
-                echo "Dir $dir created ($count_created) more times than deleted ($count_deleted)"
-                missing=true
-            fi
-            if [ "$count_created" -lt "$count_deleted" ]; then
-                echo "Dir $dir deleted ($count_deleted) more times than created ($count_created)"
-                missing=true
-            fi
-        done
-
-        # Exit in case there are files and dirs that were not properly cleaned
-        if [ "$missing" = true ]; then
-            exit 1
-        fi
-        rm -f /tmp/fs.output /tmp/fs.exclude
-        set -x
+    if [ -n "$(command -v tree)" ]; then
+        save_current_tree /tmp/fs-final
     fi
-}
-
-exclude_monitor() {
-    while [ $# -gt 0 ]; do
-        echo "$1" >> /tmp/fs.exclude
-        shift
+    
+    rm -f /tmp/fs-diff
+    for f in $(ls /tmp/fs-initial); do
+        diff /tmp/fs-initial/"$f" /tmp/fs-final/"$f" >> /tmp/fs-diff
     done
+
+    if [ -z "$(find /tmp -empty -name fs-diff)" ]; then
+        echo "the diff file is not empty:"
+        cat /tmp/fs-diff 
+        exit 1
+    fi
 }
 
 main() {
