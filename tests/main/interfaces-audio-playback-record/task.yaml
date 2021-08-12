@@ -11,8 +11,8 @@ environment:
 
 prepare: |
     # Install pulseaudio.
-    apt-get update
-    apt-get install -y pulseaudio pulseaudio-utils
+    apt update
+    apt install -y pulseaudio pulseaudio-utils
     # Remove the package and reload systemd later, when we are restoring. This
     # is important because of rtkit-daemon.service that gets pulled by
     # pulseaudio and that is subsequently removed.
@@ -83,6 +83,9 @@ prepare: |
     tests.cleanup defer rm /etc/systemd/user/pulseaudio.service.d/no-start-limit.conf
     # reload user's systemd instance
     tests.session -u test exec systemctl daemon-reload --user
+
+restore:
+    apt remove --purge -y pulseaudio pulseaudio-utils
 
 debug: |
     echo "Files present in the test user's home directory"
