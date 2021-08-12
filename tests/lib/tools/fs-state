@@ -88,10 +88,10 @@ save_current_tree(){
     mkdir "$dir"
     # .snap files created in tests/lib/snaps are excluded as they are not deleted to be reused
     # runtime-state dir contains cursor and run log which are created during the first test
-    tree -f /etc -I "*~" > "$dir"/etc
-    tree -f /boot -I "*~" > "$dir"/boot
-    tree -f /home -I "*~|$PROJECT_PATH/tests/lib/snaps/*/*.snap" > "$dir"/home
-    tree -f /root -I "*~" > "$dir"/root
+    tree -if /etc -I "*~" > "$dir"/etc
+    tree -if /boot -I "*~" > "$dir"/boot
+    tree -if /home -I "*~|$PROJECT_PATH/tests/lib/snaps/*/*.snap|$PWD/*.snap" > "$dir"/home
+    tree -if /root -I "*~" > "$dir"/root
 }
 
 start_monitor() {
