@@ -65,7 +65,7 @@ func (s *sysconfigSuite) makeCloudCfgSrcDirFiles(c *C) string {
 func (s *sysconfigSuite) makeGadgetCloudConfFile(c *C) string {
 	gadgetDir := c.MkDir()
 	gadgetCloudConf := filepath.Join(gadgetDir, "cloud.conf")
-	err := ioutil.WriteFile(gadgetCloudConf, []byte("gadget cloud config"), 0644)
+	err := ioutil.WriteFile(gadgetCloudConf, []byte("#cloud-config gadget cloud config"), 0644)
 	c.Assert(err, IsNil)
 
 	return gadgetDir
@@ -232,7 +232,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadg
 
 	// and did copy the gadget cloud-init file
 	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
-	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileEquals, "gadget cloud config")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileEquals, "#cloud-config gadget cloud config")
 }
 
 func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadgetCloudConfAlsoInstallsUbuntuSeedConfig(c *C) {
@@ -249,7 +249,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadg
 
 	// we did copy the gadget cloud-init file
 	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
-	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileEquals, "gadget cloud config")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileEquals, "#cloud-config gadget cloud config")
 
 	// and we also copied the ubuntu-seed files with a new prefix such that they
 	// take precedence over the gadget file by being ordered lexically after the
@@ -653,5 +653,152 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 		} else {
 			c.Assert(err, ErrorMatches, t.expError, comment)
 		}
+	}
+}
+
+const maasGadgetCloudInitImplictYAML = `
+datasource:
+  MAAS:
+    foo: bar
+`
+
+const maasGadgetCloudInitImplictLowerCaseYAML = `
+datasource:
+  maas:
+    foo: bar
+`
+
+const explicitlyNoDatasourceYAML = `datasource_list: []`
+
+const explicitlyNoDatasourceButAlsoImplicitlyAnotherYAML = `
+datasource_list: []
+reporting:
+  NoCloud:
+    foo: bar
+`
+
+const explicitlyMultipleMixedCaseMentioned = `
+reporting:
+  NoCloud:
+    foo: bar
+  maas:
+    foo: bar
+datasource:
+  MAAS:
+    foo: bar
+  NOCLOUD:
+    foo: bar
+`
+
+func (s *sysconfigSuite) TestCloudDatasourcesInUse(c *C) {
+	tt := []struct {
+		configFileContent string
+		expError          string
+		expRes            *sysconfig.CloudDatasourcesInUseResult
+		comment           string
+	}{
+		{
+			configFileContent: `datasource_list: [MAAS]`,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyAllowed: []string{"MAAS"},
+				Mentioned:         []string{"MAAS"},
+			},
+			comment: "explicitly allowed via datasource_list in upper case",
+		},
+		{
+			configFileContent: `datasource_list: [maas]`,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyAllowed: []string{"MAAS"},
+				Mentioned:         []string{"MAAS"},
+			},
+			comment: "explicitly allowed via datasource_list in lower case",
+		},
+		{
+			configFileContent: `datasource_list: [mAaS]`,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyAllowed: []string{"MAAS"},
+				Mentioned:         []string{"MAAS"},
+			},
+			comment: "explicitly allowed via datasource_list in random case",
+		},
+		{
+			configFileContent: `datasource_list: [maas, maas]`,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyAllowed: []string{"MAAS"},
+				Mentioned:         []string{"MAAS"},
+			},
+			comment: "duplicated datasource in datasource_list",
+		},
+		{
+			configFileContent: `datasource_list: [maas, MAAS]`,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyAllowed: []string{"MAAS"},
+				Mentioned:         []string{"MAAS"},
+			},
+			comment: "duplicated datasource in datasource_list with different cases",
+		},
+		{
+			configFileContent: `datasource_list: [maas, GCE]`,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyAllowed: []string{"GCE", "MAAS"},
+				Mentioned:         []string{"GCE", "MAAS"},
+			},
+			comment: "multiple datasources in datasource list",
+		},
+		{
+			configFileContent: maasGadgetCloudInitImplictYAML,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				Mentioned: []string{"MAAS"},
+			},
+			comment: "implicitly mentioned datasource",
+		},
+		{
+			configFileContent: maasGadgetCloudInitImplictLowerCaseYAML,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				Mentioned: []string{"MAAS"},
+			},
+			comment: "implicitly mentioned datasource in lower case",
+		},
+		{
+			configFileContent: explicitlyNoDatasourceYAML,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyNoneAllowed: true,
+			},
+			comment: "no datasources allowed at all",
+		},
+		{
+			configFileContent: explicitlyNoDatasourceButAlsoImplicitlyAnotherYAML,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyNoneAllowed: true,
+				Mentioned:             []string{"NOCLOUD"},
+			},
+			comment: "explicitly no datasources allowed, but still some mentioned",
+		},
+		{
+			configFileContent: explicitlyMultipleMixedCaseMentioned,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				Mentioned: []string{"MAAS", "NOCLOUD"},
+			},
+			comment: "multiple of same datasources mentioned in different cases",
+		},
+		{
+			configFileContent: "i'm not yaml",
+			expError:          "yaml: unmarshal errors.*\n.*cannot unmarshal.*",
+			comment:           "invalid yaml",
+		},
+	}
+
+	for _, t := range tt {
+		comment := Commentf(t.comment)
+		configFile := filepath.Join(c.MkDir(), "cloud.conf")
+		err := ioutil.WriteFile(configFile, []byte(t.configFileContent), 0644)
+		c.Assert(err, IsNil, comment)
+		res, err := sysconfig.CloudDatasourcesInUse(configFile)
+		if t.expError != "" {
+			c.Assert(err, ErrorMatches, t.expError, comment)
+			continue
+		}
+
+		c.Assert(res, DeepEquals, t.expRes, comment)
 	}
 }
