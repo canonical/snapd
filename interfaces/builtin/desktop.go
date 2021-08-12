@@ -38,7 +38,16 @@ const desktopBaseDeclarationSlots = `
   desktop:
     allow-installation:
       slot-snap-type:
+        - app
         - core
+`
+const desktopConnectedPlugFontsAppArmor = `
+#include <abstractions/fonts>
+owner @{HOME}/.local/share/fonts/{,**} r,
+/var/cache/fontconfig/   r,
+/var/cache/fontconfig/** mr,
+# some applications are known to mmap fonts
+/usr/{,local/}share/fonts/** m,
 `
 
 const desktopConnectedPlugAppArmor = `
@@ -55,13 +64,6 @@ dbus (send)
      interface=org.freedesktop.DBus
      member=GetId
      peer=(name=org.freedesktop.DBus, label=unconfined),
-
-#include <abstractions/fonts>
-owner @{HOME}/.local/share/fonts/{,**} r,
-/var/cache/fontconfig/   r,
-/var/cache/fontconfig/** mr,
-# some applications are known to mmap fonts
-/usr/{,local/}share/fonts/** m,
 
 # subset of gnome abstraction
 /etc/gtk-3.0/settings.ini r,
@@ -335,18 +337,18 @@ func (iface *desktopInterface) fontconfigDirs(plug *interfaces.ConnectedPlug) ([
 }
 
 func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	spec.AddSnippet(desktopConnectedPlugAppArmor)
-
-	// Allow mounting document portal
 	emit := spec.AddUpdateNSf
-	emit("  # Mount the document portal\n")
-	emit("  mount options=(bind) /run/user/[0-9]*/doc/by-app/snap.%s/ -> /run/user/[0-9]*/doc/,\n", plug.Snap().InstanceName())
-	emit("  umount /run/user/[0-9]*/doc/,\n\n")
 
-	if !release.OnClassic {
-		// We only need the font mount rules on classic systems
-		return nil
+	if implicitSystemConnectedSlot(slot) {
+		spec.AddSnippet(desktopConnectedPlugAppArmor)
+
+		// Allow mounting document portal
+		emit("  # Mount the document portal\n")
+		emit("  mount options=(bind) /run/user/[0-9]*/doc/by-app/snap.%s/ -> /run/user/[0-9]*/doc/,\n", plug.Snap().InstanceName())
+		emit("  umount /run/user/[0-9]*/doc/,\n\n")
 	}
+
+	spec.AddSnippet(desktopConnectedPlugFontsAppArmor)
 
 	// Allow mounting fonts
 	fontDirs, err := iface.fontconfigDirs(plug)
@@ -366,16 +368,13 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 }
 
 func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	appId := "snap." + plug.Snap().InstanceName()
-	spec.AddUserMountEntry(osutil.MountEntry{
-		Name:    "$XDG_RUNTIME_DIR/doc/by-app/" + appId,
-		Dir:     "$XDG_RUNTIME_DIR/doc",
-		Options: []string{"bind", "rw", osutil.XSnapdIgnoreMissing()},
-	})
-
-	if !release.OnClassic {
-		// We only need the font mount rules on classic systems
-		return nil
+	if implicitSystemConnectedSlot(slot) {
+ 		appId := "snap." + plug.Snap().InstanceName()
+ 		spec.AddUserMountEntry(osutil.MountEntry{
+ 			Name:    "$XDG_RUNTIME_DIR/doc/by-app/" + appId,
+ 			Dir:     "$XDG_RUNTIME_DIR/doc",
+ 			Options: []string{"bind", "rw", osutil.XSnapdIgnoreMissing()},
+ 		})
 	}
 
 	fontDirs, err := iface.fontconfigDirs(plug)
