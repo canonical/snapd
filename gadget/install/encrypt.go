@@ -70,8 +70,8 @@ func newEncryptedDevice(part *gadget.OnDiskStructure, key secboot.EncryptionKey,
 	return dev, nil
 }
 
-func (dev *encryptedDevice) AddRecoveryKey(key secboot.EncryptionKey, rkey secboot.RecoveryKey) error {
-	return secbootAddRecoveryKey(key, rkey, dev.parent.Node)
+func (dev *encryptedDevice) AddRecoveryKey(key secboot.EncryptionKey, rkey secboot.RecoveryKey, kdf *gadget.KDF) error {
+	return secbootAddRecoveryKey(key, rkey, dev.parent.Node, kdf)
 }
 
 func (dev *encryptedDevice) Close() error {

@@ -76,6 +76,10 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 	if gadgetRoot == "" {
 		return nil, fmt.Errorf("cannot use empty gadget root directory")
 	}
+	info, err := gadget.ReadInfo(gadgetRoot, model)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read gadget: %v", err)
+	}
 
 	lv, err := gadget.LaidOutSystemVolumeFromGadget(gadgetRoot, kernelRoot, model)
 	if err != nil {
@@ -172,7 +176,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 			}
 
 			timings.Run(perfTimings, fmt.Sprintf("add-recovery-key[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Adding recovery key for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
-				err = dataPart.AddRecoveryKey(keys.Key, keys.RecoveryKey)
+				err = dataPart.AddRecoveryKey(keys.Key, keys.RecoveryKey, info.Machine.KDF)
 			})
 			if err != nil {
 				return nil, err

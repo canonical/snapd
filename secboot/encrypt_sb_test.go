@@ -99,7 +99,7 @@ func (s *encryptSuite) TestAddRecoveryKey(c *C) {
 		})
 		defer restore()
 
-		err := secboot.AddRecoveryKey(myKey, myRecoveryKey, "/dev/node")
+		err := secboot.AddRecoveryKey(myKey, myRecoveryKey, "/dev/node", nil)
 		c.Assert(calls, Equals, 1)
 		if tc.err == "" {
 			c.Assert(err, IsNil)

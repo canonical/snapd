@@ -34,6 +34,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/edition"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/metautil"
@@ -99,6 +100,58 @@ type Info struct {
 	Defaults map[string]map[string]interface{} `yaml:"defaults,omitempty"`
 
 	Connections []Connection `yaml:"connections"`
+
+	Machine Machine `yaml:"machine,omitempty"`
+}
+
+type Machine struct {
+	KDF *KDF `yaml:"kdf,omitempty"`
+}
+
+// XXX: move to "secboot"?
+type KDF struct {
+	MemoryKiB  int `yaml:"memory-kib,omitempty"`
+	Iterations int `yaml:"iterations,omitempty"`
+
+	// Needs to match a line from /proc/cpuinfo, unfortunately cpuinfo is
+	// very machine dependant and contains things like bogoMIPS which
+	// *may* not be stable.
+	//
+	// This has to match a line like
+	// "Model:Raspberry Pi 3 Model B Plus Rev 1.3"
+	// XXX: switch to "machine-cpu", "machine-mem" instead and also validate mem?
+	Machine string `yaml:"machine"`
+}
+
+func (k *KDF) Validate() error {
+	l := strings.SplitN(k.Machine, ":", 2)
+	if len(l) != 2 {
+		return fmt.Errorf(`invalid machine definition: requires a ":"`)
+	}
+	key := l[0]
+	value := l[1]
+
+	f, err := os.Open(filepath.Join(dirs.GlobalRootDir, "/proc/cpuinfo"))
+	if err != nil {
+		return fmt.Errorf("cannot validate kdf: %v", err)
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		l := strings.SplitN(line, ":", 2)
+		if len(l) < 2 {
+			continue
+		}
+		if key == strings.TrimSpace(l[0]) && value == strings.TrimSpace(l[1]) {
+			return nil
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("cannot read cpuinfo: %v", err)
+	}
+
+	return fmt.Errorf("cannot use KDF options, cannot match %q in cpuinfo", k.Machine)
 }
 
 // Volume defines the structure and content for the image to be written into a

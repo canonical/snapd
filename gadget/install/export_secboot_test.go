@@ -21,6 +21,7 @@
 package install
 
 import (
+	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/secboot"
 )
 
@@ -38,7 +39,7 @@ func MockSecbootFormatEncryptedDevice(f func(key secboot.EncryptionKey, label, n
 	}
 }
 
-func MockSecbootAddRecoveryKey(f func(key secboot.EncryptionKey, rkey secboot.RecoveryKey, node string) error) (restore func()) {
+func MockSecbootAddRecoveryKey(f func(key secboot.EncryptionKey, rkey secboot.RecoveryKey, node string, kdf *gadget.KDF) error) (restore func()) {
 	old := secbootAddRecoveryKey
 	secbootAddRecoveryKey = f
 	return func() {

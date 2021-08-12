@@ -146,7 +146,7 @@ func (s *encryptSuite) TestAddRecoveryKey(c *C) {
 		defer restore()
 
 		calls := 0
-		restore = install.MockSecbootAddRecoveryKey(func(key secboot.EncryptionKey, rkey secboot.RecoveryKey, node string) error {
+		restore = install.MockSecbootAddRecoveryKey(func(key secboot.EncryptionKey, rkey secboot.RecoveryKey, node string, kdf *gadget.KDF) error {
 			calls++
 			c.Assert(key, DeepEquals, s.mockedEncryptionKey)
 			c.Assert(rkey, DeepEquals, s.mockedRecoveryKey)
@@ -158,7 +158,7 @@ func (s *encryptSuite) TestAddRecoveryKey(c *C) {
 		dev, err := install.NewEncryptedDevice(&mockDeviceStructure, s.mockedEncryptionKey, "some-label")
 		c.Assert(err, IsNil)
 
-		err = dev.AddRecoveryKey(s.mockedEncryptionKey, s.mockedRecoveryKey)
+		err = dev.AddRecoveryKey(s.mockedEncryptionKey, s.mockedRecoveryKey, nil)
 		c.Assert(calls, Equals, 1)
 		if tc.expectedErr == "" {
 			c.Assert(err, IsNil)

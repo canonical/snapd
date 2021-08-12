@@ -21,7 +21,12 @@
 package secboot
 
 import (
+	"fmt"
+
 	sb "github.com/snapcore/secboot"
+
+	// XXX: can we import gadget from secboot?
+	"github.com/snapcore/snapd/gadget"
 )
 
 var (
@@ -56,8 +61,20 @@ func FormatEncryptedDevice(key EncryptionKey, label, node string) error {
 // AddRecoveryKey adds a fallback recovery key rkey to the existing encrypted
 // volume created with FormatEncryptedDevice on the block device given by node.
 // The existing key to the encrypted volume is provided in the key argument.
-func AddRecoveryKey(key EncryptionKey, rkey RecoveryKey, node string) error {
-	return sbAddRecoveryKeyToLUKS2Container(node, key[:], sb.RecoveryKey(rkey), nil)
+func AddRecoveryKey(key EncryptionKey, rkey RecoveryKey, node string, kdf *gadget.KDF) error {
+	var opts *sb.KDFOptions
+	if kdf != nil {
+		// XXX: do this much earlier?
+		if err := kdf.Validate(); err != nil {
+			return fmt.Errorf("cannot use KDF options: %v", err)
+		}
+		opts = &sb.KDFOptions{
+			MemoryKiB:       kdf.MemoryKiB,
+			ForceIterations: kdf.Iterations,
+		}
+	}
+
+	return sbAddRecoveryKeyToLUKS2Container(node, key[:], sb.RecoveryKey(rkey), opts)
 }
 
 func (k RecoveryKey) String() string {
