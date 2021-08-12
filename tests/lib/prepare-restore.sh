@@ -605,6 +605,9 @@ prepare_suite() {
 prepare_suite_each() {
     local variant="$1"
 
+    # Start fs monitor
+    "$TESTSTOOLS"/fs-state start-monitor
+
     # back test directory to be restored during the restore
     tests.backup prepare
 
@@ -641,8 +644,6 @@ prepare_suite_each() {
         "$TESTSTOOLS"/cleanup-state pre-invariant
     fi
     tests.invariant check
-
-    "$TESTSTOOLS"/fs-state start-monitor
 }
 
 restore_suite_each() {
