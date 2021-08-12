@@ -116,7 +116,7 @@ restore_file() {
 }
 
 save_current_tree(){
-    dir=$1
+    local dir=$1
 
     rm -rf "$dir"
     mkdir "$dir"
@@ -129,15 +129,11 @@ save_current_tree(){
 }
 
 start_monitor() {
-    if [ -n "$(command -v tree)" ]; then
-        save_current_tree /tmp/fs-initial
-    fi
-}
+    save_current_tree /tmp/fs-initial
+ }
 
 check_monitor() {
-    if [ -n "$(command -v tree)" ]; then
-        save_current_tree /tmp/fs-final
-    fi
+    save_current_tree /tmp/fs-final
     
     rm -f /tmp/fs-diff
     # shellcheck disable=SC2045
