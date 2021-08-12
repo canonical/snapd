@@ -600,6 +600,10 @@ prepare_suite() {
     # Make sure the suite starts with a clean environment and with the snapd state restored
     # shellcheck source=tests/lib/reset.sh
     "$TESTSLIB"/reset.sh --reuse-core
+
+    # Create runtime files in case those don't exist
+    touch "$RUNTIME_STATE_PATH/runs"
+    touch "$RUNTIME_STATE_PATH/journalctl_cursor"
 }
 
 prepare_suite_each() {

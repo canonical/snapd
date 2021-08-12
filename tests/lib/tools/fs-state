@@ -1,9 +1,9 @@
 #!/bin/bash
 
 show_help() {
-    echo "usage: fs-state mock-dir <--new> [dirname]"
+    echo "usage: fs-state mock-dir [dirname]"
     echo "       fs-state restore-dir [dirname]"
-    echo "       fs-state mock-file <--new> [filename]"
+    echo "       fs-state mock-file [filename]"
     echo "       fs-state restore-file [filename]"
     echo "       fs-state start-monitor"
     echo "       fs-state check-monitor"
@@ -19,27 +19,10 @@ _mock_dir() {
 }
 
 mock_dir() {
-    local new=0
-    local dir
-    while [ $# -gt 0 ]; do
-        case "$1" in
-            --new)
-                new=1
-                shift
-                ;;
-            *)
-                dir=$1
-                shift
-                ;;
-        esac
-    done
+    local dir=$1
 
     if [ -d "$dir" ]; then
-        if [ "$new" = 1 ]; then
-            mv "$dir" "$dir.back"
-        else
-            cp -rf "$dir" "$dir.back"
-        fi
+        cp -rf "$dir" "$dir.back"
     fi
     _mock_dir "$dir"
 }
@@ -70,28 +53,11 @@ _mock_file() {
 }
 
 mock_file() {
-    local new=0
-    local file
-    while [ $# -gt 0 ]; do
-        case "$1" in
-            --new)
-                new=1
-                shift
-                ;;
-            *)
-                file=$1
-                shift
-                ;;
-        esac
-    done
+    local file=$1
 
     if [ -e "$file" ]; then
         echo "fs-state: backing up original file: $file"
-        if [ "$new" = 1 ]; then
-            mv "$file" "$file.back"
-        else
-            cp -f "$file" "$file.back"
-        fi
+        mv "$file" "$file.back"
     fi
     # ensure the parent dir is available
     if [ ! -d "$(dirname "$file")" ]; then
@@ -124,7 +90,7 @@ save_current_tree(){
     # runtime-state dir contains cursor and run log which are created during the first test
     tree -f /etc -I "*~" > "$dir"/etc
     tree -f /boot -I "*~" > "$dir"/boot
-    tree -f /home -I "*~|$PROJECT_PATH/tests/lib/snaps/*/*.snap|$PROJECT_PATH/tests/runtime-state/*" > "$dir"/home
+    tree -f /home -I "*~|$PROJECT_PATH/tests/lib/snaps/*/*.snap" > "$dir"/home
     tree -f /root -I "*~" > "$dir"/root
 }
 

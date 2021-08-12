@@ -84,15 +84,6 @@ execute: |
     test ! -f existing-file.fake
     test ! -f existing-file.back
 
-    # Mocking an existing file with --new not only creates the .fake marker file but
-    # also creates a new file
-    echo content > existing-file
-    "$TESTSTOOLS"/fs-state mock-file --new existing-file
-    test -f existing-file
-    MATCH "The file is a mock file" < existing-file
-    test -f existing-file.fake
-    test -f existing-file.back
-
     # Restoring a file which is not mocked fails with an error message.
     touch non-mocked-file
     not "$TESTSTOOLS"/fs-state restore-file non-mocked-file
