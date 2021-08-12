@@ -30,7 +30,7 @@ execute: |
 
         echo "Verify that the snap can perform a mount"
         mkdir -p "$MOUNT_DEST"
-        "${SNAP_NAME}".mntctl -o bind,rw "$MOUNT_SRC" "$MOUNT_DEST"
+        "${SNAP_NAME}".cmd mount -o bind,rw "$MOUNT_SRC" "$MOUNT_DEST"
 
         echo "Verify that the mount has been performed"
         "${SNAP_NAME}".cmd grep "$MOUNT_DEST" /proc/self/mountinfo

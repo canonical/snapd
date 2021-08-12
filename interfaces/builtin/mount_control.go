@@ -269,6 +269,10 @@ func (iface *mountControlInterface) AppArmorConnectedPlug(spec *apparmor.Specifi
 
   owner @{PROC}/@{pid}/mounts r,
 
+  /{,usr/}bin/mount ixr,
+  /{,usr/}bin/umount ixr,
+  # mount/umount (via libmount) track some mount info in these files
+  /run/mount/utab* wrlk,
 `)
 		}
 
