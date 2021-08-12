@@ -33,6 +33,7 @@ restore: |
     snap remove --purge test-snapd-sh
     
     # Remove the package we installed above.
+    #shellcheck disable=SC2002
     cat installed-new.pkgs | while read -r pkg; do
         apt remove --purge -y "$pkg"
     done
