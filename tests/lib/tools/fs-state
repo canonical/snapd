@@ -14,15 +14,15 @@ _mock_dir() {
     if [ ! -d "$dir" ]; then
         echo "fs-state: created mock directory: $dir"
         mkdir -p "$dir"
+        touch "$dir.fake"
     fi
-    touch "$dir.fake"
 }
 
 mock_dir() {
-    local dir=$1
+    local dir="$1"
 
     if [ -d "$dir" ]; then
-        cp -rf "$dir" "$dir.back"
+        mv "$dir" "$dir.back"
     fi
     _mock_dir "$dir"
 }
@@ -48,12 +48,12 @@ _mock_file() {
     if [ ! -e "$file" ]; then
         echo "fs-state: creating file: $file"
         echo "The file is a mock file used by fs-state." > "$file"
+        echo "The .fake file is a marker file used by fs-state." > "$file.fake"
     fi
-    echo "The .fake file is a marker file used by fs-state." > "$file.fake"
 }
 
 mock_file() {
-    local file=$1
+    local file="$1"
 
     if [ -e "$file" ]; then
         echo "fs-state: backing up original file: $file"
@@ -88,10 +88,10 @@ save_current_tree(){
     mkdir "$dir"
     # .snap files created in tests/lib/snaps are excluded as they are not deleted to be reused
     # runtime-state dir contains cursor and run log which are created during the first test
-    tree -if /etc -I "*~" > "$dir"/etc
-    tree -if /boot -I "*~" > "$dir"/boot
-    tree -if /home -I "*~|$PROJECT_PATH/tests/lib/snaps/*/*.snap|$PWD/*.snap" > "$dir"/home
-    tree -if /root -I "*~" > "$dir"/root
+    tree --noreport -if /etc -I "*~" > "$dir"/etc
+    tree --noreport -if /boot -I "*~" > "$dir"/boot
+    tree --noreport -if /home -I "*~" | grep -v -e "$PROJECT_PATH/tests/lib/snaps/.*/.*.snap" -e "$PWD/.*.snap" > "$dir"/home
+    tree --noreport -if /root -I "*~" > "$dir"/root
 }
 
 start_monitor() {

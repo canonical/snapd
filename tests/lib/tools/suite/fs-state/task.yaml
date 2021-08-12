@@ -30,8 +30,8 @@ execute: |
     test -d existing-dir
     test -f existing-dir.fake
     test -d existing-dir.back
-    # The newly created mock directory is a copy from original directory
-    test -f existing-dir/unrelated
+    # The newly created mock directory is entirely empty.
+    not test -f existing-dir/unrelated
     # Restoring removes the mock directory and replaces it with the preserved
     # .back directory.
     "$TESTSTOOLS"/fs-state restore-dir existing-dir
@@ -39,16 +39,6 @@ execute: |
     test -f existing-dir/unrelated
     not test -f existing-dir.fake
     rm -rf existing-dir
-
-    # Mocking an existing directory with --new not only creates the .fake marker file but
-    # also creates a new directory
-    mkdir existing-dir
-    touch existing-dir/unrelated
-    "$TESTSTOOLS"/fs-state mock-dir --new existing-dir
-    test ! -f existing-dir/unrelated
-    test -d existing-dir
-    test -f existing-dir.fake
-    test -d existing-dir.back
 
     # Restoring a dir which is not mocked fails with an error message.
     mkdir non-mocked-dir
@@ -76,7 +66,7 @@ execute: |
     test -f existing-file
     test -f existing-file.fake
     test -f existing-file.back
-    diff existing-file existing-file.back
+    not diff existing-file existing-file.back
     # Restoring removes the mock file and replaces it with the preserved
     # .back file.
     "$TESTSTOOLS"/fs-state restore-file existing-file
