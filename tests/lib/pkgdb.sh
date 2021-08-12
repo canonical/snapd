@@ -766,7 +766,7 @@ pkg_dependencies_arch(){
     fwupd
     git
     go
-    go-tools    
+    go-tools
     jq
     libseccomp
     libcap

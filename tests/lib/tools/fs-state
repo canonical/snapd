@@ -95,22 +95,26 @@ save_current_tree(){
 }
 
 start_monitor() {
-    save_current_tree /tmp/fs-initial
+    if [ -n "$(command -v tree)" ]; then
+        save_current_tree /tmp/fs-initial
+    fi
  }
 
 check_monitor() {
-    save_current_tree /tmp/fs-final
-    
-    rm -f /tmp/fs-diff
-    # shellcheck disable=SC2045
-    for f in $(ls /tmp/fs-initial); do
-        diff /tmp/fs-initial/"$f" /tmp/fs-final/"$f" >> /tmp/fs-diff
-    done
+    if [ -n "$(command -v tree)" ]; then
+        save_current_tree /tmp/fs-final
+        
+        rm -f /tmp/fs-diff
+        # shellcheck disable=SC2045
+        for f in $(ls /tmp/fs-initial); do
+            diff /tmp/fs-initial/"$f" /tmp/fs-final/"$f" >> /tmp/fs-diff
+        done
 
-    if [ -z "$(find /tmp -empty -name fs-diff)" ]; then
-        echo "the diff file is not empty:"
-        cat /tmp/fs-diff 
-        exit 1
+        if [ -z "$(find /tmp -empty -name fs-diff)" ]; then
+            echo "the diff file is not empty:"
+            cat /tmp/fs-diff 
+            exit 1
+        fi
     fi
 }
 
