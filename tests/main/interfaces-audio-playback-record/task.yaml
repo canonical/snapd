@@ -84,7 +84,7 @@ prepare: |
     # reload user's systemd instance
     tests.session -u test exec systemctl daemon-reload --user
 
-restore:
+restore: |
     apt remove --purge -y pulseaudio pulseaudio-utils
 
 debug: |
