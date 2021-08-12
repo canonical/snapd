@@ -74,6 +74,9 @@ prepare: |
         test "$(find /etc/systemd/system -name 'snap.*.slice' | wc -l)" -gt 0
     fi
 
+restore: |
+    rm -rf /etc/systemd/user/sockets.target.wants /etc/systemd/user/timers.target.wants
+
 execute: |
     echo "Stop snapd before purging"
     systemctl stop snapd.service snapd.socket
