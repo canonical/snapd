@@ -15,7 +15,7 @@ remap_one() {
             echo "python3-gobject"
             ;;
         test-snapd-pkg-1)
-            echo "freeglut"
+            echo "libglvnd"
             ;;
         test-snapd-pkg-2)
             echo "texlive-base"

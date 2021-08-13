@@ -100,9 +100,22 @@ start_monitor() {
     fi
  }
 
+skip_monitor() {
+    local path=$1
+    echo "$path" >> /tmp/fs-skip
+}
+
+clean_skipped() {
+    cat /tmp/fs-skip | while read -r file; do
+        sed -i "/$file/d" /tmp/fs-initial
+        sed -i "/$file/d" /tmp/fs-final
+    done
+}
+
 check_monitor() {
     if [ -n "$(command -v tree)" ]; then
         save_current_tree /tmp/fs-final
+        clean_skipped
         
         rm -f /tmp/fs-diff
         # shellcheck disable=SC2045
