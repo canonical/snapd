@@ -10,7 +10,10 @@ systems:
 
 prepare: |
     # Not all the images have the same packages pre-installed.
+    apt list --installed | cut -d/ -f1 > installed-initial.pkgs
     apt-get install -y --no-install-recommends gnome-online-accounts
+    apt list --installed | cut -d/ -f1 > installed-after.pkgs
+    diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-new.pkgs
 
     snap install --edge test-snapd-accounts-service
     tests.session -u test prepare
@@ -33,8 +36,10 @@ prepare: |
 restore: |
     tests.session -u test restore
 
-    apt-get remove -y --purge gnome-online-accounts
-    apt-get autoremove --purge -y
+    #shellcheck disable=SC2002
+    cat installed-new.pkgs | while read -r pkg; do
+        apt remove --purge -y "$pkg"
+    done
 
     # Ensure the file we are expecting to remove is there. This ought to catch
     # future format changes.

@@ -10,10 +10,8 @@ prepare: |
 
 restore: |
     # Restore the initial timezone
-    if [ -f timedatectl-timezone.txt ]; then
-        timedatectl set-timezone "$(cat timedatectl-timezone.txt)" || true
-    elif [ -f etc-timezone.txt ]; then
-        cp etc-timezone.txt /etc/timezone
+    if [ -f timezone.txt ]; then
+        timedatectl set-timezone "$(cat timezone.txt)" || true
     fi
 
 execute: |
@@ -30,9 +28,9 @@ execute: |
     # Save the default timezone to be restored at the end
     # The file /etc/timezone is checked to workaround issue on ubuntu core lp: #1733881
     if [ -f /etc/timezone ]; then
-        cp /etc/timezone etc-timezone.txt
+        cp /etc/timezone timezone.txt
     else
-        test-snapd-timedate-control-consumer.timedatectl-timezone status | grep -oP 'Time zone: \K(.*)(?= \()' > timedatectl-timezone.txt
+        test-snapd-timedate-control-consumer.timedatectl-timezone status | grep -oP 'Time zone: \K(.*)(?= \()' > timezone.txt
     fi
 
     # Set the timezone1 as timezone and check the status
