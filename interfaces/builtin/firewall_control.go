@@ -99,6 +99,9 @@ unix (bind, listen) type=stream addr="@xtables",
 @{PROC}/sys/net/netfilter/** r,
 @{PROC}/sys/net/nf_conntrack_max r,
 
+# ufw
+/{,var/}run/ufw.lock rwk,
+
 # check the state of the Kmod modules
 /sys/module/arp_tables/               r,
 /sys/module/arp_tables/initstate      r,
