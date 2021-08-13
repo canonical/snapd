@@ -107,8 +107,12 @@ skip_monitor() {
 
 clean_skipped() {
     cat /tmp/fs-skip | while read -r file; do
-        sed -i "/$file/d" /tmp/fs-initial
-        sed -i "/$file/d" /tmp/fs-final
+        for filename in /tmp/fs-initial/*; do
+            sed -i "/$file/d" "$filename"
+        done
+        for filename in /tmp/fs-final/*; do
+            sed -i "/$file/d" "$filename"
+        done
     done
 }
 
