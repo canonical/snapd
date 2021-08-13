@@ -106,6 +106,7 @@ skip_monitor() {
 }
 
 clean_skipped() {
+    # shellcheck disable=SC2002
     cat /tmp/fs-skip | while read -r file; do
         for filename in /tmp/fs-initial/*; do
             sed -i "/$file/d" "$filename"
@@ -122,8 +123,7 @@ check_monitor() {
         clean_skipped
         
         rm -f /tmp/fs-diff
-        # shellcheck disable=SC2045
-        for f in $(ls /tmp/fs-initial); do
+        for f in /tmp/fs-initial/*; do
             diff /tmp/fs-initial/"$f" /tmp/fs-final/"$f" >> /tmp/fs-diff
         done
 
