@@ -7,11 +7,15 @@ environment:
     SPECIAL_USER_NAME/postgres: postgres
 
 prepare: |
+    # shellcheck source=tests/lib/pkgdb.sh
+    . "$TESTSLIB/pkgdb.sh"
+
     echo "Having the test-snapd-classic-confinement snap installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-classic-confinement --classic
 
     echo "Install the corresponding package that brings the special user account."
     # Specialize the code as required for a particular user.
+    distro_get_installed_packages > installed-initial.pkgs
     case "$SPECIAL_USER_NAME" in
         jenkins)
             # Jenkins depends on java but not in the Debian sense.
@@ -25,21 +29,24 @@ prepare: |
             apt install -y postgresql
             ;;
     esac
+    distro_get_installed_packages > installed-after.pkgs
+    diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-new.pkgs
+
 restore: |
     snap remove --purge test-snapd-sh
-    
+
     # Remove the package we installed above.
-    case "$SPECIAL_USER_NAME" in
-        jenkins)
-            apt autoremove --purge -y jenkins default-jre-headless
-            rm -f /etc/apt/sources.list.d/jenkins.list
-            apt-get update
-            # TODO: remove the apt key added above, but how?
-            ;;
-        postgres)
-            apt autoremove --purge -y postgresql
-            ;;
-    esac
+    #shellcheck disable=SC2002
+    cat installed-new.pkgs | while read -r pkg; do
+        apt remove --purge -y "$pkg"
+    done
+
+    if [ "$SPECIAL_USER_NAME" == jenkins ]; then
+        rm -f /etc/apt/sources.list.d/jenkins.list
+        apt-get update
+        # TODO: remove the apt key added above, but how?
+    fi
+
 execute: |
     echo "Check the home for the user $SPECIAL_USER_NAME is correct"
     #shellcheck disable=SC2016

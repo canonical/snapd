@@ -494,6 +494,25 @@ distro_get_package_extension() {
     esac
 }
 
+distro_get_installed_packages() {
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            apt list --installed | cut -d/ -f1
+            ;;
+        fedora-*|opensuse-*|amazon-*|centos-*)
+            rpm -qa | sort
+            ;;
+        arch-*)
+            # default /etc/makepkg.conf setting
+            pacman -Qe | awk '{ print $1 }'
+            ;;
+        *)
+            echo "ERROR: Unsupported distribution '$SPREAD_SYSTEM'"
+            exit 1
+            ;;
+    esac
+}
+
 pkg_dependencies_ubuntu_generic(){
     echo "
         python3
