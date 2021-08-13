@@ -65,4 +65,4 @@ execute: |
     tests.nested exec "cat /var/lib/console-conf/complete" | MATCH "console-conf has been disabled by the snapd system configuration"
 
     # hostname is set
-    execute_remote "cat /etc/hostname" | MATCH "foo"
+    tests.nested exec "cat /etc/hostname" | MATCH "foo"
