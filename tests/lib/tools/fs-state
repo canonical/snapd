@@ -88,7 +88,7 @@ save_current_tree(){
     mkdir "$dir"
     # .snap files created in tests/lib/snaps are excluded as they are not deleted to be reused
     # runtime-state dir contains cursor and run log which are created during the first test
-    tree --noreport -if /etc -I "*~" | grep -v -e "/etc/systemd/user/default.target.wants" > "$dir"/etc
+    tree --noreport -if /etc -I "*~" > "$dir"/etc
     tree --noreport -if /boot -I "*~" > "$dir"/boot
     tree --noreport -if /home -I "*~" | grep -v -e "$PROJECT_PATH/tests/lib/snaps/.*/.*.snap" -e "$PWD/.*.snap" > "$dir"/home
     tree --noreport -if /root -I "*~" > "$dir"/root

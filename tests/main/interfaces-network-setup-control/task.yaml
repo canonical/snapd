@@ -10,7 +10,7 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
 restore: |
-    rm -f /etc/network/test001 /etc/network/test002
+    rm -f /etc/network/test001 /etc/netplan/test001
 
 execute: |
     dirs="/etc/netplan /etc/network"

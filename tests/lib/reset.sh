@@ -100,6 +100,9 @@ reset_classic() {
         rm -f /run/user/0/snapd-session-agent.socket
     fi
 
+    # Make sure the systemd user wants directories exist
+    mkdir -p /etc/systemd/user/sockets.target.wants /etc/systemd/user/timers.target.wants /etc/systemd/user/default.target.wants
+
     if [ "$1" != "--keep-stopped" ]; then
         systemctl start snapd.socket
 
