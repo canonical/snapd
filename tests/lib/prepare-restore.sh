@@ -675,10 +675,8 @@ restore_suite_each() {
         distro_get_installed_packages > installed-final.pkgs
         diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-new.pkgs
 
-        #shellcheck disable=SC2002
-        cat installed-new.pkgs | while read -r pkg; do
-            distro_purge_package "$pkg"
-        done
+        # shellcheck disable=SC2002,SC2046
+        distro_purge_package $(cat test | tr "\n" " ")
     fi
 
     # On Arch it seems that using sudo / su for working with the test user

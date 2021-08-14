@@ -19,9 +19,6 @@ prepare: |
 
 restore: |
     setenforce "$(cat enforcing.mode)"
-    if [[ "$SPREAD_SYSTEM" == centos-7-* ]]; then
-        distro_purge_package systemd-resolved
-    fi
 
 execute: |
     # global prepare calls systemctl daemon-reexec to make systemd run with
