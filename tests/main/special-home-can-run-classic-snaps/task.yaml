@@ -12,7 +12,6 @@ prepare: |
 
     echo "Install the corresponding package that brings the special user account."
     # Specialize the code as required for a particular user.
-    apt list --installed | cut -d/ -f1 > installed-initial.pkgs
     case "$SPECIAL_USER_NAME" in
         jenkins)
             # Jenkins depends on java but not in the Debian sense.
@@ -26,18 +25,10 @@ prepare: |
             apt install -y postgresql
             ;;
     esac
-    apt list --installed | cut -d/ -f1 > installed-after.pkgs
-    diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-new.pkgs
 
 restore: |
     snap remove --purge test-snapd-sh
     
-    # Remove the package we installed above.
-    #shellcheck disable=SC2002
-    cat installed-new.pkgs | while read -r pkg; do
-        apt remove --purge -y "$pkg"
-    done
-
     if [ "$SPECIAL_USER_NAME" == jenkins ]; then
         rm -f /etc/apt/sources.list.d/jenkins.list
         apt-get update

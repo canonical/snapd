@@ -616,6 +616,11 @@ prepare_suite_each() {
     # Start fs monitor
     "$TESTSTOOLS"/fs-state start-monitor
 
+    # Save all the installed packages
+    if os.query is-classic; then
+        distro_get_installed_packages > installed-initial.pkgs
+    fi
+
     # back test directory to be restored during the restore
     tests.backup prepare
 
@@ -664,6 +669,17 @@ restore_suite_each() {
 
     # restore test directory saved during prepare
     tests.backup restore
+
+    # Save all the installed packages and remove the new packages installed 
+    if os.query is-classic; then
+        distro_get_installed_packages > installed-final.pkgs
+        diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-new.pkgs
+
+        #shellcheck disable=SC2002
+        cat installed-new.pkgs | while read -r pkg; do
+            distro_purge_package "$pkg"
+        done
+    fi
 
     # On Arch it seems that using sudo / su for working with the test user
     # spawns the /run/user/12345 tmpfs for XDG_RUNTIME_DIR which asynchronously
