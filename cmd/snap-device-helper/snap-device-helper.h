@@ -25,6 +25,6 @@ struct sdh_invocation {
     const char *majmin;
 };
 
-int snap_device_helper_run(struct sdh_invocation *inv);
+int snap_device_helper_run(const struct sdh_invocation *inv);
 
 #endif /* SNAP_DEVICE_HELPER_H */

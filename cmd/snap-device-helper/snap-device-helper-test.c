@@ -301,12 +301,12 @@ static void run_sdh_die(const char *action, const char *tagname, const char *dev
 
 static void test_sdh_err_noappname(sdh_test_fixture *fixture, gconstpointer test_data) {
     // missing appname
-    run_sdh_die("add", "", "/devices/foo/block/sda/sda4", "8:4", "malformed appname \"\"\n");
+    run_sdh_die("add", "", "/devices/foo/block/sda/sda4", "8:4", "malformed tag \"\"\n");
 }
 
 static void test_sdh_err_badappname(sdh_test_fixture *fixture, gconstpointer test_data) {
     // malformed appname
-    run_sdh_die("add", "foo_bar", "/devices/foo/block/sda/sda4", "8:4", "malformed appname \"foo_bar\"\n");
+    run_sdh_die("add", "foo_bar", "/devices/foo/block/sda/sda4", "8:4", "malformed tag \"foo_bar\"\n");
 }
 static void test_sdh_err_nodevpath(sdh_test_fixture *fixture, gconstpointer test_data) {
     // missing devpath
@@ -388,12 +388,17 @@ static void test_sdh_err_funtag5(sdh_test_fixture *fixture, gconstpointer test_d
 
 static void test_sdh_err_funtag6(sdh_test_fixture *fixture, gconstpointer test_data) {
     run_sdh_die("add", "snap__barbar", "/devices/foo/block/sda/sda4", "8:4",
-                "security tag \"snap..barbar\" for snap \"\" is not valid\n");
+                "missing snap name in tag \"snap__barbar\"\n");
 }
 
 static void test_sdh_err_funtag7(sdh_test_fixture *fixture, gconstpointer test_data) {
     run_sdh_die("add", "snap_barbarbarbar", "/devices/foo/block/sda/sda4", "8:4",
                 "missing app name in tag \"snap_barbarbarbar\"\n");
+}
+
+static void test_sdh_err_funtag8(sdh_test_fixture *fixture, gconstpointer test_data) {
+    run_sdh_die("add", "snap_#_barbar", "/devices/foo/block/sda/sda4", "8:4",
+                "security tag \"snap.#.barbar\" for snap \"#\" is not valid\n");
 }
 
 static struct sdh_test_data add_data = {"add", "snap.foo.bar", "snap_foo_bar"};
@@ -439,7 +444,8 @@ static void __attribute__((constructor)) init(void) {
     _test_add("/snap-device-helper/err/funtag5", NULL, test_sdh_err_funtag5);
     _test_add("/snap-device-helper/err/funtag6", NULL, test_sdh_err_funtag6);
     _test_add("/snap-device-helper/err/funtag7", NULL, test_sdh_err_funtag7);
-	// parallel instances
+    _test_add("/snap-device-helper/err/funtag8", NULL, test_sdh_err_funtag8);
+    // parallel instances
     _test_add("/snap-device-helper/parallel/add", &instance_add_data, test_sdh_action);
     _test_add("/snap-device-helper/parallel/change", &instance_change_data, test_sdh_action);
     _test_add("/snap-device-helper/parallel/remove", &instance_remove_data, test_sdh_action);

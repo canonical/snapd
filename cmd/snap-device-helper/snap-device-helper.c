@@ -45,6 +45,9 @@ static unsigned long must_strtoul(char *str) {
 /* udev_to_security_tag converts a udev tag (snap_foo_bar) to security tag
  * (snap.foo.bar) */
 static char *udev_to_security_tag(const char *udev_tag) {
+    if (!sc_startswith(udev_tag, "snap_")) {
+        die("malformed tag \"%s\"", udev_tag);
+    }
     char *tag = sc_strdup(udev_tag);
     /* possible udev tags are:
      * snap_foo_bar
@@ -119,6 +122,9 @@ static char *udev_to_security_tag(const char *udev_tag) {
             snap_name_end = another_sep;
         }
     }
+    if (snap_name_end <= snap_name_start) {
+        die("missing snap name in tag \"%s\"", udev_tag);
+    }
 
     /* let's validate the tag, but we need to extract the snap name first */
     char snap_instance[SNAP_INSTANCE_LEN + 1] = {0};
@@ -136,9 +142,10 @@ static char *udev_to_security_tag(const char *udev_tag) {
     return tag;
 }
 
-const char *sysroot = "";
+/* sysroot can be mocked in tests */
+const char *sysroot = "/";
 
-int snap_device_helper_run(struct sdh_invocation *inv) {
+int snap_device_helper_run(const struct sdh_invocation *inv) {
     const char *action = inv->action;
     const char *udev_tagname = inv->tagname;
     const char *devpath = inv->devpath;
@@ -146,9 +153,6 @@ int snap_device_helper_run(struct sdh_invocation *inv) {
 
     bool allow = false;
 
-    if (!sc_startswith(udev_tagname, "snap_")) {
-        die("malformed appname \"%s\"", udev_tagname);
-    }
     if (strlen(majmin) < 3) {
         die("no or malformed major/minor \"%s\"", majmin);
     }
@@ -189,7 +193,7 @@ int snap_device_helper_run(struct sdh_invocation *inv) {
     /* the format is <major>:<minor> */
     char *major SC_CLEANUP(sc_cleanup_string) = sc_strdup(majmin);
     char *sep = strchr(major, ':');
-    // sep is always \0 terminate so this checks if the part after ":" is empty
+    // sep is always \0 terminated so this checks if the part after ":" is empty
     if (sep == NULL || sep[1] == '\0') {
         /* not found, or a last character */
         die("malformed major:minor string: %s", major);
