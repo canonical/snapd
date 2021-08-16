@@ -471,6 +471,23 @@ func (m *autoRefresh) refreshScheduleWithDefaultsFallback() (ts []*timeutil.Sche
 	return refreshScheduleDefault()
 }
 
+func autoRefreshSummary(updated []string) string {
+	var msg string
+	switch len(updated) {
+	case 0:
+		return ""
+	case 1:
+		msg = fmt.Sprintf(i18n.G("Auto-refresh snap %q"), updated[0])
+	case 2, 3:
+		quoted := strutil.Quoted(updated)
+		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
+		msg = fmt.Sprintf(i18n.G("Auto-refresh snaps %s"), quoted)
+	default:
+		msg = fmt.Sprintf(i18n.G("Auto-refresh %d snaps"), len(updated))
+	}
+	return msg
+}
+
 // launchAutoRefresh creates the auto-refresh taskset and a change for it.
 func (m *autoRefresh) launchAutoRefresh(refreshSchedule []*timeutil.Schedule) error {
 	perfTimings := timings.New(map[string]string{"ensure": "auto-refresh"})
@@ -514,19 +531,10 @@ func (m *autoRefresh) launchAutoRefresh(refreshSchedule []*timeutil.Schedule) er
 		return err
 	}
 
-	var msg string
-	switch len(updated) {
-	case 0:
+	msg := autoRefreshSummary(updated)
+	if msg == "" {
 		logger.Noticef(i18n.G("auto-refresh: all snaps are up-to-date"))
 		return nil
-	case 1:
-		msg = fmt.Sprintf(i18n.G("Auto-refresh snap %q"), updated[0])
-	case 2, 3:
-		quoted := strutil.Quoted(updated)
-		// TRANSLATORS: the %s is a comma-separated list of quoted snap names
-		msg = fmt.Sprintf(i18n.G("Auto-refresh snaps %s"), quoted)
-	default:
-		msg = fmt.Sprintf(i18n.G("Auto-refresh %d snaps"), len(updated))
 	}
 
 	chg := m.state.NewChange("auto-refresh", msg)
