@@ -31,37 +31,50 @@ var (
 	procMeminfo = "/proc/meminfo"
 )
 
-// TotalSystemMemory returns the total memory in the system in bytes.
-func TotalSystemMemory() (totalMem uint64, err error) {
+// TotalUsableMemory returns the total usable memory in the system in bytes.
+//
+// Usabable means (MemTotal - CmaTotal), i.e. the total amount of memory
+// minus the space reserved forthe CMA (Contiguous Memory Allocator).
+//
+// CMA memory is taken up by e.g. the framebuffer on the Raspberry Pi or
+// by DSPs on specific boards.
+func TotalUsableMemory() (totalMem uint64, err error) {
 	f, err := os.Open(procMeminfo)
 	if err != nil {
 		return 0, err
 	}
 	defer f.Close()
 	s := bufio.NewScanner(f)
-	for {
-		if !s.Scan() {
-			break
-		}
+
+	var memTotal, cmaTotal uint64
+	for s.Scan() {
+		var p *uint64
 		l := strings.TrimSpace(s.Text())
-		if !strings.HasPrefix(l, "MemTotal:") {
+		switch {
+		case strings.HasPrefix(l, "MemTotal:"):
+			p = &memTotal
+		case strings.HasPrefix(l, "CmaTotal:"):
+			p = &cmaTotal
+		default:
 			continue
 		}
 		fields := strings.Fields(l)
 		if len(fields) != 3 || fields[2] != "kB" {
 			return 0, fmt.Errorf("cannot process unexpected meminfo entry %q", l)
 		}
-		totalMem, err = strconv.ParseUint(fields[1], 10, 64)
+		v, err := strconv.ParseUint(fields[1], 10, 64)
 		if err != nil {
 			return 0, fmt.Errorf("cannot convert memory size value: %v", err)
 		}
-		// got it
-		return totalMem * 1024, nil
+		*p = v * 1024
 	}
 	if err := s.Err(); err != nil {
 		return 0, err
 	}
-	return 0, fmt.Errorf("cannot determine the total amount of memory in the system from %s", procMeminfo)
+	if memTotal == 0 {
+		return 0, fmt.Errorf("cannot determine the total amount of memory in the system from %s", procMeminfo)
+	}
+	return memTotal - cmaTotal, nil
 }
 
 func MockProcMeminfo(newPath string) (restore func()) {
