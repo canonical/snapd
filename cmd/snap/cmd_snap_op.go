@@ -763,9 +763,9 @@ func (x *cmdRefresh) listRefresh() error {
 	defer w.Flush()
 
 	// TRANSLATORS: the %s is to insert a filler escape sequence (please keep it flush to the column header, with no extra spaces)
-	fmt.Fprintf(w, i18n.G("Name\tVersion\tRev\tPublisher%s\tNotes\n"), fillerPublisher(esc))
+	fmt.Fprintf(w, i18n.G("Name\tVersion\tRev\tPublisher%s\tSize\tNotes\n"), fillerPublisher(esc))
 	for _, snap := range snaps {
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, shortPublisher(esc, snap.Publisher), NotesFromRemote(snap, nil))
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", snap.Name, snap.Version, snap.Revision, shortPublisher(esc, snap.Publisher), strutil.SizeToStr(snap.DownloadSize), NotesFromRemote(snap, nil))
 	}
 
 	return nil
