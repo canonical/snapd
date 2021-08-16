@@ -634,7 +634,7 @@ var (
 		"maliit":                    {"app"},
 		"media-hub":                 {"app", "core"},
 		"mir":                       {"app"},
-		"microstack-support":      {"core"},
+		"microstack-support":        {"core"},
 		"modem-manager":             {"app", "core"},
 		"mpris":                     {"app"},
 		"netlink-driver":            {"core", "gadget"},
