@@ -39,8 +39,16 @@ type InstallRecord struct {
 	TargetSnapExisted bool `json:"target-snap-existed,omitempty"`
 }
 
+type SetupSnapOptions struct {
+	SkipKernelExtraction bool
+}
+
 // SetupSnap does prepare and mount the snap for further processing.
-func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.SideInfo, dev boot.Device, meter progress.Meter) (snapType snap.Type, installRecord *InstallRecord, err error) {
+func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.SideInfo, dev boot.Device, setupOpts *SetupSnapOptions, meter progress.Meter) (snapType snap.Type, installRecord *InstallRecord, err error) {
+	if setupOpts == nil {
+		setupOpts = &SetupSnapOptions{}
+	}
+
 	// This assumes that the snap was already verified or --dangerous was used.
 
 	s, snapf, oErr := OpenSnapFile(snapFilePath, sideInfo)
@@ -92,8 +100,10 @@ func (b Backend) SetupSnap(snapFilePath, instanceName string, sideInfo *snap.Sid
 	}
 
 	t := s.Type()
-	if err := boot.Kernel(s, t, dev).ExtractKernelAssets(snapf); err != nil {
-		return snapType, nil, fmt.Errorf("cannot install kernel: %s", err)
+	if !setupOpts.SkipKernelExtraction {
+		if err := boot.Kernel(s, t, dev).ExtractKernelAssets(snapf); err != nil {
+			return snapType, nil, fmt.Errorf("cannot install kernel: %s", err)
+		}
 	}
 
 	installRecord = &InstallRecord{TargetSnapExisted: didNothing}

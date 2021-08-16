@@ -1953,7 +1953,8 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 		return nil, nil, err
 	}
 
-	var updates []*snap.Info
+	//toUpdate := make(map[string]*refreshCandidate, len(hints))
+	updates := make([]string, 0, len(hints))
 
 	// check conflicts
 	fromChange := ""
@@ -1967,14 +1968,15 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 		if err := checkChangeConflictIgnoringOneChange(st, up.InstanceName(), snapst, fromChange); err != nil {
 			logger.Noticef("cannot refresh snap %q: %v", up.InstanceName(), err)
 		} else {
-			updates = append(updates, up)
+			updates = append(updates, up.InstanceName())
+			//toUpdate[up.InstanceName()] = hints[up.InstanceName()]
 		}
 	}
 
 	if forGatingSnap != "" {
 		var gatingSnapHasUpdate bool
 		for _, up := range updates {
-			if up.InstanceName() == forGatingSnap {
+			if up == forGatingSnap {
 				gatingSnapHasUpdate = true
 				break
 			}
@@ -1996,24 +1998,6 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 	affectedSnaps, err := affectedByRefresh(st, updates)
 	if err != nil {
 		return nil, nil, err
-	}
-
-	// affectedByRefresh only considers snaps affected by updates, add
-	// updates themselves as long as they have gate-auto-refresh hooks.
-	for _, up := range updates {
-		snapst := snapstateByInstance[up.InstanceName()]
-		inf, err := snapst.CurrentInfo()
-		if err != nil {
-			return nil, nil, err
-		}
-		if inf.Hooks[gateAutoRefreshHookName] != nil {
-			if affectedSnaps[up.InstanceName()] == nil {
-				affectedSnaps[up.InstanceName()] = &affectedSnapInfo{
-					AffectingSnaps: make(map[string]bool),
-				}
-			}
-			affectedSnaps[up.InstanceName()].AffectingSnaps[up.InstanceName()] = true
-		}
 	}
 
 	// only used if forGatingSnap != ""
@@ -2064,20 +2048,22 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 	toUpdate := make(map[string]*refreshCandidate, len(updates))
 	for _, up := range updates {
 		// if specific gating snap was requested, filter out updates.
-		if forGatingSnap != "" && forGatingSnap != up.InstanceName() {
-			if !snapsAffectingGatingSnap[up.InstanceName()] {
+		if forGatingSnap != "" && forGatingSnap != up {
+			if !snapsAffectingGatingSnap[up] {
 				continue
 			}
 		}
-		names = append(names, up.InstanceName())
-		toUpdate[up.InstanceName()] = hints[up.InstanceName()]
+		names = append(names, up)
+		toUpdate[up] = hints[up]
 	}
-	sort.Strings(names)
 
 	// store the list of snaps to update on the conditional-auto-refresh task
 	// (this may be a subset of refresh-candidates due to conflicts).
 	ar.Set("snaps", toUpdate)
 
+	// return all names as potentially getting updated even though some may be
+	// held.
+	sort.Strings(names)
 	return names, tss, nil
 }
 

@@ -97,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.51.3
+Version:        2.51.4
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -971,6 +971,17 @@ fi
 
 
 %changelog
+* Mon Aug 09 2021 Ian Johnson <ian.johnson@canonical.com>
+- New upstream release 2.51.4
+ - {device,snap}state: skip kernel extraction in seeding
+ - vendor: move to snapshot-4c814e1 branch and set fixed KDF options
+ - tests/interfaces/tee: fix HasLen check for udev snippets
+ - interfaces/tee: add support for Qualcomm qseecom device node
+ - gadget: check for system-save with multi volumes if encrypting
+   correctly
+ - gadget: drive-by: drop unnecessary/supported passthrough in test
+   gadget.yaml
+
 * Wed Jul 14 2021 Ian Johnson <ian.johnson@canonical.com>
 - New upstream release 2.51.3
  - interfaces/builtin: add sd-control interface
