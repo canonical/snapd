@@ -53,7 +53,7 @@ static void cgroupv2_is_tracking_tear_down(cgroupv2_is_tracking_fixture *fixture
     GError *err = NULL;
 
     sc_set_self_cgroup_path("/proc/self/cgroup");
-    /* file mocked file may have been removed by the test */
+    /* mocked file may have been removed by the test */
     (void)g_remove(fixture->self_cgroup);
     g_free(fixture->self_cgroup);
 
