@@ -96,7 +96,7 @@
 %endif
 
 Name:           snapd
-Version:        2.51.4
+Version:        2.51.5
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -942,6 +942,29 @@ fi
 
 
 %changelog
+* Mon Aug 16 2021 Ian Johnson <ian.johnson@canonical.com>
+- New upstream release 2.51.5
+ - snap/squashfs: handle squashfs-tools 4.5+
+ - tests/core20-install-device-file-install-via-hook-hack: adjust
+   test for 2.51
+ - o/devicestate/handlers_install.go: add workaround to create dirs
+   for install
+ - tests: fix linter warning
+ - tests: update other spread tests for new behaviour
+ - tests: ack assertions by default, add --noack option
+ - release-tools/changelog.py: also fix opensuse changelog date
+   format
+ - release-tools/changelog.py: fix typo in function name
+ - release-tools/changelog.py: fix fedora date format
+ - release-tools/changelog.py: handle case where we don't have a TZ
+ - release-tools/changelog.py: fix line length check
+ - release-tools/changelog.py: specify the LP bug for the release as
+   an arg too
+ - interface/modem-manager: add support for MBIM/QMI proxy
+   clients
+ - .github/workflows/test.yaml: use snapcraft 4.x to build the snapd
+   snap
+
 * Mon Aug 09 2021 Ian Johnson <ian.johnson@canonical.com>
 - New upstream release 2.51.4
  - {device,snap}state: skip kernel extraction in seeding
