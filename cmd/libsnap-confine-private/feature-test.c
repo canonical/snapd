@@ -70,7 +70,7 @@ static void test_feature_enabled__present_file(void)
 	sc_mock_feature_flag_dir(d);
 	char pname[PATH_MAX];
 	sc_must_snprintf(pname, sizeof pname, "%s/per-user-mount-namespace", d);
-	g_file_set_contents(pname, "", -1, NULL);
+	g_assert_true(g_file_set_contents(pname, "", -1, NULL));
 
 	g_assert(sc_feature_enabled(SC_FEATURE_PER_USER_MOUNT_NAMESPACE));
 }
@@ -84,7 +84,7 @@ static void test_feature_parallel_instances(void)
 
 	char pname[PATH_MAX];
 	sc_must_snprintf(pname, sizeof pname, "%s/parallel-instances", d);
-	g_file_set_contents(pname, "", -1, NULL);
+	g_assert_true(g_file_set_contents(pname, "", -1, NULL));
 
 	g_assert(sc_feature_enabled(SC_FEATURE_PARALLEL_INSTANCES));
 }
@@ -98,7 +98,7 @@ static void test_feature_hidden_snap_folder(void)
 
 	char pname[PATH_MAX];
 	sc_must_snprintf(pname, sizeof pname, "%s/hidden-snap-folder", d);
-	g_file_set_contents(pname, "", -1, NULL);
+	g_assert_true(g_file_set_contents(pname, "", -1, NULL));
 
 	g_assert(sc_feature_enabled(SC_FEATURE_HIDDEN_SNAP_FOLDER));
 }
