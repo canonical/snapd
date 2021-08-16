@@ -97,7 +97,6 @@ bool sc_cgroup_is_v2(void) {
         }
         return true;
     }
-    free(hide_warning);
     return false;
 }
 
