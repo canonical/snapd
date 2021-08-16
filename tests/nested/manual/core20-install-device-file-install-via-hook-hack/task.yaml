@@ -114,10 +114,10 @@ prepare: |
 
     NESTED_FAKESTORE_SNAP_DECL_PC_GADGET="pc-snap-decl-extras.json"
     export NESTED_FAKESTORE_SNAP_DECL_PC_GADGET
-    tests.nested build-image core
+    "$TESTSTOOLS"/nested-state build-image core
     unset NESTED_FAKESTORE_SNAP_DECL_PC_GADGET
 
-    tests.nested create-vm core
+    "$TESTSTOOLS"/nested-state create-vm core
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -135,22 +135,25 @@ execute: |
         exit
     fi
 
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
+
     echo "Check we have the right model from snap model"
-    tests.nested exec "sudo snap model --verbose" | MATCH "model:\s+testkeys-snapd-secured-core-20-amd64"
-    tests.nested exec "sudo snap model --verbose" | MATCH "grade:\s+secured"
-    tests.nested exec "sudo snap model --verbose --serial" | MATCH "serial:\s+7777"
+    nested_exec exec "sudo snap model --verbose" | MATCH "model:\s+testkeys-snapd-secured-core-20-amd64"
+    nested_exec exec "sudo snap model --verbose" | MATCH "grade:\s+secured"
+    nested_exec exec "sudo snap model --verbose --serial" | MATCH "serial:\s+7777"
 
     echo "Check that the system-files interface is connected for the pc snap"
-    tests.nested exec "snap connections pc" | MATCH 'system-files\s+pc:modprobe-conf\s+:system-files'
-    tests.nested exec "snap connections pc" | MATCH 'system-files\s+pc:modules-load-conf\s+:system-files'
-    tests.nested exec "snap connections pc" | MATCH 'system-files\s+pc:udev-rules-conf\s+:system-files'
+    nested_exec exec "snap connections pc" | MATCH 'system-files\s+pc:modprobe-conf\s+:system-files'
+    nested_exec exec "snap connections pc" | MATCH 'system-files\s+pc:modules-load-conf\s+:system-files'
+    nested_exec exec "snap connections pc" | MATCH 'system-files\s+pc:udev-rules-conf\s+:system-files'
 
     echo "Check that the directories have the right permissions"
-    tests.nested exec "stat /etc/modprobe.d/ -c %a" | MATCH 755
-    tests.nested exec "stat /etc/modules-load.d/ -c %a" | MATCH 755
-    tests.nested exec "stat /etc/udev/rules.d/ -c %a" | MATCH 755
+    nested_exec exec "stat /etc/modprobe.d/ -c %a" | MATCH 755
+    nested_exec exec "stat /etc/modules-load.d/ -c %a" | MATCH 755
+    nested_exec exec "stat /etc/udev/rules.d/ -c %a" | MATCH 755
 
     echo "Check that the files from install-device were installed"
-    tests.nested exec "cat /etc/modprobe.d/my-modprobe.conf" | MATCH '# configure modprobe here'
-    tests.nested exec "cat /etc/modules-load.d/my-modules-load.conf" | MATCH '# load modules here'
-    tests.nested exec "cat /etc/udev/rules.d/09-my-custom-udev.rules" | MATCH  '# do udev rules things here'
+    nested_exec exec "cat /etc/modprobe.d/my-modprobe.conf" | MATCH '# configure modprobe here'
+    nested_exec exec "cat /etc/modules-load.d/my-modules-load.conf" | MATCH '# load modules here'
+    nested_exec exec "cat /etc/udev/rules.d/09-my-custom-udev.rules" | MATCH  '# do udev rules things here'
