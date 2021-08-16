@@ -203,7 +203,7 @@ static void test_sdh_action(sdh_test_fixture *fixture, gconstpointer test_data) 
 }
 
 static void test_sdh_action_nvme(sdh_test_fixture *fixture, gconstpointer test_data) {
-	/* hierarchy from an actual system with a nvme disk */
+    /* hierarchy from an actual system with a nvme disk */
     mkdir_in_sysroot(fixture, "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0/nvme0n1");
     mkdir_in_sysroot(fixture, "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0/nvme0n1p1");
     mkdir_in_sysroot(fixture, "/sys/devices/pci0000:00/0000:00:01.1/0000:01:00.0/nvme/nvme0/ng0n1");
