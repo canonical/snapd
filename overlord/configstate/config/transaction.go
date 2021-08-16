@@ -546,6 +546,8 @@ var (
 // This is useful for e.g. the system.hostname configuration where the
 // authoritative value is coming from the kernel and can be changed
 // outside of snapd.
+//
+// XXX: rename to "RegisterExternalConfig"
 func RegisterVirtualConfig(snapName, key string, vf VirtualCfgFunc) error {
 	virtualMu.Lock()
 	defer virtualMu.Unlock()
