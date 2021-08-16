@@ -21,7 +21,11 @@
 package secboot
 
 import (
+	"fmt"
+
 	sb "github.com/snapcore/secboot"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 var (
@@ -57,7 +61,17 @@ func FormatEncryptedDevice(key EncryptionKey, label, node string) error {
 // volume created with FormatEncryptedDevice on the block device given by node.
 // The existing key to the encrypted volume is provided in the key argument.
 func AddRecoveryKey(key EncryptionKey, rkey RecoveryKey, node string) error {
-	return sbAddRecoveryKeyToLUKS2Container(node, key[:], sb.RecoveryKey(rkey), nil)
+	usableMem, err := osutil.TotalUsableMemory()
+	if err != nil {
+		return fmt.Errorf("cannot get usable memory for KDF parameters when adding the recovery key: %v", err)
+	}
+	opts := &sb.KDFOptions{
+		// force half the usable memory
+		MemoryKiB:       int(usableMem / 1024 / 2),
+		ForceIterations: 4,
+	}
+
+	return sbAddRecoveryKeyToLUKS2Container(node, key[:], sb.RecoveryKey(rkey), opts)
 }
 
 func (k RecoveryKey) String() string {
