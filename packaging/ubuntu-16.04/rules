@@ -278,6 +278,8 @@ snap.8:
 	$(CURDIR)/_build/bin/snap help --man | sed '1 s/^.*/.TH snap 8 "$(shell date --reference=debian/changelog +"%d %B %Y")"/' > $@
 
 override_dh_auto_clean:
+	# XXX: workaround old dh-golang inability to remove _build/
+	if [ -d _build ]; then cd _build && GOPATH=$$(pwd) go clean -modcache; fi
 	dh_auto_clean -O--buildsystem=golang
 	rm -vf snap.8
 

@@ -225,6 +225,8 @@ snap.8:
 	$(CURDIR)/_build/bin/snap help --man > $@
 
 override_dh_auto_clean:
+	# XXX: workaround old dh-golang inability to remove _build/
+	if [ -d _build ]; then cd _build && GOPATH=$$(pwd) go clean -modcache; fi
 	dh_auto_clean -O--buildsystem=golang
 	rm -vf snap.8
 
