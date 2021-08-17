@@ -53,7 +53,8 @@ static void cgroupv2_is_tracking_tear_down(cgroupv2_is_tracking_fixture *fixture
     GError *err = NULL;
 
     sc_set_self_cgroup_path("/proc/self/cgroup");
-    g_remove(fixture->self_cgroup);
+    /* mocked file may have been removed by the test */
+    (void)g_remove(fixture->self_cgroup);
     g_free(fixture->self_cgroup);
 
     sc_set_cgroup_root("/sys/fs/cgroup");
@@ -87,26 +88,20 @@ static void _test_sc_cgroupv2_is_tracking_happy(cgroupv2_is_tracking_fixture *fi
 }
 
 static void test_sc_cgroupv2_is_tracking_happy_scope(cgroupv2_is_tracking_fixture *fixture, gconstpointer user_data) {
-    GError *err = NULL;
-    g_file_set_contents(fixture->self_cgroup, "0::/foo/bar/baz/snap.foo.app.1234-1234.scope", -1, &err);
-    g_assert_no_error(err);
+    g_assert_true(g_file_set_contents(fixture->self_cgroup, "0::/foo/bar/baz/snap.foo.app.1234-1234.scope", -1, NULL));
 
     _test_sc_cgroupv2_is_tracking_happy(fixture);
 }
 
 static void test_sc_cgroupv2_is_tracking_happy_service(cgroupv2_is_tracking_fixture *fixture, gconstpointer user_data) {
-    GError *err = NULL;
-    g_file_set_contents(fixture->self_cgroup, "0::/system.slice/snap.foo.svc.service", -1, &err);
-    g_assert_no_error(err);
+    g_assert_true(g_file_set_contents(fixture->self_cgroup, "0::/system.slice/snap.foo.svc.service", -1, NULL));
 
     _test_sc_cgroupv2_is_tracking_happy(fixture);
 }
 
 static void test_sc_cgroupv2_is_tracking_just_own_group(cgroupv2_is_tracking_fixture *fixture,
                                                         gconstpointer user_data) {
-    GError *err = NULL;
-    g_file_set_contents(fixture->self_cgroup, "0::/foo/bar/baz/snap.foo.app.1234-1234.scope", -1, &err);
-    g_assert_no_error(err);
+    g_assert_true(g_file_set_contents(fixture->self_cgroup, "0::/foo/bar/baz/snap.foo.app.1234-1234.scope", -1, NULL));
 
     /* our group is the only one for this snap */
     const char *dirs[] = {
@@ -129,9 +124,7 @@ static void test_sc_cgroupv2_is_tracking_just_own_group(cgroupv2_is_tracking_fix
 }
 
 static void test_sc_cgroupv2_is_tracking_other_snaps(cgroupv2_is_tracking_fixture *fixture, gconstpointer user_data) {
-    GError *err = NULL;
-    g_file_set_contents(fixture->self_cgroup, "0::/foo/bar/baz/snap.foo.app.1234-1234.scope", -1, &err);
-    g_assert_no_error(err);
+    g_assert_true(g_file_set_contents(fixture->self_cgroup, "0::/foo/bar/baz/snap.foo.app.1234-1234.scope", -1, NULL));
 
     /* our group is the only one for this snap */
     const char *dirs[] = {
@@ -154,9 +147,7 @@ static void test_sc_cgroupv2_is_tracking_other_snaps(cgroupv2_is_tracking_fixtur
 }
 
 static void test_sc_cgroupv2_is_tracking_no_dirs(cgroupv2_is_tracking_fixture *fixture, gconstpointer user_data) {
-    GError *err = NULL;
-    g_file_set_contents(fixture->self_cgroup, "0::/foo/bar/baz/snap.foo.app.scope", -1, &err);
-    g_assert_no_error(err);
+    g_assert_true(g_file_set_contents(fixture->self_cgroup, "0::/foo/bar/baz/snap.foo.app.scope", -1, NULL));
 
     bool is_tracking = sc_cgroup_v2_is_tracking_snap("foo");
     g_assert_false(is_tracking);
@@ -164,10 +155,8 @@ static void test_sc_cgroupv2_is_tracking_no_dirs(cgroupv2_is_tracking_fixture *f
 
 static void test_sc_cgroupv2_is_tracking_bad_self_group(cgroupv2_is_tracking_fixture *fixture,
                                                         gconstpointer user_data) {
-    GError *err = NULL;
     /* trigger a failure in own group handling */
-    g_file_set_contents(fixture->self_cgroup, "", -1, &err);
-    g_assert_no_error(err);
+    g_assert_true(g_file_set_contents(fixture->self_cgroup, "", -1, NULL));
 
     if (g_test_subprocess()) {
         sc_cgroup_v2_is_tracking_snap("foo");
@@ -178,9 +167,7 @@ static void test_sc_cgroupv2_is_tracking_bad_self_group(cgroupv2_is_tracking_fix
 }
 
 static void test_sc_cgroupv2_is_tracking_bad_nesting(cgroupv2_is_tracking_fixture *fixture, gconstpointer user_data) {
-    GError *err = NULL;
-    g_file_set_contents(fixture->self_cgroup, "0::/foo/bar/baz/snap.foo.app.scope", -1, &err);
-    g_assert_no_error(err);
+    g_assert_true(g_file_set_contents(fixture->self_cgroup, "0::/foo/bar/baz/snap.foo.app.scope", -1, NULL));
 
     /* create a hierarchy so deep that it triggers the nesting error */
     char *prev_path = g_build_filename(fixture->root, NULL);
@@ -207,9 +194,7 @@ static void test_sc_cgroupv2_is_tracking_dir_permissions(cgroupv2_is_tracking_fi
         g_test_skip("the test will not work when running as root");
         return;
     }
-    GError *err = NULL;
-    g_file_set_contents(fixture->self_cgroup, "0::/foo/bar/baz/snap.foo.app.1234-1234.scope", -1, &err);
-    g_assert_no_error(err);
+    g_assert_true(g_file_set_contents(fixture->self_cgroup, "0::/foo/bar/baz/snap.foo.app.1234-1234.scope", -1, NULL));
 
     /* there exist 2 groups with processes from a given snap */
     const char *dirs[] = {
@@ -238,9 +223,7 @@ static void test_sc_cgroupv2_is_tracking_dir_permissions(cgroupv2_is_tracking_fi
 
 static void test_sc_cgroupv2_is_tracking_no_cgroup_root(cgroupv2_is_tracking_fixture *fixture,
                                                         gconstpointer user_data) {
-    GError *err = NULL;
-    g_file_set_contents(fixture->self_cgroup, "0::/foo/bar/baz/snap.foo.app.1234-1234.scope", -1, &err);
-    g_assert_no_error(err);
+    g_assert_true(g_file_set_contents(fixture->self_cgroup, "0::/foo/bar/baz/snap.foo.app.1234-1234.scope", -1, NULL));
 
     sc_set_cgroup_root("/does/not/exist");
 
@@ -272,29 +255,23 @@ static void cgroupv2_own_group_tear_down(cgroupv2_own_group_fixture *fixture, gc
 
 static void test_sc_cgroupv2_own_group_path_simple_happy_scope(cgroupv2_own_group_fixture *fixture,
                                                                gconstpointer user_data) {
-    GError *err = NULL;
     char *p SC_CLEANUP(sc_cleanup_string) = NULL;
-    g_file_set_contents(fixture->self_cgroup, (char *)user_data, -1, &err);
-    g_assert_no_error(err);
+    g_assert_true(g_file_set_contents(fixture->self_cgroup, (char *)user_data, -1, NULL));
     p = sc_cgroup_v2_own_path_full();
     g_assert_cmpstr(p, ==, "/foo/bar/baz.slice/snap.foo.bar.1234-1234.scope");
 }
 
 static void test_sc_cgroupv2_own_group_path_simple_happy_service(cgroupv2_own_group_fixture *fixture,
                                                                  gconstpointer user_data) {
-    GError *err = NULL;
     char *p SC_CLEANUP(sc_cleanup_string) = NULL;
-    g_file_set_contents(fixture->self_cgroup, (char *)user_data, -1, &err);
-    g_assert_no_error(err);
+    g_assert_true(g_file_set_contents(fixture->self_cgroup, (char *)user_data, -1, NULL));
     p = sc_cgroup_v2_own_path_full();
     g_assert_cmpstr(p, ==, "/system.slice/snap.foo.bar.service");
 }
 
 static void test_sc_cgroupv2_own_group_path_empty(cgroupv2_own_group_fixture *fixture, gconstpointer user_data) {
-    GError *err = NULL;
     char *p SC_CLEANUP(sc_cleanup_string) = NULL;
-    g_file_set_contents(fixture->self_cgroup, (char *)user_data, -1, &err);
-    g_assert_no_error(err);
+    g_assert_true(g_file_set_contents(fixture->self_cgroup, (char *)user_data, -1, NULL));
     p = sc_cgroup_v2_own_path_full();
     g_assert_null(p);
 }
@@ -311,14 +288,13 @@ static void _test_sc_cgroupv2_own_group_path_die_with_message(const char *msg) {
 }
 
 static void test_sc_cgroupv2_own_group_path_die(cgroupv2_own_group_fixture *fixture, gconstpointer user_data) {
-    GError *err = NULL;
-    g_file_set_contents(fixture->self_cgroup, (char *)user_data, -1, &err);
-    g_assert_no_error(err);
+    g_assert_true(g_file_set_contents(fixture->self_cgroup, (char *)user_data, -1, NULL));
     _test_sc_cgroupv2_own_group_path_die_with_message("unexpected content of group entry 0::\n");
 }
 
 static void test_sc_cgroupv2_own_group_path_no_file(cgroupv2_own_group_fixture *fixture, gconstpointer user_data) {
-    g_remove(fixture->self_cgroup);
+    /* make sure that the file is removed if it exists */
+    (void)g_remove(fixture->self_cgroup);
     _test_sc_cgroupv2_own_group_path_die_with_message("cannot open *\n");
 }
 
