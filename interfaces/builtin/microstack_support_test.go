@@ -118,6 +118,7 @@ func (s *microStackSupportInterfaceSuite) TestKModConnectedPlug(c *C) {
 		"vhost-vsock":     true,
 		"pci-stub":        true,
 		"vfio":            true,
+		"vfio-pci":        true,
 		"nbd":             true,
 		"dm-mod":          true,
 		"dm-thin-pool":    true,
