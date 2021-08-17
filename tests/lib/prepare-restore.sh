@@ -606,8 +606,8 @@ prepare_suite_each() {
     local variant="$1"
 
     # Create runtime files in case those don't exist
-    # This is for the first test of the suite, can't be added to the prepare_suite
-    # because some suites could not be preparing the suite such as the tools suite
+    # This is for the first test of the suite. We cannot perform these operations in prepare_suite
+    # because not all suites are triggering it (for example the tools suite doesn't).
     if [ ! -f "$RUNTIME_STATE_PATH/runs" ] || [ ! -f "$RUNTIME_STATE_PATH/journalctl_cursor" ]; then
         touch "$RUNTIME_STATE_PATH/runs"
         touch "$RUNTIME_STATE_PATH/journalctl_cursor"
@@ -618,7 +618,7 @@ prepare_suite_each() {
 
     # Save all the installed packages
     if os.query is-classic; then
-        distro_get_installed_packages > installed-initial.pkgs
+        distro_print_installed_packages > installed-initial.pkgs
     fi
 
     # back test directory to be restored during the restore
@@ -672,7 +672,7 @@ restore_suite_each() {
 
     # Save all the installed packages and remove the new packages installed 
     if os.query is-classic; then
-        distro_get_installed_packages > installed-final.pkgs
+        distro_print_installed_packages > installed-final.pkgs
         diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-new.pkgs
 
         # shellcheck disable=SC2002

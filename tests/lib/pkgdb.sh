@@ -494,7 +494,7 @@ distro_get_package_extension() {
     esac
 }
 
-distro_get_installed_packages() {
+distro_print_installed_packages() {
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
             apt list --installed | cut -d/ -f1 | sort
