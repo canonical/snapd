@@ -58,10 +58,20 @@ make_snap_installable(){
 
 make_snap_installable_with_id(){
     ACK=true
+    EXTRA_DECL_JSON_FILE=""
     while [ $# -gt 0 ]; do
         case "$1" in
-            (--noack) ACK=false; shift;;
-            (*) break;;
+            (--noack) 
+                ACK=false
+                shift
+                ;;
+            (--extra-decl-json)
+                EXTRA_DECL_JSON_FILE="$2"
+                shift 2
+                ;;
+            (*)
+                break
+                ;;
         esac
     done
 
@@ -85,7 +95,6 @@ make_snap_installable_with_id(){
     snap_name=$(yaml2json < /tmp/snap-squashfs/meta/snap.yaml | jq -r .name)
     rm -rf /tmp/snap-squashfs
 
-
     cat >> /tmp/snap-decl.json << EOF
 {
     "type": "snap-declaration",
@@ -94,6 +103,13 @@ make_snap_installable_with_id(){
     "snap-name": "${snap_name}"
 }
 EOF
+
+    if [ -n "$EXTRA_DECL_JSON_FILE" ]; then
+        # then we need to combine the extra snap declaration json with the one
+        # we just wrote
+        jq -s '.[0] * .[1]' <(cat /tmp/snap-decl.json) <(cat "$EXTRA_DECL_JSON_FILE") > /tmp/snap-decl.json.tmp
+        mv /tmp/snap-decl.json.tmp /tmp/snap-decl.json
+    fi
 
     cat >> /tmp/snap-rev.json << EOF
 {
