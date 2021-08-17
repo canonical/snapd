@@ -954,6 +954,8 @@ func (m *DeviceManager) ensureInstalled() error {
 		return nil
 	}
 
+	perfTimings := timings.New(map[string]string{"ensure": "install-system"})
+
 	model, err := m.Model()
 	if err != nil && err != state.ErrNoState {
 		return err
@@ -1008,6 +1010,9 @@ func (m *DeviceManager) ensureInstalled() error {
 
 	chg := m.state.NewChange("install-system", i18n.G("Install the system"))
 	chg.AddAll(state.NewTaskSet(tasks...))
+
+	state.TagTimingsWithChange(perfTimings, chg)
+	perfTimings.Save(m.state)
 
 	return nil
 }
