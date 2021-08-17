@@ -30,6 +30,9 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+// MakeFunc defines a function signature that is used by all of the mkfs.<filesystem>
+// functions supported in this package. This is done to allow them to be defined
+// in the mkfsHandlers map
 type MakeFunc func(imgFile, label, contentsRootDir string, deviceSize, sectorSize quantity.Size) error
 
 var (
@@ -39,7 +42,6 @@ var (
 	}
 )
 
-// test comment
 // Make creates a filesystem of given type and provided label in the device or
 // file. The device size and sector size provides hints for additional tuning of
 // the created filesystem.
