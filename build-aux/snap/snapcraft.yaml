@@ -131,7 +131,7 @@ parts:
   apparmor:
     plugin: autotools
     build-packages: [ bison, flex, gettext ]
-    source: https://launchpad.net/apparmor/3.0/3.0.1/+download/apparmor-3.0.1.tar.gz
+    source: https://launchpad.net/apparmor/3.0/3.0.3/+download/apparmor-3.0.3.tar.gz
     override-build: |
       cd libraries/libapparmor
       ./autogen.sh
