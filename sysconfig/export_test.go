@@ -1,3 +1,5 @@
+// -*- Mode: Go; indent-tabs-mode: t -*-
+
 /*
  * Copyright (C) 2021 Canonical Ltd
  *
@@ -15,16 +17,14 @@
  *
  */
 
-#ifndef SNAP_DEVICE_HELPER_H
-#define SNAP_DEVICE_HELPER_H
+package sysconfig
 
-struct sdh_invocation {
-    const char *action;
-    const char *tagname;
-    const char *devpath;
-    const char *majmin;
-};
+func CloudDatasourcesInUse(configFile string) (*CloudDatasourcesInUseResult, error) {
+	res, err := cloudDatasourcesInUse(configFile)
+	if err != nil {
+		return nil, err
+	}
+	return (*CloudDatasourcesInUseResult)(res), err
+}
 
-int snap_device_helper_run(const struct sdh_invocation *inv);
-
-#endif /* SNAP_DEVICE_HELPER_H */
+type CloudDatasourcesInUseResult = cloudDatasourcesInUseResult

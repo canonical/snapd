@@ -46,7 +46,7 @@ func validateJournalSettings(tr config.ConfGetter) error {
 func handleJournalConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	output, err := coreCfg(tr, "journal.persistent")
 	if err != nil {
-		return nil
+		return err
 	}
 
 	if output == "" {

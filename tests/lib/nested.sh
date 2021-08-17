@@ -52,7 +52,19 @@ nested_wait_for_no_ssh() {
 }
 
 nested_wait_for_snap_command() {
-    nested_exec "retry --wait 1 -n 200 sh -c 'command -v snap'"
+    # In this function the remote retry command cannot be used because it could
+    # be executed before the tool is deployed.
+    local retry=200
+    local wait=1
+
+    while ! nested_exec "command -v snap"; do
+        retry=$(( retry - 1 ))
+        if [ $retry -le 0 ]; then
+            echo "Timed out waiting for command 'command -v snap' to success. Aborting!"
+            return 1
+        fi
+        sleep "$wait"
+    done
 }
 
 nested_get_boot_id() {
@@ -1003,12 +1015,12 @@ nested_start_core_vm_unit() {
     if [ "$EXPECT_SHUTDOWN" != "1" ]; then
         # Wait until ssh is ready
         nested_wait_for_ssh
-        # Copy tools to be used on tests
-        nested_prepare_tools
         # Wait for the snap command to be available
         nested_wait_for_snap_command
         # Wait for snap seeding to be done
         nested_exec "sudo snap wait system seed.loaded"
+        # Copy tools to be used on tests
+        nested_prepare_tools
         # Wait for cloud init to be done
         nested_exec "retry --wait 1 -n 5 sh -c 'cloud-init status --wait'"
     fi

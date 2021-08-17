@@ -107,7 +107,6 @@ static void _sc_cgroup_v1_attach_pid(sc_device_cgroup *self, pid_t pid) {
     sc_dprintf(self->v1.fds.cgroup_procs_fd, "%i\n", getpid());
 }
 
-
 static void sc_device_cgroup_close(sc_device_cgroup *self);
 
 sc_device_cgroup *sc_device_cgroup_new(const char *security_tag, int flags) {
@@ -121,7 +120,7 @@ sc_device_cgroup *sc_device_cgroup_new(const char *security_tag, int flags) {
     int ret = 0;
     if (!self->is_v2) {
         ret = _sc_cgroup_v1_init(self, flags);
-	}
+    }
 
     if (ret < 0) {
         sc_device_cgroup_close(self);

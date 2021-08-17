@@ -37,6 +37,8 @@ jobs:
     - name: Build snapd snap
       if: steps.cached-results.outputs.already-ran != 'true'
       uses: snapcore/action-build@v1
+      with:
+        snapcraft-channel: 4.x/candidate
     - name: Cache built artifact
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
@@ -119,7 +121,7 @@ jobs:
               echo "::set-output name=already-ran::true"
           fi
     - name: Install Debian dependencies
-      if: steps.cached-results.outputs.cached-resulsts != 'true'
+      if: steps.cached-results.outputs.cached-results != 'true'
       run: |
           sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
     # golang latest ensures things work on the edge
