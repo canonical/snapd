@@ -8,7 +8,7 @@ require (
 	github.com/canonical/go-tpm2 v0.0.0-20210314160024-32171bd353b1
 	github.com/canonical/tcglog-parser v0.0.0-20200908165021-12a3a7bcf5a1 // indirect
 	github.com/coreos/go-systemd v0.0.0-20180511133405-39ca1b05acc7
-	github.com/godbus/dbus v4.0.1-0.20170822152403-97646858c464+incompatible
+	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2
 	github.com/gorilla/mux v1.7.4-0.20190701202633-d83b6ffe499a
 	github.com/gvalkov/golang-evdev v0.0.0-20191114124502-287e62b94bcb
 	github.com/jessevdk/go-flags v1.4.1-0.20180927143258-7309ec74f752
