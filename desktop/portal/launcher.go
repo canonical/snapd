@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2020-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,7 +17,7 @@
  *
  */
 
-package xdgopenproxy
+package portal
 
 import (
 	"fmt"
@@ -25,6 +25,8 @@ import (
 	"time"
 
 	"github.com/godbus/dbus"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 const (
@@ -34,11 +36,27 @@ const (
 	desktopPortalRequestIface = "org.freedesktop.portal.Request"
 )
 
-// portalLauncher is a launcher that forwards the requests to xdg-desktop-portal DBus API
-type portalLauncher struct{}
+type ResponseError struct {
+	msg string
+}
+
+func (u *ResponseError) Error() string { return u.msg }
+
+func (u *ResponseError) Is(err error) bool {
+	_, ok := err.(*ResponseError)
+	return ok
+}
+
+func MakeResponseError(msg string) error {
+	osutil.MustBeTestBinary("only to be used in tests")
+	return &ResponseError{msg: msg}
+}
+
+// Launcher is a launcher that forwards the requests to xdg-desktop-portal DBus API
+type Launcher struct{}
 
 // desktopPortal gets a reference to the xdg-desktop-portal D-Bus service
-func (p *portalLauncher) desktopPortal(bus *dbus.Conn) (dbus.BusObject, error) {
+func (p *Launcher) desktopPortal(bus *dbus.Conn) (dbus.BusObject, error) {
 	// We call StartServiceByName since old versions of
 	// xdg-desktop-portal do not include the AssumedAppArmorLabel
 	// key in their service activation file.
@@ -75,7 +93,7 @@ const portalResponseSuccess = 0
 // timeout for asking the user to make a choice, same value as in usersession/userd/launcher.go
 var defaultPortalRequestTimeout = 5 * time.Minute
 
-func (p *portalLauncher) portalCall(bus *dbus.Conn, call func() (dbus.ObjectPath, error)) error {
+func (p *Launcher) portalCall(bus *dbus.Conn, call func() (dbus.ObjectPath, error)) error {
 	// see https://flatpak.github.io/xdg-desktop-portal/portal-docs.html for
 	// details of the interaction, in short:
 	// 1. caller issues a request to the desktop portal
@@ -113,7 +131,7 @@ func (p *portalLauncher) portalCall(bus *dbus.Conn, call func() (dbus.ObjectPath
 		select {
 		case <-timeout.C:
 			request.Call(desktopPortalRequestIface+".Close", 0).Store()
-			return &responseError{msg: "timeout waiting for user response"}
+			return &ResponseError{msg: "timeout waiting for user response"}
 		case signal := <-signals:
 			if signal.Path != requestPath || signal.Name != desktopPortalRequestIface+".Response" {
 				// This isn't the signal we're waiting for
@@ -123,17 +141,17 @@ func (p *portalLauncher) portalCall(bus *dbus.Conn, call func() (dbus.ObjectPath
 			var response uint32
 			var results map[string]interface{} // don't care
 			if err := dbus.Store(signal.Body, &response, &results); err != nil {
-				return &responseError{msg: fmt.Sprintf("cannot unpack response: %v", err)}
+				return &ResponseError{msg: fmt.Sprintf("cannot unpack response: %v", err)}
 			}
 			if response == portalResponseSuccess {
 				return nil
 			}
-			return &responseError{msg: fmt.Sprintf("request declined by the user (code %v)", response)}
+			return &ResponseError{msg: fmt.Sprintf("request declined by the user (code %v)", response)}
 		}
 	}
 }
 
-func (p *portalLauncher) OpenFile(bus *dbus.Conn, filename string) error {
+func (p *Launcher) OpenFile(bus *dbus.Conn, filename string) error {
 	portal, err := p.desktopPortal(bus)
 	if err != nil {
 		return err
@@ -141,7 +159,7 @@ func (p *portalLauncher) OpenFile(bus *dbus.Conn, filename string) error {
 
 	fd, err := syscall.Open(filename, syscall.O_RDONLY, 0)
 	if err != nil {
-		return &responseError{msg: err.Error()}
+		return &ResponseError{msg: err.Error()}
 	}
 	defer syscall.Close(fd)
 
@@ -156,7 +174,7 @@ func (p *portalLauncher) OpenFile(bus *dbus.Conn, filename string) error {
 	})
 }
 
-func (p *portalLauncher) OpenURI(bus *dbus.Conn, uri string) error {
+func (p *Launcher) OpenURI(bus *dbus.Conn, uri string) error {
 	portal, err := p.desktopPortal(bus)
 	if err != nil {
 		return err

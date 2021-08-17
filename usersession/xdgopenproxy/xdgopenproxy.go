@@ -25,18 +25,9 @@ import (
 
 	"github.com/godbus/dbus"
 	"golang.org/x/xerrors"
+
+	"github.com/snapcore/snapd/desktop/portal"
 )
-
-type responseError struct {
-	msg string
-}
-
-func (u *responseError) Error() string { return u.msg }
-
-func (u *responseError) Is(err error) bool {
-	_, ok := err.(*responseError)
-	return ok
-}
 
 type desktopLauncher interface {
 	OpenFile(bus *dbus.Conn, path string) error
@@ -44,7 +35,7 @@ type desktopLauncher interface {
 }
 
 var availableLaunchers = []desktopLauncher{
-	&portalLauncher{},
+	&portal.Launcher{},
 	&userdLauncher{},
 }
 
@@ -77,7 +68,7 @@ func launch(bus *dbus.Conn, launchers []desktopLauncher, urlOrFile string) error
 		if err == nil {
 			break
 		}
-		if xerrors.Is(err, &responseError{}) {
+		if xerrors.Is(err, &portal.ResponseError{}) {
 			// got a response which indicates the action was either
 			// explicitly rejected by the user or abandoned due to
 			// other reasons eg. timeout waiting for user to respond

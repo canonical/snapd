@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,20 +17,23 @@
  *
  */
 
-package xdgopenproxy
+package portal
 
-type (
-	DesktopLauncher = desktopLauncher
-	UserdLauncher   = userdLauncher
+import (
+	"time"
 )
 
 const (
-	UserdLauncherBusName    = userdLauncherBusName
-	UserdLauncherObjectPath = userdLauncherObjectPath
-	UserdLauncherIface      = userdLauncherIface
+	DesktopPortalBusName      = desktopPortalBusName
+	DesktopPortalObjectPath   = desktopPortalObjectPath
+	DesktopPortalOpenURIIface = desktopPortalOpenURIIface
+	DesktopPortalRequestIface = desktopPortalRequestIface
 )
 
-var (
-	Launch        = launch
-	LaunchWithOne = launchWithOne
-)
+func MockPortalTimeout(t time.Duration) (restore func()) {
+	old := defaultPortalRequestTimeout
+	defaultPortalRequestTimeout = t
+	return func() {
+		defaultPortalRequestTimeout = old
+	}
+}
