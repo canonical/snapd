@@ -60,14 +60,29 @@ func FormatEncryptedDevice(key EncryptionKey, label, node string) error {
 // AddRecoveryKey adds a fallback recovery key rkey to the existing encrypted
 // volume created with FormatEncryptedDevice on the block device given by node.
 // The existing key to the encrypted volume is provided in the key argument.
+//
+// A heuristic memory cost is used.
 func AddRecoveryKey(key EncryptionKey, rkey RecoveryKey, node string) error {
 	usableMem, err := osutil.TotalUsableMemory()
 	if err != nil {
 		return fmt.Errorf("cannot get usable memory for KDF parameters when adding the recovery key: %v", err)
 	}
+	// The KDF memory is heuristically calculated by taking the
+	// usable memory and substracting hardcoded 384MB that is
+	// needed to keep the system working. Half of that is the mem
+	// we want to use for the KDF. Doing it this way avoids the expensive
+	// benchmark from cryptsetup. The recovery key is already 128bit
+	// strong so we don't need to be super precise here.
+	kdfMem := (int(usableMem) - 384*1024*1024) / 2
+	// max 1 GB
+	if kdfMem > 1024*1024*1024 {
+		kdfMem = (1024 * 1024 * 1024)
+	}
+	if kdfMem < 32*1024 {
+		kdfMem = 32 * 1024
+	}
 	opts := &sb.KDFOptions{
-		// force half the usable memory
-		MemoryKiB:       int(usableMem / 1024 / 2),
+		MemoryKiB:       kdfMem / 1024,
 		ForceIterations: 4,
 	}
 

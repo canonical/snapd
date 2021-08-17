@@ -57,8 +57,8 @@ func (s *encryptSuite) TestFormatEncryptedDevice(c *C) {
 				MetadataKiBSize:     2048,
 				KeyslotsAreaKiBSize: 2560,
 				KDFOptions: &sb.KDFOptions{
-					MemoryKiB: 32768, TargetDuration: 0,
-					ForceIterations: 4, Parallel: 0,
+					MemoryKiB:       32768,
+					ForceIterations: 4,
 				},
 			})
 			return tc.initErr
@@ -108,7 +108,8 @@ func (s *encryptSuite) TestAddRecoveryKey(c *C) {
 			c.Assert(recoveryKey[:], DeepEquals, myRecoveryKey[:])
 			c.Assert(key, DeepEquals, []byte(myKey))
 			c.Assert(opts, DeepEquals, &sb.KDFOptions{
-				MemoryKiB:       int((929956 - 131072) / 2),
+				// (TotalMem - CmaMem - 384MB hardcoded) / 2
+				MemoryKiB:       int((929956 - 131072 - 384*1024) / 2),
 				ForceIterations: 4,
 			})
 			return tc.addErr
