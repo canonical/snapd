@@ -56,7 +56,7 @@ func handleBacklightServiceConfiguration(_ sysconfig.Device, tr config.ConfGette
 	}
 	output, err := coreCfg(tr, "system.disable-backlight-service")
 	if err != nil {
-		return nil
+		return err
 	}
 	if output != "" {
 		switch output {

@@ -330,6 +330,8 @@ func delayedCrossMgrInit() {
 	snapstate.AutoRefreshAssertions = AutoRefreshAssertions
 	// hook retrieving auto-aliases into snapstate logic
 	snapstate.AutoAliases = AutoAliases
+	// hook the helper for getting enforced validation sets
+	snapstate.EnforcedValidationSets = EnforcedValidationSets
 }
 
 // AutoRefreshAssertions tries to refresh all assertions
@@ -534,6 +536,139 @@ func ValidationSetAssertionForMonitor(st *state.State, accountID, name string, s
 		as = vs.(*asserts.ValidationSet)
 	}
 	return as, false, err
+}
+
+// ValidationSetAssertionForEnforce tries to fetch the validation set assertion
+// with the given accountID/name/sequence (sequence is optional) using pool and
+// checks if it's not in conflict with existing validation sets in enforcing mode
+// (all currently tracked validation set assertions get refreshed), and if they
+// are valid for installed snaps.
+func ValidationSetAssertionForEnforce(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap) (vs *asserts.ValidationSet, err error) {
+	deviceCtx, err := snapstate.DevicePastSeeding(st, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// refresh all currently tracked validation set assertions (this may or may not
+	// include the one requested by the caller).
+	if err = RefreshValidationSetAssertions(st, userID); err != nil {
+		return nil, err
+	}
+
+	valsets, err := EnforcedValidationSets(st)
+	if err != nil {
+		return nil, err
+	}
+
+	getSpecificSequenceOrLatest := func(db *asserts.Database, headers map[string]string) (vs *asserts.ValidationSet, err error) {
+		var a asserts.Assertion
+		if _, ok := headers["sequence"]; ok {
+			a, err = db.Find(asserts.ValidationSetType, headers)
+		} else {
+			a, err = db.FindSequence(asserts.ValidationSetType, headers, -1, -1)
+		}
+		if err != nil {
+			return nil, err
+		}
+		vs = a.(*asserts.ValidationSet)
+		return vs, nil
+	}
+
+	// try to get existing from the db. It will be the latest one if it was
+	// tracked already and thus refreshed via RefreshValidationSetAssertions.
+	// Otherwise, it may be a local assertion that was tracked in the past and
+	// then forgotten, in which case we need to refresh it explicitly.
+	db := cachedDB(st)
+	headers := map[string]string{
+		"series":     release.Series,
+		"account-id": accountID,
+		"name":       name,
+	}
+	if sequence > 0 {
+		headers["sequence"] = fmt.Sprintf("%d", sequence)
+	}
+
+	pool := asserts.NewPool(db, maxGroups)
+	atSeq := &asserts.AtSequence{
+		Type:        asserts.ValidationSetType,
+		SequenceKey: []string{release.Series, accountID, name},
+		Sequence:    sequence,
+		Revision:    asserts.RevisionNotKnown,
+		Pinned:      sequence > 0,
+	}
+
+	vs, err = getSpecificSequenceOrLatest(db, headers)
+
+	checkForConflicts := func() error {
+		if err := valsets.Add(vs); err != nil {
+			return fmt.Errorf("internal error: cannot check validation sets conflicts: %v", err)
+		}
+		if err := valsets.Conflict(); err != nil {
+			return err
+		}
+		if err := valsets.CheckInstalledSnaps(snaps); err != nil {
+			return err
+		}
+		return nil
+	}
+
+	// found locally
+	if err == nil {
+		// check if we were tracking it already; if not, that
+		// means we found an old assertion (it was very likely tracked in the
+		// past) and we need to update it as it wasn't covered
+		// by RefreshValidationSetAssertions.
+		var tr ValidationSetTracking
+		trerr := GetValidationSet(st, accountID, name, &tr)
+		if trerr != nil && trerr != state.ErrNoState {
+			return nil, trerr
+		}
+		// not tracked, update the assertion
+		if trerr == state.ErrNoState {
+			// update with pool
+			atSeq.Sequence = vs.Sequence()
+			atSeq.Revision = vs.Revision()
+			if err := pool.AddSequenceToUpdate(atSeq, atSeq.Unique()); err != nil {
+				return nil, err
+			}
+		} else {
+			// was already tracked, add to validation sets and check
+			if err := checkForConflicts(); err != nil {
+				return nil, err
+			}
+			return vs, nil
+		}
+	} else {
+		if !asserts.IsNotFound(err) {
+			return nil, err
+		}
+
+		// try to resolve with pool
+		if err := pool.AddUnresolvedSequence(atSeq, atSeq.Unique()); err != nil {
+			return nil, err
+		}
+	}
+
+	checkBeforeCommit := func(db *asserts.Database, bs asserts.Backstore) error {
+		tmpDb := db.WithStackedBackstore(bs)
+		// get the resolved validation set assert, add to validation sets and check
+		vs, err = getSpecificSequenceOrLatest(tmpDb, headers)
+		if err != nil {
+			return fmt.Errorf("internal error: cannot find validation set assertion: %v", err)
+		}
+		if err := checkForConflicts(); err != nil {
+			return err
+		}
+		// all fine, will be committed (along with its prerequisites if any) on
+		// return by resolvePoolNoFallback
+		return nil
+	}
+
+	if err := resolvePoolNoFallback(st, pool, checkBeforeCommit, userID, deviceCtx); err != nil {
+		return nil, err
+	}
+
+	return vs, err
 }
 
 // TemporaryDB returns a temporary database stacked on top of the assertions

@@ -20,6 +20,7 @@
 package sysconfig
 
 import (
+	"fmt"
 	"path/filepath"
 
 	"github.com/snapcore/snapd/asserts"
@@ -110,8 +111,14 @@ func ApplyFilesystemOnlyDefaults(model *asserts.Model, rootDir string, defaults 
 // cloud-init from the gadget).
 // It is okay to use both from install mode for run mode, as well as from the
 // initramfs for recover mode.
+// It is only meant to be used with models that have a grade (i.e. UC20+).
 func ConfigureTargetSystem(model *asserts.Model, opts *Options) error {
-	if err := configureCloudInit(opts); err != nil {
+	// check that we have a uc20 model
+	if model.Grade() == asserts.ModelGradeUnset {
+		return fmt.Errorf("internal error: ConfigureTargetSystem can only be used with a model with a grade")
+	}
+
+	if err := configureCloudInit(model, opts); err != nil {
 		return err
 	}
 

@@ -65,7 +65,7 @@ func (s *sysconfigSuite) makeCloudCfgSrcDirFiles(c *C) string {
 func (s *sysconfigSuite) makeGadgetCloudConfFile(c *C) string {
 	gadgetDir := c.MkDir()
 	gadgetCloudConf := filepath.Join(gadgetDir, "cloud.conf")
-	err := ioutil.WriteFile(gadgetCloudConf, []byte("gadget cloud config"), 0644)
+	err := ioutil.WriteFile(gadgetCloudConf, []byte("#cloud-config gadget cloud config"), 0644)
 	c.Assert(err, IsNil)
 
 	return gadgetDir
@@ -99,7 +99,7 @@ func (s *sysconfigSuite) TestEphemeralModeInitramfsCloudInitDisables(c *C) {
 }
 
 func (s *sysconfigSuite) TestInstallModeCloudInitDisablesByDefaultRunMode(c *C) {
-	err := sysconfig.ConfigureTargetSystem(nil, &sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
 		TargetRootDir: boot.InstallHostWritableDir,
 	})
 	c.Assert(err, IsNil)
@@ -112,7 +112,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitDisallowedIgnoresOtherOptions(c
 	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
 	gadgetDir := s.makeGadgetCloudConfFile(c)
 
-	err := sysconfig.ConfigureTargetSystem(nil, &sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
 		AllowCloudInit:  false,
 		CloudInitSrcDir: cloudCfgSrcDir,
 		GadgetDir:       gadgetDir,
@@ -132,8 +132,8 @@ func (s *sysconfigSuite) TestInstallModeCloudInitDisallowedIgnoresOtherOptions(c
 	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileAbsent)
 }
 
-func (s *sysconfigSuite) TestInstallModeCloudInitAllowedDoesNotDisable(c *C) {
-	err := sysconfig.ConfigureTargetSystem(nil, &sysconfig.Options{
+func (s *sysconfigSuite) TestInstallModeCloudInitAllowedGradeSignedDoesNotDisable(c *C) {
+	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
 		AllowCloudInit: true,
 		TargetRootDir:  boot.InstallHostWritableDir,
 	})
@@ -143,6 +143,64 @@ func (s *sysconfigSuite) TestInstallModeCloudInitAllowedDoesNotDisable(c *C) {
 	c.Check(ubuntuDataCloudDisabled, testutil.FileAbsent)
 }
 
+func (s *sysconfigSuite) TestInstallModeCloudInitAllowedGradeSignedDoesNotInstallUbuntuSeedConfig(c *C) {
+	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
+
+	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
+		AllowCloudInit:  true,
+		TargetRootDir:   boot.InstallHostWritableDir,
+		CloudInitSrcDir: cloudCfgSrcDir,
+	})
+	c.Assert(err, IsNil)
+
+	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileAbsent)
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileAbsent)
+}
+
+func (s *sysconfigSuite) TestInstallModeCloudInitAllowedGradeDangerousDoesNotDisable(c *C) {
+	err := sysconfig.ConfigureTargetSystem(fake20Model("dangerous"), &sysconfig.Options{
+		AllowCloudInit: true,
+		TargetRootDir:  boot.InstallHostWritableDir,
+	})
+	c.Assert(err, IsNil)
+
+	ubuntuDataCloudDisabled := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	c.Check(ubuntuDataCloudDisabled, testutil.FileAbsent)
+}
+
+func (s *sysconfigSuite) TestInstallModeCloudInitDisallowedGradeSecuredDoesDisable(c *C) {
+	err := sysconfig.ConfigureTargetSystem(fake20Model("secured"), &sysconfig.Options{
+		AllowCloudInit: false,
+		TargetRootDir:  boot.InstallHostWritableDir,
+	})
+	c.Assert(err, IsNil)
+
+	ubuntuDataCloudDisabled := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	c.Check(ubuntuDataCloudDisabled, testutil.FilePresent)
+}
+
+func (s *sysconfigSuite) TestInstallModeCloudInitAllowedGradeSecuredIgnoresSrcButDoesNotDisable(c *C) {
+	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
+
+	err := sysconfig.ConfigureTargetSystem(fake20Model("secured"), &sysconfig.Options{
+		AllowCloudInit:  true,
+		CloudInitSrcDir: cloudCfgSrcDir,
+		TargetRootDir:   boot.InstallHostWritableDir,
+	})
+	c.Assert(err, IsNil)
+
+	// the disable file is not present
+	ubuntuDataCloudDisabled := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+	c.Check(ubuntuDataCloudDisabled, testutil.FileAbsent)
+
+	// but we did not copy the config files from ubuntu-seed, even though they
+	// are there and cloud-init is not disabled
+	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileAbsent)
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileAbsent)
+}
+
 // this test is the same as the logic from install mode devicestate, where we
 // want to install cloud-init configuration not onto the running, ephemeral
 // writable, but rather the host writable partition that will be used upon
@@ -150,7 +208,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitAllowedDoesNotDisable(c *C) {
 func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunMode(c *C) {
 	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
 
-	err := sysconfig.ConfigureTargetSystem(nil, &sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(fake20Model("dangerous"), &sysconfig.Options{
 		AllowCloudInit:  true,
 		CloudInitSrcDir: cloudCfgSrcDir,
 		TargetRootDir:   boot.InstallHostWritableDir,
@@ -165,7 +223,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunMode(c *C) {
 
 func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadgetCloudConf(c *C) {
 	gadgetDir := s.makeGadgetCloudConfFile(c)
-	err := sysconfig.ConfigureTargetSystem(nil, &sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(fake20Model("secured"), &sysconfig.Options{
 		AllowCloudInit: true,
 		GadgetDir:      gadgetDir,
 		TargetRootDir:  boot.InstallHostWritableDir,
@@ -174,14 +232,14 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadg
 
 	// and did copy the gadget cloud-init file
 	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
-	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileEquals, "gadget cloud config")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileEquals, "#cloud-config gadget cloud config")
 }
 
 func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadgetCloudConfAlsoInstallsUbuntuSeedConfig(c *C) {
 	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
 	gadgetDir := s.makeGadgetCloudConfFile(c)
 
-	err := sysconfig.ConfigureTargetSystem(nil, &sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(fake20Model("dangerous"), &sysconfig.Options{
 		AllowCloudInit:  true,
 		CloudInitSrcDir: cloudCfgSrcDir,
 		GadgetDir:       gadgetDir,
@@ -191,7 +249,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadg
 
 	// we did copy the gadget cloud-init file
 	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
-	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileEquals, "gadget cloud config")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileEquals, "#cloud-config gadget cloud config")
 
 	// and we also copied the ubuntu-seed files with a new prefix such that they
 	// take precedence over the gadget file by being ordered lexically after the
@@ -595,5 +653,152 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 		} else {
 			c.Assert(err, ErrorMatches, t.expError, comment)
 		}
+	}
+}
+
+const maasGadgetCloudInitImplictYAML = `
+datasource:
+  MAAS:
+    foo: bar
+`
+
+const maasGadgetCloudInitImplictLowerCaseYAML = `
+datasource:
+  maas:
+    foo: bar
+`
+
+const explicitlyNoDatasourceYAML = `datasource_list: []`
+
+const explicitlyNoDatasourceButAlsoImplicitlyAnotherYAML = `
+datasource_list: []
+reporting:
+  NoCloud:
+    foo: bar
+`
+
+const explicitlyMultipleMixedCaseMentioned = `
+reporting:
+  NoCloud:
+    foo: bar
+  maas:
+    foo: bar
+datasource:
+  MAAS:
+    foo: bar
+  NOCLOUD:
+    foo: bar
+`
+
+func (s *sysconfigSuite) TestCloudDatasourcesInUse(c *C) {
+	tt := []struct {
+		configFileContent string
+		expError          string
+		expRes            *sysconfig.CloudDatasourcesInUseResult
+		comment           string
+	}{
+		{
+			configFileContent: `datasource_list: [MAAS]`,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyAllowed: []string{"MAAS"},
+				Mentioned:         []string{"MAAS"},
+			},
+			comment: "explicitly allowed via datasource_list in upper case",
+		},
+		{
+			configFileContent: `datasource_list: [maas]`,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyAllowed: []string{"MAAS"},
+				Mentioned:         []string{"MAAS"},
+			},
+			comment: "explicitly allowed via datasource_list in lower case",
+		},
+		{
+			configFileContent: `datasource_list: [mAaS]`,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyAllowed: []string{"MAAS"},
+				Mentioned:         []string{"MAAS"},
+			},
+			comment: "explicitly allowed via datasource_list in random case",
+		},
+		{
+			configFileContent: `datasource_list: [maas, maas]`,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyAllowed: []string{"MAAS"},
+				Mentioned:         []string{"MAAS"},
+			},
+			comment: "duplicated datasource in datasource_list",
+		},
+		{
+			configFileContent: `datasource_list: [maas, MAAS]`,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyAllowed: []string{"MAAS"},
+				Mentioned:         []string{"MAAS"},
+			},
+			comment: "duplicated datasource in datasource_list with different cases",
+		},
+		{
+			configFileContent: `datasource_list: [maas, GCE]`,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyAllowed: []string{"GCE", "MAAS"},
+				Mentioned:         []string{"GCE", "MAAS"},
+			},
+			comment: "multiple datasources in datasource list",
+		},
+		{
+			configFileContent: maasGadgetCloudInitImplictYAML,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				Mentioned: []string{"MAAS"},
+			},
+			comment: "implicitly mentioned datasource",
+		},
+		{
+			configFileContent: maasGadgetCloudInitImplictLowerCaseYAML,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				Mentioned: []string{"MAAS"},
+			},
+			comment: "implicitly mentioned datasource in lower case",
+		},
+		{
+			configFileContent: explicitlyNoDatasourceYAML,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyNoneAllowed: true,
+			},
+			comment: "no datasources allowed at all",
+		},
+		{
+			configFileContent: explicitlyNoDatasourceButAlsoImplicitlyAnotherYAML,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyNoneAllowed: true,
+				Mentioned:             []string{"NOCLOUD"},
+			},
+			comment: "explicitly no datasources allowed, but still some mentioned",
+		},
+		{
+			configFileContent: explicitlyMultipleMixedCaseMentioned,
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				Mentioned: []string{"MAAS", "NOCLOUD"},
+			},
+			comment: "multiple of same datasources mentioned in different cases",
+		},
+		{
+			configFileContent: "i'm not yaml",
+			expError:          "yaml: unmarshal errors.*\n.*cannot unmarshal.*",
+			comment:           "invalid yaml",
+		},
+	}
+
+	for _, t := range tt {
+		comment := Commentf(t.comment)
+		configFile := filepath.Join(c.MkDir(), "cloud.conf")
+		err := ioutil.WriteFile(configFile, []byte(t.configFileContent), 0644)
+		c.Assert(err, IsNil, comment)
+		res, err := sysconfig.CloudDatasourcesInUse(configFile)
+		if t.expError != "" {
+			c.Assert(err, ErrorMatches, t.expError, comment)
+			continue
+		}
+
+		c.Assert(res, DeepEquals, t.expRes, comment)
 	}
 }

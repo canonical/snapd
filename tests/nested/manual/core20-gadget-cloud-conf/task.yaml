@@ -89,20 +89,15 @@ prepare: |
   # install the cloud.conf
   cp cloud.conf pc-gadget/cloud.conf
 
-  # TODO: enable this bit when things are ready to use a testkeys signed model
-  # assertion
   # copy the prepare-device hook to use our fakedevicesvc
-  # mkdir -p pc-gadget/meta/hooks/
-  # cp prepare-device pc-gadget/meta/hooks/
+  mkdir -p pc-gadget/meta/hooks/
+  cp prepare-device pc-gadget/meta/hooks/
 
   nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
   snap pack pc-gadget/ "$(nested_get_extra_snaps_path)"
 
-  # TODO: enable this when ready, currently serial assertions requests don't 
-  # work with the fakedevicesvc, needs a little bit of work somewhere
   # start fake device svc
-  # #shellcheck disable=SC2148
-  #  systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
+  systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
 
   tests.nested build-image core
   # first boot will use seed1 to create the normal-user in addition to the 
@@ -116,11 +111,14 @@ restore: |
   fi
 
   # stop fake device svc
-  # systemctl stop fakedevicesvc
+  systemctl stop fakedevicesvc
 
   #shellcheck source=tests/lib/store.sh
   . "$TESTSLIB"/store.sh
   teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
+
+debug: |
+  systemctl status fakedevicesvc || true
 
 execute: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -138,19 +136,7 @@ execute: |
   tests.nested exec_as normal-user ubuntu "sudo true"
 
   echo "Waiting for snapd to react to cloud-init"
-  seen=0
-  for i in $(seq 60); do
-      if tests.nested exec "sudo journalctl --no-pager -u snapd" | MATCH "cloud-init reported"; then
-          seen=1
-          break
-      fi
-      sleep 1
-  done
-
-  if [ "$seen" = "0" ]; then
-      echo "snapd did not restrict cloud-init, test failed"
-      exit 1
-  fi
+  retry --wait 1 -n 60 sh -c 'tests.nested exec sudo journalctl --no-pager -u snapd | MATCH "cloud-init reported"'
 
   echo "Ensuring that cloud-init got disabled after running"
   tests.nested exec "cloud-init status" | MATCH "status: disabled"

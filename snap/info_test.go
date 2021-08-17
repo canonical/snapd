@@ -100,16 +100,79 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 	c.Check(info.ID(), Equals, "snapidsnapidsnapidsnapidsnapidsn")
 }
 
-func (s *infoSuite) TestContact(c *C) {
-	// TODO: later there will be OriginalLinks in snap.Info as
-	// well from snap.yaml links
-	info := &snap.Info{}
-
-	info.SideInfo = snap.SideInfo{
-		EditedContact: "econtact",
+func (s *infoSuite) TestContactFromEdited(c *C) {
+	info := &snap.Info{
+		OriginalLinks: nil,
 	}
 
-	c.Check(info.Contact(), Equals, "econtact")
+	info.SideInfo = snap.SideInfo{
+		EditedContact: "mailto:econtact",
+	}
+
+	c.Check(info.Contact(), Equals, "mailto:econtact")
+}
+
+func (s *infoSuite) TestNoContact(c *C) {
+	info := &snap.Info{}
+
+	c.Check(info.Contact(), Equals, "")
+}
+
+func (s *infoSuite) TestContactFromLinks(c *C) {
+	info := &snap.Info{
+		OriginalLinks: map[string][]string{
+			"contact": {"ocontact1", "ocontact2"},
+		},
+	}
+
+	c.Check(info.Contact(), Equals, "mailto:ocontact1")
+}
+
+func (s *infoSuite) TestContactFromLinksMailtoAlready(c *C) {
+	info := &snap.Info{
+		OriginalLinks: map[string][]string{
+			"contact": {"mailto:ocontact1", "ocontact2"},
+		},
+	}
+
+	c.Check(info.Contact(), Equals, "mailto:ocontact1")
+}
+
+func (s *infoSuite) TestContactFromLinksNotEmail(c *C) {
+	info := &snap.Info{
+		OriginalLinks: map[string][]string{
+			"contact": {"https://ocontact1", "ocontact2"},
+		},
+	}
+
+	c.Check(info.Contact(), Equals, "https://ocontact1")
+}
+
+func (s *infoSuite) TestLinks(c *C) {
+	info := &snap.Info{
+		OriginalLinks: map[string][]string{
+			"contact": {"ocontact"},
+			"website": {"owebsite"},
+		},
+	}
+
+	info.SideInfo = snap.SideInfo{
+		EditedLinks: map[string][]string{
+			"contact": {"econtact"},
+			"website": {"ewebsite"},
+		},
+	}
+
+	c.Check(info.Links(), DeepEquals, map[string][]string{
+		"contact": {"econtact"},
+		"website": {"ewebsite"},
+	})
+
+	info.EditedLinks = nil
+	c.Check(info.Links(), DeepEquals, map[string][]string{
+		"contact": {"ocontact"},
+		"website": {"owebsite"},
+	})
 }
 
 func (s *infoSuite) TestAppInfoSecurityTag(c *C) {

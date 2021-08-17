@@ -67,18 +67,18 @@ execute: |
 
         # check console-conf disabled
         tests.nested exec "cat /var/lib/console-conf/complete" | MATCH "console-conf has been disabled by the snapd system configuration"
+
+        # hostname is set
+        tests.nested exec "cat /var/snap/pc/common/debug.txt" | MATCH "hostname: foo"
+        tests.nested exec "cat /etc/hostname" | MATCH "foo"
+        tests.nested exec "hostname" | MATCH "foo"
     }
 
     check_core20_early_config
 
     echo "Transition to recover mode and check it again"
-    boot_id="$(nested_get_boot_id)"
-    # shellcheck disable=SC2016
-    tests.nested exec 'sudo snap reboot --recover'
-    tests.nested wait-for reboot "${boot_id}"
-
-    echo "Check the vm is in recover mode"
-    tests.nested exec 'sudo cat /proc/cmdline' | MATCH snapd_recovery_mode=recover
+    recoverySystem=$(nested_exec "sudo snap recovery | grep -v Notes | grep -Po '^[0-9]+'")
+    nested_uc20_transition_to_system_mode "$recoverySystem" recover
 
     echo "Wait for the snap command to be available since recover mode needs to seed itself"
     tests.nested wait-for snap-command

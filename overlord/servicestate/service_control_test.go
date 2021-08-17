@@ -127,33 +127,31 @@ func (s *serviceControlSuite) mockTestSnap(c *C) *snap.Info {
 	return info
 }
 
-func verifyUnsortedInvocations(c *C, sysctlArgs [][]string, action string,
-	expectedArguments []string) {
-	/* We don't care about the order of the invocations, as long as
-	 * they all carry the same action */
-	arguments := []string{}
-	for _, params := range sysctlArgs {
-		c.Check(params[0], Equals, action)
-		arguments = append(arguments, params[1])
-	}
-	sort.Strings(arguments)
-	c.Check(arguments, DeepEquals, expectedArguments)
-}
-
 func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, actionModifier string,
 	expectedServices []string, expectedExplicitServices []string) {
 	// sanity, ensures test checks below are hit
 	c.Assert(len(tasks) > 0, Equals, true)
 
-	// group service names by snaps
-	bySnap := make(map[string][]string)
-	for _, name := range expectedServices {
+	splitServiceName := func(name string) (snapName, serviceName string) {
 		// split service name, e.g. snap.test-snap.foo.service
 		parts := strings.Split(name, ".")
 		c.Assert(parts, HasLen, 4)
-		snapName := parts[1]
-		serviceName := parts[2]
+		snapName = parts[1]
+		serviceName = parts[2]
+		return snapName, serviceName
+	}
+
+	// group service names by snaps
+	bySnap := make(map[string][]string)
+	for _, name := range expectedServices {
+		snapName, serviceName := splitServiceName(name)
 		bySnap[snapName] = append(bySnap[snapName], serviceName)
+	}
+
+	expectedExplicitServicesAppNames := make(map[string][]string)
+	for _, name := range expectedExplicitServices {
+		snapName, serviceName := splitServiceName(name)
+		expectedExplicitServicesAppNames[snapName] = append(expectedExplicitServicesAppNames[snapName], serviceName)
 	}
 
 	var execCommandTasks int
@@ -233,7 +231,10 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, actionModifie
 			sort.Strings(obtainedServices)
 			sort.Strings(bySnap[sa.SnapName])
 			c.Assert(obtainedServices, DeepEquals, bySnap[sa.SnapName])
-			c.Assert(sa.ExplicitServices, DeepEquals, expectedExplicitServices)
+			obtainedExplicitServices := sa.ExplicitServices
+			sort.Strings(obtainedExplicitServices)
+			sort.Strings(expectedExplicitServicesAppNames[sa.SnapName])
+			c.Assert(obtainedExplicitServices, DeepEquals, expectedExplicitServicesAppNames[sa.SnapName])
 		} else {
 			c.Fatalf("unexpected task: %s", tasks[i].Kind())
 		}
@@ -625,14 +626,7 @@ func (s *serviceControlSuite) TestStartAllServices(c *C) {
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 
-	/* We don't care about the order of the is-enabled invocations, as long as
-	 * they all happen before the first invocation of "start" */
-	verifyUnsortedInvocations(c, s.sysctlArgs[:3], "is-enabled", []string{
-		"snap.test-snap.abc.service",
-		"snap.test-snap.bar.service",
-		"snap.test-snap.foo.service",
-	})
-	c.Check(s.sysctlArgs[3:], DeepEquals, [][]string{
+	c.Check(s.sysctlArgs, DeepEquals, [][]string{
 		{"start", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.bar.service"},
 		{"start", "snap.test-snap.abc.service"},
@@ -663,12 +657,7 @@ func (s *serviceControlSuite) TestStartListedServices(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
-	verifyUnsortedInvocations(c, s.sysctlArgs[:3], "is-enabled", []string{
-		"snap.test-snap.abc.service",
-		"snap.test-snap.bar.service",
-		"snap.test-snap.foo.service",
-	})
-	c.Check(s.sysctlArgs[3:], DeepEquals, [][]string{
+	c.Check(s.sysctlArgs, DeepEquals, [][]string{
 		{"start", "snap.test-snap.foo.service"},
 	})
 }
@@ -891,7 +880,7 @@ func (s *serviceControlSuite) TestRestartWithSomeExplicitServices(c *C) {
 	srvFoo := "snap.test-snap.foo.service"
 	srvBar := "snap.test-snap.bar.service"
 	s.testRestartWithExplicitServicesCommon(c,
-		[]string{srvFoo},
+		[]string{"foo"},
 		[][]string{
 			{"stop", srvFoo},
 			{"show", "--property=ActiveState", srvFoo},
@@ -907,7 +896,7 @@ func (s *serviceControlSuite) TestRestartWithAllExplicitServices(c *C) {
 	srvFoo := "snap.test-snap.foo.service"
 	srvBar := "snap.test-snap.bar.service"
 	s.testRestartWithExplicitServicesCommon(c,
-		[]string{srvAbc, srvBar, srvFoo},
+		[]string{"abc", "bar", "foo"},
 		[][]string{
 			{"stop", srvFoo},
 			{"show", "--property=ActiveState", srvFoo},
@@ -1053,13 +1042,13 @@ func (s *serviceControlSuite) TestUpdateSnapstateServices(c *C) {
 			changed: false,
 		},
 		{
-			enable: []string{"a"},
+			enable:                   []string{"a"},
 			expectedSnapstateEnabled: []string{"a"},
 			changed:                  true,
 		},
 		// enable again does nothing
 		{
-			enable: []string{"a"},
+			enable:                   []string{"a"},
 			expectedSnapstateEnabled: []string{"a"},
 			changed:                  false,
 		},
@@ -1069,7 +1058,7 @@ func (s *serviceControlSuite) TestUpdateSnapstateServices(c *C) {
 			changed:                   true,
 		},
 		{
-			enable: []string{"a", "c"},
+			enable:                   []string{"a", "c"},
 			expectedSnapstateEnabled: []string{"a", "c"},
 			changed:                  true,
 		},

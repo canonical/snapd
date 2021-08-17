@@ -19,55 +19,38 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include <dlfcn.h>
+#include <limits.h>
+#include <stdint.h>
 
 #include <libudev.h>
 
+#include "../libsnap-confine-private/cgroup-support.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/device-cgroup-support.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/string-utils.h"
-#include "../libsnap-confine-private/cgroup-support.h"
 #include "../libsnap-confine-private/utils.h"
 #include "udev-support.h"
 
-__attribute__((format(printf, 2, 3)))
-static void sc_dprintf(int fd, const char *format, ...);
-
-static void sc_dprintf(int fd, const char *format, ...)
-{
-	va_list ap1;
-	va_list ap2;
-	int n_expected, n_actual;
-
-	va_start(ap1, format);
-	va_copy(ap2, ap1);
-	n_expected = vsnprintf(NULL, 0, format, ap2);
-	n_actual = vdprintf(fd, format, ap1);
-	if (n_actual == -1 || n_expected != n_actual) {
-		die("cannot write to fd %d", fd);
-	}
-	va_end(ap2);
-	va_end(ap1);
-}
-
 /* Allow access to common devices. */
-static void sc_udev_allow_common(int devices_allow_fd)
+static void sc_udev_allow_common(sc_device_cgroup * cgroup)
 {
 	/* The devices we add here have static number allocation.
 	 * https://www.kernel.org/doc/html/v4.11/admin-guide/devices.html */
-	sc_dprintf(devices_allow_fd, "c 1:3 rwm\n");	// /dev/null
-	sc_dprintf(devices_allow_fd, "c 1:5 rwm\n");	// /dev/zero
-	sc_dprintf(devices_allow_fd, "c 1:7 rwm\n");	// /dev/full
-	sc_dprintf(devices_allow_fd, "c 1:8 rwm\n");	// /dev/random
-	sc_dprintf(devices_allow_fd, "c 1:9 rwm\n");	// /dev/urandom
-	sc_dprintf(devices_allow_fd, "c 5:0 rwm\n");	// /dev/tty
-	sc_dprintf(devices_allow_fd, "c 5:1 rwm\n");	// /dev/console
-	sc_dprintf(devices_allow_fd, "c 5:2 rwm\n");	// /dev/ptmx
+	sc_device_cgroup_allow(cgroup, S_IFCHR, 1, 3);	// /dev/null
+	sc_device_cgroup_allow(cgroup, S_IFCHR, 1, 5);	// /dev/zero
+	sc_device_cgroup_allow(cgroup, S_IFCHR, 1, 7);	// /dev/full
+	sc_device_cgroup_allow(cgroup, S_IFCHR, 1, 8);	// /dev/random
+	sc_device_cgroup_allow(cgroup, S_IFCHR, 1, 9);	// /dev/urandom
+	sc_device_cgroup_allow(cgroup, S_IFCHR, 5, 0);	// /dev/tty
+	sc_device_cgroup_allow(cgroup, S_IFCHR, 5, 1);	// /dev/console
+	sc_device_cgroup_allow(cgroup, S_IFCHR, 5, 2);	// /dev/ptmx
 }
 
 /** Allow access to current and future PTY slaves.
@@ -78,10 +61,11 @@ static void sc_udev_allow_common(int devices_allow_fd)
  * See also:
  * https://www.kernel.org/doc/Documentation/admin-guide/devices.txt
  **/
-static void sc_udev_allow_pty_slaves(int devices_allow_fd)
+static void sc_udev_allow_pty_slaves(sc_device_cgroup * cgroup)
 {
 	for (unsigned pty_major = 136; pty_major <= 143; pty_major++) {
-		sc_dprintf(devices_allow_fd, "c %u:* rwm\n", pty_major);
+		sc_device_cgroup_allow(cgroup, S_IFCHR, pty_major,
+				       SC_DEVICE_MINOR_ANY);
 	}
 }
 
@@ -97,7 +81,7 @@ static void sc_udev_allow_pty_slaves(int devices_allow_fd)
  *
  * https://www.kernel.org/doc/Documentation/admin-guide/devices.txt
  **/
-static void sc_udev_allow_nvidia(int devices_allow_fd)
+static void sc_udev_allow_nvidia(sc_device_cgroup * cgroup)
 {
 	struct stat sbuf;
 
@@ -113,21 +97,21 @@ static void sc_udev_allow_nvidia(int devices_allow_fd)
 		if (stat(nv_path, &sbuf) < 0) {
 			break;
 		}
-		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n",
-			   major(sbuf.st_rdev), minor(sbuf.st_rdev));
+		sc_device_cgroup_allow(cgroup, S_IFCHR, major(sbuf.st_rdev),
+				       minor(sbuf.st_rdev));
 	}
 
 	if (stat("/dev/nvidiactl", &sbuf) == 0) {
-		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n",
-			   major(sbuf.st_rdev), minor(sbuf.st_rdev));
+		sc_device_cgroup_allow(cgroup, S_IFCHR, major(sbuf.st_rdev),
+				       minor(sbuf.st_rdev));
 	}
 	if (stat("/dev/nvidia-uvm", &sbuf) == 0) {
-		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n",
-			   major(sbuf.st_rdev), minor(sbuf.st_rdev));
+		sc_device_cgroup_allow(cgroup, S_IFCHR, major(sbuf.st_rdev),
+				       minor(sbuf.st_rdev));
 	}
 	if (stat("/dev/nvidia-modeset", &sbuf) == 0) {
-		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n",
-			   major(sbuf.st_rdev), minor(sbuf.st_rdev));
+		sc_device_cgroup_allow(cgroup, S_IFCHR, major(sbuf.st_rdev),
+				       minor(sbuf.st_rdev));
 	}
 }
 
@@ -137,13 +121,13 @@ static void sc_udev_allow_nvidia(int devices_allow_fd)
  * Currently /dev/uhid isn't represented in sysfs, so add it to the device
  * cgroup if it exists and let AppArmor handle the mediation.
  **/
-static void sc_udev_allow_uhid(int devices_allow_fd)
+static void sc_udev_allow_uhid(sc_device_cgroup * cgroup)
 {
 	struct stat sbuf;
 
 	if (stat("/dev/uhid", &sbuf) == 0) {
-		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n",
-			   major(sbuf.st_rdev), minor(sbuf.st_rdev));
+		sc_device_cgroup_allow(cgroup, S_IFCHR, major(sbuf.st_rdev),
+				       minor(sbuf.st_rdev));
 	}
 }
 
@@ -156,13 +140,13 @@ static void sc_udev_allow_uhid(int devices_allow_fd)
  * it unconditionally to the cgroup and rely on AppArmor to mediate the
  * access. LP: #1859084
  **/
-static void sc_udev_allow_dev_net_tun(int devices_allow_fd)
+static void sc_udev_allow_dev_net_tun(sc_device_cgroup * cgroup)
 {
 	struct stat sbuf;
 
 	if (stat("/dev/net/tun", &sbuf) == 0) {
-		sc_dprintf(devices_allow_fd, "c %u:%u rwm\n",
-			   major(sbuf.st_rdev), minor(sbuf.st_rdev));
+		sc_device_cgroup_allow(cgroup, S_IFCHR, major(sbuf.st_rdev),
+				       minor(sbuf.st_rdev));
 	}
 }
 
@@ -173,7 +157,7 @@ static void sc_udev_allow_dev_net_tun(int devices_allow_fd)
  * tags corresponding to snap applications. Here we interrogate udev and allow
  * access to all assigned devices.
  **/
-static void sc_udev_allow_assigned_device(int devices_allow_fd,
+static void sc_udev_allow_assigned_device(sc_device_cgroup * cgroup,
 					  struct udev_device *device)
 {
 	const char *path = udev_device_get_syspath(device);
@@ -201,37 +185,21 @@ static void sc_udev_allow_assigned_device(int devices_allow_fd,
 		debug("cannot stat %s", devnode);
 		return;
 	}
-	switch (file_info.st_mode & S_IFMT) {
-	case S_IFBLK:
-		dprintf(devices_allow_fd, "b %u:%u rwm\n", major, minor);
-		break;
-	case S_IFCHR:
-		dprintf(devices_allow_fd, "c %u:%u rwm\n", major, minor);
-		break;
-	default:
-		/* Not a device, ignore it. */
-		break;
+	int devtype = file_info.st_mode & S_IFMT;
+	if (devtype == S_IFBLK || devtype == S_IFCHR) {
+		sc_device_cgroup_allow(cgroup, devtype, major, minor);
 	}
 }
 
-static void sc_udev_setup_acls_common(int devices_allow_fd, int devices_deny_fd,
-				      struct udev *udev,
-				      struct udev_list_entry *assigned)
+static void sc_udev_setup_acls_common(sc_device_cgroup * cgroup)
 {
-	/* Deny device access by default.
-	 *
-	 * Write 'a' to devices.deny to remove all existing devices that were added
-	 * in previous launcher invocations, then add the static and assigned
-	 * devices. This ensures that at application launch the cgroup only has
-	 * what is currently assigned. */
-	sc_dprintf(devices_deny_fd, "a");
 
 	/* Allow access to various devices. */
-	sc_udev_allow_common(devices_allow_fd);
-	sc_udev_allow_pty_slaves(devices_allow_fd);
-	sc_udev_allow_nvidia(devices_allow_fd);
-	sc_udev_allow_uhid(devices_allow_fd);
-	sc_udev_allow_dev_net_tun(devices_allow_fd);
+	sc_udev_allow_common(cgroup);
+	sc_udev_allow_pty_slaves(cgroup);
+	sc_udev_allow_nvidia(cgroup);
+	sc_udev_allow_uhid(cgroup);
+	sc_udev_allow_dev_net_tun(cgroup);
 }
 
 static char *sc_security_to_udev_tag(const char *security_tag)
@@ -259,110 +227,6 @@ static void sc_cleanup_udev_enumerate(struct udev_enumerate **enumerate)
 	}
 }
 
-typedef struct sc_cgroup_fds {
-	int devices_allow_fd;
-	int devices_deny_fd;
-	int cgroup_procs_fd;
-} sc_cgroup_fds;
-
-static sc_cgroup_fds sc_udev_open_cgroup_v1(const char *security_tag)
-{
-	/* Note that -1 is the neutral value for a file descriptor.
-	 * This is relevant as a cleanup handler for sc_cgroup_fds,
-	 * closes all file descriptors that are not -1. */
-	sc_cgroup_fds fds = { -1, -1, -1 };
-
-	/* Open /sys/fs/cgroup */
-	const char *cgroup_path = "/sys/fs/cgroup";
-	int SC_CLEANUP(sc_cleanup_close) cgroup_fd = -1;
-	cgroup_fd = open(cgroup_path,
-			 O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
-	if (cgroup_fd < 0) {
-		die("cannot open %s", cgroup_path);
-	}
-
-	/* Open devices relative to /sys/fs/cgroup */
-	const char *devices_relpath = "devices";
-	int SC_CLEANUP(sc_cleanup_close) devices_fd = -1;
-	devices_fd = openat(cgroup_fd, devices_relpath,
-			    O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
-	if (devices_fd < 0) {
-		die("cannot open %s/%s", cgroup_path, devices_relpath);
-	}
-
-	/* Open snap.$SNAP_NAME.$APP_NAME relative to /sys/fs/cgroup/devices,
-	 * creating the directory if necessary. Note that we always chown the
-	 * resulting directory to root:root. */
-	const char *security_tag_relpath = security_tag;
-	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-	if (mkdirat(devices_fd, security_tag_relpath, 0755) < 0) {
-		if (errno != EEXIST) {
-			die("cannot create directory %s/%s/%s", cgroup_path,
-			    devices_relpath, security_tag_relpath);
-		}
-	}
-	(void)sc_set_effective_identity(old);
-
-	int SC_CLEANUP(sc_cleanup_close) security_tag_fd = -1;
-	security_tag_fd = openat(devices_fd, security_tag_relpath,
-				 O_RDONLY | O_DIRECTORY | O_CLOEXEC |
-				 O_NOFOLLOW);
-	if (security_tag_fd < 0) {
-		die("cannot open %s/%s/%s", cgroup_path, devices_relpath,
-		    security_tag_relpath);
-	}
-
-	/* Open devices.allow relative to /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
-	const char *devices_allow_relpath = "devices.allow";
-	int SC_CLEANUP(sc_cleanup_close) devices_allow_fd = -1;
-	devices_allow_fd = openat(security_tag_fd, devices_allow_relpath,
-				  O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
-	if (devices_allow_fd < 0) {
-		die("cannot open %s/%s/%s/%s", cgroup_path, devices_relpath,
-		    security_tag_relpath, devices_allow_relpath);
-	}
-
-	/* Open devices.deny relative to /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
-	const char *devices_deny_relpath = "devices.deny";
-	int SC_CLEANUP(sc_cleanup_close) devices_deny_fd = -1;
-	devices_deny_fd = openat(security_tag_fd, devices_deny_relpath,
-				 O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
-	if (devices_deny_fd < 0) {
-		die("cannot open %s/%s/%s/%s", cgroup_path, devices_relpath,
-		    security_tag_relpath, devices_deny_relpath);
-	}
-
-	/* Open cgroup.procs relative to /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
-	const char *cgroup_procs_relpath = "cgroup.procs";
-	int SC_CLEANUP(sc_cleanup_close) cgroup_procs_fd = -1;
-	cgroup_procs_fd = openat(security_tag_fd, cgroup_procs_relpath,
-				 O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
-	if (cgroup_procs_fd < 0) {
-		die("cannot open %s/%s/%s/%s", cgroup_path, devices_relpath,
-		    security_tag_relpath, cgroup_procs_relpath);
-	}
-
-	/* Everything worked so pack the result and "move" the descriptors over so
-	 * that they are not closed by the cleanup functions associated with the
-	 * individual variables. */
-	fds.devices_allow_fd = devices_allow_fd;
-	fds.devices_deny_fd = devices_deny_fd;
-	fds.cgroup_procs_fd = cgroup_procs_fd;
-	/* Reset the locals so that they are not closed by the cleanup handlers. */
-	devices_allow_fd = -1;
-	devices_deny_fd = -1;
-	cgroup_procs_fd = -1;
-	return fds;
-}
-
-static void sc_cleanup_cgroup_fds(sc_cgroup_fds * fds)
-{
-	if (fds != NULL) {
-		sc_cleanup_close(&fds->devices_allow_fd);
-		sc_cleanup_close(&fds->devices_deny_fd);
-		sc_cleanup_close(&fds->cgroup_procs_fd);
-	}
-}
 
 /* symbol will be resolved at link time by ld.so if the libudev library has
  * it */
@@ -372,11 +236,6 @@ int udev_device_has_current_tag(struct udev_device *udev_device,
 void sc_setup_device_cgroup(const char *security_tag)
 {
 	debug("setting up device cgroup");
-	if (sc_cgroup_is_v2()) {
-		/* TODO: add support for v2 mode. This is coming but needs several more
-		 * rounds of iteration. */
-		return;
-	}
 
 	if (udev_device_has_current_tag == NULL) {
 		debug("no current tags support present");
@@ -423,15 +282,10 @@ void sc_setup_device_cgroup(const char *security_tag)
 	/* Note that -1 is the neutral value for a file descriptor.
 	 * The cleanup function associated with this variable closes
 	 * descriptors other than -1. */
-	sc_cgroup_fds SC_CLEANUP(sc_cleanup_cgroup_fds) fds = { -1, -1, -1 };
-	fds = sc_udev_open_cgroup_v1(security_tag);
-	if (fds.cgroup_procs_fd < 0) {
-		die("cannot prepare cgroup v1 device hierarchy");
-		return;
-	}
+	sc_device_cgroup *cgroup SC_CLEANUP(sc_device_cgroup_cleanup) =
+	    sc_device_cgroup_new(security_tag, 0);
 	/* Setup the device group access control list */
-	sc_udev_setup_acls_common(fds.devices_allow_fd, fds.devices_deny_fd,
-				  udev, assigned);
+	sc_udev_setup_acls_common(cgroup);
 	for (struct udev_list_entry * entry = assigned; entry != NULL;
 	     entry = udev_list_entry_get_next(entry)) {
 		const char *path = udev_list_entry_get_name(entry);
@@ -460,11 +314,11 @@ void sc_setup_device_cgroup(const char *security_tag)
 			debug("device %s has matching current tag", path);
 		}
 
-		sc_udev_allow_assigned_device(fds.devices_allow_fd, device);
+		sc_udev_allow_assigned_device(cgroup, device);
 		udev_device_unref(device);
 	}
 	/* Move ourselves to the device cgroup */
-	sc_dprintf(fds.cgroup_procs_fd, "%i\n", getpid());
+	sc_device_cgroup_attach_pid(cgroup, getpid());
 	debug("associated snap application process %i with device cgroup %s",
 	      getpid(), security_tag);
 }
