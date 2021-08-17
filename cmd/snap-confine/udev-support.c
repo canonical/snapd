@@ -304,6 +304,12 @@ void sc_setup_device_cgroup(const char *security_tag)
 			debug("cannot find device from syspath %s", path);
 			continue;
 		}
+		/* If we are able to query if the device has a current tag,
+		 * do so and if there are no current tags, continue to prevent
+		 * allowing assigned devices to the cgroup - this has the net
+		 * desired effect of not re-creating device cgroups that were
+		 * previously created/setup but should no longer be setup due
+		 * to interface disconnection, etc. */
 		if (udev_device_has_current_tag != NULL) {
 			if (udev_device_has_current_tag(device, udev_tag) <= 0) {
 				debug("device %s has no matching current tag",
