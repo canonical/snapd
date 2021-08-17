@@ -143,24 +143,27 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 	context.Lock()
 	defer context.Unlock()
 
-	if context.IsEphemeral() {
-		// TODO: support ephemeral context
-		return nil, nil
+	st := context.State()
+
+	affected, err := snapstate.AffectedByRefreshCandidates(st)
+	if err != nil {
+		return nil, err
 	}
 
 	var base, restart bool
-	context.Get("base", &base)
-	context.Get("restart", &restart)
-
-	var candidates map[string]*refreshCandidate
-	st := context.State()
-	if err := st.Get("refresh-candidates", &candidates); err != nil {
-		return nil, err
+	if affectedInfo, ok := affected[context.InstanceName()]; ok {
+		base = affectedInfo.Base
+		restart = affectedInfo.Restart
 	}
 
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, context.InstanceName(), &snapst); err != nil {
 		return nil, fmt.Errorf("internal error: cannot get snap state for %q: %v", context.InstanceName(), err)
+	}
+
+	var candidates map[string]*refreshCandidate
+	if err := st.Get("refresh-candidates", &candidates); err != nil {
+		return nil, err
 	}
 
 	var pending string
@@ -200,10 +203,6 @@ func (c *refreshCommand) printPendingInfo() error {
 	if err != nil {
 		return err
 	}
-	// XXX: remove when ephemeral context is supported.
-	if details == nil {
-		return nil
-	}
 	out, err := yaml.Marshal(details)
 	if err != nil {
 		return err
@@ -224,9 +223,18 @@ func (c *refreshCommand) hold() error {
 	// cache the action so that hook handler can implement default behavior
 	ctx.Cache("action", snapstate.GateAutoRefreshHold)
 
-	var affecting []string
-	if err := ctx.Get("affecting-snaps", &affecting); err != nil {
-		return fmt.Errorf("internal error: cannot get affecting-snaps")
+	affected, err := snapstate.AffectedByRefreshCandidates(st)
+	if err != nil {
+		return err
+	}
+
+	affectedInfo := affected[ctx.InstanceName()]
+	if affectedInfo == nil {
+		return fmt.Errorf("no snaps are held by %q", ctx.InstanceName())
+	}
+	affecting := make([]string, 0, len(affectedInfo.AffectingSnaps))
+	for snapName := range affectedInfo.AffectingSnaps {
+		affecting = append(affecting, snapName)
 	}
 
 	// no duration specified, use maximum allowed for this gating snap.

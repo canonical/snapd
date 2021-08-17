@@ -145,7 +145,8 @@ func mockInstalledSnap(c *C, st *state.State, snapYaml string) {
 				SnapID:   info.InstanceName() + "-id",
 			},
 		},
-		Current: info.Revision,
+		Current:         info.Revision,
+		TrackingChannel: "stable",
 	})
 }
 

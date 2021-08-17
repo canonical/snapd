@@ -609,20 +609,12 @@ func usesMountBackend(iface interfaces.Interface) bool {
 }
 
 // createGateAutoRefreshHooks creates gate-auto-refresh hooks for all affectedSnaps.
-// The hooks will have their context data set from affectedSnapInfo flags (base, restart).
 // Hook tasks will be chained to run sequentially.
-func createGateAutoRefreshHooks(st *state.State, affectedSnaps map[string]*AffectedSnapInfo) *state.TaskSet {
+func createGateAutoRefreshHooks(st *state.State, affectedSnaps []string) *state.TaskSet {
 	ts := state.NewTaskSet()
 	var prev *state.Task
-	// sort names for easy testing
-	names := make([]string, 0, len(affectedSnaps))
-	for snapName := range affectedSnaps {
-		names = append(names, snapName)
-	}
-	sort.Strings(names)
-	for _, snapName := range names {
-		affected := affectedSnaps[snapName]
-		hookTask := SetupGateAutoRefreshHook(st, snapName, affected.Base, affected.Restart, affected.AffectingSnaps)
+	for _, snapName := range affectedSnaps {
+		hookTask := SetupGateAutoRefreshHook(st, snapName)
 		// XXX: it should be fine to run the hooks in parallel
 		if prev != nil {
 			hookTask.WaitFor(prev)

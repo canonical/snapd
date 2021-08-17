@@ -26,10 +26,12 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -62,6 +64,13 @@ func (s *refreshSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 	s.st = state.New(nil)
 	s.mockHandler = hooktest.NewMockHandler()
+
+	// snapstate.AffectedByRefreshCandidates needs a cached iface repo
+	repo := interfaces.NewRepository()
+	// no interfaces needed for this test suite
+	s.st.Lock()
+	defer s.st.Unlock()
+	ifacerepo.Replace(s.st, repo)
 }
 
 var refreshFromHookTests = []struct {
@@ -75,17 +84,26 @@ var refreshFromHookTests = []struct {
 	args: []string{"refresh", "--proceed", "--hold"},
 	err:  "cannot use --proceed and --hold together",
 }, {
-	args:              []string{"refresh", "--pending"},
-	refreshCandidates: map[string]interface{}{"snap1": mockRefreshCandidate("snap1", "", "edge", "v1", snap.Revision{N: 3})},
-	stdout:            "pending: ready\nchannel: edge\nversion: v1\nrevision: 3\nbase: false\nrestart: false\n",
+	args: []string{"refresh", "--pending"},
+	refreshCandidates: map[string]interface{}{
+		"snap1": mockRefreshCandidate("snap1", "", "edge", "v1", snap.Revision{N: 3}),
+	},
+	stdout: "pending: ready\nchannel: edge\nversion: v1\nrevision: 3\nbase: false\nrestart: false\n",
 }, {
 	args:   []string{"refresh", "--pending"},
 	stdout: "pending: none\nchannel: stable\nbase: false\nrestart: false\n",
 }, {
-	args:    []string{"refresh", "--pending"},
-	base:    true,
-	restart: true,
-	stdout:  "pending: none\nchannel: stable\nbase: true\nrestart: true\n",
+	args: []string{"refresh", "--pending"},
+	refreshCandidates: map[string]interface{}{
+		"snap1-base": mockRefreshCandidate("snap1-base", "", "edge", "v1", snap.Revision{N: 3}),
+	},
+	stdout: "pending: none\nchannel: stable\nbase: true\nrestart: false\n",
+}, {
+	args: []string{"refresh", "--pending"},
+	refreshCandidates: map[string]interface{}{
+		"kernel": mockRefreshCandidate("kernel", "", "edge", "v1", snap.Revision{N: 3}),
+	},
+	stdout: "pending: none\nchannel: stable\nbase: false\nrestart: true\n",
 }, {
 	args:      []string{"refresh", "--pending"},
 	inhibited: true,
@@ -98,24 +116,32 @@ func (s *refreshSuite) TestRefreshFromHook(c *C) {
 	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1), Hook: "gate-auto-refresh"}
 	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
 	c.Check(err, IsNil)
+	mockInstalledSnap(c, s.st, `name: snap1
+base: snap1-base
+version: 1
+hooks:
+ gate-auto-refresh:
+`)
+	mockInstalledSnap(c, s.st, `name: snap1-base
+type: base
+version: 1
+`)
+	mockInstalledSnap(c, s.st, `name: kernel
+type: kernel
+version: 1
+`)
 	s.st.Unlock()
 
 	for _, test := range refreshFromHookTests {
-		mockContext.Lock()
-		mockContext.Set("base", test.base)
-		mockContext.Set("restart", test.restart)
+		s.st.Lock()
 		s.st.Set("refresh-candidates", test.refreshCandidates)
-		snapst := &snapstate.SnapState{
-			Active:          true,
-			Sequence:        []*snap.SideInfo{{RealName: "snap1", Revision: snap.R(1)}},
-			Current:         snap.R(2),
-			TrackingChannel: "stable",
-		}
 		if test.inhibited {
+			var snapst snapstate.SnapState
+			c.Assert(snapstate.Get(s.st, "snap1", &snapst), IsNil)
 			snapst.RefreshInhibitedTime = &time.Time{}
+			snapstate.Set(s.st, "snap1", &snapst)
 		}
-		snapstate.Set(s.st, "snap1", snapst)
-		mockContext.Unlock()
+		s.st.Unlock()
 
 		stdout, stderr, err := ctlcmd.Run(mockContext, test.args, 0)
 		comment := Commentf("%s", test.args)
@@ -141,15 +167,23 @@ func (s *refreshSuite) TestRefreshHold(c *C) {
 	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
 	c.Check(err, IsNil)
 
-	mockInstalledSnap(c, s.st, `name: foo
+	mockInstalledSnap(c, s.st, `name: snap1
+base: snap1-base
+version: 1
+hooks:
+ gate-auto-refresh:
+`)
+	mockInstalledSnap(c, s.st, `name: snap1-base
+type: base
 version: 1
 `)
 
-	s.st.Unlock()
+	candidates := map[string]interface{}{
+		"snap1-base": mockRefreshCandidate("snap1-base", "", "edge", "v1", snap.Revision{N: 3}),
+	}
+	s.st.Set("refresh-candidates", candidates)
 
-	mockContext.Lock()
-	mockContext.Set("affecting-snaps", []string{"foo"})
-	mockContext.Unlock()
+	s.st.Unlock()
 
 	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--hold"}, 0)
 	c.Assert(err, IsNil)
@@ -164,7 +198,7 @@ version: 1
 
 	var gating map[string]map[string]interface{}
 	c.Assert(s.st.Get("snaps-hold", &gating), IsNil)
-	c.Check(gating["foo"]["snap1"], NotNil)
+	c.Check(gating["snap1-base"]["snap1"], NotNil)
 }
 
 func (s *refreshSuite) TestRefreshProceed(c *C) {

@@ -574,7 +574,7 @@ var CheckHealthHook = func(st *state.State, snapName string, rev snap.Revision) 
 	panic("internal error: snapstate.CheckHealthHook is unset")
 }
 
-var SetupGateAutoRefreshHook = func(st *state.State, snapName string, base, restart bool, affectingSnaps map[string]bool) *state.Task {
+var SetupGateAutoRefreshHook = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.SetupAutoRefreshGatingHook is unset")
 }
 
@@ -2028,7 +2028,12 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 
 	var hooks *state.TaskSet
 	if len(affectedSnaps) > 0 {
-		hooks = createGateAutoRefreshHooks(st, affectedSnaps)
+		affected := make([]string, 0, len(affectedSnaps))
+		for snapName := range affectedSnaps {
+			affected = append(affected, snapName)
+		}
+		sort.Strings(affected)
+		hooks = createGateAutoRefreshHooks(st, affected)
 	}
 
 	// gate-auto-refresh hooks, followed by conditional-auto-refresh task waiting

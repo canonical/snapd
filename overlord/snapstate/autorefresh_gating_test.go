@@ -1114,23 +1114,7 @@ func (s *autorefreshGatingSuite) TestCreateAutoRefreshGateHooks(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	affected := map[string]*snapstate.AffectedSnapInfo{
-		"snap-a": {
-			Base:    true,
-			Restart: true,
-			AffectingSnaps: map[string]bool{
-				"snap-c": true,
-				"snap-d": true,
-			},
-		},
-		"snap-b": {
-			AffectingSnaps: map[string]bool{
-				"snap-e": true,
-				"snap-f": true,
-			},
-		},
-	}
-
+	affected := []string{"snap-a", "snap-b"}
 	seenSnaps := make(map[string]bool)
 
 	ts := snapstate.CreateGateAutoRefreshHooks(st, affected)
@@ -1143,23 +1127,6 @@ func (s *autorefreshGatingSuite) TestCreateAutoRefreshGateHooks(c *C) {
 		c.Check(hs.Hook, Equals, "gate-auto-refresh")
 		c.Check(hs.Optional, Equals, true)
 		seenSnaps[hs.Snap] = true
-
-		var data interface{}
-		c.Assert(t.Get("hook-context", &data), IsNil)
-
-		// the order of hook tasks is not deterministic
-		if hs.Snap == "snap-a" {
-			c.Check(data, DeepEquals, map[string]interface{}{
-				"base":            true,
-				"restart":         true,
-				"affecting-snaps": []interface{}{"snap-c", "snap-d"}})
-		} else {
-			c.Assert(hs.Snap, Equals, "snap-b")
-			c.Check(data, DeepEquals, map[string]interface{}{
-				"base":            false,
-				"restart":         false,
-				"affecting-snaps": []interface{}{"snap-e", "snap-f"}})
-		}
 	}
 
 	checkHook(ts.Tasks()[0])
@@ -1347,8 +1314,6 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 
 	c.Assert(tss[1].Tasks(), HasLen, 2)
 
-	var snapAhookData, snapBhookData map[string]interface{}
-
 	// check hooks for affected snaps
 	seenSnaps := make(map[string]bool)
 	var hs hookstate.HookSetup
@@ -1356,30 +1321,11 @@ func (s *autorefreshGatingSuite) TestAutoRefreshPhase1(c *C) {
 	c.Assert(task.Get("hook-setup", &hs), IsNil)
 	c.Check(hs.Hook, Equals, "gate-auto-refresh")
 	seenSnaps[hs.Snap] = true
-	switch hs.Snap {
-	case "snap-a":
-		task.Get("hook-context", &snapAhookData)
-	case "snap-b":
-		task.Get("hook-context", &snapBhookData)
-	default:
-		c.Fatalf("unexpected snap %q", hs.Snap)
-	}
 
 	task = tss[1].Tasks()[1]
 	c.Assert(task.Get("hook-setup", &hs), IsNil)
 	c.Check(hs.Hook, Equals, "gate-auto-refresh")
 	seenSnaps[hs.Snap] = true
-	switch hs.Snap {
-	case "snap-a":
-		task.Get("hook-context", &snapAhookData)
-	case "snap-b":
-		task.Get("hook-context", &snapBhookData)
-	default:
-		c.Fatalf("unexpected snap %q", hs.Snap)
-	}
-
-	c.Check(snapAhookData["affecting-snaps"], DeepEquals, []interface{}{"snap-a"})
-	c.Check(snapBhookData["affecting-snaps"], DeepEquals, []interface{}{"base-snap-b"})
 
 	// hook for snap-a because it gets refreshed, for snap-b because its base
 	// gets refreshed. snap-c is refreshed but doesn't have the hook.
@@ -1478,12 +1424,6 @@ func (s *autorefreshGatingSuite) TestAffectedByRefreshUsesCurrentSnapInfo(c *C) 
 	c.Assert(task.Get("hook-setup", &hs), IsNil)
 	c.Check(hs.Hook, Equals, "gate-auto-refresh")
 	c.Check(hs.Snap, Equals, "snap-b")
-	var data interface{}
-	c.Assert(task.Get("hook-context", &data), IsNil)
-	c.Check(data, DeepEquals, map[string]interface{}{
-		"base":            true,
-		"restart":         false,
-		"affecting-snaps": []interface{}{"base-snap-b", "snap-b"}})
 
 	// check that refresh-candidates in the state were updated
 	var candidates map[string]*snapstate.RefreshCandidate
@@ -2381,14 +2321,6 @@ func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnap(c *C) {
 	c.Check(hs.Snap, Equals, "snap-b")
 	c.Check(hs.Optional, Equals, true)
 
-	var data interface{}
-	c.Assert(tasks[1].Get("hook-context", &data), IsNil)
-	c.Check(data, DeepEquals, map[string]interface{}{
-		"base":            true,
-		"restart":         false,
-		"affecting-snaps": []interface{}{"base-snap-b", "snap-b"},
-	})
-
 	// last-refresh wasn't modified
 	var lr time.Time
 	st.Get("last-refresh", &lr)
@@ -2500,24 +2432,6 @@ func (s *autorefreshGatingSuite) TestAutoRefreshForGatingSnapMoreAffectedSnaps(c
 		c.Check(hs.Hook, Equals, "gate-auto-refresh")
 		c.Check(hs.Optional, Equals, true)
 		seenSnaps[hs.Snap] = true
-		var data interface{}
-		c.Assert(tasks[i].Get("hook-context", &data), IsNil)
-		switch hs.Snap {
-		case "snap-b":
-			c.Check(data, DeepEquals, map[string]interface{}{
-				"base":            true,
-				"restart":         false,
-				"affecting-snaps": []interface{}{"base-snap-b", "snap-b"},
-			})
-		case "snap-bb":
-			c.Check(data, DeepEquals, map[string]interface{}{
-				"base":            true,
-				"restart":         false,
-				"affecting-snaps": []interface{}{"base-snap-b"},
-			})
-		default:
-			c.Fatalf("unexpected snap %q", hs.Snap)
-		}
 	}
 	c.Check(seenSnaps, DeepEquals, map[string]bool{
 		"snap-b":  true,
