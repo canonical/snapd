@@ -543,9 +543,11 @@ var (
 // when the configuration for the given config key for a given
 // snapname is requested.
 //
-// This is useful for e.g. the system.hostname configuration where the
-// authoritative value is coming from the kernel and can be changed
-// outside of snapd.
+// This is useful when the configuration is stored externally,
+// e.g. the systems hostname is stored via `hostnamectl` and it does not
+// make sense to store it the snapd state. Examples are:
+// - system.timezone
+// - system.hostname
 func RegisterExternalConfig(snapName, key string, vf ExternalCfgFunc) error {
 	externalConfigMu.Lock()
 	defer externalConfigMu.Unlock()
