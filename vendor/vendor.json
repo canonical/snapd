@@ -3,10 +3,6 @@
 	"ignore": "test",
 	"package": [
 		{
-			"path": "context",
-			"revision": ""
-		},
-		{
 			"checksumSHA1": "CT15zzEmXx3dQ7/PJCSwZhqSV/o=",
 			"path": "github.com/canonical/go-sp800.90a-drbg",
 			"revision": "6eeb1040d6c3a6b618a8da5e42ef66b35e7a3ddd",
@@ -148,10 +144,6 @@
 			"path": "github.com/snapcore/secboot/internal/pe1.14",
 			"revision": "122bca1e162df761510e82be1bc9043250fe0bc7",
 			"revisionTime": "2021-02-12T23:46:08Z"
-		},
-		{
-			"path": "github.com/snapcore/secboot/internal/pe1.4",
-			"revision": ""
 		},
 		{
 			"checksumSHA1": "OgWrpbYPDuYIuC3iwrKFfxpg0UY=",
@@ -309,10 +301,10 @@
 			"revisionTime": "2016-08-18T02:01:20Z"
 		},
 		{
-			"checksumSHA1": "lBMMakT63h9ywP4d5wlkhOYMCAs=",
+			"checksumSHA1": "e5X6+yC/8PS/M2j+Y9Z0cSdDEYI=",
 			"path": "gopkg.in/retry.v1",
-			"revision": "c09f6b86ba4d5d2cf5bdf0665364aec9fd4815db",
-			"revisionTime": "2016-10-25T18:07:18Z"
+			"revision": "cd7d3b308163f575bf3e14623edd50ef2b90b877",
+			"revisionTime": "2019-05-15T07:55:55Z"
 		},
 		{
 			"checksumSHA1": "t95/FNK2nGCx3e6IARbO7OrcCuY=",
