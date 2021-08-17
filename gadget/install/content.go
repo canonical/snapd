@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/mkfs"
 )
 
 var contentMountpoint string
@@ -44,7 +45,7 @@ func init() {
 func makeFilesystem(ds *gadget.OnDiskStructure, sectorSize quantity.Size) error {
 	if ds.HasFilesystem() {
 		logger.Debugf("create %s filesystem on %s with label %q", ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label)
-		if err := gadget.Mkfs(ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label, ds.Size, sectorSize); err != nil {
+		if err := mkfs.Make(ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label, ds.Size, sectorSize); err != nil {
 			return err
 		}
 		if err := udevTrigger(ds.Node); err != nil {
