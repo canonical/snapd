@@ -52,10 +52,6 @@ endif
 # The list of go binaries we are expected to build.
 go_binaries = snap snapctl snap-seccomp snap-update-ns snap-exec snapd
 
-# The snapd package does not support Go modules. Since Go 1.16 those are on by
-# default, so make sure to disable them.
-export GO111MODULE = off
-
 # NOTE: This *depends* on building out of tree. Some of the built binaries
 # conflict with directory names in the tree.
 .PHONY: all
