@@ -81,7 +81,7 @@ execute: |
         exit 0
     fi
 
-    echo "Given a snap is installed"
+    echo "Given snap is installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
     echo "Then the device is not assigned to that snap"
