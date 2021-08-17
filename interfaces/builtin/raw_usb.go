@@ -44,7 +44,8 @@ const rawusbConnectedPlugAppArmor = `
 # Allow detection of usb devices. Leaks plugged in USB device info
 /sys/bus/usb/devices/ r,
 /sys/devices/pci**/usb[0-9]** r,
-/sys/devices/platform/{sbc,soc}/*.usb/usb[0-9]** r,
+/sys/devices/platform/soc/*.usb/usb[0-9]** r,
+/sys/devices/platform/scb/*.pcie/pci**/usb[0-9]** r,
 
 /run/udev/data/c16[67]:[0-9] r, # ACM USB modems
 /run/udev/data/b180:*    r, # various USB block devices
