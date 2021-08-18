@@ -179,7 +179,7 @@ type dummyReporter struct{}
 
 func (dummyReporter) Notify(string) {}
 
-func validateJSONRequest(r *http.Request) (bool, Response) {
+func validateJSONRequest(r *http.Request) (valid bool, errResp Response) {
 	contentType := r.Header.Get("Content-Type")
 	mediaType, params, err := mime.ParseMediaType(contentType)
 	if err != nil {
