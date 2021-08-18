@@ -72,6 +72,11 @@ func (p *Document) GetDefaultMountPoint() (string, error) {
 	return filepath.Join(xdgRuntimeDir, "doc"), nil
 }
 
+// Activate is used to setup the Document portal by "snap run". This function
+// returns an error only if an error occurs while activating the portal; if the
+// portal backend is simply not available on the system, no error us returned.
+// Note that this function is optimized to reduce overhead, since it's used by
+// "snap run" before launching applications.
 func (p *Document) Activate() error {
 	expectedMountPoint, err := p.GetDefaultMountPoint()
 	if err != nil {
