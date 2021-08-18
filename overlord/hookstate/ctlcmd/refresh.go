@@ -246,6 +246,7 @@ func (c *refreshCommand) proceed() error {
 
 	// running outside of hook
 	if ctx.IsEphemeral() {
+		// TODO: consider having a permission via an interface for this before making this not experimental
 		st := ctx.State()
 		// we need to check if GateAutoRefreshHook feature is enabled when
 		// running by the snap (we don't need to do this when running from the
