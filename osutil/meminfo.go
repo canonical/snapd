@@ -33,8 +33,8 @@ var (
 
 // TotalUsableMemory returns the total usable memory in the system in bytes.
 //
-// Usabable means (MemTotal - CmaTotal), i.e. the total amount of memory
-// minus the space reserved forthe CMA (Contiguous Memory Allocator).
+// Usable means (MemTotal - CmaTotal), i.e. the total amount of memory
+// minus the space reserved for the CMA (Contiguous Memory Allocator).
 //
 // CMA memory is taken up by e.g. the framebuffer on the Raspberry Pi or
 // by DSPs on specific boards.

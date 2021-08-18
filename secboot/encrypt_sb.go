@@ -68,7 +68,7 @@ func AddRecoveryKey(key EncryptionKey, rkey RecoveryKey, node string) error {
 		return fmt.Errorf("cannot get usable memory for KDF parameters when adding the recovery key: %v", err)
 	}
 	// The KDF memory is heuristically calculated by taking the
-	// usable memory and substracting hardcoded 384MB that is
+	// usable memory and subtracting hardcoded 384MB that is
 	// needed to keep the system working. Half of that is the mem
 	// we want to use for the KDF. Doing it this way avoids the expensive
 	// benchmark from cryptsetup. The recovery key is already 128bit
