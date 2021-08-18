@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+	"testing"
 	"time"
 
 	"github.com/godbus/dbus"
@@ -45,6 +46,9 @@ type portalSuite struct {
 	openResponse uint32
 	calls        []string
 }
+
+// Hook up check.v1 into the "go test" runner
+func Test(t *testing.T) { TestingT(t) }
 
 var _ = Suite(&portalSuite{})
 

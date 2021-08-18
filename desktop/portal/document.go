@@ -36,16 +36,23 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+const (
+	documentPortalBusName    = "org.freedesktop.portal.Documents"
+	documentPortalObjectPath = "/org/freedesktop/portal/documents"
+	documentPortalIface      = "org.freedesktop.portal.Documents"
+)
+
 var (
-	userCurrent = user.Current
-	osGetenv    = os.Getenv
+	userCurrent     = user.Current
+	osGetenv        = os.Getenv
+	osutilIsMounted = osutil.IsMounted
 )
 
 type Document struct {
 	xdgRuntimeDir string
 }
 
-func (p *Document) GetUserXdgRuntimeDir() (string, error) {
+func (p *Document) getUserXdgRuntimeDir() (string, error) {
 	if p.xdgRuntimeDir == "" {
 		u, err := userCurrent()
 		if err != nil {
@@ -57,7 +64,7 @@ func (p *Document) GetUserXdgRuntimeDir() (string, error) {
 }
 
 func (p *Document) GetDefaultMountPoint() (string, error) {
-	xdgRuntimeDir, err := p.GetUserXdgRuntimeDir()
+	xdgRuntimeDir, err := p.getUserXdgRuntimeDir()
 	if err != nil {
 		return "", err
 	}
@@ -73,7 +80,7 @@ func (p *Document) Activate() error {
 
 	// If $XDG_RUNTIME_DIR/doc appears to be a mount point, assume
 	// that the document portal is up and running.
-	if mounted, err := osutil.IsMounted(expectedMountPoint); err != nil {
+	if mounted, err := osutilIsMounted(expectedMountPoint); err != nil {
 		logger.Noticef("Could not check document portal mount state: %s", err)
 	} else if mounted {
 		return nil
@@ -93,7 +100,7 @@ func (p *Document) Activate() error {
 	//
 	// As the file is in $XDG_RUNTIME_DIR, it will be cleared over
 	// full logout/login or reboot cycles.
-	xdgRuntimeDir, err := p.GetUserXdgRuntimeDir()
+	xdgRuntimeDir, err := p.getUserXdgRuntimeDir()
 	if err != nil {
 		return err
 	}
@@ -108,10 +115,9 @@ func (p *Document) Activate() error {
 		return err
 	}
 
-	portal := conn.Object("org.freedesktop.portal.Documents",
-		"/org/freedesktop/portal/documents")
+	portal := conn.Object(documentPortalBusName, documentPortalObjectPath)
 	var mountPoint []byte
-	if err := portal.Call("org.freedesktop.portal.Documents.GetMountPoint", 0).Store(&mountPoint); err != nil {
+	if err := portal.Call(documentPortalIface+".GetMountPoint", 0).Store(&mountPoint); err != nil {
 		// It is not considered an error if
 		// xdg-document-portal is not available on the system.
 		if dbusErr, ok := err.(dbus.Error); ok && dbusErr.Name == "org.freedesktop.DBus.Error.ServiceUnknown" {

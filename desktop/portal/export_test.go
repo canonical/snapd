@@ -20,7 +20,10 @@
 package portal
 
 import (
+	"os/user"
 	"time"
+
+	"github.com/snapcore/snapd/dirs"
 )
 
 const (
@@ -28,6 +31,10 @@ const (
 	DesktopPortalObjectPath   = desktopPortalObjectPath
 	DesktopPortalOpenURIIface = desktopPortalOpenURIIface
 	DesktopPortalRequestIface = desktopPortalRequestIface
+
+	DocumentPortalBusName    = documentPortalBusName
+	DocumentPortalObjectPath = documentPortalObjectPath
+	DocumentPortalIface      = documentPortalIface
 )
 
 func MockPortalTimeout(t time.Duration) (restore func()) {
@@ -36,4 +43,23 @@ func MockPortalTimeout(t time.Duration) (restore func()) {
 	return func() {
 		defaultPortalRequestTimeout = old
 	}
+}
+
+func MockUserCurrent(mock func() (*user.User, error)) func() {
+	old := userCurrent
+	userCurrent = mock
+
+	return func() { userCurrent = old }
+}
+
+func MockOsutilIsMounted(f func(path string) (bool, error)) func() {
+	old := osutilIsMounted
+	osutilIsMounted = f
+	return func() { osutilIsMounted = old }
+}
+
+func MockXdgRuntimeDir(path string) func() {
+	old := dirs.XdgRuntimeDirBase
+	dirs.XdgRuntimeDirBase = path
+	return func() { dirs.XdgRuntimeDirBase = old }
 }
