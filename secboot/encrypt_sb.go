@@ -78,6 +78,7 @@ func AddRecoveryKey(key EncryptionKey, rkey RecoveryKey, node string) error {
 	if kdfMem > 1024*1024*1024 {
 		kdfMem = (1024 * 1024 * 1024)
 	}
+	// min 32 KB
 	if kdfMem < 32*1024 {
 		kdfMem = 32 * 1024
 	}
