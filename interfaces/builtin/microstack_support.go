@@ -111,7 +111,6 @@ const microStackSupportConnectedPlugAppArmor = `
 @{PROC}/cgroups r,
 
 # Used by libvirt.
-@{PROC}/cmdline r,
 @{PROC}/filesystems r,
 @{PROC}/mtrr w,
 @{PROC}/@{pids}/environ r,
@@ -124,9 +123,7 @@ const microStackSupportConnectedPlugAppArmor = `
 # Libvirt needs access to the PCI config space in order to be able to reset devices.
 /sys/devices/pci*/**/config rw,
 
-# Used by libvirt.
-/dev/ptmx rw,
-# spice
+# Spice
 owner /{dev,run}/shm/spice.* rw,
 
 # Used by libvirt to create lock files for /dev/pts/<num> devices
