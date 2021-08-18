@@ -307,6 +307,25 @@ version: 1
 	c.Check(called, Equals, true)
 }
 
+func (s *refreshSuite) TestPendingFromSnapNoRefreshCandidates(c *C) {
+	s.st.Lock()
+	defer s.st.Unlock()
+
+	mockInstalledSnap(c, s.st, `name: foo
+version: 1
+`)
+
+	setup := &hookstate.HookSetup{Snap: "foo", Revision: snap.R(1)}
+	mockContext, err := hookstate.NewContext(nil, s.st, setup, nil, "")
+	c.Check(err, IsNil)
+	s.st.Unlock()
+	defer s.st.Lock()
+
+	stdout, _, err := ctlcmd.Run(mockContext, []string{"refresh", "--pending"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, "pending: none\nchannel: stable\nbase: false\nrestart: false\n")
+}
+
 func (s *refreshSuite) TestRefreshProceedFromSnapError(c *C) {
 	restore := ctlcmd.MockAutoRefreshForGatingSnap(func(st *state.State, gatingSnap string) error {
 		c.Check(gatingSnap, Equals, "foo")

@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -162,7 +163,7 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 	}
 
 	var candidates map[string]*refreshCandidate
-	if err := st.Get("refresh-candidates", &candidates); err != nil {
+	if err := st.Get("refresh-candidates", &candidates); err != nil && err != state.ErrNoState {
 		return nil, err
 	}
 
