@@ -168,6 +168,9 @@ endif
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
 	./mkversion.sh
+	# ensure auto-generated version is also in the build-tree
+	# XXX: do we need this?
+	(cd _build/src/$(DH_GOPKG)/ && ../../../../../mkversion.sh)
 	# Build golang bits
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
@@ -273,6 +276,13 @@ override_dh_install:
 
 override_dh_auto_install: snap.8
 	dh_auto_install -O--buildsystem=golang
+
+override_dh_golang:
+	# XXX: dh_golang on older versions of ubuntu is not capable to deal
+	# deal with newer go and go.mod. So just make this a no-op or things
+	# will fail on e.g. 18.04. dh_golang will only add "misc:Built-Using"
+	# information.
+	true
 
 snap.8:
 	# fix reproducible builds as reported by:
