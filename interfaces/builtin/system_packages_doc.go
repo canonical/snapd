@@ -71,6 +71,8 @@ func init() {
 			summary:              systemPackagesDocSummary,
 			implicitOnClassic:    true,
 			baseDeclarationSlots: systemPackagesDocBaseDeclarationSlots,
+
+			disruptiveForPlugOnRefresh: true,
 		},
 	})
 }

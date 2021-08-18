@@ -273,5 +273,7 @@ func init() {
 		baseDeclarationSlots:  x11BaseDeclarationSlots,
 		connectedPlugAppArmor: x11ConnectedPlugAppArmor,
 		connectedPlugSecComp:  x11ConnectedPlugSecComp,
+
+		disruptiveForPlugOnRefresh: true,
 	}})
 }

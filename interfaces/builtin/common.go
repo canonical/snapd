@@ -49,6 +49,8 @@ type commonInterface struct {
 	implicitOnCore    bool
 	implicitOnClassic bool
 
+	disruptiveForPlugOnRefresh bool
+
 	baseDeclarationPlugs string
 	baseDeclarationSlots string
 
@@ -87,6 +89,8 @@ func (iface *commonInterface) StaticInfo() interfaces.StaticInfo {
 		ImplicitOnClassic:    iface.implicitOnClassic,
 		BaseDeclarationPlugs: iface.baseDeclarationPlugs,
 		BaseDeclarationSlots: iface.baseDeclarationSlots,
+
+		DisruptiveForPlugOnRefresh: iface.disruptiveForPlugOnRefresh,
 	}
 }
 

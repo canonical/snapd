@@ -112,5 +112,7 @@ func init() {
 		summary:              appstreamMetadataSummary,
 		implicitOnClassic:    true,
 		baseDeclarationSlots: appstreamMetadataBaseDeclarationSlots,
+
+		disruptiveForPlugOnRefresh: true,
 	}})
 }

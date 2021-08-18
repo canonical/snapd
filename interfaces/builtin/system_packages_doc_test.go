@@ -118,6 +118,7 @@ func (s *systemPackagesDocSuite) TestStaticInfo(c *C) {
 	c.Assert(si.Summary, Equals, `allows access to documentation of system packages`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "system-packages-doc")
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "deny-auto-connection: true")
+	c.Assert(si.DisruptiveForPlugOnRefresh, Equals, true)
 }
 
 func (s *systemPackagesDocSuite) TestInterfaces(c *C) {

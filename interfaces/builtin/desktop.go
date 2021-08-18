@@ -425,6 +425,8 @@ func init() {
 			summary:              desktopSummary,
 			implicitOnClassic:    true,
 			baseDeclarationSlots: desktopBaseDeclarationSlots,
+
+            disruptiveForPlugOnRefresh: true,
 		},
 	})
 }

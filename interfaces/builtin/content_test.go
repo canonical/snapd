@@ -1021,3 +1021,12 @@ apps:
 `
 	c.Assert(apparmorSpec.SnippetForTag("snap.producer.app"), Equals, expected)
 }
+
+func (s *ContentSuite) TestStaticInfo(c *C) {
+	si := interfaces.StaticInfoOf(s.iface)
+	c.Assert(si.ImplicitOnCore, Equals, false)
+	c.Assert(si.ImplicitOnClassic, Equals, false)
+	c.Assert(si.Summary, Equals, `allows sharing code and data with other snaps`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "content: $SLOT(content)")
+	c.Assert(si.DisruptiveForPlugOnRefresh, Equals, true)
+}
