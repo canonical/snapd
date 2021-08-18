@@ -531,6 +531,14 @@ prepare_project() {
         fi
         sleep 1
     done
+    # Update C dependencies
+    for _ in $(seq 10); do
+        if (cd vendor.c && ./vendor.sh); then
+            break
+        fi
+        sleep 1
+    done
+
     # govendor runs as root and will leave strange permissions
     chown test.test -R "$SPREAD_PATH"
 
