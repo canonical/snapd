@@ -574,25 +574,6 @@ func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedS
 				}
 			}
 		}
-		for _, plugInfo := range up.Plugs {
-			iface := repo.Interface(plugInfo.Interface)
-			if iface == nil {
-				return nil, fmt.Errorf("internal error: unknown interface %s", plugInfo.Interface)
-			}
-			si := interfaces.StaticInfoOf(iface)
-			if !si.DisruptiveForPlugOnRefresh {
-				continue
-			}
-			conns, err := repo.Connected(up.InstanceName(), plugInfo.Name)
-			if err != nil {
-				return nil, err
-			}
-			for _, cref := range conns {
-				if snapsWithHook[cref.SlotRef.Snap] != nil {
-					addAffected(cref.SlotRef.Snap, up.InstanceName(), true, false)
-				}
-			}
-		}
 	}
 
 	return affected, nil
