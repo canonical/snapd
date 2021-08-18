@@ -2,7 +2,11 @@ summary: Check that snapctl refresh --pending/--proceed can be used outside of
   hooks.
 
 details: |
-  XXX
+  Test auto-refresh with gate-auto-refresh hook support enabled
+  (experimental.gate-auto-refresh-hook feature) and verify the snaps can
+  use snapctl refresh --pending/--proceed commands outside of hooks.
+  The test uses two test snaps, there are a few versions of these
+  snaps in the store (in stable/beta/edge channels) for this test.
 
 environment:
   SNAP_NAME: test-snapd-refresh-control
