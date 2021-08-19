@@ -22,10 +22,13 @@ package secboot_test
 
 import (
 	"errors"
+	"io/ioutil"
+	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
 )
 
@@ -72,7 +75,17 @@ func (s *encryptSuite) TestFormatEncryptedDevice(c *C) {
 	}
 }
 
+const mockedMeminfo = `MemTotal:         929956 kB
+CmaTotal:         131072 kB
+`
+
 func (s *encryptSuite) TestAddRecoveryKey(c *C) {
+	mockedMeminfoFile := filepath.Join(c.MkDir(), "meminfo")
+	err := ioutil.WriteFile(mockedMeminfoFile, []byte(mockedMeminfo), 0644)
+	c.Assert(err, IsNil)
+	restore := osutil.MockProcMeminfo(mockedMeminfoFile)
+	defer restore()
+
 	for _, tc := range []struct {
 		addErr error
 		err    string
@@ -94,7 +107,11 @@ func (s *encryptSuite) TestAddRecoveryKey(c *C) {
 			c.Assert(devicePath, Equals, "/dev/node")
 			c.Assert(recoveryKey[:], DeepEquals, myRecoveryKey[:])
 			c.Assert(key, DeepEquals, []byte(myKey))
-			c.Assert(opts, IsNil)
+			c.Assert(opts, DeepEquals, &sb.KDFOptions{
+				// (TotalMem - CmaMem - 384MB hardcoded) / 2
+				MemoryKiB:       int((929956 - 131072 - 384*1024) / 2),
+				ForceIterations: 4,
+			})
 			return tc.addErr
 		})
 		defer restore()
