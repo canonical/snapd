@@ -1113,7 +1113,7 @@ WantedBy=multi-user.target
 `
 
 const (
-	snappyCreatorModule = "X-SnappyCreatorModule"
+	snappyCreatorModule = "X-SnapdOrigin"
 )
 
 func writeMountUnitFile(u *MountUnitOptions) (mountUnitName string, err error) {
