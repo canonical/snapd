@@ -426,7 +426,7 @@ func init() {
 			implicitOnClassic:    true,
 			baseDeclarationSlots: desktopBaseDeclarationSlots,
 
-            disruptiveForPlugOnRefresh: true,
+			disruptiveForPlugOnRefresh: true,
 		},
 	})
 }
