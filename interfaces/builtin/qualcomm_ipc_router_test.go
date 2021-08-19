@@ -39,30 +39,30 @@ type QrtrInterfaceSuite struct {
 }
 
 var _ = Suite(&QrtrInterfaceSuite{
-	iface: builtin.MustInterface("qrtr"),
+	iface: builtin.MustInterface("qualcomm-ipc-router"),
 })
 
-const qrtrConsumerYaml = `name: consumer
+const qipcrtrConsumerYaml = `name: consumer
 version: 0
 apps:
  app:
-  plugs: [qrtr]
+  plugs: [qualcomm-ipc-router]
 `
 
-const qrtrCoreYaml = `name: core
+const qipcrtrCoreYaml = `name: core
 version: 0
 type: os
 slots:
-  qrtr:
+  qualcomm-ipc-router:
 `
 
 func (s *QrtrInterfaceSuite) SetUpTest(c *C) {
-	s.plug, s.plugInfo = MockConnectedPlug(c, qrtrConsumerYaml, nil, "qrtr")
-	s.slot, s.slotInfo = MockConnectedSlot(c, qrtrCoreYaml, nil, "qrtr")
+	s.plug, s.plugInfo = MockConnectedPlug(c, qipcrtrConsumerYaml, nil, "qualcomm-ipc-router")
+	s.slot, s.slotInfo = MockConnectedSlot(c, qipcrtrCoreYaml, nil, "qualcomm-ipc-router")
 }
 
 func (s *QrtrInterfaceSuite) TestName(c *C) {
-	c.Assert(s.iface.Name(), Equals, "qrtr")
+	c.Assert(s.iface.Name(), Equals, "qualcomm-ipc-router")
 }
 
 func (s *QrtrInterfaceSuite) TestSanitizeSlot(c *C) {
@@ -92,8 +92,8 @@ func (s *QrtrInterfaceSuite) TestStaticInfo(c *C) {
 	si := interfaces.StaticInfoOf(s.iface)
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
-	c.Assert(si.Summary, Equals, `allows access to the qrtr sockets`)
-	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "qrtr")
+	c.Assert(si.Summary, Equals, `allows access to the Qualcomm IPC Router sockets`)
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "qipcrtr")
 }
 
 func (s *QrtrInterfaceSuite) TestInterfaces(c *C) {
