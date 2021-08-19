@@ -80,6 +80,8 @@ func (s *SystemdTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
 	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.SnapRuntimeServicesDir, 0755)
+	c.Assert(err, IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755), IsNil)
 
 	// force UTC timezone, for reproducible timestamps
@@ -812,6 +814,53 @@ WantedBy=multi-user.target
 		{"daemon-reload"},
 		{"enable", "snap-snapname-x1.mount"},
 		{"start", "snap-snapname-x1.mount"},
+	})
+}
+
+func (s *SystemdTestSuite) TestAddMountUnitTransient(c *C) {
+	rootDir := dirs.GlobalRootDir
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	addMountUnitOptions := &MountUnitOptions{
+		Lifetime: Transient,
+		SnapName: "foo",
+		What:     mockSnapPath,
+		Where:    "/snap/snapname/345",
+		Fstype:   "squashfs",
+		Options:  []string{"remount,ro"},
+		Origin:   "bar",
+	}
+	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).AddMountUnitFileWithOptions(addMountUnitOptions)
+	c.Assert(err, IsNil)
+	defer os.Remove(mountUnitName)
+
+	c.Assert(filepath.Join(dirs.SnapRuntimeServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo
+Before=snapd.service
+After=zfs-mount.service
+
+[Mount]
+What=%s
+Where=/snap/snapname/345
+Type=squashfs
+Options=remount,ro
+LazyUnmount=yes
+
+[Install]
+WantedBy=multi-user.target
+X-SnapdOrigin=bar
+`[1:], mockSnapPath))
+
+	c.Assert(s.argses, DeepEquals, [][]string{
+		{"daemon-reload"},
+		{"--root", rootDir, "enable", "snap-snapname-345.mount"},
+		{"start", "snap-snapname-345.mount"},
 	})
 }
 

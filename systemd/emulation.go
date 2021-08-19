@@ -126,6 +126,7 @@ func (s *emulation) AddMountUnitFile(snapName, revision, what, where, fstype str
 	// mounted with fuse, but mount unit will use squashfs.
 	mountUnitOptions := append(fsMountOptions(fstype), squashfs.StandardOptions()...)
 	mountUnitName, err := writeMountUnitFile(&MountUnitOptions{
+		Lifetime: Persistent,
 		SnapName: snapName,
 		Revision: revision,
 		What:     what,
