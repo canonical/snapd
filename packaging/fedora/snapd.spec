@@ -96,7 +96,7 @@
 %endif
 
 Name:           snapd
-Version:        2.51.5
+Version:        2.51.6
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -942,6 +942,11 @@ fi
 
 
 %changelog
+* Thu Aug 19 2021 Ian Johnson <ian.johnson@canonical.com>
+- New upstream release 2.51.6
+ - secboot: use half the mem for KDF in AddRecoveryKey
+ - secboot: switch main key KDF memory cost to 32KB
+
 * Mon Aug 16 2021 Ian Johnson <ian.johnson@canonical.com>
 - New upstream release 2.51.5
  - snap/squashfs: handle squashfs-tools 4.5+
