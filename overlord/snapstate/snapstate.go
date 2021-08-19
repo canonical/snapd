@@ -1953,7 +1953,6 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 		return nil, nil, err
 	}
 
-	//toUpdate := make(map[string]*refreshCandidate, len(hints))
 	updates := make([]string, 0, len(hints))
 
 	// check conflicts
@@ -1969,7 +1968,6 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 			logger.Noticef("cannot refresh snap %q: %v", up.InstanceName(), err)
 		} else {
 			updates = append(updates, up.InstanceName())
-			//toUpdate[up.InstanceName()] = hints[up.InstanceName()]
 		}
 	}
 

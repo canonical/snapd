@@ -41,6 +41,7 @@ static void cgroupv2_is_tracking_set_up(cgroupv2_is_tracking_fixture *fixture, g
     GError *err = NULL;
     int fd = g_file_open_tmp("s-c-unit-is-tracking-self-group.XXXXXX", &fixture->self_cgroup, &err);
     g_assert_no_error(err);
+    g_assert_cmpint(fd, >=, 0);
     g_close(fd, &err);
     g_assert_no_error(err);
     sc_set_self_cgroup_path(fixture->self_cgroup);
