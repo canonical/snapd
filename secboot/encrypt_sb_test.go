@@ -54,8 +54,8 @@ func (s *encryptSuite) TestFormatEncryptedDevice(c *C) {
 				MetadataKiBSize:     2048,
 				KeyslotsAreaKiBSize: 2560,
 				KDFOptions: &sb.KDFOptions{
-					MemoryKiB: 32768, TargetDuration: 0,
-					ForceIterations: 4, Parallel: 0,
+					MemoryKiB:       32,
+					ForceIterations: 4,
 				},
 			})
 			return tc.initErr
