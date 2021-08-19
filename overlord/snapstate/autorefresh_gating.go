@@ -216,9 +216,16 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 		gating[heldSnap][gatingSnap] = hold
 	}
 
-	if len(herr.SnapsInError) != len(affectingSnaps) {
-		st.Set("snaps-hold", gating)
+	if len(herr.SnapsInError) > 0 {
+		// if some of the affecting snaps couldn't be held anymore then it
+		// doesn't make sense to hold other affecting snaps (because the gating
+		// snap is going to be disrupted anyway); go over all affectingSnaps
+		// again and remove gating info for them.
+		for _, heldSnap := range affectingSnaps {
+			delete(gating[heldSnap], gatingSnap)
+		}
 	}
+	st.Set("snaps-hold", gating)
 	if len(herr.SnapsInError) > 0 {
 		return herr
 	}
