@@ -46,7 +46,7 @@ func FormatEncryptedDevice(key EncryptionKey, label, node string) error {
 		// benchmark. This is okay because we have a high
 		// entropy key and the KDF does not gain us much.
 		KDFOptions: &sb.KDFOptions{
-			MemoryKiB:       32 * 1024,
+			MemoryKiB:       32,
 			ForceIterations: 4,
 		},
 	}
