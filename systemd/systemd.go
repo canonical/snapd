@@ -280,6 +280,9 @@ type Systemd interface {
 	AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
 	RemoveMountUnitFile(baseDir string) error
+	// ListMountUnits gets the list of targets of the mount units created by
+	// the `origin` module for the given snap
+	ListMountUnits(snapName, origin string) ([]string, error)
 	// Mask the given service.
 	Mask(service string) error
 	// Unmask the given service.
@@ -1273,6 +1276,101 @@ func (s *systemd) RemoveMountUnitFile(mountedDir string) error {
 	}
 
 	return nil
+}
+
+func workaroundSystemdQuoting(fragmentPath, where string) string {
+	// We know that the directory components of the fragment path do not need
+	// quoting and are therefore reliable. As for the file name, we workaround
+	// the wrong quoting of older systemd version by re-encoding the "Where"
+	// ourselves.
+	dir := filepath.Dir(fragmentPath)
+	baseName := EscapeUnitNamePath(where)
+	unitType := filepath.Ext(fragmentPath)
+	return filepath.Join(dir, baseName+unitType)
+}
+
+func extractOriginModule(systemdUnitPath string) (string, error) {
+	f, err := os.Open(systemdUnitPath)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+
+	var originModule string
+	s := bufio.NewScanner(f)
+	prefix := snappyOriginModule + "="
+	for s.Scan() {
+		line := s.Text()
+		if strings.HasPrefix(line, prefix) {
+			originModule = line[len(prefix):]
+			break
+		}
+	}
+	return originModule, nil
+}
+
+func (s *systemd) ListMountUnits(snapName, origin string) ([]string, error) {
+	out, err := s.systemctl("show", "--property=Description,Where,FragmentPath", "*.mount")
+	if err != nil {
+		return nil, err
+	}
+
+	var mountPoints []string
+	if bytes.TrimSpace(out) == nil {
+		return mountPoints, nil
+	}
+	// Results are separated by a blank line, so we can split them like this:
+	units := bytes.Split(out, []byte("\n\n"))
+	for _, unitOutput := range units {
+		var where, description, fragmentPath string
+		lines := bytes.Split(bytes.Trim(unitOutput, "\n"), []byte("\n"))
+		for _, line := range lines {
+			splitVal := strings.SplitN(string(line), "=", 2)
+			if len(splitVal) != 2 {
+				return nil, fmt.Errorf("cannot parse systemctl output: %q", line)
+			}
+			switch splitVal[0] {
+			case "Description":
+				description = splitVal[1]
+			case "Where":
+				where = splitVal[1]
+			case "FragmentPath":
+				fragmentPath = splitVal[1]
+			default:
+				return nil, fmt.Errorf("unexpected property %q", splitVal[0])
+			}
+		}
+
+		ourDescription := fmt.Sprintf("Mount unit for %s", snapName)
+		if !strings.HasPrefix(description, ourDescription) {
+			continue
+		}
+
+		// Under Ubuntu 16.04, systemd improperly quotes the FragmentPath, so
+		// we must do some extra work here to get the correct path. This code
+		// can be removed once we stop supporting old distros
+		fragmentPath = workaroundSystemdQuoting(fragmentPath, where)
+
+		// only return units programmatically created by some snapd backend:
+		// the mount unit used to mount the snap's squashfs is generally
+		// uninteresting
+		originModule, err := extractOriginModule(fragmentPath)
+		if err != nil || originModule == "" {
+			continue
+		}
+
+		// If an `origin` was given, we must return only units created by it
+		if origin != "" && originModule != origin {
+			continue
+		}
+
+		if where == "" {
+			return nil, fmt.Errorf(`missing "Where" in mount unit %q`, fragmentPath)
+		}
+
+		mountPoints = append(mountPoints, where)
+	}
+	return mountPoints, nil
 }
 
 func (s *systemd) ReloadOrRestart(serviceName string) error {

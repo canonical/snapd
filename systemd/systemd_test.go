@@ -1405,6 +1405,88 @@ func (s *SystemdTestSuite) TestUnmaskInEmulationMode(c *C) {
 		{"--root", "/path", "unmask", "foo"}})
 }
 
+func (s *SystemdTestSuite) TestListMountUnitsEmpty(c *C) {
+	s.outs = [][]byte{
+		[]byte("\n"),
+	}
+
+	sysd := New(SystemMode, nil)
+	units, err := sysd.ListMountUnits("some-snap", "")
+	c.Check(units, HasLen, 0)
+	c.Check(err, IsNil)
+}
+
+func (s *SystemdTestSuite) TestListMountUnitsMalformed(c *C) {
+	s.outs = [][]byte{
+		[]byte(`Description=Mount unit for some-snap, revision x1
+Where=/somewhere/here
+FragmentPath=/etc/systemd/system/somewhere-here.mount
+HereIsOneLineWithoutAnEqualSign
+`),
+	}
+
+	sysd := New(SystemMode, nil)
+	units, err := sysd.ListMountUnits("some-snap", "")
+	c.Check(units, HasLen, 0)
+	c.Check(err, ErrorMatches, "cannot parse systemctl output:.*")
+}
+
+func (s *SystemdTestSuite) TestListMountUnitsHappy(c *C) {
+	tmpDir, err := ioutil.TempDir("/tmp", "snapd-systemd-test-list-mounts-*")
+	c.Assert(err, IsNil)
+	defer os.RemoveAll(tmpDir)
+
+	var systemctlOutput string
+	createFakeUnit := func(fileName, snapName, where, origin string) error {
+		path := filepath.Join(tmpDir, fileName)
+		if len(systemctlOutput) > 0 {
+			systemctlOutput += "\n\n"
+		}
+		systemctlOutput += fmt.Sprintf(`Description=Mount unit for %s, revision x1
+Where=%s
+FragmentPath=%s
+`, snapName, where, path)
+		contents := fmt.Sprintf(`[Unit]
+Description=Mount unit for %s, revision x1
+
+[Mount]
+What=/does/not/matter
+Where=%s
+Type=doesntmatter
+Options=do,not,matter,either
+
+[Install]
+WantedBy=multi-user.target
+X-SnapdOrigin=%s
+`, snapName, where, origin)
+		return ioutil.WriteFile(path, []byte(contents), 0644)
+	}
+
+	// Prepare the unit files
+	err = createFakeUnit("somepath-somedir.mount", "some-snap", "/somepath/somedir", "module1")
+	c.Assert(err, IsNil)
+	err = createFakeUnit("somewhere-here.mount", "some-other-snap", "/somewhere/here", "module2")
+	c.Assert(err, IsNil)
+	err = createFakeUnit("somewhere-there.mount", "some-snap", "/somewhere/there", "module3")
+	c.Assert(err, IsNil)
+
+	s.outs = [][]byte{
+		[]byte(systemctlOutput),
+	}
+	sysd := New(SystemMode, nil)
+
+	// First, get all mount units for some-snap, without filter on the origin module
+	units, err := sysd.ListMountUnits("some-snap", "")
+	c.Check(units, DeepEquals, []string{"/somepath/somedir", "/somewhere/there"})
+	c.Check(err, IsNil)
+
+	// Now repeat the same, filtering on the origin module
+	s.i = 0 // this resets the systemctl output iterator back to the beginning
+	units, err = sysd.ListMountUnits("some-snap", "module3")
+	c.Check(units, DeepEquals, []string{"/somewhere/there"})
+	c.Check(err, IsNil)
+}
+
 func (s *SystemdTestSuite) TestMountHappy(c *C) {
 	sysd := New(SystemMode, nil)
 
