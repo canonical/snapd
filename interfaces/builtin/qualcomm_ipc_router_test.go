@@ -77,7 +77,7 @@ func (s *QrtrInterfaceSuite) TestAppArmorSpec(c *C) {
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "network qpicrtr,\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "network qipcrtr dgram,\n")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "capability net_admin,\n")
 }
 
@@ -93,7 +93,7 @@ func (s *QrtrInterfaceSuite) TestStaticInfo(c *C) {
 	c.Assert(si.ImplicitOnCore, Equals, true)
 	c.Assert(si.ImplicitOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows access to the Qualcomm IPC Router sockets`)
-	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "qipcrtr")
+	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "qualcomm-ipc-router")
 }
 
 func (s *QrtrInterfaceSuite) TestInterfaces(c *C) {
