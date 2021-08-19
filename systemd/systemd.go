@@ -215,6 +215,16 @@ func MockJournalctl(f func(svcs []string, n int, follow bool) (io.ReadCloser, er
 	}
 }
 
+type MountUnitOptions struct {
+	SnapName string
+	Revision string
+	What     string
+	Where    string
+	Fstype   string
+	Options  []string
+	Origin   string
+}
+
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
 type Systemd interface {
 	// DaemonReload reloads systemd's configuration.
@@ -264,6 +274,8 @@ type Systemd interface {
 	LogReader(services []string, n int, follow bool) (io.ReadCloser, error)
 	// AddMountUnitFile adds/enables/starts a mount unit.
 	AddMountUnitFile(name, revision, what, where, fstype string) (string, error)
+	// AddMountUnitFileWithOptions adds/enables/starts a mount unit with options.
+	AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error)
 	// RemoveMountUnitFile unmounts/stops/disables/removes a mount unit.
 	RemoveMountUnitFile(baseDir string) error
 	// Mask the given service.
@@ -1076,7 +1088,7 @@ var squashfsFsType = squashfs.FsType
 // XXX: After=zfs-mount.service is a workaround for LP: #1922293 (a problem
 // with order of mounting most likely related to zfs-linux and/or systemd).
 var mountUnitTemplate = `[Unit]
-Description=Mount unit for %s, revision %s
+Description=Mount unit for %s
 Before=snapd.service
 After=zfs-mount.service
 
@@ -1091,9 +1103,25 @@ LazyUnmount=yes
 WantedBy=multi-user.target
 `
 
-func writeMountUnitFile(snapName, revision, what, where, fstype string, options []string) (mountUnitName string, err error) {
-	content := fmt.Sprintf(mountUnitTemplate, snapName, revision, what, where, fstype, strings.Join(options, ","))
-	mu := MountUnitPath(where)
+const (
+	snappyOriginModule = "X-SnapdOrigin"
+)
+
+func writeMountUnitFile(u *MountUnitOptions) (mountUnitName string, err error) {
+	if u == nil {
+		return "", errors.New("writeMountUnitFile() expects valid mount options")
+	}
+
+	snapDesc := u.SnapName
+	if u.Revision != "" {
+		snapDesc += fmt.Sprintf(", revision %s", u.Revision)
+	}
+	content := fmt.Sprintf(mountUnitTemplate, snapDesc,
+		u.What, u.Where, u.Fstype, strings.Join(u.Options, ","))
+	if u.Origin != "" {
+		content += fmt.Sprintf("%s=%s\n", snappyOriginModule, u.Origin)
+	}
+	mu := MountUnitPath(u.Where)
 	mountUnitName, err = filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(content), 0644, 0)
 	if err != nil {
 		return "", err
@@ -1128,15 +1156,26 @@ func hostFsTypeAndMountOptions(fstype string) (hostFsType string, options []stri
 }
 
 func (s *systemd) AddMountUnitFile(snapName, revision, what, where, fstype string) (string, error) {
-	daemonReloadLock.Lock()
-	defer daemonReloadLock.Unlock()
-
 	hostFsType, options := hostFsTypeAndMountOptions(fstype)
 	if osutil.IsDirectory(what) {
 		options = append(options, "bind")
 		hostFsType = "none"
 	}
-	mountUnitName, err := writeMountUnitFile(snapName, revision, what, where, hostFsType, options)
+	return s.AddMountUnitFileWithOptions(&MountUnitOptions{
+		SnapName: snapName,
+		Revision: revision,
+		What:     what,
+		Where:    where,
+		Fstype:   hostFsType,
+		Options:  options,
+	})
+}
+
+func (s *systemd) AddMountUnitFileWithOptions(unitOptions *MountUnitOptions) (string, error) {
+	daemonReloadLock.Lock()
+	defer daemonReloadLock.Unlock()
+
+	mountUnitName, err := writeMountUnitFile(unitOptions)
 	if err != nil {
 		return "", err
 	}
