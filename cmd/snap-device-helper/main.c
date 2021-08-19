@@ -1,7 +1,5 @@
-// -*- Mode: Go; indent-tabs-mode: t -*-
-
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,26 +15,19 @@
  *
  */
 
-package config
+#include "../libsnap-confine-private/utils.h"
 
-import (
-	"encoding/json"
-)
+#include "snap-device-helper.h"
 
-var PurgeNulls = purgeNulls
-
-func (t *Transaction) PristineConfig() map[string]map[string]*json.RawMessage {
-	return t.pristine
-}
-
-var (
-	SortPatchKeysByDepth       = sortPatchKeysByDepth
-	OverlapsWithExternalConfig = overlapsWithExternalConfig
-)
-
-func ClearExternalConfigMap() {
-	externalConfigMu.Lock()
-	defer externalConfigMu.Unlock()
-
-	externalConfigMap = nil
+int main(int argc, char *argv[]) {
+    if (argc < 5) {
+        die("incorrect number of arguments");
+    }
+    struct sdh_invocation inv = {
+        .action = argv[1],
+        .tagname = argv[2],
+        .devpath = argv[3],
+        .majmin = argv[4],
+    };
+    return snap_device_helper_run(&inv);
 }

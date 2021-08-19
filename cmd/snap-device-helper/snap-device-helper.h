@@ -1,7 +1,5 @@
-// -*- Mode: Go; indent-tabs-mode: t -*-
-
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -17,26 +15,16 @@
  *
  */
 
-package config
+#ifndef SNAP_DEVICE_HELPER_H
+#define SNAP_DEVICE_HELPER_H
 
-import (
-	"encoding/json"
-)
+struct sdh_invocation {
+    const char *action;
+    const char *tagname;
+    const char *devpath;
+    const char *majmin;
+};
 
-var PurgeNulls = purgeNulls
+int snap_device_helper_run(const struct sdh_invocation *inv);
 
-func (t *Transaction) PristineConfig() map[string]map[string]*json.RawMessage {
-	return t.pristine
-}
-
-var (
-	SortPatchKeysByDepth       = sortPatchKeysByDepth
-	OverlapsWithExternalConfig = overlapsWithExternalConfig
-)
-
-func ClearExternalConfigMap() {
-	externalConfigMu.Lock()
-	defer externalConfigMu.Unlock()
-
-	externalConfigMap = nil
-}
+#endif /* SNAP_DEVICE_HELPER_H */

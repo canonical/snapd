@@ -57,7 +57,7 @@ func (s *encryptSuite) TestFormatEncryptedDevice(c *C) {
 				MetadataKiBSize:     2048,
 				KeyslotsAreaKiBSize: 2560,
 				KDFOptions: &sb.KDFOptions{
-					MemoryKiB:       32768,
+					MemoryKiB:       32,
 					ForceIterations: 4,
 				},
 			})

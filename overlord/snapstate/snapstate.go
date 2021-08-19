@@ -947,7 +947,7 @@ func InstallWithDeviceContext(ctx context.Context, st *state.State, name string,
 		return nil, fmt.Errorf("invalid instance name: %v", err)
 	}
 
-	sar, err := installInfo(ctx, st, name, opts, userID, deviceCtx)
+	sar, err := installInfo(ctx, st, name, opts, userID, flags, deviceCtx)
 	if err != nil {
 		return nil, err
 	}
@@ -1953,7 +1953,6 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 		return nil, nil, err
 	}
 
-	//toUpdate := make(map[string]*refreshCandidate, len(hints))
 	updates := make([]string, 0, len(hints))
 
 	// check conflicts
@@ -1969,7 +1968,6 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 			logger.Noticef("cannot refresh snap %q: %v", up.InstanceName(), err)
 		} else {
 			updates = append(updates, up.InstanceName())
-			//toUpdate[up.InstanceName()] = hints[up.InstanceName()]
 		}
 	}
 
@@ -2661,7 +2659,7 @@ func TransitionCore(st *state.State, oldName, newName string) ([]*state.TaskSet,
 	}
 	if !newSnapst.IsInstalled() {
 		var userID int
-		newInfo, err := installInfo(context.TODO(), st, newName, &RevisionOptions{Channel: oldSnapst.TrackingChannel}, userID, nil)
+		newInfo, err := installInfo(context.TODO(), st, newName, &RevisionOptions{Channel: oldSnapst.TrackingChannel}, userID, Flags{}, nil)
 		if err != nil {
 			return nil, err
 		}
