@@ -628,6 +628,7 @@ var (
 		"ppp":                       {"core"},
 		"pulseaudio":                {"app", "core"},
 		"pwm":                       {"core", "gadget"},
+		"qualcomm-ipc-router":       {"core"},
 		"raw-volume":                {"core", "gadget"},
 		"sd-control":                {"core"},
 		"serial-port":               {"core", "gadget"},
