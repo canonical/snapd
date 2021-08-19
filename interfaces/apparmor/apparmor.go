@@ -130,12 +130,17 @@ func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 		parser = "apparmor_parser"
 	} else {
 		// when using the internal apparmor_parser also use it's
-		// own configuration and includes etc
+		// own configuration and includes etc plus also ensure we
+		// use the 3.0 feature ABI to get the widest array of
+		// policy features across the widest array of kernels
+		// versions
 		prefix := strings.TrimSuffix(parser, "apparmor_parser")
 		args = append(args, "--config-file")
 		args = append(args, filepath.Join(prefix, "/apparmor/parser.conf"))
 		args = append(args, "-b")
 		args = append(args, filepath.Join(prefix, "/apparmor.d"))
+		args = append(args, "--policy-features")
+		args = append(args, filepath.Join(prefix, "/apparmor.d/abi/3.0"))
 	}
 	output, err := exec.Command(parser, args...).CombinedOutput()
 	if err != nil {
