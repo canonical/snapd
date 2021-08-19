@@ -166,10 +166,6 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 			stype: "app",
 		},
 		{
-			op:   "remove-snap-mount-units",
-			name: "some-snap",
-		},
-		{
 			op:   "remove-snap-data",
 			path: filepath.Join(dirs.SnapMountDir, "some-snap/2"),
 		},
@@ -177,10 +173,6 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 			op:    "remove-snap-files",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap/2"),
 			stype: "app",
-		},
-		{
-			op:   "remove-snap-mount-units",
-			name: "some-snap",
 		},
 		{
 			op:    "cleanup-trash",
