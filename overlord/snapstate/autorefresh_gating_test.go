@@ -623,7 +623,7 @@ func (s *autorefreshGatingSuite) TestDontHoldSomeSnapsIfSomeFail(c *C) {
 	// XXX: snap-b couldn't hold base-snap-b anymore so we didn't hold snap-b and snap-c; but
 	// base-snap-b was held by snap-bb anyway...
 	c.Check(held, DeepEquals, map[string]bool{
-		"snap-d": true,
+		"snap-d":      true,
 		"base-snap-b": true,
 	})
 }
