@@ -108,6 +108,9 @@ var refreshFromHookTests = []struct {
 	args:      []string{"refresh", "--pending"},
 	inhibited: true,
 	stdout:    "pending: inhibited\nchannel: stable\nbase: false\nrestart: false\n",
+}, {
+	args: []string{"refresh", "--hold"},
+	err:  `internal error: no snaps are affected by "snap1"`,
 }}
 
 func (s *refreshSuite) TestRefreshFromHook(c *C) {

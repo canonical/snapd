@@ -231,7 +231,11 @@ func (c *refreshCommand) hold() error {
 
 	affectedInfo := affected[ctx.InstanceName()]
 	if affectedInfo == nil {
-		return fmt.Errorf("no snaps are held by %q", ctx.InstanceName())
+		// this shouldn't happen because the hook is executed during auto-refresh
+		// change which conflicts with other changes (if it happens that means
+		// something changed in the meantime and we didn't handle conflicts
+		// correctly).
+		return fmt.Errorf("internal error: no snaps are affected by %q", ctx.InstanceName())
 	}
 	affecting := make([]string, 0, len(affectedInfo.AffectingSnaps))
 	for snapName := range affectedInfo.AffectingSnaps {
