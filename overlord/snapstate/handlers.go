@@ -752,6 +752,27 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	// check that there is a "update-gadget-assets" task for kernels too,
+	// see https://bugs.launchpad.net/snapd/+bug/1940553
+	if snapsup.Type == snap.TypeKernel {
+		func() {
+			st.Lock()
+			defer st.Unlock()
+
+			hasGadgetUpdateTask := func() bool {
+				for _, other := range t.Change().Tasks() {
+					if other.Kind() == "update-gadget-assets" {
+						return true
+					}
+				}
+				return false
+			}
+			if !hasGadgetUpdateTask() {
+				InjectUpdateGadgetAssets(t, snapsup)
+			}
+		}()
+	}
+
 	st.Lock()
 	perfTimings.Save(st)
 	st.Unlock()
@@ -3073,4 +3094,12 @@ func InjectAutoConnect(mainTask *state.Task, snapsup *SnapSetup) {
 	autoConnect.Set("snap-setup", snapsup)
 	InjectTasks(mainTask, state.NewTaskSet(autoConnect))
 	mainTask.Logf("added auto-connect task")
+}
+
+func InjectUpdateGadgetAssets(mainTask *state.Task, snapsup *SnapSetup) {
+	st := mainTask.State()
+	gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q (%s)"), snapsup.Type, snapsup.InstanceName(), snapsup.Revision()))
+	gadgetUpdate.Set("snap-setup", snapsup)
+	InjectTasks(mainTask, state.NewTaskSet(gadgetUpdate))
+	mainTask.Logf("added update-gadget-assets task")
 }
