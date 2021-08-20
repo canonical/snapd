@@ -41,8 +41,14 @@ import (
 
 const snapaYaml = `name: snap-a
 version: 1
+base: base-snap-a
 hooks:
     gate-auto-refresh:
+`
+
+const snapaBaseYaml = `name: base-snap-a
+version: 1
+type: base
 `
 
 const snapbYaml = `name: snap-b
@@ -74,6 +80,14 @@ func (s *gateAutoRefreshHookSuite) SetUpTest(c *C) {
 	snapstate.Set(s.state, "snap-b", &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{si2},
+		Current:  snap.R(1),
+	})
+
+	si3 := &snap.SideInfo{RealName: "base-snap-a", SnapID: "base-snap-a-id1", Revision: snap.R(1)}
+	snaptest.MockSnap(c, snapaBaseYaml, si3)
+	snapstate.Set(s.state, "base-snap-a", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si3},
 		Current:  snap.R(1),
 	})
 
@@ -113,6 +127,23 @@ func checkIsNotHeld(c *C, st *state.State, heldSnap string) {
 	var held map[string]map[string]interface{}
 	c.Assert(st.Get("snaps-hold", &held), IsNil)
 	c.Check(held[heldSnap], IsNil)
+}
+
+func (s *gateAutoRefreshHookSuite) TestAffectingSnapsForAffectedByRefreshCandidates(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	candidates := map[string]interface{}{
+		"snap-a": mockRefreshCandidate("snap-a", "", "edge", "v1", snap.Revision{N: 3}),
+		"base-snap-a": mockRefreshCandidate("base-snap-a", "", "edge", "v1", snap.Revision{N: 3}),
+		"snap-b": mockRefreshCandidate("snap-b", "", "edge", "v1", snap.Revision{N: 3}),
+	}
+	st.Set("refresh-candidates", candidates)
+
+	affecting, err := hookstate.AffectingSnapsForAffectedByRefreshCandidates(st, "snap-a")
+	c.Assert(err, IsNil)
+	c.Check(affecting, DeepEquals, []string{"base-snap-a", "snap-a"})
 }
 
 func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookProceedRuninhibitLock(c *C) {

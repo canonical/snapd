@@ -224,22 +224,16 @@ func (c *refreshCommand) hold() error {
 	// cache the action so that hook handler can implement default behavior
 	ctx.Cache("action", snapstate.GateAutoRefreshHold)
 
-	affected, err := snapstate.AffectedByRefreshCandidates(st)
+	affecting, err := hookstate.AffectingSnapsForAffectedByRefreshCandidates(st, ctx.InstanceName())
 	if err != nil {
 		return err
 	}
-
-	affectedInfo := affected[ctx.InstanceName()]
-	if affectedInfo == nil {
+	if len(affecting) == 0 {
 		// this shouldn't happen because the hook is executed during auto-refresh
 		// change which conflicts with other changes (if it happens that means
 		// something changed in the meantime and we didn't handle conflicts
 		// correctly).
-		return fmt.Errorf("internal error: no snaps are affected by %q", ctx.InstanceName())
-	}
-	affecting := make([]string, 0, len(affectedInfo.AffectingSnaps))
-	for snapName := range affectedInfo.AffectingSnaps {
-		affecting = append(affecting, snapName)
+		return fmt.Errorf("internal error: snap %q is not affected by any snaps", ctx.InstanceName())
 	}
 
 	// no duration specified, use maximum allowed for this gating snap.

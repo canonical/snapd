@@ -20,6 +20,7 @@ package hookstate
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"time"
 
 	"github.com/snapcore/snapd/cmd/snaplock"
@@ -75,6 +76,26 @@ func SetupPreRefreshHook(st *state.State, snapName string) *state.Task {
 	task := HookTask(st, summary, hooksup, nil)
 
 	return task
+}
+
+// AffectingSnapsForAffectedByRefreshCandidates returns the list of all snaps
+// affecting affectedSnap (i.e. a gating snap), based on upcoming updates
+// from refresh-candidates.
+func AffectingSnapsForAffectedByRefreshCandidates(st *state.State, affectedSnap string) ([]string, error) {
+	affected, err := snapstate.AffectedByRefreshCandidates(st)
+	if err != nil {
+		return nil, err
+	}
+	affectedInfo := affected[affectedSnap]
+	if affectedInfo == nil || len(affectedInfo.AffectingSnaps) == 0 {
+		return nil, nil
+	}
+	affecting := make([]string, 0, len(affectedInfo.AffectingSnaps))
+	for sn := range affectedInfo.AffectingSnaps {
+		affecting = append(affecting, sn)
+	}
+	sort.Strings(affecting)
+	return affecting, nil
 }
 
 type gateAutoRefreshHookHandler struct {
@@ -233,17 +254,10 @@ func (h *gateAutoRefreshHookHandler) Error(hookErr error) (ignoreHookErr bool, e
 	// the hook didn't request --hold, or it was --proceed. since the hook
 	// errored out, assume hold.
 
-	affected, err := snapstate.AffectedByRefreshCandidates(st)
+	affecting, err := AffectingSnapsForAffectedByRefreshCandidates(st, snapName)
 	if err != nil {
+		// becomes error of the handler
 		return false, err
-	}
-	affectedInfo := affected[snapName]
-	if affectedInfo == nil || len(affectedInfo.AffectingSnaps) == 0 {
-		return false, nil
-	}
-	affecting := make([]string, 0, len(affectedInfo.AffectingSnaps))
-	for sn := range affectedInfo.AffectingSnaps {
-		affecting = append(affecting, sn)
 	}
 
 	// no duration specified, use maximum allowed for this gating snap.
