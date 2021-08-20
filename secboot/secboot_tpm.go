@@ -28,7 +28,6 @@ import (
 	"os"
 
 	"github.com/canonical/go-tpm2"
-	"github.com/snapcore/secboot"
 	sb "github.com/snapcore/secboot"
 	"golang.org/x/xerrors"
 
@@ -64,7 +63,7 @@ var (
 	provisionTPM = provisionTPMImpl
 
 	// dummy to check whether the interfaces match
-	_ (secboot.SnapModel) = ModelForSealing(nil)
+	_ (sb.SnapModel) = ModelForSealing(nil)
 )
 
 func isTPMEnabledImpl(tpm *sb.TPMConnection) bool {
