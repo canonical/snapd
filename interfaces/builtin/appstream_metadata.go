@@ -112,7 +112,7 @@ func init() {
 		summary:              appstreamMetadataSummary,
 		implicitOnClassic:    true,
 		baseDeclarationSlots: appstreamMetadataBaseDeclarationSlots,
-
-		disruptiveForPlugOnRefresh: true,
+		// affects the plug snap because of mount backend
+		affectsPlugOnRefresh: true,
 	}})
 }

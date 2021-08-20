@@ -62,7 +62,7 @@ func (iface *contentInterface) StaticInfo() interfaces.StaticInfo {
 		Summary:              contentSummary,
 		BaseDeclarationSlots: contentBaseDeclarationSlots,
 
-		DisruptiveForPlugOnRefresh: true,
+		AffectsPlugOnRefresh: true,
 	}
 }
 

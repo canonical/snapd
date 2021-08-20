@@ -1028,5 +1028,5 @@ func (s *ContentSuite) TestStaticInfo(c *C) {
 	c.Assert(si.ImplicitOnClassic, Equals, false)
 	c.Assert(si.Summary, Equals, `allows sharing code and data with other snaps`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "content: $SLOT(content)")
-	c.Assert(si.DisruptiveForPlugOnRefresh, Equals, true)
+	c.Assert(si.AffectsPlugOnRefresh, Equals, true)
 }

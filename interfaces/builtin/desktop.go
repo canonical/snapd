@@ -425,8 +425,8 @@ func init() {
 			summary:              desktopSummary,
 			implicitOnClassic:    true,
 			baseDeclarationSlots: desktopBaseDeclarationSlots,
-
-			disruptiveForPlugOnRefresh: true,
+		    // affects the plug snap because of mount backend
+			affectsPlugOnRefresh: true,
 		},
 	})
 }

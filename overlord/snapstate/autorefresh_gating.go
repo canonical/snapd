@@ -550,7 +550,7 @@ func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedS
 			}
 		}
 
-		// consider plugs/slots with DisruptiveForPlugOnRefresh flag;
+		// consider plugs/slots with AffectsPlugOnRefresh flag;
 		// for slot side only consider snapd/core because they are ignored by the
 		// earlier loop around slots.
 		if up.SnapType == snap.TypeSnapd || up.SnapType == snap.TypeOS {
@@ -560,7 +560,7 @@ func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedS
 					return nil, fmt.Errorf("internal error: unknown interface %s", slotInfo.Interface)
 				}
 				si := interfaces.StaticInfoOf(iface)
-				if !si.DisruptiveForPlugOnRefresh {
+				if !si.AffectsPlugOnRefresh {
 					continue
 				}
 				conns, err := repo.Connected(up.InstanceName(), slotInfo.Name)

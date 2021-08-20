@@ -198,9 +198,13 @@ type StaticInfo struct {
 	// ImplicitOnClassic controls if a slot is automatically added to classic systems.
 	ImplicitOnClassic bool `json:"implicit-on-classic,omitempty"`
 
-	// DisruptiveForPlugOnRefresh tells if refreshing of a snap with a slot of this interface
-	// is disruptive for the snap on the plug side (when the interface is connected).
-	DisruptiveForPlugOnRefresh bool `json:"disruptive-for-plug,omitempty"`
+	// AffectsPlugOnRefresh tells if refreshing of a snap with a slot of this interface
+	// is disruptive for the snap on the plug side (when the interface is connected),
+	// meaning that a refresh of the slot-side affects snap(s) on the plug side
+	// due to e.g. namespace changes which require freezing and thawing of the
+	// running processes. This flag is consulted when computing snaps affected
+	// by refresh for auto-refresh gating with gate-auto-refresh hooks.
+	AffectsPlugOnRefresh bool `json:"affects-plug-on-refresh,omitempty"`
 
 	// BaseDeclarationPlugs defines an optional extension to the base-declaration assertion relevant for this interface.
 	BaseDeclarationPlugs string
