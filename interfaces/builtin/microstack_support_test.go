@@ -49,20 +49,20 @@ apps:
   plugs: [microstack-support]
 `
 
+const microstackSupportCoreYaml = `name: core
+version: 0
+type: os
+slots:
+  microstack-support:
+`
+
 var _ = Suite(&microStackSupportInterfaceSuite{
 	iface: builtin.MustInterface("microstack-support"),
 })
 
 func (s *microStackSupportInterfaceSuite) SetUpTest(c *C) {
-	s.slotInfo = &snap.SlotInfo{
-		Snap:      &snap.Info{SuggestedName: "core", SnapType: snap.TypeOS},
-		Name:      "microstack-support",
-		Interface: "microstack-support",
-	}
-	s.slot = interfaces.NewConnectedSlot(s.slotInfo, nil, nil)
-	plugSnap := snaptest.MockInfo(c, microStackSupportMockPlugSnapInfoYaml, nil)
-	s.plugInfo = plugSnap.Plugs["microstack-support"]
-	s.plug = interfaces.NewConnectedPlug(s.plugInfo, nil, nil)
+	s.slot, s.slotInfo = MockConnectedSlot(c, microstackSupportCoreYaml, nil, "microstack-support")
+	s.plug, s.plugInfo = MockConnectedPlug(c, microStackSupportMockPlugSnapInfoYaml, nil, "microstack-support")
 }
 
 func (s *microStackSupportInterfaceSuite) TestName(c *C) {

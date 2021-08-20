@@ -145,8 +145,7 @@ owner /{dev,run}/shm/spice.* rw,
 /sys/kernel/config/target/** rw,
 
 # Used by targetcli.
-/run/targetcli.lock rwlk,
-/var/run/targetcli.lock rwlk,
+/{var/,}run/targetcli.lock rwlk,
 
 # Paths accessed by iscsid during its operation.
 /run/lock/iscsi/ rw,
