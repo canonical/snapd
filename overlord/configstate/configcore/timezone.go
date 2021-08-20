@@ -36,8 +36,8 @@ import (
 func init() {
 	// add supported configuration of this module
 	supportedConfigurations["core.system.timezone"] = true
-	// and register it as a virtual config
-	config.RegisterVirtualConfig("core", "system.timezone", getTimezoneFromSystemVC)
+	// and register it as a external config
+	config.RegisterExternalConfig("core", "system.timezone", getTimezoneFromSystemVC)
 }
 
 var validTimezone = regexp.MustCompile(`^[a-zA-Z0-9+_-]+(/[a-zA-Z0-9+_-]+)?(/[a-zA-Z0-9+_-]+)?$`).MatchString
@@ -58,32 +58,25 @@ func validateTimezoneSettings(tr config.ConfGetter) error {
 }
 
 func handleTimezoneConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
-	// TODO: convert to "virtual" configuration nodes once we have support
-	// for this. The current code is not ideal because if one calls
-	// `snap get system system.hostname` the answer can be ""
-	// when not set via snap set.
-	//
-	// It will also override any hostname on the next `snap set` run
-	// that was written not using `snap set system system.hostname`.
 	timezone, err := coreCfg(tr, "system.timezone")
 	if err != nil {
-		return nil
+		return err
 	}
 	// nothing to do
 	if timezone == "" {
 		return nil
 	}
-	// see if anything has changed
-	currentTimezone, err := getTimezoneFromSystem()
-	if err != nil {
-		return err
-	}
-	if timezone == currentTimezone {
-		return nil
-	}
-
 	// runtime system
 	if opts == nil {
+		// see if anything has changed
+		currentTimezone, err := getTimezoneFromSystem()
+		if err != nil {
+			return err
+		}
+		if timezone == currentTimezone {
+			return nil
+		}
+
 		output, err := exec.Command("timedatectl", "set-timezone", timezone).CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("cannot set timezone: %v", osutil.OutputErr(output, err))

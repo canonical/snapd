@@ -38,7 +38,10 @@ prepare: |
     EOF
 
 restore: |
-    systemctl stop "$SERVICE_NAME"
+    # In case the service is not active, the restore fails stopping the service
+    if systemctl is-active "$SERVICE_NAME"; then
+        systemctl stop "$SERVICE_NAME"
+    fi
     rm -f "$REQUEST_FILE"
 
 execute: |
