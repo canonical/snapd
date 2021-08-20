@@ -108,3 +108,11 @@ func MockCgroupSnapNameFromPid(f func(int) (string, error)) (restore func()) {
 		cgroupSnapNameFromPid = old
 	}
 }
+
+func MockAutoRefreshForGatingSnap(f func(st *state.State, gatingSnap string) error) (restore func()) {
+	old := autoRefreshForGatingSnap
+	autoRefreshForGatingSnap = f
+	return func() {
+		autoRefreshForGatingSnap = old
+	}
+}

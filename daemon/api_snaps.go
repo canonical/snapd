@@ -225,6 +225,9 @@ func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
 	if inst.IgnoreRunning {
 		flags.IgnoreRunning = true
 	}
+	if inst.IgnoreValidation {
+		flags.IgnoreValidation = true
+	}
 
 	return flags, nil
 }

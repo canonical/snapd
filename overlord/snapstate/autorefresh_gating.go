@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -665,4 +666,56 @@ var snapsToRefresh = func(gatingTask *state.Task) ([]*refreshCandidate, error) {
 	}
 
 	return candidates, nil
+}
+
+// AutoRefreshForGatingSnap triggers an auto-refresh change for all
+// snaps held by the given gating snap. This should only be called if the
+// gate-auto-refresh-hook feature is enabled.
+// TODO: this should be restricted as it doesn't take refresh timer/refresh hold
+// into account.
+func AutoRefreshForGatingSnap(st *state.State, gatingSnap string) error {
+	// ensure nothing is in flight already
+	if autoRefreshInFlight(st) {
+		return fmt.Errorf("there is an auto-refresh in progress")
+	}
+
+	gating, err := refreshGating(st)
+	if err != nil {
+		return err
+	}
+
+	var hasHeld bool
+	for _, holdingSnaps := range gating {
+		if _, ok := holdingSnaps[gatingSnap]; ok {
+			hasHeld = true
+			break
+		}
+	}
+	if !hasHeld {
+		return fmt.Errorf("no snaps are held by snap %q", gatingSnap)
+	}
+
+	// NOTE: this will unlock and re-lock state for network ops
+	// XXX: should we refresh assertions (just call AutoRefresh()?)
+	updated, tasksets, err := autoRefreshPhase1(auth.EnsureContextTODO(), st, gatingSnap)
+	if err != nil {
+		return err
+	}
+	msg := autoRefreshSummary(updated)
+	if msg == "" {
+		logger.Noticef("auto-refresh: all snaps previously held by %q are up-to-date", gatingSnap)
+		return nil
+	}
+
+	// note, we do not update last-refresh timestamp because this auto-refresh
+	// is not treated as a full auto-refresh.
+
+	chg := st.NewChange("auto-refresh", msg)
+	for _, ts := range tasksets {
+		chg.AddAll(ts)
+	}
+	chg.Set("snap-names", updated)
+	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
+
+	return nil
 }
