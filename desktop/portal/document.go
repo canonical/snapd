@@ -21,19 +21,14 @@ package portal
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
 	"strings"
 
-	"github.com/godbus/dbus"
-
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/logger"
-	"github.com/snapcore/snapd/osutil"
 )
 
 const (
@@ -45,14 +40,13 @@ const (
 var (
 	userCurrent     = user.Current
 	osGetenv        = os.Getenv
-	osutilIsMounted = osutil.IsMounted
 )
 
 type Document struct {
 	xdgRuntimeDir string
 }
 
-func (p *Document) getUserXdgRuntimeDir() (string, error) {
+func (p *Document) GetUserXdgRuntimeDir() (string, error) {
 	if p.xdgRuntimeDir == "" {
 		u, err := userCurrent()
 		if err != nil {
@@ -64,7 +58,7 @@ func (p *Document) getUserXdgRuntimeDir() (string, error) {
 }
 
 func (p *Document) GetDefaultMountPoint() (string, error) {
-	xdgRuntimeDir, err := p.getUserXdgRuntimeDir()
+	xdgRuntimeDir, err := p.GetUserXdgRuntimeDir()
 	if err != nil {
 		return "", err
 	}
@@ -72,76 +66,17 @@ func (p *Document) GetDefaultMountPoint() (string, error) {
 	return filepath.Join(xdgRuntimeDir, "doc"), nil
 }
 
-// Activate is used to setup the Document portal by "snap run". This function
-// returns an error only if an error occurs while activating the portal; if the
-// portal backend is simply not available on the system, no error us returned.
-// Note that this function is optimized to reduce overhead, since it's used by
-// "snap run" before launching applications.
-func (p *Document) Activate() error {
-	expectedMountPoint, err := p.GetDefaultMountPoint()
-	if err != nil {
-		return err
-	}
-
-	// If $XDG_RUNTIME_DIR/doc appears to be a mount point, assume
-	// that the document portal is up and running.
-	if mounted, err := osutilIsMounted(expectedMountPoint); err != nil {
-		logger.Noticef("Could not check document portal mount state: %s", err)
-	} else if mounted {
-		return nil
-	}
-
-	// If there is no session bus, our job is done.  We check this
-	// manually to avoid dbus.SessionBus() auto-launching a new
-	// bus.
-	busAddress := osGetenv("DBUS_SESSION_BUS_ADDRESS")
-	if len(busAddress) == 0 {
-		return nil
-	}
-
-	// We've previously tried to start the document portal and
-	// were told the service is unknown: don't bother connecting
-	// to the session bus again.
-	//
-	// As the file is in $XDG_RUNTIME_DIR, it will be cleared over
-	// full logout/login or reboot cycles.
-	xdgRuntimeDir, err := p.getUserXdgRuntimeDir()
-	if err != nil {
-		return err
-	}
-
-	portalsUnavailableFile := filepath.Join(xdgRuntimeDir, ".portals-unavailable")
-	if osutil.FileExists(portalsUnavailableFile) {
-		return nil
-	}
-
+func (p *Document) GetMountPoint() (string, error) {
 	conn, err := dbusutil.SessionBus()
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	portal := conn.Object(documentPortalBusName, documentPortalObjectPath)
 	var mountPoint []byte
 	if err := portal.Call(documentPortalIface+".GetMountPoint", 0).Store(&mountPoint); err != nil {
-		// It is not considered an error if
-		// xdg-document-portal is not available on the system.
-		if dbusErr, ok := err.(dbus.Error); ok && dbusErr.Name == "org.freedesktop.DBus.Error.ServiceUnknown" {
-			// We ignore errors here: if writing the file
-			// fails, we'll just try connecting to D-Bus
-			// again next time.
-			if err = ioutil.WriteFile(portalsUnavailableFile, []byte(""), 0644); err != nil {
-				logger.Noticef("WARNING: cannot write file at %s: %s", portalsUnavailableFile, err)
-			}
-			return nil
-		}
-		return err
+		return "", err
 	}
 
-	// Sanity check to make sure the document portal is exposed
-	// where we think it is.
-	actualMountPoint := strings.TrimRight(string(mountPoint), "\x00")
-	if actualMountPoint != expectedMountPoint {
-		return fmt.Errorf(i18n.G("Expected portal at %#v, got %#v"), expectedMountPoint, actualMountPoint)
-	}
-	return nil
+	return strings.TrimRight(string(mountPoint), "\x00"), nil
 }

@@ -52,12 +52,6 @@ func MockUserCurrent(mock func() (*user.User, error)) func() {
 	return func() { userCurrent = old }
 }
 
-func MockOsutilIsMounted(f func(path string) (bool, error)) func() {
-	old := osutilIsMounted
-	osutilIsMounted = f
-	return func() { osutilIsMounted = old }
-}
-
 func MockXdgRuntimeDir(path string) func() {
 	old := dirs.XdgRuntimeDirBase
 	dirs.XdgRuntimeDirBase = path

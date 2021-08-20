@@ -35,6 +35,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/godbus/dbus"
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
@@ -693,11 +694,64 @@ func activateXdgDocumentPortal(info *snap.Info, snapApp, hook string) error {
 	}
 
 	documentPortal := &portal.Document{}
-	err := documentPortal.Activate()
+	expectedMountPoint, err := documentPortal.GetDefaultMountPoint()
 	if err != nil {
 		return err
 	}
 
+	// If $XDG_RUNTIME_DIR/doc appears to be a mount point, assume
+	// that the document portal is up and running.
+	if mounted, err := osutil.IsMounted(expectedMountPoint); err != nil {
+		logger.Noticef("Could not check document portal mount state: %s", err)
+	} else if mounted {
+		return nil
+	}
+
+	// If there is no session bus, our job is done.  We check this
+	// manually to avoid dbus.SessionBus() auto-launching a new
+	// bus.
+	busAddress := osGetenv("DBUS_SESSION_BUS_ADDRESS")
+	if len(busAddress) == 0 {
+		return nil
+	}
+
+	// We've previously tried to start the document portal and
+	// were told the service is unknown: don't bother connecting
+	// to the session bus again.
+	//
+	// As the file is in $XDG_RUNTIME_DIR, it will be cleared over
+	// full logout/login or reboot cycles.
+	xdgRuntimeDir, err := documentPortal.GetUserXdgRuntimeDir()
+	if err != nil {
+		return err
+	}
+
+	portalsUnavailableFile := filepath.Join(xdgRuntimeDir, ".portals-unavailable")
+	if osutil.FileExists(portalsUnavailableFile) {
+		return nil
+	}
+
+	actualMountPoint, err := documentPortal.GetMountPoint()
+	if err != nil {
+		// It is not considered an error if
+		// xdg-document-portal is not available on the system.
+		if dbusErr, ok := err.(dbus.Error); ok && dbusErr.Name == "org.freedesktop.DBus.Error.ServiceUnknown" {
+			// We ignore errors here: if writing the file
+			// fails, we'll just try connecting to D-Bus
+			// again next time.
+			if err = ioutil.WriteFile(portalsUnavailableFile, []byte(""), 0644); err != nil {
+				logger.Noticef("WARNING: cannot write file at %s: %s", portalsUnavailableFile, err)
+			}
+			return nil
+		}
+		return err
+	}
+
+	// Sanity check to make sure the document portal is exposed
+	// where we think it is.
+	if actualMountPoint != expectedMountPoint {
+		return fmt.Errorf(i18n.G("Expected portal at %#v, got %#v"), expectedMountPoint, actualMountPoint)
+	}
 	return nil
 }
 

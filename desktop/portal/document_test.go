@@ -21,7 +21,6 @@ package portal_test
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -30,7 +29,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/desktop/portal"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -63,10 +61,6 @@ func (s *documentPortalSuite) SetUpSuite(c *C) {
 	_, err = s.SessionBus.RequestName(portal.DocumentPortalBusName, dbus.NameFlagAllowReplacement|dbus.NameFlagReplaceExisting)
 	c.Assert(err, IsNil)
 
-	s.BaseTest.AddCleanup(portal.MockOsutilIsMounted(func(path string) (bool, error) {
-		return false, nil
-	}))
-
 	s.BaseTest.AddCleanup(portal.MockUserCurrent(func() (*user.User, error) {
 		return &user.User{Uid: fakeUserId}, nil
 	}))
@@ -98,7 +92,7 @@ func (s *documentPortalSuite) SetUpTest(c *C) {
 	s.calls = nil
 }
 
-func (s *documentPortalSuite) TestActivateWithUserError(c *C) {
+func (s *documentPortalSuite) TestGetDefaultMountPointWithUserError(c *C) {
 	userError := errors.New("some user error")
 	restore := portal.MockUserCurrent(func() (*user.User, error) {
 		return nil, userError
@@ -106,97 +100,42 @@ func (s *documentPortalSuite) TestActivateWithUserError(c *C) {
 	defer restore()
 
 	document := &portal.Document{}
-	err := document.Activate()
+	mountPoint, err := document.GetDefaultMountPoint()
 	c.Check(err, ErrorMatches, ".*some user error")
+	c.Check(mountPoint, Equals, "")
 }
 
-func (s *documentPortalSuite) TestActivateWhenMounted(c *C) {
-	var queriedPath string
-	restore := portal.MockOsutilIsMounted(func(path string) (bool, error) {
-		queriedPath = path
-		return true, nil
-	})
-	defer restore()
-
+func (s *documentPortalSuite) TestGetDefaultMountPointHappy(c *C) {
 	document := &portal.Document{}
-	err := document.Activate()
+	mountPoint, err := document.GetDefaultMountPoint()
 	c.Check(err, IsNil)
-	c.Check(queriedPath, Equals, filepath.Join(s.userRuntimePath, "doc"))
+	expectedMountPoint := filepath.Join(s.userRuntimePath, "doc")
+	c.Check(mountPoint, Equals, expectedMountPoint)
 }
 
-func (s *documentPortalSuite) TestActivateWithoutDBus(c *C) {
-	os.Setenv("DBUS_SESSION_BUS_ADDRESS", "")
-
-	document := &portal.Document{}
-	err := document.Activate()
-	c.Check(err, IsNil)
-}
-
-func (s *documentPortalSuite) TestActivateWithUnavailableSentinel(c *C) {
-	sentinelFile := filepath.Join(s.userRuntimePath, ".portals-unavailable")
-	f, err := os.OpenFile(sentinelFile, os.O_RDWR|os.O_CREATE, 0666)
-	c.Assert(err, IsNil)
-	f.Close()
-
-	document := &portal.Document{}
-	err = document.Activate()
-	c.Check(err, IsNil)
-}
-
-func (s *documentPortalSuite) TestActivateResponseError(c *C) {
+func (s *documentPortalSuite) TestGetMountPointResponseError(c *C) {
 	s.getMountPointError = dbus.MakeFailedError(errors.New("something went wrong"))
 
 	document := &portal.Document{}
-	err := document.Activate()
+	mountPoint, err := document.GetMountPoint()
 	c.Check(err, FitsTypeOf, dbus.Error{})
 	c.Check(err, ErrorMatches, `something went wrong`)
+	c.Check(mountPoint, Equals, "")
 	c.Check(s.calls, DeepEquals, []string{
 		"GetMountPoint",
 	})
 }
 
-func (s *documentPortalSuite) TestActivateNotAvailable(c *C) {
-	s.getMountPointError = &dbus.Error{
-		Name: "org.freedesktop.DBus.Error.ServiceUnknown",
-		Body: []interface{}{"not running"},
-	}
-
-	document := &portal.Document{}
-	err := document.Activate()
-	c.Check(err, IsNil)
-	c.Check(s.calls, DeepEquals, []string{
-		"GetMountPoint",
-	})
-
-	// Check that the sentinel file has been created
-	sentinelFile := filepath.Join(s.userRuntimePath, ".portals-unavailable")
-	c.Check(osutil.FileExists(sentinelFile), Equals, true)
-}
-
-func (s *documentPortalSuite) TestActivateWithWrongPath(c *C) {
-	s.mountPointResponse = "/some/other/path"
-	document := &portal.Document{}
-	err := document.Activate()
-	expectedError := fmt.Sprintf("Expected portal at .*, got %q", s.mountPointResponse)
-	c.Check(err, ErrorMatches, expectedError)
-	c.Check(s.calls, DeepEquals, []string{
-		"GetMountPoint",
-	})
-}
-
-func (s *documentPortalSuite) TestActivateAvailable(c *C) {
+func (s *documentPortalSuite) TestGetMountPointHappy(c *C) {
 	s.mountPointResponse = filepath.Join(s.userRuntimePath, "doc")
 
 	document := &portal.Document{}
-	err := document.Activate()
+	mountPoint, err := document.GetMountPoint()
 	c.Check(err, IsNil)
+	c.Check(mountPoint, Equals, s.mountPointResponse)
 	c.Check(s.calls, DeepEquals, []string{
 		"GetMountPoint",
 	})
-
-	// Check that the sentinel file has not been created
-	sentinelFile := filepath.Join(s.userRuntimePath, ".portals-unavailable")
-	c.Check(osutil.FileExists(sentinelFile), Equals, false)
 }
 
 type fakeDocumentPortal struct {
