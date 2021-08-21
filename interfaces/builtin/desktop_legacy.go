@@ -152,7 +152,7 @@ unix (connect, receive, send)
 # allow communicating with gcin server
 unix (connect, receive, send)
      type=stream
-     peer=(addr="@tmp/gcin-*/*"),
+     peer=(addr="@tmp/gcin-*/socket*"),
 
 # fcitx
 # allow communicating with fcitx dbus service
