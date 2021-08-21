@@ -1,9 +1,6 @@
 summary: Check that a snap with base "none" can be installed
 
 execute: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     echo "Install a snap with 'base: none'"
 
     snap pack test-snapd-base-none

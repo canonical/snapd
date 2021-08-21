@@ -24,8 +24,6 @@ restore: |
     snap remove --purge basic-iface-hooks-producer
 
 execute: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
     remove_markers() {
         rm -f "$CONSUMER_DATA"/*-plug-*done
         rm -f "$PRODUCER_DATA"/*-slot-*done
