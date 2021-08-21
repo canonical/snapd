@@ -148,6 +148,11 @@ unix (connect, receive, send)
      type=stream
      peer=(addr="@tmp/.mozc.*"),
 
+# gcin
+# allow communicating with gcin server
+unix (connect, receive, send)
+     type=stream
+     peer=(addr="@tmp/gcin-*/*"),
 
 # fcitx
 # allow communicating with fcitx dbus service
