@@ -26,7 +26,6 @@ import (
 	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
 
-	"github.com/snapcore/snapd/desktop/portal"
 	"github.com/snapcore/snapd/usersession/xdgopenproxy"
 )
 
@@ -79,7 +78,7 @@ func (s *xdgOpenSuite) TestStopOnFirstSuccess(c *C) {
 
 func (s *xdgOpenSuite) TestStopOnResponseError(c *C) {
 	l1 := &fakeLauncher{err: fmt.Errorf("failure one")}
-	l2 := &fakeLauncher{err: portal.MakeResponseError("hello")}
+	l2 := &fakeLauncher{err: xdgopenproxy.MakeResponseError("hello")}
 	l3 := &fakeLauncher{err: nil}
 	launchers := []xdgopenproxy.DesktopLauncher{l1, l2, l3}
 

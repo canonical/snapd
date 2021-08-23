@@ -34,3 +34,7 @@ var (
 	Launch        = launch
 	LaunchWithOne = launchWithOne
 )
+
+func MakeResponseError(msg string) error {
+	return &responseError{msg: msg}
+}
