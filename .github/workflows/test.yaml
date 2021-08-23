@@ -212,6 +212,7 @@ jobs:
         SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
+      if: steps.cached-results.outputs.already-ran != 'true'
       with:
         # token: ${{ secrets.CODECOV_TOKEN }} # needed ?
         fail_ci_if_error: true
