@@ -113,47 +113,50 @@ func (f ForbiddenCommandError) Error() string {
 	return f.Message
 }
 
-// ForbiddenCommand contains information about an attempt to use a command in a context where it is not allowed.
-type ForbiddenCommand struct {
-	Uid  uint32
-	Name string
-}
-
-func (f *ForbiddenCommand) Execute(args []string) error {
-	return &ForbiddenCommandError{Message: fmt.Sprintf("cannot use %q with uid %d, try with sudo", f.Name, f.Uid)}
-}
-
 // nonRootAllowed lists the commands that can be performed even when snapctl
 // is invoked not by root.
 var nonRootAllowed = []string{"get", "services", "set-health", "is-connected", "system-mode"}
 
 // Run runs the requested command.
 func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr []byte, err error) {
+	if len(args) == 0 {
+		return nil, nil, fmt.Errorf("snapctl cannot run without args")
+	}
+
+	if !isAllowedToRun(args, uid, args[0]) {
+		return nil, nil, &ForbiddenCommandError{Message: fmt.Sprintf("cannot use %q with uid %d, try with sudo", args[0], uid)}
+	}
+
 	parser := flags.NewNamedParser("snapctl", flags.PassDoubleDash|flags.HelpFlag)
 
 	// Create stdout/stderr buffers, and make sure commands use them.
 	var stdoutBuffer bytes.Buffer
 	var stderrBuffer bytes.Buffer
 	for name, cmdInfo := range commands {
-		var data interface{}
-		// commands listed here will be allowed for regular users
-		// note: commands still need valid context and snaps can only access own config.
-		if uid == 0 || strutil.ListContains(nonRootAllowed, name) {
+		if isAllowedToRun(args, uid, name) {
 			cmd := cmdInfo.generator()
 			cmd.setStdout(&stdoutBuffer)
 			cmd.setStderr(&stderrBuffer)
 			cmd.setContext(context)
-			data = cmd
-		} else {
-			data = &ForbiddenCommand{Uid: uid, Name: name}
-		}
-		theCmd, err := parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, data)
-		theCmd.Hidden = cmdInfo.hidden
-		if err != nil {
-			logger.Panicf("cannot add command %q: %s", name, err)
+
+			theCmd, err := parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, cmd)
+			theCmd.Hidden = cmdInfo.hidden
+			if err != nil {
+				logger.Panicf("cannot add command %q: %s", name, err)
+			}
 		}
 	}
 
 	_, err = parser.ParseArgs(args)
 	return stdoutBuffer.Bytes(), stderrBuffer.Bytes(), err
+}
+
+func isAllowedToRun(args []string, uid uint32, name string) bool {
+	// A command can run if:
+	//	* It runs as root
+	//	* It's contained in nonRootAllowed
+	//	* It's used with the -h or --help flags
+	// note: commands still need valid context and snaps can only access own config.
+	return uid == 0 || strutil.ListContains(nonRootAllowed, name) ||
+		(len(args) > 1 && (args[1] == "-h" || args[1] == "--help"))
 }

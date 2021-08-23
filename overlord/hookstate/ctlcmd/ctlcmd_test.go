@@ -112,3 +112,15 @@ func (s *ctlcmdSuite) TestHiddenCommand(c *C) {
 	// mock-hidden is not in the help message
 	c.Check(err.Error(), Not(testutil.Contains), "  mock-hidden\n")
 }
+
+func (s *ctlcmdSuite) TestRootRequiredCommandFailure(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"start"}, 1000)
+
+	c.Check(err, FitsTypeOf, &ctlcmd.ForbiddenCommandError{})
+	c.Check(err.Error(), Equals, `cannot use "start" with uid 1000, try with sudo`)
+}
+
+func (s *ctlcmdSuite) TestRunNoArgsFailure(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{}, 0)
+	c.Check(err, NotNil)
+}
