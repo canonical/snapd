@@ -79,7 +79,8 @@ reset_classic() {
     # Clean test home
     rm -rf /home/test/snap /home/test/.{bash_history,local,cache,config}
 
-    rm -rf /snap/*
+    # This should not be needed, all the content in /snap should be removed while running "snapd.postrm purge"
+    # rm -rf /snap/*
     rm -f /tmp/core* /tmp/ubuntu-core*
 
     if [ "$1" = "--reuse-core" ]; then

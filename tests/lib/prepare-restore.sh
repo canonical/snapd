@@ -676,7 +676,7 @@ restore_suite_each() {
         diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-new.pkgs
 
         # shellcheck disable=SC2002
-        packages="$(cat test | tr "\n" " ")"
+        packages="$(cat installed-new.pkgs | tr "\n" " ")"
         if [ -n "$packages" ]; then
             # shellcheck disable=SC2086
             distro_purge_package $packages
