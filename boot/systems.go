@@ -449,9 +449,9 @@ func DropRecoverySystem(dev Device, systemLabel string) error {
 	return resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal)
 }
 
-// AddRecoveryCapableSystem records a given system as one that we can recover
+// MarkRecoveryCapableSystem records a given system as one that we can recover
 // from.
-func AddRecoveryCapableSystem(systemLabel string) error {
+func MarkRecoveryCapableSystem(systemLabel string) error {
 	opts := &bootloader.Options{
 		// setup the recovery bootloader
 		Role: bootloader.RoleRecovery,
