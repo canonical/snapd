@@ -34,6 +34,7 @@ environment:
     # xenial to make sure it builds there too
     SNAPCRAFT_BUILD_ENVIRONMENT/destructive: host
     SNAPCRAFT_BUILD_ENVIRONMENT/lxd: lxd
+    CONSUMER_SNAP: test-snapd-policy-app-consumer
 
 prepare: |
     # only run the destructive mode variant on xenial
@@ -174,3 +175,102 @@ execute: |
 
     echo "Then hello-world.evil should fail due to snap confinement"
     ! hello-world.evil
+
+    echo "Given a snap is installed"
+    "$TESTSTOOLS"/snaps-state install-local "$CONSUMER_SNAP"
+
+    # If possible, prepare a session for the test user. On many systems this
+    # will allow running all tests as the unprivileged user. This shields us
+    # from accidentally triggering any additional processes from run in the
+    # session of the root user and stay behind after this test terminates.
+    if tests.session has-session-systemd-and-dbus; then
+        tests.session -u test prepare
+    fi
+
+    echo "For each core-provided slot"
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    for plugcmd in "$SNAP_MOUNT_DIR"/bin/"$CONSUMER_SNAP".* ; do
+
+        # Just connect 30% of the interfaces on debian 10
+        # Debian 10 has bad performance disconnecting interfaces
+        # and the test fails (kill-timeout) trying either to remove
+        # interfaces or removing the snap
+        if os.query is-debian-10 && [ "$((RANDOM % 3))" != 0 ]; then
+            echo "skipping plug: $plugcmd"
+            continue
+        fi
+        plugcmd_bn=$(basename "$plugcmd")
+        plug_iface=$(echo "$plugcmd_bn" | tr '.' ':')
+        #shellcheck disable=SC2001
+        slot_iface=$(echo "$plug_iface" | sed "s/$CONSUMER_SNAP//")
+
+        # we test browser-support two different ways, so account for that
+        if [ "$plug_iface" = "$CONSUMER_SNAP:browser-sandbox" ]; then
+            slot_iface=":browser-support"
+        fi
+
+        CONNECTED_PATTERN="$slot_iface +.*$CONSUMER_SNAP"
+        DISCONNECTED_PATTERN="$slot_iface +-"
+        # with lxd snap installed these slot will be connected to the lxd
+        # snap already
+        if [ "$slot_iface" = ":lxd-support" ] || [ "$slot_iface" = ":system-observe" ]; then
+            DISCONNECTED_PATTERN="$slot_iface +lxd"
+        fi
+
+        # Skip any interfaces that core doesn't ship
+        if ! snap interfaces | grep -E -q "$slot_iface +"; then
+            echo "$slot_iface not present, skipping"
+            continue
+        fi
+
+        echo "When slot $slot_iface is connected"
+        if snap interfaces | grep -E -q "$DISCONNECTED_PATTERN"; then
+            # we have the lxd snap installed so it provides the lxd slot -
+            # connect to that explicitly
+            if [ "$slot_iface" = ":lxd" ]; then
+                slot_iface="lxd:lxd"
+            fi
+            if [ "$slot_iface" = ":broadcom-asic-control" ] || [ "$slot_iface" = ":firewall-control" ] || [ "$slot_iface" = ":kubernetes-support" ] || [ "$slot_iface" = ":openvswitch-support" ] || [ "$slot_iface" = ":ppp" ]; then
+                # TODO: when the kmod backend no longer fails on missing
+                # modules, we can remove this
+                snap connect "$plug_iface" "$slot_iface" || true
+            else
+                snap connect "$plug_iface" "$slot_iface"
+            fi
+        fi
+        snap interfaces | MATCH "$CONNECTED_PATTERN"
+
+        echo "Then $plugcmd should succeed"
+        if tests.session has-session-systemd-and-dbus; then
+            tests.session -u test exec "$plugcmd" | MATCH PASS
+        else
+            # If we cannot run the plug command as the test user, in the
+            # relative safety of the user session which gets torn down, then
+            # run the test directly EXCEPT when testing the desktop interface.
+            #
+            # The desktop interface causes, at minimum, XDG document portal to
+            # activate in the root users's session, which is not cleaned up.
+            # Since that interface will only be used in a real session, leaving
+            # it out is acceptable.
+            if [ "$plugcmd" != "${CONSUMER_SNAP}.desktop" ]; then
+                "$plugcmd" | MATCH PASS
+            else
+                echo "skipping $plugcmd on an unsupported system"
+            fi
+        fi
+
+        echo "Finally disconnect the interface"
+        if snap interfaces | grep -E -q "$CONNECTED_PATTERN"; then
+            if [ "$plug_iface" = "$CONSUMER_SNAP:browser-sandbox" ]; then
+                snap disconnect "$CONSUMER_SNAP:browser-support" "$slot_iface"
+            else
+                snap disconnect "$plug_iface" "$slot_iface"
+            fi
+        fi
+    done
+
+    # remove snap and teardown session
+    snap remove --purge "$CONSUMER_SNAP"
+    if tests.session has-session-systemd-and-dbus; then
+        tests.session -u test restore
+    fi
