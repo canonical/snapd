@@ -970,7 +970,7 @@ func (s *snapsSuite) TestMapLocalFields(c *check.C) {
 			EditedSummary:     "a summary",
 			EditedDescription: "the\nlong\ndescription",
 			Channel:           "bleeding/edge",
-			EditedContact:     "alice@example.com",
+			EditedContact:     "mailto:alice@example.com",
 			Revision:          snap.R(7),
 			Private:           true,
 		},
@@ -1033,7 +1033,7 @@ func (s *snapsSuite) TestMapLocalFields(c *check.C) {
 		JailMode:         true,
 		Private:          true,
 		Broken:           "very",
-		Contact:          "alice@example.com",
+		Contact:          "mailto:alice@example.com",
 		Title:            "A Title",
 		License:          "MIT",
 		CommonIDs:        []string{"foo", "bar"},
@@ -1422,6 +1422,42 @@ func (s *snapsSuite) TestInstallCohort(c *check.C) {
 	c.Check(calledName, check.Equals, "fake")
 	c.Check(calledCohort, check.Equals, "To the legion of the lost ones, to the cohort of the damned.")
 	c.Check(msg, check.Equals, `Install "fake" snap from "…e damned." cohort`)
+}
+
+func (s *snapsSuite) TestInstallIgnoreValidation(c *check.C) {
+	var calledFlags snapstate.Flags
+	installQueue := []string{}
+
+	defer daemon.MockSnapstateInstall(func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		installQueue = append(installQueue, name)
+		calledFlags = flags
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	})()
+	defer daemon.MockAssertstateRefreshSnapDeclarations(func(s *state.State, userID int) error {
+		return nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{
+		Action:           "install",
+		IgnoreValidation: true,
+		Snaps:            []string{"some-snap"},
+	}
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	summary, _, err := inst.Dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	flags := snapstate.Flags{}
+	flags.IgnoreValidation = true
+
+	c.Check(calledFlags, check.DeepEquals, flags)
+	c.Check(err, check.IsNil)
+	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
+	c.Check(summary, check.Equals, `Install "some-snap" snap`)
 }
 
 func (s *snapsSuite) TestInstallEmptyName(c *check.C) {

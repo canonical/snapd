@@ -37,6 +37,8 @@ jobs:
     - name: Build snapd snap
       if: steps.cached-results.outputs.already-ran != 'true'
       uses: snapcore/action-build@v1
+      with:
+        snapcraft-channel: 4.x/candidate
     - name: Cache built artifact
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
@@ -119,7 +121,7 @@ jobs:
               echo "::set-output name=already-ran::true"
           fi
     - name: Install Debian dependencies
-      if: steps.cached-results.outputs.cached-resulsts != 'true'
+      if: steps.cached-results.outputs.cached-results != 'true'
       run: |
           sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
     # golang latest ensures things work on the edge
@@ -197,7 +199,7 @@ jobs:
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-        SKIP_COVERAGE=1 SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=withbootassetstesting ./run-checks --unit
+        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=withbootassetstesting ./run-checks --unit
     - name: Test Go (nosecboot)
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
@@ -207,8 +209,16 @@ jobs:
         # install secboot again
         ${{ github.workspace }}/bin/govendor remove github.com/snapcore/secboot
         ${{ github.workspace }}/bin/govendor remove +unused
-        # we don't need coverage anymore
-        SKIP_COVERAGE=1 SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
+        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v2
+      with:
+        # token: ${{ secrets.CODECOV_TOKEN }} # needed ?
+        fail_ci_if_error: true
+        flags: unittests
+        name: codecov-umbrella
+        files: .coverage/coverage.out
+        verbose: true
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")

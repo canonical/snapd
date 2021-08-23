@@ -521,7 +521,7 @@ func installInfoUnlocked(st *state.State, snapsup *SnapSetup, deviceCtx DeviceCo
 	st.Lock()
 	defer st.Unlock()
 	opts := &RevisionOptions{Channel: snapsup.Channel, CohortKey: snapsup.CohortKey, Revision: snapsup.Revision()}
-	return installInfo(context.TODO(), st, snapsup.InstanceName(), opts, snapsup.UserID, deviceCtx)
+	return installInfo(context.TODO(), st, snapsup.InstanceName(), opts, snapsup.UserID, Flags{}, deviceCtx)
 }
 
 // autoRefreshRateLimited returns the rate limit of auto-refreshes or 0 if
@@ -690,13 +690,16 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	}
 
+	setupOpts := &backend.SetupSnapOptions{
+		SkipKernelExtraction: snapsup.SkipKernelExtraction,
+	}
 	pb := NewTaskProgressAdapterUnlocked(t)
 	// TODO Use snapsup.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
 	var snapType snap.Type
 	var installRecord *backend.InstallRecord
 	timings.Run(perfTimings, "setup-snap", fmt.Sprintf("setup snap %q", snapsup.InstanceName()), func(timings.Measurer) {
-		snapType, installRecord, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, deviceCtx, pb)
+		snapType, installRecord, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, deviceCtx, setupOpts, pb)
 	})
 	if err != nil {
 		cleanup()
