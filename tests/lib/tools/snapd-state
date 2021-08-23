@@ -27,7 +27,7 @@ check_snapd_state() {
     JQ_FILTER=$1
     COMP=$2
     RES=$3
-    FAIL_MSG={$4:-'failed values comparison'}
+    FAIL_MSG="${4:-failed values comparison}"
     if [ "$COMP" = "!=" ]; then
         if [ "$(print_snapd_state \"$JQ_FILTER\")" != "$RES" ]; then
             echo "snapd-state: $FAIL_MSG"
@@ -63,7 +63,7 @@ prevent_autorefresh() {
 
 wait_for_autorefresh() {
     local SNAP="$1"
-    local LAST_CHANGE_ID="$2:-1"
+    local LAST_CHANGE_ID="${2:-1}"
     local CHANGE_ID
     CHANGE_ID="$LAST_CHANGE_ID"
 
