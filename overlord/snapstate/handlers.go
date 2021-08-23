@@ -22,6 +22,7 @@ package snapstate
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -642,6 +643,28 @@ func hasOtherInstances(st *state.State, instanceName string) (bool, error) {
 	return false, nil
 }
 
+var ErrKernelGadgetUpdateTaskMissing = errors.New("cannot refresh kernel without a gadget update task")
+
+func checkKernelHasUpdateAssetsTask(t *state.Task) error {
+	for _, other := range t.Change().Tasks() {
+		snapsup, err := TaskSnapSetup(other)
+		if err == state.ErrNoState {
+			// XXX: hooks have no snapsup, is this detection okay?
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if snapsup.Type != "kernel" {
+			continue
+		}
+		if other.Kind() == "update-gadget-assets" {
+			return nil
+		}
+	}
+	return ErrKernelGadgetUpdateTaskMissing
+}
+
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -664,6 +687,26 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Unlock()
 	if err != nil {
 		return err
+	}
+
+	// check that there is a "update-gadget-assets" task for kernels too,
+	// see https://bugs.launchpad.net/snapd/+bug/1940553
+	if snapsup.Type == snap.TypeKernel {
+		var err error
+		st.Lock()
+		err = checkKernelHasUpdateAssetsTask(t)
+		st.Unlock()
+		switch {
+		case err == ErrKernelGadgetUpdateTaskMissing:
+			st.Lock()
+			t.Change().AbortLanes(t.Lanes())
+			t.Logf("aborting kernel refresh because it has no gadget-update-task")
+			st.Unlock()
+			// XXX: should we return an error here instead so that it surfaces to the user?
+			return nil
+		case err != nil:
+			return err
+		}
 	}
 
 	timings.Run(perfTimings, "check-snap", fmt.Sprintf("check snap %q", snapsup.InstanceName()), func(timings.Measurer) {

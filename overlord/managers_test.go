@@ -54,6 +54,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -8692,4 +8693,113 @@ volumes:
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "overlays/uart0.dtbo"), testutil.FileContains, "uart0.dtbo rev2-from-kernel")
 	//  gadget content is not updated because there is no edition update
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "start.elf"), testutil.FileContains, "start.elf rev1")
+}
+
+// deal with the missing "update-gadget-assets" tasks, see LP:#1940553
+func (ms *gadgetUpdatesSuite) TestGadgetKernelRefreshFromOldBrokenSnap(c *C) {
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// we have an install kernel/gadget
+	gadgetSnapYaml := "name: pi\nversion: 1.0\ntype: gadget"
+	ms.mockInstalledSnapWithFiles(c, gadgetSnapYaml, [][]string{
+		{"meta/gadget.yaml", "volumes:\n volume-id:\n  bootloader: grub"},
+	})
+	kernelSnapYaml := "name: pi-kernel\nversion: 1.0\ntype: kernel"
+	ms.mockInstalledSnapWithFiles(c, kernelSnapYaml, nil)
+
+	// add new kernel/gadget snap
+	newKernelSnapYaml := kernelSnapYaml
+	ms.mockSnapUpgradeWithFiles(c, newKernelSnapYaml, nil)
+	ms.mockSnapUpgradeWithFiles(c, gadgetSnapYaml, [][]string{
+		{"meta/gadget.yaml", "volumes:\n volume-id:\n  bootloader: grub"},
+	})
+
+	// now a refresh is simulated that does *not* contain an
+	// "update-gadget-assets" task, see LP:#1940553
+	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, &snapstate.Flags{})
+	c.Assert(err, IsNil)
+	sort.Strings(affected)
+	c.Check(affected, DeepEquals, []string{"pi", "pi-kernel"})
+
+	// here we need to manipulate the change to simulate that there
+	// is no "update-gadget-assets" task for the kernel, unfortunately
+	// there is no "state.TaskSet.RemoveTask" nor a "state.Task.Unwait()"
+	chg := st.NewChange("upgrade-snaps", "...")
+	for _, ts := range tasksets {
+		// skip the taskset of UpdateMany that does the
+		// check-rerefresh, see tsWithoutReRefresh for details
+		if ts.Tasks()[0].Kind() == "check-rerefresh" {
+			continue
+		}
+
+		// Remove the "update-gadget-assets" task from the kernel
+		// update TaskSet to simulate an upgrade from an old snapd
+		// (see bug https://bugs.launchpad.net/snapd/+bug/1940553)
+		snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
+		c.Assert(err, IsNil)
+		if snapsup.Type == "kernel" {
+			// fugly: simulate a kernel install without a
+			// gadget-update-tasks by just inserting some
+			// tasks. We cannot just copy the existing tasks
+			// because anything beyond "update-gadget-updates"
+			// will have a "WaitFor("update-gadget-updates")
+			// which never runs.
+			var tasks []*state.Task
+
+			revisionStr := ""
+			prereq := ts.Tasks()[0]
+			tasks = append(tasks, prereq)
+			prepare := ts.Tasks()[1]
+			tasks = append(tasks, prepare)
+			prev := prepare
+
+			// XXX: copied from snapstate.doInstall()
+			addTask := func(t *state.Task) {
+				t.Set("snap-setup-task", prereq.ID())
+				t.JoinLane(prepare.Lanes()[0])
+				t.WaitFor(prev)
+				tasks = append(tasks, t)
+			}
+
+			mount := st.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mount snap %q%s"), snapsup.InstanceName(), revisionStr))
+			addTask(mount)
+			prev = mount
+
+			linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q%s available to the system"), snapsup.InstanceName(), revisionStr))
+			addTask(linkSnap)
+			prev = linkSnap
+
+			ts = state.NewTaskSet(tasks...)
+		}
+		chg.AddAll(ts)
+	}
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Check(chg.Err(), IsNil)
+
+	// Validate that the "kernel" related parts of the change got
+	// aborted.
+	for _, t := range chg.Tasks() {
+		if t.Kind() == "prerequisites" || t.Kind() == "run-hook" {
+			continue
+		}
+		snapsup, err := snapstate.TaskSnapSetup(t)
+		c.Assert(err, IsNil)
+		if snapsup.Type != "kernel" {
+			continue
+		}
+
+		c.Check([]state.Status{state.UndoneStatus, state.HoldStatus}, testutil.Contains, t.Status(), Commentf("%v", t))
+
+		if t.Kind() == "mount-snap" {
+			c.Assert(t.Log(), HasLen, 1)
+			c.Check(t.Log()[0], testutil.Contains, "aborting kernel refresh because it has no gadget-update-task")
+		}
+	}
+
 }
