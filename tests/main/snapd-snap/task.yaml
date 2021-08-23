@@ -174,7 +174,10 @@ execute: |
     snap install hello-world
 
     echo "Then hello-world.evil should fail due to snap confinement"
-    ! hello-world.evil
+    if hello-world.evil; then
+        echo "hello-world.evil should fail due to snap confinement"
+        exit 1
+    fi
 
     echo "Given a snap is installed"
     "$TESTSTOOLS"/snaps-state install-local "$CONSUMER_SNAP"
