@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -22,6 +22,7 @@ package snap
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -375,6 +376,11 @@ func Validate(info *Info) error {
 
 	// Ensure system usernames are valid
 	if err := ValidateSystemUsernames(info); err != nil {
+		return err
+	}
+
+	// Ensure links are valid
+	if err := ValidateLinks(info.Links()); err != nil {
 		return err
 	}
 
@@ -1118,4 +1124,40 @@ func ValidateBasesAndProviders(snapInfos []*Info) []error {
 		}
 	}
 	return errs
+}
+
+var isValidLinksKey = regexp.MustCompile("^[a-zA-Z](?:-?[a-zA-Z0-9])*$").MatchString
+var validLinkSchemes = []string{"http", "https"}
+
+// ValidateLinks checks that links entries have valid keys and values that can be parsed as URLs or are email addresses possibly prefixed with mailto:.
+func ValidateLinks(links map[string][]string) error {
+	for linksKey, linksValues := range links {
+		if linksKey == "" {
+			return fmt.Errorf("links key cannot be empty")
+		}
+		if !isValidLinksKey(linksKey) {
+			return fmt.Errorf("links key is invalid: %s", linksKey)
+		}
+		if len(linksValues) == 0 {
+			return fmt.Errorf("%q links cannot be specified and empty", linksKey)
+		}
+		for _, link := range linksValues {
+			if link == "" {
+				return fmt.Errorf("empty %q link", linksKey)
+			}
+			u, err := url.Parse(link)
+			if err != nil {
+				return fmt.Errorf("invalid %q link %q", linksKey, link)
+			}
+			if u.Scheme == "" || u.Scheme == "mailto" {
+				// minimal check
+				if !strings.Contains(link, "@") {
+					return fmt.Errorf("invalid %q email address %q", linksKey, link)
+				}
+			} else if !strutil.ListContains(validLinkSchemes, u.Scheme) {
+				return fmt.Errorf("%q link must have one of http|https schemes or it must be an email address: %q", linksKey, link)
+			}
+		}
+	}
+	return nil
 }

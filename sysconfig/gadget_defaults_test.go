@@ -56,6 +56,38 @@ var fakeModel = assertstest.FakeAssertion(map[string]interface{}{
 	"kernel":       "pc-kernel",
 }).(*asserts.Model)
 
+func fake20Model(grade string) *asserts.Model {
+	return assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        grade,
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "kernel",
+				"id":              "kerneldididididididididididididi",
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              "gadgetididididididididididididid",
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	}).(*asserts.Model)
+}
+
+func (s *sysconfigSuite) TestConfigureTargetSystemNonUC20(c *C) {
+	err := sysconfig.ConfigureTargetSystem(fakeModel, nil)
+	c.Assert(err, ErrorMatches, "internal error: ConfigureTargetSystem can only be used with a model with a grade")
+}
+
 func (s *sysconfigSuite) TestGadgetDefaults(c *C) {
 	const gadgetDefaultsYaml = `
 defaults:
@@ -89,7 +121,7 @@ defaults:
 	exists, _, _ := osutil.DirExists(journalPath)
 	c.Check(exists, Equals, false)
 
-	err := sysconfig.ConfigureTargetSystem(fakeModel, &sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
 		TargetRootDir: boot.InstallHostWritableDir,
 		GadgetDir:     snapInfo.MountDir(),
 	})
@@ -119,7 +151,7 @@ defaults:
 		{"meta/gadget.yaml", gadgetYaml + gadgetDefaultsYaml},
 	})
 
-	err := sysconfig.ConfigureTargetSystem(fakeModel, &sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
 		TargetRootDir: boot.InstallHostWritableDir,
 		GadgetDir:     snapInfo.MountDir(),
 	})
@@ -156,7 +188,7 @@ defaults:
 	exists, _, _ := osutil.DirExists(journalPath)
 	c.Check(exists, Equals, false)
 
-	err := sysconfig.ConfigureTargetSystem(fakeModel, &sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
 		TargetRootDir: boot.InstallHostWritableDir,
 		GadgetSnap:    snapContainer,
 	})

@@ -1,16 +1,13 @@
 summary: Check that snapd failure handling works
 
 prepare: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     # on UC16, we should transition to using the snapd snap before running the 
     # test because it by default uses the core snap
     # there is a different test for the transition between the core snap and the
     # snapd snap
     if os.query is-core16; then
         # rebuild the core snap into the snapd snap and install it
-        repack_installed_core_snap_into_snapd_snap
+        "$TESTSTOOLS"/snaps-state repack_core_snap_into_snapd_snap
         snap install --dangerous snapd-from-core.snap
     fi
     # ensure we are in snapd snap world
