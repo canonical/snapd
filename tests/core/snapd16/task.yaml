@@ -4,9 +4,7 @@ summary: Test snapd install on a UC16 system
 systems: [ubuntu-core-16-*]
 
 prepare: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-    repack_installed_core_snap_into_snapd_snap
+    "$TESTSTOOLS"/snaps-state repack_core_snap_into_snapd_snap
 
 restore: |
     not test -d /snap/snapd
