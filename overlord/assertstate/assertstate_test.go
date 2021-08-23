@@ -2218,7 +2218,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsNop(c *C) {
 	c.Assert(err, IsNil)
 }
 
-func (s *assertMgrSuite) TestValidationSetAssertionsAutoRefresh(c *C) {
+func (s *assertMgrSuite) TestValidationSetAssertionsRefresh(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -2257,7 +2257,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionsAutoRefresh(c *C) {
 	c.Check(a.Revision(), Equals, 3)
 }
 
-func (s *assertMgrSuite) TestValidationSetAssertionsAutoRefreshError(c *C) {
+func (s *assertMgrSuite) TestValidationSetAssertionsRefreshError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
