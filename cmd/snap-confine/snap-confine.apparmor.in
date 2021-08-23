@@ -73,6 +73,11 @@
     # cgroup: reading own cgroup
     @{PROC}/@{pid}/cgroup r,
 
+    # cgroup: manage bpf map for device cgroup
+    /sys/fs/bpf/ r,
+    /sys/fs/bpf/snap/ rw,
+    /sys/fs/bpf/snap/* rw,
+
     # querying udev
     /etc/udev/udev.conf r,
     /sys/**/uevent r,
