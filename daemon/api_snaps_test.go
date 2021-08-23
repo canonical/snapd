@@ -1424,6 +1424,42 @@ func (s *snapsSuite) TestInstallCohort(c *check.C) {
 	c.Check(msg, check.Equals, `Install "fake" snap from "…e damned." cohort`)
 }
 
+func (s *snapsSuite) TestInstallIgnoreValidation(c *check.C) {
+	var calledFlags snapstate.Flags
+	installQueue := []string{}
+
+	defer daemon.MockSnapstateInstall(func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		installQueue = append(installQueue, name)
+		calledFlags = flags
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	})()
+	defer daemon.MockAssertstateRefreshSnapDeclarations(func(s *state.State, userID int) error {
+		return nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{
+		Action:           "install",
+		IgnoreValidation: true,
+		Snaps:            []string{"some-snap"},
+	}
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	summary, _, err := inst.Dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	flags := snapstate.Flags{}
+	flags.IgnoreValidation = true
+
+	c.Check(calledFlags, check.DeepEquals, flags)
+	c.Check(err, check.IsNil)
+	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
+	c.Check(summary, check.Equals, `Install "some-snap" snap`)
+}
+
 func (s *snapsSuite) TestInstallEmptyName(c *check.C) {
 	defer daemon.MockSnapstateInstall(func(ctx context.Context, _ *state.State, _ string, _ *snapstate.RevisionOptions, _ int, _ snapstate.Flags) (*state.TaskSet, error) {
 		return nil, errors.New("should not be called")
