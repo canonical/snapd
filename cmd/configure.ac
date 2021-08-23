@@ -226,5 +226,18 @@ AC_SUBST(SYSTEMD_SYSTEM_GENERATOR_DIR)
 SYSTEMD_SYSTEM_ENV_GENERATOR_DIR="${prefix}/lib/systemd/system-environment-generators"
 AC_SUBST(SYSTEMD_SYSTEM_ENV_GENERATOR_DIR)
 
+AC_MSG_CHECKING([whether host BPF headers are usable])
+AC_COMPILE_IFELSE([
+#include <linux/bpf.h>
+void foo(enum bpf_attach_type type) {}
+void bar() { struct bpf_cgroup_dev_ctx ctx = {0}; }
+], [host_bpf_headers_usable=yes], [host_bpf_headers_usable=no])
+if test "x$host_bpf_headers_usable" = "xyes"; then
+   AC_MSG_RESULT([yes])
+else
+  AC_MSG_RESULT([no, using vendored BPF headers])
+fi
+AM_CONDITIONAL([USE_INTERNAL_BPF_HEADERS], [test "x$host_bpf_headers_usable" = "xno"])
+
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
