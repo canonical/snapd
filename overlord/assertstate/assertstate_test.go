@@ -2181,7 +2181,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionsAutoRefresh(c *C) {
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
-	c.Assert(assertstate.AutoRefreshAssertions(s.state, 0), IsNil)
+	c.Assert(assertstate.RefreshAssertions(s.state, 0), IsNil)
 
 	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
@@ -2208,7 +2208,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionsAutoRefreshError(c *C) {
 		Current:   1,
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
-	err := assertstate.AutoRefreshAssertions(s.state, 0)
+	err := assertstate.RefreshAssertions(s.state, 0)
 	c.Assert(asserts.IsNotFound(err), Equals, true)
 }
 

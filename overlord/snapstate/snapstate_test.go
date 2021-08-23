@@ -3116,11 +3116,11 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesInFlight(c *C) {
 	c.Check(s.state.Changes(), HasLen, 1)
 }
 
-func mockAutoRefreshAssertions(f func(st *state.State, userID int) error) func() {
-	origAutoRefreshAssertions := snapstate.AutoRefreshAssertions
-	snapstate.AutoRefreshAssertions = f
+func mockRefreshAssertions(f func(st *state.State, userID int) error) func() {
+	origRefreshAssertions := snapstate.RefreshAssertions
+	snapstate.RefreshAssertions = f
 	return func() {
-		snapstate.AutoRefreshAssertions = origAutoRefreshAssertions
+		snapstate.RefreshAssertions = origRefreshAssertions
 	}
 }
 
@@ -3132,7 +3132,7 @@ func (s *snapmgrTestSuite) TestEnsureRefreshesWithUpdateStoreError(c *C) {
 	// avoid special at seed policy
 	s.state.Set("last-refresh", time.Time{})
 	autoRefreshAssertionsCalled := 0
-	restore := mockAutoRefreshAssertions(func(st *state.State, userID int) error {
+	restore := mockRefreshAssertions(func(st *state.State, userID int) error {
 		// simulate failure in snapstate.AutoRefresh()
 		autoRefreshAssertionsCalled++
 		return fmt.Errorf("simulate store error")
@@ -3175,7 +3175,7 @@ func (s *snapmgrTestSuite) testEnsureRefreshesDisabledViaSnapdControl(c *C, conf
 
 	// snapstate.AutoRefresh is called from AutoRefresh()
 	autoRefreshAssertionsCalled := 0
-	restore := mockAutoRefreshAssertions(func(st *state.State, userID int) error {
+	restore := mockRefreshAssertions(func(st *state.State, userID int) error {
 		autoRefreshAssertionsCalled++
 		return nil
 	})

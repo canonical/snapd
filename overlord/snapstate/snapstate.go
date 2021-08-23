@@ -1890,9 +1890,9 @@ func infoForUpdate(st *state.State, snapst *SnapState, name string, opts *Revisi
 	return readInfo(name, sideInfo, errorOnBroken)
 }
 
-// AutoRefreshAssertions allows to hook fetching of important assertions
+// RefreshAssertions allows to hook fetching of important assertions
 // into the Autorefresh function.
-var AutoRefreshAssertions func(st *state.State, userID int) error
+var RefreshAssertions func(st *state.State, userID int) error
 
 // AutoRefresh is the wrapper that will do a refresh of all the installed
 // snaps on the system. In addition to that it will also refresh important
@@ -1900,8 +1900,8 @@ var AutoRefreshAssertions func(st *state.State, userID int) error
 func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskSet, error) {
 	userID := 0
 
-	if AutoRefreshAssertions != nil {
-		if err := AutoRefreshAssertions(st, userID); err != nil {
+	if RefreshAssertions != nil {
+		if err := RefreshAssertions(st, userID); err != nil {
 			return nil, nil, err
 		}
 	}

@@ -143,7 +143,7 @@ var (
 	snapstateRevertToRevision  = snapstate.RevertToRevision
 	snapstateSwitch            = snapstate.Switch
 
-	assertstateRefreshSnapDeclarations = assertstate.RefreshSnapDeclarations
+	assertstateRefreshAssertions = assertstate.RefreshAssertions
 )
 
 func ensureStateSoonImpl(st *state.State) {

@@ -327,15 +327,15 @@ func delayedCrossMgrInit() {
 	// hook validation of refreshes into snapstate logic
 	snapstate.ValidateRefreshes = ValidateRefreshes
 	// hook auto refresh of assertions (snap declarations) into snapstate
-	snapstate.AutoRefreshAssertions = AutoRefreshAssertions
+	snapstate.RefreshAssertions = RefreshAssertions
 	// hook retrieving auto-aliases into snapstate logic
 	snapstate.AutoAliases = AutoAliases
 	// hook the helper for getting enforced validation sets
 	snapstate.EnforcedValidationSets = EnforcedValidationSets
 }
 
-// AutoRefreshAssertions tries to refresh all assertions
-func AutoRefreshAssertions(s *state.State, userID int) error {
+// RefreshAssertions tries to refresh all assertions
+func RefreshAssertions(s *state.State, userID int) error {
 	if err := RefreshSnapDeclarations(s, userID); err != nil {
 		return err
 	}
