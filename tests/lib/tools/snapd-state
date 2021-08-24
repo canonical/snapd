@@ -2,6 +2,7 @@
 
 show_help() {
     echo "usage: check-state <jq-filter> <comparison> <expected-res> <error-message>"
+    echo "       print-state <jq-filter>"
     echo "       change-snap-channel <snap-name> <channel>"
     echo "       force-autorefresh"
     echo "       prevent-autorefresh"
@@ -11,7 +12,7 @@ show_help() {
     echo "Also it is used to check state and refresh status"
 }
 
-print_snapd_state() {
+print_state() {
     JQ_FILTER=$1
     if [ -z "$JQ_FILTER" ]; then
         echo "snapd-state: jq filter is needed"
@@ -23,18 +24,18 @@ print_snapd_state() {
     jq -r "$JQ_FILTER" < /var/lib/snapd/state.json
 }
 
-check_snapd_state() {
+check_state() {
     JQ_FILTER=$1
     COMP=$2
     RES=$3
     FAIL_MSG="${4:-failed values comparison}"
     if [ "$COMP" = "!=" ]; then
-        if [ "$(print_snapd_state \"$JQ_FILTER\")" != "$RES" ]; then
+        if [ "$(print_state \"$JQ_FILTER\")" != "$RES" ]; then
             echo "snapd-state: $FAIL_MSG"
             exit 1
         fi
     elif [ "$COMP" = "=" ]; then
-        if [ "$(print_snapd_state \"$JQ_FILTER\")" = "$RES" ]; then
+        if [ "$(print_state \"$JQ_FILTER\")" = "$RES" ]; then
             echo "snapd-state: $FAIL_MSG"
             exit 1
         fi

@@ -83,7 +83,7 @@ execute: |
   echo "Trigger auto-refresh of test-snapd-refresh-control-provider but unblock it via test-snapd-refresh-control's hook"
   echo "--proceed" > "$CONTROL_FILE"
 
-  force_autorefresh
+  "$TESTSTOOLS"/snapd-state force-autorefresh
   systemctl start snapd.{service,socket}
   LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-autorefresh "$CONTENT_SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
 
