@@ -145,3 +145,11 @@ func (s *ctlcmdSuite) TestRunHelpAtAnyPosition(c *C) {
 	c.Check(err, NotNil)
 	c.Assert(strings.HasPrefix(err.Error(), "Usage:"), Equals, true)
 }
+
+func (s *ctlcmdSuite) TestRunNonRootAllowedCommandWithAllowedCmdAsArg(c *C) {
+	// this test protects us against a future refactor introducing a bug that allows
+	// a root-only command to run without root if an arg is in the nonRootAllowed list
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "get", "a"}, 1000)
+	c.Check(err, FitsTypeOf, &ctlcmd.ForbiddenCommandError{})
+	c.Check(err.Error(), Equals, `cannot use "set" with uid 1000, try with sudo`)
+}
