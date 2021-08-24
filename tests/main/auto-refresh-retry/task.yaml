@@ -55,7 +55,7 @@ execute: |
     systemctl start snapd.{socket,service}
 
     echo "wait for auto-refresh to happen"
-    "$TESTSTOOLS"/snapd-state wait-for-autorefresh "test-snapd-tools"
+    "$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "test-snapd-tools"
 
     echo "Ensure our snap got updated"
     snap list|MATCH "test-snapd-tools +[0-9]+\\.[0-9]+\\+fake1"

@@ -28,7 +28,7 @@ execute: |
 
     # check how snap channel is changed    
     current_channel="$("$TESTSTOOLS"/snapd-state print-state '.data.snaps["test-snapd-tools"].channel')"
-    test "$current_channel" = stable
+    test "$current_channel" = latest/stable
     "$TESTSTOOLS/snapd-state" change-snap-channel test-snapd-tools edge
     new_channel="$("$TESTSTOOLS"/snapd-state print-state '.data.snaps["test-snapd-tools"].channel')"
     test "$new_channel" = edge
@@ -43,21 +43,21 @@ execute: |
     new_refresh_date="$("$TESTSTOOLS"/snapd-state print-state '.data["last-refresh"]')"
     echo "$new_refresh_date" | MATCH "^$(date +'%F')"
 
-    # check wait-for-autorefresh command
+    # check wait-for-snap-autorefresh command
     systemctl stop snapd.{service,socket}
     "$TESTSTOOLS"/snapd-state force-autorefresh
     systemctl start snapd.{socket,service}
 
-    change_id="$("$TESTSTOOLS"/snapd-state wait-for-autorefresh test-snapd-tools)"
+    change_id="$("$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh test-snapd-tools)"
     snap changes | MATCH "$change_id.*Done.*Auto-refresh.*test-snapd-tool"
 
-    # check wait-for-autorefresh command with previous change id
+    # check wait-for-snap-autorefresh command with previous change id
     systemctl stop snapd.{service,socket}
     "$TESTSTOOLS/snapd-state" change-snap-channel test-snapd-tools beta
     "$TESTSTOOLS"/snapd-state force-autorefresh
     systemctl start snapd.{socket,service}
 
-    new_change_id="$("$TESTSTOOLS"/snapd-state wait-for-autorefresh test-snapd-tools "$change_id")"
+    new_change_id="$("$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh test-snapd-tools "$change_id")"
     snap changes | MATCH "$new_change_id.*Done.*Auto-refresh.*test-snapd-tool"
 
     test "$change_id" -lt "$new_change_id"

@@ -6,7 +6,7 @@ show_help() {
     echo "       change-snap-channel <snap-name> <channel>"
     echo "       force-autorefresh"
     echo "       prevent-autorefresh"
-    echo "       wait-for-autorefresh <last-change-id>"
+    echo "       wait-for-snap-autorefresh <snap-name> <last-change-id>"
     echo ""
     echo "The tool is used to manage the snapd state by editing the state.json file."
     echo "Also it is used to check state and refresh status"
@@ -18,9 +18,6 @@ print_state() {
         echo "snapd-state: jq filter is needed"
         exit 1
     fi
-    # we are storing jq filter specs in JQFILTER, so we can't use --arg like 
-    # normal with jq, so instead just do a _real_ simple and potentially 
-    # _really_ annoying string concatenation with the actual verbatim variable
     jq -r "$JQ_FILTER" < /var/lib/snapd/state.json
 }
 
@@ -62,7 +59,7 @@ prevent_autorefresh() {
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
 }
 
-wait_for_autorefresh() {
+wait_for_snap_autorefresh() {
     local SNAP="$1"
     local LAST_CHANGE_ID="${2:-1}"
     local CHANGE_ID
@@ -72,12 +69,12 @@ wait_for_autorefresh() {
         echo "snapd-state: snap needed waiting for an autorefresh"
         exit 1
     fi
-    for _ in $(seq 200); do
+    for _ in $(seq 120); do
       # get last 2 lines of snap changes (the last one is always empty), match
       # auto-refresh change; only proceed if the change has greater change id
       # than the previously matched auto-refresh (this way we can match
       # consecutive auto-refreshes).
-      if CHANGES=$(snap changes | tail -2 | grep "Done.*Auto-refresh.*$SNAP"); then
+      if CHANGES=$(snap changes | tail -2 | grep "Done.*Auto-refresh.*snap.*$SNAP"); then
         CHANGE_ID=$(echo "$CHANGES" | awk '{print $1}')
         if [ "$CHANGE_ID" -gt "$LAST_CHANGE_ID" ]; then
           break

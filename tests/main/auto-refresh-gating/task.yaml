@@ -54,7 +54,7 @@ execute: |
     echo "Trigger auto-refresh of test-snapd-refresh-control-provider but hold it via test-snapd-refresh-control's hook"
     "$TESTSTOOLS"/snapd-state force-autorefresh
     systemctl start snapd.{service,socket}
-    LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-autorefresh "$CONTENT_SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
+    LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "$CONTENT_SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
 
     snap change --last=auto-refresh | MATCH "Run auto-refresh for ready snaps"
     snap change --last=auto-refresh | MATCH "Run hook gate-auto-refresh of snap \"$SNAP_NAME\""
@@ -85,7 +85,7 @@ execute: |
 
   "$TESTSTOOLS"/snapd-state force-autorefresh
   systemctl start snapd.{service,socket}
-  LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-autorefresh "$CONTENT_SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
+  LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "$CONTENT_SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
 
   snap change --last=auto-refresh | MATCH "Run auto-refresh for ready snaps"
   snap change --last=auto-refresh | MATCH "Run hook gate-auto-refresh of snap \"$SNAP_NAME\""
@@ -106,11 +106,11 @@ execute: |
   # and it holds itself.
   echo "Trigger auto-refresh of test-snapd-refresh-control and hold it from its hook"
   echo "--hold" > "$CONTROL_FILE"
-  force_channel_change "$SNAP_NAME" beta
+  "$TESTSTOOLS"/snapd-state change-snap-channel "$SNAP_NAME" beta
   "$TESTSTOOLS"/snapd-state force-autorefresh
 
   systemctl start snapd.{service,socket}
-  LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-autorefresh "$SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
+  LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "$SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
 
   echo "Check that the --pending information contains test-snapd-refresh-control refresh info"
   MATCH "pending: +ready" < "$DEBUG_LOG_FILE"
@@ -147,7 +147,7 @@ execute: |
   "$TESTSTOOLS"/snapd-state force-autorefresh
 
   systemctl start snapd.{service,socket}
-  LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-autorefresh "$CONTENT_SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
+  LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "$CONTENT_SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
 
   echo "Ensure our content snap was held"
   snap list | MATCH "$CONTENT_SNAP_NAME +2\.0\.0"
@@ -165,7 +165,7 @@ execute: |
   "$TESTSTOOLS"/snapd-state force-autorefresh
 
   systemctl start snapd.{service,socket}
-  LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-autorefresh "$CONTENT_SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
+  LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "$CONTENT_SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
 
   echo "Ensure our content snap was updated"
   snap list | MATCH "$CONTENT_SNAP_NAME +3\.0\.0"
