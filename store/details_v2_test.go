@@ -288,7 +288,6 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 	expectedZeroFields := []string{
 		"SuggestedName",
 		"InstanceKey",
-		"Assumes",
 		"OriginalTitle",
 		"OriginalSummary",
 		"OriginalDescription",
@@ -324,9 +323,11 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 				checker(pfx+f.Name+".", v)
 				continue
 			}
+			name := pfx + f.Name
 			if reflect.DeepEqual(v.Interface(), reflect.Zero(f.Type).Interface()) {
-				name := pfx + f.Name
 				c.Check(expectedZeroFields, testutil.Contains, name, Commentf("%s not set", name))
+			} else {
+				c.Check(expectedZeroFields, Not(testutil.Contains), name, Commentf("%s unexpectedly set", name))
 			}
 		}
 	}
