@@ -367,7 +367,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookError(c *C) {
 	c.Assert(strings.Join(task.Log(), ""), testutil.Contains, "ignoring hook error: fail")
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
-	// and snap-b is now held.
+	// and snap-a is now held.
 	checkIsHeld(c, st, "snap-a", "snap-a")
 
 	// no runinhibit because the refresh-app-awareness feature is disabled.
