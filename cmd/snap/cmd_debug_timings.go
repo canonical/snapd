@@ -33,7 +33,7 @@ import (
 
 type cmdChangeTimings struct {
 	changeIDMixin
-	EnsureTag  string `long:"ensure" choice:"auto-refresh" choice:"become-operational" choice:"refresh-catalogs" choice:"refresh-hints" choice:"seed"`
+	EnsureTag  string `long:"ensure" choice:"auto-refresh" choice:"become-operational" choice:"refresh-catalogs" choice:"refresh-hints" choice:"seed" choice:"install-system"`
 	All        bool   `long:"all"`
 	StartupTag string `long:"startup" choice:"load-state" choice:"ifacemgr"`
 	Verbose    bool   `long:"verbose"`

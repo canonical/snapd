@@ -91,6 +91,7 @@ static void test_cleanup_endmntent(void)
 	gint mock_fstab_fd =
 	    g_file_open_tmp("s-c-test-fstab-mock.XXXXXX", &mock_fstab, &err);
 	g_assert_no_error(err);
+	g_assert_cmpint(mock_fstab_fd, >=, 0);
 	g_assert_true(g_close(mock_fstab_fd, NULL));
 	/* XXX: not strictly needed as the test only calls setmntent */
 	const char *mock_fstab_data = "/dev/foo / ext4 defaults 0 1";

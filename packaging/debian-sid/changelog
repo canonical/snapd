@@ -1,3 +1,37 @@
+snapd (2.51.6-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1929842
+    - secboot: use half the mem for KDF in AddRecoveryKey
+    - secboot: switch main key KDF memory cost to 32KB
+
+ -- Ian Johnson <ian.johnson@canonical.com>  Thu, 19 Aug 2021 15:49:47 -0500
+
+snapd (2.51.5-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1929842
+    - snap/squashfs: handle squashfs-tools 4.5+
+    - tests/core20-install-device-file-install-via-hook-hack: adjust
+      test for 2.51
+    - o/devicestate/handlers_install.go: add workaround to create dirs
+      for install
+    - tests: fix linter warning
+    - tests: update other spread tests for new behaviour
+    - tests: ack assertions by default, add --noack option
+    - release-tools/changelog.py: also fix opensuse changelog date
+      format
+    - release-tools/changelog.py: fix typo in function name
+    - release-tools/changelog.py: fix fedora date format
+    - release-tools/changelog.py: handle case where we don't have a TZ
+    - release-tools/changelog.py: fix line length check
+    - release-tools/changelog.py: specify the LP bug for the release as
+      an arg too
+    - interface/modem-manager: add support for MBIM/QMI proxy
+      clients
+    - .github/workflows/test.yaml: use snapcraft 4.x to build the snapd
+      snap
+
+ -- Ian Johnson <ian.johnson@canonical.com>  Mon, 16 Aug 2021 15:02:40 -0500
+
 snapd (2.51.4-1) unstable; urgency=medium
 
   * New upstream release, LP: #1929842

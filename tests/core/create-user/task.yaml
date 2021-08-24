@@ -9,7 +9,10 @@ restore: |
     if [ -e managed.device ]; then
         exit 0
     fi
-    snap remove-user "$USER_NAME"
+    # Check if the user exists before remove it
+    if id "$USER_NAME" >/dev/null 2>&1; then
+        snap remove-user "$USER_NAME"
+    fi
 
 debug: |
     if [ -e managed.device ]; then

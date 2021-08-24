@@ -147,23 +147,12 @@ override_dh_systemd_enable:
 	dh_systemd_enable
 
 override_dh_clean:
-ifneq (,$(TEST_GITHUB_AUTOPKGTEST))
-	# this will be set by the GITHUB webhook to trigger a autopkgtest
-	# we only need to run "govendor sync" here and then its ready
-	(export GOPATH="/tmp/go"; \
-	  mkdir -p /tmp/go/src/github.com/snapcore/; \
-          cp -ar . /tmp/go/src/github.com/snapcore/snapd; \
-	  go get -u github.com/kardianos/govendor; \
-	  (cd /tmp/go/src/github.com/snapcore/snapd ; /tmp/go/bin/govendor sync); \
-	  cp -ar /tmp/go/src/github.com/snapcore/snapd/vendor/ .; \
-        )
-endif
 	dh_clean
 	$(MAKE) -C data clean
 	# XXX: hacky
 	$(MAKE) -C cmd distclean || true
 	# XXX: hacky^2
-	(cd vendor/github.com/snapcore/squashfuse/src && rm -f snapfuse && make distclean || true )
+	(cd c-vendor/squashfuse/src && rm -f snapfuse && make distclean || true )
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
@@ -214,7 +203,7 @@ endif
 	$(MAKE) -C data all
 
 	# build squashfuse and rename to snapfuse
-	(cd vendor/github.com/snapcore/squashfuse/src && mkdir -p autom4te.cache && ./autogen.sh --disable-demo && ./configure --disable-demo && make && mv squashfuse_ll snapfuse)
+	(cd c-vendor/squashfuse/src && mkdir -p autom4te.cache && ./autogen.sh --disable-demo && ./configure --disable-demo && make && mv squashfuse_ll snapfuse)
 
 override_dh_auto_test:
 	dh_auto_test -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)

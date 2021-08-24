@@ -87,6 +87,46 @@ DirectMap2M:    23089152 kB
 DirectMap1G:     8388608 kB
 `
 
+const meminfoExampleFromPi3 = `MemTotal:         929956 kB
+MemFree:           83420 kB
+MemAvailable:     676936 kB
+Buffers:           84036 kB
+Cached:           439980 kB
+SwapCached:            0 kB
+Active:           371964 kB
+Inactive:         280064 kB
+Active(anon):      86560 kB
+Inactive(anon):     9152 kB
+Active(file):     285404 kB
+Inactive(file):   270912 kB
+Unevictable:           0 kB
+Mlocked:               0 kB
+SwapTotal:             0 kB
+SwapFree:              0 kB
+Dirty:                 8 kB
+Writeback:             0 kB
+AnonPages:        128052 kB
+Mapped:            53224 kB
+Shmem:             13360 kB
+KReclaimable:      52404 kB
+Slab:             118608 kB
+SReclaimable:      52404 kB
+SUnreclaim:        66204 kB
+KernelStack:        2928 kB
+PageTables:         1552 kB
+NFS_Unstable:          0 kB
+Bounce:                0 kB
+WritebackTmp:          0 kB
+CommitLimit:      464976 kB
+Committed_AS:     496260 kB
+VmallocTotal:   135290159040 kB
+VmallocUsed:       13700 kB
+VmallocChunk:          0 kB
+Percpu:             2768 kB
+CmaTotal:         131072 kB
+CmaFree:            8664 kB
+`
+
 func (s *meminfoSuite) TestMemInfoHappy(c *C) {
 	p := filepath.Join(c.MkDir(), "meminfo")
 	restore := osutil.MockProcMeminfo(p)
@@ -94,13 +134,13 @@ func (s *meminfoSuite) TestMemInfoHappy(c *C) {
 
 	c.Assert(ioutil.WriteFile(p, []byte(meminfoExampleFromLiveSystem), 0644), IsNil)
 
-	mem, err := osutil.TotalSystemMemory()
+	mem, err := osutil.TotalUsableMemory()
 	c.Assert(err, IsNil)
 	c.Check(mem, Equals, uint64(32876680)*1024)
 
 	c.Assert(ioutil.WriteFile(p, []byte(`MemTotal:    1234 kB`), 0644), IsNil)
 
-	mem, err = osutil.TotalSystemMemory()
+	mem, err = osutil.TotalUsableMemory()
 	c.Assert(err, IsNil)
 	c.Check(mem, Equals, uint64(1234)*1024)
 
@@ -111,13 +151,20 @@ MemFree:         3478104 kB
 `
 	c.Assert(ioutil.WriteFile(p, []byte(meminfoReorderedWithEmptyLine), 0644), IsNil)
 
-	mem, err = osutil.TotalSystemMemory()
+	mem, err = osutil.TotalUsableMemory()
 	c.Assert(err, IsNil)
 	c.Check(mem, Equals, uint64(32876699)*1024)
+
+	c.Assert(ioutil.WriteFile(p, []byte(meminfoExampleFromPi3), 0644), IsNil)
+
+	// CmaTotal is taken correctly into account
+	mem, err = osutil.TotalUsableMemory()
+	c.Assert(err, IsNil)
+	c.Check(mem, Equals, uint64(929956-131072)*1024)
 }
 
 func (s *meminfoSuite) TestMemInfoFromHost(c *C) {
-	mem, err := osutil.TotalSystemMemory()
+	mem, err := osutil.TotalUsableMemory()
 	c.Assert(err, IsNil)
 	c.Check(mem > uint64(32*1024*1024),
 		Equals, true, Commentf("unexpected system memory %v", mem))
@@ -163,7 +210,7 @@ Cached:         14550292 kB
 		},
 	} {
 		c.Assert(ioutil.WriteFile(p, []byte(tc.content), 0644), IsNil)
-		mem, err := osutil.TotalSystemMemory()
+		mem, err := osutil.TotalUsableMemory()
 		c.Assert(err, ErrorMatches, tc.err)
 		c.Check(mem, Equals, uint64(0))
 	}

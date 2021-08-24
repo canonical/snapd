@@ -3,11 +3,14 @@ on:
   pull_request:
     branches: [ "master", "release/**" ]
   push:
-    branches: [ "release/**" ]
+    # we trigger runs on master branch, but we do not run spread on master 
+    # branch, the master branch runs are just for unit tests + codecov.io
+    branches: [ "master","release/**" ]
 
 jobs:
   snap-builds:
     runs-on: ubuntu-20.04
+    if: ${{ github.event_name != 'push' && github.ref != 'refs/heads/master' }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -145,6 +148,9 @@ jobs:
     - name: Get Go dependencies
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ${{ github.workspace }}/bin/govendor sync
 
+    - name: Get C vendoring
+      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd/c-vendor && ./vendor.sh
+
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v2
       if: ${{ matrix.gochannel == 'latest/stable' }}
@@ -199,7 +205,7 @@ jobs:
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-        SKIP_COVERAGE=1 SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=withbootassetstesting ./run-checks --unit
+        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=withbootassetstesting ./run-checks --unit
     - name: Test Go (nosecboot)
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
@@ -209,8 +215,17 @@ jobs:
         # install secboot again
         ${{ github.workspace }}/bin/govendor remove github.com/snapcore/secboot
         ${{ github.workspace }}/bin/govendor remove +unused
-        # we don't need coverage anymore
-        SKIP_COVERAGE=1 SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
+        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v2
+      if: steps.cached-results.outputs.already-ran != 'true'
+      with:
+        # token: ${{ secrets.CODECOV_TOKEN }} # needed ?
+        fail_ci_if_error: true
+        flags: unittests
+        name: codecov-umbrella
+        files: .coverage/coverage.out
+        verbose: true
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
@@ -218,6 +233,7 @@ jobs:
 
   spread:
     needs: [unit-tests]
+    if: ${{ github.event_name != 'push' && github.ref != 'refs/heads/master' }}
     runs-on: self-hosted
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
@@ -292,6 +308,7 @@ jobs:
 
   spread-nested:
     needs: [unit-tests]
+    if: ${{ github.event_name != 'push' && github.ref != 'refs/heads/master' }}
     runs-on: self-hosted
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.

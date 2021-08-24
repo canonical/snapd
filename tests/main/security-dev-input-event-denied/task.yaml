@@ -54,16 +54,13 @@ execute: |
 
     echo "When the joystick plug is connected"
     snap connect test-snapd-event:joystick
-    udevadm settle
 
     # Note, '-event-kbd' devices aren't joysticks (those are -event-joystick
     # (evdev event*) and -joystick (js*)) and therefore shouldn't be added to
     # the device cgroup when the joystick interface is plugged.
     echo "Then the snap is still not able to access an evdev keyboard"
-    if test-snapd-event "-event-kbd" 2> call.error; then
-        echo "Expected permission error calling evtest with connected joystick plug"
-        exit 1
-    fi
+    retry -n 5 --wait 1 sh -c '! test-snapd-event "-event-kbd" 2> call.error'
+
     # device cgroup is 'Operation not permitted' which is expected when the
     # joystick interface is connected since a keyboard shouldn't be added to
     # the device cgroup.
@@ -73,15 +70,11 @@ execute: |
     # in device buttons, make sure we start in clean state and disconnect the
     # joystick interface
     snap disconnect test-snapd-event:joystick
-    udevadm settle
 
     # 2. Device Buttons
 
     echo "Then the snap is not able to access an evdev keyboard"
-    if test-snapd-event "-event-kbd" 2> call.error; then
-        echo "Expected permission error calling evtest with disconnected plug"
-        exit 1
-    fi
+    retry -n 5 --wait 1 sh -c '! test-snapd-event "-event-kbd" 2> call.error'
 
     if os.query is-hirsute || os.query is-impish; then
         # Cgroups is 'Operation not permitted' which is expected with default policy
@@ -93,16 +86,13 @@ execute: |
 
     echo "When the device-buttons plug is connected"
     snap connect test-snapd-event:device-buttons
-    udevadm settle
 
     # Note, '-event-kbd' devices aren't device buttons (those are
     # -gpio-keys-event (evdev event*) and therefore shouldn't be added to
     # the device cgroup when the device-buttons interface is plugged.
     echo "Then the snap is still not able to access an evdev keyboard"
-    if test-snapd-event "-event-kbd" 2> call.error; then
-        echo "Expected permission error calling evtest with connected device-buttons plug"
-        exit 1
-    fi
+    retry -n 5 --wait 1 sh -c '! test-snapd-event "-event-kbd" 2> call.error'
+
     # device cgroup is 'Operation not permitted' which is expected when the
     # device-buttons interface is connected since a keyboard shouldn't be added
     # to the device cgroup.
