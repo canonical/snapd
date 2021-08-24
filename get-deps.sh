@@ -26,7 +26,7 @@ echo Obtaining dependencies
 govendor sync
 
 echo Obtaining c-dependencies
-(cd vendor.c && ./vendor.sh)
+(cd c-vendor && ./vendor.sh)
 
 if [ "$1" != "--skip-unused-check" ]; then
     unused="$(govendor list +unused)"

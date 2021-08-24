@@ -533,7 +533,7 @@ prepare_project() {
     done
     # Update C dependencies
     for _ in $(seq 10); do
-        if (cd vendor.c && ./vendor.sh); then
+        if (cd c-vendor && ./vendor.sh); then
             break
         fi
         sleep 1
