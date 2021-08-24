@@ -54,7 +54,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/quantity"
-	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -8820,7 +8819,7 @@ func (ms *gadgetUpdatesSuite) TestGadgetKernelRefreshFromOldBrokenSnap(c *C) {
 
 	// now a refresh is simulated that does *not* contain an
 	// "update-gadget-assets" task, see LP:#1940553
-	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, &snapstate.Flags{})
+	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, &snapstate.Flags{TestingOnlyLeaveOutKernetUpdateGadgetAssets: true})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
 	c.Check(affected, DeepEquals, []string{"pi", "pi-kernel"})
@@ -8836,45 +8835,6 @@ func (ms *gadgetUpdatesSuite) TestGadgetKernelRefreshFromOldBrokenSnap(c *C) {
 			continue
 		}
 
-		// Remove the "update-gadget-assets" task from the kernel
-		// update TaskSet to simulate an upgrade from an old snapd
-		// (see bug https://bugs.launchpad.net/snapd/+bug/1940553)
-		snapsup, err := snapstate.TaskSnapSetup(ts.Tasks()[0])
-		c.Assert(err, IsNil)
-		if snapsup.Type == "kernel" {
-			// fugly: simulate a kernel install without a
-			// gadget-update-tasks by just inserting some
-			// tasks. We cannot just copy the existing tasks
-			// because anything beyond "update-gadget-updates"
-			// will have a "WaitFor("update-gadget-updates")
-			// which never runs.
-			var tasks []*state.Task
-
-			revisionStr := ""
-			prereq := ts.Tasks()[0]
-			tasks = append(tasks, prereq)
-			prepare := ts.Tasks()[1]
-			tasks = append(tasks, prepare)
-			prev := prepare
-
-			// XXX: copied from snapstate.doInstall()
-			addTask := func(t *state.Task) {
-				t.Set("snap-setup-task", prereq.ID())
-				t.JoinLane(prepare.Lanes()[0])
-				t.WaitFor(prev)
-				tasks = append(tasks, t)
-			}
-
-			mount := st.NewTask("mount-snap", fmt.Sprintf(i18n.G("Mount snap %q%s"), snapsup.InstanceName(), revisionStr))
-			addTask(mount)
-			prev = mount
-
-			linkSnap := st.NewTask("link-snap", fmt.Sprintf(i18n.G("Make snap %q%s available to the system"), snapsup.InstanceName(), revisionStr))
-			addTask(linkSnap)
-			prev = linkSnap
-
-			ts = state.NewTaskSet(tasks...)
-		}
 		chg.AddAll(ts)
 	}
 
@@ -8882,5 +8842,5 @@ func (ms *gadgetUpdatesSuite) TestGadgetKernelRefreshFromOldBrokenSnap(c *C) {
 	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
-	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Mount snap \"pi-kernel\" \\(cannot refresh kernel without a gadget update task\\)")
+	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Mount snap \"pi-kernel\" \\(2\\) \\(cannot refresh kernel without a gadget update task\\)")
 }

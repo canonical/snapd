@@ -121,6 +121,7 @@ func (ins installSnapInfo) SnapSetupForUpdate(st *state.State, params updatePara
 
 	revnoOpts, flags, snapst := params(update)
 	flags.IsAutoRefresh = globalFlags.IsAutoRefresh
+	flags.TestingOnlyLeaveOutKernetUpdateGadgetAssets = globalFlags.TestingOnlyLeaveOutKernetUpdateGadgetAssets
 
 	flags, err := earlyChecks(st, snapst, update, flags)
 	if err != nil {
@@ -360,7 +361,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = unlink
 	}
 
-	if !release.OnClassic && (snapsup.Type == snap.TypeGadget || snapsup.Type == snap.TypeKernel) {
+	if !release.OnClassic && !snapsup.Flags.TestingOnlyLeaveOutKernetUpdateGadgetAssets && (snapsup.Type == snap.TypeGadget || snapsup.Type == snap.TypeKernel) {
 		// XXX: gadget update currently for core systems only
 		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q%s"), snapsup.Type, snapsup.InstanceName(), revisionStr))
 		addTask(gadgetUpdate)
