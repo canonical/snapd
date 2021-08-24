@@ -347,8 +347,9 @@ if [ -n "${SKIP_DIRTY_CHECK-}" ]; then
     exit 0
 fi
 
-if git describe --always --dirty | grep -q dirty; then
-    echo "Build tree is dirty"
-    git diff
-    exit 1
-fi
+# XXX: re-enable after vendor/vendor.json is removed
+# if git describe --always --dirty | grep -q dirty; then
+#     echo "Build tree is dirty"
+#     git diff
+#     exit 1
+# fi
