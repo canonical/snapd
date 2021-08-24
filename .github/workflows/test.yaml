@@ -3,11 +3,14 @@ on:
   pull_request:
     branches: [ "master", "release/**" ]
   push:
-    branches: [ "release/**" ]
+    # we trigger runs on master branch, but we do not run spread on master 
+    # branch, the master branch runs are just for unit tests + codecov.io
+    branches: [ "master","release/**" ]
 
 jobs:
   snap-builds:
     runs-on: ubuntu-20.04
+    if: ${{ github.event_name != 'push' && github.ref != 'refs/heads/master' }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -227,6 +230,7 @@ jobs:
 
   spread:
     needs: [unit-tests]
+    if: ${{ github.event_name != 'push' && github.ref != 'refs/heads/master' }}
     runs-on: self-hosted
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
@@ -301,6 +305,7 @@ jobs:
 
   spread-nested:
     needs: [unit-tests]
+    if: ${{ github.event_name != 'push' && github.ref != 'refs/heads/master' }}
     runs-on: self-hosted
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
