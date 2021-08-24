@@ -692,19 +692,10 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	// check that there is a "update-gadget-assets" task for kernels too,
 	// see https://bugs.launchpad.net/snapd/+bug/1940553
 	if snapsup.Type == snap.TypeKernel {
-		var err error
 		st.Lock()
 		err = checkKernelHasUpdateAssetsTask(t)
 		st.Unlock()
-		switch {
-		case err == ErrKernelGadgetUpdateTaskMissing:
-			st.Lock()
-			t.Change().AbortLanes(t.Lanes())
-			t.Logf("aborting kernel refresh because it has no gadget-update-task")
-			st.Unlock()
-			// XXX: should we return an error here instead so that it surfaces to the user?
-			return nil
-		case err != nil:
+		if err != nil {
 			return err
 		}
 	}

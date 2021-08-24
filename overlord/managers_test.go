@@ -8882,26 +8882,5 @@ func (ms *gadgetUpdatesSuite) TestGadgetKernelRefreshFromOldBrokenSnap(c *C) {
 	err = ms.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
-	c.Check(chg.Err(), IsNil)
-
-	// Validate that the "kernel" related parts of the change got
-	// aborted.
-	for _, t := range chg.Tasks() {
-		if t.Kind() == "prerequisites" || t.Kind() == "run-hook" {
-			continue
-		}
-		snapsup, err := snapstate.TaskSnapSetup(t)
-		c.Assert(err, IsNil)
-		if snapsup.Type != "kernel" {
-			continue
-		}
-
-		c.Check([]state.Status{state.UndoneStatus, state.HoldStatus}, testutil.Contains, t.Status(), Commentf("%v", t))
-
-		if t.Kind() == "mount-snap" {
-			c.Assert(t.Log(), HasLen, 1)
-			c.Check(t.Log()[0], testutil.Contains, "aborting kernel refresh because it has no gadget-update-task")
-		}
-	}
-
+	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Mount snap \"pi-kernel\" \\(cannot refresh kernel without a gadget update task\\)")
 }
