@@ -541,11 +541,11 @@ nested_create_core_vm() {
 
             if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
                 if nested_is_core_16_system; then
-                    repack_snapd_deb_into_core_snap "$NESTED_ASSETS_DIR"
+                    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap core "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/core-from-snapd-deb.snap"
 
                 elif nested_is_core_18_system; then
-                    repack_snapd_deb_into_snapd_snap "$NESTED_ASSETS_DIR"
+                    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/snapd-from-deb.snap"
 
                     snap download --channel="$CORE_CHANNEL" --basename=core18 core18
@@ -639,7 +639,7 @@ EOF
 
                     # repack the snapd snap
                     snap download --channel="latest/edge" snapd
-                    repack_snapd_deb_into_snapd_snap "$PWD"
+                    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/snapd-from-deb.snap"
 
                     # sign the snapd snap with fakestore if requested
