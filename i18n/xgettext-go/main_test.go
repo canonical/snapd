@@ -513,3 +513,26 @@ msgstr  ""
 	c.Check(out.String(), Equals, expected)
 
 }
+
+func (s *xgettextTestSuite) TestDontEscapeAlreadyEscapedQuoteInBacktick(c *C) {
+	fname := makeGoSourceFile(c, []byte(`package main
+
+func main() {
+    i18n.G(`+"`"+`Some text: "{\"key\":\"value\"}"`+"`"+`)
+}
+`))
+
+	err := processFiles([]string{fname})
+	c.Assert(err, IsNil)
+
+	out := bytes.NewBuffer([]byte(""))
+	writePotFile(out)
+
+	expected := fmt.Sprintf(`%s
+#: %[2]s:4
+msgid   "Some text: \"{\"key\":\"value\"}\""
+msgstr  ""
+
+`, header, fname)
+	c.Check(out.String(), Equals, expected)
+}
