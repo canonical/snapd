@@ -77,7 +77,15 @@ var osutilCheckFreeSpace = osutil.CheckFreeSpace
 // TestingLeaveOutKernelUpdateGadgetAssets can be used to simulate an upgrade
 // from a broken snapd that does not generate a "update-gadget-assets" task.
 // See LP:#1940553
-var TestingLeaveOutKernelUpdateGadgetAssets bool = false
+func SetTestingLeaveOutKernelUpdateGadgetAssets(v bool) {
+	if !osutil.IsTestBinary() {
+		// XXX: or should we panic here instead?
+		return
+	}
+	testingLeaveOutKernelUpdateGadgetAssets = v
+}
+
+var testingLeaveOutKernelUpdateGadgetAssets bool = false
 
 type minimalInstallInfo interface {
 	InstanceName() string
@@ -365,7 +373,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = unlink
 	}
 
-	if !release.OnClassic && (snapsup.Type == snap.TypeGadget || (snapsup.Type == snap.TypeKernel && !TestingLeaveOutKernelUpdateGadgetAssets)) {
+	if !release.OnClassic && (snapsup.Type == snap.TypeGadget || (snapsup.Type == snap.TypeKernel && !testingLeaveOutKernelUpdateGadgetAssets)) {
 		// XXX: gadget update currently for core systems only
 		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q%s"), snapsup.Type, snapsup.InstanceName(), revisionStr))
 		addTask(gadgetUpdate)
