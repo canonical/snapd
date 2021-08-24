@@ -955,7 +955,7 @@ func (s *assertMgrSuite) TestRefreshAssertionsRefreshSnapDeclarationsAndValidati
 	c.Assert(s.storeSigning.Add(storeAs), IsNil)
 
 	// previous state
-	c.Assert(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")) , IsNil)
+	c.Assert(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")), IsNil)
 	c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
 	c.Assert(assertstate.Add(s.state, snapDeclFoo), IsNil)
 	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
