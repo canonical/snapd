@@ -90,6 +90,9 @@ restore_snapd_state() {
         restore_snapd_lib
         cp -rf "$SNAPD_STATE_PATH"/snapd-cache/*  /var/cache/snapd
         cp -rf "$SNAPD_STATE_PATH"/boot/* "$boot_path"
+        # Purge all the systemd service units config
+        rm -rf /etc/systemd/system/snapd.service.d
+        rm -rf /etc/systemd/system/snapd.socket.d
         cp -f "$SNAPD_STATE_PATH"/system-units/*  /etc/systemd/system
         rm -rf /var/snap/*
         cp -a "$SNAPD_STATE_PATH"/var-snap/* /var/snap/

@@ -626,6 +626,7 @@ prepare_suite_each() {
         if os.query is-classic; then
             prepare_each_classic
         fi
+        prepare_memory_limit_override
     fi
     # Check if journalctl is ready to run the test
     "$TESTSTOOLS"/journal-state check-log-started
