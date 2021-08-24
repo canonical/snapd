@@ -8819,8 +8819,8 @@ func (ms *gadgetUpdatesSuite) TestGadgetKernelRefreshFromOldBrokenSnap(c *C) {
 
 	// now a refresh is simulated that does *not* contain an
 	// "update-gadget-assets" task, see LP:#1940553
-	snapstate.TestingLeaveOutKernetUpdateGadgetAssets = true
-	defer func() { snapstate.TestingLeaveOutKernetUpdateGadgetAssets = false }()
+	snapstate.TestingLeaveOutKernelUpdateGadgetAssets = true
+	defer func() { snapstate.TestingLeaveOutKernelUpdateGadgetAssets = false }()
 	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, &snapstate.Flags{})
 	c.Assert(err, IsNil)
 	sort.Strings(affected)
