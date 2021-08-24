@@ -19,175 +19,24 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/sysmacros.h>
 #include <sys/types.h>
 #include <unistd.h>
 #include <limits.h>
+#include <stdint.h>
 
 #include <libudev.h>
 
+#include "../libsnap-confine-private/cgroup-support.h"
 #include "../libsnap-confine-private/cleanup-funcs.h"
+#include "../libsnap-confine-private/device-cgroup-support.h"
 #include "../libsnap-confine-private/snap.h"
 #include "../libsnap-confine-private/string-utils.h"
-#include "../libsnap-confine-private/cgroup-support.h"
 #include "../libsnap-confine-private/utils.h"
 #include "udev-support.h"
-
-__attribute__((format(printf, 2, 3)))
-static void sc_dprintf(int fd, const char *format, ...);
-
-typedef struct sc_cgroup_fds {
-	int devices_allow_fd;
-	int devices_deny_fd;
-	int cgroup_procs_fd;
-} sc_cgroup_fds;
-
-static sc_cgroup_fds sc_cgroup_fds_new(void)
-{
-	sc_cgroup_fds empty = { -1, -1, -1 };
-	return empty;
-}
-
-typedef struct sc_udev_device_group {
-	bool is_v2;
-	char *security_tag;
-	union {
-		struct {
-			sc_cgroup_fds fds;
-		} v1;
-	};
-} sc_device_cgroup;
-
-static sc_cgroup_fds sc_udev_open_cgroup_v1(const char *security_tag);
-static void sc_cleanup_cgroup_fds(sc_cgroup_fds * fds);
-
-static void _sc_cgroup_v1_init(sc_device_cgroup * self)
-{
-	self->v1.fds = sc_cgroup_fds_new();
-
-	/* initialize to something sane */
-	sc_cgroup_fds fds = sc_udev_open_cgroup_v1(self->security_tag);
-	if (fds.cgroup_procs_fd < 0) {
-		die("cannot prepare cgroup v1 device hierarchy");
-	}
-	self->v1.fds = fds;
-
-	/* Deny device access by default.
-	 *
-	 * Write 'a' to devices.deny to remove all existing devices that were added
-	 * in previous launcher invocations, then add the static and assigned
-	 * devices. This ensures that at application launch the cgroup only has
-	 * what is currently assigned. */
-	sc_dprintf(fds.devices_deny_fd, "a");
-}
-
-static void _sc_cgroup_v1_close(sc_device_cgroup * self)
-{
-	sc_cleanup_cgroup_fds(&self->v1.fds);
-}
-
-/**
- * SC_MINOR_ANY is used to indicate any minor device.
- */
-const int SC_MINOR_ANY = INT_MAX;
-
-static void _sc_cgroup_v1_allow(sc_device_cgroup * self, int kind, int major,
-				int minor)
-{
-	if (minor != SC_MINOR_ANY) {
-		sc_dprintf(self->v1.fds.devices_allow_fd,
-			   "%c %u:%u rwm\n",
-			   (kind == S_IFCHR) ? 'c' : 'b', major, minor);
-	} else {
-		/* use a mask to allow all minor devices for that major */
-		sc_dprintf(self->v1.fds.devices_allow_fd,
-			   "%c %u:* rwm\n",
-			   (kind == S_IFCHR) ? 'c' : 'b', major);
-	}
-}
-
-static void _sc_cgroup_v1_attach_pid(sc_device_cgroup * self, pid_t pid)
-{
-	sc_dprintf(self->v1.fds.cgroup_procs_fd, "%i\n", getpid());
-}
-
-static sc_device_cgroup *sc_device_cgroup_new(const char *security_tag)
-{
-	sc_device_cgroup *self = calloc(1, sizeof(sc_device_cgroup));
-	if (self == NULL) {
-		die("cannot allocate device cgroup wrapper");
-	}
-	self->is_v2 = sc_cgroup_is_v2();
-	self->security_tag = sc_strdup(security_tag);
-
-	if (!self->is_v2) {
-		_sc_cgroup_v1_init(self);
-	}
-
-	return self;
-}
-
-static void sc_device_cgroup_close(sc_device_cgroup * self)
-{
-	if (!self->is_v2) {
-		_sc_cgroup_v1_close(self);
-	}
-	sc_cleanup_string(&self->security_tag);
-	free(self);
-}
-
-static void sc_device_cgroup_cleanup(sc_device_cgroup ** self)
-{
-	if (*self == NULL) {
-		return;
-	}
-	sc_device_cgroup_close(*self);
-	*self = NULL;
-}
-
-/**
- * sc_device_cgroup_allow sets up the cgroup to allow access to a given device
- * or a set of devices if SC_MINOR_ANY is passed as the minor number. The kind
- * must be one of S_IFCHR, S_IFBLK.
- */
-static int sc_device_cgroup_allow(sc_device_cgroup * self, int kind, int major,
-				  int minor)
-{
-	if (kind != S_IFCHR && kind != S_IFBLK) {
-		die("unsupported device kind 0x%04x", kind);
-	}
-	if (!self->is_v2) {
-		_sc_cgroup_v1_allow(self, kind, major, minor);
-	}
-	return 0;
-}
-
-static int sc_device_cgroup_attach_pid(sc_device_cgroup * self, pid_t pid)
-{
-	if (!self->is_v2) {
-		_sc_cgroup_v1_attach_pid(self, pid);
-	}
-	return 0;
-}
-
-static void sc_dprintf(int fd, const char *format, ...)
-{
-	va_list ap1;
-	va_list ap2;
-	int n_expected, n_actual;
-
-	va_start(ap1, format);
-	va_copy(ap2, ap1);
-	n_expected = vsnprintf(NULL, 0, format, ap2);
-	n_actual = vdprintf(fd, format, ap1);
-	if (n_actual == -1 || n_expected != n_actual) {
-		die("cannot write to fd %d", fd);
-	}
-	va_end(ap2);
-	va_end(ap1);
-}
 
 /* Allow access to common devices. */
 static void sc_udev_allow_common(sc_device_cgroup * cgroup)
@@ -216,7 +65,7 @@ static void sc_udev_allow_pty_slaves(sc_device_cgroup * cgroup)
 {
 	for (unsigned pty_major = 136; pty_major <= 143; pty_major++) {
 		sc_device_cgroup_allow(cgroup, S_IFCHR, pty_major,
-				       SC_MINOR_ANY);
+				       SC_DEVICE_MINOR_ANY);
 	}
 }
 
@@ -378,105 +227,6 @@ static void sc_cleanup_udev_enumerate(struct udev_enumerate **enumerate)
 	}
 }
 
-static sc_cgroup_fds sc_udev_open_cgroup_v1(const char *security_tag)
-{
-	/* Note that -1 is the neutral value for a file descriptor.
-	 * This is relevant as a cleanup handler for sc_cgroup_fds,
-	 * closes all file descriptors that are not -1. */
-	sc_cgroup_fds fds = { -1, -1, -1 };
-
-	/* Open /sys/fs/cgroup */
-	const char *cgroup_path = "/sys/fs/cgroup";
-	int SC_CLEANUP(sc_cleanup_close) cgroup_fd = -1;
-	cgroup_fd = open(cgroup_path,
-			 O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
-	if (cgroup_fd < 0) {
-		die("cannot open %s", cgroup_path);
-	}
-
-	/* Open devices relative to /sys/fs/cgroup */
-	const char *devices_relpath = "devices";
-	int SC_CLEANUP(sc_cleanup_close) devices_fd = -1;
-	devices_fd = openat(cgroup_fd, devices_relpath,
-			    O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
-	if (devices_fd < 0) {
-		die("cannot open %s/%s", cgroup_path, devices_relpath);
-	}
-
-	/* Open snap.$SNAP_NAME.$APP_NAME relative to /sys/fs/cgroup/devices,
-	 * creating the directory if necessary. Note that we always chown the
-	 * resulting directory to root:root. */
-	const char *security_tag_relpath = security_tag;
-	sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-	if (mkdirat(devices_fd, security_tag_relpath, 0755) < 0) {
-		if (errno != EEXIST) {
-			die("cannot create directory %s/%s/%s", cgroup_path,
-			    devices_relpath, security_tag_relpath);
-		}
-	}
-	(void)sc_set_effective_identity(old);
-
-	int SC_CLEANUP(sc_cleanup_close) security_tag_fd = -1;
-	security_tag_fd = openat(devices_fd, security_tag_relpath,
-				 O_RDONLY | O_DIRECTORY | O_CLOEXEC |
-				 O_NOFOLLOW);
-	if (security_tag_fd < 0) {
-		die("cannot open %s/%s/%s", cgroup_path, devices_relpath,
-		    security_tag_relpath);
-	}
-
-	/* Open devices.allow relative to /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
-	const char *devices_allow_relpath = "devices.allow";
-	int SC_CLEANUP(sc_cleanup_close) devices_allow_fd = -1;
-	devices_allow_fd = openat(security_tag_fd, devices_allow_relpath,
-				  O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
-	if (devices_allow_fd < 0) {
-		die("cannot open %s/%s/%s/%s", cgroup_path, devices_relpath,
-		    security_tag_relpath, devices_allow_relpath);
-	}
-
-	/* Open devices.deny relative to /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
-	const char *devices_deny_relpath = "devices.deny";
-	int SC_CLEANUP(sc_cleanup_close) devices_deny_fd = -1;
-	devices_deny_fd = openat(security_tag_fd, devices_deny_relpath,
-				 O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
-	if (devices_deny_fd < 0) {
-		die("cannot open %s/%s/%s/%s", cgroup_path, devices_relpath,
-		    security_tag_relpath, devices_deny_relpath);
-	}
-
-	/* Open cgroup.procs relative to /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
-	const char *cgroup_procs_relpath = "cgroup.procs";
-	int SC_CLEANUP(sc_cleanup_close) cgroup_procs_fd = -1;
-	cgroup_procs_fd = openat(security_tag_fd, cgroup_procs_relpath,
-				 O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
-	if (cgroup_procs_fd < 0) {
-		die("cannot open %s/%s/%s/%s", cgroup_path, devices_relpath,
-		    security_tag_relpath, cgroup_procs_relpath);
-	}
-
-	/* Everything worked so pack the result and "move" the descriptors over so
-	 * that they are not closed by the cleanup functions associated with the
-	 * individual variables. */
-	fds.devices_allow_fd = devices_allow_fd;
-	fds.devices_deny_fd = devices_deny_fd;
-	fds.cgroup_procs_fd = cgroup_procs_fd;
-	/* Reset the locals so that they are not closed by the cleanup handlers. */
-	devices_allow_fd = -1;
-	devices_deny_fd = -1;
-	cgroup_procs_fd = -1;
-	return fds;
-}
-
-static void sc_cleanup_cgroup_fds(sc_cgroup_fds * fds)
-{
-	if (fds != NULL) {
-		sc_cleanup_close(&fds->devices_allow_fd);
-		sc_cleanup_close(&fds->devices_deny_fd);
-		sc_cleanup_close(&fds->cgroup_procs_fd);
-	}
-}
-
 void sc_setup_device_cgroup(const char *security_tag)
 {
 	debug("setting up device cgroup");
@@ -523,7 +273,7 @@ void sc_setup_device_cgroup(const char *security_tag)
 	 * The cleanup function associated with this variable closes
 	 * descriptors other than -1. */
 	sc_device_cgroup *cgroup SC_CLEANUP(sc_device_cgroup_cleanup) =
-	    sc_device_cgroup_new(security_tag);
+	    sc_device_cgroup_new(security_tag, 0);
 	/* Setup the device group access control list */
 	sc_udev_setup_acls_common(cgroup);
 	for (struct udev_list_entry * entry = assigned; entry != NULL;

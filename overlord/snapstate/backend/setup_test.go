@@ -91,7 +91,7 @@ func (s *setupSuite) TestSetupDoUndoSimple(c *C) {
 		Revision: snap.R(14),
 	}
 
-	snapType, installRecord, err := s.be.SetupSnap(snapPath, "hello", &si, mockDev, progress.Null)
+	snapType, installRecord, err := s.be.SetupSnap(snapPath, "hello", &si, mockDev, nil, progress.Null)
 	c.Assert(err, IsNil)
 	c.Assert(installRecord, NotNil)
 	c.Check(snapType, Equals, snap.TypeApp)
@@ -128,7 +128,7 @@ func (s *setupSuite) TestSetupDoUndoInstance(c *C) {
 		Revision: snap.R(14),
 	}
 
-	snapType, installRecord, err := s.be.SetupSnap(snapPath, "hello_instance", &si, mockDev, progress.Null)
+	snapType, installRecord, err := s.be.SetupSnap(snapPath, "hello_instance", &si, mockDev, nil, progress.Null)
 	c.Assert(err, IsNil)
 	c.Assert(installRecord, NotNil)
 	c.Check(snapType, Equals, snap.TypeApp)
@@ -181,7 +181,7 @@ type: kernel
 		Revision: snap.R(140),
 	}
 
-	snapType, installRecord, err := s.be.SetupSnap(snapPath, "kernel", &si, mockDevWithKernel, progress.Null)
+	snapType, installRecord, err := s.be.SetupSnap(snapPath, "kernel", &si, mockDevWithKernel, nil, progress.Null)
 	c.Assert(err, IsNil)
 	c.Check(snapType, Equals, snap.TypeKernel)
 	c.Assert(installRecord, NotNil)
@@ -225,14 +225,14 @@ type: kernel
 		Revision: snap.R(140),
 	}
 
-	_, installRecord, err := s.be.SetupSnap(snapPath, "kernel", &si, mockDevWithKernel, progress.Null)
+	_, installRecord, err := s.be.SetupSnap(snapPath, "kernel", &si, mockDevWithKernel, nil, progress.Null)
 	c.Assert(err, IsNil)
 	c.Assert(installRecord, NotNil)
 	c.Assert(bloader.ExtractKernelAssetsCalls, HasLen, 1)
 	c.Assert(bloader.ExtractKernelAssetsCalls[0].InstanceName(), Equals, "kernel")
 
 	// retry run
-	_, installRecord, err = s.be.SetupSnap(snapPath, "kernel", &si, mockDevWithKernel, progress.Null)
+	_, installRecord, err = s.be.SetupSnap(snapPath, "kernel", &si, mockDevWithKernel, nil, progress.Null)
 	c.Assert(err, IsNil)
 	c.Assert(installRecord, NotNil)
 	c.Assert(bloader.ExtractKernelAssetsCalls, HasLen, 2)
@@ -276,7 +276,7 @@ type: kernel
 		Revision: snap.R(140),
 	}
 
-	_, installRecord, err := s.be.SetupSnap(snapPath, "kernel", &si, mockDevWithKernel, progress.Null)
+	_, installRecord, err := s.be.SetupSnap(snapPath, "kernel", &si, mockDevWithKernel, nil, progress.Null)
 	c.Assert(err, IsNil)
 	c.Assert(installRecord, NotNil)
 
@@ -310,7 +310,7 @@ func (s *setupSuite) TestSetupUndoKeepsTargetSnapIfSymlink(c *C) {
 	c.Assert(os.Symlink(snapPath, tmpPath), IsNil)
 
 	si := snap.SideInfo{RealName: "hello", Revision: snap.R(14)}
-	_, installRecord, err := s.be.SetupSnap(snapPath, "hello", &si, mockDev, progress.Null)
+	_, installRecord, err := s.be.SetupSnap(snapPath, "hello", &si, mockDev, nil, progress.Null)
 	c.Assert(err, IsNil)
 	c.Assert(installRecord, NotNil)
 	c.Check(installRecord.TargetSnapExisted, Equals, true)
@@ -338,7 +338,7 @@ func (s *setupSuite) TestSetupUndoKeepsTargetSnapIgnoredIfNotSymlink(c *C) {
 	c.Assert(osutil.CopyFile(snapPath, tmpPath, 0), IsNil)
 
 	si := snap.SideInfo{RealName: "hello", Revision: snap.R(14)}
-	_, installRecord, err := s.be.SetupSnap(snapPath, "hello", &si, mockDev, progress.Null)
+	_, installRecord, err := s.be.SetupSnap(snapPath, "hello", &si, mockDev, nil, progress.Null)
 	c.Assert(err, IsNil)
 	c.Assert(installRecord, NotNil)
 	c.Check(installRecord.TargetSnapExisted, Equals, true)
@@ -370,7 +370,7 @@ func (s *setupSuite) TestSetupCleanupAfterFail(c *C) {
 	})
 	defer r()
 
-	_, installRecord, err := s.be.SetupSnap(snapPath, "hello", &si, mockDev, progress.Null)
+	_, installRecord, err := s.be.SetupSnap(snapPath, "hello", &si, mockDev, nil, progress.Null)
 	c.Assert(err, ErrorMatches, "failed")
 	c.Check(installRecord, IsNil)
 
@@ -392,7 +392,7 @@ func (s *setupSuite) TestRemoveSnapFilesDir(c *C) {
 		Revision: snap.R(14),
 	}
 
-	snapType, installRecord, err := s.be.SetupSnap(snapPath, "hello_instance", &si, mockDev, progress.Null)
+	snapType, installRecord, err := s.be.SetupSnap(snapPath, "hello_instance", &si, mockDev, nil, progress.Null)
 	c.Assert(err, IsNil)
 	c.Assert(installRecord, NotNil)
 	c.Check(snapType, Equals, snap.TypeApp)

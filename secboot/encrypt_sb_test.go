@@ -22,10 +22,13 @@ package secboot_test
 
 import (
 	"errors"
+	"io/ioutil"
+	"path/filepath"
 
 	sb "github.com/snapcore/secboot"
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
 )
 
@@ -53,6 +56,10 @@ func (s *encryptSuite) TestFormatEncryptedDevice(c *C) {
 			c.Assert(opts, DeepEquals, &sb.InitializeLUKS2ContainerOptions{
 				MetadataKiBSize:     2048,
 				KeyslotsAreaKiBSize: 2560,
+				KDFOptions: &sb.KDFOptions{
+					MemoryKiB:       32,
+					ForceIterations: 4,
+				},
 			})
 			return tc.initErr
 		})
@@ -68,7 +75,17 @@ func (s *encryptSuite) TestFormatEncryptedDevice(c *C) {
 	}
 }
 
+const mockedMeminfo = `MemTotal:         929956 kB
+CmaTotal:         131072 kB
+`
+
 func (s *encryptSuite) TestAddRecoveryKey(c *C) {
+	mockedMeminfoFile := filepath.Join(c.MkDir(), "meminfo")
+	err := ioutil.WriteFile(mockedMeminfoFile, []byte(mockedMeminfo), 0644)
+	c.Assert(err, IsNil)
+	restore := osutil.MockProcMeminfo(mockedMeminfoFile)
+	defer restore()
+
 	for _, tc := range []struct {
 		addErr error
 		err    string
@@ -85,11 +102,16 @@ func (s *encryptSuite) TestAddRecoveryKey(c *C) {
 		myRecoveryKey := secboot.RecoveryKey{15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}
 
 		calls := 0
-		restore := secboot.MockSbAddRecoveryKeyToLUKS2Container(func(devicePath string, key []byte, recoveryKey sb.RecoveryKey) error {
+		restore := secboot.MockSbAddRecoveryKeyToLUKS2Container(func(devicePath string, key []byte, recoveryKey sb.RecoveryKey, opts *sb.KDFOptions) error {
 			calls++
 			c.Assert(devicePath, Equals, "/dev/node")
 			c.Assert(recoveryKey[:], DeepEquals, myRecoveryKey[:])
 			c.Assert(key, DeepEquals, []byte(myKey))
+			c.Assert(opts, DeepEquals, &sb.KDFOptions{
+				// (TotalMem - CmaMem - 384MB hardcoded) / 2
+				MemoryKiB:       int((929956 - 131072 - 384*1024) / 2),
+				ForceIterations: 4,
+			})
 			return tc.addErr
 		})
 		defer restore()

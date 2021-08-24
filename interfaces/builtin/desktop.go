@@ -66,6 +66,7 @@ owner @{HOME}/.local/share/fonts/{,**} r,
 # subset of gnome abstraction
 /etc/gtk-3.0/settings.ini r,
 owner @{HOME}/.config/gtk-3.0/settings.ini r,
+owner @{HOME}/.config/gtk-3.0/*.css r,
 # Note: this leaks directory names that wouldn't otherwise be known to the snap
 owner @{HOME}/.config/gtk-3.0/bookmarks r,
 
