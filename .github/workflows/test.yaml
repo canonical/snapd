@@ -10,7 +10,9 @@ on:
 jobs:
   snap-builds:
     runs-on: ubuntu-20.04
-    if: ${{ github.event_name != 'push' && github.ref != 'refs/heads/master' }}
+    # only build the snap for pull requests, it's not needed on release branches
+    # or on master since we have launchpad build recipes which do this already
+    if: ${{ github.event_name == 'pull_request' }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -230,7 +232,7 @@ jobs:
 
   spread:
     needs: [unit-tests]
-    if: ${{ github.event_name != 'push' && github.ref != 'refs/heads/master' }}
+    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
     runs-on: self-hosted
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
@@ -305,7 +307,7 @@ jobs:
 
   spread-nested:
     needs: [unit-tests]
-    if: ${{ github.event_name != 'push' && github.ref != 'refs/heads/master' }}
+    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
     runs-on: self-hosted
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
