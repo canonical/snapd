@@ -30,7 +30,7 @@ static int sys_bpf(enum bpf_cmd cmd, union bpf_attr *attr, size_t size) {
 #ifdef SYS_bpf
     return syscall(SYS_bpf, cmd, attr, size);
 #else
-	errno = ENOSYS;
+    errno = ENOSYS;
     return -1;
 #endif
 }
@@ -147,7 +147,7 @@ int bpf_map_delete_batch(int map_fd, const void *keys, size_t cnt) {
     return -1;
 }
 
-__attribute__((unused)) int bpf_map_delete_elem(int map_fd, const void *key) {
+int bpf_map_delete_elem(int map_fd, const void *key) {
     debug("delete elem in map %d", map_fd);
     union bpf_attr attr;
     memset(&attr, 0, sizeof(attr));

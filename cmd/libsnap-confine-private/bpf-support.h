@@ -29,15 +29,18 @@ int bpf_pin_to_path(int fd, const char *path);
 
 /**
  * bpf_get_by_path obtains the file handle to the object referenced by a path
- * under bpffs filesystem.
+ * under bpffs filesystem. The returned file descriptor has O_CLOEXEC flag set
+ * on it.
  */
 int bpf_get_by_path(const char *path);
 
 /**
- * bpf_load_prog loads a given BPF program.
+ * bpf_load_prog loads a given BPF program and returns a file descriptor handle
+ * to it.
  *
  * Passing non-NULL log buf, will populate the buffer with output from verifier
- * if the program is found to be invalid.
+ * if the program is found to be invalid. The returned file descriptor has
+ * O_CLOEXEC flag set on it.
  */
 int bpf_load_prog(enum bpf_prog_type type, const struct bpf_insn *insns, size_t insns_cnt, char *log_buf,
                   size_t log_buf_size);
@@ -45,7 +48,8 @@ int bpf_load_prog(enum bpf_prog_type type, const struct bpf_insn *insns, size_t 
 int bpf_prog_attach(enum bpf_attach_type type, int cgroup_fd, int prog_fd);
 
 /**
- * bf_create_map creates a BPF and returns a file descriptor handle to it.
+ * bf_create_map creates a BPF map and returns a file descriptor handle to it.
+ * The returned file descriptor has O_CLOEXEC flag set on it.
  */
 int bpf_create_map(enum bpf_map_type type, size_t key_size, size_t value_size, size_t max_entries);
 
