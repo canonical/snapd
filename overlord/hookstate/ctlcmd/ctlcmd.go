@@ -120,7 +120,7 @@ var nonRootAllowed = []string{"get", "services", "set-health", "is-connected", "
 // Run runs the requested command.
 func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr []byte, err error) {
 	if len(args) == 0 {
-		return nil, nil, fmt.Errorf("snapctl cannot run without args")
+		return nil, nil, fmt.Errorf("internal error: snapctl cannot run without args")
 	}
 
 	if !isAllowedToRun(args, uid, args[0]) {
@@ -133,17 +133,15 @@ func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr 
 	var stdoutBuffer bytes.Buffer
 	var stderrBuffer bytes.Buffer
 	for name, cmdInfo := range commands {
-		if isAllowedToRun(args, uid, name) {
-			cmd := cmdInfo.generator()
-			cmd.setStdout(&stdoutBuffer)
-			cmd.setStderr(&stderrBuffer)
-			cmd.setContext(context)
+		cmd := cmdInfo.generator()
+		cmd.setStdout(&stdoutBuffer)
+		cmd.setStderr(&stderrBuffer)
+		cmd.setContext(context)
 
-			theCmd, err := parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, cmd)
-			theCmd.Hidden = cmdInfo.hidden
-			if err != nil {
-				logger.Panicf("cannot add command %q: %s", name, err)
-			}
+		theCmd, err := parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, cmd)
+		theCmd.Hidden = cmdInfo.hidden
+		if err != nil {
+			logger.Panicf("cannot add command %q: %s", name, err)
 		}
 	}
 
@@ -152,7 +150,7 @@ func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr 
 }
 
 func isAllowedToRun(args []string, uid uint32, name string) bool {
-	// A command can run if:
+	// A command can run if any of the following are true:
 	//	* It runs as root
 	//	* It's contained in nonRootAllowed
 	//	* It's used with the -h or --help flags
