@@ -88,10 +88,6 @@ type Flags struct {
 	// This may eventually be set for specific snaps mentioned in the model
 	// assertion for non-dangerous grade models too.
 	ApplySnapDevMode bool `json:"apply-snap-devmode,omitempty"`
-
-	// TestingOnlyLeaveOutKernetUpdateGadgetAssets is only used for unit
-	// testing
-	TestingOnlyLeaveOutKernetUpdateGadgetAssets bool `json:"testing-only-leave-out-kernel-update-gadget-assets,omitempty"`
 }
 
 // DevModeAllowed returns whether a snap can be installed with devmode
