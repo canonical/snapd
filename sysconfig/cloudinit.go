@@ -498,12 +498,21 @@ func CloudInitStatus() (CloudInitState, error) {
 	}
 
 	out, err := exec.Command(ciBinary, "status").CombinedOutput()
-	if err != nil {
-		return CloudInitErrored, osutil.OutputErr(out, err)
-	}
+
+	// in the case where cloud-init is actually in an error condition, like
+	// where MAAS is the datasource but there is no MAAS server for example,
+	// then cloud-init will exit with status 1 and output `status: error`
+	// we want to handle that case specially below by returning non-nil error,
+	// but also CloudInitErrored, so first inspect the output to see if it
+	// matches
 	// output should just be "status: <state>"
 	match := cloudInitStatusRe.FindSubmatch(out)
 	if len(match) != 2 {
+		// check if running the command had an error, if it did then return that
+		if err != nil {
+			return CloudInitErrored, osutil.OutputErr(out, err)
+		}
+		// otherwise we had some sort of malformed output
 		return CloudInitErrored, fmt.Errorf("invalid cloud-init output: %v", osutil.OutputErr(out, err))
 	}
 	switch string(match[1]) {
@@ -522,7 +531,7 @@ func CloudInitStatus() (CloudInitState, error) {
 	case "running", "not run":
 		fallthrough
 	default:
-		// these states are all
+		// these states are all the generic "enabled" state
 		return CloudInitEnabled, nil
 	}
 }

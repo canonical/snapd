@@ -276,6 +276,7 @@ func (s *sysconfigSuite) TestCloudInitStatus(c *C) {
 	tt := []struct {
 		comment         string
 		cloudInitOutput string
+		exitCode        int
 		exp             sysconfig.CloudInitState
 		restrictedFile  bool
 		disabledFile    bool
@@ -317,14 +318,27 @@ func (s *sysconfigSuite) TestCloudInitStatus(c *C) {
 			exp:          sysconfig.CloudInitDisabledPermanently,
 		},
 		{
-			comment:         "errored",
+			comment:         "errored w/ exit code 0",
 			cloudInitOutput: "status: error",
 			exp:             sysconfig.CloudInitErrored,
+			exitCode:        0,
 		},
 		{
-			comment:         "broken cloud-init output",
+			comment:         "errored w/ exit code 1",
+			cloudInitOutput: "status: error",
+			exp:             sysconfig.CloudInitErrored,
+			exitCode:        1,
+		},
+		{
+			comment:         "broken cloud-init output w/ exit code 0",
 			cloudInitOutput: "broken cloud-init output",
 			expError:        "invalid cloud-init output: broken cloud-init output",
+		},
+		{
+			comment:         "broken cloud-init output w/ exit code 1",
+			cloudInitOutput: "broken cloud-init output",
+			exitCode:        1,
+			expError:        "broken cloud-init output",
 		},
 	}
 
@@ -335,11 +349,12 @@ func (s *sysconfigSuite) TestCloudInitStatus(c *C) {
 		cmd := testutil.MockCommand(c, "cloud-init", fmt.Sprintf(`
 if [ "$1" = "status" ]; then
 	echo '%s'
+	exit %d
 else 
 	echo "unexpected args, $"
 	exit 1
 fi
-		`, t.cloudInitOutput))
+		`, t.cloudInitOutput, t.exitCode))
 
 		if t.disabledFile {
 			cloudDir := filepath.Join(dirs.GlobalRootDir, "etc/cloud")
