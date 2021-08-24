@@ -20,9 +20,8 @@
 package daemon
 
 import (
-	"fmt"
-
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -356,10 +355,10 @@ func (s *daemonSuite) TestFillsWarnings(c *check.C) {
 	c.Check(rst.WarningTimestamp, check.NotNil)
 }
 
-type accessCheckFunc func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult
+type accessCheckFunc func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError
 
-func (f accessCheckFunc) CheckAccess(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
-	return f(r, ucred, user)
+func (f accessCheckFunc) CheckAccess(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
+	return f(d, r, ucred, user)
 }
 
 func (s *daemonSuite) TestReadAccess(c *check.C) {
@@ -368,19 +367,20 @@ func (s *daemonSuite) TestReadAccess(c *check.C) {
 		return SyncResponse(nil)
 	}
 	var accessCalled bool
-	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 		accessCalled = true
+		c.Check(d, check.Equals, cmd.d)
 		c.Check(r, check.NotNil)
 		c.Assert(ucred, check.NotNil)
 		c.Check(ucred.Uid, check.Equals, uint32(42))
 		c.Check(ucred.Pid, check.Equals, int32(100))
 		c.Check(ucred.Socket, check.Equals, "xyz")
 		c.Check(user, check.IsNil)
-		return accessOK
+		return nil
 	})
-	cmd.WriteAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 		c.Fail()
-		return accessForbidden
+		return Forbidden("")
 	})
 
 	req := httptest.NewRequest("GET", "/", nil)
@@ -399,20 +399,21 @@ func (s *daemonSuite) TestWriteAccess(c *check.C) {
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil)
 	}
-	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 		c.Fail()
-		return accessForbidden
+		return Forbidden("")
 	})
 	var accessCalled bool
-	cmd.WriteAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 		accessCalled = true
+		c.Check(d, check.Equals, cmd.d)
 		c.Check(r, check.NotNil)
 		c.Assert(ucred, check.NotNil)
 		c.Check(ucred.Uid, check.Equals, uint32(42))
 		c.Check(ucred.Pid, check.Equals, int32(100))
 		c.Check(ucred.Socket, check.Equals, "xyz")
 		c.Check(user, check.IsNil)
-		return accessOK
+		return nil
 	})
 
 	req := httptest.NewRequest("PUT", "/", nil)
@@ -446,20 +447,21 @@ func (s *daemonSuite) TestWriteAccessWithUser(c *check.C) {
 	cmd.POST = func(*Command, *http.Request, *auth.UserState) Response {
 		return SyncResponse(nil)
 	}
-	cmd.ReadAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+	cmd.ReadAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 		c.Fail()
-		return accessForbidden
+		return Forbidden("")
 	})
 	var accessCalled bool
-	cmd.WriteAccess = accessCheckFunc(func(r *http.Request, ucred *ucrednet, user *auth.UserState) accessResult {
+	cmd.WriteAccess = accessCheckFunc(func(d *Daemon, r *http.Request, ucred *ucrednet, user *auth.UserState) *apiError {
 		accessCalled = true
+		c.Check(d, check.Equals, cmd.d)
 		c.Check(r, check.NotNil)
 		c.Assert(ucred, check.NotNil)
 		c.Check(ucred.Uid, check.Equals, uint32(1001))
 		c.Check(ucred.Pid, check.Equals, int32(100))
 		c.Check(ucred.Socket, check.Equals, "xyz")
 		c.Check(user, check.DeepEquals, authUser)
-		return accessOK
+		return nil
 	})
 
 	req := httptest.NewRequest("PUT", "/", nil)
@@ -487,13 +489,13 @@ func (s *daemonSuite) TestPolkitAccessPath(c *check.C) {
 	}
 	access := false
 	cmd.WriteAccess = authenticatedAccess{Polkit: "foo"}
-	checkPolkitAction = func(r *http.Request, ucred *ucrednet, action string) accessResult {
+	checkPolkitAction = func(r *http.Request, ucred *ucrednet, action string) *apiError {
 		c.Check(action, check.Equals, "foo")
 		c.Check(ucred.Uid, check.Equals, uint32(1001))
 		if access {
-			return accessOK
+			return nil
 		}
-		return accessCancelled
+		return AuthCancelled("")
 	}
 
 	req := httptest.NewRequest("POST", "/", nil)

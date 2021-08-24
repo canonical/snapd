@@ -21,9 +21,8 @@
 package store
 
 import (
-	"reflect"
-
 	"encoding/json"
+	"reflect"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -160,7 +159,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnapSimple(c *C) {
 			RealName:          "core",
 			SnapID:            "99T7MUlRhtI3U0QFgl5mXXESAiSwt776",
 			Revision:          snap.R(3887),
-			Contact:           "mailto:snappy-canonical-storeaccount@canonical.com",
+			EditedContact:     "mailto:snappy-canonical-storeaccount@canonical.com",
 			EditedTitle:       "core",
 			EditedSummary:     "snapd runtime environment",
 			EditedDescription: "The core runtime environment for snapd",
@@ -210,7 +209,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 			RealName:          "thingy",
 			SnapID:            "XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV",
 			Revision:          snap.R(21),
-			Contact:           "https://thingy.com",
+			EditedContact:     "https://thingy.com",
 			EditedTitle:       "This Is The Most Fantastical Snap of Th…",
 			EditedSummary:     "useful thingy",
 			EditedDescription: "Useful thingy for thinging",
@@ -292,6 +291,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"OriginalTitle",
 		"OriginalSummary",
 		"OriginalDescription",
+		"OriginalLinks",
 		"Environment",
 		"LicenseAgreement", // XXX go away?
 		"LicenseVersion",   // XXX go away?
@@ -305,6 +305,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"Tracks",   // handled at a different level (see TestInfo)
 		"Layout",
 		"SideInfo.Channel",
+		"SideInfo.EditedLinks",         // TODO: take this value from the store
 		"DownloadInfo.AnonDownloadURL", // TODO: going away at some point
 		"SystemUsernames",
 	}

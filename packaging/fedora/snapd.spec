@@ -97,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.51
+Version:        2.51.6
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -971,6 +971,78 @@ fi
 
 
 %changelog
+* Thu Aug 19 2021 Ian Johnson <ian.johnson@canonical.com>
+- New upstream release 2.51.6
+ - secboot: use half the mem for KDF in AddRecoveryKey
+ - secboot: switch main key KDF memory cost to 32KB
+
+* Mon Aug 16 2021 Ian Johnson <ian.johnson@canonical.com>
+- New upstream release 2.51.5
+ - snap/squashfs: handle squashfs-tools 4.5+
+ - tests/core20-install-device-file-install-via-hook-hack: adjust
+   test for 2.51
+ - o/devicestate/handlers_install.go: add workaround to create dirs
+   for install
+ - tests: fix linter warning
+ - tests: update other spread tests for new behaviour
+ - tests: ack assertions by default, add --noack option
+ - release-tools/changelog.py: also fix opensuse changelog date
+   format
+ - release-tools/changelog.py: fix typo in function name
+ - release-tools/changelog.py: fix fedora date format
+ - release-tools/changelog.py: handle case where we don't have a TZ
+ - release-tools/changelog.py: fix line length check
+ - release-tools/changelog.py: specify the LP bug for the release as
+   an arg too
+ - interface/modem-manager: add support for MBIM/QMI proxy
+   clients
+ - .github/workflows/test.yaml: use snapcraft 4.x to build the snapd
+   snap
+
+* Mon Aug 09 2021 Ian Johnson <ian.johnson@canonical.com>
+- New upstream release 2.51.4
+ - {device,snap}state: skip kernel extraction in seeding
+ - vendor: move to snapshot-4c814e1 branch and set fixed KDF options
+ - tests/interfaces/tee: fix HasLen check for udev snippets
+ - interfaces/tee: add support for Qualcomm qseecom device node
+ - gadget: check for system-save with multi volumes if encrypting
+   correctly
+ - gadget: drive-by: drop unnecessary/supported passthrough in test
+   gadget.yaml
+
+* Wed Jul 14 2021 Ian Johnson <ian.johnson@canonical.com>
+- New upstream release 2.51.3
+ - interfaces/builtin: add sd-control interface
+ - store: set ResponseHeaderTimeout on the default transport
+
+* Wed Jul 07 2021 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.51.2
+ - snapstate: remove temporary snap file for local revisions early
+ - interface: allows reading sd cards internal info from block-
+   devices interface
+ - o/ifacestate: do not visit same halt tasks in waitChainSearch to
+   avoid slow convergence (or unlikely cycles)
+ - corecfg: allow using `# snapd-edit: no` header to disable pi-
+   config
+ - configcore: ignore system.pi-config.* setting on measured kernels
+ - many: pass device/model info to configcore via sysconfig.Device
+   interface
+ - o/configstate/configcore: support snap set system swap.size=...
+ - store: make the log with download size a debug one
+ - interfaces/opengl: add support for Imagination PowerVR
+
+* Tue Jun 15 2021 Michael Vogt <michael.vogt@ubuntu.com>
+- New upstream release 2.51.1
+ - interfaces: add netlink-driver interface
+ - interfaces: builtin: add dm-crypt interface to support external
+   storage encryption
+ - interfaces/dsp: fix typo in udev rule
+ - overlord/snapstate: lock the mutex before returning from stop
+   snap services undo
+ - interfaces: opengl: change path for Xilinx zocl driver
+ - interfaces/dsp: add /dev/cavalry into dsp interface
+ - packaging/fedora/snapd.spec: correct date format in changelog
+
 * Thu May 27 2021 Ian Johnson <ian.johnson@canonical.com>
 - New upstream release 2.51
  - cmd/snap: stacktraces debug endpoint

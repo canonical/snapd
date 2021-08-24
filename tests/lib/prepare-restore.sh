@@ -494,19 +494,26 @@ prepare_project() {
     # base on the packaging. In Fedora/Suse this is handled via mock/osc
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
-            # in 16.04: apt build-dep -y ./
+            best_golang=golang-1.13
             if [[ "$SPREAD_SYSTEM" == debian-9-* ]]; then
-                best_golang="$(python3 ./tests/lib/best_golang.py)"
-                test -n "$best_golang"
-                sed -i -e "s/golang-1.10/$best_golang/" ./debian/control
-            else
-                best_golang=golang-1.10
+                echo "debian-9 tests disabled (no golang-1.13)"
+                exit 1
+            elif [[ "$SPREAD_SYSTEM" == debian-10-* ]]; then
+                # debian-10 needs backports for golang-1.13
+                echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list
+                apt update
+                # dh-golang must come from backports, gdebi/apt cannot
+                # resolve this on their own
+                apt install -y -t buster-backports dh-golang
+                # we need the specific golang-1.13 here, not golang-go
+                sed -i -e "s/golang-go (>=2:1.13).*,/${best_golang},/" ./debian/control
             fi
+            # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
             gdebi --quiet --apt-line ./debian/control | quiet xargs -r eatmydata apt-get install -y
-            # The go 1.10 backport is not using alternatives or anything else so
+            # The go 1.13 backport is not using alternatives or anything else so
             # we need to get it on path somehow. This is not perfect but simple.
             if [ -z "$(command -v go)" ]; then
-                # the path filesystem path is: /usr/lib/go-1.10/bin
+                # the path filesystem path is: /usr/lib/go-1.13/bin
                 ln -s "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
             fi
             ;;

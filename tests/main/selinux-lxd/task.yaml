@@ -28,6 +28,13 @@ restore: |
 
     "$TESTSTOOLS"/lxd-state undo-mount-changes
 
+    # Remove manually the snap.lxd.workaround.service systemd unit. This unit is needed to
+    # avoid systemd wiping lxd cgroups when snapd disables all lxd units during refresh
+    # TODO: remove this when lxd removes automatically the service
+    if systemctl is-active snap.lxd.workaround.service; then
+        systemctl stop snap.lxd.workaround.service
+    fi
+
 debug: |
     if [ -e avc-after ]; then
         echo "AVC log from the test"
@@ -52,7 +59,7 @@ execute: |
     fi
 
     lxd.lxc launch --quiet "ubuntu:18.04" my-ubuntu
-    if [ "$(uname -m)" = x86_64 ] && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
+    if os.query is-pc-amd64 && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
         echo "LXD spawned 32bit userspace container on a 64bit host, WAT?"
         snap info lxd
         exit 1
@@ -75,4 +82,4 @@ execute: |
     # centos-8, but not on centos-7
     ausearch --checkpoint stamp --start checkpoint -m AVC > avc-after 2>&1 || true
     grep -v -E 'avc:  denied  { map_create } for  pid=[0-9]+ comm="systemd"' < avc-after | \
-        not MATCH 'type=AVC'
+        NOMATCH 'type=AVC'

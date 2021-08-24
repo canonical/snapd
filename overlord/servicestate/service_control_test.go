@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -81,6 +82,14 @@ func (s *serviceControlSuite) SetUpTest(c *C) {
 
 	s.sysctlArgs = nil
 	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) (buf []byte, err error) {
+		// When calling the "snap restart" command, the initial status will be
+		// retrieved first. Services which are not running will be
+		// ignored. Therefore, mock this "show" operation by pretending that
+		// all requested services are active:
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
+			return out, nil
+		}
+
 		s.sysctlArgs = append(s.sysctlArgs, cmd)
 		if cmd[0] == "show" {
 			return []byte("ActiveState=inactive\n"), nil
@@ -123,15 +132,26 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, actionModifie
 	// sanity, ensures test checks below are hit
 	c.Assert(len(tasks) > 0, Equals, true)
 
-	// group service names by snaps
-	bySnap := make(map[string][]string)
-	for _, name := range expectedServices {
+	splitServiceName := func(name string) (snapName, serviceName string) {
 		// split service name, e.g. snap.test-snap.foo.service
 		parts := strings.Split(name, ".")
 		c.Assert(parts, HasLen, 4)
-		snapName := parts[1]
-		serviceName := parts[2]
+		snapName = parts[1]
+		serviceName = parts[2]
+		return snapName, serviceName
+	}
+
+	// group service names by snaps
+	bySnap := make(map[string][]string)
+	for _, name := range expectedServices {
+		snapName, serviceName := splitServiceName(name)
 		bySnap[snapName] = append(bySnap[snapName], serviceName)
+	}
+
+	expectedExplicitServicesAppNames := make(map[string][]string)
+	for _, name := range expectedExplicitServices {
+		snapName, serviceName := splitServiceName(name)
+		expectedExplicitServicesAppNames[snapName] = append(expectedExplicitServicesAppNames[snapName], serviceName)
 	}
 
 	var execCommandTasks int
@@ -211,7 +231,10 @@ func verifyControlTasks(c *C, tasks []*state.Task, expectedAction, actionModifie
 			sort.Strings(obtainedServices)
 			sort.Strings(bySnap[sa.SnapName])
 			c.Assert(obtainedServices, DeepEquals, bySnap[sa.SnapName])
-			c.Assert(sa.ExplicitServices, DeepEquals, expectedExplicitServices)
+			obtainedExplicitServices := sa.ExplicitServices
+			sort.Strings(obtainedExplicitServices)
+			sort.Strings(expectedExplicitServicesAppNames[sa.SnapName])
+			c.Assert(obtainedExplicitServices, DeepEquals, expectedExplicitServicesAppNames[sa.SnapName])
 		} else {
 			c.Fatalf("unexpected task: %s", tasks[i].Kind())
 		}
@@ -457,6 +480,7 @@ func (s *serviceControlSuite) TestWithExplicitServicesAndSnapName(c *C) {
 func (s *serviceControlSuite) TestNoServiceCommandError(c *C) {
 	st := s.state
 	st.Lock()
+	defer st.Unlock()
 
 	chg := st.NewChange("service-control", "...")
 	t := st.NewTask("service-control", "...")
@@ -464,8 +488,9 @@ func (s *serviceControlSuite) TestNoServiceCommandError(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	err := s.o.Settle(5 * time.Second)
 	st.Lock()
+	c.Assert(err, IsNil)
 
 	c.Assert(t.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*internal error: cannot get service-action: no state entry for key.*`)
@@ -474,6 +499,7 @@ func (s *serviceControlSuite) TestNoServiceCommandError(c *C) {
 func (s *serviceControlSuite) TestNoopWhenNoServices(c *C) {
 	st := s.state
 	st.Lock()
+	defer st.Unlock()
 
 	si := snap.SideInfo{RealName: "test-snap", Revision: snap.R(7)}
 	snaptest.MockSnap(c, `name: test-snap`, &si)
@@ -492,8 +518,9 @@ func (s *serviceControlSuite) TestNoopWhenNoServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	err := s.o.Settle(5 * time.Second)
 	st.Lock()
+	c.Assert(err, IsNil)
 
 	c.Check(t.Status(), Equals, state.DoneStatus)
 }
@@ -501,6 +528,7 @@ func (s *serviceControlSuite) TestNoopWhenNoServices(c *C) {
 func (s *serviceControlSuite) TestUnhandledServiceAction(c *C) {
 	st := s.state
 	st.Lock()
+	defer st.Unlock()
 
 	s.mockTestSnap(c)
 
@@ -512,8 +540,9 @@ func (s *serviceControlSuite) TestUnhandledServiceAction(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	err := s.o.Settle(5 * time.Second)
 	st.Lock()
+	c.Assert(err, IsNil)
 
 	c.Assert(t.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*unhandled service action: "foo".*`)
@@ -522,6 +551,7 @@ func (s *serviceControlSuite) TestUnhandledServiceAction(c *C) {
 func (s *serviceControlSuite) TestUnknownService(c *C) {
 	st := s.state
 	st.Lock()
+	defer st.Unlock()
 
 	s.mockTestSnap(c)
 
@@ -537,8 +567,9 @@ func (s *serviceControlSuite) TestUnknownService(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	err := s.o.Settle(5 * time.Second)
 	st.Lock()
+	c.Assert(err, IsNil)
 
 	c.Assert(t.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*no such service: baz.*`)
@@ -547,6 +578,7 @@ func (s *serviceControlSuite) TestUnknownService(c *C) {
 func (s *serviceControlSuite) TestNotAService(c *C) {
 	st := s.state
 	st.Lock()
+	defer st.Unlock()
 
 	s.mockTestSnap(c)
 
@@ -562,8 +594,9 @@ func (s *serviceControlSuite) TestNotAService(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	err := s.o.Settle(5 * time.Second)
 	st.Lock()
+	c.Assert(err, IsNil)
 
 	c.Assert(t.Status(), Equals, state.ErrorStatus)
 	c.Check(chg.Err(), ErrorMatches, `cannot perform the following tasks:\n.*someapp is not a service.*`)
@@ -572,6 +605,7 @@ func (s *serviceControlSuite) TestNotAService(c *C) {
 func (s *serviceControlSuite) TestStartAllServices(c *C) {
 	st := s.state
 	st.Lock()
+	defer st.Unlock()
 
 	s.mockTestSnap(c)
 
@@ -586,8 +620,9 @@ func (s *serviceControlSuite) TestStartAllServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	err := s.o.Settle(5 * time.Second)
 	st.Lock()
+	c.Assert(err, IsNil)
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 
@@ -601,6 +636,7 @@ func (s *serviceControlSuite) TestStartAllServices(c *C) {
 func (s *serviceControlSuite) TestStartListedServices(c *C) {
 	st := s.state
 	st.Lock()
+	defer st.Unlock()
 
 	s.mockTestSnap(c)
 
@@ -616,8 +652,9 @@ func (s *serviceControlSuite) TestStartListedServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	err := s.o.Settle(5 * time.Second)
 	st.Lock()
+	c.Assert(err, IsNil)
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
@@ -628,6 +665,7 @@ func (s *serviceControlSuite) TestStartListedServices(c *C) {
 func (s *serviceControlSuite) TestStartEnableServices(c *C) {
 	st := s.state
 	st.Lock()
+	defer st.Unlock()
 
 	s.mockTestSnap(c)
 
@@ -644,8 +682,9 @@ func (s *serviceControlSuite) TestStartEnableServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	err := s.o.Settle(5 * time.Second)
 	st.Lock()
+	c.Assert(err, IsNil)
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
@@ -657,6 +696,7 @@ func (s *serviceControlSuite) TestStartEnableServices(c *C) {
 func (s *serviceControlSuite) TestStartEnableMultipleServices(c *C) {
 	st := s.state
 	st.Lock()
+	defer st.Unlock()
 
 	s.mockTestSnap(c)
 
@@ -672,8 +712,9 @@ func (s *serviceControlSuite) TestStartEnableMultipleServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	err := s.o.Settle(5 * time.Second)
 	st.Lock()
+	c.Assert(err, IsNil)
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
@@ -689,6 +730,7 @@ func (s *serviceControlSuite) TestStartEnableMultipleServices(c *C) {
 func (s *serviceControlSuite) TestStopServices(c *C) {
 	st := s.state
 	st.Lock()
+	defer st.Unlock()
 
 	s.mockTestSnap(c)
 
@@ -704,8 +746,9 @@ func (s *serviceControlSuite) TestStopServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	err := s.o.Settle(5 * time.Second)
 	st.Lock()
+	c.Assert(err, IsNil)
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
@@ -717,6 +760,7 @@ func (s *serviceControlSuite) TestStopServices(c *C) {
 func (s *serviceControlSuite) TestStopDisableServices(c *C) {
 	st := s.state
 	st.Lock()
+	defer st.Unlock()
 
 	s.mockTestSnap(c)
 
@@ -733,8 +777,9 @@ func (s *serviceControlSuite) TestStopDisableServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	err := s.o.Settle(5 * time.Second)
 	st.Lock()
+	c.Assert(err, IsNil)
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
@@ -747,6 +792,7 @@ func (s *serviceControlSuite) TestStopDisableServices(c *C) {
 func (s *serviceControlSuite) TestRestartServices(c *C) {
 	st := s.state
 	st.Lock()
+	defer st.Unlock()
 
 	s.mockTestSnap(c)
 
@@ -762,8 +808,9 @@ func (s *serviceControlSuite) TestRestartServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	err := s.o.Settle(5 * time.Second)
 	st.Lock()
+	c.Assert(err, IsNil)
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
@@ -773,9 +820,100 @@ func (s *serviceControlSuite) TestRestartServices(c *C) {
 	})
 }
 
+func (s *serviceControlSuite) testRestartWithExplicitServicesCommon(c *C,
+	explicitServices []string, expectedInvocations [][]string) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	s.mockTestSnap(c)
+
+	srvAbc := "snap.test-snap.abc.service"
+	srvFoo := "snap.test-snap.foo.service"
+	srvBar := "snap.test-snap.bar.service"
+
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) (buf []byte, err error) {
+		states := map[string]systemdtest.ServiceState{
+			srvAbc: {ActiveState: "inactive", UnitFileState: "enabled"},
+			srvFoo: {ActiveState: "inactive", UnitFileState: "enabled"},
+			srvBar: {ActiveState: "active", UnitFileState: "enabled"},
+		}
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, states); out != nil {
+			return out, nil
+		}
+
+		s.sysctlArgs = append(s.sysctlArgs, cmd)
+		if cmd[0] == "show" {
+			return []byte("ActiveState=inactive\n"), nil
+		}
+		return nil, nil
+	})
+	s.AddCleanup(systemctlRestorer)
+
+	chg := st.NewChange("service-control", "...")
+	t := st.NewTask("service-control", "...")
+	cmd := &servicestate.ServiceAction{
+		SnapName: "test-snap",
+		Action:   "restart",
+		Services: []string{"abc", "foo", "bar"},
+		// these services will be restarted even if inactive
+		ExplicitServices: explicitServices,
+	}
+	t.Set("service-action", cmd)
+	chg.AddTask(t)
+
+	st.Unlock()
+	defer s.se.Stop()
+	err := s.o.Settle(5 * time.Second)
+	st.Lock()
+	c.Assert(err, IsNil)
+
+	c.Assert(t.Status(), Equals, state.DoneStatus)
+	// We expect to get foo and bar restarted: "bar" because it was already
+	// running and "foo" because it was explicitly mentioned (despite being
+	// inactive). "abc" was not running and not explicitly mentioned, so it
+	// shouldn't get restarted.
+	c.Check(s.sysctlArgs, DeepEquals, expectedInvocations)
+}
+
+func (s *serviceControlSuite) TestRestartWithSomeExplicitServices(c *C) {
+	srvFoo := "snap.test-snap.foo.service"
+	srvBar := "snap.test-snap.bar.service"
+	s.testRestartWithExplicitServicesCommon(c,
+		[]string{"foo"},
+		[][]string{
+			{"stop", srvFoo},
+			{"show", "--property=ActiveState", srvFoo},
+			{"start", srvFoo},
+			{"stop", srvBar},
+			{"show", "--property=ActiveState", srvBar},
+			{"start", srvBar},
+		})
+}
+
+func (s *serviceControlSuite) TestRestartWithAllExplicitServices(c *C) {
+	srvAbc := "snap.test-snap.abc.service"
+	srvFoo := "snap.test-snap.foo.service"
+	srvBar := "snap.test-snap.bar.service"
+	s.testRestartWithExplicitServicesCommon(c,
+		[]string{"abc", "bar", "foo"},
+		[][]string{
+			{"stop", srvFoo},
+			{"show", "--property=ActiveState", srvFoo},
+			{"start", srvFoo},
+			{"stop", srvBar},
+			{"show", "--property=ActiveState", srvBar},
+			{"start", srvBar},
+			{"stop", srvAbc},
+			{"show", "--property=ActiveState", srvAbc},
+			{"start", srvAbc},
+		})
+}
+
 func (s *serviceControlSuite) TestRestartAllServices(c *C) {
 	st := s.state
 	st.Lock()
+	defer st.Unlock()
 
 	s.mockTestSnap(c)
 
@@ -791,8 +929,9 @@ func (s *serviceControlSuite) TestRestartAllServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	err := s.o.Settle(5 * time.Second)
 	st.Lock()
+	c.Assert(err, IsNil)
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
@@ -811,6 +950,7 @@ func (s *serviceControlSuite) TestRestartAllServices(c *C) {
 func (s *serviceControlSuite) TestReloadServices(c *C) {
 	st := s.state
 	st.Lock()
+	defer st.Unlock()
 
 	s.mockTestSnap(c)
 
@@ -826,8 +966,9 @@ func (s *serviceControlSuite) TestReloadServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	err := s.o.Settle(5 * time.Second)
 	st.Lock()
+	c.Assert(err, IsNil)
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
@@ -838,6 +979,7 @@ func (s *serviceControlSuite) TestReloadServices(c *C) {
 func (s *serviceControlSuite) TestReloadAllServices(c *C) {
 	st := s.state
 	st.Lock()
+	defer st.Unlock()
 
 	s.mockTestSnap(c)
 
@@ -853,8 +995,9 @@ func (s *serviceControlSuite) TestReloadAllServices(c *C) {
 
 	st.Unlock()
 	defer s.se.Stop()
-	c.Assert(s.o.Settle(5*time.Second), IsNil)
+	err := s.o.Settle(5 * time.Second)
 	st.Lock()
+	c.Assert(err, IsNil)
 
 	c.Assert(t.Status(), Equals, state.DoneStatus)
 	c.Check(s.sysctlArgs, DeepEquals, [][]string{
@@ -899,13 +1042,13 @@ func (s *serviceControlSuite) TestUpdateSnapstateServices(c *C) {
 			changed: false,
 		},
 		{
-			enable: []string{"a"},
+			enable:                   []string{"a"},
 			expectedSnapstateEnabled: []string{"a"},
 			changed:                  true,
 		},
 		// enable again does nothing
 		{
-			enable: []string{"a"},
+			enable:                   []string{"a"},
 			expectedSnapstateEnabled: []string{"a"},
 			changed:                  false,
 		},
@@ -915,7 +1058,7 @@ func (s *serviceControlSuite) TestUpdateSnapstateServices(c *C) {
 			changed:                   true,
 		},
 		{
-			enable: []string{"a", "c"},
+			enable:                   []string{"a", "c"},
 			expectedSnapstateEnabled: []string{"a", "c"},
 			changed:                  true,
 		},

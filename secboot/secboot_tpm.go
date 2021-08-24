@@ -61,6 +61,9 @@ var (
 
 	isTPMEnabled = isTPMEnabledImpl
 	provisionTPM = provisionTPMImpl
+
+	// dummy to check whether the interfaces match
+	_ (sb.SnapModel) = ModelForSealing(nil)
 )
 
 func isTPMEnabledImpl(tpm *sb.TPMConnection) bool {

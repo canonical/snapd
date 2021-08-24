@@ -33,13 +33,13 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+
+	// for SanitizePlugsSlots
+	_ "github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/pack"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/testutil"
-
-	// for SanitizePlugsSlots
-	_ "github.com/snapcore/snapd/interfaces/builtin"
 )
 
 func Test(t *testing.T) { TestingT(t) }

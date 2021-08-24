@@ -20,9 +20,13 @@
 package ctlcmd_test
 
 import (
+	"fmt"
 	"time"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
@@ -30,8 +34,6 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
-
-	. "gopkg.in/check.v1"
 )
 
 type refreshSuite struct {
@@ -72,12 +74,6 @@ var refreshFromHookTests = []struct {
 }{{
 	args: []string{"refresh", "--proceed", "--hold"},
 	err:  "cannot use --proceed and --hold together",
-}, {
-	args: []string{"refresh", "--proceed"},
-	err:  "not implemented yet",
-}, {
-	args: []string{"refresh", "--hold"},
-	err:  "not implemented yet",
 }, {
 	args:              []string{"refresh", "--pending"},
 	refreshCandidates: map[string]interface{}{"snap1": mockRefreshCandidate("snap1", "", "edge", "v1", snap.Revision{N: 3})},
@@ -138,6 +134,100 @@ func (s *refreshSuite) TestRefreshFromHook(c *C) {
 	}
 }
 
+func (s *refreshSuite) TestRefreshHold(c *C) {
+	s.st.Lock()
+	task := s.st.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1), Hook: "gate-auto-refresh"}
+	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
+	c.Check(err, IsNil)
+
+	mockInstalledSnap(c, s.st, `name: foo
+version: 1
+`)
+
+	s.st.Unlock()
+
+	mockContext.Lock()
+	mockContext.Set("affecting-snaps", []string{"foo"})
+	mockContext.Unlock()
+
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--hold"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+
+	mockContext.Lock()
+	defer mockContext.Unlock()
+	action := mockContext.Cached("action")
+	c.Assert(action, NotNil)
+	c.Check(action, Equals, snapstate.GateAutoRefreshHold)
+
+	var gating map[string]map[string]interface{}
+	c.Assert(s.st.Get("snaps-hold", &gating), IsNil)
+	c.Check(gating["foo"]["snap1"], NotNil)
+}
+
+func (s *refreshSuite) TestRefreshProceed(c *C) {
+	s.st.Lock()
+	task := s.st.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1), Hook: "gate-auto-refresh"}
+	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
+	c.Check(err, IsNil)
+
+	mockInstalledSnap(c, s.st, `name: foo
+version: 1
+`)
+
+	// pretend snap foo is held initially
+	c.Check(snapstate.HoldRefresh(s.st, "snap1", 0, "foo"), IsNil)
+	s.st.Unlock()
+
+	// sanity check
+	var gating map[string]map[string]interface{}
+	s.st.Lock()
+	snapsHold := s.st.Get("snaps-hold", &gating)
+	s.st.Unlock()
+	c.Assert(snapsHold, IsNil)
+	c.Check(gating["foo"]["snap1"], NotNil)
+
+	mockContext.Lock()
+	mockContext.Set("affecting-snaps", []string{"foo"})
+	mockContext.Unlock()
+
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+
+	mockContext.Lock()
+	defer mockContext.Unlock()
+	action := mockContext.Cached("action")
+	c.Assert(action, NotNil)
+	c.Check(action, Equals, snapstate.GateAutoRefreshProceed)
+
+	// and it is still held (for hook handler to execute actual proceed logic).
+	gating = nil
+	c.Assert(s.st.Get("snaps-hold", &gating), IsNil)
+	c.Check(gating["foo"]["snap1"], NotNil)
+
+	mockContext.Cache("action", nil)
+
+	mockContext.Unlock()
+	defer mockContext.Lock()
+
+	// refresh --pending --proceed is the same as just saying --proceed.
+	stdout, stderr, err = ctlcmd.Run(mockContext, []string{"refresh", "--pending", "--proceed"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+
+	mockContext.Lock()
+	defer mockContext.Unlock()
+	action = mockContext.Cached("action")
+	c.Assert(action, NotNil)
+	c.Check(action, Equals, snapstate.GateAutoRefreshProceed)
+}
+
 func (s *refreshSuite) TestRefreshFromUnsupportedHook(c *C) {
 	s.st.Lock()
 
@@ -151,17 +241,65 @@ func (s *refreshSuite) TestRefreshFromUnsupportedHook(c *C) {
 	c.Check(err, ErrorMatches, `can only be used from gate-auto-refresh hook`)
 }
 
-// TODO: support this case
-func (s *refreshSuite) TestRefreshFromApp(c *C) {
-	s.st.Lock()
+func (s *refreshSuite) TestRefreshProceedFromSnap(c *C) {
+	var called bool
+	restore := ctlcmd.MockAutoRefreshForGatingSnap(func(st *state.State, gatingSnap string) error {
+		called = true
+		c.Check(gatingSnap, Equals, "foo")
+		return nil
+	})
+	defer restore()
 
-	setup := &hookstate.HookSetup{Snap: "snap", Revision: snap.R(1)}
-	mockContext, err := hookstate.NewContext(nil, s.st, setup, s.mockHandler, "")
+	s.st.Lock()
+	defer s.st.Unlock()
+	mockInstalledSnap(c, s.st, `name: foo
+version: 1
+`)
+
+	// enable gate-auto-refresh-hook feature
+	tr := config.NewTransaction(s.st)
+	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
+	tr.Commit()
+
+	// foo is the snap that is going to call --proceed.
+	setup := &hookstate.HookSetup{Snap: "foo", Revision: snap.R(1)}
+	mockContext, err := hookstate.NewContext(nil, s.st, setup, nil, "")
 	c.Check(err, IsNil)
 	s.st.Unlock()
+	defer s.st.Lock()
 
-	_, _, err = ctlcmd.Run(mockContext, []string{"refresh"}, 0)
-	c.Check(err, ErrorMatches, `cannot run outside of gate-auto-refresh hook`)
+	_, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, true)
+}
+
+func (s *refreshSuite) TestRefreshProceedFromSnapError(c *C) {
+	restore := ctlcmd.MockAutoRefreshForGatingSnap(func(st *state.State, gatingSnap string) error {
+		c.Check(gatingSnap, Equals, "foo")
+		return fmt.Errorf("boom")
+	})
+	defer restore()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+	mockInstalledSnap(c, s.st, `name: foo
+version: 1
+`)
+
+	// enable gate-auto-refresh-hook feature
+	tr := config.NewTransaction(s.st)
+	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
+	tr.Commit()
+
+	// foo is the snap that is going to call --proceed.
+	setup := &hookstate.HookSetup{Snap: "foo", Revision: snap.R(1)}
+	mockContext, err := hookstate.NewContext(nil, s.st, setup, nil, "")
+	c.Check(err, IsNil)
+	s.st.Unlock()
+	defer s.st.Lock()
+
+	_, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
+	c.Assert(err, ErrorMatches, "boom")
 }
 
 func (s *refreshSuite) TestRefreshRegularUserForbidden(c *C) {

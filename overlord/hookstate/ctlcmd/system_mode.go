@@ -22,10 +22,11 @@ package ctlcmd
 import (
 	"fmt"
 
+	"gopkg.in/yaml.v2"
+
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/strutil"
-	"gopkg.in/yaml.v2"
 )
 
 type systemModeCommand struct {

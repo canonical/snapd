@@ -24,7 +24,7 @@ execute: |
         fi
 
         echo "Check there are no errors in the changes list"
-        snap changes | not MATCH '^[0-9]+ +Error'
+        snap changes | NOMATCH '^[0-9]+ +Error'
 
         REBOOT
     fi
@@ -41,4 +41,4 @@ execute: |
     fi
 
     echo "And check there are no errors in the changes list"
-    snap changes | not MATCH '^[0-9]+ +Error'
+    snap changes | NOMATCH '^[0-9]+ +Error'

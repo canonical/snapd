@@ -25,6 +25,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"sync"
 
 	"github.com/snapcore/snapd/asserts"
@@ -433,6 +434,10 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	//       our remodel change our carefully constructed wait chain
 	//       breaks down.
 
+	// Keep track of downloads tasks carrying snap-setup which is needed for
+	// recovery system tasks
+	var snapSetupTasks []string
+
 	// Ensure all download/check tasks are run *before* the install
 	// tasks. During a remodel the network may not be available so
 	// we need to ensure we have everything local.
@@ -478,12 +483,52 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		if firstInstallInChain == nil {
 			firstInstallInChain = installFirst
 		}
+		// download is always a first task of the 'download' phase
+		snapSetupTasks = append(snapSetupTasks, downloadStart.ID())
 	}
-	// Make sure the first install waits for the last download. With this
-	// our (simplified) wait chain looks like:
-	// download1 <- verify1 <- download2 <- verify2 <- download3 <- verify3 <- install1 <- install2 <- install3
+	// Make sure the first install waits for the recovery system (only in
+	// UC20) which waits for the last download. With this our (simplified)
+	// wait chain looks like this:
+	//
+	// download1
+	//   ^- verify1
+	//        ^- download2
+	//             ^- verify2
+	//                  ^- download3
+	//                       ^- verify3
+	//                            ^- recovery (UC20)
+	//                                 ^- install1
+	//                                      ^- install2
+	//                                           ^- install3
 	if firstInstallInChain != nil && lastDownloadInChain != nil {
 		firstInstallInChain.WaitFor(lastDownloadInChain)
+	}
+
+	recoverySetupTaskID := ""
+	if new.Grade() != asserts.ModelGradeUnset {
+		// create a recovery when remodeling to a UC20 system, actual
+		// policy for possible remodels has already been verified by the
+		// caller
+		labelBase := timeNow().Format("20060102")
+		label, err := pickRecoverySystemLabel(labelBase)
+		if err != nil {
+			return nil, fmt.Errorf("cannot select non-conflicting label for recovery system %q: %v", labelBase, err)
+		}
+		createRecoveryTasks, err := createRecoverySystemTasks(st, label, snapSetupTasks)
+		if err != nil {
+			return nil, err
+		}
+		if lastDownloadInChain != nil {
+			// wait for all snaps that need to be downloaded
+			createRecoveryTasks.WaitFor(lastDownloadInChain)
+		}
+		if firstInstallInChain != nil {
+			// when any snap installations need to happen, they
+			// should also wait for recovery system to be created
+			firstInstallInChain.WaitAll(createRecoveryTasks)
+		}
+		tss = append(tss, createRecoveryTasks)
+		recoverySetupTaskID = createRecoveryTasks.Tasks()[0].ID()
 	}
 
 	// Set the new model assertion - this *must* be the last thing done
@@ -492,9 +537,29 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	for _, tsPrev := range tss {
 		setModel.WaitAll(tsPrev)
 	}
+	if recoverySetupTaskID != "" {
+		// set model needs to access information about the recovery
+		// system
+		setModel.Set("recovery-system-setup-task", recoverySetupTaskID)
+	}
 	tss = append(tss, state.NewTaskSet(setModel))
 
 	return tss, nil
+}
+
+var allowUC20RemodelTesting = false
+
+// AllowUC20RemodelTesting is a temporary helper to allow testing remodeling of
+// UC20 before the implementation is complete and the policy for this settled.
+// It will be removed once remodel is fully implemented and made available for
+// general use.
+func AllowUC20RemodelTesting(allow bool) (restore func()) {
+	osutil.MustBeTestBinary("uc20 remodel testing only can be mocked in tests")
+	oldAllowUC20RemodelTesting := allowUC20RemodelTesting
+	allowUC20RemodelTesting = allow
+	return func() {
+		allowUC20RemodelTesting = oldAllowUC20RemodelTesting
+	}
 }
 
 // Remodel takes a new model assertion and generates a change that
@@ -535,11 +600,18 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 
 	// TODO:UC20: support remodel, also ensure we never remodel to a lower
 	// grade
-	if current.Grade() != asserts.ModelGradeUnset {
-		return nil, fmt.Errorf("cannot remodel Ubuntu Core 20 models yet")
-	}
-	if new.Grade() != asserts.ModelGradeUnset {
-		return nil, fmt.Errorf("cannot remodel to Ubuntu Core 20 models yet")
+	if !allowUC20RemodelTesting {
+		if current.Grade() != asserts.ModelGradeUnset {
+			return nil, fmt.Errorf("cannot remodel Ubuntu Core 20 models yet")
+		}
+		if new.Grade() != asserts.ModelGradeUnset {
+			return nil, fmt.Errorf("cannot remodel to Ubuntu Core 20 models yet")
+		}
+	} else {
+		// also disallows remodel from non-UC20 (grade unset) to UC20
+		if current.Grade() != new.Grade() {
+			return nil, fmt.Errorf("cannot remodel from grade %v to grade %v", current.Grade(), new.Grade())
+		}
 	}
 
 	// TODO: we need dedicated assertion language to permit for
@@ -655,9 +727,37 @@ type recoverySystemSetup struct {
 	SnapSetupTasks []string `json:"snap-setup-tasks"`
 }
 
+func pickRecoverySystemLabel(labelBase string) (string, error) {
+	systemDirectory := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", labelBase)
+	exists, _, err := osutil.DirExists(systemDirectory)
+	if err != nil {
+		return "", err
+	}
+	if !exists {
+		return labelBase, nil
+	}
+	// pick alternative, which is named like <label>-<number>
+	present, err := filepath.Glob(systemDirectory + "-*")
+	if err != nil {
+		return "", err
+	}
+	maxExistingNumber := 0
+	for _, existingDir := range present {
+		suffix := existingDir[len(systemDirectory)+1:]
+		num, err := strconv.Atoi(suffix)
+		if err != nil {
+			// non numerical suffix?
+			continue
+		}
+		if num > maxExistingNumber {
+			maxExistingNumber = num
+		}
+	}
+	return fmt.Sprintf("%s-%d", labelBase, maxExistingNumber+1), nil
+}
+
 func createRecoverySystemTasks(st *state.State, label string, snapSetupTasks []string) (*state.TaskSet, error) {
 	// sanity check, the directory should not exist yet
-	// TODO: we should have a common helper to derive this path
 	systemDirectory := filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", label)
 	exists, _, err := osutil.DirExists(systemDirectory)
 	if err != nil {

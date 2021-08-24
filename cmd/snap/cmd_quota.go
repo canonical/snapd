@@ -27,6 +27,7 @@ import (
 	"github.com/jessevdk/go-flags"
 
 	"github.com/snapcore/snapd/client"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -34,8 +35,8 @@ import (
 var shortQuotaHelp = i18n.G("Show quota group for a set of snaps")
 var longQuotaHelp = i18n.G(`
 The quota command shows information about a quota group, including the set of 
-snaps and sub-groups that are in a group, as well as the resource constraints 
-and current usage of the resource constraints.
+snaps and any sub-groups it contains, as well as its resource constraints and 
+the current usage of those constrained resources.
 `)
 
 var shortQuotasHelp = i18n.G("Show quota groups")
@@ -57,26 +58,27 @@ var longSetQuotaHelp = i18n.G(`
 The set-quota command updates or creates a quota group with the specified set of
 snaps.
 
-A quota group sets resource limits (currently maximum memory only) on the set of
-snaps that belong to it. Snaps can be at most in one quota group. Quota groups
-can be nested.
+A quota group sets resource limits on the set of snaps it contains. Only maximum
+memory is currently supported. Snaps can be at most in one quota group but quota
+groups can be nested. Nested quota groups are subject to the restriction that 
+the total sum of maximum memory in sub-groups cannot exceed that of the parent
+group the nested groups are part of.
 
-All snaps provided are appended to the group; to remove a snap from a
-quota group the entire group must be removed with remove-quota and recreated 
+All provided snaps are appended to the group; to remove a snap from a
+quota group, the entire group must be removed with remove-quota and recreated 
 without the quota group. To remove a sub-group from the quota group, the 
 sub-group must be removed directly with the remove-quota command.
 
-The memory limit for a quota group can be increased, but cannot be decreased. To
+The memory limit for a quota group can be increased but not decreased. To
 decrease the memory limit for a quota group, the entire group must be removed
-with the remove-quota command and recreated with the lower limit. Increasing the
+with the remove-quota command and recreated with a lower limit. Increasing the
 memory limit for a quota group does not restart any services associated with 
 snaps in the quota group.
 
 Adding new snaps to a quota group will result in all non-disabled services in 
 that snap being restarted.
 
-One cannot modify the parent of an existing sub-quota group, nor can an existing
-sub-quota group be moved from one parent to another.
+An existing sub group cannot be moved from one parent to another.
 `)
 
 func init() {
@@ -95,7 +97,7 @@ func init() {
 }
 
 type cmdSetQuota struct {
-	clientMixin
+	waitMixin
 
 	MemoryMax  string `long:"memory" optional:"true"`
 	Parent     string `long:"parent" optional:"true"`
@@ -119,6 +121,8 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 	if _, err = x.client.GetQuotaGroup(x.Positional.GroupName); err == nil {
 		groupExists = true
 	}
+
+	var chgID string
 
 	switch {
 	case maxMemory == "" && x.Parent == "" && len(x.Positional.Snaps) == 0:
@@ -160,8 +164,10 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 		// orphan a sub-group to no longer have a parent, but currently it just
 		// means leave the group with whatever parent it has, or if it doesn't
 		// currently exist, create the group without a parent group
-		return x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, uint64(mem))
-
+		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, quantity.Size(mem))
+		if err != nil {
+			return err
+		}
 	case len(x.Positional.Snaps) != 0:
 		// there are snaps specified for this group but no memory limit, so the
 		// group must already exist and we must be adding the specified snaps to
@@ -172,12 +178,23 @@ func (x *cmdSetQuota) Execute(args []string) (err error) {
 		// currently support that, so currently all snaps specified here are
 		// just added to the group
 
-		return x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, 0)
-
+		chgID, err = x.client.EnsureQuota(x.Positional.GroupName, x.Parent, names, 0)
+		if err != nil {
+			return err
+		}
 	default:
 		// should be logically impossible to reach here
 		panic("impossible set of options")
 	}
+
+	if _, err := x.wait(chgID); err != nil {
+		if err == noWait {
+			return nil
+		}
+		return err
+	}
+
+	return nil
 }
 
 type cmdQuota struct {
@@ -205,10 +222,28 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 	if group.Parent != "" {
 		fmt.Fprintf(w, "parent:\t%s\n", group.Parent)
 	}
+
 	fmt.Fprintf(w, "constraints:\n")
-	fmt.Fprintf(w, "  memory:\t%s\n", strings.TrimSpace(fmtSize(int64(group.MaxMemory))))
+
+	// Constraints should always be non-nil, since a quota group always needs to
+	// have a memory limit
+	if group.Constraints == nil {
+		return fmt.Errorf("internal error: constraints is missing from daemon response")
+	}
+	val := strings.TrimSpace(fmtSize(int64(group.Constraints.Memory)))
+	fmt.Fprintf(w, "  memory:\t%s\n", val)
+
 	fmt.Fprintf(w, "current:\n")
-	fmt.Fprintf(w, "  memory:\t%s\n", strings.TrimSpace(fmtSize(int64(group.CurrentMemory))))
+	if group.Current == nil {
+		// current however may be missing if there is no memory usage
+		val = "0B"
+	} else {
+		// use the value from the response
+		val = strings.TrimSpace(fmtSize(int64(group.Current.Memory)))
+	}
+
+	fmt.Fprintf(w, "  memory:\t%s\n", val)
+
 	if len(group.Subgroups) > 0 {
 		fmt.Fprint(w, "subgroups:\n")
 		for _, name := range group.Subgroups {
@@ -226,14 +261,27 @@ func (x *cmdQuota) Execute(args []string) (err error) {
 }
 
 type cmdRemoveQuota struct {
-	clientMixin
+	waitMixin
+
 	Positional struct {
 		GroupName string `positional-arg-name:"<group-name>" required:"true"`
 	} `positional-args:"yes"`
 }
 
 func (x *cmdRemoveQuota) Execute(args []string) (err error) {
-	return x.client.RemoveQuotaGroup(x.Positional.GroupName)
+	chgID, err := x.client.RemoveQuotaGroup(x.Positional.GroupName)
+	if err != nil {
+		return err
+	}
+
+	if _, err := x.wait(chgID); err != nil {
+		if err == noWait {
+			return nil
+		}
+		return err
+	}
+
+	return nil
 }
 
 type cmdQuotas struct {
@@ -252,18 +300,19 @@ func (x *cmdQuotas) Execute(args []string) (err error) {
 
 	w := tabWriter()
 	fmt.Fprintf(w, "Quota\tParent\tConstraints\tCurrent\n")
-	err = processQuotaGroupsTree(res, func(q *client.QuotaGroupResult) {
-		constraintMem := ""
-		if q.MaxMemory != 0 {
-			constraintMem = "memory=" + strings.TrimSpace(fmtSize(int64(q.MaxMemory)))
+	err = processQuotaGroupsTree(res, func(q *client.QuotaGroupResult) error {
+		if q.Constraints == nil {
+			return fmt.Errorf("internal error: constraints is missing from daemon response")
 		}
 
-		currentMem := ""
-		if q.CurrentMemory != 0 {
-			currentMem = "memory=" + strings.TrimSpace(fmtSize(int64(q.CurrentMemory)))
+		constraintVal := "memory=" + strings.TrimSpace(fmtSize(int64(q.Constraints.Memory)))
+		currentVal := ""
+		if q.Current != nil && q.Current.Memory != 0 {
+			currentVal = "memory=" + strings.TrimSpace(fmtSize(int64(q.Current.Memory)))
 		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", q.GroupName, q.Parent, constraintVal, currentVal)
 
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", q.GroupName, q.Parent, constraintMem, currentMem)
+		return nil
 	})
 	if err != nil {
 		return err
@@ -285,7 +334,7 @@ func (q byQuotaName) Less(i, j int) bool { return q[i].res.GroupName < q[j].res.
 
 // processQuotaGroupsTree recreates the hierarchy of quotas and then visits it
 // recursively following the hierarchy first, then naming order.
-func processQuotaGroupsTree(quotas []*client.QuotaGroupResult, handleGroup func(q *client.QuotaGroupResult)) error {
+func processQuotaGroupsTree(quotas []*client.QuotaGroupResult, handleGroup func(q *client.QuotaGroupResult) error) error {
 	var roots []*quotaGroup
 	groupLookup := make(map[string]*quotaGroup, len(quotas))
 
@@ -312,16 +361,19 @@ func processQuotaGroupsTree(quotas []*client.QuotaGroupResult, handleGroup func(
 		}
 	}
 
-	var processGroups func(groups []*quotaGroup)
-	processGroups = func(groups []*quotaGroup) {
+	var processGroups func(groups []*quotaGroup) error
+	processGroups = func(groups []*quotaGroup) error {
 		for _, g := range groups {
-			handleGroup(g.res)
+			if err := handleGroup(g.res); err != nil {
+				return err
+			}
 			if len(g.subGroups) > 0 {
-				processGroups(g.subGroups)
+				if err := processGroups(g.subGroups); err != nil {
+					return err
+				}
 			}
 		}
+		return nil
 	}
-	processGroups(roots)
-
-	return nil
+	return processGroups(roots)
 }

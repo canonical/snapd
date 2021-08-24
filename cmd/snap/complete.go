@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2016 Canonical Ltd
+ * Copyright (C) 2016-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -28,7 +28,6 @@ import (
 
 	"github.com/jessevdk/go-flags"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
@@ -185,13 +184,20 @@ func (n assertTypeName) Complete(match string) []flags.Completion {
 type keyName string
 
 func (s keyName) Complete(match string) []flags.Completion {
-	var res []flags.Completion
-	asserts.NewGPGKeypairManager().Walk(func(_ asserts.PrivateKey, _ string, uid string) error {
-		if strings.HasPrefix(uid, match) {
-			res = append(res, flags.Completion{Item: uid})
-		}
+	keypairManager, err := getKeypairManager()
+	if err != nil {
 		return nil
-	})
+	}
+	keys, err := keypairManager.List()
+	if err != nil {
+		return nil
+	}
+	var res []flags.Completion
+	for _, k := range keys {
+		if strings.HasPrefix(k.Name, match) {
+			res = append(res, flags.Completion{Item: k.Name})
+		}
+	}
 	return res
 }
 

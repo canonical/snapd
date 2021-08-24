@@ -39,8 +39,8 @@ prepare: |
     cp "$TESTSLIB"/assertions/developer1.account "$NESTED_FAKESTORE_BLOB_DIR/asserts"
     cp "$TESTSLIB"/assertions/developer1.account-key "$NESTED_FAKESTORE_BLOB_DIR/asserts"
 
-    "$TESTSTOOLS"/nested-state build-image core
-    "$TESTSTOOLS"/nested-state create-vm core
+    tests.nested build-image core
+    tests.nested create-vm core
 
 restore: |
     if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -62,10 +62,10 @@ execute: |
     . "$TESTSLIB/nested.sh"
 
     echo "Verify that no fde keys are generated"
-    nested_exec "test ! -d /var/lib/snapd/device/fde"
+    tests.nested exec "test ! -d /var/lib/snapd/device/fde"
 
     # TODO: once we have a install-mode log (PR#9545) we could grep
     #       "installing system unencrypted because of ..."
 
     echo "Check that data is mounted from a regular device, not a mapper"
-    nested_exec "mount" | MATCH "/dev/[svh]da[45] on /run/mnt/data"
+    tests.nested exec "mount" | MATCH "/dev/[svh]da[45] on /run/mnt/data"

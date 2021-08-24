@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
@@ -33,6 +34,11 @@ import (
 )
 
 var currentSnaps = currentSnapsImpl
+
+// EnforcedValidationSets allows to hook getting of validation sets in enforce
+// mode into installation/refresh/removal of snaps. It gets hooked from
+// assertstate.
+var EnforcedValidationSets func(st *state.State) (*snapasserts.ValidationSets, error)
 
 func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int, error) {
 	userID := snapst.UserID
@@ -195,8 +201,8 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int) 
 	return total, nil
 }
 
-func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, deviceCtx DeviceContext) (store.SnapActionResult, error) {
-	// TODO: support ignore-validation?
+func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (store.SnapActionResult, error) {
+	// TODO: support ignore-validation
 
 	curSnaps, err := currentSnaps(st)
 	if err != nil {

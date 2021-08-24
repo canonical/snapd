@@ -9,11 +9,12 @@ prepare: |
   tests.cleanup defer snap unset system experimental.quota-groups
 
 execute: |
-  if os.query is-trusty; then
-    # just check that we can't do anything with quota groups on trusty, systemd
-    # there is 204, but we need at least 205 for slice units
+  if os.query is-trusty || os.query is-amazon-linux || os.query is-centos-7 || os.query is-xenial || os.query is-core16; then
+    # just check that we can't do anything with quota groups on systems with
+    # old systemd versions, we need at least 230 to avoid buggy slice usage
+    # reporting
 
-    snap set-quota foobar --memory=1MB 2>&1 | MATCH "systemd version too old: snap quotas requires systemd 205 and newer \(currently have 204\)"
+    snap set-quota foobar --memory=1MB 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH "systemd version too old: snap quotas requires systemd 230 and newer \(currently have 2[0-2][0-9]\)"
     exit 0
   fi
 
@@ -30,7 +31,7 @@ execute: |
   snap set-quota group-sub-sub-one --parent=group-sub-one --memory=5KB
 
   echo "Trying to add snap to more than one group fails"
-  snap set-quota group-bad --memory=1MB hello-world 2>&1 | MATCH 'error: cannot create or update quota group: cannot add snap "hello-world" to group "group-bad": snap already in quota group "group-one"'
+  snap set-quota group-bad --memory=1MB hello-world 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH 'error: cannot create quota group: cannot add snap "hello-world" to group "group-bad": snap already in quota group "group-one"'
 
   echo "Adding a snap to group-one"
   snap set-quota group-one go-example-webserver

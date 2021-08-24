@@ -29,8 +29,6 @@ execute: |
     fi
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
 
     if [[ "$SPREAD_REBOOT" == "0" ]]; then
 
@@ -74,7 +72,7 @@ execute: |
         snap install test-snapd-auto-aliases
 
         do_classic=no
-        if is_classic_confinement_supported ; then
+        if "$TESTSTOOLS"/snaps-state is-confinement-supported classic; then
             "$TESTSTOOLS"/snaps-state install-local test-snapd-classic-confinement --classic
             do_classic=yes
             # Preserve the state across reboots if necessary
