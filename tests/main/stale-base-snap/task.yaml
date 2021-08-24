@@ -19,6 +19,10 @@ backends: [-autopkgtest]
 # base snap is possible but that is a separate test.
 systems: [-ubuntu-core-*]
 
+environment:
+    # uploading large snap triggers OOM
+    SNAPD_NO_MEMORY_LIMIT: 1
+
 prepare: |
     # We will need the Swiss-army-knife shell snap. We want to use it in
     # devmode so that we can look at /customized file which is non-standard.

@@ -1,5 +1,9 @@
 summary: Check that the basic snapshots functionality is ok
 
+environment:
+    # tar invoked when creating snapshots triggers OOM
+    SNAPD_NO_MEMORY_LIMIT: 1
+
 prepare: |
     snap install test-snapd-sh
     snap install --edge test-snapd-just-edge
