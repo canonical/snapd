@@ -10,24 +10,6 @@ environment:
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
 
 prepare: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
-    # modify and repack gadget snap to add a defaults section and use our own
-    # prepare-device hook to use the fakedevicesvc
-    mkdir "$(nested_get_extra_snaps_path)"
-
-    # Get the snakeoil key and cert for signing gadget assets (shim)
-    KEY_NAME=$(nested_get_snakeoil_key)
-    SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
-    SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
-
-    snap download --basename=pc --channel="20/edge" pc
-    unsquashfs -d pc-gadget pc.snap
-
-    nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-    snap pack pc-gadget/ "$(nested_get_extra_snaps_path)"
-
     tests.nested build-image core
     tests.nested create-vm core
 
@@ -100,10 +82,10 @@ execute: |
     # recover mode
     echo "Switch to recover mode of new seed system"
     boot_id="$( nested_get_boot_id )"
-    tests.nested exec sudo snap reboot --recover "${label_base}-2" | MATCH 'Reboot into ".*" "recover" mode'
+    tests.nested exec sudo snap reboot --recover "${revno3_label}" | MATCH 'Reboot into ".*" "recover" mode'
     nested_wait_for_reboot "${boot_id}"
     # Verify we are in recover mode with the expected system label
-    tests.nested exec 'sudo cat /proc/cmdline' | MATCH "snapd_recovery_mode=recover snapd_recovery_system=${label_base}-2 "
+    tests.nested exec 'sudo cat /proc/cmdline' | MATCH "snapd_recovery_mode=recover snapd_recovery_system=${revno3_label} "
     # we are in recover mode, so tools need to be set up again
     nested_prepare_tools
 
@@ -114,3 +96,9 @@ execute: |
     tests.nested exec sudo snap reboot --run | MATCH 'Reboot into "run" mode.'
     nested_wait_for_reboot "${boot_id}"
     tests.nested exec 'sudo cat /proc/cmdline' | MATCH "snapd_recovery_mode=run "
+
+    echo "Verify all recovery systems are listed"
+    tests.nested exec "sudo snap recovery" > recovery.out
+    for label in "$label_base" "$revno2_label" "$revno3_label"; do
+        MATCH "$label " < recovery.out
+    done
