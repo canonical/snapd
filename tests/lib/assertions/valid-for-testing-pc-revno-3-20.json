@@ -1,4 +1,6 @@
 {
+    "revision": "3",
+
     "type": "model",
     "authority-id": "FpA2tgNE8bUrUKSOhE6SOpsMdlcEJkDL",
     "series": "16",
@@ -34,6 +36,5 @@
             "name": "snapd",
             "type": "snapd"
         }
-    ],
-    "revision": "3"
+    ]
 }

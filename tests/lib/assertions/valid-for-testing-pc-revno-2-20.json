@@ -1,4 +1,6 @@
 {
+    "revision": "2",
+
     "type": "model",
     "authority-id": "FpA2tgNE8bUrUKSOhE6SOpsMdlcEJkDL",
     "series": "16",
@@ -38,6 +40,5 @@
             "default-channel": "latest/stable",
             "name": "test-snapd-tools-core20"
         }
-    ],
-    "revision": "2"
+    ]
 }
