@@ -136,17 +136,6 @@ jobs:
       run: |
           sudo apt-get remove --purge shellcheck
           sudo snap install shellcheck
-    - name: Install govendor
-      run: go get -u github.com/kardianos/govendor
-    - name: Cache Go dependencies
-      id: cache-go-govendor
-      uses: actions/cache@v1
-      with:
-        path: ${{ github.workspace }}/.cache/govendor
-        key: go-govendor-{{ hashFiles('**/vendor.json') }}
-    - name: Get Go dependencies
-      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ${{ github.workspace }}/bin/govendor sync
-
     - name: Get C vendoring
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd/c-vendor && ./vendor.sh
 
@@ -212,8 +201,8 @@ jobs:
         echo "Dropping github.com/snapcore/secboot"
         # use govendor remove so that a subsequent govendor sync does not
         # install secboot again
-        ${{ github.workspace }}/bin/govendor remove github.com/snapcore/secboot
-        ${{ github.workspace }}/bin/govendor remove +unused
+        # ${{ github.workspace }}/bin/govendor remove github.com/snapcore/secboot
+        # ${{ github.workspace }}/bin/govendor remove +unused
         SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
