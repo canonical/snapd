@@ -12,8 +12,6 @@ github.com/frankban/quicktest v1.2.2 h1:xfmOhhoH5fGPgbEAlhLpJH9p0z/0Qizio9osmvn9
 github.com/frankban/quicktest v1.2.2/go.mod h1:Qh/WofXFeiAFII1aEBu529AtJo6Zg2VHscnEsbBnJ20=
 github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 h1:ZpnhV/YsD2/4cESfV5+Hoeu/iUR3ruzNvZ+yQfO03a0=
 github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2/go.mod h1:bBOAhwG1umN6/6ZUMtDFBMQR8jRg9O75tm9K00oMsK4=
-github.com/godbus/dbus v4.0.1-0.20170822152403-97646858c464+incompatible h1:jrLbRV7z00h1BW1KERF0gF3jTPQGhwJqfQwRv+OFKrQ=
-github.com/godbus/dbus v4.0.1-0.20170822152403-97646858c464+incompatible/go.mod h1:/YcGZj5zSblfDWMMoOzV4fas9FZnQYTkDnsGvmh2Grw=
 github.com/google/go-cmp v0.2.1-0.20190312032427-6f77996f0c42 h1:q3pnF5JFBNRz8sRD+IRj7Y6DMyYGTNqnZ9axTbSfoNI=
 github.com/google/go-cmp v0.2.1-0.20190312032427-6f77996f0c42/go.mod h1:8QqcDgzrUqlUb/G2PQTWiueGozuR1884gddMywk6iLU=
 github.com/gorilla/mux v1.7.4-0.20190701202633-d83b6ffe499a h1:Rhv8JUcDkZJkUmzzjpysRtn5joJ/3T8Lt9QpdJZUz1c=

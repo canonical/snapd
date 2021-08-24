@@ -122,14 +122,14 @@ override_dh_auto_build:
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
 	dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
 
-	(cd _build/bin && GOPATH=$$(pwd)/.. go build $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap)
+	(cd _build/bin && GOPATH=$$(pwd)/.. go build -mod vendor $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap)
 
 	# Generate static snap-exec, snapctl and snap-udpate-ns - it somehow includes CGO so we must
 	# force a static build here. We need a static snap-{exec,update-ns}/snapctl inside
 	# the core snap because not all bases will have a libc
-	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-exec)
-	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snapctl)
-	(cd _build/bin && GOPATH=$$(pwd)/.. go build --ldflags '-extldflags "-static"' $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-update-ns)
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -mod vendor $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-exec)
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -mod vendor $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snapctl)
+	(cd _build/bin && GOPATH=$$(pwd)/.. go build -mod vendor --ldflags '-extldflags "-static"' $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-update-ns)
 	# ensure we generated a static build
 	$(shell	if ldd _build/bin/snap-exec; then false "need static build"; fi)
 	$(shell	if ldd _build/bin/snap-update-ns; then false "need static build"; fi)
@@ -211,6 +211,13 @@ override_dh_install:
 
 override_dh_auto_install: snap.8
 	dh_auto_install -O--buildsystem=golang
+
+override_dh_golang:
+	# XXX: dh_golang on older versions of ubuntu is not capable to deal
+	# deal with newer go and go.mod. So just make this a no-op or things
+	# will fail on e.g. 18.04. dh_golang will only add "misc:Built-Using"
+	# information.
+	true
 
 snap.8:
 	$(CURDIR)/_build/bin/snap help --man > $@

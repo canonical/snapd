@@ -518,7 +518,6 @@ export GOPATH=$(pwd):%{gopath}
 %else
 export GOPATH=$(pwd):$(pwd)/Godeps/_workspace:%{gopath}
 %endif
-export GO111MODULE=off
 
 # see https://github.com/gofed/go-macros/blob/master/rpm/macros.d/macros.go-compilers-golang
 BUILDTAGS=
@@ -769,7 +768,6 @@ export GOPATH=%{buildroot}/%{gopath}:%{gopath}
 %else
 export GOPATH=%{buildroot}/%{gopath}:$(pwd)/Godeps/_workspace:%{gopath}
 %endif
-export GO111MODULE=off
 %gotest %{import_path}/...
 %endif
 

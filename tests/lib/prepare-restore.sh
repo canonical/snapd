@@ -526,7 +526,7 @@ prepare_project() {
     fi
     # Retry govendor sync to minimize the number of connection errors during the sync
     for _ in $(seq 10); do
-        if quiet govendor sync; then
+        if quiet go mod vendor; then
             break
         fi
         sleep 1
