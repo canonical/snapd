@@ -1161,6 +1161,27 @@ func (s *autorefreshGatingSuite) TestAffectedByRefreshCandidates(c *C) {
 			}}})
 }
 
+func (s *autorefreshGatingSuite) TestAffectingSnapsForAffectedByRefreshCandidates(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	mockInstalledSnap(c, st, snapAyaml, useHook)
+	mockInstalledSnap(c, st, snapByaml, useHook)
+	mockInstalledSnap(c, st, baseSnapByaml, useHook)
+
+	candidates := map[string]*snapstate.RefreshCandidate{
+		"snap-a": {},
+		"snap-b": {},
+		"base-snap-b": {},
+	}
+	st.Set("refresh-candidates", &candidates)
+
+	affecting, err := snapstate.AffectingSnapsForAffectedByRefreshCandidates(st, "snap-b")
+	c.Assert(err, IsNil)
+	c.Check(affecting, DeepEquals, []string{"base-snap-b", "snap-b"})
+}
+
 func (s *autorefreshGatingSuite) TestAutorefreshPhase1FeatureFlag(c *C) {
 	st := s.state
 	st.Lock()

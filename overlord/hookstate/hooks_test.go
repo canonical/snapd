@@ -129,23 +129,6 @@ func checkIsNotHeld(c *C, st *state.State, heldSnap string) {
 	c.Check(held[heldSnap], IsNil)
 }
 
-func (s *gateAutoRefreshHookSuite) TestAffectingSnapsForAffectedByRefreshCandidates(c *C) {
-	st := s.state
-	st.Lock()
-	defer st.Unlock()
-
-	candidates := map[string]interface{}{
-		"snap-a":      mockRefreshCandidate("snap-a", "", "edge", "v1", snap.Revision{N: 3}),
-		"base-snap-a": mockRefreshCandidate("base-snap-a", "", "edge", "v1", snap.Revision{N: 3}),
-		"snap-b":      mockRefreshCandidate("snap-b", "", "edge", "v1", snap.Revision{N: 3}),
-	}
-	st.Set("refresh-candidates", candidates)
-
-	affecting, err := hookstate.AffectingSnapsForAffectedByRefreshCandidates(st, "snap-a")
-	c.Assert(err, IsNil)
-	c.Check(affecting, DeepEquals, []string{"base-snap-a", "snap-a"})
-}
-
 func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookProceedRuninhibitLock(c *C) {
 	hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 		c.Check(ctx.HookName(), Equals, "gate-auto-refresh")

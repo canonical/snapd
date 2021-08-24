@@ -408,6 +408,26 @@ func AffectedByRefreshCandidates(st *state.State) (map[string]*AffectedSnapInfo,
 	return affected, err
 }
 
+// AffectingSnapsForAffectedByRefreshCandidates returns the list of all snaps
+// affecting affectedSnap (i.e. a gating snap), based on upcoming updates
+// from refresh-candidates.
+func AffectingSnapsForAffectedByRefreshCandidates(st *state.State, affectedSnap string) ([]string, error) {
+	affected, err := AffectedByRefreshCandidates(st)
+	if err != nil {
+		return nil, err
+	}
+	affectedInfo := affected[affectedSnap]
+	if affectedInfo == nil || len(affectedInfo.AffectingSnaps) == 0 {
+		return nil, nil
+	}
+	affecting := make([]string, 0, len(affectedInfo.AffectingSnaps))
+	for sn := range affectedInfo.AffectingSnaps {
+		affecting = append(affecting, sn)
+	}
+	sort.Strings(affecting)
+	return affecting, nil
+}
+
 func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedSnapInfo, error) {
 	allSnaps, err := All(st)
 	if err != nil {

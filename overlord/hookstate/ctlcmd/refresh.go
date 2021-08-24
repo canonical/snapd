@@ -224,7 +224,7 @@ func (c *refreshCommand) hold() error {
 	// cache the action so that hook handler can implement default behavior
 	ctx.Cache("action", snapstate.GateAutoRefreshHold)
 
-	affecting, err := hookstate.AffectingSnapsForAffectedByRefreshCandidates(st, ctx.InstanceName())
+	affecting, err := snapstate.AffectingSnapsForAffectedByRefreshCandidates(st, ctx.InstanceName())
 	if err != nil {
 		return err
 	}
