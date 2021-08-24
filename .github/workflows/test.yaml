@@ -231,6 +231,8 @@ jobs:
 
   spread:
     needs: [unit-tests]
+    # have spread jobs run on master on PRs only, but on both PRs and pushes to
+    # release branches
     if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
     runs-on: self-hosted
     strategy:
@@ -306,6 +308,8 @@ jobs:
 
   spread-nested:
     needs: [unit-tests]
+    # have spread jobs run on master on PRs only, but on both PRs and pushes to
+    # release branches
     if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
     runs-on: self-hosted
     strategy:
