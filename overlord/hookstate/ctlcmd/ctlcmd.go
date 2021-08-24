@@ -123,7 +123,7 @@ func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr 
 		return nil, nil, fmt.Errorf("internal error: snapctl cannot run without args")
 	}
 
-	if !isAllowedToRun(args, uid, args[0]) {
+	if !isAllowedToRun(uid, args) {
 		return nil, nil, &ForbiddenCommandError{Message: fmt.Sprintf("cannot use %q with uid %d, try with sudo", args[0], uid)}
 	}
 
@@ -149,12 +149,14 @@ func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr 
 	return stdoutBuffer.Bytes(), stderrBuffer.Bytes(), err
 }
 
-func isAllowedToRun(args []string, uid uint32, name string) bool {
+func isAllowedToRun(uid uint32, args []string) bool {
 	// A command can run if any of the following are true:
 	//	* It runs as root
 	//	* It's contained in nonRootAllowed
 	//	* It's used with the -h or --help flags
 	// note: commands still need valid context and snaps can only access own config.
-	return uid == 0 || strutil.ListContains(nonRootAllowed, name) ||
-		(len(args) > 1 && (args[1] == "-h" || args[1] == "--help"))
+	return uid == 0 ||
+		strutil.ListContains(nonRootAllowed, args[0]) ||
+		strutil.ListContains(args, "-h") ||
+		strutil.ListContains(args, "--help")
 }

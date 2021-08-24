@@ -21,6 +21,7 @@ package ctlcmd_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/jessevdk/go-flags"
@@ -123,4 +124,24 @@ func (s *ctlcmdSuite) TestRootRequiredCommandFailure(c *C) {
 func (s *ctlcmdSuite) TestRunNoArgsFailure(c *C) {
 	_, _, err := ctlcmd.Run(s.mockContext, []string{}, 0)
 	c.Check(err, NotNil)
+}
+
+func (s *ctlcmdSuite) TestRunOnlyHelp(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"-h"}, 1000)
+	c.Check(err, NotNil)
+	c.Assert(strings.HasPrefix(err.Error(), "Usage:"), Equals, true)
+
+	_, _, err = ctlcmd.Run(s.mockContext, []string{"--help"}, 1000)
+	c.Check(err, NotNil)
+	c.Assert(strings.HasPrefix(err.Error(), "Usage:"), Equals, true)
+}
+
+func (s *ctlcmdSuite) TestRunHelpAtAnyPosition(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"start", "a", "-h"}, 1000)
+	c.Check(err, NotNil)
+	c.Assert(strings.HasPrefix(err.Error(), "Usage:"), Equals, true)
+
+	_, _, err = ctlcmd.Run(s.mockContext, []string{"start", "a", "b", "--help"}, 1000)
+	c.Check(err, NotNil)
+	c.Assert(strings.HasPrefix(err.Error(), "Usage:"), Equals, true)
 }
