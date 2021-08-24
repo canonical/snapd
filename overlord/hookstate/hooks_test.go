@@ -135,9 +135,9 @@ func (s *gateAutoRefreshHookSuite) TestAffectingSnapsForAffectedByRefreshCandida
 	defer st.Unlock()
 
 	candidates := map[string]interface{}{
-		"snap-a": mockRefreshCandidate("snap-a", "", "edge", "v1", snap.Revision{N: 3}),
+		"snap-a":      mockRefreshCandidate("snap-a", "", "edge", "v1", snap.Revision{N: 3}),
 		"base-snap-a": mockRefreshCandidate("base-snap-a", "", "edge", "v1", snap.Revision{N: 3}),
-		"snap-b": mockRefreshCandidate("snap-b", "", "edge", "v1", snap.Revision{N: 3}),
+		"snap-b":      mockRefreshCandidate("snap-b", "", "edge", "v1", snap.Revision{N: 3}),
 	}
 	st.Set("refresh-candidates", candidates)
 
