@@ -152,7 +152,7 @@ override_dh_clean:
 	# XXX: hacky
 	$(MAKE) -C cmd distclean || true
 	# XXX: hacky^2
-	(cd vendor/github.com/snapcore/squashfuse/src && rm -f snapfuse && make distclean || true )
+	(cd c-vendor/squashfuse/src && rm -f snapfuse && make distclean || true )
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
@@ -200,7 +200,7 @@ endif
 	$(MAKE) -C data all
 
 	# build squashfuse and rename to snapfuse
-	(cd vendor/github.com/snapcore/squashfuse/src && mkdir -p autom4te.cache && ./autogen.sh --disable-demo && ./configure --disable-demo && make && mv squashfuse_ll snapfuse)
+	(cd c-vendor/squashfuse/src && mkdir -p autom4te.cache && ./autogen.sh --disable-demo && ./configure --disable-demo && make && mv squashfuse_ll snapfuse)
 
 override_dh_auto_test:
 	dh_auto_test -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)

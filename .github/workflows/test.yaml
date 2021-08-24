@@ -148,6 +148,9 @@ jobs:
     - name: Get Go dependencies
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ${{ github.workspace }}/bin/govendor sync
 
+    - name: Get C vendoring
+      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd/c-vendor && ./vendor.sh
+
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v2
       if: ${{ matrix.gochannel == 'latest/stable' }}
