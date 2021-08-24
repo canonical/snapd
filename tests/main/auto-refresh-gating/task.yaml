@@ -132,7 +132,7 @@ execute: |
   "$TESTSTOOLS"/snapd-state force-autorefresh
 
   systemctl start snapd.{service,socket}
-  LAST_REFRESH_CHANGE_ID=$(wait_for_autorefresh "$SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
+  LAST_REFRESH_CHANGE_ID=$("$TESTSTOOLS"/snapd-state wait-for-snap-autorefresh "$SNAP_NAME" "$LAST_REFRESH_CHANGE_ID")
 
   echo "Ensure our snap was updated"
   snap list | MATCH "$SNAP_NAME +2\.0\.0"
