@@ -771,6 +771,7 @@ const (
 	"name": "@NAME@",
 	"revision": @REVISION@,
 	"snap-id": "@SNAPID@",
+	"snap-yaml": @SNAP_YAML@,
 	"summary": "Foo",
 	"description": "this is a description",
 	"version": "@VERSION@",
@@ -857,9 +858,9 @@ func (s *baseMgrsSuite) pathFor(name, revno string) string {
 	return "/not/found"
 }
 
-func (s *baseMgrsSuite) newestThatCanRead(name string, epoch snap.Epoch) (info *snap.Info, rev string) {
+func (s *baseMgrsSuite) newestThatCanRead(name string, epoch snap.Epoch) (info *snap.Info, rawInfo, rev string) {
 	if s.serveSnapPath[name] == "" {
-		return nil, ""
+		return nil, "", ""
 	}
 	idx := len(s.serveOldPaths[name])
 	rev = s.serveRevision[name]
@@ -873,12 +874,16 @@ func (s *baseMgrsSuite) newestThatCanRead(name string, epoch snap.Epoch) (info *
 		if err != nil {
 			panic(err)
 		}
+		rawInfo, err := snapf.ReadFile("meta/snap.yaml")
+		if err != nil {
+			panic(err)
+		}
 		if info.Epoch.CanRead(epoch) {
-			return info, rev
+			return info, string(rawInfo), rev
 		}
 		idx--
 		if idx < 0 {
-			return nil, ""
+			return nil, "", ""
 		}
 		path = s.serveOldPaths[name][idx]
 		rev = s.serveOldRevs[name][idx]
@@ -887,11 +892,16 @@ func (s *baseMgrsSuite) newestThatCanRead(name string, epoch snap.Epoch) (info *
 
 func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 	var baseURL *url.URL
-	fillHit := func(hitTemplate, revno string, info *snap.Info) string {
+	fillHit := func(hitTemplate, revno string, info *snap.Info, rawInfo string) string {
 		epochBuf, err := json.Marshal(info.Epoch)
 		if err != nil {
 			panic(err)
 		}
+		rawInfoBuf, err := json.Marshal(rawInfo)
+		if err != nil {
+			panic(err)
+		}
+
 		name := info.SnapName()
 
 		hit := strings.Replace(hitTemplate, "@URL@", baseURL.String()+"/api/v1/snaps/download/"+name+"/"+revno, -1)
@@ -902,6 +912,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 		hit = strings.Replace(hit, "@REVISION@", revno, -1)
 		hit = strings.Replace(hit, `@TYPE@`, string(info.Type()), -1)
 		hit = strings.Replace(hit, `@EPOCH@`, string(epochBuf), -1)
+		hit = strings.Replace(hit, `@SNAP_YAML@`, string(rawInfoBuf), -1)
 		return hit
 	}
 
@@ -1061,7 +1072,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 					epoch = a.Epoch
 				}
 
-				info, revno := s.newestThatCanRead(name, epoch)
+				info, rawInfo, revno := s.newestThatCanRead(name, epoch)
 				if info == nil {
 					// no match
 					continue
@@ -1071,7 +1082,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 					SnapID:      a.SnapID,
 					InstanceKey: a.InstanceKey,
 					Name:        name,
-					Snap:        json.RawMessage(fillHit(snapV2, revno, info)),
+					Snap:        json.RawMessage(fillHit(snapV2, revno, info, rawInfo)),
 				})
 			}
 			w.WriteHeader(200)
@@ -3271,6 +3282,97 @@ version: 1.0
 
 	st.Lock()
 	c.Assert(chg.Status(), Equals, state.DoingStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+}
+
+func (s *mgrsSuite) TestInstallWithAssumesIsRefusedEarly(c *C) {
+	s.prereqSnapAssertions(c)
+
+	revno := "1"
+	snapYamlContent := `name: some-snap
+version: 1.0
+assumes: [something-that-is-not-provided]
+`
+	snapPath, _ := s.makeStoreTestSnap(c, snapYamlContent, revno)
+	s.serveSnap(snapPath, revno)
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := snapstate.Install(context.TODO(), st, "some-snap", nil, 0, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `snap "some-snap" assumes unsupported features: something-that-is-not-provided \(try to update snapd and refresh the core snap\)`)
+}
+
+func (s *mgrsSuite) TestUpdateWithAssumesIsRefusedEarly(c *C) {
+	s.prereqSnapAssertions(c)
+
+	revno := "40"
+	snapYamlContent := `name: some-snap
+version: 1.0
+assumes: [something-that-is-not-provided]
+`
+	snapPath, _ := s.makeStoreTestSnap(c, snapYamlContent, revno)
+	s.serveSnap(snapPath, revno)
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	_, err := snapstate.Update(st, "some-snap", nil, 0, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `snap "some-snap" assumes unsupported features: something-that-is-not-provided \(try to update snapd and refresh the core snap\)`)
+}
+
+func (s *mgrsSuite) TestUpdateManyWithAssumesIsRefusedEarly(c *C) {
+	s.prereqSnapAssertions(c)
+
+	revno := "40"
+	snapYamlContent := `name: some-snap
+version: 1.0
+assumes: [something-that-is-not-provided]
+`
+	snapPath, _ := s.makeStoreTestSnap(c, snapYamlContent, revno)
+	s.serveSnap(snapPath, revno)
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	// updateMany will just skip snaps with assumes but not error
+	affected, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(affected, HasLen, 0)
+	// the skipping is logged though
+	c.Check(s.logbuf.String(), testutil.Contains, `cannot update "some-snap": snap "some-snap" assumes unsupported features: something-that-is-not-provided (try`)
+	// XXX: should we really check for re-refreshes if there is nothing
+	// to update?
+	c.Check(tss, HasLen, 1)
+	c.Check(tss[0].Tasks(), HasLen, 1)
+	c.Check(tss[0].Tasks()[0].Kind(), Equals, "check-rerefresh")
 }
 
 type storeCtxSetupSuite struct {
