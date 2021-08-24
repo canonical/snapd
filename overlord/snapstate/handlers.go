@@ -643,7 +643,7 @@ func hasOtherInstances(st *state.State, instanceName string) (bool, error) {
 	return false, nil
 }
 
-var ErrKernelGadgetUpdateTaskMissing = errors.New("cannot refresh kernel without a gadget update task")
+var ErrKernelGadgetUpdateTaskMissing = errors.New("cannot complete refreshing kernel through an old snapd change without a gadget update task")
 
 func checkKernelHasUpdateAssetsTask(t *state.Task) error {
 	for _, other := range t.Change().Tasks() {
