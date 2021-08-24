@@ -60,7 +60,6 @@ jobs:
     runs-on: ubuntu-20.04
     env:
       GOPATH: ${{ github.workspace }}
-      GO111MODULE: off
       # Set PATH to ignore the load of magic binaries from /usr/local/bin And
       # to use the go snap automatically. Note that we install go from the
       # snap in a step below. Without this we get the GitHub-controlled latest

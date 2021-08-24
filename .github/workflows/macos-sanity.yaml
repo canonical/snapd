@@ -9,7 +9,6 @@ jobs:
     runs-on: macos-latest
     env:
       GOPATH: ${{ github.workspace }}
-      GO111MODULE: off
     steps:
       - uses: actions/setup-go@v2
         with:
