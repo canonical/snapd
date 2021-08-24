@@ -30,12 +30,12 @@ check_state() {
     RES=$3
     FAIL_MSG="${4:-failed values comparison}"
     if [ "$COMP" = "!=" ]; then
-        if [ "$(print_state \"$JQ_FILTER\")" != "$RES" ]; then
+        if [ "$(print_state "$JQ_FILTER")" = "$RES" ]; then
             echo "snapd-state: $FAIL_MSG"
             exit 1
         fi
     elif [ "$COMP" = "=" ]; then
-        if [ "$(print_state \"$JQ_FILTER\")" = "$RES" ]; then
+        if [ "$(print_state "$JQ_FILTER")" != "$RES" ]; then
             echo "snapd-state: $FAIL_MSG"
             exit 1
         fi
