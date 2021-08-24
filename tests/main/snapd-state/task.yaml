@@ -1,0 +1,62 @@
+summary: smoke test for the snapd-state test tool
+
+prepare: |
+    snap install test-snapd-tools
+
+execute: |
+    # Check help
+    "$TESTSTOOLS"/snapd-state | MATCH "usage: check-state <jq-filter>"
+    "$TESTSTOOLS"/snapd-state -h | MATCH "usage: check-state <jq-filter>"
+    "$TESTSTOOLS"/snapd-state --help | MATCH "usage: check-state <jq-filter>"
+
+    # Unknown commands and options are reported
+    "$TESTSTOOLS"/snapd-state --foo 2>&1 | MATCH "snapd-state: no such command: --foo"
+    "$TESTSTOOLS"/snapd-state foo 2>&1 | MATCH "snapd-state: no such command: foo"
+
+    # Check print state command
+    current_date="$("$TESTSTOOLS"/snapd-state print-state '.data["last-refresh"]')"
+    echo "$current_date" | MATCH "^$(date +'%F')"
+
+    # Check check state command
+    "$TESTSTOOLS"/snapd-state check-state '.data["last-refresh"]' = "$current_date"
+    "$TESTSTOOLS"/snapd-state check-state '.data["last-refresh"]' != "$(date +'%F')"
+    output="$("$TESTSTOOLS"/snapd-state check-state '.data["last-refresh"]' = "$current_date")"
+    test -z "$output"
+
+    "$TESTSTOOLS"/snapd-state check-state '.data["last-refresh"]' = "$(date +'%F')" "ErrorOnTest" 2>&1 | MATCH "ErrorOnTest"
+    "$TESTSTOOLS"/snapd-state check-state '.data["last-refresh"]' != "$current_date" "ErrorOnTest" 2>&1 | MATCH "ErrorOnTest"
+
+    # check how snap channel is changed    
+    current_channel="$("$TESTSTOOLS"/snapd-state print-state '.data.snaps[test-snapd-tools].channel')"
+    test "$current_channel" = stable
+    "$TESTSTOOLS/snapd-state" change-snap-channel test-snapd-tools edge
+    new_channel="$("$TESTSTOOLS"/snapd-state print-state '.data.snaps[test-snapd-tools].channel')"
+    test "$new_channel" = edge
+
+    # check force autorefresh command
+    "$TESTSTOOLS"/snapd-state force-autorefresh
+    new_refresh_date="$("$TESTSTOOLS"/snapd-state print-state '.data["last-refresh"]')"
+    echo "$new_refresh_date" | MATCH "^2007-08-22"
+
+    # check prevent autorefresh command
+    "$TESTSTOOLS"/snapd-state prevent-autorefresh
+    new_refresh_date="$("$TESTSTOOLS"/snapd-state print-state '.data["last-refresh"]')"
+    echo "$new_refresh_date" | MATCH "^$(date +'%F')"
+
+    # check wait-for-autorefresh command
+    systemctl stop snapd.{service,socket}
+    "$TESTSTOOLS"/snapd-state force-autorefresh
+    systemctl start snapd.{socket,service}
+
+    change_id="$("$TESTSTOOLS"/snapd-state wait-for-autorefresh test-snapd-tools)"
+    snap changes | MATCH "$change_id.*Done.*Auto-refresh.*test-snapd-tool"
+
+    # check wait-for-autorefresh command with previous change id
+    systemctl stop snapd.{service,socket}
+    "$TESTSTOOLS"/snapd-state force-autorefresh
+    systemctl start snapd.{socket,service}
+
+    new_change_id="$("$TESTSTOOLS"/snapd-state wait-for-autorefresh test-snapd-tools "$change_id")"
+    snap changes | MATCH "$new_change_id.*Done.*Auto-refresh.*test-snapd-tool"
+
+    test "$change_id" -lt "$new_change_id"
