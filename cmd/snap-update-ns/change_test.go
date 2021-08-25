@@ -627,10 +627,10 @@ func (s *changeSuite) TestNeededChangesParallelInstancesManyComeFirstOld(c *C) {
 	changes := update.NeededChanges(&osutil.MountProfile{}, desired)
 	c.Assert(changes, DeepEquals, []*update.Change{
 		{Entry: osutil.MountEntry{Dir: "/foo/bar", Name: "/foo/bar_bar", Options: []string{osutil.XSnapdOriginOvername()}}, Action: update.Mount},
-		{Entry: osutil.MountEntry{Dir: "/snap/foo", Name: "/snap/foo_bar", Options: []string{osutil.XSnapdOriginOvername()}}, Action: update.Mount},
 		{Entry: osutil.MountEntry{Dir: "/common/stuff", Name: "/dev/sda1"}, Action: update.Mount},
 		{Entry: osutil.MountEntry{Dir: "/common/stuff/extra"}, Action: update.Mount},
 		{Entry: osutil.MountEntry{Dir: "/common/unrelated"}, Action: update.Mount},
+		{Entry: osutil.MountEntry{Dir: "/snap/foo", Name: "/snap/foo_bar", Options: []string{osutil.XSnapdOriginOvername()}}, Action: update.Mount},
 	})
 }
 

@@ -591,14 +591,113 @@ func neededChangesOld(currentProfile, desiredProfile *osutil.MountProfile) []*Ch
 		}
 	}
 
-	// Mount desired entries not reused.
+	// Mount desired entries not reused, ordering by the mimic directories they
+	// need created
+
+	var desiredNotReused []osutil.MountEntry
 	for i := range desired {
 		if !reuse[desired[i].Dir] {
-			changes = append(changes, &Change{Action: Mount, Entry: desired[i]})
+			desiredNotReused = append(desiredNotReused, desired[i])
 		}
 	}
 
+	affectedTargetCreationDirs := map[string][]osutil.MountEntry{}
+	for _, desiredEntry := range desiredNotReused {
+		parentTargetDir := filepath.Dir(desiredEntry.Dir)
+		affectedTargetCreationDirs[parentTargetDir] = append(affectedTargetCreationDirs[parentTargetDir], desiredEntry)
+	}
+
+	if len(affectedTargetCreationDirs) != 0 {
+		entriesForMimicDir := map[string][]osutil.MountEntry{}
+		for parentTargetDir, entriesNeedingDir := range affectedTargetCreationDirs {
+			// first check if any of the mount entries for the changes will require
+			// creating a mimic
+			// we do this by checking if the file / dir that is to be mounted exists
+			// already in the form we need to to bind mount on top of it, if it
+			// doesn't then we need to create a mimic and so we then go looking for
+			// where to create the mimic
+			for _, entry := range entriesNeedingDir {
+				switch entry.XSnapdKind() {
+				case "":
+					// implicit dir creation, if the dir doesn't exist then we need
+					// a mimic
+					if !osutil.IsDirectory(entry.Dir) {
+						neededMimicDir := findFirstRootDirectoryThatExists(parentTargetDir)
+						entriesForMimicDir[neededMimicDir] = append(entriesForMimicDir[neededMimicDir], entry)
+					}
+				case "file":
+					// if the file doesn't exist then we need a mimic
+					if !osutil.FileExists(entry.Dir) {
+						neededMimicDir := findFirstRootDirectoryThatExists(parentTargetDir)
+						entriesForMimicDir[neededMimicDir] = append(entriesForMimicDir[neededMimicDir], entry)
+					}
+				case "symlink":
+					// if the symlink doesn't exist then we need a mimic
+					if !osutil.IsSymlink(entry.Dir) {
+						neededMimicDir := findFirstRootDirectoryThatExists(parentTargetDir)
+						entriesForMimicDir[neededMimicDir] = append(entriesForMimicDir[neededMimicDir], entry)
+					}
+				}
+			}
+		}
+
+		// now we have a set of locations to create mimics in
+		reorderedEntriesNeeded := []osutil.MountEntry{}
+
+		// sort the mimic creation dirs to get the correct ordering of mimics to
+		// create dirs in
+		allMimicCreationDirs := []string{}
+		for mimicDir := range entriesForMimicDir {
+			allMimicCreationDirs = append(allMimicCreationDirs, mimicDir)
+		}
+
+		sort.Strings(allMimicCreationDirs)
+
+		for _, mimicDir := range allMimicCreationDirs {
+			// make sure to sort the entries for each mimic dir in a consistent
+			// order
+			entries := entriesForMimicDir[mimicDir]
+			sort.Sort(byOriginAndMagicDir(entries))
+
+			reorderedEntriesNeeded = append(reorderedEntriesNeeded, entries...)
+		}
+
+		// now add all the unrelated entries that don't need mimic creation to
+		// be done last, after the mimic creating changes
+		for _, entry := range desiredNotReused {
+			// check if this entry is already in reorderedEntriesNeeded
+			exists := false
+			for _, mimicNeedingEntry := range reorderedEntriesNeeded {
+				if mimicNeedingEntry.Equal(&entry) {
+					exists = true
+					break
+				}
+			}
+			if !exists {
+				reorderedEntriesNeeded = append(reorderedEntriesNeeded, entry)
+			}
+		}
+
+		desiredNotReused = reorderedEntriesNeeded
+	}
+
+	for _, entry := range desiredNotReused {
+		changes = append(changes, &Change{Action: Mount, Entry: entry})
+	}
+
 	return changes
+}
+
+func findFirstRootDirectoryThatExists(desiredParentDir string) string {
+	// trivial case - the dir already exists
+	if osutil.IsDirectory(desiredParentDir) {
+		return desiredParentDir
+	}
+
+	// otherwise we need to recurse up to find the first dir that exists where
+	// we would place the mimic - note that this cannot recurse infinitely,
+	// since at some point we will reach "/" which always exists
+	return findFirstRootDirectoryThatExists(filepath.Dir(desiredParentDir))
 }
 
 // neededChangesNew is the real implementation of NeededChanges
