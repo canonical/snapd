@@ -3,12 +3,6 @@ summary: Integration tests for the bootstrap.Run autodetect
 # use the same system and tooling as uc20
 systems: [ubuntu-20.04-64]
 
-environment:
-    # an empty $topsrcdir/tests/go.mod seems to break importing or building go
-    # packages referenced by their import paths while under the tests directory,
-    # need to disable go modules support for this test
-    GO111MODULE: off
-
 prepare: |
     echo "Create a fake block device image that looks like an image from u-i"
     truncate --size=20GB fake.img
