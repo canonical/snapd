@@ -5559,12 +5559,12 @@ func (s *snapmgrTestSuite) TestUpdateContentProviderDownloadFailure(c *C) {
 	c.Assert(chg.IsReady(), Equals, true)
 
 	var snapSt snapstate.SnapState
-	// content provider not updated
+	// content provider not updated due to download failure
 	c.Assert(snapstate.Get(s.state, "snap-content-slot", &snapSt), IsNil)
 	c.Check(snapSt.Current, Equals, snap.R(1))
 
 	c.Assert(snapstate.Get(s.state, "snap-content-plug", &snapSt), IsNil)
-	// XXX: content consumer got updated to the new revision
+	// but content consumer got updated to the new revision
 	c.Check(snapSt.Current, Equals, snap.R(11))
 }
 

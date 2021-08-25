@@ -3694,7 +3694,7 @@ func (s *snapmgrTestSuite) TestInstallContentProviderDownloadFailure(c *C) {
 	c.Assert(chg.IsReady(), Equals, true)
 
 	var snapSt snapstate.SnapState
-	// XXX: content provider not installed
+	// content provider not installed due to download failure
 	c.Assert(snapstate.Get(s.state, "snap-content-slot", &snapSt), Equals, state.ErrNoState)
 
 	// but content consumer gets installed
