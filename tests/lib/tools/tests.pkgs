@@ -109,7 +109,7 @@ main() {
                 shift
                 break
                 ;;
-            install|remove|query|is-installed)
+            install|remove|query|is-installed|list-installed)
                 action="$1"
                 shift
                 break  # consume remaining arguments
