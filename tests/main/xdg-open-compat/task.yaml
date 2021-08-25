@@ -9,7 +9,7 @@ details: |
     package.
 
 # we must have snapd-xdg-open available
-systems: [ubuntu-16.04-64]
+systems: [ubuntu-18.04-64]
 
 environment:
     DISPLAY: :0
@@ -23,12 +23,7 @@ prepare: |
         mv /usr/bin/xdg-open /usr/bin/xdg-open.orig
     fi
 
-    # download from LP, it is not available in the archive anymore
-    wget https://launchpad.net/ubuntu/+source/snapd-xdg-open/0.0.0~16.04/+build/10503735/+files/snapd-xdg-open_0.0.0~16.04_amd64.deb
-
-    # snapd breaks older version of snapd-xdg-open so we cannot
-    # install them together. force things to work!
-    dpkg -i --force-all snapd-xdg-open_*.deb
+    apt install -y snapd-xdg-open
 
     # setup some env so that g_app_info_launch_default_for_uri() works
     cat > /usr/share/applications/defaults.list <<EOF
@@ -73,7 +68,7 @@ restore: |
 
     rm -f /usr/bin/xdg-open
     rm -f "$XDG_OPEN_OUTPUT"
-    dpkg -r snapd-xdg-open
+    apt remove --purge -y snapd-xdg-open
     rm -f /usr/share/applications/defaults.list
     rm -f /usr/share/applications/xdg-open.desktop
 
