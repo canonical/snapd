@@ -87,12 +87,10 @@ func (s *portalSuite) SetUpTest(c *C) {
 }
 
 func (s *portalSuite) TestOpenFile(c *C) {
-	launcher := &portal.Launcher{}
-
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(ioutil.WriteFile(path, []byte("hello world"), 0644), IsNil)
 
-	err := launcher.OpenFile(s.SessionBus, path)
+	err := portal.OpenFile(s.SessionBus, path)
 	c.Check(err, IsNil)
 	c.Check(s.calls, DeepEquals, []string{
 		"OpenFile",
@@ -102,12 +100,10 @@ func (s *portalSuite) TestOpenFile(c *C) {
 func (s *portalSuite) TestOpenFileCallError(c *C) {
 	s.openError = dbus.MakeFailedError(fmt.Errorf("failure"))
 
-	launcher := &portal.Launcher{}
-
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(ioutil.WriteFile(path, []byte("hello world"), 0644), IsNil)
 
-	err := launcher.OpenFile(s.SessionBus, path)
+	err := portal.OpenFile(s.SessionBus, path)
 	c.Check(err, FitsTypeOf, dbus.Error{})
 	c.Check(err, ErrorMatches, "failure")
 	c.Check(s.calls, DeepEquals, []string{
@@ -118,12 +114,10 @@ func (s *portalSuite) TestOpenFileCallError(c *C) {
 func (s *portalSuite) TestOpenFileResponseError(c *C) {
 	s.openResponse = 2
 
-	launcher := &portal.Launcher{}
-
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(ioutil.WriteFile(path, []byte("hello world"), 0644), IsNil)
 
-	err := launcher.OpenFile(s.SessionBus, path)
+	err := portal.OpenFile(s.SessionBus, path)
 	c.Check(err, FitsTypeOf, (*portal.ResponseError)(nil))
 	c.Check(err, ErrorMatches, `request declined by the user \(code 2\)`)
 	c.Check(s.calls, DeepEquals, []string{
@@ -136,12 +130,10 @@ func (s *portalSuite) TestOpenFileTimeout(c *C) {
 	restore := portal.MockPortalTimeout(5 * time.Millisecond)
 	defer restore()
 
-	launcher := &portal.Launcher{}
-
 	file := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(ioutil.WriteFile(file, []byte("hello world"), 0644), IsNil)
 
-	err := launcher.OpenFile(s.SessionBus, file)
+	err := portal.OpenFile(s.SessionBus, file)
 	c.Check(err, FitsTypeOf, (*portal.ResponseError)(nil))
 	c.Check(err, ErrorMatches, "timeout waiting for user response")
 	c.Check(s.calls, DeepEquals, []string{
@@ -151,10 +143,8 @@ func (s *portalSuite) TestOpenFileTimeout(c *C) {
 }
 
 func (s *portalSuite) TestOpenDir(c *C) {
-	launcher := &portal.Launcher{}
-
 	dir := c.MkDir()
-	err := launcher.OpenFile(s.SessionBus, dir)
+	err := portal.OpenFile(s.SessionBus, dir)
 	c.Check(err, IsNil)
 	c.Check(s.calls, DeepEquals, []string{
 		"OpenFile",
@@ -162,30 +152,24 @@ func (s *portalSuite) TestOpenDir(c *C) {
 }
 
 func (s *portalSuite) TestOpenMissingFile(c *C) {
-	launcher := &portal.Launcher{}
-
 	path := filepath.Join(c.MkDir(), "no-such-file.txt")
-	err := launcher.OpenFile(s.SessionBus, path)
+	err := portal.OpenFile(s.SessionBus, path)
 	c.Check(err, ErrorMatches, "no such file or directory")
 	c.Check(s.calls, HasLen, 0)
 }
 
 func (s *portalSuite) TestOpenUnreadableFile(c *C) {
-	launcher := &portal.Launcher{}
-
 	path := filepath.Join(c.MkDir(), "test.txt")
 	c.Assert(ioutil.WriteFile(path, []byte("hello world"), 0644), IsNil)
 	c.Assert(os.Chmod(path, 0), IsNil)
 
-	err := launcher.OpenFile(s.SessionBus, path)
+	err := portal.OpenFile(s.SessionBus, path)
 	c.Check(err, ErrorMatches, "permission denied")
 	c.Check(s.calls, HasLen, 0)
 }
 
 func (s *portalSuite) TestOpenURI(c *C) {
-	launcher := &portal.Launcher{}
-
-	err := launcher.OpenURI(s.SessionBus, "http://example.com")
+	err := portal.OpenURI(s.SessionBus, "http://example.com")
 	c.Check(err, IsNil)
 	c.Check(s.calls, DeepEquals, []string{
 		"OpenURI http://example.com",
@@ -195,8 +179,7 @@ func (s *portalSuite) TestOpenURI(c *C) {
 func (s *portalSuite) TestOpenURICallError(c *C) {
 	s.openError = dbus.MakeFailedError(fmt.Errorf("failure"))
 
-	launcher := &portal.Launcher{}
-	err := launcher.OpenURI(s.SessionBus, "http://example.com")
+	err := portal.OpenURI(s.SessionBus, "http://example.com")
 	c.Check(err, FitsTypeOf, dbus.Error{})
 	c.Check(err, ErrorMatches, "failure")
 	c.Check(s.calls, DeepEquals, []string{
@@ -207,8 +190,7 @@ func (s *portalSuite) TestOpenURICallError(c *C) {
 func (s *portalSuite) TestOpenURIResponseError(c *C) {
 	s.openResponse = 2
 
-	launcher := &portal.Launcher{}
-	err := launcher.OpenURI(s.SessionBus, "http://example.com")
+	err := portal.OpenURI(s.SessionBus, "http://example.com")
 	c.Check(err, FitsTypeOf, (*portal.ResponseError)(nil))
 	c.Check(err, ErrorMatches, `request declined by the user \(code 2\)`)
 	c.Check(s.calls, DeepEquals, []string{
@@ -221,8 +203,7 @@ func (s *portalSuite) TestOpenURITimeout(c *C) {
 	restore := portal.MockPortalTimeout(5 * time.Millisecond)
 	defer restore()
 
-	launcher := &portal.Launcher{}
-	err := launcher.OpenURI(s.SessionBus, "http://example.com")
+	err := portal.OpenURI(s.SessionBus, "http://example.com")
 	c.Check(err, FitsTypeOf, (*portal.ResponseError)(nil))
 	c.Check(err, ErrorMatches, "timeout waiting for user response")
 	c.Check(s.calls, DeepEquals, []string{

@@ -28,7 +28,6 @@ import (
 
 // portalLauncher is a launcher that forwards the requests to xdg-desktop-portal DBus API
 type portalLauncher struct {
-	launcher portal.Launcher
 }
 
 func convertError(err error) error {
@@ -39,11 +38,11 @@ func convertError(err error) error {
 }
 
 func (p *portalLauncher) OpenFile(bus *dbus.Conn, filename string) error {
-	err := p.launcher.OpenFile(bus, filename)
+	err := portal.OpenFile(bus, filename)
 	return convertError(err)
 }
 
 func (p *portalLauncher) OpenURI(bus *dbus.Conn, uri string) error {
-	err := p.launcher.OpenURI(bus, uri)
+	err := portal.OpenURI(bus, uri)
 	return convertError(err)
 }

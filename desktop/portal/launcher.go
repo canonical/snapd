@@ -52,11 +52,8 @@ func MakeResponseError(msg string) error {
 	return &ResponseError{msg: msg}
 }
 
-// Launcher is a launcher that forwards the requests to xdg-desktop-portal DBus API
-type Launcher struct{}
-
 // desktopPortal gets a reference to the xdg-desktop-portal D-Bus service
-func (p *Launcher) desktopPortal(bus *dbus.Conn) (dbus.BusObject, error) {
+func desktopPortal(bus *dbus.Conn) (dbus.BusObject, error) {
 	// We call StartServiceByName since old versions of
 	// xdg-desktop-portal do not include the AssumedAppArmorLabel
 	// key in their service activation file.
@@ -93,7 +90,7 @@ const portalResponseSuccess = 0
 // timeout for asking the user to make a choice, same value as in usersession/userd/launcher.go
 var defaultPortalRequestTimeout = 5 * time.Minute
 
-func (p *Launcher) portalCall(bus *dbus.Conn, call func() (dbus.ObjectPath, error)) error {
+func portalCall(bus *dbus.Conn, call func() (dbus.ObjectPath, error)) error {
 	// see https://flatpak.github.io/xdg-desktop-portal/portal-docs.html for
 	// details of the interaction, in short:
 	// 1. caller issues a request to the desktop portal
@@ -151,8 +148,8 @@ func (p *Launcher) portalCall(bus *dbus.Conn, call func() (dbus.ObjectPath, erro
 	}
 }
 
-func (p *Launcher) OpenFile(bus *dbus.Conn, filename string) error {
-	portal, err := p.desktopPortal(bus)
+func OpenFile(bus *dbus.Conn, filename string) error {
+	portal, err := desktopPortal(bus)
 	if err != nil {
 		return err
 	}
@@ -163,7 +160,7 @@ func (p *Launcher) OpenFile(bus *dbus.Conn, filename string) error {
 	}
 	defer syscall.Close(fd)
 
-	return p.portalCall(bus, func() (dbus.ObjectPath, error) {
+	return portalCall(bus, func() (dbus.ObjectPath, error) {
 		var (
 			parent  string
 			options map[string]dbus.Variant
@@ -174,13 +171,13 @@ func (p *Launcher) OpenFile(bus *dbus.Conn, filename string) error {
 	})
 }
 
-func (p *Launcher) OpenURI(bus *dbus.Conn, uri string) error {
-	portal, err := p.desktopPortal(bus)
+func OpenURI(bus *dbus.Conn, uri string) error {
+	portal, err := desktopPortal(bus)
 	if err != nil {
 		return err
 	}
 
-	return p.portalCall(bus, func() (dbus.ObjectPath, error) {
+	return portalCall(bus, func() (dbus.ObjectPath, error) {
 		var (
 			parent  string
 			options map[string]dbus.Variant
