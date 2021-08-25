@@ -334,10 +334,10 @@ execute: |
   snap refresh disabled-svcs-kept --revision=x4
 
   echo "Check that state.json now contains the old service and the new service in last-active-disabled-services"
-  check_state_json \
-    '."last-active-disabled-services"? | tostring' \
-     "!=" '["svc","svc2"]' \
-     "$SVC_MISSING_ERR_MSG"
+  "$TESTSTOOLS"/snapd-state check-state \
+    '.data.snaps."disabled-svcs-kept" | ."last-active-disabled-services"? | tostring' \
+    "=" '["svc","svc2"]' \
+    "$SVC_MISSING_ERR_MSG"
 
   ########################################
   ############### CASE 12 ################
