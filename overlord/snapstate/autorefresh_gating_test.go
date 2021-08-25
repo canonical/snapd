@@ -1171,8 +1171,8 @@ func (s *autorefreshGatingSuite) TestAffectingSnapsForAffectedByRefreshCandidate
 	mockInstalledSnap(c, st, baseSnapByaml, useHook)
 
 	candidates := map[string]*snapstate.RefreshCandidate{
-		"snap-a": {},
-		"snap-b": {},
+		"snap-a":      {},
+		"snap-b":      {},
 		"base-snap-b": {},
 	}
 	st.Set("refresh-candidates", &candidates)
