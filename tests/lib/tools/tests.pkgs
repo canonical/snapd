@@ -135,6 +135,9 @@ main() {
         query)
             cmd_query "$(remap_one "$@")"
             ;;
+        list-installed)
+            cmd_list_installed
+            ;;
         remove)
             cmd_remove "$(remap_many "$@")"
             ;;
