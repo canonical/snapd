@@ -38,6 +38,7 @@ import (
 
 	"gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil/sys"
@@ -54,20 +55,27 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type snapshotSuite struct{}
+type snapshotSuite struct {
+	restoreEnforcedValidationSets func()
+}
 
 var _ = check.Suite(&snapshotSuite{})
 
 // tie gocheck into testing
 func TestSnapshot(t *testing.T) { check.TestingT(t) }
 
-func (snapshotSuite) SetUpTest(c *check.C) {
+func (s *snapshotSuite) SetUpTest(c *check.C) {
 	dirs.SetRootDir(c.MkDir())
 	os.MkdirAll(dirs.SnapshotsDir, os.ModePerm)
+
+	s.restoreEnforcedValidationSets = snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		return nil, nil
+	})
 }
 
-func (snapshotSuite) TearDownTest(c *check.C) {
+func (s *snapshotSuite) TearDownTest(c *check.C) {
 	dirs.SetRootDir("/")
+	s.restoreEnforcedValidationSets()
 }
 
 func (snapshotSuite) TestNewSnapshotSetID(c *check.C) {
