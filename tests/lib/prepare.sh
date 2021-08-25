@@ -202,9 +202,13 @@ prepare_memory_limit_override() {
     # snapd snapd process and its subprocesses executing within the same cgroup.
     # If snapd hits the memory limit, it will get killed by oom-killer which
     # will be caught in restore_project_each in prepare-restore.sh.
+    #
+    # This ought to set MemoryMax, but on systems with older systemd we need to
+    # use MemoryLimit, which is deprecated and replaced by MemoryMax now, but
+    # systemd is backwards compatible so the limit is still set.
     cat <<EOF > /etc/systemd/system/snapd.service.d/memory-max.conf
 [Service]
-MemoryMax=100M
+MemoryLimit=100M
 EOF
     # the re-exec setting may have changed in the service so we need
     # to ensure snapd is reloaded
