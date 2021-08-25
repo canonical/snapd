@@ -608,10 +608,8 @@ prepare_suite_each() {
     # Create runtime files in case those don't exist
     # This is for the first test of the suite. We cannot perform these operations in prepare_suite
     # because not all suites are triggering it (for example the tools suite doesn't).
-    if [ ! -f "$RUNTIME_STATE_PATH/runs" ] || [ ! -f "$RUNTIME_STATE_PATH/journalctl_cursor" ]; then
-        touch "$RUNTIME_STATE_PATH/runs"
-        touch "$RUNTIME_STATE_PATH/journalctl_cursor"
-    fi
+    touch "$RUNTIME_STATE_PATH/runs"
+    touch "$RUNTIME_STATE_PATH/journalctl_cursor"
 
     # Start fs monitor
     "$TESTSTOOLS"/fs-state start-monitor

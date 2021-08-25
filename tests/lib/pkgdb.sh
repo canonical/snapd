@@ -559,7 +559,6 @@ pkg_dependencies_ubuntu_classic(){
         python3-dbus
         python3-gi
         python3-yaml
-        tree
         upower
         weston
         xdg-user-dirs
@@ -696,7 +695,6 @@ pkg_dependencies_fedora(){
         python3-gobject
         redhat-lsb-core
         rpm-build
-        tree
         udisks2
         upower
         xdg-user-dirs
@@ -726,7 +724,6 @@ pkg_dependencies_amazon(){
         PackageKit
         system-lsb-core
         rpm-build
-        tree
         xdg-user-dirs
         xdg-utils
         udisks2
@@ -762,7 +759,6 @@ pkg_dependencies_opensuse(){
         strace
         netcat-openbsd
         osc
-        tree
         udisks2
         upower
         uuidd
@@ -803,7 +799,6 @@ pkg_dependencies_arch(){
     squashfs-tools
     shellcheck
     strace
-    tree
     udisks2
     upower
     xdg-user-dirs

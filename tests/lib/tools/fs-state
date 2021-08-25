@@ -88,14 +88,14 @@ save_current_tree(){
     mkdir "$dir"
     # .snap files created in tests/lib/snaps are excluded as they are not deleted to be reused
     # runtime-state dir contains cursor and run log which are created during the first test
-    tree --noreport -if /etc -I "*~" > "$dir"/etc
-    tree --noreport -if /boot -I "*~" > "$dir"/boot
-    tree --noreport -if /home -I "*~" | grep -v -e "$PROJECT_PATH/tests/lib/snaps/.*/.*.snap" -e "$PWD/.*.snap" > "$dir"/home
-    tree --noreport -if /root -I "*~" > "$dir"/root
+    find /etc ! -name "*~" > "$dir"/etc
+    find /boot ! -name "*~" > "$dir"/boot
+    find /home ! -name "*~" | grep -v -e "$PROJECT_PATH/tests/lib/snaps/.*/.*.snap" -e "$PWD/.*.snap" > "$dir"/home
+    find /root ! -name "*~" > "$dir"/root
 }
 
 start_monitor() {
-    if [ -n "$(command -v tree)" ]; then
+    if os.query is-classic; then
         save_current_tree /tmp/fs-initial
     fi
  }
