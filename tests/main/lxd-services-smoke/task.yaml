@@ -12,6 +12,10 @@ details: |
 
 systems: [ubuntu-18.04*, ubuntu-20.04*]
 
+environment:
+  # apparmor_parser triggers OOM
+  SNAPD_NO_MEMORY_LIMIT: 1
+
 restore: |
   # Remove manually the snap.lxd.workaround.service systemd unit. This unit is needed to
   # avoid systemd wiping lxd cgroups when snapd disables all lxd units during refresh

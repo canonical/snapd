@@ -5,6 +5,9 @@ summary: Check that refreshing snapd does not interfere with snap services
 systems: [ubuntu-core-18-*, ubuntu-core-20-*]
 
 environment:
+  # uploading the snapd snap triggers OOM
+  SNAPD_NO_MEMORY_LIMIT: 1
+
   SNAPD_VERSION_UNDER_TEST/start_w_pr: pr
   SNAPD_VERSION_UNDER_TEST/start_w_stable: stable
   SNAPD_VERSION_UNDER_TEST/start_w_2_49_2: "2.49.2"

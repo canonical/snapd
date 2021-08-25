@@ -8,6 +8,10 @@ systems: [ubuntu-core-16-*, ubuntu-core-18-32*, ubuntu-core-18-64*]
 # Start early as it takes a long time.
 priority: 100
 
+environment:
+    # uploading the core snap triggers OOM
+    SNAPD_NO_MEMORY_LIMIT: 1
+
 prepare: |
     TARGET_SNAP=core
     if os.query is-core18; then

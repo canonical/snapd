@@ -2,6 +2,10 @@ summary: Check that the docker snap works basically
 
 systems: [ubuntu-*]
 
+environment:
+    # downloading docker snap occasionally triggers OOM
+    SNAPD_NO_MEMORY_LIMIT: 1
+
 debug: |
   journalctl -u snap.docker.dockerd
 
