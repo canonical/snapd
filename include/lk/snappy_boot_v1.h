@@ -15,19 +15,13 @@
  *
  */
 
+#include "snappy_boot_common.h"
+
 #ifndef _BOOTLOADER_SNAP_BOOT_V1_H
 #define _BOOTLOADER_SNAP_BOOT_V1_H
 
 #define SNAP_BOOTSELECT_VERSION 0x00010001
-#define SNAP_BOOTSELECT_SIGNATURE ('S' | ('B' << 8) | ('s' << 16) | ('e' << 24))
-#define SNAP_NAME_MAX_LEN (256)
-#define HASH_LENGTH (32)
-#define SNAP_MODE_TRY "try"
-#define SNAP_MODE_TRYING "trying"
-#define FACTORY_RESET "factory-reset"
-
-/* partition label where boot select structure is stored */
-#define SNAP_BOOTSELECT_PARTITION "snapbootsel"
+#define SNAP_BOOTSELECT_VERSION_V1 0x00010001
 
 /* number of available bootimg partitions, min 2 */
 #define SNAP_BOOTIMG_PART_NUM 2
@@ -146,4 +140,4 @@ typedef struct SNAP_BOOT_SELECTION {
     uint32_t crc32;
 } SNAP_BOOT_SELECTION_t;
 
-#endif
+#endif  // _BOOTLOADER_SNAP_BOOT_V1_H

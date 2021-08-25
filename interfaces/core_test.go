@@ -25,7 +25,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
-	. "github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
@@ -59,7 +60,7 @@ func (s *CoreSuite) TestValidateDBusBusName(c *C) {
 		"a-a.b", "a-a.b-b.c-c", "a-a.b-b1", "a-a.b-b1.c-c2d-d",
 	}
 	for _, name := range validNames {
-		err := ValidateDBusBusName(name)
+		err := interfaces.ValidateDBusBusName(name)
 		c.Assert(err, IsNil)
 	}
 
@@ -84,12 +85,12 @@ func (s *CoreSuite) TestValidateDBusBusName(c *C) {
 		"a.b.",
 	}
 	for _, name := range invalidNames {
-		err := ValidateDBusBusName(name)
+		err := interfaces.ValidateDBusBusName(name)
 		c.Assert(err, ErrorMatches, `invalid DBus bus name: ".*"`)
 	}
 
 	// must not be empty
-	err := ValidateDBusBusName("")
+	err := interfaces.ValidateDBusBusName("")
 	c.Assert(err, ErrorMatches, `DBus bus name must be set`)
 
 	// must not exceed maximum length
@@ -100,49 +101,141 @@ func (s *CoreSuite) TestValidateDBusBusName(c *C) {
 	// make it look otherwise valid (a.bbbb...)
 	longName[0] = 'a'
 	longName[1] = '.'
-	err = ValidateDBusBusName(string(longName))
+	err = interfaces.ValidateDBusBusName(string(longName))
 	c.Assert(err, ErrorMatches, `DBus bus name is too long \(must be <= 255\)`)
 }
 
 // PlugRef.String works as expected
 func (s *CoreSuite) TestPlugRefString(c *C) {
-	ref := PlugRef{Snap: "snap", Name: "plug"}
+	ref := interfaces.PlugRef{Snap: "snap", Name: "plug"}
 	c.Check(ref.String(), Equals, "snap:plug")
-	refPtr := &PlugRef{Snap: "snap", Name: "plug"}
+	refPtr := &interfaces.PlugRef{Snap: "snap", Name: "plug"}
 	c.Check(refPtr.String(), Equals, "snap:plug")
 }
 
 // SlotRef.String works as expected
 func (s *CoreSuite) TestSlotRefString(c *C) {
-	ref := SlotRef{Snap: "snap", Name: "slot"}
+	ref := interfaces.SlotRef{Snap: "snap", Name: "slot"}
 	c.Check(ref.String(), Equals, "snap:slot")
-	refPtr := &SlotRef{Snap: "snap", Name: "slot"}
+	refPtr := &interfaces.SlotRef{Snap: "snap", Name: "slot"}
 	c.Check(refPtr.String(), Equals, "snap:slot")
 }
 
 // ConnRef.ID works as expected
 func (s *CoreSuite) TestConnRefID(c *C) {
-	conn := &ConnRef{
-		PlugRef: PlugRef{Snap: "consumer", Name: "plug"},
-		SlotRef: SlotRef{Snap: "producer", Name: "slot"},
+	conn := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	}
 	c.Check(conn.ID(), Equals, "consumer:plug producer:slot")
 }
 
 // ParseConnRef works as expected
 func (s *CoreSuite) TestParseConnRef(c *C) {
-	ref, err := ParseConnRef("consumer:plug producer:slot")
+	ref, err := interfaces.ParseConnRef("consumer:plug producer:slot")
 	c.Assert(err, IsNil)
-	c.Check(ref, DeepEquals, &ConnRef{
-		PlugRef: PlugRef{Snap: "consumer", Name: "plug"},
-		SlotRef: SlotRef{Snap: "producer", Name: "slot"},
+	c.Check(ref, DeepEquals, &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"},
 	})
-	_, err = ParseConnRef("garbage")
+	_, err = interfaces.ParseConnRef("garbage")
 	c.Assert(err, ErrorMatches, `malformed connection identifier: "garbage"`)
-	_, err = ParseConnRef("snap:plug:garbage snap:slot")
+	_, err = interfaces.ParseConnRef("snap:plug:garbage snap:slot")
 	c.Assert(err, ErrorMatches, `malformed connection identifier: ".*"`)
-	_, err = ParseConnRef("snap:plug snap:slot:garbage")
+	_, err = interfaces.ParseConnRef("snap:plug snap:slot:garbage")
 	c.Assert(err, ErrorMatches, `malformed connection identifier: ".*"`)
+}
+
+type simpleIface struct {
+	name string
+}
+
+func (si simpleIface) Name() string                                              { return si.name }
+func (si simpleIface) AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool { return false }
+
+func (s *CoreSuite) TestByName(c *C) {
+	// setup a mock interface using builtin - this will also trigger init() in
+	// builtin package which set ByName to a real implementation
+	r := builtin.MockInterface(simpleIface{name: "mock-network"})
+	defer r()
+
+	_, err := interfaces.ByName("no-such-interface")
+	c.Assert(err, ErrorMatches, "interface \"no-such-interface\" not found")
+
+	iface, err := interfaces.ByName("mock-network")
+	c.Assert(err, IsNil)
+	c.Assert(iface.Name(), Equals, "mock-network")
+}
+
+type serviceSnippetIface struct {
+	simpleIface
+
+	sanitizerErr error
+
+	snips []string
+}
+
+func (ssi serviceSnippetIface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	return ssi.sanitizerErr
+}
+
+func (ssi serviceSnippetIface) ServicePermanentPlug(plug *snap.PlugInfo) []string {
+	return ssi.snips
+}
+
+func (s *CoreSuite) TestPermanentPlugServiceSnippets(c *C) {
+	// setup a mock interface using builtin - this will also trigger init() in
+	// builtin package which set ByName to a real implementation
+	ssi := serviceSnippetIface{
+		simpleIface: simpleIface{name: "mock-service-snippets"},
+		snips:       []string{"foo1", "foo2"},
+	}
+	r := builtin.MockInterface(ssi)
+	defer r()
+
+	iface, err := interfaces.ByName("mock-service-snippets")
+	c.Assert(err, IsNil)
+	c.Assert(iface.Name(), Equals, "mock-service-snippets")
+
+	info := snaptest.MockInfo(c, `
+name: snap
+version: 0
+plugs:
+  plug:
+    interface: mock-service-snippets
+`, nil)
+	plug := info.Plugs["plug"]
+
+	snips, err := interfaces.PermanentPlugServiceSnippets(iface, plug)
+	c.Assert(err, IsNil)
+	c.Assert(snips, DeepEquals, []string{"foo1", "foo2"})
+}
+
+func (s *CoreSuite) TestPermanentPlugServiceSnippetsSanitizesPlugs(c *C) {
+	// setup a mock interface using builtin - this will also trigger init() in
+	// builtin package which set ByName to a real implementation
+	ssi := serviceSnippetIface{
+		simpleIface:  simpleIface{name: "unclean-service-snippets"},
+		sanitizerErr: fmt.Errorf("cannot sanitize: foo"),
+	}
+	r := builtin.MockInterface(ssi)
+	defer r()
+
+	info := snaptest.MockInfo(c, `
+name: snap
+version: 0
+plugs:
+  plug:
+    interface: unclean-service-snippets
+`, nil)
+	plug := info.Plugs["plug"]
+
+	iface, err := interfaces.ByName("unclean-service-snippets")
+	c.Assert(err, IsNil)
+	c.Assert(iface.Name(), Equals, "unclean-service-snippets")
+
+	_, err = interfaces.PermanentPlugServiceSnippets(iface, plug)
+	c.Assert(err, ErrorMatches, "cannot sanitize: foo")
 }
 
 func (s *CoreSuite) TestSanitizePlug(c *C) {
@@ -154,14 +247,14 @@ plugs:
     interface: iface
 `, nil)
 	plug := info.Plugs["plug"]
-	c.Assert(BeforePreparePlug(&ifacetest.TestInterface{
+	c.Assert(interfaces.BeforePreparePlug(&ifacetest.TestInterface{
 		InterfaceName: "iface",
 	}, plug), IsNil)
-	c.Assert(BeforePreparePlug(&ifacetest.TestInterface{
+	c.Assert(interfaces.BeforePreparePlug(&ifacetest.TestInterface{
 		InterfaceName:             "iface",
 		BeforePreparePlugCallback: func(plug *snap.PlugInfo) error { return fmt.Errorf("broken") },
 	}, plug), ErrorMatches, "broken")
-	c.Assert(BeforePreparePlug(&ifacetest.TestInterface{
+	c.Assert(interfaces.BeforePreparePlug(&ifacetest.TestInterface{
 		InterfaceName: "other",
 	}, plug), ErrorMatches, `cannot sanitize plug "snap:plug" \(interface "iface"\) using interface "other"`)
 }
@@ -175,14 +268,14 @@ slots:
     interface: iface
 `, nil)
 	slot := info.Slots["slot"]
-	c.Assert(BeforePrepareSlot(&ifacetest.TestInterface{
+	c.Assert(interfaces.BeforePrepareSlot(&ifacetest.TestInterface{
 		InterfaceName: "iface",
 	}, slot), IsNil)
-	c.Assert(BeforePrepareSlot(&ifacetest.TestInterface{
+	c.Assert(interfaces.BeforePrepareSlot(&ifacetest.TestInterface{
 		InterfaceName:             "iface",
 		BeforePrepareSlotCallback: func(slot *snap.SlotInfo) error { return fmt.Errorf("broken") },
 	}, slot), ErrorMatches, "broken")
-	c.Assert(BeforePrepareSlot(&ifacetest.TestInterface{
+	c.Assert(interfaces.BeforePrepareSlot(&ifacetest.TestInterface{
 		InterfaceName: "other",
 	}, slot), ErrorMatches, `cannot sanitize slot "snap:slot" \(interface "iface"\) using interface "other"`)
 }

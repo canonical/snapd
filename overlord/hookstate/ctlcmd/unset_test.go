@@ -22,14 +22,14 @@ package ctlcmd_test
 import (
 	"strings"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-
-	. "gopkg.in/check.v1"
 )
 
 type unsetSuite struct {
@@ -117,6 +117,31 @@ func (s *unsetSuite) TestUnsetMany(c *C) {
 	c.Check(tr.Get("test-snap", "bar", &value), ErrorMatches, `snap "test-snap" has no "bar" configuration option`)
 	c.Check(tr.Get("test-snap", "baz", &value), IsNil)
 	c.Check(value, Equals, "c")
+}
+
+func (s *unsetSuite) TestSetThenUnset(c *C) {
+	// Setup an initial configuration
+	s.mockContext.State().Lock()
+	tr := config.NewTransaction(s.mockContext.State())
+	tr.Set("test-snap", "agent.x.a", "1")
+	tr.Set("test-snap", "agent.x.b", "2")
+	tr.Commit()
+	s.mockContext.State().Unlock()
+
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "agent.x!", "agent.x.a!", "agent.x.b!"}, 0)
+	c.Check(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+
+	// Notify the context that we're done. This should save the config.
+	s.mockContext.Lock()
+	defer s.mockContext.Unlock()
+	c.Check(s.mockContext.Done(), IsNil)
+
+	// Verify that the global config has been updated.
+	var value interface{}
+	tr = config.NewTransaction(s.mockContext.State())
+	c.Check(tr.Get("test-snap", "agent.x.a", &value), ErrorMatches, `snap "test-snap" has no "agent.x.a" configuration option`)
 }
 
 func (s *unsetSuite) TestUnsetRegularUserForbidden(c *C) {

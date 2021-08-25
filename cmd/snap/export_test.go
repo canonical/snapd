@@ -91,6 +91,9 @@ var (
 	PrintInstallHint = printInstallHint
 
 	IsStopping = isStopping
+
+	GetKeypairManager = getKeypairManager
+	GenerateKey       = generateKey
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
@@ -398,5 +401,13 @@ func MockSnapdWaitForFullSystemReboot(t time.Duration) (restore func()) {
 	snapdWaitForFullSystemReboot = t
 	return func() {
 		snapdWaitForFullSystemReboot = old
+	}
+}
+
+func MockOsChmod(f func(string, os.FileMode) error) (restore func()) {
+	old := osChmod
+	osChmod = f
+	return func() {
+		osChmod = old
 	}
 }

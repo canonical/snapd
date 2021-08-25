@@ -72,8 +72,6 @@ type baseRunnerSuite struct {
 	repairsAcctKey    *asserts.AccountKey
 
 	repairsSigning *assertstest.SigningDB
-
-	restoreLogger func()
 }
 
 func makeReadOnly(c *C, dir string) (restore func()) {
@@ -154,12 +152,36 @@ func (s *baseRunnerSuite) signSeqRepairs(c *C, repairs []string) []string {
 	return seq
 }
 
-const freshStateJSON = `{"device":{"brand":"my-brand","model":"my-model"},"time-lower-bound":"2017-08-11T15:49:49Z"}`
+func checkStateJSON(c *C, file string, exp map[string]interface{}) {
+	stateFile := map[string]interface{}{}
+	b, err := ioutil.ReadFile(file)
+	c.Assert(err, IsNil)
+	err = json.Unmarshal(b, &stateFile)
+	c.Assert(err, IsNil)
+	c.Check(stateFile, DeepEquals, exp)
+}
 
 func (s *baseRunnerSuite) freshState(c *C) {
+	// assume base: core18
+	s.freshStateWithBaseAndMode(c, "core18", "")
+}
+
+func (s *baseRunnerSuite) freshStateWithBaseAndMode(c *C, base, mode string) {
 	err := os.MkdirAll(dirs.SnapRepairDir, 0775)
 	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(dirs.SnapRepairStateFile, []byte(freshStateJSON), 0600)
+	stateJSON := map[string]interface{}{
+		"device": map[string]string{
+			"brand": "my-brand",
+			"model": "my-model",
+			"base":  base,
+			"mode":  mode,
+		},
+		"time-lower-bound": "2017-08-11T15:49:49Z",
+	}
+	b, err := json.Marshal(stateJSON)
+	c.Assert(err, IsNil)
+
+	err = ioutil.WriteFile(dirs.SnapRepairStateFile, b, 0600)
 	c.Assert(err, IsNil)
 }
 
@@ -660,43 +682,102 @@ func (s *runnerSuite) TestSaveState(c *C) {
 	err = runner.SaveState()
 	c.Assert(err, IsNil)
 
-	c.Check(dirs.SnapRepairStateFile, testutil.FileEquals, `{"device":{"brand":"my-brand","model":"my-model"},"sequences":{"canonical":[{"sequence":1,"revision":3,"status":0}]},"time-lower-bound":"2017-08-11T15:49:49Z"}`)
+	exp := map[string]interface{}{
+		"device": map[string]interface{}{
+			"brand": "my-brand",
+			"model": "my-model",
+			"base":  "core18",
+			"mode":  "",
+		},
+		"sequences": map[string]interface{}{
+			"canonical": []interface{}{
+				map[string]interface{}{
+					// all json numbers are floats
+					"sequence": 1.0,
+					"revision": 3.0,
+					"status":   0.0,
+				},
+			},
+		},
+		"time-lower-bound": "2017-08-11T15:49:49Z",
+	}
+
+	checkStateJSON(c, dirs.SnapRepairStateFile, exp)
+}
+
+type dev struct {
+	base string
+	mode string
 }
 
 func (s *runnerSuite) TestApplicable(c *C) {
-	s.freshState(c)
-	runner := repair.NewRunner()
-	err := runner.LoadState()
-	c.Assert(err, IsNil)
 
 	scenarios := []struct {
+		device     *dev
 		headers    map[string]interface{}
 		applicable bool
 	}{
-		{nil, true},
-		{map[string]interface{}{"series": []interface{}{"18"}}, false},
-		{map[string]interface{}{"series": []interface{}{"18", "16"}}, true},
-		{map[string]interface{}{"series": "18"}, false},
-		{map[string]interface{}{"series": []interface{}{18}}, false},
-		{map[string]interface{}{"architectures": []interface{}{arch.DpkgArchitecture()}}, true},
-		{map[string]interface{}{"architectures": []interface{}{"other-arch"}}, false},
-		{map[string]interface{}{"architectures": []interface{}{"other-arch", arch.DpkgArchitecture()}}, true},
-		{map[string]interface{}{"architectures": arch.DpkgArchitecture()}, false},
-		{map[string]interface{}{"models": []interface{}{"my-brand/my-model"}}, true},
-		{map[string]interface{}{"models": []interface{}{"other-brand/other-model"}}, false},
-		{map[string]interface{}{"models": []interface{}{"other-brand/other-model", "my-brand/my-model"}}, true},
-		{map[string]interface{}{"models": "my-brand/my-model"}, false},
+		{nil, nil, true},
+		{nil, map[string]interface{}{"series": []interface{}{"18"}}, false},
+		{nil, map[string]interface{}{"series": []interface{}{"18", "16"}}, true},
+		{nil, map[string]interface{}{"series": "18"}, false},
+		{nil, map[string]interface{}{"series": []interface{}{18}}, false},
+		{nil, map[string]interface{}{"architectures": []interface{}{arch.DpkgArchitecture()}}, true},
+		{nil, map[string]interface{}{"architectures": []interface{}{"other-arch"}}, false},
+		{nil, map[string]interface{}{"architectures": []interface{}{"other-arch", arch.DpkgArchitecture()}}, true},
+		{nil, map[string]interface{}{"architectures": arch.DpkgArchitecture()}, false},
+		{nil, map[string]interface{}{"models": []interface{}{"my-brand/my-model"}}, true},
+		{nil, map[string]interface{}{"models": []interface{}{"other-brand/other-model"}}, false},
+		{nil, map[string]interface{}{"models": []interface{}{"other-brand/other-model", "my-brand/my-model"}}, true},
+		{nil, map[string]interface{}{"models": "my-brand/my-model"}, false},
+		// modes for uc16 / uc18 devices
+		{nil, map[string]interface{}{"modes": []interface{}{}}, true},
+		{nil, map[string]interface{}{"modes": []interface{}{"run"}}, false},
+		{nil, map[string]interface{}{"modes": []interface{}{"recover"}}, false},
+		{nil, map[string]interface{}{"modes": []interface{}{"run", "recover"}}, false},
+		// run mode for uc20 devices
+		{&dev{mode: "run"}, map[string]interface{}{"modes": []interface{}{}}, true},
+		{&dev{mode: "run"}, map[string]interface{}{"modes": []interface{}{"run"}}, true},
+		{&dev{mode: "run"}, map[string]interface{}{"modes": []interface{}{"recover"}}, false},
+		{&dev{mode: "run"}, map[string]interface{}{"modes": []interface{}{"run", "recover"}}, true},
+		// recover mode for uc20 devices
+		{&dev{mode: "recover"}, map[string]interface{}{"modes": []interface{}{}}, false},
+		{&dev{mode: "recover"}, map[string]interface{}{"modes": []interface{}{"run"}}, false},
+		{&dev{mode: "recover"}, map[string]interface{}{"modes": []interface{}{"recover"}}, true},
+		{&dev{mode: "recover"}, map[string]interface{}{"modes": []interface{}{"run", "recover"}}, true},
+		// bases for uc16 devices
+		{&dev{base: "core"}, map[string]interface{}{"bases": []interface{}{"core"}}, true},
+		{&dev{base: "core"}, map[string]interface{}{"bases": []interface{}{"core18"}}, false},
+		{&dev{base: "core"}, map[string]interface{}{"bases": []interface{}{"core", "core18"}}, true},
+		// bases for uc18 devices
+		{&dev{base: "core18"}, map[string]interface{}{"bases": []interface{}{"core18"}}, true},
+		{&dev{base: "core18"}, map[string]interface{}{"bases": []interface{}{"core"}}, false},
+		{&dev{base: "core18"}, map[string]interface{}{"bases": []interface{}{"core", "core18"}}, true},
+		// bases for uc20 devices
+		{&dev{base: "core20"}, map[string]interface{}{"bases": []interface{}{"core20"}}, true},
+		{&dev{base: "core20"}, map[string]interface{}{"bases": []interface{}{"core"}}, false},
+		{&dev{base: "core20"}, map[string]interface{}{"bases": []interface{}{"core", "core20"}}, true},
 		// model prefix matches
-		{map[string]interface{}{"models": []interface{}{"my-brand/*"}}, true},
-		{map[string]interface{}{"models": []interface{}{"my-brand/my-mod*"}}, true},
-		{map[string]interface{}{"models": []interface{}{"my-brand/xxx*"}}, false},
-		{map[string]interface{}{"models": []interface{}{"my-brand/my-mod*", "my-brand/xxx*"}}, true},
-		{map[string]interface{}{"models": []interface{}{"my*"}}, false},
-		{map[string]interface{}{"disabled": "true"}, false},
-		{map[string]interface{}{"disabled": "false"}, true},
+		{nil, map[string]interface{}{"models": []interface{}{"my-brand/*"}}, true},
+		{nil, map[string]interface{}{"models": []interface{}{"my-brand/my-mod*"}}, true},
+		{nil, map[string]interface{}{"models": []interface{}{"my-brand/xxx*"}}, false},
+		{nil, map[string]interface{}{"models": []interface{}{"my-brand/my-mod*", "my-brand/xxx*"}}, true},
+		{nil, map[string]interface{}{"models": []interface{}{"my*"}}, false},
+		{nil, map[string]interface{}{"disabled": "true"}, false},
+		{nil, map[string]interface{}{"disabled": "false"}, true},
 	}
 
 	for _, scen := range scenarios {
+		if scen.device == nil {
+			s.freshState(c)
+		} else {
+			s.freshStateWithBaseAndMode(c, scen.device.base, scen.device.mode)
+		}
+
+		runner := repair.NewRunner()
+		err := runner.LoadState()
+		c.Assert(err, IsNil)
+
 		ok := runner.Applicable(scen.headers)
 		c.Check(ok, Equals, scen.applicable, Commentf("%v", scen))
 	}
@@ -864,22 +945,6 @@ func (s *runnerSuite) TestVerify(c *C) {
 
 	err = runner.Verify(rpr, []asserts.Assertion{s.repairsAcctKey})
 	c.Check(err, IsNil)
-}
-
-func (s *runnerSuite) signSeqRepairs(c *C, repairs []string) []string {
-	var seq []string
-	for _, rpr := range repairs {
-		decoded, err := asserts.Decode([]byte(rpr))
-		c.Assert(err, IsNil)
-		signed, err := s.repairsSigning.Sign(asserts.RepairType, decoded.Headers(), decoded.Body(), "")
-		c.Assert(err, IsNil)
-		buf := &bytes.Buffer{}
-		enc := asserts.NewEncoder(buf)
-		enc.Encode(signed)
-		enc.Encode(s.repairsAcctKey)
-		seq = append(seq, buf.String())
-	}
-	return seq
 }
 
 func (s *runnerSuite) loadSequences(c *C) map[string][]*repair.RepairState {
@@ -1132,17 +1197,21 @@ func (s *runnerSuite) TestNextNotFound(c *C) {
 	runner.BaseURL = mustParseURL(mockServer.URL)
 	runner.LoadState()
 
-	// sanity
-	c.Check(dirs.SnapRepairStateFile, testutil.FileEquals, freshStateJSON)
-
 	_, err := runner.Next("canonical")
 	c.Assert(err, Equals, repair.ErrRepairNotFound)
 
 	// we saved new time lower bound
-	t1 := runner.TimeLowerBound()
-	expected := strings.Replace(freshStateJSON, "2017-08-11T15:49:49Z", t1.Format(time.RFC3339), 1)
-	c.Check(expected, Not(Equals), freshStateJSON)
-	c.Check(dirs.SnapRepairStateFile, testutil.FileEquals, expected)
+	stateFileExp := map[string]interface{}{
+		"device": map[string]interface{}{
+			"brand": "my-brand",
+			"model": "my-model",
+			"base":  "core18",
+			"mode":  "",
+		},
+		"time-lower-bound": runner.TimeLowerBound().Format(time.RFC3339),
+	}
+
+	checkStateJSON(c, dirs.SnapRepairStateFile, stateFileExp)
 }
 
 func (s *runnerSuite) TestNextSaveStateError(c *C) {
@@ -1362,6 +1431,412 @@ AXNpZw==`}
 	c.Check(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "r0.script"), testutil.FileEquals, "#!/bin/sh\nexit 0\n")
 }
 
+func (s *runnerSuite) TestRepairBasicRun20RecoverEnv(c *C) {
+	seqRepairs := []string{`type: repair
+authority-id: canonical
+brand-id: canonical
+repair-id: 1
+summary: repair one
+series:
+  - 16
+bases:
+  - core20
+modes:
+  - recover
+  - run
+timestamp: 2017-07-02T12:00:00Z
+body-length: 81
+sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
+
+#!/bin/sh
+env | grep SNAP_SYSTEM_MODE
+echo "done" >&$SNAP_REPAIR_STATUS_FD
+exit 0
+
+AXNpZw==`}
+
+	seqRepairs = s.signSeqRepairs(c, seqRepairs)
+
+	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r1()
+	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
+	defer r2()
+
+	for _, mode := range []string{"recover", "run"} {
+		s.freshStateWithBaseAndMode(c, "core20", mode)
+
+		mockServer := makeMockServer(c, &seqRepairs, false)
+		defer mockServer.Close()
+
+		runner := repair.NewRunner()
+		runner.BaseURL = mustParseURL(mockServer.URL)
+		runner.LoadState()
+
+		rpr, err := runner.Next("canonical")
+		c.Assert(err, IsNil)
+
+		err = rpr.Run()
+		c.Assert(err, IsNil)
+		c.Check(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "r0.script"), testutil.FileEquals, `#!/bin/sh
+env | grep SNAP_SYSTEM_MODE
+echo "done" >&$SNAP_REPAIR_STATUS_FD
+exit 0`)
+
+		c.Check(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "r0.done"), testutil.FileEquals, fmt.Sprintf(`repair: canonical-1
+revision: 0
+summary: repair one
+output:
+SNAP_SYSTEM_MODE=%s
+`, mode))
+		// ensure correct permissions
+		fi, err := os.Stat(filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "r0.done"))
+		c.Assert(err, IsNil)
+		c.Check(fi.Mode(), Equals, os.FileMode(0600))
+	}
+}
+
+func (s *runnerSuite) TestRepairModesAndBases(c *C) {
+	repairTempl := `type: repair
+authority-id: canonical
+brand-id: canonical
+repair-id: 1
+summary: uc20 recovery repair 
+timestamp: 2017-07-03T12:00:00Z
+body-length: 17
+sign-key-sha3-384: KPIl7M4vQ9d4AUjkoU41TGAwtOMLc_bWUCeW8AvdRWD4_xcP60Oo4ABsFNo6BtXj
+%[1]s
+#!/bin/sh
+exit 0
+
+
+AXNpZw==
+	`
+
+	r1 := sysdb.InjectTrusted(s.storeSigning.Trusted)
+	defer r1()
+	r2 := repair.MockTrustedRepairRootKeys([]*asserts.AccountKey{s.repairRootAcctKey})
+	defer r2()
+
+	tt := []struct {
+		device    *dev
+		modes     []string
+		bases     []string
+		shouldRun bool
+		comment   string
+	}{
+		// uc20 recover mode assertion
+		{
+			&dev{"core20", "recover"},
+			[]string{"recover"},
+			[]string{"core20"},
+			true,
+			"uc20 recover mode w/ uc20 recover mode assertion",
+		},
+		{
+			&dev{"core20", "run"},
+			[]string{"recover"},
+			[]string{"core20"},
+			false,
+			"uc20 run mode w/ uc20 recover mode assertion",
+		},
+		{
+			&dev{base: "core"},
+			[]string{"recover"},
+			[]string{"core20"},
+			false,
+			"uc16 w/ uc20 recover mode assertion",
+		},
+		{
+			&dev{base: "core18"},
+			[]string{"recover"},
+			[]string{"core20"},
+			false,
+			"uc18 w/ uc20 recover mode assertion",
+		},
+
+		// uc20 run mode assertion
+		{
+			&dev{"core20", "recover"},
+			[]string{"run"},
+			[]string{"core20"},
+			false,
+			"uc20 recover mode w/ uc20 run mode assertion",
+		},
+		{
+			&dev{"core20", "run"},
+			[]string{"run"},
+			[]string{"core20"},
+			true,
+			"uc20 run mode w/ uc20 run mode assertion",
+		},
+		{
+			&dev{base: "core"},
+			[]string{"run"},
+			[]string{"core20"},
+			false,
+			"uc16 w/ uc20 run mode assertion",
+		},
+		{
+			&dev{base: "core18"},
+			[]string{"run"},
+			[]string{"core20"},
+			false,
+			"uc18 w/ uc20 run mode assertion",
+		},
+
+		// all uc20 modes assertion
+		{
+			&dev{"core20", "recover"},
+			[]string{"run", "recover"},
+			[]string{"core20"},
+			true,
+			"uc20 recover mode w/ all uc20 modes assertion",
+		},
+		{
+			&dev{"core20", "run"},
+			[]string{"run", "recover"},
+			[]string{"core20"},
+			true,
+			"uc20 run mode w/ all uc20 modes assertion",
+		},
+		{
+			&dev{base: "core"},
+			[]string{"run", "recover"},
+			[]string{"core20"},
+			false,
+			"uc16 w/ all uc20 modes assertion",
+		},
+		{
+			&dev{base: "core18"},
+			[]string{"run", "recover"},
+			[]string{"core20"},
+			false,
+			"uc18 w/ all uc20 modes assertion",
+		},
+
+		// alternate uc20 run mode only assertion
+		{
+			&dev{"core20", "recover"},
+			[]string{},
+			[]string{"core20"},
+			false,
+			"uc20 recover mode w/ alternate uc20 run mode assertion",
+		},
+		{
+			&dev{"core20", "run"},
+			[]string{},
+			[]string{"core20"},
+			true,
+			"uc20 run mode w/ alternate uc20 run mode assertion",
+		},
+		{
+			&dev{base: "core"},
+			[]string{},
+			[]string{"core20"},
+			false,
+			"uc16 w/ alternate uc20 run mode assertion",
+		},
+		{
+			&dev{base: "core18"},
+			[]string{},
+			[]string{"core20"},
+			false,
+			"uc18 w/ alternate uc20 run mode assertion",
+		},
+		{
+			&dev{base: "core"},
+			[]string{"run"},
+			[]string{},
+			false,
+			"uc16 w/ uc20 run mode assertion",
+		},
+		{
+			&dev{base: "core18"},
+			[]string{"run"},
+			[]string{},
+			false,
+			"uc16 w/ uc20 run mode assertion",
+		},
+
+		// all except uc20 recover mode assertion
+		{
+			&dev{"core20", "recover"},
+			[]string{},
+			[]string{},
+			false,
+			"uc20 recover mode w/ all except uc20 recover mode assertion",
+		},
+		{
+			&dev{"core20", "run"},
+			[]string{},
+			[]string{},
+			true,
+			"uc20 run mode w/ all except uc20 recover mode assertion",
+		},
+		{
+			&dev{base: "core"},
+			[]string{},
+			[]string{},
+			true,
+			"uc16 w/ all except uc20 recover mode assertion",
+		},
+		{
+			&dev{base: "core18"},
+			[]string{},
+			[]string{},
+			true,
+			"uc18 w/ all except uc20 recover mode assertion",
+		},
+
+		// uc16 and uc18 assertion
+		{
+			&dev{"core20", "recover"},
+			[]string{},
+			[]string{"core", "core18"},
+			false,
+			"uc20 recover mode w/ uc16 and uc18 assertion",
+		},
+		{
+			&dev{"core20", "run"},
+			[]string{},
+			[]string{"core", "core18"},
+			false,
+			"uc20 run mode w/ uc16 and uc18 assertion",
+		},
+		{
+			&dev{base: "core"},
+			[]string{},
+			[]string{"core", "core18"},
+			true,
+			"uc16 w/ uc16 and uc18 assertion",
+		},
+		{
+			&dev{base: "core18"},
+			[]string{},
+			[]string{"core", "core18"},
+			true,
+			"uc18 w/ uc16 and uc18 assertion",
+		},
+
+		// just uc16 assertion
+		{
+			&dev{"core20", "recover"},
+			[]string{},
+			[]string{"core"},
+			false,
+			"uc20 recover mode w/ just uc16 assertion",
+		},
+		{
+			&dev{"core20", "run"},
+			[]string{},
+			[]string{"core"},
+			false,
+			"uc20 run mode w/ just uc16 assertion",
+		},
+		{
+			&dev{base: "core"},
+			[]string{},
+			[]string{"core"},
+			true,
+			"uc16 w/ just uc16 assertion",
+		},
+		{
+			&dev{base: "core18"},
+			[]string{},
+			[]string{"core"},
+			false,
+			"uc18 w/ just uc16 assertion",
+		},
+
+		// just uc18 assertion
+		{
+			&dev{"core20", "recover"},
+			[]string{},
+			[]string{"core18"},
+			false,
+			"uc20 recover mode w/ just uc18 assertion",
+		},
+		{
+			&dev{"core20", "run"},
+			[]string{},
+			[]string{"core18"},
+			false,
+			"uc20 run mode w/ just uc18 assertion",
+		},
+		{
+			&dev{base: "core"},
+			[]string{},
+			[]string{"core18"},
+			false,
+			"uc16 w/ just uc18 assertion",
+		},
+		{
+			&dev{base: "core18"},
+			[]string{},
+			[]string{"core18"},
+			true,
+			"uc18 w/ just uc18 assertion",
+		},
+	}
+	for _, t := range tt {
+		comment := Commentf(t.comment)
+		cleanups := []func(){}
+
+		// generate the assertion with the bases and modes
+		basesStr := ""
+		if len(t.bases) != 0 {
+			basesStr = "bases:\n"
+			for _, base := range t.bases {
+				basesStr += "  - " + base + "\n"
+			}
+		}
+		modesStr := ""
+		if len(t.modes) != 0 {
+			modesStr = "modes:\n"
+			for _, mode := range t.modes {
+				modesStr += "  - " + mode + "\n"
+			}
+		}
+
+		seqRepairs := s.signSeqRepairs(c, []string{fmt.Sprintf(repairTempl, basesStr+modesStr)})
+
+		mockServer := makeMockServer(c, &seqRepairs, false)
+		cleanups = append(cleanups, func() { mockServer.Close() })
+
+		if t.device == nil {
+			s.freshState(c)
+		} else {
+			s.freshStateWithBaseAndMode(c, t.device.base, t.device.mode)
+		}
+
+		runner := repair.NewRunner()
+		runner.BaseURL = mustParseURL(mockServer.URL)
+		runner.LoadState()
+
+		script := filepath.Join(dirs.SnapRepairRunDir, "canonical", "1", "r0.script")
+
+		rpr, err := runner.Next("canonical")
+		if t.shouldRun {
+			c.Assert(err, IsNil, comment)
+
+			// run the repair and make sure the script is there
+			err = rpr.Run()
+			c.Assert(err, IsNil, comment)
+			c.Check(script, testutil.FileEquals, "#!/bin/sh\nexit 0\n", comment)
+
+			// remove the script for the next iteration
+			cleanups = append(cleanups, func() { c.Assert(os.RemoveAll(dirs.SnapRepairRunDir), IsNil) })
+		} else {
+			c.Assert(err, Equals, repair.ErrRepairNotFound, comment)
+			c.Check(script, testutil.FileAbsent, comment)
+		}
+
+		for _, r := range cleanups {
+			r()
+		}
+	}
+}
+
 func makeMockRepair(script string) string {
 	return fmt.Sprintf(`type: repair
 authority-id: canonical
@@ -1380,7 +1855,7 @@ AXNpZw==`, len(script), script)
 }
 
 func verifyRepairStatus(c *C, status repair.RepairStatus) {
-	c.Check(dirs.SnapRepairStateFile, testutil.FileContains, fmt.Sprintf(`{"device":{"brand":"","model":""},"sequences":{"canonical":[{"sequence":1,"revision":0,"status":%d}`, status))
+	c.Check(dirs.SnapRepairStateFile, testutil.FileContains, fmt.Sprintf(`{"device":{"brand":"","model":"","base":"","mode":""},"sequences":{"canonical":[{"sequence":1,"revision":0,"status":%d}`, status))
 }
 
 // tests related to correct execution of script
@@ -1394,8 +1869,7 @@ type runScriptSuite struct {
 
 	runDir string
 
-	restoreErrTrackerReportRepair func()
-	errReport                     struct {
+	errReport struct {
 		repair string
 		errMsg string
 		dupSig string
@@ -1457,12 +1931,6 @@ func (s *runScriptSuite) verifyRundir(c *C, names []string) {
 		c.Check(dirents[i].Name(), Matches, names[i])
 	}
 }
-
-type byMtime []os.FileInfo
-
-func (m byMtime) Len() int           { return len(m) }
-func (m byMtime) Less(i, j int) bool { return m[i].ModTime().Before(m[j].ModTime()) }
-func (m byMtime) Swap(i, j int)      { m[i], m[j] = m[j], m[i] }
 
 func (s *runScriptSuite) verifyOutput(c *C, name, expectedOutput string) {
 	c.Check(filepath.Join(s.runDir, name), testutil.FileEquals, expectedOutput)
@@ -1661,7 +2129,7 @@ ls -l ${PATH##*:}/repair
 	err = rpr.Run()
 	c.Assert(err, IsNil)
 
-	c.Check(filepath.Join(s.runDir, "r0.retry"), testutil.FileMatches, fmt.Sprintf(`(?ms).*^PATH=.*:.*/run/snapd/repair/tools.*`))
+	c.Check(filepath.Join(s.runDir, "r0.retry"), testutil.FileMatches, `(?ms).*^PATH=.*:.*/run/snapd/repair/tools.*`)
 	c.Check(filepath.Join(s.runDir, "r0.retry"), testutil.FileContains, `/repair -> /usr/lib/snapd/snap-repair`)
 
 	// run again and ensure no error happens
@@ -1677,6 +2145,11 @@ type shared1620RunnerSuite struct {
 	baseRunnerSuite
 
 	writeSeedAssert func(c *C, fname string, a asserts.Assertion)
+
+	// this is so we can check device details that will be different in the
+	// 20 version of tests from the 16 version of tests
+	expBase string
+	expMode string
 }
 
 func (s *shared1620RunnerSuite) TestTLSTime(c *C) {
@@ -1713,6 +2186,10 @@ func (s *shared1620RunnerSuite) TestLoadStateInitState(c *C) {
 	c.Check(brand, Equals, "my-brand")
 	c.Check(model, Equals, "my-model-2")
 
+	base, mode := runner.BaseMode()
+	c.Check(base, Equals, s.expBase)
+	c.Check(mode, Equals, s.expMode)
+
 	c.Check(runner.TimeLowerBound().Equal(s.seedTime), Equals, true)
 }
 
@@ -1724,6 +2201,9 @@ var _ = Suite(&runner16Suite{})
 
 func (s *runner16Suite) SetUpTest(c *C) {
 	s.shared1620RunnerSuite.SetUpTest(c)
+
+	s.shared1620RunnerSuite.expBase = "core"
+	s.shared1620RunnerSuite.expMode = ""
 
 	s.seedAssertsDir = filepath.Join(dirs.SnapSeedDir, "assertions")
 
@@ -1802,10 +2282,14 @@ var _ = Suite(&runner20Suite{})
 var mockModeenv = []byte(`
 mode=run
 model=my-brand/my-model-2
+base=core20_1.snap
 `)
 
 func (s *runner20Suite) SetUpTest(c *C) {
 	s.shared1620RunnerSuite.SetUpTest(c)
+
+	s.shared1620RunnerSuite.expBase = "core20"
+	s.shared1620RunnerSuite.expMode = "run"
 
 	s.seedAssertsDir = filepath.Join(dirs.SnapSeedDir, "/systems/20201212/assertions")
 	err := os.MkdirAll(s.seedAssertsDir, 0755)

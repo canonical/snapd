@@ -1246,3 +1246,16 @@ func findConnsForHotplugKey(conns map[string]*connState, ifaceName string, hotpl
 	sort.Strings(connsForDevice)
 	return connsForDevice
 }
+
+func (m *InterfaceManager) discardSecurityProfilesLate(name string, rev snap.Revision, typ snap.Type) error {
+	for _, backend := range m.repo.Backends() {
+		lateDiscardBackend, ok := backend.(interfaces.SecurityBackendDiscardingLate)
+		if !ok {
+			continue
+		}
+		if err := lateDiscardBackend.RemoveLate(name, rev, typ); err != nil {
+			return err
+		}
+	}
+	return nil
+}

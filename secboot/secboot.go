@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -37,6 +37,9 @@ const (
 	FallbackObjectPCRPolicyCounterHandle = 0x01880002
 )
 
+// WithSecbootSupport is true if this package was built with githbu.com/snapcore/secboot.
+var WithSecbootSupport = false
+
 type LoadChain struct {
 	*bootloader.BootFile
 	// Next is a list of alternative chains that can be loaded
@@ -56,13 +59,26 @@ func NewLoadChain(bf bootloader.BootFile, next ...*LoadChain) *LoadChain {
 type SealKeyRequest struct {
 	// The key to seal
 	Key EncryptionKey
-	// The path to store the sealed key file
+	// The key name; identical keys should have identical names
+	KeyName string
+	// The path to store the sealed key file. The same Key/KeyName
+	// can be stored under multiple KeyFile names for safety.
 	KeyFile string
+}
+
+// ModelForSealing provides information about the model for use in the context
+// of (re)sealing the encryption keys.
+type ModelForSealing interface {
+	Series() string
+	BrandID() string
+	Model() string
+	Grade() asserts.ModelGrade
+	SignKeyID() string
 }
 
 type SealKeyModelParams struct {
 	// The snap model
-	Model *asserts.Model
+	Model ModelForSealing
 	// The set of EFI binary load chains for the current device
 	// configuration
 	EFILoadChains []*LoadChain
@@ -87,6 +103,16 @@ type SealKeysParams struct {
 	PCRPolicyCounterHandle uint32
 }
 
+type SealKeysWithFDESetupHookParams struct {
+	// Initial model to bind sealed keys to.
+	Model ModelForSealing
+	// AuxKey is the auxiliary key used to bind models.
+	AuxKey AuxKey
+	// The path to the aux key file (if empty the key will not be
+	// saved)
+	AuxKeyFile string
+}
+
 type ResealKeysParams struct {
 	// The snap model parameters
 	ModelParams []*SealKeyModelParams
@@ -102,6 +128,9 @@ type UnlockVolumeUsingSealedKeyOptions struct {
 	// AllowRecoveryKey when true indicates activation with the recovery key
 	// will be attempted if activation with the sealed key failed.
 	AllowRecoveryKey bool
+	// WhichModel if invoked should return the device model
+	// assertion for which the disk is being unlocked.
+	WhichModel func() (*asserts.Model, error)
 }
 
 // UnlockMethod is the method that was used to unlock a volume.
@@ -142,4 +171,10 @@ type UnlockResult struct {
 	// - UnlockedWithSealedKey
 	// - UnlockedWithKey
 	UnlockMethod UnlockMethod
+}
+
+// EncryptedPartitionName returns the name/label used by an encrypted partition
+// corresponding to a given name.
+func EncryptedPartitionName(name string) string {
+	return name + "-enc"
 }

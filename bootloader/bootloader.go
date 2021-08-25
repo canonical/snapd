@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -77,6 +77,9 @@ func (o *Options) validate() error {
 	if o.NoSlashBoot && o.Role == RoleSole {
 		return fmt.Errorf("internal error: bootloader.RoleSole doesn't expect NoSlashBoot set")
 	}
+	if o.PrepareImageTime && o.Role == RoleRunMode {
+		return fmt.Errorf("internal error: cannot use run mode bootloader at prepare-image time")
+	}
 	return nil
 }
 
@@ -108,11 +111,6 @@ type Bootloader interface {
 
 	// RemoveKernelAssets removes the assets for the given kernel snap.
 	RemoveKernelAssets(s snap.PlaceInfo) error
-}
-
-type installableBootloader interface {
-	Bootloader
-	setRootDir(string)
 }
 
 type RecoveryAwareBootloader interface {
@@ -165,6 +163,31 @@ type ExtractedRunKernelImageBootloader interface {
 	DisableTryKernel() error
 }
 
+// ComamndLineComponents carries the components of the kernel command line. The
+// bootloader is expected to combine the provided components, optionally
+// including its built-in static set of arguments, and produce a command line
+// that will be passed to the kernel during boot.
+type CommandLineComponents struct {
+	// Argument related to mode selection.
+	ModeArg string
+	// Argument related to recovery system selection, relevant for given
+	// mode argument.
+	SystemArg string
+	// Extra arguments requested by the system.
+	ExtraArgs string
+	// A complete set of arguments that overrides both the built-in static
+	// set and ExtraArgs. Note that, it is an error if extra and full
+	// arguments are non-empty.
+	FullArgs string
+}
+
+func (c *CommandLineComponents) Validate() error {
+	if c.ExtraArgs != "" && c.FullArgs != "" {
+		return fmt.Errorf("cannot use both full and extra components of command line")
+	}
+	return nil
+}
+
 // TrustedAssetsBootloader has boot assets that take part in the secure boot
 // process and need to be tracked, while other boot assets (typically boot
 // config) are managed by snapd.
@@ -178,14 +201,15 @@ type TrustedAssetsBootloader interface {
 	// the bootloader. Returns true when assets were updated.
 	UpdateBootConfig() (bool, error)
 	// CommandLine returns the kernel command line composed of mode and
-	// system arguments, built-in bootloader specific static arguments
-	// corresponding to the on-disk boot asset edition, followed by any
-	// extra arguments. The command line may be different when using a
-	// recovery bootloader.
-	CommandLine(modeArg, systemArg, extraArgs string) (string, error)
+	// system arguments, followed by either a built-in bootloader specific
+	// static arguments corresponding to the on-disk boot asset edition, and
+	// any extra arguments or a separate set of arguments provided in the
+	// components. The command line may be different when using a recovery
+	// bootloader.
+	CommandLine(pieces CommandLineComponents) (string, error)
 	// CandidateCommandLine is similar to CommandLine, but uses the current
 	// edition of managed built-in boot assets as reference.
-	CandidateCommandLine(modeArg, systemArg, extraArgs string) (string, error)
+	CandidateCommandLine(pieces CommandLineComponents) (string, error)
 
 	// TrustedAssets returns the list of relative paths to assets inside the
 	// bootloader's rootdir that are measured in the boot process in the

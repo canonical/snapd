@@ -43,6 +43,7 @@ func Test(t *testing.T) { TestingT(t) }
 
 var _ = Suite(&openSuite{})
 var _ = Suite(&revisionErrorSuite{})
+var _ = Suite(&isUnacceptedUpdateSuite{})
 
 type openSuite struct{}
 
@@ -310,6 +311,85 @@ func (chks *checkSuite) TestCheckUnsupportedFormat(c *C) {
 	err = db.Check(a)
 	c.Assert(err, FitsTypeOf, &asserts.UnsupportedFormatError{})
 	c.Check(err, ErrorMatches, `proposed "test-only" assertion has format 77 but 1 is latest supported`)
+}
+
+func (chks *checkSuite) TestCheckMismatchedAccountIDandKey(c *C) {
+	trustedKey := testPrivKey0
+
+	cfg := &asserts.DatabaseConfig{
+		Backstore: chks.bs,
+		Trusted:   []asserts.Assertion{asserts.BootstrapAccountKeyForTest("canonical", trustedKey.PublicKey())},
+	}
+	db, err := asserts.OpenDatabase(cfg)
+	c.Assert(err, IsNil)
+
+	headers := map[string]interface{}{
+		"authority-id": "random",
+		"primary-key":  "0",
+	}
+	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, trustedKey)
+	c.Assert(err, IsNil)
+
+	err = db.Check(a)
+	c.Check(err, ErrorMatches, `error finding matching public key for signature: found public key ".*" from "canonical" but expected it from: random`)
+
+	err = asserts.CheckSignature(a, cfg.Trusted[0].(*asserts.AccountKey), db, time.Time{}, time.Time{})
+	c.Check(err, ErrorMatches, `assertion authority "random" does not match public key from "canonical"`)
+}
+
+func (chks *checkSuite) TestCheckAndSetEarliestTime(c *C) {
+	trustedKey := testPrivKey0
+
+	ak := asserts.MakeAccountKeyForTest("canonical", trustedKey.PublicKey(), time.Date(2016, 1, 1, 0, 0, 0, 0, time.UTC), 2)
+
+	cfg := &asserts.DatabaseConfig{
+		Backstore: chks.bs,
+		Trusted:   []asserts.Assertion{ak},
+	}
+	db, err := asserts.OpenDatabase(cfg)
+	c.Assert(err, IsNil)
+
+	headers := map[string]interface{}{
+		"authority-id": "canonical",
+		"primary-key":  "0",
+	}
+	a, err := asserts.AssembleAndSignInTest(asserts.TestOnlyType, headers, nil, trustedKey)
+	c.Assert(err, IsNil)
+
+	// now is since + 1 year, key is valid
+	r := asserts.MockTimeNow(ak.Since().AddDate(1, 0, 0))
+	defer r()
+
+	err = db.Check(a)
+	c.Check(err, IsNil)
+
+	// now is since - 1 year, key is invalid
+	pastTime := ak.Since().AddDate(-1, 0, 0)
+	asserts.MockTimeNow(pastTime)
+
+	err = db.Check(a)
+	c.Check(err, ErrorMatches, `assertion is signed with expired public key .*`)
+
+	// now is ignored but known to be at least >= pastTime
+	// key is considered valid
+	db.SetEarliestTime(pastTime)
+	err = db.Check(a)
+	c.Check(err, IsNil)
+
+	// move earliest after until
+	db.SetEarliestTime(ak.Until().AddDate(0, 0, 1))
+	err = db.Check(a)
+	c.Check(err, ErrorMatches, `assertion is signed with expired public key .*`)
+
+	// check using now = since - 1 year again
+	db.SetEarliestTime(time.Time{})
+	err = db.Check(a)
+	c.Check(err, ErrorMatches, `assertion is signed with expired public key .*`)
+
+	// now is since + 1 month, key is valid
+	asserts.MockTimeNow(ak.Since().AddDate(0, 1, 0))
+	err = db.Check(a)
+	c.Check(err, IsNil)
 }
 
 type signAddFindSuite struct {

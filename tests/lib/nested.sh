@@ -12,7 +12,6 @@ NESTED_RUNTIME_DIR="$NESTED_WORK_DIR/runtime"
 NESTED_ASSETS_DIR="$NESTED_WORK_DIR/assets"
 NESTED_LOGS_DIR="$NESTED_WORK_DIR/logs"
 
-
 NESTED_VM=nested-vm
 NESTED_SSH_PORT=8022
 NESTED_MON_PORT=8888
@@ -21,19 +20,52 @@ NESTED_CUSTOM_MODEL="${NESTED_CUSTOM_MODEL:-}"
 NESTED_CUSTOM_AUTO_IMPORT_ASSERTION="${NESTED_CUSTOM_AUTO_IMPORT_ASSERTION:-}"
 NESTED_FAKESTORE_BLOB_DIR="${NESTED_FAKESTORE_BLOB_DIR:-$NESTED_WORK_DIR/fakestore/blobs}"
 NESTED_SIGN_SNAPS_FAKESTORE="${NESTED_SIGN_SNAPS_FAKESTORE:-false}"
+NESTED_FAKESTORE_SNAP_DECL_PC_GADGET="${NESTED_FAKESTORE_SNAP_DECL_PC_GADGET:-}"
 NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL:-}"
 
 nested_wait_for_ssh() {
     # TODO:UC20: the retry count should be lowered to something more reasonable.
-    nested_retry_until_success 800 1 "true"
+    local retry=800
+    local wait=1
+
+    until nested_exec "true"; do
+        retry=$(( retry - 1 ))
+        if [ $retry -le 0 ]; then
+            echo "Timed out waiting for command 'true' to succeed. Aborting!"
+            return 1
+        fi
+        sleep "$wait"
+    done
 }
 
 nested_wait_for_no_ssh() {
-    nested_retry_while_success 200 1 "true"
+    local retry=200
+    local wait=1
+
+    while nested_exec "true"; do
+        retry=$(( retry - 1 ))
+        if [ $retry -le 0 ]; then
+            echo "Timed out waiting for command 'true' to fail. Aborting!"
+            return 1
+        fi
+        sleep "$wait"
+    done
 }
 
 nested_wait_for_snap_command() {
-    nested_retry_until_success 200 1 command -v snap
+    # In this function the remote retry command cannot be used because it could
+    # be executed before the tool is deployed.
+    local retry=200
+    local wait=1
+
+    while ! nested_exec "command -v snap"; do
+        retry=$(( retry - 1 ))
+        if [ $retry -le 0 ]; then
+            echo "Timed out waiting for command 'command -v snap' to success. Aborting!"
+            return 1
+        fi
+        sleep "$wait"
+    done
 }
 
 nested_get_boot_id() {
@@ -71,36 +103,9 @@ nested_uc20_transition_to_system_mode() {
     if ! nested_exec "cat /proc/cmdline" | MATCH "snapd_recovery_mode=$mode"; then
         return 1
     fi
-}
 
-nested_retry_while_success() {
-    local retry="$1"
-    local wait="$2"
-    shift 2
-
-    while nested_exec "$@"; do
-        retry=$(( retry - 1 ))
-        if [ $retry -le 0 ]; then
-            echo "Timed out waiting for command '$*' to fail. Aborting!"
-            return 1
-        fi
-        sleep "$wait"
-    done
-}
-
-nested_retry_until_success() {
-    local retry="$1"
-    local wait="$2"
-    shift 2
-
-    until nested_exec "$@"; do
-        retry=$(( retry - 1 ))
-        if [ $retry -le 0 ]; then
-            echo "Timed out waiting for command '$*' to succeed. Aborting!"
-            return 1
-        fi
-        sleep "$wait"
-    done
+    # Copy tools to be used on tests
+    nested_prepare_tools
 }
 
 nested_prepare_ssh() {
@@ -115,6 +120,55 @@ nested_prepare_ssh() {
     nested_exec "echo 'external ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/create-user-external"
     # Check we can connect with the new external user and make sudo
     nested_exec_as external ubuntu "sudo true"
+}
+
+
+nested_is_kvm_enabled() {
+    if [ -n "$NESTED_ENABLE_KVM" ]; then
+        [ "$NESTED_ENABLE_KVM" = true ]
+    fi
+    return 0
+
+}
+
+nested_is_tpm_enabled() {
+    if [ -n "$NESTED_ENABLE_TPM" ]; then
+        [ "$NESTED_ENABLE_TPM" = true ]
+    else
+        case "${SPREAD_SYSTEM:-}" in
+            ubuntu-1*)
+                return 1
+                ;;
+            ubuntu-2*)
+                # TPM enabled by default on 20.04 and later
+                return 0
+                ;;
+            *)
+                echo "unsupported system"
+                exit 1
+                ;;
+        esac
+    fi
+}
+
+nested_is_secure_boot_enabled() {
+    if [ -n "$NESTED_ENABLE_SECURE_BOOT" ]; then
+        [ "$NESTED_ENABLE_SECURE_BOOT" = true ]
+    else
+        case "${SPREAD_SYSTEM:-}" in
+            ubuntu-1*)
+                return 1
+                ;;
+            ubuntu-2*)
+                # secure boot enabled by default on 20.04 and later
+                return 0
+                ;;
+            *)
+                echo "unsupported system"
+                exit 1
+                ;;
+        esac
+    fi
 }
 
 nested_create_assertions_disk() {
@@ -143,8 +197,14 @@ nested_create_assertions_disk() {
     local AUTO_IMPORT_ASSERT
     if [ -n "$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION" ]; then
         AUTO_IMPORT_ASSERT=$NESTED_CUSTOM_AUTO_IMPORT_ASSERTION
-    else 
-        AUTO_IMPORT_ASSERT="$TESTSLIB/assertions/auto-import.assert"
+    else
+        local per_model_auto
+        per_model_auto="$(nested_model_authority).auto-import.assert"
+        if [ -e "$TESTSLIB/assertions/${per_model_auto}" ]; then
+            AUTO_IMPORT_ASSERT="$TESTSLIB/assertions/${per_model_auto}"
+        else
+            AUTO_IMPORT_ASSERT="$TESTSLIB/assertions/auto-import.assert"
+        fi
     fi
     cp "$AUTO_IMPORT_ASSERT" "$NESTED_ASSETS_DIR/sys-user-partition/auto-import.assert"
 
@@ -172,22 +232,25 @@ nested_qemu_name() {
 nested_get_google_image_url_for_vm() {
     case "${1:-$SPREAD_SYSTEM}" in
         ubuntu-16.04-64)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/xenial-server-cloudimg-amd64-disk1.img"
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/xenial-server-cloudimg-amd64-disk1.img"
             ;;
         ubuntu-18.04-64)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/bionic-server-cloudimg-amd64.img"
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/bionic-server-cloudimg-amd64.img"
             ;;
         ubuntu-20.04-64)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/focal-server-cloudimg-amd64.img"
             ;;
-        ubuntu-20.10-64*)
-            echo "https://storage.googleapis.com/spread-snapd-tests/images/cloudimg/groovy-server-cloudimg-amd64.img"
+        ubuntu-21.04-64*)
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/hirsute-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-21.10-64*)
+            echo "https://storage.googleapis.com/snapd-spread-tests/images/cloudimg/impish-server-cloudimg-amd64.img"
             ;;
         *)
             echo "unsupported system"
             exit 1
             ;;
-        esac
+    esac
 }
 
 # shellcheck disable=SC2120
@@ -202,8 +265,11 @@ nested_get_ubuntu_image_url_for_vm() {
         ubuntu-20.04-64*)
             echo "https://cloud-images.ubuntu.com/focal/current/focal-server-cloudimg-amd64.img"
             ;;
-        ubuntu-20.10-64*)
-            echo "https://cloud-images.ubuntu.com/groovy/current/groovy-server-cloudimg-amd64.img"
+        ubuntu-21.04-64*)
+            echo "https://cloud-images.ubuntu.com/hirsute/current/hirsute-server-cloudimg-amd64.img"
+            ;;
+        ubuntu-21.10-64*)
+            echo "https://cloud-images.ubuntu.com/impish/current/impish-server-cloudimg-amd64.img"
             ;;
         *)
             echo "unsupported system"
@@ -428,6 +494,12 @@ nested_get_model() {
     esac
 }
 
+nested_model_authority() {
+    local model
+    model="$(nested_get_model)"
+    grep "authority-id:" "$model"|cut -d ' ' -f2
+}
+
 nested_ensure_ubuntu_save() {
     local GADGET_DIR="$1"
     shift
@@ -450,10 +522,11 @@ nested_create_core_vm() {
 
     mkdir -p "$NESTED_IMAGES_DIR"
 
-    if [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME".xz ]; then
-        nested_uncompress_image "$IMAGE_NAME"
-    elif [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
+    if [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" ]; then
+        cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+        return
 
+    elif [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
         if [ -n "$NESTED_CUSTOM_IMAGE_URL" ]; then
             # download the ubuntu-core image from $CUSTOM_IMAGE_URL
             nested_download_image "$NESTED_CUSTOM_IMAGE_URL" "$IMAGE_NAME"
@@ -468,11 +541,11 @@ nested_create_core_vm() {
 
             if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
                 if nested_is_core_16_system; then
-                    repack_snapd_deb_into_core_snap "$NESTED_ASSETS_DIR"
+                    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap core "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/core-from-snapd-deb.snap"
 
                 elif nested_is_core_18_system; then
-                    repack_snapd_deb_into_snapd_snap "$NESTED_ASSETS_DIR"
+                    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/snapd-from-deb.snap"
 
                     snap download --channel="$CORE_CHANNEL" --basename=core18 core18
@@ -482,12 +555,20 @@ nested_create_core_vm() {
                     repack_core_snap_with_tweaks "core18.snap" "new-core18.snap"
 
                     if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        make_snap_installable_with_id "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core18.snap" "CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6"
+                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core18.snap" "CSO04Jhav2yK0uz97cr0ipQRyqg0qQL6"
                     fi
 
                 elif nested_is_core_20_system; then
                     snap download --basename=pc-kernel --channel="20/edge" pc-kernel
-                    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR"
+
+                    # set the unix bump time if the NESTED_* var is set, 
+                    # otherwise leave it empty
+                    local epochBumpTime
+                    epochBumpTime=${NESTED_CORE20_INITRAMFS_EPOCH_TIMESTAMP:-}
+                    if [ -n "$epochBumpTime" ]; then
+                        epochBumpTime="--epoch-bump-time=$epochBumpTime"
+                    fi
+                    uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$NESTED_ASSETS_DIR" "$epochBumpTime"
                     rm -f "$PWD/pc-kernel.snap"
 
                     # Prepare the pc kernel snap
@@ -498,7 +579,7 @@ nested_create_core_vm() {
 
                     # sign the pc-kernel snap with fakestore if requested
                     if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        make_snap_installable_with_id "$NESTED_FAKESTORE_BLOB_DIR" "$KERNEL_SNAP" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
+                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$KERNEL_SNAP" "pYVQrBcKmBa0mZ4CCN7ExT6jH8rY1hza"
                     fi
 
                     # Prepare the pc gadget snap (unless provided by extra-snaps)
@@ -518,15 +599,18 @@ nested_create_core_vm() {
                         snap download --basename=pc --channel="20/edge" pc
                         unsquashfs -d pc-gadget pc.snap
                         nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-                        if [ "$NESTED_ENABLE_TPM" = "true" ] || [ "${NESTED_ADD_UBUNTU_SAVE:-}" = "true" ]; then
-                            # TODO:UC20: until https://github.com/snapcore/pc-amd64-gadget/pull/51/
-                            # lands there is no ubuntu-save in the gadget, make sure we have one
-                            nested_ensure_ubuntu_save pc-gadget --add
-                            touch ubuntu-save-added
-                        else
-                            nested_ensure_ubuntu_save pc-gadget --remove
-                            touch ubuntu-save-removed
-                        fi
+                        case "${NESTED_UBUNTU_SAVE:-}" in
+                            add)
+                                # ensure that ubuntu-save is present
+                                nested_ensure_ubuntu_save pc-gadget --add
+                                touch ubuntu-save-added
+                                ;;
+                            remove)
+                                # ensure that ubuntu-save is removed
+                                nested_ensure_ubuntu_save pc-gadget --remove
+                                touch ubuntu-save-removed
+                                ;;
+                        esac
 
                         # also make logging persistent for easier debugging of
                         # test failures, otherwise we have no way to see what
@@ -546,17 +630,21 @@ EOF
                     fi
                     # sign the pc gadget snap with fakestore if requested
                     if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        make_snap_installable_with_id "$NESTED_FAKESTORE_BLOB_DIR" "$GADGET_SNAP" "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
+                        # XXX: this is a bit of a hack, but some nested tests 
+                        # need extra bits in their snap declaration, so inject
+                        # that here, it could end up being empty in which case
+                        # it is ignored
+                        make_snap_installable_with_id --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$GADGET_SNAP" "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
                     fi
 
                     # repack the snapd snap
                     snap download --channel="latest/edge" snapd
-                    repack_snapd_deb_into_snapd_snap "$PWD"
+                    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/snapd-from-deb.snap"
 
                     # sign the snapd snap with fakestore if requested
                     if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        make_snap_installable_with_id "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/snapd-from-deb.snap" "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
+                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/snapd-from-deb.snap" "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"
                     fi
 
                     # which channel?
@@ -566,7 +654,7 @@ EOF
 
                     # sign the snapd snap with fakestore if requested
                     if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        make_snap_installable_with_id "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core20.snap" "DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q"
+                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$PWD/new-core20.snap" "DLqre5XGLbDqg9jPtiAhRRjDuPVa5X1q"
                     fi
 
                 else
@@ -592,6 +680,7 @@ EOF
             else 
                 UBUNTU_IMAGE_CHANNEL_ARG=""
             fi
+            # ubuntu-image creates sparse image files
             "$UBUNTU_IMAGE" snap --image-size 10G "$NESTED_MODEL" \
                 "$UBUNTU_IMAGE_CHANNEL_ARG" \
                 --output "$NESTED_IMAGES_DIR/$IMAGE_NAME" \
@@ -613,9 +702,8 @@ EOF
         nested_create_assertions_disk
     fi
 
-    # Save a compressed copy of the image
-    # TODO: analyze if it is better to compress just when the image is generic
-    nested_compress_image "$IMAGE_NAME"
+    # Save a copy of the image
+    cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine"
 }
 
 nested_configure_cloud_init_on_core_vm() {
@@ -700,8 +788,7 @@ users:
   - name: user1
     sudo: "ALL=(ALL) NOPASSWD:ALL"
     lock_passwd: false
-    # passwd is just "ubuntu"
-    passwd: "$6$rounds=4096$PCrfo.ggdf4ubP$REjyaoY2tUWH2vjFJjvLs3rDxVTszGR9P7mhH9sHb2MsELfc53uV/v15jDDOJU/9WInfjjTKJPlD5URhX5Mix0"
+    plain_text_passwd: "ubuntu"
 EOF
 }
 
@@ -791,7 +878,7 @@ nested_start_core_vm_unit() {
         exit 1
     fi
 
-    local PARAM_DISPLAY PARAM_NETWORK PARAM_MONITOR PARAM_USB PARAM_CD PARAM_RANDOM PARAM_CPU PARAM_TRACE PARAM_LOG PARAM_SERIAL
+    local PARAM_DISPLAY PARAM_NETWORK PARAM_MONITOR PARAM_USB PARAM_CD PARAM_RANDOM PARAM_CPU PARAM_TRACE PARAM_LOG PARAM_SERIAL PARAM_RTC
     PARAM_DISPLAY="-nographic"
     PARAM_NETWORK="-net nic,model=virtio -net user,hostfwd=tcp::$NESTED_SSH_PORT-:22"
     PARAM_MONITOR="-monitor tcp:127.0.0.1:$NESTED_MON_PORT,server,nowait"
@@ -801,6 +888,8 @@ nested_start_core_vm_unit() {
     PARAM_CPU=""
     PARAM_TRACE="-d cpu_reset"
     PARAM_LOG="-D $NESTED_LOGS_DIR/qemu.log"
+    PARAM_RTC="${NESTED_PARAM_RTC:-}"
+
     # Open port 7777 on the host so that failures in the nested VM (e.g. to
     # create users) can be debugged interactively via
     # "telnet localhost 7777". Also keeps the logs
@@ -820,7 +909,7 @@ nested_start_core_vm_unit() {
     # Set kvm attribute
     local ATTR_KVM
     ATTR_KVM=""
-    if [ "$NESTED_ENABLE_KVM" = "true" ]; then
+    if nested_is_kvm_enabled; then
         ATTR_KVM=",accel=kvm"
         # CPU can be defined just when kvm is enabled
         PARAM_CPU="-cpu host"
@@ -870,17 +959,21 @@ nested_start_core_vm_unit() {
             OVMF_VARS="snakeoil"
         fi
 
-        if [ "$NESTED_ENABLE_SECURE_BOOT" = "true" ]; then
+        if [ "${NESTED_ENABLE_OVMF:-}" = "true" ]; then
+            PARAM_BIOS="-bios /usr/share/OVMF/OVMF_CODE.fd"
+        fi
+        
+        if nested_is_secure_boot_enabled; then
             cp -f "/usr/share/OVMF/OVMF_VARS.$OVMF_VARS.fd" "$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd"
             PARAM_BIOS="-drive file=/usr/share/OVMF/OVMF_CODE.$OVMF_CODE.fd,if=pflash,format=raw,unit=0,readonly -drive file=$NESTED_ASSETS_DIR/OVMF_VARS.$OVMF_VARS.fd,if=pflash,format=raw"
             PARAM_MACHINE="-machine q35${ATTR_KVM} -global ICH9-LPC.disable_s3=1"
         fi
 
-        if [ "$NESTED_ENABLE_TPM" = "true" ]; then
-            if snap list swtpm-mvo; then
+        if nested_is_tpm_enabled; then
+            if snap list swtpm-mvo >/dev/null; then
                 # reset the tpm state
                 rm /var/snap/swtpm-mvo/current/tpm2-00.permall
-                snap restart swtpm-mvo
+                snap restart swtpm-mvo > /dev/null
             else
                 snap install swtpm-mvo --beta
             fi
@@ -904,6 +997,7 @@ nested_start_core_vm_unit() {
         ${PARAM_MEM} \
         ${PARAM_TRACE} \
         ${PARAM_LOG} \
+        ${PARAM_RTC} \
         ${PARAM_MACHINE} \
         ${PARAM_DISPLAY} \
         ${PARAM_NETWORK} \
@@ -920,14 +1014,21 @@ nested_start_core_vm_unit() {
     # wait for the nested-vm service to appear active
     wait_for_service "$NESTED_VM"
 
-    # Wait until ssh is ready
-    nested_wait_for_ssh
-    # Wait for the snap command to be available
-    nested_wait_for_snap_command
-    # Wait for snap seeding to be done
-    nested_exec "sudo snap wait system seed.loaded"
-    # Wait for cloud init to be done
-    nested_exec "cloud-init status --wait"
+    local EXPECT_SHUTDOWN
+    EXPECT_SHUTDOWN=${NESTED_EXPECT_SHUTDOWN:-}
+
+    if [ "$EXPECT_SHUTDOWN" != "1" ]; then
+        # Wait until ssh is ready
+        nested_wait_for_ssh
+        # Wait for the snap command to be available
+        nested_wait_for_snap_command
+        # Wait for snap seeding to be done
+        nested_exec "sudo snap wait system seed.loaded"
+        # Copy tools to be used on tests
+        nested_prepare_tools
+        # Wait for cloud init to be done
+        nested_exec "retry --wait 1 -n 5 sh -c 'cloud-init status --wait'"
+    fi
 }
 
 nested_get_current_image_name() {
@@ -950,35 +1051,31 @@ nested_start_core_vm() {
         # exists
         local IMAGE_NAME
         IMAGE_NAME="$(nested_get_image_name core)"
-        if ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz" ] && ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
+        if ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
             echo "No image found to be started"
             exit 1
         fi
 
-        # First time the image is used $IMAGE_NAME exists so it is used, otherwise
-        # the saved image from previous run is uncompressed
-        if ! [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ]; then
-            nested_uncompress_image "$IMAGE_NAME"
-        fi
-        mv "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$CURRENT_IMAGE"
+        # images are created as sparse files, simple cp should preserve that
+        # property
+        cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$CURRENT_IMAGE"
 
         # Start the nested core vm
         nested_start_core_vm_unit "$CURRENT_IMAGE"
 
-        if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz.configured" ]; then
+        if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.configured" ]; then
             # configure ssh for first time
             nested_prepare_ssh
             sync
 
-            # compress the current image if it is a generic image
+            # keep a copy of the current image if it is a generic image
             if nested_is_generic_image && [ "$NESTED_CONFIGURE_IMAGES" = "true" ]; then
                 # Stop the current image and compress it
                 nested_shutdown
-                nested_compress_image "$CURRENT_NAME"
 
                 # Save the image with the name of the original image
-                mv "${CURRENT_IMAGE}.xz" "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz"
-                touch "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz.configured"
+                cp -v "${CURRENT_IMAGE}" "$NESTED_IMAGES_DIR/$IMAGE_NAME"
+                touch "$NESTED_IMAGES_DIR/$IMAGE_NAME.configured"
 
                 # Start the current image again and wait until it is ready
                 nested_start
@@ -1008,18 +1105,7 @@ nested_start() {
     nested_force_start_vm
     wait_for_service "$NESTED_VM" active
     nested_wait_for_ssh
-}
-
-nested_compress_image() {
-    local IMAGE_NAME=$1
-    if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME".xz ]; then
-        xz -k0 "$NESTED_IMAGES_DIR/$IMAGE_NAME"
-    fi
-}
-
-nested_uncompress_image() {
-    local IMAGE_NAME=$1
-    unxz -kf "$NESTED_IMAGES_DIR/$IMAGE_NAME".xz
+    nested_prepare_tools
 }
 
 nested_create_classic_vm() {
@@ -1039,8 +1125,8 @@ nested_create_classic_vm() {
         cloud-localds -H "$(hostname)" "$NESTED_ASSETS_DIR/seed.img" "$NESTED_ASSETS_DIR/seed"
     fi
 
-    # Save a compressed copy of the image
-    nested_compress_image "$IMAGE_NAME"
+    # Save a copy of the image
+    cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine"
 }
 
 nested_start_classic_vm() {
@@ -1048,8 +1134,8 @@ nested_start_classic_vm() {
     QEMU="$(nested_qemu_name)"
     IMAGE_NAME="$(nested_get_image_name classic)"
 
-    if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ] && [ -f "$NESTED_IMAGES_DIR/$IMAGE_NAME.xz" ]; then
-        nested_uncompress_image "$IMAGE_NAME"
+    if [ ! -f "$NESTED_IMAGES_DIR/$IMAGE_NAME" ] ; then
+        cp -v "$NESTED_IMAGES_DIR/$IMAGE_NAME.pristine" "$IMAGE_NAME"
     fi
 
     # Now qemu parameters are defined
@@ -1115,7 +1201,8 @@ nested_start_classic_vm() {
     # save logs from previous runs
     nested_save_serial_log
 
-    # Systemd unit is created, it is important to respect the qemu parameters order
+    # Systemd unit is created, it is important to respect the qemu parameters 
+    # order
     systemd_create_and_start_unit "$NESTED_VM" "${QEMU}  \
         ${PARAM_SMP} \
         ${PARAM_CPU} \
@@ -1135,6 +1222,9 @@ nested_start_classic_vm() {
         ${PARAM_CD} "
 
     nested_wait_for_ssh
+
+    # Copy tools to be used on tests
+    nested_prepare_tools
 }
 
 nested_destroy_vm() {
@@ -1154,6 +1244,52 @@ nested_exec_as() {
     local PASSWD="$2"
     shift 2
     sshpass -p "$PASSWD" ssh -p "$NESTED_SSH_PORT" -o ConnectTimeout=10 -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no "$USER"@localhost "$@"
+}
+
+nested_prepare_tools() {
+    TOOLS_PATH=/writable/test-tools
+    if ! nested_exec "test -d $TOOLS_PATH" &>/dev/null; then
+        nested_exec "sudo mkdir -p $TOOLS_PATH"
+        nested_exec "sudo chown user1:user1 $TOOLS_PATH"
+    fi
+
+    if ! nested_exec "test -e $TOOLS_PATH/retry" &>/dev/null; then
+        nested_copy "$TESTSTOOLS/retry"
+        nested_exec "mv retry $TOOLS_PATH/retry"
+    fi
+
+    if ! nested_exec "test -e $TOOLS_PATH/not" &>/dev/null; then
+        nested_copy "$TESTSTOOLS/not"
+        nested_exec "mv not $TOOLS_PATH/not"
+    fi
+
+    if ! nested_exec "test -e $TOOLS_PATH/MATCH" &>/dev/null; then
+        . "$TESTSLIB"/spread-funcs.sh
+        echo '#!/bin/bash' > MATCH_FILE
+        type MATCH | tail -n +2 >> MATCH_FILE
+        echo 'MATCH "$@"' >> MATCH_FILE
+        chmod +x MATCH_FILE
+        nested_copy "MATCH_FILE"
+        nested_exec "mv MATCH_FILE $TOOLS_PATH/MATCH"
+        rm -f MATCH_FILE
+    fi
+
+    if ! nested_exec "test -e $TOOLS_PATH/NOMATCH" &>/dev/null; then
+        . "$TESTSLIB"/spread-funcs.sh
+        echo '#!/bin/bash' > NOMATCH_FILE
+        type NOMATCH | tail -n +2 >> NOMATCH_FILE
+        echo 'NOMATCH "$@"' >> NOMATCH_FILE
+        chmod +x NOMATCH_FILE
+        nested_copy "NOMATCH_FILE"
+        nested_exec "mv NOMATCH_FILE $TOOLS_PATH/NOMATCH"
+        rm -f NOMATCH_FILE
+    fi
+
+    if ! nested_exec "grep -qE PATH=.*$TOOLS_PATH /etc/environment"; then
+        # shellcheck disable=SC2016
+        REMOTE_PATH="$(nested_exec 'echo $PATH')"
+        nested_exec "echo PATH=$TOOLS_PATH:$REMOTE_PATH | sudo tee -a /etc/environment"
+    fi
 }
 
 nested_copy() {
@@ -1203,7 +1339,7 @@ nested_get_core_revision_installed() {
 nested_fetch_spread() {
     if [ ! -f "$NESTED_WORK_DIR/spread" ]; then
         mkdir -p "$NESTED_WORK_DIR"
-        curl https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz | tar -xzv -C "$NESTED_WORK_DIR"
+        curl https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | tar -xzv -C "$NESTED_WORK_DIR"
         # make sure spread really exists
         test -x "$NESTED_WORK_DIR/spread"
         echo "$NESTED_WORK_DIR/spread"

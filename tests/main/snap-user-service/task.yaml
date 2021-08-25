@@ -8,7 +8,7 @@ systems:
     # Centos 7 gives error "Unit user@12345.service not loaded."
     - -centos-7-*
 
-kill-timeout: 5m
+kill-timeout: 10m
 
 prepare: |
     snap set system experimental.user-daemons=true
@@ -17,6 +17,11 @@ prepare: |
 restore: |
     tests.session -u test restore
     snap unset system experimental.user-daemons
+
+debug: |
+    tests.session dump
+    tests.session -u test exec systemctl --user status snapd.session-agent.service || true
+    tests.session -u test exec journalctl --user || true
 
 execute: |
     echo "When the service snap is installed"
@@ -27,8 +32,3 @@ execute: |
 
     echo "We can see the service running"
     tests.session -u test exec systemctl --user is-active snap.test-snapd-user-service.test-snapd-user-service
-
-debug: |
-    tests.session dump
-    tests.session -u test exec systemctl --user status snapd.session-agent.service || true
-    tests.session -u test exec journalctl --user || true

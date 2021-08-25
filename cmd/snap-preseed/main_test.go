@@ -25,7 +25,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
 	"testing"
 
 	"github.com/jessevdk/go-flags"
@@ -34,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/cmd/snap-preseed"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
@@ -129,6 +129,33 @@ func (s *startPreseedSuite) TestChrootValidationUnhappy(c *C) {
 	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches, "cannot preseed without the following mountpoints:\n - .*/dev\n - .*/proc\n - .*/sys/kernel/security")
 }
 
+func (s *startPreseedSuite) TestRunPreseedMountUnhappy(c *C) {
+	tmpDir := c.MkDir()
+	dirs.SetRootDir(tmpDir)
+	defer mockChrootDirs(c, tmpDir, true)()
+
+	restoreOsGuid := main.MockOsGetuid(func() int { return 0 })
+	defer restoreOsGuid()
+
+	restoreSyscallChroot := main.MockSyscallChroot(func(path string) error { return nil })
+	defer restoreSyscallChroot()
+
+	mockMountCmd := testutil.MockCommand(c, "mount", `echo "something went wrong"
+exit 32
+`)
+	defer mockMountCmd.Restore()
+
+	targetSnapdRoot := filepath.Join(tmpDir, "target-core-mounted-here")
+	restoreMountPath := main.MockSnapdMountPath(targetSnapdRoot)
+	defer restoreMountPath()
+
+	restoreSystemSnapFromSeed := main.MockSystemSnapFromSeed(func(string) (string, error) { return "/a/core.snap", nil })
+	defer restoreSystemSnapFromSeed()
+
+	parser := testParser(c)
+	c.Check(main.Run(parser, []string{tmpDir}), ErrorMatches, `cannot mount .+ at .+ in preseed mode: exit status 32\n'mount -t squashfs -o ro,x-gdu.hide,x-gvfs-hide /a/core.snap .*/target-core-mounted-here' failed with: something went wrong\n`)
+}
+
 func (s *startPreseedSuite) TestChrootValidationUnhappyNoApparmor(c *C) {
 	restore := main.MockOsGetuid(func() int { return 0 })
 	defer restore()
@@ -214,7 +241,7 @@ func (s *startPreseedSuite) TestRunPreseedHappy(c *C) {
 	c.Assert(mockMountCmd.Calls(), HasLen, 1)
 	// note, tmpDir, targetSnapdRoot are contactenated again cause we're not really chrooting in the test
 	// and mocking dirs.RootDir
-	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", "-o", "ro,x-gdu.hide", "/a/core.snap", filepath.Join(tmpDir, targetSnapdRoot)})
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", "-o", "ro,x-gdu.hide,x-gvfs-hide", "/a/core.snap", filepath.Join(tmpDir, targetSnapdRoot)})
 
 	c.Assert(mockTargetSnapd.Calls(), HasLen, 1)
 	c.Check(mockTargetSnapd.Calls()[0], DeepEquals, []string{"snapd"})
@@ -278,7 +305,7 @@ func (s *startPreseedSuite) TestRunPreseedHappyDebVersionIsNewer(c *C) {
 	c.Assert(mockMountCmd.Calls(), HasLen, 1)
 	// note, tmpDir, targetSnapdRoot are contactenated again cause we're not really chrooting in the test
 	// and mocking dirs.RootDir
-	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", "-o", "ro,x-gdu.hide", "/a/core.snap", filepath.Join(tmpDir, targetSnapdRoot)})
+	c.Check(mockMountCmd.Calls()[0], DeepEquals, []string{"mount", "-t", "squashfs", "-o", "ro,x-gdu.hide,x-gvfs-hide", "/a/core.snap", filepath.Join(tmpDir, targetSnapdRoot)})
 
 	c.Assert(mockSnapdFromDeb.Calls(), HasLen, 1)
 	c.Check(mockSnapdFromDeb.Calls()[0], DeepEquals, []string{"snapd"})
@@ -325,6 +352,10 @@ func (fs *Fake16Seed) Brand() (*asserts.Account, error) {
 		"timestamp":    "2018-01-01T08:00:00+00:00",
 	}
 	return assertstest.FakeAssertion(headers, nil).(*asserts.Account), nil
+}
+
+func (fs *Fake16Seed) LoadEssentialMeta(essentialTypes []snap.Type, tm timings.Measurer) error {
+	panic("unexpected")
 }
 
 func (fs *Fake16Seed) LoadMeta(tm timings.Measurer) error {
@@ -616,6 +647,7 @@ func (s *startPreseedSuite) TestReset(c *C) {
 			{filepath.Join(dirs.SnapSeqDir, "foo.json"), ""},
 			{filepath.Join(dirs.SnapMountDir, "foo", "bin"), ""},
 			{filepath.Join(dirs.SnapSeccompDir, "foo.bin"), ""},
+			{filepath.Join(runinhibit.InhibitDir, "foo.lock"), ""},
 			// bash-completion symlinks
 			{filepath.Join(dirs.CompletersDir, "foo.bar"), "/a/snapd/complete.sh"},
 			{filepath.Join(dirs.CompletersDir, "foo"), "foo.bar"},
@@ -677,4 +709,27 @@ func (s *startPreseedSuite) TestReset(c *C) {
 		c.Assert(err, ErrorMatches, fmt.Sprintf(`cannot reset %q, it is not a directory`, dummyFile))
 	}
 
+}
+
+func (s *startPreseedSuite) TestReadInfoSanity(c *C) {
+	var called bool
+	inf := &snap.Info{
+		BadInterfaces: make(map[string]string),
+		Plugs: map[string]*snap.PlugInfo{
+			"foo": {
+				Interface: "bad"},
+		},
+	}
+
+	// set a dummy sanitize method.
+	snap.SanitizePlugsSlots = func(*snap.Info) { called = true }
+
+	parser := testParser(c)
+	tmpDir := c.MkDir()
+	_ = main.Run(parser, []string{tmpDir})
+
+	// real sanitize method should be set after Run()
+	snap.SanitizePlugsSlots(inf)
+	c.Assert(called, Equals, false)
+	c.Assert(inf.BadInterfaces, HasLen, 1)
 }

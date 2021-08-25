@@ -26,10 +26,12 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -75,7 +77,7 @@ func (s *fdeSetupSuite) SetUpTest(c *C) {
 }
 
 func (s *fdeSetupSuite) TestFdeSetupRequestOpInvalid(c *C) {
-	fdeSetup := &hookstate.FDESetupRequest{
+	fdeSetup := &fde.SetupRequest{
 		Op: "invalid-and-unknown",
 	}
 	s.mockContext.Lock()
@@ -111,7 +113,7 @@ func (s *fdeSetupSuite) TestFdeSetupRequestNoFdeSetupOpData(c *C) {
 }
 
 func (s *fdeSetupSuite) TestFdeSetupRequestOpFeatures(c *C) {
-	fdeSetup := &hookstate.FDESetupRequest{
+	fdeSetup := &fde.SetupRequest{
 		Op: "features",
 	}
 	s.mockContext.Lock()
@@ -125,17 +127,11 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpFeatures(c *C) {
 }
 
 func (s *fdeSetupSuite) TestFdeSetupRequestOpInitialSetup(c *C) {
-	fdeSetup := &hookstate.FDESetupRequest{
+	mockKey := secboot.EncryptionKey{1, 2, 3, 4}
+	fdeSetup := &fde.SetupRequest{
 		Op:      "initial-setup",
-		Key:     []byte("key-to-seal"),
+		Key:     mockKey[:],
 		KeyName: "the-key-name",
-		Model: map[string]string{
-			"series":     "16",
-			"brand-id":   "my-brand",
-			"model":      "my-model",
-			"grade":      "secured",
-			"signkey-id": "the-signkey-id",
-		},
 	}
 	s.mockContext.Lock()
 	s.mockContext.Set("fde-setup-request", fdeSetup)
@@ -144,8 +140,10 @@ func (s *fdeSetupSuite) TestFdeSetupRequestOpInitialSetup(c *C) {
 	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"fde-setup-request"}, 0)
 	c.Assert(err, IsNil)
 
-	b64EncodedKeyToSeal := base64.StdEncoding.EncodeToString([]byte("key-to-seal"))
-	c.Check(string(stdout), Equals, fmt.Sprintf(`{"op":"initial-setup","key":%q,"key-name":"the-key-name","model":{"brand-id":"my-brand","grade":"secured","model":"my-model","series":"16","signkey-id":"the-signkey-id"}}`+"\n", b64EncodedKeyToSeal))
+	// the encryption key should be base64 encoded
+	encodedBase64Key := base64.StdEncoding.EncodeToString(mockKey[:])
+
+	c.Check(string(stdout), Equals, fmt.Sprintf(`{"op":"initial-setup","key":%q,"key-name":"the-key-name"}`+"\n", encodedBase64Key))
 	c.Check(string(stderr), Equals, "")
 }
 

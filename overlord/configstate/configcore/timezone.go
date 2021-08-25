@@ -25,14 +25,19 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strings"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/sysconfig"
 )
 
 func init() {
 	// add supported configuration of this module
 	supportedConfigurations["core.system.timezone"] = true
+	// and register it as a external config
+	config.RegisterExternalConfig("core", "system.timezone", getTimezoneFromSystemVC)
 }
 
 var validTimezone = regexp.MustCompile(`^[a-zA-Z0-9+_-]+(/[a-zA-Z0-9+_-]+)?(/[a-zA-Z0-9+_-]+)?$`).MatchString
@@ -52,17 +57,10 @@ func validateTimezoneSettings(tr config.ConfGetter) error {
 	return nil
 }
 
-func handleTimezoneConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
-	// TODO: convert to "virtual" configuration nodes once we have support
-	// for this. The current code is not ideal because if one calls
-	// `snap get system system.hostname` the answer can be ""
-	// when not set via snap set.
-	//
-	// It will also override any hostname on the next `snap set` run
-	// that was written not using `snap set system system.hostname`.
+func handleTimezoneConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	timezone, err := coreCfg(tr, "system.timezone")
 	if err != nil {
-		return nil
+		return err
 	}
 	// nothing to do
 	if timezone == "" {
@@ -70,6 +68,15 @@ func handleTimezoneConfiguration(tr config.ConfGetter, opts *fsOnlyContext) erro
 	}
 	// runtime system
 	if opts == nil {
+		// see if anything has changed
+		currentTimezone, err := getTimezoneFromSystem()
+		if err != nil {
+			return err
+		}
+		if timezone == currentTimezone {
+			return nil
+		}
+
 		output, err := exec.Command("timedatectl", "set-timezone", timezone).CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("cannot set timezone: %v", osutil.OutputErr(output, err))
@@ -93,4 +100,27 @@ func handleTimezoneConfiguration(tr config.ConfGetter, opts *fsOnlyContext) erro
 	}
 
 	return nil
+}
+
+func getTimezoneFromSystemVC(key string) (interface{}, error) {
+	return getTimezoneFromSystem()
+}
+
+func getTimezoneFromSystem() (string, error) {
+	// We cannot use "timedatectl show" here because it is only
+	// available on UC20.
+	//
+	// Note that this code only runs on UbuntuCore systems which all
+	// have /etc/writable/localtime
+	link, err := os.Readlink(filepath.Join(dirs.GlobalRootDir, "/etc/writable/localtime"))
+	// see localtime(5)
+	// "If /etc/localtime is missing, the default "UTC" timezone is used."
+	if os.IsNotExist(err) {
+		return "UTC", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("cannot get timezone: %v", err)
+	}
+	val := strings.TrimPrefix(link, "/usr/share/zoneinfo/")
+	return val, nil
 }

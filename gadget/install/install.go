@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/secboot"
+	"github.com/snapcore/snapd/timings"
 )
 
 const (
@@ -51,9 +52,22 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 	return "", fmt.Errorf("cannot find role %s in gadget", role)
 }
 
+func roleOrLabelOrName(part gadget.OnDiskStructure) string {
+	switch {
+	case part.Role != "":
+		return part.Role
+	case part.Label != "":
+		return part.Label
+	case part.Name != "":
+		return part.Name
+	default:
+		return "unknown"
+	}
+}
+
 // Run bootstraps the partitions of a device, by either creating
 // missing ones or recreating installed ones.
-func Run(gadgetRoot, device string, options Options, observer gadget.ContentObserver) (*InstalledSystemSideData, error) {
+func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
 	logger.Noticef("installing a new system")
 	logger.Noticef("        gadget data from: %v", gadgetRoot)
 	if options.Encrypt {
@@ -63,10 +77,11 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 		return nil, fmt.Errorf("cannot use empty gadget root directory")
 	}
 
-	lv, err := gadget.PositionedVolumeFromGadget(gadgetRoot)
+	lv, err := gadget.LaidOutSystemVolumeFromGadget(gadgetRoot, kernelRoot, model)
 	if err != nil {
 		return nil, fmt.Errorf("cannot layout the volume: %v", err)
 	}
+	// TODO: resolve content paths from gadget here
 
 	// XXX: the only situation where auto-detect is not desired is
 	//      in (spread) testing - consider to remove forcing a device
@@ -104,7 +119,10 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 		}
 	}
 
-	created, err := createMissingPartitions(diskLayout, lv)
+	var created []gadget.OnDiskStructure
+	timings.Run(perfTimings, "create-partitions", "Create partitions", func(timings.Measurer) {
+		created, err = createMissingPartitions(diskLayout, lv)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("cannot create the partitions: %v", err)
 	}
@@ -137,17 +155,26 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 		logger.Noticef("created new partition %v for structure %v (size %v) %s",
 			part.Node, part, part.Size.IECString(), roleFmt)
 		if options.Encrypt && roleNeedsEncryption(part.Role) {
-			keys, err := makeKeySet()
+			var keys *EncryptionKeySet
+			timings.Run(perfTimings, fmt.Sprintf("make-key-set[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption key set for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
+				keys, err = makeKeySet()
+			})
 			if err != nil {
 				return nil, err
 			}
 			logger.Noticef("encrypting partition device %v", part.Node)
-			dataPart, err := newEncryptedDevice(&part, keys.Key, part.Label)
+			var dataPart *encryptedDevice
+			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption device for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
+				dataPart, err = newEncryptedDevice(&part, keys.Key, part.Label)
+			})
 			if err != nil {
 				return nil, err
 			}
 
-			if err := dataPart.AddRecoveryKey(keys.Key, keys.RecoveryKey); err != nil {
+			timings.Run(perfTimings, fmt.Sprintf("add-recovery-key[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Adding recovery key for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
+				err = dataPart.AddRecoveryKey(keys.Key, keys.RecoveryKey)
+			})
+			if err != nil {
 				return nil, err
 			}
 
@@ -160,11 +187,22 @@ func Run(gadgetRoot, device string, options Options, observer gadget.ContentObse
 			logger.Noticef("encrypted device %v", part.Node)
 		}
 
-		if err := makeFilesystem(&part); err != nil {
-			return nil, err
+		// use the diskLayout.SectorSize here instead of lv.SectorSize, we check
+		// that if there is a sector-size specified in the gadget that it
+		// matches what is on the disk, but sometimes there may not be a sector
+		// size specified in the gadget.yaml, but we will always have the sector
+		// size from the physical disk device
+		timings.Run(perfTimings, fmt.Sprintf("make-filesystem[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create filesystem for %s", part.Node), func(timings.Measurer) {
+			err = makeFilesystem(&part, diskLayout.SectorSize)
+		})
+		if err != nil {
+			return nil, fmt.Errorf("cannot make filesystem for partition %s: %v", roleOrLabelOrName(part), err)
 		}
 
-		if err := writeContent(&part, gadgetRoot, observer); err != nil {
+		timings.Run(perfTimings, fmt.Sprintf("write-content[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Write content for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
+			err = writeContent(&part, gadgetRoot, observer)
+		})
+		if err != nil {
 			return nil, err
 		}
 
@@ -250,9 +288,21 @@ func ensureLayoutCompatibility(gadgetLayout *gadget.LaidOutVolume, diskLayout *g
 		return false, reasonAbsent
 	}
 
+	// check size of volumes
 	if gadgetLayout.Size > diskLayout.Size {
 		return fmt.Errorf("device %v (%s) is too small to fit the requested layout (%s)", diskLayout.Device,
 			diskLayout.Size.IECString(), gadgetLayout.Size.IECString())
+	}
+
+	// check that the sizes of all structures in the gadget are multiples of
+	// the disk sector size (unless the structure is the MBR)
+	for _, ls := range gadgetLayout.LaidOutStructure {
+		if !gadget.IsRoleMBR(ls) {
+			if ls.Size%diskLayout.SectorSize != 0 {
+				return fmt.Errorf("gadget volume structure %v size is not a multiple of disk sector size %v",
+					ls, diskLayout.SectorSize)
+			}
+		}
 	}
 
 	// Check if top level properties match

@@ -42,10 +42,6 @@ func (a *androidboot) Name() string {
 	return "androidboot"
 }
 
-func (a *androidboot) setRootDir(rootdir string) {
-	a.rootdir = rootdir
-}
-
 func (a *androidboot) dir() string {
 	if a.rootdir == "" {
 		panic("internal error: unset rootdir")

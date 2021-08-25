@@ -260,3 +260,7 @@ func assembleValidationSet(assert assertionBase) (Assertion, error) {
 		timestamp:     timestamp,
 	}, nil
 }
+
+func IsValidValidationSetName(name string) bool {
+	return validValidationSetName.MatchString(name)
+}

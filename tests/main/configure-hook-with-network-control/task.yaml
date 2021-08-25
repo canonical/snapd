@@ -1,6 +1,6 @@
 summary: Check that snaps with configure work with network control
 
-description: |
+details: |
     Test for https://forum.snapcraft.io/t/9452
 
 execute: |
@@ -10,7 +10,6 @@ execute: |
     echo "Ensure configure was run fully"
     test -e /var/snap/test-snapd-with-configure-nc/common/configure-ran
     rm -f  /var/snap/test-snapd-with-configure-nc/common/configure-ran
-
 
     echo "Now with the network-control plug"
     snap connect test-snapd-with-configure-nc:network-control

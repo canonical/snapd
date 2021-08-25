@@ -1,8 +1,8 @@
 summary: core revert test
 
-kill-timeout: 30m
-
 systems: [ubuntu-16.04-64]
+
+kill-timeout: 30m
 
 environment:
     IMAGE_FILE: /tmp/work-dir/images/ubuntu-core-new.img
@@ -33,32 +33,39 @@ execute: |
         exit 0
     fi
 
-    nested_exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_CHANNEL}"
-    nested_exec "sudo snap refresh --${NESTED_CORE_REFRESH_CHANNEL} core" || true
+    echo "Refresh the core snap to $NESTED_CORE_REFRESH_CHANNEL channel"
+    tests.nested exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_CHANNEL}"
+    tests.nested exec "sudo snap refresh --${NESTED_CORE_REFRESH_CHANNEL} core" || true
 
-    if ! nested_wait_for_ssh; then
+    if ! tests.nested wait-for ssh; then
         echo "ssh not stablished, exiting..."
         exit 1
     fi
 
-    while ! nested_exec "snap changes" | MATCH "Done.*Refresh \"core\" snap from \"${NESTED_CORE_REFRESH_CHANNEL}\" channel"; do
+    echo "Wait until the refresh is completed"
+    while ! tests.nested exec "snap changes" | MATCH "Done.*Refresh \"core\" snap from \"${NESTED_CORE_REFRESH_CHANNEL}\" channel"; do
         sleep 1
     done
-    nested_exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_REFRESH_CHANNEL}"
+    tests.nested exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_REFRESH_CHANNEL}"
 
-    # sanity check, no refresh should be done here but the command shouldn't fail
-    nested_exec "sudo snap refresh"
-    nested_exec "sudo snap revert core" || true
+    echo "Sanity check, no refresh should be done here but the command shouldn't fail"
+    tests.nested exec "sudo snap refresh"
 
-    if ! nested_wait_for_ssh; then
+    echo "Revert the core snap"
+    tests.nested exec "sudo snap revert core" || true
+
+    if ! tests.nested wait-for ssh; then
         echo "ssh not stablished, exiting..."
         exit 1
     fi
 
-    while ! nested_exec "snap changes" | MATCH "Done.*Revert \"core\" snap"; do sleep 1 ; done
-    nested_exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_REFRESH_CHANNEL}"
-    nested_exec "ifconfig" | MATCH eth0
+    echo "Wait until the revert is completed"
+    while ! tests.nested exec "snap changes" | MATCH "Done.*Revert \"core\" snap"; do sleep 1 ; done
+
+    echo "Check the revert was done properly"
+    tests.nested exec "snap info core" | MATCH "tracking: +latest/${NESTED_CORE_REFRESH_CHANNEL}"
+    tests.nested exec "ifconfig" | MATCH eth0
 
 
-    nested_exec "sudo snap refresh"
-    nested_exec "sudo cat /var/log/syslog" | not MATCH "hsearch_r failed for.* No such process"
+    tests.nested exec "sudo snap refresh"
+    tests.nested exec "sudo cat /var/log/syslog" | NOMATCH "hsearch_r failed for.* No such process"

@@ -1,8 +1,5 @@
 summary: Ensure that the network-control interface works.
 
-# ubuntu-14.04: systemd-run not supported
-systems: [-fedora-*, -opensuse-*, -ubuntu-14.04*]
-
 details: |
     The network-control interface allows a snap to configure networking.
 
@@ -13,6 +10,9 @@ details: |
     A snap declaring a plug on this interface must be able to modify the network configuration
     and ask for its status, the test sets up a network service, gets information about it (read
     capability) and creates an arp entry (write capability).
+
+# ubuntu-14.04: systemd-run not supported
+systems: [-fedora-*, -opensuse-*, -ubuntu-14.04*]
 
 environment:
     PORT: 8081
@@ -103,7 +103,7 @@ execute: |
     network-control-consumer.cmd ip link set veth1 netns test-ns
 
     ip link list | MATCH "veth0"
-    ip link list | not MATCH "veth1"
+    ip link list | NOMATCH "veth1"
 
     echo "And a command can be executed in the context of the namespace"
     network-control-consumer.cmd ip netns exec test-ns ip link list | MATCH "veth1"

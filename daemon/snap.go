@@ -24,8 +24,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
-	"strings"
 
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/client/clientutil"
@@ -39,50 +37,10 @@ import (
 
 var errNoSnap = errors.New("snap not installed")
 
-// snapIcon tries to find the icon inside the snap
-func snapIcon(info snap.PlaceInfo) string {
-	found, _ := filepath.Glob(filepath.Join(info.MountDir(), "meta", "gui", "icon.*"))
-	if len(found) == 0 {
-		return ""
-	}
-
-	return found[0]
-}
-
-func publisherAccount(st *state.State, snapID string) (snap.StoreAccount, error) {
-	if snapID == "" {
-		return snap.StoreAccount{}, nil
-	}
-
-	pubAcct, err := assertstate.Publisher(st, snapID)
-	if err != nil {
-		return snap.StoreAccount{}, fmt.Errorf("cannot find publisher details: %v", err)
-	}
-	return snap.StoreAccount{
-		ID:          pubAcct.AccountID(),
-		Username:    pubAcct.Username(),
-		DisplayName: pubAcct.DisplayName(),
-		Validation:  pubAcct.Validation(),
-	}, nil
-}
-
 type aboutSnap struct {
 	info   *snap.Info
 	snapst *snapstate.SnapState
 	health *client.SnapHealth
-}
-
-func clientHealthFromHealthstate(h *healthstate.HealthState) *client.SnapHealth {
-	if h == nil {
-		return nil
-	}
-	return &client.SnapHealth{
-		Revision:  h.Revision,
-		Timestamp: h.Timestamp,
-		Status:    h.Status.String(),
-		Message:   h.Message,
-		Code:      h.Code,
-	}
 }
 
 // localSnapInfo returns the information about the current snap for the given name plus the SnapState with the active flag and other snap revisions.
@@ -187,103 +145,34 @@ func allLocalSnapInfos(st *state.State, all bool, wanted map[string]bool) ([]abo
 	return about, firstErr
 }
 
-// this differs from snap.SplitSnapApp in the handling of the
-// snap-only case:
-//   snap.SplitSnapApp("foo") is ("foo", "foo"),
-//   splitAppName("foo") is ("foo", "").
-func splitAppName(s string) (snap, app string) {
-	if idx := strings.IndexByte(s, '.'); idx > -1 {
-		return s[:idx], s[idx+1:]
+func publisherAccount(st *state.State, snapID string) (snap.StoreAccount, error) {
+	if snapID == "" {
+		return snap.StoreAccount{}, nil
 	}
 
-	return s, ""
-}
-
-type appInfoOptions struct {
-	service bool
-}
-
-func (opts appInfoOptions) String() string {
-	if opts.service {
-		return "service"
-	}
-
-	return "app"
-}
-
-// appInfosFor returns a sorted list apps described by names.
-//
-// * If names is empty, returns all apps of the wanted kinds (which
-//   could be an empty list).
-// * An element of names can be a snap name, in which case all apps
-//   from the snap of the wanted kind are included in the result (and
-//   it's an error if the snap has no apps of the wanted kind).
-// * An element of names can instead be snap.app, in which case that app is
-//   included in the result (and it's an error if the snap and app don't
-//   both exist, or if the app is not a wanted kind)
-// On error an appropriate error Response is returned; a nil Response means
-// no error.
-//
-// It's a programming error to call this with wanted having neither
-// services nor commands set.
-func appInfosFor(st *state.State, names []string, opts appInfoOptions) ([]*snap.AppInfo, Response) {
-	snapNames := make(map[string]bool)
-	requested := make(map[string]bool)
-	for _, name := range names {
-		requested[name] = true
-		name, _ = splitAppName(name)
-		snapNames[name] = true
-	}
-
-	snaps, err := allLocalSnapInfos(st, false, snapNames)
+	pubAcct, err := assertstate.Publisher(st, snapID)
 	if err != nil {
-		return nil, InternalError("cannot list local snaps! %v", err)
+		return snap.StoreAccount{}, fmt.Errorf("cannot find publisher details: %v", err)
 	}
+	return snap.StoreAccount{
+		ID:          pubAcct.AccountID(),
+		Username:    pubAcct.Username(),
+		DisplayName: pubAcct.DisplayName(),
+		Validation:  pubAcct.Validation(),
+	}, nil
+}
 
-	found := make(map[string]bool)
-	appInfos := make([]*snap.AppInfo, 0, len(requested))
-	for _, snp := range snaps {
-		snapName := snp.info.InstanceName()
-		apps := make([]*snap.AppInfo, 0, len(snp.info.Apps))
-		for _, app := range snp.info.Apps {
-			if !opts.service || app.IsService() {
-				apps = append(apps, app)
-			}
-		}
-
-		if len(apps) == 0 && requested[snapName] {
-			return nil, AppNotFound("snap %q has no %ss", snapName, opts)
-		}
-
-		includeAll := len(requested) == 0 || requested[snapName]
-		if includeAll {
-			// want all services in a snap
-			found[snapName] = true
-		}
-
-		for _, app := range apps {
-			appName := snapName + "." + app.Name
-			if includeAll || requested[appName] {
-				appInfos = append(appInfos, app)
-				found[appName] = true
-			}
-		}
+func clientHealthFromHealthstate(h *healthstate.HealthState) *client.SnapHealth {
+	if h == nil {
+		return nil
 	}
-
-	for k := range requested {
-		if !found[k] {
-			if snapNames[k] {
-				return nil, SnapNotFound(k, fmt.Errorf("snap %q not found", k))
-			} else {
-				snap, app := splitAppName(k)
-				return nil, AppNotFound("snap %q has no %s %q", snap, opts, app)
-			}
-		}
+	return &client.SnapHealth{
+		Revision:  h.Revision,
+		Timestamp: h.Timestamp,
+		Status:    h.Status.String(),
+		Message:   h.Message,
+		Code:      h.Code,
 	}
-
-	sort.Sort(snap.AppInfoBySnapApp(appInfos))
-
-	return appInfos, nil
 }
 
 func mapLocal(about aboutSnap, sd clientutil.StatusDecorator) *client.Snap {
@@ -322,17 +211,12 @@ func mapLocal(about aboutSnap, sd clientutil.StatusDecorator) *client.Snap {
 	return result
 }
 
-func mapRemote(remoteSnap *snap.Info) *client.Snap {
-	result, err := clientutil.ClientSnapFromSnapInfo(remoteSnap, nil)
-	if err != nil {
-		logger.Noticef("cannot get full app info for snap %q: %v", remoteSnap.SnapName(), err)
-	}
-	result.DownloadSize = remoteSnap.Size
-	if remoteSnap.MustBuy {
-		result.Status = "priced"
-	} else {
-		result.Status = "available"
+// snapIcon tries to find the icon inside the snap
+func snapIcon(info snap.PlaceInfo) string {
+	found, _ := filepath.Glob(filepath.Join(info.MountDir(), "meta", "gui", "icon.*"))
+	if len(found) == 0 {
+		return ""
 	}
 
-	return result
+	return found[0]
 }

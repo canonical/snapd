@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2018 Canonical Ltd
+ * Copyright (C) 2018-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,35 +20,64 @@
 package daemon
 
 import (
+	"context"
 	"net/http"
 	"time"
 
+	"github.com/gorilla/mux"
+
 	"github.com/snapcore/snapd/overlord"
-	"github.com/snapcore/snapd/overlord/hookstate"
-	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/assertstate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
 
-type Resp = resp
-type ErrorResult = errorResult
+func APICommands() []*Command {
+	return api
+}
 
-var MinLane = minLane
+func NewAndAddRoutes() (*Daemon, error) {
+	d, err := New()
+	if err != nil {
+		return nil, err
+	}
+	d.addRoutes()
+	return d, nil
+}
 
 func NewWithOverlord(o *overlord.Overlord) *Daemon {
-	d := &Daemon{overlord: o}
+	d := &Daemon{overlord: o, state: o.State()}
 	d.addRoutes()
 	return d
+}
+
+func (d *Daemon) RouterMatch(req *http.Request, m *mux.RouteMatch) bool {
+	return d.router.Match(req, m)
 }
 
 func (d *Daemon) Overlord() *overlord.Overlord {
 	return d.overlord
 }
 
-func MockEnsureStateSoon(mock func(*state.State)) (restore func()) {
+func (d *Daemon) RequestedRestart() state.RestartType {
+	return d.requestedRestart
+}
+
+type Ucrednet = ucrednet
+
+func MockUcrednetGet(mock func(remoteAddr string) (ucred *Ucrednet, err error)) (restore func()) {
+	oldUcrednetGet := ucrednetGet
+	ucrednetGet = mock
+	return func() {
+		ucrednetGet = oldUcrednetGet
+	}
+}
+
+func MockEnsureStateSoon(mock func(*state.State)) (original func(*state.State), restore func()) {
 	oldEnsureStateSoon := ensureStateSoon
 	ensureStateSoon = mock
-	return func() {
+	return ensureStateSoonImpl, func() {
 		ensureStateSoon = oldEnsureStateSoon
 	}
 }
@@ -69,10 +98,134 @@ func MockShutdownTimeout(tm time.Duration) (restore func()) {
 	}
 }
 
-func MockServicestateControl(f func(st *state.State, appInfos []*snap.AppInfo, inst *servicestate.Instruction, flags *servicestate.Flags, context *hookstate.Context) ([]*state.TaskSet, error)) (restore func()) {
-	old := servicestateControl
-	servicestateControl = f
+func MockUnsafeReadSnapInfo(mock func(string) (*snap.Info, error)) (restore func()) {
+	oldUnsafeReadSnapInfo := unsafeReadSnapInfo
+	unsafeReadSnapInfo = mock
 	return func() {
-		servicestateControl = old
+		unsafeReadSnapInfo = oldUnsafeReadSnapInfo
 	}
 }
+
+func MockAssertstateRefreshSnapDeclarations(mock func(*state.State, int, *assertstate.RefreshAssertionsOptions) error) (restore func()) {
+	oldAssertstateRefreshSnapDeclarations := assertstateRefreshSnapDeclarations
+	assertstateRefreshSnapDeclarations = mock
+	return func() {
+		assertstateRefreshSnapDeclarations = oldAssertstateRefreshSnapDeclarations
+	}
+}
+
+func MockSnapstateInstall(mock func(context.Context, *state.State, string, *snapstate.RevisionOptions, int, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
+	oldSnapstateInstall := snapstateInstall
+	snapstateInstall = mock
+	return func() {
+		snapstateInstall = oldSnapstateInstall
+	}
+}
+
+func MockSnapstateInstallPath(mock func(*state.State, *snap.SideInfo, string, string, string, snapstate.Flags) (*state.TaskSet, *snap.Info, error)) (restore func()) {
+	oldSnapstateInstallPath := snapstateInstallPath
+	snapstateInstallPath = mock
+	return func() {
+		snapstateInstallPath = oldSnapstateInstallPath
+	}
+}
+
+func MockSnapstateUpdate(mock func(*state.State, string, *snapstate.RevisionOptions, int, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
+	oldSnapstateUpdate := snapstateUpdate
+	snapstateUpdate = mock
+	return func() {
+		snapstateUpdate = oldSnapstateUpdate
+	}
+}
+
+func MockSnapstateTryPath(mock func(*state.State, string, string, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
+	oldSnapstateTryPath := snapstateTryPath
+	snapstateTryPath = mock
+	return func() {
+		snapstateTryPath = oldSnapstateTryPath
+	}
+}
+
+func MockSnapstateSwitch(mock func(*state.State, string, *snapstate.RevisionOptions) (*state.TaskSet, error)) (restore func()) {
+	oldSnapstateSwitch := snapstateSwitch
+	snapstateSwitch = mock
+	return func() {
+		snapstateSwitch = oldSnapstateSwitch
+	}
+}
+
+func MockSnapstateRevert(mock func(*state.State, string, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
+	oldSnapstateRevert := snapstateRevert
+	snapstateRevert = mock
+	return func() {
+		snapstateRevert = oldSnapstateRevert
+	}
+}
+
+func MockSnapstateRevertToRevision(mock func(*state.State, string, snap.Revision, snapstate.Flags) (*state.TaskSet, error)) (restore func()) {
+	oldSnapstateRevertToRevision := snapstateRevertToRevision
+	snapstateRevertToRevision = mock
+	return func() {
+		snapstateRevertToRevision = oldSnapstateRevertToRevision
+	}
+}
+
+func MockSnapstateInstallMany(mock func(*state.State, []string, int) ([]string, []*state.TaskSet, error)) (restore func()) {
+	oldSnapstateInstallMany := snapstateInstallMany
+	snapstateInstallMany = mock
+	return func() {
+		snapstateInstallMany = oldSnapstateInstallMany
+	}
+}
+
+func MockSnapstateUpdateMany(mock func(context.Context, *state.State, []string, int, *snapstate.Flags) ([]string, []*state.TaskSet, error)) (restore func()) {
+	oldSnapstateUpdateMany := snapstateUpdateMany
+	snapstateUpdateMany = mock
+	return func() {
+		snapstateUpdateMany = oldSnapstateUpdateMany
+	}
+}
+
+func MockSnapstateRemoveMany(mock func(*state.State, []string) ([]string, []*state.TaskSet, error)) (restore func()) {
+	oldSnapstateRemoveMany := snapstateRemoveMany
+	snapstateRemoveMany = mock
+	return func() {
+		snapstateRemoveMany = oldSnapstateRemoveMany
+	}
+}
+
+type (
+	RespJSON        = respJSON
+	FileResponse    = fileResponse
+	APIError        = apiError
+	ErrorResult     = errorResult
+	SnapInstruction = snapInstruction
+)
+
+func (inst *snapInstruction) Dispatch() snapActionFunc {
+	return inst.dispatch()
+}
+
+func (inst *snapInstruction) DispatchForMany() snapManyActionFunc {
+	return inst.dispatchForMany()
+}
+
+func (inst *snapInstruction) SetUserID(userID int) {
+	inst.userID = userID
+}
+
+func (inst *snapInstruction) ModeFlags() (snapstate.Flags, error) {
+	return inst.modeFlags()
+}
+
+func (inst *snapInstruction) ErrToResponse(err error) *APIError {
+	return inst.errToResponse(err)
+}
+
+var (
+	UserFromRequest = userFromRequest
+	IsTrue          = isTrue
+
+	MakeErrorResponder = makeErrorResponder
+	ErrToResponse      = errToResponse
+)

@@ -150,3 +150,85 @@ func (c *deepContainsChecker) Check(params []interface{}, names []string) (resul
 		return false, fmt.Sprintf("%T is not a supported container", container)
 	}
 }
+
+type deepUnsortedMatchChecker struct {
+	*check.CheckerInfo
+}
+
+// DeepUnsortedMatches checks if two containers contain the same elements in
+// the same number (but possibly different order) using DeepEqual. The container
+// can be an array, a slice or a map.
+var DeepUnsortedMatches check.Checker = &deepUnsortedMatchChecker{
+	&check.CheckerInfo{Name: "DeepUnsortedMatches", Params: []string{"container1", "container2"}},
+}
+
+func (c *deepUnsortedMatchChecker) Check(params []interface{}, _ []string) (bool, string) {
+	container1 := reflect.ValueOf(params[0])
+	container2 := reflect.ValueOf(params[1])
+
+	// if both args are nil, return true
+	if container1.Kind() == reflect.Invalid && container2.Kind() == reflect.Invalid {
+		return true, ""
+	}
+
+	if container1.Kind() == reflect.Invalid || container2.Kind() == reflect.Invalid {
+		return false, "only one container was nil"
+	}
+
+	if container1.Kind() != container2.Kind() {
+		return false, fmt.Sprintf("containers are of different types: %s != %s", container1.Kind(), container2.Kind())
+	}
+
+	if container1.Kind() != reflect.Map && container1.Kind() != reflect.Slice && container1.Kind() != reflect.Array {
+		return false, fmt.Sprintf("'%s' is not a supported type: must be slice, array, map or nil", container1.Kind().String())
+	}
+
+	if container1.Type().Comparable() && params[0] == params[1] {
+		return true, ""
+	}
+
+	if container1.Len() != container2.Len() {
+		return false, fmt.Sprintf("containers have different lengths: %d != %d", container1.Len(), container2.Len())
+	}
+
+	switch container1.Kind() {
+	case reflect.Array, reflect.Slice:
+		return deepSequenceMatch(container1, container2)
+
+	case reflect.Map:
+		map1 := container1.Interface()
+		map2 := container2.Interface()
+		if !reflect.DeepEqual(map1, map2) {
+			return false, "maps don't match"
+		}
+
+		return true, ""
+
+	default:
+		return false, fmt.Sprintf("%T is not a supported container. Must be a slice, an array or a map", container1)
+	}
+}
+
+func deepSequenceMatch(container1 reflect.Value, container2 reflect.Value) (bool, string) {
+	matched := make([]bool, container1.Len())
+
+out:
+	for i := 0; i < container1.Len(); i++ {
+		el1 := container1.Index(i).Interface()
+
+		for e := 0; e < container2.Len(); e++ {
+			el2 := container2.Index(e).Interface()
+
+			if !matched[e] && reflect.DeepEqual(el1, el2) {
+				// mark already matched elements, so that duplicate elements in
+				// one container can't be matched to the same element in the other.
+				matched[e] = true
+				continue out
+			}
+		}
+
+		return false, fmt.Sprintf("element [%d]=%s was unmatched in the second container", i, el1)
+	}
+
+	return true, ""
+}

@@ -8,10 +8,6 @@ set -e
 # shellcheck source=tests/lib/quiet.sh
 . "$TESTSLIB/quiet.sh"
 
-# XXX: dirs.sh has side-effects
-# shellcheck source=tests/lib/dirs.sh
-. "$TESTSLIB/dirs.sh"
-
 # shellcheck source=tests/lib/pkgdb.sh
 . "$TESTSLIB/pkgdb.sh"
 
@@ -74,7 +70,7 @@ build_deb(){
     # Use fake version to ensure we are always bigger than anything else
     dch --newversion "1337.$(dpkg-parsechangelog --show-field Version)" "testing build"
 
-    if [[ "$SPREAD_SYSTEM" == debian-sid-* ]]; then
+    if os.query is-debian-sid; then
         # ensure we really build without vendored packages
         rm -rf vendor/*/*
     fi
@@ -87,7 +83,7 @@ build_deb(){
 build_rpm() {
     distro=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[1]}')
     release=$(echo "$SPREAD_SYSTEM" | awk '{split($0,a,"-");print a[2]}')
-    if [[ "$SPREAD_SYSTEM" == amazon-linux-2-* ]]; then
+    if os.query is-amazon-linux; then
         distro=amzn
         release=2
     fi
@@ -216,7 +212,7 @@ install_dependencies_from_published(){
 ###
 
 prepare_project() {
-    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]] && [[ "$SPREAD_SYSTEM" != ubuntu-core-* ]]; then
+    if os.query is-ubuntu && os.query is-classic; then
         apt-get remove --purge -y lxd lxcfs || true
         apt-get autoremove --purge -y
         "$TESTSTOOLS"/lxd-state undo-mount-changes
@@ -279,7 +275,7 @@ prepare_project() {
 
     distro_update_package_db
 
-    if [[ "$SPREAD_SYSTEM" == arch-* ]]; then
+    if os.query is-arch-linux; then
         # perform system upgrade on Arch so that we run with most recent kernel
         # and userspace
         if [[ "$SPREAD_REBOOT" == 0 ]]; then
@@ -308,7 +304,7 @@ prepare_project() {
     fi
 
     # debian-sid packaging is special
-    if [[ "$SPREAD_SYSTEM" == debian-sid-* ]]; then
+    if os.query is-debian-sid; then
         if [ ! -d packaging/debian-sid ]; then
             echo "no packaging/debian-sid/ directory "
             echo "broken test setup"
@@ -338,7 +334,7 @@ prepare_project() {
     fi
 
     # so is ubuntu-14.04
-    if [[ "$SPREAD_SYSTEM" == ubuntu-14.04-* ]]; then
+    if os.query is-trusty; then
         if [ ! -d packaging/ubuntu-14.04 ]; then
             echo "no packaging/ubuntu-14.04/ directory "
             echo "broken test setup"
@@ -366,7 +362,27 @@ prepare_project() {
     rm -rf /var/cache/snapd/aux
     case "$SPREAD_SYSTEM" in
         ubuntu-*)
-            # Ubuntu is the only system where snapd is preinstalled
+            # Ubuntu is the only system where snapd is preinstalled, so we have
+            # to purge it
+
+            # first mask snapd.failure so that even if we kill snapd and it 
+            # dies, snap-failure doesn't run and try to revive snapd
+            systemctl mask snapd.failure
+
+            # next abort all ongoing changes and wait for them all to be done
+            for chg in $(snap changes | tail -n +2 | grep Do | grep -v Done | awk '{print $1}'); do
+                snap abort "$chg" || true
+                snap watch "$chg" || true
+            done
+
+            # now remove all snaps that aren't a base, core or snapd
+            for sn in $(snap list | tail -n +2 | awk '{print $1,$6}' | grep -Po '(.+)\s+(?!base)' | awk '{print $1}'); do
+                if [ "$sn" != snapd ] && [ "$sn" != core ]; then
+                    snap remove "$sn" || true
+                fi
+            done
+
+            # now we can attempt to purge the actual distro package via apt
             distro_purge_package snapd
             # XXX: the original package's purge may have left socket units behind
             find /etc/systemd/system -name "snap.*.socket" | while read -r f; do
@@ -377,10 +393,19 @@ prepare_project() {
             if [ -d /var/lib/snapd ]; then
                 echo "# /var/lib/snapd"
                 ls -lR /var/lib/snapd || true
-                journalctl -b | tail -100 || true
+                journalctl --no-pager || true
                 cat /var/lib/snapd/state.json || true
+                snap debug state /var/lib/snapd/state.json || true
+                (
+                    for chg in $(snap debug state /var/lib/snapd/state.json | tail -n +2 | awk '{print $1}'); do
+                        snap debug state --abs-time "--change=$chg" /var/lib/snapd/state.json || true
+                    done
+                ) || true
                 exit 1
             fi
+
+            # unmask snapd.failure so that it can run during tests if needed
+            systemctl unmask snapd.failure 
             ;;
         *)
             # snapd state directory must not exist when the package is not
@@ -469,19 +494,26 @@ prepare_project() {
     # base on the packaging. In Fedora/Suse this is handled via mock/osc
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
-            # in 16.04: apt build-dep -y ./
+            best_golang=golang-1.13
             if [[ "$SPREAD_SYSTEM" == debian-9-* ]]; then
-                best_golang="$(python3 ./tests/lib/best_golang.py)"
-                test -n "$best_golang"
-                sed -i -e "s/golang-1.10/$best_golang/" ./debian/control
-            else
-                best_golang=golang-1.10
+                echo "debian-9 tests disabled (no golang-1.13)"
+                exit 1
+            elif [[ "$SPREAD_SYSTEM" == debian-10-* ]]; then
+                # debian-10 needs backports for golang-1.13
+                echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list
+                apt update
+                # dh-golang must come from backports, gdebi/apt cannot
+                # resolve this on their own
+                apt install -y -t buster-backports dh-golang
+                # we need the specific golang-1.13 here, not golang-go
+                sed -i -e "s/golang-go (>=2:1.13).*,/${best_golang},/" ./debian/control
             fi
+            # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
             gdebi --quiet --apt-line ./debian/control | quiet xargs -r eatmydata apt-get install -y
-            # The go 1.10 backport is not using alternatives or anything else so
+            # The go 1.13 backport is not using alternatives or anything else so
             # we need to get it on path somehow. This is not perfect but simple.
             if [ -z "$(command -v go)" ]; then
-                # the path filesystem path is: /usr/lib/go-1.10/bin
+                # the path filesystem path is: /usr/lib/go-1.13/bin
                 ln -s "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
             fi
             ;;
@@ -499,6 +531,14 @@ prepare_project() {
         fi
         sleep 1
     done
+    # Update C dependencies
+    for _ in $(seq 10); do
+        if (cd c-vendor && ./vendor.sh); then
+            break
+        fi
+        sleep 1
+    done
+
     # govendor runs as root and will leave strange permissions
     chown test.test -R "$SPREAD_PATH"
 
@@ -564,17 +604,10 @@ prepare_suite() {
     else
         prepare_classic
     fi
-}
 
-install_snap_profiler(){
-    echo "install snaps profiler"
-
-    if [ "$PROFILE_SNAPS" = 1 ]; then
-        profiler_snap="$(get_snap_for_system test-snapd-profiler)"
-        rm -f "/var/snap/${profiler_snap}/common/profiler.log"
-        snap install "${profiler_snap}"
-        snap connect "${profiler_snap}":system-observe
-    fi
+    # Make sure the suite starts with a clean environment and with the snapd state restored
+    # shellcheck source=tests/lib/reset.sh
+    "$TESTSLIB"/reset.sh --reuse-core
 }
 
 prepare_suite_each() {
@@ -583,17 +616,9 @@ prepare_suite_each() {
     # back test directory to be restored during the restore
     tests.backup prepare
 
-    # WORKAROUND for memleak https://github.com/systemd/systemd/issues/11502
-    if [[ "$SPREAD_SYSTEM" == debian-sid* ]]; then
-        systemctl restart systemd-journald
-    fi
-
     # save the job which is going to be executed in the system
     echo -n "$SPREAD_JOB " >> "$RUNTIME_STATE_PATH/runs"
-    if [[ "$variant" = full ]]; then
-        # shellcheck source=tests/lib/reset.sh
-        "$TESTSLIB"/reset.sh --reuse-core
-    fi
+
     # Restart journal log and reset systemd journal cursor.
     systemctl reset-failed systemd-journald.service
     if ! systemctl restart systemd-journald.service; then
@@ -604,9 +629,6 @@ prepare_suite_each() {
     "$TESTSTOOLS"/journal-state start-new-log
 
     if [[ "$variant" = full ]]; then
-        echo "Install the snaps profiler snap"
-        install_snap_profiler
-
         # shellcheck source=tests/lib/prepare.sh
         . "$TESTSLIB"/prepare.sh
         if os.query is-classic; then
@@ -634,24 +656,11 @@ restore_suite_each() {
 
     rm -f "$RUNTIME_STATE_PATH/audit-stamp"
 
+    # Run the cleanup restore in case the commands have not been restored
+    tests.cleanup restore
+
     # restore test directory saved during prepare
     tests.backup restore
-
-    if [[ "$variant" = full && "$PROFILE_SNAPS" = 1 ]]; then
-        echo "Save snaps profiler log"
-        local logs_id logs_dir logs_file
-        logs_dir="$RUNTIME_STATE_PATH/logs"
-        logs_id=$(find "$logs_dir" -maxdepth 1 -name '*.journal.log' | wc -l)
-        logs_file=$(echo "${logs_id}_${SPREAD_JOB}" | tr '/' '_' | tr ':' '__')
-
-        profiler_snap="$(get_snap_for_system test-snapd-profiler)"
-
-        mkdir -p "$logs_dir"
-        if [ -e "/var/snap/${profiler_snap}/common/profiler.log" ]; then
-            cp -f "/var/snap/${profiler_snap}/common/profiler.log" "${logs_dir}/${logs_file}.profiler.log"
-        fi
-        "$TESTSTOOLS"/journal-state get-log > "${logs_dir}/${logs_file}.journal.log"
-    fi
 
     # On Arch it seems that using sudo / su for working with the test user
     # spawns the /run/user/12345 tmpfs for XDG_RUNTIME_DIR which asynchronously
@@ -670,11 +679,27 @@ restore_suite_each() {
         # to prevent hitting the system restart rate-limit for these services
         systemctl reset-failed snapd.service snapd.socket snapd.failure.service
     fi
+
+    if [[ "$variant" = full ]]; then
+        # shellcheck source=tests/lib/reset.sh
+        "$TESTSLIB"/reset.sh --reuse-core
+    fi
+
+    # Check for invariants late, in order to detect any bugs in the code above.
+    if [[ "$variant" = full ]]; then
+        "$TESTSTOOLS"/cleanup-state pre-invariant
+    fi
+    tests.invariant check
 }
 
 restore_suite() {
     # shellcheck source=tests/lib/reset.sh
-    "$TESTSLIB"/reset.sh --store
+    if [ "$REMOTE_STORE" = staging ]; then
+        # shellcheck source=tests/lib/store.sh
+        . "$TESTSLIB"/store.sh
+        teardown_staging_store
+    fi
+
     if os.query is-classic; then
         # shellcheck source=tests/lib/pkgdb.sh
         . "$TESTSLIB"/pkgdb.sh

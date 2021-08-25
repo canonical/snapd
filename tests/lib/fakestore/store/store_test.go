@@ -29,12 +29,12 @@ import (
 	"testing"
 	"text/template"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/systestkeys"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap/snaptest"
-
-	. "gopkg.in/check.v1"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -403,7 +403,7 @@ AXNpZw=`
 
 func (s *storeTestSuite) TestAssertionsEndpointPreloaded(c *C) {
 	// something preloaded
-	resp, err := s.StoreGet(`/api/v1/snaps/assertions/account/testrootorg`)
+	resp, err := s.StoreGet(`/v2/assertions/account/testrootorg`)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 
@@ -424,7 +424,7 @@ func (s *storeTestSuite) TestAssertionsEndpointFromAssertsDir(c *C) {
 	err = ioutil.WriteFile(filepath.Join(s.store.assertDir, "foo_36.snap-revision"), []byte(exampleSnapRev), 0655)
 	c.Assert(err, IsNil)
 
-	resp, err := s.StoreGet(`/api/v1/snaps/assertions/snap-revision/` + rev.SnapSHA3_384())
+	resp, err := s.StoreGet(`/v2/assertions/snap-revision/` + rev.SnapSHA3_384())
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 
@@ -436,7 +436,7 @@ func (s *storeTestSuite) TestAssertionsEndpointFromAssertsDir(c *C) {
 
 func (s *storeTestSuite) TestAssertionsEndpointNotFound(c *C) {
 	// something not found
-	resp, err := s.StoreGet(`/api/v1/snaps/assertions/account/not-an-account-id`)
+	resp, err := s.StoreGet(`/v2/assertions/account/not-an-account-id`)
 	c.Assert(err, IsNil)
 	defer resp.Body.Close()
 
@@ -446,7 +446,7 @@ func (s *storeTestSuite) TestAssertionsEndpointNotFound(c *C) {
 	var respObj map[string]interface{}
 	err = dec.Decode(&respObj)
 	c.Assert(err, IsNil)
-	c.Check(respObj["status"], Equals, float64(404))
+	c.Check(respObj["error-list"], DeepEquals, []interface{}{map[string]interface{}{"code":"not-found", "message":"not found"}})
 }
 
 func (s *storeTestSuite) TestSnapActionEndpoint(c *C) {

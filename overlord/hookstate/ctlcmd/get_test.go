@@ -20,6 +20,10 @@
 package ctlcmd_test
 
 import (
+	"strings"
+
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -28,10 +32,6 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-
-	"strings"
-
-	. "gopkg.in/check.v1"
 )
 
 type getSuite struct {

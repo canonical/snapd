@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -31,10 +31,12 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate/assertstatetest"
 	"github.com/snapcore/snapd/overlord/auth"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/devicestate/devicestatetest"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/store"
@@ -43,23 +45,21 @@ import (
 
 var _ = check.Suite(&userSuite{})
 
-// TODO: also pull login/logout tests into this.
-
 type userSuite struct {
-	daemon.APIBaseSuite
+	apiBaseSuite
 
 	userInfoResult        *store.User
 	userInfoExpectedEmail string
-	err                   error
 
-	d *daemon.Daemon
+	loginUserStoreMacaroon string
+	loginUserDischarge     string
 
 	mockUserHome      string
 	trivialUserLookup func(username string) (*user.User, error)
 }
 
 func (s *userSuite) UserInfo(email string) (userinfo *store.User, err error) {
-	s.PokeStateLock()
+	s.pokeStateLock()
 
 	if s.userInfoExpectedEmail != email {
 		panic(fmt.Sprintf("%q != %q", s.userInfoExpectedEmail, email))
@@ -67,12 +67,20 @@ func (s *userSuite) UserInfo(email string) (userinfo *store.User, err error) {
 	return s.userInfoResult, s.err
 }
 
+func (s *userSuite) LoginUser(username, password, otp string) (string, string, error) {
+	s.pokeStateLock()
+
+	return s.loginUserStoreMacaroon, s.loginUserDischarge, s.err
+}
+
 func (s *userSuite) SetUpTest(c *check.C) {
-	s.APIBaseSuite.SetUpTest(c)
+	s.apiBaseSuite.SetUpTest(c)
 
 	s.AddCleanup(release.MockOnClassic(false))
 
-	s.d = s.DaemonWithStore(c, s)
+	s.daemonWithStore(c, s)
+
+	s.expectRootAccess()
 
 	s.mockUserHome = c.MkDir()
 	s.trivialUserLookup = mkUserLookup(s.mockUserHome)
@@ -89,6 +97,12 @@ func (s *userSuite) SetUpTest(c *check.C) {
 		c.Fatalf("unexpected del user %q call", name)
 		return fmt.Errorf("unexpected del user %q call", name)
 	}))
+
+	s.userInfoResult = nil
+	s.userInfoExpectedEmail = ""
+
+	s.loginUserStoreMacaroon = ""
+	s.loginUserDischarge = ""
 }
 
 func mkUserLookup(userHomeDir string) func(string) (*user.User, error) {
@@ -98,6 +112,351 @@ func mkUserLookup(userHomeDir string) func(string) (*user.User, error) {
 		cur.HomeDir = userHomeDir
 		return cur, err
 	}
+}
+
+func (s *userSuite) expectLoginAccess() {
+	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.login"})
+}
+
+func (s *userSuite) TestLoginUser(c *check.C) {
+	state := s.d.Overlord().State()
+
+	s.expectLoginAccess()
+
+	s.loginUserStoreMacaroon = "user-macaroon"
+	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, nil)
+
+	state.Lock()
+	user, err := auth.User(state, 1)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
+	expected := daemon.UserResponseData{
+		ID:    1,
+		Email: "email@.com",
+
+		Macaroon:   user.Macaroon,
+		Discharges: user.Discharges,
+	}
+
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Assert(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	c.Check(user.ID, check.Equals, 1)
+	c.Check(user.Username, check.Equals, "")
+	c.Check(user.Email, check.Equals, "email@.com")
+	c.Check(user.Discharges, check.IsNil)
+	c.Check(user.StoreMacaroon, check.Equals, s.loginUserStoreMacaroon)
+	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
+	// snapd macaroon was setup too
+	snapdMacaroon, err := auth.MacaroonDeserialize(user.Macaroon)
+	c.Check(err, check.IsNil)
+	c.Check(snapdMacaroon.Id(), check.Equals, "1")
+	c.Check(snapdMacaroon.Location(), check.Equals, "snapd")
+}
+
+func (s *userSuite) TestLoginUserWithUsername(c *check.C) {
+	state := s.d.Overlord().State()
+
+	s.expectLoginAccess()
+
+	s.loginUserStoreMacaroon = "user-macaroon"
+	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
+	buf := bytes.NewBufferString(`{"username": "username", "email": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, nil)
+
+	state.Lock()
+	user, err := auth.User(state, 1)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+
+	expected := daemon.UserResponseData{
+		ID:         1,
+		Username:   "username",
+		Email:      "email@.com",
+		Macaroon:   user.Macaroon,
+		Discharges: user.Discharges,
+	}
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Assert(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	c.Check(user.ID, check.Equals, 1)
+	c.Check(user.Username, check.Equals, "username")
+	c.Check(user.Email, check.Equals, "email@.com")
+	c.Check(user.Discharges, check.IsNil)
+	c.Check(user.StoreMacaroon, check.Equals, s.loginUserStoreMacaroon)
+	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
+	// snapd macaroon was setup too
+	snapdMacaroon, err := auth.MacaroonDeserialize(user.Macaroon)
+	c.Check(err, check.IsNil)
+	c.Check(snapdMacaroon.Id(), check.Equals, "1")
+	c.Check(snapdMacaroon.Location(), check.Equals, "snapd")
+}
+
+func (s *userSuite) TestLoginUserNoEmailWithExistentLocalUser(c *check.C) {
+	state := s.d.Overlord().State()
+
+	s.expectLoginAccess()
+
+	// setup local-only user
+	state.Lock()
+	localUser, err := auth.NewUser(state, "username", "email@test.com", "", nil)
+	state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	s.loginUserStoreMacaroon = "user-macaroon"
+	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
+	buf := bytes.NewBufferString(`{"username": "username", "email": "", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, localUser)
+
+	expected := daemon.UserResponseData{
+		ID:       1,
+		Username: "username",
+		Email:    "email@test.com",
+
+		Macaroon:   localUser.Macaroon,
+		Discharges: localUser.Discharges,
+	}
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Assert(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	state.Lock()
+	user, err := auth.User(state, localUser.ID)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Check(user.Username, check.Equals, "username")
+	c.Check(user.Email, check.Equals, localUser.Email)
+	c.Check(user.Macaroon, check.Equals, localUser.Macaroon)
+	c.Check(user.Discharges, check.IsNil)
+	c.Check(user.StoreMacaroon, check.Equals, s.loginUserStoreMacaroon)
+	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
+}
+
+func (s *userSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
+	state := s.d.Overlord().State()
+
+	s.expectLoginAccess()
+
+	// setup local-only user
+	state.Lock()
+	localUser, err := auth.NewUser(state, "username", "email@test.com", "", nil)
+	state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	s.loginUserStoreMacaroon = "user-macaroon"
+	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
+	buf := bytes.NewBufferString(`{"username": "username", "email": "email@test.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, localUser)
+
+	expected := daemon.UserResponseData{
+		ID:       1,
+		Username: "username",
+		Email:    "email@test.com",
+
+		Macaroon:   localUser.Macaroon,
+		Discharges: localUser.Discharges,
+	}
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Assert(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	state.Lock()
+	user, err := auth.User(state, localUser.ID)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Check(user.Username, check.Equals, "username")
+	c.Check(user.Email, check.Equals, localUser.Email)
+	c.Check(user.Macaroon, check.Equals, localUser.Macaroon)
+	c.Check(user.Discharges, check.IsNil)
+	c.Check(user.StoreMacaroon, check.Equals, s.loginUserStoreMacaroon)
+	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
+}
+
+func (s *userSuite) TestLoginUserNewEmailWithExistentLocalUser(c *check.C) {
+	state := s.d.Overlord().State()
+
+	s.expectLoginAccess()
+
+	// setup local-only user
+	state.Lock()
+	localUser, err := auth.NewUser(state, "username", "email@test.com", "", nil)
+	state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	s.loginUserStoreMacaroon = "user-macaroon"
+	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
+	// same local user, but using a new SSO account
+	buf := bytes.NewBufferString(`{"username": "username", "email": "new.email@test.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, localUser)
+
+	expected := daemon.UserResponseData{
+		ID:       1,
+		Username: "username",
+		Email:    "new.email@test.com",
+
+		Macaroon:   localUser.Macaroon,
+		Discharges: localUser.Discharges,
+	}
+	c.Check(rsp.Status, check.Equals, 200)
+	c.Assert(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	state.Lock()
+	user, err := auth.User(state, localUser.ID)
+	state.Unlock()
+	c.Check(err, check.IsNil)
+	c.Check(user.Username, check.Equals, "username")
+	c.Check(user.Email, check.Equals, expected.Email)
+	c.Check(user.Macaroon, check.Equals, localUser.Macaroon)
+	c.Check(user.Discharges, check.IsNil)
+	c.Check(user.StoreMacaroon, check.Equals, s.loginUserStoreMacaroon)
+	c.Check(user.StoreDischarges, check.DeepEquals, []string{"the-discharge-macaroon-serialized-data"})
+}
+
+func (s *userSuite) TestLogoutUser(c *check.C) {
+	state := s.d.Overlord().State()
+
+	s.expectLoginAccess()
+
+	state.Lock()
+	user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
+	state.Unlock()
+	c.Assert(err, check.IsNil)
+
+	req, err := http.NewRequest("POST", "/v2/logout", nil)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, user)
+	c.Check(rsp.Status, check.Equals, 200)
+
+	state.Lock()
+	_, err = auth.User(state, user.ID)
+	state.Unlock()
+	c.Check(err, check.Equals, auth.ErrInvalidUser)
+}
+
+func (s *userSuite) TestLoginUserBadRequest(c *check.C) {
+	s.expectLoginAccess()
+
+	buf := bytes.NewBufferString(`hello`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Not(check.Equals), "")
+}
+
+func (s *userSuite) TestLoginUserNotEmailish(c *check.C) {
+	s.expectLoginAccess()
+
+	buf := bytes.NewBufferString(`{"username": "notemail", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, testutil.Contains, "please use a valid email address")
+}
+
+func (s *userSuite) TestLoginUserDeveloperAPIError(c *check.C) {
+	s.expectLoginAccess()
+
+	s.err = fmt.Errorf("error-from-login-user")
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 401)
+	c.Check(rspe.Message, testutil.Contains, "error-from-login-user")
+}
+
+func (s *userSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
+	s.expectLoginAccess()
+
+	s.err = store.ErrAuthenticationNeeds2fa
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 401)
+	c.Check(rspe.Kind, check.Equals, client.ErrorKindTwoFactorRequired)
+}
+
+func (s *userSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
+	s.expectLoginAccess()
+
+	s.err = store.Err2faFailed
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 401)
+	c.Check(rspe.Kind, check.Equals, client.ErrorKindTwoFactorFailed)
+}
+
+func (s *userSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
+	s.expectLoginAccess()
+
+	s.err = store.ErrInvalidCredentials
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 401)
+	c.Check(rspe.Message, check.Equals, "invalid credentials")
+}
+
+func (s *userSuite) TestLoginUserInvalidAuthDataError(c *check.C) {
+	s.expectLoginAccess()
+
+	s.err = store.InvalidAuthDataError{"foo": {"bar"}}
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Kind, check.Equals, client.ErrorKindInvalidAuthData)
+	c.Check(rspe.Value, check.DeepEquals, s.err)
+}
+
+func (s *userSuite) TestLoginUserPasswordPolicyError(c *check.C) {
+	s.expectLoginAccess()
+
+	s.err = store.PasswordPolicyError{"foo": {"bar"}}
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 401)
+	c.Check(rspe.Kind, check.Equals, client.ErrorKindPasswordPolicy)
+	c.Check(rspe.Value, check.DeepEquals, s.err)
 }
 
 func (s *userSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
@@ -110,10 +469,8 @@ func (s *userSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
-
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `cannot create user for "popper@lse.ac.uk": no ssh keys found`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Message, check.Matches, `cannot create user for "popper@lse.ac.uk": no ssh keys found`)
 }
 
 func (s *userSuite) TestPostCreateUser(c *check.C) {
@@ -161,9 +518,7 @@ func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 		expected = []daemon.UserResponseData{expectedItem}
 	}
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
-
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
+	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
@@ -185,7 +540,9 @@ func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 }
 
 func (s *userSuite) TestNoUserAdminCreateUser(c *check.C) { s.testNoUserAdmin(c, "/v2/create-user") }
-func (s *userSuite) TestNoUserAdminPostUser(c *check.C)   { s.testNoUserAdmin(c, "/v2/users") }
+
+func (s *userSuite) TestNoUserAdminPostUser(c *check.C) { s.testNoUserAdmin(c, "/v2/users") }
+
 func (s *userSuite) testNoUserAdmin(c *check.C, endpoint string) {
 	defer daemon.MockHasUserAdmin(false)()
 
@@ -193,14 +550,14 @@ func (s *userSuite) testNoUserAdmin(c *check.C, endpoint string) {
 	req, err := http.NewRequest("POST", endpoint, buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil)
+	rspe := s.errorReq(c, req, nil)
 
 	const noUserAdmin = "system user administration via snapd is not allowed on this system"
 	switch endpoint {
 	case "/v2/users":
-		c.Check(rsp, check.DeepEquals, daemon.MethodNotAllowed(noUserAdmin))
+		c.Check(rspe, check.DeepEquals, daemon.MethodNotAllowed(noUserAdmin))
 	case "/v2/create-user":
-		c.Check(rsp, check.DeepEquals, daemon.Forbidden(noUserAdmin))
+		c.Check(rspe, check.DeepEquals, daemon.Forbidden(noUserAdmin))
 	default:
 		c.Fatalf("unknown endpoint %q", endpoint)
 	}
@@ -211,9 +568,8 @@ func (s *userSuite) TestPostUserBadBody(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, "cannot decode user action data from request body: .*")
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Message, check.Matches, "cannot decode user action data from request body: .*")
 }
 
 func (s *userSuite) TestPostUserBadAfterBody(c *check.C) {
@@ -221,8 +577,8 @@ func (s *userSuite) TestPostUserBadAfterBody(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
-	c.Check(rsp, check.DeepEquals, daemon.BadRequest("spurious content after user action"))
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe, check.DeepEquals, daemon.BadRequest("spurious content after user action"))
 }
 
 func (s *userSuite) TestPostUserNoAction(c *check.C) {
@@ -230,8 +586,8 @@ func (s *userSuite) TestPostUserNoAction(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
-	c.Check(rsp, check.DeepEquals, daemon.BadRequest("missing user action"))
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe, check.DeepEquals, daemon.BadRequest("missing user action"))
 }
 
 func (s *userSuite) TestPostUserBadAction(c *check.C) {
@@ -239,8 +595,8 @@ func (s *userSuite) TestPostUserBadAction(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
-	c.Check(rsp, check.DeepEquals, daemon.BadRequest(`unsupported user action "patatas"`))
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe, check.DeepEquals, daemon.BadRequest(`unsupported user action "patatas"`))
 }
 
 func (s *userSuite) TestPostUserActionRemoveNoUsername(c *check.C) {
@@ -248,8 +604,8 @@ func (s *userSuite) TestPostUserActionRemoveNoUsername(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
-	c.Check(rsp, check.DeepEquals, daemon.BadRequest("need a username to remove"))
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe, check.DeepEquals, daemon.BadRequest("need a username to remove"))
 }
 
 func (s *userSuite) TestPostUserActionRemoveDelUserErr(c *check.C) {
@@ -270,9 +626,9 @@ func (s *userSuite) TestPostUserActionRemoveDelUserErr(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
-	c.Check(rsp.Status, check.Equals, 500)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, "wat")
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 500)
+	c.Check(rspe.Message, check.Equals, "wat")
 	c.Check(called, check.Equals, 1)
 }
 
@@ -292,9 +648,9 @@ func (s *userSuite) TestPostUserActionRemoveStateErr(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
-	c.Check(rsp.Status, check.Equals, 500)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `internal error: could not unmarshal state entry "auth": .*`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 500)
+	c.Check(rspe.Message, check.Matches, `internal error: could not unmarshal state entry "auth": .*`)
 	c.Check(called, check.Equals, 0)
 }
 
@@ -310,8 +666,8 @@ func (s *userSuite) TestPostUserActionRemoveNoUserInState(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
-	c.Check(rsp, check.DeepEquals, daemon.BadRequest(`user "some-user" is not known`))
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe, check.DeepEquals, daemon.BadRequest(`user "some-user" is not known`))
 	c.Check(called, check.Equals, 0)
 }
 
@@ -332,7 +688,7 @@ func (s *userSuite) TestPostUserActionRemove(c *check.C) {
 	buf := bytes.NewBufferString(`{"action":"remove","username":"some-user"}`)
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 	c.Check(rsp.Status, check.Equals, 200)
 	expected := []daemon.UserResponseData{
 		{ID: user.ID, Username: user.Username, Email: user.Email},
@@ -376,7 +732,7 @@ func (s *userSuite) makeSystemUsers(c *check.C, systemUsers []map[string]interfa
 
 	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
 
-	s.setupSigner("my-brand", daemon.BrandPrivKey)
+	s.setupSigner("my-brand", brandPrivKey)
 	s.setupSigner("partner", partnerPrivKey)
 	s.setupSigner("unknown", unknownPrivKey)
 
@@ -546,13 +902,12 @@ func (s *userSuite) TestPostCreateUserFromAssertion(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 
 	expected := &daemon.UserResponseData{
 		Username: "guy",
 	}
 
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Check(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
@@ -589,13 +944,12 @@ func (s *userSuite) TestPostCreateUserFromAssertionWithForcePasswordChange(c *ch
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 
 	expected := &daemon.UserResponseData{
 		Username: "guy",
 	}
 
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Check(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 
@@ -653,9 +1007,8 @@ func (s *userSuite) testPostCreateUserFromAssertion(c *check.C, postData string,
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	// note that we get a list here instead of a single
 	// userResponseData item
 	c.Check(rsp.Result, check.FitsTypeOf, []daemon.UserResponseData{})
@@ -690,10 +1043,8 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownClassicErrors(c *chec
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
-
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `cannot create user: device is a classic system`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Message, check.Matches, `cannot create user: device is a classic system`)
 }
 
 func (s *userSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *check.C) {
@@ -710,10 +1061,8 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *che
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
-
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `cannot create user: device already managed`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Message, check.Matches, `cannot create user: device already managed`)
 }
 
 func (s *userSuite) TestPostCreateUserAutomaticManagedDoesNotActOrError(c *check.C) {
@@ -730,11 +1079,10 @@ func (s *userSuite) TestPostCreateUserAutomaticManagedDoesNotActOrError(c *check
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 
 	// expecting an empty reply
 	expected := []daemon.UserResponseData{}
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Check(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
@@ -755,23 +1103,21 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownNoModelError(c *check
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
-
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `cannot create user: cannot get model assertion: no state entry for key`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Message, check.Matches, `cannot create user: cannot get model assertion: no state entry for key`)
 }
 
 func (s *userSuite) TestPostCreateUserFromAssertionNoModel(c *check.C) {
 	restore := release.MockOnClassic(false)
 	defer restore()
 
+	s.makeSystemUsers(c, []map[string]interface{}{serialUser})
 	model := s.Brands.Model("my-brand", "other-model", map[string]interface{}{
 		"architecture":          "amd64",
 		"gadget":                "pc",
 		"kernel":                "pc-kernel",
 		"system-user-authority": []interface{}{"my-brand", "partner"},
 	})
-	s.makeSystemUsers(c, []map[string]interface{}{serialUser})
 
 	st := s.d.Overlord().State()
 	st.Lock()
@@ -789,10 +1135,8 @@ func (s *userSuite) TestPostCreateUserFromAssertionNoModel(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
-
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `cannot add system-user "serial@bar.com": bound to serial assertion but device not yet registered`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Message, check.Matches, `cannot add system-user "serial@bar.com": bound to serial assertion but device not yet registered`)
 }
 
 func (s *userSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {
@@ -827,26 +1171,66 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) 
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 
 	// note that we get a list here instead of a single
 	// userResponseData item
 	expected := []daemon.UserResponseData{
 		{Username: "guy"},
 	}
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Check(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
+}
+
+func (s *userSuite) TestPostCreateUserAutomaticDisabled(c *check.C) {
+	s.makeSystemUsers(c, []map[string]interface{}{goodUser})
+
+	// disable automatic user creation
+	st := s.d.Overlord().State()
+	st.Lock()
+	tr := config.NewTransaction(st)
+	err := tr.Set("core", "users.create.automatic", false)
+	tr.Commit()
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+
+	defer daemon.MockOsutilAddUser(func(username string, opts *osutil.AddUserOptions) error {
+		// we should not reach here
+		panic("no user should be created")
+	})()
+	// make sure we report them as non-existing until created
+	defer daemon.MockUserLookup(func(username string) (*user.User, error) {
+		// this error would simply be interpreted as need to create
+		return nil, fmt.Errorf("not created yet")
+	})()
+
+	// do it!
+	buf := bytes.NewBufferString(`{"automatic": true}`)
+	req, err := http.NewRequest("POST", "/v2/create-user", buf)
+	c.Assert(err, check.IsNil)
+
+	rsp := s.syncReq(c, req, nil)
+
+	// empty result
+	expected := []daemon.UserResponseData{}
+	c.Check(rsp.Result, check.FitsTypeOf, expected)
+	c.Check(rsp.Result, check.DeepEquals, expected)
+
+	// ensure no user was added to the state
+	st.Lock()
+	users, err := auth.Users(st)
+	c.Assert(err, check.IsNil)
+	st.Unlock()
+	c.Check(users, check.HasLen, 0)
 }
 
 func (s *userSuite) TestUsersEmpty(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/users", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 
 	expected := []daemon.UserResponseData{}
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Check(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }
@@ -861,12 +1245,11 @@ func (s *userSuite) TestUsersHasUser(c *check.C) {
 	req, err := http.NewRequest("GET", "/v2/users", nil)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.Req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 
 	expected := []daemon.UserResponseData{
 		{ID: u.ID, Username: u.Username, Email: u.Email},
 	}
-	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeSync)
 	c.Check(rsp.Result, check.FitsTypeOf, expected)
 	c.Check(rsp.Result, check.DeepEquals, expected)
 }

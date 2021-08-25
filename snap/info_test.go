@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -98,6 +98,81 @@ func (s *infoSuite) TestSideInfoOverrides(c *C) {
 	c.Check(info.Revision, Equals, snap.R(1))
 	c.Check(info.SnapID, Equals, "snapidsnapidsnapidsnapidsnapidsn")
 	c.Check(info.ID(), Equals, "snapidsnapidsnapidsnapidsnapidsn")
+}
+
+func (s *infoSuite) TestContactFromEdited(c *C) {
+	info := &snap.Info{
+		OriginalLinks: nil,
+	}
+
+	info.SideInfo = snap.SideInfo{
+		EditedContact: "mailto:econtact",
+	}
+
+	c.Check(info.Contact(), Equals, "mailto:econtact")
+}
+
+func (s *infoSuite) TestNoContact(c *C) {
+	info := &snap.Info{}
+
+	c.Check(info.Contact(), Equals, "")
+}
+
+func (s *infoSuite) TestContactFromLinks(c *C) {
+	info := &snap.Info{
+		OriginalLinks: map[string][]string{
+			"contact": {"ocontact1", "ocontact2"},
+		},
+	}
+
+	c.Check(info.Contact(), Equals, "mailto:ocontact1")
+}
+
+func (s *infoSuite) TestContactFromLinksMailtoAlready(c *C) {
+	info := &snap.Info{
+		OriginalLinks: map[string][]string{
+			"contact": {"mailto:ocontact1", "ocontact2"},
+		},
+	}
+
+	c.Check(info.Contact(), Equals, "mailto:ocontact1")
+}
+
+func (s *infoSuite) TestContactFromLinksNotEmail(c *C) {
+	info := &snap.Info{
+		OriginalLinks: map[string][]string{
+			"contact": {"https://ocontact1", "ocontact2"},
+		},
+	}
+
+	c.Check(info.Contact(), Equals, "https://ocontact1")
+}
+
+func (s *infoSuite) TestLinks(c *C) {
+	info := &snap.Info{
+		OriginalLinks: map[string][]string{
+			"contact": {"ocontact"},
+			"website": {"owebsite"},
+		},
+	}
+
+	info.SideInfo = snap.SideInfo{
+		EditedLinks: map[string][]string{
+			"contact": {"econtact"},
+			"website": {"ewebsite"},
+		},
+	}
+
+	c.Check(info.Links(), DeepEquals, map[string][]string{
+		"contact": {"econtact"},
+		"website": {"ewebsite"},
+	})
+
+	info.EditedLinks = nil
+	c.Check(info.Links(), DeepEquals, map[string][]string{
+		"contact": {"ocontact"},
+		"website": {"owebsite"},
+	})
 }
 
 func (s *infoSuite) TestAppInfoSecurityTag(c *C) {
@@ -1682,6 +1757,28 @@ func (s *infoSuite) TestSortApps(c *C) {
 		apps   []*snap.AppInfo
 		sorted []string
 	}{{
+		apps: []*snap.AppInfo{
+			{Name: "bar", Before: []string{"baz"}},
+			{Name: "foo"},
+		},
+		sorted: []string{"bar", "foo"},
+	}, {
+		apps: []*snap.AppInfo{
+			{Name: "bar", Before: []string{"foo"}},
+			{Name: "foo", Before: []string{"baz"}},
+		},
+		sorted: []string{"bar", "foo"},
+	}, {
+		apps: []*snap.AppInfo{
+			{Name: "bar", Before: []string{"foo"}},
+		},
+		sorted: []string{"bar"},
+	}, {
+		apps: []*snap.AppInfo{
+			{Name: "bar", After: []string{"foo"}},
+		},
+		sorted: []string{"bar"},
+	}, {
 		apps: []*snap.AppInfo{
 			{Name: "bar", Before: []string{"baz"}},
 			{Name: "baz", After: []string{"bar", "foo"}},

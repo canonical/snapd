@@ -331,7 +331,7 @@ func (d *deviceSuite) TestDeviceFindFallbackNotFoundNoWritable(c *C) {
 	})
 	c.Check(err, ErrorMatches, `device not found`)
 	c.Check(found, Equals, "")
-	c.Check(offs, Equals, quantity.Size(0))
+	c.Check(offs, Equals, quantity.Offset(0))
 }
 
 func (d *deviceSuite) TestDeviceFindFallbackBadWritable(c *C) {
@@ -348,14 +348,14 @@ func (d *deviceSuite) TestDeviceFindFallbackBadWritable(c *C) {
 	found, offs, err := gadget.FindDeviceForStructureWithFallback(ps)
 	c.Check(err, ErrorMatches, `lstat .*/dev/fakedevice0p1: no such file or directory`)
 	c.Check(found, Equals, "")
-	c.Check(offs, Equals, quantity.Size(0))
+	c.Check(offs, Equals, quantity.Offset(0))
 
 	c.Assert(ioutil.WriteFile(filepath.Join(d.dir, "dev/fakedevice0p1"), nil, 064), IsNil)
 
 	found, offs, err = gadget.FindDeviceForStructureWithFallback(ps)
 	c.Check(err, ErrorMatches, `unexpected number of matches \(0\) for /sys/block/\*/fakedevice0p1`)
 	c.Check(found, Equals, "")
-	c.Check(offs, Equals, quantity.Size(0))
+	c.Check(offs, Equals, quantity.Offset(0))
 
 	err = os.MkdirAll(filepath.Join(d.dir, "/sys/block/fakedevice0/fakedevice0p1"), 0755)
 	c.Assert(err, IsNil)
@@ -363,7 +363,7 @@ func (d *deviceSuite) TestDeviceFindFallbackBadWritable(c *C) {
 	found, offs, err = gadget.FindDeviceForStructureWithFallback(ps)
 	c.Check(err, ErrorMatches, `device .*/dev/fakedevice0 does not exist`)
 	c.Check(found, Equals, "")
-	c.Check(offs, Equals, quantity.Size(0))
+	c.Check(offs, Equals, quantity.Offset(0))
 }
 
 func (d *deviceSuite) TestDeviceFindFallbackHappyWritable(c *C) {
@@ -387,6 +387,7 @@ func (d *deviceSuite) TestDeviceFindFallbackHappyWritable(c *C) {
 	psMBR := &gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
 			Type: "mbr",
+			Role: "mbr",
 			Name: "mbr",
 		},
 		StartOffset: 0,
@@ -401,9 +402,9 @@ func (d *deviceSuite) TestDeviceFindFallbackHappyWritable(c *C) {
 		c.Check(err, IsNil)
 		c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice0"))
 		if ps.Type != "mbr" {
-			c.Check(offs, Equals, quantity.Size(123))
+			c.Check(offs, Equals, quantity.Offset(123))
 		} else {
-			c.Check(offs, Equals, quantity.Size(0))
+			c.Check(offs, Equals, quantity.Offset(0))
 		}
 	}
 }
@@ -423,7 +424,7 @@ func (d *deviceSuite) TestDeviceFindFallbackNotForNamedWritable(c *C) {
 	found, offs, err := gadget.FindDeviceForStructureWithFallback(psNamed)
 	c.Check(err, Equals, gadget.ErrDeviceNotFound)
 	c.Check(found, Equals, "")
-	c.Check(offs, Equals, quantity.Size(0))
+	c.Check(offs, Equals, quantity.Offset(0))
 }
 
 func (d *deviceSuite) TestDeviceFindFallbackNotForFilesystem(c *C) {
@@ -441,7 +442,7 @@ func (d *deviceSuite) TestDeviceFindFallbackNotForFilesystem(c *C) {
 	found, offs, err := gadget.FindDeviceForStructureWithFallback(psFs)
 	c.Check(err, ErrorMatches, "internal error: cannot use with filesystem structures")
 	c.Check(found, Equals, "")
-	c.Check(offs, Equals, quantity.Size(0))
+	c.Check(offs, Equals, quantity.Offset(0))
 }
 
 func (d *deviceSuite) TestDeviceFindFallbackBadMountInfo(c *C) {
@@ -458,7 +459,7 @@ func (d *deviceSuite) TestDeviceFindFallbackBadMountInfo(c *C) {
 	found, offs, err := gadget.FindDeviceForStructureWithFallback(psFs)
 	c.Check(err, ErrorMatches, "cannot read mount info: .*")
 	c.Check(found, Equals, "")
-	c.Check(offs, Equals, quantity.Size(0))
+	c.Check(offs, Equals, quantity.Offset(0))
 }
 
 func (d *deviceSuite) TestDeviceFindFallbackPassThrough(c *C) {
@@ -473,7 +474,7 @@ func (d *deviceSuite) TestDeviceFindFallbackPassThrough(c *C) {
 	found, offs, err := gadget.FindDeviceForStructureWithFallback(ps)
 	c.Check(err, ErrorMatches, `candidate .*/dev/disk/by-partlabel/foo is not a symlink`)
 	c.Check(found, Equals, "")
-	c.Check(offs, Equals, quantity.Size(0))
+	c.Check(offs, Equals, quantity.Offset(0))
 
 	// create a proper symlink
 	err = os.Remove(filepath.Join(d.dir, "/dev/disk/by-partlabel/foo"))
@@ -485,7 +486,7 @@ func (d *deviceSuite) TestDeviceFindFallbackPassThrough(c *C) {
 	found, offs, err = gadget.FindDeviceForStructureWithFallback(ps)
 	c.Assert(err, IsNil)
 	c.Check(found, Equals, filepath.Join(d.dir, "/dev/fakedevice"))
-	c.Check(offs, Equals, quantity.Size(0))
+	c.Check(offs, Equals, quantity.Offset(0))
 }
 
 func (d *deviceSuite) TestDeviceFindMountPointErrorsWithBare(c *C) {

@@ -1,6 +1,6 @@
 summary: Check that preseeded ubuntu cloud image boots.
 
-description: |
+details: |
   This test checks that preseeding of Ubuntu cloud images with snap-preseed
   command works, and the resulting image boots and finalizes seeding.
   The test assumes cloud image with a core and lxd snaps in its seeds/.
@@ -14,9 +14,6 @@ prepare: |
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
 
-  #shellcheck source=tests/lib/snaps.sh
-  . "$TESTSLIB"/snaps.sh
-
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
 
@@ -25,7 +22,7 @@ prepare: |
   dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
   # create a VM and mount a cloud image
-  "$TESTSTOOLS"/nested-state build-image classic
+  tests.nested build-image classic
   mkdir -p "$IMAGE_MOUNTPOINT"
   IMAGE_NAME=$(nested_get_image_name classic)
   mount_ubuntu_image "$NESTED_IMAGES_DIR/$IMAGE_NAME" "$IMAGE_MOUNTPOINT"
@@ -37,9 +34,16 @@ prepare: |
   # into seeds/ to make snap-preseed and the test happy.
 
   # add snapd from this branch into the seed
-  repack_snapd_deb_into_snapd_snap "$PWD"
+  "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
   mv snapd-from-deb.snap snapd.snap
   inject_snap_into_seed "$IMAGE_MOUNTPOINT" snapd
+
+  # test-postgres-system-usernames injected below uses core18 base, while the
+  # cloud image seed may already be shipping with core20 only
+  if [ "$(find "$IMAGE_MOUNTPOINT/var/lib/snapd/seed/snaps" -name 'core18*.snap' | wc -l)" = 0 ]; then
+      snap download --edge --basename=core18 core18
+      inject_snap_into_seed "$IMAGE_MOUNTPOINT" core18
+  fi
 
   # inject a snap that uses system-usernames into the seed to confirm that works
   # as expected
@@ -82,14 +86,14 @@ execute: |
   . "$TESTSLIB/preseed.sh"
   umount_ubuntu_image "$IMAGE_MOUNTPOINT"
 
-  "$TESTSTOOLS"/nested-state create-vm classic
+  tests.nested create-vm classic
 
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
   
   echo "Waiting for firstboot seeding to finish"
-  nested_exec "sudo snap wait system seed.loaded"
-  nested_exec "snap changes" | MATCH "Done .+ Initialize system state"
+  tests.nested exec "sudo snap wait system seed.loaded"
+  tests.nested exec "snap changes" | MATCH "Done .+ Initialize system state"
 
   echo "Checking that the system-key after first boot is the same as that from preseeding"
 
@@ -102,41 +106,41 @@ execute: |
     # the test is run against a vm image with ubuntu release matching that from spread host;
     # system-key check can fail if the nested vm image differs too much from the spread host system,
     # e.g. when the list of apparmor features differs due to significant kernel update.
-    nested_exec "cat /var/lib/snapd/system-key" > system-key.real
+    tests.nested exec "cat /var/lib/snapd/system-key" > system-key.real
     diff -u -w system-key.real system-key.preseeded
 
     # also check the system-key diff using snap debug seeding
 
     # we should not have had any system-key difference as per above, so we 
     # shouldn't output the preseed system-key or the seed-restart-system-key
-    nested_exec "snap debug seeding" | NOMATCH "preseed-system-key:"
-    nested_exec "snap debug seeding" | NOMATCH "seed-restart-system-key:"
+    tests.nested exec "snap debug seeding" | NOMATCH "preseed-system-key:"
+    tests.nested exec "snap debug seeding" | NOMATCH "seed-restart-system-key:"
   fi
 
-  nested_exec "snap debug seeding" | MATCH "preseeded:\s+true"
-  nested_exec "snap debug seeding" | MATCH "seeded:\s+true"
+  tests.nested exec "snap debug seeding" | MATCH "preseeded:\s+true"
+  tests.nested exec "snap debug seeding" | MATCH "seeded:\s+true"
   # FIXME: this just checks that the time is of the form "xxx.xxxs", which could
   # break if the preseeding takes more than 60s and golang formats the 
   # time.Duration as "1m2.03s", etc. but for now this should be good enough
-  nested_exec "snap debug seeding" | MATCH "image-preseeding:\s+[0-9]+\.[0-9]+s"
-  nested_exec "snap debug seeding" | MATCH "seed-completion:\s+[0-9]+\.[0-9]+s"
+  tests.nested exec "snap debug seeding" | MATCH "image-preseeding:\s+[0-9]+\.[0-9]+s"
+  tests.nested exec "snap debug seeding" | MATCH "seed-completion:\s+[0-9]+\.[0-9]+s"
 
   echo "Checking that lxd snap is operational"
-  nested_exec "snap list" | not MATCH "broken"
-  nested_exec "snap services" | MATCH "lxd.activate +enabled +inactive"
-  nested_exec "snap services" | MATCH "lxd.daemon +enabled +inactive +socket-activated"
-  nested_exec "sudo lxd init --auto"
-  nested_exec "snap services" | MATCH "+lxd.daemon +enabled +active +socket-activated"
+  tests.nested exec "snap list" | NOMATCH "broken"
+  tests.nested exec "snap services" | MATCH "lxd.activate +enabled +inactive"
+  tests.nested exec "snap services" | MATCH "lxd.daemon +enabled +inactive +socket-activated"
+  tests.nested exec "sudo lxd init --auto"
+  tests.nested exec "snap services" | MATCH "+lxd.daemon +enabled +active +socket-activated"
 
   echo "Checking that the test-postgres-system-usernames snap is operational"
-  nested_exec "sudo snap start --enable test-postgres-system-usernames.postgres"
+  tests.nested exec "sudo snap start --enable test-postgres-system-usernames.postgres"
   # wait for postgres to come online
   sleep 10
-  nested_exec "snap services" | MATCH "+test-postgres-system-usernames.postgres +enabled +active"
+  tests.nested exec "snap services" | MATCH "+test-postgres-system-usernames.postgres +enabled +active"
 
   echo "Checking that mark-seeded task was executed last"
   # snap debug timings are sorts by read-time, mark-seeded should be last
-  nested_exec "sudo snap debug timings 1" | tail -2 | MATCH "Mark system seeded"
+  tests.nested exec "sudo snap debug timings 1" | tail -2 | MATCH "Mark system seeded"
   # no task should have ready time after mark-seeded
   # shellcheck disable=SC2046
   MARK_SEEDED_TIME=$(date -d $(snap change 1 --abs-time | grep "Mark system seeded" | awk '{print $3}') "+%s")

@@ -20,8 +20,11 @@
 package builtin_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -36,9 +39,7 @@ type I2cInterfaceSuite struct {
 	iface interfaces.Interface
 
 	// OS Snap
-	testSlot1           *interfaces.ConnectedSlot
 	testSlot1Info       *snap.SlotInfo
-	testSlotCleaned     *interfaces.ConnectedSlot
 	testSlotCleanedInfo *snap.SlotInfo
 
 	// Gadget Snap
@@ -64,7 +65,6 @@ type I2cInterfaceSuite struct {
 	testUDevBadValue6Info      *snap.SlotInfo
 	testUDevBadValue7          *interfaces.ConnectedSlot
 	testUDevBadValue7Info      *snap.SlotInfo
-	testUDevBadInterface1      *interfaces.ConnectedSlot
 	testUDevBadInterface1Info  *snap.SlotInfo
 	testSysfsNameBadValue1     *interfaces.ConnectedSlot
 	testSysfsNameBadValue1Info *snap.SlotInfo
@@ -232,7 +232,7 @@ func (s *I2cInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 2)
 	c.Assert(spec.Snippets(), testutil.Contains, `# i2c
 KERNEL=="i2c-1", TAG+="snap_client-snap_app-accessing-1-port"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_client-snap_app-accessing-1-port", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-1-port $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_client-snap_app-accessing-1-port", RUN+="%v/snap-device-helper $env{ACTION} snap_client-snap_app-accessing-1-port $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *I2cInterfaceSuite) TestUDevSpecSysfsName(c *C) {

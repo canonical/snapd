@@ -1,12 +1,12 @@
 summary: "Check that stop-modes works"
 
-kill-timeout: 5m
+# takes >1.5min to run
+backends: [-autopkgtest]
 
 # journald in ubuntu-14.04 not reliable
 systems: [-ubuntu-14.04-*]
 
-# takes >1.5min to run
-backends: [-autopkgtest]
+kill-timeout: 10m
 
 restore: |
     # remove to ensure all services are stopped
@@ -24,7 +24,8 @@ execute: |
     # Because we cannot use daemon: notify easily yet just wait for a "ready"
     # file to show up.  The file is removed when the service is stopped. This
     # pattern repeats around the test without additional comments.
-    while ! test -f /var/snap/test-snapd-service/common/ready; do sleep 1; done
+    retry -n 20 --wait 1 sh -c 'test -f /var/snap/test-snapd-service/common/ready'
+
 
     echo "We can see it running"
     systemctl status snap.test-snapd-service.test-snapd-service|MATCH "running"
@@ -37,7 +38,7 @@ execute: |
 
     echo "When it is re-installed"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-service
-    while ! test -f /var/snap/test-snapd-service/common/ready; do sleep 1; done
+    retry -n 20 --wait 1 sh -c 'test -f /var/snap/test-snapd-service/common/ready'
 
     # note that sigterm{,-all} is tested separately
     for s in $stop_modes; do

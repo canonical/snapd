@@ -29,6 +29,12 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+// sanity - uboot implements the required interfaces
+var (
+	_ Bootloader                             = (*uboot)(nil)
+	_ ExtractedRecoveryKernelImageBootloader = (*uboot)(nil)
+)
+
 type uboot struct {
 	rootdir string
 	basedir string
@@ -72,10 +78,6 @@ func newUboot(rootdir string, blOpts *Options) Bootloader {
 
 func (u *uboot) Name() string {
 	return "uboot"
-}
-
-func (u *uboot) setRootDir(rootdir string) {
-	u.rootdir = rootdir
 }
 
 func (u *uboot) dir() string {

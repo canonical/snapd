@@ -20,13 +20,13 @@
 package builtin
 
 import (
+	"strings"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/interfaces/udev"
 	"github.com/snapcore/snapd/snap"
-
-	"strings"
 )
 
 const waylandSummary = `allows access to compositors supporting wayland protocol`
@@ -58,11 +58,6 @@ owner /run/user/[0-9]*/wayland-[0-9]* rwk,
 # Some Wayland based toolkits (Qt, GTK3, SDL2) and Xwayland create shm files to pass
 # to the server. Although they are passed by FD we still need rw access to the file.
 /run/user/[0-9]*/snap.*/{wayland-cursor,xwayland}-shared-* rw,
-
-# Allow reading an Xwayland Xauth file
-# (see https://gitlab.gnome.org/GNOME/mutter/merge_requests/626)
-/run/user/[0-9]*/.mutter-Xwaylandauth.* r,
-/run/user/[0-9]*/mutter/Xauthority r,
 
 # Allow write access to create /run/user/* to create XDG_RUNTIME_DIR (until
 # lp:1738197 is fixed). Note this is not needed if creating a session using

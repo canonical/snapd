@@ -32,6 +32,8 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/timings"
 )
@@ -41,6 +43,7 @@ type StoreService interface {
 	EnsureDeviceSession() (*auth.DeviceState, error)
 
 	SnapInfo(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (*snap.Info, error)
+	SnapExists(ctx context.Context, spec store.SnapSpec, user *auth.UserState) (naming.SnapRef, *channel.Channel, error)
 	Find(ctx context.Context, search *store.Search, user *auth.UserState) ([]*snap.Info, error)
 
 	SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error)
@@ -52,6 +55,7 @@ type StoreService interface {
 	DownloadStream(context.Context, string, *snap.DownloadInfo, int64, *auth.UserState) (r io.ReadCloser, status int, err error)
 
 	Assertion(assertType *asserts.AssertionType, primaryKey []string, user *auth.UserState) (asserts.Assertion, error)
+	SeqFormingAssertion(assertType *asserts.AssertionType, sequenceKey []string, sequence int, user *auth.UserState) (asserts.Assertion, error)
 	DownloadAssertions([]string, *asserts.Batch, *auth.UserState) error
 
 	SuggestedCurrency() string
@@ -66,7 +70,7 @@ type StoreService interface {
 
 type managerBackend interface {
 	// install related
-	SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, dev boot.Device, meter progress.Meter) (snap.Type, *backend.InstallRecord, error)
+	SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, dev boot.Device, opts *backend.SetupSnapOptions, meter progress.Meter) (snap.Type, *backend.InstallRecord, error)
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 	LinkSnap(info *snap.Info, dev boot.Device, linkCtx backend.LinkContext, tm timings.Measurer) (rebootRequired bool, err error)
 	StartServices(svcs []*snap.AppInfo, disabledSvcs []string, meter progress.Meter, tm timings.Measurer) error

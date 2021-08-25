@@ -355,7 +355,17 @@ func TrustedAssetsUpdateObserverForModel(model *asserts.Model, gadgetDir string)
 	}
 	// trusted assets need tracking only when the system is using encryption
 	// for its data partitions
-	trackTrustedAssets := hasSealedKeys(dirs.GlobalRootDir)
+	trackTrustedAssets := false
+	_, err := sealedKeysMethod(dirs.GlobalRootDir)
+	switch {
+	case err == nil:
+		trackTrustedAssets = true
+	case err == errNoSealedKeys:
+		// nothing to do
+	case err != nil:
+		// all other errors
+		return nil, err
+	}
 
 	// see what we need to observe for the run bootloader
 	runBl, runTrusted, runManaged, err := gadgetMaybeTrustedBootloaderAndAssets(gadgetDir, InitramfsUbuntuBootDir,
@@ -662,7 +672,7 @@ func (o *TrustedAssetsUpdateObserver) BeforeWrite() error {
 		return nil
 	}
 	const expectReseal = true
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.model, o.modeenv, expectReseal); err != nil {
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.modeenv, expectReseal); err != nil {
 		return err
 	}
 	return nil
@@ -728,7 +738,7 @@ func (o *TrustedAssetsUpdateObserver) Canceled() error {
 	}
 
 	const expectReseal = true
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.model, o.modeenv, expectReseal); err != nil {
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.modeenv, expectReseal); err != nil {
 		return fmt.Errorf("while canceling gadget update: %v", err)
 	}
 	return nil
@@ -820,6 +830,11 @@ func observeSuccessfulBootAssetsForBootloader(m *Modeenv, root string, opts *boo
 // after a successful boot. Returns a modified modeenv reflecting a new state,
 // and a list of assets that can be dropped from the cache.
 func observeSuccessfulBootAssets(m *Modeenv) (newM *Modeenv, drop []*trackedAsset, err error) {
+	// TODO:UC20 only care about run mode for now
+	if m.Mode != "run" {
+		return m, nil, nil
+	}
+
 	newM, err = m.Copy()
 	if err != nil {
 		return nil, nil, err

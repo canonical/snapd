@@ -30,6 +30,7 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/interfaces"
@@ -37,8 +38,6 @@ import (
 
 type cmdDebugState struct {
 	timeMixin
-
-	st *state.State
 
 	Changes  bool   `long:"changes"`
 	TaskID   string `long:"task"`
@@ -102,19 +101,27 @@ type byLaneAndWaitTaskChain []*state.Task
 func (t byLaneAndWaitTaskChain) Len() int      { return len(t) }
 func (t byLaneAndWaitTaskChain) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
 func (t byLaneAndWaitTaskChain) Less(i, j int) bool {
+	if t[i].ID() == t[j].ID() {
+		return false
+	}
 	// cover the typical case (just one lane), and order by first lane
 	if t[i].Lanes()[0] == t[j].Lanes()[0] {
-		return waitChainSearch(t[i], t[j])
+		seenTasks := make(map[string]bool)
+		return t.waitChainSearch(t[i], t[j], seenTasks)
 	}
 	return t[i].Lanes()[0] < t[j].Lanes()[0]
 }
 
-func waitChainSearch(startT, searchT *state.Task) bool {
+func (t *byLaneAndWaitTaskChain) waitChainSearch(startT, searchT *state.Task, seenTasks map[string]bool) bool {
+	if seenTasks[startT.ID()] {
+		return false
+	}
+	seenTasks[startT.ID()] = true
 	for _, cand := range startT.HaltTasks() {
 		if cand == searchT {
 			return true
 		}
-		if waitChainSearch(cand, searchT) {
+		if t.waitChainSearch(cand, searchT, seenTasks) {
 			return true
 		}
 	}
@@ -460,7 +467,7 @@ func (c *cmdDebugState) Execute(args []string) error {
 	if c.TaskID != "" {
 		cmds = append(cmds, "--task=")
 	}
-	if c.IsSeeded != false {
+	if c.IsSeeded {
 		cmds = append(cmds, "--is-seeded")
 	}
 	if c.Connections {

@@ -24,6 +24,7 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
+	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
@@ -65,9 +66,14 @@ var (
 	ResealKeyToModeenv              = resealKeyToModeenv
 	RecoveryBootChainsForSystems    = recoveryBootChainsForSystems
 	SealKeyModelParams              = sealKeyModelParams
+
+	BootVarsForTrustedCommandLineFromGadget = bootVarsForTrustedCommandLineFromGadget
+
+	WriteModelToUbuntuBoot = writeModelToUbuntuBoot
 )
 
 type BootAssetsMap = bootAssetsMap
+type BootCommandLines = bootCommandLines
 type TrackedAsset = trackedAsset
 
 func (t *TrackedAsset) Equals(blName, name, hash string) error {
@@ -104,11 +110,11 @@ func MockSecbootSealKeys(f func(keys []secboot.SealKeyRequest, params *secboot.S
 	}
 }
 
-func MockSecbootResealKeys(f func(params *secboot.ResealKeysParams) error) (restore func()) {
-	old := secbootResealKeys
-	secbootResealKeys = f
+func MockSecbootSealKeysWithFDESetupHook(f func(runHook fde.RunSetupHookFunc, keys []secboot.SealKeyRequest, params *secboot.SealKeysWithFDESetupHookParams) error) (restore func()) {
+	old := secbootSealKeysWithFDESetupHook
+	secbootSealKeysWithFDESetupHook = f
 	return func() {
-		secbootResealKeys = old
+		secbootSealKeysWithFDESetupHook = old
 	}
 }
 
@@ -153,10 +159,36 @@ var (
 	WriteBootChains                     = writeBootChains
 	ReadBootChains                      = readBootChains
 	IsResealNeeded                      = isResealNeeded
+
+	SetImageBootFlags = setImageBootFlags
+	NextBootFlags     = nextBootFlags
+	SetNextBootFlags  = setNextBootFlags
+
+	ModelUniqueID = modelUniqueID
 )
 
-func (b *bootChain) SetModelAssertion(model *asserts.Model) {
-	b.model = model
+func SetBootFlagsInBootloader(flags []string, rootDir string) error {
+	blVars := make(map[string]string, 1)
+
+	if err := setImageBootFlags(flags, blVars); err != nil {
+		return err
+	}
+
+	// now find the recovery bootloader in the system dir and set the value on
+	// it
+	opts := &bootloader.Options{
+		Role: bootloader.RoleRecovery,
+	}
+	bl, err := bootloader.Find(rootDir, opts)
+	if err != nil {
+		return err
+	}
+
+	return bl.SetBootVars(blVars)
+}
+
+func (b *bootChain) SecbootModelForSealing() secboot.ModelForSealing {
+	return b.modelForSealing()
 }
 
 func (b *bootChain) SetKernelBootFile(kbf bootloader.BootFile) {
@@ -165,4 +197,42 @@ func (b *bootChain) SetKernelBootFile(kbf bootloader.BootFile) {
 
 func (b *bootChain) KernelBootFile() bootloader.BootFile {
 	return b.kernelBootFile
+}
+
+func MockHasFDESetupHook(f func() (bool, error)) (restore func()) {
+	oldHasFDESetupHook := HasFDESetupHook
+	HasFDESetupHook = f
+	return func() {
+		HasFDESetupHook = oldHasFDESetupHook
+	}
+}
+
+func MockRunFDESetupHook(f fde.RunSetupHookFunc) (restore func()) {
+	oldRunFDESetupHook := RunFDESetupHook
+	RunFDESetupHook = f
+	return func() { RunFDESetupHook = oldRunFDESetupHook }
+}
+
+func MockResealKeyToModeenvUsingFDESetupHook(f func(string, *Modeenv, bool) error) (restore func()) {
+	old := resealKeyToModeenvUsingFDESetupHook
+	resealKeyToModeenvUsingFDESetupHook = f
+	return func() {
+		resealKeyToModeenvUsingFDESetupHook = old
+	}
+}
+
+func MockAdditionalBootFlags(bootFlags []string) (restore func()) {
+	old := understoodBootFlags
+	understoodBootFlags = append(understoodBootFlags, bootFlags...)
+	return func() {
+		understoodBootFlags = old
+	}
+}
+
+func MockWriteModelToUbuntuBoot(mock func(*asserts.Model) error) (restore func()) {
+	old := writeModelToUbuntuBoot
+	writeModelToUbuntuBoot = mock
+	return func() {
+		writeModelToUbuntuBoot = old
+	}
 }

@@ -8,7 +8,7 @@ systems:
     # Centos 7 gives error "Unit user@12345.service not loaded."
     - -centos-7-*
 
-kill-timeout: 5m
+kill-timeout: 10m
 
 prepare: |
     # Ensure that snapd.session-agent.socket is enabled.  This may not
@@ -31,6 +31,11 @@ restore: |
         rm agent-was-enabled
     fi
 
+debug: |
+    tests.session dump
+    tests.session -u test exec systemctl --user status snapd.session-agent.service || true
+    tests.session -u test exec journalctl --user || true
+
 execute: |
     function systemctl_user() {
       tests.session -u test exec systemctl --user "$@"
@@ -50,8 +55,3 @@ execute: |
     if systemctl_user is-active snap.test-snapd-user-service.test-snapd-user-service; then
       exit 1
     fi
-
-debug: |
-    tests.session dump
-    tests.session -u test exec systemctl --user status snapd.session-agent.service || true
-    tests.session -u test exec journalctl --user || true

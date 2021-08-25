@@ -146,8 +146,13 @@ func (s *configHelpersSuite) TestSnapConfig(c *C) {
 	defer s.state.Unlock()
 
 	empty1 := json.RawMessage(nil)
+	buf, err := json.Marshal(nil)
+	c.Assert(err, IsNil)
+	empty2 := (*json.RawMessage)(&buf)
+	// sanity check
+	c.Check(bytes.Compare(*empty2, []byte(`null`)), Equals, 0)
 
-	for _, emptyCfg := range []*json.RawMessage{nil, &empty1, {}} {
+	for _, emptyCfg := range []*json.RawMessage{nil, &empty1, empty2, {}} {
 		rawCfg, err := config.GetSnapConfig(s.state, "snap1")
 		c.Assert(err, IsNil)
 		c.Check(rawCfg, IsNil)
@@ -172,6 +177,12 @@ func (s *configHelpersSuite) TestSnapConfig(c *C) {
 		rawCfg, err = config.GetSnapConfig(s.state, "snap1")
 		c.Assert(err, IsNil)
 		c.Check(rawCfg, IsNil)
+
+		// and there is no entry for the snap in state
+		var config map[string]interface{}
+		c.Assert(s.state.Get("config", &config), IsNil)
+		_, ok := config["snap1"]
+		c.Check(ok, Equals, false)
 	}
 }
 
@@ -282,5 +293,50 @@ func (s *configHelpersSuite) TestPurgeNullsTopLevelNull(c *C) {
 		"seed": map[string]interface{}{
 			"loaded": true,
 		},
+	})
+}
+
+func (s *configHelpersSuite) TestSortPatchKeys(c *C) {
+	// empty case
+	keys := config.SortPatchKeysByDepth(map[string]interface{}{})
+	c.Assert(keys, IsNil)
+
+	patch := map[string]interface{}{
+		"a.b.c":         0,
+		"a":             0,
+		"a.b.c.d":       0,
+		"q.w.e.r.t.y.u": 0,
+		"f.g":           0,
+	}
+
+	keys = config.SortPatchKeysByDepth(patch)
+	c.Assert(keys, DeepEquals, []string{"a", "f.g", "a.b.c", "a.b.c.d", "q.w.e.r.t.y.u"})
+}
+
+func (s *configHelpersSuite) TestPatch(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.state.Set("config", map[string]map[string]interface{}{
+		"some-snap": {"a": map[string]interface{}{"b": 1}},
+	})
+
+	patch := map[string]interface{}{
+		"a.b1": 1,
+		"a":    map[string]interface{}{},
+		"a.b2": map[string]interface{}{"c": "C"},
+	}
+
+	tr := config.NewTransaction(s.state)
+	err := config.Patch(tr, "some-snap", patch)
+	c.Assert(err, IsNil)
+
+	var a map[string]interface{}
+	err = tr.Get("some-snap", "a", &a)
+	c.Check(err, IsNil)
+
+	c.Check(a, DeepEquals, map[string]interface{}{
+		"b1": json.Number("1"),
+		"b2": map[string]interface{}{"c": "C"},
 	})
 }

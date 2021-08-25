@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,15 +20,16 @@
 package devicestate
 
 import (
+	"compress/gzip"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/gadget/install"
 	"github.com/snapcore/snapd/logger"
@@ -38,11 +39,13 @@ import (
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/sysconfig"
+	"github.com/snapcore/snapd/timings"
 )
 
 var (
-	bootMakeBootable = boot.MakeBootable
-	installRun       = install.Run
+	bootMakeRunnable            = boot.MakeRunnableSystem
+	bootEnsureNextBootToRunMode = boot.EnsureNextBootToRunMode
+	installRun                  = install.Run
 
 	sysconfigConfigureTargetSystem = sysconfig.ConfigureTargetSystem
 )
@@ -50,32 +53,28 @@ var (
 func setSysconfigCloudOptions(opts *sysconfig.Options, gadgetDir string, model *asserts.Model) {
 	ubuntuSeedCloudCfg := filepath.Join(boot.InitramfsUbuntuSeedDir, "data/etc/cloud/cloud.cfg.d")
 
+	grade := model.Grade()
+
+	// we always set the cloud-init src directory if it exists, it is
+	// automatically ignored by sysconfig in the case it shouldn't be used
+	if osutil.IsDirectory(ubuntuSeedCloudCfg) {
+		opts.CloudInitSrcDir = ubuntuSeedCloudCfg
+	}
+
 	switch {
 	// if the gadget has a cloud.conf file, always use that regardless of grade
 	case sysconfig.HasGadgetCloudConf(gadgetDir):
-		// this is implicitly handled by ConfigureTargetSystem when it configures
-		// cloud-init if none of the other options are set, so just break here
 		opts.AllowCloudInit = true
 
 	// next thing is if are in secured grade and didn't have gadget config, we
 	// disable cloud-init always, clouds should have their own config via
 	// gadgets for grade secured
-	case model.Grade() == asserts.ModelSecured:
+	case grade == asserts.ModelSecured:
 		opts.AllowCloudInit = false
 
-	// TODO:UC20: on grade signed, allow files from ubuntu-seed, but do
-	//            filtering on the resultant cloud config
-
-	// next if we are grade dangerous, then we also install cloud configuration
-	// from ubuntu-seed if it exists
-	case model.Grade() == asserts.ModelDangerous && osutil.IsDirectory(ubuntuSeedCloudCfg):
-		opts.AllowCloudInit = true
-		opts.CloudInitSrcDir = ubuntuSeedCloudCfg
-
-	// note that if none of the conditions were true, it means we are on grade
-	// dangerous or signed, and cloud-init is still allowed to run without
-	// additional configuration on first-boot, so that NoCloud CIDATA can be
-	// provided for example
+	// all other cases we allow cloud-init to run, either through config that is
+	// available at runtime via a CI-DATA USB drive, or via config on
+	// ubuntu-seed if that is allowed by the model grade, etc.
 	default:
 		opts.AllowCloudInit = true
 	}
@@ -88,6 +87,111 @@ func writeModel(model *asserts.Model, where string) error {
 	}
 	defer f.Close()
 	return asserts.NewEncoder(f).Encode(model)
+}
+
+func writeLogs(rootdir string) error {
+	// XXX: would be great to use native journal format but it's tied
+	//      to machine-id, we could journal -o export but there
+	//      is no systemd-journal-remote on core{,18,20}
+	//
+	// XXX: or only log if persistent journal is enabled?
+	logPath := filepath.Join(rootdir, "var/log/install-mode.log.gz")
+	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+		return err
+	}
+
+	f, err := os.Create(logPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	gz := gzip.NewWriter(f)
+	defer gz.Close()
+
+	cmd := exec.Command("journalctl", "-b", "0")
+	cmd.Stdout = gz
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("cannot collect journal output: %v", err)
+	}
+	if err := gz.Flush(); err != nil {
+		return fmt.Errorf("cannot flush compressed log output: %v", err)
+	}
+
+	return nil
+}
+
+func writeTimings(st *state.State, rootdir string) error {
+	logPath := filepath.Join(rootdir, "var/log/install-timings.txt.gz")
+	if err := os.MkdirAll(filepath.Dir(logPath), 0755); err != nil {
+		return err
+	}
+
+	f, err := os.Create(logPath)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	gz := gzip.NewWriter(f)
+	defer gz.Close()
+
+	var chgIDs []string
+	for _, chg := range st.Changes() {
+		if chg.Kind() == "seed" || chg.Kind() == "install-system" {
+			// this is captured via "--ensure=seed" and
+			// "--ensure=install-system" below
+			continue
+		}
+		chgIDs = append(chgIDs, chg.ID())
+	}
+
+	// state must be unlocked for "snap changes/debug timings" to work
+	st.Unlock()
+	defer st.Lock()
+
+	// XXX: ugly, ugly, but using the internal timings requires
+	//      some refactor as a lot of the required bits are not
+	//      exported right now
+	// first all changes
+	fmt.Fprintf(gz, "---- Output of: snap changes\n")
+	cmd := exec.Command("snap", "changes")
+	cmd.Stdout = gz
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("cannot collect timings output: %v", err)
+	}
+	fmt.Fprintf(gz, "\n")
+	// then the seeding
+	fmt.Fprintf(gz, "---- Output of snap debug timings --ensure=seed\n")
+	cmd = exec.Command("snap", "debug", "timings", "--ensure=seed")
+	cmd.Stdout = gz
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("cannot collect timings output: %v", err)
+	}
+	fmt.Fprintf(gz, "\n")
+	// then the install
+	fmt.Fprintf(gz, "---- Output of snap debug timings --ensure=install-system\n")
+	cmd = exec.Command("snap", "debug", "timings", "--ensure=install-system")
+	cmd.Stdout = gz
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("cannot collect timings output: %v", err)
+	}
+	// then the other changes (if there are any)
+	for _, chgID := range chgIDs {
+		fmt.Fprintf(gz, "---- Output of snap debug timings %s\n", chgID)
+		cmd = exec.Command("snap", "debug", "timings", chgID)
+		cmd.Stdout = gz
+		if err := cmd.Run(); err != nil {
+			return fmt.Errorf("cannot collect timings output: %v", err)
+		}
+		fmt.Fprintf(gz, "\n")
+	}
+
+	if err := gz.Flush(); err != nil {
+		return fmt.Errorf("cannot flush timings output: %v", err)
+	}
+
+	return nil
 }
 
 func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
@@ -113,6 +217,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot get kernel info: %v", err)
 	}
+	kernelDir := kernelInfo.MountDir()
 
 	modeEnv, err := maybeReadModeenv()
 	if err != nil {
@@ -126,24 +231,33 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	bopts := install.Options{
 		Mount: true,
 	}
-	useEncryption, err := checkEncryption(st, deviceCtx)
+	useEncryption, err := m.checkEncryption(st, deviceCtx)
 	if err != nil {
 		return err
 	}
 	bopts.Encrypt = useEncryption
 
+	model := deviceCtx.Model()
+
 	// make sure that gadget is usable for the set up we want to use it in
-	gadgetContaints := gadget.ValidationConstraints{
+	validationConstraints := gadget.ValidationConstraints{
 		EncryptedData: useEncryption,
 	}
-	if err := gadget.Validate(gadgetDir, deviceCtx.Model(), &gadgetContaints); err != nil {
+	var ginfo *gadget.Info
+	timings.Run(perfTimings, "read-info-and-validate", "Read and validate gagdet info", func(timings.Measurer) {
+		ginfo, err = gadget.ReadInfoAndValidate(gadgetDir, model, &validationConstraints)
+	})
+	if err != nil {
+		return fmt.Errorf("cannot use gadget: %v", err)
+	}
+	if err := gadget.ValidateContent(ginfo, gadgetDir, kernelDir); err != nil {
 		return fmt.Errorf("cannot use gadget: %v", err)
 	}
 
 	var trustedInstallObserver *boot.TrustedAssetsInstallObserver
 	// get a nice nil interface by default
 	var installObserver gadget.ContentObserver
-	trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(deviceCtx.Model(), gadgetDir, useEncryption)
+	trustedInstallObserver, err = boot.TrustedAssetsInstallObserverForModel(model, gadgetDir, useEncryption)
 	if err != nil && err != boot.ErrObserverNotApplicable {
 		return fmt.Errorf("cannot setup asset install observer: %v", err)
 	}
@@ -159,11 +273,11 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	var installedSystem *install.InstalledSystemSideData
 	// run the create partition code
 	logger.Noticef("create and deploy partitions")
-	func() {
+	timings.Run(perfTimings, "install-run", "Install the run system", func(tm timings.Measurer) {
 		st.Unlock()
 		defer st.Lock()
-		installedSystem, err = installRun(gadgetDir, "", bopts, installObserver)
-	}()
+		installedSystem, err = installRun(model, gadgetDir, kernelDir, "", bopts, installObserver, tm)
+	})
 	if err != nil {
 		return fmt.Errorf("cannot install system: %v", err)
 	}
@@ -197,7 +311,7 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	if err != nil {
 		return fmt.Errorf("cannot store the model: %v", err)
 	}
-	err = writeModel(deviceCtx.Model(), filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
+	err = writeModel(model, filepath.Join(boot.InitramfsUbuntuBootDir, "device/model"))
 	if err != nil {
 		return fmt.Errorf("cannot store the model: %v", err)
 	}
@@ -205,13 +319,16 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	// configure the run system
 	opts := &sysconfig.Options{TargetRootDir: boot.InstallHostWritableDir, GadgetDir: gadgetDir}
 	// configure cloud init
-	setSysconfigCloudOptions(opts, gadgetDir, deviceCtx.Model())
-	if err := sysconfigConfigureTargetSystem(opts); err != nil {
+	setSysconfigCloudOptions(opts, gadgetDir, model)
+	timings.Run(perfTimings, "sysconfig-configure-target-system", "Configure target system", func(timings.Measurer) {
+		err = sysconfigConfigureTargetSystem(model, opts)
+	})
+	if err != nil {
 		return err
 	}
 
 	// make it bootable
-	logger.Noticef("make system bootable")
+	logger.Noticef("make system runnable")
 	bootBaseInfo, err := snapstate.BootBaseInfo(st, deviceCtx)
 	if err != nil {
 		return fmt.Errorf("cannot get boot base info: %v", err)
@@ -225,14 +342,51 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 		RecoverySystemDir: recoverySystemDir,
 		UnpackedGadgetDir: gadgetDir,
 	}
-	rootdir := dirs.GlobalRootDir
-	if err := bootMakeBootable(deviceCtx.Model(), rootdir, bootWith, trustedInstallObserver); err != nil {
-		return fmt.Errorf("cannot make run system bootable: %v", err)
+	timings.Run(perfTimings, "boot-make-runnable", "Make target system runnable", func(timings.Measurer) {
+		err = bootMakeRunnable(deviceCtx.Model(), bootWith, trustedInstallObserver)
+	})
+	if err != nil {
+		return fmt.Errorf("cannot make system runnable: %v", err)
 	}
 
-	// request a restart as the last action after a successful install
-	logger.Noticef("request system restart")
-	st.RequestRestart(state.RestartSystemNow)
+	// TODO: FIXME: this should go away after we have time to design a proper
+	//              solution
+	// TODO: only run on specific models?
+
+	// on some specific devices, we need to create these directories in
+	// _writable_defaults in order to allow the install-device hook to install
+	// some files there, this eventually will go away when we introduce a proper
+	// mechanism not using system-files to install files onto the root
+	// filesystem from the install-device hook
+	if err := fixupWritableDefaultDirs(boot.InstallHostWritableDir); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func fixupWritableDefaultDirs(systemDataDir string) error {
+	// the _writable_default directory is used to put files in place on
+	// ubuntu-data from install mode, so we abuse it here for a specific device
+	// to let that device install files with system-files and the install-device
+	// hook
+
+	// eventually this will be a proper, supported, designed mechanism instead
+	// of just this hack, but this hack is just creating the directories, since
+	// the system-files interface only allows creating the file, not creating
+	// the directories leading up to that file, and since the file is deeply
+	// nested we would effectively have to give all permission to the device
+	// to create any file on ubuntu-data which we don't want to do, so we keep
+	// this restriction to let the device create one specific file, and then
+	// we behind the scenes just create the directories for the device
+
+	for _, subDirToCreate := range []string{"/etc/udev/rules.d", "/etc/modprobe.d", "/etc/modules-load.d/"} {
+		dirToCreate := sysconfig.WritableDefaultsDir(systemDataDir, subDirToCreate)
+
+		if err := os.MkdirAll(dirToCreate, 0755); err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -298,12 +452,12 @@ func saveKeys(keysForRoles map[string]*install.EncryptionKeySet) error {
 	return nil
 }
 
-var secbootCheckKeySealingSupported = secboot.CheckKeySealingSupported
+var secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
 
 // checkEncryption verifies whether encryption should be used based on the
 // model grade and the availability of a TPM device or a fde-setup hook
 // in the kernel.
-func checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bool, err error) {
+func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bool, err error) {
 	model := deviceCtx.Model()
 	secured := model.Grade() == asserts.ModelSecured
 	dangerous := model.Grade() == asserts.ModelDangerous
@@ -330,13 +484,13 @@ func checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bo
 	)
 	if kernelInfo, err := snapstate.KernelInfo(st, deviceCtx); err == nil {
 		if hasFDESetupHook = hasFDESetupHookInKernel(kernelInfo); hasFDESetupHook {
-			checkEncryptionErr = checkFDEFeatures(st, kernelInfo)
+			checkEncryptionErr = m.checkFDEFeatures(st)
 		}
 	}
 	// Note that having a fde-setup hook will disable the build-in
 	// secboot encryption
 	if !hasFDESetupHook {
-		checkEncryptionErr = secbootCheckKeySealingSupported()
+		checkEncryptionErr = secbootCheckTPMKeySealingSupported()
 	}
 
 	// check if encryption is required
@@ -348,10 +502,83 @@ func checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bo
 			return false, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
 		}
 
+		if hasFDESetupHook {
+			logger.Noticef("not encrypting device storage as querying kernel fde-setup hook did not succeed: %v", checkEncryptionErr)
+		} else {
+			logger.Noticef("not encrypting device storage as checking TPM gave: %v", checkEncryptionErr)
+		}
+
 		// not required, go without
 		return false, nil
 	}
 
 	// encrypt
 	return true, nil
+}
+
+// RebootOptions can be attached to restart-system-to-run-mode tasks to control
+// their restart behavior.
+type RebootOptions struct {
+	Op string `json:"op,omitempty"`
+}
+
+const (
+	RebootHaltOp     = "halt"
+	RebootPoweroffOp = "poweroff"
+)
+
+func (m *DeviceManager) doRestartSystemToRunMode(t *state.Task, _ *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	perfTimings := state.TimingsForTask(t)
+	defer perfTimings.Save(st)
+
+	modeEnv, err := maybeReadModeenv()
+	if err != nil {
+		return err
+	}
+
+	if modeEnv == nil {
+		return fmt.Errorf("missing modeenv, cannot proceed")
+	}
+
+	// ensure the next boot goes into run mode
+	if err := bootEnsureNextBootToRunMode(modeEnv.RecoverySystem); err != nil {
+		return err
+	}
+
+	var rebootOpts RebootOptions
+	err = t.Get("reboot", &rebootOpts)
+	if err != nil && err != state.ErrNoState {
+		return err
+	}
+
+	// write timing information
+	if err := writeTimings(st, boot.InstallHostWritableDir); err != nil {
+		logger.Noticef("cannot write timings: %v", err)
+	}
+	// store install-mode log into ubuntu-data partition
+	if err := writeLogs(boot.InstallHostWritableDir); err != nil {
+		logger.Noticef("cannot write installation log: %v", err)
+	}
+
+	// request by default a restart as the last action after a
+	// successful install or what install-device requested via
+	// snapctl reboot
+	rst := state.RestartSystemNow
+	what := "restart"
+	switch rebootOpts.Op {
+	case RebootHaltOp:
+		what = "halt"
+		rst = state.RestartSystemHaltNow
+	case RebootPoweroffOp:
+		what = "poweroff"
+		rst = state.RestartSystemPoweroffNow
+	}
+	logger.Noticef("request immediate system %s", what)
+	st.RequestRestart(rst)
+
+	return nil
 }

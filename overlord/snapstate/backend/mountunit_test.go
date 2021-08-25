@@ -88,12 +88,13 @@ func (s *mountunitSuite) TestAddMountUnit(c *C) {
 [Unit]
 Description=Mount unit for foo, revision 13
 Before=snapd.service
+After=zfs-mount.service
 
 [Mount]
 What=/var/lib/snapd/snaps/foo_13.snap
 Where=%s/foo/13
 Type=squashfs
-Options=nodev,ro,x-gdu.hide
+Options=nodev,ro,x-gdu.hide,x-gvfs-hide
 LazyUnmount=yes
 
 [Install]

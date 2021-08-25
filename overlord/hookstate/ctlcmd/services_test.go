@@ -117,6 +117,10 @@ apps:
   command: bin/service
   daemon: simple
   reload-command: bin/reload
+ user-service:
+  command: bin/user-service
+  daemon: simple
+  daemon-scope: user
 `
 
 const otherSnapYaml = `name: other-snap
@@ -585,13 +589,22 @@ func (s *servicectlSuite) TestQueuedCommandsSingleLane(c *C) {
 
 func (s *servicectlSuite) TestTwoServices(c *C) {
 	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
-		c.Assert(args[0], Equals, "show")
-		c.Check(args[2], Matches, `snap\.test-snap\.\w+-service\.service`)
-		return []byte(fmt.Sprintf(`Id=%s
+		switch args[0] {
+		case "show":
+			c.Check(args[2], Matches, `snap\.test-snap\.\w+-service\.service`)
+			return []byte(fmt.Sprintf(`Id=%s
 Type=simple
 ActiveState=active
 UnitFileState=enabled
 `, args[2])), nil
+		case "--user":
+			c.Check(args[1], Equals, "--global")
+			c.Check(args[2], Equals, "is-enabled")
+			return []byte("enabled\n"), nil
+		default:
+			c.Errorf("unexpected systemctl command: %v", args)
+			return nil, fmt.Errorf("should not be reached")
+		}
 	})
 	defer restore()
 
@@ -601,6 +614,7 @@ UnitFileState=enabled
 Service                    Startup  Current  Notes
 test-snap.another-service  enabled  active   -
 test-snap.test-service     enabled  active   -
+test-snap.user-service     enabled  -        user
 `[1:])
 	c.Check(string(stderr), Equals, "")
 }

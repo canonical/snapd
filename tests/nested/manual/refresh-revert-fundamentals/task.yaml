@@ -1,6 +1,6 @@
 summary: Refresh and revert the fundamental snaps for uc20
 
-description: |
+details: |
     This test validates the fundamental snaps can be refreshed
     and reverted to the new snaps published to edge channel.
 
@@ -42,18 +42,13 @@ prepare: |
         exit
     fi
 
-    "$TESTSTOOLS"/nested-state build-image core
-    "$TESTSTOOLS"/nested-state create-vm core
-
-restore: |
-    if [ -f skip.test ]; then
-        rm -f skip.test
-    fi
+    tests.nested build-image core
+    tests.nested create-vm core
 
 debug: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
-    nested_exec "snap changes" || true
+    tests.nested exec "snap changes" || true
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
@@ -66,10 +61,11 @@ execute: |
     FROM_REV="$(nested_get_snap_rev_for_channel "$SNAP" $TRACK/$NESTED_CORE_CHANNEL)"
     TO_REV="$(nested_get_snap_rev_for_channel "$SNAP" $TRACK/$NESTED_CORE_REFRESH_CHANNEL)"
 
-    nested_exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_CHANNEL}.*"
-    # The snap is refreshed
+    tests.nested exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_CHANNEL}.*"
+    
+    echo "Refresh the snap $SNAP"
     INITIAL_BOOT_ID=$(nested_get_boot_id)
-    REFRESH_ID=$(nested_exec "sudo snap refresh --no-wait --channel $NESTED_CORE_REFRESH_CHANNEL $SNAP")
+    REFRESH_ID=$(tests.nested exec "sudo snap refresh --no-wait --channel $NESTED_CORE_REFRESH_CHANNEL $SNAP")
 
     case "$SNAP" in
         snapd|pc)
@@ -77,34 +73,30 @@ execute: |
             # resealing took place we are still able to boot
             # The following commands could fails in case the connection is suddenly
             # stopped because of the reboot in the nested machine
-            nested_exec "snap watch $REFRESH_ID" || true
-            nested_exec "sudo reboot" || true
+            tests.nested exec "snap watch $REFRESH_ID" || true
+            tests.nested exec "sudo reboot" || true
             ;;
         pc-kernel|core20)
             # don't manually reboot, wait for automatic snapd reboot
             ;;
     esac
-    nested_wait_for_reboot "$INITIAL_BOOT_ID"
+    tests.nested wait-for reboot "$INITIAL_BOOT_ID"
     SECOND_BOOT_ID=$(nested_get_boot_id)
 
-    # Check the new version of the snaps is correct after the system reboot
-    nested_exec "snap list $SNAP" | MATCH "^${SNAP}.*${TO_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"
+    echo "Check the new version of the snaps is correct after the system reboot"
+    tests.nested exec "snap list $SNAP" | MATCH "^${SNAP}.*${TO_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"
 
-    # We check the change is completed
+    echo "Check the change is completed"
     case "$SNAP" in
         pc-kernel|core20)
-            for _ in $(seq 10); do
-                if nested_exec "snap changes" | MATCH "$REFRESH_ID\s+Done\s+.*"; then
-                    break
-                fi
-                sleep 1
-            done
-            nested_exec "snap changes" | MATCH "$REFRESH_ID\s+Done\s+.*"
+            #shellcheck disable=SC2098
+            #shellcheck disable=SC2097
+            retry --wait 1 -n 10 --env REVERT_ID="$REVERT_ID" sh -c "tests.nested exec snap changes | MATCH \"$REVERT_ID\s+Done\s+.*\""
             ;;
     esac
 
-    # The snap is reverted
-    REVERT_ID=$(nested_exec "sudo snap revert --no-wait $SNAP")
+    echo "Revert the snap $SNAP"
+    REVERT_ID=$(tests.nested exec "sudo snap revert --no-wait $SNAP")
 
     case "$SNAP" in
         snapd|pc)
@@ -112,27 +104,21 @@ execute: |
             # resealing took place we are still able to boot
             # The following commands could fails in case the connection is suddenly
             # stopped because of the reboot in the nested machine
-            nested_exec "snap watch $REVERT_ID" || true
-            nested_exec "sudo reboot" || true
+            tests.nested exec "snap watch $REVERT_ID" || true
+            tests.nested exec "sudo reboot" || true
             ;;
         pc-kernel|core20)
             # don't manually reboot, wait for automatic snapd reboot
             ;;
     esac
-    nested_wait_for_reboot "$SECOND_BOOT_ID"
+    tests.nested wait-for reboot "$SECOND_BOOT_ID"
 
-    # Check the version of the snaps after the revert is correct
-    nested_exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"
+    echo "Check the version of the snaps after the revert is correct"
+    tests.nested exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"
 
-    # We check the change is completed
+    echo "Check the change is completed"
     case "$SNAP" in
         pc-kernel|core20)
-            for _ in $(seq 10); do
-                if nested_exec "snap changes" | MATCH "$REVERT_ID\s+Done\s+.*"; then
-                    break
-                fi
-                sleep 1
-            done
-            nested_exec "snap changes" | MATCH "$REVERT_ID\s+Done\s+.*"
+            tests.nested exec "retry --wait 1 -n 10 --env REVERT_ID=\"$REVERT_ID\" sh -c \'snap changes | MATCH \"$REVERT_ID\s+Done\s+.*\"\'"
             ;;
     esac

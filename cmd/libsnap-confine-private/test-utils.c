@@ -23,6 +23,11 @@
 
 #include <glib.h>
 
+#if !GLIB_CHECK_VERSION(2, 69, 0)
+// g_spawn_check_exit_status is considered deprecated since 2.69
+#define g_spawn_check_wait_status(x, y) (g_spawn_check_exit_status (x, y))
+#endif
+
 void rm_rf_tmp(const char *dir)
 {
 	// Sanity check, don't remove anything that's not in the temporary
@@ -60,7 +65,7 @@ void rm_rf_tmp(const char *dir)
 		      (working_directory, argv, envp, flags, child_setup,
 		       user_data, standard_output, standard_error, &exit_status,
 		       &error));
-	g_assert_true(g_spawn_check_exit_status(exit_status, NULL));
+	g_assert_true(g_spawn_check_wait_status(exit_status, NULL));
 	if (error != NULL) {
 		g_test_message("cannot remove temporary directory: %s\n",
 			       error->message);

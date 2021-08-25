@@ -21,6 +21,7 @@ package builtin
 
 import (
 	"fmt"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/udev"
 )
@@ -62,6 +63,11 @@ var u2fDevices = []u2fDevice{
 		ProductIDPattern: "0880",
 	},
 	{
+		Name:             "HyperSecu HyperFIDO Pro",
+		VendorIDPattern:  "2ccf",
+		ProductIDPattern: "0854",
+	},
+	{
 		Name:             "Feitian ePass FIDO, BioPass FIDO2",
 		VendorIDPattern:  "096e",
 		ProductIDPattern: "0850|0852|0853|0854|0856|0858|085a|085b|085d",
@@ -97,6 +103,11 @@ var u2fDevices = []u2fDevice{
 		ProductIDPattern: "4287",
 	},
 	{
+		Name:             "Nitrokey FIDO2",
+		VendorIDPattern:  "20a0",
+		ProductIDPattern: "42b1",
+	},
+	{
 		Name:             "Google Titan U2F",
 		VendorIDPattern:  "18d1",
 		ProductIDPattern: "5026",
@@ -120,6 +131,11 @@ var u2fDevices = []u2fDevice{
 		Name:             "MIRKey",
 		VendorIDPattern:  "0483",
 		ProductIDPattern: "a2ac",
+	},
+	{
+		Name:             "Ledger Blue + Nano S + Nano X",
+		VendorIDPattern:  "2c97",
+		ProductIDPattern: "0000|0001|0004|0005|0015|1005|1015|4005|4015",
 	},
 }
 

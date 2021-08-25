@@ -24,7 +24,7 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/kernel/fde"
 )
 
 type fdeSetupRequestCommand struct {
@@ -44,15 +44,15 @@ The fde-setup hook should do what is requested and then call
 Here is an example for how the fde-setup hook is called initially:
 $ snapctl fde-setup-request
 {"op":"features"}
-$ echo '[]' | snapctl fde-setup-result
+$ echo  '{"features": []}' | snapctl fde-setup-result
 
 Alternatively the hook could reply with:
 $ echo '{"error":"hardware-unsupported"}' | snapctl fde-setup-result
 
 And then it is called again with a request to do the initial key setup:
 $ snapctl fde-setup-request
-{"op":"initial-setup", "key": "key-to-seal", "key-name":"key-for-ubuntu-data"}
-$ echo "$sealed_key" | snapctl fde-setup-result
+{"op":"initial-setup", "key": "key-to-seal"}
+$ echo "{\"sealed-key\":\"$base64_encoded_sealed_key\"}" | snapctl fde-setup-result
 `)
 
 func init() {
@@ -71,7 +71,7 @@ func (c *fdeSetupRequestCommand) Execute(args []string) error {
 		return fmt.Errorf("cannot use fde-setup-request outside of the fde-setup hook")
 	}
 
-	var fdeSetup hookstate.FDESetupRequest
+	var fdeSetup fde.SetupRequest
 	if err := context.Get("fde-setup-request", &fdeSetup); err != nil {
 		return fmt.Errorf("cannot get fde-setup-op from context: %v", err)
 	}
@@ -104,10 +104,10 @@ reading it from stdin.
 
 For example:
 When the fde-setup hook is called with "op":"features:
-$ echo "[]" | snapctl fde-setup-result
+$ echo '{"features": []}' | snapctl fde-setup-result
 
 When the fde-setup hook is called with "op":"initial-setup":
-$ echo "sealed-key" | snapctl fde-setup-result
+$ echo "{\"sealed-key\":\"$base64_encoded_sealed_key\"}" | snapctl fde-setup-result
 `)
 
 func init() {

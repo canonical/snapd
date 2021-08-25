@@ -25,6 +25,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
@@ -60,6 +61,7 @@ func resetPreseededChroot(preseedChroot string) error {
 		filepath.Join(dirs.SnapUserServicesDir, "default.target.wants", "snap.*.service"),
 		filepath.Join(dirs.SnapUserServicesDir, "sockets.target.wants", "snap.*.socket"),
 		filepath.Join(dirs.SnapUserServicesDir, "timers.target.wants", "snap.*.timer"),
+		filepath.Join(runinhibit.InhibitDir, "*.lock"),
 	}
 
 	for _, gl := range globs {

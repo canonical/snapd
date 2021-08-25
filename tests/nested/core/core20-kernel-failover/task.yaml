@@ -1,0 +1,83 @@
+summary: Check that a broken kernel snap automatically rolls itself back
+
+# TODO:UC20: write equivalent test for base snap failover
+systems: [ubuntu-20.04-64]
+
+prepare: |
+  echo "Build a broken kernel snap where the initramfs panic's"
+
+  # shellcheck source=tests/lib/prepare.sh
+  . "$TESTSLIB/prepare.sh"
+
+  # shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+
+  # use the kernel snap from the nested VM and repack it so that it panic's in
+  # the initramfs and rolls back to the original version
+  # TODO:UC20: this doesn't work for some reason when we copy it from the 
+  #            running system, we should look into that, but for now just 
+  #            re-download the snap
+  snap download pc-kernel --channel=20/edge --basename=pc-kernel
+  uc20_build_initramfs_kernel_snap pc-kernel.snap "$PWD" --inject-kernel-panic-in-initramfs
+  mv pc-kernel_*.snap panicking-initramfs-kernel.snap
+
+execute: |
+  # shellcheck source=tests/lib/nested.sh
+  . "$TESTSLIB/nested.sh"
+
+  echo "Copy the broken initramfs kernel snap to the UC20 VM"
+  tests.nested copy panicking-initramfs-kernel.snap
+
+  echo "Wait for snapd to be available"
+  tests.nested wait-for snap-command
+
+  echo "Wait for snapd to be seeded"
+  tests.nested exec sudo snap wait system seed.loaded
+
+  # Get the current revision of the kernel snap
+  # TODO:UC20: enable for pi-kernel, etc. when used with external systems
+  startRevision=$(tests.nested exec sudo snap list pc-kernel | grep pc-kernel | awk '{print $3}')
+  if [ -z "${startRevision}" ]; then
+    echo "missing pc-kernel revision"
+    exit 1
+  fi
+
+  boot_id="$( nested_get_boot_id )"
+
+  echo "Install it and get the ID for the change"
+  REMOTE_CHG_ID=$(tests.nested exec sudo snap install --dangerous panicking-initramfs-kernel.snap --no-wait)
+
+  # wait for a reboot
+  tests.nested wait-for reboot "${boot_id}"
+
+  # Wait for the change to finish - note it will exit with non-zero since the 
+  # change will fail, so don't let that kill the test here
+  if tests.nested exec sudo snap watch "${REMOTE_CHG_ID}"; then 
+    echo "remote snap change ${REMOTE_CHG_ID} for broken kernel snap refresh should have failed!"
+    exit 1
+  fi
+
+  echo "Check that the refresh failed"
+  tests.nested exec sudo snap changes | grep "${REMOTE_CHG_ID}" | MATCH Error
+  tests.nested exec sudo snap tasks "${REMOTE_CHG_ID}" | MATCH "cannot finish .* installation, there was a rollback across reboot"
+
+  echo "Check We should be on the same revision of the kernel snap"
+  if [ "$(tests.nested exec sudo snap list pc-kernel | grep pc-kernel | awk '{print $3}')" != "${startRevision}" ]; then
+    echo "pc-kernel is on the wrong revision"
+    exit 1
+  fi
+
+  echo "Check we don't have leftover bootenv"
+  tests.nested exec sudo snap debug boot-vars --uc20 | MATCH '^kernel_status=$'
+
+  echo "Check that we don't have extra assets in the ubuntu-boot dir and that the currently enabled kernel is the original kernel"
+
+  # kernel.efi symlink should point to the original kernel
+  tests.nested exec readlink /run/mnt/ubuntu-boot/EFI/ubuntu/kernel.efi | MATCH "pc-kernel_${startRevision}.snap/kernel.efi"
+  # should still have pc-kernel_$rev.snap dir
+  tests.nested exec test -d "/run/mnt/ubuntu-boot/EFI/ubuntu/pc-kernel_${startRevision}.snap"
+  if [ "$(tests.nested exec ls /run/mnt/ubuntu-boot/EFI/ubuntu/pc-kernel_*.snap | wc -l)" != 1 ]; then
+    echo "Extra leftover pc-kernel assets in ubuntu-boot:"
+    tests.nested exec ls /run/mnt/ubuntu-boot/EFI/ubuntu/pc-kernel_*.snap
+    exit 1
+  fi

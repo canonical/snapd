@@ -11,19 +11,12 @@ environment:
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
 
-    if [ -d "$KEYSDIR" ]; then
-        cp -rf "$KEYSDIR" "$KEYSDIR".old
-    else
-        mkdir "$KEYSDIR"
-    fi
-    echo "testkey" > "$TESTKEY"
-    echo "testkey.pub" > "$TESTKEY".pub
+    "$TESTSTOOLS"/fs-state mock-dir "$KEYSDIR"
+    "$TESTSTOOLS"/fs-state mock-file "$TESTKEY"
+    "$TESTSTOOLS"/fs-state mock-file "$TESTKEY".pub
 
 restore: |
-    rm -rf "$KEYSDIR"
-    if [ -d "$KEYSDIR".old ]; then
-        mv "$KEYSDIR".old "$KEYSDIR"
-    fi
+    "$TESTSTOOLS"/fs-state restore-dir "$KEYSDIR"
 
 execute: |
     echo "The interface is not connected by default"
