@@ -12,9 +12,6 @@ prepare: |
     snap pack test-connect.v2
 
 execute: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     echo "Installing a revision with broken connect hook fails"
     snap install --dangerous test-connect_2_all.snap 2>&1 | MATCH 'failure of connect hook'
     snap list | NOMATCH test-connect
