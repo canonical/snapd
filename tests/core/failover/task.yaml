@@ -26,6 +26,8 @@ environment:
     TARGET_SNAP/emptysystemd: core
     #TARGET_SNAP/emptyinitrd: kernel
     BUILD_DIR: /home/tmp
+    # uploading the core or otherwise large snap triggers OOM
+    SNAPD_NO_MEMORY_LIMIT: 1
 
 prepare: |
     mkdir -p "$BUILD_DIR"

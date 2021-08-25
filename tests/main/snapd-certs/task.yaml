@@ -4,6 +4,8 @@ systems: [ubuntu-1*, ubuntu-2*]
 
 environment:
     CERT: /etc/ssl/certs/ssl-cert-snakeoil.pem
+    # uploading the core snap triggers OOM
+    SNAPD_NO_MEMORY_LIMIT: 1
 
 execute: |
     if snap set system store-certs.certbad=hellothere; then

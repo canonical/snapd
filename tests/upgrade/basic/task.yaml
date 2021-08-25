@@ -4,6 +4,10 @@ summary: Check that upgrade works
 # amazon: enable once it's possible to install snapd from EPEL
 systems: [-debian-sid-*, -arch-*, -amazon-*]
 
+environment:
+    # downlading the core snap triggers OOM occasionally
+    SNAPD_NO_MEMORY_LIMIT: 1
+
 restore: |
     if [ "$REMOTE_STORE" = staging ]; then
         echo "skip upgrade tests while talking to the staging store"
