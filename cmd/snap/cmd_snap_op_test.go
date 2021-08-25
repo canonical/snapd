@@ -1088,8 +1088,8 @@ func (s *SnapSuite) TestRefreshList(c *check.C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--list"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `Name +Version +Rev +Publisher +Size +Notes
-foo +4.2update1 +17 +bar +436MB +-.*
+	c.Check(s.Stdout(), check.Matches, `Name +Version +Rev +Size +Publisher +Notes
+foo +4.2update1 +17 +436MB +bar +-.*
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit
