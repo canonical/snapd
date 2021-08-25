@@ -194,7 +194,7 @@ update_core_snap_for_classic_reexec() {
 }
 
 prepare_memory_limit_override() {
-    if [ -n "${SNAPD_NO_MEMORY_LIMIT-}" ]; then
+    if [ -n "${SNAPD_NO_MEMORY_LIMIT:-}" ]; then
         return
     fi
     mkdir -p /etc/systemd/system/snapd.service.d
