@@ -624,7 +624,7 @@ prepare_suite_each() {
 
     # Save all the installed packages
     if os.query is-classic; then
-        distro_print_installed_packages > installed-initial.pkgs
+        tests.pkgs list-installed > installed-initial.pkgs
     fi
 
     # back test directory to be restored during the restore
@@ -678,14 +678,14 @@ restore_suite_each() {
 
     # Save all the installed packages and remove the new packages installed 
     if os.query is-classic; then
-        distro_print_installed_packages > installed-final.pkgs
+        tests.pkgs list-installed > installed-final.pkgs
         diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-new.pkgs
 
         # shellcheck disable=SC2002
         packages="$(cat installed-new.pkgs | tr "\n" " ")"
         if [ -n "$packages" ]; then
             # shellcheck disable=SC2086
-            distro_purge_package $packages
+            tests.pkgs remove $packages
         fi
     fi
 

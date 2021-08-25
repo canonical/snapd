@@ -29,6 +29,11 @@ cmd_query() {
     unsupported
 }
 
+cmd_list_installed() {
+    # This is re-defined by the backend file.
+    unsupported
+}
+
 cmd_remove() {
     # This is re-defined by the backend file.
     unsupported
