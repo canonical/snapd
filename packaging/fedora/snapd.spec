@@ -513,11 +513,11 @@ rm -rf vendor/*
 mkdir -p src/github.com/snapcore
 ln -s ../../../ src/github.com/snapcore/snapd
 
-%if ! 0%{?with_bundled}
-export GOPATH=$(pwd):%{gopath}
-%else
-export GOPATH=$(pwd):$(pwd)/Godeps/_workspace:%{gopath}
-%endif
+#%if ! 0%{?with_bundled}
+#export GOPATH=$(pwd):%{gopath}
+#%else
+#export GOPATH=$(pwd):$(pwd)/Godeps/_workspace:%{gopath}
+#%endif
 
 # see https://github.com/gofed/go-macros/blob/master/rpm/macros.d/macros.go-compilers-golang
 BUILDTAGS=
