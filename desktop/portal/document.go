@@ -38,8 +38,9 @@ const (
 )
 
 var (
-	userCurrent     = user.Current
-	osGetenv        = os.Getenv
+	userCurrent        = user.Current
+	osGetenv           = os.Getenv
+	dbusutilSessionBus = dbusutil.SessionBus
 )
 
 type Document struct {
@@ -71,7 +72,7 @@ func (p *Document) GetDefaultMountPoint() (string, error) {
 }
 
 func (p *Document) GetMountPoint() (string, error) {
-	conn, err := dbusutil.SessionBus()
+	conn, err := dbusutilSessionBus()
 	if err != nil {
 		return "", err
 	}
