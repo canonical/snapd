@@ -6110,6 +6110,7 @@ var (
 		"pc-kernel": pcKernelSnapYaml,
 		"core20":    core20SnapYaml,
 		"snapd":     snapdSnapYaml,
+		"baz":       "version: 1.0\nname: baz\nbase: core20",
 	}
 	snapFilesForRemodel = map[string][][]string{
 		"pc":        pcGadgetFiles,
@@ -6117,7 +6118,7 @@ var (
 	}
 )
 
-func (s *mgrsSuite) makeInstalledSnapInStateForRemodel(c *C, name string, rev snap.Revision) *snap.Info {
+func (s *mgrsSuite) makeInstalledSnapInStateForRemodel(c *C, name string, rev snap.Revision, channel string) *snap.Info {
 	si := &snap.SideInfo{
 		RealName: name,
 		SnapID:   fakeSnapID(name),
@@ -6126,10 +6127,11 @@ func (s *mgrsSuite) makeInstalledSnapInStateForRemodel(c *C, name string, rev sn
 	snapInfo := snaptest.MakeSnapFileAndDir(c, snapYamlsForRemodel[name],
 		snapFilesForRemodel[name], si)
 	snapstate.Set(s.o.State(), name, &snapstate.SnapState{
-		SnapType: string(snapInfo.Type()),
-		Active:   true,
-		Sequence: []*snap.SideInfo{si},
-		Current:  si.Revision,
+		SnapType:        string(snapInfo.Type()),
+		Active:          true,
+		Sequence:        []*snap.SideInfo{si},
+		Current:         si.Revision,
+		TrackingChannel: channel,
 	})
 	sha3_384, size, err := asserts.SnapFileSHA3_384(snapInfo.MountFile())
 	c.Assert(err, IsNil)
@@ -6221,13 +6223,26 @@ func (s *mgrsSuite) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) {
 	st.Lock()
 	defer st.Unlock()
 
+	// existing snaps that do not have their snap delarations added in set
+	// up and need a new revision in the store
+	for _, name := range []string{"baz"} {
+		decl := s.prereqSnapAssertions(c, map[string]interface{}{
+			"snap-name":    name,
+			"publisher-id": "can0nical",
+		})
+		c.Assert(assertstate.Add(st, decl), IsNil)
+		snapPath, _ := s.makeStoreTestSnap(c, fmt.Sprintf("{name: %s, version: 1.0, base: core20}", name), "22")
+		s.serveSnap(snapPath, "22")
+	}
+
 	err := assertstate.Add(st, s.devAcct)
 	c.Assert(err, IsNil)
 	// snaps in state
-	pcInfo := s.makeInstalledSnapInStateForRemodel(c, "pc", snap.R(1))
-	pcKernelInfo := s.makeInstalledSnapInStateForRemodel(c, "pc-kernel", snap.R(2))
-	coreInfo := s.makeInstalledSnapInStateForRemodel(c, "core20", snap.R(3))
-	snapdInfo := s.makeInstalledSnapInStateForRemodel(c, "snapd", snap.R(4))
+	pcInfo := s.makeInstalledSnapInStateForRemodel(c, "pc", snap.R(1), "20/stable")
+	pcKernelInfo := s.makeInstalledSnapInStateForRemodel(c, "pc-kernel", snap.R(2), "20/stable")
+	coreInfo := s.makeInstalledSnapInStateForRemodel(c, "core20", snap.R(3), "")
+	snapdInfo := s.makeInstalledSnapInStateForRemodel(c, "snapd", snap.R(4), "")
+	bazInfo := s.makeInstalledSnapInStateForRemodel(c, "baz", snap.R(21), "4.14/stable")
 
 	// state of the current model
 	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755), IsNil)
@@ -6249,6 +6264,11 @@ func (s *mgrsSuite) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) {
 				"id":              fakeSnapID("pc"),
 				"type":            "gadget",
 				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "baz",
+				"id":              fakeSnapID("baz"),
+				"default-channel": "4.14/stable",
 			}},
 	}
 
@@ -6280,6 +6300,7 @@ func (s *mgrsSuite) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) {
 		{Path: pcKernelInfo.MountFile()},
 		{Path: coreInfo.MountFile()},
 		{Path: snapdInfo.MountFile()},
+		{Path: bazInfo.MountFile()},
 	})
 
 	// create a new model
@@ -6304,6 +6325,13 @@ func (s *mgrsSuite) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) {
 			map[string]interface{}{
 				"name":     "bar",
 				"presence": "required",
+			},
+			map[string]interface{}{
+				"name":     "baz",
+				"presence": "required",
+				// use a different default channel, even though
+				// snapd will not apply it yet
+				"default-channel": "4.15/edge",
 			}},
 		"revision": "1",
 	})
@@ -6428,15 +6456,24 @@ func (s *mgrsSuite) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) {
 		"recovery_system_status": "",
 	})
 
-	for _, name := range []string{"core20", "pc-kernel", "pc", "snapd", "foo", "bar"} {
+	for _, name := range []string{"core20", "pc-kernel", "pc", "snapd", "foo", "bar", "baz"} {
 		var snapst snapstate.SnapState
 		err = snapstate.Get(st, name, &snapst)
 		c.Assert(err, IsNil)
+		if name == "baz" {
+			// the new tracking channel isn't applied by snapd yet
+			c.Check(snapst.TrackingChannel, Equals, "4.14/stable")
+		}
 	}
 
 	// ensure sorting is correct
 	tasks := chg.Tasks()
 	sort.Sort(byReadyTime(tasks))
+
+	c.Logf("tasks: %v", len(tasks))
+	for _, tsk := range tasks {
+		c.Logf("  %3s %v", tsk.ID(), tsk.Summary())
+	}
 
 	var i int
 	// first all downloads/checks in sequential order
@@ -6449,6 +6486,9 @@ func (s *mgrsSuite) testRemodelUC20WithRecoverySystem(c *C, encrypted bool) {
 	for _, name := range []string{"foo", "bar"} {
 		i += validateInstallTasks(c, tasks[i:], name, "1", 0)
 	}
+	// no tasks related to a snap with changed default-channel until snapd
+	// handles that properly
+
 	// ensure that we only have the tasks we checked (plus the one
 	// extra "set-model" task)
 	c.Assert(tasks, HasLen, i+1)
