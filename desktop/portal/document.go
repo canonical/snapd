@@ -46,6 +46,10 @@ type Document struct {
 	xdgRuntimeDir string
 }
 
+// GetUserXdgRuntimeDir returns the runtime directory for the current user.
+// TODO: find a better place for this: it could fit well in a generic
+// portal.Desktop interface, or even in the "dirs" package (but then we'd lose
+// caching, so it needs more thoughts).
 func (p *Document) GetUserXdgRuntimeDir() (string, error) {
 	if p.xdgRuntimeDir == "" {
 		u, err := userCurrent()
