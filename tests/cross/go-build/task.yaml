@@ -58,6 +58,7 @@ restore: |
 execute: |
     cd /tmp/cross-build/src/github.com/snapcore/snapd
     # grab only packages whose name is 'main'
+    #su -c "GOPATH=/tmp/cross-build go mod vendor" test
     for cmd in $( GOPATH=/tmp/cross-build go list -f '{{if eq .Name "main"}}{{.ImportPath}}{{end}}' ./cmd/...); do
-      su -c "GOPATH=/tmp/cross-build CGO_ENABLED=1 GOARCH=$X_GOARCH CC=$X_CC go build -v -o /dev/null $cmd" test
+      su -c "GOPATH=/tmp/cross-build CGO_ENABLED=1 GOARCH=$X_GOARCH CC=$X_CC go build -mod vendor -v -o /dev/null $cmd" test
     done
