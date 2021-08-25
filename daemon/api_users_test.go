@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -25,7 +25,6 @@ import (
 	"net/http"
 	"os/user"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"gopkg.in/check.v1"
@@ -81,6 +80,8 @@ func (s *userSuite) SetUpTest(c *check.C) {
 
 	s.daemonWithStore(c, s)
 
+	s.expectRootAccess()
+
 	s.mockUserHome = c.MkDir()
 	s.trivialUserLookup = mkUserLookup(s.mockUserHome)
 	s.AddCleanup(daemon.MockUserLookup(s.trivialUserLookup))
@@ -113,8 +114,14 @@ func mkUserLookup(userHomeDir string) func(string) (*user.User, error) {
 	}
 }
 
+func (s *userSuite) expectLoginAccess() {
+	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.login"})
+}
+
 func (s *userSuite) TestLoginUser(c *check.C) {
 	state := s.d.Overlord().State()
+
+	s.expectLoginAccess()
 
 	s.loginUserStoreMacaroon = "user-macaroon"
 	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
@@ -157,6 +164,8 @@ func (s *userSuite) TestLoginUser(c *check.C) {
 func (s *userSuite) TestLoginUserWithUsername(c *check.C) {
 	state := s.d.Overlord().State()
 
+	s.expectLoginAccess()
+
 	s.loginUserStoreMacaroon = "user-macaroon"
 	s.loginUserDischarge = "the-discharge-macaroon-serialized-data"
 	buf := bytes.NewBufferString(`{"username": "username", "email": "email@.com", "password": "password"}`)
@@ -197,6 +206,8 @@ func (s *userSuite) TestLoginUserWithUsername(c *check.C) {
 func (s *userSuite) TestLoginUserNoEmailWithExistentLocalUser(c *check.C) {
 	state := s.d.Overlord().State()
 
+	s.expectLoginAccess()
+
 	// setup local-only user
 	state.Lock()
 	localUser, err := auth.NewUser(state, "username", "email@test.com", "", nil)
@@ -208,7 +219,6 @@ func (s *userSuite) TestLoginUserNoEmailWithExistentLocalUser(c *check.C) {
 	buf := bytes.NewBufferString(`{"username": "username", "email": "", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, localUser.Macaroon))
 
 	rsp := s.syncReq(c, req, localUser)
 
@@ -239,6 +249,8 @@ func (s *userSuite) TestLoginUserNoEmailWithExistentLocalUser(c *check.C) {
 func (s *userSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
 	state := s.d.Overlord().State()
 
+	s.expectLoginAccess()
+
 	// setup local-only user
 	state.Lock()
 	localUser, err := auth.NewUser(state, "username", "email@test.com", "", nil)
@@ -250,7 +262,6 @@ func (s *userSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
 	buf := bytes.NewBufferString(`{"username": "username", "email": "email@test.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, localUser.Macaroon))
 
 	rsp := s.syncReq(c, req, localUser)
 
@@ -281,6 +292,8 @@ func (s *userSuite) TestLoginUserWithExistentLocalUser(c *check.C) {
 func (s *userSuite) TestLoginUserNewEmailWithExistentLocalUser(c *check.C) {
 	state := s.d.Overlord().State()
 
+	s.expectLoginAccess()
+
 	// setup local-only user
 	state.Lock()
 	localUser, err := auth.NewUser(state, "username", "email@test.com", "", nil)
@@ -293,7 +306,6 @@ func (s *userSuite) TestLoginUserNewEmailWithExistentLocalUser(c *check.C) {
 	buf := bytes.NewBufferString(`{"username": "username", "email": "new.email@test.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Authorization", fmt.Sprintf(`Macaroon root="%s"`, localUser.Macaroon))
 
 	rsp := s.syncReq(c, req, localUser)
 
@@ -323,6 +335,9 @@ func (s *userSuite) TestLoginUserNewEmailWithExistentLocalUser(c *check.C) {
 
 func (s *userSuite) TestLogoutUser(c *check.C) {
 	state := s.d.Overlord().State()
+
+	s.expectLoginAccess()
+
 	state.Lock()
 	user, err := auth.NewUser(state, "username", "email@test.com", "macaroon", []string{"discharge"})
 	state.Unlock()
@@ -330,7 +345,6 @@ func (s *userSuite) TestLogoutUser(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/logout", nil)
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
 
 	rsp := s.syncReq(c, req, user)
 	c.Check(rsp.Status, check.Equals, 200)
@@ -342,65 +356,107 @@ func (s *userSuite) TestLogoutUser(c *check.C) {
 }
 
 func (s *userSuite) TestLoginUserBadRequest(c *check.C) {
+	s.expectLoginAccess()
+
 	buf := bytes.NewBufferString(`hello`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result, check.NotNil)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Not(check.Equals), "")
+}
+
+func (s *userSuite) TestLoginUserNotEmailish(c *check.C) {
+	s.expectLoginAccess()
+
+	buf := bytes.NewBufferString(`{"username": "notemail", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, testutil.Contains, "please use a valid email address")
 }
 
 func (s *userSuite) TestLoginUserDeveloperAPIError(c *check.C) {
+	s.expectLoginAccess()
+
 	s.err = fmt.Errorf("error-from-login-user")
 	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 401)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, testutil.Contains, "error-from-login-user")
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 401)
+	c.Check(rspe.Message, testutil.Contains, "error-from-login-user")
 }
 
 func (s *userSuite) TestLoginUserTwoFactorRequiredError(c *check.C) {
+	s.expectLoginAccess()
+
 	s.err = store.ErrAuthenticationNeeds2fa
 	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 401)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Kind, check.Equals, client.ErrorKindTwoFactorRequired)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 401)
+	c.Check(rspe.Kind, check.Equals, client.ErrorKindTwoFactorRequired)
 }
 
 func (s *userSuite) TestLoginUserTwoFactorFailedError(c *check.C) {
+	s.expectLoginAccess()
+
 	s.err = store.Err2faFailed
 	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 401)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Kind, check.Equals, client.ErrorKindTwoFactorFailed)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 401)
+	c.Check(rspe.Kind, check.Equals, client.ErrorKindTwoFactorFailed)
 }
 
 func (s *userSuite) TestLoginUserInvalidCredentialsError(c *check.C) {
+	s.expectLoginAccess()
+
 	s.err = store.ErrInvalidCredentials
 	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
 	req, err := http.NewRequest("POST", "/v2/login", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 401)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, "invalid credentials")
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 401)
+	c.Check(rspe.Message, check.Equals, "invalid credentials")
 }
 
-func (s *userSuite) TestUsersOnlyRoot(c *check.C) {
-	for _, cmd := range daemon.APICommands() {
-		if strings.Contains(cmd.Path, "user") {
-			c.Check(cmd.RootOnly, check.Equals, true, check.Commentf(cmd.Path))
-		}
-	}
+func (s *userSuite) TestLoginUserInvalidAuthDataError(c *check.C) {
+	s.expectLoginAccess()
+
+	s.err = store.InvalidAuthDataError{"foo": {"bar"}}
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Kind, check.Equals, client.ErrorKindInvalidAuthData)
+	c.Check(rspe.Value, check.DeepEquals, s.err)
+}
+
+func (s *userSuite) TestLoginUserPasswordPolicyError(c *check.C) {
+	s.expectLoginAccess()
+
+	s.err = store.PasswordPolicyError{"foo": {"bar"}}
+	buf := bytes.NewBufferString(`{"username": "email@.com", "password": "password"}`)
+	req, err := http.NewRequest("POST", "/v2/login", buf)
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 401)
+	c.Check(rspe.Kind, check.Equals, client.ErrorKindPasswordPolicy)
+	c.Check(rspe.Value, check.DeepEquals, s.err)
 }
 
 func (s *userSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
@@ -413,8 +469,8 @@ func (s *userSuite) TestPostCreateUserNoSSHKeys(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `cannot create user for "popper@lse.ac.uk": no ssh keys found`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Message, check.Matches, `cannot create user for "popper@lse.ac.uk": no ssh keys found`)
 }
 
 func (s *userSuite) TestPostCreateUser(c *check.C) {
@@ -484,7 +540,9 @@ func (s *userSuite) testCreateUser(c *check.C, oldWay bool) {
 }
 
 func (s *userSuite) TestNoUserAdminCreateUser(c *check.C) { s.testNoUserAdmin(c, "/v2/create-user") }
-func (s *userSuite) TestNoUserAdminPostUser(c *check.C)   { s.testNoUserAdmin(c, "/v2/users") }
+
+func (s *userSuite) TestNoUserAdminPostUser(c *check.C) { s.testNoUserAdmin(c, "/v2/users") }
+
 func (s *userSuite) testNoUserAdmin(c *check.C, endpoint string) {
 	defer daemon.MockHasUserAdmin(false)()
 
@@ -492,14 +550,14 @@ func (s *userSuite) testNoUserAdmin(c *check.C, endpoint string) {
 	req, err := http.NewRequest("POST", endpoint, buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
+	rspe := s.errorReq(c, req, nil)
 
 	const noUserAdmin = "system user administration via snapd is not allowed on this system"
 	switch endpoint {
 	case "/v2/users":
-		c.Check(rsp, check.DeepEquals, daemon.MethodNotAllowed(noUserAdmin))
+		c.Check(rspe, check.DeepEquals, daemon.MethodNotAllowed(noUserAdmin))
 	case "/v2/create-user":
-		c.Check(rsp, check.DeepEquals, daemon.Forbidden(noUserAdmin))
+		c.Check(rspe, check.DeepEquals, daemon.Forbidden(noUserAdmin))
 	default:
 		c.Fatalf("unknown endpoint %q", endpoint)
 	}
@@ -510,8 +568,8 @@ func (s *userSuite) TestPostUserBadBody(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, "cannot decode user action data from request body: .*")
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Message, check.Matches, "cannot decode user action data from request body: .*")
 }
 
 func (s *userSuite) TestPostUserBadAfterBody(c *check.C) {
@@ -519,8 +577,8 @@ func (s *userSuite) TestPostUserBadAfterBody(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp, check.DeepEquals, daemon.BadRequest("spurious content after user action"))
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe, check.DeepEquals, daemon.BadRequest("spurious content after user action"))
 }
 
 func (s *userSuite) TestPostUserNoAction(c *check.C) {
@@ -528,8 +586,8 @@ func (s *userSuite) TestPostUserNoAction(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp, check.DeepEquals, daemon.BadRequest("missing user action"))
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe, check.DeepEquals, daemon.BadRequest("missing user action"))
 }
 
 func (s *userSuite) TestPostUserBadAction(c *check.C) {
@@ -537,8 +595,8 @@ func (s *userSuite) TestPostUserBadAction(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp, check.DeepEquals, daemon.BadRequest(`unsupported user action "patatas"`))
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe, check.DeepEquals, daemon.BadRequest(`unsupported user action "patatas"`))
 }
 
 func (s *userSuite) TestPostUserActionRemoveNoUsername(c *check.C) {
@@ -546,8 +604,8 @@ func (s *userSuite) TestPostUserActionRemoveNoUsername(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp, check.DeepEquals, daemon.BadRequest("need a username to remove"))
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe, check.DeepEquals, daemon.BadRequest("need a username to remove"))
 }
 
 func (s *userSuite) TestPostUserActionRemoveDelUserErr(c *check.C) {
@@ -568,9 +626,9 @@ func (s *userSuite) TestPostUserActionRemoveDelUserErr(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 500)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, "wat")
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 500)
+	c.Check(rspe.Message, check.Equals, "wat")
 	c.Check(called, check.Equals, 1)
 }
 
@@ -590,9 +648,9 @@ func (s *userSuite) TestPostUserActionRemoveStateErr(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 500)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `internal error: could not unmarshal state entry "auth": .*`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 500)
+	c.Check(rspe.Message, check.Matches, `internal error: could not unmarshal state entry "auth": .*`)
 	c.Check(called, check.Equals, 0)
 }
 
@@ -608,8 +666,8 @@ func (s *userSuite) TestPostUserActionRemoveNoUserInState(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/users", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp, check.DeepEquals, daemon.BadRequest(`user "some-user" is not known`))
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe, check.DeepEquals, daemon.BadRequest(`user "some-user" is not known`))
 	c.Check(called, check.Equals, 0)
 }
 
@@ -985,8 +1043,8 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownClassicErrors(c *chec
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `cannot create user: device is a classic system`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Message, check.Matches, `cannot create user: device is a classic system`)
 }
 
 func (s *userSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *check.C) {
@@ -1003,8 +1061,8 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownButOwnedErrors(c *che
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `cannot create user: device already managed`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Message, check.Matches, `cannot create user: device already managed`)
 }
 
 func (s *userSuite) TestPostCreateUserAutomaticManagedDoesNotActOrError(c *check.C) {
@@ -1045,8 +1103,8 @@ func (s *userSuite) TestPostCreateUserFromAssertionAllKnownNoModelError(c *check
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `cannot create user: cannot get model assertion: no state entry for key`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Message, check.Matches, `cannot create user: cannot get model assertion: no state entry for key`)
 }
 
 func (s *userSuite) TestPostCreateUserFromAssertionNoModel(c *check.C) {
@@ -1077,8 +1135,8 @@ func (s *userSuite) TestPostCreateUserFromAssertionNoModel(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/create-user", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, `cannot add system-user "serial@bar.com": bound to serial assertion but device not yet registered`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Message, check.Matches, `cannot add system-user "serial@bar.com": bound to serial assertion but device not yet registered`)
 }
 
 func (s *userSuite) TestPostCreateUserFromAssertionAllKnownButOwned(c *check.C) {

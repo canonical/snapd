@@ -164,7 +164,7 @@ func (s *PwmInterfaceSuite) TestSystemdConnectedSlot(c *C) {
 	err := spec.AddConnectedSlot(s.iface, s.gadgetPlug, s.gadgetPwmSlot)
 	c.Assert(err, IsNil)
 	c.Assert(spec.Services(), DeepEquals, map[string]*systemd.Service{
-		"snap.my-device.interface.pwmchip10-pwm100.service": {
+		"pwmchip10-pwm100": {
 			Type:            "oneshot",
 			RemainAfterExit: true,
 			ExecStart:       `/bin/sh -c 'test -e /sys/class/pwm/pwmchip10/pwm100 || echo 100 > /sys/class/pwm/pwmchip10/export'`,

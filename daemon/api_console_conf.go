@@ -31,14 +31,13 @@ import (
 
 var (
 	routineConsoleConfStartCmd = &Command{
-		Path: "/v2/internal/console-conf-start",
-		POST: consoleConfStartRoutine,
+		Path:        "/v2/internal/console-conf-start",
+		POST:        consoleConfStartRoutine,
+		WriteAccess: authenticatedAccess{},
 	}
 )
 
 var delayTime = 20 * time.Minute
-
-type consoleConfRoutine struct{}
 
 // consoleConfStartRoutineResult is the result of running the console-conf start
 // routine..
@@ -73,7 +72,7 @@ func consoleConfStartRoutine(c *Command, r *http.Request, _ *auth.UserState) Res
 	if len(snapAutoRefreshChanges) == 0 {
 		// no changes yet, and we delayed the refresh successfully so
 		// console-conf is okay to run normally
-		return SyncResponse(&consoleConfStartRoutineResult{}, nil)
+		return SyncResponse(&consoleConfStartRoutineResult{})
 	}
 
 	chgIds := make([]string, 0, len(snapAutoRefreshChanges))
@@ -92,5 +91,6 @@ func consoleConfStartRoutine(c *Command, r *http.Request, _ *auth.UserState) Res
 	return SyncResponse(&consoleConfStartRoutineResult{
 		ActiveAutoRefreshChanges: chgIds,
 		ActiveAutoRefreshSnaps:   snapNames,
-	}, nil)
+	})
+
 }

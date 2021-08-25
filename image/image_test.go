@@ -559,10 +559,10 @@ func (s *imageSuite) setupSnaps(c *C, publishers map[string]string, defaultsYaml
 	s.MakeAssertedSnap(c, snapReqCore16Base, nil, snap.R(16), "other")
 
 	s.MakeAssertedSnap(c, requiredSnap1, nil, snap.R(3), "other")
-	s.AssertedSnapInfo("required-snap1").Contact = "foo@example.com"
+	s.AssertedSnapInfo("required-snap1").EditedContact = "mailto:foo@example.com"
 
 	s.MakeAssertedSnap(c, requiredSnap18, nil, snap.R(6), "other")
-	s.AssertedSnapInfo("required-snap18").Contact = "foo@example.com"
+	s.AssertedSnapInfo("required-snap18").EditedContact = "mailto:foo@example.com"
 
 	s.MakeAssertedSnap(c, defaultTrackSnap18, nil, snap.R(5), "other")
 
@@ -1129,6 +1129,119 @@ func (s *imageSuite) TestSetupSeedWithBaseWithCloudConf(c *C) {
 	c.Assert(err, IsNil)
 
 	c.Check(filepath.Join(rootdir, "/etc/cloud/cloud.cfg"), testutil.FileEquals, "# cloud config")
+}
+
+func (s *imageSuite) TestSetupSeedWithBaseWithCustomizations(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "pc18",
+		"kernel":       "pc-kernel",
+		"base":         "core18",
+	})
+
+	tmpdir := c.MkDir()
+	rootdir := filepath.Join(tmpdir, "image")
+	cloudInitUserData := filepath.Join(tmpdir, "cloudstuff")
+	err := ioutil.WriteFile(cloudInitUserData, []byte(`# user cloud data`), 0644)
+	c.Assert(err, IsNil)
+	s.setupSnaps(c, map[string]string{
+		"core18":    "canonical",
+		"pc-kernel": "canonical",
+		"snapd":     "canonical",
+	}, "")
+	s.MakeAssertedSnap(c, packageGadgetWithBase, [][]string{
+		{"grub.conf", ""},
+		{"grub.cfg", "I'm a grub.cfg"},
+		{"meta/gadget.yaml", pcGadgetYaml},
+	}, snap.R(5), "canonical")
+
+	opts := &image.Options{
+		PrepareDir: filepath.Dir(rootdir),
+		Customizations: image.Customizations{
+			ConsoleConf:       "disabled",
+			CloudInitUserData: cloudInitUserData,
+		},
+	}
+
+	err = image.SetupSeed(s.tsto, model, opts)
+	c.Assert(err, IsNil)
+
+	// check customization impl files were written
+	varCloudDir := filepath.Join(rootdir, "/var/lib/cloud/seed/nocloud-net")
+	c.Check(filepath.Join(varCloudDir, "meta-data"), testutil.FileEquals, "instance-id: nocloud-static\n")
+	c.Check(filepath.Join(varCloudDir, "user-data"), testutil.FileEquals, "# user cloud data")
+	// console-conf disable
+	c.Check(filepath.Join(rootdir, "_writable_defaults", "var/lib/console-conf/complete"), testutil.FilePresent)
+}
+
+func (s *imageSuite) TestPrepareUC20CustomizationsUnsupported(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	model := s.makeUC20Model(nil)
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err := ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		ModelFile: fn,
+		Customizations: image.Customizations{
+			ConsoleConf:       "disabled",
+			CloudInitUserData: "cloud-init-user-data",
+		},
+	})
+	c.Assert(err, ErrorMatches, `cannot support with UC20 model requested customizations: console-conf disable, cloud-init user-data`)
+}
+
+func (s *imageSuite) TestPrepareClassicCustomizationsUnsupported(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"classic": "true",
+	})
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err := ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		Classic:   true,
+		ModelFile: fn,
+		Customizations: image.Customizations{
+			ConsoleConf:       "disabled",
+			CloudInitUserData: "cloud-init-user-data",
+			BootFlags:         []string{"boot-flag"},
+		},
+	})
+	c.Assert(err, ErrorMatches, `cannot support with classic model requested customizations: console-conf disable, boot flags \(boot-flag\)`)
+}
+
+func (s *imageSuite) TestPrepareUC18CustomizationsUnsupported(c *C) {
+	restore := image.MockTrusted(s.StoreSigning.Trusted)
+	defer restore()
+
+	model := s.Brands.Model("my-brand", "my-model", map[string]interface{}{
+		"architecture": "amd64",
+		"gadget":       "pc18",
+		"kernel":       "pc-kernel",
+		"base":         "core18",
+	})
+	fn := filepath.Join(c.MkDir(), "model.assertion")
+	err := ioutil.WriteFile(fn, asserts.Encode(model), 0644)
+	c.Assert(err, IsNil)
+
+	err = image.Prepare(&image.Options{
+		ModelFile: fn,
+		Customizations: image.Customizations{
+			ConsoleConf:       "disabled",
+			CloudInitUserData: "cloud-init-user-data",
+			BootFlags:         []string{"boot-flag"},
+		},
+	})
+	c.Assert(err, ErrorMatches, `cannot support with UC16/18 model requested customizations: boot flags \(boot-flag\)`)
 }
 
 func (s *imageSuite) TestSetupSeedWithBaseLegacySnap(c *C) {
@@ -2643,6 +2756,9 @@ func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
 
 	opts := &image.Options{
 		PrepareDir: prepareDir,
+		Customizations: image.Customizations{
+			BootFlags: []string{"factory"},
+		},
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -2715,6 +2831,7 @@ func (s *imageSuite) TestSetupSeedCore20Grub(c *C) {
 	c.Assert(seedGenv.Load(), IsNil)
 	c.Check(seedGenv.Get("snapd_recovery_system"), Equals, filepath.Base(systems[0]))
 	c.Check(seedGenv.Get("snapd_recovery_mode"), Equals, "install")
+	c.Check(seedGenv.Get("snapd_boot_flags"), Equals, "factory")
 
 	c.Check(s.stderr.String(), Equals, "")
 
@@ -2799,6 +2916,9 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 
 	opts := &image.Options{
 		PrepareDir: prepareDir,
+		Customizations: image.Customizations{
+			BootFlags: []string{"factory"},
+		},
 	}
 
 	err := image.SetupSeed(s.tsto, model, opts)
@@ -2828,6 +2948,7 @@ func (s *imageSuite) TestSetupSeedCore20UBoot(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(env.Get("snapd_recovery_system"), Equals, expectedLabel)
 	c.Assert(env.Get("snapd_recovery_mode"), Equals, "install")
+	c.Assert(env.Get("snapd_boot_flags"), Equals, "factory")
 
 	// check recovery system specific config
 	systems, err := filepath.Glob(filepath.Join(seeddir, "systems", "*"))

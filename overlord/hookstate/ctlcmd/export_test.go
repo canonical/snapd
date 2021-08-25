@@ -22,6 +22,7 @@ package ctlcmd
 import (
 	"fmt"
 
+	"github.com/snapcore/snapd/overlord/devicestate"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -39,6 +40,12 @@ func MockServicestateControlFunc(f func(*state.State, []*snap.AppInfo, *services
 	old := servicestateControl
 	servicestateControl = f
 	return func() { servicestateControl = old }
+}
+
+func MockDevicestateSystemModeInfoFromState(f func(*state.State) (*devicestate.SystemModeInfo, error)) (restore func()) {
+	old := devicestateSystemModeInfoFromState
+	devicestateSystemModeInfoFromState = f
+	return func() { devicestateSystemModeInfoFromState = old }
 }
 
 func AddMockCommand(name string) *MockCommand {
@@ -99,5 +106,13 @@ func MockCgroupSnapNameFromPid(f func(int) (string, error)) (restore func()) {
 	cgroupSnapNameFromPid = f
 	return func() {
 		cgroupSnapNameFromPid = old
+	}
+}
+
+func MockAutoRefreshForGatingSnap(f func(st *state.State, gatingSnap string) error) (restore func()) {
+	old := autoRefreshForGatingSnap
+	autoRefreshForGatingSnap = f
+	return func() {
+		autoRefreshForGatingSnap = old
 	}
 }

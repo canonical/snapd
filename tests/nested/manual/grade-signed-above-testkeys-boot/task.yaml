@@ -82,11 +82,9 @@ prepare: |
   sed defaults.yaml -e "s/HOLD-TIME/$(date --date="next week" +%Y-%m-%dT%H:%M:%S%:z)/" >> \
     pc-gadget/meta/gadget.yaml
 
-  # TODO: enable this bit when things are ready to use a testkeys signed model
-  # assertion
   # copy the prepare-device hook to use our fakedevicesvc
-  # mkdir -p pc-gadget/meta/hooks/
-  # cp prepare-device pc-gadget/meta/hooks/
+  mkdir -p pc-gadget/meta/hooks/
+  cp prepare-device pc-gadget/meta/hooks/
 
   nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
   snap pack pc-gadget/ "$(nested_get_extra_snaps_path)"
@@ -94,13 +92,11 @@ prepare: |
 
   rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
-  # TODO: enable when ready
   # start fake device svc
-  # #shellcheck disable=SC2148
-  #  systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
+  systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
 
-  "$TESTSTOOLS"/nested-state build-image core
-  "$TESTSTOOLS"/nested-state create-vm core
+  tests.nested build-image core
+  tests.nested create-vm core
 
 restore: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -109,11 +105,14 @@ restore: |
   fi
 
   # stop fake device svc
-  # systemctl stop fakedevicesvc
+  systemctl stop fakedevicesvc
 
   #shellcheck source=tests/lib/store.sh
   . "$TESTSLIB"/store.sh
   teardown_fake_store "$NESTED_FAKESTORE_BLOB_DIR"
+
+debug: |
+  systemctl status fakedevicesvc || true
 
 execute: |
   if [ "$TRUST_TEST_KEYS" = "false" ]; then
@@ -125,9 +124,6 @@ execute: |
   . "$TESTSLIB/nested.sh"
 
   echo "Check we have the right model from snap model"
-  nested_exec "sudo snap model --verbose" | MATCH "model:\s+testkeys-snapd-${MODEL_GRADE}-core-20-amd64"
-  nested_exec "sudo snap model --verbose" | MATCH "grade:\s+${MODEL_GRADE}"
-
-  # TODO: check that we got a serial assertion via the fakedevicesvc
-  # for now we just don't get a serial assertion which is fine for the purposes
-  # of this test
+  tests.nested exec "sudo snap model --verbose" | MATCH "model:\s+testkeys-snapd-${MODEL_GRADE}-core-20-amd64"
+  tests.nested exec "sudo snap model --verbose" | MATCH "grade:\s+${MODEL_GRADE}"
+  tests.nested exec "sudo snap model --verbose --serial" | MATCH "serial:\s+7777"

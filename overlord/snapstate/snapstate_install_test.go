@@ -34,6 +34,9 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
+
+	// So it registers Configure.
+	_ "github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
@@ -46,9 +49,6 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
-
-	// So it registers Configure.
-	_ "github.com/snapcore/snapd/overlord/configstate"
 )
 
 func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.State) {
@@ -68,7 +68,9 @@ func verifyInstallTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.S
 		)
 	}
 	if opts&updatesGadget != 0 {
-		expected = append(expected, "update-gadget-assets")
+		expected = append(expected,
+			"update-gadget-assets",
+			"update-gadget-cmdline")
 	}
 	expected = append(expected,
 		"copy-snap-data",
@@ -379,7 +381,7 @@ func (s *snapmgrTestSuite) TestInstallFailsOnBusySnap(c *C) {
 	c.Check(snapst.RefreshInhibitedTime, NotNil)
 }
 
-func (s *snapmgrTestSuite) TestInstallWithIgnoreValidationProceedsOnBusySnap(c *C) {
+func (s *snapmgrTestSuite) TestInstallWithIgnoreRunningProceedsOnBusySnap(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -634,6 +636,33 @@ func (s *snapmgrTestSuite) TestInstallSnapWithDefaultTrack(c *C) {
 	err = snapstate.Get(s.state, "some-snap-with-default-track", &snapst)
 	c.Assert(err, IsNil)
 	c.Check(snapst.TrackingChannel, Equals, "2.0/candidate")
+}
+
+func (s *snapmgrTestSuite) TestInstallIgnoreValidation(c *C) {
+	restore := maybeMockClassicSupport(c)
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", nil, s.user.ID, snapstate.Flags{IgnoreValidation: true})
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("install", "install snap")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.IsReady(), Equals, true)
+
+	var snapst snapstate.SnapState
+	err = snapstate.Get(s.state, "some-snap", &snapst)
+	c.Assert(err, IsNil)
+	c.Check(snapst.IgnoreValidation, Equals, true)
 }
 
 func (s *snapmgrTestSuite) TestInstallManySnapOneWithDefaultTrack(c *C) {
@@ -1773,7 +1802,7 @@ func (s *snapmgrTestSuite) TestInstallFirstLocalRunThrough(c *C) {
 	// use the real thing for this one
 	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
 
-	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
 		c.Fatalf("installSize shouldn't be hit with local install")
 		return 0, nil
 	})
@@ -2897,7 +2926,7 @@ func (s *snapmgrTestSuite) TestInstallDiskSpaceError(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestInstallSizeError(c *C) {
-	restore := snapstate.MockInstallSize(func(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
+	restore := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
 		return 0, fmt.Errorf("boom")
 	})
 	defer restore()
@@ -3107,7 +3136,7 @@ func (s *snapmgrTestSuite) TestInstallDbusActivationChecksFeatureFlag(c *C) {
 	// D-Bus activation is disabled by default.
 	opts := &snapstate.RevisionOptions{Channel: "channel-for-dbus-activation"}
 	_, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.dbus-activation' to true")
+	c.Assert(err, IsNil)
 
 	// D-Bus activation can be explicitly enabled.
 	tr := config.NewTransaction(s.state)
@@ -3123,19 +3152,19 @@ func (s *snapmgrTestSuite) TestInstallDbusActivationChecksFeatureFlag(c *C) {
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.dbus-activation' to true")
 
-	// The default empty value means "disabled"
+	// The default empty value means "enabled"
 	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.dbus-activation", "")
 	tr.Commit()
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.dbus-activation' to true")
+	c.Assert(err, IsNil)
 
-	// D-Bus activation is disabled when the controlling flag is reset to nil.
+	// D-Bus activation is enabled when the controlling flag is reset to nil.
 	tr = config.NewTransaction(s.state)
 	tr.Set("core", "experimental.dbus-activation", nil)
 	tr.Commit()
 	_, err = snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, "experimental feature disabled - test it by setting 'experimental.dbus-activation' to true")
+	c.Assert(err, IsNil)
 }
 
 func (s *snapmgrTestSuite) TestInstallValidatesInstanceNames(c *C) {
@@ -3631,8 +3660,7 @@ volumes:
 		TrackError:  false,
 	}
 
-	var contextData map[string]interface{}
-	contextData = map[string]interface{}{"patch": gi.Defaults}
+	contextData := map[string]interface{}{"patch": gi.Defaults}
 
 	s.state.Lock()
 	defer s.state.Unlock()

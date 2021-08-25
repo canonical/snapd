@@ -35,9 +35,8 @@ prepare: |
     mksnap_fast squashfs-root core-customized.snap
 
 restore: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
     # Remove the locale revision of core, if we installed one.
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     if [ "$(readlink "$SNAP_MOUNT_DIR/core/current")" = x1 ]; then
         snap revert core
         snap remove --revision=x1 core
@@ -62,18 +61,6 @@ execute: |
     # Now, refresh core to our customized core snap.
     snap install --dangerous ./core-customized.snap
     snap list | MATCH customized
-
-    if is_cgroupv2 ; then
-        # stale mount namespace is always discarded with cgroupv2, because we
-        # cannot currently determine whether there are processes using it
-        test-snapd-sh.sh -c "test -e /customized"
-
-        # Kill our helper process.
-        kill -9 "$pid"
-        wait -n || true
-
-        exit 0
-    fi
 
     # Now we are in a situation where the core snap is stale but our sleeper
     # application is still alive so we cannot use it.

@@ -47,10 +47,21 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/quota"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/timings"
+	"github.com/snapcore/snapd/wrappers"
 )
+
+// SnapServiceOptions is a hook set by servicestate.
+var SnapServiceOptions = func(st *state.State, instanceName string, grps map[string]*quota.Group) (opts *wrappers.SnapServiceOptions, err error) {
+	panic("internal error: snapstate.SnapServiceOptions is unset")
+}
+
+var EnsureSnapAbsentFromQuotaGroup = func(st *state.State, snap string) error {
+	panic("internal error: snapstate.EnsureSnapAbsentFromQuotaGroup is unset")
+}
 
 var SecurityProfilesRemoveLate = func(snapName string, rev snap.Revision, typ snap.Type) error {
 	panic("internal error: snapstate.SecurityProfilesRemoveLate is unset")
@@ -510,7 +521,7 @@ func installInfoUnlocked(st *state.State, snapsup *SnapSetup, deviceCtx DeviceCo
 	st.Lock()
 	defer st.Unlock()
 	opts := &RevisionOptions{Channel: snapsup.Channel, CohortKey: snapsup.CohortKey, Revision: snapsup.Revision()}
-	return installInfo(context.TODO(), st, snapsup.InstanceName(), opts, snapsup.UserID, deviceCtx)
+	return installInfo(context.TODO(), st, snapsup.InstanceName(), opts, snapsup.UserID, Flags{}, deviceCtx)
 }
 
 // autoRefreshRateLimited returns the rate limit of auto-refreshes or 0 if
@@ -679,13 +690,16 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	}
 
+	setupOpts := &backend.SetupSnapOptions{
+		SkipKernelExtraction: snapsup.SkipKernelExtraction,
+	}
 	pb := NewTaskProgressAdapterUnlocked(t)
 	// TODO Use snapsup.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
 	var snapType snap.Type
 	var installRecord *backend.InstallRecord
 	timings.Run(perfTimings, "setup-snap", fmt.Sprintf("setup snap %q", snapsup.InstanceName()), func(timings.Measurer) {
-		snapType, installRecord, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, deviceCtx, pb)
+		snapType, installRecord, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, deviceCtx, setupOpts, pb)
 	})
 	if err != nil {
 		cleanup()
@@ -891,13 +905,13 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 	}
 
 	snapst.Active = true
-	vitalityRank, err := vitalityRank(st, snapsup.InstanceName())
+	opts, err := SnapServiceOptions(st, snapsup.InstanceName(), nil)
 	if err != nil {
 		return err
 	}
 	linkCtx := backend.LinkContext{
-		FirstInstall: false,
-		VitalityRank: vitalityRank,
+		FirstInstall:   false,
+		ServiceOptions: opts,
 	}
 	reboot, err := m.backend.LinkSnap(oldInfo, deviceCtx, linkCtx, perfTimings)
 	if err != nil {
@@ -1082,22 +1096,6 @@ func missingDisabledServices(svcs []string, info *snap.Info) ([]string, []string
 	return foundSvcs, missingSvcs, nil
 }
 
-func vitalityRank(st *state.State, instanceName string) (rank int, err error) {
-	tr := config.NewTransaction(st)
-
-	var vitalityStr string
-	err = tr.GetMaybe("core", "resilience.vitality-hint", &vitalityStr)
-	if err != nil {
-		return 0, err
-	}
-	for i, s := range strings.Split(vitalityStr, ",") {
-		if s == instanceName {
-			return i + 1, nil
-		}
-	}
-	return 0, nil
-}
-
 // LinkSnapParticipant is an interface for interacting with snap link/unlink
 // operations.
 //
@@ -1204,6 +1202,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		snapst.Required = true
 	}
 	oldRefreshInhibitedTime := snapst.RefreshInhibitedTime
+	oldLastRefreshTime := snapst.LastRefreshTime
 	// only set userID if unset or logged out in snapst and if we
 	// actually have an associated user
 	if snapsup.UserID > 0 {
@@ -1240,14 +1239,14 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		return err
 	}
 
-	vitalityRank, err := vitalityRank(st, snapsup.InstanceName())
+	opts, err := SnapServiceOptions(st, snapsup.InstanceName(), nil)
 	if err != nil {
 		return err
 	}
 	firstInstall := oldCurrent.Unset()
 	linkCtx := backend.LinkContext{
-		FirstInstall: firstInstall,
-		VitalityRank: vitalityRank,
+		FirstInstall:   firstInstall,
+		ServiceOptions: opts,
 	}
 	// on UC18+, snap tooling comes from the snapd snap so we need generated
 	// mount units to depend on the snapd snap mount units
@@ -1303,6 +1302,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 			return fmt.Errorf("cannot create snap cookie: %v", err)
 		}
 	}
+
 	// save for undoLinkSnap
 	t.Set("old-trymode", oldTryMode)
 	t.Set("old-devmode", oldDevMode)
@@ -1314,9 +1314,14 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	t.Set("old-candidate-index", oldCandidateIndex)
 	t.Set("old-refresh-inhibited-time", oldRefreshInhibitedTime)
 	t.Set("old-cohort-key", oldCohortKey)
+	t.Set("old-last-refresh-time", oldLastRefreshTime)
 
 	// Record the fact that the snap was refreshed successfully.
 	snapst.RefreshInhibitedTime = nil
+	if !snapsup.Revert {
+		now := timeNow()
+		snapst.LastRefreshTime = &now
+	}
 
 	if cand.SnapID != "" {
 		// write the auxiliary store info
@@ -1567,6 +1572,10 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err := t.Get("old-refresh-inhibited-time", &oldRefreshInhibitedTime); err != nil && err != state.ErrNoState {
 		return err
 	}
+	var oldLastRefreshTime *time.Time
+	if err := t.Get("old-last-refresh-time", &oldLastRefreshTime); err != nil && err != state.ErrNoState {
+		return err
+	}
 	var oldCohortKey string
 	if err := t.Get("old-cohort-key", &oldCohortKey); err != nil && err != state.ErrNoState {
 		return err
@@ -1614,6 +1623,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.JailMode = oldJailMode
 	snapst.Classic = oldClassic
 	snapst.RefreshInhibitedTime = oldRefreshInhibitedTime
+	snapst.LastRefreshTime = oldLastRefreshTime
 	snapst.CohortKey = oldCohortKey
 
 	newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, 0)
@@ -1912,7 +1922,9 @@ func (m *SnapManager) undoStartSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	var stopReason snap.ServiceStopReason
 
 	// stop the services
+	st.Unlock()
 	err = m.backend.StopServices(svcs, stopReason, progress.Null, perfTimings)
+	st.Lock()
 	if err != nil {
 		return err
 	}
@@ -2037,11 +2049,11 @@ func (m *SnapManager) undoStopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 
 	st.Unlock()
 	err = m.backend.StartServices(startupOrdered, disabledServices, progress.Null, perfTimings)
+	st.Lock()
 	if err != nil {
 		return err
 	}
 
-	st.Lock()
 	return nil
 }
 
@@ -2130,13 +2142,13 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.Active = true
 	Set(st, snapsup.InstanceName(), snapst)
 
-	vitalityRank, err := vitalityRank(st, snapsup.InstanceName())
+	opts, err := SnapServiceOptions(st, snapsup.InstanceName(), nil)
 	if err != nil {
 		return err
 	}
 	linkCtx := backend.LinkContext{
-		FirstInstall: false,
-		VitalityRank: vitalityRank,
+		FirstInstall:   false,
+		ServiceOptions: opts,
 	}
 	reboot, err := m.backend.LinkSnap(info, deviceCtx, linkCtx, perfTimings)
 	if err != nil {
@@ -2243,6 +2255,13 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		return &state.Retry{After: 3 * time.Minute}
 	}
 	if len(snapst.Sequence) == 0 {
+		if err := pruneRefreshCandidates(st, snapsup.InstanceName()); err != nil {
+			return err
+		}
+		if err := pruneSnapsHold(st, snapsup.InstanceName()); err != nil {
+			return err
+		}
+
 		// Remove configuration associated with this snap.
 		err = config.DeleteSnapConfig(st, snapsup.InstanceName())
 		if err != nil {
@@ -2276,6 +2295,12 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		}
 
 		// XXX: also remove sequence files?
+
+		// remove the snap from any quota groups it may have been in, otherwise
+		// that quota group may get into an inconsistent state
+		if err := EnsureSnapAbsentFromQuotaGroup(st, snapsup.InstanceName()); err != nil {
+			return err
+		}
 	}
 	if err = config.DiscardRevisionConfig(st, snapsup.InstanceName(), snapsup.Revision()); err != nil {
 		return err
@@ -2953,6 +2978,10 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		return nil
 	}
 
+	if err := pruneRefreshCandidates(st, snaps...); err != nil {
+		return err
+	}
+
 	var re reRefreshSetup
 	if err := t.Get("rerefresh-setup", &re); err != nil {
 		return err
@@ -2975,6 +3004,38 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	}
 	t.SetStatus(state.DoneStatus)
 
+	return nil
+}
+
+func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snaps, err := snapsToRefresh(t)
+	if err != nil {
+		return err
+	}
+
+	if len(snaps) == 0 {
+		logger.Debugf("refresh gating: no snaps to refresh")
+		return nil
+	}
+
+	tss, err := autoRefreshPhase2(context.TODO(), st, snaps, t.Change().ID())
+	if err != nil {
+		return err
+	}
+
+	// update original auto-refresh change
+	chg := t.Change()
+	for _, ts := range tss {
+		ts.WaitFor(t)
+		chg.AddAll(ts)
+	}
+	t.SetStatus(state.DoneStatus)
+
+	st.EnsureBefore(0)
 	return nil
 }
 

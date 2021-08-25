@@ -17,6 +17,8 @@ export DH_GOLANG_EXCLUDES=tests
 export DH_GOLANG_GO_GENERATE=1
 
 export PATH:=${PATH}:${CURDIR}
+# GOCACHE is needed by go-1.13
+export GOCACHE:=/tmp/go-build
 
 include /etc/os-release
 
@@ -121,17 +123,6 @@ override_dh_installdeb:
 	dh_installdeb
 
 override_dh_clean:
-ifneq (,$(TEST_GITHUB_AUTOPKGTEST))
-	# this will be set by the GITHUB webhook to trigger a autopkgtest
-	# we only need to run "govendor sync" here and then its ready
-	(export GOPATH="/tmp/go"; \
-	  mkdir -p /tmp/go/src/github.com/snapcore/; \
-          cp -ar . /tmp/go/src/github.com/snapcore/snapd; \
-	  go get -u github.com/kardianos/govendor; \
-	  (cd /tmp/go/src/github.com/snapcore/snapd ; /tmp/go/bin/govendor sync); \
-	  cp -ar /tmp/go/src/github.com/snapcore/snapd/vendor/ .; \
-        )
-endif
 	dh_clean
 	$(MAKE) -C data clean
 	# XXX: hacky
@@ -153,16 +144,16 @@ override_dh_auto_build:
 	# and build
 	dh_auto_build -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
 
-	(cd _build/bin && GOPATH=$$(pwd)/.. GOCACHE=/tmp/go-build go build $(BUILDFLAGS) $(GCCGOFLAGS) -tags "$(SNAP_TAGS)" $(DH_GOPKG)/cmd/snap)
+	(cd _build/bin && GOPATH=$$(pwd)/.. go build $(BUILDFLAGS) $(GCCGOFLAGS) -tags "$(SNAP_TAGS)" $(DH_GOPKG)/cmd/snap)
 
 	# (static linking on powerpc with cgo is broken)
 ifneq ($(shell dpkg-architecture -qDEB_HOST_ARCH),powerpc)
 	# Generate static snap-exec, snapctl and snap-update-ns - it somehow includes CGO so
 	# we must force a static build here. We need a static snap-{exec,update-ns}
 	# inside the core snap because not all bases will have a libc
-	(cd _build/bin && GOPATH=$$(pwd)/.. GOCACHE=/tmp/go-build CGO_ENABLED=0 go build $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snap-exec)
-	(cd _build/bin && GOPATH=$$(pwd)/.. GOCACHE=/tmp/go-build CGO_ENABLED=0 go build $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snapctl)
-	(cd _build/bin && GOPATH=$$(pwd)/.. GOCACHE=/tmp/go-build go build --ldflags '-extldflags "-static"' $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snap-update-ns)
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snap-exec)
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snapctl)
+	(cd _build/bin && GOPATH=$$(pwd)/.. go build --ldflags '-extldflags "-static"' $(GCCGOFLAGS) -pkgdir=$$(pwd)/std $(DH_GOPKG)/cmd/snap-update-ns)
 
 	# ensure we generated a static build
 	$(shell	if ldd _build/bin/snap-exec; then false "need static build"; fi)

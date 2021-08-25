@@ -29,8 +29,6 @@ execute: |
     fi
     #shellcheck source=tests/lib/pkgdb.sh
     . "$TESTSLIB/pkgdb.sh"
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
 
     if [[ "$SPREAD_REBOOT" == "0" ]]; then
 
@@ -74,7 +72,7 @@ execute: |
         snap install test-snapd-auto-aliases
 
         do_classic=no
-        if is_classic_confinement_supported ; then
+        if "$TESTSTOOLS"/snaps-state is-confinement-supported classic; then
             "$TESTSTOOLS"/snaps-state install-local test-snapd-classic-confinement --classic
             do_classic=yes
             # Preserve the state across reboots if necessary
@@ -127,13 +125,11 @@ execute: |
     snapdver=$(snap --version|grep "snapd ")
     [ "$snapdver" != "$(cat prevsnapdver)" ]
 
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*)
             # All mount units should have been patched on upgrade
-            unit_prefix="$(systemd-escape -p ${SNAP_MOUNT_DIR})"
+            SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+            unit_prefix="$(systemd-escape -p "${SNAP_MOUNT_DIR}")"
             for unit in /etc/systemd/system/"$unit_prefix"-*.mount; do
                 MATCH 'Options=.*context=system_u:object_r:snappy_snap_t:s0' "$unit"
             done

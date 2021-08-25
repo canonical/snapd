@@ -10,9 +10,6 @@ environment:
     NAME/parallel: snap-hooks_instance
 
 prepare: |
-    # shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB/snaps.sh"
-
     if [[ "$SPREAD_VARIANT" == "parallel" ]]; then
         snap set system experimental.parallel-instances=true
     fi

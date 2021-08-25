@@ -23,10 +23,10 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
-
-	"github.com/jessevdk/go-flags"
 )
 
 var shortBuyHelp = i18n.G("Buy a snap")

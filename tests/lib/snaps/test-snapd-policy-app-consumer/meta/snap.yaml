@@ -95,6 +95,9 @@ apps:
   desktop:
     command: bin/run
     plugs: [ desktop ]
+  desktop-launch:
+    command: bin/run
+    plugs: [ desktop-launch ]
   desktop-legacy:
     command: bin/run
     plugs: [ desktop-legacy ]
@@ -104,6 +107,9 @@ apps:
   display-control:
     command: bin/run
     plugs: [ display-control ]
+  dm-crypt:
+    command: bin/run
+    plugs: [ dm-crypt ]
   docker:
     command: bin/run
     plugs: [ docker ]
@@ -341,6 +347,9 @@ apps:
   pulseaudio:
     command: bin/run
     plugs: [ pulseaudio ]
+  raw-input:
+    command: bin/run
+    plugs: [ raw-input ]
   raw-usb:
     command: bin/run
     plugs: [ raw-usb ]
@@ -368,6 +377,9 @@ apps:
   can-bus:
     command: bin/run
     plugs: [ can-bus ]
+  sd-control:
+    command: bin/run
+    plugs: [ sd-control ]
   ssh-keys:
     command: bin/run
     plugs: [ ssh-keys ]
@@ -476,3 +488,6 @@ plugs:
     write: [$HOME/dir1]
   dummy:
     interface: dummy
+  sd-control:
+    interface: sd-control
+    flavor: dual-sd

@@ -1,11 +1,6 @@
 summary: Check that try command works inside lxd container
 
-systems: [ubuntu-20.04-*, ubuntu-20.10-*]
-
-restore: |
-  lxd.lxc stop ubuntu --force || true
-  lxd.lxc delete ubuntu || true
-  snap remove --purge lxd
+systems: [ubuntu-20.04-*, ubuntu-21.04-*]
 
 prepare: |
   echo "Install lxd"
@@ -38,6 +33,18 @@ prepare: |
   lxd.lxc exec ubuntu -- apt install -y /root/"$DEB"
   lxd.lxc file push -r --quiet "$TESTSLIB"/snaps/test-snapd-tools "ubuntu/root/"
 
+restore: |
+  lxd.lxc stop ubuntu --force || true
+  lxd.lxc delete ubuntu || true
+  snap remove --purge lxd
+
+  # Remove manually the snap.lxd.workaround.service systemd unit. This unit is needed to
+  # avoid systemd wiping lxd cgroups when snapd disables all lxd units during refresh
+  # TODO: remove this when lxd removes automatically the service
+  if systemctl is-active snap.lxd.workaround.service; then
+    systemctl stop snap.lxd.workaround.service
+  fi
+  
 execute: |
   lxd.lxc exec ubuntu -- snap try /root/test-snapd-tools
   lxd.lxc exec ubuntu -- snap list | MATCH '^test-snapd-tools .* try'

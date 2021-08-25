@@ -3,11 +3,16 @@ on:
   pull_request:
     branches: [ "master", "release/**" ]
   push:
-    branches: [ "release/**" ]
+    # we trigger runs on master branch, but we do not run spread on master 
+    # branch, the master branch runs are just for unit tests + codecov.io
+    branches: [ "master","release/**" ]
 
 jobs:
   snap-builds:
     runs-on: ubuntu-20.04
+    # only build the snap for pull requests, it's not needed on release branches
+    # or on master since we have launchpad build recipes which do this already
+    if: ${{ github.event_name == 'pull_request' }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -37,6 +42,8 @@ jobs:
     - name: Build snapd snap
       if: steps.cached-results.outputs.already-ran != 'true'
       uses: snapcore/action-build@v1
+      with:
+        snapcraft-channel: 4.x/candidate
     - name: Cache built artifact
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
@@ -73,7 +80,7 @@ jobs:
       fail-fast: false      
       matrix:
         gochannel:
-          - 1.9
+          - 1.13
           - latest/stable
     steps:
     - name: Checkout code
@@ -82,7 +89,11 @@ jobs:
         # NOTE: checkout the code in a fixed location, even for forks, as this
         # is relevant for go's import system.
         path: ./src/github.com/snapcore/snapd
-
+    # Fetch base ref, needed for golangci-lint
+    - name: Fetching base ref ${{ github.base_ref }}
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd
+        git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
     - name: Cache Debian dependencies
       id: cache-deb-downloads
       uses: actions/cache@v1
@@ -115,7 +126,7 @@ jobs:
               echo "::set-output name=already-ran::true"
           fi
     - name: Install Debian dependencies
-      if: steps.cached-results.outputs.cached-resulsts != 'true'
+      if: steps.cached-results.outputs.cached-results != 'true'
       run: |
           sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
     # golang latest ensures things work on the edge
@@ -138,16 +149,40 @@ jobs:
         key: go-govendor-{{ hashFiles('**/vendor.json') }}
     - name: Get Go dependencies
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ${{ github.workspace }}/bin/govendor sync
+
+    - name: Get C vendoring
+      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd/c-vendor && ./vendor.sh
+
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v2
+      if: ${{ matrix.gochannel == 'latest/stable' }}
+      with:
+        # version of golangci-lint to use in form of v1.2 or v1.2.3 or `latest`
+        # to use the latest version
+        version: v1.40.0
+        working-directory: ./src/github.com/snapcore/snapd
+        # show only new issues
+        # use empty path prefix to make annotations work
+        # TODO: start failing once the config is tuned properly
+        args: --new-from-rev=${{ github.base_ref }} --path-prefix= --issues-exit-code=0
+        # skip all additional steps
+        skip-go-installation: true
+        skip-pkg-cache: true
+        skip-build-cache: true
+        # XXX: does no work with working-directory
+        # only-new-issues: true
+
     - name: Run static checks
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
           cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-          # run gofmt checks only with Go 1.9 and 1.10
-          if ! echo "${{ matrix.gochannel }}" | grep -E '1\.(9|10)' ; then
+          # run gofmt checks only with Go 1.13
+          if ! echo "${{ matrix.gochannel }}" | grep -E '1\.13' ; then
               # and skip with other versions
               export SKIP_GOFMT=1
               echo "Formatting checks will be skipped due to the use of Go version ${{ matrix.gochannel }}"
           fi
+          sudo apt-get install -y python3-yamlordereddictloader
           ./run-checks --static
     - name: Build C
       if: steps.cached-results.outputs.already-ran != 'true'
@@ -172,7 +207,7 @@ jobs:
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-        SKIP_COVERAGE=1 SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=withbootassetstesting ./run-checks --unit
+        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=withbootassetstesting ./run-checks --unit
     - name: Test Go (nosecboot)
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
@@ -182,8 +217,16 @@ jobs:
         # install secboot again
         ${{ github.workspace }}/bin/govendor remove github.com/snapcore/secboot
         ${{ github.workspace }}/bin/govendor remove +unused
-        # we don't need coverage anymore
-        SKIP_COVERAGE=1 SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
+        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v2
+      if: steps.cached-results.outputs.already-ran != 'true'
+      with:
+        fail_ci_if_error: true
+        flags: unittests
+        name: codecov-umbrella
+        files: .coverage/coverage.out
+        verbose: true
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
@@ -191,6 +234,9 @@ jobs:
 
   spread:
     needs: [unit-tests]
+    # have spread jobs run on master on PRs only, but on both PRs and pushes to
+    # release branches
+    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
     runs-on: self-hosted
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
@@ -205,20 +251,20 @@ jobs:
         - arch-linux-64
         - centos-7-64
         - centos-8-64
-        - debian-9-64
+        - debian-10-64
         - debian-sid-64
-        - fedora-32-64
         - fedora-33-64
+        - fedora-34-64
         - opensuse-15.1-64
         - opensuse-15.2-64
         - opensuse-tumbleweed-64
         - ubuntu-14.04-64
-        - ubuntu-16.04-32
         - ubuntu-16.04-64
+        - ubuntu-18.04-32
         - ubuntu-18.04-64
         - ubuntu-20.04-64
-        - ubuntu-20.10-64
         - ubuntu-21.04-64
+        - ubuntu-21.10-64
         - ubuntu-core-16-64
         - ubuntu-core-18-64
         - ubuntu-core-20-64
@@ -265,6 +311,9 @@ jobs:
 
   spread-nested:
     needs: [unit-tests]
+    # have spread jobs run on master on PRs only, but on both PRs and pushes to
+    # release branches
+    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
     runs-on: self-hosted
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
@@ -278,7 +327,7 @@ jobs:
         - ubuntu-16.04-64
         - ubuntu-18.04-64
         - ubuntu-20.04-64
-        - ubuntu-20.10-64
+        - ubuntu-21.04-64
     steps:
     - name: Checkout code
       uses: actions/checkout@v2

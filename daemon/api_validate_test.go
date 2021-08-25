@@ -66,6 +66,8 @@ func (s *apiValidationSetsSuite) SetUpTest(c *check.C) {
 	s.apiBaseSuite.SetUpTest(c)
 	d := s.daemon(c)
 
+	s.expectAuthenticatedAccess()
+
 	restore := asserts.MockMaxSupportedFormat(asserts.ValidationSetType, 1)
 	s.AddCleanup(restore)
 
@@ -198,9 +200,9 @@ func (s *apiValidationSetsSuite) TestQueryValidationSetsErrors(c *check.C) {
 		}
 		req, err := http.NewRequest("GET", fmt.Sprintf("/v2/validation-sets/%s?%s", tc.validationSet, q.Encode()), nil)
 		c.Assert(err, check.IsNil)
-		rsp := s.errorReq(c, req, nil)
-		c.Check(rsp.Status, check.Equals, tc.status, check.Commentf("case #%d", i))
-		c.Check(rsp.ErrorResult().Message, check.Matches, tc.message)
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, tc.status, check.Commentf("case #%d", i))
+		c.Check(rspe.Message, check.Matches, tc.message)
 	}
 }
 
@@ -322,12 +324,10 @@ func (s *apiValidationSetsSuite) TestGetValidationSetNotFound(c *check.C) {
 	s.mockValidationSetsTracking(st)
 	st.Unlock()
 
-	rsp := s.errorReq(c, req, nil)
-	c.Assert(rsp.Status, check.Equals, 404)
-	res := rsp.Result.(*daemon.ErrorResult)
-	c.Assert(res, check.NotNil)
-	c.Check(string(res.Kind), check.Equals, "validation-set-not-found")
-	c.Check(res.Value, check.DeepEquals, map[string]interface{}{
+	rspe := s.errorReq(c, req, nil)
+	c.Assert(rspe.Status, check.Equals, 404)
+	c.Check(string(rspe.Kind), check.Equals, "validation-set-not-found")
+	c.Check(rspe.Value, check.DeepEquals, map[string]interface{}{
 		"account-id": "foo",
 		"name":       "other",
 	})
@@ -586,12 +586,10 @@ func (s *apiValidationSetsSuite) TestGetValidationSetPinnedNotFound(c *check.C) 
 	s.mockValidationSetsTracking(st)
 	st.Unlock()
 
-	rsp := s.errorReq(c, req, nil)
-	c.Assert(rsp.Status, check.Equals, 404)
-	res := rsp.Result.(*daemon.ErrorResult)
-	c.Assert(res, check.NotNil)
-	c.Check(string(res.Kind), check.Equals, "validation-set-not-found")
-	c.Check(res.Value, check.DeepEquals, map[string]interface{}{
+	rspe := s.errorReq(c, req, nil)
+	c.Assert(rspe.Status, check.Equals, 404)
+	c.Check(string(rspe.Kind), check.Equals, "validation-set-not-found")
+	c.Check(rspe.Value, check.DeepEquals, map[string]interface{}{
 		"account-id": "foo",
 		"name":       "bar",
 		"sequence":   333,
@@ -796,9 +794,9 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetMonitorModeError(c *check
 	req, err := http.NewRequest("POST", fmt.Sprintf("/v2/validation-sets/%s/bar", s.dev1acct.AccountID()), strings.NewReader(body))
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Assert(rsp.Status, check.Equals, 400)
-	c.Check(rsp.ErrorResult().Message, check.Equals, fmt.Sprintf(`cannot get validation set assertion for %s/bar: boom`, s.dev1acct.AccountID()))
+	rspe := s.errorReq(c, req, nil)
+	c.Assert(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Equals, fmt.Sprintf(`cannot get validation set assertion for %s/bar: boom`, s.dev1acct.AccountID()))
 }
 
 func (s *apiValidationSetsSuite) TestForgetValidationSet(c *check.C) {
@@ -813,7 +811,7 @@ func (s *apiValidationSetsSuite) TestForgetValidationSet(c *check.C) {
 		if sequence != 0 {
 			body = fmt.Sprintf(`{"action":"forget", "sequence":%d}`, sequence)
 		} else {
-			body = fmt.Sprintf(`{"action":"forget"}`)
+			body = `{"action":"forget"}`
 		}
 
 		var tr assertstate.ValidationSetTracking
@@ -840,8 +838,8 @@ func (s *apiValidationSetsSuite) TestForgetValidationSet(c *check.C) {
 		// and forget again fails
 		req, err = http.NewRequest("POST", fmt.Sprintf("/v2/validation-sets/%s/foo", s.dev1acct.AccountID()), strings.NewReader(body))
 		c.Assert(err, check.IsNil)
-		rsp = s.errorReq(c, req, nil)
-		c.Assert(rsp.Status, check.Equals, 404, check.Commentf("case #%d", i))
+		rspe := s.errorReq(c, req, nil)
+		c.Assert(rspe.Status, check.Equals, 404, check.Commentf("case #%d", i))
 	}
 }
 
@@ -912,19 +910,19 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetsErrors(c *check.C) {
 		}
 		req, err := http.NewRequest("POST", fmt.Sprintf("/v2/validation-sets/%s", tc.validationSet), strings.NewReader(body))
 		c.Assert(err, check.IsNil)
-		rsp := s.errorReq(c, req, nil)
-		c.Check(rsp.Status, check.Equals, tc.status, check.Commentf("case #%d", i))
-		c.Check(rsp.ErrorResult().Message, check.Matches, tc.message)
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, tc.status, check.Commentf("case #%d", i))
+		c.Check(rspe.Message, check.Matches, tc.message)
 	}
 }
 
 func (s *apiValidationSetsSuite) TestApplyValidationSetUnsupportedAction(c *check.C) {
-	body := fmt.Sprintf(`{"action":"baz","mode":"monitor"}`)
+	body := `{"action":"baz","mode":"monitor"}`
 
 	req, err := http.NewRequest("POST", "/v2/validation-sets/foo/bar", strings.NewReader(body))
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.ErrorResult().Message, check.Matches, `unsupported action "baz"`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Matches, `unsupported action "baz"`)
 }

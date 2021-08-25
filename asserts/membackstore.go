@@ -146,7 +146,6 @@ func (br memBSBranch) search(hint []string, found func(Assertion), maxFormat int
 	if down != nil {
 		down.search(hint[1:], found, maxFormat)
 	}
-	return
 }
 
 func (leaf memBSLeaf) search(hint []string, found func(Assertion), maxFormat int) {

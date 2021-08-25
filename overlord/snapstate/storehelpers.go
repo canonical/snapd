@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"sort"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/state"
@@ -33,6 +34,11 @@ import (
 )
 
 var currentSnaps = currentSnapsImpl
+
+// EnforcedValidationSets allows to hook getting of validation sets in enforce
+// mode into installation/refresh/removal of snaps. It gets hooked from
+// assertstate.
+var EnforcedValidationSets func(st *state.State) (*snapasserts.ValidationSets, error)
 
 func userIDForSnap(st *state.State, snapst *SnapState, fallbackUserID int) (int, error) {
 	userID := snapst.UserID
@@ -89,7 +95,7 @@ func refreshOptions(st *state.State, origOpts *store.RefreshOptions) (*store.Ref
 // potentially more than once. It assumes the initial list of snaps already has
 // download infos set.
 // The state must be locked by the caller.
-var installSize = func(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
+var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int) (uint64, error) {
 	curSnaps, err := currentSnaps(st)
 	if err != nil {
 		return 0, err
@@ -107,21 +113,21 @@ var installSize = func(st *state.State, snaps []*snap.Info, userID int) (uint64,
 
 	var prereqs []string
 
-	resolveBaseAndContentProviders := func(snapInfo *snap.Info) {
-		if snapInfo.SnapType != snap.TypeApp {
+	resolveBaseAndContentProviders := func(inst minimalInstallInfo) {
+		if inst.Type() != snap.TypeApp {
 			return
 		}
-		if snapInfo.Base != "none" {
+		if inst.SnapBase() != "none" {
 			base := defaultCoreSnapName
-			if snapInfo.Base != "" {
-				base = snapInfo.Base
+			if inst.SnapBase() != "" {
+				base = inst.SnapBase()
 			}
 			if !accountedSnaps[base] {
 				prereqs = append(prereqs, base)
 				accountedSnaps[base] = true
 			}
 		}
-		for _, snapName := range defaultContentPlugProviders(st, snapInfo) {
+		for _, snapName := range inst.Prereq(st) {
 			if !accountedSnaps[snapName] {
 				prereqs = append(prereqs, snapName)
 				accountedSnaps[snapName] = true
@@ -130,12 +136,12 @@ var installSize = func(st *state.State, snaps []*snap.Info, userID int) (uint64,
 	}
 
 	snapSizes := map[string]uint64{}
-	for _, snapInfo := range snaps {
-		if snapInfo.DownloadInfo.Size == 0 {
-			return 0, fmt.Errorf("internal error: download info missing for %q", snapInfo.InstanceName())
+	for _, inst := range snaps {
+		if inst.DownloadSize() == 0 {
+			return 0, fmt.Errorf("internal error: download info missing for %q", inst.InstanceName())
 		}
-		snapSizes[snapInfo.InstanceName()] = uint64(snapInfo.Size)
-		resolveBaseAndContentProviders(snapInfo)
+		snapSizes[inst.InstanceName()] = uint64(inst.DownloadSize())
+		resolveBaseAndContentProviders(inst)
 	}
 
 	opts, err := refreshOptions(st, nil)
@@ -170,7 +176,7 @@ var installSize = func(st *state.State, snaps []*snap.Info, userID int) (uint64,
 		for _, res := range results {
 			snapSizes[res.InstanceName()] = uint64(res.Size)
 			// results may have new base or content providers
-			resolveBaseAndContentProviders(res.Info)
+			resolveBaseAndContentProviders(installSnapInfo{res.Info})
 		}
 	}
 
@@ -195,8 +201,8 @@ var installSize = func(st *state.State, snaps []*snap.Info, userID int) (uint64,
 	return total, nil
 }
 
-func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, deviceCtx DeviceContext) (store.SnapActionResult, error) {
-	// TODO: support ignore-validation?
+func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (store.SnapActionResult, error) {
+	// TODO: support ignore-validation
 
 	curSnaps, err := currentSnaps(st)
 	if err != nil {

@@ -35,7 +35,7 @@ prepare: |
         echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/tls/libnvidia-tls.so."$NV_VERSION"
         echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-tls.so."$NV_VERSION"
         echo "canary-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/vdpau/libvdpau_nvidia.so."$NV_VERSION"
-        if [[ "$(uname -m)" == x86_64 ]]; then
+        if os.query is-pc-amd64; then
             mkdir -p /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/tls
             mkdir -p /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/vdpau
             echo "canary-32-triplet" >> /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libGLX.so.0.0.1
@@ -54,7 +54,7 @@ prepare: |
     echo "canary-legacy" >> /usr/lib/nvidia-123/tls/libnvidia-tls.so."$NV_VERSION"
     echo "canary-legacy" >> /usr/lib/nvidia-123/libnvidia-tls.so."$NV_VERSION"
     echo "canary-legacy" >> /usr/lib/nvidia-123/vdpau/libvdpau_nvidia.so."$NV_VERSION"
-    if [[ "$(uname -m)" == x86_64 ]]; then
+    if os.query is-pc-amd64; then
         mkdir -p /usr/lib32/nvidia-123/tls
         mkdir -p /usr/lib32/nvidia-123/vdpau
         echo "canary-32-legacy" >> /usr/lib32/nvidia-123/libGLX.so.0.0.1
@@ -77,7 +77,7 @@ restore: |
         rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libGLX_nvidia.so.0.0.1
         rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-glcore.so."$NV_VERSION"
         rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH)"/libnvidia-tls.so."$NV_VERSION"
-        if [[ "$(uname -m)" == x86_64 ]]; then
+        if os.query is-pc-amd64; then
             rm -rf /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/tls
             rm -rf /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/vdpau
             rm -f /usr/lib/"$(dpkg-architecture -qDEB_HOST_MULTIARCH -ai386)"/libGLX.so.0.0.1
@@ -90,9 +90,6 @@ restore: |
     rm -rf /usr/lib32/nvidia-123
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     "$TESTSTOOLS"/snaps-state install-local test-snapd-policy-app-consumer
 
     echo "When the interface is connected"
@@ -108,7 +105,7 @@ execute: |
        snap run test-snapd-policy-app-consumer.opengl -c "cat /var/lib/snapd/lib/gl/$f" | MATCH "$expected"
     done
 
-    if [[ "$(uname -m)" == x86_64 ]]; then
+    if os.query is-pc-amd64; then
         expected32="canary-32-legacy"
         if os.query is-bionic; then
             expected32="canary-32-triplet"

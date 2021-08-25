@@ -15,9 +15,14 @@ if WITH_UNIT_TESTS
 CHECK_CFLAGS += -Werror
 endif
 
+if USE_INTERNAL_BPF_HEADERS
+VENDOR_BPF_HEADERS_CFLAGS = -I$(srcdir)/libsnap-confine-private/bpf/vendor
+endif
+
 subdirs = \
 		  libsnap-confine-private \
 		  snap-confine \
+		  snap-device-helper \
 		  snap-discard-ns \
 		  snap-gdb-shim \
 		  snap-update-ns \
@@ -45,10 +50,11 @@ check-syntax-c:
 
 .PHONY: check-unit-tests
 if WITH_UNIT_TESTS
-check-unit-tests: snap-confine/unit-tests system-shutdown/unit-tests libsnap-confine-private/unit-tests
+check-unit-tests: snap-confine/unit-tests system-shutdown/unit-tests libsnap-confine-private/unit-tests snap-device-helper/unit-tests
 	$(HAVE_VALGRIND) ./libsnap-confine-private/unit-tests
-	SNAP_DEVICE_HELPER=$(srcdir)/snap-confine/snap-device-helper $(HAVE_VALGRIND) ./snap-confine/unit-tests
+	$(HAVE_VALGRIND) ./snap-confine/unit-tests
 	$(HAVE_VALGRIND) ./system-shutdown/unit-tests
+	$(HAVE_VALGRIND) ./snap-device-helper/unit-tests
 else
 check-unit-tests:
 	echo "unit tests are disabled (rebuild with --enable-unit-tests)"
@@ -57,6 +63,9 @@ endif
 new_format = \
 	 libsnap-confine-private/cgroup-support.c \
 	 libsnap-confine-private/cgroup-support.h \
+	 libsnap-confine-private/cgroup-support-test.c \
+	 libsnap-confine-private/device-cgroup-support.c \
+	 libsnap-confine-private/device-cgroup-support.h \
 	 libsnap-confine-private/infofile-test.c \
 	 libsnap-confine-private/infofile.c \
 	 libsnap-confine-private/infofile.h \
@@ -70,6 +79,10 @@ new_format = \
 	 snap-confine/snap-confine-invocation-test.c \
 	 snap-confine/snap-confine-invocation.c \
 	 snap-confine/snap-confine-invocation.h \
+	 snap-device-helper/main.c \
+	 snap-device-helper/snap-device-helper.c \
+	 snap-device-helper/snap-device-helper.h \
+	 snap-device-helper/snap-device-helper-test.c \
 	 snap-discard-ns/snap-discard-ns.c \
 	 snap-gdb-shim/snap-gdb-shim.c \
 	 snap-gdb-shim/snap-gdbserver-shim.c
@@ -85,7 +98,7 @@ fmt:: $(filter-out $(addprefix %,$(new_format)),$(foreach dir,$(subdirs),$(wildc
 # The hack target helps developers work on snap-confine on their live system by
 # installing a fresh copy of snap confine and the appropriate apparmor profile.
 .PHONY: hack
-hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp snap-discard-ns/snap-discard-ns
+hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-update-ns/snap-update-ns snap-seccomp/snap-seccomp snap-discard-ns/snap-discard-ns snap-device-helper/snap-device-helper
 	sudo install -D -m 4755 snap-confine/snap-confine-debug $(DESTDIR)$(libexecdir)/snap-confine
 	if [ -d /etc/apparmor.d ]; then sudo install -m 644 snap-confine/snap-confine.apparmor $(DESTDIR)/etc/apparmor.d/$(patsubst .%,%,$(subst /,.,$(libexecdir))).snap-confine.real; fi
 	sudo install -d -m 755 $(DESTDIR)/var/lib/snapd/apparmor/snap-confine/
@@ -93,11 +106,13 @@ hack: snap-confine/snap-confine-debug snap-confine/snap-confine.apparmor snap-up
 	sudo install -m 755 snap-update-ns/snap-update-ns $(DESTDIR)$(libexecdir)/snap-update-ns
 	sudo install -m 755 snap-discard-ns/snap-discard-ns $(DESTDIR)$(libexecdir)/snap-discard-ns
 	sudo install -m 755 snap-seccomp/snap-seccomp $(DESTDIR)$(libexecdir)/snap-seccomp
+	sudo install -m 755 snap-device-helper/snap-device-helper $(DESTDIR)$(libexecdir)/snap-device-helper
 	if [ "$$(command -v restorecon)" != "" ]; then sudo restorecon -R -v $(DESTDIR)$(libexecdir)/; fi
 
 # for the hack target also:
 snap-update-ns/snap-update-ns: snap-update-ns/*.go snap-update-ns/*.[ch]
-	cd snap-update-ns && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -v
+	cd snap-update-ns && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build \
+		-ldflags='-extldflags=-static -linkmode=external' -v
 snap-seccomp/snap-seccomp: snap-seccomp/*.go
 	cd snap-seccomp && GOPATH=$(or $(GOPATH),$(realpath $(srcdir)/../../../../..)) go build -v
 
@@ -114,6 +129,8 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/cgroup-freezer-support.h \
 	libsnap-confine-private/cgroup-support.c \
 	libsnap-confine-private/cgroup-support.h \
+	libsnap-confine-private/device-cgroup-support.c \
+	libsnap-confine-private/device-cgroup-support.h \
 	libsnap-confine-private/classic.c \
 	libsnap-confine-private/classic.h \
 	libsnap-confine-private/cleanup-funcs.c \
@@ -145,15 +162,16 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/tool.h \
 	libsnap-confine-private/utils.c \
 	libsnap-confine-private/utils.h
-libsnap_confine_private_a_CFLAGS = $(CHECK_CFLAGS)
+libsnap_confine_private_a_CFLAGS = $(CHECK_CFLAGS) $(VENDOR_BPF_HEADERS_CFLAGS)
 
 noinst_LIBRARIES += libsnap-confine-private-debug.a
 libsnap_confine_private_debug_a_SOURCES = $(libsnap_confine_private_a_SOURCES)
-libsnap_confine_private_debug_a_CFLAGS = $(CHECK_CFLAGS) -DSNAP_CONFINE_DEBUG_BUILD=1
+libsnap_confine_private_debug_a_CFLAGS = $(CHECK_CFLAGS) $(VENDOR_BPF_HEADERS_CFLAGS) -DSNAP_CONFINE_DEBUG_BUILD=1
 
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += libsnap-confine-private/unit-tests
 libsnap_confine_private_unit_tests_SOURCES = \
+	libsnap-confine-private/cgroup-support-test.c \
 	libsnap-confine-private/classic-test.c \
 	libsnap-confine-private/cleanup-funcs-test.c \
 	libsnap-confine-private/error-test.c \
@@ -174,7 +192,8 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests.c \
 	libsnap-confine-private/unit-tests.h \
 	libsnap-confine-private/utils-test.c
-libsnap_confine_private_unit_tests_CFLAGS = $(CHECK_CFLAGS) $(GLIB_CFLAGS)
+
+libsnap_confine_private_unit_tests_CFLAGS = $(CHECK_CFLAGS) $(VENDOR_BPF_HEADERS_CFLAGS) $(GLIB_CFLAGS)
 libsnap_confine_private_unit_tests_LDADD = $(GLIB_LIBS)
 libsnap_confine_private_unit_tests_CFLAGS += -D_ENABLE_FAULT_INJECTION
 libsnap_confine_private_unit_tests_STATIC =
@@ -335,8 +354,7 @@ snap_confine_unit_tests_SOURCES = \
 	snap-confine/mount-support-test.c \
 	snap-confine/ns-support-test.c \
 	snap-confine/snap-confine-args-test.c \
-	snap-confine/snap-confine-invocation-test.c \
-	snap-confine/snap-device-helper-test.c
+	snap-confine/snap-confine-invocation-test.c
 snap_confine_unit_tests_CFLAGS = $(snap_confine_snap_confine_CFLAGS) $(GLIB_CFLAGS)
 snap_confine_unit_tests_LDADD = $(snap_confine_snap_confine_LDADD) $(GLIB_LIBS)
 snap_confine_unit_tests_LDFLAGS = $(snap_confine_snap_confine_LDFLAGS)
@@ -416,16 +434,35 @@ install-exec-hook::
 ## snap-device-helper
 ##
 
-EXTRA_DIST += \
-	snap-confine/snap-device-helper
+libexec_PROGRAMS += \
+	snap-device-helper/snap-device-helper
 
-# NOTE: This makes distcheck fail but it is required for udev, so go figure.
-# http://www.gnu.org/software/automake/manual/automake.html#Hard_002dCoded-Install-Paths
-#
-# Install support script for udev rules
-install-exec-local::
-	install -d -m 755 $(DESTDIR)$(libexecdir)
-	install -m 755 $(srcdir)/snap-confine/snap-device-helper $(DESTDIR)$(libexecdir)
+snap_device_helper_snap_device_helper_SOURCES = \
+	snap-device-helper/main.c \
+	snap-device-helper/snap-device-helper.c
+snap_device_helper_snap_device_helper_CFLAGS = $(CHECK_CFLAGS) $(AM_CFLAGS)
+snap_device_helper_snap_device_helper_LDFLAGS = $(AM_LDFLAGS)
+snap_device_helper_snap_device_helper_LDADD = libsnap-confine-private.a
+
+if WITH_UNIT_TESTS
+noinst_PROGRAMS += snap-device-helper/unit-tests
+snap_device_helper_unit_tests_SOURCES = \
+	libsnap-confine-private/test-utils.c \
+	libsnap-confine-private/string-utils.c \
+	libsnap-confine-private/utils.c \
+	libsnap-confine-private/cleanup-funcs.c \
+	libsnap-confine-private/panic.c \
+	libsnap-confine-private/snap.c \
+	libsnap-confine-private/error.c \
+	libsnap-confine-private/unit-tests-main.c \
+	libsnap-confine-private/unit-tests.c \
+	libsnap-confine-private/unit-tests.h \
+	snap-device-helper/snap-device-helper-test.c
+snap_device_helper_unit_tests_CFLAGS = $(snap_device_helper_snap_device_helper_CFLAGS) $(GLIB_CFLAGS)
+snap_device_helper_unit_tests_LDADD = $(GLIB_LIBS)
+snap_device_helper_unit_tests_LDFLAGS =$(snap_device_helper_snap_device_helper_LDFLAGS)
+
+endif  # WITH_UNIT_TESTS
 
 ##
 ## snap-discard-ns

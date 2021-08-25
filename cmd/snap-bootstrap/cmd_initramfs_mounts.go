@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2019-2020 Canonical Ltd
+ * Copyright (C) 2019-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -37,14 +37,14 @@ import (
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/disks"
+
+	// to set sysconfig.ApplyFilesystemOnlyDefaultsImpl
+	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/squashfs"
 	"github.com/snapcore/snapd/sysconfig"
-
-	// to set sysconfig.ApplyFilesystemOnlyDefaultsImpl
-	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
 )
 
 func init() {
@@ -451,6 +451,10 @@ type recoverModeStateMachine struct {
 	degradedState *recoverDegradedState
 }
 
+func (m *recoverModeStateMachine) whichModel() (*asserts.Model, error) {
+	return m.model, nil
+}
+
 // degraded returns whether a degraded recover mode state has fallen back from
 // the typical operation to some sort of degraded mode.
 func (m *recoverModeStateMachine) degraded() bool {
@@ -832,6 +836,7 @@ func (m *recoverModeStateMachine) unlockDataRunKey() (stateFunc, error) {
 		// don't allow using the recovery key to unlock, we only try using the
 		// recovery key after we first try the fallback object
 		AllowRecoveryKey: false,
+		WhichModel:       m.whichModel,
 	}
 	unlockRes, unlockErr := secbootUnlockVolumeUsingSealedKeyIfEncrypted(m.disk, "ubuntu-data", runModeKey, unlockOpts)
 	if err := m.setUnlockStateWithRunKey("ubuntu-data", unlockRes, unlockErr); err != nil {
@@ -871,6 +876,7 @@ func (m *recoverModeStateMachine) unlockDataFallbackKey() (stateFunc, error) {
 		// using the fallback object is the last chance before we give up trying
 		// to unlock data
 		AllowRecoveryKey: true,
+		WhichModel:       m.whichModel,
 	}
 	// TODO: this prompts for a recovery key
 	// TODO: we should somehow customize the prompt to mention what key we need
@@ -894,7 +900,12 @@ func (m *recoverModeStateMachine) unlockDataFallbackKey() (stateFunc, error) {
 func (m *recoverModeStateMachine) mountData() (stateFunc, error) {
 	data := m.degradedState.partition("ubuntu-data")
 	// don't do fsck on the data partition, it could be corrupted
-	mountErr := doSystemdMount(data.fsDevice, boot.InitramfsHostUbuntuDataDir, nil)
+	// however, data should always be mounted nosuid to prevent snaps from
+	// extracting suid executables there and trying to circumvent the sandbox
+	nosuidMountOpts := &systemdMountOptions{
+		NoSuid: true,
+	}
+	mountErr := doSystemdMount(data.fsDevice, boot.InitramfsHostUbuntuDataDir, nosuidMountOpts)
 	if err := m.setMountState("ubuntu-data", boot.InitramfsHostUbuntuDataDir, mountErr); err != nil {
 		return nil, err
 	}
@@ -998,6 +1009,7 @@ func (m *recoverModeStateMachine) unlockEncryptedSaveFallbackKey() (stateFunc, e
 		// using the fallback object is the last chance before we give up trying
 		// to unlock save
 		AllowRecoveryKey: true,
+		WhichModel:       m.whichModel,
 	}
 	saveFallbackKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, "ubuntu-save.recovery.sealed-key")
 	// TODO: this prompts again for a recover key, but really this is the
@@ -1201,12 +1213,12 @@ func checkDataAndSavePairing(rootdir string) (bool, error) {
 	return subtle.ConstantTimeCompare(marker1, marker2) == 1, nil
 }
 
-// mountPartitionMatchingKernelDisk will select the partition to mount at dir,
-// using the boot package function FindPartitionUUIDForBootedKernelDisk to
+// mountNonDataPartitionMatchingKernelDisk will select the partition to mount at
+// dir, using the boot package function FindPartitionUUIDForBootedKernelDisk to
 // determine what partition the booted kernel came from. If which disk the
 // kernel came from cannot be determined, then it will fallback to mounting via
 // the specified disk label.
-func mountPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
+func mountNonDataPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 	partuuid, err := bootFindPartitionUUIDForBootedKernelDisk()
 	// TODO: the by-partuuid is only available on gpt disks, on mbr we need
 	//       to use by-uuid or by-id
@@ -1221,6 +1233,8 @@ func mountPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 		// first partition we will be mounting, we can't know if anything is
 		// corrupted yet
 		NeedsFsck: true,
+		// don't need nosuid option here, since this function is only used
+		// for ubuntu-boot and ubuntu-seed, never ubuntu-data
 	}
 	return doSystemdMount(partSrc, dir, opts)
 }
@@ -1228,7 +1242,7 @@ func mountPartitionMatchingKernelDisk(dir, fallbacklabel string) error {
 func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asserts.Model, sysSnaps map[snap.Type]snap.PlaceInfo, err error) {
 	// 1. always ensure seed partition is mounted first before the others,
 	//      since the seed partition is needed to mount the snap files there
-	if err := mountPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "ubuntu-seed"); err != nil {
+	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuSeedDir, "ubuntu-seed"); err != nil {
 		return nil, nil, err
 	}
 
@@ -1288,9 +1302,12 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asser
 	//            mounted, we should also implement writable-paths here too as
 	//            writing it in Go instead of shellscript is desirable
 
-	// 2.3. mount "ubuntu-data" on a tmpfs
+	// 2.3. mount "ubuntu-data" on a tmpfs, and also mount with nosuid to prevent
+	// snaps from being able to bypass the sandbox by creating suid root files
+	// there and try to escape the sandbox
 	mntOpts := &systemdMountOptions{
-		Tmpfs: true,
+		Tmpfs:  true,
+		NoSuid: true,
 	}
 	err = doSystemdMount("tmpfs", boot.InitramfsDataDir, mntOpts)
 	if err != nil {
@@ -1320,7 +1337,7 @@ func generateMountsCommonInstallRecover(mst *initramfsMountsState) (model *asser
 		TargetRootDir:  boot.InitramfsWritableDir,
 		GadgetSnap:     gadgetSnap,
 	}
-	if err := sysconfig.ConfigureTargetSystem(configOpts); err != nil {
+	if err := sysconfig.ConfigureTargetSystem(model, configOpts); err != nil {
 		return nil, nil, err
 	}
 
@@ -1367,7 +1384,7 @@ func maybeMountSave(disk disks.Disk, rootdir string, encrypted bool, mountOpts *
 
 func generateMountsModeRun(mst *initramfsMountsState) error {
 	// 1. mount ubuntu-boot
-	if err := mountPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot"); err != nil {
+	if err := mountNonDataPartitionMatchingKernelDisk(boot.InitramfsUbuntuBootDir, "ubuntu-boot"); err != nil {
 		return err
 	}
 
@@ -1416,6 +1433,7 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 	runModeKey := filepath.Join(boot.InitramfsBootEncryptionKeyDir, "ubuntu-data.sealed-key")
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
 		AllowRecoveryKey: true,
+		WhichModel:       mst.UnverifiedBootModel,
 	}
 	unlockRes, err := secbootUnlockVolumeUsingSealedKeyIfEncrypted(disk, "ubuntu-data", runModeKey, opts)
 	if err != nil {
@@ -1424,7 +1442,14 @@ func generateMountsModeRun(mst *initramfsMountsState) error {
 
 	// TODO: do we actually need fsck if we are mounting a mapper device?
 	// probably not?
-	if err := doSystemdMount(unlockRes.FsDevice, boot.InitramfsDataDir, fsckSystemdOpts); err != nil {
+	// fsck and mount with nosuid to prevent snaps from being able to bypass
+	// the sandbox by creating suid root files there and trying to escape the
+	// sandbox
+	dataMountOpts := &systemdMountOptions{
+		NeedsFsck: true,
+		NoSuid:    true,
+	}
+	if err := doSystemdMount(unlockRes.FsDevice, boot.InitramfsDataDir, dataMountOpts); err != nil {
 		return err
 	}
 	isEncryptedDev := unlockRes.IsEncrypted

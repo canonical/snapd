@@ -41,22 +41,26 @@ import (
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
 )
 
 func TestConfigState(t *testing.T) { TestingT(t) }
 
 type configureHandlerSuite struct {
+	testutil.BaseTest
+
 	state   *state.State
 	context *hookstate.Context
 	handler hookstate.Handler
-	restore func()
 }
 
 var _ = Suite(&configureHandlerSuite{})
 
 func (s *configureHandlerSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
 
 	s.state = state.New(nil)
 	s.state.Lock()
@@ -79,7 +83,7 @@ type: os
 		SnapType: "os",
 	})
 
-	s.restore = snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {})
+	s.AddCleanup(snap.MockSanitizePlugsSlots(func(snapInfo *snap.Info) {}))
 
 	task := s.state.NewTask("test-task", "my test task")
 	setup := &hookstate.HookSetup{Snap: "test-snap", Revision: snap.R(1), Hook: "test-hook"}
@@ -89,11 +93,6 @@ type: os
 	c.Assert(err, IsNil)
 
 	s.handler = configstate.NewConfigureHandler(s.context)
-}
-
-func (s *configureHandlerSuite) TearDownTest(c *C) {
-	s.restore()
-	dirs.SetRootDir("/")
 }
 
 func (s *configureHandlerSuite) TestBeforeInitializesTransaction(c *C) {
@@ -352,7 +351,8 @@ volumes:
 		SnapType: "snapd",
 	})
 
-	witnessConfigcoreRun := func(conf config.Conf) error {
+	witnessConfigcoreRun := func(dev sysconfig.Device, conf config.Conf) error {
+		c.Check(dev.Kernel(), Equals, "kernel")
 		// called with no state lock!
 		conf.State().Lock()
 		defer conf.State().Unlock()
@@ -411,7 +411,8 @@ volumes:
 		SnapType: "os",
 	})
 
-	witnessConfigcoreRun := func(conf config.Conf) error {
+	witnessConfigcoreRun := func(dev sysconfig.Device, conf config.Conf) error {
+		c.Check(dev.Kernel(), Equals, "kernel")
 		// called with no state lock!
 		conf.State().Lock()
 		defer conf.State().Unlock()

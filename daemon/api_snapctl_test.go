@@ -39,6 +39,12 @@ type snapctlSuite struct {
 	apiBaseSuite
 }
 
+func (s *snapctlSuite) SetUpTest(c *check.C) {
+	s.apiBaseSuite.SetUpTest(c)
+
+	s.expectWriteAccess(daemon.SnapAccess{})
+}
+
 func (s *snapctlSuite) TestSnapctlGetNoUID(c *check.C) {
 	s.daemon(c)
 	buf := bytes.NewBufferString(`{"context-id": "some-context", "args": ["get", "something"]}`)
@@ -80,10 +86,10 @@ func (s *snapctlSuite) TestSnapctlUnsuccesfulError(c *check.C) {
 	buf := bytes.NewBufferString(fmt.Sprintf(`{"context-id": "some-context", "args": [%q, %q]}`, "is-connected", "plug"))
 	req, err := http.NewRequest("POST", "/v2/snapctl", buf)
 	c.Assert(err, check.IsNil)
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 200)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Kind, check.Equals, client.ErrorKindUnsuccessful)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Value, check.DeepEquals, map[string]interface{}{
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 200)
+	c.Check(rspe.Kind, check.Equals, client.ErrorKindUnsuccessful)
+	c.Check(rspe.Value, check.DeepEquals, map[string]interface{}{
 		"stdout":    "",
 		"stderr":    "",
 		"exit-code": 123,

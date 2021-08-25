@@ -24,9 +24,6 @@ debug: |
     cat sudo-login.path || true
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
-
     # run a snap command via sudo
     # shellcheck disable=SC2016
     tests.session -u test exec sudo sh -c 'echo :$PATH:' > sudo.path
@@ -42,8 +39,9 @@ execute: |
         fi
     done
 
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     if [ "$secure_path" = "yes" ] ; then
-        not MATCH ":${SNAP_MOUNT_DIR}/bin:" < sudo.path
+        NOMATCH ":${SNAP_MOUNT_DIR}/bin:" < sudo.path
     else
         MATCH ":${SNAP_MOUNT_DIR}/bin:" < sudo.path
     fi

@@ -32,6 +32,7 @@ environment:
     SUDO_UID: ""
     TRUST_TEST_KEYS: '$(HOST: echo "${SPREAD_TRUST_TEST_KEYS:-true}")'
     MANAGED_DEVICE: "false"
+    # a global setting for LXD channel to use in the tests
     LXD_SNAP_CHANNEL: "latest/candidate"
     CORE_CHANNEL: '$(HOST: echo "${SPREAD_CORE_CHANNEL:-edge}")'
     BASE_CHANNEL: '$(HOST: echo "${SPREAD_BASE_CHANNEL:-edge}")'
@@ -40,7 +41,7 @@ environment:
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
     REMOTE_STORE: '$(HOST: echo "${SPREAD_REMOTE_STORE:-production}")'
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
-    DELTA_REF: 2.49
+    DELTA_REF: 2.50
     DELTA_PREFIX: snapd-$DELTA_REF/
     REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'
     SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
@@ -75,15 +76,15 @@ environment:
 backends:
     google:
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: computeengine/us-east1-b
+        location: snapd-spread/us-east1-b
         halt-timeout: 2h
         systems:
             - ubuntu-14.04-64:
                   workers: 6
-            - ubuntu-16.04-32:
-                  workers: 6
             - ubuntu-16.04-64:
                   workers: 8
+            - ubuntu-18.04-32:
+                  workers: 6
             - ubuntu-18.04-64:
                   workers: 8
             - ubuntu-20.04-64:
@@ -95,29 +96,31 @@ backends:
                   image: ubuntu-16.04-64
                   workers: 6
             - ubuntu-core-20-64:
-                  image: ubuntu-2004-64-virt-enabled
+                  image: ubuntu-20.04-64
                   workers: 6
                   storage: 20G
             - ubuntu-secboot-20.04-64:
                   image: ubuntu-20.04-64
                   workers: 1
                   secure-boot: true
-                  # XXX: old name, remove once new spread is deployed
-                  secureboot: true
-            - ubuntu-20.10-64:
-                  workers: 8
             - ubuntu-21.04-64:
                   workers: 8
-                  image: ubuntu-os-cloud-devel/ubuntu-2104
+            - ubuntu-21.10-64:
+                  image: ubuntu-os-cloud-devel/ubuntu-2110
+                  storage: 12G
+                  workers: 8
 
             - debian-9-64:
+                  workers: 6
+                  manual: true
+            - debian-10-64:
                   workers: 6
             - debian-sid-64:
                   workers: 6
 
-            - fedora-32-64:
-                  workers: 6
             - fedora-33-64:
+                  workers: 6
+            - fedora-34-64:
                   workers: 6
 
             - arch-linux-64:
@@ -146,23 +149,21 @@ backends:
     google-sru:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: computeengine/us-east1-b
+        location: snapd-spread/us-east1-b
         halt-timeout: 2h
         systems:
-            - ubuntu-16.04-64:
-                  workers: 6
             - ubuntu-18.04-64:
                   workers: 6
             - ubuntu-20.04-64:
                   workers: 6
-            - ubuntu-20.10-64:
+            - ubuntu-21.04-64:
                   workers: 6
 
     google-nested:
         type: google
         key: '$(HOST: echo "$SPREAD_GOOGLE_KEY")'
-        location: computeengine/us-east1-b
-        plan: n1-standard-2
+        location: snapd-spread/us-east1-b
+        plan: n2-standard-2
         halt-timeout: 2h
         systems:
             - ubuntu-16.04-64:
@@ -176,11 +177,11 @@ backends:
             - ubuntu-20.04-64:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
-                  workers: 6
-            - ubuntu-20.10-64:
-                  image: ubuntu-2010-64-virt-enabled
+                  workers: 7
+            - ubuntu-21.04-64:
+                  image: ubuntu-2104-64-virt-enabled
                   storage: 20G
-                  workers: 6
+                  workers: 3
 
     qemu-nested:
         memory: 4G
@@ -433,12 +434,11 @@ debug-each: |
         if nested_is_nested_system; then
             echo '# nested VM status'
             systemctl status nested-vm || true
-            journalctl --no-pager -u nested-vm || true
             nested_print_serial_log
-                # add another echo in case the serial log is missing a newline
-                echo
+            # add another echo in case the serial log is missing a newline
+            echo
 
-            nested_exec sudo journalctl --no-pager -u snapd || true
+            tests.nested exec "sudo journalctl --no-pager -u snapd" || true
         fi
 
         echo '# journal messages for snapd'
@@ -593,13 +593,15 @@ prepare: |
         yum install -y epel-release
     fi
 
-    if [[ "$SPREAD_SYSTEM" == ubuntu-* ]]; then
-        # make sure unattended-upgrades does not get in the way
-        if systemctl is-enabled unattended-upgrades.service; then
-            systemctl stop unattended-upgrades.service
-            systemctl mask unattended-upgrades.service
-        fi
-    fi
+    case "$SPREAD_SYSTEM" in
+        ubuntu-*|debian-*)
+            # make sure unattended-upgrades does not get in the way
+            if systemctl is-enabled unattended-upgrades.service; then
+                systemctl stop unattended-upgrades.service
+                systemctl mask unattended-upgrades.service
+            fi
+            ;;
+    esac
 
     # Unpack delta, or move content out of the prefixed directory (see rename and repack above).
     # (needs to be in spread.yaml directly because there's nothing else on the filesystem yet)
@@ -636,6 +638,11 @@ prepare: |
     elif [ -d "$DELTA_PREFIX" ]; then
         find "$DELTA_PREFIX" -mindepth 1 -maxdepth 1 -exec mv {} . \;
         rmdir "$DELTA_PREFIX"
+    fi
+
+    # TODO: drop once 21.10 images are fixed
+    if [[ "$SPREAD_SYSTEM" == ubuntu-21.10-* ]] && [[ -e /home/ubuntu/.ssh ]]; then
+        chown -R ubuntu:ubuntu /home/ubuntu/.ssh
     fi
 
     # Take the MATCH and REBOOT functions from spread and allow our shell
@@ -866,16 +873,12 @@ suites:
             # Enable kvm in the qemu command line
             NESTED_ENABLE_KVM: '$(HOST: echo "${NESTED_ENABLE_KVM:-true}")'
             # Enable tpm in the nested vm in case it is supported
-            NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-false}")'
+            NESTED_ENABLE_TPM: '$(HOST: echo "${NESTED_ENABLE_TPM:-}")'
             # Enable secure boot in the nested vm in case it is supported
-            NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
+            NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
         manual: true
         warn-timeout: 10m
         kill-timeout: 60m
-        debug: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_print_serial_log
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -887,10 +890,10 @@ suites:
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
         prepare-each: |
             tests.backup prepare
-            "$TESTSTOOLS"/nested-state prepare
+            tests.nested prepare
         restore-each: |
-            "$TESTSTOOLS"/nested-state remove-vm
-            "$TESTSTOOLS"/nested-state restore
+            tests.nested remove-vm
+            tests.nested restore
             tests.backup restore
         restore: |
             #shellcheck source=tests/lib/pkgdb.sh
@@ -910,10 +913,6 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-false}")'
         manual: true
-        debug: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_print_serial_log
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -924,16 +923,16 @@ suites:
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
-            "$TESTSTOOLS"/nested-state prepare
-            "$TESTSTOOLS"/nested-state build-image classic
+            tests.nested prepare
+            tests.nested build-image classic
         prepare-each: |
             tests.backup prepare
-            "$TESTSTOOLS"/nested-state create-vm classic
+            tests.nested create-vm classic
         restore-each: |
-            "$TESTSTOOLS"/nested-state remove-vm
+            tests.nested remove-vm
             tests.backup restore
         restore: |
-            "$TESTSTOOLS"/nested-state restore
+            tests.nested restore
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -952,10 +951,6 @@ suites:
             # Enable secure boot in the nested vm in case it is supported
             NESTED_ENABLE_SECURE_BOOT: '$(HOST: echo "${NESTED_ENABLE_SECURE_BOOT:-}")'
         manual: true
-        debug: |
-            #shellcheck source=tests/lib/nested.sh
-            . "$TESTSLIB/nested.sh"
-            nested_print_serial_log
         prepare: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -966,16 +961,16 @@ suites:
             # Install the snapd built
             dpkg -i "$SPREAD_PATH"/../snapd_*.deb
 
-            "$TESTSTOOLS"/nested-state prepare
-            "$TESTSTOOLS"/nested-state build-image core
+            tests.nested prepare
+            tests.nested build-image core
         prepare-each: |
             tests.backup prepare
-            "$TESTSTOOLS"/nested-state create-vm core
+            tests.nested create-vm core
         restore-each: |
-            "$TESTSTOOLS"/nested-state remove-vm
+            tests.nested remove-vm
             tests.backup restore
         restore: |
-            "$TESTSTOOLS"/nested-state restore
+            tests.nested restore
 
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh

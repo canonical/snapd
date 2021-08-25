@@ -105,7 +105,7 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 	info.Private = d.Private
 	info.Paid = len(info.Prices) > 0
 	info.Confinement = snap.ConfinementType(d.Confinement)
-	info.Contact = d.Contact
+	info.EditedContact = d.Contact
 	info.License = d.License
 	info.Base = d.Base
 	info.CommonIDs = d.CommonIDs
@@ -114,8 +114,8 @@ func infoFromRemote(d *snapDetails) *snap.Info {
 
 	// FIXME: once the store sends "contact" for everything, remove
 	//        the "SupportURL" part of the if
-	if info.Contact == "" {
-		info.Contact = d.SupportURL
+	if info.EditedContact == "" {
+		info.EditedContact = d.SupportURL
 	}
 
 	return info

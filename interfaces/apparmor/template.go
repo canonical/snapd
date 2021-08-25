@@ -468,7 +468,7 @@ var defaultCoreRuntimeTemplateRules = `
   # Default rules for core base runtimes
 
   # The base abstraction doesn't yet have this
-  /lib/terminfo/** rk,
+  /{,usr/}lib/terminfo/** rk,
   /usr/share/terminfo/** k,
   /usr/share/zoneinfo/** k,
 
@@ -652,20 +652,20 @@ var defaultOtherBaseTemplateRules = `
   # - /lib/modules
   #
   # Everything but /lib/firmware and /lib/modules
-  /lib/ r,
-  /lib/[^fm]** mrklix,
-  /lib/{f[^i],m[^o]}** mrklix,
-  /lib/{fi[^r],mo[^d]}** mrklix,
-  /lib/{fir[^m],mod[^u]}** mrklix,
-  /lib/{firm[^w],modu[^l]}** mrklix,
-  /lib/{firmw[^a],modul[^e]}** mrklix,
-  /lib/{firmwa[^r],module[^s]}** mrklix,
-  /lib/modules[^/]** mrklix,
-  /lib/firmwar[^e]** mrklix,
-  /lib/firmware[^/]** mrklix,
+  /{,usr/}lib/ r,
+  /{,usr/}lib/[^fm]** mrklix,
+  /{,usr/}lib/{f[^i],m[^o]}** mrklix,
+  /{,usr/}lib/{fi[^r],mo[^d]}** mrklix,
+  /{,usr/}lib/{fir[^m],mod[^u]}** mrklix,
+  /{,usr/}lib/{firm[^w],modu[^l]}** mrklix,
+  /{,usr/}lib/{firmw[^a],modul[^e]}** mrklix,
+  /{,usr/}lib/{firmwa[^r],module[^s]}** mrklix,
+  /{,usr/}lib/modules[^/]** mrklix,
+  /{,usr/}lib/firmwar[^e]** mrklix,
+  /{,usr/}lib/firmware[^/]** mrklix,
 
   # /lib64, etc
-  /lib[^/]** mrklix,
+  /{,usr/}lib[^/]** mrklix,
 
   # /opt
   /opt/ r,
@@ -686,18 +686,12 @@ var defaultOtherBaseTemplateRules = `
   /usr/{lib,src}[^/]** mrklix,
   # Everything in /usr/lib except /usr/lib/firmware, /usr/lib/modules and
   # /usr/lib/snapd, which are handled elsewhere.
-  /usr/lib/ r,
   /usr/lib/[^fms]** mrklix,
   /usr/lib/{f[^i],m[^o],s[^n]}** mrklix,
   /usr/lib/{fi[^r],mo[^d],sn[^a]}** mrklix,
   /usr/lib/{fir[^m],mod[^u],sna[^p]}** mrklix,
   /usr/lib/{firm[^w],modu[^l],snap[^d]}** mrklix,
   /usr/lib/snapd[^/]** mrklix,
-  /usr/lib/{firmw[^a],modul[^e]}** mrklix,
-  /usr/lib/{firmwa[^r],module[^s]}** mrklix,
-  /usr/lib/modules[^/]** mrklix,
-  /usr/lib/firmwar[^e]** mrklix,
-  /usr/lib/firmware[^/]** mrklix,
 
   # /var - the mount setup may bind mount in:
   #
@@ -933,6 +927,10 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
 
   # golang runtime variables
   /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
+  # glibc 2.27+ may poke this file to find out the number of CPUs
+  # available in the system when creating a new arena for malloc, see
+  # Golang issue 25628
+  /sys/devices/system/cpu/online r,
 
   # Allow reading the command line (snap-update-ns uses it in pre-Go bootstrap code).
   @{PROC}/@{pid}/cmdline r,
@@ -941,6 +939,9 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   @{PROC}/@{pid}/fd/* r,
   # Allow reading /proc/version. For release.go WSL detection.
   @{PROC}/version r,
+
+  # Allow reading own cgroups
+  @{PROC}/@{pid}/cgroup r,
 
   # Allow reading somaxconn, required in newer distro releases
   @{PROC}/sys/net/core/somaxconn r,
@@ -987,7 +988,15 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   capability dac_override,
 
   # Allow freezing and thawing the per-snap cgroup freezers
+  # v1 hierarchy where we know the group name of all processes of
+  # a given snap upfront
   /sys/fs/cgroup/freezer/snap.###SNAP_INSTANCE_NAME###/freezer.state rw,
+  # v2 hierarchy, where we need to walk the tree to looking for the tracking
+  # groups and act on each one
+  /sys/fs/cgroup/ r,
+  /sys/fs/cgroup/** r,
+  /sys/fs/cgroup/**/snap.###SNAP_INSTANCE_NAME###.*.scope/cgroup.freeze rw,
+  /sys/fs/cgroup/**/snap.###SNAP_INSTANCE_NAME###.*.service/cgroup.freeze rw,
 
   # Allow the content interface to bind fonts from the host filesystem
   mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /snap/###SNAP_INSTANCE_NAME###/*/**,

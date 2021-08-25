@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/cmdstate"
 	"github.com/snapcore/snapd/overlord/configstate"
@@ -589,6 +588,12 @@ func (o *Overlord) TaskRunner() *state.TaskRunner {
 // the overlord.
 func (o *Overlord) SnapManager() *snapstate.SnapManager {
 	return o.snapMgr
+}
+
+// ServiceManager returns the manager responsible for services
+// under the overlord.
+func (o *Overlord) ServiceManager() *servicestate.ServiceManager {
+	return o.serviceMgr
 }
 
 // AssertManager returns the assertion manager enforcing assertions

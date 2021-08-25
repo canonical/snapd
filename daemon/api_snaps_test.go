@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -57,6 +57,12 @@ type snapsSuite struct {
 }
 
 var _ = check.Suite(&snapsSuite{})
+
+func (s *snapsSuite) SetUpTest(c *check.C) {
+	s.apiBaseSuite.SetUpTest(c)
+
+	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage"})
+}
 
 func (s *snapsSuite) TestSnapsInfoIntegration(c *check.C) {
 	s.checkSnapsInfoIntegration(c, false, nil)
@@ -419,9 +425,9 @@ func (s *snapsSuite) TestPostSnapsVerifyMultiSnapInstruction(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "application/json")
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, testutil.Contains, `cannot install "ubuntu-core", please use "core" instead`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, testutil.Contains, `cannot install "ubuntu-core", please use "core" instead`)
 }
 
 func (s *snapsSuite) TestPostSnapsUnsupportedMultiOp(c *check.C) {
@@ -432,9 +438,9 @@ func (s *snapsSuite) TestPostSnapsUnsupportedMultiOp(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "application/json")
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, testutil.Contains, `unsupported multi-snap operation "switch"`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, testutil.Contains, `unsupported multi-snap operation "switch"`)
 }
 
 func (s *snapsSuite) TestPostSnapsNoWeirdses(c *check.C) {
@@ -456,9 +462,9 @@ func (s *snapsSuite) TestPostSnapsNoWeirdses(c *check.C) {
 			c.Assert(err, check.IsNil)
 			req.Header.Set("Content-Type", "application/json")
 
-			rsp := s.errorReq(c, req, nil)
-			c.Check(rsp.Status, check.Equals, 400)
-			c.Check(rsp.Result.(*daemon.ErrorResult).Message, testutil.Contains, `unsupported option provided for multi-snap operation`)
+			rspe := s.errorReq(c, req, nil)
+			c.Check(rspe.Status, check.Equals, 400)
+			c.Check(rspe.Message, testutil.Contains, `unsupported option provided for multi-snap operation`)
 		}
 	}
 }
@@ -506,9 +512,9 @@ func (s *snapsSuite) TestPostSnapsOpInvalidCharset(c *check.C) {
 	c.Assert(err, check.IsNil)
 	req.Header.Set("Content-Type", "application/json; charset=iso-8859-1")
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, testutil.Contains, "unknown charset in content type")
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, testutil.Contains, "unknown charset in content type")
 }
 
 func (s *snapsSuite) TestRefreshAll(c *check.C) {
@@ -801,8 +807,7 @@ UnitFileState=enabled
 	c.Check(m.InstallDate, check.FitsTypeOf, time.Time{})
 	m.InstallDate = time.Time{}
 
-	meta := &daemon.Meta{}
-	expected := &daemon.Resp{
+	expected := &daemon.RespJSON{
 		Type:   daemon.ResponseTypeSync,
 		Status: 200,
 		Result: &client.Snap{
@@ -905,7 +910,6 @@ UnitFileState=enabled
 			CommonIDs: []string{"org.foo.cmd"},
 			CohortKey: "some-long-cohort-key",
 		},
-		Meta: meta,
 	}
 
 	c.Check(rsp.Result, check.DeepEquals, expected.Result)
@@ -933,9 +937,9 @@ func (s *snapsSuite) TestSnapInfoIgnoresRemoteErrors(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/snaps/gfoo", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 404)
-	c.Check(rsp.Result, check.NotNil)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 404)
+	c.Check(rspe.Message, check.Not(check.Equals), "")
 }
 
 func (s *snapsSuite) TestMapLocalFields(c *check.C) {
@@ -966,7 +970,7 @@ func (s *snapsSuite) TestMapLocalFields(c *check.C) {
 			EditedSummary:     "a summary",
 			EditedDescription: "the\nlong\ndescription",
 			Channel:           "bleeding/edge",
-			Contact:           "alice@example.com",
+			EditedContact:     "mailto:alice@example.com",
 			Revision:          snap.R(7),
 			Private:           true,
 		},
@@ -1029,7 +1033,7 @@ func (s *snapsSuite) TestMapLocalFields(c *check.C) {
 		JailMode:         true,
 		Private:          true,
 		Broken:           "very",
-		Contact:          "alice@example.com",
+		Contact:          "mailto:alice@example.com",
 		Title:            "A Title",
 		License:          "MIT",
 		CommonIDs:        []string{"foo", "bar"},
@@ -1072,9 +1076,9 @@ func (s *snapsSuite) TestPostSnapBadRequest(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result, check.NotNil)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Not(check.Equals), "")
 }
 
 func (s *snapsSuite) TestPostSnapBadAction(c *check.C) {
@@ -1084,9 +1088,9 @@ func (s *snapsSuite) TestPostSnapBadAction(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result, check.NotNil)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Not(check.Equals), "")
 }
 
 func (s *snapsSuite) TestPostSnapBadChannel(c *check.C) {
@@ -1096,9 +1100,9 @@ func (s *snapsSuite) TestPostSnapBadChannel(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result, check.NotNil)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Not(check.Equals), "")
 }
 
 func (s *snapsSuite) TestPostSnap(c *check.C) {
@@ -1173,9 +1177,9 @@ func (s *snapsSuite) TestPostSnapVerifySnapInstruction(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/snaps/ubuntu-core", buf)
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, testutil.Contains, `cannot install "ubuntu-core", please use "core" instead`)
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, testutil.Contains, `cannot install "ubuntu-core", please use "core" instead`)
 }
 
 func (s *snapsSuite) TestPostSnapCohortUnsupportedAction(c *check.C) {
@@ -1187,9 +1191,9 @@ func (s *snapsSuite) TestPostSnapCohortUnsupportedAction(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
 		c.Assert(err, check.IsNil)
 
-		rsp := s.errorReq(c, req, nil)
-		c.Check(rsp.Status, check.Equals, 400, check.Commentf("%q", action))
-		c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, expectedErr, check.Commentf("%q", action))
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rspe.Message, check.Equals, expectedErr, check.Commentf("%q", action))
 	}
 }
 
@@ -1202,9 +1206,9 @@ func (s *snapsSuite) TestPostSnapLeaveCohortUnsupportedAction(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
 		c.Assert(err, check.IsNil)
 
-		rsp := s.errorReq(c, req, nil)
-		c.Check(rsp.Status, check.Equals, 400, check.Commentf("%q", action))
-		c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, expectedErr, check.Commentf("%q", action))
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400, check.Commentf("%q", action))
+		c.Check(rspe.Message, check.Equals, expectedErr, check.Commentf("%q", action))
 	}
 }
 
@@ -1224,9 +1228,9 @@ func (s *snapsSuite) TestPostSnapCohortIncompat(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/snaps/some-snap", buf)
 		c.Assert(err, check.IsNil, check.Commentf("%d (%s)", i, t.opts))
 
-		rsp := s.errorReq(c, req, nil)
-		c.Check(rsp.Status, check.Equals, 400, check.Commentf("%d (%s)", i, t.opts))
-		c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Equals, t.errmsg, check.Commentf("%d (%s)", i, t.opts))
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400, check.Commentf("%d (%s)", i, t.opts))
+		c.Check(rspe.Message, check.Equals, t.errmsg, check.Commentf("%d (%s)", i, t.opts))
 	}
 }
 
@@ -1253,7 +1257,6 @@ func (s *snapsSuite) TestPostSnapSetsUser(c *check.C) {
 	buf := bytes.NewBufferString(`{"action": "install"}`)
 	req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
 	c.Assert(err, check.IsNil)
-	req.Header.Set("Authorization", `Macaroon root="macaroon", discharge="discharge"`)
 
 	rsp := s.asyncReq(c, req, user)
 
@@ -1273,9 +1276,9 @@ func (s *snapsSuite) TestPostSnapEnableDisableSwitchRevision(c *check.C) {
 		req, err := http.NewRequest("POST", "/v2/snaps/hello-world", buf)
 		c.Assert(err, check.IsNil)
 
-		rsp := s.errorReq(c, req, nil)
-		c.Check(rsp.Status, check.Equals, 400)
-		c.Check(rsp.Result.(*daemon.ErrorResult).Message, testutil.Contains, "takes no revision")
+		rspe := s.errorReq(c, req, nil)
+		c.Check(rspe.Status, check.Equals, 400)
+		c.Check(rspe.Message, testutil.Contains, "takes no revision")
 	}
 }
 
@@ -1421,6 +1424,42 @@ func (s *snapsSuite) TestInstallCohort(c *check.C) {
 	c.Check(msg, check.Equals, `Install "fake" snap from "…e damned." cohort`)
 }
 
+func (s *snapsSuite) TestInstallIgnoreValidation(c *check.C) {
+	var calledFlags snapstate.Flags
+	installQueue := []string{}
+
+	defer daemon.MockSnapstateInstall(func(ctx context.Context, s *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags) (*state.TaskSet, error) {
+		installQueue = append(installQueue, name)
+		calledFlags = flags
+		t := s.NewTask("fake-install-snap", "Doing a fake install")
+		return state.NewTaskSet(t), nil
+	})()
+	defer daemon.MockAssertstateRefreshSnapDeclarations(func(s *state.State, userID int) error {
+		return nil
+	})()
+
+	d := s.daemon(c)
+	inst := &daemon.SnapInstruction{
+		Action:           "install",
+		IgnoreValidation: true,
+		Snaps:            []string{"some-snap"},
+	}
+
+	st := d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+	summary, _, err := inst.Dispatch()(inst, st)
+	c.Check(err, check.IsNil)
+
+	flags := snapstate.Flags{}
+	flags.IgnoreValidation = true
+
+	c.Check(calledFlags, check.DeepEquals, flags)
+	c.Check(err, check.IsNil)
+	c.Check(installQueue, check.DeepEquals, []string{"some-snap"})
+	c.Check(summary, check.Equals, `Install "some-snap" snap`)
+}
+
 func (s *snapsSuite) TestInstallEmptyName(c *check.C) {
 	defer daemon.MockSnapstateInstall(func(ctx context.Context, _ *state.State, _ string, _ *snapstate.RevisionOptions, _ int, _ snapstate.Flags) (*state.TaskSet, error) {
 		return nil, errors.New("should not be called")
@@ -1509,7 +1548,7 @@ func (s *snapsSuite) TestInstallUserAgentContextCreated(c *check.C) {
 	var buf bytes.Buffer
 	buf.WriteString(`{"action": "install"}`)
 	req, err := http.NewRequest("POST", "/v2/snaps/some-snap", &buf)
-	req.RemoteAddr = "pid=100;uid=0;socket=;"
+	s.asRootAuth(req)
 	c.Assert(err, check.IsNil)
 	req.Header.Add("User-Agent", "some-agent/1.0")
 
@@ -1942,10 +1981,10 @@ func (s *snapsSuite) TestErrToResponseNoSnapsDoesNotPanic(c *check.C) {
 	}
 
 	for _, err := range errors {
-		rsp := si.ErrToResponse(err)
+		rspe := si.ErrToResponse(err)
 		com := check.Commentf("%v", err)
-		c.Check(rsp, check.NotNil, com)
-		status := rsp.(*daemon.Resp).Status
+		c.Assert(rspe, check.NotNil, com)
+		status := rspe.Status
 		c.Check(status/100 == 4 || status/100 == 5, check.Equals, true, com)
 	}
 }
@@ -1962,21 +2001,18 @@ func (s *snapsSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 			snaptest.MustParseChannel("beta", thisArch),
 		},
 	}
-	rsp := si.ErrToResponse(err).(*daemon.Resp)
-	c.Check(rsp, check.DeepEquals, &daemon.Resp{
-		Status: 404,
-		Type:   daemon.ResponseTypeError,
-		Result: &daemon.ErrorResult{
-			Message: "no snap revision on specified channel",
-			Kind:    client.ErrorKindSnapChannelNotAvailable,
-			Value: map[string]interface{}{
-				"snap-name":    "foo",
-				"action":       "install",
-				"channel":      "stable",
-				"architecture": thisArch,
-				"releases": []map[string]interface{}{
-					{"architecture": thisArch, "channel": "beta"},
-				},
+	rspe := si.ErrToResponse(err)
+	c.Check(rspe, check.DeepEquals, &daemon.APIError{
+		Status:  404,
+		Message: "no snap revision on specified channel",
+		Kind:    client.ErrorKindSnapChannelNotAvailable,
+		Value: map[string]interface{}{
+			"snap-name":    "foo",
+			"action":       "install",
+			"channel":      "stable",
+			"architecture": thisArch,
+			"releases": []map[string]interface{}{
+				{"architecture": thisArch, "channel": "beta"},
 			},
 		},
 	})
@@ -1988,35 +2024,29 @@ func (s *snapsSuite) TestErrToResponseForRevisionNotAvailable(c *check.C) {
 			snaptest.MustParseChannel("beta", "other-arch"),
 		},
 	}
-	rsp = si.ErrToResponse(err).(*daemon.Resp)
-	c.Check(rsp, check.DeepEquals, &daemon.Resp{
-		Status: 404,
-		Type:   daemon.ResponseTypeError,
-		Result: &daemon.ErrorResult{
-			Message: "no snap revision on specified architecture",
-			Kind:    client.ErrorKindSnapArchitectureNotAvailable,
-			Value: map[string]interface{}{
-				"snap-name":    "foo",
-				"action":       "install",
-				"channel":      "stable",
-				"architecture": thisArch,
-				"releases": []map[string]interface{}{
-					{"architecture": "other-arch", "channel": "beta"},
-				},
+	rspe = si.ErrToResponse(err)
+	c.Check(rspe, check.DeepEquals, &daemon.APIError{
+		Status:  404,
+		Message: "no snap revision on specified architecture",
+		Kind:    client.ErrorKindSnapArchitectureNotAvailable,
+		Value: map[string]interface{}{
+			"snap-name":    "foo",
+			"action":       "install",
+			"channel":      "stable",
+			"architecture": thisArch,
+			"releases": []map[string]interface{}{
+				{"architecture": "other-arch", "channel": "beta"},
 			},
 		},
 	})
 
 	err = &store.RevisionNotAvailableError{}
-	rsp = si.ErrToResponse(err).(*daemon.Resp)
-	c.Check(rsp, check.DeepEquals, &daemon.Resp{
-		Status: 404,
-		Type:   daemon.ResponseTypeError,
-		Result: &daemon.ErrorResult{
-			Message: "no snap revision available as specified",
-			Kind:    client.ErrorKindSnapRevisionNotAvailable,
-			Value:   "foo",
-		},
+	rspe = si.ErrToResponse(err)
+	c.Check(rspe, check.DeepEquals, &daemon.APIError{
+		Status:  404,
+		Message: "no snap revision available as specified",
+		Kind:    client.ErrorKindSnapRevisionNotAvailable,
+		Value:   "foo",
 	})
 }
 
@@ -2024,47 +2054,38 @@ func (s *snapsSuite) TestErrToResponseForChangeConflict(c *check.C) {
 	si := &daemon.SnapInstruction{Action: "frobble", Snaps: []string{"foo"}}
 
 	err := &snapstate.ChangeConflictError{Snap: "foo", ChangeKind: "install"}
-	rsp := si.ErrToResponse(err).(*daemon.Resp)
-	c.Check(rsp, check.DeepEquals, &daemon.Resp{
-		Status: 409,
-		Type:   daemon.ResponseTypeError,
-		Result: &daemon.ErrorResult{
-			Message: `snap "foo" has "install" change in progress`,
-			Kind:    client.ErrorKindSnapChangeConflict,
-			Value: map[string]interface{}{
-				"snap-name":   "foo",
-				"change-kind": "install",
-			},
+	rspe := si.ErrToResponse(err)
+	c.Check(rspe, check.DeepEquals, &daemon.APIError{
+		Status:  409,
+		Message: `snap "foo" has "install" change in progress`,
+		Kind:    client.ErrorKindSnapChangeConflict,
+		Value: map[string]interface{}{
+			"snap-name":   "foo",
+			"change-kind": "install",
 		},
 	})
 
 	// only snap
 	err = &snapstate.ChangeConflictError{Snap: "foo"}
-	rsp = si.ErrToResponse(err).(*daemon.Resp)
-	c.Check(rsp, check.DeepEquals, &daemon.Resp{
-		Status: 409,
-		Type:   daemon.ResponseTypeError,
-		Result: &daemon.ErrorResult{
-			Message: `snap "foo" has changes in progress`,
-			Kind:    client.ErrorKindSnapChangeConflict,
-			Value: map[string]interface{}{
-				"snap-name": "foo",
-			},
+	rspe = si.ErrToResponse(err)
+	c.Check(rspe, check.DeepEquals, &daemon.APIError{
+		Status:  409,
+		Message: `snap "foo" has changes in progress`,
+		Kind:    client.ErrorKindSnapChangeConflict,
+		Value: map[string]interface{}{
+			"snap-name": "foo",
 		},
 	})
 
 	// only kind
 	err = &snapstate.ChangeConflictError{Message: "specific error msg", ChangeKind: "some-global-op"}
-	rsp = si.ErrToResponse(err).(*daemon.Resp)
-	c.Check(rsp, check.DeepEquals, &daemon.Resp{
-		Status: 409,
-		Type:   daemon.ResponseTypeError,
-		Result: &daemon.ErrorResult{
-			Message: "specific error msg",
-			Kind:    client.ErrorKindSnapChangeConflict,
-			Value: map[string]interface{}{
-				"change-kind": "some-global-op",
-			},
+	rspe = si.ErrToResponse(err)
+	c.Check(rspe, check.DeepEquals, &daemon.APIError{
+		Status:  409,
+		Message: "specific error msg",
+		Kind:    client.ErrorKindSnapChangeConflict,
+		Value: map[string]interface{}{
+			"change-kind": "some-global-op",
 		},
 	})
 }

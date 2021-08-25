@@ -23,9 +23,6 @@ environment:
 
 prepare: |
     # build the netplan snap for this system
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-
     if os.query is-xenial; then
         # use no base setting to use effectively "base: core"
         sed "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml.in" -e "s/base: BASESNAP/# no base snap for core base/" > "$TESTSLIB/snaps/netplan-snap/meta/snap.yaml"
@@ -98,7 +95,7 @@ execute: |
     fi
 
     echo "The D-Bus service was not activated"
-    not MATCH "Apply called" < dbus-netplan-apply.log
+    NOMATCH "Apply called" < dbus-netplan-apply.log
 
     echo "When the interface is connected"
     snap connect netplan-snap:network-setup-control
@@ -129,7 +126,7 @@ execute: |
     fi
 
     echo "The D-Bus service was not activated"
-    not MATCH "Info called" < dbus-netplan-apply.log
+    NOMATCH "Info called" < dbus-netplan-apply.log
 
     echo "When the interface is connected"
     snap connect netplan-snap:network-setup-observe
@@ -157,7 +154,7 @@ execute: |
     fi
 
     echo "The D-Bus service was not activated"
-    not MATCH "Info called" < dbus-netplan-apply.log
+    NOMATCH "Info called" < dbus-netplan-apply.log
 
     echo "When the interface is connected"
     snap connect netplan-snap:network-setup-control

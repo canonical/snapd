@@ -29,7 +29,6 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snap"
-
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -73,8 +72,7 @@ func attrs(yml string) *attrerObject {
 		panic(err)
 	}
 
-	var ao attrerObject
-	ao = info.Plugs["plug"].Attrs
+	ao := attrerObject(info.Plugs["plug"].Attrs)
 	return &ao
 }
 

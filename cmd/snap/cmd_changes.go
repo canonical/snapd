@@ -24,10 +24,10 @@ import (
 	"regexp"
 	"sort"
 
+	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
-
-	"github.com/jessevdk/go-flags"
 )
 
 var shortChangesHelp = i18n.G("List system changes")
@@ -107,7 +107,8 @@ func (c *cmdChanges) Execute(args []string) error {
 	}
 
 	if len(changes) == 0 {
-		return fmt.Errorf(i18n.G("no changes found"))
+		fmt.Fprintln(Stderr, i18n.G("no changes found"))
+		return nil
 	}
 
 	sort.Sort(changesByTime(changes))

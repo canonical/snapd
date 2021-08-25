@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,15 +29,15 @@ import (
 	"syscall"
 	"time"
 
-	// to set sysconfig.ApplyFilesystemOnlyDefaults hook
-	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
-
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/sysdb"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
+
+	// to set sysconfig.ApplyFilesystemOnlyDefaults hook
+	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/seed/seedwriter"
 	"github.com/snapcore/snapd/snap"
@@ -51,6 +51,43 @@ var (
 	Stdout io.Writer = os.Stdout
 	Stderr io.Writer = os.Stderr
 )
+
+func (custo *Customizations) validate(model *asserts.Model) error {
+	core20 := model.Grade() != asserts.ModelGradeUnset
+	var unsupported []string
+	unsupportedConsoleConfDisable := func() {
+		if custo.ConsoleConf == "disabled" {
+			unsupported = append(unsupported, "console-conf disable")
+		}
+	}
+	unsupportedBootFlags := func() {
+		if len(custo.BootFlags) != 0 {
+			unsupported = append(unsupported, fmt.Sprintf("boot flags (%s)", strings.Join(custo.BootFlags, " ")))
+		}
+	}
+
+	kind := "UC16/18"
+	switch {
+	case core20:
+		kind = "UC20"
+		// TODO:UC20: consider supporting these with grade dangerous?
+		unsupportedConsoleConfDisable()
+		if custo.CloudInitUserData != "" {
+			unsupported = append(unsupported, "cloud-init user-data")
+		}
+	case model.Classic():
+		kind = "classic"
+		unsupportedConsoleConfDisable()
+		unsupportedBootFlags()
+	default:
+		// UC16/18
+		unsupportedBootFlags()
+	}
+	if len(unsupported) != 0 {
+		return fmt.Errorf("cannot support with %s model requested customizations: %s", kind, strings.Join(unsupported, ", "))
+	}
+	return nil
+}
 
 // classicHasSnaps returns whether the model or options specify any snaps for the classic case
 func classicHasSnaps(model *asserts.Model, opts *Options) bool {
@@ -88,6 +125,10 @@ func Prepare(opts *Options) error {
 	// FIXME: limitation until we can pass series parametrized much more
 	if model.Series() != release.Series {
 		return fmt.Errorf("model with series %q != %q unsupported", model.Series(), release.Series)
+	}
+
+	if err := opts.Customizations.validate(model); err != nil {
+		return err
 	}
 
 	return setupSeed(tsto, model, opts)
@@ -142,6 +183,39 @@ func installCloudConfig(rootDir, gadgetDir string) error {
 	}
 	dst := filepath.Join(cloudDir, "cloud.cfg")
 	return osutil.CopyFile(cloudConfig, dst, osutil.CopyFlagOverwrite)
+}
+
+func customizeImage(rootDir, defaultsDir string, custo *Customizations) error {
+	// customize with cloud-init user-data
+	if custo.CloudInitUserData != "" {
+		// See
+		// https://cloudinit.readthedocs.io/en/latest/topics/dir_layout.html
+		// https://cloudinit.readthedocs.io/en/latest/topics/datasources/nocloud.html
+		varCloudDir := filepath.Join(rootDir, "/var/lib/cloud/seed/nocloud-net")
+		if err := os.MkdirAll(varCloudDir, 0755); err != nil {
+			return err
+		}
+		if err := ioutil.WriteFile(filepath.Join(varCloudDir, "meta-data"), []byte("instance-id: nocloud-static\n"), 0644); err != nil {
+			return err
+		}
+		dst := filepath.Join(varCloudDir, "user-data")
+		if err := osutil.CopyFile(custo.CloudInitUserData, dst, osutil.CopyFlagOverwrite); err != nil {
+			return err
+		}
+	}
+
+	if custo.ConsoleConf == "disabled" {
+		// TODO: maybe share code with configcore somehow
+		consoleConfDisabled := filepath.Join(defaultsDir, "/var/lib/console-conf/complete")
+		if err := os.MkdirAll(filepath.Dir(consoleConfDisabled), 0755); err != nil {
+			return err
+		}
+		if err := ioutil.WriteFile(consoleConfDisabled, []byte("console-conf has been disabled by image customization\n"), 0644); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 var trusted = sysdb.Trusted()
@@ -422,7 +496,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 		return err
 	}
 
-	if err := boot.MakeBootableImage(model, bootRootDir, bootWith, nil); err != nil {
+	if err := boot.MakeBootableImage(model, bootRootDir, bootWith, opts.Customizations.BootFlags); err != nil {
 		return err
 	}
 
@@ -453,9 +527,10 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			if err := os.MkdirAll(sysconfig.WritableDefaultsDir(rootDir, "/etc"), 0755); err != nil {
 				return err
 			}
-			applyOpts := &sysconfig.FilesystemOnlyApplyOptions{Classic: opts.Classic}
-			return sysconfig.ApplyFilesystemOnlyDefaults(defaultsDir, defaults, applyOpts)
+			return sysconfig.ApplyFilesystemOnlyDefaults(model, defaultsDir, defaults)
 		}
+
+		customizeImage(rootDir, defaultsDir, &opts.Customizations)
 	}
 
 	return nil

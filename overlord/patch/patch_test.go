@@ -314,11 +314,6 @@ func (s *patchSuite) TestError(c *C) {
 	c.Check(n, Equals, 10)
 }
 
-const coreYaml = `name: core
-version: 1
-type: os
-`
-
 func (s *patchSuite) testMaybeResetPatchLevel6(c *C, snapdVersion, lastVersion string, expectedPatches []int) {
 	var sequence []int
 

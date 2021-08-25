@@ -25,13 +25,14 @@ import (
 	"os"
 	"path/filepath"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/grubenv"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/testutil"
-	. "gopkg.in/check.v1"
 )
 
 type bootFlagsSuite struct {
@@ -113,7 +114,7 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20InstallModeHappy(c *C) 
 	// if we set some flags via ubuntu-image customizations then we get them
 	// back
 
-	err = boot.SetImageBootFlags([]string{"factory"}, blDir)
+	err = boot.SetBootFlagsInBootloader([]string{"factory"}, blDir)
 	c.Assert(err, IsNil)
 
 	flags, err = boot.InitramfsActiveBootFlags(boot.ModeInstall)
@@ -122,11 +123,6 @@ func (s *bootFlagsSuite) TestInitramfsActiveBootFlagsUC20InstallModeHappy(c *C) 
 }
 
 func (s *bootFlagsSuite) TestSetImageBootFlagsVerification(c *C) {
-	dir := c.MkDir()
-
-	dirs.SetRootDir(dir)
-	defer func() { dirs.SetRootDir("") }()
-
 	longVal := "longer-than-256-char-value"
 	for i := 0; i < 256; i++ {
 		longVal += "X"
@@ -135,18 +131,12 @@ func (s *bootFlagsSuite) TestSetImageBootFlagsVerification(c *C) {
 	r := boot.MockAdditionalBootFlags([]string{longVal})
 	defer r()
 
-	blDir := boot.InitramfsUbuntuSeedDir
+	blVars := make(map[string]string)
 
-	setupRealGrub(c, blDir, "EFI/ubuntu", &bootloader.Options{Role: bootloader.RoleRecovery})
-
-	flags, err := boot.InitramfsActiveBootFlags(boot.ModeInstall)
-	c.Assert(err, IsNil)
-	c.Assert(flags, HasLen, 0)
-
-	err = boot.SetImageBootFlags([]string{"not-a-real-flag"}, blDir)
+	err := boot.SetImageBootFlags([]string{"not-a-real-flag"}, blVars)
 	c.Assert(err, ErrorMatches, `unknown boot flags \[not-a-real-flag\] not allowed`)
 
-	err = boot.SetImageBootFlags([]string{longVal}, blDir)
+	err = boot.SetImageBootFlags([]string{longVal}, blVars)
 	c.Assert(err, ErrorMatches, "internal error: boot flags too large to fit inside bootenv value")
 }
 

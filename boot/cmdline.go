@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -29,7 +29,6 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
-	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -103,30 +102,29 @@ func getBootloaderManagingItsAssets(where string, opts *bootloader.Options) (boo
 // bootVarsForTrustedCommandLineFromGadget returns a set of boot variables that
 // carry the command line arguments requested by the gadget. This is only useful
 // if snapd is managing the boot config.
-func bootVarsForTrustedCommandLineFromGadget(gadgetSnap string) (map[string]string, error) {
-	sf, err := snapfile.Open(gadgetSnap)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open gadget snap: %v", err)
-	}
-	extraOrFull, full, err := gadget.KernelCommandLineFromGadget(sf)
+func bootVarsForTrustedCommandLineFromGadget(gadgetDirOrSnapPath string) (map[string]string, error) {
+	extraOrFull, full, err := gadget.KernelCommandLineFromGadget(gadgetDirOrSnapPath)
 	if err != nil {
 		if err == gadget.ErrNoKernelCommandline {
 			// nothing set by the gadget, but we could have had
 			// arguments before, so make sure those are cleared now
 			clear := map[string]string{
 				"snapd_extra_cmdline_args": "",
+				"snapd_full_cmdline_args":  "",
 			}
 			return clear, nil
 		}
 		return nil, fmt.Errorf("cannot use kernel command line from gadget: %v", err)
 	}
 	// gadget has the kernel command line
-	// TODO:UC20: support full command lines
-	if full {
-		return nil, fmt.Errorf("full kernel command line provided by the gadget is not supported yet")
-	}
 	args := map[string]string{
-		"snapd_extra_cmdline_args": extraOrFull,
+		"snapd_extra_cmdline_args": "",
+		"snapd_full_cmdline_args":  "",
+	}
+	if full {
+		args["snapd_full_cmdline_args"] = extraOrFull
+	} else {
+		args["snapd_extra_cmdline_args"] = extraOrFull
 	}
 	return args, nil
 }
@@ -136,10 +134,7 @@ const (
 	candidateEdition
 )
 
-func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, system, gadgetDirOrSnapPath string) (string, error) {
-	if model.Grade() == asserts.ModelGradeUnset {
-		return "", nil
-	}
+func composeCommandLine(currentOrCandidate int, mode, system, gadgetDirOrSnapPath string) (string, error) {
 	if mode != ModeRun && mode != ModeRecover {
 		return "", fmt.Errorf("internal error: unsupported command line mode %q", mode)
 	}
@@ -149,8 +144,9 @@ func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, syst
 		NoSlashBoot: true,
 	}
 	bootloaderRootDir := InitramfsUbuntuBootDir
-	modeArg := "snapd_recovery_mode=run"
-	systemArg := ""
+	components := bootloader.CommandLineComponents{
+		ModeArg: "snapd_recovery_mode=run",
+	}
 	if mode == ModeRecover {
 		if system == "" {
 			return "", fmt.Errorf("internal error: system is unset")
@@ -159,8 +155,10 @@ func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, syst
 		opts.Role = bootloader.RoleRecovery
 		bootloaderRootDir = InitramfsUbuntuSeedDir
 		// recovery mode & system command line arguments
-		modeArg = "snapd_recovery_mode=recover"
-		systemArg = fmt.Sprintf("snapd_recovery_system=%v", system)
+		components = bootloader.CommandLineComponents{
+			ModeArg:   "snapd_recovery_mode=recover",
+			SystemArg: fmt.Sprintf("snapd_recovery_system=%v", system),
+		}
 	}
 	mbl, err := getBootloaderManagingItsAssets(bootloaderRootDir, opts)
 	if err != nil {
@@ -169,56 +167,63 @@ func composeCommandLine(model *asserts.Model, currentOrCandidate int, mode, syst
 		}
 		return "", err
 	}
-	extraArgs := ""
 	if gadgetDirOrSnapPath != "" {
-		sf, err := snapfile.Open(gadgetDirOrSnapPath)
-		if err != nil {
-			return "", fmt.Errorf("cannot open gadget snap: %v", err)
-		}
-		extraOrFull, full, err := gadget.KernelCommandLineFromGadget(sf)
+		extraOrFull, full, err := gadget.KernelCommandLineFromGadget(gadgetDirOrSnapPath)
 		if err != nil && err != gadget.ErrNoKernelCommandline {
 			return "", fmt.Errorf("cannot use kernel command line from gadget: %v", err)
 		}
 		if err == nil {
 			// gadget provides some part of the kernel command line
 			if full {
-				// TODO:UC20: support full command lines
-				return "", fmt.Errorf("full kernel command line provided by the gadget is not supported yet")
+				components.FullArgs = extraOrFull
+			} else {
+				components.ExtraArgs = extraOrFull
 			}
-			extraArgs = extraOrFull
 		}
 	}
 	if currentOrCandidate == currentEdition {
-		return mbl.CommandLine(modeArg, systemArg, extraArgs)
+		return mbl.CommandLine(components)
 	} else {
-		return mbl.CandidateCommandLine(modeArg, systemArg, extraArgs)
+		return mbl.CandidateCommandLine(components)
 	}
 }
 
 // ComposeRecoveryCommandLine composes the kernel command line used when booting
 // a given system in recover mode.
 func ComposeRecoveryCommandLine(model *asserts.Model, system, gadgetDirOrSnapPath string) (string, error) {
-	return composeCommandLine(model, currentEdition, ModeRecover, system, gadgetDirOrSnapPath)
+	if model.Grade() == asserts.ModelGradeUnset {
+		return "", nil
+	}
+	return composeCommandLine(currentEdition, ModeRecover, system, gadgetDirOrSnapPath)
 }
 
 // ComposeCommandLine composes the kernel command line used when booting the
 // system in run mode.
 func ComposeCommandLine(model *asserts.Model, gadgetDirOrSnapPath string) (string, error) {
-	return composeCommandLine(model, currentEdition, ModeRun, "", gadgetDirOrSnapPath)
+	if model.Grade() == asserts.ModelGradeUnset {
+		return "", nil
+	}
+	return composeCommandLine(currentEdition, ModeRun, "", gadgetDirOrSnapPath)
 }
 
 // ComposeCandidateCommandLine composes the kernel command line used when
 // booting the system in run mode with the current built-in edition of managed
 // boot assets.
 func ComposeCandidateCommandLine(model *asserts.Model, gadgetDirOrSnapPath string) (string, error) {
-	return composeCommandLine(model, candidateEdition, ModeRun, "", gadgetDirOrSnapPath)
+	if model.Grade() == asserts.ModelGradeUnset {
+		return "", nil
+	}
+	return composeCommandLine(candidateEdition, ModeRun, "", gadgetDirOrSnapPath)
 }
 
 // ComposeCandidateRecoveryCommandLine composes the kernel command line used
 // when booting the given system in recover mode with the current built-in
 // edition of managed boot assets.
 func ComposeCandidateRecoveryCommandLine(model *asserts.Model, system, gadgetDirOrSnapPath string) (string, error) {
-	return composeCommandLine(model, candidateEdition, ModeRecover, system, gadgetDirOrSnapPath)
+	if model.Grade() == asserts.ModelGradeUnset {
+		return "", nil
+	}
+	return composeCommandLine(candidateEdition, ModeRecover, system, gadgetDirOrSnapPath)
 }
 
 // observeSuccessfulCommandLine observes a successful boot with a command line
@@ -233,8 +238,9 @@ func observeSuccessfulCommandLine(model *asserts.Model, m *Modeenv) (*Modeenv, e
 
 	switch len(m.CurrentKernelCommandLines) {
 	case 0:
-		// compatibility scenario, no command lines tracked in modeenv
-		// yet, this can happen when having booted with a newer snapd
+		// maybe a compatibility scenario, no command lines tracked in
+		// modeenv yet, this can happen when having booted with a newer
+		// snapd
 		return observeSuccessfulCommandLineCompatBoot(model, m)
 	case 1:
 		// no command line update
@@ -280,6 +286,12 @@ func observeSuccessfulCommandLineCompatBoot(model *asserts.Model, m *Modeenv) (*
 	cmdlineExpected, err := ComposeCommandLine(model, "")
 	if err != nil {
 		return nil, err
+	}
+	if cmdlineExpected == "" {
+		// there is no particular command line expected for this model
+		// and system bootloader, indicating that the command line is
+		// not being tracked
+		return m, nil
 	}
 	cmdlineBootedWith, err := osutil.KernelCommandLine()
 	if err != nil {
@@ -346,7 +358,7 @@ func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReas
 	}
 
 	expectReseal := true
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, model, m, expectReseal); err != nil {
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, m, expectReseal); err != nil {
 		return false, err
 	}
 	return true, nil
@@ -355,7 +367,7 @@ func observeCommandLineUpdate(model *asserts.Model, reason commandLineUpdateReas
 // kernelCommandLinesForResealWithFallback provides the list of kernel command
 // lines for use during reseal. During normal operation, the command lines will
 // be listed in the modeenv.
-func kernelCommandLinesForResealWithFallback(model *asserts.Model, modeenv *Modeenv) (cmdlines []string, err error) {
+func kernelCommandLinesForResealWithFallback(modeenv *Modeenv) (cmdlines []string, err error) {
 	if len(modeenv.CurrentKernelCommandLines) > 0 {
 		return modeenv.CurrentKernelCommandLines, nil
 	}
@@ -363,7 +375,8 @@ func kernelCommandLinesForResealWithFallback(model *asserts.Model, modeenv *Mode
 	// default during snapd update, since this is a compatibility scenario
 	// there would be no kernel command lines arguments coming from the
 	// gadget either
-	cmdline, err := ComposeCommandLine(model, "")
+	gadgetDir := ""
+	cmdline, err := composeCommandLine(currentEdition, ModeRun, "", gadgetDir)
 	if err != nil {
 		return nil, err
 	}
