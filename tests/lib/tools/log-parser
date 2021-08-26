@@ -331,21 +331,21 @@ class LogReader:
         return re.findall(r'\d{2}:\d{2}:\d{2}', time)
 
     def _match_info(self, line):
-        parts = line.split(' ')
+        parts = line.strip().split(' ')
         return len(parts) > 3 and \
             parts[2] in INFO_TYPES and \
             self._match_date(parts[0]) and \
             self._match_time(parts[1])
 
     def _match_task(self, line):
-        parts = line.split(' ')
+        parts = line.strip().split(' ')
         return len(parts) > 2 and \
             parts[2] in EXEC_VERBS and \
             self._match_date(parts[0]) and \
             self._match_time(parts[1])
 
     def _match_start(self, line):
-        parts = line.split(' ')
+        parts = line.strip().split(' ')
         return len(parts) > 2 and \
             parts[2] == START and \
             self._match_date(parts[0]) and \
@@ -353,14 +353,14 @@ class LogReader:
             SPREAD_FILE in parts[3]
 
     def _match_operation(self, line):
-        parts = line.split(' ')
+        parts = line.strip().split(' ')
         return len(parts) > 2 and \
             parts[2] in OPERATIONS and \
             self._match_date(parts[0]) and \
             self._match_time(parts[1])
 
     def _match_result(self, line):
-        parts = line.split(' ')
+        parts = line.strip().split(' ')
         return len(parts) > 2 and \
             parts[2] in RESULTS and \
             self._match_date(parts[0]) and \
@@ -391,7 +391,7 @@ class LogReader:
         Get the Info object for the error, debug and warning lines including
         the details for this
         """
-        parts = line.split(' ')
+        parts = line.strip().split(' ')
         if len(parts) < 3:
             return None
         date = parts[0]
@@ -420,7 +420,7 @@ class LogReader:
 
     def _get_result(self, line):
         """ Get the Result object including the details for the result """
-        parts = line.split(' ')
+        parts = line.strip().split(' ')
         if len(parts) < 3:
             print(parts)
             return None
@@ -442,7 +442,7 @@ class LogReader:
         """
         Get the Action object for lines preparing, executing and restoring
         """
-        parts = line.split(' ')
+        parts = line.strip().split(' ')
         if len(parts) < 3:
             return None
         date = parts[0]
@@ -453,7 +453,7 @@ class LogReader:
 
     def _get_operation(self, line):
         """ Get the Operation object for lines rebooting, allocating, etc """
-        parts = line.split(' ')
+        parts = line.strip().split(' ')
         if len(parts) < 3:
             return None
         date = parts[0]

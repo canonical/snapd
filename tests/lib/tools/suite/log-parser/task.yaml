@@ -8,9 +8,9 @@ execute: |
     "$TESTSTOOLS"/log-parser -h | grep -qE 'usage: log-parser \[-h\] \[-c CUT\]'
     
     # Check results when the log just contains successful tests
-    "$TESTSTOOLS"/log-parser all-passed.log.spread
+    "$TESTSTOOLS"/log-parser all-successful.log.spread
     TESTS_SUCCESSFUL=$(jq -r '.[] | select( .type == "result") | select( .result_type == "Successful") | .number' spread-results.json)
-    test "$TESTS_SUCCESSFUL" = "102"
+    test "$TESTS_SUCCESSFUL" = "434"
     
     # Check results when the log contains failed tests
     "$TESTSTOOLS"/log-parser with-failed.log.spread
@@ -60,6 +60,6 @@ execute: |
     # Check the results can be filtered
     "$TESTSTOOLS"/log-parser with-failed-and-aborted.log.spread -pr failed | grep -q "Failed tasks: 1"
     "$TESTSTOOLS"/log-parser with-failed-and-aborted.log.spread -pr failed | grep -c "Failed project prepare: 4"
-    "$TESTSTOOLS"/log-parser with-failed-and-aborted.log.spread -pr failed | grep -c "Aborted tasks: 24"
-    "$TESTSTOOLS"/log-parser all-successful.log.spread -pr failed | grep -q "Successful tasks: 434"
+    "$TESTSTOOLS"/log-parser with-failed-and-aborted.log.spread -pr aborted | grep -c "Aborted tasks: 24"
+    "$TESTSTOOLS"/log-parser all-successful.log.spread -pr successful | grep -q "Successful tasks: 434"
     "$TESTSTOOLS"/log-parser all-successful.log.spread -pr failed | grep -v "Aborted tasks"
