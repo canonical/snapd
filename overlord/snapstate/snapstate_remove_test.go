@@ -25,7 +25,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
@@ -1743,11 +1742,11 @@ func (s *validationSetsSuite) SetUpTest(c *C) {
 
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.dev1acct = assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
-	c.Assert(s.storeSigning.Add(s.dev1acct), check.IsNil)
+	c.Assert(s.storeSigning.Add(s.dev1acct), IsNil)
 	dev1PrivKey, _ := assertstest.GenerateKey(752)
 	s.acct1Key = assertstest.NewAccountKey(s.storeSigning, s.dev1acct, nil, dev1PrivKey.PublicKey(), "")
 	s.dev1Signing = assertstest.NewSigningDB(s.dev1acct.AccountID(), dev1PrivKey)
-	c.Assert(s.storeSigning.Add(s.acct1Key), check.IsNil)
+	c.Assert(s.storeSigning.Add(s.acct1Key), IsNil)
 
 	oldAutomaticSnapshot := snapstate.AutomaticSnapshot
 	snapstate.AutomaticSnapshot = func(st *state.State, instanceName string) (ts *state.TaskSet, err error) {
@@ -1778,7 +1777,7 @@ func (s *validationSetsSuite) mockValidationSetAssert(c *C, name, sequence strin
 		"snaps":        snaps,
 	}
 	vs, err := s.dev1Signing.Sign(asserts.ValidationSetType, headers, nil, "")
-	c.Assert(err, check.IsNil)
+	c.Assert(err, IsNil)
 	return vs
 }
 
