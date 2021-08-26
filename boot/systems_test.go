@@ -1735,7 +1735,7 @@ func (s *systemsSuite) TestDropRecoverySystemResealErr(c *C) {
 	})
 }
 
-func (s *systemsSuite) TestAddRecoveryCapableSystemHappy(c *C) {
+func (s *systemsSuite) TestMarkRecoveryCapableSystemHappy(c *C) {
 	rbl := bootloadertest.Mock("recovery", c.MkDir()).RecoveryAware()
 	bootloader.Force(rbl)
 
@@ -1787,7 +1787,7 @@ func (s *systemsSuite) TestAddRecoveryCapableSystemHappy(c *C) {
 	})
 }
 
-func (s *systemsSuite) TestAddRecoveryCapableSystemErr(c *C) {
+func (s *systemsSuite) TestMarkRecoveryCapableSystemErr(c *C) {
 	rbl := bootloadertest.Mock("recovery", c.MkDir()).RecoveryAware()
 	bootloader.Force(rbl)
 
@@ -1821,7 +1821,7 @@ func (s *systemsSuite) TestAddRecoveryCapableSystemErr(c *C) {
 
 }
 
-func (s *systemsSuite) TestAddRecoveryCapableSystemNonRecoveryAware(c *C) {
+func (s *systemsSuite) TestMarkRecoveryCapableSystemNonRecoveryAware(c *C) {
 	bl := bootloadertest.Mock("recovery", c.MkDir())
 	bootloader.Force(bl)
 

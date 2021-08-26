@@ -1171,7 +1171,7 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20WithCustomKernelInvalidArg
 	s.testMakeSystemRunnable20WithCustomKernelArgs(c, "cmdline.extra", "foo bar snapd=unhappy", errMsg, "", "")
 }
 
-func (s *makeBootable20Suite) TestMakeSystemRunnable20UnhappyAddRecoveryCapable(c *C) {
+func (s *makeBootable20Suite) TestMakeSystemRunnable20UnhappyMarkRecoveryCapable(c *C) {
 	bootloader.Force(nil)
 
 	model := boottest.MakeMockUC20Model()
