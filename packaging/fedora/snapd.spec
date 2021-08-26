@@ -513,11 +513,14 @@ rm -rf vendor/*
 mkdir -p src/github.com/snapcore
 ln -s ../../../ src/github.com/snapcore/snapd
 
-#%if ! 0%{?with_bundled}
-#export GOPATH=$(pwd):%{gopath}
+%if ! 0%{?with_bundled}
+export GOPATH=$(pwd):%{gopath}
+# FIXME: move spec file really to a go.mod world instead of this hack
+rm -f go.mod
+export GO111MODULE=off
 #%else
 #export GOPATH=$(pwd):$(pwd)/Godeps/_workspace:%{gopath}
-#%endif
+%endif
 
 # see https://github.com/gofed/go-macros/blob/master/rpm/macros.d/macros.go-compilers-golang
 BUILDTAGS=
@@ -537,7 +540,7 @@ sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go err
 # We have to build snapd first to prevent the build from
 # building various things from the tree without additional
 # set tags.
-%gobuild -o bin/snapd $GOFLAGS %{import_path}/cmd/snapd
+%gobuild -o bin/snapd $GOFLAGS ./cmd/snapd
 BUILDTAGS="${BUILDTAGS} nomanagers"
 %gobuild -o bin/snap $GOFLAGS %{import_path}/cmd/snap
 %gobuild -o bin/snap-failure $GOFLAGS %{import_path}/cmd/snap-failure
@@ -768,6 +771,8 @@ export GOPATH=%{buildroot}/%{gopath}:%{gopath}
 %else
 export GOPATH=%{buildroot}/%{gopath}:$(pwd)/Godeps/_workspace:%{gopath}
 %endif
+# FIXME: we are in the go.mod world now but without this things fall apart
+export GO111MODULE=off
 %gotest %{import_path}/...
 %endif
 
