@@ -118,24 +118,22 @@ clean_skipped() {
 }
 
 check_monitor() {
-    if [ -n "$(command -v tree)" ]; then
-        save_current_tree /tmp/fs-final
-        clean_skipped
-        
-        rm -f /tmp/fs-diff
-        for f in /tmp/fs-initial/*; do
-            diff /tmp/fs-initial/"$f" /tmp/fs-final/"$f" >> /tmp/fs-diff
-        done
+    save_current_tree /tmp/fs-final
+    clean_skipped
 
-        if [ ! -e /tmp/fs-diff ]; then
-            echo "the /tmp/fs-diff file does not exist"
-            exit 1
-        fi
-        if [ -n "$(cat /tmp/fs-diff)" ]; then
-            echo "the diff file is not empty:"
-            cat /tmp/fs-diff 
-            exit 1
-        fi
+    rm -f /tmp/fs-diff
+    for f in /tmp/fs-initial/*; do
+        diff /tmp/fs-initial/"$f" /tmp/fs-final/"$f" >> /tmp/fs-diff
+    done
+
+    if [ ! -e /tmp/fs-diff ]; then
+        echo "the /tmp/fs-diff file does not exist"
+        exit 1
+    fi
+    if [ -n "$(cat /tmp/fs-diff)" ]; then
+        echo "the diff file is not empty:"
+        cat /tmp/fs-diff 
+        exit 1
     fi
 }
 
