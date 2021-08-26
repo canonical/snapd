@@ -3,7 +3,7 @@
 snapctl set configure-marker="executed-for-v2"
 
 command=$(snapctl get fail-configure)
-if [ "x$command" = "xyes" ]; then
+if [ "$command" = "yes" ]; then
     echo "failing configure hook as requested"
     exit 1
 fi
