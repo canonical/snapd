@@ -3302,7 +3302,7 @@ assumes: [something-that-is-not-provided]
 	defer st.Unlock()
 
 	_, err := snapstate.Install(context.TODO(), st, "some-snap", nil, 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" assumes unsupported features: something-that-is-not-provided \(try to update snapd and refresh the core snap\)`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" assumes unsupported features: something-that-is-not-provided \(try to refresh snapd\)`)
 }
 
 func (s *mgrsSuite) TestUpdateWithAssumesIsRefusedEarly(c *C) {
@@ -3332,7 +3332,7 @@ assumes: [something-that-is-not-provided]
 	})
 
 	_, err := snapstate.Update(st, "some-snap", nil, 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" assumes unsupported features: something-that-is-not-provided \(try to update snapd and refresh the core snap\)`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" assumes unsupported features: something-that-is-not-provided \(try to refresh snapd\)`)
 }
 
 func (s *mgrsSuite) TestUpdateManyWithAssumesIsRefusedEarly(c *C) {
