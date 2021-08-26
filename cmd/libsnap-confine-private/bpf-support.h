@@ -38,6 +38,7 @@ int bpf_get_by_path(const char *path);
  * bpf_load_prog loads a given BPF program and returns a file descriptor handle
  * to it.
  *
+ * The program is passed as an insns_cnt long array of BPF instructions.
  * Passing non-NULL log buf, will populate the buffer with output from verifier
  * if the program is found to be invalid. The returned file descriptor has
  * O_CLOEXEC flag set on it.

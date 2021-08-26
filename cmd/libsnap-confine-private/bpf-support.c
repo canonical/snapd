@@ -83,6 +83,10 @@ int bpf_get_by_path(const char *path) {
 
 int bpf_load_prog(enum bpf_prog_type type, const struct bpf_insn *insns, size_t insns_cnt, char *log_buf,
                   size_t log_buf_size) {
+    if (type == BPF_PROG_TYPE_UNSPEC) {
+        errno = EINVAL;
+        return -1;
+    }
     debug("load program of type 0x%x, %zu instructions", type, insns_cnt);
     union bpf_attr attr;
     memset(&attr, 0, sizeof(attr));
