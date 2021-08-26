@@ -8280,3 +8280,54 @@ volumes:
 	//  gadget content is not updated because there is no edition update
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "start.elf"), testutil.FileContains, "start.elf rev1")
 }
+
+// deal with the missing "update-gadget-assets" tasks, see LP:#1940553
+func (ms *gadgetUpdatesSuite) TestGadgetKernelRefreshFromOldBrokenSnap(c *C) {
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// we have an install kernel/gadget
+	gadgetSnapYaml := "name: pi\nversion: 1.0\ntype: gadget"
+	ms.mockInstalledSnapWithFiles(c, gadgetSnapYaml, [][]string{
+		{"meta/gadget.yaml", "volumes:\n volume-id:\n  bootloader: grub"},
+	})
+	kernelSnapYaml := "name: pi-kernel\nversion: 1.0\ntype: kernel"
+	ms.mockInstalledSnapWithFiles(c, kernelSnapYaml, nil)
+
+	// add new kernel/gadget snap
+	newKernelSnapYaml := kernelSnapYaml
+	ms.mockSnapUpgradeWithFiles(c, newKernelSnapYaml, nil)
+	ms.mockSnapUpgradeWithFiles(c, gadgetSnapYaml, [][]string{
+		{"meta/gadget.yaml", "volumes:\n volume-id:\n  bootloader: grub"},
+	})
+
+	// now a refresh is simulated that does *not* contain an
+	// "update-gadget-assets" task, see LP:#1940553
+	snapstate.TestingLeaveOutKernelUpdateGadgetAssets = true
+	defer func() { snapstate.TestingLeaveOutKernelUpdateGadgetAssets = false }()
+	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, &snapstate.Flags{})
+	c.Assert(err, IsNil)
+	sort.Strings(affected)
+	c.Check(affected, DeepEquals, []string{"pi", "pi-kernel"})
+
+	// here we need to manipulate the change to simulate that there
+	// is no "update-gadget-assets" task for the kernel, unfortunately
+	// there is no "state.TaskSet.RemoveTask" nor a "state.Task.Unwait()"
+	chg := st.NewChange("upgrade-snaps", "...")
+	for _, ts := range tasksets {
+		// skip the taskset of UpdateMany that does the
+		// check-rerefresh, see tsWithoutReRefresh for details
+		if ts.Tasks()[0].Kind() == "check-rerefresh" {
+			continue
+		}
+
+		chg.AddAll(ts)
+	}
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Mount snap \"pi-kernel\" \\(2\\) \\(cannot refresh kernel with change created by old snapd that is missing gadget update task\\)")
+}

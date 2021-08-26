@@ -1487,6 +1487,9 @@ func (s *snapmgrTestSuite) TestUpdateRememberedUserRunThrough(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateModelKernelSwitchTrackRunThrough(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	// use services-snap here to make sure services would be stopped/started appropriately
 	si := snap.SideInfo{
 		RealName: "kernel",
