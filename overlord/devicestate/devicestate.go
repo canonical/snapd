@@ -341,13 +341,59 @@ func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firs
 	return firstDl, tasks[edgeTaskIndex], tasks[edgeTaskIndex+1], lastInst, nil
 }
 
+func isNotInstalled(err error) bool {
+	_, ok := err.(*snap.NotInstalledError)
+	return ok
+}
+
 func notInstalled(st *state.State, name string) (bool, error) {
 	_, err := snapstate.CurrentInfo(st, name)
-	_, isNotInstalled := err.(*snap.NotInstalledError)
-	if isNotInstalled {
+	if isNotInstalled(err) {
 		return true, nil
 	}
 	return false, err
+}
+
+func kernelChange(current, new *asserts.Model) (changed bool, newKernelChannel string) {
+	if new.Grade() == asserts.ModelGradeUnset {
+		if current.Kernel() != new.Kernel() {
+			return true, new.KernelTrack()
+		}
+		trackChange := current.KernelTrack() != new.KernelTrack()
+		if trackChange {
+			return true, new.KernelTrack()
+		}
+	} else {
+		if current.Kernel() != new.Kernel() {
+			return true, new.KernelSnap().DefaultChannel
+		}
+		defaultChannelChange := current.KernelSnap().DefaultChannel != new.KernelSnap().DefaultChannel
+		if defaultChannelChange {
+			return true, new.KernelSnap().DefaultChannel
+		}
+	}
+	return false, ""
+}
+
+func gadgetChange(current, new *asserts.Model) (changed bool, newGadgetChange string) {
+	if new.Grade() == asserts.ModelGradeUnset {
+		if current.Gadget() != new.Gadget() {
+			return true, new.GadgetTrack()
+		}
+		trackChange := current.GadgetTrack() != new.GadgetTrack()
+		if trackChange {
+			return true, new.GadgetTrack()
+		}
+	} else {
+		if current.Gadget() != new.Gadget() {
+			return true, new.GadgetSnap().DefaultChannel
+		}
+		defaultChannelChange := current.GadgetSnap().DefaultChannel != new.GadgetSnap().DefaultChannel
+		if defaultChannelChange {
+			return true, new.GadgetSnap().DefaultChannel
+		}
+	}
+	return false, ""
 }
 
 func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model, deviceCtx snapstate.DeviceContext, fromChange string) ([]*state.TaskSet, error) {
@@ -355,35 +401,39 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	var tss []*state.TaskSet
 
 	// kernel
-	if current.Kernel() == new.Kernel() && current.KernelTrack() != new.KernelTrack() {
-		ts, err := snapstateUpdateWithDeviceContext(st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
-		if err != nil {
-			return nil, err
-		}
-		tss = append(tss, ts)
-	}
-
-	var ts *state.TaskSet
-	if current.Kernel() != new.Kernel() {
-		needsInstall, err := notInstalled(st, new.Kernel())
-		if err != nil {
-			return nil, err
-		}
-		if needsInstall {
-			ts, err = snapstateInstallWithDeviceContext(ctx, st, new.Kernel(), &snapstate.RevisionOptions{Channel: new.KernelTrack()}, userID, snapstate.Flags{}, deviceCtx, fromChange)
+	kernelChanged, newKernelChannel := kernelChange(current, new)
+	if kernelChanged {
+		if current.Kernel() == new.Kernel() {
+			ts, err := snapstateUpdateWithDeviceContext(st, new.Kernel(),
+				&snapstate.RevisionOptions{Channel: newKernelChannel},
+				userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
+			if err != nil {
+				return nil, err
+			}
+			tss = append(tss, ts)
 		} else {
-			ts, err = snapstate.LinkNewBaseOrKernel(st, new.Base())
+			needsInstall, err := notInstalled(st, new.Kernel())
+			if err != nil {
+				return nil, err
+			}
+			var ts *state.TaskSet
+			if needsInstall {
+				ts, err = snapstateInstallWithDeviceContext(ctx, st, new.Kernel(), &snapstate.RevisionOptions{Channel: newKernelChannel}, userID, snapstate.Flags{}, deviceCtx, fromChange)
+			} else {
+				ts, err = snapstate.LinkNewBaseOrKernel(st, new.Base())
+			}
+			if err != nil {
+				return nil, err
+			}
+			tss = append(tss, ts)
 		}
-		if err != nil {
-			return nil, err
-		}
-		tss = append(tss, ts)
 	}
 	if current.Base() != new.Base() {
 		needsInstall, err := notInstalled(st, new.Base())
 		if err != nil {
 			return nil, err
 		}
+		var ts *state.TaskSet
 		if needsInstall {
 			ts, err = snapstateInstallWithDeviceContext(ctx, st, new.Base(), nil, userID, snapstate.Flags{}, deviceCtx, fromChange)
 		} else {
@@ -395,37 +445,69 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		tss = append(tss, ts)
 	}
 	// gadget
-	if current.Gadget() == new.Gadget() && current.GadgetTrack() != new.GadgetTrack() {
-		ts, err := snapstateUpdateWithDeviceContext(st, new.Gadget(), &snapstate.RevisionOptions{Channel: new.GadgetTrack()}, userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
-		if err != nil {
-			return nil, err
-		}
-		tss = append(tss, ts)
-	}
-	if current.Gadget() != new.Gadget() {
-		ts, err := snapstateInstallWithDeviceContext(ctx, st, new.Gadget(), &snapstate.RevisionOptions{Channel: new.GadgetTrack()}, userID, snapstate.Flags{}, deviceCtx, fromChange)
-		if err != nil {
-			return nil, err
-		}
-		tss = append(tss, ts)
-	}
-
-	// add new required-snaps, no longer required snaps will be cleaned
-	// in "set-model"
-	for _, snapRef := range new.RequiredNoEssentialSnaps() {
-		// TODO|XXX: have methods that take refs directly
-		// to respect the snap ids
-		needsInstall, err := notInstalled(st, snapRef.SnapName())
-		if err != nil {
-			return nil, err
-		}
-		if needsInstall {
-			// If the snap is not installed we need to install it now.
-			ts, err := snapstateInstallWithDeviceContext(ctx, st, snapRef.SnapName(), nil, userID, snapstate.Flags{Required: true}, deviceCtx, fromChange)
+	gadgetChanged, newGadgetChannel := gadgetChange(current, new)
+	if gadgetChanged {
+		if current.Gadget() == new.Gadget() {
+			ts, err := snapstateUpdateWithDeviceContext(st, new.Gadget(),
+				&snapstate.RevisionOptions{Channel: newGadgetChannel},
+				userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
 			if err != nil {
 				return nil, err
 			}
 			tss = append(tss, ts)
+		} else {
+			ts, err := snapstateInstallWithDeviceContext(ctx, st, new.Gadget(),
+				&snapstate.RevisionOptions{Channel: newGadgetChannel},
+				userID, snapstate.Flags{}, deviceCtx, fromChange)
+			if err != nil {
+				return nil, err
+			}
+			tss = append(tss, ts)
+		}
+
+	}
+	// go through all the model snaps, see if there are new required snaps
+	// or a track for existing ones needs to be updated
+	for _, modelSnap := range new.SnapsWithoutEssential() {
+		// TODO|XXX: have methods that take refs directly
+		// to respect the snap ids
+		currentInfo, err := snapstate.CurrentInfo(st, modelSnap.SnapName())
+		needsInstall := false
+		if err != nil {
+			if !isNotInstalled(err) {
+				return nil, err
+			}
+			if modelSnap.Presence == "required" {
+				needsInstall = true
+			}
+		}
+		// default channel can be set only in UC20 models
+		if needsInstall {
+			// If the snap is not installed we need to install it now.
+			ts, err := snapstateInstallWithDeviceContext(ctx, st, modelSnap.SnapName(),
+				&snapstate.RevisionOptions{Channel: modelSnap.DefaultChannel},
+				userID,
+				snapstate.Flags{Required: true}, deviceCtx, fromChange)
+			if err != nil {
+				return nil, err
+			}
+			tss = append(tss, ts)
+		} else if currentInfo != nil && modelSnap.DefaultChannel != "" {
+			var ss snapstate.SnapState
+			if err := snapstate.Get(st, modelSnap.SnapName(), &ss); err != nil {
+				// this is unexpected as we know the snap exists
+				return nil, err
+			}
+			if ss.TrackingChannel != modelSnap.DefaultChannel {
+				ts, err := snapstateUpdateWithDeviceContext(st, modelSnap.SnapName(),
+					&snapstate.RevisionOptions{Channel: modelSnap.DefaultChannel},
+					userID, snapstate.Flags{NoReRefresh: true},
+					deviceCtx, fromChange)
+				if err != nil {
+					return nil, err
+				}
+				tss = append(tss, ts)
+			}
 		}
 	}
 	// TODO: Validate that all bases and default-providers are part
