@@ -340,6 +340,12 @@ func (s *sysconfigSuite) TestCloudInitStatus(c *C) {
 			exitCode:        1,
 			expError:        "broken cloud-init output",
 		},
+		{
+			comment:         "normal cloud-init output w/ exit code 1",
+			cloudInitOutput: "status: foobar",
+			exitCode:        1,
+			expError:        "cloud-init errored: status: foobar",
+		},
 	}
 
 	for _, t := range tt {
