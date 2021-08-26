@@ -21,6 +21,7 @@ package ctlcmd_test
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/jessevdk/go-flags"
@@ -111,4 +112,44 @@ func (s *ctlcmdSuite) TestHiddenCommand(c *C) {
 	c.Check(err.Error(), testutil.Contains, "  mock-shown\n")
 	// mock-hidden is not in the help message
 	c.Check(err.Error(), Not(testutil.Contains), "  mock-hidden\n")
+}
+
+func (s *ctlcmdSuite) TestRootRequiredCommandFailure(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"start"}, 1000)
+
+	c.Check(err, FitsTypeOf, &ctlcmd.ForbiddenCommandError{})
+	c.Check(err.Error(), Equals, `cannot use "start" with uid 1000, try with sudo`)
+}
+
+func (s *ctlcmdSuite) TestRunNoArgsFailure(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{}, 0)
+	c.Check(err, NotNil)
+}
+
+func (s *ctlcmdSuite) TestRunOnlyHelp(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"-h"}, 1000)
+	c.Check(err, NotNil)
+	c.Assert(strings.HasPrefix(err.Error(), "Usage:"), Equals, true)
+
+	_, _, err = ctlcmd.Run(s.mockContext, []string{"--help"}, 1000)
+	c.Check(err, NotNil)
+	c.Assert(strings.HasPrefix(err.Error(), "Usage:"), Equals, true)
+}
+
+func (s *ctlcmdSuite) TestRunHelpAtAnyPosition(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"start", "a", "-h"}, 1000)
+	c.Check(err, NotNil)
+	c.Assert(strings.HasPrefix(err.Error(), "Usage:"), Equals, true)
+
+	_, _, err = ctlcmd.Run(s.mockContext, []string{"start", "a", "b", "--help"}, 1000)
+	c.Check(err, NotNil)
+	c.Assert(strings.HasPrefix(err.Error(), "Usage:"), Equals, true)
+}
+
+func (s *ctlcmdSuite) TestRunNonRootAllowedCommandWithAllowedCmdAsArg(c *C) {
+	// this test protects us against a future refactor introducing a bug that allows
+	// a root-only command to run without root if an arg is in the nonRootAllowed list
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "get", "a"}, 1000)
+	c.Check(err, FitsTypeOf, &ctlcmd.ForbiddenCommandError{})
+	c.Check(err.Error(), Equals, `cannot use "set" with uid 1000, try with sudo`)
 }

@@ -459,7 +459,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorHoldErrorLogged(c
 
 	// and snap-b is not held (due to hold error).
 	var held map[string]map[string]interface{}
-	c.Assert(st.Get("snaps-hold", &held), Equals, state.ErrNoState)
+	c.Assert(st.Get("snaps-hold", &held), IsNil)
+	c.Check(held, HasLen, 0)
 
 	// no runinhibit because the refresh-app-awareness feature is disabled.
 	hint, err := runinhibit.IsLocked("snap-a")

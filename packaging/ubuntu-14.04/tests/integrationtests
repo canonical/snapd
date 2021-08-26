@@ -36,6 +36,6 @@ fi
 . /etc/os-release
 apt-get install golang-1.6-go
 export GOPATH=/tmp/go
-export PATH=/usr/lib/go-1.6/bin:${PATH}
+export PATH=/usr/lib/go-1.6/bin:"${PATH}"
 go get -u github.com/snapcore/spread/cmd/spread
 /tmp/go/bin/spread -v "autopkgtest:${ID}-${VERSION_ID}-$(dpkg --print-architecture)"
