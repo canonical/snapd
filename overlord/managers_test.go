@@ -3149,7 +3149,7 @@ apps:
 	s.serveSnap(fooPath, "15")
 
 	// refresh all
-	err = assertstate.RefreshSnapDeclarations(st, 0)
+	err = assertstate.RefreshSnapDeclarations(st, 0, nil)
 	c.Assert(err, IsNil)
 
 	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, nil)
@@ -3302,7 +3302,7 @@ assumes: [something-that-is-not-provided]
 	defer st.Unlock()
 
 	_, err := snapstate.Install(context.TODO(), st, "some-snap", nil, 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" assumes unsupported features: something-that-is-not-provided \(try to update snapd and refresh the core snap\)`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" assumes unsupported features: something-that-is-not-provided \(try to refresh snapd\)`)
 }
 
 func (s *mgrsSuite) TestUpdateWithAssumesIsRefusedEarly(c *C) {
@@ -3332,7 +3332,7 @@ assumes: [something-that-is-not-provided]
 	})
 
 	_, err := snapstate.Update(st, "some-snap", nil, 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" assumes unsupported features: something-that-is-not-provided \(try to update snapd and refresh the core snap\)`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" assumes unsupported features: something-that-is-not-provided \(try to refresh snapd\)`)
 }
 
 func (s *mgrsSuite) TestUpdateManyWithAssumesIsRefusedEarly(c *C) {
@@ -3754,7 +3754,7 @@ version: @VERSION@`
 	c.Assert(repo.AddSnap(coreInfo), IsNil)
 
 	// refresh all
-	err := assertstate.RefreshSnapDeclarations(st, 0)
+	err := assertstate.RefreshSnapDeclarations(st, 0, nil)
 	c.Assert(err, IsNil)
 
 	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"core", "some-snap", "other-snap"}, 0, nil)
@@ -3856,7 +3856,7 @@ version: 1`
 	c.Assert(repo.AddSnap(coreInfo), IsNil)
 
 	// refresh all
-	err := assertstate.RefreshSnapDeclarations(st, 0)
+	err := assertstate.RefreshSnapDeclarations(st, 0, nil)
 	c.Assert(err, IsNil)
 
 	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"some-snap"}, 0, nil)
@@ -3936,7 +3936,7 @@ func (s *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, removeS
 	c.Assert(repo.AddSnap(otherInfo), IsNil)
 
 	// refresh all
-	err := assertstate.RefreshSnapDeclarations(st, 0)
+	err := assertstate.RefreshSnapDeclarations(st, 0, nil)
 	c.Assert(err, IsNil)
 
 	ts, err := snapstate.Update(st, updateSnapName, nil, 0, snapstate.Flags{})
@@ -6704,7 +6704,7 @@ func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c
 	c.Assert(err, IsNil)
 
 	// refresh all
-	c.Assert(assertstate.RefreshSnapDeclarations(st, 0), IsNil)
+	c.Assert(assertstate.RefreshSnapDeclarations(st, 0, nil), IsNil)
 
 	ts, err := snapstate.Update(st, "some-snap", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)

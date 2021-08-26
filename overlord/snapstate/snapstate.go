@@ -2530,6 +2530,10 @@ func removeInactiveRevision(st *state.State, name, snapID string, revision snap.
 // RemoveMany removes everything from the given list of names.
 // Note that the state must be locked by the caller.
 func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, error) {
+	if err := validateSnapNames(names); err != nil {
+		return nil, nil, err
+	}
+
 	removed := make([]string, 0, len(names))
 	tasksets := make([]*state.TaskSet, 0, len(names))
 
@@ -2568,6 +2572,22 @@ func RemoveMany(st *state.State, names []string) ([]string, []*state.TaskSet, er
 	}
 
 	return removed, tasksets, nil
+}
+
+func validateSnapNames(names []string) error {
+	var invalidNames []string
+
+	for _, name := range names {
+		if err := snap.ValidateInstanceName(name); err != nil {
+			invalidNames = append(invalidNames, name)
+		}
+	}
+
+	if len(invalidNames) > 0 {
+		return fmt.Errorf("cannot remove invalid snap names: %v", strings.Join(invalidNames, ", "))
+	}
+
+	return nil
 }
 
 // Revert returns a set of tasks for reverting to the previous version of the snap.
