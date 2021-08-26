@@ -5541,10 +5541,7 @@ func (s *snapmgrTestSuite) TestUpdateContentProviderDownloadFailure(c *C) {
 	chg := s.state.NewChange("refresh", "refresh all snaps")
 	updated, tts, err := snapstate.UpdateMany(context.Background(), s.state, nil, 0, nil)
 	c.Assert(err, IsNil)
-	sort.Strings(updated)
-	// both the content consumer snap and content provider snap get refreshed at
-	// the same time.
-	c.Check(updated, DeepEquals, []string{"snap-content-plug", "snap-content-slot"})
+	c.Check(updated, testutil.DeepUnsortedMatches, []string{"snap-content-plug", "snap-content-slot"})
 	for _, ts := range tts {
 		chg.AddAll(ts)
 	}
