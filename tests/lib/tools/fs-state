@@ -131,7 +131,7 @@ check_monitor() {
             echo "the /tmp/fs-diff file does not exist"
             exit 1
         fi
-        if [ ! -z "$(cat /tmp/fs-diff)" ]; then
+        if [ -n "$(cat /tmp/fs-diff)" ]; then
             echo "the diff file is not empty:"
             cat /tmp/fs-diff 
             exit 1
