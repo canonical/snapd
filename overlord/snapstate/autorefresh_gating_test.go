@@ -581,6 +581,53 @@ func (s *autorefreshGatingSuite) TestHoldAndProceedWithRefreshHelper(c *C) {
 	c.Check(held, IsNil)
 }
 
+// Test that if all snaps cannot be held anymore, we don't hold only some of them
+// e.g. is a snap and its base snap have updates and the snap wants to hold (itself
+// and the base) but the base cannot be held, it doesn't make sense to refresh the
+// base but hold the affected snap.
+func (s *autorefreshGatingSuite) TestDontHoldSomeSnapsIfSomeFail(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// snap-b and snap-bb have base-snap-b base
+	mockInstalledSnap(c, st, snapByaml, useHook)
+	mockInstalledSnap(c, st, snapBByaml, useHook)
+	mockInstalledSnap(c, st, baseSnapByaml, noHook)
+
+	mockInstalledSnap(c, st, snapCyaml, useHook)
+	mockInstalledSnap(c, st, snapDyaml, useHook)
+
+	now := "2021-05-01T10:00:00Z"
+	restore := snapstate.MockTimeNow(func() time.Time {
+		t, err := time.Parse(time.RFC3339, now)
+		c.Assert(err, IsNil)
+		return t
+	})
+	defer restore()
+
+	// snap-b, base-snap-b get refreshed and affect snap-b (gating snap)
+	c.Assert(snapstate.HoldRefresh(st, "snap-b", 0, "snap-b", "base-snap-b"), IsNil)
+	// unrealted snap-d gets refreshed and holds itself
+	c.Assert(snapstate.HoldRefresh(st, "snap-d", 0, "snap-d"), IsNil)
+
+	// advance time by 49h
+	now = "2021-05-03T11:00:00Z"
+	// snap-b, base-snap-b and snap-c get refreshed and snap-a (gating snap) wants to hold them
+	c.Assert(snapstate.HoldRefresh(st, "snap-b", 0, "snap-b", "base-snap-b", "snap-c"), ErrorMatches, `cannot hold some snaps:\n - snap "snap-b" cannot hold snap "base-snap-b" anymore, maximum refresh postponement exceeded`)
+	// snap-bb (gating snap) wants to hold base-snap-b as well and succeeds since it didn't exceed its holding time yet
+	c.Assert(snapstate.HoldRefresh(st, "snap-bb", 0, "base-snap-b"), IsNil)
+
+	held, err := snapstate.HeldSnaps(st)
+	c.Assert(err, IsNil)
+	// note, snap-b couldn't hold base-snap-b anymore so we didn't hold snap-b
+	// and snap-c. base-snap-b was held by snap-bb.
+	c.Check(held, DeepEquals, map[string]bool{
+		"snap-d":      true,
+		"base-snap-b": true,
+	})
+}
+
 func (s *autorefreshGatingSuite) TestPruneGatingHelper(c *C) {
 	st := s.state
 	st.Lock()
