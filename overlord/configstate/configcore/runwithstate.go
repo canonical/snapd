@@ -56,6 +56,9 @@ func init() {
 	addWithStateHandler(validateRefreshSchedule, nil, validateOnly)
 	addWithStateHandler(validateRefreshRateLimit, nil, validateOnly)
 	addWithStateHandler(validateAutomaticSnapshotsExpiration, nil, validateOnly)
+
+	// netplan.*
+	addWithStateHandler(validateNetplanSettings, handleNetplanConfiguration, nil)
 }
 
 type withStateHandler struct {
@@ -116,6 +119,8 @@ func applyHandlers(dev sysconfig.Device, cfg config.Conf, handlers []configHandl
 			if !validCertOption(k) {
 				return fmt.Errorf("cannot set store ssl certificate under name %q: name must only contain word characters or a dash", k)
 			}
+		case strings.HasPrefix(k, "core.system.network.netplan."):
+			// fine
 		case !supportedConfigurations[k]:
 			return fmt.Errorf("cannot set %q: unsupported system option", k)
 		}

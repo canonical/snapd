@@ -176,6 +176,7 @@ BuildRequires: golang(gopkg.in/mgo.v2/bson)
 BuildRequires: golang(gopkg.in/retry.v1)
 BuildRequires: golang(gopkg.in/tomb.v2)
 BuildRequires: golang(gopkg.in/yaml.v2)
+BuildRequires: golang(gopkg.in/yaml.v3)
 %endif
 
 %description

@@ -333,6 +333,12 @@
 			"revisionTime": "2018-03-26T05:07:29Z"
 		},
 		{
+			"checksumSHA1": "vEkKIA76kgBmAu5bwxJwi41Aup0=",
+			"path": "gopkg.in/yaml.v3",
+			"revision": "496545a6307b2a7d7a710fd516e5e16e8ab62dbc",
+			"revisionTime": "2021-01-07T19:29:22Z"
+		},
+		{
 			"checksumSHA1": "tZ9GNzrjTZEPDhoJEkouGPKRmZk=",
 			"origin": "github.com/pedronis/maze.io-x-crypto/afis",
 			"path": "maze.io/x/crypto/afis",
