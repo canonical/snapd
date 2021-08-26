@@ -1832,6 +1832,13 @@ func (s *validationSetsSuite) TestRemoveOptionalSnapOK(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *validationSetsSuite) TestRemoveInvalidSnapOK(c *C) {
+	// this case is artificial, since we should never be in a situation where
+	// a snap is installed while its presence is invalid.
+	err := s.removeSnapReferencedByValidationSet(c, "invalid")
+	c.Assert(err, IsNil)
+}
+
 func (s *validationSetsSuite) TestRemoveSnapRequiredByValidationSetAtSpecificRevisionRefused(c *C) {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
