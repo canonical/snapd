@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # This file contains all the cursors used for the different tests
-JOURNALCTL_CURSOR_FILE="$SPREAD_PATH"/tests/runtime-state/journalctl_cursor
+JOURNALCTL_CURSOR_FILE="$TESTSTMP"/runtime-state/journalctl_cursor
 
 show_help() {
     echo "usage: journal-state start-new-log"
