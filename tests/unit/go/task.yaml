@@ -11,12 +11,15 @@ prepare: |
     if not os.query is-trusty; then
         tests.session -u test prepare
     fi
+    # ensure to use an up-to-date shellcheck
+    snap install shellcheck
 
 restore: |
     if not os.query is-trusty; then
         tests.session -u test restore
     fi
     rm -rf /tmp/static-unit-tests
+    snap remove shellcheck
 
 execute: |
     mkdir -p /tmp/static-unit-tests/src/github.com/snapcore
