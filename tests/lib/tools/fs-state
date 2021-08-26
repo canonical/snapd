@@ -127,7 +127,11 @@ check_monitor() {
             diff /tmp/fs-initial/"$f" /tmp/fs-final/"$f" >> /tmp/fs-diff
         done
 
-        if [ -z "$(find /tmp -empty -name fs-diff)" ]; then
+        if [ ! -e /tmp/fs-diff ]; then
+            echo "the /tmp/fs-diff file does not exist"
+            exit 1
+        fi
+        if [ ! -z "$(cat /tmp/fs-diff)" ]; then
             echo "the diff file is not empty:"
             cat /tmp/fs-diff 
             exit 1
