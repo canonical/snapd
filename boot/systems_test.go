@@ -1741,49 +1741,49 @@ func (s *systemsSuite) TestMarkRecoveryCapableSystemHappy(c *C) {
 
 	err := boot.MarkRecoveryCapableSystem("1234")
 	c.Assert(err, IsNil)
-	vars, err := rbl.GetBootVars("snapd_recovery_capable_systems")
+	vars, err := rbl.GetBootVars("good_recovery_systems")
 	c.Assert(err, IsNil)
 	c.Check(vars, DeepEquals, map[string]string{
-		"snapd_recovery_capable_systems": "1234",
+		"good_recovery_systems": "1234",
 	})
 	// try the same system again
 	err = boot.MarkRecoveryCapableSystem("1234")
 	c.Assert(err, IsNil)
-	vars, err = rbl.GetBootVars("snapd_recovery_capable_systems")
+	vars, err = rbl.GetBootVars("good_recovery_systems")
 	c.Assert(err, IsNil)
 	c.Check(vars, DeepEquals, map[string]string{
 		// still a single entry
-		"snapd_recovery_capable_systems": "1234",
+		"good_recovery_systems": "1234",
 	})
 
 	// try something new
 	err = boot.MarkRecoveryCapableSystem("4567")
 	c.Assert(err, IsNil)
-	vars, err = rbl.GetBootVars("snapd_recovery_capable_systems")
+	vars, err = rbl.GetBootVars("good_recovery_systems")
 	c.Assert(err, IsNil)
 	c.Check(vars, DeepEquals, map[string]string{
 		// entry added
-		"snapd_recovery_capable_systems": "1234,4567",
+		"good_recovery_systems": "1234,4567",
 	})
 
 	// try adding the old one again
 	err = boot.MarkRecoveryCapableSystem("1234")
 	c.Assert(err, IsNil)
-	vars, err = rbl.GetBootVars("snapd_recovery_capable_systems")
+	vars, err = rbl.GetBootVars("good_recovery_systems")
 	c.Assert(err, IsNil)
 	c.Check(vars, DeepEquals, map[string]string{
 		// nothing changed
-		"snapd_recovery_capable_systems": "1234,4567",
+		"good_recovery_systems": "1234,4567",
 	})
 
 	// and the new one again
 	err = boot.MarkRecoveryCapableSystem("4567")
 	c.Assert(err, IsNil)
-	vars, err = rbl.GetBootVars("snapd_recovery_capable_systems")
+	vars, err = rbl.GetBootVars("good_recovery_systems")
 	c.Assert(err, IsNil)
 	c.Check(vars, DeepEquals, map[string]string{
 		// still no changes
-		"snapd_recovery_capable_systems": "1234,4567",
+		"good_recovery_systems": "1234,4567",
 	})
 }
 
@@ -1793,30 +1793,30 @@ func (s *systemsSuite) TestMarkRecoveryCapableSystemErr(c *C) {
 
 	err := boot.MarkRecoveryCapableSystem("1234")
 	c.Assert(err, IsNil)
-	vars, err := rbl.GetBootVars("snapd_recovery_capable_systems")
+	vars, err := rbl.GetBootVars("good_recovery_systems")
 	c.Assert(err, IsNil)
 	c.Check(vars, DeepEquals, map[string]string{
-		"snapd_recovery_capable_systems": "1234",
+		"good_recovery_systems": "1234",
 	})
 
 	rbl.SetErr = fmt.Errorf("mocked error")
 	err = boot.MarkRecoveryCapableSystem("4567")
 	c.Assert(err, ErrorMatches, "mocked error")
-	vars, err = rbl.GetBootVars("snapd_recovery_capable_systems")
+	vars, err = rbl.GetBootVars("good_recovery_systems")
 	c.Assert(err, IsNil)
 	c.Check(vars, DeepEquals, map[string]string{
 		// mocked error is returned after variable is set
-		"snapd_recovery_capable_systems": "1234,4567",
+		"good_recovery_systems": "1234,4567",
 	})
 
 	// but mocked panic happens earlier
 	rbl.SetMockToPanic("SetBootVars")
 	c.Assert(func() { boot.MarkRecoveryCapableSystem("9999") },
 		PanicMatches, "mocked reboot panic in SetBootVars")
-	vars, err = rbl.GetBootVars("snapd_recovery_capable_systems")
+	vars, err = rbl.GetBootVars("good_recovery_systems")
 	c.Assert(err, IsNil)
 	c.Check(vars, DeepEquals, map[string]string{
-		"snapd_recovery_capable_systems": "1234,4567",
+		"good_recovery_systems": "1234,4567",
 	})
 
 }

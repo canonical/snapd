@@ -465,13 +465,13 @@ func MarkRecoveryCapableSystem(systemLabel string) error {
 	if !ok {
 		return nil
 	}
-	vars, err := rbl.GetBootVars("snapd_recovery_capable_systems")
+	vars, err := rbl.GetBootVars("good_recovery_systems")
 	if err != nil {
 		return err
 	}
 	var systems []string
-	if vars["snapd_recovery_capable_systems"] != "" {
-		systems = strings.Split(vars["snapd_recovery_capable_systems"], ",")
+	if vars["good_recovery_systems"] != "" {
+		systems = strings.Split(vars["good_recovery_systems"], ",")
 		if strutil.ListContains(systems, systemLabel) {
 			// already recorded, nothing to do
 			return nil
@@ -480,6 +480,6 @@ func MarkRecoveryCapableSystem(systemLabel string) error {
 	systems = append(systems, systemLabel)
 	systemsForEnv := strings.Join(systems, ",")
 	return rbl.SetBootVars(map[string]string{
-		"snapd_recovery_capable_systems": systemsForEnv,
+		"good_recovery_systems": systemsForEnv,
 	})
 }

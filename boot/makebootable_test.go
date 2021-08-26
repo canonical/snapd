@@ -643,7 +643,7 @@ version: 5.0
 	mockSeedGrubenv := filepath.Join(mockSeedGrubDir, "grubenv")
 	c.Check(mockSeedGrubenv, testutil.FilePresent)
 	c.Check(mockSeedGrubenv, testutil.FileContains, "snapd_recovery_mode=run")
-	c.Check(mockSeedGrubenv, testutil.FileContains, "snapd_recovery_capable_systems=20191216")
+	c.Check(mockSeedGrubenv, testutil.FileContains, "good_recovery_systems=20191216")
 	mockBootGrubenv := filepath.Join(mockBootGrubDir, "grubenv")
 	c.Check(mockBootGrubenv, testutil.FilePresent)
 
