@@ -4,7 +4,7 @@ set -e
 
 if [ "$GOPATH" = "" ]; then
     tmpdir=$(mktemp -d)
-    export GOPATH=$tmpdir
+    export GOPATH="$tmpdir"
     # shellcheck disable=SC2064
     trap "rm -rf $tmpdir" EXIT
 
