@@ -25,7 +25,6 @@ import (
 	"fmt"
 
 	"github.com/snapcore/snapd/gadget/quantity"
-	"golang.org/x/xerrors"
 )
 
 type postQuotaData struct {
@@ -53,7 +52,7 @@ type QuotaValues struct {
 // The list of snaps can be empty.
 func (client *Client) EnsureQuota(groupName string, parent string, snaps []string, maxMemory quantity.Size) (changeID string, err error) {
 	if groupName == "" {
-		return "", xerrors.Errorf("cannot create or update quota group without a name")
+		return "", fmt.Errorf("cannot create or update quota group without a name")
 	}
 	// TODO: use naming.ValidateQuotaGroup()
 
@@ -81,7 +80,7 @@ func (client *Client) EnsureQuota(groupName string, parent string, snaps []strin
 
 func (client *Client) GetQuotaGroup(groupName string) (*QuotaGroupResult, error) {
 	if groupName == "" {
-		return nil, xerrors.Errorf("cannot get quota group without a name")
+		return nil, fmt.Errorf("cannot get quota group without a name")
 	}
 
 	var res *QuotaGroupResult
@@ -95,7 +94,7 @@ func (client *Client) GetQuotaGroup(groupName string) (*QuotaGroupResult, error)
 
 func (client *Client) RemoveQuotaGroup(groupName string) (changeID string, err error) {
 	if groupName == "" {
-		return "", xerrors.Errorf("cannot remove quota group without a name")
+		return "", fmt.Errorf("cannot remove quota group without a name")
 	}
 	data := &postQuotaData{
 		Action:    "remove",
@@ -108,8 +107,7 @@ func (client *Client) RemoveQuotaGroup(groupName string) (changeID string, err e
 	}
 	chgID, err := client.doAsync("POST", "/v2/quotas", nil, nil, &body)
 	if err != nil {
-		fmt := "cannot remove quota group: %w"
-		return "", xerrors.Errorf(fmt, err)
+		return "", fmt.Errorf("cannot remove quota group: %w", err)
 	}
 
 	return chgID, nil
