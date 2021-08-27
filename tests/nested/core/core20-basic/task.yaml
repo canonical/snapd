@@ -44,7 +44,7 @@ execute: |
     fi
 
     echo "Wait for device initialisation to be done"
-    nested_retry_until_success 10 5 "snap changes | grep -q 'Done.*Initialize device'"
+    tests.nested exec "retry --wait 5 -n 10 sh -c 'snap changes | MATCH \"Done.*Initialize device\"'"
 
     echo "Check that the serial backed up to save is as expected"
     tests.nested exec 'cat /var/lib/snapd/save/device/asserts-v0/serial/'"$(nested_model_authority)"'/pc/*/active' >serial.saved
@@ -56,3 +56,12 @@ execute: |
 
     echo "Transparently verify that the format is gzip"
     tests.nested exec "zcat /var/log/install-mode.log.gz" | MATCH 'installing a new system'
+
+    echo "Check that we go the timings after the transition to run mode"
+    tests.nested exec "test -e /var/log/install-timings.txt.gz"
+    tests.nested exec "zcat /var/log/install-timings.txt.gz" > install-timings.txt
+    MATCH "Install the system"        < install-timings.txt
+    MATCH "^seed"                     < install-timings.txt
+    MATCH "Mark system seeded"        < install-timings.txt
+    MATCH "Setup system for run mode" < install-timings.txt
+    MATCH "ensure=install-system"     < install-timings.txt

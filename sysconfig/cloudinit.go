@@ -27,7 +27,12 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
+	"strings"
 
+	yaml "gopkg.in/yaml.v2"
+
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
@@ -62,9 +67,225 @@ func DisableCloudInit(rootDir string) error {
 	return nil
 }
 
+// supportedFilteredCloudConfig is a struct of the supported values for
+// cloud-init configuration file.
+type supportedFilteredCloudConfig struct {
+	Datasource map[string]supportedFilteredDatasource `yaml:"datasource,omitempty"`
+	Network    map[string]interface{}                 `yaml:"network,omitempty"`
+	// DatasourceList is a pointer so we can distinguish between:
+	// datasource_list: []
+	// and not setting the datasource at all
+	// for example there might be gadgets which don't want to use any
+	// datasources, but still wants to set some networking config
+	DatasourceList *[]string                             `yaml:"datasource_list,omitempty"`
+	Reporting      map[string]supportedFilteredReporting `yaml:"reporting,omitempty"`
+}
+
+type supportedFilteredDatasource struct {
+	// these are for MAAS
+	ConsumerKey string `yaml:"consumer_key,omitempty"`
+	MetadataURL string `yaml:"metadata_url,omitempty"`
+	TokenKey    string `yaml:"token_key,omitempty"`
+	TokenSecret string `yaml:"token_secret,omitempty"`
+}
+
+type supportedFilteredReporting struct {
+	Type        string `yaml:"type,omitempty"`
+	Endpoint    string `yaml:"endpoint,omitempty"`
+	ConsumerKey string `yaml:"consumer_key,omitempty"`
+	TokenKey    string `yaml:"token_key,omitempty"`
+	TokenSecret string `yaml:"token_secret,omitempty"`
+}
+
+// filterCloudCfg filters a cloud-init configuration struct parsed from a single
+// cloud-init configuration file. The config provided here may be a subset of
+// the full cloud-init configuration from the file in that there may be
+// top-level keys in the YAML file that we did not parse and as such they are
+// dropped and filtered automatically. For other keys, we must parse part of the
+// configuration struct and remove nested keys while keeping other parts of the
+// same section.
+func filterCloudCfg(cfg *supportedFilteredCloudConfig, allowedDatasources []string) error {
+	// TODO: should we track modifications / filters applied to log/notify about
+	//       what is dropped / not supported?
+
+	// first filter out the disallowed datasources
+	for dsName := range cfg.Datasource {
+		// remove unsupported or unrecognized datasources
+		if !strutil.ListContains(allowedDatasources, strings.ToUpper(dsName)) {
+			delete(cfg.Datasource, dsName)
+			continue
+		}
+	}
+
+	// next handle the datasource list setting, if it was not empty, reset it to
+	// the allowedDatasources we were provided
+	if cfg.DatasourceList != nil {
+		deepCpy := make([]string, 0, len(allowedDatasources))
+		deepCpy = append(deepCpy, allowedDatasources...)
+		cfg.DatasourceList = &deepCpy
+	}
+
+	// next handle the reporting setting
+	for dsName := range cfg.Reporting {
+		// remove unsupported or unrecognized datasources
+		if !strutil.ListContains(allowedDatasources, strings.ToUpper(dsName)) {
+			delete(cfg.Reporting, dsName)
+			continue
+		}
+	}
+
+	return nil
+}
+
+// filterCloudCfgFile takes a cloud config file as input and filters out unknown
+// and unsupported keys from the config, returning a new file. It also will
+// filter out configuration that is specific to a datasource if that datasource
+// is not specified in the allowedDatasources argument. The empty string will be
+// returned if the input file was entirely filtered out and there is nothing
+// left.
+func filterCloudCfgFile(in string, allowedDatasources []string) (string, error) {
+	dstFileName := filepath.Base(in)
+	filteredFile, err := ioutil.TempFile("", dstFileName)
+	if err != nil {
+		return "", err
+	}
+	defer filteredFile.Close()
+
+	// open the source and unmarshal it as yaml
+	unfilteredFileBytes, err := ioutil.ReadFile(in)
+	if err != nil {
+		return "", err
+	}
+
+	var cfg supportedFilteredCloudConfig
+	if err := yaml.Unmarshal(unfilteredFileBytes, &cfg); err != nil {
+		return "", err
+	}
+
+	if err := filterCloudCfg(&cfg, allowedDatasources); err != nil {
+		return "", err
+	}
+
+	// write out cfg to the filtered file now
+	b, err := yaml.Marshal(cfg)
+	if err != nil {
+		return "", err
+	}
+
+	// check if we need to write a file at all, if the yaml serialization was
+	// entirely filtered out, then we don't need to write anything
+	if strings.TrimSpace(string(b)) == "{}" {
+		return "", nil
+	}
+
+	// add the #cloud-config prefix to all files we write
+	if _, err := filteredFile.Write([]byte("#cloud-config\n")); err != nil {
+		return "", err
+	}
+
+	if _, err := filteredFile.Write(b); err != nil {
+		return "", err
+	}
+
+	// use the newly filtered temp file as the source to copy
+	return filteredFile.Name(), nil
+}
+
+type cloudDatasourcesInUseResult struct {
+	// ExplicitlyAllowed is the value of datasource_list. If this is empty,
+	// consult ExplicitlyNoneAllowed to tell if it was specified as empty in the
+	// config or if it was just absent from the config
+	ExplicitlyAllowed []string
+	// ExplicitlyNoneAllowed is true when datasource_list was set to
+	// specifically the empty list, thus disallowing use of any datasource
+	ExplicitlyNoneAllowed bool
+	// Mentioned is the full set of datasources mentioned in the yaml config.
+	Mentioned []string
+}
+
+// cloudDatasourcesInUse returns the datasources in use by the specified config
+// file. All datasource names are made upper case to be comparable. This is an
+// arbitrary choice between making them upper case or making them lower case,
+// but cloud-init treats "maas" the same as "MAAS", so we need to treat them the
+// same too.
+func cloudDatasourcesInUse(configFile string) (*cloudDatasourcesInUseResult, error) {
+	// TODO: are there other keys in addition to those that we support in
+	// filtering that might mention datasources ?
+
+	b, err := ioutil.ReadFile(configFile)
+	if err != nil {
+		return nil, err
+	}
+
+	var cfg supportedFilteredCloudConfig
+	if err := yaml.Unmarshal(b, &cfg); err != nil {
+		return nil, err
+	}
+
+	res := &cloudDatasourcesInUseResult{}
+
+	sourcesMentionedInCfg := map[string]bool{}
+
+	// datasource key is a map with the datasource name as a key
+	for ds := range cfg.Datasource {
+		sourcesMentionedInCfg[strings.ToUpper(ds)] = true
+	}
+
+	// same for reporting
+	for ds := range cfg.Reporting {
+		sourcesMentionedInCfg[strings.ToUpper(ds)] = true
+	}
+
+	// we can also have datasources mentioned in the datasource list config
+	if cfg.DatasourceList != nil {
+		if len(*cfg.DatasourceList) == 0 {
+			res.ExplicitlyNoneAllowed = true
+		} else {
+			explicitlyAllowed := map[string]bool{}
+			for _, ds := range *cfg.DatasourceList {
+				dsName := strings.ToUpper(ds)
+				sourcesMentionedInCfg[dsName] = true
+				explicitlyAllowed[dsName] = true
+			}
+			res.ExplicitlyAllowed = make([]string, 0, len(explicitlyAllowed))
+			for ds := range explicitlyAllowed {
+				res.ExplicitlyAllowed = append(res.ExplicitlyAllowed, ds)
+			}
+			sort.Strings(res.ExplicitlyAllowed)
+		}
+	}
+
+	for ds := range sourcesMentionedInCfg {
+		res.Mentioned = append(res.Mentioned, strings.ToUpper(ds))
+	}
+	sort.Strings(res.Mentioned)
+
+	return res, nil
+}
+
+type cloudInitConfigInstallOptions struct {
+	// Prefix is the prefix to add to files when installing them.
+	Prefix string
+	// Filter is whether to filter the config files when installing them.
+	Filter bool
+	// AllowedDatasources is the set of datasources to allow config that is
+	// specific to a datasource in when filtering. An empty list and setting
+	// Filter to false is equivalent to allowing any datasource to be installed,
+	// while an empty list and setting Filter to true means that no config that
+	// is specific to a datasource should be installed, but config that is not
+	// specific to a datasource (such as networking config) is allowed to be
+	// installed.
+	AllowedDatasources []string
+}
+
 // installCloudInitCfgDir installs glob cfg files from the source directory to
-// the cloud config dir.
-func installCloudInitCfgDir(src, targetdir, prefix string) error {
+// the cloud config dir, optionally filtering the files for safe and supported
+// keys in the configuration before installing them.
+func installCloudInitCfgDir(src, targetdir string, opts *cloudInitConfigInstallOptions) error {
+	if opts == nil {
+		opts = &cloudInitConfigInstallOptions{}
+	}
+
 	// TODO:UC20: enforce patterns on the glob files and their suffix ranges
 	ccl, err := filepath.Glob(filepath.Join(src, "*.cfg"))
 	if err != nil {
@@ -80,7 +301,7 @@ func installCloudInitCfgDir(src, targetdir, prefix string) error {
 	}
 
 	for _, cc := range ccl {
-		if err := osutil.CopyFile(cc, filepath.Join(ubuntuDataCloudCfgDir, prefix+filepath.Base(cc)), 0); err != nil {
+		if err := osutil.CopyFile(cc, filepath.Join(ubuntuDataCloudCfgDir, opts.Prefix+filepath.Base(cc)), 0); err != nil {
 			return err
 		}
 	}
@@ -88,18 +309,28 @@ func installCloudInitCfgDir(src, targetdir, prefix string) error {
 }
 
 // installGadgetCloudInitCfg installs a single cloud-init config file from the
-// gadget snap to the /etc/cloud config dir as "80_device_gadget.cfg".
-func installGadgetCloudInitCfg(src, targetdir string) error {
+// gadget snap to the /etc/cloud config dir as "80_device_gadget.cfg". It also
+// parses and returns what datasources are detected to be in use for the gadget
+// cloud-config.
+func installGadgetCloudInitCfg(src, targetdir string) (*cloudDatasourcesInUseResult, error) {
 	ubuntuDataCloudCfgDir := filepath.Join(ubuntuDataCloudDir(targetdir), "cloud.cfg.d/")
 	if err := os.MkdirAll(ubuntuDataCloudCfgDir, 0755); err != nil {
-		return fmt.Errorf("cannot make cloud config dir: %v", err)
+		return nil, fmt.Errorf("cannot make cloud config dir: %v", err)
+	}
+
+	datasourcesRes, err := cloudDatasourcesInUse(src)
+	if err != nil {
+		return nil, err
 	}
 
 	configFile := filepath.Join(ubuntuDataCloudCfgDir, "80_device_gadget.cfg")
-	return osutil.CopyFile(src, configFile, 0)
+	if err := osutil.CopyFile(src, configFile, 0); err != nil {
+		return nil, err
+	}
+	return datasourcesRes, nil
 }
 
-func configureCloudInit(opts *Options) (err error) {
+func configureCloudInit(model *asserts.Model, opts *Options) (err error) {
 	if opts.TargetRootDir == "" {
 		return fmt.Errorf("unable to configure cloud-init, missing target dir")
 	}
@@ -109,11 +340,25 @@ func configureCloudInit(opts *Options) (err error) {
 		return DisableCloudInit(WritableDefaultsDir(opts.TargetRootDir))
 	}
 
-	// next check if there is a gadget cloud.conf to install
+	// otherwise cloud-init is allowed to run, we need to decide where to
+	// permit configuration to come from, if opts.CloudInitSrcDir is non-empty
+	// there is at least a cloud-config dir on ubuntu-seed we could install
+	// config from
+
+	// check if we should filter cloud-init config on ubuntu-seed, we do this
+	// for grade signed only (we don't allow any config for grade secured, and we
+	// allow any config on grade dangerous)
+
+	grade := model.Grade()
+
+	// we always allow gadget cloud config, so install that first
 	if HasGadgetCloudConf(opts.GadgetDir) {
 		// then copy / install the gadget config first
 		gadgetCloudConf := filepath.Join(opts.GadgetDir, "cloud.conf")
-		if err := installGadgetCloudInitCfg(gadgetCloudConf, WritableDefaultsDir(opts.TargetRootDir)); err != nil {
+
+		// TODO: save the gadget datasource and use it below in deciding what to
+		// allow through for grade: signed
+		if _, err := installGadgetCloudInitCfg(gadgetCloudConf, WritableDefaultsDir(opts.TargetRootDir)); err != nil {
 			return err
 		}
 
@@ -122,19 +367,33 @@ func configureCloudInit(opts *Options) (err error) {
 		// example on test devices where the gadget has a gadget.yaml, but for
 		// testing purposes you also want to provision another user with
 		// ubuntu-seed cloud-init config
-
 	}
 
-	// TODO:UC20: implement filtering of files from src when specified via a
-	//            specific Options for i.e. signed grade and MAAS, etc.
-
-	// finally check if there is a cloud-init src dir we should copy config
-	// files from
-
-	if opts.CloudInitSrcDir != "" {
+	installOpts := &cloudInitConfigInstallOptions{
 		// set the prefix such that any ubuntu-seed config that ends up getting
 		// installed takes precedence over the gadget config
-		return installCloudInitCfgDir(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir), "90_")
+		Prefix: "90_",
+	}
+
+	switch grade {
+	case asserts.ModelSecured:
+		// for secured we are done, we only allow gadget cloud-config on secured
+		return nil
+	case asserts.ModelSigned:
+		// TODO: for grade signed, we will install ubuntu-seed config but filter
+		// it and ensure that the ubuntu-seed config matches the config from the
+		// gadget if that exists
+		// for now though, just return
+		return nil
+	case asserts.ModelDangerous:
+		// for grade dangerous we just install all the config from ubuntu-seed
+		installOpts.Filter = false
+	default:
+		return fmt.Errorf("internal error: unknown model assertion grade %s", grade)
+	}
+
+	if opts.CloudInitSrcDir != "" {
+		return installCloudInitCfgDir(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir), installOpts)
 	}
 
 	// it's valid to allow cloud-init, but not set CloudInitSrcDir and not have

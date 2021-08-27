@@ -1,4 +1,4 @@
-#!/usr/bin/env any-python
+#!/usr/bin/env python3
 from __future__ import print_function, absolute_import, unicode_literals
 
 import argparse

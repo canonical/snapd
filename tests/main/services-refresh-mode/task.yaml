@@ -3,7 +3,7 @@ summary: "Check that refresh-modes works"
 # takes >1.5min to run
 backends: [-autopkgtest]
 
-kill-timeout: 5m
+kill-timeout: 10m
 
 debug: |
     grep -n '' ./*.pid || true
@@ -23,7 +23,7 @@ execute: |
     echo "We can still see it running with the same PID"
     systemctl show -p MainPID snap.test-snapd-service.test-snapd-endure-service > new-main.pid
 
-    test "$(cat new-endure.pid)" = "$(cat old-endure.pid)"
+    test "$(cat new-main.pid)" = "$(cat old-main.pid)"
 
     echo "Once the snap is removed, the service is stopped"
     snap remove --purge test-snapd-service

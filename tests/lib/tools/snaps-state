@@ -113,7 +113,8 @@ is_confinement_supported() {
 # from the snapd deb installed on the system
 repack_snapd_deb_into_snap() {
     local snap_name="$1"
-    local deb_file="${2:-$(ls "$SPREAD_PATH"/../snapd_*.deb)}"
+    local target_dir="${2:-$PWD}"
+    local deb_file="${3:-$(ls "$SPREAD_PATH"/../snapd_*.deb)}"
     if [ ! -e "$deb_file" ]; then
         echo "snaps-state: deb file used to repack not found: $deb_file"
         exit 1
@@ -129,7 +130,7 @@ repack_snapd_deb_into_snap() {
             dpkg-deb -x "$deb_file" ./core-unpacked
 
             # repack into the target dir specified
-            snap pack --filename=core-from-snapd-deb.snap  core-unpacked "$1"
+            snap pack --filename=core-from-snapd-deb.snap  core-unpacked "$target_dir"
 
             # cleanup
             rm -rf core-unpacked
@@ -144,7 +145,7 @@ repack_snapd_deb_into_snap() {
             dpkg-deb -x "$deb_file" ./snapd-unpacked
 
             # repack into the target dir specified
-            snap pack --filename=snapd-from-deb.snap  snapd-unpacked "$1"
+            snap pack --filename=snapd-from-deb.snap  snapd-unpacked "$target_dir"
 
             # cleanup
             rm -rf snapd-unpacked

@@ -7,7 +7,9 @@ cmd/VERSION
 *~
 *.swp
 .vscode/
+.idea/
 vendor/*/
+c-vendor/*/
 .spread-reuse*.yaml
 po/snappy.pot
 
@@ -25,6 +27,8 @@ cmd/snap-confine/snap-confine
 cmd/snap-confine/snap-confine-debug
 cmd/snap-confine/snap-confine.apparmor
 cmd/snap-confine/unit-tests
+cmd/snap-device-helper/snap-device-helper
+cmd/snap-device-helper/unit-tests
 cmd/snap-discard-ns/snap-discard-ns
 cmd/snap-gdb-shim/snap-gdb-shim
 cmd/snap-gdb-shim/snap-gdbserver-shim

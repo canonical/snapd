@@ -22,10 +22,8 @@ prepare: |
 
   # shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
-  # shellcheck source=tests/lib/snaps.sh
-  . "$TESTSLIB/snaps.sh"
 
-  repack_snapd_deb_into_snapd_snap "$PWD"
+  "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
   echo "Repack the snapd snap with a marker file"
   unsquashfs -d snapd-snap snapd-from-deb.snap
 
@@ -65,7 +63,7 @@ prepare: |
   tests.nested build-image core
   tests.nested create-vm core
 
-  nested_copy snapd-boot-config-update.snap
+  tests.nested copy snapd-boot-config-update.snap
 
 debug: |
   cat boot-chains-before.json || true
@@ -105,7 +103,7 @@ execute: |
     # line is changed, in case of gadget overriding the command line fully
     # (gadget-full variant) the static part of the command line from new snapd
     # is not used, hence there is no resealing and no reboot
-    nested_wait_for_reboot "${boot_id}"
+    tests.nested wait-for reboot "${boot_id}"
   fi
   
   echo "check boot assets have been updated"

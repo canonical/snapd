@@ -496,6 +496,7 @@ distro_get_package_extension() {
 
 pkg_dependencies_ubuntu_generic(){
     echo "
+        python3
         autoconf
         automake
         autotools-dev
@@ -591,20 +592,17 @@ pkg_dependencies_ubuntu_classic(){
         ubuntu-20.04-64)
             echo "
                 evolution-data-server
+                fwupd
                 gccgo-9
                 packagekit
                 qemu-utils
                 shellcheck
                 "
             ;;
-        ubuntu-20.10-64)
-            echo "
-                qemu-utils
-                "
-            ;;
-        ubuntu-21.04-64)
+        ubuntu-21.04-64|ubuntu-21.10-64)
             echo "
                 dbus-user-session
+                fwupd
                 golang
                 qemu-utils
                 "
@@ -656,6 +654,7 @@ pkg_dependencies_ubuntu_core(){
 
 pkg_dependencies_fedora(){
     echo "
+        python3
         clang
         curl
         dbus-x11
@@ -688,6 +687,7 @@ pkg_dependencies_fedora(){
 
 pkg_dependencies_amazon(){
     echo "
+        python3
         curl
         dbus-x11
         expect
@@ -715,6 +715,7 @@ pkg_dependencies_amazon(){
 
 pkg_dependencies_opensuse(){
     echo "
+        python3
         apparmor-profiles
         audit
         bash-completion

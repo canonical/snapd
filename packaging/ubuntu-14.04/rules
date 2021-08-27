@@ -20,7 +20,9 @@ export DH_GOLANG_GO_GENERATE=1
 
 export PATH:=${PATH}:${CURDIR}
 # make sure that correct go version is found on trusty
-export PATH:=/usr/lib/go-1.10/bin:${PATH}
+export PATH:=/usr/lib/go-1.13/bin:${PATH}
+# GOCACHE is needed by go-1.13
+export GOCACHE:=/tmp/go-build
 
 include /etc/os-release
 
@@ -106,17 +108,6 @@ override_dh_installdeb:
 	dh_installdeb
 
 override_dh_clean:
-ifneq (,$(TEST_GITHUB_AUTOPKGTEST))
-	# this will be set by the GITHUB webhook to trigger a autopkgtest
-	# we only need to run "govendor sync" here and then its ready
-	(export GOPATH="/tmp/go"; \
-	  mkdir -p /tmp/go/src/github.com/snapcore/; \
-          cp -ar . /tmp/go/src/github.com/snapcore/snapd; \
-	  go get -u github.com/kardianos/govendor; \
-	  (cd /tmp/go/src/github.com/snapcore/snapd ; /tmp/go/bin/govendor sync); \
-	  cp -ar /tmp/go/src/github.com/snapcore/snapd/vendor/ .; \
-        )
-endif
 	dh_clean
 	$(MAKE) -C data clean
 	# XXX: hacky

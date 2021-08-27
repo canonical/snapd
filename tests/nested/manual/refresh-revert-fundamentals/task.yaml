@@ -80,7 +80,7 @@ execute: |
             # don't manually reboot, wait for automatic snapd reboot
             ;;
     esac
-    nested_wait_for_reboot "$INITIAL_BOOT_ID"
+    tests.nested wait-for reboot "$INITIAL_BOOT_ID"
     SECOND_BOOT_ID=$(nested_get_boot_id)
 
     echo "Check the new version of the snaps is correct after the system reboot"
@@ -89,13 +89,9 @@ execute: |
     echo "Check the change is completed"
     case "$SNAP" in
         pc-kernel|core20)
-            for _ in $(seq 10); do
-                if tests.nested exec "snap changes" | MATCH "$REFRESH_ID\s+Done\s+.*"; then
-                    break
-                fi
-                sleep 1
-            done
-            tests.nested exec "snap changes" | MATCH "$REFRESH_ID\s+Done\s+.*"
+            #shellcheck disable=SC2098
+            #shellcheck disable=SC2097
+            retry --wait 1 -n 10 --env REVERT_ID="$REVERT_ID" sh -c "tests.nested exec snap changes | MATCH \"$REVERT_ID\s+Done\s+.*\""
             ;;
     esac
 
@@ -115,7 +111,7 @@ execute: |
             # don't manually reboot, wait for automatic snapd reboot
             ;;
     esac
-    nested_wait_for_reboot "$SECOND_BOOT_ID"
+    tests.nested wait-for reboot "$SECOND_BOOT_ID"
 
     echo "Check the version of the snaps after the revert is correct"
     tests.nested exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"
@@ -123,12 +119,6 @@ execute: |
     echo "Check the change is completed"
     case "$SNAP" in
         pc-kernel|core20)
-            for _ in $(seq 10); do
-                if tests.nested exec "snap changes" | MATCH "$REVERT_ID\s+Done\s+.*"; then
-                    break
-                fi
-                sleep 1
-            done
-            tests.nested exec "snap changes" | MATCH "$REVERT_ID\s+Done\s+.*"
+            tests.nested exec "retry --wait 1 -n 10 --env REVERT_ID=\"$REVERT_ID\" sh -c \'snap changes | MATCH \"$REVERT_ID\s+Done\s+.*\"\'"
             ;;
     esac

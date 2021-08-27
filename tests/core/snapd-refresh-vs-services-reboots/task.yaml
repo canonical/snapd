@@ -33,40 +33,6 @@ prepare: |
   tests.cleanup defer snap revert snapd --revision="$INITIAL_REV"
   snap version | MATCH 2.49.2
 
-restore: |
-  # We need special restore code here for the snapd snap because of the multiple
-  # variants of this test and existing subtle bugs in our restore code. The issue
-  # is that when we install a new revision of the snapd snap dangerously without
-  # store assertions, at the
-  # end of the test to ensure that other tests use the snapd version that we
-  # started with, we revert the snapd snap to the original revision without 
-  # triggering a garbage collection of the revisions we reverted away from (i.e.
-  # the new revisions we installed as part of this test execution). This is 
-  # problematic because it leaves those old revisions mounted at /snap/snapd/x2
-  # for example and now at the end of the test the active revision of snapd is 
-  # x1. Then during the next test execution that tries to install a dangerous 
-  # local revision of snapd, it will have lost any reference to the previous x2
-  # revision (since we clear state.json at the end of the test execution in 
-  # reset.sh), and now snapd is trying to install and make active x2 again, and
-  # it will copy all the right files, but when it comes time to mount the new x2
-  # revision of snapd, there will already be an existing active mount unit for 
-  # the previous revision at /snap/snapd/x2, and so the bits of code that try
-  # to mount the .snap file there will effectively just silently fail since the
-  # is already a snapd snap mounted there, it is just the wrong one mounted 
-  # there. 
-
-  # We remedy this here, temporarily, by first manually executing all cleanups
-  # that were deferred, since one of those deferred cleanups is likely the 
-  # revert to the previous revision of the snapd snap, and then we manually 
-  # remove all disabled revisions of the snapd snap - this manual removal will
-  # in fact unmount the mount units for /snap/snapd/x2 for example, avoiding the
-  # bug.
-
-  tests.cleanup restore
-  for rev in $(snap list snapd --all | grep disabled | awk '{print $3}'); do
-    snap remove snapd --revision="$rev"
-  done
-
 execute: |
   if ! os.query is-pc-amd64 && ! os.query is-arm; then
     echo "architecture not supported for this variant"

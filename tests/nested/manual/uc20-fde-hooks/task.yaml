@@ -17,7 +17,9 @@ prepare: |
   . "$TESTSLIB/prepare.sh"
   # shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
-  mkdir ./extra-snaps
+
+  mkdir "$(nested_get_extra_snaps_path)"
+
   # build fde-reveal-key hook into the "extra-initrd" dir so that the
   # nested_create_core_vm picks this up
   mkdir -p ./extra-initrd/usr/bin/
@@ -26,9 +28,9 @@ prepare: |
   # create fde-setup hook inside the kernel
   mkdir -p ./extra-kernel-snap/meta/hooks
   go build -o ./extra-kernel-snap/meta/hooks/fde-setup "$TESTSLIB"/fde-setup-hook/fde-setup.go
-  nested_create_core_vm
-  # start it
-  nested_start_core_vm
+
+  tests.nested build-image core
+  tests.nested create-vm core
 
 execute: |
   # shellcheck source=tests/lib/nested.sh

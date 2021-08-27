@@ -286,7 +286,9 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 		}
 	}
 
-	disableEnabledServices, err = enableServices(toEnable, inter)
+	timings.Run(tm, "enable-services", fmt.Sprintf("enable services %q", toEnable), func(nested timings.Measurer) {
+		disableEnabledServices, err = enableServices(toEnable, inter)
+	})
 	if err != nil {
 		return err
 	}
@@ -1585,6 +1587,9 @@ type RestartServicesFlags struct {
 // are only restarted if they are active, so if a service is meant to be
 // restarted no matter it's state, it should be included in the
 // explicitServices list.
+// The list of explicitServices needs to use systemd unit names.
+// TODO: change explicitServices format to be less unusual, more consistent
+// (introduce AppRef?)
 func RestartServices(svcs []*snap.AppInfo, explicitServices []string,
 	flags *RestartServicesFlags, inter interacter, tm timings.Measurer) error {
 	sysd := systemd.New(systemd.SystemMode, inter)

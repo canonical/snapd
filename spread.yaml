@@ -103,11 +103,11 @@ backends:
                   image: ubuntu-20.04-64
                   workers: 1
                   secure-boot: true
-                  # XXX: old name, remove once new spread is deployed
-                  secureboot: true
-            - ubuntu-20.10-64:
-                  workers: 8
             - ubuntu-21.04-64:
+                  workers: 8
+            - ubuntu-21.10-64:
+                  image: ubuntu-os-cloud-devel/ubuntu-2110
+                  storage: 12G
                   workers: 8
 
             - debian-9-64:
@@ -152,13 +152,11 @@ backends:
         location: snapd-spread/us-east1-b
         halt-timeout: 2h
         systems:
-            - ubuntu-16.04-64:
-                  workers: 6
             - ubuntu-18.04-64:
                   workers: 6
             - ubuntu-20.04-64:
                   workers: 6
-            - ubuntu-20.10-64:
+            - ubuntu-21.04-64:
                   workers: 6
 
     google-nested:
@@ -180,10 +178,10 @@ backends:
                   image: ubuntu-2004-64-virt-enabled
                   storage: 20G
                   workers: 7
-            - ubuntu-20.10-64:
-                  image: ubuntu-2010-64-virt-enabled
+            - ubuntu-21.04-64:
+                  image: ubuntu-2104-64-virt-enabled
                   storage: 20G
-                  workers: 6
+                  workers: 3
 
     qemu-nested:
         memory: 4G
@@ -640,6 +638,11 @@ prepare: |
     elif [ -d "$DELTA_PREFIX" ]; then
         find "$DELTA_PREFIX" -mindepth 1 -maxdepth 1 -exec mv {} . \;
         rmdir "$DELTA_PREFIX"
+    fi
+
+    # TODO: drop once 21.10 images are fixed
+    if [[ "$SPREAD_SYSTEM" == ubuntu-21.10-* ]] && [[ -e /home/ubuntu/.ssh ]]; then
+        chown -R ubuntu:ubuntu /home/ubuntu/.ssh
     fi
 
     # Take the MATCH and REBOOT functions from spread and allow our shell

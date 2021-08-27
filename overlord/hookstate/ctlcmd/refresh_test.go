@@ -20,11 +20,13 @@
 package ctlcmd_test
 
 import (
+	"fmt"
 	"time"
 
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
@@ -239,17 +241,65 @@ func (s *refreshSuite) TestRefreshFromUnsupportedHook(c *C) {
 	c.Check(err, ErrorMatches, `can only be used from gate-auto-refresh hook`)
 }
 
-// TODO: support this case
-func (s *refreshSuite) TestRefreshFromApp(c *C) {
-	s.st.Lock()
+func (s *refreshSuite) TestRefreshProceedFromSnap(c *C) {
+	var called bool
+	restore := ctlcmd.MockAutoRefreshForGatingSnap(func(st *state.State, gatingSnap string) error {
+		called = true
+		c.Check(gatingSnap, Equals, "foo")
+		return nil
+	})
+	defer restore()
 
-	setup := &hookstate.HookSetup{Snap: "snap", Revision: snap.R(1)}
-	mockContext, err := hookstate.NewContext(nil, s.st, setup, s.mockHandler, "")
+	s.st.Lock()
+	defer s.st.Unlock()
+	mockInstalledSnap(c, s.st, `name: foo
+version: 1
+`)
+
+	// enable gate-auto-refresh-hook feature
+	tr := config.NewTransaction(s.st)
+	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
+	tr.Commit()
+
+	// foo is the snap that is going to call --proceed.
+	setup := &hookstate.HookSetup{Snap: "foo", Revision: snap.R(1)}
+	mockContext, err := hookstate.NewContext(nil, s.st, setup, nil, "")
 	c.Check(err, IsNil)
 	s.st.Unlock()
+	defer s.st.Lock()
 
-	_, _, err = ctlcmd.Run(mockContext, []string{"refresh"}, 0)
-	c.Check(err, ErrorMatches, `cannot run outside of gate-auto-refresh hook`)
+	_, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(called, Equals, true)
+}
+
+func (s *refreshSuite) TestRefreshProceedFromSnapError(c *C) {
+	restore := ctlcmd.MockAutoRefreshForGatingSnap(func(st *state.State, gatingSnap string) error {
+		c.Check(gatingSnap, Equals, "foo")
+		return fmt.Errorf("boom")
+	})
+	defer restore()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+	mockInstalledSnap(c, s.st, `name: foo
+version: 1
+`)
+
+	// enable gate-auto-refresh-hook feature
+	tr := config.NewTransaction(s.st)
+	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
+	tr.Commit()
+
+	// foo is the snap that is going to call --proceed.
+	setup := &hookstate.HookSetup{Snap: "foo", Revision: snap.R(1)}
+	mockContext, err := hookstate.NewContext(nil, s.st, setup, nil, "")
+	c.Check(err, IsNil)
+	s.st.Unlock()
+	defer s.st.Lock()
+
+	_, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
+	c.Assert(err, ErrorMatches, "boom")
 }
 
 func (s *refreshSuite) TestRefreshRegularUserForbidden(c *C) {
