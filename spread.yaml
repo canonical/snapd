@@ -441,6 +441,12 @@ debug-each: |
             tests.nested exec "sudo journalctl --no-pager -u snapd" || true
         fi
 
+        echo "# definition of snapd.service"
+        systemctl cat snapd.service || true
+        echo "# status of snapd service"
+        systemctl status snapd.service || true
+        echo "# memory limits of snapd service"
+        systemctl show snapd.service | grep -e MemoryMax= -e MemoryLimit= || true
         echo '# journal messages for snapd'
         "$TESTSTOOLS"/journal-state get-log -u snapd
         case "$SPREAD_SYSTEM" in
