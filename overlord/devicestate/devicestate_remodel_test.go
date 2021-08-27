@@ -1811,6 +1811,206 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 	}
 }
 
+func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelAndGadgetSnaps(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		c.Check(flags.Required, Equals, false)
+		c.Check(flags.NoReRefresh, Equals, true)
+		c.Check(deviceCtx, NotNil)
+
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s from track %s", name, opts.Channel))
+		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
+		tValidate.WaitFor(tDownload)
+		tUpdate := s.state.NewTask("fake-update", fmt.Sprintf("Update %s to track %s", name, opts.Channel))
+		tUpdate.WaitFor(tValidate)
+		ts := state.NewTaskSet(tDownload, tValidate, tUpdate)
+		ts.MarkEdge(tValidate, snapstate.DownloadAndChecksDoneEdge)
+		return ts, nil
+	})
+	defer restore()
+
+	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		// snaps will be refreshed so calls go through update
+		return nil, fmt.Errorf("unexpected call")
+	})
+	defer restore()
+
+	now := time.Now()
+	restore = devicestate.MockTimeNow(func() time.Time { return now })
+	defer restore()
+
+	// set a model assertion
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "serial")
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "serial",
+	})
+
+	// current gadget
+	siModelGadget := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(33),
+		SnapID:   snaptest.AssertedSnapID("pc"),
+	}
+	snapstate.Set(s.state, "pc", &snapstate.SnapState{
+		SnapType: "gadget",
+		Sequence: []*snap.SideInfo{siModelGadget},
+		Current:  siModelGadget.Revision,
+		Active:   true,
+	})
+	// current kernel
+	siModelKernel := &snap.SideInfo{
+		RealName: "pc-kernel",
+		Revision: snap.R(32),
+		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
+	}
+	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
+		SnapType: "kernel",
+		Sequence: []*snap.SideInfo{siModelKernel},
+		Current:  siModelKernel.Revision,
+		Active:   true,
+	})
+
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"revision":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "21/edge",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "21/stable",
+			},
+		},
+	})
+	chg, err := devicestate.Remodel(s.state, new)
+	c.Assert(err, IsNil)
+	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
+
+	tl := chg.Tasks()
+	// 2 snaps (3 tasks for each) + recovery system (2 tasks) + set-model
+	c.Assert(tl, HasLen, 2*3+2+1)
+
+	deviceCtx, err := devicestate.DeviceCtx(s.state, tl[0], nil)
+	c.Assert(err, IsNil)
+	// deviceCtx is actually a remodelContext here
+	remodCtx, ok := deviceCtx.(devicestate.RemodelContext)
+	c.Assert(ok, Equals, true)
+	c.Check(remodCtx.ForRemodeling(), Equals, true)
+	c.Check(remodCtx.Kind(), Equals, devicestate.UpdateRemodel)
+	c.Check(remodCtx.Model(), DeepEquals, new)
+	c.Check(remodCtx.Store(), IsNil)
+
+	// check the tasks
+	tDownloadKernel := tl[0]
+	tValidateKernel := tl[1]
+	tInstallKernel := tl[2]
+	tDownloadGadget := tl[3]
+	tValidateGadget := tl[4]
+	tInstallGadget := tl[5]
+	tCreateRecovery := tl[6]
+	tFinalizeRecovery := tl[7]
+	tSetModel := tl[8]
+
+	// check the tasks
+	c.Assert(tDownloadKernel.Kind(), Equals, "fake-download")
+	c.Assert(tDownloadKernel.Summary(), Equals, "Download pc-kernel from track 21/edge")
+	c.Assert(tDownloadKernel.WaitTasks(), HasLen, 0)
+	c.Assert(tValidateKernel.Kind(), Equals, "validate-snap")
+	c.Assert(tValidateKernel.Summary(), Equals, "Validate pc-kernel")
+	c.Assert(tDownloadGadget.Kind(), Equals, "fake-download")
+	c.Assert(tDownloadGadget.Summary(), Equals, "Download pc from track 21/stable")
+	c.Assert(tDownloadGadget.WaitTasks(), HasLen, 1)
+	c.Assert(tValidateGadget.Kind(), Equals, "validate-snap")
+	c.Assert(tValidateGadget.Summary(), Equals, "Validate pc")
+	expectedLabel := now.Format("20060102")
+	c.Assert(tCreateRecovery.Kind(), Equals, "create-recovery-system")
+	c.Assert(tCreateRecovery.Summary(), Equals, fmt.Sprintf("Create recovery system with label %q", expectedLabel))
+	c.Assert(tFinalizeRecovery.Kind(), Equals, "finalize-recovery-system")
+	c.Assert(tFinalizeRecovery.Summary(), Equals, fmt.Sprintf("Finalize recovery system with label %q", expectedLabel))
+	// check the ordering, download/validate everything first, then install
+
+	// gadget downloads wait for the downloads of kernel
+	c.Assert(tDownloadKernel.WaitTasks(), HasLen, 0)
+	c.Assert(tValidateKernel.WaitTasks(), DeepEquals, []*state.Task{
+		tDownloadKernel,
+	})
+	c.Assert(tInstallKernel.WaitTasks(), DeepEquals, []*state.Task{
+		tValidateKernel,
+		tValidateGadget,
+		// wait for recovery system to be created
+		tCreateRecovery,
+		// and then finalized
+		tFinalizeRecovery,
+	})
+	c.Assert(tInstallGadget.WaitTasks(), DeepEquals, []*state.Task{
+		tValidateGadget,
+		// previous install chain
+		tInstallKernel,
+	})
+	c.Assert(tCreateRecovery.WaitTasks(), DeepEquals, []*state.Task{
+		// last snap of the download chain
+		tValidateGadget,
+	})
+	c.Assert(tFinalizeRecovery.WaitTasks(), DeepEquals, []*state.Task{
+		// recovery system being created
+		tCreateRecovery,
+		// last snap of the download chain (added later)
+		tValidateGadget,
+	})
+
+	c.Assert(tSetModel.Kind(), Equals, "set-model")
+	c.Assert(tSetModel.Summary(), Equals, "Set new model assertion")
+	// setModel waits for everything in the change
+	c.Assert(tSetModel.WaitTasks(), DeepEquals, []*state.Task{
+		tDownloadKernel, tValidateKernel, tInstallKernel,
+		tDownloadGadget, tValidateGadget, tInstallGadget,
+		tCreateRecovery, tFinalizeRecovery,
+	})
+
+	// verify recovery system setup data on appropriate tasks
+	var systemSetupData map[string]interface{}
+	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
+	c.Assert(err, IsNil)
+	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
+		"label":            expectedLabel,
+		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
+		"snap-setup-tasks": []interface{}{tDownloadKernel.ID(), tDownloadGadget.ID()},
+	})
+}
+
 type remodelUC20LabelConflictsTestCase struct {
 	now              time.Time
 	breakPermissions bool
