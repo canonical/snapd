@@ -1707,3 +1707,23 @@ func (s *snapmgrTestSuite) TestRemoveKeepsGatingDataIfNotLastRevision(c *C) {
 	c.Assert(candidates, HasLen, 1)
 	c.Check(candidates["some-snap"], NotNil)
 }
+
+func (s *snapmgrTestSuite) TestRemoveFailsWithInvalidSnapName(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	removed, ts, err := snapstate.RemoveMany(s.state, []string{"some-snap", "rev=", "123"})
+	c.Check(removed, HasLen, 0)
+	c.Check(ts, HasLen, 0)
+	c.Check(err.Error(), Equals, "cannot remove invalid snap names: rev=, 123")
+}
+
+func (s *snapmgrTestSuite) TestRemoveSucceedsWithInstanceName(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	removed, ts, err := snapstate.RemoveMany(s.state, []string{"some-snap", "ab_c"})
+	c.Check(removed, NotNil)
+	c.Check(ts, NotNil)
+	c.Check(err, IsNil)
+}

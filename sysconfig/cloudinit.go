@@ -83,18 +83,112 @@ type supportedFilteredCloudConfig struct {
 
 type supportedFilteredDatasource struct {
 	// these are for MAAS
-	ConsumerKey string `yaml:"consumer_key"`
-	MetadataURL string `yaml:"metadata_url"`
-	TokenKey    string `yaml:"token_key"`
-	TokenSecret string `yaml:"token_secret"`
+	ConsumerKey string `yaml:"consumer_key,omitempty"`
+	MetadataURL string `yaml:"metadata_url,omitempty"`
+	TokenKey    string `yaml:"token_key,omitempty"`
+	TokenSecret string `yaml:"token_secret,omitempty"`
 }
 
 type supportedFilteredReporting struct {
-	Type        string `yaml:"type"`
-	Endpoint    string `yaml:"endpoint"`
-	ConsumerKey string `yaml:"consumer_key"`
-	TokenKey    string `yaml:"token_key"`
-	TokenSecret string `yaml:"token_secret"`
+	Type        string `yaml:"type,omitempty"`
+	Endpoint    string `yaml:"endpoint,omitempty"`
+	ConsumerKey string `yaml:"consumer_key,omitempty"`
+	TokenKey    string `yaml:"token_key,omitempty"`
+	TokenSecret string `yaml:"token_secret,omitempty"`
+}
+
+// filterCloudCfg filters a cloud-init configuration struct parsed from a single
+// cloud-init configuration file. The config provided here may be a subset of
+// the full cloud-init configuration from the file in that there may be
+// top-level keys in the YAML file that we did not parse and as such they are
+// dropped and filtered automatically. For other keys, we must parse part of the
+// configuration struct and remove nested keys while keeping other parts of the
+// same section.
+func filterCloudCfg(cfg *supportedFilteredCloudConfig, allowedDatasources []string) error {
+	// TODO: should we track modifications / filters applied to log/notify about
+	//       what is dropped / not supported?
+
+	// first filter out the disallowed datasources
+	for dsName := range cfg.Datasource {
+		// remove unsupported or unrecognized datasources
+		if !strutil.ListContains(allowedDatasources, strings.ToUpper(dsName)) {
+			delete(cfg.Datasource, dsName)
+			continue
+		}
+	}
+
+	// next handle the datasource list setting, if it was not empty, reset it to
+	// the allowedDatasources we were provided
+	if cfg.DatasourceList != nil {
+		deepCpy := make([]string, 0, len(allowedDatasources))
+		deepCpy = append(deepCpy, allowedDatasources...)
+		cfg.DatasourceList = &deepCpy
+	}
+
+	// next handle the reporting setting
+	for dsName := range cfg.Reporting {
+		// remove unsupported or unrecognized datasources
+		if !strutil.ListContains(allowedDatasources, strings.ToUpper(dsName)) {
+			delete(cfg.Reporting, dsName)
+			continue
+		}
+	}
+
+	return nil
+}
+
+// filterCloudCfgFile takes a cloud config file as input and filters out unknown
+// and unsupported keys from the config, returning a new file. It also will
+// filter out configuration that is specific to a datasource if that datasource
+// is not specified in the allowedDatasources argument. The empty string will be
+// returned if the input file was entirely filtered out and there is nothing
+// left.
+func filterCloudCfgFile(in string, allowedDatasources []string) (string, error) {
+	dstFileName := filepath.Base(in)
+	filteredFile, err := ioutil.TempFile("", dstFileName)
+	if err != nil {
+		return "", err
+	}
+	defer filteredFile.Close()
+
+	// open the source and unmarshal it as yaml
+	unfilteredFileBytes, err := ioutil.ReadFile(in)
+	if err != nil {
+		return "", err
+	}
+
+	var cfg supportedFilteredCloudConfig
+	if err := yaml.Unmarshal(unfilteredFileBytes, &cfg); err != nil {
+		return "", err
+	}
+
+	if err := filterCloudCfg(&cfg, allowedDatasources); err != nil {
+		return "", err
+	}
+
+	// write out cfg to the filtered file now
+	b, err := yaml.Marshal(cfg)
+	if err != nil {
+		return "", err
+	}
+
+	// check if we need to write a file at all, if the yaml serialization was
+	// entirely filtered out, then we don't need to write anything
+	if strings.TrimSpace(string(b)) == "{}" {
+		return "", nil
+	}
+
+	// add the #cloud-config prefix to all files we write
+	if _, err := filteredFile.Write([]byte("#cloud-config\n")); err != nil {
+		return "", err
+	}
+
+	if _, err := filteredFile.Write(b); err != nil {
+		return "", err
+	}
+
+	// use the newly filtered temp file as the source to copy
+	return filteredFile.Name(), nil
 }
 
 type cloudDatasourcesInUseResult struct {

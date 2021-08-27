@@ -802,3 +802,197 @@ func (s *sysconfigSuite) TestCloudDatasourcesInUse(c *C) {
 		c.Assert(res, DeepEquals, t.expRes, comment)
 	}
 }
+
+const maasCfg1 = `#cloud-config
+reporting:
+  maas:
+    type: webhook
+    endpoint: http://172-16-99-0--24.maas-internal:5248/MAAS/metadata/status/foo
+    consumer_key: foothefoo
+    token_key: foothefoothesecond
+    token_secret: foothesecretfoo
+`
+
+const maasCfg2 = `datasource_list: [ MAAS ]
+`
+
+const maasCfg3 = `#cloud-config
+snappy:
+  email: foo@foothewebsite.com
+`
+
+const maasCfg4 = `#cloud-config
+network:
+  config:
+  - id: enp3s0
+    mac_address: 52:54:00:b4:9e:25
+    mtu: 1500
+    name: enp3s0
+    subnets:
+    - address: 172.16.99.7/24
+      dns_nameservers:
+      - 172.16.99.1
+      dns_search:
+      - maas
+      type: static
+    type: physical
+  - address: 172.16.99.1
+    search:
+    - maas
+    type: nameserver
+  version: 1
+`
+
+const maasCfg5 = `#cloud-config
+datasource:
+  MAAS:
+    consumer_key: foothefoo
+    metadata_url: http://172-16-99-0--24.maas-internal:5248/MAAS/metadata/
+    token_key: foothefoothesecond
+    token_secret: foothesecretfoo
+`
+
+func (s *sysconfigSuite) TestFilterCloudCfgFile(c *C) {
+	tt := []struct {
+		comment string
+		inStr   string
+		outStr  string
+		err     string
+	}{
+		{
+			comment: "maas reporting cloud-init config",
+			inStr:   maasCfg1,
+			outStr:  maasCfg1,
+		},
+		{
+			comment: "maas datasource list cloud-init config",
+			inStr:   maasCfg2,
+			outStr: `#cloud-config
+datasource_list:
+- MAAS
+`,
+		},
+		{
+			comment: "maas snappy user cloud-init config",
+			inStr:   maasCfg3,
+			// we don't support using the snappy key
+			outStr: "",
+		},
+		{
+			comment: "maas networking cloud-init config",
+			inStr:   maasCfg4,
+			outStr:  maasCfg4,
+		},
+		{
+			comment: "maas datasource cloud-init config",
+			inStr:   maasCfg5,
+			outStr:  maasCfg5,
+		},
+		{
+			comment: "unsupported datasource in datasource section cloud-init config",
+			inStr: `#cloud-config
+datasource:
+  NoCloud:
+    consumer_key: fooooooo
+`,
+			outStr: "",
+		},
+		{
+			comment: "unsupported datasource in reporting section cloud-init config",
+			inStr: `#cloud-config
+reporting:
+  NoCloud:
+    consumer_key: fooooooo
+`,
+			outStr: "",
+		},
+		{
+			comment: "unsupported datasource in datasource_list with supported one",
+			inStr: `#cloud-config
+datasource_list: [MAAS, NoCloud]
+`,
+			outStr: `#cloud-config
+datasource_list:
+- MAAS
+`,
+		},
+		{
+			comment: "unsupported datasources in multiple keys with supported ones",
+			inStr: `#cloud-config
+datasource:
+  MAAS:
+    consumer_key: fooooooo
+  NoCloud:
+    consumer_key: fooooooo
+
+reporting:
+  MAAS:
+    type: webhook
+  NoCloud:
+    type: webhook
+
+datasource_list: [MAAS, NoCloud]
+`,
+			outStr: `#cloud-config
+datasource:
+  MAAS:
+    consumer_key: fooooooo
+datasource_list:
+- MAAS
+reporting:
+  MAAS:
+    type: webhook
+`,
+		},
+		{
+			comment: "unrelated keys",
+			inStr: `#cloud-config
+datasource:
+  MAAS:
+    consumer_key: fooooooo
+    foo: bar
+
+reporting:
+  MAAS:
+    type: webhook
+    new_foo: new_bar
+
+extra_foo: extra_bar
+`,
+			outStr: `#cloud-config
+datasource:
+  MAAS:
+    consumer_key: fooooooo
+reporting:
+  MAAS:
+    type: webhook
+`,
+		},
+	}
+
+	dir := c.MkDir()
+	for i, t := range tt {
+		comment := Commentf(t.comment)
+		inFile := filepath.Join(dir, fmt.Sprintf("%d.cfg", i))
+		err := ioutil.WriteFile(inFile, []byte(t.inStr), 0755)
+		c.Assert(err, IsNil, comment)
+
+		out, err := sysconfig.FilterCloudCfgFile(inFile, []string{"MAAS"})
+		if t.err != "" {
+			c.Assert(err, ErrorMatches, t.err, comment)
+			continue
+		}
+		c.Assert(err, IsNil, comment)
+
+		// no expected output means that everything was filtered out
+		if t.outStr == "" {
+			c.Assert(out, Equals, "", comment)
+			continue
+		}
+
+		// otherwise we have expected output in the file
+		b, err := ioutil.ReadFile(out)
+		c.Assert(err, IsNil, comment)
+		c.Assert(string(b), Equals, t.outStr, comment)
+	}
+}
