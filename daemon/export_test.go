@@ -105,11 +105,11 @@ func MockUnsafeReadSnapInfo(mock func(string) (*snap.Info, error)) (restore func
 	}
 }
 
-func MockAssertstateRefreshAssertions(mock func(*state.State, int) error) (restore func()) {
-	oldAssertstateRefreshAssertions := assertstateRefreshAssertions
-	assertstateRefreshAssertions = mock
+func MockAssertstateRefreshSnapAssertions(mock func(*state.State, int) error) (restore func()) {
+	oldAssertstateRefreshSnapAssertions := assertstateRefreshSnapAssertions
+	assertstateRefreshSnapAssertions = mock
 	return func() {
-		assertstateRefreshAssertions = oldAssertstateRefreshAssertions
+		assertstateRefreshSnapAssertions = oldAssertstateRefreshSnapAssertions
 	}
 }
 

@@ -336,7 +336,7 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	}
 
 	// we need refreshed snap-declarations to enforce refresh-control as best as we can
-	if err = assertstateRefreshAssertions(st, inst.userID); err != nil {
+	if err = assertstateRefreshSnapAssertions(st, inst.userID); err != nil {
 		return "", nil, err
 	}
 
@@ -588,7 +588,7 @@ func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionRes
 	// we can, this also ensures that snap-declarations and their prerequisite
 	// assertions are updated regularly, as well as updates validation sets
 	// assertions.
-	if err := assertstateRefreshAssertions(st, inst.userID); err != nil {
+	if err := assertstateRefreshSnapAssertions(st, inst.userID); err != nil {
 		return nil, err
 	}
 

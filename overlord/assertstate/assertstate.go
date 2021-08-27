@@ -351,8 +351,8 @@ func AutoRefreshAssertions(s *state.State, userID int) error {
 	return RefreshValidationSetAssertions(s, userID, opts)
 }
 
-// RefreshAssertions tries to refresh all assertions
-func RefreshAssertions(s *state.State, userID int) error {
+// RefreshSnapAssertions tries to refresh all snap-centered assertions
+func RefreshSnapAssertions(s *state.State, userID int) error {
 	opts := &RefreshAssertionsOptions{IsAutoRefresh: false}
 	if err := RefreshSnapDeclarations(s, userID, opts); err != nil {
 		return err

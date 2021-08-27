@@ -991,7 +991,7 @@ func (s *assertMgrSuite) TestRefreshAssertionsRefreshSnapDeclarationsAndValidati
 	vsetAs2 := s.validationSetAssert(c, "bar", "2", "3", "required")
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
-	err = assertstate.RefreshAssertions(s.state, 0)
+	err = assertstate.RefreshSnapAssertions(s.state, 0)
 	c.Assert(err, IsNil)
 
 	a, err := assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
