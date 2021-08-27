@@ -766,6 +766,7 @@ const (
 	"name": "@NAME@",
 	"revision": @REVISION@,
 	"snap-id": "@SNAPID@",
+	"snap-yaml": @SNAP_YAML@,
 	"summary": "Foo",
 	"description": "this is a description",
 	"version": "@VERSION@",
@@ -852,9 +853,9 @@ func (s *baseMgrsSuite) pathFor(name, revno string) string {
 	return "/not/found"
 }
 
-func (s *baseMgrsSuite) newestThatCanRead(name string, epoch snap.Epoch) (info *snap.Info, rev string) {
+func (s *baseMgrsSuite) newestThatCanRead(name string, epoch snap.Epoch) (info *snap.Info, rawInfo, rev string) {
 	if s.serveSnapPath[name] == "" {
-		return nil, ""
+		return nil, "", ""
 	}
 	idx := len(s.serveOldPaths[name])
 	rev = s.serveRevision[name]
@@ -868,12 +869,16 @@ func (s *baseMgrsSuite) newestThatCanRead(name string, epoch snap.Epoch) (info *
 		if err != nil {
 			panic(err)
 		}
+		rawInfo, err := snapf.ReadFile("meta/snap.yaml")
+		if err != nil {
+			panic(err)
+		}
 		if info.Epoch.CanRead(epoch) {
-			return info, rev
+			return info, string(rawInfo), rev
 		}
 		idx--
 		if idx < 0 {
-			return nil, ""
+			return nil, "", ""
 		}
 		path = s.serveOldPaths[name][idx]
 		rev = s.serveOldRevs[name][idx]
@@ -882,11 +887,16 @@ func (s *baseMgrsSuite) newestThatCanRead(name string, epoch snap.Epoch) (info *
 
 func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 	var baseURL *url.URL
-	fillHit := func(hitTemplate, revno string, info *snap.Info) string {
+	fillHit := func(hitTemplate, revno string, info *snap.Info, rawInfo string) string {
 		epochBuf, err := json.Marshal(info.Epoch)
 		if err != nil {
 			panic(err)
 		}
+		rawInfoBuf, err := json.Marshal(rawInfo)
+		if err != nil {
+			panic(err)
+		}
+
 		name := info.SnapName()
 
 		hit := strings.Replace(hitTemplate, "@URL@", baseURL.String()+"/api/v1/snaps/download/"+name+"/"+revno, -1)
@@ -897,6 +907,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 		hit = strings.Replace(hit, "@REVISION@", revno, -1)
 		hit = strings.Replace(hit, `@TYPE@`, string(info.Type()), -1)
 		hit = strings.Replace(hit, `@EPOCH@`, string(epochBuf), -1)
+		hit = strings.Replace(hit, `@SNAP_YAML@`, string(rawInfoBuf), -1)
 		return hit
 	}
 
@@ -1056,7 +1067,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 					epoch = a.Epoch
 				}
 
-				info, revno := s.newestThatCanRead(name, epoch)
+				info, rawInfo, revno := s.newestThatCanRead(name, epoch)
 				if info == nil {
 					// no match
 					continue
@@ -1066,7 +1077,7 @@ func (s *baseMgrsSuite) mockStore(c *C) *httptest.Server {
 					SnapID:      a.SnapID,
 					InstanceKey: a.InstanceKey,
 					Name:        name,
-					Snap:        json.RawMessage(fillHit(snapV2, revno, info)),
+					Snap:        json.RawMessage(fillHit(snapV2, revno, info, rawInfo)),
 				})
 			}
 			w.WriteHeader(200)
@@ -3266,6 +3277,97 @@ version: 1.0
 
 	st.Lock()
 	c.Assert(chg.Status(), Equals, state.DoingStatus, Commentf("install-snap change failed with: %v", chg.Err()))
+}
+
+func (s *mgrsSuite) TestInstallWithAssumesIsRefusedEarly(c *C) {
+	s.prereqSnapAssertions(c)
+
+	revno := "1"
+	snapYamlContent := `name: some-snap
+version: 1.0
+assumes: [something-that-is-not-provided]
+`
+	snapPath, _ := s.makeStoreTestSnap(c, snapYamlContent, revno)
+	s.serveSnap(snapPath, revno)
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	_, err := snapstate.Install(context.TODO(), st, "some-snap", nil, 0, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `snap "some-snap" assumes unsupported features: something-that-is-not-provided \(try to update snapd and refresh the core snap\)`)
+}
+
+func (s *mgrsSuite) TestUpdateWithAssumesIsRefusedEarly(c *C) {
+	s.prereqSnapAssertions(c)
+
+	revno := "40"
+	snapYamlContent := `name: some-snap
+version: 1.0
+assumes: [something-that-is-not-provided]
+`
+	snapPath, _ := s.makeStoreTestSnap(c, snapYamlContent, revno)
+	s.serveSnap(snapPath, revno)
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	_, err := snapstate.Update(st, "some-snap", nil, 0, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `snap "some-snap" assumes unsupported features: something-that-is-not-provided \(try to update snapd and refresh the core snap\)`)
+}
+
+func (s *mgrsSuite) TestUpdateManyWithAssumesIsRefusedEarly(c *C) {
+	s.prereqSnapAssertions(c)
+
+	revno := "40"
+	snapYamlContent := `name: some-snap
+version: 1.0
+assumes: [something-that-is-not-provided]
+`
+	snapPath, _ := s.makeStoreTestSnap(c, snapYamlContent, revno)
+	s.serveSnap(snapPath, revno)
+
+	mockServer := s.mockStore(c)
+	defer mockServer.Close()
+
+	st := s.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: fakeSnapID("some-snap"), Revision: snap.R(1)}
+	snapstate.Set(st, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+
+	// updateMany will just skip snaps with assumes but not error
+	affected, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, nil)
+	c.Assert(err, IsNil)
+	c.Check(affected, HasLen, 0)
+	// the skipping is logged though
+	c.Check(s.logbuf.String(), testutil.Contains, `cannot update "some-snap": snap "some-snap" assumes unsupported features: something-that-is-not-provided (try`)
+	// XXX: should we really check for re-refreshes if there is nothing
+	// to update?
+	c.Check(tss, HasLen, 1)
+	c.Check(tss[0].Tasks(), HasLen, 1)
+	c.Check(tss[0].Tasks()[0].Kind(), Equals, "check-rerefresh")
 }
 
 type storeCtxSetupSuite struct {
@@ -8467,4 +8569,55 @@ volumes:
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "overlays/uart0.dtbo"), testutil.FileContains, "uart0.dtbo rev2-from-kernel")
 	//  gadget content is not updated because there is no edition update
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "start.elf"), testutil.FileContains, "start.elf rev1")
+}
+
+// deal with the missing "update-gadget-assets" tasks, see LP:#1940553
+func (ms *gadgetUpdatesSuite) TestGadgetKernelRefreshFromOldBrokenSnap(c *C) {
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// we have an install kernel/gadget
+	gadgetSnapYaml := "name: pi\nversion: 1.0\ntype: gadget"
+	ms.mockInstalledSnapWithFiles(c, gadgetSnapYaml, [][]string{
+		{"meta/gadget.yaml", "volumes:\n volume-id:\n  bootloader: grub"},
+	})
+	kernelSnapYaml := "name: pi-kernel\nversion: 1.0\ntype: kernel"
+	ms.mockInstalledSnapWithFiles(c, kernelSnapYaml, nil)
+
+	// add new kernel/gadget snap
+	newKernelSnapYaml := kernelSnapYaml
+	ms.mockSnapUpgradeWithFiles(c, newKernelSnapYaml, nil)
+	ms.mockSnapUpgradeWithFiles(c, gadgetSnapYaml, [][]string{
+		{"meta/gadget.yaml", "volumes:\n volume-id:\n  bootloader: grub"},
+	})
+
+	// now a refresh is simulated that does *not* contain an
+	// "update-gadget-assets" task, see LP:#1940553
+	snapstate.TestingLeaveOutKernelUpdateGadgetAssets = true
+	defer func() { snapstate.TestingLeaveOutKernelUpdateGadgetAssets = false }()
+	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, &snapstate.Flags{})
+	c.Assert(err, IsNil)
+	sort.Strings(affected)
+	c.Check(affected, DeepEquals, []string{"pi", "pi-kernel"})
+
+	// here we need to manipulate the change to simulate that there
+	// is no "update-gadget-assets" task for the kernel, unfortunately
+	// there is no "state.TaskSet.RemoveTask" nor a "state.Task.Unwait()"
+	chg := st.NewChange("upgrade-snaps", "...")
+	for _, ts := range tasksets {
+		// skip the taskset of UpdateMany that does the
+		// check-rerefresh, see tsWithoutReRefresh for details
+		if ts.Tasks()[0].Kind() == "check-rerefresh" {
+			continue
+		}
+
+		chg.AddAll(ts)
+	}
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Mount snap \"pi-kernel\" \\(2\\) \\(cannot refresh kernel with change created by old snapd that is missing gadget update task\\)")
 }
