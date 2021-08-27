@@ -2,7 +2,6 @@
 
 set -e
 
-
 echo Obtaining dependencies
 go mod vendor
 
