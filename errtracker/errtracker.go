@@ -73,9 +73,6 @@ var (
 type reportsDB struct {
 	db *bolt.DB
 
-	// map of hash(dupsig) -> time-of-report
-	reportedBucket *bolt.Bucket
-
 	// time until an error report is cleaned from the database,
 	// usually 7 days
 	cleanupTime time.Duration

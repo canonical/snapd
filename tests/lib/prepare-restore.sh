@@ -531,6 +531,14 @@ prepare_project() {
         fi
         sleep 1
     done
+    # Update C dependencies
+    for _ in $(seq 10); do
+        if (cd c-vendor && ./vendor.sh); then
+            break
+        fi
+        sleep 1
+    done
+
     # govendor runs as root and will leave strange permissions
     chown test.test -R "$SPREAD_PATH"
 
@@ -605,6 +613,20 @@ prepare_suite() {
 prepare_suite_each() {
     local variant="$1"
 
+    # Create runtime files in case those don't exist
+    # This is for the first test of the suite. We cannot perform these operations in prepare_suite
+    # because not all suites are triggering it (for example the tools suite doesn't).
+    touch "$RUNTIME_STATE_PATH/runs"
+    touch "$RUNTIME_STATE_PATH/journalctl_cursor"
+
+    # Start fs monitor
+    "$TESTSTOOLS"/fs-state start-monitor
+
+    # Save all the installed packages
+    if os.query is-classic; then
+        tests.pkgs list-installed > installed-initial.pkgs
+    fi
+
     # back test directory to be restored during the restore
     tests.backup prepare
 
@@ -654,6 +676,19 @@ restore_suite_each() {
     # restore test directory saved during prepare
     tests.backup restore
 
+    # Save all the installed packages and remove the new packages installed 
+    if os.query is-classic; then
+        tests.pkgs list-installed > installed-final.pkgs
+        diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-new.pkgs
+
+        # shellcheck disable=SC2002
+        packages="$(cat installed-new.pkgs | tr "\n" " ")"
+        if [ -n "$packages" ]; then
+            # shellcheck disable=SC2086
+            tests.pkgs remove $packages
+        fi
+    fi
+
     # On Arch it seems that using sudo / su for working with the test user
     # spawns the /run/user/12345 tmpfs for XDG_RUNTIME_DIR which asynchronously
     # cleans up itself sometime after the test but not instantly, leading to
@@ -682,6 +717,8 @@ restore_suite_each() {
         "$TESTSTOOLS"/cleanup-state pre-invariant
     fi
     tests.invariant check
+
+    "$TESTSTOOLS"/fs-state check-monitor
 }
 
 restore_suite() {

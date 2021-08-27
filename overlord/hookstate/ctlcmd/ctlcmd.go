@@ -32,10 +32,23 @@ import (
 	"github.com/snapcore/snapd/strutil"
 )
 
+type MissingContextError struct {
+	subcommand string
+}
+
+func (e *MissingContextError) Error() string {
+	return fmt.Sprintf(`cannot invoke snapctl operation commands (here %q) from outside of a snap`, e.subcommand)
+}
+
 type baseCommand struct {
 	stdout io.Writer
 	stderr io.Writer
 	c      *hookstate.Context
+	name   string
+}
+
+func (c *baseCommand) setName(name string) {
+	c.name = name
 }
 
 func (c *baseCommand) setStdout(w io.Writer) {
@@ -66,7 +79,16 @@ func (c *baseCommand) context() *hookstate.Context {
 	return c.c
 }
 
+func (c *baseCommand) ensureContext() (context *hookstate.Context, err error) {
+	if c.c == nil {
+		err = &MissingContextError{c.name}
+	}
+	return c.c, err
+}
+
 type command interface {
+	setName(name string)
+
 	setStdout(w io.Writer)
 	setStderr(w io.Writer)
 
@@ -113,41 +135,33 @@ func (f ForbiddenCommandError) Error() string {
 	return f.Message
 }
 
-// ForbiddenCommand contains information about an attempt to use a command in a context where it is not allowed.
-type ForbiddenCommand struct {
-	Uid  uint32
-	Name string
-}
-
-func (f *ForbiddenCommand) Execute(args []string) error {
-	return &ForbiddenCommandError{Message: fmt.Sprintf("cannot use %q with uid %d, try with sudo", f.Name, f.Uid)}
-}
-
 // nonRootAllowed lists the commands that can be performed even when snapctl
 // is invoked not by root.
 var nonRootAllowed = []string{"get", "services", "set-health", "is-connected", "system-mode"}
 
 // Run runs the requested command.
 func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr []byte, err error) {
+	if len(args) == 0 {
+		return nil, nil, fmt.Errorf("internal error: snapctl cannot run without args")
+	}
+
+	if !isAllowedToRun(uid, args) {
+		return nil, nil, &ForbiddenCommandError{Message: fmt.Sprintf("cannot use %q with uid %d, try with sudo", args[0], uid)}
+	}
+
 	parser := flags.NewNamedParser("snapctl", flags.PassDoubleDash|flags.HelpFlag)
 
 	// Create stdout/stderr buffers, and make sure commands use them.
 	var stdoutBuffer bytes.Buffer
 	var stderrBuffer bytes.Buffer
 	for name, cmdInfo := range commands {
-		var data interface{}
-		// commands listed here will be allowed for regular users
-		// note: commands still need valid context and snaps can only access own config.
-		if uid == 0 || strutil.ListContains(nonRootAllowed, name) {
-			cmd := cmdInfo.generator()
-			cmd.setStdout(&stdoutBuffer)
-			cmd.setStderr(&stderrBuffer)
-			cmd.setContext(context)
-			data = cmd
-		} else {
-			data = &ForbiddenCommand{Uid: uid, Name: name}
-		}
-		theCmd, err := parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, data)
+		cmd := cmdInfo.generator()
+		cmd.setName(name)
+		cmd.setStdout(&stdoutBuffer)
+		cmd.setStderr(&stderrBuffer)
+		cmd.setContext(context)
+
+		theCmd, err := parser.AddCommand(name, cmdInfo.shortHelp, cmdInfo.longHelp, cmd)
 		theCmd.Hidden = cmdInfo.hidden
 		if err != nil {
 			logger.Panicf("cannot add command %q: %s", name, err)
@@ -156,4 +170,16 @@ func Run(context *hookstate.Context, args []string, uid uint32) (stdout, stderr 
 
 	_, err = parser.ParseArgs(args)
 	return stdoutBuffer.Bytes(), stderrBuffer.Bytes(), err
+}
+
+func isAllowedToRun(uid uint32, args []string) bool {
+	// A command can run if any of the following are true:
+	//	* It runs as root
+	//	* It's contained in nonRootAllowed
+	//	* It's used with the -h or --help flags
+	// note: commands still need valid context and snaps can only access own config.
+	return uid == 0 ||
+		strutil.ListContains(nonRootAllowed, args[0]) ||
+		strutil.ListContains(args, "-h") ||
+		strutil.ListContains(args, "--help")
 }

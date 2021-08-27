@@ -145,7 +145,8 @@ func mockInstalledSnap(c *C, st *state.State, snapYaml string) {
 				SnapID:   info.InstanceName() + "-id",
 			},
 		},
-		Current: info.Revision,
+		Current:         info.Revision,
+		TrackingChannel: "stable",
 	})
 }
 
@@ -257,7 +258,7 @@ func (s *isConnectedSuite) TestIsConnectedFromApp(c *C) {
 
 func (s *isConnectedSuite) TestNoContextError(c *C) {
 	stdout, stderr, err := ctlcmd.Run(nil, []string{"is-connected", "foo"}, 0)
-	c.Check(err, ErrorMatches, `cannot check connection status without a context`)
+	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "is-connected"\) from outside of a snap`)
 	c.Check(string(stdout), Equals, "")
 	c.Check(string(stderr), Equals, "")
 }

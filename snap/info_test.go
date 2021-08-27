@@ -1163,15 +1163,6 @@ func (s *infoSuite) TestParsePlaceInfoFromSnapFileName(c *C) {
 	}
 }
 
-func makeFakeDesktopFile(c *C, name, content string) string {
-	df := filepath.Join(dirs.SnapDesktopFilesDir, name)
-	err := os.MkdirAll(filepath.Dir(df), 0755)
-	c.Assert(err, IsNil)
-	err = ioutil.WriteFile(df, []byte(content), 0644)
-	c.Assert(err, IsNil)
-	return df
-}
-
 func (s *infoSuite) TestAppDesktopFile(c *C) {
 	snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{})
 	snapInfo, err := snap.ReadInfo("sample", &snap.SideInfo{})
@@ -1649,7 +1640,7 @@ name: snapd
 type: app
 version: 1
 `
-	snapInfo := snaptest.MockSnap(c, sampleYaml, &snap.SideInfo{Revision: snap.R(1), SnapID: "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"})
+	snapInfo := snaptest.MockSnap(c, snapdYaml, &snap.SideInfo{Revision: snap.R(1), SnapID: "PMrrV4ml8uWuEUDBT8dSGnKUYbevVhc4"})
 	c.Check(snapInfo.Type(), Equals, snap.TypeSnapd)
 }
 

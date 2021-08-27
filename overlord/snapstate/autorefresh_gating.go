@@ -216,9 +216,18 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 		gating[heldSnap][gatingSnap] = hold
 	}
 
-	if len(herr.SnapsInError) != len(affectingSnaps) {
-		st.Set("snaps-hold", gating)
+	if len(herr.SnapsInError) > 0 {
+		// if some of the affecting snaps couldn't be held anymore then it
+		// doesn't make sense to hold other affecting snaps (because the gating
+		// snap is going to be disrupted anyway); go over all affectingSnaps
+		// again and remove gating info for them - this also deletes old holdings
+		// (if the hook run on previous refresh attempt) therefore we need to
+		// update snaps-hold state below.
+		for _, heldSnap := range affectingSnaps {
+			delete(gating[heldSnap], gatingSnap)
+		}
 	}
+	st.Set("snaps-hold", gating)
 	if len(herr.SnapsInError) > 0 {
 		return herr
 	}
@@ -397,6 +406,26 @@ func AffectedByRefreshCandidates(st *state.State) (map[string]*AffectedSnapInfo,
 	}
 	affected, err := affectedByRefresh(st, snaps)
 	return affected, err
+}
+
+// AffectingSnapsForAffectedByRefreshCandidates returns the list of all snaps
+// affecting affectedSnap (i.e. a gating snap), based on upcoming updates
+// from refresh-candidates.
+func AffectingSnapsForAffectedByRefreshCandidates(st *state.State, affectedSnap string) ([]string, error) {
+	affected, err := AffectedByRefreshCandidates(st)
+	if err != nil {
+		return nil, err
+	}
+	affectedInfo := affected[affectedSnap]
+	if affectedInfo == nil || len(affectedInfo.AffectingSnaps) == 0 {
+		return nil, nil
+	}
+	affecting := make([]string, 0, len(affectedInfo.AffectingSnaps))
+	for sn := range affectedInfo.AffectingSnaps {
+		affecting = append(affecting, sn)
+	}
+	sort.Strings(affecting)
+	return affecting, nil
 }
 
 func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedSnapInfo, error) {
@@ -600,20 +629,12 @@ func usesMountBackend(iface interfaces.Interface) bool {
 }
 
 // createGateAutoRefreshHooks creates gate-auto-refresh hooks for all affectedSnaps.
-// The hooks will have their context data set from affectedSnapInfo flags (base, restart).
 // Hook tasks will be chained to run sequentially.
-func createGateAutoRefreshHooks(st *state.State, affectedSnaps map[string]*AffectedSnapInfo) *state.TaskSet {
+func createGateAutoRefreshHooks(st *state.State, affectedSnaps []string) *state.TaskSet {
 	ts := state.NewTaskSet()
 	var prev *state.Task
-	// sort names for easy testing
-	names := make([]string, 0, len(affectedSnaps))
-	for snapName := range affectedSnaps {
-		names = append(names, snapName)
-	}
-	sort.Strings(names)
-	for _, snapName := range names {
-		affected := affectedSnaps[snapName]
-		hookTask := SetupGateAutoRefreshHook(st, snapName, affected.Base, affected.Restart, affected.AffectingSnaps)
+	for _, snapName := range affectedSnaps {
+		hookTask := SetupGateAutoRefreshHook(st, snapName)
 		// XXX: it should be fine to run the hooks in parallel
 		if prev != nil {
 			hookTask.WaitFor(prev)

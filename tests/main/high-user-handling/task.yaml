@@ -17,8 +17,7 @@ prepare: |
 
 restore: |
     tests.session -u hightest restore
-    userdel hightest
-    rm -f hightest
+    userdel -r hightest
 
 execute: |
     tests.session -u hightest exec "$(pwd)/hightest"

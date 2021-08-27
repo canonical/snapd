@@ -38,7 +38,6 @@ var _ = Suite(&FileSuite{})
 
 type validateSuite struct {
 	testutil.BaseTest
-	log func(string, ...interface{})
 }
 
 var _ = Suite(&validateSuite{})
