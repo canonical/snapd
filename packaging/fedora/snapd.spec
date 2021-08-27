@@ -96,7 +96,7 @@
 %endif
 
 Name:           snapd
-Version:        2.51.6
+Version:        2.51.7
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -942,6 +942,17 @@ fi
 
 
 %changelog
+* Fri Aug 27 2021 Ian Johnson <ian.johnson@canonical.com>
+- New upstream release 2.51.7
+ - cmd/snap-seccomp/syscalls: update syscalls list to libseccomp
+   v2.2.0-428-g5c22d4b1
+ - tests: cherry-pick shellcheck fix `bd730fd4`
+ - interfaces/dsp: add /dev/ambad into dsp interface
+ - many: shellcheck fixes
+ - snapstate: abort kernel refresh if no gadget update can be found
+ - overlord: add manager test for "assumes" checking
+ - store: deal correctly with "assumes" from the store raw yaml
+
 * Thu Aug 19 2021 Ian Johnson <ian.johnson@canonical.com>
 - New upstream release 2.51.6
  - secboot: use half the mem for KDF in AddRecoveryKey
