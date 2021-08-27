@@ -35,6 +35,8 @@ restore: |
     # Stop dbus activated by test-snapd-desktop snap.
     systemctl --user stop dbus.service || true
 
+    rm -rf /home/test/foo
+
 execute: |
     systemctl restart snapd.socket
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'

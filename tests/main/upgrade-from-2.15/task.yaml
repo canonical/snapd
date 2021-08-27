@@ -26,6 +26,9 @@ restore: |
     # remove those leftovers.
     rm -rf /tmp/snap.rootfs_*
 
+    # Remove file with wget history
+    rm -f /root/.wget-hsts
+
 execute: |
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
