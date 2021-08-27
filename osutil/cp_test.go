@@ -44,7 +44,6 @@ type cpSuite struct {
 	data []byte
 	log  []string
 	errs []error
-	idx  int
 }
 
 var _ = Suite(&cpSuite{})
