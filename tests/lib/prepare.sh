@@ -195,22 +195,25 @@ update_core_snap_for_classic_reexec() {
 
 prepare_memory_limit_override() {
     if [ -n "${SNAPD_NO_MEMORY_LIMIT:-}" ]; then
-        return
-    fi
-    mkdir -p /etc/systemd/system/snapd.service.d
-    # Use MemoryMax to set the memory limit for snapd.service, that is the main
-    # snapd snapd process and its subprocesses executing within the same cgroup.
-    # If snapd hits the memory limit, it will get killed by oom-killer which
-    # will be caught in restore_project_each in prepare-restore.sh.
-    #
-    # This ought to set MemoryMax, but on systems with older systemd we need to
-    # use MemoryLimit, which is deprecated and replaced by MemoryMax now, but
-    # systemd is backwards compatible so the limit is still set.
-    cat <<EOF > /etc/systemd/system/snapd.service.d/memory-max.conf
+        # make sure the file does not exist then
+        rm -f /etc/systemd/system/snapd.service.d/memory-max.conf
+    else
+        mkdir -p /etc/systemd/system/snapd.service.d
+        # Use MemoryMax to set the memory limit for snapd.service, that is the
+        # main snapd process and its subprocesses executing within the same
+        # cgroup. If snapd hits the memory limit, it will get killed by
+        # oom-killer which will be caught in restore_project_each in
+        # prepare-restore.sh.
+        #
+        # This ought to set MemoryMax, but on systems with older systemd we need to
+        # use MemoryLimit, which is deprecated and replaced by MemoryMax now, but
+        # systemd is backwards compatible so the limit is still set.
+        cat <<EOF > /etc/systemd/system/snapd.service.d/memory-max.conf
 [Service]
 MemoryLimit=100M
 EOF
-    # the re-exec setting may have changed in the service so we need
+    fi
+    # the service setting may have changed in the service so we need
     # to ensure snapd is reloaded
     systemctl daemon-reload
     systemctl restart snapd
