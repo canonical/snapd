@@ -9,6 +9,7 @@ cmd/VERSION
 .vscode/
 .idea/
 vendor/*/
+c-vendor/*/
 .spread-reuse*.yaml
 po/snappy.pot
 
