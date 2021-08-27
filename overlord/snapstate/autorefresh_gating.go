@@ -408,6 +408,26 @@ func AffectedByRefreshCandidates(st *state.State) (map[string]*AffectedSnapInfo,
 	return affected, err
 }
 
+// AffectingSnapsForAffectedByRefreshCandidates returns the list of all snaps
+// affecting affectedSnap (i.e. a gating snap), based on upcoming updates
+// from refresh-candidates.
+func AffectingSnapsForAffectedByRefreshCandidates(st *state.State, affectedSnap string) ([]string, error) {
+	affected, err := AffectedByRefreshCandidates(st)
+	if err != nil {
+		return nil, err
+	}
+	affectedInfo := affected[affectedSnap]
+	if affectedInfo == nil || len(affectedInfo.AffectingSnaps) == 0 {
+		return nil, nil
+	}
+	affecting := make([]string, 0, len(affectedInfo.AffectingSnaps))
+	for sn := range affectedInfo.AffectingSnaps {
+		affecting = append(affecting, sn)
+	}
+	sort.Strings(affecting)
+	return affecting, nil
+}
+
 func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedSnapInfo, error) {
 	allSnaps, err := All(st)
 	if err != nil {
@@ -609,20 +629,12 @@ func usesMountBackend(iface interfaces.Interface) bool {
 }
 
 // createGateAutoRefreshHooks creates gate-auto-refresh hooks for all affectedSnaps.
-// The hooks will have their context data set from affectedSnapInfo flags (base, restart).
 // Hook tasks will be chained to run sequentially.
-func createGateAutoRefreshHooks(st *state.State, affectedSnaps map[string]*AffectedSnapInfo) *state.TaskSet {
+func createGateAutoRefreshHooks(st *state.State, affectedSnaps []string) *state.TaskSet {
 	ts := state.NewTaskSet()
 	var prev *state.Task
-	// sort names for easy testing
-	names := make([]string, 0, len(affectedSnaps))
-	for snapName := range affectedSnaps {
-		names = append(names, snapName)
-	}
-	sort.Strings(names)
-	for _, snapName := range names {
-		affected := affectedSnaps[snapName]
-		hookTask := SetupGateAutoRefreshHook(st, snapName, affected.Base, affected.Restart, affected.AffectingSnaps)
+	for _, snapName := range affectedSnaps {
+		hookTask := SetupGateAutoRefreshHook(st, snapName)
 		// XXX: it should be fine to run the hooks in parallel
 		if prev != nil {
 			hookTask.WaitFor(prev)

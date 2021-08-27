@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
 
@@ -143,24 +144,27 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 	context.Lock()
 	defer context.Unlock()
 
-	if context.IsEphemeral() {
-		// TODO: support ephemeral context
-		return nil, nil
+	st := context.State()
+
+	affected, err := snapstate.AffectedByRefreshCandidates(st)
+	if err != nil {
+		return nil, err
 	}
 
 	var base, restart bool
-	context.Get("base", &base)
-	context.Get("restart", &restart)
-
-	var candidates map[string]*refreshCandidate
-	st := context.State()
-	if err := st.Get("refresh-candidates", &candidates); err != nil {
-		return nil, err
+	if affectedInfo, ok := affected[context.InstanceName()]; ok {
+		base = affectedInfo.Base
+		restart = affectedInfo.Restart
 	}
 
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, context.InstanceName(), &snapst); err != nil {
 		return nil, fmt.Errorf("internal error: cannot get snap state for %q: %v", context.InstanceName(), err)
+	}
+
+	var candidates map[string]*refreshCandidate
+	if err := st.Get("refresh-candidates", &candidates); err != nil && err != state.ErrNoState {
+		return nil, err
 	}
 
 	var pending string
@@ -200,10 +204,6 @@ func (c *refreshCommand) printPendingInfo() error {
 	if err != nil {
 		return err
 	}
-	// XXX: remove when ephemeral context is supported.
-	if details == nil {
-		return nil
-	}
 	out, err := yaml.Marshal(details)
 	if err != nil {
 		return err
@@ -224,9 +224,16 @@ func (c *refreshCommand) hold() error {
 	// cache the action so that hook handler can implement default behavior
 	ctx.Cache("action", snapstate.GateAutoRefreshHold)
 
-	var affecting []string
-	if err := ctx.Get("affecting-snaps", &affecting); err != nil {
-		return fmt.Errorf("internal error: cannot get affecting-snaps")
+	affecting, err := snapstate.AffectingSnapsForAffectedByRefreshCandidates(st, ctx.InstanceName())
+	if err != nil {
+		return err
+	}
+	if len(affecting) == 0 {
+		// this shouldn't happen because the hook is executed during auto-refresh
+		// change which conflicts with other changes (if it happens that means
+		// something changed in the meantime and we didn't handle conflicts
+		// correctly).
+		return fmt.Errorf("internal error: snap %q is not affected by any snaps", ctx.InstanceName())
 	}
 
 	// no duration specified, use maximum allowed for this gating snap.
