@@ -587,7 +587,6 @@ pkg_dependencies_ubuntu_classic(){
                 fwupd
                 packagekit
                 qemu-utils
-                snapd-xdg-open
                 "
             ;;
         ubuntu-20.04-64)
