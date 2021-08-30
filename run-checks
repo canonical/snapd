@@ -12,7 +12,7 @@ COVERMODE=${COVERMODE:-atomic}
 
 if [ -z "${GITHUB_WORKFLOW:-}" ]; then
     # when *not* running inside github, ensure we use go-1.10 by default
-    export PATH=/usr/lib/go-1.10/bin:${PATH}
+    export PATH=/usr/lib/go-1.10/bin:"${PATH}"
 fi
 
 # add workaround for https://github.com/golang/go/issues/24449
