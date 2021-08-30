@@ -35,6 +35,7 @@ import (
 
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/release"
 )
 
 func init() {
@@ -73,6 +74,10 @@ func hasDBusMethodOnInterface(node *introspect.Node, ifName, methodName string) 
 }
 
 func getNetplanFromSystem(key string) (result interface{}, err error) {
+	if release.OnClassic {
+		return nil, nil
+	}
+
 	conn, err := dbusutil.SystemBus()
 	if err != nil {
 		return nil, err

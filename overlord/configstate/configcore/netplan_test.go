@@ -102,6 +102,22 @@ func (s *netplanSuite) TestNetplanGetFromDbusNoV2Api(c *C) {
 	c.Assert(err, ErrorMatches, `snap "core" has no "system.network.netplan" configuration option`)
 }
 
+func (s *netplanSuite) TestNetplanGetNoSupportOnClassic(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	restore := release.MockOnClassic(true)
+	s.AddCleanup(restore)
+
+	// export the V2 api, things work with that
+	s.backend.ExportApiV2()
+
+	tr := config.NewTransaction(s.state)
+	netplanCfg := make(map[string]interface{})
+	err := tr.Get("core", "system.network.netplan", &netplanCfg)
+	c.Assert(err, ErrorMatches, `snap "core" has no "system.network.netplan" configuration option`)
+}
+
 func (s *netplanSuite) TestNetplanGetFromDbusHappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()

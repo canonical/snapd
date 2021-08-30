@@ -25,6 +25,7 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/sysconfig"
 )
 
@@ -58,7 +59,7 @@ func init() {
 	addWithStateHandler(validateAutomaticSnapshotsExpiration, nil, validateOnly)
 
 	// netplan.*
-	addWithStateHandler(validateNetplanSettings, handleNetplanConfiguration, nil)
+	addWithStateHandler(validateNetplanSettings, handleNetplanConfiguration, &flags{coreOnlyConfig: true})
 }
 
 type withStateHandler struct {
@@ -120,7 +121,9 @@ func applyHandlers(dev sysconfig.Device, cfg config.Conf, handlers []configHandl
 				return fmt.Errorf("cannot set store ssl certificate under name %q: name must only contain word characters or a dash", k)
 			}
 		case strings.HasPrefix(k, "core.system.network.netplan."):
-			// fine
+			if release.OnClassic {
+				return fmt.Errorf("cannot set netplan configuration on classic")
+			}
 		case !supportedConfigurations[k]:
 			return fmt.Errorf("cannot set %q: unsupported system option", k)
 		}
