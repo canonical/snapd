@@ -1,6 +1,6 @@
 summary: Regression test for https://bugs.launchpad.net/snapd/+bug/1815869
 
-systems: [ubuntu-16.04-64]
+systems: [ubuntu-18.04-64]
 
 prepare: |
     # Ensure that we don't have LXD installed as a deb
@@ -23,40 +23,40 @@ prepare: |
         lxc config set core.proxy_https "$http_proxy"
     fi
 
-    # Launch a xenial container.
-    lxc launch --quiet ubuntu:xenial xenial
+    # Launch a bionic container.
+    lxc launch --quiet ubuntu:bionic mycontainer
 
     # Set the proxy inside the container.
     if [ -n "${http_proxy:-}" ]; then
-        lxc exec xenial -- sh -c "echo http_proxy=$http_proxy >> /etc/environment"
+        lxc exec mycontainer -- sh -c "echo http_proxy=$http_proxy >> /etc/environment"
     fi
     if [ -n "${https_proxy:-}" ]; then
-        lxc exec xenial -- sh -c "echo https_proxy=$https_proxy >> /etc/environment"
+        lxc exec mycontainer -- sh -c "echo https_proxy=$https_proxy >> /etc/environment"
     fi
 
     # Install snapd we've built inside the container.
-    lxc exec xenial -- apt autoremove --purge -y snapd ubuntu-core-launcher
-    lxc exec xenial -- mkdir -p "$GOHOME"
-    lxc file push --quiet "$GOHOME"/snapd_*.deb "xenial/$GOHOME/"
-    lxc exec xenial -- apt install -y "$GOHOME"/snapd_*.deb
+    lxc exec mycontainer -- apt autoremove --purge -y snapd ubuntu-core-launcher
+    lxc exec mycontainer -- mkdir -p "$GOHOME"
+    lxc file push --quiet "$GOHOME"/snapd_*.deb "mycontainer/$GOHOME/"
+    lxc exec mycontainer -- apt install -y "$GOHOME"/snapd_*.deb
 
     # Wait until snapd inside container is ready.
-    lxc exec xenial -- snap wait system seed.loaded
+    lxc exec mycontainer -- snap wait system seed.loaded
 
     # Install python0, a classic snap with python0 inside.
-    lxc exec xenial -- snap install --classic python0
+    lxc exec mycontainer -- snap install --classic python0
 
     # Make a directory outside of home, specifically in /var/lib for "logs"
-    lxc exec xenial -- mkdir /var/lib/test
-    lxc file push --quiet hello.py xenial/var/lib/test/hello.py
+    lxc exec mycontainer -- mkdir /var/lib/test
+    lxc file push --quiet hello.py mycontainer/var/lib/test/hello.py
 
     # Copy our python script there.
-    lxc exec xenial -- chown ubuntu.ubuntu /var/lib/test
+    lxc exec mycontainer -- chown ubuntu.ubuntu /var/lib/test
 
 restore: |
     # Remove the container we may have set up.
-    lxc stop xenial --force || true
-    lxc delete --force xenial || true
+    lxc stop mycontainer --force || true
+    lxc delete --force mycontainer || true
 
     snap remove --purge lxd
     "$TESTSTOOLS"/lxd-state undo-mount-changes
@@ -64,7 +64,7 @@ restore: |
 execute: |
     # Run python0 with a hello.py script and redirect the logs to /var/lib/test/hello.log
     # Run the script as a regular user for extra (lower) permissions.
-    lxc exec xenial -- su -c "snap run python0 /var/lib/test/hello.py >/var/lib/test/hello.log" ubuntu
+    lxc exec mycontainer -- su -c "snap run python0 /var/lib/test/hello.py >/var/lib/test/hello.log" ubuntu
 
     # Ensure that the logging worked correctly.
-    lxc exec xenial -- cat /var/lib/test/hello.log | MATCH 'Hello Python From Beyond'
+    lxc exec mycontainer -- cat /var/lib/test/hello.log | MATCH 'Hello Python From Beyond'

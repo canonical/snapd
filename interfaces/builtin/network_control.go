@@ -346,6 +346,8 @@ func init() {
 		connectedPlugUpdateNSAppArmor: networkControlConnectedPlugUpdateNSAppArmor,
 
 		suppressPtraceTrace: true,
-	})
 
+		// affects the plug snap because of mount backend
+		affectsPlugOnRefresh: true,
+	})
 }

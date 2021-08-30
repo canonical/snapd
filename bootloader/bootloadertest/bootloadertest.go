@@ -252,11 +252,10 @@ func (b *MockExtractedRecoveryKernelImageBootloader) ExtractRecoveryKernelAssets
 // MockExtractedRunKernelImageMixin implements the
 // ExtractedRunKernelImageBootloader interface.
 type MockExtractedRunKernelImageMixin struct {
-	runKernelImageEnableKernelCalls     []snap.PlaceInfo
-	runKernelImageEnableTryKernelCalls  []snap.PlaceInfo
-	runKernelImageDisableTryKernelCalls []snap.PlaceInfo
-	runKernelImageEnabledKernel         snap.PlaceInfo
-	runKernelImageEnabledTryKernel      snap.PlaceInfo
+	runKernelImageEnableKernelCalls    []snap.PlaceInfo
+	runKernelImageEnableTryKernelCalls []snap.PlaceInfo
+	runKernelImageEnabledKernel        snap.PlaceInfo
+	runKernelImageEnabledTryKernel     snap.PlaceInfo
 
 	runKernelImageMockedErrs     map[string]error
 	runKernelImageMockedNumCalls map[string]int

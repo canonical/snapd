@@ -54,6 +54,9 @@ const ambarellaDspConnectedPlugApparmor = `
 # The cavalry device node is used for managing the CV2x vector processor (VP).
 /dev/cavalry rw,
 
+# Ambarella kernel debug driver to allow user space setting the CV2x registers
+/dev/ambad rw,
+
 # another DSP device node
 /dev/lens rw,
 
@@ -66,6 +69,7 @@ var ambarellaDspConnectedPlugUDev = []string{
 	`KERNEL=="cavalry"`,
 	`KERNEL=="ucode"`,
 	`KERNEL=="lens"`,
+	`KERNEL=="ambad"`,
 }
 
 type dspInterface struct {

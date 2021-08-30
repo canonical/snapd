@@ -47,11 +47,6 @@ type gadgetYamlTestSuite struct {
 
 var _ = Suite(&gadgetYamlTestSuite{})
 
-var mockGadgetSnapYaml = `
-name: canonical-pc
-type: gadget
-`
-
 var mockGadgetYaml = []byte(`
 defaults:
   system:
