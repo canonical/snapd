@@ -644,14 +644,8 @@ func convertToSlotOrPlugData(plugOrSlot, name string, data interface{}) (iface, 
 		return data.(string), "", nil, nil
 	case nil:
 		return name, "", nil, nil
-	case map[interface{}]interface{}:
-		for keyData, valueData := range data.(map[interface{}]interface{}) {
-			key, ok := keyData.(string)
-			if !ok {
-				err := fmt.Errorf("%s %q has attribute key that is not a string (found %T)",
-					plugOrSlot, name, keyData)
-				return "", "", nil, err
-			}
+	case map[string]interface{}:
+		for key, valueData := range data.(map[string]interface{}) {
 			if strings.HasPrefix(key, "$") {
 				err := fmt.Errorf("%s %q uses reserved attribute %q", plugOrSlot, name, key)
 				return "", "", nil, err
