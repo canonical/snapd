@@ -29,6 +29,11 @@ cmd_query() {
     unsupported
 }
 
+cmd_list_installed() {
+    # This is re-defined by the backend file.
+    unsupported
+}
+
 cmd_remove() {
     # This is re-defined by the backend file.
     unsupported
@@ -104,7 +109,7 @@ main() {
                 shift
                 break
                 ;;
-            install|remove|query|is-installed)
+            install|remove|query|is-installed|list-installed)
                 action="$1"
                 shift
                 break  # consume remaining arguments
@@ -129,6 +134,9 @@ main() {
             ;;
         query)
             cmd_query "$(remap_one "$@")"
+            ;;
+        list-installed)
+            cmd_list_installed
             ;;
         remove)
             cmd_remove "$(remap_many "$@")"

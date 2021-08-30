@@ -237,10 +237,6 @@ func snapEssentialInfo(w http.ResponseWriter, fn, snapID string, bs asserts.Back
 	}, nil
 }
 
-type searchPayloadJSON struct {
-	Packages []detailsReplyJSON `json:"clickindex:package"`
-}
-
 type detailsReplyJSON struct {
 	Architectures   []string `json:"architecture"`
 	SnapID          string   `json:"snap_id"`

@@ -47,8 +47,6 @@ type seed16Suite struct {
 	*seedtest.TestingSeed16
 	devAcct *asserts.Account
 
-	seedDir string
-
 	seed16 seed.Seed
 
 	db *asserts.Database

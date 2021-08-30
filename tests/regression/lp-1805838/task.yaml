@@ -26,7 +26,7 @@ prepare: |
     mount --bind "$PWD/bad-snap-seccomp" "$LIBEXEC_DIR/snapd/snap-seccomp"
     test -d "$SNAP_MOUNT_DIR/core" && mount --bind "$PWD/bad-snap-seccomp" "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snap-seccomp"
     test -d "$SNAP_MOUNT_DIR/snapd" && mount --bind "$PWD/bad-snap-seccomp" "$SNAP_MOUNT_DIR/snapd/current/usr/lib/snapd/snap-seccomp"
-    mv /var/lib/snapd/system-key /var/lib/snapd/system-key.orig
+    "$TESTSTOOLS"/fs-state mock-file /var/lib/snapd/system-key
     echo '# trigger rebuild' >> /var/lib/snapd/seccomp/bpf/snap.network-consumer.network-consumer.src
     echo '{}' > /var/lib/snapd/system-key
 
@@ -37,7 +37,7 @@ restore: |
     umount "$LIBEXEC_DIR/snapd/snap-seccomp" || true
     test -d "$SNAP_MOUNT_DIR/core" && ( umount "$SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snap-seccomp" || true )
     test -d "$SNAP_MOUNT_DIR/snapd" && ( umount "$SNAP_MOUNT_DIR/snapd/current/usr/lib/snapd/snap-seccomp" || true )
-    mv /var/lib/snapd/system-key.orig /var/lib/snapd/system-key || true
+    "$TESTSTOOLS"/fs-state restore-file /var/lib/snapd/system-key
 
     # XXX: When this test is sequenced immediately before a test in the main
     # suite something in this test or in the suite prepare/restore logic is
