@@ -198,6 +198,7 @@ datadir = %{_datadir}
 localstatedir = %{_localstatedir}
 sharedstatedir = %{_sharedstatedir}
 unitdir = %{_unitdir}
+builddir = %{_builddir}
 # Build configuration
 with_core_bits = 0
 with_alt_snap_mount_dir = %{!?with_alt_snap_mount_dir:0}%{?with_alt_snap_mount_dir:1}
@@ -255,7 +256,9 @@ popd
 #
 # NOTE: indigo_gopath takes priority over GOPATH. This ensures that we
 # build the code that we intended in case GOPATH points to another copy.
-%make_build -f %{indigo_srcdir}/packaging/snapd.mk GOPATH=%{indigo_gopath}:$GOPATH all
+%make_build -C %{indigo_srcdir} -f %{indigo_srcdir}/packaging/snapd.mk \
+            GOPATH=%{indigo_gopath}:$GOPATH SNAPD_DEFINES_DIR=%{_builddir} \
+            all
 
 %check
 for binary in snap-exec snap-update-ns snapctl; do
@@ -264,7 +267,9 @@ done
 
 %make_build -C %{indigo_srcdir}/cmd check
 # Use the common packaging helper for testing.
-%make_build -f %{indigo_srcdir}/packaging/snapd.mk GOPATH=%{indigo_gopath}:$GOPATH check
+%make_build -C %{indigo_srcdir} -f %{indigo_srcdir}/packaging/snapd.mk \
+            GOPATH=%{indigo_gopath}:$GOPATH SNAPD_DEFINES_DIR=%{_builddir} \
+            check
 
 %install
 # Install all systemd and dbus units, and env files.
@@ -276,7 +281,9 @@ done
 # Install all the C executables.
 %make_install -C %{indigo_srcdir}/cmd
 # Use the common packaging helper for bulk of installation.
-%make_install -f %{indigo_srcdir}/packaging/snapd.mk install
+%make_install -f %{indigo_srcdir}/packaging/snapd.mk \
+            GOPATH=%{indigo_gopath}:$GOPATH SNAPD_DEFINES_DIR=%{_builddir} \
+            install
 
 # Undo special permissions of the void directory. We handle that in RPM files
 # section below.
