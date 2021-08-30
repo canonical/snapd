@@ -121,7 +121,7 @@ func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 	args = append(args, fnames...)
 
 	parser, internal, err := apparmor_sandbox.FindAppArmorParser()
-	if err == nil || !internal {
+	if err != nil || !internal {
 		// if we couldn't find the parser with apparmor_sandbox
 		// then fall-back to trying to find one in the current PATH
 		// - same for if we are not using the internal
