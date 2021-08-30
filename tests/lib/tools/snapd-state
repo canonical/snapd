@@ -1,12 +1,13 @@
 #!/bin/bash -e
 
 show_help() {
-    echo "usage: check-state <jq-filter> <comparison> <expected-res> <error-message>"
+    echo "usage: check-state <jq-filter> <comparison> <expected-res> [error-message]"
     echo "       print-state <jq-filter>"
     echo "       change-snap-channel <snap-name> <channel>"
     echo "       force-autorefresh"
     echo "       prevent-autorefresh"
-    echo "       wait-for-snap-autorefresh <snap-name> <last-change-id>"
+    echo "       wait-for-autorefresh [last-change-id]"
+    echo "       wait-for-snap-autorefresh <snap-name> [last-change-id]"
     echo ""
     echo "The tool is used to manage the snapd state by editing the state.json file."
     echo "Also it is used to check state and refresh status"
@@ -15,7 +16,7 @@ show_help() {
 print_state() {
     JQ_FILTER=$1
     if [ -z "$JQ_FILTER" ]; then
-        echo "snapd-state: jq filter is needed"
+        echo "snapd-state: jq-filter is a required parameter"
         exit 1
     fi
     jq -r "$JQ_FILTER" < /var/lib/snapd/state.json
@@ -26,6 +27,12 @@ check_state() {
     COMP=$2
     RES=$3
     FAIL_MSG="${4:-failed values comparison}"
+
+    if [ -z "$JQ_FILTER" ] || [ -z "$COMP" ] || [ -z "$RES" ]; then
+        echo "snapd-state: jq-filter, comparison and expected-res are required parameters"
+        exit 1
+    fi
+
     if [ "$COMP" = "!=" ]; then
         if [ "$(print_state "$JQ_FILTER")" = "$RES" ]; then
             echo "snapd-state: $FAIL_MSG"
@@ -45,6 +52,10 @@ check_state() {
 change_snap_channel() {
     local SNAP="$1"
     local CHANNEL="$2"
+    if [ -z "$SNAP" ] || [ -z "$CHANNEL" ]; then
+        echo "snapd-state: snap and channel are required parameters"
+        exit 1
+    fi
     jq ".data.snaps[\"$SNAP\"].channel = \"$CHANNEL\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
 }
@@ -59,22 +70,17 @@ prevent_autorefresh() {
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
 }
 
-wait_for_snap_autorefresh() {
-    local SNAP="$1"
-    local LAST_CHANGE_ID="${2:-1}"
-    local CHANGE_ID
-    CHANGE_ID="$LAST_CHANGE_ID"
+_wait_autorefresh(){
+    local LAST_CHANGE_ID="$1"
+    local RETRIES="$2"
+    local CHECK_MESSAGE="$3"
 
-    if [ -z "$SNAP" ]; then
-        echo "snapd-state: snap needed waiting for an autorefresh"
-        exit 1
-    fi
-    for _ in $(seq 120); do
+    for _ in $(seq "$RETRIES"); do
       # get last 2 lines of snap changes (the last one is always empty), match
       # auto-refresh change; only proceed if the change has greater change id
       # than the previously matched auto-refresh (this way we can match
       # consecutive auto-refreshes).
-      if CHANGES=$(snap changes | tail -2 | grep "Done.*Auto-refresh.*snap.*$SNAP"); then
+      if CHANGES=$(snap changes | tail -2 | grep "$CHECK_MESSAGE"); then
         CHANGE_ID=$(echo "$CHANGES" | awk '{print $1}')
         if [ "$CHANGE_ID" -gt "$LAST_CHANGE_ID" ]; then
           break
@@ -90,6 +96,24 @@ wait_for_snap_autorefresh() {
     echo "$CHANGE_ID"
 }
 
+wait_for_autorefresh() {
+    local LAST_CHANGE_ID="${1:-1}"
+
+    _wait_autorefresh "$LAST_CHANGE_ID" 200 "Done.*Auto-refresh"
+}
+
+wait_for_snap_autorefresh() {
+    local SNAP="$1"
+    local LAST_CHANGE_ID="${2:-1}"
+
+    if [ -z "$SNAP" ]; then
+        echo "snapd-state: snap-name is a required parameter"
+        exit 1
+    fi
+
+    _wait_autorefresh "$LAST_CHANGE_ID" 120 "Done.*Auto-refresh.*snap.*$SNAP"
+}
+
 main() {
     if [ $# -eq 0 ]; then
         show_help
@@ -98,19 +122,17 @@ main() {
 
     local subcommand="$1"
     local action=
-    while [ $# -gt 0 ]; do
-        case "$1" in
-            -h|--help)
-                show_help
-                exit 0
-                ;;
-            *)
-                action=$(echo "$subcommand" | tr '-' '_')
-                shift
-                break
-                ;;
-        esac
-    done
+
+    case "$1" in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        *)
+            action=$(echo "$subcommand" | tr '-' '_')
+            shift
+            ;;
+    esac
 
     if [ -z "$(declare -f "$action")" ]; then
         echo "snapd-state: no such command: $subcommand"

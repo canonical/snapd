@@ -61,3 +61,13 @@ execute: |
     snap changes | MATCH "$new_change_id.*Done.*Auto-refresh.*test-snapd-tool"
 
     test "$change_id" -lt "$new_change_id"
+
+    # check wait-for-autorefresh command with previous change id
+    new_change_id="$("$TESTSTOOLS"/snapd-state wait-for-autorefresh "$change_id")"
+    test "$change_id" -lt "$new_change_id"
+
+    # check required parameters
+    "$TESTSTOOLS"/snapd-state print-state 2>&1 | MATCH "snapd-state: jq-filter is a required parameter"
+    "$TESTSTOOLS"/snapd-state check-state '.data["last-refresh"]' 2>&1 | MATCH "snapd-state: jq-filter, comparison and expected-res are required parameters"
+    "$TESTSTOOLS/snapd-state" change-snap-channel test-snapd-tools 2>&1 | "snapd-state: snap and channel are required parameters"
+    "$TESTSTOOLS/snapd-state" wait-for-snap-autorefresh 2>&1 | "snapd-state: snap-name is a required parameter"
