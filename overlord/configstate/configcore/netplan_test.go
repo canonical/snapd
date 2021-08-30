@@ -24,7 +24,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dbusutil"
@@ -32,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/configstate/configcore/netplantest"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -63,6 +63,9 @@ func (s *netplanSuite) SetUpTest(c *C) {
 	restore := dbusutil.MockOnlySystemBusAvailable(s.SessionBus)
 	s.AddCleanup(restore)
 
+	restore = release.MockOnClassic(false)
+	s.AddCleanup(restore)
+
 	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
 	c.Assert(err, IsNil)
 }
@@ -76,7 +79,7 @@ func (s *netplanSuite) TestNetplanGetFromDbusNoSuchService(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	s.backend.SetError(&dbus.Error{Name: "org.freedesktop.DBus.Error.ServiceUnknown"})
+	// Note that we do not create a netplan dbus backend here
 
 	tr := config.NewTransaction(s.state)
 	netplanCfg := make(map[string]interface{})
@@ -84,9 +87,27 @@ func (s *netplanSuite) TestNetplanGetFromDbusNoSuchService(c *C) {
 	c.Assert(err, ErrorMatches, `snap "core" has no "system.network.netplan" configuration option`)
 }
 
+func (s *netplanSuite) TestNetplanGetFromDbusNoV2Api(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// export the V1 api only (no config support with that)
+	s.backend.ExportApiV1()
+
+	tr := config.NewTransaction(s.state)
+
+	// no netplan configuration with the "v1" netplan api
+	var str string
+	err := tr.Get("core", "system.network.netplan", &str)
+	c.Assert(err, ErrorMatches, `snap "core" has no "system.network.netplan" configuration option`)
+}
+
 func (s *netplanSuite) TestNetplanGetFromDbusHappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	// export the V2 api, things work with that
+	s.backend.ExportApiV2()
 
 	tr := config.NewTransaction(s.state)
 
@@ -121,9 +142,13 @@ func (s *netplanSuite) TestNetplanGetFromDbusNoSuchConfigError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	// export the V2 api, things work with that
+	s.backend.ExportApiV2()
+
 	tr := config.NewTransaction(s.state)
 
-	// no subkey in map
+	// no subkey in in our yaml configuration like that, we get an
+	// expected error from the config mechanism
 	var str string
 	err := tr.Get("core", "system.network.netplan.xxx", &str)
 	c.Assert(err, ErrorMatches, `snap "core" has no "system.network.netplan.xxx" configuration option`)

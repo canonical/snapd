@@ -23,6 +23,7 @@ import (
 	"fmt"
 
 	"github.com/godbus/dbus"
+	"github.com/godbus/dbus/introspect"
 
 	"github.com/snapcore/snapd/dbusutil"
 )
@@ -55,8 +56,6 @@ func NewNetplanServer(mockNetplanConfigYaml string) (*NetplanServer, error) {
 		conn:                  conn,
 		mockNetplanConfigYaml: mockNetplanConfigYaml,
 	}
-	conn.Export(netplanApi{server}, netplanObjectPath, netplanInterface)
-	conn.Export(introspectApi{server}, netplanObjectPath, introspectInterface)
 
 	reply, err := conn.RequestName(netplanBusName, dbus.NameFlagDoNotQueue)
 	if err != nil {
@@ -69,6 +68,39 @@ func NewNetplanServer(mockNetplanConfigYaml string) (*NetplanServer, error) {
 		return nil, fmt.Errorf("cannot obtain bus name %q", netplanBusName)
 	}
 	return server, nil
+}
+
+func (server *NetplanServer) ExportApiV1() {
+	// V1 api, e.g. on Ubuntu Core 18
+	server.conn.Export(netplanApiV1{server}, netplanObjectPath, netplanInterface)
+	var introspectNode = &introspect.Node{
+		Name: netplanObjectPath,
+		Interfaces: []introspect.Interface{
+			introspect.IntrospectData,
+			{
+				Name:    netplanInterface,
+				Methods: introspect.Methods(netplanApiV1{server}),
+			},
+		},
+	}
+	server.conn.Export(introspect.NewIntrospectable(introspectNode), netplanObjectPath, introspectInterface)
+}
+
+func (server *NetplanServer) ExportApiV2() {
+	// V2 api on Ubuntu Core 20
+	server.conn.Export(netplanApiV2{server}, netplanObjectPath, netplanInterface)
+	var introspectNode = &introspect.Node{
+		Name: netplanObjectPath,
+		Interfaces: []introspect.Interface{
+			introspect.IntrospectData,
+			{
+				Name:    netplanInterface,
+				Methods: introspect.Methods(netplanApiV2{server}),
+			},
+		},
+	}
+	server.conn.Export(introspect.NewIntrospectable(introspectNode), netplanObjectPath, introspectInterface)
+
 }
 
 func (server *NetplanServer) Stop() error {
@@ -86,42 +118,27 @@ func (server *NetplanServer) SetError(err *dbus.Error) {
 	server.err = err
 }
 
-type introspectApi struct {
+// netplanApiV1 implements the original netplan DBus API that is found
+// in netplan 0.98. It can only do a global "Apply".
+type netplanApiV1 struct {
 	server *NetplanServer
 }
 
-func (a introspectApi) Introspect() (out string, err *dbus.Error) {
+func (a netplanApiV1) Apply() (bool, *dbus.Error) {
 	if a.server.err != nil {
-		return "", a.server.err
+		return false, a.server.err
 	}
 
-	// XXX: generate this
-	var netplanDBusIntrospectXML = `
-<!DOCTYPE node PUBLIC "-//freedesktop//DTD D-BUS Object Introspection 1.0//EN"
-"http://www.freedesktop.org/standards/dbus/1.0/introspect.dtd">
-<node>
- <interface name="org.freedesktop.DBus.Introspectable">
-  <method name="Introspect">
-   <arg name="data" type="s" direction="out"/>
-  </method>
- </interface>
- <interface name="io.netplan.Netplan">
-  <method name="Config">
-   <arg type="o" direction="out"/>
-   <annotation name="org.freedesktop.systemd1.Privileged" value="true"/>
-  </method>
- </interface>
- <node name="config"/>
-</node>`
-
-	return netplanDBusIntrospectXML, nil
+	return true, nil
 }
 
-type netplanApi struct {
+// netplanApiV2 implements the "Config/Get/Set/Try" API that is found
+// in netplan 0.101-0ubuntu3.
+type netplanApiV2 struct {
 	server *NetplanServer
 }
 
-func (a netplanApi) Config() (dbus.ObjectPath, *dbus.Error) {
+func (a netplanApiV2) Config() (dbus.ObjectPath, *dbus.Error) {
 	if a.server.err != nil {
 		return dbus.ObjectPath(""), a.server.err
 	}
@@ -140,3 +157,5 @@ type netplanConfigApi struct {
 func (c netplanConfigApi) Get() (string, *dbus.Error) {
 	return c.server.mockNetplanConfigYaml, nil
 }
+
+// TODO: implement Set/Try once we have "write" support
