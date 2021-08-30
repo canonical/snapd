@@ -320,10 +320,10 @@
 			"revisionTime": "2016-08-29T01:00:30Z"
 		},
 		{
-			"checksumSHA1": "HmUAWd1Jm25cGH4Pyf3Zgp2RhkI=",
-			"path": "gopkg.in/yaml.v2",
-			"revision": "86f5ed62f8a0ee96bd888d2efdfd6d4fb100a4eb",
-			"revisionTime": "2018-03-26T05:07:29Z"
+			"checksumSHA1": "vEkKIA76kgBmAu5bwxJwi41Aup0=",
+			"path": "gopkg.in/yaml.v3",
+			"revision": "496545a6307b2a7d7a710fd516e5e16e8ab62dbc",
+			"revisionTime": "2021-01-07T19:29:22Z"
 		},
 		{
 			"checksumSHA1": "tZ9GNzrjTZEPDhoJEkouGPKRmZk=",

@@ -21,7 +21,7 @@ package strutil_test
 
 import (
 	. "gopkg.in/check.v1"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/snapcore/snapd/strutil"
 )
@@ -81,7 +81,7 @@ k: v
 `)
 	var om strutil.OrderedMap
 	err := yaml.Unmarshal(yamlStr, &om)
-	c.Assert(err, ErrorMatches, `found duplicate key "k"`)
+	c.Assert(err, ErrorMatches, `(?ms).*mapping key "k" already defined at line 2`)
 }
 
 func (s *orderedMapSuite) TestYamlErr(c *C) {

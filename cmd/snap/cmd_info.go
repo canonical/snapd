@@ -31,7 +31,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/jessevdk/go-flags"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/client"
@@ -241,7 +241,7 @@ func quotedIfNeeded(raw string) []rune {
 	}
 	if len(raw) == 0 {
 		raw = `""`
-	} else if err := yaml.UnmarshalStrict([]byte("s: "+raw), &T{}); err != nil {
+	} else if err := yaml.Unmarshal([]byte("s: "+raw), &T{}); err != nil {
 		raw = strconv.Quote(raw)
 	}
 	return []rune(raw)

@@ -20,9 +20,7 @@
 package strutil
 
 import (
-	"fmt"
-
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 // OrderedMap is a map of strings to strings that preserves the
@@ -91,29 +89,16 @@ func (o *OrderedMap) Copy() *OrderedMap {
 }
 
 // UnmarshalYAML unmarshals a yaml string map and preserves the order
-func (o *OrderedMap) UnmarshalYAML(u func(interface{}) error) error {
+func (o *OrderedMap) UnmarshalYAML(value *yaml.Node) error {
 	var vals map[string]string
-	if err := u(&vals); err != nil {
+	if err := value.Decode(&vals); err != nil {
 		return err
 	}
 
-	var seen = make(map[string]bool)
 	var keys = make([]string, len(vals))
-	var order yaml.MapSlice
-	if err := u(&order); err != nil {
-		return err
-	}
-	for i, item := range order {
-		k, ok := item.Key.(string)
-		_, good := vals[k]
-		if !ok || !good {
-			return fmt.Errorf("cannot read %q", item.Key)
-		}
-		if seen[k] {
-			return fmt.Errorf("found duplicate key %q", k)
-		}
-		seen[k] = true
-		keys[i] = k
+	pairs := value.Content
+	for i := 0; i+1 < len(pairs); i += 2 {
+		keys[i/2] = pairs[i].Value
 	}
 	o.keys = keys
 	o.vals = vals

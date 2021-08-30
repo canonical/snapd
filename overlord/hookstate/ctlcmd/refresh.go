@@ -23,7 +23,7 @@ import (
 	"fmt"
 	"time"
 
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
