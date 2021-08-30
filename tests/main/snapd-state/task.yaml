@@ -69,5 +69,5 @@ execute: |
     # check required parameters
     "$TESTSTOOLS"/snapd-state print-state 2>&1 | MATCH "snapd-state: jq-filter is a required parameter"
     "$TESTSTOOLS"/snapd-state check-state '.data["last-refresh"]' 2>&1 | MATCH "snapd-state: jq-filter, comparison and expected-res are required parameters"
-    "$TESTSTOOLS/snapd-state" change-snap-channel test-snapd-tools 2>&1 | "snapd-state: snap and channel are required parameters"
-    "$TESTSTOOLS/snapd-state" wait-for-snap-autorefresh 2>&1 | "snapd-state: snap-name is a required parameter"
+    "$TESTSTOOLS/snapd-state" change-snap-channel test-snapd-tools 2>&1 | MATCH "snapd-state: snap and channel are required parameters"
+    "$TESTSTOOLS/snapd-state" wait-for-snap-autorefresh 2>&1 | MATCH "snapd-state: snap-name is a required parameter"
