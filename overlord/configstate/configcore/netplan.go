@@ -31,6 +31,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/godbus/dbus"
+	"github.com/godbus/dbus/introspect"
 
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -58,6 +59,19 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	return nil
 }
 
+func hasDBusMethodOnInterface(node *introspect.Node, ifName, methodName string) bool {
+	for _, iff := range node.Interfaces {
+		if iff.Name == ifName {
+			for _, mth := range iff.Methods {
+				if mth.Name == methodName {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 func getNetplanFromSystem(key string) (result interface{}, err error) {
 	conn, err := dbusutil.SystemBus()
 	if err != nil {
@@ -68,6 +82,22 @@ func getNetplanFromSystem(key string) (result interface{}, err error) {
 
 	var netplanConfigSnapshotBusAddr string
 	netplan := conn.Object("io.netplan.Netplan", "/io/netplan/Netplan")
+
+	// introspect
+	node, err := introspect.Call(netplan)
+	if derr, ok := err.(dbus.Error); ok {
+		// ignore if there is no dbus service for netplan
+		if derr.Name == "org.freedesktop.DBus.Error.ServiceUnknown" {
+			return nil, nil
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	if !hasDBusMethodOnInterface(node, "io.netplan.Netplan", "Config") {
+		return nil, nil
+	}
+
 	if err := netplan.Call("io.netplan.Netplan.Config", 0).Store(&netplanConfigSnapshotBusAddr); err != nil {
 		return nil, err
 	}

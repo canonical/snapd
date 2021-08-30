@@ -21,7 +21,6 @@ package configcore_test
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -29,14 +28,18 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dbusutil"
-	"github.com/snapcore/snapd/dbusutil/dbustest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
+	"github.com/snapcore/snapd/overlord/configstate/configcore/netplantest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type netplanSuite struct {
 	configcoreSuite
+	testutil.DBusTest
+
+	backend *netplantest.NetplanServer
 }
 
 var _ = Suite(&netplanSuite{})
@@ -47,74 +50,49 @@ network:
   version: 2
 `
 
-func makeDBusMethodReplyHeader(msg *dbus.Message, responseSig dbus.Signature) map[dbus.HeaderField]dbus.Variant {
-	return map[dbus.HeaderField]dbus.Variant{
-		dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
-		dbus.FieldSender:      dbus.MakeVariant(":1"),
-		dbus.FieldSignature:   dbus.MakeVariant(responseSig),
-	}
-}
-
-func fakeDBusConnection(msg *dbus.Message, n int) ([]*dbus.Message, error) {
-	if msg.Type != dbus.TypeMethodCall {
-		return nil, fmt.Errorf("unexpected msg to fakeDBusConnection: %v", msg)
-	}
-
-	// Config()
-	if msg.Headers[dbus.FieldPath] == dbus.MakeVariant(dbus.ObjectPath("/io/netplan/Netplan")) &&
-		msg.Headers[dbus.FieldInterface] == dbus.MakeVariant("io.netplan.Netplan") &&
-		msg.Headers[dbus.FieldMember] == dbus.MakeVariant("Config") {
-		responseSig := dbus.SignatureOf(dbus.ObjectPath(""))
-		return []*dbus.Message{
-			{
-				Type:    dbus.TypeMethodReply,
-				Headers: makeDBusMethodReplyHeader(msg, responseSig),
-				Body:    []interface{}{dbus.ObjectPath("/io/netplan/Netplan/config/WFIU80")},
-			},
-		}, nil
-
-	}
-
-	// Get()
-	if msg.Headers[dbus.FieldPath] == dbus.MakeVariant(dbus.ObjectPath("/io/netplan/Netplan/config/WFIU80")) &&
-		msg.Headers[dbus.FieldInterface] == dbus.MakeVariant("io.netplan.Netplan.Config") &&
-		msg.Headers[dbus.FieldMember] == dbus.MakeVariant("Get") {
-		responseSig := dbus.SignatureOf("")
-		return []*dbus.Message{
-			{
-				Type:    dbus.TypeMethodReply,
-				Headers: makeDBusMethodReplyHeader(msg, responseSig),
-				Body:    []interface{}{mockNetplanConfigYaml},
-			},
-		}, nil
-
-	}
-
-	return nil, fmt.Errorf("unexpected message %v", msg)
-
-}
-
 func (s *netplanSuite) SetUpTest(c *C) {
 	s.configcoreSuite.SetUpTest(c)
+	s.DBusTest.SetUpTest(c)
 
-	err := os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
+	backend, err := netplantest.NewNetplanServer(mockNetplanConfigYaml)
 	c.Assert(err, IsNil)
+	s.AddCleanup(func() { c.Check(backend.Stop(), IsNil) })
+	s.backend = backend
+
+	// XXX: we only have a mock session bus here
+	restore := dbusutil.MockOnlySystemBusAvailable(s.SessionBus)
+	s.AddCleanup(restore)
+
+	err = os.MkdirAll(filepath.Join(dirs.GlobalRootDir, "/etc/"), 0755)
+	c.Assert(err, IsNil)
+}
+
+func (s *netplanSuite) TearDownTest(c *C) {
+	s.configcoreSuite.TearDownTest(c)
+	s.DBusTest.TearDownTest(c)
+}
+
+func (s *netplanSuite) TestNetplanGetFromDbusNoSuchService(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	s.backend.SetError(&dbus.Error{Name: "org.freedesktop.DBus.Error.ServiceUnknown"})
+
+	tr := config.NewTransaction(s.state)
+	netplanCfg := make(map[string]interface{})
+	err := tr.Get("core", "system.network.netplan", &netplanCfg)
+	c.Assert(err, ErrorMatches, `snap "core" has no "system.network.netplan" configuration option`)
 }
 
 func (s *netplanSuite) TestNetplanGetFromDbusHappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	conn, err := dbustest.Connection(fakeDBusConnection)
-	c.Assert(err, IsNil)
-	restore := dbusutil.MockOnlySystemBusAvailable(conn)
-	defer restore()
-
 	tr := config.NewTransaction(s.state)
 
 	// full doc
 	netplanCfg := make(map[string]interface{})
-	err = tr.Get("core", "system.network.netplan", &netplanCfg)
+	err := tr.Get("core", "system.network.netplan", &netplanCfg)
 	c.Assert(err, IsNil)
 	c.Check(netplanCfg, DeepEquals, map[string]interface{}{
 		"network": map[string]interface{}{
@@ -139,20 +117,15 @@ func (s *netplanSuite) TestNetplanGetFromDbusHappy(c *C) {
 	c.Check(ver, Equals, json.Number("2"))
 }
 
-func (s *netplanSuite) TestNetplanGetFromDbusError(c *C) {
+func (s *netplanSuite) TestNetplanGetFromDbusNoSuchConfigError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
-
-	conn, err := dbustest.Connection(fakeDBusConnection)
-	c.Assert(err, IsNil)
-	restore := dbusutil.MockOnlySystemBusAvailable(conn)
-	defer restore()
 
 	tr := config.NewTransaction(s.state)
 
 	// no subkey in map
 	var str string
-	err = tr.Get("core", "system.network.netplan.xxx", &str)
+	err := tr.Get("core", "system.network.netplan.xxx", &str)
 	c.Assert(err, ErrorMatches, `snap "core" has no "system.network.netplan.xxx" configuration option`)
 }
 
