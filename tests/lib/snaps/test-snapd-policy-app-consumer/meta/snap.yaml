@@ -377,6 +377,9 @@ apps:
   snapd-control:
     command: bin/run
     plugs: [ snapd-control ]
+  snap-refresh-control:
+    command: bin/run
+    plugs: [ snap-refresh-control ]
   service-watchdog:
     command: bin/run
     plugs: [ daemon-notify ]
