@@ -73,7 +73,7 @@ static int _sc_cgroup_v1_init(sc_device_cgroup *self, int flags) {
 
     /* initialize to something sane */
     if (sc_udev_open_cgroup_v1(self->security_tag, flags, &self->v1.fds) < 0) {
-        if (flags == SC_DEVICE_CGROUP_FROM_EXISTING) {
+        if ((flags & SC_DEVICE_CGROUP_FROM_EXISTING) != 0) {
             return -1;
         }
         die("cannot prepare cgroup v1 device hierarchy");
@@ -237,6 +237,8 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         die("cannot obtain own group path");
     }
 
+    const bool from_existing = (flags & SC_DEVICE_CGROUP_FROM_EXISTING) != 0;
+
     char own_group_full[PATH_MAX] = {0};
     sc_must_snprintf(own_group_full, sizeof(own_group_full), "/sys/fs/cgroup/%s", own_group);
     int cgroup_fd = open(own_group_full, O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
@@ -270,7 +272,7 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         if (errno != ENOENT) {
             die("cannot attempt to get existing device map");
         }
-        if (flags == SC_DEVICE_CGROUP_FROM_EXISTING) {
+        if (from_existing) {
             /* there is no map, and we haven't been asked to setup a new cgroup */
             return -1;
         }
@@ -288,7 +290,7 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
             die("cannot pin map to %s", path);
         }
         (void)sc_set_effective_identity(old);
-    } else if (flags != SC_DEVICE_CGROUP_FROM_EXISTING) {
+    } else if (!from_existing) {
         /* the devices access map exists, and we have been asked to setup a cgroup */
 
         debug("found existing device map");
@@ -344,7 +346,7 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         }
     }
 
-    if (flags != SC_DEVICE_CGROUP_FROM_EXISTING) {
+    if (!from_existing) {
         int prog_fd = load_devcgroup_prog(devmap_fd);
 
         if (bpf_prog_attach(BPF_CGROUP_DEVICE, cgroup_fd, prog_fd) < 0) {
@@ -418,7 +420,7 @@ static int _sc_cgroup_v2_init(sc_device_cgroup *self, int flags) {
 #ifdef ENABLE_BPF
     return _sc_cgroup_v2_init_bpf(self, flags);
 #else
-	if (flags & SC_DEVICE_CGROUP_FROM_EXISTING) {
+	if ((flags & SC_DEVICE_CGROUP_FROM_EXISTING) != 0) {
 		errno = ENOSYS;
 		return -1;
 	}
@@ -527,6 +529,7 @@ static int sc_udev_open_cgroup_v1(const char *security_tag, int flags, sc_cgroup
         die("cannot open %s", cgroup_path);
     }
 
+    const bool from_existing = (flags & SC_DEVICE_CGROUP_FROM_EXISTING) != 0;
     /* Open devices relative to /sys/fs/cgroup */
     const char *devices_relpath = "devices";
     int SC_CLEANUP(sc_cleanup_close) devices_fd = -1;
@@ -536,7 +539,7 @@ static int sc_udev_open_cgroup_v1(const char *security_tag, int flags, sc_cgroup
     }
 
     const char *security_tag_relpath = security_tag;
-    if (flags != SC_DEVICE_CGROUP_FROM_EXISTING) {
+    if (!from_existing) {
         /* Open snap.$SNAP_NAME.$APP_NAME relative to /sys/fs/cgroup/devices,
          * creating the directory if necessary. Note that we always chown the
          * resulting directory to root:root. */
@@ -552,7 +555,7 @@ static int sc_udev_open_cgroup_v1(const char *security_tag, int flags, sc_cgroup
     int SC_CLEANUP(sc_cleanup_close) security_tag_fd = -1;
     security_tag_fd = openat(devices_fd, security_tag_relpath, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
     if (security_tag_fd < 0) {
-        if (flags == SC_DEVICE_CGROUP_FROM_EXISTING && errno == ENOENT) {
+        if (from_existing && errno == ENOENT) {
             return -1;
         }
         die("cannot open %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
@@ -563,7 +566,7 @@ static int sc_udev_open_cgroup_v1(const char *security_tag, int flags, sc_cgroup
     int SC_CLEANUP(sc_cleanup_close) devices_allow_fd = -1;
     devices_allow_fd = openat(security_tag_fd, devices_allow_relpath, O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
     if (devices_allow_fd < 0) {
-        if (flags == SC_DEVICE_CGROUP_FROM_EXISTING && errno == ENOENT) {
+        if (from_existing && errno == ENOENT) {
             return -1;
         }
         die("cannot open %s/%s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath, devices_allow_relpath);
@@ -574,7 +577,7 @@ static int sc_udev_open_cgroup_v1(const char *security_tag, int flags, sc_cgroup
     int SC_CLEANUP(sc_cleanup_close) devices_deny_fd = -1;
     devices_deny_fd = openat(security_tag_fd, devices_deny_relpath, O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
     if (devices_deny_fd < 0) {
-        if (flags == SC_DEVICE_CGROUP_FROM_EXISTING && errno == ENOENT) {
+        if (from_existing && errno == ENOENT) {
             return -1;
         }
         die("cannot open %s/%s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath, devices_deny_relpath);
@@ -585,7 +588,7 @@ static int sc_udev_open_cgroup_v1(const char *security_tag, int flags, sc_cgroup
     int SC_CLEANUP(sc_cleanup_close) cgroup_procs_fd = -1;
     cgroup_procs_fd = openat(security_tag_fd, cgroup_procs_relpath, O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
     if (cgroup_procs_fd < 0) {
-        if (flags == SC_DEVICE_CGROUP_FROM_EXISTING && errno == ENOENT) {
+        if (from_existing && errno == ENOENT) {
             return -1;
         }
         die("cannot open %s/%s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath, cgroup_procs_relpath);
