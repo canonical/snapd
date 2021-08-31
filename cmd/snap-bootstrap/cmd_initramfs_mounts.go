@@ -1419,7 +1419,7 @@ func generateMountsModeClassic(mst *initramfsMountsState, label string) error {
 	if err := secbootTpmPrepare(boot.InitramfsUbuntuSeedDir); err != nil {
 		return err
 	}
-	runModeKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, label + ".sealed-key")
+	runModeKey := filepath.Join(boot.InitramfsSeedEncryptionKeyDir, label+".sealed-key")
 	opts := &secboot.UnlockVolumeUsingSealedKeyOptions{
 		AllowRecoveryKey: true,
 	}
