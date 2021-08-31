@@ -24,7 +24,6 @@ import (
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
-	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -67,14 +66,7 @@ type qualcomIPCRouterInterface struct {
 }
 
 func (iface *qualcomIPCRouterInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	// TODO: eventually we should have something in the spec to introspect this
-	// rather than reach all the way into apparmor_sandbox directly
-	parserFeatures, err := apparmor_sandbox.ParserFeatures()
-	if err != nil {
-		return err
-	}
-
-	if !strutil.ListContains(parserFeatures, "qipcrtr-socket") {
+	if !strutil.ListContains(spec.Features(), "parser:qipcrtr-socket") {
 		// then the host system doesn't have the required feature to compile the
 		// policy, the qipcrtr socket is a new addition not present in i.e.
 		// xenial
