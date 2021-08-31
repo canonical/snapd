@@ -89,10 +89,16 @@
 			"revisionTime": "2021-08-27T15:17:49Z"
 		},
 		{
-			"checksumSHA1": "v71Cl1YYXpjrSsNl7kJKr/gxf1g=",
+			"checksumSHA1": "pjpC3gtdvLblTbmFOnvc8MzbaLs=",
 			"path": "github.com/canonical/tcglog-parser",
-			"revision": "0db9685976738af534d41b823386a05981fcb72c",
-			"revisionTime": "2021-05-11T16:36:12Z"
+			"revision": "69fa1e9f0ad25c043447972330d66337cb1e9a57",
+			"revisionTime": "2021-08-24T13:18:05Z"
+		},
+		{
+			"checksumSHA1": "r6hlCzWoD5bpQ9a4CY2QORjFjHY=",
+			"path": "github.com/canonical/tcglog-parser/internal/ioerr",
+			"revision": "69fa1e9f0ad25c043447972330d66337cb1e9a57",
+			"revisionTime": "2021-08-24T13:18:05Z"
 		},
 		{
 			"checksumSHA1": "zg16zjZTQ9R89+UOLmEZxHgxDtM=",
