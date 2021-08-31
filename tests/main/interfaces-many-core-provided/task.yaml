@@ -18,7 +18,18 @@ backends: [-autopkgtest]
 # - All Ubuntu autopkgtests
 # - Debian sid amd64 VM
 # - TODO: All Fedora systems (for classic-only; unrelated error elsewhere)
-systems: [ubuntu-core-1*-64, ubuntu-14.04-32, ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-18.04-32, ubuntu-*-amd64, ubuntu-*-armhf, ubuntu-*-arm64, ubuntu-*-i386, ubuntu-*-ppc64el, debian-*]
+systems:
+    - ubuntu-core-1*-64
+    - ubuntu-14.04-32
+    - ubuntu-16.04-64
+    - ubuntu-18.04-64
+    - ubuntu-18.04-32
+    - ubuntu-*-amd64
+    - ubuntu-*-armhf
+    - ubuntu-*-arm64
+    - ubuntu-*-i386
+    - ubuntu-*-ppc64el
+    - debian-*
 
 # Start early as it takes a long time.
 priority: 100
@@ -80,6 +91,13 @@ execute: |
         # Skip any interfaces that core doesn't ship
         if ! snap interfaces | grep -E -q "$slot_iface +"; then
             echo "$slot_iface not present, skipping"
+            continue
+        fi
+
+        if [ "$plug_iface" = "qualcomm-ipc-router" ] && os.query is-xenial; then
+            # the qualcomm-ipc-router interface is known not to work on xenial,
+            # just check that it cannot be connected and move on
+            snap connect "$plug_iface" "$slot_iface" 2>&1 | MATCH "cannot connect plug on system without qipcrtr socket support"
             continue
         fi
 
