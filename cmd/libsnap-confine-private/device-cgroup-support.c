@@ -29,8 +29,8 @@
 #include "utils.h"
 
 #ifdef ENABLE_BPF
-#include "bpf/bpf-insn.h"
 #include "bpf-support.h"
+#include "bpf/bpf-insn.h"
 #endif
 #include "device-cgroup-support.h"
 
@@ -137,29 +137,31 @@ static void _sc_cgroup_v2_attach_pid(sc_device_cgroup *self, pid_t pid) {
 
 #ifdef ENABLE_BPF
 static int load_devcgroup_prog(int map_fd) {
-    // Basic rules about registers:
-    // r0    - return value of built in functions and exit code of the program
-    // r1-r5 - respective arguments to built in functions, clobbered by calls
-    // r6-r9 - general purpose, preserved by callees
-    // r10   - read only, stack pointer
-    // Stack is 512 bytes.
-    //
-    // The function declaration implementing the program looks like this:
-    // int program(struct bpf_cgroup_dev_ctx * ctx)
-    // where *ctx is passed in r1, while the result goes to r0
-    //
-    /* just a placeholder for map value */
-    uint8_t map_value __attribute__((unused));
-    // where the value is 1 byte, but effectively ignored at this time. We are
-    // using the map as a set, but 0 sized key cannot be used when creating a
-    // map.
-    size_t key_start = 17;
+    /* Basic rules about registers:
+     * r0    - return value of built in functions and exit code of the program
+     * r1-r5 - respective arguments to built in functions, clobbered by calls
+     * r6-r9 - general purpose, preserved by callees
+     * r10   - read only, stack pointer
+     * Stack is 512 bytes.
+     *
+     * The function declaration implementing a device cgroup program looks like
+     * this:
+     *   int program(struct bpf_cgroup_dev_ctx * ctx)
+     * where *ctx is passed in r1, while the result goes to r0
+     */
+
+    /* just a placeholder for map value where the value is 1 byte, but
+     * effectively ignored at this time. Ideally it should be possible to use
+     * the map as a set with 0 sized key, but this is currently unsupported by
+     * the kernel (as of 5.13) */
+    sc_cgroup_v2_device_value map_value __attribute__((unused));
     /* NOTE: we pull a nasty hack, the structure is packed and its size isn't
      * aligned to multiples of 4; if we place it on a stack at an address
      * aligned to 4 bytes, the starting offsets of major and minor would be
      * unaligned; however, the first field of the structure is 1 byte, so we can
      * put the structure at 4 byte aligned address -1 and thus major and minor
      * end up aligned without too much hassle */
+    size_t key_start = 17;
     struct bpf_insn prog[] = {
         /* r1 holds pointer to bpf_cgroup_dev_ctx */
         /* initialize r0 */
@@ -265,6 +267,7 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     sc_must_snprintf(path, sizeof path, "/sys/fs/bpf/snap/%s", self->v2.tag);
 
     /* TODO: open("/sys/fs/bpf") and then mkdirat?  */
+    /* create /sys/fs/bpf/snap as root */
     sc_identity old = sc_set_effective_identity(sc_root_group_identity());
     if (mkdir("/sys/fs/bpf/snap", 0700) < 0) {
         if (errno != EEXIST) {
@@ -287,12 +290,24 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         debug("device map not present yet");
         /* map not created and pinned yet */
         const size_t value_size = 1;
+        /* 4.5+ kernels allow maps to be created by simple users otherwise this
+         * fails with EPERM */
         devmap_fd = bpf_create_map(BPF_MAP_TYPE_HASH, sizeof(struct sc_cgroup_v2_device_key), value_size, max_entries);
         if (devmap_fd < 0) {
             die("cannot create bpf map");
         }
         debug("got bpf map at fd: %d", devmap_fd);
+        /* pinning the map creates a file entry under /sys/bpf/snap, make sure
+         * it's owned by root */
         sc_identity old = sc_set_effective_identity(sc_root_group_identity());
+        /* the map can only be referenced by a fd like object which is valid
+         * here and referenced by the BPF program that we'll load; by pinning
+         * the map to a well known path, it is possible to obtain a reference to
+         * it from another process, which is used by snap-device-helper to
+         * dynamically update device access permissions; the downside is a tiny
+         * bit of kernel memory still in use as, even once all BPF programs
+         * referencing the map go away with their respective cgroups, the map
+         * will stay around as it is still referenced by the path */
         if (bpf_pin_to_path(devmap_fd, path) < 0) {
             /* we checked that the map did not exist, so fail on EEXIST too */
             die("cannot pin map to %s", path);
@@ -356,8 +371,9 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     }
 
     if (!from_existing) {
+        /* 4.5+ kernels allow maps to be created by simple users otherwise the
+         * calls fail with EPERM */
         int prog_fd = load_devcgroup_prog(devmap_fd);
-
         if (bpf_prog_attach(BPF_CGROUP_DEVICE, cgroup_fd, prog_fd) < 0) {
             die("cannot attach cgroup program");
         }
@@ -401,7 +417,7 @@ static void _sc_cgroup_v2_deny_bpf(sc_device_cgroup *self, int kind, int major, 
         die("cannot delete device map entry for key %c %u:%u", key.type, key.major, key.minor);
     }
 }
-#endif	/* ENABLE_BPF */
+#endif /* ENABLE_BPF */
 
 static void _sc_cgroup_v2_close(sc_device_cgroup *self) {
 #ifdef ENABLE_BPF
