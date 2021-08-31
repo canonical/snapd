@@ -194,6 +194,9 @@ apps:
   io-ports-control:
     command: bin/run
     plugs: [ io-ports-control ]
+  ion-memory-control:
+    command: bin/run
+    plugs: [ ion-memory-control ]
   jack1:
     command: bin/run
     plugs: [ jack1 ]

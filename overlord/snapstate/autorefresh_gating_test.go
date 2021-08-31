@@ -963,7 +963,7 @@ func (s *autorefreshGatingSuite) TestNotAffectedByCoreOrSnapdSlot(c *C) {
 	c.Check(affected, HasLen, 0)
 }
 
-func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackend(c *C) {
+func (s *autorefreshGatingSuite) TestNotAffectedByPlugWithMountBackend(c *C) {
 	restore := release.MockOnClassic(true)
 	defer restore()
 
@@ -984,16 +984,11 @@ func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackend(c *C) {
 	_, err := s.repo.Connect(cref, nil, nil, nil, nil, nil)
 	c.Assert(err, IsNil)
 
-	// snapE has a plug using mount backend and is refreshed, this affects slot of snap-d.
+	// snapE has a plug using mount backend and is refreshed, this doesn't affect slot of snap-d.
 	updates := []string{snapE.InstanceName()}
 	affected, err := snapstate.AffectedByRefresh(st, updates)
 	c.Assert(err, IsNil)
-	c.Check(affected, DeepEquals, map[string]*snapstate.AffectedSnapInfo{
-		"snap-d": {
-			Restart: true,
-			AffectingSnaps: map[string]bool{
-				"snap-e": true,
-			}}})
+	c.Check(affected, HasLen, 0)
 }
 
 func (s *autorefreshGatingSuite) TestAffectedByPlugWithMountBackendSnapdSlot(c *C) {

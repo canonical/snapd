@@ -273,5 +273,7 @@ func init() {
 		baseDeclarationSlots:  x11BaseDeclarationSlots,
 		connectedPlugAppArmor: x11ConnectedPlugAppArmor,
 		connectedPlugSecComp:  x11ConnectedPlugSecComp,
+		// affects the plug snap because of mount backend
+		affectsPlugOnRefresh: true,
 	}})
 }
