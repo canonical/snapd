@@ -202,13 +202,6 @@
 			"revisionTime": "2021-04-20T15:53:42Z"
 		},
 		{
-			"checksumSHA1": "3AmEm18mKj8XxBuru/ix4OOpRkE=",
-			"path": "github.com/snapcore/squashfuse",
-			"revision": "319f6d41a0419465a55d9dcb848d2408b97764f9",
-			"revisionTime": "2017-12-20T16:53:23Z",
-			"tree": true
-		},
-		{
 			"checksumSHA1": "/mphxOFx5uIoQCnt6YtFmmPDBao=",
 			"path": "go.mozilla.org/pkcs7",
 			"revision": "432b2356ecb18209c1cec25680b8a23632794f21",
@@ -228,32 +221,42 @@
 		{
 			"checksumSHA1": "olOKkhrdkYQHZ0lf1orrFQPQrv4=",
 			"path": "golang.org/x/crypto/openpgp/armor",
-			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
-			"revisionTime": "2017-06-29T04:06:47Z"
+			"revision": "8b5121be2f68d8fc40bb06467003bdde1040a094",
+			"revisionTime": "2020-01-22T21:59:53Z",
+			"version": "release-branch.go1.13",
+			"versionExact": "release-branch.go1.13"
 		},
 		{
 			"checksumSHA1": "eo/KtdjieJQXH7Qy+faXFcF70ME=",
 			"path": "golang.org/x/crypto/openpgp/elgamal",
-			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
-			"revisionTime": "2017-06-29T04:06:47Z"
+			"revision": "8b5121be2f68d8fc40bb06467003bdde1040a094",
+			"revisionTime": "2020-01-22T21:59:53Z",
+			"version": "release-branch.go1.13",
+			"versionExact": "release-branch.go1.13"
 		},
 		{
 			"checksumSHA1": "rlxVSaGgqdAgwblsErxTxIfuGfg=",
 			"path": "golang.org/x/crypto/openpgp/errors",
-			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
-			"revisionTime": "2017-06-29T04:06:47Z"
+			"revision": "8b5121be2f68d8fc40bb06467003bdde1040a094",
+			"revisionTime": "2020-01-22T21:59:53Z",
+			"version": "release-branch.go1.13",
+			"versionExact": "release-branch.go1.13"
 		},
 		{
-			"checksumSHA1": "LWdaR8Q9yn6eBCcnGl0HvJRDUBE=",
+			"checksumSHA1": "lGbjBcUoV7OfI7FZ5/DCXhCMoIM=",
 			"path": "golang.org/x/crypto/openpgp/packet",
-			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
-			"revisionTime": "2017-06-29T04:06:47Z"
+			"revision": "8b5121be2f68d8fc40bb06467003bdde1040a094",
+			"revisionTime": "2020-01-22T21:59:53Z",
+			"version": "release-branch.go1.13",
+			"versionExact": "release-branch.go1.13"
 		},
 		{
 			"checksumSHA1": "s2qT4UwvzBSkzXuiuMkowif1Olw=",
 			"path": "golang.org/x/crypto/openpgp/s2k",
-			"revision": "5ef0053f77724838734b6945dd364d3847e5de1d",
-			"revisionTime": "2017-06-29T04:06:47Z"
+			"revision": "8b5121be2f68d8fc40bb06467003bdde1040a094",
+			"revisionTime": "2020-01-22T21:59:53Z",
+			"version": "release-branch.go1.13",
+			"versionExact": "release-branch.go1.13"
 		},
 		{
 			"checksumSHA1": "kVKE0OX1Xdw5mG7XKT86DLLKE2I=",

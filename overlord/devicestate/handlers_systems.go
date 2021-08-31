@@ -38,6 +38,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -132,6 +133,7 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 		return err
 	}
 	model := remodelCtx.Model()
+	isRemodel := remodelCtx.ForRemodeling()
 
 	setup, err := taskRecoverySystemSetup(t)
 	if err != nil {
@@ -141,10 +143,10 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 	systemDirectory := setup.Directory
 
 	// get all infos
-	infoGetter := func(name string) (*snap.Info, bool, error) {
+	infoGetter := func(name string) (info *snap.Info, present bool, err error) {
 		// snap may be present in the system in which case info comes
 		// from snapstate
-		info, err := snapstate.CurrentInfo(st, name)
+		info, err = snapstate.CurrentInfo(st, name)
 		if err == nil {
 			hash, _, err := asserts.SnapFileSHA3_384(info.MountFile())
 			if err != nil {
@@ -157,10 +159,40 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 			return nil, false, err
 		}
 		logger.Debugf("requested info for not yet installed snap %q", name)
-		// TODO: handle remodel case in which snap may not be installed
-		// yet, and thus we need to pull info from snapsup of relevant
-		// download tasks
-		return nil, false, fmt.Errorf("not implemented")
+
+		if !isRemodel {
+			// when not in remodel, a recovery system can only be
+			// created from snaps that are already installed
+			return nil, false, nil
+		}
+
+		// in a remodel scenario, the snaps may need to be fetched, and
+		// thus we can pull the relevant information from the tasks
+		// carrying snap-setup
+
+		for _, tskID := range setup.SnapSetupTasks {
+			taskWithSnapSetup := st.Task(tskID)
+			snapsup, err := snapstate.TaskSnapSetup(taskWithSnapSetup)
+			if err != nil {
+				return nil, false, err
+			}
+			if snapsup.SnapName() != name {
+				continue
+			}
+			// by the time this task runs, the file has already been
+			// downloaded and validated
+			snapFile, err := snapfile.Open(snapsup.MountFile())
+			if err != nil {
+				return nil, false, err
+			}
+			info, err = snap.ReadInfoFromSnapFile(snapFile, snapsup.SideInfo)
+			if err != nil {
+				return nil, false, err
+			}
+
+			return info, true, nil
+		}
+		return nil, false, nil
 	}
 
 	observeSnapFileWrite := func(recoverySystemDir, where string) error {
@@ -172,7 +204,21 @@ func (m *DeviceManager) doCreateRecoverySystem(t *state.Task, _ *tomb.Tomb) (err
 		return logNewSystemSnapFile(filepath.Join(recoverySystemDir, "snapd-new-file-log"), where)
 	}
 
-	db := assertstate.DB(st)
+	var db asserts.RODatabase
+	if isRemodel {
+		// during remodel, the model assertion is not yet present in the
+		// assertstate database, hence we need to use a temporary one to
+		// which we explicitly add the new model assertion, as
+		// createSystemForModelFromValidatedSnaps expects all relevant
+		// assertions to be present in the passed db
+		tempDB := assertstate.TemporaryDB(st)
+		if err := tempDB.Add(model); err != nil {
+			return fmt.Errorf("cannot create a temporary database with model: %v", err)
+		}
+		db = tempDB
+	} else {
+		db = assertstate.DB(st)
+	}
 	defer func() {
 		if err == nil {
 			return

@@ -156,6 +156,8 @@ func currentSeededSystem(st *state.State) (*seededSystem, error) {
 		// unexpected
 		return nil, state.ErrNoState
 	}
+	// seeded systems are prepended to the list, so the most recently seeded
+	// one comes first
 	return &whatseeded[0], nil
 }
 
@@ -237,7 +239,7 @@ func createSystemForModelFromValidatedSnaps(model *asserts.Model, label string, 
 		if !essential {
 			kind = "non-essential"
 			if nonEssentialPresence != "" {
-				kind = fmt.Sprintf("non-essential but %q", nonEssentialPresence)
+				kind = fmt.Sprintf("non-essential but %v", nonEssentialPresence)
 			}
 		}
 		info, present, err := getInfo(name)

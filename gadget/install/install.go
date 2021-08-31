@@ -29,11 +29,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/secboot"
-)
-
-const (
-	ubuntuDataLabel = "ubuntu-data"
-	ubuntuSaveLabel = "ubuntu-save"
+	"github.com/snapcore/snapd/timings"
 )
 
 func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err error) {
@@ -51,9 +47,22 @@ func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err e
 	return "", fmt.Errorf("cannot find role %s in gadget", role)
 }
 
+func roleOrLabelOrName(part gadget.OnDiskStructure) string {
+	switch {
+	case part.Role != "":
+		return part.Role
+	case part.Label != "":
+		return part.Label
+	case part.Name != "":
+		return part.Name
+	default:
+		return "unknown"
+	}
+}
+
 // Run bootstraps the partitions of a device, by either creating
 // missing ones or recreating installed ones.
-func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Options, observer gadget.ContentObserver) (*InstalledSystemSideData, error) {
+func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Options, observer gadget.ContentObserver, perfTimings timings.Measurer) (*InstalledSystemSideData, error) {
 	logger.Noticef("installing a new system")
 	logger.Noticef("        gadget data from: %v", gadgetRoot)
 	if options.Encrypt {
@@ -105,7 +114,10 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 		}
 	}
 
-	created, err := createMissingPartitions(diskLayout, lv)
+	var created []gadget.OnDiskStructure
+	timings.Run(perfTimings, "create-partitions", "Create partitions", func(timings.Measurer) {
+		created, err = createMissingPartitions(diskLayout, lv)
+	})
 	if err != nil {
 		return nil, fmt.Errorf("cannot create the partitions: %v", err)
 	}
@@ -138,17 +150,26 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 		logger.Noticef("created new partition %v for structure %v (size %v) %s",
 			part.Node, part, part.Size.IECString(), roleFmt)
 		if options.Encrypt && roleNeedsEncryption(part.Role) {
-			keys, err := makeKeySet()
+			var keys *EncryptionKeySet
+			timings.Run(perfTimings, fmt.Sprintf("make-key-set[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption key set for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
+				keys, err = makeKeySet()
+			})
 			if err != nil {
 				return nil, err
 			}
 			logger.Noticef("encrypting partition device %v", part.Node)
-			dataPart, err := newEncryptedDevice(&part, keys.Key, part.Label)
+			var dataPart *encryptedDevice
+			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption device for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
+				dataPart, err = newEncryptedDevice(&part, keys.Key, part.Label)
+			})
 			if err != nil {
 				return nil, err
 			}
 
-			if err := dataPart.AddRecoveryKey(keys.Key, keys.RecoveryKey); err != nil {
+			timings.Run(perfTimings, fmt.Sprintf("add-recovery-key[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Adding recovery key for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
+				err = dataPart.AddRecoveryKey(keys.Key, keys.RecoveryKey)
+			})
+			if err != nil {
 				return nil, err
 			}
 
@@ -166,11 +187,17 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 		// matches what is on the disk, but sometimes there may not be a sector
 		// size specified in the gadget.yaml, but we will always have the sector
 		// size from the physical disk device
-		if err := makeFilesystem(&part, diskLayout.SectorSize); err != nil {
-			return nil, fmt.Errorf("cannot make filesystem for partition %s: %v", part.Role, err)
+		timings.Run(perfTimings, fmt.Sprintf("make-filesystem[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create filesystem for %s", part.Node), func(timings.Measurer) {
+			err = makeFilesystem(&part, diskLayout.SectorSize)
+		})
+		if err != nil {
+			return nil, fmt.Errorf("cannot make filesystem for partition %s: %v", roleOrLabelOrName(part), err)
 		}
 
-		if err := writeContent(&part, gadgetRoot, observer); err != nil {
+		timings.Run(perfTimings, fmt.Sprintf("write-content[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Write content for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
+			err = writeContent(&part, gadgetRoot, observer)
+		})
+		if err != nil {
 			return nil, err
 		}
 

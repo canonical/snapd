@@ -319,10 +319,47 @@ func MockSecurityProfilesDiscardLate(fn func(snapName string, rev snap.Revision,
 	}
 }
 
-// autorefresh gating
-type AffectedSnapInfo = affectedSnapInfo
+type HoldState = holdState
 
 var (
+	HoldDurationLeft           = holdDurationLeft
+	LastRefreshed              = lastRefreshed
+	HeldSnaps                  = heldSnaps
+	PruneRefreshCandidates     = pruneRefreshCandidates
+	ResetGatingForRefreshed    = resetGatingForRefreshed
+	PruneGating                = pruneGating
+	PruneSnapsHold             = pruneSnapsHold
 	CreateGateAutoRefreshHooks = createGateAutoRefreshHooks
 	AutoRefreshPhase1          = autoRefreshPhase1
 )
+
+func MockTimeNow(f func() time.Time) (restore func()) {
+	old := timeNow
+	timeNow = f
+	return func() {
+		timeNow = old
+	}
+}
+
+func MockHoldState(firstHeld string, holdUntil string) *HoldState {
+	first, err := time.Parse(time.RFC3339, firstHeld)
+	if err != nil {
+		panic(err)
+	}
+	until, err := time.Parse(time.RFC3339, holdUntil)
+	if err != nil {
+		panic(err)
+	}
+	return &holdState{
+		FirstHeld: first,
+		HoldUntil: until,
+	}
+}
+
+func MockSnapsToRefresh(f func(gatingTask *state.Task) ([]*refreshCandidate, error)) (restore func()) {
+	old := snapsToRefresh
+	snapsToRefresh = f
+	return func() {
+		snapsToRefresh = old
+	}
+}

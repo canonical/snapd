@@ -22,14 +22,14 @@ package ctlcmd_test
 import (
 	"strings"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/hookstate/ctlcmd"
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-
-	. "gopkg.in/check.v1"
 )
 
 type unsetSuite struct {
@@ -158,5 +158,5 @@ func (s *unsetSuite) TestUnsetHelpRegularUserAllowed(c *C) {
 
 func (s *unsetSuite) TestCommandWithoutContext(c *C) {
 	_, _, err := ctlcmd.Run(nil, []string{"unset", "foo"}, 0)
-	c.Check(err, ErrorMatches, ".*cannot unset without a context.*")
+	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "unset"\) from outside of a snap`)
 }

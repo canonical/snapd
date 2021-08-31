@@ -29,12 +29,12 @@ import (
 	"testing"
 	"text/template"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/systestkeys"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap/snaptest"
-
-	. "gopkg.in/check.v1"
 )
 
 // Hook up check.v1 into the "go test" runner
@@ -446,7 +446,7 @@ func (s *storeTestSuite) TestAssertionsEndpointNotFound(c *C) {
 	var respObj map[string]interface{}
 	err = dec.Decode(&respObj)
 	c.Assert(err, IsNil)
-	c.Check(respObj["error-list"], DeepEquals, []interface{}{map[string]interface{}{"code":"not-found", "message":"not found"}})
+	c.Check(respObj["error-list"], DeepEquals, []interface{}{map[string]interface{}{"code": "not-found", "message": "not found"}})
 }
 
 func (s *storeTestSuite) TestSnapActionEndpoint(c *C) {

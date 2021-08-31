@@ -94,15 +94,6 @@ var (
 	userLookupId = user.LookupId
 )
 
-func isUnknownUser(err error) bool {
-	switch err.(type) {
-	case user.UnknownUserError, user.UnknownUserIdError:
-		return true
-	default:
-		return false
-	}
-}
-
 func usersForUsernamesImpl(usernames []string) ([]*user.User, error) {
 	if len(usernames) == 0 {
 		return allUsers()

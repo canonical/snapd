@@ -6,8 +6,6 @@ environment:
     CLASSIC_SNAP: test-snapd-classic-confinement
 
 prepare: |
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
     snap pack "$TESTSLIB/snaps/$CLASSIC_SNAP/"
 
 execute: |

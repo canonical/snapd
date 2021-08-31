@@ -168,5 +168,5 @@ func getAliases(c *Command, r *http.Request, user *auth.UserState) Response {
 		}
 	}
 
-	return SyncResponse(res, nil)
+	return SyncResponse(res)
 }

@@ -38,6 +38,9 @@ type setCommand struct {
 		PlugOrSlotSpec string   `positional-arg-name:":<plug|slot>"`
 		ConfValues     []string `positional-arg-name:"key=value"`
 	} `positional-args:"yes"`
+
+	String bool `short:"s" description:"parse the value as a string"`
+	Typed  bool `short:"t" description:"parse the value strictly as JSON document"`
 }
 
 var shortSetHelp = i18n.G("Changes configuration options")
@@ -71,12 +74,16 @@ func (s *setCommand) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("set which option?"))
 	}
 
-	context := s.context()
-	if context == nil {
-		return fmt.Errorf("cannot set without a context")
+	context, err := s.ensureContext()
+	if err != nil {
+		return err
 	}
 
-	// treat PlugOrSlotSpec argument as key=value if it contans '=' or doesn't contain ':' - this is to support
+	if s.Typed && s.String {
+		return fmt.Errorf("cannot use -t and -s together")
+	}
+
+	// treat PlugOrSlotSpec argument as key=value if it contains '=' or doesn't contain ':' - this is to support
 	// values such as "device-service.url=192.168.0.1:5555" and error out on invalid key=value if only "key" is given.
 	if strings.Contains(s.Positional.PlugOrSlotSpec, "=") || !strings.Contains(s.Positional.PlugOrSlotSpec, ":") {
 		s.Positional.ConfValues = append([]string{s.Positional.PlugOrSlotSpec}, s.Positional.ConfValues[0:]...)
@@ -111,10 +118,19 @@ func (s *setCommand) setConfigSetting(context *hookstate.Context) error {
 			return fmt.Errorf(i18n.G("invalid parameter: %q (want key=value)"), patchValue)
 		}
 		key := parts[0]
+
 		var value interface{}
-		if err := jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value); err != nil {
-			// Not valid JSON-- just save the string as-is.
+		if s.String {
 			value = parts[1]
+		} else {
+			if err := jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value); err != nil {
+				if s.Typed {
+					return fmt.Errorf("failed to parse JSON: %w", err)
+				}
+
+				// Not valid JSON-- just save the string as-is.
+				value = parts[1]
+			}
 		}
 
 		tr.Set(s.context().InstanceName(), key, value)

@@ -23,9 +23,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
-
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -77,7 +77,9 @@ func (s *hooktestSuite) TestDoneError(c *C) {
 func (s *hooktestSuite) TestError(c *C) {
 	err := fmt.Errorf("test error")
 	c.Check(s.mockHandler.ErrorCalled, Equals, false)
-	c.Check(s.mockHandler.Error(err), IsNil)
+	ignore, herr := s.mockHandler.Error(err)
+	c.Check(ignore, Equals, false)
+	c.Check(herr, IsNil)
 	c.Check(s.mockHandler.ErrorCalled, Equals, true)
 	c.Check(s.mockHandler.Err, Equals, err)
 }
@@ -85,7 +87,19 @@ func (s *hooktestSuite) TestError(c *C) {
 func (s *hooktestSuite) TestErrorError(c *C) {
 	s.mockHandler.ErrorError = true
 	err := fmt.Errorf("test error")
-	c.Check(s.mockHandler.Error(err), NotNil)
+	ignore, herr := s.mockHandler.Error(err)
+	c.Check(ignore, Equals, false)
+	c.Check(herr, NotNil)
+	c.Check(s.mockHandler.ErrorCalled, Equals, true)
+	c.Check(s.mockHandler.Err, Equals, err)
+}
+
+func (s *hooktestSuite) TestIgnoreError(c *C) {
+	s.mockHandler.IgnoreOriginalErr = true
+	err := fmt.Errorf("test error")
+	ignore, herr := s.mockHandler.Error(err)
+	c.Check(ignore, Equals, true)
+	c.Check(herr, IsNil)
 	c.Check(s.mockHandler.ErrorCalled, Equals, true)
 	c.Check(s.mockHandler.Err, Equals, err)
 }

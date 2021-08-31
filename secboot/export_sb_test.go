@@ -172,7 +172,7 @@ func MockSbInitializeLUKS2Container(f func(devicePath, label string, key []byte,
 	}
 }
 
-func MockSbAddRecoveryKeyToLUKS2Container(f func(devicePath string, key []byte, recoveryKey sb.RecoveryKey) error) (restore func()) {
+func MockSbAddRecoveryKeyToLUKS2Container(f func(devicePath string, key []byte, recoveryKey sb.RecoveryKey, opts *sb.KDFOptions) error) (restore func()) {
 	old := sbAddRecoveryKeyToLUKS2Container
 	sbAddRecoveryKeyToLUKS2Container = f
 	return func() {

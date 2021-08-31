@@ -40,7 +40,6 @@ import (
 var (
 	// snapdMountPath is where target core/snapd is going to be mounted in the target chroot
 	snapdMountPath = "/tmp/snapd-preseed"
-	syscallMount   = syscall.Mount
 	syscallChroot  = syscall.Chroot
 )
 
@@ -235,10 +234,11 @@ func prepareChroot(preseedChroot string) (*targetSnapdInfo, func(), error) {
 	}
 
 	fstype, fsopts := squashfs.FsType()
-	cmd := exec.Command("mount", "-t", fstype, "-o", strings.Join(fsopts, ","), coreSnapPath, where)
-	if err := cmd.Run(); err != nil {
+	mountArgs := []string{"-t", fstype, "-o", strings.Join(fsopts, ","), coreSnapPath, where}
+	cmd := exec.Command("mount", mountArgs...)
+	if out, err := cmd.CombinedOutput(); err != nil {
 		removeMountpoint()
-		return nil, nil, fmt.Errorf("cannot mount %s at %s in preseed mode: %v ", coreSnapPath, where, err)
+		return nil, nil, fmt.Errorf("cannot mount %s at %s in preseed mode: %v\n'mount %s' failed with: %s", coreSnapPath, where, err, strings.Join(mountArgs, " "), out)
 	}
 
 	unmount := func() {

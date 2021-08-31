@@ -35,6 +35,8 @@ restore: |
     # Stop dbus activated by test-snapd-desktop snap.
     systemctl --user stop dbus.service || true
 
+    rm -rf /home/test/foo
+
 execute: |
     systemctl restart snapd.socket
     ausearch -i --checkpoint stamp --start checkpoint -m AVC 2>&1 | MATCH 'no matches'
@@ -62,7 +64,7 @@ execute: |
     # XXX ausearch exits with 1 when there are denials
     ausearch --checkpoint stamp --start checkpoint -m AVC > avc-after 2>&1 || true
     grep -v -E 'avc:  denied  { (setattr|read) } .* name=linger .* scontext=system_u:system_r:init_t:s0 tcontext=unconfined_u:object_r:systemd_logind_var_lib_t:s0' < avc-after | \
-        not MATCH 'type=AVC'
+        NOMATCH 'type=AVC'
 
     # another revision triggers copy of snap data
     "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop

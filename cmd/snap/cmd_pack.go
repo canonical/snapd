@@ -23,16 +23,15 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/jessevdk/go-flags"
 	"golang.org/x/xerrors"
 
-	"github.com/jessevdk/go-flags"
-
 	"github.com/snapcore/snapd/i18n"
-	"github.com/snapcore/snapd/snap"
-	"github.com/snapcore/snapd/snap/pack"
 
 	// for SanitizePlugsSlots
 	"github.com/snapcore/snapd/interfaces/builtin"
+	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/pack"
 )
 
 type packCmd struct {

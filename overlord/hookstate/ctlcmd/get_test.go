@@ -20,6 +20,10 @@
 package ctlcmd_test
 
 import (
+	"strings"
+
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -28,10 +32,6 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-
-	"strings"
-
-	. "gopkg.in/check.v1"
 )
 
 type getSuite struct {
@@ -247,7 +247,7 @@ func (s *getSuite) TestGetRegularUser(c *C) {
 
 func (s *getSuite) TestCommandWithoutContext(c *C) {
 	_, _, err := ctlcmd.Run(nil, []string{"get", "foo"}, 0)
-	c.Check(err, ErrorMatches, ".*cannot get without a context.*")
+	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "get"\) from outside of a snap`)
 }
 
 func (s *setSuite) TestNull(c *C) {

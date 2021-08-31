@@ -824,7 +824,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore16(c *C) {
 			SnapID:  info.SnapID,
 			Channel: channel,
 			File:    fn,
-			Contact: info.Contact,
+			Contact: info.Contact(),
 		})
 	}
 
@@ -899,7 +899,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snaps, HasLen, 6)
 
-	s.AssertedSnapInfo("cont-producer").Contact = "author@cont-producer.net"
+	s.AssertedSnapInfo("cont-producer").EditedContact = "mailto:author@cont-producer.net"
 	for _, sn := range snaps {
 		s.fillDownloadedSnap(c, w, sn)
 	}
@@ -941,7 +941,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore18(c *C) {
 			SnapID:  info.SnapID,
 			Channel: channel,
 			File:    fn,
-			Contact: info.Contact,
+			Contact: info.Contact(),
 		})
 	}
 
@@ -1526,7 +1526,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicWithCore(c *C) {
 			SnapID:  info.SnapID,
 			Channel: "stable",
 			File:    fn,
-			Contact: info.Contact,
+			Contact: info.Contact(),
 		})
 	}
 }
@@ -1582,7 +1582,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaClassicSnapdOnly(c *C) {
 			SnapID:  info.SnapID,
 			Channel: "stable",
 			File:    fn,
-			Contact: info.Contact,
+			Contact: info.Contact(),
 		})
 	}
 }
@@ -1636,7 +1636,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 6)
 
-	s.AssertedSnapInfo("cont-producer").Contact = "author@cont-producer.net"
+	s.AssertedSnapInfo("cont-producer").EditedContact = "mailto:author@cont-producer.net"
 	for _, sn := range snaps {
 		s.fillDownloadedSnap(c, w, sn)
 	}
@@ -1699,7 +1699,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaExtraSnaps(c *C) {
 			SnapID:  info.SnapID,
 			Channel: channel,
 			File:    fn,
-			Contact: info.Contact,
+			Contact: info.Contact(),
 		})
 	}
 
@@ -1779,7 +1779,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(snaps, HasLen, 6)
 
-	s.AssertedSnapInfo("cont-producer").Contact = "author@cont-producer.net"
+	s.AssertedSnapInfo("cont-producer").EditedContact = "mailto:author@cont-producer.net"
 	for _, sn := range snaps {
 		s.fillDownloadedSnap(c, w, sn)
 	}
@@ -1853,7 +1853,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaLocalExtraSnaps(c *C) {
 			SnapID:     info.SnapID,
 			Channel:    channel,
 			File:       fn,
-			Contact:    info.Contact,
+			Contact:    info.Contact(),
 			Unasserted: unasserted,
 		})
 	}
@@ -1935,7 +1935,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(snaps, HasLen, 7)
 
-	s.AssertedSnapInfo("cont-producer").Contact = "author@cont-producer.net"
+	s.AssertedSnapInfo("cont-producer").EditedContact = "mailto:author@cont-producer.net"
 	s.AssertedSnapInfo("cont-consumer").Private = true
 	for _, sn := range snaps {
 		// check the used channel at this level because in the
@@ -2057,7 +2057,7 @@ func (s *writerSuite) TestSeedSnapsWriteMetaCore20(c *C) {
 			"private": true,
 		},
 		s.AssertedSnapID("cont-producer"): {
-			"contact": "author@cont-producer.net",
+			"contact": "mailto:author@cont-producer.net",
 		},
 	})
 
@@ -2395,8 +2395,6 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedDevmodeSnaps(c *C) {
 	})
 
 	s.opts.Label = "20191107"
-
-	const expectedErr = `cannot override channels, add local snaps or extra snaps with a model of grade higher than dangerous`
 
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)

@@ -21,14 +21,20 @@ package ctlcmd
 
 import (
 	"fmt"
+	"time"
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 )
+
+var autoRefreshForGatingSnap = snapstate.AutoRefreshForGatingSnap
 
 type refreshCommand struct {
 	baseCommand
@@ -84,16 +90,12 @@ func init() {
 }
 
 func (c *refreshCommand) Execute(args []string) error {
-	context := c.context()
-	if context == nil {
-		return fmt.Errorf("cannot run without a context")
-	}
-	if context.IsEphemeral() {
-		// TODO: handle this
-		return fmt.Errorf("cannot run outside of gate-auto-refresh hook")
+	context, err := c.ensureContext()
+	if err != nil {
+		return err
 	}
 
-	if context.HookName() != "gate-auto-refresh" {
+	if !context.IsEphemeral() && context.HookName() != "gate-auto-refresh" {
 		return fmt.Errorf("can only be used from gate-auto-refresh hook")
 	}
 
@@ -101,17 +103,19 @@ func (c *refreshCommand) Execute(args []string) error {
 		return fmt.Errorf("cannot use --proceed and --hold together")
 	}
 
-	if c.Pending {
+	// --pending --proceed is a verbose way of saying --proceed, so only
+	// print pending if proceed wasn't requested.
+	if c.Pending && !c.Proceed {
 		if err := c.printPendingInfo(); err != nil {
 			return err
 		}
 	}
 
-	if c.Proceed {
-		return fmt.Errorf("not implemented yet")
-	}
-	if c.Hold {
-		return fmt.Errorf("not implemented yet")
+	switch {
+	case c.Proceed:
+		return c.proceed()
+	case c.Hold:
+		return c.hold()
 	}
 
 	return nil
@@ -140,24 +144,27 @@ func getUpdateDetails(context *hookstate.Context) (*updateDetails, error) {
 	context.Lock()
 	defer context.Unlock()
 
-	if context.IsEphemeral() {
-		// TODO: support ephemeral context
-		return nil, nil
+	st := context.State()
+
+	affected, err := snapstate.AffectedByRefreshCandidates(st)
+	if err != nil {
+		return nil, err
 	}
 
 	var base, restart bool
-	context.Get("base", &base)
-	context.Get("restart", &restart)
-
-	var candidates map[string]*refreshCandidate
-	st := context.State()
-	if err := st.Get("refresh-candidates", &candidates); err != nil {
-		return nil, err
+	if affectedInfo, ok := affected[context.InstanceName()]; ok {
+		base = affectedInfo.Base
+		restart = affectedInfo.Restart
 	}
 
 	var snapst snapstate.SnapState
 	if err := snapstate.Get(st, context.InstanceName(), &snapst); err != nil {
 		return nil, fmt.Errorf("internal error: cannot get snap state for %q: %v", context.InstanceName(), err)
+	}
+
+	var candidates map[string]*refreshCandidate
+	if err := st.Get("refresh-candidates", &candidates); err != nil && err != state.ErrNoState {
+		return nil, err
 	}
 
 	var pending string
@@ -197,14 +204,76 @@ func (c *refreshCommand) printPendingInfo() error {
 	if err != nil {
 		return err
 	}
-	// XXX: remove when ephemeral context is supported.
-	if details == nil {
-		return nil
-	}
 	out, err := yaml.Marshal(details)
 	if err != nil {
 		return err
 	}
 	c.printf("%s", string(out))
+	return nil
+}
+
+func (c *refreshCommand) hold() error {
+	ctx := c.context()
+	if ctx.IsEphemeral() {
+		return fmt.Errorf("cannot hold outside of gate-auto-refresh hook")
+	}
+	ctx.Lock()
+	defer ctx.Unlock()
+	st := ctx.State()
+
+	// cache the action so that hook handler can implement default behavior
+	ctx.Cache("action", snapstate.GateAutoRefreshHold)
+
+	affecting, err := snapstate.AffectingSnapsForAffectedByRefreshCandidates(st, ctx.InstanceName())
+	if err != nil {
+		return err
+	}
+	if len(affecting) == 0 {
+		// this shouldn't happen because the hook is executed during auto-refresh
+		// change which conflicts with other changes (if it happens that means
+		// something changed in the meantime and we didn't handle conflicts
+		// correctly).
+		return fmt.Errorf("internal error: snap %q is not affected by any snaps", ctx.InstanceName())
+	}
+
+	// no duration specified, use maximum allowed for this gating snap.
+	var holdDuration time.Duration
+	if err := snapstate.HoldRefresh(st, ctx.InstanceName(), holdDuration, affecting...); err != nil {
+		// TODO: let a snap hold again once for 1h.
+		return err
+	}
+
+	return nil
+}
+
+func (c *refreshCommand) proceed() error {
+	ctx := c.context()
+	ctx.Lock()
+	defer ctx.Unlock()
+
+	// running outside of hook
+	if ctx.IsEphemeral() {
+		// TODO: consider having a permission via an interface for this before making this not experimental
+		st := ctx.State()
+		// we need to check if GateAutoRefreshHook feature is enabled when
+		// running by the snap (we don't need to do this when running from the
+		// hook because in that case hook task won't be created if not enabled).
+		tr := config.NewTransaction(st)
+		gateAutoRefreshHook, err := features.Flag(tr, features.GateAutoRefreshHook)
+		if err != nil && !config.IsNoOption(err) {
+			return err
+		}
+		if !gateAutoRefreshHook {
+			return fmt.Errorf("cannot proceed without experimental.gate-auto-refresh feature enabled")
+		}
+
+		return autoRefreshForGatingSnap(st, ctx.InstanceName())
+	}
+
+	// cache the action, hook handler will trigger proceed logic; we cannot
+	// call snapstate.ProceedWithRefresh() immediately as this would reset
+	// holdState, allowing the snap to --hold with fresh duration limit.
+	ctx.Cache("action", snapstate.GateAutoRefreshProceed)
+
 	return nil
 }

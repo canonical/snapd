@@ -672,7 +672,7 @@ func (o *TrustedAssetsUpdateObserver) BeforeWrite() error {
 		return nil
 	}
 	const expectReseal = true
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.model, o.modeenv, expectReseal); err != nil {
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.modeenv, expectReseal); err != nil {
 		return err
 	}
 	return nil
@@ -738,7 +738,7 @@ func (o *TrustedAssetsUpdateObserver) Canceled() error {
 	}
 
 	const expectReseal = true
-	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.model, o.modeenv, expectReseal); err != nil {
+	if err := resealKeyToModeenv(dirs.GlobalRootDir, o.modeenv, expectReseal); err != nil {
 		return fmt.Errorf("while canceling gadget update: %v", err)
 	}
 	return nil

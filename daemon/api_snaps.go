@@ -88,7 +88,7 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	result := webify(mapLocal(about, sd), url.String())
 
-	return SyncResponse(result, nil)
+	return SyncResponse(result)
 }
 
 func webify(result *client.Snap, resource string) *client.Snap {
@@ -225,6 +225,9 @@ func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
 	if inst.IgnoreRunning {
 		flags.IgnoreRunning = true
 	}
+	if inst.IgnoreValidation {
+		flags.IgnoreValidation = true
+	}
 
 	return flags, nil
 }
@@ -333,7 +336,7 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	}
 
 	// we need refreshed snap-declarations to enforce refresh-control as best as we can
-	if err = assertstateRefreshSnapDeclarations(st, inst.userID); err != nil {
+	if err = assertstateRefreshSnapAssertions(st, inst.userID); err != nil {
 		return "", nil, err
 	}
 
@@ -581,8 +584,11 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionRe
 }
 
 func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
-	// we need refreshed snap-declarations to enforce refresh-control as best as we can, this also ensures that snap-declarations and their prerequisite assertions are updated regularly
-	if err := assertstateRefreshSnapDeclarations(st, inst.userID); err != nil {
+	// we need refreshed snap-declarations to enforce refresh-control as best as
+	// we can, this also ensures that snap-declarations and their prerequisite
+	// assertions are updated regularly, as well as updates validation sets
+	// assertions.
+	if err := assertstateRefreshSnapAssertions(st, inst.userID); err != nil {
 		return nil, err
 	}
 
@@ -700,7 +706,10 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		results[i] = &raw
 	}
 
-	return SyncResponse(results, &Meta{Sources: []string{"local"}})
+	return &findResponse{
+		Results: results,
+		Sources: []string{"local"},
+	}
 }
 
 func shouldSearchStore(r *http.Request) bool {

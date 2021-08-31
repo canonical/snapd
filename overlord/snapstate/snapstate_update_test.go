@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"time"
 
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
@@ -34,6 +35,9 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
+
+	// So it registers Configure.
+	_ "github.com/snapcore/snapd/overlord/configstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -44,9 +48,6 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/testutil"
-
-	// So it registers Configure.
-	_ "github.com/snapcore/snapd/overlord/configstate"
 )
 
 func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.State) {
@@ -842,6 +843,13 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	r := snapstate.MockRevisionDate(nil)
 	defer r()
 
+	now, err := time.Parse(time.RFC3339, "2021-06-10T10:00:00Z")
+	c.Assert(err, IsNil)
+	restoreTimeNow := snapstate.MockTimeNow(func() time.Time {
+		return now
+	})
+	defer restoreTimeNow()
+
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -1035,6 +1043,8 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	err = snapstate.Get(s.state, "services-snap", &snapst)
 	c.Assert(err, IsNil)
 
+	c.Assert(snapst.LastRefreshTime, NotNil)
+	c.Check(snapst.LastRefreshTime.Equal(now), Equals, true)
 	c.Assert(snapst.Active, Equals, true)
 	c.Assert(snapst.Sequence, HasLen, 2)
 	c.Assert(snapst.Sequence[0], DeepEquals, &snap.SideInfo{
@@ -1053,6 +1063,65 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 
 	// we end up with the auxiliary store info
 	c.Check(snapstate.AuxStoreInfoFilename("services-snap-id"), testutil.FilePresent)
+}
+
+func (s *snapmgrTestSuite) TestUpdateResetsHoldState(c *C) {
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(7),
+		SnapID:   "some-snap-id",
+	}
+	snaptest.MockSnap(c, `name: some-snap`, &si)
+
+	si2 := snap.SideInfo{
+		RealName: "other-snap",
+		Revision: snap.R(7),
+		SnapID:   "other-snap-id",
+	}
+	snaptest.MockSnap(c, `name: other-snap`, &si2)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:          true,
+		Sequence:        []*snap.SideInfo{&si},
+		Current:         si.Revision,
+		SnapType:        "app",
+		TrackingChannel: "latest/stable",
+	})
+
+	snapstate.Set(s.state, "other-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si2},
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+
+	// enable gate-auto-refresh-hook feature
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
+	tr.Commit()
+
+	// pretend that the snap was held during last auto-refresh
+	c.Assert(snapstate.HoldRefresh(s.state, "gating-snap", 0, "some-snap", "other-snap"), IsNil)
+	// sanity check
+	held, err := snapstate.HeldSnaps(s.state)
+	c.Assert(err, IsNil)
+	c.Check(held, DeepEquals, map[string]bool{
+		"some-snap":  true,
+		"other-snap": true,
+	})
+
+	_, err = snapstate.Update(s.state, "some-snap", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+
+	// and it is not held anymore (but other-snap still is)
+	held, err = snapstate.HeldSnaps(s.state)
+	c.Assert(err, IsNil)
+	c.Check(held, DeepEquals, map[string]bool{
+		"other-snap": true,
+	})
 }
 
 func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
@@ -1487,6 +1556,9 @@ func (s *snapmgrTestSuite) TestUpdateRememberedUserRunThrough(c *C) {
 }
 
 func (s *snapmgrTestSuite) TestUpdateModelKernelSwitchTrackRunThrough(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
 	// use services-snap here to make sure services would be stopped/started appropriately
 	si := snap.SideInfo{
 		RealName: "kernel",

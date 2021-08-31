@@ -6,8 +6,8 @@ backends: [-autopkgtest]
 
 # Only run this on ubuntu 16+, lxd will not work on !ubuntu systems
 # currently nor on ubuntu 14.04
-# TODO: enable for ubuntu-21+ once the lxd image is published
-systems: [ubuntu-16*, ubuntu-18*, ubuntu-20*, ubuntu-core-*]
+# TODO: enable for ubuntu-21.10+ once the lxd image is published
+systems: [ubuntu-16*, ubuntu-18*, ubuntu-20*, ubuntu-21.04-*, ubuntu-core-*]
 
 # Start before anything else as it can take a really long time.
 priority: 1000
@@ -58,6 +58,13 @@ restore: |
     # invariant checker.
     systemctl --user stop dbus.service || true
 
+    # Remove manually the snap.lxd.workaround.service systemd unit. This unit is needed to
+    # avoid systemd wiping lxd cgroups when snapd disables all lxd units during refresh
+    # TODO: remove this when lxd removes automatically the service
+    if systemctl is-active snap.lxd.workaround.service; then
+        systemctl stop snap.lxd.workaround.service
+    fi
+
 debug: |
     # debug output from lxd
     "$TESTSTOOLS"/journal-state get-log -u snap.lxd.daemon.service
@@ -92,12 +99,12 @@ execute: |
     VERSION_ID="$(. /etc/os-release && echo "$VERSION_ID" )"
     lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-ubuntu
     lxd.lxc launch --quiet "ubuntu:$VERSION_ID" my-nesting-ubuntu -c security.nesting=true
-    if [ "$(uname -m)" = x86_64 ] && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
+    if os.query is-pc-amd64 && lxd.lxc info my-ubuntu | grep "Architecture: i686"; then
         echo "LXD spawned 32bit userspace container on a 64bit host, WAT?"
         snap info lxd
         exit 1
     fi
-    if [ "$(uname -m)" = x86_64 ] && lxd.lxc info my-nesting-ubuntu | grep "Architecture: i686"; then
+    if os.query is-pc-amd64 && lxd.lxc info my-nesting-ubuntu | grep "Architecture: i686"; then
         echo "LXD spawned 32bit userspace container on a 64bit host, WAT?"
         snap info lxd
         exit 1

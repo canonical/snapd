@@ -274,6 +274,7 @@ var templateCommon = `
   @{PROC}/sys/kernel/random/boot_id r,
   @{PROC}/sys/kernel/random/entropy_avail r,
   @{PROC}/sys/kernel/random/uuid r,
+  @{PROC}/sys/kernel/cap_last_cap r,
   # Allow access to the uuidd daemon (this daemon is a thin wrapper around
   # time and getrandom()/{,u}random and, when available, runs under an
   # unprivilged, dedicated user).
@@ -927,6 +928,10 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
 
   # golang runtime variables
   /sys/kernel/mm/transparent_hugepage/hpage_pmd_size r,
+  # glibc 2.27+ may poke this file to find out the number of CPUs
+  # available in the system when creating a new arena for malloc, see
+  # Golang issue 25628
+  /sys/devices/system/cpu/online r,
 
   # Allow reading the command line (snap-update-ns uses it in pre-Go bootstrap code).
   @{PROC}/@{pid}/cmdline r,
@@ -935,6 +940,9 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   @{PROC}/@{pid}/fd/* r,
   # Allow reading /proc/version. For release.go WSL detection.
   @{PROC}/version r,
+
+  # Allow reading own cgroups
+  @{PROC}/@{pid}/cgroup r,
 
   # Allow reading somaxconn, required in newer distro releases
   @{PROC}/sys/net/core/somaxconn r,
@@ -981,7 +989,15 @@ profile snap-update-ns.###SNAP_INSTANCE_NAME### (attach_disconnected) {
   capability dac_override,
 
   # Allow freezing and thawing the per-snap cgroup freezers
+  # v1 hierarchy where we know the group name of all processes of
+  # a given snap upfront
   /sys/fs/cgroup/freezer/snap.###SNAP_INSTANCE_NAME###/freezer.state rw,
+  # v2 hierarchy, where we need to walk the tree to looking for the tracking
+  # groups and act on each one
+  /sys/fs/cgroup/ r,
+  /sys/fs/cgroup/** r,
+  /sys/fs/cgroup/**/snap.###SNAP_INSTANCE_NAME###.*.scope/cgroup.freeze rw,
+  /sys/fs/cgroup/**/snap.###SNAP_INSTANCE_NAME###.*.service/cgroup.freeze rw,
 
   # Allow the content interface to bind fonts from the host filesystem
   mount options=(ro bind) /var/lib/snapd/hostfs/usr/share/fonts/ -> /snap/###SNAP_INSTANCE_NAME###/*/**,

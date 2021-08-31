@@ -22,6 +22,7 @@ package servicestate_test
 import (
 	"fmt"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -60,32 +62,6 @@ func (s *quotaControlSuite) SetUpTest(c *C) {
 	// mock that we have a new enough version of systemd by default
 	r := servicestate.MockSystemdVersion(248)
 	s.AddCleanup(r)
-}
-
-func (s *quotaControlSuite) TestCreateQuotaNotEnabled(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.quota-groups", false)
-	tr.Commit()
-
-	// try to create an empty quota group
-	err := servicestate.CreateQuota(s.state, "foo", "", nil, quantity.SizeGiB)
-	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.quota-groups' to true`)
-}
-
-func (s *quotaControlSuite) TestCreateQuotaSystemdTooOld(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	r := s.mockSystemctlCalls(c, systemctlCallsVersion(204))
-	defer r()
-
-	err := servicestate.CheckSystemdVersion()
-	c.Assert(err, IsNil)
-
-	err = servicestate.CreateQuota(s.state, "foo", "", nil, quantity.SizeGiB)
-	c.Assert(err, ErrorMatches, `systemd version too old: snap quotas requires systemd 205 and newer \(currently have 204\)`)
 }
 
 type quotaGroupState struct {
@@ -176,8 +152,8 @@ func systemctlCallsForServiceRestart(name string) []expectedSystemctl {
 	svc := "snap." + name + ".svc1.service"
 	return []expectedSystemctl{
 		{
-			expArgs: []string{"is-enabled", svc},
-			output:  "enabled",
+			expArgs: []string{"show", "--property=Id,ActiveState,UnitFileState,Type", svc},
+			output:  fmt.Sprintf("Id=%s\nActiveState=active\nUnitFileState=enabled\nType=simple\n", svc),
 		},
 		{expArgs: []string{"stop", svc}},
 		{
@@ -218,6 +194,72 @@ func join(calls ...[]expectedSystemctl) []expectedSystemctl {
 	return fullCall
 }
 
+func checkQuotaControlTasks(c *C, tasks []*state.Task, expAction *servicestate.QuotaControlAction) {
+	c.Assert(tasks, HasLen, 1)
+	t := tasks[0]
+
+	c.Assert(t.Kind(), Equals, "quota-control")
+	qcs := []*servicestate.QuotaControlAction{}
+
+	err := t.Get("quota-control-actions", &qcs)
+	c.Assert(err, IsNil)
+	c.Assert(qcs, HasLen, 1)
+
+	c.Assert(qcs[0], DeepEquals, expAction)
+}
+
+func (s *quotaControlSuite) TestCreateQuotaNotEnabled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.quota-groups", false)
+	tr.Commit()
+
+	// try to create an empty quota group
+	_, err := servicestate.CreateQuota(s.state, "foo", "", nil, quantity.SizeGiB)
+	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.quota-groups' to true`)
+}
+
+func (s *quotaControlSuite) TestCreateQuotaSystemdTooOld(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	r := s.mockSystemctlCalls(c, systemctlCallsVersion(229))
+	defer r()
+
+	err := servicestate.CheckSystemdVersion()
+	c.Assert(err, IsNil)
+
+	_, err = servicestate.CreateQuota(s.state, "foo", "", nil, quantity.SizeGiB)
+	c.Assert(err, ErrorMatches, `systemd version too old: snap quotas requires systemd 230 and newer \(currently have 229\)`)
+}
+
+func (s *quotaControlSuite) TestCreateQuotaPrecond(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	err := servicestatetest.MockQuotaInState(st, "foo", "", nil, 2*quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	tests := []struct {
+		name  string
+		mem   quantity.Size
+		snaps []string
+		err   string
+	}{
+		{"foo", 16 * quantity.SizeKiB, nil, `group "foo" already exists`},
+		{"new", 0, nil, `cannot create quota group with no memory limit set`},
+		{"new", quantity.SizeKiB, nil, `memory limit for group "new" is too small: size must be larger than 4KB`},
+		{"new", 16 * quantity.SizeKiB, []string{"baz"}, `cannot use snap "baz" in group "new": snap "baz" is not installed`},
+	}
+
+	for _, t := range tests {
+		_, err := servicestate.CreateQuota(st, t.name, "", t.snaps, t.mem)
+		c.Check(err, ErrorMatches, t.err)
+	}
+}
+
 func (s *quotaControlSuite) TestRemoveQuotaPreseeding(c *C) {
 	r := snapdenv.MockPreseeding(true)
 	defer r()
@@ -230,7 +272,26 @@ func (s *quotaControlSuite) TestRemoveQuotaPreseeding(c *C) {
 	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 
 	// create a quota group
-	err := servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	ts, err := servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("quota-control", "...")
+	chg.AddAll(ts)
+
+	exp := &servicestate.QuotaControlAction{
+		Action:      "create",
+		QuotaName:   "foo",
+		AddSnaps:    []string{"test-snap"},
+		MemoryLimit: quantity.SizeGiB,
+	}
+
+	checkQuotaControlTasks(c, chg.Tasks(), exp)
+
+	// run the change
+	st.Unlock()
+	defer s.se.Stop()
+	err = s.o.Settle(5 * time.Second)
+	st.Lock()
 	c.Assert(err, IsNil)
 
 	// check that the quota groups were created in the state
@@ -243,156 +304,17 @@ func (s *quotaControlSuite) TestRemoveQuotaPreseeding(c *C) {
 
 	// but removing a quota doesn't work, since it just doesn't make sense to be
 	// able to remove a quota group while preseeding, so we purposely fail
-	err = servicestate.RemoveQuota(st, "foo")
+	_, err = servicestate.RemoveQuota(st, "foo")
 	c.Assert(err, ErrorMatches, `removing quota groups not supported while preseeding`)
 }
 
-func (s *quotaControlSuite) TestCreateQuotaPreseeding(c *C) {
-	// should be no systemctl calls since we are preseeding
-	r := snapdenv.MockPreseeding(true)
-	defer r()
-
-	st := s.state
-	st.Lock()
-	defer st.Unlock()
-
-	// setup the snap so it exists
-	snapstate.Set(s.state, "test-snap", s.testSnapState)
-	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
-
-	// now we can create the quota group
-	err := servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
-	c.Assert(err, IsNil)
-
-	// check that the quota groups were created in the state
-	checkQuotaState(c, st, map[string]quotaGroupState{
-		"foo": {
-			MemoryLimit: quantity.SizeGiB,
-			Snaps:       []string{"test-snap"},
-		},
-	})
-}
-
-func (s *quotaControlSuite) TestCreateQuota(c *C) {
+func (s *quotaControlSuite) TestCreateUpdateRemoveQuotaHappy(c *C) {
 	r := s.mockSystemctlCalls(c, join(
-		// CreateQuota for non-installed snap - fails
-
 		// CreateQuota for foo - success
 		systemctlCallsForCreateQuota("foo", "test-snap"),
 
-		// CreateQuota for foo2 with overlapping snap already in foo
-
-		// CreateQuota for foo again - fails
-	))
-	defer r()
-
-	st := s.state
-	st.Lock()
-	defer st.Unlock()
-
-	// trying to create a quota with a snap that doesn't exist fails
-	err := servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
-	c.Assert(err, ErrorMatches, `cannot use snap "test-snap" in group "foo": snap "test-snap" is not installed`)
-
-	// setup the snap so it exists
-	snapstate.Set(s.state, "test-snap", s.testSnapState)
-	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
-
-	// now we can create the quota group
-	err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
-	c.Assert(err, IsNil)
-
-	// we can't add the same snap to a different group though
-	err = servicestate.CreateQuota(s.state, "foo2", "", []string{"test-snap"}, quantity.SizeGiB)
-	c.Assert(err, ErrorMatches, `cannot add snap "test-snap" to group "foo2": snap already in quota group "foo"`)
-
-	// creating the same group again will fail
-	err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
-	c.Assert(err, ErrorMatches, `group "foo" already exists`)
-
-	// check that the quota groups were created in the state
-	checkQuotaState(c, st, map[string]quotaGroupState{
-		"foo": {
-			MemoryLimit: quantity.SizeGiB,
-			Snaps:       []string{"test-snap"},
-		},
-	})
-}
-
-func (s *quotaControlSuite) TestCreateSubGroupQuota(c *C) {
-	r := s.mockSystemctlCalls(c, join(
-		// CreateQuota for foo - no systemctl calls since no snaps in it
-
-		// CreateQuota for foo2 - fails thus no systemctl calls
-
-		// CreateQuota for foo2 - we don't write anything for the first quota
-		// since there are no snaps in the quota to track
+		// UpdateQuota for foo
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
-		systemctlCallsForSliceStart("foo-group"),
-		systemctlCallsForSliceStart("foo-group/foo2"),
-		systemctlCallsForServiceRestart("test-snap"),
-	))
-	defer r()
-
-	st := s.state
-	st.Lock()
-	defer st.Unlock()
-
-	// setup the snap so it exists
-	snapstate.Set(s.state, "test-snap", s.testSnapState)
-	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
-
-	// create a quota group with no snaps to be the parent
-	err := servicestate.CreateQuota(s.state, "foo-group", "", nil, quantity.SizeGiB)
-	c.Assert(err, IsNil)
-
-	// trying to create a quota group with a non-existent parent group fails
-	err = servicestate.CreateQuota(s.state, "foo2", "foo-non-real", []string{"test-snap"}, quantity.SizeGiB)
-	c.Assert(err, ErrorMatches, `cannot create group under non-existent parent group "foo-non-real"`)
-
-	// trying to create a quota group with too big of a limit to fit inside the
-	// parent fails
-	err = servicestate.CreateQuota(s.state, "foo2", "foo-group", []string{"test-snap"}, 2*quantity.SizeGiB)
-	c.Assert(err, ErrorMatches, `sub-group memory limit of 2 GiB is too large to fit inside remaining quota space 1 GiB for parent group foo-group`)
-
-	// now we can create a sub-quota
-	err = servicestate.CreateQuota(s.state, "foo2", "foo-group", []string{"test-snap"}, quantity.SizeGiB)
-	c.Assert(err, IsNil)
-
-	// check that the quota groups were created in the state
-	checkQuotaState(c, st, map[string]quotaGroupState{
-		"foo-group": {
-			MemoryLimit: quantity.SizeGiB,
-			SubGroups:   []string{"foo2"},
-		},
-		"foo2": {
-			MemoryLimit: quantity.SizeGiB,
-			Snaps:       []string{"test-snap"},
-			ParentGroup: "foo-group",
-		},
-	})
-
-	// foo-group exists as a slice too, but has no snap services in the slice
-	checkSliceState(c, systemd.EscapeUnitNamePath("foo-group"), quantity.SizeGiB)
-}
-
-func (s *quotaControlSuite) TestRemoveQuota(c *C) {
-	r := s.mockSystemctlCalls(c, join(
-		// CreateQuota for foo
-		systemctlCallsForCreateQuota("foo", "test-snap"),
-
-		// for CreateQuota foo2 - no systemctl calls since there are no snaps
-
-		// for CreateQuota foo3 - no systemctl calls since there are no snaps
-
-		// RemoveQuota for foo2 - no daemon reload initially because
-		// we didn't modify anything, as there are no snaps in foo2 so we don't
-		// create that group on disk
-		// TODO: is this bit correct in practice? we are in effect calling
-		// systemctl stop <non-existing-slice> ?
-		systemctlCallsForSliceStop("foo/foo3"),
-
-		systemctlCallsForSliceStop("foo/foo2"),
 
 		// RemoveQuota for foo
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
@@ -410,215 +332,30 @@ func (s *quotaControlSuite) TestRemoveQuota(c *C) {
 	snapstate.Set(s.state, "test-snap", s.testSnapState)
 	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
 
-	// trying to remove a group that does not exist fails
-	err := servicestate.RemoveQuota(s.state, "not-exists")
-	c.Assert(err, ErrorMatches, `cannot remove non-existent quota group "not-exists"`)
-
-	// create a quota
-	err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	// create the quota group
+	ts, err := servicestate.CreateQuota(st, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
 	c.Assert(err, IsNil)
 
-	// create 2 quota sub-groups too
-	err = servicestate.CreateQuota(s.state, "foo2", "foo", nil, quantity.SizeGiB/2)
-	c.Assert(err, IsNil)
+	chg := st.NewChange("quota-control", "...")
+	chg.AddAll(ts)
 
-	err = servicestate.CreateQuota(s.state, "foo3", "foo", nil, quantity.SizeGiB/2)
-	c.Assert(err, IsNil)
-
-	// check that the quota groups was created in the state
-	checkQuotaState(c, st, map[string]quotaGroupState{
-		"foo": {
-			MemoryLimit: quantity.SizeGiB,
-			Snaps:       []string{"test-snap"},
-			SubGroups:   []string{"foo2", "foo3"},
-		},
-		"foo2": {
-			MemoryLimit: quantity.SizeGiB / 2,
-			ParentGroup: "foo",
-		},
-		"foo3": {
-			MemoryLimit: quantity.SizeGiB / 2,
-			ParentGroup: "foo",
-		},
-	})
-
-	// try removing the parent and it fails since it still has a sub-group
-	// under it
-	err = servicestate.RemoveQuota(s.state, "foo")
-	c.Assert(err, ErrorMatches, "cannot remove quota group with sub-groups, remove the sub-groups first")
-
-	// but we can remove the sub-group successfully first
-	err = servicestate.RemoveQuota(s.state, "foo3")
-	c.Assert(err, IsNil)
-
-	checkQuotaState(c, st, map[string]quotaGroupState{
-		"foo": {
-			MemoryLimit: quantity.SizeGiB,
-			Snaps:       []string{"test-snap"},
-			SubGroups:   []string{"foo2"},
-		},
-		"foo2": {
-			MemoryLimit: quantity.SizeGiB / 2,
-			ParentGroup: "foo",
-		},
-	})
-
-	// and we can remove the other sub-group
-	err = servicestate.RemoveQuota(s.state, "foo2")
-	c.Assert(err, IsNil)
-
-	checkQuotaState(c, st, map[string]quotaGroupState{
-		"foo": {
-			MemoryLimit: quantity.SizeGiB,
-			Snaps:       []string{"test-snap"},
-		},
-	})
-
-	// now we can remove the quota from the state
-	err = servicestate.RemoveQuota(s.state, "foo")
-	c.Assert(err, IsNil)
-
-	checkQuotaState(c, st, nil)
-
-	// foo is not mentioned in the service and doesn't exist
-	checkSvcAndSliceState(c, "test-snap.svc1", "foo", 0)
-}
-
-func (s *quotaControlSuite) TestUpdateQuotaGroupNotExist(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-
-	opts := servicestate.QuotaGroupUpdate{}
-	err := servicestate.UpdateQuota(s.state, "non-existing", opts)
-	c.Check(err, ErrorMatches, `group "non-existing" does not exist`)
-}
-
-func (s *quotaControlSuite) TestUpdateQuotaSubGroupTooBig(c *C) {
-	r := s.mockSystemctlCalls(c, join(
-		// CreateQuota for foo
-		systemctlCallsForCreateQuota("foo", "test-snap"),
-
-		// CreateQuota for foo2
-		systemctlCallsForCreateQuota("foo/foo2", "test-snap2"),
-
-		// UpdateQuota for foo2 - just the slice changes
-		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
-
-		// UpdateQuota for foo2 which fails - no systemctl calls
-	))
-	defer r()
-
-	st := s.state
-	st.Lock()
-	defer st.Unlock()
-
-	// setup the snap so it exists
-	snapstate.Set(s.state, "test-snap", s.testSnapState)
-	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
-	// and test-snap2
-	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
-	snapst2 := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si2},
-		Current:  si2.Revision,
-		Active:   true,
-		SnapType: "app",
-	}
-	snapstate.Set(s.state, "test-snap2", snapst2)
-	snaptest.MockSnapCurrent(c, testYaml2, si2)
-
-	// create a quota group
-	err := servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
-	c.Assert(err, IsNil)
-
-	// ensure mem-limit is 1 GB
-	expFooGroupState := quotaGroupState{
+	exp := &servicestate.QuotaControlAction{
+		Action:      "create",
+		QuotaName:   "foo",
+		AddSnaps:    []string{"test-snap"},
 		MemoryLimit: quantity.SizeGiB,
-		Snaps:       []string{"test-snap"},
-	}
-	checkQuotaState(c, st, map[string]quotaGroupState{
-		"foo": expFooGroupState,
-	})
-
-	// create a sub-group with 0.5 GiB
-	err = servicestate.CreateQuota(s.state, "foo2", "foo", []string{"test-snap2"}, quantity.SizeGiB/2)
-	c.Assert(err, IsNil)
-
-	expFooGroupState.SubGroups = []string{"foo2"}
-
-	expFoo2GroupState := quotaGroupState{
-		MemoryLimit: quantity.SizeGiB / 2,
-		Snaps:       []string{"test-snap2"},
-		ParentGroup: "foo",
 	}
 
-	// verify it was set in state
-	checkQuotaState(c, st, map[string]quotaGroupState{
-		"foo":  expFooGroupState,
-		"foo2": expFoo2GroupState,
-	})
+	checkQuotaControlTasks(c, chg.Tasks(), exp)
 
-	// now try to increase it to the max size
-	err = servicestate.UpdateQuota(s.state, "foo2", servicestate.QuotaGroupUpdate{
-		NewMemoryLimit: quantity.SizeGiB,
-	})
-	c.Assert(err, IsNil)
-
-	expFoo2GroupState.MemoryLimit = quantity.SizeGiB
-	// and check that it got updated in the state
-	checkQuotaState(c, st, map[string]quotaGroupState{
-		"foo":  expFooGroupState,
-		"foo2": expFoo2GroupState,
-	})
-
-	// now try to increase it above the parent limit
-	err = servicestate.UpdateQuota(s.state, "foo2", servicestate.QuotaGroupUpdate{
-		NewMemoryLimit: 2 * quantity.SizeGiB,
-	})
-	c.Assert(err, ErrorMatches, `cannot update quota "foo2": group "foo2" is invalid: sub-group memory limit of 2 GiB is too large to fit inside remaining quota space 1 GiB for parent group foo`)
-
-	// and make sure that the existing memory limit is still in place
-	checkQuotaState(c, st, map[string]quotaGroupState{
-		"foo":  expFooGroupState,
-		"foo2": expFoo2GroupState,
-	})
-}
-
-func (s *quotaControlSuite) TestUpdateQuotaGroupNotEnabled(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
-	tr := config.NewTransaction(s.state)
-	tr.Set("core", "experimental.quota-groups", false)
-	tr.Commit()
-
-	opts := servicestate.QuotaGroupUpdate{}
-	err := servicestate.UpdateQuota(s.state, "foo", opts)
-	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.quota-groups' to true`)
-}
-
-func (s *quotaControlSuite) TestUpdateQuotaChangeMemLimit(c *C) {
-	r := s.mockSystemctlCalls(c, join(
-		// CreateQuota for foo
-		systemctlCallsForCreateQuota("foo", "test-snap"),
-
-		// UpdateQuota for foo - an existing slice was changed, so all we need
-		// to is daemon-reload
-		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
-	))
-	defer r()
-
-	st := s.state
+	// run the change
+	st.Unlock()
+	defer s.se.Stop()
+	err = s.o.Settle(5 * time.Second)
 	st.Lock()
-	defer st.Unlock()
-
-	// setup the snap so it exists
-	snapstate.Set(s.state, "test-snap", s.testSnapState)
-	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
-
-	// create a quota group
-	err := servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
 	c.Assert(err, IsNil)
 
-	// ensure mem-limit is 1 GB
+	// check that the quota groups were created in the state
 	checkQuotaState(c, st, map[string]quotaGroupState{
 		"foo": {
 			MemoryLimit: quantity.SizeGiB,
@@ -626,12 +363,28 @@ func (s *quotaControlSuite) TestUpdateQuotaChangeMemLimit(c *C) {
 		},
 	})
 
-	// modify to 2 GB
-	opts := servicestate.QuotaGroupUpdate{NewMemoryLimit: 2 * quantity.SizeGiB}
-	err = servicestate.UpdateQuota(s.state, "foo", opts)
+	// increase the memory limit
+	ts, err = servicestate.UpdateQuota(st, "foo", servicestate.QuotaGroupUpdate{NewMemoryLimit: 2 * quantity.SizeGiB})
 	c.Assert(err, IsNil)
 
-	// and check that it got updated in the state
+	chg = st.NewChange("quota-control", "...")
+	chg.AddAll(ts)
+
+	exp2 := &servicestate.QuotaControlAction{
+		Action:      "update",
+		QuotaName:   "foo",
+		MemoryLimit: 2 * quantity.SizeGiB,
+	}
+
+	checkQuotaControlTasks(c, chg.Tasks(), exp2)
+
+	// run the change
+	st.Unlock()
+	defer s.se.Stop()
+	err = s.o.Settle(5 * time.Second)
+	st.Lock()
+	c.Assert(err, IsNil)
+
 	checkQuotaState(c, st, map[string]quotaGroupState{
 		"foo": {
 			MemoryLimit: 2 * quantity.SizeGiB,
@@ -639,141 +392,28 @@ func (s *quotaControlSuite) TestUpdateQuotaChangeMemLimit(c *C) {
 		},
 	})
 
-	// trying to decrease the memory limit is not yet supported
-	opts = servicestate.QuotaGroupUpdate{NewMemoryLimit: quantity.SizeGiB}
-	err = servicestate.UpdateQuota(s.state, "foo", opts)
-	c.Assert(err, ErrorMatches, "cannot decrease memory limit of existing quota-group, remove and re-create it to decrease the limit")
-}
+	// remove the quota
+	ts, err = servicestate.RemoveQuota(st, "foo")
+	c.Assert(err, IsNil)
 
-func (s *quotaControlSuite) TestUpdateQuotaAddSnap(c *C) {
-	r := s.mockSystemctlCalls(c, join(
-		// CreateQuota for foo
-		systemctlCallsForCreateQuota("foo", "test-snap"),
+	chg = st.NewChange("quota-control", "...")
+	chg.AddAll(ts)
 
-		// UpdateQuota with just test-snap2 restarted since the group already
-		// exists
-		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
-		systemctlCallsForServiceRestart("test-snap2"),
-	))
-	defer r()
-
-	st := s.state
-	st.Lock()
-	defer st.Unlock()
-
-	// setup test-snap
-	snapstate.Set(s.state, "test-snap", s.testSnapState)
-	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
-	// and test-snap2
-	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
-	snapst2 := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si2},
-		Current:  si2.Revision,
-		Active:   true,
-		SnapType: "app",
+	exp3 := &servicestate.QuotaControlAction{
+		Action:    "remove",
+		QuotaName: "foo",
 	}
-	snapstate.Set(s.state, "test-snap2", snapst2)
-	snaptest.MockSnapCurrent(c, testYaml2, si2)
 
-	// create a quota group
-	err := servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
-	c.Assert(err, IsNil)
+	checkQuotaControlTasks(c, chg.Tasks(), exp3)
 
-	checkQuotaState(c, st, map[string]quotaGroupState{
-		"foo": {
-			MemoryLimit: quantity.SizeGiB,
-			Snaps:       []string{"test-snap"},
-		},
-	})
-
-	// add a snap
-	opts := servicestate.QuotaGroupUpdate{AddSnaps: []string{"test-snap2"}}
-	err = servicestate.UpdateQuota(s.state, "foo", opts)
-	c.Assert(err, IsNil)
-
-	// and check that it got updated in the state
-	checkQuotaState(c, st, map[string]quotaGroupState{
-		"foo": {
-			MemoryLimit: quantity.SizeGiB,
-			Snaps:       []string{"test-snap", "test-snap2"},
-		},
-	})
-}
-
-func (s *quotaControlSuite) TestUpdateQuotaAddSnapAlreadyInOtherGroup(c *C) {
-	r := s.mockSystemctlCalls(c, join(
-		// CreateQuota for foo
-		systemctlCallsForCreateQuota("foo", "test-snap"),
-
-		// CreateQuota for foo2
-		systemctlCallsForCreateQuota("foo2", "test-snap2"),
-
-		// UpdateQuota for foo which fails - no systemctl calls
-	))
-	defer r()
-
-	st := s.state
+	// run the change
+	st.Unlock()
+	defer s.se.Stop()
+	err = s.o.Settle(5 * time.Second)
 	st.Lock()
-	defer st.Unlock()
-
-	// setup test-snap
-	snapstate.Set(s.state, "test-snap", s.testSnapState)
-	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
-	// and test-snap2
-	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
-	snapst2 := &snapstate.SnapState{
-		Sequence: []*snap.SideInfo{si2},
-		Current:  si2.Revision,
-		Active:   true,
-		SnapType: "app",
-	}
-	snapstate.Set(s.state, "test-snap2", snapst2)
-	snaptest.MockSnapCurrent(c, testYaml2, si2)
-
-	// create a quota group
-	err := servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
 	c.Assert(err, IsNil)
 
-	checkQuotaState(c, st, map[string]quotaGroupState{
-		"foo": {
-			MemoryLimit: quantity.SizeGiB,
-			Snaps:       []string{"test-snap"},
-		},
-	})
-
-	// create another quota group with the second snap
-	err = servicestate.CreateQuota(s.state, "foo2", "", []string{"test-snap2"}, quantity.SizeGiB)
-	c.Assert(err, IsNil)
-
-	// verify state
-	checkQuotaState(c, st, map[string]quotaGroupState{
-		"foo": {
-			MemoryLimit: quantity.SizeGiB,
-			Snaps:       []string{"test-snap"},
-		},
-		"foo2": {
-			MemoryLimit: quantity.SizeGiB,
-			Snaps:       []string{"test-snap2"},
-		},
-	})
-
-	// try to add test-snap2 to foo
-	err = servicestate.UpdateQuota(st, "foo", servicestate.QuotaGroupUpdate{
-		AddSnaps: []string{"test-snap2"},
-	})
-	c.Assert(err, ErrorMatches, `cannot add snap "test-snap2" to group "foo": snap already in quota group "foo2"`)
-
-	// nothing changed in the state
-	checkQuotaState(c, st, map[string]quotaGroupState{
-		"foo": {
-			MemoryLimit: quantity.SizeGiB,
-			Snaps:       []string{"test-snap"},
-		},
-		"foo2": {
-			MemoryLimit: quantity.SizeGiB,
-			Snaps:       []string{"test-snap2"},
-		},
-	})
+	checkQuotaState(c, st, nil)
 }
 
 func (s *quotaControlSuite) TestEnsureSnapAbsentFromQuotaGroup(c *C) {
@@ -781,12 +421,15 @@ func (s *quotaControlSuite) TestEnsureSnapAbsentFromQuotaGroup(c *C) {
 		// CreateQuota for foo
 		systemctlCallsForCreateQuota("foo", "test-snap", "test-snap2"),
 
-		// RemoveSnapFromQuota with just test-snap restarted since it is no
-		// longer in the group
+		// EnsureSnapAbsentFromQuota with just test-snap restarted since it is
+		// no longer in the group
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
 		systemctlCallsForServiceRestart("test-snap"),
 
-		// RemoveSnapFromQuota with just test-snap2 restarted since it is no
+		// another identical call to EnsureSnapAbsentFromQuota does nothing
+		// since the function is idempotent
+
+		// EnsureSnapAbsentFromQuota with just test-snap2 restarted since it is no
 		// longer in the group
 		[]expectedSystemctl{{expArgs: []string{"daemon-reload"}}},
 		systemctlCallsForServiceRestart("test-snap2"),
@@ -811,7 +454,26 @@ func (s *quotaControlSuite) TestEnsureSnapAbsentFromQuotaGroup(c *C) {
 	snaptest.MockSnapCurrent(c, testYaml2, si2)
 
 	// create a quota group
-	err := servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap", "test-snap2"}, quantity.SizeGiB)
+	ts, err := servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap", "test-snap2"}, quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	chg := st.NewChange("quota-control", "...")
+	chg.AddAll(ts)
+
+	exp := &servicestate.QuotaControlAction{
+		Action:      "create",
+		QuotaName:   "foo",
+		AddSnaps:    []string{"test-snap", "test-snap2"},
+		MemoryLimit: quantity.SizeGiB,
+	}
+
+	checkQuotaControlTasks(c, chg.Tasks(), exp)
+
+	// run the change
+	st.Unlock()
+	defer s.se.Stop()
+	err = s.o.Settle(5 * time.Second)
+	st.Lock()
 	c.Assert(err, IsNil)
 
 	checkQuotaState(c, st, map[string]quotaGroupState{
@@ -832,6 +494,10 @@ func (s *quotaControlSuite) TestEnsureSnapAbsentFromQuotaGroup(c *C) {
 		},
 	})
 
+	// removing the same snap twice works as well but does nothing
+	err = servicestate.EnsureSnapAbsentFromQuota(s.state, "test-snap")
+	c.Assert(err, IsNil)
+
 	// now remove test-snap2 too
 	err = servicestate.EnsureSnapAbsentFromQuota(s.state, "test-snap2")
 	c.Assert(err, IsNil)
@@ -847,4 +513,420 @@ func (s *quotaControlSuite) TestEnsureSnapAbsentFromQuotaGroup(c *C) {
 	// is not in any quota group
 	err = servicestate.EnsureSnapAbsentFromQuota(s.state, "test-snap33333")
 	c.Assert(err, IsNil)
+}
+
+func (s *quotaControlSuite) TestUpdateQuotaGroupNotEnabled(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.quota-groups", false)
+	tr.Commit()
+
+	opts := servicestate.QuotaGroupUpdate{}
+	_, err := servicestate.UpdateQuota(s.state, "foo", opts)
+	c.Assert(err, ErrorMatches, `experimental feature disabled - test it by setting 'experimental.quota-groups' to true`)
+}
+
+func (s *quotaControlSuite) TestUpdateQuotaPrecond(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	err := servicestatetest.MockQuotaInState(st, "foo", "", nil, 2*quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	tests := []struct {
+		name string
+		opts servicestate.QuotaGroupUpdate
+		err  string
+	}{
+		{"what", servicestate.QuotaGroupUpdate{}, `group "what" does not exist`},
+		{"foo", servicestate.QuotaGroupUpdate{NewMemoryLimit: quantity.SizeGiB}, `cannot decrease memory limit of existing quota-group, remove and re-create it to decrease the limit`},
+		{"foo", servicestate.QuotaGroupUpdate{AddSnaps: []string{"baz"}}, `cannot use snap "baz" in group "foo": snap "baz" is not installed`},
+	}
+
+	for _, t := range tests {
+		_, err := servicestate.UpdateQuota(st, t.name, t.opts)
+		c.Check(err, ErrorMatches, t.err)
+	}
+}
+
+func (s *quotaControlSuite) TestRemoveQuotaPrecond(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	err := servicestatetest.MockQuotaInState(st, "foo", "", nil, 2*quantity.SizeGiB)
+	c.Assert(err, IsNil)
+	err = servicestatetest.MockQuotaInState(st, "bar", "foo", nil, quantity.SizeGiB)
+	c.Assert(err, IsNil)
+
+	_, err = servicestate.RemoveQuota(st, "what")
+	c.Check(err, ErrorMatches, `cannot remove non-existent quota group "what"`)
+
+	_, err = servicestate.RemoveQuota(st, "foo")
+	c.Check(err, ErrorMatches, `cannot remove quota group "foo" with sub-groups, remove the sub-groups first`)
+}
+
+func (s *quotaControlSuite) createQuota(c *C, name string, limit quantity.Size, snaps ...string) {
+	ts, err := servicestate.CreateQuota(s.state, name, "", snaps, limit)
+	c.Assert(err, IsNil)
+
+	chg := s.state.NewChange("quota-control", "...")
+	chg.AddAll(ts)
+
+	// run the change
+	s.state.Unlock()
+	err = s.o.Settle(5 * time.Second)
+	s.state.Lock()
+	c.Assert(err, IsNil)
+}
+
+func (s *quotaControlSuite) TestSnapOpUpdateQuotaConflict(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		systemctlCallsForCreateQuota("foo", "test-snap"),
+	))
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+	// and test-snap2
+	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
+	snapst2 := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si2},
+		Current:  si2.Revision,
+		Active:   true,
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "test-snap2", snapst2)
+	snaptest.MockSnapCurrent(c, testYaml2, si2)
+
+	// create a quota group
+	defer s.se.Stop()
+	s.createQuota(c, "foo", quantity.SizeGiB, "test-snap")
+
+	ts, err := snapstate.Disable(st, "test-snap2")
+	c.Assert(err, IsNil)
+	chg1 := s.state.NewChange("disable", "...")
+	chg1.AddAll(ts)
+
+	_, err = servicestate.UpdateQuota(st, "foo", servicestate.QuotaGroupUpdate{AddSnaps: []string{"test-snap2"}})
+	c.Assert(err, ErrorMatches, `snap "test-snap2" has "disable" change in progress`)
+}
+
+func (s *quotaControlSuite) TestSnapOpCreateQuotaConflict(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	ts, err := snapstate.Disable(st, "test-snap")
+	c.Assert(err, IsNil)
+	chg1 := s.state.NewChange("disable", "...")
+	chg1.AddAll(ts)
+
+	_, err = servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	c.Assert(err, ErrorMatches, `snap "test-snap" has "disable" change in progress`)
+}
+
+func (s *quotaControlSuite) TestSnapOpRemoveQuotaConflict(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		systemctlCallsForCreateQuota("foo", "test-snap"),
+	))
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// create a quota group
+	defer s.se.Stop()
+	s.createQuota(c, "foo", quantity.SizeGiB, "test-snap")
+
+	ts, err := snapstate.Disable(st, "test-snap")
+	c.Assert(err, IsNil)
+	chg1 := s.state.NewChange("disable", "...")
+	chg1.AddAll(ts)
+
+	_, err = servicestate.RemoveQuota(st, "foo")
+	c.Assert(err, ErrorMatches, `snap "test-snap" has "disable" change in progress`)
+}
+
+func (s *quotaControlSuite) TestCreateQuotaSnapOpConflict(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	ts, err := servicestate.CreateQuota(s.state, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	c.Assert(err, IsNil)
+	chg1 := s.state.NewChange("quota-control", "...")
+	chg1.AddAll(ts)
+
+	_, err = snapstate.Disable(st, "test-snap")
+	c.Assert(err, ErrorMatches, `snap "test-snap" has "quota-control" change in progress`)
+}
+
+func (s *quotaControlSuite) TestUpdateQuotaSnapOpConflict(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		systemctlCallsForCreateQuota("foo", "test-snap"),
+	))
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+	// and test-snap2
+	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
+	snapst2 := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si2},
+		Current:  si2.Revision,
+		Active:   true,
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "test-snap2", snapst2)
+	snaptest.MockSnapCurrent(c, testYaml2, si2)
+
+	// create a quota group
+	defer s.se.Stop()
+	s.createQuota(c, "foo", quantity.SizeGiB, "test-snap")
+
+	ts, err := servicestate.UpdateQuota(st, "foo", servicestate.QuotaGroupUpdate{AddSnaps: []string{"test-snap2"}})
+	c.Assert(err, IsNil)
+	chg1 := s.state.NewChange("quota-control", "...")
+	chg1.AddAll(ts)
+
+	_, err = snapstate.Disable(st, "test-snap2")
+	c.Assert(err, ErrorMatches, `snap "test-snap2" has "quota-control" change in progress`)
+}
+
+func (s *quotaControlSuite) TestRemoveQuotaSnapOpConflict(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		systemctlCallsForCreateQuota("foo", "test-snap"),
+	))
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// create a quota group
+	defer s.se.Stop()
+	s.createQuota(c, "foo", quantity.SizeGiB, "test-snap")
+
+	ts, err := servicestate.RemoveQuota(st, "foo")
+	c.Assert(err, IsNil)
+	chg1 := s.state.NewChange("quota-control", "...")
+	chg1.AddAll(ts)
+
+	_, err = snapstate.Disable(st, "test-snap")
+	c.Assert(err, ErrorMatches, `snap "test-snap" has "quota-control" change in progress`)
+}
+
+func (s *quotaControlSuite) TestRemoveQuotaLateSnapOpConflict(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		systemctlCallsForCreateQuota("foo", "test-snap"),
+	))
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+
+	// create a quota group
+	defer s.se.Stop()
+	s.createQuota(c, "foo", quantity.SizeGiB, "test-snap")
+
+	ts, err := servicestate.RemoveQuota(st, "foo")
+	c.Assert(err, IsNil)
+	c.Assert(ts.Tasks(), HasLen, 1)
+	chg1 := s.state.NewChange("quota-control", "...")
+	chg1.AddAll(ts)
+
+	// the group is already gone, but the task is not finished
+	s.state.Set("quotas", nil)
+	task := ts.Tasks()[0]
+	task.Set("state-updated", servicestate.QuotaStateUpdated{
+		BootID: "boot-id",
+		AppsToRestartBySnap: map[string][]string{
+			"test-snap": {"svc1"},
+		},
+	})
+
+	_, err = snapstate.Disable(st, "test-snap")
+	c.Assert(err, ErrorMatches, `snap "test-snap" has "quota-control" change in progress`)
+}
+
+func (s *quotaControlSuite) TestUpdateQuotaUpdateQuotaConflict(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		systemctlCallsForCreateQuota("foo", "test-snap"),
+	))
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+	// and test-snap2
+	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
+	snapst2 := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si2},
+		Current:  si2.Revision,
+		Active:   true,
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "test-snap2", snapst2)
+	snaptest.MockSnapCurrent(c, testYaml2, si2)
+
+	// create a quota group
+	defer s.se.Stop()
+	s.createQuota(c, "foo", quantity.SizeGiB, "test-snap")
+
+	ts, err := servicestate.UpdateQuota(st, "foo", servicestate.QuotaGroupUpdate{AddSnaps: []string{"test-snap2"}})
+	c.Assert(err, IsNil)
+	chg1 := s.state.NewChange("quota-control", "...")
+	chg1.AddAll(ts)
+
+	_, err = servicestate.UpdateQuota(st, "foo", servicestate.QuotaGroupUpdate{NewMemoryLimit: 2 * quantity.SizeGiB})
+	c.Assert(err, ErrorMatches, `quota group "foo" has "quota-control" change in progress`)
+}
+
+func (s *quotaControlSuite) TestUpdateQuotaRemoveQuotaConflict(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		systemctlCallsForCreateQuota("foo", "test-snap"),
+	))
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+	// and test-snap2
+	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
+	snapst2 := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si2},
+		Current:  si2.Revision,
+		Active:   true,
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "test-snap2", snapst2)
+	snaptest.MockSnapCurrent(c, testYaml2, si2)
+
+	// create a quota group
+	defer s.se.Stop()
+	s.createQuota(c, "foo", quantity.SizeGiB, "test-snap")
+
+	ts, err := servicestate.UpdateQuota(st, "foo", servicestate.QuotaGroupUpdate{AddSnaps: []string{"test-snap2"}})
+	c.Assert(err, IsNil)
+	chg1 := s.state.NewChange("quota-control", "...")
+	chg1.AddAll(ts)
+
+	_, err = servicestate.RemoveQuota(st, "foo")
+	c.Assert(err, ErrorMatches, `quota group "foo" has "quota-control" change in progress`)
+}
+
+func (s *quotaControlSuite) TestRemoveQuotaUpdateQuotaConflict(c *C) {
+	r := s.mockSystemctlCalls(c, join(
+		// CreateQuota for foo
+		systemctlCallsForCreateQuota("foo", "test-snap"),
+	))
+	defer r()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+	// and test-snap2
+	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
+	snapst2 := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si2},
+		Current:  si2.Revision,
+		Active:   true,
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "test-snap2", snapst2)
+	snaptest.MockSnapCurrent(c, testYaml2, si2)
+
+	// create a quota group
+	defer s.se.Stop()
+	s.createQuota(c, "foo", quantity.SizeGiB, "test-snap")
+
+	ts, err := servicestate.RemoveQuota(st, "foo")
+	c.Assert(err, IsNil)
+	chg1 := s.state.NewChange("quota-control", "...")
+	chg1.AddAll(ts)
+
+	_, err = servicestate.UpdateQuota(st, "foo", servicestate.QuotaGroupUpdate{AddSnaps: []string{"test-snap2"}})
+	c.Assert(err, ErrorMatches, `quota group "foo" has "quota-control" change in progress`)
+}
+
+func (s *quotaControlSuite) TestCreateQuotaCreateQuotaConflict(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	// setup test-snap
+	snapstate.Set(s.state, "test-snap", s.testSnapState)
+	snaptest.MockSnapCurrent(c, testYaml, s.testSnapSideInfo)
+	// and test-snap2
+	si2 := &snap.SideInfo{RealName: "test-snap2", Revision: snap.R(42)}
+	snapst2 := &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si2},
+		Current:  si2.Revision,
+		Active:   true,
+		SnapType: "app",
+	}
+	snapstate.Set(s.state, "test-snap2", snapst2)
+	snaptest.MockSnapCurrent(c, testYaml2, si2)
+
+	ts, err := servicestate.CreateQuota(st, "foo", "", []string{"test-snap"}, quantity.SizeGiB)
+	c.Assert(err, IsNil)
+	chg1 := s.state.NewChange("quota-control", "...")
+	chg1.AddAll(ts)
+
+	_, err = servicestate.CreateQuota(st, "foo", "", []string{"test-snap2"}, 2*quantity.SizeGiB)
+	c.Assert(err, ErrorMatches, `quota group "foo" has "quota-control" change in progress`)
 }

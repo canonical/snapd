@@ -49,9 +49,32 @@ type Instruction struct {
 
 type ServiceActionConflictError struct{ error }
 
+func computeExplicitServices(appInfos []*snap.AppInfo, names []string) map[string][]string {
+	explicitServices := make(map[string][]string, len(appInfos))
+	// requested maps "snapname.appname" to app name.
+	requested := make(map[string]bool, len(names))
+	for _, name := range names {
+		// Name might also be a snap name (or other strings the user wrote on
+		// the command line), but the loop below ensures that this function
+		// considers only application names.
+		requested[name] = true
+	}
+
+	for _, app := range appInfos {
+		snapName := app.Snap.InstanceName()
+		// app.String() gives "snapname.appname"
+		if requested[app.String()] {
+			explicitServices[snapName] = append(explicitServices[snapName], app.Name)
+		}
+	}
+
+	return explicitServices
+}
+
 // serviceControlTs creates "service-control" task for every snap derived from appInfos.
 func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instruction) (*state.TaskSet, error) {
 	servicesBySnap := make(map[string][]string, len(appInfos))
+	explicitServices := computeExplicitServices(appInfos, inst.Names)
 	sortedNames := make([]string, 0, len(appInfos))
 
 	// group services by snap, we need to create one task for every affected snap
@@ -100,6 +123,9 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 		svcs := servicesBySnap[snapName]
 		sort.Strings(svcs)
 		cmd.Services = svcs
+		explicitSvcs := explicitServices[snapName]
+		sort.Strings(explicitSvcs)
+		cmd.ExplicitServices = explicitSvcs
 
 		summary := fmt.Sprintf("Run service command %q for services %q of snap %q", cmd.Action, svcs, cmd.SnapName)
 		task := st.NewTask("service-control", summary)

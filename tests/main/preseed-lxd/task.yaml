@@ -5,9 +5,9 @@ details: |
   command works in lxc container and that the resulting image can be run
   in a container and seeding finishes successfully.
 
-# this test works only on 18.04 because it requires lxd from deb (lxd snap
+# this test works only on 18.04-64 because it requires lxd from deb (lxd snap
 # as it wouldn't allow mount) and tries to replicate launchpad builder setup.
-systems: [ubuntu-18.04-*]
+systems: [ubuntu-18.04-64]
 
 environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
@@ -15,9 +15,6 @@ environment:
 prepare: |
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
-
-  #shellcheck source=tests/lib/snaps.sh
-  . "$TESTSLIB/snaps.sh"
 
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
@@ -36,7 +33,7 @@ prepare: |
   mount /dev/nbd0p1 "$IMAGE_MOUNTPOINT"
 
   # add snapd from this branch into the seed
-  repack_snapd_deb_into_snapd_snap "$PWD"
+  "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
   mv snapd-from-deb.snap snapd.snap
   inject_snap_into_seed "$IMAGE_MOUNTPOINT" snapd
 

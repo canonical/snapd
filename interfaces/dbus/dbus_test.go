@@ -22,9 +22,9 @@ package dbus_test
 import (
 	"testing"
 
-	"github.com/snapcore/snapd/interfaces/dbus"
-
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/interfaces/dbus"
 )
 
 func Test(t *testing.T) {

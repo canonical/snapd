@@ -28,7 +28,7 @@ prepare: |
     KERNEL_SNAP=$(ls pc-kernel_*.snap)
     mv "$KERNEL_SNAP" extra-snaps/
 
-    "$TESTSTOOLS"/nested-state build-image core 
+    tests.nested build-image core 
 
     # Modify seed to use devmode for pc gadget snap. This is needed for the
     # install hook to have access to /etc/systemd. Ideally we would use
@@ -43,23 +43,26 @@ prepare: |
     kpartx -d "$NESTED_IMAGES_DIR/$IMAGE_NAME"
     rmdir "$tmp"
 
-    "$TESTSTOOLS"/nested-state create-vm core
+    tests.nested create-vm core
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
     . "$TESTSLIB/nested.sh"
 
-    nested_exec "sudo snap wait system seed.loaded"
+    tests.nested exec "sudo snap wait system seed.loaded"
 
     echo "Test that rsyslog was disabled early."
     # early config is witnessed by install hook of the pc gadget
-    nested_exec "cat /var/snap/pc/common/debug.txt" | MATCH "rsyslog symlink: /dev/null"
-    nested_exec "test -L /etc/systemd/system/rsyslog.service"
+    tests.nested exec "cat /var/snap/pc/common/debug.txt" | MATCH "rsyslog symlink: /dev/null"
+    tests.nested exec "test -L /etc/systemd/system/rsyslog.service"
 
     echo "Check that the timezone is set"
-    nested_exec "cat /etc/timezone" | MATCH "Europe/Malta"
-    nested_exec "readlink -f /etc/localtime" | MATCH "Europe/Malta"
-    nested_exec "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"
+    tests.nested exec "cat /etc/timezone" | MATCH "Europe/Malta"
+    tests.nested exec "readlink -f /etc/localtime" | MATCH "Europe/Malta"
+    tests.nested exec "cat /var/snap/pc/common/debug.txt" | MATCH "localtime symlink: /usr/share/zoneinfo/Europe/Malta"
 
     echo "Check that console-conf is disabled"
-    nested_exec "cat /var/lib/console-conf/complete" | MATCH "console-conf has been disabled by the snapd system configuration"
+    tests.nested exec "cat /var/lib/console-conf/complete" | MATCH "console-conf has been disabled by the snapd system configuration"
+
+    # hostname is set
+    tests.nested exec "cat /etc/hostname" | MATCH "foo"

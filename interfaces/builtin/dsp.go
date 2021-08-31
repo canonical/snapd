@@ -20,8 +20,6 @@
 package builtin
 
 import (
-	"fmt"
-
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/udev"
@@ -56,6 +54,9 @@ const ambarellaDspConnectedPlugApparmor = `
 # The cavalry device node is used for managing the CV2x vector processor (VP).
 /dev/cavalry rw,
 
+# Ambarella kernel debug driver to allow user space setting the CV2x registers
+/dev/ambad rw,
+
 # another DSP device node
 /dev/lens rw,
 
@@ -65,9 +66,10 @@ const ambarellaDspConnectedPlugApparmor = `
 
 var ambarellaDspConnectedPlugUDev = []string{
 	`KERNEL=="iav"`,
-	`KERNEL=="cavalry`,
+	`KERNEL=="cavalry"`,
 	`KERNEL=="ucode"`,
 	`KERNEL=="lens"`,
+	`KERNEL=="ambad"`,
 }
 
 type dspInterface struct {
@@ -79,7 +81,6 @@ func (iface *dspInterface) AppArmorConnectedPlug(spec *apparmor.Specification, p
 
 	var flavor string
 	_ = slot.Attr("flavor", &flavor)
-	fmt.Println("slot flavor", flavor)
 	switch flavor {
 	// only supported flavor for now
 	case "ambarella":

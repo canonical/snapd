@@ -17,8 +17,10 @@ export DH_GOLANG_EXCLUDES=tests
 export DH_GOLANG_GO_GENERATE=1
 
 export PATH:=${PATH}:${CURDIR}
-# make sure that correct go version is found on trusty
-export PATH:=/usr/lib/go-1.10/bin:${PATH}
+# make sure that correct go version is found on xenial
+export PATH:=/usr/lib/go-1.13/bin:${PATH}
+# GOCACHE is needed by go-1.13
+export GOCACHE:=/tmp/go-build
 
 include /etc/os-release
 
@@ -41,6 +43,7 @@ SYSTEMD_UNITS_DESTDIR="lib/systemd/system/"
 GCCGO := $(shell go tool dist env > /dev/null 2>&1 && echo no || echo yes)
 
 BUILDFLAGS:=-pkgdir=$(CURDIR)/_build/std
+BUILDFLAGS+=-ldflags=-w
 # Disable -buildmode=pie mode on all our 32bit platforms
 # (i386 and armhf). For i386 because of LP: #1711052 and for
 # armhf because of LP: #1822738
@@ -145,23 +148,12 @@ override_dh_systemd_enable:
 	dh_systemd_enable
 
 override_dh_clean:
-ifneq (,$(TEST_GITHUB_AUTOPKGTEST))
-	# this will be set by the GITHUB webhook to trigger a autopkgtest
-	# we only need to run "govendor sync" here and then its ready
-	(export GOPATH="/tmp/go"; \
-	  mkdir -p /tmp/go/src/github.com/snapcore/; \
-          cp -ar . /tmp/go/src/github.com/snapcore/snapd; \
-	  go get -u github.com/kardianos/govendor; \
-	  (cd /tmp/go/src/github.com/snapcore/snapd ; /tmp/go/bin/govendor sync); \
-	  cp -ar /tmp/go/src/github.com/snapcore/snapd/vendor/ .; \
-        )
-endif
 	dh_clean
 	$(MAKE) -C data clean
 	# XXX: hacky
 	$(MAKE) -C cmd distclean || true
 	# XXX: hacky^2
-	(cd vendor/github.com/snapcore/squashfuse/src && rm -f snapfuse && make distclean || true )
+	(cd c-vendor/squashfuse && rm -f snapfuse && make distclean || true )
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
@@ -174,15 +166,15 @@ override_dh_auto_build:
 	# this is the main go build
 	SNAPD_VANILLA_GO=$$(which go) PATH="$$(pwd)/packaging/build-tools/:$$PATH" dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
 
-	(cd _build/bin && GOPATH=$$(pwd)/.. GO111MODULE=off GOCACHE=/tmp/go-build go build $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap)
-	(cd _build/bin && GOPATH=$$(pwd)/.. GO111MODULE=off GOCACHE=/tmp/go-build go build $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap-bootstrap)
+	(cd _build/bin && GOPATH=$$(pwd)/.. GO111MODULE=off go build $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap)
+	(cd _build/bin && GOPATH=$$(pwd)/.. GO111MODULE=off go build $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap-bootstrap)
 
 	# Generate static snap-exec, snapctl and snap-update-ns - it somehow includes CGO so
 	# we must force a static build here. We need a static snap-{exec,update-ns}/snapctl
 	# inside the core snap because not all bases will have a libc
-	(cd _build/bin && GOPATH=$$(pwd)/.. GO111MODULE=off GOCACHE=/tmp/go-build CGO_ENABLED=0 go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-exec)
-	(cd _build/bin && GOPATH=$$(pwd)/.. GO111MODULE=off GOCACHE=/tmp/go-build CGO_ENABLED=0 go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snapctl)
-	(cd _build/bin && GOPATH=$$(pwd)/.. GO111MODULE=off GOCACHE=/tmp/go-build go build --ldflags '-extldflags "-static"' $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-update-ns)
+	(cd _build/bin && GOPATH=$$(pwd)/.. GO111MODULE=off CGO_ENABLED=0 go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-exec)
+	(cd _build/bin && GOPATH=$$(pwd)/.. GO111MODULE=off CGO_ENABLED=0 go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snapctl)
+	(cd _build/bin && GOPATH=$$(pwd)/.. GO111MODULE=off go build --ldflags '-extldflags "-static"' $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-update-ns)
 
 	# ensure we generated a static build
 	$(shell	if ldd _build/bin/snap-exec; then false "need static build"; fi)
@@ -192,7 +184,7 @@ override_dh_auto_build:
 	# ensure snap-seccomp is build with a static libseccomp on Ubuntu
 ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
 	sed -i "s|#cgo LDFLAGS:|#cgo LDFLAGS: /usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
-	(cd _build/bin && GOPATH=$$(pwd)/.. GO111MODULE=off GOCACHE=/tmp/go-build CGO_LDFLAGS_ALLOW="/.*/libseccomp.a" go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-seccomp)
+	(cd _build/bin && GOPATH=$$(pwd)/.. GO111MODULE=off CGO_LDFLAGS_ALLOW="/.*/libseccomp.a" go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-seccomp)
 	# ensure that libseccomp is not dynamically linked
 	ldd _build/bin/snap-seccomp
 	test "$$(ldd _build/bin/snap-seccomp | grep libseccomp)" = ""
@@ -209,7 +201,7 @@ endif
 	$(MAKE) -C data all
 
 	# build squashfuse and rename to snapfuse
-	(cd vendor/github.com/snapcore/squashfuse/src && mkdir -p autom4te.cache && ./autogen.sh --disable-demo && ./configure --disable-demo && make && mv squashfuse_ll snapfuse)
+	(cd c-vendor/squashfuse && mkdir -p autom4te.cache && ./autogen.sh --disable-demo && ./configure --disable-demo && make && mv squashfuse_ll snapfuse)
 
 override_dh_auto_test:
 	dh_auto_test -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)

@@ -367,10 +367,11 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 	addAuxInfos := func(seedSnaps []*SeedSnap) {
 		for _, sn := range seedSnaps {
 			if sn.Info.ID() != "" {
-				if sn.Info.Contact != "" || sn.Info.Private {
+				if sn.Info.EditedContact != "" || sn.Info.Private {
 					auxInfos[sn.Info.ID()] = &internal.AuxInfo20{
 						Private: sn.Info.Private,
-						Contact: sn.Info.Contact,
+						// TODO: set this only if the snap has no links
+						Contact: sn.Info.Contact(),
 					}
 				}
 			}

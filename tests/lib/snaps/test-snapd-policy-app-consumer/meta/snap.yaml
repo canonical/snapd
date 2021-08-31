@@ -107,15 +107,15 @@ apps:
   display-control:
     command: bin/run
     plugs: [ display-control ]
+  dm-crypt:
+    command: bin/run
+    plugs: [ dm-crypt ]
   docker:
     command: bin/run
     plugs: [ docker ]
   docker-support:
     command: bin/run
     plugs: [ docker-support ]
-  dsp-control:
-    command: bin/run
-    plugs: [ dsp-control ]
   fpga:
     command: bin/run
     plugs: [ fpga ]
@@ -194,6 +194,9 @@ apps:
   io-ports-control:
     command: bin/run
     plugs: [ io-ports-control ]
+  ion-memory-control:
+    command: bin/run
+    plugs: [ ion-memory-control ]
   jack1:
     command: bin/run
     plugs: [ jack1 ]
@@ -254,6 +257,9 @@ apps:
   media-hub:
     command: bin/run
     plugs: [ media-hub ]
+  microstack-support:
+    command: bin/run
+    plugs: [ microstack-support ]
   mir:
     command: bin/run
     plugs: [ mir ]
@@ -377,6 +383,9 @@ apps:
   can-bus:
     command: bin/run
     plugs: [ can-bus ]
+  sd-control:
+    command: bin/run
+    plugs: [ sd-control ]
   ssh-keys:
     command: bin/run
     plugs: [ ssh-keys ]
@@ -485,3 +494,6 @@ plugs:
     write: [$HOME/dir1]
   dummy:
     interface: dummy
+  sd-control:
+    interface: sd-control
+    flavor: dual-sd

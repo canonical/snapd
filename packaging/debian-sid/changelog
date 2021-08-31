@@ -1,3 +1,107 @@
+snapd (2.51.7-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1929842
+    - cmd/snap-seccomp/syscalls: update syscalls list to libseccomp
+      v2.2.0-428-g5c22d4b1
+    - tests: cherry-pick shellcheck fix `bd730fd4`
+    - interfaces/dsp: add /dev/ambad into dsp interface
+    - many: shellcheck fixes
+    - snapstate: abort kernel refresh if no gadget update can be found
+    - overlord: add manager test for "assumes" checking
+    - store: deal correctly with "assumes" from the store raw yaml
+
+ -- Ian Johnson <ian.johnson@canonical.com>  Fri, 27 Aug 2021 15:26:46 -0500
+
+snapd (2.51.6-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1929842
+    - secboot: use half the mem for KDF in AddRecoveryKey
+    - secboot: switch main key KDF memory cost to 32KB
+
+ -- Ian Johnson <ian.johnson@canonical.com>  Thu, 19 Aug 2021 15:49:47 -0500
+
+snapd (2.51.5-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1929842
+    - snap/squashfs: handle squashfs-tools 4.5+
+    - tests/core20-install-device-file-install-via-hook-hack: adjust
+      test for 2.51
+    - o/devicestate/handlers_install.go: add workaround to create dirs
+      for install
+    - tests: fix linter warning
+    - tests: update other spread tests for new behaviour
+    - tests: ack assertions by default, add --noack option
+    - release-tools/changelog.py: also fix opensuse changelog date
+      format
+    - release-tools/changelog.py: fix typo in function name
+    - release-tools/changelog.py: fix fedora date format
+    - release-tools/changelog.py: handle case where we don't have a TZ
+    - release-tools/changelog.py: fix line length check
+    - release-tools/changelog.py: specify the LP bug for the release as
+      an arg too
+    - interface/modem-manager: add support for MBIM/QMI proxy
+      clients
+    - .github/workflows/test.yaml: use snapcraft 4.x to build the snapd
+      snap
+
+ -- Ian Johnson <ian.johnson@canonical.com>  Mon, 16 Aug 2021 15:02:40 -0500
+
+snapd (2.51.4-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1929842
+    - {device,snap}state: skip kernel extraction in seeding
+    - vendor: move to snapshot-4c814e1 branch and set fixed KDF options
+    - tests/interfaces/tee: fix HasLen check for udev snippets
+    - interfaces/tee: add support for Qualcomm qseecom device node
+    - gadget: check for system-save with multi volumes if encrypting
+      correctly
+    - gadget: drive-by: drop unnecessary/supported passthrough in test
+      gadget.yaml
+
+ -- Ian Johnson <ian.johnson@canonical.com>  Mon, 09 Aug 2021 18:56:18 -0500
+
+snapd (2.51.3-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1929842
+    - interfaces/builtin: add sd-control interface
+    - store: set ResponseHeaderTimeout on the default transport
+
+ -- Ian Johnson <ian.johnson@canonical.com>  Wed, 14 Jul 2021 15:26:54 -0500
+
+snapd (2.51.2-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1929842
+    - snapstate: remove temporary snap file for local revisions early
+    - interface: allows reading sd cards internal info from block-
+      devices interface
+    - o/ifacestate: do not visit same halt tasks in waitChainSearch to
+      avoid slow convergence (or unlikely cycles)
+    - corecfg: allow using `# snapd-edit: no` header to disable pi-
+      config
+    - configcore: ignore system.pi-config.* setting on measured kernels
+    - many: pass device/model info to configcore via sysconfig.Device
+      interface
+    - o/configstate/configcore: support snap set system swap.size=...
+    - store: make the log with download size a debug one
+    - interfaces/opengl: add support for Imagination PowerVR
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Wed, 07 Jul 2021 15:35:46 +0200
+
+snapd (2.51.1-1) unstable; urgency=medium
+
+  * New upstream release, LP: #1929842
+    - interfaces: add netlink-driver interface
+    - interfaces: builtin: add dm-crypt interface to support external
+      storage encryption
+    - interfaces/dsp: fix typo in udev rule
+    - overlord/snapstate: lock the mutex before returning from stop
+      snap services undo
+    - interfaces: opengl: change path for Xilinx zocl driver
+    - interfaces/dsp: add /dev/cavalry into dsp interface
+    - packaging/fedora/snapd.spec: correct date format in changelog
+
+ -- Michael Vogt <michael.vogt@ubuntu.com>  Tue, 15 Jun 2021 12:45:08 +0200
+
 snapd (2.51-1) unstable; urgency=medium
 
   * New upstream release, LP: #1929842

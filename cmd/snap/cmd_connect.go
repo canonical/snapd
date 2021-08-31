@@ -20,9 +20,9 @@
 package main
 
 import (
-	"github.com/snapcore/snapd/i18n"
-
 	"github.com/jessevdk/go-flags"
+
+	"github.com/snapcore/snapd/i18n"
 )
 
 type cmdConnect struct {
