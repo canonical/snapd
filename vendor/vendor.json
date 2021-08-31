@@ -7,36 +7,42 @@
 			"revision": ""
 		},
 		{
-			"checksumSHA1": "Vd3en8TDRl2kyJ/BCsr16PhtBIw=",
+			"checksumSHA1": "Ko36yrPj9xfk2+PnkDgJkG7Zczo=",
 			"path": "github.com/canonical/go-efilib",
-			"revision": "8a05456fed47829b53855734f7935f5554a21a9c",
-			"revisionTime": "2021-05-18T19:18:58Z",
+			"revision": "0f57ca17330dd10b40936a922012aa9a66b0b9f6",
+			"revisionTime": "2021-07-22T12:42:11Z",
 			"version": "main",
 			"versionExact": "main"
 		},
 		{
-			"checksumSHA1": "Kk/ZsliKdaq7A/1Glzpq4m5Y5m8=",
+			"checksumSHA1": "w0EI7UJmvC1OS1fFXdr0CAGIFgY=",
 			"path": "github.com/canonical/go-efilib/internal/ioerr",
-			"revision": "8a05456fed47829b53855734f7935f5554a21a9c",
-			"revisionTime": "2021-05-18T19:18:58Z",
+			"revision": "0f57ca17330dd10b40936a922012aa9a66b0b9f6",
+			"revisionTime": "2021-07-22T12:42:11Z",
 			"version": "main",
 			"versionExact": "main"
 		},
 		{
 			"checksumSHA1": "32kmrchV6DeWsy/jCE5jg6gYGig=",
 			"path": "github.com/canonical/go-efilib/internal/pe1.14",
-			"revision": "8a05456fed47829b53855734f7935f5554a21a9c",
-			"revisionTime": "2021-05-18T19:18:58Z",
+			"revision": "0f57ca17330dd10b40936a922012aa9a66b0b9f6",
+			"revisionTime": "2021-07-22T12:42:11Z",
 			"version": "main",
 			"versionExact": "main"
 		},
 		{
-			"checksumSHA1": "n9asp92GpBsgIOwbm4itjjzHm3Y=",
+			"checksumSHA1": "/mFS/B1tgxcSJDo79kmAh3CNskU=",
 			"path": "github.com/canonical/go-efilib/internal/uefi",
-			"revision": "8a05456fed47829b53855734f7935f5554a21a9c",
-			"revisionTime": "2021-05-18T19:18:58Z",
+			"revision": "0f57ca17330dd10b40936a922012aa9a66b0b9f6",
+			"revisionTime": "2021-07-22T12:42:11Z",
 			"version": "main",
 			"versionExact": "main"
+		},
+		{
+			"checksumSHA1": "5zGeHDBvsYpgEyZ91hgSF0zLxyU=",
+			"path": "github.com/canonical/go-sp800.108-kdf",
+			"revision": "ead800bbf9a0ff709ebd9f3067d6f28dc700d1b5",
+			"revisionTime": "2021-03-15T10:40:21Z"
 		},
 		{
 			"checksumSHA1": "CT15zzEmXx3dQ7/PJCSwZhqSV/o=",
@@ -47,22 +53,40 @@
 			"versionExact": "main"
 		},
 		{
-			"checksumSHA1": "NOQfC7YcXVybDCrNE7lczwewtuw=",
+			"checksumSHA1": "+FSFqGmrjmYyWJhJlL5C42jWPyU=",
 			"path": "github.com/canonical/go-tpm2",
-			"revision": "0b9771e9b81b2b83162b05fcdefb46ef2f39714e",
-			"revisionTime": "2021-05-24T10:38:53Z"
+			"revision": "09737a6617acced3befb8084e63dd6084b8f0d8a",
+			"revisionTime": "2021-08-24T19:02:25Z"
 		},
 		{
-			"checksumSHA1": "l3m9GecpUh+E9sLsz0l959TA6LY=",
+			"checksumSHA1": "0wuA3btHc67a/DaiXem7zlpPRw4=",
 			"path": "github.com/canonical/go-tpm2/internal",
-			"revision": "32171bd353b113ff4793dc3c65a019d749674bc6",
-			"revisionTime": "2021-03-14T16:00:24Z"
+			"revision": "3e2b334e4aa6bc83175ebe0d0cc9524140737632",
+			"revisionTime": "2021-08-24T13:09:21Z"
 		},
 		{
-			"checksumSHA1": "e9330VKxSBvGRJ7jSl2wNYKiBms=",
+			"checksumSHA1": "hcs0X8rKQni3LBBPquw7GZ7KF4A=",
+			"path": "github.com/canonical/go-tpm2/linux",
+			"revision": "09737a6617acced3befb8084e63dd6084b8f0d8a",
+			"revisionTime": "2021-08-24T19:02:25Z"
+		},
+		{
+			"checksumSHA1": "XhX0jJCdJOvsn4pIOL0H8J9YV54=",
 			"path": "github.com/canonical/go-tpm2/mu",
-			"revision": "32171bd353b113ff4793dc3c65a019d749674bc6",
-			"revisionTime": "2021-03-14T16:00:24Z"
+			"revision": "09737a6617acced3befb8084e63dd6084b8f0d8a",
+			"revisionTime": "2021-08-24T19:02:25Z"
+		},
+		{
+			"checksumSHA1": "uZAV20wIyayJqOPyFAf3H5V4o3k=",
+			"path": "github.com/canonical/go-tpm2/templates",
+			"revision": "f80ff5afff6179c76f05a4c39f6ad6c45dc0768a",
+			"revisionTime": "2021-08-27T15:17:49Z"
+		},
+		{
+			"checksumSHA1": "LiIpt5bsF9g4NskPRzeCDGc8Mkg=",
+			"path": "github.com/canonical/go-tpm2/util",
+			"revision": "f80ff5afff6179c76f05a4c39f6ad6c45dc0768a",
+			"revisionTime": "2021-08-27T15:17:49Z"
 		},
 		{
 			"checksumSHA1": "v71Cl1YYXpjrSsNl7kJKr/gxf1g=",
@@ -156,22 +180,34 @@
 			"revisionTime": "2017-09-28T14:21:59Z"
 		},
 		{
-			"checksumSHA1": "01c0DdzSg3gw8q82xbgw7PmiYBA=",
+			"checksumSHA1": "EML89L7MElPGisQ7cKhaxgc4eJg=",
 			"path": "github.com/snapcore/secboot",
-			"revision": "1a836280c7be40cc5de3ea662e3729cf66785ea0",
-			"revisionTime": "2021-05-28T15:51:52Z"
+			"revision": "36d4bc41fd390db47ada484fabbb9e06ce99ef85",
+			"revisionTime": "2021-08-26T18:39:07Z"
 		},
 		{
-			"checksumSHA1": "ulp7T6N3IFKLWCEAhB63+kUad9c=",
+			"checksumSHA1": "N8S513hZX+VzBTj8/kBShg9WYuM=",
 			"path": "github.com/snapcore/secboot/efi",
-			"revision": "1a836280c7be40cc5de3ea662e3729cf66785ea0",
-			"revisionTime": "2021-05-28T15:51:52Z"
+			"revision": "36d4bc41fd390db47ada484fabbb9e06ce99ef85",
+			"revisionTime": "2021-08-26T18:39:07Z"
 		},
 		{
 			"checksumSHA1": "o06IvYmSoopV6w9Cz940QcCbYLc=",
 			"path": "github.com/snapcore/secboot/internal/keyring",
-			"revision": "1a836280c7be40cc5de3ea662e3729cf66785ea0",
-			"revisionTime": "2021-05-28T15:51:52Z"
+			"revision": "36d4bc41fd390db47ada484fabbb9e06ce99ef85",
+			"revisionTime": "2021-08-26T18:39:07Z"
+		},
+		{
+			"checksumSHA1": "7FW50KzKYo2OdwNNK6GncUB/H3w=",
+			"path": "github.com/snapcore/secboot/internal/luks2",
+			"revision": "36d4bc41fd390db47ada484fabbb9e06ce99ef85",
+			"revisionTime": "2021-08-26T18:39:07Z"
+		},
+		{
+			"checksumSHA1": "fCIH4/efTOIhH9clXvUMlI2y/mU=",
+			"path": "github.com/snapcore/secboot/internal/paths",
+			"revision": "36d4bc41fd390db47ada484fabbb9e06ce99ef85",
+			"revisionTime": "2021-08-26T18:39:07Z"
 		},
 		{
 			"checksumSHA1": "loFEiH6evGaDnDSlQgk3ugemkcU=",
@@ -180,26 +216,28 @@
 			"revisionTime": "2021-02-12T23:46:08Z"
 		},
 		{
-			"path": "github.com/snapcore/secboot/internal/pe1.4",
-			"revision": ""
-		},
-		{
 			"checksumSHA1": "OgWrpbYPDuYIuC3iwrKFfxpg0UY=",
 			"path": "github.com/snapcore/secboot/internal/tcg",
-			"revision": "785f3aec664fcad504befe8b59b55949b6e68dc6",
-			"revisionTime": "2021-04-20T15:53:42Z"
+			"revision": "36d4bc41fd390db47ada484fabbb9e06ce99ef85",
+			"revisionTime": "2021-08-26T18:39:07Z"
 		},
 		{
-			"checksumSHA1": "101EqReCtEuYcN2asFOdsR46dDU=",
+			"checksumSHA1": "D8OnO+xmQCb9zLeJLwMTWIciV6s=",
 			"path": "github.com/snapcore/secboot/internal/tcti",
-			"revision": "785f3aec664fcad504befe8b59b55949b6e68dc6",
-			"revisionTime": "2021-04-20T15:53:42Z"
+			"revision": "36d4bc41fd390db47ada484fabbb9e06ce99ef85",
+			"revisionTime": "2021-08-26T18:39:07Z"
 		},
 		{
 			"checksumSHA1": "TnfofdyojXYWOwdWCKMY5RCeI7s=",
 			"path": "github.com/snapcore/secboot/internal/truststore",
-			"revision": "785f3aec664fcad504befe8b59b55949b6e68dc6",
-			"revisionTime": "2021-04-20T15:53:42Z"
+			"revision": "36d4bc41fd390db47ada484fabbb9e06ce99ef85",
+			"revisionTime": "2021-08-26T18:39:07Z"
+		},
+		{
+			"checksumSHA1": "B8TpNFT36WNRMMERoGMcxZH6qOw=",
+			"path": "github.com/snapcore/secboot/tpm2",
+			"revision": "36d4bc41fd390db47ada484fabbb9e06ce99ef85",
+			"revisionTime": "2021-08-26T18:39:07Z"
 		},
 		{
 			"checksumSHA1": "/mphxOFx5uIoQCnt6YtFmmPDBao=",
