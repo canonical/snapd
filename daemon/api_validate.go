@@ -262,16 +262,27 @@ func applyValidationSet(c *Command, r *http.Request, user *auth.UserState) Respo
 }
 
 var validationSetAssertionForMonitor = assertstate.ValidationSetAssertionForMonitor
+var validationSetAssertionForEnforce = assertstate.ValidationSetAssertionForEnforce
 
 // updateValidationSet handles snap validate --monitor and --enforce accountId/name[=sequence].
 func updateValidationSet(st *state.State, accountID, name string, reqMode string, sequence int, user *auth.UserState) Response {
 	var mode assertstate.ValidationSetMode
-	// TODO: only monitor mode for now, add enforce.
 	switch reqMode {
 	case "monitor":
 		mode = assertstate.Monitor
+	case "enforce":
+		mode = assertstate.Enforce
 	default:
 		return BadRequest("invalid mode %q", reqMode)
+	}
+
+	userID := 0
+	if user != nil {
+		userID = user.ID
+	}
+
+	if mode == assertstate.Enforce {
+		return enforceValidationSet(st, accountID, name, sequence, userID)
 	}
 
 	tr := assertstate.ValidationSetTracking{
@@ -282,10 +293,6 @@ func updateValidationSet(st *state.State, accountID, name string, reqMode string
 		PinnedAt: sequence,
 	}
 
-	userID := 0
-	if user != nil {
-		userID = user.ID
-	}
 	pinned := sequence > 0
 	opts := assertstate.ResolveOptions{AllowLocalFallback: true}
 	as, local, err := validationSetAssertionForMonitor(st, accountID, name, sequence, pinned, userID, &opts)
@@ -327,19 +334,27 @@ func validationSetForAssert(st *state.State, accountID, name string, sequence in
 	return sets, nil
 }
 
-func validationSetAssertFromDb(st *state.State, accountID, name string, sequence int) (*asserts.ValidationSet, error) {
+func validationSetAssertFromDb(st *state.State, accountID, name string, sequence int) (vset *asserts.ValidationSet, err error) {
 	headers := map[string]string{
 		"series":     release.Series,
 		"account-id": accountID,
 		"name":       name,
-		"sequence":   fmt.Sprintf("%d", sequence),
 	}
 	db := assertstate.DB(st)
-	as, err := db.Find(asserts.ValidationSetType, headers)
-	if err != nil {
-		return nil, err
+	var as asserts.Assertion
+	if sequence > 0 {
+		headers["sequence"] = fmt.Sprintf("%d", sequence)
+		as, err = db.Find(asserts.ValidationSetType, headers)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		as, err = db.FindSequence(asserts.ValidationSetType, headers, -1, asserts.ValidationSetType.MaxSupportedFormat())
+		if err != nil {
+			return nil, err
+		}
 	}
-	vset := as.(*asserts.ValidationSet)
+	vset = as.(*asserts.ValidationSet)
 	return vset, nil
 }
 
@@ -394,4 +409,28 @@ func getSingleSeqFormingAssertion(st *state.State, accountID, name string, seque
 	}
 
 	return as, nil
+}
+
+func enforceValidationSet(st *state.State, accountID, name string, sequence, userID int) Response {
+	snaps, err := installedSnaps(st)
+	if err != nil {
+		return InternalError(err.Error())
+	}
+	vs, err := validationSetAssertionForEnforce(st, accountID, name, sequence, userID, snaps)
+	if err != nil {
+		// XXX: provide more specific error kinds? This would probably require
+		// assertstate.ValidationSetAssertionForEnforce tuning too.
+		return BadRequest("cannot enforce validation set: %v", err)
+	}
+
+	tr := assertstate.ValidationSetTracking{
+		AccountID: accountID,
+		Name:      name,
+		Mode:      assertstate.Enforce,
+		// note, sequence may be 0, meaning not pinned.
+		PinnedAt: sequence,
+		Current:  vs.Sequence(),
+	}
+	assertstate.UpdateValidationSet(st, &tr)
+	return SyncResponse(nil)
 }
