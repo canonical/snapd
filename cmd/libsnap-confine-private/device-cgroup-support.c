@@ -270,7 +270,7 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     int devmap_fd = bpf_get_by_path(path);
     if (devmap_fd < 0) {
         if (errno != ENOENT) {
-            die("cannot attempt to get existing device map");
+            die("cannot get existing device map");
         }
         if (from_existing) {
             /* there is no map, and we haven't been asked to setup a new cgroup */
