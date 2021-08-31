@@ -1,6 +1,6 @@
 summary: Check that users with homes in /var/lib can run *classic* snaps
 
-systems: [ubuntu-16.04-64]
+systems: [ubuntu-20.04-64]
 
 environment:
     SPECIAL_USER_NAME/jenkins: jenkins
@@ -25,6 +25,7 @@ prepare: |
             apt install -y postgresql
             ;;
     esac
+
 restore: |
     snap remove --purge test-snapd-sh
     
@@ -40,6 +41,7 @@ restore: |
             apt autoremove --purge -y postgresql
             ;;
     esac
+
 execute: |
     echo "Check the home for the user $SPECIAL_USER_NAME is correct"
     #shellcheck disable=SC2016

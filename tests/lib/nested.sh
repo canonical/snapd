@@ -20,6 +20,7 @@ NESTED_CUSTOM_MODEL="${NESTED_CUSTOM_MODEL:-}"
 NESTED_CUSTOM_AUTO_IMPORT_ASSERTION="${NESTED_CUSTOM_AUTO_IMPORT_ASSERTION:-}"
 NESTED_FAKESTORE_BLOB_DIR="${NESTED_FAKESTORE_BLOB_DIR:-$NESTED_WORK_DIR/fakestore/blobs}"
 NESTED_SIGN_SNAPS_FAKESTORE="${NESTED_SIGN_SNAPS_FAKESTORE:-false}"
+NESTED_FAKESTORE_SNAP_DECL_PC_GADGET="${NESTED_FAKESTORE_SNAP_DECL_PC_GADGET:-}"
 NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL="${NESTED_UBUNTU_IMAGE_SNAPPY_FORCE_SAS_URL:-}"
 
 nested_wait_for_ssh() {
@@ -540,11 +541,11 @@ nested_create_core_vm() {
 
             if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
                 if nested_is_core_16_system; then
-                    repack_snapd_deb_into_core_snap "$NESTED_ASSETS_DIR"
+                    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap core "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/core-from-snapd-deb.snap"
 
                 elif nested_is_core_18_system; then
-                    repack_snapd_deb_into_snapd_snap "$NESTED_ASSETS_DIR"
+                    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd "$NESTED_ASSETS_DIR"
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $NESTED_ASSETS_DIR/snapd-from-deb.snap"
 
                     snap download --channel="$CORE_CHANNEL" --basename=core18 core18
@@ -629,12 +630,16 @@ EOF
                     fi
                     # sign the pc gadget snap with fakestore if requested
                     if [ "$NESTED_SIGN_SNAPS_FAKESTORE" = "true" ]; then
-                        make_snap_installable_with_id --noack "$NESTED_FAKESTORE_BLOB_DIR" "$GADGET_SNAP" "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
+                        # XXX: this is a bit of a hack, but some nested tests 
+                        # need extra bits in their snap declaration, so inject
+                        # that here, it could end up being empty in which case
+                        # it is ignored
+                        make_snap_installable_with_id --noack --extra-decl-json "$NESTED_FAKESTORE_SNAP_DECL_PC_GADGET" "$NESTED_FAKESTORE_BLOB_DIR" "$GADGET_SNAP" "UqFziVZDHLSyO3TqSWgNBoAdHbLI4dAH"
                     fi
 
                     # repack the snapd snap
                     snap download --channel="latest/edge" snapd
-                    repack_snapd_deb_into_snapd_snap "$PWD"
+                    "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
                     EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $PWD/snapd-from-deb.snap"
 
                     # sign the snapd snap with fakestore if requested

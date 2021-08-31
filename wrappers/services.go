@@ -286,7 +286,9 @@ func StartServices(apps []*snap.AppInfo, disabledSvcs []string, flags *StartServ
 		}
 	}
 
-	disableEnabledServices, err = enableServices(toEnable, inter)
+	timings.Run(tm, "enable-services", fmt.Sprintf("enable services %q", toEnable), func(nested timings.Measurer) {
+		disableEnabledServices, err = enableServices(toEnable, inter)
+	})
 	if err != nil {
 		return err
 	}

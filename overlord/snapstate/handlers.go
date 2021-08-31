@@ -22,6 +22,7 @@ package snapstate
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -521,7 +522,7 @@ func installInfoUnlocked(st *state.State, snapsup *SnapSetup, deviceCtx DeviceCo
 	st.Lock()
 	defer st.Unlock()
 	opts := &RevisionOptions{Channel: snapsup.Channel, CohortKey: snapsup.CohortKey, Revision: snapsup.Revision()}
-	return installInfo(context.TODO(), st, snapsup.InstanceName(), opts, snapsup.UserID, deviceCtx)
+	return installInfo(context.TODO(), st, snapsup.InstanceName(), opts, snapsup.UserID, Flags{}, deviceCtx)
 }
 
 // autoRefreshRateLimited returns the rate limit of auto-refreshes or 0 if
@@ -642,6 +643,28 @@ func hasOtherInstances(st *state.State, instanceName string) (bool, error) {
 	return false, nil
 }
 
+var ErrKernelGadgetUpdateTaskMissing = errors.New("cannot refresh kernel with change created by old snapd that is missing gadget update task")
+
+func checkKernelHasUpdateAssetsTask(t *state.Task) error {
+	for _, other := range t.Change().Tasks() {
+		snapsup, err := TaskSnapSetup(other)
+		if err == state.ErrNoState {
+			// XXX: hooks have no snapsup, is this detection okay?
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if snapsup.Type != "kernel" {
+			continue
+		}
+		if other.Kind() == "update-gadget-assets" {
+			return nil
+		}
+	}
+	return ErrKernelGadgetUpdateTaskMissing
+}
+
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -664,6 +687,17 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Unlock()
 	if err != nil {
 		return err
+	}
+
+	// check that there is a "update-gadget-assets" task for kernels too,
+	// see https://bugs.launchpad.net/snapd/+bug/1940553
+	if snapsup.Type == snap.TypeKernel {
+		st.Lock()
+		err = checkKernelHasUpdateAssetsTask(t)
+		st.Unlock()
+		if err != nil {
+			return err
+		}
 	}
 
 	timings.Run(perfTimings, "check-snap", fmt.Sprintf("check snap %q", snapsup.InstanceName()), func(timings.Measurer) {
@@ -690,13 +724,16 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	}
 
+	setupOpts := &backend.SetupSnapOptions{
+		SkipKernelExtraction: snapsup.SkipKernelExtraction,
+	}
 	pb := NewTaskProgressAdapterUnlocked(t)
 	// TODO Use snapsup.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
 	var snapType snap.Type
 	var installRecord *backend.InstallRecord
 	timings.Run(perfTimings, "setup-snap", fmt.Sprintf("setup snap %q", snapsup.InstanceName()), func(timings.Measurer) {
-		snapType, installRecord, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, deviceCtx, pb)
+		snapType, installRecord, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, deviceCtx, setupOpts, pb)
 	})
 	if err != nil {
 		cleanup()

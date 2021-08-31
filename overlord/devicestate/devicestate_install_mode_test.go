@@ -943,6 +943,12 @@ func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfig(c *C) {
 			GadgetDir:      filepath.Join(dirs.SnapMountDir, "pc/1/"),
 		},
 	})
+
+	// and the special dirs in _writable_defaults were created
+	for _, dir := range []string{"/etc/udev/rules.d/", "/etc/modules-load.d/", "/etc/modprobe.d/"} {
+		fullDir := filepath.Join(sysconfig.WritableDefaultsDir(boot.InstallHostWritableDir), dir)
+		c.Assert(fullDir, testutil.FilePresent)
+	}
 }
 
 func (s *deviceMgrInstallModeSuite) TestInstallModeRunSysconfigErr(c *C) {
@@ -1530,15 +1536,14 @@ mock output of: snap changes
 ---- Output of snap debug timings --ensure=seed
 mock output of: snap debug timings --ensure=seed
 
----- Output of snap debug timings 2
-mock output of: snap debug timings 2
-
+---- Output of snap debug timings --ensure=install-system
+mock output of: snap debug timings --ensure=install-system
 `)
 
 	// and the right commands are run
 	c.Check(mockedSnapCmd.Calls(), DeepEquals, [][]string{
 		{"snap", "changes"},
 		{"snap", "debug", "timings", "--ensure=seed"},
-		{"snap", "debug", "timings", "2"},
+		{"snap", "debug", "timings", "--ensure=install-system"},
 	})
 }

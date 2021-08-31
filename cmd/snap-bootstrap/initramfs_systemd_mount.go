@@ -136,7 +136,7 @@ func doSystemdMountImpl(what, where string, opts *systemdMountOptions) error {
 		options = append(options, "bind")
 	}
 	if len(options) > 0 {
-		args = append(args, "--options=" + strings.Join(options, ","))
+		args = append(args, "--options="+strings.Join(options, ","))
 	}
 
 	// note that we do not currently parse any output from systemd-mount, but if

@@ -25,10 +25,8 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"os"
 
 	"github.com/canonical/go-tpm2"
-	"github.com/snapcore/secboot"
 	sb "github.com/snapcore/secboot"
 	"golang.org/x/xerrors"
 
@@ -64,7 +62,7 @@ var (
 	provisionTPM = provisionTPMImpl
 
 	// dummy to check whether the interfaces match
-	_ (secboot.SnapModel) = ModelForSealing(nil)
+	_ (sb.SnapModel) = ModelForSealing(nil)
 )
 
 func isTPMEnabledImpl(tpm *sb.TPMConnection) bool {
@@ -120,16 +118,6 @@ func checkSecureBootEnabled() error {
 // initramfsPCR is the TPM PCR that we reserve for the EFI image and use
 // for measurement from the initramfs.
 const initramfsPCR = 12
-
-func secureConnectToTPM(ekcfile string) (*sb.TPMConnection, error) {
-	ekCertReader, err := os.Open(ekcfile)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open endorsement key certificate file: %v", err)
-	}
-	defer ekCertReader.Close()
-
-	return sb.SecureConnectToDefaultTPM(ekCertReader, nil)
-}
 
 func insecureConnectToTPM() (*sb.TPMConnection, error) {
 	return sbConnectToDefaultTPM()

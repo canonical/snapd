@@ -129,6 +129,7 @@ func (s *AppstreamMetadataInterfaceSuite) TestStaticInfo(c *C) {
 	c.Check(si.ImplicitOnClassic, Equals, true)
 	c.Check(si.Summary, Equals, "allows access to AppStream metadata")
 	c.Check(si.BaseDeclarationSlots, testutil.Contains, "appstream-metadata")
+	c.Check(si.AffectsPlugOnRefresh, Equals, true)
 }
 
 func (s *AppstreamMetadataInterfaceSuite) TestInterfaces(c *C) {

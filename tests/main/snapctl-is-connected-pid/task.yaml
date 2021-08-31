@@ -69,8 +69,6 @@ execute: |
         exit 0
     fi
 
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
     "$TESTSTOOLS"/snaps-state install-local test-snap-classic --classic
 
     echo "The test-snap-classic service is running"

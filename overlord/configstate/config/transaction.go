@@ -104,28 +104,28 @@ func (t *Transaction) Changes() []string {
 	return out
 }
 
-// shadowsVirtualConfig checks that the given subkeys/value does not
-// "block" the path to a virtual config with a non-map type. E.g. if
-// "network.netplan" is virtual it must be impossible to set
+// shadowsExternalConfig checks that the given subkeys/value does not
+// "block" the path to a external config with a non-map type. E.g. if
+// "network.netplan" is external it must be impossible to set
 // "network=false" or getting the document under "network" would be
 // wrong.
-func shadowsVirtualConfig(instanceName string, key string, value interface{}) error {
+func shadowsExternalConfig(instanceName string, key string, value interface{}) error {
 	// maps never block the path
 	if v := reflect.ValueOf(value); v.Kind() == reflect.Map {
 		return nil
 	}
 	// be paranoid: this should never happen but if it does we need to know
 	if _, ok := value.(*json.RawMessage); ok {
-		return fmt.Errorf("internal error: shadowsVirtualConfig called with *json.RawMessage for snap %q with key %q: %q please report as a bug", instanceName, key, value)
+		return fmt.Errorf("internal error: shadowsExternalConfig called with *json.RawMessage for snap %q with key %q: %q please report as a bug", instanceName, key, value)
 	}
 
-	virtualMu.Lock()
-	km := virtualMap[instanceName]
-	virtualMu.Unlock()
+	externalConfigMu.Lock()
+	km := externalConfigMap[instanceName]
+	externalConfigMu.Unlock()
 
-	for virtualKey := range km {
-		if strings.HasPrefix(virtualKey, key+".") {
-			return fmt.Errorf("cannot set %q for %q to non-map value because %q is a virtual configuration", key, instanceName, virtualKey)
+	for externalKey := range km {
+		if strings.HasPrefix(externalKey, key+".") {
+			return fmt.Errorf("cannot set %q for %q to non-map value because %q is a external configuration", key, instanceName, externalKey)
 		}
 	}
 
@@ -169,8 +169,8 @@ func (t *Transaction) Set(instanceName, key string, value interface{}) error {
 			return err
 		}
 	}
-	// check that we do not "block" a path to virtual config with non-maps
-	if err := shadowsVirtualConfig(instanceName, key, value); err != nil {
+	// check that we do not "block" a path to external config with non-maps
+	if err := shadowsExternalConfig(instanceName, key, value); err != nil {
 		return err
 	}
 
@@ -211,9 +211,9 @@ func (t *Transaction) Get(snapName, key string, result interface{}) error {
 		return err
 	}
 
-	// merge virtual config and then commit changes onto a copy of pristine configuration, so that get has a complete view of the config.
+	// merge external config and then commit changes onto a copy of pristine configuration, so that get has a complete view of the config.
 	config := t.copyPristine(snapName)
-	if err := mergeConfigWithVirtual(snapName, key, &config); err != nil {
+	if err := mergeConfigWithExternal(snapName, key, &config); err != nil {
 		return err
 	}
 	applyChanges(config, t.changes[snapName])
@@ -324,9 +324,9 @@ func (t *Transaction) Commit() {
 		panic(fmt.Errorf("internal error: cannot unmarshal configuration: %v", err))
 	}
 
-	// Iterate through the write cache and save each item but exclude virtual configuration
+	// Iterate through the write cache and save each item but exclude external configuration
 	for instanceName, snapChanges := range t.changes {
-		clearVirtualConfig(instanceName, snapChanges)
+		clearExternalConfig(instanceName, snapChanges)
 
 		config := t.pristine[instanceName]
 		// due to LP #1917870 we might have a hook configure task in flight
@@ -381,51 +381,51 @@ func commitChange(pristine *json.RawMessage, change interface{}) *json.RawMessag
 	panic(fmt.Errorf("internal error: unexpected configuration type %T", change))
 }
 
-// overlapsWithVirtualConfig() return true if the requested key overlaps with
-// the given virtual key. E.g.
-// true: for requested key "a" and virtual key "a.virtual"
-// false for requested key "z" and virtual key "a.virtual"
-func overlapsWithVirtualConfig(requestedKey, virtualKey string) (bool, error) {
+// overlapsWithExternalConfig() return true if the requested key overlaps with
+// the given external key. E.g.
+// true: for requested key "a" and external key "a.external"
+// false for requested key "z" and external key "a.external"
+func overlapsWithExternalConfig(requestedKey, externalKey string) (bool, error) {
 	requestedSubkeys, err := ParseKey(requestedKey)
 	if err != nil {
 		return false, fmt.Errorf("cannot check overlap for requested key: %v", err)
 	}
-	virtualSubkeys, err := ParseKey(virtualKey)
+	externalSubkeys, err := ParseKey(externalKey)
 	if err != nil {
-		return false, fmt.Errorf("cannot check overlap for virtual key: %v", err)
+		return false, fmt.Errorf("cannot check overlap for external key: %v", err)
 	}
 	for i := range requestedSubkeys {
-		if i >= len(virtualSubkeys) {
+		if i >= len(externalSubkeys) {
 			return true, nil
 		}
-		if virtualSubkeys[i] != requestedSubkeys[i] {
+		if externalSubkeys[i] != requestedSubkeys[i] {
 			return false, nil
 		}
 	}
 	return true, nil
 }
 
-// mergeConfigWithVirtual takes the given configuration and merges it
-// with the virtual configuration values by calling the registered
-// virtual configuration function of the given snap. The merged config
+// mergeConfigWithExternal takes the given configuration and merges it
+// with the external configuration values by calling the registered
+// external configuration function of the given snap. The merged config
 // is returned.
-func mergeConfigWithVirtual(instanceName, requestedKey string, origConfig *map[string]*json.RawMessage) error {
-	virtualMu.Lock()
-	km, ok := virtualMap[instanceName]
-	virtualMu.Unlock()
+func mergeConfigWithExternal(instanceName, requestedKey string, origConfig *map[string]*json.RawMessage) error {
+	externalConfigMu.Lock()
+	km, ok := externalConfigMap[instanceName]
+	externalConfigMu.Unlock()
 	if !ok {
 		return nil
 	}
 
-	// create a "patch" from the virtual entries
+	// create a "patch" from the external entries
 	patch := make(map[string]interface{})
-	for virtualKey, virtualFn := range km {
-		if virtualFn == nil {
+	for externalKey, externalFn := range km {
+		if externalFn == nil {
 			continue
 		}
-		// check if the requested key is part of the virtual
+		// check if the requested key is part of the external
 		// configuration
-		partOf, err := overlapsWithVirtualConfig(requestedKey, virtualKey)
+		partOf, err := overlapsWithExternalConfig(requestedKey, externalKey)
 		if err != nil {
 			return err
 		}
@@ -433,18 +433,18 @@ func mergeConfigWithVirtual(instanceName, requestedKey string, origConfig *map[s
 			continue
 		}
 
-		// Pass the right key to the virtualFn(), this can
-		// either be a subtree of the virtual-tree or the
-		// other virtualKey itself.
+		// Pass the right key to the externalFn(), this can
+		// either be a subtree of the external-tree or the
+		// other externalKey itself.
 		k := requestedKey
-		if len(requestedKey) < len(virtualKey) {
-			k = virtualKey
+		if len(requestedKey) < len(externalKey) {
+			k = externalKey
 		}
-		res, err := virtualFn(k)
+		res, err := externalFn(k)
 		if err != nil {
 			return err
 		}
-		patch[virtualKey] = jsonRaw(res)
+		patch[externalKey] = jsonRaw(res)
 	}
 	if len(patch) == 0 {
 		return nil
@@ -464,12 +464,12 @@ func mergeConfigWithVirtual(instanceName, requestedKey string, origConfig *map[s
 		// returns the same type so this cast is ok (but be defensive)
 		config, ok = mergedConfig.(*json.RawMessage)
 		if !ok {
-			return fmt.Errorf("internal error: PatchConfig in mergeConfigWithVirtual did not return a *json.RawMessage please report this as a bug")
+			return fmt.Errorf("internal error: PatchConfig in mergeConfigWithExternal did not return a *json.RawMessage please report this as a bug")
 		}
 	}
 
 	// XXX: unmarshaling on top of something leaves values in place
-	// (no problem here because we only add virtual things)
+	// (no problem here because we only add external things)
 	// convert back to the original config
 	if err := jsonutil.DecodeWithNumber(bytes.NewReader(*config), origConfig); err != nil {
 		return err
@@ -478,23 +478,23 @@ func mergeConfigWithVirtual(instanceName, requestedKey string, origConfig *map[s
 	return nil
 }
 
-// clearVirtualConfig iterates over a given config and removes any values
-// that come from virtual configuration. This is used before committing a
+// clearExternalConfig iterates over a given config and removes any values
+// that come from external configuration. This is used before committing a
 // config to disk.
-func clearVirtualConfig(instanceName string, snapChanges map[string]interface{}) {
-	virtualMu.Lock()
-	km := virtualMap[instanceName]
-	virtualMu.Unlock()
+func clearExternalConfig(instanceName string, snapChanges map[string]interface{}) {
+	externalConfigMu.Lock()
+	km := externalConfigMap[instanceName]
+	externalConfigMu.Unlock()
 
-	clearVirtualConfigRecursive(km, snapChanges, "")
+	clearExternalConfigRecursive(km, snapChanges, "")
 }
 
-func clearVirtualConfigRecursive(km map[string]VirtualCfgFunc, config map[string]interface{}, keyprefix string) {
+func clearExternalConfigRecursive(km map[string]ExternalCfgFunc, config map[string]interface{}, keyprefix string) {
 	if len(keyprefix) > 0 {
 		keyprefix += "."
 	}
 	for key, value := range config {
-		// any top-level virtual keys are removed
+		// any top-level external keys are removed
 		if _, ok := km[keyprefix+key]; ok {
 			delete(config, key)
 			// we can skip looking for nested config if we
@@ -503,7 +503,7 @@ func clearVirtualConfigRecursive(km map[string]VirtualCfgFunc, config map[string
 		}
 		// and nested configs are inspected
 		if m, ok := value.(map[string]interface{}); ok {
-			clearVirtualConfigRecursive(km, m, keyprefix+key)
+			clearExternalConfigRecursive(km, m, keyprefix+key)
 		}
 	}
 }
@@ -527,41 +527,41 @@ func (e *NoOptionError) Error() string {
 	return fmt.Sprintf("snap %q has no %q configuration option", e.SnapName, e.Key)
 }
 
-// VirtualCfgFunc can be used for virtual "transaction.Get()" calls
-type VirtualCfgFunc func(key string) (result interface{}, err error)
+// ExternalCfgFunc can be used for external "transaction.Get()" calls
+type ExternalCfgFunc func(key string) (result interface{}, err error)
 
-// virtualMap contain hook functions for "virtual" configuration. The
-// first level of the map is the snapName and then the virtual keys in
-// dotted notation e.g. "network.netplan".  Any data under a virtual
+// externalConfigMap contain hook functions for "external" configuration. The
+// first level of the map is the snapName and then the external keys in
+// dotted notation e.g. "network.netplan".  Any data under a external
 // configuration option is never stored directly in the state.
 var (
-	virtualMap map[string]map[string]VirtualCfgFunc
-	virtualMu  sync.Mutex
+	externalConfigMap map[string]map[string]ExternalCfgFunc
+	externalConfigMu  sync.Mutex
 )
 
-// RegisterVirtualConfig allows to register a function that is called
+// RegisterExternalConfig allows to register a function that is called
 // when the configuration for the given config key for a given
 // snapname is requested.
 //
-// This is useful for e.g. the system.hostname configuration where the
-// authoritative value is coming from the kernel and can be changed
-// outside of snapd.
-//
-// XXX: rename to "RegisterExternalConfig"
-func RegisterVirtualConfig(snapName, key string, vf VirtualCfgFunc) error {
-	virtualMu.Lock()
-	defer virtualMu.Unlock()
+// This is useful when the configuration is stored externally,
+// e.g. the systems hostname is stored via `hostnamectl` and it does not
+// make sense to store it the snapd state. Examples are:
+// - system.timezone
+// - system.hostname
+func RegisterExternalConfig(snapName, key string, vf ExternalCfgFunc) error {
+	externalConfigMu.Lock()
+	defer externalConfigMu.Unlock()
 
 	if _, err := ParseKey(key); err != nil {
-		return fmt.Errorf("cannot register virtual config: %v", err)
+		return fmt.Errorf("cannot register external config: %v", err)
 	}
 
-	if virtualMap == nil {
-		virtualMap = make(map[string]map[string]VirtualCfgFunc)
+	if externalConfigMap == nil {
+		externalConfigMap = make(map[string]map[string]ExternalCfgFunc)
 	}
-	if _, ok := virtualMap[snapName]; !ok {
-		virtualMap[snapName] = make(map[string]VirtualCfgFunc)
+	if _, ok := externalConfigMap[snapName]; !ok {
+		externalConfigMap[snapName] = make(map[string]ExternalCfgFunc)
 	}
-	virtualMap[snapName][key] = vf
+	externalConfigMap[snapName][key] = vf
 	return nil
 }
