@@ -88,14 +88,14 @@ func (server *NetplanServer) ExportApiV1() {
 
 func (server *NetplanServer) ExportApiV2() {
 	// V2 api on Ubuntu Core 20
-	server.conn.Export(netplanApiV2{server}, netplanObjectPath, netplanInterface)
+	server.conn.Export(netplanApiV2{netplanApiV1{server}}, netplanObjectPath, netplanInterface)
 	var introspectNode = &introspect.Node{
 		Name: netplanObjectPath,
 		Interfaces: []introspect.Interface{
 			introspect.IntrospectData,
 			{
 				Name:    netplanInterface,
-				Methods: introspect.Methods(netplanApiV2{server}),
+				Methods: introspect.Methods(netplanApiV2{netplanApiV1{server}}),
 			},
 		},
 	}
@@ -135,7 +135,7 @@ func (a netplanApiV1) Apply() (bool, *dbus.Error) {
 // netplanApiV2 implements the "Config/Get/Set/Try" API that is found
 // in netplan 0.101-0ubuntu3.
 type netplanApiV2 struct {
-	server *NetplanServer
+	netplanApiV1
 }
 
 func (a netplanApiV2) Config() (dbus.ObjectPath, *dbus.Error) {
