@@ -186,7 +186,7 @@ import (
 	"syscall"
 
 	// FIXME: we want github.com/seccomp/libseccomp-golang but that will not work with trusty because libseccomp-golang checks for the seccomp version and errors if it find one < 2.2.0
-	"github.com/mvo5/libseccomp-golang"
+	seccomp "github.com/mvo5/libseccomp-golang"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/osutil"
@@ -273,14 +273,14 @@ var seccompResolver = map[string]uint64{
 	"AF_VSOCK":      C.AF_VSOCK,
 	"PF_VSOCK":      C.PF_VSOCK,
 	// may not be defined in socket.h yet
-	"AF_IB":   C.AF_IB, // 27
-	"PF_IB":   C.PF_IB,
-	"AF_MPLS": C.AF_MPLS, // 28
-	"PF_MPLS": C.PF_MPLS,
-	"AF_CAN":  syscall.AF_CAN,
-	"PF_CAN":  C.PF_CAN,
-	"AF_CONN": C.AF_CONN, // 123
-	"PF_CONN": C.PF_CONN,
+	"AF_IB":      C.AF_IB, // 27
+	"PF_IB":      C.PF_IB,
+	"AF_MPLS":    C.AF_MPLS, // 28
+	"PF_MPLS":    C.PF_MPLS,
+	"AF_CAN":     syscall.AF_CAN,
+	"PF_CAN":     C.PF_CAN,
+	"AF_CONN":    C.AF_CONN, // 123
+	"PF_CONN":    C.PF_CONN,
 	"AF_QIPCRTR": C.AF_QIPCRTR, // 42
 	"PF_QIPCRTR": C.PF_QIPCRTR,
 
