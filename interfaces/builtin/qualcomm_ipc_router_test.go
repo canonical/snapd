@@ -26,6 +26,7 @@ import (
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
 	"github.com/snapcore/snapd/interfaces/seccomp"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -73,12 +74,22 @@ func (s *QrtrInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *QrtrInterfaceSuite) TestAppArmorSpec(c *C) {
+func (s *QrtrInterfaceSuite) TestAppArmorSpecFullAppArmorSandboxFeatures(c *C) {
+	r := apparmor_sandbox.MockFeatures(nil, nil, []string{"qipcrtr-socket"}, nil)
+	defer r()
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "network qipcrtr dgram,\n")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "capability net_admin,\n")
+}
+
+func (s *QrtrInterfaceSuite) TestAppArmorSpecMissingAppArmorSandboxFeatures(c *C) {
+	r := apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
+	defer r()
+	spec := &apparmor.Specification{}
+	err := spec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Assert(err, ErrorMatches, "cannot connect plug on system without qipcrtr socket support")
 }
 
 func (s *QrtrInterfaceSuite) TestSecCompSpec(c *C) {
