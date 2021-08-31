@@ -228,6 +228,14 @@ static int load_devcgroup_prog(int map_fd) {
     return prog_fd;
 }
 
+static void _sc_cleanup_v2_device_key(sc_cgroup_v2_device_key **keyptr) {
+    if (keyptr == NULL || *keyptr == NULL) {
+        return;
+    }
+    free(*keyptr);
+    *keyptr = NULL;
+}
+
 static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     self->v2.devmap_fd = -1;
     self->v2.cgroup_fd = -1;
@@ -299,7 +307,8 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
          * all the contents of the map*/
 
         /* first collect all keys in the map */
-        sc_cgroup_v2_device_key *existing_keys = calloc(max_entries, sizeof(sc_cgroup_v2_device_key));
+        sc_cgroup_v2_device_key *existing_keys SC_CLEANUP(_sc_cleanup_v2_device_key) =
+            calloc(max_entries, sizeof(sc_cgroup_v2_device_key));
         /* 'current' key is zeroed, such that no entry can match it and thus
          * we'll iterate over the keys from the beginning */
         sc_cgroup_v2_device_key key = {0};
