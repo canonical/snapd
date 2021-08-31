@@ -334,27 +334,20 @@ func validationSetForAssert(st *state.State, accountID, name string, sequence in
 	return sets, nil
 }
 
-func validationSetAssertFromDb(st *state.State, accountID, name string, sequence int) (vset *asserts.ValidationSet, err error) {
+func validationSetAssertFromDb(st *state.State, accountID, name string, sequence int) (*asserts.ValidationSet, error) {
 	headers := map[string]string{
 		"series":     release.Series,
 		"account-id": accountID,
 		"name":       name,
+		"sequence":   fmt.Sprintf("%d", sequence),
 	}
 	db := assertstate.DB(st)
-	var as asserts.Assertion
-	if sequence > 0 {
-		headers["sequence"] = fmt.Sprintf("%d", sequence)
-		as, err = db.Find(asserts.ValidationSetType, headers)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		as, err = db.FindSequence(asserts.ValidationSetType, headers, -1, asserts.ValidationSetType.MaxSupportedFormat())
-		if err != nil {
-			return nil, err
-		}
+	as, err := db.Find(asserts.ValidationSetType, headers)
+	if err != nil {
+		return nil, err
 	}
-	vset = as.(*asserts.ValidationSet)
+
+	vset := as.(*asserts.ValidationSet)
 	return vset, nil
 }
 
