@@ -45,11 +45,6 @@ type cmdCreatePartitions struct {
 	} `positional-args:"yes"`
 }
 
-const (
-	short = "Create missing partitions for the device"
-	long  = ""
-)
-
 type simpleObserver struct{}
 
 func (o *simpleObserver) Observe(op gadget.ContentOperation, affectedStruct *gadget.LaidOutStructure, root, dst string, data *gadget.ContentChange) (gadget.ContentChangeAction, error) {

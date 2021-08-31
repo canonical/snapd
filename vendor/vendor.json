@@ -172,13 +172,6 @@
 			"revisionTime": "2021-04-20T15:53:42Z"
 		},
 		{
-			"checksumSHA1": "3AmEm18mKj8XxBuru/ix4OOpRkE=",
-			"path": "github.com/snapcore/squashfuse",
-			"revision": "319f6d41a0419465a55d9dcb848d2408b97764f9",
-			"revisionTime": "2017-12-20T16:53:23Z",
-			"tree": true
-		},
-		{
 			"checksumSHA1": "/mphxOFx5uIoQCnt6YtFmmPDBao=",
 			"path": "go.mozilla.org/pkcs7",
 			"revision": "432b2356ecb18209c1cec25680b8a23632794f21",

@@ -3,11 +3,16 @@ on:
   pull_request:
     branches: [ "master", "release/**" ]
   push:
-    branches: [ "release/**" ]
+    # we trigger runs on master branch, but we do not run spread on master 
+    # branch, the master branch runs are just for unit tests + codecov.io
+    branches: [ "master","release/**" ]
 
 jobs:
   snap-builds:
     runs-on: ubuntu-20.04
+    # only build the snap for pull requests, it's not needed on release branches
+    # or on master since we have launchpad build recipes which do this already
+    if: ${{ github.event_name == 'pull_request' }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -145,6 +150,9 @@ jobs:
     - name: Get Go dependencies
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ${{ github.workspace }}/bin/govendor sync
 
+    - name: Get C vendoring
+      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd/c-vendor && ./vendor.sh
+
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v2
       if: ${{ matrix.gochannel == 'latest/stable' }}
@@ -212,8 +220,8 @@ jobs:
         SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
+      if: steps.cached-results.outputs.already-ran != 'true'
       with:
-        # token: ${{ secrets.CODECOV_TOKEN }} # needed ?
         fail_ci_if_error: true
         flags: unittests
         name: codecov-umbrella
@@ -226,6 +234,9 @@ jobs:
 
   spread:
     needs: [unit-tests]
+    # have spread jobs run on master on PRs only, but on both PRs and pushes to
+    # release branches
+    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
     runs-on: self-hosted
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
@@ -244,8 +255,8 @@ jobs:
         - debian-sid-64
         - fedora-33-64
         - fedora-34-64
-        - opensuse-15.1-64
         - opensuse-15.2-64
+        - opensuse-15.3-64
         - opensuse-tumbleweed-64
         - ubuntu-14.04-64
         - ubuntu-16.04-64
@@ -300,6 +311,9 @@ jobs:
 
   spread-nested:
     needs: [unit-tests]
+    # have spread jobs run on master on PRs only, but on both PRs and pushes to
+    # release branches
+    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
     runs-on: self-hosted
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
