@@ -1,0 +1,49 @@
+summary: Check that device cgroup control is enforced for tagged devices
+
+details: |
+  The test verifies that device cgroup control is enforced for tagged devices.
+
+environment:
+    # note that /dev/full has well known major:minor which is 1:7
+    SYS_PATH: /sys/devices/virtual/mem/full
+
+execute: |
+    echo "Given a snap is installed"
+    "$TESTSTOOLS"/snaps-state install-local test-strict-cgroup
+
+    echo "Verify that no devices are assigned to that snap"
+    udevadm info "$SYS_PATH" | NOMATCH "E: TAGS=.*snap_test-strict-cgroup_sh"
+    udevadm info "$SYS_PATH" | NOMATCH "E: CURRENT_TAGS=.*snap_test-strict-cgroup_sh"
+
+    echo "Force a device cgroup to be assigned to a snap"
+    # this will assign the /dev/full device to a snap
+    content='KERNEL=="full", TAG+="snap_test-strict-cgroup_sh"'
+    echo "$content" > /etc/udev/rules.d/70-snap.test-strict-cgroup.rules
+    udevadm control --reload-rules
+    udevadm settle
+    udevadm trigger
+    udevadm settle
+
+    echo "Then the device is shown as assigned to the snap"
+    udevadm info "$SYS_PATH" | MATCH "E: TAGS=.*snap_test-strict-cgroup_sh"
+
+    echo "The application is able to access the device"
+    snap run test-strict-cgroup.sh -c 'touch /var/snap/test-strict-cgroup/common/started; until test -e /var/snap/test-strict-cgroup/common/ready; do sleep 1; done; dd if=/dev/zero of=/dev/full bs=1 count=1' > run.log 2>&1 &
+    retry -n 5 test -e /var/snap/test-strict-cgroup/common/started
+
+    echo "Disallow access to /dev/full"
+    # sanity check
+    tests.device-cgroup test-strict-cgroup.sh dump | MATCH 'c 1:7 rwm'
+    tests.device-cgroup --verbose test-strict-cgroup.sh deny c 1:7
+
+    # we are ready
+    touch /var/snap/test-strict-cgroup/common/ready
+
+    wait || true
+    MATCH "dd: failed to open '/dev/full': Operation not permitted" < run.log
+
+    echo "When restated, the device cgroup is reinitialized"
+    # thus our temporary change to deny /dev/full is gone
+    not snap run test-strict-cgroup.sh -c 'dd if=/dev/zero of=/dev/full bs=1 count=1' > run.log 2>&1
+    # and dd correctly fails observing ENOSPC
+    MATCH "dd: error writing '/dev/full': No space left on device" < run.log
