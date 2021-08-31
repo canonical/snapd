@@ -1842,7 +1842,7 @@ func (s *imageSuite) TestSetupSeedLocalSnapsWithStoreAssertsValidationEnforce(c 
 			RealName:      "required-snap1",
 			SnapID:        s.AssertedSnapID("required-snap1"),
 			Revision:      snap.R(3),
-			EditedContact: "foo@example.com",
+			EditedContact: "mailto:foo@example.com",
 		},
 		Channel: stableChannel,
 	})

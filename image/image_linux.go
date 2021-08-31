@@ -386,8 +386,6 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			return err
 		}
 
-		fmt.Fprintf(Stdout, "Fetching snaps\n")
-
 		byName := make(map[string]*seedwriter.SeedSnap, len(toDownload))
 		beforeDownload := func(info *snap.Info) (string, error) {
 			sn := byName[info.SnapName()]
@@ -400,7 +398,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 			}
 			return sn.Path, nil
 		}
-		snapToDownloadOptions := make([]SnapDownloadOptions, len(toDownload))
+		snapToDownloadOptions := make([]SnapToDownload, len(toDownload))
 		for i, sn := range toDownload {
 			byName[sn.SnapName()] = sn
 			snapToDownloadOptions[i].Snap = sn

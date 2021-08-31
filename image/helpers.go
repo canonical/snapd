@@ -360,7 +360,7 @@ func (tsto *ToolingStore) snapDownload(targetFn string, sar *store.SnapActionRes
 	}, nil
 }
 
-type SnapDownloadOptions struct {
+type SnapToDownload struct {
 	Snap      naming.SnapRef
 	Channel   string
 	CohortKey string
@@ -381,15 +381,14 @@ type DownloadManyOptions struct {
 
 // DownloadMany downloads the specified snaps.
 // curSnaps are meant to represent already downloaded snaps that will
-// be installed in conjunction if the snaps to download, this is needed
+// be installed in conjunction with the snaps to download, this is needed
 // if enforcing validations (ops.EnforceValidation set to true) to
 // have cross-gating work.
-func (tsto *ToolingStore) DownloadMany(toDownload []SnapDownloadOptions, curSnaps []*CurrentSnap, opts DownloadManyOptions) (downloadedSnaps map[string]*DownloadedSnap, err error) {
+func (tsto *ToolingStore) DownloadMany(toDownload []SnapToDownload, curSnaps []*CurrentSnap, opts DownloadManyOptions) (downloadedSnaps map[string]*DownloadedSnap, err error) {
 	if len(toDownload) == 0 {
 		// nothing to do
 		return nil, nil
 	}
-	downloadedSnaps = make(map[string]*DownloadedSnap, len(toDownload))
 	if opts.BeforeDownloadFunc == nil {
 		return nil, fmt.Errorf("internal error: DownloadManyOptions.BeforeDownloadFunc must be set")
 	}
@@ -399,6 +398,7 @@ func (tsto *ToolingStore) DownloadMany(toDownload []SnapDownloadOptions, curSnap
 		actionFlag = store.SnapActionEnforceValidation
 	}
 
+	downloadedSnaps = make(map[string]*DownloadedSnap, len(toDownload))
 	current := make([]*store.CurrentSnap, 0, len(curSnaps))
 	for _, csnap := range curSnaps {
 		ch := "stable"
