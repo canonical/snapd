@@ -56,7 +56,7 @@ import (
 )
 
 type snapshotSuite struct {
-	restoreEnforcedValidationSets func()
+	testutil.BaseTest
 }
 
 var _ = check.Suite(&snapshotSuite{})
@@ -65,17 +65,19 @@ var _ = check.Suite(&snapshotSuite{})
 func TestSnapshot(t *testing.T) { check.TestingT(t) }
 
 func (s *snapshotSuite) SetUpTest(c *check.C) {
+	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 	os.MkdirAll(dirs.SnapshotsDir, os.ModePerm)
 
-	s.restoreEnforcedValidationSets = snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
 		return nil, nil
 	})
+	s.AddCleanup(restore)
 }
 
 func (s *snapshotSuite) TearDownTest(c *check.C) {
+	s.BaseTest.TearDownTest(c)
 	dirs.SetRootDir("/")
-	s.restoreEnforcedValidationSets()
 }
 
 func (snapshotSuite) TestNewSnapshotSetID(c *check.C) {
