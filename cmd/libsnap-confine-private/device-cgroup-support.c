@@ -429,12 +429,12 @@ static int _sc_cgroup_v2_init(sc_device_cgroup *self, int flags) {
 #ifdef ENABLE_BPF
     return _sc_cgroup_v2_init_bpf(self, flags);
 #else
-	if ((flags & SC_DEVICE_CGROUP_FROM_EXISTING) != 0) {
-		errno = ENOSYS;
-		return -1;
-	}
-	die("device cgroup v2 is not enabled");
-	return -1;
+    if ((flags & SC_DEVICE_CGROUP_FROM_EXISTING) != 0) {
+        errno = ENOSYS;
+        return -1;
+    }
+    die("device cgroup v2 is not enabled");
+    return -1;
 #endif
 }
 
