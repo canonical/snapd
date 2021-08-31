@@ -155,7 +155,7 @@ func (s *doSystemdMountSuite) TestDoSystemdMount(c *C) {
 			where: "/run/mnt/data",
 			opts: &main.SystemdMountOptions{
 				NoSuid: true,
-				Bind: true,
+				Bind:   true,
 			},
 			timeNowTimes:     []time.Time{testStart, testStart},
 			isMountedReturns: []bool{true},
