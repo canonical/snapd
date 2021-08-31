@@ -741,7 +741,7 @@ func (brs20 *bootState20RecoverySystem) markSuccessful(update bootStateUpdate) (
 		return nil, err
 	}
 
-	newM, err := observeSuccessfulSystems(brs20.dev.Model(), u20.writeModeenv)
+	newM, err := observeSuccessfulSystems(u20.writeModeenv)
 	if err != nil {
 		return nil, fmt.Errorf("cannot mark successful recovery system: %v", err)
 	}

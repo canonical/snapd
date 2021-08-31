@@ -364,7 +364,7 @@ func (m *autoRefresh) Ensure() error {
 				return nil
 			}
 
-			err = m.launchAutoRefresh(refreshSchedule)
+			err = m.launchAutoRefresh()
 			if _, ok := err.(*httputil.PersistentNetworkError); !ok {
 				m.nextRefresh = time.Time{}
 			} // else - refresh will be retried after refreshRetryDelay
@@ -489,7 +489,7 @@ func autoRefreshSummary(updated []string) string {
 }
 
 // launchAutoRefresh creates the auto-refresh taskset and a change for it.
-func (m *autoRefresh) launchAutoRefresh(refreshSchedule []*timeutil.Schedule) error {
+func (m *autoRefresh) launchAutoRefresh() error {
 	perfTimings := timings.New(map[string]string{"ensure": "auto-refresh"})
 	tm := perfTimings.StartSpan("auto-refresh", "query store and setup auto-refresh change")
 	defer func() {

@@ -182,7 +182,7 @@ func (f *fakeStore) SnapInfo(ctx context.Context, spec store.SnapSpec, user *aut
 	sspec := snapSpec{
 		Name: spec.Name,
 	}
-	info, err := f.snap(sspec, user)
+	info, err := f.snap(sspec)
 
 	userID := 0
 	if user != nil {
@@ -200,7 +200,7 @@ type snapSpec struct {
 	Cohort   string
 }
 
-func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error) {
+func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 	if spec.Revision.Unset() {
 		switch {
 		case spec.Cohort != "":
@@ -517,7 +517,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 				Revision: a.Revision,
 				Cohort:   a.CohortKey,
 			}
-			info, err := f.snap(spec, user)
+			info, err := f.snap(spec)
 			if err != nil {
 				installErrors[a.InstanceName] = err
 				continue
