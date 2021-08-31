@@ -679,13 +679,20 @@ restore_suite_each() {
     # Save all the installed packages and remove the new packages installed 
     if os.query is-classic; then
         tests.pkgs list-installed > installed-final.pkgs
-        diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-new.pkgs
+        diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-in-test.pkgs
+        diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\-" | tail -n+2 | cut -c 2- > removed-in-test.pkgs
 
         # shellcheck disable=SC2002
-        packages="$(cat installed-new.pkgs | tr "\n" " ")"
+        packages="$(cat installed-in-test.pkgs | tr "\n" " ")"
         if [ -n "$packages" ]; then
             # shellcheck disable=SC2086
             tests.pkgs remove $packages
+        fi
+        # shellcheck disable=SC2002
+        packages="$(cat removed-in-test.pkgs | tr "\n" " ")"
+        if [ -n "$packages" ]; then
+            # shellcheck disable=SC2086
+            tests.pkgs install $packages
         fi
     fi
 
