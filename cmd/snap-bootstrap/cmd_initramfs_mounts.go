@@ -1437,8 +1437,8 @@ func generateMountsModeClassic(mst *initramfsMountsState, label string) error {
 	// Verify that cloudimg-rootfs comes from where we expect it to
 	diskOpts := &disks.Options{}
 	if unlockRes.IsEncrypted {
-		// then we need to specify that the data mountpoint is expected to be a
-		// decrypted device, applies to both ubuntu-data and ubuntu-save
+		// then we need to specify that the data mountpoint is
+		// expected to be a decrypted device
 		diskOpts.IsDecryptedDevice = true
 	}
 
