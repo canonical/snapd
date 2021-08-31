@@ -59,7 +59,9 @@ func (s *netplanSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { c.Check(backend.Stop(), IsNil) })
 	s.backend = backend
 
-	// XXX: we only have a mock session bus here
+	// We mock the system bus with a private session bus, that is
+	// good enough for the unit tests. Spread tests cover the real
+	// bus.
 	restore := dbusutil.MockOnlySystemBusAvailable(s.SessionBus)
 	s.AddCleanup(restore)
 
@@ -79,7 +81,7 @@ func (s *netplanSuite) TestNetplanGetFromDbusNoSuchService(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	// Note that we do not create a netplan dbus backend here
+	// Note that we do not export any netplan dbus api here
 
 	tr := config.NewTransaction(s.state)
 	netplanCfg := make(map[string]interface{})
