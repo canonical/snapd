@@ -21,8 +21,12 @@ package systemdtest
 
 import (
 	"fmt"
+	"io"
+	"time"
 
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/systemd"
 )
 
 type ServiceState struct {
@@ -59,3 +63,52 @@ Type=simple
 	}
 	return output
 }
+
+type FakeSystemd struct {
+	Mode     systemd.InstanceMode
+	Reporter systemd.Reporter
+
+	/* The user of this fake object can replace the implementation of the
+	* various methods */
+	MockedRemoveMountUnitFile func(baseDir string) error
+}
+
+/* For each of these methods, I'll create a "Mocked<MethodName>" field in the
+ * FakeSystemd struct, to allow the caller to override it. See the
+ * RemoveMountUnitFile() method below.
+ */
+func (s *FakeSystemd) DaemonReload() error                                   { return nil }
+func (s *FakeSystemd) DaemonReexec() error                                   { return nil }
+func (s *FakeSystemd) Enable(service string) error                           { return nil }
+func (s *FakeSystemd) Disable(service string) error                          { return nil }
+func (s *FakeSystemd) Start(service ...string) error                         { return nil }
+func (s *FakeSystemd) StartNoBlock(service ...string) error                  { return nil }
+func (s *FakeSystemd) Stop(service string, timeout time.Duration) error      { return nil }
+func (s *FakeSystemd) Kill(service, signal, who string) error                { return nil }
+func (s *FakeSystemd) Restart(service string, timeout time.Duration) error   { return nil }
+func (s *FakeSystemd) ReloadOrRestart(service string) error                  { return nil }
+func (s *FakeSystemd) RestartAll(service string) error                       { return nil }
+func (s *FakeSystemd) Status(units ...string) ([]*systemd.UnitStatus, error) { return nil, nil }
+func (s *FakeSystemd) InactiveEnterTimestamp(unit string) (time.Time, error) { return time.Time{}, nil }
+func (s *FakeSystemd) IsEnabled(service string) (bool, error)                { return false, nil }
+func (s *FakeSystemd) IsActive(service string) (bool, error)                 { return false, nil }
+func (s *FakeSystemd) LogReader(services []string, n int, follow bool) (io.ReadCloser, error) {
+	return nil, nil
+}
+func (s *FakeSystemd) AddMountUnitFile(name, revision, what, where, fstype string) (string, error) {
+	return "", nil
+}
+
+func (s *FakeSystemd) RemoveMountUnitFile(baseDir string) error {
+	if s.MockedRemoveMountUnitFile != nil {
+		return s.MockedRemoveMountUnitFile(baseDir)
+	}
+	return nil
+}
+
+func (s *FakeSystemd) Mask(service string) error                             { return nil }
+func (s *FakeSystemd) Unmask(service string) error                           { return nil }
+func (s *FakeSystemd) Mount(what, where string, options ...string) error     { return nil }
+func (s *FakeSystemd) Umount(whatOrWhere string) error                       { return nil }
+func (s *FakeSystemd) CurrentMemoryUsage(unit string) (quantity.Size, error) { return 0, nil }
+func (s *FakeSystemd) CurrentTasksCount(unit string) (uint64, error)         { return 0, nil }

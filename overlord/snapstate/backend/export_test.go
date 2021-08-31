@@ -21,6 +21,8 @@ package backend
 
 import (
 	"os/exec"
+
+	"github.com/snapcore/snapd/systemd"
 )
 
 var (
@@ -41,5 +43,13 @@ func MockCommandFromSystemSnap(f func(string, ...string) (*exec.Cmd, error)) (re
 	commandFromSystemSnap = f
 	return func() {
 		commandFromSystemSnap = old
+	}
+}
+
+func MockSystemdNew(f func(systemd.InstanceMode, systemd.Reporter) systemd.Systemd) (restore func()) {
+	old := systemdNew
+	systemdNew = f
+	return func() {
+		systemdNew = old
 	}
 }

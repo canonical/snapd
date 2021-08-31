@@ -20,6 +20,7 @@
 package backend_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -33,6 +34,7 @@ import (
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -103,26 +105,20 @@ WantedBy=multi-user.target
 }
 
 func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
-	info := &snap.Info{
-		SideInfo: snap.SideInfo{
-			RealName: "foo",
-			Revision: snap.R(13),
-		},
-		Version:       "1.1",
-		Architectures: []string{"all"},
-	}
+	expectedErr := errors.New("removal error")
 
-	err := backend.AddMountUnit(info, false, progress.Null)
-	c.Assert(err, IsNil)
+	var removedMountDir string
+	restore := backend.MockSystemdNew(func(mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
+		sysd := &systemdtest.FakeSystemd{Mode: mode, Reporter: meter}
+		sysd.MockedRemoveMountUnitFile = func(mountDir string) error {
+			removedMountDir = mountDir
+			return expectedErr
+		}
+		return sysd
+	})
+	defer restore()
 
-	// ensure we have the files
-	un := fmt.Sprintf("%s.mount", systemd.EscapeUnitNamePath(filepath.Join(dirs.StripRootDir(dirs.SnapMountDir), "foo", "13")))
-	p := filepath.Join(dirs.SnapServicesDir, un)
-	c.Assert(osutil.FileExists(p), Equals, true)
-
-	// now call remove and ensure they are gone
-	err = backend.RemoveMountUnit(info.MountDir(), progress.Null)
-	c.Assert(err, IsNil)
-	p = filepath.Join(dirs.SnapServicesDir, un)
-	c.Assert(osutil.FileExists(p), Equals, false)
+	err := backend.RemoveMountUnit("/some/where", progress.Null)
+	c.Check(err, Equals, expectedErr)
+	c.Check(removedMountDir, Equals, "/some/where")
 }

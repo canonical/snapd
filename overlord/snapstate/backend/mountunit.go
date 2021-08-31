@@ -26,6 +26,10 @@ import (
 	"github.com/snapcore/snapd/systemd"
 )
 
+var (
+	systemdNew = systemd.New
+)
+
 func addMountUnit(s *snap.Info, preseed bool, meter progress.Meter) error {
 	squashfsPath := dirs.StripRootDir(s.MountFile())
 	whereDir := dirs.StripRootDir(s.MountDir())
@@ -41,6 +45,6 @@ func addMountUnit(s *snap.Info, preseed bool, meter progress.Meter) error {
 }
 
 func removeMountUnit(mountDir string, meter progress.Meter) error {
-	sysd := systemd.New(systemd.SystemMode, meter)
+	sysd := systemdNew(systemd.SystemMode, meter)
 	return sysd.RemoveMountUnitFile(mountDir)
 }
