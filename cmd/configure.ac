@@ -226,6 +226,18 @@ AC_SUBST(SYSTEMD_SYSTEM_GENERATOR_DIR)
 SYSTEMD_SYSTEM_ENV_GENERATOR_DIR="${prefix}/lib/systemd/system-environment-generators"
 AC_SUBST(SYSTEMD_SYSTEM_ENV_GENERATOR_DIR)
 
+AC_ARG_ENABLE([bpf],
+AS_HELP_STRING([--enable-bpf], [Enable BPF support]),
+[case "${enableval}" in
+yes) enable_bpf=yes ;;
+no)  enable_bpf=no ;;
+*) AC_MSG_ERROR([bad value ${enableval} for --enable-bpf])
+esac],
+[enable_bpf=yes])
+AM_CONDITIONAL([ENABLE_BPF], [test "x$enable_bpf" = "xyes"])
+
+if test "x$enable_bpf" = "xyes"; then
+AC_DEFINE([ENABLE_BPF], [1], [Enable BPF support])
 AC_MSG_CHECKING([whether host BPF headers are usable])
 AC_COMPILE_IFELSE([
 #include <linux/bpf.h>
@@ -236,6 +248,7 @@ if test "x$host_bpf_headers_usable" = "xyes"; then
    AC_MSG_RESULT([yes])
 else
   AC_MSG_RESULT([no, using vendored BPF headers])
+fi
 fi
 AM_CONDITIONAL([USE_INTERNAL_BPF_HEADERS], [test "x$host_bpf_headers_usable" = "xno"])
 

@@ -90,9 +90,9 @@ func isConnectedPidCheckAllowed(info *snap.Info, plugOrSlot string) bool {
 func (c *isConnectedCommand) Execute(args []string) error {
 	plugOrSlot := c.Positional.PlugOrSlotSpec
 
-	context := c.context()
-	if context == nil {
-		return fmt.Errorf("cannot check connection status without a context")
+	context, err := c.ensureContext()
+	if err != nil {
+		return err
 	}
 
 	snapName := context.InstanceName()

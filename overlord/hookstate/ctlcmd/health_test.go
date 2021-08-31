@@ -103,7 +103,7 @@ func (s *healthSuite) TestBadArgs(c *check.C) {
 			`message must be at least 7 characters long \(got 5\)`,
 		}, {
 			[]string{"set-health", "blocked", "message"},
-			`cannot set-health without a context`,
+			`cannot invoke snapctl operation commands \(here "set-health"\) from outside of a snap`,
 		},
 	}
 

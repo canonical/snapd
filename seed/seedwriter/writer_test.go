@@ -2396,8 +2396,6 @@ func (s *writerSuite) TestCore20NonDangerousDisallowedDevmodeSnaps(c *C) {
 
 	s.opts.Label = "20191107"
 
-	const expectedErr = `cannot override channels, add local snaps or extra snaps with a model of grade higher than dangerous`
-
 	w, err := seedwriter.New(model, s.opts)
 	c.Assert(err, IsNil)
 

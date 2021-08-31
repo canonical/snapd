@@ -194,6 +194,9 @@ apps:
   io-ports-control:
     command: bin/run
     plugs: [ io-ports-control ]
+  ion-memory-control:
+    command: bin/run
+    plugs: [ ion-memory-control ]
   jack1:
     command: bin/run
     plugs: [ jack1 ]
@@ -254,6 +257,9 @@ apps:
   media-hub:
     command: bin/run
     plugs: [ media-hub ]
+  microstack-support:
+    command: bin/run
+    plugs: [ microstack-support ]
   mir:
     command: bin/run
     plugs: [ mir ]

@@ -446,7 +446,7 @@ func (s *storeTestSuite) TestAssertionsEndpointNotFound(c *C) {
 	var respObj map[string]interface{}
 	err = dec.Decode(&respObj)
 	c.Assert(err, IsNil)
-	c.Check(respObj["error-list"], DeepEquals, []interface{}{map[string]interface{}{"code":"not-found", "message":"not found"}})
+	c.Check(respObj["error-list"], DeepEquals, []interface{}{map[string]interface{}{"code": "not-found", "message": "not found"}})
 }
 
 func (s *storeTestSuite) TestSnapActionEndpoint(c *C) {

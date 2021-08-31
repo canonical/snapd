@@ -529,17 +529,6 @@ func (l *Env) GetBootImageName() string {
 // a mapping of boot image partition label to either a kernel revision or a
 // recovery system label.
 
-// bootimgKernelMatrix is essentially a map of boot image partition label to
-// kernel revision, but implemented as a matrix of byte arrays, where the first
-// row of the matrix is the boot image partition label and the second row is the
-// corresponding kernel revision (for a given column).
-type bootimgKernelMatrix [SNAP_BOOTIMG_PART_NUM][2][SNAP_FILE_NAME_MAX_LEN]byte
-
-// bootimgRecoverySystemMatrix is the same idea as bootimgKernelMatrix, but
-// instead of mapping boot image partition labels to kernel revisions, it maps
-// to recovery system labels for UC20.
-type bootimgRecoverySystemMatrix [SNAP_RECOVERY_BOOTIMG_PART_NUM][2][SNAP_FILE_NAME_MAX_LEN]byte
-
 // bootimgMatrixGeneric is a generic slice version of the above two matrix types
 // which are both statically sized arrays, and thus not able to be used
 // interchangeably while the slice is.
