@@ -1,0 +1,26 @@
+summary: Ensure that the microstack snap works
+
+prepare: |
+    echo "Install microstack"
+    snap install --beta microstack
+    
+restore: |
+    snap remove --purge microstack
+
+execute: |
+    echo "Init microstack"
+    # takes about 10min on my desktop machine
+    microstack init --auto --control
+
+    echo "Check basic things"
+    microstack.openstack image list | MATCH Name
+    microstack.openstack flavor list | MATCH Name
+
+    echo "Run an instance"
+    microstack launch cirros -n test-run | MATCH "Access it with"
+    
+    echo "Check that it is running"
+    microstack.openstack server list | MATCH test-run
+
+    echo "And shut it down"
+    microstack.openstack server stop test-run | MATCH SHUTOFF
