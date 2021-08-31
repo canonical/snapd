@@ -144,6 +144,7 @@ func (s *baseDeclSuite) TestAutoConnection(c *C) {
 		"core-support":       true,
 		"home":               true,
 		"lxd-support":        true,
+		"microstack-support": true,
 		"multipass-support":  true,
 		"packagekit-control": true,
 		"snapd-control":      true,
@@ -462,6 +463,23 @@ plugs:
 	c.Check(err, IsNil)
 }
 
+func (s *baseDeclSuite) TestAutoConnectionMicroStackSupportOverride(c *C) {
+	cand := s.connectCand(c, "microstack-support", "", "")
+	_, err := cand.CheckAutoConnect()
+	c.Check(err, NotNil)
+	c.Assert(err, ErrorMatches, "auto-connection denied by plug rule of interface \"microstack-support\"")
+
+	plugsSlots := `
+plugs:
+  microstack-support:
+    allow-auto-connection: true
+`
+
+	snapDecl := s.mockSnapDecl(c, "some-snap", "J60k4JY0HppjwOjW8dZdYc8obXKxujRu", "canonical", plugsSlots)
+	cand.PlugSnapDeclaration = snapDecl
+	_, err = cand.CheckAutoConnect()
+	c.Check(err, IsNil)
+}
 func (s *baseDeclSuite) TestAutoConnectionGreengrassSupportOverride(c *C) {
 	cand := s.connectCand(c, "greengrass-support", "", "")
 	_, err := cand.CheckAutoConnect()
@@ -616,6 +634,7 @@ var (
 		"maliit":                    {"app"},
 		"media-hub":                 {"app", "core"},
 		"mir":                       {"app"},
+		"microstack-support":        {"core"},
 		"modem-manager":             {"app", "core"},
 		"mpris":                     {"app"},
 		"netlink-driver":            {"core", "gadget"},
@@ -716,6 +735,7 @@ func (s *baseDeclSuite) TestPlugInstallation(c *C) {
 		"kernel-module-control": true,
 		"kubernetes-support":    true,
 		"lxd-support":           true,
+		"microstack-support":    true,
 		"multipass-support":     true,
 		"packagekit-control":    true,
 		"personal-files":        true,
@@ -953,6 +973,7 @@ func (s *baseDeclSuite) TestSanity(c *C) {
 		"kernel-module-control": true,
 		"kubernetes-support":    true,
 		"lxd-support":           true,
+		"microstack-support":    true,
 		"multipass-support":     true,
 		"packagekit-control":    true,
 		"personal-files":        true,

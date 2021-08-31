@@ -257,6 +257,9 @@ apps:
   media-hub:
     command: bin/run
     plugs: [ media-hub ]
+  microstack-support:
+    command: bin/run
+    plugs: [ microstack-support ]
   mir:
     command: bin/run
     plugs: [ mir ]
