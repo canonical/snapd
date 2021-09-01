@@ -213,10 +213,10 @@ override_dh_auto_install: snap.8
 	dh_auto_install -O--buildsystem=golang
 
 override_dh_golang:
-	# XXX: dh_golang on older versions of ubuntu is not capable to deal
-	# deal with newer go and go.mod. So just make this a no-op or things
-	# will fail on e.g. 18.04. dh_golang will only add "misc:Built-Using"
-	# information.
+	# XXX: dh_golang on older versions of ubuntu is not capable to
+	# deal with newer go and go.mod. So just make this a no-op or
+	# things will fail on e.g. 18.04. dh_golang will only add
+	# "misc:Built-Using" information.
 	true
 
 snap.8:

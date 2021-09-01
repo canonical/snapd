@@ -8,8 +8,6 @@ environment:
     # secboot dependencies), cannot be obtained when poking the import URL
     # directly, thus we need to force the golang.org hosted proxy to be used
     GOPROXY: https://proxy.golang.org,direct
-    # TODO: some distros started shipping Go 1.16 which defaults to having
-    # modules enabled, drop this when snapd starts supporting Go modules
     REUSE_PROJECT: '$(HOST: echo "$REUSE_PROJECT")'
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
     # /usr/lib/go-1.6/bin for trusty (needs to be last as we use

@@ -8,13 +8,5 @@ go mod vendor
 echo Obtaining c-dependencies
 (cd c-vendor && ./vendor.sh)
 
-# TODO: port to go mod
-# if [ "$1" != "--skip-unused-check" ]; then
-#     unused="$(govendor list +unused)"
-#     if [ "$unused" != "" ]; then
-#         echo "Found unused ./vendor packages:"
-#         echo "$unused"
-#         echo "Please fix via 'govendor remove +unused'"
-#         exit 1
-#     fi
-# fi
+# TODO: import script that ensures that the "go.mod" vendor dir is tidy
+# https://github.com/edgexfoundry/edgex-go/commit/2c7e513168ecd884ba7252d8253b100953d1695c
