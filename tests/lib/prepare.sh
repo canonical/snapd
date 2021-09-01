@@ -881,6 +881,33 @@ EOF
         exit 1
     fi
 
+    # TODO: edge channel of core20 is broken for us in GCE for some reason, so
+    # we want to use the beta channel of core20 instead, but this is problematic
+    # because by default IMAGE_CHANNEL will be something like edge, which means
+    # that even if we seed core20 beta channel, if there is a different revision
+    # in edge, snapd will immediately refresh to it and break spread again, so
+    # we want to seed core20 from beta AND also prevent it from being refreshed
+    # again, but even if we just removed the --channel argument to ubuntu-image,
+    # snapd will have core20 tracking the stable channel anyways as per the
+    # model assertion default, which again could trigger an unexpected reboot to
+    # refresh from the beta channel to the stable channel, so just to seal the
+    # deal, unpack and repack the core20 snap so it's a dangerous snap and it
+    # won't be refreshed automatically anyways
+    # note that this means that by default we will have unasserted snaps for 
+    # all snaps on UC20 in GCE spread:
+    # * snapd (to test the branch)
+    # * pc-kernel (to test snap-bootstrap from the branch)
+    # * pc (to aid in debugging by modifying the kernel command line)
+    # * core20 (to avoid this bug)
+    if os.query is-core20; then
+        # FIXME: download from $BASE_CHANNEL instead
+        snap download core20 --channel=beta --basename=core20
+        sudo unsquashfs -d core20-snap core20.snap
+        sudo snap pack --filename=core20-repacked.snap core20-snap
+        cp core20-repacked.snap $IMAGE_HOME/core20-repacked.snap
+        EXTRA_FUNDAMENTAL="$EXTRA_FUNDAMENTAL --snap $IMAGE_HOME/core20-repacked.snap"
+    fi
+
     /snap/bin/ubuntu-image -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
                            --channel "$IMAGE_CHANNEL" \
                            "$EXTRA_FUNDAMENTAL" \
