@@ -265,18 +265,18 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 		}
 	}
 
+	// check if desired revision matches the revision required by validation sets
+	if !requiredRevision.Unset() && !revOpts.Revision.Unset() && revOpts.Revision.N != requiredRevision.N {
+		return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q at requested revision %s, revision %s required by validation sets: %s", name, revOpts.Revision, requiredRevision, strings.Join(requiredValsets, ","))
+	}
+
 	// cannot specify both with the API
 	if revOpts.Revision.Unset() {
 		// the desired channel
 		action.Channel = revOpts.Channel
 		// the desired cohort key
-		// XXX: should we disallow cohort key if validation sets require this snap?
 		action.CohortKey = revOpts.CohortKey
 	} else {
-		// the desired revision; check if it matches the revision required by validation sets
-		if !requiredRevision.Unset() && revOpts.Revision.N != requiredRevision.N {
-			return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q at requested revision %s, revision %s required by validation sets: %s", name, revOpts.Revision, requiredRevision, strings.Join(requiredValsets, ","))
-		}
 		action.Revision = revOpts.Revision
 	}
 
