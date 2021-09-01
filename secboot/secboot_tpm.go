@@ -29,6 +29,7 @@ import (
 	"github.com/canonical/go-tpm2"
 	sb "github.com/snapcore/secboot"
 	sb_efi "github.com/snapcore/secboot/efi"
+	sb_tpm2 "github.com/snapcore/secboot/tpm2"
 	"golang.org/x/xerrors"
 
 	"github.com/snapcore/snapd/asserts"
@@ -45,17 +46,18 @@ const (
 )
 
 var (
-	sbConnectToDefaultTPM                  = sb.ConnectToDefaultTPM
-	sbMeasureSnapSystemEpochToTPM          = sb.MeasureSnapSystemEpochToTPM
-	sbMeasureSnapModelToTPM                = sb.MeasureSnapModelToTPM
-	sbBlockPCRProtectionPolicies           = sb.BlockPCRProtectionPolicies
-	sbActivateVolumeWithTPMSealedKey       = sb.ActivateVolumeWithTPMSealedKey
+	sbConnectToDefaultTPM                  = sb_tpm2.ConnectToDefaultTPM
+	sbMeasureSnapSystemEpochToTPM          = sb_tpm2.MeasureSnapSystemEpochToTPM
+	sbMeasureSnapModelToTPM                = sb_tpm2.MeasureSnapModelToTPM
+	sbBlockPCRProtectionPolicies           = sb_tpm2.BlockPCRProtectionPolicies
+	sbActivateVolumeWithTPMSealedKey       = sb_tpm2.ActivateVolumeWithSealedKey
 	sbefiAddSecureBootPolicyProfile        = sb_efi.AddSecureBootPolicyProfile
 	sbefiAddBootManagerProfile             = sb_efi.AddBootManagerProfile
 	sbefiAddSystemdStubProfile             = sb_efi.AddSystemdStubProfile
-	sbAddSnapModelProfile                  = sb.AddSnapModelProfile
-	sbSealKeyToTPMMultiple                 = sb.SealKeyToTPMMultiple
-	sbUpdateKeyPCRProtectionPolicyMultiple = sb.UpdateKeyPCRProtectionPolicyMultiple
+	sbAddSnapModelProfile                  = sb_tpm2.AddSnapModelProfile
+	sbSealKeyToTPMMultiple                 = sb_tpm2.SealKeyToTPMMultiple
+	sbUpdateKeyPCRProtectionPolicyMultiple = sb_tpm2.UpdateKeyPCRProtectionPolicyMultiple
+	sbReadSealedKeyObject                  = sb_tpm2.ReadSealedKeyObject
 
 	randutilRandomKernelUUID = randutil.RandomKernelUUID
 
@@ -66,7 +68,7 @@ var (
 	_ (sb.SnapModel) = ModelForSealing(nil)
 )
 
-func isTPMEnabledImpl(tpm *sb.TPMConnection) bool {
+func isTPMEnabledImpl(tpm *sb_tpm2.Connection) bool {
 	return tpm.IsEnabled()
 }
 
@@ -120,15 +122,15 @@ func checkSecureBootEnabled() error {
 // for measurement from the initramfs.
 const initramfsPCR = 12
 
-func insecureConnectToTPM() (*sb.TPMConnection, error) {
+func insecureConnectToTPM() (*sb_tpm2.Connection, error) {
 	return sbConnectToDefaultTPM()
 }
 
-func measureWhenPossible(whatHow func(tpm *sb.TPMConnection) error) error {
+func measureWhenPossible(whatHow func(tpm *sb_tpm2.Connection) error) error {
 	// the model is ready, we're good to try measuring it now
 	tpm, err := insecureConnectToTPM()
 	if err != nil {
-		if xerrors.Is(err, sb.ErrNoTPM2Device) {
+		if xerrors.Is(err, sb_tpm2.ErrNoTPM2Device) {
 			return nil
 		}
 		return fmt.Errorf("cannot open TPM connection: %v", err)
@@ -145,7 +147,7 @@ func measureWhenPossible(whatHow func(tpm *sb.TPMConnection) error) error {
 // MeasureSnapSystemEpochWhenPossible measures the snap system epoch only if the
 // TPM device is available. If there's no TPM device success is returned.
 func MeasureSnapSystemEpochWhenPossible() error {
-	measure := func(tpm *sb.TPMConnection) error {
+	measure := func(tpm *sb_tpm2.Connection) error {
 		return sbMeasureSnapSystemEpochToTPM(tpm, initramfsPCR)
 	}
 
@@ -159,7 +161,7 @@ func MeasureSnapSystemEpochWhenPossible() error {
 // MeasureSnapModelWhenPossible measures the snap model only if the TPM device is
 // available. If there's no TPM device success is returned.
 func MeasureSnapModelWhenPossible(findModel func() (*asserts.Model, error)) error {
-	measure := func(tpm *sb.TPMConnection) error {
+	measure := func(tpm *sb_tpm2.Connection) error {
 		model, err := findModel()
 		if err != nil {
 			return err
@@ -177,7 +179,7 @@ func MeasureSnapModelWhenPossible(findModel func() (*asserts.Model, error)) erro
 func lockTPMSealedKeys() error {
 	tpm, tpmErr := sbConnectToDefaultTPM()
 	if tpmErr != nil {
-		if xerrors.Is(tpmErr, sb.ErrNoTPM2Device) {
+		if xerrors.Is(tpmErr, sb_tpm2.ErrNoTPM2Device) {
 			logger.Noticef("cannot open TPM connection: %v", tpmErr)
 			return nil
 		}
@@ -209,7 +211,7 @@ func unlockVolumeUsingSealedKeyTPM(name, sealedEncryptionKeyFile, sourceDevice, 
 	// Obtain a TPM connection.
 	tpm, tpmErr := sbConnectToDefaultTPM()
 	if tpmErr != nil {
-		if !xerrors.Is(tpmErr, sb.ErrNoTPM2Device) {
+		if !xerrors.Is(tpmErr, sb_tpm2.ErrNoTPM2Device) {
 			return res, fmt.Errorf("cannot unlock encrypted device %q: %v", name, tpmErr)
 		}
 		logger.Noticef("cannot open TPM connection: %v", tpmErr)
@@ -246,10 +248,10 @@ func isActivatedWithRecoveryKey(err error) bool {
 	if err == nil {
 		return false
 	}
-	// with non-nil err, we should check for err being ActivateWithTPMSealedKeyError
+	// with non-nil err, we should check for err being ActivateWithSealedKeyError
 	// and RecoveryKeyUsageErr inside that being nil - this indicates that the
 	// recovery key was used to unlock it
-	activateErr, ok := err.(*sb.ActivateWithTPMSealedKeyError)
+	activateErr, ok := err.(*sb_tpm2.ActivateWithSealedKeyError)
 	if !ok {
 		return false
 	}
@@ -273,7 +275,7 @@ func activateVolOpts(allowRecoveryKey bool) *sb.ActivateVolumeOptions {
 // unlockEncryptedPartitionWithSealedKey unseals the keyfile and opens an encrypted
 // device. If activation with the sealed key fails, this function will attempt to
 // activate it with the fallback recovery key instead.
-func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, keyfile string, allowRecovery bool) (UnlockMethod, error) {
+func unlockEncryptedPartitionWithSealedKey(tpm *sb_tpm2.Connection, name, device, keyfile string, allowRecovery bool) (UnlockMethod, error) {
 	options := activateVolOpts(allowRecovery)
 	// XXX: pinfile is currently not used
 	activated, err := sbActivateVolumeWithTPMSealedKey(tpm, name, device, keyfile, nil, options)
@@ -326,15 +328,15 @@ func SealKeys(keys []SealKeyRequest, params *SealKeysParams) error {
 	}
 
 	// Seal the provided keys to the TPM
-	creationParams := sb.KeyCreationParams{
+	creationParams := sb_tpm2.KeyCreationParams{
 		PCRProfile:             pcrProfile,
 		PCRPolicyCounterHandle: tpm2.Handle(params.PCRPolicyCounterHandle),
 		AuthKey:                params.TPMPolicyAuthKey,
 	}
 
-	sbKeys := make([]*sb.SealKeyRequest, 0, len(keys))
+	sbKeys := make([]*sb_tpm2.SealKeyRequest, 0, len(keys))
 	for i := range keys {
-		sbKeys = append(sbKeys, &sb.SealKeyRequest{
+		sbKeys = append(sbKeys, &sb_tpm2.SealKeyRequest{
 			Key:  keys[i].Key,
 			Path: keys[i].KeyFile,
 		})
@@ -380,15 +382,25 @@ func ResealKeys(params *ResealKeysParams) error {
 		return fmt.Errorf("cannot read the policy auth key file: %v", err)
 	}
 
-	return sbUpdateKeyPCRProtectionPolicyMultiple(tpm, params.KeyFiles, authKey, pcrProfile)
+	numSealedKeyObjects := len(params.KeyFiles)
+	sealedKeyObjects := make([]*sb_tpm2.SealedKeyObject, 0, numSealedKeyObjects)
+	for _, keyfile := range params.KeyFiles {
+		sealedKeyObject, err := sbReadSealedKeyObject(keyfile)
+		if err != nil {
+			return err
+		}
+		sealedKeyObjects = append(sealedKeyObjects, sealedKeyObject)
+	}
+
+	return sbUpdateKeyPCRProtectionPolicyMultiple(tpm, sealedKeyObjects, authKey, pcrProfile)
 }
 
-func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtectionProfile, error) {
+func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb_tpm2.PCRProtectionProfile, error) {
 	numModels := len(modelParams)
-	modelPCRProfiles := make([]*sb.PCRProtectionProfile, 0, numModels)
+	modelPCRProfiles := make([]*sb_tpm2.PCRProtectionProfile, 0, numModels)
 
 	for _, mp := range modelParams {
-		modelProfile := sb.NewPCRProtectionProfile()
+		modelProfile := sb_tpm2.NewPCRProtectionProfile()
 
 		loadSequences, err := buildLoadSequences(mp.EFILoadChains)
 		if err != nil {
@@ -432,7 +444,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtec
 
 		// Add snap model profile
 		if mp.Model != nil {
-			snapModelParams := sb.SnapModelProfileParams{
+			snapModelParams := sb_tpm2.SnapModelProfileParams{
 				PCRAlgorithm: tpm2.HashAlgorithmSHA256,
 				PCRIndex:     initramfsPCR,
 				Models:       []sb.SnapModel{mp.Model},
@@ -445,9 +457,9 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtec
 		modelPCRProfiles = append(modelPCRProfiles, modelProfile)
 	}
 
-	var pcrProfile *sb.PCRProtectionProfile
+	var pcrProfile *sb_tpm2.PCRProtectionProfile
 	if numModels > 1 {
-		pcrProfile = sb.NewPCRProtectionProfile().AddProfileOR(modelPCRProfiles...)
+		pcrProfile = sb_tpm2.NewPCRProtectionProfile().AddProfileOR(modelPCRProfiles...)
 	} else {
 		pcrProfile = modelPCRProfiles[0]
 	}
@@ -457,7 +469,7 @@ func buildPCRProtectionProfile(modelParams []*SealKeyModelParams) (*sb.PCRProtec
 	return pcrProfile, nil
 }
 
-func tpmProvision(tpm *sb.TPMConnection, lockoutAuthFile string) error {
+func tpmProvision(tpm *sb_tpm2.Connection, lockoutAuthFile string) error {
 	// Create and save the lockout authorization file
 	lockoutAuth := make([]byte, 16)
 	// crypto rand is protected against short reads
@@ -472,14 +484,14 @@ func tpmProvision(tpm *sb.TPMConnection, lockoutAuthFile string) error {
 	// TODO:UC20: ideally we should ask the firmware to clear the TPM and then reboot
 	//            if the device has previously been provisioned, see
 	//            https://godoc.org/github.com/snapcore/secboot#RequestTPMClearUsingPPI
-	if err := provisionTPM(tpm, sb.ProvisionModeFull, lockoutAuth); err != nil {
+	if err := provisionTPM(tpm, sb_tpm2.ProvisionModeFull, lockoutAuth); err != nil {
 		logger.Noticef("TPM provisioning error: %v", err)
 		return fmt.Errorf("cannot provision TPM: %v", err)
 	}
 	return nil
 }
 
-func provisionTPMImpl(tpm *sb.TPMConnection, mode sb.ProvisionMode, lockoutAuth []byte) error {
+func provisionTPMImpl(tpm *sb_tpm2.Connection, mode sb_tpm2.ProvisionMode, lockoutAuth []byte) error {
 	return tpm.EnsureProvisioned(mode, lockoutAuth)
 }
 
