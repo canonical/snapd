@@ -118,7 +118,6 @@ func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 	if !osutil.GetenvBool("SNAPD_DEBUG") {
 		args = append(args, "--quiet")
 	}
-	args = append(args, fnames...)
 
 	parser, internal, err := apparmor_sandbox.FindAppArmorParser()
 	if err != nil || !internal {
@@ -142,6 +141,8 @@ func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 		args = append(args, "--policy-features")
 		args = append(args, filepath.Join(prefix, "/apparmor.d/abi/3.0"))
 	}
+
+	args = append(args, fnames...)
 	output, err := exec.Command(parser, args...).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("cannot load apparmor profiles: %s\napparmor_parser output:\n%s", err, string(output))
