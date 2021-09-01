@@ -15,8 +15,10 @@ details: |
 systems: [ubuntu-20.04-64]
 
 prepare: |
-    # Given test user is added to the libvirtd group
-    adduser test libvirtd
+    apt install -y libvirt-daemon-system
+
+    # Given test user is added to the libvirt group
+    adduser test libvirt
 
     echo "And libvirt is configured to manage /dev/net/tun"
     systemctl stop libvirtd.service || true
@@ -36,6 +38,8 @@ prepare: |
 
 restore: |
     ip link delete tap100
+
+    apt autoremove --purge -y libvirt-daemon-system
 
     # remove test user from the libvirtd group
     deluser test libvirtd
