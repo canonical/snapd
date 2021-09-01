@@ -8,6 +8,9 @@ environment:
     ROOT: "$PWD/root"
     SEED: "$PWD/root/system-seed"
 
+debug: |
+    find "$SEED" -ls || true
+
 execute: |
     echo Running prepare-image
     # TODO: variant were we pass in the gating snap via --snap *.snap
@@ -22,6 +25,5 @@ execute: |
     GATED_REV=2
 
     echo Verifying the result
-    ls -lR "$SEED"
     test -f "${SEED}/snaps/test-snapd-gated_${GATED_REV}.snap"
 
