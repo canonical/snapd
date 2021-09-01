@@ -26,18 +26,18 @@ package builtin
 const snapRefreshControlSummary = `allows extended control via snapctl over refreshes involving the snap`
 
 const snapRefreshControlBaseDeclarationPlugs = `
-   snap-refresh-control:
-	 allow-installation: false
-	 deny-auto-connection: true
- `
+  snap-refresh-control:
+    allow-installation: false
+    deny-auto-connection: true
+`
 
 const snapRefreshControlBaseDeclarationSlots = `
-   snap-refresh-control:
-	 allow-installation:
-	   slot-snap-type:
-		 - core
-	 deny-auto-connection: true
- `
+  snap-refresh-control:
+    allow-installation:
+      slot-snap-type:
+        - core
+    deny-auto-connection: true
+`
 
 type snapRefreshControlInterface struct {
 	commonInterface
