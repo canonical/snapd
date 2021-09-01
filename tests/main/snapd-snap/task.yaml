@@ -172,6 +172,7 @@ execute: |
 
     echo "Then we should be able to successfully install a snap"
     snap install hello-world
+    tests.cleanup defer snap remove --purge hello-world
 
     echo "Then hello-world.evil should fail due to snap confinement"
     if hello-world.evil; then
@@ -181,6 +182,7 @@ execute: |
 
     echo "Given a snap is installed"
     "$TESTSTOOLS"/snaps-state install-local "$CONSUMER_SNAP"
+    tests.cleanup defer snap remove --purge "$CONSUMER_SNAP"
 
     # If possible, prepare a session for the test user. On many systems this
     # will allow running all tests as the unprivileged user. This shields us
@@ -275,8 +277,6 @@ execute: |
         fi
     done
 
-    # remove snap and teardown session
-    snap remove --purge "$CONSUMER_SNAP"
     if tests.session has-session-systemd-and-dbus; then
         tests.session -u test restore
     fi
