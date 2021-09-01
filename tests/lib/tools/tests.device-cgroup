@@ -46,12 +46,10 @@ def parse_arguments():
 
 def is_cgroup_v2():
     CGROUP2_SUPER_MAGIC = "0x63677270"
-    proc = subprocess.run(
+    output = subprocess.check_output(
         ["stat", "-f", "-c", "0x%t", "/sys/fs/cgroup"],
-        check=True,
-        stdout=subprocess.PIPE,
     )
-    fstype = proc.stdout.decode().strip()
+    fstype = output.decode().strip()
     logging.debug("/sys/fs/cgroup FS type %s", fstype)
     return fstype == CGROUP2_SUPER_MAGIC
 
