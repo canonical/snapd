@@ -23,7 +23,6 @@ import (
 	"fmt"
 
 	"github.com/godbus/dbus"
-	"github.com/godbus/dbus/introspect"
 
 	"github.com/snapcore/snapd/dbusutil"
 )
@@ -71,36 +70,15 @@ func NewNetplanServer(mockNetplanConfigYaml string) (*NetplanServer, error) {
 }
 
 func (server *NetplanServer) ExportApiV1() {
-	// V1 api, e.g. on Ubuntu Core 18
+	// netplanApiV1 implements the original netplan DBus API that is found
+	// in netplan 0.98. It can only do a global "Apply".
 	server.conn.Export(netplanApiV1{server}, netplanObjectPath, netplanInterface)
-	var introspectNode = &introspect.Node{
-		Name: netplanObjectPath,
-		Interfaces: []introspect.Interface{
-			introspect.IntrospectData,
-			{
-				Name:    netplanInterface,
-				Methods: introspect.Methods(netplanApiV1{server}),
-			},
-		},
-	}
-	server.conn.Export(introspect.NewIntrospectable(introspectNode), netplanObjectPath, introspectInterface)
 }
 
 func (server *NetplanServer) ExportApiV2() {
-	// V2 api on Ubuntu Core 20
+	// netplanApiV2 implements the "Config/Get/Set/Try" API that is found
+	// in netplan 0.101-0ubuntu3.
 	server.conn.Export(netplanApiV2{netplanApiV1{server}}, netplanObjectPath, netplanInterface)
-	var introspectNode = &introspect.Node{
-		Name: netplanObjectPath,
-		Interfaces: []introspect.Interface{
-			introspect.IntrospectData,
-			{
-				Name:    netplanInterface,
-				Methods: introspect.Methods(netplanApiV2{netplanApiV1{server}}),
-			},
-		},
-	}
-	server.conn.Export(introspect.NewIntrospectable(introspectNode), netplanObjectPath, introspectInterface)
-
 }
 
 func (server *NetplanServer) Stop() error {

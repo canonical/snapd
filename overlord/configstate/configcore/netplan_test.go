@@ -77,7 +77,7 @@ func (s *netplanSuite) TearDownTest(c *C) {
 	s.DBusTest.TearDownTest(c)
 }
 
-func (s *netplanSuite) TestNetplanGetFromDbusNoSuchService(c *C) {
+func (s *netplanSuite) TestNetplanGetFromDBusNoSuchService(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -89,7 +89,7 @@ func (s *netplanSuite) TestNetplanGetFromDbusNoSuchService(c *C) {
 	c.Assert(err, ErrorMatches, `snap "core" has no "system.network.netplan" configuration option`)
 }
 
-func (s *netplanSuite) TestNetplanGetFromDbusNoV2Api(c *C) {
+func (s *netplanSuite) TestNetplanGetFromDBusNoV2Api(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -120,7 +120,7 @@ func (s *netplanSuite) TestNetplanGetNoSupportOnClassic(c *C) {
 	c.Assert(err, ErrorMatches, `snap "core" has no "system.network.netplan" configuration option`)
 }
 
-func (s *netplanSuite) TestNetplanGetFromDbusHappy(c *C) {
+func (s *netplanSuite) TestNetplanGetFromDBusHappy(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
@@ -156,7 +156,7 @@ func (s *netplanSuite) TestNetplanGetFromDbusHappy(c *C) {
 	c.Check(ver, Equals, json.Number("2"))
 }
 
-func (s *netplanSuite) TestNetplanGetFromDbusNoSuchConfigError(c *C) {
+func (s *netplanSuite) TestNetplanGetFromDBusNoSuchConfigError(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 

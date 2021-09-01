@@ -36,7 +36,6 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/godbus/dbus"
-	"github.com/godbus/dbus/introspect"
 
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -65,15 +64,14 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	return nil
 }
 
-func hasDBusMethodOnInterface(node *introspect.Node, ifName, methodName string) bool {
-	for _, iff := range node.Interfaces {
-		if iff.Name == ifName {
-			for _, mth := range iff.Methods {
-				if mth.Name == methodName {
-					return true
-				}
-			}
-		}
+func isNoServiceOrMethodErr(derr dbus.Error) bool {
+	switch derr.Name {
+	case "org.freedesktop.DBus.Error.ServiceUnknown":
+		fallthrough
+	case "org.freedesktop.DBus.Error.UnknownInterface":
+		fallthrough
+	case "org.freedesktop.DBus.Error.UnknownMethod":
+		return true
 	}
 	return false
 }
@@ -90,27 +88,17 @@ func getNetplanFromSystem(key string) (result interface{}, err error) {
 	// godbus uses a global systemBus object internally so we *must*
 	// not close the connection.
 
-	var netplanConfigSnapshotBusAddr string
+	var netplanConfigSnapshotBusAddr dbus.ObjectPath
 	netplan := conn.Object("io.netplan.Netplan", "/io/netplan/Netplan")
 
-	// introspect
-	node, err := introspect.Call(netplan)
-	if derr, ok := err.(dbus.Error); ok {
-		// ignore if there is no dbus service for netplan
-		if derr.Name == "org.freedesktop.DBus.Error.ServiceUnknown" {
-			return nil, nil
-		}
-	}
-	// XXX: should we log and return nil here to avoid breaking the
-	// conf system if something is wrong with dbus on the machine?
-	if err != nil {
-		return nil, err
-	}
-	if !hasDBusMethodOnInterface(node, "io.netplan.Netplan", "Config") {
-		return nil, nil
-	}
-
 	if err := netplan.Call("io.netplan.Netplan.Config", 0).Store(&netplanConfigSnapshotBusAddr); err != nil {
+		if derr, ok := err.(dbus.Error); ok {
+			// Having no netplan config is *not* an error, we just
+			// do not support netplan config.
+			if isNoServiceOrMethodErr(derr) {
+				return nil, nil
+			}
+		}
 		return nil, err
 	}
 
