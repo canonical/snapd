@@ -594,6 +594,7 @@ pkg_dependencies_ubuntu_classic(){
                 evolution-data-server
                 fwupd
                 gccgo-9
+                libvirt-daemon-system
                 packagekit
                 qemu-utils
                 shellcheck
