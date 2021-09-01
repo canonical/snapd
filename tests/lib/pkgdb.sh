@@ -596,6 +596,7 @@ pkg_dependencies_ubuntu_classic(){
                 gccgo-9
                 libvirt-daemon-system
                 packagekit
+                qemu-kvm
                 qemu-utils
                 shellcheck
                 "
