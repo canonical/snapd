@@ -1,0 +1,25 @@
+summary: Regression test for LP 1942266
+
+prepare: |
+  # build the first version
+  sed -e "s/##VERSION##/0.1/" ./test-snapd-system-files-regression/meta/snap.yaml.in > ./test-snapd-system-files-regression//meta/snap.yaml
+  sed -e "s/##EXTRA##//" ./test-snapd-system-files-regression//meta/snap.yaml.in > ./test-snapd-system-files-regression//meta/snap.yaml
+  snap pack ./test-snapd-system-files-regression --filename=test-snapd-system-files-regression-1.snap
+
+  # build the second version
+  sed -e "s/##VERSION##/0.2/" ./test-snapd-system-files-regression/meta/snap.yaml.in > ./test-snapd-system-files-regression//meta/snap.yaml
+  sed -e "s/##EXTRA##/- /etc/foo.conf /" ./test-snapd-system-files-regression//meta/snap.yaml.in > ./test-snapd-system-files-regression//meta/snap.yaml
+
+  snap pack ./test-snapd-system-files-regression --filename=test-snapd-system-files-regression-2.snap
+
+execute: |
+  echo "With the first revision, we don't have the rule because the interface is not connected"
+  snap install --dangerous test-snapd-system-files-regression-1.snap
+
+  echo "But if we connect the interface we get the first rule"
+  snap connect test-snapd-system-files-regression:foo
+  MATCH /etc/resolv.conf < /var/lib/snapd/apparmor/profiles.snap.test-snapd-system-files-regression.bin
+
+  echo "Now if we refresh, we should see the second rule show up as well"
+  snap install --dangerous test-snapd-system-files-regression-2.snap
+  MATCH /etc/foo.conf < /var/lib/snapd/apparmor/profiles.snap.test-snapd-system-files-regression.bin
