@@ -116,6 +116,11 @@ prepare: |
         tests.cleanup defer umount "$CORE_SNAP"
     fi
 
+debug: |
+    # get the full journal to see any out-of-memory errors
+    # shellcheck disable=SC2119
+    "$TESTSTOOLS"/journal-state get-log
+
 execute: |
     # only run the destructive mode variant on xenial
     if ! os.query is-xenial && [ "$SNAPCRAFT_BUILD_ENVIRONMENT" = "host" ]; then
