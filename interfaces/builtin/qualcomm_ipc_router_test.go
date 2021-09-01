@@ -76,7 +76,7 @@ func (s *QrtrInterfaceSuite) TestSanitizePlug(c *C) {
 func (s *QrtrInterfaceSuite) TestAppArmorSpecFullAppArmorSandboxFeatures(c *C) {
 	// meh this is fake and silly but is close enough
 	spec := &apparmor.Specification{}
-	spec.MockSetFeatures([]string{"parser:qipcrtr-socket"})
+	spec.MockFeatures([]string{"parser:qipcrtr-socket"})
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "network qipcrtr dgram,\n")

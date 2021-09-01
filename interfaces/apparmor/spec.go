@@ -105,8 +105,8 @@ func (spec *Specification) Features() []string {
 	return spec.features
 }
 
-func (spec *Specification) MockSetFeatures(features []string) {
-	osutil.MustBeTestBinary("cannot use MockSetFeatures outside of tests")
+func (spec *Specification) MockFeatures(features []string) {
+	osutil.MustBeTestBinary("cannot use MockFeatures outside of tests")
 	spec.features = features
 }
 
