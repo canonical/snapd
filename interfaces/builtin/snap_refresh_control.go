@@ -21,9 +21,9 @@ package builtin
 
 // snap-refresh-control is a dummy interface with no actual apparmor/seccomp
 // rules, but it's allowing snaps (via explicit check for snap-refresh-control
-// connection done by hookstate) to execute "snap refresh --proceed" that
+// connection done by hookstate) to execute "snapctl refresh --proceed" that
 // triggers own refreshes, so its use should be limited.
-const snapRefreshControlSummary = `allows triggering refreshes with snapctl refresh --proceed`
+const snapRefreshControlSummary = `allows extended control via snapctl over refreshes involving the snap`
 
 const snapRefreshControlBaseDeclarationPlugs = `
    snap-refresh-control:
