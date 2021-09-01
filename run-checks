@@ -12,7 +12,7 @@ COVERMODE=${COVERMODE:-atomic}
 
 if [ -z "${GITHUB_WORKFLOW:-}" ]; then
     # when *not* running inside github, ensure we use go-1.13 by default
-    export PATH=/usr/lib/go-1.13/bin:${PATH}
+    export PATH=/usr/lib/go-1.13/bin:"${PATH}"
 fi
 
 # add workaround for https://github.com/golang/go/issues/24449
@@ -141,10 +141,9 @@ if [ "$STATIC" = 1 ]; then
     if [ -z "${SKIP_GOFMT:-}" ]; then
         echo Checking formatting
         fmt=""
-        for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' | grep -E 'snapd/[A-Za-z0-9_]+$' ); do
+        for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/\(c-\)\?vendor/' ); do
             # skip vendor packages
-            # skip subpackages of packages under snapd, gofmt already inspects them
-            s="$(${GOFMT:-gofmt} -s -l -d "$dir" || true)"
+            s="$(${GOFMT:-gofmt} -s -d "$dir" || true)"
             if [ -n "$s" ]; then
                 fmt="$s\\n$fmt"
             fi

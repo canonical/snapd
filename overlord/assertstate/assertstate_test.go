@@ -84,6 +84,7 @@ type fakeStore struct {
 	maxValidationSetSupportedFormat int
 
 	requestedTypes [][]string
+	opts           *store.RefreshOptions
 
 	snapActionErr         error
 	downloadAssertionsErr error
@@ -121,6 +122,8 @@ func (sto *fakeStore) SnapAction(_ context.Context, currentSnaps []*store.Curren
 	if sto.snapActionErr != nil {
 		return nil, nil, sto.snapActionErr
 	}
+
+	sto.opts = opts
 
 	restore := asserts.MockMaxSupportedFormat(asserts.SnapDeclarationType, sto.maxDeclSupportedFormat)
 	defer restore()
@@ -944,6 +947,73 @@ func (s *assertMgrSuite) stateFromDecl(c *C, decl *asserts.SnapDeclaration, inst
 	})
 }
 
+func (s *assertMgrSuite) TestRefreshAssertionsRefreshSnapDeclarationsAndValidationSets(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	storeAs := s.setupModelAndStore(c)
+	snapDeclFoo := s.snapDecl(c, "foo", nil)
+
+	s.stateFromDecl(c, snapDeclFoo, "", snap.R(7))
+	c.Assert(s.storeSigning.Add(storeAs), IsNil)
+
+	// previous state
+	c.Assert(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")), IsNil)
+	c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(s.state, snapDeclFoo), IsNil)
+	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
+
+	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1", "required")
+	c.Assert(assertstate.Add(s.state, vsetAs1), IsNil)
+	tr := assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "bar",
+		Mode:      assertstate.Monitor,
+		Current:   1,
+	}
+	assertstate.UpdateValidationSet(s.state, &tr)
+
+	// changed snap decl assertion
+	headers := map[string]interface{}{
+		"series":       "16",
+		"snap-id":      "foo-id",
+		"snap-name":    "fo-o",
+		"publisher-id": s.dev1Acct.AccountID(),
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"revision":     "1",
+	}
+	snapDeclFoo1, err := s.storeSigning.Sign(asserts.SnapDeclarationType, headers, nil, "")
+	c.Assert(err, IsNil)
+	err = s.storeSigning.Add(snapDeclFoo1)
+	c.Assert(err, IsNil)
+
+	// changed validation set assertion
+	vsetAs2 := s.validationSetAssert(c, "bar", "2", "3", "required")
+	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
+
+	err = assertstate.RefreshSnapAssertions(s.state, 0)
+	c.Assert(err, IsNil)
+
+	a, err := assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
+		"series":  "16",
+		"snap-id": "foo-id",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.(*asserts.SnapDeclaration).SnapName(), Equals, "fo-o")
+
+	a, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "bar",
+		"sequence":   "2",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.Revision(), Equals, 3)
+
+	c.Assert(err, IsNil)
+	c.Check(s.fakeStore.(*fakeStore).opts.IsAutoRefresh, Equals, false)
+}
+
 func (s *assertMgrSuite) TestRefreshSnapDeclarationsTooEarly(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -951,7 +1021,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsTooEarly(c *C) {
 	r := snapstatetest.MockDeviceModel(nil)
 	defer r()
 
-	err := assertstate.RefreshSnapDeclarations(s.state, 0)
+	err := assertstate.RefreshSnapDeclarations(s.state, 0, nil)
 	c.Check(err, FitsTypeOf, &snapstate.ChangeConflictError{})
 }
 
@@ -961,8 +1031,9 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNop(c *C) {
 
 	s.setModel(sysdb.GenericClassicModel())
 
-	err := assertstate.RefreshSnapDeclarations(s.state, 0)
+	err := assertstate.RefreshSnapDeclarations(s.state, 0, &assertstate.RefreshAssertionsOptions{IsAutoRefresh: true})
 	c.Assert(err, IsNil)
+	c.Check(s.fakeStore.(*fakeStore).opts.IsAutoRefresh, Equals, true)
 }
 
 func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStore(c *C) {
@@ -1008,7 +1079,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStore(c *C) {
 	err = s.storeSigning.Add(snapDeclFoo1)
 	c.Assert(err, IsNil)
 
-	err = assertstate.RefreshSnapDeclarations(s.state, 0)
+	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
 	c.Assert(err, IsNil)
 
 	a, err := assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
@@ -1028,7 +1099,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStore(c *C) {
 	err = s.storeSigning.Add(dev1Acct1)
 	c.Assert(err, IsNil)
 
-	err = assertstate.RefreshSnapDeclarations(s.state, 0)
+	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
 	c.Assert(err, IsNil)
 
 	a, err = assertstate.DB(s.state).Find(asserts.AccountType, map[string]string{
@@ -1060,7 +1131,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsNoStore(c *C) {
 	})()
 
 	// no error, kept the old one
-	err = assertstate.RefreshSnapDeclarations(s.state, 0)
+	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
 	c.Assert(err, IsNil)
 
 	a, err = assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
@@ -1118,7 +1189,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsChangingKey(c *C) {
 	_, err = storeKey2.Ref().Resolve(assertstate.DB(s.state).Find)
 	c.Check(asserts.IsNotFound(err), Equals, true)
 
-	err = assertstate.RefreshSnapDeclarations(s.state, 0)
+	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
 	c.Assert(err, IsNil)
 
 	a, err := assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
@@ -1167,7 +1238,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsWithStore(c *C) {
 	c.Assert(err, IsNil)
 
 	// store assertion is missing
-	err = assertstate.RefreshSnapDeclarations(s.state, 0)
+	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
 	c.Assert(err, IsNil)
 
 	a, err := assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
@@ -1195,7 +1266,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsWithStore(c *C) {
 	err = s.storeSigning.Add(storeAs)
 	c.Assert(err, IsNil)
 
-	err = assertstate.RefreshSnapDeclarations(s.state, 0)
+	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
 	c.Assert(err, IsNil)
 
 	a, err = assertstate.DB(s.state).Find(asserts.SnapDeclarationType, map[string]string{
@@ -1224,7 +1295,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsWithStore(c *C) {
 	err = s.storeSigning.Add(storeAs)
 	c.Assert(err, IsNil)
 
-	err = assertstate.RefreshSnapDeclarations(s.state, 0)
+	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
 	c.Assert(err, IsNil)
 	a, err = assertstate.DB(s.state).Find(asserts.StoreType, map[string]string{
 		"store": "my-brand-store",
@@ -1267,7 +1338,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsDownloadError(c *C) {
 
 	s.fakeStore.(*fakeStore).downloadAssertionsErr = errors.New("download error")
 
-	err = assertstate.RefreshSnapDeclarations(s.state, 0)
+	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
 	c.Assert(err, ErrorMatches, `cannot refresh snap-declarations for snaps:
  - foo: download error`)
 }
@@ -1307,7 +1378,7 @@ func (s *assertMgrSuite) TestRefreshSnapDeclarationsPersistentNetworkError(c *C)
 	pne := new(httputil.PersistentNetworkError)
 	s.fakeStore.(*fakeStore).snapActionErr = pne
 
-	err = assertstate.RefreshSnapDeclarations(s.state, 0)
+	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
 	c.Assert(err, Equals, pne)
 }
 
@@ -1393,7 +1464,7 @@ func (s *assertMgrSuite) testRefreshSnapDeclarationsMany(c *C, n int) error {
 		c.Assert(err, IsNil)
 	}
 
-	err = assertstate.RefreshSnapDeclarations(s.state, 0)
+	err = assertstate.RefreshSnapDeclarations(s.state, 0, nil)
 	if err != nil {
 		// fot the caller to check
 		return err
@@ -2150,7 +2221,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsNop(c *C) {
 
 	s.setModel(sysdb.GenericClassicModel())
 
-	err := assertstate.RefreshValidationSetAssertions(s.state, 0)
+	err := assertstate.RefreshValidationSetAssertions(s.state, 0, nil)
 	c.Assert(err, IsNil)
 }
 
@@ -2182,6 +2253,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionsAutoRefresh(c *C) {
 	assertstate.UpdateValidationSet(s.state, &tr)
 
 	c.Assert(assertstate.AutoRefreshAssertions(s.state, 0), IsNil)
+	c.Check(s.fakeStore.(*fakeStore).opts.IsAutoRefresh, Equals, true)
 
 	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
@@ -2235,7 +2307,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsStoreError(c *C) {
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
-	err := assertstate.RefreshValidationSetAssertions(s.state, 0)
+	err := assertstate.RefreshValidationSetAssertions(s.state, 0, nil)
 	c.Assert(err, ErrorMatches, `cannot refresh validation set assertions: cannot : got unexpected HTTP status code 400.*`)
 }
 
@@ -2268,7 +2340,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
-	err = assertstate.RefreshValidationSetAssertions(s.state, 0)
+	err = assertstate.RefreshValidationSetAssertions(s.state, 0, &assertstate.RefreshAssertionsOptions{IsAutoRefresh: true})
 	c.Assert(err, IsNil)
 
 	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
@@ -2284,6 +2356,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
 		{"account", "account-key", "validation-set"},
 	})
+	c.Check(s.fakeStore.(*fakeStore).opts.IsAutoRefresh, Equals, true)
 
 	// sequence changed in the store to 4
 	vsetAs3 := s.validationSetAssert(c, "bar", "4", "3", "required")
@@ -2300,7 +2373,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 	c.Assert(asserts.IsNotFound(err), Equals, true)
 
 	s.fakeStore.(*fakeStore).requestedTypes = nil
-	err = assertstate.RefreshValidationSetAssertions(s.state, 0)
+	err = assertstate.RefreshValidationSetAssertions(s.state, 0, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
@@ -2354,7 +2427,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
-	err = assertstate.RefreshValidationSetAssertions(s.state, 0)
+	err = assertstate.RefreshValidationSetAssertions(s.state, 0, nil)
 	c.Assert(err, IsNil)
 
 	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
@@ -2378,7 +2451,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 	c.Assert(err, IsNil)
 
 	s.fakeStore.(*fakeStore).requestedTypes = nil
-	err = assertstate.RefreshValidationSetAssertions(s.state, 0)
+	err = assertstate.RefreshValidationSetAssertions(s.state, 0, nil)
 	c.Assert(err, IsNil)
 
 	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
@@ -2443,7 +2516,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsLocalOnlyFailed(c *C)
 	assertstate.UpdateValidationSet(s.state, &tr1)
 	assertstate.UpdateValidationSet(s.state, &tr2)
 
-	err = assertstate.RefreshValidationSetAssertions(s.state, 0)
+	err = assertstate.RefreshValidationSetAssertions(s.state, 0, nil)
 	c.Assert(err, IsNil)
 
 	// sanity - local assertion vsetAs1 is the latest
@@ -2515,7 +2588,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeHappyNot
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
-	err = assertstate.RefreshValidationSetAssertions(s.state, 0)
+	err = assertstate.RefreshValidationSetAssertions(s.state, 0, nil)
 	c.Assert(err, IsNil)
 
 	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
@@ -2580,7 +2653,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeHappyPin
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
-	c.Assert(assertstate.RefreshValidationSetAssertions(s.state, 0), IsNil)
+	c.Assert(assertstate.RefreshValidationSetAssertions(s.state, 0, nil), IsNil)
 
 	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
@@ -2644,7 +2717,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeConflict
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
-	c.Assert(assertstate.RefreshValidationSetAssertions(s.state, 0), IsNil)
+	c.Assert(assertstate.RefreshValidationSetAssertions(s.state, 0, nil), IsNil)
 	c.Assert(logbuf.String(), Matches, `.*cannot refresh to conflicting validation set assertions: validation sets are in conflict:\n- cannot constrain snap "foo" as both invalid .* and required at revision 1.*\n`)
 
 	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
@@ -2844,6 +2917,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforcePinnedHappy(c *C) {
 		"sequence":   "2",
 	})
 	c.Assert(err, IsNil)
+	c.Check(s.fakeStore.(*fakeStore).opts.IsAutoRefresh, Equals, false)
 }
 
 func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedUnhappyMissingSnap(c *C) {

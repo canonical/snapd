@@ -74,6 +74,11 @@ var ErrNothingToDo = errors.New("nothing to do")
 
 var osutilCheckFreeSpace = osutil.CheckFreeSpace
 
+// TestingLeaveOutKernelUpdateGadgetAssets can be used to simulate an upgrade
+// from a broken snapd that does not generate a "update-gadget-assets" task.
+// See LP:#1940553
+var TestingLeaveOutKernelUpdateGadgetAssets bool = false
+
 type minimalInstallInfo interface {
 	InstanceName() string
 	Type() snap.Type
@@ -360,7 +365,7 @@ func doInstall(st *state.State, snapst *SnapState, snapsup *SnapSetup, flags int
 		prev = unlink
 	}
 
-	if !release.OnClassic && (snapsup.Type == snap.TypeGadget || snapsup.Type == snap.TypeKernel) {
+	if !release.OnClassic && (snapsup.Type == snap.TypeGadget || (snapsup.Type == snap.TypeKernel && !TestingLeaveOutKernelUpdateGadgetAssets)) {
 		// XXX: gadget update currently for core systems only
 		gadgetUpdate := st.NewTask("update-gadget-assets", fmt.Sprintf(i18n.G("Update assets from %s %q%s"), snapsup.Type, snapsup.InstanceName(), revisionStr))
 		addTask(gadgetUpdate)
@@ -574,7 +579,7 @@ var CheckHealthHook = func(st *state.State, snapName string, rev snap.Revision) 
 	panic("internal error: snapstate.CheckHealthHook is unset")
 }
 
-var SetupGateAutoRefreshHook = func(st *state.State, snapName string, base, restart bool, affectingSnaps map[string]bool) *state.Task {
+var SetupGateAutoRefreshHook = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.SetupAutoRefreshGatingHook is unset")
 }
 
@@ -2028,7 +2033,12 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 
 	var hooks *state.TaskSet
 	if len(affectedSnaps) > 0 {
-		hooks = createGateAutoRefreshHooks(st, affectedSnaps)
+		affected := make([]string, 0, len(affectedSnaps))
+		for snapName := range affectedSnaps {
+			affected = append(affected, snapName)
+		}
+		sort.Strings(affected)
+		hooks = createGateAutoRefreshHooks(st, affected)
 	}
 
 	// gate-auto-refresh hooks, followed by conditional-auto-refresh task waiting

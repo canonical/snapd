@@ -60,9 +60,9 @@ func init() {
 }
 
 func (c *fdeSetupRequestCommand) Execute(args []string) error {
-	context := c.context()
-	if context == nil {
-		return fmt.Errorf("cannot run fde-setup-request without a context")
+	context, err := c.ensureContext()
+	if err != nil {
+		return err
 	}
 	context.Lock()
 	defer context.Unlock()
@@ -115,9 +115,9 @@ func init() {
 }
 
 func (c *fdeSetupResultCommand) Execute(args []string) error {
-	context := c.context()
-	if context == nil {
-		return fmt.Errorf("cannot run fde-setup-result without a context")
+	context, err := c.ensureContext()
+	if err != nil {
+		return err
 	}
 	context.Lock()
 	defer context.Unlock()

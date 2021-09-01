@@ -83,6 +83,7 @@ backends:
                   workers: 6
             - ubuntu-16.04-64:
                   workers: 8
+                  storage: 12G
             - ubuntu-18.04-32:
                   workers: 6
             - ubuntu-18.04-64:
@@ -134,9 +135,9 @@ backends:
                   storage: preserve-size
                   image: centos-7-64
             # unstable systems below
-            - opensuse-15.1-64:
-                  workers: 6
             - opensuse-15.2-64:
+                  workers: 6
+            - opensuse-15.3-64:
                   workers: 6
             - opensuse-tumbleweed-64:
                   workers: 6
@@ -236,10 +237,10 @@ backends:
             - ubuntu-20.04-32:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-20.10-64:
+            - ubuntu-21.04-64:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-21.04-64:
+            - ubuntu-21.10-64:
                   username: ubuntu
                   password: ubuntu
             - debian-sid-64:
