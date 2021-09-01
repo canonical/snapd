@@ -60,6 +60,10 @@ type baseHookManagerSuite struct {
 	command     *testutil.MockCmd
 }
 
+var (
+	settleTimeout = testutil.HostScaledTimeout(15 * time.Second)
+)
+
 func (s *baseHookManagerSuite) commonSetUpTest(c *C) {
 	s.BaseTest.SetUpTest(c)
 
@@ -174,7 +178,7 @@ func (s *hookManagerSuite) TearDownTest(c *C) {
 }
 
 func (s *hookManagerSuite) settle(c *C) {
-	err := s.o.Settle(5 * time.Second)
+	err := s.o.Settle(settleTimeout)
 	c.Assert(err, IsNil)
 }
 
