@@ -850,17 +850,19 @@ EOF
         # need to download it
         snap download --channel="$KERNEL_CHANNEL" pc-kernel
 
-        EXTRA_FUNDAMENTAL="--extra-snaps $PWD/pc-kernel_*.snap"
+        EXTRA_FUNDAMENTAL="--snap $PWD/pc-kernel_*.snap"
         IMAGE_CHANNEL="$GADGET_CHANNEL"
     fi
 
     if os.query is-core20; then
+        # on UC20 we always need to repack the kernel to use our version of 
+        # snap-bootstrap and friends in the initrd so do that now
         snap download --basename=pc-kernel --channel="20/$KERNEL_CHANNEL" pc-kernel
         # make sure we have the snap
         test -e pc-kernel.snap
         # build the initramfs with our snapd assets into the kernel snap
         uc20_build_initramfs_kernel_snap "$PWD/pc-kernel.snap" "$IMAGE_HOME"
-        EXTRA_FUNDAMENTAL="--extra-snaps $IMAGE_HOME/pc-kernel_*.snap"
+        EXTRA_FUNDAMENTAL="--snap $IMAGE_HOME/pc-kernel_*.snap"
     fi
 
     # 'snap pack' creates snaps 0644, and ubuntu-image just copies those in
@@ -911,7 +913,7 @@ EOF
     /snap/bin/ubuntu-image -w "$IMAGE_HOME" "$IMAGE_HOME/pc.model" \
                            --channel "$IMAGE_CHANNEL" \
                            "$EXTRA_FUNDAMENTAL" \
-                           --extra-snaps "${extra_snap[0]}" \
+                           --snap "${extra_snap[0]}" \
                            --output "$IMAGE_HOME/$IMAGE"
     rm -f ./pc-kernel_*.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert}
 
