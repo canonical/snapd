@@ -3743,3 +3743,33 @@ func (s *validationSetsSuite) TestInstallSnapOptionalForValidationSetOK(c *C) {
 	err := s.installSnapReferencedByValidationSet(c, "optional")
 	c.Assert(err, IsNil)
 }
+
+func (s *validationSetsSuite) TestInstallSnapReferencedByValidationSetWrongRevision(c *C) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		vs := snapasserts.NewValidationSets()
+		someSnap := map[string]interface{}{
+			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+			"name":     "some-snap",
+			"presence": "required",
+			"revision": "3",
+		}
+		vsa1 := s.mockValidationSetAssert(c, "bar", "1", someSnap)
+		vs.Add(vsa1.(*asserts.ValidationSet))
+		return vs, nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+	}
+	assertstate.UpdateValidationSet(s.state, &tr)
+
+	_, err := snapstate.Install(context.Background(), s.state, "some-snap", &snapstate.RevisionOptions{Revision: snap.R(2)}, 0, snapstate.Flags{})
+	c.Assert(err, ErrorMatches, `cannot install snap "some-snap" at requested revision 2, revision 3 required by validation sets: foo/bar`)
+}
