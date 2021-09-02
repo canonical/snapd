@@ -141,10 +141,9 @@ if [ "$STATIC" = 1 ]; then
     if [ -z "${SKIP_GOFMT:-}" ]; then
         echo Checking formatting
         fmt=""
-        for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/vendor/' | grep -E 'snapd/[A-Za-z0-9_]+$' ); do
+        for dir in $(go list -f '{{.Dir}}' ./... | grep -v '/\(c-\)\?vendor/' ); do
             # skip vendor packages
-            # skip subpackages of packages under snapd, gofmt already inspects them
-            s="$(${GOFMT:-gofmt} -s -l -d "$dir" || true)"
+            s="$(${GOFMT:-gofmt} -s -d "$dir" || true)"
             if [ -n "$s" ]; then
                 fmt="$s\\n$fmt"
             fi
@@ -347,8 +346,9 @@ if [ -n "${SKIP_DIRTY_CHECK-}" ]; then
     exit 0
 fi
 
-if git describe --always --dirty | grep -q dirty; then
-    echo "Build tree is dirty"
-    git diff
-    exit 1
-fi
+# XXX: re-enable after vendor/vendor.json is removed
+# if git describe --always --dirty | grep -q dirty; then
+#     echo "Build tree is dirty"
+#     git diff
+#     exit 1
+# fi
