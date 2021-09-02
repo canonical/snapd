@@ -43,6 +43,7 @@ SYSTEMD_UNITS_DESTDIR="lib/systemd/system/"
 GCCGO := $(shell go tool dist env > /dev/null 2>&1 && echo no || echo yes)
 
 BUILDFLAGS:=-pkgdir=$(CURDIR)/_build/std
+BUILDFLAGS+=-ldflags=-w
 # Disable -buildmode=pie mode on all our 32bit platforms
 # (i386 and armhf). For i386 because of LP: #1711052 and for
 # armhf because of LP: #1822738
@@ -152,11 +153,14 @@ override_dh_clean:
 	# XXX: hacky
 	$(MAKE) -C cmd distclean || true
 	# XXX: hacky^2
-	(cd vendor/github.com/snapcore/squashfuse/src && rm -f snapfuse && make distclean || true )
+	(cd c-vendor/squashfuse && rm -f snapfuse && make distclean || true )
 
 override_dh_auto_build:
 	# usually done via `go generate` but that is not supported on powerpc
 	./mkversion.sh
+	# ensure auto-generated version is also in the build-tree
+	# XXX: do we need this?
+	(cd _build/src/$(DH_GOPKG)/ && ../../../../../mkversion.sh)
 	# Build golang bits
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
@@ -165,15 +169,15 @@ override_dh_auto_build:
 	# this is the main go build
 	SNAPD_VANILLA_GO=$$(which go) PATH="$$(pwd)/packaging/build-tools/:$$PATH" dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
 
-	(cd _build/bin && GOPATH=$$(pwd)/.. GO111MODULE=off go build $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap)
-	(cd _build/bin && GOPATH=$$(pwd)/.. GO111MODULE=off go build $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap-bootstrap)
+	(cd _build/bin && GOPATH=$$(pwd)/.. go build -mod vendor $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap)
+	(cd _build/bin && GOPATH=$$(pwd)/.. go build -mod vendor $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap-bootstrap)
 
 	# Generate static snap-exec, snapctl and snap-update-ns - it somehow includes CGO so
 	# we must force a static build here. We need a static snap-{exec,update-ns}/snapctl
 	# inside the core snap because not all bases will have a libc
-	(cd _build/bin && GOPATH=$$(pwd)/.. GO111MODULE=off CGO_ENABLED=0 go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-exec)
-	(cd _build/bin && GOPATH=$$(pwd)/.. GO111MODULE=off CGO_ENABLED=0 go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snapctl)
-	(cd _build/bin && GOPATH=$$(pwd)/.. GO111MODULE=off go build --ldflags '-extldflags "-static"' $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-update-ns)
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -mod vendor $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-exec)
+	(cd _build/bin && GOPATH=$$(pwd)/.. CGO_ENABLED=0 go build -mod vendor $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snapctl)
+	(cd _build/bin && GOPATH=$$(pwd)/.. go build -mod vendor --ldflags '-extldflags "-static"' $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-update-ns)
 
 	# ensure we generated a static build
 	$(shell	if ldd _build/bin/snap-exec; then false "need static build"; fi)
@@ -183,12 +187,12 @@ override_dh_auto_build:
 	# ensure snap-seccomp is build with a static libseccomp on Ubuntu
 ifeq ($(shell dpkg-vendor --query Vendor),Ubuntu)
 	sed -i "s|#cgo LDFLAGS:|#cgo LDFLAGS: /usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
-	(cd _build/bin && GOPATH=$$(pwd)/.. GO111MODULE=off CGO_LDFLAGS_ALLOW="/.*/libseccomp.a" go build $(GCCGOFLAGS) $(DH_GOPKG)/cmd/snap-seccomp)
+	(cd _build/src/$(DH_GOPKG) && GOCACHE=/tmp/go-build CGO_LDFLAGS_ALLOW="/.*/libseccomp.a" go build -o ../../../../bin/snap-seccomp -mod vendor $(GCCGOFLAGS) ./cmd/snap-seccomp)
 	# ensure that libseccomp is not dynamically linked
 	ldd _build/bin/snap-seccomp
 	test "$$(ldd _build/bin/snap-seccomp | grep libseccomp)" = ""
 	# revert again so that the subsequent tests work
-	sed -i "s|#cgo LDFLAGS: /usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|#cgo LDFLAGS:|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
+	sed -i "s|#cgo LDFLAGS: -l/usr/lib/$(shell dpkg-architecture -qDEB_TARGET_MULTIARCH)/libseccomp.a|#cgo LDFLAGS:|" _build/src/$(DH_GOPKG)/cmd/snap-seccomp/main.go
 endif
 
 	# Build C bits, sadly manually
@@ -200,7 +204,7 @@ endif
 	$(MAKE) -C data all
 
 	# build squashfuse and rename to snapfuse
-	(cd vendor/github.com/snapcore/squashfuse/src && mkdir -p autom4te.cache && ./autogen.sh --disable-demo && ./configure --disable-demo && make && mv squashfuse_ll snapfuse)
+	(cd c-vendor/squashfuse && mkdir -p autom4te.cache && ./autogen.sh --disable-demo && ./configure --disable-demo && make && mv squashfuse_ll snapfuse)
 
 override_dh_auto_test:
 	dh_auto_test -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
@@ -263,6 +267,13 @@ override_dh_install:
 override_dh_auto_install: snap.8
 	dh_auto_install -O--buildsystem=golang
 
+override_dh_golang:
+	# XXX: dh_golang on older versions of ubuntu is not capable to
+	# deal with newer go and go.mod. So just make this a no-op or
+	# things will fail on e.g. 18.04. dh_golang will only add
+	# "misc:Built-Using" information.
+	true
+
 snap.8:
 	# fix reproducible builds as reported by:
 	#   https://tests.reproducible-builds.org/debian/rb-pkg/unstable/amd64/snapd.html
@@ -270,6 +281,8 @@ snap.8:
 	$(CURDIR)/_build/bin/snap help --man | sed '1 s/^.*/.TH snap 8 "$(shell date --reference=debian/changelog +"%d %B %Y")"/' > $@
 
 override_dh_auto_clean:
+	# XXX: workaround old dh-golang inability to remove _build/
+	if [ -d _build ]; then cd _build && GOPATH=$$(pwd) go clean -modcache; fi
 	dh_auto_clean -O--buildsystem=golang
 	rm -vf snap.8
 

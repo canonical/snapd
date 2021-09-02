@@ -1,7 +1,7 @@
 summary: Check that core refresh will create the userd dbus serivce file
 
 # only run on systems that re-exec
-systems: [ubuntu-16*, ubuntu-17*]
+systems: [ubuntu-18*]
 
 restore: |
     # Remove the locale revision of core, if we installed one.

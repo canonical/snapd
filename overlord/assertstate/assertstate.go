@@ -55,8 +55,16 @@ func findError(format string, ref *asserts.Ref, err error) error {
 	}
 }
 
+type RefreshAssertionsOptions struct {
+	IsAutoRefresh bool
+}
+
 // RefreshSnapDeclarations refetches all the current snap declarations and their prerequisites.
-func RefreshSnapDeclarations(s *state.State, userID int) error {
+func RefreshSnapDeclarations(s *state.State, userID int, opts *RefreshAssertionsOptions) error {
+	if opts == nil {
+		opts = &RefreshAssertionsOptions{}
+	}
+
 	deviceCtx, err := snapstate.DevicePastSeeding(s, nil)
 	if err != nil {
 		return err
@@ -67,7 +75,7 @@ func RefreshSnapDeclarations(s *state.State, userID int) error {
 		return nil
 	}
 
-	err = bulkRefreshSnapDeclarations(s, snapStates, userID, deviceCtx)
+	err = bulkRefreshSnapDeclarations(s, snapStates, userID, deviceCtx, opts)
 	if err == nil {
 		// done
 		return nil
@@ -336,15 +344,29 @@ func delayedCrossMgrInit() {
 
 // AutoRefreshAssertions tries to refresh all assertions
 func AutoRefreshAssertions(s *state.State, userID int) error {
-	if err := RefreshSnapDeclarations(s, userID); err != nil {
+	opts := &RefreshAssertionsOptions{IsAutoRefresh: true}
+	if err := RefreshSnapDeclarations(s, userID, opts); err != nil {
 		return err
 	}
-	return RefreshValidationSetAssertions(s, userID)
+	return RefreshValidationSetAssertions(s, userID, opts)
+}
+
+// RefreshSnapAssertions tries to refresh all snap-centered assertions
+func RefreshSnapAssertions(s *state.State, userID int) error {
+	opts := &RefreshAssertionsOptions{IsAutoRefresh: false}
+	if err := RefreshSnapDeclarations(s, userID, opts); err != nil {
+		return err
+	}
+	return RefreshValidationSetAssertions(s, userID, opts)
 }
 
 // RefreshValidationSetAssertions tries to refresh all validation set
 // assertions.
-func RefreshValidationSetAssertions(s *state.State, userID int) error {
+func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAssertionsOptions) error {
+	if opts == nil {
+		opts = &RefreshAssertionsOptions{}
+	}
+
 	deviceCtx, err := snapstate.DevicePastSeeding(s, nil)
 	if err != nil {
 		return err
@@ -391,7 +413,7 @@ func RefreshValidationSetAssertions(s *state.State, userID int) error {
 		return nil
 	}
 
-	if err := bulkRefreshValidationSetAsserts(s, monitorModeSets, nil, userID, deviceCtx); err != nil {
+	if err := bulkRefreshValidationSetAsserts(s, monitorModeSets, nil, userID, deviceCtx, opts); err != nil {
 		return err
 	}
 	if err := updateTracking(monitorModeSets); err != nil {
@@ -430,7 +452,7 @@ func RefreshValidationSetAssertions(s *state.State, userID int) error {
 		return vsets.Conflict()
 	}
 
-	if err := bulkRefreshValidationSetAsserts(s, enforceModeSets, checkForConflicts, userID, deviceCtx); err != nil {
+	if err := bulkRefreshValidationSetAsserts(s, enforceModeSets, checkForConflicts, userID, deviceCtx, opts); err != nil {
 		if _, ok := err.(*snapasserts.ValidationSetsConflictError); ok {
 			logger.Noticef("cannot refresh to conflicting validation set assertions: %v", err)
 			return nil
@@ -514,7 +536,8 @@ func ValidationSetAssertionForMonitor(st *state.State, accountID, name string, s
 		}
 	}
 
-	if err := resolvePoolNoFallback(st, pool, nil, userID, deviceCtx); err != nil {
+	refreshOpts := &RefreshAssertionsOptions{IsAutoRefresh: false}
+	if err := resolvePoolNoFallback(st, pool, nil, userID, deviceCtx, refreshOpts); err != nil {
 		rerr, ok := err.(*resolvePoolError)
 		if ok && as != nil && opts.AllowLocalFallback {
 			if e := rerr.errors[atSeq.Unique()]; asserts.IsNotFound(e) {
@@ -549,9 +572,11 @@ func ValidationSetAssertionForEnforce(st *state.State, accountID, name string, s
 		return nil, err
 	}
 
+	opts := &RefreshAssertionsOptions{IsAutoRefresh: false}
+
 	// refresh all currently tracked validation set assertions (this may or may not
 	// include the one requested by the caller).
-	if err = RefreshValidationSetAssertions(st, userID); err != nil {
+	if err = RefreshValidationSetAssertions(st, userID, opts); err != nil {
 		return nil, err
 	}
 
@@ -664,7 +689,7 @@ func ValidationSetAssertionForEnforce(st *state.State, accountID, name string, s
 		return nil
 	}
 
-	if err := resolvePoolNoFallback(st, pool, checkBeforeCommit, userID, deviceCtx); err != nil {
+	if err := resolvePoolNoFallback(st, pool, checkBeforeCommit, userID, deviceCtx, opts); err != nil {
 		return nil, err
 	}
 

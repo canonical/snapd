@@ -20,7 +20,6 @@ package hookstate
 import (
 	"fmt"
 	"regexp"
-	"sort"
 	"time"
 
 	"github.com/snapcore/snapd/cmd/snaplock"
@@ -234,9 +233,10 @@ func (h *gateAutoRefreshHookHandler) Error(hookErr error) (ignoreHookErr bool, e
 	// the hook didn't request --hold, or it was --proceed. since the hook
 	// errored out, assume hold.
 
-	var affecting []string
-	if err := ctx.Get("affecting-snaps", &affecting); err != nil {
-		return false, fmt.Errorf("internal error: cannot get affecting-snaps")
+	affecting, err := snapstate.AffectingSnapsForAffectedByRefreshCandidates(st, snapName)
+	if err != nil {
+		// becomes error of the handler
+		return false, err
 	}
 
 	// no duration specified, use maximum allowed for this gating snap.
@@ -266,24 +266,14 @@ func NewGateAutoRefreshHookHandler(context *Context) *gateAutoRefreshHookHandler
 	}
 }
 
-func SetupGateAutoRefreshHook(st *state.State, snapName string, base, restart bool, affectingSnaps map[string]bool) *state.Task {
+func SetupGateAutoRefreshHook(st *state.State, snapName string) *state.Task {
 	hookSup := &HookSetup{
 		Snap:     snapName,
 		Hook:     "gate-auto-refresh",
 		Optional: true,
 	}
-	affecting := make([]string, 0, len(affectingSnaps))
-	for sn := range affectingSnaps {
-		affecting = append(affecting, sn)
-	}
-	sort.Strings(affecting)
 	summary := fmt.Sprintf(i18n.G("Run hook %s of snap %q"), hookSup.Hook, hookSup.Snap)
-	hookCtx := map[string]interface{}{
-		"base":            base,
-		"restart":         restart,
-		"affecting-snaps": affecting,
-	}
-	task := HookTask(st, summary, hookSup, hookCtx)
+	task := HookTask(st, summary, hookSup, nil)
 	return task
 }
 

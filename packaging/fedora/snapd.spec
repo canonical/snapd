@@ -97,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.51.6
+Version:        2.51.7
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -509,19 +509,18 @@ rm -rf vendor/*
 # Generate version files
 ./mkversion.sh "%{version}-%{release}"
 
-# We don't want/need squashfuse in the rpm, as it's available in Fedora and EPEL
-sed -e 's:_ "github.com/snapcore/squashfuse"::g' -i systemd/systemd.go
-
 # Build snapd
 mkdir -p src/github.com/snapcore
 ln -s ../../../ src/github.com/snapcore/snapd
 
 %if ! 0%{?with_bundled}
 export GOPATH=$(pwd):%{gopath}
-%else
-export GOPATH=$(pwd):$(pwd)/Godeps/_workspace:%{gopath}
-%endif
+# FIXME: move spec file really to a go.mod world instead of this hack
+rm -f go.mod
 export GO111MODULE=off
+#%else
+#export GOPATH=$(pwd):$(pwd)/Godeps/_workspace:%{gopath}
+%endif
 
 # see https://github.com/gofed/go-macros/blob/master/rpm/macros.d/macros.go-compilers-golang
 BUILDTAGS=
@@ -541,7 +540,7 @@ sed -e "s:github.com/snapcore/bolt:github.com/boltdb/bolt:g" -i advisor/*.go err
 # We have to build snapd first to prevent the build from
 # building various things from the tree without additional
 # set tags.
-%gobuild -o bin/snapd $GOFLAGS %{import_path}/cmd/snapd
+%gobuild -o bin/snapd $GOFLAGS ./cmd/snapd
 BUILDTAGS="${BUILDTAGS} nomanagers"
 %gobuild -o bin/snap $GOFLAGS %{import_path}/cmd/snap
 %gobuild -o bin/snap-failure $GOFLAGS %{import_path}/cmd/snap-failure
@@ -772,6 +771,7 @@ export GOPATH=%{buildroot}/%{gopath}:%{gopath}
 %else
 export GOPATH=%{buildroot}/%{gopath}:$(pwd)/Godeps/_workspace:%{gopath}
 %endif
+# FIXME: we are in the go.mod world now but without this things fall apart
 export GO111MODULE=off
 %gotest %{import_path}/...
 %endif
@@ -971,6 +971,17 @@ fi
 
 
 %changelog
+* Fri Aug 27 2021 Ian Johnson <ian.johnson@canonical.com>
+- New upstream release 2.51.7
+ - cmd/snap-seccomp/syscalls: update syscalls list to libseccomp
+   v2.2.0-428-g5c22d4b1
+ - tests: cherry-pick shellcheck fix `bd730fd4`
+ - interfaces/dsp: add /dev/ambad into dsp interface
+ - many: shellcheck fixes
+ - snapstate: abort kernel refresh if no gadget update can be found
+ - overlord: add manager test for "assumes" checking
+ - store: deal correctly with "assumes" from the store raw yaml
+
 * Thu Aug 19 2021 Ian Johnson <ian.johnson@canonical.com>
 - New upstream release 2.51.6
  - secboot: use half the mem for KDF in AddRecoveryKey

@@ -63,11 +63,7 @@ func checkAssumes(si *snap.Info) error {
 		}
 	}
 	if len(missing) > 0 {
-		hint := "try to refresh the core or snapd snaps"
-		if release.OnClassic {
-			hint = "try to update snapd and refresh the core snap"
-		}
-		return fmt.Errorf("snap %q assumes unsupported features: %s (%s)", si.InstanceName(), strings.Join(missing, ", "), hint)
+		return fmt.Errorf("snap %q assumes unsupported features: %s (try to refresh snapd)", si.InstanceName(), strings.Join(missing, ", "))
 	}
 	return nil
 }
