@@ -9,12 +9,13 @@ prepare: |
   # build the second version
   sed -e "s/##VERSION##/0.2/" ./test-system-files-conn-snap/meta/snap.yaml.in > ./test-system-files-conn-snap/meta/snap.yaml
   sed -i -e 's@##EXTRA##@- /etc/foo.conf @' ./test-system-files-conn-snap/meta/snap.yaml
-
   snap pack ./test-system-files-conn-snap --filename=test-system-files-conn-snap-2.snap
 
 execute: |
   echo "With the first revision, we don't have the rule because the interface is not connected"
   snap install --dangerous test-system-files-conn-snap-1.snap
+  NOMATCH /etc/resolv.conf < /var/lib/snapd/apparmor/profiles/snap.test-system-files-conn-snap.bin
+  NOMATCH /etc/foo.conf < /var/lib/snapd/apparmor/profiles/snap.test-system-files-conn-snap.bin
 
   echo "But if we connect the interface we get the first rule"
   snap connect test-system-files-conn-snap:foo
