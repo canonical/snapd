@@ -71,6 +71,7 @@ type FakeSystemd struct {
 	/* The user of this fake object can replace the implementation of the
 	* various methods */
 	MockedRemoveMountUnitFile func(baseDir string) error
+	MockedAddMountUnitFile func(name, revision, what, where, fstype string) (string, error)
 }
 
 /* For each of these methods, I'll create a "Mocked<MethodName>" field in the
@@ -95,7 +96,11 @@ func (s *FakeSystemd) IsActive(service string) (bool, error)                 { r
 func (s *FakeSystemd) LogReader(services []string, n int, follow bool) (io.ReadCloser, error) {
 	return nil, nil
 }
+
 func (s *FakeSystemd) AddMountUnitFile(name, revision, what, where, fstype string) (string, error) {
+	if s.MockedAddMountUnitFile != nil {
+		return s.MockedAddMountUnitFile(name, revision, what, where, fstype)
+	}
 	return "", nil
 }
 
