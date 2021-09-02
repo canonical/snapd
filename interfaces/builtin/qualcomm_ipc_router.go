@@ -47,7 +47,7 @@ const qipcrtrBaseDeclarationSlots = `
 const qipcrtrConnectedPlugAppArmor = `
 # Description: allows access to the Qualcomm IPC Router sockets
 #              and limits to sock_dgram only
-network qipcrtr dgram,
+network qipcrtr,
 
 # CAP_NET_ADMIN required for port number smaller QRTR_MIN_EPH_SOCKET per 'https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/tree/net/qrtr/qrtr.c'
 capability net_admin,

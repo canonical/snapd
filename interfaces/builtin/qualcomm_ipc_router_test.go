@@ -79,7 +79,7 @@ func (s *QrtrInterfaceSuite) TestAppArmorSpecFullAppArmorSandboxFeatures(c *C) {
 	spec.MockFeatures([]string{"parser:qipcrtr-socket"})
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
 	c.Assert(spec.SecurityTags(), DeepEquals, []string{"snap.consumer.app"})
-	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "network qipcrtr dgram,\n")
+	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "network qipcrtr,\n")
 	c.Assert(spec.SnippetForTag("snap.consumer.app"), testutil.Contains, "capability net_admin,\n")
 }
 
