@@ -881,22 +881,19 @@ EOF
         exit 1
     fi
 
-    
-    
-    
     # download the core20 snap manually from the specified channel for UC20
     if os.query is-core20; then
         snap download core20 --channel="$BASE_CHANNEL" --basename=core20
 
         
-        # we want to download the specific channel referenced by $BASE_CHANNEL, but
-        # if we just seed that revision and $BASE_CHANNEL != $IMAGE_CHANNEL, then 
-        # immediately on booting, snapd will refresh from the revision that is 
-        # seeded via $BASE_CHANNEL to the revision that is in $IMAGE_CHANNEL, so to
-        # prevent that from happening (since that automatic refresh will confuse
-        # spread and make tests fail in awkward, confusing ways), we unpack the snap
-        # and re-pack it so that it is not asserted and thus won't be automatically
-        # refreshed
+        # we want to download the specific channel referenced by $BASE_CHANNEL, 
+        # but if we just seed that revision and $BASE_CHANNEL != $IMAGE_CHANNEL,
+        # then immediately on booting, snapd will refresh from the revision that
+        # is seeded via $BASE_CHANNEL to the revision that is in $IMAGE_CHANNEL,
+        # so to prevent that from happening (since that automatic refresh will 
+        # confuse spread and make tests fail in awkward, confusing ways), we
+        # unpack the snap and re-pack it so that it is not asserted and thus 
+        # won't be automatically refreshed
         if [ "$IMAGE_CHANNEL" != "$BASE_CHANNEL" ]; then
             sudo unsquashfs -d core20-snap core20.snap
             sudo snap pack --filename=core20-repacked.snap core20-snap
@@ -913,7 +910,7 @@ EOF
                            "$EXTRA_FUNDAMENTAL" \
                            --extra-snaps "${extra_snap[0]}" \
                            --output "$IMAGE_HOME/$IMAGE"
-    rm -f ./pc-kernel_*.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert}
+    rm -f ./pc-kernel_*.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert} ./core20.{snap,assert}
 
     if os.query is-core20; then
         # (ab)use ubuntu-seed
