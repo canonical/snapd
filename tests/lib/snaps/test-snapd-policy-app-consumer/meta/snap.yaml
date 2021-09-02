@@ -257,6 +257,9 @@ apps:
   media-hub:
     command: bin/run
     plugs: [ media-hub ]
+  microstack-support:
+    command: bin/run
+    plugs: [ microstack-support ]
   mir:
     command: bin/run
     plugs: [ mir ]
@@ -374,6 +377,9 @@ apps:
   snapd-control:
     command: bin/run
     plugs: [ snapd-control ]
+  snap-refresh-control:
+    command: bin/run
+    plugs: [ snap-refresh-control ]
   service-watchdog:
     command: bin/run
     plugs: [ daemon-notify ]
