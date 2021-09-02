@@ -20,9 +20,6 @@ prepare: |
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
 
-  #shellcheck source=tests/lib/snaps.sh
-  . "$TESTSLIB"/snaps.sh
-
   mkdir extra-snaps
   wget -P extra-snaps "$SNAPD_SNAP_URL" "$CORE18_SNAP_URL"
 
@@ -31,7 +28,7 @@ prepare: |
   tests.nested create-vm core
 
   # for refresh in later step of the test
-  repack_snapd_deb_into_snapd_snap "$PWD"
+  "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
 
 execute: |
   #shellcheck source=tests/lib/nested.sh

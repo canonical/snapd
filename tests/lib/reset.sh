@@ -12,6 +12,10 @@ reset_classic() {
     systemctl daemon-reload
     systemd_stop_units snapd.service snapd.socket
 
+    # none of the purge steps stop the user services, we need to do it
+    # explicitly, at least for the root user
+    systemctl --user stop snapd.session-agent.socket || true
+
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
@@ -70,7 +74,11 @@ reset_classic() {
         systemctl start snap.mount.service
     fi
 
-    rm -rf /root/.snap/gnupg
+    # Clean root home
+    rm -rf /root/snap /root/.snap/gnupg /root/.{bash_history,local,cache,config}
+    # Clean test home
+    rm -rf /home/test/snap /home/test/.{bash_history,local,cache,config}
+    # Clean /tmp
     rm -f /tmp/core* /tmp/ubuntu-core*
 
     if [ "$1" = "--reuse-core" ]; then
@@ -86,7 +94,13 @@ reset_classic() {
 
         # force all profiles to be re-generated
         rm -f /var/lib/snapd/system-key
+
+        # force snapd-session-agent.socket fto be re-generated
+        rm -f /run/user/0/snapd-session-agent.socket
     fi
+
+    # Make sure the systemd user wants directories exist
+    mkdir -p /etc/systemd/user/sockets.target.wants /etc/systemd/user/timers.target.wants /etc/systemd/user/default.target.wants
 
     if [ "$1" != "--keep-stopped" ]; then
         systemctl start snapd.socket

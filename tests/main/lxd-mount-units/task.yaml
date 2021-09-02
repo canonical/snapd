@@ -5,13 +5,20 @@ details: |
     are correct for snapfuse.
 
 # only 20.04+, we want lxd images that come with snaps preinstalled.
-# TODO: enable for ubuntu-21+ once the lxd image is published
-systems: [ubuntu-2*]
+# TODO: enable for ubuntu-21.10+ once the lxd image is published
+systems: [ubuntu-20*, ubuntu-21.04*]
 
 restore: |
     lxd.lxc stop ubuntu --force || true
     lxd.lxc delete ubuntu || true
     snap remove --purge lxd
+
+    # Remove manually the snap.lxd.workaround.service systemd unit. This unit is needed to
+    # avoid systemd wiping lxd cgroups when snapd disables all lxd units during refresh
+    # TODO: remove this when lxd removes automatically the service
+    if systemctl is-active snap.lxd.workaround.service; then
+        systemctl stop snap.lxd.workaround.service
+    fi
 
 execute: |
     echo "Install lxd"

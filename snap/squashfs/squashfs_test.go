@@ -20,6 +20,7 @@
 package squashfs_test
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -348,7 +349,7 @@ func (s *SquashfsTestSuite) TestListDir(c *C) {
 	c.Check(fileNames[2], Equals, "foo-hook")
 }
 
-func (s *SquashfsTestSuite) TestWalk(c *C) {
+func (s *SquashfsTestSuite) TestWalkNative(c *C) {
 	sub := "."
 	sn := makeSnap(c, "name: foo", "")
 	sqw := map[string]os.FileInfo{}
@@ -409,6 +410,86 @@ func (s *SquashfsTestSuite) TestWalk(c *C) {
 		squashfs.Alike(sqw[k], sdw[k], c, Commentf(k))
 	}
 
+}
+
+func (s *SquashfsTestSuite) testWalkMockedUnsquashfs(c *C) {
+	expectingNames := []string{
+		".",
+		"data.bin",
+		"food",
+		"meta",
+		"meta/hooks",
+		"meta/hooks/bar-hook",
+		"meta/hooks/dir",
+		"meta/hooks/dir/baz",
+		"meta/hooks/foo-hook",
+		"meta/snap.yaml",
+	}
+	sub := "."
+	sn := makeSnap(c, "name: foo", "")
+	var seen []string
+	sn.Walk(sub, func(path string, info os.FileInfo, err error) error {
+		c.Logf("got %v", path)
+		if err != nil {
+			return err
+		}
+		seen = append(seen, path)
+		if path == "food" {
+			return filepath.SkipDir
+		}
+		return nil
+	})
+	c.Assert(len(seen), Equals, len(expectingNames))
+	for idx, name := range seen {
+		c.Check(name, Equals, expectingNames[idx])
+	}
+}
+
+func (s *SquashfsTestSuite) TestWalkMockedUnsquashfs45(c *C) {
+	// mock behavior of squashfs-tools 4.5 and later
+	mockUnsquashfs := testutil.MockCommand(c, "unsquashfs", `
+cat <<EOF
+drwx------ root/root                55 2021-07-27 13:31 .
+-rw-r--r-- root/root                 0 2021-07-27 13:31 ./data.bin
+drwxr-xr-x root/root                27 2021-07-27 13:31 ./food
+drwxr-xr-x root/root                27 2021-07-27 13:31 ./food/bard
+drwxr-xr-x root/root                 3 2021-07-27 13:31 ./food/bard/bazd
+drwxr-xr-x root/root                45 2021-07-27 13:31 ./meta
+drwxr-xr-x root/root                58 2021-07-27 13:31 ./meta/hooks
+-rwxr-xr-x root/root                 0 2021-07-27 13:31 ./meta/hooks/bar-hook
+drwxr-xr-x root/root                26 2021-07-27 13:31 ./meta/hooks/dir
+-rwxr-xr-x root/root                 0 2021-07-27 13:31 ./meta/hooks/dir/baz
+-rwxr-xr-x root/root                 0 2021-07-27 13:31 ./meta/hooks/foo-hook
+-rw-r--r-- root/root                 9 2021-07-27 13:31 ./meta/snap.yaml
+EOF
+`)
+	defer mockUnsquashfs.Restore()
+	s.testWalkMockedUnsquashfs(c)
+}
+
+func (s *SquashfsTestSuite) TestWalkMockedUnsquashfsOld(c *C) {
+	// mock behavior of pre-4.5 squashfs-tools
+	mockUnsquashfs := testutil.MockCommand(c, "unsquashfs", `
+cat <<EOF
+Parallel unsquashfs: Using 1 processor
+5 inodes (1 blocks) to write
+
+drwx------ root/root                55 2021-07-27 13:31 .
+-rw-r--r-- root/root                 0 2021-07-27 13:31 ./data.bin
+drwxr-xr-x root/root                27 2021-07-27 13:31 ./food
+drwxr-xr-x root/root                27 2021-07-27 13:31 ./food/bard
+drwxr-xr-x root/root                 3 2021-07-27 13:31 ./food/bard/bazd
+drwxr-xr-x root/root                45 2021-07-27 13:31 ./meta
+drwxr-xr-x root/root                58 2021-07-27 13:31 ./meta/hooks
+-rwxr-xr-x root/root                 0 2021-07-27 13:31 ./meta/hooks/bar-hook
+drwxr-xr-x root/root                26 2021-07-27 13:31 ./meta/hooks/dir
+-rwxr-xr-x root/root                 0 2021-07-27 13:31 ./meta/hooks/dir/baz
+-rwxr-xr-x root/root                 0 2021-07-27 13:31 ./meta/hooks/foo-hook
+-rw-r--r-- root/root                 9 2021-07-27 13:31 ./meta/snap.yaml
+EOF
+`)
+	defer mockUnsquashfs.Restore()
+	s.testWalkMockedUnsquashfs(c)
 }
 
 // TestUnpackGlob tests the internal unpack
@@ -478,7 +559,7 @@ EOF
 	c.Check(err.Error(), Equals, `cannot extract "*" to "some-output-dir": failed: "Failed to write /tmp/1/modules/4.4.0-112-generic/modules.symbols, skipping", "Write on output file failed because No space left on device", "writer: failed to write data block 0", "Failed to write /tmp/1/modules/4.4.0-112-generic/modules.symbols.bin, skipping", and 15 more`)
 }
 
-func (s *SquashfsTestSuite) TestBuild(c *C) {
+func (s *SquashfsTestSuite) TestBuildAll(c *C) {
 	// please keep TestBuildUsesExcludes in sync with this one so it makes sense.
 	buildDir := c.MkDir()
 	err := os.MkdirAll(filepath.Join(buildDir, "/random/dir"), 0755)
@@ -492,13 +573,16 @@ func (s *SquashfsTestSuite) TestBuild(c *C) {
 	err = sn.Build(buildDir, &squashfs.BuildOpts{SnapType: "app"})
 	c.Assert(err, IsNil)
 
-	// unsquashfs writes a funny header like:
+	// pre-4.5 unsquashfs writes a funny header like:
 	//     "Parallel unsquashfs: Using 1 processor"
 	//     "1 inodes (1 blocks) to write"
 	outputWithHeader, err := exec.Command("unsquashfs", "-n", "-l", sn.Path()).Output()
 	c.Assert(err, IsNil)
-	split := strings.Split(string(outputWithHeader), "\n")
-	output := strings.Join(split[3:], "\n")
+	output := outputWithHeader
+	if bytes.HasPrefix(outputWithHeader, []byte(`Parallel unsquashfs: `)) {
+		split := bytes.Split(outputWithHeader, []byte("\n"))
+		output = bytes.Join(split[3:], []byte("\n"))
+	}
 	c.Assert(string(output), Equals, `
 squashfs-root
 squashfs-root/data.bin
@@ -538,8 +622,11 @@ data.bin
 
 	outputWithHeader, err := exec.Command("unsquashfs", "-n", "-l", sn.Path()).Output()
 	c.Assert(err, IsNil)
-	split := strings.Split(string(outputWithHeader), "\n")
-	output := strings.Join(split[3:], "\n")
+	output := outputWithHeader
+	if bytes.HasPrefix(outputWithHeader, []byte(`Parallel unsquashfs: `)) {
+		split := bytes.Split(outputWithHeader, []byte("\n"))
+		output = bytes.Join(split[3:], []byte("\n"))
+	}
 	// compare with TestBuild
 	c.Assert(string(output), Equals, `
 squashfs-root

@@ -559,10 +559,10 @@ func (s *imageSuite) setupSnaps(c *C, publishers map[string]string, defaultsYaml
 	s.MakeAssertedSnap(c, snapReqCore16Base, nil, snap.R(16), "other")
 
 	s.MakeAssertedSnap(c, requiredSnap1, nil, snap.R(3), "other")
-	s.AssertedSnapInfo("required-snap1").EditedContact = "foo@example.com"
+	s.AssertedSnapInfo("required-snap1").EditedContact = "mailto:foo@example.com"
 
 	s.MakeAssertedSnap(c, requiredSnap18, nil, snap.R(6), "other")
-	s.AssertedSnapInfo("required-snap18").EditedContact = "foo@example.com"
+	s.AssertedSnapInfo("required-snap18").EditedContact = "mailto:foo@example.com"
 
 	s.MakeAssertedSnap(c, defaultTrackSnap18, nil, snap.R(5), "other")
 

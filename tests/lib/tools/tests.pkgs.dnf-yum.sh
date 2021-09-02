@@ -53,6 +53,12 @@ cmd_query() {
     set +x
 }
 
+cmd_list_installed() {
+    set -x
+    rpm -qa | sort
+    set +x
+}
+
 cmd_remove() {
     set -x
     # shellcheck disable=SC2068

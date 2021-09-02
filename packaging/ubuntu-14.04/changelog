@@ -1,3 +1,65 @@
+snapd (2.51.7~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1929842
+    - cmd/snap-seccomp/syscalls: update syscalls list to libseccomp
+      v2.2.0-428-g5c22d4b1
+    - tests: cherry-pick shellcheck fix `bd730fd4`
+    - interfaces/dsp: add /dev/ambad into dsp interface
+    - many: shellcheck fixes
+    - snapstate: abort kernel refresh if no gadget update can be found
+    - overlord: add manager test for "assumes" checking
+    - store: deal correctly with "assumes" from the store raw yaml
+
+ -- Ian Johnson <ian.johnson@canonical.com>  Fri, 27 Aug 2021 15:26:46 -0500
+
+snapd (2.51.6~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1929842
+    - secboot: use half the mem for KDF in AddRecoveryKey
+    - secboot: switch main key KDF memory cost to 32KB
+
+ -- Ian Johnson <ian.johnson@canonical.com>  Thu, 19 Aug 2021 15:49:47 -0500
+
+snapd (2.51.5~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1929842
+    - snap/squashfs: handle squashfs-tools 4.5+
+    - tests/core20-install-device-file-install-via-hook-hack: adjust
+      test for 2.51
+    - o/devicestate/handlers_install.go: add workaround to create dirs
+      for install
+    - tests: fix linter warning
+    - tests: update other spread tests for new behaviour
+    - tests: ack assertions by default, add --noack option
+    - release-tools/changelog.py: also fix opensuse changelog date
+      format
+    - release-tools/changelog.py: fix typo in function name
+    - release-tools/changelog.py: fix fedora date format
+    - release-tools/changelog.py: handle case where we don't have a TZ
+    - release-tools/changelog.py: fix line length check
+    - release-tools/changelog.py: specify the LP bug for the release as
+      an arg too
+    - interface/modem-manager: add support for MBIM/QMI proxy
+      clients
+    - .github/workflows/test.yaml: use snapcraft 4.x to build the snapd
+      snap
+
+ -- Ian Johnson <ian.johnson@canonical.com>  Mon, 16 Aug 2021 15:02:40 -0500
+
+snapd (2.51.4~14.04) trusty; urgency=medium
+
+  * New upstream release, LP: #1929842
+    - {device,snap}state: skip kernel extraction in seeding
+    - vendor: move to snapshot-4c814e1 branch and set fixed KDF options
+    - tests/interfaces/tee: fix HasLen check for udev snippets
+    - interfaces/tee: add support for Qualcomm qseecom device node
+    - gadget: check for system-save with multi volumes if encrypting
+      correctly
+    - gadget: drive-by: drop unnecessary/supported passthrough in test
+      gadget.yaml
+
+ -- Ian Johnson <ian.johnson@canonical.com>  Mon, 09 Aug 2021 18:56:18 -0500
+
 snapd (2.51.3~14.04) trusty; urgency=medium
 
   * New upstream release, LP: #1929842

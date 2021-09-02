@@ -173,6 +173,12 @@ dbus (receive, send)
 
 # Allow to determine whether a tty device is a serial port or not.
 @{PROC}/tty/drivers r,
+
+# allow communicating with the mbim and qmi proxy servers, which provide
+# support for talking to WWAN modems and devices which speak the Mobile
+# Interface Broadband Model (MBIM) and Qualcomm MSM Interface (QMI)
+# protocols respectively
+unix (connect, receive, send) type=stream peer=(addr="@{mbim,qmi}-proxy"),
 `
 
 const modemManagerConnectedPlugAppArmorClassic = `

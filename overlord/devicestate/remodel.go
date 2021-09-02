@@ -21,8 +21,10 @@ package devicestate
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -123,6 +125,9 @@ type remodelContext interface {
 	// associate associates the remodel context with the change
 	// and caches it
 	associate(chg *state.Change)
+	// setTriedRecoverySystemLabel records the label of a good recovery
+	// system created during remodel
+	setRecoverySystemLabel(label string)
 }
 
 // remodelCtx returns a remodeling context for the given transition.
@@ -139,7 +144,13 @@ func remodelCtx(st *state.State, oldModel, newModel *asserts.Model) (remodelCont
 			model:      newModel,
 			systemMode: devMgr.SystemMode(SysAny),
 		}
-		remodCtx = &updateRemodelContext{baseRemodelContext{groundCtx, oldModel}}
+		remodCtx = &updateRemodelContext{baseRemodelContext{
+			groundDeviceContext: groundCtx,
+
+			oldModel:  oldModel,
+			deviceMgr: devMgr,
+			st:        st,
+		}}
 	case StoreSwitchRemodel:
 		remodCtx = newNewStoreRemodelContext(st, devMgr, newModel, oldModel)
 	case ReregRemodel:
@@ -206,8 +217,14 @@ func remodelCtxFromTask(t *state.Task) (remodelContext, error) {
 }
 
 type baseRemodelContext struct {
+	// groundDeviceContext will carry the new device model
 	groundDeviceContext
 	oldModel *asserts.Model
+
+	deviceMgr *DeviceManager
+	st        *state.State
+
+	recoverySystemLabel string
 }
 
 func (rc *baseRemodelContext) ForRemodeling() bool {
@@ -238,6 +255,40 @@ func (rc *baseRemodelContext) SystemMode() string {
 	return rc.systemMode
 }
 
+func (rc *baseRemodelContext) setRecoverySystemLabel(label string) {
+	rc.recoverySystemLabel = label
+}
+
+// updateRunModeSystem updates the device context used during boot and makes a
+// record of the new seeded system.
+func (rc *baseRemodelContext) updateRunModeSystem() error {
+	if rc.model.Grade() == asserts.ModelGradeUnset {
+		// nothing special for non-UC20 systems
+		return nil
+	}
+	if rc.recoverySystemLabel == "" {
+		return fmt.Errorf("internal error: recovery system label is unset during remodel finish")
+	}
+	// for UC20 systems we need record the fact that a new model is used for
+	// booting and consider a new recovery system as as seeded
+	oldDeviceContext := rc.GroundContext()
+	newDeviceContext := &rc.groundDeviceContext
+	if err := boot.DeviceChange(oldDeviceContext, newDeviceContext); err != nil {
+		return fmt.Errorf("cannot switch device: %v", err)
+	}
+	if err := rc.deviceMgr.recordSeededSystem(rc.st, &seededSystem{
+		System:    rc.recoverySystemLabel,
+		Model:     rc.model.Model(),
+		BrandID:   rc.model.BrandID(),
+		Revision:  rc.model.Revision(),
+		Timestamp: rc.model.Timestamp(),
+		SeedTime:  time.Now(),
+	}); err != nil {
+		return fmt.Errorf("cannot record a new seeded system: %v", err)
+	}
+	return nil
+}
+
 // updateRemodelContext: model assertion revision-only update remodel
 // (no change to brand/model or store)
 type updateRemodelContext struct {
@@ -263,8 +314,9 @@ func (rc *updateRemodelContext) Store() snapstate.StoreService {
 }
 
 func (rc *updateRemodelContext) Finish() error {
-	// nothing more to do
-	return nil
+	// nothing special to do as part of the finish action, so just run the
+	// update boot step
+	return rc.updateRunModeSystem()
 }
 
 // newStoreRemodelContext: remodel needing a new store session
@@ -278,9 +330,6 @@ type newStoreRemodelContext struct {
 	remodelChange *state.Change
 
 	store snapstate.StoreService
-
-	st        *state.State
-	deviceMgr *DeviceManager
 }
 
 func newNewStoreRemodelContext(st *state.State, devMgr *DeviceManager, newModel, oldModel *asserts.Model) *newStoreRemodelContext {
@@ -289,9 +338,13 @@ func newNewStoreRemodelContext(st *state.State, devMgr *DeviceManager, newModel,
 		model:      newModel,
 		systemMode: devMgr.SystemMode(SysAny),
 	}
-	rc.baseRemodelContext = baseRemodelContext{groundCtx, oldModel}
-	rc.st = st
-	rc.deviceMgr = devMgr
+	rc.baseRemodelContext = baseRemodelContext{
+		groundDeviceContext: groundCtx,
+		oldModel:            oldModel,
+
+		deviceMgr: devMgr,
+		st:        st,
+	}
 	rc.store = devMgr.newStore(rc.deviceBackend())
 	return rc
 }
@@ -358,7 +411,10 @@ func (rc *newStoreRemodelContext) Finish() error {
 	if err != nil {
 		return err
 	}
-	return rc.deviceMgr.setDevice(remodelDevice)
+	if err := rc.deviceMgr.setDevice(remodelDevice); err != nil {
+		return err
+	}
+	return rc.updateRunModeSystem()
 }
 
 func (rc *newStoreRemodelContext) deviceBackend() storecontext.DeviceBackend {

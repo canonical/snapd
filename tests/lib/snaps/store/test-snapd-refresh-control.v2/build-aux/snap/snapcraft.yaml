@@ -12,9 +12,16 @@ architectures:
   - build-on: amd64
     run-on: all
 
+apps:
+  pending:
+    command: pending
+  proceed:
+    command: proceed
+
 parts:
   test-snapd-refresh-control:
-    plugin: nil
+    plugin: dump
+    source: bin
 
 plugs:
   content:

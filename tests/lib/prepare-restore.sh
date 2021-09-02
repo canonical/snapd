@@ -494,19 +494,26 @@ prepare_project() {
     # base on the packaging. In Fedora/Suse this is handled via mock/osc
     case "$SPREAD_SYSTEM" in
         debian-*|ubuntu-*)
-            # in 16.04: apt build-dep -y ./
+            best_golang=golang-1.13
             if [[ "$SPREAD_SYSTEM" == debian-9-* ]]; then
-                best_golang="$(python3 ./tests/lib/best_golang.py)"
-                test -n "$best_golang"
-                sed -i -e "s/golang-1.10/$best_golang/" ./debian/control
-            else
-                best_golang=golang-1.10
+                echo "debian-9 tests disabled (no golang-1.13)"
+                exit 1
+            elif [[ "$SPREAD_SYSTEM" == debian-10-* ]]; then
+                # debian-10 needs backports for golang-1.13
+                echo "deb http://deb.debian.org/debian buster-backports main" >> /etc/apt/sources.list
+                apt update
+                # dh-golang must come from backports, gdebi/apt cannot
+                # resolve this on their own
+                apt install -y -t buster-backports dh-golang
+                # we need the specific golang-1.13 here, not golang-go
+                sed -i -e "s/golang-go (>=2:1.13).*,/${best_golang},/" ./debian/control
             fi
+            # in 16.04: "apt build-dep -y ./" would also work but not on 14.04
             gdebi --quiet --apt-line ./debian/control | quiet xargs -r eatmydata apt-get install -y
-            # The go 1.10 backport is not using alternatives or anything else so
+            # The go 1.13 backport is not using alternatives or anything else so
             # we need to get it on path somehow. This is not perfect but simple.
             if [ -z "$(command -v go)" ]; then
-                # the path filesystem path is: /usr/lib/go-1.10/bin
+                # the path filesystem path is: /usr/lib/go-1.13/bin
                 ln -s "/usr/lib/${best_golang/lang/}/bin/go" /usr/bin/go
             fi
             ;;
@@ -524,6 +531,14 @@ prepare_project() {
         fi
         sleep 1
     done
+    # Update C dependencies
+    for _ in $(seq 10); do
+        if (cd c-vendor && ./vendor.sh); then
+            break
+        fi
+        sleep 1
+    done
+
     # govendor runs as root and will leave strange permissions
     chown test.test -R "$SPREAD_PATH"
 
@@ -598,6 +613,20 @@ prepare_suite() {
 prepare_suite_each() {
     local variant="$1"
 
+    # Create runtime files in case those don't exist
+    # This is for the first test of the suite. We cannot perform these operations in prepare_suite
+    # because not all suites are triggering it (for example the tools suite doesn't).
+    touch "$RUNTIME_STATE_PATH/runs"
+    touch "$RUNTIME_STATE_PATH/journalctl_cursor"
+
+    # Start fs monitor
+    "$TESTSTOOLS"/fs-state start-monitor
+
+    # Save all the installed packages
+    if os.query is-classic; then
+        tests.pkgs list-installed > installed-initial.pkgs
+    fi
+
     # back test directory to be restored during the restore
     tests.backup prepare
 
@@ -647,6 +676,19 @@ restore_suite_each() {
     # restore test directory saved during prepare
     tests.backup restore
 
+    # Save all the installed packages and remove the new packages installed 
+    if os.query is-classic; then
+        tests.pkgs list-installed > installed-final.pkgs
+        diff -u installed-initial.pkgs installed-final.pkgs | grep -E "^\+" | tail -n+2 | cut -c 2- > installed-new.pkgs
+
+        # shellcheck disable=SC2002
+        packages="$(cat installed-new.pkgs | tr "\n" " ")"
+        if [ -n "$packages" ]; then
+            # shellcheck disable=SC2086
+            tests.pkgs remove $packages
+        fi
+    fi
+
     # On Arch it seems that using sudo / su for working with the test user
     # spawns the /run/user/12345 tmpfs for XDG_RUNTIME_DIR which asynchronously
     # cleans up itself sometime after the test but not instantly, leading to
@@ -675,6 +717,8 @@ restore_suite_each() {
         "$TESTSTOOLS"/cleanup-state pre-invariant
     fi
     tests.invariant check
+
+    "$TESTSTOOLS"/fs-state check-monitor
 }
 
 restore_suite() {

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"io/ioutil"
+	"net/url"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -234,16 +235,17 @@ func UserXdgRuntimeDir(euid sys.UserID, name string) string {
 // from the store but is not required for working offline should not
 // end up in SideInfo.
 type SideInfo struct {
-	RealName          string   `yaml:"name,omitempty" json:"name,omitempty"`
-	SnapID            string   `yaml:"snap-id" json:"snap-id"`
-	Revision          Revision `yaml:"revision" json:"revision"`
-	Channel           string   `yaml:"channel,omitempty" json:"channel,omitempty"`
-	EditedContact     string   `yaml:"contact,omitempty" json:"contact,omitempty"`
-	EditedTitle       string   `yaml:"title,omitempty" json:"title,omitempty"`
-	EditedSummary     string   `yaml:"summary,omitempty" json:"summary,omitempty"`
-	EditedDescription string   `yaml:"description,omitempty" json:"description,omitempty"`
-	Private           bool     `yaml:"private,omitempty" json:"private,omitempty"`
-	Paid              bool     `yaml:"paid,omitempty" json:"paid,omitempty"`
+	RealName          string              `yaml:"name,omitempty" json:"name,omitempty"`
+	SnapID            string              `yaml:"snap-id" json:"snap-id"`
+	Revision          Revision            `yaml:"revision" json:"revision"`
+	Channel           string              `yaml:"channel,omitempty" json:"channel,omitempty"`
+	EditedLinks       map[string][]string `yaml:"links,omitempty" json:"links,omitempty"`
+	EditedContact     string              `yaml:"contact,omitempty" json:"contact,omitempty"`
+	EditedTitle       string              `yaml:"title,omitempty" json:"title,omitempty"`
+	EditedSummary     string              `yaml:"summary,omitempty" json:"summary,omitempty"`
+	EditedDescription string              `yaml:"description,omitempty" json:"description,omitempty"`
+	Private           bool                `yaml:"private,omitempty" json:"private,omitempty"`
+	Paid              bool                `yaml:"paid,omitempty" json:"paid,omitempty"`
 }
 
 // Info provides information about snaps.
@@ -311,6 +313,9 @@ type Info struct {
 	// List of system users (usernames) this snap may use. The group of the same
 	// name must also exist.
 	SystemUsernames map[string]*SystemUsernameInfo
+
+	// OriginalLinks is a map links keys to link lists
+	OriginalLinks map[string][]string
 }
 
 // StoreAccount holds information about a store account, for example of snap
@@ -433,10 +438,35 @@ func (s *Info) Description() string {
 	return s.OriginalDescription
 }
 
+// Links returns the blessed set of snap-related links.
+func (s *Info) Links() map[string][]string {
+	if s.EditedLinks != nil {
+		return s.EditedLinks
+	}
+	return s.OriginalLinks
+}
+
 // Contact returns the blessed contact information for the snap.
 func (s *Info) Contact() string {
-	// TODO: consider links later
-	return s.EditedContact
+	var contact string
+	if s.EditedContact != "" {
+		contact = s.EditedContact
+	} else {
+		contacts := s.Links()["contact"]
+		if len(contacts) > 0 {
+			contact = contacts[0]
+		}
+	}
+	if contact != "" {
+		u, err := url.Parse(contact)
+		if err != nil {
+			return ""
+		}
+		if u.Scheme == "" {
+			contact = "mailto:" + contact
+		}
+	}
+	return contact
 }
 
 // Type returns the type of the snap, including additional snap ID check

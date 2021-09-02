@@ -97,7 +97,7 @@
 %endif
 
 Name:           snapd
-Version:        2.51.3
+Version:        2.51.7
 Release:        0%{?dist}
 Summary:        A transactional software package manager
 License:        GPLv3
@@ -508,9 +508,6 @@ rm -rf vendor/*
 %build
 # Generate version files
 ./mkversion.sh "%{version}-%{release}"
-
-# We don't want/need squashfuse in the rpm, as it's available in Fedora and EPEL
-sed -e 's:_ "github.com/snapcore/squashfuse"::g' -i systemd/systemd.go
 
 # Build snapd
 mkdir -p src/github.com/snapcore
@@ -971,6 +968,56 @@ fi
 
 
 %changelog
+* Fri Aug 27 2021 Ian Johnson <ian.johnson@canonical.com>
+- New upstream release 2.51.7
+ - cmd/snap-seccomp/syscalls: update syscalls list to libseccomp
+   v2.2.0-428-g5c22d4b1
+ - tests: cherry-pick shellcheck fix `bd730fd4`
+ - interfaces/dsp: add /dev/ambad into dsp interface
+ - many: shellcheck fixes
+ - snapstate: abort kernel refresh if no gadget update can be found
+ - overlord: add manager test for "assumes" checking
+ - store: deal correctly with "assumes" from the store raw yaml
+
+* Thu Aug 19 2021 Ian Johnson <ian.johnson@canonical.com>
+- New upstream release 2.51.6
+ - secboot: use half the mem for KDF in AddRecoveryKey
+ - secboot: switch main key KDF memory cost to 32KB
+
+* Mon Aug 16 2021 Ian Johnson <ian.johnson@canonical.com>
+- New upstream release 2.51.5
+ - snap/squashfs: handle squashfs-tools 4.5+
+ - tests/core20-install-device-file-install-via-hook-hack: adjust
+   test for 2.51
+ - o/devicestate/handlers_install.go: add workaround to create dirs
+   for install
+ - tests: fix linter warning
+ - tests: update other spread tests for new behaviour
+ - tests: ack assertions by default, add --noack option
+ - release-tools/changelog.py: also fix opensuse changelog date
+   format
+ - release-tools/changelog.py: fix typo in function name
+ - release-tools/changelog.py: fix fedora date format
+ - release-tools/changelog.py: handle case where we don't have a TZ
+ - release-tools/changelog.py: fix line length check
+ - release-tools/changelog.py: specify the LP bug for the release as
+   an arg too
+ - interface/modem-manager: add support for MBIM/QMI proxy
+   clients
+ - .github/workflows/test.yaml: use snapcraft 4.x to build the snapd
+   snap
+
+* Mon Aug 09 2021 Ian Johnson <ian.johnson@canonical.com>
+- New upstream release 2.51.4
+ - {device,snap}state: skip kernel extraction in seeding
+ - vendor: move to snapshot-4c814e1 branch and set fixed KDF options
+ - tests/interfaces/tee: fix HasLen check for udev snippets
+ - interfaces/tee: add support for Qualcomm qseecom device node
+ - gadget: check for system-save with multi volumes if encrypting
+   correctly
+ - gadget: drive-by: drop unnecessary/supported passthrough in test
+   gadget.yaml
+
 * Wed Jul 14 2021 Ian Johnson <ian.johnson@canonical.com>
 - New upstream release 2.51.3
  - interfaces/builtin: add sd-control interface

@@ -207,8 +207,6 @@ type bootenv20EnvRefKernelSuite struct {
 	bootloader *bootloadertest.MockBootloader
 }
 
-var defaultUC20BootEnv = map[string]string{"kernel_status": boot.DefaultStatus}
-
 var _ = Suite(&bootenv20Suite{})
 var _ = Suite(&bootenv20EnvRefKernelSuite{})
 

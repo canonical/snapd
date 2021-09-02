@@ -63,7 +63,7 @@ all: $(go_binaries)
 
 snap: GO_TAGS += nomanagers
 snap snap-seccomp:
-	go build $(if $(GO_TAGS),-tags $(GO_TAGS)) -buildmode=pie $(import_path)/cmd/$@
+	go build $(if $(GO_TAGS),-tags $(GO_TAGS)) -buildmode=pie -ldflags=-w $(import_path)/cmd/$@
 
 # Those three need to be built as static binaries. They run on the inside of a
 # nearly-arbitrary mount namespace that does not contain anything we can depend
@@ -77,9 +77,9 @@ snap-update-ns snap-exec snapctl:
 # suite to add test assertions. Do not enable this in distribution packages.
 snapd:
 ifeq ($(with_testkeys),1)
-	go build -buildmode=pie -tags withtestkeys $(import_path)/cmd/$@
+	go build -buildmode=pie -ldflags=-w -tags withtestkeys $(import_path)/cmd/$@
 else
-	go build -buildmode=pie $(import_path)/cmd/$@
+	go build -buildmode=pie -ldflags=-w $(import_path)/cmd/$@
 endif
 
 # Know how to create certain directories.

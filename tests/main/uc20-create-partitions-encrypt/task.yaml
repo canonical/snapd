@@ -68,6 +68,7 @@ restore: |
     apt autoremove -y cryptsetup
 
     rm -Rf /run/mnt
+    rm -f "$GOHOME"/bin/uc20-create-partitions
 
 debug: |
     cat /proc/partitions

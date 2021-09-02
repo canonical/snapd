@@ -4,7 +4,7 @@ set -e
 
 if [ "$GOPATH" = "" ]; then
     tmpdir=$(mktemp -d)
-    export GOPATH=$tmpdir
+    export GOPATH="$tmpdir"
     # shellcheck disable=SC2064
     trap "rm -rf $tmpdir" EXIT
 
@@ -25,6 +25,8 @@ fi
 echo Obtaining dependencies
 govendor sync
 
+echo Obtaining c-dependencies
+(cd c-vendor && ./vendor.sh)
 
 if [ "$1" != "--skip-unused-check" ]; then
     unused="$(govendor list +unused)"

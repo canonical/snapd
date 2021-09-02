@@ -40,6 +40,7 @@ type svcStatus struct {
 
 type svcLogs struct {
 	clientMixin
+	timeMixin
 	N          string `short:"n" default:"10"`
 	Follow     bool   `short:"f"`
 	Positional struct {
@@ -84,12 +85,12 @@ func init() {
 	}}
 	addCommand("services", shortServicesHelp, longServicesHelp, func() flags.Commander { return &svcStatus{} }, nil, argdescs)
 	addCommand("logs", shortLogsHelp, longLogsHelp, func() flags.Commander { return &svcLogs{} },
-		map[string]string{
+		timeDescs.also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"n": i18n.G("Show only the given number of lines, or 'all'."),
 			// TRANSLATORS: This should not start with a lowercase letter.
 			"f": i18n.G("Wait for new lines and print them as they come in."),
-		}, argdescs)
+		}), argdescs)
 
 	addCommand("start", shortStartHelp, longStartHelp, func() flags.Commander { return &svcStart{} },
 		waitDescs.also(map[string]string{
@@ -173,7 +174,11 @@ func (s *svcLogs) Execute(args []string) error {
 	}
 
 	for log := range logs {
-		fmt.Fprintln(Stdout, log)
+		if s.AbsTime {
+			fmt.Fprintln(Stdout, log.StringInUTC())
+		} else {
+			fmt.Fprintln(Stdout, log)
+		}
 	}
 
 	return nil
