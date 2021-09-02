@@ -19,7 +19,6 @@ require (
 	github.com/snapcore/bolt v1.3.2-0.20200603125928-e23dabaa2861
 	github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785
 	github.com/snapcore/secboot v0.0.0-20210805184555-c9f2139ee92b
-	github.com/snapcore/squashfuse v0.0.0-20171220165323-319f6d41a041
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1 // indirect
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/sys v0.0.0-20210823070655-63515b42dcdf
@@ -29,6 +28,7 @@ require (
 	gopkg.in/mgo.v2 v2.0.0-20180704144907-a7e2c1d573e1
 	gopkg.in/retry.v1 v1.0.3
 	gopkg.in/tomb.v2 v2.0.0-20161208151619-d5d1b5820637
+	gopkg.in/tylerb/graceful.v1 v1.2.15
 	gopkg.in/yaml.v2 v2.3.0
 	maze.io/x/crypto v0.0.0-20190131090603-9b94c9afe066 // indirect
 )
