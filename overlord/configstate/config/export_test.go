@@ -30,13 +30,13 @@ func (t *Transaction) PristineConfig() map[string]map[string]*json.RawMessage {
 }
 
 var (
-	SortPatchKeysByDepth      = sortPatchKeysByDepth
-	OverlapsWithVirtualConfig = overlapsWithVirtualConfig
+	SortPatchKeysByDepth       = sortPatchKeysByDepth
+	OverlapsWithExternalConfig = overlapsWithExternalConfig
 )
 
-func ClearVirtualMap() {
-	virtualMu.Lock()
-	defer virtualMu.Unlock()
+func ClearExternalConfigMap() {
+	externalConfigMu.Lock()
+	defer externalConfigMu.Unlock()
 
-	virtualMap = nil
+	externalConfigMap = nil
 }

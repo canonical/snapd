@@ -272,6 +272,7 @@ func (s *X11InterfaceSuite) TestStaticInfo(c *C) {
 	c.Assert(si.ImplicitOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows interacting with or running as an X11 server`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "x11")
+	c.Assert(si.AffectsPlugOnRefresh, Equals, true)
 }
 
 func (s *X11InterfaceSuite) TestAutoConnect(c *C) {

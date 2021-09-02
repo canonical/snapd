@@ -59,7 +59,7 @@ func (s *binariesTestSuite) TearDownTest(c *C) {
 	dirs.SetRootDir("")
 }
 
-const packageHello = `name: hello-snap
+const packageHelloNoSrv = `name: hello-snap
 version: 1.10
 summary: hello
 description: Hello...
@@ -69,6 +69,9 @@ apps:
  world:
    command: bin/world
    completer: world-completer.sh
+`
+
+const packageHello = packageHelloNoSrv + `
  svc1:
   command: bin/hello
   stop-command: bin/goodbye

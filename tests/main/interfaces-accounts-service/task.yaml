@@ -33,9 +33,6 @@ prepare: |
 restore: |
     tests.session -u test restore
 
-    apt-get remove -y --purge gnome-online-accounts
-    apt-get autoremove --purge -y
-
     # Ensure the file we are expecting to remove is there. This ought to catch
     # future format changes.
     test -e ~test/.config/goa-1.0/accounts.conf

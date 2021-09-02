@@ -273,7 +273,7 @@ void sc_setup_device_cgroup(const char *security_tag)
 	 * The cleanup function associated with this variable closes
 	 * descriptors other than -1. */
 	sc_device_cgroup *cgroup SC_CLEANUP(sc_device_cgroup_cleanup) =
-	    sc_device_cgroup_new(security_tag);
+	    sc_device_cgroup_new(security_tag, 0);
 	/* Setup the device group access control list */
 	sc_udev_setup_acls_common(cgroup);
 	for (struct udev_list_entry * entry = assigned; entry != NULL;

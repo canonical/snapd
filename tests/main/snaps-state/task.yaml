@@ -125,26 +125,26 @@ execute: |
     # Check the repack of the snapd deb into core and snapd snaps. This check is executed
     # on ubuntu/debian systems where the snapd_*.deb is generated while the system is prepared
     if ls "$SPREAD_PATH"/../snapd_*.deb; then
-        "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap core
+        "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap core "$PWD"/core
         test -e core/core-from-snapd-deb.snap
         rm -rf core
 
-        "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap snapd
+        "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap snapd "$PWD"/snapd
         test -e snapd/snapd-from-deb.snap
         # Check the binary in the snap is the same than the installed in the system
         test "$(sha256_of_snap_file snapd/snapd-from-deb.snap /usr/lib/snapd/snapd)" = "$(sha256sum /usr/lib/snapd/snapd | awk '{print $1}')"
         rm -rf snapd
 
         cp "$SPREAD_PATH"/../snapd_*.deb current_snapd.deb
-        "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap core current_snapd.deb
+        "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap core "$PWD"/core current_snapd.deb
         test -e core/core-from-snapd-deb.snap
         rm -rf core
 
-        "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap snapd current_snapd.deb
+        "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap snapd "$PWD"/snapd current_snapd.deb
         test -e snapd/snapd-from-deb.snap
         rm -rf snapd
 
-        "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap core noexist.deb 2>&1 | MATCH "snaps-state: deb file used to repack not found: noexist.deb"
+        "$TESTSTOOLS"/snaps-state repack-snapd-deb-into-snap core "$PWD"/core noexist.deb 2>&1 | MATCH "snaps-state: deb file used to repack not found: noexist.deb"
     fi
 
     # Check the repack of the core snap info snapd snap. This check is executed 

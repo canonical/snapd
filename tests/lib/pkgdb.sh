@@ -751,6 +751,7 @@ pkg_dependencies_opensuse(){
 
 pkg_dependencies_arch(){
     echo "
+    apparmor
     base-devel
     bash-completion
     clang
@@ -784,7 +785,6 @@ pkg_dependencies_arch(){
     xdg-user-dirs
     xdg-utils
     xfsprogs
-    apparmor
     zsh
     "
 }

@@ -9,7 +9,6 @@ built-into the snapd binary used during the tests.
 To build the tool:
 
 ```
-$ export GO111MODULE=off
 $ go install ./tests/lib/gendeveloper1model
 ```
 

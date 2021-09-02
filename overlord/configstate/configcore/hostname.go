@@ -35,7 +35,7 @@ import (
 func init() {
 	// add supported configuration of this module
 	supportedConfigurations["core.system.hostname"] = true
-	config.RegisterVirtualConfig("core", "system.hostname", getHostnameFromSystemHelper)
+	config.RegisterExternalConfig("core", "system.hostname", getHostnameFromSystemHelper)
 }
 
 // We are conservative here and follow hostname(7). The hostnamectl
