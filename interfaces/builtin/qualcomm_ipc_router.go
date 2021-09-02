@@ -65,7 +65,7 @@ type qualcomIPCRouterInterface struct {
 	commonInterface
 }
 
-func (iface *qualcomIPCRouterInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+func (iface *qualcomIPCRouterInterface) BeforeConnectPlug(plug *snap.PlugInfo) error {
 	features, err := apparmor_sandbox.ParserFeatures()
 	if err != nil {
 		return err

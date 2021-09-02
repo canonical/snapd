@@ -70,16 +70,20 @@ func (s *QrtrInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Assert(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
-func (s *QrtrInterfaceSuite) TestSanitizePlugFullAppArmorSandboxFeatures(c *C) {
-	r := apparmor_sandbox.MockFeatures(nil, nil, []string{"qipcrtr-socket"}, nil)
-	defer r()
+func (s *QrtrInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Assert(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *QrtrInterfaceSuite) TestSanitizePlugMissingAppArmorSandboxFeatures(c *C) {
+func (s *QrtrInterfaceSuite) TestSanitizePlugConnectionFullAppArmorSandboxFeatures(c *C) {
+	r := apparmor_sandbox.MockFeatures(nil, nil, []string{"qipcrtr-socket"}, nil)
+	defer r()
+	c.Assert(interfaces.BeforeConnectPlug(s.iface, s.plugInfo), IsNil)
+}
+
+func (s *QrtrInterfaceSuite) TestSanitizePlugConnectionMissingAppArmorSandboxFeatures(c *C) {
 	r := apparmor_sandbox.MockFeatures(nil, nil, nil, nil)
 	defer r()
-	err := interfaces.BeforePreparePlug(s.iface, s.plugInfo)
+	err := interfaces.BeforeConnectPlug(s.iface, s.plugInfo)
 	c.Assert(err, ErrorMatches, "cannot connect plug on system without qipcrtr socket support")
 }
 
