@@ -56,4 +56,8 @@ type Customizations struct {
 	// to set in the recovery bootloader (UC20 only).
 	// Currently only the "factory" hint flag is supported.
 	BootFlags []string `json:"boot-flags"`
+	// Validation controls whether validations should be taken
+	// into account by the store to select snap revisions.
+	// It can be set to "enforce" or "ignore".
+	Validation string `json:"validation"`
 }
