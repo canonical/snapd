@@ -74,9 +74,9 @@ func (s *setCommand) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("set which option?"))
 	}
 
-	context := s.context()
-	if context == nil {
-		return fmt.Errorf("cannot set without a context")
+	context, err := s.ensureContext()
+	if err != nil {
+		return err
 	}
 
 	if s.Typed && s.String {

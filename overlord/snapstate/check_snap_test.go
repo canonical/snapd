@@ -101,11 +101,11 @@ var assumesTests = []struct {
 	assumes: "[common-data-dir]",
 }, {
 	assumes: "[f1, f2]",
-	error:   `snap "foo" assumes unsupported features: f1, f2 \(try to refresh the core or snapd snaps\)`,
+	error:   `snap "foo" assumes unsupported features: f1, f2 \(try to refresh snapd\)`,
 }, {
 	assumes: "[f1, f2]",
 	classic: true,
-	error:   `snap "foo" assumes unsupported features: f1, f2 \(try to update snapd and refresh the core snap\)`,
+	error:   `snap "foo" assumes unsupported features: f1, f2 \(try to refresh snapd\)`,
 }, {
 	assumes: "[snapd2.15]",
 	version: "unknown",

@@ -15,6 +15,10 @@ if WITH_UNIT_TESTS
 CHECK_CFLAGS += -Werror
 endif
 
+if USE_INTERNAL_BPF_HEADERS
+VENDOR_BPF_HEADERS_CFLAGS = -I$(srcdir)/libsnap-confine-private/bpf/vendor
+endif
+
 subdirs = \
 		  libsnap-confine-private \
 		  snap-confine \
@@ -57,6 +61,8 @@ check-unit-tests:
 endif
 
 new_format = \
+	 libsnap-confine-private/bpf-support.c \
+	 libsnap-confine-private/bpf-support.h \
 	 libsnap-confine-private/cgroup-support.c \
 	 libsnap-confine-private/cgroup-support.h \
 	 libsnap-confine-private/cgroup-support-test.c \
@@ -158,11 +164,16 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/tool.h \
 	libsnap-confine-private/utils.c \
 	libsnap-confine-private/utils.h
-libsnap_confine_private_a_CFLAGS = $(CHECK_CFLAGS)
+if ENABLE_BPF
+libsnap_confine_private_a_SOURCES += \
+	libsnap-confine-private/bpf-support.c \
+	libsnap-confine-private/bpf-support.h
+endif
+libsnap_confine_private_a_CFLAGS = $(CHECK_CFLAGS) $(VENDOR_BPF_HEADERS_CFLAGS)
 
 noinst_LIBRARIES += libsnap-confine-private-debug.a
 libsnap_confine_private_debug_a_SOURCES = $(libsnap_confine_private_a_SOURCES)
-libsnap_confine_private_debug_a_CFLAGS = $(CHECK_CFLAGS) -DSNAP_CONFINE_DEBUG_BUILD=1
+libsnap_confine_private_debug_a_CFLAGS = $(CHECK_CFLAGS) $(VENDOR_BPF_HEADERS_CFLAGS) -DSNAP_CONFINE_DEBUG_BUILD=1
 
 if WITH_UNIT_TESTS
 noinst_PROGRAMS += libsnap-confine-private/unit-tests
@@ -189,7 +200,7 @@ libsnap_confine_private_unit_tests_SOURCES = \
 	libsnap-confine-private/unit-tests.h \
 	libsnap-confine-private/utils-test.c
 
-libsnap_confine_private_unit_tests_CFLAGS = $(CHECK_CFLAGS) $(GLIB_CFLAGS)
+libsnap_confine_private_unit_tests_CFLAGS = $(CHECK_CFLAGS) $(VENDOR_BPF_HEADERS_CFLAGS) $(GLIB_CFLAGS)
 libsnap_confine_private_unit_tests_LDADD = $(GLIB_LIBS)
 libsnap_confine_private_unit_tests_CFLAGS += -D_ENABLE_FAULT_INJECTION
 libsnap_confine_private_unit_tests_STATIC =
