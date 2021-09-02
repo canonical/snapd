@@ -38,19 +38,19 @@ import (
 
 func (s *imageSuite) TestDownloadpOptionsString(c *check.C) {
 	tests := []struct {
-		opts image.DownloadOptions
+		opts image.DownloadSnapOptions
 		str  string
 	}{
-		{image.DownloadOptions{LeavePartialOnError: true}, ""},
-		{image.DownloadOptions{}, ""},
-		{image.DownloadOptions{TargetDir: "/foo"}, `in "/foo"`},
-		{image.DownloadOptions{Basename: "foo"}, `to "foo.snap"`},
-		{image.DownloadOptions{Channel: "foo"}, `from channel "foo"`},
-		{image.DownloadOptions{Revision: snap.R(42)}, `(42)`},
-		{image.DownloadOptions{
+		{image.DownloadSnapOptions{LeavePartialOnError: true}, ""},
+		{image.DownloadSnapOptions{}, ""},
+		{image.DownloadSnapOptions{TargetDir: "/foo"}, `in "/foo"`},
+		{image.DownloadSnapOptions{Basename: "foo"}, `to "foo.snap"`},
+		{image.DownloadSnapOptions{Channel: "foo"}, `from channel "foo"`},
+		{image.DownloadSnapOptions{Revision: snap.R(42)}, `(42)`},
+		{image.DownloadSnapOptions{
 			CohortKey: "AbCdEfGhIjKlMnOpQrStUvWxYz",
 		}, `from cohort "…rStUvWxYz"`},
-		{image.DownloadOptions{
+		{image.DownloadSnapOptions{
 			TargetDir: "/foo",
 			Basename:  "bar",
 			Channel:   "baz",
@@ -65,31 +65,31 @@ func (s *imageSuite) TestDownloadpOptionsString(c *check.C) {
 	}
 }
 
-func (s *imageSuite) TestDownloadOptionsValid(c *check.C) {
+func (s *imageSuite) TestDownloadSnapOptionsValid(c *check.C) {
 	tests := []struct {
-		opts image.DownloadOptions
+		opts image.DownloadSnapOptions
 		err  error
 	}{
-		{image.DownloadOptions{}, nil}, // might want to error if no targetdir
-		{image.DownloadOptions{TargetDir: "foo"}, nil},
-		{image.DownloadOptions{Channel: "foo"}, nil},
-		{image.DownloadOptions{Revision: snap.R(42)}, nil},
-		{image.DownloadOptions{
+		{image.DownloadSnapOptions{}, nil}, // might want to error if no targetdir
+		{image.DownloadSnapOptions{TargetDir: "foo"}, nil},
+		{image.DownloadSnapOptions{Channel: "foo"}, nil},
+		{image.DownloadSnapOptions{Revision: snap.R(42)}, nil},
+		{image.DownloadSnapOptions{
 			CohortKey: "AbCdEfGhIjKlMnOpQrStUvWxYz",
 		}, nil},
-		{image.DownloadOptions{
+		{image.DownloadSnapOptions{
 			Channel:  "foo",
 			Revision: snap.R(42),
 		}, nil},
-		{image.DownloadOptions{
+		{image.DownloadSnapOptions{
 			Channel:   "foo",
 			CohortKey: "bar",
 		}, nil},
-		{image.DownloadOptions{
+		{image.DownloadSnapOptions{
 			Revision:  snap.R(1),
 			CohortKey: "bar",
 		}, image.ErrRevisionAndCohort},
-		{image.DownloadOptions{
+		{image.DownloadSnapOptions{
 			Basename: "/foo",
 		}, image.ErrPathInBase},
 	}
@@ -124,14 +124,14 @@ func (s *imageSuite) TestDownloadSnap(c *check.C) {
 	}, "")
 
 	dlDir := c.MkDir()
-	opts := image.DownloadOptions{
+	opts := image.DownloadSnapOptions{
 		TargetDir: dlDir,
 	}
-	fn, info, redirectChannel, err := s.tsto.DownloadSnap("core", opts)
+	dlSnap, err := s.tsto.DownloadSnap("core", opts)
 	c.Assert(err, check.IsNil)
-	c.Check(fn, check.Matches, filepath.Join(dlDir, `core_\d+.snap`))
-	c.Check(info.SnapName(), check.Equals, "core")
-	c.Check(redirectChannel, check.Equals, "")
+	c.Check(dlSnap.Path, check.Matches, filepath.Join(dlDir, `core_\d+.snap`))
+	c.Check(dlSnap.Info.SnapName(), check.Equals, "core")
+	c.Check(dlSnap.RedirectChannel, check.Equals, "")
 
 	c.Check(logbuf.String(), check.Matches, `.* DEBUG: Going to download snap "core" `+opts.String()+".\n")
 }
