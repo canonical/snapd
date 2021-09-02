@@ -63,6 +63,9 @@ var (
 	daemonReloadLock extMutex
 
 	osutilIsMounted = osutil.IsMounted
+
+	// allow replacing the systemd implementation with a mock one
+	newSystemd = newSystemdReal
 )
 
 // mu is a sync.Mutex that also supports to check if the lock is taken
@@ -89,6 +92,16 @@ func (m *extMutex) Unlock() {
 func (m *extMutex) Taken(errMsg string) {
 	if atomic.LoadInt32(&m.muC) != 1 {
 		panic("internal error: " + errMsg)
+	}
+}
+
+// MockNewSystemd can be used to replace the constructor of the
+// Systemd types with a function that returns a mock object.
+func MockNewSystemd(f func(kind Kind, rootDir string, mode InstanceMode, rep Reporter) Systemd) func() {
+	oldNewSystemd := newSystemd
+	newSystemd = f
+	return func() {
+		newSystemd = oldNewSystemd
 	}
 }
 
