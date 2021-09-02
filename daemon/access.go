@@ -225,6 +225,8 @@ func (ac themesAuthenticatedAccess) CheckAccess(d *Daemon, r *http.Request, ucre
 		return rspe
 	}
 
+	// check as well that we have admin permission to proceed with
+	// the theme operation
 	if user != nil {
 		return nil
 	}
