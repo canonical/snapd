@@ -310,15 +310,19 @@ type reporter interface {
 	Notify(string)
 }
 
+func newSystemd(kind Kind, rootDir string, mode InstanceMode, rep reporter) Systemd {
+	return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
+}
+
 // New returns a Systemd that uses the default root directory and omits
 // --root argument when executing systemctl.
 func New(mode InstanceMode, rep reporter) Systemd {
-	return &systemd{mode: mode, reporter: rep}
+	return newSystemd(FullImplementation, dirs.GlobalRootDir, mode, rep)
 }
 
 // NewUnderRoot returns a Systemd that operates on the given rootdir.
 func NewUnderRoot(rootDir string, mode InstanceMode, rep reporter) Systemd {
-	return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
+	return newSystemd(FullImplementation, rootDir, mode, rep)
 }
 
 // NewEmulationMode returns a Systemd that runs in emulation mode where
@@ -328,9 +332,7 @@ func NewEmulationMode(rootDir string) Systemd {
 	if rootDir == "" {
 		rootDir = dirs.GlobalRootDir
 	}
-	return &emulation{
-		rootDir: rootDir,
-	}
+	return newSystemd(EmulationMode, rootDir, SystemMode, nil)
 }
 
 // InstanceMode determines which instance of systemd to control.
@@ -349,6 +351,13 @@ const (
 	SystemMode InstanceMode = iota
 	UserMode
 	GlobalUserMode
+)
+
+type Kind int
+
+const (
+	FullImplementation Kind = iota
+	EmulationMode
 )
 
 type systemd struct {
