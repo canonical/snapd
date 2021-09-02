@@ -2990,6 +2990,9 @@ func (s *interfaceManagerSuite) testDoSetupProfilesUpdatesStaticAttributes(c *C,
 		"consumer:plug producer:slot": map[string]interface{}{
 			"interface": "content",
 		},
+		"consumer:plug3 producer:slot2": map[string]interface{}{
+			"interface": "system-files",
+		},
 		"unrelated-a:plug unrelated-b:slot": map[string]interface{}{
 			"interface":   "unrelated",
 			"plug-static": map[string]interface{}{"attr": "unrelated-stale"},
@@ -3011,6 +3014,8 @@ plugs:
  plug2:
   interface: content
   content: bar
+ plug3:
+  interface: system-files
 `
 	const producerV1Yaml = `
 name: producer
@@ -3019,6 +3024,8 @@ slots:
  slot:
   interface: content
   content: foo
+ slot2:
+  interface: system-files
 `
 	const consumerV2Yaml = `
 name: consumer
@@ -3032,6 +3039,10 @@ plugs:
   interface: content
   content: bar-changed
   attr: plug-value
+ plug3:
+  interface: system-files
+  read:
+    - /etc/foo
 `
 	const producerV2Yaml = `
 name: producer
@@ -3041,6 +3052,8 @@ slots:
   interface: content
   content: foo
   attr: slot-value
+ slot2:
+  interface: system-files
 `
 
 	const unrelatedAYaml = `
@@ -3078,6 +3091,9 @@ slots:
 	connRef := &interfaces.ConnRef{
 		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"},
 		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}
+	sysFilesConnRef := &interfaces.ConnRef{
+		PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug3"},
+		SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot2"}}
 
 	// Add a test security backend and a test interface. We want to use them to
 	// observe the interaction with the security backend and to allow the
@@ -3091,16 +3107,20 @@ slots:
 			// Those attributes should always match those of the snap version.
 			conn, err := repo.Connection(connRef)
 			c.Assert(err, IsNil)
+			sysFilesConn, err2 := repo.Connection(sysFilesConnRef)
+			c.Assert(err2, IsNil)
 			switch snapInfo.Version {
 			case "1":
 				c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo"})
 				c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo"})
+				c.Check(sysFilesConn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{})
 			case "2":
 				switch snapNameToSetup {
 				case "consumer":
 					// When the consumer has security setup the consumer's plug attribute is updated.
 					c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo", "attr": "plug-value"})
 					c.Check(conn.Slot.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo"})
+					c.Check(sysFilesConn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"read": []interface{}{"/etc/foo"}})
 				case "producer":
 					// When the producer has security setup the producer's slot attribute is updated.
 					c.Check(conn.Plug.StaticAttrs(), DeepEquals, map[string]interface{}{"content": "foo"})
