@@ -306,22 +306,22 @@ const (
 	UserServicesTarget = "default.target"
 )
 
-type reporter interface {
+type Reporter interface {
 	Notify(string)
 }
 
-func newSystemd(kind Kind, rootDir string, mode InstanceMode, rep reporter) Systemd {
+func newSystemdReal(kind Kind, rootDir string, mode InstanceMode, rep Reporter) Systemd {
 	return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
 }
 
 // New returns a Systemd that uses the default root directory and omits
 // --root argument when executing systemctl.
-func New(mode InstanceMode, rep reporter) Systemd {
+func New(mode InstanceMode, rep Reporter) Systemd {
 	return newSystemd(FullImplementation, dirs.GlobalRootDir, mode, rep)
 }
 
 // NewUnderRoot returns a Systemd that operates on the given rootdir.
-func NewUnderRoot(rootDir string, mode InstanceMode, rep reporter) Systemd {
+func NewUnderRoot(rootDir string, mode InstanceMode, rep Reporter) Systemd {
 	return newSystemd(FullImplementation, rootDir, mode, rep)
 }
 
@@ -362,7 +362,7 @@ const (
 
 type systemd struct {
 	rootDir  string
-	reporter reporter
+	reporter Reporter
 	mode     InstanceMode
 }
 
