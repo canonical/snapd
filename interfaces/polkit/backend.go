@@ -38,8 +38,8 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-func polkitPolicyName(snapName, uniqueName string) string {
-	return snap.ScopedSecurityTag(snapName, "interface", uniqueName) + ".policy"
+func polkitPolicyName(snapName, nameSuffix string) string {
+	return snap.ScopedSecurityTag(snapName, "interface", nameSuffix) + ".policy"
 }
 
 // Backend is responsible for maintaining DBus policy files.
@@ -100,8 +100,8 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]osutil.F
 		return nil
 	}
 	content := make(map[string]osutil.FileState, len(policies)+1)
-	for name, policyContent := range policies {
-		filename := polkitPolicyName(snapInfo.InstanceName(), name)
+	for nameSuffix, policyContent := range policies {
+		filename := polkitPolicyName(snapInfo.InstanceName(), nameSuffix)
 		content[filename] = &osutil.MemoryFileState{
 			Content: policyContent,
 			Mode:    0644,

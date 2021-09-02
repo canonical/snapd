@@ -35,14 +35,14 @@ type Specification struct {
 }
 
 // AddPolicy adds a polkit policy file to install.
-func (spec *Specification) AddPolicy(name string, content Policy) error {
-	if old, ok := spec.policyFiles[name]; ok && !bytes.Equal(old, content) {
-		return fmt.Errorf("interface %q requires conflicting polkit policy content", name)
+func (spec *Specification) AddPolicy(nameSuffix string, content Policy) error {
+	if old, ok := spec.policyFiles[nameSuffix]; ok && !bytes.Equal(old, content) {
+		return fmt.Errorf("internal error: polkit policy content for %q re-defined with different content", nameSuffix)
 	}
 	if spec.policyFiles == nil {
 		spec.policyFiles = make(map[string]Policy)
 	}
-	spec.policyFiles[name] = content
+	spec.policyFiles[nameSuffix] = content
 	return nil
 }
 
