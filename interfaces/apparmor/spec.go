@@ -27,7 +27,6 @@ import (
 	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
@@ -86,10 +85,6 @@ type Specification struct {
 	// the calling interface can be used with the home interface. Ideally,
 	// we would not need this, but we currently do (LP: #1797786)
 	suppressHomeIx bool
-
-	// parserFeatures is the set of apparmor_parser and kernel features that are
-	// available
-	features []string
 }
 
 // setScope sets the scope of subsequent AddSnippet family functions.
@@ -99,15 +94,6 @@ func (spec *Specification) setScope(securityTags []string) (restore func()) {
 	return func() {
 		spec.securityTags = nil
 	}
-}
-
-func (spec *Specification) Features() []string {
-	return spec.features
-}
-
-func (spec *Specification) MockFeatures(features []string) {
-	osutil.MustBeTestBinary("cannot use MockFeatures outside of tests")
-	spec.features = features
 }
 
 // AddSnippet adds a new apparmor snippet to all applications and hooks using the interface.

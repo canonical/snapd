@@ -755,9 +755,7 @@ func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts in
 
 // NewSpecification returns a new, empty apparmor specification.
 func (b *Backend) NewSpecification() interfaces.Specification {
-	return &Specification{
-		features: b.SandboxFeatures(),
-	}
+	return &Specification{}
 }
 
 // SandboxFeatures returns the list of apparmor features supported by the kernel.
