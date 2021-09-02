@@ -895,8 +895,8 @@ EOF
         # unpack the snap and re-pack it so that it is not asserted and thus 
         # won't be automatically refreshed
         if [ "$IMAGE_CHANNEL" != "$BASE_CHANNEL" ]; then
-            sudo unsquashfs -d core20-snap core20.snap
-            sudo snap pack --filename=core20-repacked.snap core20-snap
+            unsquashfs -d core20-snap core20.snap
+            snap pack --filename=core20-repacked.snap core20-snap
             mv core20-repacked.snap $IMAGE_HOME/core20.snap
         else 
             mv core20.snap $IMAGE_HOME/core20.snap
@@ -910,7 +910,7 @@ EOF
                            "$EXTRA_FUNDAMENTAL" \
                            --extra-snaps "${extra_snap[0]}" \
                            --output "$IMAGE_HOME/$IMAGE"
-    rm -f ./pc-kernel_*.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert} ./core20.{snap,assert}
+    rm -f ./pc-kernel_*.{snap,assert} ./pc-kernel.{snap,assert} ./pc_*.{snap,assert} ./snapd_*.{snap,assert} ./core20.{snap,assert}
 
     if os.query is-core20; then
         # (ab)use ubuntu-seed
