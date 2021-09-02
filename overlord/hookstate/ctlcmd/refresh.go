@@ -27,8 +27,10 @@ import (
 
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -253,8 +255,14 @@ func (c *refreshCommand) proceed() error {
 
 	// running outside of hook
 	if ctx.IsEphemeral() {
-		// TODO: consider having a permission via an interface for this before making this not experimental
 		st := ctx.State()
+		allow, err := allowProceed(st, ctx.InstanceName())
+		if err != nil {
+			return err
+		}
+		if !allow {
+			return fmt.Errorf("cannot proceed: requires snap-refresh-control interface")
+		}
 		// we need to check if GateAutoRefreshHook feature is enabled when
 		// running by the snap (we don't need to do this when running from the
 		// hook because in that case hook task won't be created if not enabled).
@@ -276,4 +284,24 @@ func (c *refreshCommand) proceed() error {
 	ctx.Cache("action", snapstate.GateAutoRefreshProceed)
 
 	return nil
+}
+
+func allowProceed(st *state.State, snapName string) (bool, error) {
+	conns, err := ifacestate.ConnectionStates(st)
+	if err != nil {
+		return false, fmt.Errorf("internal error: cannot get connections: %s", err)
+	}
+	for refStr, connState := range conns {
+		if connState.Undesired || connState.Interface != "snap-refresh-control" {
+			continue
+		}
+		connRef, err := interfaces.ParseConnRef(refStr)
+		if err != nil {
+			return false, fmt.Errorf("internal error: %s", err)
+		}
+		if connRef.PlugRef.Snap == snapName {
+			return true, nil
+		}
+	}
+	return false, nil
 }
