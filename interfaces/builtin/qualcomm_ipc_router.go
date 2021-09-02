@@ -22,8 +22,8 @@ package builtin
 import (
 	"fmt"
 
-	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/apparmor"
+	apparmor_sandbox "github.com/snapcore/snapd/sandbox/apparmor"
+	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -65,15 +65,18 @@ type qualcomIPCRouterInterface struct {
 	commonInterface
 }
 
-func (iface *qualcomIPCRouterInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	if !strutil.ListContains(spec.Features(), "parser:qipcrtr-socket") {
+func (iface *qualcomIPCRouterInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
+	features, err := apparmor_sandbox.ParserFeatures()
+	if err != nil {
+		return err
+	}
+
+	if !strutil.ListContains(features, "qipcrtr-socket") {
 		// then the host system doesn't have the required feature to compile the
 		// policy, the qipcrtr socket is a new addition not present in i.e.
 		// xenial
 		return fmt.Errorf("cannot connect plug on system without qipcrtr socket support")
 	}
-
-	spec.AddSnippet(qipcrtrConnectedPlugAppArmor)
 
 	return nil
 }
@@ -81,12 +84,13 @@ func (iface *qualcomIPCRouterInterface) AppArmorConnectedPlug(spec *apparmor.Spe
 func init() {
 	registerIface(&qualcomIPCRouterInterface{
 		commonInterface{
-			name:                 "qualcomm-ipc-router",
-			summary:              qipcrtrSummary,
-			implicitOnCore:       true,
-			implicitOnClassic:    true,
-			baseDeclarationSlots: qipcrtrBaseDeclarationSlots,
-			connectedPlugSecComp: qipcrtrConnectedPlugSecComp,
+			name:                  "qualcomm-ipc-router",
+			summary:               qipcrtrSummary,
+			implicitOnCore:        true,
+			implicitOnClassic:     true,
+			connectedPlugAppArmor: qipcrtrConnectedPlugAppArmor,
+			baseDeclarationSlots:  qipcrtrBaseDeclarationSlots,
+			connectedPlugSecComp:  qipcrtrConnectedPlugSecComp,
 		},
 	})
 }
