@@ -340,10 +340,11 @@ func probeParserFeatures() ([]string, error) {
 }
 
 // FindAppArmorParser returns the path of the apparmor_parser binary if one is found.
-func FindAppArmorParser() (string, bool, error) {
-	// first see if we have our own internal copy
+func FindAppArmorParser() (path string, internal bool, err error) {
+	// first see if we have our own internal copy which could come from
+	// the snapd snap (likely) or be part of the snapd distro package (unlikely)
 	if path, err := snapdtool.InternalToolPath("apparmor_parser"); err == nil {
-		if _, err := os.Stat(path); err == nil {
+		if osutil.IsExecutable(path) {
 			return path, true, nil
 		}
 	}

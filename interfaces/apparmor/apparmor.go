@@ -134,12 +134,11 @@ func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 		// policy features across the widest array of kernels
 		// versions
 		prefix := strings.TrimSuffix(parser, "apparmor_parser")
-		args = append(args, "--config-file")
-		args = append(args, filepath.Join(prefix, "/apparmor/parser.conf"))
-		args = append(args, "-b")
-		args = append(args, filepath.Join(prefix, "/apparmor.d"))
-		args = append(args, "--policy-features")
-		args = append(args, filepath.Join(prefix, "/apparmor.d/abi/3.0"))
+		args = append(args, []string{
+			"--config-file", filepath.Join(prefix, "/apparmor/parser.conf"),
+			"--base", filepath.Join(prefix, "/apparmor.d"),
+			"--policy-features", filepath.Join(prefix, "/apparmor.d/abi/3.0"),
+		}...)
 	}
 
 	args = append(args, fnames...)

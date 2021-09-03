@@ -135,7 +135,7 @@ parts:
     override-build: |
       cd libraries/libapparmor
       ./autogen.sh
-      ./configure --prefix=/usr
+      ./configure --prefix=/usr --disable-man-pages --disable-perl --disable-python --disable-ruby
       make
       # place libapparmor into staging area for use by snap-confine
       make -C src install DESTDIR=$SNAPCRAFT_STAGE
