@@ -40,6 +40,18 @@ func BeforePreparePlug(iface Interface, plugInfo *snap.PlugInfo) error {
 	return err
 }
 
+func BeforeConnectPlug(iface Interface, plug *ConnectedPlug) error {
+	if iface.Name() != plug.plugInfo.Interface {
+		return fmt.Errorf("cannot sanitize connection for plug %q (interface %q) using interface %q",
+			PlugRef{Snap: plug.plugInfo.Snap.InstanceName(), Name: plug.plugInfo.Name}, plug.plugInfo.Interface, iface.Name())
+	}
+	var err error
+	if iface, ok := iface.(ConnPlugSanitizer); ok {
+		err = iface.BeforeConnectPlug(plug)
+	}
+	return err
+}
+
 // ByName returns an Interface for the given interface name. Note that in order for
 // this to work properly, the package "interfaces/builtin" must also eventually be
 // imported to populate the full list of interfaces.
@@ -172,6 +184,12 @@ type Interface interface {
 	// unambiguous connection candidate and declaration-based checks
 	// allow.
 	AutoConnect(plug *snap.PlugInfo, slot *snap.SlotInfo) bool
+}
+
+// PlugSanitizer can be implemented by Interfaces that have reasons to sanitize
+// their plugs specifically before a connection is performed.
+type ConnPlugSanitizer interface {
+	BeforeConnectPlug(plug *ConnectedPlug) error
 }
 
 // PlugSanitizer can be implemented by Interfaces that have reasons to sanitize their plugs.
