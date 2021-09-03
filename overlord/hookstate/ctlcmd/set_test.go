@@ -283,7 +283,7 @@ func (s *setSuite) TestCommandSavesDeltasOnly(c *C) {
 
 func (s *setSuite) TestCommandWithoutContext(c *C) {
 	_, _, err := ctlcmd.Run(nil, []string{"set", "foo=bar"}, 0)
-	c.Check(err, ErrorMatches, ".*cannot set without a context.*")
+	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "set"\) from outside of a snap`)
 }
 
 func (s *setAttrSuite) SetUpTest(c *C) {

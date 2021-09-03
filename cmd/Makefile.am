@@ -61,6 +61,8 @@ check-unit-tests:
 endif
 
 new_format = \
+	 libsnap-confine-private/bpf-support.c \
+	 libsnap-confine-private/bpf-support.h \
 	 libsnap-confine-private/cgroup-support.c \
 	 libsnap-confine-private/cgroup-support.h \
 	 libsnap-confine-private/cgroup-support-test.c \
@@ -162,6 +164,11 @@ libsnap_confine_private_a_SOURCES = \
 	libsnap-confine-private/tool.h \
 	libsnap-confine-private/utils.c \
 	libsnap-confine-private/utils.h
+if ENABLE_BPF
+libsnap_confine_private_a_SOURCES += \
+	libsnap-confine-private/bpf-support.c \
+	libsnap-confine-private/bpf-support.h
+endif
 libsnap_confine_private_a_CFLAGS = $(CHECK_CFLAGS) $(VENDOR_BPF_HEADERS_CFLAGS)
 
 noinst_LIBRARIES += libsnap-confine-private-debug.a

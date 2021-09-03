@@ -131,6 +131,7 @@ func (s *NetworkControlInterfaceSuite) TestStaticInfo(c *C) {
 	c.Assert(si.ImplicitOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows configuring networking and network namespaces`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "network-control")
+	c.Assert(si.AffectsPlugOnRefresh, Equals, true)
 }
 
 func (s *NetworkControlInterfaceSuite) TestAutoConnect(c *C) {

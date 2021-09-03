@@ -27,7 +27,6 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/snapcore/snapd/overlord"
-	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -106,11 +105,11 @@ func MockUnsafeReadSnapInfo(mock func(string) (*snap.Info, error)) (restore func
 	}
 }
 
-func MockAssertstateRefreshSnapDeclarations(mock func(*state.State, int, *assertstate.RefreshAssertionsOptions) error) (restore func()) {
-	oldAssertstateRefreshSnapDeclarations := assertstateRefreshSnapDeclarations
-	assertstateRefreshSnapDeclarations = mock
+func MockAssertstateRefreshSnapAssertions(mock func(*state.State, int) error) (restore func()) {
+	oldAssertstateRefreshSnapAssertions := assertstateRefreshSnapAssertions
+	assertstateRefreshSnapAssertions = mock
 	return func() {
-		assertstateRefreshSnapDeclarations = oldAssertstateRefreshSnapDeclarations
+		assertstateRefreshSnapAssertions = oldAssertstateRefreshSnapAssertions
 	}
 }
 

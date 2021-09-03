@@ -4,12 +4,6 @@ systems:
     - -ubuntu-14.04-*  # no support for tests.session
     - -ubuntu-core-*  # no support for useradd
 
-environment:
-    # an empty $topsrcdir/tests/go.mod seems to break importing or building go
-    # packages referenced by their import paths while under the tests directory,
-    # need to disable go modules support for this test
-    GO111MODULE: off
-
 prepare: |
     "$(command -v go)" build -o hightest test.go
     useradd --uid "$(( (1<<32)-2 ))" --shell /bin/sh hightest
@@ -17,8 +11,7 @@ prepare: |
 
 restore: |
     tests.session -u hightest restore
-    userdel hightest
-    rm -f hightest
+    userdel -r hightest
 
 execute: |
     tests.session -u hightest exec "$(pwd)/hightest"
