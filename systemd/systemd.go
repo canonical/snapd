@@ -324,7 +324,14 @@ type Reporter interface {
 }
 
 func newSystemdReal(kind Kind, rootDir string, mode InstanceMode, rep Reporter) Systemd {
-	return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
+	switch kind {
+	case FullImplementation:
+		return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
+	case EmulationMode:
+		return &emulation{rootDir: rootDir}
+	default:
+		panic(fmt.Sprintf("unsupported systemd kind %v", kind))
+	}
 }
 
 // New returns a Systemd that uses the default root directory and omits
