@@ -111,8 +111,9 @@ func (s *mountunitSuite) TestAddMountUnit(c *C) {
 		where:    fmt.Sprintf("%s/foo/13", dirs.StripRootDir(dirs.SnapMountDir)),
 		fstype:   "squashfs",
 	}
-	c.Check(sysd.AddMountUnitFileCalls, HasLen, 1)
-	c.Check(sysd.AddMountUnitFileCalls[0], DeepEquals, expectedParameters)
+	c.Check(sysd.AddMountUnitFileCalls, DeepEquals, []ParamsForAddMountUnitFile{
+		expectedParameters,
+	})
 }
 
 func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
