@@ -40,11 +40,9 @@ func Intersection(slices ...[]string) []string {
 		alreadyAdded := map[string]bool{}
 		result := make([]string, 0, guessLen)
 		for _, item := range l1 {
-			if ListContains(l2, item) {
-				if !alreadyAdded[item] {
-					result = append(result, item)
-					alreadyAdded[item] = true
-				}
+			if !alreadyAdded[item] && ListContains(l2, item) {
+				result = append(result, item)
+				alreadyAdded[item] = true
 			}
 		}
 		return result
