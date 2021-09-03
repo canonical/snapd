@@ -205,8 +205,8 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int) 
 
 func setActionValidationSets(action *store.SnapAction, valsets []string) {
 	for _, vs := range valsets {
-		vskey := strings.Split(vs, "/")
-		action.ValidationSets = append(action.ValidationSets, vskey)
+		keyParts := strings.Split(vs, "/")
+		action.ValidationSets = append(action.ValidationSets, keyParts)
 	}
 }
 
@@ -240,7 +240,7 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 	}
 
 	var requiredRevision snap.Revision
-	var requiredValsets []string
+	var requiredValSets []string
 	if enforcedSets != nil {
 		// check for invalid presence first to have a list of sets where it's invalid
 		invalidForValSets, err := enforcedSets.CheckPresenceInvalid(naming.Snap(name))
@@ -252,14 +252,14 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 		if len(invalidForValSets) > 0 {
 			return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q due to enforcing rules of validation set %s", name, strings.Join(invalidForValSets, ","))
 		}
-		requiredValsets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(name))
+		requiredValSets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(name))
 		if err != nil {
 			return store.SnapActionResult{}, err
 		}
 	}
 
-	if len(requiredValsets) > 0 {
-		setActionValidationSets(action, requiredValsets)
+	if len(requiredValSets) > 0 {
+		setActionValidationSets(action, requiredValSets)
 		if !requiredRevision.Unset() {
 			action.Revision = requiredRevision
 		}
@@ -267,7 +267,7 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 
 	// check if desired revision matches the revision required by validation sets
 	if !requiredRevision.Unset() && !revOpts.Revision.Unset() && revOpts.Revision.N != requiredRevision.N {
-		return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q at requested revision %s, revision %s required by validation sets: %s", name, revOpts.Revision, requiredRevision, strings.Join(requiredValsets, ","))
+		return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q at requested revision %s, revision %s required by validation sets: %s", name, revOpts.Revision, requiredRevision, strings.Join(requiredValSets, ","))
 	}
 
 	// cannot specify both with the API
