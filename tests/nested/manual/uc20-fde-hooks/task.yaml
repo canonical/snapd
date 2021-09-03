@@ -9,7 +9,6 @@ environment:
     NESTED_ENABLE_SECURE_BOOT: false
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
     NESTED_ENABLE_OVMF: true
-    GO111MODULE: off
 
 prepare: |
   echo "Build a kernel snap with the fde-setup hook"
