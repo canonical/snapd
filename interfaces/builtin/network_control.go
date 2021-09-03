@@ -142,6 +142,9 @@ network sna,
 /sys/devices/{pci[0-9a-f]*,platform,virtual}/**/rfkill[0-9]*/{,**} r,
 /sys/devices/{pci[0-9a-f]*,platform,virtual}/**/rfkill[0-9]*/state w,
 
+# For reading the address of a particular ethernet interface
+/sys/devices/{pci[0-9a-f]*,platform,virtual}/**/net/*/address r,
+
 # arp
 network netlink dgram,
 
