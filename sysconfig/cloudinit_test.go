@@ -677,13 +677,19 @@ func (s *sysconfigSuite) TestRestrictCloudInit(c *C) {
 	}
 }
 
-const maasGadgetCloudInitImplictYAML = `
+const maasCloudInitImplicitYAML = `
 datasource:
   MAAS:
     foo: bar
 `
 
-const maasGadgetCloudInitImplictLowerCaseYAML = `
+const gceCloudInitImplicitYAML = `
+datasource:
+  GCE:
+    foo: bar
+`
+
+const maasGadgetCloudInitImplicitLowerCaseYAML = `
 datasource:
   maas:
     foo: bar
@@ -767,14 +773,14 @@ func (s *sysconfigSuite) TestCloudDatasourcesInUse(c *C) {
 			comment: "multiple datasources in datasource list",
 		},
 		{
-			configFileContent: maasGadgetCloudInitImplictYAML,
+			configFileContent: maasCloudInitImplicitYAML,
 			expRes: &sysconfig.CloudDatasourcesInUseResult{
 				Mentioned: []string{"MAAS"},
 			},
 			comment: "implicitly mentioned datasource",
 		},
 		{
-			configFileContent: maasGadgetCloudInitImplictLowerCaseYAML,
+			configFileContent: maasGadgetCloudInitImplicitLowerCaseYAML,
 			expRes: &sysconfig.CloudDatasourcesInUseResult{
 				Mentioned: []string{"MAAS"},
 			},
@@ -815,6 +821,108 @@ func (s *sysconfigSuite) TestCloudDatasourcesInUse(c *C) {
 		err := ioutil.WriteFile(configFile, []byte(t.configFileContent), 0644)
 		c.Assert(err, IsNil, comment)
 		res, err := sysconfig.CloudDatasourcesInUse(configFile)
+		if t.expError != "" {
+			c.Assert(err, ErrorMatches, t.expError, comment)
+			continue
+		}
+
+		c.Assert(res, DeepEquals, t.expRes, comment)
+	}
+}
+
+func (s *sysconfigSuite) TestCloudDatasourcesInUseForDirInUse(c *C) {
+	tt := []struct {
+		configFilesContents map[string]string
+		expError            string
+		expRes              *sysconfig.CloudDatasourcesInUseResult
+		comment             string
+	}{
+		{
+			configFilesContents: map[string]string{
+				"maas.conf": `datasource_list: [MAAS]`,
+			},
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyAllowed: []string{"MAAS"},
+				Mentioned:         []string{"MAAS"},
+			},
+			comment: "explicitly allowed via datasource_list",
+		},
+		{
+			configFilesContents: map[string]string{
+				"1_maas.conf": `datasource_list: [MAAS]`,
+				"2_none.conf": `datasource_list: []`,
+			},
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyNoneAllowed: true,
+				Mentioned:             []string{"MAAS"},
+			},
+			comment: "explicit none overwriting explicit allowing",
+		},
+		{
+			configFilesContents: map[string]string{
+				"1_none.conf": `datasource_list: []`,
+				"2_maas.conf": `datasource_list: [MAAS]`,
+			},
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyNoneAllowed: false,
+				ExplicitlyAllowed:     []string{"MAAS"},
+				Mentioned:             []string{"MAAS"},
+			},
+			comment: "explicit allowing overwriting explicit none",
+		},
+		{
+			configFilesContents: map[string]string{
+				"maas.conf": maasCloudInitImplicitYAML,
+			},
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				Mentioned: []string{"MAAS"},
+			},
+			comment: "implicit datasource",
+		},
+		{
+			configFilesContents: map[string]string{
+				"1_gce.conf":  gceCloudInitImplicitYAML,
+				"2_maas.conf": maasCloudInitImplicitYAML,
+			},
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				Mentioned: []string{"GCE", "MAAS"},
+			},
+			comment: "multiple implicit datasources",
+		},
+		{
+			configFilesContents: map[string]string{
+				"1_maas.conf": maasCloudInitImplicitYAML,
+				"2_gce.conf":  gceCloudInitImplicitYAML,
+			},
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				Mentioned: []string{"GCE", "MAAS"},
+			},
+			comment: "multiple implicit datasources in different lexical order",
+		},
+		{
+			configFilesContents: map[string]string{
+				"maas.conf": `datasource_list: [MAAS]`,
+				"gce.conf":  gceCloudInitImplicitYAML,
+			},
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyAllowed: []string{"MAAS"},
+				Mentioned:         []string{"GCE", "MAAS"},
+			},
+			comment: "implicit datasources and explicit datasource",
+		},
+	}
+
+	for _, t := range tt {
+		comment := Commentf(t.comment)
+
+		dir := c.MkDir()
+		for basename, content := range t.configFilesContents {
+			configFile := filepath.Join(dir, basename)
+			err := ioutil.WriteFile(configFile, []byte(content), 0644)
+			c.Assert(err, IsNil, comment)
+		}
+
+		res, err := sysconfig.CloudDatasourcesInUseForDir(dir)
 		if t.expError != "" {
 			c.Assert(err, ErrorMatches, t.expError, comment)
 			continue

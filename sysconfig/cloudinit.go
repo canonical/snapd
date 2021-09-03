@@ -263,6 +263,68 @@ func cloudDatasourcesInUse(configFile string) (*cloudDatasourcesInUseResult, err
 	return res, nil
 }
 
+// cloudDatasourcesInUseForDir considers all files in a directory as individual
+// cloud-init config files, and analyzes all datasources in use for each file
+// and returns their union. It does not distinguish between mentioned,
+// explicitly allowed, or explicitly disallowed, but it does follow cloud-init's
+// logic for determining the overwriting of properties such that if a lexcially
+// earlier file sets datasource_list: [], then a later file sets
+// datasource_list: [foo], then foo is used instead and the explicit disallowing
+// is ignored/overwritten, but if no other file sets datasource_list, then it is
+// treated as if the config explicitly disallows no datasources.
+func cloudDatasourcesInUseForDir(dir string) (*cloudDatasourcesInUseResult, error) {
+
+	files, err := filepath.Glob(filepath.Join(dir, "*"))
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: validate that this is the same order in which files are processed
+	// by cloud-init in reality
+	sort.Strings(files)
+
+	res := &cloudDatasourcesInUseResult{}
+
+	resMentionedMap := map[string]bool{}
+
+	for _, f := range files {
+		fRes, err := cloudDatasourcesInUse(f)
+		// TODO: or should we fail on broken individual files? probably?
+		if err != nil {
+			logger.Noticef("error analyzing cloud-init datasources in use for file %s: %v", f, err)
+			continue
+		}
+
+		// if we have an explicit setting for what is allowed, then that always
+		// overwrites previous settings of ExplicitlyAllowed
+		if len(fRes.ExplicitlyAllowed) != 0 {
+			res.ExplicitlyNoneAllowed = false
+			res.ExplicitlyAllowed = fRes.ExplicitlyAllowed
+		} else if fRes.ExplicitlyNoneAllowed {
+			// if we are now explicitly disallowing datasources, then overwrite that
+			// setting - this is mutually exclusive with ExplicitlyAllowed being
+			// having a non-zero length
+			res.ExplicitlyNoneAllowed = true
+			res.ExplicitlyAllowed = nil
+		}
+
+		// we always keep track of the mentioned datasources, it's not an issue
+		// to mention datasources and also have datasources disallowed, the
+		// higher level logic is expected to handle this properly
+		for _, ds := range fRes.Mentioned {
+			if !resMentionedMap[ds] {
+				res.Mentioned = append(res.Mentioned, ds)
+				resMentionedMap[ds] = true
+			}
+		}
+	}
+
+	sort.Strings(res.Mentioned)
+	sort.Strings(res.ExplicitlyAllowed)
+
+	return res, nil
+}
+
 type cloudInitConfigInstallOptions struct {
 	// Prefix is the prefix to add to files when installing them.
 	Prefix string
