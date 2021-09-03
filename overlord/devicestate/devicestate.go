@@ -443,29 +443,12 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 			return nil, err
 		}
 		tss = append(tss, ts)
-	} else {
-		var newBaseChannel string
-		if new.Grade() != asserts.ModelGradeUnset && current.Grade() != asserts.ModelGradeUnset {
-			// both old and the new model can specify a default channel
-			if new.BaseSnap().DefaultChannel != current.BaseSnap().DefaultChannel {
-				newBaseChannel = new.BaseSnap().DefaultChannel
-			}
-		} else if new.Grade() != asserts.ModelGradeUnset {
-			// only the new model can specify a default channel,
-			// this was not possible in pre UC20 models
-			var bs snapstate.SnapState
-			if err := snapstate.Get(st, current.Base(), &bs); err != nil {
-				// this is unexpected, new model has the same base,
-				// which should be already installed
-				return nil, err
-			}
-			if bs.TrackingChannel != newBaseChannel {
-				newBaseChannel = new.BaseSnap().DefaultChannel
-			}
-		}
-		if newBaseChannel != "" {
+	} else if new.Grade() != asserts.ModelGradeUnset && current.Grade() != asserts.ModelGradeUnset {
+		// we're using the same base, both old and the new model can
+		// specify a default channel
+		if new.BaseSnap().DefaultChannel != current.BaseSnap().DefaultChannel {
 			ts, err := snapstateUpdateWithDeviceContext(st, new.Base(),
-				&snapstate.RevisionOptions{Channel: newBaseChannel},
+				&snapstate.RevisionOptions{Channel: new.BaseSnap().DefaultChannel},
 				userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
 			if err != nil {
 				return nil, err
