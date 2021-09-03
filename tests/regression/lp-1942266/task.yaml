@@ -1,5 +1,11 @@
 summary: Regression test for LP 1942266
 
+# Don't run on systems without full AppArmor confinement
+systems:
+  - -centos-*
+  - -amazon-*
+  - -fedora-*
+
 prepare: |
   # build the first version
   sed -e "s/##VERSION##/0.1/" ./test-system-files-conn-snap/meta/snap.yaml.in > ./test-system-files-conn-snap/meta/snap.yaml
