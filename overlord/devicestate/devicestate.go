@@ -680,7 +680,7 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	// TODO:UC20: ensure we never remodel to a lower
 	// grade
 
-	// also disallows remodel from non-UC20 (grade unset) to UC20
+	// also disallow remodel from non-UC20 (grade unset) to UC20
 	if current.Grade() != new.Grade() {
 		if current.Grade() == asserts.ModelGradeUnset && new.Grade() != asserts.ModelGradeUnset {
 			// a case of pre-UC20 -> UC20 remodel
