@@ -1105,3 +1105,54 @@ func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeError(c *check
 	st.Unlock()
 	c.Assert(err, check.Equals, state.ErrNoState)
 }
+
+func (s *apiValidationSetsSuite) TestApplyValidationSetEnforceModeErrorStaysInMonitor(c *check.C) {
+	restore := daemon.MockValidationSetAssertionForEnforce(func(st *state.State, accountID, name string, sequence int, userID int, snaps []*snapasserts.InstalledSnap) (*asserts.ValidationSet, error) {
+		return nil, fmt.Errorf("boom")
+	})
+	defer restore()
+
+	st := s.d.Overlord().State()
+	st.Lock()
+	defer st.Unlock()
+
+	snapstate.Set(st, "snap-b", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "snap-b", Revision: snap.R(1), SnapID: "yOqKhntON3vR7kwEbVPsILm7bUViPDzz"}},
+		Current:  snap.R(1),
+	})
+
+	assertstatetest.AddMany(st, s.dev1acct, s.acct1Key)
+
+	// pretend we are tracking it in monitor mode
+	trMonitor := assertstate.ValidationSetTracking{
+		AccountID: s.dev1acct.AccountID(),
+		Name:      "bar",
+		Mode:      assertstate.Monitor,
+		Current:   1,
+	}
+	assertstate.UpdateValidationSet(st, &trMonitor)
+
+	st.Unlock()
+	defer st.Lock()
+	body := `{"action":"apply","mode":"enforce"}`
+	req, err := http.NewRequest("POST", fmt.Sprintf("/v2/validation-sets/%s/bar", s.dev1acct.AccountID()), strings.NewReader(body))
+	c.Assert(err, check.IsNil)
+
+	rspe := s.errorReq(c, req, nil)
+	c.Assert(rspe.Status, check.Equals, 400)
+	c.Check(string(rspe.Message), check.Equals, "cannot enforce validation set: boom")
+
+	// and tracking remains in monitor mode
+	st.Lock()
+	var tr assertstate.ValidationSetTracking
+	err = assertstate.GetValidationSet(st, s.dev1acct.AccountID(), "bar", &tr)
+	st.Unlock()
+	c.Assert(err, check.IsNil)
+	c.Check(tr, check.DeepEquals, assertstate.ValidationSetTracking{
+		Mode:      assertstate.Monitor,
+		AccountID: s.dev1acct.AccountID(),
+		Name:      "bar",
+		Current:   1,
+	})
+}
