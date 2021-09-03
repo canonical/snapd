@@ -40,14 +40,14 @@ func BeforePreparePlug(iface Interface, plugInfo *snap.PlugInfo) error {
 	return err
 }
 
-func BeforeConnectPlug(iface Interface, plugInfo *snap.PlugInfo) error {
-	if iface.Name() != plugInfo.Interface {
+func BeforeConnectPlug(iface Interface, plug *ConnectedPlug) error {
+	if iface.Name() != plug.plugInfo.Interface {
 		return fmt.Errorf("cannot sanitize connection for plug %q (interface %q) using interface %q",
-			PlugRef{Snap: plugInfo.Snap.InstanceName(), Name: plugInfo.Name}, plugInfo.Interface, iface.Name())
+			PlugRef{Snap: plug.plugInfo.Snap.InstanceName(), Name: plug.plugInfo.Name}, plug.plugInfo.Interface, iface.Name())
 	}
 	var err error
 	if iface, ok := iface.(ConnPlugSanitizer); ok {
-		err = iface.BeforeConnectPlug(plugInfo)
+		err = iface.BeforeConnectPlug(plug)
 	}
 	return err
 }
@@ -189,7 +189,7 @@ type Interface interface {
 // PlugSanitizer can be implemented by Interfaces that have reasons to sanitize
 // their plugs specifically before a connection is performed.
 type ConnPlugSanitizer interface {
-	BeforeConnectPlug(plug *snap.PlugInfo) error
+	BeforeConnectPlug(plug *ConnectedPlug) error
 }
 
 // PlugSanitizer can be implemented by Interfaces that have reasons to sanitize their plugs.
