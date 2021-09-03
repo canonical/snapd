@@ -38,6 +38,9 @@ execute: |
   snap validate --monitor --enforce foo/bar 2>&1 | MATCH "cannot use --monitor and --enforce together"
   snap validate foo 2>&1 | MATCH "cannot parse validation set \"foo\""
 
+  echo "Checking enforce mode error"
+  snap validate --enforce "$ACCOUNT_ID"/bar=1 2>&1 | MATCH "error: cannot apply validation set: cannot enforce validation set: validation sets assertions are not met:"
+
   echo "Tracking not set up yet, but validation is possible with local assertion"
   snap validate "$ACCOUNT_ID"/bar=1 2>&1 | MATCH "^invalid"
 
