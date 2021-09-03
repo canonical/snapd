@@ -87,7 +87,7 @@ func (s *SnapSuite) TestPrintInstalHint(c *check.C) {
 
 func (s *SnapSuite) TestDownloadDirect(c *check.C) {
 	var n int
-	restore := snapCmd.MockDownloadDirect(func(snapName string, revision snap.Revision, dlOpts image.DownloadOptions) error {
+	restore := snapCmd.MockDownloadDirect(func(snapName string, revision snap.Revision, dlOpts image.DownloadSnapOptions) error {
 		c.Check(snapName, check.Equals, "a-snap")
 		c.Check(revision, check.Equals, snap.R(0))
 		c.Check(dlOpts.Basename, check.Equals, "some-base-name")
@@ -114,7 +114,7 @@ func (s *SnapSuite) TestDownloadDirect(c *check.C) {
 
 func (s *SnapSuite) TestDownloadDirectErrors(c *check.C) {
 	var n int
-	restore := snapCmd.MockDownloadDirect(func(snapName string, revision snap.Revision, dlOpts image.DownloadOptions) error {
+	restore := snapCmd.MockDownloadDirect(func(snapName string, revision snap.Revision, dlOpts image.DownloadSnapOptions) error {
 		n++
 		return fmt.Errorf("some-error")
 	})
