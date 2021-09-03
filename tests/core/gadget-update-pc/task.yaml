@@ -88,7 +88,7 @@ prepare: |
     {"snap-id": "$PC_SNAP_ID", "snap-revision": "$((START_REVISION+2))"}
     EOF
 
-    snap install --amend pc_x1.snap
+    snap refresh --amend pc_x1.snap
 
 restore: |
     # external backends do not enable test keys
