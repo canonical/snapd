@@ -337,7 +337,7 @@ func newSystemdReal(kind Kind, rootDir string, mode InstanceMode, rep Reporter) 
 // New returns a Systemd that uses the default root directory and omits
 // --root argument when executing systemctl.
 func New(mode InstanceMode, rep Reporter) Systemd {
-	return newSystemd(FullImplementation, dirs.GlobalRootDir, mode, rep)
+	return newSystemd(FullImplementation, "", mode, rep)
 }
 
 // NewUnderRoot returns a Systemd that operates on the given rootdir.
