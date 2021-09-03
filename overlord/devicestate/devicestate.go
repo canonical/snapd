@@ -396,6 +396,21 @@ func gadgetChange(current, new *asserts.Model) (changed bool, newGadgetChange st
 	return false, ""
 }
 
+func installedSnapChange(st *state.State, modelSnap *asserts.ModelSnap) (changed bool, newChannel string, err error) {
+	if modelSnap.DefaultChannel == "" {
+		return false, "", nil
+	}
+	var ss snapstate.SnapState
+	if err := snapstate.Get(st, modelSnap.SnapName(), &ss); err != nil {
+		// this is unexpected as we know the snap exists
+		return false, "", err
+	}
+	if ss.TrackingChannel != modelSnap.DefaultChannel {
+		return true, modelSnap.DefaultChannel, nil
+	}
+	return false, "", nil
+}
+
 func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Model, deviceCtx snapstate.DeviceContext, fromChange string) ([]*state.TaskSet, error) {
 	userID := 0
 	var tss []*state.TaskSet
@@ -404,6 +419,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 	kernelChanged, newKernelChannel := kernelChange(current, new)
 	if kernelChanged {
 		if current.Kernel() == new.Kernel() {
+			// new modes specifies the same kernel, but with a new channel
 			ts, err := snapstateUpdateWithDeviceContext(st, new.Kernel(),
 				&snapstate.RevisionOptions{Channel: newKernelChannel},
 				userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
@@ -412,15 +428,28 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 			}
 			tss = append(tss, ts)
 		} else {
+			// new model specifies a different kernel
 			needsInstall, err := notInstalled(st, new.Kernel())
 			if err != nil {
 				return nil, err
 			}
 			var ts *state.TaskSet
 			if needsInstall {
+				// which needs to be installed
 				ts, err = snapstateInstallWithDeviceContext(ctx, st, new.Kernel(), &snapstate.RevisionOptions{Channel: newKernelChannel}, userID, snapstate.Flags{}, deviceCtx, fromChange)
 			} else {
-				ts, err = snapstate.LinkNewBaseOrKernel(st, new.Kernel())
+				// which is already installed, but may be using a different channel
+				changed, newChannel, chgErr := installedSnapChange(st, new.KernelSnap())
+				switch {
+				case chgErr != nil:
+					return nil, chgErr
+				case changed:
+					ts, err = snapstateUpdateWithDeviceContext(st, new.Kernel(),
+						&snapstate.RevisionOptions{Channel: newChannel},
+						userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
+				default:
+					ts, err = snapstate.LinkNewBaseOrKernel(st, new.Kernel())
+				}
 			}
 			if err != nil {
 				return nil, err
@@ -429,15 +458,28 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		}
 	}
 	if current.Base() != new.Base() {
+		// new model specifies a different base
 		needsInstall, err := notInstalled(st, new.Base())
 		if err != nil {
 			return nil, err
 		}
 		var ts *state.TaskSet
 		if needsInstall {
+			// which needs to be installed
 			ts, err = snapstateInstallWithDeviceContext(ctx, st, new.Base(), nil, userID, snapstate.Flags{}, deviceCtx, fromChange)
 		} else {
-			ts, err = snapstate.LinkNewBaseOrKernel(st, new.Base())
+			// which is already installed, but may be using a different channel
+			changed, newChannel, chgErr := installedSnapChange(st, new.BaseSnap())
+			switch {
+			case chgErr != nil:
+				return nil, chgErr
+			case changed:
+				ts, err = snapstateUpdateWithDeviceContext(st, new.Base(),
+					&snapstate.RevisionOptions{Channel: newChannel},
+					userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
+			default:
+				ts, err = snapstate.LinkNewBaseOrKernel(st, new.Base())
+			}
 		}
 		if err != nil {
 			return nil, err
@@ -505,14 +547,13 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 			}
 			tss = append(tss, ts)
 		} else if currentInfo != nil && modelSnap.DefaultChannel != "" {
-			var ss snapstate.SnapState
-			if err := snapstate.Get(st, modelSnap.SnapName(), &ss); err != nil {
-				// this is unexpected as we know the snap exists
+			changed, newChannel, err := installedSnapChange(st, modelSnap)
+			if err != nil {
 				return nil, err
 			}
-			if ss.TrackingChannel != modelSnap.DefaultChannel {
+			if changed {
 				ts, err := snapstateUpdateWithDeviceContext(st, modelSnap.SnapName(),
-					&snapstate.RevisionOptions{Channel: modelSnap.DefaultChannel},
+					&snapstate.RevisionOptions{Channel: newChannel},
 					userID, snapstate.Flags{NoReRefresh: true},
 					deviceCtx, fromChange)
 				if err != nil {
