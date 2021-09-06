@@ -32,7 +32,6 @@ import (
 
 	"gopkg.in/check.v1"
 
-	main "github.com/snapcore/snapd/cmd/snap"
 	snaprun "github.com/snapcore/snapd/cmd/snap"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
@@ -228,16 +227,16 @@ func (s *RunSuite) TestSnapRunAppRuninhibit(c *check.C) {
 	c.Assert(os.MkdirAll(dirs.FeaturesDir, 0755), check.IsNil)
 	c.Assert(ioutil.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
-	var called bool
-	restore := main.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint, errCh <-chan error) error {
-		called = true
+	var called int
+	restore := snaprun.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint, errCh <-chan error) error {
+		called++
 		return nil
 	})
 	defer restore()
 
 	rest, err := snaprun.Parser(snaprun.Client()).ParseArgs([]string{"run", "--", "snapname.app", "--arg1"})
 	c.Assert(err, check.IsNil)
-	c.Check(called, check.Equals, true)
+	c.Check(called, check.Equals, 2)
 	c.Assert(rest, check.DeepEquals, []string{"snapname.app", "--arg1"})
 	c.Check(execArg0, check.Equals, filepath.Join(dirs.DistroLibExecDir, "snap-confine"))
 	c.Check(execArgs, check.DeepEquals, []string{
@@ -268,8 +267,9 @@ func (s *RunSuite) TestSnapRunHookNoRuninhibit(c *check.C) {
 	defer restorer()
 
 	var called bool
-	restore := main.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint, errCh <-chan error) error {
+	restore := snaprun.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint, errCh <-chan error) error {
 		called = true
+		c.Errorf("WaitInhibitUnlock should not have been called")
 		return nil
 	})
 	defer restore()
@@ -311,8 +311,9 @@ func (s *RunSuite) TestSnapRunAppRuninhibitSkipsServices(c *check.C) {
 	c.Assert(ioutil.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
 	var called bool
-	restore := main.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint, errCh <-chan error) error {
+	restore := snaprun.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint, errCh <-chan error) error {
 		called = true
+		c.Errorf("WaitInhibitUnlock should not have been called")
 		return nil
 	})
 	defer restore()
@@ -1714,7 +1715,7 @@ func (s *RunSuite) TestRunGdbserverNoGdbserver(c *check.C) {
 
 func (s *RunSuite) TestWaitInhibitUnlock(c *check.C) {
 	var called int
-	restore := main.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
 		called++
 		if called < 5 {
 			return runinhibit.HintInhibitedForRefresh, nil
@@ -1723,13 +1724,13 @@ func (s *RunSuite) TestWaitInhibitUnlock(c *check.C) {
 	})
 	defer restore()
 
-	c.Assert(main.WaitInhibitUnlock("some-snap", runinhibit.HintNotInhibited, nil), check.IsNil)
+	c.Assert(snaprun.WaitInhibitUnlock("some-snap", runinhibit.HintNotInhibited, nil), check.IsNil)
 	c.Check(called, check.Equals, 5)
 }
 
 func (s *RunSuite) TestWaitInhibitUnlockWaitsForSpecificHint(c *check.C) {
 	var called int
-	restore := main.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
 		called++
 		if called < 5 {
 			return runinhibit.HintInhibitedGateRefresh, nil
@@ -1738,14 +1739,14 @@ func (s *RunSuite) TestWaitInhibitUnlockWaitsForSpecificHint(c *check.C) {
 	})
 	defer restore()
 
-	c.Assert(main.WaitInhibitUnlock("some-snap", runinhibit.HintInhibitedForRefresh, nil), check.IsNil)
+	c.Assert(snaprun.WaitInhibitUnlock("some-snap", runinhibit.HintInhibitedForRefresh, nil), check.IsNil)
 	c.Check(called, check.Equals, 5)
 }
 
 func (s *RunSuite) TestWaitInhibitUnlockWithErrorChannel(c *check.C) {
 	errCh := make(chan error, 1)
 	var called int
-	restore := main.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
 		called++
 		if called == 1 {
 			errCh <- fmt.Errorf("boom")
@@ -1754,7 +1755,7 @@ func (s *RunSuite) TestWaitInhibitUnlockWithErrorChannel(c *check.C) {
 	})
 	defer restore()
 
-	c.Assert(main.WaitInhibitUnlock("some-snap", runinhibit.HintNotInhibited, errCh), check.IsNil)
+	c.Assert(snaprun.WaitInhibitUnlock("some-snap", runinhibit.HintNotInhibited, errCh), check.IsNil)
 	c.Check(called, check.Equals, 1)
 	c.Check(s.Stderr(), check.Equals, `boom`)
 }
