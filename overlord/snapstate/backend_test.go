@@ -161,8 +161,10 @@ type fakeStore struct {
 	fakeBackend         *fakeSnappyBackend
 	fakeCurrentProgress int
 	fakeTotalProgress   int
-	state               *state.State
-	seenPrivacyKeys     map[string]bool
+	// snap -> error map for simulating download errors
+	downloadError   map[string]error
+	state           *state.State
+	seenPrivacyKeys map[string]bool
 }
 
 func (f *fakeStore) pokeStateLock() {
@@ -638,6 +640,10 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 
 	pb.SetTotal(float64(f.fakeTotalProgress))
 	pb.Set(float64(f.fakeCurrentProgress))
+
+	if e, ok := f.downloadError[name]; ok {
+		return e
+	}
 
 	return nil
 }

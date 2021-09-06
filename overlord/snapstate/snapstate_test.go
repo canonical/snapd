@@ -112,6 +112,7 @@ func (s *snapmgrTestSuite) SetUpTest(c *C) {
 		fakeTotalProgress:   100,
 		fakeBackend:         s.fakeBackend,
 		state:               s.state,
+		downloadError:       make(map[string]error),
 	}
 
 	// setup a bootloader for policy and boot
@@ -5356,93 +5357,97 @@ func (s contentStore) SnapAction(ctx context.Context, currentSnaps []*store.Curr
 	if err != nil {
 		return nil, nil, err
 	}
-	if len(sars) != 1 {
-		panic("expected to be queried for install of only one snap at a time")
-	}
-	info := sars[0].Info
-	switch info.InstanceName() {
-	case "snap-content-plug":
-		info.Plugs = map[string]*snap.PlugInfo{
-			"some-plug": {
-				Snap:      info,
-				Name:      "shared-content",
-				Interface: "content",
-				Attrs: map[string]interface{}{
-					"default-provider": "snap-content-slot",
-					"content":          "shared-content",
-				},
-			},
-		}
-	case "snap-content-plug-compat":
-		info.Plugs = map[string]*snap.PlugInfo{
-			"some-plug": {
-				Snap:      info,
-				Name:      "shared-content",
-				Interface: "content",
-				Attrs: map[string]interface{}{
-					"default-provider": "snap-content-slot:some-slot",
-					"content":          "shared-content",
-				},
-			},
-		}
-	case "snap-content-slot":
-		info.Slots = map[string]*snap.SlotInfo{
-			"some-slot": {
-				Snap:      info,
-				Name:      "shared-content",
-				Interface: "content",
-				Attrs: map[string]interface{}{
-					"content": "shared-content",
-				},
-			},
-		}
-	case "snap-content-circular1":
-		info.Plugs = map[string]*snap.PlugInfo{
-			"circular-plug1": {
-				Snap:      info,
-				Name:      "circular-plug1",
-				Interface: "content",
-				Attrs: map[string]interface{}{
-					"default-provider": "snap-content-circular2",
-					"content":          "circular2",
-				},
-			},
-		}
-		info.Slots = map[string]*snap.SlotInfo{
-			"circular-slot1": {
-				Snap:      info,
-				Name:      "circular-slot1",
-				Interface: "content",
-				Attrs: map[string]interface{}{
-					"content": "circular1",
-				},
-			},
-		}
-	case "snap-content-circular2":
-		info.Plugs = map[string]*snap.PlugInfo{
-			"circular-plug2": {
-				Snap:      info,
-				Name:      "circular-plug2",
-				Interface: "content",
-				Attrs: map[string]interface{}{
-					"default-provider": "snap-content-circular1",
-					"content":          "circular2",
-				},
-			},
-		}
-		info.Slots = map[string]*snap.SlotInfo{
-			"circular-slot2": {
-				Snap:      info,
-				Name:      "circular-slot2",
-				Interface: "content",
-				Attrs: map[string]interface{}{
-					"content": "circular1",
-				},
-			},
-		}
+	if len(sars) < 1 || len(sars) > 2 {
+		panic("expected to be queried for install of 1 or 2 snaps at a time")
 	}
 
-	return []store.SnapActionResult{{Info: info}}, nil, err
+	var res []store.SnapActionResult
+	for _, s := range sars {
+		info := s.Info
+		switch info.InstanceName() {
+		case "snap-content-plug":
+			info.Plugs = map[string]*snap.PlugInfo{
+				"some-plug": {
+					Snap:      info,
+					Name:      "shared-content",
+					Interface: "content",
+					Attrs: map[string]interface{}{
+						"default-provider": "snap-content-slot",
+						"content":          "shared-content",
+					},
+				},
+			}
+		case "snap-content-plug-compat":
+			info.Plugs = map[string]*snap.PlugInfo{
+				"some-plug": {
+					Snap:      info,
+					Name:      "shared-content",
+					Interface: "content",
+					Attrs: map[string]interface{}{
+						"default-provider": "snap-content-slot:some-slot",
+						"content":          "shared-content",
+					},
+				},
+			}
+		case "snap-content-slot":
+			info.Slots = map[string]*snap.SlotInfo{
+				"some-slot": {
+					Snap:      info,
+					Name:      "shared-content",
+					Interface: "content",
+					Attrs: map[string]interface{}{
+						"content": "shared-content",
+					},
+				},
+			}
+		case "snap-content-circular1":
+			info.Plugs = map[string]*snap.PlugInfo{
+				"circular-plug1": {
+					Snap:      info,
+					Name:      "circular-plug1",
+					Interface: "content",
+					Attrs: map[string]interface{}{
+						"default-provider": "snap-content-circular2",
+						"content":          "circular2",
+					},
+				},
+			}
+			info.Slots = map[string]*snap.SlotInfo{
+				"circular-slot1": {
+					Snap:      info,
+					Name:      "circular-slot1",
+					Interface: "content",
+					Attrs: map[string]interface{}{
+						"content": "circular1",
+					},
+				},
+			}
+		case "snap-content-circular2":
+			info.Plugs = map[string]*snap.PlugInfo{
+				"circular-plug2": {
+					Snap:      info,
+					Name:      "circular-plug2",
+					Interface: "content",
+					Attrs: map[string]interface{}{
+						"default-provider": "snap-content-circular1",
+						"content":          "circular2",
+					},
+				},
+			}
+			info.Slots = map[string]*snap.SlotInfo{
+				"circular-slot2": {
+					Snap:      info,
+					Name:      "circular-slot2",
+					Interface: "content",
+					Attrs: map[string]interface{}{
+						"content": "circular1",
+					},
+				},
+			}
+		}
+		res = append(res, store.SnapActionResult{Info: info})
+	}
+	return res, nil, err
 }
 
 func (s *snapmgrTestSuite) TestSnapManagerLegacyRefreshSchedule(c *C) {
