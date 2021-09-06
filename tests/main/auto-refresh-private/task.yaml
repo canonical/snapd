@@ -35,10 +35,7 @@ execute: |
     snap set core refresh.schedule="0:00-23:59"
 
     systemctl stop snapd.{service,socket}
-
-    jq ".data[\"last-refresh\"] = \"2007-08-22T09:30:44.449455783+01:00\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
-    mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
-
+    "$TESTSTOOLS"/snapd-state force-autorefresh
     systemctl start snapd.{service,socket}
 
     echo "Wait for auto-refresh to happen"
@@ -90,10 +87,7 @@ execute: |
 
     jq ".data.auth.users[0][\"store-macaroon\"] = \"$M\"|.data.auth.users[0][\"store-discharges\"][0] = \"$D\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
     mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
-
-    jq ".data[\"last-refresh\"] = \"2007-08-22T09:30:44.449455783+01:00\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
-    mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
-
+    "$TESTSTOOLS"/snapd-state force-autorefresh
     systemctl start snapd.{service,socket}
 
     echo "Wait for auto-refresh to happen"

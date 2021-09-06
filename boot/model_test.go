@@ -165,7 +165,7 @@ func (s *modelSuite) SetUpTest(c *C) {
 			kernelRev = 999
 			systemModel = s.newUc20dev.Model()
 		}
-		return systemModel, []*seed.Snap{mockKernelSeedSnap(c, snap.R(kernelRev)), mockGadgetSeedSnap(c, nil)}, nil
+		return systemModel, []*seed.Snap{mockKernelSeedSnap(snap.R(kernelRev)), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	s.AddCleanup(restore)
 }

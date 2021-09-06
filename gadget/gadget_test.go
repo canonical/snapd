@@ -1205,7 +1205,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeSchema(c *C) {
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolume("name", &gadget.Volume{Schema: tc.s}, nil, nil)
+		err := gadget.ValidateVolume("name", &gadget.Volume{Schema: tc.s}, nil)
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -1235,7 +1235,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeName(c *C) {
 	} {
 		c.Logf("tc: %v %+v", i, tc.s)
 
-		err := gadget.ValidateVolume(tc.s, &gadget.Volume{}, nil, nil)
+		err := gadget.ValidateVolume(tc.s, &gadget.Volume{}, nil)
 		if tc.err != "" {
 			c.Check(err, ErrorMatches, tc.err)
 		} else {
@@ -1250,7 +1250,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateStructures(c *C) {
 			{Name: "duplicate", Type: "bare", Size: 1024},
 			{Name: "duplicate", Type: "21686148-6449-6E6F-744E-656564454649", Size: 2048},
 		},
-	}, nil, nil)
+	}, nil)
 	c.Assert(err, ErrorMatches, `structure name "duplicate" is not unique`)
 }
 
@@ -1260,7 +1260,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
 			{Label: "foo", Type: "21686148-6449-6E6F-744E-656564454123", Size: quantity.SizeMiB},
 			{Label: "foo", Type: "21686148-6449-6E6F-744E-656564454649", Size: quantity.SizeMiB},
 		},
-	}, nil, nil)
+	}, nil)
 	c.Assert(err, ErrorMatches, `filesystem label "foo" is not unique`)
 
 	// writable isn't special
@@ -1274,27 +1274,23 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
 		{true, "writable", `filesystem label "writable" is not unique`},
 		{true, "ubuntu-data", `filesystem label "ubuntu-data" is not unique`},
 	} {
-		for _, mod := range []*modelCharateristics{
-			{classic: false, systemSeed: x.systemSeed},
-			{classic: true, systemSeed: x.systemSeed},
-		} {
-			err = gadget.ValidateVolume("name", &gadget.Volume{
-				Structure: []gadget.VolumeStructure{{
-					Name:  "data1",
-					Role:  gadget.SystemData,
-					Label: x.label,
-					Type:  "21686148-6449-6E6F-744E-656564454123",
-					Size:  quantity.SizeMiB,
-				}, {
-					Name:  "data2",
-					Role:  gadget.SystemData,
-					Label: x.label,
-					Type:  "21686148-6449-6E6F-744E-656564454649",
-					Size:  quantity.SizeMiB,
-				}},
-			}, mod, nil)
-			c.Assert(err, ErrorMatches, x.errMsg)
-		}
+
+		err = gadget.ValidateVolume("name", &gadget.Volume{
+			Structure: []gadget.VolumeStructure{{
+				Name:  "data1",
+				Role:  gadget.SystemData,
+				Label: x.label,
+				Type:  "21686148-6449-6E6F-744E-656564454123",
+				Size:  quantity.SizeMiB,
+			}, {
+				Name:  "data2",
+				Role:  gadget.SystemData,
+				Label: x.label,
+				Type:  "21686148-6449-6E6F-744E-656564454649",
+				Size:  quantity.SizeMiB,
+			}},
+		}, nil)
+		c.Assert(err, ErrorMatches, x.errMsg)
 	}
 
 	// nor is system-boot
@@ -1310,7 +1306,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeDuplicateFsLabel(c *C) {
 			Type:  "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
 			Size:  quantity.SizeMiB,
 		}},
-	}, nil, nil)
+	}, nil)
 	c.Assert(err, ErrorMatches, `filesystem label "system-boot" is not unique`)
 }
 
@@ -1320,7 +1316,7 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 			{Type: "bare", Size: 1024},
 			{Type: "bogus", Size: 1024},
 		},
-	}, nil, nil)
+	}, nil)
 	c.Assert(err, ErrorMatches, `invalid structure #1: invalid type "bogus": invalid format`)
 
 	err = gadget.ValidateVolume("name", &gadget.Volume{
@@ -1328,14 +1324,14 @@ func (s *gadgetYamlTestSuite) TestValidateVolumeErrorsWrapped(c *C) {
 			{Type: "bare", Size: 1024},
 			{Type: "bogus", Size: 1024, Name: "foo"},
 		},
-	}, nil, nil)
+	}, nil)
 	c.Assert(err, ErrorMatches, `invalid structure #1 \("foo"\): invalid type "bogus": invalid format`)
 
 	err = gadget.ValidateVolume("name", &gadget.Volume{
 		Structure: []gadget.VolumeStructure{
 			{Type: "bare", Name: "foo", Size: 1024, Content: []gadget.VolumeContent{{UnresolvedSource: "foo"}}},
 		},
-	}, nil, nil)
+	}, nil)
 	c.Assert(err, ErrorMatches, `invalid structure #0 \("foo"\): invalid content #0: cannot use non-image content for bare file system`)
 }
 
