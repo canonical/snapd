@@ -442,6 +442,10 @@ nested_get_extra_snaps_path() {
     echo "${PWD}/extra-snaps"
 }
 
+nested_get_assets_path() {
+    echo "$NESTED_ASSETS_DIR"
+}
+
 nested_get_extra_snaps() {
     local EXTRA_SNAPS=""
     local EXTRA_SNAPS_PATH

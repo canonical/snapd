@@ -224,6 +224,10 @@ get() {
             action=nested_get_extra_snaps_path
             shift
             ;;
+        assets-path)
+            action=nested_get_assets_path
+            shift
+            ;;
         model-authority)
             action=nested_model_authority
             shift
