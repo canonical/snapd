@@ -73,7 +73,7 @@ func MakeBootableImage(model *asserts.Model, rootdir string, bootWith *BootableS
 	if !bootWith.Recovery {
 		return fmt.Errorf("internal error: MakeBootableImage called at runtime, use MakeRunnableSystem instead")
 	}
-	return makeBootable20(model, rootdir, bootWith, bootFlags)
+	return makeBootable20(rootdir, bootWith, bootFlags)
 }
 
 // makeBootable16 setups the image filesystem for boot with UC16
@@ -153,7 +153,7 @@ func makeBootable16(model *asserts.Model, rootdir string, bootWith *BootableSet)
 	return nil
 }
 
-func makeBootable20(model *asserts.Model, rootdir string, bootWith *BootableSet, bootFlags []string) error {
+func makeBootable20(rootdir string, bootWith *BootableSet, bootFlags []string) error {
 	// we can only make a single recovery system bootable right now
 	recoverySystems, err := filepath.Glob(filepath.Join(rootdir, "systems/*"))
 	if err != nil {

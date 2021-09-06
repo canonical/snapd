@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/strutil"
@@ -290,7 +289,7 @@ func EnsureNextBootToRunModeWithTryRecoverySystemOutcome(outcome TryRecoverySyst
 	return bl.SetBootVars(vars)
 }
 
-func observeSuccessfulSystems(model *asserts.Model, m *Modeenv) (*Modeenv, error) {
+func observeSuccessfulSystems(m *Modeenv) (*Modeenv, error) {
 	// updates happen in run mode only
 	if m.Mode != "run" {
 		return m, nil
