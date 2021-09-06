@@ -960,7 +960,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// if we just put back a previous a core snap, request a restart
 	// so that we switch executing its snapd
-	m.maybeRestart(t, oldInfo, reboot, deviceCtx)
+	m.maybeRestart(t, oldInfo, reboot)
 	return nil
 }
 
@@ -1418,14 +1418,14 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	// if we just installed a core snap, request a restart
 	// so that we switch executing its snapd.
-	m.maybeRestart(t, newInfo, reboot, deviceCtx)
+	m.maybeRestart(t, newInfo, reboot)
 
 	return nil
 }
 
 // maybeRestart will schedule a reboot or restart as needed for the
 // just linked snap with info if it's a core or snapd or kernel snap.
-func (m *SnapManager) maybeRestart(t *state.Task, info *snap.Info, rebootRequired bool, deviceCtx DeviceContext) {
+func (m *SnapManager) maybeRestart(t *state.Task, info *snap.Info, rebootRequired bool) {
 	// Don't restart when preseeding - we will switch to new snapd on
 	// first boot.
 	if m.preseed {
@@ -1540,7 +1540,7 @@ func (m *SnapManager) maybeUndoRemodelBootChanges(t *state.Task) error {
 
 	// we may just have switch back to the old kernel/base/core so
 	// we may need to restart
-	m.maybeRestart(t, info, reboot, groundDeviceCtx)
+	m.maybeRestart(t, info, reboot)
 
 	return nil
 }
@@ -1718,7 +1718,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// undoLinkCurrentSnap() instead
 	if firstInstall && newInfo.Type() == snap.TypeSnapd {
 		const rebootRequired = false
-		m.maybeRestart(t, newInfo, rebootRequired, deviceCtx)
+		m.maybeRestart(t, newInfo, rebootRequired)
 	}
 
 	// write sequence file for failover helpers
@@ -2194,7 +2194,7 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// if we just linked back a core snap, request a restart
 	// so that we switch executing its snapd.
-	m.maybeRestart(t, info, reboot, deviceCtx)
+	m.maybeRestart(t, info, reboot)
 
 	return nil
 }

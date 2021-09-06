@@ -320,9 +320,12 @@ func probeParserFeatures() ([]string, error) {
 	if err != nil {
 		return []string{}, err
 	}
-	features := make([]string, 0, 1)
+	features := make([]string, 0, 2)
 	if tryAppArmorParserFeature(parser, "change_profile unsafe /**,") {
 		features = append(features, "unsafe")
+	}
+	if tryAppArmorParserFeature(parser, "network qipcrtr dgram,") {
+		features = append(features, "qipcrtr-socket")
 	}
 	sort.Strings(features)
 	return features, nil
