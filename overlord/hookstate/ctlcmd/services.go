@@ -20,7 +20,6 @@
 package ctlcmd
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"text/tabwriter"
@@ -50,8 +49,6 @@ type servicesCommand struct {
 	} `positional-args:"yes"`
 }
 
-var errNoContextForServices = errors.New(i18n.G("cannot query services without a context"))
-
 type byApp []*snap.AppInfo
 
 func (a byApp) Len() int      { return len(a) }
@@ -61,9 +58,9 @@ func (a byApp) Less(i, j int) bool {
 }
 
 func (c *servicesCommand) Execute([]string) error {
-	context := c.context()
-	if context == nil {
-		return errNoContextForServices
+	context, err := c.ensureContext()
+	if err != nil {
+		return err
 	}
 
 	st := context.State()

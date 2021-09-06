@@ -47,6 +47,12 @@ cmd_query() {
     set +x
 }
 
+cmd_list_installed() {
+    set -x
+    apt list --installed | cut -d/ -f1 | sort
+    set +x
+}
+
 cmd_remove() {
     set -x
     # shellcheck disable=SC2068

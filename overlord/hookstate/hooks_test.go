@@ -28,8 +28,10 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
@@ -39,8 +41,14 @@ import (
 
 const snapaYaml = `name: snap-a
 version: 1
+base: base-snap-a
 hooks:
     gate-auto-refresh:
+`
+
+const snapaBaseYaml = `name: base-snap-a
+version: 1
+type: base
 `
 
 const snapbYaml = `name: snap-b
@@ -74,10 +82,34 @@ func (s *gateAutoRefreshHookSuite) SetUpTest(c *C) {
 		Sequence: []*snap.SideInfo{si2},
 		Current:  snap.R(1),
 	})
+
+	si3 := &snap.SideInfo{RealName: "base-snap-a", SnapID: "base-snap-a-id1", Revision: snap.R(1)}
+	snaptest.MockSnap(c, snapaBaseYaml, si3)
+	snapstate.Set(s.state, "base-snap-a", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si3},
+		Current:  snap.R(1),
+	})
+
+	repo := interfaces.NewRepository()
+	// no interfaces needed for this test suite
+	ifacerepo.Replace(s.state, repo)
 }
 
 func (s *gateAutoRefreshHookSuite) TearDownTest(c *C) {
 	s.commonTearDownTest(c)
+}
+
+func mockRefreshCandidate(snapName, instanceKey, channel, version string, revision snap.Revision) interface{} {
+	sup := &snapstate.SnapSetup{
+		Channel:     channel,
+		InstanceKey: instanceKey,
+		SideInfo: &snap.SideInfo{
+			Revision: revision,
+			RealName: snapName,
+		},
+	}
+	return snapstate.MockRefreshCandidate(sup, version)
 }
 
 func (s *gateAutoRefreshHookSuite) settle(c *C) {
@@ -126,7 +158,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookProceedRuninhibitLock(
 	tr.Set("core", "experimental.refresh-app-awareness", true)
 	tr.Commit()
 
-	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a", false, false, map[string]bool{"snap-b": true})
+	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a")
 	change := st.NewChange("kind", "summary")
 	change.AddTask(task)
 
@@ -171,7 +203,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookHoldUnlocksRuninhibit(
 	tr.Set("core", "experimental.refresh-app-awareness", true)
 	tr.Commit()
 
-	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a", false, false, map[string]bool{"snap-b": true})
+	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a")
 	change := st.NewChange("kind", "summary")
 	change.AddTask(task)
 
@@ -219,7 +251,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshDefaultProceedUnlocksRunin
 	tr.Set("core", "experimental.refresh-app-awareness", true)
 	tr.Commit()
 
-	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a", false, false, map[string]bool{"snap-a": true})
+	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a")
 	change := st.NewChange("kind", "summary")
 	change.AddTask(task)
 
@@ -264,7 +296,7 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshDefaultProceed(c *C) {
 	// sanity
 	checkIsHeld(c, st, "snap-b", "snap-a")
 
-	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a", false, false, map[string]bool{"snap-b": true})
+	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a")
 	change := st.NewChange("kind", "summary")
 	change.AddTask(task)
 
@@ -304,7 +336,10 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookError(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a", false, false, map[string]bool{"snap-b": true})
+	candidates := map[string]interface{}{"snap-a": mockRefreshCandidate("snap-a", "", "edge", "v1", snap.Revision{N: 3})}
+	st.Set("refresh-candidates", candidates)
+
+	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a")
 	change := st.NewChange("kind", "summary")
 	change.AddTask(task)
 
@@ -315,8 +350,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookError(c *C) {
 	c.Assert(strings.Join(task.Log(), ""), testutil.Contains, "ignoring hook error: fail")
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
-	// and snap-b is now held.
-	checkIsHeld(c, st, "snap-b", "snap-a")
+	// and snap-a is now held.
+	checkIsHeld(c, st, "snap-a", "snap-a")
 
 	// no runinhibit because the refresh-app-awareness feature is disabled.
 	hint, err := runinhibit.IsLocked("snap-a")
@@ -351,7 +386,10 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorAfterProceed(c *C
 	st.Lock()
 	defer st.Unlock()
 
-	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a", false, false, map[string]bool{"snap-b": true})
+	candidates := map[string]interface{}{"snap-a": mockRefreshCandidate("snap-a", "", "edge", "v1", snap.Revision{N: 3})}
+	st.Set("refresh-candidates", candidates)
+
+	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a")
 	change := st.NewChange("kind", "summary")
 	change.AddTask(task)
 
@@ -362,8 +400,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorAfterProceed(c *C
 	c.Assert(strings.Join(task.Log(), ""), testutil.Contains, "ignoring hook error: fail")
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
-	// and snap-b is now held.
-	checkIsHeld(c, st, "snap-b", "snap-a")
+	// and snap-a is now held.
+	checkIsHeld(c, st, "snap-a", "snap-a")
 
 	// no runinhibit because the refresh-app-awareness feature is disabled.
 	hint, err := runinhibit.IsLocked("snap-a")
@@ -397,7 +435,10 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorRuninhibitUnlock(
 	tr.Set("core", "experimental.refresh-app-awareness", true)
 	tr.Commit()
 
-	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a", false, false, map[string]bool{"snap-b": true})
+	candidates := map[string]interface{}{"snap-a": mockRefreshCandidate("snap-a", "", "edge", "v1", snap.Revision{N: 3})}
+	st.Set("refresh-candidates", candidates)
+
+	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a")
 	change := st.NewChange("kind", "summary")
 	change.AddTask(task)
 
@@ -408,8 +449,8 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorRuninhibitUnlock(
 	c.Assert(strings.Join(task.Log(), ""), testutil.Contains, "ignoring hook error: fail")
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
-	// and snap-b is now held.
-	checkIsHeld(c, st, "snap-b", "snap-a")
+	// and snap-a is now held.
+	checkIsHeld(c, st, "snap-a", "snap-a")
 
 	// inhibit lock is unlocked
 	hint, err := runinhibit.IsLocked("snap-a")
@@ -438,23 +479,26 @@ func (s *gateAutoRefreshHookSuite) TestGateAutorefreshHookErrorHoldErrorLogged(c
 	st.Lock()
 	defer st.Unlock()
 
-	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a", false, false, map[string]bool{"snap-b": true})
+	candidates := map[string]interface{}{"snap-a": mockRefreshCandidate("snap-a", "", "edge", "v1", snap.Revision{N: 3})}
+	st.Set("refresh-candidates", candidates)
+
+	task := hookstate.SetupGateAutoRefreshHook(st, "snap-a")
 	change := st.NewChange("kind", "summary")
 	change.AddTask(task)
 
-	// pretend snap-b wasn't updated for a very long time.
+	// pretend snap-a wasn't updated for a very long time.
 	var snapst snapstate.SnapState
-	c.Assert(snapstate.Get(st, "snap-b", &snapst), IsNil)
+	c.Assert(snapstate.Get(st, "snap-a", &snapst), IsNil)
 	t := time.Now().Add(-365 * 24 * time.Hour)
 	snapst.LastRefreshTime = &t
-	snapstate.Set(st, "snap-b", &snapst)
+	snapstate.Set(st, "snap-a", &snapst)
 
 	st.Unlock()
 	s.settle(c)
 	st.Lock()
 
 	c.Assert(strings.Join(task.Log(), ""), Matches, `.*error: cannot hold some snaps:
- - snap "snap-a" cannot hold snap "snap-b" anymore, maximum refresh postponement exceeded \(while handling previous hook error: fail\)`)
+ - snap "snap-a" cannot hold snap "snap-a" anymore, maximum refresh postponement exceeded \(while handling previous hook error: fail\)`)
 	c.Assert(change.Status(), Equals, state.DoneStatus)
 
 	// and snap-b is not held (due to hold error).

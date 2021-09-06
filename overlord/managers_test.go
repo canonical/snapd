@@ -3149,7 +3149,7 @@ apps:
 	s.serveSnap(fooPath, "15")
 
 	// refresh all
-	err = assertstate.RefreshSnapDeclarations(st, 0)
+	err = assertstate.RefreshSnapDeclarations(st, 0, nil)
 	c.Assert(err, IsNil)
 
 	updated, tss, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, nil)
@@ -3302,7 +3302,7 @@ assumes: [something-that-is-not-provided]
 	defer st.Unlock()
 
 	_, err := snapstate.Install(context.TODO(), st, "some-snap", nil, 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" assumes unsupported features: something-that-is-not-provided \(try to update snapd and refresh the core snap\)`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" assumes unsupported features: something-that-is-not-provided \(try to refresh snapd\)`)
 }
 
 func (s *mgrsSuite) TestUpdateWithAssumesIsRefusedEarly(c *C) {
@@ -3332,7 +3332,7 @@ assumes: [something-that-is-not-provided]
 	})
 
 	_, err := snapstate.Update(st, "some-snap", nil, 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `snap "some-snap" assumes unsupported features: something-that-is-not-provided \(try to update snapd and refresh the core snap\)`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" assumes unsupported features: something-that-is-not-provided \(try to refresh snapd\)`)
 }
 
 func (s *mgrsSuite) TestUpdateManyWithAssumesIsRefusedEarly(c *C) {
@@ -3754,7 +3754,7 @@ version: @VERSION@`
 	c.Assert(repo.AddSnap(coreInfo), IsNil)
 
 	// refresh all
-	err := assertstate.RefreshSnapDeclarations(st, 0)
+	err := assertstate.RefreshSnapDeclarations(st, 0, nil)
 	c.Assert(err, IsNil)
 
 	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"core", "some-snap", "other-snap"}, 0, nil)
@@ -3773,7 +3773,7 @@ version: @VERSION@`
 	tts[2].Tasks()[0].SetStatus(state.HoldStatus)
 
 	st.Unlock()
-	err = s.o.Settle(3 * time.Second)
+	err = s.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 
@@ -3856,7 +3856,7 @@ version: 1`
 	c.Assert(repo.AddSnap(coreInfo), IsNil)
 
 	// refresh all
-	err := assertstate.RefreshSnapDeclarations(st, 0)
+	err := assertstate.RefreshSnapDeclarations(st, 0, nil)
 	c.Assert(err, IsNil)
 
 	updates, tts, err := snapstate.UpdateMany(context.TODO(), st, []string{"some-snap"}, 0, nil)
@@ -3936,7 +3936,7 @@ func (s *mgrsSuite) testUpdateWithAutoconnectRetry(c *C, updateSnapName, removeS
 	c.Assert(repo.AddSnap(otherInfo), IsNil)
 
 	// refresh all
-	err := assertstate.RefreshSnapDeclarations(st, 0)
+	err := assertstate.RefreshSnapDeclarations(st, 0, nil)
 	c.Assert(err, IsNil)
 
 	ts, err := snapstate.Update(st, updateSnapName, nil, 0, snapstate.Flags{})
@@ -6704,7 +6704,7 @@ func (s *mgrsSuite) TestCheckRefreshFailureWithConcurrentRemoveOfConnectedSnap(c
 	c.Assert(err, IsNil)
 
 	// refresh all
-	c.Assert(assertstate.RefreshSnapDeclarations(st, 0), IsNil)
+	c.Assert(assertstate.RefreshSnapDeclarations(st, 0, nil), IsNil)
 
 	ts, err := snapstate.Update(st, "some-snap", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
@@ -8794,4 +8794,55 @@ volumes:
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "overlays/uart0.dtbo"), testutil.FileContains, "uart0.dtbo rev2-from-kernel")
 	//  gadget content is not updated because there is no edition update
 	c.Check(filepath.Join(dirs.GlobalRootDir, "/run/mnt/", structureName, "start.elf"), testutil.FileContains, "start.elf rev1")
+}
+
+// deal with the missing "update-gadget-assets" tasks, see LP:#1940553
+func (ms *gadgetUpdatesSuite) TestGadgetKernelRefreshFromOldBrokenSnap(c *C) {
+	st := ms.o.State()
+	st.Lock()
+	defer st.Unlock()
+
+	// we have an install kernel/gadget
+	gadgetSnapYaml := "name: pi\nversion: 1.0\ntype: gadget"
+	ms.mockInstalledSnapWithFiles(c, gadgetSnapYaml, [][]string{
+		{"meta/gadget.yaml", "volumes:\n volume-id:\n  bootloader: grub"},
+	})
+	kernelSnapYaml := "name: pi-kernel\nversion: 1.0\ntype: kernel"
+	ms.mockInstalledSnapWithFiles(c, kernelSnapYaml, nil)
+
+	// add new kernel/gadget snap
+	newKernelSnapYaml := kernelSnapYaml
+	ms.mockSnapUpgradeWithFiles(c, newKernelSnapYaml, nil)
+	ms.mockSnapUpgradeWithFiles(c, gadgetSnapYaml, [][]string{
+		{"meta/gadget.yaml", "volumes:\n volume-id:\n  bootloader: grub"},
+	})
+
+	// now a refresh is simulated that does *not* contain an
+	// "update-gadget-assets" task, see LP:#1940553
+	snapstate.TestingLeaveOutKernelUpdateGadgetAssets = true
+	defer func() { snapstate.TestingLeaveOutKernelUpdateGadgetAssets = false }()
+	affected, tasksets, err := snapstate.UpdateMany(context.TODO(), st, nil, 0, &snapstate.Flags{})
+	c.Assert(err, IsNil)
+	sort.Strings(affected)
+	c.Check(affected, DeepEquals, []string{"pi", "pi-kernel"})
+
+	// here we need to manipulate the change to simulate that there
+	// is no "update-gadget-assets" task for the kernel, unfortunately
+	// there is no "state.TaskSet.RemoveTask" nor a "state.Task.Unwait()"
+	chg := st.NewChange("upgrade-snaps", "...")
+	for _, ts := range tasksets {
+		// skip the taskset of UpdateMany that does the
+		// check-rerefresh, see tsWithoutReRefresh for details
+		if ts.Tasks()[0].Kind() == "check-rerefresh" {
+			continue
+		}
+
+		chg.AddAll(ts)
+	}
+
+	st.Unlock()
+	err = ms.o.Settle(settleTimeout)
+	st.Lock()
+	c.Assert(err, IsNil)
+	c.Check(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Mount snap \"pi-kernel\" \\(2\\) \\(cannot refresh kernel with change created by old snapd that is missing gadget update task\\)")
 }

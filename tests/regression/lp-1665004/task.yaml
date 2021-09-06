@@ -8,9 +8,11 @@ details: |
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
-    if [ -d /var/lib/snapd/hostfs ]; then
-        rmdir /var/lib/snapd/hostfs;
-    fi
+    "$TESTSTOOLS"/fs-state mock-dir /var/lib/snapd/hostfs
+    rm -rf /var/lib/snapd/hostfs
+
+restore: |
+    "$TESTSTOOLS"/fs-state restore-dir /var/lib/snapd/hostfs
 
 execute: |
     test-snapd-sh.sh -c 'true'

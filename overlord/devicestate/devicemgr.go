@@ -780,6 +780,18 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 		return err
 	}
 
+	if !seeded {
+		// we need to wait until we are seeded
+		return nil
+	}
+
+	if release.OnClassic {
+		// don't re-run on classic since classic devices don't get subject to
+		// the cloud-init restricting that core devices do
+		m.cloudInitAlreadyRestricted = true
+		return nil
+	}
+
 	// On Ubuntu Core devices that have been seeded, we want to restrict
 	// cloud-init so that its more dangerous (for an IoT device at least)
 	// features are not exploitable after a device has been seeded. This allows
@@ -789,138 +801,136 @@ func (m *DeviceManager) ensureCloudInitRestricted() error {
 	// boots but disallows arbitrary cloud-init {user,meta,vendor}-data to be
 	// attached to a device via a USB drive and inject code onto the device.
 
-	if seeded && !release.OnClassic {
-		opts := &sysconfig.CloudInitRestrictOptions{}
+	opts := &sysconfig.CloudInitRestrictOptions{}
 
-		// check the current state of cloud-init, if it is disabled or already
-		// restricted then we have nothing to do
-		cloudInitStatus, err := cloudInitStatus()
-		if err != nil {
-			return err
-		}
-		statusMsg := ""
-
-		switch cloudInitStatus {
-		case sysconfig.CloudInitDisabledPermanently, sysconfig.CloudInitRestrictedBySnapd:
-			// already been permanently disabled, nothing to do
-			m.cloudInitAlreadyRestricted = true
-			return nil
-		case sysconfig.CloudInitNotFound:
-			// no cloud init at all
-			statusMsg = "not found"
-		case sysconfig.CloudInitUntriggered:
-			// hasn't been used
-			statusMsg = "reported to be in disabled state"
-		case sysconfig.CloudInitDone:
-			// is done being used
-			statusMsg = "reported to be done"
-		case sysconfig.CloudInitErrored:
-			// cloud-init errored, so we give the device admin / developer a few
-			// minutes to reboot the machine to re-run cloud-init and try again,
-			// otherwise we will disable cloud-init permanently
-
-			// initialize the time we first saw cloud-init in error state
-			if m.cloudInitErrorAttemptStart == nil {
-				// save the time we started the attempt to restrict
-				now := timeNow()
-				m.cloudInitErrorAttemptStart = &now
-				logger.Noticef("System initialized, cloud-init reported to be in error state, will disable in 3 minutes")
-			}
-
-			// check if 3 minutes have elapsed since we first saw cloud-init in
-			// error state
-			timeSinceFirstAttempt := timeNow().Sub(*m.cloudInitErrorAttemptStart)
-			if timeSinceFirstAttempt <= 3*time.Minute {
-				// we need to keep waiting for cloud-init, up to 3 minutes
-				nextCheck := 3*time.Minute - timeSinceFirstAttempt
-				m.state.EnsureBefore(nextCheck)
-				return nil
-			}
-			// otherwise, we timed out waiting for cloud-init to be fixed or
-			// rebooted and should restrict cloud-init
-			// we will restrict cloud-init below, but we need to force the
-			// disable, as by default RestrictCloudInit will error on state
-			// CloudInitErrored
-			opts.ForceDisable = true
-			statusMsg = "reported to be in error state after 3 minutes"
-		default:
-			// in unknown states we are conservative and let the device run for
-			// a while to see if it transitions to a known state, but eventually
-			// will disable anyways
-			fallthrough
-		case sysconfig.CloudInitEnabled:
-			// we will give cloud-init up to 5 minutes to try and run, if it
-			// still has not transitioned to some other known state, then we
-			// will give up waiting for it and disable it anyways
-
-			// initialize the first time we saw cloud-init in enabled state
-			if m.cloudInitEnabledInactiveAttemptStart == nil {
-				// save the time we started the attempt to restrict
-				now := timeNow()
-				m.cloudInitEnabledInactiveAttemptStart = &now
-			}
-
-			// keep re-scheduling again in 10 seconds until we hit 5 minutes
-			timeSinceFirstAttempt := timeNow().Sub(*m.cloudInitEnabledInactiveAttemptStart)
-			if timeSinceFirstAttempt <= 5*time.Minute {
-				// TODO: should we log a message here about waiting for cloud-init
-				//       to be in a "known state"?
-				m.state.EnsureBefore(10 * time.Second)
-				return nil
-			}
-
-			// otherwise, we gave cloud-init 5 minutes to run, if it's still not
-			// done disable it anyways
-			// note we we need to force the disable, as by default
-			// RestrictCloudInit will error on state CloudInitEnabled
-			opts.ForceDisable = true
-			statusMsg = "failed to transition to done or error state after 5 minutes"
-		}
-
-		// we should always have a model if we are seeded and are not on classic
-		model, err := m.Model()
-		if err != nil {
-			return err
-		}
-
-		// For UC20, we want to always disable cloud-init after it has run on
-		// first boot unless we are in a "real cloud", i.e. not using NoCloud,
-		// or if we installed cloud-init configuration from the gadget
-		if model.Grade() != asserts.ModelGradeUnset {
-			// always disable NoCloud/local datasources after first boot on
-			// uc20, this is because even if the gadget has a cloud.conf
-			// configuring NoCloud, the config installed by cloud-init should
-			// not work differently for later boots, so it's sufficient that
-			// NoCloud runs on first-boot and never again
-			opts.DisableAfterLocalDatasourcesRun = true
-		}
-
-		// now restrict/disable cloud-init
-		res, err := restrictCloudInit(cloudInitStatus, opts)
-		if err != nil {
-			return err
-		}
-
-		// log a message about what we did
-		actionMsg := ""
-		switch res.Action {
-		case "disable":
-			actionMsg = "disabled permanently"
-		case "restrict":
-			// log different messages depending on what datasource was used
-			if res.DataSource == "NoCloud" {
-				actionMsg = "set datasource_list to [ NoCloud ] and disabled auto-import by filesystem label"
-			} else {
-				// all other datasources just log that we limited it to that datasource
-				actionMsg = fmt.Sprintf("set datasource_list to [ %s ]", res.DataSource)
-			}
-		default:
-			return fmt.Errorf("internal error: unexpected action %s taken while restricting cloud-init", res.Action)
-		}
-		logger.Noticef("System initialized, cloud-init %s, %s", statusMsg, actionMsg)
-
-		m.cloudInitAlreadyRestricted = true
+	// check the current state of cloud-init, if it is disabled or already
+	// restricted then we have nothing to do
+	cloudInitStatus, err := cloudInitStatus()
+	if err != nil {
+		return err
 	}
+	statusMsg := ""
+
+	switch cloudInitStatus {
+	case sysconfig.CloudInitDisabledPermanently, sysconfig.CloudInitRestrictedBySnapd:
+		// already been permanently disabled, nothing to do
+		m.cloudInitAlreadyRestricted = true
+		return nil
+	case sysconfig.CloudInitNotFound:
+		// no cloud init at all
+		statusMsg = "not found"
+	case sysconfig.CloudInitUntriggered:
+		// hasn't been used
+		statusMsg = "reported to be in disabled state"
+	case sysconfig.CloudInitDone:
+		// is done being used
+		statusMsg = "reported to be done"
+	case sysconfig.CloudInitErrored:
+		// cloud-init errored, so we give the device admin / developer a few
+		// minutes to reboot the machine to re-run cloud-init and try again,
+		// otherwise we will disable cloud-init permanently
+
+		// initialize the time we first saw cloud-init in error state
+		if m.cloudInitErrorAttemptStart == nil {
+			// save the time we started the attempt to restrict
+			now := timeNow()
+			m.cloudInitErrorAttemptStart = &now
+			logger.Noticef("System initialized, cloud-init reported to be in error state, will disable in 3 minutes")
+		}
+
+		// check if 3 minutes have elapsed since we first saw cloud-init in
+		// error state
+		timeSinceFirstAttempt := timeNow().Sub(*m.cloudInitErrorAttemptStart)
+		if timeSinceFirstAttempt <= 3*time.Minute {
+			// we need to keep waiting for cloud-init, up to 3 minutes
+			nextCheck := 3*time.Minute - timeSinceFirstAttempt
+			m.state.EnsureBefore(nextCheck)
+			return nil
+		}
+		// otherwise, we timed out waiting for cloud-init to be fixed or
+		// rebooted and should restrict cloud-init
+		// we will restrict cloud-init below, but we need to force the
+		// disable, as by default RestrictCloudInit will error on state
+		// CloudInitErrored
+		opts.ForceDisable = true
+		statusMsg = "reported to be in error state after 3 minutes"
+	default:
+		// in unknown states we are conservative and let the device run for
+		// a while to see if it transitions to a known state, but eventually
+		// will disable anyways
+		fallthrough
+	case sysconfig.CloudInitEnabled:
+		// we will give cloud-init up to 5 minutes to try and run, if it
+		// still has not transitioned to some other known state, then we
+		// will give up waiting for it and disable it anyways
+
+		// initialize the first time we saw cloud-init in enabled state
+		if m.cloudInitEnabledInactiveAttemptStart == nil {
+			// save the time we started the attempt to restrict
+			now := timeNow()
+			m.cloudInitEnabledInactiveAttemptStart = &now
+		}
+
+		// keep re-scheduling again in 10 seconds until we hit 5 minutes
+		timeSinceFirstAttempt := timeNow().Sub(*m.cloudInitEnabledInactiveAttemptStart)
+		if timeSinceFirstAttempt <= 5*time.Minute {
+			// TODO: should we log a message here about waiting for cloud-init
+			//       to be in a "known state"?
+			m.state.EnsureBefore(10 * time.Second)
+			return nil
+		}
+
+		// otherwise, we gave cloud-init 5 minutes to run, if it's still not
+		// done disable it anyways
+		// note we we need to force the disable, as by default
+		// RestrictCloudInit will error on state CloudInitEnabled
+		opts.ForceDisable = true
+		statusMsg = "failed to transition to done or error state after 5 minutes"
+	}
+
+	// we should always have a model if we are seeded and are not on classic
+	model, err := m.Model()
+	if err != nil {
+		return err
+	}
+
+	// For UC20, we want to always disable cloud-init after it has run on
+	// first boot unless we are in a "real cloud", i.e. not using NoCloud,
+	// or if we installed cloud-init configuration from the gadget
+	if model.Grade() != asserts.ModelGradeUnset {
+		// always disable NoCloud/local datasources after first boot on
+		// uc20, this is because even if the gadget has a cloud.conf
+		// configuring NoCloud, the config installed by cloud-init should
+		// not work differently for later boots, so it's sufficient that
+		// NoCloud runs on first-boot and never again
+		opts.DisableAfterLocalDatasourcesRun = true
+	}
+
+	// now restrict/disable cloud-init
+	res, err := restrictCloudInit(cloudInitStatus, opts)
+	if err != nil {
+		return err
+	}
+
+	// log a message about what we did
+	actionMsg := ""
+	switch res.Action {
+	case "disable":
+		actionMsg = "disabled permanently"
+	case "restrict":
+		// log different messages depending on what datasource was used
+		if res.DataSource == "NoCloud" {
+			actionMsg = "set datasource_list to [ NoCloud ] and disabled auto-import by filesystem label"
+		} else {
+			// all other datasources just log that we limited it to that datasource
+			actionMsg = fmt.Sprintf("set datasource_list to [ %s ]", res.DataSource)
+		}
+	default:
+		return fmt.Errorf("internal error: unexpected action %s taken while restricting cloud-init", res.Action)
+	}
+	logger.Noticef("System initialized, cloud-init %s, %s", statusMsg, actionMsg)
+
+	m.cloudInitAlreadyRestricted = true
 
 	return nil
 }

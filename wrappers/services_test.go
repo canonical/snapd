@@ -1675,7 +1675,7 @@ plugs:
 
 	for _, t := range tt {
 		comment := Commentf(t.comment)
-		info := snaptest.MockSnap(c, packageHello+`
+		info := snaptest.MockSnap(c, packageHelloNoSrv+`
  svc1:
   daemon: simple
 `+t.plugSnippet,
@@ -1738,7 +1738,7 @@ WantedBy=multi-user.target
 }
 
 func (s *servicesTestSuite) TestAddSnapServicesAndRemoveUserDaemons(c *C) {
-	info := snaptest.MockSnap(c, packageHello+`
+	info := snaptest.MockSnap(c, packageHelloNoSrv+`
  svc1:
   daemon: simple
   daemon-scope: user
@@ -1780,7 +1780,7 @@ type: snapd
 `
 
 func (s *servicesTestSuite) TestRemoveSnapWithSocketsRemovesSocketsService(c *C) {
-	info := snaptest.MockSnap(c, packageHello+`
+	info := snaptest.MockSnap(c, packageHelloNoSrv+`
  svc1:
   daemon: simple
   plugs: [network-bind]
@@ -2104,7 +2104,7 @@ func (s *servicesTestSuite) TestStopServicesWithSockets(c *C) {
 	})
 	defer r()
 
-	info := snaptest.MockSnap(c, packageHello+`
+	info := snaptest.MockSnap(c, packageHelloNoSrv+`
  svc1:
   daemon: simple
   plugs: [network-bind]
@@ -2158,7 +2158,7 @@ func (s *servicesTestSuite) TestStartServices(c *C) {
 }
 
 func (s *servicesTestSuite) TestStartServicesUserDaemons(c *C) {
-	info := snaptest.MockSnap(c, packageHello+`
+	info := snaptest.MockSnap(c, packageHelloNoSrv+`
  svc1:
   daemon: simple
   daemon-scope: user
@@ -2389,7 +2389,7 @@ func (s *servicesTestSuite) TestAddSnapMultiUserServicesFailEnableCleanup(c *C) 
 	})
 	defer r()
 
-	info := snaptest.MockSnap(c, packageHello+`
+	info := snaptest.MockSnap(c, packageHelloNoSrv+`
  svc1:
   command: bin/hello
   daemon: simple
@@ -2440,7 +2440,7 @@ func (s *servicesTestSuite) TestAddSnapMultiUserServicesStartFailOnSystemdReload
 	})
 	defer r()
 
-	info := snaptest.MockSnap(c, packageHello+`
+	info := snaptest.MockSnap(c, packageHelloNoSrv+`
  svc1:
   command: bin/hello
   daemon: simple
@@ -2464,7 +2464,7 @@ func (s *servicesTestSuite) TestAddSnapMultiUserServicesStartFailOnSystemdReload
 }
 
 func (s *servicesTestSuite) TestAddSnapSocketFiles(c *C) {
-	info := snaptest.MockSnap(c, packageHello+`
+	info := snaptest.MockSnap(c, packageHelloNoSrv+`
  svc1:
   daemon: simple
   plugs: [network-bind]
@@ -2516,7 +2516,7 @@ ListenStream=%s
 }
 
 func (s *servicesTestSuite) TestAddSnapUserSocketFiles(c *C) {
-	info := snaptest.MockSnap(c, packageHello+`
+	info := snaptest.MockSnap(c, packageHelloNoSrv+`
  svc1:
   daemon: simple
   daemon-scope: user
@@ -2694,7 +2694,7 @@ func (s *servicesTestSuite) TestStartSnapMultiUserServicesFailStartCleanup(c *C)
 	})
 	defer r()
 
-	info := snaptest.MockSnap(c, packageHello+`
+	info := snaptest.MockSnap(c, packageHelloNoSrv+`
  svc1:
   command: bin/hello
   daemon: simple
@@ -3454,7 +3454,7 @@ apps:
 }
 
 func (s *servicesTestSuite) TestStopAndDisableServices(c *C) {
-	info := snaptest.MockSnap(c, packageHello+`
+	info := snaptest.MockSnap(c, packageHelloNoSrv+`
  svc1:
   daemon: simple
 `, &snap.SideInfo{Revision: snap.R(12)})

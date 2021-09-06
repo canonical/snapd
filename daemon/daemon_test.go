@@ -47,7 +47,6 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/standby"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
@@ -60,10 +59,9 @@ func Test(t *testing.T) { check.TestingT(t) }
 type daemonSuite struct {
 	testutil.BaseTest
 
-	authorized      bool
-	err             error
-	lastPolkitFlags polkit.CheckFlags
-	notified        []string
+	authorized bool
+	err        error
+	notified   []string
 }
 
 var _ = check.Suite(&daemonSuite{})
