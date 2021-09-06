@@ -75,8 +75,8 @@ func (r *recordingStore) SnapAction(ctx context.Context, currentSnaps []*store.C
 type refreshHintsTestSuite struct {
 	state *state.State
 
-	store        *recordingStore
-	restoreModel func()
+	store                         *recordingStore
+	restoreModel                  func()
 	restoreEnforcedValidationSets func()
 }
 
