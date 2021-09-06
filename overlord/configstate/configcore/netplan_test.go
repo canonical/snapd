@@ -40,9 +40,17 @@ import (
 type fakeConnectivityCheckStore struct {
 	status    map[string]bool
 	mockedErr error
+
+	statusSeq []map[string]bool
+	seq       int
 }
 
 func (sto *fakeConnectivityCheckStore) ConnectivityCheck() (map[string]bool, error) {
+	if sto.statusSeq != nil {
+		sto.status = sto.statusSeq[sto.seq]
+		sto.seq++
+	}
+
 	return sto.status, sto.mockedErr
 }
 
@@ -160,6 +168,8 @@ func (s *netplanSuite) TestNetplanGetFromDBusHappy(c *C) {
 			"version":  json.Number("2"),
 		},
 	})
+	// the config snapshot is discarded after it was read
+	c.Check(s.backend.ConfigApiCancelCalls, Equals, 1)
 
 	// only the "network" subset
 	netplanCfg = make(map[string]interface{})
@@ -169,12 +179,20 @@ func (s *netplanSuite) TestNetplanGetFromDBusHappy(c *C) {
 		"renderer": "NetworkManager",
 		"version":  json.Number("2"),
 	})
+	// the config snapshot is discarded after it was read
+	c.Check(s.backend.ConfigApiCancelCalls, Equals, 2)
 
 	// only the "network.version" subset
 	var ver json.Number
 	err = tr.Get("core", "system.network.netplan.network.version", &ver)
 	c.Assert(err, IsNil)
 	c.Check(ver, Equals, json.Number("2"))
+
+	// the config snapshot is discarded after it was read
+	c.Check(s.backend.ConfigApiCancelCalls, Equals, 3)
+	// but nothing was applied
+	c.Check(s.backend.ConfigApiTryCalls, Equals, 0)
+	c.Check(s.backend.ConfigApiApplyCalls, Equals, 0)
 }
 
 func (s *netplanSuite) TestNetplanGetFromDBusNoSuchConfigError(c *C) {
@@ -191,16 +209,6 @@ func (s *netplanSuite) TestNetplanGetFromDBusNoSuchConfigError(c *C) {
 	var str string
 	err := tr.Get("core", "system.network.netplan.xxx", &str)
 	c.Assert(err, ErrorMatches, `snap "core" has no "system.network.netplan.xxx" configuration option`)
-}
-
-func (s *netplanSuite) TestNetplanReadOnlyForNow(c *C) {
-	err := configcore.Run(coreDev, &mockConf{
-		state: s.state,
-		changes: map[string]interface{}{
-			"system.network.netplan.network.renderer": "networkd",
-		},
-	})
-	c.Assert(err, ErrorMatches, "cannot set netplan config yet")
 }
 
 func (s *netplanSuite) TestNetplanConnectivityCheck(c *C) {
@@ -228,4 +236,102 @@ func (s *netplanSuite) TestNetplanConnectivityCheck(c *C) {
 			c.Check(err, IsNil)
 		}
 	}
+}
+
+func (s *netplanSuite) TestNetplanWriteConfigHappy(c *C) {
+	// export the V2 api, things work with that
+	s.backend.ExportApiV2()
+
+	// and everything is fine
+	s.fakestore.status = map[string]bool{"host1": true}
+	s.backend.ConfigApiTryRet = true
+	s.backend.ConfigApiApplyRet = true
+
+	err := configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"system.network.netplan": map[string]interface{}{
+				"ethernets": map[string]interface{}{
+					"eth0": map[string]interface{}{
+						"dhcp4": true,
+					},
+				},
+				"wifi": map[string]interface{}{
+					"wlan0": map[string]interface{}{
+						"dhcp4": true,
+					},
+				},
+			},
+		},
+	})
+	c.Assert(err, IsNil)
+
+	c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{
+		`ethernets={"eth0":{"dhcp4":true}}/90-snapd-conf`,
+		`wifi={"wlan0":{"dhcp4":true}}/90-snapd-conf`,
+	})
+	c.Check(s.backend.ConfigApiTryCalls, Equals, 1)
+	c.Check(s.backend.ConfigApiApplyCalls, Equals, 1)
+}
+
+func (s *netplanSuite) TestNetplanWriteConfigNoNetworkAfterTry(c *C) {
+	// export the V2 api, things work with that
+	s.backend.ExportApiV2()
+
+	// we have connectivity but it stops
+	s.fakestore.statusSeq = []map[string]bool{
+		map[string]bool{"host1": true},
+		map[string]bool{"host1": false},
+	}
+	s.backend.ConfigApiTryRet = true
+	s.backend.ConfigApiApplyRet = true
+
+	err := configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"system.network.netplan": map[string]interface{}{
+				"ethernets": map[string]interface{}{
+					"eth0": map[string]interface{}{
+						"dhcp4": true,
+					},
+				},
+			},
+		},
+	})
+	c.Assert(err, ErrorMatches, `cannot set netplan config: store no longer reachable`)
+
+	c.Check(s.backend.ConfigApiTryCalls, Equals, 1)
+	c.Check(s.backend.ConfigApiCancelCalls, Equals, 1)
+	c.Check(s.backend.ConfigApiApplyCalls, Equals, 0)
+}
+
+func (s *netplanSuite) TestNetplanWriteConfigCanUnset(c *C) {
+	// export the V2 api, things work with that
+	s.backend.MockNetplanConfigYaml = mockNetplanConfigYaml + `
+  bridges:
+    br54:
+      dhcp4: true
+      dhcp6: true`
+	s.backend.ExportApiV2()
+
+	// we have connectivity
+	s.fakestore.status = map[string]bool{"host1": true}
+	s.backend.ConfigApiTryRet = true
+	s.backend.ConfigApiApplyRet = true
+
+	err := configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"system.network.netplan": map[string]interface{}{
+				"bridges": map[string]interface{}{
+					"br54": map[string]interface{}{
+						"dhcp4": nil,
+					},
+				},
+			},
+		},
+	})
+	c.Assert(err, IsNil)
+
+	c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{`bridges={"br54":{"dhcp4":null}}/90-snapd-conf`})
 }

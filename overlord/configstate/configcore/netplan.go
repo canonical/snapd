@@ -20,6 +20,7 @@
 package configcore
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
@@ -39,6 +40,7 @@ import (
 	"github.com/godbus/dbus"
 
 	"github.com/snapcore/snapd/dbusutil"
+	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
@@ -61,7 +63,9 @@ var snapstateStore = func(st *state.State, deviceCtx snapstate.DeviceContext) co
 }
 
 func storeReachable(st *state.State) error {
+	st.Lock()
 	sto := snapstateStore(st, nil)
+	st.Unlock()
 	status, err := sto.ConnectivityCheck()
 	if err != nil {
 		return err
@@ -75,28 +79,19 @@ func storeReachable(st *state.State) error {
 	}
 	if len(unreachable) > 0 {
 		sort.Strings(unreachable)
+		logger.Debugf("unreachable hosts: %v", unreachable)
 		return fmt.Errorf("cannot connect to %q", strings.Join(unreachable, ","))
 	}
 
 	return nil
 }
 
-func validateNetplanSettings(tr config.Conf) error {
-	// XXX: validate somehow once we support writing?
-	return nil
-}
-
-func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
-	for _, chg := range tr.Changes() {
-		if strings.HasPrefix(chg, "core.system.network.netplan.") {
-			return fmt.Errorf("cannot set netplan config yet")
-		}
+func isNoServiceOrMethodErr(err error) bool {
+	derr, ok := err.(dbus.Error)
+	if !ok {
+		return false
 	}
 
-	return nil
-}
-
-func isNoServiceOrMethodErr(derr dbus.Error) bool {
 	switch derr.Name {
 	case "org.freedesktop.DBus.Error.ServiceUnknown":
 		fallthrough
@@ -108,11 +103,7 @@ func isNoServiceOrMethodErr(derr dbus.Error) bool {
 	return false
 }
 
-func getNetplanFromSystem(key string) (result interface{}, err error) {
-	if release.OnClassic {
-		return nil, nil
-	}
-
+func getNetplanCfgSnapshot() (dbus.BusObject, error) {
 	conn, err := dbusutil.SystemBus()
 	if err != nil {
 		return nil, err
@@ -124,18 +115,130 @@ func getNetplanFromSystem(key string) (result interface{}, err error) {
 	netplan := conn.Object("io.netplan.Netplan", "/io/netplan/Netplan")
 
 	if err := netplan.Call("io.netplan.Netplan.Config", 0).Store(&netplanConfigSnapshotBusAddr); err != nil {
-		if derr, ok := err.(dbus.Error); ok {
-			// Having no netplan config is *not* an error, we just
-			// do not support netplan config.
-			if isNoServiceOrMethodErr(derr) {
-				return nil, nil
-			}
+		return nil, err
+	}
+	logger.Debugf("using netplan config %v", netplanConfigSnapshotBusAddr)
+
+	netplanCfgSnapshot := conn.Object("io.netplan.Netplan", dbus.ObjectPath(netplanConfigSnapshotBusAddr))
+	return netplanCfgSnapshot, nil
+}
+
+func validateNetplanSettings(tr config.Conf) error {
+	// XXX: validate somehow once we support writing?
+	return nil
+}
+
+func hasNetplanChanges(tr config.Conf) bool {
+	for _, chg := range tr.Changes() {
+		if chg == "core.system.network.netplan" || strings.HasPrefix(chg, "core.system.network.netplan.") {
+			return true
 		}
+	}
+	return false
+}
+
+func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
+	if !hasNetplanChanges(tr) {
+		return nil
+	}
+
+	var cfg map[string]interface{}
+	if err := tr.Get("core", "system.network.netplan", &cfg); err != nil && !config.IsNoOption(err) {
+		return err
+	}
+	if len(cfg) == 0 {
+		return nil
+	}
+
+	netplanCfgSnapshot, err := getNetplanCfgSnapshot()
+	// Having no netplan config is *not* an error, we just
+	// do not support netplan config.
+	if isNoServiceOrMethodErr(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+
+	// We pass the new config back to netplan as json, the reason
+	// is that the dbus api accepts only a single line string, see
+	// see https://github.com/canonical/netplan/pull/210
+	for key := range cfg {
+		jsonNetplanConfigRaw, err := json.Marshal(cfg[key])
+		if err != nil {
+			return fmt.Errorf("cannot netplan config: %v", err)
+		}
+		jsonNetplanConfig := fmt.Sprintf("%s=%s", key, string(jsonNetplanConfigRaw))
+		logger.Debugf("calling netplan.Set: %v", jsonNetplanConfig)
+
+		originHint := "90-snapd-conf"
+		var wasSet bool
+		if err := netplanCfgSnapshot.Call("io.netplan.Netplan.Config.Set", 0, jsonNetplanConfig, originHint).Store(&wasSet); err != nil {
+			return fmt.Errorf("cannot Set() config: %v", err)
+		}
+	}
+
+	var storeReachableBefore bool
+	if err := storeReachable(tr.State()); err == nil {
+		storeReachableBefore = true
+	}
+	logger.Debugf("store reachable before netplan %v", storeReachableBefore)
+
+	var wasTried bool
+	timeoutInSeconds := 30
+	if err := netplanCfgSnapshot.Call("io.netplan.Netplan.Config.Try", 0, uint32(timeoutInSeconds)).Store(&wasTried); err != nil {
+		return fmt.Errorf("cannot Try() config: %v", err)
+	}
+	if !wasTried {
+		return fmt.Errorf("cannot try config")
+	}
+
+	var storeReachableAfter bool
+	if err := storeReachable(tr.State()); err == nil {
+		storeReachableAfter = true
+	}
+	logger.Debugf("store reachable after netplan %v", storeReachableAfter)
+
+	if storeReachableBefore && !storeReachableAfter {
+		var wasCancelled bool
+		if err := netplanCfgSnapshot.Call("io.netplan.Netplan.Config.Cancel", 0).Store(&wasCancelled); err != nil {
+			logger.Noticef("cannot Cancel config: %v", err)
+		}
+		if !wasCancelled {
+			logger.Noticef("config was not cancelled")
+		}
+
+		return fmt.Errorf("cannot set netplan config: store no longer reachable")
+	}
+
+	var wasApplied bool
+	if err := netplanCfgSnapshot.Call("io.netplan.Netplan.Config.Apply", 0).Store(&wasApplied); err != nil {
+		return fmt.Errorf("cannot Apply() config: %v", err)
+	}
+	if !wasApplied {
+		return fmt.Errorf("cannot apply config")
+	}
+	logger.Debugf("netplan config applied correctly")
+
+	return nil
+}
+
+func getNetplanFromSystem(key string) (result interface{}, err error) {
+	if release.OnClassic {
+		return nil, nil
+	}
+
+	netplanCfgSnapshot, err := getNetplanCfgSnapshot()
+	// Having no netplan config is *not* an error, we just
+	// do not support netplan config.
+	if isNoServiceOrMethodErr(err) {
+		return nil, nil
+	}
+	if err != nil {
 		return nil, err
 	}
 
 	var netplanYamlCfg string
-	netplanCfgSnapshot := conn.Object("io.netplan.Netplan", dbus.ObjectPath(netplanConfigSnapshotBusAddr))
 	if err := netplanCfgSnapshot.Call("io.netplan.Netplan.Config.Get", 0).Store(&netplanYamlCfg); err != nil {
 		return nil, err
 	}
@@ -143,6 +246,15 @@ func getNetplanFromSystem(key string) (result interface{}, err error) {
 	var cfg map[string]interface{}
 	if err := yaml.Unmarshal([]byte(netplanYamlCfg), &cfg); err != nil {
 		return nil, err
+	}
+
+	// and discard the config snapshot
+	var wasCancelled bool
+	if err := netplanCfgSnapshot.Call("io.netplan.Netplan.Config.Cancel", 0).Store(&wasCancelled); err != nil {
+		logger.Noticef("cannot Cancel config: %v", err)
+	}
+	if !wasCancelled {
+		logger.Noticef("config was not cancelled")
 	}
 
 	return cfg, nil

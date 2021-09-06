@@ -41,7 +41,19 @@ type NetplanServer struct {
 	conn *dbus.Conn
 	err  *dbus.Error
 
-	mockNetplanConfigYaml string
+	MockNetplanConfigYaml string
+
+	ConfigApiSetCalls []string
+	ConfigApiSetRet   bool
+
+	ConfigApiApplyCalls int
+	ConfigApiApplyRet   bool
+
+	ConfigApiTryCalls int
+	ConfigApiTryRet   bool
+
+	ConfigApiCancelCalls int
+	ConfigApiCancelRet   bool
 }
 
 func NewNetplanServer(mockNetplanConfigYaml string) (*NetplanServer, error) {
@@ -53,7 +65,7 @@ func NewNetplanServer(mockNetplanConfigYaml string) (*NetplanServer, error) {
 
 	server := &NetplanServer{
 		conn:                  conn,
-		mockNetplanConfigYaml: mockNetplanConfigYaml,
+		MockNetplanConfigYaml: mockNetplanConfigYaml,
 	}
 
 	reply, err := conn.RequestName(netplanBusName, dbus.NameFlagDoNotQueue)
@@ -133,7 +145,25 @@ type netplanConfigApi struct {
 }
 
 func (c netplanConfigApi) Get() (string, *dbus.Error) {
-	return c.server.mockNetplanConfigYaml, nil
+	return c.server.MockNetplanConfigYaml, nil
 }
 
-// TODO: implement Set/Try once we have "write" support
+func (c netplanConfigApi) Set(value, originHint string) (bool, *dbus.Error) {
+	c.server.ConfigApiSetCalls = append(c.server.ConfigApiSetCalls, fmt.Sprintf("%s/%s", value, originHint))
+	return c.server.ConfigApiSetRet, nil
+}
+
+func (c netplanConfigApi) Apply() (bool, *dbus.Error) {
+	c.server.ConfigApiApplyCalls++
+	return c.server.ConfigApiApplyRet, nil
+}
+
+func (c netplanConfigApi) Cancel() (bool, *dbus.Error) {
+	c.server.ConfigApiCancelCalls++
+	return c.server.ConfigApiCancelRet, nil
+}
+
+func (c netplanConfigApi) Try(timeout int) (bool, *dbus.Error) {
+	c.server.ConfigApiTryCalls++
+	return c.server.ConfigApiTryRet, nil
+}

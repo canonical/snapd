@@ -6,9 +6,12 @@ systems: [ubuntu-core-20-*]
 
 prepare: |
     snap install jq
+    snap install yq
 
 restore: |
     snap remove jq
+    snap remove yq
+    ip link del br54 || true
 
 execute: |
     echo "Getting version works"
@@ -17,3 +20,18 @@ execute: |
     echo "Getting the full document works and it is valid json"
     snap get -d system system.network.netplan | jq .
 
+    echo "Check that setting adding a br54 interface via netplan works"
+    snap set system system.network.netplan.bridges.br54.dhcp4=true
+
+    echo "Check that the interface is really there"
+    ip link | grep br54
+    res=$(yq e '.network.bridges.br54.dhcp6' - < /etc/netplan/90_snapd.yaml)
+    [ "$res" = "true" ]
+
+    echo "Now add dhcp6"
+    snap set system system.network.netplan.bridges.br54.dhcp6=true
+    res=$(yq e '.network.bridges.br54.dhcp6' - < /etc/netplan/90_snapd.yaml)
+    [ "$res" = "true" ]
+
+    # TODO: ensure that
+    # "snap unset system.network.netplan.bridges.br54.dhcp4=true" works
