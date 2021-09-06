@@ -15,6 +15,13 @@ environment:
     PATH: $GOHOME/bin:/snap/bin:$PATH:/usr/lib/go-1.6/bin:/var/lib/snapd/snap/bin:$PROJECT_PATH/tests/bin
     TESTSLIB: $PROJECT_PATH/tests/lib
     TESTSTOOLS: $PROJECT_PATH/tests/lib/tools
+    # turn debug off so that we don't get errant debug messages while running
+    # tests, and in some cases like on UC20 we have the kernel command line
+    # parameter, snapd.debug=1 turned on to enable early boot debugging before
+    # we have a shell, but then once we get a shell and run spread tests, we
+    # want debug messages to be off for commands we run as part of tests, unless
+    # tests explicitly turn the messages on
+    SNAPD_DEBUG: 0
     SNAPPY_TESTING: 1
     # we run the entire suite with re-exec on (the default) and modify
     # the core snap so that it contains our new code.  So we run new
@@ -100,7 +107,7 @@ backends:
                   workers: 6
             - ubuntu-core-20-64:
                   image: ubuntu-20.04-64
-                  workers: 6
+                  workers: 12
                   storage: 20G
             - ubuntu-secboot-20.04-64:
                   image: ubuntu-20.04-64
@@ -422,8 +429,6 @@ debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
         #shellcheck source=tests/lib/state.sh
         . "$TESTSLIB/state.sh"
-        #shellcheck source=tests/lib/nested.sh
-        . "$TESTSLIB/nested.sh"
 
         echo '# System information'
         cat /etc/os-release || true
@@ -434,10 +439,10 @@ debug-each: |
         echo '# Go information'
         go version || true
 
-        if nested_is_nested_system; then
+        if tests.nested is-nested; then
             echo '# nested VM status'
-            systemctl status nested-vm || true
-            nested_print_serial_log
+            tests.nested vm status
+            tests.nested get serial-log
             # add another echo in case the serial log is missing a newline
             echo
 
@@ -893,7 +898,7 @@ suites:
             tests.backup prepare
             tests.nested prepare
         restore-each: |
-            tests.nested remove-vm
+            tests.nested vm remove
             tests.nested restore
             tests.backup restore
         restore: |
@@ -930,7 +935,7 @@ suites:
             tests.backup prepare
             tests.nested create-vm classic
         restore-each: |
-            tests.nested remove-vm
+            tests.nested vm remove
             tests.backup restore
         restore: |
             tests.nested restore
@@ -968,7 +973,7 @@ suites:
             tests.backup prepare
             tests.nested create-vm core
         restore-each: |
-            tests.nested remove-vm
+            tests.nested vm remove
             tests.backup restore
         restore: |
             tests.nested restore
