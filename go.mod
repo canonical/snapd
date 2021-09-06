@@ -18,7 +18,7 @@ require (
 	github.com/mvo5/libseccomp-golang v0.9.1-0.20180308152521-f4de83b52afb
 	github.com/snapcore/bolt v1.3.2-0.20200603125928-e23dabaa2861
 	github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785
-	github.com/snapcore/secboot v0.0.0-20210805184555-c9f2139ee92b
+	github.com/snapcore/secboot v0.0.0-20210903144442-df4c75f35110
 	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1 // indirect
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/sys v0.0.0-20210823070655-63515b42dcdf
