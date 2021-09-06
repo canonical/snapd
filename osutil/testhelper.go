@@ -20,8 +20,12 @@
 package osutil
 
 import (
+	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 	"regexp"
+	"strings"
 )
 
 var goTestExeRe = regexp.MustCompile(`^.*/.*go-build.*/.*\.test$`)
@@ -36,5 +40,95 @@ func IsTestBinary() bool {
 func MustBeTestBinary(panicMsg string) {
 	if !IsTestBinary() {
 		panic(panicMsg)
+	}
+}
+
+var injectSysroot = "/"
+var stderr io.Writer = os.Stderr
+var foreverLoop = func() {
+	for {
+	}
+}
+
+func injectFault(tagKind string) (injected bool) {
+	s := strings.Split(tagKind, ":")
+	if len(s) != 2 {
+		fmt.Fprintf(stderr, "incorrect fault tag: %q", tagKind)
+		return false
+	}
+	tag := s[0]
+	kind := s[1]
+	stampFile := filepath.Join(injectSysroot, "/var/lib/snapd/faults", tagKind)
+	if FileExists(stampFile) {
+		// already injected once
+		return false
+	}
+
+	if err := os.MkdirAll(filepath.Join(injectSysroot, "/var/lib/snapd/faults"), 0755); err != nil {
+		fmt.Fprintf(stderr, "cannot create fault stamps directory: %v", err)
+		return false
+	}
+	makeStamp := func() bool {
+		if err := AtomicWriteFile(stampFile, nil, 0644, 0); err != nil {
+			fmt.Fprintf(stderr, "cannot create stamp file for tag %q", tagKind)
+			return false
+		}
+		return true
+	}
+	fmt.Fprintf(stderr, "injecting %q fault for tag %q\n", kind, tag)
+
+	switch kind {
+	case "panic":
+		if !makeStamp() {
+			return false
+		}
+		panic(fmt.Sprintf("fault %q", tagKind))
+	case "reboot":
+		f, err := os.OpenFile(filepath.Join(injectSysroot, "/proc/sysrq-trigger"), os.O_WRONLY, 0)
+		if err != nil {
+			fmt.Fprintf(stderr, "cannot open: %v", err)
+			return false
+		}
+		defer f.Close()
+		if !makeStamp() {
+			return false
+		}
+		if _, err := f.WriteString("b\n"); err != nil {
+			fmt.Fprintf(stderr, "cannot request reboot: %v", err)
+			return false
+		}
+		// we should be rebooting now
+		foreverLoop()
+	}
+	// not reached
+	return true
+}
+
+// MaybeInjectFault allows to inject faults into snapd through the environment
+// settings. The faults to inject are listed in a SNAPD_FAULT_INJECT environment
+// variable which has the format <tag>:<kind>[,<tag>:<kind>]. Where tag is a
+// free form string that can be referenced directly in the code by placing
+// MaybeInjectFault("<tag>"), while kind can be "panic" or "reboot". Panic
+// causes snapd to panic, while reboot triggers an immediate reboot via
+// sysrq-trigger. The fauls can only be injected iff SNAPPY_TESTING is true.
+func MaybeInjectFault(tag string) {
+	if !GetenvBool("SNAPPY_TESTING") {
+		return
+	}
+	envTagKinds := os.Getenv("SNAPD_FAULT_INJECT")
+	if envTagKinds == "" {
+		return
+	}
+	if strings.ContainsAny(envTagKinds, " /") {
+		fmt.Fprintf(stderr, "invalid fault tags %q", envTagKinds)
+		return
+	}
+	faults := strings.Split(envTagKinds, ",")
+	prefix := tag + ":"
+	for _, envTagKind := range faults {
+		if !strings.HasPrefix(envTagKind, prefix) {
+			continue
+		}
+		injectFault(envTagKind)
 	}
 }

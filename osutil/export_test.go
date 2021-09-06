@@ -263,3 +263,27 @@ func MockProcSelfMountInfoLocation(new string) (restore func()) {
 		procSelfMountInfo = old
 	}
 }
+
+func MockInjectSysroot(m string) (restore func()) {
+	oldInjectSysroot := injectSysroot
+	injectSysroot = m
+	return func() {
+		injectSysroot = oldInjectSysroot
+	}
+}
+
+func MockForeverLoop(f func()) (restore func()) {
+	oldForeverLoop := foreverLoop
+	foreverLoop = f
+	return func() {
+		foreverLoop = oldForeverLoop
+	}
+}
+
+func MockStderr(w io.Writer) (restore func()) {
+	oldStderr := stderr
+	stderr = w
+	return func() {
+		stderr = oldStderr
+	}
+}
