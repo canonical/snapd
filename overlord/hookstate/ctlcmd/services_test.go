@@ -639,3 +639,17 @@ test-snap.test-service  enabled  active   -
 `[1:])
 	c.Check(string(stderr), Equals, "")
 }
+
+func (s *servicectlSuite) TestServicesWithoutContext(c *C) {
+	actions := []string{
+		"start",
+		"stop",
+		"restart",
+	}
+
+	for _, action := range actions {
+		_, _, err := ctlcmd.Run(nil, []string{action, "foo"}, 0)
+		expectedError := fmt.Sprintf(`cannot invoke snapctl operation commands \(here "%s"\) from outside of a snap`, action)
+		c.Check(err, ErrorMatches, expectedError)
+	}
+}

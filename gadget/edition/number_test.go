@@ -34,11 +34,6 @@ var _ = Suite(&editionSuite{})
 
 func TestCommand(t *testing.T) { TestingT(t) }
 
-var mockEditionYaml = []byte(`
-foo:
-  edition: 1
-`)
-
 func (s *editionSuite) TestUnmarshalIntegration(c *C) {
 	type editionStruct struct {
 		Edition edition.Number `yaml:"edition"`

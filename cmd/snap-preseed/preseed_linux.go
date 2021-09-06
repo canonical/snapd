@@ -40,7 +40,6 @@ import (
 var (
 	// snapdMountPath is where target core/snapd is going to be mounted in the target chroot
 	snapdMountPath = "/tmp/snapd-preseed"
-	syscallMount   = syscall.Mount
 	syscallChroot  = syscall.Chroot
 )
 

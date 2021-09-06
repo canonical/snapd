@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
@@ -579,7 +580,7 @@ var CheckHealthHook = func(st *state.State, snapName string, rev snap.Revision) 
 	panic("internal error: snapstate.CheckHealthHook is unset")
 }
 
-var SetupGateAutoRefreshHook = func(st *state.State, snapName string, base, restart bool, affectingSnaps map[string]bool) *state.Task {
+var SetupGateAutoRefreshHook = func(st *state.State, snapName string) *state.Task {
 	panic("internal error: snapstate.SetupAutoRefreshGatingHook is unset")
 }
 
@@ -2033,7 +2034,12 @@ func autoRefreshPhase1(ctx context.Context, st *state.State, forGatingSnap strin
 
 	var hooks *state.TaskSet
 	if len(affectedSnaps) > 0 {
-		hooks = createGateAutoRefreshHooks(st, affectedSnaps)
+		affected := make([]string, 0, len(affectedSnaps))
+		for snapName := range affectedSnaps {
+			affected = append(affected, snapName)
+		}
+		sort.Strings(affected)
+		hooks = createGateAutoRefreshHooks(st, affected)
 	}
 
 	// gate-auto-refresh hooks, followed by conditional-auto-refresh task waiting
@@ -2301,7 +2307,44 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 		rev = si.Revision
 	}
 
-	return PolicyFor(si.Type(), deviceCtx.Model()).CanRemove(st, snapst, rev, deviceCtx)
+	if err := PolicyFor(si.Type(), deviceCtx.Model()).CanRemove(st, snapst, rev, deviceCtx); err != nil {
+		return err
+	}
+
+	// check if this snap is required by any validation set in enforcing mode
+	enforcedSets, err := EnforcedValidationSets(st)
+	if err != nil {
+		return err
+	}
+	if enforcedSets == nil {
+		return nil
+	}
+	requiredValsets, requiredRevision, err := enforcedSets.CheckPresenceRequired(si)
+	if err != nil {
+		if _, ok := err.(*snapasserts.PresenceConstraintError); !ok {
+			return err
+		}
+		// else - presence is invalid, nothing to do (not really possible since
+		// it shouldn't be allowed to get installed in the first place).
+		return nil
+	}
+	if len(requiredValsets) == 0 {
+		// not required by any validation set (or is optional)
+		return nil
+	}
+	// removeAll is set if we're removing the snap completely
+	if removeAll {
+		if requiredRevision.Unset() {
+			return fmt.Errorf("snap %q is required by validation sets: %s", si.InstanceName(), strings.Join(requiredValsets, ","))
+		}
+		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), requiredRevision, strings.Join(requiredValsets, ","))
+	}
+
+	// rev is set at this point (otherwise we would hit removeAll case)
+	if requiredRevision.N == rev.N {
+		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), rev, strings.Join(requiredValsets, ","))
+	} // else - it's ok to remove a revision different than the required
+	return nil
 }
 
 // RemoveFlags are used to pass additional flags to the Remove operation.
@@ -3080,4 +3123,14 @@ func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (res
 	old := osutilCheckFreeSpace
 	osutilCheckFreeSpace = mock
 	return func() { osutilCheckFreeSpace = old }
+}
+
+func MockEnforcedValidationSets(f func(st *state.State) (*snapasserts.ValidationSets, error)) func() {
+	osutil.MustBeTestBinary("mocking can be done only in tests")
+
+	old := EnforcedValidationSets
+	EnforcedValidationSets = f
+	return func() {
+		EnforcedValidationSets = old
+	}
 }
