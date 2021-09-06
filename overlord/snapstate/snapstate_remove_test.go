@@ -1758,6 +1758,14 @@ func (s *validationSetsSuite) SetUpTest(c *C) {
 		snapstate.AutomaticSnapshot = oldAutomaticSnapshot
 	})
 
+	oldAutoAliases := snapstate.AutoAliases
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
+		return nil, nil
+	}
+	s.AddCleanup(func() {
+		snapstate.AutoAliases = oldAutoAliases
+	})
+
 	s.state.Lock()
 	defer s.state.Unlock()
 	snapstate.ReplaceStore(s.state, s.fakeStore)

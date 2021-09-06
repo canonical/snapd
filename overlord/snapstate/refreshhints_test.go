@@ -25,6 +25,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -76,6 +77,7 @@ type refreshHintsTestSuite struct {
 
 	store        *recordingStore
 	restoreModel func()
+	restoreEnforcedValidationSets func()
 }
 
 var _ = Suite(&refreshHintsTestSuite{})
@@ -110,6 +112,9 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 	s.state.Set("refresh-privacy-key", "privacy-key")
 
 	s.restoreModel = snapstatetest.MockDeviceModel(DefaultModel())
+	s.restoreEnforcedValidationSets = snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		return nil, nil
+	})
 }
 
 func (s *refreshHintsTestSuite) TearDownTest(c *C) {
@@ -117,6 +122,7 @@ func (s *refreshHintsTestSuite) TearDownTest(c *C) {
 	snapstate.CanAutoRefresh = nil
 	snapstate.AutoAliases = nil
 	s.restoreModel()
+	s.restoreEnforcedValidationSets()
 }
 
 func (s *refreshHintsTestSuite) TestLastRefresh(c *C) {

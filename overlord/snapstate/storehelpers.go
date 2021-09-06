@@ -275,6 +275,7 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 		// the desired channel
 		action.Channel = revOpts.Channel
 		// the desired cohort key
+		// XXX: should we disallow cohort key if validation sets require this snap?
 		action.CohortKey = revOpts.CohortKey
 	} else {
 		action.Revision = revOpts.Revision
@@ -319,6 +320,28 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 		Channel:   opts.Channel,
 		CohortKey: opts.CohortKey,
 		Flags:     storeFlags,
+	}
+
+	enforcedSets, err := EnforcedValidationSets(st)
+	if err != nil {
+		return nil, err
+	}
+	if enforcedSets != nil {
+		requiredValsets, requiredRevision, err := enforcedSets.CheckPresenceRequired(naming.Snap(curInfo.InstanceName()))
+		if err != nil {
+			return nil, err
+		}
+		if !requiredRevision.Unset() && snapst.Current == requiredRevision {
+			return nil, fmt.Errorf("snap %q is at the required revision %s by validation sets: %s, cannot update", curInfo.InstanceName(), snapst.Current, strings.Join(requiredValsets, ","))
+		}
+
+		if len(requiredValsets) > 0 {
+			setActionValidationSets(action, requiredValsets)
+			// XXX: what about cohort above?
+			if !requiredRevision.Unset() {
+				action.Revision = requiredRevision
+			}
+		}
 	}
 
 	if curInfo.SnapID == "" { // amend
@@ -417,6 +440,23 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 		Revision: revision,
 	}
 
+	enforcedSets, err := EnforcedValidationSets(st)
+	if err != nil {
+		return nil, err
+	}
+	if enforcedSets != nil {
+		requiredValsets, requiredRevision, err := enforcedSets.CheckPresenceRequired(naming.Snap(curInfo.InstanceName()))
+		if err != nil {
+			return nil, err
+		}
+		if !requiredRevision.Unset() && revision != requiredRevision {
+			return nil, fmt.Errorf("cannot update snap %q to revision %s, revision %s is required by validation sets: %s", curInfo.InstanceName(), revision, requiredRevision, strings.Join(requiredValsets, ","))
+		}
+		if len(requiredValsets) > 0 {
+			setActionValidationSets(action, requiredValsets)
+		}
+	}
+
 	theStore := Store(st, deviceCtx)
 	st.Unlock() // calls to the store should be done without holding the state lock
 	res, _, err := theStore.SnapAction(context.TODO(), curSnaps, []*store.SnapAction{action}, nil, user, opts)
@@ -437,11 +477,10 @@ func currentSnapsImpl(st *state.State) ([]*store.CurrentSnap, error) {
 		return nil, nil
 	}
 
-	curSnaps := collectCurrentSnaps(snapStates, nil)
-	return curSnaps, nil
+	return collectCurrentSnaps(snapStates, nil)
 }
 
-func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.CurrentSnap, *SnapState)) (curSnaps []*store.CurrentSnap) {
+func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.CurrentSnap, *SnapState) error) (curSnaps []*store.CurrentSnap, err error) {
 	curSnaps = make([]*store.CurrentSnap, 0, len(snapStates))
 
 	for _, snapst := range snapStates {
@@ -477,11 +516,13 @@ func collectCurrentSnaps(snapStates map[string]*SnapState, consider func(*store.
 		curSnaps = append(curSnaps, installed)
 
 		if consider != nil {
-			consider(installed, snapst)
+			if err := consider(installed, snapst); err != nil {
+				return nil, err
+			}
 		}
 	}
 
-	return curSnaps
+	return curSnaps, nil
 }
 
 func refreshCandidates(ctx context.Context, st *state.State, names []string, user *auth.UserState, opts *store.RefreshOptions) ([]*snap.Info, map[string]*SnapState, map[string]bool, error) {
@@ -517,20 +558,53 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 	ignoreValidationByInstanceName := make(map[string]bool)
 	nCands := 0
 
-	addCand := func(installed *store.CurrentSnap, snapst *SnapState) {
+	enforcedSets, err := EnforcedValidationSets(st)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	addCand := func(installed *store.CurrentSnap, snapst *SnapState) error {
 		// FIXME: snaps that are not active are skipped for now
 		//        until we know what we want to do
 		if !snapst.Active {
-			return
+			return nil
 		}
 
 		if len(names) == 0 && snapst.DevMode {
 			// no auto-refresh for devmode
-			return
+			return nil
 		}
 
 		if len(names) > 0 && !strutil.SortedListContains(names, installed.InstanceName) {
-			return
+			return nil
+		}
+
+		action := &store.SnapAction{
+			Action:       "refresh",
+			SnapID:       installed.SnapID,
+			InstanceName: installed.InstanceName,
+		}
+
+		if enforcedSets != nil {
+			requiredValsets, requiredRevision, err := enforcedSets.CheckPresenceRequired(naming.Snap(installed.InstanceName))
+			// note, this errors out the entire refresh
+			if err != nil {
+				return err
+			}
+			// if the snap is already at the required revision then skip it from
+			// candidates when auto-refreshing, otherwise error out.
+			if !requiredRevision.Unset() && installed.Revision == requiredRevision {
+				if opts.IsAutoRefresh {
+					return nil
+				}
+				return fmt.Errorf("snap %q is at the required revision %s by validation sets: %s, cannot update", installed.InstanceName, installed.Revision, strings.Join(requiredValsets, ","))
+			}
+			if !requiredRevision.Unset() {
+				action.Revision = requiredRevision
+			}
+			if len(requiredValsets) > 0 {
+				setActionValidationSets(action, requiredValsets)
+			}
 		}
 
 		stateByInstanceName[installed.InstanceName] = snapst
@@ -543,18 +617,18 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 		if userID == 0 {
 			userID = fallbackID
 		}
-		actionsByUserID[userID] = append(actionsByUserID[userID], &store.SnapAction{
-			Action:       "refresh",
-			SnapID:       installed.SnapID,
-			InstanceName: installed.InstanceName,
-		})
+		actionsByUserID[userID] = append(actionsByUserID[userID], action)
 		if snapst.IgnoreValidation {
 			ignoreValidationByInstanceName[installed.InstanceName] = true
 		}
 		nCands++
+		return nil
 	}
 	// determine current snaps and collect candidates for refresh
-	curSnaps := collectCurrentSnaps(snapStates, addCand)
+	curSnaps, err := collectCurrentSnaps(snapStates, addCand)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 
 	actionsForUser := make(map[*auth.UserState][]*store.SnapAction, len(actionsByUserID))
 	noUserActions := actionsByUserID[0]
