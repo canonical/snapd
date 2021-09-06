@@ -157,8 +157,10 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		return err
 	}
 
-	// collect the config changes
-	var configs []string
+	// Always starts with a clean config to avoid merging of keys
+	// that got unset.
+	configs := []string{"network=null"}
+	// and then pass the full new config in
 	for key := range cfg {
 		// We pass the new config back to netplan as json, the reason
 		// is that the dbus api accepts only a single line string, see
@@ -168,23 +170,6 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 			return fmt.Errorf("cannot netplan config: %v", err)
 		}
 		configs = append(configs, fmt.Sprintf("%s=%s", key, string(jsonNetplanConfigRaw)))
-	}
-
-	// Support "unset" by checking if there are changes that are
-	// no longer part of the config.
-	for _, key := range tr.Changes() {
-		key = strings.TrimPrefix(key, "core.")
-
-		var v interface{}
-		err := tr.Get("core", key, &v)
-		// key is no longer available, remove explicitly
-		//
-		// TODO: figure out why in the unit tests the value of "v"
-		//       is "nil" but with the real config we get IsNoOption(err)
-		if v == nil || config.IsNoOption(err) {
-			key = strings.TrimPrefix(key, "system.network.netplan.")
-			configs = append(configs, fmt.Sprintf("%s=null", key))
-		}
 	}
 
 	// now apply

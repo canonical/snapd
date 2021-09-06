@@ -247,28 +247,18 @@ func (s *netplanSuite) TestNetplanWriteConfigHappy(c *C) {
 	s.backend.ConfigApiTryRet = true
 	s.backend.ConfigApiApplyRet = true
 
-	err := configcore.Run(coreDev, &mockConf{
-		state: s.state,
-		changes: map[string]interface{}{
-			"system.network.netplan": map[string]interface{}{
-				"ethernets": map[string]interface{}{
-					"eth0": map[string]interface{}{
-						"dhcp4": true,
-					},
-				},
-				"wifi": map[string]interface{}{
-					"wlan0": map[string]interface{}{
-						"dhcp4": true,
-					},
-				},
-			},
-		},
-	})
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	s.state.Unlock()
+	tr.Set("core", "system.network.netplan.network.ethernets.eth0.dhcp4", true)
+	tr.Set("core", "system.network.netplan.network.wifi.wlan0.dhcp4", true)
+
+	err := configcore.Run(coreDev, tr)
 	c.Assert(err, IsNil)
 
 	c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{
-		`ethernets={"eth0":{"dhcp4":true}}/90-snapd-conf`,
-		`wifi={"wlan0":{"dhcp4":true}}/90-snapd-conf`,
+		`network=null/90-snapd-conf`,
+		`network={"ethernets":{"eth0":{"dhcp4":true}},"renderer":"NetworkManager","version":2,"wifi":{"wlan0":{"dhcp4":true}}}/90-snapd-conf`,
 	})
 	c.Check(s.backend.ConfigApiTryCalls, Equals, 1)
 	c.Check(s.backend.ConfigApiApplyCalls, Equals, 1)
@@ -280,34 +270,32 @@ func (s *netplanSuite) TestNetplanWriteConfigNoNetworkAfterTry(c *C) {
 
 	// we have connectivity but it stops
 	s.fakestore.statusSeq = []map[string]bool{
-		map[string]bool{"host1": true},
-		map[string]bool{"host1": false},
+		{"host1": true},
+		{"host1": false},
 	}
 	s.backend.ConfigApiTryRet = true
 	s.backend.ConfigApiApplyRet = true
 
-	err := configcore.Run(coreDev, &mockConf{
-		state: s.state,
-		changes: map[string]interface{}{
-			"system.network.netplan": map[string]interface{}{
-				"ethernets": map[string]interface{}{
-					"eth0": map[string]interface{}{
-						"dhcp4": true,
-					},
-				},
-			},
-		},
-	})
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	s.state.Unlock()
+	tr.Set("core", "system.network.netplan.ethernets.eth0.dhcp4", true)
+
+	err := configcore.Run(coreDev, tr)
 	c.Assert(err, ErrorMatches, `cannot set netplan config: store no longer reachable`)
 
 	c.Check(s.backend.ConfigApiTryCalls, Equals, 1)
-	c.Check(s.backend.ConfigApiCancelCalls, Equals, 1)
+	// one cancel for the initial "Get()" and one after the Try failed
+	c.Check(s.backend.ConfigApiCancelCalls, Equals, 2)
 	c.Check(s.backend.ConfigApiApplyCalls, Equals, 0)
 }
 
 func (s *netplanSuite) TestNetplanWriteConfigCanUnset(c *C) {
 	// export the V2 api, things work with that
-	s.backend.MockNetplanConfigYaml = mockNetplanConfigYaml + `
+	s.backend.MockNetplanConfigYaml = `
+network:
+  renderer: networkd
+  version: 2
   bridges:
     br54:
       dhcp4: true
@@ -319,13 +307,18 @@ func (s *netplanSuite) TestNetplanWriteConfigCanUnset(c *C) {
 	s.backend.ConfigApiTryRet = true
 	s.backend.ConfigApiApplyRet = true
 
-	err := configcore.Run(coreDev, &mockConf{
-		state: s.state,
-		changes: map[string]interface{}{
-			"system.network.netplan.network.bridges.br54.dhcp4": nil,
-		},
-	})
+	// we cannot use mockConf because we need the external config
+	// integration from the config.Transaction
+	s.state.Lock()
+	tr := config.NewTransaction(s.state)
+	s.state.Unlock()
+	tr.Set("core", "system.network.netplan.network.bridges.br54.dhcp4", nil)
+
+	err := configcore.Run(coreDev, tr)
 	c.Assert(err, IsNil)
 
-	c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{`network.bridges.br54.dhcp4=null/90-snapd-conf`})
+	c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{
+		`network=null/90-snapd-conf`,
+		`network={"bridges":{"br54":{"dhcp6":true}},"renderer":"networkd","version":2}/90-snapd-conf`,
+	})
 }
