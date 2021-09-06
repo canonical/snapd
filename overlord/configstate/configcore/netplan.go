@@ -146,9 +146,6 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	if err := tr.Get("core", "system.network.netplan", &cfg); err != nil && !config.IsNoOption(err) {
 		return err
 	}
-	if len(cfg) == 0 {
-		return nil
-	}
 
 	netplanCfgSnapshot, err := getNetplanCfgSnapshot()
 	// Having no netplan config is *not* an error, we just
@@ -160,15 +157,38 @@ func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 		return err
 	}
 
-	// We pass the new config back to netplan as json, the reason
-	// is that the dbus api accepts only a single line string, see
-	// see https://github.com/canonical/netplan/pull/210
+	// collect the config changes
+	var configs []string
 	for key := range cfg {
+		// We pass the new config back to netplan as json, the reason
+		// is that the dbus api accepts only a single line string, see
+		// see https://github.com/canonical/netplan/pull/210
 		jsonNetplanConfigRaw, err := json.Marshal(cfg[key])
 		if err != nil {
 			return fmt.Errorf("cannot netplan config: %v", err)
 		}
-		jsonNetplanConfig := fmt.Sprintf("%s=%s", key, string(jsonNetplanConfigRaw))
+		configs = append(configs, fmt.Sprintf("%s=%s", key, string(jsonNetplanConfigRaw)))
+	}
+
+	// Support "unset" by checking if there are changes that are
+	// no longer part of the config.
+	for _, key := range tr.Changes() {
+		key = strings.TrimPrefix(key, "core.")
+
+		var v interface{}
+		err := tr.Get("core", key, &v)
+		// key is no longer available, remove explicitly
+		//
+		// TODO: figure out why in the unit tests the value of "v"
+		//       is "nil" but with the real config we get IsNoOption(err)
+		if v == nil || config.IsNoOption(err) {
+			key = strings.TrimPrefix(key, "system.network.netplan.")
+			configs = append(configs, fmt.Sprintf("%s=null", key))
+		}
+	}
+
+	// now apply
+	for _, jsonNetplanConfig := range configs {
 		logger.Debugf("calling netplan.Set: %v", jsonNetplanConfig)
 
 		originHint := "90-snapd-conf"

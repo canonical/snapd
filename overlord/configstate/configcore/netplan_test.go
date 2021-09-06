@@ -322,16 +322,10 @@ func (s *netplanSuite) TestNetplanWriteConfigCanUnset(c *C) {
 	err := configcore.Run(coreDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
-			"system.network.netplan": map[string]interface{}{
-				"bridges": map[string]interface{}{
-					"br54": map[string]interface{}{
-						"dhcp4": nil,
-					},
-				},
-			},
+			"system.network.netplan.network.bridges.br54.dhcp4": nil,
 		},
 	})
 	c.Assert(err, IsNil)
 
-	c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{`bridges={"br54":{"dhcp4":null}}/90-snapd-conf`})
+	c.Check(s.backend.ConfigApiSetCalls, DeepEquals, []string{`network.bridges.br54.dhcp4=null/90-snapd-conf`})
 }

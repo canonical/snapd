@@ -33,5 +33,14 @@ execute: |
     res=$(yq e '.network.bridges.br54.dhcp6' - < /etc/netplan/90_snapd.yaml)
     [ "$res" = "true" ]
 
-    # TODO: ensure that
-    # "snap unset system.network.netplan.bridges.br54.dhcp4=true" works
+    echo "Check that unset works"
+    snap unset system system.network.netplan.bridges.br54.dhcp6=true
+    if yq e '.network.bridges.br54.dhcp6' - < /etc/netplan/90_snapd.yaml; then
+        echo "getting the .network.bridges.br54.dhcp6 should fail"
+        cat /etc/netplan/90_snapd.yaml
+        exit 1
+    fi
+
+    echo "Unset the whole subtree works"
+    snap unset system system.network.netplan.bridges.br54
+    ip link | not grep br54
