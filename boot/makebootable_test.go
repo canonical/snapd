@@ -641,9 +641,9 @@ version: 5.0
 
 	// ensure the bootvars got updated the right way
 	mockSeedGrubenv := filepath.Join(mockSeedGrubDir, "grubenv")
-	c.Check(mockSeedGrubenv, testutil.FilePresent)
+	c.Assert(mockSeedGrubenv, testutil.FilePresent)
 	c.Check(mockSeedGrubenv, testutil.FileContains, "snapd_recovery_mode=run")
-	c.Check(mockSeedGrubenv, testutil.FileContains, "good_recovery_systems=20191216")
+	c.Check(mockSeedGrubenv, testutil.FileContains, "snapd_good_recovery_systems=20191216")
 	mockBootGrubenv := filepath.Join(mockBootGrubDir, "grubenv")
 	c.Check(mockBootGrubenv, testutil.FilePresent)
 
@@ -1114,8 +1114,9 @@ version: 5.0
 
 	// ensure the bootvars got updated the right way
 	mockSeedGrubenv := filepath.Join(mockSeedGrubDir, "grubenv")
-	c.Check(mockSeedGrubenv, testutil.FilePresent)
+	c.Assert(mockSeedGrubenv, testutil.FilePresent)
 	c.Check(mockSeedGrubenv, testutil.FileContains, "snapd_recovery_mode=run")
+	c.Check(mockSeedGrubenv, testutil.FileContains, "snapd_good_recovery_systems=20191216")
 	mockBootGrubenv := filepath.Join(mockBootGrubDir, "grubenv")
 	c.Check(mockBootGrubenv, testutil.FilePresent)
 	systemGenv := grubenv.NewEnv(mockBootGrubenv)
