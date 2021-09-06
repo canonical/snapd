@@ -926,6 +926,10 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		resealCalls          int
 		expectedErr          string
 	}{
+		// happy case
+		{tpmEnabled: true, resealCalls: 1, expectedErr: ""},
+
+		// unhappy cases
 		{tpmErr: mockErr, expectedErr: "cannot connect to TPM: some error"},
 		{tpmEnabled: false, expectedErr: "TPM device is not enabled"},
 		{tpmEnabled: true, missingFile: true, expectedErr: "cannot build EFI image load sequences: file .*/file.efi does not exist"},
@@ -934,7 +938,6 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		{tpmEnabled: true, addSystemdEFIStubErr: mockErr, expectedErr: "cannot add systemd EFI stub profile: some error"},
 		{tpmEnabled: true, addSnapModelErr: mockErr, expectedErr: "cannot add snap model profile: some error"},
 		{tpmEnabled: true, resealErr: mockErr, resealCalls: 1, expectedErr: "some error"},
-		{tpmEnabled: true, resealCalls: 1, expectedErr: ""},
 	} {
 		mockTPMPolicyAuthKey := []byte{1, 3, 3, 7}
 		mockTPMPolicyAuthKeyFile := filepath.Join(c.MkDir(), "policy-auth-key-file")
@@ -1042,7 +1045,7 @@ func (s *secbootSuite) TestResealKey(c *C) {
 			c.Assert(addSystemdEfiStubCalls, Equals, 1)
 			c.Assert(addSnapModelCalls, Equals, 1)
 		} else {
-			c.Assert(err, ErrorMatches, tc.expectedErr)
+			c.Assert(err, ErrorMatches, tc.expectedErr, Commentf("%v", tc))
 		}
 		c.Assert(resealCalls, Equals, tc.resealCalls)
 	}
