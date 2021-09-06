@@ -472,12 +472,26 @@ func MarkRecoveryCapableSystem(systemLabel string) error {
 	var systems []string
 	if vars["snapd_good_recovery_systems"] != "" {
 		systems = strings.Split(vars["snapd_good_recovery_systems"], ",")
-		if strutil.ListContains(systems, systemLabel) {
-			// already recorded, nothing to do
-			return nil
+	}
+	// to be consistent with how modeeenv treats good recovery systems, we
+	// append the system, also make sure that the system appears last, such
+	// that the bootloader may pick the last entry and have a good default
+	foundPos := -1
+	for idx, sys := range systems {
+		if sys == systemLabel {
+			foundPos = idx
+			break
 		}
 	}
-	systems = append(systems, systemLabel)
+	if foundPos == -1 {
+		// not found in the list
+		systems = append(systems, systemLabel)
+	} else if foundPos < len(systems)-1 {
+		// not a last entry in the list of systems
+		systems = append(systems[0:foundPos], systems[foundPos+1:]...)
+		systems = append(systems, systemLabel)
+	}
+
 	systemsForEnv := strings.Join(systems, ",")
 	return rbl.SetBootVars(map[string]string{
 		"snapd_good_recovery_systems": systemsForEnv,

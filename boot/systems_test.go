@@ -1772,8 +1772,8 @@ func (s *systemsSuite) TestMarkRecoveryCapableSystemHappy(c *C) {
 	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
 	c.Assert(err, IsNil)
 	c.Check(vars, DeepEquals, map[string]string{
-		// nothing changed
-		"snapd_good_recovery_systems": "1234,4567",
+		// system got moved to the end of the list
+		"snapd_good_recovery_systems": "4567,1234",
 	})
 
 	// and the new one again
@@ -1782,8 +1782,50 @@ func (s *systemsSuite) TestMarkRecoveryCapableSystemHappy(c *C) {
 	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
 	c.Assert(err, IsNil)
 	c.Check(vars, DeepEquals, map[string]string{
-		// still no changes
+		// and it became the last entry
 		"snapd_good_recovery_systems": "1234,4567",
+	})
+}
+
+func (s *systemsSuite) TestMarkRecoveryCapableSystemAlwaysLast(c *C) {
+	rbl := bootloadertest.Mock("recovery", c.MkDir()).RecoveryAware()
+	bootloader.Force(rbl)
+
+	err := rbl.SetBootVars(map[string]string{
+		"snapd_good_recovery_systems": "1234,2222",
+	})
+	c.Assert(err, IsNil)
+
+	err = boot.MarkRecoveryCapableSystem("1234")
+	c.Assert(err, IsNil)
+	vars, err := rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		"snapd_good_recovery_systems": "2222,1234",
+	})
+
+	err = rbl.SetBootVars(map[string]string{
+		"snapd_good_recovery_systems": "1111,1234,2222",
+	})
+	c.Assert(err, IsNil)
+	err = boot.MarkRecoveryCapableSystem("1234")
+	c.Assert(err, IsNil)
+	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		"snapd_good_recovery_systems": "1111,2222,1234",
+	})
+
+	err = rbl.SetBootVars(map[string]string{
+		"snapd_good_recovery_systems": "1111,2222",
+	})
+	c.Assert(err, IsNil)
+	err = boot.MarkRecoveryCapableSystem("1234")
+	c.Assert(err, IsNil)
+	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		"snapd_good_recovery_systems": "1111,2222,1234",
 	})
 }
 
