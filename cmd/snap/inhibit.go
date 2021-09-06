@@ -138,7 +138,7 @@ loop:
 			}
 			break loop
 		case <-ticker.C:
-			// A second has elapsed, let's check again.
+			// Half a second has elapsed, let's check again.
 			hint, err := isLocked(snapName)
 			if err != nil {
 				return err
