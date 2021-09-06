@@ -46,10 +46,9 @@ type refreshSuite struct {
 
 var _ = Suite(&refreshSuite{})
 
-func mockRefreshCandidate(snapName, instanceKey, channel, version string, revision snap.Revision) interface{} {
+func mockRefreshCandidate(snapName, channel, version string, revision snap.Revision) interface{} {
 	sup := &snapstate.SnapSetup{
-		Channel:     channel,
-		InstanceKey: instanceKey,
+		Channel: channel,
 		SideInfo: &snap.SideInfo{
 			Revision: revision,
 			RealName: snapName,
@@ -86,7 +85,7 @@ var refreshFromHookTests = []struct {
 }, {
 	args: []string{"refresh", "--pending"},
 	refreshCandidates: map[string]interface{}{
-		"snap1": mockRefreshCandidate("snap1", "", "edge", "v1", snap.Revision{N: 3}),
+		"snap1": mockRefreshCandidate("snap1", "edge", "v1", snap.Revision{N: 3}),
 	},
 	stdout: "pending: ready\nchannel: edge\nversion: v1\nrevision: 3\nbase: false\nrestart: false\n",
 }, {
@@ -95,13 +94,13 @@ var refreshFromHookTests = []struct {
 }, {
 	args: []string{"refresh", "--pending"},
 	refreshCandidates: map[string]interface{}{
-		"snap1-base": mockRefreshCandidate("snap1-base", "", "edge", "v1", snap.Revision{N: 3}),
+		"snap1-base": mockRefreshCandidate("snap1-base", "edge", "v1", snap.Revision{N: 3}),
 	},
 	stdout: "pending: none\nchannel: stable\nbase: true\nrestart: false\n",
 }, {
 	args: []string{"refresh", "--pending"},
 	refreshCandidates: map[string]interface{}{
-		"kernel": mockRefreshCandidate("kernel", "", "edge", "v1", snap.Revision{N: 3}),
+		"kernel": mockRefreshCandidate("kernel", "edge", "v1", snap.Revision{N: 3}),
 	},
 	stdout: "pending: none\nchannel: stable\nbase: false\nrestart: true\n",
 }, {
@@ -182,7 +181,7 @@ version: 1
 `)
 
 	candidates := map[string]interface{}{
-		"snap1-base": mockRefreshCandidate("snap1-base", "", "edge", "v1", snap.Revision{N: 3}),
+		"snap1-base": mockRefreshCandidate("snap1-base", "edge", "v1", snap.Revision{N: 3}),
 	}
 	s.st.Set("refresh-candidates", candidates)
 

@@ -59,11 +59,11 @@ func (s *sealSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 }
 
-func mockKernelSeedSnap(c *C, rev snap.Revision) *seed.Snap {
-	return mockNamedKernelSeedSnap(c, rev, "pc-kernel")
+func mockKernelSeedSnap(rev snap.Revision) *seed.Snap {
+	return mockNamedKernelSeedSnap(rev, "pc-kernel")
 }
 
-func mockNamedKernelSeedSnap(c *C, rev snap.Revision, name string) *seed.Snap {
+func mockNamedKernelSeedSnap(rev snap.Revision, name string) *seed.Snap {
 	revAsString := rev.String()
 	if rev.Unset() {
 		revAsString = "unset"
@@ -151,7 +151,7 @@ func (s *sealSuite) TestSealKeyToModeenv(c *C) {
 		readSystemEssentialCalls := 0
 		restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 			readSystemEssentialCalls++
-			return model, []*seed.Snap{mockKernelSeedSnap(c, snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
+			return model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
 		})
 		defer restore()
 
@@ -415,7 +415,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithSystemFallback(c *C) {
 		readSystemEssentialCalls := 0
 		restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 			readSystemEssentialCalls++
-			return model, []*seed.Snap{mockKernelSeedSnap(c, snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
+			return model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
 		})
 		defer restore()
 
@@ -730,7 +730,7 @@ func (s *sealSuite) TestResealKeyToModeenvRecoveryKeysForGoodSystemsOnly(c *C) {
 		if label == "1234" {
 			kernelRev = 999
 		}
-		return model, []*seed.Snap{mockKernelSeedSnap(c, snap.R(kernelRev)), mockGadgetSeedSnap(c, nil)}, nil
+		return model, []*seed.Snap{mockKernelSeedSnap(snap.R(kernelRev)), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 
@@ -999,7 +999,7 @@ func (s *sealSuite) TestResealKeyToModeenvFallbackCmdline(c *C) {
 	readSystemEssentialCalls := 0
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 		readSystemEssentialCalls++
-		return model, []*seed.Snap{mockKernelSeedSnap(c, snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
+		return model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 
@@ -1211,7 +1211,7 @@ func (s *sealSuite) TestRecoveryBootChainsForSystems(c *C) {
 			default:
 				return nil, nil, fmt.Errorf("invalid system seed")
 			}
-			return systemModel, []*seed.Snap{mockKernelSeedSnap(c, snap.R(kernelRev)), mockGadgetSeedSnap(c, tc.gadgetFilesForSystem[label])}, nil
+			return systemModel, []*seed.Snap{mockKernelSeedSnap(snap.R(kernelRev)), mockGadgetSeedSnap(c, tc.gadgetFilesForSystem[label])}, nil
 		})
 		defer restore()
 
@@ -1714,7 +1714,7 @@ func (s *sealSuite) TestResealKeyToModeenvWithTryModel(c *C) {
 				"grade": "secured",
 			})
 		}
-		return systemModel, []*seed.Snap{mockKernelSeedSnap(c, snap.R(kernelRev)), mockGadgetSeedSnap(c, nil)}, nil
+		return systemModel, []*seed.Snap{mockKernelSeedSnap(snap.R(kernelRev)), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 

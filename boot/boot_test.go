@@ -2178,7 +2178,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsUpdateHappy(c *C) {
 	uc20Model := boottest.MakeMockUC20Model()
 
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
-		return uc20Model, []*seed.Snap{mockKernelSeedSnap(c, snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
+		return uc20Model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 
@@ -2314,7 +2314,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootAssetsStableStateHappy(c *C
 	uc20Model := boottest.MakeMockUC20Model()
 
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
-		return uc20Model, []*seed.Snap{mockNamedKernelSeedSnap(c, snap.R(1), "pc-kernel-recovery"), mockGadgetSeedSnap(c, nil)}, nil
+		return uc20Model, []*seed.Snap{mockNamedKernelSeedSnap(snap.R(1), "pc-kernel-recovery"), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 
@@ -2472,7 +2472,7 @@ func (s *bootenv20Suite) TestMarkBootSuccessful20BootUnassertedKernelAssetsStabl
 	uc20Model := boottest.MakeMockUC20Model()
 
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
-		return uc20Model, []*seed.Snap{mockNamedKernelSeedSnap(c, snap.R(1), "pc-kernel-recovery"), mockGadgetSeedSnap(c, nil)}, nil
+		return uc20Model, []*seed.Snap{mockNamedKernelSeedSnap(snap.R(1), "pc-kernel-recovery"), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 

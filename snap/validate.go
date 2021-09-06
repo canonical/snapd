@@ -249,17 +249,17 @@ func validateSocketAddrAbstract(socket *SocketInfo, fieldName string, path strin
 func validateSocketAddrNet(socket *SocketInfo, fieldName string, address string) error {
 	lastIndex := strings.LastIndex(address, ":")
 	if lastIndex >= 0 {
-		if err := validateSocketAddrNetHost(socket, fieldName, address[:lastIndex]); err != nil {
+		if err := validateSocketAddrNetHost(fieldName, address[:lastIndex]); err != nil {
 			return err
 		}
-		return validateSocketAddrNetPort(socket, fieldName, address[lastIndex+1:])
+		return validateSocketAddrNetPort(fieldName, address[lastIndex+1:])
 	}
 
 	// Address only contains a port
-	return validateSocketAddrNetPort(socket, fieldName, address)
+	return validateSocketAddrNetPort(fieldName, address)
 }
 
-func validateSocketAddrNetHost(socket *SocketInfo, fieldName string, address string) error {
+func validateSocketAddrNetHost(fieldName string, address string) error {
 	validAddresses := []string{"127.0.0.1", "[::1]", "[::]"}
 	for _, valid := range validAddresses {
 		if address == valid {
@@ -270,7 +270,7 @@ func validateSocketAddrNetHost(socket *SocketInfo, fieldName string, address str
 	return fmt.Errorf("invalid %q address %q, must be one of: %s", fieldName, address, strings.Join(validAddresses, ", "))
 }
 
-func validateSocketAddrNetPort(socket *SocketInfo, fieldName string, port string) error {
+func validateSocketAddrNetPort(fieldName string, port string) error {
 	var val uint64
 	var err error
 	retErr := fmt.Errorf("invalid %q port number %q", fieldName, port)
