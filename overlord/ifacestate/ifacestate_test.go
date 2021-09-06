@@ -8836,3 +8836,39 @@ func (s *interfaceManagerSuite) TestResolveDisconnectMatrixTypical(c *C) {
 		}
 	}
 }
+
+func (s *interfaceManagerSuite) TestConnectSetsUpSecurityFails(c *C) {
+	s.MockModel(c, nil)
+	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+
+	s.mockSnap(c, consumerYaml)
+	s.mockSnap(c, producerYaml)
+	_ = s.manager(c)
+
+	s.secBackend.SetupCallback = func(snapInfo *snap.Info, opts interfaces.ConfinementOptions, repo *interfaces.Repository) error {
+		return fmt.Errorf("setup-callback failed")
+	}
+
+	s.state.Lock()
+	ts, err := ifacestate.Connect(s.state, "consumer", "plug", "producer", "slot")
+	c.Assert(err, IsNil)
+	ts.Tasks()[0].Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "consumer",
+		},
+	})
+	change := s.state.NewChange("connect", "")
+	change.AddAll(ts)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(change.Err(), ErrorMatches, `(?ms).*\(setup-callback failed\)`)
+	c.Check(change.Status(), Equals, state.ErrorStatus)
+
+	repo := s.manager(c).Repository()
+	ifaces := repo.Interfaces()
+	c.Check(ifaces.Connections, HasLen, 0)
+}

@@ -386,7 +386,7 @@ func setDynamicHookAttributes(task *state.Task, plugAttrs, slotAttrs map[string]
 	task.Set("slot-dynamic", slotAttrs)
 }
 
-func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
+func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) (err error) {
 	st := task.State()
 	st.Lock()
 	defer st.Unlock()
@@ -487,6 +487,13 @@ func (m *InterfaceManager) doConnect(task *state.Task, _ *tomb.Tomb) error {
 	if err != nil || conn == nil {
 		return err
 	}
+	defer func() {
+		if err != nil {
+			if err := m.repo.Disconnect(plugRef.Snap, plugRef.Name, slotRef.Snap, slotRef.Name); err != nil {
+				logger.Noticef("cannot undo failed connection: %v", err)
+			}
+		}
+	}()
 
 	if !delayedSetupProfiles {
 		slotOpts := confinementOptions(slotSnapst.Flags)
