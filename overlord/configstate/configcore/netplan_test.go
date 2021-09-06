@@ -31,15 +31,29 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/configstate/configcore/netplantest"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 )
+
+type fakeConnectivityCheckStore struct {
+	status    map[string]bool
+	mockedErr error
+}
+
+func (sto *fakeConnectivityCheckStore) ConnectivityCheck() (map[string]bool, error) {
+	return sto.status, sto.mockedErr
+}
+
+var _ = (configcore.ConnectivityCheckStore)(&fakeConnectivityCheckStore{})
 
 type netplanSuite struct {
 	configcoreSuite
 	testutil.DBusTest
 
-	backend *netplantest.NetplanServer
+	backend   *netplantest.NetplanServer
+	fakestore *fakeConnectivityCheckStore
 }
 
 var _ = Suite(&netplanSuite{})
@@ -59,10 +73,17 @@ func (s *netplanSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { c.Check(backend.Stop(), IsNil) })
 	s.backend = backend
 
+	// fake the connectivity store
+	s.fakestore = &fakeConnectivityCheckStore{}
+	restore := configcore.MockSnapstateStore(func(st *state.State, deviceCtx snapstate.DeviceContext) configcore.ConnectivityCheckStore {
+		return s.fakestore
+	})
+	s.AddCleanup(restore)
+
 	// We mock the system bus with a private session bus, that is
 	// good enough for the unit tests. Spread tests cover the real
 	// bus.
-	restore := dbusutil.MockOnlySystemBusAvailable(s.SessionBus)
+	restore = dbusutil.MockOnlySystemBusAvailable(s.SessionBus)
 	s.AddCleanup(restore)
 
 	restore = release.MockOnClassic(false)
@@ -180,4 +201,31 @@ func (s *netplanSuite) TestNetplanReadOnlyForNow(c *C) {
 		},
 	})
 	c.Assert(err, ErrorMatches, "cannot set netplan config yet")
+}
+
+func (s *netplanSuite) TestNetplanConnectivityCheck(c *C) {
+	tests := []struct {
+		status      map[string]bool
+		expectedErr string
+	}{
+		// happy
+		{nil, ""},
+		{map[string]bool{"host1": true}, ""},
+		{map[string]bool{"host1": true, "host2": true}, ""},
+
+		// unhappy
+		{map[string]bool{"host1": false}, `cannot connect to "host1"`},
+		{map[string]bool{"host1": false, "host2": true}, `cannot connect to "host1"`},
+		{map[string]bool{"host1": false, "host2": false}, `cannot connect to "host1,host2"`},
+	}
+
+	for _, tc := range tests {
+		s.fakestore.status = tc.status
+		err := configcore.StoreReachable(s.state)
+		if tc.expectedErr != "" {
+			c.Check(err, ErrorMatches, tc.expectedErr)
+		} else {
+			c.Check(err, IsNil)
+		}
+	}
 }

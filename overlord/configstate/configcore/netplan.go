@@ -21,6 +21,7 @@ package configcore
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	// TODO: Move to yaml.v3 everywhere, there is PR#10696 that starts
@@ -39,6 +40,8 @@ import (
 
 	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 )
 
@@ -47,6 +50,35 @@ func init() {
 	supportedConfigurations["core.system.network.netplan"] = true
 	// and register as exteranl config
 	config.RegisterExternalConfig("core", "system.network.netplan", getNetplanFromSystem)
+}
+
+type connectivityCheckStore interface {
+	ConnectivityCheck() (map[string]bool, error)
+}
+
+var snapstateStore = func(st *state.State, deviceCtx snapstate.DeviceContext) connectivityCheckStore {
+	return snapstate.Store(st, deviceCtx)
+}
+
+func storeReachable(st *state.State) error {
+	sto := snapstateStore(st, nil)
+	status, err := sto.ConnectivityCheck()
+	if err != nil {
+		return err
+	}
+
+	var unreachable []string
+	for host, reachable := range status {
+		if !reachable {
+			unreachable = append(unreachable, host)
+		}
+	}
+	if len(unreachable) > 0 {
+		sort.Strings(unreachable)
+		return fmt.Errorf("cannot connect to %q", strings.Join(unreachable, ","))
+	}
+
+	return nil
 }
 
 func validateNetplanSettings(tr config.Conf) error {
