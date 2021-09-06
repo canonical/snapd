@@ -4,9 +4,10 @@ go 1.13
 
 require (
 	github.com/boltdb/bolt v1.3.1 // indirect
+	github.com/canonical/go-efilib v0.0.0-20210904134225-fd6cb98c6228 // indirect
 	github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 // indirect
-	github.com/canonical/go-tpm2 v0.0.0-20210314160024-32171bd353b1
-	github.com/canonical/tcglog-parser v0.0.0-20200908165021-12a3a7bcf5a1 // indirect
+	github.com/canonical/go-tpm2 v0.0.0-20210827151749-f80ff5afff61
+	github.com/canonical/tcglog-parser v0.0.0-20210824131805-69fa1e9f0ad2 // indirect
 	github.com/coreos/go-systemd v0.0.0-20180511133405-39ca1b05acc7
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2
 	github.com/gorilla/mux v1.7.4-0.20190701202633-d83b6ffe499a
@@ -19,7 +20,6 @@ require (
 	github.com/snapcore/bolt v1.3.2-0.20200603125928-e23dabaa2861
 	github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785
 	github.com/snapcore/secboot v0.0.0-20210903144442-df4c75f35110
-	go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1 // indirect
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/sys v0.0.0-20210823070655-63515b42dcdf
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1
