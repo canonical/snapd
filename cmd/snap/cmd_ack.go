@@ -59,7 +59,7 @@ func init() {
 	}})
 }
 
-func ackFile(cli *client.Client, assertFile string) error {
+func ackFile(cli client.Client, assertFile string) error {
 	assertData, err := ioutil.ReadFile(assertFile)
 	if err != nil {
 		return err

@@ -91,7 +91,13 @@ type DisconnectOptions struct {
 	Forget bool
 }
 
-func (client *Client) Interfaces(opts *InterfaceOptions) ([]*Interface, error) {
+type ClientInterfaces interface {
+	Interfaces(opts *InterfaceOptions) ([]*Interface, error)
+	Connect(plugSnapName, plugName, slotSnapName, slotName string) (changeID string, err error)
+	Disconnect(plugSnapName, plugName, slotSnapName, slotName string, opts *DisconnectOptions) (changeID string, err error)
+}
+
+func (client *client) Interfaces(opts *InterfaceOptions) ([]*Interface, error) {
 	query := url.Values{}
 	if opts != nil && len(opts.Names) > 0 {
 		query.Set("names", strings.Join(opts.Names, ",")) // Return just those specific interfaces.
@@ -120,7 +126,7 @@ func (client *Client) Interfaces(opts *InterfaceOptions) ([]*Interface, error) {
 }
 
 // performInterfaceAction performs a single action on the interface system.
-func (client *Client) performInterfaceAction(sa *InterfaceAction) (changeID string, err error) {
+func (client *client) performInterfaceAction(sa *InterfaceAction) (changeID string, err error) {
 	b, err := json.Marshal(sa)
 	if err != nil {
 		return "", err
@@ -130,7 +136,7 @@ func (client *Client) performInterfaceAction(sa *InterfaceAction) (changeID stri
 
 // Connect establishes a connection between a plug and a slot.
 // The plug and the slot must have the same interface.
-func (client *Client) Connect(plugSnapName, plugName, slotSnapName, slotName string) (changeID string, err error) {
+func (client *client) Connect(plugSnapName, plugName, slotSnapName, slotName string) (changeID string, err error) {
 	return client.performInterfaceAction(&InterfaceAction{
 		Action: "connect",
 		Plugs:  []Plug{{Snap: plugSnapName, Name: plugName}},
@@ -139,7 +145,7 @@ func (client *Client) Connect(plugSnapName, plugName, slotSnapName, slotName str
 }
 
 // Disconnect breaks the connection between a plug and a slot.
-func (client *Client) Disconnect(plugSnapName, plugName, slotSnapName, slotName string, opts *DisconnectOptions) (changeID string, err error) {
+func (client *client) Disconnect(plugSnapName, plugName, slotSnapName, slotName string, opts *DisconnectOptions) (changeID string, err error) {
 	return client.performInterfaceAction(&InterfaceAction{
 		Action: "disconnect",
 		Forget: opts != nil && opts.Forget,

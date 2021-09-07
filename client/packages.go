@@ -90,6 +90,14 @@ type SnapHealth struct {
 	Code      string        `json:"code,omitempty"`
 }
 
+type ClientPackages interface {
+	List(names []string, opts *ListOptions) ([]*Snap, error)
+	Sections() ([]string, error)
+	Find(opts *FindOptions) ([]*Snap, *ResultInfo, error)
+	FindOne(name string) (*Snap, *ResultInfo, error)
+	Snap(name string) (*Snap, *ResultInfo, error)
+}
+
 func (s *Snap) MarshalJSON() ([]byte, error) {
 	type auxSnap Snap // use auxiliary type so that Go does not call Snap.MarshalJSON()
 	// separate type just for marshalling
@@ -153,7 +161,7 @@ type ListOptions struct {
 
 // List returns the list of all snaps installed on the system
 // with names in the given list; if the list is empty, all snaps.
-func (client *Client) List(names []string, opts *ListOptions) ([]*Snap, error) {
+func (client *client) List(names []string, opts *ListOptions) ([]*Snap, error) {
 	if opts == nil {
 		opts = &ListOptions{}
 	}
@@ -179,7 +187,7 @@ func (client *Client) List(names []string, opts *ListOptions) ([]*Snap, error) {
 }
 
 // Sections returns the list of existing snap sections in the store
-func (client *Client) Sections() ([]string, error) {
+func (client *client) Sections() ([]string, error) {
 	var sections []string
 	_, err := client.doSync("GET", "/v2/sections", nil, nil, nil, &sections)
 	if err != nil {
@@ -191,7 +199,7 @@ func (client *Client) Sections() ([]string, error) {
 
 // Find returns a list of snaps available for install from the
 // store for this system and that match the query
-func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
+func (client *client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 	if opts == nil {
 		opts = &FindOptions{}
 	}
@@ -226,7 +234,7 @@ func (client *Client) Find(opts *FindOptions) ([]*Snap, *ResultInfo, error) {
 	return client.snapsFromPath("/v2/find", q)
 }
 
-func (client *Client) FindOne(name string) (*Snap, *ResultInfo, error) {
+func (client *client) FindOne(name string) (*Snap, *ResultInfo, error) {
 	q := url.Values{}
 	q.Set("name", name)
 
@@ -243,7 +251,7 @@ func (client *Client) FindOne(name string) (*Snap, *ResultInfo, error) {
 	return snaps[0], ri, nil
 }
 
-func (client *Client) snapsFromPath(path string, query url.Values) ([]*Snap, *ResultInfo, error) {
+func (client *client) snapsFromPath(path string, query url.Values) ([]*Snap, *ResultInfo, error) {
 	var snaps []*Snap
 	ri, err := client.doSync("GET", path, query, nil, nil, &snaps)
 	if e, ok := err.(*Error); ok {
@@ -258,7 +266,7 @@ func (client *Client) snapsFromPath(path string, query url.Values) ([]*Snap, *Re
 
 // Snap returns the most recently published revision of the snap with the
 // provided name.
-func (client *Client) Snap(name string) (*Snap, *ResultInfo, error) {
+func (client *client) Snap(name string) (*Snap, *ResultInfo, error) {
 	var snap *Snap
 	path := fmt.Sprintf("/v2/snaps/%s", name)
 	ri, err := client.doSync("GET", path, nil, nil, nil, &snap)

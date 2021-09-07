@@ -52,8 +52,13 @@ type WarningsOptions struct {
 	All bool
 }
 
+type ClientWarnings interface {
+	Warnings(opts WarningsOptions) ([]*Warning, error)
+	Okay(t time.Time) error
+}
+
 // Warnings returns the list of un-okayed warnings.
-func (client *Client) Warnings(opts WarningsOptions) ([]*Warning, error) {
+func (client *client) Warnings(opts WarningsOptions) ([]*Warning, error) {
 	var jws []*jsonWarning
 	q := make(url.Values)
 	if opts.All {
@@ -78,7 +83,7 @@ type warningsAction struct {
 
 // Okay asks snapd to chill about the warnings that would have been returned by
 // Warnings at the given time.
-func (client *Client) Okay(t time.Time) error {
+func (client *client) Okay(t time.Time) error {
 	var body bytes.Buffer
 	var op = warningsAction{Action: "okay", Timestamp: t}
 	if err := json.NewEncoder(&body).Encode(op); err != nil {

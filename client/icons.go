@@ -34,10 +34,14 @@ type Icon struct {
 	Content  []byte
 }
 
+type ClientIcons interface {
+	Icon(pkgID string) (*Icon, error)
+}
+
 var contentDispositionMatcher = regexp.MustCompile(`attachment; filename=(.+)`).FindStringSubmatch
 
 // Icon returns the Icon belonging to an installed snap
-func (c *Client) Icon(pkgID string) (*Icon, error) {
+func (c *client) Icon(pkgID string) (*Icon, error) {
 	const errPrefix = "cannot retrieve icon"
 
 	response, cancel, err := c.rawWithTimeout(context.Background(), "GET", fmt.Sprintf("/v2/icons/%s/icon", pkgID), nil, nil, nil, nil)

@@ -65,7 +65,7 @@ func init() {
 		}})
 }
 
-func requestLoginWith2faRetry(cli *client.Client, email, password string) error {
+func requestLoginWith2faRetry(cli client.Client, email, password string) error {
 	var otp []byte
 	var err error
 
@@ -94,7 +94,7 @@ func requestLoginWith2faRetry(cli *client.Client, email, password string) error 
 	}
 }
 
-func requestLogin(cli *client.Client, email string) error {
+func requestLogin(cli client.Client, email string) error {
 	fmt.Fprintf(Stdout, i18n.G("Password of %q: "), email)
 	password, err := ReadPassword(0)
 	fmt.Fprint(Stdout, "\n")

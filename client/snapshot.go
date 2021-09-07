@@ -87,6 +87,15 @@ type Snapshot struct {
 	Auto bool `json:"auto,omitempty"`
 }
 
+type ClientSnapshot interface {
+	SnapshotSets(setID uint64, snapNames []string) ([]SnapshotSet, error)
+	ForgetSnapshots(setID uint64, snaps []string) (changeID string, err error)
+	CheckSnapshots(setID uint64, snaps []string, users []string) (changeID string, err error)
+	RestoreSnapshots(setID uint64, snaps []string, users []string) (changeID string, err error)
+	SnapshotExport(setID uint64) (stream io.ReadCloser, contentLength int64, err error)
+	SnapshotImport(exportStream io.Reader, size int64) (SnapshotImportSet, error)
+}
+
 // IsValid checks whether the snapshot is missing information that
 // should be there for a snapshot that's just been opened.
 func (sh *Snapshot) IsValid() bool {
@@ -163,7 +172,7 @@ func (ss SnapshotSet) ContentHash() ([]byte, error) {
 
 // SnapshotSets lists the snapshot sets in the system that belong to the
 // given set (if non-zero) and are for the given snaps (if non-empty).
-func (client *Client) SnapshotSets(setID uint64, snapNames []string) ([]SnapshotSet, error) {
+func (client *client) SnapshotSets(setID uint64, snapNames []string) ([]SnapshotSet, error) {
 	q := make(url.Values)
 	if setID > 0 {
 		q.Add("set", strconv.FormatUint(setID, 10))
@@ -179,7 +188,7 @@ func (client *Client) SnapshotSets(setID uint64, snapNames []string) ([]Snapshot
 
 // ForgetSnapshots permanently removes the snapshot set, limited to the
 // given snaps (if non-empty).
-func (client *Client) ForgetSnapshots(setID uint64, snaps []string) (changeID string, err error) {
+func (client *client) ForgetSnapshots(setID uint64, snaps []string) (changeID string, err error) {
 	return client.snapshotAction(&snapshotAction{
 		SetID:  setID,
 		Action: "forget",
@@ -191,7 +200,7 @@ func (client *Client) ForgetSnapshots(setID uint64, snaps []string) (changeID st
 //
 // If snaps or users are non-empty, limit to checking only those
 // archives of the snapshot.
-func (client *Client) CheckSnapshots(setID uint64, snaps []string, users []string) (changeID string, err error) {
+func (client *client) CheckSnapshots(setID uint64, snaps []string, users []string) (changeID string, err error) {
 	return client.snapshotAction(&snapshotAction{
 		SetID:  setID,
 		Action: "check",
@@ -204,7 +213,7 @@ func (client *Client) CheckSnapshots(setID uint64, snaps []string, users []strin
 //
 // If snaps or users are non-empty, limit to checking only those
 // archives of the snapshot.
-func (client *Client) RestoreSnapshots(setID uint64, snaps []string, users []string) (changeID string, err error) {
+func (client *client) RestoreSnapshots(setID uint64, snaps []string, users []string) (changeID string, err error) {
 	return client.snapshotAction(&snapshotAction{
 		SetID:  setID,
 		Action: "restore",
@@ -213,7 +222,7 @@ func (client *Client) RestoreSnapshots(setID uint64, snaps []string, users []str
 	})
 }
 
-func (client *Client) snapshotAction(action *snapshotAction) (changeID string, err error) {
+func (client *client) snapshotAction(action *snapshotAction) (changeID string, err error) {
 	data, err := json.Marshal(action)
 	if err != nil {
 		return "", fmt.Errorf("cannot marshal snapshot action: %v", err)
@@ -229,7 +238,7 @@ func (client *Client) snapshotAction(action *snapshotAction) (changeID string, e
 // SnapshotExport streams the requested snapshot set.
 //
 // The return value includes the length of the returned stream.
-func (client *Client) SnapshotExport(setID uint64) (stream io.ReadCloser, contentLength int64, err error) {
+func (client *client) SnapshotExport(setID uint64) (stream io.ReadCloser, contentLength int64, err error) {
 	rsp, err := client.raw(context.Background(), "GET", fmt.Sprintf("/v2/snapshots/%v/export", setID), nil, nil, nil)
 	if err != nil {
 		return nil, 0, err
@@ -259,7 +268,7 @@ type SnapshotImportSet struct {
 }
 
 // SnapshotImport imports an exported snapshot set.
-func (client *Client) SnapshotImport(exportStream io.Reader, size int64) (SnapshotImportSet, error) {
+func (client *client) SnapshotImport(exportStream io.Reader, size int64) (SnapshotImportSet, error) {
 	headers := map[string]string{
 		"Content-Type":   SnapshotExportMediaType,
 		"Content-Length": strconv.FormatInt(size, 10),

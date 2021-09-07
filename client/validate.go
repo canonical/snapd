@@ -53,9 +53,16 @@ type postValidationSetData struct {
 	Sequence int    `json:"sequence,omitempty"`
 }
 
+type ClientValidate interface {
+	ForgetValidationSet(accountID, name string, sequence int) error
+	ApplyValidationSet(accountID, name string, opts *ValidateApplyOptions) error
+	ListValidationsSets() ([]*ValidationSetResult, error)
+	ValidationSet(accountID, name string, sequence int) (*ValidationSetResult, error)
+}
+
 // ForgetValidationSet forgets the given validation set identified by account,
 // name and optional sequence (if non-zero).
-func (client *Client) ForgetValidationSet(accountID, name string, sequence int) error {
+func (client *client) ForgetValidationSet(accountID, name string, sequence int) error {
 	if accountID == "" || name == "" {
 		return xerrors.Errorf("cannot forget validation set without account ID and name")
 	}
@@ -78,7 +85,7 @@ func (client *Client) ForgetValidationSet(accountID, name string, sequence int) 
 }
 
 // ApplyValidationSet applies the given validation set identified by account and name.
-func (client *Client) ApplyValidationSet(accountID, name string, opts *ValidateApplyOptions) error {
+func (client *client) ApplyValidationSet(accountID, name string, opts *ValidateApplyOptions) error {
 	if accountID == "" || name == "" {
 		return xerrors.Errorf("cannot apply validation set without account ID and name")
 	}
@@ -102,7 +109,7 @@ func (client *Client) ApplyValidationSet(accountID, name string, opts *ValidateA
 }
 
 // ListValidationsSets queries all validation sets.
-func (client *Client) ListValidationsSets() ([]*ValidationSetResult, error) {
+func (client *client) ListValidationsSets() ([]*ValidationSetResult, error) {
 	var res []*ValidationSetResult
 	if _, err := client.doSync("GET", "/v2/validation-sets", nil, nil, nil, &res); err != nil {
 		fmt := "cannot list validation sets: %w"
@@ -112,7 +119,7 @@ func (client *Client) ListValidationsSets() ([]*ValidationSetResult, error) {
 }
 
 // ValidationSet queries the given validation set identified by account/name.
-func (client *Client) ValidationSet(accountID, name string, sequence int) (*ValidationSetResult, error) {
+func (client *client) ValidationSet(accountID, name string, sequence int) (*ValidationSetResult, error) {
 	if accountID == "" || name == "" {
 		return nil, xerrors.Errorf("cannot query validation set without account ID and name")
 	}

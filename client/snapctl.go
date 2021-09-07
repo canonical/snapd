@@ -27,6 +27,10 @@ import (
 	"io/ioutil"
 )
 
+type ClientSnapctl interface {
+	RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdout, stderr []byte, err error)
+}
+
 // InternalSnapctlCmdNeedsStdin returns true if the given snapctl command
 // needs data from stdin
 func InternalSnapctlCmdNeedsStdin(name string) bool {
@@ -66,7 +70,7 @@ type snapctlOutput struct {
 var stdinReadLimit = int64(4 * 1000 * 1000)
 
 // RunSnapctl requests a snapctl run for the given options.
-func (client *Client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdout, stderr []byte, err error) {
+func (client *client) RunSnapctl(options *SnapCtlOptions, stdin io.Reader) (stdout, stderr []byte, err error) {
 	// TODO: instead of reading all of stdin here we need to forward it to
 	//       the daemon eventually
 	var stdinData []byte

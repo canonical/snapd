@@ -151,7 +151,7 @@ func queueFile(src string) error {
 	return osutil.CopyFile(src, dst, osutil.CopyFlagOverwrite)
 }
 
-func autoImportFromSpool(cli *client.Client) (added int, err error) {
+func autoImportFromSpool(cli client.Client) (added int, err error) {
 	files, err := ioutil.ReadDir(dirs.SnapAssertsSpoolDir)
 	if os.IsNotExist(err) {
 		return 0, nil
@@ -178,7 +178,7 @@ func autoImportFromSpool(cli *client.Client) (added int, err error) {
 	return added, nil
 }
 
-func autoImportFromAllMounts(cli *client.Client) (int, error) {
+func autoImportFromAllMounts(cli client.Client) (int, error) {
 	cands, err := autoImportCandidates()
 	if err != nil {
 		return 0, err

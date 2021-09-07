@@ -38,25 +38,25 @@ import (
 var chanName = "achan"
 
 var ops = []struct {
-	op     func(*client.Client, string, *client.SnapOptions) (string, error)
+	op     func(client.Client, string, *client.SnapOptions) (string, error)
 	action string
 }{
-	{(*client.Client).Install, "install"},
-	{(*client.Client).Refresh, "refresh"},
-	{(*client.Client).Remove, "remove"},
-	{(*client.Client).Revert, "revert"},
-	{(*client.Client).Enable, "enable"},
-	{(*client.Client).Disable, "disable"},
-	{(*client.Client).Switch, "switch"},
+	{(client.Client).Install, "install"},
+	{(client.Client).Refresh, "refresh"},
+	{(client.Client).Remove, "remove"},
+	{(client.Client).Revert, "revert"},
+	{(client.Client).Enable, "enable"},
+	{(client.Client).Disable, "disable"},
+	{(client.Client).Switch, "switch"},
 }
 
 var multiOps = []struct {
-	op     func(*client.Client, []string, *client.SnapOptions) (string, error)
+	op     func(client.Client, []string, *client.SnapOptions) (string, error)
 	action string
 }{
-	{(*client.Client).RefreshMany, "refresh"},
-	{(*client.Client).InstallMany, "install"},
-	{(*client.Client).RemoveMany, "remove"},
+	{(client.Client).RefreshMany, "refresh"},
+	{(client.Client).InstallMany, "install"},
+	{(client.Client).RemoveMany, "remove"},
 }
 
 func (cs *clientSuite) TestClientOpSnapServerError(c *check.C) {

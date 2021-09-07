@@ -326,7 +326,7 @@ func maybeWithSudoSecurePath() bool {
 }
 
 // show what has been done
-func showDone(cli *client.Client, names []string, op string, opts *client.SnapOptions, esc *escapes) error {
+func showDone(cli client.Client, names []string, op string, opts *client.SnapOptions, esc *escapes) error {
 	snaps, err := cli.List(names, nil)
 	if err != nil {
 		return err

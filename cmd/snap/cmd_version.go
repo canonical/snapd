@@ -51,7 +51,7 @@ func (cmd cmdVersion) Execute(args []string) error {
 	return printVersions(cmd.client)
 }
 
-func printVersions(cli *client.Client) error {
+func printVersions(cli client.Client) error {
 	sv := serverVersion(cli)
 	w := tabWriter()
 

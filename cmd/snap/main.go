@@ -202,14 +202,14 @@ func fixupArg(optName string) string {
 }
 
 type clientSetter interface {
-	setClient(*client.Client)
+	setClient(client.Client)
 }
 
 type clientMixin struct {
-	client *client.Client
+	client client.Client
 }
 
-func (ch *clientMixin) setClient(cli *client.Client) {
+func (ch *clientMixin) setClient(cli client.Client) {
 	ch.client = cli
 }
 
@@ -250,7 +250,7 @@ func completionHandler(comps []flags.Completion) {
 	}
 }
 
-func registerCommands(cli *client.Client, parser *flags.Parser, baseCmd *flags.Command, commands []*cmdInfo, checkUnique func(*cmdInfo)) {
+func registerCommands(cli client.Client, parser *flags.Parser, baseCmd *flags.Command, commands []*cmdInfo, checkUnique func(*cmdInfo)) {
 	for _, c := range commands {
 		checkUnique(c)
 		markForNoCompletion(c)
@@ -315,7 +315,7 @@ func registerCommands(cli *client.Client, parser *flags.Parser, baseCmd *flags.C
 // Parser creates and populates a fresh parser.
 // Since commands have local state a fresh parser is required to isolate tests
 // from each other.
-func Parser(cli *client.Client) *flags.Parser {
+func Parser(cli client.Client) *flags.Parser {
 	optionsData.Version = func() {
 		printVersions(cli)
 		panic(&exitStatus{0})
@@ -383,7 +383,7 @@ var ClientConfig = client.Config{
 
 // Client returns a new client using ClientConfig as configuration.
 // commands should (in general) not use this, and instead use clientMixin.
-func mkClient() *client.Client {
+func mkClient() client.Client {
 	cfg := &ClientConfig
 	// Set client user-agent when talking to the snapd daemon to the
 	// same value as when talking to the store.

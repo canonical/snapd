@@ -34,11 +34,18 @@ import (
 	"github.com/snapcore/snapd/snap"
 )
 
+type ClientAsserts interface {
+	Ack(b []byte) error
+	AssertionTypes() ([]string, error)
+	Known(assertTypeName string, headers map[string]string, opts *KnownOptions) ([]asserts.Assertion, error)
+	StoreAccount(accountID string) (*snap.StoreAccount, error)
+}
+
 // Ack tries to add an assertion to the system assertion
 // database. To succeed the assertion must be valid, its signature
 // verified with a known public key and the assertion consistent with
 // and its prerequisite in the database.
-func (client *Client) Ack(b []byte) error {
+func (client *client) Ack(b []byte) error {
 	var rsp interface{}
 	if _, err := client.doSync("POST", "/v2/assertions", nil, nil, bytes.NewReader(b), &rsp); err != nil {
 		return err
@@ -48,7 +55,7 @@ func (client *Client) Ack(b []byte) error {
 }
 
 // AssertionTypes returns a list of assertion type names.
-func (client *Client) AssertionTypes() ([]string, error) {
+func (client *client) AssertionTypes() ([]string, error) {
 	var types struct {
 		Types []string `json:"types"`
 	}
@@ -68,7 +75,7 @@ type KnownOptions struct {
 }
 
 // Known queries assertions with type assertTypeName and matching assertion headers.
-func (client *Client) Known(assertTypeName string, headers map[string]string, opts *KnownOptions) ([]asserts.Assertion, error) {
+func (client *client) Known(assertTypeName string, headers map[string]string, opts *KnownOptions) ([]asserts.Assertion, error) {
 	if opts == nil {
 		opts = &KnownOptions{}
 	}
@@ -125,7 +132,7 @@ func (client *Client) Known(assertTypeName string, headers map[string]string, op
 }
 
 // StoreAccount returns the full store account info for the specified accountID
-func (client *Client) StoreAccount(accountID string) (*snap.StoreAccount, error) {
+func (client *client) StoreAccount(accountID string) (*snap.StoreAccount, error) {
 	assertions, err := client.Known("account", map[string]string{"account-id": accountID}, nil)
 	if err != nil {
 		return nil, err

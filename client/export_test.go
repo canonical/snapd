@@ -25,15 +25,17 @@ import (
 	"net/url"
 )
 
+type ClientImpl = client
+
 // SetDoer sets the client's doer to the given one
-func (client *Client) SetDoer(d doer) {
+func (client *client) SetDoer(d doer) {
 	client.doer = d
 }
 
 type DoOptions = doOptions
 
 // Do does do.
-func (client *Client) Do(method, path string, query url.Values, body io.Reader, v interface{}, opts *DoOptions) (statusCode int, err error) {
+func (client *client) Do(method, path string, query url.Values, body io.Reader, v interface{}, opts *DoOptions) (statusCode int, err error) {
 	return client.do(method, path, query, nil, body, v, opts)
 }
 

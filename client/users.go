@@ -61,7 +61,14 @@ type userAction struct {
 	*RemoveUserOptions
 }
 
-func (client *Client) doUserAction(act *userAction, result interface{}) error {
+type ClientUsers interface {
+	CreateUser(options *CreateUserOptions) (*CreateUserResult, error)
+	CreateUsers(options []*CreateUserOptions) ([]*CreateUserResult, error)
+	RemoveUser(options *RemoveUserOptions) (removed []*User, err error)
+	Users() ([]*User, error)
+}
+
+func (client *client) doUserAction(act *userAction, result interface{}) error {
 	data, err := json.Marshal(act)
 	if err != nil {
 		return err
@@ -72,7 +79,7 @@ func (client *Client) doUserAction(act *userAction, result interface{}) error {
 }
 
 // CreateUser creates a local system user. See CreateUserOptions for details.
-func (client *Client) CreateUser(options *CreateUserOptions) (*CreateUserResult, error) {
+func (client *client) CreateUser(options *CreateUserOptions) (*CreateUserResult, error) {
 	if options == nil || options.Email == "" {
 		return nil, fmt.Errorf("cannot create a user without providing an email")
 	}
@@ -88,7 +95,7 @@ func (client *Client) CreateUser(options *CreateUserOptions) (*CreateUserResult,
 // CreateUsers creates multiple local system users. See CreateUserOptions for details.
 //
 // Results may be provided even if there are errors.
-func (client *Client) CreateUsers(options []*CreateUserOptions) ([]*CreateUserResult, error) {
+func (client *client) CreateUsers(options []*CreateUserOptions) ([]*CreateUserResult, error) {
 	for _, opts := range options {
 		if opts == nil || (opts.Email == "" && !(opts.Known || opts.Automatic)) {
 			return nil, fmt.Errorf("cannot create user from store details without an email to query for")
@@ -121,7 +128,7 @@ func (client *Client) CreateUsers(options []*CreateUserOptions) ([]*CreateUserRe
 }
 
 // RemoveUser removes a local system user.
-func (client *Client) RemoveUser(options *RemoveUserOptions) (removed []*User, err error) {
+func (client *client) RemoveUser(options *RemoveUserOptions) (removed []*User, err error) {
 	if options == nil || options.Username == "" {
 		return nil, fmt.Errorf("cannot remove a user without providing a username")
 	}
@@ -135,7 +142,7 @@ func (client *Client) RemoveUser(options *RemoveUserOptions) (removed []*User, e
 }
 
 // Users returns the local users.
-func (client *Client) Users() ([]*User, error) {
+func (client *client) Users() ([]*User, error) {
 	var result []*User
 
 	if _, err := client.doSync("GET", "/v2/users", nil, nil, nil, &result); err != nil {

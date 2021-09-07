@@ -34,8 +34,17 @@ type aliasAction struct {
 	Alias  string `json:"alias,omitempty"`
 }
 
+type ClientAliases interface {
+	Alias(snapName, app, alias string) (changeID string, err error)
+	DisableAllAliases(snapName string) (changeID string, err error)
+	RemoveManualAlias(alias string) (changeID string, err error)
+	Unalias(aliasOrSnap string) (changeID string, err error)
+	Prefer(snapName string) (changeID string, err error)
+	Aliases() (allStatuses map[string]map[string]AliasStatus, err error)
+}
+
 // performAliasAction performs a single action on aliases.
-func (client *Client) performAliasAction(sa *aliasAction) (changeID string, err error) {
+func (client *client) performAliasAction(sa *aliasAction) (changeID string, err error) {
 	b, err := json.Marshal(sa)
 	if err != nil {
 		return "", err
@@ -44,7 +53,7 @@ func (client *Client) performAliasAction(sa *aliasAction) (changeID string, err 
 }
 
 // Alias sets up a manual alias from alias to app in snapName.
-func (client *Client) Alias(snapName, app, alias string) (changeID string, err error) {
+func (client *client) Alias(snapName, app, alias string) (changeID string, err error) {
 	return client.performAliasAction(&aliasAction{
 		Action: "alias",
 		Snap:   snapName,
@@ -54,7 +63,7 @@ func (client *Client) Alias(snapName, app, alias string) (changeID string, err e
 }
 
 // // DisableAllAliases disables all aliases of a snap, removing all manual ones.
-func (client *Client) DisableAllAliases(snapName string) (changeID string, err error) {
+func (client *client) DisableAllAliases(snapName string) (changeID string, err error) {
 	return client.performAliasAction(&aliasAction{
 		Action: "unalias",
 		Snap:   snapName,
@@ -62,7 +71,7 @@ func (client *Client) DisableAllAliases(snapName string) (changeID string, err e
 }
 
 // RemoveManualAlias removes a manual alias.
-func (client *Client) RemoveManualAlias(alias string) (changeID string, err error) {
+func (client *client) RemoveManualAlias(alias string) (changeID string, err error) {
 	return client.performAliasAction(&aliasAction{
 		Action: "unalias",
 		Alias:  alias,
@@ -70,7 +79,7 @@ func (client *Client) RemoveManualAlias(alias string) (changeID string, err erro
 }
 
 // Unalias tears down a manual alias or disables all aliases of a snap (removing all manual ones)
-func (client *Client) Unalias(aliasOrSnap string) (changeID string, err error) {
+func (client *client) Unalias(aliasOrSnap string) (changeID string, err error) {
 	return client.performAliasAction(&aliasAction{
 		Action: "unalias",
 		Snap:   aliasOrSnap,
@@ -80,7 +89,7 @@ func (client *Client) Unalias(aliasOrSnap string) (changeID string, err error) {
 
 // Prefer enables all aliases of a snap in preference to conflicting aliases
 // of other snaps whose aliases will be disabled (removed for manual ones).
-func (client *Client) Prefer(snapName string) (changeID string, err error) {
+func (client *client) Prefer(snapName string) (changeID string, err error) {
 	return client.performAliasAction(&aliasAction{
 		Action: "prefer",
 		Snap:   snapName,
@@ -96,7 +105,7 @@ type AliasStatus struct {
 }
 
 // Aliases returns a map snap -> alias -> AliasStatus for all snaps and aliases in the system.
-func (client *Client) Aliases() (allStatuses map[string]map[string]AliasStatus, err error) {
+func (client *client) Aliases() (allStatuses map[string]map[string]AliasStatus, err error) {
 	_, err = client.doSync("GET", "/v2/aliases", nil, nil, nil, &allStatuses)
 	return
 }

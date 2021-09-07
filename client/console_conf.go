@@ -28,10 +28,14 @@ type InternalConsoleConfStartResponse struct {
 	ActiveAutoRefreshSnaps   []string `json:"active-auto-refresh-snaps,omitempty"`
 }
 
+type ClientConsoleConf interface {
+	InternalConsoleConfStart() ([]string, []string, error)
+}
+
 // InternalConsoleConfStart invokes the dedicated console-conf start support
 // to handle intervening auto-refreshes.
 // Not for general use.
-func (client *Client) InternalConsoleConfStart() ([]string, []string, error) {
+func (client *client) InternalConsoleConfStart() ([]string, []string, error) {
 	resp := &InternalConsoleConfStartResponse{}
 	// do the post with a short timeout so that if snapd is not available due to
 	// maintenance we will return very quickly so the caller can handle that

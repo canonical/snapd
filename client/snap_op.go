@@ -30,6 +30,23 @@ import (
 	"path/filepath"
 )
 
+type ClientSnapOp interface {
+	Install(name string, options *SnapOptions) (changeID string, err error)
+	InstallMany(names []string, options *SnapOptions) (changeID string, err error)
+	Remove(name string, options *SnapOptions) (changeID string, err error)
+	RemoveMany(names []string, options *SnapOptions) (changeID string, err error)
+	Refresh(name string, options *SnapOptions) (changeID string, err error)
+	RefreshMany(names []string, options *SnapOptions) (changeID string, err error)
+	Enable(name string, options *SnapOptions) (changeID string, err error)
+	Disable(name string, options *SnapOptions) (changeID string, err error)
+	Revert(name string, options *SnapOptions) (changeID string, err error)
+	Switch(name string, options *SnapOptions) (changeID string, err error)
+	SnapshotMany(names []string, users []string) (setID uint64, changeID string, err error)
+	InstallPath(path, name string, options *SnapOptions) (changeID string, err error)
+	Try(path string, options *SnapOptions) (changeID string, err error)
+	Download(name string, options *DownloadOptions) (dlInfo *DownloadInfo, r io.ReadCloser, err error)
+}
+
 type SnapOptions struct {
 	Channel          string `json:"channel,omitempty"`
 	Revision         string `json:"revision,omitempty"`
@@ -96,53 +113,53 @@ type multiActionData struct {
 
 // Install adds the snap with the given name from the given channel (or
 // the system default channel if not).
-func (client *Client) Install(name string, options *SnapOptions) (changeID string, err error) {
+func (client *client) Install(name string, options *SnapOptions) (changeID string, err error) {
 	return client.doSnapAction("install", name, options)
 }
 
-func (client *Client) InstallMany(names []string, options *SnapOptions) (changeID string, err error) {
+func (client *client) InstallMany(names []string, options *SnapOptions) (changeID string, err error) {
 	return client.doMultiSnapAction("install", names, options)
 }
 
 // Remove removes the snap with the given name.
-func (client *Client) Remove(name string, options *SnapOptions) (changeID string, err error) {
+func (client *client) Remove(name string, options *SnapOptions) (changeID string, err error) {
 	return client.doSnapAction("remove", name, options)
 }
 
-func (client *Client) RemoveMany(names []string, options *SnapOptions) (changeID string, err error) {
+func (client *client) RemoveMany(names []string, options *SnapOptions) (changeID string, err error) {
 	return client.doMultiSnapAction("remove", names, options)
 }
 
 // Refresh refreshes the snap with the given name (switching it to track
 // the given channel if given).
-func (client *Client) Refresh(name string, options *SnapOptions) (changeID string, err error) {
+func (client *client) Refresh(name string, options *SnapOptions) (changeID string, err error) {
 	return client.doSnapAction("refresh", name, options)
 }
 
-func (client *Client) RefreshMany(names []string, options *SnapOptions) (changeID string, err error) {
+func (client *client) RefreshMany(names []string, options *SnapOptions) (changeID string, err error) {
 	return client.doMultiSnapAction("refresh", names, options)
 }
 
-func (client *Client) Enable(name string, options *SnapOptions) (changeID string, err error) {
+func (client *client) Enable(name string, options *SnapOptions) (changeID string, err error) {
 	return client.doSnapAction("enable", name, options)
 }
 
-func (client *Client) Disable(name string, options *SnapOptions) (changeID string, err error) {
+func (client *client) Disable(name string, options *SnapOptions) (changeID string, err error) {
 	return client.doSnapAction("disable", name, options)
 }
 
 // Revert rolls the snap back to the previous on-disk state
-func (client *Client) Revert(name string, options *SnapOptions) (changeID string, err error) {
+func (client *client) Revert(name string, options *SnapOptions) (changeID string, err error) {
 	return client.doSnapAction("revert", name, options)
 }
 
 // Switch moves the snap to a different channel without a refresh
-func (client *Client) Switch(name string, options *SnapOptions) (changeID string, err error) {
+func (client *client) Switch(name string, options *SnapOptions) (changeID string, err error) {
 	return client.doSnapAction("switch", name, options)
 }
 
 // SnapshotMany snapshots many snaps (all, if names empty) for many users (all, if users is empty).
-func (client *Client) SnapshotMany(names []string, users []string) (setID uint64, changeID string, err error) {
+func (client *client) SnapshotMany(names []string, users []string) (setID uint64, changeID string, err error) {
 	result, changeID, err := client.doMultiSnapActionFull("snapshot", names, &SnapOptions{Users: users})
 	if err != nil {
 		return 0, "", err
@@ -161,7 +178,7 @@ func (client *Client) SnapshotMany(names []string, users []string) (setID uint64
 
 var ErrDangerousNotApplicable = fmt.Errorf("dangerous option only meaningful when installing from a local file")
 
-func (client *Client) doSnapAction(actionName string, snapName string, options *SnapOptions) (changeID string, err error) {
+func (client *client) doSnapAction(actionName string, snapName string, options *SnapOptions) (changeID string, err error) {
 	if options != nil && options.Dangerous {
 		return "", ErrDangerousNotApplicable
 	}
@@ -182,7 +199,7 @@ func (client *Client) doSnapAction(actionName string, snapName string, options *
 	return client.doAsync("POST", path, nil, headers, bytes.NewBuffer(data))
 }
 
-func (client *Client) doMultiSnapAction(actionName string, snaps []string, options *SnapOptions) (changeID string, err error) {
+func (client *client) doMultiSnapAction(actionName string, snaps []string, options *SnapOptions) (changeID string, err error) {
 	if options != nil {
 		return "", fmt.Errorf("cannot use options for multi-action") // (yet)
 	}
@@ -191,7 +208,7 @@ func (client *Client) doMultiSnapAction(actionName string, snaps []string, optio
 	return changeID, err
 }
 
-func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, options *SnapOptions) (result json.RawMessage, changeID string, err error) {
+func (client *client) doMultiSnapActionFull(actionName string, snaps []string, options *SnapOptions) (result json.RawMessage, changeID string, err error) {
 	action := multiActionData{
 		Action: actionName,
 		Snaps:  snaps,
@@ -213,7 +230,7 @@ func (client *Client) doMultiSnapActionFull(actionName string, snaps []string, o
 
 // InstallPath sideloads the snap with the given path under optional provided name,
 // returning the UUID of the background operation upon success.
-func (client *Client) InstallPath(path, name string, options *SnapOptions) (changeID string, err error) {
+func (client *client) InstallPath(path, name string, options *SnapOptions) (changeID string, err error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return "", fmt.Errorf("cannot open: %q", path)
@@ -239,7 +256,7 @@ func (client *Client) InstallPath(path, name string, options *SnapOptions) (chan
 }
 
 // Try
-func (client *Client) Try(path string, options *SnapOptions) (changeID string, err error) {
+func (client *client) Try(path string, options *SnapOptions) (changeID string, err error) {
 	if options == nil {
 		options = &SnapOptions{}
 	}
@@ -343,7 +360,7 @@ type DownloadOptions struct {
 }
 
 // Download will stream the given snap to the client
-func (client *Client) Download(name string, options *DownloadOptions) (dlInfo *DownloadInfo, r io.ReadCloser, err error) {
+func (client *client) Download(name string, options *DownloadOptions) (dlInfo *DownloadInfo, r io.ReadCloser, err error) {
 	if options == nil {
 		options = &DownloadOptions{}
 	}

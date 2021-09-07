@@ -62,9 +62,13 @@ type ConnectionOptions struct {
 	All bool
 }
 
+type ClientConnections interface {
+	Connections(opts *ConnectionOptions) (Connections, error)
+}
+
 // Connections returns matching plugs, slots and their connections. Unless
 // specified by matching options, returns established connections.
-func (client *Client) Connections(opts *ConnectionOptions) (Connections, error) {
+func (client *client) Connections(opts *ConnectionOptions) (Connections, error) {
 	var conns Connections
 	query := url.Values{}
 	if opts != nil && opts.Snap != "" {

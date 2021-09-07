@@ -70,7 +70,7 @@ func (s changesByTime) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 
 var allDigits = regexp.MustCompile(`^[0-9]+$`).MatchString
 
-func queryChanges(cli *client.Client, opts *client.ChangesOptions) ([]*client.Change, error) {
+func queryChanges(cli client.Client, opts *client.ChangesOptions) ([]*client.Change, error) {
 	chgs, err := cli.Changes(opts)
 	if err != nil {
 		return nil, err
@@ -143,7 +143,7 @@ func (c *cmdTasks) Execute([]string) error {
 	return c.showChange(chid)
 }
 
-func queryChange(cli *client.Client, chid string) (*client.Change, error) {
+func queryChange(cli client.Client, chid string) (*client.Change, error) {
 	chg, err := cli.Change(chid)
 	if err != nil {
 		return nil, err
@@ -198,7 +198,7 @@ func (c *cmdTasks) showChange(chid string) error {
 
 const line = "......................................................................"
 
-func warnMaintenance(cli *client.Client) error {
+func warnMaintenance(cli client.Client) error {
 	if maintErr := cli.Maintenance(); maintErr != nil {
 		msg, err := errorToCmdMessage("", maintErr, nil)
 		if err != nil {

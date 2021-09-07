@@ -78,7 +78,45 @@ type Config struct {
 }
 
 // A Client knows how to talk to the snappy daemon.
-type Client struct {
+type Client interface {
+	BaseClient
+	ClientAliases
+	ClientApps
+	ClientAsserts
+	ClientBuy
+	ClientChange
+	ClientCohort
+	ClientConf
+	ClientConnections
+	ClientConsoleConf
+	ClientIcons
+	ClientInterfaces
+	ClientLogin
+	ClientModel
+	ClientPackages
+	ClientQuota
+	ClientSnapctl
+	ClientSnapOp
+	ClientSnapshot
+	ClientSystem
+	ClientUsers
+	ClientValidate
+	ClientWarnings
+}
+
+type BaseClient interface {
+	Maintenance() error
+	WarningsSummary() (count int, timestamp time.Time)
+	WhoAmI() (string, error)
+	Hijack(f func(*http.Request) (*http.Response, error))
+	ServerVersion() (*ServerVersion, error)
+	SysInfo() (*SysInfo, error)
+	Debug(action string, params interface{}, result interface{}) error
+	DebugGet(aspect string, result interface{}, params map[string]string) error
+	SystemRecoveryKeys(result interface{}) error
+}
+
+type client struct {
 	baseURL url.URL
 	doer    doer
 
@@ -94,7 +132,7 @@ type Client struct {
 }
 
 // New returns a new instance of Client
-func New(config *Config) *Client {
+func New(config *Config) Client {
 	if config == nil {
 		config = &Config{}
 	}
@@ -102,7 +140,7 @@ func New(config *Config) *Client {
 	// By default talk over an UNIX socket.
 	if config.BaseURL == "" {
 		transport := &http.Transport{Dial: unixDialer(config.Socket), DisableKeepAlives: config.DisableKeepAlive}
-		return &Client{
+		return &client{
 			baseURL: url.URL{
 				Scheme: "http",
 				Host:   "localhost",
@@ -118,7 +156,7 @@ func New(config *Config) *Client {
 	if err != nil {
 		panic(fmt.Sprintf("cannot parse server base URL: %q (%v)", config.BaseURL, err))
 	}
-	return &Client{
+	return &client{
 		baseURL:     *baseURL,
 		doer:        &http.Client{Transport: &http.Transport{DisableKeepAlives: config.DisableKeepAlive}},
 		disableAuth: config.DisableAuth,
@@ -128,18 +166,18 @@ func New(config *Config) *Client {
 }
 
 // Maintenance returns an error reflecting the daemon maintenance status or nil.
-func (client *Client) Maintenance() error {
+func (client *client) Maintenance() error {
 	return client.maintenance
 }
 
 // WarningsSummary returns the number of warnings that are ready to be shown to
 // the user, and the timestamp of the most recently added warning (useful for
 // silencing the warning alerts, and OKing the returned warnings).
-func (client *Client) WarningsSummary() (count int, timestamp time.Time) {
+func (client *client) WarningsSummary() (count int, timestamp time.Time) {
 	return client.warningCount, client.warningTimestamp
 }
 
-func (client *Client) WhoAmI() (string, error) {
+func (client *client) WhoAmI() (string, error) {
 	user, err := readAuthData()
 	if os.IsNotExist(err) {
 		return "", nil
@@ -151,7 +189,7 @@ func (client *Client) WhoAmI() (string, error) {
 	return user.Email, nil
 }
 
-func (client *Client) setAuthorization(req *http.Request) error {
+func (client *client) setAuthorization(req *http.Request) error {
 	user, err := readAuthData()
 	if os.IsNotExist(err) {
 		return nil
@@ -207,7 +245,7 @@ const AllowInteractionHeader = "X-Allow-Interaction"
 // raw performs a request and returns the resulting http.Response and
 // error. You usually only need to call this directly if you expect the
 // response to not be JSON, otherwise you'd call Do(...) instead.
-func (client *Client) raw(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body io.Reader) (*http.Response, error) {
+func (client *client) raw(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body io.Reader) (*http.Response, error) {
 	// fake a url to keep http.Client happy
 	u := client.baseURL
 	u.Path = path.Join(client.baseURL.Path, urlpath)
@@ -264,7 +302,7 @@ func (client *Client) raw(ctx context.Context, method, urlpath string, query url
 // The caller is responsible for canceling the internal context
 // to release the resources associated with the request by calling the
 // returned cancel function.
-func (client *Client) rawWithTimeout(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body io.Reader, opts *doOptions) (*http.Response, context.CancelFunc, error) {
+func (client *client) rawWithTimeout(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body io.Reader, opts *doOptions) (*http.Response, context.CancelFunc, error) {
 	opts = ensureDoOpts(opts)
 	if opts.Timeout <= 0 {
 		return nil, nil, fmt.Errorf("internal error: timeout not set in options for rawWithTimeout")
@@ -310,7 +348,7 @@ func (h hijacked) Do(req *http.Request) (*http.Response, error) {
 }
 
 // Hijack lets the caller take over the raw http request
-func (client *Client) Hijack(f func(*http.Request) (*http.Response, error)) {
+func (client *client) Hijack(f func(*http.Request) (*http.Response, error)) {
 	client.doer = hijacked{f}
 }
 
@@ -343,7 +381,7 @@ var doNoTimeoutAndRetry = &doOptions{
 // do performs a request and decodes the resulting json into the given
 // value. It's low-level, for testing/experimenting only; you should
 // usually use a higher level interface that builds on this.
-func (client *Client) do(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}, opts *doOptions) (statusCode int, err error) {
+func (client *client) do(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}, opts *doOptions) (statusCode int, err error) {
 	opts = ensureDoOpts(opts)
 
 	client.checkMaintenanceJSON()
@@ -413,7 +451,7 @@ func decodeInto(reader io.Reader, v interface{}) error {
 // It expects a "sync" response from the API and on success decodes the JSON
 // response payload into the given value using the "UseNumber" json decoding
 // which produces json.Numbers instead of float64 types for numbers.
-func (client *Client) doSync(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) (*ResultInfo, error) {
+func (client *client) doSync(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}) (*ResultInfo, error) {
 	return client.doSyncWithOpts(method, path, query, headers, body, v, nil)
 }
 
@@ -425,7 +463,7 @@ func (client *Client) doSync(method, path string, query url.Values, headers map[
 // note that currently checkMaintenanceJSON does not return errors, such that
 // if the file is missing or corrupt or empty, nothing will happen and it will
 // be silently ignored
-func (client *Client) checkMaintenanceJSON() {
+func (client *client) checkMaintenanceJSON() {
 	f, err := os.Open(dirs.SnapdMaintenanceFile)
 	// just continue if we can't read the maintenance file
 	if err != nil {
@@ -457,7 +495,7 @@ func (client *Client) checkMaintenanceJSON() {
 	}
 }
 
-func (client *Client) doSyncWithOpts(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}, opts *doOptions) (*ResultInfo, error) {
+func (client *client) doSyncWithOpts(method, path string, query url.Values, headers map[string]string, body io.Reader, v interface{}, opts *doOptions) (*ResultInfo, error) {
 	// first check maintenance.json to see if snapd is down for a restart, and
 	// set cli.maintenance as appropriate, then perform the request
 	// TODO: it would be a nice thing to skip the request if we know that snapd
@@ -490,12 +528,12 @@ func (client *Client) doSyncWithOpts(method, path string, query url.Values, head
 	return &rsp.ResultInfo, nil
 }
 
-func (client *Client) doAsync(method, path string, query url.Values, headers map[string]string, body io.Reader) (changeID string, err error) {
+func (client *client) doAsync(method, path string, query url.Values, headers map[string]string, body io.Reader) (changeID string, err error) {
 	_, changeID, err = client.doAsyncFull(method, path, query, headers, body, nil)
 	return
 }
 
-func (client *Client) doAsyncFull(method, path string, query url.Values, headers map[string]string, body io.Reader, opts *doOptions) (result json.RawMessage, changeID string, err error) {
+func (client *client) doAsyncFull(method, path string, query url.Values, headers map[string]string, body io.Reader, opts *doOptions) (result json.RawMessage, changeID string, err error) {
 	var rsp response
 	statusCode, err := client.do(method, path, query, headers, body, &rsp, opts)
 	if err != nil {
@@ -529,7 +567,7 @@ type ServerVersion struct {
 	Virtualization string
 }
 
-func (client *Client) ServerVersion() (*ServerVersion, error) {
+func (client *client) ServerVersion() (*ServerVersion, error) {
 	sysInfo, err := client.SysInfo()
 	if err != nil {
 		return nil, err
@@ -653,7 +691,7 @@ type SysInfo struct {
 	SandboxFeatures map[string][]string `json:"sandbox-features,omitempty"`
 }
 
-func (rsp *response) err(cli *Client, statusCode int) error {
+func (rsp *response) err(cli *client, statusCode int) error {
 	if cli != nil {
 		maintErr := rsp.Maintenance
 		// avoid setting to (*client.Error)(nil)
@@ -695,7 +733,7 @@ func parseError(r *http.Response) error {
 }
 
 // SysInfo gets system information from the REST API.
-func (client *Client) SysInfo() (*SysInfo, error) {
+func (client *client) SysInfo() (*SysInfo, error) {
 	var sysInfo SysInfo
 
 	opts := &doOptions{
@@ -716,7 +754,7 @@ type debugAction struct {
 
 // Debug is only useful when writing test code, it will trigger
 // an internal action with the given parameters.
-func (client *Client) Debug(action string, params interface{}, result interface{}) error {
+func (client *client) Debug(action string, params interface{}, result interface{}) error {
 	body, err := json.Marshal(debugAction{
 		Action: action,
 		Params: params,
@@ -729,7 +767,7 @@ func (client *Client) Debug(action string, params interface{}, result interface{
 	return err
 }
 
-func (client *Client) DebugGet(aspect string, result interface{}, params map[string]string) error {
+func (client *client) DebugGet(aspect string, result interface{}, params map[string]string) error {
 	urlParams := url.Values{"aspect": []string{aspect}}
 	for k, v := range params {
 		urlParams.Set(k, v)
@@ -743,7 +781,7 @@ type SystemRecoveryKeysResponse struct {
 	ReinstallKey string `json:"reinstall-key"`
 }
 
-func (client *Client) SystemRecoveryKeys(result interface{}) error {
+func (client *client) SystemRecoveryKeys(result interface{}) error {
 	_, err := client.doSync("GET", "/v2/system-recovery-keys", nil, nil, nil, &result)
 	return err
 }

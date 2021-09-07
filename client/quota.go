@@ -48,9 +48,16 @@ type QuotaValues struct {
 	Memory quantity.Size `json:"memory,omitempty"`
 }
 
+type ClientQuota interface {
+	EnsureQuota(groupName string, parent string, snaps []string, maxMemory quantity.Size) (changeID string, err error)
+	GetQuotaGroup(groupName string) (*QuotaGroupResult, error)
+	RemoveQuotaGroup(groupName string) (changeID string, err error)
+	Quotas() ([]*QuotaGroupResult, error)
+}
+
 // EnsureQuota creates a quota group or updates an existing group.
 // The list of snaps can be empty.
-func (client *Client) EnsureQuota(groupName string, parent string, snaps []string, maxMemory quantity.Size) (changeID string, err error) {
+func (client *client) EnsureQuota(groupName string, parent string, snaps []string, maxMemory quantity.Size) (changeID string, err error) {
 	if groupName == "" {
 		return "", fmt.Errorf("cannot create or update quota group without a name")
 	}
@@ -78,7 +85,7 @@ func (client *Client) EnsureQuota(groupName string, parent string, snaps []strin
 	return chgID, nil
 }
 
-func (client *Client) GetQuotaGroup(groupName string) (*QuotaGroupResult, error) {
+func (client *client) GetQuotaGroup(groupName string) (*QuotaGroupResult, error) {
 	if groupName == "" {
 		return nil, fmt.Errorf("cannot get quota group without a name")
 	}
@@ -92,7 +99,7 @@ func (client *Client) GetQuotaGroup(groupName string) (*QuotaGroupResult, error)
 	return res, nil
 }
 
-func (client *Client) RemoveQuotaGroup(groupName string) (changeID string, err error) {
+func (client *client) RemoveQuotaGroup(groupName string) (changeID string, err error) {
 	if groupName == "" {
 		return "", fmt.Errorf("cannot remove quota group without a name")
 	}
@@ -113,7 +120,7 @@ func (client *Client) RemoveQuotaGroup(groupName string) (changeID string, err e
 	return chgID, nil
 }
 
-func (client *Client) Quotas() ([]*QuotaGroupResult, error) {
+func (client *client) Quotas() ([]*QuotaGroupResult, error) {
 	var res []*QuotaGroupResult
 	if _, err := client.doSync("GET", "/v2/quotas", nil, nil, nil, &res); err != nil {
 		return nil, err

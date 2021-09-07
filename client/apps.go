@@ -57,6 +57,14 @@ type AppInfo struct {
 	Activators  []AppActivator   `json:"activators,omitempty"`
 }
 
+type ClientApps interface {
+	Apps(names []string, opts AppOptions) ([]*AppInfo, error)
+	Logs(names []string, opts LogOptions) (<-chan Log, error)
+	Start(names []string, opts StartOptions) (changeID string, err error)
+	Stop(names []string, opts StopOptions) (changeID string, err error)
+	Restart(names []string, opts RestartOptions) (changeID string, err error)
+}
+
 // IsService returns true if the application is a background daemon.
 func (a *AppInfo) IsService() bool {
 	if a == nil {
@@ -79,7 +87,7 @@ type AppOptions struct {
 // Apps returns information about all matching apps. Each name can be
 // either a snap or a snap.app. If names is empty, list all (that
 // satisfy opts).
-func (client *Client) Apps(names []string, opts AppOptions) ([]*AppInfo, error) {
+func (client *client) Apps(names []string, opts AppOptions) ([]*AppInfo, error) {
 	q := make(url.Values)
 	if len(names) > 0 {
 		q.Add("names", strings.Join(names, ","))
@@ -127,7 +135,7 @@ func (l Log) fmtLog(timezone *time.Location) string {
 }
 
 // Logs asks for the logs of a series of services, by name.
-func (client *Client) Logs(names []string, opts LogOptions) (<-chan Log, error) {
+func (client *client) Logs(names []string, opts LogOptions) (<-chan Log, error) {
 	query := url.Values{}
 	if len(names) > 0 {
 		query.Set("names", strings.Join(names, ","))
@@ -207,7 +215,7 @@ type StartOptions struct {
 // It takes a list of names that can be snaps, of which all their
 // services are started, or snap.service which are individual
 // services to start; it shouldn't be empty.
-func (client *Client) Start(names []string, opts StartOptions) (changeID string, err error) {
+func (client *client) Start(names []string, opts StartOptions) (changeID string, err error) {
 	if len(names) == 0 {
 		return "", ErrNoNames
 	}
@@ -235,7 +243,7 @@ type StopOptions struct {
 // It takes a list of names that can be snaps, of which all their
 // services are stopped, or snap.service which are individual
 // services to stop; it shouldn't be empty.
-func (client *Client) Stop(names []string, opts StopOptions) (changeID string, err error) {
+func (client *client) Stop(names []string, opts StopOptions) (changeID string, err error) {
 	if len(names) == 0 {
 		return "", ErrNoNames
 	}
@@ -264,7 +272,7 @@ type RestartOptions struct {
 // services are restarted, or snap.service which are individual
 // services to restart; it shouldn't be empty. If the service is not
 // running, starts it.
-func (client *Client) Restart(names []string, opts RestartOptions) (changeID string, err error) {
+func (client *client) Restart(names []string, opts RestartOptions) (changeID string, err error) {
 	if len(names) == 0 {
 		return "", ErrNoNames
 	}

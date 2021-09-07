@@ -48,7 +48,7 @@ func Test(t *testing.T) { TestingT(t) }
 type clientSuite struct {
 	testutil.BaseTest
 
-	cli           *client.Client
+	cli           *client.ClientImpl
 	req           *http.Request
 	reqs          []*http.Request
 	rsp           string
@@ -68,7 +68,7 @@ func (cs *clientSuite) SetUpTest(c *C) {
 	os.Setenv(client.TestAuthFileEnvKey, filepath.Join(c.MkDir(), "auth.json"))
 	cs.AddCleanup(func() { os.Unsetenv(client.TestAuthFileEnvKey) })
 
-	cs.cli = client.New(nil)
+	cs.cli = client.New(nil).(*client.ClientImpl)
 	cs.cli.SetDoer(cs)
 	cs.err = nil
 	cs.req = nil
@@ -281,7 +281,7 @@ func (cs *clientSuite) TestClientHonorsDisableAuth(c *C) {
 	c.Assert(err, IsNil)
 
 	var v string
-	cli := client.New(&client.Config{DisableAuth: true})
+	cli := client.New(&client.Config{DisableAuth: true}).(*client.ClientImpl)
 	cli.SetDoer(cs)
 	_, _ = cli.Do("GET", "/this", nil, nil, &v, nil)
 	authorization := cs.req.Header.Get("Authorization")
@@ -290,13 +290,13 @@ func (cs *clientSuite) TestClientHonorsDisableAuth(c *C) {
 
 func (cs *clientSuite) TestClientHonorsInteractive(c *C) {
 	var v string
-	cli := client.New(&client.Config{Interactive: false})
+	cli := client.New(&client.Config{Interactive: false}).(*client.ClientImpl)
 	cli.SetDoer(cs)
 	_, _ = cli.Do("GET", "/this", nil, nil, &v, nil)
 	interactive := cs.req.Header.Get(client.AllowInteractionHeader)
 	c.Check(interactive, Equals, "")
 
-	cli = client.New(&client.Config{Interactive: true})
+	cli = client.New(&client.Config{Interactive: true}).(*client.ClientImpl)
 	cli.SetDoer(cs)
 	_, _ = cli.Do("GET", "/this", nil, nil, &v, nil)
 	interactive = cs.req.Header.Get(client.AllowInteractionHeader)
@@ -560,7 +560,7 @@ func (cs *clientSuite) TestIsRetryable(c *C) {
 }
 
 func (cs *clientSuite) TestUserAgent(c *C) {
-	cli := client.New(&client.Config{UserAgent: "some-agent/9.87"})
+	cli := client.New(&client.Config{UserAgent: "some-agent/9.87"}).(*client.ClientImpl)
 	cli.SetDoer(cs)
 
 	var v string
@@ -622,7 +622,7 @@ func (cs *integrationSuite) TestClientTimeoutLP1837804(c *C) {
 	}))
 	defer func() { testServer.Close() }()
 
-	cli := client.New(&client.Config{BaseURL: testServer.URL})
+	cli := client.New(&client.Config{BaseURL: testServer.URL}).(*client.ClientImpl)
 	_, err := cli.Do("GET", "/", nil, nil, nil, nil)
 	c.Assert(err, ErrorMatches, `.* timeout exceeded while waiting for response`)
 

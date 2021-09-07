@@ -36,7 +36,12 @@ type BuyResult struct {
 	State string `json:"state,omitempty"`
 }
 
-func (client *Client) Buy(opts *BuyOptions) (*BuyResult, error) {
+type ClientBuy interface {
+	Buy(opts *BuyOptions) (*BuyResult, error)
+	ReadyToBuy() error
+}
+
+func (client *client) Buy(opts *BuyOptions) (*BuyResult, error) {
 	if opts == nil {
 		opts = &BuyOptions{}
 	}
@@ -56,7 +61,7 @@ func (client *Client) Buy(opts *BuyOptions) (*BuyResult, error) {
 	return &result, nil
 }
 
-func (client *Client) ReadyToBuy() error {
+func (client *client) ReadyToBuy() error {
 	var result bool
 	_, err := client.doSync("GET", "/v2/buy/ready", nil, nil, nil, &result)
 	return err

@@ -265,7 +265,7 @@ func MockWaitConfTimeout(d time.Duration) (restore func()) {
 	}
 }
 
-func Wait(cli *client.Client, id string) (*client.Change, error) {
+func Wait(cli client.Client, id string) (*client.Change, error) {
 	wmx := waitMixin{}
 	wmx.client = cli
 	return wmx.wait(id)

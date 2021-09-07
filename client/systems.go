@@ -61,8 +61,14 @@ type SystemAction struct {
 	Mode string `json:"mode,omitempty"`
 }
 
+type ClientSystem interface {
+	ListSystems() ([]System, error)
+	DoSystemAction(systemLabel string, action *SystemAction) error
+	RebootToSystem(systemLabel, mode string) error
+}
+
 // ListSystems list all systems available for seeding or recovery.
-func (client *Client) ListSystems() ([]System, error) {
+func (client *client) ListSystems() ([]System, error) {
 	type systemsResponse struct {
 		Systems []System `json:"systems,omitempty"`
 	}
@@ -77,7 +83,7 @@ func (client *Client) ListSystems() ([]System, error) {
 
 // DoSystemAction issues a request to perform an action using the given seed
 // system and its mode.
-func (client *Client) DoSystemAction(systemLabel string, action *SystemAction) error {
+func (client *client) DoSystemAction(systemLabel string, action *SystemAction) error {
 	if systemLabel == "" {
 		return fmt.Errorf("cannot request an action without the system")
 	}
@@ -115,7 +121,7 @@ func (client *Client) DoSystemAction(systemLabel string, action *SystemAction) e
 //
 // Note that "recover" and "run" modes are only available for the
 // current system.
-func (client *Client) RebootToSystem(systemLabel, mode string) error {
+func (client *client) RebootToSystem(systemLabel, mode string) error {
 	// verification is done by the backend
 
 	req := struct {

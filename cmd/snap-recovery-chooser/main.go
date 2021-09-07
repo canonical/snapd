@@ -134,7 +134,7 @@ func cleanupTriggerMarker() error {
 	return nil
 }
 
-func chooser(cli *client.Client) (reboot bool, err error) {
+func chooser(cli client.Client) (reboot bool, err error) {
 	if _, err := os.Stat(defaultMarkerFile); err != nil {
 		if os.IsNotExist(err) {
 			return false, fmt.Errorf("cannot run chooser without the marker file")

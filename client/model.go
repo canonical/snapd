@@ -35,8 +35,14 @@ type remodelData struct {
 	NewModel string `json:"new-model"`
 }
 
+type ClientModel interface {
+	Remodel(b []byte) (changeID string, err error)
+	CurrentModelAssertion() (*asserts.Model, error)
+	CurrentSerialAssertion() (*asserts.Serial, error)
+}
+
 // Remodel tries to remodel the system with the given assertion data
-func (client *Client) Remodel(b []byte) (changeID string, err error) {
+func (client *client) Remodel(b []byte) (changeID string, err error) {
 	data, err := json.Marshal(&remodelData{
 		NewModel: string(b),
 	})
@@ -51,7 +57,7 @@ func (client *Client) Remodel(b []byte) (changeID string, err error) {
 }
 
 // CurrentModelAssertion returns the current model assertion
-func (client *Client) CurrentModelAssertion() (*asserts.Model, error) {
+func (client *client) CurrentModelAssertion() (*asserts.Model, error) {
 	assert, err := currentAssertion(client, "/v2/model")
 	if err != nil {
 		return nil, err
@@ -64,7 +70,7 @@ func (client *Client) CurrentModelAssertion() (*asserts.Model, error) {
 }
 
 // CurrentSerialAssertion returns the current serial assertion
-func (client *Client) CurrentSerialAssertion() (*asserts.Serial, error) {
+func (client *client) CurrentSerialAssertion() (*asserts.Serial, error) {
 	assert, err := currentAssertion(client, "/v2/model/serial")
 	if err != nil {
 		return nil, err
@@ -77,7 +83,7 @@ func (client *Client) CurrentSerialAssertion() (*asserts.Serial, error) {
 }
 
 // helper function for getting assertions from the daemon via a REST path
-func currentAssertion(client *Client, path string) (asserts.Assertion, error) {
+func currentAssertion(client *client, path string) (asserts.Assertion, error) {
 	q := url.Values{}
 
 	response, cancel, err := client.rawWithTimeout(context.Background(), "GET", path, q, nil, nil, nil)

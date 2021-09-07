@@ -141,7 +141,7 @@ func isStopping() (bool, error) {
 	return false, err
 }
 
-func maybeWaitForSecurityProfileRegeneration(cli *client.Client) error {
+func maybeWaitForSecurityProfileRegeneration(cli client.Client) error {
 	// check if the security profiles key has changed, if so, we need
 	// to wait for snapd to re-generate all profiles
 	mismatch, err := interfaces.SystemKeyMismatch()

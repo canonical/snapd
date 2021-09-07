@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/release"
 )
 
-func serverVersion(cli *client.Client) *client.ServerVersion {
+func serverVersion(cli client.Client) *client.ServerVersion {
 	if release.OnWSL {
 		return &client.ServerVersion{
 			Version:       i18n.G("unavailable"),

@@ -121,7 +121,7 @@ func cachedSections() (sections []string, err error) {
 	return sections, nil
 }
 
-func getSections(cli *client.Client) (sections []string, err error) {
+func getSections(cli client.Client) (sections []string, err error) {
 	// try loading from cached sections file
 	sections, err = cachedSections()
 	if err != nil {
@@ -134,7 +134,7 @@ func getSections(cli *client.Client) (sections []string, err error) {
 	return cli.Sections()
 }
 
-func showSections(cli *client.Client) error {
+func showSections(cli client.Client) error {
 	sections, err := getSections(cli)
 	if err != nil {
 		return err

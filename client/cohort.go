@@ -32,7 +32,11 @@ type CohortAction struct {
 	Snaps  []string `json:"snaps"`
 }
 
-func (client *Client) CreateCohorts(snaps []string) (map[string]string, error) {
+type ClientCohort interface {
+	CreateCohorts(snaps []string) (map[string]string, error)
+}
+
+func (client *client) CreateCohorts(snaps []string) (map[string]string, error) {
 	data, err := json.Marshal(&CohortAction{Action: "create", Snaps: snaps})
 	if err != nil {
 		return nil, fmt.Errorf("cannot request cohorts: %v", err)

@@ -60,7 +60,7 @@ func (x *cmdBuy) Execute(args []string) error {
 	return buySnap(x.client, string(x.Positional.SnapName))
 }
 
-func buySnap(cli *client.Client, snapName string) error {
+func buySnap(cli client.Client, snapName string) error {
 	user := cli.LoggedInUser()
 	if user == nil {
 		return fmt.Errorf(i18n.G("You need to be logged in to purchase software. Please run 'snap login' and try again."))

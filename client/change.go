@@ -43,6 +43,12 @@ type Change struct {
 	data map[string]*json.RawMessage
 }
 
+type ClientChange interface {
+	Change(id string) (*Change, error)
+	Abort(id string) (*Change, error)
+	Changes(opts *ChangesOptions) ([]*Change, error)
+}
+
 var ErrNoData = fmt.Errorf("data entry not found")
 
 // Get unmarshals into value the kind-specific data with the provided key.
@@ -79,7 +85,7 @@ type changeAndData struct {
 }
 
 // Change fetches information about a Change given its ID.
-func (client *Client) Change(id string) (*Change, error) {
+func (client *client) Change(id string) (*Change, error) {
 	var chgd changeAndData
 	_, err := client.doSync("GET", "/v2/changes/"+id, nil, nil, nil, &chgd)
 	if err != nil {
@@ -91,7 +97,7 @@ func (client *Client) Change(id string) (*Change, error) {
 }
 
 // Abort attempts to abort a change that is in not yet ready.
-func (client *Client) Abort(id string) (*Change, error) {
+func (client *client) Abort(id string) (*Change, error) {
 	var postData struct {
 		Action string `json:"action"`
 	}
@@ -136,7 +142,7 @@ type ChangesOptions struct {
 	Selector ChangeSelector
 }
 
-func (client *Client) Changes(opts *ChangesOptions) ([]*Change, error) {
+func (client *client) Changes(opts *ChangesOptions) ([]*Change, error) {
 	query := url.Values{}
 	if opts != nil {
 		if opts.Selector != 0 {

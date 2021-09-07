@@ -45,8 +45,14 @@ type loginData struct {
 	Otp      string `json:"otp,omitempty"`
 }
 
+type ClientLogin interface {
+	Login(email, password, otp string) (*User, error)
+	Logout() error
+	LoggedInUser() *User
+}
+
 // Login logs user in.
-func (client *Client) Login(email, password, otp string) (*User, error) {
+func (client *client) Login(email, password, otp string) (*User, error) {
 	postData := loginData{
 		Email:    email,
 		Password: password,
@@ -69,7 +75,7 @@ func (client *Client) Login(email, password, otp string) (*User, error) {
 }
 
 // Logout logs the user out.
-func (client *Client) Logout() error {
+func (client *client) Logout() error {
 	_, err := client.doSync("POST", "/v2/logout", nil, nil, nil, nil)
 	if err != nil {
 		return err
@@ -78,7 +84,7 @@ func (client *Client) Logout() error {
 }
 
 // LoggedInUser returns the logged in User or nil
-func (client *Client) LoggedInUser() *User {
+func (client *client) LoggedInUser() *User {
 	u, err := readAuthData()
 	if err != nil {
 		return nil
