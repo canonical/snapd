@@ -193,3 +193,28 @@ func (s *netplanSuite) TestNetplanReadOnlyForNow(c *C) {
 	})
 	c.Assert(err, ErrorMatches, "cannot set netplan config yet")
 }
+
+func (s *netplanSuite) TestNetplanNoApplyOnClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	s.AddCleanup(restore)
+
+	err := configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"system.network.netplan.network.renderer": "networkd",
+		},
+	})
+	c.Check(err, ErrorMatches, "cannot set netplan configuration on classic")
+
+	err = configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"system.network.netplan": map[string]interface{}{
+				"network": map[string]interface{}{
+					"version": 2,
+				},
+			},
+		},
+	})
+	c.Check(err, ErrorMatches, "cannot set netplan configuration on classic")
+}
