@@ -1,7 +1,7 @@
 github.com/boltdb/bolt v1.3.1 h1:JQmyP4ZBrce+ZQu0dY660FMfatumYDLun9hBCUVIkF4=
 github.com/boltdb/bolt v1.3.1/go.mod h1:clJnj/oiGkjum5o1McbSZDSLxVThjynRyGBgiAx27Ps=
-github.com/canonical/go-efilib v0.0.0-20210904134225-fd6cb98c6228 h1:QMyqs+UL7qIALPR4Werst2XgXFIxmri46ZM/XlUjLnU=
-github.com/canonical/go-efilib v0.0.0-20210904134225-fd6cb98c6228/go.mod h1:9Sr9kd7IhQPYqaU5nut8Ky97/CtlhHDzQncQnrULgDM=
+github.com/canonical/go-efilib v0.0.0-20210708205505-7d3f2e29397f h1:KWRTN0w2PI9KQ3KSDNhKc+rB+E1z3bzDKihNxpD0gOQ=
+github.com/canonical/go-efilib v0.0.0-20210708205505-7d3f2e29397f/go.mod h1:9Sr9kd7IhQPYqaU5nut8Ky97/CtlhHDzQncQnrULgDM=
 github.com/canonical/go-sp800.108-kdf v0.0.0-20210314145419-a3359f2d21b9 h1:USzKjrfWo/ESzozv2i3OMM7XDgxrZRvaHFrKkIKRtwU=
 github.com/canonical/go-sp800.108-kdf v0.0.0-20210314145419-a3359f2d21b9/go.mod h1:Zrs3YjJr+w51u0R/dyLh/oWt/EcBVdLPCVFYC4daW5s=
 github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 h1:oe6fCvaEpkhyW3qAicT0TnGtyht/UrgvOwMcEgLb7Aw=

@@ -4,7 +4,7 @@ go 1.13
 
 require (
 	github.com/boltdb/bolt v1.3.1 // indirect
-	github.com/canonical/go-efilib v0.0.0-20210904134225-fd6cb98c6228 // indirect
+	github.com/canonical/go-efilib v0.0.0-20210708205505-7d3f2e29397f // indirect
 	github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 // indirect
 	github.com/canonical/go-tpm2 v0.0.0-20210827151749-f80ff5afff61
 	github.com/canonical/tcglog-parser v0.0.0-20210824131805-69fa1e9f0ad2 // indirect
