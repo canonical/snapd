@@ -138,15 +138,15 @@ func (s *svcStatus) Execute(args []string) error {
 	fmt.Fprintln(w, i18n.G("Service\tStartup\tCurrent\tNotes"))
 
 	for _, svc := range services {
-		startup := i18n.G("disabled")
+		startup := "disabled"
 		if svc.Enabled {
-			startup = i18n.G("enabled")
+			startup = "enabled"
 		}
-		current := i18n.G("inactive")
+		current := "inactive"
 		if svc.DaemonScope == snap.UserDaemon {
 			current = "-"
 		} else if svc.Active {
-			current = i18n.G("active")
+			current = "active"
 		}
 		fmt.Fprintf(w, "%s.%s\t%s\t%s\t%s\n", svc.Snap, svc.Name, startup, current, clientutil.ClientAppInfoNotes(svc))
 	}
