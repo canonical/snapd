@@ -82,8 +82,8 @@ func fakePruneTicker() (w *ticker, restore func()) {
 
 func (ovs *overlordSuite) SetUpTest(c *C) {
 	// temporary: skip due to timeouts on riscv64
-	if runtime.GOARCH == "riscv64" {
-		c.Skip("skipping on riscv64")
+	if runtime.GOARCH == "riscv64" || os.Getenv("SNAPD_SKIP_SLOW_TESTS") != "" {
+		c.Skip("skipping slow test")
 	}
 
 	tmpdir := c.MkDir()
