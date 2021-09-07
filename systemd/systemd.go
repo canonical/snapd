@@ -64,6 +64,9 @@ var (
 
 	osutilIsMounted = osutil.IsMounted
 
+	// allow mocking the systemd version
+	Version = getVersion
+
 	// allow replacing the systemd implementation with a mock one
 	newSystemd = newSystemdReal
 )
@@ -118,6 +121,17 @@ var systemctlCmd = func(args ...string) ([]byte, error) {
 	return bs, nil
 }
 
+func MockSystemdVersion(version int, injectedError error) (restore func()) {
+	osutil.MustBeTestBinary("cannot mock systemd version outside of tests")
+	old := Version
+	Version = func() (int, error) {
+		return version, injectedError
+	}
+	return func() {
+		Version = old
+	}
+}
+
 // MockSystemctl is called from the commands to actually call out to
 // systemctl. It's exported so it can be overridden by testing.
 func MockSystemctl(f func(args ...string) ([]byte, error)) func() {
@@ -146,8 +160,8 @@ func Available() error {
 	return err
 }
 
-// Version returns systemd version.
-func Version() (int, error) {
+// getVersion returns systemd version.
+func getVersion() (int, error) {
 	out, err := systemctlCmd("--version")
 	if err != nil {
 		return 0, err
@@ -181,6 +195,20 @@ func Version() (int, error) {
 		return 0, fmt.Errorf("cannot convert systemd version to number: %s", verstr)
 	}
 	return ver, nil
+}
+
+// EnsureAtLeast checks whether the installed version of systemd is greater or
+// equal than the given one. An error is returned if the required version is
+// not matched, and also if systemd is not installed or not working
+func EnsureAtLeast(requiredVersion int) error {
+	version, err := Version()
+	if err != nil {
+		return err
+	}
+	if version < requiredVersion {
+		return fmt.Errorf(`installed version %d is too old`, version)
+	}
+	return nil
 }
 
 var osutilStreamCommand = osutil.StreamCommand
