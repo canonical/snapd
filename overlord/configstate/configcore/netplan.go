@@ -56,7 +56,7 @@ func validateNetplanSettings(tr config.Conf) error {
 
 func handleNetplanConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 	for _, chg := range tr.Changes() {
-		if strings.HasPrefix(chg, "core.system.network.netplan.") {
+		if chg == "core.system.network.netplan" || strings.HasPrefix(chg, "core.system.network.netplan.") {
 			return fmt.Errorf("cannot set netplan config yet")
 		}
 	}

@@ -180,4 +180,16 @@ func (s *netplanSuite) TestNetplanReadOnlyForNow(c *C) {
 		},
 	})
 	c.Assert(err, ErrorMatches, "cannot set netplan config yet")
+
+	err = configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"system.network.netplan": map[string]interface{}{
+				"network": map[string]interface{}{
+					"version": 2,
+				},
+			},
+		},
+	})
+	c.Assert(err, ErrorMatches, "cannot set netplan config yet")
 }
