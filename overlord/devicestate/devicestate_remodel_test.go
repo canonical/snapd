@@ -1136,7 +1136,7 @@ volumes:
 	snapf, err := snapfile.Open(info.MountDir())
 	c.Assert(err, IsNil)
 
-	s.setupBrands(c)
+	s.setupBrands()
 
 	oldModel := fakeMyModel(map[string]interface{}{
 		"architecture": "amd64",
@@ -1267,7 +1267,7 @@ version: 123
 	snapf, err := snapfile.Open(info.MountDir())
 	c.Assert(err, IsNil)
 
-	s.setupBrands(c)
+	s.setupBrands()
 	// model assertion in device context
 	oldModel := fakeMyModel(map[string]interface{}{
 		"architecture": "amd64",
