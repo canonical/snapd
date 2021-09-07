@@ -38,6 +38,8 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/progress"
+	"github.com/snapcore/snapd/progress/progresstest"
 	"github.com/snapcore/snapd/sandbox/cgroup"
 	"github.com/snapcore/snapd/sandbox/selinux"
 	"github.com/snapcore/snapd/snap"
@@ -1764,4 +1766,54 @@ func (s *RunSuite) TestWaitInhibitUnlockWithErrorChannel(c *check.C) {
 	c.Check(notInhibited, check.Equals, false)
 	c.Check(called, check.Equals, 1)
 	c.Check(s.Stderr(), check.Equals, `boom`)
+}
+
+func (s *RunSuite) TestWaitWhileInhibitedNoop(c *check.C) {
+	var called int
+	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+		called++
+		if called < 2 {
+			return runinhibit.HintInhibitedGateRefresh, nil
+		}
+		return runinhibit.HintNotInhibited, nil
+	})
+	defer restore()
+
+	meter := &progresstest.Meter{}
+	defer progress.MockMeter(meter)()
+
+	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedGateRefresh), check.IsNil)
+	c.Assert(snaprun.WaitWhileInhibited("some-snap"), check.IsNil)
+	c.Check(called, check.Equals, 2)
+
+	c.Check(meter.Values, check.HasLen, 0)
+	c.Check(meter.Written, check.HasLen, 0)
+	c.Check(meter.Finishes, check.Equals, 0)
+	c.Check(meter.Labels, check.HasLen, 0)
+	c.Check(meter.Labels, check.HasLen, 0)
+}
+
+func (s *RunSuite) TestWaitWhileInhibitedTextFlow(c *check.C) {
+	var called int
+	restore := snaprun.MockIsLocked(func(snapName string) (runinhibit.Hint, error) {
+		called++
+		if called < 2 {
+			return runinhibit.HintInhibitedForRefresh, nil
+		}
+		return runinhibit.HintNotInhibited, nil
+	})
+	defer restore()
+
+	meter := &progresstest.Meter{}
+	defer progress.MockMeter(meter)()
+
+	c.Assert(runinhibit.LockWithHint("some-snap", runinhibit.HintInhibitedGateRefresh), check.IsNil)
+	c.Assert(snaprun.WaitWhileInhibited("some-snap"), check.IsNil)
+	c.Check(called, check.Equals, 2)
+
+	c.Check(s.Stdout(), check.Equals, "snap package cannot be used now: gate-refresh\n")
+	c.Check(meter.Values, check.HasLen, 0)
+	c.Check(meter.Written, check.HasLen, 0)
+	c.Check(meter.Finishes, check.Equals, 1)
+	c.Check(meter.Labels, check.DeepEquals, []string{"please wait..."})
 }

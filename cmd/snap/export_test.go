@@ -139,6 +139,7 @@ var (
 	MaybePrintCohortKey         = (*infoWriter).maybePrintCohortKey
 	MaybePrintHealth            = (*infoWriter).maybePrintHealth
 	WaitInhibitUnlock           = waitInhibitUnlock
+	WaitWhileInhibited          = waitWhileInhibited
 	IsLocked                    = isLocked
 )
 
