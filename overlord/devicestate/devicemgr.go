@@ -1745,7 +1745,7 @@ func (m *DeviceManager) runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
 	return hookOutput, nil
 }
 
-func (m *DeviceManager) checkFDEFeatures(st *state.State) error {
+func (m *DeviceManager) checkFDEFeatures() error {
 	// TODO: move most of this to kernel/fde.Features
 	// Run fde-setup hook with "op":"features". If the hook
 	// returns any {"features":[...]} reply we consider the

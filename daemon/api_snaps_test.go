@@ -418,7 +418,7 @@ func (s *snapsSuite) TestSnapsInfoFilterRemote(c *check.C) {
 }
 
 func (s *snapsSuite) TestPostSnapsVerifyMultiSnapInstruction(c *check.C) {
-	s.daemonWithOverlordMockAndStore(c)
+	s.daemonWithOverlordMockAndStore()
 
 	buf := strings.NewReader(`{"action": "install","snaps":["ubuntu-core"]}`)
 	req, err := http.NewRequest("POST", "/v2/snaps", buf)
@@ -431,7 +431,7 @@ func (s *snapsSuite) TestPostSnapsVerifyMultiSnapInstruction(c *check.C) {
 }
 
 func (s *snapsSuite) TestPostSnapsUnsupportedMultiOp(c *check.C) {
-	s.daemonWithOverlordMockAndStore(c)
+	s.daemonWithOverlordMockAndStore()
 
 	buf := strings.NewReader(`{"action": "switch","snaps":["foo"]}`)
 	req, err := http.NewRequest("POST", "/v2/snaps", buf)
@@ -444,7 +444,7 @@ func (s *snapsSuite) TestPostSnapsUnsupportedMultiOp(c *check.C) {
 }
 
 func (s *snapsSuite) TestPostSnapsNoWeirdses(c *check.C) {
-	s.daemonWithOverlordMockAndStore(c)
+	s.daemonWithOverlordMockAndStore()
 
 	// one could add more actions here ... 🤷
 	for _, action := range []string{"install", "refresh", "remove"} {
@@ -485,7 +485,7 @@ func (s *snapsSuite) testPostSnapsOp(c *check.C, contentType string) {
 		return []string{"fake1", "fake2"}, []*state.TaskSet{state.NewTaskSet(t)}, nil
 	})()
 
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 
 	buf := bytes.NewBufferString(`{"action": "refresh"}`)
 	req, err := http.NewRequest("POST", "/v2/snaps", buf)
@@ -1114,7 +1114,7 @@ func (s *snapsSuite) TestPostSnapWithChannel(c *check.C) {
 }
 
 func (s *snapsSuite) testPostSnap(c *check.C, withChannel bool) {
-	d := s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMock()
 
 	soon := 0
 	var origEnsureStateSoon func(*state.State)
@@ -1171,7 +1171,7 @@ func (s *snapsSuite) testPostSnap(c *check.C, withChannel bool) {
 }
 
 func (s *snapsSuite) TestPostSnapVerifySnapInstruction(c *check.C) {
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMock()
 
 	buf := bytes.NewBufferString(`{"action": "install"}`)
 	req, err := http.NewRequest("POST", "/v2/snaps/ubuntu-core", buf)
@@ -1183,7 +1183,7 @@ func (s *snapsSuite) TestPostSnapVerifySnapInstruction(c *check.C) {
 }
 
 func (s *snapsSuite) TestPostSnapCohortUnsupportedAction(c *check.C) {
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMock()
 	const expectedErr = "cohort-key can only be specified for install, refresh, or switch"
 
 	for _, action := range []string{"remove", "revert", "enable", "disable", "xyzzy"} {
@@ -1198,7 +1198,7 @@ func (s *snapsSuite) TestPostSnapCohortUnsupportedAction(c *check.C) {
 }
 
 func (s *snapsSuite) TestPostSnapLeaveCohortUnsupportedAction(c *check.C) {
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMock()
 	const expectedErr = "leave-cohort can only be specified for refresh or switch"
 
 	for _, action := range []string{"install", "remove", "revert", "enable", "disable", "xyzzy"} {
@@ -1213,7 +1213,7 @@ func (s *snapsSuite) TestPostSnapLeaveCohortUnsupportedAction(c *check.C) {
 }
 
 func (s *snapsSuite) TestPostSnapCohortIncompat(c *check.C) {
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMock()
 	type T struct {
 		opts   string
 		errmsg string
