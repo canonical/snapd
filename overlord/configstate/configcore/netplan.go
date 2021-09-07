@@ -19,20 +19,20 @@
 
 package configcore
 
+// TODO: Move to yaml.v3 everywhere, there is PR#10696 that starts
+//       this. However it is not trivial yaml.v2 accepts duplicated
+//       keys in maps and v3 does not. There might be snaps in the
+//       wild that we could break by going to v3.
+//
+// Move this part of the code to yaml.v3 because without it we run
+// into incompatibilites of maps between json and yaml:
+// "json: unsupported type: map[interface{}]interface{}" because
+// because yaml.v2 unmarshalls by default to "map[interface{}]interface{}"
+// v3 fixes this, see https://github.com/go-yaml/yaml/pull/385#issuecomment-475588596
 import (
 	"fmt"
 	"strings"
 
-	// TODO: Move to yaml.v3 everywhere, there is PR#10696 that starts
-	//       this. However it is not trivial yaml.v2 accepts duplicated
-	//       keys in maps and v3 does not. There might be snaps in the
-	//       wild that we could break by going to v3.
-	//
-	// Move this part of the code to yaml.v3 because without it we run
-	// into incompatibilites of maps between json and yaml:
-	// "json: unsupported type: map[interface {}]interface {}" because
-	// because yaml.v2 unmarshalls by default to "map[string]interface{}"
-	// v3 fixes this, see https://github.com/go-yaml/yaml/pull/385#issuecomment-475588596
 	"gopkg.in/yaml.v3"
 
 	"github.com/godbus/dbus"
@@ -45,7 +45,7 @@ import (
 func init() {
 	// add supported configuration of this module
 	supportedConfigurations["core.system.network.netplan"] = true
-	// and register as exteranl config
+	// and register as external config
 	config.RegisterExternalConfig("core", "system.network.netplan", getNetplanFromSystem)
 }
 
