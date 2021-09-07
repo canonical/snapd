@@ -8839,7 +8839,7 @@ func (s *interfaceManagerSuite) TestResolveDisconnectMatrixTypical(c *C) {
 
 func (s *interfaceManagerSuite) TestConnectSetsUpSecurityFails(c *C) {
 	s.MockModel(c, nil)
-	s.mockIfaces(c, &ifacetest.TestInterface{InterfaceName: "test"})
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
 
 	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
