@@ -96,7 +96,7 @@ func (s *systemsSuite) SetUpTest(c *C) {
 	s.recoveryKernelBf = bootloader.NewBootFile("/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
 		"kernel.efi", bootloader.RoleRecovery)
 
-	s.seedKernelSnap = mockKernelSeedSnap(c, snap.R(1))
+	s.seedKernelSnap = mockKernelSeedSnap(snap.R(1))
 	s.seedGadgetSnap = mockGadgetSeedSnap(c, nil)
 }
 
