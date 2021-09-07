@@ -82,7 +82,7 @@ func zenityFlow(snapName string, hint runinhibit.Hint) error {
 		zenityDied <- zenityErr
 	}()
 
-	if err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited, zenityDied); err != nil {
+	if _, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited, zenityDied); err != nil {
 		return err
 	}
 
@@ -93,7 +93,7 @@ func textFlow(snapName string, hint runinhibit.Hint) error {
 	fmt.Fprintf(Stdout, "%s\n", inhibitMessage(snapName, hint))
 	pb := progress.MakeProgressBar()
 	pb.Spin(i18n.G("please wait..."))
-	err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited, nil)
+	_, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited, nil)
 	pb.Finished()
 	return err
 }
@@ -112,8 +112,12 @@ func waitWhileInhibited(snapName string) error {
 	// and then either unlocks it or changes to HintInhibitedForRefresh (see
 	// gateAutoRefreshHookHandler in hooks.go).
 	// waitInhibitUnlock will return also on HintNotInhibited.
-	if err := waitInhibitUnlock(snapName, runinhibit.HintInhibitedForRefresh, nil); err != nil {
+	notInhibited, err := waitInhibitUnlock(snapName, runinhibit.HintInhibitedForRefresh, nil)
+	if err != nil {
 		return err
+	}
+	if notInhibited {
+		return nil
 	}
 
 	if isGraphicalSession() && hasZenityExecutable() {
@@ -125,7 +129,7 @@ func waitWhileInhibited(snapName string) error {
 
 var isLocked = runinhibit.IsLocked
 
-var waitInhibitUnlock = func(snapName string, waitFor runinhibit.Hint, errCh <-chan error) error {
+var waitInhibitUnlock = func(snapName string, waitFor runinhibit.Hint, errCh <-chan error) (notInhibited bool, err error) {
 	// Every 0.5s check if the inhibition file is still present.
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
@@ -141,12 +145,15 @@ loop:
 			// Half a second has elapsed, let's check again.
 			hint, err := isLocked(snapName)
 			if err != nil {
-				return err
+				return false, err
 			}
-			if hint == runinhibit.HintNotInhibited || hint == waitFor {
-				break loop
+			if hint == runinhibit.HintNotInhibited {
+				return true, nil
+			}
+			if hint == waitFor {
+				return false, nil
 			}
 		}
 	}
-	return nil
+	return false, nil
 }
