@@ -228,9 +228,9 @@ func (s *RunSuite) TestSnapRunAppRuninhibit(c *check.C) {
 	c.Assert(ioutil.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
 	var called int
-	restore := snaprun.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint, errCh <-chan error) error {
+	restore := snaprun.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint, errCh <-chan error) (bool, error) {
 		called++
-		return nil
+		return false, nil
 	})
 	defer restore()
 
@@ -267,10 +267,10 @@ func (s *RunSuite) TestSnapRunHookNoRuninhibit(c *check.C) {
 	defer restorer()
 
 	var called bool
-	restore := snaprun.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint, errCh <-chan error) error {
+	restore := snaprun.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint, errCh <-chan error) (bool, error) {
 		called = true
 		c.Errorf("WaitInhibitUnlock should not have been called")
-		return nil
+		return false, nil
 	})
 	defer restore()
 
@@ -311,10 +311,10 @@ func (s *RunSuite) TestSnapRunAppRuninhibitSkipsServices(c *check.C) {
 	c.Assert(ioutil.WriteFile(features.RefreshAppAwareness.ControlFile(), []byte(nil), 0644), check.IsNil)
 
 	var called bool
-	restore := snaprun.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint, errCh <-chan error) error {
+	restore := snaprun.MockWaitInhibitUnlock(func(snapName string, waitFor runinhibit.Hint, errCh <-chan error) (bool, error) {
 		called = true
 		c.Errorf("WaitInhibitUnlock should not have been called")
-		return nil
+		return false, nil
 	})
 	defer restore()
 
@@ -1724,7 +1724,9 @@ func (s *RunSuite) TestWaitInhibitUnlock(c *check.C) {
 	})
 	defer restore()
 
-	c.Assert(snaprun.WaitInhibitUnlock("some-snap", runinhibit.HintNotInhibited, nil), check.IsNil)
+	notInhibited, err := snaprun.WaitInhibitUnlock("some-snap", runinhibit.HintNotInhibited, nil)
+	c.Assert(err, check.IsNil)
+	c.Check(notInhibited, check.Equals, true)
 	c.Check(called, check.Equals, 5)
 }
 
@@ -1739,7 +1741,9 @@ func (s *RunSuite) TestWaitInhibitUnlockWaitsForSpecificHint(c *check.C) {
 	})
 	defer restore()
 
-	c.Assert(snaprun.WaitInhibitUnlock("some-snap", runinhibit.HintInhibitedForRefresh, nil), check.IsNil)
+	notInhibited, err := snaprun.WaitInhibitUnlock("some-snap", runinhibit.HintInhibitedForRefresh, nil)
+	c.Assert(err, check.IsNil)
+	c.Check(notInhibited, check.Equals, false)
 	c.Check(called, check.Equals, 5)
 }
 
@@ -1755,7 +1759,9 @@ func (s *RunSuite) TestWaitInhibitUnlockWithErrorChannel(c *check.C) {
 	})
 	defer restore()
 
-	c.Assert(snaprun.WaitInhibitUnlock("some-snap", runinhibit.HintNotInhibited, errCh), check.IsNil)
+	notInhibited, err := snaprun.WaitInhibitUnlock("some-snap", runinhibit.HintNotInhibited, errCh)
+	c.Assert(err, check.IsNil)
+	c.Check(notInhibited, check.Equals, false)
 	c.Check(called, check.Equals, 1)
 	c.Check(s.Stderr(), check.Equals, `boom`)
 }
