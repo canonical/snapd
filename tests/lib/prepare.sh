@@ -193,7 +193,25 @@ update_core_snap_for_classic_reexec() {
 }
 
 prepare_memory_limit_override() {
-    if [ -n "${SNAPD_NO_MEMORY_LIMIT:-}" ]; then
+    # set up memory limits for snapd bu default unless explicit requested not to
+    # or the system is known to be problematic
+    local set_limit=1
+
+    case "$SPREAD_SYSTEM" in
+        ubuntu-core-16-*|ubuntu-core-18-*)
+            # the tests on UC16 and UC18 have demonstrated that the memory limit
+            # state claimed by systemd may be out of sync with actual memory
+            # controller setting for the snapd.service cgroup
+            set_limit=0
+            ;;
+        *)
+            if [ -n "${SNAPD_NO_MEMORY_LIMIT:-}" ]; then
+                set_limit=0
+            fi
+            ;;
+    esac
+
+    if [ "$set_limit" = "0" ]; then
         # make sure the file does not exist then
         rm -f /etc/systemd/system/snapd.service.d/memory-max.conf
     else
