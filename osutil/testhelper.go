@@ -53,7 +53,7 @@ var foreverLoop = func() {
 func injectFault(tagKind string) (injected bool) {
 	s := strings.Split(tagKind, ":")
 	if len(s) != 2 {
-		fmt.Fprintf(stderr, "incorrect fault tag: %q", tagKind)
+		fmt.Fprintf(stderr, "incorrect fault tag: %q\n", tagKind)
 		return false
 	}
 	tag := s[0]
@@ -65,12 +65,12 @@ func injectFault(tagKind string) (injected bool) {
 	}
 
 	if err := os.MkdirAll(filepath.Join(injectSysroot, "/var/lib/snapd/faults"), 0755); err != nil {
-		fmt.Fprintf(stderr, "cannot create fault stamps directory: %v", err)
+		fmt.Fprintf(stderr, "cannot create fault stamps directory: %v\n", err)
 		return false
 	}
 	makeStamp := func() bool {
 		if err := AtomicWriteFile(stampFile, nil, 0644, 0); err != nil {
-			fmt.Fprintf(stderr, "cannot create stamp file for tag %q", tagKind)
+			fmt.Fprintf(stderr, "cannot create stamp file for tag %q\n", tagKind)
 			return false
 		}
 		return true
@@ -86,7 +86,7 @@ func injectFault(tagKind string) (injected bool) {
 	case "reboot":
 		f, err := os.OpenFile(filepath.Join(injectSysroot, "/proc/sysrq-trigger"), os.O_WRONLY, 0)
 		if err != nil {
-			fmt.Fprintf(stderr, "cannot open: %v", err)
+			fmt.Fprintf(stderr, "cannot open: %v\n", err)
 			return false
 		}
 		defer f.Close()
@@ -94,7 +94,7 @@ func injectFault(tagKind string) (injected bool) {
 			return false
 		}
 		if _, err := f.WriteString("b\n"); err != nil {
-			fmt.Fprintf(stderr, "cannot request reboot: %v", err)
+			fmt.Fprintf(stderr, "cannot request reboot: %v\n", err)
 			return false
 		}
 		// we should be rebooting now
@@ -120,7 +120,7 @@ func MaybeInjectFault(tag string) {
 		return
 	}
 	if strings.ContainsAny(envTagKinds, " /") {
-		fmt.Fprintf(stderr, "invalid fault tags %q", envTagKinds)
+		fmt.Fprintf(stderr, "invalid fault tags %q\n", envTagKinds)
 		return
 	}
 	faults := strings.Split(envTagKinds, ",")
