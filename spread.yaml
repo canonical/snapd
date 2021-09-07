@@ -812,14 +812,6 @@ suites:
         backends: [-autopkgtest]
         environment:
             # env vars required for coverage reporting from a spread task
-            TRAVIS_BUILD_NUMBER: '$(HOST: echo "$TRAVIS_BUILD_NUMBER")'
-            TRAVIS_BRANCH: '$(HOST: echo "$TRAVIS_BRANCH")'
-            TRAVIS_COMMIT: '$(HOST: echo "$TRAVIS_COMMIT")'
-            TRAVIS_JOB_NUMBER: '$(HOST: echo "$TRAVIS_JOB_NUMBER")'
-            TRAVIS_PULL_REQUEST: '$(HOST: echo "$TRAVIS_PULL_REQUEST")'
-            TRAVIS_JOB_ID: '$(HOST: echo "$TRAVIS_JOB_ID")'
-            TRAVIS_REPO_SLUG: '$(HOST: echo "$TRAVIS_REPO_SLUG")'
-            TRAVIS_TAG: '$(HOST: echo "$TRAVIS_TAG")'
             COVERMODE: '$(HOST: echo "$COVERMODE")'
         prepare: |
             #shellcheck source=tests/lib/prepare.sh
