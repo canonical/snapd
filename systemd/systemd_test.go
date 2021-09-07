@@ -841,7 +841,7 @@ func (s *SystemdTestSuite) TestAddMountUnitTransient(c *C) {
 
 	c.Assert(filepath.Join(dirs.SnapRuntimeServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
 [Unit]
-Description=Mount unit for foo
+Description=Mount unit for foo via bar
 Before=snapd.service
 After=zfs-mount.service
 

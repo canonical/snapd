@@ -1156,6 +1156,9 @@ func writeMountUnitFile(u *MountUnitOptions) (mountUnitName string, err error) {
 	if u.Revision != "" {
 		snapDesc += fmt.Sprintf(", revision %s", u.Revision)
 	}
+	if u.Origin != "" {
+		snapDesc += fmt.Sprintf(" via %s", u.Origin)
+	}
 	content := fmt.Sprintf(mountUnitTemplate, snapDesc,
 		u.What, u.Where, u.Fstype, strings.Join(u.Options, ","))
 	if u.Origin != "" {
