@@ -17,6 +17,10 @@
  *
  */
 
+// netplantest provides a fake implementation of the netplan dbus API for
+// testing. Unlike the real netplan-dbus it uses the session bus but that
+// is good enough for the testing. See configcore/netplan_test.go for
+// example usage.
 package netplantest
 
 import (
