@@ -170,7 +170,7 @@ vm() {
 }
 
 exec() {
-    local user pwd cmd
+    local user pwd
     while [ $# -gt 0 ]; do
         case "$1" in
             --user)
