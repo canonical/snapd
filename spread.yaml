@@ -896,6 +896,7 @@ suites:
             tests.nested remove-vm
             tests.nested restore
             tests.backup restore
+            tests.cleanup restore
         restore: |
             #shellcheck source=tests/lib/pkgdb.sh
             . "$TESTSLIB"/pkgdb.sh
@@ -932,6 +933,7 @@ suites:
         restore-each: |
             tests.nested remove-vm
             tests.backup restore
+            tests.cleanup restore
         restore: |
             tests.nested restore
 
@@ -970,6 +972,7 @@ suites:
         restore-each: |
             tests.nested remove-vm
             tests.backup restore
+            tests.cleanup restore
         restore: |
             tests.nested restore
 
