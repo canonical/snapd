@@ -1735,6 +1735,143 @@ func (s *systemsSuite) TestDropRecoverySystemResealErr(c *C) {
 	})
 }
 
+func (s *systemsSuite) TestMarkRecoveryCapableSystemHappy(c *C) {
+	rbl := bootloadertest.Mock("recovery", c.MkDir()).RecoveryAware()
+	bootloader.Force(rbl)
+
+	err := boot.MarkRecoveryCapableSystem("1234")
+	c.Assert(err, IsNil)
+	vars, err := rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		"snapd_good_recovery_systems": "1234",
+	})
+	// try the same system again
+	err = boot.MarkRecoveryCapableSystem("1234")
+	c.Assert(err, IsNil)
+	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		// still a single entry
+		"snapd_good_recovery_systems": "1234",
+	})
+
+	// try something new
+	err = boot.MarkRecoveryCapableSystem("4567")
+	c.Assert(err, IsNil)
+	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		// entry added
+		"snapd_good_recovery_systems": "1234,4567",
+	})
+
+	// try adding the old one again
+	err = boot.MarkRecoveryCapableSystem("1234")
+	c.Assert(err, IsNil)
+	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		// system got moved to the end of the list
+		"snapd_good_recovery_systems": "4567,1234",
+	})
+
+	// and the new one again
+	err = boot.MarkRecoveryCapableSystem("4567")
+	c.Assert(err, IsNil)
+	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		// and it became the last entry
+		"snapd_good_recovery_systems": "1234,4567",
+	})
+}
+
+func (s *systemsSuite) TestMarkRecoveryCapableSystemAlwaysLast(c *C) {
+	rbl := bootloadertest.Mock("recovery", c.MkDir()).RecoveryAware()
+	bootloader.Force(rbl)
+
+	err := rbl.SetBootVars(map[string]string{
+		"snapd_good_recovery_systems": "1234,2222",
+	})
+	c.Assert(err, IsNil)
+
+	err = boot.MarkRecoveryCapableSystem("1234")
+	c.Assert(err, IsNil)
+	vars, err := rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		"snapd_good_recovery_systems": "2222,1234",
+	})
+
+	err = rbl.SetBootVars(map[string]string{
+		"snapd_good_recovery_systems": "1111,1234,2222",
+	})
+	c.Assert(err, IsNil)
+	err = boot.MarkRecoveryCapableSystem("1234")
+	c.Assert(err, IsNil)
+	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		"snapd_good_recovery_systems": "1111,2222,1234",
+	})
+
+	err = rbl.SetBootVars(map[string]string{
+		"snapd_good_recovery_systems": "1111,2222",
+	})
+	c.Assert(err, IsNil)
+	err = boot.MarkRecoveryCapableSystem("1234")
+	c.Assert(err, IsNil)
+	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		"snapd_good_recovery_systems": "1111,2222,1234",
+	})
+}
+
+func (s *systemsSuite) TestMarkRecoveryCapableSystemErr(c *C) {
+	rbl := bootloadertest.Mock("recovery", c.MkDir()).RecoveryAware()
+	bootloader.Force(rbl)
+
+	err := boot.MarkRecoveryCapableSystem("1234")
+	c.Assert(err, IsNil)
+	vars, err := rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		"snapd_good_recovery_systems": "1234",
+	})
+
+	rbl.SetErr = fmt.Errorf("mocked error")
+	err = boot.MarkRecoveryCapableSystem("4567")
+	c.Assert(err, ErrorMatches, "mocked error")
+	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		// mocked error is returned after variable is set
+		"snapd_good_recovery_systems": "1234,4567",
+	})
+
+	// but mocked panic happens earlier
+	rbl.SetMockToPanic("SetBootVars")
+	c.Assert(func() { boot.MarkRecoveryCapableSystem("9999") },
+		PanicMatches, "mocked reboot panic in SetBootVars")
+	vars, err = rbl.GetBootVars("snapd_good_recovery_systems")
+	c.Assert(err, IsNil)
+	c.Check(vars, DeepEquals, map[string]string{
+		"snapd_good_recovery_systems": "1234,4567",
+	})
+
+}
+
+func (s *systemsSuite) TestMarkRecoveryCapableSystemNonRecoveryAware(c *C) {
+	bl := bootloadertest.Mock("recovery", c.MkDir())
+	bootloader.Force(bl)
+
+	err := boot.MarkRecoveryCapableSystem("1234")
+	c.Assert(err, IsNil)
+	c.Check(bl.SetBootVarsCalls, Equals, 0)
+}
+
 type initramfsMarkTryRecoverySystemSuite struct {
 	baseSystemsSuite
 
