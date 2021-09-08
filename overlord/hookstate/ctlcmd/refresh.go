@@ -256,7 +256,7 @@ func (c *refreshCommand) proceed() error {
 	// running outside of hook
 	if ctx.IsEphemeral() {
 		st := ctx.State()
-		allow, err := allowProceed(st, ctx.InstanceName())
+		allow, err := allowRefreshProceedOutsideHook(st, ctx.InstanceName())
 		if err != nil {
 			return err
 		}
@@ -286,7 +286,7 @@ func (c *refreshCommand) proceed() error {
 	return nil
 }
 
-func allowProceed(st *state.State, snapName string) (bool, error) {
+func allowRefreshProceedOutsideHook(st *state.State, snapName string) (bool, error) {
 	conns, err := ifacestate.ConnectionStates(st)
 	if err != nil {
 		return false, fmt.Errorf("internal error: cannot get connections: %s", err)
