@@ -177,6 +177,10 @@ func SetBootOkRan(m *DeviceManager, b bool) {
 	m.bootOkRan = b
 }
 
+func SetBootRevisionsUpdated(m *DeviceManager, b bool) {
+	m.bootRevisionsUpdated = b
+}
+
 func SetInstalledRan(m *DeviceManager, b bool) {
 	m.ensureInstalledRan = b
 }

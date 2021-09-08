@@ -273,7 +273,7 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 		c.Check(deviceCtx, Equals, testDeviceCtx)
 		c.Check(fromChange, Equals, "99")
 		c.Check(name, Equals, whatRefreshes)
-		c.Check(opts.Channel, Equals, "18")
+		c.Check(opts.Channel, Equals, "18/stable")
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s to track %s", name, opts.Channel))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
@@ -300,6 +300,46 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 		Model: "pc-model",
 	})
 
+	// current gadget
+	siModelGadget := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(33),
+		SnapID:   snaptest.AssertedSnapID("pc"),
+	}
+	snapstate.Set(s.state, "pc", &snapstate.SnapState{
+		SnapType:        "gadget",
+		Sequence:        []*snap.SideInfo{siModelGadget},
+		Current:         siModelGadget.Revision,
+		Active:          true,
+		TrackingChannel: "latest/stable",
+	})
+	// current kernel
+	siModelKernel := &snap.SideInfo{
+		RealName: "pc-kernel",
+		Revision: snap.R(32),
+		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
+	}
+	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
+		SnapType:        "kernel",
+		Sequence:        []*snap.SideInfo{siModelKernel},
+		Current:         siModelKernel.Revision,
+		Active:          true,
+		TrackingChannel: "latest/stable",
+	})
+	// and base
+	siModelBase := &snap.SideInfo{
+		RealName: "core18",
+		Revision: snap.R(31),
+		SnapID:   snaptest.AssertedSnapID("core18"),
+	}
+	snapstate.Set(s.state, "core18", &snapstate.SnapState{
+		SnapType:        "base",
+		Sequence:        []*snap.SideInfo{siModelBase},
+		Current:         siModelBase.Revision,
+		Active:          true,
+		TrackingChannel: "latest/stable",
+	})
+
 	headers := map[string]interface{}{
 		"architecture":   "amd64",
 		"kernel":         "pc-kernel",
@@ -323,13 +363,13 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchGadget(c *C) {
-	s.testRemodelSwitchTasks(c, "other-gadget", "18", map[string]interface{}{
+	s.testRemodelSwitchTasks(c, "other-gadget", "18/stable", map[string]interface{}{
 		"gadget": "other-gadget=18",
 	})
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernel(c *C) {
-	s.testRemodelSwitchTasks(c, "other-kernel", "18", map[string]interface{}{
+	s.testRemodelSwitchTasks(c, "other-kernel", "18/stable", map[string]interface{}{
 		"kernel": "other-kernel=18",
 	})
 }
@@ -538,7 +578,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelSwitchKernelTrack(c *C) {
 		c.Check(deviceCtx, NotNil)
 		c.Check(deviceCtx.ForRemodeling(), Equals, true)
 
-		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s to track %s", name, opts.Channel))
+		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s from track %s", name, opts.Channel))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
 		tValidate.WaitFor(tDownload)
 		tUpdate := s.state.NewTask("fake-update", fmt.Sprintf("Update %s to track %s", name, opts.Channel))
@@ -561,6 +601,45 @@ func (s *deviceMgrRemodelSuite) TestRemodelSwitchKernelTrack(c *C) {
 		Brand:  "canonical",
 		Model:  "pc-model",
 		Serial: "1234",
+	})
+	// current gadget
+	siModelGadget := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(33),
+		SnapID:   snaptest.AssertedSnapID("pc"),
+	}
+	snapstate.Set(s.state, "pc", &snapstate.SnapState{
+		SnapType:        "gadget",
+		Sequence:        []*snap.SideInfo{siModelGadget},
+		Current:         siModelGadget.Revision,
+		Active:          true,
+		TrackingChannel: "latest/stable",
+	})
+	// current kernel
+	siModelKernel := &snap.SideInfo{
+		RealName: "pc-kernel",
+		Revision: snap.R(32),
+		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
+	}
+	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
+		SnapType:        "kernel",
+		Sequence:        []*snap.SideInfo{siModelKernel},
+		Current:         siModelKernel.Revision,
+		Active:          true,
+		TrackingChannel: "latest/stable",
+	})
+	// and base
+	siModelBase := &snap.SideInfo{
+		RealName: "core18",
+		Revision: snap.R(31),
+		SnapID:   snaptest.AssertedSnapID("core18"),
+	}
+	snapstate.Set(s.state, "core18", &snapstate.SnapState{
+		SnapType:        "base",
+		Sequence:        []*snap.SideInfo{siModelBase},
+		Current:         siModelBase.Revision,
+		Active:          true,
+		TrackingChannel: "latest/stable",
 	})
 
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
@@ -587,11 +666,11 @@ func (s *deviceMgrRemodelSuite) TestRemodelSwitchKernelTrack(c *C) {
 	tSetModel := tl[6]
 
 	c.Assert(tDownloadKernel.Kind(), Equals, "fake-download")
-	c.Assert(tDownloadKernel.Summary(), Equals, "Download pc-kernel to track 18")
+	c.Assert(tDownloadKernel.Summary(), Equals, "Download pc-kernel from track 18/stable")
 	c.Assert(tValidateKernel.Kind(), Equals, "validate-snap")
 	c.Assert(tValidateKernel.Summary(), Equals, "Validate pc-kernel")
 	c.Assert(tUpdateKernel.Kind(), Equals, "fake-update")
-	c.Assert(tUpdateKernel.Summary(), Equals, "Update pc-kernel to track 18")
+	c.Assert(tUpdateKernel.Summary(), Equals, "Update pc-kernel to track 18/stable")
 	c.Assert(tDownloadSnap1.Kind(), Equals, "fake-download")
 	c.Assert(tDownloadSnap1.Summary(), Equals, "Download new-required-snap-1")
 	c.Assert(tValidateSnap1.Kind(), Equals, "validate-snap")
@@ -1681,6 +1760,45 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20RequiredSnapsAndRecoverySystem(c 
 		Model:  "pc-model",
 		Serial: "serial",
 	})
+	// current gadget
+	siModelGadget := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(33),
+		SnapID:   snaptest.AssertedSnapID("pc"),
+	}
+	snapstate.Set(s.state, "pc", &snapstate.SnapState{
+		SnapType:        "gadget",
+		Sequence:        []*snap.SideInfo{siModelGadget},
+		Current:         siModelGadget.Revision,
+		Active:          true,
+		TrackingChannel: "20/stable",
+	})
+	// current kernel
+	siModelKernel := &snap.SideInfo{
+		RealName: "pc-kernel",
+		Revision: snap.R(32),
+		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
+	}
+	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
+		SnapType:        "kernel",
+		Sequence:        []*snap.SideInfo{siModelKernel},
+		Current:         siModelKernel.Revision,
+		Active:          true,
+		TrackingChannel: "20/stable",
+	})
+	// and base
+	siModelBase := &snap.SideInfo{
+		RealName: "core20",
+		Revision: snap.R(31),
+		SnapID:   snaptest.AssertedSnapID("core20"),
+	}
+	snapstate.Set(s.state, "core20", &snapstate.SnapState{
+		SnapType:        "base",
+		Sequence:        []*snap.SideInfo{siModelBase},
+		Current:         siModelBase.Revision,
+		Active:          true,
+		TrackingChannel: "latest/stable",
+	})
 
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
@@ -1894,6 +2012,19 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelGadgetBaseSnaps(c *C)
 		Current:  siModelKernel.Revision,
 		Active:   true,
 	})
+	// and base
+	siModelBase := &snap.SideInfo{
+		RealName: "core20",
+		Revision: snap.R(31),
+		SnapID:   snaptest.AssertedSnapID("core20"),
+	}
+	snapstate.Set(s.state, "core20", &snapstate.SnapState{
+		SnapType:        "base",
+		Sequence:        []*snap.SideInfo{siModelBase},
+		Current:         siModelBase.Revision,
+		Active:          true,
+		TrackingChannel: "latest/stable",
+	})
 
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
 		"architecture": "amd64",
@@ -2087,10 +2218,11 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 		SnapID:   snaptest.AssertedSnapID("pc"),
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
-		SnapType: "gadget",
-		Sequence: []*snap.SideInfo{siModelGadget},
-		Current:  siModelGadget.Revision,
-		Active:   true,
+		SnapType:        "gadget",
+		Sequence:        []*snap.SideInfo{siModelGadget},
+		Current:         siModelGadget.Revision,
+		Active:          true,
+		TrackingChannel: "20/stable",
 	})
 	// current kernel
 	siModelKernel := &snap.SideInfo{
@@ -2099,10 +2231,11 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
 	}
 	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
-		SnapType: "kernel",
-		Sequence: []*snap.SideInfo{siModelKernel},
-		Current:  siModelKernel.Revision,
-		Active:   true,
+		SnapType:        "kernel",
+		Sequence:        []*snap.SideInfo{siModelKernel},
+		Current:         siModelKernel.Revision,
+		Active:          true,
+		TrackingChannel: "20/stable",
 	})
 	// new gadget and kernel which are already installed
 	for _, alreadyInstalledName := range []string{"pc-kernel-new", "core20-new"} {
@@ -2304,10 +2437,11 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 		SnapID:   snaptest.AssertedSnapID("pc"),
 	}
 	snapstate.Set(s.state, "pc", &snapstate.SnapState{
-		SnapType: "gadget",
-		Sequence: []*snap.SideInfo{siModelGadget},
-		Current:  siModelGadget.Revision,
-		Active:   true,
+		SnapType:        "gadget",
+		Sequence:        []*snap.SideInfo{siModelGadget},
+		Current:         siModelGadget.Revision,
+		Active:          true,
+		TrackingChannel: "20/stable",
 	})
 	// current kernel
 	siModelKernel := &snap.SideInfo{
@@ -2316,10 +2450,11 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
 	}
 	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
-		SnapType: "kernel",
-		Sequence: []*snap.SideInfo{siModelKernel},
-		Current:  siModelKernel.Revision,
-		Active:   true,
+		SnapType:        "kernel",
+		Sequence:        []*snap.SideInfo{siModelKernel},
+		Current:         siModelKernel.Revision,
+		Active:          true,
+		TrackingChannel: "20/stable",
 	})
 	// new gadget and kernel which are already installed
 	for _, alreadyInstalledName := range []string{"pc-kernel-new", "core20-new"} {
@@ -2468,6 +2603,180 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 	})
 }
 
+func (s *deviceMgrRemodelSuite) TestRemodelUC20EssentialSnapsTrackingDifferentChannelThanDefaultSameAsNew(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		// no snaps are getting updated
+		return nil, fmt.Errorf("unexpected update call")
+	})
+	defer restore()
+
+	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		// no snaps are getting installed
+		return nil, fmt.Errorf("unexpected install call")
+	})
+	defer restore()
+
+	now := time.Now()
+	restore = devicestate.MockTimeNow(func() time.Time { return now })
+	defer restore()
+
+	// set a model assertion
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "serial")
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "serial",
+	})
+
+	// base, kernel & gadget snaps already track the default channels
+	// declared in new model
+
+	// current gadget
+	siModelGadget := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(33),
+		SnapID:   snaptest.AssertedSnapID("pc"),
+	}
+	snapstate.Set(s.state, "pc", &snapstate.SnapState{
+		SnapType:        "gadget",
+		Sequence:        []*snap.SideInfo{siModelGadget},
+		Current:         siModelGadget.Revision,
+		Active:          true,
+		TrackingChannel: "20/edge",
+	})
+	// current kernel
+	siModelKernel := &snap.SideInfo{
+		RealName: "pc-kernel",
+		Revision: snap.R(32),
+		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
+	}
+	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
+		SnapType:        "kernel",
+		Sequence:        []*snap.SideInfo{siModelKernel},
+		Current:         siModelKernel.Revision,
+		Active:          true,
+		TrackingChannel: "20/edge",
+	})
+	// current base
+	siModelBase := &snap.SideInfo{
+		RealName: "core20",
+		Revision: snap.R(32),
+		SnapID:   snaptest.AssertedSnapID("core20"),
+	}
+	snapstate.Set(s.state, "core20", &snapstate.SnapState{
+		SnapType:        "base",
+		Sequence:        []*snap.SideInfo{siModelBase},
+		Current:         siModelBase.Revision,
+		Active:          true,
+		TrackingChannel: "20/edge",
+	})
+
+	// new kernel and base are already installed, but using a different channel
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"revision":     "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20/edge",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20/edge",
+			},
+			map[string]interface{}{
+				"name":            "core20",
+				"id":              snaptest.AssertedSnapID("core20"),
+				"type":            "base",
+				"default-channel": "20/edge",
+			},
+		},
+	})
+	chg, err := devicestate.Remodel(s.state, new)
+	c.Assert(err, IsNil)
+	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
+
+	tl := chg.Tasks()
+	// recovery system (2 tasks) + set-model
+	c.Assert(tl, HasLen, 3)
+
+	deviceCtx, err := devicestate.DeviceCtx(s.state, tl[0], nil)
+	c.Assert(err, IsNil)
+	// deviceCtx is actually a remodelContext here
+	remodCtx, ok := deviceCtx.(devicestate.RemodelContext)
+	c.Assert(ok, Equals, true)
+	c.Check(remodCtx.ForRemodeling(), Equals, true)
+	c.Check(remodCtx.Kind(), Equals, devicestate.UpdateRemodel)
+	c.Check(remodCtx.Model(), DeepEquals, new)
+	c.Check(remodCtx.Store(), IsNil)
+
+	// check the tasks
+	tCreateRecovery := tl[0]
+	tFinalizeRecovery := tl[1]
+	tSetModel := tl[2]
+
+	// check the tasks
+	expectedLabel := now.Format("20060102")
+	c.Assert(tCreateRecovery.Kind(), Equals, "create-recovery-system")
+	c.Assert(tCreateRecovery.Summary(), Equals, fmt.Sprintf("Create recovery system with label %q", expectedLabel))
+	c.Assert(tFinalizeRecovery.Kind(), Equals, "finalize-recovery-system")
+	c.Assert(tFinalizeRecovery.Summary(), Equals, fmt.Sprintf("Finalize recovery system with label %q", expectedLabel))
+	c.Assert(tSetModel.Kind(), Equals, "set-model")
+	c.Assert(tSetModel.Summary(), Equals, "Set new model assertion")
+	c.Assert(tCreateRecovery.WaitTasks(), HasLen, 0)
+	c.Assert(tFinalizeRecovery.WaitTasks(), DeepEquals, []*state.Task{
+		// recovery system being created
+		tCreateRecovery,
+	})
+
+	c.Assert(tSetModel.Kind(), Equals, "set-model")
+	c.Assert(tSetModel.Summary(), Equals, "Set new model assertion")
+	// setModel waits for everything in the change
+	c.Assert(tSetModel.WaitTasks(), DeepEquals, []*state.Task{
+		tCreateRecovery, tFinalizeRecovery,
+	})
+
+	// verify recovery system setup data on appropriate tasks
+	var systemSetupData map[string]interface{}
+	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
+	c.Assert(err, IsNil)
+	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
+		"label":            expectedLabel,
+		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
+		"snap-setup-tasks": nil,
+	})
+}
+
 type remodelUC20LabelConflictsTestCase struct {
 	now              time.Time
 	breakPermissions bool
@@ -2513,6 +2822,45 @@ func (s *deviceMgrRemodelSuite) testRemodelUC20LabelConflicts(c *C, tc remodelUC
 		Brand:  "canonical",
 		Model:  "pc-model",
 		Serial: "serial",
+	})
+	// current gadget
+	siModelGadget := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(33),
+		SnapID:   snaptest.AssertedSnapID("pc"),
+	}
+	snapstate.Set(s.state, "pc", &snapstate.SnapState{
+		SnapType:        "gadget",
+		Sequence:        []*snap.SideInfo{siModelGadget},
+		Current:         siModelGadget.Revision,
+		Active:          true,
+		TrackingChannel: "20/stable",
+	})
+	// current kernel
+	siModelKernel := &snap.SideInfo{
+		RealName: "pc-kernel",
+		Revision: snap.R(32),
+		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
+	}
+	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
+		SnapType:        "kernel",
+		Sequence:        []*snap.SideInfo{siModelKernel},
+		Current:         siModelKernel.Revision,
+		Active:          true,
+		TrackingChannel: "20/stable",
+	})
+	// and base
+	siModelBase := &snap.SideInfo{
+		RealName: "core20",
+		Revision: snap.R(31),
+		SnapID:   snaptest.AssertedSnapID("core20"),
+	}
+	snapstate.Set(s.state, "core20", &snapstate.SnapState{
+		SnapType:        "base",
+		Sequence:        []*snap.SideInfo{siModelBase},
+		Current:         siModelBase.Revision,
+		Active:          true,
+		TrackingChannel: "latest/stable",
 	})
 
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
@@ -2619,6 +2967,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
 	devicestate.SetBootOkRan(s.mgr, true)
+	devicestate.SetBootRevisionsUpdated(s.mgr, true)
 
 	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755), IsNil)
 
@@ -2662,6 +3011,45 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 			Timestamp: model.Timestamp(),
 			SeedTime:  oldSeededTs,
 		},
+	})
+	// current gadget
+	siModelGadget := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(1),
+		SnapID:   snaptest.AssertedSnapID("pc"),
+	}
+	snapstate.Set(s.state, "pc", &snapstate.SnapState{
+		SnapType:        "gadget",
+		Sequence:        []*snap.SideInfo{siModelGadget},
+		Current:         siModelGadget.Revision,
+		Active:          true,
+		TrackingChannel: "20/stable",
+	})
+	// current kernel
+	siModelKernel := &snap.SideInfo{
+		RealName: "pc-kernel",
+		Revision: snap.R(1),
+		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
+	}
+	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
+		SnapType:        "kernel",
+		Sequence:        []*snap.SideInfo{siModelKernel},
+		Current:         siModelKernel.Revision,
+		Active:          true,
+		TrackingChannel: "20/stable",
+	})
+	// and base
+	siModelBase := &snap.SideInfo{
+		RealName: "core20",
+		Revision: snap.R(31),
+		SnapID:   snaptest.AssertedSnapID("core20"),
+	}
+	snapstate.Set(s.state, "core20", &snapstate.SnapState{
+		SnapType:        "base",
+		Sequence:        []*snap.SideInfo{siModelBase},
+		Current:         siModelBase.Revision,
+		Active:          true,
+		TrackingChannel: "latest/stable",
 	})
 
 	// the target model
@@ -2747,7 +3135,7 @@ func (s *deviceMgrRemodelSuite) testUC20RemodelSetModel(c *C, tc uc20RemodelSetM
 
 	s.state.Lock()
 	c.Check(chg.IsReady(), Equals, true)
-	c.Check(chg.Err(), IsNil)
+	c.Assert(chg.Err(), IsNil)
 	c.Check(resealKeyCalls, Equals, len(tc.resealErr))
 	// even if errors occur during reseal, set-model is a point of no return
 	c.Check(setModelTask.Status(), Equals, state.DoneStatus)
@@ -2840,6 +3228,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
 	devicestate.SetBootOkRan(s.mgr, true)
+	devicestate.SetBootRevisionsUpdated(s.mgr, true)
 
 	s.newFakeStore = func(devBE storecontext.DeviceBackend) snapstate.StoreService {
 		return &freshSessionStore{}
@@ -2900,6 +3289,45 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 			Timestamp: model.Timestamp(),
 			SeedTime:  oldSeededTs,
 		},
+	})
+	// current gadget
+	siModelGadget := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(33),
+		SnapID:   snaptest.AssertedSnapID("pc"),
+	}
+	snapstate.Set(s.state, "pc", &snapstate.SnapState{
+		SnapType:        "gadget",
+		Sequence:        []*snap.SideInfo{siModelGadget},
+		Current:         siModelGadget.Revision,
+		Active:          true,
+		TrackingChannel: "20/stable",
+	})
+	// current kernel
+	siModelKernel := &snap.SideInfo{
+		RealName: "pc-kernel",
+		Revision: snap.R(32),
+		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
+	}
+	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
+		SnapType:        "kernel",
+		Sequence:        []*snap.SideInfo{siModelKernel},
+		Current:         siModelKernel.Revision,
+		Active:          true,
+		TrackingChannel: "20/stable",
+	})
+	// and base
+	siModelBase := &snap.SideInfo{
+		RealName: "core20",
+		Revision: snap.R(31),
+		SnapID:   snaptest.AssertedSnapID("core20"),
+	}
+	snapstate.Set(s.state, "core20", &snapstate.SnapState{
+		SnapType:        "base",
+		Sequence:        []*snap.SideInfo{siModelBase},
+		Current:         siModelBase.Revision,
+		Active:          true,
+		TrackingChannel: "latest/stable",
 	})
 
 	// the target model, since it's a new model altogether a reregistration
@@ -3065,7 +3493,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 		}
 	}
 	c.Check(chg.IsReady(), Equals, false)
-	c.Check(chg.Err(), IsNil)
+	c.Assert(chg.Err(), IsNil)
 	// injected by fake restart
 	c.Check(s.restartRequests, DeepEquals, []state.RestartType{state.RestartSystemNow})
 	// 3 calls: promote tried system, old & new model, just the new model

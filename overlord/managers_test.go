@@ -5276,7 +5276,7 @@ func (s *kernelSuite) TestRemodelSwitchKernelTrack(c *C) {
 
 	// first all downloads/checks in sequential order
 	var i int
-	i += validateDownloadCheckTasks(c, tasks[i:], "pc-kernel", "2", "18")
+	i += validateDownloadCheckTasks(c, tasks[i:], "pc-kernel", "2", "18/stable")
 	i += validateDownloadCheckTasks(c, tasks[i:], "foo", "1", "stable")
 
 	// then all installs in sequential order
@@ -5596,6 +5596,10 @@ func (s *mgrsSuite) TestRemodelSwitchGadgetTrack(c *C) {
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
+	bloader.SetBootVars(map[string]string{
+		"snap_kernel": "pc-kernel_1.snap",
+		"snap_core":   "core_1.snap",
+	})
 
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -5627,6 +5631,14 @@ volumes:
 		{"meta/gadget.yaml", gadgetYaml},
 	})
 	s.serveSnap(snapPath, "2")
+
+	si = &snap.SideInfo{RealName: "pc-kernel", SnapID: fakeSnapID("pc-kernel"), Revision: snap.R(1)}
+	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		SnapType: "kernel",
+	})
 
 	// create/set custom model assertion
 	model := s.brands.Model("can0nical", "my-model", modelDefaults)
@@ -5662,7 +5674,7 @@ volumes:
 
 	// first all downloads/checks in sequential order
 	var i int
-	i += validateDownloadCheckTasks(c, tasks[i:], "pc", "2", "18")
+	i += validateDownloadCheckTasks(c, tasks[i:], "pc", "2", "18/stable")
 
 	// then all installs in sequential order
 	i += validateRefreshTasks(c, tasks[i:], "pc", "2", isGadget)
@@ -5812,7 +5824,7 @@ volumes:
 
 	// first all downloads/checks
 	var i int
-	i += validateDownloadCheckTasks(c, tasks[i:], "other-pc", "2", "18")
+	i += validateDownloadCheckTasks(c, tasks[i:], "other-pc", "2", "18/stable")
 
 	// then all installs
 	i += validateInstallTasks(c, tasks[i:], "other-pc", "2", isGadget)
@@ -6749,8 +6761,8 @@ func (s *mgrsSuite) testRemodelUC20WithRecoverySystemSimpleSetUp(c *C) {
 	// snaps in state
 	pcInfo := s.makeInstalledSnapInStateForRemodel(c, "pc", snap.R(1), "20/stable")
 	pcKernelInfo := s.makeInstalledSnapInStateForRemodel(c, "pc-kernel", snap.R(2), "20/stable")
-	coreInfo := s.makeInstalledSnapInStateForRemodel(c, "core20", snap.R(3), "")
-	snapdInfo := s.makeInstalledSnapInStateForRemodel(c, "snapd", snap.R(4), "")
+	coreInfo := s.makeInstalledSnapInStateForRemodel(c, "core20", snap.R(3), "latest/stable")
+	snapdInfo := s.makeInstalledSnapInStateForRemodel(c, "snapd", snap.R(4), "latest/stable")
 
 	// state of the current model
 	c.Assert(os.MkdirAll(filepath.Join(boot.InitramfsUbuntuBootDir, "device"), 0755), IsNil)
@@ -6824,7 +6836,7 @@ func (s *mgrsSuite) testRemodelUC20WithRecoverySystemSimpleSetUp(c *C) {
 	s.AddCleanup(restore)
 }
 
-func (s *mgrsSuite) TestRemodelUC20SwitchKernelChannel(c *C) {
+func (s *mgrsSuite) TestRemodelUC20DifferentKernelChannel(c *C) {
 	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
 	// add sleep such that the assertion timestamp will be different and
 	// won't conflict with already existing one
@@ -6955,7 +6967,7 @@ func (s *mgrsSuite) TestRemodelUC20SwitchKernelChannel(c *C) {
 	validateRefreshTasks(c, tasks[i:], "pc-kernel", "33", isKernel)
 }
 
-func (s *mgrsSuite) TestRemodelUC20SwitchGadgetChannel(c *C) {
+func (s *mgrsSuite) TestRemodelUC20DifferentGadgetChannel(c *C) {
 	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
 	// add sleep such that the assertion timestamp will be different and
 	// won't conflict with already existing one
@@ -7062,7 +7074,7 @@ func (s *mgrsSuite) TestRemodelUC20SwitchGadgetChannel(c *C) {
 	validateRefreshTasks(c, tasks[i:], "pc", "33", isGadget)
 }
 
-func (s *mgrsSuite) TestRemodelUC20SwitchBaseChannel(c *C) {
+func (s *mgrsSuite) TestRemodelUC20DifferentBaseChannel(c *C) {
 	s.testRemodelUC20WithRecoverySystemSimpleSetUp(c)
 	// add sleep such that the assertion timestamp will be different and
 	// won't conflict with already existing one
