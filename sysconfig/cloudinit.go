@@ -267,11 +267,12 @@ func cloudDatasourcesInUse(configFile string) (*cloudDatasourcesInUseResult, err
 // cloud-init config files, and analyzes all datasources in use for each file
 // and returns their union. It does not distinguish between mentioned,
 // explicitly allowed, or explicitly disallowed, but it does follow cloud-init's
-// logic for determining the overwriting of properties such that if a lexcially
-// earlier file sets datasource_list: [], then a later file sets
-// datasource_list: [foo], then foo is used instead and the explicit disallowing
-// is ignored/overwritten, but if no other file sets datasource_list, then it is
-// treated as if the config explicitly disallows no datasources.
+// logic for determining the overwriting of properties. So, for example, if a
+// file sets datasource_list: [] and no other file processed later (files are
+// processed in lexical order) sets this property to another value, it will be
+// treated as if the config explicitly disallows no datasources. If, on the
+// other hand, a file processed later sets datasource_list: [foo], then foo is
+// used instead and the explicit disallowing is ignored/overwritten.
 func cloudDatasourcesInUseForDir(dir string) (*cloudDatasourcesInUseResult, error) {
 
 	files, err := filepath.Glob(filepath.Join(dir, "*"))
@@ -302,7 +303,7 @@ func cloudDatasourcesInUseForDir(dir string) (*cloudDatasourcesInUseResult, erro
 			res.ExplicitlyAllowed = fRes.ExplicitlyAllowed
 		} else if fRes.ExplicitlyNoneAllowed {
 			// if we are now explicitly disallowing datasources, then overwrite that
-			// setting - this is mutually exclusive with ExplicitlyAllowed being
+			// setting - this is mutually exclusive with ExplicitlyAllowed
 			// having a non-zero length
 			res.ExplicitlyNoneAllowed = true
 			res.ExplicitlyAllowed = nil
