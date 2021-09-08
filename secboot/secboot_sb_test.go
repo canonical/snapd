@@ -967,6 +967,15 @@ func (s *secbootSuite) TestResealKey(c *C) {
 			TPMPolicyAuthKeyFile: mockTPMPolicyAuthKeyFile,
 		}
 
+		numMockSealedKeyObjects := len(myParams.KeyFiles)
+		mockSealedKeyObjects := make([]*sb_tpm2.SealedKeyObject, 0, numMockSealedKeyObjects)
+		for range myParams.KeyFiles {
+			mockSealedKeyFile := filepath.Join("test-data", "keyfile")
+			mockSealedKeyObject, err := sb_tpm2.ReadSealedKeyObject(mockSealedKeyFile)
+			c.Assert(err, IsNil)
+			mockSealedKeyObjects = append(mockSealedKeyObjects, mockSealedKeyObject)
+		}
+
 		sequences := []*sb_efi.ImageLoadEvent{
 			{
 				Source: sb_efi.Firmware,
@@ -1033,7 +1042,6 @@ func (s *secbootSuite) TestResealKey(c *C) {
 
 		// mock ReadSealedKeyObject
 		readSealedKeyObjectCalls := 0
-		mockSealedKeyObjects := []*sb_tpm2.SealedKeyObject{{}, {}}
 		restore = secboot.MockSbReadSealedKeyObject(func(keyfile string) (*sb_tpm2.SealedKeyObject, error) {
 			readSealedKeyObjectCalls++
 			c.Assert(keyfile, Equals, myParams.KeyFiles[readSealedKeyObjectCalls-1])
