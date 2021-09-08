@@ -31,7 +31,7 @@ func CloudDatasourcesInUse(configFile string) (*CloudDatasourcesInUseResult, err
 	return (*CloudDatasourcesInUseResult)(res), err
 }
 
-func CloudDatasourcesInUseForDir(dir string) (*cloudDatasourcesInUseResult, error) {
+func CloudDatasourcesInUseForDir(dir string) (*CloudDatasourcesInUseResult, error) {
 	res, err := cloudDatasourcesInUseForDir(dir)
 	if err != nil {
 		return nil, err
