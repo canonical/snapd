@@ -58,12 +58,11 @@ and on [Facebook](https://www.facebook.com/snapcraftio).
 
 | Service | Status |
 |-----|:---|
-| [Travis](https://travis-ci.org/) |  ![Build Status][travis-image]  |
+| [Github Actions](https://github.com/actions/) |  ![Build Status][actions-image]  |
 | [GoReport](https://goreportcard.com/) |  [![Go Report Card][goreportcard-image]][goreportcard-url] |
 | [Codecov](https://codecov.io/) |  [![codecov][codecov-image]][codecov-url] |
 
-[travis-image]: https://travis-ci.org/snapcore/snapd.svg?branch=master
-[travis-url]: https://travis-ci.org/snapcore/snapd
+[actions-image]: https://github.com/snapcore/snapd/actions
 
 [goreportcard-image]: https://goreportcard.com/badge/github.com/snapcore/snapd
 [goreportcard-url]: https://goreportcard.com/report/github.com/snapcore/snapd
