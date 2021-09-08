@@ -36,7 +36,22 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/jsonutil"
+	"github.com/snapcore/snapd/osutil"
 )
+
+var (
+	// allow replacing the Client implementation with a mock one
+	newClient = newClientReal
+)
+
+func MockNewClient(f func(conf *Config) Client) func() {
+	osutil.MustBeTestBinary("client can only be mocked from tests")
+	oldNewClient := newClient
+	newClient = f
+	return func() {
+		newClient = oldNewClient
+	}
+}
 
 func unixDialer(socketPath string) func(string, string) (net.Conn, error) {
 	if socketPath == "" {
@@ -131,12 +146,7 @@ type client struct {
 	userAgent string
 }
 
-// New returns a new instance of Client
-func New(config *Config) Client {
-	if config == nil {
-		config = &Config{}
-	}
-
+func newClientReal(config *Config) Client {
 	// By default talk over an UNIX socket.
 	if config.BaseURL == "" {
 		transport := &http.Transport{Dial: unixDialer(config.Socket), DisableKeepAlives: config.DisableKeepAlive}
@@ -163,6 +173,15 @@ func New(config *Config) Client {
 		interactive: config.Interactive,
 		userAgent:   config.UserAgent,
 	}
+}
+
+// New returns a new instance of Client
+func New(config *Config) Client {
+	if config == nil {
+		config = &Config{}
+	}
+
+	return newClient(config)
 }
 
 // Maintenance returns an error reflecting the daemon maintenance status or nil.
