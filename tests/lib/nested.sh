@@ -792,10 +792,9 @@ users:
 EOF
 }
 
-nested_configure_cloud_init_on_core20_vm() {
+nested_add_file_to_vm() {
     local IMAGE=$1
-    nested_create_cloud_init_uc20_config "$NESTED_ASSETS_DIR/data.cfg"
-
+    local FILE=$2
     local devloop dev ubuntuSeedDev tmp
     # mount the image and find the loop device /dev/loop that is created for it
     kpartx -avs "$IMAGE"
@@ -810,10 +809,17 @@ nested_configure_cloud_init_on_core20_vm() {
     tmp=$(mktemp -d)
     mount "$ubuntuSeedDev" "$tmp"
     mkdir -p "$tmp/data/etc/cloud/cloud.cfg.d/"
-    cp -f "$NESTED_ASSETS_DIR/data.cfg" "$tmp/data/etc/cloud/cloud.cfg.d/"
+    cp -f "$FILE" "$tmp/data/etc/cloud/cloud.cfg.d/"
     sync
     umount "$tmp"
     kpartx -d "$IMAGE"
+}
+
+nested_configure_cloud_init_on_core20_vm() {
+    local IMAGE=$1
+    nested_create_cloud_init_uc20_config "$NESTED_ASSETS_DIR/data.cfg"
+
+    nested_add_file_to_vm "$IMAGE" "$NESTED_ASSETS_DIR/data.cfg"
 }
 
 nested_save_serial_log() {
