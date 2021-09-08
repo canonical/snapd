@@ -41,7 +41,11 @@ const desktopBaseDeclarationSlots = `
         - app
         - core
 `
-const desktopConnectedPlugFontsAppArmor = `
+
+const desktopConnectedPlugAppArmor = `
+# Description: Can access basic graphical desktop resources. To be used with
+# other interfaces (eg, wayland).
+
 #include <abstractions/fonts>
 owner @{HOME}/.local/share/fonts/{,**} r,
 /var/cache/fontconfig/   r,
@@ -50,10 +54,7 @@ owner @{HOME}/.local/share/fonts/{,**} r,
 /usr/{,local/}share/fonts/** m,
 `
 
-const desktopConnectedPlugAppArmor = `
-# Description: Can access basic graphical desktop resources. To be used with
-# other interfaces (eg, wayland).
-
+const desktopConnectedPlugAppArmorClassic = `
 #include <abstractions/dbus-strict>
 #include <abstractions/dbus-session-strict>
 
@@ -337,18 +338,19 @@ func (iface *desktopInterface) fontconfigDirs(plug *interfaces.ConnectedPlug) ([
 }
 
 func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
-	emit := spec.AddUpdateNSf
+	spec.AddSnippet(desktopConnectedPlugAppArmor)
 
+	emit := spec.AddUpdateNSf
 	if implicitSystemConnectedSlot(slot) {
-		spec.AddSnippet(desktopConnectedPlugAppArmor)
+		// Extra rules that have not been ported to work with
+		// a desktop slot provided by a snap.
+		spec.AddSnippet(desktopConnectedPlugAppArmorClassic)
 
 		// Allow mounting document portal
 		emit("  # Mount the document portal\n")
 		emit("  mount options=(bind) /run/user/[0-9]*/doc/by-app/snap.%s/ -> /run/user/[0-9]*/doc/,\n", plug.Snap().InstanceName())
 		emit("  umount /run/user/[0-9]*/doc/,\n\n")
 	}
-
-	spec.AddSnippet(desktopConnectedPlugFontsAppArmor)
 
 	// Allow mounting fonts
 	fontDirs, err := iface.fontconfigDirs(plug)
@@ -369,6 +371,8 @@ func (iface *desktopInterface) AppArmorConnectedPlug(spec *apparmor.Specificatio
 
 func (iface *desktopInterface) MountConnectedPlug(spec *mount.Specification, plug *interfaces.ConnectedPlug, slot *interfaces.ConnectedSlot) error {
 	if implicitSystemConnectedSlot(slot) {
+		// We don't yet have support for a snap exposing the
+		// document portal.
 		appId := "snap." + plug.Snap().InstanceName()
 		spec.AddUserMountEntry(osutil.MountEntry{
 			Name:    "$XDG_RUNTIME_DIR/doc/by-app/" + appId,
