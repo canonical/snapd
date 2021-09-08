@@ -198,10 +198,14 @@ prepare_memory_limit_override() {
     local set_limit=1
 
     case "$SPREAD_SYSTEM" in
-        ubuntu-core-16-*|ubuntu-core-18-*)
+        ubuntu-core-16-*|ubuntu-core-18-*|ubuntu-16.04-*)
             # the tests on UC16 and UC18 have demonstrated that the memory limit
             # state claimed by systemd may be out of sync with actual memory
             # controller setting for the snapd.service cgroup
+            set_limit=0
+            ;;
+        amazon-linux-*)
+            # similar issues have been observed on Amazon Linux 2
             set_limit=0
             ;;
         *)
