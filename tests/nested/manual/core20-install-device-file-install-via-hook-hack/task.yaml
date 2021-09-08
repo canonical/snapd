@@ -103,6 +103,7 @@ prepare: |
 
     # start fake device svc
     systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
+    # stop fake device svc
     tests.cleanup defer systemctl stop fakedevicesvc
 
     # include the extra snap declaration bits we need to auto-connect the 

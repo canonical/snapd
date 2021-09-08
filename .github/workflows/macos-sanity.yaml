@@ -28,6 +28,6 @@ jobs:
         run: |
           /tmp/snp download hello
           /tmp/snp version
-          # TODO: homebrew appears to be broken, brew install of squashfs fails
-          # and goes unnoticed by travis
-          if command -v mksquashfs; then /tmp/snp pack tests/lib/snaps/test-snapd-tools/ /tmp ; fi
+          if command -v mksquashfs; then
+            /tmp/snp pack tests/lib/snaps/test-snapd-tools/ /tmp
+          fi

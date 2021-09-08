@@ -341,5 +341,5 @@ func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx
 }
 
 func DeviceManagerCheckFDEFeatures(mgr *DeviceManager, st *state.State) error {
-	return mgr.checkFDEFeatures(st)
+	return mgr.checkFDEFeatures()
 }
