@@ -25,6 +25,7 @@ slots:
     interface: dbus
     bus: system
     name: test.system
+  desktop: null
   docker: null
   fwupd: null
   location-control: null
