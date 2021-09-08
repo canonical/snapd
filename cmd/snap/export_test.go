@@ -221,6 +221,14 @@ func AliasInfoLess(snapName1, alias1, cmd1, snapName2, alias2, cmd2 string) bool
 	return x.Less(0, 1)
 }
 
+func InstalledSnapNameCompletion(match string) []flags.Completion {
+	return installedSnapName("").Complete(match)
+}
+
+func RemoteSnapNameCompletion(match string) []flags.Completion {
+	return remoteSnapName("").Complete(match)
+}
+
 func AssertTypeNameCompletion(match string) []flags.Completion {
 	return assertTypeName("").Complete(match)
 }
