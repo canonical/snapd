@@ -617,6 +617,7 @@ var (
 		"cups-control":              {"app", "core"},
 		"dbus":                      {"app"},
 		"docker-support":            {"core"},
+		"desktop":                   {"app", "core"},
 		"desktop-launch":            {"core"},
 		"dsp":                       {"core", "gadget"},
 		"dummy":                     {"app"},
