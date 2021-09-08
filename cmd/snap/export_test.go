@@ -380,7 +380,7 @@ func MockIoutilTempDir(f func(string, string) (string, error)) (restore func()) 
 	}
 }
 
-func MockDownloadDirect(f func(snapName string, revision snap.Revision, dlOpts image.DownloadOptions) error) (restore func()) {
+func MockDownloadDirect(f func(snapName string, revision snap.Revision, dlOpts image.DownloadSnapOptions) error) (restore func()) {
 	old := downloadDirect
 	downloadDirect = f
 	return func() {

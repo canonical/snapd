@@ -24,11 +24,20 @@
 struct sc_device_cgroup;
 typedef struct sc_device_cgroup sc_device_cgroup;
 
+enum {
+    /* when creating a device cgroup wrapped, do not set up a new cgroup but
+     * rather use an existing one */
+    SC_DEVICE_CGROUP_FROM_EXISTING = 1,
+};
+
 /**
  * sc_device_cgroup_new returns a new cgroup device wrapper that is suitable for
- * the current system
+ * the current system. Flags can contain SC_DEVICE_CGROUP_FROM_EXISTING in which
+ * case an existing cgroup will be used, and a -1 return value with errno set to
+ * ENOENT indicates that the group was not found. Otherwise, a new device cgroup
+ * for a given tag will be set up.
  */
-sc_device_cgroup* sc_device_cgroup_new(const char* security_tag);
+sc_device_cgroup* sc_device_cgroup_new(const char* security_tag, int flags);
 /**
  * sc_device_cgroup_cleanup disposes of the cgroup wrapper and is suitable for
  * use with SC_CLEANUP

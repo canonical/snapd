@@ -993,8 +993,6 @@ func (ts *timeutilSuite) TestScheduleIncludes(c *C) {
 }
 
 func (ts *timeutilSuite) TestClockSpans(c *C) {
-	const shortForm = "2006-01-02 15:04:05"
-
 	for _, t := range []struct {
 		clockspan  string
 		flattenend []string

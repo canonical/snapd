@@ -6,7 +6,7 @@ backends: [-autopkgtest]
 # journald in ubuntu-14.04 not reliable
 systems: [-ubuntu-14.04-*]
 
-kill-timeout: 5m
+kill-timeout: 10m
 
 restore: |
     # remove to ensure all services are stopped

@@ -42,7 +42,7 @@ restore: |
     tests.session -u test restore
     rm -f /usr/share/fonts/dist-font.txt
     rm -f /usr/local/share/fonts/local-font.txt
-    rm -f /home/test/.fonts/user-font1.txt
+    rm -rf /home/test/.fonts
     rm -f /home/test/.local/share/fonts/user-font2.txt
     rm -f /var/cache/fontconfig/cache.txt
     rm -f /usr/lib/fontconfig/cache/cache.txt

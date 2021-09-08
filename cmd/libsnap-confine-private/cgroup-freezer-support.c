@@ -115,8 +115,9 @@ bool sc_cgroup_freezer_occupied(const char *snap_name)
 			if (errno != ENOENT) {
 				die("cannot stat /proc/%s", line_buf);
 			}
+			continue;
 		}
-		debug("found process %s belonging to user %d",
+		debug("found live process %s belonging to user %d",
 		      line_buf, statbuf.st_uid);
 		return true;
 	}

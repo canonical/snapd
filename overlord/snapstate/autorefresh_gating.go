@@ -28,8 +28,8 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/interfaces/mount"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -215,9 +215,18 @@ func HoldRefresh(st *state.State, gatingSnap string, holdDuration time.Duration,
 		gating[heldSnap][gatingSnap] = hold
 	}
 
-	if len(herr.SnapsInError) != len(affectingSnaps) {
-		st.Set("snaps-hold", gating)
+	if len(herr.SnapsInError) > 0 {
+		// if some of the affecting snaps couldn't be held anymore then it
+		// doesn't make sense to hold other affecting snaps (because the gating
+		// snap is going to be disrupted anyway); go over all affectingSnaps
+		// again and remove gating info for them - this also deletes old holdings
+		// (if the hook run on previous refresh attempt) therefore we need to
+		// update snaps-hold state below.
+		for _, heldSnap := range affectingSnaps {
+			delete(gating[heldSnap], gatingSnap)
+		}
 	}
+	st.Set("snaps-hold", gating)
 	if len(herr.SnapsInError) > 0 {
 		return herr
 	}
@@ -398,6 +407,26 @@ func AffectedByRefreshCandidates(st *state.State) (map[string]*AffectedSnapInfo,
 	return affected, err
 }
 
+// AffectingSnapsForAffectedByRefreshCandidates returns the list of all snaps
+// affecting affectedSnap (i.e. a gating snap), based on upcoming updates
+// from refresh-candidates.
+func AffectingSnapsForAffectedByRefreshCandidates(st *state.State, affectedSnap string) ([]string, error) {
+	affected, err := AffectedByRefreshCandidates(st)
+	if err != nil {
+		return nil, err
+	}
+	affectedInfo := affected[affectedSnap]
+	if affectedInfo == nil || len(affectedInfo.AffectingSnaps) == 0 {
+		return nil, nil
+	}
+	affecting := make([]string, 0, len(affectedInfo.AffectingSnaps))
+	for sn := range affectedInfo.AffectingSnaps {
+		affecting = append(affecting, sn)
+	}
+	sort.Strings(affecting)
+	return affecting, nil
+}
+
 func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedSnapInfo, error) {
 	allSnaps, err := All(st)
 	if err != nil {
@@ -521,7 +550,7 @@ func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedS
 			}
 		}
 
-		// consider mount backend plugs/slots;
+		// consider plugs/slots with AffectsPlugOnRefresh flag;
 		// for slot side only consider snapd/core because they are ignored by the
 		// earlier loop around slots.
 		if up.SnapType == snap.TypeSnapd || up.SnapType == snap.TypeOS {
@@ -530,7 +559,8 @@ func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedS
 				if iface == nil {
 					return nil, fmt.Errorf("internal error: unknown interface %s", slotInfo.Interface)
 				}
-				if !usesMountBackend(iface) {
+				si := interfaces.StaticInfoOf(iface)
+				if !si.AffectsPlugOnRefresh {
 					continue
 				}
 				conns, err := repo.Connected(up.InstanceName(), slotInfo.Name)
@@ -544,75 +574,18 @@ func affectedByRefresh(st *state.State, updates []string) (map[string]*AffectedS
 				}
 			}
 		}
-		for _, plugInfo := range up.Plugs {
-			iface := repo.Interface(plugInfo.Interface)
-			if iface == nil {
-				return nil, fmt.Errorf("internal error: unknown interface %s", plugInfo.Interface)
-			}
-			if !usesMountBackend(iface) {
-				continue
-			}
-			conns, err := repo.Connected(up.InstanceName(), plugInfo.Name)
-			if err != nil {
-				return nil, err
-			}
-			for _, cref := range conns {
-				if snapsWithHook[cref.SlotRef.Snap] != nil {
-					addAffected(cref.SlotRef.Snap, up.InstanceName(), true, false)
-				}
-			}
-		}
 	}
 
 	return affected, nil
 }
 
-// XXX: this is too wide and affects all commonInterface-based interfaces; we
-// need metadata on the relevant interfaces.
-func usesMountBackend(iface interfaces.Interface) bool {
-	type definer1 interface {
-		MountConnectedSlot(*mount.Specification, *interfaces.ConnectedPlug, *interfaces.ConnectedSlot) error
-	}
-	type definer2 interface {
-		MountConnectedPlug(*mount.Specification, *interfaces.ConnectedPlug, *interfaces.ConnectedSlot) error
-	}
-	type definer3 interface {
-		MountPermanentPlug(*mount.Specification, *snap.PlugInfo) error
-	}
-	type definer4 interface {
-		MountPermanentSlot(*mount.Specification, *snap.SlotInfo) error
-	}
-
-	if _, ok := iface.(definer1); ok {
-		return true
-	}
-	if _, ok := iface.(definer2); ok {
-		return true
-	}
-	if _, ok := iface.(definer3); ok {
-		return true
-	}
-	if _, ok := iface.(definer4); ok {
-		return true
-	}
-	return false
-}
-
 // createGateAutoRefreshHooks creates gate-auto-refresh hooks for all affectedSnaps.
-// The hooks will have their context data set from affectedSnapInfo flags (base, restart).
 // Hook tasks will be chained to run sequentially.
-func createGateAutoRefreshHooks(st *state.State, affectedSnaps map[string]*AffectedSnapInfo) *state.TaskSet {
+func createGateAutoRefreshHooks(st *state.State, affectedSnaps []string) *state.TaskSet {
 	ts := state.NewTaskSet()
 	var prev *state.Task
-	// sort names for easy testing
-	names := make([]string, 0, len(affectedSnaps))
-	for snapName := range affectedSnaps {
-		names = append(names, snapName)
-	}
-	sort.Strings(names)
-	for _, snapName := range names {
-		affected := affectedSnaps[snapName]
-		hookTask := SetupGateAutoRefreshHook(st, snapName, affected.Base, affected.Restart, affected.AffectingSnaps)
+	for _, snapName := range affectedSnaps {
+		hookTask := SetupGateAutoRefreshHook(st, snapName)
 		// XXX: it should be fine to run the hooks in parallel
 		if prev != nil {
 			hookTask.WaitFor(prev)
@@ -665,4 +638,56 @@ var snapsToRefresh = func(gatingTask *state.Task) ([]*refreshCandidate, error) {
 	}
 
 	return candidates, nil
+}
+
+// AutoRefreshForGatingSnap triggers an auto-refresh change for all
+// snaps held by the given gating snap. This should only be called if the
+// gate-auto-refresh-hook feature is enabled.
+// TODO: this should be restricted as it doesn't take refresh timer/refresh hold
+// into account.
+func AutoRefreshForGatingSnap(st *state.State, gatingSnap string) error {
+	// ensure nothing is in flight already
+	if autoRefreshInFlight(st) {
+		return fmt.Errorf("there is an auto-refresh in progress")
+	}
+
+	gating, err := refreshGating(st)
+	if err != nil {
+		return err
+	}
+
+	var hasHeld bool
+	for _, holdingSnaps := range gating {
+		if _, ok := holdingSnaps[gatingSnap]; ok {
+			hasHeld = true
+			break
+		}
+	}
+	if !hasHeld {
+		return fmt.Errorf("no snaps are held by snap %q", gatingSnap)
+	}
+
+	// NOTE: this will unlock and re-lock state for network ops
+	// XXX: should we refresh assertions (just call AutoRefresh()?)
+	updated, tasksets, err := autoRefreshPhase1(auth.EnsureContextTODO(), st, gatingSnap)
+	if err != nil {
+		return err
+	}
+	msg := autoRefreshSummary(updated)
+	if msg == "" {
+		logger.Noticef("auto-refresh: all snaps previously held by %q are up-to-date", gatingSnap)
+		return nil
+	}
+
+	// note, we do not update last-refresh timestamp because this auto-refresh
+	// is not treated as a full auto-refresh.
+
+	chg := st.NewChange("auto-refresh", msg)
+	for _, ts := range tasksets {
+		chg.AddAll(ts)
+	}
+	chg.Set("snap-names", updated)
+	chg.Set("api-data", map[string]interface{}{"snap-names": updated})
+
+	return nil
 }
