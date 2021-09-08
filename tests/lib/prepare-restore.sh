@@ -75,7 +75,7 @@ build_deb(){
         rm -rf vendor/*/*
     fi
 
-    unshare -n \
+    unshare -n -- \
             su -l -c "cd $PWD && DEB_BUILD_OPTIONS='nocheck testkeys' dpkg-buildpackage -tc -b -Zgzip" test
     # put our debs to a safe place
     cp ../*.deb "$GOHOME"
@@ -118,7 +118,7 @@ build_rpm() {
     rm -rf "$rpm_dir"/BUILD/*
 
     # Build our source package
-    unshare -n \
+    unshare -n -- \
             rpmbuild --with testkeys -bs "$packaging_path/snapd.spec"
 
     # .. and we need all necessary build dependencies available
@@ -180,7 +180,7 @@ build_arch_pkg() {
     mv /tmp/pkg/PKGBUILD.tmp /tmp/pkg/PKGBUILD
 
     chown -R test:test /tmp/pkg
-    unshare -n \
+    unshare -n -- \
             su -l -c "cd /tmp/pkg && WITH_TEST_KEYS=1 makepkg -f --nocheck" test
 
     # /etc/makepkg.conf defines PKGEXT which drives the compression alg and sets
