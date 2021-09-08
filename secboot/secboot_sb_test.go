@@ -32,14 +32,12 @@ import (
 	"os"
 	"path/filepath"
 
-	. "gopkg.in/check.v1"
-
 	"github.com/canonical/go-tpm2"
 	"github.com/canonical/go-tpm2/linux"
-
 	sb "github.com/snapcore/secboot"
 	sb_efi "github.com/snapcore/secboot/efi"
 	sb_tpm2 "github.com/snapcore/secboot/tpm2"
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/asserts/assertstest"
