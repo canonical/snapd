@@ -43,7 +43,7 @@ environment:
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
     REMOTE_STORE: '$(HOST: echo "${SPREAD_REMOTE_STORE:-production}")'
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
-    DELTA_REF: 2.50
+    DELTA_REF: 2.52
     DELTA_PREFIX: snapd-$DELTA_REF/
     REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'
     SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
@@ -812,14 +812,6 @@ suites:
         backends: [-autopkgtest]
         environment:
             # env vars required for coverage reporting from a spread task
-            TRAVIS_BUILD_NUMBER: '$(HOST: echo "$TRAVIS_BUILD_NUMBER")'
-            TRAVIS_BRANCH: '$(HOST: echo "$TRAVIS_BRANCH")'
-            TRAVIS_COMMIT: '$(HOST: echo "$TRAVIS_COMMIT")'
-            TRAVIS_JOB_NUMBER: '$(HOST: echo "$TRAVIS_JOB_NUMBER")'
-            TRAVIS_PULL_REQUEST: '$(HOST: echo "$TRAVIS_PULL_REQUEST")'
-            TRAVIS_JOB_ID: '$(HOST: echo "$TRAVIS_JOB_ID")'
-            TRAVIS_REPO_SLUG: '$(HOST: echo "$TRAVIS_REPO_SLUG")'
-            TRAVIS_TAG: '$(HOST: echo "$TRAVIS_TAG")'
             COVERMODE: '$(HOST: echo "$COVERMODE")'
         prepare: |
             #shellcheck source=tests/lib/prepare.sh

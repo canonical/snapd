@@ -1,6 +1,6 @@
 name: test-snapd-libvirt-consumer
 
-version: 1.0
+version: '1.1'
 
 summary: Basic snap declaring a plug on the libvirt interface
 
@@ -19,6 +19,8 @@ description: |
 
     Once you execute machine-up, the vm will respond to ping requests.
 
+base: core20
+
 apps:
     machine-up:
         command: bin/machine-up
@@ -31,19 +33,21 @@ apps:
 parts:
     unikernel:
         plugin: make
-        source: https://github.com/fgimenez/solo5.git
+        source: https://github.com/Solo5/solo5.git
         source-type: git
         build-packages:
             - gcc
-        artifacts:
-            - tests/test_ping_serve/test_ping_serve.virtio
+            - libseccomp-dev
+            - pkg-config
+        override-build: |
+            ./configure.sh
+            make
+            cp tests/test_net/test_net.virtio $SNAPCRAFT_PART_INSTALL
+
     glue:
-        plugin: make
+        plugin: dump
         stage-packages:
-            - libvirt-bin
-        after: [unikernel]
+            - qemu-kvm
+            - libvirt-daemon-system
         source: .
-        snap:
-            - bin/
-            - vm/
-            - usr/
+
