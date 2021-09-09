@@ -127,7 +127,12 @@ func serviceControlTs(st *state.State, appInfos []*snap.AppInfo, inst *Instructi
 		sort.Strings(explicitSvcs)
 		cmd.ExplicitServices = explicitSvcs
 
-		summary := fmt.Sprintf("Run service command %q for services %q of snap %q", cmd.Action, svcs, cmd.SnapName)
+		var summary string
+		if inst.Action == "restart" && len(explicitSvcs) == 0 {
+			summary = fmt.Sprintf("Run service command %q for running services of snap %q", cmd.Action, cmd.SnapName)
+		} else {
+			summary = fmt.Sprintf("Run service command %q for services %q of snap %q", cmd.Action, svcs, cmd.SnapName)
+		}
 		task := st.NewTask("service-control", summary)
 		task.Set("service-action", cmd)
 		if prev != nil {
