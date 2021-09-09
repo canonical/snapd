@@ -81,13 +81,13 @@ func (g *grub) dir() string {
 	return filepath.Join(g.rootdir, g.basedir)
 }
 
-func (g *grub) installManagedRecoveryBootConfig(gadgetDir string) error {
+func (g *grub) installManagedRecoveryBootConfig() error {
 	assetName := g.Name() + "-recovery.cfg"
 	systemFile := filepath.Join(g.rootdir, "/EFI/ubuntu/grub.cfg")
 	return genericSetBootConfigFromAsset(systemFile, assetName)
 }
 
-func (g *grub) installManagedBootConfig(gadgetDir string) error {
+func (g *grub) installManagedBootConfig() error {
 	assetName := g.Name() + ".cfg"
 	systemFile := filepath.Join(g.rootdir, "/EFI/ubuntu/grub.cfg")
 	return genericSetBootConfigFromAsset(systemFile, assetName)
@@ -96,11 +96,11 @@ func (g *grub) installManagedBootConfig(gadgetDir string) error {
 func (g *grub) InstallBootConfig(gadgetDir string, opts *Options) error {
 	if opts != nil && opts.Role == RoleRecovery {
 		// install managed config for the recovery partition
-		return g.installManagedRecoveryBootConfig(gadgetDir)
+		return g.installManagedRecoveryBootConfig()
 	}
 	if opts != nil && opts.Role == RoleRunMode {
 		// install managed boot config that can handle kernel.efi
-		return g.installManagedBootConfig(gadgetDir)
+		return g.installManagedBootConfig()
 	}
 
 	gadgetFile := filepath.Join(gadgetDir, g.Name()+".conf")

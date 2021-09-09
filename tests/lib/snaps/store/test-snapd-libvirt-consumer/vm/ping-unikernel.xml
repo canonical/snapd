@@ -3,7 +3,7 @@
   <memory>128000</memory>
   <os>
     <type>hvm</type>
-    <kernel>/snap/test-snapd-libvirt-consumer/current/tests/test_ping_serve/test_ping_serve.virtio</kernel>
+    <kernel>/var/snap/test-snapd-libvirt-consumer/current/test_net.virtio</kernel>
   </os>
   <features></features>
   <serial type='stdio'>

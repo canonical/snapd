@@ -66,8 +66,7 @@ disable_refreshes() {
 
     echo "Modify state to make it look like the last refresh just happened"
     systemctl stop snapd.socket snapd.service
-    jq ".data[\"last-refresh\"] = \"$(date +%Y-%m-%dT%H:%M:%S%:z)\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
-    mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
+    "$TESTSTOOLS"/snapd-state prevent-autorefresh
     systemctl start snapd.socket snapd.service
 
     echo "Minimize risk of hitting refresh schedule"

@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/features"
@@ -2306,7 +2307,44 @@ func canRemove(st *state.State, si *snap.Info, snapst *SnapState, removeAll bool
 		rev = si.Revision
 	}
 
-	return PolicyFor(si.Type(), deviceCtx.Model()).CanRemove(st, snapst, rev, deviceCtx)
+	if err := PolicyFor(si.Type(), deviceCtx.Model()).CanRemove(st, snapst, rev, deviceCtx); err != nil {
+		return err
+	}
+
+	// check if this snap is required by any validation set in enforcing mode
+	enforcedSets, err := EnforcedValidationSets(st)
+	if err != nil {
+		return err
+	}
+	if enforcedSets == nil {
+		return nil
+	}
+	requiredValsets, requiredRevision, err := enforcedSets.CheckPresenceRequired(si)
+	if err != nil {
+		if _, ok := err.(*snapasserts.PresenceConstraintError); !ok {
+			return err
+		}
+		// else - presence is invalid, nothing to do (not really possible since
+		// it shouldn't be allowed to get installed in the first place).
+		return nil
+	}
+	if len(requiredValsets) == 0 {
+		// not required by any validation set (or is optional)
+		return nil
+	}
+	// removeAll is set if we're removing the snap completely
+	if removeAll {
+		if requiredRevision.Unset() {
+			return fmt.Errorf("snap %q is required by validation sets: %s", si.InstanceName(), strings.Join(requiredValsets, ","))
+		}
+		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), requiredRevision, strings.Join(requiredValsets, ","))
+	}
+
+	// rev is set at this point (otherwise we would hit removeAll case)
+	if requiredRevision.N == rev.N {
+		return fmt.Errorf("snap %q at revision %s is required by validation sets: %s", si.InstanceName(), rev, strings.Join(requiredValsets, ","))
+	} // else - it's ok to remove a revision different than the required
+	return nil
 }
 
 // RemoveFlags are used to pass additional flags to the Remove operation.
@@ -2937,7 +2975,7 @@ func infosForType(st *state.State, snapType snap.Type) ([]*snap.Info, error) {
 	return res, nil
 }
 
-func infoForDeviceSnap(st *state.State, deviceCtx DeviceContext, which string, whichName func(*asserts.Model) string) (*snap.Info, error) {
+func infoForDeviceSnap(st *state.State, deviceCtx DeviceContext, whichName func(*asserts.Model) string) (*snap.Info, error) {
 	if deviceCtx == nil {
 		return nil, fmt.Errorf("internal error: unset deviceCtx")
 	}
@@ -2956,12 +2994,12 @@ func infoForDeviceSnap(st *state.State, deviceCtx DeviceContext, which string, w
 
 // GadgetInfo finds the gadget snap's info for the given device context.
 func GadgetInfo(st *state.State, deviceCtx DeviceContext) (*snap.Info, error) {
-	return infoForDeviceSnap(st, deviceCtx, "gadget", (*asserts.Model).Gadget)
+	return infoForDeviceSnap(st, deviceCtx, (*asserts.Model).Gadget)
 }
 
 // KernelInfo finds the kernel snap's info for the given device context.
 func KernelInfo(st *state.State, deviceCtx DeviceContext) (*snap.Info, error) {
-	return infoForDeviceSnap(st, deviceCtx, "kernel", (*asserts.Model).Kernel)
+	return infoForDeviceSnap(st, deviceCtx, (*asserts.Model).Kernel)
 }
 
 // BootBaseInfo finds the boot base snap's info for the given device context.
@@ -2973,7 +3011,7 @@ func BootBaseInfo(st *state.State, deviceCtx DeviceContext) (*snap.Info, error) 
 		}
 		return base
 	}
-	return infoForDeviceSnap(st, deviceCtx, "boot base", baseName)
+	return infoForDeviceSnap(st, deviceCtx, baseName)
 }
 
 // TODO: reintroduce a KernelInfo(state.State, DeviceContext) if needed
@@ -3085,4 +3123,14 @@ func MockOsutilCheckFreeSpace(mock func(path string, minSize uint64) error) (res
 	old := osutilCheckFreeSpace
 	osutilCheckFreeSpace = mock
 	return func() { osutilCheckFreeSpace = old }
+}
+
+func MockEnforcedValidationSets(f func(st *state.State) (*snapasserts.ValidationSets, error)) func() {
+	osutil.MustBeTestBinary("mocking can be done only in tests")
+
+	old := EnforcedValidationSets
+	EnforcedValidationSets = f
+	return func() {
+		EnforcedValidationSets = old
+	}
 }

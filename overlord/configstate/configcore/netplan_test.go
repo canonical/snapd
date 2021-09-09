@@ -27,10 +27,10 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dbusutil"
+	"github.com/snapcore/snapd/dbusutil/netplantest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
-	"github.com/snapcore/snapd/overlord/configstate/configcore/netplantest"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
@@ -321,4 +321,29 @@ network:
 		`network=null/90-snapd-conf`,
 		`network={"bridges":{"br54":{"dhcp6":true}},"renderer":"networkd","version":2}/90-snapd-conf`,
 	})
+}
+
+func (s *netplanSuite) TestNetplanNoApplyOnClassic(c *C) {
+	restore := release.MockOnClassic(true)
+	s.AddCleanup(restore)
+
+	err := configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"system.network.netplan.network.renderer": "networkd",
+		},
+	})
+	c.Check(err, ErrorMatches, "cannot set netplan configuration on classic")
+
+	err = configcore.Run(coreDev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"system.network.netplan": map[string]interface{}{
+				"network": map[string]interface{}{
+					"version": 2,
+				},
+			},
+		},
+	})
+	c.Check(err, ErrorMatches, "cannot set netplan configuration on classic")
 }
