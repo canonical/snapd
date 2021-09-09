@@ -17,7 +17,7 @@
  *
  */
 
-package internal
+package mkfs
 
 import (
 	"fmt"
@@ -30,27 +30,30 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-type MkfsFunc func(imgFile, label, contentsRootDir string, deviceSize, sectorSize quantity.Size) error
+// MakeFunc defines a function signature that is used by all of the mkfs.<filesystem>
+// functions supported in this package. This is done to allow them to be defined
+// in the mkfsHandlers map
+type MakeFunc func(imgFile, label, contentsRootDir string, deviceSize, sectorSize quantity.Size) error
 
 var (
-	mkfsHandlers = map[string]MkfsFunc{
+	mkfsHandlers = map[string]MakeFunc{
 		"vfat": mkfsVfat,
 		"ext4": mkfsExt4,
 	}
 )
 
-// Mkfs creates a filesystem of given type and provided label in the device or
+// Make creates a filesystem of given type and provided label in the device or
 // file. The device size and sector size provides hints for additional tuning of
 // the created filesystem.
-func Mkfs(typ, img, label string, deviceSize, sectorSize quantity.Size) error {
-	return MkfsWithContent(typ, img, label, "", deviceSize, sectorSize)
+func Make(typ, img, label string, deviceSize, sectorSize quantity.Size) error {
+	return MakeWithContent(typ, img, label, "", deviceSize, sectorSize)
 }
 
-// MkfsWithContent creates a filesystem of given type and provided label in the
+// MakeWithContent creates a filesystem of given type and provided label in the
 // device or file. The filesystem is populated with contents of contentRootDir.
 // The device size provides hints for additional tuning of the created
 // filesystem.
-func MkfsWithContent(typ, img, label, contentRootDir string, deviceSize, sectorSize quantity.Size) error {
+func MakeWithContent(typ, img, label, contentRootDir string, deviceSize, sectorSize quantity.Size) error {
 	h, ok := mkfsHandlers[typ]
 	if !ok {
 		return fmt.Errorf("cannot create unsupported filesystem %q", typ)

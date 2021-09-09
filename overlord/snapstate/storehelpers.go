@@ -201,8 +201,8 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int) 
 	return total, nil
 }
 
-func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, deviceCtx DeviceContext) (store.SnapActionResult, error) {
-	// TODO: support ignore-validation?
+func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (store.SnapActionResult, error) {
+	// TODO: support ignore-validation
 
 	curSnaps, err := currentSnaps(st)
 	if err != nil {

@@ -372,7 +372,7 @@ func (s *themesSuite) TestThemesCmdGet(c *C) {
 }
 
 func (s *themesSuite) daemonWithIfaceMgr(c *C) *daemon.Daemon {
-	d := s.apiBaseSuite.daemonWithOverlordMock(c)
+	d := s.apiBaseSuite.daemonWithOverlordMock()
 
 	overlord := d.Overlord()
 	st := overlord.State()

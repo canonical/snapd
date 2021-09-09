@@ -56,6 +56,10 @@ type Flags struct {
 	// running the configure hook should be skipped.
 	SkipConfigure bool `json:"skip-configure,omitempty"`
 
+	// SkipKernelExtraction is used with InstallPath to flag that the
+	// kernel extraction should be skipped. This is useful during seeding.
+	SkipKernelExtraction bool `json:"skip-kernel-extraction,omitempty"`
+
 	// Unaliased is set to request that no automatic aliases are created
 	// installing the snap.
 	Unaliased bool `json:"unaliased,omitempty"`

@@ -17,7 +17,7 @@ mount_ubuntu_image() {
     # stdin/stdout it would otherwise inherit from the spread session.
     systemd-run --system --service-type=forking --unit=qemu-nbd-preseed.service "$(command -v qemu-nbd)" --fork -c /dev/nbd0 "$CLOUD_IMAGE"
     # nbd0p1 may take a short while to become available
-    retry -n 5 --wait 1 test -e /dev/nbd0p1
+    retry -n 15 --wait 1 test -e /dev/nbd0p1
     mount /dev/nbd0p1 "$IMAGE_MOUNTPOINT"
     mount -t proc /proc "$IMAGE_MOUNTPOINT/proc"
     mount -t sysfs sysfs "$IMAGE_MOUNTPOINT/sys"

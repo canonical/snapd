@@ -70,7 +70,7 @@ type StoreService interface {
 
 type managerBackend interface {
 	// install related
-	SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, dev boot.Device, meter progress.Meter) (snap.Type, *backend.InstallRecord, error)
+	SetupSnap(snapFilePath, instanceName string, si *snap.SideInfo, dev boot.Device, opts *backend.SetupSnapOptions, meter progress.Meter) (snap.Type, *backend.InstallRecord, error)
 	CopySnapData(newSnap, oldSnap *snap.Info, meter progress.Meter) error
 	LinkSnap(info *snap.Info, dev boot.Device, linkCtx backend.LinkContext, tm timings.Measurer) (rebootRequired bool, err error)
 	StartServices(svcs []*snap.AppInfo, disabledSvcs []string, meter progress.Meter, tm timings.Measurer) error

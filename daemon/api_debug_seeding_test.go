@@ -37,7 +37,7 @@ type seedingDebugSuite struct {
 
 func (s *seedingDebugSuite) SetUpTest(c *C) {
 	s.apiBaseSuite.SetUpTest(c)
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMock()
 }
 
 func (s *seedingDebugSuite) getSeedingDebug(c *C) interface{} {

@@ -44,7 +44,7 @@ func ToolingStoreContext() store.DeviceAndAuthContext {
 	return toolingStoreContext{}
 }
 
-func (opts *DownloadOptions) Validate() error {
+func (opts *DownloadSnapOptions) Validate() error {
 	return opts.validate()
 }
 
