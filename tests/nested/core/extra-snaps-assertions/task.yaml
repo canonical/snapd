@@ -1,6 +1,6 @@
 summary: create ubuntu-core image and execute the suite in a nested qemu instance
 
-systems: [ubuntu-16.04-64]
+systems: [ubuntu-18.04-64]
 
 execute: |
     #shellcheck source=tests/lib/nested.sh
@@ -12,9 +12,9 @@ execute: |
     echo "We have a model assertion"
     tests.nested exec "snap known model" | MATCH "series: 16"
 
-    EXPRESSION="^core .* +latest/$NESTED_CORE_CHANNEL +canonical\\* +core"
+    EXPRESSION="^core18 .* +latest/$NESTED_CORE_CHANNEL +canonical\\* +base"
     if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "true" ]; then
-        EXPRESSION="^core .* +x1 .* core"
+        EXPRESSION="^core18 .* +x1 .* base"
     fi
 
     echo "Make sure core has an actual revision"

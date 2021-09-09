@@ -3,9 +3,11 @@ project: snapd
 environment:
     GOHOME: /home/gopath
     GOPATH: $GOHOME
-    # TODO: some distros started shipping Go 1.16 which defaults to having
-    # modules enabled, drop this when snapd starts supporting Go modules
-    GO111MODULE: "off"
+    # on some distros the default GOPROXY setting is 'direct' (eg. Fedora), the
+    # go import tags of packages such as maze.io/x/crypt (which is one of
+    # secboot dependencies), cannot be obtained when poking the import URL
+    # directly, thus we need to force the golang.org hosted proxy to be used
+    GOPROXY: https://proxy.golang.org,direct
     REUSE_PROJECT: '$(HOST: echo "$REUSE_PROJECT")'
     PROJECT_PATH: $GOHOME/src/github.com/snapcore/snapd
     # /usr/lib/go-1.6/bin for trusty (needs to be last as we use
@@ -42,7 +44,7 @@ environment:
     SNAPD_CHANNEL: '$(HOST: echo "${SPREAD_SNAPD_CHANNEL:-edge}")'
     REMOTE_STORE: '$(HOST: echo "${SPREAD_REMOTE_STORE:-production}")'
     SNAPPY_USE_STAGING_STORE: '$(HOST: if [ "$SPREAD_REMOTE_STORE" = staging ]; then echo 1; else echo 0; fi)'
-    DELTA_REF: 2.50
+    DELTA_REF: 2.52
     DELTA_PREFIX: snapd-$DELTA_REF/
     REPACK_KEEP_VENDOR: '$(HOST: echo "${REPACK_KEEP_VENDOR:-n}")'
     SNAPD_PUBLISHED_VERSION: '$(HOST: echo "$SPREAD_SNAPD_PUBLISHED_VERSION")'
@@ -84,6 +86,7 @@ backends:
                   workers: 6
             - ubuntu-16.04-64:
                   workers: 8
+                  storage: 12G
             - ubuntu-18.04-32:
                   workers: 6
             - ubuntu-18.04-64:
@@ -135,9 +138,9 @@ backends:
                   storage: preserve-size
                   image: centos-7-64
             # unstable systems below
-            - opensuse-15.1-64:
-                  workers: 6
             - opensuse-15.2-64:
+                  workers: 6
+            - opensuse-15.3-64:
                   workers: 6
             - opensuse-tumbleweed-64:
                   workers: 6
@@ -237,10 +240,10 @@ backends:
             - ubuntu-20.04-32:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-20.10-64:
+            - ubuntu-21.04-64:
                   username: ubuntu
                   password: ubuntu
-            - ubuntu-21.04-64:
+            - ubuntu-21.10-64:
                   username: ubuntu
                   password: ubuntu
             - debian-sid-64:
@@ -503,9 +506,7 @@ repack: |
         trap "rm -rf delta-ref.tar current.delta repacked-current.tar $tmpdir" EXIT
         if [ "$REPACK_KEEP_VENDOR" = "n" ]; then
             tar -C "$tmpdir" -xvf - <&3
-            find "$tmpdir/$DELTA_PREFIX/vendor/" ! -wholename "$tmpdir/$DELTA_PREFIX/vendor/" \
-                ! -wholename "$tmpdir/$DELTA_PREFIX/vendor/vendor.json" \
-                -delete
+            rm -rf "$tmpdir"/$DELTA_PREFIX/vendor/*
             tar -C "$tmpdir" -c "$DELTA_PREFIX" --sort=name > repacked-current.tar
         else
             cat <&3 > repacked-current.tar
@@ -812,14 +813,6 @@ suites:
         backends: [-autopkgtest]
         environment:
             # env vars required for coverage reporting from a spread task
-            TRAVIS_BUILD_NUMBER: '$(HOST: echo "$TRAVIS_BUILD_NUMBER")'
-            TRAVIS_BRANCH: '$(HOST: echo "$TRAVIS_BRANCH")'
-            TRAVIS_COMMIT: '$(HOST: echo "$TRAVIS_COMMIT")'
-            TRAVIS_JOB_NUMBER: '$(HOST: echo "$TRAVIS_JOB_NUMBER")'
-            TRAVIS_PULL_REQUEST: '$(HOST: echo "$TRAVIS_PULL_REQUEST")'
-            TRAVIS_JOB_ID: '$(HOST: echo "$TRAVIS_JOB_ID")'
-            TRAVIS_REPO_SLUG: '$(HOST: echo "$TRAVIS_REPO_SLUG")'
-            TRAVIS_TAG: '$(HOST: echo "$TRAVIS_TAG")'
             COVERMODE: '$(HOST: echo "$COVERMODE")'
         prepare: |
             #shellcheck source=tests/lib/prepare.sh
@@ -895,6 +888,7 @@ suites:
         restore-each: |
             tests.nested remove-vm
             tests.nested restore
+            tests.cleanup restore
             tests.backup restore
         restore: |
             #shellcheck source=tests/lib/pkgdb.sh
@@ -931,6 +925,7 @@ suites:
             tests.nested create-vm classic
         restore-each: |
             tests.nested remove-vm
+            tests.cleanup restore
             tests.backup restore
         restore: |
             tests.nested restore
@@ -969,6 +964,7 @@ suites:
             tests.nested create-vm core
         restore-each: |
             tests.nested remove-vm
+            tests.cleanup restore
             tests.backup restore
         restore: |
             tests.nested restore

@@ -68,9 +68,9 @@ test_get_nested() {
   fi
   expected_output='{\n\t"key1": "a",\n\t"key2": "b"\n}'
   # note: "echo" is a built-in of sh and doesn't support -e flag, use /bin/echo.
-  # shellcheck disable=SC2039
+  # shellcheck disable=SC2039,SC3037
   if [ "$output" != "$(/bin/echo -e "$expected_output")" ]; then
-      echo "Expected output to be '$expected_output' but it was '$output'"
+      echo "Expected output to be '$(/bin/echo -e "$expected_output")' but it was '$output'"
       exit 1
   fi
 }

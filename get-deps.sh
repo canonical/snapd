@@ -2,38 +2,11 @@
 
 set -e
 
-if [ "$GOPATH" = "" ]; then
-    tmpdir=$(mktemp -d)
-    export GOPATH=$tmpdir
-    # shellcheck disable=SC2064
-    trap "rm -rf $tmpdir" EXIT
-
-    mkdir -p "$tmpdir/src/github.com/snapcore/"
-    ln -s "$(pwd)" "$tmpdir/src/github.com/snapcore/snapd"
-    cd "$tmpdir/src/github.com/snapcore/snapd"
-fi
-
-if ! command -v govendor >/dev/null;then
-    export PATH="$PATH:${GOPATH%%:*}/bin"
-
-    if ! command -v govendor >/dev/null;then
-	    echo Installing govendor
-	    go get -u github.com/kardianos/govendor
-    fi
-fi
-
 echo Obtaining dependencies
-govendor sync
+go mod vendor
 
 echo Obtaining c-dependencies
 (cd c-vendor && ./vendor.sh)
 
-if [ "$1" != "--skip-unused-check" ]; then
-    unused="$(govendor list +unused)"
-    if [ "$unused" != "" ]; then
-        echo "Found unused ./vendor packages:"
-        echo "$unused"
-        echo "Please fix via 'govendor remove +unused'"
-        exit 1
-    fi
-fi
+# TODO: import script that ensures that the "go.mod" vendor dir is tidy
+# https://github.com/edgexfoundry/edgex-go/commit/2c7e513168ecd884ba7252d8253b100953d1695c

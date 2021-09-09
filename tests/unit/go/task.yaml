@@ -39,7 +39,6 @@ execute: |
 
     if not os.query is-trusty; then
         tests.session -u test exec sh -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
-            GO111MODULE=off \
             PATH=$PATH \
             GOPATH=/tmp/static-unit-tests \
             ${skip:-} \
@@ -47,7 +46,6 @@ execute: |
             ./run-checks --static"
 
         tests.session -u test exec sh -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
-            GO111MODULE=off \
             PATH=$PATH \
             GOPATH=/tmp/static-unit-tests \
             SKIP_COVERAGE=1 \
@@ -55,7 +53,6 @@ execute: |
     else
         # 14.04 only
         su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
-            GO111MODULE=off \
             PATH=$PATH \
             GOPATH=/tmp/static-unit-tests \
             ${skip:-} \
@@ -63,7 +60,6 @@ execute: |
             ./run-checks --static" test
 
         su -l -c "cd /tmp/static-unit-tests/src/github.com/snapcore/snapd && \
-            GO111MODULE=off \
             PATH=$PATH \
             GOPATH=/tmp/static-unit-tests \
             SKIP_COVERAGE=1 \

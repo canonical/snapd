@@ -47,9 +47,9 @@ type rebootCommand struct {
 }
 
 func (c *rebootCommand) Execute([]string) error {
-	ctx := c.context()
-	if ctx == nil {
-		return fmt.Errorf(i18n.G("cannot use reboot command without a context"))
+	ctx, err := c.ensureContext()
+	if err != nil {
+		return err
 	}
 	if ctx.HookName() != "install-device" {
 		return fmt.Errorf("cannot use reboot command outside of gadget install-device hook")
@@ -70,7 +70,7 @@ func (c *rebootCommand) Execute([]string) error {
 	st := ctx.State()
 
 	var restartTaskID string
-	err := task.Get("restart-task", &restartTaskID)
+	err = task.Get("restart-task", &restartTaskID)
 	if err != nil {
 		return fmt.Errorf("internal error: cannot get restart-task following install-device hook: %v", err)
 	}
