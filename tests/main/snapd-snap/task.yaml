@@ -196,6 +196,7 @@ execute: |
     # session of the root user and stay behind after this test terminates.
     if tests.session has-session-systemd-and-dbus; then
         tests.session -u test prepare
+        tests.cleanup defer tests.session -u test restore
     fi
 
     echo "For each core-provided slot"
@@ -285,6 +286,3 @@ execute: |
         fi
     done
 
-    if tests.session has-session-systemd-and-dbus; then
-        tests.session -u test restore
-    fi
