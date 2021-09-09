@@ -211,8 +211,6 @@ func setActionValidationSets(action *store.SnapAction, valsets []string) {
 }
 
 func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (store.SnapActionResult, error) {
-	// TODO: support ignore-validation
-
 	curSnaps, err := currentSnaps(st)
 	if err != nil {
 		return store.SnapActionResult{}, err
@@ -233,35 +231,41 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 		InstanceName: name,
 	}
 
-	// TODO: support ignore-validation
-	enforcedSets, err := EnforcedValidationSets(st)
-	if err != nil {
-		return store.SnapActionResult{}, err
+	if flags.IgnoreValidation {
+		action.Flags = store.SnapActionIgnoreValidation
 	}
 
 	var requiredRevision snap.Revision
 	var requiredValSets []string
-	if enforcedSets != nil {
-		// check for invalid presence first to have a list of sets where it's invalid
-		invalidForValSets, err := enforcedSets.CheckPresenceInvalid(naming.Snap(name))
-		if err != nil {
-			if _, ok := err.(*snapasserts.PresenceConstraintError); !ok {
-				return store.SnapActionResult{}, err
-			} // else presence is optional or required, carry on
-		}
-		if len(invalidForValSets) > 0 {
-			return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q due to enforcing rules of validation set %s", name, strings.Join(invalidForValSets, ","))
-		}
-		requiredValSets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(name))
+
+	if !flags.IgnoreValidation {
+		enforcedSets, err := EnforcedValidationSets(st)
 		if err != nil {
 			return store.SnapActionResult{}, err
 		}
-	}
 
-	if len(requiredValSets) > 0 {
-		setActionValidationSets(action, requiredValSets)
-		if !requiredRevision.Unset() {
-			action.Revision = requiredRevision
+		if enforcedSets != nil {
+			// check for invalid presence first to have a list of sets where it's invalid
+			invalidForValSets, err := enforcedSets.CheckPresenceInvalid(naming.Snap(name))
+			if err != nil {
+				if _, ok := err.(*snapasserts.PresenceConstraintError); !ok {
+					return store.SnapActionResult{}, err
+				} // else presence is optional or required, carry on
+			}
+			if len(invalidForValSets) > 0 {
+				return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q due to enforcing rules of validation set %s", name, strings.Join(invalidForValSets, ","))
+			}
+			requiredValSets, requiredRevision, err = enforcedSets.CheckPresenceRequired(naming.Snap(name))
+			if err != nil {
+				return store.SnapActionResult{}, err
+			}
+		}
+
+		if len(requiredValSets) > 0 {
+			setActionValidationSets(action, requiredValSets)
+			if !requiredRevision.Unset() {
+				action.Revision = requiredRevision
+			}
 		}
 	}
 
@@ -322,24 +326,26 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 		Flags:     storeFlags,
 	}
 
-	enforcedSets, err := EnforcedValidationSets(st)
-	if err != nil {
-		return nil, err
-	}
-	if enforcedSets != nil {
-		requiredValsets, requiredRevision, err := enforcedSets.CheckPresenceRequired(naming.Snap(curInfo.InstanceName()))
+	if !flags.IgnoreValidation {
+		enforcedSets, err := EnforcedValidationSets(st)
 		if err != nil {
 			return nil, err
 		}
-		if !requiredRevision.Unset() && snapst.Current == requiredRevision {
-			return nil, fmt.Errorf("snap %q is at the required revision %s by validation sets: %s, cannot update", curInfo.InstanceName(), snapst.Current, strings.Join(requiredValsets, ","))
-		}
+		if enforcedSets != nil {
+			requiredValsets, requiredRevision, err := enforcedSets.CheckPresenceRequired(naming.Snap(curInfo.InstanceName()))
+			if err != nil {
+				return nil, err
+			}
+			if !requiredRevision.Unset() && snapst.Current == requiredRevision {
+				return nil, fmt.Errorf("snap %q is at the required revision %s by validation sets: %s, cannot update", curInfo.InstanceName(), snapst.Current, strings.Join(requiredValsets, ","))
+			}
 
-		if len(requiredValsets) > 0 {
-			setActionValidationSets(action, requiredValsets)
-			// XXX: what about cohort above?
-			if !requiredRevision.Unset() {
-				action.Revision = requiredRevision
+			if len(requiredValsets) > 0 {
+				setActionValidationSets(action, requiredValsets)
+				// XXX: what about cohort above?
+				if !requiredRevision.Unset() {
+					action.Revision = requiredRevision
+				}
 			}
 		}
 	}
