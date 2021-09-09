@@ -364,6 +364,11 @@ func installedSnapChange(st *state.State, modelSnapName, declaredChannel string)
 		// this is unexpected as we know the snap exists
 		return false, err
 	}
+	if ss.Current.Local() {
+		// currently installed snap has a local revision, since it's
+		// unasserted we cannot say whether it needs a change or not
+		return false, nil
+	}
 	if ss.TrackingChannel != declaredChannel {
 		return true, nil
 	}
