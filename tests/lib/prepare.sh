@@ -275,7 +275,7 @@ prepare_classic() {
 
         # Cache snaps
         # shellcheck disable=SC2086
-        cache_snaps core ${PRE_CACHE_SNAPS}
+        cache_snaps core core18 core20 ${PRE_CACHE_SNAPS}
 
         # now use parameterized core channel (defaults to edge) instead
         # of a fixed one and close to stable in order to detect defects
@@ -1123,6 +1123,9 @@ prepare_ubuntu_core() {
         cache_snaps core
         if os.query is-core18; then
             cache_snaps test-snapd-sh-core18
+        fi
+        if os.query is-core20; then
+            cache_snaps test-snapd-sh-core20
         fi
     fi
 
