@@ -117,6 +117,9 @@ prepare: |
     fi
 
 debug: |
+    # get the snapd sandbox features
+    snap debug sandbox-features
+
     # get the full journal to see any out-of-memory errors
     # shellcheck disable=SC2119
     "$TESTSTOOLS"/journal-state get-log
