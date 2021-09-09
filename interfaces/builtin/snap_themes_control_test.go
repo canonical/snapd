@@ -29,7 +29,7 @@ import (
 	"github.com/snapcore/snapd/testutil"
 )
 
-type SnapdThemesControlInterfaceSuite struct {
+type SnapThemesControlInterfaceSuite struct {
 	iface    interfaces.Interface
 	slotInfo *snap.SlotInfo
 	slot     *interfaces.ConnectedSlot
@@ -37,19 +37,19 @@ type SnapdThemesControlInterfaceSuite struct {
 	plug     *interfaces.ConnectedPlug
 }
 
-var _ = Suite(&SnapdThemesControlInterfaceSuite{
-	iface: builtin.MustInterface("snapd-themes-control"),
+var _ = Suite(&SnapThemesControlInterfaceSuite{
+	iface: builtin.MustInterface("snap-themes-control"),
 })
 
-func (s *SnapdThemesControlInterfaceSuite) SetUpTest(c *C) {
+func (s *SnapThemesControlInterfaceSuite) SetUpTest(c *C) {
 	const coreSlotYaml = `
 name: core
 type: os
 version: 1.0
 slots:
-  snapd-themes-control:
+  snap-themes-control:
 `
-	s.slot, s.slotInfo = MockConnectedSlot(c, coreSlotYaml, nil, "snapd-themes-control")
+	s.slot, s.slotInfo = MockConnectedSlot(c, coreSlotYaml, nil, "snap-themes-control")
 
 	const appPlugYaml = `
 name: other
@@ -57,24 +57,24 @@ version: 0
 apps:
  app:
     command: foo
-    plugs: [snapd-themes-control]
+    plugs: [snap-themes-control]
 `
-	s.plug, s.plugInfo = MockConnectedPlug(c, appPlugYaml, nil, "snapd-themes-control")
+	s.plug, s.plugInfo = MockConnectedPlug(c, appPlugYaml, nil, "snap-themes-control")
 }
 
-func (s *SnapdThemesControlInterfaceSuite) TestName(c *C) {
-	c.Check(s.iface.Name(), Equals, "snapd-themes-control")
+func (s *SnapThemesControlInterfaceSuite) TestName(c *C) {
+	c.Check(s.iface.Name(), Equals, "snap-themes-control")
 }
 
-func (s *SnapdThemesControlInterfaceSuite) TestSanitizeSlot(c *C) {
+func (s *SnapThemesControlInterfaceSuite) TestSanitizeSlot(c *C) {
 	c.Check(interfaces.BeforePrepareSlot(s.iface, s.slotInfo), IsNil)
 }
 
-func (s *SnapdThemesControlInterfaceSuite) TestSanitizePlug(c *C) {
+func (s *SnapThemesControlInterfaceSuite) TestSanitizePlug(c *C) {
 	c.Check(interfaces.BeforePreparePlug(s.iface, s.plugInfo), IsNil)
 }
 
-func (s *SnapdThemesControlInterfaceSuite) TestAppArmor(c *C) {
+func (s *SnapThemesControlInterfaceSuite) TestAppArmor(c *C) {
 	// The interface generates no AppArmor rules
 	spec := &apparmor.Specification{}
 	c.Assert(spec.AddConnectedPlug(s.iface, s.plug, s.slot), IsNil)
@@ -93,6 +93,6 @@ func (s *SnapdThemesControlInterfaceSuite) TestAppArmor(c *C) {
 	c.Check(spec.SecurityTags(), HasLen, 0)
 }
 
-func (s *SnapdThemesControlInterfaceSuite) TestInterfaces(c *C) {
+func (s *SnapThemesControlInterfaceSuite) TestInterfaces(c *C) {
 	c.Check(builtin.Interfaces(), testutil.DeepContains, s.iface)
 }

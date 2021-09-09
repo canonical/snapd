@@ -380,12 +380,12 @@ apps:
   snapd-control:
     command: bin/run
     plugs: [ snapd-control ]
-  snapd-themes-control:
-    command: bin/run
-    plugs: [ snapd-themes-control ]
   snap-refresh-control:
     command: bin/run
     plugs: [ snap-refresh-control ]
+  snap-themes-control:
+    command: bin/run
+    plugs: [ snap-themes-control ]
   service-watchdog:
     command: bin/run
     plugs: [ daemon-notify ]

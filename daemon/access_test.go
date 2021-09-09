@@ -234,13 +234,13 @@ name: core
 type: os
 version: 1
 slots:
-  snapd-themes-control:
+  snap-themes-control:
 `)
 	s.mockSnap(c, `
 name: some-snap
 version: 1
 plugs:
-  snapd-themes-control:
+  snap-themes-control:
 `)
 
 	restore := daemon.MockCgroupSnapNameFromPid(func(pid int) (string, error) {
@@ -272,8 +272,8 @@ plugs:
 	st := d.Overlord().State()
 	st.Lock()
 	st.Set("conns", map[string]interface{}{
-		"some-snap:snapd-themes-control core:snapd-themes-control": map[string]interface{}{
-			"interface": "snapd-themes-control",
+		"some-snap:snap-themes-control core:snap-themes-control": map[string]interface{}{
+			"interface": "snap-themes-control",
 		},
 	})
 	st.Unlock()

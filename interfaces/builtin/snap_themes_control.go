@@ -19,16 +19,16 @@
 
 package builtin
 
-const snapdThemesControlSummary = `allows use of snapd's theme installation API`
+const snapThemesControlSummary = `allows use of snapd's theme installation API`
 
-const snapdThemesControlBaseDeclarationPlugs = `
-  snapd-themes-control:
+const snapThemesControlBaseDeclarationPlugs = `
+  snap-themes-control:
     allow-installation: false
     deny-auto-connection: true
 `
 
-const snapdThemesControlBaseDeclarationSlots = `
-  snapd-themes-control:
+const snapThemesControlBaseDeclarationSlots = `
+  snap-themes-control:
     allow-installation:
       slot-snap-type:
         - core
@@ -41,11 +41,11 @@ type snapThemesControlInterface struct {
 
 func init() {
 	registerIface(&snapThemesControlInterface{commonInterface{
-		name:                 "snapd-themes-control",
-		summary:              snapdThemesControlSummary,
+		name:                 "snap-themes-control",
+		summary:              snapThemesControlSummary,
 		implicitOnCore:       true,
 		implicitOnClassic:    true,
-		baseDeclarationPlugs: snapdThemesControlBaseDeclarationPlugs,
-		baseDeclarationSlots: snapdThemesControlBaseDeclarationSlots,
+		baseDeclarationPlugs: snapThemesControlBaseDeclarationPlugs,
+		baseDeclarationSlots: snapThemesControlBaseDeclarationSlots,
 	}})
 }

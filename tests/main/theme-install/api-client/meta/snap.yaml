@@ -6,4 +6,4 @@ apps:
     command: bin/api-client.py
     plugs:
       - snapd-control
-      - snapd-themes-control
+      - snap-themes-control

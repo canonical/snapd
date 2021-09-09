@@ -7,7 +7,7 @@ execute: |
     "$TESTSTOOLS"/snaps-state install-local api-client
     echo "The snapd*-control plugs on the api-client snap are initially disconnected"
     snap connections api-client | MATCH "snapd-control +api-client:snapd-control +- +-"
-    snap connections api-client | MATCH "snapd-themes-control +api-client:snapd-themes-control +- +-"
+    snap connections api-client | MATCH "snap-themes-control +api-client:snap-themes-control +- +-"
     echo "Connect the snapd-control plug"
     snap connect api-client:snapd-control
 
@@ -40,13 +40,13 @@ execute: |
     api-client '/v2/accessories/themes?gtk-theme=TraditionalHumanized' > response.txt
     jq -r '.result."gtk-themes".TraditionalHumanized' < response.txt | MATCH '^installed'
 
-    echo "The API is also available to snaps via snapd-snap.socket, provided they have snapd-themes-control plugged"
+    echo "The API is also available to snaps via snapd-snap.socket, provided they have snap-themes-control plugged"
     snap disconnect api-client:snapd-control
 
     not api-client --socket /run/snapd-snap.socket '/v2/accessories/themes?gtk-theme=Yaru' > response.txt
     jq -r '."status-code"' < response.txt | MATCH '^403$'
 
-    snap connect api-client:snapd-themes-control
+    snap connect api-client:snap-themes-control
     api-client --socket /run/snapd-snap.socket '/v2/accessories/themes?gtk-theme=Yaru' > response.txt
     jq -r '.result."gtk-themes".Yaru' < response.txt | MATCH '^installed'
 
