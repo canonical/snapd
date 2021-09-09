@@ -6271,10 +6271,10 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationSetAlreadyAtRequ
 	expectedOp := fakeOp{
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:         "refresh",
-			InstanceName:   "some-snap",
-			SnapID:         "some-snap-id",
-			Flags: store.SnapActionIgnoreValidation,
+			Action:       "refresh",
+			InstanceName: "some-snap",
+			SnapID:       "some-snap-id",
+			Flags:        store.SnapActionIgnoreValidation,
 		},
 		revno: snap.R(11),
 	}
