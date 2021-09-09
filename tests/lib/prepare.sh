@@ -275,7 +275,10 @@ prepare_classic() {
 
         # Cache snaps
         # shellcheck disable=SC2086
-        cache_snaps core core18 core20 ${PRE_CACHE_SNAPS}
+        cache_snaps core core18 ${PRE_CACHE_SNAPS}
+        if os.query is-pc-amd64; then
+            cache_snaps core20
+        fi
 
         # now use parameterized core channel (defaults to edge) instead
         # of a fixed one and close to stable in order to detect defects
