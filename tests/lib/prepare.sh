@@ -897,6 +897,7 @@ EOF
         if [ "$IMAGE_CHANNEL" != "$BASE_CHANNEL" ]; then
             unsquashfs -d core20-snap core20.snap
             snap pack --filename=core20-repacked.snap core20-snap
+            rm -r core20-snap
             mv core20-repacked.snap $IMAGE_HOME/core20.snap
         else 
             mv core20.snap $IMAGE_HOME/core20.snap
