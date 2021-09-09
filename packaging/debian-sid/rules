@@ -142,7 +142,7 @@ override_dh_auto_build:
 	# XXX: once dh-golang understands go build tags this would not be needed
 	find _build/src/$(DH_GOPKG)/secboot/ -name "*.go" | grep -Ev '(encrypt\.go|secboot_dummy\.go|secboot\.go|encrypt_dummy\.go)' | xargs rm -f
 	# and build
-	dh_auto_build -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
+	GO111MODULE=on dh_auto_build -- -mod vendor $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS) $(DH_GOPKG)/cmd/...
 
 	(cd _build/bin && GOPATH=$$(pwd)/.. go build $(BUILDFLAGS) $(GCCGOFLAGS) -tags "$(SNAP_TAGS)" $(DH_GOPKG)/cmd/snap)
 
@@ -184,7 +184,7 @@ endif
 	$(MAKE) -C data all
 
 override_dh_auto_test:
-	dh_auto_test -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS)
+	dh_auto_test -- $(BUILDFLAGS) -tags "$(TAGS)" $(GCCGOFLAGS) $(DH_GOPKG)/...
 # a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-keys are included

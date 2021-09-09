@@ -120,7 +120,8 @@ override_dh_auto_build:
 	mkdir -p _build/src/$(DH_GOPKG)/cmd/snap/test-data
 	cp -a cmd/snap/test-data/*.gpg _build/src/$(DH_GOPKG)/cmd/snap/test-data/
 	cp -a bootloader/assets/data _build/src/$(DH_GOPKG)/bootloader/assets
-	dh_auto_build -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
+	GOINVOKEFLAGS='-mod=vendor'	GO111MODULE=on \
+		dh_auto_build -- -mod vendor $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS) $(DH_GOPKG)/cmd/...
 
 	(cd _build/bin && GOPATH=$$(pwd)/.. go build -mod vendor $(BUILDFLAGS) $(GCCGOFLAGS) $(SNAP_TAGS) $(DH_GOPKG)/cmd/snap)
 
@@ -144,7 +145,7 @@ override_dh_auto_build:
 	$(MAKE) -C data all
 
 override_dh_auto_test:
-	dh_auto_test -- $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS)
+	dh_auto_test -- -mod vendor $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS) $(DH_GOPKG)/...
 # a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-keys are included
