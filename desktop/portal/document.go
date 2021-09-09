@@ -39,7 +39,6 @@ const (
 
 var (
 	userCurrent        = user.Current
-	osGetenv           = os.Getenv
 	dbusutilSessionBus = dbusutil.SessionBus
 )
 
