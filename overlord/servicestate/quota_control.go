@@ -47,7 +47,7 @@ func init() {
 func quotaGroupsAvailable(st *state.State) error {
 	// check if the systemd version is too old
 	if systemdVersionError != nil {
-		return fmt.Errorf("snap quotas requires systemd 230 or newer: %v", systemdVersionError)
+		return fmt.Errorf("cannot use quotas with incompatible systemd: %v", systemdVersionError)
 	}
 
 	tr := config.NewTransaction(st)

@@ -197,6 +197,22 @@ func getVersion() (int, error) {
 	return ver, nil
 }
 
+type systemdTooOldError struct {
+	expected int
+	got      int
+}
+
+func (e *systemdTooOldError) Error() string {
+	return fmt.Sprintf("systemd version %d is too old (expected at least %d)", e.got, e.expected)
+}
+
+// IsSystemdTooOld returns true if the error is a result of a failed
+// check whether systemd version is at least what was asked for.
+func IsSystemdTooOld(err error) bool {
+	_, ok := err.(*systemdTooOldError)
+	return ok
+}
+
 // EnsureAtLeast checks whether the installed version of systemd is greater or
 // equal than the given one. An error is returned if the required version is
 // not matched, and also if systemd is not installed or not working
@@ -206,7 +222,7 @@ func EnsureAtLeast(requiredVersion int) error {
 		return err
 	}
 	if version < requiredVersion {
-		return fmt.Errorf(`installed version %d is too old`, version)
+		return &systemdTooOldError{got: version, expected: requiredVersion}
 	}
 	return nil
 }

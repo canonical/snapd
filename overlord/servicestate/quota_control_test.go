@@ -222,7 +222,7 @@ func (s *quotaControlSuite) TestCreateQuotaSystemdTooOld(c *C) {
 	servicestate.CheckSystemdVersion()
 
 	_, err := servicestate.CreateQuota(s.state, "foo", "", nil, quantity.SizeGiB)
-	c.Assert(err, ErrorMatches, `snap quotas requires systemd 230 or newer: installed version 229 is too old`)
+	c.Assert(err, ErrorMatches, `cannot use quotas with incompatible systemd: systemd version 229 is too old \(expected at least 230\)`)
 }
 
 func (s *quotaControlSuite) TestCreateQuotaPrecond(c *C) {
