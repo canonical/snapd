@@ -52,24 +52,37 @@ type cmdSet struct {
 		Snap       installedSnapName
 		ConfValues []string `required:"1"`
 	} `positional-args:"yes" required:"yes"`
+
+	Typed  bool `short:"t"`
+	String bool `short:"s"`
 }
 
 func init() {
-	addCommand("set", shortSetHelp, longSetHelp, func() flags.Commander { return &cmdSet{} }, waitDescs, []argDesc{
-		{
-			name: "<snap>",
+	addCommand("set", shortSetHelp, longSetHelp, func() flags.Commander { return &cmdSet{} },
+		waitDescs.also(map[string]string{
 			// TRANSLATORS: This should not start with a lowercase letter.
-			desc: i18n.G("The snap to configure (e.g. hello-world)"),
-		}, {
-			// TRANSLATORS: This needs to begin with < and end with >
-			name: i18n.G("<conf value>"),
+			"t": i18n.G("Parse the value strictly as JSON document"),
 			// TRANSLATORS: This should not start with a lowercase letter.
-			desc: i18n.G("Set (key=value) or unset (key!) configuration value"),
-		},
-	})
+			"s": i18n.G("Parse the value as a string"),
+		}), []argDesc{
+			{
+				name: "<snap>",
+				// TRANSLATORS: This should not start with a lowercase letter.
+				desc: i18n.G("The snap to configure (e.g. hello-world)"),
+			}, {
+				// TRANSLATORS: This needs to begin with < and end with >
+				name: i18n.G("<conf value>"),
+				// TRANSLATORS: This should not start with a lowercase letter.
+				desc: i18n.G("Set (key=value) or unset (key!) configuration value"),
+			},
+		})
 }
 
 func (x *cmdSet) Execute(args []string) error {
+	if x.String && x.Typed {
+		return fmt.Errorf(i18n.G("cannot use -t and -s together"))
+	}
+
 	patchValues := make(map[string]interface{})
 	for _, patchValue := range x.Positional.ConfValues {
 		parts := strings.SplitN(patchValue, "=", 2)
@@ -80,12 +93,21 @@ func (x *cmdSet) Execute(args []string) error {
 		if len(parts) != 2 {
 			return fmt.Errorf(i18n.G("invalid configuration: %q (want key=value)"), patchValue)
 		}
-		var value interface{}
-		if err := jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value); err != nil {
-			// Not valid JSON-- just save the string as-is.
+
+		if x.String {
 			patchValues[parts[0]] = parts[1]
 		} else {
-			patchValues[parts[0]] = value
+			var value interface{}
+			if err := jsonutil.DecodeWithNumber(strings.NewReader(parts[1]), &value); err != nil {
+				if x.Typed {
+					return fmt.Errorf("failed to parse JSON: %w", err)
+				}
+
+				// Not valid JSON-- just save the string as-is.
+				patchValues[parts[0]] = parts[1]
+			} else {
+				patchValues[parts[0]] = value
+			}
 		}
 	}
 
