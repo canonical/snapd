@@ -442,6 +442,10 @@ nested_get_extra_snaps_path() {
     echo "${PWD}/extra-snaps"
 }
 
+nested_get_assets_path() {
+    echo "$NESTED_ASSETS_DIR"
+}
+
 nested_get_extra_snaps() {
     local EXTRA_SNAPS=""
     local EXTRA_SNAPS_PATH
@@ -1233,6 +1237,10 @@ nested_destroy_vm() {
     local CURRENT_IMAGE
     CURRENT_IMAGE="$NESTED_IMAGES_DIR/$(nested_get_current_image_name)" 
     rm -f "$CURRENT_IMAGE"
+}
+
+nested_status_vm() {
+    systemctl status "$NESTED_VM" || true
 }
 
 nested_exec() {
