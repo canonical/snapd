@@ -14,9 +14,19 @@ execute: |
     "$TESTSTOOLS"/snapd-state --foo 2>&1 | MATCH "snapd-state: no such command: --foo"
     "$TESTSTOOLS"/snapd-state foo 2>&1 | MATCH "snapd-state: no such command: foo"
 
+    function check_date() {
+        local TEST_DATE="$1"
+        local TOLERANCE_SECONDS="1800" # 30 minutes
+
+        CURRENT_DATE="$(date +'%F')"
+        TIMESTAMP_MINUS_TOLERANCE=$(($(date +%s) - TOLERANCE_SECONDS))
+        DATE_MINUS_TOLERANCE="$(date +'%F' --date="@${TIMESTAMP_MINUS_TOLERANCE}")"
+        echo "$TEST_DATE" | MATCH "^(${CURRENT_DATE}|${DATE_MINUS_TOLERANCE})"
+    }
+
     # Check print state command
     current_date="$("$TESTSTOOLS"/snapd-state print-state '.data["last-refresh"]')"
-    echo "$current_date" | MATCH "^$(date +'%F')"
+    check_date "$current_date"
 
     # Check check state command
     "$TESTSTOOLS"/snapd-state check-state '.data["last-refresh"]' = "$current_date"
@@ -42,7 +52,7 @@ execute: |
     # check prevent autorefresh command
     "$TESTSTOOLS"/snapd-state prevent-autorefresh
     new_refresh_date="$("$TESTSTOOLS"/snapd-state print-state '.data["last-refresh"]')"
-    echo "$new_refresh_date" | MATCH "^$(date +'%F')"
+    check_date "$new_refresh_date"
 
     # check wait-for-snap-autorefresh command
     systemctl stop snapd.{service,socket}
