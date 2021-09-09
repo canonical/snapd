@@ -38,7 +38,7 @@ type snapFileSuite struct {
 }
 
 func (s *snapFileSuite) TestGetFile(c *check.C) {
-	d := s.daemonWithOverlordMock(c)
+	d := s.daemonWithOverlordMock()
 	st := d.Overlord().State()
 
 	type scenario struct {
