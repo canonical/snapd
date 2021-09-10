@@ -85,11 +85,11 @@ var refreshFromHookTests = []struct {
 	args: []string{"refresh", "--proceed", "--hold"},
 	err:  "cannot use --proceed and --hold together",
 }, {
-	args: []string{"refresh", "--proceed", "--show-inhibit-lock"},
-	err:  "cannot use --proceed and --show-inhibit-lock together",
+	args: []string{"refresh", "--proceed", "--show-lock"},
+	err:  "cannot use --proceed and --show-lock together",
 }, {
-	args: []string{"refresh", "--hold", "--show-inhibit-lock"},
-	err:  "cannot use --hold and --show-inhibit-lock together",
+	args: []string{"refresh", "--hold", "--show-lock"},
+	err:  "cannot use --hold and --show-lock together",
 }, {
 	args: []string{"refresh", "--pending"},
 	refreshCandidates: map[string]interface{}{
@@ -453,7 +453,7 @@ func (s *refreshSuite) TestRefreshPrintInhibitHint(c *C) {
 	c.Check(runinhibit.LockWithHint("snap1", runinhibit.HintInhibitedForRefresh), IsNil)
 	lock.Unlock()
 
-	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--show-inhibit-lock"}, 0)
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--show-lock"}, 0)
 	c.Assert(err, IsNil)
 	c.Check(string(stdout), Equals, "refresh")
 	c.Check(string(stderr), Equals, "")

@@ -48,7 +48,7 @@ type refreshCommand struct {
 	Proceed bool `long:"proceed" description:"Proceed with potentially disruptive refreshes"`
 	Hold    bool `long:"hold" description:"Do not proceed with potentially disruptive refreshes"`
 
-	PrintInhibitLock bool `long:"show-inhibit-lock" description:"Show inhibit lock value (may be empty)"`
+	PrintInhibitLock bool `long:"show-lock" description:"Show the value of the run inhibit lock held during refreshes (empty means not held)"`
 }
 
 var shortRefreshHelp = i18n.G("The refresh command prints pending refreshes and can hold back disruptive ones.")
@@ -110,7 +110,7 @@ func (c *refreshCommand) Execute(args []string) error {
 		val  bool
 		name string
 	}{
-		{c.PrintInhibitLock, "--show-inhibit-lock"},
+		{c.PrintInhibitLock, "--show-lock"},
 		{c.Hold, "--hold"},
 		{c.Proceed, "--proceed"},
 	} {
