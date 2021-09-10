@@ -623,14 +623,46 @@ func installCandidates(st *state.State, names []string, channel string, user *au
 		return nil, err
 	}
 
+	enforcedSets, err := EnforcedValidationSets(st)
+	if err != nil {
+		return nil, err
+	}
+
 	actions := make([]*store.SnapAction, len(names))
 	for i, name := range names {
-		actions[i] = &store.SnapAction{
+		action := &store.SnapAction{
 			Action:       "install",
 			InstanceName: name,
 			// the desired channel
 			Channel: channel,
 		}
+
+		if enforcedSets != nil {
+			// check for invalid presence first to have a list of sets where it's invalid
+			invalidForValSets, err := enforcedSets.CheckPresenceInvalid(naming.Snap(name))
+			if err != nil {
+				if _, ok := err.(*snapasserts.PresenceConstraintError); !ok {
+					return nil, err
+				} // else presence is optional or required, carry on
+			}
+			if len(invalidForValSets) > 0 {
+				return nil, fmt.Errorf("cannot install snap %q due to enforcing rules of validation set %s", name, strings.Join(invalidForValSets, ","))
+			}
+			requiredValSets, requiredRevision, err := enforcedSets.CheckPresenceRequired(naming.Snap(name))
+			if err != nil {
+				return nil, err
+			}
+			if len(requiredValSets) > 0 {
+				setActionValidationSets(action, requiredValSets)
+				if !requiredRevision.Unset() {
+					// XXX: should we reset desired channel if revision is set?
+					// it should be fine to let the store error out if the
+					// desired channel doesn't have the needed revision.
+					action.Revision = requiredRevision
+				}
+			}
+		}
+		actions[i] = action
 	}
 
 	// TODO: possibly support a deviceCtx
