@@ -300,46 +300,6 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 		Model: "pc-model",
 	})
 
-	// current gadget
-	siModelGadget := &snap.SideInfo{
-		RealName: "pc",
-		Revision: snap.R(33),
-		SnapID:   snaptest.AssertedSnapID("pc"),
-	}
-	snapstate.Set(s.state, "pc", &snapstate.SnapState{
-		SnapType:        "gadget",
-		Sequence:        []*snap.SideInfo{siModelGadget},
-		Current:         siModelGadget.Revision,
-		Active:          true,
-		TrackingChannel: "latest/stable",
-	})
-	// current kernel
-	siModelKernel := &snap.SideInfo{
-		RealName: "pc-kernel",
-		Revision: snap.R(32),
-		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
-	}
-	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
-		SnapType:        "kernel",
-		Sequence:        []*snap.SideInfo{siModelKernel},
-		Current:         siModelKernel.Revision,
-		Active:          true,
-		TrackingChannel: "latest/stable",
-	})
-	// and base
-	siModelBase := &snap.SideInfo{
-		RealName: "core18",
-		Revision: snap.R(31),
-		SnapID:   snaptest.AssertedSnapID("core18"),
-	}
-	snapstate.Set(s.state, "core18", &snapstate.SnapState{
-		SnapType:        "base",
-		Sequence:        []*snap.SideInfo{siModelBase},
-		Current:         siModelBase.Revision,
-		Active:          true,
-		TrackingChannel: "latest/stable",
-	})
-
 	headers := map[string]interface{}{
 		"architecture":   "amd64",
 		"kernel":         "pc-kernel",
@@ -601,45 +561,6 @@ func (s *deviceMgrRemodelSuite) TestRemodelSwitchKernelTrack(c *C) {
 		Brand:  "canonical",
 		Model:  "pc-model",
 		Serial: "1234",
-	})
-	// current gadget
-	siModelGadget := &snap.SideInfo{
-		RealName: "pc",
-		Revision: snap.R(33),
-		SnapID:   snaptest.AssertedSnapID("pc"),
-	}
-	snapstate.Set(s.state, "pc", &snapstate.SnapState{
-		SnapType:        "gadget",
-		Sequence:        []*snap.SideInfo{siModelGadget},
-		Current:         siModelGadget.Revision,
-		Active:          true,
-		TrackingChannel: "latest/stable",
-	})
-	// current kernel
-	siModelKernel := &snap.SideInfo{
-		RealName: "pc-kernel",
-		Revision: snap.R(32),
-		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
-	}
-	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
-		SnapType:        "kernel",
-		Sequence:        []*snap.SideInfo{siModelKernel},
-		Current:         siModelKernel.Revision,
-		Active:          true,
-		TrackingChannel: "latest/stable",
-	})
-	// and base
-	siModelBase := &snap.SideInfo{
-		RealName: "core18",
-		Revision: snap.R(31),
-		SnapID:   snaptest.AssertedSnapID("core18"),
-	}
-	snapstate.Set(s.state, "core18", &snapstate.SnapState{
-		SnapType:        "base",
-		Sequence:        []*snap.SideInfo{siModelBase},
-		Current:         siModelBase.Revision,
-		Active:          true,
-		TrackingChannel: "latest/stable",
 	})
 
 	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{

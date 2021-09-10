@@ -375,7 +375,7 @@ func installedSnapChange(st *state.State, modelSnapName, declaredChannel string)
 	return false, nil
 }
 
-func modelSnapChannel(new *asserts.Model, s *asserts.ModelSnap) (string, error) {
+func modelSnapChannelFromDefaultOrPinnedTrack(new *asserts.Model, s *asserts.ModelSnap) (string, error) {
 	if new.Grade() == asserts.ModelGradeUnset {
 		if s == nil {
 			// it was possible to not specify the base snap in UC16
@@ -401,15 +401,24 @@ type modelSnapsForRemodel struct {
 
 func remodelKernelOrBaseTasks(ctx context.Context, st *state.State, ms modelSnapsForRemodel, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 	userID := 0
-	newModelSnapChannel, err := modelSnapChannel(ms.new, ms.newModelSnap)
+	newModelSnapChannel, err := modelSnapChannelFromDefaultOrPinnedTrack(ms.new, ms.newModelSnap)
 	if err != nil {
 		return nil, err
 	}
 	if ms.currentSnap == ms.newSnap {
-		// new model uses the same base or kernel
-		changed, err := installedSnapChange(st, ms.newSnap, newModelSnapChannel)
-		if err != nil {
-			return nil, err
+		changed := false
+		if ms.new.Grade() != asserts.ModelGradeUnset {
+			// UC20 models can specify default channel for all snaps
+			// including base and kernel
+			// new model uses the same base or kernel
+			changed, err = installedSnapChange(st, ms.newSnap, newModelSnapChannel)
+			if err != nil {
+				return nil, err
+			}
+		} else if ms.newModelSnap != nil && ms.newModelSnap.SnapType == "kernel" {
+			// UC18 models could only specify track for the kernel
+			// and gadget snaps
+			changed = ms.currentModelSnap.PinnedTrack != ms.newModelSnap.PinnedTrack
 		}
 		if changed {
 			// new modes specifies the same snap, but with a new channel
@@ -432,30 +441,43 @@ func remodelKernelOrBaseTasks(ctx context.Context, st *state.State, ms modelSnap
 			userID, snapstate.Flags{}, deviceCtx, fromChange)
 	}
 
-	// which is already installed, but may be using a different channel
-	changed, err := installedSnapChange(st, ms.newModelSnap.SnapName(), newModelSnapChannel)
-	if err != nil {
-		return nil, err
-	}
-	if changed {
-		return snapstateUpdateWithDeviceContext(st, ms.newSnap,
-			&snapstate.RevisionOptions{Channel: newModelSnapChannel},
-			userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
+	if ms.new.Grade() != asserts.ModelGradeUnset {
+		// pre UC20 remodels would not update an already installed snap
+
+		// which is already installed, but may be using a different channel
+		changed, err := installedSnapChange(st, ms.newModelSnap.SnapName(), newModelSnapChannel)
+		if err != nil {
+			return nil, err
+		}
+		if changed {
+			return snapstateUpdateWithDeviceContext(st, ms.newSnap,
+				&snapstate.RevisionOptions{Channel: newModelSnapChannel},
+				userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
+		}
 	}
 	return snapstate.LinkNewBaseOrKernel(st, ms.newSnap)
 }
 
 func remodelGadgetTasks(ctx context.Context, st *state.State, ms modelSnapsForRemodel, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 	userID := 0
-	newGadgetChannel, err := modelSnapChannel(ms.new, ms.newModelSnap)
+	newGadgetChannel, err := modelSnapChannelFromDefaultOrPinnedTrack(ms.new, ms.newModelSnap)
 	if err != nil {
 		return nil, err
 	}
 	if ms.currentSnap == ms.newSnap {
 		// which is already installed, but may be using a different channel
-		changed, err := installedSnapChange(st, ms.newSnap, newGadgetChannel)
-		if err != nil {
-			return nil, err
+		changed := false
+		if ms.new.Grade() != asserts.ModelGradeUnset {
+			// UC20 models can specify default channel for all snaps
+			// including the gadget
+			changed, err = installedSnapChange(st, ms.newSnap, newGadgetChannel)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			// pre UC20 models could only specify a track for the
+			// gadget
+			changed = ms.currentModelSnap.PinnedTrack != ms.newModelSnap.PinnedTrack
 		}
 		if changed {
 			return snapstateUpdateWithDeviceContext(st, ms.newSnap,
@@ -537,7 +559,7 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 			}
 		}
 		// default channel can be set only in UC20 models
-		newModelSnapChannel, err := modelSnapChannel(new, modelSnap)
+		newModelSnapChannel, err := modelSnapChannelFromDefaultOrPinnedTrack(new, modelSnap)
 		if err != nil {
 			return nil, err
 		}

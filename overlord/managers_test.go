@@ -5596,10 +5596,6 @@ func (s *mgrsSuite) TestRemodelSwitchGadgetTrack(c *C) {
 	bloader := bootloadertest.Mock("mock", c.MkDir())
 	bootloader.Force(bloader)
 	defer bootloader.Force(nil)
-	bloader.SetBootVars(map[string]string{
-		"snap_kernel": "pc-kernel_1.snap",
-		"snap_core":   "core_1.snap",
-	})
 
 	restore := release.MockOnClassic(false)
 	defer restore()
@@ -5631,14 +5627,6 @@ volumes:
 		{"meta/gadget.yaml", gadgetYaml},
 	})
 	s.serveSnap(snapPath, "2")
-
-	si = &snap.SideInfo{RealName: "pc-kernel", SnapID: fakeSnapID("pc-kernel"), Revision: snap.R(1)}
-	snapstate.Set(st, "pc-kernel", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{si},
-		Current:  snap.R(1),
-		SnapType: "kernel",
-	})
 
 	// create/set custom model assertion
 	model := s.brands.Model("can0nical", "my-model", modelDefaults)
