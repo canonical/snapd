@@ -260,7 +260,8 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 
 	// check if desired revision matches the revision required by validation sets
 	if !requiredRevision.Unset() && !revOpts.Revision.Unset() && revOpts.Revision.N != requiredRevision.N {
-		return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q at requested revision %s without --ignore-validation, revision %s required by validation sets: %s", name, revOpts.Revision, requiredRevision, strings.Join(requiredValSets, ","))
+		return store.SnapActionResult{}, fmt.Errorf("cannot install snap %q at requested revision %s without --ignore-validation, revision %s required by validation sets: %s",
+			name, revOpts.Revision, requiredRevision, strings.Join(requiredValSets, ","))
 	}
 
 	if len(requiredValSets) > 0 {
@@ -333,7 +334,8 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 			return nil, err
 		}
 		if !requiredRevision.Unset() && snapst.Current == requiredRevision {
-			return nil, fmt.Errorf("snap %q is at the required revision %s by validation sets: %s, cannot update", curInfo.InstanceName(), snapst.Current, strings.Join(requiredValsets, ","))
+			return nil, fmt.Errorf("snap %q is at the required revision %s by validation sets: %s, cannot update",
+				curInfo.InstanceName(), snapst.Current, strings.Join(requiredValsets, ","))
 		}
 
 		if len(requiredValsets) > 0 {
