@@ -166,6 +166,7 @@ func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChan
 		if chg == nil || chg.Status().Ready() {
 			continue
 		}
+
 		if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
 			continue
 		}
@@ -181,6 +182,13 @@ func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChan
 		snaps, err := affectedSnaps(task)
 		if err != nil {
 			return err
+		}
+
+		// ignore, if this task can't run. Otherwise, we will signal a
+		// conflict if other tasks in this change can still run, even if
+		// they don't affect the snap we care about
+		if task.Status().Ready() {
+			continue
 		}
 
 		for _, snap := range snaps {

@@ -5327,7 +5327,7 @@ func (s *snapmgrTestSuite) TestConflictCreateRecovery(c *C) {
 	err = snapstate.CheckChangeConflictRunExclusively(s.state, "remodel")
 	c.Check(err, ErrorMatches, `creating recovery system in progress, no other changes allowed until this is done`)
 
-	// so does another another create recovery system change
+	// so does another create recovery system change
 	err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
 	c.Check(err, ErrorMatches, `creating recovery system in progress, no other changes allowed until this is done`)
 }
@@ -5345,6 +5345,37 @@ func (s *snapmgrTestSuite) TestConflictExclusive(c *C) {
 	// and so does the  remodel conflicts with any other change
 	err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
 	c.Check(err, ErrorMatches, `other changes in progress \(conflicting change "install-snap-a"\), change "create-recovery-system" not allowed until they are done`)
+}
+
+func (s *snapmgrTestSuite) TestOnlyConflictOnRelevantRunnableTask(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	chg := s.state.NewChange("some", "...")
+
+	// task that affects the same snap but won't run
+	failedTask := s.state.NewTask("failed", "")
+	failedTask.SetStatus(state.ErrorStatus)
+
+	failedTask.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "some-snap",
+		},
+	})
+	chg.AddTask(failedTask)
+
+	// task that doesn't affect that same but will run
+	runnableTask := s.state.NewTask("runnable", "")
+	runnableTask.SetStatus(state.DoStatus)
+	runnableTask.Set("snap-setup", &snapstate.SnapSetup{
+		SideInfo: &snap.SideInfo{
+			RealName: "other-snap",
+		},
+	})
+	chg.AddTask(runnableTask)
+
+	// shouldn't conflict because there are no tasks that can run AND affect the same snap
+	c.Assert(snapstate.CheckChangeConflict(s.state, "some-snap", nil), IsNil)
 }
 
 type contentStore struct {
