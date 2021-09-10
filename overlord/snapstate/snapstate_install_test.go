@@ -3787,5 +3787,5 @@ func (s *validationSetsSuite) TestInstallSnapRequiredForValidationSetAtRevision(
 
 func (s *validationSetsSuite) TestInstallSnapReferencedByValidationSetWrongRevision(c *C) {
 	err := s.installSnapReferencedByValidationSet(c, "required", "3", snap.R(2))
-	c.Assert(err, ErrorMatches, `cannot install snap "some-snap" at requested revision 2, revision 3 required by validation sets: foo/bar`)
+	c.Assert(err, ErrorMatches, `cannot install snap "some-snap" at requested revision 2 without --ignore-validation, revision 3 required by validation sets: foo/bar`)
 }
