@@ -27,6 +27,7 @@
 #include <unistd.h>
 #include <limits.h>
 #include <stdint.h>
+#include <dlfcn.h>
 
 #include <libudev.h>
 
@@ -227,17 +228,43 @@ static void sc_cleanup_udev_enumerate(struct udev_enumerate **enumerate)
 	}
 }
 
-
-/* symbol will be resolved at link time by ld.so if the libudev library has
- * it */
-int udev_device_has_current_tag(struct udev_device *udev_device,
-				const char *tag) __attribute__((weak));
+/* __sc_udev_device_has_current_tag will be filled at runtime if the libudev has
+ * this symbol.
+ *
+ * Note that we could try to define udev_device_has_current_tag with a weak
+ * attribute, which should in the normal case be the filled by ld.so when
+ * loading snap-confined. However this was observed to work in practice only
+ * when the binary itself is build with recent enough toolchain (eg. gcc &
+ * binutils on Ubuntu 20.04)
+ */
+static int (*__sc_udev_device_has_current_tag)(struct udev_device *udev_device,
+											   const char *tag) = NULL;
+static void setup_current_tags_support(void)
+{
+    void *lib = dlopen("libudev.so.1", RTLD_NOW);
+    if (lib == NULL) {
+        debug("cannot load libudev.so.1: %s", dlerror());
+        /* bit unexpected as we use the library from the host and it's stable */
+        return;
+    }
+    /* check whether we have the symbol introduced in systemd v247 to inspect
+     * the CURRENT_TAGS property */
+    void *sym = dlsym(lib, "udev_device_has_current_tag");
+    if (sym == NULL) {
+        debug("cannot find current tags symbol: %s", dlerror());
+        /* symbol is not found in the library version */
+        return;
+    }
+    debug("libudev has current tags support");
+    __sc_udev_device_has_current_tag = sym;
+}
 
 void sc_setup_device_cgroup(const char *security_tag)
 {
 	debug("setting up device cgroup");
 
-	if (udev_device_has_current_tag == NULL) {
+	setup_current_tags_support();
+	if (__sc_udev_device_has_current_tag == NULL) {
 		debug("no current tags support present");
 	}
 
@@ -310,8 +337,8 @@ void sc_setup_device_cgroup(const char *security_tag)
 		 * desired effect of not re-creating device cgroups that were
 		 * previously created/setup but should no longer be setup due
 		 * to interface disconnection, etc. */
-		if (udev_device_has_current_tag != NULL) {
-			if (udev_device_has_current_tag(device, udev_tag) <= 0) {
+		if (__sc_udev_device_has_current_tag != NULL) {
+			if (__sc_udev_device_has_current_tag(device, udev_tag) <= 0) {
 				debug("device %s has no matching current tag",
 				      path);
 				udev_device_unref(device);
