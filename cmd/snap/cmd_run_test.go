@@ -94,6 +94,8 @@ func (s *RunSuite) SetUpTest(c *check.C) {
 	s.AddCleanup(snaprun.MockCreateTransientScopeForTracking(func(string, *cgroup.TrackingOptions) error {
 		return nil
 	}))
+	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(false)
+	s.AddCleanup(restoreIsGraphicalSession)
 }
 
 func (s *RunSuite) TestInvalidParameters(c *check.C) {
@@ -1803,9 +1805,6 @@ func (s *RunSuite) TestWaitWhileInhibitedTextFlow(c *check.C) {
 		return runinhibit.HintNotInhibited, nil
 	})
 	defer restore()
-
-	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(false)
-	defer restoreIsGraphicalSession()
 
 	meter := &progresstest.Meter{}
 	defer progress.MockMeter(meter)()
