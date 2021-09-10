@@ -25,10 +25,8 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"os"
 
 	"github.com/canonical/go-tpm2"
-	"github.com/snapcore/secboot"
 	sb "github.com/snapcore/secboot"
 	"golang.org/x/xerrors"
 
@@ -64,7 +62,7 @@ var (
 	provisionTPM = provisionTPMImpl
 
 	// dummy to check whether the interfaces match
-	_ (secboot.SnapModel) = ModelForSealing(nil)
+	_ (sb.SnapModel) = ModelForSealing(nil)
 )
 
 func isTPMEnabledImpl(tpm *sb.TPMConnection) bool {
@@ -120,16 +118,6 @@ func checkSecureBootEnabled() error {
 // initramfsPCR is the TPM PCR that we reserve for the EFI image and use
 // for measurement from the initramfs.
 const initramfsPCR = 12
-
-func secureConnectToTPM(ekcfile string) (*sb.TPMConnection, error) {
-	ekCertReader, err := os.Open(ekcfile)
-	if err != nil {
-		return nil, fmt.Errorf("cannot open endorsement key certificate file: %v", err)
-	}
-	defer ekCertReader.Close()
-
-	return sb.SecureConnectToDefaultTPM(ekCertReader, nil)
-}
 
 func insecureConnectToTPM() (*sb.TPMConnection, error) {
 	return sbConnectToDefaultTPM()
@@ -245,7 +233,7 @@ func unlockVolumeUsingSealedKeyTPM(name, sealedEncryptionKeyFile, sourceDevice, 
 
 	// otherwise we have a tpm and we should use the sealed key first, but
 	// this method will fallback to using the recovery key if enabled
-	method, err := unlockEncryptedPartitionWithSealedKey(tpm, mapperName, sourceDevice, sealedEncryptionKeyFile, "", opts.AllowRecoveryKey)
+	method, err := unlockEncryptedPartitionWithSealedKey(tpm, mapperName, sourceDevice, sealedEncryptionKeyFile, opts.AllowRecoveryKey)
 	res.UnlockMethod = method
 	if err == nil {
 		res.FsDevice = targetDevice
@@ -284,7 +272,7 @@ func activateVolOpts(allowRecoveryKey bool) *sb.ActivateVolumeOptions {
 // unlockEncryptedPartitionWithSealedKey unseals the keyfile and opens an encrypted
 // device. If activation with the sealed key fails, this function will attempt to
 // activate it with the fallback recovery key instead.
-func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, keyfile, pinfile string, allowRecovery bool) (UnlockMethod, error) {
+func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, keyfile string, allowRecovery bool) (UnlockMethod, error) {
 	options := activateVolOpts(allowRecovery)
 	// XXX: pinfile is currently not used
 	activated, err := sbActivateVolumeWithTPMSealedKey(tpm, name, device, keyfile, nil, options)

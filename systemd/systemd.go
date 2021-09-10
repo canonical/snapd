@@ -36,8 +36,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	_ "github.com/snapcore/squashfuse"
-
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/osutil"
@@ -65,6 +63,9 @@ var (
 	daemonReloadLock extMutex
 
 	osutilIsMounted = osutil.IsMounted
+
+	// allow replacing the systemd implementation with a mock one
+	newSystemd = newSystemdReal
 )
 
 // mu is a sync.Mutex that also supports to check if the lock is taken
@@ -91,6 +92,16 @@ func (m *extMutex) Unlock() {
 func (m *extMutex) Taken(errMsg string) {
 	if atomic.LoadInt32(&m.muC) != 1 {
 		panic("internal error: " + errMsg)
+	}
+}
+
+// MockNewSystemd can be used to replace the constructor of the
+// Systemd types with a function that returns a mock object.
+func MockNewSystemd(f func(kind Kind, rootDir string, mode InstanceMode, rep Reporter) Systemd) func() {
+	oldNewSystemd := newSystemd
+	newSystemd = f
+	return func() {
+		newSystemd = oldNewSystemd
 	}
 }
 
@@ -308,19 +319,30 @@ const (
 	UserServicesTarget = "default.target"
 )
 
-type reporter interface {
+type Reporter interface {
 	Notify(string)
+}
+
+func newSystemdReal(kind Kind, rootDir string, mode InstanceMode, rep Reporter) Systemd {
+	switch kind {
+	case FullImplementation:
+		return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
+	case EmulationMode:
+		return &emulation{rootDir: rootDir}
+	default:
+		panic(fmt.Sprintf("unsupported systemd kind %v", kind))
+	}
 }
 
 // New returns a Systemd that uses the default root directory and omits
 // --root argument when executing systemctl.
-func New(mode InstanceMode, rep reporter) Systemd {
-	return &systemd{mode: mode, reporter: rep}
+func New(mode InstanceMode, rep Reporter) Systemd {
+	return newSystemd(FullImplementation, "", mode, rep)
 }
 
 // NewUnderRoot returns a Systemd that operates on the given rootdir.
-func NewUnderRoot(rootDir string, mode InstanceMode, rep reporter) Systemd {
-	return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
+func NewUnderRoot(rootDir string, mode InstanceMode, rep Reporter) Systemd {
+	return newSystemd(FullImplementation, rootDir, mode, rep)
 }
 
 // NewEmulationMode returns a Systemd that runs in emulation mode where
@@ -330,9 +352,7 @@ func NewEmulationMode(rootDir string) Systemd {
 	if rootDir == "" {
 		rootDir = dirs.GlobalRootDir
 	}
-	return &emulation{
-		rootDir: rootDir,
-	}
+	return newSystemd(EmulationMode, rootDir, SystemMode, nil)
 }
 
 // InstanceMode determines which instance of systemd to control.
@@ -353,9 +373,16 @@ const (
 	GlobalUserMode
 )
 
+type Kind int
+
+const (
+	FullImplementation Kind = iota
+	EmulationMode
+)
+
 type systemd struct {
 	rootDir  string
-	reporter reporter
+	reporter Reporter
 	mode     InstanceMode
 }
 

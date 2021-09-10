@@ -22,10 +22,8 @@ prepare: |
 
   # shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
-  # shellcheck source=tests/lib/snaps.sh
-  . "$TESTSLIB/snaps.sh"
 
-  repack_snapd_deb_into_snapd_snap "$PWD"
+  "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
   echo "Repack the snapd snap with a marker file"
   unsquashfs -d snapd-snap snapd-from-deb.snap
 
@@ -41,10 +39,10 @@ prepare: |
     unsquashfs -d pc-gadget pc.snap
 
     echo "Sign the shim binary"
-    KEY_NAME=$(nested_get_snakeoil_key)
+    KEY_NAME=$(tests.nested get snakeoil-key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
-    nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+    tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
     case "$VARIANT" in
       gadget-extra)
@@ -97,7 +95,7 @@ execute: |
   esac
 
   echo "Install new (unasserted) snapd and wait for reboot/change finishing"
-  boot_id="$( nested_get_boot_id )"
+  boot_id="$( tests.nested boot-id )"
   REMOTE_CHG_ID=$(tests.nested exec sudo snap install --dangerous snapd-boot-config-update.snap --no-wait)
   tests.nested exec sudo snap watch "${REMOTE_CHG_ID}"
   if [ "$VARIANT" != "gadget-full" ]; then

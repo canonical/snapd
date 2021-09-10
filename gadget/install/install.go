@@ -32,11 +32,6 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
-const (
-	ubuntuDataLabel = "ubuntu-data"
-	ubuntuSaveLabel = "ubuntu-save"
-)
-
 func deviceFromRole(lv *gadget.LaidOutVolume, role string) (device string, err error) {
 	for _, vs := range lv.LaidOutStructure {
 		// XXX: this part of the finding maybe should be a

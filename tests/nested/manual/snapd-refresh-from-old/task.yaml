@@ -20,9 +20,6 @@ prepare: |
   #shellcheck source=tests/lib/nested.sh
   . "$TESTSLIB/nested.sh"
 
-  #shellcheck source=tests/lib/snaps.sh
-  . "$TESTSLIB"/snaps.sh
-
   mkdir extra-snaps
   wget -P extra-snaps "$SNAPD_SNAP_URL" "$CORE18_SNAP_URL"
 
@@ -31,7 +28,7 @@ prepare: |
   tests.nested create-vm core
 
   # for refresh in later step of the test
-  repack_snapd_deb_into_snapd_snap "$PWD"
+  "$TESTSTOOLS"/snaps-state repack_snapd_deb_into_snap snapd
 
 execute: |
   #shellcheck source=tests/lib/nested.sh
@@ -41,7 +38,7 @@ execute: |
   tests.nested exec "snap list" | MATCH "snapd.*5760"
   tests.nested exec "snap list" | MATCH "core18.*1279"
 
-  INITIAL_BOOT_ID=$(nested_get_boot_id)
+  INITIAL_BOOT_ID=$(tests.nested boot-id)
 
   if [ "$SPREAD_VARIANT" = "edge_first" ]; then
     # refresh to latest snapd from store, this will drop from ssh.

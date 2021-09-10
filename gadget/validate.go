@@ -93,7 +93,7 @@ func ruleValidateVolumes(vols map[string]*Volume, model Model, extra *Validation
 	}
 
 	for name, v := range vols {
-		if err := ruleValidateVolume(name, v, expectedSeed); err != nil {
+		if err := ruleValidateVolume(v, expectedSeed); err != nil {
 			return fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 	}
@@ -117,7 +117,7 @@ func ruleValidateVolumes(vols map[string]*Volume, model Model, extra *Validation
 	return nil
 }
 
-func ruleValidateVolume(name string, vol *Volume, expectedSeed bool) error {
+func ruleValidateVolume(vol *Volume, expectedSeed bool) error {
 	for idx, s := range vol.Structure {
 		if err := ruleValidateVolumeStructure(&s, expectedSeed); err != nil {
 			return fmt.Errorf("invalid structure %v: %v", fmtIndexAndName(idx, s.Name), err)

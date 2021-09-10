@@ -179,20 +179,28 @@ type dummyReporter struct{}
 
 func (dummyReporter) Notify(string) {}
 
-func postServiceControl(c *Command, r *http.Request) Response {
+func validateJSONRequest(r *http.Request) (valid bool, errResp Response) {
 	contentType := r.Header.Get("Content-Type")
 	mediaType, params, err := mime.ParseMediaType(contentType)
 	if err != nil {
-		return BadRequest("cannot parse content type: %v", err)
+		return false, BadRequest("cannot parse content type: %v", err)
 	}
 
 	if mediaType != "application/json" {
-		return BadRequest("unknown content type: %s", contentType)
+		return false, BadRequest("unknown content type: %s", contentType)
 	}
 
 	charset := strings.ToUpper(params["charset"])
 	if charset != "" && charset != "UTF-8" {
-		return BadRequest("unknown charset in content type: %s", contentType)
+		return false, BadRequest("unknown charset in content type: %s", contentType)
+	}
+
+	return true, nil
+}
+
+func postServiceControl(c *Command, r *http.Request) Response {
+	if ok, resp := validateJSONRequest(r); !ok {
+		return resp
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -212,19 +220,8 @@ func postServiceControl(c *Command, r *http.Request) Response {
 }
 
 func postPendingRefreshNotification(c *Command, r *http.Request) Response {
-	contentType := r.Header.Get("Content-Type")
-	mediaType, params, err := mime.ParseMediaType(contentType)
-	if err != nil {
-		return BadRequest("cannot parse content type: %v", err)
-	}
-
-	if mediaType != "application/json" {
-		return BadRequest("unknown content type: %s", contentType)
-	}
-
-	charset := strings.ToUpper(params["charset"])
-	if charset != "" && charset != "UTF-8" {
-		return BadRequest("unknown charset in content type: %s", contentType)
+	if ok, resp := validateJSONRequest(r); !ok {
+		return resp
 	}
 
 	decoder := json.NewDecoder(r.Body)

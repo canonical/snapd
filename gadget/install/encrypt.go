@@ -23,16 +23,11 @@ package install
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os/exec"
 
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
-)
-
-var (
-	tempFile = ioutil.TempFile
 )
 
 var (

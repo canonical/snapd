@@ -6,7 +6,7 @@ environment:
 
 execute: |
   # setup the install hook with the right flags
-  sed ./test-snapd-install-hook-runs-svc/meta/hooks/install.in -e s/%%FLAGS%%/$FLAGS/ > ./test-snapd-install-hook-runs-svc/meta/hooks/install
+  sed ./test-snapd-install-hook-runs-svc/meta/hooks/install.in -e "s/%%FLAGS%%/$FLAGS/" > ./test-snapd-install-hook-runs-svc/meta/hooks/install
 
   chmod +x ./test-snapd-install-hook-runs-svc/meta/hooks/install
 

@@ -594,7 +594,9 @@ pkg_dependencies_ubuntu_classic(){
                 evolution-data-server
                 fwupd
                 gccgo-9
+                libvirt-daemon-system
                 packagekit
+                qemu-kvm
                 qemu-utils
                 shellcheck
                 "
@@ -751,6 +753,7 @@ pkg_dependencies_opensuse(){
 
 pkg_dependencies_arch(){
     echo "
+    apparmor
     base-devel
     bash-completion
     clang
@@ -784,7 +787,6 @@ pkg_dependencies_arch(){
     xdg-user-dirs
     xdg-utils
     xfsprogs
-    apparmor
     zsh
     "
 }

@@ -66,8 +66,7 @@ disable_refreshes() {
 
     echo "Modify state to make it look like the last refresh just happened"
     systemctl stop snapd.socket snapd.service
-    jq ".data[\"last-refresh\"] = \"$(date +%Y-%m-%dT%H:%M:%S%:z)\"" /var/lib/snapd/state.json > /var/lib/snapd/state.json.new
-    mv /var/lib/snapd/state.json.new /var/lib/snapd/state.json
+    "$TESTSTOOLS"/snapd-state prevent-autorefresh
     systemctl start snapd.socket snapd.service
 
     echo "Minimize risk of hitting refresh schedule"
@@ -276,7 +275,10 @@ prepare_classic() {
 
         # Cache snaps
         # shellcheck disable=SC2086
-        cache_snaps core ${PRE_CACHE_SNAPS}
+        cache_snaps core core18 ${PRE_CACHE_SNAPS}
+        if os.query is-pc-amd64; then
+            cache_snaps core20
+        fi
 
         # now use parameterized core channel (defaults to edge) instead
         # of a fixed one and close to stable in order to detect defects
@@ -1124,6 +1126,9 @@ prepare_ubuntu_core() {
         cache_snaps core
         if os.query is-core18; then
             cache_snaps test-snapd-sh-core18
+        fi
+        if os.query is-core20; then
+            cache_snaps test-snapd-sh-core20
         fi
     fi
 

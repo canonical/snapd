@@ -3,11 +3,16 @@ on:
   pull_request:
     branches: [ "master", "release/**" ]
   push:
-    branches: [ "release/**" ]
+    # we trigger runs on master branch, but we do not run spread on master 
+    # branch, the master branch runs are just for unit tests + codecov.io
+    branches: [ "master","release/**" ]
 
 jobs:
   snap-builds:
     runs-on: ubuntu-20.04
+    # only build the snap for pull requests, it's not needed on release branches
+    # or on master since we have launchpad build recipes which do this already
+    if: ${{ github.event_name == 'pull_request' }}
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
@@ -57,19 +62,13 @@ jobs:
     runs-on: ubuntu-20.04
     env:
       GOPATH: ${{ github.workspace }}
-      GO111MODULE: off
       # Set PATH to ignore the load of magic binaries from /usr/local/bin And
       # to use the go snap automatically. Note that we install go from the
       # snap in a step below. Without this we get the GitHub-controlled latest
       # version of go.
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games
       GOROOT: ""
-      # XXX: compat env for "check-pr-title.py" in "run-checks", can go
-      #      once we switch away from that. Note that we cannot currently
-      #      use a github action check (like deepakputhraya/action-pr-title)
-      #      because an update of the PR title in the github UI is not visible
-      #      to the github action.
-      TRAVIS_PULL_REQUEST: ${{ github.event.number }}
+      GITHUB_PULL_REQUEST: ${{ github.event.number }}
     strategy:
       # we cache successful runs so it's fine to keep going
       fail-fast: false      
@@ -134,16 +133,8 @@ jobs:
       run: |
           sudo apt-get remove --purge shellcheck
           sudo snap install shellcheck
-    - name: Install govendor
-      run: go get -u github.com/kardianos/govendor
-    - name: Cache Go dependencies
-      id: cache-go-govendor
-      uses: actions/cache@v1
-      with:
-        path: ${{ github.workspace }}/.cache/govendor
-        key: go-govendor-{{ hashFiles('**/vendor.json') }}
-    - name: Get Go dependencies
-      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ${{ github.workspace }}/bin/govendor sync
+    - name: Get C vendoring
+      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd/c-vendor && ./vendor.sh
 
     - name: golangci-lint
       uses: golangci/golangci-lint-action@v2
@@ -199,7 +190,7 @@ jobs:
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
-        SKIP_COVERAGE=1 SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=withbootassetstesting ./run-checks --unit
+        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=withbootassetstesting ./run-checks --unit
     - name: Test Go (nosecboot)
       if: steps.cached-results.outputs.already-ran != 'true'
       run: |
@@ -207,10 +198,18 @@ jobs:
         echo "Dropping github.com/snapcore/secboot"
         # use govendor remove so that a subsequent govendor sync does not
         # install secboot again
-        ${{ github.workspace }}/bin/govendor remove github.com/snapcore/secboot
-        ${{ github.workspace }}/bin/govendor remove +unused
-        # we don't need coverage anymore
-        SKIP_COVERAGE=1 SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
+        # ${{ github.workspace }}/bin/govendor remove github.com/snapcore/secboot
+        # ${{ github.workspace }}/bin/govendor remove +unused
+        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v2
+      if: steps.cached-results.outputs.already-ran != 'true'
+      with:
+        fail_ci_if_error: true
+        flags: unittests
+        name: codecov-umbrella
+        files: .coverage/coverage.out
+        verbose: true
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
@@ -218,6 +217,9 @@ jobs:
 
   spread:
     needs: [unit-tests]
+    # have spread jobs run on master on PRs only, but on both PRs and pushes to
+    # release branches
+    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
     runs-on: self-hosted
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
@@ -236,8 +238,8 @@ jobs:
         - debian-sid-64
         - fedora-33-64
         - fedora-34-64
-        - opensuse-15.1-64
         - opensuse-15.2-64
+        - opensuse-15.3-64
         - opensuse-tumbleweed-64
         - ubuntu-14.04-64
         - ubuntu-16.04-64
@@ -292,6 +294,9 @@ jobs:
 
   spread-nested:
     needs: [unit-tests]
+    # have spread jobs run on master on PRs only, but on both PRs and pushes to
+    # release branches
+    if: ${{ github.event_name != 'push' || github.ref != 'refs/heads/master' }}
     runs-on: self-hosted
     strategy:
       # FIXME: enable fail-fast mode once spread can cancel an executing job.
