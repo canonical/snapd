@@ -273,7 +273,7 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 		c.Check(deviceCtx, Equals, testDeviceCtx)
 		c.Check(fromChange, Equals, "99")
 		c.Check(name, Equals, whatRefreshes)
-		c.Check(opts.Channel, Equals, "18/stable")
+		c.Check(opts.Channel, Equals, "18")
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s to track %s", name, opts.Channel))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
@@ -323,13 +323,13 @@ func (s *deviceMgrRemodelSuite) testRemodelTasksSwitchTrack(c *C, whatRefreshes 
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchGadget(c *C) {
-	s.testRemodelSwitchTasks(c, "other-gadget", "18/stable", map[string]interface{}{
+	s.testRemodelSwitchTasks(c, "other-gadget", "18", map[string]interface{}{
 		"gadget": "other-gadget=18",
 	})
 }
 
 func (s *deviceMgrRemodelSuite) TestRemodelTasksSwitchKernel(c *C) {
-	s.testRemodelSwitchTasks(c, "other-kernel", "18/stable", map[string]interface{}{
+	s.testRemodelSwitchTasks(c, "other-kernel", "18", map[string]interface{}{
 		"kernel": "other-kernel=18",
 	})
 }
@@ -587,11 +587,11 @@ func (s *deviceMgrRemodelSuite) TestRemodelSwitchKernelTrack(c *C) {
 	tSetModel := tl[6]
 
 	c.Assert(tDownloadKernel.Kind(), Equals, "fake-download")
-	c.Assert(tDownloadKernel.Summary(), Equals, "Download pc-kernel from track 18/stable")
+	c.Assert(tDownloadKernel.Summary(), Equals, "Download pc-kernel from track 18")
 	c.Assert(tValidateKernel.Kind(), Equals, "validate-snap")
 	c.Assert(tValidateKernel.Summary(), Equals, "Validate pc-kernel")
 	c.Assert(tUpdateKernel.Kind(), Equals, "fake-update")
-	c.Assert(tUpdateKernel.Summary(), Equals, "Update pc-kernel to track 18/stable")
+	c.Assert(tUpdateKernel.Summary(), Equals, "Update pc-kernel to track 18")
 	c.Assert(tDownloadSnap1.Kind(), Equals, "fake-download")
 	c.Assert(tDownloadSnap1.Summary(), Equals, "Download new-required-snap-1")
 	c.Assert(tValidateSnap1.Kind(), Equals, "validate-snap")

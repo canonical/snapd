@@ -5276,7 +5276,7 @@ func (s *kernelSuite) TestRemodelSwitchKernelTrack(c *C) {
 
 	// first all downloads/checks in sequential order
 	var i int
-	i += validateDownloadCheckTasks(c, tasks[i:], "pc-kernel", "2", "18/stable")
+	i += validateDownloadCheckTasks(c, tasks[i:], "pc-kernel", "2", "18")
 	i += validateDownloadCheckTasks(c, tasks[i:], "foo", "1", "stable")
 
 	// then all installs in sequential order
@@ -5662,7 +5662,7 @@ volumes:
 
 	// first all downloads/checks in sequential order
 	var i int
-	i += validateDownloadCheckTasks(c, tasks[i:], "pc", "2", "18/stable")
+	i += validateDownloadCheckTasks(c, tasks[i:], "pc", "2", "18")
 
 	// then all installs in sequential order
 	i += validateRefreshTasks(c, tasks[i:], "pc", "2", isGadget)
@@ -5812,7 +5812,7 @@ volumes:
 
 	// first all downloads/checks
 	var i int
-	i += validateDownloadCheckTasks(c, tasks[i:], "other-pc", "2", "18/stable")
+	i += validateDownloadCheckTasks(c, tasks[i:], "other-pc", "2", "18")
 
 	// then all installs
 	i += validateInstallTasks(c, tasks[i:], "other-pc", "2", isGadget)

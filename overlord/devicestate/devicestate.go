@@ -382,7 +382,7 @@ func modelSnapChannelFromDefaultOrPinnedTrack(new *asserts.Model, s *asserts.Mod
 			return "", nil
 		}
 		if (s.SnapType == "kernel" || s.SnapType == "gadget") && s.PinnedTrack != "" {
-			return channel.Full(s.PinnedTrack)
+			return s.PinnedTrack, nil
 		}
 		return "", nil
 	}
