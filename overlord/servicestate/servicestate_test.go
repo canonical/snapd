@@ -424,6 +424,14 @@ func (s *snapServiceOptionsSuite) TestServiceControlTaskSummaries(c *C) {
 		},
 		{
 			&servicestate.Instruction{
+				Action:         "restart",
+				RestartOptions: client.RestartOptions{Reload: true},
+				Names:          []string{"foo.svc2", "foo.svc1"},
+			},
+			`Run service command "reload-or-restart" for services ["svc1" "svc2"] of snap "foo"`,
+		},
+		{
+			&servicestate.Instruction{
 				Action: "stop",
 				Names:  []string{"foo.svc1"},
 			},
