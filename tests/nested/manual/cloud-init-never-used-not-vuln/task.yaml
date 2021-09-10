@@ -17,15 +17,12 @@ environment:
     SNAPD_2_45_CORE_SNAP: https://storage.googleapis.com/snapd-spread-tests/snaps/core_2.45_9289.snap
 
 prepare: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     # build an unrelated empty cdrom drive to provide to first boot with no 
     # real files on it to use as a placeholder in qemu args
-    nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/emptykthxbai" seed.iso notcidata emptykthxbai
+    tests.nested build-seed "$TESTSLIB/cloud-init-seeds/emptykthxbai" seed.iso notcidata emptykthxbai
 
     # build the attacker cloud-init NoCloud cdrom drive
-    nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/attacker-user" seed2.iso cidata user-data meta-data
+    tests.nested build-seed "$TESTSLIB/cloud-init-seeds/attacker-user" seed2.iso cidata user-data meta-data
 
     # if we are not building from current, then we need to seed the specific,
     # old version of snapd that was vulnerable into the image to start there,
@@ -62,15 +59,10 @@ debug: |
         echo "logs before reboot"
         cat snapd-before-reboot.logs
     fi
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
     echo "logs from current nested VM boot snapd"
     tests.nested exec "sudo journalctl -e --no-pager -u snapd" || true
 
 execute: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     echo "The VM here will not ever had used cloud-init so snapd should disable"
     # cloud-init when it is installed
 

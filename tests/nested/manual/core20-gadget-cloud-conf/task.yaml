@@ -48,9 +48,6 @@ prepare: |
       exit
   fi
 
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-
   #shellcheck source=tests/lib/store.sh
   . "$TESTSLIB"/store.sh
 
@@ -71,7 +68,7 @@ prepare: |
   mkdir "$(tests.nested get extra-snaps-path)"
 
   # Get the snakeoil key and cert for signing gadget assets (shim)
-  KEY_NAME=$(tests.nested get snakeoil-key)
+  KEY_NAME=$(tests.nested download snakeoil-key)
   SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
   SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
@@ -125,9 +122,6 @@ execute: |
       echo "This test needs test keys to be trusted"
       exit
   fi
-
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
 
   echo "The initial cloud-init user was created"
   tests.nested exec "cat /var/lib/extrausers/passwd" | MATCH normal-user
