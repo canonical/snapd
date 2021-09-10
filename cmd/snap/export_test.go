@@ -431,3 +431,13 @@ func MockIsLocked(f func(snapName string) (runinhibit.Hint, error)) (restore fun
 		isLocked = old
 	}
 }
+
+func MockIsGraphicalSession(graphical bool) (restore func()) {
+	old := isGraphicalSession
+	isGraphicalSession = func() bool {
+		return graphical
+	}
+	return func() {
+		isGraphicalSession = old
+	}
+}

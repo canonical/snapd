@@ -40,7 +40,7 @@ func inhibitMessage(snapName string, hint runinhibit.Hint) string {
 	}
 }
 
-func isGraphicalSession() bool {
+var isGraphicalSession = func() bool {
 	return os.Getenv("DISPLAY") != "" || os.Getenv("WAYLAND_DISPLAY") != ""
 }
 

@@ -1804,6 +1804,9 @@ func (s *RunSuite) TestWaitWhileInhibitedTextFlow(c *check.C) {
 	})
 	defer restore()
 
+	restoreIsGraphicalSession := snaprun.MockIsGraphicalSession(false)
+	defer restoreIsGraphicalSession()
+
 	meter := &progresstest.Meter{}
 	defer progress.MockMeter(meter)()
 
