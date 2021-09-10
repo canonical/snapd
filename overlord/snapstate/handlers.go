@@ -3065,6 +3065,15 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 		return err
 	}
 
+	// update the map of refreshed snaps on the task, this affects
+	// conflict checks (we don't want to conflict on snaps that were held and
+	// won't be refreshed) -  see conditionalAutoRefreshAffectedSnaps().
+	newToUpdate := make(map[string]*refreshCandidate, len(snaps))
+	for _, candidate := range snaps {
+		newToUpdate[candidate.InstanceName()] = candidate
+	}
+	t.Set("snaps", newToUpdate)
+
 	// update original auto-refresh change
 	chg := t.Change()
 	for _, ts := range tss {
