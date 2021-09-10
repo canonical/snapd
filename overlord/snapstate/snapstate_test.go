@@ -4516,6 +4516,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThrough(c *C) {
 			stype: "os",
 		},
 		{
+			op:   "remove-snap-mount-units",
+			name: "ubuntu-core",
+		},
+		{
 			op:   "discard-namespace",
 			name: "ubuntu-core",
 		},
@@ -4614,6 +4618,10 @@ func (s *snapmgrTestSuite) TestTransitionCoreRunThroughWithCore(c *C) {
 			op:    "remove-snap-files",
 			path:  filepath.Join(dirs.SnapMountDir, "ubuntu-core/1"),
 			stype: "os",
+		},
+		{
+			op:   "remove-snap-mount-units",
+			name: "ubuntu-core",
 		},
 		{
 			op:   "discard-namespace",

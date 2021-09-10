@@ -2289,6 +2289,10 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		return &state.Retry{After: 3 * time.Minute}
 	}
 	if len(snapst.Sequence) == 0 {
+		if err = m.backend.RemoveSnapMountUnits(snapsup.placeInfo(), nil); err != nil {
+			return err
+		}
+
 		if err := pruneRefreshCandidates(st, snapsup.InstanceName()); err != nil {
 			return err
 		}
