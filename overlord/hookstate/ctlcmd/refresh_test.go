@@ -458,3 +458,17 @@ func (s *refreshSuite) TestRefreshPrintInhibitHint(c *C) {
 	c.Check(string(stdout), Equals, "refresh")
 	c.Check(string(stderr), Equals, "")
 }
+
+func (s *refreshSuite) TestRefreshPrintInhibitHintEmpty(c *C) {
+	s.st.Lock()
+	task := s.st.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "some-snap", Revision: snap.R(1), Hook: "gate-auto-refresh"}
+	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
+	c.Check(err, IsNil)
+	s.st.Unlock()
+
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--show-lock"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+}
