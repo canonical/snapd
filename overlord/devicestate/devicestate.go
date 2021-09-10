@@ -319,12 +319,14 @@ func getAllRequiredSnapsForModel(model *asserts.Model) *naming.SnapSet {
 	return naming.NewSnapSet(reqSnaps)
 }
 
+var errNoDownloadInstallEdge = fmt.Errorf("download and checks edge not found")
+
 // extractDownloadInstallEdgesFromTs extracts the first, last download
 // phase and install phase tasks from a TaskSet
 func extractDownloadInstallEdgesFromTs(ts *state.TaskSet) (firstDl, lastDl, firstInst, lastInst *state.Task, err error) {
-	edgeTask, err := ts.Edge(snapstate.DownloadAndChecksDoneEdge)
-	if err != nil {
-		return nil, nil, nil, nil, err
+	edgeTask := ts.MaybeEdge(snapstate.DownloadAndChecksDoneEdge)
+	if edgeTask == nil {
+		return nil, nil, nil, nil, errNoDownloadInstallEdge
 	}
 	tasks := ts.Tasks()
 	// we know we always start with downloads
@@ -632,6 +634,15 @@ func remodelTasks(ctx context.Context, st *state.State, current, new *asserts.Mo
 		//     install2  <- install3 (added)
 		downloadStart, downloadLast, installFirst, installLast, err := extractDownloadInstallEdgesFromTs(ts)
 		if err != nil {
+			if err == errNoDownloadInstallEdge {
+				// there is no task in the task set marked with
+				// download edges, which can happen when there
+				// is a simple channel switch if the snap which
+				// is part of remodel has the same revision in
+				// the current channel and one that will be used
+				// after remodel
+				continue
+			}
 			return nil, fmt.Errorf("cannot remodel: %v", err)
 		}
 		if prevDownload != nil {
