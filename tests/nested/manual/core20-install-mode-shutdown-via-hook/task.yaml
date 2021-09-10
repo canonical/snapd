@@ -20,7 +20,7 @@ prepare: |
     snap install jq
     tests.cleanup defer snap remove jq
 
-    KEY_NAME=$(nested_get_snakeoil_key)
+    KEY_NAME=$(tests.nested get snakeoil-key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
@@ -29,7 +29,7 @@ prepare: |
     unsquashfs -d pc-gadget pc.snap
 
     echo "Sign the shim binary"
-    nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+    tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
     echo "Add the install-device hook"
     mkdir -p pc-gadget/meta/hooks
@@ -81,7 +81,7 @@ execute: |
     MATCH "ubuntu-data" < partitions.txt
 
     echo "Now starting the VM again will proceed to run mode appropriately"
-    tests.nested start-vm
+    tests.nested vm start
 
     # setup SSH since that was not done with the previous stage, as the device
     # shut down while still in install mode, we need to manually do this stage

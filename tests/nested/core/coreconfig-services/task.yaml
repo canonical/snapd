@@ -11,7 +11,7 @@ execute: |
   tests.nested exec "sudo snap set system service.systemd-resolved.disable=true"
   tests.nested exec "systemctl status systemd-resolved.service" | MATCH "Active: +inactive"
 
-  current_boot_id=$(nested_get_boot_id)
+  current_boot_id=$(tests.nested boot-id)
   tests.nested exec "sudo reboot" || true
   tests.nested wait-for reboot "$current_boot_id"
 

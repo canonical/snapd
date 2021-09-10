@@ -442,6 +442,10 @@ nested_get_extra_snaps_path() {
     echo "${PWD}/extra-snaps"
 }
 
+nested_get_assets_path() {
+    echo "$NESTED_ASSETS_DIR"
+}
+
 nested_get_extra_snaps() {
     local EXTRA_SNAPS=""
     local EXTRA_SNAPS_PATH
@@ -792,10 +796,9 @@ users:
 EOF
 }
 
-nested_configure_cloud_init_on_core20_vm() {
+nested_add_file_to_vm() {
     local IMAGE=$1
-    nested_create_cloud_init_uc20_config "$NESTED_ASSETS_DIR/data.cfg"
-
+    local FILE=$2
     local devloop dev ubuntuSeedDev tmp
     # mount the image and find the loop device /dev/loop that is created for it
     kpartx -avs "$IMAGE"
@@ -810,10 +813,17 @@ nested_configure_cloud_init_on_core20_vm() {
     tmp=$(mktemp -d)
     mount "$ubuntuSeedDev" "$tmp"
     mkdir -p "$tmp/data/etc/cloud/cloud.cfg.d/"
-    cp -f "$NESTED_ASSETS_DIR/data.cfg" "$tmp/data/etc/cloud/cloud.cfg.d/"
+    cp -f "$FILE" "$tmp/data/etc/cloud/cloud.cfg.d/"
     sync
     umount "$tmp"
     kpartx -d "$IMAGE"
+}
+
+nested_configure_cloud_init_on_core20_vm() {
+    local IMAGE=$1
+    nested_create_cloud_init_uc20_config "$NESTED_ASSETS_DIR/data.cfg"
+
+    nested_add_file_to_vm "$IMAGE" "$NESTED_ASSETS_DIR/data.cfg"
 }
 
 nested_save_serial_log() {
@@ -1026,8 +1036,10 @@ nested_start_core_vm_unit() {
         nested_exec "sudo snap wait system seed.loaded"
         # Copy tools to be used on tests
         nested_prepare_tools
-        # Wait for cloud init to be done
-        nested_exec "retry --wait 1 -n 5 sh -c 'cloud-init status --wait'"
+        # Wait for cloud init to be done if the system is using cloud-init
+        if [ "$NESTED_USE_CLOUD_INIT" = true ]; then
+            nested_exec "retry --wait 1 -n 5 sh -c 'cloud-init status --wait'"
+        fi
     fi
 }
 
@@ -1233,6 +1245,10 @@ nested_destroy_vm() {
     local CURRENT_IMAGE
     CURRENT_IMAGE="$NESTED_IMAGES_DIR/$(nested_get_current_image_name)" 
     rm -f "$CURRENT_IMAGE"
+}
+
+nested_status_vm() {
+    systemctl status "$NESTED_VM" || true
 }
 
 nested_exec() {
