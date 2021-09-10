@@ -31,6 +31,35 @@ import (
 	"github.com/snapcore/snapd/progress"
 )
 
+func waitWhileInhibited(snapName string) error {
+	hint, err := runinhibit.IsLocked(snapName)
+	if err != nil {
+		return err
+	}
+	if hint == runinhibit.HintNotInhibited {
+		return nil
+	}
+
+	// wait for HintInhibitedForRefresh set by gate-auto-refresh hook handler
+	// when it has finished; the hook starts with HintInhibitedGateRefresh lock
+	// and then either unlocks it or changes to HintInhibitedForRefresh (see
+	// gateAutoRefreshHookHandler in hooks.go).
+	// waitInhibitUnlock will return also on HintNotInhibited.
+	notInhibited, err := waitInhibitUnlock(snapName, runinhibit.HintInhibitedForRefresh, nil)
+	if err != nil {
+		return err
+	}
+	if notInhibited {
+		return nil
+	}
+
+	if isGraphicalSession() && hasZenityExecutable() {
+		return zenityFlow(snapName, hint)
+	}
+	// terminal and headless
+	return textFlow(snapName, hint)
+}
+
 func inhibitMessage(snapName string, hint runinhibit.Hint) string {
 	switch hint {
 	case runinhibit.HintInhibitedForRefresh:
@@ -96,35 +125,6 @@ func textFlow(snapName string, hint runinhibit.Hint) error {
 	_, err := waitInhibitUnlock(snapName, runinhibit.HintNotInhibited, nil)
 	pb.Finished()
 	return err
-}
-
-func waitWhileInhibited(snapName string) error {
-	hint, err := runinhibit.IsLocked(snapName)
-	if err != nil {
-		return err
-	}
-	if hint == runinhibit.HintNotInhibited {
-		return nil
-	}
-
-	// wait for HintInhibitedForRefresh set by gate-auto-refresh hook handler
-	// when it has finished; the hook starts with HintInhibitedGateRefresh lock
-	// and then either unlocks it or changes to HintInhibitedForRefresh (see
-	// gateAutoRefreshHookHandler in hooks.go).
-	// waitInhibitUnlock will return also on HintNotInhibited.
-	notInhibited, err := waitInhibitUnlock(snapName, runinhibit.HintInhibitedForRefresh, nil)
-	if err != nil {
-		return err
-	}
-	if notInhibited {
-		return nil
-	}
-
-	if isGraphicalSession() && hasZenityExecutable() {
-		return zenityFlow(snapName, hint)
-	}
-	// terminal and headless
-	return textFlow(snapName, hint)
 }
 
 var isLocked = runinhibit.IsLocked
