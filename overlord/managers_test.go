@@ -198,6 +198,9 @@ func (s *baseMgrsSuite) SetUpTest(c *C) {
 		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
 			return out, nil
 		}
+		if out, ok := systemdtest.HandleMockListMountUnitsOutput(cmd, nil); ok {
+			return out, nil
+		}
 		return []byte("ActiveState=inactive\n"), nil
 	})
 	s.AddCleanup(r)
@@ -478,7 +481,7 @@ func (ms *baseMgrsSuite) mockInstalledSnapWithFiles(c *C, snapYaml string, files
 func (ms *baseMgrsSuite) mockInstalledSnapWithRevAndFiles(c *C, snapYaml string, rev snap.Revision, files [][]string) *snap.Info {
 	st := ms.o.State()
 
-	info := snaptest.MockSnapWithFiles(c, snapYaml, &snap.SideInfo{Revision: snap.R(1)}, files)
+	info := snaptest.MockSnapWithFiles(c, snapYaml, &snap.SideInfo{Revision: rev}, files)
 	si := &snap.SideInfo{
 		RealName: info.SnapName(),
 		SnapID:   fakeSnapID(info.SnapName()),
@@ -3773,7 +3776,7 @@ version: @VERSION@`
 	tts[2].Tasks()[0].SetStatus(state.HoldStatus)
 
 	st.Unlock()
-	err = s.o.Settle(3 * time.Second)
+	err = s.o.Settle(settleTimeout)
 	st.Lock()
 	c.Assert(err, IsNil)
 

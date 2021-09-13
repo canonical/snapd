@@ -161,8 +161,10 @@ type fakeStore struct {
 	fakeBackend         *fakeSnappyBackend
 	fakeCurrentProgress int
 	fakeTotalProgress   int
-	state               *state.State
-	seenPrivacyKeys     map[string]bool
+	// snap -> error map for simulating download errors
+	downloadError   map[string]error
+	state           *state.State
+	seenPrivacyKeys map[string]bool
 }
 
 func (f *fakeStore) pokeStateLock() {
@@ -182,7 +184,7 @@ func (f *fakeStore) SnapInfo(ctx context.Context, spec store.SnapSpec, user *aut
 	sspec := snapSpec{
 		Name: spec.Name,
 	}
-	info, err := f.snap(sspec, user)
+	info, err := f.snap(sspec)
 
 	userID := 0
 	if user != nil {
@@ -200,7 +202,7 @@ type snapSpec struct {
 	Cohort   string
 }
 
-func (f *fakeStore) snap(spec snapSpec, user *auth.UserState) (*snap.Info, error) {
+func (f *fakeStore) snap(spec snapSpec) (*snap.Info, error) {
 	if spec.Revision.Unset() {
 		switch {
 		case spec.Cohort != "":
@@ -517,7 +519,7 @@ func (f *fakeStore) SnapAction(ctx context.Context, currentSnaps []*store.Curren
 				Revision: a.Revision,
 				Cohort:   a.CohortKey,
 			}
-			info, err := f.snap(spec, user)
+			info, err := f.snap(spec)
 			if err != nil {
 				installErrors[a.InstanceName] = err
 				continue
@@ -638,6 +640,10 @@ func (f *fakeStore) Download(ctx context.Context, name, targetFn string, snapInf
 
 	pb.SetTotal(float64(f.fakeTotalProgress))
 	pb.Set(float64(f.fakeCurrentProgress))
+
+	if e, ok := f.downloadError[name]; ok {
+		return e
+	}
 
 	return nil
 }
@@ -1073,6 +1079,14 @@ func (f *fakeSnappyBackend) RemoveSnapDataDir(info *snap.Info, otherInstances bo
 		name:           info.InstanceName(),
 		path:           snap.BaseDataDir(info.SnapName()),
 		otherInstances: otherInstances,
+	})
+	return f.maybeErrForLastOp()
+}
+
+func (f *fakeSnappyBackend) RemoveSnapMountUnits(s snap.PlaceInfo, meter progress.Meter) error {
+	f.ops = append(f.ops, fakeOp{
+		op:   "remove-snap-mount-units",
+		name: s.InstanceName(),
 	})
 	return f.maybeErrForLastOp()
 }

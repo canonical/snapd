@@ -257,7 +257,7 @@ func (s *deviceMgrBaseSuite) seeding() {
 func (s *deviceMgrBaseSuite) makeModelAssertionInState(c *C, brandID, model string, extras map[string]interface{}) *asserts.Model {
 	modelAs := s.brands.Model(brandID, model, extras)
 
-	s.setupBrands(c)
+	s.setupBrands()
 	assertstatetest.AddMany(s.state, modelAs)
 	return modelAs
 }
@@ -278,7 +278,7 @@ func (s *deviceMgrBaseSuite) setPCModelInState(c *C) {
 	})
 }
 
-func (s *deviceMgrBaseSuite) setupBrands(c *C) {
+func (s *deviceMgrBaseSuite) setupBrands() {
 	assertstatetest.AddMany(s.state, s.brands.AccountsAndKeys("my-brand")...)
 	otherAcct := assertstest.NewAccount(s.storeSigning, "other-brand", map[string]interface{}{
 		"account-id": "other-brand",
@@ -610,7 +610,7 @@ func (s *deviceMgrSuite) TestCheckGadget(c *C) {
 
 	gadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: other-gadget, version: 0}", nil)
 
-	s.setupBrands(c)
+	s.setupBrands()
 	// model assertion in device context
 	model := fakeMyModel(map[string]interface{}{
 		"architecture": "amd64",
@@ -668,7 +668,7 @@ func (s *deviceMgrSuite) TestCheckGadgetOnClassic(c *C) {
 
 	gadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: other-gadget, version: 0}", nil)
 
-	s.setupBrands(c)
+	s.setupBrands()
 	// model assertion in device context
 	model := fakeMyModel(map[string]interface{}{
 		"classic": "true",
@@ -720,7 +720,7 @@ func (s *deviceMgrSuite) TestCheckGadgetOnClassicGadgetNotSpecified(c *C) {
 
 	gadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: gadget, version: 0}", nil)
 
-	s.setupBrands(c)
+	s.setupBrands()
 	// model assertion in device context
 	model := fakeMyModel(map[string]interface{}{
 		"classic": "true",
@@ -772,7 +772,7 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	c.Check(err, ErrorMatches, `cannot install a kernel snap on classic`)
 	release.OnClassic = false
 
-	s.setupBrands(c)
+	s.setupBrands()
 	// model assertion in device context
 	model := fakeMyModel(map[string]interface{}{
 		"architecture": "amd64",

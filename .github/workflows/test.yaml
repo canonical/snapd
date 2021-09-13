@@ -62,19 +62,13 @@ jobs:
     runs-on: ubuntu-20.04
     env:
       GOPATH: ${{ github.workspace }}
-      GO111MODULE: off
       # Set PATH to ignore the load of magic binaries from /usr/local/bin And
       # to use the go snap automatically. Note that we install go from the
       # snap in a step below. Without this we get the GitHub-controlled latest
       # version of go.
       PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games
       GOROOT: ""
-      # XXX: compat env for "check-pr-title.py" in "run-checks", can go
-      #      once we switch away from that. Note that we cannot currently
-      #      use a github action check (like deepakputhraya/action-pr-title)
-      #      because an update of the PR title in the github UI is not visible
-      #      to the github action.
-      TRAVIS_PULL_REQUEST: ${{ github.event.number }}
+      GITHUB_PULL_REQUEST: ${{ github.event.number }}
     strategy:
       # we cache successful runs so it's fine to keep going
       fail-fast: false      
@@ -139,17 +133,6 @@ jobs:
       run: |
           sudo apt-get remove --purge shellcheck
           sudo snap install shellcheck
-    - name: Install govendor
-      run: go get -u github.com/kardianos/govendor
-    - name: Cache Go dependencies
-      id: cache-go-govendor
-      uses: actions/cache@v1
-      with:
-        path: ${{ github.workspace }}/.cache/govendor
-        key: go-govendor-{{ hashFiles('**/vendor.json') }}
-    - name: Get Go dependencies
-      run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd && ${{ github.workspace }}/bin/govendor sync
-
     - name: Get C vendoring
       run: cd ${{ github.workspace }}/src/github.com/snapcore/snapd/c-vendor && ./vendor.sh
 
@@ -215,8 +198,8 @@ jobs:
         echo "Dropping github.com/snapcore/secboot"
         # use govendor remove so that a subsequent govendor sync does not
         # install secboot again
-        ${{ github.workspace }}/bin/govendor remove github.com/snapcore/secboot
-        ${{ github.workspace }}/bin/govendor remove +unused
+        # ${{ github.workspace }}/bin/govendor remove github.com/snapcore/secboot
+        # ${{ github.workspace }}/bin/govendor remove +unused
         SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2

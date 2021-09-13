@@ -574,7 +574,7 @@ func writeSnapdDbusConfigOnCore(s *snap.Info) error {
 	return nil
 }
 
-func undoSnapdDbusConfigOnCore(s *snap.Info) error {
+func undoSnapdDbusConfigOnCore() error {
 	_, _, err := osutil.EnsureDirState(dirs.SnapDBusSystemPolicyDir, "snapd.*.conf", nil)
 	if err != nil {
 		return err
@@ -605,7 +605,7 @@ func writeSnapdDbusActivationOnCore(s *snap.Info) error {
 	return err
 }
 
-func undoSnapdDbusActivationOnCore(s *snap.Info) error {
+func undoSnapdDbusActivationOnCore() error {
 	_, _, err := osutil.EnsureDirStateGlobs(dirs.SnapDBusSessionServicesDir, dbusSessionServices, nil)
 	return err
 }
@@ -626,10 +626,10 @@ func RemoveSnapdSnapServicesOnCore(s *snap.Info, inter interacter) error {
 
 	sysd := systemd.NewUnderRoot(dirs.GlobalRootDir, systemd.SystemMode, inter)
 
-	if err := undoSnapdDbusActivationOnCore(s); err != nil {
+	if err := undoSnapdDbusActivationOnCore(); err != nil {
 		return err
 	}
-	if err := undoSnapdDbusConfigOnCore(s); err != nil {
+	if err := undoSnapdDbusConfigOnCore(); err != nil {
 		return err
 	}
 	if err := undoSnapdServicesOnCore(s, sysd); err != nil {

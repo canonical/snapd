@@ -39,7 +39,7 @@ type postDebugSuite struct {
 }
 
 func (s *postDebugSuite) TestPostDebugEnsureStateSoon(c *check.C) {
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMock()
 	s.expectRootAccess()
 
 	soon := 0
@@ -119,7 +119,7 @@ func mockDurationThreshold() func() {
 func (s *postDebugSuite) getDebugTimings(c *check.C, request string) []interface{} {
 	defer mockDurationThreshold()()
 
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMock()
 
 	req, err := http.NewRequest("GET", request, nil)
 	c.Assert(err, check.IsNil)
@@ -206,7 +206,7 @@ func (s *postDebugSuite) TestGetDebugTimingsEnsureAll(c *check.C) {
 }
 
 func (s *postDebugSuite) TestGetDebugTimingsError(c *check.C) {
-	s.daemonWithOverlordMock(c)
+	s.daemonWithOverlordMock()
 
 	req, err := http.NewRequest("GET", "/v2/debug?aspect=change-timings&ensure=unknown", nil)
 	c.Assert(err, check.IsNil)

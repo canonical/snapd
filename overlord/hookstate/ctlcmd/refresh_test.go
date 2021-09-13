@@ -46,10 +46,9 @@ type refreshSuite struct {
 
 var _ = Suite(&refreshSuite{})
 
-func mockRefreshCandidate(snapName, instanceKey, channel, version string, revision snap.Revision) interface{} {
+func mockRefreshCandidate(snapName, channel, version string, revision snap.Revision) interface{} {
 	sup := &snapstate.SnapSetup{
-		Channel:     channel,
-		InstanceKey: instanceKey,
+		Channel: channel,
 		SideInfo: &snap.SideInfo{
 			Revision: revision,
 			RealName: snapName,
@@ -86,7 +85,7 @@ var refreshFromHookTests = []struct {
 }, {
 	args: []string{"refresh", "--pending"},
 	refreshCandidates: map[string]interface{}{
-		"snap1": mockRefreshCandidate("snap1", "", "edge", "v1", snap.Revision{N: 3}),
+		"snap1": mockRefreshCandidate("snap1", "edge", "v1", snap.Revision{N: 3}),
 	},
 	stdout: "pending: ready\nchannel: edge\nversion: v1\nrevision: 3\nbase: false\nrestart: false\n",
 }, {
@@ -95,13 +94,13 @@ var refreshFromHookTests = []struct {
 }, {
 	args: []string{"refresh", "--pending"},
 	refreshCandidates: map[string]interface{}{
-		"snap1-base": mockRefreshCandidate("snap1-base", "", "edge", "v1", snap.Revision{N: 3}),
+		"snap1-base": mockRefreshCandidate("snap1-base", "edge", "v1", snap.Revision{N: 3}),
 	},
 	stdout: "pending: none\nchannel: stable\nbase: true\nrestart: false\n",
 }, {
 	args: []string{"refresh", "--pending"},
 	refreshCandidates: map[string]interface{}{
-		"kernel": mockRefreshCandidate("kernel", "", "edge", "v1", snap.Revision{N: 3}),
+		"kernel": mockRefreshCandidate("kernel", "edge", "v1", snap.Revision{N: 3}),
 	},
 	stdout: "pending: none\nchannel: stable\nbase: false\nrestart: true\n",
 }, {
@@ -182,7 +181,7 @@ version: 1
 `)
 
 	candidates := map[string]interface{}{
-		"snap1-base": mockRefreshCandidate("snap1-base", "", "edge", "v1", snap.Revision{N: 3}),
+		"snap1-base": mockRefreshCandidate("snap1-base", "edge", "v1", snap.Revision{N: 3}),
 	}
 	s.st.Set("refresh-candidates", candidates)
 
@@ -289,9 +288,15 @@ func (s *refreshSuite) TestRefreshProceedFromSnap(c *C) {
 
 	s.st.Lock()
 	defer s.st.Unlock()
+
+	// note: don't mock the plug, it's enough to have it in conns
 	mockInstalledSnap(c, s.st, `name: foo
 version: 1
 `)
+
+	s.st.Set("conns", map[string]interface{}{
+		"foo:plug core:slot": map[string]interface{}{"interface": "snap-refresh-control"},
+	})
 
 	// enable gate-auto-refresh-hook feature
 	tr := config.NewTransaction(s.st)
@@ -338,9 +343,13 @@ func (s *refreshSuite) TestRefreshProceedFromSnapError(c *C) {
 
 	s.st.Lock()
 	defer s.st.Unlock()
+	// note: don't mock the plug, it's enough to have it in conns
 	mockInstalledSnap(c, s.st, `name: foo
 version: 1
 `)
+	s.st.Set("conns", map[string]interface{}{
+		"foo:plug core:slot": map[string]interface{}{"interface": "snap-refresh-control"},
+	})
 
 	// enable gate-auto-refresh-hook feature
 	tr := config.NewTransaction(s.st)
@@ -356,6 +365,56 @@ version: 1
 
 	_, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
 	c.Assert(err, ErrorMatches, "boom")
+}
+
+func (s *refreshSuite) TestRefreshProceedFromSnapErrorNoSnapRefreshControl(c *C) {
+	var called bool
+	restore := ctlcmd.MockAutoRefreshForGatingSnap(func(st *state.State, gatingSnap string) error {
+		called = true
+		return nil
+	})
+	defer restore()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+	// note: don't mock the plug, it's enough to have it in conns
+	mockInstalledSnap(c, s.st, `name: foo
+version: 1
+`)
+	s.st.Set("conns", map[string]interface{}{
+		"foo:plug core:slot": map[string]interface{}{
+			"interface": "snap-refresh-control",
+			"undesired": true,
+		},
+	})
+
+	// enable gate-auto-refresh-hook feature
+	tr := config.NewTransaction(s.st)
+	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
+	tr.Commit()
+
+	// foo is the snap that is going to call --proceed.
+	setup := &hookstate.HookSetup{Snap: "foo", Revision: snap.R(1)}
+	mockContext, err := hookstate.NewContext(nil, s.st, setup, nil, "")
+	c.Check(err, IsNil)
+	s.st.Unlock()
+	defer s.st.Lock()
+
+	_, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
+	c.Assert(err, ErrorMatches, "cannot proceed: requires snap-refresh-control interface")
+	c.Assert(called, Equals, false)
+
+	s.st.Lock()
+	s.st.Set("conns", map[string]interface{}{
+		"foo:plug core:slot": map[string]interface{}{
+			"interface": "other",
+		},
+	})
+	s.st.Unlock()
+
+	_, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
+	c.Assert(err, ErrorMatches, "cannot proceed: requires snap-refresh-control interface")
+	c.Assert(called, Equals, false)
 }
 
 func (s *refreshSuite) TestRefreshRegularUserForbidden(c *C) {
