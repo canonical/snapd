@@ -65,7 +65,7 @@ const (
 	// ErrorStatus means the change or task has errored out while running or being undone.
 	ErrorStatus Status = 9
 
-	nStatuses = iota
+	NStatuses = iota
 )
 
 // Ready returns whether a task or change with this status needs further
@@ -264,7 +264,7 @@ var statusOrder = []Status{
 }
 
 func init() {
-	if len(statusOrder) != nStatuses-1 {
+	if len(statusOrder) != NStatuses-1 {
 		panic("statusOrder has wrong number of elements")
 	}
 }
@@ -284,7 +284,7 @@ func (c *Change) Status() Status {
 		if len(c.taskIDs) == 0 {
 			return HoldStatus
 		}
-		statusStats := make([]int, nStatuses)
+		statusStats := make([]int, NStatuses)
 		for _, tid := range c.taskIDs {
 			statusStats[c.state.tasks[tid].Status()]++
 		}

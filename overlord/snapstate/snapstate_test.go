@@ -5347,35 +5347,66 @@ func (s *snapmgrTestSuite) TestConflictExclusive(c *C) {
 	c.Check(err, ErrorMatches, `other changes in progress \(conflicting change "install-snap-a"\), change "create-recovery-system" not allowed until they are done`)
 }
 
+type noopBackend struct{}
+
+func (d noopBackend) Checkpoint(_ []byte) error { return nil }
+
+func (d noopBackend) EnsureBefore(_ time.Duration) {}
+
+func (d noopBackend) RequestRestart(_ state.RestartType) {}
+
 func (s *snapmgrTestSuite) TestOnlyConflictOnRelevantRunnableTask(c *C) {
-	s.state.Lock()
-	defer s.state.Unlock()
+	// statuses that have no future work to be done
+	stoppedStatuses := []state.Status{state.ErrorStatus, state.HoldStatus, state.DoneStatus, state.UndoneStatus}
 
-	chg := s.state.NewChange("some", "...")
+	for id := 0; id < state.NStatuses; id++ {
+		status := state.Status(id)
 
-	// task that affects the same snap but won't run
-	failedTask := s.state.NewTask("failed", "")
-	failedTask.SetStatus(state.ErrorStatus)
+		s.state = state.New(noopBackend{})
+		s.state.Lock()
+		chg := s.state.NewChange("some", "...")
 
-	failedTask.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: "some-snap",
-		},
-	})
-	chg.AddTask(failedTask)
+		// task that affects the same snap but won't run
+		stoppedTask := s.state.NewTask(status.String(), "")
+		stoppedTask.SetStatus(status)
 
-	// task that doesn't affect that same but will run
-	runnableTask := s.state.NewTask("runnable", "")
-	runnableTask.SetStatus(state.DoStatus)
-	runnableTask.Set("snap-setup", &snapstate.SnapSetup{
-		SideInfo: &snap.SideInfo{
-			RealName: "other-snap",
-		},
-	})
-	chg.AddTask(runnableTask)
+		stoppedTask.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: "some-snap",
+			},
+		})
+		chg.AddTask(stoppedTask)
 
-	// shouldn't conflict because there are no tasks that can run AND affect the same snap
-	c.Assert(snapstate.CheckChangeConflict(s.state, "some-snap", nil), IsNil)
+		// task that doesn't affect that same but will run
+		runnableTask := s.state.NewTask("runnable", "")
+		runnableTask.SetStatus(state.DoStatus)
+		runnableTask.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: "other-snap",
+			},
+		})
+		chg.AddTask(runnableTask)
+
+		err := snapstate.CheckChangeConflict(s.state, "some-snap", nil)
+
+		if containsStatus(stoppedStatuses, status) {
+			c.Assert(err, IsNil)
+		} else {
+			c.Assert(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+		}
+
+		s.state.Unlock()
+	}
+}
+
+func containsStatus(statuses []state.Status, status state.Status) bool {
+	for _, s := range statuses {
+		if s == status {
+			return true
+		}
+	}
+
+	return false
 }
 
 type contentStore struct {
