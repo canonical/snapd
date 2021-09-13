@@ -319,9 +319,8 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 		InstanceName: curInfo.InstanceName(),
 		SnapID:       curInfo.SnapID,
 		// the desired channel
-		Channel:   opts.Channel,
-		CohortKey: opts.CohortKey,
-		Flags:     storeFlags,
+		Channel: opts.Channel,
+		Flags:   storeFlags,
 	}
 
 	enforcedSets, err := EnforcedValidationSets(st)
@@ -334,17 +333,21 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 			return nil, err
 		}
 		if !requiredRevision.Unset() && snapst.Current == requiredRevision {
-			return nil, fmt.Errorf("snap %q is at the required revision %s by validation sets: %s, cannot update",
+			logger.Noticef("snap %q is already at the revision %s required by validation sets: %s, skipping",
 				curInfo.InstanceName(), snapst.Current, strings.Join(requiredValsets, ","))
+			return nil, store.ErrNoUpdateAvailable
 		}
 
 		if len(requiredValsets) > 0 {
 			setActionValidationSets(action, requiredValsets)
-			// XXX: what about cohort above?
 			if !requiredRevision.Unset() {
 				action.Revision = requiredRevision
 			}
 		}
+	}
+
+	if action.Revision.Unset() {
+		action.CohortKey = opts.CohortKey
 	}
 
 	if curInfo.SnapID == "" { // amend
@@ -453,7 +456,7 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 			return nil, err
 		}
 		if !requiredRevision.Unset() && revision != requiredRevision {
-			return nil, fmt.Errorf("cannot update snap %q to revision %s, revision %s is required by validation sets: %s", curInfo.InstanceName(), revision, requiredRevision, strings.Join(requiredValsets, ","))
+			return nil, fmt.Errorf("cannot update snap %q to revision %s without --ignore-validation, revision %s is required by validation sets: %s", curInfo.InstanceName(), revision, requiredRevision, strings.Join(requiredValsets, ","))
 		}
 		if len(requiredValsets) > 0 {
 			setActionValidationSets(action, requiredValsets)
@@ -595,15 +598,14 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 				return err
 			}
 			// if the snap is already at the required revision then skip it from
-			// candidates when auto-refreshing, otherwise error out.
+			// candidates.
 			if !requiredRevision.Unset() && installed.Revision == requiredRevision {
-				if opts.IsAutoRefresh {
-					return nil
-				}
-				return fmt.Errorf("snap %q is at the required revision %s by validation sets: %s, cannot update", installed.InstanceName, installed.Revision, strings.Join(requiredValsets, ","))
+				return nil
 			}
 			if !requiredRevision.Unset() {
 				action.Revision = requiredRevision
+				// ignore cohort if revision is specified
+				installed.CohortKey = ""
 			}
 			if len(requiredValsets) > 0 {
 				setActionValidationSets(action, requiredValsets)
