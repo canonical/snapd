@@ -21,7 +21,6 @@ package portal
 
 import (
 	"fmt"
-	"os"
 	"os/user"
 	"path/filepath"
 	"strings"
