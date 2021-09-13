@@ -258,7 +258,7 @@ jobs:
       run: |
           # Register a problem matcher to highlight spread failures
           echo "::add-matcher::.github/spread-problem-matcher.json"
-          spread-serial -abend -serial google:${{ matrix.system }}:tests/...
+          spread-serial -abend -serial google:${{ matrix.system }}:tests/core/...
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
