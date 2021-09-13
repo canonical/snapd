@@ -27,12 +27,21 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/sysconfig"
 )
 
 func init() {
 	for _, feature := range features.KnownFeatures() {
 		snapName, confName := feature.ConfigOption()
 		supportedConfigurations[snapName+"."+confName] = true
+	}
+}
+
+func earlyExperimentalSettingsFilter(values, early map[string]interface{}) {
+	for key, v := range values {
+		if strings.HasPrefix(key, "experimental.") && supportedConfigurations["core."+key] {
+			early[key] = v
+		}
 	}
 }
 
@@ -48,7 +57,7 @@ func validateExperimentalSettings(tr config.ConfGetter) error {
 	return nil
 }
 
-func doExportExperimentalFlags(tr config.ConfGetter, opts *fsOnlyContext) error {
+func doExportExperimentalFlags(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	var dir string
 	if opts != nil {
 		dir = dirs.FeaturesDirUnder(opts.RootDir)
@@ -77,5 +86,5 @@ func doExportExperimentalFlags(tr config.ConfGetter, opts *fsOnlyContext) error 
 }
 
 func ExportExperimentalFlags(tr config.ConfGetter) error {
-	return doExportExperimentalFlags(tr, nil)
+	return doExportExperimentalFlags(nil, tr, nil)
 }

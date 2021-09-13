@@ -83,6 +83,7 @@ func checkPreseedTaskStates(c *C, st *state.State) {
 	}
 	if !release.OnClassic {
 		doneTasks["update-gadget-assets"] = true
+		doneTasks["update-gadget-cmdline"] = true
 	}
 	doTasks := map[string]bool{
 		"run-hook":            true,

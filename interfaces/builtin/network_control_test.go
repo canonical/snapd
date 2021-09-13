@@ -20,8 +20,11 @@
 package builtin_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -108,7 +111,7 @@ func (s *NetworkControlInterfaceSuite) TestUDevSpec(c *C) {
 	c.Assert(spec.Snippets(), HasLen, 3)
 	c.Assert(spec.Snippets(), testutil.Contains, `# network-control
 KERNEL=="tun", TAG+="snap_consumer_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_consumer_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_consumer_app", RUN+="%v/snap-device-helper $env{ACTION} snap_consumer_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *NetworkControlInterfaceSuite) TestMountSpec(c *C) {
@@ -128,6 +131,7 @@ func (s *NetworkControlInterfaceSuite) TestStaticInfo(c *C) {
 	c.Assert(si.ImplicitOnClassic, Equals, true)
 	c.Assert(si.Summary, Equals, `allows configuring networking and network namespaces`)
 	c.Assert(si.BaseDeclarationSlots, testutil.Contains, "network-control")
+	c.Assert(si.AffectsPlugOnRefresh, Equals, true)
 }
 
 func (s *NetworkControlInterfaceSuite) TestAutoConnect(c *C) {

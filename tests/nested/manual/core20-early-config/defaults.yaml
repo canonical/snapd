@@ -11,3 +11,4 @@ defaults:
       power-key-action: ignore
       disable-backlight-service: true
       timezone: Europe/Malta
+      hostname: foo

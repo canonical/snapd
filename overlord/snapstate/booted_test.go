@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -93,6 +94,12 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 		return nil, nil
 	}
 	bs.restore = snapstatetest.MockDeviceModel(DefaultModel())
+
+	oldSnapServiceOptions := snapstate.SnapServiceOptions
+	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions
+	bs.AddCleanup(func() {
+		snapstate.SnapServiceOptions = oldSnapServiceOptions
+	})
 }
 
 func (bs *bootedSuite) TearDownTest(c *C) {

@@ -29,7 +29,8 @@ import (
 
 	"golang.org/x/xerrors"
 
-	"github.com/snapcore/snapd/asserts" // for parsing
+	// for parsing
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/snap"
 )
 

@@ -95,3 +95,28 @@ func updateKeyValueStream(r io.Reader, supportedConfigKeys map[string]bool, newC
 
 	return nil, nil
 }
+
+type filterFunc func(values, filtered map[string]interface{})
+
+func applyFilters(flagFilter func(f flags) filterFunc, values map[string]interface{}) (map[string]interface{}, []configHandler) {
+	// filter the values to only keep values that use the preinstall flag
+	filteredValues := make(map[string]interface{})
+
+	// find the handlers which have the specified flag set
+	var filteredHandlers []configHandler
+	for _, h := range handlers {
+		filter := flagFilter(h.flags())
+		if filter != nil {
+			// check to see if the length of the filtered values goes up after
+			// running the filter, if it does then we added a value and should
+			// return it
+			currentPreInstallConfigNum := len(filteredValues)
+			filter(values, filteredValues)
+			if len(filteredValues) > currentPreInstallConfigNum {
+				filteredHandlers = append(filteredHandlers, h)
+			}
+		}
+	}
+
+	return filteredValues, filteredHandlers
+}

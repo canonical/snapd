@@ -10,7 +10,7 @@ environment:
 
 prepare: |
     echo "Build command chain snap"
-    snap pack "$TESTSLIB/snaps/command-chain"
+    snap pack command-chain
     snap install --dangerous command-chain_1.0_all.snap
 
 execute: |

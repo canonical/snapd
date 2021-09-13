@@ -20,9 +20,8 @@
 package strutil_test
 
 import (
-	"gopkg.in/yaml.v2"
-
 	. "gopkg.in/check.v1"
+	"gopkg.in/yaml.v2"
 
 	"github.com/snapcore/snapd/strutil"
 )

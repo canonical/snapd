@@ -69,6 +69,11 @@ package main
 //#define PF_MPLS AF_MPLS
 //#endif				// AF_MPLS
 //
+//#ifndef AF_QIPCRTR
+//#define AF_QIPCRTR 42
+//#define PF_QIPCRTR AF_QIPCRTR
+//#endif				// AF_QIPCRTR
+//
 // // https://github.com/sctplab/usrsctp/blob/master/usrsctplib/usrsctp.h
 //#ifndef AF_CONN
 //#define AF_CONN 123
@@ -180,9 +185,7 @@ import (
 	"strings"
 	"syscall"
 
-	// FIXME: we want github.com/seccomp/libseccomp-golang but that
-	// will not work with trusty because libseccomp-golang checks
-	// for the seccomp version and errors if it find one < 2.2.0
+	// FIXME: we want github.com/seccomp/libseccomp-golang but that will not work with trusty because libseccomp-golang checks for the seccomp version and errors if it find one < 2.2.0
 	"github.com/mvo5/libseccomp-golang"
 
 	"github.com/snapcore/snapd/arch"
@@ -270,14 +273,16 @@ var seccompResolver = map[string]uint64{
 	"AF_VSOCK":      C.AF_VSOCK,
 	"PF_VSOCK":      C.PF_VSOCK,
 	// may not be defined in socket.h yet
-	"AF_IB":   C.AF_IB, // 27
-	"PF_IB":   C.PF_IB,
-	"AF_MPLS": C.AF_MPLS, // 28
-	"PF_MPLS": C.PF_MPLS,
-	"AF_CAN":  syscall.AF_CAN,
-	"PF_CAN":  C.PF_CAN,
-	"AF_CONN": C.AF_CONN, // 123
-	"PF_CONN": C.PF_CONN,
+	"AF_IB":      C.AF_IB, // 27
+	"PF_IB":      C.PF_IB,
+	"AF_MPLS":    C.AF_MPLS, // 28
+	"PF_MPLS":    C.PF_MPLS,
+	"AF_CAN":     syscall.AF_CAN,
+	"PF_CAN":     C.PF_CAN,
+	"AF_CONN":    C.AF_CONN, // 123
+	"PF_CONN":    C.PF_CONN,
+	"AF_QIPCRTR": C.AF_QIPCRTR, // 42
+	"PF_QIPCRTR": C.PF_QIPCRTR,
 
 	// man 2 socket - type
 	"SOCK_STREAM":    syscall.SOCK_STREAM,

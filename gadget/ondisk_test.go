@@ -148,47 +148,23 @@ const gadgetContent = `volumes:
         size: 1200M
 `
 
-var mockOnDiskStructureSave = gadget.OnDiskStructure{
-	Node: "/dev/node3",
-	LaidOutStructure: gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Name:       "Save",
-			Size:       128 * quantity.SizeMiB,
-			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-			Role:       "system-save",
-			Label:      "ubuntu-save",
-			Filesystem: "ext4",
-		},
-		StartOffset: 1260388352,
-		Index:       3,
-	},
-	Size: 128 * quantity.SizeMiB,
-}
-
-var mockOnDiskStructureWritable = gadget.OnDiskStructure{
-	Node: "/dev/node4",
-	LaidOutStructure: gadget.LaidOutStructure{
-		VolumeStructure: &gadget.VolumeStructure{
-			Name:       "Writable",
-			Size:       1200 * quantity.SizeMiB,
-			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
-			Role:       "system-data",
-			Label:      "ubuntu-data",
-			Filesystem: "ext4",
-		},
-		StartOffset: 1394606080,
-		Index:       4,
-	},
-	// expanded to fill the disk
-	Size: 2*quantity.SizeGiB + 717*quantity.SizeMiB + 1031680,
-}
-
 func (s *ondiskTestSuite) TestDeviceInfoGPT(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosSeed)
 	defer cmdSfdisk.Restore()
 
 	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScriptBiosSeed)
 	defer cmdLsblk.Restore()
+
+	cmdBlockdev := testutil.MockCommand(c, "blockdev", `
+if [ "$1" == --getss ]; then
+	# sector size
+	echo 512
+	exit 0
+fi
+echo "unexpected cmdline opts: $*"
+exit 1
+	`)
+	defer cmdBlockdev.Restore()
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
@@ -199,42 +175,115 @@ func (s *ondiskTestSuite) TestDeviceInfoGPT(c *C) {
 		{"lsblk", "--fs", "--json", "/dev/node1"},
 		{"lsblk", "--fs", "--json", "/dev/node2"},
 	})
+	c.Assert(cmdBlockdev.Calls(), DeepEquals, [][]string{
+		{"blockdev", "--getss", "/dev/node"},
+	})
 	c.Assert(err, IsNil)
-	c.Assert(dl.Schema, Equals, "gpt")
-	c.Assert(dl.ID, Equals, "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA")
-	c.Assert(dl.Device, Equals, "/dev/node")
-	c.Assert(dl.SectorSize, Equals, quantity.Size(512))
-	c.Assert(dl.Size, Equals, quantity.Size(8388575*512))
-	c.Assert(len(dl.Structure), Equals, 2)
-
-	c.Assert(dl.Structure, DeepEquals, []gadget.OnDiskStructure{
-		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Name:       "BIOS Boot",
-					Size:       0x100000,
-					Label:      "",
-					Type:       "21686148-6449-6E6F-744E-656564454649",
-					Filesystem: "",
+	c.Assert(dl, DeepEquals, &gadget.OnDiskVolume{
+		Device:     "/dev/node",
+		ID:         "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+		Schema:     "gpt",
+		SectorSize: quantity.Size(512),
+		Size:       quantity.Size(8388575 * 512),
+		Structure: []gadget.OnDiskStructure{
+			{
+				LaidOutStructure: gadget.LaidOutStructure{
+					VolumeStructure: &gadget.VolumeStructure{
+						Name:       "BIOS Boot",
+						Size:       0x100000,
+						Label:      "",
+						Type:       "21686148-6449-6E6F-744E-656564454649",
+						Filesystem: "",
+					},
+					StartOffset: 0x100000,
+					Index:       1,
 				},
-				StartOffset: 0x100000,
-				Index:       1,
+				Node: "/dev/node1",
 			},
-			Node: "/dev/node1",
+			{
+				LaidOutStructure: gadget.LaidOutStructure{
+					VolumeStructure: &gadget.VolumeStructure{
+						Name:       "Recovery",
+						Size:       0x4b000000,
+						Label:      "ubuntu-seed",
+						Type:       "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+						Filesystem: "vfat",
+					},
+					StartOffset: 0x200000,
+					Index:       2,
+				},
+				Node: "/dev/node2",
+			},
 		},
-		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Name:       "Recovery",
-					Size:       0x4b000000,
-					Label:      "ubuntu-seed",
-					Type:       "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-					Filesystem: "vfat",
+	})
+}
+
+func (s *ondiskTestSuite) TestDeviceInfoGPT4096SectorSize(c *C) {
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosSeed)
+	defer cmdSfdisk.Restore()
+
+	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScriptBiosSeed)
+	defer cmdLsblk.Restore()
+
+	cmdBlockdev := testutil.MockCommand(c, "blockdev", `
+if [ "$1" == --getss ]; then
+	# sector size
+	echo 4096
+	exit 0
+fi
+echo "unexpected cmdline opts: $*"
+exit 1
+	`)
+	defer cmdBlockdev.Restore()
+
+	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
+	c.Assert(err, IsNil)
+	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--json", "/dev/node"},
+	})
+	c.Assert(cmdLsblk.Calls(), DeepEquals, [][]string{
+		{"lsblk", "--fs", "--json", "/dev/node1"},
+		{"lsblk", "--fs", "--json", "/dev/node2"},
+	})
+	c.Assert(cmdBlockdev.Calls(), DeepEquals, [][]string{
+		{"blockdev", "--getss", "/dev/node"},
+	})
+	c.Assert(err, IsNil)
+	c.Assert(dl, DeepEquals, &gadget.OnDiskVolume{
+		Device:     "/dev/node",
+		ID:         "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+		Schema:     "gpt",
+		SectorSize: quantity.Size(4096),
+		Size:       quantity.Size(8388575 * 4096),
+		Structure: []gadget.OnDiskStructure{
+			{
+				LaidOutStructure: gadget.LaidOutStructure{
+					VolumeStructure: &gadget.VolumeStructure{
+						Name:       "BIOS Boot",
+						Size:       0x800000,
+						Label:      "",
+						Type:       "21686148-6449-6E6F-744E-656564454649",
+						Filesystem: "",
+					},
+					StartOffset: 0x800000,
+					Index:       1,
 				},
-				StartOffset: 0x200000,
-				Index:       2,
+				Node: "/dev/node1",
 			},
-			Node: "/dev/node2",
+			{
+				LaidOutStructure: gadget.LaidOutStructure{
+					VolumeStructure: &gadget.VolumeStructure{
+						Name:       "Recovery",
+						Size:       0x258000000,
+						Label:      "ubuntu-seed",
+						Type:       "C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
+						Filesystem: "vfat",
+					},
+					StartOffset: 0x1000000,
+					Index:       2,
+				},
+				Node: "/dev/node2",
+			},
 		},
 	})
 }
@@ -276,7 +325,19 @@ exit 0`
 	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkForMBR)
 	defer cmdLsblk.Restore()
 
-	cmdBlockdev := testutil.MockCommand(c, "blockdev", "echo 12345670")
+	cmdBlockdev := testutil.MockCommand(c, "blockdev", `
+if [ "$1" == --getss ]; then
+	# sector size
+	echo 512
+	exit 0
+elif [ "$1" == --getsz ]; then
+# disk size in 512-byte sectors
+	echo 12345670
+	exit 0
+fi
+echo "unexpected cmdline opts: $*"
+exit 1
+	`)
 	defer cmdBlockdev.Restore()
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
@@ -291,68 +352,200 @@ exit 0`
 		{"lsblk", "--fs", "--json", "/dev/node4"},
 	})
 	c.Assert(cmdBlockdev.Calls(), DeepEquals, [][]string{
+		{"blockdev", "--getss", "/dev/node"},
 		{"blockdev", "--getsz", "/dev/node"},
 	})
 	c.Assert(err, IsNil)
-	c.Assert(dl.ID, Equals, "")
-	c.Assert(dl.Schema, Equals, "dos")
-	c.Assert(dl.Device, Equals, "/dev/node")
-	c.Assert(dl.SectorSize, Equals, quantity.Size(512))
-	c.Assert(dl.Size, Equals, quantity.Size(12345670*512))
-	c.Assert(len(dl.Structure), Equals, 4)
 
-	c.Assert(dl.Structure, DeepEquals, []gadget.OnDiskStructure{
-		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size:       0x4b000000,
-					Label:      "ubuntu-seed",
-					Type:       "0C",
-					Filesystem: "vfat",
+	c.Assert(dl, DeepEquals, &gadget.OnDiskVolume{
+		Device:     "/dev/node",
+		Schema:     "dos",
+		SectorSize: quantity.Size(512),
+		Size:       quantity.Size(12345670 * 512),
+		Structure: []gadget.OnDiskStructure{
+			{
+				LaidOutStructure: gadget.LaidOutStructure{
+					VolumeStructure: &gadget.VolumeStructure{
+						Size:       2457600 * 512,
+						Label:      "ubuntu-seed",
+						Type:       "0C",
+						Filesystem: "vfat",
+					},
+					StartOffset: 4096 * 512,
+					Index:       1,
 				},
-				StartOffset: 0x200000,
-				Index:       1,
+				Node: "/dev/node1",
 			},
-			Node: "/dev/node1",
+			{
+				LaidOutStructure: gadget.LaidOutStructure{
+					VolumeStructure: &gadget.VolumeStructure{
+						Size:       1048576 * 512,
+						Label:      "ubuntu-boot",
+						Type:       "0D",
+						Filesystem: "vfat",
+					},
+					StartOffset: (4096 + 2457600) * 512,
+					Index:       2,
+				},
+				Node: "/dev/node2",
+			},
+			{
+				LaidOutStructure: gadget.LaidOutStructure{
+					VolumeStructure: &gadget.VolumeStructure{
+						Size:       1048576 * 512,
+						Label:      "ubuntu-save",
+						Type:       "0D",
+						Filesystem: "ext4",
+					},
+					StartOffset: (4096 + 2457600 + 1048576) * 512,
+					Index:       3,
+				},
+				Node: "/dev/node3",
+			},
+			{
+				LaidOutStructure: gadget.LaidOutStructure{
+					VolumeStructure: &gadget.VolumeStructure{
+						Size:       1048576 * 512,
+						Label:      "ubuntu-data",
+						Type:       "0D",
+						Filesystem: "ext4",
+					},
+					StartOffset: (4096 + 2457600 + 1048576 + 1048576) * 512,
+					Index:       4,
+				},
+				Node: "/dev/node4",
+			},
 		},
-		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size:       0x20000000,
-					Label:      "ubuntu-boot",
-					Type:       "0D",
-					Filesystem: "vfat",
+	})
+}
+
+func (s *ondiskTestSuite) TestDeviceInfoMBR4096SectorSize(c *C) {
+	const mockSfdiskWithMBR = `
+>&2 echo "Some warning from sfdisk"
+echo '{
+   "partitiontable": {
+      "label": "dos",
+      "device": "/dev/node",
+      "unit": "sectors",
+      "partitions": [
+		{"node": "/dev/node1", "start":256, "size":2560, "type": "c"},
+		{"node": "/dev/node2", "start":2816, "size":2560, "type": "d"},
+		{"node": "/dev/node3", "start":5376, "size":128000, "type": "d"},
+		{"node": "/dev/node4", "start":133376, "size":6202079, "type": "d"}
+	 ]
+   }
+}'`
+	const mockLsblkForMBR = `
+[ "$3" == "/dev/node1" ] && echo '{
+    "blockdevices": [ {"name": "node1", "fstype": "vfat", "label": "ubuntu-seed", "uuid": "A644-B807", "mountpoint": null} ]
+}'
+[ "$3" == "/dev/node2" ] && echo '{
+    "blockdevices": [ {"name": "node2", "fstype": "vfat", "label": "ubuntu-boot", "uuid": "A644-B808", "mountpoint": null} ]
+}'
+[ "$3" == "/dev/node3" ] && echo '{
+    "blockdevices": [ {"name": "node3", "fstype": "ext4", "label": "ubuntu-save", "mountpoint": null} ]
+}'
+[ "$3" == "/dev/node4" ] && echo '{
+    "blockdevices": [ {"name": "node3", "fstype": "ext4", "label": "ubuntu-data", "mountpoint": null} ]
+}'
+exit 0`
+
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskWithMBR)
+	defer cmdSfdisk.Restore()
+
+	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkForMBR)
+	defer cmdLsblk.Restore()
+
+	cmdBlockdev := testutil.MockCommand(c, "blockdev", `
+if [ "$1" == --getss ]; then
+	# sector size
+	echo 4096
+	exit 0
+elif [ "$1" == --getsz ]; then
+	# disk size in 512-byte sectors
+	echo 50683904
+	exit 0
+fi
+echo "unexpected cmdline opts: $*"
+exit 1
+	`)
+	defer cmdBlockdev.Restore()
+
+	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
+	c.Assert(err, IsNil)
+	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--json", "/dev/node"},
+	})
+	c.Assert(cmdLsblk.Calls(), DeepEquals, [][]string{
+		{"lsblk", "--fs", "--json", "/dev/node1"},
+		{"lsblk", "--fs", "--json", "/dev/node2"},
+		{"lsblk", "--fs", "--json", "/dev/node3"},
+		{"lsblk", "--fs", "--json", "/dev/node4"},
+	})
+	c.Assert(cmdBlockdev.Calls(), DeepEquals, [][]string{
+		{"blockdev", "--getss", "/dev/node"},
+		{"blockdev", "--getsz", "/dev/node"},
+	})
+	c.Assert(err, IsNil)
+
+	c.Assert(dl, DeepEquals, &gadget.OnDiskVolume{
+		Device:     "/dev/node",
+		Schema:     "dos",
+		SectorSize: quantity.Size(4096),
+		Size:       quantity.Size(6335488 * 4096),
+		Structure: []gadget.OnDiskStructure{
+			{
+				LaidOutStructure: gadget.LaidOutStructure{
+					VolumeStructure: &gadget.VolumeStructure{
+						Size:       2560 * 4096,
+						Label:      "ubuntu-seed",
+						Type:       "0C",
+						Filesystem: "vfat",
+					},
+					StartOffset: 256 * 4096,
+					Index:       1,
 				},
-				StartOffset: 0x4b200000,
-				Index:       2,
+				Node: "/dev/node1",
 			},
-			Node: "/dev/node2",
-		},
-		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size:       0x20000000,
-					Label:      "ubuntu-save",
-					Type:       "0D",
-					Filesystem: "ext4",
+			{
+				LaidOutStructure: gadget.LaidOutStructure{
+					VolumeStructure: &gadget.VolumeStructure{
+						Size:       2560 * 4096,
+						Label:      "ubuntu-boot",
+						Type:       "0D",
+						Filesystem: "vfat",
+					},
+					StartOffset: (256 + 2560) * 4096,
+					Index:       2,
 				},
-				StartOffset: 0x6b200000,
-				Index:       3,
+				Node: "/dev/node2",
 			},
-			Node: "/dev/node3",
-		},
-		{
-			LaidOutStructure: gadget.LaidOutStructure{
-				VolumeStructure: &gadget.VolumeStructure{
-					Size:       0x20000000,
-					Label:      "ubuntu-data",
-					Type:       "0D",
-					Filesystem: "ext4",
+			{
+				LaidOutStructure: gadget.LaidOutStructure{
+					VolumeStructure: &gadget.VolumeStructure{
+						Size:       128000 * 4096,
+						Label:      "ubuntu-save",
+						Type:       "0D",
+						Filesystem: "ext4",
+					},
+					StartOffset: (256 + 2560 + 2560) * 4096,
+					Index:       3,
 				},
-				StartOffset: 0x8b200000,
-				Index:       4,
+				Node: "/dev/node3",
 			},
-			Node: "/dev/node4",
+			{
+				LaidOutStructure: gadget.LaidOutStructure{
+					VolumeStructure: &gadget.VolumeStructure{
+						Size:       6202079 * 4096,
+						Label:      "ubuntu-data",
+						Type:       "0D",
+						Filesystem: "ext4",
+					},
+					StartOffset: (256 + 2560 + 2560 + 128000) * 4096,
+					Index:       4,
+				},
+				Node: "/dev/node4",
+			},
 		},
 	})
 }
@@ -377,6 +570,46 @@ func (s *ondiskTestSuite) TestDeviceInfoNotSectors(c *C) {
 	c.Assert(err, ErrorMatches, "cannot position partitions: unknown unit .*")
 }
 
+func (s *ondiskTestSuite) TestDeviceInfoSectorSizeNotMultiple512Unhappy(c *C) {
+	cmdSfdisk := testutil.MockCommand(c, "sfdisk", `echo '{
+   "partitiontable": {
+      "label": "gpt",
+      "id": "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
+      "device": "/dev/node",
+      "unit": "sectors",
+      "firstlba": 34,
+      "lastlba": 8388574,
+      "partitions": [
+         {"node": "/dev/node1", "start": 2048, "size": 2048, "type": "21686148-6449-6E6F-744E-656564454649", "uuid": "2E59D969-52AB-430B-88AC-F83873519F6F", "name": "BIOS Boot"}
+      ]
+   }
+}'`)
+	defer cmdSfdisk.Restore()
+
+	cmdBlockdev := testutil.MockCommand(c, "blockdev", `
+if [ "$1" == --getss ]; then
+   # sector size
+   echo 513
+   exit 0
+fi
+echo "unexpected cmdline opts: $*"
+exit 1
+`)
+	defer cmdBlockdev.Restore()
+
+	_, err := gadget.OnDiskVolumeFromDevice("/dev/node")
+	c.Assert(err, ErrorMatches, `cannot calculate structure size: sector size \(513\) is not a multiple of 512`)
+
+	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--json", "/dev/node"},
+	})
+
+	c.Assert(cmdBlockdev.Calls(), DeepEquals, [][]string{
+		{"blockdev", "--getss", "/dev/node"},
+	})
+
+}
+
 func (s *ondiskTestSuite) TestDeviceInfoFilesystemInfoError(c *C) {
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", `echo '{
    "partitiontable": {
@@ -393,11 +626,34 @@ func (s *ondiskTestSuite) TestDeviceInfoFilesystemInfoError(c *C) {
 }'`)
 	defer cmdSfdisk.Restore()
 
+	cmdBlockdev := testutil.MockCommand(c, "blockdev", `
+if [ "$1" == --getss ]; then
+   # sector size
+   echo 512
+   exit 0
+fi
+echo "unexpected cmdline opts: $*"
+exit 1
+`)
+	defer cmdBlockdev.Restore()
+
 	cmdLsblk := testutil.MockCommand(c, "lsblk", "echo lsblk error; exit 1")
 	defer cmdLsblk.Restore()
 
 	_, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, ErrorMatches, "cannot obtain filesystem information: lsblk error")
+
+	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--json", "/dev/node"},
+	})
+
+	c.Assert(cmdBlockdev.Calls(), DeepEquals, [][]string{
+		{"blockdev", "--getss", "/dev/node"},
+	})
+
+	c.Assert(cmdLsblk.Calls(), DeepEquals, [][]string{
+		{"lsblk", "--fs", "--json", "/dev/node1"},
+	})
 }
 
 func (s *ondiskTestSuite) TestDeviceInfoJsonError(c *C) {
@@ -416,56 +672,6 @@ func (s *ondiskTestSuite) TestDeviceInfoError(c *C) {
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, ErrorMatches, "sfdisk: not found")
 	c.Assert(dl, IsNil)
-}
-
-func (s *ondiskTestSuite) TestBuildPartitionList(c *C) {
-	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBiosSeed)
-	defer cmdSfdisk.Restore()
-
-	cmdLsblk := testutil.MockCommand(c, "lsblk", mockLsblkScriptBiosSeed)
-	defer cmdLsblk.Restore()
-
-	ptable := gadget.SFDiskPartitionTable{
-		Label:    "gpt",
-		ID:       "9151F25B-CDF0-48F1-9EDE-68CBD616E2CA",
-		Device:   "/dev/node",
-		Unit:     "sectors",
-		FirstLBA: 34,
-		LastLBA:  8388574,
-		Partitions: []gadget.SFDiskPartition{
-			{
-				Node:  "/dev/node1",
-				Start: 2048,
-				Size:  2048,
-				Type:  "21686148-6449-6E6F-744E-656564454649",
-				UUID:  "2E59D969-52AB-430B-88AC-F83873519F6F",
-				Name:  "BIOS Boot",
-			},
-			{
-				Node:  "/dev/node2",
-				Start: 4096,
-				Size:  2457600,
-				Type:  "EF,C12A7328-F81F-11D2-BA4B-00A0C93EC93B",
-				UUID:  "216c34ff-9be6-4787-9ab3-a4c1429c3e73",
-				Name:  "Recovery",
-			},
-		},
-	}
-
-	pv, err := gadget.PositionedVolumeFromGadget(s.gadgetRoot)
-	c.Assert(err, IsNil)
-
-	dl, err := gadget.OnDiskVolumeFromPartitionTable(ptable)
-	c.Assert(err, IsNil)
-
-	// the expected expanded writable partition size is:
-	// start offset = (2M + 1200M), expanded size in sectors = (8388575*512 - start offset)/512
-	sfdiskInput, create := gadget.BuildPartitionList(dl, pv)
-	c.Assert(sfdiskInput.String(), Equals,
-		`/dev/node3 : start=     2461696, size=      262144, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Save"
-/dev/node4 : start=     2723840, size=     5664735, type=0FC63DAF-8483-4772-8E79-3D69D8477DE4, name="Writable"
-`)
-	c.Assert(create, DeepEquals, []gadget.OnDiskStructure{mockOnDiskStructureSave, mockOnDiskStructureWritable})
 }
 
 func (s *ondiskTestSuite) TestUpdatePartitionList(c *C) {
@@ -498,6 +704,18 @@ echo '{
 }'
 exit 0`
 
+	// sector size is same for all calls
+	cmdBlockdev := testutil.MockCommand(c, "blockdev", `
+if [ "$1" == --getss ]; then
+   # sector size
+   echo 512
+   exit 0
+fi
+echo "unexpected cmdline opts: $*"
+exit 1
+`)
+	defer cmdBlockdev.Restore()
+
 	// start with a single partition
 	cmdSfdisk := testutil.MockCommand(c, "sfdisk", mockSfdiskScriptBios)
 	defer cmdSfdisk.Restore()
@@ -507,6 +725,15 @@ exit 0`
 
 	dl, err := gadget.OnDiskVolumeFromDevice("/dev/node")
 	c.Assert(err, IsNil)
+
+	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--json", "/dev/node"},
+	})
+
+	c.Assert(cmdLsblk.Calls(), DeepEquals, [][]string{
+		{"lsblk", "--fs", "--json", "/dev/node1"},
+	})
+
 	c.Assert(len(dl.Structure), Equals, 1)
 	c.Assert(dl.Structure[0].Node, Equals, "/dev/node1")
 
@@ -520,6 +747,20 @@ exit 0`
 	// update the partition list
 	err = gadget.UpdatePartitionList(dl)
 	c.Assert(err, IsNil)
+
+	c.Assert(cmdBlockdev.Calls(), DeepEquals, [][]string{
+		{"blockdev", "--getss", "/dev/node"},
+		{"blockdev", "--getss", "/dev/node"},
+	})
+
+	c.Assert(cmdSfdisk.Calls(), DeepEquals, [][]string{
+		{"sfdisk", "--json", "/dev/node"},
+	})
+
+	c.Assert(cmdLsblk.Calls(), DeepEquals, [][]string{
+		{"lsblk", "--fs", "--json", "/dev/node1"},
+		{"lsblk", "--fs", "--json", "/dev/node2"},
+	})
 
 	// check if the partition list was updated
 	c.Assert(len(dl.Structure), Equals, 2)

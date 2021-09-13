@@ -30,9 +30,8 @@ import (
 	"strings"
 	"testing"
 
-	. "gopkg.in/check.v1"
-
 	"github.com/mvo5/libseccomp-golang"
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/arch"
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"
@@ -290,10 +289,17 @@ mprotect
 	}
 	switch {
 	case syscallNr == -101:
-		// "socket"
-		// see libseccomp: _s390x_sock_demux(), _x86_sock_demux()
-		// the -101 is translated to 359 (socket)
-		syscallNr = 359
+		// "socket" needs to be demuxed
+		switch arch.DpkgArchitecture() {
+		case "ppc64el":
+			// see libseccomp: _ppc64_syscall_demux()
+			syscallNr = 326
+		default:
+			// see libseccomp: _s390x_sock_demux(),
+			// _x86_sock_demux() the -101 is translated to
+			// 359 (socket)
+			syscallNr = 359
+		}
 	case syscallNr == -10165:
 		// "mknod" on arm64 is not available at all on arm64
 		// only "mknodat" but libseccomp will not generate a

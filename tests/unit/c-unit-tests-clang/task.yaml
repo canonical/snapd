@@ -16,7 +16,6 @@ restore: |
     rm -rf "$SPREAD_PATH/cmd/autogarbage/"
     # Remove any installed packages
     dpkg --set-selections < pkg-list
-    rm -f pkg-list
 
 debug: |
     # Show the test suite failure log if there's one

@@ -1,7 +1,12 @@
 summary: Check that download caching works
 
 execute: |
+    echo "Install and remove the test-snapd-sh snap"
     snap install test-snapd-sh
     snap remove --purge test-snapd-sh
+
+    echo "Re-install the test-snapd-sh snap"
     snap install test-snapd-sh
+
+    echo "Check the cache was used for the second install"
     "$TESTSTOOLS"/journal-state match-log 'using cache for .*/test-snapd-sh.*\.snap' -u snapd

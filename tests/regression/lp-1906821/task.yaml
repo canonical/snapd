@@ -1,6 +1,6 @@
 summary: verify that parallel instances of snaps with complex layout are correct
 
-description: |
+details: |
     The layout in https://bugs.launchpad.net/snapd/+bug/1906821 would be broken
     with parallel instances, as due to a bug in sorting of mount entries, the
     mapping of /var/snap/aws-iot-greengrass_prime to /var/snap/aws-iot-greengrass

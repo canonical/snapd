@@ -23,7 +23,6 @@ import (
 	"errors"
 	"io/ioutil"
 	"os"
-	"strings"
 	"syscall"
 
 	. "gopkg.in/check.v1"
@@ -747,14 +746,6 @@ func (s *changeSuite) TestNeededChangesParallelInstancesInsideMountNew(c *C) {
 		{Entry: osutil.MountEntry{Dir: "/snap/foo", Name: "/snap/foo_bar", Options: []string{osutil.XSnapdOriginOvername()}}, Action: update.Mount},
 		{Entry: osutil.MountEntry{Dir: "/foo/bar/baz"}, Action: update.Mount},
 	})
-}
-
-func mustReadProfile(profileStr string) *osutil.MountProfile {
-	profile, err := osutil.ReadMountProfile(strings.NewReader(profileStr))
-	if err != nil {
-		panic(err)
-	}
-	return profile
 }
 
 func (s *changeSuite) TestRuntimeUsingSymlinksOld(c *C) {

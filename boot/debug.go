@@ -22,14 +22,15 @@ package boot
 import (
 	"fmt"
 	"io"
+	"strings"
 
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
-// DumpBootVars writes a dump of the snapd bootvars to the given writer
-func DumpBootVars(w io.Writer, dir string, uc20 bool) error {
+// DebugDumpBootVars writes a dump of the snapd bootvars to the given writer
+func DebugDumpBootVars(w io.Writer, dir string, uc20 bool) error {
 	opts := &bootloader.Options{
 		NoSlashBoot: dir != "" && dir != "/",
 	}
@@ -57,7 +58,7 @@ func DumpBootVars(w io.Writer, dir string, uc20 bool) error {
 	}
 	if uc20 {
 		if !opts.NoSlashBoot {
-			// no root directory set, default ot run mode
+			// no root directory set, default to run mode
 			opts.Role = bootloader.RoleRunMode
 		}
 		// keys relevant to all uc20 bootloader implementations
@@ -66,7 +67,12 @@ func DumpBootVars(w io.Writer, dir string, uc20 bool) error {
 			"snapd_recovery_system",
 			"snapd_recovery_kernel",
 			"snap_kernel",
+			"snap_try_kernel",
 			"kernel_status",
+			"recovery_system_status",
+			"try_recovery_system",
+			"snapd_extra_cmdline_args",
+			"snapd_full_cmdline_args",
 		}
 	}
 	bloader, err := bootloader.Find(dir, opts)
@@ -82,4 +88,50 @@ func DumpBootVars(w io.Writer, dir string, uc20 bool) error {
 		fmt.Fprintf(w, "%s=%s\n", k, bootVars[k])
 	}
 	return nil
+}
+
+// DebugSetBootVars is a debug helper that takes a list of <var>=<value> entries
+// and sets them for the configured bootloader.
+func DebugSetBootVars(dir string, recoveryBootloader bool, varEqVal []string) error {
+	opts := &bootloader.Options{
+		NoSlashBoot: dir != "" && dir != "/",
+	}
+	if opts.NoSlashBoot || osutil.FileExists(dirs.SnapModeenvFile) {
+		// implied UC20 bootloader
+		opts.Role = bootloader.RoleRunMode
+	}
+	// try some well known UC20 root dirs
+	switch dir {
+	case InitramfsUbuntuBootDir:
+		if recoveryBootloader {
+			return fmt.Errorf("cannot use run bootloader root-dir with a recovery flag")
+		}
+		opts.Role = bootloader.RoleRunMode
+	case InitramfsUbuntuSeedDir:
+		opts.Role = bootloader.RoleRecovery
+	}
+	if recoveryBootloader {
+		// UC20 recovery bootloader
+		opts.Role = bootloader.RoleRecovery
+		if !opts.NoSlashBoot {
+			// no root dir was provided, use the default one for a
+			// recovery bootloader
+			dir = InitramfsUbuntuSeedDir
+		}
+	}
+	bloader, err := bootloader.Find(dir, opts)
+	if err != nil {
+		return err
+	}
+
+	toSet := map[string]string{}
+
+	for _, req := range varEqVal {
+		split := strings.SplitN(req, "=", 2)
+		if len(split) != 2 {
+			return fmt.Errorf("incorrect setting %q", varEqVal)
+		}
+		toSet[split[0]] = split[1]
+	}
+	return bloader.SetBootVars(toSet)
 }

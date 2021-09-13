@@ -90,6 +90,60 @@ func affectedSnaps(t *state.Task) ([]string, error) {
 	return nil, nil
 }
 
+func checkChangeConflictExclusiveKinds(st *state.State, newExclusiveChangeKind, ignoreChangeID string) error {
+	for _, chg := range st.Changes() {
+		if chg.Status().Ready() {
+			continue
+		}
+		switch chg.Kind() {
+		case "transition-ubuntu-core":
+			return &ChangeConflictError{
+				Message:    "ubuntu-core to core transition in progress, no other changes allowed until this is done",
+				ChangeKind: "transition-ubuntu-core",
+			}
+		case "transition-to-snapd-snap":
+			return &ChangeConflictError{
+				Message:    "transition to snapd snap in progress, no other changes allowed until this is done",
+				ChangeKind: "transition-to-snapd-snap",
+			}
+		case "remodel":
+			if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
+				continue
+			}
+			return &ChangeConflictError{
+				Message:    "remodeling in progress, no other changes allowed until this is done",
+				ChangeKind: "remodel",
+			}
+		case "create-recovery-system":
+			if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
+				continue
+			}
+			return &ChangeConflictError{
+				Message:    "creating recovery system in progress, no other changes allowed until this is done",
+				ChangeKind: "create-recovery-system",
+			}
+		default:
+			if newExclusiveChangeKind != "" {
+				// we want to run a new exclusive change, but other
+				// changes are in progress already
+				msg := fmt.Sprintf("other changes in progress (conflicting change %q), change %q not allowed until they are done", chg.Kind(),
+					newExclusiveChangeKind)
+				return &ChangeConflictError{
+					Message:    msg,
+					ChangeKind: chg.Kind(),
+				}
+			}
+		}
+	}
+	return nil
+}
+
+// CheckChangeConflictRunExclusively checks for conflicts with a new change which
+// must be run when no other changes are running.
+func CheckChangeConflictRunExclusively(st *state.State, newChangeKind string) error {
+	return checkChangeConflictExclusiveKinds(st, newChangeKind, "")
+}
+
 // CheckChangeConflictMany ensures that for the given instanceNames no other
 // changes that alters the snaps (like remove, install, refresh) are in
 // progress. If a conflict is detected an error is returned.
@@ -102,22 +156,9 @@ func CheckChangeConflictMany(st *state.State, instanceNames []string, ignoreChan
 		snapMap[k] = true
 	}
 
-	for _, chg := range st.Changes() {
-		if chg.Status().Ready() {
-			continue
-		}
-		if chg.Kind() == "transition-ubuntu-core" {
-			return &ChangeConflictError{Message: "ubuntu-core to core transition in progress, no other changes allowed until this is done", ChangeKind: "transition-ubuntu-core"}
-		}
-		if chg.Kind() == "transition-to-snapd-snap" {
-			return &ChangeConflictError{Message: "transition to snapd snap in progress, no other changes allowed until this is done", ChangeKind: "transition-to-snapd-snap"}
-		}
-		if chg.Kind() == "remodel" {
-			if ignoreChangeID != "" && chg.ID() == ignoreChangeID {
-				continue
-			}
-			return &ChangeConflictError{Message: "remodeling in progress, no other changes allowed until this is done", ChangeKind: "remodel"}
-		}
+	// check whether there are other changes that need to run exclusively
+	if err := checkChangeConflictExclusiveKinds(st, "", ignoreChangeID); err != nil {
+		return err
 	}
 
 	for _, task := range st.Tasks() {

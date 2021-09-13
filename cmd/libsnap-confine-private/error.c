@@ -29,6 +29,8 @@
 static sc_error *sc_error_initv(const char *domain, int code,
 				const char *msgfmt, va_list ap)
 {
+	// Set errno in case we die.
+	errno = 0;
 	sc_error *err = calloc(1, sizeof *err);
 	if (err == NULL) {
 		die("cannot allocate memory for error object");
@@ -81,6 +83,8 @@ sc_error *sc_error_init_api_misuse(const char *msgfmt, ...)
 
 const char *sc_error_domain(sc_error * err)
 {
+	// Set errno in case we die.
+	errno = 0;
 	if (err == NULL) {
 		die("cannot obtain error domain from NULL error");
 	}
@@ -89,6 +93,8 @@ const char *sc_error_domain(sc_error * err)
 
 int sc_error_code(sc_error * err)
 {
+	// Set errno in case we die.
+	errno = 0;
 	if (err == NULL) {
 		die("cannot obtain error code from NULL error");
 	}
@@ -97,6 +103,8 @@ int sc_error_code(sc_error * err)
 
 const char *sc_error_msg(sc_error * err)
 {
+	// Set errno in case we die.
+	errno = 0;
 	if (err == NULL) {
 		die("cannot obtain error message from NULL error");
 	}
@@ -143,6 +151,8 @@ int sc_error_forward(sc_error ** recipient, sc_error * error)
 
 bool sc_error_match(sc_error * error, const char *domain, int code)
 {
+	// Set errno in case we die.
+	errno = 0;
 	if (domain == NULL) {
 		die("cannot match error to a NULL domain");
 	}

@@ -7,14 +7,11 @@ details: |
     This test verifies that the bluez snap from the store installs and
     we can connect its slot and plug.
 
-environment:
-    SNAP_NAME: bluez
-
 execute: |
     if ! snap list --unicode=never bluez &> /dev/null ; then
         echo "Installing bluez snap from the store ..."
-        expected="(?s)$SNAP_NAME .* from Canonical\\* installed\\n"
-        snap install "$SNAP_NAME" | grep -Pzq "$expected"
+        expected="(?s)bluez .* from Canonical\\* installed\\n"
+        snap install bluez | grep -Pzq "$expected"
     fi
 
     echo "Connecting bluez snap plugs/slots ..."

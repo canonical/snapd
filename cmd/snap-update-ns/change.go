@@ -72,12 +72,12 @@ var changePerform func(*Change, *Assumptions) ([]*Change, error)
 //
 // The returned path is the location where a mimic should be constructed.
 func mimicRequired(err error) (needsMimic bool, path string) {
-	switch err.(type) {
+	switch err := err.(type) {
 	case *ReadOnlyFsError:
-		rofsErr := err.(*ReadOnlyFsError)
+		rofsErr := err
 		return true, rofsErr.Path
 	case *TrespassingError:
-		tErr := err.(*TrespassingError)
+		tErr := err
 		return true, tErr.ViolatedPath
 	}
 	return false, ""

@@ -21,7 +21,10 @@ package ctlcmd_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
+
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -30,8 +33,6 @@ import (
 	"github.com/snapcore/snapd/overlord/hookstate/hooktest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
-
-	. "gopkg.in/check.v1"
 )
 
 type setSuite struct {
@@ -203,6 +204,55 @@ func (s *setSuite) TestSetNumbers(c *C) {
 	c.Check(value, Equals, json.Number("123456.7890"))
 }
 
+func (s *setSuite) TestSetStrictJSON(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "-t", `key={"a":"b", "c": 1, "d": {"e":"f"}}`}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+
+	// Notify the context that we're done. This should save the config.
+	s.mockContext.Lock()
+	defer s.mockContext.Unlock()
+	c.Check(s.mockContext.Done(), IsNil)
+
+	// Verify that the global config has been updated.
+	var value interface{}
+	tr := config.NewTransaction(s.mockContext.State())
+	c.Assert(tr.Get("test-snap", "key", &value), IsNil)
+	c.Check(value, DeepEquals, map[string]interface{}{"a": "b", "c": json.Number("1"), "d": map[string]interface{}{"e": "f"}})
+}
+
+func (s *setSuite) TestSetFailWithStrictJSON(c *C) {
+	_, _, err := ctlcmd.Run(s.mockContext, []string{"set", "-t", `key=a`}, 0)
+	c.Assert(err, ErrorMatches, "failed to parse JSON:.*")
+}
+
+func (s *setSuite) TestSetAsString(c *C) {
+	expected := `{"a":"b", "c": 1, "d": {"e": "f"}}`
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "-s", fmt.Sprintf("key=%s", expected)}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+
+	// Notify the context that we're done. This should save the config.
+	s.mockContext.Lock()
+	defer s.mockContext.Unlock()
+	c.Check(s.mockContext.Done(), IsNil)
+
+	// Verify that the global config has been updated.
+	var value interface{}
+	tr := config.NewTransaction(s.mockContext.State())
+	c.Assert(tr.Get("test-snap", "key", &value), IsNil)
+	c.Check(value, Equals, expected)
+}
+
+func (s *setSuite) TestSetErrorOnStrictJSONAndString(c *C) {
+	stdout, stderr, err := ctlcmd.Run(s.mockContext, []string{"set", "-s", "-t", `{"a":"b"}`}, 0)
+	c.Assert(err, ErrorMatches, "cannot use -t and -s together")
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
+}
+
 func (s *setSuite) TestCommandSavesDeltasOnly(c *C) {
 	// Setup an initial configuration
 	s.mockContext.State().Lock()
@@ -233,7 +283,7 @@ func (s *setSuite) TestCommandSavesDeltasOnly(c *C) {
 
 func (s *setSuite) TestCommandWithoutContext(c *C) {
 	_, _, err := ctlcmd.Run(nil, []string{"set", "foo=bar"}, 0)
-	c.Check(err, ErrorMatches, ".*cannot set without a context.*")
+	c.Check(err, ErrorMatches, `cannot invoke snapctl operation commands \(here "set"\) from outside of a snap`)
 }
 
 func (s *setAttrSuite) SetUpTest(c *C) {

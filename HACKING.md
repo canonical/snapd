@@ -8,8 +8,8 @@ integration test framework for the integration/system level tests.
 
 ### Supported Go versions
 
-From snapd 2.38, snapd supports Go 1.9 and onwards. For earlier snapd 
-releases, snapd supports Go 1.6.
+From snapd 2.52, snapd supports Go 1.13 and onwards. From snapd 2.38
+to 2.52, snapd requires Go 1.9+. Versions before 2.38 support Go 1.6+.
 
 ### Setting up a GOPATH
 
@@ -42,6 +42,14 @@ Add `$GOPATH/bin` to your `PATH`, so you can run the go programs you install:
 your `$GOPATH` is more complex than a single entry you'll need to adjust the
 above).
 
+Note that if you are using go 1.16 or newer you need to disable the
+go modules feature. Use:
+
+    export GO111MODULE=off
+
+for this.
+
+
 ### Getting the snapd sources
 
 The easiest way to get the source for `snapd` is to use the `go get` command.
@@ -62,23 +70,7 @@ dependent packages will also be available inside `$GOPATH`.
 
 ### Dependencies handling
 
-Go dependencies are handled via `govendor`. Get it via:
-
-    go get -u github.com/kardianos/govendor
-
-After a fresh checkout, move to the snapd source directory:
-
-    cd $GOPATH/src/github.com/snapcore/snapd
-
-And then, run:
-
-    govendor sync
-
-You can use the script `get-deps.sh` to run the two previous steps.
-
-If a dependency need updating
-
-    govendor fetch github.com/path/of/dependency
+Go dependencies are handled via `go mod`.
 
 Other dependencies are handled via distribution packages and you should ensure
 that dependencies for your distribution are installed. For example, on Ubuntu,
@@ -141,6 +133,8 @@ If a test hangs, you can enable verbose mode:
 
 (or -check.v for less verbose output).
 
+Note, the yamlordereddictloader python package is needed to carry out the tests format check.
+
 There is more to read about the testing framework on the [website](https://labix.org/gocheck)
 
 ### Running spread tests
@@ -150,7 +144,7 @@ To run the spread tests locally via QEMU, you need the latest version of
 build tools to build QEMU images with:
 
     $ sudo apt update && sudo apt install -y qemu-kvm autopkgtest
-    $ curl https://niemeyer.s3.amazonaws.com/spread-amd64.tar.gz | tar -xz -C $GOPATH/bin
+    $ curl https://storage.googleapis.com/snapd-spread-tests/spread/spread-amd64.tar.gz | tar -xz -C $GOPATH/bin
 
 #### Building spread VM images
 
@@ -205,6 +199,29 @@ For quick reuse you can use:
 It will print how to reuse the systems. Make sure to use
 `export REUSE_PROJECT=1` in your environment too.
 
+#### Running UC20 spread with QEMU
+
+Ubuntu Core 20 on amd64 has a requirement to use UEFI, so there are a few 
+additional steps needed to run spread with the ubuntu-core-20-64 systems locally
+using QEMU. For one, upstream spread currently does not support specifying what
+kind of BIOS to use with the VM, so you have to build spread from this PR:
+https://github.com/snapcore/spread/pull/95, and then use the environment 
+variable `SPREAD_QEMU_BIOS` to specify an UEFI BIOS to use with the VM, for 
+example the one from the OVMF package. To get OVMF on Ubuntu, you can just 
+install the `ovmf` package via `apt`. After installing OVMF, you can then run 
+spread like so:
+
+    $ SPREAD_QEMU_BIOS=/usr/share/OVMF/OVMF_CODE.fd spread -v qemu:ubuntu-core-20-64
+
+This will enable testing UC20 with the spread, albeit without secure boot 
+support. None of the native UC20 tests currently require secure boot however, 
+all tests around secure boot are nested, see the section below about running the
+nested tests.
+
+Also, due to the in-flux state of spread support for booting UEFI VM's like 
+this, you can test ubuntu-core-20-64 only by themselves and not with any other
+system concurrently since the environment variable is global for all systems in
+the spread run. This will be fixed in a future release of spread.
 
 ### Testing snapd
 

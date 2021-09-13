@@ -2,12 +2,13 @@
 # https://forum.snapcraft.io/t/its-a-little-bit-hard-to-use-daemon-notify-for-sd-notify/6366
 summary: Ensure that the daemon-notify interface works.
 
-# test is timing dependant and may fail on very slow systems
-backends: [-autopkgtest]
-
 details: |
     The daemon-notify interface allows sending notification messages 
     to systemd through the notify socket
+
+
+# test is timing dependant and may fail on very slow systems
+backends: [-autopkgtest]
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-daemon-notify
@@ -32,7 +33,7 @@ execute: |
         fi
         sleep 1
     done
-    [ "$denials_before" -eq "$denials_after" ]
+    test "$denials_before" = "$denials_after"
 
     if [ "$(snap debug confinement)" = partial ] ; then
         exit 0
@@ -54,4 +55,4 @@ execute: |
         fi
         sleep 1
     done
-    [ "$denials_before" -ne "$denials_after" ]
+    test "$denials_before" != "$denials_after"

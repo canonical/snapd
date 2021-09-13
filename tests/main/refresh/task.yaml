@@ -22,8 +22,6 @@ environment:
     STORE_TYPE/parallel_strict_remote,strict_remote,classic_remote: ${REMOTE_STORE}
 
 prepare: |
-    tests.cleanup prepare
-
     if [ "$STORE_TYPE" = "fake" ]; then
         if os.query is-core; then
             exit
@@ -63,8 +61,6 @@ prepare: |
     fi
 
 restore: |
-    tests.cleanup restore
-
     if [ "$STORE_TYPE" = "fake" ]; then
         if os.query is-core; then
             exit
@@ -115,7 +111,7 @@ execute: |
     tests.cleanup defer snap unset system experimental.refresh-app-awareness
 
     #shellcheck source=tests/lib/pkgdb.sh
-    if os.query is-classic && ! os.query is-trusty && [ "$(. /etc/os-release && echo "$ID")" != amzn ]; then
+    if os.query is-classic && not os.query is-trusty && not os.query is-amazon-linux; then
       . "$TESTSLIB/pkgdb.sh"
       distro_install_package inotify-tools
       # XXX: probably a bug in defer, this fails without ' ' quotes around the rest.

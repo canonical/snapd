@@ -32,9 +32,8 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/mgo.v2/bson"
-
 	. "gopkg.in/check.v1"
+	"gopkg.in/mgo.v2/bson"
 
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"

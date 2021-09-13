@@ -42,10 +42,13 @@ const pppConnectedPlugAppArmor = `
 /run/ppp* rwk,
 /var/run/ppp* rwk,
 /var/log/ppp* rw,
-/bin/run-parts ix,
+/{,usr/}bin/run-parts ix,
 @{PROC}/@{pid}/loginuid r,
 capability setgid,
 capability setuid,
+
+# Allow to determine whether a tty device is a serial port or not.
+@{PROC}/tty/drivers r,
 `
 
 // ppp_generic creates /dev/ppp. Other ppp modules will be automatically loaded

@@ -27,9 +27,15 @@ import (
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
+	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/timings"
+)
+
+var (
+	osutilSetTime = osutil.SetTime
 )
 
 // initramfsMountsState helps tracking the state and progress
@@ -53,7 +59,33 @@ func (mst *initramfsMountsState) ReadEssential(recoverySystem string, essentialT
 	}
 
 	perf := timings.New(nil)
-	return seed.ReadSystemEssential(boot.InitramfsUbuntuSeedDir, recoverySystem, essentialTypes, perf)
+
+	// get the current time to pass to ReadSystemEssentialAndBetterEarliestTime
+	// note that we trust the time we have from the system, because that time
+	// comes from either:
+	// * a RTC on the system that the kernel/systemd consulted and used to move
+	//   time forward
+	// * systemd using a built-in timestamp from the initrd which was stamped
+	//   when the initrd was built, giving a lower bound on the current time if
+	//   the RTC does not have a battery or is otherwise unreliable, etc.
+	now := timeNow()
+
+	model, snaps, newTrustedEarliestTime, err := seed.ReadSystemEssentialAndBetterEarliestTime(boot.InitramfsUbuntuSeedDir, recoverySystem, essentialTypes, now, perf)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	// set the time on the system to move forward if it is in the future - never
+	// move the time backwards
+	if newTrustedEarliestTime.After(now) {
+		if err := osutilSetTime(newTrustedEarliestTime); err != nil {
+			// log the error but don't fail on it, we should be able to continue
+			// even if the time can't be moved forward
+			logger.Noticef("failed to move time forward from %s to %s: %v", now, newTrustedEarliestTime, err)
+		}
+	}
+
+	return model, snaps, nil
 }
 
 // UnverifiedBootModel returns the unverified model from the
@@ -79,4 +111,22 @@ func (mst *initramfsMountsState) UnverifiedBootModel() (*asserts.Model, error) {
 		return nil, fmt.Errorf("unexpected assertion: %q", ma.Type().Name)
 	}
 	return ma.(*asserts.Model), nil
+}
+
+// EphemeralModeenvForModel generates a modeenv given the model and the snaps for the
+// current mode and recovery system of the initramfsMountsState.
+func (mst *initramfsMountsState) EphemeralModeenvForModel(model *asserts.Model, snaps map[snap.Type]snap.PlaceInfo) (*boot.Modeenv, error) {
+	if mst.mode == "run" {
+		return nil, fmt.Errorf("internal error: initramfs should not write modeenv in run mode")
+	}
+	return &boot.Modeenv{
+		Mode:           mst.mode,
+		RecoverySystem: mst.recoverySystem,
+		Base:           snaps[snap.TypeBase].Filename(),
+		Model:          model.Model(),
+		BrandID:        model.BrandID(),
+		Grade:          string(model.Grade()),
+		// TODO:UC20: what about current kernel snaps, trusted boot assets and
+		//            kernel command lines?
+	}, nil
 }

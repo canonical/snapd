@@ -26,6 +26,7 @@ import (
 	"github.com/godbus/dbus/introspect"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/logger"
 )
 
@@ -49,34 +50,17 @@ var userdBusNames = []string{
 	"io.snapcraft.Settings",
 }
 
-func dbusSessionBus() (*dbus.Conn, error) {
-	// use a private connection to the session bus, this way we can manage
-	// its lifetime without worrying of breaking other code
-	conn, err := dbus.SessionBusPrivate()
-	if err != nil {
-		return nil, err
-	}
-	if err := conn.Auth(nil); err != nil {
-		conn.Close()
-		return nil, err
-	}
-	if err := conn.Hello(); err != nil {
-		conn.Close()
-		return nil, err
-	}
-	return conn, nil
-}
-
 func (ud *Userd) Init() error {
 	var err error
 
-	ud.conn, err = dbusSessionBus()
+	ud.conn, err = dbusutil.SessionBusPrivate()
 	if err != nil {
 		return err
 	}
 
 	ud.dbusIfaces = []dbusInterface{
 		&Launcher{ud.conn},
+		&PrivilegedDesktopLauncher{ud.conn},
 		&Settings{ud.conn},
 	}
 	for _, iface := range ud.dbusIfaces {

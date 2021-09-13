@@ -24,18 +24,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"time"
 
+	"github.com/godbus/dbus"
 	. "gopkg.in/check.v1"
 
-	"github.com/godbus/dbus"
-	"github.com/snapcore/snapd/dbusutil"
-	"github.com/snapcore/snapd/dbusutil/dbustest"
 	"github.com/snapcore/snapd/desktop/notification"
+	"github.com/snapcore/snapd/desktop/notification/notificationtest"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
@@ -48,6 +46,7 @@ type restSuite struct {
 	testutil.DBusTest
 	sysdLog [][]string
 	agent   *agent.SessionAgent
+	notify  *notificationtest.FdoServer
 }
 
 var _ = Suite(&restSuite{})
@@ -71,6 +70,10 @@ func (s *restSuite) SetUpTest(c *C) {
 	s.AddCleanup(restore)
 
 	var err error
+	s.notify, err = notificationtest.NewFdoServer()
+	c.Assert(err, IsNil)
+	s.AddCleanup(func() { s.notify.Stop() })
+
 	s.agent, err = agent.New()
 	c.Assert(err, IsNil)
 	s.agent.Start()
@@ -130,9 +133,8 @@ func (s *restSuite) TestServiceControlDaemonReloadComplexerContentType(c *C) {
 }
 
 func (s *restSuite) TestServiceControlDaemonReloadInvalidCharset(c *C) {
-	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"daemon-reload"}`))
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"daemon-reload"}`))
 	req.Header.Set("Content-Type", "application/json; charset=iso-8859-1")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 400)
@@ -141,9 +143,8 @@ func (s *restSuite) TestServiceControlDaemonReloadInvalidCharset(c *C) {
 }
 
 func (s *restSuite) testServiceControlDaemonReload(c *C, contentType string) {
-	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"daemon-reload"}`))
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"daemon-reload"}`))
 	req.Header.Set("Content-Type", contentType)
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 200)
@@ -160,9 +161,8 @@ func (s *restSuite) testServiceControlDaemonReload(c *C, contentType string) {
 }
 
 func (s *restSuite) TestServiceControlStart(c *C) {
-	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "snap.bar.service"]}`))
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 200)
@@ -180,9 +180,8 @@ func (s *restSuite) TestServiceControlStart(c *C) {
 }
 
 func (s *restSuite) TestServicesStartNonSnap(c *C) {
-	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "not-snap.bar.service"]}`))
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "not-snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
@@ -210,9 +209,8 @@ func (s *restSuite) TestServicesStartFailureStopsServices(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "snap.bar.service"]}`))
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
@@ -254,9 +252,8 @@ func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "snap.bar.service"]}`))
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"start","services":["snap.foo.service", "snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
@@ -286,9 +283,8 @@ func (s *restSuite) TestServicesStartFailureReportsStopFailures(c *C) {
 }
 
 func (s *restSuite) TestServicesStop(c *C) {
-	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"stop","services":["snap.foo.service", "snap.bar.service"]}`))
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"stop","services":["snap.foo.service", "snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 200)
@@ -308,9 +304,8 @@ func (s *restSuite) TestServicesStop(c *C) {
 }
 
 func (s *restSuite) TestServicesStopNonSnap(c *C) {
-	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"stop","services":["snap.foo.service", "not-snap.bar.service"]}`))
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"stop","services":["snap.foo.service", "not-snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
@@ -341,9 +336,8 @@ func (s *restSuite) TestServicesStopReportsTimeout(c *C) {
 	})
 	defer restore()
 
-	req, err := http.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"stop","services":["snap.foo.service", "snap.bar.service"]}`))
+	req := httptest.NewRequest("POST", "/v1/service-control", bytes.NewBufferString(`{"action":"stop","services":["snap.foo.service", "snap.bar.service"]}`))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.ServiceControlCmd.POST(agent.ServiceControlCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
@@ -369,9 +363,8 @@ func (s *restSuite) TestServicesStopReportsTimeout(c *C) {
 }
 
 func (s *restSuite) TestPostPendingRefreshNotificationMalformedContentType(c *C) {
-	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBufferString(""))
+	req := httptest.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBufferString(""))
 	req.Header.Set("Content-Type", "text/plain/joke")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.PendingRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 400)
@@ -384,9 +377,8 @@ func (s *restSuite) TestPostPendingRefreshNotificationMalformedContentType(c *C)
 }
 
 func (s *restSuite) TestPostPendingRefreshNotificationUnsupportedContentType(c *C) {
-	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBufferString(""))
+	req := httptest.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBufferString(""))
 	req.Header.Set("Content-Type", "text/plain")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.PendingRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 400)
@@ -399,9 +391,8 @@ func (s *restSuite) TestPostPendingRefreshNotificationUnsupportedContentType(c *
 }
 
 func (s *restSuite) TestPostPendingRefreshNotificationUnsupportedContentEncoding(c *C) {
-	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBufferString(""))
+	req := httptest.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBufferString(""))
 	req.Header.Set("Content-Type", "application/json; charset=EBCDIC")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.PendingRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 400)
@@ -414,10 +405,9 @@ func (s *restSuite) TestPostPendingRefreshNotificationUnsupportedContentEncoding
 }
 
 func (s *restSuite) TestPostPendingRefreshNotificationMalformedRequestBody(c *C) {
-	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh",
+	req := httptest.NewRequest("POST", "/v1/notifications/pending-refresh",
 		bytes.NewBufferString(`{"instance-name":syntaxerror}`))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.PendingRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 400)
@@ -430,16 +420,12 @@ func (s *restSuite) TestPostPendingRefreshNotificationMalformedRequestBody(c *C)
 }
 
 func (s *restSuite) TestPostPendingRefreshNotificationNoSessionBus(c *C) {
-	noDBus := func() (*dbus.Conn, error) {
-		return nil, fmt.Errorf("cannot find bus")
-	}
-	restore := dbusutil.MockConnections(noDBus, noDBus)
+	restore := agent.MockNoBus(s.agent)
 	defer restore()
 
-	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh",
+	req := httptest.NewRequest("POST", "/v1/notifications/pending-refresh",
 		bytes.NewBufferString(`{"instance-name":"pkg"}`))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.PendingRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
@@ -448,36 +434,14 @@ func (s *restSuite) TestPostPendingRefreshNotificationNoSessionBus(c *C) {
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{"message": "cannot connect to the session bus: cannot find bus"})
+	c.Check(rsp.Result, DeepEquals, map[string]interface{}{"message": "cannot connect to the session bus"})
 }
 
-func (s *restSuite) testPostPendingRefreshNotificationBody(c *C, refreshInfo *client.PendingSnapRefreshInfo, checkMsg func(c *C, msg *dbus.Message)) {
-	conn, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
-		if checkMsg != nil {
-			checkMsg(c, msg)
-		}
-		responseSig := dbus.SignatureOf(uint32(0))
-		response := &dbus.Message{
-			Type: dbus.TypeMethodReply,
-			Headers: map[dbus.HeaderField]dbus.Variant{
-				dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
-				dbus.FieldSender:      dbus.MakeVariant(":1"), // This does not matter.
-				// dbus.FieldDestination is provided automatically by DBus test helper.
-				dbus.FieldSignature: dbus.MakeVariant(responseSig),
-			},
-			Body: []interface{}{uint32(7)}, // NotificationID (ignored for now)
-		}
-		return []*dbus.Message{response}, nil
-	})
-	c.Assert(err, IsNil)
-	restore := dbusutil.MockOnlySessionBusAvailable(conn)
-	defer restore()
-
+func (s *restSuite) testPostPendingRefreshNotificationBody(c *C, refreshInfo *client.PendingSnapRefreshInfo) {
 	reqBody, err := json.Marshal(refreshInfo)
 	c.Assert(err, IsNil)
-	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBuffer(reqBody))
+	req := httptest.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBuffer(reqBody))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.PendingRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 200)
@@ -491,19 +455,20 @@ func (s *restSuite) testPostPendingRefreshNotificationBody(c *C, refreshInfo *cl
 
 func (s *restSuite) TestPostPendingRefreshNotificationHappeningNow(c *C) {
 	refreshInfo := &client.PendingSnapRefreshInfo{InstanceName: "pkg"}
-	s.testPostPendingRefreshNotificationBody(c, refreshInfo, func(c *C, msg *dbus.Message) {
-		c.Check(msg.Body[0], Equals, "")
-		c.Check(msg.Body[1], Equals, uint32(0))
-		c.Check(msg.Body[2], Equals, "")
-		c.Check(msg.Body[3], Equals, `Snap "pkg" is refreshing now!`)
-		c.Check(msg.Body[4], Equals, "")
-		c.Check(msg.Body[5], HasLen, 0)
-		c.Check(msg.Body[6], DeepEquals, map[string]dbus.Variant{
-			"urgency":       dbus.MakeVariant(byte(notification.CriticalUrgency)),
-			"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
-		})
-		c.Check(msg.Body[7], Equals, int32(0))
+	s.testPostPendingRefreshNotificationBody(c, refreshInfo)
+	notifications := s.notify.GetAll()
+	c.Assert(notifications, HasLen, 1)
+	n := notifications[0]
+	c.Check(n.AppName, Equals, "")
+	c.Check(n.Icon, Equals, "")
+	c.Check(n.Summary, Equals, `Snap "pkg" is refreshing now!`)
+	c.Check(n.Body, Equals, "")
+	c.Check(n.Actions, DeepEquals, []string{})
+	c.Check(n.Hints, DeepEquals, map[string]dbus.Variant{
+		"urgency":       dbus.MakeVariant(byte(notification.CriticalUrgency)),
+		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
 	})
+	c.Check(n.Expires, Equals, int32(0))
 }
 
 func (s *restSuite) TestPostPendingRefreshNotificationFewDays(c *C) {
@@ -511,14 +476,16 @@ func (s *restSuite) TestPostPendingRefreshNotificationFewDays(c *C) {
 		InstanceName:  "pkg",
 		TimeRemaining: time.Hour * 72,
 	}
-	s.testPostPendingRefreshNotificationBody(c, refreshInfo, func(c *C, msg *dbus.Message) {
-		c.Check(msg.Body[3], Equals, `Pending update of "pkg" snap`)
-		c.Check(msg.Body[4], Equals, "Close the app to avoid disruptions (3 days left)")
-		c.Check(msg.Body[6], DeepEquals, map[string]dbus.Variant{
-			"urgency":       dbus.MakeVariant(byte(notification.LowUrgency)),
-			"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
-		})
-		c.Check(msg.Body[7], Equals, int32(0))
+	s.testPostPendingRefreshNotificationBody(c, refreshInfo)
+	notifications := s.notify.GetAll()
+	c.Assert(notifications, HasLen, 1)
+	n := notifications[0]
+	// boring stuff is checked above
+	c.Check(n.Summary, Equals, `Pending update of "pkg" snap`)
+	c.Check(n.Body, Equals, "Close the app to avoid disruptions (3 days left)")
+	c.Check(n.Hints, DeepEquals, map[string]dbus.Variant{
+		"urgency":       dbus.MakeVariant(byte(notification.LowUrgency)),
+		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
 	})
 }
 
@@ -527,14 +494,16 @@ func (s *restSuite) TestPostPendingRefreshNotificationFewHours(c *C) {
 		InstanceName:  "pkg",
 		TimeRemaining: time.Hour * 7,
 	}
-	s.testPostPendingRefreshNotificationBody(c, refreshInfo, func(c *C, msg *dbus.Message) {
-		// boring stuff is checked above
-		c.Check(msg.Body[3], Equals, `Pending update of "pkg" snap`)
-		c.Check(msg.Body[4], Equals, "Close the app to avoid disruptions (7 hours left)")
-		c.Check(msg.Body[6], DeepEquals, map[string]dbus.Variant{
-			"urgency":       dbus.MakeVariant(byte(notification.NormalUrgency)),
-			"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
-		})
+	s.testPostPendingRefreshNotificationBody(c, refreshInfo)
+	notifications := s.notify.GetAll()
+	c.Assert(notifications, HasLen, 1)
+	n := notifications[0]
+	// boring stuff is checked above
+	c.Check(n.Summary, Equals, `Pending update of "pkg" snap`)
+	c.Check(n.Body, Equals, "Close the app to avoid disruptions (7 hours left)")
+	c.Check(n.Hints, DeepEquals, map[string]dbus.Variant{
+		"urgency":       dbus.MakeVariant(byte(notification.NormalUrgency)),
+		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
 	})
 }
 
@@ -543,14 +512,16 @@ func (s *restSuite) TestPostPendingRefreshNotificationFewMinutes(c *C) {
 		InstanceName:  "pkg",
 		TimeRemaining: time.Minute * 15,
 	}
-	s.testPostPendingRefreshNotificationBody(c, refreshInfo, func(c *C, msg *dbus.Message) {
-		// boring stuff is checked above
-		c.Check(msg.Body[3], Equals, `Pending update of "pkg" snap`)
-		c.Check(msg.Body[4], Equals, "Close the app to avoid disruptions (15 minutes left)")
-		c.Check(msg.Body[6], DeepEquals, map[string]dbus.Variant{
-			"urgency":       dbus.MakeVariant(byte(notification.CriticalUrgency)),
-			"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
-		})
+	s.testPostPendingRefreshNotificationBody(c, refreshInfo)
+	notifications := s.notify.GetAll()
+	c.Assert(notifications, HasLen, 1)
+	n := notifications[0]
+	// boring stuff is checked above
+	c.Check(n.Summary, Equals, `Pending update of "pkg" snap`)
+	c.Check(n.Body, Equals, "Close the app to avoid disruptions (15 minutes left)")
+	c.Check(n.Hints, DeepEquals, map[string]dbus.Variant{
+		"urgency":       dbus.MakeVariant(byte(notification.CriticalUrgency)),
+		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
 	})
 }
 
@@ -569,13 +540,15 @@ Icon=app.png
 	`), 0644)
 	c.Assert(err, IsNil)
 
-	s.testPostPendingRefreshNotificationBody(c, refreshInfo, func(c *C, msg *dbus.Message) {
-		// boring stuff is checked above
-		c.Check(msg.Body[2], Equals, "app.png")
-		c.Check(msg.Body[6], DeepEquals, map[string]dbus.Variant{
-			"urgency":       dbus.MakeVariant(byte(notification.CriticalUrgency)),
-			"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
-		})
+	s.testPostPendingRefreshNotificationBody(c, refreshInfo)
+	notifications := s.notify.GetAll()
+	c.Assert(notifications, HasLen, 1)
+	n := notifications[0]
+	// boring stuff is checked above
+	c.Check(n.Icon, Equals, "app.png")
+	c.Check(n.Hints, DeepEquals, map[string]dbus.Variant{
+		"urgency":       dbus.MakeVariant(byte(notification.CriticalUrgency)),
+		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
 	})
 }
 
@@ -591,41 +564,28 @@ func (s *restSuite) TestPostPendingRefreshNotificationBusyAppMalformedDesktopFil
 	err = ioutil.WriteFile(desktopFilePath, []byte(`garbage!`), 0644)
 	c.Assert(err, IsNil)
 
-	s.testPostPendingRefreshNotificationBody(c, refreshInfo, func(c *C, msg *dbus.Message) {
-		// boring stuff is checked above
-		c.Check(msg.Body[2], Equals, "") // Icon is not provided
-		c.Check(msg.Body[6], DeepEquals, map[string]dbus.Variant{
-			"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
-			"urgency":       dbus.MakeVariant(byte(notification.CriticalUrgency)),
-		})
+	s.testPostPendingRefreshNotificationBody(c, refreshInfo)
+	notifications := s.notify.GetAll()
+	c.Assert(notifications, HasLen, 1)
+	n := notifications[0]
+	// boring stuff is checked above
+	c.Check(n.Icon, Equals, "") // Icon is not provided
+	c.Check(n.Hints, DeepEquals, map[string]dbus.Variant{
+		"urgency":       dbus.MakeVariant(byte(notification.CriticalUrgency)),
+		"desktop-entry": dbus.MakeVariant("io.snapcraft.SessionAgent"),
 	})
 }
 
-func (s *restSuite) TestPostPendingRefreshNotificationNoNotificationServer(c *C) {
-	conn, err := dbustest.Connection(func(msg *dbus.Message, n int) ([]*dbus.Message, error) {
-		response := &dbus.Message{
-			Type: dbus.TypeError,
-			Headers: map[dbus.HeaderField]dbus.Variant{
-				dbus.FieldReplySerial: dbus.MakeVariant(msg.Serial()),
-				dbus.FieldSender:      dbus.MakeVariant(":1"), // This does not matter.
-				// dbus.FieldDestination is provided automatically by DBus test helper.
-				dbus.FieldErrorName: dbus.MakeVariant("org.freedesktop.DBus.Error.NameHasNoOwner"),
-			},
-		}
-		return []*dbus.Message{response}, nil
-	})
-	c.Assert(err, IsNil)
-	restore := dbusutil.MockOnlySessionBusAvailable(conn)
-	defer restore()
+func (s *restSuite) TestPostPendingRefreshNotificationNotificationServerFailure(c *C) {
+	s.notify.SetError(&dbus.Error{Name: "org.freedesktop.DBus.Error.Failed"})
 
 	refreshInfo := &client.PendingSnapRefreshInfo{
 		InstanceName: "pkg",
 	}
 	reqBody, err := json.Marshal(refreshInfo)
 	c.Assert(err, IsNil)
-	req, err := http.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBuffer(reqBody))
+	req := httptest.NewRequest("POST", "/v1/notifications/pending-refresh", bytes.NewBuffer(reqBody))
 	req.Header.Set("Content-Type", "application/json")
-	c.Assert(err, IsNil)
 	rec := httptest.NewRecorder()
 	agent.PendingRefreshNotificationCmd.POST(agent.PendingRefreshNotificationCmd, req).ServeHTTP(rec, req)
 	c.Check(rec.Code, Equals, 500)
@@ -634,5 +594,5 @@ func (s *restSuite) TestPostPendingRefreshNotificationNoNotificationServer(c *C)
 	var rsp resp
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), IsNil)
 	c.Check(rsp.Type, Equals, agent.ResponseTypeError)
-	c.Check(rsp.Result, DeepEquals, map[string]interface{}{"message": "cannot send notification message: org.freedesktop.DBus.Error.NameHasNoOwner"})
+	c.Check(rsp.Result, DeepEquals, map[string]interface{}{"message": "cannot send notification message: org.freedesktop.DBus.Error.Failed"})
 }

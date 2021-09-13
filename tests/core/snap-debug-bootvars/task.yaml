@@ -11,6 +11,7 @@ execute: |
     snap debug boot-vars  > default.out
 
     if os.query is-core20; then
+        echo "Check the boot-vars default output looks sane"
         # boot-vars default output is for the run mode bootloader, make sure its
         # output looks sane (though we don't expect any of the variables to be
         # set)

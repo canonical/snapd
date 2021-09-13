@@ -101,6 +101,19 @@ type SnapBootSelect_v2_recovery struct {
 	when not defined or empty, default boot.img will be used */
 	Bootimg_file_name [SNAP_FILE_NAME_MAX_LEN]byte
 
+	/** try_recovery_system contains the label of a recovery system to be
+	 *  tried. This entry is completely transparent to the bootloader and is
+	 *  only modified by snapd or snap-bootstrap.
+	 */
+	Try_recovery_system [SNAP_FILE_NAME_MAX_LEN]byte
+
+	/** recovery_system_status contains the status of a tried recovery
+	 *  systems, which is one of "", "try", "tried". This entry is completely
+	 *  transparent to the bootloader and is only modified by snapd or
+	 *  snap-bootstrap
+	 */
+	Recovery_system_status [SNAP_FILE_NAME_MAX_LEN]byte
+
 	/* unused placeholders for additional parameters in the future */
 	Unused_key_01 [SNAP_FILE_NAME_MAX_LEN]byte
 	Unused_key_02 [SNAP_FILE_NAME_MAX_LEN]byte
@@ -120,8 +133,6 @@ type SnapBootSelect_v2_recovery struct {
 	Unused_key_16 [SNAP_FILE_NAME_MAX_LEN]byte
 	Unused_key_17 [SNAP_FILE_NAME_MAX_LEN]byte
 	Unused_key_18 [SNAP_FILE_NAME_MAX_LEN]byte
-	Unused_key_19 [SNAP_FILE_NAME_MAX_LEN]byte
-	Unused_key_20 [SNAP_FILE_NAME_MAX_LEN]byte
 
 	/* unused array of 10 key value pairs */
 	Key_value_pairs [10][2][SNAP_FILE_NAME_MAX_LEN]byte
@@ -149,6 +160,10 @@ func (v2recovery *SnapBootSelect_v2_recovery) get(key string) string {
 		return cToGoString(v2recovery.Snapd_recovery_system[:])
 	case "bootimg_file_name":
 		return cToGoString(v2recovery.Bootimg_file_name[:])
+	case "try_recovery_system":
+		return cToGoString(v2recovery.Try_recovery_system[:])
+	case "recovery_system_status":
+		return cToGoString(v2recovery.Recovery_system_status[:])
 	}
 	return ""
 }
@@ -161,6 +176,10 @@ func (v2recovery *SnapBootSelect_v2_recovery) set(key, value string) {
 		copyString(v2recovery.Snapd_recovery_system[:], value)
 	case "bootimg_file_name":
 		copyString(v2recovery.Bootimg_file_name[:], value)
+	case "try_recovery_system":
+		copyString(v2recovery.Try_recovery_system[:], value)
+	case "recovery_system_status":
+		copyString(v2recovery.Recovery_system_status[:], value)
 	}
 }
 

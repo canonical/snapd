@@ -49,7 +49,6 @@ func (s *iconsSuite) TestAppIconGet(c *check.C) {
 	c.Assert(os.MkdirAll(filepath.Dir(iconfile), 0755), check.IsNil)
 	c.Check(ioutil.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
 
-	s.vars = map[string]string{"name": "foo"}
 	req, err := http.NewRequest("GET", "/v2/icons/foo/icon", nil)
 	c.Assert(err, check.IsNil)
 
@@ -71,7 +70,6 @@ func (s *iconsSuite) TestAppIconGetInactive(c *check.C) {
 	c.Assert(os.MkdirAll(filepath.Dir(iconfile), 0755), check.IsNil)
 	c.Check(ioutil.WriteFile(iconfile, []byte("ick"), 0644), check.IsNil)
 
-	s.vars = map[string]string{"name": "foo"}
 	req, err := http.NewRequest("GET", "/v2/icons/foo/icon", nil)
 	c.Assert(err, check.IsNil)
 
@@ -92,7 +90,6 @@ func (s *iconsSuite) TestAppIconGetNoIcon(c *check.C) {
 	err := os.RemoveAll(filepath.Join(info.MountDir(), "meta", "gui", "icon.svg"))
 	c.Assert(err, check.IsNil)
 
-	s.vars = map[string]string{"name": "foo"}
 	req, err := http.NewRequest("GET", "/v2/icons/foo/icon", nil)
 	c.Assert(err, check.IsNil)
 
@@ -105,7 +102,6 @@ func (s *iconsSuite) TestAppIconGetNoIcon(c *check.C) {
 func (s *iconsSuite) TestAppIconGetNoApp(c *check.C) {
 	s.daemon(c)
 
-	s.vars = map[string]string{"name": "foo"}
 	req, err := http.NewRequest("GET", "/v2/icons/foo/icon", nil)
 	c.Assert(err, check.IsNil)
 

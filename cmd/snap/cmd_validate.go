@@ -86,7 +86,7 @@ func splitValidationSetArg(arg string) (account, name string, seq int, err error
 	account = parts[0]
 	name = parts[1]
 	if !asserts.IsValidAccountID(account) {
-		return "", "", 0, fmt.Errorf("invalid account ID name %q", account)
+		return "", "", 0, fmt.Errorf("invalid account ID %q", account)
 	}
 	if !asserts.IsValidValidationSetName(name) {
 		return "", "", 0, fmt.Errorf("invalid validation set name %q", name)
@@ -97,9 +97,16 @@ func splitValidationSetArg(arg string) (account, name string, seq int, err error
 
 func fmtValid(res *client.ValidationSetResult) string {
 	if res.Valid {
-		return fmt.Sprint("valid")
+		return "valid"
 	}
-	return fmt.Sprint("invalid")
+	return "invalid"
+}
+
+func fmtValidationSet(res *client.ValidationSetResult) string {
+	if res.PinnedAt == 0 {
+		return fmt.Sprintf("%s/%s", res.AccountID, res.Name)
+	}
+	return fmt.Sprintf("%s/%s=%d", res.AccountID, res.Name, res.PinnedAt)
 }
 
 func (cmd *cmdValidate) Execute(args []string) error {
@@ -169,7 +176,7 @@ func (cmd *cmdValidate) Execute(args []string) error {
 			var notes string
 			// doing it this way because otherwise it's a sea of %s\t%s\t%s
 			line := []string{
-				res.ValidationSet,
+				fmtValidationSet(res),
 				res.Mode,
 				fmt.Sprintf("%d", res.Sequence),
 				fmtValid(res),

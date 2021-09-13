@@ -160,7 +160,8 @@ type SignerDB interface {
 	Sign(assertType *asserts.AssertionType, headers map[string]interface{}, body []byte, keyID string) (asserts.Assertion, error)
 }
 
-// NewAccount creates an account assertion for username, it fills in values for other missing headers as needed. It panics on error.
+// NewAccount creates an account assertion for username, it fills in values for
+// other missing headers as needed. It panics on error.
 func NewAccount(db SignerDB, username string, otherHeaders map[string]interface{}, keyID string) *asserts.Account {
 	if otherHeaders == nil {
 		otherHeaders = make(map[string]interface{})
@@ -185,7 +186,8 @@ func NewAccount(db SignerDB, username string, otherHeaders map[string]interface{
 	return a.(*asserts.Account)
 }
 
-// NewAccountKey creates an account-key assertion for the account, it fills in values for missing headers as needed. In panics on error.
+// NewAccountKey creates an account-key assertion for the account, it fills in
+// values for missing headers as needed. In panics on error.
 func NewAccountKey(db SignerDB, acct *asserts.Account, otherHeaders map[string]interface{}, pubKey asserts.PublicKey, keyID string) *asserts.AccountKey {
 	if otherHeaders == nil {
 		otherHeaders = make(map[string]interface{})

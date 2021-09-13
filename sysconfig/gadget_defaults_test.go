@@ -24,12 +24,13 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/osutil"
 
 	// to set ApplyFilesystemOnlyDefaults hook
 	_ "github.com/snapcore/snapd/overlord/configstate/configcore"
-
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snap/squashfs"
@@ -42,6 +43,50 @@ volumes:
   pc:
     bootloader: grub
 `
+
+var fakeModel = assertstest.FakeAssertion(map[string]interface{}{
+	"type":         "model",
+	"authority-id": "my-brand",
+	"series":       "16",
+	"brand-id":     "my-brand",
+	"model":        "my-model",
+	"architecture": "amd64",
+	"base":         "core18",
+	"gadget":       "pc",
+	"kernel":       "pc-kernel",
+}).(*asserts.Model)
+
+func fake20Model(grade string) *asserts.Model {
+	return assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "model",
+		"authority-id": "my-brand",
+		"series":       "16",
+		"brand-id":     "my-brand",
+		"model":        "my-model",
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        grade,
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "kernel",
+				"id":              "kerneldididididididididididididi",
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              "gadgetididididididididididididid",
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	}).(*asserts.Model)
+}
+
+func (s *sysconfigSuite) TestConfigureTargetSystemNonUC20(c *C) {
+	err := sysconfig.ConfigureTargetSystem(fakeModel, nil)
+	c.Assert(err, ErrorMatches, "internal error: ConfigureTargetSystem can only be used with a model with a grade")
+}
 
 func (s *sysconfigSuite) TestGadgetDefaults(c *C) {
 	const gadgetDefaultsYaml = `
@@ -76,7 +121,7 @@ defaults:
 	exists, _, _ := osutil.DirExists(journalPath)
 	c.Check(exists, Equals, false)
 
-	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
 		TargetRootDir: boot.InstallHostWritableDir,
 		GadgetDir:     snapInfo.MountDir(),
 	})
@@ -106,7 +151,7 @@ defaults:
 		{"meta/gadget.yaml", gadgetYaml + gadgetDefaultsYaml},
 	})
 
-	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
 		TargetRootDir: boot.InstallHostWritableDir,
 		GadgetDir:     snapInfo.MountDir(),
 	})
@@ -143,7 +188,7 @@ defaults:
 	exists, _, _ := osutil.DirExists(journalPath)
 	c.Check(exists, Equals, false)
 
-	err := sysconfig.ConfigureTargetSystem(&sysconfig.Options{
+	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
 		TargetRootDir: boot.InstallHostWritableDir,
 		GadgetSnap:    snapContainer,
 	})

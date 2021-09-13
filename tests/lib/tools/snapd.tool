@@ -1,11 +1,7 @@
-#!/bin/sh
-
-show_usage() {
-	echo "usage: snapd.tool [OPTIONS] exec <TOOL> [ARGS]"
-}
+#!/bin/bash
 
 show_help() {
-	show_usage
+	echo "usage: snapd.tool [OPTIONS] exec <TOOL> [ARGS]"
 	echo
 	echo "Available options:"
 	echo "	-h --help	show this help message."
@@ -15,41 +11,44 @@ show_help() {
 	echo "location varies from one distribution to another"
 }
 
-tool=""
-while [ $# -gt 0 ]; do
-	case "${1:-}" in
-		-h|--help)
-			show_help
-			exit 0
-			;;
-		exec)
-			shift
-			tool="${1:-}"  # empty value checked below
-			shift
-			break
-			;;
-		--)
-			shift
-			break
-			;;
-		-*)
-			echo "snapd.tool: unsupported argument $1" >&2
-			show_usage
-			exit 1
-			;;
-		*)
-			echo "snapd.tool: unsupported argument $1" >&2
-			show_usage
-			exit 1
-			;;
-	esac
-done
+main() {
+	if [ $# -eq 0 ]; then
+        show_help
+        exit 0
+    fi
 
-if [ "$tool" = "" ]; then
-	show_usage
-	exit 1
-fi
+	tool=""
+	while [ $# -gt 0 ]; do
+		case "${1:-}" in
+			-h|--help)
+				show_help
+				exit 0
+				;;
+			exec)
+				shift
+				tool="${1:-}"  # empty value checked below
+				shift
+				break
+				;;
+			--)
+				shift
+				break
+				;;
+			-*)
+				echo "snapd.tool: unsupported argument $1" >&2
+				show_help
+				exit 1
+				;;
+			*)
+				echo "snapd.tool: unsupported argument $1" >&2
+				show_help
+				exit 1
+				;;
+		esac
+	done
 
-# shellcheck source=tests/lib/dirs.sh
-. "$TESTSLIB/dirs.sh"
-exec "$LIBEXECDIR/snapd/$tool" "$@"
+	LIBEXEC_DIR="$(os.paths libexec-dir)"
+	exec "$LIBEXEC_DIR/snapd/$tool" "$@"
+}
+
+main "$@"

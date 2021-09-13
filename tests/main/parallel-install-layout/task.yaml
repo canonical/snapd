@@ -1,4 +1,5 @@
 summary: Ensure that snap layouts work with parallel installed snaps
+
 details: |
     This test installs a test snap that uses layout declarations. The snap is
     installed under its regular name as well as a parallel instance. The test

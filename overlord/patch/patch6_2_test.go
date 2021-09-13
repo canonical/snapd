@@ -354,21 +354,27 @@ func (s *patch62Suite) TestPatch62StopsAfterFirstSnapd(c *C) {
 	restore1 := patch.MockLevel(6, 2)
 	defer restore1()
 
-	r := bytes.NewReader(statePatch6_2JSONWithSnapd2)
-	st, err := state.ReadState(nil, r)
-	c.Assert(err, IsNil)
+	for i, sj := range [][]byte{statePatch6_2JSONWithSnapd, statePatch6_2JSONWithSnapd2} {
+		// sanity check
+		c.Assert(patch.Level, Equals, 6)
+		c.Assert(patch.Sublevel, Equals, 2)
 
-	c.Assert(patch.Apply(st), IsNil)
-	st.Lock()
-	defer st.Unlock()
+		r := bytes.NewReader(sj)
+		st, err := state.ReadState(nil, r)
+		c.Assert(err, IsNil)
 
-	var snapdCount int
-	for _, name := range []string{"snapd", "other"} {
-		var snapst snapstate.SnapState
-		c.Assert(snapstate.Get(st, name, &snapst), IsNil)
-		if snapst.SnapType == "snapd" {
-			snapdCount++
+		c.Assert(patch.Apply(st), IsNil)
+		st.Lock()
+		defer st.Unlock()
+
+		var snapdCount int
+		for _, name := range []string{"snapd", "other"} {
+			var snapst snapstate.SnapState
+			c.Assert(snapstate.Get(st, name, &snapst), IsNil)
+			if snapst.SnapType == "snapd" {
+				snapdCount++
+			}
 		}
+		c.Check(snapdCount, Equals, 1, Commentf("#%d", i))
 	}
-	c.Check(snapdCount, Equals, 1)
 }

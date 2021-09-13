@@ -21,9 +21,8 @@
 package store
 
 import (
-	"reflect"
-
 	"encoding/json"
+	"reflect"
 	"strings"
 
 	. "gopkg.in/check.v1"
@@ -121,7 +120,7 @@ const (
   },
   "revision": 21,
   "snap-id": "XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV",
-  "snap-yaml": "name: test-snapd-content-plug\nversion: 1.0\napps:\n    content-plug:\n        command: bin/content-plug\n        plugs: [shared-content-plug]\nplugs:\n    shared-content-plug:\n        interface: content\n        target: import\n        content: mylib\n        default-provider: test-snapd-content-slot\nslots:\n    shared-content-slot:\n        interface: content\n        content: mylib\n        read:\n            - /\n",
+  "snap-yaml": "name: test-snapd-content-plug\nversion: 1.0\nassumes: [snapd2.49]\napps:\n    content-plug:\n        command: bin/content-plug\n        plugs: [shared-content-plug]\nplugs:\n    shared-content-plug:\n        interface: content\n        target: import\n        content: mylib\n        default-provider: test-snapd-content-slot\nslots:\n    shared-content-slot:\n        interface: content\n        content: mylib\n        read:\n            - /\n",
   "store-url": "https://snapcraft.io/thingy",
   "summary": "useful thingy",
   "title": "This Is The Most Fantastical Snap of Thingy",
@@ -160,7 +159,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnapSimple(c *C) {
 			RealName:          "core",
 			SnapID:            "99T7MUlRhtI3U0QFgl5mXXESAiSwt776",
 			Revision:          snap.R(3887),
-			Contact:           "mailto:snappy-canonical-storeaccount@canonical.com",
+			EditedContact:     "mailto:snappy-canonical-storeaccount@canonical.com",
 			EditedTitle:       "core",
 			EditedSummary:     "snapd runtime environment",
 			EditedDescription: "The core runtime environment for snapd",
@@ -205,12 +204,13 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 	info2.Slots = nil
 	c.Check(&info2, DeepEquals, &snap.Info{
 		Architectures: []string{"amd64"},
+		Assumes:       []string{"snapd2.49"},
 		Base:          "base-18",
 		SideInfo: snap.SideInfo{
 			RealName:          "thingy",
 			SnapID:            "XYZEfjn4WJYnm0FzDKwqqRZZI77awQEV",
 			Revision:          snap.R(21),
-			Contact:           "https://thingy.com",
+			EditedContact:     "https://thingy.com",
 			EditedTitle:       "This Is The Most Fantastical Snap of Th…",
 			EditedSummary:     "useful thingy",
 			EditedDescription: "Useful thingy for thinging",
@@ -288,10 +288,10 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 	expectedZeroFields := []string{
 		"SuggestedName",
 		"InstanceKey",
-		"Assumes",
 		"OriginalTitle",
 		"OriginalSummary",
 		"OriginalDescription",
+		"OriginalLinks",
 		"Environment",
 		"LicenseAgreement", // XXX go away?
 		"LicenseVersion",   // XXX go away?
@@ -305,6 +305,7 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 		"Tracks",   // handled at a different level (see TestInfo)
 		"Layout",
 		"SideInfo.Channel",
+		"SideInfo.EditedLinks",         // TODO: take this value from the store
 		"DownloadInfo.AnonDownloadURL", // TODO: going away at some point
 		"SystemUsernames",
 	}
@@ -322,9 +323,11 @@ func (s *detailsV2Suite) TestInfoFromStoreSnap(c *C) {
 				checker(pfx+f.Name+".", v)
 				continue
 			}
+			name := pfx + f.Name
 			if reflect.DeepEqual(v.Interface(), reflect.Zero(f.Type).Interface()) {
-				name := pfx + f.Name
 				c.Check(expectedZeroFields, testutil.Contains, name, Commentf("%s not set", name))
+			} else {
+				c.Check(expectedZeroFields, Not(testutil.Contains), name, Commentf("%s unexpectedly set", name))
 			}
 		}
 	}

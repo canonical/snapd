@@ -1,6 +1,6 @@
 summary: Ensure that the systemctl from PR#8803 is fixed
 
-description: |
+details: |
     See https://bugs.launchpad.net/ubuntu/+source/systemd/+bug/1819728
     for details about this issue.
 

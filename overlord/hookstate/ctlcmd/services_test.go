@@ -26,6 +26,7 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -117,6 +118,10 @@ apps:
   command: bin/service
   daemon: simple
   reload-command: bin/reload
+ user-service:
+  command: bin/user-service
+  daemon: simple
+  daemon-scope: user
 `
 
 const otherSnapYaml = `name: other-snap
@@ -196,6 +201,11 @@ func (s *servicectlSuite) SetUpTest(c *C) {
 	s.st.Set("seeded", true)
 	s.st.Set("refresh-privacy-key", "privacy-key")
 	s.AddCleanup(snapstatetest.UseFallbackDeviceModel())
+
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		return nil, nil
+	})
+	s.AddCleanup(restore)
 }
 
 func (s *servicectlSuite) TestStopCommand(c *C) {
@@ -585,13 +595,22 @@ func (s *servicectlSuite) TestQueuedCommandsSingleLane(c *C) {
 
 func (s *servicectlSuite) TestTwoServices(c *C) {
 	restore := systemd.MockSystemctl(func(args ...string) (buf []byte, err error) {
-		c.Assert(args[0], Equals, "show")
-		c.Check(args[2], Matches, `snap\.test-snap\.\w+-service\.service`)
-		return []byte(fmt.Sprintf(`Id=%s
+		switch args[0] {
+		case "show":
+			c.Check(args[2], Matches, `snap\.test-snap\.\w+-service\.service`)
+			return []byte(fmt.Sprintf(`Id=%s
 Type=simple
 ActiveState=active
 UnitFileState=enabled
 `, args[2])), nil
+		case "--user":
+			c.Check(args[1], Equals, "--global")
+			c.Check(args[2], Equals, "is-enabled")
+			return []byte("enabled\n"), nil
+		default:
+			c.Errorf("unexpected systemctl command: %v", args)
+			return nil, fmt.Errorf("should not be reached")
+		}
 	})
 	defer restore()
 
@@ -601,6 +620,7 @@ UnitFileState=enabled
 Service                    Startup  Current  Notes
 test-snap.another-service  enabled  active   -
 test-snap.test-service     enabled  active   -
+test-snap.user-service     enabled  -        user
 `[1:])
 	c.Check(string(stderr), Equals, "")
 }
@@ -624,4 +644,18 @@ Service                 Startup  Current  Notes
 test-snap.test-service  enabled  active   -
 `[1:])
 	c.Check(string(stderr), Equals, "")
+}
+
+func (s *servicectlSuite) TestServicesWithoutContext(c *C) {
+	actions := []string{
+		"start",
+		"stop",
+		"restart",
+	}
+
+	for _, action := range actions {
+		_, _, err := ctlcmd.Run(nil, []string{action, "foo"}, 0)
+		expectedError := fmt.Sprintf(`cannot invoke snapctl operation commands \(here "%s"\) from outside of a snap`, action)
+		c.Check(err, ErrorMatches, expectedError)
+	}
 }

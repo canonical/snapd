@@ -44,6 +44,17 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}lib{GL,GLESv1_CM,GLESv2,EGL}*nvidia.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libGLdispatch.so{,.*} rm,
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}vdpau/libvdpau_nvidia.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnv{rm,dc,imp,os}*.so{,.*} rm,
+# CUDA libs
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnpp{c,ig,ial,icc,idei,ist,if,im,itc}*.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcublas{,Lt}*.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcufft.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcusolver.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcuparse.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcurand.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libcudnn{,_adv_infer,_adv_train,_cnn_infer,_cnn_train,_ops_infer,_ops_train}*.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvrtc{,-builtins}*.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}libnvToolsExt.so{,.*} rm,
 
 # Support reading the Vulkan ICD files
 /var/lib/snapd/lib/vulkan/ r,
@@ -53,7 +64,12 @@ const openglConnectedPlugAppArmor = `
 # Support reading the GLVND EGL vendor files
 /var/lib/snapd/lib/glvnd/ r,
 /var/lib/snapd/lib/glvnd/** r,
+/var/lib/snapd/hostfs/usr/share/glvnd/egl_vendor.d/ r,
 /var/lib/snapd/hostfs/usr/share/glvnd/egl_vendor.d/*nvidia*.json r,
+
+# Support Nvidia EGL external platform
+/var/lib/snapd/hostfs/usr/share/egl/egl_external_platform.d/ r,
+/var/lib/snapd/hostfs/usr/share/egl/egl_external_platform.d/*nvidia*.json r,
 
 # Main bi-arch GL libraries
 /var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}{,nvidia*/}lib{GL,GLU,GLESv1_CM,GLESv2,EGL,GLX}.so{,.*} rm,
@@ -74,6 +90,8 @@ unix (send, receive) type=dgram peer=(addr="@nvidia[0-9a-f]*"),
 
 # VideoCore/EGL (shared device with VideoCore camera)
 /dev/vchiq rw,
+# VideoCore Video decoding (required for accelerated MMAL video playback)
+/dev/vcsm-cma rw,
 
 # va-api
 /dev/dri/renderD[0-9]* rw,
@@ -91,6 +109,13 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 # Tegra display driver
 /dev/tegra_dc_ctrl rw,
 /dev/tegra_dc_[0-9]* rw,
+
+# Xilinx zocl DRM driver
+# https://github.com/Xilinx/XRT/tree/master/src/runtime_src/core/edge/drm
+/sys/devices/platform/amba{,_pl@[0-9]*}/amba{,_pl@[0-9]*}:zyxclmm_drm/* r,
+
+# Imagination PowerVR driver
+/dev/pvr_sync rw,
 
 # OpenCL ICD files
 /etc/OpenCL/vendors/ r,
@@ -132,11 +157,13 @@ unix (send, receive) type=dgram peer=(addr="@var/run/nvidia-xdriver-*"),
 var openglConnectedPlugUDev = []string{
 	`SUBSYSTEM=="drm", KERNEL=="card[0-9]*"`,
 	`KERNEL=="vchiq"`,
+	`KERNEL=="vcsm-cma"`,
 	`KERNEL=="renderD[0-9]*"`,
 	`KERNEL=="nvhost-*"`,
 	`KERNEL=="nvmap"`,
 	`KERNEL=="tegra_dc_ctrl"`,
 	`KERNEL=="tegra_dc_[0-9]*"`,
+	`KERNEL=="pvr_sync"`,
 }
 
 func init() {

@@ -129,7 +129,11 @@ func loadAndValidate(sourceDir string) (*snap.Info, error) {
 		// TODO:UC20: optionally pass model
 		// TODO:UC20: pass validation constraints which indicate intent
 		//            to have data encrypted
-		if err := gadget.Validate(sourceDir, nil, nil); err != nil {
+		ginfo, err := gadget.ReadInfoAndValidate(sourceDir, nil, nil)
+		if err != nil {
+			return nil, err
+		}
+		if err := gadget.ValidateContent(ginfo, sourceDir, ""); err != nil {
 			return nil, err
 		}
 	}

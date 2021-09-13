@@ -20,12 +20,12 @@
 package policy_test
 
 import (
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/policy"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-
-	. "gopkg.in/check.v1"
 )
 
 type helpersSuite struct{}

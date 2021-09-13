@@ -32,9 +32,7 @@ execute: |
     . "$TESTSLIB"/store.sh
     setup_fake_store "$BLOB_DIR"
 
-    #shellcheck source=tests/lib/snaps.sh
-    . "$TESTSLIB"/snaps.sh
-    snap_path=$(make_snap basic)
+    snap_path=$("$TESTSTOOLS"/snaps-state pack-local basic)
     make_snap_installable "$BLOB_DIR" "${snap_path}"
 
     snap install basic

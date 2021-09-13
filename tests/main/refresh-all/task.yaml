@@ -1,12 +1,12 @@
 summary: Check that more than one snap is refreshed.
 
-# ubuntu-14.04: systemd-run not supported
-systems: [-ubuntu-core-*, -ubuntu-14.04*]
-
 details: |
     We use only the fake store for this test because we currently
     have only one controlled snap in the remote stores, when we will
     have more we can update the test to use them
+
+# ubuntu-14.04: systemd-run not supported
+systems: [-ubuntu-core-*, -ubuntu-14.04*]
 
 environment:
     BLOB_DIR: $(pwd)/fake-store-blobdir

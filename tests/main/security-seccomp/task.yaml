@@ -42,8 +42,6 @@ prepare: |
     fi
 
 restore: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB/dirs.sh"
     if [ -e "$SRC".orig ]; then
         mv -f "$SRC".orig "$SRC"
         snapd.tool exec snap-seccomp compile "$SRC" "$BIN"

@@ -20,11 +20,11 @@
 package store
 
 import (
-	"io"
-
 	"context"
+	"io"
 	"net/http"
 	"net/url"
+	"os/exec"
 	"time"
 
 	"github.com/juju/ratelimit"
@@ -41,7 +41,6 @@ var (
 	ApiURL        = apiURL
 	Download      = download
 
-	UseDeltas  = useDeltas
 	ApplyDelta = applyDelta
 
 	AuthLocation      = authLocation
@@ -62,6 +61,14 @@ var (
 
 	Cancelled = cancelled
 )
+
+func MockSnapdtoolCommandFromSystemSnap(f func(name string, args ...string) (*exec.Cmd, error)) (restore func()) {
+	old := commandFromSystemSnap
+	commandFromSystemSnap = f
+	return func() {
+		commandFromSystemSnap = old
+	}
+}
 
 // MockDefaultRetryStrategy mocks the retry strategy used by several store requests
 func MockDefaultRetryStrategy(t *testutil.BaseTest, strategy retry.Strategy) {
@@ -147,7 +154,7 @@ func MockDoDownloadReq(f func(ctx context.Context, storeURL *url.URL, cdnHeader 
 	}
 }
 
-func MockApplyDelta(f func(name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error) (restore func()) {
+func MockApplyDelta(f func(s *Store, name string, deltaPath string, deltaInfo *snap.DeltaInfo, targetPath string, targetSha3_384 string) error) (restore func()) {
 	origApplyDelta := applyDelta
 	applyDelta = f
 	return func() {
@@ -197,6 +204,14 @@ func (sto *Store) SessionUnlock() {
 
 func (sto *Store) FindFields() []string {
 	return sto.findFields
+}
+
+func (sto *Store) UseDeltas() bool {
+	return sto.useDeltas()
+}
+
+func (sto *Store) Xdelta3Cmd(args ...string) *exec.Cmd {
+	return sto.xdelta3CmdFunc(args...)
 }
 
 func (cfg *Config) SetBaseURL(u *url.URL) error {

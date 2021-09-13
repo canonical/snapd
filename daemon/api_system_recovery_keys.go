@@ -30,9 +30,9 @@ import (
 )
 
 var systemRecoveryKeysCmd = &Command{
-	Path:     "/v2/system-recovery-keys",
-	GET:      getSystemRecoveryKeys,
-	RootOnly: true,
+	Path:       "/v2/system-recovery-keys",
+	GET:        getSystemRecoveryKeys,
+	ReadAccess: rootAccess{},
 }
 
 func getSystemRecoveryKeys(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -50,5 +50,5 @@ func getSystemRecoveryKeys(c *Command, r *http.Request, user *auth.UserState) Re
 	}
 	rsp.ReinstallKey = reinstallKey.String()
 
-	return SyncResponse(&rsp, nil)
+	return SyncResponse(&rsp)
 }

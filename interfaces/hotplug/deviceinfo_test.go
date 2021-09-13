@@ -85,11 +85,11 @@ func (s *hotplugSuite) TestPropertiesMissing(c *C) {
 		"ACTION":  "add", "SUBSYSTEM": "usb",
 	}
 
-	di, err := NewHotplugDeviceInfo(map[string]string{})
+	_, err := NewHotplugDeviceInfo(map[string]string{})
 	c.Assert(err, NotNil)
 	c.Assert(err, ErrorMatches, `missing device path attribute`)
 
-	di, err = NewHotplugDeviceInfo(env)
+	di, err := NewHotplugDeviceInfo(env)
 	c.Assert(err, IsNil)
 
 	c.Assert(di.DeviceName(), Equals, "")

@@ -314,6 +314,11 @@ const browserSupportConnectedPlugSecCompWithSandbox = `
 chroot
 sched_setscheduler
 
+# Chromium will attempt to set the affinity of it's renderer threads, primarily
+# on android, but also on Linux where it is available. See 
+# https://github.com/chromium/chromium/blob/99314be8152e688bafbbf9a615536bdbb289ea87/content/common/android/cpu_affinity.cc#L51
+sched_setaffinity
+
 # TODO: fine-tune when seccomp arg filtering available in stable distro
 # releases
 setuid

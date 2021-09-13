@@ -1,5 +1,5 @@
 0:0 / / rw,relatime shared:1 - ext4 /dev/sda1 rw
-+0:+1 / /boot/efi rw,relatime shared:+1 - vfat /dev/sda15 rw,fmask=0022,dmask=0022,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
++0:+1 / /boot/efi rw,relatime shared:+1 - vfat /dev/sda15 rw,fmask=0077,dmask=0077,codepage=437,iocharset=iso8859-1,shortname=mixed,errors=remount-ro
 +1:-1 / /dev rw,nosuid,relatime shared:+1 - devtmpfs udev rw,size=VARIABLE,nr_inodes=0,mode=755
 +0:+1 / /dev/hugepages rw,relatime shared:+1 - hugetlbfs hugetlbfs rw,pagesize=2M
 +0:+1 / /dev/mqueue rw,relatime shared:+1 - mqueue mqueue rw

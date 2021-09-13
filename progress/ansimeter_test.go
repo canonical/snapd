@@ -87,7 +87,7 @@ func (ansiSuite) TestFinish(c *check.C) {
 	p := &progress.ANSIMeter{}
 	p.Finished()
 	c.Check(buf.String(), check.Equals, fmt.Sprint(
-		"\r", // move cursor to start of line
+		"\r",                       // move cursor to start of line
 		progress.ExitAttributeMode, // turn off color, reverse, bold, anything
 		progress.CursorVisible,     // turn the cursor back on
 		progress.ClrEOL,            // and clear the rest of the line

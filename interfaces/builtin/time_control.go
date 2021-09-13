@@ -99,7 +99,7 @@ capability sys_time,
 # write to the audit subsystem. We omit 'capability audit_write'
 # and 'capability net_admin' here. Applications requiring audit
 # logging should plug 'netlink-audit'.
-/sbin/hwclock ixr,
+/{,usr/}sbin/hwclock ixr,
 `
 
 const timeControlConnectedPlugSecComp = `

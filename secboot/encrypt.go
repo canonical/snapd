@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -32,21 +32,27 @@ import (
 const (
 	// The encryption key size is set so it has the same entropy as the derived
 	// key.
-	encryptionKeySize = 64
+	encryptionKeySize = 32
 
 	// XXX: needs to be in sync with
 	//      github.com/snapcore/secboot/crypto.go:"type RecoveryKey"
 	// Size of the recovery key.
 	recoveryKeySize = 16
+
+	// The auxiliary key is used to bind keys to models
+	auxKeySize = 32
 )
 
+// used in tests
+var randRead = rand.Read
+
 // EncryptionKey is the key used to encrypt the data partition.
-type EncryptionKey [encryptionKeySize]byte
+type EncryptionKey []byte
 
 func NewEncryptionKey() (EncryptionKey, error) {
-	var key EncryptionKey
+	key := make(EncryptionKey, encryptionKeySize)
 	// rand.Read() is protected against short reads
-	_, err := rand.Read(key[:])
+	_, err := randRead(key[:])
 	// On return, n == len(b) if and only if err == nil
 	return key, err
 }
@@ -66,7 +72,7 @@ type RecoveryKey [recoveryKeySize]byte
 func NewRecoveryKey() (RecoveryKey, error) {
 	var key RecoveryKey
 	// rand.Read() is protected against short reads
-	_, err := rand.Read(key[:])
+	_, err := randRead(key[:])
 	// On return, n == len(b) if and only if err == nil
 	return key, err
 }
@@ -98,4 +104,15 @@ func RecoveryKeyFromFile(recoveryKeyFile string) (*RecoveryKey, error) {
 		return nil, fmt.Errorf("cannot read recovery key: %v", err)
 	}
 	return &rkey, nil
+}
+
+// AuxKey is the key to bind models to keys.
+type AuxKey [auxKeySize]byte
+
+func NewAuxKey() (AuxKey, error) {
+	var key AuxKey
+	// rand.Read() is protected against short reads
+	_, err := randRead(key[:])
+	// On return, n == len(b) if and only if err == nil
+	return key, err
 }

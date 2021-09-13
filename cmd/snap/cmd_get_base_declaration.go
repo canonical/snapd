@@ -23,6 +23,8 @@ import (
 	"fmt"
 
 	"github.com/jessevdk/go-flags"
+
+	"github.com/snapcore/snapd/i18n"
 )
 
 type cmdGetBaseDeclaration struct {
@@ -35,7 +37,7 @@ func init() {
 		"(internal) obtain the base declaration for all interfaces (deprecated)",
 		"(internal) obtain the base declaration for all interfaces (deprecated)",
 		func() flags.Commander {
-			return &cmdGetBaseDeclaration{}
+			return &cmdGetBaseDeclaration{get: true}
 		}, nil, nil)
 	cmd.hidden = true
 
@@ -43,7 +45,7 @@ func init() {
 		"(internal) obtain the base declaration for all interfaces",
 		"(internal) obtain the base declaration for all interfaces",
 		func() flags.Commander {
-			return &cmdGetBaseDeclaration{get: true}
+			return &cmdGetBaseDeclaration{}
 		}, nil, nil)
 	cmd.hidden = true
 }
@@ -56,14 +58,13 @@ func (x *cmdGetBaseDeclaration) Execute(args []string) error {
 		BaseDeclaration string `json:"base-declaration"`
 	}
 	var err error
-	if x.get {
-		err = x.client.DebugGet("base-declaration", &resp, nil)
-	} else {
-		err = x.client.Debug("get-base-declaration", nil, &resp)
-	}
+	err = x.client.DebugGet("base-declaration", &resp, nil)
 	if err != nil {
 		return err
 	}
 	fmt.Fprintf(Stdout, "%s\n", resp.BaseDeclaration)
+	if x.get {
+		fmt.Fprintf(Stderr, i18n.G("'snap debug get-base-declaration' is deprecated; use 'snap debug base-declaration'."))
+	}
 	return nil
 }

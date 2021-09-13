@@ -52,5 +52,5 @@ func (c *restartCommand) Execute(args []string) error {
 			Reload: c.Reload,
 		},
 	}
-	return runServiceCommand(c.context(), &inst, c.Positional.ServiceNames)
+	return runServiceCommand(c.context(), &inst)
 }

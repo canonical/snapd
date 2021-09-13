@@ -45,8 +45,8 @@ credentials into the ~/.snap/auth.json file. Further communication with snapd
 will then be made using those credentials.
 
 It's not necessary to log in to interact with snapd. Doing so, however, enables
-purchasing of snaps using 'snap buy', as well as some some developer-oriented
-features as detailed in the help for the find, install and refresh commands.
+interactions without sudo, as well as some some developer-oriented features as
+detailed in the help for the find, install and refresh commands.
 
 An account can be set up at https://login.ubuntu.com
 `)
@@ -95,7 +95,7 @@ func requestLoginWith2faRetry(cli *client.Client, email, password string) error 
 }
 
 func requestLogin(cli *client.Client, email string) error {
-	fmt.Fprint(Stdout, fmt.Sprintf(i18n.G("Password of %q: "), email))
+	fmt.Fprintf(Stdout, i18n.G("Password of %q: "), email)
 	password, err := ReadPassword(0)
 	fmt.Fprint(Stdout, "\n")
 	if err != nil {

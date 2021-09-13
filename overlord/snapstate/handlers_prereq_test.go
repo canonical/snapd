@@ -27,6 +27,7 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
@@ -61,10 +62,15 @@ func (s *prereqSuite) SetUpTest(c *C) {
 	restoreCheckFreeSpace := snapstate.MockOsutilCheckFreeSpace(func(string, uint64) error { return nil })
 	s.AddCleanup(restoreCheckFreeSpace)
 
-	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []*snap.Info, userID int) (uint64, error) {
+	restoreInstallSize := snapstate.MockInstallSize(func(st *state.State, snaps []snapstate.MinimalInstallInfo, userID int) (uint64, error) {
 		return 0, nil
 	})
 	s.AddCleanup(restoreInstallSize)
+
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		return nil, nil
+	})
+	s.AddCleanup(restore)
 }
 
 func (s *prereqSuite) TestDoPrereqNothingToDo(c *C) {

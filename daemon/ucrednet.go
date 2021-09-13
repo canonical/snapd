@@ -40,40 +40,42 @@ var raddrRegexp = regexp.MustCompile(`^pid=(\d+);uid=(\d+);socket=([^;]*);$`)
 
 var ucrednetGet = ucrednetGetImpl
 
-func ucrednetGetImpl(remoteAddr string) (pid int32, uid uint32, socket string, err error) {
+func ucrednetGetImpl(remoteAddr string) (*ucrednet, error) {
 	// NOTE treat remoteAddr at one point included a user-controlled
 	// string. In case that happens again by accident, treat it as tainted,
 	// and be very suspicious of it.
-	pid = ucrednetNoProcess
-	uid = ucrednetNobody
+	u := &ucrednet{
+		Pid: ucrednetNoProcess,
+		Uid: ucrednetNobody,
+	}
 	subs := raddrRegexp.FindStringSubmatch(remoteAddr)
 	if subs != nil {
 		if v, err := strconv.ParseInt(subs[1], 10, 32); err == nil {
-			pid = int32(v)
+			u.Pid = int32(v)
 		}
 		if v, err := strconv.ParseUint(subs[2], 10, 32); err == nil {
-			uid = uint32(v)
+			u.Uid = uint32(v)
 		}
-		socket = subs[3]
+		u.Socket = subs[3]
 	}
-	if pid == ucrednetNoProcess || uid == ucrednetNobody {
-		err = errNoID
+	if u.Pid == ucrednetNoProcess || u.Uid == ucrednetNobody {
+		return nil, errNoID
 	}
 
-	return pid, uid, socket, err
+	return u, nil
 }
 
 type ucrednet struct {
-	pid    int32
-	uid    uint32
-	socket string
+	Pid    int32
+	Uid    uint32
+	Socket string
 }
 
 func (un *ucrednet) String() string {
 	if un == nil {
 		return "pid=;uid=;socket=;"
 	}
-	return fmt.Sprintf("pid=%d;uid=%d;socket=%s;", un.pid, un.uid, un.socket)
+	return fmt.Sprintf("pid=%d;uid=%d;socket=%s;", un.Pid, un.Uid, un.Socket)
 }
 
 type ucrednetAddr struct {
@@ -127,9 +129,9 @@ func (wl *ucrednetListener) Accept() (net.Conn, error) {
 		}
 
 		unet = &ucrednet{
-			pid:    ucred.Pid,
-			uid:    ucred.Uid,
-			socket: ucon.LocalAddr().String(),
+			Pid:    ucred.Pid,
+			Uid:    ucred.Uid,
+			Socket: ucon.LocalAddr().String(),
 		}
 	}
 

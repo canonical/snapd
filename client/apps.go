@@ -30,6 +30,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/snapcore/snapd/snap"
 )
 
 // AppActivator is a thing that activates the app that is a service in the
@@ -44,14 +46,15 @@ type AppActivator struct {
 
 // AppInfo describes a single snap application.
 type AppInfo struct {
-	Snap        string         `json:"snap,omitempty"`
-	Name        string         `json:"name"`
-	DesktopFile string         `json:"desktop-file,omitempty"`
-	Daemon      string         `json:"daemon,omitempty"`
-	Enabled     bool           `json:"enabled,omitempty"`
-	Active      bool           `json:"active,omitempty"`
-	CommonID    string         `json:"common-id,omitempty"`
-	Activators  []AppActivator `json:"activators,omitempty"`
+	Snap        string           `json:"snap,omitempty"`
+	Name        string           `json:"name"`
+	DesktopFile string           `json:"desktop-file,omitempty"`
+	Daemon      string           `json:"daemon,omitempty"`
+	DaemonScope snap.DaemonScope `json:"daemon-scope,omitempty"`
+	Enabled     bool             `json:"enabled,omitempty"`
+	Active      bool             `json:"active,omitempty"`
+	CommonID    string           `json:"common-id,omitempty"`
+	Activators  []AppActivator   `json:"activators,omitempty"`
 }
 
 // IsService returns true if the application is a background daemon.
@@ -105,8 +108,22 @@ type Log struct {
 	PID       string    `json:"pid"`       // The process identifier
 }
 
+// String will format the log entry with the timestamp in the local timezone
 func (l Log) String() string {
-	return fmt.Sprintf("%s %s[%s]: %s", l.Timestamp.Format(time.RFC3339), l.SID, l.PID, l.Message)
+	return l.fmtLog(time.Local)
+}
+
+// StringInUTC will format the log entry with the timestamp in UTC
+func (l Log) StringInUTC() string {
+	return l.fmtLog(time.UTC)
+}
+
+func (l Log) fmtLog(timezone *time.Location) string {
+	if timezone == nil {
+		timezone = time.Local
+	}
+
+	return fmt.Sprintf("%s %s[%s]: %s", l.Timestamp.In(timezone).Format(time.RFC3339), l.SID, l.PID, l.Message)
 }
 
 // Logs asks for the logs of a series of services, by name.

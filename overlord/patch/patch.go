@@ -24,7 +24,6 @@ import (
 
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/state"
-	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snapdtool"
 )
 
@@ -70,26 +69,6 @@ func applySublevelPatches(level, firstSublevel int, s *state.State) error {
 		}
 	}
 	return nil
-}
-
-type patchSnapState struct {
-	Sequence []*patchSideInfo `json:"sequence"`
-	Current  snap.Revision    `json:"current"`
-}
-
-type patchSideInfo struct {
-	Revision snap.Revision `json:"revision"`
-}
-
-// lastIndex returns the last index of the given revision in the
-// snapst.Sequence
-func (snapst *patchSnapState) lastIndex(revision snap.Revision) int {
-	for i := len(snapst.Sequence) - 1; i >= 0; i-- {
-		if snapst.Sequence[i].Revision == revision {
-			return i
-		}
-	}
-	return -1
 }
 
 // maybeResetSublevelForLevel60 checks if we're coming from a different version

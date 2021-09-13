@@ -70,7 +70,9 @@ type Handler interface {
 	Done() error
 
 	// Error is called if the hook encounters an error while running.
-	Error(err error) error
+	// The returned bool flag indicates if the original hook error should be
+	// ignored by hook manager.
+	Error(hookErr error) (ignoreHookErr bool, err error)
 }
 
 // HandlerGenerator is the function signature required to register for hooks.
@@ -399,8 +401,12 @@ func (m *HookManager) runHook(context *Context, snapst *snapstate.SnapState, hoo
 			context.Errorf("ignoring failure in hook %q: %v", hooksup.Hook, err)
 			context.Unlock()
 		} else {
-			if handlerErr := context.Handler().Error(err); handlerErr != nil {
+			ignoreOriginalErr, handlerErr := context.Handler().Error(err)
+			if handlerErr != nil {
 				return handlerErr
+			}
+			if ignoreOriginalErr {
+				return nil
 			}
 
 			return fmt.Errorf("run hook %q: %v", hooksup.Hook, err)

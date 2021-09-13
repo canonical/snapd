@@ -27,8 +27,9 @@ import (
 
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
-	"github.com/snapcore/snapd/gadget/internal"
+	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil/mkfs"
 )
 
 var contentMountpoint string
@@ -38,11 +39,13 @@ func init() {
 }
 
 // makeFilesystem creates a filesystem on the on-disk structure, according
-// to the filesystem type defined in the gadget.
-func makeFilesystem(ds *gadget.OnDiskStructure) error {
+// to the filesystem type defined in the gadget. If sectorSize is specified,
+// that sector size is used when creating the filesystem, otherwise if it is
+// zero, automatic values are used instead.
+func makeFilesystem(ds *gadget.OnDiskStructure, sectorSize quantity.Size) error {
 	if ds.HasFilesystem() {
 		logger.Debugf("create %s filesystem on %s with label %q", ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label)
-		if err := internal.Mkfs(ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label, ds.Size); err != nil {
+		if err := mkfs.Make(ds.VolumeStructure.Filesystem, ds.Node, ds.VolumeStructure.Label, ds.Size, sectorSize); err != nil {
 			return err
 		}
 		if err := udevTrigger(ds.Node); err != nil {
@@ -63,7 +66,7 @@ func writeContent(ds *gadget.OnDiskStructure, gadgetRoot string, observer gadget
 			return err
 		}
 	case ds.HasFilesystem():
-		if err := writeFilesystemContent(ds, gadgetRoot, observer); err != nil {
+		if err := writeFilesystemContent(ds, observer); err != nil {
 			return err
 		}
 	}
@@ -92,7 +95,7 @@ func mountFilesystem(ds *gadget.OnDiskStructure, baseMntPoint string) error {
 	return nil
 }
 
-func writeFilesystemContent(ds *gadget.OnDiskStructure, gadgetRoot string, observer gadget.ContentObserver) (err error) {
+func writeFilesystemContent(ds *gadget.OnDiskStructure, observer gadget.ContentObserver) (err error) {
 	mountpoint := filepath.Join(contentMountpoint, strconv.Itoa(ds.Index))
 	if err := os.MkdirAll(mountpoint, 0755); err != nil {
 		return err
@@ -108,7 +111,7 @@ func writeFilesystemContent(ds *gadget.OnDiskStructure, gadgetRoot string, obser
 			err = errUnmount
 		}
 	}()
-	fs, err := gadget.NewMountedFilesystemWriter(gadgetRoot, &ds.LaidOutStructure, observer)
+	fs, err := gadget.NewMountedFilesystemWriter(&ds.LaidOutStructure, observer)
 	if err != nil {
 		return fmt.Errorf("cannot create filesystem image writer: %v", err)
 	}

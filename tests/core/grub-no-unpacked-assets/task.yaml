@@ -8,6 +8,7 @@ environment:
     NAME/vmlinuz: vmlinuz*
 
 execute: |
+    echo "Check there is not unpacked $NAME in /boot/grub"
     output=$(find /boot/grub -name "$NAME" )
     if [ -n "$output" ]; then
         echo "found unexpected file $NAME: $output"

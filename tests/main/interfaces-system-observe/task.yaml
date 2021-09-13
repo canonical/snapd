@@ -1,8 +1,5 @@
 summary: Ensures that the system-observe interface works.
 
-# on s390x we do not have a serial port to observe
-systems: [-ubuntu-*-s390x]
-
 details: |
     A snap declaring the system-observe plug is defined, its command
     just calls ps -ax.
@@ -11,17 +8,20 @@ details: |
     to execute the snap command with the plug connected (it must succeed)
     and disconnected (it must fail).
 
+# on s390x we do not have a serial port to observe
+systems: [-ubuntu-*-s390x]
+
 prepare: |
     echo "Given a snap declaring a plug on the system-observe interface is installed"
     snap install --edge test-snapd-system-observe-consumer
 
-    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+    if not os.query is-trusty; then
         echo "And hostnamed is started"
         systemctl start systemd-hostnamed
     fi
 
 restore: |
-    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+    if not os.query is-trusty; then
         systemctl stop systemd-hostnamed
     fi
 
@@ -36,7 +36,7 @@ execute: |
     expected="/dev/tty.*?serial"
     su -l -c "test-snapd-system-observe-consumer.consumer" test | MATCH "$expected"
 
-    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+    if not os.query is-trusty; then
         echo "And the snap is able to introspect hostname1"
         expected="<property name=\"Hostname\" type=\"s\" access=\"read\">"
         su -l -c "test-snapd-system-observe-consumer.dbus-introspect" test | MATCH "$expected"
@@ -59,7 +59,7 @@ execute: |
     fi
     MATCH "Permission denied" < consumer.error
 
-    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+    if not os.query is-trusty; then
         echo "And the snap is not able to introspect hostname1"
         if su -l -c "test-snapd-system-observe-consumer.dbus-introspect" test 2> introspect.error; then
             echo "Expected error with plug disconnected"

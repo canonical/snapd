@@ -30,7 +30,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/daemon"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/secboot"
 )
@@ -39,6 +38,12 @@ var _ = Suite(&recoveryKeysSuite{})
 
 type recoveryKeysSuite struct {
 	apiBaseSuite
+}
+
+func (s *recoveryKeysSuite) SetUpTest(c *C) {
+	s.apiBaseSuite.SetUpTest(c)
+
+	s.expectRootAccess()
 }
 
 func mockSystemRecoveryKeys(c *C) {
@@ -69,7 +74,7 @@ func (s *recoveryKeysSuite) TestSystemGetRecoveryKeysAsRootHappy(c *C) {
 	req, err := http.NewRequest("GET", "/v2/system-recovery-keys", nil)
 	c.Assert(err, IsNil)
 
-	rsp := s.req(c, req, nil).(*daemon.Resp)
+	rsp := s.syncReq(c, req, nil)
 	c.Assert(rsp.Status, Equals, 200)
 	srk := rsp.Result.(*client.SystemRecoveryKeysResponse)
 	c.Assert(srk, DeepEquals, &client.SystemRecoveryKeysResponse{
@@ -85,8 +90,9 @@ func (s *recoveryKeysSuite) TestSystemGetRecoveryAsUserErrors(c *C) {
 	req, err := http.NewRequest("GET", "/v2/system-recovery-keys", nil)
 	c.Assert(err, IsNil)
 
-	req.RemoteAddr = "pid=100;uid=1000;socket=;"
+	// being properly authorized as user is not enough, needs root
+	s.asUserAuth(c, req)
 	rec := httptest.NewRecorder()
 	s.serveHTTP(c, rec, req)
-	c.Assert(rec.Code, Equals, 401)
+	c.Assert(rec.Code, Equals, 403)
 }

@@ -517,7 +517,7 @@ type nameMatcher interface {
 
 var (
 	// validates special name constraints like $INTERFACE
-	validSpecialNameConstraint = regexp.MustCompile("^\\$[A-Z][A-Z0-9_]*$")
+	validSpecialNameConstraint = regexp.MustCompile(`^\$[A-Z][A-Z0-9_]*$`)
 )
 
 func compileNameMatcher(whichName string, v interface{}) (nameMatcher, error) {
@@ -599,9 +599,9 @@ func (nc *NameConstraints) Check(whichName, name string, special map[string]stri
 // rules
 
 var (
-	validSnapType  = regexp.MustCompile("^(?:core|kernel|gadget|app)$")
-	validDistro    = regexp.MustCompile("^[-0-9a-z._]+$")
-	validPublisher = regexp.MustCompile("^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28}|\\$[A-Z][A-Z0-9_]*)$") // account ids look like snap-ids or are nice identifiers, support our own special markers $MARKER
+	validSnapType  = regexp.MustCompile(`^(?:core|kernel|gadget|app)$`)
+	validDistro    = regexp.MustCompile(`^[-0-9a-z._]+$`)
+	validPublisher = regexp.MustCompile(`^(?:[a-z0-9A-Z]{32}|[-a-z0-9]{2,28}|\$[A-Z][A-Z0-9_]*)$`) // account ids look like snap-ids or are nice identifiers, support our own special markers $MARKER
 
 	validIDConstraints = map[string]*regexp.Regexp{
 		"slot-snap-type":    validSnapType,

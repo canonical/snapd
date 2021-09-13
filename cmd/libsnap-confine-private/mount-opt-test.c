@@ -216,7 +216,8 @@ static void test_sc_do_mount(gconstpointer snap_debug)
 	if (g_test_subprocess()) {
 		sc_break("mount", broken_mount);
 		if (GPOINTER_TO_INT(snap_debug) == 1) {
-			g_setenv("SNAP_CONFINE_DEBUG", "1", true);
+			g_assert_true(g_setenv
+				      ("SNAP_CONFINE_DEBUG", "1", true));
 		}
 		sc_do_mount("/foo", "/bar", "ext4", MS_RDONLY, NULL);
 
@@ -251,7 +252,8 @@ static void test_sc_do_umount(gconstpointer snap_debug)
 	if (g_test_subprocess()) {
 		sc_break("umount", broken_umount);
 		if (GPOINTER_TO_INT(snap_debug) == 1) {
-			g_setenv("SNAP_CONFINE_DEBUG", "1", true);
+			g_assert_true(g_setenv
+				      ("SNAP_CONFINE_DEBUG", "1", true));
 		}
 		sc_do_umount("/foo", MNT_DETACH);
 
@@ -294,7 +296,8 @@ static void test_sc_do_optional_mount_failure(gconstpointer snap_debug)
 	if (g_test_subprocess()) {
 		sc_break("mount", broken_mount);
 		if (GPOINTER_TO_INT(snap_debug) == 1) {
-			g_setenv("SNAP_CONFINE_DEBUG", "1", true);
+			g_assert_true(g_setenv
+				      ("SNAP_CONFINE_DEBUG", "1", true));
 		}
 		(void)sc_do_optional_mount("/foo", "/bar", "ext4", MS_RDONLY,
 					   NULL);

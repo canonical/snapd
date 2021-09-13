@@ -5,9 +5,6 @@ SNAPD_STATE_FILE="$SPREAD_PATH/tests/snapd-state/snapd-state.tar"
 RUNTIME_STATE_PATH="$SPREAD_PATH/tests/runtime-state"
 SNAPD_ACTIVE_UNITS="$RUNTIME_STATE_PATH/snapd-active-units"
 
-# shellcheck source=tests/lib/dirs.sh
-. "$TESTSLIB/dirs.sh"
-
 # shellcheck source=tests/lib/systemd.sh
 . "$TESTSLIB/systemd.sh"
 
@@ -46,6 +43,7 @@ save_snapd_state() {
         cp -a /var/snap/* "$SNAPD_STATE_PATH"/var-snap/
     else
         systemctl daemon-reload
+        SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
         escaped_snap_mount_dir="$(systemd-escape --path "$SNAP_MOUNT_DIR")"
         units="$(systemctl list-unit-files --full | grep -e "^${escaped_snap_mount_dir}[-.].*\\.mount" -e "^${escaped_snap_mount_dir}[-.].*\\.service" | cut -f1 -d ' ')"
         for unit in $units; do

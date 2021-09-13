@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -42,6 +42,12 @@ var _ = check.Suite(&interfacesSuite{})
 
 type interfacesSuite struct {
 	apiBaseSuite
+}
+
+func (s *interfacesSuite) SetUpTest(c *check.C) {
+	s.apiBaseSuite.SetUpTest(c)
+
+	s.expectWriteAccess(daemon.AuthenticatedAccess{Polkit: "io.snapcraft.snapd.manage-interfaces"})
 }
 
 func mockIface(c *check.C, d *daemon.Daemon, iface interfaces.Interface) {
@@ -340,6 +346,69 @@ func (s *interfacesSuite) TestConnectPlugFailureNoSuchSlot(c *check.C) {
 	c.Assert(ifaces.Connections, check.HasLen, 0)
 }
 
+func (s *interfacesSuite) testConnectFailureNoSnap(c *check.C, installedSnap string) {
+	// sanity, either consumer or producer needs to be enabled
+	consumer := installedSnap == "consumer"
+	producer := installedSnap == "producer"
+	c.Assert(consumer || producer, check.Equals, true, check.Commentf("installed snap must be consumer or producer"))
+
+	d := s.daemon(c)
+
+	mockIface(c, d, &ifacetest.TestInterface{InterfaceName: "test"})
+
+	if consumer {
+		s.mockSnap(c, consumerYaml)
+	}
+	if producer {
+		s.mockSnap(c, producerYaml)
+	}
+
+	action := &client.InterfaceAction{
+		Action: "connect",
+		Plugs:  []client.Plug{{Snap: "consumer", Name: "plug"}},
+		Slots:  []client.Slot{{Snap: "producer", Name: "slot"}},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	s.req(c, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	if producer {
+		c.Check(body, check.DeepEquals, map[string]interface{}{
+			"result": map[string]interface{}{
+				"message": "snap \"consumer\" is not installed",
+			},
+			"status":      "Bad Request",
+			"status-code": 400.0,
+			"type":        "error",
+		})
+	} else {
+		c.Check(body, check.DeepEquals, map[string]interface{}{
+			"result": map[string]interface{}{
+				"message": "snap \"producer\" is not installed",
+			},
+			"status":      "Bad Request",
+			"status-code": 400.0,
+			"type":        "error",
+		})
+	}
+}
+
+func (s *interfacesSuite) TestConnectPlugFailureNoPlugSnap(c *check.C) {
+	s.testConnectFailureNoSnap(c, "producer")
+}
+
+func (s *interfacesSuite) TestConnectPlugFailureNoSlotSnap(c *check.C) {
+	s.testConnectFailureNoSnap(c, "consumer")
+}
+
 func (s *interfacesSuite) TestConnectPlugChangeConflict(c *check.C) {
 	d := s.daemon(c)
 
@@ -513,8 +582,51 @@ func (s *interfacesSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	defer revert()
 	s.daemon(c)
 
-	// there is no consumer, no plug defined
+	s.mockSnap(c, consumerYaml)
 	s.mockSnap(c, producerYaml)
+
+	action := &client.InterfaceAction{
+		Action: "disconnect",
+		Plugs:  []client.Plug{{Snap: "consumer", Name: "missingplug"}},
+		Slots:  []client.Slot{{Snap: "producer", Name: "slot"}},
+	}
+	text, err := json.Marshal(action)
+	c.Assert(err, check.IsNil)
+	buf := bytes.NewBuffer(text)
+	req, err := http.NewRequest("POST", "/v2/interfaces", buf)
+	c.Assert(err, check.IsNil)
+	rec := httptest.NewRecorder()
+	s.req(c, req, nil).ServeHTTP(rec, req)
+	c.Check(rec.Code, check.Equals, 400)
+	var body map[string]interface{}
+	err = json.Unmarshal(rec.Body.Bytes(), &body)
+	c.Check(err, check.IsNil)
+	c.Check(body, check.DeepEquals, map[string]interface{}{
+		"result": map[string]interface{}{
+			"message": "snap \"consumer\" has no plug named \"missingplug\"",
+		},
+		"status":      "Bad Request",
+		"status-code": 400.0,
+		"type":        "error",
+	})
+}
+
+func (s *interfacesSuite) testDisconnectFailureNoSnap(c *check.C, installedSnap string) {
+	// sanity, either consumer or producer needs to be enabled
+	consumer := installedSnap == "consumer"
+	producer := installedSnap == "producer"
+	c.Assert(consumer || producer, check.Equals, true, check.Commentf("installed snap must be consumer or producer"))
+
+	revert := builtin.MockInterface(&ifacetest.TestInterface{InterfaceName: "test"})
+	defer revert()
+	s.daemon(c)
+
+	if consumer {
+		s.mockSnap(c, consumerYaml)
+	}
+	if producer {
+		s.mockSnap(c, producerYaml)
+	}
 
 	action := &client.InterfaceAction{
 		Action: "disconnect",
@@ -532,14 +644,34 @@ func (s *interfacesSuite) TestDisconnectPlugFailureNoSuchPlug(c *check.C) {
 	var body map[string]interface{}
 	err = json.Unmarshal(rec.Body.Bytes(), &body)
 	c.Check(err, check.IsNil)
-	c.Check(body, check.DeepEquals, map[string]interface{}{
-		"result": map[string]interface{}{
-			"message": "snap \"consumer\" has no plug named \"plug\"",
-		},
-		"status":      "Bad Request",
-		"status-code": 400.0,
-		"type":        "error",
-	})
+
+	if producer {
+		c.Check(body, check.DeepEquals, map[string]interface{}{
+			"result": map[string]interface{}{
+				"message": "snap \"consumer\" is not installed",
+			},
+			"status":      "Bad Request",
+			"status-code": 400.0,
+			"type":        "error",
+		})
+	} else {
+		c.Check(body, check.DeepEquals, map[string]interface{}{
+			"result": map[string]interface{}{
+				"message": "snap \"producer\" is not installed",
+			},
+			"status":      "Bad Request",
+			"status-code": 400.0,
+			"type":        "error",
+		})
+	}
+}
+
+func (s *interfacesSuite) TestDisconnectPlugFailureNoPlugSnap(c *check.C) {
+	s.testDisconnectFailureNoSnap(c, "producer")
+}
+
+func (s *interfacesSuite) TestDisconnectPlugFailureNoSlotSnap(c *check.C) {
+	s.testDisconnectFailureNoSnap(c, "consumer")
 }
 
 func (s *interfacesSuite) TestDisconnectPlugNothingToDo(c *check.C) {
@@ -583,12 +715,12 @@ func (s *interfacesSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 	s.daemon(c)
 
 	s.mockSnap(c, consumerYaml)
-	// there is no producer, no slot defined
+	s.mockSnap(c, producerYaml)
 
 	action := &client.InterfaceAction{
 		Action: "disconnect",
 		Plugs:  []client.Plug{{Snap: "consumer", Name: "plug"}},
-		Slots:  []client.Slot{{Snap: "producer", Name: "slot"}},
+		Slots:  []client.Slot{{Snap: "producer", Name: "missingslot"}},
 	}
 	text, err := json.Marshal(action)
 	c.Assert(err, check.IsNil)
@@ -604,7 +736,7 @@ func (s *interfacesSuite) TestDisconnectPlugFailureNoSuchSlot(c *check.C) {
 	c.Check(err, check.IsNil)
 	c.Check(body, check.DeepEquals, map[string]interface{}{
 		"result": map[string]interface{}{
-			"message": "snap \"producer\" has no slot named \"slot\"",
+			"message": "snap \"producer\" has no slot named \"missingslot\"",
 		},
 		"status":      "Bad Request",
 		"status-code": 400.0,

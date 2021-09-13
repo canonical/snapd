@@ -29,12 +29,10 @@ debug: |
     snap list
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     # NOTE: This has to run as the test user because the protection is only
     # active if user gains elevated permissions as a result of using setuid
     # root snap-confine.
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     if su test -c "sh -c \"SNAP_NAME=test-snapd-sh SNAP_INSTANCE_NAME=test-snapd-sh $SNAP_MOUNT_DIR/core/current/usr/lib/snapd/snap-confine snap.test-snapd-sh.sh -c '/bin/true' 2>/dev/null\""; then
         echo "snap-confine didn't refuse to run!"
         exit 1

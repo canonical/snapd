@@ -496,5 +496,40 @@ func (s *lkTestSuite) TestExtractKernelAssetsUnpacksAndRemoveInRuntimeModeUC20(c
 	c.Assert(logbuf.String(), Equals, "")
 }
 
+func (s *lkTestSuite) TestExtractRecoveryKernelAssetsAtRuntime(c *C) {
+	opts := &bootloader.Options{
+		// as called when creating a recovery system at runtime
+		PrepareImageTime: false,
+		Role:             bootloader.RoleRecovery,
+	}
+	r := bootloader.MockLkFiles(c, s.rootdir, opts)
+	defer r()
+	l := bootloader.NewLk(s.rootdir, opts)
+
+	c.Assert(l, NotNil)
+
+	files := [][]string{
+		{"kernel.img", "I'm a kernel"},
+		{"initrd.img", "...and I'm an initrd"},
+		{"boot.img", "...and I'm an boot image"},
+		{"meta/kernel.yaml", "version: 4.2"},
+	}
+	si := &snap.SideInfo{
+		RealName: "ubuntu-kernel",
+		Revision: snap.R(42),
+	}
+	fn := snaptest.MakeTestSnapWithFiles(c, packageKernel, files)
+	snapf, err := snapfile.Open(fn)
+	c.Assert(err, IsNil)
+
+	info, err := snap.ReadInfoFromSnapFile(snapf, si)
+	c.Assert(err, IsNil)
+
+	relativeRecoverySystemDir := "systems/1234"
+	c.Assert(os.MkdirAll(filepath.Join(s.rootdir, relativeRecoverySystemDir), 0755), IsNil)
+	err = l.ExtractRecoveryKernelAssets(relativeRecoverySystemDir, info, snapf)
+	c.Assert(err, ErrorMatches, "internal error: extracting recovery kernel assets is not supported for a runtime lk bootloader")
+}
+
 // TODO:UC20: when runtime addition (and deletion) of recovery systems is
 //            implemented, add tests for that here with lkenv

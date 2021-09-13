@@ -8,12 +8,12 @@ details: |
 #   Object /org/freedesktop/UDisks2/block_devices/loop200 is not a mountable filesystem.
 systems: [-ubuntu-core-*, -arch-linux-*]
 
-prepare: |
-    snap install test-snapd-udisks2
-
 environment:
     FS_PATH: "$(pwd)/dev0-fake0"
     MMCBLK_PATH: /dev/mmcblk-fake0
+
+prepare: |
+    snap install test-snapd-udisks2
 
 restore: |
     losetup -d "$MMCBLK_PATH" || true

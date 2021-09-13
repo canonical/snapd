@@ -1,12 +1,12 @@
 summary: Check that the kernel snap can be refreshed on a core device
 
-# TODO:UC20 enable for UC20/UC18
-systems: [ubuntu-core-16-64]
-
 details: |
     This test checks that the kernel snap can be refreshed from an installed
     revision to a new one. It expects to find a new snap revision in the
     channel pointed by the NEW_CORE_CHANNEL env var.
+
+# TODO:UC20 enable for UC20/UC18
+systems: [ubuntu-core-16-64]
 
 manual: true
 

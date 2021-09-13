@@ -1,9 +1,9 @@
 summary: "Check that refresh-modes sigkill works"
 
-kill-timeout: 5m
-
 # slow in autopkgtest (>1m)
 backends: [-autopkgtest]
+
+kill-timeout: 10m
 
 restore: |
     # remove to ensure all services are stopped
@@ -22,7 +22,7 @@ execute: |
     # Because we cannot use daemon: notify easily yet just wait for a "ready"
     # file to show up.  The file is removed when the service is stopped. This
     # pattern repeats around the test without additional comments.
-    while ! test -f /var/snap/test-snapd-service/common/ready; do sleep 1; done
+    retry -n 20 --wait 1 sh -c 'test -f /var/snap/test-snapd-service/common/ready'
 
     refresh_modes="sigterm sigterm-all"
     for s in $refresh_modes; do
@@ -35,7 +35,7 @@ execute: |
 
     echo "When it is re-installed one process uses sigterm, the other sigterm-all"
     "$TESTSTOOLS"/snaps-state install-local test-snapd-service
-    while ! test -f /var/snap/test-snapd-service/common/ready; do sleep 1; done
+    retry -n 20 --wait 1 sh -c 'test -f /var/snap/test-snapd-service/common/ready'
 
     echo "After reinstall the sigterm-all service and all children got killed"
     echo "but the sigterm service only got a kill for the main process "

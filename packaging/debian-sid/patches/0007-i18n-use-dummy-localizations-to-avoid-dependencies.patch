@@ -1,4 +1,4 @@
-From b8cbff70f32d88d14b1ff4fed35d83bd99f37a3a Mon Sep 17 00:00:00 2001
+From b12169ea4f913574821ceeb19db52b4f679e88d7 Mon Sep 17 00:00:00 2001
 From: Zygmunt Krynicki <me@zygoon.pl>
 Date: Thu, 17 Jan 2019 16:42:35 +0200
 Subject: [PATCH 7/9] i18n: use dummy localizations to avoid dependencies
@@ -10,33 +10,34 @@ implementation with a simple dummy one that always uses the English
 input strings.
 
 Signed-off-by: Zygmunt Krynicki <me@zygoon.pl>
+Signed-off-by: Maciej Borzecki <maciej.zenon.borzecki@canonical.com>
 ---
- i18n/i18n.go      |  97 +++--------------------------------
+ i18n/i18n.go      |  87 +++-----------------------------
  i18n/i18n_test.go | 125 ++--------------------------------------------
- 2 files changed, 11 insertions(+), 211 deletions(-)
+ 2 files changed, 11 insertions(+), 201 deletions(-)
 
 diff --git a/i18n/i18n.go b/i18n/i18n.go
-index fb50901a8..79f28545b 100644
+index 352e9a65d3c9ff802c18c8dbac613668aa23064d..12885f7149ff005e189762ae93f7eb9897e20db3 100644
 --- a/i18n/i18n.go
 +++ b/i18n/i18n.go
-@@ -19,101 +19,16 @@
+@@ -19,76 +19,11 @@
  
  package i18n
  
 -//go:generate update-pot
 -
--import (
+ import (
 -	"fmt"
--	"os"
+ 	"os"
 -	"path/filepath"
--	"strings"
+ 	"strings"
 -
 -	"github.com/snapcore/go-gettext"
 -
 -	"github.com/snapcore/snapd/dirs"
 -	"github.com/snapcore/snapd/osutil"
--)
--
+ )
+ 
 -// TEXTDOMAIN is the message domain used by snappy; see dgettext(3)
 -// for more information.
 -var (
@@ -87,18 +88,24 @@ index fb50901a8..79f28545b 100644
 -
 -func setLocale(loc string) {
 -	if loc == "" {
--		loc = os.Getenv("LC_MESSAGES")
--		if loc == "" {
--			loc = os.Getenv("LANG")
--		}
+-		loc = localeFromEnv()
 -	}
--	// de_DE.UTF-8, de_DE@euro all need to get simplified
--	loc = strings.Split(loc, "@")[0]
--	loc = strings.Split(loc, ".")[0]
 -
--	locale = translations.Locale(loc)
+-	locale = translations.Locale(simplifyLocale(loc))
 -}
 -
+ func simplifyLocale(loc string) string {
+ 	// de_DE.UTF-8, de_DE@euro all need to get simplified
+ 	loc = strings.Split(loc, "@")[0]
+@@ -106,30 +41,20 @@ func localeFromEnv() string {
+ 	return loc
+ }
+ 
+-// CurrentLocale returns the current locale without encoding or variants.
+ func CurrentLocale() string {
+ 	return simplifyLocale(localeFromEnv())
+ }
+ 
  // G is the shorthand for Gettext
  func G(msgid string) string {
 -	return locale.Gettext(msgid)
@@ -128,7 +135,7 @@ index fb50901a8..79f28545b 100644
 +	}
  }
 diff --git a/i18n/i18n_test.go b/i18n/i18n_test.go
-index 81cb050a7..86b59f3b4 100644
+index 81cb050a76b824d1b83e97e02c08628520329d96..86b59f3b439e9c27d37cfb35e21d84724c4cd52f 100644
 --- a/i18n/i18n_test.go
 +++ b/i18n/i18n_test.go
 @@ -20,143 +20,28 @@
@@ -281,5 +288,5 @@ index 81cb050a7..86b59f3b4 100644
 +	c.Assert(NGtest("plural_1", "plural_2", 2), Equals, "plural_2")
  }
 -- 
-2.17.1
+2.31.1
 

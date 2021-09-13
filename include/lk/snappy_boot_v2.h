@@ -196,6 +196,19 @@ typedef struct SNAP_RECOVERY_BOOT_SELECTION {
        when not defined or empty, default boot.img will be used */
     char bootimg_file_name[SNAP_NAME_MAX_LEN];
 
+    /** try_recovery_system contains the label of a recovery system to be
+     *  tried. This entry is completely transparent to the bootloader and is
+     *  only modified by snapd or snap-bootstrap.
+     */
+    char try_recovery_system[SNAP_NAME_MAX_LEN];
+
+    /** recovery_system_status contains the status of a tried recovery
+     *  systems, which is one of "", "try", "tried". This entry is completely
+     *  transparent to the bootloader and is only modified by snapd or
+     *  snap-bootstrap
+     */
+    char recovery_system_status[SNAP_NAME_MAX_LEN];
+
     /* unused placeholders for additional parameters to be used  in the future */
     char unused_key_01[SNAP_NAME_MAX_LEN];
     char unused_key_02[SNAP_NAME_MAX_LEN];
@@ -215,8 +228,6 @@ typedef struct SNAP_RECOVERY_BOOT_SELECTION {
     char unused_key_16[SNAP_NAME_MAX_LEN];
     char unused_key_17[SNAP_NAME_MAX_LEN];
     char unused_key_18[SNAP_NAME_MAX_LEN];
-    char unused_key_19[SNAP_NAME_MAX_LEN];
-    char unused_key_20[SNAP_NAME_MAX_LEN];
 
     /* unused array of 10 key - value pairs */
     char key_value_pairs[10][2][SNAP_NAME_MAX_LEN];

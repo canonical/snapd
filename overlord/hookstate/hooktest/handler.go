@@ -29,9 +29,10 @@ type MockHandler struct {
 	DoneCalled bool
 	DoneError  bool
 
-	ErrorCalled bool
-	ErrorError  bool
-	Err         error
+	ErrorCalled       bool
+	ErrorError        bool
+	IgnoreOriginalErr bool
+	Err               error
 
 	// callbacks useful for testing
 	BeforeCallback func()
@@ -68,11 +69,11 @@ func (h *MockHandler) Done() error {
 }
 
 // Error satisfies hookstate.Handler.Error
-func (h *MockHandler) Error(err error) error {
+func (h *MockHandler) Error(err error) (bool, error) {
 	h.Err = err
 	h.ErrorCalled = true
 	if h.ErrorError {
-		return fmt.Errorf("Error failed at user request")
+		return false, fmt.Errorf("Error failed at user request")
 	}
-	return nil
+	return h.IgnoreOriginalErr, nil
 }

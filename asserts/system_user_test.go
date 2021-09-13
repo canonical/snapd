@@ -24,8 +24,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/snapcore/snapd/asserts"
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/asserts"
 )
 
 var (
@@ -265,5 +266,4 @@ func (s *systemUserSuite) TestSuggestedFormat(c *C) {
 	fmtnum, err = asserts.SuggestFormat(asserts.SystemUserType, headers, nil)
 	c.Assert(err, IsNil)
 	c.Check(fmtnum, Equals, 1)
-
 }

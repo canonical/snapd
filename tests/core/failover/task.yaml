@@ -116,13 +116,8 @@ execute: |
 
     # after rollback, we have the original target snap for a while
     # wait until the kernel and core snap revisions are in place
-    while true ; do
-        current=$(snap list | awk "/^${TARGET_SNAP_NAME} / {print(\$3)}")
-        if [ "$current" = "$(cat prevBoot)" ] ; then
-            break
-        fi
-        sleep 1
-    done
+    #shellcheck disable=SC2016
+    retry -n 60 --wait 1 --env TARGET_SNAP_NAME="$TARGET_SNAP_NAME" sh -c 'test $(snap list | awk "/^${TARGET_SNAP_NAME} / {print(\$3)}") = $(cat prevBoot)'
 
     # ensure the last install change failed as expected
     snap change --last=install | MATCH "cannot finish core installation, there was a rollback across reboot"
@@ -130,9 +125,9 @@ execute: |
 
     # and the boot env vars are correctly set
     echo "Waiting for snapd to clean snap_mode"
-    while [ "$("$TESTSTOOLS"/boot-state bootenv show snap_mode)" != "" ]; do
-        sleep 1
-    done
+    #shellcheck disable=SC2148
+    #shellcheck disable=SC2016
+    retry -n 200 --wait 1 sh -c 'test -z "$("$TESTSTOOLS"/boot-state bootenv show snap_mode)"'
 
     test "$("$TESTSTOOLS"/boot-state bootenv show snap_"${TARGET_SNAP}")" = "${TARGET_SNAP_NAME}_$(cat prevBoot).snap"
     # FIXME: reenable the last check when we reset properly snap_try_{core,kernel} on rollback

@@ -79,7 +79,7 @@ func (s *assetsSuite) uc20UpdateObserver(c *C, gadgetDir string) (*boot.TrustedA
 	return obs, uc20Model
 }
 
-func (s *assetsSuite) bootloaderWithTrustedAssets(c *C, trustedAssets []string) *bootloadertest.MockTrustedAssetsBootloader {
+func (s *assetsSuite) bootloaderWithTrustedAssets(trustedAssets []string) *bootloadertest.MockTrustedAssetsBootloader {
 	tab := bootloadertest.Mock("trusted", "").WithTrustedAssets()
 	bootloader.Force(tab)
 	tab.TrustedAssetsList = trustedAssets
@@ -253,7 +253,7 @@ func (s *assetsSuite) TestInstallObserverNew(c *C) {
 	c.Assert(nonUC20obs, IsNil)
 
 	// listing trusted assets fails
-	tab := s.bootloaderWithTrustedAssets(c, []string{
+	tab := s.bootloaderWithTrustedAssets([]string{
 		"asset",
 	})
 	tab.TrustedAssetsErr = fmt.Errorf("fail")
@@ -369,7 +369,7 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootRealGrub(c *C) {
 func (s *assetsSuite) TestInstallObserverObserveSystemBootMocked(c *C) {
 	d := c.MkDir()
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{
+	tab := s.bootloaderWithTrustedAssets([]string{
 		"asset",
 		"nested/other-asset",
 	})
@@ -429,7 +429,7 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootMocked(c *C) {
 
 func (s *assetsSuite) TestInstallObserverObserveSystemBootMockedNoEncryption(c *C) {
 	d := c.MkDir()
-	s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	s.bootloaderWithTrustedAssets([]string{"asset"})
 	uc20Model := boottest.MakeMockUC20Model()
 	useEncryption := false
 	obs, err := boot.TrustedAssetsInstallObserverForModel(uc20Model, d, useEncryption)
@@ -439,7 +439,7 @@ func (s *assetsSuite) TestInstallObserverObserveSystemBootMockedNoEncryption(c *
 
 func (s *assetsSuite) TestInstallObserverObserveSystemBootMockedUnencryptedWithManaged(c *C) {
 	d := c.MkDir()
-	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab := s.bootloaderWithTrustedAssets([]string{"asset"})
 	tab.ManagedAssetsList = []string{"managed"}
 	uc20Model := boottest.MakeMockUC20Model()
 	useEncryption := false
@@ -505,7 +505,7 @@ func (s *assetsSuite) TestInstallObserverTrustedButNoAssets(c *C) {
 func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {
 	d := c.MkDir()
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{
+	tab := s.bootloaderWithTrustedAssets([]string{
 		"asset",
 		"nested/asset",
 	})
@@ -537,7 +537,7 @@ func (s *assetsSuite) TestInstallObserverTrustedReuseNameErr(c *C) {
 func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryMocked(c *C) {
 	d := c.MkDir()
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{
+	tab := s.bootloaderWithTrustedAssets([]string{
 		"asset",
 		"nested/other-asset",
 		"shim",
@@ -587,7 +587,7 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryMocked(c *C) {
 func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryReuseNameErr(c *C) {
 	d := c.MkDir()
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{
+	tab := s.bootloaderWithTrustedAssets([]string{
 		"asset",
 		"nested/asset",
 	})
@@ -617,7 +617,7 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryReuseNameErr(c *
 func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryButMissingErr(c *C) {
 	d := c.MkDir()
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{
+	tab := s.bootloaderWithTrustedAssets([]string{
 		"asset",
 	})
 
@@ -634,7 +634,7 @@ func (s *assetsSuite) TestInstallObserverObserveExistingRecoveryButMissingErr(c 
 }
 
 func (s *assetsSuite) TestUpdateObserverNew(c *C) {
-	tab := s.bootloaderWithTrustedAssets(c, nil)
+	tab := s.bootloaderWithTrustedAssets(nil)
 
 	uc20Model := boottest.MakeMockUC20Model()
 
@@ -710,7 +710,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedWithReseal(c *C) {
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{
+	tab := s.bootloaderWithTrustedAssets([]string{
 		"asset",
 		"nested/other-asset",
 		"shim",
@@ -796,7 +796,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateExistingAssetMocked(c *C) {
 	d := c.MkDir()
 	root := c.MkDir()
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{
+	tab := s.bootloaderWithTrustedAssets([]string{
 		"asset",
 		"shim",
 	})
@@ -902,7 +902,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateNothingTrackedMocked(c *C) {
 	d := c.MkDir()
 	root := c.MkDir()
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{
+	tab := s.bootloaderWithTrustedAssets([]string{
 		"asset",
 	})
 
@@ -958,7 +958,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateOtherRoleStructMocked(c *C) {
 	d := c.MkDir()
 	root := c.MkDir()
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{
+	tab := s.bootloaderWithTrustedAssets([]string{
 		"asset",
 	})
 
@@ -1135,7 +1135,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateAfterSuccessfulBootMocked(c *C) {
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	s.bootloaderWithTrustedAssets(c, []string{
+	s.bootloaderWithTrustedAssets([]string{
 		"asset",
 	})
 
@@ -1183,7 +1183,7 @@ func (s *assetsSuite) TestUpdateObserverRollbackModeenvManipulationMocked(c *C) 
 	d := c.MkDir()
 	backups := c.MkDir()
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{
+	tab := s.bootloaderWithTrustedAssets([]string{
 		"asset",
 		"nested/other-asset",
 		"shim",
@@ -1300,7 +1300,7 @@ func (s *assetsSuite) TestUpdateObserverRollbackModeenvManipulationMocked(c *C) 
 func (s *assetsSuite) TestUpdateObserverRollbackFileSanity(c *C) {
 	root := c.MkDir()
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	tab := s.bootloaderWithTrustedAssets([]string{"asset"})
 
 	// we get an observer for UC20
 	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
@@ -1590,7 +1590,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledSimpleAfterBackupMocked(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
+	s.bootloaderWithTrustedAssets([]string{"asset", "shim"})
 
 	// we get an observer for UC20
 	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
@@ -1672,7 +1672,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledPartiallyUsedMocked(c *C) {
 	d := c.MkDir()
 	root := c.MkDir()
 
-	s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
+	s.bootloaderWithTrustedAssets([]string{"asset", "shim"})
 
 	data := []byte("foobar")
 	// SHA3-384
@@ -1791,7 +1791,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledNoActionsMocked(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
+	s.bootloaderWithTrustedAssets([]string{"asset", "shim"})
 	// we get an observer for UC20
 	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
 
@@ -1850,7 +1850,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledEmptyModeenvAssets(c *C) {
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
+	s.bootloaderWithTrustedAssets([]string{"asset", "shim"})
 	// we get an observer for UC20
 	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
 
@@ -1904,7 +1904,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledAfterRollback(c *C) {
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
+	s.bootloaderWithTrustedAssets([]string{"asset", "shim"})
 	// we get an observer for UC20
 	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
 
@@ -1974,7 +1974,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledUnhappyCacheStillProceeds(c *C) 
 		c.Assert(err, IsNil)
 	}
 
-	s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
+	s.bootloaderWithTrustedAssets([]string{"asset", "shim"})
 	// we get an observer for UC20
 	obs, _ := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
 
@@ -2043,7 +2043,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootNoTrusted(c *C) {
 func (s *assetsSuite) TestObserveSuccessfulBootNoAssetsOnDisk(c *C) {
 	// call to observe successful boot, but assets do not exist on disk
 
-	s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	s.bootloaderWithTrustedAssets([]string{"asset"})
 
 	m := &boot.Modeenv{
 		Mode: "run",
@@ -2066,7 +2066,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootNoAssetsOnDisk(c *C) {
 func (s *assetsSuite) TestObserveSuccessfulBootAfterUpdate(c *C) {
 	// call to observe successful boot
 
-	s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
+	s.bootloaderWithTrustedAssets([]string{"asset", "shim"})
 
 	data := []byte("foobar")
 	// SHA3-384
@@ -2116,7 +2116,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootAfterUpdate(c *C) {
 func (s *assetsSuite) TestObserveSuccessfulBootWithUnexpected(c *C) {
 	// call to observe successful boot, but the asset we booted with is unexpected
 
-	s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	s.bootloaderWithTrustedAssets([]string{"asset"})
 
 	data := []byte("foobar")
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
@@ -2156,7 +2156,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootWithUnexpected(c *C) {
 func (s *assetsSuite) TestObserveSuccessfulBootSingleEntries(c *C) {
 	// call to observe successful boot
 
-	s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
+	s.bootloaderWithTrustedAssets([]string{"asset", "shim"})
 
 	data := []byte("foobar")
 	// SHA3-384
@@ -2194,7 +2194,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootDropCandidateUsedByOtherBootloade
 	// bootloader is used by the ubuntu-boot bootloader, so it cannot be
 	// dropped from cache
 
-	s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	s.bootloaderWithTrustedAssets([]string{"asset"})
 
 	maybeDrop := []byte("maybe-drop")
 	maybeDropHash := "08a99ce3af529ebbfb9a82df690007ac650635b165c3d1b416d471907fa3843270dce9cc001ea26f4afb4e0c5af05209"
@@ -2234,7 +2234,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootDropCandidateUsedByOtherBootloade
 func (s *assetsSuite) TestObserveSuccessfulBootParallelUpdate(c *C) {
 	// call to observe successful boot
 
-	s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
+	s.bootloaderWithTrustedAssets([]string{"asset", "shim"})
 
 	data := []byte("foobar")
 	// SHA3-384
@@ -2282,7 +2282,7 @@ func (s *assetsSuite) TestObserveSuccessfulBootHashErr(c *C) {
 		c.Skip("the test cannot be executed by the root user")
 	}
 
-	s.bootloaderWithTrustedAssets(c, []string{"asset"})
+	s.bootloaderWithTrustedAssets([]string{"asset"})
 
 	data := []byte("foobar")
 	dataHash := "0fa8abfbdaf924ad307b74dd2ed183b9a4a398891a2f6bac8fd2db7041b77f068580f9c6c66f699b496c2da1cbcc7ed8"
@@ -2303,6 +2303,27 @@ func (s *assetsSuite) TestObserveSuccessfulBootHashErr(c *C) {
 	// nothing is changed
 	_, _, err := boot.ObserveSuccessfulBootWithAssets(m)
 	c.Assert(err, ErrorMatches, "cannot calculate the digest of existing trusted asset: .*/asset: permission denied")
+}
+
+func (s *assetsSuite) TestObserveSuccessfulBootDifferentMode(c *C) {
+	s.bootloaderWithTrustedAssets([]string{"asset"})
+
+	m := &boot.Modeenv{
+		Mode: "recover",
+		CurrentTrustedBootAssets: boot.BootAssetsMap{
+			"asset": {"hash-1", "hash-2"},
+		},
+		CurrentTrustedRecoveryBootAssets: boot.BootAssetsMap{
+			"asset": {"hash-3", "hash-4"},
+		},
+	}
+
+	// if we were in run mode, this would error out because the assets don't
+	// exist, but we are not in run mode
+	newM, drop, err := boot.ObserveSuccessfulBootWithAssets(m)
+	c.Assert(err, IsNil)
+	c.Assert(newM, DeepEquals, m)
+	c.Assert(drop, IsNil)
 }
 
 func (s *assetsSuite) TestCopyBootAssetsCacheHappy(c *C) {
@@ -2418,6 +2439,14 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 	err = ioutil.WriteFile(filepath.Join(d, "shim"), shim, 0644)
 	c.Assert(err, IsNil)
 
+	tab := s.bootloaderWithTrustedAssets([]string{
+		"asset",
+		"shim",
+	})
+
+	// we get an observer for UC20
+	obs, uc20model := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
+
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
@@ -2428,17 +2457,14 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 		},
 		CurrentRecoverySystems: []string{"recovery-system-label"},
 		CurrentKernels:         []string{"pc-kernel_500.snap"},
+
+		Model:          uc20model.Model(),
+		BrandID:        uc20model.BrandID(),
+		Grade:          string(uc20model.Grade()),
+		ModelSignKeyID: uc20model.SignKeyID(),
 	}
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
-
-	tab := s.bootloaderWithTrustedAssets(c, []string{
-		"asset",
-		"shim",
-	})
-
-	// we get an observer for UC20
-	obs, uc20model := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
 
 	res, err := obs.Observe(gadget.ContentUpdate, mockRunBootStruct, root, "asset",
 		&gadget.ContentChange{
@@ -2472,14 +2498,7 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 	})
 
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
-		kernelSnap := &seed.Snap{
-			Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
-			SideInfo: &snap.SideInfo{
-				Revision: snap.Revision{N: 1},
-				RealName: "pc-kernel",
-			},
-		}
-		return uc20model, []*seed.Snap{kernelSnap}, nil
+		return uc20model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 
@@ -2508,7 +2527,7 @@ func (s *assetsSuite) TestUpdateObserverReseal(c *C) {
 
 		c.Assert(params.ModelParams, HasLen, 1)
 		mp := params.ModelParams[0]
-		c.Check(mp.Model, DeepEquals, uc20model)
+		c.Check(mp.Model.Model(), Equals, uc20model.Model())
 		for _, ch := range mp.EFILoadChains {
 			printChain(c, ch, "-")
 		}
@@ -2552,6 +2571,22 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 	d := c.MkDir()
 	root := c.MkDir()
 
+	// mock some files in cache
+	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
+	for _, name := range []string{
+		"shim-shimhash",
+		"asset-assethash",
+		"asset-recoveryhash",
+	} {
+		err := ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
+		c.Assert(err, IsNil)
+	}
+
+	tab := s.bootloaderWithTrustedAssets([]string{"asset", "shim"})
+
+	// we get an observer for UC20
+	obs, uc20model := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
+
 	m := boot.Modeenv{
 		Mode: "run",
 		CurrentTrustedBootAssets: boot.BootAssetsMap{
@@ -2562,27 +2597,17 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 			"asset": {"assethash"},
 			"shim":  {"shimhash"},
 		},
-		CurrentRecoverySystems: []string{"system"},
-		CurrentKernels:         []string{"pc-kernel_1.snap"},
+		CurrentRecoverySystems:    []string{"system"},
+		CurrentKernels:            []string{"pc-kernel_1.snap"},
+		CurrentKernelCommandLines: boot.BootCommandLines{"snapd_recovery_mode=run"},
+
+		Model:          uc20model.Model(),
+		BrandID:        uc20model.BrandID(),
+		Grade:          string(uc20model.Grade()),
+		ModelSignKeyID: uc20model.SignKeyID(),
 	}
 	err := m.WriteTo("")
 	c.Assert(err, IsNil)
-
-	// mock some files in cache
-	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapBootAssetsDir, "trusted"), 0755), IsNil)
-	for _, name := range []string{
-		"shim-shimhash",
-		"asset-assethash",
-		"asset-recoveryhash",
-	} {
-		err = ioutil.WriteFile(filepath.Join(dirs.SnapBootAssetsDir, "trusted", name), nil, 0644)
-		c.Assert(err, IsNil)
-	}
-
-	tab := s.bootloaderWithTrustedAssets(c, []string{"asset", "shim"})
-
-	// we get an observer for UC20
-	obs, uc20model := s.uc20UpdateObserverEncryptedSystemMockedBootloader(c)
 
 	data := []byte("foobar")
 	err = ioutil.WriteFile(filepath.Join(d, "foobar"), data, 0644)
@@ -2611,14 +2636,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 	c.Check(res, Equals, gadget.ChangeApply)
 
 	restore := boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
-		kernelSnap := &seed.Snap{
-			Path: "/var/lib/snapd/seed/snaps/pc-kernel_1.snap",
-			SideInfo: &snap.SideInfo{
-				Revision: snap.Revision{N: 1},
-				RealName: "pc-kernel",
-			},
-		}
-		return uc20model, []*seed.Snap{kernelSnap}, nil
+		return uc20model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 
@@ -2642,7 +2660,7 @@ func (s *assetsSuite) TestUpdateObserverCanceledReseal(c *C) {
 		resealCalls++
 		c.Assert(params.ModelParams, HasLen, 1)
 		mp := params.ModelParams[0]
-		c.Check(mp.Model, DeepEquals, uc20model)
+		c.Check(mp.Model.Model(), Equals, uc20model.Model())
 		for _, ch := range mp.EFILoadChains {
 			printChain(c, ch, "-")
 		}
@@ -2705,7 +2723,7 @@ func (s *assetsSuite) TestUpdateObserverUpdateMockedNonEncryption(c *C) {
 	err = m.WriteTo("")
 	c.Assert(err, IsNil)
 
-	tab := s.bootloaderWithTrustedAssets(c, []string{
+	tab := s.bootloaderWithTrustedAssets([]string{
 		"asset",
 	})
 	tab.ManagedAssetsList = []string{

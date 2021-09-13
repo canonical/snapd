@@ -1,11 +1,11 @@
 summary: Check that basic snap operation are aware of low disk space.
 
-# this test is remounts /var/lib/snapd which is too intrusive for core.
-systems: [-ubuntu-core-*]
-
-description: |
+details: |
   Check that operations such as snap installation or snap removal (with an
   automatic snapshot) error out early if there is not enough disk space.
+
+# this test is remounts /var/lib/snapd which is too intrusive for core.
+systems: [-ubuntu-core-*]
 
 environment:
   TMPFSMOUNT: /var/lib/snapd

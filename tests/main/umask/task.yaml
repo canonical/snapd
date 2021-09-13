@@ -1,12 +1,16 @@
 summary: directories created by snap-confine are immune from umask
+
 details: |
     The setting of umask is inherited across the snap-{run,confine,exec} chain
     but does not hinder execution of snap-confine itself.
+
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
+
 restore: |
     snap remove test-snapd-sh
     rm -rf ~/snap
+
 execute: |
     # See if umask 777 is respected.
     ( umask 777 && test-snapd-sh.sh -c /bin/true )

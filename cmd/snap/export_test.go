@@ -91,6 +91,9 @@ var (
 	PrintInstallHint = printInstallHint
 
 	IsStopping = isStopping
+
+	GetKeypairManager = getKeypairManager
+	GenerateKey       = generateKey
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {
@@ -377,7 +380,7 @@ func MockIoutilTempDir(f func(string, string) (string, error)) (restore func()) 
 	}
 }
 
-func MockDownloadDirect(f func(snapName string, revision snap.Revision, dlOpts image.DownloadOptions) error) (restore func()) {
+func MockDownloadDirect(f func(snapName string, revision snap.Revision, dlOpts image.DownloadSnapOptions) error) (restore func()) {
 	old := downloadDirect
 	downloadDirect = f
 	return func() {
@@ -398,5 +401,13 @@ func MockSnapdWaitForFullSystemReboot(t time.Duration) (restore func()) {
 	snapdWaitForFullSystemReboot = t
 	return func() {
 		snapdWaitForFullSystemReboot = old
+	}
+}
+
+func MockOsChmod(f func(string, os.FileMode) error) (restore func()) {
+	old := osChmod
+	osChmod = f
+	return func() {
+		osChmod = old
 	}
 }

@@ -1,5 +1,6 @@
 summary: the desktop portal file choosers provide access to files
-description: |
+
+details: |
     The xdg-desktop-portal file chooser interface provides a way for a
     confined application to request access to any file the user can
     read/write.
@@ -16,7 +17,7 @@ description: |
 # Only enable the test on systems we know portals to function on.
 # Expand as needed.
 # ubuntu-18.04-*: Ships xdg-desktop-portal 0.11
-systems: [ubuntu-18.04-*, ubuntu-2*]
+systems: [ubuntu-18.04-64, ubuntu-2*]
 
 prepare: |
     #shellcheck source=tests/lib/desktop-portal.sh
@@ -31,6 +32,14 @@ restore: |
     teardown_portals
     rm -f /tmp/file-to-read.txt
     rm -f /tmp/file-to-write.txt
+
+debug: |
+    #shellcheck source=tests/lib/desktop-portal.sh
+    . "$TESTSLIB"/desktop-portal.sh
+
+    ls -la "/run/user/$(id -u test)" || true
+    #shellcheck disable=SC2009
+    ps -ef | grep xdg || true
 
 execute: |
     echo "Install the portals test client"
@@ -68,11 +77,3 @@ execute: |
     # contents are not visible in the destination file.
     retry -n 5 test -s /tmp/file-to-write.txt
     MATCH "from-sandbox" < /tmp/file-to-write.txt
-
-debug: |
-    #shellcheck source=tests/lib/desktop-portal.sh
-    . "$TESTSLIB"/desktop-portal.sh
-
-    ls -la "/run/user/$(id -u test)" || true
-    #shellcheck disable=SC2009
-    ps -ef | grep xdg || true

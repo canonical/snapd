@@ -32,13 +32,15 @@ import (
 
 var (
 	buyCmd = &Command{
-		Path: "/v2/buy",
-		POST: postBuy,
+		Path:        "/v2/buy",
+		POST:        postBuy,
+		WriteAccess: authenticatedAccess{},
 	}
 
 	readyToBuyCmd = &Command{
-		Path: "/v2/buy/ready",
-		GET:  readyToBuy,
+		Path:       "/v2/buy/ready",
+		GET:        readyToBuy,
+		ReadAccess: authenticatedAccess{},
 	}
 )
 
@@ -51,7 +53,7 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 		return BadRequest("cannot decode buy options from request body: %v", err)
 	}
 
-	s := getStore(c)
+	s := storeFrom(c.d)
 
 	buyResult, err := s.Buy(&opts, user)
 
@@ -59,62 +61,40 @@ func postBuy(c *Command, r *http.Request, user *auth.UserState) Response {
 		return resp
 	}
 
-	return SyncResponse(buyResult, nil)
+	return SyncResponse(buyResult)
 }
 
 func readyToBuy(c *Command, r *http.Request, user *auth.UserState) Response {
-	s := getStore(c)
+	s := storeFrom(c.d)
 
 	if resp := convertBuyError(s.ReadyToBuy(user)); resp != nil {
 		return resp
 	}
 
-	return SyncResponse(true, nil)
+	return SyncResponse(true)
 }
 
 func convertBuyError(err error) Response {
+	var kind client.ErrorKind
 	switch err {
 	case nil:
 		return nil
 	case store.ErrInvalidCredentials:
 		return Unauthorized(err.Error())
 	case store.ErrUnauthenticated:
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    client.ErrorKindLoginRequired,
-			},
-			Status: 400,
-		}, nil)
+		kind = client.ErrorKindLoginRequired
 	case store.ErrTOSNotAccepted:
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    client.ErrorKindTermsNotAccepted,
-			},
-			Status: 400,
-		}, nil)
+		kind = client.ErrorKindTermsNotAccepted
 	case store.ErrNoPaymentMethods:
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    client.ErrorKindNoPaymentMethods,
-			},
-			Status: 400,
-		}, nil)
+		kind = client.ErrorKindNoPaymentMethods
 	case store.ErrPaymentDeclined:
-		return SyncResponse(&resp{
-			Type: ResponseTypeError,
-			Result: &errorResult{
-				Message: err.Error(),
-				Kind:    client.ErrorKindPaymentDeclined,
-			},
-			Status: 400,
-		}, nil)
+		kind = client.ErrorKindPaymentDeclined
 	default:
 		return InternalError("%v", err)
+	}
+	return &apiError{
+		Status:  400,
+		Message: err.Error(),
+		Kind:    kind,
 	}
 }

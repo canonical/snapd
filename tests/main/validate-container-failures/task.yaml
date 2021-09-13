@@ -5,18 +5,17 @@ environment:
 
 prepare: |
     # git doesn't preserve permissions properly :-(
-    p="$TESTSLIB/snaps/$SNAP"
     # sets up all the permissions, so I don't have to remember which
     # ones it does preserve (it basically mangles everything anyway)
-    chmod 0600 "$p/comp.sh"
-    chmod 0644 "$p/bin/bar"
-    chmod 0700 "$p/bin/foo"
-    chmod 0    "$p/meta/unreadable"
-    chmod 0644 "$p/meta/hooks/what"
+    chmod 0600 "$SNAP/comp.sh"
+    chmod 0644 "$SNAP/bin/bar"
+    chmod 0700 "$SNAP/bin/foo"
+    chmod 0    "$SNAP/meta/unreadable"
+    chmod 0644 "$SNAP/meta/hooks/what"
 
 execute: |
     echo "Snap refuses to install"
-    not snap try "$TESTSLIB/snaps/$SNAP" 2>error.log
+    not snap try "$SNAP" 2>error.log
     echo "The error tells you to ask the dev"
     tr -s '\n ' ' ' < error.log | MATCH 'contact developer'
 

@@ -21,11 +21,14 @@ for _ in $(seq 1 60); do
     sleep 1
 done
 
+cat /etc/apt/sources.list
 apt autoremove --purge -y snapd ubuntu-core-launcher
+cat /etc/apt/sources.list
 apt update
 
 # requires the snapd deb to already have been "lxd file push"d into the 
 # container
+cat /etc/apt/sources.list
 apt install -y /root/snapd_*.deb
 
 # reload to take effect of the proxy that may have been set before this script

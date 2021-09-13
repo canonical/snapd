@@ -98,7 +98,6 @@ const (
 	noHook = iota
 	badHook
 	goodHook
-	captainHook
 )
 
 func (s *healthSuite) TestHealthNoHook(c *check.C) {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/godbus/dbus"
 
@@ -127,11 +128,22 @@ tryAgain:
 	//
 	// Verify the effective tracking cgroup and check that our scope name is
 	// contained therein.
-	path, err := cgroupProcessPathInTrackingCgroup(pid)
-	if err != nil {
-		return err
+	hasTracking := false
+	start := time.Now()
+	for tries := 0; tries < 100; tries++ {
+		path, err := cgroupProcessPathInTrackingCgroup(pid)
+		if err != nil {
+			return err
+		}
+		if strings.HasSuffix(path, unitName) {
+			hasTracking = true
+			break
+		}
+		time.Sleep(1 * time.Millisecond)
 	}
-	if !strings.HasSuffix(path, unitName) {
+	waitForTracking := time.Since(start)
+	logger.Debugf("waited %v for tracking", waitForTracking)
+	if !hasTracking {
 		logger.Debugf("systemd could not associate process %d with transient scope %s", pid, unitName)
 		return ErrCannotTrackProcess
 	}

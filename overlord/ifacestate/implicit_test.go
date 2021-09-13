@@ -20,13 +20,13 @@
 package ifacestate_test
 
 import (
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/overlord/ifacestate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
-
-	. "gopkg.in/check.v1"
 )
 
 type implicitSuite struct{}

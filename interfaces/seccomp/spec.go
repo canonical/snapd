@@ -52,9 +52,7 @@ func (spec *Specification) Snippets() map[string][]string {
 	result := make(map[string][]string, len(spec.snippets))
 	for k, v := range spec.snippets {
 		vCopy := make([]string, 0, len(v))
-		for _, vElem := range v {
-			vCopy = append(vCopy, vElem)
-		}
+		vCopy = append(vCopy, v...)
 		result[k] = vCopy
 	}
 	return result

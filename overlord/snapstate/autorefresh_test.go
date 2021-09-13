@@ -94,8 +94,6 @@ type autoRefreshTestSuite struct {
 	state *state.State
 
 	store *autoRefreshStore
-
-	restore func()
 }
 
 var _ = Suite(&autoRefreshTestSuite{})
@@ -679,19 +677,19 @@ func (s *autoRefreshTestSuite) TestEffectiveRefreshHold(c *C) {
 	tr.Set("core", "refresh.hold", holdTime)
 	tr.Commit()
 
-	seedTime := holdTime.Add(-70 * 24 * time.Hour)
+	seedTime := holdTime.Add(-100 * 24 * time.Hour)
 	s.state.Set("seed-time", seedTime)
 
 	t1, err := af.EffectiveRefreshHold()
 	c.Assert(err, IsNil)
-	c.Check(t1.Equal(seedTime.Add(60*24*time.Hour)), Equals, true)
+	c.Check(t1.Equal(seedTime.Add(95*24*time.Hour)), Equals, true)
 
-	lastRefresh := holdTime.Add(-65 * 24 * time.Hour)
+	lastRefresh := holdTime.Add(-99 * 24 * time.Hour)
 	s.state.Set("last-refresh", lastRefresh)
 
 	t1, err = af.EffectiveRefreshHold()
 	c.Assert(err, IsNil)
-	c.Check(t1.Equal(lastRefresh.Add(60*24*time.Hour)), Equals, true)
+	c.Check(t1.Equal(lastRefresh.Add(95*24*time.Hour)), Equals, true)
 
 	s.state.Set("last-refresh", holdTime.Add(-6*time.Hour))
 	t1, err = af.EffectiveRefreshHold()
@@ -859,9 +857,9 @@ func (s *autoRefreshTestSuite) TestRefreshOnMeteredConnIsMetered(c *C) {
 
 	c.Check(af.NextRefresh(), DeepEquals, time.Time{})
 
-	// last refresh over 60 days ago, new one is launched regardless of
+	// last refresh over 96 days ago, new one is launched regardless of
 	// connection being metered
-	s.state.Set("last-refresh", time.Now().Add(-61*24*time.Hour))
+	s.state.Set("last-refresh", time.Now().Add(-96*24*time.Hour))
 	s.state.Unlock()
 	err = af.Ensure()
 	s.state.Lock()

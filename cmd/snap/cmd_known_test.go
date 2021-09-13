@@ -29,9 +29,8 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/store"
-
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/store"
 )
 
 // acquire example data via:
@@ -138,7 +137,7 @@ func (s *SnapSuite) TestKnownRemoteDirect(c *check.C) {
 		switch n {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
-			c.Check(r.URL.Path, check.Equals, "/api/v1/snaps/assertions/model/16/canonical/pi99")
+			c.Check(r.URL.Path, check.Equals, "/v2/assertions/model/16/canonical/pi99")
 			fmt.Fprintln(w, mockModelAssertion)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
@@ -185,7 +184,7 @@ func (s *SnapSuite) TestKnownRemoteAutoFallback(c *check.C) {
 		switch n {
 		case 0:
 			c.Check(r.Method, check.Equals, "GET")
-			c.Check(r.URL.Path, check.Equals, "/api/v1/snaps/assertions/model/16/canonical/pi99")
+			c.Check(r.URL.Path, check.Equals, "/v2/assertions/model/16/canonical/pi99")
 			fmt.Fprintln(w, mockModelAssertion)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)

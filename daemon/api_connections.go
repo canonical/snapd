@@ -31,9 +31,9 @@ import (
 )
 
 var connectionsCmd = &Command{
-	Path:   "/v2/connections",
-	UserOK: true,
-	GET:    getConnections,
+	Path:       "/v2/connections",
+	GET:        getConnections,
+	ReadAccess: openAccess{},
 }
 
 type collectFilter struct {
@@ -160,7 +160,7 @@ func collectConnections(ifaceMgr *ifacestate.InterfaceManager, filter collectFil
 		cj := connectionJSON{
 			Slot:      slotRef,
 			Plug:      plugRef,
-			Manual:    cstate.Auto == false,
+			Manual:    !cstate.Auto,
 			Gadget:    cstate.ByGadget,
 			Interface: cstate.Interface,
 			PlugAttrs: mergeAttrs(cstate.StaticPlugAttrs, cstate.DynamicPlugAttrs),
@@ -283,5 +283,5 @@ func getConnections(c *Command, r *http.Request, user *auth.UserState) Response 
 	sort.Sort(byCrefConnJSON(connsjson.Established))
 	sort.Sort(byCrefConnJSON(connsjson.Undesired))
 
-	return SyncResponse(connsjson, nil)
+	return SyncResponse(connsjson)
 }

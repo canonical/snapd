@@ -54,12 +54,19 @@ func init() {
 		baseurl = "https://api.snapcraft.io/v2/"
 	}
 
+	// allow redirecting assertion requests under a different base url
+	if forcedURL := os.Getenv("SNAPPY_FORCE_SAS_URL"); forcedURL != "" {
+		baseurl = forcedURL
+	}
+
 	var err error
 	baseURL, err = url.Parse(baseurl)
 	if err != nil {
 		panic(fmt.Sprintf("cannot setup base url: %v", err))
 	}
 }
+
+var rootBrandIDs = []string{"canonical"}
 
 func (c *cmdRun) Execute(args []string) error {
 	if err := os.MkdirAll(dirs.SnapRunRepairDir, 0755); err != nil {
@@ -85,19 +92,22 @@ func (c *cmdRun) Execute(args []string) error {
 		return err
 	}
 
-	for {
-		repair, err := run.Next("canonical")
-		if err == ErrRepairNotFound {
-			// no more repairs
-			break
-		}
-		if err != nil {
-			return err
-		}
+	for _, rootRepairBrandID := range rootBrandIDs {
+		for {
+			repair, err := run.Next(rootRepairBrandID)
+			if err == ErrRepairNotFound {
+				// no more repairs
+				break
+			}
+			if err != nil {
+				return err
+			}
 
-		if err := repair.Run(); err != nil {
-			return err
+			if err := repair.Run(); err != nil {
+				return err
+			}
 		}
 	}
+
 	return nil
 }

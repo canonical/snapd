@@ -1,5 +1,6 @@
 summary: the desktop portal allows confined apps to open local files
-description: |
+
+details: |
     The xdg-desktop-portal "Open URI" interface provides a way for
     confined applications to open local files using the associated
     application on the host system.
@@ -9,7 +10,7 @@ description: |
 
 # Only enable the test on systems we know portals to function on.
 # Expand as needed.
-systems: [ubuntu-18.04-*, ubuntu-2*]
+systems: [ubuntu-18.04-64, ubuntu-2*]
 
 environment:
     EDITOR_HISTORY: /tmp/editor-history.txt
@@ -46,6 +47,15 @@ restore: |
     rm -f ~test/.local/share/applications/test-editor.desktop
     rm -f "$EDITOR_HISTORY"
 
+debug: |
+    #shellcheck source=tests/lib/desktop-portal.sh
+    . "$TESTSLIB"/desktop-portal.sh
+
+    ls -la "/run/user/$(id -u test)" || true
+    #shellcheck disable=SC2009
+    ps -ef | grep xdg || true
+
+
 execute: |
     echo "Install the portals test client"
     snap install --edge test-snapd-portal-client
@@ -63,11 +73,3 @@ execute: |
     echo "The test-browser process was invoked with the URL"
     retry -n 4 --wait 0.5 test -e "$EDITOR_HISTORY"
     MATCH "$testfile" < "$EDITOR_HISTORY"
-
-debug: |
-    #shellcheck source=tests/lib/desktop-portal.sh
-    . "$TESTSLIB"/desktop-portal.sh
-
-    ls -la "/run/user/$(id -u test)" || true
-    #shellcheck disable=SC2009
-    ps -ef | grep xdg || true

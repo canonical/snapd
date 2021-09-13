@@ -27,12 +27,12 @@ import (
 	"path/filepath"
 	"strings"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/sys"
 	"github.com/snapcore/snapd/randutil"
 	"github.com/snapcore/snapd/testutil"
-
-	. "gopkg.in/check.v1"
 )
 
 type AtomicWriteTestSuite struct{}

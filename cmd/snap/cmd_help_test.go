@@ -23,6 +23,7 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"reflect"
 	"regexp"
 	"strings"
 
@@ -97,7 +98,26 @@ func nonHiddenCommands() map[string]bool {
 	return names
 }
 
+// Helper that checks if goflags is old. The check for EnvNamespace is
+// arbitrary, it just happened that support for this got added right after
+// the v1.4.0 release with commit 1c38ed7.
+func goFlagsFromBefore20200331() bool {
+	v := reflect.ValueOf(flags.Group{})
+	f := v.FieldByName("EnvNamespace")
+	return !f.IsValid()
+}
+
 func (s *SnapSuite) testSubCommandHelp(c *check.C, sub, expected string) {
+	// Skip --help output tests for older versions of
+	// go-flags. Notably v1.4.0 from debian-sid will fail because
+	// the formating is slightly different. Note that the check here
+	// is not precise i.e. this is not the commit that added the change
+	// that changed the help output but this change is easy to test for
+	// with reflect and in practice this is fine.
+	if goFlagsFromBefore20200331() {
+		c.Skip("go flags too old")
+	}
+
 	parser := snap.Parser(snap.Client())
 	rest, err := parser.ParseArgs([]string{sub, "--help"})
 	c.Assert(err, check.DeepEquals, &flags.Error{Type: flags.ErrHelp})

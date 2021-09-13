@@ -36,7 +36,7 @@ type certsSuite struct {
 var _ = Suite(&certsSuite{})
 
 func (s *certsSuite) TestConfigureCertsUnhappyName(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"store-certs.cert-illegal-!": "xxx",
@@ -73,7 +73,7 @@ jVaMaA==
 `
 
 func (s *certsSuite) TestConfigureCertsHappy(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"store-certs.cert1": mockCert,
@@ -85,7 +85,7 @@ func (s *certsSuite) TestConfigureCertsHappy(c *C) {
 
 func (s *certsSuite) TestConfigureCertsSimulteRevert(c *C) {
 	// do a normal "snap set"
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"store-certs.cert1": mockCert,
@@ -94,7 +94,7 @@ func (s *certsSuite) TestConfigureCertsSimulteRevert(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(filepath.Join(dirs.SnapdStoreSSLCertsDir, "cert1.pem"), testutil.FilePresent)
 	// and one more with a new cert that will be reverted
-	err = configcore.Run(&mockConf{
+	err = configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"store-certs.cert1": mockCert,
@@ -110,7 +110,7 @@ func (s *certsSuite) TestConfigureCertsSimulteRevert(c *C) {
 	// now simulate a "snap revert core" where "cert1" will stay in
 	// the state but "cert-that-will-be-reverted" is part of the config
 	// of the reverted core
-	err = configcore.Run(&mockConf{
+	err = configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"store-certs.cert1": mockCert,
@@ -127,7 +127,7 @@ jVaMaA==
 `
 
 func (s *certsSuite) TestConfigureCertsFailsToParse(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"store-certs.cert1": certThatFailsToParse,
@@ -137,7 +137,7 @@ func (s *certsSuite) TestConfigureCertsFailsToParse(c *C) {
 }
 
 func (s *certsSuite) TestConfigureCertsUnhappyContent(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"store-certs.cert-bad": "xxx",

@@ -16,10 +16,11 @@
  */
 
 #include "infofile.h"
-#include "infofile.c"
 
 #include <glib.h>
 #include <unistd.h>
+
+#include "infofile.c"
 
 static void test_infofile_get_key(void) {
     int rc;
@@ -160,6 +161,105 @@ static void test_infofile_get_key(void) {
     g_assert_null(tricky_value);
     sc_error_free(err);
     fclose(stream);
+
+    /* Unexpected section */
+    char tricky6[] = "[section]\n";
+    stream = fmemopen(tricky6, sizeof tricky6 - 1, "r");
+    g_assert_nonnull(stream);
+    rc = sc_infofile_get_key(stream, "key", &tricky_value, &err);
+    g_assert_cmpint(rc, ==, -1);
+    g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_DOMAIN);
+    g_assert_cmpint(sc_error_code(err), ==, 0);
+    g_assert_cmpstr(sc_error_msg(err), ==, "line 1 contains unexpected section");
+    g_assert_null(tricky_value);
+    sc_error_free(err);
+    fclose(stream);
 }
 
-static void __attribute__((constructor)) init(void) { g_test_add_func("/infofile/get_key", test_infofile_get_key); }
+static void test_infofile_get_ini_key(void) {
+    int rc;
+    sc_error *err;
+
+    char text[] =
+        "[section1]\n"
+        "key=value\n"
+        "[section2]\n"
+        "key2=value-two\n"
+        "other-key2=other-value-two\n"
+        "key=value-one-two\n";
+    FILE *stream = fmemopen(text, sizeof text - 1, "r");
+    g_assert_nonnull(stream);
+
+    char *value;
+
+    /* Key in matching in the first section */
+    value = NULL;
+    rewind(stream);
+    rc = sc_infofile_get_ini_section_key(stream, "section1", "key", &value, &err);
+    g_assert_cmpint(rc, ==, 0);
+    g_assert_null(err);
+    g_assert_nonnull(value);
+    g_assert_cmpstr(value, ==, "value");
+    free(value);
+
+    /* Key matching in the second section */
+    value = NULL;
+    rewind(stream);
+    rc = sc_infofile_get_ini_section_key(stream, "section2", "key2", &value, &err);
+    g_assert_cmpint(rc, ==, 0);
+    g_assert_null(err);
+    g_assert_nonnull(value);
+    g_assert_cmpstr(value, ==, "value-two");
+    free(value);
+
+    /* Key matching in the second section (identical to the key from 1st section) */
+    value = NULL;
+    rewind(stream);
+    rc = sc_infofile_get_ini_section_key(stream, "section2", "key", &value, &err);
+    g_assert_cmpint(rc, ==, 0);
+    g_assert_null(err);
+    g_assert_nonnull(value);
+    g_assert_cmpstr(value, ==, "value-one-two");
+    free(value);
+
+    /* No matching section */
+    value = NULL;
+    rewind(stream);
+    rc = sc_infofile_get_ini_section_key(stream, "section-x", "key", &value, &err);
+    g_assert_cmpint(rc, ==, 0);
+    g_assert_null(err);
+    g_assert_null(value);
+
+    /* Invalid empty section name */
+    value = NULL;
+    rewind(stream);
+    rc = sc_infofile_get_ini_section_key(stream, "", "key", &value, &err);
+    g_assert_cmpint(rc, ==, -1);
+    g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_DOMAIN);
+    g_assert_cmpint(sc_error_code(err), ==, SC_API_MISUSE);
+    g_assert_cmpstr(sc_error_msg(err), ==, "section name cannot be empty");
+    g_assert_null(value);
+    sc_error_free(err);
+
+    /* Malformed section */
+    value = NULL;
+    char malformed[] = "[section\n";
+    stream = fmemopen(malformed, sizeof malformed - 1, "r");
+    g_assert_nonnull(stream);
+    rc = sc_infofile_get_ini_section_key(stream, "section", "key", &value, &err);
+    g_assert_cmpint(rc, ==, -1);
+    g_assert_nonnull(err);
+    g_assert_cmpstr(sc_error_domain(err), ==, SC_LIBSNAP_DOMAIN);
+    g_assert_cmpint(sc_error_code(err), ==, 0);
+    g_assert_cmpstr(sc_error_msg(err), ==, "line 1 is not a valid ini section");
+    g_assert_null(value);
+    sc_error_free(err);
+    fclose(stream);
+}
+
+static void __attribute__((constructor)) init(void) {
+    g_test_add_func("/infofile/get_key", test_infofile_get_key);
+    g_test_add_func("/infofile/get_ini_key", test_infofile_get_ini_key);
+}

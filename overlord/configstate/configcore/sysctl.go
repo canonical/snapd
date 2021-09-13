@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -62,7 +63,7 @@ func validateSysctlOptions(tr config.ConfGetter) error {
 	return nil
 }
 
-func handleSysctlConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleSysctlConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	root := dirs.GlobalRootDir
 	if opts != nil {
 		root = opts.RootDir

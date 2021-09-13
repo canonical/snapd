@@ -1,18 +1,19 @@
 summary: Each snap app and hook is tracked via cgroups
+
+details: |
+    This test creates a snap process that suspends itself and ensures that it
+    placed into the appropriate hierarchy.
+
 systems:
     # Ubuntu 14.04's special version of systemd doesn't have StartTransientUnit API.
     # This is covered in more depth in the sister cgroup-tracking-failure test.
     - -ubuntu-14.04-*
 
-details: |
-    This test creates a snap process that suspends itself and ensures that it
-    placed into the appropriate hierarchy.
 environment:
     USER/root: root
     USER/test: test
-prepare: |
-    tests.cleanup prepare
 
+prepare: |
     # This feature depends on the release-app-awareness feature
     snap set core experimental.refresh-app-awareness=true
     tests.cleanup defer snap unset core experimental.refresh-app-awareness
@@ -27,8 +28,6 @@ prepare: |
     tests.cleanup defer tests.session -u "$USER" restore
 
 restore: |
-    tests.cleanup restore
-
     rm -f /tmp/*.pid /tmp/*.stamp
 
     if [ "$USER" = root ]; then
@@ -165,9 +164,11 @@ execute: |
 
     echo "Because the script above used \"sleep 1m\" instead of \"exec sleep 1m\" there"
     echo "are now two processes: the shell and sleep."
-    test "$(wc -l < "${base_cg_path}${pid3_tracking_cg_path}/cgroup.procs")" -eq 2
+    cgroup_procs_path="${base_cg_path}${pid3_tracking_cg_path}/cgroup.procs"
+    test "$(wc -l < "$cgroup_procs_path")" -eq 2
     kill "$pid3_sh"
-    test "$(wc -l < "${base_cg_path}${pid3_tracking_cg_path}/cgroup.procs")" -eq 1
-    wait "$session3_pid" || true  # same as above
+    #shellcheck disable=SC2016
+    cgroup_procs_path="$cgroup_procs_path" retry -n 10 --wait 0.5 sh -c 'test "$(wc -l < $cgroup_procs_path)" -eq 1'
 
+    wait "$session3_pid" || true  # same as above
     retry -n 10 test ! -e "${base_cg_path}${pid3_tracking_cg_path}"

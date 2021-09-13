@@ -50,11 +50,11 @@ execute: |
         VERSION=$FINAL_VERSION
         TRACKING="(latest/)?stable"
 
-    elif [ "$SPREAD_BACKEND" = "external" ] && [[ "$SPREAD_SYSTEM" == ubuntu-core-16-* ]]; then
+    elif [ "$SPREAD_BACKEND" = "external" ] && os.query is-core16; then
         echo "On the external device the core snap tested could be in any track"
         TRACKING="(latest/)?(edge|beta|candidate|stable)"
 
-    elif [ "$SPREAD_BACKEND" = "external" ] && { [[ "$SPREAD_SYSTEM" == ubuntu-core-18-* ]] || [[ "$SPREAD_SYSTEM" == ubuntu-core-20-* ]]; }; then
+    elif [ "$SPREAD_BACKEND" = "external" ] && { os.query is-core18 || os.query is-core20; }; then
         echo "On the external device the snapd snap tested could be in any track"
         NAME=snapd
         VERSION=$SNAPD_GIT_VERSION

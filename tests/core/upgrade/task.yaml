@@ -8,10 +8,14 @@ systems: [ubuntu-core-16-*, ubuntu-core-18-32*, ubuntu-core-18-64*]
 # Start early as it takes a long time.
 priority: 100
 
-debug: |
-    snap list
-    "$TESTSTOOLS"/boot-state bootenv show
-    cat /proc/cmdline
+prepare: |
+    TARGET_SNAP=core
+    if os.query is-core18; then
+        TARGET_SNAP=core18
+    fi
+
+    snap list | awk "/^${TARGET_SNAP} / {print(\$3)}" > nextBoot
+    snap install test-snapd-sh
 
 restore: |
     systemctl restart snapd
@@ -23,14 +27,10 @@ restore: |
     snap remove core --revision=x2
     snap remove core --revision=x3
 
-prepare: |
-    TARGET_SNAP=core
-    if os.query is-core18; then
-        TARGET_SNAP=core18
-    fi
-
-    snap list | awk "/^${TARGET_SNAP} / {print(\$3)}" > nextBoot
-    snap install test-snapd-sh
+debug: |
+    snap list
+    "$TESTSTOOLS"/boot-state bootenv show
+    cat /proc/cmdline
 
 execute: |
     TARGET_SNAP=core
@@ -79,7 +79,7 @@ execute: |
     echo "${chg_id}" >curChg
 
     # wait for the link task to be done
-    while ! journalctl -b -u snapd|grep -q "Waiting for system reboot" ; do sleep 1 ; done
+    retry -n 50 --wait 1 sh -c 'journalctl -b -u snapd | MATCH "Waiting for system reboot"'
 
     echo "Ensure the test snap still runs"
     test-snapd-sh.sh -c 'echo hello' | MATCH hello

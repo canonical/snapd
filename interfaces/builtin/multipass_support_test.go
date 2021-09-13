@@ -86,7 +86,7 @@ func (s *MultipassSupportInterfaceSuite) TestConnectedPlugSnippet(c *C) {
 	err := apparmorSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 	c.Assert(apparmorSpec.SecurityTags(), DeepEquals, []string{"snap.multipass.app"})
-	c.Assert(apparmorSpec.SnippetForTag("snap.multipass.app"), testutil.Contains, "/sbin/apparmor_parser ixr,\n")
+	c.Assert(apparmorSpec.SnippetForTag("snap.multipass.app"), testutil.Contains, "/{,usr/}sbin/apparmor_parser ixr,\n")
 
 	seccompSpec := &seccomp.Specification{}
 	err = seccompSpec.AddConnectedPlug(s.iface, s.plug, s.slot)

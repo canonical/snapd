@@ -11,7 +11,7 @@ prepare: |
     "$TESTSTOOLS"/snaps-state install-local-as home-consumer home-consumer_foo
 
     # the home interface is not autoconnected on all-snap systems
-    if [[ ! "$SPREAD_SYSTEM" == ubuntu-core-* ]]; then
+    if os.query is-classic; then
         snap disconnect home-consumer:home
         snap disconnect home-consumer_foo:home
     fi

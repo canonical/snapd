@@ -233,3 +233,19 @@ func (s *GreengrassSupportInterfaceSuite) TestPermanentSlotAppArmorSessionClassi
 		c.Check(apparmorSpec.SnippetForTag("snap.other.app2"), Not(testutil.Contains), "# /system-data/var/snap/greengrass/x1/ggc-writable/packages/1.7.0/var/worker/overlays/$UUID/upper/\n")
 	}
 }
+
+func (s *GreengrassSupportInterfaceSuite) TestPermanentPlugServiceSnippets(c *C) {
+	for _, t := range []struct {
+		plug *snap.PlugInfo
+		exp  []string
+	}{
+		{s.plugInfo, []string{"Delegate=true"}},
+		{s.containerModePlugInfo, []string{"Delegate=true"}},
+		// the process-mode or no-container plug doesn't get Delegate=true
+		{s.processModePlugInfo, nil},
+	} {
+		snips, err := interfaces.PermanentPlugServiceSnippets(s.iface, t.plug)
+		c.Assert(err, IsNil)
+		c.Check(snips, DeepEquals, t.exp)
+	}
+}

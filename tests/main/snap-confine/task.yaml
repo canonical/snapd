@@ -9,23 +9,19 @@ prepare: |
     snap install test-snapd-sh
 
 restore: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     echo "Restore current symlink"
-    mv $SNAP_MOUNT_DIR/core/current.renamed $SNAP_MOUNT_DIR/core/current ||  true
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    mv "$SNAP_MOUNT_DIR/core/current.renamed" "$SNAP_MOUNT_DIR/core/current" ||  true
 
 execute: |
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     echo "Simulating broken current symlink for core"
-    mv $SNAP_MOUNT_DIR/core/current $SNAP_MOUNT_DIR/core/current.renamed
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    mv "$SNAP_MOUNT_DIR/core/current" "$SNAP_MOUNT_DIR/core/current.renamed"
     if test-snapd-sh.sh -c 'echo hello' 2>snap-confine.stderr; then
         echo "test-snapd-sh.sh should fail to run, test broken"
     fi
     MATCH 'cannot locate base snap core: No such file or directory' < snap-confine.stderr
-    mv $SNAP_MOUNT_DIR/core/current.renamed $SNAP_MOUNT_DIR/core/current
+    mv "$SNAP_MOUNT_DIR/core/current.renamed" "$SNAP_MOUNT_DIR/core/current"
 
     echo "Test nvidia device fix"
     # For https://github.com/snapcore/snapd/pull/4042

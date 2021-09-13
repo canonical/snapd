@@ -1,7 +1,5 @@
 summary: Ensure that batch-reloading of AppArmor profiles works, including fallback.
 
-systems: [ubuntu-1*]
-
 details: |
     This test checks that apparmor profiles are re-generated on snapd startup in a batch,
     and that fallback logic of running apparmor parser for each individual snap takes
@@ -11,6 +9,8 @@ details: |
     The test checks system log for transient errors reported by snapd for apparmor failures
     and then verifies apparmor cache to ensure expected profiles were created by fallback
     logic.
+
+systems: [ubuntu-1*]
 
 environment:
     VARIANT/changed: changed
@@ -25,7 +25,6 @@ prepare: |
 
 restore: |
     mv /sbin/apparmor_parser.real /sbin/apparmor_parser
-    rm -f profiles.out
 
 debug: |
     "$TESTSTOOLS"/journal-state get-log -a | grep apparmor_parser.fake

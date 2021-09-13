@@ -20,8 +20,11 @@
 package builtin_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -210,7 +213,7 @@ func (s *ModemManagerInterfaceSuite) TestUsedSecuritySystems(c *C) {
 	c.Assert(udevSpec.Snippets()[0], testutil.Contains, `SUBSYSTEMS=="usb"`)
 	c.Assert(udevSpec.Snippets(), testutil.Contains, `# modem-manager
 KERNEL=="tty[a-zA-Z]*[0-9]*|cdc-wdm[0-9]*", TAG+="snap_modem-manager_mm"`)
-	c.Assert(udevSpec.Snippets(), testutil.Contains, `TAG=="snap_modem-manager_mm", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_modem-manager_mm $devpath $major:$minor"`)
+	c.Assert(udevSpec.Snippets(), testutil.Contains, fmt.Sprintf(`TAG=="snap_modem-manager_mm", RUN+="%v/snap-device-helper $env{ACTION} snap_modem-manager_mm $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *ModemManagerInterfaceSuite) TestPermanentSlotDBus(c *C) {

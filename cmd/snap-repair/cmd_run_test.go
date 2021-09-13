@@ -87,7 +87,7 @@ func (r *repairSuite) TestRunAlreadyLocked(c *C) {
 	c.Assert(err, IsNil)
 	err = flock.Lock()
 	c.Assert(err, IsNil)
-	defer flock.Unlock()
+	defer flock.Close() // Close unlocks too
 
 	err = repair.ParseArgs([]string{"run"})
 	c.Check(err, ErrorMatches, `cannot run, another snap-repair run already executing`)

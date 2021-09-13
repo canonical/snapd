@@ -1,3 +1,0 @@
-#!/bin/sh
-
-"$SNAP"/usr/bin/virsh create /snap/test-snapd-libvirt-consumer/current/vm/ping-unikernel.xml

@@ -42,9 +42,9 @@ import (
 )
 
 var snapDownloadCmd = &Command{
-	Path:     "/v2/download",
-	PolkitOK: "io.snapcraft.snapd.manage",
-	POST:     postSnapDownload,
+	Path:        "/v2/download",
+	POST:        postSnapDownload,
+	WriteAccess: authenticatedAccess{Polkit: polkitActionManage},
 }
 
 var validRangeRegexp = regexp.MustCompile(`^\s*bytes=(\d+)-\s*$`)
@@ -109,11 +109,11 @@ func postSnapDownload(c *Command, r *http.Request, user *auth.UserState) Respons
 }
 
 func streamOneSnap(c *Command, action snapDownloadAction, user *auth.UserState) Response {
-	secret, err := downloadTokensSecret(c)
+	secret, err := downloadTokensSecret(c.d)
 	if err != nil {
 		return InternalError(err.Error())
 	}
-	theStore := getStore(c)
+	theStore := storeFrom(c.d)
 
 	var ss *snapStream
 	if action.ResumeToken == "" {
@@ -243,8 +243,8 @@ func unsealDownloadToken(tokStr string, secret []byte) (*downloadTokenJSON, erro
 	return &d, nil
 }
 
-func downloadTokensSecret(c *Command) (secret []byte, err error) {
-	st := c.d.overlord.State()
+func downloadTokensSecret(d *Daemon) (secret []byte, err error) {
+	st := d.overlord.State()
 	st.Lock()
 	defer st.Unlock()
 	const k = "api-download-tokens-secret"

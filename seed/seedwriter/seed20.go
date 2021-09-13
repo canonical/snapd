@@ -159,7 +159,18 @@ func (tr *tree20) mkFixedDirs() error {
 		return err
 	}
 
-	return os.MkdirAll(tr.systemDir, 0755)
+	if err := os.MkdirAll(filepath.Dir(tr.systemDir), 0755); err != nil {
+		return err
+	}
+	if err := os.Mkdir(tr.systemDir, 0755); err != nil {
+		if os.IsExist(err) {
+			return &SystemAlreadyExistsError{
+				label: tr.opts.Label,
+			}
+		}
+		return err
+	}
+	return nil
 }
 
 func (tr *tree20) ensureSystemSnapsDir() (string, error) {
@@ -356,10 +367,11 @@ func (tr *tree20) writeMeta(snapsFromModel []*SeedSnap, extraSnaps []*SeedSnap) 
 	addAuxInfos := func(seedSnaps []*SeedSnap) {
 		for _, sn := range seedSnaps {
 			if sn.Info.ID() != "" {
-				if sn.Info.Contact != "" || sn.Info.Private {
+				if sn.Info.EditedContact != "" || sn.Info.Private {
 					auxInfos[sn.Info.ID()] = &internal.AuxInfo20{
 						Private: sn.Info.Private,
-						Contact: sn.Info.Contact,
+						// TODO: set this only if the snap has no links
+						Contact: sn.Info.Contact(),
 					}
 				}
 			}

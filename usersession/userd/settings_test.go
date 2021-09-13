@@ -28,25 +28,31 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/release"
 	"github.com/snapcore/snapd/testutil"
 	"github.com/snapcore/snapd/usersession/userd"
 	"github.com/snapcore/snapd/usersession/userd/ui"
 )
 
 type settingsSuite struct {
-	settings *userd.Settings
+	testutil.BaseTest
 
-	mockXdgSettings       *testutil.MockCmd
-	restoreSnapFromSender func()
+	settings        *userd.Settings
+	mockXdgSettings *testutil.MockCmd
 }
 
 var _ = Suite(&settingsSuite{})
 
 func (s *settingsSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+
 	dirs.SetRootDir(c.MkDir())
-	s.restoreSnapFromSender = userd.MockSnapFromSender(func(*dbus.Conn, dbus.Sender) (string, error) {
+	s.AddCleanup(func() { dirs.SetRootDir("/") })
+	s.AddCleanup(release.MockOnClassic(true))
+
+	s.AddCleanup(userd.MockSnapFromSender(func(*dbus.Conn, dbus.Sender) (string, error) {
 		return "some-snap", nil
-	})
+	}))
 
 	s.settings = &userd.Settings{}
 	s.mockXdgSettings = testutil.MockCommand(c, "xdg-settings", `
@@ -107,12 +113,7 @@ case "$1" in
         ;;
 esac
 `)
-}
-
-func (s *settingsSuite) TearDownTest(c *C) {
-	s.mockXdgSettings.Restore()
-	s.restoreSnapFromSender()
-	dirs.SetRootDir("/")
+	s.AddCleanup(s.mockXdgSettings.Restore)
 }
 
 func mockUIcommands(c *C, script string) func() {
@@ -391,4 +392,28 @@ func (s *settingsSuite) TestSetUserAcceptsZenityUrlSchemeXdgSettingsError(c *C) 
 	c.Check(s.mockXdgSettings.Calls(), DeepEquals, [][]string{
 		{"xdg-settings", "set", "default-url-scheme-handler", "irc2", "some-snap_ircclient.desktop"},
 	})
+}
+
+func (s *settingsSuite) TestFailsOnUbuntuCore(c *C) {
+	restore := release.MockOnClassic(false)
+	defer restore()
+
+	_, err := s.settings.Check("default-web-browser", "foo.desktop", ":some-dbus-sender")
+	c.Check(err, ErrorMatches, "not supported on Ubuntu Core")
+
+	_, err = s.settings.CheckSub("default-url-scheme-handler", "irc", "bar.desktop", ":some-dbus-sender")
+	c.Check(err, ErrorMatches, "not supported on Ubuntu Core")
+
+	_, err = s.settings.Get("default-web-browser", ":some-dbus-sender")
+	c.Check(err, ErrorMatches, "not supported on Ubuntu Core")
+
+	_, err = s.settings.GetSub("default-url-scheme-handler", "irc", ":some-dbus-sender")
+	c.Check(err, ErrorMatches, "not supported on Ubuntu Core")
+
+	err = s.settings.Set("default-web-browser", "foo.desktop", ":some-dbus-sender")
+	c.Check(err, ErrorMatches, "not supported on Ubuntu Core")
+	err = s.settings.SetSub("default-url-scheme-handler", "irc", "ircclient.desktop", ":some-dbus-sender")
+	c.Check(err, ErrorMatches, "not supported on Ubuntu Core")
+
+	c.Check(s.mockXdgSettings.Calls(), HasLen, 0)
 }

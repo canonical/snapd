@@ -215,12 +215,13 @@ const kubernetesSupportConnectedPlugAppArmorKubeletSystemdRun = `
 // go.etcd.io/etcd/clientv3. See:
 // https://github.com/coreos/go-systemd/blob/master/journal/journal.go#L211
 const kubernetesSupportConnectedPlugAppArmorAutobindUnix = `
-# Allow using the 'autobind' feature of bind() (eg, for journald).
-#unix (bind) type=dgram addr=none,
-# Due to LP: 1867216, we cannot use the above rule and must instead use this
-# less specific rule that allows bind() to arbitrary SOCK_DGRAM abstract socket
-# names (separate send and receive rules are still required for communicating
-# over the socket).
+# Allow using the 'autobind' feature of bind() (eg, for journald via go-systemd)
+# unix (bind) type=dgram addr=auto,
+# TODO: when snapd vendors in AppArmor userspace, then enable the new syntax
+# above which allows only "empty"/automatic addresses, for now we simply permit
+# all addresses with SOCK_DGRAM type, which leaks info for other addresses than
+# what docker tries to use
+# see https://bugs.launchpad.net/snapd/+bug/1867216
 unix (bind) type=dgram,
 `
 
@@ -277,7 +278,19 @@ type kubernetesSupportInterface struct {
 	commonInterface
 }
 
-func k8sFlavor(plug *interfaces.ConnectedPlug) string {
+func (iface *kubernetesSupportInterface) ServicePermanentPlug(plug *snap.PlugInfo) []string {
+	// only autobind-unix flavor does not get Delegate=true, all other flavors
+	// are usable to manage control groups of processes/containers, and thus
+	// need Delegate=true
+	flavor := k8sFlavor(plug)
+	if flavor == "autobind-unix" {
+		return nil
+	}
+
+	return []string{"Delegate=true"}
+}
+
+func k8sFlavor(plug interfaces.Attrer) string {
 	var flavor string
 	_ = plug.Attr("flavor", &flavor)
 	return flavor

@@ -555,7 +555,6 @@ func (iw *infoWriter) maybePrintNotes() {
 	}
 
 	fmt.Fprintf(iw, "  ignore-validation:\t%t\n", iw.localSnap.IgnoreValidation)
-	return
 }
 
 func (iw *infoWriter) maybePrintCohortKey() {

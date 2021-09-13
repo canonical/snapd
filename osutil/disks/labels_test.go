@@ -22,9 +22,9 @@ package disks_test
 import (
 	"testing"
 
-	"github.com/snapcore/snapd/osutil/disks"
-	"gopkg.in/check.v1"
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/osutil/disks"
 )
 
 func Test(t *testing.T) { TestingT(t) }
@@ -84,6 +84,6 @@ func (ts *diskLabelSuite) TestEncodeHexBlkIDFormat(c *C) {
 	}
 	for _, t := range tt {
 		c.Logf("tc: %v %q", t.in, t.out)
-		c.Assert(disks.BlkIDEncodeLabel(t.in), check.Equals, t.out)
+		c.Assert(disks.BlkIDEncodeLabel(t.in), Equals, t.out)
 	}
 }

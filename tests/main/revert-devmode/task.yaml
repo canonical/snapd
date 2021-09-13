@@ -61,15 +61,13 @@ execute: |
         fi
     fi
 
-    #shellcheck source=tests/lib/dirs.sh
-    . "$TESTSLIB"/dirs.sh
-
     echo "When a refresh is made"
     snap refresh --devmode --edge test-snapd-tools
 
     echo "Then the new version is installed"
     snap list | MATCH 'test-snapd-tools +[0-9]+\.[0-9]+\+fake1'
-    LATEST=$(readlink $SNAP_MOUNT_DIR/test-snapd-tools/current)
+    SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
+    LATEST=$(readlink "$SNAP_MOUNT_DIR"/test-snapd-tools/current)
 
     echo "When a revert is made without --devmode flag"
     snap revert test-snapd-tools

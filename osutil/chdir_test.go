@@ -17,13 +17,15 @@
  *
  */
 
-package osutil
+package osutil_test
 
 import (
 	"fmt"
 	"os"
 
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 type ChdirTestSuite struct{}
@@ -36,7 +38,7 @@ func (ts *ChdirTestSuite) TestChdir(c *C) {
 	cwd, err := os.Getwd()
 	c.Assert(err, IsNil)
 	c.Assert(cwd, Not(Equals), tmpdir)
-	ChDir(tmpdir, func() error {
+	osutil.ChDir(tmpdir, func() error {
 		cwd, err := os.Getwd()
 		c.Assert(err, IsNil)
 		c.Assert(cwd, Equals, tmpdir)
@@ -45,14 +47,14 @@ func (ts *ChdirTestSuite) TestChdir(c *C) {
 }
 
 func (ts *ChdirTestSuite) TestChdirErrorNoDir(c *C) {
-	err := ChDir("random-dir-that-does-not-exist", func() error {
+	err := osutil.ChDir("random-dir-that-does-not-exist", func() error {
 		return nil
 	})
 	c.Assert(err, ErrorMatches, "chdir .*: no such file or directory")
 }
 
 func (ts *ChdirTestSuite) TestChdirErrorFromFunc(c *C) {
-	err := ChDir("/", func() error {
+	err := osutil.ChDir("/", func() error {
 		return fmt.Errorf("meep")
 	})
 	c.Assert(err, ErrorMatches, "meep")

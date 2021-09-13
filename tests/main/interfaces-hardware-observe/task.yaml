@@ -35,4 +35,4 @@ execute: |
         echo "Expected permission error accessing locale configuration with disconnected plug"
         exit 1
     fi
-    grep -q "Permission denied" hw.error
+    MATCH "Permission denied" < hw.error

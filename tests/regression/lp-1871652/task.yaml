@@ -1,6 +1,8 @@
 summary: system key mismatch is ignored on reboot/shutdown
+
 # Run on a system matching the guest container.
 systems: [ubuntu-18.04-64]
+
 prepare: |
     snap install lxd --channel="$LXD_SNAP_CHANNEL"
     lxd init --auto
@@ -47,6 +49,13 @@ prepare: |
     # Put our special systemctl and make it executable
     lxc file push systemctl bionic/usr/local/bin/systemctl
     lxc exec bionic -- chmod +x /usr/local/bin/systemctl
+
+restore: |
+    lxc exec bionic -- chmod -x /usr/local/bin/systemctl
+    lxc stop --force bionic
+    snap remove --purge lxd
+    "$TESTSTOOLS"/lxd-state undo-mount-changes
+
 execute: |
     # Try to stop LXD in a way that matches what happens when we are shutting
     # down. Use the special variable controlling retry count, so that we don't
@@ -56,8 +65,3 @@ execute: |
     # then fail, with the fix it should be under one second but we allow for up
     # to five. The comparison is performed in milliseconds.
     test "$(LC_NUMERIC=C awk '/real/ { print($2 * 1000); exit(0);}' < stop.time)" -lt 5000
-restore: |
-    lxc exec bionic -- chmod -x /usr/local/bin/systemctl
-    lxc stop --force bionic
-    snap remove --purge lxd
-    "$TESTSTOOLS"/lxd-state undo-mount-changes

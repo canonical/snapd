@@ -31,7 +31,6 @@ import (
 
 	"github.com/mvo5/goconfigparser"
 
-	"github.com/snapcore/snapd/dbusutil"
 	"github.com/snapcore/snapd/desktop/notification"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/i18n"
@@ -180,20 +179,28 @@ type dummyReporter struct{}
 
 func (dummyReporter) Notify(string) {}
 
-func postServiceControl(c *Command, r *http.Request) Response {
+func validateJSONRequest(r *http.Request) (valid bool, errResp Response) {
 	contentType := r.Header.Get("Content-Type")
 	mediaType, params, err := mime.ParseMediaType(contentType)
 	if err != nil {
-		return BadRequest("cannot parse content type: %v", err)
+		return false, BadRequest("cannot parse content type: %v", err)
 	}
 
 	if mediaType != "application/json" {
-		return BadRequest("unknown content type: %s", contentType)
+		return false, BadRequest("unknown content type: %s", contentType)
 	}
 
 	charset := strings.ToUpper(params["charset"])
 	if charset != "" && charset != "UTF-8" {
-		return BadRequest("unknown charset in content type: %s", contentType)
+		return false, BadRequest("unknown charset in content type: %s", contentType)
+	}
+
+	return true, nil
+}
+
+func postServiceControl(c *Command, r *http.Request) Response {
+	if ok, resp := validateJSONRequest(r); !ok {
+		return resp
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -213,19 +220,8 @@ func postServiceControl(c *Command, r *http.Request) Response {
 }
 
 func postPendingRefreshNotification(c *Command, r *http.Request) Response {
-	contentType := r.Header.Get("Content-Type")
-	mediaType, params, err := mime.ParseMediaType(contentType)
-	if err != nil {
-		return BadRequest("cannot parse content type: %v", err)
-	}
-
-	if mediaType != "application/json" {
-		return BadRequest("unknown content type: %s", contentType)
-	}
-
-	charset := strings.ToUpper(params["charset"])
-	if charset != "" && charset != "UTF-8" {
-		return BadRequest("unknown charset in content type: %s", contentType)
+	if ok, resp := validateJSONRequest(r); !ok {
+		return resp
 	}
 
 	decoder := json.NewDecoder(r.Body)
@@ -242,22 +238,20 @@ func postPendingRefreshNotification(c *Command, r *http.Request) Response {
 		return BadRequest("cannot decode request body into pending snap refresh info: %v", err)
 	}
 
-	// TODO: use c.a.bus once https://github.com/snapcore/snapd/pull/9497 is merged.
-	conn, err := dbusutil.SessionBus()
 	// Note that since the connection is shared, we are not closing it.
-	if err != nil {
+	if c.s.bus == nil {
 		return SyncResponse(&resp{
 			Type:   ResponseTypeError,
 			Status: 500,
 			Result: &errorResult{
-				Message: fmt.Sprintf("cannot connect to the session bus: %v", err),
+				Message: fmt.Sprintf("cannot connect to the session bus"),
 			},
 		})
 	}
 
 	// TODO: support desktop-specific notification APIs if they provide a better
 	// experience. For example, the GNOME notification API.
-	notifySrv := notification.New(conn)
+	notifySrv := notification.New(c.s.bus)
 
 	// TODO: this message needs to be crafted better as it's the only thing guaranteed to be delivered.
 	summary := fmt.Sprintf(i18n.G("Pending update of %q snap"), refreshInfo.InstanceName)

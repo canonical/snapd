@@ -26,11 +26,20 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/gadget/quantity"
+	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
+	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
+	"github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/systemd/systemdtest"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -40,8 +49,26 @@ type vitalitySuite struct {
 
 var _ = Suite(&vitalitySuite{})
 
+func (s *vitalitySuite) SetUpTest(c *C) {
+	s.configcoreSuite.SetUpTest(c)
+
+	uc18model := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "model",
+		"authority-id": "canonical",
+		"series":       "16",
+		"brand-id":     "canonical",
+		"model":        "pc",
+		"gadget":       "pc",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+		"base":         "core18",
+	}).(*asserts.Model)
+
+	s.AddCleanup(snapstatetest.MockDeviceModel(uc18model))
+}
+
 func (s *vitalitySuite) TestConfigureVitalityUnhappyName(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"resilience.vitality-hint": "-invalid-snap-name!yf",
@@ -51,7 +78,7 @@ func (s *vitalitySuite) TestConfigureVitalityUnhappyName(c *C) {
 }
 
 func (s *vitalitySuite) TestConfigureVitalityNoSnapd(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"resilience.vitality-hint": "snapd",
@@ -61,7 +88,7 @@ func (s *vitalitySuite) TestConfigureVitalityNoSnapd(c *C) {
 }
 
 func (s *vitalitySuite) TestConfigureVitalityhappyName(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"resilience.vitality-hint": "valid-snapname",
@@ -79,7 +106,28 @@ apps:
   daemon: simple
 `
 
-func (s *vitalitySuite) TestConfigureVitalityWithValidSnap(c *C) {
+func (s *vitalitySuite) TestConfigureVitalityWithValidSnapUC16(c *C) {
+	uc16model := assertstest.FakeAssertion(map[string]interface{}{
+		"type":         "model",
+		"authority-id": "canonical",
+		"series":       "16",
+		"brand-id":     "canonical",
+		"model":        "pc",
+		"gadget":       "pc",
+		"kernel":       "kernel",
+		"architecture": "amd64",
+	}).(*asserts.Model)
+
+	defer snapstatetest.MockDeviceModel(uc16model)()
+
+	s.testConfigureVitalityWithValidSnap(c, false)
+}
+
+func (s *vitalitySuite) TestConfigureVitalityWithValidSnapUC18(c *C) {
+	s.testConfigureVitalityWithValidSnap(c, true)
+}
+
+func (s *vitalitySuite) testConfigureVitalityWithValidSnap(c *C, uc18 bool) {
 	si := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(1)}
 	snaptest.MockSnap(c, mockSnapWithService, si)
 	s.state.Lock()
@@ -91,7 +139,7 @@ func (s *vitalitySuite) TestConfigureVitalityWithValidSnap(c *C) {
 	})
 	s.state.Unlock()
 
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"resilience.vitality-hint": "unrelated,test-snap",
@@ -100,13 +148,72 @@ func (s *vitalitySuite) TestConfigureVitalityWithValidSnap(c *C) {
 	c.Assert(err, IsNil)
 	svcName := "snap.test-snap.foo.service"
 	c.Check(s.systemctlArgs, DeepEquals, [][]string{
-		{"is-enabled", "snap.test-snap.foo.service"},
 		{"daemon-reload"},
+		{"is-enabled", "snap.test-snap.foo.service"},
 		{"enable", "snap.test-snap.foo.service"},
 		{"start", "snap.test-snap.foo.service"},
 	})
 	svcPath := filepath.Join(dirs.SnapServicesDir, svcName)
 	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-898\n")
+	if uc18 {
+		c.Check(svcPath, testutil.FileContains, "\nWants=usr-lib-snapd.mount\n")
+	}
+}
+
+func (s *vitalitySuite) TestConfigureVitalityWithQuotaGroup(c *C) {
+	r := servicestate.MockSystemdVersion(248)
+	defer r()
+
+	si := &snap.SideInfo{RealName: "test-snap", Revision: snap.R(1)}
+	snaptest.MockSnap(c, mockSnapWithService, si)
+	s.state.Lock()
+	snapstate.Set(s.state, "test-snap", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
+		Active:   true,
+		SnapType: "app",
+	})
+
+	// CreateQuota is calling "systemctl.Restart", which needs to be mocked
+	systemctlRestorer := systemd.MockSystemctl(func(cmd ...string) (buf []byte, err error) {
+		s.systemctlArgs = append(s.systemctlArgs, cmd)
+		if out := systemdtest.HandleMockAllUnitsActiveOutput(cmd, nil); out != nil {
+			return out, nil
+		}
+
+		if cmd[0] == "show" {
+			return []byte("ActiveState=inactive\n"), nil
+		}
+		return nil, nil
+	})
+	s.AddCleanup(systemctlRestorer)
+	tr := config.NewTransaction(s.state)
+	tr.Set("core", "experimental.quota-groups", true)
+	tr.Commit()
+
+	// make a new quota group with this snap in it
+	err := servicestatetest.MockQuotaInState(s.state, "foogroup", "", []string{"test-snap"}, quantity.SizeMiB)
+	c.Assert(err, IsNil)
+
+	s.state.Unlock()
+
+	err = configcore.Run(classicDev, &mockConf{
+		state: s.state,
+		changes: map[string]interface{}{
+			"resilience.vitality-hint": "unrelated,test-snap",
+		},
+	})
+	c.Assert(err, IsNil)
+	svcName := "snap.test-snap.foo.service"
+	c.Check(s.systemctlArgs, DeepEquals, [][]string{
+		{"daemon-reload"},
+		{"is-enabled", "snap.test-snap.foo.service"},
+		{"enable", "snap.test-snap.foo.service"},
+		{"start", "snap.test-snap.foo.service"},
+	})
+	svcPath := filepath.Join(dirs.SnapServicesDir, svcName)
+	c.Check(svcPath, testutil.FileContains, "\nOOMScoreAdjust=-898\n")
+	c.Check(svcPath, testutil.FileContains, "\nSlice=snap.foogroup.slice\n")
 }
 
 func (s *vitalitySuite) TestConfigureVitalityHintTooMany(c *C) {
@@ -115,7 +222,7 @@ func (s *vitalitySuite) TestConfigureVitalityHintTooMany(c *C) {
 		l[i] = strconv.Itoa(i)
 	}
 	manyStr := strings.Join(l, ",")
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"resilience.vitality-hint": manyStr,
@@ -139,7 +246,7 @@ func (s *vitalitySuite) TestConfigureVitalityManySnaps(c *C) {
 	}
 
 	// snap1,snap2,snap3
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"resilience.vitality-hint": "snap1,snap2,snap3",
@@ -170,7 +277,7 @@ func (s *vitalitySuite) TestConfigureVitalityManySnapsDelta(c *C) {
 	}
 
 	// snap1,snap2,snap3 switch to snap3,snap1
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"resilience.vitality-hint": "snap1,snap2,snap3",
@@ -205,7 +312,7 @@ func (s *vitalitySuite) TestConfigureVitalityManySnapsOneRemovedOneUnchanged(c *
 	}
 
 	// first run generates the snap1,snap2 configs
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"resilience.vitality-hint": "snap1,snap2",
@@ -221,7 +328,7 @@ func (s *vitalitySuite) TestConfigureVitalityManySnapsOneRemovedOneUnchanged(c *
 	s.systemctlArgs = nil
 
 	// now we change the configuration and set snap1,snap3
-	err = configcore.Run(&mockConf{
+	err = configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf: map[string]interface{}{
 			"resilience.vitality-hint": "snap1,snap2",
@@ -261,7 +368,7 @@ func (s *vitalitySuite) TestConfigureVitalityNotActiveSnap(c *C) {
 	})
 	s.state.Unlock()
 
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		changes: map[string]interface{}{
 			"resilience.vitality-hint": "unrelated,test-snap",

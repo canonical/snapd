@@ -1,8 +1,5 @@
 summary: Ensure that the fuse-support interface works.
 
-# no support for fuse on 14.04
-systems: [-ubuntu-14.04-*]
-
 details: |
     The fuse-support interface allows a snap to manage FUSE file systems.
 
@@ -13,6 +10,9 @@ details: |
     A snap declaring a plug on this interface must be able to create a fuse filesystem
     in a writable zone. The fuse-consumer test snap creates a readable file with a known
     name and content in the mount point given to the command.
+
+# no support for fuse on 14.04
+systems: [-ubuntu-14.04-*]
 
 environment:
     MOUNT_POINT/regular: /var/snap/test-snapd-fuse-consumer/current/mount_point

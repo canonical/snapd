@@ -1,13 +1,11 @@
-#!/bin/sh -e
+#!/bin/bash -e
 
 show_help() {
-    echo "usage: tests.cleanup prepare"
-    echo "       tests.cleanup defer <cmd> [args]"
+    echo "usage: tests.cleanup defer <cmd> [args]"
     echo "       tests.cleanup pop"
     echo "       tests.cleanup restore"
     echo
     echo "COMMANDS:"
-    echo "  prepare: establishes a cleanup stack"
     echo "  restore: invokes all cleanup commands in reverse order"
     echo "  defer: pushes a command onto the cleanup stack"
     echo "  pop: invoke the most recently deferred command, discarding it"
@@ -16,19 +14,10 @@ show_help() {
     echo "cleanup handler and remove it, in the case of success"
 }
 
-cmd_prepare() {
-    if [ -e defer.sh ]; then
-        echo "tests.cleanup: cannot prepare, already prepared" >&2
-        exit 1
-    fi
-    truncate --size=0 defer.sh
-    chmod +x defer.sh
-}
-
 cmd_defer() {
     if [ ! -e defer.sh ]; then
-        echo "tests.cleanup: cannot defer, must call tests.cleanup prepare first" >&2
-        exit 1
+        truncate --size=0 defer.sh
+        chmod +x defer.sh
     fi
     echo "$*" >> defer.sh
 }
@@ -58,54 +47,51 @@ cmd_pop() {
 }
 
 cmd_restore() {
-    if [ ! -e defer.sh ]; then
-        echo "tests.cleanup: cannot restore, must call tests.cleanup prepare first" >&2
-        exit 1
+    if [ -e defer.sh ]; then
+        tac defer.sh | while read -r CMD; do
+            run_one_cmd "$CMD"
+        done
+        rm -f defer.sh
     fi
-    tac defer.sh | while read -r CMD; do
-        run_one_cmd "$CMD"
-    done
-    rm -f defer.sh
 }
 
-if [ $# -eq 0 ]; then
-    show_help
-    exit
-fi
+main() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit
+    fi
 
-while [ $# -gt 0 ]; do
-    case "$1" in
-        -h|--help)
-            show_help
-            exit
-            ;;
-        prepare)
-            shift
-            cmd_prepare
-            exit
-            ;;
-        defer)
-            shift
-            cmd_defer "$@"
-            exit
-            ;;
-        pop)
-            shift
-            cmd_pop "$@"
-            exit
-            ;;
-        restore)
-            shift
-            cmd_restore
-            exit
-            ;;
-        -*)
-            echo "tests.cleanup: unknown option $1" >&2
-            exit 1
-            ;;
-        *)
-            echo "tests.cleanup: unknown command $1" >&2
-            exit 1
-            ;;
-    esac
-done
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            -h|--help)
+                show_help
+                exit
+                ;;
+            defer)
+                shift
+                cmd_defer "$@"
+                exit
+                ;;
+            pop)
+                shift
+                cmd_pop "$@"
+                exit
+                ;;
+            restore)
+                shift
+                cmd_restore
+                exit
+                ;;
+            -*)
+                echo "tests.cleanup: unknown option $1" >&2
+                exit 1
+                ;;
+            *)
+                echo "tests.cleanup: unknown command $1" >&2
+                exit 1
+                ;;
+        esac
+    done
+}
+
+main "$@"
