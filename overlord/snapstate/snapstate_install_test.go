@@ -29,6 +29,7 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/dirs"
@@ -3703,6 +3704,82 @@ func (s *snapmgrTestSuite) TestInstallContentProviderDownloadFailure(c *C) {
 	// but content consumer gets installed
 	c.Assert(snapstate.Get(s.state, "snap-content-plug", &snapSt), IsNil)
 	c.Check(snapSt.Current, Equals, snap.R(42))
+}
+
+type validationSetsSuite struct {
+	testutil.BaseTest
+	state        *state.State
+	fakeStore    *fakeStore
+	fakeBackend  *fakeSnappyBackend
+	storeSigning *assertstest.StoreStack
+	dev1acct     *asserts.Account
+	acct1Key     *asserts.AccountKey
+	dev1Signing  *assertstest.SigningDB
+}
+
+var _ = Suite(&validationSetsSuite{})
+
+func (s *validationSetsSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	dirs.SetRootDir(c.MkDir())
+	s.state = state.New(nil)
+
+	r := snapstatetest.MockDeviceModel(DefaultModel())
+	s.AddCleanup(r)
+
+	s.fakeBackend = &fakeSnappyBackend{}
+	s.fakeStore = &fakeStore{
+		fakeBackend: s.fakeBackend,
+		state:       s.state,
+	}
+
+	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
+	s.dev1acct = assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	c.Assert(s.storeSigning.Add(s.dev1acct), IsNil)
+	dev1PrivKey, _ := assertstest.GenerateKey(752)
+	s.acct1Key = assertstest.NewAccountKey(s.storeSigning, s.dev1acct, nil, dev1PrivKey.PublicKey(), "")
+	s.dev1Signing = assertstest.NewSigningDB(s.dev1acct.AccountID(), dev1PrivKey)
+	c.Assert(s.storeSigning.Add(s.acct1Key), IsNil)
+
+	oldAutomaticSnapshot := snapstate.AutomaticSnapshot
+	snapstate.AutomaticSnapshot = func(st *state.State, instanceName string) (ts *state.TaskSet, err error) {
+		task := st.NewTask("save-snapshot", "...")
+		ts = state.NewTaskSet(task)
+		return ts, nil
+	}
+	s.AddCleanup(func() {
+		snapstate.AutomaticSnapshot = oldAutomaticSnapshot
+	})
+
+	oldAutoAliases := snapstate.AutoAliases
+	snapstate.AutoAliases = func(st *state.State, info *snap.Info) (map[string]string, error) {
+		return nil, nil
+	}
+	s.AddCleanup(func() {
+		snapstate.AutoAliases = oldAutoAliases
+	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.ReplaceStore(s.state, s.fakeStore)
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "privacy-key")
+}
+
+func (s *validationSetsSuite) mockValidationSetAssert(c *C, name, sequence string, snaps ...interface{}) asserts.Assertion {
+	headers := map[string]interface{}{
+		"authority-id": "foo",
+		"account-id":   "foo",
+		"name":         name,
+		"series":       "16",
+		"sequence":     sequence,
+		"revision":     "5",
+		"timestamp":    "2030-11-06T09:16:26Z",
+		"snaps":        snaps,
+	}
+	vs, err := s.dev1Signing.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+	return vs
 }
 
 func (s *validationSetsSuite) installSnapReferencedByValidationSet(c *C, presence, requiredRev string, installRev snap.Revision, cohort string) error {
