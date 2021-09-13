@@ -319,6 +319,7 @@ jobs:
           export NESTED_BUILD_SNAPD_FROM_CURRENT=true
           export NESTED_ENABLE_KVM=true
           spread -abend google-nested:${{ matrix.system }}:tests/nested/...
+          exit 1
     - name: Cache successful run
       run: |
         mkdir -p $(dirname "$CACHE_RESULT_STAMP")
