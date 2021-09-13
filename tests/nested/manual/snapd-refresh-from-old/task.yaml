@@ -38,7 +38,7 @@ execute: |
   tests.nested exec "snap list" | MATCH "snapd.*5760"
   tests.nested exec "snap list" | MATCH "core18.*1279"
 
-  INITIAL_BOOT_ID=$(nested_get_boot_id)
+  INITIAL_BOOT_ID=$(tests.nested boot-id)
 
   if [ "$SPREAD_VARIANT" = "edge_first" ]; then
     # refresh to latest snapd from store, this will drop from ssh.

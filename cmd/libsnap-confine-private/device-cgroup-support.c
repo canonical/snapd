@@ -155,12 +155,16 @@ static int load_devcgroup_prog(int map_fd) {
      * the map as a set with 0 sized key, but this is currently unsupported by
      * the kernel (as of 5.13) */
     sc_cgroup_v2_device_value map_value __attribute__((unused));
-    /* NOTE: we pull a nasty hack, the structure is packed and its size isn't
-     * aligned to multiples of 4; if we place it on a stack at an address
-     * aligned to 4 bytes, the starting offsets of major and minor would be
-     * unaligned; however, the first field of the structure is 1 byte, so we can
-     * put the structure at 4 byte aligned address -1 and thus major and minor
-     * end up aligned without too much hassle */
+    /* we need to place the key structure on the stack and pull a nasty hack
+     * here, the structure is packed and its size isn't aligned to multiples of
+     * 4; if we place it on a stack at an address aligned to 4 bytes, the
+     * starting offsets of major and minor would be unaligned; however, the
+     * first field of the structure is 1 byte, so we can put the structure at 4
+     * byte aligned address -1 and thus major and minor end up aligned without
+     * too much hassle; since we are doing the stack management ourselves have
+     * the key structure start at the offset that meets the alignment properties
+     * described above and such that the whole structure fits on the stack (even
+     * with some spare room) */
     size_t key_start = 17;
     struct bpf_insn prog[] = {
         /* r1 holds pointer to bpf_cgroup_dev_ctx */
@@ -314,12 +318,14 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         }
         (void)sc_set_effective_identity(old);
     } else if (!from_existing) {
-        /* the devices access map exists, and we have been asked to setup a cgroup */
+        /* the devices access map exists, and we have been asked to setup a
+         * cgroup, so clear the old map first so it was like it never existed */
 
         debug("found existing device map");
         /* the v1 implementation blocks all devices by default and then adds
          * each assigned one individually, however for v2 there's no way to drop
-         * all the contents of the map*/
+         * all the contents of the map, so we need to find out what keys are
+         * there in the map */
 
         /* first collect all keys in the map */
         sc_cgroup_v2_device_key *existing_keys SC_CLEANUP(_sc_cleanup_v2_device_key) =
