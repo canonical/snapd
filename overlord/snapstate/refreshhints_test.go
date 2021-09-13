@@ -39,6 +39,7 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type recordingStore struct {
@@ -73,16 +74,16 @@ func (r *recordingStore) SnapAction(ctx context.Context, currentSnaps []*store.C
 }
 
 type refreshHintsTestSuite struct {
+	testutil.BaseTest
 	state *state.State
 
-	store                         *recordingStore
-	restoreModel                  func()
-	restoreEnforcedValidationSets func()
+	store *recordingStore
 }
 
 var _ = Suite(&refreshHintsTestSuite{})
 
 func (s *refreshHintsTestSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
 	dirs.SetRootDir(c.MkDir())
 
 	s.state = state.New(nil)
@@ -111,18 +112,19 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 
 	s.state.Set("refresh-privacy-key", "privacy-key")
 
-	s.restoreModel = snapstatetest.MockDeviceModel(DefaultModel())
-	s.restoreEnforcedValidationSets = snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+	restoreModel := snapstatetest.MockDeviceModel(DefaultModel())
+	s.AddCleanup(restoreModel)
+	restoreEnforcedValidationSets := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
 		return nil, nil
 	})
+	s.AddCleanup(restoreEnforcedValidationSets)
 }
 
 func (s *refreshHintsTestSuite) TearDownTest(c *C) {
+	s.BaseTest.TearDownTest(c)
 	dirs.SetRootDir("/")
 	snapstate.CanAutoRefresh = nil
 	snapstate.AutoAliases = nil
-	s.restoreModel()
-	s.restoreEnforcedValidationSets()
 }
 
 func (s *refreshHintsTestSuite) TestLastRefresh(c *C) {
