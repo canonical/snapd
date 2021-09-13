@@ -34,6 +34,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"text/template"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -1127,21 +1128,29 @@ var squashfsFsType = squashfs.FsType
 
 // XXX: After=zfs-mount.service is a workaround for LP: #1922293 (a problem
 // with order of mounting most likely related to zfs-linux and/or systemd).
-var mountUnitTemplate = `[Unit]
-Description=Mount unit for %s
+const mountUnitTemplate = `[Unit]
+Description=Mount unit for {{.SnapName}}
+{{- with .Revision}}, revision {{.}}{{end}}
+{{- with .Origin}} via {{.}}{{end}}
 Before=snapd.service
 After=zfs-mount.service
 
 [Mount]
-What=%s
-Where=%s
-Type=%s
-Options=%s
+What={{.What}}
+Where={{.Where}}
+Type={{.Fstype}}
+Options={{join .Options ","}}
 LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target
+{{- with .Origin}}
+X-SnapdOrigin={{.}}
+{{- end}}
 `
+
+var templateFuncs = template.FuncMap{"join": strings.Join}
+var parsedMountUnitTemplate = template.Must(template.New("unit").Funcs(templateFuncs).Parse(mountUnitTemplate))
 
 const (
 	snappyOriginModule = "X-SnapdOrigin"
@@ -1152,24 +1161,17 @@ func writeMountUnitFile(u *MountUnitOptions) (mountUnitName string, err error) {
 		return "", errors.New("writeMountUnitFile() expects valid mount options")
 	}
 
-	snapDesc := u.SnapName
-	if u.Revision != "" {
-		snapDesc += fmt.Sprintf(", revision %s", u.Revision)
-	}
-	if u.Origin != "" {
-		snapDesc += fmt.Sprintf(" via %s", u.Origin)
-	}
-	content := fmt.Sprintf(mountUnitTemplate, snapDesc,
-		u.What, u.Where, u.Fstype, strings.Join(u.Options, ","))
-	if u.Origin != "" {
-		content += fmt.Sprintf("%s=%s\n", snappyOriginModule, u.Origin)
-	}
 	mu := MountUnitPathWithLifetime(u.Lifetime, u.Where)
-	mountUnitName, err = filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(content), 0644, 0)
+	outf, err := osutil.NewAtomicFile(mu, 0644, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("cannot open mount unit file: %v", err)
 	}
-	return mountUnitName, nil
+	defer outf.Cancel()
+
+	if err := parsedMountUnitTemplate.Execute(outf, &u); err != nil {
+		return "", fmt.Errorf("cannot generate mount unit: %v", err)
+	}
+	return filepath.Base(mu), outf.Commit()
 }
 
 func fsMountOptions(fstype string) []string {
