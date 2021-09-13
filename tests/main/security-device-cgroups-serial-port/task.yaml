@@ -16,7 +16,9 @@ restore: |
         rm -f /dev/ttyS4 /dev/ttyS4.spread
     fi
 
-    systemctl restart systemd-udevd
+    if [[ "$SPREAD_SYSTEM" != ubuntu-14.04-* ]]; then
+        systemctl restart systemd-udevd
+    fi
     udevadm control --reload-rules
     udevadm trigger
 
