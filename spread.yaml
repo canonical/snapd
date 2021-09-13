@@ -107,7 +107,7 @@ backends:
                   workers: 6
             - ubuntu-core-20-64:
                   image: ubuntu-20.04-64
-                  workers: 6
+                  workers: 12
                   storage: 20G
             - ubuntu-secboot-20.04-64:
                   image: ubuntu-20.04-64
