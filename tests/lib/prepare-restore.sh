@@ -133,7 +133,7 @@ build_rpm() {
     distro_install_package "${deps[@]}"
 
     # And now build our binary package
-    unshare -n \
+    unshare -n -- \
             rpmbuild \
             --with testkeys \
             --nocheck \
