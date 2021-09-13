@@ -29,6 +29,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os/exec"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 // HasRevealKey return true if the current system has a "fde-reveal-key"
@@ -70,16 +72,24 @@ func unmarshalInitialSetupResult(hookOutput []byte) (*InitialSetupResult, error)
 	return &res, nil
 }
 
+// TODO: unexport this because how the hook is driven is an implemenation
+//       deail. It creates quite a bit of churn unfortunately, see
+//       https://github.com/snapcore/snapd/compare/master...mvo5:ice/refactor-fde?expand=1
+//
 // SetupRequest carries the operation and parameters for the fde-setup hooks
 // made available to them via the snapctl fde-setup-request command.
 type SetupRequest struct {
-	// XXX: make "op" a type: "features", "initial-setup", "update" ?
 	Op string `json:"op"`
 
 	// This needs to be a []byte so that Go's standard library will base64
 	// encode it automatically for us
-	Key     []byte `json:"key,omitempty"`
+	Key []byte `json:"key,omitempty"`
+
+	// Only used when called with "initial-setup"
 	KeyName string `json:"key-name,omitempty"`
+
+	// Only used when called with "hw-inline-setup"
+	Device string `json:"device,omitempty"`
 }
 
 // A RunSetupHookFunc implements running the fde-setup kernel hook.
@@ -140,4 +150,28 @@ func CheckFeatures(runSetupHook RunSetupHookFunc) ([]string, error) {
 		return nil, fmt.Errorf("cannot use hook: it returned error: %v", res.Error)
 	}
 	return res.Features, nil
+}
+
+// DeviceSetupParams contains the inputs for the fde-setup hook.
+// The encryption key and the device (partition) are passed in.
+type DeviceSetupParams struct {
+	Key    []byte
+	Device string
+}
+
+// DeviceSetup invokes the "device-setup" op running the fde-setup
+// hook via runSetupHook. This is can be used to e.g. initializes
+// inline crypto hardware.
+func DeviceSetup(runSetupHook RunSetupHookFunc, params *DeviceSetupParams) error {
+	req := &SetupRequest{
+		Op:     "device-setup",
+		Key:    params.Key,
+		Device: params.Device,
+	}
+	hookOutput, err := runSetupHook(req)
+	if err != nil {
+		return fmt.Errorf("device setup failed with: %v", osutil.OutputErr(hookOutput, err))
+	}
+
+	return nil
 }
