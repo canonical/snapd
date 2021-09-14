@@ -34,6 +34,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"text/template"
 	"time"
 
 	"github.com/snapcore/snapd/dirs"
@@ -63,6 +64,9 @@ var (
 	daemonReloadLock extMutex
 
 	osutilIsMounted = osutil.IsMounted
+
+	// allow mocking the systemd version
+	Version = getVersion
 
 	// allow replacing the systemd implementation with a mock one
 	newSystemd = newSystemdReal
@@ -118,6 +122,17 @@ var systemctlCmd = func(args ...string) ([]byte, error) {
 	return bs, nil
 }
 
+func MockSystemdVersion(version int, injectedError error) (restore func()) {
+	osutil.MustBeTestBinary("cannot mock systemd version outside of tests")
+	old := Version
+	Version = func() (int, error) {
+		return version, injectedError
+	}
+	return func() {
+		Version = old
+	}
+}
+
 // MockSystemctl is called from the commands to actually call out to
 // systemctl. It's exported so it can be overridden by testing.
 func MockSystemctl(f func(args ...string) ([]byte, error)) func() {
@@ -146,8 +161,8 @@ func Available() error {
 	return err
 }
 
-// Version returns systemd version.
-func Version() (int, error) {
+// getVersion returns systemd version.
+func getVersion() (int, error) {
 	out, err := systemctlCmd("--version")
 	if err != nil {
 		return 0, err
@@ -181,6 +196,36 @@ func Version() (int, error) {
 		return 0, fmt.Errorf("cannot convert systemd version to number: %s", verstr)
 	}
 	return ver, nil
+}
+
+type systemdTooOldError struct {
+	expected int
+	got      int
+}
+
+func (e *systemdTooOldError) Error() string {
+	return fmt.Sprintf("systemd version %d is too old (expected at least %d)", e.got, e.expected)
+}
+
+// IsSystemdTooOld returns true if the error is a result of a failed
+// check whether systemd version is at least what was asked for.
+func IsSystemdTooOld(err error) bool {
+	_, ok := err.(*systemdTooOldError)
+	return ok
+}
+
+// EnsureAtLeast checks whether the installed version of systemd is greater or
+// equal than the given one. An error is returned if the required version is
+// not matched, and also if systemd is not installed or not working
+func EnsureAtLeast(requiredVersion int) error {
+	version, err := Version()
+	if err != nil {
+		return err
+	}
+	if version < requiredVersion {
+		return &systemdTooOldError{got: version, expected: requiredVersion}
+	}
+	return nil
 }
 
 var osutilStreamCommand = osutil.StreamCommand
@@ -1127,21 +1172,29 @@ var squashfsFsType = squashfs.FsType
 
 // XXX: After=zfs-mount.service is a workaround for LP: #1922293 (a problem
 // with order of mounting most likely related to zfs-linux and/or systemd).
-var mountUnitTemplate = `[Unit]
-Description=Mount unit for %s
+const mountUnitTemplate = `[Unit]
+Description=Mount unit for {{.SnapName}}
+{{- with .Revision}}, revision {{.}}{{end}}
+{{- with .Origin}} via {{.}}{{end}}
 Before=snapd.service
 After=zfs-mount.service
 
 [Mount]
-What=%s
-Where=%s
-Type=%s
-Options=%s
+What={{.What}}
+Where={{.Where}}
+Type={{.Fstype}}
+Options={{join .Options ","}}
 LazyUnmount=yes
 
 [Install]
 WantedBy=multi-user.target
+{{- with .Origin}}
+X-SnapdOrigin={{.}}
+{{- end}}
 `
+
+var templateFuncs = template.FuncMap{"join": strings.Join}
+var parsedMountUnitTemplate = template.Must(template.New("unit").Funcs(templateFuncs).Parse(mountUnitTemplate))
 
 const (
 	snappyOriginModule = "X-SnapdOrigin"
@@ -1152,24 +1205,17 @@ func writeMountUnitFile(u *MountUnitOptions) (mountUnitName string, err error) {
 		return "", errors.New("writeMountUnitFile() expects valid mount options")
 	}
 
-	snapDesc := u.SnapName
-	if u.Revision != "" {
-		snapDesc += fmt.Sprintf(", revision %s", u.Revision)
-	}
-	if u.Origin != "" {
-		snapDesc += fmt.Sprintf(" via %s", u.Origin)
-	}
-	content := fmt.Sprintf(mountUnitTemplate, snapDesc,
-		u.What, u.Where, u.Fstype, strings.Join(u.Options, ","))
-	if u.Origin != "" {
-		content += fmt.Sprintf("%s=%s\n", snappyOriginModule, u.Origin)
-	}
 	mu := MountUnitPathWithLifetime(u.Lifetime, u.Where)
-	mountUnitName, err = filepath.Base(mu), osutil.AtomicWriteFile(mu, []byte(content), 0644, 0)
+	outf, err := osutil.NewAtomicFile(mu, 0644, 0, osutil.NoChown, osutil.NoChown)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("cannot open mount unit file: %v", err)
 	}
-	return mountUnitName, nil
+	defer outf.Cancel()
+
+	if err := parsedMountUnitTemplate.Execute(outf, &u); err != nil {
+		return "", fmt.Errorf("cannot generate mount unit: %v", err)
+	}
+	return filepath.Base(mu), outf.Commit()
 }
 
 func fsMountOptions(fstype string) []string {
