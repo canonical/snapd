@@ -2599,35 +2599,31 @@ func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
 	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{{
 		op: "storesvc-snap-action",
 		curSnaps: []store.CurrentSnap{{
-			InstanceName:   "snap-c",
-			SnapID:         "snap-c-id",
-			Revision:       snap.R(1),
-			Epoch:          snap.E("0"),
-			RefreshedDate:  refreshedDate,
-			ValidationSets: [][]string{{"foo", "bar"}},
-		},
-			{
-				InstanceName:  "some-other-snap",
-				SnapID:        "some-other-snap-id",
-				Revision:      snap.R(1),
-				Epoch:         snap.E("0"),
-				RefreshedDate: refreshedDate,
-			},
-			{
-				InstanceName:   "some-snap",
-				SnapID:         "some-snap-id",
-				Revision:       snap.R(1),
-				Epoch:          snap.E("0"),
-				RefreshedDate:  refreshedDate,
-				ValidationSets: [][]string{{"foo", "bar"}},
-			},
-		},
+			InstanceName:  "snap-c",
+			SnapID:        "snap-c-id",
+			Revision:      snap.R(1),
+			Epoch:         snap.E("0"),
+			RefreshedDate: refreshedDate,
+		}, {
+			InstanceName:  "some-other-snap",
+			SnapID:        "some-other-snap-id",
+			Revision:      snap.R(1),
+			Epoch:         snap.E("0"),
+			RefreshedDate: refreshedDate,
+		}, {
+			InstanceName:  "some-snap",
+			SnapID:        "some-snap-id",
+			Revision:      snap.R(1),
+			Epoch:         snap.E("0"),
+			RefreshedDate: refreshedDate,
+		}},
 	}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:       "refresh",
-			InstanceName: "snap-c",
-			SnapID:       "snap-c-id",
+			Action:         "refresh",
+			InstanceName:   "snap-c",
+			SnapID:         "snap-c-id",
+			ValidationSets: [][]string{{"foo", "bar"}},
 		},
 		revno: snap.R(11),
 	}, {
@@ -2657,21 +2653,21 @@ func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
 	c.Check(s.fakeBackend.ops[1], DeepEquals, fakeOp{
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:       "refresh",
-			InstanceName: "snap-c",
-			SnapID:       "snap-c-id",
-			//ValidationSets: [][]string{{"foo", "bar"}},
+			Action:         "refresh",
+			InstanceName:   "snap-c",
+			SnapID:         "snap-c-id",
+			ValidationSets: [][]string{{"foo", "bar"}},
 		},
 		revno: snap.R(11),
 	})
 	c.Check(s.fakeBackend.ops[3], DeepEquals, fakeOp{
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:       "refresh",
-			InstanceName: "some-snap",
-			SnapID:       "some-snap-id",
-			//ValidationSets: [][]string{{"foo", "bar"}},
-			Revision: snap.R(11),
+			Action:         "refresh",
+			InstanceName:   "some-snap",
+			SnapID:         "some-snap-id",
+			ValidationSets: [][]string{{"foo", "bar"}},
+			Revision:       snap.R(11),
 		},
 		revno: snap.R(11),
 	})

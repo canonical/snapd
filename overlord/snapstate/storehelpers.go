@@ -210,13 +210,6 @@ func setActionValidationSets(action *store.SnapAction, valsets []string) {
 	}
 }
 
-func setCurrentSnapValidationSets(curSnap *store.CurrentSnap, valsets []string) {
-	for _, vs := range valsets {
-		keyParts := strings.Split(vs, "/")
-		curSnap.ValidationSets = append(curSnap.ValidationSets, keyParts)
-	}
-}
-
 func installInfo(ctx context.Context, st *state.State, name string, revOpts *RevisionOptions, userID int, flags Flags, deviceCtx DeviceContext) (store.SnapActionResult, error) {
 	// TODO: support ignore-validation
 
@@ -604,10 +597,6 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 			if err != nil {
 				return err
 			}
-			if len(requiredValsets) > 0 {
-				//setActionValidationSets(action, requiredValsets)
-				setCurrentSnapValidationSets(installed, requiredValsets)
-			}
 			// if the snap is already at the required revision then skip it from
 			// candidates.
 			if !requiredRevision.Unset() && installed.Revision == requiredRevision {
@@ -617,6 +606,9 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 				action.Revision = requiredRevision
 				// ignore cohort if revision is specified
 				installed.CohortKey = ""
+			}
+			if len(requiredValsets) > 0 {
+				setActionValidationSets(action, requiredValsets)
 			}
 		}
 

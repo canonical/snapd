@@ -6303,7 +6303,6 @@ func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetsCohortIgnore
 			Revision:       snap.R(1),
 			Epoch:          snap.E("0"),
 			RefreshedDate:  refreshedDate,
-			ValidationSets: [][]string{{"foo", "bar"}},
 		}},
 	}, {
 		op: "storesvc-snap-action:action",
@@ -6312,6 +6311,7 @@ func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetsCohortIgnore
 			InstanceName: "some-snap",
 			SnapID:       "some-snap-id",
 			Revision:     snap.R(5),
+			ValidationSets: [][]string{{"foo", "bar"}},
 		},
 		revno: snap.R(5),
 	}}
