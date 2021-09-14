@@ -23,18 +23,20 @@ def parse_arguments():
         "--verbose", help="verbose logging", action="store_true", default=False
     )
     parser.add_argument(
-        "snap_app", help="snap and application in the format <snap>.<app>"
+        "snap_app",
+        help="snap and application in the format <snap>.<app>",
+        metavar="snap.app",
     )
     sub = parser.add_subparsers()
     dump = sub.add_parser("dump", description="dump cgroup settings")
     dump.set_defaults(func="dump")
     allow = sub.add_parser("allow", description="allow device access")
-    allow.add_argument("kind", help="device type c, b")
-    allow.add_argument("major_minor", help="major:minor")
+    allow.add_argument("kind", choices=("c", "b"), help="device type (c)har, (b)lock")
+    allow.add_argument("major_minor", metavar="major:minor", help="major:minor")
     allow.set_defaults(func="allow")
     deny = sub.add_parser("deny", description="deny device access")
-    deny.add_argument("kind", help="device type c, b")
-    deny.add_argument("major_minor", help="major:minor")
+    deny.add_argument("kind", choices=("c", "b"), help="device type (c)har, (b)lock")
+    deny.add_argument("major_minor", metavar="major:minor", help="major:minor")
     deny.set_defaults(func="deny")
 
     opts = parser.parse_args()
@@ -66,9 +68,7 @@ def dump_v1(snap_app):
 
 def device_change_v1(snap_app, allow, kind, major_minor):
     group_name = "snap.{}".format(snap_app)
-    devices_control = "devices.allow"
-    if not allow:
-        devices_control = "devices.deny"
+    devices_control = "devices.allow" if allow else "devices.deny"
     with open(
         os.path.join("/sys/fs/cgroup/devices/", group_name, devices_control), "w+"
     ) as outf:
@@ -79,7 +79,7 @@ class DeviceCgroupV2Key(ctypes.Structure):
     """A class representing v2 device cgroup key entry, which is 9 bytes long"""
 
     # UINT32_MAX
-    DEVICE_MINOR_ANY = 4294967295
+    DEVICE_MINOR_ANY = 0xFFFFFFFF
 
     _pack_ = 1
     _fields_ = [
@@ -99,7 +99,11 @@ def dump_v2(snap_app):
     created by snap-confine. We dump its contents using bpftool, and then
     convert each entry to a format that looks like v1.
     """
-    snap, app = snap_app.split(".")
+    try:
+        snap, app = snap_app.split(".", maxsplit=1)
+    except ValueError:
+        print("error: malformed snap.app name", file=sys.stderr)
+        raise SystemExit(1)
     map_pin_name = "snap_{}_{}".format(snap, app)
     output = subprocess.check_output(
         [
@@ -111,7 +115,7 @@ def dump_v2(snap_app):
             "-j",
         ],
     )
-    logging.debug("got output %s", output)
+    logging.debug("got bpftool output %s", output)
     entries = json.loads(output)
     for entry in entries:
         raw_key = entry.get("key")
@@ -125,8 +129,8 @@ def dump_v2(snap_app):
             )
         raw = bytearray([int(v, 16) for v in raw_key])
         key = DeviceCgroupV2Key.from_buffer(raw)
-        # minor can be either the actual value, or a special value '*' which
-        # represent any minor number
+        # in cgroup v1 format, minor can be either the actual value, or a
+        # special value '*' which represents any minor number
         minor = key.minor
         if minor == DeviceCgroupV2Key.DEVICE_MINOR_ANY:
             minor = "*"
@@ -140,13 +144,20 @@ def dump_v2(snap_app):
 
 
 def device_change_v2(snap_app, allow, kind, major_minor):
-    """Dump device entries for a v2 device cgroup. Entries are stored in a BPF map
-    created by snap-confine. We dump its contents using bpftool, and then
-    convert each entry to a format that looks like v1.
+    """Allow or deny a given combination of device type and major:minor in a device
+    cgroup v2 map.
     """
-    snap, app = snap_app.split(".")
+    try:
+        snap, app = snap_app.split(".", maxsplit=1)
+    except ValueError:
+        print("error: malformed snap.app name", file=sys.stderr)
+        raise SystemExit(1)
+    try:
+        major, minor = major_minor.split(":", maxsplit=1)
+    except ValueError:
+        print("error: malformed major:minor", file=sys.stderr)
+        raise SystemExit(1)
     map_pin_name = "snap_{}_{}".format(snap, app)
-    major, minor = major_minor.split(":")
     key = DeviceCgroupV2Key()
     key.major = int(major)
     if minor == "*":
