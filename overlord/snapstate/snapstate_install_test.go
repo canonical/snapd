@@ -3886,12 +3886,12 @@ func (s *validationSetsSuite) TestInstallManyRequiredRevisionForValidationSetOK(
 	c.Assert(err, IsNil)
 
 	c.Assert(s.fakeBackend.ops, HasLen, 3)
+	// note, Channel not present when revisions are set
 	expectedOps := fakeOps{{
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
 			Action:         "install",
 			InstanceName:   "one",
-			Channel:        "stable",
 			Revision:       snap.R(11),
 			ValidationSets: [][]string{{"foo", "bar"}},
 		},
@@ -3901,7 +3901,6 @@ func (s *validationSetsSuite) TestInstallManyRequiredRevisionForValidationSetOK(
 		action: store.SnapAction{
 			Action:         "install",
 			InstanceName:   "two",
-			Channel:        "stable",
 			Revision:       snap.R(2),
 			ValidationSets: [][]string{{"foo", "bar"}},
 		},

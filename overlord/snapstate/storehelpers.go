@@ -655,10 +655,10 @@ func installCandidates(st *state.State, names []string, channel string, user *au
 			if len(requiredValSets) > 0 {
 				setActionValidationSets(action, requiredValSets)
 				if !requiredRevision.Unset() {
-					// XXX: should we reset desired channel if revision is set?
-					// it should be fine to let the store error out if the
-					// desired channel doesn't have the needed revision.
 					action.Revision = requiredRevision
+					// channel cannot be present if revision is set (store would
+					// respond with revision-conflict error).
+					action.Channel = ""
 				}
 			}
 		}
