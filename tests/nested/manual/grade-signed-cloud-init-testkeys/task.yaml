@@ -123,6 +123,9 @@ execute: |
       exit
   fi
 
+  # wait for the initialize device task to be done
+  retry -n 200 --wait 1 sh -c "tests.nested exec snap changes | MATCH 'Done.*Initialize device'"
+
   echo "The initial cloud-init user was created"
   tests.nested exec "cat /var/lib/extrausers/passwd" | MATCH normal-user
 
