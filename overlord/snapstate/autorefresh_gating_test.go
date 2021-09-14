@@ -1649,6 +1649,13 @@ func (s *snapmgrTestSuite) testAutoRefreshPhase2(c *C, beforePhase1 func(), gate
 	c.Assert(err, IsNil)
 	c.Check(names, DeepEquals, []string{"base-snap-b", "snap-a"})
 
+	var snaps map[string]interface{}
+	c.Assert(tss[0].Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
+	c.Assert(tss[0].Tasks()[0].Get("snaps", &snaps), IsNil)
+	c.Assert(snaps, HasLen, 2)
+	c.Check(snaps["snap-a"], NotNil)
+	c.Check(snaps["base-snap-b"], NotNil)
+
 	chg := s.state.NewChange("refresh", "...")
 	for _, ts := range tss {
 		chg.AddAll(ts)
@@ -1730,6 +1737,13 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2(c *C) {
 	tasks := chg.Tasks()
 	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Handling re-refresh of "base-snap-b", "snap-a" as needed`)
 
+	var snaps map[string]interface{}
+	c.Assert(chg.Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
+	chg.Tasks()[0].Get("snaps", &snaps)
+	c.Assert(snaps, HasLen, 2)
+	c.Check(snaps["snap-a"], NotNil)
+	c.Check(snaps["base-snap-b"], NotNil)
+
 	// all snaps refreshed, all removed from refresh-candidates.
 	var candidates map[string]*snapstate.RefreshCandidate
 	c.Assert(s.state.Get("refresh-candidates", &candidates), IsNil)
@@ -1779,6 +1793,13 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2Held(c *C) {
 
 	c.Assert(logbuf.String(), testutil.Contains, `skipping refresh of held snaps: base-snap-b`)
 	tasks := chg.Tasks()
+
+	var snaps map[string]interface{}
+	c.Assert(chg.Tasks()[0].Kind(), Equals, "conditional-auto-refresh")
+	chg.Tasks()[0].Get("snaps", &snaps)
+	c.Assert(snaps, HasLen, 1)
+	c.Check(snaps["snap-a"], NotNil)
+
 	// no re-refresh for base-snap-b because it was held.
 	c.Check(tasks[len(tasks)-1].Summary(), Equals, `Handling re-refresh of "snap-a" as needed`)
 }
