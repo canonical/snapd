@@ -64,7 +64,7 @@ execute: |
     tests.nested exec "snap list $SNAP" | MATCH "^${SNAP}.*${FROM_REV}.*${TRACK}/${NESTED_CORE_CHANNEL}.*"
     
     echo "Refresh the snap $SNAP"
-    INITIAL_BOOT_ID=$(nested_get_boot_id)
+    INITIAL_BOOT_ID=$(tests.nested boot-id)
     REFRESH_ID=$(tests.nested exec "sudo snap refresh --no-wait --channel $NESTED_CORE_REFRESH_CHANNEL $SNAP")
 
     case "$SNAP" in
@@ -81,7 +81,7 @@ execute: |
             ;;
     esac
     tests.nested wait-for reboot "$INITIAL_BOOT_ID"
-    SECOND_BOOT_ID=$(nested_get_boot_id)
+    SECOND_BOOT_ID=$(tests.nested boot-id)
 
     echo "Check the new version of the snaps is correct after the system reboot"
     tests.nested exec "snap list $SNAP" | MATCH "^${SNAP}.*${TO_REV}.*${TRACK}/${NESTED_CORE_REFRESH_CHANNEL}.*"

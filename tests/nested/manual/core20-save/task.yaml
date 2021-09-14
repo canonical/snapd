@@ -36,9 +36,7 @@ debug: |
     env | sort | grep NESTED_ || true
     cat pc-gadget/meta/gadget.yaml || true
     ls "$PWD" || true
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-    GADGET_SNAP=$(ls "$NESTED_ASSETS_DIR"/pc_*.snap || true)
+    GADGET_SNAP=$(ls "$(tests.nested get assets-path)"/pc_*.snap || true)
     unsquashfs -d unpacked-pc-gadget "$GADGET_SNAP" || true
     cat unpacked-pc-gadget/meta/gadget.yaml || true
 
