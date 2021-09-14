@@ -6298,19 +6298,19 @@ func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetsCohortIgnore
 	expectedOps := fakeOps{{
 		op: "storesvc-snap-action",
 		curSnaps: []store.CurrentSnap{{
-			InstanceName:   "some-snap",
-			SnapID:         "some-snap-id",
-			Revision:       snap.R(1),
-			Epoch:          snap.E("0"),
-			RefreshedDate:  refreshedDate,
+			InstanceName:  "some-snap",
+			SnapID:        "some-snap-id",
+			Revision:      snap.R(1),
+			Epoch:         snap.E("0"),
+			RefreshedDate: refreshedDate,
 		}},
 	}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:       "refresh",
-			InstanceName: "some-snap",
-			SnapID:       "some-snap-id",
-			Revision:     snap.R(5),
+			Action:         "refresh",
+			InstanceName:   "some-snap",
+			SnapID:         "some-snap-id",
+			Revision:       snap.R(5),
 			ValidationSets: [][]string{{"foo", "bar"}},
 		},
 		revno: snap.R(5),
