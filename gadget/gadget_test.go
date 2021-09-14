@@ -111,8 +111,6 @@ volumes:
         type: bare
         size: 623000
         offset: 0
-        content:
-          - image: u-boot.imz
 `)
 
 var mockMultiVolumeGadgetYaml = []byte(`
@@ -2048,19 +2046,35 @@ func (s *gadgetYamlTestSuite) TestGadgetFromMetaEmpty(c *C) {
 	c.Assert(giCore, IsNil)
 }
 
-func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetMultiVolume(c *C) {
+func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetMultiVolume(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockMultiVolumeUC20GadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
-	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, "", uc20Mod)
+	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", uc20Mod)
 	c.Assert(err, IsNil)
 
-	c.Assert(lv.Volume.Bootloader, Equals, "u-boot")
+	c.Assert(all, HasLen, 2)
+	c.Assert(all["frobinator-image"], DeepEquals, systemLv)
+	zero := quantity.Offset(0)
+	c.Assert(all["u-boot-frobinator"].LaidOutStructure, DeepEquals, []gadget.LaidOutStructure{
+		{
+			VolumeStructure: &gadget.VolumeStructure{
+				VolumeName: "u-boot-frobinator",
+				Name:       "u-boot",
+				Offset:     &zero,
+				Size:       quantity.Size(623000),
+				Type:       "bare",
+			},
+			StartOffset: 0,
+		},
+	})
+
+	c.Assert(systemLv.Volume.Bootloader, Equals, "u-boot")
 	// ubuntu-seed, ubuntu-save, ubuntu-boot and ubuntu-data
-	c.Assert(lv.LaidOutStructure, HasLen, 4)
+	c.Assert(systemLv.LaidOutStructure, HasLen, 4)
 }
 
-func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetHappy(c *C) {
+func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetHappy(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
 	c.Assert(err, IsNil)
 	for _, fn := range []string{"pc-boot.img", "pc-core.img"} {
@@ -2068,14 +2082,16 @@ func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetHappy(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, "", coreMod)
+	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", coreMod)
 	c.Assert(err, IsNil)
-	c.Assert(lv.Volume.Bootloader, Equals, "grub")
+	c.Assert(all, HasLen, 1)
+	c.Assert(all["pc"], DeepEquals, systemLv)
+	c.Assert(systemLv.Volume.Bootloader, Equals, "grub")
 	// mbr, bios-boot, efi-system
-	c.Assert(lv.LaidOutStructure, HasLen, 3)
+	c.Assert(systemLv.LaidOutStructure, HasLen, 3)
 }
 
-func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetNeedsModel(c *C) {
+func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetNeedsModel(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlPC, 0644)
 	c.Assert(err, IsNil)
 	for _, fn := range []string{"pc-boot.img", "pc-core.img"} {
@@ -2085,11 +2101,11 @@ func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetNeedsModel(c *C) 
 
 	// need the model in order to lay out system volumes due to the verification
 	// and other metadata we use with the gadget
-	_, err = gadget.LaidOutSystemVolumeFromGadget(s.dir, "", nil)
+	_, _, err = gadget.LaidOutVolumesFromGadget(s.dir, "", nil)
 	c.Assert(err, ErrorMatches, "internal error: must have model to lay out system volumes from a gadget")
 }
 
-func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetUC20Happy(c *C) {
+func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetUC20Happy(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, gadgetYamlUC20PC, 0644)
 	c.Assert(err, IsNil)
 	for _, fn := range []string{"pc-boot.img", "pc-core.img"} {
@@ -2097,11 +2113,13 @@ func (s *gadgetYamlTestSuite) TestLaidOutSystemVolumeFromGadgetUC20Happy(c *C) {
 		c.Assert(err, IsNil)
 	}
 
-	lv, err := gadget.LaidOutSystemVolumeFromGadget(s.dir, "", uc20Mod)
+	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", uc20Mod)
 	c.Assert(err, IsNil)
-	c.Assert(lv.Volume.Bootloader, Equals, "grub")
+	c.Assert(all, HasLen, 1)
+	c.Assert(all["pc"], DeepEquals, systemLv)
+	c.Assert(systemLv.Volume.Bootloader, Equals, "grub")
 	// mbr, bios-boot, ubuntu-seed, ubuntu-save, ubuntu-boot, and ubuntu-data
-	c.Assert(lv.LaidOutStructure, HasLen, 6)
+	c.Assert(systemLv.LaidOutStructure, HasLen, 6)
 }
 
 func (s *gadgetYamlTestSuite) TestStructureBareFilesystem(c *C) {
