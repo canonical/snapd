@@ -2584,6 +2584,10 @@ func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
 	// some-snap is already at the required revision 1, so not refreshed
 	c.Check(names, DeepEquals, []string{"snap-c", "some-other-snap"})
 
+	fi, err := os.Stat(snap.MountFile("some-snap", snap.R("1")))
+	c.Assert(err, IsNil)
+	refreshedDate := fi.ModTime()
+
 	// check that refresh-candidates in the state were updated
 	var candidates map[string]*snapstate.RefreshCandidate
 	c.Assert(st.Get("refresh-candidates", &candidates), IsNil)
@@ -2592,16 +2596,49 @@ func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
 	c.Check(candidates["some-other-snap"], NotNil)
 	c.Check(candidates["some-snap"], IsNil)
 	c.Assert(s.fakeBackend.ops, HasLen, 3)
-	c.Check(s.fakeBackend.ops[1], DeepEquals, fakeOp{
-		op: "storesvc-snap-action:action",
-		action: store.SnapAction{
-			Action:         "refresh",
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{{
+		op: "storesvc-snap-action",
+		curSnaps: []store.CurrentSnap{{
 			InstanceName:   "snap-c",
 			SnapID:         "snap-c-id",
+			Revision:       snap.R(1),
+			Epoch:          snap.E("0"),
+			RefreshedDate:  refreshedDate,
 			ValidationSets: [][]string{{"foo", "bar"}},
 		},
+			{
+				InstanceName:  "some-other-snap",
+				SnapID:        "some-other-snap-id",
+				Revision:      snap.R(1),
+				Epoch:         snap.E("0"),
+				RefreshedDate: refreshedDate,
+			},
+			{
+				InstanceName:   "some-snap",
+				SnapID:         "some-snap-id",
+				Revision:       snap.R(1),
+				Epoch:          snap.E("0"),
+				RefreshedDate:  refreshedDate,
+				ValidationSets: [][]string{{"foo", "bar"}},
+			},
+		},
+	}, {
+		op: "storesvc-snap-action:action",
+		action: store.SnapAction{
+			Action:       "refresh",
+			InstanceName: "snap-c",
+			SnapID:       "snap-c-id",
+		},
 		revno: snap.R(11),
-	})
+	}, {
+		op: "storesvc-snap-action:action",
+		action: store.SnapAction{
+			Action:       "refresh",
+			InstanceName: "some-other-snap",
+			SnapID:       "some-other-snap-id",
+		},
+		revno: snap.R(11),
+	}})
 
 	s.fakeBackend.ops = nil
 	requiredRevision = "11"
@@ -2620,21 +2657,21 @@ func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
 	c.Check(s.fakeBackend.ops[1], DeepEquals, fakeOp{
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:         "refresh",
-			InstanceName:   "snap-c",
-			SnapID:         "snap-c-id",
-			ValidationSets: [][]string{{"foo", "bar"}},
+			Action:       "refresh",
+			InstanceName: "snap-c",
+			SnapID:       "snap-c-id",
+			//ValidationSets: [][]string{{"foo", "bar"}},
 		},
 		revno: snap.R(11),
 	})
 	c.Check(s.fakeBackend.ops[3], DeepEquals, fakeOp{
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:         "refresh",
-			InstanceName:   "some-snap",
-			SnapID:         "some-snap-id",
-			ValidationSets: [][]string{{"foo", "bar"}},
-			Revision:       snap.R(11),
+			Action:       "refresh",
+			InstanceName: "some-snap",
+			SnapID:       "some-snap-id",
+			//ValidationSets: [][]string{{"foo", "bar"}},
+			Revision: snap.R(11),
 		},
 		revno: snap.R(11),
 	})

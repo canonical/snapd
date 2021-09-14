@@ -6129,7 +6129,7 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWithMa
 
 	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active: true,
+		Active:   true,
 		Sequence: []*snap.SideInfo{si},
 		Current:  snap.R(1),
 		SnapType: "app",
@@ -6298,20 +6298,20 @@ func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetsCohortIgnore
 	expectedOps := fakeOps{{
 		op: "storesvc-snap-action",
 		curSnaps: []store.CurrentSnap{{
-			InstanceName:  "some-snap",
-			SnapID:        "some-snap-id",
-			Revision:      snap.R(1),
-			Epoch:         snap.E("0"),
-			RefreshedDate: refreshedDate,
+			InstanceName:   "some-snap",
+			SnapID:         "some-snap-id",
+			Revision:       snap.R(1),
+			Epoch:          snap.E("0"),
+			RefreshedDate:  refreshedDate,
+			ValidationSets: [][]string{{"foo", "bar"}},
 		}},
 	}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
-			Action:         "refresh",
-			InstanceName:   "some-snap",
-			SnapID:         "some-snap-id",
-			Revision:       snap.R(5),
-			ValidationSets: [][]string{{"foo", "bar"}},
+			Action:       "refresh",
+			InstanceName: "some-snap",
+			SnapID:       "some-snap-id",
+			Revision:     snap.R(5),
 		},
 		revno: snap.R(5),
 	}}
