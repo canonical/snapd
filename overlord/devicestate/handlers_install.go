@@ -231,11 +231,12 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	bopts := install.Options{
 		Mount: true,
 	}
-	useEncryption, err := m.checkEncryption(st, deviceCtx)
+	encryptionType, err := m.checkEncryption(st, deviceCtx)
 	if err != nil {
 		return err
 	}
-	bopts.Encrypt = useEncryption
+	bopts.EncryptionType = encryptionType
+	useEncryption := (encryptionType != secboot.EncryptionTypeNone)
 
 	model := deviceCtx.Model()
 
@@ -457,7 +458,7 @@ var secbootCheckTPMKeySealingSupported = secboot.CheckTPMKeySealingSupported
 // checkEncryption verifies whether encryption should be used based on the
 // model grade and the availability of a TPM device or a fde-setup hook
 // in the kernel.
-func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res bool, err error) {
+func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.DeviceContext) (res secboot.EncryptionType, err error) {
 	model := deviceCtx.Model()
 	secured := model.Grade() == asserts.ModelSecured
 	dangerous := model.Grade() == asserts.ModelDangerous
@@ -466,7 +467,7 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	// check if we should disable encryption non-secured devices
 	// TODO:UC20: this is not the final mechanism to bypass encryption
 	if dangerous && osutil.FileExists(filepath.Join(boot.InitramfsUbuntuSeedDir, ".force-unencrypted")) {
-		return false, nil
+		return res, nil
 	}
 
 	// check if the model prefers to be unencrypted
@@ -474,7 +475,7 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	//       if the install is unencrypted or encrypted
 	if model.StorageSafety() == asserts.StorageSafetyPreferUnencrypted {
 		logger.Noticef(`installing system unencrypted to comply with prefer-unencrypted storage-safety model option`)
-		return false, nil
+		return res, nil
 	}
 
 	// check if encryption is available
@@ -484,6 +485,7 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	)
 	if kernelInfo, err := snapstate.KernelInfo(st, deviceCtx); err == nil {
 		if hasFDESetupHook = hasFDESetupHookInKernel(kernelInfo); hasFDESetupHook {
+			// TODO: support getting EncryptionTypeDeviceSetupHook
 			checkEncryptionErr = m.checkFDEFeatures()
 		}
 	}
@@ -496,10 +498,10 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	// check if encryption is required
 	if checkEncryptionErr != nil {
 		if secured {
-			return false, fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
+			return res, fmt.Errorf("cannot encrypt device storage as mandated by model grade secured: %v", checkEncryptionErr)
 		}
 		if encrypted {
-			return false, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
+			return res, fmt.Errorf("cannot encrypt device storage as mandated by encrypted storage-safety model option: %v", checkEncryptionErr)
 		}
 
 		if hasFDESetupHook {
@@ -509,11 +511,12 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 		}
 
 		// not required, go without
-		return false, nil
+		return res, nil
 	}
 
 	// encrypt
-	return true, nil
+	res = secboot.EncryptionTypeCryptsetup
+	return res, nil
 }
 
 // RebootOptions can be attached to restart-system-to-run-mode tasks to control

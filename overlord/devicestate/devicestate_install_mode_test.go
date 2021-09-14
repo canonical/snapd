@@ -322,8 +322,8 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	c.Assert(brDevice, Equals, "")
 	if tc.encrypt {
 		c.Assert(brOpts, DeepEquals, install.Options{
-			Mount:   true,
-			Encrypt: true,
+			Mount:          true,
+			EncryptionType: secboot.EncryptionTypeCryptsetup,
 		})
 	} else {
 		c.Assert(brOpts, DeepEquals, install.Options{
@@ -797,7 +797,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallSecuredBypassEncryption(c *C) {
 
 func (s *deviceMgrInstallModeSuite) TestInstallBootloaderVarSetFails(c *C) {
 	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
-		c.Check(options.Encrypt, Equals, false)
+		c.Check(options.EncryptionType, Equals, secboot.EncryptionTypeNone)
 		// no keys set
 		return &install.InstalledSystemSideData{}, nil
 	})
@@ -863,7 +863,7 @@ func (s *deviceMgrInstallModeSuite) testInstallEncryptionSanityChecks(c *C, errM
 
 func (s *deviceMgrInstallModeSuite) TestInstallEncryptionSanityChecksNoKeys(c *C) {
 	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
-		c.Check(options.Encrypt, Equals, true)
+		c.Check(options.EncryptionType, Equals, secboot.EncryptionTypeCryptsetup)
 		// no keys set
 		return &install.InstalledSystemSideData{}, nil
 	})
@@ -874,7 +874,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallEncryptionSanityChecksNoKeys(c *C
 
 func (s *deviceMgrInstallModeSuite) TestInstallEncryptionSanityChecksNoSystemDataKey(c *C) {
 	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
-		c.Check(options.Encrypt, Equals, true)
+		c.Check(options.EncryptionType, Equals, secboot.EncryptionTypeCryptsetup)
 		// no keys set
 		return &install.InstalledSystemSideData{
 			// empty map
@@ -1258,8 +1258,9 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 		})
 		defer restore()
 
-		encrypt, err := devicestate.DeviceManagerCheckEncryption(s.mgr, st, deviceCtx)
+		encryptionType, err := devicestate.DeviceManagerCheckEncryption(s.mgr, st, deviceCtx)
 		c.Assert(err, IsNil)
+		encrypt := (encryptionType != secboot.EncryptionTypeNone)
 		c.Check(encrypt, Equals, tc.encrypt, Commentf("%v", tc))
 	}
 }
@@ -1311,8 +1312,9 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedStorageSafety(c *C)
 		})
 		deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: mockModel}
 
-		encrypt, err := devicestate.DeviceManagerCheckEncryption(s.mgr, s.state, deviceCtx)
+		encryptionType, err := devicestate.DeviceManagerCheckEncryption(s.mgr, s.state, deviceCtx)
 		c.Assert(err, IsNil)
+		encrypt := (encryptionType != secboot.EncryptionTypeNone)
 		c.Check(encrypt, Equals, tc.expectedEncryption)
 	}
 }

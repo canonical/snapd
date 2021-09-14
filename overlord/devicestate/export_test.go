@@ -33,6 +33,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/overlord/storecontext"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/timings"
 )
@@ -332,7 +333,7 @@ func DeviceManagerRunFDESetupHook(mgr *DeviceManager, req *fde.SetupRequest) ([]
 	return mgr.runFDESetupHook(req)
 }
 
-func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx snapstate.DeviceContext) (bool, error) {
+func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx snapstate.DeviceContext) (secboot.EncryptionType, error) {
 	return mgr.checkEncryption(st, deviceCtx)
 }
 
