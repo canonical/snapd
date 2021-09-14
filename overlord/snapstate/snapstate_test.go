@@ -5347,14 +5347,6 @@ func (s *snapmgrTestSuite) TestConflictExclusive(c *C) {
 	c.Check(err, ErrorMatches, `other changes in progress \(conflicting change "install-snap-a"\), change "create-recovery-system" not allowed until they are done`)
 }
 
-type noopBackend struct{}
-
-func (d noopBackend) Checkpoint(_ []byte) error { return nil }
-
-func (d noopBackend) EnsureBefore(_ time.Duration) {}
-
-func (d noopBackend) RequestRestart(_ state.RestartType) {}
-
 func (s *snapmgrTestSuite) TestOnlyConflictOnRelevantRunnableTask(c *C) {
 	// statuses that have no future work to be done
 	stoppedStatuses := []state.Status{state.ErrorStatus, state.HoldStatus, state.DoneStatus, state.UndoneStatus}
@@ -5362,12 +5354,12 @@ func (s *snapmgrTestSuite) TestOnlyConflictOnRelevantRunnableTask(c *C) {
 	for id := 0; id < state.NStatuses; id++ {
 		status := state.Status(id)
 
-		s.state = state.New(noopBackend{})
-		s.state.Lock()
-		chg := s.state.NewChange("some", "...")
+		st := state.New(nil)
+		st.Lock()
+		chg := st.NewChange("some", "...")
 
 		// task that affects the same snap but won't run
-		stoppedTask := s.state.NewTask(status.String(), "")
+		stoppedTask := st.NewTask(status.String(), "")
 		stoppedTask.SetStatus(status)
 
 		stoppedTask.Set("snap-setup", &snapstate.SnapSetup{
@@ -5378,7 +5370,7 @@ func (s *snapmgrTestSuite) TestOnlyConflictOnRelevantRunnableTask(c *C) {
 		chg.AddTask(stoppedTask)
 
 		// task that doesn't affect that same but will run
-		runnableTask := s.state.NewTask("runnable", "")
+		runnableTask := st.NewTask("runnable", "")
 		runnableTask.SetStatus(state.DoStatus)
 		runnableTask.Set("snap-setup", &snapstate.SnapSetup{
 			SideInfo: &snap.SideInfo{
@@ -5387,7 +5379,7 @@ func (s *snapmgrTestSuite) TestOnlyConflictOnRelevantRunnableTask(c *C) {
 		})
 		chg.AddTask(runnableTask)
 
-		err := snapstate.CheckChangeConflict(s.state, "some-snap", nil)
+		err := snapstate.CheckChangeConflict(st, "some-snap", nil)
 
 		if containsStatus(stoppedStatuses, status) {
 			c.Assert(err, IsNil)
@@ -5395,7 +5387,7 @@ func (s *snapmgrTestSuite) TestOnlyConflictOnRelevantRunnableTask(c *C) {
 			c.Assert(err, FitsTypeOf, &snapstate.ChangeConflictError{})
 		}
 
-		s.state.Unlock()
+		st.Unlock()
 	}
 }
 
