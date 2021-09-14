@@ -43,6 +43,8 @@ restore: |
 execute: |
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
 
     # we expect the VM to shut itself down so don't wait for SSH, etc. to become
     # available

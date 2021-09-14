@@ -12,7 +12,7 @@ prepare: |
   snap pack uc20-devmode --filename="$(tests.nested get extra-snaps-path)/devmode.snap"
 
   tests.nested build-image core
-  tests.nested create-vm
+  tests.nested create-vm core
 
 execute: |
   echo "Check that the devmode snap is installed"
