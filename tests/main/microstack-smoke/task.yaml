@@ -1,5 +1,8 @@
 summary: Ensure that the microstack snap works
 
+# Start early as it takes a long time.
+priority: 100
+
 prepare: |
     echo "Install microstack"
     snap install --beta microstack
