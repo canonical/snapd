@@ -337,6 +337,6 @@ func DeviceManagerCheckEncryption(mgr *DeviceManager, st *state.State, deviceCtx
 	return mgr.checkEncryption(st, deviceCtx)
 }
 
-func DeviceManagerCheckFDEFeatures(mgr *DeviceManager, st *state.State) error {
+func DeviceManagerCheckFDEFeatures(mgr *DeviceManager, st *state.State) (secboot.EncryptionType, error) {
 	return mgr.checkFDEFeatures()
 }

@@ -1225,21 +1225,25 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 	deviceCtx := &snapstatetest.TrivialDeviceContext{DeviceModel: mockModel}
 
 	for _, tc := range []struct {
-		hasFDESetupHook bool
-		hasTPM          bool
-		encrypt         bool
+		hasFDESetupHook      bool
+		fdeSetupHookFeatures string
+
+		hasTPM         bool
+		encryptionType secboot.EncryptionType
 	}{
 		// unhappy: no tpm, no hook
-		{false, false, false},
+		{false, "[]", false, secboot.EncryptionTypeNone},
 		// happy: either tpm or hook or both
-		{false, true, true},
-		{true, false, true},
-		{true, true, true},
+		{false, "[]", true, secboot.EncryptionTypeCryptsetup},
+		{true, "[]", false, secboot.EncryptionTypeCryptsetup},
+		{true, "[]", true, secboot.EncryptionTypeCryptsetup},
+		// happy but device-setup hook
+		{true, `["device-setup"]`, true, secboot.EncryptionTypeDeviceSetupHook},
 	} {
 		hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 			ctx.Lock()
 			defer ctx.Unlock()
-			ctx.Set("fde-setup-result", []byte(`{"features":[]}`))
+			ctx.Set("fde-setup-result", []byte(fmt.Sprintf(`{"features":%s}`, tc.fdeSetupHookFeatures)))
 			return nil, nil
 		}
 		rhk := hookstate.MockRunHook(hookInvoke)
@@ -1260,8 +1264,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 
 		encryptionType, err := devicestate.DeviceManagerCheckEncryption(s.mgr, st, deviceCtx)
 		c.Assert(err, IsNil)
-		encrypt := (encryptionType != secboot.EncryptionTypeNone)
-		c.Check(encrypt, Equals, tc.encrypt, Commentf("%v", tc))
+		c.Check(encryptionType, Equals, tc.encryptionType, Commentf("%v", tc))
 	}
 }
 
@@ -1393,22 +1396,27 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedFDEHook(c *C) {
 	for _, tc := range []struct {
 		hookOutput  string
 		expectedErr string
+
+		encryptionType secboot.EncryptionType
 	}{
 		// invalid json
-		{"xxx", `cannot parse hook output "xxx": invalid character 'x' looking for beginning of value`},
+		{"xxx", `cannot parse hook output "xxx": invalid character 'x' looking for beginning of value`, secboot.EncryptionTypeNone},
 		// no output is invalid
-		{"", `cannot parse hook output "": unexpected end of JSON input`},
+		{"", `cannot parse hook output "": unexpected end of JSON input`, secboot.EncryptionTypeNone},
 		// specific error
-		{`{"error":"failed"}`, `cannot use hook: it returned error: failed`},
-		{`{}`, `cannot use hook: neither "features" nor "error" returned`},
+		{`{"error":"failed"}`, `cannot use hook: it returned error: failed`, secboot.EncryptionTypeNone},
+		{`{}`, `cannot use hook: neither "features" nor "error" returned`, secboot.EncryptionTypeNone},
 		// valid
-		{`{"features":[]}`, ""},
-		{`{"features":["a"]}`, ""},
-		{`{"features":["a","b"]}`, ""},
+		{`{"features":[]}`, "", secboot.EncryptionTypeCryptsetup},
+		{`{"features":["a"]}`, "", secboot.EncryptionTypeCryptsetup},
+		{`{"features":["a","b"]}`, "", secboot.EncryptionTypeCryptsetup},
 		// features must be list of strings
-		{`{"features":[1]}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`},
-		{`{"features":1}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`},
-		{`{"features":"1"}`, `cannot parse hook output ".*": json: cannot unmarshal string into Go struct.*`},
+		{`{"features":[1]}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`, secboot.EncryptionTypeNone},
+		{`{"features":1}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`, secboot.EncryptionTypeNone},
+		{`{"features":"1"}`, `cannot parse hook output ".*": json: cannot unmarshal string into Go struct.*`, secboot.EncryptionTypeNone},
+		// valid and switches to "device-setup"
+		{`{"features":["device-setup"]}`, "", secboot.EncryptionTypeDeviceSetupHook},
+		{`{"features":["a","device-setup","b"]}`, "", secboot.EncryptionTypeDeviceSetupHook},
 	} {
 		hookInvoke := func(ctx *hookstate.Context, tomb *tomb.Tomb) ([]byte, error) {
 			ctx.Lock()
@@ -1419,11 +1427,12 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedFDEHook(c *C) {
 		rhk := hookstate.MockRunHook(hookInvoke)
 		defer rhk()
 
-		err := devicestate.DeviceManagerCheckFDEFeatures(s.mgr, st)
+		et, err := devicestate.DeviceManagerCheckFDEFeatures(s.mgr, st)
 		if tc.expectedErr != "" {
 			c.Check(err, ErrorMatches, tc.expectedErr, Commentf("%v", tc))
 		} else {
 			c.Check(err, IsNil, Commentf("%v", tc))
+			c.Check(et, Equals, tc.encryptionType, Commentf("%v", tc))
 		}
 	}
 }
