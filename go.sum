@@ -1,5 +1,5 @@
-github.com/canonical/go-efilib v0.0.0-20210708205505-7d3f2e29397f h1:KWRTN0w2PI9KQ3KSDNhKc+rB+E1z3bzDKihNxpD0gOQ=
-github.com/canonical/go-efilib v0.0.0-20210708205505-7d3f2e29397f/go.mod h1:9Sr9kd7IhQPYqaU5nut8Ky97/CtlhHDzQncQnrULgDM=
+github.com/canonical/go-efilib v0.0.0-20210909101908-41435fa545d4 h1:rSWREoNHHbcIC1iQeKKraBlsDm7cmKg8eS+N48jMVKA=
+github.com/canonical/go-efilib v0.0.0-20210909101908-41435fa545d4/go.mod h1:9Sr9kd7IhQPYqaU5nut8Ky97/CtlhHDzQncQnrULgDM=
 github.com/canonical/go-sp800.108-kdf v0.0.0-20210314145419-a3359f2d21b9 h1:USzKjrfWo/ESzozv2i3OMM7XDgxrZRvaHFrKkIKRtwU=
 github.com/canonical/go-sp800.108-kdf v0.0.0-20210314145419-a3359f2d21b9/go.mod h1:Zrs3YjJr+w51u0R/dyLh/oWt/EcBVdLPCVFYC4daW5s=
 github.com/canonical/go-sp800.90a-drbg v0.0.0-20210314144037-6eeb1040d6c3 h1:oe6fCvaEpkhyW3qAicT0TnGtyht/UrgvOwMcEgLb7Aw=
@@ -42,8 +42,8 @@ github.com/snapcore/bolt v1.3.2-0.20210908134111-63c8bfcf7af8 h1:WmyDfH38e3MaMWr
 github.com/snapcore/bolt v1.3.2-0.20210908134111-63c8bfcf7af8/go.mod h1:Z6z3sf12AMDjT/4tbT/PmzzdACAxkWGhkuKWiVpTWLM=
 github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785 h1:PaunR+BhraKSLxt2awQ42zofkP+NKh/VjQ0PjIMk/y4=
 github.com/snapcore/go-gettext v0.0.0-20191107141714-82bbea49e785/go.mod h1:D3SsWAXK7wCCBZu+Vk5hc1EuKj/L3XN1puEMXTU4LrQ=
-github.com/snapcore/secboot v0.0.0-20210903144442-df4c75f35110 h1:rkfgPhDJXHfan+spedvgrUWv3POVbFXRyeO0Ek1lG14=
-github.com/snapcore/secboot v0.0.0-20210903144442-df4c75f35110/go.mod h1:72paVOkm4sJugXt+v9ItmnjXgO921D8xqsbH2OekouY=
+github.com/snapcore/secboot v0.0.0-20210909111405-e3a397e2da90 h1:XCbqRVVmFztGHPWN+wdPcRahQY7moJBRd/g/zMXLJmA=
+github.com/snapcore/secboot v0.0.0-20210909111405-e3a397e2da90/go.mod h1:72paVOkm4sJugXt+v9ItmnjXgO921D8xqsbH2OekouY=
 github.com/snapcore/snapd v0.0.0-20201005140838-501d14ac146e/go.mod h1:3xrn7QDDKymcE5VO2rgWEQ5ZAUGb9htfwlXnoel6Io8=
 go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1 h1:A/5uWzF44DlIgdm/PQFwfMkW0JX+cIcQi/SwLAmZP5M=
 go.mozilla.org/pkcs7 v0.0.0-20200128120323-432b2356ecb1/go.mod h1:SNgMg+EgDFwmvSmLRTNKC5fegJjB7v23qTQ0XLGUNHk=
