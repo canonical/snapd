@@ -38,8 +38,6 @@ prepare: |
     if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "false" ]; then
         snap install http --devmode # devmode so it can save to any dir
 
-        mkdir -p "$(tests.nested get extra-snaps-path)"
-
         if os.query is-xenial; then
             # uc16 uses core snap
             http --quiet --download --output core_2.45.snap GET "$SNAPD_2_45_CORE_SNAP"

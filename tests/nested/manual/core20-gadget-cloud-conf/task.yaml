@@ -65,7 +65,6 @@ prepare: |
 
   # modify and repack gadget snap to add a defaults section and use our own
   # prepare-device hook to use the fakedevicesvc
-  mkdir "$(tests.nested get extra-snaps-path)"
 
   # Get the snakeoil key and cert for signing gadget assets (shim)
   KEY_NAME=$(tests.nested download snakeoil-key)

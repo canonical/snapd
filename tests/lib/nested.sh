@@ -409,6 +409,7 @@ nested_prepare_env() {
     mkdir -p "$NESTED_RUNTIME_DIR"
     mkdir -p "$NESTED_ASSETS_DIR"
     mkdir -p "$NESTED_LOGS_DIR"
+    mkdir -p "$(nested_get_extra_snaps_path)"
 }
 
 nested_cleanup_env() {

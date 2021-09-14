@@ -9,8 +9,6 @@ environment:
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
 
 prepare: |
-    mkdir "$(tests.nested get extra-snaps-path)"
-
     # Get the snakeoil key and cert
     KEY_NAME=$(tests.nested download snakeoil-key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
