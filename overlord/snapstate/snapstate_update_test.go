@@ -5913,14 +5913,18 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationRefreshToRequire
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
-		Active: true,
-		Sequence: []*snap.SideInfo{
-			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
-		},
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
+	snaptest.MockSnap(c, `name: some-snap`, si)
+
+	fi, err := os.Stat(snap.MountFile("some-snap", si.Revision))
+	c.Assert(err, IsNil)
+	refreshedDate := fi.ModTime()
 	ts, err := snapstate.Update(s.state, "some-snap", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
@@ -5931,7 +5935,15 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationRefreshToRequire
 	c.Check(snapsup.Revision(), Equals, snap.R(11))
 
 	c.Assert(s.fakeBackend.ops, HasLen, 2)
-	expectedOp := fakeOp{
+	expectedOps := fakeOps{{
+		op: "storesvc-snap-action",
+		curSnaps: []store.CurrentSnap{{
+			InstanceName:  "some-snap",
+			SnapID:        "some-snap-id",
+			Revision:      snap.R(1),
+			Epoch:         snap.E("0"),
+			RefreshedDate: refreshedDate,
+		}}}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
 			Action:         "refresh",
@@ -5942,8 +5954,8 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationRefreshToRequire
 			Flags:          store.SnapActionEnforceValidation,
 		},
 		revno: snap.R(11),
-	}
-	c.Assert(s.fakeBackend.ops[1], DeepEquals, expectedOp)
+	}}
+	c.Assert(s.fakeBackend.ops, DeepEquals, expectedOps)
 }
 
 func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationSetAnyRevision(c *C) {
@@ -5981,6 +5993,10 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationSetAnyRevision(c
 	})
 	snaptest.MockSnap(c, `name: some-snap`, si)
 
+	fi, err := os.Stat(snap.MountFile("some-snap", si.Revision))
+	c.Assert(err, IsNil)
+	refreshedDate := fi.ModTime()
+
 	ts, err := snapstate.Update(s.state, "some-snap", nil, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
@@ -5989,10 +6005,6 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationSetAnyRevision(c
 	c.Assert(err, IsNil)
 	// new snap revision from the store
 	c.Check(snapsup.Revision(), Equals, snap.R(11))
-
-	fi, err := os.Stat(snap.MountFile("some-snap", si.Revision))
-	c.Assert(err, IsNil)
-	refreshedDate := fi.ModTime()
 
 	c.Assert(s.fakeBackend.ops, HasLen, 2)
 	expectedOps := fakeOps{{
@@ -6115,14 +6127,19 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWithMa
 	}
 	assertstate.UpdateValidationSet(s.state, &tr)
 
+	si := &snap.SideInfo{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)}
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
-		Sequence: []*snap.SideInfo{
-			{RealName: "some-snap", SnapID: "some-snap-id", Revision: snap.R(1)},
-		},
+		Sequence: []*snap.SideInfo{si},
 		Current:  snap.R(1),
 		SnapType: "app",
 	})
+	snaptest.MockSnap(c, `name: some-snap`, si)
+
+	fi, err := os.Stat(snap.MountFile("some-snap", si.Revision))
+	c.Assert(err, IsNil)
+	refreshedDate := fi.ModTime()
+
 	ts, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Revision: snap.R(11)}, 0, snapstate.Flags{})
 	c.Assert(err, IsNil)
 
@@ -6132,7 +6149,16 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWithMa
 	// new snap revision from the store
 	c.Check(snapsup.Revision(), Equals, snap.R(11))
 	c.Assert(s.fakeBackend.ops, HasLen, 2)
-	expectedOp := fakeOp{
+	expectedOps := fakeOps{{
+		op: "storesvc-snap-action",
+		curSnaps: []store.CurrentSnap{{
+			InstanceName:  "some-snap",
+			SnapID:        "some-snap-id",
+			Revision:      snap.R(1),
+			Epoch:         snap.E("0"),
+			RefreshedDate: refreshedDate,
+		}},
+	}, {
 		op: "storesvc-snap-action:action",
 		action: store.SnapAction{
 			Action:         "refresh",
@@ -6143,8 +6169,8 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWithMa
 			// XXX: updateToRevisionInfo doesn't set store.SnapActionEnforceValidation flag?
 		},
 		revno: snap.R(11),
-	}
-	c.Assert(s.fakeBackend.ops[1], DeepEquals, expectedOp)
+	}}
+	c.Assert(s.fakeBackend.ops, DeepEquals, expectedOps)
 }
 
 func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWronRevisionError(c *C) {
