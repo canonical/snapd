@@ -16,7 +16,8 @@ execute: |
 
     function check_date() {
         local TEST_DATE="$1"
-        local TOLERANCE_SECONDS=1800 # 30 minutes
+        local TOLERANCE_SECONDS=1800 # 30 minutes; in practice, the timestamp
+                                     # difference should be about 10 minutes
         local TEST_TIMESTAMP CURRENT_TIMESTAMP
 
         TEST_TIMESTAMP=$(date +'%s' --date="${TEST_DATE}")
