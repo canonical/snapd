@@ -1843,7 +1843,7 @@ func (s *validationSetsSuite) removeSnapReferencedByValidationSet(c *C, presence
 
 func (s *validationSetsSuite) TestRemoveSnapRequiredByValidationSetRefused(c *C) {
 	err := s.removeSnapReferencedByValidationSet(c, "required")
-	c.Check(err, ErrorMatches, `snap "some-snap" is not removable: snap "some-snap" is required by validation sets: foo/bar`)
+	c.Check(err, ErrorMatches, `snap "some-snap" is not removable: snap "some-snap" is required by validation sets: 16/foo/bar/1`)
 }
 
 func (s *validationSetsSuite) TestRemoveOptionalSnapOK(c *C) {
@@ -1904,7 +1904,7 @@ func (s *validationSetsSuite) TestRemoveSnapRequiredByValidationSetAtSpecificRev
 	assertstate.UpdateValidationSet(s.state, &tr)
 
 	_, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
-	c.Assert(err, ErrorMatches, `snap "some-snap" is not removable: snap "some-snap" at revision 2 is required by validation sets: foo/bar`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" is not removable: snap "some-snap" at revision 2 is required by validation sets: 16/foo/bar/1`)
 
 	// it's ok to remove an unused revision
 	_, err = snapstate.Remove(s.state, "some-snap", snap.R(3), nil)
@@ -1957,7 +1957,7 @@ func (s *validationSetsSuite) TestRemoveSnapRequiredByValidationSetAtSpecificRev
 	// remove inactive revision 2 fails as it is required
 	// XXX: is this a viable scenario? the required revision isn't the active one?
 	_, err := snapstate.Remove(s.state, "some-snap", snap.R(2), nil)
-	c.Assert(err, ErrorMatches, `snap "some-snap" is not removable: snap "some-snap" at revision 2 is required by validation sets: foo/bar`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" is not removable: snap "some-snap" at revision 2 is required by validation sets: 16/foo/bar/1`)
 }
 
 func (s *snapmgrTestSuite) TestRemoveFailsWithInvalidSnapName(c *C) {
