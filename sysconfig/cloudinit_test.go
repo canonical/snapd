@@ -53,19 +53,25 @@ func (s *sysconfigSuite) SetUpTest(c *C) {
 	s.AddCleanup(func() { dirs.SetRootDir("/") })
 }
 
-func (s *sysconfigSuite) makeCloudCfgSrcDirFiles(c *C) string {
+func (s *sysconfigSuite) makeCloudCfgSrcDirFiles(c *C, cfgs ...string) (string, []string) {
 	cloudCfgSrcDir := c.MkDir()
-	for _, mockCfg := range []string{"foo.cfg", "bar.cfg"} {
-		err := ioutil.WriteFile(filepath.Join(cloudCfgSrcDir, mockCfg), []byte(fmt.Sprintf("%s config", mockCfg)), 0644)
+	names := make([]string, 0, len(cfgs))
+	for i, mockCfg := range cfgs {
+		configFileName := fmt.Sprintf("seed-config-%d.cfg", i)
+		err := ioutil.WriteFile(filepath.Join(cloudCfgSrcDir, configFileName), []byte(mockCfg), 0644)
 		c.Assert(err, IsNil)
+		names = append(names, configFileName)
 	}
-	return cloudCfgSrcDir
+	return cloudCfgSrcDir, names
 }
 
-func (s *sysconfigSuite) makeGadgetCloudConfFile(c *C) string {
+func (s *sysconfigSuite) makeGadgetCloudConfFile(c *C, content string) string {
 	gadgetDir := c.MkDir()
 	gadgetCloudConf := filepath.Join(gadgetDir, "cloud.conf")
-	err := ioutil.WriteFile(gadgetCloudConf, []byte("#cloud-config gadget cloud config"), 0644)
+	if content == "" {
+		content = "#cloud-config some gadget cloud config"
+	}
+	err := ioutil.WriteFile(gadgetCloudConf, []byte(content), 0644)
 	c.Assert(err, IsNil)
 
 	return gadgetDir
@@ -109,8 +115,8 @@ func (s *sysconfigSuite) TestInstallModeCloudInitDisablesByDefaultRunMode(c *C) 
 }
 
 func (s *sysconfigSuite) TestInstallModeCloudInitDisallowedIgnoresOtherOptions(c *C) {
-	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
-	gadgetDir := s.makeGadgetCloudConfFile(c)
+	cloudCfgSrcDir, _ := s.makeCloudCfgSrcDirFiles(c)
+	gadgetDir := s.makeGadgetCloudConfFile(c, "")
 
 	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
 		AllowCloudInit:  false,
@@ -132,41 +138,341 @@ func (s *sysconfigSuite) TestInstallModeCloudInitDisallowedIgnoresOtherOptions(c
 	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileAbsent)
 }
 
-func (s *sysconfigSuite) TestInstallModeCloudInitAllowedGradeSignedDoesNotDisable(c *C) {
-	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
-		AllowCloudInit: true,
-		TargetRootDir:  boot.InstallHostWritableDir,
-	})
-	c.Assert(err, IsNil)
+func (s *sysconfigSuite) TestInstallModeCloudInitAllowedPermutations(c *C) {
 
-	ubuntuDataCloudDisabled := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
-	c.Check(ubuntuDataCloudDisabled, testutil.FileAbsent)
-}
+	// common inputs in the test cases below
+	defaultMAASCfgs := []string{
+		maasCfg1, // MAAS specific config
+		maasCfg2, // MAAS specific config - this sets the datasource_list
+		maasCfg3, // generic config that's filtered out
+		maasCfg4, // generic config that passes filtering
+		maasCfg5, // MAAS specific config
+	}
+	defaultMAASHappyInstalled := []bool{
+		true,
+		true,
+		false,
+		true,
+		true,
+	}
+	defaultMAASNoneInstalled := []bool{false, false, false, false, false}
 
-func (s *sysconfigSuite) TestInstallModeCloudInitAllowedGradeSignedDoesNotInstallUbuntuSeedConfig(c *C) {
-	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
+	explicitNonSupportedDatasource := `datasource_list: [GCE]`
+	explicitSupportedDatasource := maasCfg2
+	explicitNoDatasourceAllowed := `datasource_list: []`
+	explicitSupportedAndNonSupportedDatasources := `datasource_list: [GCE, MAAS]`
 
-	err := sysconfig.ConfigureTargetSystem(fake20Model("signed"), &sysconfig.Options{
-		AllowCloudInit:  true,
-		TargetRootDir:   boot.InstallHostWritableDir,
-		CloudInitSrcDir: cloudCfgSrcDir,
-	})
-	c.Assert(err, IsNil)
+	implictMentionNonSupportedDatasource := `#cloud-config
+datasource:
+  gce:
+    metadata_url: foo
+`
+	implicitMentionSupportedDatasource := maasCfg1
 
-	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
-	c.Check(filepath.Join(ubuntuDataCloudCfg, "foo.cfg"), testutil.FileAbsent)
-	c.Check(filepath.Join(ubuntuDataCloudCfg, "bar.cfg"), testutil.FileAbsent)
-}
+	restrictDatasourceMAASFile := `datasource_list: [MAAS]
+`
+	// restrictDatasourceNoneFile := `datasource_list: []
+	// `
 
-func (s *sysconfigSuite) TestInstallModeCloudInitAllowedGradeDangerousDoesNotDisable(c *C) {
-	err := sysconfig.ConfigureTargetSystem(fake20Model("dangerous"), &sysconfig.Options{
-		AllowCloudInit: true,
-		TargetRootDir:  boot.InstallHostWritableDir,
-	})
-	c.Assert(err, IsNil)
+	tt := []struct {
+		grade     string
+		gadgetCfg string
+		// use lists here to install the files in the order that the file
+		// content appears
+		seedCfgs []string
+		// whether each file in seedCfgs gets installed
+		resultCfgCopied           []bool
+		expDsRestrictFileContents string
+		comment                   string
+	}{
+		{
+			comment: "no config anywhere, but cloud-init not disabled",
+		},
+		{
+			grade:   "dangerous",
+			comment: "grade dangerous, no config anywhere, but cloud-init not disabled",
+		},
+		{
+			comment:                   "no gadget config but MAAS allowed",
+			seedCfgs:                  defaultMAASCfgs,
+			resultCfgCopied:           defaultMAASHappyInstalled,
+			expDsRestrictFileContents: restrictDatasourceMAASFile,
+		},
+		{
+			comment: "grade signed NoCloud not allowed",
+			seedCfgs: []string{
+				`#cloud-config
+datasource:
+  NoCloud:
+    something-no-cloudy: foo
+`,
+			},
+			resultCfgCopied: []bool{false},
+		},
 
-	ubuntuDataCloudDisabled := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
-	c.Check(ubuntuDataCloudDisabled, testutil.FileAbsent)
+		{
+			comment:                   "MAAS in seed and gadget explicit gets installed",
+			seedCfgs:                  defaultMAASCfgs,
+			resultCfgCopied:           defaultMAASHappyInstalled,
+			gadgetCfg:                 explicitSupportedDatasource,
+			expDsRestrictFileContents: restrictDatasourceMAASFile,
+		},
+		{
+			comment:                   "MAAS in seed and gadget implicit gets installed",
+			seedCfgs:                  defaultMAASCfgs,
+			resultCfgCopied:           defaultMAASHappyInstalled,
+			gadgetCfg:                 implicitMentionSupportedDatasource,
+			expDsRestrictFileContents: restrictDatasourceMAASFile,
+		},
+		{
+			comment:         "MAAS in seed not installed due to implicit unsupported datasource in gadget",
+			seedCfgs:        defaultMAASCfgs,
+			resultCfgCopied: defaultMAASNoneInstalled,
+			gadgetCfg:       implictMentionNonSupportedDatasource,
+		},
+		{
+			comment:         "MAAS in seed not installed due to gadget disallowing any datasource",
+			seedCfgs:        defaultMAASCfgs,
+			resultCfgCopied: defaultMAASNoneInstalled,
+			gadgetCfg:       explicitNoDatasourceAllowed,
+		},
+		{
+			comment:         "MAAS in seed not installed due to gadget explicitly allowing other datasource",
+			seedCfgs:        defaultMAASCfgs,
+			resultCfgCopied: defaultMAASNoneInstalled,
+			gadgetCfg:       explicitNonSupportedDatasource,
+		},
+		{
+			comment: "MAAS in seed not installed due to seed config disallowing itself with gadget",
+			seedCfgs: []string{
+				maasCfg1,                    // MAAS specific config
+				maasCfg2,                    // MAAS specific config - this sets the datasource_list
+				maasCfg3,                    // generic config that's filtered out
+				maasCfg4,                    // generic config that passes filtering
+				maasCfg5,                    // MAAS specific config
+				explicitNoDatasourceAllowed, // extra that disables all datasources
+			},
+			resultCfgCopied: []bool{false, false, false, false, false, false},
+			gadgetCfg:       explicitNonSupportedDatasource,
+		},
+		{
+			comment: "MAAS in seed not installed due to seed config disallowing itself without gadget",
+			seedCfgs: []string{
+				maasCfg1,                    // MAAS specific config
+				maasCfg2,                    // MAAS specific config - this sets the datasource_list
+				maasCfg3,                    // generic config that's filtered out
+				maasCfg4,                    // generic config that passes filtering
+				maasCfg5,                    // MAAS specific config
+				explicitNoDatasourceAllowed, // extra that disables all datasources
+			},
+			resultCfgCopied: []bool{false, false, false, false, false, false},
+		},
+		{
+			comment: "implictly mentioned datasource in seed not installed because it's unsupported",
+			seedCfgs: []string{
+				maasCfg1,                             // MAAS specific config
+				maasCfg2,                             // MAAS specific config - this sets the datasource_list
+				maasCfg4,                             // generic config that passes filtering
+				maasCfg5,                             // MAAS specific config
+				implictMentionNonSupportedDatasource, // extra that implicitly mentions GCE
+			},
+			resultCfgCopied: []bool{
+				true,
+				true,
+				true,
+				true,
+				false, // the implicit GCE one
+			},
+			expDsRestrictFileContents: restrictDatasourceMAASFile,
+		},
+		{
+			comment: "implictly mentioned datasource in seed not installed because it's unsupported + gadget with explicit supported",
+			seedCfgs: []string{
+				maasCfg1,                             // MAAS specific config
+				maasCfg2,                             // MAAS specific config - this sets the datasource_list
+				maasCfg4,                             // generic config that passes filtering
+				maasCfg5,                             // MAAS specific config
+				implictMentionNonSupportedDatasource, // extra that implicitly mentions GCE
+			},
+			resultCfgCopied: []bool{
+				true,
+				true,
+				true,
+				true,
+				false, // the implicit GCE one
+			},
+			gadgetCfg:                 explicitSupportedDatasource,
+			expDsRestrictFileContents: restrictDatasourceMAASFile,
+		},
+		{
+			comment: "implicit mentioned datasource in seed not installed because it's unsupported + gadget with explicit supported and non-supported",
+			seedCfgs: []string{
+				maasCfg1,                             // MAAS specific config
+				maasCfg2,                             // MAAS specific config - this sets the datasource_list
+				maasCfg4,                             // generic config that passes filtering
+				maasCfg5,                             // MAAS specific config
+				implictMentionNonSupportedDatasource, // extra that implicitly mentions GCE
+			},
+
+			resultCfgCopied: []bool{
+				true,
+				true,
+				true,
+				true,
+				false, // the implicit GCE one
+			},
+			gadgetCfg:                 explicitSupportedAndNonSupportedDatasources,
+			expDsRestrictFileContents: restrictDatasourceMAASFile,
+		},
+		{
+			comment: "implicit mentioned datasource and supported datasource in seed all not installed because no supported datasource in intersection with gadget with implicit non-supported",
+			seedCfgs: []string{
+				maasCfg1,                             // MAAS specific config
+				maasCfg2,                             // MAAS specific config - this sets the datasource_list
+				maasCfg4,                             // generic config that passes filtering
+				maasCfg5,                             // MAAS specific config
+				implictMentionNonSupportedDatasource, // extra that implicitly mentions GCE
+			},
+
+			resultCfgCopied: []bool{
+				false,
+				false,
+				false,
+				false,
+				false, // the implicit GCE one
+			},
+			gadgetCfg: implictMentionNonSupportedDatasource,
+		},
+		{
+			comment: "implicit mentioned datasource and supported datasource in seed all not installed because no supported datasource in intersection with gadget with explicit non-supported",
+			seedCfgs: []string{
+				maasCfg1,                             // MAAS specific config
+				maasCfg2,                             // MAAS specific config - this sets the datasource_list
+				maasCfg4,                             // generic config that passes filtering
+				maasCfg5,                             // MAAS specific config
+				implictMentionNonSupportedDatasource, // extra that implicitly mentions GCE
+			},
+
+			resultCfgCopied: []bool{
+				false,
+				false,
+				false,
+				false,
+				false, // the implicit GCE one
+			},
+			gadgetCfg: explicitNonSupportedDatasource,
+		},
+		{
+			comment: "implicit mentioned datasource and supported datasource in seed all not installed because no supported datasource in intersection with gadget with implicit non-supported",
+			seedCfgs: []string{
+				maasCfg1,                             // MAAS specific config
+				maasCfg4,                             // generic config that passes filtering
+				maasCfg5,                             // MAAS specific config
+				implictMentionNonSupportedDatasource, // extra that implicitly mentions GCE
+			},
+
+			resultCfgCopied: []bool{
+				false,
+				false,
+				false, // the implicit GCE one
+				false,
+			},
+			gadgetCfg: implictMentionNonSupportedDatasource,
+		},
+		{
+			comment: "implicit mentioned datasource in seed not installed and supported datasource in seed installed due to intersection with gadget with implicit supported",
+			seedCfgs: []string{
+				maasCfg1,                             // MAAS specific config
+				maasCfg4,                             // generic config that passes filtering
+				maasCfg5,                             // MAAS specific config
+				implictMentionNonSupportedDatasource, // extra that implicitly mentions GCE
+			},
+			resultCfgCopied: []bool{
+				true,
+				true,
+				true,
+				false, // the implicit GCE one
+			},
+			gadgetCfg:                 explicitSupportedAndNonSupportedDatasources,
+			expDsRestrictFileContents: restrictDatasourceMAASFile,
+		},
+		{
+			comment:         "entirely filtered out seed config not installed",
+			seedCfgs:        []string{maasCfg3},
+			resultCfgCopied: []bool{false},
+		},
+		{
+			comment:         "entirely filtered out seed config not installed + gadget with explicit supported datasource",
+			seedCfgs:        []string{maasCfg3},
+			resultCfgCopied: []bool{false},
+			gadgetCfg:       explicitSupportedDatasource,
+		},
+		{
+			comment: "implicitly mentioned supported datasource in gadget + explicit no datasource in seed",
+			seedCfgs: []string{
+				explicitNoDatasourceAllowed,
+			},
+			resultCfgCopied: []bool{false},
+			gadgetCfg:       implicitMentionSupportedDatasource,
+		},
+	}
+
+	for _, t := range tt {
+		comment := Commentf(t.comment)
+		var seedSrcNames []string
+		var cloudCfgSrcDir string
+		c.Assert(t.seedCfgs, HasLen, len(t.resultCfgCopied), comment)
+		if len(t.seedCfgs) != 0 {
+			cloudCfgSrcDir, seedSrcNames = s.makeCloudCfgSrcDirFiles(c, t.seedCfgs...)
+		}
+
+		var gadgetDir string
+		if t.gadgetCfg != "" {
+			gadgetDir = s.makeGadgetCloudConfFile(c, t.gadgetCfg)
+		}
+
+		if t.grade == "" {
+			t.grade = "signed"
+		}
+		err := sysconfig.ConfigureTargetSystem(fake20Model(t.grade), &sysconfig.Options{
+			AllowCloudInit:  true,
+			TargetRootDir:   boot.InstallHostWritableDir,
+			CloudInitSrcDir: cloudCfgSrcDir,
+			GadgetDir:       gadgetDir,
+		})
+		c.Assert(err, IsNil, comment)
+
+		ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
+		for i, name := range seedSrcNames {
+			if t.resultCfgCopied[i] {
+				c.Check(filepath.Join(ubuntuDataCloudCfg, "90_"+name), testutil.FilePresent, comment)
+			} else {
+				c.Check(filepath.Join(ubuntuDataCloudCfg, "90_"+name), testutil.FileAbsent, comment)
+			}
+		}
+
+		if t.gadgetCfg != "" {
+			ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
+			c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileEquals, t.gadgetCfg)
+
+		}
+
+		// check the restrict file we should have installed in some cases too
+		restrictFile := filepath.Join(ubuntuDataCloudCfg, "99_snapd_datasource.yaml")
+		if t.expDsRestrictFileContents != "" {
+			c.Check(restrictFile, testutil.FileEquals, t.expDsRestrictFileContents, comment)
+		} else {
+			c.Check(restrictFile, testutil.FileAbsent, comment)
+		}
+
+		// make sure the disabled file is absent
+		ubuntuDataCloudDisabled := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud-init.disabled")
+		c.Check(ubuntuDataCloudDisabled, testutil.FileAbsent)
+
+		// need to clear this dir each time as it doesn't change for each
+		// iteration
+		c.Assert(os.RemoveAll(boot.InstallHostWritableDir), IsNil)
+	}
 }
 
 func (s *sysconfigSuite) TestInstallModeCloudInitDisallowedGradeSecuredDoesDisable(c *C) {
@@ -181,7 +487,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitDisallowedGradeSecuredDoesDisab
 }
 
 func (s *sysconfigSuite) TestInstallModeCloudInitAllowedGradeSecuredIgnoresSrcButDoesNotDisable(c *C) {
-	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
+	cloudCfgSrcDir, _ := s.makeCloudCfgSrcDirFiles(c)
 
 	err := sysconfig.ConfigureTargetSystem(fake20Model("secured"), &sysconfig.Options{
 		AllowCloudInit:  true,
@@ -206,7 +512,7 @@ func (s *sysconfigSuite) TestInstallModeCloudInitAllowedGradeSecuredIgnoresSrcBu
 // writable, but rather the host writable partition that will be used upon
 // reboot into run mode
 func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunMode(c *C) {
-	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
+	cloudCfgSrcDir, cfgFileNames := s.makeCloudCfgSrcDirFiles(c, "#cloud-config foo", "#cloud-config bar")
 
 	err := sysconfig.ConfigureTargetSystem(fake20Model("dangerous"), &sysconfig.Options{
 		AllowCloudInit:  true,
@@ -217,12 +523,12 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunMode(c *C) {
 
 	// and did copy the cloud-init files
 	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
-	c.Check(filepath.Join(ubuntuDataCloudCfg, "90_foo.cfg"), testutil.FileEquals, "foo.cfg config")
-	c.Check(filepath.Join(ubuntuDataCloudCfg, "90_bar.cfg"), testutil.FileEquals, "bar.cfg config")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "90_"+cfgFileNames[0]), testutil.FileEquals, "#cloud-config foo")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "90_"+cfgFileNames[1]), testutil.FileEquals, "#cloud-config bar")
 }
 
 func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadgetCloudConf(c *C) {
-	gadgetDir := s.makeGadgetCloudConfFile(c)
+	gadgetDir := s.makeGadgetCloudConfFile(c, "")
 	err := sysconfig.ConfigureTargetSystem(fake20Model("secured"), &sysconfig.Options{
 		AllowCloudInit: true,
 		GadgetDir:      gadgetDir,
@@ -232,12 +538,12 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadg
 
 	// and did copy the gadget cloud-init file
 	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
-	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileEquals, "#cloud-config gadget cloud config")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileEquals, "#cloud-config some gadget cloud config")
 }
 
 func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadgetCloudConfAlsoInstallsUbuntuSeedConfig(c *C) {
-	cloudCfgSrcDir := s.makeCloudCfgSrcDirFiles(c)
-	gadgetDir := s.makeGadgetCloudConfFile(c)
+	cloudCfgSrcDir, cfgFileNames := s.makeCloudCfgSrcDirFiles(c, "#cloud-config foo", "#cloud-config bar")
+	gadgetDir := s.makeGadgetCloudConfFile(c, "")
 
 	err := sysconfig.ConfigureTargetSystem(fake20Model("dangerous"), &sysconfig.Options{
 		AllowCloudInit:  true,
@@ -249,13 +555,13 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadg
 
 	// we did copy the gadget cloud-init file
 	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
-	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileEquals, "#cloud-config gadget cloud config")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileEquals, "#cloud-config some gadget cloud config")
 
 	// and we also copied the ubuntu-seed files with a new prefix such that they
 	// take precedence over the gadget file by being ordered lexically after the
 	// gadget file
-	c.Check(filepath.Join(ubuntuDataCloudCfg, "90_foo.cfg"), testutil.FileEquals, "foo.cfg config")
-	c.Check(filepath.Join(ubuntuDataCloudCfg, "90_bar.cfg"), testutil.FileEquals, "bar.cfg config")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "90_"+cfgFileNames[0]), testutil.FileEquals, "#cloud-config foo")
+	c.Check(filepath.Join(ubuntuDataCloudCfg, "90_"+cfgFileNames[1]), testutil.FileEquals, "#cloud-config bar")
 }
 
 func (s *sysconfigSuite) TestCloudInitStatusUnhappy(c *C) {
