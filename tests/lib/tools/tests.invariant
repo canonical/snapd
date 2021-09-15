@@ -122,6 +122,17 @@ check_leftover_defer_sh() {
 	fi
 }
 
+check_leftover_user_units() {
+	n="$1" # invariant name
+	systemctl list-units --state=running --user snap.* | grep snap. > "/tmp/tests.invariant.$n"
+	if [ -s "/tmp/tests.invariant.$n" ]; then
+		echo "tests.invariant: leftover user units running" >&2
+		cat "/tmp/tests.invariant.$n" >&2
+		return 1
+	fi
+}
+
+
 check_invariant() {
 	case "$1" in
 		root-files-in-home)
@@ -139,6 +150,9 @@ check_invariant() {
 		leftover-defer-sh)
 			check_leftover_defer_sh "$1"
 			;;
+		leftover_user_units)
+			check_leftover_user_units "$1"
+			;;
 		*)
 			echo "tests.invariant: unknown invariant $1" >&2
 			exit 1
@@ -147,7 +161,7 @@ check_invariant() {
 }
 
 main() {
-	ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon leftover-defer-sh"
+	ALL_INVARIANTS="root-files-in-home crashed-snap-confine lxcfs-mounted stray-dbus-daemon leftover-defer-sh leftover_user_units"
 
 	case "$action" in
 		check)
