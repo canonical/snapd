@@ -60,8 +60,9 @@ func (s *quotaControlSuite) SetUpTest(c *C) {
 	tr.Commit()
 
 	// mock that we have a new enough version of systemd by default
-	r := servicestate.MockSystemdVersion(248)
+	r := systemd.MockSystemdVersion(248, nil)
 	s.AddCleanup(r)
+	servicestate.CheckSystemdVersion()
 }
 
 type quotaGroupState struct {
@@ -176,15 +177,6 @@ func systemctlCallsForCreateQuota(groupName string, snapNames ...string) []expec
 	return calls
 }
 
-func systemctlCallsVersion(version int) []expectedSystemctl {
-	return []expectedSystemctl{
-		{
-			expArgs: []string{"--version"},
-			output:  fmt.Sprintf("systemd %d\n+FOO +BAR\n", version),
-		},
-	}
-}
-
 func join(calls ...[]expectedSystemctl) []expectedSystemctl {
 	fullCall := []expectedSystemctl{}
 	for _, call := range calls {
@@ -224,14 +216,13 @@ func (s *quotaControlSuite) TestCreateQuotaSystemdTooOld(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	r := s.mockSystemctlCalls(c, systemctlCallsVersion(229))
+	r := systemd.MockSystemdVersion(229, nil)
 	defer r()
 
-	err := servicestate.CheckSystemdVersion()
-	c.Assert(err, IsNil)
+	servicestate.CheckSystemdVersion()
 
-	_, err = servicestate.CreateQuota(s.state, "foo", "", nil, quantity.SizeGiB)
-	c.Assert(err, ErrorMatches, `systemd version too old: snap quotas requires systemd 230 and newer \(currently have 229\)`)
+	_, err := servicestate.CreateQuota(s.state, "foo", "", nil, quantity.SizeGiB)
+	c.Assert(err, ErrorMatches, `cannot use quotas with incompatible systemd: systemd version 229 is too old \(expected at least 230\)`)
 }
 
 func (s *quotaControlSuite) TestCreateQuotaPrecond(c *C) {

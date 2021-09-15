@@ -334,7 +334,7 @@ func setupSeed(tsto *ToolingStore, model *asserts.Model, opts *Options) error {
 	}
 
 	if opts.Customizations.Validation == "" && !opts.Classic {
-		fmt.Fprintf(Stderr, "WARNING: proceeding to download snaps ignoring validations, this default will change in the future. For now use --validation=enforce for validations to be taken into account, pass instead --validation=ignore to preserve current behavior going forward")
+		fmt.Fprintf(Stderr, "WARNING: proceeding to download snaps ignoring validations, this default will change in the future. For now use --validation=enforce for validations to be taken into account, pass instead --validation=ignore to preserve current behavior going forward\n")
 	}
 	if opts.Customizations.Validation == "" {
 		opts.Customizations.Validation = "ignore"

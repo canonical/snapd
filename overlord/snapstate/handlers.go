@@ -2289,6 +2289,10 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		return &state.Retry{After: 3 * time.Minute}
 	}
 	if len(snapst.Sequence) == 0 {
+		if err = m.backend.RemoveSnapMountUnits(snapsup.placeInfo(), nil); err != nil {
+			return err
+		}
+
 		if err := pruneRefreshCandidates(st, snapsup.InstanceName()); err != nil {
 			return err
 		}
@@ -3060,6 +3064,15 @@ func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) e
 	if err != nil {
 		return err
 	}
+
+	// update the map of refreshed snaps on the task, this affects
+	// conflict checks (we don't want to conflict on snaps that were held and
+	// won't be refreshed) -  see conditionalAutoRefreshAffectedSnaps().
+	newToUpdate := make(map[string]*refreshCandidate, len(snaps))
+	for _, candidate := range snaps {
+		newToUpdate[candidate.InstanceName()] = candidate
+	}
+	t.Set("snaps", newToUpdate)
 
 	// update original auto-refresh change
 	chg := t.Change()
