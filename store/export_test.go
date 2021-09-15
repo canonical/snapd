@@ -237,6 +237,14 @@ func MockRatelimitReader(f func(r io.Reader, bucket *ratelimit.Bucket) io.Reader
 	}
 }
 
+func MockRequestTimeout(d time.Duration) (restore func()) {
+	old := requestTimeout
+	requestTimeout = d
+	return func() {
+		requestTimeout = old
+	}
+}
+
 type (
 	ErrorListEntryJSON   = errorListEntry
 	SnapActionResultJSON = snapActionResult
