@@ -60,7 +60,7 @@ reset_classic() {
         umount "$dev"
     done
     # Make sure no junk in /tmp/snap.rootfs_*
-    rm -rf /tmp/snap.rootfs.*
+    rm -rf /tmp/snap.rootfs_*
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*)
