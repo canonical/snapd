@@ -839,7 +839,7 @@ func (s *sysconfigSuite) TestCloudDatasourcesInUseForDirInUse(c *C) {
 	}{
 		{
 			configFilesContents: map[string]string{
-				"maas.conf": `datasource_list: [MAAS]`,
+				"maas.cfg": `datasource_list: [MAAS]`,
 			},
 			expRes: &sysconfig.CloudDatasourcesInUseResult{
 				ExplicitlyAllowed: []string{"MAAS"},
@@ -849,8 +849,8 @@ func (s *sysconfigSuite) TestCloudDatasourcesInUseForDirInUse(c *C) {
 		},
 		{
 			configFilesContents: map[string]string{
-				"1_maas.conf": `datasource_list: [MAAS]`,
-				"2_none.conf": `datasource_list: []`,
+				"1_maas.cfg": `datasource_list: [MAAS]`,
+				"2_none.cfg": `datasource_list: []`,
 			},
 			expRes: &sysconfig.CloudDatasourcesInUseResult{
 				ExplicitlyNoneAllowed: true,
@@ -860,8 +860,8 @@ func (s *sysconfigSuite) TestCloudDatasourcesInUseForDirInUse(c *C) {
 		},
 		{
 			configFilesContents: map[string]string{
-				"1_none.conf": `datasource_list: []`,
-				"2_maas.conf": `datasource_list: [MAAS]`,
+				"1_none.cfg": `datasource_list: []`,
+				"2_maas.cfg": `datasource_list: [MAAS]`,
 			},
 			expRes: &sysconfig.CloudDatasourcesInUseResult{
 				ExplicitlyNoneAllowed: false,
@@ -872,7 +872,7 @@ func (s *sysconfigSuite) TestCloudDatasourcesInUseForDirInUse(c *C) {
 		},
 		{
 			configFilesContents: map[string]string{
-				"maas.conf": maasCloudInitImplicitYAML,
+				"maas.cfg": maasCloudInitImplicitYAML,
 			},
 			expRes: &sysconfig.CloudDatasourcesInUseResult{
 				Mentioned: []string{"MAAS"},
@@ -881,8 +881,8 @@ func (s *sysconfigSuite) TestCloudDatasourcesInUseForDirInUse(c *C) {
 		},
 		{
 			configFilesContents: map[string]string{
-				"1_gce.conf":  gceCloudInitImplicitYAML,
-				"2_maas.conf": maasCloudInitImplicitYAML,
+				"1_gce.cfg":  gceCloudInitImplicitYAML,
+				"2_maas.cfg": maasCloudInitImplicitYAML,
 			},
 			expRes: &sysconfig.CloudDatasourcesInUseResult{
 				Mentioned: []string{"GCE", "MAAS"},
@@ -891,8 +891,8 @@ func (s *sysconfigSuite) TestCloudDatasourcesInUseForDirInUse(c *C) {
 		},
 		{
 			configFilesContents: map[string]string{
-				"1_maas.conf": maasCloudInitImplicitYAML,
-				"2_gce.conf":  gceCloudInitImplicitYAML,
+				"1_maas.cfg": maasCloudInitImplicitYAML,
+				"2_gce.cfg":  gceCloudInitImplicitYAML,
 			},
 			expRes: &sysconfig.CloudDatasourcesInUseResult{
 				Mentioned: []string{"GCE", "MAAS"},
@@ -901,14 +901,40 @@ func (s *sysconfigSuite) TestCloudDatasourcesInUseForDirInUse(c *C) {
 		},
 		{
 			configFilesContents: map[string]string{
-				"maas.conf": `datasource_list: [MAAS]`,
-				"gce.conf":  gceCloudInitImplicitYAML,
+				"maas.cfg": `datasource_list: [MAAS]`,
+				"gce.cfg":  gceCloudInitImplicitYAML,
 			},
 			expRes: &sysconfig.CloudDatasourcesInUseResult{
 				ExplicitlyAllowed: []string{"MAAS"},
 				Mentioned:         []string{"GCE", "MAAS"},
 			},
 			comment: "implicit datasources and explicit datasource",
+		},
+		{
+			configFilesContents: map[string]string{},
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				ExplicitlyAllowed:     nil,
+				ExplicitlyNoneAllowed: false,
+				Mentioned:             nil,
+			},
+			comment: "no files means empty result",
+		},
+		{
+			configFilesContents: map[string]string{
+				"maas.conf": `datasource_list: [MAAS]`,
+			},
+			expRes:  &sysconfig.CloudDatasourcesInUseResult{},
+			comment: "only .cfg files are allowed",
+		},
+		{
+			configFilesContents: map[string]string{
+				"maas":    `datasource_list: [MAAS]`,
+				"gce.cfg": gceCloudInitImplicitYAML,
+			},
+			expRes: &sysconfig.CloudDatasourcesInUseResult{
+				Mentioned: []string{"GCE"},
+			},
+			comment: "with .cfg and non-.cfg files, only .cfg files are allowed",
 		},
 	}
 

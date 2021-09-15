@@ -274,14 +274,14 @@ func cloudDatasourcesInUse(configFile string) (*cloudDatasourcesInUseResult, err
 // other hand, a file processed later sets datasource_list: [foo], then foo is
 // used instead and the explicit disallowing is ignored/overwritten.
 func cloudDatasourcesInUseForDir(dir string) (*cloudDatasourcesInUseResult, error) {
-
-	files, err := filepath.Glob(filepath.Join(dir, "*"))
+	// cloud-init only considers files with file extension .cfg so we do too.
+	files, err := filepath.Glob(filepath.Join(dir, "*.cfg"))
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO: validate that this is the same order in which files are processed
-	// by cloud-init in reality
+	// sort the filenames so they are in lexographical order - this is the same
+	// order that cloud-init processes them
 	sort.Strings(files)
 
 	res := &cloudDatasourcesInUseResult{}
