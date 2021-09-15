@@ -740,6 +740,12 @@ restore_suite() {
 }
 
 restore_project_each() {
+    $STRAY_TASKS=$(cat /var/lib/snapd/state.json | jq '.tasks[] | select (.change == "") | {"id":.id,"summary":.summary,"kind":.kind}')
+    if [ $(echo "$STRAY_TASKS" | wc -l) -gt 0 ]; then
+        echo "$STRAY_TASKS"
+        exit 1
+    fi
+
     "$TESTSTOOLS"/cleanup-state pre-invariant
     # Check for invariants early, in order not to mask bugs in tests.
     tests.invariant check
