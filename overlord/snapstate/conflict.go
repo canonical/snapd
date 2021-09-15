@@ -37,7 +37,7 @@ type ChangeConflictError struct {
 	ChangeKind string
 	// a Message is optional, otherwise one is composed from the other information
 	Message string
-	// ChangeID is the ID of the change with which the operation conflicts
+	// ChangeID can optionally be set to the ID of the change with which the operation conflicts
 	ChangeID string
 }
 
