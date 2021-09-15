@@ -53,7 +53,14 @@ reset_classic() {
         ls -lR "$SNAP_MOUNT_DIR"/ /var/snap/
         exit 1
     fi
+
+    # Make sure no junk in /tmp/snap.rootfs_*
     rm -rf /tmp/snap.*
+    # Umount any device that could be still mounted
+    for rootfsdir in /tmp/snap.rootfs.*; do
+        dev="$(mount | grep "$rootfsdir" | awk '{print $1}')"
+        umount "$dev"
+    done
 
     case "$SPREAD_SYSTEM" in
         fedora-*|centos-*)
