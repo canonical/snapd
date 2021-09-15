@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
-	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -1734,10 +1733,7 @@ func (s *snapmgrTestSuite) TestRemoveKeepsGatingDataIfNotLastRevision(c *C) {
 }
 
 type validationSetsSuite struct {
-	testutil.BaseTest
-	state        *state.State
-	fakeStore    *fakeStore
-	fakeBackend  *fakeSnappyBackend
+	snapmgrTestSuite
 	storeSigning *assertstest.StoreStack
 	dev1acct     *asserts.Account
 	acct1Key     *asserts.AccountKey
@@ -1747,18 +1743,7 @@ type validationSetsSuite struct {
 var _ = Suite(&validationSetsSuite{})
 
 func (s *validationSetsSuite) SetUpTest(c *C) {
-	s.BaseTest.SetUpTest(c)
-	dirs.SetRootDir(c.MkDir())
-	s.state = state.New(nil)
-
-	r := snapstatetest.MockDeviceModel(DefaultModel())
-	s.AddCleanup(r)
-
-	s.fakeBackend = &fakeSnappyBackend{}
-	s.fakeStore = &fakeStore{
-		fakeBackend: s.fakeBackend,
-		state:       s.state,
-	}
+	s.snapmgrTestSuite.SetUpTest(c)
 
 	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
 	s.dev1acct = assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
@@ -1767,22 +1752,6 @@ func (s *validationSetsSuite) SetUpTest(c *C) {
 	s.acct1Key = assertstest.NewAccountKey(s.storeSigning, s.dev1acct, nil, dev1PrivKey.PublicKey(), "")
 	s.dev1Signing = assertstest.NewSigningDB(s.dev1acct.AccountID(), dev1PrivKey)
 	c.Assert(s.storeSigning.Add(s.acct1Key), IsNil)
-
-	oldAutomaticSnapshot := snapstate.AutomaticSnapshot
-	snapstate.AutomaticSnapshot = func(st *state.State, instanceName string) (ts *state.TaskSet, err error) {
-		task := st.NewTask("save-snapshot", "...")
-		ts = state.NewTaskSet(task)
-		return ts, nil
-	}
-	s.AddCleanup(func() {
-		snapstate.AutomaticSnapshot = oldAutomaticSnapshot
-	})
-
-	s.state.Lock()
-	defer s.state.Unlock()
-	snapstate.ReplaceStore(s.state, s.fakeStore)
-	s.state.Set("seeded", true)
-	s.state.Set("refresh-privacy-key", "privacy-key")
 }
 
 func (s *validationSetsSuite) mockValidationSetAssert(c *C, name, sequence string, snaps ...interface{}) asserts.Assertion {

@@ -3909,12 +3909,7 @@ func (s *validationSetsSuite) TestInstallManyRequiredRevisionForValidationSetOK(
 	c.Assert(s.fakeBackend.ops[1:], DeepEquals, expectedOps)
 }
 
-func (s *validationSetsSuite) TestInstallSnapRequiredByValidationSetWithBase(c *C) {
-	r := release.MockOnClassic(false)
-	defer r()
-
-	makeInstalledMockCoreSnap(c)
-
+func (s *validationSetsSuite) testInstallSnapRequiredByValidationSetWithBase(c *C, presenceForBase string) error {
 	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
 		vs := snapasserts.NewValidationSets()
 		someSnap := map[string]interface{}{
@@ -3922,7 +3917,13 @@ func (s *validationSetsSuite) TestInstallSnapRequiredByValidationSetWithBase(c *
 			"name":     "some-snap-with-base",
 			"presence": "required",
 		}
-		vsa1 := s.mockValidationSetAssert(c, "bar", "1", someSnap)
+		// base snap is invalid
+		someBase := map[string]interface{}{
+			"id":       "aOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+			"name":     "some-base",
+			"presence": presenceForBase,
+		}
+		vsa1 := s.mockValidationSetAssert(c, "bar", "1", someSnap, someBase)
 		vs.Add(vsa1.(*asserts.ValidationSet))
 		return vs, nil
 	})
@@ -3952,6 +3953,17 @@ func (s *validationSetsSuite) TestInstallSnapRequiredByValidationSetWithBase(c *
 
 	s.state.Lock()
 	defer s.state.Unlock()
-	c.Check(chg.Status(), Equals, state.DoneStatus)
-	fmt.Printf("%v", chg.Err())
+
+	return chg.Err()
+}
+
+func (s *validationSetsSuite) TestInstallSnapRequiredByValidationSetWithInvalidBase(c *C) {
+	err := s.testInstallSnapRequiredByValidationSetWithBase(c, "invalid")
+	c.Check(err, ErrorMatches, `cannot perform the following tasks:
+.*Ensure prerequisites for "some-snap-with-base" are available \(cannot install snap base "some-base": cannot install snap "some-base" due to enforcing rules of validation set foo/bar\)`)
+}
+
+func (s *validationSetsSuite) TestInstallSnapRequiredByValidationSetWithRequiredBase(c *C) {
+	err := s.testInstallSnapRequiredByValidationSetWithBase(c, "required")
+	c.Check(err, IsNil)
 }
