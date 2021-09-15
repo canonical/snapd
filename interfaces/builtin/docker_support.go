@@ -211,6 +211,20 @@ ptrace (read, trace) peer=cri-containerd.apparmor.d,
 # what docker tries to use
 # see https://bugs.launchpad.net/snapd/+bug/1867216
 unix (bind) type=dgram,
+
+dbus (send)
+     bus=system
+     path=/org/freedesktop/systemd1
+     interface=org.freedesktop.systemd1.Manager
+     member="{StartTransientUnit,StopUnit,ResetFailedUnit,SetUnitProperties}"
+     peer=(name="org.freedesktop.systemd1"),
+
+dbus (receive)
+    bus=system
+    path=/org/freedesktop/systemd1
+    interface=org.freedesktop.systemd1.Manager
+    member=JobRemoved
+    peer=(label=unconfined),
 `
 
 const dockerSupportConnectedPlugSecComp = `
