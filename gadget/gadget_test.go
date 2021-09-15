@@ -671,11 +671,13 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 		},
 		Volumes: map[string]*gadget.Volume{
 			"volumename": {
+				VolumeName: "volumename",
 				Schema:     "mbr",
 				Bootloader: "u-boot",
 				ID:         "0C",
 				Structure: []gadget.VolumeStructure{
 					{
+						VolumeName:  "volumename",
 						Label:       "system-boot",
 						Role:        "system-boot", // implicit
 						Offset:      asOffsetPtr(12345),
@@ -712,10 +714,12 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Volumes: map[string]*gadget.Volume{
 			"frobinator-image": {
+				VolumeName: "frobinator-image",
 				Schema:     "mbr",
 				Bootloader: "u-boot",
 				Structure: []gadget.VolumeStructure{
 					{
+						VolumeName: "frobinator-image",
 						Name:       "system-boot",
 						Role:       "system-boot",
 						Label:      "system-boot",
@@ -730,6 +734,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 						},
 					},
 					{
+						VolumeName: "frobinator-image",
 						Role:       "system-data",
 						Name:       "writable",
 						Label:      "writable",
@@ -740,13 +745,15 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 				},
 			},
 			"u-boot-frobinator": {
-				Schema: "gpt",
+				VolumeName: "u-boot-frobinator",
+				Schema:     "gpt",
 				Structure: []gadget.VolumeStructure{
 					{
-						Name:   "u-boot",
-						Type:   "bare",
-						Size:   623000,
-						Offset: asOffsetPtr(0),
+						VolumeName: "u-boot-frobinator",
+						Name:       "u-boot",
+						Type:       "bare",
+						Size:       623000,
+						Offset:     asOffsetPtr(0),
 						Content: []gadget.VolumeContent{
 							{
 								Image: "u-boot.imz",
@@ -846,11 +853,13 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Volumes: map[string]*gadget.Volume{
 			"bootloader": {
+				VolumeName: "bootloader",
 				Schema:     "mbr",
 				Bootloader: "u-boot",
 				ID:         "0C",
 				Structure: []gadget.VolumeStructure{
 					{
+						VolumeName:  "bootloader",
 						Label:       "system-boot",
 						Role:        "system-boot", // implicit
 						Offset:      asOffsetPtr(12345),
@@ -2169,6 +2178,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileValid(c *C) {
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Volumes: map[string]*gadget.Volume{
 			"pc": {
+				VolumeName: "pc",
 				Bootloader: "grub",
 				Schema:     "gpt",
 			},

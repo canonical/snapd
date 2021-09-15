@@ -791,6 +791,7 @@ func (s *deviceMgrGadgetSuite) TestCurrentAndUpdateInfo(c *C) {
 		Info: &gadget.Info{
 			Volumes: map[string]*gadget.Volume{
 				"pc": {
+					VolumeName: "pc",
 					Bootloader: "grub",
 					Schema:     "gpt",
 				},
@@ -826,6 +827,7 @@ volumes:
 		Info: &gadget.Info{
 			Volumes: map[string]*gadget.Volume{
 				"pc": {
+					VolumeName: "pc",
 					Bootloader: "grub",
 					Schema:     "gpt",
 					ID:         "123",

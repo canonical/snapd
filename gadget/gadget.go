@@ -112,12 +112,16 @@ type Volume struct {
 	ID string `yaml:"id"`
 	// Structure describes the structures that are part of the volume
 	Structure []VolumeStructure `yaml:"structure"`
+	// VolumeName is the name of the volume from the gadget.yaml
+	VolumeName string
 }
 
 // VolumeStructure describes a single structure inside a volume. A structure can
 // represent a partition, Master Boot Record, or any other contiguous range
 // within the volume.
 type VolumeStructure struct {
+	// VolumeName is the name of the volume that this structure belongs to.
+	VolumeName string
 	// Name, when non empty, provides the name of the structure
 	Name string `yaml:"name"`
 	// Label provides the filesystem label
@@ -339,6 +343,8 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 	var bootloadersFound int
 	knownFsLabelsPerVolume := make(map[string]map[string]bool, len(gi.Volumes))
 	for name, v := range gi.Volumes {
+		// set the VolumeName for the volume
+		v.VolumeName = name
 		if err := validateVolume(name, v, knownFsLabelsPerVolume); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
@@ -393,6 +399,8 @@ func setImplicitForVolume(vol *Volume, model Model, knownFsLabels map[string]boo
 		vol.Schema = schemaGPT
 	}
 	for i := range vol.Structure {
+		// set the VolumeName for the structure from the volume itself
+		vol.Structure[i].VolumeName = vol.VolumeName
 		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs, knownFsLabels); err != nil {
 			return err
 		}
