@@ -101,7 +101,7 @@ func (m *extMutex) Taken(errMsg string) {
 
 // MockNewSystemd can be used to replace the constructor of the
 // Systemd types with a function that returns a mock object.
-func MockNewSystemd(f func(kind Kind, rootDir string, mode InstanceMode, rep Reporter) Systemd) func() {
+func MockNewSystemd(f func(be Backend, rootDir string, mode InstanceMode, rep Reporter) Systemd) func() {
 	oldNewSystemd := newSystemd
 	newSystemd = f
 	return func() {
@@ -272,8 +272,22 @@ type MountUnitOptions struct {
 	Origin   string
 }
 
+// Backend identifies the implementation backend in use by a Systemd instance.
+type Backend int
+
+const (
+	// RunningSystemdBackend identifies the implementation backend
+	// talking to the running system systemd daemon.
+	RunningSystemdBackend Backend = iota
+	// EmulationModeBackend identifies the implementation backend
+	// emulating a subset of systemd agains a filesystem.
+	EmulationModeBackend
+)
+
 // Systemd exposes a minimal interface to manage systemd via the systemctl command.
 type Systemd interface {
+	// Backend returns the underlying implementation backend.
+	Backend() Backend
 	// DaemonReload reloads systemd's configuration.
 	DaemonReload() error
 	// DaemonRexec reexecutes systemd's system manager, should be
@@ -385,26 +399,26 @@ type Reporter interface {
 	Notify(string)
 }
 
-func newSystemdReal(kind Kind, rootDir string, mode InstanceMode, rep Reporter) Systemd {
-	switch kind {
-	case FullImplementation:
+func newSystemdReal(be Backend, rootDir string, mode InstanceMode, rep Reporter) Systemd {
+	switch be {
+	case RunningSystemdBackend:
 		return &systemd{rootDir: rootDir, mode: mode, reporter: rep}
-	case EmulationMode:
+	case EmulationModeBackend:
 		return &emulation{rootDir: rootDir}
 	default:
-		panic(fmt.Sprintf("unsupported systemd kind %v", kind))
+		panic(fmt.Sprintf("unsupported systemd backend %v", be))
 	}
 }
 
 // New returns a Systemd that uses the default root directory and omits
 // --root argument when executing systemctl.
 func New(mode InstanceMode, rep Reporter) Systemd {
-	return newSystemd(FullImplementation, "", mode, rep)
+	return newSystemd(RunningSystemdBackend, "", mode, rep)
 }
 
 // NewUnderRoot returns a Systemd that operates on the given rootdir.
 func NewUnderRoot(rootDir string, mode InstanceMode, rep Reporter) Systemd {
-	return newSystemd(FullImplementation, rootDir, mode, rep)
+	return newSystemd(RunningSystemdBackend, rootDir, mode, rep)
 }
 
 // NewEmulationMode returns a Systemd that runs in emulation mode where
@@ -414,7 +428,7 @@ func NewEmulationMode(rootDir string) Systemd {
 	if rootDir == "" {
 		rootDir = dirs.GlobalRootDir
 	}
-	return newSystemd(EmulationMode, rootDir, SystemMode, nil)
+	return newSystemd(EmulationModeBackend, rootDir, SystemMode, nil)
 }
 
 // InstanceMode determines which instance of systemd to control.
@@ -435,13 +449,6 @@ const (
 	GlobalUserMode
 )
 
-type Kind int
-
-const (
-	FullImplementation Kind = iota
-	EmulationMode
-)
-
 type systemd struct {
 	rootDir  string
 	reporter Reporter
@@ -459,6 +466,10 @@ func (s *systemd) systemctl(args ...string) ([]byte, error) {
 		panic("unknown InstanceMode")
 	}
 	return systemctlCmd(args...)
+}
+
+func (s *systemd) Backend() Backend {
+	return RunningSystemdBackend
 }
 
 func (s *systemd) DaemonReload() error {
