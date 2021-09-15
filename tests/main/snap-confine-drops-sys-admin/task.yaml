@@ -17,8 +17,10 @@ prepare: |
 
     echo "Compile and prepare the support program"
     # Because we use the snap data directory we don't need to clean it up
-    # manually as all snaps and their data are reset after each test.
-    gcc -Wall -Wextra -Werror ./has-sys-admin.c -lcap -o "$P/has-sys-admin"
+    # manually as all snaps and their data are reset after each test. Build the
+    # binary statically, such that it can execute regardless of an older glibc
+    # in the base snap.
+    gcc -Wall -Wextra -Werror -static ./has-sys-admin.c -lcap -o "$P/has-sys-admin"
 
 execute: |
     echo "The test executables files have the expected mode and ownership"
