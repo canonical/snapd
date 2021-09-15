@@ -1005,6 +1005,7 @@ func (s *deviceMgrRemodelSuite) TestReregRemodelClashAnyChange(c *C) {
 	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
 		ChangeKind: "chg",
 		Message:    `other changes in progress (conflicting change "chg"), change "remodel" not allowed until they are done`,
+		ChangeID:   chg.ID(),
 	})
 }
 
