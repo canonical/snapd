@@ -3908,3 +3908,50 @@ func (s *validationSetsSuite) TestInstallManyRequiredRevisionForValidationSetOK(
 	}}
 	c.Assert(s.fakeBackend.ops[1:], DeepEquals, expectedOps)
 }
+
+func (s *validationSetsSuite) TestInstallSnapRequiredByValidationSetWithBase(c *C) {
+	r := release.MockOnClassic(false)
+	defer r()
+
+	makeInstalledMockCoreSnap(c)
+
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		vs := snapasserts.NewValidationSets()
+		someSnap := map[string]interface{}{
+			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+			"name":     "some-snap-with-base",
+			"presence": "required",
+		}
+		vsa1 := s.mockValidationSetAssert(c, "bar", "1", someSnap)
+		vs.Add(vsa1.(*asserts.ValidationSet))
+		return vs, nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	tr := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+	}
+	assertstate.UpdateValidationSet(s.state, &tr)
+
+	ts, err := snapstate.Install(context.Background(), s.state, "some-snap-with-base", &snapstate.RevisionOptions{Channel: "channel-for-base/stable"}, 0, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg := s.state.NewChange("install", "...")
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.state.Lock()
+	defer s.se.Stop()
+	err = s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
+	c.Assert(err, IsNil)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Check(chg.Status(), Equals, state.DoneStatus)
+	fmt.Printf("%v", chg.Err())
+}
