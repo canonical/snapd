@@ -644,7 +644,7 @@ func configureCloudInit(model *asserts.Model, opts *Options) (err error) {
 	// used by cloud-init to that which we allowed above, which we know is
 	// non-nil and actually resulted in some files being installed
 	yaml := []byte(fmt.Sprintf(genericCloudRestrictYamlPattern, strings.Join(installOpts.AllowedDatasources, ",")))
-	restrictFile := filepath.Join(ubuntuDataCloudDir(WritableDefaultsDir(opts.TargetRootDir)), "cloud.cfg.d/99_snapd_datasource.yaml")
+		restrictFile := filepath.Join(ubuntuDataCloudDir(WritableDefaultsDir(opts.TargetRootDir)), "cloud.cfg.d/99_snapd_datasource.cfg")
 	return ioutil.WriteFile(restrictFile, yaml, 0644)
 }
 

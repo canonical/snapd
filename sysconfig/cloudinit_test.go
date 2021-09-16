@@ -458,7 +458,7 @@ datasource:
 		}
 
 		// check the restrict file we should have installed in some cases too
-		restrictFile := filepath.Join(ubuntuDataCloudCfg, "99_snapd_datasource.yaml")
+		restrictFile := filepath.Join(ubuntuDataCloudCfg, "99_snapd_datasource.cfg")
 		if t.expDsRestrictFileContents != "" {
 			c.Check(restrictFile, testutil.FileEquals, t.expDsRestrictFileContents, comment)
 		} else {
