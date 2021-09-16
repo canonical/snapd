@@ -7,17 +7,11 @@ restore: |
     kill %1 || true
 
 execute: |
-    wait_for_remove_state(){
-        local state=$1
-        local expected="(?s)$state.*?Remove \"test-snapd-tools\" snap"
-        while ! snap changes | grep -Pq "$expected"; do sleep 1; done
-    }
-
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB"/systemd.sh
 
     echo "Given a snap is installed"
-    "$TESTSTOOLS"/snaps-state install-local test-snapd-tools
+    snap install test-snapd-tools
 
     echo "And its mount point is kept busy"
     # we need a marker file, because just using systemd to figure out
@@ -35,10 +29,15 @@ execute: |
     snap remove --purge test-snapd-tools &
 
     echo "Then the remove retry succeeds"
-    wait_for_remove_state Done
+    retry -n 60 --wait 1 sh -c "snap changes | grep -Pq 'Done.*Remove \"test-snapd-tools\" snap'"
 
     echo "And the snap is removed"
     retry -n 30 --wait 1 sh -c 'snap list | NOMATCH test-snapd-tools'
 
     # cleanup umount blocker
     systemctl stop unmount-blocker
+
+    # clean the scope units created
+    for scope in $(systemctl list-units --state=running --type=scope --user snap.* | grep "\.scope" | awk '{ print $1}'); do
+        systemctl stop --user "$scope"
+    done
