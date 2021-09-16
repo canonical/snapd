@@ -499,7 +499,7 @@ func (v *ValidationSets) CheckPresenceRequired(snapRef naming.SnapRef) ([]string
 			if vs == nil {
 				return nil, unspecifiedRevision, fmt.Errorf("internal error: no validation set for %q", rc.validationSetKey)
 			}
-			keys = append(keys, strings.Join(vs.At().PrimaryKey, "/"))
+			keys = append(keys, strings.Join(vs.Ref().PrimaryKey, "/"))
 			// there may be constraints without revision; only set snapRev if
 			// it wasn't already determined. Note that if revisions are set,
 			// then they are the same, otherwise validation sets would be in
@@ -535,7 +535,7 @@ func (v *ValidationSets) CheckPresenceInvalid(snapRef naming.SnapRef) ([]string,
 				if vs == nil {
 					return nil, fmt.Errorf("internal error: no validation set for %q", rc.validationSetKey)
 				}
-				keys = append(keys, strings.Join(vs.At().PrimaryKey, "/"))
+				keys = append(keys, strings.Join(vs.Ref().PrimaryKey, "/"))
 			}
 		}
 	}
