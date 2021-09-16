@@ -35,17 +35,13 @@ const snapThemesControlBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-type snapThemesControlInterface struct {
-	commonInterface
-}
-
 func init() {
-	registerIface(&snapThemesControlInterface{commonInterface{
+	registerIface(&commonInterface{
 		name:                 "snap-themes-control",
 		summary:              snapThemesControlSummary,
 		implicitOnCore:       true,
 		implicitOnClassic:    true,
 		baseDeclarationPlugs: snapThemesControlBaseDeclarationPlugs,
 		baseDeclarationSlots: snapThemesControlBaseDeclarationSlots,
-	}})
+	})
 }
