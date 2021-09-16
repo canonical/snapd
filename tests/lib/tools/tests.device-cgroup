@@ -76,7 +76,10 @@ def device_change_v1(snap_app, allow, kind, major_minor):
 
 
 class DeviceCgroupV2Key(ctypes.Structure):
-    """A class representing v2 device cgroup key entry, which is 9 bytes long"""
+    """A class representing v2 device cgroup key entry, which is 9 bytes long. The
+    fields must match sc_cgroup_v2_device_key defined in
+    cmd/snap-confine/device-cgroup-support.c
+    """
 
     # UINT32_MAX
     DEVICE_MINOR_ANY = 0xFFFFFFFF
@@ -129,8 +132,10 @@ def dump_v2(snap_app):
             )
         raw = bytearray([int(v, 16) for v in raw_key])
         key = DeviceCgroupV2Key.from_buffer(raw)
-        # in cgroup v1 format, minor can be either the actual value, or a
-        # special value '*' which represents any minor number
+        # when dumping a cgroup v1 format, the minor number can be presented as
+        # either the actual value, or a special value '*' which represents any
+        # minor number, make sure we present the v2 minor number in the same
+        # format as well
         minor = key.minor
         if minor == DeviceCgroupV2Key.DEVICE_MINOR_ANY:
             minor = "*"
