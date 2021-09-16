@@ -568,7 +568,7 @@ func configureCloudInit(model *asserts.Model, opts *Options) (err error) {
 			}
 
 		case len(gadgetDatasourcesRes.Mentioned) != 0:
-			// allow the intersection of what the gadget explicitly allows, what
+			// allow the intersection of what the gadget mentions, what
 			// ubuntu-seed either explicitly allows (or what it mentions), and
 			// what we statically support
 
