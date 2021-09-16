@@ -29,6 +29,7 @@ var (
 	UpdateSnapstateServices  = updateSnapstateServices
 	CheckSystemdVersion      = checkSystemdVersion
 	QuotaStateAlreadyUpdated = quotaStateAlreadyUpdated
+	ServiceControlTs         = serviceControlTs
 )
 
 type QuotaStateUpdated = quotaStateUpdated
