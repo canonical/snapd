@@ -264,6 +264,11 @@ plugs:
 	ucred = &daemon.Ucrednet{Uid: 1000, Pid: 1001, Socket: "unknown.socket"}
 	c.Check(ac.CheckAccess(d, nil, ucred, nil), DeepEquals, errForbidden)
 
+	// Access from pids that cannot be mapped to a snap on
+	// snapd-snap.socket are rejected
+	ucred = &daemon.Ucrednet{Uid: 1000, Pid: 1001, Socket: dirs.SnapSocket}
+	c.Check(ac.CheckAccess(d, nil, ucred, nil), DeepEquals, daemon.Forbidden("could not determine snap name for pid: not a snap"))
+
 	// Access from snapd-snap.socket is rejected by default
 	ucred = &daemon.Ucrednet{Uid: 1000, Pid: 42, Socket: dirs.SnapSocket}
 	c.Check(ac.CheckAccess(d, nil, ucred, nil), DeepEquals, errForbidden)
@@ -281,10 +286,16 @@ plugs:
 	// Access is allowed now that the snap has the plug connected
 	c.Check(ac.CheckAccess(s.d, nil, ucred, nil), IsNil)
 
-	// Access from pids that cannot be mapped to a snap on
-	// snapd-snap.socket are rejected
-	ucred = &daemon.Ucrednet{Uid: 1000, Pid: 1001, Socket: dirs.SnapSocket}
-	c.Check(ac.CheckAccess(d, nil, ucred, nil), DeepEquals, daemon.Forbidden("could not determine snap name for pid: not a snap"))
+	// A left over "undesired" connection does not grant access
+	st.Lock()
+	st.Set("conns", map[string]interface{}{
+		"some-snap:snap-themes-control core:snap-themes-control": map[string]interface{}{
+			"interface": "snap-themes-control",
+			"undesired": true,
+		},
+	})
+	st.Unlock()
+	c.Check(ac.CheckAccess(d, nil, ucred, nil), DeepEquals, errForbidden)
 }
 
 func (s *accessSuite) TestThemesOpenAccess(c *C) {
