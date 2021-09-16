@@ -280,7 +280,7 @@ const (
 	// talking to the running system systemd daemon.
 	RunningSystemdBackend Backend = iota
 	// EmulationModeBackend identifies the implementation backend
-	// emulating a subset of systemd agains a filesystem.
+	// emulating a subset of systemd against a filesystem.
 	EmulationModeBackend
 )
 
