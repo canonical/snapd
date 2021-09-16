@@ -11,7 +11,7 @@ description: |
 adopt-info: snapd-deb
 # build-base is needed here for snapcraft to build this snap as with "modern"
 # snapcraft
-build-base: core
+build-base: core20
 grade: stable
 license: GPL-3.0
 
@@ -28,8 +28,12 @@ license: GPL-3.0
 parts:
   snapd-deb:
     plugin: nil
-    source: .
-    build-snaps: [go/1.13/stable]
+    source-type: git
+    source: https://git.launchpad.net/snapd
+    source-branch: master
+    build-snaps:
+      on riscv64: [go/1.16/stable]
+      else: [go/1.13/stable]
     override-pull: |
       snapcraftctl pull
       # Ensure that ./debian/ packaging which we are about to use
@@ -116,7 +120,7 @@ parts:
     build-packages: [python3-apt]
     source: https://github.com/snapcore/fc-cache-static-builder.git
     override-build: |
-      ./build-from-security.py xenial
+      [ "$(uname -m)" = "riscv64" ] && cp /bin/true fc-cache-xenial || ./build-from-security.py xenial
       mkdir -p $SNAPCRAFT_PART_INSTALL/bin
       cp -a fc-cache-xenial $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v6
     prime:
@@ -127,7 +131,7 @@ parts:
     build-packages: [python3-apt]
     source: https://github.com/snapcore/fc-cache-static-builder.git
     override-build: |
-      ./build-from-security.py bionic
+      [ "$(uname -m)" = "riscv64" ] && cp /bin/true fc-cache-bionic || ./build-from-security.py bionic
       mkdir -p $SNAPCRAFT_PART_INSTALL/bin
       cp -a fc-cache-bionic $SNAPCRAFT_PART_INSTALL/bin/fc-cache-v7
     prime:
