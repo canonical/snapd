@@ -21,6 +21,7 @@ package assertstate
 
 import (
 	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -79,4 +80,25 @@ func doFetch(s *state.State, userID int, deviceCtx snapstate.DeviceContext, fetc
 	// (but try to save as much possible still),
 	// or err is a check error
 	return b.CommitTo(db, nil)
+}
+
+// InstalledSnaps returns the list of all installed snaps suitable for
+// ValidationSets checks.
+func InstalledSnaps(st *state.State) ([]*snapasserts.InstalledSnap, error) {
+	var snaps []*snapasserts.InstalledSnap
+	all, err := snapstate.All(st)
+	if err != nil {
+		return nil, err
+	}
+	for _, snapState := range all {
+		cur, err := snapState.CurrentInfo()
+		if err != nil {
+			return nil, err
+		}
+		snaps = append(snaps,
+			snapasserts.NewInstalledSnap(snapState.InstanceName(),
+				snapState.CurrentSideInfo().SnapID,
+				cur.Revision))
+	}
+	return snaps, nil
 }

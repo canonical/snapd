@@ -2550,6 +2550,15 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeHappyNot
 	s.state.Lock()
 	defer s.state.Unlock()
 
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "foo", Revision: snap.R(1), SnapID: "qOqKhntON3vR7kwEbVPsILm7bUViPDzz"}},
+		Current:  snap.R(1),
+	})
+	snaptest.MockSnap(c, string(`name: foo
+version: 1`), &snap.SideInfo{
+		Revision: snap.R("1")})
+
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
 	err := s.storeSigning.Add(storeAs)
@@ -2624,6 +2633,14 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeHappyNot
 func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeHappyPinned(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
+
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "foo", Revision: snap.R(1), SnapID: "qOqKhntON3vR7kwEbVPsILm7bUViPDzz"}},
+		Current:  snap.R(1),
+	})
+	snaptest.MockSnap(c, string(`name: foo
+version: 1`), &snap.SideInfo{Revision: snap.R("1")})
 
 	// have a model and the store assertion available
 	storeAs := s.setupModelAndStore(c)
@@ -2719,6 +2736,69 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeConflict
 
 	c.Assert(assertstate.RefreshValidationSetAssertions(s.state, 0, nil), IsNil)
 	c.Assert(logbuf.String(), Matches, `.*cannot refresh to conflicting validation set assertions: validation sets are in conflict:\n- cannot constrain snap "foo" as both invalid .* and required at revision 1.*\n`)
+
+	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "foo",
+		"sequence":   "1",
+	})
+	c.Assert(err, IsNil)
+	c.Check(a.(*asserts.ValidationSet).Name(), Equals, "foo")
+	c.Check(a.Revision(), Equals, 1)
+
+	// new assertion wasn't committed to the database.
+	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "foo",
+		"sequence":   "2",
+	})
+	c.Assert(asserts.IsNotFound(err), Equals, true)
+
+	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+		{"account", "account-key", "validation-set"},
+	})
+
+	// tracking current wasn't updated
+	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "foo", &tr), IsNil)
+	c.Check(tr.Current, Equals, 1)
+}
+
+func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeMissingSnap(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	logbuf, restore := logger.MockLogger()
+	defer restore()
+
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	err := s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	// store key already present
+	c.Assert(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")), IsNil)
+	c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
+
+	vsetAs1 := s.validationSetAssert(c, "foo", "1", "1", "optional")
+	c.Assert(assertstate.Add(s.state, vsetAs1), IsNil)
+
+	// in the store
+	vsetAs3 := s.validationSetAssert(c, "foo", "2", "2", "required")
+	c.Assert(s.storeSigning.Add(vsetAs3), IsNil)
+
+	tr := assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "foo",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+	}
+	assertstate.UpdateValidationSet(s.state, &tr)
+
+	c.Assert(assertstate.RefreshValidationSetAssertions(s.state, 0, nil), IsNil)
+	c.Assert(logbuf.String(), Matches, `.*cannot refresh to validation set assertions that do not satisfy installed snaps: validation sets assertions are not met:\n- missing required snaps:\n  - foo \(required by sets .*/foo\)\n`)
 
 	a, err := assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
 		"series":     "16",
@@ -3174,4 +3254,29 @@ func (s *assertMgrSuite) TestTemporaryDB(c *C) {
 	fromDB, err := assertstate.DB(st).Find(asserts.ModelType, hdrs)
 	c.Assert(err, IsNil)
 	c.Assert(fromDB.(*asserts.Model), DeepEquals, model)
+}
+
+func (s *assertMgrSuite) TestInstalledSnaps(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	snaps, err := assertstate.InstalledSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 0)
+
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "foo", Revision: snap.R(23), SnapID: "foo-id"}},
+		Current:  snap.R(23),
+	})
+	snaptest.MockSnap(c, string(`name: foo
+version: 1`), &snap.SideInfo{Revision: snap.R("13")})
+
+	snaps, err = assertstate.InstalledSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 1)
+	c.Check(snaps[0].SnapName(), Equals, "foo")
+	c.Check(snaps[0].ID(), Equals, "foo-id")
+	c.Check(snaps[0].Revision, Equals, snap.R("23"))
 }
