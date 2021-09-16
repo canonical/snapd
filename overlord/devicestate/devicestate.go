@@ -235,7 +235,7 @@ func delayedCrossMgrInit() {
 	snapstate.CanManageRefreshes = CanManageRefreshes
 	snapstate.IsOnMeteredConnection = netutil.IsOnMeteredConnection
 	snapstate.DeviceCtx = DeviceCtx
-	snapstate.Remodeling = Remodeling
+	snapstate.RemodelingChange = RemodelingChange
 }
 
 // proxyStore returns the store assertion for the proxy store if one is set.
@@ -685,8 +685,12 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 		return nil, &snapstate.ChangeConflictError{Message: fmt.Sprintf("cannot start remodel, clashing with concurrent remodel to %v/%v (%v)", current1.BrandID(), current1.Model(), current1.Revision())}
 	}
 	// make sure another unfinished remodel wasn't already setup either
-	if Remodeling(st) {
-		return nil, &snapstate.ChangeConflictError{Message: "cannot start remodel, clashing with concurrent one"}
+	if chg := RemodelingChange(st); chg != nil {
+		return nil, &snapstate.ChangeConflictError{
+			Message:    "cannot start remodel, clashing with concurrent one",
+			ChangeKind: chg.Kind(),
+			ChangeID:   chg.ID(),
+		}
 	}
 
 	var msg string
@@ -705,14 +709,14 @@ func Remodel(st *state.State, new *asserts.Model) (*state.Change, error) {
 	return chg, nil
 }
 
-// Remodeling returns true whether there's a remodeling in progress
-func Remodeling(st *state.State) bool {
+// RemodelingChange returns a remodeling change in progress, if there is one
+func RemodelingChange(st *state.State) *state.Change {
 	for _, chg := range st.Changes() {
 		if !chg.IsReady() && chg.Kind() == "remodel" {
-			return true
+			return chg
 		}
 	}
-	return false
+	return nil
 }
 
 type recoverySystemSetup struct {
