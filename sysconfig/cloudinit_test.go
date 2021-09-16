@@ -415,6 +415,33 @@ datasource:
 			resultCfgCopied: []bool{false},
 			gadgetCfg:       implicitMentionSupportedDatasource,
 		},
+		{
+			comment: "MAAS and GCE in seed gets installed in dangerous",
+			grade:   "dangerous",
+			seedCfgs: []string{
+				maasCfg1,
+				maasCfg2,
+				maasCfg3,
+				maasCfg4,
+				maasCfg5,
+				implictMentionNonSupportedDatasource,
+			},
+			resultCfgCopied: []bool{true, true, true, true, true, true},
+		},
+		{
+			comment: "MAAS and GCE in seed gets installed in dangerous with gadget MAAS",
+			grade:   "dangerous",
+			seedCfgs: []string{
+				maasCfg1,
+				maasCfg2,
+				maasCfg3,
+				maasCfg4,
+				maasCfg5,
+				implictMentionNonSupportedDatasource,
+			},
+			gadgetCfg:       implicitMentionSupportedDatasource,
+			resultCfgCopied: []bool{true, true, true, true, true, true},
+		},
 	}
 
 	for _, t := range tt {
@@ -523,43 +550,6 @@ func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunMode(c *C) {
 
 	// and did copy the cloud-init files
 	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
-	c.Check(filepath.Join(ubuntuDataCloudCfg, "90_"+cfgFileNames[0]), testutil.FileEquals, "#cloud-config foo")
-	c.Check(filepath.Join(ubuntuDataCloudCfg, "90_"+cfgFileNames[1]), testutil.FileEquals, "#cloud-config bar")
-}
-
-func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadgetCloudConf(c *C) {
-	gadgetDir := s.makeGadgetCloudConfFile(c, "")
-	err := sysconfig.ConfigureTargetSystem(fake20Model("secured"), &sysconfig.Options{
-		AllowCloudInit: true,
-		GadgetDir:      gadgetDir,
-		TargetRootDir:  boot.InstallHostWritableDir,
-	})
-	c.Assert(err, IsNil)
-
-	// and did copy the gadget cloud-init file
-	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
-	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileEquals, "#cloud-config some gadget cloud config")
-}
-
-func (s *sysconfigSuite) TestInstallModeCloudInitInstallsOntoHostRunModeWithGadgetCloudConfAlsoInstallsUbuntuSeedConfig(c *C) {
-	cloudCfgSrcDir, cfgFileNames := s.makeCloudCfgSrcDirFiles(c, "#cloud-config foo", "#cloud-config bar")
-	gadgetDir := s.makeGadgetCloudConfFile(c, "")
-
-	err := sysconfig.ConfigureTargetSystem(fake20Model("dangerous"), &sysconfig.Options{
-		AllowCloudInit:  true,
-		CloudInitSrcDir: cloudCfgSrcDir,
-		GadgetDir:       gadgetDir,
-		TargetRootDir:   boot.InstallHostWritableDir,
-	})
-	c.Assert(err, IsNil)
-
-	// we did copy the gadget cloud-init file
-	ubuntuDataCloudCfg := filepath.Join(boot.InstallHostWritableDir, "_writable_defaults/etc/cloud/cloud.cfg.d/")
-	c.Check(filepath.Join(ubuntuDataCloudCfg, "80_device_gadget.cfg"), testutil.FileEquals, "#cloud-config some gadget cloud config")
-
-	// and we also copied the ubuntu-seed files with a new prefix such that they
-	// take precedence over the gadget file by being ordered lexically after the
-	// gadget file
 	c.Check(filepath.Join(ubuntuDataCloudCfg, "90_"+cfgFileNames[0]), testutil.FileEquals, "#cloud-config foo")
 	c.Check(filepath.Join(ubuntuDataCloudCfg, "90_"+cfgFileNames[1]), testutil.FileEquals, "#cloud-config bar")
 }

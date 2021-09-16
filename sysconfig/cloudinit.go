@@ -370,7 +370,7 @@ type cloudInitConfigInstallOptions struct {
 // installCloudInitCfgDir installs glob cfg files from the source directory to
 // the cloud config dir, optionally filtering the files for safe and supported
 // keys in the configuration before installing them.
-func installCloudInitCfgDir(src, targetdir string, opts *cloudInitConfigInstallOptions) error {
+func installCloudInitCfgDir(src, targetdir string, opts *cloudInitConfigInstallOptions) (installedFiles []string, err error) {
 	if opts == nil {
 		opts = &cloudInitConfigInstallOptions{}
 	}
@@ -378,15 +378,15 @@ func installCloudInitCfgDir(src, targetdir string, opts *cloudInitConfigInstallO
 	// TODO:UC20: enforce patterns on the glob files and their suffix ranges
 	ccl, err := filepath.Glob(filepath.Join(src, "*.cfg"))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(ccl) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	ubuntuDataCloudCfgDir := filepath.Join(ubuntuDataCloudDir(targetdir), "cloud.cfg.d/")
 	if err := os.MkdirAll(ubuntuDataCloudCfgDir, 0755); err != nil {
-		return fmt.Errorf("cannot make cloud config dir: %v", err)
+		return nil, fmt.Errorf("cannot make cloud config dir: %v", err)
 	}
 
 	for _, cc := range ccl {
@@ -397,7 +397,7 @@ func installCloudInitCfgDir(src, targetdir string, opts *cloudInitConfigInstallO
 		if opts.Filter {
 			filteredFile, err := filterCloudCfgFile(cc, opts.AllowedDatasources)
 			if err != nil {
-				return fmt.Errorf("error while filtering cloud-config file %s: %v", baseName, err)
+				return nil, fmt.Errorf("error while filtering cloud-config file %s: %v", baseName, err)
 			}
 			src = filteredFile
 		}
@@ -411,17 +411,19 @@ func installCloudInitCfgDir(src, targetdir string, opts *cloudInitConfigInstallO
 		}
 
 		if err := osutil.CopyFile(src, dst, 0); err != nil {
-			return err
+			return nil, err
 		}
 
 		// make sure that the new file is world readable, since cloud-init does
 		// not run as root (somehow?)
 		if err := os.Chmod(dst, 0644); err != nil {
-			return err
+			return nil, err
 		}
+
+		installedFiles = append(installedFiles, dst)
 	}
 
-	return nil
+	return installedFiles, nil
 }
 
 // installGadgetCloudInitCfg installs a single cloud-init config file from the
@@ -633,19 +635,25 @@ func configureCloudInit(model *asserts.Model, opts *Options) (err error) {
 		return nil
 	}
 
-	// otherwise we know there are files that could be installed, try installing
-	// them
-	if err := installCloudInitCfgDir(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir), installOpts); err != nil {
+	// try installing the files, this is the case either where we are filtering
+	// and there are some files that will be filtered, or where we are not
+	// filtering and thus don't know anything about what files we might install,
+	// but we will install them all because we are in grade dangerous
+	installedFiles, err := installCloudInitCfgDir(opts.CloudInitSrcDir, WritableDefaultsDir(opts.TargetRootDir), installOpts)
+	if err != nil {
 		return err
 	}
 
-	// we know we installed some ubuntu-seed files and maybe also a gadget file,
-	// so install a restriction file which limits the datasources that can be
-	// used by cloud-init to that which we allowed above, which we know is
-	// non-nil and actually resulted in some files being installed
-	yaml := []byte(fmt.Sprintf(genericCloudRestrictYamlPattern, strings.Join(installOpts.AllowedDatasources, ",")))
+	if installOpts.Filter && len(installedFiles) != 0 {
+		// we are filtering files and we installed some, so we also need to
+		// install a datasource restriction file at the end just as a paranoia
+		// measure
+		yaml := []byte(fmt.Sprintf(genericCloudRestrictYamlPattern, strings.Join(installOpts.AllowedDatasources, ",")))
 		restrictFile := filepath.Join(ubuntuDataCloudDir(WritableDefaultsDir(opts.TargetRootDir)), "cloud.cfg.d/99_snapd_datasource.cfg")
-	return ioutil.WriteFile(restrictFile, yaml, 0644)
+		return ioutil.WriteFile(restrictFile, yaml, 0644)
+	}
+
+	return nil
 }
 
 // CloudInitState represents the various cloud-init states
