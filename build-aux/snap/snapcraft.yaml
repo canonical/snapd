@@ -11,10 +11,8 @@ description: |
 adopt-info: snapd-deb
 # build-base is needed here for snapcraft to build this snap as with "modern"
 # snapcraft
-build-base: core
-package-repositories:
-  - type: apt
-    ppa: snappy-dev/image
+build-base: core22
+confinement: strict
 grade: stable
 license: GPL-3.0
 
@@ -31,7 +29,9 @@ license: GPL-3.0
 parts:
   snapd-deb:
     plugin: nil
-    source: .
+    source-type: git
+    source: https://git.launchpad.net/snapd
+    source-branch: master
     build-snaps: [go/1.18/stable]
     # these packages are needed to call mkversion.sh in override-pull, all other
     # dependencies are installed using apt-get build-dep
@@ -43,6 +43,7 @@ parts:
       snapcraftctl pull
       # set version, this needs dpkg-parsechangelog (from dpkg-dev) and git
       snapcraftctl set-version "$(./mkversion.sh --output-only)"
+      [ -e packaging/ubuntu-22.04 ] || ln -s ubuntu-16.04 packaging/ubuntu-22.04
       # Ensure that ./debian/ packaging which we are about to use
       # matches the current `build-base` release. I.e. ubuntu-16.04
       # for build-base:core, etc.
@@ -135,7 +136,7 @@ parts:
     stage-packages:
       - libc6
       - libc-bin
-      - libgcc1
+      - libgcc-s1
     stage:
       - lib/*
       - usr/lib/*
