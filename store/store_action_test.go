@@ -3222,5 +3222,5 @@ func (s *storeActionSuite) TestSnapActionTimeout(c *C) {
 		},
 	}, nil, nil, nil)
 	close(quit)
-	c.Assert(err, ErrorMatches, `Post http://127.0.0.1:.*/v2/snaps/refresh: net/http: request canceled \(Client.Timeout exceeded while awaiting headers\)`)
+	c.Assert(err, ErrorMatches, `.*/v2/snaps/refresh"?: net/http: request canceled \(Client.Timeout exceeded while awaiting headers\).*`)
 }
