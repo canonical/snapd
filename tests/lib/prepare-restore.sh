@@ -740,8 +740,9 @@ restore_suite() {
 }
 
 restore_project_each() {
-    $STRAY_TASKS=$(cat /var/lib/snapd/state.json | jq '.tasks[] | select (.change == "") | {"id":.id,"summary":.summary,"kind":.kind}')
-    if [ $(echo "$STRAY_TASKS" | wc -l) -gt 0 ]; then
+    STRAY_TASKS=$(jq '.tasks[] | select (.change == "") | {"id":.id,"summary":.summary,"kind":.kind}' < /var/lib/snapd/state.json)
+    if [ "$(echo "${STRAY_TASKS}" | wc -l)" -gt 0 ]; then
+        echo "There are stray tasks without an associated change leftover in the state.json:"
         echo "$STRAY_TASKS"
         exit 1
     fi
