@@ -74,6 +74,8 @@ func (s *fdeSuite) TestHasRevealKey(c *C) {
 	// correct fde-reveal-key, no logging
 	err = os.Chmod(mockBin+"fde-reveal-key", 0755)
 	c.Assert(err, IsNil)
+
+	c.Check(fde.HasRevealKey(), Equals, true)
 }
 
 func (s *fdeSuite) TestInitialSetupV2(c *C) {
@@ -512,4 +514,29 @@ service result: exit-code
 -----`)
 	// ensure no tmp files are left behind
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
+}
+
+func (s *fdeSuite) TestHasDeviceUnlock(c *C) {
+	oldPath := os.Getenv("PATH")
+	defer func() { os.Setenv("PATH", oldPath) }()
+
+	mockRoot := c.MkDir()
+	os.Setenv("PATH", mockRoot+"/bin")
+	mockBin := mockRoot + "/bin/"
+	err := os.Mkdir(mockBin, 0755)
+	c.Assert(err, IsNil)
+
+	// no fde-device-unlock binary
+	c.Check(fde.HasDeviceUnlock(), Equals, false)
+
+	// fde-device-unlock without +x
+	err = ioutil.WriteFile(mockBin+"fde-device-unlock", nil, 0644)
+	c.Assert(err, IsNil)
+	c.Check(fde.HasDeviceUnlock(), Equals, false)
+
+	// correct fde-device-unlock, no logging
+	err = os.Chmod(mockBin+"fde-device-unlock", 0755)
+	c.Assert(err, IsNil)
+
+	c.Check(fde.HasDeviceUnlock(), Equals, true)
 }
