@@ -3187,3 +3187,40 @@ func (s *storeActionSuite) TestSnapAction400(c *C) {
 	c.Check(err, FitsTypeOf, &store.UnexpectedHTTPStatusError{})
 	c.Check(results, HasLen, 0)
 }
+
+func (s *storeActionSuite) TestSnapActionTimeout(c *C) {
+	restore := store.MockRequestTimeout(250 * time.Millisecond)
+	defer restore()
+
+	quit := make(chan bool)
+	var mockServer *httptest.Server
+	mockServer = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// block the handler, do not send response headers.
+		select {
+		case <-quit:
+		case <-time.After(30 * time.Second):
+			// we expect to hit RequestTimeout first
+			c.Fatalf("unexpected")
+		}
+		mockServer.CloseClientConnections()
+	}))
+
+	c.Assert(mockServer, NotNil)
+	defer mockServer.Close()
+
+	mockServerURL, _ := url.Parse(mockServer.URL)
+	cfg := store.Config{
+		StoreBaseURL: mockServerURL,
+	}
+	dauthCtx := &testDauthContext{c: c, device: s.device}
+	sto := store.New(&cfg, dauthCtx)
+
+	_, _, err := sto.SnapAction(s.ctx, nil, []*store.SnapAction{
+		{
+			Action:       "install",
+			InstanceName: "foo",
+		},
+	}, nil, nil, nil)
+	close(quit)
+	c.Assert(err, ErrorMatches, `Post http://127.0.0.1:.*/v2/snaps/refresh: net/http: request canceled \(Client.Timeout exceeded while awaiting headers\)`)
+}
