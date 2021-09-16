@@ -119,7 +119,7 @@ func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 		args = append(args, "--quiet")
 	}
 
-	parser, internal, err := apparmor_sandbox.FindAppArmorParser()
+	parser, requiredArgs, internal, err := apparmor_sandbox.FindAppArmorParser()
 	if err != nil || !internal {
 		// if we couldn't find the parser with apparmor_sandbox
 		// then fall-back to trying to find one in the current PATH
@@ -127,20 +127,9 @@ func loadProfiles(fnames []string, cacheDir string, flags aaParserFlags) error {
 		// apparmor_parser so that we can support a mocked parser
 		// during tests
 		parser = "apparmor_parser"
-	} else {
-		// when using the internal apparmor_parser also use it's
-		// own configuration and includes etc plus also ensure we
-		// use the 3.0 feature ABI to get the widest array of
-		// policy features across the widest array of kernels
-		// versions
-		prefix := strings.TrimSuffix(parser, "apparmor_parser")
-		args = append(args, []string{
-			"--config-file", filepath.Join(prefix, "/apparmor/parser.conf"),
-			"--base", filepath.Join(prefix, "/apparmor.d"),
-			"--policy-features", filepath.Join(prefix, "/apparmor.d/abi/3.0"),
-		}...)
 	}
 
+	args = append(args, requiredArgs...)
 	args = append(args, fnames...)
 	output, err := exec.Command(parser, args...).CombinedOutput()
 	if err != nil {

@@ -131,7 +131,7 @@ func ParserMtime() int64 {
 	var mtime int64
 	mtime = 0
 
-	if path, _, err := FindAppArmorParser(); err == nil {
+	if path, _, _, err := FindAppArmorParser(); err == nil {
 		if fi, err := os.Stat(path); err == nil {
 			mtime = fi.ModTime().Unix()
 		}
@@ -321,15 +321,15 @@ func probeKernelFeatures() ([]string, error) {
 }
 
 func probeParserFeatures() ([]string, error) {
-	parser, internal, err := FindAppArmorParser()
+	parser, args, internal, err := FindAppArmorParser()
 	if err != nil {
 		return []string{}, err
 	}
 	features := make([]string, 0, 3)
-	if tryAppArmorParserFeature(parser, "change_profile unsafe /**,") {
+	if tryAppArmorParserFeature(parser, args, "change_profile unsafe /**,") {
 		features = append(features, "unsafe")
 	}
-	if tryAppArmorParserFeature(parser, "network qipcrtr dgram,") {
+	if tryAppArmorParserFeature(parser, args, "network qipcrtr dgram,") {
 		features = append(features, "qipcrtr-socket")
 	}
 	if internal {
@@ -339,29 +339,45 @@ func probeParserFeatures() ([]string, error) {
 	return features, nil
 }
 
-// FindAppArmorParser returns the path of the apparmor_parser binary if one is found.
-func FindAppArmorParser() (path string, internal bool, err error) {
+// FindAppArmorParser returns the path of the apparmor_parser binary if one
+// is found as well as any required command-line arguments to use when
+// invoking the binary, and a boolean to indicate whether this is internal
+// to snapd (ie is provided by snapd)
+func FindAppArmorParser() (path string, args []string, internal bool, err error) {
 	// first see if we have our own internal copy which could come from
 	// the snapd snap (likely) or be part of the snapd distro package (unlikely)
+	args = make([]string, 0)
 	if path, err := snapdtool.InternalToolPath("apparmor_parser"); err == nil {
 		if osutil.IsExecutable(path) {
-			return path, true, nil
+			prefix := strings.TrimSuffix(path, "apparmor_parser")
+			// when using the internal apparmor_parser also use
+			// it's own configuration and includes etc plus
+			// also ensure we use the 3.0 feature ABI to get
+			// the widest array of policy features across the
+			// widest array of kernel versions
+			args = append(args, []string{
+				"--config-file", filepath.Join(prefix, "/apparmor/parser.conf"),
+				"--base", filepath.Join(prefix, "/apparmor.d"),
+				"--policy-features", filepath.Join(prefix, "/apparmor.d/abi/3.0"),
+			}...)
+			return path, args, true, nil
 		}
 	}
 
 	for _, dir := range filepath.SplitList(parserSearchPath) {
 		path := filepath.Join(dir, "apparmor_parser")
 		if _, err := os.Stat(path); err == nil {
-			return path, false, nil
+			return path, args, false, nil
 		}
 	}
 
-	return "", false, os.ErrNotExist
+	return "", args, false, os.ErrNotExist
 }
 
 // tryAppArmorParserFeature attempts to pre-process a bit of apparmor syntax with a given parser.
-func tryAppArmorParserFeature(parser, rule string) bool {
-	cmd := exec.Command(parser, "--preprocess")
+func tryAppArmorParserFeature(parser string, args []string, rule string) bool {
+	args = append(args, "--preprocess")
+	cmd := exec.Command(parser, args...)
 	cmd.Stdin = bytes.NewBufferString(fmt.Sprintf("profile snap-test {\n %s\n}", rule))
 	if err := cmd.Run(); err != nil {
 		return false

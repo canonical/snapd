@@ -48,8 +48,9 @@ func (*apparmorSuite) TestAppArmorFindAppArmorParser(c *C) {
 	restore := apparmor.MockParserSearchPath(mockParserCmd.BinDir())
 	defer restore()
 
-	path, internal, err := apparmor.FindAppArmorParser()
+	path, args, internal, err := apparmor.FindAppArmorParser()
 	c.Check(path, Equals, mockParserCmd.Exe())
+	c.Check(args, DeepEquals, make([]string, 0))
 	c.Check(internal, Equals, false)
 	c.Check(err, Equals, nil)
 }
@@ -67,8 +68,13 @@ func (*apparmorSuite) TestAppArmorFindInternalAppArmorParser(c *C) {
 	})
 	defer restore()
 
-	path, internal, err := apparmor.FindAppArmorParser()
+	path, args, internal, err := apparmor.FindAppArmorParser()
 	c.Check(err, IsNil)
+	c.Check(args, DeepEquals, []string{
+		"--config-file", filepath.Join(d, "/apparmor/parser.conf"),
+		"--base", filepath.Join(d, "/apparmor.d"),
+		"--policy-features", filepath.Join(d, "/apparmor.d/abi/3.0"),
+	})
 	c.Check(internal, Equals, true)
 	c.Check(path, Equals, p)
 }
