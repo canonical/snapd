@@ -124,7 +124,7 @@ check_leftover_defer_sh() {
 
 check_leftover_user_units() {
 	n="$1" # invariant name
-	systemctl list-units --state=running --user snap.* | grep snap. > "/tmp/tests.invariant.$n"
+	systemctl list-units --state=running --user snap.* | grep "snap\." > "/tmp/tests.invariant.$n"
 	if [ -s "/tmp/tests.invariant.$n" ]; then
 		echo "tests.invariant: leftover user units running" >&2
 		cat "/tmp/tests.invariant.$n" >&2
