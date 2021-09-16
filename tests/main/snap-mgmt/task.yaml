@@ -74,7 +74,7 @@ prepare: |
         test "$(find /etc/systemd/system -name 'snap.*.slice' | wc -l)" -gt 0
     fi
 
-remove: |
+restore: |
     snap remove test-snapd-user-service
 
 execute: |
