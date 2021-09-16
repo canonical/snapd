@@ -28,7 +28,7 @@ prepare: |
     tests.session -u test prepare
 
 restore: |
-    systemctl stop test-snapd-location-control-provider.service
+    snap remove test-snapd-location-control-provider
     tests.session -u test restore
 
 execute: |

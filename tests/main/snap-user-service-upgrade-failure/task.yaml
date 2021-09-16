@@ -25,6 +25,7 @@ prepare: |
 
 restore: |
     tests.session -u test restore
+    snap remove test-snapd-user-service
     snap unset system experimental.user-daemons
 
     if [ -f agent-was-enabled ]; then

@@ -4,6 +4,7 @@ prepare: |
     snap set system experimental.user-daemons=true
 
 restore: |
+    snap remove test-snapd-user-service
     snap unset system experimental.user-daemons
 
 execute: |
