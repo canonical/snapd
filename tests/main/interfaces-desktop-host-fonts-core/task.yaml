@@ -1,0 +1,59 @@
+summary: Ensure that the desktop interface gives access to host fonts
+
+details: |
+    In order to ensure that confined applications have access to fonts
+    covering the user's spoken language, the host system's fonts are
+    bind mounted into the sandbox.
+
+systems:
+    - ubuntu-core-*
+
+prepare: |
+    tests.session -u test prepare
+
+    # There are no fonts available on Ubuntu Core, so bind mount some
+    # files to the corresponding directories.
+    mkdir -p /tmp/distro-fonts /tmp/local-fonts
+    echo "Distribution font" > /tmp/distro-fonts/dist-font.txt
+    echo "Local font" > /tmp/local-fonts/local-font.txt
+    mount --bind /tmp/distro-fonts /usr/share/fonts
+    mount --bind /tmp/local-fonts /usr/local/share/fonts
+
+    # User directories created via tests.session for correct ownership and SELinux context.
+    tests.session -u test exec mkdir -p /home/test/.fonts
+    echo "User font 1" | tests.session -u test exec tee /home/test/.fonts/user-font1.txt
+
+    tests.session -u test exec mkdir -p /home/test/.local/share/fonts
+    echo "User font 2" | tests.session -u test exec tee /home/test/.local/share/fonts/user-font2.txt
+
+    echo "Install the test-snapd-desktop snap"
+    "$TESTSTOOLS"/snaps-state install-local test-snapd-desktop
+    "$TESTSTOOLS"/snaps-state install-local desktop-provider
+
+restore: |
+    tests.session -u test restore
+    umount /usr/share/fonts
+    umount /usr/local/share/fonts
+    rm -rf /tmp/distro-fonts /tmp/local-fonts
+    rm -rf /home/test/.fonts
+    rm -f /home/test/.local/share/fonts/user-font2.txt
+
+execute: |
+    echo "The plug is disconnected by default"
+    snap connections test-snapd-desktop | MATCH "desktop +test-snapd-desktop:desktop +- +-"
+
+    echo "The plug can be connected"
+    snap connect test-snapd-desktop:desktop desktop-provider:desktop
+    snap connections test-snapd-desktop | MATCH "desktop +test-snapd-desktop:desktop +desktop-provider:desktop +manual"
+
+    echo "Checking access to host /usr/share/fonts"
+    tests.session -u test exec test-snapd-desktop.check-files /usr/share/fonts/dist-font.txt | MATCH "Distribution font"
+
+    echo "Checking access to host /usr/local/share/fonts"
+    tests.session -u test exec test-snapd-desktop.check-files /usr/local/share/fonts/local-font.txt | MATCH "Local font"
+
+    echo "Checking access to host ~/.fonts"
+    tests.session -u test exec test-snapd-desktop.check-files /home/test/.fonts/user-font1.txt | MATCH "User font 1"
+
+    echo "Checking access to host ~/.local/share/fonts"
+    tests.session -u test exec test-snapd-desktop.check-files /home/test/.local/share/fonts/user-font2.txt | MATCH "User font 2"
