@@ -210,6 +210,9 @@ func setActionValidationSetsAndRequiredRevision(action *store.SnapAction, valset
 	}
 	if !requiredRevision.Unset() {
 		action.Revision = requiredRevision
+		// channel cannot be present if revision is set (store would
+		// respond with revision-conflict error).
+		action.Channel = ""
 	}
 }
 
@@ -654,11 +657,6 @@ func installCandidates(st *state.State, names []string, channel string, user *au
 			}
 			if len(requiredValSets) > 0 {
 				setActionValidationSetsAndRequiredRevision(action, requiredValSets, requiredRevision)
-				if !requiredRevision.Unset() {
-					// channel cannot be present if revision is set (store would
-					// respond with revision-conflict error).
-					action.Channel = ""
-				}
 			}
 		}
 		actions[i] = action
