@@ -132,6 +132,11 @@ func (client *Client) sendRequest(ctx context.Context, socket string, method, ur
 	return response
 }
 
+// doMany sends the given request to all active user sessions. Please be
+// careful when using this method, because it is not aware of the physical user
+// who triggered the request and blindly forwards it to all logged in users.
+// Some of them might not have the right to see the request (let alone to
+// respond to it).
 func (client *Client) doMany(ctx context.Context, method, urlpath string, query url.Values, headers map[string]string, body []byte) ([]*response, error) {
 	sockets, err := filepath.Glob(filepath.Join(dirs.XdgRuntimeDirGlob, "snapd-session-agent.socket"))
 	if err != nil {
