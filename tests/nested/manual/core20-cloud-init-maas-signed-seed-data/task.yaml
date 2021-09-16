@@ -185,3 +185,9 @@ execute: |
 
   echo "Filtered files were not copied"
   tests.nested exec "! test -f /etc/cloud/cloud.cfg.d/90_50-cloudconfig-maas-ubuntu-sso.cfg"
+
+  echo "The datasource_list restriction file was installed"
+  tests.nested exec "test -f /etc/cloud/cloud.cfg.d/99_snapd_datasource.cfg"
+
+  # note that zzzz_snapd.cfg is not installed because cloud-init is in error and
+  # thus we just disable cloud-init
