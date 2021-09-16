@@ -5299,6 +5299,37 @@ func (s *snapmgrTestSuite) TestConflictMany(c *C) {
 	}
 }
 
+func (s *snapmgrTestSuite) TestConflictChangeId(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	snaps := []string{"a", "b", "c"}
+	changes := make([]*state.Change, len(snaps))
+
+	for i, name := range snaps {
+		snapstate.Set(s.state, name, &snapstate.SnapState{
+			Sequence: []*snap.SideInfo{
+				{RealName: name, Revision: snap.R(11)},
+			},
+			Current: snap.R(11),
+		})
+
+		ts, err := snapstate.Enable(s.state, name)
+		c.Assert(err, IsNil)
+
+		changes[i] = s.state.NewChange("enable", "...")
+		changes[i].AddAll(ts)
+	}
+
+	for i, name := range snaps {
+		err := snapstate.CheckChangeConflictMany(s.state, []string{name}, "")
+		c.Assert(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+
+		conflictErr := err.(*snapstate.ChangeConflictError)
+		c.Assert(conflictErr.ChangeID, Equals, changes[i].ID())
+	}
+}
+
 func (s *snapmgrTestSuite) TestConflictRemodeling(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -5350,9 +5381,16 @@ func (s *snapmgrTestSuite) TestConflictExclusive(c *C) {
 	// a remodel conflicts with any other change
 	err := snapstate.CheckChangeConflictRunExclusively(s.state, "remodel")
 	c.Check(err, ErrorMatches, `other changes in progress \(conflicting change "install-snap-a"\), change "remodel" not allowed until they are done`)
+	c.Assert(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	conflictErr := err.(*snapstate.ChangeConflictError)
+	c.Assert(conflictErr.ChangeID, Equals, chg.ID())
+
 	// and so does the  remodel conflicts with any other change
 	err = snapstate.CheckChangeConflictRunExclusively(s.state, "create-recovery-system")
 	c.Check(err, ErrorMatches, `other changes in progress \(conflicting change "install-snap-a"\), change "create-recovery-system" not allowed until they are done`)
+	c.Assert(err, FitsTypeOf, &snapstate.ChangeConflictError{})
+	conflictErr = err.(*snapstate.ChangeConflictError)
+	c.Assert(conflictErr.ChangeID, Equals, chg.ID())
 }
 
 type contentStore struct {
