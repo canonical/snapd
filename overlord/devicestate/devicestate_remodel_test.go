@@ -958,7 +958,9 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashInProgress(c *C) {
 
 	_, err := devicestate.Remodel(s.state, new)
 	c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
-		Message: "cannot start remodel, clashing with concurrent one",
+		Message:    "cannot start remodel, clashing with concurrent one",
+		ChangeKind: "remodel",
+		ChangeID:   "1",
 	})
 }
 
@@ -1005,6 +1007,7 @@ func (s *deviceMgrRemodelSuite) TestReregRemodelClashAnyChange(c *C) {
 	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
 		ChangeKind: "chg",
 		Message:    `other changes in progress (conflicting change "chg"), change "remodel" not allowed until they are done`,
+		ChangeID:   chg.ID(),
 	})
 }
 
@@ -1013,19 +1016,19 @@ func (s *deviceMgrRemodelSuite) TestRemodeling(c *C) {
 	defer s.state.Unlock()
 
 	// no changes
-	c.Check(devicestate.Remodeling(s.state), Equals, false)
+	c.Check(devicestate.RemodelingChange(s.state), IsNil)
 
 	// other change
 	s.state.NewChange("other", "...")
-	c.Check(devicestate.Remodeling(s.state), Equals, false)
+	c.Check(devicestate.RemodelingChange(s.state), IsNil)
 
 	// remodel change
 	chg := s.state.NewChange("remodel", "...")
-	c.Check(devicestate.Remodeling(s.state), Equals, true)
+	c.Check(devicestate.RemodelingChange(s.state), NotNil)
 
 	// done
 	chg.SetStatus(state.DoneStatus)
-	c.Check(devicestate.Remodeling(s.state), Equals, false)
+	c.Check(devicestate.RemodelingChange(s.state), IsNil)
 }
 
 func (s *deviceMgrRemodelSuite) TestDeviceCtxNoTask(c *C) {
