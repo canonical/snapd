@@ -669,7 +669,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlValid(c *C) {
 		},
 		Volumes: map[string]*gadget.Volume{
 			"volumename": {
-				Name: "volumename",
+				Name:       "volumename",
 				Schema:     "mbr",
 				Bootloader: "u-boot",
 				ID:         "0C",
@@ -712,7 +712,7 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Volumes: map[string]*gadget.Volume{
 			"frobinator-image": {
-				Name: "frobinator-image",
+				Name:       "frobinator-image",
 				Schema:     "mbr",
 				Bootloader: "u-boot",
 				Structure: []gadget.VolumeStructure{
@@ -743,8 +743,8 @@ func (s *gadgetYamlTestSuite) TestReadMultiVolumeGadgetYamlValid(c *C) {
 				},
 			},
 			"u-boot-frobinator": {
-				Name: "u-boot-frobinator",
-				Schema:     "gpt",
+				Name:   "u-boot-frobinator",
+				Schema: "gpt",
 				Structure: []gadget.VolumeStructure{
 					{
 						VolumeName: "u-boot-frobinator",
@@ -851,7 +851,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlVolumeUpdate(c *C) {
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Volumes: map[string]*gadget.Volume{
 			"bootloader": {
-				Name: "bootloader",
+				Name:       "bootloader",
 				Schema:     "mbr",
 				Bootloader: "u-boot",
 				ID:         "0C",
@@ -2203,7 +2203,7 @@ func (s *gadgetYamlTestSuite) TestReadGadgetYamlFromSnapFileValid(c *C) {
 	c.Assert(ginfo, DeepEquals, &gadget.Info{
 		Volumes: map[string]*gadget.Volume{
 			"pc": {
-				Name: "pc",
+				Name:       "pc",
 				Bootloader: "grub",
 				Schema:     "gpt",
 			},
