@@ -452,9 +452,24 @@ func remodelKernelOrBaseTasks(ctx context.Context, st *state.State, ms modelSnap
 			return nil, err
 		}
 		if changed {
-			return snapstateUpdateWithDeviceContext(st, ms.newSnap,
+			ts, err := snapstateUpdateWithDeviceContext(st, ms.newSnap,
 				&snapstate.RevisionOptions{Channel: newModelSnapChannel},
 				userID, snapstate.Flags{NoReRefresh: true}, deviceCtx, fromChange)
+			if err != nil {
+				return nil, err
+			}
+			if ts != nil {
+				if edgeTask := ts.MaybeEdge(snapstate.DownloadAndChecksDoneEdge); edgeTask != nil {
+					// we have downloads and checks done edge, so
+					// the update is not a simple
+					// switch-snap-channel
+					return ts, nil
+				} else {
+					// in other cases make sure that the
+					// kernel or base is linked and available
+					return snapstate.AddLinkNewBaseOrKernel(st, ts)
+				}
+			}
 		}
 	}
 	return snapstate.LinkNewBaseOrKernel(st, ms.newSnap)

@@ -53,6 +53,7 @@ import (
 	"github.com/snapcore/snapd/snap/snapfile"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store/storetest"
+	"github.com/snapcore/snapd/strutil"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -2293,6 +2294,235 @@ func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSna
 		"label":            expectedLabel,
 		"directory":        filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
 		"snap-setup-tasks": []interface{}{tPrepareKernel.ID(), tPrepareBase.ID()},
+	})
+}
+
+func (s *deviceMgrRemodelSuite) TestRemodelUC20SwitchKernelBaseSnapsInstalledSnapsDifferentChannelThanNew(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "some-privacy-key")
+
+	restore := devicestate.MockSnapstateUpdateWithDeviceContext(func(st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		c.Assert(strutil.ListContains([]string{"core20-new", "pc-kernel-new"}, name), Equals, true,
+			Commentf("unexpected snap %q", name))
+		c.Check(flags.Required, Equals, false)
+		c.Check(flags.NoReRefresh, Equals, true)
+		c.Check(deviceCtx, NotNil)
+
+		// pretend the new channel has the same revision, so update is a
+		// simple channel switch
+		tSwitchChannel := s.state.NewTask("switch-snap-channel", fmt.Sprintf("Switch %s channel to %s", name, opts.Channel))
+		typ := "kernel"
+		rev := snap.R(222)
+		if name == "core20-new" {
+			typ = "base"
+			rev = snap.R(223)
+		}
+		tSwitchChannel.Set("snap-setup", &snapstate.SnapSetup{
+			SideInfo: &snap.SideInfo{
+				RealName: name,
+				Revision: rev,
+				SnapID:   snaptest.AssertedSnapID(name),
+			},
+			Flags: snapstate.Flags{}.ForSnapSetup(),
+			Type:  snap.Type(typ),
+		})
+		ts := state.NewTaskSet(tSwitchChannel)
+		// no download-and-checks-done edge
+		return ts, nil
+	})
+	defer restore()
+
+	restore = devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
+		// no snaps are getting installed
+		return nil, fmt.Errorf("unexpected call")
+	})
+	defer restore()
+
+	now := time.Now()
+	restore = devicestate.MockTimeNow(func() time.Time { return now })
+	defer restore()
+
+	// set a model assertion
+	s.makeModelAssertionInState(c, "canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		"base":         "core20",
+		"grade":        "dangerous",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				"name":            "pc-kernel",
+				"id":              snaptest.AssertedSnapID("pc-kernel"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+		},
+	})
+	s.makeSerialAssertionInState(c, "canonical", "pc-model", "serial")
+	devicestatetest.SetDevice(s.state, &auth.DeviceState{
+		Brand:  "canonical",
+		Model:  "pc-model",
+		Serial: "serial",
+	})
+
+	// current gadget
+	siModelGadget := &snap.SideInfo{
+		RealName: "pc",
+		Revision: snap.R(33),
+		SnapID:   snaptest.AssertedSnapID("pc"),
+	}
+	snapstate.Set(s.state, "pc", &snapstate.SnapState{
+		SnapType:        "gadget",
+		Sequence:        []*snap.SideInfo{siModelGadget},
+		Current:         siModelGadget.Revision,
+		Active:          true,
+		TrackingChannel: "20/stable",
+	})
+	// current kernel
+	siModelKernel := &snap.SideInfo{
+		RealName: "pc-kernel",
+		Revision: snap.R(32),
+		SnapID:   snaptest.AssertedSnapID("pc-kernel"),
+	}
+	snapstate.Set(s.state, "pc-kernel", &snapstate.SnapState{
+		SnapType:        "kernel",
+		Sequence:        []*snap.SideInfo{siModelKernel},
+		Current:         siModelKernel.Revision,
+		Active:          true,
+		TrackingChannel: "20/stable",
+	})
+	// new gadget and kernel which are already installed
+	for _, alreadyInstalledName := range []string{"pc-kernel-new", "core20-new"} {
+		snapYaml := "name: pc-kernel-new\nversion: 1\ntype: kernel\n"
+		channel := "other/other"
+		if alreadyInstalledName == "core20-new" {
+			snapYaml = "name: core20-new\nversion: 1\ntype: base\n"
+		}
+		si := &snap.SideInfo{
+			RealName: alreadyInstalledName,
+			Revision: snap.R(222),
+			SnapID:   snaptest.AssertedSnapID(alreadyInstalledName),
+		}
+		info := snaptest.MakeSnapFileAndDir(c, snapYaml, nil, si)
+		snapstate.Set(s.state, alreadyInstalledName, &snapstate.SnapState{
+			SnapType:        string(info.Type()),
+			Sequence:        []*snap.SideInfo{si},
+			Current:         si.Revision,
+			Active:          true,
+			TrackingChannel: channel,
+		})
+	}
+
+	new := s.brands.Model("canonical", "pc-model", map[string]interface{}{
+		"architecture": "amd64",
+		// switch to a new base which is already installed
+		"base":     "core20-new",
+		"grade":    "dangerous",
+		"revision": "1",
+		"snaps": []interface{}{
+			map[string]interface{}{
+				// switch to a new kernel which also is already
+				// installed, but tracks a different channel
+				// than what we have in snap state
+				"name":            "pc-kernel-new",
+				"id":              snaptest.AssertedSnapID("pc-kernel-new"),
+				"type":            "kernel",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				"name":            "pc",
+				"id":              snaptest.AssertedSnapID("pc"),
+				"type":            "gadget",
+				"default-channel": "20",
+			},
+			map[string]interface{}{
+				// similar case for the base snap
+				"name":            "core20-new",
+				"id":              snaptest.AssertedSnapID("core20-new"),
+				"type":            "base",
+				"default-channel": "latest/stable",
+			},
+		},
+	})
+	chg, err := devicestate.Remodel(s.state, new)
+	c.Assert(err, IsNil)
+	c.Assert(chg.Summary(), Equals, "Refresh model assertion from revision 0 to 1")
+
+	tl := chg.Tasks()
+	// 2 snaps with (snap switch channel + link snap) + recovery system (2 tasks) + set-model
+	c.Assert(tl, HasLen, 2*2+2+1)
+
+	deviceCtx, err := devicestate.DeviceCtx(s.state, tl[0], nil)
+	c.Assert(err, IsNil)
+	// deviceCtx is actually a remodelContext here
+	remodCtx, ok := deviceCtx.(devicestate.RemodelContext)
+	c.Assert(ok, Equals, true)
+	c.Check(remodCtx.ForRemodeling(), Equals, true)
+	c.Check(remodCtx.Kind(), Equals, devicestate.UpdateRemodel)
+	c.Check(remodCtx.Model(), DeepEquals, new)
+	c.Check(remodCtx.Store(), IsNil)
+
+	// check the tasks
+	tSwitchChannelKernel := tl[0]
+	tLinkKernel := tl[1]
+	tSwitchChannelBase := tl[2]
+	tLinkBase := tl[3]
+	tCreateRecovery := tl[4]
+	tFinalizeRecovery := tl[5]
+	tSetModel := tl[6]
+
+	// check the tasks
+	c.Assert(tSwitchChannelKernel.Kind(), Equals, "switch-snap-channel")
+	c.Assert(tSwitchChannelKernel.Summary(), Equals, `Switch pc-kernel-new channel to 20/stable`)
+	c.Assert(tSwitchChannelKernel.WaitTasks(), HasLen, 0)
+	c.Assert(tLinkKernel.Kind(), Equals, "link-snap")
+	c.Assert(tLinkKernel.Summary(), Equals, `Make snap "pc-kernel-new" (222) available to the system during remodel`)
+	c.Assert(tSwitchChannelBase.Kind(), Equals, "switch-snap-channel")
+	c.Assert(tSwitchChannelBase.Summary(), Equals, `Switch core20-new channel to latest/stable`)
+	c.Assert(tSwitchChannelBase.WaitTasks(), HasLen, 0)
+	c.Assert(tLinkBase.Kind(), Equals, "link-snap")
+	c.Assert(tLinkBase.Summary(), Equals, `Make snap "core20-new" (223) available to the system during remodel`)
+	expectedLabel := now.Format("20060102")
+	c.Assert(tCreateRecovery.Kind(), Equals, "create-recovery-system")
+	c.Assert(tCreateRecovery.Summary(), Equals, fmt.Sprintf("Create recovery system with label %q", expectedLabel))
+	c.Assert(tFinalizeRecovery.Kind(), Equals, "finalize-recovery-system")
+	c.Assert(tFinalizeRecovery.Summary(), Equals, fmt.Sprintf("Finalize recovery system with label %q", expectedLabel))
+	c.Assert(tSetModel.Kind(), Equals, "set-model")
+	c.Assert(tSetModel.Summary(), Equals, "Set new model assertion")
+	// check the ordering, prepare/link are part of download edge and come first
+	c.Assert(tSwitchChannelKernel.WaitTasks(), HasLen, 0)
+	c.Check(tLinkKernel.WaitTasks(), DeepEquals, []*state.Task{
+		tSwitchChannelKernel,
+	})
+	c.Assert(tLinkBase.WaitTasks(), DeepEquals, []*state.Task{
+		tSwitchChannelBase,
+	})
+	c.Assert(tCreateRecovery.WaitTasks(), DeepEquals, []*state.Task{})
+	c.Assert(tFinalizeRecovery.WaitTasks(), DeepEquals, []*state.Task{
+		// recovery system being created
+		tCreateRecovery,
+	})
+	// setModel waits for everything in the change
+	c.Assert(tSetModel.WaitTasks(), DeepEquals, []*state.Task{
+		tSwitchChannelKernel, tLinkKernel,
+		tSwitchChannelBase, tLinkBase,
+		tCreateRecovery, tFinalizeRecovery,
+	})
+	// verify recovery system setup data on appropriate tasks
+	var systemSetupData map[string]interface{}
+	err = tCreateRecovery.Get("recovery-system-setup", &systemSetupData)
+	c.Assert(err, IsNil)
+	c.Assert(systemSetupData, DeepEquals, map[string]interface{}{
+		"label":     expectedLabel,
+		"directory": filepath.Join(boot.InitramfsUbuntuSeedDir, "systems", expectedLabel),
+		// none of the tasks are downloads so they were not tracked
+		"snap-setup-tasks": nil,
 	})
 }
 
