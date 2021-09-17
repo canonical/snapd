@@ -128,6 +128,10 @@ package main
 //#define SCMP_ARCH_S390X ARCH_BAD
 //#endif
 //
+//#ifndef SCMP_ARCH_RISCV64
+//#define SCMP_ARCH_RISCV64 ARCH_BAD
+//#endif
+//
 //#ifndef SECCOMP_RET_LOG
 //#define SECCOMP_RET_LOG 0x7ffc0000U
 //#endif
@@ -450,6 +454,8 @@ func DpkgArchToScmpArch(dpkgArch string) seccomp.ScmpArch {
 		return seccomp.ArchPPC64LE
 	case "s390x":
 		return seccomp.ArchS390X
+	case "riscv64":
+		return seccomp.ArchRISCV64
 	}
 	panic(fmt.Sprintf("cannot map dpkg arch %q to a seccomp arch", dpkgArch))
 }
