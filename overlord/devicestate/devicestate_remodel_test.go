@@ -1440,7 +1440,7 @@ volumes:
 			Info: &gadget.Info{
 				Volumes: map[string]*gadget.Volume{
 					"pc": {
-						VolumeName: "pc",
+						Name: "pc",
 						Bootloader: "grub",
 						Schema:     "gpt",
 						Structure: []gadget.VolumeStructure{{
@@ -1470,7 +1470,7 @@ volumes:
 			Info: &gadget.Info{
 				Volumes: map[string]*gadget.Volume{
 					"pc": {
-						VolumeName: "pc",
+						Name: "pc",
 						Bootloader: "grub",
 						Schema:     "gpt",
 						Structure: []gadget.VolumeStructure{{
