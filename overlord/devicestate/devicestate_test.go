@@ -67,7 +67,7 @@ import (
 )
 
 var (
-	settleTimeout = testutil.HostScaledTimeout(15 * time.Second)
+	settleTimeout = testutil.HostScaledTimeout(30 * time.Second)
 )
 
 func TestDeviceManager(t *testing.T) { TestingT(t) }
@@ -245,11 +245,6 @@ func (s *deviceMgrBaseSuite) newStore(devBE storecontext.DeviceBackend) snapstat
 
 func (s *deviceMgrBaseSuite) settle(c *C) {
 	err := s.o.Settle(settleTimeout)
-	c.Assert(err, IsNil)
-}
-
-func (s *deviceMgrBaseSuite) longSettle(c *C) {
-	err := s.o.Settle(settleTimeout * 2)
 	c.Assert(err, IsNil)
 }
 

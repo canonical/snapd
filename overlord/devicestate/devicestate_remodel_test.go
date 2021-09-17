@@ -2435,7 +2435,7 @@ func (s *deviceMgrRemodelSuite) TestUC20RemodelSetModelWithReboot(c *C) {
 	}
 	s.state.Unlock()
 
-	s.longSettle(c)
+	s.settle(c)
 
 	s.state.Lock()
 	// set model was injected by prepare-remodeling
