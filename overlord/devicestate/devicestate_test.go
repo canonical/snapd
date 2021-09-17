@@ -248,6 +248,11 @@ func (s *deviceMgrBaseSuite) settle(c *C) {
 	c.Assert(err, IsNil)
 }
 
+func (s *deviceMgrBaseSuite) longSettle(c *C) {
+	err := s.o.Settle(settleTimeout * 2)
+	c.Assert(err, IsNil)
+}
+
 // seeding avoids triggering a real full seeding, it simulates having it in process instead
 func (s *deviceMgrBaseSuite) seeding() {
 	chg := s.state.NewChange("seed", "Seed system")
