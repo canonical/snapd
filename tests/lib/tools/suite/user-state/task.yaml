@@ -10,13 +10,14 @@ execute: |
     "$TESTSTOOLS"/user-state list-users | MATCH test
 
     # Check list groups
-    "$TESTSTOOLS"/user-state list-groups | MATCH 12345
+    "$TESTSTOOLS"/user-state list-groups | MATCH test
 
     # Check remove user and group
     if [ -f /var/lib/extrausers/passwd ]; then
-        adduser mytest001 mytest001
-    else
         adduser --extrausers mytest001 mytest001
+    else
+        groupadd mytest001
+        useradd mytest001 -g mytest001
     fi
     "$TESTSTOOLS"/user-state remove-with-group mytest001
 
