@@ -52,6 +52,7 @@ type snapSeccompSuite struct {
 var _ = Suite(&snapSeccompSuite{})
 
 const (
+	DenyNoLog = iota
 	Deny = iota
 	Allow
 )
@@ -350,6 +351,11 @@ mprotect
 		if err == nil {
 			c.Fatalf("unexpected success for %q %q (ran but should have failed)", seccompWhitelist, bpfInput)
 		}
+	case DenyNoLog:
+		if err == nil {
+			c.Fatalf("unexpected success for %q %q (ran but should have failed)", seccompWhitelist, bpfInput)
+		}
+		// TODO: Add check that logging output is generated (failure) or not (success)
 	default:
 		c.Fatalf("unknown expected result %v", expected)
 	}
@@ -844,5 +850,17 @@ func (s *snapSeccompSuite) TestCompatArchWorks(c *C) {
 		if arch.DpkgArchitecture() == t.arch {
 			s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 		}
+	}
+}
+
+func (s *snapSeccompSuite) TestSquashedRulesWorks(c *C) {
+	for _, t := range []struct {
+		seccompWhitelist string
+		bpfInput         string
+		expected         int
+	}{
+		{"@squash chown - 0 -1", "chown;native;-,99,-1", DenyNoLog},
+	}{
+		s.runBpf(c, t.seccompWhitelist, t.bpfInput, t.expected)
 	}
 }

@@ -537,8 +537,15 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 		return nil
 	}
 
+	squashRule := false
+	if strings.HasPrefix(line, "@squash") {
+		squashRule = true
+		line = strings.TrimPrefix(line, "@squash ")
+	}
+
 	// regular line
 	tokens := strings.Fields(line)
+
 	if len(tokens[1:]) > ScArgsMaxlength {
 		return fmt.Errorf("too many arguments specified for syscall '%s' in line %q", tokens[0], line)
 	}
@@ -625,10 +632,16 @@ func parseLine(line string, secFilter *seccomp.ScmpFilter) error {
 		conds = append(conds, scmpCond)
 	}
 
+	// When @squash rules are detected, deny the request
+	act := seccomp.ActAllow
+	if squashRule {
+		act = seccomp.ActErrno
+	}
+
 	// Default to adding a precise match if possible. Otherwise
 	// let seccomp figure out the architecture specifics.
-	if err = secFilter.AddRuleConditionalExact(secSyscall, seccomp.ActAllow, conds); err != nil {
-		err = secFilter.AddRuleConditional(secSyscall, seccomp.ActAllow, conds)
+	if err = secFilter.AddRuleConditionalExact(secSyscall, act, conds); err != nil {
+		err = secFilter.AddRuleConditional(secSyscall, act, conds)
 	}
 
 	return err
