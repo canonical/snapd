@@ -91,6 +91,7 @@ parts:
     stage-packages:
       - libc6
       - libc-bin
+      - libgcc1
     stage:
       - lib/*
       - usr/lib/*

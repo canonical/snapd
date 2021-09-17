@@ -3,7 +3,8 @@ summary: ensure that snap-confine drops CAP_SYS_ADMIN for non-root
 # This test is not executed on a core system simply because of the hassle of
 # building the support C program. In the future it might be improved with the
 # use of the classic snap where we just use classic to build the helper.
-systems: [-ubuntu-core-*]
+# Arch, CentOS, AMZN2, openSUSE do not have a static version of libcap.
+systems: [-ubuntu-core-*, -arch-linux-*, -centos-*, -amazon-linux-*, -opensuse-* ]
 
 environment:
     # This is used to abbreviate some of the paths below.
@@ -17,8 +18,10 @@ prepare: |
 
     echo "Compile and prepare the support program"
     # Because we use the snap data directory we don't need to clean it up
-    # manually as all snaps and their data are reset after each test.
-    gcc -Wall -Wextra -Werror ./has-sys-admin.c -lcap -o "$P/has-sys-admin"
+    # manually as all snaps and their data are reset after each test. Build the
+    # binary statically, such that it can execute regardless of an older glibc
+    # in the base snap.
+    gcc -Wall -Wextra -Werror ./has-sys-admin.c -o "$P/has-sys-admin" -lcap -static
 
 execute: |
     echo "The test executables files have the expected mode and ownership"

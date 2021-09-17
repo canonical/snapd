@@ -80,8 +80,6 @@ static const char *cgroup_dir = "/sys/fs/cgroup";
 // hybrid or legacy) The algorithm is described in
 // https://systemd.io/CGROUP_DELEGATION/
 bool sc_cgroup_is_v2(void) {
-    bool hide_warning = getenv_bool("SNAPD_HIDE_CGROUPV2_WARNING", false);
-    static bool did_warn = false;
     struct statfs buf;
 
     if (statfs(cgroup_dir, &buf) != 0) {
@@ -91,10 +89,6 @@ bool sc_cgroup_is_v2(void) {
         die("cannot statfs %s", cgroup_dir);
     }
     if (buf.f_type == CGROUP2_SUPER_MAGIC) {
-        if (!did_warn && !hide_warning) {
-            fprintf(stderr, "WARNING: cgroup v2 is not fully supported yet, proceeding with partial confinement\n");
-            did_warn = true;
-        }
         return true;
     }
     return false;

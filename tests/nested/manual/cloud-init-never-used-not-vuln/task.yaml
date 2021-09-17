@@ -35,7 +35,7 @@ prepare: |
     if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "false" ]; then
         snap install http --devmode # devmode so it can save to any dir
 
-        mkdir -p "$(nested_get_extra_snaps_path)"
+        mkdir -p "$(tests.nested get extra-snaps-path)"
 
         if os.query is-xenial; then
             # uc16 uses core snap
@@ -43,11 +43,11 @@ prepare: |
             # The core snap is unpacked and repacked to prevent it is auto-refreshed when
             # it is installed with --dangerous as it has a different hash
             unsquashfs -d core-snap core_2.45.snap
-            snap pack core-snap/ "$(nested_get_extra_snaps_path)"
+            snap pack core-snap/ "$(tests.nested get extra-snaps-path)"
         else 
             # uc18 uses snapd snap
             http --quiet --download --output snapd_2.45.snap GET "$SNAPD_2_45_SNAPD_SNAP"
-            cp snapd_2.45.snap "$(nested_get_extra_snaps_path)"
+            cp snapd_2.45.snap "$(tests.nested get extra-snaps-path)"
         fi
     fi
 
@@ -92,7 +92,7 @@ execute: |
             tests.nested exec "sudo snap install core-from-snapd-deb.snap --dangerous"
 
             # now we wait for the reboot for the new core snap
-            nested_wait_for_no_ssh
+            tests.nested wait-for no-ssh
             tests.nested wait-for ssh
             
         else
@@ -135,14 +135,14 @@ execute: |
     tests.nested exec "sudo journalctl -e --no-pager -u snapd" > snapd-before-reboot.logs
 
     echo "Gracefully shutting down the nested VM to prepare a simulated attack"
-    boot_id="$(nested_get_boot_id)"
-    tests.nested stop-vm
+    boot_id="$(tests.nested boot-id)"
+    tests.nested vm stop
 
     echo "Replace the empty seed.iso with the new attacker iso"
     mv seed2.iso seed.iso
 
     echo "Restarting nested VM with attacker cloud-init CD-ROM drive"
-    tests.nested start-vm
+    tests.nested vm start
     tests.nested wait-for reboot "${boot_id}"
 
     # cloud-init should not actually run, since it was disabled, but in case the

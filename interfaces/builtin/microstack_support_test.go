@@ -20,8 +20,11 @@
 package builtin_test
 
 import (
+	"fmt"
+
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -152,7 +155,8 @@ SUBSYSTEM=="misc", KERNEL=="loop-control", TAG+="snap_microstack_app"`)
 SUBSYSTEM=="misc", KERNEL=="device-mapper", TAG+="snap_microstack_app"`)
 	c.Assert(spec.Snippets(), testutil.Contains, `# microstack-support
 SUBSYSTEM=="block", KERNEL=="dm-[0-9]*", TAG+="snap_microstack_app"`)
-	c.Assert(spec.Snippets(), testutil.Contains, `TAG=="snap_microstack_app", RUN+="/usr/lib/snapd/snap-device-helper $env{ACTION} snap_microstack_app $devpath $major:$minor"`)
+	c.Assert(spec.Snippets(), testutil.Contains,
+		fmt.Sprintf(`TAG=="snap_microstack_app", RUN+="%s/snap-device-helper $env{ACTION} snap_microstack_app $devpath $major:$minor"`, dirs.DistroLibExecDir))
 }
 
 func (s *microStackSupportInterfaceSuite) TestInterfaces(c *C) {

@@ -75,7 +75,7 @@ execute: |
     echo "2. good recovery systems is populated with current systems"
     tests.nested exec "sudo sed -i -e 's/good_recovery_systems=.*/good_recovery_systems=/' /var/lib/snapd/modeenv"
 
-    boot_id="$( nested_get_boot_id )"
+    boot_id="$( tests.nested boot-id )"
     tests.nested exec "sudo reboot" || true
     tests.nested wait-for reboot "${boot_id}"
     echo "Check the test will race with snapd updating the modeenv, wait for the modenv to have a good state"
