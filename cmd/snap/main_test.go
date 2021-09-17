@@ -40,6 +40,7 @@ import (
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/snapdenv"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
 )
@@ -336,6 +337,13 @@ func (s *SnapSuite) TestLintDesc(c *C) {
 	log, restore := logger.MockLogger()
 	defer restore()
 
+	// LintDesc doesn't panic or log if SNAPD_DEBUG or testing are unset
+	snap.LintDesc("command", "<option>", "description", "")
+	c.Check(log.String(), HasLen, 0)
+
+	restoreTesting := snapdenv.MockTesting(true)
+	defer restoreTesting()
+
 	// LintDesc is happy about capitalized description.
 	snap.LintDesc("command", "<option>", "Description ...", "")
 	c.Check(log.String(), HasLen, 0)
@@ -348,8 +356,11 @@ func (s *SnapSuite) TestLintDesc(c *C) {
 	defer func() {
 		os.Setenv("LC_MESSAGES", prevValue)
 	}()
-	snap.LintDesc("command", "<option>", "description", "")
-	c.Check(log.String(), testutil.Contains, `description of command's "<option>" is lowercase in locale "en_US": "description"`)
+
+	fn := func() {
+		snap.LintDesc("command", "<option>", "description", "")
+	}
+	c.Check(fn, PanicMatches, `description of command's "<option>" is lowercase in locale "en_US": "description"`)
 	log.Reset()
 
 	// LintDesc does not complain about lowercase description starting with login.ubuntu.com
@@ -358,7 +369,7 @@ func (s *SnapSuite) TestLintDesc(c *C) {
 	log.Reset()
 
 	// LintDesc panics when original description is present.
-	fn := func() {
+	fn = func() {
 		snap.LintDesc("command", "<option>", "description", "original description")
 	}
 	c.Check(fn, PanicMatches, `description of command's "<option>" of "original description" set from tag \(=> no i18n\)`)
@@ -380,26 +391,38 @@ func (s *SnapSuite) TestLintArg(c *C) {
 	log, restore := logger.MockLogger()
 	defer restore()
 
+	// LintArg doesn't panic or log if SNAPD_DEBUG or testing are unset
+	snap.LintArg("command", "option", "Description", "")
+	c.Check(log.String(), HasLen, 0)
+
+	restoreTest := snapdenv.MockTesting(true)
+	defer restoreTest()
+
 	// LintArg is happy when option is enclosed with < >.
+	log.Reset()
 	snap.LintArg("command", "<option>", "Description", "")
 	c.Check(log.String(), HasLen, 0)
-	log.Reset()
 
 	// LintArg complains about when option is not properly enclosed with < >.
-	snap.LintArg("command", "option", "Description", "")
-	c.Check(log.String(), testutil.Contains, `argument "command"'s "option" should begin with < and end with >`)
-	log.Reset()
-	snap.LintArg("command", "<option", "Description", "")
-	c.Check(log.String(), testutil.Contains, `argument "command"'s "<option" should begin with < and end with >`)
-	log.Reset()
-	snap.LintArg("command", "option>", "Description", "")
-	c.Check(log.String(), testutil.Contains, `argument "command"'s "option>" should begin with < and end with >`)
-	log.Reset()
+	fn := func() {
+		snap.LintArg("command", "option", "Description", "")
+	}
+	c.Check(fn, PanicMatches, `argument "command"'s "option" should begin with < and end with >`)
+
+	fn = func() {
+		snap.LintArg("command", "<option", "Description", "")
+	}
+	c.Check(fn, PanicMatches, `argument "command"'s "<option" should begin with < and end with >`)
+
+	fn = func() {
+		snap.LintArg("command", "option>", "Description", "")
+	}
+	c.Check(fn, PanicMatches, `argument "command"'s "option>" should begin with < and end with >`)
 
 	// LintArg ignores the special case of <option>s.
+	log.Reset()
 	snap.LintArg("command", "<option>s", "Description", "")
 	c.Check(log.String(), HasLen, 0)
-	log.Reset()
 }
 
 func (s *SnapSuite) TestFixupArg(c *C) {
