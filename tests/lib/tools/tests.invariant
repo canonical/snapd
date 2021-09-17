@@ -57,7 +57,7 @@ check_root_files_in_home() {
 
 check_crashed_snap_confine() {
 	n="$1" # invariant name
-	find /tmp -name 'snap.rootfs_*' > "$TESTSTMP/tests.invariant.$n"
+	find "$TESTSTMP" -name 'snap.rootfs_*' > "$TESTSTMP/tests.invariant.$n"
 	# NOTE: it may be a mount point but we are not checking that here.
 	if [ -s "$TESTSTMP/tests.invariant.$n" ]; then
 		echo "tests.invariant: it seems snap-confine has crashed" >&2
