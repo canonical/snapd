@@ -107,7 +107,7 @@ func (r *autoRefreshGatingStore) SnapAction(ctx context.Context, currentSnaps []
 }
 
 func mockInstalledSnap(c *C, st *state.State, snapYaml string, hasHook bool) *snap.Info {
-	snapInfo := snaptest.MockSnap(c, string(snapYaml), &snap.SideInfo{
+	snapInfo := snaptest.MockSnap(c, snapYaml, &snap.SideInfo{
 		Revision: snap.R(1),
 	})
 
