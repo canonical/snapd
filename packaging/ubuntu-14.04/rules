@@ -145,7 +145,8 @@ override_dh_auto_build:
 	$(MAKE) -C data all
 
 override_dh_auto_test:
-	dh_auto_test -- -mod=vendor $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS) $(DH_GOPKG)/...
+	GO111MODULE=on \
+		dh_auto_test -- -mod=vendor $(BUILDFLAGS) $(TAGS) $(GCCGOFLAGS) $(DH_GOPKG)/...
 # a tested default (production) build should have no test keys
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
 	# check that only the main trusted account-keys are included

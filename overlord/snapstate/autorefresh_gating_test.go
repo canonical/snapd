@@ -2123,12 +2123,14 @@ func (s *snapmgrTestSuite) TestAutoRefreshPhase2ConflictOtherSnapOp(c *C) {
 	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
 		ChangeKind: "fake-auto-refresh",
 		Snap:       "snap-a",
+		ChangeID:   chg.ID(),
 	})
 
 	_, err = snapstate.Update(s.state, "snap-a", nil, 0, snapstate.Flags{})
 	c.Assert(err, DeepEquals, &snapstate.ChangeConflictError{
 		ChangeKind: "fake-auto-refresh",
 		Snap:       "snap-a",
+		ChangeID:   chg.ID(),
 	})
 
 	// only 2 tasks because we don't run settle() so conditional-auto-refresh

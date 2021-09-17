@@ -44,21 +44,14 @@ execute: |
     #shellcheck source=tests/lib/systems.sh
     . "$TESTSLIB"/systems.sh
 
-    if is_cgroupv2; then
-        check_stderr() {
-            test -n "$1"
-            test "WARNING: cgroup v2 is not fully supported yet, proceeding with partial confinement" = "$(cat "$1")"
-        }
-    else
-        check_stderr() {
-            test -n "$1"
-            if [ -s "$1" ]; then
-                echo "stderr contains some messages"
-                cat "$1"
-                exit 1
-            fi
-        }
-    fi
+    check_stderr() {
+        test -n "$1"
+        if [ -s "$1" ]; then
+            echo "stderr contains some messages"
+            cat "$1"
+            exit 1
+        fi
+    }
 
     echo "No output on stderr when running with a session bus, when xdg-document-portal is not present."
     tests.session -u test exec test-snapd-desktop.check-dirs /home/test/snap/test-snapd-desktop/current 2>stderr.log
