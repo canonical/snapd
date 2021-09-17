@@ -85,6 +85,11 @@ execute: |
     # NOTE: the actual permissions may drift over time. We just care about the fact
     # that there *are* some constraints here now and there were none before.
     echo "Verify the constraints in device cgroup imposed by snapd on the snap application"
+    # the key checked below corresponds to /dev/null device, which is a char
+    # device with major:minor 1:3, breaking that up into the key representation:
+    # - 0x63 - single byte, 'c'
+    # - 0x01 0x00 0x00 0x00 - uint32, host endian, value 1
+    # - 0x03 0x00 0x00 0x00 - uint32, host endian, value 3
     MATCH 'key: 63 01 00 00 00 03 00 00 +00 +value: 01' < device-access.map-app
 
     echo "Restart the test service"
@@ -102,7 +107,7 @@ execute: |
     # dump the map
     bpftool map dump pinned /sys/fs/bpf/snap/snap_test-snapd-service_test-snapd-service > device-access.map-service
 
-    # we use hash map, and there may be a random element introduced affecting
+    # we use a hash map, and there may be a random element introduced affecting
     # the ordering, so just verify the basics
     echo "Verify the constraints in device cgroup imposed by snapd on the snap service"
     MATCH 'key: 63 01 00 00 00 03 00 00 +00 +value: 01' < device-access.map-service
