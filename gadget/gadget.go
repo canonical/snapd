@@ -112,8 +112,8 @@ type Volume struct {
 	ID string `yaml:"id"`
 	// Structure describes the structures that are part of the volume
 	Structure []VolumeStructure `yaml:"structure"`
-	// VolumeName is the name of the volume from the gadget.yaml
-	VolumeName string
+	// Name is the name of the volume from the gadget.yaml
+	Name string
 }
 
 // VolumeStructure describes a single structure inside a volume. A structure can
@@ -344,8 +344,8 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 	knownFsLabelsPerVolume := make(map[string]map[string]bool, len(gi.Volumes))
 	for name, v := range gi.Volumes {
 		// set the VolumeName for the volume
-		v.VolumeName = name
-		if err := validateVolume(name, v, knownFsLabelsPerVolume); err != nil {
+		v.Name = name
+		if err := validateVolume(v, knownFsLabelsPerVolume); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 
@@ -400,7 +400,7 @@ func setImplicitForVolume(vol *Volume, model Model, knownFsLabels map[string]boo
 	}
 	for i := range vol.Structure {
 		// set the VolumeName for the structure from the volume itself
-		vol.Structure[i].VolumeName = vol.VolumeName
+		vol.Structure[i].VolumeName = vol.Name
 		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs, knownFsLabels); err != nil {
 			return err
 		}
@@ -521,8 +521,8 @@ func fmtIndexAndName(idx int, name string) string {
 	return fmt.Sprintf("#%v", idx)
 }
 
-func validateVolume(name string, vol *Volume, knownFsLabelsPerVolume map[string]map[string]bool) error {
-	if !validVolumeName.MatchString(name) {
+func validateVolume(vol *Volume, knownFsLabelsPerVolume map[string]map[string]bool) error {
+	if !validVolumeName.MatchString(vol.Name) {
 		return errors.New("invalid name")
 	}
 	if vol.Schema != "" && vol.Schema != schemaGPT && vol.Schema != schemaMBR {
@@ -537,7 +537,7 @@ func validateVolume(name string, vol *Volume, knownFsLabelsPerVolume map[string]
 	structures := make([]LaidOutStructure, len(vol.Structure))
 
 	if knownFsLabelsPerVolume != nil {
-		knownFsLabelsPerVolume[name] = knownFsLabels
+		knownFsLabelsPerVolume[vol.Name] = knownFsLabels
 	}
 
 	previousEnd := quantity.Offset(0)
