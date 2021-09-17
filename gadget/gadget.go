@@ -975,6 +975,12 @@ func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model) (syste
 		// to identify it
 		for _, structure := range vol.Structure {
 			if structure.Role == SystemBoot {
+				if system != nil {
+					// this should be impossible, the validation above should
+					// ensure there are not multiple volumes with the same role
+					// on them
+					return nil, nil, fmt.Errorf("internal error: gadget passed validation but duplicated system-* roles across multiple volumes")
+				}
 				system = lvol
 			}
 		}
