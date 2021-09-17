@@ -3746,7 +3746,7 @@ func (s *validationSetsSuite) installSnapReferencedByValidationSet(c *C, presenc
 
 func (s *validationSetsSuite) TestInstallSnapInvalidForValidationSetRefused(c *C) {
 	err := s.installSnapReferencedByValidationSet(c, "invalid", "", snap.R(0), "")
-	c.Assert(err, ErrorMatches, `cannot install snap "some-snap" due to enforcing rules of validation set foo/bar`)
+	c.Assert(err, ErrorMatches, `cannot install snap "some-snap" due to enforcing rules of validation set 16/foo/bar/1`)
 }
 
 func (s *validationSetsSuite) TestInstallSnapOptionalForValidationSetOK(c *C) {
@@ -3764,7 +3764,7 @@ func (s *validationSetsSuite) TestInstallSnapRequiredForValidationSet(c *C) {
 			Action:         "install",
 			InstanceName:   "some-snap",
 			Channel:        "stable",
-			ValidationSets: [][]string{{"foo", "bar"}},
+			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
 		},
 		revno: snap.R(11),
 	}
@@ -3781,7 +3781,7 @@ func (s *validationSetsSuite) TestInstallSnapRequiredForValidationSetAtRevision(
 			Action:         "install",
 			Revision:       snap.R(2),
 			InstanceName:   "some-snap",
-			ValidationSets: [][]string{{"foo", "bar"}},
+			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
 		},
 		revno: snap.R(2),
 	}
@@ -3798,7 +3798,7 @@ func (s *validationSetsSuite) TestInstallSnapRequiredForValidationSetCohortIgnor
 			Action:         "install",
 			Revision:       snap.R(2),
 			InstanceName:   "some-snap",
-			ValidationSets: [][]string{{"foo", "bar"}},
+			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
 		},
 		revno: snap.R(2),
 	}
@@ -3807,5 +3807,5 @@ func (s *validationSetsSuite) TestInstallSnapRequiredForValidationSetCohortIgnor
 
 func (s *validationSetsSuite) TestInstallSnapReferencedByValidationSetWrongRevision(c *C) {
 	err := s.installSnapReferencedByValidationSet(c, "required", "3", snap.R(2), "")
-	c.Assert(err, ErrorMatches, `cannot install snap "some-snap" at requested revision 2 without --ignore-validation, revision 3 required by validation sets: foo/bar`)
+	c.Assert(err, ErrorMatches, `cannot install snap "some-snap" at requested revision 2 without --ignore-validation, revision 3 required by validation sets: 16/foo/bar/1`)
 }
