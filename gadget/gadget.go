@@ -345,7 +345,7 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 	for name, v := range gi.Volumes {
 		// set the VolumeName for the volume
 		v.VolumeName = name
-		if err := validateVolume(name, v, knownFsLabelsPerVolume); err != nil {
+		if err := validateVolume(v, knownFsLabelsPerVolume); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 
@@ -521,8 +521,8 @@ func fmtIndexAndName(idx int, name string) string {
 	return fmt.Sprintf("#%v", idx)
 }
 
-func validateVolume(name string, vol *Volume, knownFsLabelsPerVolume map[string]map[string]bool) error {
-	if !validVolumeName.MatchString(name) {
+func validateVolume(vol *Volume, knownFsLabelsPerVolume map[string]map[string]bool) error {
+	if !validVolumeName.MatchString(vol.VolumeName) {
 		return errors.New("invalid name")
 	}
 	if vol.Schema != "" && vol.Schema != schemaGPT && vol.Schema != schemaMBR {
@@ -537,7 +537,7 @@ func validateVolume(name string, vol *Volume, knownFsLabelsPerVolume map[string]
 	structures := make([]LaidOutStructure, len(vol.Structure))
 
 	if knownFsLabelsPerVolume != nil {
-		knownFsLabelsPerVolume[name] = knownFsLabels
+		knownFsLabelsPerVolume[vol.VolumeName] = knownFsLabels
 	}
 
 	previousEnd := quantity.Offset(0)
