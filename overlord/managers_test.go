@@ -6874,7 +6874,7 @@ func (s *mgrsSuite) TestRemodelUC20DifferentKernelChannel(c *C) {
 
 	// first comes a reboot to the new recovery system
 	c.Check(chg.Status(), Equals, state.DoingStatus, Commentf("remodel change failed: %v", chg.Err()))
-	c.Check(devicestate.Remodeling(st), Equals, true)
+	c.Check(devicestate.RemodelingChange(st), NotNil)
 	restarting, kind := st.Restarting()
 	c.Check(restarting, Equals, true)
 	c.Assert(kind, Equals, state.RestartSystemNow)
@@ -7009,7 +7009,7 @@ func (s *mgrsSuite) TestRemodelUC20DifferentGadgetChannel(c *C) {
 
 	// first comes a reboot to the new recovery system
 	c.Check(chg.Status(), Equals, state.DoingStatus, Commentf("remodel change failed: %v", chg.Err()))
-	c.Check(devicestate.Remodeling(st), Equals, true)
+	c.Check(devicestate.RemodelingChange(st), NotNil)
 	restarting, kind := st.Restarting()
 	c.Check(restarting, Equals, true)
 	c.Assert(kind, Equals, state.RestartSystemNow)
@@ -7114,7 +7114,7 @@ func (s *mgrsSuite) TestRemodelUC20DifferentBaseChannel(c *C) {
 
 	// first comes a reboot to the new recovery system
 	c.Check(chg.Status(), Equals, state.DoingStatus, Commentf("remodel change failed: %v", chg.Err()))
-	c.Check(devicestate.Remodeling(st), Equals, true)
+	c.Check(devicestate.RemodelingChange(st), NotNil)
 	restarting, kind := st.Restarting()
 	c.Check(restarting, Equals, true)
 	c.Assert(kind, Equals, state.RestartSystemNow)
