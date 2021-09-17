@@ -104,7 +104,7 @@ func listValidationSets(c *Command, r *http.Request, _ *auth.UserState) Response
 	}
 	sort.Strings(names)
 
-	snaps, err := assertstate.InstalledSnaps(st)
+	snaps, err := snapstate.InstalledSnaps(st)
 	if err != nil {
 		return InternalError(err.Error())
 	}
@@ -200,7 +200,7 @@ func getValidationSet(c *Command, r *http.Request, user *auth.UserState) Respons
 	if err != nil {
 		return InternalError(err.Error())
 	}
-	snaps, err := assertstate.InstalledSnaps(st)
+	snaps, err := snapstate.InstalledSnaps(st)
 	if err != nil {
 		return InternalError(err.Error())
 	}
@@ -361,7 +361,7 @@ func validateAgainstStore(st *state.State, accountID, name string, sequence int,
 	if err := sets.Add(vset); err != nil {
 		return InternalError(err.Error())
 	}
-	snaps, err := assertstate.InstalledSnaps(st)
+	snaps, err := snapstate.InstalledSnaps(st)
 	if err != nil {
 		return InternalError(err.Error())
 	}

@@ -3255,28 +3255,3 @@ func (s *assertMgrSuite) TestTemporaryDB(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(fromDB.(*asserts.Model), DeepEquals, model)
 }
-
-func (s *assertMgrSuite) TestInstalledSnaps(c *C) {
-	st := s.state
-	st.Lock()
-	defer st.Unlock()
-
-	snaps, err := assertstate.InstalledSnaps(st)
-	c.Assert(err, IsNil)
-	c.Check(snaps, HasLen, 0)
-
-	snapstate.Set(s.state, "foo", &snapstate.SnapState{
-		Active:   true,
-		Sequence: []*snap.SideInfo{{RealName: "foo", Revision: snap.R(23), SnapID: "foo-id"}},
-		Current:  snap.R(23),
-	})
-	snaptest.MockSnap(c, string(`name: foo
-version: 1`), &snap.SideInfo{Revision: snap.R("13")})
-
-	snaps, err = assertstate.InstalledSnaps(st)
-	c.Assert(err, IsNil)
-	c.Check(snaps, HasLen, 1)
-	c.Check(snaps[0].SnapName(), Equals, "foo")
-	c.Check(snaps[0].ID(), Equals, "foo-id")
-	c.Check(snaps[0].Revision, Equals, snap.R("23"))
-}

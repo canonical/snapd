@@ -453,7 +453,7 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 			return err
 		}
 
-		snaps, err := InstalledSnaps(s)
+		snaps, err := snapstate.InstalledSnaps(s)
 		if err != nil {
 			return err
 		}
