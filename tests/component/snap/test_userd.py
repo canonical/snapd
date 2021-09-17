@@ -1,5 +1,6 @@
 import os
 import re
+import socket
 import subprocess
 import sys
 
@@ -94,7 +95,6 @@ class TestUserdSessionAgent:
         environment['SNAPPY_GLOBAL_ROOT'] = root_dir
 
         # Occupy the socket
-        import socket
         xdg_runtime_dir = root_dir / 'run' / 'user' / str(os.getuid())
         socket_path = xdg_runtime_dir / 'snapd-session-agent.socket'
         server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
@@ -111,3 +111,28 @@ class TestUserdSessionAgent:
         assert 'already in use' in output
         assert service.returncode == 1
         server.close()
+
+
+class TestUserd:
+    @pytest.mark.parametrize('request_data, expected_error', [
+        pytest.param(
+            b'just some random string\n\n',
+            b'HTTP/1.1 400 Bad Request'),
+        pytest.param(
+            b'GET /v1/session-info HTTP/1.1\n\n',
+            b'HTTP/1.1 400 Bad Request: missing required Host header'),
+        pytest.param(
+            b'GET /v1/inexistent HTTP/1.1\nHost: me\n\n',
+            b'HTTP/1.1 404 Not Found'),
+    ])
+    def test_invalid_requests(self, snap_userd, request_data,
+                              expected_error):
+        socket_path = snap_userd[1]
+        print("Path: {}".format(socket_path))
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.connect(socket_path)
+        s.send(request_data)
+        reply = s.recv(10000)
+        eol = reply.index(b'\r\n')
+        first_line = reply[:eol]
+        assert first_line == expected_error
