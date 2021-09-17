@@ -3852,7 +3852,7 @@ func (s *validationSetsSuite) installManySnapReferencedByValidationSet(c *C, sna
 
 func (s *validationSetsSuite) TestInstallManyInvalidForValidationSetRefused(c *C) {
 	err := s.installManySnapReferencedByValidationSet(c, "invalid", "", "optional", "")
-	c.Assert(err, ErrorMatches, `cannot install snap "one" due to enforcing rules of validation set foo/bar`)
+	c.Assert(err, ErrorMatches, `cannot install snap "one" due to enforcing rules of validation set 16/foo/bar/1`)
 }
 
 func (s *validationSetsSuite) TestInstallManyRequiredForValidationSetOK(c *C) {
@@ -3866,7 +3866,7 @@ func (s *validationSetsSuite) TestInstallManyRequiredForValidationSetOK(c *C) {
 			Action:         "install",
 			InstanceName:   "one",
 			Channel:        "stable",
-			ValidationSets: [][]string{{"foo", "bar"}},
+			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
 		},
 		revno: snap.R(11),
 	}, {
@@ -3893,7 +3893,7 @@ func (s *validationSetsSuite) TestInstallManyRequiredRevisionForValidationSetOK(
 			Action:         "install",
 			InstanceName:   "one",
 			Revision:       snap.R(11),
-			ValidationSets: [][]string{{"foo", "bar"}},
+			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
 		},
 		revno: snap.R(11),
 	}, {
@@ -3902,7 +3902,7 @@ func (s *validationSetsSuite) TestInstallManyRequiredRevisionForValidationSetOK(
 			Action:         "install",
 			InstanceName:   "two",
 			Revision:       snap.R(2),
-			ValidationSets: [][]string{{"foo", "bar"}},
+			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
 		},
 		revno: snap.R(2),
 	}}
