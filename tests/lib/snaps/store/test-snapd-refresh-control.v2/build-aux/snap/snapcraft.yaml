@@ -28,3 +28,5 @@ plugs:
     interface: content
     content: test-content
     target: $SNAP/content
+  snap-refresh-control:
+    interface: snap-refresh-control

@@ -23,7 +23,6 @@ package sandbox
 
 import (
 	"github.com/snapcore/snapd/sandbox/apparmor"
-	"github.com/snapcore/snapd/sandbox/cgroup"
 )
 
 // For testing only
@@ -37,10 +36,7 @@ func ForceDevMode() bool {
 	}
 
 	apparmorFull := apparmor.ProbedLevel() == apparmor.Full
-	// TODO: update once security backends affected by cgroupv2 are fully
-	// supported
-	cgroupv2 := cgroup.IsUnified()
-	return !apparmorFull || cgroupv2
+	return !apparmorFull
 }
 
 // MockForceDevMode fake the system to believe its in a distro

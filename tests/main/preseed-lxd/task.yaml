@@ -13,13 +13,10 @@ environment:
   IMAGE_MOUNTPOINT: /mnt/cloudimg
 
 prepare: |
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-
   #shellcheck source=tests/lib/preseed.sh
   . "$TESTSLIB/preseed.sh"
 
-  IMGURL=$(nested_get_image_url_for_vm ubuntu-20.04-64)
+  IMGURL=$(tests.nested get image-url ubuntu-20.04-64)
   wget --quiet "$IMGURL" -O cloudimg.img
 
   modprobe nbd

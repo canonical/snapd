@@ -95,6 +95,10 @@ capability sys_admin,
 # Devices for various controllers used with ioctl()
 /dev/mpt2ctl{,_wd} rw,
 /dev/megaraid_sas_ioctl_node rw,
+
+# Allow /sys/block/sdX/device/state to be accessible to accept or reject the request from given the path.
+# To take the path offline will cause any subsequent access to fail immediately, vice versa.
+/sys/devices/**/host*/**/state rw,
 `
 
 var blockDevicesConnectedPlugUDev = []string{

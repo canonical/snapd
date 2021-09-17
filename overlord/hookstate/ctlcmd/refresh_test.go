@@ -25,6 +25,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/cmd/snaplock"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord/configstate/config"
@@ -82,6 +84,12 @@ var refreshFromHookTests = []struct {
 }{{
 	args: []string{"refresh", "--proceed", "--hold"},
 	err:  "cannot use --proceed and --hold together",
+}, {
+	args: []string{"refresh", "--proceed", "--show-lock"},
+	err:  "cannot use --proceed and --show-lock together",
+}, {
+	args: []string{"refresh", "--hold", "--show-lock"},
+	err:  "cannot use --hold and --show-lock together",
 }, {
 	args: []string{"refresh", "--pending"},
 	refreshCandidates: map[string]interface{}{
@@ -288,9 +296,15 @@ func (s *refreshSuite) TestRefreshProceedFromSnap(c *C) {
 
 	s.st.Lock()
 	defer s.st.Unlock()
+
+	// note: don't mock the plug, it's enough to have it in conns
 	mockInstalledSnap(c, s.st, `name: foo
 version: 1
 `)
+
+	s.st.Set("conns", map[string]interface{}{
+		"foo:plug core:slot": map[string]interface{}{"interface": "snap-refresh-control"},
+	})
 
 	// enable gate-auto-refresh-hook feature
 	tr := config.NewTransaction(s.st)
@@ -337,9 +351,13 @@ func (s *refreshSuite) TestRefreshProceedFromSnapError(c *C) {
 
 	s.st.Lock()
 	defer s.st.Unlock()
+	// note: don't mock the plug, it's enough to have it in conns
 	mockInstalledSnap(c, s.st, `name: foo
 version: 1
 `)
+	s.st.Set("conns", map[string]interface{}{
+		"foo:plug core:slot": map[string]interface{}{"interface": "snap-refresh-control"},
+	})
 
 	// enable gate-auto-refresh-hook feature
 	tr := config.NewTransaction(s.st)
@@ -357,6 +375,56 @@ version: 1
 	c.Assert(err, ErrorMatches, "boom")
 }
 
+func (s *refreshSuite) TestRefreshProceedFromSnapErrorNoSnapRefreshControl(c *C) {
+	var called bool
+	restore := ctlcmd.MockAutoRefreshForGatingSnap(func(st *state.State, gatingSnap string) error {
+		called = true
+		return nil
+	})
+	defer restore()
+
+	s.st.Lock()
+	defer s.st.Unlock()
+	// note: don't mock the plug, it's enough to have it in conns
+	mockInstalledSnap(c, s.st, `name: foo
+version: 1
+`)
+	s.st.Set("conns", map[string]interface{}{
+		"foo:plug core:slot": map[string]interface{}{
+			"interface": "snap-refresh-control",
+			"undesired": true,
+		},
+	})
+
+	// enable gate-auto-refresh-hook feature
+	tr := config.NewTransaction(s.st)
+	tr.Set("core", "experimental.gate-auto-refresh-hook", true)
+	tr.Commit()
+
+	// foo is the snap that is going to call --proceed.
+	setup := &hookstate.HookSetup{Snap: "foo", Revision: snap.R(1)}
+	mockContext, err := hookstate.NewContext(nil, s.st, setup, nil, "")
+	c.Check(err, IsNil)
+	s.st.Unlock()
+	defer s.st.Lock()
+
+	_, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
+	c.Assert(err, ErrorMatches, "cannot proceed: requires snap-refresh-control interface")
+	c.Assert(called, Equals, false)
+
+	s.st.Lock()
+	s.st.Set("conns", map[string]interface{}{
+		"foo:plug core:slot": map[string]interface{}{
+			"interface": "other",
+		},
+	})
+	s.st.Unlock()
+
+	_, _, err = ctlcmd.Run(mockContext, []string{"refresh", "--proceed"}, 0)
+	c.Assert(err, ErrorMatches, "cannot proceed: requires snap-refresh-control interface")
+	c.Assert(called, Equals, false)
+}
+
 func (s *refreshSuite) TestRefreshRegularUserForbidden(c *C) {
 	s.st.Lock()
 	setup := &hookstate.HookSetup{Snap: "snap", Revision: snap.R(1)}
@@ -368,4 +436,39 @@ func (s *refreshSuite) TestRefreshRegularUserForbidden(c *C) {
 	c.Assert(err, ErrorMatches, `cannot use "refresh" with uid 1000, try with sudo`)
 	forbidden, _ := err.(*ctlcmd.ForbiddenCommandError)
 	c.Assert(forbidden, NotNil)
+}
+
+func (s *refreshSuite) TestRefreshPrintInhibitHint(c *C) {
+	s.st.Lock()
+	task := s.st.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "snap1", Revision: snap.R(1), Hook: "gate-auto-refresh"}
+	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
+	c.Check(err, IsNil)
+	s.st.Unlock()
+
+	lock, err := snaplock.OpenLock("snap1")
+	c.Assert(err, IsNil)
+	err = lock.Lock()
+	c.Assert(err, IsNil)
+	c.Check(runinhibit.LockWithHint("snap1", runinhibit.HintInhibitedForRefresh), IsNil)
+	lock.Unlock()
+
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--show-lock"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, "refresh")
+	c.Check(string(stderr), Equals, "")
+}
+
+func (s *refreshSuite) TestRefreshPrintInhibitHintEmpty(c *C) {
+	s.st.Lock()
+	task := s.st.NewTask("test-task", "my test task")
+	setup := &hookstate.HookSetup{Snap: "some-snap", Revision: snap.R(1), Hook: "gate-auto-refresh"}
+	mockContext, err := hookstate.NewContext(task, s.st, setup, s.mockHandler, "")
+	c.Check(err, IsNil)
+	s.st.Unlock()
+
+	stdout, stderr, err := ctlcmd.Run(mockContext, []string{"refresh", "--show-lock"}, 0)
+	c.Assert(err, IsNil)
+	c.Check(string(stdout), Equals, "")
+	c.Check(string(stderr), Equals, "")
 }

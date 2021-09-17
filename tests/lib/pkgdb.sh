@@ -594,7 +594,9 @@ pkg_dependencies_ubuntu_classic(){
                 evolution-data-server
                 fwupd
                 gccgo-9
+                libvirt-daemon-system
                 packagekit
+                qemu-kvm
                 qemu-utils
                 shellcheck
                 "
@@ -652,7 +654,7 @@ pkg_dependencies_ubuntu_core(){
         pkg_linux_image_extra
 }
 
-pkg_dependencies_fedora(){
+pkg_dependencies_fedora_centos_common(){
     echo "
         python3
         clang
@@ -685,6 +687,12 @@ pkg_dependencies_fedora(){
         "
 }
 
+pkg_dependencies_fedora(){
+    echo "
+         libcap-static
+        "
+}
+
 pkg_dependencies_amazon(){
     echo "
         python3
@@ -698,6 +706,7 @@ pkg_dependencies_amazon(){
         grub2-tools
         jq
         iptables-services
+        libcap-static
         man
         nc
         net-tools
@@ -802,7 +811,11 @@ pkg_dependencies(){
         amazon-*|centos-7-*)
             pkg_dependencies_amazon
             ;;
-        fedora-*|centos-*)
+        centos-*)
+            pkg_dependencies_fedora_centos_common
+            ;;
+        fedora-*)
+            pkg_dependencies_fedora_centos_common
             pkg_dependencies_fedora
             ;;
         opensuse-*)

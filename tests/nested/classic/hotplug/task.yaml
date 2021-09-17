@@ -1,9 +1,6 @@
 summary: Create ubuntu classic image, install snapd and test hotplug feature
 
 prepare: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     echo "Install snapd.deb in the nested vm"
     tests.nested copy "${GOHOME}"/snapd_*.deb
     tests.nested exec "sudo apt update"
@@ -24,9 +21,6 @@ restore: |
     rm -f /tmp/serialport{0,1}
 
 debug: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     set +e
     tests.nested exec "snap connections --all"
     tests.nested exec "snap list"
@@ -36,8 +30,6 @@ debug: |
     set -e
 
 execute: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
     #shellcheck source=tests/lib/hotplug.sh
     . "$TESTSLIB/hotplug.sh"
     
