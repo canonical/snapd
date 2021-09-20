@@ -884,14 +884,14 @@ func (s *assertMgrSuite) TestValidateSnapCrossCheckFail(c *C) {
 	c.Assert(chg.Err(), ErrorMatches, `(?s).*cannot install "f", snap "f" is undergoing a rename to "foo".*`)
 }
 
-func (s *assertMgrSuite) validationSetAssert(c *C, name, sequence, revision string, snapPresence string) *asserts.ValidationSet {
+func (s *assertMgrSuite) validationSetAssert(c *C, name, sequence, revision string, snapPresence, requiredRevision string) *asserts.ValidationSet {
 	snaps := []interface{}{map[string]interface{}{
 		"id":       "qOqKhntON3vR7kwEbVPsILm7bUViPDzz",
 		"name":     "foo",
 		"presence": snapPresence,
 	}}
-	if snapPresence != "invalid" {
-		snaps[0].(map[string]interface{})["revision"] = "1"
+	if requiredRevision != "" {
+		snaps[0].(map[string]interface{})["revision"] = requiredRevision
 	}
 	headers := map[string]interface{}{
 		"series":       "16",
@@ -963,7 +963,7 @@ func (s *assertMgrSuite) TestRefreshAssertionsRefreshSnapDeclarationsAndValidati
 	c.Assert(assertstate.Add(s.state, snapDeclFoo), IsNil)
 	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
 
-	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1", "required")
+	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1", "required", "1")
 	c.Assert(assertstate.Add(s.state, vsetAs1), IsNil)
 	tr := assertstate.ValidationSetTracking{
 		AccountID: s.dev1Acct.AccountID(),
@@ -988,7 +988,7 @@ func (s *assertMgrSuite) TestRefreshAssertionsRefreshSnapDeclarationsAndValidati
 	c.Assert(err, IsNil)
 
 	// changed validation set assertion
-	vsetAs2 := s.validationSetAssert(c, "bar", "2", "3", "required")
+	vsetAs2 := s.validationSetAssert(c, "bar", "2", "3", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	err = assertstate.RefreshSnapAssertions(s.state, 0)
@@ -2238,10 +2238,10 @@ func (s *assertMgrSuite) TestValidationSetAssertionsAutoRefresh(c *C) {
 	c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
 	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
 
-	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1", "required")
+	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1", "required", "1")
 	c.Assert(assertstate.Add(s.state, vsetAs1), IsNil)
 
-	vsetAs2 := s.validationSetAssert(c, "bar", "2", "3", "required")
+	vsetAs2 := s.validationSetAssert(c, "bar", "2", "3", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	tr := assertstate.ValidationSetTracking{
@@ -2296,7 +2296,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsStoreError(c *C) {
 	c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
 	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
 
-	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1", "required")
+	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1", "required", "1")
 	c.Assert(assertstate.Add(s.state, vsetAs1), IsNil)
 
 	tr := assertstate.ValidationSetTracking{
@@ -2325,10 +2325,10 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 	c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
 	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
 
-	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1", "required")
+	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1", "required", "1")
 	c.Assert(assertstate.Add(s.state, vsetAs1), IsNil)
 
-	vsetAs2 := s.validationSetAssert(c, "bar", "1", "2", "required")
+	vsetAs2 := s.validationSetAssert(c, "bar", "1", "2", "required", "1")
 	err = s.storeSigning.Add(vsetAs2)
 	c.Assert(err, IsNil)
 
@@ -2359,7 +2359,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertions(c *C) {
 	c.Check(s.fakeStore.(*fakeStore).opts.IsAutoRefresh, Equals, true)
 
 	// sequence changed in the store to 4
-	vsetAs3 := s.validationSetAssert(c, "bar", "4", "3", "required")
+	vsetAs3 := s.validationSetAssert(c, "bar", "4", "3", "required", "1")
 	err = s.storeSigning.Add(vsetAs3)
 	c.Assert(err, IsNil)
 
@@ -2411,10 +2411,10 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 	c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
 	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
 
-	vsetAs1 := s.validationSetAssert(c, "bar", "2", "1", "required")
+	vsetAs1 := s.validationSetAssert(c, "bar", "2", "1", "required", "1")
 	c.Assert(assertstate.Add(s.state, vsetAs1), IsNil)
 
-	vsetAs2 := s.validationSetAssert(c, "bar", "2", "5", "required")
+	vsetAs2 := s.validationSetAssert(c, "bar", "2", "5", "required", "1")
 	err = s.storeSigning.Add(vsetAs2)
 	c.Assert(err, IsNil)
 
@@ -2446,7 +2446,7 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsPinned(c *C) {
 	})
 
 	// sequence changed in the store to 7
-	vsetAs3 := s.validationSetAssert(c, "bar", "7", "8", "required")
+	vsetAs3 := s.validationSetAssert(c, "bar", "7", "8", "required", "1")
 	err = s.storeSigning.Add(vsetAs3)
 	c.Assert(err, IsNil)
 
@@ -2488,13 +2488,13 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsLocalOnlyFailed(c *C)
 	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
 
 	// add to local database
-	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1", "required")
+	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1", "required", "1")
 	c.Assert(assertstate.Add(st, vsetAs1), IsNil)
-	vsetAs2 := s.validationSetAssert(c, "baz", "3", "1", "required")
+	vsetAs2 := s.validationSetAssert(c, "baz", "3", "1", "required", "1")
 	c.Assert(assertstate.Add(st, vsetAs2), IsNil)
 
 	// vset2 present and updated in the store
-	vsetAs2_2 := s.validationSetAssert(c, "baz", "3", "2", "required")
+	vsetAs2_2 := s.validationSetAssert(c, "baz", "3", "2", "required", "1")
 	err = s.storeSigning.Add(vsetAs2_2)
 	c.Assert(err, IsNil)
 
@@ -2569,17 +2569,17 @@ version: 1`), &snap.SideInfo{
 	c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
 	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
 
-	vsetAs1 := s.validationSetAssert(c, "foo", "1", "1", "required")
+	vsetAs1 := s.validationSetAssert(c, "foo", "1", "1", "required", "1")
 	c.Assert(assertstate.Add(s.state, vsetAs1), IsNil)
 
-	vsetAs2 := s.validationSetAssert(c, "bar", "1", "2", "required")
+	vsetAs2 := s.validationSetAssert(c, "bar", "1", "2", "required", "1")
 	c.Assert(assertstate.Add(s.state, vsetAs2), IsNil)
 
 	// in the store
-	vsetAs3 := s.validationSetAssert(c, "foo", "1", "2", "required")
+	vsetAs3 := s.validationSetAssert(c, "foo", "1", "2", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs3), IsNil)
 
-	vsetAs4 := s.validationSetAssert(c, "bar", "2", "3", "required")
+	vsetAs4 := s.validationSetAssert(c, "bar", "2", "3", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs4), IsNil)
 
 	tr := assertstate.ValidationSetTracking{
@@ -2652,13 +2652,13 @@ version: 1`), &snap.SideInfo{Revision: snap.R("1")})
 	c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
 	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
 
-	vsetAs1 := s.validationSetAssert(c, "bar", "1", "2", "required")
+	vsetAs1 := s.validationSetAssert(c, "bar", "1", "2", "required", "1")
 	c.Assert(assertstate.Add(s.state, vsetAs1), IsNil)
 
 	// in the store
 	c.Assert(s.storeSigning.Add(vsetAs1), IsNil)
 
-	vsetAs2 := s.validationSetAssert(c, "bar", "2", "3", "required")
+	vsetAs2 := s.validationSetAssert(c, "bar", "2", "3", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	tr := assertstate.ValidationSetTracking{
@@ -2709,14 +2709,14 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeConflict
 	c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
 	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
 
-	vsetAs1 := s.validationSetAssert(c, "foo", "1", "1", "required")
+	vsetAs1 := s.validationSetAssert(c, "foo", "1", "1", "required", "1")
 	c.Assert(assertstate.Add(s.state, vsetAs1), IsNil)
 
-	vsetAs2 := s.validationSetAssert(c, "bar", "1", "2", "required")
+	vsetAs2 := s.validationSetAssert(c, "bar", "1", "2", "required", "1")
 	c.Assert(assertstate.Add(s.state, vsetAs2), IsNil)
 
 	// in the store
-	vsetAs3 := s.validationSetAssert(c, "foo", "2", "2", "invalid")
+	vsetAs3 := s.validationSetAssert(c, "foo", "2", "2", "invalid", "")
 	c.Assert(s.storeSigning.Add(vsetAs3), IsNil)
 
 	tr := assertstate.ValidationSetTracking{
@@ -2782,11 +2782,12 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeMissingS
 	c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
 	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
 
-	vsetAs1 := s.validationSetAssert(c, "foo", "1", "1", "optional")
+	// currently tracked, but snap is not installed (it's optional)
+	vsetAs1 := s.validationSetAssert(c, "foo", "1", "1", "optional", "1")
 	c.Assert(assertstate.Add(s.state, vsetAs1), IsNil)
 
-	// in the store
-	vsetAs3 := s.validationSetAssert(c, "foo", "2", "2", "required")
+	// in the store, snap is now required
+	vsetAs3 := s.validationSetAssert(c, "foo", "2", "2", "required", "")
 	c.Assert(s.storeSigning.Add(vsetAs3), IsNil)
 
 	tr := assertstate.ValidationSetTracking{
@@ -2828,6 +2829,64 @@ func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeMissingS
 	c.Check(tr.Current, Equals, 1)
 }
 
+func (s *assertMgrSuite) TestRefreshValidationSetAssertionsEnforcingModeWrongSnapRevisionOK(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// have a model and the store assertion available
+	storeAs := s.setupModelAndStore(c)
+	err := s.storeSigning.Add(storeAs)
+	c.Assert(err, IsNil)
+
+	// store key already present
+	c.Assert(assertstate.Add(s.state, s.storeSigning.StoreAccountKey("")), IsNil)
+	c.Assert(assertstate.Add(s.state, s.dev1Acct), IsNil)
+	c.Assert(assertstate.Add(s.state, s.dev1AcctKey), IsNil)
+
+	snapstate.Set(s.state, "foo", &snapstate.SnapState{
+		Active: false,
+		Sequence: []*snap.SideInfo{
+			{RealName: "foo", Revision: snap.R(1)},
+		},
+		Current: snap.R(1),
+	})
+
+	// snap revision 1 is installed
+	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1", "required", "1")
+	c.Assert(assertstate.Add(s.state, vsetAs1), IsNil)
+
+	// in the store, revision 2 required
+	vsetAs3 := s.validationSetAssert(c, "bar", "2", "2", "required", "2")
+	c.Assert(s.storeSigning.Add(vsetAs3), IsNil)
+
+	tr := assertstate.ValidationSetTracking{
+		AccountID: s.dev1Acct.AccountID(),
+		Name:      "bar",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+	}
+	assertstate.UpdateValidationSet(s.state, &tr)
+
+	c.Assert(assertstate.RefreshValidationSetAssertions(s.state, 0, nil), IsNil)
+
+	// new assertion has been committed to the database.
+	_, err = assertstate.DB(s.state).Find(asserts.ValidationSetType, map[string]string{
+		"series":     "16",
+		"account-id": s.dev1Acct.AccountID(),
+		"name":       "bar",
+		"sequence":   "2",
+	})
+	c.Assert(err, IsNil)
+
+	c.Check(s.fakeStore.(*fakeStore).requestedTypes, DeepEquals, [][]string{
+		{"account", "account-key", "validation-set"},
+	})
+
+	// tracking current has been updated
+	c.Assert(assertstate.GetValidationSet(s.state, s.dev1Acct.AccountID(), "bar", &tr), IsNil)
+	c.Check(tr.Current, Equals, 2)
+}
+
 func (s *assertMgrSuite) TestValidationSetAssertionForMonitorLocalFallbackForPinned(c *C) {
 	st := s.state
 
@@ -2842,7 +2901,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForMonitorLocalFallbackForPin
 	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
 
 	// add to local database
-	vsetAs := s.validationSetAssert(c, "bar", "1", "1", "required")
+	vsetAs := s.validationSetAssert(c, "bar", "1", "1", "required", "1")
 	c.Assert(assertstate.Add(st, vsetAs), IsNil)
 
 	opts := assertstate.ResolveOptions{AllowLocalFallback: true}
@@ -2866,11 +2925,11 @@ func (s *assertMgrSuite) TestValidationSetAssertionForMonitorPinnedRefreshedFrom
 	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
 
 	// add to local database
-	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1", "required")
+	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1", "required", "1")
 	c.Assert(assertstate.Add(st, vsetAs1), IsNil)
 
 	// newer revision available in the store
-	vsetAs2 := s.validationSetAssert(c, "bar", "1", "2", "required")
+	vsetAs2 := s.validationSetAssert(c, "bar", "1", "2", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	vs, local, err := assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 1, true, 0, nil)
@@ -2894,11 +2953,11 @@ func (s *assertMgrSuite) TestValidationSetAssertionForMonitorUnpinnedRefreshedFr
 	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
 
 	// add to local database
-	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1", "required")
+	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1", "required", "1")
 	c.Assert(assertstate.Add(st, vsetAs1), IsNil)
 
 	// newer assertion available in the store
-	vsetAs2 := s.validationSetAssert(c, "bar", "3", "1", "required")
+	vsetAs2 := s.validationSetAssert(c, "bar", "3", "1", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	vs, local, err := assertstate.ValidationSetAssertionForMonitor(st, s.dev1Acct.AccountID(), "bar", 0, false, 0, nil)
@@ -2938,7 +2997,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedHappy(c *C
 	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
 
 	// add sequence to the store
-	vsetAs := s.validationSetAssert(c, "bar", "2", "2", "required")
+	vsetAs := s.validationSetAssert(c, "bar", "2", "2", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 
 	snaps := []*snapasserts.InstalledSnap{
@@ -2976,7 +3035,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforcePinnedHappy(c *C) {
 	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
 
 	// add sequence to the store
-	vsetAs := s.validationSetAssert(c, "bar", "2", "2", "required")
+	vsetAs := s.validationSetAssert(c, "bar", "2", "2", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 
 	snaps := []*snapasserts.InstalledSnap{
@@ -3014,7 +3073,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedUnhappyMis
 	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
 
 	// add sequence to the store
-	vsetAs := s.validationSetAssert(c, "bar", "2", "2", "required")
+	vsetAs := s.validationSetAssert(c, "bar", "2", "2", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
 
 	snaps := []*snapasserts.InstalledSnap{}
@@ -3051,7 +3110,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedUnhappyCon
 	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
 
 	// add an assertion to local database
-	vsetAs := s.validationSetAssert(c, "boo", "4", "4", "invalid")
+	vsetAs := s.validationSetAssert(c, "boo", "4", "4", "invalid", "")
 	c.Assert(assertstate.Add(st, vsetAs), IsNil)
 	// and to the store (for refresh to be happy)
 	c.Assert(s.storeSigning.Add(vsetAs), IsNil)
@@ -3066,7 +3125,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedUnhappyCon
 	assertstate.UpdateValidationSet(st, &tr)
 
 	// add sequence to the store, it conflicts with boo
-	vsetAs2 := s.validationSetAssert(c, "bar", "2", "2", "required")
+	vsetAs2 := s.validationSetAssert(c, "bar", "2", "2", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	snaps := []*snapasserts.InstalledSnap{}
@@ -3099,11 +3158,11 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedAfterForge
 
 	// add an old assertion to local database; it's not tracked which is the
 	// case after 'snap validate --forget' (we don't prune assertions from db).
-	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1", "required")
+	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1", "required", "1")
 	c.Assert(assertstate.Add(st, vsetAs1), IsNil)
 
 	// newer sequence available in the store
-	vsetAs2 := s.validationSetAssert(c, "bar", "3", "5", "required")
+	vsetAs2 := s.validationSetAssert(c, "bar", "3", "5", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	snaps := []*snapasserts.InstalledSnap{
@@ -3141,7 +3200,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedAfterMonit
 	c.Assert(assertstate.Add(st, s.dev1AcctKey), IsNil)
 
 	// add and old assertion to local database
-	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1", "required")
+	vsetAs1 := s.validationSetAssert(c, "bar", "1", "1", "required", "1")
 	c.Assert(assertstate.Add(st, vsetAs1), IsNil)
 
 	// and pretend it was tracked already in monitor mode
@@ -3154,7 +3213,7 @@ func (s *assertMgrSuite) TestValidationSetAssertionForEnforceNotPinnedAfterMonit
 	assertstate.UpdateValidationSet(st, &tr)
 
 	// newer sequence available in the store
-	vsetAs2 := s.validationSetAssert(c, "bar", "3", "5", "required")
+	vsetAs2 := s.validationSetAssert(c, "bar", "3", "5", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs2), IsNil)
 
 	snaps := []*snapasserts.InstalledSnap{

@@ -457,7 +457,15 @@ func RefreshValidationSetAssertions(s *state.State, userID int, opts *RefreshAss
 		if err != nil {
 			return err
 		}
-		return vsets.CheckInstalledSnaps(snaps)
+		err = vsets.CheckInstalledSnaps(snaps)
+		if verr, ok := err.(*snapasserts.ValidationSetsValidationError); ok {
+			if len(verr.InvalidSnaps) > 0 || len(verr.MissingSnaps) > 0 {
+				return verr
+			}
+			// ignore wrong revisions
+			return nil
+		}
+		return err
 	}
 
 	if err := bulkRefreshValidationSetAsserts(s, enforceModeSets, checkConflictsAndPresence, userID, deviceCtx, opts); err != nil {
