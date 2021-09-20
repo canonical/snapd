@@ -469,11 +469,14 @@ func (s *interfaceManagerSuite) TestBatchConnectTasks(c *C) {
 	conns := make(map[string]*interfaces.ConnRef)
 	connOpts := make(map[string]*ifacestate.ConnectOpts)
 
-	// no connections
+	// no connections and tasks created (also, no stray tasks in the state)
 	ts, hasInterfaceHooks, err := ifacestate.BatchConnectTasks(s.state, snapsup, conns, connOpts)
 	c.Assert(err, IsNil)
-	c.Check(ts.Tasks(), HasLen, 0)
+	c.Check(ts, IsNil)
 	c.Check(hasInterfaceHooks, Equals, false)
+	// state.TaskCount() is the only way of checking for stray tasks without a
+	// change (state.Tasks() filters those out).
+	c.Assert(s.state.TaskCount(), Equals, 0)
 
 	// two connections
 	cref1 := interfaces.ConnRef{PlugRef: interfaces.PlugRef{Snap: "consumer", Name: "plug"}, SlotRef: interfaces.SlotRef{Snap: "producer", Name: "slot"}}
