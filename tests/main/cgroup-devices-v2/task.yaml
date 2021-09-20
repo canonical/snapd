@@ -68,16 +68,23 @@ execute: |
 
     # a device cgroup is not added until the service gets restarted
     test ! -e /sys/fs/bpf/snap/snap_test-snapd-service_test-snapd-service
+    # or the command gets run
+    test ! -e /sys/fs/bpf/snap/snap_test-snapd-service_sh
 
-    echo "Run /bin/true via snap-confine, so that we create the device cgroup made by snapd"
-    snap run test-snapd-service.sh -c /bin/true
+    echo "Run /bin/true from the snap, so that snap-confine creates the device cgroup"
+    # shellcheck disable=SC2016
+    snap run test-snapd-service.sh -c 'cat /proc/self/cgroup > $SNAP_COMMON/own.cgroup && /bin/true'
+    # the content is:
+    # 0::/user.slice/user-0.slice/user@0.service/app.slice/snap.test-snapd-service.sh.<uuid>.scope
+    testshcgroup=$(cut -f3 -d: < /var/snap/test-snapd-service/common/own.cgroup)
+    test -n "$testshcgroup"
     # with new devices assigned to the service, we see a map listing the devices
     # that access is allowed to
     echo "Verify that device access map for the application is present and is pinned to a file"
     test -e /sys/fs/bpf/snap/snap_test-snapd-service_sh
     # but there are no new programs, as they go away when cgroup is removed
-    # (also give systemd some time to clean up the cgroup)
-    sleep 1
+    # (also wait until systemd cleans up the cgroup)
+    retry -n 10 test ! -e "/sys/fs/cgroup/$testshcgroup"
     dump_cgroup_device_progs > cgroup_device.progs-3
     test "$(wc -l < cgroup_device.progs-1)" = "$(wc -l < cgroup_device.progs-3)"
 
