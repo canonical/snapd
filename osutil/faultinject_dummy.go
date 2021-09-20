@@ -1,7 +1,8 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build !faultinject
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -19,22 +20,8 @@
 
 package osutil
 
-import (
-	"os"
-	"regexp"
-)
-
-var goTestExeRe = regexp.MustCompile(`^.*/.*go-build.*/.*\.test$`)
-
-// IsTestBinary checks whether the current process is a go test binary.
-func IsTestBinary() bool {
-	return len(os.Args) > 0 && goTestExeRe.MatchString(os.Args[0])
-}
-
-// MustBeTestBinary checks whether the executing process is a go test binary,
-// panics otherwise.
-func MustBeTestBinary(panicMsg string) {
-	if !IsTestBinary() {
-		panic(panicMsg)
-	}
+// MaybeInjectFault is a dummy implementation for builds with fault injection
+// disabled.
+func MaybeInjectFault(tag string) {
+	// dummy
 }

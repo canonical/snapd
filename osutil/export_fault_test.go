@@ -1,7 +1,8 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
+// +build faultinject
 
 /*
- * Copyright (C) 2020 Canonical Ltd
+ * Copyright (C) 2016 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -20,21 +21,29 @@
 package osutil
 
 import (
-	"os"
-	"regexp"
+	"io"
 )
 
-var goTestExeRe = regexp.MustCompile(`^.*/.*go-build.*/.*\.test$`)
-
-// IsTestBinary checks whether the current process is a go test binary.
-func IsTestBinary() bool {
-	return len(os.Args) > 0 && goTestExeRe.MatchString(os.Args[0])
+func MockInjectSysroot(m string) (restore func()) {
+	oldInjectSysroot := injectSysroot
+	injectSysroot = m
+	return func() {
+		injectSysroot = oldInjectSysroot
+	}
 }
 
-// MustBeTestBinary checks whether the executing process is a go test binary,
-// panics otherwise.
-func MustBeTestBinary(panicMsg string) {
-	if !IsTestBinary() {
-		panic(panicMsg)
+func MockForeverLoop(f func()) (restore func()) {
+	oldForeverLoop := foreverLoop
+	foreverLoop = f
+	return func() {
+		foreverLoop = oldForeverLoop
+	}
+}
+
+func MockStderr(w io.Writer) (restore func()) {
+	oldStderr := stderr
+	stderr = w
+	return func() {
+		stderr = oldStderr
 	}
 }
