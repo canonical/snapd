@@ -918,9 +918,10 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashInProgress(c *C) {
 	s.state.Set("seeded", true)
 	s.state.Set("refresh-privacy-key", "some-privacy-key")
 
+	var chg *state.Change
 	restore := devicestate.MockSnapstateInstallWithDeviceContext(func(ctx context.Context, st *state.State, name string, opts *snapstate.RevisionOptions, userID int, flags snapstate.Flags, deviceCtx snapstate.DeviceContext, fromChange string) (*state.TaskSet, error) {
 		// simulate another started remodeling
-		st.NewChange("remodel", "other remodel")
+		chg = st.NewChange("remodel", "other remodel")
 
 		tDownload := s.state.NewTask("fake-download", fmt.Sprintf("Download %s", name))
 		tValidate := s.state.NewTask("validate-snap", fmt.Sprintf("Validate %s", name))
@@ -952,7 +953,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashInProgress(c *C) {
 		"kernel":         "pc-kernel",
 		"gadget":         "pc",
 		"base":           "core18",
-		"required-snaps": []interface{}{"new-required-snap-1", "new-required-snap-2"},
+		"required-snaps": []interface{}{"new-required-snap-1"},
 		"revision":       "1",
 	})
 
@@ -960,7 +961,7 @@ func (s *deviceMgrRemodelSuite) TestRemodelClashInProgress(c *C) {
 	c.Check(err, DeepEquals, &snapstate.ChangeConflictError{
 		Message:    "cannot start remodel, clashing with concurrent one",
 		ChangeKind: "remodel",
-		ChangeID:   "1",
+		ChangeID:   chg.ID(),
 	})
 }
 
@@ -1443,9 +1444,11 @@ volumes:
 			Info: &gadget.Info{
 				Volumes: map[string]*gadget.Volume{
 					"pc": {
+						Name:       "pc",
 						Bootloader: "grub",
 						Schema:     "gpt",
 						Structure: []gadget.VolumeStructure{{
+							VolumeName: "pc",
 							Name:       "foo",
 							Type:       "00000000-0000-0000-0000-0000deadcafe",
 							Size:       10 * quantity.SizeMiB,
@@ -1454,9 +1457,10 @@ volumes:
 								{UnresolvedSource: "foo-content", Target: "/"},
 							},
 						}, {
-							Name: "bare-one",
-							Type: "bare",
-							Size: quantity.SizeMiB,
+							VolumeName: "pc",
+							Name:       "bare-one",
+							Type:       "bare",
+							Size:       quantity.SizeMiB,
 							Content: []gadget.VolumeContent{
 								{Image: "bare.img"},
 							},
@@ -1470,9 +1474,11 @@ volumes:
 			Info: &gadget.Info{
 				Volumes: map[string]*gadget.Volume{
 					"pc": {
+						Name:       "pc",
 						Bootloader: "grub",
 						Schema:     "gpt",
 						Structure: []gadget.VolumeStructure{{
+							VolumeName: "pc",
 							Name:       "foo",
 							Type:       "00000000-0000-0000-0000-0000deadcafe",
 							Size:       10 * quantity.SizeMiB,
@@ -1481,9 +1487,10 @@ volumes:
 								{UnresolvedSource: "new-foo-content", Target: "/"},
 							},
 						}, {
-							Name: "bare-one",
-							Type: "bare",
-							Size: quantity.SizeMiB,
+							VolumeName: "pc",
+							Name:       "bare-one",
+							Type:       "bare",
+							Size:       quantity.SizeMiB,
 							Content: []gadget.VolumeContent{
 								{Image: "new-bare-content.img"},
 							},

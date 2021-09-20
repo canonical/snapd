@@ -76,6 +76,23 @@ func (ss *stateSuite) TestGetAndSet(c *C) {
 	c.Check(&mSt2B, DeepEquals, mSt2)
 }
 
+func (ss *stateSuite) TestStrayTaskWithNoChange(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	chg := st.NewChange("change", "...")
+	t1 := st.NewTask("foo", "...")
+	chg.AddTask(t1)
+	_ = st.NewTask("bar", "...")
+
+	// only the task with associate change is returned
+	c.Assert(st.Tasks(), HasLen, 1)
+	c.Assert(st.Tasks()[0].ID(), Equals, t1.ID())
+	// but count includes all tasks
+	c.Assert(st.TaskCount(), Equals, 2)
+}
+
 func (ss *stateSuite) TestSetPanic(c *C) {
 	st := state.New(nil)
 	st.Lock()
