@@ -88,12 +88,24 @@ func (m *InterfaceManager) addBackends(extra []interfaces.SecurityBackend) error
 }
 
 func (m *InterfaceManager) addSnaps(snaps []*snap.Info) error {
+	var repoSnaps int
 	for _, snapInfo := range snaps {
 		if err := addImplicitSlots(m.state, snapInfo); err != nil {
 			return err
 		}
 		if err := m.repo.AddSnap(snapInfo); err != nil {
 			logger.Noticef("cannot add snap %q to interface repository: %s", snapInfo.InstanceName(), err)
+		} else {
+			repoSnaps++
+		}
+	}
+	if repoSnaps == 0 {
+		expectedNumOfSnaps, err := snapstate.NumSnaps(m.state)
+		if err != nil {
+			return err
+		}
+		if expectedNumOfSnaps > 0 {
+			return fmt.Errorf("expected %d snaps in the system, but no snaps are mounted", expectedNumOfSnaps)
 		}
 	}
 	return nil
