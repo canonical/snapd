@@ -41,7 +41,7 @@ jobs:
           fi
     - name: Build snapd snap
       if: steps.cached-results.outputs.already-ran != 'true'
-      uses: snapcore/action-build@v1
+      uses: snapcore/action-build@v1.0.9
       with:
         snapcraft-channel: 4.x/candidate
     - name: Cache built artifact
