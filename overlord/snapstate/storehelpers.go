@@ -455,8 +455,13 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 		if err != nil {
 			return nil, err
 		}
-		if !requiredRevision.Unset() && revision != requiredRevision {
-			return nil, fmt.Errorf("cannot update snap %q to revision %s without --ignore-validation, revision %s is required by validation sets: %s", curInfo.InstanceName(), revision, requiredRevision, strings.Join(requiredValsets, ","))
+		if !requiredRevision.Unset() {
+			if revision != requiredRevision {
+				return nil, fmt.Errorf("cannot update snap %q to revision %s without --ignore-validation, revision %s is required by validation sets: %s",
+					curInfo.InstanceName(), revision, requiredRevision, strings.Join(requiredValsets, ","))
+			}
+			// note, not checking if required revision matches snapst.Current because
+			// this is already indirectly prevented by infoForUpdate().
 		}
 		if len(requiredValsets) > 0 {
 			setActionValidationSetsAndRequiredRevision(action, requiredValsets, requiredRevision)
