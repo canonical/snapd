@@ -119,8 +119,8 @@ execute: |
       exit
   fi
 
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
+  # wait for the initialize device task to be done
+  retry -n 200 --wait 1 sh -c "tests.nested exec snap changes | MATCH 'Done.*Initialize device'"
 
   echo "Check we have the right model from snap model"
   tests.nested exec "sudo snap model --verbose" | MATCH "model:\s+testkeys-snapd-${MODEL_GRADE}-core-20-amd64"
