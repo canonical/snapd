@@ -1,0 +1,35 @@
+summary: Regression test for LP:#1943853
+
+details: |
+  Test that snapd doesn't drop connected interfaces when snaps are not mounted.
+
+prepare: |
+  "$TESTSTOOLS"/snaps-state install-local home-consumer
+
+execute: |
+  echo "Connect home interface in case it's not connected (i.e. core)"
+  snap connect home-consumer:home
+  snap connections home-consumer | MATCH "^home +home-consumer:home +:home .+-"
+
+  REV=$(snap list home-consumer|tail -1|awk '{print $3}')
+
+  echo "Manually stop the mount unit of home-consumer snap"
+  systemctl stop snap-home\\x2dconsumer-"$REV".mount
+  systemctl stop snapd.{socket,service}
+  systemctl start snapd.{socket,service}
+
+  echo "And the snap now appears broken"
+  snap list home-consumer | MATCH "broken"
+
+  "$TESTSTOOLS"/journal-state get-log | MATCH "Snap \"home-consumer\" is broken, ignored by reloadConnections"
+
+  echo "Start the mount unit of home-consumer snap"
+  systemctl start snap-home\\x2dconsumer-"$REV".mount
+
+  echo "And the snap is not broken anymore"
+  systemctl stop snapd.{socket,service}
+  systemctl start snapd.{socket,service}
+  snap list home-consumer | NOMATCH "broken"
+
+  echo "And its connections were kept"
+  snap connections home-consumer | MATCH "^home +home-consumer:home +:home .+-"
