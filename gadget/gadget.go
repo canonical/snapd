@@ -112,12 +112,16 @@ type Volume struct {
 	ID string `yaml:"id"`
 	// Structure describes the structures that are part of the volume
 	Structure []VolumeStructure `yaml:"structure"`
+	// Name is the name of the volume from the gadget.yaml
+	Name string
 }
 
 // VolumeStructure describes a single structure inside a volume. A structure can
 // represent a partition, Master Boot Record, or any other contiguous range
 // within the volume.
 type VolumeStructure struct {
+	// VolumeName is the name of the volume that this structure belongs to.
+	VolumeName string
 	// Name, when non empty, provides the name of the structure
 	Name string `yaml:"name"`
 	// Label provides the filesystem label
@@ -339,7 +343,9 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 	var bootloadersFound int
 	knownFsLabelsPerVolume := make(map[string]map[string]bool, len(gi.Volumes))
 	for name, v := range gi.Volumes {
-		if err := validateVolume(name, v, model, knownFsLabelsPerVolume); err != nil {
+		// set the VolumeName for the volume
+		v.Name = name
+		if err := validateVolume(v, knownFsLabelsPerVolume); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 
@@ -360,7 +366,7 @@ func InfoFromGadgetYaml(gadgetYaml []byte, model Model) (*Info, error) {
 	}
 
 	for name, v := range gi.Volumes {
-		if err := setImplicitForVolume(name, v, model, knownFsLabelsPerVolume[name]); err != nil {
+		if err := setImplicitForVolume(v, model, knownFsLabelsPerVolume[name]); err != nil {
 			return nil, fmt.Errorf("invalid volume %q: %v", name, err)
 		}
 	}
@@ -386,13 +392,15 @@ func whichVolRuleset(model Model) volRuleset {
 	return volRuleset16
 }
 
-func setImplicitForVolume(name string, vol *Volume, model Model, knownFsLabels map[string]bool) error {
+func setImplicitForVolume(vol *Volume, model Model, knownFsLabels map[string]bool) error {
 	rs := whichVolRuleset(model)
 	if vol.Schema == "" {
 		// default for schema is gpt
 		vol.Schema = schemaGPT
 	}
 	for i := range vol.Structure {
+		// set the VolumeName for the structure from the volume itself
+		vol.Structure[i].VolumeName = vol.Name
 		if err := setImplicitForVolumeStructure(&vol.Structure[i], rs, knownFsLabels); err != nil {
 			return err
 		}
@@ -513,8 +521,8 @@ func fmtIndexAndName(idx int, name string) string {
 	return fmt.Sprintf("#%v", idx)
 }
 
-func validateVolume(name string, vol *Volume, model Model, knownFsLabelsPerVolume map[string]map[string]bool) error {
-	if !validVolumeName.MatchString(name) {
+func validateVolume(vol *Volume, knownFsLabelsPerVolume map[string]map[string]bool) error {
+	if !validVolumeName.MatchString(vol.Name) {
 		return errors.New("invalid name")
 	}
 	if vol.Schema != "" && vol.Schema != schemaGPT && vol.Schema != schemaMBR {
@@ -529,7 +537,7 @@ func validateVolume(name string, vol *Volume, model Model, knownFsLabelsPerVolum
 	structures := make([]LaidOutStructure, len(vol.Structure))
 
 	if knownFsLabelsPerVolume != nil {
-		knownFsLabelsPerVolume[name] = knownFsLabels
+		knownFsLabelsPerVolume[vol.Name] = knownFsLabels
 	}
 
 	previousEnd := quantity.Offset(0)
@@ -639,7 +647,7 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 	if err := validateStructureType(vs.Type, vol); err != nil {
 		return fmt.Errorf("invalid type %q: %v", vs.Type, err)
 	}
-	if err := validateRole(vs, vol); err != nil {
+	if err := validateRole(vs); err != nil {
 		var what string
 		if vs.Role != "" {
 			what = fmt.Sprintf("role %q", vs.Role)
@@ -665,7 +673,7 @@ func validateVolumeStructure(vs *VolumeStructure, vol *Volume) error {
 		}
 	}
 
-	if err := validateStructureUpdate(&vs.Update, vs); err != nil {
+	if err := validateStructureUpdate(vs); err != nil {
 		return err
 	}
 
@@ -738,7 +746,7 @@ func validateStructureType(s string, vol *Volume) error {
 	return nil
 }
 
-func validateRole(vs *VolumeStructure, vol *Volume) error {
+func validateRole(vs *VolumeStructure) error {
 	if vs.Type == "bare" {
 		if vs.Role != "" && vs.Role != schemaMBR {
 			return fmt.Errorf("conflicting type: %q", vs.Type)
@@ -805,7 +813,7 @@ func validateFilesystemContent(vc *VolumeContent) error {
 	return nil
 }
 
-func validateStructureUpdate(up *VolumeUpdate, vs *VolumeStructure) error {
+func validateStructureUpdate(vs *VolumeStructure) error {
 	if !vs.HasFilesystem() && len(vs.Update.Preserve) > 0 {
 		return errors.New("preserving files during update is not supported for non-filesystem structures")
 	}
@@ -1050,7 +1058,7 @@ func KernelCommandLineFromGadget(gadgetDirOrSnapPath string) (cmdline string, fu
 		whichFile = "cmdline.full"
 		full = true
 	}
-	parsed, err := parseCommandLineFromGadget(content, whichFile)
+	parsed, err := parseCommandLineFromGadget(content)
 	if err != nil {
 		return "", full, fmt.Errorf("invalid kernel command line in %v: %v", whichFile, err)
 	}
@@ -1070,7 +1078,7 @@ func KernelCommandLineFromGadget(gadgetDirOrSnapPath string) (cmdline string, fu
 //   memmap=nn[KMG]#ss[KMG]
 //   memmap=100M@2G,100M#3G,1G!1024G
 // Thus a lone # or a token starting with # are treated as errors.
-func parseCommandLineFromGadget(content []byte, whichFile string) (string, error) {
+func parseCommandLineFromGadget(content []byte) (string, error) {
 	s := bufio.NewScanner(bytes.NewBuffer(content))
 	filtered := &bytes.Buffer{}
 	for s.Scan() {

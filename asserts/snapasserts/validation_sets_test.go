@@ -733,12 +733,12 @@ func (s *validationSetsSuite) TestCheckPresenceRequired(c *C) {
 	vsKeys, rev, err := valsets.CheckPresenceRequired(naming.Snap("my-snap"))
 	c.Assert(err, IsNil)
 	c.Check(rev, DeepEquals, snap.Revision{N: 7})
-	c.Check(vsKeys, DeepEquals, []string{"account-id/my-snap-ctl", "account-id/my-snap-ctl2", "account-id/my-snap-ctl3"})
+	c.Check(vsKeys, DeepEquals, []string{"16/account-id/my-snap-ctl/1", "16/account-id/my-snap-ctl2/2", "16/account-id/my-snap-ctl3/1"})
 
 	vsKeys, rev, err = valsets.CheckPresenceRequired(naming.NewSnapRef("my-snap", "mysnapididididididididididididid"))
 	c.Assert(err, IsNil)
 	c.Check(rev, DeepEquals, snap.Revision{N: 7})
-	c.Check(vsKeys, DeepEquals, []string{"account-id/my-snap-ctl", "account-id/my-snap-ctl2", "account-id/my-snap-ctl3"})
+	c.Check(vsKeys, DeepEquals, []string{"16/account-id/my-snap-ctl/1", "16/account-id/my-snap-ctl2/2", "16/account-id/my-snap-ctl3/1"})
 
 	// other-snap is not required
 	vsKeys, rev, err = valsets.CheckPresenceRequired(naming.Snap("other-snap"))
@@ -762,7 +762,7 @@ func (s *validationSetsSuite) TestCheckPresenceRequired(c *C) {
 	vsKeys, rev, err = valsets.CheckPresenceRequired(naming.Snap("my-snap"))
 	c.Assert(err, IsNil)
 	c.Check(rev, DeepEquals, snap.Revision{N: 0})
-	c.Check(vsKeys, DeepEquals, []string{"account-id/my-snap-ctl3"})
+	c.Check(vsKeys, DeepEquals, []string{"16/account-id/my-snap-ctl3/1"})
 }
 
 func (s *validationSetsSuite) TestIsPresenceInvalid(c *C) {
@@ -819,11 +819,11 @@ func (s *validationSetsSuite) TestIsPresenceInvalid(c *C) {
 	// invalid in two sets
 	vsKeys, err = valsets.CheckPresenceInvalid(naming.Snap("my-snap"))
 	c.Assert(err, IsNil)
-	c.Check(vsKeys, DeepEquals, []string{"account-id/my-snap-ctl", "account-id/my-snap-ctl2"})
+	c.Check(vsKeys, DeepEquals, []string{"16/account-id/my-snap-ctl/1", "16/account-id/my-snap-ctl2/2"})
 
 	vsKeys, err = valsets.CheckPresenceInvalid(naming.NewSnapRef("my-snap", "mysnapididididididididididididid"))
 	c.Assert(err, IsNil)
-	c.Check(vsKeys, DeepEquals, []string{"account-id/my-snap-ctl", "account-id/my-snap-ctl2"})
+	c.Check(vsKeys, DeepEquals, []string{"16/account-id/my-snap-ctl/1", "16/account-id/my-snap-ctl2/2"})
 
 	// other-snap isn't invalid
 	vsKeys, err = valsets.CheckPresenceInvalid(naming.Snap("other-snap"))

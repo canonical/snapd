@@ -1,0 +1,3 @@
+#!/bin/sh -e
+
+cp "$SNAP"/test_net.virtio "$SNAP_DATA"/test_net.virtio

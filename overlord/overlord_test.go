@@ -26,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"testing"
 	"time"
@@ -80,6 +81,11 @@ func fakePruneTicker() (w *ticker, restore func()) {
 }
 
 func (ovs *overlordSuite) SetUpTest(c *C) {
+	// temporary: skip due to timeouts on riscv64
+	if runtime.GOARCH == "riscv64" || os.Getenv("SNAPD_SKIP_SLOW_TESTS") != "" {
+		c.Skip("skipping slow test")
+	}
+
 	tmpdir := c.MkDir()
 	dirs.SetRootDir(tmpdir)
 	ovs.AddCleanup(func() { dirs.SetRootDir("") })
@@ -860,7 +866,7 @@ type sampleManager struct {
 	ensureCallback func()
 }
 
-func newSampleManager(s *state.State, runner *state.TaskRunner) *sampleManager {
+func newSampleManager(runner *state.TaskRunner) *sampleManager {
 	sm := &sampleManager{}
 
 	runner.AddHandler("runMgr1", func(t *state.Task, _ *tomb.Tomb) error {
@@ -922,7 +928,7 @@ func (ovs *overlordSuite) TestTrivialSettle(c *C) {
 	o := overlord.Mock()
 
 	s := o.State()
-	sm1 := newSampleManager(s, o.TaskRunner())
+	sm1 := newSampleManager(o.TaskRunner())
 	o.AddManager(sm1)
 	o.AddManager(o.TaskRunner())
 
@@ -951,7 +957,7 @@ func (ovs *overlordSuite) TestSettleNotConverging(c *C) {
 	o := overlord.Mock()
 
 	s := o.State()
-	sm1 := newSampleManager(s, o.TaskRunner())
+	sm1 := newSampleManager(o.TaskRunner())
 	o.AddManager(sm1)
 	o.AddManager(o.TaskRunner())
 
@@ -978,7 +984,7 @@ func (ovs *overlordSuite) TestSettleChain(c *C) {
 	o := overlord.Mock()
 
 	s := o.State()
-	sm1 := newSampleManager(s, o.TaskRunner())
+	sm1 := newSampleManager(o.TaskRunner())
 	o.AddManager(sm1)
 	o.AddManager(o.TaskRunner())
 
@@ -1012,7 +1018,7 @@ func (ovs *overlordSuite) TestSettleChainWCleanup(c *C) {
 	o := overlord.Mock()
 
 	s := o.State()
-	sm1 := newSampleManager(s, o.TaskRunner())
+	sm1 := newSampleManager(o.TaskRunner())
 	o.AddManager(sm1)
 	o.AddManager(o.TaskRunner())
 
@@ -1049,7 +1055,7 @@ func (ovs *overlordSuite) TestSettleExplicitEnsureBefore(c *C) {
 	o := overlord.Mock()
 
 	s := o.State()
-	sm1 := newSampleManager(s, o.TaskRunner())
+	sm1 := newSampleManager(o.TaskRunner())
 	sm1.ensureCallback = func() {
 		s.Lock()
 		defer s.Unlock()

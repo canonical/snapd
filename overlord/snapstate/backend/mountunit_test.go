@@ -54,6 +54,9 @@ type FakeSystemd struct {
 
 	RemoveMountUnitFileCalls  []string
 	RemoveMountUnitFileResult error
+
+	ListMountUnitsCalls  []ParamsForListMountUnits
+	ListMountUnitsResult ResultForListMountUnits
 }
 
 func (s *FakeSystemd) AddMountUnitFile(name, revision, what, where, fstype string) (string, error) {
@@ -65,6 +68,21 @@ func (s *FakeSystemd) AddMountUnitFile(name, revision, what, where, fstype strin
 func (s *FakeSystemd) RemoveMountUnitFile(mountDir string) error {
 	s.RemoveMountUnitFileCalls = append(s.RemoveMountUnitFileCalls, mountDir)
 	return s.RemoveMountUnitFileResult
+}
+
+type ParamsForListMountUnits struct {
+	snapName, origin string
+}
+
+type ResultForListMountUnits struct {
+	mountPoints []string
+	err         error
+}
+
+func (s *FakeSystemd) ListMountUnits(snapName, origin string) ([]string, error) {
+	s.ListMountUnitsCalls = append(s.ListMountUnitsCalls,
+		ParamsForListMountUnits{snapName, origin})
+	return s.ListMountUnitsResult.mountPoints, s.ListMountUnitsResult.err
 }
 
 type mountunitSuite struct {
@@ -131,4 +149,101 @@ func (s *mountunitSuite) TestRemoveMountUnit(c *C) {
 	c.Check(err, Equals, expectedErr)
 	c.Check(sysd.RemoveMountUnitFileCalls, HasLen, 1)
 	c.Check(sysd.RemoveMountUnitFileCalls[0], Equals, "/some/where")
+}
+
+func (s *mountunitSuite) TestRemoveSnapMountUnitsFailOnList(c *C) {
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(13),
+		},
+		Version:       "1.1",
+		Architectures: []string{"all"},
+	}
+
+	expectedErr := errors.New("listing error")
+
+	var sysd *FakeSystemd
+	restore := systemd.MockNewSystemd(func(kind systemd.Kind, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
+		sysd = &FakeSystemd{Kind: kind, Mode: mode, Meter: meter}
+		sysd.ListMountUnitsResult = ResultForListMountUnits{nil, expectedErr}
+		return sysd
+	})
+	defer restore()
+
+	b := backend.Backend{}
+	err := b.RemoveSnapMountUnits(info, progress.Null)
+	c.Check(err, Equals, expectedErr)
+	c.Check(sysd.ListMountUnitsCalls, HasLen, 1)
+	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []ParamsForListMountUnits{
+		{snapName: "foo", origin: ""},
+	})
+	c.Check(sysd.RemoveMountUnitFileCalls, HasLen, 0)
+}
+
+func (s *mountunitSuite) TestRemoveSnapMountUnitsFailOnRemoval(c *C) {
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(13),
+		},
+		Version:       "1.1",
+		Architectures: []string{"all"},
+	}
+
+	expectedErr := errors.New("removal error")
+	returnedMountPoints := []string{"/here", "/and/there"}
+
+	var sysd *FakeSystemd
+	restore := systemd.MockNewSystemd(func(kind systemd.Kind, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
+		sysd = &FakeSystemd{Kind: kind, Mode: mode, Meter: meter}
+		sysd.ListMountUnitsResult = ResultForListMountUnits{returnedMountPoints, nil}
+		sysd.RemoveMountUnitFileResult = expectedErr
+		return sysd
+	})
+	defer restore()
+
+	b := backend.Backend{}
+	err := b.RemoveSnapMountUnits(info, progress.Null)
+	c.Check(err, Equals, expectedErr)
+	c.Check(sysd.ListMountUnitsCalls, HasLen, 1)
+	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []ParamsForListMountUnits{
+		{snapName: "foo", origin: ""},
+	})
+
+	c.Check(sysd.RemoveMountUnitFileCalls, HasLen, 1)
+	c.Check(sysd.RemoveMountUnitFileCalls, DeepEquals, []string{"/here"})
+}
+
+func (s *mountunitSuite) TestRemoveSnapMountUnitsHappy(c *C) {
+	info := &snap.Info{
+		SideInfo: snap.SideInfo{
+			RealName: "foo",
+			Revision: snap.R(13),
+		},
+		Version:       "1.1",
+		Architectures: []string{"all"},
+	}
+
+	returnedMountPoints := []string{"/here", "/and/there", "/here/too"}
+
+	var sysd *FakeSystemd
+	restore := systemd.MockNewSystemd(func(kind systemd.Kind, roodDir string, mode systemd.InstanceMode, meter systemd.Reporter) systemd.Systemd {
+		sysd = &FakeSystemd{Kind: kind, Mode: mode, Meter: meter}
+		sysd.ListMountUnitsResult = ResultForListMountUnits{returnedMountPoints, nil}
+		sysd.RemoveMountUnitFileResult = nil
+		return sysd
+	})
+	defer restore()
+
+	b := backend.Backend{}
+	err := b.RemoveSnapMountUnits(info, progress.Null)
+	c.Check(err, IsNil)
+	c.Check(sysd.ListMountUnitsCalls, HasLen, 1)
+	c.Check(sysd.ListMountUnitsCalls, DeepEquals, []ParamsForListMountUnits{
+		{snapName: "foo", origin: ""},
+	})
+
+	c.Check(sysd.RemoveMountUnitFileCalls, HasLen, 3)
+	c.Check(sysd.RemoveMountUnitFileCalls, DeepEquals, returnedMountPoints)
 }

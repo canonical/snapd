@@ -68,10 +68,10 @@ prepare: |
 
   # modify and repack gadget snap to add a defaults section and use our own
   # prepare-device hook to use the fakedevicesvc
-  mkdir "$(nested_get_extra_snaps_path)"
+  mkdir "$(tests.nested get extra-snaps-path)"
 
   # Get the snakeoil key and cert for signing gadget assets (shim)
-  KEY_NAME=$(nested_get_snakeoil_key)
+  KEY_NAME=$(tests.nested get snakeoil-key)
   SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
   SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
@@ -93,8 +93,8 @@ prepare: |
   mkdir -p pc-gadget/meta/hooks/
   cp prepare-device pc-gadget/meta/hooks/
 
-  nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-  snap pack pc-gadget/ "$(nested_get_extra_snaps_path)"
+  tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+  snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
 
   # start fake device svc
   systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
@@ -133,7 +133,7 @@ execute: |
   tests.nested exec "cat /var/lib/extrausers/passwd" | MATCH normal-user
 
   echo "And we can run things as the normal user"
-  tests.nested exec_as normal-user ubuntu "sudo true"
+  tests.nested exec --user normal-user --pwd ubuntu "sudo true"
 
   echo "Waiting for snapd to react to cloud-init"
   retry --wait 1 -n 60 sh -c 'tests.nested exec sudo journalctl --no-pager -u snapd | MATCH "cloud-init reported"'
