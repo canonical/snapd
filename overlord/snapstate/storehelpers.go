@@ -333,7 +333,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 			return nil, err
 		}
 		if !requiredRevision.Unset() && snapst.Current == requiredRevision {
-			logger.Noticef("snap %q is already at the revision %s required by validation sets: %s, skipping",
+			logger.Debugf("snap %q is already at the revision %s required by validation sets: %s, skipping",
 				curInfo.InstanceName(), snapst.Current, strings.Join(requiredValsets, ","))
 			return nil, store.ErrNoUpdateAvailable
 		}

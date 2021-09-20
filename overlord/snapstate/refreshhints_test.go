@@ -87,7 +87,6 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 
 	s.state = state.New(nil)
-
 	s.store = &recordingStore{}
 	s.state.Lock()
 	defer s.state.Unlock()
@@ -118,13 +117,11 @@ func (s *refreshHintsTestSuite) SetUpTest(c *C) {
 		return nil, nil
 	})
 	s.AddCleanup(restoreEnforcedValidationSets)
-}
-
-func (s *refreshHintsTestSuite) TearDownTest(c *C) {
-	s.BaseTest.TearDownTest(c)
-	dirs.SetRootDir("/")
-	snapstate.CanAutoRefresh = nil
-	snapstate.AutoAliases = nil
+	s.AddCleanup(func() {
+		dirs.SetRootDir("/")
+		snapstate.CanAutoRefresh = nil
+		snapstate.AutoAliases = nil
+	})
 }
 
 func (s *refreshHintsTestSuite) TestLastRefresh(c *C) {
