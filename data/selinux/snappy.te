@@ -577,7 +577,7 @@ allow snappy_confine_t snappy_snap_t:process transition;
 
 allow snappy_confine_t self:process { setexec };
 allow snappy_confine_t self:capability { setgid setuid sys_admin sys_chroot dac_read_search dac_override };
-# when managing cgroup v2 snap-confines creates BPF map and attaches a BPF
+# when managing cgroup v2 snap-confine creates a BPF map and attaches a BPF
 # device cgroup program, however those bits can only be built on a sufficiently
 # recent system
 ifndef(`no_bpf',`
