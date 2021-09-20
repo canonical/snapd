@@ -35,7 +35,6 @@ import (
 	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
-	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -5880,11 +5879,8 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationSetAlreadyAtRequ
 		SnapType: "app",
 	})
 
-	logbuf, restore := logger.MockLogger()
-	defer restore()
 	_, err := snapstate.Update(s.state, "some-snap", nil, 0, snapstate.Flags{})
 	c.Assert(err, ErrorMatches, `snap has no updates available`)
-	c.Check(logbuf.String(), testutil.Contains, `snap "some-snap" is already at the revision 4 required by validation sets: foo/bar, skipping`)
 }
 
 func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationRefreshToRequiredRevision(c *C) {
@@ -5950,7 +5946,7 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationRefreshToRequire
 			InstanceName:   "some-snap",
 			SnapID:         "some-snap-id",
 			Revision:       snap.R(11),
-			ValidationSets: [][]string{{"foo", "bar"}},
+			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
 			Flags:          store.SnapActionEnforceValidation,
 		},
 		revno: snap.R(11),
@@ -6021,7 +6017,7 @@ func (s *validationSetsSuite) TestUpdateSnapRequiredByValidationSetAnyRevision(c
 			Action:         "refresh",
 			InstanceName:   "some-snap",
 			SnapID:         "some-snap-id",
-			ValidationSets: [][]string{{"foo", "bar"}},
+			ValidationSets: [][]string{{"16", "foo", "bar", "2"}},
 			Flags:          store.SnapActionEnforceValidation,
 		},
 		revno: snap.R(11),
@@ -6094,7 +6090,7 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationSetAny
 			InstanceName:   "some-snap",
 			SnapID:         "some-snap-id",
 			Revision:       snap.R(11),
-			ValidationSets: [][]string{{"foo", "bar"}},
+			ValidationSets: [][]string{{"16", "foo", "bar", "2"}},
 		},
 		revno: snap.R(11),
 	}}
@@ -6165,7 +6161,7 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWithMa
 			InstanceName:   "some-snap",
 			SnapID:         "some-snap-id",
 			Revision:       snap.R(11),
-			ValidationSets: [][]string{{"foo", "bar"}},
+			ValidationSets: [][]string{{"16", "foo", "bar", "2"}},
 			// XXX: updateToRevisionInfo doesn't set store.SnapActionEnforceValidation flag?
 		},
 		revno: snap.R(11),
@@ -6208,7 +6204,7 @@ func (s *validationSetsSuite) TestUpdateToRevisionSnapRequiredByValidationWronRe
 		SnapType: "app",
 	})
 	_, err := snapstate.Update(s.state, "some-snap", &snapstate.RevisionOptions{Revision: snap.R(11)}, 0, snapstate.Flags{})
-	c.Assert(err, ErrorMatches, `cannot update snap "some-snap" to revision 11 without --ignore-validation, revision 5 is required by validation sets: foo/bar`)
+	c.Assert(err, ErrorMatches, `cannot update snap "some-snap" to revision 11 without --ignore-validation, revision 5 is required by validation sets: 16/foo/bar/2`)
 }
 
 func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetAlreadyAtCorrectRevisionNoop(c *C) {
@@ -6311,7 +6307,7 @@ func (s *validationSetsSuite) TestUpdateManyRequiredByValidationSetsCohortIgnore
 			InstanceName:   "some-snap",
 			SnapID:         "some-snap-id",
 			Revision:       snap.R(5),
-			ValidationSets: [][]string{{"foo", "bar"}},
+			ValidationSets: [][]string{{"16", "foo", "bar", "2"}},
 		},
 		revno: snap.R(5),
 	}}

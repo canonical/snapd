@@ -342,10 +342,7 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 		}
 
 		if len(requiredValsets) > 0 {
-			setActionValidationSets(action, requiredValsets)
-			if !requiredRevision.Unset() {
-				action.Revision = requiredRevision
-			}
+			setActionValidationSetsAndRequiredRevision(action, requiredValsets, requiredRevision)
 		}
 	}
 
@@ -462,7 +459,7 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 			return nil, fmt.Errorf("cannot update snap %q to revision %s without --ignore-validation, revision %s is required by validation sets: %s", curInfo.InstanceName(), revision, requiredRevision, strings.Join(requiredValsets, ","))
 		}
 		if len(requiredValsets) > 0 {
-			setActionValidationSets(action, requiredValsets)
+			setActionValidationSetsAndRequiredRevision(action, requiredValsets, requiredRevision)
 		}
 	}
 
@@ -606,12 +603,11 @@ func refreshCandidates(ctx context.Context, st *state.State, names []string, use
 				return nil
 			}
 			if !requiredRevision.Unset() {
-				action.Revision = requiredRevision
 				// ignore cohort if revision is specified
 				installed.CohortKey = ""
 			}
 			if len(requiredValsets) > 0 {
-				setActionValidationSets(action, requiredValsets)
+				setActionValidationSetsAndRequiredRevision(action, requiredValsets, requiredRevision)
 			}
 		}
 
