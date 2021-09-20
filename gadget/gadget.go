@@ -939,7 +939,7 @@ func IsCompatible(current, new *Info) error {
 }
 
 // LaidOutVolumesFromGadget takes a gadget rootdir and lays out the partitions
-// as specified. It returns the specific volume on which system-*
+// on all volumes as specified. It returns the specific volume on which system-*
 // roles/partitions exist, as well as all volumes mentioned in the gadget.yaml
 // and their laid out representations. Those volumes are assumed to already be
 // flashed and managed separately at image build/flash time, while the system

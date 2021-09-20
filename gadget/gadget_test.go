@@ -111,6 +111,8 @@ volumes:
         type: bare
         size: 623000
         offset: 0
+        content:
+          - image: u-boot.imz
 `)
 
 var mockMultiVolumeGadgetYaml = []byte(`
@@ -2057,6 +2059,9 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetMultiVolume(c *C) {
 	err := ioutil.WriteFile(s.gadgetYamlPath, mockMultiVolumeUC20GadgetYaml, 0644)
 	c.Assert(err, IsNil)
 
+	err = ioutil.WriteFile(filepath.Join(s.dir, "u-boot.imz"), nil, 0644)
+	c.Assert(err, IsNil)
+
 	systemLv, all, err := gadget.LaidOutVolumesFromGadget(s.dir, "", uc20Mod)
 	c.Assert(err, IsNil)
 
@@ -2071,8 +2076,18 @@ func (s *gadgetYamlTestSuite) TestLaidOutVolumesFromGadgetMultiVolume(c *C) {
 				Offset:     &zero,
 				Size:       quantity.Size(623000),
 				Type:       "bare",
+				Content: []gadget.VolumeContent{
+					{Image: "u-boot.imz"},
+				},
 			},
 			StartOffset: 0,
+			LaidOutContent: []gadget.LaidOutContent{
+				{
+					VolumeContent: &gadget.VolumeContent{
+						Image: "u-boot.imz",
+					},
+				},
+			},
 		},
 	})
 
