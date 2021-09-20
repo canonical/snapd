@@ -67,7 +67,7 @@ import (
 )
 
 var (
-	settleTimeout = testutil.HostScaledTimeout(15 * time.Second)
+	settleTimeout = testutil.HostScaledTimeout(30 * time.Second)
 )
 
 func TestDeviceManager(t *testing.T) { TestingT(t) }
