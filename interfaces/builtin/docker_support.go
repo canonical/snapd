@@ -213,17 +213,15 @@ ptrace (read, trace) peer=cri-containerd.apparmor.d,
 unix (bind) type=dgram,
 
 dbus (send)
-     bus=system
-     path=/org/freedesktop/systemd1
-     interface=org.freedesktop.systemd1.Manager
-     member="{StartTransientUnit,StopUnit,ResetFailedUnit,SetUnitProperties}"
-     peer=(name="org.freedesktop.systemd1"),
+    bus=system
+    path=/org/freedesktop/systemd1
+    interface=org.freedesktop.systemd1.Manager
+    peer=(name=org.freedesktop.systemd1,label=unconfined),
 
 dbus (receive)
     bus=system
     path=/org/freedesktop/systemd1
     interface=org.freedesktop.systemd1.Manager
-    member=JobRemoved
     peer=(label=unconfined),
 `
 
