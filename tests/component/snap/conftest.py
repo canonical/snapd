@@ -88,24 +88,8 @@ def dbus_session_bus(request):
     return bus
 
 
-@pytest.fixture(scope="session")
-def snap_command(request):
-    """ Command to be run in order to run the `snap` executable.
-
-    The return value is an array consisting of the program
-    arguments in the same form expected by `subprocess.Popen()`.
-
-    In the simple case this would just be a single-element tuple
-    like `["snap"]`, but in practice we will want to have wrappers
-    that help us setup the testing environment.
-    """
-    top_src_dir = os.environ.get('TOP_SRC_DIR', '.')
-    snap_binary = top_src_dir + '/cmd/snap'
-    return ['go', 'run', snap_binary]
-
-
 @pytest.fixture(scope="class")
-def snap_userd(request, snap_command, dbus_session_bus, tmp_path_factory):
+def snap_userd(request, make_command, dbus_session_bus, tmp_path_factory):
     """ Spawn a new `snap userd` service
     """
     root_dir = tmp_path_factory.mktemp("root")
@@ -115,7 +99,7 @@ def snap_userd(request, snap_command, dbus_session_bus, tmp_path_factory):
     environment = os.environ.copy()
     environment['SNAPPY_GLOBAL_ROOT'] = root_dir
 
-    args = snap_command + ['userd', '--agent']
+    args = make_command('snap', 'userd', '--agent')
 
     # Spawn the service, and wait for it to open its socket
     service = Popen(

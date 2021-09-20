@@ -13,13 +13,13 @@ import pytest
 
 class TestUserdStartup:
 
-    def test_no_dbus(self, snap_command, empty_root_dir):
+    def test_no_dbus(self, make_command, empty_root_dir):
         environment = os.environ.copy()
         environment["DBUS_SESSION_BUS_ADDRESS"] = ""
         environment["DBUS_SYSTEM_BUS_ADDRESS"] = ""
         environment['SNAPPY_GLOBAL_ROOT'] = empty_root_dir
         service = subprocess.Popen(
-            snap_command + ['userd'],
+            make_command('snap', 'userd'),
             stderr=subprocess.PIPE,
             env=environment)
         service.wait(5)
@@ -31,9 +31,9 @@ class TestUserdStartup:
         ('io.snapcraft.Launcher'),
         ('io.snapcraft.Settings'),
     ])
-    def test_steal_name(self, snap_command, dbus_session_bus, service_name,
+    def test_steal_name(self, make_command, dbus_session_bus, service_name,
                         request_name):
-        args = snap_command + ['userd']
+        args = make_command('snap', 'userd')
         service = subprocess.Popen(args, stderr=subprocess.PIPE)
         service.wait(5)
         output = str(service.stderr.read())
@@ -44,13 +44,13 @@ class TestUserdStartup:
 
 class TestUserdSessionAgent:
 
-    def test_no_dbus(self, snap_command, empty_root_dir):
+    def test_no_dbus(self, make_command, empty_root_dir):
         environment = os.environ.copy()
         environment["DBUS_SESSION_BUS_ADDRESS"] = ""
         environment["DBUS_SYSTEM_BUS_ADDRESS"] = ""
         environment['SNAPPY_GLOBAL_ROOT'] = empty_root_dir
         service = subprocess.Popen(
-            snap_command + ['userd', '--agent'],
+            make_command('snap', 'userd', '--agent'),
             stderr=subprocess.PIPE,
             env=environment)
         service.wait(5)
@@ -62,12 +62,12 @@ class TestUserdSessionAgent:
     @pytest.mark.parametrize('service_name', [
         ('io.snapcraft.SessionAgent'),
     ])
-    def test_steal_name(self, snap_command, root_dir, dbus_session_bus,
+    def test_steal_name(self, make_command, root_dir, dbus_session_bus,
                         service_name, request_name):
         environment = os.environ.copy()
         environment['SNAPPY_GLOBAL_ROOT'] = root_dir
         service = subprocess.Popen(
-            snap_command + ['userd', '--agent'],
+            make_command('snap', 'userd', '--agent'),
             stderr=subprocess.PIPE,
             env=environment)
         service.wait(5)
@@ -76,12 +76,12 @@ class TestUserdSessionAgent:
         assert service_name in output
         assert service.returncode == 1
 
-    def test_no_runtime_dir(self, snap_command, empty_root_dir,
+    def test_no_runtime_dir(self, make_command, empty_root_dir,
                             dbus_session_bus):
         environment = os.environ.copy()
         environment['SNAPPY_GLOBAL_ROOT'] = empty_root_dir
         service = subprocess.Popen(
-            snap_command + ['userd', '--agent'],
+            make_command('snap', 'userd', '--agent'),
             stderr=subprocess.PIPE,
             env=environment)
         service.wait(5)
@@ -90,7 +90,7 @@ class TestUserdSessionAgent:
         assert 'bind: no such file or directory' in output
         assert service.returncode == 1
 
-    def test_socket_taken(self, snap_command, root_dir, dbus_session_bus):
+    def test_socket_taken(self, make_command, root_dir, dbus_session_bus):
         environment = os.environ.copy()
         environment['SNAPPY_GLOBAL_ROOT'] = root_dir
 
@@ -102,7 +102,7 @@ class TestUserdSessionAgent:
         server.listen()
 
         service = subprocess.Popen(
-            snap_command + ['userd', '--agent'],
+            make_command('snap', 'userd', '--agent'),
             stderr=subprocess.PIPE,
             env=environment)
         service.wait(5)
