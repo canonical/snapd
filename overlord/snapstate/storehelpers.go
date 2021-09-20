@@ -346,8 +346,17 @@ func updateInfo(st *state.State, snapst *SnapState, opts *RevisionOptions, userI
 		}
 	}
 
+	// only set cohort if validation sets don't require a specific revision
 	if action.Revision.Unset() {
 		action.CohortKey = opts.CohortKey
+	} else {
+		// specific revision is required, reset cohort in current snaps
+		for _, sn := range curSnaps {
+			if sn.InstanceName == curInfo.InstanceName() {
+				sn.CohortKey = ""
+				break
+			}
+		}
 	}
 
 	if curInfo.SnapID == "" { // amend
@@ -462,6 +471,14 @@ func updateToRevisionInfo(st *state.State, snapst *SnapState, revision snap.Revi
 			}
 			// note, not checking if required revision matches snapst.Current because
 			// this is already indirectly prevented by infoForUpdate().
+
+			// specific revision is required, reset cohort in current snaps
+			for _, sn := range curSnaps {
+				if sn.InstanceName == curInfo.InstanceName() {
+					sn.CohortKey = ""
+					break
+				}
+			}
 		}
 		if len(requiredValsets) > 0 {
 			setActionValidationSetsAndRequiredRevision(action, requiredValsets, requiredRevision)
