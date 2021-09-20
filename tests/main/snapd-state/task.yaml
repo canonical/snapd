@@ -16,8 +16,15 @@ execute: |
 
     function check_date() {
         local TEST_DATE="$1"
-        local TOLERANCE_SECONDS=1800 # 30 minutes; in practice, the timestamp
-                                     # difference should be about 10 minutes
+        # The tolerance is the maximun since the snapd state is backed up when the suite
+        # is prepared. In case of external backend that time could be until 12 hours.
+        # In case of the google backend the tolerance time could be until 90 minutes
+        local TOLERANCE_SECONDS
+        if [ "$SPREAD_BACKENDS" = external ]; then
+            TOLERANCE_SECONDS=43200 # 60s*60m*12h=43200
+        else
+            TOLERANCE_SECONDS=5400 # 60s*90m=5400
+        fi
         local TEST_TIMESTAMP CURRENT_TIMESTAMP
 
         TEST_TIMESTAMP=$(date +'%s' --date="${TEST_DATE}")
