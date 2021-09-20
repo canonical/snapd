@@ -95,6 +95,8 @@ var (
 
 	GetKeypairManager = getKeypairManager
 	GenerateKey       = generateKey
+
+	Main = main
 )
 
 func HiddenCmd(descr string, completeHidden bool) *cmdInfo {

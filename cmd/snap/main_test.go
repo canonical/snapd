@@ -27,11 +27,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/jessevdk/go-flags"
+	"github.com/makholm/covertool/pkg/cover"
+	"github.com/makholm/covertool/pkg/exit"
 	"golang.org/x/crypto/ssh/terminal"
 	. "gopkg.in/check.v1"
 
@@ -47,6 +50,26 @@ import (
 
 // Hook up check.v1 into the "go test" runner
 func Test(t *testing.T) { TestingT(t) }
+
+func TestMain(m *testing.M) {
+	cover.ParseAndStripTestFlags()
+
+	// Make sure we have the opportunity to flush the coverage report to disk when
+	// terminating the process.
+	exit.AtExit(cover.FlushProfiles)
+
+	// If the test binary name is $program_name or $program_name.coverage,
+	// we are being asked to run the coverage-instrumented program. So call
+	// main() directly.
+	fmt.Printf("The base program name is %q\n", os.Args[0])
+	if path.Base(os.Args[0]) == "snap" {
+		snap.Main()
+		exit.Exit(0)
+	}
+
+	// Run unit-tests as usual.
+	os.Exit(m.Run())
+}
 
 type BaseSnapSuite struct {
 	testutil.BaseTest

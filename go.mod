@@ -14,6 +14,7 @@ require (
 	github.com/jessevdk/go-flags v1.4.1-0.20180927143258-7309ec74f752
 	github.com/juju/ratelimit v1.0.1
 	github.com/kr/pretty v0.2.2-0.20200810074440-814ac30b4b18 // indirect
+	github.com/makholm/covertool v0.0.0-20210624102319-bb1c7c716204
 	github.com/mvo5/goconfigparser v0.0.0-20200803085309-72e476556adb
 	github.com/mvo5/libseccomp-golang v0.9.1-0.20180308152521-f4de83b52afb
 	github.com/snapcore/bolt v1.3.2-0.20210908134111-63c8bfcf7af8

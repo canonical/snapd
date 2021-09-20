@@ -31,6 +31,8 @@ github.com/kr/pretty v0.2.2-0.20200810074440-814ac30b4b18/go.mod h1:ipq/a2n7PKx3
 github.com/kr/pty v1.1.1/go.mod h1:pFQYn66WHrOpPYNljwOMqo10TkYh1fy3cYio2l3bCsQ=
 github.com/kr/text v0.1.0 h1:45sCR5RtlFHMR4UwH9sdQ5TC8v0qDQCHnXt+kaKSTVE=
 github.com/kr/text v0.1.0/go.mod h1:4Jbv+DJW3UT/LiOwJeYQe1efqtUx/iVham/4vfdArNI=
+github.com/makholm/covertool v0.0.0-20210624102319-bb1c7c716204 h1:1m/uq9fydXIngaM7XUVqDPHtcFEdqLCgGdBBlKyUFSM=
+github.com/makholm/covertool v0.0.0-20210624102319-bb1c7c716204/go.mod h1:IZm4iDzUQ8ePXFgonCtgs1ijmVh3n/mOSTFnO4gk7xQ=
 github.com/mvo5/goconfigparser v0.0.0-20200803085309-72e476556adb h1:1I/JqsB+FffFssjcOeEP0popLhJ46+OwtXztJ/1DhM0=
 github.com/mvo5/goconfigparser v0.0.0-20200803085309-72e476556adb/go.mod h1:xmt4k1xLDl8Tdan+0S/jmMK2uSUBSzTc18+5GN5Vea8=
 github.com/mvo5/libseccomp-golang v0.9.1-0.20180308152521-f4de83b52afb h1:+u5VeqU0Lm7ESN1mS0WONqKRScw7WpPYYtr3zmqEFQ0=
