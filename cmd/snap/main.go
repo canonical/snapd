@@ -31,6 +31,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/jessevdk/go-flags"
+	"github.com/makholm/covertool/pkg/exit"
 	"golang.org/x/crypto/ssh/terminal"
 	"golang.org/x/xerrors"
 
@@ -392,7 +393,7 @@ func mkClient() *client.Client {
 			fmt.Fprintf(Stderr, i18n.G(`Interacting with snapd is not yet supported on %s.
 This command has been left available for documentation purposes only.
 `), goos)
-			os.Exit(1)
+			exit.Exit(1)
 			panic("execution continued past call to exit")
 		})
 	}
@@ -471,7 +472,7 @@ func main() {
 		snapApp, err = resolveApp(snapApp)
 		if err != nil {
 			fmt.Fprintf(Stderr, i18n.G("cannot resolve snap app %q: %v"), snapApp, err)
-			os.Exit(46)
+			exit.Exit(46)
 		}
 		cmd := &cmdRun{}
 		cmd.client = mkClient()
@@ -481,13 +482,13 @@ func main() {
 		// symlink (or syscall.Exec() fails for strange reasons)
 		err = cmd.Execute(os.Args)
 		fmt.Fprintf(Stderr, i18n.G("internal error, please report: running %q failed: %v\n"), snapApp, err)
-		os.Exit(46)
+		exit.Exit(46)
 	}
 
 	defer func() {
 		if v := recover(); v != nil {
 			if e, ok := v.(*exitStatus); ok {
-				os.Exit(e.code)
+				exit.Exit(e.code)
 			}
 			panic(v)
 		}
@@ -496,7 +497,7 @@ func main() {
 	// no magic /o\
 	if err := run(); err != nil {
 		fmt.Fprintf(Stderr, errorPrefix, err)
-		os.Exit(exitCodeFromError(err))
+		exit.Exit(exitCodeFromError(err))
 	}
 }
 
