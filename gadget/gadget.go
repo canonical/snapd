@@ -938,22 +938,24 @@ func IsCompatible(current, new *Info) error {
 	return nil
 }
 
-// LaidOutSystemVolumeFromGadget takes a gadget rootdir and lays out the
-// partitions as specified. It returns one specific volume, which is the volume
-// on which system-* roles/partitions exist, all other volumes are assumed to
-// already be flashed and managed separately at image build/flash time, while
-// the system-* roles can be manipulated on the returned volume during install
+// LaidOutVolumesFromGadget takes a gadget rootdir and lays out the partitions
+// on all volumes as specified. It returns the specific volume on which system-*
+// roles/partitions exist, as well as all volumes mentioned in the gadget.yaml
+// and their laid out representations. Those volumes are assumed to already be
+// flashed and managed separately at image build/flash time, while the system
+// volume with all the system-* roles on it can be manipulated during install
 // mode.
-func LaidOutSystemVolumeFromGadget(gadgetRoot, kernelRoot string, model Model) (*LaidOutVolume, error) {
+func LaidOutVolumesFromGadget(gadgetRoot, kernelRoot string, model Model) (system *LaidOutVolume, all map[string]*LaidOutVolume, err error) {
+	all = make(map[string]*LaidOutVolume)
 	// model should never be nil here
 	if model == nil {
-		return nil, fmt.Errorf("internal error: must have model to lay out system volumes from a gadget")
+		return nil, nil, fmt.Errorf("internal error: must have model to lay out system volumes from a gadget")
 	}
 	// rely on the basic validation from ReadInfo to ensure that the system-*
 	// roles are all on the same volume for example
 	info, err := ReadInfoAndValidate(gadgetRoot, model, nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	constraints := LayoutConstraints{
@@ -962,22 +964,34 @@ func LaidOutSystemVolumeFromGadget(gadgetRoot, kernelRoot string, model Model) (
 
 	// find the volume with the system-boot role on it, we already validated
 	// that the system-* roles are all on the same volume
-	for _, vol := range info.Volumes {
+	for name, vol := range info.Volumes {
+		// layout all volumes saving them
+		lvol, err := LayoutVolume(gadgetRoot, kernelRoot, vol, constraints)
+		if err != nil {
+			return nil, nil, err
+		}
+		all[name] = lvol
+		// check if this volume is the boot volume using the system-boot volume
+		// to identify it
 		for _, structure := range vol.Structure {
-			// use the system-boot role to identify the system volume
 			if structure.Role == SystemBoot {
-				pvol, err := LayoutVolume(gadgetRoot, kernelRoot, vol, constraints)
-				if err != nil {
-					return nil, err
+				if system != nil {
+					// this should be impossible, the validation above should
+					// ensure there are not multiple volumes with the same role
+					// on them
+					return nil, nil, fmt.Errorf("internal error: gadget passed validation but duplicated system-* roles across multiple volumes")
 				}
-
-				return pvol, nil
+				system = lvol
 			}
 		}
 	}
 
-	// this should be impossible, the validation above should ensure this
-	return nil, fmt.Errorf("internal error: gadget passed validation but does not have system-* roles on any volume")
+	if system == nil {
+		// this should be impossible, the validation above should ensure this
+		return nil, nil, fmt.Errorf("internal error: gadget passed validation but does not have system-* roles on any volume")
+	}
+
+	return system, all, nil
 }
 
 func flatten(path string, cfg interface{}, out map[string]interface{}) {

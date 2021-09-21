@@ -2869,6 +2869,27 @@ func All(st *state.State) (map[string]*SnapState, error) {
 	return curStates, nil
 }
 
+// InstalledSnaps returns the list of all installed snaps suitable for
+// ValidationSets checks.
+func InstalledSnaps(st *state.State) ([]*snapasserts.InstalledSnap, error) {
+	var snaps []*snapasserts.InstalledSnap
+	all, err := All(st)
+	if err != nil {
+		return nil, err
+	}
+	for _, snapState := range all {
+		cur, err := snapState.CurrentInfo()
+		if err != nil {
+			return nil, err
+		}
+		snaps = append(snaps,
+			snapasserts.NewInstalledSnap(snapState.InstanceName(),
+				snapState.CurrentSideInfo().SnapID,
+				cur.Revision))
+	}
+	return snaps, nil
+}
+
 // NumSnaps returns the number of installed snaps.
 func NumSnaps(st *state.State) (int, error) {
 	var snaps map[string]*json.RawMessage

@@ -12,10 +12,7 @@ environment:
     NESTED_ENABLE_SECURE_BOOT: true
 
 prepare: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
-    KEY_NAME=$(tests.nested get snakeoil-key)
+    KEY_NAME=$(tests.nested download snakeoil-key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
@@ -27,7 +24,7 @@ prepare: |
     tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
     echo 'snapd.debug=1 hello from test' > pc-gadget/cmdline.extra
-    snap pack pc-gadget/ extra-snaps/
+    snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
 
     echo 'snapd.debug=1 updated hello from test' > pc-gadget/cmdline.extra
     snap pack pc-gadget --filename=pc-gadget-cmdline-extra-updated.snap
@@ -58,9 +55,6 @@ debug: |
     cat system.cmdline.recover || true
 
 execute: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     boot_id="$(tests.nested boot-id)"
 
     echo "Make sure the system is encrypted"
