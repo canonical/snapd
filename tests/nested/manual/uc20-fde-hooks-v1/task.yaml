@@ -12,11 +12,6 @@ environment:
 
 prepare: |
   echo "Build a kernel snap with the fde-setup hook"
-  # shellcheck source=tests/lib/prepare.sh
-  . "$TESTSLIB/prepare.sh"
-
-  mkdir "$(tests.nested get extra-snaps-path)"
-
   # build fde-reveal-key hook into the "extra-initrd" dir so that the
   # nested_create_core_vm picks this up
   mkdir -p ./extra-initrd/usr/bin/
