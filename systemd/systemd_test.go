@@ -22,6 +22,7 @@ package systemd_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -145,6 +146,46 @@ func (s *SystemdTestSuite) myJctl(svcs []string, n int, follow bool) (io.ReadClo
 	}
 
 	return ioutil.NopCloser(bytes.NewReader(out)), err
+}
+
+func (s *SystemdTestSuite) TestMockVersion(c *C) {
+	for _, tc := range []struct {
+		version int
+		err     error
+	}{
+		{0, errors.New("some error")},
+		{123, nil},
+	} {
+		restore := MockSystemdVersion(tc.version, tc.err)
+		defer restore()
+
+		version, err := Version()
+		c.Check(version, Equals, tc.version)
+		c.Check(err, Equals, tc.err)
+	}
+}
+
+func (s *SystemdTestSuite) TestEnsureAtLeastFail(c *C) {
+	for _, tc := range []struct {
+		requiredVersion int
+		mockedVersion   int
+		mockedErr       error
+		expectedErr     string
+	}{
+		{123, 0, errors.New("some error"), "some error"},
+		{140, 139, nil, `systemd version 139 is too old \(expected at least 140\)`},
+		{149, 150, nil, ""},
+	} {
+		restore := MockSystemdVersion(tc.mockedVersion, tc.mockedErr)
+		defer restore()
+
+		err := EnsureAtLeast(tc.requiredVersion)
+		if tc.expectedErr != "" {
+			c.Check(err, ErrorMatches, tc.expectedErr)
+		} else {
+			c.Check(err, IsNil)
+		}
+	}
 }
 
 func (s *SystemdTestSuite) TestDaemonReload(c *C) {

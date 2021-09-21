@@ -451,6 +451,11 @@ debug-each: |
 
         echo '# journal messages for snapd'
         "$TESTSTOOLS"/journal-state get-log -u snapd
+
+        echo '# user sessions information'
+        journalctl --user -u snapd.session-agent.service
+        systemctl status --user snapd.session-agent  || true
+
         case "$SPREAD_SYSTEM" in
             fedora-*|centos-*|amazon-*)
                 if [ -e "$RUNTIME_STATE_PATH/audit-stamp" ]; then

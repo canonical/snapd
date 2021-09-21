@@ -203,10 +203,16 @@ var installSize = func(st *state.State, snaps []minimalInstallInfo, userID int) 
 	return total, nil
 }
 
-func setActionValidationSets(action *store.SnapAction, valsets []string) {
+func setActionValidationSetsAndRequiredRevision(action *store.SnapAction, valsets []string, requiredRevision snap.Revision) {
 	for _, vs := range valsets {
 		keyParts := strings.Split(vs, "/")
 		action.ValidationSets = append(action.ValidationSets, keyParts)
+	}
+	if !requiredRevision.Unset() {
+		action.Revision = requiredRevision
+		// channel cannot be present if revision is set (store would
+		// respond with revision-conflict error).
+		action.Channel = ""
 	}
 }
 
@@ -264,7 +270,7 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 	}
 
 	if len(requiredValSets) > 0 {
-		setActionValidationSets(action, requiredValSets)
+		setActionValidationSetsAndRequiredRevision(action, requiredValSets, requiredRevision)
 	}
 
 	if requiredRevision.Unset() {
@@ -277,9 +283,6 @@ func installInfo(ctx context.Context, st *state.State, name string, revOpts *Rev
 		} else {
 			action.Revision = revOpts.Revision
 		}
-	} else {
-		// set revision required by validation set
-		action.Revision = requiredRevision
 	}
 
 	theStore := Store(st, deviceCtx)
@@ -623,14 +626,40 @@ func installCandidates(st *state.State, names []string, channel string, user *au
 		return nil, err
 	}
 
+	enforcedSets, err := EnforcedValidationSets(st)
+	if err != nil {
+		return nil, err
+	}
+
 	actions := make([]*store.SnapAction, len(names))
 	for i, name := range names {
-		actions[i] = &store.SnapAction{
+		action := &store.SnapAction{
 			Action:       "install",
 			InstanceName: name,
 			// the desired channel
 			Channel: channel,
 		}
+
+		if enforcedSets != nil {
+			// check for invalid presence first to have a list of sets where it's invalid
+			invalidForValSets, err := enforcedSets.CheckPresenceInvalid(naming.Snap(name))
+			if err != nil {
+				if _, ok := err.(*snapasserts.PresenceConstraintError); !ok {
+					return nil, err
+				} // else presence is optional or required, carry on
+			}
+			if len(invalidForValSets) > 0 {
+				return nil, fmt.Errorf("cannot install snap %q due to enforcing rules of validation set %s", name, strings.Join(invalidForValSets, ","))
+			}
+			requiredValSets, requiredRevision, err := enforcedSets.CheckPresenceRequired(naming.Snap(name))
+			if err != nil {
+				return nil, err
+			}
+			if len(requiredValSets) > 0 {
+				setActionValidationSetsAndRequiredRevision(action, requiredValSets, requiredRevision)
+			}
+		}
+		actions[i] = action
 	}
 
 	// TODO: possibly support a deviceCtx

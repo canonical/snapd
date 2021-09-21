@@ -53,7 +53,7 @@ func (s *quotaHandlersSuite) SetUpTest(c *C) {
 	tr.Commit()
 
 	// mock that we have a new enough version of systemd by default
-	r := servicestate.MockSystemdVersion(248)
+	r := systemd.MockSystemdVersion(248, nil)
 	s.AddCleanup(r)
 }
 
