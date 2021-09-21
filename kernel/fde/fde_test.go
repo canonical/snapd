@@ -525,3 +525,59 @@ func (s *fdeSuite) TestRevealErr(c *C) {
 	// ensure no tmp files are left behind
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
 }
+
+func (s *fdeSuite) TestDeviceUnlock(c *C) {
+	checkSystemdRunOrSkip(c)
+
+	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
+	defer restore()
+	fdeDeviceUnlockStdin := filepath.Join(c.MkDir(), "stdin")
+	mockSystemdRun := testutil.MockCommand(c, "fde-device-unlock", fmt.Sprintf(`
+cat - > %s
+printf "output-only-used-for-errors"
+`, fdeDeviceUnlockStdin))
+	defer mockSystemdRun.Restore()
+
+	mockKey := []byte("some-key")
+	p := fde.DeviceUnlockParams{
+		Key:    mockKey,
+		Device: "/dev/my-device",
+	}
+	err := fde.DeviceUnlock(&p)
+	c.Assert(err, IsNil)
+	c.Check(mockSystemdRun.Calls(), DeepEquals, [][]string{
+		{"fde-device-unlock"},
+	})
+	c.Check(fdeDeviceUnlockStdin, testutil.FileEquals, fmt.Sprintf(`{"op":"device-unlock","key":%q,"device":"/dev/my-device"}`, base64.StdEncoding.EncodeToString(mockKey)))
+
+	// ensure no tmp files are left behind
+	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-device-unlock")), Equals, false)
+}
+
+func (s *fdeSuite) TestDeviceUnlockErr(c *C) {
+	checkSystemdRunOrSkip(c)
+
+	restore := fde.MockFdeInitramfsHelperCommandExtra([]string{"--user"})
+	defer restore()
+	mockSystemdRun := testutil.MockCommand(c, "fde-device-unlock", `
+echo  "output-only-used-for-errors" 1>&2
+sleep 0.2
+exit 1
+`)
+	defer mockSystemdRun.Restore()
+
+	mockKey := []byte("some-key")
+	p := fde.DeviceUnlockParams{
+		Key:    mockKey,
+		Device: "/dev/my-device",
+	}
+	err := fde.DeviceUnlock(&p)
+	c.Assert(err, ErrorMatches, `cannot run fde-device-unlock "device-unlock": 
+-----
+output-only-used-for-errors
+service result: exit-code
+-----`)
+
+	// ensure no tmp files are left behind
+	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-device-unlock")), Equals, false)
+}
