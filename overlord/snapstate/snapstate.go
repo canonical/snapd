@@ -2910,7 +2910,6 @@ func ActiveInfos(st *state.State) ([]*snap.Info, error) {
 	if err := st.Get("snaps", &stateMap); err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	var active, broken int
 	for instanceName, snapst := range stateMap {
 		if !snapst.Active {
 			continue
@@ -2918,13 +2917,9 @@ func ActiveInfos(st *state.State) ([]*snap.Info, error) {
 		snapInfo, err := snapst.CurrentInfo()
 		if err != nil {
 			logger.Noticef("cannot retrieve info for snap %q: %s", instanceName, err)
-			broken++
 			continue
 		}
 		infos = append(infos, snapInfo)
-	}
-	if active > 0 && active == broken {
-		return nil, fmt.Errorf("expected %d snaps in the system, but all appear broken (likely not mounted)", active)
 	}
 	return infos, nil
 }

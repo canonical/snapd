@@ -241,6 +241,9 @@ var removeStaleConnections = func(st *state.State) error {
 func isBroken(st *state.State, snapName string) (bool, error) {
 	var snapst snapstate.SnapState
 	err := snapstate.Get(st, snapName, &snapst)
+	if err == state.ErrNoState {
+		return false, nil
+	}
 	if err != nil {
 		return false, err
 	}
@@ -298,7 +301,7 @@ ConnsLoop:
 				// leave the connection untouched.
 				for _, snapName := range []string{connRef.PlugRef.Snap, connRef.SlotRef.Snap} {
 					broken, err := isBroken(m.state, snapName)
-					if err != nil && err != state.ErrNoState {
+					if err != nil {
 						return nil, err
 					}
 					if broken {
