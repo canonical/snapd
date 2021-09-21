@@ -6459,6 +6459,7 @@ func (s *interfaceManagerSuite) TestUDevMonitorInit(c *C) {
 		SnapType: "os",
 	})
 	st.Unlock()
+	s.mockSnap(c, coreSnapYaml)
 
 	restoreTimeout := ifacestate.MockUDevInitRetryTimeout(0 * time.Second)
 	defer restoreTimeout()
@@ -6499,6 +6500,7 @@ func (s *interfaceManagerSuite) TestUDevMonitorInitErrors(c *C) {
 		SnapType: "os",
 	})
 	st.Unlock()
+	s.mockSnap(c, coreSnapYaml)
 
 	restoreTimeout := ifacestate.MockUDevInitRetryTimeout(0 * time.Second)
 	defer restoreTimeout()
