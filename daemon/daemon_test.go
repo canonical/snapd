@@ -594,9 +594,9 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 	st.Lock()
 	si := &snap.SideInfo{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"}
 	snapstate.Set(st, "core", &snapstate.SnapState{
-		Active: true,
+		Active:   true,
 		Sequence: []*snap.SideInfo{si},
-		Current: snap.R(1),
+		Current:  snap.R(1),
 	})
 	st.Unlock()
 	snaptest.MockSnap(c, `name: core
@@ -729,9 +729,9 @@ func (s *daemonSuite) TestGracefulStop(c *check.C) {
 	st.Lock()
 	si := &snap.SideInfo{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"}
 	snapstate.Set(st, "core", &snapstate.SnapState{
-		Active: true,
+		Active:   true,
 		Sequence: []*snap.SideInfo{si},
-		Current: snap.R(1),
+		Current:  snap.R(1),
 	})
 	st.Unlock()
 	snaptest.MockSnap(c, `name: core
