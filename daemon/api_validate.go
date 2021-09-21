@@ -104,7 +104,7 @@ func listValidationSets(c *Command, r *http.Request, _ *auth.UserState) Response
 	}
 	sort.Strings(names)
 
-	snaps, err := installedSnaps(st)
+	snaps, err := snapstate.InstalledSnaps(st)
 	if err != nil {
 		return InternalError(err.Error())
 	}
@@ -140,25 +140,6 @@ func listValidationSets(c *Command, r *http.Request, _ *auth.UserState) Response
 
 var checkInstalledSnaps = func(vsets *snapasserts.ValidationSets, snaps []*snapasserts.InstalledSnap) error {
 	return vsets.CheckInstalledSnaps(snaps)
-}
-
-func installedSnaps(st *state.State) ([]*snapasserts.InstalledSnap, error) {
-	var snaps []*snapasserts.InstalledSnap
-	all, err := snapstate.All(st)
-	if err != nil {
-		return nil, err
-	}
-	for _, snapState := range all {
-		cur, err := snapState.CurrentInfo()
-		if err != nil {
-			return nil, err
-		}
-		snaps = append(snaps,
-			snapasserts.NewInstalledSnap(snapState.InstanceName(),
-				snapState.CurrentSideInfo().SnapID,
-				cur.Revision))
-	}
-	return snaps, nil
 }
 
 func getValidationSet(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -219,7 +200,7 @@ func getValidationSet(c *Command, r *http.Request, user *auth.UserState) Respons
 	if err != nil {
 		return InternalError(err.Error())
 	}
-	snaps, err := installedSnaps(st)
+	snaps, err := snapstate.InstalledSnaps(st)
 	if err != nil {
 		return InternalError(err.Error())
 	}
@@ -380,7 +361,7 @@ func validateAgainstStore(st *state.State, accountID, name string, sequence int,
 	if err := sets.Add(vset); err != nil {
 		return InternalError(err.Error())
 	}
-	snaps, err := installedSnaps(st)
+	snaps, err := snapstate.InstalledSnaps(st)
 	if err != nil {
 		return InternalError(err.Error())
 	}
