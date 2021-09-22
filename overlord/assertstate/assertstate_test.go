@@ -1014,7 +1014,7 @@ func (s *assertMgrSuite) TestRefreshAssertionsRefreshSnapDeclarationsAndValidati
 	c.Check(s.fakeStore.(*fakeStore).opts.IsAutoRefresh, Equals, false)
 
 	// changed validation set assertion again
-	vsetAs3 := s.validationSetAssert(c, "bar", "4", "5", "required")
+	vsetAs3 := s.validationSetAssert(c, "bar", "4", "5", "required", "1")
 	c.Assert(s.storeSigning.Add(vsetAs3), IsNil)
 
 	// but pretend it's not a refresh of all snaps
