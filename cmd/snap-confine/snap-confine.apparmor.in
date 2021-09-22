@@ -77,6 +77,8 @@
     /sys/fs/bpf/ r,
     /sys/fs/bpf/snap/ rw,
     /sys/fs/bpf/snap/* rw,
+    # manipulate BPF objects
+    capability bpf,
 
     # querying udev
     /etc/udev/udev.conf r,
