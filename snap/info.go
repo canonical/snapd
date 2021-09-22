@@ -210,6 +210,21 @@ func snapDataDir(opts *dirs.SnapDirOptions) string {
 	return dirs.UserHomeSnapDir
 }
 
+// XdgDataHome returns the directory for a snap's user-specific data files.
+func XdgDataHome(home, name, revision string, opts *dirs.SnapDirOptions) string {
+	return filepath.Join(home, snapDataDir(opts), name, revision, "data")
+}
+
+// XdgConfigHome returns the directory for a snap's user-specific configuration files.
+func XdgConfigHome(home, name, revision string, opts *dirs.SnapDirOptions) string {
+	return filepath.Join(home, snapDataDir(opts), name, revision, "config")
+}
+
+// XdgCacheHome returns the directory for a snap's user-specific non-essential data files.
+func XdgCacheHome(home, name, revision string, opts *dirs.SnapDirOptions) string {
+	return filepath.Join(home, snapDataDir(opts), name, revision, "cache")
+}
+
 // UserDataDir returns the user-specific data directory for given snap name. The
 // name can be either a snap name or snap instance name.
 func UserDataDir(home string, name string, revision Revision, opts *dirs.SnapDirOptions) string {
@@ -536,6 +551,21 @@ func dataHomeGlob(opts *dirs.SnapDirOptions) string {
 	}
 
 	return dirs.SnapDataHomeGlob
+}
+
+// XdgDataHome returns the directory for a snap's user-specific data files.
+func (s *Info) XdgDataHome(home string, opts *dirs.SnapDirOptions) string {
+	return XdgDataHome(home, s.InstanceName(), s.Revision.String(), opts)
+}
+
+// XdgConfigHome returns the directory for a snap's user-specific configuration files.
+func (s *Info) XdgConfigHome(home string, opts *dirs.SnapDirOptions) string {
+	return XdgConfigHome(home, s.InstanceName(), s.Revision.String(), opts)
+}
+
+// XdgCacheHome returns the directory for a snap's user-specific non-essential data files.
+func (s *Info) XdgCacheHome(home string, opts *dirs.SnapDirOptions) string {
+	return XdgCacheHome(home, s.InstanceName(), s.Revision.String(), opts)
 }
 
 // DataHomeDir returns the per user data directory of the snap.

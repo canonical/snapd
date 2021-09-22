@@ -400,6 +400,15 @@ func createUserDataDirs(info *snap.Info, opts *dirs.SnapDirOptions) error {
 		snapUserDir := snap.UserSnapDir(usr.HomeDir, info.SnapName(), opts)
 		createDirs = append(createDirs, snapUserDir)
 	}
+
+	if opts.HiddenSnapDir {
+		xdgDataHome := info.XdgDataHome(usr.HomeDir, opts)
+		xdgConfigHome := info.XdgConfigHome(usr.HomeDir, opts)
+		xdgCacheHome := info.XdgCacheHome(usr.HomeDir, opts)
+
+		createDirs = append(createDirs, xdgDataHome, xdgConfigHome, xdgCacheHome)
+	}
+
 	for _, d := range createDirs {
 		if err := os.MkdirAll(d, 0755); err != nil {
 			// TRANSLATORS: %q is the directory whose creation failed, %v the error message

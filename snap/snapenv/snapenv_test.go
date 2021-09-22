@@ -287,3 +287,14 @@ func (s *HTestSuite) TestExtendEnvForRunForClassic(c *C) {
 
 	c.Assert(env["TMPDIR"], Equals, "/var/tmp")
 }
+
+func (s *HTestSuite) TestEnvWithHiddenSnap(c *C) {
+	env := userEnv(mockSnapInfo, "/root", &dirs.SnapDirOptions{HiddenSnapDir: true})
+
+	c.Check(env["HOME"], Equals, "/root/.snap/data/foo/17")
+	c.Check(env["SNAP_USER_COMMON"], Equals, "/root/.snap/data/foo/common")
+	c.Check(env["SNAP_USER_DATA"], Equals, "/root/.snap/data/foo/17")
+	c.Check(env["XDG_DATA_HOME"], Equals, "/root/.snap/data/foo/17/data")
+	c.Check(env["XDG_CONFIG_HOME"], Equals, "/root/.snap/data/foo/17/config")
+	c.Check(env["XDG_CACHE_HOME"], Equals, "/root/.snap/data/foo/17/cache")
+}
