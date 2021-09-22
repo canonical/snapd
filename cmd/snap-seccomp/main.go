@@ -454,10 +454,8 @@ func DpkgArchToScmpArch(dpkgArch string) seccomp.ScmpArch {
 		return seccomp.ArchPPC64LE
 	case "s390x":
 		return seccomp.ArchS390X
-	case "riscv64":
-		return seccomp.ArchRISCV64
 	}
-	panic(fmt.Sprintf("cannot map dpkg arch %q to a seccomp arch", dpkgArch))
+	return extraDpkgArchToScmpArch(dpkgArch)
 }
 
 // important for unit testing
