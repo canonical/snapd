@@ -126,3 +126,28 @@ func InitialSetup(runSetupHook RunSetupHookFunc, params *InitialSetupParams) (*I
 	}
 	return res, nil
 }
+
+// CheckFeatures returns the features of fde-setup hook.
+func CheckFeatures(runSetupHook RunSetupHookFunc) ([]string, error) {
+	req := &SetupRequest{
+		Op: "features",
+	}
+	output, err := runSetupHook(req)
+	if err != nil {
+		return nil, err
+	}
+	var res struct {
+		Features []string `json:"features"`
+		Error    string   `json:"error"`
+	}
+	if err := json.Unmarshal(output, &res); err != nil {
+		return nil, fmt.Errorf("cannot parse hook output %q: %v", output, err)
+	}
+	if res.Features == nil && res.Error == "" {
+		return nil, fmt.Errorf(`cannot use hook: neither "features" nor "error" returned`)
+	}
+	if res.Error != "" {
+		return nil, fmt.Errorf("cannot use hook: it returned error: %v", res.Error)
+	}
+	return res.Features, nil
+}
