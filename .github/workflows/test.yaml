@@ -261,6 +261,7 @@ jobs:
       with:
         # spread uses tags as delta reference
         fetch-depth: 0
+        submodules: true
     - name: Cache snapd test results
       id: cache-snapd-test-results
       uses: actions/cache@v1
@@ -317,6 +318,8 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
+      with:
+        submodules: true
     - name: Cache snapd test results
       id: cache-snapd-test-results
       uses: actions/cache@v1
