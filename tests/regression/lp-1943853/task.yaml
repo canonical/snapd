@@ -15,7 +15,7 @@ execute: |
 
   REV=$(snap list home-consumer|tail -1|awk '{print $3}')
   SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
-  MOUNT_UNIT="$(systemd-escape -p "${SNAP_MOUNT_DIR}")-home\\x2dconsumer-"$REV".mount"
+  MOUNT_UNIT="$(systemd-escape -p "${SNAP_MOUNT_DIR}")-home\\x2dconsumer-$REV.mount"
 
   echo "Manually stop the mount unit of home-consumer snap"
   systemctl stop "$MOUNT_UNIT"
