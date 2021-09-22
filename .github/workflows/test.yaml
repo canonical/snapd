@@ -256,6 +256,11 @@ jobs:
         - ubuntu-core-20-64
         - ubuntu-secboot-20.04-64
     steps:
+    - name: Cleanup job workspace
+      id: cleanup-job-workspace
+      run: |
+          rm -rf "${{ github.workspace }}"
+          mkdir "${{ github.workspace }}"
     - name: Checkout code
       uses: actions/checkout@v2
       with:
@@ -315,6 +320,11 @@ jobs:
         - ubuntu-20.04-64
         - ubuntu-21.04-64
     steps:
+    - name: Cleanup job workspace
+      id: cleanup-job-workspace
+      run: |
+          rm -rf "${{ github.workspace }}"
+          mkdir "${{ github.workspace }}"
     - name: Checkout code
       uses: actions/checkout@v2
     - name: Cache snapd test results
