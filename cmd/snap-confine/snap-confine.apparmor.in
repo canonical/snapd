@@ -79,6 +79,8 @@
     /sys/fs/bpf/snap/* rw,
     # manipulate BPF objects
     capability bpf,
+    # s-c may need to raise the memlock limit
+    capability sys_resource,
 
     # querying udev
     /etc/udev/udev.conf r,
