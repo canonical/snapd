@@ -9,13 +9,8 @@ environment:
     NESTED_BUILD_SNAPD_FROM_CURRENT: true
 
 prepare: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
-    mkdir extra-snaps
-
     # Get the snakeoil key and cert
-    KEY_NAME=$(tests.nested get snakeoil-key)
+    KEY_NAME=$(tests.nested download snakeoil-key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
@@ -28,7 +23,7 @@ prepare: |
     cp install pc-gadget/meta/hooks/
 
     tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-    snap pack pc-gadget/ extra-snaps/
+    snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
 
     rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
@@ -36,9 +31,6 @@ prepare: |
     tests.nested create-vm core
 
 execute: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     check_core20_early_config(){
         # sanity - check that defaults were applied; note this doesn't guarantee
         # that defaults were applied early - that is checked further down.
@@ -77,8 +69,8 @@ execute: |
     check_core20_early_config
 
     echo "Transition to recover mode and check it again"
-    recoverySystem=$(nested_exec "sudo snap recovery | grep -v Notes | grep -Po '^[0-9]+'")
-    nested_uc20_transition_to_system_mode "$recoverySystem" recover
+    recoverySystem=$(tests.nested exec "sudo snap recovery | grep -v Notes | grep -Po '^[0-9]+'")
+    tests.nested transition "$recoverySystem" recover
 
     echo "Wait for the snap command to be available since recover mode needs to seed itself"
     tests.nested wait-for snap-command

@@ -8,21 +8,13 @@ environment:
   NESTED_BUILD_SNAPD_FROM_CURRENT: true
 
 prepare: |
-  # shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-
   echo "Build a devmode snap to be included in the seed"
-  mkdir ./extra-snaps
+  snap pack uc20-devmode --filename="$(tests.nested get extra-snaps-path)/devmode.snap"
 
-  snap pack uc20-devmode --filename=./extra-snaps/devmode.snap
-
-  nested_create_core_vm
-  nested_start_core_vm
+  tests.nested build-image core
+  tests.nested create-vm core
 
 execute: |
-  # shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-
   echo "Check that the devmode snap is installed"
   tests.nested exec "snap list test-snapd-devmode-core20"
   tests.nested exec "snap info --verbose test-snapd-devmode-core20" | MATCH "confinement:\s+devmode"

@@ -1017,6 +1017,10 @@ func waitChainSearch(startT, searchT *state.Task, seenTasks map[string]bool) boo
 // indicate that doConnect handler should not set security backends up
 // because this will be done later by the setup-profiles task.
 func batchConnectTasks(st *state.State, snapsup *snapstate.SnapSetup, conns map[string]*interfaces.ConnRef, connOpts map[string]*connectOpts) (ts *state.TaskSet, hasInterfaceHooks bool, err error) {
+	if len(conns) == 0 {
+		return nil, false, nil
+	}
+
 	setupProfiles := st.NewTask("setup-profiles", fmt.Sprintf(i18n.G("Setup snap %q (%s) security profiles for auto-connections"), snapsup.InstanceName(), snapsup.Revision()))
 	setupProfiles.Set("snap-setup", snapsup)
 
@@ -1224,6 +1228,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 	// those without hooks before mark-preseeded, because only setup-profiles is
 	// performance-critical and it still needs to run after those with hooks.
 	if m.preseed && hasInterfaceHooks {
+		// note, hasInterfaceHooks implies autots != nil, so no extra check
 		for _, t := range st.Tasks() {
 			if t.Kind() == "mark-preseeded" {
 				markPreseeded := t
@@ -1252,7 +1257,7 @@ func (m *InterfaceManager) doAutoConnect(task *state.Task, _ *tomb.Tomb) error {
 		return fmt.Errorf("internal error: mark-preseeded task not found in preseeding mode")
 	}
 
-	if len(autots.Tasks()) > 0 {
+	if autots != nil && len(autots.Tasks()) > 0 {
 		snapstate.InjectTasks(task, autots)
 
 		st.EnsureBefore(0)

@@ -108,7 +108,7 @@ static void _sc_cgroup_v1_deny(sc_device_cgroup *self, int kind, int major, int 
 }
 
 static void _sc_cgroup_v1_attach_pid(sc_device_cgroup *self, pid_t pid) {
-    sc_dprintf(self->v1.fds.cgroup_procs_fd, "%i\n", getpid());
+    sc_dprintf(self->v1.fds.cgroup_procs_fd, "%i\n", pid);
 }
 
 /**
@@ -278,11 +278,11 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
             die("cannot create /sys/fs/bpf/snap directory");
         }
     }
+    /* and obtain a file descriptor to the map, also as root */
+    int devmap_fd = bpf_get_by_path(path);
     (void)sc_set_effective_identity(old);
-
     /* XXX: this should be more than enough keys */
     const size_t max_entries = 500;
-    int devmap_fd = bpf_get_by_path(path);
     if (devmap_fd < 0) {
         if (errno != ENOENT) {
             die("cannot get existing device map");
@@ -294,16 +294,14 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
         debug("device map not present yet");
         /* map not created and pinned yet */
         const size_t value_size = 1;
-        /* 4.5+ kernels allow maps to be created by simple users otherwise this
-         * fails with EPERM */
+        /* create the map as root, also pinning the map creates a file entry
+         * under /sys/bpf/snap, make sure it's owned by root too */
+        (void)sc_set_effective_identity(sc_root_group_identity());
         devmap_fd = bpf_create_map(BPF_MAP_TYPE_HASH, sizeof(struct sc_cgroup_v2_device_key), value_size, max_entries);
         if (devmap_fd < 0) {
             die("cannot create bpf map");
         }
         debug("got bpf map at fd: %d", devmap_fd);
-        /* pinning the map creates a file entry under /sys/bpf/snap, make sure
-         * it's owned by root */
-        sc_identity old = sc_set_effective_identity(sc_root_group_identity());
         /* the map can only be referenced by a fd like object which is valid
          * here and referenced by the BPF program that we'll load; by pinning
          * the map to a well known path, it is possible to obtain a reference to
@@ -377,12 +375,14 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     }
 
     if (!from_existing) {
-        /* 4.5+ kernels allow maps to be created by simple users otherwise the
-         * calls fail with EPERM */
+        /* load and attach the BPF program as root */
+        (void)sc_set_effective_identity(sc_root_group_identity());
         int prog_fd = load_devcgroup_prog(devmap_fd);
-        if (bpf_prog_attach(BPF_CGROUP_DEVICE, cgroup_fd, prog_fd) < 0) {
+        int attach = bpf_prog_attach(BPF_CGROUP_DEVICE, cgroup_fd, prog_fd);
+        if (attach < 0) {
             die("cannot attach cgroup program");
         }
+        (void)sc_set_effective_identity(old);
     }
 
     self->v2.devmap_fd = devmap_fd;
