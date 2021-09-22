@@ -405,7 +405,7 @@ func getSingleSeqFormingAssertion(st *state.State, accountID, name string, seque
 }
 
 func enforceValidationSet(st *state.State, accountID, name string, sequence, userID int) Response {
-	snaps, err := installedSnaps(st)
+	snaps, err := snapstate.InstalledSnaps(st)
 	if err != nil {
 		return InternalError(err.Error())
 	}
