@@ -972,8 +972,9 @@ func (s *secbootSuite) TestResealKey(c *C) {
 		for range myParams.KeyFiles {
 			// Copy of
 			// https://github.com/snapcore/secboot/blob/master/internal/compattest/testdata/v1/key
-			// To create full looking mockSealedKeyObjects,
-			// althought {},{} would have been enough as well
+			// To create full looking
+			// mockSealedKeyObjects, although {},{} would
+			// have been enough as well
 			mockSealedKeyFile := filepath.Join("test-data", "keyfile")
 			mockSealedKeyObject, err := sb_tpm2.ReadSealedKeyObject(mockSealedKeyFile)
 			c.Assert(err, IsNil)
