@@ -112,6 +112,12 @@ backends:
                   image: ubuntu-os-cloud-devel/ubuntu-2110
                   storage: 12G
                   workers: 8
+            # TODO: drop once the 21.10 cloud images have switched to cgroup v2
+            # by default
+            - ubuntu-21.10-64-cgroupv2:
+                  image: ubuntu-2110-64
+                  storage: 12G
+                  workers: 8
 
             - debian-9-64:
                   workers: 6
