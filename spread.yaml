@@ -455,6 +455,7 @@ debug-each: |
             # dump any information on device cgroup of current session
             cgroup_dev="$(awk -F: '/:devices:/ { print $3}' < /proc/self/cgroup || true)"
             if [ -n "$cgroup_dev" ]; then
+                echo "# device cgroup $cgroup_dev"
                 cat "/sys/fs/cgroup/devices/$cgroup_dev/devices.list" || true
             fi
         fi
