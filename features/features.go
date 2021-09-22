@@ -51,7 +51,7 @@ const (
 	UserDaemons
 	// DbusActivation controls whether snaps daemons can be activated via D-Bus
 	DbusActivation
-	// HiddenSnapFolder moves ~/snap to ~/.snapdata.
+	// HiddenSnapFolder moves ~/snap to ~/.snap/data
 	HiddenSnapFolder
 	// CheckDiskSpaceRemove controls free disk space check on remove whenever automatic snapshot needs to be created.
 	CheckDiskSpaceRemove

@@ -34,6 +34,7 @@ import (
 
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -893,7 +894,7 @@ apps:
 	return info, nil
 }
 
-func (f *fakeSnappyBackend) ClearTrashedData(si *snap.Info) {
+func (f *fakeSnappyBackend) ClearTrashedData(si *snap.Info, opts *dirs.SnapDirOptions) {
 	f.appendOp(&fakeOp{
 		op:    "cleanup-trash",
 		name:  si.InstanceName(),
@@ -907,7 +908,7 @@ func (f *fakeSnappyBackend) StoreInfo(st *state.State, name, channel string, use
 	})
 }
 
-func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress.Meter) error {
+func (f *fakeSnappyBackend) CopySnapData(newInfo, oldInfo *snap.Info, p progress.Meter, opts *dirs.SnapDirOptions) error {
 	p.Notify("copy-data")
 	old := "<no-old>"
 	if oldInfo != nil {
@@ -1049,7 +1050,7 @@ func (f *fakeSnappyBackend) UndoSetupSnap(s snap.PlaceInfo, typ snap.Type, insta
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, p progress.Meter) error {
+func (f *fakeSnappyBackend) UndoCopySnapData(newInfo *snap.Info, oldInfo *snap.Info, p progress.Meter, opts *dirs.SnapDirOptions) error {
 	p.Notify("undo-copy-data")
 	old := "<no-old>"
 	if oldInfo != nil {
@@ -1084,7 +1085,7 @@ func (f *fakeSnappyBackend) RemoveSnapFiles(s snap.PlaceInfo, typ snap.Type, ins
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) RemoveSnapData(info *snap.Info) error {
+func (f *fakeSnappyBackend) RemoveSnapData(info *snap.Info, opts *dirs.SnapDirOptions) error {
 	f.appendOp(&fakeOp{
 		op:   "remove-snap-data",
 		path: info.MountDir(),
@@ -1092,7 +1093,7 @@ func (f *fakeSnappyBackend) RemoveSnapData(info *snap.Info) error {
 	return f.maybeErrForLastOp()
 }
 
-func (f *fakeSnappyBackend) RemoveSnapCommonData(info *snap.Info) error {
+func (f *fakeSnappyBackend) RemoveSnapCommonData(info *snap.Info, opts *dirs.SnapDirOptions) error {
 	f.appendOp(&fakeOp{
 		op:   "remove-snap-common-data",
 		path: info.MountDir(),

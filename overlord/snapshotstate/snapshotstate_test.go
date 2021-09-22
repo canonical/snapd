@@ -1198,7 +1198,7 @@ func (snapshotSuite) TestRestoreIntegration(c *check.C) {
 			c.Assert(os.MkdirAll(filepath.Join(home, "snap", name, "common", "common-"+name), 0755), check.IsNil)
 		}
 
-		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user", "b-user"})
+		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user", "b-user"}, nil)
 		c.Assert(err, check.IsNil)
 	}
 
@@ -1275,7 +1275,7 @@ func (snapshotSuite) TestRestoreIntegrationFails(c *check.C) {
 		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, fmt.Sprint(i+1), "canary-"+name), 0755), check.IsNil)
 		c.Assert(os.MkdirAll(filepath.Join(homedir, "snap", name, "common", "common-"+name), 0755), check.IsNil)
 
-		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user"})
+		_, err := backend.Save(context.TODO(), 42, snapInfo, nil, []string{"a-user"}, nil)
 		c.Assert(err, check.IsNil)
 	}
 
@@ -1847,7 +1847,7 @@ func (snapshotSuite) TestEstimateSnapshotSize(c *check.C) {
 		Current:  sideInfo.Revision,
 	})
 
-	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info, users []string) (uint64, error) {
+	defer snapshotstate.MockBackendEstimateSnapshotSize(func(*snap.Info, []string, *dirs.SnapDirOptions) (uint64, error) {
 		return 123, nil
 	})()
 
@@ -1868,7 +1868,7 @@ func (snapshotSuite) TestEstimateSnapshotSizeWithConfig(c *check.C) {
 		Current:  sideInfo.Revision,
 	})
 
-	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info, users []string) (uint64, error) {
+	defer snapshotstate.MockBackendEstimateSnapshotSize(func(*snap.Info, []string, *dirs.SnapDirOptions) (uint64, error) {
 		return 100, nil
 	})()
 
@@ -1896,7 +1896,7 @@ func (snapshotSuite) TestEstimateSnapshotSizeError(c *check.C) {
 		Current:  sideInfo.Revision,
 	})
 
-	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info, users []string) (uint64, error) {
+	defer snapshotstate.MockBackendEstimateSnapshotSize(func(*snap.Info, []string, *dirs.SnapDirOptions) (uint64, error) {
 		return 0, fmt.Errorf("an error")
 	})()
 
@@ -1917,7 +1917,7 @@ func (snapshotSuite) TestEstimateSnapshotSizeWithUsers(c *check.C) {
 	})
 
 	var gotUsers []string
-	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info, users []string) (uint64, error) {
+	defer snapshotstate.MockBackendEstimateSnapshotSize(func(info *snap.Info, users []string, opts *dirs.SnapDirOptions) (uint64, error) {
 		gotUsers = users
 		return 0, nil
 	})()

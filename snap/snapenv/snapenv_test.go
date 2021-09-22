@@ -97,7 +97,7 @@ func (ts *HTestSuite) TestBasic(c *C) {
 }
 
 func (ts *HTestSuite) TestUser(c *C) {
-	env := userEnv(mockSnapInfo, "/root")
+	env := userEnv(mockSnapInfo, "/root", nil)
 	c.Assert(env, DeepEquals, osutil.Environment{
 		"SNAP_USER_COMMON": "/root/snap/foo/common",
 		"SNAP_USER_DATA":   "/root/snap/foo/17",
@@ -114,7 +114,7 @@ func (ts *HTestSuite) TestUserForClassicConfinement(c *C) {
 
 	// With the classic-preserves-xdg-runtime-dir feature disabled the snap
 	// per-user environment contains an override for XDG_RUNTIME_DIR.
-	env := userEnv(mockClassicSnapInfo, "/root")
+	env := userEnv(mockClassicSnapInfo, "/root", nil)
 	c.Assert(env, DeepEquals, osutil.Environment{
 		// NOTE: Both HOME and XDG_RUNTIME_DIR are not defined here.
 		"SNAP_USER_COMMON": "/root/snap/foo/common",
@@ -127,7 +127,7 @@ func (ts *HTestSuite) TestUserForClassicConfinement(c *C) {
 	// per-user environment contains no overrides for XDG_RUNTIME_DIR.
 	f := features.ClassicPreservesXdgRuntimeDir
 	c.Assert(ioutil.WriteFile(f.ControlFile(), nil, 0644), IsNil)
-	env = userEnv(mockClassicSnapInfo, "/root")
+	env = userEnv(mockClassicSnapInfo, "/root", nil)
 	c.Assert(env, DeepEquals, osutil.Environment{
 		// NOTE: Both HOME and XDG_RUNTIME_DIR are not defined here.
 		"SNAP_USER_COMMON": "/root/snap/foo/common",
@@ -152,7 +152,7 @@ func (s *HTestSuite) TestSnapRunSnapExecEnv(c *C) {
 			os.Setenv("HOME", "")
 		}
 
-		env := snapEnv(info)
+		env := snapEnv(info, nil)
 		c.Assert(env, DeepEquals, osutil.Environment{
 			"SNAP":               fmt.Sprintf("%s/snapname/42", dirs.CoreSnapMountDir),
 			"SNAP_COMMON":        "/var/snap/snapname/common",
@@ -193,7 +193,7 @@ func (s *HTestSuite) TestParallelInstallSnapRunSnapExecEnv(c *C) {
 			os.Setenv("HOME", "")
 		}
 
-		env := snapEnv(info)
+		env := snapEnv(info, nil)
 		c.Check(env, DeepEquals, osutil.Environment{
 			// Those are mapped to snap-specific directories by
 			// mount namespace setup
@@ -222,7 +222,7 @@ func (s *HTestSuite) TestParallelInstallSnapRunSnapExecEnv(c *C) {
 func (ts *HTestSuite) TestParallelInstallUser(c *C) {
 	info := *mockSnapInfo
 	info.InstanceKey = "bar"
-	env := userEnv(&info, "/root")
+	env := userEnv(&info, "/root", nil)
 
 	c.Assert(env, DeepEquals, osutil.Environment{
 		"SNAP_USER_COMMON": "/root/snap/foo_bar/common",
@@ -243,7 +243,7 @@ func (ts *HTestSuite) TestParallelInstallUserForClassicConfinement(c *C) {
 
 	// With the classic-preserves-xdg-runtime-dir feature disabled the snap
 	// per-user environment contains an override for XDG_RUNTIME_DIR.
-	env := userEnv(&info, "/root")
+	env := userEnv(&info, "/root", nil)
 	c.Assert(env, DeepEquals, osutil.Environment{
 		"SNAP_USER_COMMON": "/root/snap/foo_bar/common",
 		"SNAP_USER_DATA":   "/root/snap/foo_bar/17",
@@ -255,7 +255,7 @@ func (ts *HTestSuite) TestParallelInstallUserForClassicConfinement(c *C) {
 	// per-user environment contains no overrides for XDG_RUNTIME_DIR.
 	f := features.ClassicPreservesXdgRuntimeDir
 	c.Assert(ioutil.WriteFile(f.ControlFile(), nil, 0644), IsNil)
-	env = userEnv(&info, "/root")
+	env = userEnv(&info, "/root", nil)
 	c.Assert(env, DeepEquals, osutil.Environment{
 		// NOTE, Both HOME and XDG_RUNTIME_DIR are not defined here.
 		"SNAP_USER_COMMON": "/root/snap/foo_bar/common",
@@ -267,7 +267,7 @@ func (ts *HTestSuite) TestParallelInstallUserForClassicConfinement(c *C) {
 func (s *HTestSuite) TestExtendEnvForRunForNonClassic(c *C) {
 	env := osutil.Environment{"TMPDIR": "/var/tmp"}
 
-	ExtendEnvForRun(env, mockSnapInfo)
+	ExtendEnvForRun(env, mockSnapInfo, nil)
 
 	c.Assert(env["SNAP_NAME"], Equals, "foo")
 	c.Assert(env["SNAP_COMMON"], Equals, "/var/snap/foo/common")
@@ -279,7 +279,7 @@ func (s *HTestSuite) TestExtendEnvForRunForNonClassic(c *C) {
 func (s *HTestSuite) TestExtendEnvForRunForClassic(c *C) {
 	env := osutil.Environment{"TMPDIR": "/var/tmp"}
 
-	ExtendEnvForRun(env, mockClassicSnapInfo)
+	ExtendEnvForRun(env, mockClassicSnapInfo, nil)
 
 	c.Assert(env["SNAP_NAME"], Equals, "foo")
 	c.Assert(env["SNAP_COMMON"], Equals, "/var/snap/foo/common")

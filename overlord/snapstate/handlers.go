@@ -1098,8 +1098,12 @@ func (m *SnapManager) doCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	st.Lock()
+	opts := GetSnapDirOptions(st)
+	st.Unlock()
+
 	pb := NewTaskProgressAdapterUnlocked(t)
-	if copyDataErr := m.backend.CopySnapData(newInfo, oldInfo, pb); copyDataErr != nil {
+	if copyDataErr := m.backend.CopySnapData(newInfo, oldInfo, pb, opts); copyDataErr != nil {
 		if oldInfo != nil {
 			// there is another revision of the snap, cannot remove
 			// shared data directory
@@ -1144,8 +1148,12 @@ func (m *SnapManager) undoCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
+	st.Lock()
+	opts := GetSnapDirOptions(st)
+	st.Unlock()
+
 	pb := NewTaskProgressAdapterUnlocked(t)
-	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, pb); err != nil {
+	if err := m.backend.UndoCopySnapData(newInfo, oldInfo, pb, opts); err != nil {
 		return err
 	}
 
@@ -1190,7 +1198,9 @@ func (m *SnapManager) cleanupCopySnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	m.backend.ClearTrashedData(info)
+	opts := GetSnapDirOptions(st)
+
+	m.backend.ClearTrashedData(info, opts)
 
 	return nil
 }
@@ -2330,13 +2340,17 @@ func (m *SnapManager) doClearSnapData(t *state.Task, _ *tomb.Tomb) error {
 		return err
 	}
 
-	if err = m.backend.RemoveSnapData(info); err != nil {
+	st.Lock()
+	opts := GetSnapDirOptions(st)
+	st.Unlock()
+
+	if err = m.backend.RemoveSnapData(info, opts); err != nil {
 		return err
 	}
 
 	if len(snapst.Sequence) == 1 {
 		// Only remove data common between versions if this is the last version
-		if err = m.backend.RemoveSnapCommonData(info); err != nil {
+		if err = m.backend.RemoveSnapCommonData(info, opts); err != nil {
 			return err
 		}
 
@@ -3235,4 +3249,17 @@ func InjectAutoConnect(mainTask *state.Task, snapsup *SnapSetup) {
 	autoConnect.Set("snap-setup", snapsup)
 	InjectTasks(mainTask, state.NewTaskSet(autoConnect))
 	mainTask.Logf("added auto-connect task")
+}
+
+// GetSnapDirOptions returns *dirs.SnapDirOptions configured according to the
+// enabled experimental features. The state must be locked by the caller.
+func GetSnapDirOptions(state *state.State) *dirs.SnapDirOptions {
+	tr := config.NewTransaction(state)
+
+	hiddenDir, err := features.Flag(tr, features.HiddenSnapFolder)
+	if err != nil {
+		logger.Noticef("cannot read %q conf, will assume it's unset: %s", features.HiddenSnapFolder, err)
+	}
+
+	return &dirs.SnapDirOptions{HiddenSnapDir: hiddenDir}
 }

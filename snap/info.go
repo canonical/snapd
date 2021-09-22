@@ -70,7 +70,7 @@ type PlaceInfo interface {
 	DataDir() string
 
 	// UserDataDir returns the per user data directory of the snap.
-	UserDataDir(home string) string
+	UserDataDir(home string, opts *dirs.SnapDirOptions) string
 
 	// CommonDataDir returns the data directory common across revisions of the
 	// snap.
@@ -78,18 +78,18 @@ type PlaceInfo interface {
 
 	// UserCommonDataDir returns the per user data directory common across
 	// revisions of the snap.
-	UserCommonDataDir(home string) string
+	UserCommonDataDir(home string, opts *dirs.SnapDirOptions) string
 
 	// UserXdgRuntimeDir returns the per user XDG_RUNTIME_DIR directory
 	UserXdgRuntimeDir(userID sys.UserID) string
 
-	// DataHomeDir returns the a glob that matches all per user data directories
+	// DataHomeDir returns a glob that matches all per user data directories
 	// of a snap.
-	DataHomeDir() string
+	DataHomeDir(opts *dirs.SnapDirOptions) string
 
 	// CommonDataHomeDir returns a glob that matches all per user data
 	// directories common across revisions of the snap.
-	CommonDataHomeDir() string
+	CommonDataHomeDir(opts *dirs.SnapDirOptions) string
 
 	// XdgRuntimeDirs returns a glob that matches all XDG_RUNTIME_DIR
 	// directories for all users of the snap.
@@ -198,22 +198,34 @@ func HooksDir(name string, revision Revision) string {
 	return filepath.Join(MountDir(name, revision), "meta", "hooks")
 }
 
+func snapDataDir(opts *dirs.SnapDirOptions) string {
+	if opts == nil {
+		opts = &dirs.SnapDirOptions{}
+	}
+
+	if opts.HiddenSnapDir {
+		return dirs.HiddenSnapDir
+	}
+
+	return dirs.UserHomeSnapDir
+}
+
 // UserDataDir returns the user-specific data directory for given snap name. The
 // name can be either a snap name or snap instance name.
-func UserDataDir(home string, name string, revision Revision) string {
-	return filepath.Join(home, dirs.UserHomeSnapDir, name, revision.String())
+func UserDataDir(home string, name string, revision Revision, opts *dirs.SnapDirOptions) string {
+	return filepath.Join(home, snapDataDir(opts), name, revision.String())
 }
 
 // UserCommonDataDir returns the user-specific common data directory for given
 // snap name. The name can be either a snap name or snap instance name.
-func UserCommonDataDir(home string, name string) string {
-	return filepath.Join(home, dirs.UserHomeSnapDir, name, "common")
+func UserCommonDataDir(home string, name string, opts *dirs.SnapDirOptions) string {
+	return filepath.Join(home, snapDataDir(opts), name, "common")
 }
 
 // UserSnapDir returns the user-specific directory for given
 // snap name. The name can be either a snap name or snap instance name.
-func UserSnapDir(home string, name string) string {
-	return filepath.Join(home, dirs.UserHomeSnapDir, name)
+func UserSnapDir(home string, name string, opts *dirs.SnapDirOptions) string {
+	return filepath.Join(home, snapDataDir(opts), name)
 }
 
 // UserXdgRuntimeDir returns the user-specific XDG_RUNTIME_DIR directory for
@@ -499,14 +511,14 @@ func (s *Info) DataDir() string {
 }
 
 // UserDataDir returns the user-specific data directory of the snap.
-func (s *Info) UserDataDir(home string) string {
-	return UserDataDir(home, s.InstanceName(), s.Revision)
+func (s *Info) UserDataDir(home string, opts *dirs.SnapDirOptions) string {
+	return UserDataDir(home, s.InstanceName(), s.Revision, opts)
 }
 
 // UserCommonDataDir returns the user-specific data directory common across
 // revision of the snap.
-func (s *Info) UserCommonDataDir(home string) string {
-	return UserCommonDataDir(home, s.InstanceName())
+func (s *Info) UserCommonDataDir(home string, opts *dirs.SnapDirOptions) string {
+	return UserCommonDataDir(home, s.InstanceName(), opts)
 }
 
 // CommonDataDir returns the data directory common across revisions of the snap.
@@ -514,15 +526,27 @@ func (s *Info) CommonDataDir() string {
 	return CommonDataDir(s.InstanceName())
 }
 
+func dataHomeGlob(opts *dirs.SnapDirOptions) string {
+	if opts == nil {
+		opts = &dirs.SnapDirOptions{}
+	}
+
+	if opts.HiddenSnapDir {
+		return dirs.SnapHiddenDataHomeGlob
+	}
+
+	return dirs.SnapDataHomeGlob
+}
+
 // DataHomeDir returns the per user data directory of the snap.
-func (s *Info) DataHomeDir() string {
-	return filepath.Join(dirs.SnapDataHomeGlob, s.InstanceName(), s.Revision.String())
+func (s *Info) DataHomeDir(opts *dirs.SnapDirOptions) string {
+	return filepath.Join(dataHomeGlob(opts), s.InstanceName(), s.Revision.String())
 }
 
 // CommonDataHomeDir returns the per user data directory common across revisions
 // of the snap.
-func (s *Info) CommonDataHomeDir() string {
-	return filepath.Join(dirs.SnapDataHomeGlob, s.InstanceName(), "common")
+func (s *Info) CommonDataHomeDir(opts *dirs.SnapDirOptions) string {
+	return filepath.Join(dataHomeGlob(opts), s.InstanceName(), "common")
 }
 
 // UserXdgRuntimeDir returns the XDG_RUNTIME_DIR directory of the snap for a

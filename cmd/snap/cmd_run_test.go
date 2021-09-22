@@ -482,7 +482,7 @@ func (s *RunSuite) TestSnapRunCreateDataDirs(c *check.C) {
 	c.Assert(err, check.IsNil)
 	info.SideInfo.Revision = snap.R(42)
 
-	err = snaprun.CreateUserDataDirs(info)
+	err = snaprun.CreateUserDataDirs(info, nil)
 	c.Assert(err, check.IsNil)
 	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, "/snap/snapname/42")), check.Equals, true)
 	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, "/snap/snapname/common")), check.Equals, true)
@@ -494,7 +494,7 @@ func (s *RunSuite) TestParallelInstanceSnapRunCreateDataDirs(c *check.C) {
 	info.SideInfo.Revision = snap.R(42)
 	info.InstanceKey = "foo"
 
-	err = snaprun.CreateUserDataDirs(info)
+	err = snaprun.CreateUserDataDirs(info, nil)
 	c.Assert(err, check.IsNil)
 	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, "/snap/snapname_foo/42")), check.Equals, true)
 	c.Check(osutil.FileExists(filepath.Join(s.fakeHome, "/snap/snapname_foo/common")), check.Equals, true)
