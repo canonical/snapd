@@ -6804,3 +6804,28 @@ func (s *snapmgrTestSuite) TestMinimalInstallInfoSortByType(c *C) {
 		&installTestType{snap.TypeApp},
 		&installTestType{snap.TypeApp}})
 }
+
+func (s *snapmgrTestSuite) TestInstalledSnaps(c *C) {
+	st := state.New(nil)
+	st.Lock()
+	defer st.Unlock()
+
+	snaps, err := snapstate.InstalledSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 0)
+
+	snapstate.Set(st, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{{RealName: "foo", Revision: snap.R(23), SnapID: "foo-id"}},
+		Current:  snap.R(23),
+	})
+	snaptest.MockSnap(c, string(`name: foo
+version: 1`), &snap.SideInfo{Revision: snap.R("13")})
+
+	snaps, err = snapstate.InstalledSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(snaps, HasLen, 1)
+	c.Check(snaps[0].SnapName(), Equals, "foo")
+	c.Check(snaps[0].ID(), Equals, "foo-id")
+	c.Check(snaps[0].Revision, Equals, snap.R("23"))
+}

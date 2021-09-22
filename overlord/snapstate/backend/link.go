@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
@@ -102,6 +103,8 @@ func (b Backend) LinkSnap(info *snap.Info, dev boot.Device, linkCtx LinkContext,
 	if info.Revision.Unset() {
 		return false, fmt.Errorf("cannot link snap %q with unset revision", info.InstanceName())
 	}
+
+	osutil.MaybeInjectFault("link-snap")
 
 	var err error
 	timings.Run(tm, "generate-wrappers", fmt.Sprintf("generate wrappers for snap %s", info.InstanceName()), func(timings.Measurer) {

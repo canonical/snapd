@@ -25,10 +25,10 @@ prepare: |
     . "$TESTSLIB/nested.sh"
 
     # first boot - legit NoCloud usage
-    nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/normal-user" seed.iso cidata user-data meta-data
+    tests.nested build-seed "$TESTSLIB/cloud-init-seeds/normal-user" seed.iso cidata user-data meta-data
 
     # second boot - attacker drive
-    nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/attacker-user" seed2.iso cidata user-data meta-data
+    tests.nested build-seed "$TESTSLIB/cloud-init-seeds/attacker-user" seed2.iso cidata user-data meta-data
 
     # if we are not building from current, then we need to seed the specific,
     # old version of snapd that was vulnerable into the image to start there,
@@ -37,8 +37,6 @@ prepare: |
     # become safe after refreshing to the fix
     if [ "$NESTED_BUILD_SNAPD_FROM_CURRENT" = "false" ]; then
         snap install http --devmode # devmode so it can save to any dir
-
-        mkdir -p "$(tests.nested get extra-snaps-path)"
 
         if os.query is-xenial; then
             # uc16 uses core snap
@@ -65,15 +63,10 @@ debug: |
         echo "logs before reboot"
         cat snapd-before-reboot.logs
     fi
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
     echo "logs from current nested VM boot snapd"
     tests.nested exec "sudo journalctl -e --no-pager -u snapd" || true
 
 execute: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     # the VM here will use both system-user assertions and cloud-init to create
     # users on the system, the system-user assertion is for the user1 user, and 
     # the legitimate cloud-init user is the normal-user user
