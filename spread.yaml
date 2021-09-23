@@ -112,6 +112,12 @@ backends:
                   image: ubuntu-os-cloud-devel/ubuntu-2110
                   storage: 12G
                   workers: 8
+            # TODO: drop once the 21.10 cloud images have switched to cgroup v2
+            # by default
+            - ubuntu-21.10-64-cgroupv2:
+                  image: ubuntu-2110-64
+                  storage: 12G
+                  workers: 8
 
             - debian-9-64:
                   workers: 6
@@ -422,6 +428,8 @@ debug-each: |
     if [ "$SPREAD_DEBUG_EACH" = 1 ]; then
         #shellcheck source=tests/lib/state.sh
         . "$TESTSLIB/state.sh"
+        #shellcheck source=tests/lib/systems.sh
+        . "$TESTSLIB/systems.sh"
 
         echo '# System information'
         cat /etc/os-release || true
@@ -448,6 +456,15 @@ debug-each: |
         echo '# user sessions information'
         journalctl --user -u snapd.session-agent.service
         systemctl status --user snapd.session-agent  || true
+
+        if ! is_cgroupv2; then
+            # dump any information on device cgroup of current session
+            cgroup_dev="$(awk -F: '/:devices:/ { print $3}' < /proc/self/cgroup || true)"
+            if [ -n "$cgroup_dev" ]; then
+                echo "# device cgroup $cgroup_dev"
+                cat "/sys/fs/cgroup/devices/$cgroup_dev/devices.list" || true
+            fi
+        fi
 
         case "$SPREAD_SYSTEM" in
             fedora-*|centos-*|amazon-*)

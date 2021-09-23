@@ -1907,6 +1907,8 @@ func AutoRefresh(ctx context.Context, st *state.State) ([]string, []*state.TaskS
 	userID := 0
 
 	if AutoRefreshAssertions != nil {
+		// TODO: do something else if features.GateAutoRefreshHook is active
+		// since some snaps may be held and not refreshed.
 		if err := AutoRefreshAssertions(st, userID); err != nil {
 			return nil, nil, err
 		}
