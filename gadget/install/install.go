@@ -158,9 +158,9 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 				return nil, err
 			}
 			logger.Noticef("encrypting partition device %v", part.Node)
-			var dataPart *encryptedDevice
+			var dataPart encryptedDevice
 			timings.Run(perfTimings, fmt.Sprintf("new-encrypted-device[%s]", roleOrLabelOrName(part)), fmt.Sprintf("Create encryption device for %s", roleOrLabelOrName(part)), func(timings.Measurer) {
-				dataPart, err = newEncryptedDevice(&part, keys.Key, part.Label)
+				dataPart, err = newEncryptedDeviceLUKS(&part, keys.Key, part.Label)
 			})
 			if err != nil {
 				return nil, err
@@ -174,7 +174,7 @@ func Run(model gadget.Model, gadgetRoot, kernelRoot, device string, options Opti
 			}
 
 			// update the encrypted device node
-			part.Node = dataPart.Node
+			part.Node = dataPart.Node()
 			if keysForRoles == nil {
 				keysForRoles = map[string]*EncryptionKeySet{}
 			}
