@@ -43,11 +43,11 @@ func HasRevealKey() bool {
 	return err == nil
 }
 
-// HasDeviceUnlock return true if the current system has a
+// HasDeviceUnlock returns true if the current system has a
 // "fde-device-unlock" binary (usually used in the initrd).
 //
 // This will be used by the initrd to determine if cryptsetup is
-// skipped and a hook need to be used to unlock individual device.
+// skipped and a hook needs to be used to unlock individual device.
 func HasDeviceUnlock() bool {
 	_, err := exec.LookPath("fde-device-unlock")
 	return err == nil
