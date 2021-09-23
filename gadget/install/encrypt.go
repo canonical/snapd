@@ -25,7 +25,9 @@ import (
 	"fmt"
 	"os/exec"
 
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/gadget"
+	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/secboot"
 )
@@ -33,6 +35,8 @@ import (
 var (
 	secbootFormatEncryptedDevice = secboot.FormatEncryptedDevice
 	secbootAddRecoveryKey        = secboot.AddRecoveryKey
+
+	bootRunFDESetupHook = boot.RunFDESetupHook
 )
 
 // encryptedDeviceCryptsetup represents a encrypted block device.
@@ -101,4 +105,68 @@ func cryptsetupClose(name string) error {
 		return osutil.OutputErr(output, err)
 	}
 	return nil
+}
+
+// encryptedDeviceWithSetupHook represents a block device that is setup using
+// the "device-setup" hook.
+type encryptedDeviceWithSetupHook struct {
+	parent *gadget.OnDiskStructure
+	name   string
+	node   string
+}
+
+// sanity
+var _ = encryptedDevice(&encryptedDeviceWithSetupHook{})
+
+// newEncryptedDeviceWithSetupHook creates an encrypted device in the
+// existing partition using the specified key using the fde-setup hook
+func newEncryptedDeviceWithSetupHook(part *gadget.OnDiskStructure, key secboot.EncryptionKey, name string) (encryptedDevice, error) {
+	dev := &encryptedDeviceWithSetupHook{
+		parent: part,
+		name:   name,
+		node:   fmt.Sprintf("/dev/mapper/%s", name),
+	}
+
+	// 1. create linear mapper device: 1M offset in 512 byte blocks
+	offsetInBlocks := 1 * 1024 * 1024 / 512
+	sizeWithoutOffsetInBlocks := (int(part.Size) / 512) - offsetInBlocks
+	dmTable := fmt.Sprintf("0 %v linear %s %v", sizeWithoutOffsetInBlocks, part.Node, offsetInBlocks)
+	cmd := exec.Command("dmsetup", "create", name, "--table", dmTable)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return nil, fmt.Errorf("cannot create mapping device on %v: %v", part.Node, osutil.OutputErr(output, err))
+	}
+
+	// 2. run fde-setup "device-setup" on it
+	// TODO: We may need a different way to run the fde-setup hook
+	//       here. The hook right now runs with a locked state. But
+	//       when this runs the state will be unlocked but our hook
+	//       mechanism needs a locked state. This means we either need
+	//       something like "boot.RunFDE*Device*SetupHook" or we run
+	//       the entire install with the state locked (which may not
+	//       be as terrible as it sounds as this is a rare situation).
+	runHook := bootRunFDESetupHook
+	params := &fde.DeviceSetupParams{
+		Key:    key,
+		Device: name,
+	}
+	if err := fde.DeviceSetup(runHook, params); err != nil {
+		return nil, err
+	}
+
+	return dev, nil
+}
+
+func (dev *encryptedDeviceWithSetupHook) Close() error {
+	if output, err := exec.Command("dmsetup", "remove", dev.name).CombinedOutput(); err != nil {
+		return osutil.OutputErr(output, err)
+	}
+	return nil
+}
+
+func (dev *encryptedDeviceWithSetupHook) Node() string {
+	return dev.node
+}
+
+func (dev *encryptedDeviceWithSetupHook) AddRecoveryKey(key secboot.EncryptionKey, rkey secboot.RecoveryKey) error {
+	return fmt.Errorf("recovery keys are not supported on devices that use the device-setup hook")
 }
