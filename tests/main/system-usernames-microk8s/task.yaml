@@ -53,20 +53,26 @@ prepare: |
     make_snap_installable_with_id "$STORE_DIR" "${snap_path}" "$MICROK8S_SNAP_ID"
 
 restore: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     userdel -f snap_microk8s || userdel -f --extrausers snap_microk8s || true
     not getent passwd snap_microk8s
     groupdel snap_microk8s || groupdel --extrausers snap_microk8s || true
     not getent group snap_microk8s
 
-    if [ "$TRUST_TEST_KEYS" = "false" ]; then
-        echo "This test needs test keys to be trusted"
-        exit
-    fi
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh
     teardown_fake_store "$STORE_DIR"
 
 execute: |
+    if [ "$TRUST_TEST_KEYS" = "false" ]; then
+        echo "This test needs test keys to be trusted"
+        exit
+    fi
+
     echo "Try to install a snap which is not entitled to use the microk8s user"
     OUT=$(snap install "test-microk8s-username" 2>&1 || true)
     echo "$OUT" | MATCH 'snap "test-microk8s-username" is not allowed to use the system user "snap_microk8s"'
