@@ -58,10 +58,6 @@ prepare: |
   cp "$TESTSLIB"/assertions/developer1.account "$NESTED_FAKESTORE_BLOB_DIR/asserts"
   cp "$TESTSLIB"/assertions/developer1.account-key "$NESTED_FAKESTORE_BLOB_DIR/asserts"
 
-  # modify and repack gadget snap to add a defaults section and use our own
-  # prepare-device hook to use the fakedevicesvc
-  mkdir "$(nested_get_extra_snaps_path)"
-
   # Get the snakeoil key and cert for signing gadget assets (shim)
   KEY_NAME=$(nested_get_snakeoil_key)
   SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
