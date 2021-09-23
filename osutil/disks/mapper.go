@@ -34,6 +34,8 @@ import (
 //
 // The mapper device node is returned.
 func CreateLinearMapperDevice(device, name, uuid string, offset, size uint64) (string, error) {
+	// TODO: eventually support 4k logical sectors, see also
+	// https://bugs.launchpad.net/ubuntu/+source/lvm2/+bug/1195980
 	const dmSetupSectorSize = 512
 
 	errPrefix := fmt.Sprintf("cannot create mapper %q on %v: ", name, device)
