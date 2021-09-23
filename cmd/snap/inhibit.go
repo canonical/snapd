@@ -129,18 +129,21 @@ func textFlow(snapName string, hint runinhibit.Hint) error {
 
 var isLocked = runinhibit.IsLocked
 
+// waitInhibitUnlock waits until the runinhibit lock hint has a specific waitFor value
+// or isn't inhibited anymore. In addition the optional errCh channel is monitored
+// for an error - any error is printed to stderr and immediately returns false (the error
+// value isn't returned).
 var waitInhibitUnlock = func(snapName string, waitFor runinhibit.Hint, errCh <-chan error) (notInhibited bool, err error) {
 	// Every 0.5s check if the inhibition file is still present.
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
-loop:
 	for {
 		select {
 		case err := <-errCh:
 			if err != nil {
 				fmt.Fprintf(Stderr, "%s", err)
 			}
-			break loop
+			return false, nil
 		case <-ticker.C:
 			// Half a second has elapsed, let's check again.
 			hint, err := isLocked(snapName)
@@ -155,5 +158,4 @@ loop:
 			}
 		}
 	}
-	return false, nil
 }

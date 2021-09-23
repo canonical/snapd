@@ -212,7 +212,7 @@ func (s *RunSuite) TestSnapRunAppIntegration(c *check.C) {
 	c.Check(execEnv, testutil.Contains, fmt.Sprintf("TMPDIR=%s", tmpdir))
 }
 
-func (s *RunSuite) TestSnapRunAppRuninhibit(c *check.C) {
+func (s *RunSuite) TestSnapRunAppRunsChecksInhibitionLock(c *check.C) {
 	defer mockSnapConfine(dirs.DistroLibExecDir)()
 
 	// mock installed snap
