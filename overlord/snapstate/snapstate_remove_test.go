@@ -23,13 +23,19 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/assertstest"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/testutil"
@@ -292,6 +298,10 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			stype: "app",
 		},
 		{
+			op:   "remove-snap-mount-units",
+			name: "some-snap",
+		},
+		{
 			op:   "discard-namespace",
 			name: "some-snap",
 		},
@@ -433,6 +443,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 			op:    "remove-snap-files",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
 			stype: "app",
+		},
+		{
+			op:   "remove-snap-mount-units",
+			name: "some-snap_instance",
 		},
 		{
 			op:   "discard-namespace",
@@ -583,6 +597,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c 
 			stype: "app",
 		},
 		{
+			op:   "remove-snap-mount-units",
+			name: "some-snap_instance",
+		},
+		{
 			op:   "discard-namespace",
 			name: "some-snap_instance",
 		},
@@ -705,6 +723,10 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			op:    "remove-snap-files",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 			stype: "app",
+		},
+		{
+			op:   "remove-snap-mount-units",
+			name: "some-snap",
 		},
 		{
 			op:   "discard-namespace",
@@ -887,7 +909,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	s.settle(c)
 	s.state.Lock()
 
-	c.Check(len(s.fakeBackend.ops), Equals, 8)
+	c.Check(len(s.fakeBackend.ops), Equals, 9)
 	expected := fakeOps{
 		{
 			op:    "auto-disconnect:Doing",
@@ -911,6 +933,10 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 			op:    "remove-snap-files",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap/2"),
 			stype: "app",
+		},
+		{
+			op:   "remove-snap-mount-units",
+			name: "some-snap",
 		},
 		{
 			op:   "discard-namespace",
@@ -1589,4 +1615,367 @@ func (s *snapmgrTestSuite) TestRemoveManyUndoLeavesInactiveSnapAfterDataIsLost(c
 	c.Check(len(b.ops), Equals, len(expected))
 	c.Assert(b.ops.Ops(), DeepEquals, expected.Ops())
 	c.Check(b.ops, DeepEquals, expected)
+}
+
+func (s *snapmgrTestSuite) TestRemovePrunesRefreshGatingDataOnLastRevision(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	for _, sn := range []string{"some-snap", "another-snap", "foo-snap"} {
+		si := snap.SideInfo{
+			RealName: sn,
+			Revision: snap.R(7),
+		}
+
+		t := time.Now()
+		snapstate.Set(s.state, sn, &snapstate.SnapState{
+			Active:          true,
+			Sequence:        []*snap.SideInfo{&si},
+			Current:         si.Revision,
+			SnapType:        "app",
+			LastRefreshTime: &t,
+		})
+	}
+
+	rc := map[string]*snapstate.RefreshCandidate{
+		"some-snap": {},
+		"foo-snap":  {},
+	}
+	st.Set("refresh-candidates", rc)
+
+	c.Assert(snapstate.HoldRefresh(st, "some-snap", 0, "foo-snap"), IsNil)
+	c.Assert(snapstate.HoldRefresh(st, "another-snap", 0, "some-snap"), IsNil)
+
+	held, err := snapstate.HeldSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(held, DeepEquals, map[string]bool{
+		"foo-snap":  true,
+		"some-snap": true,
+	})
+
+	chg := st.NewChange("remove", "remove a snap")
+	ts, err := snapstate.Remove(st, "some-snap", snap.R(0), nil)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// verify snaps in the system state
+	var snapst snapstate.SnapState
+	err = snapstate.Get(st, "some-snap", &snapst)
+	c.Assert(err, Equals, state.ErrNoState)
+
+	// held snaps were updated
+	held, err = snapstate.HeldSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(held, HasLen, 0)
+
+	// refresh-candidates were updated
+	var candidates map[string]*snapstate.RefreshCandidate
+	c.Assert(st.Get("refresh-candidates", &candidates), IsNil)
+	c.Assert(candidates, HasLen, 1)
+	c.Check(candidates["foo-snap"], NotNil)
+}
+
+func (s *snapmgrTestSuite) TestRemoveKeepsGatingDataIfNotLastRevision(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	t := time.Now()
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active: true,
+		Sequence: []*snap.SideInfo{
+			{RealName: "some-snap", Revision: snap.R(11)},
+			{RealName: "some-snap", Revision: snap.R(12)},
+		},
+		Current:         snap.R(11),
+		SnapType:        "app",
+		LastRefreshTime: &t,
+	})
+
+	rc := map[string]*snapstate.RefreshCandidate{"some-snap": {}}
+	st.Set("refresh-candidates", rc)
+
+	c.Assert(snapstate.HoldRefresh(st, "some-snap", 0, "some-snap"), IsNil)
+
+	held, err := snapstate.HeldSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(held, DeepEquals, map[string]bool{"some-snap": true})
+
+	chg := st.NewChange("remove", "remove a snap")
+	ts, err := snapstate.Remove(st, "some-snap", snap.R(12), nil)
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+
+	s.state.Unlock()
+	defer s.se.Stop()
+	s.settle(c)
+	s.state.Lock()
+
+	// verify snap in the system state
+	var snapst snapstate.SnapState
+	c.Assert(snapstate.Get(st, "some-snap", &snapst), IsNil)
+
+	// held snaps are intact
+	held, err = snapstate.HeldSnaps(st)
+	c.Assert(err, IsNil)
+	c.Check(held, DeepEquals, map[string]bool{"some-snap": true})
+
+	// refresh-candidates are intact
+	var candidates map[string]*snapstate.RefreshCandidate
+	c.Assert(st.Get("refresh-candidates", &candidates), IsNil)
+	c.Assert(candidates, HasLen, 1)
+	c.Check(candidates["some-snap"], NotNil)
+}
+
+type validationSetsSuite struct {
+	testutil.BaseTest
+	state        *state.State
+	fakeStore    *fakeStore
+	fakeBackend  *fakeSnappyBackend
+	storeSigning *assertstest.StoreStack
+	dev1acct     *asserts.Account
+	acct1Key     *asserts.AccountKey
+	dev1Signing  *assertstest.SigningDB
+}
+
+var _ = Suite(&validationSetsSuite{})
+
+func (s *validationSetsSuite) SetUpTest(c *C) {
+	s.BaseTest.SetUpTest(c)
+	dirs.SetRootDir(c.MkDir())
+	s.state = state.New(nil)
+
+	r := snapstatetest.MockDeviceModel(DefaultModel())
+	s.AddCleanup(r)
+
+	s.fakeBackend = &fakeSnappyBackend{}
+	s.fakeStore = &fakeStore{
+		fakeBackend: s.fakeBackend,
+		state:       s.state,
+	}
+
+	s.storeSigning = assertstest.NewStoreStack("can0nical", nil)
+	s.dev1acct = assertstest.NewAccount(s.storeSigning, "developer1", nil, "")
+	c.Assert(s.storeSigning.Add(s.dev1acct), IsNil)
+	dev1PrivKey, _ := assertstest.GenerateKey(752)
+	s.acct1Key = assertstest.NewAccountKey(s.storeSigning, s.dev1acct, nil, dev1PrivKey.PublicKey(), "")
+	s.dev1Signing = assertstest.NewSigningDB(s.dev1acct.AccountID(), dev1PrivKey)
+	c.Assert(s.storeSigning.Add(s.acct1Key), IsNil)
+
+	oldAutomaticSnapshot := snapstate.AutomaticSnapshot
+	snapstate.AutomaticSnapshot = func(st *state.State, instanceName string) (ts *state.TaskSet, err error) {
+		task := st.NewTask("save-snapshot", "...")
+		ts = state.NewTaskSet(task)
+		return ts, nil
+	}
+	s.AddCleanup(func() {
+		snapstate.AutomaticSnapshot = oldAutomaticSnapshot
+	})
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	snapstate.ReplaceStore(s.state, s.fakeStore)
+	s.state.Set("seeded", true)
+	s.state.Set("refresh-privacy-key", "privacy-key")
+}
+
+func (s *validationSetsSuite) mockValidationSetAssert(c *C, name, sequence string, snaps ...interface{}) asserts.Assertion {
+	headers := map[string]interface{}{
+		"authority-id": "foo",
+		"account-id":   "foo",
+		"name":         name,
+		"series":       "16",
+		"sequence":     sequence,
+		"revision":     "5",
+		"timestamp":    "2030-11-06T09:16:26Z",
+		"snaps":        snaps,
+	}
+	vs, err := s.dev1Signing.Sign(asserts.ValidationSetType, headers, nil, "")
+	c.Assert(err, IsNil)
+	return vs
+}
+
+func (s *validationSetsSuite) removeSnapReferencedByValidationSet(c *C, presence string) error {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		vs := snapasserts.NewValidationSets()
+		someSnap := map[string]interface{}{
+			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+			"name":     "some-snap",
+			"presence": presence,
+		}
+		vsa1 := s.mockValidationSetAssert(c, "bar", "1", someSnap)
+		vs.Add(vsa1.(*asserts.ValidationSet))
+		return vs, nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  si.Revision,
+		SnapType: "app",
+	})
+
+	tr := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+	}
+	assertstate.UpdateValidationSet(s.state, &tr)
+
+	_, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
+	return err
+}
+
+func (s *validationSetsSuite) TestRemoveSnapRequiredByValidationSetRefused(c *C) {
+	err := s.removeSnapReferencedByValidationSet(c, "required")
+	c.Check(err, ErrorMatches, `snap "some-snap" is not removable: snap "some-snap" is required by validation sets: 16/foo/bar/1`)
+}
+
+func (s *validationSetsSuite) TestRemoveOptionalSnapOK(c *C) {
+	err := s.removeSnapReferencedByValidationSet(c, "optional")
+	c.Assert(err, IsNil)
+}
+
+func (s *validationSetsSuite) TestRemoveInvalidSnapOK(c *C) {
+	// this case is artificial, since we should never be in a situation where
+	// a snap is installed while its presence is invalid.
+	err := s.removeSnapReferencedByValidationSet(c, "invalid")
+	c.Assert(err, IsNil)
+}
+
+func (s *validationSetsSuite) TestRemoveSnapRequiredByValidationSetAtSpecificRevisionRefused(c *C) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		vs := snapasserts.NewValidationSets()
+		someSnap := map[string]interface{}{
+			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+			"name":     "some-snap",
+			"presence": "required",
+			"revision": "2",
+		}
+		vsa1 := s.mockValidationSetAssert(c, "bar", "1", someSnap)
+		vs.Add(vsa1.(*asserts.ValidationSet))
+		return vs, nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si1 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	}
+	si2 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(2),
+	}
+	si3 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(3),
+	}
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si1, &si2, &si3},
+		Current:  si1.Revision,
+		SnapType: "app",
+	})
+
+	tr := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+	}
+	assertstate.UpdateValidationSet(s.state, &tr)
+
+	_, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
+	c.Assert(err, ErrorMatches, `snap "some-snap" is not removable: snap "some-snap" at revision 2 is required by validation sets: 16/foo/bar/1`)
+
+	// it's ok to remove an unused revision
+	_, err = snapstate.Remove(s.state, "some-snap", snap.R(3), nil)
+	c.Assert(err, IsNil)
+}
+
+func (s *validationSetsSuite) TestRemoveSnapRequiredByValidationSetAtSpecificRevisionNotActive(c *C) {
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		vs := snapasserts.NewValidationSets()
+		someSnap := map[string]interface{}{
+			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+			"name":     "some-snap",
+			"presence": "required",
+			"revision": "2",
+		}
+		vsa1 := s.mockValidationSetAssert(c, "bar", "1", someSnap)
+		vs.Add(vsa1.(*asserts.ValidationSet))
+		return vs, nil
+	})
+	defer restore()
+
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	si1 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(1),
+	}
+	si2 := snap.SideInfo{
+		RealName: "some-snap",
+		Revision: snap.R(2),
+	}
+
+	// rev 1 is active
+	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si1, &si2},
+		Current:  si1.Revision,
+		SnapType: "app",
+	})
+
+	tr := assertstate.ValidationSetTracking{
+		AccountID: "foo",
+		Name:      "bar",
+		Mode:      assertstate.Enforce,
+		Current:   1,
+	}
+	assertstate.UpdateValidationSet(s.state, &tr)
+
+	// remove inactive revision 2 fails as it is required
+	// XXX: is this a viable scenario? the required revision isn't the active one?
+	_, err := snapstate.Remove(s.state, "some-snap", snap.R(2), nil)
+	c.Assert(err, ErrorMatches, `snap "some-snap" is not removable: snap "some-snap" at revision 2 is required by validation sets: 16/foo/bar/1`)
+}
+
+func (s *snapmgrTestSuite) TestRemoveFailsWithInvalidSnapName(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	removed, ts, err := snapstate.RemoveMany(s.state, []string{"some-snap", "rev=", "123"})
+	c.Check(removed, HasLen, 0)
+	c.Check(ts, HasLen, 0)
+	c.Check(err.Error(), Equals, "cannot remove invalid snap names: rev=, 123")
+}
+
+func (s *snapmgrTestSuite) TestRemoveSucceedsWithInstanceName(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	removed, ts, err := snapstate.RemoveMany(s.state, []string{"some-snap", "ab_c"})
+	c.Check(removed, NotNil)
+	c.Check(ts, NotNil)
+	c.Check(err, IsNil)
 }

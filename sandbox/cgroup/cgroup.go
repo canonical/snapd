@@ -29,6 +29,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/strutil"
 )
 
@@ -61,7 +62,21 @@ var (
 )
 
 func init() {
+	dirs.AddRootDirCallback(func(root string) {
+		rootPath = root
+	})
 	probeVersion, probeErr = probeCgroupVersion()
+	// handles error case gracefully
+	pickVersionSpecificImpl()
+}
+
+func pickVersionSpecificImpl() {
+	switch probeVersion {
+	case V1:
+		pickFreezerV1Impl()
+	case V2:
+		pickFreezerV2Impl()
+	}
 }
 
 var fsTypeForPath = fsTypeForPathImpl
@@ -206,6 +221,7 @@ func ProcGroup(pid int, matcher GroupMatcher) (string, error) {
 func MockVersion(mockVersion int, mockErr error) (restore func()) {
 	oldVersion, oldErr := probeVersion, probeErr
 	probeVersion, probeErr = mockVersion, mockErr
+	pickVersionSpecificImpl()
 	return func() {
 		probeVersion, probeErr = oldVersion, oldErr
 	}

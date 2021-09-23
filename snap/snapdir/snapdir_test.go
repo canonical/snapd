@@ -28,11 +28,11 @@ import (
 	"testing"
 	"time"
 
+	. "gopkg.in/check.v1"
+
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapdir"
-
-	. "gopkg.in/check.v1"
 )
 
 // Hook up check.v1 into the "go test" runner

@@ -1,7 +1,7 @@
 // -*- Mode: Go; indent-tabs-mode: t -*-
 
 /*
- * Copyright (C) 2014-2020 Canonical Ltd
+ * Copyright (C) 2014-2021 Canonical Ltd
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
@@ -243,7 +243,7 @@ func (s *apiBaseSuite) TearDownTest(c *check.C) {
 	s.BaseTest.TearDownTest(c)
 }
 
-func (s *apiBaseSuite) mockModel(c *check.C, st *state.State, model *asserts.Model) {
+func (s *apiBaseSuite) mockModel(st *state.State, model *asserts.Model) {
 	// realistic model setup
 	if model == nil {
 		model = s.Brands.Model("can0nical", "pc", map[string]interface{}{
@@ -282,7 +282,7 @@ func (s *apiBaseSuite) daemonWithStore(c *check.C, sto snapstate.StoreService) *
 	defer st.Unlock()
 	snapstate.ReplaceStore(st, sto)
 	// registered
-	s.mockModel(c, st, nil)
+	s.mockModel(st, nil)
 
 	// don't actually try to talk to the store on snapstate.Ensure
 	// needs doing after the call to devicestate.Manager (which
@@ -301,7 +301,7 @@ func (s *apiBaseSuite) daemon(c *check.C) *daemon.Daemon {
 	return s.daemonWithStore(c, s)
 }
 
-func (s *apiBaseSuite) daemonWithOverlordMock(c *check.C) *daemon.Daemon {
+func (s *apiBaseSuite) daemonWithOverlordMock() *daemon.Daemon {
 	if s.d != nil {
 		panic("called daemon*() twice")
 	}
@@ -311,7 +311,7 @@ func (s *apiBaseSuite) daemonWithOverlordMock(c *check.C) *daemon.Daemon {
 	return s.d
 }
 
-func (s *apiBaseSuite) daemonWithOverlordMockAndStore(c *check.C) *daemon.Daemon {
+func (s *apiBaseSuite) daemonWithOverlordMockAndStore() *daemon.Daemon {
 	if s.d != nil {
 		panic("called daemon*() twice")
 	}
@@ -373,7 +373,7 @@ func (m *fakeSnapManager) Ensure() error {
 var _ overlord.StateManager = (*fakeSnapManager)(nil)
 
 func (s *apiBaseSuite) daemonWithFakeSnapManager(c *check.C) *daemon.Daemon {
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 	st := d.Overlord().State()
 	runner := d.Overlord().TaskRunner()
 	d.Overlord().AddManager(newFakeSnapManager(st, runner))
@@ -611,28 +611,29 @@ func (s *apiBaseSuite) req(c *check.C, req *http.Request, u *auth.UserState) dae
 	return f(cmd, req, u)
 }
 
-func (s *apiBaseSuite) jsonReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.Resp {
-	rsp, ok := s.req(c, req, u).(*daemon.Resp)
+func (s *apiBaseSuite) jsonReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.RespJSON {
+	rsp, ok := s.req(c, req, u).(daemon.StructuredResponse)
 	c.Assert(ok, check.Equals, true, check.Commentf("expected structured response"))
-	return rsp
+	return rsp.JSON()
 }
 
-func (s *apiBaseSuite) syncReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.Resp {
+func (s *apiBaseSuite) syncReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.RespJSON {
 	rsp := s.jsonReq(c, req, u)
 	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeSync, check.Commentf("expected sync resp: %#v, result: %+v", rsp, rsp.Result))
 	return rsp
 }
 
-func (s *apiBaseSuite) asyncReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.Resp {
+func (s *apiBaseSuite) asyncReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.RespJSON {
 	rsp := s.jsonReq(c, req, u)
 	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeAsync, check.Commentf("expected async resp: %#v", rsp))
 	return rsp
 }
 
-func (s *apiBaseSuite) errorReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.Resp {
-	rsp := s.jsonReq(c, req, u)
-	c.Assert(rsp.Type, check.Equals, daemon.ResponseTypeError, check.Commentf("expected error resp: %#v", rsp))
-	return rsp
+func (s *apiBaseSuite) errorReq(c *check.C, req *http.Request, u *auth.UserState) *daemon.APIError {
+	rsp := s.req(c, req, u)
+	rspe, ok := rsp.(*daemon.APIError)
+	c.Assert(ok, check.Equals, true, check.Commentf("expected apiError resp: %#v", rsp))
+	return rspe
 }
 
 func (s *apiBaseSuite) serveHTTP(c *check.C, w http.ResponseWriter, req *http.Request) {

@@ -95,7 +95,8 @@ func parseHeadersFormatOptionsFromURL(q url.Values) (*daemonAssertOptions, error
 func getAssertTypeNames(c *Command, r *http.Request, user *auth.UserState) Response {
 	return SyncResponse(map[string][]string{
 		"types": asserts.TypeNames(),
-	}, nil)
+	})
+
 }
 
 func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -114,11 +115,8 @@ func doAssert(c *Command, r *http.Request, user *auth.UserState) Response {
 	}); err != nil {
 		return BadRequest("assert failed: %v", err)
 	}
-	// TODO: what more info do we want to return on success?
-	return &resp{
-		Type:   ResponseTypeSync,
-		Status: 200,
-	}
+
+	return SyncResponse(nil)
 }
 
 func assertsFindOneRemote(c *Command, at *asserts.AssertionType, headers map[string]string, user *auth.UserState) ([]asserts.Assertion, error) {
@@ -176,7 +174,7 @@ func assertsFindMany(c *Command, r *http.Request, user *auth.UserState) Response
 				assertsJSON[i].Body = string(assertions[i].Body())
 			}
 		}
-		return SyncResponse(assertsJSON, nil)
+		return SyncResponse(assertsJSON)
 	}
 
 	return AssertResponse(assertions, true)

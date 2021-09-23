@@ -26,8 +26,6 @@ import (
 	"strings"
 
 	"gopkg.in/check.v1"
-
-	"github.com/snapcore/snapd/daemon"
 )
 
 var _ = check.Suite(&cohortSuite{})
@@ -82,9 +80,9 @@ func (s *cohortSuite) TestCreateCohortBadAction(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "pupate", "snaps": ["foo","bar"]}]`))
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result, check.DeepEquals, &daemon.ErrorResult{Message: `unknown cohort action "pupate"`})
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Equals, `unknown cohort action "pupate"`)
 }
 
 func (s *cohortSuite) TestCreateCohortError(c *check.C) {
@@ -93,25 +91,25 @@ func (s *cohortSuite) TestCreateCohortError(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]}]`))
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 500)
-	c.Check(rsp.Result, check.DeepEquals, &daemon.ErrorResult{Message: `something went wrong`})
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 500)
+	c.Check(rspe.Message, check.Equals, `something went wrong`)
 }
 
 func (s *cohortSuite) TestCreateBadBody1(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]`))
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result, check.DeepEquals, &daemon.ErrorResult{Message: `cannot decode request body into cohort instruction: unexpected EOF`})
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Equals, `cannot decode request body into cohort instruction: unexpected EOF`)
 }
 
 func (s *cohortSuite) TestCreateBadBody2(c *check.C) {
 	req, err := http.NewRequest("POST", "/v2/cohorts", strings.NewReader(`{"action": "create", "snaps": ["foo","bar"]}xx`))
 	c.Assert(err, check.IsNil)
 
-	rsp := s.errorReq(c, req, nil)
-	c.Check(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result, check.DeepEquals, &daemon.ErrorResult{Message: `spurious content after cohort instruction`})
+	rspe := s.errorReq(c, req, nil)
+	c.Check(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Equals, `spurious content after cohort instruction`)
 }

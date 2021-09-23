@@ -29,9 +29,8 @@ import (
 	"gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
-	"github.com/snapcore/snapd/store"
-
 	snap "github.com/snapcore/snapd/cmd/snap"
+	"github.com/snapcore/snapd/store"
 )
 
 // acquire example data via:

@@ -378,7 +378,7 @@ func (s *assertsSuite) TestAssertsFindManyJSONInvalidParam(c *check.C) {
 	c.Check(rec.Code, check.Equals, 400, check.Commentf("body %q", rec.Body))
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
 
-	var rsp daemon.Resp
+	var rsp daemon.RespJSON
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)
@@ -422,7 +422,7 @@ func (s *assertsSuite) TestAssertsFindManyRemoteInvalidParam(c *check.C) {
 	// Verify
 	c.Check(rec.Code, check.Equals, 400, check.Commentf("body %q", rec.Body))
 	c.Check(rec.HeaderMap.Get("Content-Type"), check.Equals, "application/json")
-	var rsp daemon.Resp
+	var rsp daemon.RespJSON
 	c.Assert(json.Unmarshal(rec.Body.Bytes(), &rsp), check.IsNil)
 	c.Check(rsp.Status, check.Equals, 400)
 	c.Check(rsp.Type, check.Equals, daemon.ResponseTypeError)

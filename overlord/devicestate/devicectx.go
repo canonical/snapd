@@ -48,10 +48,7 @@ func DeviceCtx(st *state.State, task *state.Task, providedDeviceCtx snapstate.De
 	}
 
 	devMgr := deviceMgr(st)
-	return &modelDeviceContext{groundDeviceContext{
-		model:      modelAs,
-		systemMode: devMgr.SystemMode(),
-	}}, nil
+	return newModelDeviceContext(devMgr, modelAs), nil
 }
 
 type groundDeviceContext struct {
@@ -106,6 +103,13 @@ var _ snapstate.DeviceContext = &groundDeviceContext{}
 
 type modelDeviceContext struct {
 	groundDeviceContext
+}
+
+func newModelDeviceContext(devMgr *DeviceManager, modelAs *asserts.Model) *modelDeviceContext {
+	return &modelDeviceContext{groundDeviceContext{
+		model:      modelAs,
+		systemMode: devMgr.SystemMode(SysAny),
+	}}
 }
 
 func (dc *modelDeviceContext) Store() snapstate.StoreService {

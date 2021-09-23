@@ -713,14 +713,19 @@ static void enter_non_classic_execution_environment(sc_invocation * inv,
 			}
 		}
 	}
-	// Associate each snap process with a dedicated snap freezer cgroup and
-	// snap pids cgroup. All snap processes belonging to one snap share the
-	// freezer cgroup. All snap processes belonging to one app or one hook
-	// share the pids cgroup.
+	// With cgroups v1, associate each snap process with a dedicated
+	// snap freezer cgroup and snap pids cgroup. All snap processes
+	// belonging to one snap share the freezer cgroup. All snap
+	// processes belonging to one app or one hook share the pids cgroup.
 	//
 	// This simplifies testing if any processes belonging to a given snap are
 	// still alive as well as to properly account for each application and
 	// service.
+	//
+	// Note that with cgroups v2 there is no separate freeezer controller,
+	// but the freezer is associated with each group. The call chain when
+	// starting the snap application has already ensure that the process has
+	// been put in a dedicated group.
 	if (!sc_cgroup_is_v2()) {
 		sc_cgroup_freezer_join(inv->snap_instance, getpid());
 	}

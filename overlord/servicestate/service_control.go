@@ -22,24 +22,39 @@ package servicestate
 import (
 	"fmt"
 
+	tomb "gopkg.in/tomb.v2"
+
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/wrappers"
-
-	tomb "gopkg.in/tomb.v2"
 )
 
 // ServiceAction encapsulates a single service-related action (such as starting,
 // stopping or restarting) run against services of a given snap. The action is
 // run for services listed in services attribute, or for all services of the
 // snap if services list is empty.
-// The names of services are app names (as defined in snap yaml).
+// The names of services and explicit-services are app names (as defined in snap
+// yaml).
 type ServiceAction struct {
 	SnapName       string   `json:"snap-name"`
 	Action         string   `json:"action"`
 	ActionModifier string   `json:"action-modifier,omitempty"`
 	Services       []string `json:"services,omitempty"`
+	// ExplicitServices is used when there are explicit services that should be
+	// restarted. This is used for the `snap restart snap-name.svc1` case,
+	// where we create a task with specific services to work on - in this case
+	// ExplicitServices ends up being the list of services that were explicitly
+	// mentioned by the user to be restarted, regardless of their state. This is
+	// needed because in the case that one does `snap restart snap-name`,
+	// Services gets populated with all services in the snap, which we now
+	// interpret to mean that only inactive services of that set are to be
+	// restarted, but there could be additional explicit services that need to
+	// be restarted at the same time in the case that someone does something
+	// like `snap restart snap-name snap-name.svc1`, we will restart all the
+	// inactive and not disabled services in snap-name, and also svc1 regardless
+	// of the state svc1 is in.
+	ExplicitServices []string `json:"explicit-services,omitempty"`
 }
 
 func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
@@ -97,6 +112,15 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		}
 	}
 
+	// ExplicitServices are snap app names; obtain names of systemd units
+	// expected by wrappers.
+	var explicitServicesSystemdUnits []string
+	for _, name := range sc.ExplicitServices {
+		if app := info.Apps[name]; app != nil {
+			explicitServicesSystemdUnits = append(explicitServicesSystemdUnits, app.ServiceName())
+		}
+	}
+
 	// Note - state must be unlocked when calling wrappers below.
 	switch sc.Action {
 	case "stop":
@@ -149,13 +173,13 @@ func (m *ServiceManager) doServiceControl(t *state.Task, _ *tomb.Tomb) error {
 		}
 	case "restart":
 		st.Unlock()
-		err := wrappers.RestartServices(startupOrdered, nil, meter, perfTimings)
+		err := wrappers.RestartServices(startupOrdered, explicitServicesSystemdUnits, nil, meter, perfTimings)
 		st.Lock()
 		return err
 	case "reload-or-restart":
 		flags := &wrappers.RestartServicesFlags{Reload: true}
 		st.Unlock()
-		err := wrappers.RestartServices(startupOrdered, flags, meter, perfTimings)
+		err := wrappers.RestartServices(startupOrdered, explicitServicesSystemdUnits, flags, meter, perfTimings)
 		st.Lock()
 		return err
 	default:

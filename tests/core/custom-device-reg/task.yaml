@@ -34,7 +34,6 @@ prepare: |
     prepare_testrootorg_store
 
     # start fake device svc
-    #shellcheck disable=SC2148
     systemd-run --unit fakedevicesvc fakedevicesvc localhost:11029
 
     # kick first boot again

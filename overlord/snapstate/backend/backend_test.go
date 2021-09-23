@@ -24,11 +24,10 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snap/squashfs"
-
-	"github.com/snapcore/snapd/overlord/snapstate/backend"
 	"github.com/snapcore/snapd/testutil"
 )
 

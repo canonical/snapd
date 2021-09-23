@@ -334,6 +334,10 @@ func (s *firstBoot20Suite) testPopulateFromSeedCore20Happy(c *C, m *boot.Modeenv
 	_, err = snapstate.CurrentInfo(state, "pc")
 	c.Check(err, IsNil)
 
+	// No kernel extraction happens during seeding, the kernel is already
+	// there either from ubuntu-image or from "install" mode.
+	c.Check(bloader.ExtractKernelAssetsCalls, HasLen, 0)
+
 	// ensure required flag is set on all essential snaps
 	var snapst snapstate.SnapState
 	for _, reqName := range []string{"snapd", "core20", "pc-kernel", "pc"} {

@@ -60,7 +60,7 @@ func getSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 	if err != nil {
 		if err == devicestate.ErrNoSystems {
 			// no systems available
-			return SyncResponse(&rsp, nil)
+			return SyncResponse(&rsp)
 		}
 
 		return InternalError(err.Error())
@@ -96,7 +96,7 @@ func getSystems(c *Command, r *http.Request, user *auth.UserState) Response {
 			Actions: actions,
 		})
 	}
-	return SyncResponse(&rsp, nil)
+	return SyncResponse(&rsp)
 }
 
 type systemActionRequest struct {
@@ -148,7 +148,7 @@ func postSystemActionReboot(c *Command, systemLabel string, req *systemActionReq
 	if err := deviceManagerReboot(dm, systemLabel, req.Mode); err != nil {
 		return handleSystemActionErr(err, systemLabel)
 	}
-	return SyncResponse(nil, nil)
+	return SyncResponse(nil)
 }
 
 func postSystemActionDo(c *Command, systemLabel string, req *systemActionRequest) Response {
@@ -166,5 +166,5 @@ func postSystemActionDo(c *Command, systemLabel string, req *systemActionRequest
 	if err := c.d.overlord.DeviceManager().RequestSystemAction(systemLabel, sa); err != nil {
 		return handleSystemActionErr(err, systemLabel)
 	}
-	return SyncResponse(nil, nil)
+	return SyncResponse(nil)
 }

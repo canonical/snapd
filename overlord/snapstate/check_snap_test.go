@@ -29,6 +29,8 @@ import (
 	"github.com/snapcore/snapd/arch"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/release"
 	seccomp_compiler "github.com/snapcore/snapd/sandbox/seccomp"
@@ -36,9 +38,6 @@ import (
 	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/snapdtool"
 	"github.com/snapcore/snapd/testutil"
-
-	"github.com/snapcore/snapd/overlord/snapstate"
-	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 )
 
 type checkSnapSuite struct {
@@ -102,11 +101,11 @@ var assumesTests = []struct {
 	assumes: "[common-data-dir]",
 }, {
 	assumes: "[f1, f2]",
-	error:   `snap "foo" assumes unsupported features: f1, f2 \(try to refresh the core or snapd snaps\)`,
+	error:   `snap "foo" assumes unsupported features: f1, f2 \(try to refresh snapd\)`,
 }, {
 	assumes: "[f1, f2]",
 	classic: true,
-	error:   `snap "foo" assumes unsupported features: f1, f2 \(try to update snapd and refresh the core snap\)`,
+	error:   `snap "foo" assumes unsupported features: f1, f2 \(try to refresh snapd\)`,
 }, {
 	assumes: "[snapd2.15]",
 	version: "unknown",
@@ -1019,6 +1018,7 @@ func (s *checkSnapSuite) TestCheckSnapdHappy(c *C) {
 
 // Note, invalid usernames checked in snap/info_snap_yaml.go
 var systemUsernamesTests = []struct {
+	snapID      string
 	sysIDs      string
 	classic     bool
 	noRangeUser bool
@@ -1030,6 +1030,19 @@ var systemUsernamesTests = []struct {
 	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
 }, {
 	sysIDs: "snap_daemon:\n    scope: shared",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
+}, {
+	sysIDs: "snap_microk8s: shared",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
+	snapID: "some-uninteresting-snap-id",
+	error:  `snap "foo" is not allowed to use the system user "snap_microk8s"`,
+}, {
+	snapID: "EaXqgt1lyCaxKaQCU349mlodBkDCXRcg", // microk8s
+	sysIDs: "snap_microk8s: shared",
+	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
+}, {
+	// missing snap ID, therefore installation allowed
+	sysIDs: "snap_microk8s:\n    scope: shared",
 	scVer:  "dead 2.4.1 deadbeef bpf-actlog",
 }, {
 	sysIDs: "snap_daemon:\n    scope: private",
@@ -1162,6 +1175,7 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 
 		info, err := snap.InfoFromSnapYaml([]byte(yaml))
 		c.Assert(err, IsNil)
+		info.SnapID = test.snapID
 
 		var openSnapFile = func(path string, si *snap.SideInfo) (*snap.Info, snap.Container, error) {
 			return info, emptyContainer(c), nil
@@ -1181,8 +1195,26 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernames(c *C) {
 }
 
 func (s *checkSnapSuite) TestCheckSnapSystemUsernamesCallsSnapDaemon(c *C) {
+	const yaml = `name: foo
+version: 1.0
+system-usernames:
+  snap_daemon: shared`
+
+	s.testCheckSnapSystemUsernamesCallsCommon(c, "snap_daemon", "584788", yaml)
+}
+
+func (s *checkSnapSuite) TestCheckSnapSystemUsernamesCallsSnapMicrok8s(c *C) {
+	const yaml = `name: microk8s
+version: 1.0
+system-usernames:
+  snap_microk8s: shared`
+
+	s.testCheckSnapSystemUsernamesCallsCommon(c, "snap_microk8s", "584789", yaml)
+}
+
+func (s *checkSnapSuite) testCheckSnapSystemUsernamesCallsCommon(c *C, expectedUser, expectedID, yaml string) {
 	r := osutil.MockFindGid(func(groupname string) (uint64, error) {
-		if groupname == "snap_daemon" || groupname == "snapd-range-524288-root" {
+		if groupname == expectedUser || groupname == "snapd-range-524288-root" {
 			return 0, user.UnknownGroupError(groupname)
 		}
 		return 0, fmt.Errorf("unexpected call to FindGid for %s", groupname)
@@ -1190,7 +1222,7 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernamesCallsSnapDaemon(c *C) {
 	defer r()
 
 	r = osutil.MockFindUid(func(username string) (uint64, error) {
-		if username == "snap_daemon" || username == "snapd-range-524288-root" {
+		if username == expectedUser || username == "snapd-range-524288-root" {
 			return 0, user.UnknownUserError(username)
 		}
 		return 0, fmt.Errorf("unexpected call to FindUid for %s", username)
@@ -1204,11 +1236,6 @@ func (s *checkSnapSuite) TestCheckSnapSystemUsernamesCallsSnapDaemon(c *C) {
 
 		restore = seccomp_compiler.MockCompilerVersionInfo("dead 2.4.1 deadbeef bpf-actlog")
 		defer restore()
-
-		const yaml = `name: foo
-version: 1.0
-system-usernames:
-  snap_daemon: shared`
 
 		info, err := snap.InfoFromSnapYaml([]byte(yaml))
 		c.Assert(err, IsNil)
@@ -1225,25 +1252,25 @@ system-usernames:
 		mockUserAdd := testutil.MockCommand(c, "useradd", "")
 		defer mockUserAdd.Restore()
 
-		err = snapstate.CheckSnap(s.st, "snap-path", "foo", nil, nil, snapstate.Flags{}, nil)
+		err = snapstate.CheckSnap(s.st, "snap-path", info.SnapName(), nil, nil, snapstate.Flags{}, nil)
 		c.Assert(err, IsNil)
 		if classic {
 			c.Check(mockGroupAdd.Calls(), DeepEquals, [][]string{
 				{"groupadd", "--system", "--gid", "524288", "snapd-range-524288-root"},
-				{"groupadd", "--system", "--gid", "584788", "snap_daemon"},
+				{"groupadd", "--system", "--gid", expectedID, expectedUser},
 			})
 			c.Check(mockUserAdd.Calls(), DeepEquals, [][]string{
 				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", falsePath, "--gid", "524288", "--no-user-group", "--uid", "524288", "snapd-range-524288-root"},
-				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", falsePath, "--gid", "584788", "--no-user-group", "--uid", "584788", "snap_daemon"},
+				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", falsePath, "--gid", expectedID, "--no-user-group", "--uid", expectedID, expectedUser},
 			})
 		} else {
 			c.Check(mockGroupAdd.Calls(), DeepEquals, [][]string{
 				{"groupadd", "--system", "--gid", "524288", "--extrausers", "snapd-range-524288-root"},
-				{"groupadd", "--system", "--gid", "584788", "--extrausers", "snap_daemon"},
+				{"groupadd", "--system", "--gid", expectedID, "--extrausers", expectedUser},
 			})
 			c.Check(mockUserAdd.Calls(), DeepEquals, [][]string{
 				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", falsePath, "--gid", "524288", "--no-user-group", "--uid", "524288", "--extrausers", "snapd-range-524288-root"},
-				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", falsePath, "--gid", "584788", "--no-user-group", "--uid", "584788", "--extrausers", "snap_daemon"},
+				{"useradd", "--system", "--home-dir", "/nonexistent", "--no-create-home", "--shell", falsePath, "--gid", expectedID, "--no-user-group", "--uid", expectedID, "--extrausers", expectedUser},
 			})
 
 		}

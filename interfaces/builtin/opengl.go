@@ -72,7 +72,7 @@ const openglConnectedPlugAppArmor = `
 /var/lib/snapd/hostfs/usr/share/egl/egl_external_platform.d/*nvidia*.json r,
 
 # Main bi-arch GL libraries
-/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}{,nvidia*/}lib{GL,GLU,GLESv1_CM,GLESv2,EGL,GLX}.so{,.*} rm,
+/var/lib/snapd/hostfs/{,usr/}lib{,32,64,x32}/{,@{multiarch}/}{,nvidia*/}lib{OpenGL,GL,GLU,GLESv1_CM,GLESv2,EGL,GLX}.so{,.*} rm,
 
 # Allow access to all cards since a) this is common on hybrid systems, b) ARM
 # devices commonly have two devices (such as on the Raspberry Pi 4, one for KMS
@@ -112,7 +112,10 @@ unix (bind,listen) type=seqpacket addr="@cuda-uvmfd-[0-9a-f]*",
 
 # Xilinx zocl DRM driver
 # https://github.com/Xilinx/XRT/tree/master/src/runtime_src/core/edge/drm
-/sys/devices/platform/amba_pl@[0-9]*/amba_pl@[0-9]*:zyxclmm_drm/* r,
+/sys/devices/platform/amba{,_pl@[0-9]*}/amba{,_pl@[0-9]*}:zyxclmm_drm/* r,
+
+# Imagination PowerVR driver
+/dev/pvr_sync rw,
 
 # OpenCL ICD files
 /etc/OpenCL/vendors/ r,
@@ -160,6 +163,7 @@ var openglConnectedPlugUDev = []string{
 	`KERNEL=="nvmap"`,
 	`KERNEL=="tegra_dc_ctrl"`,
 	`KERNEL=="tegra_dc_[0-9]*"`,
+	`KERNEL=="pvr_sync"`,
 }
 
 func init() {

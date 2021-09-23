@@ -30,6 +30,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/systemd"
 )
 
@@ -110,6 +111,7 @@ func switchDisableConsoleConfService(sysd systemd.Systemd, serviceName string, d
 		// XXX: instead of this hack we should look at the config
 		//      defaults and compare with the setting and exit if
 		//      they are the same but that requires some more changes.
+		// TODO: leverage sysconfig.Device instead
 		mode, _, _ := boot.ModeAndRecoverySystemFromKernelCommandLine()
 		if mode == boot.ModeInstall {
 			return nil
@@ -200,7 +202,7 @@ func switchDisableService(serviceName string, disabled bool, opts *fsOnlyContext
 }
 
 // services that can be disabled
-func handleServiceDisableConfiguration(tr config.ConfGetter, opts *fsOnlyContext) error {
+func handleServiceDisableConfiguration(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	for _, service := range services {
 		optionName := fmt.Sprintf("service.%s.disable", service.configName)
 		outputStr, err := coreCfg(tr, optionName)

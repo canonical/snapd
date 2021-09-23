@@ -35,7 +35,7 @@ prepare: |
     echo Running prepare-image
     #shellcheck disable=SC2086
     ARCH="$(dpkg-architecture -qDEB_HOST_ARCH)"
-    su -c "SNAPPY_USE_STAGING_STORE=$SNAPPY_USE_STAGING_STORE snap prepare-image --classic --arch $ARCH --channel $CORE_CHANNEL --snap basic18_*.snap  --snap classic-gadget-18_*.snap $TESTSLIB/assertions/developer1-my-classic-w-gadget-18.model $ROOT"
+    snap prepare-image --classic --arch "$ARCH" --channel "$CORE_CHANNEL" --snap basic18_*.snap  --snap classic-gadget-18_*.snap "$TESTSLIB"/assertions/developer1-my-classic-w-gadget-18.model "$ROOT"
 
     "$TESTSLIB/reset.sh" --keep-stopped
     cp -ar "$ROOT/$SEED_DIR" "$SEED_DIR"
@@ -52,7 +52,6 @@ restore: |
     systemctl stop snapd.service snapd.socket fakedevicesvc
 
     rm -rf "$SEED_DIR"
-    systemctl start snapd.socket snapd.service
 
     #shellcheck source=tests/lib/store.sh
     . "$TESTSLIB"/store.sh

@@ -67,7 +67,7 @@ import (
 )
 
 var (
-	settleTimeout = testutil.HostScaledTimeout(15 * time.Second)
+	settleTimeout = testutil.HostScaledTimeout(30 * time.Second)
 )
 
 func TestDeviceManager(t *testing.T) { TestingT(t) }
@@ -200,7 +200,7 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	hookMgr, err := hookstate.Manager(s.state, s.o.TaskRunner())
 	c.Assert(err, IsNil)
 
-	devicestate.EarlyConfig = func(*state.State, func() (*gadget.Info, error)) error {
+	devicestate.EarlyConfig = func(*state.State, func() (sysconfig.Device, *gadget.Info, error)) error {
 		return nil
 	}
 	s.AddCleanup(func() { devicestate.EarlyConfig = nil })
@@ -236,6 +236,7 @@ func (s *deviceMgrBaseSuite) SetUpTest(c *C) {
 	s.AddCleanup(s.restoreCloudInitStatusRestore)
 
 	s.AddCleanup(func() { s.ancillary = nil })
+	s.AddCleanup(func() { s.newFakeStore = nil })
 }
 
 func (s *deviceMgrBaseSuite) newStore(devBE storecontext.DeviceBackend) snapstate.StoreService {
@@ -256,7 +257,7 @@ func (s *deviceMgrBaseSuite) seeding() {
 func (s *deviceMgrBaseSuite) makeModelAssertionInState(c *C, brandID, model string, extras map[string]interface{}) *asserts.Model {
 	modelAs := s.brands.Model(brandID, model, extras)
 
-	s.setupBrands(c)
+	s.setupBrands()
 	assertstatetest.AddMany(s.state, modelAs)
 	return modelAs
 }
@@ -277,7 +278,7 @@ func (s *deviceMgrBaseSuite) setPCModelInState(c *C) {
 	})
 }
 
-func (s *deviceMgrBaseSuite) setupBrands(c *C) {
+func (s *deviceMgrBaseSuite) setupBrands() {
 	assertstatetest.AddMany(s.state, s.brands.AccountsAndKeys("my-brand")...)
 	otherAcct := assertstest.NewAccount(s.storeSigning, "other-brand", map[string]interface{}{
 		"account-id": "other-brand",
@@ -285,11 +286,11 @@ func (s *deviceMgrBaseSuite) setupBrands(c *C) {
 	assertstatetest.AddMany(s.state, otherAcct)
 }
 
-func (s *deviceMgrBaseSuite) setupSnapDecl(c *C, info *snap.Info, publisherID string) {
+func (s *deviceMgrBaseSuite) setupSnapDeclForNameAndID(c *C, name, snapID, publisherID string) {
 	snapDecl, err := s.storeSigning.Sign(asserts.SnapDeclarationType, map[string]interface{}{
 		"series":       "16",
-		"snap-name":    info.SnapName(),
-		"snap-id":      info.SnapID,
+		"snap-name":    name,
+		"snap-id":      snapID,
 		"publisher-id": publisherID,
 		"timestamp":    time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
@@ -297,20 +298,28 @@ func (s *deviceMgrBaseSuite) setupSnapDecl(c *C, info *snap.Info, publisherID st
 	assertstatetest.AddMany(s.state, snapDecl)
 }
 
-func (s *deviceMgrBaseSuite) setupSnapRevision(c *C, info *snap.Info, publisherID string, revision snap.Revision) {
-	sha3_384, size, err := asserts.SnapFileSHA3_384(info.MountFile())
+func (s *deviceMgrBaseSuite) setupSnapDecl(c *C, info *snap.Info, publisherID string) {
+	s.setupSnapDeclForNameAndID(c, info.SnapName(), info.SnapID, publisherID)
+}
+
+func (s *deviceMgrBaseSuite) setupSnapRevisionForFileAndID(c *C, file, snapID, publisherID string, revision snap.Revision) {
+	sha3_384, size, err := asserts.SnapFileSHA3_384(file)
 	c.Assert(err, IsNil)
 
 	snapRev, err := s.storeSigning.Sign(asserts.SnapRevisionType, map[string]interface{}{
 		"snap-sha3-384": sha3_384,
 		"snap-size":     fmt.Sprintf("%d", size),
-		"snap-id":       info.SnapID,
+		"snap-id":       snapID,
 		"developer-id":  publisherID,
 		"snap-revision": revision.String(),
 		"timestamp":     time.Now().UTC().Format(time.RFC3339),
 	}, nil, "")
 	c.Assert(err, IsNil)
 	assertstatetest.AddMany(s.state, snapRev)
+}
+
+func (s *deviceMgrBaseSuite) setupSnapRevision(c *C, info *snap.Info, publisherID string, revision snap.Revision) {
+	s.setupSnapRevisionForFileAndID(c, info.MountFile(), info.SnapID, publisherID, revision)
 }
 
 func makeSerialAssertionInState(c *C, brands *assertstest.SigningAccounts, st *state.State, brandID, model, serialN string) *asserts.Serial {
@@ -601,7 +610,7 @@ func (s *deviceMgrSuite) TestCheckGadget(c *C) {
 
 	gadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: other-gadget, version: 0}", nil)
 
-	s.setupBrands(c)
+	s.setupBrands()
 	// model assertion in device context
 	model := fakeMyModel(map[string]interface{}{
 		"architecture": "amd64",
@@ -659,7 +668,7 @@ func (s *deviceMgrSuite) TestCheckGadgetOnClassic(c *C) {
 
 	gadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: other-gadget, version: 0}", nil)
 
-	s.setupBrands(c)
+	s.setupBrands()
 	// model assertion in device context
 	model := fakeMyModel(map[string]interface{}{
 		"classic": "true",
@@ -711,7 +720,7 @@ func (s *deviceMgrSuite) TestCheckGadgetOnClassicGadgetNotSpecified(c *C) {
 
 	gadgetInfo := snaptest.MockInfo(c, "{type: gadget, name: gadget, version: 0}", nil)
 
-	s.setupBrands(c)
+	s.setupBrands()
 	// model assertion in device context
 	model := fakeMyModel(map[string]interface{}{
 		"classic": "true",
@@ -763,7 +772,7 @@ func (s *deviceMgrSuite) TestCheckKernel(c *C) {
 	c.Check(err, ErrorMatches, `cannot install a kernel snap on classic`)
 	release.OnClassic = false
 
-	s.setupBrands(c)
+	s.setupBrands()
 	// model assertion in device context
 	model := fakeMyModel(map[string]interface{}{
 		"architecture": "amd64",
@@ -1172,15 +1181,18 @@ func (s *deviceMgrSuite) TestDeviceManagerReadsModeenv(c *C) {
 	mgr, err := devicestate.Manager(s.state, s.hookMgr, runner, s.newStore)
 	c.Assert(err, IsNil)
 	c.Assert(mgr, NotNil)
-	c.Assert(mgr.SystemMode(), Equals, "install")
+	c.Assert(mgr.SystemMode(devicestate.SysAny), Equals, "install")
+	c.Assert(mgr.SystemMode(devicestate.SysHasModeenv), Equals, "install")
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerEmptySystemModeRun(c *C) {
 	// set empty system mode
 	devicestate.SetSystemMode(s.mgr, "")
 
-	// empty is returned as "run"
-	c.Check(s.mgr.SystemMode(), Equals, "run")
+	// empty is returned as "run" for SysAny
+	c.Check(s.mgr.SystemMode(devicestate.SysAny), Equals, "run")
+	// empty is returned as itself for SysHasModeenv
+	c.Check(s.mgr.SystemMode(devicestate.SysHasModeenv), Equals, "")
 }
 
 func (s *deviceMgrSuite) TestDeviceManagerSystemModeInfoTooEarly(c *C) {

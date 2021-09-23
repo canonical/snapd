@@ -47,6 +47,8 @@ func (s *transactionSuite) SetUpTest(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 	s.transaction = config.NewTransaction(s.state)
+
+	config.ClearExternalConfigMap()
 }
 
 type setGetOp string
@@ -603,4 +605,288 @@ func (s *transactionSuite) TestPristineGet(c *C) {
 	err = tr.Get("some-snap", "opt2", &res2)
 	c.Assert(err, IsNil)
 	c.Assert(res2, Equals, "other-value")
+}
+
+func (s *transactionSuite) TestExternalGetError(c *C) {
+
+	tests := []string{
+		"/", "..", "ä#!",
+		"a..b",
+	}
+
+	for _, tc := range tests {
+		err := config.RegisterExternalConfig("some-snap", tc, func(key string) (interface{}, error) {
+			return nil, nil
+		})
+		c.Assert(err, ErrorMatches, "cannot register external config: invalid option name:.*")
+	}
+}
+
+func (s *transactionSuite) TestExternalGetSimple(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("config", map[string]map[string]interface{}{
+		"some-snap": {
+			"other-key": "other-value",
+		},
+	})
+
+	n := 0
+	err := config.RegisterExternalConfig("some-snap", "key.external", func(key string) (interface{}, error) {
+		n++
+
+		s := fmt.Sprintf("%s=external-value", key)
+		return s, nil
+	})
+	c.Assert(err, IsNil)
+
+	tr := config.NewTransaction(s.state)
+
+	var res string
+	// non-external keys work fine
+	err = tr.Get("some-snap", "other-key", &res)
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, "other-value")
+	// no external helper was called because the requested key was not
+	// part of the external configuration
+	c.Check(n, Equals, 0)
+
+	// simple case: subkey is external
+	err = tr.Get("some-snap", "key.external", &res)
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, "key.external=external-value")
+	// the external config function was called now
+	c.Check(n, Equals, 1)
+}
+
+func (s *transactionSuite) TestExternalDeepNesting(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	config.RegisterExternalConfig("some-snap", "key.external", func(key string) (interface{}, error) {
+		c.Check(key, Equals, "key.external.subkey")
+
+		m := make(map[string]string)
+		m["subkey"] = fmt.Sprintf("nested-value")
+		m["other-subkey"] = fmt.Sprintf("other-nested-value")
+
+		return m, nil
+	})
+
+	tr := config.NewTransaction(s.state)
+	var res string
+	err := tr.Get("some-snap", "key.external.subkey", &res)
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, "nested-value")
+}
+
+func (s *transactionSuite) TestExternalSetShadowsExternal(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	err := config.RegisterExternalConfig("some-snap", "key.nested.external", func(key string) (interface{}, error) {
+		c.Fatalf("unexpected call to external config function")
+		return nil, nil
+	})
+	c.Assert(err, IsNil)
+
+	tests := []struct {
+		snap, key string
+		value     interface{}
+		isOk      bool
+	}{
+		// "key" must be a map because "key.external" must exist
+		{"some-snap", "key", "non-map-value", false},
+		{"some-snap", "key.nested", "non-map-value", false},
+
+		// setting external values directly is fine
+		{"some-snap", "key.nested.external", "some-value", true},
+		// setting a sub-value of "key" is fine
+		{"some-snap", "key.subkey", "some-value", true},
+		// setting a sub-value of "key.nested" is fine
+		{"some-snap", "key.nested.subkey", "some-value", true},
+		// setting the external value itself is fine (of course)
+		{"some-snap", "key.nested.external", "some-value", true},
+
+		// but setting nested to some map value is fine
+		{"some-snap", "key.nested", map[string]interface{}{}, true},
+		{"some-snap", "key.nested", map[string]interface{}{"foo": 1}, true},
+		{"some-snap", "key.nested", map[string]interface{}{"external": 1}, true},
+
+		// other snaps without external config are not affected
+		{"other-snap", "key", "non-map-value", true},
+	}
+
+	for _, tc := range tests {
+		tr := config.NewTransaction(s.state)
+		err := tr.Set(tc.snap, tc.key, tc.value)
+		if tc.isOk {
+			c.Check(err, IsNil, Commentf("%v", tc))
+		} else {
+			c.Check(err, ErrorMatches, fmt.Sprintf(`cannot set %q for "some-snap" to non-map value because "key.nested.external" is a external configuration`, tc.key), Commentf("%v", tc))
+		}
+	}
+}
+
+func (s *transactionSuite) TestExternalGetRootDocIsMerged(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("config", map[string]map[string]interface{}{
+		"some-snap": {
+			"some-key":  "some-value",
+			"other-key": "value",
+		},
+	})
+
+	n := 0
+	err := config.RegisterExternalConfig("some-snap", "key.external", func(key string) (interface{}, error) {
+		n++
+
+		s := fmt.Sprintf("%s=external-value", key)
+		return s, nil
+	})
+	c.Assert(err, IsNil)
+
+	tr := config.NewTransaction(s.state)
+
+	var res map[string]interface{}
+	// the root doc
+	err = tr.Get("some-snap", "", &res)
+	c.Assert(err, IsNil)
+	c.Check(res, DeepEquals, map[string]interface{}{
+		"some-key":  "some-value",
+		"other-key": "value",
+		"key": map[string]interface{}{
+			"external": "key.external=external-value",
+		},
+	})
+}
+
+func (s *transactionSuite) TestExternalGetSubtreeMerged(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+	s.state.Set("config", map[string]map[string]interface{}{
+		"some-snap": {
+			"other-key": "other-value",
+			"real-and-external": map[string]interface{}{
+				"real": "real-value",
+			},
+		},
+	})
+
+	n := 0
+	err := config.RegisterExternalConfig("some-snap", "real-and-external.external", func(key string) (interface{}, error) {
+		n++
+
+		s := fmt.Sprintf("%s=external-value", key)
+		return s, nil
+	})
+	c.Assert(err, IsNil)
+
+	tr := config.NewTransaction(s.state)
+
+	var res string
+	// non-external keys work fine
+	err = tr.Get("some-snap", "other-key", &res)
+	c.Assert(err, IsNil)
+	c.Check(res, Equals, "other-value")
+	// no external helper was called because the requested key was not
+	// part of the external configuration
+	c.Check(n, Equals, 0)
+
+	var res2 map[string]interface{}
+	err = tr.Get("some-snap", "real-and-external", &res2)
+	c.Assert(err, IsNil)
+	c.Check(res2, HasLen, 2)
+	// real
+	c.Check(res2["real"], Equals, "real-value")
+	// and external values are combined
+	c.Check(res2["external"], Equals, "real-and-external.external=external-value")
+	// the external config function was called
+	c.Check(n, Equals, 1)
+}
+
+func (s *transactionSuite) TestExternalCommitValuesNotStored(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	err := config.RegisterExternalConfig("some-snap", "simple-external", func(key string) (interface{}, error) {
+		c.Errorf("external func should not get called in this test")
+		return nil, nil
+	})
+	c.Assert(err, IsNil)
+	err = config.RegisterExternalConfig("some-snap", "key.external", func(key string) (interface{}, error) {
+		c.Errorf("external func should not get called in this test")
+		return nil, nil
+	})
+	c.Assert(err, IsNil)
+	err = config.RegisterExternalConfig("some-snap", "key.nested.external", func(key string) (interface{}, error) {
+		c.Errorf("external func should not get called in this test")
+		return nil, nil
+	})
+	c.Assert(err, IsNil)
+
+	tr := config.NewTransaction(s.state)
+
+	// unrelated snap
+	c.Check(tr.Set("other-snap", "key", "value"), IsNil)
+
+	// top level external config with simple value
+	c.Check(tr.Set("some-snap", "simple-external", "will-not-get-set"), IsNil)
+	// top level external config with map
+	c.Check(tr.Set("some-snap", "key.external.a", "1"), IsNil)
+	c.Check(tr.Set("some-snap", "key.external.b", "2"), IsNil)
+	// nested external config
+	c.Check(tr.Set("some-snap", "key.nested.external.sub", "won't-get-set"), IsNil)
+	c.Check(tr.Set("some-snap", "key.nested.external.sub2.sub2sub", "also-won't-get-set"), IsNil)
+	// real configuration
+	c.Check(tr.Set("some-snap", "key.not-external", "value"), IsNil)
+	c.Check(tr.Set("some-snap", "key.nested.not-external", "value"), IsNil)
+	tr.Commit()
+
+	// and check what got stored in the state
+	var config map[string]map[string]interface{}
+	s.state.Get("config", &config)
+	c.Check(config["some-snap"], HasLen, 1)
+	c.Check(config["some-snap"], DeepEquals, map[string]interface{}{
+		"key": map[string]interface{}{
+			"not-external": "value",
+			"nested": map[string]interface{}{
+				"not-external": "value",
+			},
+		},
+	})
+	// other-snap is unrelated
+	c.Check(config["other-snap"]["key"], Equals, "value")
+}
+
+func (s *transactionSuite) TestOverlapsWithExternalConfigErr(c *C) {
+	_, err := config.OverlapsWithExternalConfig("invalid#", "valid")
+	c.Check(err, ErrorMatches, `cannot check overlap for requested key: invalid option name: "invalid#"`)
+
+	_, err = config.OverlapsWithExternalConfig("valid", "invalid#")
+	c.Check(err, ErrorMatches, `cannot check overlap for external key: invalid option name: "invalid#"`)
+}
+
+func (s *transactionSuite) TestOverlapsWithExternalConfig(c *C) {
+	tests := []struct {
+		requestedKey, externalKey string
+		overlap                   bool
+	}{
+		{"a", "a", true},
+		{"a", "a.external", true},
+		{"a.external.subkey", "a.external", true},
+
+		{"a.other", "a.external", false},
+		{"z", "a", false},
+		{"z", "a.external", false},
+		{"z.nested", "a.external", false},
+		{"z.nested.other", "a.external", false},
+	}
+
+	for _, tc := range tests {
+		overlap, err := config.OverlapsWithExternalConfig(tc.requestedKey, tc.externalKey)
+		c.Assert(err, IsNil)
+		c.Check(overlap, Equals, tc.overlap, Commentf("%v", tc))
+	}
 }

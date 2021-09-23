@@ -129,6 +129,6 @@ func (h *configureHandler) Done() error {
 
 // Error is called by the HookManager after the configure hook has exited
 // non-zero, and includes the error.
-func (h *configureHandler) Error(err error) error {
-	return nil
+func (h *configureHandler) Error(err error) (bool, error) {
+	return false, nil
 }

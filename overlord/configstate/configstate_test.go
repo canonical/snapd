@@ -33,8 +33,10 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/hookstate"
 	"github.com/snapcore/snapd/overlord/snapstate"
+	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/sysconfig"
 	"github.com/snapcore/snapd/testutil"
 )
 
@@ -244,6 +246,10 @@ func (s *configcoreHijackSuite) SetUpTest(c *C) {
 	err = configstate.Init(s.state, hookMgr)
 	c.Assert(err, IsNil)
 	s.o.AddManager(s.o.TaskRunner())
+
+	r = snapstatetest.MockDeviceModel(makeModel(nil))
+	s.AddCleanup(r)
+
 }
 
 type witnessManager struct {
@@ -266,7 +272,7 @@ func (wm *witnessManager) Ensure() error {
 func (s *configcoreHijackSuite) TestHijack(c *C) {
 	configcoreRan := false
 	witnessCfg := false
-	witnessConfigcoreRun := func(conf config.Conf) error {
+	witnessConfigcoreRun := func(dev sysconfig.Device, conf config.Conf) error {
 		// called with no state lock!
 		conf.State().Lock()
 		defer conf.State().Unlock()
@@ -384,7 +390,7 @@ func (s *earlyConfigSuite) TestEarlyConfigSysConfigured(c *C) {
 	defer s.state.Unlock()
 	s.sysConfig(c)
 
-	preloadGadget := func() (*gadget.Info, error) {
+	preloadGadget := func() (sysconfig.Device, *gadget.Info, error) {
 		panic("unexpected")
 	}
 
@@ -408,8 +414,13 @@ func (s *earlyConfigSuite) TestEarlyConfigFromGadget(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	preloadGadget := func() (*gadget.Info, error) {
-		return gadget.InfoFromGadgetYaml([]byte(preloadedGadgetYaml), nil)
+	preloadGadget := func() (sysconfig.Device, *gadget.Info, error) {
+		gi, err := gadget.InfoFromGadgetYaml([]byte(preloadedGadgetYaml), nil)
+		if err != nil {
+			return nil, nil, err
+		}
+		dev := &snapstatetest.TrivialDeviceContext{}
+		return dev, gi, nil
 	}
 
 	err := configstate.EarlyConfig(s.state, preloadGadget)
@@ -431,15 +442,15 @@ func (s *earlyConfigSuite) TestEarlyConfigFromGadget(c *C) {
 }
 
 func (s *earlyConfigSuite) TestEarlyConfigFromGadgetErr(c *C) {
-	defer configstate.MockConfigcoreEarly(func(config.Conf, map[string]interface{}) error {
+	defer configstate.MockConfigcoreEarly(func(sysconfig.Device, config.Conf, map[string]interface{}) error {
 		return fmt.Errorf("boom")
 	})()
 
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	preloadGadget := func() (*gadget.Info, error) {
-		return gadget.InfoFromGadgetYaml([]byte(preloadedGadgetYaml), nil)
+	preloadGadget := func() (sysconfig.Device, *gadget.Info, error) {
+		return nil, &gadget.Info{}, nil
 	}
 
 	err := configstate.EarlyConfig(s.state, preloadGadget)
@@ -450,8 +461,8 @@ func (s *earlyConfigSuite) TestEarlyConfigPreloadGadgetErr(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	preloadGadget := func() (*gadget.Info, error) {
-		return nil, fmt.Errorf("cannot load gadget")
+	preloadGadget := func() (sysconfig.Device, *gadget.Info, error) {
+		return nil, nil, fmt.Errorf("cannot load gadget")
 	}
 
 	err := configstate.EarlyConfig(s.state, preloadGadget)
@@ -462,8 +473,8 @@ func (s *earlyConfigSuite) TestEarlyConfigNoGadget(c *C) {
 	s.state.Lock()
 	defer s.state.Unlock()
 
-	preloadGadget := func() (*gadget.Info, error) {
-		return nil, state.ErrNoState
+	preloadGadget := func() (sysconfig.Device, *gadget.Info, error) {
+		return nil, nil, state.ErrNoState
 	}
 
 	err := configstate.EarlyConfig(s.state, preloadGadget)

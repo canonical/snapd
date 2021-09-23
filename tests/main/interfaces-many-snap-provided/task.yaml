@@ -17,7 +17,6 @@ backends: [-autopkgtest]
 # - Ubuntu classic 18.04 amd64 VM
 # - All Ubuntu autopkgtests
 # - Debian sid amd64 VM
-# - Debian 9 amd64 VM
 # - TODO: All Fedora systems (for classic-only; unrelated error elsewhere)
 systems: [ubuntu-core-1*-64, ubuntu-14.04-32, ubuntu-16.04-64, ubuntu-18.04-64, ubuntu-18.04-32, ubuntu-*-amd64, ubuntu-*-armhf, ubuntu-*-arm64, ubuntu-*-i386, ubuntu-*-ppc64el, debian-*]
 

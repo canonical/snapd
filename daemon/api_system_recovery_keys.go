@@ -50,5 +50,5 @@ func getSystemRecoveryKeys(c *Command, r *http.Request, user *auth.UserState) Re
 	}
 	rsp.ReinstallKey = reinstallKey.String()
 
-	return SyncResponse(&rsp, nil)
+	return SyncResponse(&rsp)
 }

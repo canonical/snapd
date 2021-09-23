@@ -229,6 +229,12 @@ func (s *SnapOpSuite) TestInstallIgnoreRunning(c *check.C) {
 func (s *SnapOpSuite) TestInstallNoPATH(c *check.C) {
 	// PATH restored by test tear down
 	os.Setenv("PATH", "/bin:/usr/bin:/sbin:/usr/sbin")
+	// SUDO_UID env must be unset in this test
+	if sudoUidEnv, isSet := os.LookupEnv("SUDO_UID"); isSet {
+		os.Unsetenv("SUDO_UID")
+		defer os.Setenv("SUDO_UID", sudoUidEnv)
+	}
+
 	s.srv.checker = func(r *http.Request) {
 		c.Check(r.URL.Path, check.Equals, "/v2/snaps/foo")
 		c.Check(DecodedRequestBody(c, r), check.DeepEquals, map[string]interface{}{
@@ -1072,7 +1078,7 @@ func (s *SnapSuite) TestRefreshList(c *check.C) {
 			c.Check(r.Method, check.Equals, "GET")
 			c.Check(r.URL.Path, check.Equals, "/v2/find")
 			c.Check(r.URL.Query().Get("select"), check.Equals, "refresh")
-			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "4.2update1", "developer": "bar", "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "revision":17,"summary":"some summary"}]}`)
+			fmt.Fprintln(w, `{"type": "sync", "result": [{"name": "foo", "status": "active", "version": "4.2update1", "developer": "bar", "download-size": 436375552, "publisher": {"id": "bar-id", "username": "bar", "display-name": "Bar", "validation": "unproven"}, "revision":17,"summary":"some summary"}]}`)
 		default:
 			c.Fatalf("expected to get 1 requests, now on %d", n+1)
 		}
@@ -1082,8 +1088,8 @@ func (s *SnapSuite) TestRefreshList(c *check.C) {
 	rest, err := snap.Parser(snap.Client()).ParseArgs([]string{"refresh", "--list"})
 	c.Assert(err, check.IsNil)
 	c.Assert(rest, check.DeepEquals, []string{})
-	c.Check(s.Stdout(), check.Matches, `Name +Version +Rev +Publisher +Notes
-foo +4.2update1 +17 +bar +-.*
+	c.Check(s.Stdout(), check.Matches, `Name +Version +Rev +Size +Publisher +Notes
+foo +4.2update1 +17 +436MB +bar +-.*
 `)
 	c.Check(s.Stderr(), check.Equals, "")
 	// ensure that the fake server api was actually hit

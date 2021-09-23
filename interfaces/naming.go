@@ -28,11 +28,3 @@ import (
 func SecurityTagGlob(snapName string) string {
 	return snap.AppSecurityTag(snapName, "*")
 }
-
-func InterfaceServiceName(snapName, uniqueName string) string {
-	return snap.ScopedSecurityTag(snapName, "interface", uniqueName) + ".service"
-}
-
-func InterfacePolkitPolicyName(snapName, uniqueName string) string {
-	return snap.ScopedSecurityTag(snapName, "interface", uniqueName) + ".policy"
-}

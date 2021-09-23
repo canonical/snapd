@@ -25,7 +25,6 @@ prepare: |
 
 restore: |
     mv /sbin/apparmor_parser.real /sbin/apparmor_parser
-    rm -f profiles.out
 
 debug: |
     "$TESTSTOOLS"/journal-state get-log -a | grep apparmor_parser.fake

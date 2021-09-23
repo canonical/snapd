@@ -3,7 +3,7 @@
 /*
  * Copyright (C) 2016 Canonical Ltd
  *
- * This program is free software: you can redistribuLicenseidte it and/or modify
+ * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 3 as
  * published by the Free Software Foundation.
  *
@@ -25,10 +25,9 @@ import (
 )
 
 const (
-	opUNSET = ""
-	opAND   = "AND"
-	opOR    = "OR"
-	opWITH  = "WITH"
+	opAND  = "AND"
+	opOR   = "OR"
+	opWITH = "WITH"
 )
 
 func isOperator(tok string) bool {
@@ -68,13 +67,6 @@ func newParser(r io.Reader) *parser {
 
 func (p *parser) Validate() error {
 	return p.validate(0)
-}
-
-func (p *parser) advance(id string) error {
-	if p.s.Text() != id {
-		return fmt.Errorf("expected %q got %q", id, p.s.Text())
-	}
-	return nil
 }
 
 func (p *parser) validate(depth int) error {

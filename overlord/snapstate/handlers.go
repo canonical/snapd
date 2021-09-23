@@ -22,6 +22,7 @@ package snapstate
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -521,7 +522,7 @@ func installInfoUnlocked(st *state.State, snapsup *SnapSetup, deviceCtx DeviceCo
 	st.Lock()
 	defer st.Unlock()
 	opts := &RevisionOptions{Channel: snapsup.Channel, CohortKey: snapsup.CohortKey, Revision: snapsup.Revision()}
-	return installInfo(context.TODO(), st, snapsup.InstanceName(), opts, snapsup.UserID, deviceCtx)
+	return installInfo(context.TODO(), st, snapsup.InstanceName(), opts, snapsup.UserID, Flags{}, deviceCtx)
 }
 
 // autoRefreshRateLimited returns the rate limit of auto-refreshes or 0 if
@@ -642,6 +643,28 @@ func hasOtherInstances(st *state.State, instanceName string) (bool, error) {
 	return false, nil
 }
 
+var ErrKernelGadgetUpdateTaskMissing = errors.New("cannot refresh kernel with change created by old snapd that is missing gadget update task")
+
+func checkKernelHasUpdateAssetsTask(t *state.Task) error {
+	for _, other := range t.Change().Tasks() {
+		snapsup, err := TaskSnapSetup(other)
+		if err == state.ErrNoState {
+			// XXX: hooks have no snapsup, is this detection okay?
+			continue
+		}
+		if err != nil {
+			return err
+		}
+		if snapsup.Type != "kernel" {
+			continue
+		}
+		if other.Kind() == "update-gadget-assets" {
+			return nil
+		}
+	}
+	return ErrKernelGadgetUpdateTaskMissing
+}
+
 func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	st := t.State()
 	st.Lock()
@@ -664,6 +687,17 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 	st.Unlock()
 	if err != nil {
 		return err
+	}
+
+	// check that there is a "update-gadget-assets" task for kernels too,
+	// see https://bugs.launchpad.net/snapd/+bug/1940553
+	if snapsup.Type == snap.TypeKernel {
+		st.Lock()
+		err = checkKernelHasUpdateAssetsTask(t)
+		st.Unlock()
+		if err != nil {
+			return err
+		}
 	}
 
 	timings.Run(perfTimings, "check-snap", fmt.Sprintf("check snap %q", snapsup.InstanceName()), func(timings.Measurer) {
@@ -690,13 +724,16 @@ func (m *SnapManager) doMountSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	}
 
+	setupOpts := &backend.SetupSnapOptions{
+		SkipKernelExtraction: snapsup.SkipKernelExtraction,
+	}
 	pb := NewTaskProgressAdapterUnlocked(t)
 	// TODO Use snapsup.Revision() to obtain the right info to mount
 	//      instead of assuming the candidate is the right one.
 	var snapType snap.Type
 	var installRecord *backend.InstallRecord
 	timings.Run(perfTimings, "setup-snap", fmt.Sprintf("setup snap %q", snapsup.InstanceName()), func(timings.Measurer) {
-		snapType, installRecord, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, deviceCtx, pb)
+		snapType, installRecord, err = m.backend.SetupSnap(snapsup.SnapPath, snapsup.InstanceName(), snapsup.SideInfo, deviceCtx, setupOpts, pb)
 	})
 	if err != nil {
 		cleanup()
@@ -923,7 +960,7 @@ func (m *SnapManager) undoUnlinkCurrentSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// if we just put back a previous a core snap, request a restart
 	// so that we switch executing its snapd
-	m.maybeRestart(t, oldInfo, reboot, deviceCtx)
+	m.maybeRestart(t, oldInfo, reboot)
 	return nil
 }
 
@@ -1199,6 +1236,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 		snapst.Required = true
 	}
 	oldRefreshInhibitedTime := snapst.RefreshInhibitedTime
+	oldLastRefreshTime := snapst.LastRefreshTime
 	// only set userID if unset or logged out in snapst and if we
 	// actually have an associated user
 	if snapsup.UserID > 0 {
@@ -1298,6 +1336,7 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 			return fmt.Errorf("cannot create snap cookie: %v", err)
 		}
 	}
+
 	// save for undoLinkSnap
 	t.Set("old-trymode", oldTryMode)
 	t.Set("old-devmode", oldDevMode)
@@ -1309,9 +1348,14 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 	t.Set("old-candidate-index", oldCandidateIndex)
 	t.Set("old-refresh-inhibited-time", oldRefreshInhibitedTime)
 	t.Set("old-cohort-key", oldCohortKey)
+	t.Set("old-last-refresh-time", oldLastRefreshTime)
 
 	// Record the fact that the snap was refreshed successfully.
 	snapst.RefreshInhibitedTime = nil
+	if !snapsup.Revert {
+		now := timeNow()
+		snapst.LastRefreshTime = &now
+	}
 
 	if cand.SnapID != "" {
 		// write the auxiliary store info
@@ -1374,14 +1418,14 @@ func (m *SnapManager) doLinkSnap(t *state.Task, _ *tomb.Tomb) (err error) {
 
 	// if we just installed a core snap, request a restart
 	// so that we switch executing its snapd.
-	m.maybeRestart(t, newInfo, reboot, deviceCtx)
+	m.maybeRestart(t, newInfo, reboot)
 
 	return nil
 }
 
 // maybeRestart will schedule a reboot or restart as needed for the
 // just linked snap with info if it's a core or snapd or kernel snap.
-func (m *SnapManager) maybeRestart(t *state.Task, info *snap.Info, rebootRequired bool, deviceCtx DeviceContext) {
+func (m *SnapManager) maybeRestart(t *state.Task, info *snap.Info, rebootRequired bool) {
 	// Don't restart when preseeding - we will switch to new snapd on
 	// first boot.
 	if m.preseed {
@@ -1496,7 +1540,7 @@ func (m *SnapManager) maybeUndoRemodelBootChanges(t *state.Task) error {
 
 	// we may just have switch back to the old kernel/base/core so
 	// we may need to restart
-	m.maybeRestart(t, info, reboot, groundDeviceCtx)
+	m.maybeRestart(t, info, reboot)
 
 	return nil
 }
@@ -1562,6 +1606,10 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	if err := t.Get("old-refresh-inhibited-time", &oldRefreshInhibitedTime); err != nil && err != state.ErrNoState {
 		return err
 	}
+	var oldLastRefreshTime *time.Time
+	if err := t.Get("old-last-refresh-time", &oldLastRefreshTime); err != nil && err != state.ErrNoState {
+		return err
+	}
 	var oldCohortKey string
 	if err := t.Get("old-cohort-key", &oldCohortKey); err != nil && err != state.ErrNoState {
 		return err
@@ -1609,6 +1657,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	snapst.JailMode = oldJailMode
 	snapst.Classic = oldClassic
 	snapst.RefreshInhibitedTime = oldRefreshInhibitedTime
+	snapst.LastRefreshTime = oldLastRefreshTime
 	snapst.CohortKey = oldCohortKey
 
 	newInfo, err := readInfo(snapsup.InstanceName(), snapsup.SideInfo, 0)
@@ -1669,7 +1718,7 @@ func (m *SnapManager) undoLinkSnap(t *state.Task, _ *tomb.Tomb) error {
 	// undoLinkCurrentSnap() instead
 	if firstInstall && newInfo.Type() == snap.TypeSnapd {
 		const rebootRequired = false
-		m.maybeRestart(t, newInfo, rebootRequired, deviceCtx)
+		m.maybeRestart(t, newInfo, rebootRequired)
 	}
 
 	// write sequence file for failover helpers
@@ -1907,7 +1956,9 @@ func (m *SnapManager) undoStartSnapServices(t *state.Task, _ *tomb.Tomb) error {
 	var stopReason snap.ServiceStopReason
 
 	// stop the services
+	st.Unlock()
 	err = m.backend.StopServices(svcs, stopReason, progress.Null, perfTimings)
+	st.Lock()
 	if err != nil {
 		return err
 	}
@@ -2032,11 +2083,11 @@ func (m *SnapManager) undoStopSnapServices(t *state.Task, _ *tomb.Tomb) error {
 
 	st.Unlock()
 	err = m.backend.StartServices(startupOrdered, disabledServices, progress.Null, perfTimings)
+	st.Lock()
 	if err != nil {
 		return err
 	}
 
-	st.Lock()
 	return nil
 }
 
@@ -2143,7 +2194,7 @@ func (m *SnapManager) undoUnlinkSnap(t *state.Task, _ *tomb.Tomb) error {
 
 	// if we just linked back a core snap, request a restart
 	// so that we switch executing its snapd.
-	m.maybeRestart(t, info, reboot, deviceCtx)
+	m.maybeRestart(t, info, reboot)
 
 	return nil
 }
@@ -2238,6 +2289,17 @@ func (m *SnapManager) doDiscardSnap(t *state.Task, _ *tomb.Tomb) error {
 		return &state.Retry{After: 3 * time.Minute}
 	}
 	if len(snapst.Sequence) == 0 {
+		if err = m.backend.RemoveSnapMountUnits(snapsup.placeInfo(), nil); err != nil {
+			return err
+		}
+
+		if err := pruneRefreshCandidates(st, snapsup.InstanceName()); err != nil {
+			return err
+		}
+		if err := pruneSnapsHold(st, snapsup.InstanceName()); err != nil {
+			return err
+		}
+
 		// Remove configuration associated with this snap.
 		err = config.DeleteSnapConfig(st, snapsup.InstanceName())
 		if err != nil {
@@ -2954,6 +3016,10 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 		return nil
 	}
 
+	if err := pruneRefreshCandidates(st, snaps...); err != nil {
+		return err
+	}
+
 	var re reRefreshSetup
 	if err := t.Get("rerefresh-setup", &re); err != nil {
 		return err
@@ -2979,9 +3045,44 @@ func (m *SnapManager) doCheckReRefresh(t *state.Task, tomb *tomb.Tomb) error {
 	return nil
 }
 
-func (m *SnapManager) doAutoRefreshGate(t *state.Task, tomb *tomb.Tomb) error {
-	// TODO: autoRefreshPhase2 - create refresh tasks for snaps that are
-	// not held.
+func (m *SnapManager) doConditionalAutoRefresh(t *state.Task, tomb *tomb.Tomb) error {
+	st := t.State()
+	st.Lock()
+	defer st.Unlock()
+
+	snaps, err := snapsToRefresh(t)
+	if err != nil {
+		return err
+	}
+
+	if len(snaps) == 0 {
+		logger.Debugf("refresh gating: no snaps to refresh")
+		return nil
+	}
+
+	tss, err := autoRefreshPhase2(context.TODO(), st, snaps, t.Change().ID())
+	if err != nil {
+		return err
+	}
+
+	// update the map of refreshed snaps on the task, this affects
+	// conflict checks (we don't want to conflict on snaps that were held and
+	// won't be refreshed) -  see conditionalAutoRefreshAffectedSnaps().
+	newToUpdate := make(map[string]*refreshCandidate, len(snaps))
+	for _, candidate := range snaps {
+		newToUpdate[candidate.InstanceName()] = candidate
+	}
+	t.Set("snaps", newToUpdate)
+
+	// update original auto-refresh change
+	chg := t.Change()
+	for _, ts := range tss {
+		ts.WaitFor(t)
+		chg.AddAll(ts)
+	}
+	t.SetStatus(state.DoneStatus)
+
+	st.EnsureBefore(0)
 	return nil
 }
 

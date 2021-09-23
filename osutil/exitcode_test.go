@@ -23,9 +23,9 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/snapcore/snapd/osutil"
-
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 type ExitCodeTestSuite struct{}

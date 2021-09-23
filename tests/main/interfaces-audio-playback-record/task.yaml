@@ -11,8 +11,9 @@ environment:
 
 prepare: |
     # Install pulseaudio.
-    apt-get update
-    apt-get install -y pulseaudio pulseaudio-utils
+    apt update
+    apt install -y pulseaudio pulseaudio-utils
+
     # Remove the package and reload systemd later, when we are restoring. This
     # is important because of rtkit-daemon.service that gets pulled by
     # pulseaudio and that is subsequently removed.

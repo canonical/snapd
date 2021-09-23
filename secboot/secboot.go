@@ -66,9 +66,19 @@ type SealKeyRequest struct {
 	KeyFile string
 }
 
+// ModelForSealing provides information about the model for use in the context
+// of (re)sealing the encryption keys.
+type ModelForSealing interface {
+	Series() string
+	BrandID() string
+	Model() string
+	Grade() asserts.ModelGrade
+	SignKeyID() string
+}
+
 type SealKeyModelParams struct {
 	// The snap model
-	Model *asserts.Model
+	Model ModelForSealing
 	// The set of EFI binary load chains for the current device
 	// configuration
 	EFILoadChains []*LoadChain
@@ -95,7 +105,7 @@ type SealKeysParams struct {
 
 type SealKeysWithFDESetupHookParams struct {
 	// Initial model to bind sealed keys to.
-	Model *asserts.Model
+	Model ModelForSealing
 	// AuxKey is the auxiliary key used to bind models.
 	AuxKey AuxKey
 	// The path to the aux key file (if empty the key will not be

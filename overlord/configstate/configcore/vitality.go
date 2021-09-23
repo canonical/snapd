@@ -110,6 +110,7 @@ func handleVitalityConfiguration(tr config.Conf, opts *fsOnlyContext) error {
 
 		// first get the device context to decide if we need to set
 		// RequireMountedSnapdSnap
+		// TODO: use sysconfig.Device instead
 		deviceCtx, err := snapstate.DeviceCtx(st, nil, nil)
 		if err != nil {
 			return err

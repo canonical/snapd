@@ -27,5 +27,5 @@ func getStacktraces() Response {
 	stack := make([]byte, 65535)
 	all := true
 	n := runtime.Stack(stack, all)
-	return SyncResponse(string(stack[:n]), nil)
+	return SyncResponse(string(stack[:n]))
 }

@@ -56,7 +56,7 @@ var (
 
 // Hook setup by devicestate to know whether a remodeling is in progress.
 var (
-	Remodeling func(st *state.State) bool
+	RemodelingChange func(st *state.State) *state.Change
 )
 
 // ModelFromTask returns a model assertion through the device context for the task.
@@ -80,7 +80,7 @@ func DevicePastSeeding(st *state.State, providedDeviceCtx DeviceContext) (Device
 	if err != nil && err != state.ErrNoState {
 		return nil, err
 	}
-	if Remodeling(st) {
+	if chg := RemodelingChange(st); chg != nil {
 		// a remodeling is in progress and this is not called
 		// as part of it. The 2nd check should not be needed
 		// in practice.
@@ -89,6 +89,7 @@ func DevicePastSeeding(st *state.State, providedDeviceCtx DeviceContext) (Device
 				Message: "remodeling in progress, no other " +
 					"changes allowed until this is done",
 				ChangeKind: "remodel",
+				ChangeID:   chg.ID(),
 			}
 		}
 	}

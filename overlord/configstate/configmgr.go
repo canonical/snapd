@@ -25,12 +25,14 @@ import (
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/configstate/configcore"
 	"github.com/snapcore/snapd/overlord/hookstate"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
+	"github.com/snapcore/snapd/sysconfig"
 )
 
 var configcoreRun = configcore.Run
 
-func MockConfigcoreRun(f func(config.Conf) error) (restore func()) {
+func MockConfigcoreRun(f func(sysconfig.Device, config.Conf) error) (restore func()) {
 	origConfigcoreRun := configcoreRun
 	configcoreRun = f
 	return func() {
@@ -48,10 +50,20 @@ func Init(st *state.State, hookManager *hookstate.HookManager) error {
 	// Note that we use the func() indirection so that mocking configcoreRun
 	// in tests works correctly.
 	hookManager.RegisterHijack("configure", "core", func(ctx *hookstate.Context) error {
-		ctx.Lock()
-		tr := ContextTransaction(ctx)
-		ctx.Unlock()
-		return configcoreRun(tr)
+		dev, tr, err := func() (sysconfig.Device, config.Conf, error) {
+			ctx.Lock()
+			defer ctx.Unlock()
+			task, _ := ctx.Task()
+			dev, err := snapstate.DeviceCtx(ctx.State(), task, nil)
+			if err != nil {
+				return nil, nil, err
+			}
+			return dev, ContextTransaction(ctx), nil
+		}()
+		if err != nil {
+			return err
+		}
+		return configcoreRun(dev, tr)
 	})
 
 	return nil

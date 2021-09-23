@@ -63,9 +63,9 @@ func (s *modelSuite) TestPostRemodelUnhappy(c *check.C) {
 
 	req, err := http.NewRequest("POST", "/v2/model", bytes.NewBuffer(data))
 	c.Assert(err, check.IsNil)
-	rsp := s.errorReq(c, req, nil)
-	c.Assert(rsp.Status, check.Equals, 400)
-	c.Check(rsp.Result.(*daemon.ErrorResult).Message, check.Matches, "cannot decode new model assertion: .*")
+	rspe := s.errorReq(c, req, nil)
+	c.Assert(rspe.Status, check.Equals, 400)
+	c.Check(rspe.Message, check.Matches, "cannot decode new model assertion: .*")
 }
 
 func (s *modelSuite) TestPostRemodel(c *check.C) {
@@ -76,7 +76,7 @@ func (s *modelSuite) TestPostRemodel(c *check.C) {
 		"revision": "2",
 	})
 
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -86,7 +86,7 @@ func (s *modelSuite) TestPostRemodel(c *check.C) {
 	st.Lock()
 	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
 	assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
-	s.mockModel(c, st, oldModel)
+	s.mockModel(st, oldModel)
 	st.Unlock()
 
 	soon := 0
@@ -134,7 +134,7 @@ func (s *modelSuite) TestPostRemodel(c *check.C) {
 
 func (s *modelSuite) TestGetModelNoModelAssertion(c *check.C) {
 
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -143,13 +143,11 @@ func (s *modelSuite) TestGetModelNoModelAssertion(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/model", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.errorReq(c, req, nil)
-	c.Assert(rsp.Status, check.Equals, 404)
-	c.Assert(rsp.Result, check.FitsTypeOf, &daemon.ErrorResult{})
-	errRes := rsp.Result.(*daemon.ErrorResult)
-	c.Assert(errRes.Kind, check.Equals, client.ErrorKindAssertionNotFound)
-	c.Assert(errRes.Value, check.Equals, "model")
-	c.Assert(errRes.Message, check.Equals, "no model assertion yet")
+	rspe := s.errorReq(c, req, nil)
+	c.Assert(rspe.Status, check.Equals, 404)
+	c.Assert(rspe.Kind, check.Equals, client.ErrorKindAssertionNotFound)
+	c.Assert(rspe.Value, check.Equals, "model")
+	c.Assert(rspe.Message, check.Equals, "no model assertion yet")
 }
 
 func (s *modelSuite) TestGetModelHasModelAssertion(c *check.C) {
@@ -157,7 +155,7 @@ func (s *modelSuite) TestGetModelHasModelAssertion(c *check.C) {
 	theModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults)
 
 	// model assertion setup
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -167,7 +165,7 @@ func (s *modelSuite) TestGetModelHasModelAssertion(c *check.C) {
 	st.Lock()
 	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
 	assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
-	s.mockModel(c, st, theModel)
+	s.mockModel(st, theModel)
 	st.Unlock()
 
 	// make a new get request to the model endpoint
@@ -200,7 +198,7 @@ func (s *modelSuite) TestGetModelJSONHasModelAssertion(c *check.C) {
 	theModel := s.Brands.Model("my-brand", "my-old-model", modelDefaults)
 
 	// model assertion setup
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -210,7 +208,7 @@ func (s *modelSuite) TestGetModelJSONHasModelAssertion(c *check.C) {
 	st.Lock()
 	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
 	assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
-	s.mockModel(c, st, theModel)
+	s.mockModel(st, theModel)
 	st.Unlock()
 
 	// make a new get request to the model endpoint with json as true
@@ -233,7 +231,7 @@ func (s *modelSuite) TestGetModelJSONHasModelAssertion(c *check.C) {
 
 func (s *modelSuite) TestGetModelNoSerialAssertion(c *check.C) {
 
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -242,13 +240,11 @@ func (s *modelSuite) TestGetModelNoSerialAssertion(c *check.C) {
 
 	req, err := http.NewRequest("GET", "/v2/model/serial", nil)
 	c.Assert(err, check.IsNil)
-	rsp := s.errorReq(c, req, nil)
-	c.Assert(rsp.Status, check.Equals, 404)
-	c.Assert(rsp.Result, check.FitsTypeOf, &daemon.ErrorResult{})
-	errRes := rsp.Result.(*daemon.ErrorResult)
-	c.Assert(errRes.Kind, check.Equals, client.ErrorKindAssertionNotFound)
-	c.Assert(errRes.Value, check.Equals, "serial")
-	c.Assert(errRes.Message, check.Equals, "no serial assertion yet")
+	rspe := s.errorReq(c, req, nil)
+	c.Assert(rspe.Status, check.Equals, 404)
+	c.Assert(rspe.Kind, check.Equals, client.ErrorKindAssertionNotFound)
+	c.Assert(rspe.Value, check.Equals, "serial")
+	c.Assert(rspe.Message, check.Equals, "no serial assertion yet")
 }
 
 func (s *modelSuite) TestGetModelHasSerialAssertion(c *check.C) {
@@ -261,7 +257,7 @@ func (s *modelSuite) TestGetModelHasSerialAssertion(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// model assertion setup
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -272,7 +268,7 @@ func (s *modelSuite) TestGetModelHasSerialAssertion(c *check.C) {
 	defer st.Unlock()
 	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
 	assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
-	s.mockModel(c, st, theModel)
+	s.mockModel(st, theModel)
 
 	serial, err := s.Brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
 		"authority-id":        "my-brand",
@@ -329,7 +325,7 @@ func (s *modelSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
 	c.Assert(err, check.IsNil)
 
 	// model assertion setup
-	d := s.daemonWithOverlordMockAndStore(c)
+	d := s.daemonWithOverlordMockAndStore()
 	hookMgr, err := hookstate.Manager(d.Overlord().State(), d.Overlord().TaskRunner())
 	c.Assert(err, check.IsNil)
 	deviceMgr, err := devicestate.Manager(d.Overlord().State(), hookMgr, d.Overlord().TaskRunner(), nil)
@@ -340,7 +336,7 @@ func (s *modelSuite) TestGetModelJSONHasSerialAssertion(c *check.C) {
 	defer st.Unlock()
 	assertstatetest.AddMany(st, s.StoreSigning.StoreAccountKey(""))
 	assertstatetest.AddMany(st, s.Brands.AccountsAndKeys("my-brand")...)
-	s.mockModel(c, st, theModel)
+	s.mockModel(st, theModel)
 
 	serial, err := s.Brands.Signing("my-brand").Sign(asserts.SerialType, map[string]interface{}{
 		"authority-id":        "my-brand",

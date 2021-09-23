@@ -457,6 +457,8 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20(c *C) {
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(mockSeedGrubCfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0644)
 	c.Assert(err, IsNil)
+	genv := grubenv.NewEnv(filepath.Join(mockSeedGrubDir, "grubenv"))
+	c.Assert(genv.Save(), IsNil)
 
 	// setup recovery boot assets
 	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot"), 0755)
@@ -559,7 +561,7 @@ version: 5.0
 	readSystemEssentialCalls := 0
 	restore = boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 		readSystemEssentialCalls++
-		return model, []*seed.Snap{mockKernelSeedSnap(c, snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
+		return model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 
@@ -613,7 +615,7 @@ version: 5.0
 			c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 		}
 
-		c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
+		c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
 
 		return nil
 	})
@@ -639,8 +641,9 @@ version: 5.0
 
 	// ensure the bootvars got updated the right way
 	mockSeedGrubenv := filepath.Join(mockSeedGrubDir, "grubenv")
-	c.Check(mockSeedGrubenv, testutil.FilePresent)
+	c.Assert(mockSeedGrubenv, testutil.FilePresent)
 	c.Check(mockSeedGrubenv, testutil.FileContains, "snapd_recovery_mode=run")
+	c.Check(mockSeedGrubenv, testutil.FileContains, "snapd_good_recovery_systems=20191216")
 	mockBootGrubenv := filepath.Join(mockBootGrubDir, "grubenv")
 	c.Check(mockBootGrubenv, testutil.FilePresent)
 
@@ -669,6 +672,7 @@ base=core20_3.snap
 current_kernels=pc-kernel_5.snap
 model=my-brand/my-model-uc20
 grade=dangerous
+model_sign_key_id=Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 current_trusted_boot_assets={"grubx64.efi":["5ee042c15e104b825d6bc15c41cdb026589f1ec57ed966dd3f29f961d4d6924efc54b187743fa3a583b62722882d405d"]}
 current_trusted_recovery_boot_assets={"bootx64.efi":["39efae6545f16e39633fbfbef0d5e9fdd45a25d7df8764978ce4d81f255b038046a38d9855e42e5c7c4024e153fd2e37"],"grubx64.efi":["aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5"]}
 current_kernel_command_lines=["snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1"]
@@ -898,7 +902,7 @@ version: 5.0
 	readSystemEssentialCalls := 0
 	restore = boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 		readSystemEssentialCalls++
-		return model, []*seed.Snap{mockKernelSeedSnap(c, snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
+		return model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
 	})
 	defer restore()
 
@@ -939,7 +943,7 @@ version: 5.0
 			"snapd_recovery_mode=recover snapd_recovery_system=20191216 console=ttyS0 console=tty1 panic=-1",
 			"snapd_recovery_mode=run console=ttyS0 console=tty1 panic=-1",
 		})
-		c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
+		c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
 
 		return fmt.Errorf("seal error")
 	})
@@ -964,6 +968,8 @@ func (s *makeBootable20Suite) testMakeSystemRunnable20WithCustomKernelArgs(c *C,
 	c.Assert(err, IsNil)
 	err = ioutil.WriteFile(mockSeedGrubCfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0644)
 	c.Assert(err, IsNil)
+	genv := grubenv.NewEnv(filepath.Join(mockSeedGrubDir, "grubenv"))
+	c.Assert(genv.Save(), IsNil)
 
 	// setup recovery boot assets
 	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot"), 0755)
@@ -1059,7 +1065,7 @@ version: 5.0
 	readSystemEssentialCalls := 0
 	restore = boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
 		readSystemEssentialCalls++
-		return model, []*seed.Snap{mockKernelSeedSnap(c, snap.R(1)), mockGadgetSeedSnap(c, gadgetFiles)}, nil
+		return model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, gadgetFiles)}, nil
 	})
 	defer restore()
 
@@ -1086,7 +1092,7 @@ version: 5.0
 			c.Errorf("unexpected additional call to secboot.SealKeys (call # %d)", sealKeysCalls)
 		}
 
-		c.Assert(params.ModelParams[0].Model.DisplayName(), Equals, "My Model")
+		c.Assert(params.ModelParams[0].Model.Model(), Equals, "my-model-uc20")
 
 		return nil
 	})
@@ -1108,8 +1114,9 @@ version: 5.0
 
 	// ensure the bootvars got updated the right way
 	mockSeedGrubenv := filepath.Join(mockSeedGrubDir, "grubenv")
-	c.Check(mockSeedGrubenv, testutil.FilePresent)
+	c.Assert(mockSeedGrubenv, testutil.FilePresent)
 	c.Check(mockSeedGrubenv, testutil.FileContains, "snapd_recovery_mode=run")
+	c.Check(mockSeedGrubenv, testutil.FileContains, "snapd_good_recovery_systems=20191216")
 	mockBootGrubenv := filepath.Join(mockBootGrubDir, "grubenv")
 	c.Check(mockBootGrubenv, testutil.FilePresent)
 	systemGenv := grubenv.NewEnv(mockBootGrubenv)
@@ -1133,6 +1140,7 @@ base=core20_3.snap
 current_kernels=pc-kernel_5.snap
 model=my-brand/my-model-uc20
 grade=dangerous
+model_sign_key_id=Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 current_trusted_boot_assets={"grubx64.efi":["5ee042c15e104b825d6bc15c41cdb026589f1ec57ed966dd3f29f961d4d6924efc54b187743fa3a583b62722882d405d"]}
 current_trusted_recovery_boot_assets={"bootx64.efi":["39efae6545f16e39633fbfbef0d5e9fdd45a25d7df8764978ce4d81f255b038046a38d9855e42e5c7c4024e153fd2e37"],"grubx64.efi":["aa3c1a83e74bf6dd40dd64e5c5bd1971d75cdf55515b23b9eb379f66bf43d4661d22c4b8cf7d7a982d2013ab65c1c4c5"]}
 current_kernel_command_lines=["%v"]
@@ -1162,6 +1170,102 @@ func (s *makeBootable20Suite) TestMakeSystemRunnable20WithCustomKernelFullArgs(c
 func (s *makeBootable20Suite) TestMakeSystemRunnable20WithCustomKernelInvalidArgs(c *C) {
 	errMsg := `cannot compose the candidate command line: cannot use kernel command line from gadget: invalid kernel command line in cmdline.extra: disallowed kernel argument "snapd=unhappy"`
 	s.testMakeSystemRunnable20WithCustomKernelArgs(c, "cmdline.extra", "foo bar snapd=unhappy", errMsg, "", "")
+}
+
+func (s *makeBootable20Suite) TestMakeSystemRunnable20UnhappyMarkRecoveryCapable(c *C) {
+	bootloader.Force(nil)
+
+	model := boottest.MakeMockUC20Model()
+	seedSnapsDirs := filepath.Join(s.rootdir, "/snaps")
+	err := os.MkdirAll(seedSnapsDirs, 0755)
+	c.Assert(err, IsNil)
+
+	// grub on ubuntu-seed
+	mockSeedGrubDir := filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI", "ubuntu")
+	mockSeedGrubCfg := filepath.Join(mockSeedGrubDir, "grub.cfg")
+	err = os.MkdirAll(filepath.Dir(mockSeedGrubCfg), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(mockSeedGrubCfg, []byte("# Snapd-Boot-Config-Edition: 1\n"), 0644)
+	c.Assert(err, IsNil)
+	// there is no grubenv in ubuntu-seed so loading from it will fail
+
+	// setup recovery boot assets
+	err = os.MkdirAll(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot"), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/bootx64.efi"),
+		[]byte("recovery shim content"), 0644)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(filepath.Join(boot.InitramfsUbuntuSeedDir, "EFI/boot/grubx64.efi"),
+		[]byte("recovery grub content"), 0644)
+	c.Assert(err, IsNil)
+
+	// grub on ubuntu-boot
+	mockBootGrubDir := filepath.Join(boot.InitramfsUbuntuBootDir, "EFI", "ubuntu")
+	mockBootGrubCfg := filepath.Join(mockBootGrubDir, "grub.cfg")
+	err = os.MkdirAll(filepath.Dir(mockBootGrubCfg), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(mockBootGrubCfg, nil, 0644)
+	c.Assert(err, IsNil)
+
+	unpackedGadgetDir := c.MkDir()
+	grubRecoveryCfg := []byte("#grub-recovery cfg")
+	grubRecoveryCfgAsset := []byte("#grub-recovery cfg from assets")
+	grubCfg := []byte("#grub cfg")
+	grubCfgAsset := []byte("# Snapd-Boot-Config-Edition: 1\n#grub cfg from assets")
+	snaptest.PopulateDir(unpackedGadgetDir, [][]string{
+		{"grub-recovery.conf", string(grubRecoveryCfg)},
+		{"grub.conf", string(grubCfg)},
+		{"bootx64.efi", "shim content"},
+		{"grubx64.efi", "grub content"},
+		{"meta/snap.yaml", gadgetSnapYaml},
+	})
+	restore := assets.MockInternal("grub-recovery.cfg", grubRecoveryCfgAsset)
+	defer restore()
+	restore = assets.MockInternal("grub.cfg", grubCfgAsset)
+	defer restore()
+
+	// make the snaps symlinks so that we can ensure that makebootable follows
+	// the symlinks and copies the files and not the symlinks
+	baseFn, baseInfo := makeSnap(c, "core20", `name: core20
+type: base
+version: 5.0
+`, snap.R(3))
+	baseInSeed := filepath.Join(seedSnapsDirs, baseInfo.Filename())
+	err = os.Symlink(baseFn, baseInSeed)
+	c.Assert(err, IsNil)
+	kernelFn, kernelInfo := makeSnapWithFiles(c, "pc-kernel", `name: pc-kernel
+type: kernel
+version: 5.0
+`, snap.R(5),
+		[][]string{
+			{"kernel.efi", "I'm a kernel.efi"},
+		},
+	)
+	kernelInSeed := filepath.Join(seedSnapsDirs, kernelInfo.Filename())
+	err = os.Symlink(kernelFn, kernelInSeed)
+	c.Assert(err, IsNil)
+
+	bootWith := &boot.BootableSet{
+		RecoverySystemDir: "20191216",
+		BasePath:          baseInSeed,
+		Base:              baseInfo,
+		KernelPath:        kernelInSeed,
+		Kernel:            kernelInfo,
+		Recovery:          false,
+		UnpackedGadgetDir: unpackedGadgetDir,
+	}
+
+	// set a mock recovery kernel
+	readSystemEssentialCalls := 0
+	restore = boot.MockSeedReadSystemEssential(func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error) {
+		readSystemEssentialCalls++
+		return model, []*seed.Snap{mockKernelSeedSnap(snap.R(1)), mockGadgetSeedSnap(c, nil)}, nil
+	})
+	defer restore()
+
+	err = boot.MakeRunnableSystem(model, bootWith, nil)
+	c.Assert(err, ErrorMatches, `cannot record "20191216" as a recovery capable system: open .*/run/mnt/ubuntu-seed/EFI/ubuntu/grubenv: no such file or directory`)
+
 }
 
 func (s *makeBootable20UbootSuite) TestUbootMakeBootableImage20TraditionalUbootenvFails(c *C) {
@@ -1386,6 +1490,7 @@ base=core20_3.snap
 current_kernels=arm-kernel_5.snap
 model=my-brand/my-model-uc20
 grade=dangerous
+model_sign_key_id=Jv8_JiHiIzJVcO9M55pPdqSDWUvuhfDIBJUS-3VW7F_idjix7Ffn5qMxB21ZQuij
 `)
 }
 

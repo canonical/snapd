@@ -56,8 +56,8 @@ execute: |
     test ! -e "$SNAP_MOUNT_DIR/bin/test_snapd_wellknown2"
     snap aliases > aliases.out
     # test-snapd-auto-aliases_foo instance aliases are no more
-    not MATCH "test-snapd-auto-aliases_foo.wellknown1 +test_snapd_wellknown1"       < aliases.out
-    not MATCH "test-snapd-auto-aliases_foo.wellknown2 +test_snapd_wellknown2"       < aliases.out
+    NOMATCH "test-snapd-auto-aliases_foo.wellknown1 +test_snapd_wellknown1"       < aliases.out
+    NOMATCH "test-snapd-auto-aliases_foo.wellknown2 +test_snapd_wellknown2"       < aliases.out
     # test-snapd-auto-aliases aliases are still disabled
     MATCH "test-snapd-auto-aliases.wellknown1 +test_snapd_wellknown1 +disabled" < aliases.out
     MATCH "test-snapd-auto-aliases.wellknown2 +test_snapd_wellknown2 +disabled" < aliases.out

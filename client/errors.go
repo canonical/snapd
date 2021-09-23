@@ -104,6 +104,13 @@ const (
 	// `snap-name`, `change-kind` of the ongoing change.
 	ErrorKindSnapChangeConflict ErrorKind = "snap-change-conflict"
 
+	// ErrorKindQuotaChangeConflict: the requested operation would
+	// conflict with a currently ongoing change affecting the quota
+	// group. This is a temporary error. The error `value` is an
+	// object with optional fields `quota-name`, `change-kind` of the
+	// ongoing change.
+	ErrorKindQuotaChangeConflict ErrorKind = "quota-change-conflict"
+
 	// ErrorKindNotSnap: the given snap or directory does not
 	// look like a snap.
 	ErrorKindNotSnap ErrorKind = "snap-not-a-snap"

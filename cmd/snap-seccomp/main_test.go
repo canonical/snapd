@@ -30,9 +30,8 @@ import (
 	"strings"
 	"testing"
 
-	. "gopkg.in/check.v1"
-
 	"github.com/mvo5/libseccomp-golang"
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/arch"
 	main "github.com/snapcore/snapd/cmd/snap-seccomp"

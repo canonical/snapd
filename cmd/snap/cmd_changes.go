@@ -24,10 +24,10 @@ import (
 	"regexp"
 	"sort"
 
+	"github.com/jessevdk/go-flags"
+
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
-
-	"github.com/jessevdk/go-flags"
 )
 
 var shortChangesHelp = i18n.G("List system changes")

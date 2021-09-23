@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/sysconfig"
 )
 
 func init() {
@@ -158,8 +159,9 @@ var (
 // managers' startup, it is exposed as a hook to devicestate for invocation.
 // preloadGadget if set will be invoked if the system is not yet seeded
 // or configured, it should either return ErrNoState, or return
-// the gadget.Info for the to-be-preseed gadget.
-func EarlyConfig(st *state.State, preloadGadget func() (*gadget.Info, error)) error {
+// the gadget.Info for the to-be-seeded gadget and details about
+// the model/device as sysconfig.Device.
+func EarlyConfig(st *state.State, preloadGadget func() (sysconfig.Device, *gadget.Info, error)) error {
 	// already configured
 	configed, err := systemAlreadyConfigured(st)
 	if err != nil {
@@ -173,7 +175,7 @@ func EarlyConfig(st *state.State, preloadGadget func() (*gadget.Info, error)) er
 		return nil
 	}
 	if preloadGadget != nil {
-		gi, err := preloadGadget()
+		dev, gi, err := preloadGadget()
 		if err != nil {
 			if err == state.ErrNoState {
 				// nothing to do
@@ -182,7 +184,7 @@ func EarlyConfig(st *state.State, preloadGadget func() (*gadget.Info, error)) er
 			return err
 		}
 		values := gadget.SystemDefaults(gi.Defaults)
-		if err := configcoreEarly(tr, values); err != nil {
+		if err := configcoreEarly(dev, tr, values); err != nil {
 			return err
 		}
 		tr.Commit()

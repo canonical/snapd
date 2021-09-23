@@ -32,7 +32,7 @@ execute: |
     echo "Network namespace deleted from global is removed from snap"
     ip netns delete canary
     test ! -e /run/netns/canary
-    snapd-hacker-toolbelt.busybox sh -c '/bin/ip netns list' | not MATCH canary
+    snapd-hacker-toolbelt.busybox sh -c '/bin/ip netns list' | NOMATCH canary
 
     echo "Network namespace created from global exists in snap"
     ip netns add canary

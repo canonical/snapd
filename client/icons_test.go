@@ -25,7 +25,6 @@ import (
 	"net/http"
 
 	"golang.org/x/xerrors"
-
 	. "gopkg.in/check.v1"
 )
 

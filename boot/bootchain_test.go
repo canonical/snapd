@@ -27,8 +27,8 @@ import (
 
 	. "gopkg.in/check.v1"
 
+	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/boot"
-	"github.com/snapcore/snapd/boot/boottest"
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/secboot"
@@ -152,8 +152,6 @@ func (s *bootchainSuite) TestBootChainMarshalFull(c *C) {
 		KernelCmdlines: []string{`foo=bar baz=0x123`, `a=1`},
 	}
 
-	uc20model := boottest.MakeMockUC20Model()
-	bc.SetModelAssertion(uc20model)
 	kernelBootFile := bootloader.NewBootFile("pc-kernel", "/foo", bootloader.RoleRecovery)
 	bc.SetKernelBootFile(kernelBootFile)
 
@@ -174,7 +172,6 @@ func (s *bootchainSuite) TestBootChainMarshalFull(c *C) {
 		KernelCmdlines: []string{`a=1`, `foo=bar baz=0x123`},
 	}
 	// those can't be set directly, but are copied as well
-	expectedPredictableBc.SetModelAssertion(uc20model)
 	expectedPredictableBc.SetKernelBootFile(kernelBootFile)
 
 	predictableBc := boot.ToPredictableBootChain(bc)
@@ -197,7 +194,6 @@ func (s *bootchainSuite) TestBootChainMarshalFull(c *C) {
 		KernelRevision: "1234",
 		KernelCmdlines: []string{`foo=bar baz=0x123`, `a=1`},
 	}
-	expectedOriginal.SetModelAssertion(uc20model)
 	expectedOriginal.SetKernelBootFile(kernelBootFile)
 	// original structure has not been modified
 	c.Check(bc, DeepEquals, expectedOriginal)
@@ -1232,4 +1228,22 @@ func (s *sealSuite) TestReadWriteBootChains(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(loaded, IsNil)
 	c.Check(cnt, Equals, 0)
+}
+
+func (s *bootchainSuite) TestModelForSealing(c *C) {
+	bc := boot.BootChain{
+		BrandID:        "my-brand",
+		Model:          "my-model",
+		Grade:          "signed",
+		ModelSignKeyID: "my-key-id",
+	}
+
+	modelForSealing := bc.SecbootModelForSealing()
+	c.Check(modelForSealing.Model(), Equals, "my-model")
+	c.Check(modelForSealing.BrandID(), Equals, "my-brand")
+	c.Check(modelForSealing.Grade(), Equals, asserts.ModelGrade("signed"))
+	c.Check(modelForSealing.SignKeyID(), Equals, "my-key-id")
+	c.Check(modelForSealing.Series(), Equals, "16")
+	c.Check(boot.ModelUniqueID(modelForSealing), Equals, "my-brand/my-model,signed,my-key-id")
+
 }

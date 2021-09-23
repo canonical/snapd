@@ -46,8 +46,8 @@ execute: |
         case "$user:$SPREAD_SYSTEM" in
             test-zsh:ubuntu-*|test-zsh:debian-*)
                 # Due to https://bugs.launchpad.net/ubuntu/+source/zsh/+bug/1640514
-                not MATCH 'XDG_DATA_DIRS=.*[:]?/var/lib/snapd/desktop[:]?.*' < "${user}-profile-env"
-                not MATCH "PATH=.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-profile-env"
+                NOMATCH 'XDG_DATA_DIRS=.*[:]?/var/lib/snapd/desktop[:]?.*' < "${user}-profile-env"
+                NOMATCH "PATH=.*[:]?${SNAP_MOUNT_DIR}/bin[:]?.*" < "${user}-profile-env"
                 ;;
             *)
                 MATCH 'XDG_DATA_DIRS=.*[:]?/var/lib/snapd/desktop[:]?.*' < "${user}-profile-env"

@@ -22,9 +22,9 @@ package snap
 import (
 	"encoding/json"
 	"fmt"
-	"gopkg.in/yaml.v2"
 
 	. "gopkg.in/check.v1"
+	"gopkg.in/yaml.v2"
 )
 
 type typeSuite struct{}

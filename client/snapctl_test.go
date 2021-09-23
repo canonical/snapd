@@ -24,9 +24,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 
-	"github.com/snapcore/snapd/client"
-
 	"gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/client"
 )
 
 func (cs *clientSuite) TestClientRunSnapctlCallsEndpoint(c *check.C) {

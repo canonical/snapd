@@ -28,6 +28,11 @@ execute: |
             # which are not part of the cloud kernel package
             systemctl reset-failed systemd-modules-load.service
             ;;
+        ubuntu-21.10-64)
+            # Some mount units failing which are installed in the prebuilt image 
+            systemctl reset-failed snap-google-cloud-sdk-*.mount
+            systemctl reset-failed snap-lxd-*.mount
+            ;;
     esac
 
     if systemctl status | grep "State: [d]egraded"; then

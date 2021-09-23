@@ -33,6 +33,8 @@ import (
 	"github.com/snapcore/snapd/gadget/quantity"
 	"github.com/snapcore/snapd/overlord/configstate/config"
 	"github.com/snapcore/snapd/overlord/servicestate"
+	"github.com/snapcore/snapd/overlord/servicestate/servicestatetest"
+	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/quota"
@@ -312,7 +314,7 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 	grp.Snaps = []string{"foosnap"}
 
 	// add it into the state
-	newGrps, err := servicestate.PatchQuotas(st, grp)
+	newGrps, err := servicestatetest.PatchQuotas(st, grp)
 	c.Assert(err, IsNil)
 	c.Assert(newGrps, DeepEquals, map[string]*quota.Group{
 		"foogroup": grp,
@@ -331,7 +333,7 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 
 	// modify state to use an instance name instead now
 	grp.Snaps = []string{"foosnap_instance"}
-	newGrps, err = servicestate.PatchQuotas(st, grp)
+	newGrps, err = servicestatetest.PatchQuotas(st, grp)
 	c.Assert(err, IsNil)
 	c.Assert(newGrps, DeepEquals, map[string]*quota.Group{
 		"foogroup": grp,
@@ -371,4 +373,76 @@ func (s *snapServiceOptionsSuite) TestSnapServiceOptionsQuotaGroups(c *C) {
 		VitalityRank: 2,
 		QuotaGroup:   grp,
 	})
+}
+
+func (s *snapServiceOptionsSuite) TestServiceControlTaskSummaries(c *C) {
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	si := snap.SideInfo{RealName: "foo", Revision: snap.R(1)}
+	snp := &snap.Info{SideInfo: si}
+	snapstate.Set(st, "foo", &snapstate.SnapState{
+		Active:   true,
+		Sequence: []*snap.SideInfo{&si},
+		Current:  snap.R(1),
+		SnapType: "app",
+	})
+	appInfos := []*snap.AppInfo{
+		{
+			Snap:        snp,
+			Name:        "svc1",
+			Daemon:      "simple",
+			DaemonScope: snap.UserDaemon,
+		},
+		{
+			Snap:        snp,
+			Name:        "svc2",
+			Daemon:      "simple",
+			DaemonScope: snap.UserDaemon,
+		},
+	}
+
+	for _, tc := range []struct {
+		instruction     *servicestate.Instruction
+		expectedSummary string
+	}{
+		{
+			&servicestate.Instruction{Action: "start"},
+			`Run service command "start" for services ["svc1" "svc2"] of snap "foo"`,
+		},
+		{
+			&servicestate.Instruction{Action: "restart"},
+			`Run service command "restart" for running services of snap "foo"`,
+		},
+		{
+			&servicestate.Instruction{
+				Action: "restart",
+				Names:  []string{"foo.svc2"},
+			},
+			`Run service command "restart" for services ["svc2"] of snap "foo"`,
+		},
+		{
+			&servicestate.Instruction{
+				Action:         "restart",
+				RestartOptions: client.RestartOptions{Reload: true},
+				Names:          []string{"foo.svc2", "foo.svc1"},
+			},
+			`Run service command "reload-or-restart" for services ["svc1" "svc2"] of snap "foo"`,
+		},
+		{
+			&servicestate.Instruction{
+				Action: "stop",
+				Names:  []string{"foo.svc1"},
+			},
+			`Run service command "stop" for services ["svc1"] of snap "foo"`,
+		},
+	} {
+		taskSet, err := servicestate.ServiceControlTs(st, appInfos, tc.instruction)
+		c.Check(err, IsNil)
+		tasks := taskSet.Tasks()
+		c.Assert(tasks, HasLen, 1)
+		task := tasks[0]
+		c.Check(task.Summary(), Equals, tc.expectedSummary)
+	}
 }

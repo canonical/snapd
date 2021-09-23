@@ -38,6 +38,10 @@ import (
 	"github.com/snapcore/snapd/timings"
 )
 
+func polkitPolicyName(snapName, nameSuffix string) string {
+	return snap.ScopedSecurityTag(snapName, "interface", nameSuffix) + ".policy"
+}
+
 // Backend is responsible for maintaining DBus policy files.
 type Backend struct{}
 
@@ -63,7 +67,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 	}
 
 	// Get the files that this snap should have
-	glob := interfaces.InterfacePolkitPolicyName(snapName, "*")
+	glob := polkitPolicyName(snapName, "*")
 	content := deriveContent(spec.(*Specification), snapInfo)
 	dir := dirs.SnapPolkitPolicyDir
 	if err := os.MkdirAll(dir, 0755); err != nil {
@@ -80,7 +84,7 @@ func (b *Backend) Setup(snapInfo *snap.Info, opts interfaces.ConfinementOptions,
 //
 // This method should be called after removing a snap.
 func (b *Backend) Remove(snapName string) error {
-	glob := interfaces.InterfacePolkitPolicyName(snapName, "*")
+	glob := polkitPolicyName(snapName, "*")
 	_, _, err := osutil.EnsureDirState(dirs.SnapPolkitPolicyDir, glob, nil)
 	if err != nil {
 		return fmt.Errorf("cannot synchronize polkit files for snap %q: %s", snapName, err)
@@ -96,8 +100,8 @@ func deriveContent(spec *Specification, snapInfo *snap.Info) map[string]osutil.F
 		return nil
 	}
 	content := make(map[string]osutil.FileState, len(policies)+1)
-	for name, policyContent := range policies {
-		filename := interfaces.InterfacePolkitPolicyName(snapInfo.InstanceName(), name)
+	for nameSuffix, policyContent := range policies {
+		filename := polkitPolicyName(snapInfo.InstanceName(), nameSuffix)
 		content[filename] = &osutil.MemoryFileState{
 			Content: policyContent,
 			Mode:    0644,

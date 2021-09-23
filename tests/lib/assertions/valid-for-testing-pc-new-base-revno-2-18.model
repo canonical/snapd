@@ -1,0 +1,25 @@
+type: model
+authority-id: FpA2tgNE8bUrUKSOhE6SOpsMdlcEJkDL
+revision: 2
+series: 16
+brand-id: FpA2tgNE8bUrUKSOhE6SOpsMdlcEJkDL
+model: my-model
+architecture: amd64
+base: test-snapd-core18
+gadget: pc=18
+kernel: pc-kernel=18
+serial-authority:
+  - generic
+timestamp: 2021-06-01T12:18:12+00:00
+sign-key-sha3-384: u2EnPKDpHm8Or1VWwjs3duNosoBpFS4Da-c6vRQHPKwdllDOlQ02_JFGrxZDe03C
+
+AcLBcwQAAQoAHRYhBKg05U8V+aOkBzV5W4jJZcdh7V/PBQJgtkjWAAoJEIjJZcdh7V/PRlgP/Aii
+G+jeOPOad3Ifvy9JdwkIkqXrpxkN1HQv6kE2kTQawHzP51Nv3ebo7/IHmzpjperf/FTDlVGgmIyU
+B/DenkSHJ00q6/RRcBFVj1NBxWLDtM9VFUoX53DhZROpYU5JN7/7JqLwGHnxzbp4tCQEmuNeC0oP
+ny+6do5VDeAiFNiLycJCGAIqrvBYGgxhc6prqXU3pBqd12cwGMUSLO6LbdMNcbzf80ujNCT9CTWZ
+J8NOZC08hDBPxUH3ZEsjWXs+SJ292jgCkQIJKj3Epyf8fIPsS69G8lZvhsYL0boJHBtHdUtKtGMV
+sGYMdPSTWaXNT8xsCAsL+pkdEwjc6TC5XmarE5k03XuZ+x8JbESM8ehLqXdVgKriEMIqmasEu9Bw
+Nvb4OX8BYP7AqYy2o807yGwX7JLOz6m+16WM8P+I9/C/Rmjkn1GGtL710/8KGOX2mAtBUnw/dMCN
+2obYHOaGRsJJMPwLaYa2p9GAWEyjVz5SutSNRurA+wa+X39tDed0znGCe0UeN+4IMRxsF+IVC0CF
+ddwcmU8R3TU2eSGtPAGmvYOmRgTbu57gZxrD/rwmUKhTppuvKuagO13Us2MYtzqPHK9HBXUVNabY
+oJx0eUSGegF39Nya++C7tesxp8rEkS4Fsd3yol7qURIWbXnXkxP7olMw85BLiwpgi/uyBoW0

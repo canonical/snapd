@@ -89,7 +89,6 @@ subcommands dealing with system state:
   [done] fix -h help
 
 [done] apt-tool -> tests/lib/tools/apt-state
-  use any-python?
   [done] fix no args
   [done] fix to have -h
 

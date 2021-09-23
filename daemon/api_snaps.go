@@ -88,7 +88,7 @@ func getSnapInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	result := webify(mapLocal(about, sd), url.String())
 
-	return SyncResponse(result, nil)
+	return SyncResponse(result)
 }
 
 func webify(result *client.Snap, resource string) *client.Snap {
@@ -150,7 +150,7 @@ func postSnap(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	ensureStateSoon(state)
 
-	return AsyncResponse(nil, &Meta{Change: chg.ID()})
+	return AsyncResponse(nil, chg.ID())
 }
 
 type snapRevisionOptions struct {
@@ -224,6 +224,9 @@ func (inst *snapInstruction) installFlags() (snapstate.Flags, error) {
 	}
 	if inst.IgnoreRunning {
 		flags.IgnoreRunning = true
+	}
+	if inst.IgnoreValidation {
+		flags.IgnoreValidation = true
 	}
 
 	return flags, nil
@@ -333,7 +336,7 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	}
 
 	// we need refreshed snap-declarations to enforce refresh-control as best as we can
-	if err = assertstateRefreshSnapDeclarations(st, inst.userID); err != nil {
+	if err = assertstateRefreshSnapAssertions(st, inst.userID); err != nil {
 		return "", nil, err
 	}
 
@@ -451,7 +454,7 @@ func (inst *snapInstruction) dispatch() snapActionFunc {
 	return snapInstructionDispTable[inst.Action]
 }
 
-func (inst *snapInstruction) errToResponse(err error) Response {
+func (inst *snapInstruction) errToResponse(err error) *apiError {
 	if len(inst.Snaps) == 0 {
 		return errToResponse(err, nil, BadRequest, "cannot %s: %v", inst.Action)
 	}
@@ -530,7 +533,7 @@ func snapOpMany(c *Command, r *http.Request, user *auth.UserState) Response {
 
 	chg.Set("api-data", map[string]interface{}{"snap-names": res.Affected})
 
-	return AsyncResponse(res.Result, &Meta{Change: chg.ID()})
+	return AsyncResponse(res.Result, chg.ID())
 }
 
 type snapManyActionFunc func(*snapInstruction, *state.State) (*snapInstructionResult, error)
@@ -581,8 +584,11 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionRe
 }
 
 func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
-	// we need refreshed snap-declarations to enforce refresh-control as best as we can, this also ensures that snap-declarations and their prerequisite assertions are updated regularly
-	if err := assertstateRefreshSnapDeclarations(st, inst.userID); err != nil {
+	// we need refreshed snap-declarations to enforce refresh-control as best as
+	// we can, this also ensures that snap-declarations and their prerequisite
+	// assertions are updated regularly, as well as updates validation sets
+	// assertions.
+	if err := assertstateRefreshSnapAssertions(st, inst.userID); err != nil {
 		return nil, err
 	}
 
@@ -700,7 +706,10 @@ func getSnapsInfo(c *Command, r *http.Request, user *auth.UserState) Response {
 		results[i] = &raw
 	}
 
-	return SyncResponse(results, &Meta{Sources: []string{"local"}})
+	return &findResponse{
+		Results: results,
+		Sources: []string{"local"},
+	}
 }
 
 func shouldSearchStore(r *http.Request) bool {

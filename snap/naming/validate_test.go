@@ -25,7 +25,6 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/snap/naming"
-
 	"github.com/snapcore/snapd/testutil"
 )
 

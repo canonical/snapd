@@ -80,15 +80,11 @@ func validationSetNotFound(accountID, name string, sequence int) Response {
 	if sequence != 0 {
 		v["sequence"] = sequence
 	}
-	res := &errorResult{
+	return &apiError{
+		Status:  404,
 		Message: "validation set not found",
 		Kind:    client.ErrorKindValidationSetNotFound,
 		Value:   v,
-	}
-	return &resp{
-		Type:   ResponseTypeError,
-		Result: res,
-		Status: 404,
 	}
 }
 
@@ -108,7 +104,7 @@ func listValidationSets(c *Command, r *http.Request, _ *auth.UserState) Response
 	}
 	sort.Strings(names)
 
-	snaps, err := installedSnaps(st)
+	snaps, err := snapstate.InstalledSnaps(st)
 	if err != nil {
 		return InternalError(err.Error())
 	}
@@ -139,30 +135,11 @@ func listValidationSets(c *Command, r *http.Request, _ *auth.UserState) Response
 		}
 	}
 
-	return SyncResponse(results, nil)
+	return SyncResponse(results)
 }
 
 var checkInstalledSnaps = func(vsets *snapasserts.ValidationSets, snaps []*snapasserts.InstalledSnap) error {
 	return vsets.CheckInstalledSnaps(snaps)
-}
-
-func installedSnaps(st *state.State) ([]*snapasserts.InstalledSnap, error) {
-	var snaps []*snapasserts.InstalledSnap
-	all, err := snapstate.All(st)
-	if err != nil {
-		return nil, err
-	}
-	for _, snapState := range all {
-		cur, err := snapState.CurrentInfo()
-		if err != nil {
-			return nil, err
-		}
-		snaps = append(snaps,
-			snapasserts.NewInstalledSnap(snapState.InstanceName(),
-				snapState.CurrentSideInfo().SnapID,
-				cur.Revision))
-	}
-	return snaps, nil
 }
 
 func getValidationSet(c *Command, r *http.Request, user *auth.UserState) Response {
@@ -223,7 +200,7 @@ func getValidationSet(c *Command, r *http.Request, user *auth.UserState) Respons
 	if err != nil {
 		return InternalError(err.Error())
 	}
-	snaps, err := installedSnaps(st)
+	snaps, err := snapstate.InstalledSnaps(st)
 	if err != nil {
 		return InternalError(err.Error())
 	}
@@ -237,7 +214,7 @@ func getValidationSet(c *Command, r *http.Request, user *auth.UserState) Respons
 		Sequence:  tr.Current,
 		Valid:     validErr == nil,
 	}
-	return SyncResponse(res, nil)
+	return SyncResponse(res)
 }
 
 type validationSetApplyRequest struct {
@@ -319,7 +296,7 @@ func updateValidationSet(st *state.State, accountID, name string, reqMode string
 	tr.LocalOnly = local
 
 	assertstate.UpdateValidationSet(st, &tr)
-	return SyncResponse(nil, nil)
+	return SyncResponse(nil)
 }
 
 // forgetValidationSet forgets the validation set.
@@ -335,7 +312,7 @@ func forgetValidationSet(st *state.State, accountID, name string, sequence int) 
 		return InternalError("accessing validation sets failed: %v", err)
 	}
 	assertstate.DeleteValidationSet(st, accountID, name)
-	return SyncResponse(nil, nil)
+	return SyncResponse(nil)
 }
 
 func validationSetForAssert(st *state.State, accountID, name string, sequence int) (*snapasserts.ValidationSets, error) {
@@ -384,7 +361,7 @@ func validateAgainstStore(st *state.State, accountID, name string, sequence int,
 	if err := sets.Add(vset); err != nil {
 		return InternalError(err.Error())
 	}
-	snaps, err := installedSnaps(st)
+	snaps, err := snapstate.InstalledSnaps(st)
 	if err != nil {
 		return InternalError(err.Error())
 	}
@@ -398,7 +375,7 @@ func validateAgainstStore(st *state.State, accountID, name string, sequence int,
 		// for the client?
 		Valid: validErr == nil,
 	}
-	return SyncResponse(res, nil)
+	return SyncResponse(res)
 }
 
 func getSingleSeqFormingAssertion(st *state.State, accountID, name string, sequence int, user *auth.UserState) (asserts.Assertion, error) {

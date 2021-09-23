@@ -20,11 +20,9 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/jessevdk/go-flags"
-	"golang.org/x/crypto/ssh/terminal"
 
 	"github.com/snapcore/snapd/asserts"
 	"github.com/snapcore/snapd/i18n"
@@ -68,25 +66,9 @@ func (x *cmdCreateKey) Execute(args []string) error {
 		return fmt.Errorf(i18n.G("key name %q is not valid; only ASCII letters, digits, and hyphens are allowed"), keyName)
 	}
 
-	fmt.Fprint(Stdout, i18n.G("Passphrase: "))
-	passphrase, err := terminal.ReadPassword(0)
-	fmt.Fprint(Stdout, "\n")
+	keypairMgr, err := getKeypairManager()
 	if err != nil {
 		return err
 	}
-	fmt.Fprint(Stdout, i18n.G("Confirm passphrase: "))
-	confirmPassphrase, err := terminal.ReadPassword(0)
-	fmt.Fprint(Stdout, "\n")
-	if err != nil {
-		return err
-	}
-	if string(passphrase) != string(confirmPassphrase) {
-		return errors.New("passphrases do not match")
-	}
-	if err != nil {
-		return err
-	}
-
-	manager := asserts.NewGPGKeypairManager()
-	return manager.Generate(string(passphrase), keyName)
+	return generateKey(keypairMgr, keyName)
 }

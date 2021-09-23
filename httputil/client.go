@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/osutil"
 )
 
 // CertData contains the raw data of a certificate and the origin of
@@ -182,5 +183,14 @@ func NewHTTPClient(opts *ClientOptions) *http.Client {
 		},
 		Timeout:       opts.Timeout,
 		CheckRedirect: checkRedirect,
+	}
+}
+
+func MockResponseHeaderTimeout(d time.Duration) (restore func()) {
+	osutil.MustBeTestBinary("cannot mock ResponseHeaderTimeout outside of tests")
+	old := responseHeaderTimeout
+	responseHeaderTimeout = d
+	return func() {
+		responseHeaderTimeout = old
 	}
 }

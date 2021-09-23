@@ -23,7 +23,9 @@ prepare: |
     echo "Compile and prepare the support program"
     # Because we use the snap data directory we don't need to clean it up
     # manually as all snaps and their data are reset after each test.
-    gcc -Wall -Wextra -Werror ./uids-and-gids.c -o "$P/uids-and-gids"
+    # Build the test binary statically, as it will be running inside a base with
+    # potentially older glibc.
+    gcc -Wall -Wextra -Werror ./uids-and-gids.c -o "$P/uids-and-gids" -static
     cp "$P/uids-and-gids" "$P/uids-and-gids-setuid"
     chown root "$P/uids-and-gids-setuid"
     chmod 4755 "$P/uids-and-gids-setuid"

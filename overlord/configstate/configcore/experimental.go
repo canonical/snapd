@@ -27,6 +27,7 @@ import (
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/configstate/config"
+	"github.com/snapcore/snapd/sysconfig"
 )
 
 func init() {
@@ -56,7 +57,7 @@ func validateExperimentalSettings(tr config.ConfGetter) error {
 	return nil
 }
 
-func doExportExperimentalFlags(tr config.ConfGetter, opts *fsOnlyContext) error {
+func doExportExperimentalFlags(_ sysconfig.Device, tr config.ConfGetter, opts *fsOnlyContext) error {
 	var dir string
 	if opts != nil {
 		dir = dirs.FeaturesDirUnder(opts.RootDir)
@@ -85,5 +86,5 @@ func doExportExperimentalFlags(tr config.ConfGetter, opts *fsOnlyContext) error 
 }
 
 func ExportExperimentalFlags(tr config.ConfGetter) error {
-	return doExportExperimentalFlags(tr, nil)
+	return doExportExperimentalFlags(nil, tr, nil)
 }

@@ -74,7 +74,7 @@ func ClientSnapFromSnapInfo(snapInfo *snap.Info, decorator StatusDecorator) (*cl
 		Confinement: string(confinement),
 		Apps:        apps,
 		Broken:      snapInfo.Broken,
-		Contact:     snapInfo.Contact,
+		Contact:     snapInfo.Contact(),
 		Title:       snapInfo.Title(),
 		License:     snapInfo.License,
 		Media:       snapInfo.Media,

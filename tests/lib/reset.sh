@@ -12,6 +12,10 @@ reset_classic() {
     systemctl daemon-reload
     systemd_stop_units snapd.service snapd.socket
 
+    # none of the purge steps stop the user services, we need to do it
+    # explicitly, at least for the root user
+    systemctl --user stop snapd.session-agent.socket || true
+
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
     case "$SPREAD_SYSTEM" in
         ubuntu-*|debian-*)
@@ -33,6 +37,11 @@ reset_classic() {
             exit 1
             ;;
     esac
+
+    # purge may have removed udev rules, retrigger device events
+    udevadm trigger
+    udevadm settle
+
     # purge has removed units, reload the state now
     systemctl daemon-reload
 
@@ -65,7 +74,11 @@ reset_classic() {
         systemctl start snap.mount.service
     fi
 
-    rm -rf /root/.snap/gnupg
+    # Clean root home
+    rm -rf /root/snap /root/.snap/gnupg /root/.{bash_history,local,cache,config}
+    # Clean test home
+    rm -rf /home/test/snap /home/test/.{bash_history,local,cache,config}
+    # Clean /tmp
     rm -f /tmp/core* /tmp/ubuntu-core*
 
     if [ "$1" = "--reuse-core" ]; then
@@ -81,7 +94,13 @@ reset_classic() {
 
         # force all profiles to be re-generated
         rm -f /var/lib/snapd/system-key
+
+        # force snapd-session-agent.socket fto be re-generated
+        rm -f /run/user/0/snapd-session-agent.socket
     fi
+
+    # Make sure the systemd user wants directories exist
+    mkdir -p /etc/systemd/user/sockets.target.wants /etc/systemd/user/timers.target.wants /etc/systemd/user/default.target.wants
 
     if [ "$1" != "--keep-stopped" ]; then
         systemctl start snapd.socket
@@ -156,6 +175,10 @@ reset_all_snap() {
         done
     fi
 
+    # purge may have removed udev rules, retrigger device events
+    udevadm trigger
+    udevadm settle
+
     # ensure we have the same state as initially
     systemctl stop snapd.service snapd.socket
     restore_snapd_state
@@ -172,6 +195,30 @@ reset_all_snap() {
     fi
 
 }
+
+# Before resetting all snapd state, specifically remove all disabled snaps that
+# are not from the store, since otherwise their revision number will remain
+# mounted at /snap/<name>/x<rev>/ and if we execute multiple tests that use this
+# same snap, the previous mount unit for x2 for example will stay around if we
+# simply revert to x1 and then delete state.json, since x2 is still mounted if
+# we then again install that snap again twice (i.e. to get to x2), the mount 
+# unit will still be active and thus the previous iteration of this snap at 
+# revision x2 will be used as this new revision's files for x2. This is 
+# particularly damaging for the snapd snap when we are installing different 
+# versions such as in the snapd-refresh-vs-services (and the -reboots variant) 
+# test, since the bug manifests as us trying to refresh to a particular revision
+# of snapd, but that revision is still mounted from the previous iteration of
+# the test and thus gets the wrong version, as displayed in this output:
+#
+# + snap install --dangerous snapd_2.49.1.snap
+# 2021-04-23T20:11:20Z INFO Waiting for automatic snapd restart...
+# snapd 2.49.2 installed
+#
+
+snap list --all | grep disabled | while read -r name _ revision _ ; do
+    snap remove "$name" --revision="$revision"
+done
+
 
 # When the variable REUSE_SNAPD is set to 1, we don't remove and purge snapd.
 # In that case we just cleanup the environment by removing installed snaps as

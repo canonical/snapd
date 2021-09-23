@@ -344,6 +344,7 @@ func MarkBootSuccessful(dev Device) error {
 			trustedAssetsBootState(dev),
 			trustedCommandLineBootState(dev),
 			recoverySystemsBootState(dev),
+			modelBootState(dev),
 		} {
 			var err error
 			u, err = bs.markSuccessful(u)

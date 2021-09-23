@@ -25,8 +25,9 @@ import (
 	"path/filepath"
 	"strconv"
 
-	"github.com/snapcore/snapd/osutil"
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 type groupFindGidOwningSuite struct{}

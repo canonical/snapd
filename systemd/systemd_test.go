@@ -22,6 +22,7 @@ package systemd_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -38,9 +39,8 @@ import (
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/osutil/squashfs"
 	"github.com/snapcore/snapd/sandbox/selinux"
-	"github.com/snapcore/snapd/testutil"
-
 	. "github.com/snapcore/snapd/systemd"
+	"github.com/snapcore/snapd/testutil"
 )
 
 type testreporter struct {
@@ -80,6 +80,8 @@ var _ = Suite(&SystemdTestSuite{})
 func (s *SystemdTestSuite) SetUpTest(c *C) {
 	dirs.SetRootDir(c.MkDir())
 	err := os.MkdirAll(dirs.SnapServicesDir, 0755)
+	c.Assert(err, IsNil)
+	err = os.MkdirAll(dirs.SnapRuntimeServicesDir, 0755)
 	c.Assert(err, IsNil)
 	c.Assert(os.MkdirAll(filepath.Join(dirs.SnapServicesDir, "multi-user.target.wants"), 0755), IsNil)
 
@@ -144,6 +146,46 @@ func (s *SystemdTestSuite) myJctl(svcs []string, n int, follow bool) (io.ReadClo
 	}
 
 	return ioutil.NopCloser(bytes.NewReader(out)), err
+}
+
+func (s *SystemdTestSuite) TestMockVersion(c *C) {
+	for _, tc := range []struct {
+		version int
+		err     error
+	}{
+		{0, errors.New("some error")},
+		{123, nil},
+	} {
+		restore := MockSystemdVersion(tc.version, tc.err)
+		defer restore()
+
+		version, err := Version()
+		c.Check(version, Equals, tc.version)
+		c.Check(err, Equals, tc.err)
+	}
+}
+
+func (s *SystemdTestSuite) TestEnsureAtLeastFail(c *C) {
+	for _, tc := range []struct {
+		requiredVersion int
+		mockedVersion   int
+		mockedErr       error
+		expectedErr     string
+	}{
+		{123, 0, errors.New("some error"), "some error"},
+		{140, 139, nil, `systemd version 139 is too old \(expected at least 140\)`},
+		{149, 150, nil, ""},
+	} {
+		restore := MockSystemdVersion(tc.mockedVersion, tc.mockedErr)
+		defer restore()
+
+		err := EnsureAtLeast(tc.requiredVersion)
+		if tc.expectedErr != "" {
+			c.Check(err, ErrorMatches, tc.expectedErr)
+		} else {
+			c.Check(err, IsNil)
+		}
+	}
 }
 
 func (s *SystemdTestSuite) TestDaemonReload(c *C) {
@@ -816,6 +858,53 @@ WantedBy=multi-user.target
 	})
 }
 
+func (s *SystemdTestSuite) TestAddMountUnitTransient(c *C) {
+	rootDir := dirs.GlobalRootDir
+
+	restore := squashfs.MockNeedsFuse(false)
+	defer restore()
+
+	mockSnapPath := filepath.Join(c.MkDir(), "/var/lib/snappy/snaps/foo_1.0.snap")
+	makeMockFile(c, mockSnapPath)
+
+	addMountUnitOptions := &MountUnitOptions{
+		Lifetime: Transient,
+		SnapName: "foo",
+		What:     mockSnapPath,
+		Where:    "/snap/snapname/345",
+		Fstype:   "squashfs",
+		Options:  []string{"remount,ro"},
+		Origin:   "bar",
+	}
+	mountUnitName, err := NewUnderRoot(rootDir, SystemMode, nil).AddMountUnitFileWithOptions(addMountUnitOptions)
+	c.Assert(err, IsNil)
+	defer os.Remove(mountUnitName)
+
+	c.Assert(filepath.Join(dirs.SnapRuntimeServicesDir, mountUnitName), testutil.FileEquals, fmt.Sprintf(`
+[Unit]
+Description=Mount unit for foo via bar
+Before=snapd.service
+After=zfs-mount.service
+
+[Mount]
+What=%s
+Where=/snap/snapname/345
+Type=squashfs
+Options=remount,ro
+LazyUnmount=yes
+
+[Install]
+WantedBy=multi-user.target
+X-SnapdOrigin=bar
+`[1:], mockSnapPath))
+
+	c.Assert(s.argses, DeepEquals, [][]string{
+		{"daemon-reload"},
+		{"--root", rootDir, "enable", "snap-snapname-345.mount"},
+		{"start", "snap-snapname-345.mount"},
+	})
+}
+
 func (s *SystemdTestSuite) TestWriteSELinuxMountUnit(c *C) {
 	restore := selinux.MockIsEnabled(func() (bool, error) { return true, nil })
 	defer restore()
@@ -975,6 +1064,21 @@ func (s *SystemdTestSuite) TestIsActiveIsInactive(c *C) {
 	// services, however we should check any non-0 exit status
 	sysErr.SetExitCode(1)
 	sysErr.SetMsg([]byte("inactive\n"))
+	s.errors = []error{sysErr}
+
+	active, err := New(SystemMode, s.rep).IsActive("foo")
+	c.Assert(active, Equals, false)
+	c.Assert(err, IsNil)
+	c.Check(s.argses, DeepEquals, [][]string{{"is-active", "foo"}})
+}
+
+func (s *SystemdTestSuite) TestIsActiveIsInactiveAlternativeMessage(c *C) {
+	sysErr := &Error{}
+	// on Centos 7, with systemd 219 we see "unknown" returned when querying the
+	// active state for a slice unit which does not exist, check that we handle
+	// this case properly as well
+	sysErr.SetExitCode(3)
+	sysErr.SetMsg([]byte("unknown\n"))
 	s.errors = []error{sysErr}
 
 	active, err := New(SystemMode, s.rep).IsActive("foo")
@@ -1342,6 +1446,88 @@ func (s *SystemdTestSuite) TestUnmaskInEmulationMode(c *C) {
 		{"--root", "/path", "unmask", "foo"}})
 }
 
+func (s *SystemdTestSuite) TestListMountUnitsEmpty(c *C) {
+	s.outs = [][]byte{
+		[]byte("\n"),
+	}
+
+	sysd := New(SystemMode, nil)
+	units, err := sysd.ListMountUnits("some-snap", "")
+	c.Check(units, HasLen, 0)
+	c.Check(err, IsNil)
+}
+
+func (s *SystemdTestSuite) TestListMountUnitsMalformed(c *C) {
+	s.outs = [][]byte{
+		[]byte(`Description=Mount unit for some-snap, revision x1
+Where=/somewhere/here
+FragmentPath=/etc/systemd/system/somewhere-here.mount
+HereIsOneLineWithoutAnEqualSign
+`),
+	}
+
+	sysd := New(SystemMode, nil)
+	units, err := sysd.ListMountUnits("some-snap", "")
+	c.Check(units, HasLen, 0)
+	c.Check(err, ErrorMatches, "cannot parse systemctl output:.*")
+}
+
+func (s *SystemdTestSuite) TestListMountUnitsHappy(c *C) {
+	tmpDir, err := ioutil.TempDir("/tmp", "snapd-systemd-test-list-mounts-*")
+	c.Assert(err, IsNil)
+	defer os.RemoveAll(tmpDir)
+
+	var systemctlOutput string
+	createFakeUnit := func(fileName, snapName, where, origin string) error {
+		path := filepath.Join(tmpDir, fileName)
+		if len(systemctlOutput) > 0 {
+			systemctlOutput += "\n\n"
+		}
+		systemctlOutput += fmt.Sprintf(`Description=Mount unit for %s, revision x1
+Where=%s
+FragmentPath=%s
+`, snapName, where, path)
+		contents := fmt.Sprintf(`[Unit]
+Description=Mount unit for %s, revision x1
+
+[Mount]
+What=/does/not/matter
+Where=%s
+Type=doesntmatter
+Options=do,not,matter,either
+
+[Install]
+WantedBy=multi-user.target
+X-SnapdOrigin=%s
+`, snapName, where, origin)
+		return ioutil.WriteFile(path, []byte(contents), 0644)
+	}
+
+	// Prepare the unit files
+	err = createFakeUnit("somepath-somedir.mount", "some-snap", "/somepath/somedir", "module1")
+	c.Assert(err, IsNil)
+	err = createFakeUnit("somewhere-here.mount", "some-other-snap", "/somewhere/here", "module2")
+	c.Assert(err, IsNil)
+	err = createFakeUnit("somewhere-there.mount", "some-snap", "/somewhere/there", "module3")
+	c.Assert(err, IsNil)
+
+	s.outs = [][]byte{
+		[]byte(systemctlOutput),
+	}
+	sysd := New(SystemMode, nil)
+
+	// First, get all mount units for some-snap, without filter on the origin module
+	units, err := sysd.ListMountUnits("some-snap", "")
+	c.Check(units, DeepEquals, []string{"/somepath/somedir", "/somewhere/there"})
+	c.Check(err, IsNil)
+
+	// Now repeat the same, filtering on the origin module
+	s.i = 0 // this resets the systemctl output iterator back to the beginning
+	units, err = sysd.ListMountUnits("some-snap", "module3")
+	c.Check(units, DeepEquals, []string{"/somewhere/there"})
+	c.Check(err, IsNil)
+}
+
 func (s *SystemdTestSuite) TestMountHappy(c *C) {
 	sysd := New(SystemMode, nil)
 
@@ -1397,41 +1583,76 @@ func (s *SystemdTestSuite) TestUmountErr(c *C) {
 	})
 }
 
-func (s *SystemdTestSuite) TestCurrentMemoryUsageInactive(c *C) {
+func (s *SystemdTestSuite) TestCurrentUsageFamilyReallyInvalid(c *C) {
+	s.outs = [][]byte{
+		[]byte(`gahstringsarehard`),
+		[]byte(`gahstringsarehard`),
+	}
+	sysd := New(SystemMode, s.rep)
+	_, err := sysd.CurrentMemoryUsage("bar.service")
+	c.Assert(err, ErrorMatches, `invalid property format from systemd for MemoryCurrent \(got gahstringsarehard\)`)
+	_, err = sysd.CurrentTasksCount("bar.service")
+	c.Assert(err, ErrorMatches, `invalid property format from systemd for TasksCurrent \(got gahstringsarehard\)`)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "MemoryCurrent", "bar.service"},
+		{"show", "--property", "TasksCurrent", "bar.service"},
+	})
+}
+
+func (s *SystemdTestSuite) TestCurrentUsageFamilyInactive(c *C) {
 	s.outs = [][]byte{
 		[]byte(`MemoryCurrent=[not set]`),
+		[]byte(`TasksCurrent=[not set]`),
 	}
 	sysd := New(SystemMode, s.rep)
 	_, err := sysd.CurrentMemoryUsage("bar.service")
 	c.Assert(err, ErrorMatches, "memory usage unavailable")
+	_, err = sysd.CurrentTasksCount("bar.service")
+	c.Assert(err, ErrorMatches, "tasks count unavailable")
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"show", "--property", "MemoryCurrent", "bar.service"},
+		{"show", "--property", "TasksCurrent", "bar.service"},
 	})
 }
 
-func (s *SystemdTestSuite) TestCurrentMemoryUsageInvalid(c *C) {
+func (s *SystemdTestSuite) TestCurrentUsageFamilyInvalid(c *C) {
 	s.outs = [][]byte{
-		[]byte(`MemoryCurrent=blahhhhhhhhhhhh`),
+		[]byte(`MemoryCurrent=blahhhhhhhhhhhhhh`),
+		[]byte(`TasksCurrent=blahhhhhhhhhhhhhh`),
 	}
 	sysd := New(SystemMode, s.rep)
 	_, err := sysd.CurrentMemoryUsage("bar.service")
-	c.Assert(err, ErrorMatches, `invalid property value from systemd for MemoryCurrent: cannot parse "blahhhhhhhhhhhh" as an integer`)
+	c.Assert(err, ErrorMatches, `invalid property value from systemd for MemoryCurrent: cannot parse "blahhhhhhhhhhhhhh" as an integer`)
+	_, err = sysd.CurrentTasksCount("bar.service")
+	c.Assert(err, ErrorMatches, `invalid property value from systemd for TasksCurrent: cannot parse "blahhhhhhhhhhhhhh" as an integer`)
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"show", "--property", "MemoryCurrent", "bar.service"},
+		{"show", "--property", "TasksCurrent", "bar.service"},
 	})
 }
 
-func (s *SystemdTestSuite) TestCurrentMemoryUsage(c *C) {
+func (s *SystemdTestSuite) TestCurrentUsageFamilyHappy(c *C) {
 	s.outs = [][]byte{
 		[]byte(`MemoryCurrent=1024`),
+		[]byte(`MemoryCurrent=18446744073709551615`), // special value from systemd bug
+		[]byte(`TasksCurrent=10`),
 	}
 	sysd := New(SystemMode, s.rep)
-	usage, err := sysd.CurrentMemoryUsage("bar.service")
+	memUsage, err := sysd.CurrentMemoryUsage("bar.service")
+	c.Assert(err, IsNil)
+	c.Assert(memUsage, Equals, quantity.SizeKiB)
+	memUsage, err = sysd.CurrentMemoryUsage("bar.service")
+	c.Assert(err, IsNil)
+	const sixteenExb = quantity.Size(1<<64 - 1)
+	c.Assert(memUsage, Equals, sixteenExb)
+	tasksUsage, err := sysd.CurrentTasksCount("bar.service")
+	c.Assert(tasksUsage, Equals, uint64(10))
 	c.Assert(err, IsNil)
 	c.Check(s.argses, DeepEquals, [][]string{
 		{"show", "--property", "MemoryCurrent", "bar.service"},
+		{"show", "--property", "MemoryCurrent", "bar.service"},
+		{"show", "--property", "TasksCurrent", "bar.service"},
 	})
-	c.Check(usage, Equals, quantity.SizeKiB)
 }
 
 func (s *SystemdTestSuite) TestInactiveEnterTimestampZero(c *C) {
@@ -1492,16 +1713,59 @@ func (s *SystemdTestSuite) TestInactiveEnterTimestampMalformed(c *C) {
 		[]byte(``),
 		[]byte(`some random garbage
 with newlines`),
-		[]byte(`InactiveEnterTimestamp=0`), // 0 is valid for InactiveEnterTimestampMonotonic
 	}
 	sysd := New(SystemMode, s.rep)
 	for i := 0; i < len(s.outs); i++ {
 		s.argses = nil
 		stamp, err := sysd.InactiveEnterTimestamp("bar.service")
-		c.Assert(err, ErrorMatches, `(?s)internal error: systemctl (time )?output \(.*\) is malformed`)
+		c.Assert(err.Error(), testutil.Contains, `invalid property format from systemd for InactiveEnterTimestamp (got`)
 		c.Check(s.argses, DeepEquals, [][]string{
 			{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
 		})
 		c.Check(stamp.IsZero(), Equals, true)
 	}
+}
+
+func (s *SystemdTestSuite) TestInactiveEnterTimestampMalformedMore(c *C) {
+	s.outs = [][]byte{
+		[]byte(`InactiveEnterTimestamp=0`), // 0 is valid for InactiveEnterTimestampMonotonic
+	}
+	sysd := New(SystemMode, s.rep)
+
+	stamp, err := sysd.InactiveEnterTimestamp("bar.service")
+
+	c.Assert(err, ErrorMatches, `internal error: systemctl time output \(0\) is malformed`)
+	c.Check(s.argses, DeepEquals, [][]string{
+		{"show", "--property", "InactiveEnterTimestamp", "bar.service"},
+	})
+	c.Check(stamp.IsZero(), Equals, true)
+}
+
+type systemdErrorSuite struct{}
+
+var _ = Suite(&systemdErrorSuite{})
+
+func (s *systemdErrorSuite) TestErrorStringNormalError(c *C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `echo "I fail"; exit 11`)
+	defer systemctl.Restore()
+
+	_, err := Version()
+	c.Check(err, ErrorMatches, `systemctl command \[--version\] failed with exit status 11: I fail\n`)
+}
+
+func (s *systemdErrorSuite) TestErrorStringNoOutput(c *C) {
+	systemctl := testutil.MockCommand(c, "systemctl", `exit 22`)
+	defer systemctl.Restore()
+
+	_, err := Version()
+	c.Check(err, ErrorMatches, `systemctl command \[--version\] failed with exit status 22`)
+}
+
+func (s *systemdErrorSuite) TestErrorStringNoSystemctl(c *C) {
+	oldPath := os.Getenv("PATH")
+	os.Setenv("PATH", "/xxx")
+	defer func() { os.Setenv("PATH", oldPath) }()
+
+	_, err := Version()
+	c.Check(err, ErrorMatches, `systemctl command \[--version\] failed with: exec: "systemctl": executable file not found in \$PATH`)
 }

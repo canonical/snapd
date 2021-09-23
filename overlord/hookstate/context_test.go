@@ -20,9 +20,9 @@
 package hookstate
 
 import (
-	. "gopkg.in/check.v1"
-
 	"encoding/json"
+
+	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/snap"

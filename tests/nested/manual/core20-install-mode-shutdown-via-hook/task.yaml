@@ -13,14 +13,11 @@ environment:
     NESTED_ENABLE_SECURE_BOOT: true
 
 prepare: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     # needed for inspecting the partitions
     snap install jq
     tests.cleanup defer snap remove jq
 
-    KEY_NAME=$(nested_get_snakeoil_key)
+    KEY_NAME=$(tests.nested download snakeoil-key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
@@ -29,14 +26,14 @@ prepare: |
     unsquashfs -d pc-gadget pc.snap
 
     echo "Sign the shim binary"
-    nested_secboot_sign_gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
+    tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
 
     echo "Add the install-device hook"
     mkdir -p pc-gadget/meta/hooks
     cp install-device pc-gadget/meta/hooks/install-device
-    snap pack pc-gadget/ extra-snaps/
+    snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
 
-    "$TESTSTOOLS"/nested-state build-image core
+    tests.nested build-image core
 
 restore: |
     # Cleanup restore is needed in this case because nested tests are not
@@ -44,11 +41,10 @@ restore: |
     tests.cleanup restore
 
 execute: |
-    #shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     #shellcheck source=tests/lib/systemd.sh
     . "$TESTSLIB/systemd.sh"
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
 
     # we expect the VM to shut itself down so don't wait for SSH, etc. to become
     # available
@@ -57,10 +53,10 @@ execute: |
     # below is extracted from nested_start_core_vm, we don't want the 
     # nested_prepare_ssh to run yet, since it will fail when the VM shuts itself
     # down, we need to manually run it later
-    CURRENT_NAME="$(nested_get_current_image_name)"
-    CURRENT_IMAGE="$NESTED_IMAGES_DIR/$CURRENT_NAME"
-    IMAGE_NAME="$(nested_get_image_name core)"
-    IMAGE_FILE="$NESTED_IMAGES_DIR/$IMAGE_NAME"
+    CURRENT_NAME="$(tests.nested get current-name)"
+    CURRENT_IMAGE="$(tests.nested get images-path)/$CURRENT_NAME"
+    IMAGE_NAME="$(tests.nested get image-name core)"
+    IMAGE_FILE="$(tests.nested get images-path)/$IMAGE_NAME"
     cp -v "$IMAGE_FILE" "$CURRENT_IMAGE"
 
     NESTED_EXPECT_SHUTDOWN=1 nested_start_core_vm_unit "$IMAGE_FILE"
@@ -81,7 +77,7 @@ execute: |
     MATCH "ubuntu-data" < partitions.txt
 
     echo "Now starting the VM again will proceed to run mode appropriately"
-    "$TESTSTOOLS"/nested-state start-vm
+    tests.nested vm start
 
     # setup SSH since that was not done with the previous stage, as the device
     # shut down while still in install mode, we need to manually do this stage
@@ -89,12 +85,12 @@ execute: |
 
     # the start-vm command just waits for SSH, it doesn't wait for the other 
     # things here, so wait for those too
-    nested_wait_for_snap_command
+    tests.nested wait-for snap-command
     # Wait for snap seeding to be done
-    nested_exec "sudo snap wait system seed.loaded"
+    tests.nested exec "sudo snap wait system seed.loaded"
     # Wait for cloud init to be done
-    nested_exec "cloud-init status --wait"
+    tests.nested exec "cloud-init status --wait"
 
     echo "The device is using encrypted ubuntu-data and is in run mode now"
-    nested_exec test -L /dev/disk/by-label/ubuntu-data-enc
-    nested_exec cat /proc/cmdline | MATCH "snapd_recovery_mode=run"
+    tests.nested exec test -L /dev/disk/by-label/ubuntu-data-enc
+    tests.nested exec cat /proc/cmdline | MATCH "snapd_recovery_mode=run"

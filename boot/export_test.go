@@ -68,6 +68,8 @@ var (
 	SealKeyModelParams              = sealKeyModelParams
 
 	BootVarsForTrustedCommandLineFromGadget = bootVarsForTrustedCommandLineFromGadget
+
+	WriteModelToUbuntuBoot = writeModelToUbuntuBoot
 )
 
 type BootAssetsMap = bootAssetsMap
@@ -116,14 +118,6 @@ func MockSecbootSealKeysWithFDESetupHook(f func(runHook fde.RunSetupHookFunc, ke
 	}
 }
 
-func MockSecbootResealKeys(f func(params *secboot.ResealKeysParams) error) (restore func()) {
-	old := secbootResealKeys
-	secbootResealKeys = f
-	return func() {
-		secbootResealKeys = old
-	}
-}
-
 func MockSeedReadSystemEssential(f func(seedDir, label string, essentialTypes []snap.Type, tm timings.Measurer) (*asserts.Model, []*seed.Snap, error)) (restore func()) {
 	old := seedReadSystemEssential
 	seedReadSystemEssential = f
@@ -169,6 +163,8 @@ var (
 	SetImageBootFlags = setImageBootFlags
 	NextBootFlags     = nextBootFlags
 	SetNextBootFlags  = setNextBootFlags
+
+	ModelUniqueID = modelUniqueID
 )
 
 func SetBootFlagsInBootloader(flags []string, rootDir string) error {
@@ -191,8 +187,8 @@ func SetBootFlagsInBootloader(flags []string, rootDir string) error {
 	return bl.SetBootVars(blVars)
 }
 
-func (b *bootChain) SetModelAssertion(model *asserts.Model) {
-	b.model = model
+func (b *bootChain) SecbootModelForSealing() secboot.ModelForSealing {
+	return b.modelForSealing()
 }
 
 func (b *bootChain) SetKernelBootFile(kbf bootloader.BootFile) {
@@ -217,7 +213,7 @@ func MockRunFDESetupHook(f fde.RunSetupHookFunc) (restore func()) {
 	return func() { RunFDESetupHook = oldRunFDESetupHook }
 }
 
-func MockResealKeyToModeenvUsingFDESetupHook(f func(string, *asserts.Model, *Modeenv, bool) error) (restore func()) {
+func MockResealKeyToModeenvUsingFDESetupHook(f func(string, *Modeenv, bool) error) (restore func()) {
 	old := resealKeyToModeenvUsingFDESetupHook
 	resealKeyToModeenvUsingFDESetupHook = f
 	return func() {
@@ -230,5 +226,13 @@ func MockAdditionalBootFlags(bootFlags []string) (restore func()) {
 	understoodBootFlags = append(understoodBootFlags, bootFlags...)
 	return func() {
 		understoodBootFlags = old
+	}
+}
+
+func MockWriteModelToUbuntuBoot(mock func(*asserts.Model) error) (restore func()) {
+	old := writeModelToUbuntuBoot
+	writeModelToUbuntuBoot = mock
+	return func() {
+		writeModelToUbuntuBoot = old
 	}
 }

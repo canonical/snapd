@@ -36,7 +36,7 @@ func (s *usersSuite) TestUsersCreateAutomaticEarly(c *C) {
 		"users.create.automatic": "false",
 	}
 	tr := &mockConf{state: s.state}
-	err := configcore.Early(tr, patch)
+	err := configcore.Early(classicDev, tr, patch)
 	c.Assert(err, IsNil)
 
 	c.Check(tr.conf, DeepEquals, map[string]interface{}{
@@ -45,7 +45,7 @@ func (s *usersSuite) TestUsersCreateAutomaticEarly(c *C) {
 }
 
 func (s *usersSuite) TestUsersCreateAutomaticInvalid(c *C) {
-	err := configcore.Run(&mockConf{
+	err := configcore.Run(classicDev, &mockConf{
 		state: s.state,
 		conf:  map[string]interface{}{"users.create.automatic": "foo"},
 	})
@@ -69,7 +69,7 @@ func (s *usersSuite) TestUsersCreateAutomaticConfigure(c *C) {
 			conf:  map[string]interface{}{"users.create.automatic": t.value},
 		}
 
-		err := configcore.Run(conf)
+		err := configcore.Run(classicDev, conf)
 		c.Assert(err, IsNil)
 
 		c.Check(conf.conf["users.create.automatic"], Equals, t.expected)

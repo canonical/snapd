@@ -30,14 +30,13 @@ import (
 	. "gopkg.in/check.v1"
 
 	"github.com/snapcore/snapd/client"
+	snapd "github.com/snapcore/snapd/cmd/snapd"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces/apparmor"
 	"github.com/snapcore/snapd/interfaces/seccomp"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/testutil"
-
-	snapd "github.com/snapcore/snapd/cmd/snapd"
 )
 
 // Hook up check.v1 into the "go test" runner

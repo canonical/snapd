@@ -29,6 +29,8 @@ import (
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/channel"
+	"github.com/snapcore/snapd/snap/naming"
 	"github.com/snapcore/snapd/store"
 )
 
@@ -47,6 +49,10 @@ func (Store) EnsureDeviceSession() (*auth.DeviceState, error) {
 
 func (Store) SnapInfo(context.Context, store.SnapSpec, *auth.UserState) (*snap.Info, error) {
 	panic("Store.SnapInfo not expected")
+}
+
+func (Store) SnapExists(context.Context, store.SnapSpec, *auth.UserState) (naming.SnapRef, *channel.Channel, error) {
+	panic("Store.SnapExists not expected")
 }
 
 func (Store) Find(context.Context, *store.Search, *auth.UserState) ([]*snap.Info, error) {

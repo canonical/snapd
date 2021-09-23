@@ -79,6 +79,7 @@ fakeroot tar \
 	--create \
 	--transform="s/$top_dir/snapd-$upstream_version/" \
 	--exclude='snapd*/vendor/*' \
+	--exclude='snapd*/c-vendor/*' \
 	--file=snapd_"$upstream_version".no-vendor.tar.xz \
 	--auto-compress \
 	--directory="$scratch_dir/" "$top_dir"
@@ -89,4 +90,4 @@ fakeroot tar \
 	--transform="s/$top_dir/snapd-$upstream_version/" \
 	--file=snapd_"$upstream_version".only-vendor.tar.xz \
 	--auto-compress \
-	--directory="$scratch_dir/" "$top_dir"/vendor/
+	--directory="$scratch_dir/" "$top_dir"/vendor/ /c-vendor/

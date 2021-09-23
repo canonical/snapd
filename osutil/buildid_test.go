@@ -27,9 +27,9 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/snapcore/snapd/osutil"
-
 	. "gopkg.in/check.v1"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 type buildIDSuite struct{}

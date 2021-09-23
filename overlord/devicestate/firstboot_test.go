@@ -128,7 +128,7 @@ func (t *firstBootBaseTest) startOverlord(c *C) {
 	ovld.InterfaceManager().DisableUDevMonitor()
 	// avoid gadget preload in the general tests cases
 	// it requires a proper seed to be available
-	devicestate.EarlyConfig = func(st *state.State, preloadGadget func() (*gadget.Info, error)) error {
+	devicestate.EarlyConfig = func(st *state.State, preloadGadget func() (sysconfig.Device, *gadget.Info, error)) error {
 		return nil
 	}
 	t.AddCleanup(func() { devicestate.EarlyConfig = nil })
@@ -228,7 +228,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoop(c *C) {
 	err := os.Remove(filepath.Join(dirs.SnapSeedDir, "assertions"))
 	c.Assert(err, IsNil)
 
-	_, err = devicestate.PreloadGadget(s.overlord.DeviceManager())
+	_, _, err = devicestate.PreloadGadget(s.overlord.DeviceManager())
 	c.Check(err, Equals, state.ErrNoState)
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
@@ -269,7 +269,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedOnClassicNoSeedYaml(c *C) {
 	st.Lock()
 	defer st.Unlock()
 
-	_, err = devicestate.PreloadGadget(ovld.DeviceManager())
+	_, _, err = devicestate.PreloadGadget(ovld.DeviceManager())
 	c.Check(err, Equals, state.ErrNoState)
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
@@ -595,7 +595,7 @@ func (s *firstBoot16Suite) TestPopulateFromSeedHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(info.SnapID, Equals, "foodidididididididididididididid")
 	c.Assert(info.Revision, Equals, snap.R(128))
-	c.Assert(info.Contact, Equals, "mailto:some.guy@example.com")
+	c.Assert(info.Contact(), Equals, "mailto:some.guy@example.com")
 	pubAcct, err := assertstate.Publisher(st, info.SnapID)
 	c.Assert(err, IsNil)
 	c.Check(pubAcct.AccountID(), Equals, "developerid")
@@ -838,9 +838,13 @@ snaps:
 	st.Lock()
 	defer st.Unlock()
 
-	gi, err := devicestate.PreloadGadget(s.overlord.DeviceManager())
+	dev, gi, err := devicestate.PreloadGadget(s.overlord.DeviceManager())
 	c.Assert(err, IsNil)
 	c.Check(gi.Defaults, HasLen, 4)
+	c.Check(dev.RunMode(), Equals, true)
+	c.Check(dev.Classic(), Equals, false)
+	c.Check(dev.HasModeenv(), Equals, false)
+	c.Check(dev.Kernel(), Equals, "pc-kernel")
 
 	tsAll, err := devicestate.PopulateStateFromSeedImpl(st, nil, s.perfTimings)
 	c.Assert(err, IsNil)
@@ -871,7 +875,7 @@ snaps:
 	defer rhk()
 
 	// ensure we have something that captures the core config
-	restore := configstate.MockConfigcoreRun(func(config.Conf) error {
+	restore := configstate.MockConfigcoreRun(func(sysconfig.Device, config.Conf) error {
 		configured = append(configured, "configcore")
 		return nil
 	})
