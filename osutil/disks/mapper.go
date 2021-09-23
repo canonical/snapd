@@ -26,11 +26,11 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-// CreateLinearMapper creates a linear device mapping of the given device
+// CreateLinearMapperDevice creates a linear device mapping of the given device
 // with the given offset and size.
 //
 // The mapper device node is returned.
-func CreateLinearMapper(device, name, uuid string, offset, size uint64) (string, error) {
+func CreateLinearMapperDevice(device, name, uuid string, offset, size uint64) (string, error) {
 	errPrefix := fmt.Sprintf("cannot create mapper %q on %v: ", name, device)
 
 	if offset%512 != 0 {

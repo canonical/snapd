@@ -39,7 +39,7 @@ func (ts *mapperSuite) TestCreateLinearSizeOffsetErr(c *C) {
 		{512, 1111, `cannot create mapper "mapper-name" on /dev/sda1: size 1111 must be aligned to 512 bytes`},
 		{512, 512, `cannot create mapper "mapper-name" on /dev/sda1: size 512 must be larger than the offset 512`},
 	} {
-		_, err := disks.CreateLinearMapper("/dev/sda1", "mapper-name", "", tc.offset, tc.size)
+		_, err := disks.CreateLinearMapperDevice("/dev/sda1", "mapper-name", "", tc.offset, tc.size)
 		c.Check(err, ErrorMatches, tc.expectedErr)
 	}
 }
@@ -48,7 +48,7 @@ func (ts *mapperSuite) TestCreateLinearMapperErr(c *C) {
 	mockCmd := testutil.MockCommand(c, "dmsetup", "echo fail; exit 1")
 	defer mockCmd.Restore()
 
-	_, err := disks.CreateLinearMapper("/dev/sda1", "mapper-name", "", 512, 1024)
+	_, err := disks.CreateLinearMapperDevice("/dev/sda1", "mapper-name", "", 512, 1024)
 	c.Check(err, ErrorMatches, `cannot create mapper "mapper-name" on /dev/sda1: fail`)
 }
 
@@ -56,7 +56,7 @@ func (ts *mapperSuite) TestCreateLinearMapperHappy(c *C) {
 	mockCmd := testutil.MockCommand(c, "dmsetup", "")
 	defer mockCmd.Restore()
 
-	mapperDevice, err := disks.CreateLinearMapper("/dev/sda1", "mapper-name", "", 512, 2048)
+	mapperDevice, err := disks.CreateLinearMapperDevice("/dev/sda1", "mapper-name", "", 512, 2048)
 	c.Assert(err, IsNil)
 
 	c.Check(mapperDevice, Equals, "/dev/mapper/mapper-name")
