@@ -233,7 +233,7 @@ func unlockVolumeUsingSealedKeyTPM(name, sealedEncryptionKeyFile, sourceDevice, 
 
 	// otherwise we have a tpm and we should use the sealed key first, but
 	// this method will fallback to using the recovery key if enabled
-	method, err := unlockEncryptedPartitionWithSealedKey(tpm, mapperName, sourceDevice, sealedEncryptionKeyFile, "", opts.AllowRecoveryKey)
+	method, err := unlockEncryptedPartitionWithSealedKey(tpm, mapperName, sourceDevice, sealedEncryptionKeyFile, opts.AllowRecoveryKey)
 	res.UnlockMethod = method
 	if err == nil {
 		res.FsDevice = targetDevice
@@ -272,7 +272,7 @@ func activateVolOpts(allowRecoveryKey bool) *sb.ActivateVolumeOptions {
 // unlockEncryptedPartitionWithSealedKey unseals the keyfile and opens an encrypted
 // device. If activation with the sealed key fails, this function will attempt to
 // activate it with the fallback recovery key instead.
-func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, keyfile, pinfile string, allowRecovery bool) (UnlockMethod, error) {
+func unlockEncryptedPartitionWithSealedKey(tpm *sb.TPMConnection, name, device, keyfile string, allowRecovery bool) (UnlockMethod, error) {
 	options := activateVolOpts(allowRecovery)
 	// XXX: pinfile is currently not used
 	activated, err := sbActivateVolumeWithTPMSealedKey(tpm, name, device, keyfile, nil, options)

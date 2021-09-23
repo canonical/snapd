@@ -133,9 +133,9 @@ if [ "$STATIC" = 1 ]; then
 
     # XXX: remove once we can use an action, see workflows/test.yaml for
     #      details why we still use this script
-    if [ -n "${TRAVIS_PULL_REQUEST:-}" ] && [ "${TRAVIS_PULL_REQUEST:-}" != "false" ]; then
+    if [ -n "${GITHUB_PULL_REQUEST:-}" ] && [ "${GITHUB_PULL_REQUEST:-}" != "false" ]; then
         echo Checking pull request summary
-        ./check-pr-title.py "$TRAVIS_PULL_REQUEST"
+        ./check-pr-title.py "$GITHUB_PULL_REQUEST"
     fi
 
     if [ -z "${SKIP_GOFMT:-}" ]; then
@@ -346,8 +346,9 @@ if [ -n "${SKIP_DIRTY_CHECK-}" ]; then
     exit 0
 fi
 
-if git describe --always --dirty | grep -q dirty; then
-    echo "Build tree is dirty"
-    git diff
-    exit 1
-fi
+# XXX: re-enable after vendor/vendor.json is removed
+# if git describe --always --dirty | grep -q dirty; then
+#     echo "Build tree is dirty"
+#     git diff
+#     exit 1
+# fi

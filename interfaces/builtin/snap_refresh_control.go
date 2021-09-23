@@ -19,7 +19,7 @@
 
 package builtin
 
-// snap-refresh-control is a dummy interface with no actual apparmor/seccomp
+// snap-refresh-control is an empty interface with no actual apparmor/seccomp
 // rules, but it's allowing snaps (via explicit check for snap-refresh-control
 // connection done by hookstate) to execute "snapctl refresh --proceed" that
 // triggers own refreshes, so its use should be limited.
@@ -39,17 +39,13 @@ const snapRefreshControlBaseDeclarationSlots = `
     deny-auto-connection: true
 `
 
-type snapRefreshControlInterface struct {
-	commonInterface
-}
-
 func init() {
-	registerIface(&snapRefreshControlInterface{commonInterface{
+	registerIface(&commonInterface{
 		name:                 "snap-refresh-control",
 		summary:              snapRefreshControlSummary,
 		implicitOnCore:       true,
 		implicitOnClassic:    true,
 		baseDeclarationPlugs: snapRefreshControlBaseDeclarationPlugs,
 		baseDeclarationSlots: snapRefreshControlBaseDeclarationSlots,
-	}})
+	})
 }
