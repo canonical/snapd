@@ -315,9 +315,10 @@ func (s *refreshHintsTestSuite) TestRefreshHintsStoresRefreshCandidates(c *C) {
 			RealName: "other-snap",
 			Revision: snap.R(2),
 		},
-		Prereq:    []string{"foo-snap"},
-		PlugsOnly: true,
-		Channel:   "devel",
+		Prereq:             []string{"foo-snap"},
+		PrereqContentAttrs: map[string][]string{"foo-snap": {"some-content"}},
+		PlugsOnly:          true,
+		Channel:            "devel",
 		Flags: snapstate.Flags{
 			IsAutoRefresh: true,
 		},

@@ -329,6 +329,7 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 
 	typ := snap.TypeApp
 	epoch := snap.E("1*")
+
 	switch cand.snapID {
 	case "":
 		panic("store refresh APIs expect snap-ids")
@@ -381,6 +382,10 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		name = "snap-id"
 	case "snap-c-id":
 		name = "snap-c"
+	case "outdated-consumer-id":
+		name = "outdated-consumer"
+	case "outdated-producer-id":
+		name = "outdated-producer"
 	default:
 		panic(fmt.Sprintf("refresh: unknown snap-id: %s", cand.snapID))
 	}
@@ -418,6 +423,28 @@ func (f *fakeStore) lookupRefresh(cand refreshCand) (*snap.Info, error) {
 		Architectures: []string{"all"},
 		Epoch:         epoch,
 	}
+
+	if name == "outdated-consumer" {
+		info.Plugs = map[string]*snap.PlugInfo{
+			"content-plug": {
+				Snap:      info,
+				Interface: "content",
+				Attrs: map[string]interface{}{
+					"content":          "some-content",
+					"default-provider": "outdated-producer",
+				},
+			},
+		}
+	} else if name == "outdated-producer" {
+		info.Slots = map[string]*snap.SlotInfo{
+			"content-slot": {
+				Snap:      info,
+				Interface: "content",
+				Attrs:     map[string]interface{}{"content": "some-content"},
+			},
+		}
+	}
+
 	switch cand.channel {
 	case "channel-for-layout/stable":
 		info.Layout = map[string]*snap.Layout{

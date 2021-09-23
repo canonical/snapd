@@ -35,6 +35,7 @@ import (
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/interfaces"
+	"github.com/snapcore/snapd/interfaces/ifacetest"
 	"github.com/snapcore/snapd/osutil"
 	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
@@ -3984,4 +3985,115 @@ func (s *validationSetsSuite) TestInstallManyRequiredRevisionForValidationSetOK(
 		revno: snap.R(2),
 	}}
 	c.Assert(s.fakeBackend.ops[1:], DeepEquals, expectedOps)
+}
+
+func (s *snapmgrTestSuite) TestInstallWithOutdatedPrereq(c *C) {
+	s.state.Lock()
+	snapstate.ReplaceStore(s.state, contentStore{fakeStore: s.fakeStore, state: s.state})
+
+	info := &snap.SideInfo{
+		Revision: snap.R(1),
+		SnapID:   "snap-content-slot-id",
+		RealName: "content-snap",
+	}
+	snapstate.Set(s.state, "snap-content-slot", &snapstate.SnapState{
+		Sequence: []*snap.SideInfo{info},
+		Current:  info.Revision,
+		Active:   true,
+	})
+
+	chg := s.state.NewChange("install", "install a snap")
+	ts, err := snapstate.Install(context.Background(), s.state, "snap-content-plug", nil, s.user.ID, snapstate.Flags{})
+	c.Assert(err, IsNil)
+	chg.AddAll(ts)
+	s.state.Unlock()
+
+	s.settle(c)
+
+	s.state.Lock()
+	defer s.state.Unlock()
+	c.Assert(chg.Err(), IsNil)
+	c.Assert(chg.Status(), Equals, state.DoneStatus)
+
+	c.Check(ts.Tasks(), NotNil)
+	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
+		{macaroon: s.user.StoreMacaroon, name: "snap-content-plug", target: filepath.Join(dirs.SnapBlobDir, "snap-content-plug_11.snap")},
+		{macaroon: s.user.StoreMacaroon, name: "snap-content-slot", target: filepath.Join(dirs.SnapBlobDir, "snap-content-slot_11.snap")},
+	})
+}
+
+func (s *snapmgrTestSuite) TestHasAllContentAttributes(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	mySnap := &snap.Info{
+		SuggestedName: "some-snap",
+		Version:       "1",
+		Slots:         make(map[string]*snap.SlotInfo, 3),
+	}
+
+	// create slots (content type and others) that the snap will provide
+	slots := []*snap.SlotInfo{
+		{
+			Name:      "some-content-slot",
+			Snap:      mySnap,
+			Interface: "content",
+			Attrs:     map[string]interface{}{"content": "some"},
+		},
+		{
+			Name:      "wrong-tag-slot",
+			Snap:      mySnap,
+			Interface: "content",
+			Attrs:     map[string]interface{}{"stuff": "wrong-tag"},
+		},
+		{
+			Name:      "wrong-iface-slot",
+			Snap:      mySnap,
+			Interface: "diff",
+			Attrs:     map[string]interface{}{"content": "wrong-iface"},
+		},
+	}
+
+	for _, slot := range slots {
+		mySnap.Slots[slot.Name] = slot
+	}
+
+	// add slots to repo
+	repo := interfaces.NewRepository()
+	c.Assert(repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "content"}), IsNil)
+	c.Assert(repo.AddInterface(&ifacetest.TestInterface{InterfaceName: "diff"}), IsNil)
+	ifacerepo.Replace(s.state, repo)
+	c.Assert(repo.AddSnap(mySnap), IsNil)
+
+	// check snap provides all content tags required
+	ok, err := snapstate.HasAllContentAttrs(s.state, "some-snap", []string{"some"})
+	c.Check(err, IsNil)
+	c.Assert(ok, Equals, true)
+
+	// shouldn't find "wrong-iface" because interface type isn't 'content'
+	ok, err = snapstate.HasAllContentAttrs(s.state, "some-snap", []string{"some", "wrong-iface"})
+	c.Check(err, IsNil)
+	c.Assert(ok, Equals, false)
+
+	// shouldn't find "wrong-tag" because it's not keyed by "content" attr
+	ok, err = snapstate.HasAllContentAttrs(s.state, "some-snap", []string{"some", "wrong-tag"})
+	c.Check(err, IsNil)
+	c.Assert(ok, Equals, false)
+
+	// check that non-existent snap returns false
+	ok, err = snapstate.HasAllContentAttrs(s.state, "other-snap", []string{"some"})
+	c.Check(err, IsNil)
+	c.Assert(ok, Equals, false)
+
+	// check that content attr of non-string type returns error
+	err = repo.AddSlot(&snap.SlotInfo{
+		Name:      "bad-content-slot",
+		Snap:      mySnap,
+		Interface: "content",
+		Attrs:     map[string]interface{}{"content": 123},
+	})
+	c.Assert(err, IsNil)
+
+	_, err = snapstate.HasAllContentAttrs(s.state, "some-snap", []string{"some"})
+	c.Assert(err.Error(), Equals, `expected 'content' attribute of slot 'bad-content-slot' (snap: 'some-snap') to be string but was int`)
 }
