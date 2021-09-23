@@ -29,23 +29,28 @@ import (
 // CreateLinearMapperDevice creates a linear device mapping of the given device
 // with the given offset and size.
 //
+// The total size of underlying device must be offset+size, this is
+// not validated by this code.
+//
 // The mapper device node is returned.
 func CreateLinearMapperDevice(device, name, uuid string, offset, size uint64) (string, error) {
+	const dmSetupSectorSize = 512
+
 	errPrefix := fmt.Sprintf("cannot create mapper %q on %v: ", name, device)
 
-	if offset%512 != 0 {
-		return "", fmt.Errorf(errPrefix+"offset %v must be aligned to 512 bytes", offset)
+	if offset%dmSetupSectorSize != 0 {
+		return "", fmt.Errorf(errPrefix+"offset %v must be aligned to %v bytes", offset, dmSetupSectorSize)
 	}
-	if size%512 != 0 {
-		return "", fmt.Errorf(errPrefix+"size %v must be aligned to 512 bytes", size)
+	if size%dmSetupSectorSize != 0 {
+		return "", fmt.Errorf(errPrefix+"size %v must be aligned to %v bytes", size, dmSetupSectorSize)
 	}
 	if size <= offset {
 		return "", fmt.Errorf(errPrefix+"size %v must be larger than the offset %v", size, offset)
 	}
 
-	offsetInBlocks := offset / uint64(512)
-	sizeWithoutOffsetInBlocks := (size / uint64(512)) - offsetInBlocks
-	dmTable := fmt.Sprintf("0 %v linear %s %v", sizeWithoutOffsetInBlocks, device, offsetInBlocks)
+	offsetInBlocks := offset / uint64(dmSetupSectorSize)
+	sizeInBlocks := size / uint64(dmSetupSectorSize)
+	dmTable := fmt.Sprintf("0 %v linear %s %v", sizeInBlocks, device, offsetInBlocks)
 	cmd := exec.Command("dmsetup", "create", name)
 	if uuid != "" {
 		cmd.Args = append(cmd.Args, []string{"--uuid", uuid}...)

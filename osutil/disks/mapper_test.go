@@ -61,8 +61,6 @@ func (ts *mapperSuite) TestCreateLinearMapperHappy(c *C) {
 
 	c.Check(mapperDevice, Equals, "/dev/mapper/mapper-name")
 	c.Check(mockCmd.Calls(), DeepEquals, [][]string{
-		// available size is 3 blocks, offset is 1 block (4
-		// blocks total)
-		{"dmsetup", "create", "mapper-name", "--table", "0 3 linear /dev/sda1 1"},
+		{"dmsetup", "create", "mapper-name", "--table", "0 4 linear /dev/sda1 1"},
 	})
 }
