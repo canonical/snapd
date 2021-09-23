@@ -238,6 +238,22 @@ var removeStaleConnections = func(st *state.State) error {
 	return nil
 }
 
+func isBroken(st *state.State, snapName string) (bool, error) {
+	var snapst snapstate.SnapState
+	err := snapstate.Get(st, snapName, &snapst)
+	if err == state.ErrNoState {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	snapInfo, _ := snapst.CurrentInfo()
+	if snapInfo != nil && snapInfo.Broken != "" {
+		return true, nil
+	}
+	return false, nil
+}
+
 // reloadConnections reloads connections stored in the state in the repository.
 // Using non-empty snapName the operation can be scoped to connections
 // affecting a given snap.
@@ -251,6 +267,7 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 
 	connStateChanged := false
 	affected := make(map[string]bool)
+ConnsLoop:
 	for connId, connState := range conns {
 		// Skip entries that just mark a connection as undesired. Those don't
 		// carry attributes that can go stale. In the same spirit, skip
@@ -280,6 +297,18 @@ func (m *InterfaceManager) reloadConnections(snapName string) ([]string, error) 
 			// as long as it wasn't disconnected manually; note that undesired flag is taken care of at
 			// the beginning of the loop.
 			if connState.Auto && !connState.ByGadget && connState.Interface != "core-support" {
+				// only do anything about this connection if snap isn't in a broken state, otherwise
+				// leave the connection untouched.
+				for _, snapName := range []string{connRef.PlugRef.Snap, connRef.SlotRef.Snap} {
+					broken, err := isBroken(m.state, snapName)
+					if err != nil {
+						return nil, err
+					}
+					if broken {
+						logger.Noticef("Snap %q is broken, ignored by reloadConnections", snapName)
+						continue ConnsLoop
+					}
+				}
 				delete(conns, connId)
 				connStateChanged = true
 			}
