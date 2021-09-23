@@ -52,15 +52,29 @@ func (ts *mapperSuite) TestCreateLinearMapperErr(c *C) {
 	c.Check(err, ErrorMatches, `cannot create mapper "mapper-name" on /dev/sda1: fail`)
 }
 
-func (ts *mapperSuite) TestCreateLinearMapperHappy(c *C) {
+func (ts *mapperSuite) TestCreateLinearMapperHappyNoUUID(c *C) {
 	mockCmd := testutil.MockCommand(c, "dmsetup", "")
 	defer mockCmd.Restore()
 
-	mapperDevice, err := disks.CreateLinearMapperDevice("/dev/sda1", "mapper-name", "", 512, 2048)
+	uuid := ""
+	mapperDevice, err := disks.CreateLinearMapperDevice("/dev/sda1", "mapper-name", uuid, 512, 2048)
 	c.Assert(err, IsNil)
 
 	c.Check(mapperDevice, Equals, "/dev/mapper/mapper-name")
 	c.Check(mockCmd.Calls(), DeepEquals, [][]string{
 		{"dmsetup", "create", "mapper-name", "--table", "0 4 linear /dev/sda1 1"},
+	})
+}
+
+func (ts *mapperSuite) TestCreateLinearMapperHappyWithUUID(c *C) {
+	mockCmd := testutil.MockCommand(c, "dmsetup", "")
+	defer mockCmd.Restore()
+
+	mapperDevice, err := disks.CreateLinearMapperDevice("/dev/sda1", "mapper-name", "some-uuid", 512, 2048)
+	c.Assert(err, IsNil)
+
+	c.Check(mapperDevice, Equals, "/dev/mapper/mapper-name")
+	c.Check(mockCmd.Calls(), DeepEquals, [][]string{
+		{"dmsetup", "create", "mapper-name", "--uuid", "some-uuid", "--table", "0 4 linear /dev/sda1 1"},
 	})
 }
