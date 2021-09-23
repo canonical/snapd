@@ -17,11 +17,13 @@
  *
  */
 
-package osutil
+package disks
 
 import (
 	"fmt"
 	"os/exec"
+
+	"github.com/snapcore/snapd/osutil"
 )
 
 // CreateLinearMapper creates a linear device mapping of the given device
@@ -50,7 +52,7 @@ func CreateLinearMapper(device, name, uuid string, offset, size uint64) (string,
 	}
 	cmd.Args = append(cmd.Args, []string{"--table", dmTable}...)
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("cannot create mapper %q on %v: %v", name, device, OutputErr(output, err))
+		return "", fmt.Errorf("cannot create mapper %q on %v: %v", name, device, osutil.OutputErr(output, err))
 	}
 
 	return fmt.Sprintf("/dev/mapper/%s", name), nil
