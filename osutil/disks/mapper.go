@@ -31,7 +31,7 @@ import (
 //
 // The mapper device node is returned.
 func CreateLinearMapper(device, name, uuid string, offset, size uint64) (string, error) {
-	errPrefix := "cannot create mapper: "
+	errPrefix := fmt.Sprintf("cannot create mapper %q on %v: ", name, device)
 
 	if offset%512 != 0 {
 		return "", fmt.Errorf(errPrefix+"offset %v must be aligned to 512 bytes", offset)
@@ -52,7 +52,7 @@ func CreateLinearMapper(device, name, uuid string, offset, size uint64) (string,
 	}
 	cmd.Args = append(cmd.Args, []string{"--table", dmTable}...)
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("cannot create mapper %q on %v: %v", name, device, osutil.OutputErr(output, err))
+		return "", fmt.Errorf(errPrefix+"%v", osutil.OutputErr(output, err))
 	}
 
 	return fmt.Sprintf("/dev/mapper/%s", name), nil

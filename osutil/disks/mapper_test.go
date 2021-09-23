@@ -35,9 +35,9 @@ func (ts *mapperSuite) TestCreateLinearSizeOffsetErr(c *C) {
 		offset, size uint64
 		expectedErr  string
 	}{
-		{123, 2048, "cannot create mapper: offset 123 must be aligned to 512 bytes"},
-		{512, 1111, "cannot create mapper: size 1111 must be aligned to 512 bytes"},
-		{512, 512, "cannot create mapper: size 512 must be larger than the offset 512"},
+		{123, 2048, `cannot create mapper "mapper-name" on /dev/sda1: offset 123 must be aligned to 512 bytes`},
+		{512, 1111, `cannot create mapper "mapper-name" on /dev/sda1: size 1111 must be aligned to 512 bytes`},
+		{512, 512, `cannot create mapper "mapper-name" on /dev/sda1: size 512 must be larger than the offset 512`},
 	} {
 		_, err := disks.CreateLinearMapper("/dev/sda1", "mapper-name", "", tc.offset, tc.size)
 		c.Check(err, ErrorMatches, tc.expectedErr)
