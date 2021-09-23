@@ -180,6 +180,7 @@ var mockOnDiskStructureWritable = gadget.OnDiskStructure{
 	Node: "/dev/node3",
 	LaidOutStructure: gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
+			VolumeName: "pc",
 			Name:       "Writable",
 			Size:       1258291200,
 			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
@@ -198,6 +199,7 @@ var mockOnDiskStructureSave = gadget.OnDiskStructure{
 	Node: "/dev/node3",
 	LaidOutStructure: gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
+			VolumeName: "pc",
 			Name:       "Save",
 			Size:       128 * quantity.SizeMiB,
 			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",
@@ -215,6 +217,7 @@ var mockOnDiskStructureWritableAfterSave = gadget.OnDiskStructure{
 	Node: "/dev/node4",
 	LaidOutStructure: gadget.LaidOutStructure{
 		VolumeStructure: &gadget.VolumeStructure{
+			VolumeName: "pc",
 			Name:       "Writable",
 			Size:       1200 * quantity.SizeMiB,
 			Type:       "83,0FC63DAF-8483-4772-8E79-3D69D8477DE4",

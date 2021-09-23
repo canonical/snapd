@@ -60,10 +60,9 @@ prepare: |
 
   # modify and repack gadget snap to add a defaults section and use our own
   # prepare-device hook to use the fakedevicesvc
-  mkdir "$(tests.nested get extra-snaps-path)"
 
   # Get the snakeoil key and cert for signing gadget assets (shim)
-  KEY_NAME=$(tests.nested get snakeoil-key)
+  KEY_NAME=$(tests.nested download snakeoil-key)
   SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
   SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
 
@@ -83,7 +82,7 @@ prepare: |
   cp prepare-device pc-gadget/meta/hooks/
 
   tests.nested secboot-sign gadget pc-gadget "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
-  snap pack pc-gadget/ extra-snaps/
+  snap pack pc-gadget/ "$(tests.nested get extra-snaps-path)"
   rm -rf pc-gadget/
 
   rm -f "$SNAKEOIL_KEY" "$SNAKEOIL_CERT"
@@ -91,10 +90,10 @@ prepare: |
   systemd-run --collect --unit fakedevicesvc fakedevicesvc localhost:11029
 
   # first boot - legit NoCloud usage
-  nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/normal-user" seed.iso cidata user-data meta-data
+  tests.nested build-seed "$TESTSLIB/cloud-init-seeds/normal-user" seed.iso cidata user-data meta-data
 
   # second boot - attacker drive
-  nested_build_seed_cdrom "$TESTSLIB/cloud-init-seeds/attacker-user" seed2.iso cidata user-data meta-data
+  tests.nested build-seed "$TESTSLIB/cloud-init-seeds/attacker-user" seed2.iso cidata user-data meta-data
 
   tests.nested build-image core
   # first boot will use seed1 to create the normal-user in addition to the 
@@ -122,6 +121,9 @@ execute: |
       echo "This test needs test keys to be trusted"
       exit
   fi
+
+  # wait for the initialize device task to be done
+  retry -n 200 --wait 1 sh -c "tests.nested exec snap changes | MATCH 'Done.*Initialize device'"
 
   echo "The initial cloud-init user was created"
   tests.nested exec "cat /var/lib/extrausers/passwd" | MATCH normal-user

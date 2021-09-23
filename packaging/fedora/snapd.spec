@@ -573,6 +573,10 @@ sed -e "s/-Bstatic -lseccomp/-Bstatic/g" -i cmd/snap-seccomp/*.go
 %if 0%{?rhel} == 7
     M4PARAM='-D distro_rhel7'
 %endif
+%if 0%{?rhel} == 7 || 0%{?rhel} == 8
+    # RHEL7 and RHEL8 are missing the BPF interfaces from their reference policy
+    M4PARAM="$M4PARAM -D no_bpf"
+%endif
     # Build SELinux module
     cd ./data/selinux
     # pass M4PARAM in env instead of as an override, so that make can still
