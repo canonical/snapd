@@ -49,6 +49,7 @@ import (
 	"github.com/snapcore/snapd/overlord/state"
 	"github.com/snapcore/snapd/polkit"
 	"github.com/snapcore/snapd/snap"
+	"github.com/snapcore/snapd/snap/snaptest"
 	"github.com/snapcore/snapd/store"
 	"github.com/snapcore/snapd/systemd"
 	"github.com/snapcore/snapd/testutil"
@@ -593,14 +594,15 @@ func (s *daemonSuite) TestStartStop(c *check.C) {
 	// and pretend we have snaps
 	st := d.overlord.State()
 	st.Lock()
+	si := &snap.SideInfo{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"}
 	snapstate.Set(st, "core", &snapstate.SnapState{
-		Active: true,
-		Sequence: []*snap.SideInfo{
-			{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"},
-		},
-		Current: snap.R(1),
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
 	})
 	st.Unlock()
+	snaptest.MockSnap(c, `name: core
+version: 1`, si)
 	// 1 snap => extended timeout 30s + 5s
 	const extendedTimeoutUSec = "EXTEND_TIMEOUT_USEC=35000000"
 
@@ -727,14 +729,15 @@ func (s *daemonSuite) TestGracefulStop(c *check.C) {
 	// and pretend we have snaps
 	st := d.overlord.State()
 	st.Lock()
+	si := &snap.SideInfo{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"}
 	snapstate.Set(st, "core", &snapstate.SnapState{
-		Active: true,
-		Sequence: []*snap.SideInfo{
-			{RealName: "core", Revision: snap.R(1), SnapID: "core-snap-id"},
-		},
-		Current: snap.R(1),
+		Active:   true,
+		Sequence: []*snap.SideInfo{si},
+		Current:  snap.R(1),
 	})
 	st.Unlock()
+	snaptest.MockSnap(c, `name: core
+version: 1`, si)
 
 	snapdL, err := net.Listen("tcp", "127.0.0.1:0")
 	c.Assert(err, check.IsNil)
