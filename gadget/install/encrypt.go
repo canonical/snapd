@@ -29,6 +29,7 @@ import (
 	"github.com/snapcore/snapd/gadget"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/osutil"
+	"github.com/snapcore/snapd/osutil/disks"
 	"github.com/snapcore/snapd/secboot"
 )
 
@@ -121,19 +122,13 @@ var _ = encryptedDevice(&encryptedDeviceWithSetupHook{})
 // newEncryptedDeviceWithSetupHook creates an encrypted device in the
 // existing partition using the specified key using the fde-setup hook
 func newEncryptedDeviceWithSetupHook(part *gadget.OnDiskStructure, key secboot.EncryptionKey, name string) (encryptedDevice, error) {
-	dev := &encryptedDeviceWithSetupHook{
-		parent: part,
-		name:   name,
-		node:   fmt.Sprintf("/dev/mapper/%s", name),
-	}
-
-	// 1. create linear mapper device: 1M offset in 512 byte blocks
-	offsetInBlocks := 1 * 1024 * 1024 / 512
-	sizeWithoutOffsetInBlocks := (int(part.Size) / 512) - offsetInBlocks
-	dmTable := fmt.Sprintf("0 %v linear %s %v", sizeWithoutOffsetInBlocks, part.Node, offsetInBlocks)
-	cmd := exec.Command("dmsetup", "create", name, "--table", dmTable)
-	if output, err := cmd.CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("cannot create mapping device on %v: %v", part.Node, osutil.OutputErr(output, err))
+	// 1. create linear mapper device with 1Mb of reserved space
+	uuid := ""
+	offset := uint64(1 * 1024 * 1024)
+	sizeMinusOffset := uint64(part.Size) - offset
+	mapperDevice, err := disks.CreateLinearMapperDevice(part.Node, name, uuid, offset, sizeMinusOffset)
+	if err != nil {
+		return nil, err
 	}
 
 	// 2. run fde-setup "device-setup" on it
@@ -153,7 +148,11 @@ func newEncryptedDeviceWithSetupHook(part *gadget.OnDiskStructure, key secboot.E
 		return nil, err
 	}
 
-	return dev, nil
+	return &encryptedDeviceWithSetupHook{
+		parent: part,
+		name:   name,
+		node:   mapperDevice,
+	}, nil
 }
 
 func (dev *encryptedDeviceWithSetupHook) Close() error {

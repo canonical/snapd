@@ -199,7 +199,7 @@ func (s *encryptSuite) TestNewEncryptedDeviceWithSetupHook(c *C) {
 		{
 			mockedOpenErr:            "open error",
 			mockedRunFDESetupHookErr: nil,
-			expectedErr:              "cannot create mapping device on /dev/node1: open error",
+			expectedErr:              `cannot create mapper "some-label" on /dev/node1: open error`,
 		},
 	} {
 		script := ""
@@ -236,7 +236,6 @@ func (s *encryptSuite) TestNewEncryptedDeviceWithSetupHook(c *C) {
 			{"dmsetup", "create", "some-label", "--table", "0 4096 linear /dev/node1 2048"},
 			{"dmsetup", "remove", "some-label"},
 		})
-
 	}
 }
 
