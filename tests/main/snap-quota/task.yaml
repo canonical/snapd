@@ -14,7 +14,7 @@ execute: |
     # old systemd versions, we need at least 230 to avoid buggy slice usage
     # reporting
 
-    snap set-quota foobar --memory=1MB 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH "systemd version too old: snap quotas requires systemd 230 and newer \(currently have 2[0-2][0-9]\)"
+    snap set-quota foobar --memory=1MB 2>&1 | tr '\n' ' ' | tr -s ' ' | MATCH "systemd version 2[0-2][0-9] is too old \(expected at least 230\)"
     exit 0
   fi
 

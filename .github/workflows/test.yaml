@@ -201,8 +201,16 @@ jobs:
         # ${{ github.workspace }}/bin/govendor remove github.com/snapcore/secboot
         # ${{ github.workspace }}/bin/govendor remove +unused
         SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=nosecboot ./run-checks --unit
+    - name: Test Go (faultinject)
+      if: steps.cached-results.outputs.already-ran != 'true'
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=faultinject ./run-checks --unit
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
+      # uploading to codecov occasionally fails, so continue running the test
+      # workflow regardless of the upload
+      continue-on-error: true
       if: steps.cached-results.outputs.already-ran != 'true'
       with:
         fail_ci_if_error: true
@@ -248,6 +256,7 @@ jobs:
         - ubuntu-20.04-64
         - ubuntu-21.04-64
         - ubuntu-21.10-64
+        - ubuntu-21.10-64-cgroupv2
         - ubuntu-core-16-64
         - ubuntu-core-18-64
         - ubuntu-core-20-64

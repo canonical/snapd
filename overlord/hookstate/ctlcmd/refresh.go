@@ -25,6 +25,8 @@ import (
 
 	"gopkg.in/yaml.v2"
 
+	"github.com/snapcore/snapd/cmd/snaplock"
+	"github.com/snapcore/snapd/cmd/snaplock/runinhibit"
 	"github.com/snapcore/snapd/features"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/interfaces"
@@ -45,6 +47,8 @@ type refreshCommand struct {
 	// these two options are mutually exclusive
 	Proceed bool `long:"proceed" description:"Proceed with potentially disruptive refreshes"`
 	Hold    bool `long:"hold" description:"Do not proceed with potentially disruptive refreshes"`
+
+	PrintInhibitLock bool `long:"show-lock" description:"Show the value of the run inhibit lock held during refreshes (empty means not held)"`
 }
 
 var shortRefreshHelp = i18n.G("The refresh command prints pending refreshes and can hold back disruptive ones.")
@@ -101,8 +105,21 @@ func (c *refreshCommand) Execute(args []string) error {
 		return fmt.Errorf("can only be used from gate-auto-refresh hook")
 	}
 
-	if c.Proceed && c.Hold {
-		return fmt.Errorf("cannot use --proceed and --hold together")
+	var which string
+	for _, opt := range []struct {
+		val  bool
+		name string
+	}{
+		{c.PrintInhibitLock, "--show-lock"},
+		{c.Hold, "--hold"},
+		{c.Proceed, "--proceed"},
+	} {
+		if opt.val && which != "" {
+			return fmt.Errorf("cannot use %s and %s together", opt.name, which)
+		}
+		if opt.val {
+			which = opt.name
+		}
 	}
 
 	// --pending --proceed is a verbose way of saying --proceed, so only
@@ -118,6 +135,8 @@ func (c *refreshCommand) Execute(args []string) error {
 		return c.proceed()
 	case c.Hold:
 		return c.hold()
+	case c.PrintInhibitLock:
+		return c.printInhibitLockHint()
 	}
 
 	return nil
@@ -304,4 +323,28 @@ func allowRefreshProceedOutsideHook(st *state.State, snapName string) (bool, err
 		}
 	}
 	return false, nil
+}
+
+func (c *refreshCommand) printInhibitLockHint() error {
+	ctx := c.context()
+	ctx.Lock()
+	snapName := ctx.InstanceName()
+	ctx.Unlock()
+
+	// obtain snap lock before manipulating runinhibit lock.
+	lock, err := snaplock.OpenLock(snapName)
+	if err != nil {
+		return err
+	}
+	if err := lock.Lock(); err != nil {
+		return err
+	}
+	defer lock.Unlock()
+
+	hint, err := runinhibit.IsLocked(snapName)
+	if err != nil {
+		return err
+	}
+	c.printf("%s", hint)
+	return nil
 }

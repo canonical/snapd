@@ -298,6 +298,10 @@ func (s *snapmgrTestSuite) TestRemoveRunThrough(c *C) {
 			stype: "app",
 		},
 		{
+			op:   "remove-snap-mount-units",
+			name: "some-snap",
+		},
+		{
 			op:   "discard-namespace",
 			name: "some-snap",
 		},
@@ -439,6 +443,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThrough(c *C) {
 			op:    "remove-snap-files",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap_instance/7"),
 			stype: "app",
+		},
+		{
+			op:   "remove-snap-mount-units",
+			name: "some-snap_instance",
 		},
 		{
 			op:   "discard-namespace",
@@ -589,6 +597,10 @@ func (s *snapmgrTestSuite) TestParallelInstanceRemoveRunThroughOtherInstances(c 
 			stype: "app",
 		},
 		{
+			op:   "remove-snap-mount-units",
+			name: "some-snap_instance",
+		},
+		{
 			op:   "discard-namespace",
 			name: "some-snap_instance",
 		},
@@ -711,6 +723,10 @@ func (s *snapmgrTestSuite) TestRemoveWithManyRevisionsRunThrough(c *C) {
 			op:    "remove-snap-files",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap/7"),
 			stype: "app",
+		},
+		{
+			op:   "remove-snap-mount-units",
+			name: "some-snap",
 		},
 		{
 			op:   "discard-namespace",
@@ -893,7 +909,7 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 	s.settle(c)
 	s.state.Lock()
 
-	c.Check(len(s.fakeBackend.ops), Equals, 8)
+	c.Check(len(s.fakeBackend.ops), Equals, 9)
 	expected := fakeOps{
 		{
 			op:    "auto-disconnect:Doing",
@@ -917,6 +933,10 @@ func (s *snapmgrTestSuite) TestRemoveLastRevisionRunThrough(c *C) {
 			op:    "remove-snap-files",
 			path:  filepath.Join(dirs.SnapMountDir, "some-snap/2"),
 			stype: "app",
+		},
+		{
+			op:   "remove-snap-mount-units",
+			name: "some-snap",
 		},
 		{
 			op:   "discard-namespace",
@@ -1823,7 +1843,7 @@ func (s *validationSetsSuite) removeSnapReferencedByValidationSet(c *C, presence
 
 func (s *validationSetsSuite) TestRemoveSnapRequiredByValidationSetRefused(c *C) {
 	err := s.removeSnapReferencedByValidationSet(c, "required")
-	c.Check(err, ErrorMatches, `snap "some-snap" is not removable: snap "some-snap" is required by validation sets: foo/bar`)
+	c.Check(err, ErrorMatches, `snap "some-snap" is not removable: snap "some-snap" is required by validation sets: 16/foo/bar/1`)
 }
 
 func (s *validationSetsSuite) TestRemoveOptionalSnapOK(c *C) {
@@ -1884,7 +1904,7 @@ func (s *validationSetsSuite) TestRemoveSnapRequiredByValidationSetAtSpecificRev
 	assertstate.UpdateValidationSet(s.state, &tr)
 
 	_, err := snapstate.Remove(s.state, "some-snap", snap.R(0), nil)
-	c.Assert(err, ErrorMatches, `snap "some-snap" is not removable: snap "some-snap" at revision 2 is required by validation sets: foo/bar`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" is not removable: snap "some-snap" at revision 2 is required by validation sets: 16/foo/bar/1`)
 
 	// it's ok to remove an unused revision
 	_, err = snapstate.Remove(s.state, "some-snap", snap.R(3), nil)
@@ -1937,7 +1957,7 @@ func (s *validationSetsSuite) TestRemoveSnapRequiredByValidationSetAtSpecificRev
 	// remove inactive revision 2 fails as it is required
 	// XXX: is this a viable scenario? the required revision isn't the active one?
 	_, err := snapstate.Remove(s.state, "some-snap", snap.R(2), nil)
-	c.Assert(err, ErrorMatches, `snap "some-snap" is not removable: snap "some-snap" at revision 2 is required by validation sets: foo/bar`)
+	c.Assert(err, ErrorMatches, `snap "some-snap" is not removable: snap "some-snap" at revision 2 is required by validation sets: 16/foo/bar/1`)
 }
 
 func (s *snapmgrTestSuite) TestRemoveFailsWithInvalidSnapName(c *C) {

@@ -32,6 +32,8 @@ debug: |
 execute: |
     #shellcheck source=tests/lib/hotplug.sh
     . "$TESTSLIB/hotplug.sh"
+    #shellcheck source=tests/lib/nested.sh
+    . "$TESTSLIB/nested.sh"
     
     if tests.nested exec "udevadm info -e" | MATCH "ID_MODEL=QEMU_USB_SERIAL"; then
         echo "USB serial already registered, exiting..."

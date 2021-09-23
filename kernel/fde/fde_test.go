@@ -495,7 +495,7 @@ func (s *fdeSuite) TestRevealErr(c *C) {
 	// fix randutil outcome
 	rand.Seed(1)
 
-	mockSystemdRun := testutil.MockCommand(c, "fde-reveal-key", `echo failed 1>&2; false`)
+	mockSystemdRun := testutil.MockCommand(c, "systemd-run", `echo failed 1>&2; false`)
 	defer mockSystemdRun.Restore()
 	restore := fde.MockFdeRevealKeyCommandExtra([]string{"--user"})
 	defer restore()
@@ -505,11 +505,23 @@ func (s *fdeSuite) TestRevealErr(c *C) {
 		SealedKey: sealedKey,
 	}
 	_, err := fde.Reveal(&p)
-	c.Assert(err, ErrorMatches, `(?s)cannot run fde-reveal-key "reveal": 
------
-failed
-service result: exit-code
------`)
+	c.Assert(err, ErrorMatches, `(?s)cannot run fde-reveal-key "reveal": failed`)
+
+	root := dirs.GlobalRootDir
+	calls := mockSystemdRun.Calls()
+	c.Check(calls, DeepEquals, [][]string{
+		{
+			"systemd-run", "--collect", "--service-type=exec", "--quiet",
+			"--property=RuntimeMaxSec=2m0s",
+			"--property=SystemCallFilter=~@mount",
+			fmt.Sprintf("--property=StandardInput=file:%s/run/fde-reveal-key/fde-reveal-key.stdin", root),
+			fmt.Sprintf("--property=StandardOutput=file:%s/run/fde-reveal-key/fde-reveal-key.stdout", root),
+			fmt.Sprintf("--property=StandardError=file:%s/run/fde-reveal-key/fde-reveal-key.stderr", root),
+			fmt.Sprintf(`--property=ExecStopPost=/bin/sh -c 'if [ "$EXIT_STATUS" = 0 ]; then touch %[1]s/run/fde-reveal-key/fde-reveal-key.success; else echo "service result: $SERVICE_RESULT" >%[1]s/run/fde-reveal-key/fde-reveal-key.failed; fi'`, root),
+			"--user",
+			"fde-reveal-key",
+		},
+	})
 	// ensure no tmp files are left behind
 	c.Check(osutil.FileExists(filepath.Join(dirs.GlobalRootDir, "/run/fde-reveal-key")), Equals, false)
 }
