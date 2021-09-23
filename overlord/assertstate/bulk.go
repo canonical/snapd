@@ -183,6 +183,9 @@ func bulkRefreshValidationSetAsserts(s *state.State, vsets map[string]*Validatio
 	if _, ok := err.(*snapasserts.ValidationSetsConflictError); ok {
 		return err
 	}
+	if _, ok := err.(*snapasserts.ValidationSetsValidationError); ok {
+		return err
+	}
 
 	if rerr, ok := err.(*resolvePoolError); ok {
 		// ignore resolving errors for validation sets that are local only (no

@@ -108,7 +108,7 @@ static void _sc_cgroup_v1_deny(sc_device_cgroup *self, int kind, int major, int 
 }
 
 static void _sc_cgroup_v1_attach_pid(sc_device_cgroup *self, pid_t pid) {
-    sc_dprintf(self->v1.fds.cgroup_procs_fd, "%i\n", getpid());
+    sc_dprintf(self->v1.fds.cgroup_procs_fd, "%i\n", pid);
 }
 
 /**

@@ -31,6 +31,7 @@ import (
 	"github.com/snapcore/snapd/client"
 	"github.com/snapcore/snapd/i18n"
 	"github.com/snapcore/snapd/logger"
+	"github.com/snapcore/snapd/overlord/assertstate"
 	"github.com/snapcore/snapd/overlord/auth"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
@@ -336,7 +337,7 @@ func snapUpdate(inst *snapInstruction, st *state.State) (string, []*state.TaskSe
 	}
 
 	// we need refreshed snap-declarations to enforce refresh-control as best as we can
-	if err = assertstateRefreshSnapAssertions(st, inst.userID); err != nil {
+	if err = assertstateRefreshSnapAssertions(st, inst.userID, nil); err != nil {
 		return "", nil, err
 	}
 
@@ -586,9 +587,12 @@ func snapInstallMany(inst *snapInstruction, st *state.State) (*snapInstructionRe
 func snapUpdateMany(inst *snapInstruction, st *state.State) (*snapInstructionResult, error) {
 	// we need refreshed snap-declarations to enforce refresh-control as best as
 	// we can, this also ensures that snap-declarations and their prerequisite
-	// assertions are updated regularly, as well as updates validation sets
-	// assertions.
-	if err := assertstateRefreshSnapAssertions(st, inst.userID); err != nil {
+	// assertions are updated regularly; update validation sets assertions only
+	// if refreshing all snaps (no snap names explicitly requested).
+	opts := &assertstate.RefreshAssertionsOptions{
+		IsRefreshOfAllSnaps: len(inst.Snaps) == 0,
+	}
+	if err := assertstateRefreshSnapAssertions(st, inst.userID, opts); err != nil {
 		return nil, err
 	}
 
