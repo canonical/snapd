@@ -244,6 +244,16 @@ static void _sc_cleanup_v2_device_key(sc_cgroup_v2_device_key **keyptr) {
     *keyptr = NULL;
 }
 
+static void _sc_cgroup_v2_set_memlock_limit(struct rlimit limit) {
+    /* we may be setting the limit over the current max, which requires root
+     * privileges */
+    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
+    if (setrlimit(RLIMIT_MEMLOCK, &limit) < 0) {
+        die("cannot set memlock limit to %lu:%lu", limit.rlim_cur, limit.rlim_max);
+    }
+    (void)sc_set_effective_identity(old);
+}
+
 // _sc_cgroup_v2_adjust_memlock_limit updates the memlock limit which used to be
 // consulted by pre 5.11 kernels when creating BPF maps or loading BPF programs.
 // It has been observed that some systems (eg. Debian using 5.10 kernel) have
@@ -255,7 +265,6 @@ static void _sc_cleanup_v2_device_key(sc_cgroup_v2_device_key **keyptr) {
 static struct rlimit _sc_cgroup_v2_adjust_memlock_limit(void) {
     struct rlimit old_limit = {0};
 
-    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
     if (getrlimit(RLIMIT_MEMLOCK, &old_limit) < 0) {
         die("cannot obtain the current memlock limit");
     }
@@ -265,23 +274,13 @@ static struct rlimit _sc_cgroup_v2_adjust_memlock_limit(void) {
     if (old_limit.rlim_max >= min_memlock_limit) {
         return old_limit;
     }
-    struct rlimit limit = {0};
     debug("adjusting memlock limit to %lu", min_memlock_limit);
-    limit.rlim_max = min_memlock_limit;
-    limit.rlim_cur = min_memlock_limit;
-    if (setrlimit(RLIMIT_MEMLOCK, &limit) < 0) {
-        die("cannot set memlock limit to %lu", min_memlock_limit);
-    }
-    (void)sc_set_effective_identity(old);
+    struct rlimit limit = {
+        .rlim_cur = min_memlock_limit,
+        .rlim_max = min_memlock_limit,
+    };
+    _sc_cgroup_v2_set_memlock_limit(limit);
     return old_limit;
-}
-
-static void _sc_cgroup_v2_set_memlock_limit(struct rlimit limit) {
-    sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-    if (setrlimit(RLIMIT_MEMLOCK, &limit) < 0) {
-        die("cannot set memlock limit to %lu:%lu", limit.rlim_cur, limit.rlim_max);
-    }
-    (void)sc_set_effective_identity(old);
 }
 
 static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
