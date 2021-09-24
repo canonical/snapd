@@ -279,9 +279,10 @@ static void test_sc_cgroupv2_own_group_path_empty(cgroupv2_own_group_fixture *fi
 
 static void _test_sc_cgroupv2_own_group_path_die_with_message(const char *msg) {
     if (g_test_subprocess()) {
-        char *p SC_CLEANUP(sc_cleanup_string) = NULL;
-        // keep this separate so that p isn't unused
+        char *p = NULL;
         p = sc_cgroup_v2_own_path_full();
+        /* not reached */
+        sc_cleanup_string(&p);
     }
     g_test_trap_subprocess(NULL, 0, 0);
     g_test_trap_assert_failed();
