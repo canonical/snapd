@@ -96,7 +96,7 @@ func (s *polkitInterfaceSuite) TestConnectedPlugAppArmor(c *C) {
 }
 
 func (s *polkitInterfaceSuite) TestConnectedPlugPolkit(c *C) {
-	const samplePolicy = `<policyconfig>
+	const samplePolicy1 = `<policyconfig>
   <action id="org.example.foo.some-action">
     <description>Some action</description>
     <message>Authentication is required to do some action</message>
@@ -107,26 +107,36 @@ func (s *polkitInterfaceSuite) TestConnectedPlugPolkit(c *C) {
     </default>
   </action>
 </policyconfig>`
+	const samplePolicy2 = `<policyconfig/>`
 
-	policyPath := filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit.policy")
-	c.Assert(ioutil.WriteFile(policyPath, []byte(samplePolicy), 0644), IsNil)
+	policyPath := filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit.foo.policy")
+	c.Assert(ioutil.WriteFile(policyPath, []byte(samplePolicy1), 0644), IsNil)
+	policyPath = filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit.bar.policy")
+	c.Assert(ioutil.WriteFile(policyPath, []byte(samplePolicy2), 0644), IsNil)
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
 	c.Assert(err, IsNil)
 
 	c.Check(polkitSpec.Policies(), DeepEquals, map[string]polkit.Policy{
-		"polkit": polkit.Policy(samplePolicy),
+		"polkit.foo": polkit.Policy(samplePolicy1),
+		"polkit.bar": polkit.Policy(samplePolicy2),
 	})
 }
 
+func (s *polkitInterfaceSuite) TestConnectedPlugPolkitMissing(c *C) {
+	polkitSpec := &polkit.Specification{}
+	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
+	c.Check(err, ErrorMatches, `could not find any policy files for plug "polkit"`)
+}
+
 func (s *polkitInterfaceSuite) TestConnectedPlugPolkitNotFile(c *C) {
-	policyPath := filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit.policy")
+	policyPath := filepath.Join(s.plugInfo.Snap.MountDir(), "meta/polkit.foo.policy")
 	c.Assert(os.Mkdir(policyPath, 0755), IsNil)
 
 	polkitSpec := &polkit.Specification{}
 	err := polkitSpec.AddConnectedPlug(s.iface, s.plug, s.slot)
-	c.Check(err, ErrorMatches, `could not read file "meta/polkit.policy": read .*: is a directory`)
+	c.Check(err, ErrorMatches, `could not read file ".*/meta/polkit.foo.policy": read .*: is a directory`)
 }
 
 func (s *polkitInterfaceSuite) TestSanitizeSlot(c *C) {

@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
+	"strings"
 
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/polkit"
@@ -91,12 +92,24 @@ func (iface *polkitInterface) PolkitConnectedPlug(spec *polkit.Specification, pl
 	}
 
 	mountDir := plug.Snap().MountDir()
-	policyFile := filepath.Join(mountDir, fmt.Sprintf("meta/%s.policy", plug.Name()))
-	content, err := ioutil.ReadFile(policyFile)
+	policyFiles, err := filepath.Glob(filepath.Join(mountDir, "meta", plug.Name()+".*.policy"))
 	if err != nil {
-		return fmt.Errorf(`could not read file "meta/%s.policy": %v`, plug.Name(), err)
+		return err
 	}
-	return spec.AddPolicy(plug.Name(), polkit.Policy(content))
+	if len(policyFiles) == 0 {
+		return fmt.Errorf("could not find any policy files for plug %q", plug.Name())
+	}
+	for _, filename := range policyFiles {
+		suffix := strings.TrimSuffix(filepath.Base(filename), ".policy")
+		content, err := ioutil.ReadFile(filename)
+		if err != nil {
+			return fmt.Errorf(`could not read file %q: %v`, filename, err)
+		}
+		if err := spec.AddPolicy(suffix, polkit.Policy(content)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (iface *polkitInterface) BeforePreparePlug(plug *snap.PlugInfo) error {
