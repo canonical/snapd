@@ -42,19 +42,21 @@ type DeviceUnlockRequest struct {
 func runFDEDeviceUnlockCommand(req *DeviceUnlockRequest) (output []byte, err error) {
 	stdin, err := json.Marshal(req)
 	if err != nil {
-		return nil, fmt.Errorf(`cannot build request for fde-inline-crypt-hw %q: %v`, req.Op, err)
+		return nil, fmt.Errorf(`cannot build request %q for fde-device-unlock: %v`, req, err)
 	}
 
 	return runFDEinitramfsHelper("fde-device-unlock", stdin)
 }
 
-// DeviceUnlockParams contains the parameters for fde-device-unlock reveal operation.
+// DeviceUnlockParams contains the parameters for fde-device-unlock
+// "device-unlock" operation.
 type DeviceUnlockParams struct {
 	Key    []byte
 	Device string
 }
 
-// DeviceUnlock invokes the fde-reveal-key reveal operation.
+// DeviceUnlock invokes the "fde-device-unlock" helper with the
+// "device-unlock" operation.
 func DeviceUnlock(params *DeviceUnlockParams) (err error) {
 	req := &DeviceUnlockRequest{
 		Op:     "device-unlock",

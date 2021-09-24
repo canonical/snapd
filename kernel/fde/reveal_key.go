@@ -50,7 +50,7 @@ type RevealKeyRequest struct {
 func runFDERevealKeyCommand(req *RevealKeyRequest) (output []byte, err error) {
 	stdin, err := json.Marshal(req)
 	if err != nil {
-		return nil, fmt.Errorf(`cannot build request for fde-reveal-key %q: %v`, req.Op, err)
+		return nil, fmt.Errorf(`cannot build request %v for fde-reveal-key: %v`, req, err)
 	}
 
 	return runFDEinitramfsHelper("fde-reveal-key", stdin)
