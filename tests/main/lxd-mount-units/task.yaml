@@ -20,11 +20,8 @@ execute: |
     lxd waitready
     lxd init --auto
 
-    if os.query is-focal; then
-        core_snap=core18
-    else
-        core_snap=core20
-    fi
+    # Define the core snap for the current system
+    core_snap=core20
 
     echo "Setting up proxy for lxc"
     if [ -n "${http_proxy:-}" ]; then
