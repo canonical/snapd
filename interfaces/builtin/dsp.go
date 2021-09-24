@@ -62,6 +62,9 @@ const ambarellaDspConnectedPlugApparmor = `
 
 # also needed for interfacing with the DSP
 /proc/ambarella/vin0_idsp rw,
+
+# needed to control the usb device attached to the DSP
+/proc/ambarella/usbphy0 rw,
 `
 
 var ambarellaDspConnectedPlugUDev = []string{
