@@ -249,7 +249,8 @@ static void _sc_cgroup_v2_set_memlock_limit(struct rlimit limit) {
      * privileges */
     sc_identity old = sc_set_effective_identity(sc_root_group_identity());
     if (setrlimit(RLIMIT_MEMLOCK, &limit) < 0) {
-        die("cannot set memlock limit to %lu:%lu", limit.rlim_cur, limit.rlim_max);
+        die("cannot set memlock limit to %llu:%llu", (long long unsigned int)limit.rlim_cur,
+            (long long unsigned int)limit.rlim_max);
     }
     (void)sc_set_effective_identity(old);
 }
@@ -274,7 +275,7 @@ static struct rlimit _sc_cgroup_v2_adjust_memlock_limit(void) {
     if (old_limit.rlim_max >= min_memlock_limit) {
         return old_limit;
     }
-    debug("adjusting memlock limit to %lu", min_memlock_limit);
+    debug("adjusting memlock limit to %llu", (long long unsigned int)min_memlock_limit);
     struct rlimit limit = {
         .rlim_cur = min_memlock_limit,
         .rlim_max = min_memlock_limit,
