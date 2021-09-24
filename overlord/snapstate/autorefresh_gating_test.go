@@ -2580,15 +2580,18 @@ func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
 	restore := snapstatetest.MockDeviceModel(DefaultModel())
 	defer restore()
 
+	refreshedDate, err := time.Parse(time.RFC3339, "2021-01-01T10:00:00Z")
+	c.Assert(err, IsNil)
+	restoreRevDate := snapstate.MockRevisionDate(func(sn *snap.Info) time.Time {
+		return refreshedDate
+	})
+	defer restoreRevDate()
+
 	requiredRevision = "1"
 	names, _, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
 	c.Assert(err, IsNil)
 	// some-snap is already at the required revision 1, so not refreshed
 	c.Check(names, DeepEquals, []string{"snap-c", "some-other-snap"})
-
-	fi, err := os.Stat(snap.MountFile("some-snap", snap.R("1")))
-	c.Assert(err, IsNil)
-	refreshedDate := fi.ModTime()
 
 	// check that refresh-candidates in the state were updated
 	var candidates map[string]*snapstate.RefreshCandidate
