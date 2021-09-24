@@ -210,28 +210,130 @@ jobs:
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
         SKIP_DIRTY_CHECK=1 GO_BUILD_TAGS=faultinject ./run-checks --unit
-    - name: Merge coverage results
-      if: ${{ steps.cached-results.outputs.already-ran != 'true' && matrix.gochannel != 'latest/stable' }}
+    - name: Archive code coverage data
+      uses: actions/upload-artifact@v2
+      with:
+        name: unit-code-coverage
+        path: ${{ github.workspace }}/src/github.com/snapcore/snapd/.coverage/coverage*.cov
+    - name: Cache successful run
+      run: |
+        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
+        touch "$CACHE_RESULT_STAMP"
+
+  component-tests:
+    runs-on: ubuntu-20.04
+    env:
+      GOPATH: ${{ github.workspace }}
+      # Set PATH to ignore the load of magic binaries from /usr/local/bin And
+      # to use the go snap automatically. Note that we install go from the
+      # snap in a step below. Without this we get the GitHub-controlled latest
+      # version of go.
+      PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games
+      GOROOT: ""
+      GITHUB_PULL_REQUEST: ${{ github.event.number }}
+      SNAPD_TEST_BINARIES: ${{ github.workspace }}/test-bin
+      SNAPD_COVERAGE_DIR: ${{ github.workspace }}/coverage
+    strategy:
+      matrix:
+        gochannel:
+          - 1.13
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+      with:
+        # NOTE: checkout the code in a fixed location, even for forks, as this
+        # is relevant for go's import system.
+        path: ./src/github.com/snapcore/snapd
+    # Fetch base ref, needed for golangci-lint
+    - name: Fetching base ref ${{ github.base_ref }}
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd
+        git fetch origin ${{ github.base_ref }}:${{ github.base_ref }}
+    - name: Cache Debian dependencies
+      id: cache-deb-downloads
+      uses: actions/cache@v1
+      with:
+        path: /var/cache/apt
+        key: var-cache-apt-{{ hashFiles('**/debian/control') }}
+    - name: Run "apt update"
+      run: |
+          sudo apt update
+    - name: Download Debian dependencies
+      if: steps.cache-deb-downloads.outputs.cache-hit != 'true'
+      run: |
+          sudo apt clean
+          sudo apt build-dep -d -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+
+    - name: Install Debian dependencies
+      run: |
+          sudo apt build-dep -y ${{ github.workspace }}/src/github.com/snapcore/snapd
+    # golang latest ensures things work on the edge
+    - name: Install the go snap
+      run: |
+          sudo snap install --classic --channel=${{ matrix.gochannel }} go
+    - name: Install ShellCheck as a snap
+      run: |
+          sudo apt-get remove --purge shellcheck
+          sudo snap install shellcheck
+    - name: Build component test binaries
       run: |
         cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        ./tests/component/build.sh "$SNAPD_TEST_BINARIES"
+    - name: Run component tests
+      run: |
+        cd ${{ github.workspace }}/src/github.com/snapcore/snapd || exit 1
+        pytest-3 ./tests/component/snap/
+    - name: Archive code coverage data
+      uses: actions/upload-artifact@v2
+      with:
+        name: component-code-coverage
+        path: ${{ env.SNAPD_COVERAGE_DIR }}
+
+
+  coverage-upload:
+    needs: ["unit-tests", "component-tests"]
+    runs-on: ubuntu-20.04
+    env:
+      GOPATH: ${{ github.workspace }}
+      # Set PATH to ignore the load of magic binaries from /usr/local/bin And
+      # to use the go snap automatically. Note that we install go from the
+      # snap in a step below. Without this we get the GitHub-controlled latest
+      # version of go.
+      PATH: /snap/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:${{ github.workspace }}/bin
+      GOROOT: ""
+    strategy:
+      matrix:
+        gochannel:
+          - 1.13
+    steps:
+    - name: Install the go snap
+      run: |
+          sudo snap install --classic --channel=${{ matrix.gochannel }} go
+    - name: Download unit tests coverage data
+      uses: actions/download-artifact@v2
+      with:
+        name: unit-code-coverage
+    - name: Download component tests coverage data
+      uses: actions/download-artifact@v2
+      with:
+        name: component-code-coverage
+    - name: Merge coverage results
+      run: |
+        find
+        go get github.com/makholm/covertool
         go install github.com/makholm/covertool
-        covertool merge -o .coverage/all.cov .coverage/coverage*.cov
+        covertool merge -o all.cov coverage*.cov snap*.cov
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v2
       # uploading to codecov occasionally fails, so continue running the test
       # workflow regardless of the upload
       continue-on-error: true
-      if: ${{ steps.cached-results.outputs.already-ran != 'true' && matrix.gochannel != 'latest/stable' }}
       with:
         fail_ci_if_error: true
         flags: unittests
         name: codecov-umbrella
-        files: .coverage/all.cov
+        files: all.cov
         verbose: true
-    - name: Cache successful run
-      run: |
-        mkdir -p $(dirname "$CACHE_RESULT_STAMP")
-        touch "$CACHE_RESULT_STAMP"
 
   spread:
     needs: [unit-tests]
