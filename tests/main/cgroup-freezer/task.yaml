@@ -6,7 +6,7 @@ details: |
 
 # fedora-33, fedora-34, debian-sid, arch, opensuse TW use cgroupv2, which does
 # not support a separate freezer controller
-systems: [ -fedora-33-*, -fedora-34-*, -debian-sid-*, -arch-*, -opensuse-tumbleweed-*]
+systems: [ -fedora-33-*, -fedora-34-*, -debian-sid-*, -arch-*, -opensuse-tumbleweed-*, -ubuntu-21.10-*-cgroupv2]
 
 prepare: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh

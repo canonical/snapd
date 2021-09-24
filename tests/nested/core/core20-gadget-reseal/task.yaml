@@ -3,8 +3,6 @@ summary: Check that a gadget refresh reseals
 systems: [ubuntu-20.04-64]
 
 execute: |
-    # shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
     SEALED_KEY_MTIME_1="$(tests.nested exec sudo stat --format="%Y" /run/mnt/ubuntu-boot/device/fde/ubuntu-data.sealed-key)"
     RESEAL_COUNT_1="$(tests.nested exec sudo cat /var/lib/snapd/device/fde/boot-chains | python3 -m json.tool | grep reseal-count|cut -f2 -d: | tr ',' ' ')"
     
@@ -21,7 +19,7 @@ execute: |
     test "$RESEAL_COUNT_2" = "$RESEAL_COUNT_1"
 
     echo "Create modified boot assets"
-    KEY_NAME=$(tests.nested get snakeoil-key)
+    KEY_NAME=$(tests.nested download snakeoil-key)
     SNAKEOIL_KEY="$PWD/$KEY_NAME.key"
     SNAKEOIL_CERT="$PWD/$KEY_NAME.pem"
     

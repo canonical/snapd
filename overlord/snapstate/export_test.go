@@ -98,7 +98,7 @@ var (
 
 	CurrentSnaps = currentSnaps
 
-	DefaultContentPlugProviders = defaultContentPlugProviders
+	DefaultProviderContentAttrs = defaultProviderContentAttrs
 
 	HasOtherInstances = hasOtherInstances
 
@@ -148,6 +148,9 @@ var (
 	SoftCheckNothingRunningForRefresh     = softCheckNothingRunningForRefresh
 	HardEnsureNothingRunningDuringRefresh = hardEnsureNothingRunningDuringRefresh
 )
+
+// install
+var HasAllContentAttrs = hasAllContentAttrs
 
 func MockNextRefresh(ar *autoRefresh, when time.Time) {
 	ar.nextRefresh = when

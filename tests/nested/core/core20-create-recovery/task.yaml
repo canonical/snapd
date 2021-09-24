@@ -3,14 +3,9 @@ summary: verify creating recovery system on UC20
 systems: [ubuntu-20.04-64]
 
 prepare: |
-    # shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
-
     tests.nested exec sudo snap install http
 
 execute: |
-    # shellcheck source=tests/lib/nested.sh
-    . "$TESTSLIB/nested.sh"
     echo "Create a recovery system with a typical recovery system label"
     boot_id="$( tests.nested boot-id )"
     echo '{"action":"create-recovery-system","params":{"recovery-system-label":"1234"}}' | tests.nested exec sudo http POST snapd:///v2/debug > change.out
