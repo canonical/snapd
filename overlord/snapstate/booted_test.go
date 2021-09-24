@@ -34,7 +34,9 @@ import (
 	"github.com/snapcore/snapd/bootloader"
 	"github.com/snapcore/snapd/bootloader/bootloadertest"
 	"github.com/snapcore/snapd/dirs"
+	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/overlord"
+	"github.com/snapcore/snapd/overlord/ifacestate/ifacerepo"
 	"github.com/snapcore/snapd/overlord/servicestate"
 	"github.com/snapcore/snapd/overlord/snapstate"
 	"github.com/snapcore/snapd/overlord/snapstate/snapstatetest"
@@ -94,6 +96,11 @@ func (bs *bootedSuite) SetUpTest(c *C) {
 		return nil, nil
 	}
 	bs.restore = snapstatetest.MockDeviceModel(DefaultModel())
+
+	bs.state.Lock()
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(bs.state, repo)
+	bs.state.Unlock()
 
 	oldSnapServiceOptions := snapstate.SnapServiceOptions
 	snapstate.SnapServiceOptions = servicestate.SnapServiceOptions
