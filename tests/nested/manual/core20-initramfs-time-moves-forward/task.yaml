@@ -22,16 +22,10 @@ environment:
   MODEL_ASSERTION_SIGN_TIME: 1606490999
 
 prepare: |
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-
   tests.nested build-image core
   tests.nested create-vm core
 
 execute: |
-  #shellcheck source=tests/lib/nested.sh
-  . "$TESTSLIB/nested.sh"
-
   echo "Verify that the current time in the VM is newer than the model assertion sign time"
   test "$(tests.nested exec date --utc '+%s')" -ge "$MODEL_ASSERTION_SIGN_TIME"
 
