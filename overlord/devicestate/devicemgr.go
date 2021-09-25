@@ -1775,7 +1775,7 @@ func (m *DeviceManager) checkFDEFeatures() (et secboot.EncryptionType, err error
 	if strutil.ListContains(res.Features, "device-setup") {
 		et = secboot.EncryptionTypeDeviceSetupHook
 	} else {
-		et = secboot.EncryptionTypeCryptsetup
+		et = secboot.EncryptionTypeLUKS
 	}
 
 	return et, nil

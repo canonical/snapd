@@ -493,7 +493,7 @@ func (m *DeviceManager) checkEncryption(st *state.State, deviceCtx snapstate.Dev
 	if !hasFDESetupHook {
 		checkEncryptionErr = secbootCheckTPMKeySealingSupported()
 		if checkEncryptionErr == nil {
-			res = secboot.EncryptionTypeCryptsetup
+			res = secboot.EncryptionTypeLUKS
 		}
 	}
 

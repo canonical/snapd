@@ -323,7 +323,7 @@ func (s *deviceMgrInstallModeSuite) doRunChangeTestWithEncryption(c *C, grade st
 	if tc.encrypt {
 		c.Assert(brOpts, DeepEquals, install.Options{
 			Mount:          true,
-			EncryptionType: secboot.EncryptionTypeCryptsetup,
+			EncryptionType: secboot.EncryptionTypeLUKS,
 		})
 	} else {
 		c.Assert(brOpts, DeepEquals, install.Options{
@@ -863,7 +863,7 @@ func (s *deviceMgrInstallModeSuite) testInstallEncryptionSanityChecks(c *C, errM
 
 func (s *deviceMgrInstallModeSuite) TestInstallEncryptionSanityChecksNoKeys(c *C) {
 	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
-		c.Check(options.EncryptionType, Equals, secboot.EncryptionTypeCryptsetup)
+		c.Check(options.EncryptionType, Equals, secboot.EncryptionTypeLUKS)
 		// no keys set
 		return &install.InstalledSystemSideData{}, nil
 	})
@@ -874,7 +874,7 @@ func (s *deviceMgrInstallModeSuite) TestInstallEncryptionSanityChecksNoKeys(c *C
 
 func (s *deviceMgrInstallModeSuite) TestInstallEncryptionSanityChecksNoSystemDataKey(c *C) {
 	restore := devicestate.MockInstallRun(func(mod gadget.Model, gadgetRoot, kernelRoot, device string, options install.Options, _ gadget.ContentObserver, _ timings.Measurer) (*install.InstalledSystemSideData, error) {
-		c.Check(options.EncryptionType, Equals, secboot.EncryptionTypeCryptsetup)
+		c.Check(options.EncryptionType, Equals, secboot.EncryptionTypeLUKS)
 		// no keys set
 		return &install.InstalledSystemSideData{
 			// empty map
@@ -1234,9 +1234,9 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncrypted(c *C) {
 		// unhappy: no tpm, no hook
 		{false, "[]", false, secboot.EncryptionTypeNone},
 		// happy: either tpm or hook or both
-		{false, "[]", true, secboot.EncryptionTypeCryptsetup},
-		{true, "[]", false, secboot.EncryptionTypeCryptsetup},
-		{true, "[]", true, secboot.EncryptionTypeCryptsetup},
+		{false, "[]", true, secboot.EncryptionTypeLUKS},
+		{true, "[]", false, secboot.EncryptionTypeLUKS},
+		{true, "[]", true, secboot.EncryptionTypeLUKS},
 		// happy but device-setup hook
 		{true, `["device-setup"]`, true, secboot.EncryptionTypeDeviceSetupHook},
 	} {
@@ -1407,9 +1407,9 @@ func (s *deviceMgrInstallModeSuite) TestInstallCheckEncryptedFDEHook(c *C) {
 		{`{"error":"failed"}`, `cannot use hook: it returned error: failed`, secboot.EncryptionTypeNone},
 		{`{}`, `cannot use hook: neither "features" nor "error" returned`, secboot.EncryptionTypeNone},
 		// valid
-		{`{"features":[]}`, "", secboot.EncryptionTypeCryptsetup},
-		{`{"features":["a"]}`, "", secboot.EncryptionTypeCryptsetup},
-		{`{"features":["a","b"]}`, "", secboot.EncryptionTypeCryptsetup},
+		{`{"features":[]}`, "", secboot.EncryptionTypeLUKS},
+		{`{"features":["a"]}`, "", secboot.EncryptionTypeLUKS},
+		{`{"features":["a","b"]}`, "", secboot.EncryptionTypeLUKS},
 		// features must be list of strings
 		{`{"features":[1]}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`, secboot.EncryptionTypeNone},
 		{`{"features":1}`, `cannot parse hook output ".*": json: cannot unmarshal number into Go struct.*`, secboot.EncryptionTypeNone},

@@ -69,7 +69,7 @@ func main() {
 
 	var encryptionType secboot.EncryptionType
 	if args.Encrypt {
-		encryptionType = secboot.EncryptionTypeCryptsetup
+		encryptionType = secboot.EncryptionTypeLUKS
 	}
 
 	options := install.Options{
