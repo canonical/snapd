@@ -45,6 +45,16 @@ func HasRevealKey() bool {
 	return err == nil
 }
 
+// HasDeviceUnlock returns true if the current system has a
+// "fde-device-unlock" binary (usually used in the initrd).
+//
+// This will be used by the initrd to determine if cryptsetup is
+// skipped and a hook needs to be used to unlock individual device.
+func HasDeviceUnlock() bool {
+	_, err := exec.LookPath("fde-device-unlock")
+	return err == nil
+}
+
 func isV1Hook(hookOutput []byte) bool {
 	// This is the prefix of a tpm secboot v1 key as used in the
 	// "denver" project. So if we see this prefix we know it's
