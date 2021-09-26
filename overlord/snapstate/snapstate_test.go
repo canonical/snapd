@@ -86,7 +86,24 @@ type snapmgrTestSuite struct {
 
 func (s *snapmgrTestSuite) settle(c *C) {
 	err := s.o.Settle(testutil.HostScaledTimeout(5 * time.Second))
-	c.Assert(err, IsNil)
+	if err != nil {
+		c.Error(err)
+		s.logTasks(c)
+		c.FailNow()
+	}
+}
+
+func (s *snapmgrTestSuite) logTasks(c *C) {
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	for _, chg := range s.state.Changes() {
+		c.Logf("\nChange %q (%s):", chg.Summary(), chg.Status())
+
+		for _, t := range chg.Tasks() {
+			c.Logf("\t%s - %s", t.Summary(), t.Status())
+		}
+	}
 }
 
 var _ = Suite(&snapmgrTestSuite{})
