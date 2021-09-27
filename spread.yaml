@@ -226,7 +226,7 @@ backends:
                   image: ubuntu-20.04-64
                   username: ubuntu
                   password: ubuntu
-                  flags: [virtio]
+                  bios: uefi
             - ubuntu-18.04-64:
                   username: ubuntu
                   password: ubuntu
