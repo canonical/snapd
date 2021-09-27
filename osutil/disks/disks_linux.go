@@ -37,6 +37,10 @@ import (
 )
 
 var (
+	_ = Disk(&disk{})
+)
+
+var (
 	// this regexp is for the DM_UUID udev property, or equivalently the dm/uuid
 	// sysfs entry for a luks2 device mapper volume dynamically created by
 	// systemd-cryptsetup when unlocking
