@@ -247,52 +247,66 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		if err != nil {
 			return nil, fmt.Errorf(errFmt, partMountPointSource, err)
 		}
+		dmUUID = bytes.TrimSpace(dmUUID)
 
 		dmName, err := ioutil.ReadFile(filepath.Join(dmDir, "name"))
 		if err != nil {
 			return nil, fmt.Errorf(errFmt, partMountPointSource, err)
 		}
+		dmName = bytes.TrimSpace(dmName)
 
-		// trim the suffix of the dm name from the dm uuid to safely match the
-		// regex - the dm uuid contains the dm name, and the dm name is user
-		// controlled, so we want to remove that and just use the luks pattern
-		// to match the device uuid
-		// we are extra safe here since the dm name could be hypothetically user
-		// controlled via an external USB disk with LVM partition names, etc.
-		dmUUIDSafe := bytes.TrimSuffix(
-			bytes.TrimSpace(dmUUID),
-			append([]byte("-"), bytes.TrimSpace(dmName)...),
-		)
-		matches := luksUUIDPatternRe.FindSubmatch(dmUUIDSafe)
-		if len(matches) != 2 {
-			// the format of the uuid is different - different luks version
-			// maybe?
-			return nil, fmt.Errorf("cannot verify disk: partition %s does not have a valid luks uuid format: %s", d.Dev(), dmUUIDSafe)
-		}
+		// XXX: make the detection a helper/constant of kernel/fde
+		if strings.HasSuffix(string(dmName), "-device-unlock") {
+			// the uuid of the mapper device is the same
+			// as the partlabel
+			byUUIDPath := filepath.Join("/dev/disk/by-partuuid", string(dmUUID))
+			props, err = udevProperties(byUUIDPath)
+			if err != nil {
+				return nil, fmt.Errorf("cannot get udev properties for encrypted partition %s: %v", byUUIDPath, err)
+			}
+		} else {
 
-		// the uuid is the first and only submatch, but it is not in the same
-		// format exactly as we want to use, namely it is missing all of the "-"
-		// characters in a typical uuid, i.e. it is of the form:
-		// ae6e79de00a9406f80ee64ba7c1966bb but we want it to be like:
-		// ae6e79de-00a9-406f-80ee-64ba7c1966bb so we need to add in 4 "-"
-		// characters
-		compactUUID := string(matches[1])
-		canonicalUUID := fmt.Sprintf(
-			"%s-%s-%s-%s-%s",
-			compactUUID[0:8],
-			compactUUID[8:12],
-			compactUUID[12:16],
-			compactUUID[16:20],
-			compactUUID[20:],
-		)
+			// trim the suffix of the dm name from the dm uuid to safely match the
+			// regex - the dm uuid contains the dm name, and the dm name is user
+			// controlled, so we want to remove that and just use the luks pattern
+			// to match the device uuid
+			// we are extra safe here since the dm name could be hypothetically user
+			// controlled via an external USB disk with LVM partition names, etc.
+			dmUUIDSafe := bytes.TrimSuffix(
+				bytes.TrimSpace(dmUUID),
+				append([]byte("-"), bytes.TrimSpace(dmName)...),
+			)
+			matches := luksUUIDPatternRe.FindSubmatch(dmUUIDSafe)
+			if len(matches) != 2 {
+				// the format of the uuid is different - different luks version
+				// maybe?
+				return nil, fmt.Errorf("cannot verify disk: partition %s does not have a valid luks uuid format: %s", d.Dev(), dmUUIDSafe)
+			}
 
-		// now finally, we need to use this uuid, which is the device uuid of
-		// the actual physical encrypted partition to get the path, which will
-		// be something like /dev/vda4, etc.
-		byUUIDPath := filepath.Join("/dev/disk/by-uuid", canonicalUUID)
-		props, err = udevProperties(byUUIDPath)
-		if err != nil {
-			return nil, fmt.Errorf("cannot get udev properties for encrypted partition %s: %v", byUUIDPath, err)
+			// the uuid is the first and only submatch, but it is not in the same
+			// format exactly as we want to use, namely it is missing all of the "-"
+			// characters in a typical uuid, i.e. it is of the form:
+			// ae6e79de00a9406f80ee64ba7c1966bb but we want it to be like:
+			// ae6e79de-00a9-406f-80ee-64ba7c1966bb so we need to add in 4 "-"
+			// characters
+			compactUUID := string(matches[1])
+			canonicalUUID := fmt.Sprintf(
+				"%s-%s-%s-%s-%s",
+				compactUUID[0:8],
+				compactUUID[8:12],
+				compactUUID[12:16],
+				compactUUID[16:20],
+				compactUUID[20:],
+			)
+
+			// now finally, we need to use this uuid, which is the device uuid of
+			// the actual physical encrypted partition to get the path, which will
+			// be something like /dev/vda4, etc.
+			byUUIDPath := filepath.Join("/dev/disk/by-uuid", canonicalUUID)
+			props, err = udevProperties(byUUIDPath)
+			if err != nil {
+				return nil, fmt.Errorf("cannot get udev properties for encrypted partition %s: %v", byUUIDPath, err)
+			}
 		}
 	}
 
