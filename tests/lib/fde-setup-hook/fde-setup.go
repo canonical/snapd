@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/osutil"
 )
 
@@ -32,6 +33,8 @@ type fdeSetupJSON struct {
 	Op string `json:"op"`
 
 	Key []byte `json:"key,omitempty"`
+
+	Device string `json:"device,omitempty"`
 }
 
 type fdeSetupResultJSON struct {
@@ -90,8 +93,10 @@ func runFdeSetup() error {
 	var fdeSetupResult []byte
 	switch js.Op {
 	case "features":
-		// no special features supported by this hook
 		fdeSetupResult = []byte(`{"features":[]}`)
+		if osutil.FileExists(filepath.Join(filepath.Dir(os.Args[0]), "enable-device-setup-hook-support")) {
+			fdeSetupResult = []byte(`{"features":["device-setup"]}`)
+		}
 	case "initial-setup":
 		// "seal" using a really bad crypto algorithm
 		res := fdeSetupResultJSON{
@@ -102,6 +107,12 @@ func runFdeSetup() error {
 		if err != nil {
 			return err
 		}
+	case "device-setup":
+		// XXX: write something to the device start fdeSetupJSON
+		if js.Device == "" {
+			panic("empty device passed to device-setup")
+		}
+		fdeSetupResult = []byte("{}")
 	default:
 		return fmt.Errorf("unsupported op %q", js.Op)
 	}
@@ -193,6 +204,48 @@ func runFdeRevealKey() error {
 	return nil
 }
 
+// device-unlock support (initrd part)
+type fdeDeviceUnlockJSON struct {
+	Op string `json:"op"`
+
+	Key    []byte `json:"key"`
+	Device string `json:"device"`
+}
+
+func runFdeDeviceUnlock() error {
+	var js fdeDeviceUnlockJSON
+
+	b, err := ioutil.ReadAll(osStdin)
+	if err != nil {
+		return err
+	}
+
+	if err := json.Unmarshal(b, &js); err != nil {
+		return err
+	}
+	if err != nil {
+		return fmt.Errorf("cannot read fde-device-unlock input: %v", err)
+	}
+
+	switch js.Op {
+	case "device-unlock":
+		p := filepath.Join(dirs.GlobalRootDir, "/run/mnt/ubuntu-seed/fde-device-unlock-key.txt")
+		f, err := os.OpenFile(p, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		if _, err := f.Write(b); err != nil {
+			return err
+		}
+	case "features":
+		fmt.Fprintf(osStdout, `{"features":[]}`)
+	default:
+		return fmt.Errorf(`unsupported operation %q`, js.Op)
+	}
+
+	return nil
+}
 func main() {
 	var err error
 
@@ -207,6 +260,9 @@ func main() {
 	case "fde-reveal-key":
 		// run from initrd
 		err = runFdeRevealKey()
+	case "fde-device-unlock":
+		// run from initrd
+		err = runFdeDeviceUnlock()
 	default:
 		err = fmt.Errorf("binary needs to be called as fde-setup or fde-reveal-key")
 	}
