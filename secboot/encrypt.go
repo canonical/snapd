@@ -122,6 +122,6 @@ type EncryptionType string
 
 const (
 	EncryptionTypeNone            EncryptionType = ""
-	EncryptionTypeLUKS      EncryptionType = "cryptsetup"
+	EncryptionTypeLUKS            EncryptionType = "cryptsetup"
 	EncryptionTypeDeviceSetupHook EncryptionType = "device-setup-hook"
 )
