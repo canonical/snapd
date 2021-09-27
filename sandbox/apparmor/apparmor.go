@@ -329,6 +329,9 @@ func probeParserFeatures() ([]string, error) {
 	if tryAppArmorParserFeature(parser, args, "change_profile unsafe /**,") {
 		features = append(features, "unsafe")
 	}
+	if tryAppArmorParserFeature(parser, args, "include if exists \"/foo\"") {
+		features = append(features, "include-if-exists")
+	}
 	if tryAppArmorParserFeature(parser, args, "network qipcrtr dgram,") {
 		features = append(features, "qipcrtr-socket")
 	}
