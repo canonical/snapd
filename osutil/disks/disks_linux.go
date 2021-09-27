@@ -78,21 +78,29 @@ func parseDeviceMajorMinor(s string) (int, int, error) {
 	return maj, min, nil
 }
 
-var udevadmProperties = func(device string) ([]byte, error) {
+var udevadmProperties = func(typeOpt, device string) ([]byte, error) {
 	// TODO: maybe combine with gadget interfaces hotplug code where the udev
 	// db is parsed?
-	cmd := exec.Command("udevadm", "info", "--query", "property", "--name", device)
+	cmd := exec.Command("udevadm", "info", "--query", "property", typeOpt, device)
 	return cmd.CombinedOutput()
 }
 
-func udevProperties(device string) (map[string]string, error) {
-	out, err := udevadmProperties(device)
+func udevProperties(typeOpt, device string) (map[string]string, error) {
+	out, err := udevadmProperties(typeOpt, device)
 	if err != nil {
 		return nil, osutil.OutputErr(out, err)
 	}
 	r := bytes.NewBuffer(out)
 
 	return parseUdevProperties(r)
+}
+
+func udevPropertiesForPath(devicePath string) (map[string]string, error) {
+	return udevProperties("--path", devicePath)
+}
+
+func udevPropertiesForName(deviceName string) (map[string]string, error) {
+	return udevProperties("--name", deviceName)
 }
 
 func parseUdevProperties(r io.Reader) (map[string]string, error) {
@@ -110,35 +118,43 @@ func parseUdevProperties(r io.Reader) (map[string]string, error) {
 	return m, scanner.Err()
 }
 
+func DiskFromDevicePath(devicePath string) (Disk, error) {
+	return diskFromDevicePath(devicePath)
+}
+
+// diskFromDevicePath is exposed for mocking from other tests via
+// MockDeviceNameDisksToPartitionMapping.
+var diskFromDevicePath = func(devicePath string) (Disk, error) {
+	// query for the disk props using udev with --path
+	props, err := udevPropertiesForPath(devicePath)
+	if err != nil {
+		return nil, err
+	}
+
+	return diskFromUdevProps(devicePath, "path", props)
+}
+
 // DiskFromDeviceName finds a matching Disk using the specified name, such as
 // vda, or mmcblk0, etc.
 func DiskFromDeviceName(deviceName string) (Disk, error) {
 	return diskFromDeviceName(deviceName)
 }
 
-// diskFromDeviceName is exposed for mocking from other tests via
-// MockDeviceNameDisksToPartitionMapping.
-var diskFromDeviceName = func(deviceName string) (Disk, error) {
-	// query for the disk props using udev
-	props, err := udevProperties(deviceName)
-	if err != nil {
-		return nil, err
-	}
-
+func diskFromUdevProps(deviceIdentifier string, deviceIDType string, props map[string]string) (Disk, error) {
 	major, err := strconv.Atoi(props["MAJOR"])
 	if err != nil {
-		return nil, fmt.Errorf("cannot find disk with name %q: malformed udev output", deviceName)
+		return nil, fmt.Errorf("cannot find disk with %s %q: malformed udev output", deviceIDType, deviceIdentifier)
 	}
 	minor, err := strconv.Atoi(props["MINOR"])
 	if err != nil {
-		return nil, fmt.Errorf("cannot find disk with name %q: malformed udev output", deviceName)
+		return nil, fmt.Errorf("cannot find disk with %s %q: malformed udev output", deviceIDType, deviceIdentifier)
 	}
 
 	// ensure that the device has DEVTYPE=disk, if not then we were not given a
 	// disk name
 	devType := props["DEVTYPE"]
 	if devType != "disk" {
-		return nil, fmt.Errorf("device %q is not a disk, it has DEVTYPE of %q", deviceName, devType)
+		return nil, fmt.Errorf("device %q is not a disk, it has DEVTYPE of %q", deviceIdentifier, devType)
 	}
 
 	// TODO: should we try to introspect the device more to find out if it has
@@ -149,6 +165,19 @@ var diskFromDeviceName = func(deviceName string) (Disk, error) {
 		major: major,
 		minor: minor,
 	}, nil
+
+}
+
+// diskFromDeviceName is exposed for mocking from other tests via
+// MockDeviceNameDisksToPartitionMapping.
+var diskFromDeviceName = func(deviceName string) (Disk, error) {
+	// query for the disk props using udev with --name
+	props, err := udevPropertiesForName(deviceName)
+	if err != nil {
+		return nil, err
+	}
+
+	return diskFromUdevProps(deviceName, "name", props)
 }
 
 // DiskFromMountPoint finds a matching Disk for the specified mount point.
@@ -207,7 +236,7 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 	// now we have the partition for this mountpoint, we need to tie that back
 	// to a disk with a major minor, so query udev with the mount source path
 	// of the mountpoint for properties
-	props, err := udevProperties(partMountPointSource)
+	props, err := udevPropertiesForName(partMountPointSource)
 	if err != nil && props == nil {
 		// only fail here if props is nil, if it's available we validate it
 		// below
@@ -294,7 +323,7 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		// the actual physical encrypted partition to get the path, which will
 		// be something like /dev/vda4, etc.
 		byUUIDPath := filepath.Join("/dev/disk/by-uuid", canonicalUUID)
-		props, err = udevProperties(byUUIDPath)
+		props, err = udevPropertiesForName(byUUIDPath)
 		if err != nil {
 			return nil, fmt.Errorf("cannot get udev properties for encrypted partition %s: %v", byUUIDPath, err)
 		}
@@ -343,7 +372,7 @@ func (d *disk) populatePartitions() error {
 		//         of the partition and filesystem as well as the partition uuid
 		//         and save for later
 
-		udevProps, err := udevProperties(filepath.Join("/dev/block", d.Dev()))
+		udevProps, err := udevPropertiesForName(filepath.Join("/dev/block", d.Dev()))
 		if err != nil {
 			return err
 		}
@@ -389,7 +418,7 @@ func (d *disk) populatePartitions() error {
 
 			// then the device is a partition, get the udev props for it
 			partDev := filepath.Base(path)
-			udevProps, err := udevProperties(partDev)
+			udevProps, err := udevPropertiesForName(partDev)
 			if err != nil {
 				continue
 			}
