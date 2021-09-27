@@ -189,6 +189,9 @@ execute: |
         exit 1
     fi
 
+    echo "Then the profile should support include-if-exists"
+    cat /var/lib/snapd/apparmor/profiles/snap.hello-world.evil | MATCH "#include if exists \"/var/lib/snapd/apparmor/snap-tuning\""
+
     echo "Given a snap is installed"
     "$TESTSTOOLS"/snaps-state install-local "$CONSUMER_SNAP"
     tests.cleanup defer snap remove --purge "$CONSUMER_SNAP"
