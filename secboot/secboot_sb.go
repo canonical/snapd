@@ -65,8 +65,13 @@ func LockSealedKeys() error {
 // value will be true, even if error is non-nil. This is so that callers can be
 // robust and try unlocking using another method for example.
 func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
-	res := UnlockResult{}
 
+	// systems that need the "fde-device-unlock" are special
+	if fde.HasDeviceUnlock() {
+		return unlockVolumeUsingSealedKeyViaDeviceUnlockHook(disk, name, sealedEncryptionKeyFile, opts)
+	}
+
+	res := UnlockResult{}
 	// find the encrypted device using the disk we were provided - note that
 	// we do not specify IsDecryptedDevice in opts because here we are
 	// looking for the encrypted device to unlock, later on in the boot
@@ -166,4 +171,57 @@ func UnlockEncryptedVolumeWithRecoveryKey(name, device string) error {
 	}
 
 	return nil
+}
+
+func unlockVolumeUsingSealedKeyViaDeviceUnlockHook(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+	res := UnlockResult{}
+
+	// 1. mount name under the right mapper with 1mb offset
+	partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(name)
+	if err != nil {
+		return res, err
+	}
+	partDevice := filepath.Join("/dev/disk/by-partuuid", partUUID)
+	partSize, err := disks.Size(partDevice)
+	if err != nil {
+		return res, err
+	}
+	// XXX: This is the location of both locked and unlocked
+	//      paths because inline-encryption is transparent. So
+	//      What is the best name?
+	mapperName := name + "-device-unlock"
+
+	// XXX: import from fde as a constant
+	offset := uint64(1 * 1024 * 1024)
+	mapperSize := partSize - offset
+	mapperDevice, err := disks.CreateLinearMapperDevice(partDevice, mapperName, partUUID, offset, mapperSize)
+	if err != nil {
+		return res, err
+	}
+
+	// 2. unseal the key using fde-reveal-key (implicit via
+	//    the registered platform handler for fde-reveal-key)
+	f, err := sb.NewFileKeyDataReader(sealedEncryptionKeyFile)
+	if err != nil {
+		return res, err
+	}
+	keyData, err := sb.ReadKeyData(f)
+	if err != nil {
+		fmt := "cannot read key data: %w"
+		return res, xerrors.Errorf(fmt, err)
+	}
+	unlockKey, _, err := keyData.RecoverKeys()
+
+	// 4. call fde-inline-crypt-hw-unlock to unlock device
+	params := &fde.DeviceUnlockParams{
+		Key:    unlockKey,
+		Device: partDevice,
+	}
+	if err := fde.DeviceUnlock(params); err != nil {
+		return res, err
+	}
+	res.IsEncrypted = true
+	res.PartDevice = partDevice
+	res.FsDevice = mapperDevice
+	return res, nil
 }
