@@ -41,6 +41,10 @@ type emulation struct {
 
 var errNotImplemented = errors.New("not implemented in emulation mode")
 
+func (s *emulation) Backend() Backend {
+	return EmulationModeBackend
+}
+
 func (s *emulation) DaemonReload() error {
 	return errNotImplemented
 }
