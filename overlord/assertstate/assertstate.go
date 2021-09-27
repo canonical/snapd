@@ -57,6 +57,10 @@ func findError(format string, ref *asserts.Ref, err error) error {
 
 type RefreshAssertionsOptions struct {
 	IsAutoRefresh bool
+	// IsRefreshOfAllSnaps indicates if assertions are refreshed together with
+	// all installed snaps, which means validation set assertions can be refreshed
+	// as well. It is implied if IsAutoRefresh is true.
+	IsRefreshOfAllSnaps bool
 }
 
 // RefreshSnapDeclarations refetches all the current snap declarations and their prerequisites.
@@ -352,10 +356,16 @@ func AutoRefreshAssertions(s *state.State, userID int) error {
 }
 
 // RefreshSnapAssertions tries to refresh all snap-centered assertions
-func RefreshSnapAssertions(s *state.State, userID int) error {
-	opts := &RefreshAssertionsOptions{IsAutoRefresh: false}
+func RefreshSnapAssertions(s *state.State, userID int, opts *RefreshAssertionsOptions) error {
+	if opts == nil {
+		opts = &RefreshAssertionsOptions{}
+	}
+	opts.IsAutoRefresh = false
 	if err := RefreshSnapDeclarations(s, userID, opts); err != nil {
 		return err
+	}
+	if !opts.IsRefreshOfAllSnaps {
+		return nil
 	}
 	return RefreshValidationSetAssertions(s, userID, opts)
 }
