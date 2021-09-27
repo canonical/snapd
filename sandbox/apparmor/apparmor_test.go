@@ -306,7 +306,7 @@ esac
 			c.Check(features, DeepEquals, t.expFeatures)
 		}
 
-		c.Check(mockParserCmd.Calls(), DeepEquals, [][]string{{"apparmor_parser", "--preprocess"}, {"apparmor_parser", "--preprocess"},{"apparmor_parser", "--preprocess"}})
+		c.Check(mockParserCmd.Calls(), DeepEquals, [][]string{{"apparmor_parser", "--preprocess"}, {"apparmor_parser", "--preprocess"}, {"apparmor_parser", "--preprocess"}})
 		data, err := ioutil.ReadFile(filepath.Join(d, "stdin"))
 		c.Assert(err, IsNil)
 		c.Check(string(data), Equals, `profile snap-test {
