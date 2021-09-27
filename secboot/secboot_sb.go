@@ -180,7 +180,7 @@ func UnlockEncryptedVolumeWithRecoveryKey(name, device string) error {
 
 func setupDeviceMapperTargetForDeviceUnlock(disk disks.Disk, name string) (string, string, error) {
 	// 1. mount name under the right mapper with 1mb offset
-	partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(name)
+	partUUID, err := disk.FindMatchingPartitionUUIDWithPartLabel(name)
 	if err != nil {
 		return "", "", err
 	}
