@@ -21,6 +21,7 @@
 package install
 
 import (
+	"github.com/snapcore/snapd/boot"
 	"github.com/snapcore/snapd/kernel/fde"
 	"github.com/snapcore/snapd/secboot"
 )
@@ -48,10 +49,11 @@ func MockSecbootAddRecoveryKey(f func(key secboot.EncryptionKey, rkey secboot.Re
 	}
 }
 
+// XXX: fugly
 func MockBootRunFDESetupHook(f func(req *fde.SetupRequest) ([]byte, error)) (restore func()) {
-	old := bootRunFDESetupHook
-	bootRunFDESetupHook = f
+	old := boot.RunFDESetupHook
+	boot.RunFDESetupHook = f
 	return func() {
-		bootRunFDESetupHook = old
+		boot.RunFDESetupHook = old
 	}
 }
