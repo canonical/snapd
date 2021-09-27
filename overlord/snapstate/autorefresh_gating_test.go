@@ -30,6 +30,8 @@ import (
 	. "gopkg.in/check.v1"
 	"gopkg.in/tomb.v2"
 
+	"github.com/snapcore/snapd/asserts"
+	"github.com/snapcore/snapd/asserts/snapasserts"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/interfaces"
 	"github.com/snapcore/snapd/interfaces/builtin"
@@ -83,6 +85,11 @@ func (s *autorefreshGatingSuite) SetUpTest(c *C) {
 	s.store = &autoRefreshGatingStore{fakeStore: &fakeStore{}}
 	snapstate.ReplaceStore(s.state, s.store)
 	s.state.Set("refresh-privacy-key", "privacy-key")
+
+	restore := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		return nil, nil
+	})
+	s.AddCleanup(restore)
 }
 
 func (r *autoRefreshGatingStore) SnapAction(ctx context.Context, currentSnaps []*store.CurrentSnap, actions []*store.SnapAction, assertQuery store.AssertionQuery, user *auth.UserState, opts *store.RefreshOptions) ([]store.SnapActionResult, []store.AssertionResult, error) {
@@ -112,7 +119,7 @@ func mockInstalledSnap(c *C, st *state.State, snapYaml string, hasHook bool) *sn
 	})
 
 	snapName := snapInfo.SnapName()
-	si := &snap.SideInfo{RealName: snapName, SnapID: "id", Revision: snap.R(1)}
+	si := &snap.SideInfo{RealName: snapName, SnapID: snapName + "-id", Revision: snap.R(1)}
 	snapstate.Set(st, snapName, &snapstate.SnapState{
 		Active:   true,
 		Sequence: []*snap.SideInfo{si},
@@ -228,6 +235,14 @@ version: 1
 type: snapd
 slots:
     desktop:
+`
+
+const someSnap = `name: some-snap
+type: app
+`
+
+const someOtherSnap = `name: some-other-snap
+type: app
 `
 
 func (s *autorefreshGatingSuite) TestHoldDurationLeft(c *C) {
@@ -2528,4 +2543,137 @@ func verifyPhasedAutorefreshTasks(c *C, tasks []*state.Task, expected []string) 
 		}
 		c.Assert(got, Equals, expected[i], Commentf("#%d", i))
 	}
+}
+
+func (s *validationSetsSuite) TestAutoRefreshPhase1WithValidationSets(c *C) {
+	var requiredRevision string
+	restoreEnforcedValidationSets := snapstate.MockEnforcedValidationSets(func(st *state.State) (*snapasserts.ValidationSets, error) {
+		vs := snapasserts.NewValidationSets()
+		someSnap := map[string]interface{}{
+			"id":       "yOqKhntON3vR7kwEbVPsILm7bUViPDzx",
+			"name":     "some-snap",
+			"presence": "required",
+			"revision": requiredRevision,
+		}
+		snapC := map[string]interface{}{
+			"id":       "aOqKhntON3vR7kwEbVPsILm7bUViPDzz",
+			"name":     "snap-c",
+			"presence": "required",
+		}
+		vsa1 := s.mockValidationSetAssert(c, "bar", "1", someSnap, snapC)
+		vs.Add(vsa1.(*asserts.ValidationSet))
+		return vs, nil
+	})
+	defer restoreEnforcedValidationSets()
+
+	st := s.state
+	st.Lock()
+	defer st.Unlock()
+
+	repo := interfaces.NewRepository()
+	ifacerepo.Replace(st, repo)
+
+	mockInstalledSnap(c, s.state, someSnap, noHook)
+	mockInstalledSnap(c, s.state, someOtherSnap, noHook)
+	mockInstalledSnap(c, s.state, snapCyaml, noHook)
+
+	restore := snapstatetest.MockDeviceModel(DefaultModel())
+	defer restore()
+
+	refreshedDate, err := time.Parse(time.RFC3339, "2021-01-01T10:00:00Z")
+	c.Assert(err, IsNil)
+	restoreRevDate := snapstate.MockRevisionDate(func(sn *snap.Info) time.Time {
+		return refreshedDate
+	})
+	defer restoreRevDate()
+
+	requiredRevision = "1"
+	names, _, err := snapstate.AutoRefreshPhase1(context.TODO(), st, "")
+	c.Assert(err, IsNil)
+	// some-snap is already at the required revision 1, so not refreshed
+	c.Check(names, DeepEquals, []string{"snap-c", "some-other-snap"})
+
+	// check that refresh-candidates in the state were updated
+	var candidates map[string]*snapstate.RefreshCandidate
+	c.Assert(st.Get("refresh-candidates", &candidates), IsNil)
+	c.Assert(candidates, HasLen, 2)
+	c.Check(candidates["snap-c"], NotNil)
+	c.Check(candidates["some-other-snap"], NotNil)
+	c.Check(candidates["some-snap"], IsNil)
+	c.Assert(s.fakeBackend.ops, HasLen, 3)
+	c.Check(s.fakeBackend.ops, DeepEquals, fakeOps{{
+		op: "storesvc-snap-action",
+		curSnaps: []store.CurrentSnap{{
+			InstanceName:  "snap-c",
+			SnapID:        "snap-c-id",
+			Revision:      snap.R(1),
+			Epoch:         snap.E("0"),
+			RefreshedDate: refreshedDate,
+		}, {
+			InstanceName:  "some-other-snap",
+			SnapID:        "some-other-snap-id",
+			Revision:      snap.R(1),
+			Epoch:         snap.E("0"),
+			RefreshedDate: refreshedDate,
+		}, {
+			InstanceName:  "some-snap",
+			SnapID:        "some-snap-id",
+			Revision:      snap.R(1),
+			Epoch:         snap.E("0"),
+			RefreshedDate: refreshedDate,
+		}},
+	}, {
+		op: "storesvc-snap-action:action",
+		action: store.SnapAction{
+			Action:         "refresh",
+			InstanceName:   "snap-c",
+			SnapID:         "snap-c-id",
+			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
+		},
+		revno: snap.R(11),
+	}, {
+		op: "storesvc-snap-action:action",
+		action: store.SnapAction{
+			Action:       "refresh",
+			InstanceName: "some-other-snap",
+			SnapID:       "some-other-snap-id",
+		},
+		revno: snap.R(11),
+	}})
+
+	s.fakeBackend.ops = nil
+	requiredRevision = "11"
+	names, _, err = snapstate.AutoRefreshPhase1(context.TODO(), st, "")
+	c.Assert(err, IsNil)
+	c.Check(names, DeepEquals, []string{"snap-c", "some-other-snap", "some-snap"})
+
+	// check that refresh-candidates in the state were updated
+	var candidates2 map[string]*snapstate.RefreshCandidate
+	c.Assert(st.Get("refresh-candidates", &candidates2), IsNil)
+	c.Assert(candidates2, HasLen, 3)
+	c.Check(candidates2["snap-c"], NotNil)
+	c.Check(candidates2["some-snap"], NotNil)
+	c.Check(candidates["some-other-snap"], NotNil)
+	c.Assert(s.fakeBackend.ops, HasLen, 4)
+	c.Check(s.fakeBackend.ops[1], DeepEquals, fakeOp{
+		op: "storesvc-snap-action:action",
+		action: store.SnapAction{
+			Action:         "refresh",
+			InstanceName:   "snap-c",
+			SnapID:         "snap-c-id",
+			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
+		},
+		revno: snap.R(11),
+	})
+	c.Check(s.fakeBackend.ops[3], DeepEquals, fakeOp{
+		op: "storesvc-snap-action:action",
+		action: store.SnapAction{
+			Action:         "refresh",
+			InstanceName:   "some-snap",
+			SnapID:         "some-snap-id",
+			ValidationSets: [][]string{{"16", "foo", "bar", "1"}},
+			Revision:       snap.R(11),
+		},
+		revno: snap.R(11),
+	})
 }
