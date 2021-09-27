@@ -67,9 +67,14 @@ func main() {
 
 	obs := &simpleObserver{}
 
+	var encryptionType secboot.EncryptionType
+	if args.Encrypt {
+		encryptionType = secboot.EncryptionTypeLUKS
+	}
+
 	options := install.Options{
-		Mount:   args.Mount,
-		Encrypt: args.Encrypt,
+		Mount:          args.Mount,
+		EncryptionType: encryptionType,
 	}
 	installSideData, err := installRun(uc20Constraints{}, args.Positional.GadgetRoot, args.Positional.KernelRoot, args.Positional.Device, options, obs, timings.New(nil))
 	if err != nil {
