@@ -679,6 +679,14 @@ func addContent(securityTag string, snapInfo *snap.Info, cmdName string, opts in
 	}
 	policy = templatePattern.ReplaceAllStringFunc(policy, func(placeholder string) string {
 		switch placeholder {
+		case "###INCLUDEIFEXISTSSNAPTUNING###":
+			features, _ := parserFeatures()
+			for _, f := range features {
+				if f == "include-if-exists" {
+					return "#include if exists \"/var/lib/snapd/apparmor/snap-tuning\""
+				}
+			}
+			return ""
 		case "###VAR###":
 			return templateVariables(snapInfo, securityTag, cmdName)
 		case "###PROFILEATTACH###":
