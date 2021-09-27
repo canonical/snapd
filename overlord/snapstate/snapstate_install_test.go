@@ -586,7 +586,6 @@ func (s *snapmgrTestSuite) TestInstallStrictIgnoresClassic(c *C) {
 	defer restore()
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	opts := &snapstate.RevisionOptions{Channel: "channel-for-strict"}
 	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{Classic: true})
@@ -601,6 +600,7 @@ func (s *snapmgrTestSuite) TestInstallStrictIgnoresClassic(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
@@ -618,7 +618,6 @@ func (s *snapmgrTestSuite) TestInstallSnapWithDefaultTrack(c *C) {
 	defer restore()
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	opts := &snapstate.RevisionOptions{Channel: "candidate"}
 	ts, err := snapstate.Install(context.Background(), s.state, "some-snap-with-default-track", opts, s.user.ID, snapstate.Flags{})
@@ -631,6 +630,7 @@ func (s *snapmgrTestSuite) TestInstallSnapWithDefaultTrack(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
@@ -647,7 +647,6 @@ func (s *snapmgrTestSuite) TestInstallIgnoreValidation(c *C) {
 	defer restore()
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", nil, s.user.ID, snapstate.Flags{IgnoreValidation: true})
 	c.Assert(err, IsNil)
@@ -659,6 +658,7 @@ func (s *snapmgrTestSuite) TestInstallIgnoreValidation(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
@@ -674,7 +674,6 @@ func (s *snapmgrTestSuite) TestInstallManySnapOneWithDefaultTrack(c *C) {
 	defer restore()
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapNames := []string{"some-snap", "some-snap-with-default-track"}
 	installed, tss, err := snapstate.InstallMany(s.state, snapNames, s.user.ID)
@@ -690,6 +689,7 @@ func (s *snapmgrTestSuite) TestInstallManySnapOneWithDefaultTrack(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
@@ -798,7 +798,6 @@ func (s *snapmgrTestSuite) TestInstallPathStrictIgnoresClassic(c *C) {
 	defer restore()
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	mockSnap := makeTestSnap(c, `name: some-snap
 version: 1.0
@@ -817,6 +816,7 @@ confinement: strict
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
@@ -830,7 +830,6 @@ confinement: strict
 
 func (s *snapmgrTestSuite) TestInstallPathAsRefresh(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
@@ -860,6 +859,7 @@ epoch: 1
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	c.Assert(chg.Err(), IsNil)
 	c.Assert(chg.IsReady(), Equals, true)
@@ -917,7 +917,6 @@ func (s *snapmgrTestSuite) TestInstallPathFailsEarlyOnEpochMismatch(c *C) {
 
 func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	// we start without the auxiliary store info
 	c.Check(snapstate.AuxStoreInfoFilename("some-snap-id"), testutil.FileAbsent)
@@ -932,6 +931,7 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	// ensure all our tasks ran
 	c.Assert(chg.Err(), IsNil)
@@ -1095,7 +1095,6 @@ func (s *snapmgrTestSuite) TestInstallRunThrough(c *C) {
 
 func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.parallel-instances", true)
@@ -1110,6 +1109,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 	s.state.Unlock()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	// ensure all our tasks ran
 	c.Assert(chg.Err(), IsNil)
@@ -1275,7 +1275,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceInstallRunThrough(c *C) {
 
 func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	chg := s.state.NewChange("install", "install a snap")
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
@@ -1296,6 +1295,7 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	mountTask := tasks[len(tasks)-11]
 	c.Assert(mountTask.Kind(), Equals, "mount-snap")
@@ -1432,7 +1432,6 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughJustOneSnap(c *C) {
 
 func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	chg := s.state.NewChange("install", "install a snap")
 	opts := &snapstate.RevisionOptions{Channel: "some-channel", CohortKey: "scurries"}
@@ -1444,6 +1443,7 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	// ensure all our tasks ran
 	c.Assert(chg.Err(), IsNil)
@@ -1599,7 +1599,6 @@ func (s *snapmgrTestSuite) TestInstallWithCohortRunThrough(c *C) {
 
 func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	chg := s.state.NewChange("install", "install a snap")
 	opts := &snapstate.RevisionOptions{Channel: "some-channel", Revision: snap.R(42)}
@@ -1611,6 +1610,7 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	// ensure all our tasks ran
 	c.Assert(chg.Err(), IsNil)
@@ -1760,7 +1760,6 @@ func (s *snapmgrTestSuite) TestInstallWithRevisionRunThrough(c *C) {
 
 func (s *snapmgrTestSuite) TestInstallStartOrder(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	chg := s.state.NewChange("install", "install a snap")
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
@@ -1772,6 +1771,7 @@ func (s *snapmgrTestSuite) TestInstallStartOrder(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	// ensure all our tasks ran
 	c.Assert(chg.Err(), IsNil)
@@ -1813,7 +1813,6 @@ func (s *snapmgrTestSuite) TestInstallFirstLocalRunThrough(c *C) {
 	defer restoreInstallSize()
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	mockSnap := makeTestSnap(c, `name: mock
 version: 1.0`)
@@ -1830,6 +1829,7 @@ version: 1.0`)
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	expected := fakeOps{
 		{
@@ -1919,7 +1919,6 @@ func (s *snapmgrTestSuite) TestInstallSubsequentLocalRunThrough(c *C) {
 	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "mock", &snapstate.SnapState{
 		Active: true,
@@ -1943,6 +1942,7 @@ epoch: 1*
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	expected := fakeOps{
 		{
@@ -2039,7 +2039,6 @@ func (s *snapmgrTestSuite) TestInstallOldSubsequentLocalRunThrough(c *C) {
 	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "mock", &snapstate.SnapState{
 		Active: true,
@@ -2063,6 +2062,7 @@ epoch: 1*
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	expected := fakeOps{
 		{
@@ -2144,7 +2144,6 @@ func (s *snapmgrTestSuite) TestInstallPathWithMetadataRunThrough(c *C) {
 	snapstate.MockOpenSnapFile(backend.OpenSnapFile)
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	someSnap := makeTestSnap(c, `name: orig-name
 version: 1.0`)
@@ -2163,6 +2162,7 @@ version: 1.0`)
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	// ensure only local install was run, i.e. first actions are pseudo-action current
 	c.Assert(s.fakeBackend.ops.Ops(), HasLen, 9)
@@ -2235,7 +2235,6 @@ func (s *snapmgrTestSuite) TestInstallPathSkipConfigure(c *C) {
 
 func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	// pretend we don't have core
 	snapstate.Set(s.state, "core", nil)
@@ -2250,6 +2249,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	// ensure all our tasks ran
 	c.Assert(chg.Err(), IsNil)
@@ -2454,7 +2454,6 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreRunThrough1(c *C) {
 
 func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsRunThrough(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	restore := snapstate.MockPrerequisitesRetryTimeout(10 * time.Millisecond)
 	defer restore()
@@ -2478,6 +2477,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsRunThrough(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	// ensure all our tasks ran and core was only installed once
 	c.Assert(chg1.Err(), IsNil)
@@ -2498,7 +2498,6 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsRunThrough(c *C) {
 
 func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsWithFailureRunThrough(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	// slightly longer retry timeout to avoid deadlock when we
 	// trigger a retry quickly that the link snap for core does
@@ -2574,8 +2573,9 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreTwoSnapsWithFailureRunThrough(c
 			Channel:  "",
 			Revision: snap.R(21),
 		})
-
 	}
+
+	s.state.Unlock()
 }
 
 type behindYourBackStore struct {
@@ -2636,7 +2636,6 @@ func (s behindYourBackStore) SnapAction(ctx context.Context, currentSnaps []*sto
 // this is actually what happens.
 func (s *snapmgrTestSuite) TestInstallWithoutCoreConflictingInstall(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	restore := snapstate.MockPrerequisitesRetryTimeout(10 * time.Millisecond)
 	defer restore()
@@ -2683,6 +2682,7 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreConflictingInstall(c *C) {
 	c.Assert(chg.IsReady(), Equals, true)
 
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	// ensure all our tasks ran
 	c.Assert(chg.Err(), IsNil)
@@ -2714,7 +2714,6 @@ func (s *snapmgrTestSuite) TestInstallWithoutCoreConflictingInstall(c *C) {
 
 func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.ReplaceStore(s.state, contentStore{fakeStore: s.fakeStore, state: s.state})
 
@@ -2731,6 +2730,7 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	// ensure all our tasks ran
 	c.Assert(chg.Err(), IsNil)
@@ -2878,7 +2878,6 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderRunThrough(c *C) {
 
 func (s *snapmgrTestSuite) TestInstallDefaultProviderCompat(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.ReplaceStore(s.state, contentStore{fakeStore: s.fakeStore, state: s.state})
 
@@ -2895,6 +2894,7 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderCompat(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	// ensure all our tasks ran
 	c.Assert(chg.Err(), IsNil)
@@ -3215,7 +3215,6 @@ func (s *snapmgrTestSuite) TestInstallFailsWhenClassicSnapsAreNotSupported(c *C)
 
 func (s *snapmgrTestSuite) TestInstallUndoRunThroughUndoContextOptional(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	chg := s.state.NewChange("install", "install a snap")
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
@@ -3236,6 +3235,7 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughUndoContextOptional(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	mountTask := tasks[len(tasks)-11]
 	c.Assert(mountTask.Kind(), Equals, "mount-snap")
@@ -3245,7 +3245,6 @@ func (s *snapmgrTestSuite) TestInstallUndoRunThroughUndoContextOptional(c *C) {
 
 func (s *snapmgrTestSuite) TestInstallDefaultProviderCircular(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.ReplaceStore(s.state, contentStore{fakeStore: s.fakeStore, state: s.state})
 
@@ -3262,6 +3261,7 @@ func (s *snapmgrTestSuite) TestInstallDefaultProviderCircular(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	// ensure all our tasks ran
 	c.Assert(chg.Err(), IsNil)
@@ -3387,7 +3387,6 @@ func verifyStopReason(c *C, ts *state.TaskSet, reason string) {
 
 func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	chg := s.state.NewChange("install", "install a snap")
 	opts := &snapstate.RevisionOptions{Channel: "some-channel"}
@@ -3401,6 +3400,7 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	expected := fakeOps{
 		{
@@ -3475,7 +3475,6 @@ func (s *snapmgrTestSuite) TestUndoMountSnapFailsInCopyData(c *C) {
 
 func (s *snapmgrTestSuite) TestSideInfoPaid(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 	opts := &snapstate.RevisionOptions{Channel: "channel-for-paid"}
 	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
@@ -3487,6 +3486,7 @@ func (s *snapmgrTestSuite) TestSideInfoPaid(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	// verify snap has paid sideinfo
 	var snapst snapstate.SnapState
@@ -3498,7 +3498,6 @@ func (s *snapmgrTestSuite) TestSideInfoPaid(c *C) {
 
 func (s *snapmgrTestSuite) TestSideInfoPrivate(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 	opts := &snapstate.RevisionOptions{Channel: "channel-for-private"}
 	ts, err := snapstate.Install(context.Background(), s.state, "some-snap", opts, s.user.ID, snapstate.Flags{})
 	c.Assert(err, IsNil)
@@ -3510,6 +3509,7 @@ func (s *snapmgrTestSuite) TestSideInfoPrivate(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	// verify snap has private sideinfo
 	var snapst snapstate.SnapState
@@ -3673,7 +3673,6 @@ volumes:
 
 func (s *snapmgrTestSuite) TestInstallContentProviderDownloadFailure(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	// trigger download error on content provider
 	s.fakeStore.downloadError["snap-content-slot"] = fmt.Errorf("boom")
@@ -3693,6 +3692,7 @@ func (s *snapmgrTestSuite) TestInstallContentProviderDownloadFailure(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	c.Assert(chg.Err(), ErrorMatches, "cannot perform the following tasks:\n.*Download snap \"snap-content-slot\" \\(11\\) from channel \"stable\" \\(boom\\).*")
 	c.Assert(chg.IsReady(), Equals, true)

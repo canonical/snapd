@@ -117,7 +117,6 @@ func verifyUpdateTasks(c *C, opts, discards int, ts *state.TaskSet, st *state.St
 
 func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 	restore := release.MockOnClassic(false)
 	defer restore()
 
@@ -142,6 +141,7 @@ func (s *snapmgrTestSuite) TestUpdateDoesGC(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	// ensure garbage collection runs as the last tasks
 	expectedTail := fakeOps{
@@ -207,7 +207,6 @@ func (s *snapmgrTestSuite) testUpdateScenario(c *C, desc string, t switchScenari
 	}
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Sequence:        []*snap.SideInfo{&si},
@@ -229,6 +228,7 @@ func (s *snapmgrTestSuite) testUpdateScenario(c *C, desc string, t switchScenari
 	s.state.Unlock()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	// switch is not really really doing anything backend related
 	c.Assert(s.fakeBackend.ops.Ops(), DeepEquals, []string{
@@ -324,7 +324,6 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 	}
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
@@ -342,6 +341,7 @@ func (s *snapmgrTestSuite) TestUpdateCanDoBackwards(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 	expected := fakeOps{
 		{
 			op:   "remove-snap-aliases",
@@ -416,7 +416,6 @@ type opSeqOpts struct {
 // check the revision sequence is as in `after`.
 func (s *snapmgrTestSuite) testOpSequence(c *C, opts *opSeqOpts) (*snapstate.SnapState, *state.TaskSet) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	seq := make([]*snap.SideInfo, len(opts.before))
 	for i, n := range opts.before {
@@ -468,6 +467,7 @@ func (s *snapmgrTestSuite) testOpSequence(c *C, opts *opSeqOpts) (*snapstate.Sna
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	var snapst snapstate.SnapState
 	err = snapstate.Get(s.state, "some-snap", &snapst)
@@ -713,7 +713,6 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 	snaptest.MockSnap(c, `name: some-snap`, &si)
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:          true,
@@ -732,6 +731,7 @@ func (s *snapmgrTestSuite) TestUpdateAmendRunThrough(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	// ensure all our tasks ran
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{{
@@ -852,7 +852,6 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	defer restoreTimeNow()
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "services-snap", &snapstate.SnapState{
 		Active:          true,
@@ -875,6 +874,7 @@ func (s *snapmgrTestSuite) TestUpdateRunThrough(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	expected := fakeOps{
 		{
@@ -1141,7 +1141,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 	defer r()
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.parallel-instances", true)
@@ -1164,6 +1163,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateRunThrough(c *C) {
 	s.state.Unlock()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	expected := fakeOps{
 		{
@@ -1357,7 +1357,6 @@ func (s *snapmgrTestSuite) TestUpdateWithNewBase(c *C) {
 	snaptest.MockSnap(c, `name: some-snap`, si)
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:          true,
@@ -1376,6 +1375,7 @@ func (s *snapmgrTestSuite) TestUpdateWithNewBase(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
 		{macaroon: s.user.StoreMacaroon, name: "some-base", target: filepath.Join(dirs.SnapBlobDir, "some-base_11.snap")},
@@ -1392,7 +1392,6 @@ func (s *snapmgrTestSuite) TestUpdateWithAlreadyInstalledBase(c *C) {
 	snaptest.MockSnap(c, `name: some-snap`, si)
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:          true,
@@ -1422,6 +1421,7 @@ func (s *snapmgrTestSuite) TestUpdateWithAlreadyInstalledBase(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
 		{macaroon: s.user.StoreMacaroon, name: "some-snap", target: filepath.Join(dirs.SnapBlobDir, "some-snap_11.snap")},
@@ -1430,7 +1430,6 @@ func (s *snapmgrTestSuite) TestUpdateWithAlreadyInstalledBase(c *C) {
 
 func (s *snapmgrTestSuite) TestUpdateWithNewDefaultProvider(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.ReplaceStore(s.state, contentStore{fakeStore: s.fakeStore, state: s.state})
 	repo := interfaces.NewRepository()
@@ -1459,6 +1458,7 @@ func (s *snapmgrTestSuite) TestUpdateWithNewDefaultProvider(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
 		{macaroon: s.user.StoreMacaroon, name: "snap-content-plug", target: filepath.Join(dirs.SnapBlobDir, "snap-content-plug_11.snap")},
@@ -1468,7 +1468,6 @@ func (s *snapmgrTestSuite) TestUpdateWithNewDefaultProvider(c *C) {
 
 func (s *snapmgrTestSuite) TestUpdateWithInstalledDefaultProvider(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.ReplaceStore(s.state, contentStore{fakeStore: s.fakeStore, state: s.state})
 	repo := interfaces.NewRepository()
@@ -1520,6 +1519,7 @@ func (s *snapmgrTestSuite) TestUpdateWithInstalledDefaultProvider(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	c.Check(s.fakeStore.downloads, DeepEquals, []fakeDownload{
 		{macaroon: s.user.StoreMacaroon, name: "snap-content-plug", target: filepath.Join(dirs.SnapBlobDir, "snap-content-plug_11.snap")},
@@ -1528,7 +1528,6 @@ func (s *snapmgrTestSuite) TestUpdateWithInstalledDefaultProvider(c *C) {
 
 func (s *snapmgrTestSuite) TestUpdateRememberedUserRunThrough(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
@@ -1549,6 +1548,7 @@ func (s *snapmgrTestSuite) TestUpdateRememberedUserRunThrough(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 	c.Assert(chg.Err(), IsNil)
@@ -1587,7 +1587,6 @@ func (s *snapmgrTestSuite) TestUpdateModelKernelSwitchTrackRunThrough(c *C) {
 	defer r()
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	r1 := snapstatetest.MockDeviceModel(ModelWithKernelTrack("18"))
 	defer r1()
@@ -1607,6 +1606,7 @@ func (s *snapmgrTestSuite) TestUpdateModelKernelSwitchTrackRunThrough(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	c.Check(chg.Status(), Equals, state.DoneStatus)
 
@@ -1690,7 +1690,6 @@ func (s *snapmgrTestSuite) TestUpdateModelKernelSwitchTrackRunThrough(c *C) {
 
 func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
@@ -1732,6 +1731,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 	c.Assert(chg.Err(), IsNil)
@@ -1798,7 +1798,6 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsNoUserRunThrough(c *C) {
 
 func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
@@ -1840,6 +1839,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 	c.Assert(chg.Err(), IsNil)
@@ -1925,7 +1925,6 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserRunThrough(c *C) {
 
 func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserWithNoStoreAuthRunThrough(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "core", &snapstate.SnapState{
 		Active: true,
@@ -1967,6 +1966,7 @@ func (s *snapmgrTestSuite) TestUpdateManyMultipleCredsUserWithNoStoreAuthRunThro
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 	c.Assert(chg.Err(), IsNil)
@@ -2041,7 +2041,6 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	}
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
@@ -2061,6 +2060,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRunThrough(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	expected := fakeOps{
 		{
@@ -2245,7 +2245,6 @@ func (s *snapmgrTestSuite) TestUpdateUndoRestoresRevisionConfig(c *C) {
 	}
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:          true,
@@ -2278,6 +2277,7 @@ func (s *snapmgrTestSuite) TestUpdateUndoRestoresRevisionConfig(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	c.Check(chg.Status(), Equals, state.ErrorStatus)
 	c.Check(errorTaskExecuted, Equals, true)
@@ -2291,7 +2291,6 @@ func (s *snapmgrTestSuite) TestUpdateUndoRestoresRevisionConfig(c *C) {
 
 func (s *snapmgrTestSuite) TestUpdateMakesConfigSnapshot(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
@@ -2321,6 +2320,7 @@ func (s *snapmgrTestSuite) TestUpdateMakesConfigSnapshot(c *C) {
 	s.settle(c)
 
 	s.state.Lock()
+	defer s.state.Unlock()
 	cfgs = nil
 	// config copy of rev. 1 has been made
 	c.Assert(s.state.Get("revision-config", &cfgs), IsNil)
@@ -2339,7 +2339,6 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	}
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:          true,
@@ -2369,6 +2368,7 @@ func (s *snapmgrTestSuite) TestUpdateTotalUndoRunThrough(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	expected := fakeOps{
 		{
@@ -2551,7 +2551,6 @@ func (s *snapmgrTestSuite) TestUpdateSameRevision(c *C) {
 
 func (s *snapmgrTestSuite) TestUpdateToRevisionRememberedUserRunThrough(c *C) {
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active: true,
@@ -2572,6 +2571,7 @@ func (s *snapmgrTestSuite) TestUpdateToRevisionRememberedUserRunThrough(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	c.Assert(chg.Status(), Equals, state.DoneStatus)
 	c.Assert(chg.Err(), IsNil)
@@ -2713,7 +2713,6 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 	}
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:          true,
@@ -2731,6 +2730,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionSwitchChannelRunThrough(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	expected := fakeOps{
 		// we just expect the "storesvc-snap-action" ops, we
@@ -2856,7 +2856,6 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionToggleIgnoreValidationRunThroug
 	}
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:          true,
@@ -2875,6 +2874,7 @@ func (s *snapmgrTestSuite) TestUpdateSameRevisionToggleIgnoreValidationRunThroug
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	// verify snapSetup info
 	var snapsup snapstate.SnapSetup
@@ -2983,7 +2983,6 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	}
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	snapstate.Set(s.state, "some-snap", &snapstate.SnapState{
 		Active:   true,
@@ -3145,6 +3144,7 @@ func (s *snapmgrTestSuite) TestUpdateIgnoreValidationSticky(c *C) {
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	snapst = snapstate.SnapState{}
 	err = snapstate.Get(s.state, "some-snap", &snapst)
@@ -3161,7 +3161,6 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateIgnoreValidationSticky(c *C
 	}
 
 	s.state.Lock()
-	defer s.state.Unlock()
 
 	tr := config.NewTransaction(s.state)
 	tr.Set("core", "experimental.parallel-instances", true)
@@ -3238,6 +3237,7 @@ func (s *snapmgrTestSuite) TestParallelInstanceUpdateIgnoreValidationSticky(c *C
 	defer s.se.Stop()
 	s.settle(c)
 	s.state.Lock()
+	defer s.state.Unlock()
 
 	// ensure all our tasks ran
 	c.Assert(chg.Err(), IsNil)
