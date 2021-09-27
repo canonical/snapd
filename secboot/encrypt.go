@@ -116,3 +116,12 @@ func NewAuxKey() (AuxKey, error) {
 	// On return, n == len(b) if and only if err == nil
 	return key, err
 }
+
+// EncryptionType specifies what encryption backend should be used (if any)
+type EncryptionType string
+
+const (
+	EncryptionTypeNone            EncryptionType = ""
+	EncryptionTypeLUKS            EncryptionType = "cryptsetup"
+	EncryptionTypeDeviceSetupHook EncryptionType = "device-setup-hook"
+)
