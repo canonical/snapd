@@ -5,14 +5,19 @@ show_help() {
     echo "       restore"
     echo "       build-image IMAGE-TYPE"
     echo "       create-vm IMAGE-TYPE [--param-cdrom PARAM] [--param-mem PARAM]"
-    echo "       is-nested [IMAGE-TYPE]"
+    echo "       is-nested [core|classic|uc16|uc18|uc20]"
     echo "       vm <ACTION>"
     echo "       exec [--user <USER>] [--pwd <PWD>] <CMD>"
     echo "       copy <FILEPATH>"
     echo "       get <ARTIFACT>"
+    echo "       download <REMOTE_FILE>"
     echo "       wait-for <EVENT>"
     echo "       boot-id"
+    echo "       is-enabled <tpm|kvm|secboot>"
     echo "       secboot-sign <file|gadget> <PATH> <KEY> <CERT>"
+    echo "       transition <recovery-system> <system-mode>"
+    echo "       snap-rev <snap-name> [channel]"
+    echo "       build-seed <seed-dir> <seed-name> <label>"
     echo ""
     echo "Available options:"
     echo "  -h --help   show this help message."
@@ -27,9 +32,14 @@ show_help() {
     echo "  exec:         executes a command in the vm"
     echo "  copy:         copies a file to the vm"
     echo "  get:          retrieves an artifact"
+    echo "  download:     download an artifact"
     echo "  wait-for:     waits for the specified event"
     echo "  boot-id:      prints the boot id"
+    echo "  is-enabled:   indicated if the feature is enabled"
     echo "  secboot-sign: signs an artifact"
+    echo "  transition:   transition to system mode (just available for uc20)"
+    echo "  snap-rev:     get the snap rev in the vm (prints the installed rev if no channel provided)"
+    echo "  build-seed    build a seed that can be used to boot a vm"
     echo ""
     echo "IMAGE-TYPES:"
     echo "  core: work with a core image"
@@ -42,12 +52,18 @@ show_help() {
     echo "  status: retrieves status for a running vm"
     echo ""
     echo "ARTIFACT:"
+    echo "  serial-log: serial log for the nested vm"
+    echo "  model-authority: authority id for the current model"
+    echo "  image-name: then name of the image used for the test"
+    echo "  current-name: then name of the image being executed"
+    echo "  extra-snaps-path: paths used to store extra snaps"
+    echo "  assets-path: path used to store vm assets"
+    echo "  images-path: path used to store vm images"
+    echo ""
+    echo "REMOTE_FILE:"
     echo "  snakeoil-key: snakeoil key"
     echo "  image-url: url used to build a classic vm"
-    echo "  serial-log: serial log for the nested vm"
-    echo "  assets-path: paths used to store vm assets"
-    echo "  extra-snaps-path: paths used to store extra snaps"
-    echo "  model-authority: authority id for the current model"    
+    echo "  spread: the spread binary"
     echo ""
     echo "EVENT:"
     echo "  ssh: it is possible to ssh to the vm"
@@ -140,6 +156,15 @@ is_nested() {
             classic)
                 nested_is_classic_system
                 ;;
+            uc16)
+                nested_is_core_16_system
+                ;;
+            uc18)
+                nested_is_core_18_system
+                ;;
+            uc20)
+                nested_is_core_20_system
+                ;;
             *)
                 echo "tests.nested: parameter not supported: $1" >&2
                 exit 1
@@ -208,16 +233,20 @@ get() {
     fi
     local action=
     case "$1" in
-        snakeoil-key)
-            action=nested_get_snakeoil_key
-            shift
-            ;;
-        image-url)
-            action=nested_get_image_url_for_vm
-            shift
-            ;;
         serial-log)
             action=nested_print_serial_log
+            shift
+            ;;
+        model-authority)
+            action=nested_model_authority
+            shift
+            ;;
+        image-name)
+            action=nested_get_image_name
+            shift
+            ;;
+        current-name)
+            action=nested_get_current_image_name
             shift
             ;;
         extra-snaps-path)
@@ -228,8 +257,36 @@ get() {
             action=nested_get_assets_path
             shift
             ;;
-        model-authority)
-            action=nested_model_authority
+        images-path)
+            action=nested_get_images_path
+            shift
+            ;;
+        *)
+            echo "tests.nested: unsupported parameter $1" >&2
+            exit 1
+            ;;
+    esac
+
+    "$action" "$@"
+}
+
+download() {
+    if [ $# -eq 0 ]; then
+        show_help
+        exit 1
+    fi
+    local action=
+    case "$1" in
+        snakeoil-key)
+            action=nested_get_snakeoil_key
+            shift
+            ;;
+        image-url)
+            action=nested_get_image_url_for_vm
+            shift
+            ;;
+        spread)
+            action=nested_fetch_spread
             shift
             ;;
         *)
@@ -277,6 +334,24 @@ boot_id() {
     nested_get_boot_id
 }
 
+is_enabled() {
+    case "$1" in
+        kvm)
+            nested_is_kvm_enabled
+            ;;
+        tpm)
+            nested_is_tpm_enabled
+            ;;
+        secboot)
+            nested_is_secure_boot_enabled
+            ;;
+        *)
+            echo "tests.nested: feature not supported: $1" >&2
+            exit 1
+            ;;
+    esac
+}
+
 secboot_sign() {
     case "$1" in
         file)
@@ -292,6 +367,25 @@ secboot_sign() {
             exit 1
             ;;
     esac
+}
+
+transition() {
+    nested_uc20_transition_to_system_mode "$@"
+}
+
+snap_rev() {
+    if [ $# -eq 0 ] || [ $# -gt 2 ]; then
+        show_help
+        exit 1
+    elif [ $# -eq 1 ]; then
+        nested_get_core_revision_installed "$@"
+    else
+        nested_get_core_revision_for_channel "$@"
+    fi
+}
+
+build_seed() {
+    nested_build_seed_cdrom "$@"
 }
 
 main() {
