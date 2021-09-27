@@ -124,7 +124,7 @@ var _ = encryptedDevice(&encryptedDeviceWithSetupHook{})
 func newEncryptedDeviceWithSetupHook(part *gadget.OnDiskStructure, key secboot.EncryptionKey, name string) (encryptedDevice, error) {
 	// 1. create linear mapper device with 1Mb of reserved space
 	uuid := ""
-	offset := uint64(1 * 1024 * 1024)
+	offset := fde.DeviceSetupHookPartitionOffset
 	sizeMinusOffset := uint64(part.Size) - offset
 	mapperDevice, err := disks.CreateLinearMapperDevice(part.Node, name, uuid, offset, sizeMinusOffset)
 	if err != nil {

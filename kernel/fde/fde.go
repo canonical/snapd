@@ -33,6 +33,11 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
+// DeviceSetupHookPartitionOffset defines the free space that is reserved
+// at the start of a device-setup based partition for future use (like
+// to simulate LUKS keyslot like setup).
+const DeviceSetupHookPartitionOffset = uint64(1 * 1024 * 1024)
+
 // HasRevealKey return true if the current system has a "fde-reveal-key"
 // binary (usually used in the initrd).
 //
