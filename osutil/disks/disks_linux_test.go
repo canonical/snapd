@@ -318,7 +318,7 @@ func (s *diskSuite) TestDiskFromMountPointHappyRealUdevadm(c *C) {
 if [ "$*" = "info --query property --name /dev/vda1" ]; then
 	echo "ID_PART_ENTRY_DISK=42:0"
 else
-	echo "unexpected arguments"
+	echo "unexpected arguments $*"
 	exit 1
 fi
 `)
@@ -343,7 +343,7 @@ if [ "$*" = "info --query property --name /dev/mapper/something" ]; then
 	# not a partition, so no ID_PART_ENTRY_DISK, but we will have DEVTYPE=disk
 	echo "DEVTYPE=disk"
 else
-	echo "unexpected arguments"
+	echo "unexpected arguments $*"
 	exit 1
 fi
 `)
@@ -409,7 +409,7 @@ func (s *diskSuite) TestDiskFromMountPointNotDiskUnsupported(c *C) {
 if [ "$*" = "info --query property --name /dev/not-a-disk" ]; then
 	echo "DEVTYPE=not-a-disk"
 else
-	echo "unexpected arguments"
+	echo "unexpected arguments $*"
 	exit 1
 fi
 `)
