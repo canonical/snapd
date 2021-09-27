@@ -119,6 +119,11 @@ func UnlockVolumeUsingSealedKeyIfEncrypted(disk disks.Disk, name string, sealedE
 
 // UnlockEncryptedVolumeUsingKey unlocks an existing volume using the provided key.
 func UnlockEncryptedVolumeUsingKey(disk disks.Disk, name string, key []byte) (UnlockResult, error) {
+	// systems that need the "fde-device-unlock" are special
+	if fde.HasDeviceUnlock() {
+		return unlockEncryptedVolumeUsingKeyViaDeviceUnlockHook(disk, name, key)
+	}
+
 	unlockRes := UnlockResult{
 		UnlockMethod: NotUnlocked,
 	}
@@ -173,18 +178,16 @@ func UnlockEncryptedVolumeWithRecoveryKey(name, device string) error {
 	return nil
 }
 
-func unlockVolumeUsingSealedKeyViaDeviceUnlockHook(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
-	res := UnlockResult{}
-
+func setupDeviceMapperTargetForDeviceUnlock(disk disks.Disk, name string) (string, string, error) {
 	// 1. mount name under the right mapper with 1mb offset
 	partUUID, err := disk.FindMatchingPartitionUUIDWithFsLabel(name)
 	if err != nil {
-		return res, err
+		return "", "", err
 	}
 	partDevice := filepath.Join("/dev/disk/by-partuuid", partUUID)
 	partSize, err := disks.Size(partDevice)
 	if err != nil {
-		return res, err
+		return "", "", err
 	}
 	// XXX: This is the location of both locked and unlocked
 	//      paths because inline-encryption is transparent. So
@@ -195,6 +198,18 @@ func unlockVolumeUsingSealedKeyViaDeviceUnlockHook(disk disks.Disk, name string,
 	offset := uint64(1 * 1024 * 1024)
 	mapperSize := partSize - offset
 	mapperDevice, err := disks.CreateLinearMapperDevice(partDevice, mapperName, partUUID, offset, mapperSize)
+	if err != nil {
+		return "", "", err
+	}
+
+	return partDevice, mapperDevice, err
+}
+
+func unlockVolumeUsingSealedKeyViaDeviceUnlockHook(disk disks.Disk, name string, sealedEncryptionKeyFile string, opts *UnlockVolumeUsingSealedKeyOptions) (UnlockResult, error) {
+	res := UnlockResult{}
+
+	// 1. setup mapper
+	partDevice, mapperDevice, err := setupDeviceMapperTargetForDeviceUnlock(disk, name)
 	if err != nil {
 		return res, err
 	}
@@ -212,7 +227,7 @@ func unlockVolumeUsingSealedKeyViaDeviceUnlockHook(disk disks.Disk, name string,
 	}
 	unlockKey, _, err := keyData.RecoverKeys()
 
-	// 4. call fde-inline-crypt-hw-unlock to unlock device
+	// 3. call fde-device-unlock to unlock device
 	params := &fde.DeviceUnlockParams{
 		Key:    unlockKey,
 		Device: partDevice,
@@ -224,4 +239,30 @@ func unlockVolumeUsingSealedKeyViaDeviceUnlockHook(disk disks.Disk, name string,
 	res.PartDevice = partDevice
 	res.FsDevice = mapperDevice
 	return res, nil
+}
+
+func unlockEncryptedVolumeUsingKeyViaDeviceUnlockHook(disk disks.Disk, name string, key []byte) (UnlockResult, error) {
+	res := UnlockResult{}
+
+	// 1. setup mapper
+	partDevice, mapperDevice, err := setupDeviceMapperTargetForDeviceUnlock(disk, name)
+	if err != nil {
+		return res, err
+	}
+
+	// 2. call fde-device-unlock to unlock device
+	params := &fde.DeviceUnlockParams{
+		Key:    key,
+		Device: partDevice,
+	}
+	if err := fde.DeviceUnlock(params); err != nil {
+		return res, err
+	}
+
+	return UnlockResult{
+		IsEncrypted:  true,
+		PartDevice:   partDevice,
+		FsDevice:     mapperDevice,
+		UnlockMethod: UnlockedWithKey,
+	}, nil
 }
