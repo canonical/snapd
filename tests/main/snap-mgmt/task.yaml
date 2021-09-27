@@ -75,7 +75,9 @@ prepare: |
     fi
 
 restore: |
-    snap remove test-snapd-user-service
+    # Stop any service which could be still running on the user session
+    systemctl --user daemon-reload
+    systemctl stop --state=running --type service --user snap.*
 
 execute: |
     echo "Stop snapd before purging"

@@ -31,6 +31,9 @@ restore: |
     snap remove test-snapd-location-control-provider
     tests.session -u test restore
 
+    # Stop any scope which could be still running on the user session
+    systemctl stop --state=running --type scope --user snap.*
+
 execute: |
     echo "The interface is not connected by default"
     snap interfaces -i location-control | MATCH "^- +test-snapd-location-control-provider:location-control$"
