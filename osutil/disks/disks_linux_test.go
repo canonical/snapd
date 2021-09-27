@@ -728,3 +728,58 @@ func (s *diskSuite) TestDiskFromMountPointDecryptedDevicePartitionsHappy(c *C) {
 	c.Assert(err, IsNil)
 	c.Assert(matches, Equals, true)
 }
+
+func (s *diskSuite) TestDiskSizeHappy(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(dev string) (map[string]string, error) {
+		c.Assert(dev, Equals, "sda")
+		return map[string]string{
+			"MAJOR":   "1",
+			"MINOR":   "2",
+			"DEVTYPE": "disk",
+		}, nil
+	})
+	defer restore()
+
+	mockSysSize := filepath.Join(dirs.GlobalRootDir, "/sys/dev/block/1:2/size")
+	err := os.MkdirAll(filepath.Dir(mockSysSize), 0755)
+	c.Assert(err, IsNil)
+	// 4294967295 + 1 picked because it does not fit uint32
+	err = ioutil.WriteFile(mockSysSize, []byte("4294967296\n"), 0644)
+	c.Assert(err, IsNil)
+
+	d, err := disks.DiskFromDeviceName("sda")
+	c.Assert(err, IsNil)
+	size, err := d.Size()
+	c.Assert(err, IsNil)
+	c.Check(size, Equals, uint64(4294967295+1))
+}
+
+func (s *diskSuite) TestDiskSizeErrs(c *C) {
+	restore := disks.MockUdevPropertiesForDevice(func(dev string) (map[string]string, error) {
+		c.Assert(dev, Equals, "sda")
+		return map[string]string{
+			"MAJOR":   "1",
+			"MINOR":   "2",
+			"DEVTYPE": "disk",
+		}, nil
+	})
+	defer restore()
+
+	d, err := disks.DiskFromDeviceName("sda")
+	c.Assert(err, IsNil)
+
+	// 1. no file
+	_, err = d.Size()
+	c.Assert(err, ErrorMatches, "cannot open disk to get size: open .*/size: no such file or directory")
+
+	// 2. wrong content
+	mockSysSize := filepath.Join(dirs.GlobalRootDir, "/sys/dev/block/1:2/size")
+	err = os.MkdirAll(filepath.Dir(mockSysSize), 0755)
+	c.Assert(err, IsNil)
+	err = ioutil.WriteFile(mockSysSize, []byte("NaN"), 0644)
+	c.Assert(err, IsNil)
+
+	_, err = d.Size()
+	c.Assert(err, ErrorMatches, `cannot get size for device 1:2: strconv.ParseUint: parsing "NaN": invalid syntax`)
+
+}

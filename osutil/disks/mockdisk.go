@@ -40,6 +40,8 @@ type MockDiskMapping struct {
 	PartitionLabelToPartUUID map[string]string
 	DiskHasPartitions        bool
 	DevNum                   string
+	DiskSize                 uint64
+	DiskSizeError            error
 }
 
 // FindMatchingPartitionUUIDWithFsLabel returns a matching PartitionUUID
@@ -98,6 +100,11 @@ func (d *MockDiskMapping) MountPointIsFromDisk(mountpoint string, opts *Options)
 // interface.
 func (d *MockDiskMapping) Dev() string {
 	return d.DevNum
+}
+
+// Size returns the size of the disk in bytes.
+func (d *MockDiskMapping) Size() (uint64, error) {
+	return d.DiskSize, d.DiskSizeError
 }
 
 // Mountpoint is a combination of a mountpoint location and whether that

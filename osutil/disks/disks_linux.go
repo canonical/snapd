@@ -506,3 +506,18 @@ func (d *disk) HasPartitions() bool {
 	//       d.partitions is empty or not
 	return d.hasPartitions
 }
+
+func (d *disk) Size() (uint64, error) {
+	path := fmt.Sprintf("/sys/dev/block/%v:%v/size", d.major, d.minor)
+	raw, err := ioutil.ReadFile(filepath.Join(dirs.GlobalRootDir, path))
+	if err != nil {
+		return 0, fmt.Errorf("cannot open disk to get size: %v", err)
+	}
+	sizeb := bytes.TrimSpace(raw)
+
+	size, err := strconv.ParseUint(string(sizeb), 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("cannot get size for device %v:%v: %v", d.major, d.minor, err)
+	}
+	return size, nil
+}

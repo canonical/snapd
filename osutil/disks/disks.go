@@ -62,6 +62,10 @@ type Disk interface {
 	// does not have partitions for example.
 	HasPartitions() bool
 
+	// Size returns the size of the disk in bytes (as reported by
+	// BLKGETSIZE)
+	Size() (uint64, error)
+
 	// TODO: add function to get some properties like an associated /dev node
 	//       for a disk for better user error reporting, i.e. /dev/vda3 is much
 	//       more helpful than 252:3
