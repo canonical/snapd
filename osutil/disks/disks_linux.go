@@ -55,8 +55,7 @@ var (
 // diskFromMountPoint is exposed for mocking from other tests via
 // MockMountPointDisksToPartitionMapping, but we can't just assign
 // diskFromMountPointImpl to diskFromMountPoint due to signature differences,
-// the former returns a *disk, the latter returns a Disk, and as such they can't
-// be assigned to each other
+// the former returns a *disk, the latter returns a Disk
 var diskFromMountPoint = func(mountpoint string, opts *Options) (Disk, error) {
 	return diskFromMountPointImpl(mountpoint, opts)
 }
@@ -346,9 +345,9 @@ func diskFromMountPointImpl(mountpoint string, opts *Options) (*disk, error) {
 		return d, nil
 	}
 
-	// if we don't have ID_PART_ENTRY_DISK, the partition is probably a volume
-	// or other non-physical disk, so confirm that DEVTYPE == disk and return
-	// the maj/min for it
+	// if we don't have ID_PART_ENTRY_DISK, the partition is probably a mapped
+	// volume or other non-physical disk, so confirm that DEVTYPE == disk and
+	// return the maj/min for it
 	if devType, ok := props["DEVTYPE"]; ok {
 		if devType == "disk" {
 			return d, nil
