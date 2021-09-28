@@ -11,7 +11,7 @@ execute: |
   echo "find root device"
   root_dev=$(df |grep '/$'|cut -f1 -d' ')
 
-  echo "calculcate partition size"
+  echo "calculate partition size"
   root_disksize=$(./disksize "$root_dev")
   echo "ensure it's sensible (i.e. > 512mb)"
   test "$root_disksize" -gt $((512*1024*1024))
