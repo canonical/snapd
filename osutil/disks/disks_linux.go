@@ -115,28 +115,6 @@ func parseUdevProperties(r io.Reader) (map[string]string, error) {
 	return m, scanner.Err()
 }
 
-func DiskFromDevicePath(devicePath string) (Disk, error) {
-	return diskFromDevicePath(devicePath)
-}
-
-// diskFromDevicePath is exposed for mocking from other tests via
-// MockDeviceNameDisksToPartitionMapping.
-var diskFromDevicePath = func(devicePath string) (Disk, error) {
-	// query for the disk props using udev with --path
-	props, err := udevPropertiesForPath(devicePath)
-	if err != nil {
-		return nil, err
-	}
-
-	return diskFromUdevProps(devicePath, "path", props)
-}
-
-// DiskFromDeviceName finds a matching Disk using the specified name, such as
-// vda, or mmcblk0, etc.
-func DiskFromDeviceName(deviceName string) (Disk, error) {
-	return diskFromDeviceName(deviceName)
-}
-
 func diskFromUdevProps(deviceIdentifier string, deviceIDType string, props map[string]string) (Disk, error) {
 	major, err := strconv.Atoi(props["MAJOR"])
 	if err != nil {
@@ -162,7 +140,30 @@ func diskFromUdevProps(deviceIdentifier string, deviceIDType string, props map[s
 		major: major,
 		minor: minor,
 	}, nil
+}
 
+// DiskFromDeviceName finds a matching Disk using the specified path in the
+// kernel's sysfs, such as /sys/devices/pci0000:00/0000:00:04.0/virtio2/block/vdb.
+func DiskFromDevicePath(devicePath string) (Disk, error) {
+	return diskFromDevicePath(devicePath)
+}
+
+// diskFromDevicePath is exposed for mocking from other tests via
+// MockDeviceNameDisksToPartitionMapping.
+var diskFromDevicePath = func(devicePath string) (Disk, error) {
+	// query for the disk props using udev with --path
+	props, err := udevPropertiesForPath(devicePath)
+	if err != nil {
+		return nil, err
+	}
+
+	return diskFromUdevProps(devicePath, "path", props)
+}
+
+// DiskFromDeviceName finds a matching Disk using the specified name, such as
+// vda, or mmcblk0, etc.
+func DiskFromDeviceName(deviceName string) (Disk, error) {
+	return diskFromDeviceName(deviceName)
 }
 
 // diskFromDeviceName is exposed for mocking from other tests via
