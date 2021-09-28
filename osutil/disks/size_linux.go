@@ -16,12 +16,10 @@ func Size(partDevice string) (uint64, error) {
 	}
 	defer fp.Close()
 
-	// kernel 5.14.8 source says:
-	// #define BLKGETSIZE _IO(0x12,96)	/* return device size /512 (long *arg) */
-	partBlocks, err := unix.IoctlGetInt(int(fp.Fd()), unix.BLKGETSIZE)
+	partSize, err := unix.IoctlGetInt(int(fp.Fd()), unix.BLKGETSIZE64)
 	if err != nil {
 		return 0, err
 	}
 
-	return uint64(partBlocks * 512), nil
+	return uint64(partSize), nil
 }
