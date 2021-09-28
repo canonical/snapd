@@ -170,6 +170,8 @@ execute: |
 
     echo "Ensure we can install the snapd snap"
     snap install --dangerous snapd_spread-test.snap
+    tests.cleanup defer snap revert snapd
+
     echo "Ensure we restarted into the snapd snap"
     "$TESTSTOOLS"/journal-state match-log  'restarting into "/snap/snapd/'
 
@@ -192,6 +194,8 @@ execute: |
     echo "Then the profile should support include-if-exists"
     MATCH "#include if exists \"/var/lib/snapd/apparmor/snap-tuning\"" < /var/lib/snapd/apparmor/profiles/snap.hello-world.evil
 
+    # Replicate the tests from tests/main/interfaces-many-core-provided so
+    # we can exercise the vendored appamor_parser etc within the snapd snap
     echo "Given a snap is installed"
     "$TESTSTOOLS"/snaps-state install-local "$CONSUMER_SNAP"
     tests.cleanup defer snap remove --purge "$CONSUMER_SNAP"
