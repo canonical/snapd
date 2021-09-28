@@ -66,17 +66,14 @@ struct sc_device_cgroup {
 
 __attribute__((format(printf, 2, 3))) static void sc_dprintf(int fd, const char *format, ...);
 
-static int sc_udev_open_cgroup_v1(const char *security_tag, int flags, sc_cgroup_fds *fds);
+static int sc_udev_open_cgroup_v1(sc_cgroup_fds *fds);
 static void sc_cleanup_cgroup_fds(sc_cgroup_fds *fds);
 
 static int _sc_cgroup_v1_init(sc_device_cgroup *self, int flags) {
     self->v1.fds = sc_cgroup_fds_new();
 
     /* initialize to something sane */
-    if (sc_udev_open_cgroup_v1(self->security_tag, flags, &self->v1.fds) < 0) {
-        if ((flags & SC_DEVICE_CGROUP_FROM_EXISTING) != 0) {
-            return -1;
-        }
+    if (sc_udev_open_cgroup_v1(&self->v1.fds) < 0) {
         die("cannot prepare cgroup v1 device hierarchy");
     }
     /* Deny device access by default.
@@ -583,7 +580,7 @@ static void sc_dprintf(int fd, const char *format, ...) {
     va_end(ap1);
 }
 
-static int sc_udev_open_cgroup_v1(const char *security_tag, int flags, sc_cgroup_fds *fds) {
+static int sc_udev_open_cgroup_v1(sc_cgroup_fds *fds) {
     /* Open /sys/fs/cgroup */
     const char *cgroup_path = "/sys/fs/cgroup";
     int SC_CLEANUP(sc_cleanup_close) cgroup_fd = -1;

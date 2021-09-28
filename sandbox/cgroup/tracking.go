@@ -273,7 +273,10 @@ var doCreateTransientScope = func(conn *dbus.Conn, unitName string, pid int) err
 	//
 	// Here we choose "fail" to match systemd-run.
 	mode := "fail"
-	properties := []property{{"PIDs", []uint{uint(pid)}}}
+	properties := []property{
+		{"PIDs", []uint{uint(pid)}},
+		{"Delegate", true},
+	}
 	aux := []auxUnit(nil)
 	systemd := conn.Object("org.freedesktop.systemd1", "/org/freedesktop/systemd1")
 	call := systemd.Call(
