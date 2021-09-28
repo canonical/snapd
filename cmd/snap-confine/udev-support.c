@@ -350,8 +350,4 @@ void sc_setup_device_cgroup(const char *security_tag)
 		sc_udev_allow_assigned_device(cgroup, device);
 		udev_device_unref(device);
 	}
-	/* Move ourselves to the device cgroup */
-	sc_device_cgroup_attach_pid(cgroup, getpid());
-	debug("associated snap application process %i with device cgroup %s",
-	      getpid(), security_tag);
 }

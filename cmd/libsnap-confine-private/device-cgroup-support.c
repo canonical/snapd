@@ -38,14 +38,13 @@
 typedef struct sc_cgroup_fds {
     int devices_allow_fd;
     int devices_deny_fd;
-    int cgroup_procs_fd;
 } sc_cgroup_fds;
 
 static sc_cgroup_fds sc_cgroup_fds_new(void) {
     /* Note that -1 is the neutral value for a file descriptor.
      * This is relevant as a cleanup handler for sc_cgroup_fds,
      * closes all file descriptors that are not -1. */
-    sc_cgroup_fds empty = {-1, -1, -1};
+    sc_cgroup_fds empty = {-1, -1};
     return empty;
 }
 
@@ -109,10 +108,6 @@ static void _sc_cgroup_v1_deny(sc_device_cgroup *self, int kind, int major, int 
     _sc_cgroup_v1_action(self->v1.fds.devices_deny_fd, kind, major, minor);
 }
 
-static void _sc_cgroup_v1_attach_pid(sc_device_cgroup *self, pid_t pid) {
-    sc_dprintf(self->v1.fds.cgroup_procs_fd, "%i\n", pid);
-}
-
 /**
  * sc_cgroup_v2_device_key is the key in the map holding allowed devices
  */
@@ -131,11 +126,6 @@ typedef struct sc_cgroup_v2_device_key sc_cgroup_v2_device_key;
  * map.
  */
 typedef uint8_t sc_cgroup_v2_device_value;
-
-static void _sc_cgroup_v2_attach_pid(sc_device_cgroup *self, pid_t pid) {
-    /* nothing to do here, the device controller is attached to the cgroup
-     * already, and we are part of it */
-}
 
 #ifdef ENABLE_BPF
 static int load_devcgroup_prog(int map_fd) {
@@ -577,15 +567,6 @@ int sc_device_cgroup_deny(sc_device_cgroup *self, int kind, int major, int minor
     return 0;
 }
 
-int sc_device_cgroup_attach_pid(sc_device_cgroup *self, pid_t pid) {
-    if (self->is_v2) {
-        _sc_cgroup_v2_attach_pid(self, pid);
-    } else {
-        _sc_cgroup_v1_attach_pid(self, pid);
-    }
-    return 0;
-}
-
 static void sc_dprintf(int fd, const char *format, ...) {
     va_list ap1;
     va_list ap2;
@@ -611,69 +592,31 @@ static int sc_udev_open_cgroup_v1(const char *security_tag, int flags, sc_cgroup
         die("cannot open %s", cgroup_path);
     }
 
-    const bool from_existing = (flags & SC_DEVICE_CGROUP_FROM_EXISTING) != 0;
     /* Open devices relative to /sys/fs/cgroup */
-    const char *devices_relpath = "devices";
+    char *devices_relpath SC_CLEANUP(sc_cleanup_string) = NULL;
+    devices_relpath = sc_cgroup_own_path_by_controller("devices");
+    debug("Opening cgroup: %s", devices_relpath);
+
     int SC_CLEANUP(sc_cleanup_close) devices_fd = -1;
     devices_fd = openat(cgroup_fd, devices_relpath, O_PATH | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
     if (devices_fd < 0) {
         die("cannot open %s/%s", cgroup_path, devices_relpath);
     }
 
-    const char *security_tag_relpath = security_tag;
-    if (!from_existing) {
-        /* Open snap.$SNAP_NAME.$APP_NAME relative to /sys/fs/cgroup/devices,
-         * creating the directory if necessary. Note that we always chown the
-         * resulting directory to root:root. */
-        sc_identity old = sc_set_effective_identity(sc_root_group_identity());
-        if (mkdirat(devices_fd, security_tag_relpath, 0755) < 0) {
-            if (errno != EEXIST) {
-                die("cannot create directory %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
-            }
-        }
-        (void)sc_set_effective_identity(old);
-    }
-
-    int SC_CLEANUP(sc_cleanup_close) security_tag_fd = -1;
-    security_tag_fd = openat(devices_fd, security_tag_relpath, O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW);
-    if (security_tag_fd < 0) {
-        if (from_existing && errno == ENOENT) {
-            return -1;
-        }
-        die("cannot open %s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath);
-    }
-
     /* Open devices.allow relative to /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
     const char *devices_allow_relpath = "devices.allow";
     int SC_CLEANUP(sc_cleanup_close) devices_allow_fd = -1;
-    devices_allow_fd = openat(security_tag_fd, devices_allow_relpath, O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
+    devices_allow_fd = openat(devices_fd, devices_allow_relpath, O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
     if (devices_allow_fd < 0) {
-        if (from_existing && errno == ENOENT) {
-            return -1;
-        }
-        die("cannot open %s/%s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath, devices_allow_relpath);
+        die("cannot open %s/%s/%s", cgroup_path, devices_relpath, devices_allow_relpath);
     }
 
     /* Open devices.deny relative to /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
     const char *devices_deny_relpath = "devices.deny";
     int SC_CLEANUP(sc_cleanup_close) devices_deny_fd = -1;
-    devices_deny_fd = openat(security_tag_fd, devices_deny_relpath, O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
+    devices_deny_fd = openat(devices_fd, devices_deny_relpath, O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
     if (devices_deny_fd < 0) {
-        if (from_existing && errno == ENOENT) {
-            return -1;
-        }
-        die("cannot open %s/%s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath, devices_deny_relpath);
-    }
-
-    /* Open cgroup.procs relative to /sys/fs/cgroup/devices/snap.$SNAP_NAME.$APP_NAME */
-    const char *cgroup_procs_relpath = "cgroup.procs";
-    int SC_CLEANUP(sc_cleanup_close) cgroup_procs_fd = -1;
-    cgroup_procs_fd = openat(security_tag_fd, cgroup_procs_relpath, O_WRONLY | O_CLOEXEC | O_NOFOLLOW);
-    if (cgroup_procs_fd < 0) {
-        if (from_existing && errno == ENOENT) {
-            return -1;
-        }
-        die("cannot open %s/%s/%s/%s", cgroup_path, devices_relpath, security_tag_relpath, cgroup_procs_relpath);
+        die("cannot open %s/%s/%s", cgroup_path, devices_relpath, devices_deny_relpath);
     }
 
     /* Everything worked so pack the result and "move" the descriptors over so
@@ -681,11 +624,9 @@ static int sc_udev_open_cgroup_v1(const char *security_tag, int flags, sc_cgroup
      * individual variables. */
     fds->devices_allow_fd = devices_allow_fd;
     fds->devices_deny_fd = devices_deny_fd;
-    fds->cgroup_procs_fd = cgroup_procs_fd;
     /* Reset the locals so that they are not closed by the cleanup handlers. */
     devices_allow_fd = -1;
     devices_deny_fd = -1;
-    cgroup_procs_fd = -1;
     return 0;
 }
 
@@ -693,6 +634,5 @@ static void sc_cleanup_cgroup_fds(sc_cgroup_fds *fds) {
     if (fds != NULL) {
         sc_cleanup_close(&fds->devices_allow_fd);
         sc_cleanup_close(&fds->devices_deny_fd);
-        sc_cleanup_close(&fds->cgroup_procs_fd);
     }
 }

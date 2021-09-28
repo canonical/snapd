@@ -63,10 +63,4 @@ int sc_device_cgroup_allow(sc_device_cgroup* self, int kind, int major, int mino
  */
 int sc_device_cgroup_deny(sc_device_cgroup* self, int kind, int major, int minor);
 
-/**
- * sc_device_cgroup_attach_pid attaches given process ID to the associated
- * cgroup.
- */
-int sc_device_cgroup_attach_pid(sc_device_cgroup* self, pid_t pid);
-
 #endif /* SNAP_CONFINE_DEVICE_CGROUP_SUPPORT_H */

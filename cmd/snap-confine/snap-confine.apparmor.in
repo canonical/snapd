@@ -59,9 +59,9 @@
     capability dac_override,
     /sys/fs/cgroup/ r,
     /sys/fs/cgroup/devices/ r,
-    /sys/fs/cgroup/devices/snap.*/ rw,
-    /sys/fs/cgroup/devices/snap.*/cgroup.procs w,
-    /sys/fs/cgroup/devices/snap.*/devices.{allow,deny} w,
+    /sys/fs/cgroup/devices/**/snap.*/ rw,
+    /sys/fs/cgroup/devices/**/snap.*/cgroup.procs w,
+    /sys/fs/cgroup/devices/**/snap.*/devices.{allow,deny} w,
 
     # cgroup: freezer
     # Allow creating per-snap cgroup freezers and adding snap command (task)

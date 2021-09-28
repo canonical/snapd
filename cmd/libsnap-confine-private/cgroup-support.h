@@ -62,4 +62,14 @@ bool sc_cgroup_v2_is_tracking_snap(const char *snap_instance);
  */
 char *sc_cgroup_v2_own_path_full(void);
 
+/**
+ * sc_cgroup_own_path_by_controller return the full path of the owning cgroup as
+ * reported by the kernel, for the given controller (or for the unified
+ * hierarchy, if controller is NULL).
+ *
+ * Returns the full path of the group in the unified hierarchy relative to its
+ * root. The string is owned by the caller.
+ */
+char *sc_cgroup_own_path_by_controller(const char *controller);
+
 #endif

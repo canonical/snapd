@@ -202,7 +202,7 @@ bool sc_cgroup_v2_is_tracking_snap(const char *snap_instance) {
 
 static const char *self_cgroup = "/proc/self/cgroup";
 
-char *sc_cgroup_v2_own_path_full(void) {
+char *sc_cgroup_own_path_by_controller(const char *controller) {
     FILE *in SC_CLEANUP(sc_cleanup_file) = fopen(self_cgroup, "r");
     if (in == NULL) {
         die("cannot open %s", self_cgroup);
@@ -210,32 +210,33 @@ char *sc_cgroup_v2_own_path_full(void) {
 
     char *own_group = NULL;
 
-    while (true) {
-        char *line SC_CLEANUP(sc_cleanup_string) = NULL;
-        size_t linesz = 0;
-        ssize_t sz = getline(&line, &linesz, in);
-        if (sz < 0 && errno != 0) {
+    /* the cgroup name must also be a valid path, and the line we read won't
+     * include the /proc/self/cgroup prefix.
+     */
+    char path[PATH_MAX];
+    char read_controller[128];
+    int hierarchy_index;
+    while (fscanf(in, "%d:%127[^:]:%[^\n]", &hierarchy_index, read_controller, path) == 3) {
+        if (errno != 0) {
             die("cannot read line from %s", self_cgroup);
         }
-        if (sz < 0) {
-            // end of file
+
+        debug("read h = %d, controller = %s, path = %s", hierarchy_index, read_controller, path);
+        /* Cgroups v1 */
+        if (controller != NULL && strcmp(read_controller, controller) == 0) {
+            size_t path_length = strlen(controller) + strlen(path) + 1;
+            own_group = malloc(path_length);
+            sc_must_snprintf(own_group, path_length, "%s%s", controller, path);
+            break;
+            /* Cgroups v2 */
+        } else if (controller == NULL && read_controller[0] == '\0' && hierarchy_index == 0) {
+            own_group = strdup(path);
             break;
         }
-        if (!sc_startswith(line, "0::")) {
-            continue;
-        }
-        size_t len = strlen(line);
-        if (len <= 3) {
-            die("unexpected content of group entry %s", line);
-        }
-        // \n does not normally appear inside the group path, but if it did, it
-        // would be escaped anyway
-        char *newline = strchr(line, '\n');
-        if (newline != NULL) {
-            *newline = '\0';
-        }
-        own_group = sc_strdup(line + 3);
-        break;
     }
     return own_group;
+}
+
+char *sc_cgroup_v2_own_path_full(void) {
+    return sc_cgroup_own_path_by_controller(NULL);
 }
