@@ -36,9 +36,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-var (
-	_ = Disk(&disk{})
-)
+var _ = Disk(&disk{})
 
 var (
 	// this regexp is for the DM_UUID udev property, or equivalently the dm/uuid

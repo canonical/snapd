@@ -25,9 +25,7 @@ import (
 	"github.com/snapcore/snapd/osutil"
 )
 
-var (
-	_ = Disk(&MockDiskMapping{})
-)
+var _ = Disk(&MockDiskMapping{})
 
 // MockDiskMapping is an implementation of Disk for mocking purposes, it is
 // exported so that other packages can easily mock a specific disk layout
