@@ -7,8 +7,12 @@ prepare: |
 
     snap set system experimental.parallel-instances=true
 
+    tests.session -u test prepare
+
 restore: |
     snap set system experimental.parallel-instances=null
+
+    tests.session -u test restore
 
 execute: |
     "$TESTSTOOLS"/snaps-state install-local test-snapd-sh
