@@ -226,6 +226,10 @@ func unlockVolumeUsingSealedKeyViaDeviceUnlockHook(disk disks.Disk, name string,
 		return res, xerrors.Errorf(fmt, err)
 	}
 	unlockKey, _, err := keyData.RecoverKeys()
+	if err != nil {
+		fmt := "cannot recover key data: %w"
+		return res, xerrors.Errorf(fmt, err)
+	}
 
 	// 3. call fde-device-unlock to unlock device
 	params := &fde.DeviceUnlockParams{
