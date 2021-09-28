@@ -169,6 +169,8 @@ func (s *backendSuite) SetUpTest(c *C) {
 	s.parserCmd = testutil.MockCommand(c, "apparmor_parser", fakeAppArmorParser)
 
 	apparmor.MockRuntimeNumCPU(func() int { return 99 })
+	restore := release.MockReleaseInfo(&release.OS{ID: "ubuntu"})
+	s.AddCleanup(restore)
 }
 
 func (s *backendSuite) TearDownTest(c *C) {
@@ -1371,6 +1373,28 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFS2(c *C) {
 	s.testSetupSnapConfineGeneratedPolicyWithNFS(c, "usr.lib.snapd.snap-confine.real")
 }
 
+func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithNFSNoProfileFiles(c *C) {
+	// Make it appear as if NFS workaround was needed.
+	restore := apparmor.MockIsHomeUsingNFS(func() (bool, error) { return true, nil })
+	defer restore()
+	// Make it appear as if overlay was not used.
+	restore = apparmor.MockIsRootWritableOverlay(func() (string, error) { return "", nil })
+	defer restore()
+
+	// Intercept interaction with apparmor_parser
+	cmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer cmd.Restore()
+	// Set up apparmor profiles directory, but no profile for snap-confine
+	c.Assert(os.MkdirAll(apparmor_sandbox.ConfDir, 0755), IsNil)
+
+	// The apparmor backend should not fail if the apparmor profile of
+	// snap-confine is not present
+	err := (&apparmor.Backend{}).Initialize(nil)
+	c.Assert(err, IsNil)
+	// Since there is no profile file, no call to apparmor were made
+	c.Assert(cmd.Calls(), HasLen, 0)
+}
+
 // snap-confine policy when NFS is used and snapd has not re-executed.
 func (s *backendSuite) testSetupSnapConfineGeneratedPolicyWithNFS(c *C, profileFname string) {
 	// Make it appear as if NFS workaround was needed.
@@ -1694,6 +1718,28 @@ func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithOverlay1(c *C) {
 
 func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithOverlay2(c *C) {
 	s.testSetupSnapConfineGeneratedPolicyWithOverlay(c, "usr.lib.snapd.snap-confine.real")
+}
+
+func (s *backendSuite) TestSetupSnapConfineGeneratedPolicyWithOverlayNoProfileFiles(c *C) {
+	// Make it appear as if overlay workaround was needed.
+	restore := apparmor.MockIsRootWritableOverlay(func() (string, error) { return "/upper", nil })
+	defer restore()
+	// No NFS workaround
+	restore = apparmor.MockIsHomeUsingNFS(func() (bool, error) { return false, nil })
+	defer restore()
+
+	// Intercept interaction with apparmor_parser
+	cmd := testutil.MockCommand(c, "apparmor_parser", "")
+	defer cmd.Restore()
+	// Set up apparmor profiles directory, but no profile for snap-confine
+	c.Assert(os.MkdirAll(apparmor_sandbox.ConfDir, 0755), IsNil)
+
+	// The apparmor backend should not fail if the apparmor profile of
+	// snap-confine is not present
+	err := (&apparmor.Backend{}).Initialize(nil)
+	c.Assert(err, IsNil)
+	// Since there is no profile file, no call to apparmor were made
+	c.Assert(cmd.Calls(), HasLen, 0)
 }
 
 // snap-confine policy when overlay is used and snapd has not re-executed.
