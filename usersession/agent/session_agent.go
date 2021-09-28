@@ -34,6 +34,7 @@ import (
 	"gopkg.in/tomb.v2"
 
 	"github.com/snapcore/snapd/dbusutil"
+	"github.com/snapcore/snapd/desktop/notification"
 	"github.com/snapcore/snapd/dirs"
 	"github.com/snapcore/snapd/logger"
 	"github.com/snapcore/snapd/netutil"
@@ -42,12 +43,13 @@ import (
 )
 
 type SessionAgent struct {
-	Version  string
-	bus      *dbus.Conn
-	listener net.Listener
-	serve    *http.Server
-	tomb     tomb.Tomb
-	router   *mux.Router
+	Version         string
+	bus             *dbus.Conn
+	listener        net.Listener
+	serve           *http.Server
+	tomb            tomb.Tomb
+	router          *mux.Router
+	notificationMgr notification.NotificationManager
 
 	idle        *idleTracker
 	IdleTimeout time.Duration
@@ -180,6 +182,10 @@ func (s *SessionAgent) Init() error {
 	if err != nil {
 		return err
 	}
+
+	// Set up notification manager
+	s.notificationMgr = notification.NewNotificationManager(s.bus, "io.snapcraft.SessionAgent")
+
 	agentSocket := fmt.Sprintf("%s/%d/snapd-session-agent.socket", dirs.XdgRuntimeDirBase, os.Getuid())
 	if l, err := netutil.GetListener(agentSocket, listenerMap); err != nil {
 		return fmt.Errorf("cannot listen on socket %s: %v", agentSocket, err)
@@ -238,6 +244,7 @@ func (s *SessionAgent) Start() {
 	s.tomb.Go(s.runServer)
 	s.tomb.Go(s.shutdownServerOnKill)
 	s.tomb.Go(s.exitOnIdle)
+	s.tomb.Go(s.handleNotifications)
 	systemd.SdNotify("READY=1")
 }
 
@@ -278,8 +285,12 @@ Loop:
 		case <-s.tomb.Dying():
 			break Loop
 		case <-timer.C:
-			// Have we been idle
+			// Have we been idle? Consult idle duration from connection tracker
+			// and from notification manager, pick the lower one.
 			idleDuration := s.idle.idleDuration()
+			if dur := s.notificationMgr.IdleDuration(); dur < idleDuration {
+				idleDuration = dur
+			}
 			if idleDuration >= s.IdleTimeout {
 				s.tomb.Kill(nil)
 				break Loop
@@ -287,6 +298,14 @@ Loop:
 				timer.Reset(s.IdleTimeout - idleDuration)
 			}
 		}
+	}
+	return nil
+}
+
+func (s *SessionAgent) handleNotifications() error {
+	err := s.notificationMgr.HandleNotifications(s.tomb.Context(context.Background()))
+	if err != nil {
+		logger.Noticef("%v", err)
 	}
 	return nil
 }
