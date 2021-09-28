@@ -16,9 +16,11 @@ prepare: |
     sed -i 's/test-snapd-sh/not-test-snapd-sh/g' "$SNAP_INSTALL_DIR/meta/snap.yaml"
     snap pack "$SNAP_INSTALL_DIR"
     snap install --dangerous not-test-snapd-sh_1.0_all.snap
+    tests.session -u test prepare
 
 restore: |
     rm -rf "$SNAP_INSTALL_DIR" /tmp/foo /tmp/snap.not-test-snapd-sh /tmp/snap.test-snapd-sh/
+    tests.session -u test restore
 
 execute: |
     SNAP_MOUNT_DIR="$(os.paths snap-mount-dir)"
