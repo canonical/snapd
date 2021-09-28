@@ -275,10 +275,8 @@ func (m *DeviceManager) doSetupRunSystem(t *state.Task, _ *tomb.Tomb) error {
 	// run the create partition code
 	logger.Noticef("create and deploy partitions")
 	timings.Run(perfTimings, "install-run", "Install the run system", func(tm timings.Measurer) {
-		// XXX: hack to avoid having to have a new hook in
-		// boot.RunFDESetupHook() that works on the unlocked state
-		//st.Unlock()
-		//defer st.Lock()
+		st.Unlock()
+		defer st.Lock()
 		installedSystem, err = installRun(model, gadgetDir, kernelDir, "", bopts, installObserver, tm)
 	})
 	if err != nil {

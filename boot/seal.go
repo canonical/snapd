@@ -54,12 +54,17 @@ var (
 // Hook functions setup by devicestate to support device-specific full
 // disk encryption implementations. The state must be locked when these
 // functions are called.
+//
+// XXX: move to "kernel/fde/fde.go" ?
 var (
 	HasFDESetupHook = func() (bool, error) {
 		return false, nil
 	}
 	RunFDESetupHook fde.RunSetupHookFunc = func(req *fde.SetupRequest) ([]byte, error) {
 		return nil, fmt.Errorf("internal error: RunFDESetupHook not set yet")
+	}
+	RunFDEDeviceSetupHook fde.RunDeviceSetupHookFunc = func(req *fde.SetupRequest) ([]byte, error) {
+		return nil, fmt.Errorf("internal error: RunFDEDeviceSetupHook not set yet")
 	}
 )
 
