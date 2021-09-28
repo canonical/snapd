@@ -307,10 +307,11 @@ static int _sc_cgroup_v2_init_bpf(sc_device_cgroup *self, int flags) {
     }
     debug("process in cgroup %s", own_group);
     if (!_sc_is_snap_cgroup(own_group)) {
-        if (getenv_bool("SNAPPY_TESTING", false)) {
-            die("%s is not a snap cgroup", own_group);
-        }
-        debug("%s is not a snap cgroup", own_group);
+        /* we cannot proceed to install a device filtering program when the
+         * process is not in a snap specific cgroup, as we would effectively
+         * lock down the group that can be shared with other processes or even
+         * the whole desktop session */
+        die("%s is not a snap cgroup", own_group);
     }
 
     /* fix the memlock limit if needed, this affects creating maps */
