@@ -1,3 +1,12 @@
+// this file was generated on a Ubuntu impish install from the upstream
+// apparmor-3.0.3 release tarball as follows:
+//
+// wget \
+// https://launchpad.net/apparmor/3.0/3.0.3/+download/apparmor-3.0.3.tar.gz
+// tar xf apparmor-3.0.3.tar.gz
+// cd apparmor-3.0.3
+// make af_names.h
+//
 #ifndef AF_UNSPEC
 #  define AF_UNSPEC 0
 #endif
