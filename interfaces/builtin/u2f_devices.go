@@ -137,6 +137,11 @@ var u2fDevices = []u2fDevice{
 		VendorIDPattern:  "2c97",
 		ProductIDPattern: "0000|0001|0004|0005|0015|1005|1015|4005|4015",
 	},
+	{
+		Name:             "GoTrust Idem Key",
+		VendorIDPattern:  "32a3",
+		ProductIDPattern: "3201",
+	},
 }
 
 const u2fDevicesConnectedPlugAppArmor = `

@@ -4313,6 +4313,90 @@ plugs:
 	})
 }
 
+func (s *interfaceManagerSuite) TestAutoDisconnectIgnoreHookError(c *C) {
+	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"})
+	mgr := s.hookManager(c)
+
+	// fail when running the disconnect hooks
+	hijackFunc := func(*hookstate.Context) error { return errors.New("test") }
+	mgr.RegisterHijack("disconnect-plug-plug", "consumer", hijackFunc)
+	mgr.RegisterHijack("disconnect-slot-slot", "producer", hijackFunc)
+
+	var consumerYaml = `
+name: consumer
+version: 1
+plugs:
+ plug:
+  interface: test
+hooks:
+  disconnect-plug-plug:
+`
+
+	var producerYaml = `
+name: producer
+version: 1
+slots:
+ slot:
+  interface: test
+hooks:
+  disconnect-slot-slot:
+`
+	consumerInfo := s.mockSnap(c, consumerYaml)
+	producerInfo := s.mockSnap(c, producerYaml)
+
+	s.state.Lock()
+	s.state.Set("conns", map[string]interface{}{
+		"consumer:plug producer:slot": map[string]interface{}{"interface": "test"},
+	})
+
+	s.state.Unlock()
+	s.manager(c)
+	s.state.Lock()
+
+	conn := &interfaces.Connection{
+		Plug: interfaces.NewConnectedPlug(consumerInfo.Plugs["plug"], nil, nil),
+		Slot: interfaces.NewConnectedSlot(producerInfo.Slots["slot"], nil, nil),
+	}
+
+	// call disconnect with the AutoDisconnect flag (used when removing a snap)
+	ts, err := ifacestate.DisconnectPriv(s.state, conn, ifacestate.NewDisconnectOptsWithAutoSet())
+	c.Assert(err, IsNil)
+
+	change := s.state.NewChange("disconnect", "")
+	change.AddAll(ts)
+
+	s.state.Unlock()
+	s.settle(c)
+	s.state.Lock()
+	defer s.state.Unlock()
+
+	// the hook setup should be set to ignore errors
+	var hooksCount int
+	for _, t := range ts.Tasks() {
+		if t.Kind() != "run-hook" {
+			continue
+		}
+
+		var hooksetup hookstate.HookSetup
+		err = t.Get("hook-setup", &hooksetup)
+		c.Assert(err, IsNil)
+		c.Check(hooksetup.IgnoreError, Equals, true)
+
+		err = t.Get("undo-hook-setup", &hooksetup)
+		c.Assert(err, IsNil)
+		c.Check(hooksetup.IgnoreError, Equals, true)
+
+		hooksCount++
+	}
+
+	// should have two disconnection tasks
+	c.Assert(hooksCount, Equals, 2)
+
+	// the change should not have failed
+	c.Check(change.Err(), IsNil)
+	c.Assert(change.Status(), Equals, state.DoneStatus)
+}
+
 func (s *interfaceManagerSuite) TestManagerReloadsConnections(c *C) {
 	s.mockIfaces(&ifacetest.TestInterface{InterfaceName: "test"}, &ifacetest.TestInterface{InterfaceName: "test2"})
 	var consumerYaml = `

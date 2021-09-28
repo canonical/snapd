@@ -81,6 +81,8 @@
     /sys/fs/bpf/ r,
     /sys/fs/bpf/snap/ rw,
     /sys/fs/bpf/snap/* rw,
+    # s-c may need to raise the memlock limit
+    capability sys_resource,
 
     # querying udev
     /etc/udev/udev.conf r,

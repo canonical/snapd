@@ -48,6 +48,7 @@ import (
 	"github.com/snapcore/snapd/overlord/storecontext"
 	"github.com/snapcore/snapd/progress"
 	"github.com/snapcore/snapd/release"
+	"github.com/snapcore/snapd/secboot"
 	"github.com/snapcore/snapd/seed"
 	"github.com/snapcore/snapd/snap"
 	"github.com/snapcore/snapd/snap/snapfile"
@@ -1744,13 +1745,22 @@ func (m *DeviceManager) runFDESetupHook(req *fde.SetupRequest) ([]byte, error) {
 	return hookOutput, nil
 }
 
-func (m *DeviceManager) checkFDEFeatures() error {
+func (m *DeviceManager) checkFDEFeatures() (et secboot.EncryptionType, err error) {
 	// Run fde-setup hook with "op":"features". If the hook
 	// returns any {"features":[...]} reply we consider the
 	// hardware supported. If the hook errors or if it returns
 	// {"error":"hardware-unsupported"} we don't.
-	_, err := fde.CheckFeatures(m.runFDESetupHook)
-	return err
+	features, err := fde.CheckFeatures(m.runFDESetupHook)
+	if err != nil {
+		return et, err
+	}
+	if strutil.ListContains(features, "device-setup") {
+		et = secboot.EncryptionTypeDeviceSetupHook
+	} else {
+		et = secboot.EncryptionTypeLUKS
+	}
+
+	return et, nil
 }
 
 func hasFDESetupHookInKernel(kernelInfo *snap.Info) bool {

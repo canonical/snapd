@@ -103,6 +103,7 @@ clock_gettime64
 clock_nanosleep
 clock_nanosleep_time64
 clone
+clone3
 close
 
 # needed by ls -l
